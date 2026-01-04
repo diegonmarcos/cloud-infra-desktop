@@ -18,7 +18,7 @@ set -e
 # PATHS
 # ═══════════════════════════════════════════════════════════════════════════
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-TOOLS_DIR="$SCRIPT_DIR/tools"
+TOOLS_DIR="$SCRIPT_DIR/tools_profiles"
 SRC_DOCKER="$SCRIPT_DIR/src_docker"
 SRC_PODMAN="$SCRIPT_DIR/src_podman"
 SRC_HOST="$SCRIPT_DIR/src_host"
@@ -224,9 +224,6 @@ RUN npm install -g @anthropic-ai/claude-code @google/gemini-cli || true
 
 USER user
 WORKDIR /home/user
-
-COPY entrypoint.sh /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/bin/bash"]
 CONTAINERFILE_TAIL
 
@@ -356,7 +353,7 @@ Examples:
   ./build.sh podman basic    Build basic Podman image
   ./build.sh host full       Install full profile on host
 
-Config files: tools/*.conf
+Config files: tools_profiles/*.conf
 EOF
 }
 
