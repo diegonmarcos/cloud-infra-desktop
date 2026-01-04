@@ -1,0 +1,307 @@
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║                         KINOITE BIFROST                                    ║
+# ║                                                                            ║
+# ║   QubesOS-style isolation optimized for 8GB RAM                           ║
+# ║                                                                            ║
+# ║   - Full 8GB RAM per profile (shared kernel, no VM overhead)              ║
+# ║   - BTRFS subvolume isolation (@etc-anon, @var-anon, @etc-auth, @var-auth)║
+# ║   - Nested LUKS encryption (AUTH data invisible to ANON)                  ║
+# ║   - Surface Pro 8 hardware support (linux-surface kernel)                 ║
+# ║   - Sessions: KDE Plasma, Openbox, Waydroid, Kiosk modes                  ║
+# ║                                                                            ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+#
+# Base: Fedora Kinoite 41 (immutable /usr via rpm-ostree)
+# Target: Surface Pro 8 (8GB RAM, 256GB NVMe)
+#
+FROM quay.io/fedora/fedora-kinoite:41
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SURFACE PRO 8 KERNEL AND DRIVERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Add linux-surface repository
+RUN curl -o /etc/yum.repos.d/linux-surface.repo \
+    https://pkg.surfacelinux.com/fedora/linux-surface.repo && \
+    rpm --import https://pkg.surfacelinux.com/keys/surface.asc
+
+# Install Surface kernel and tools (will be layered via rpm-ostree on boot)
+# Note: kernel-surface replaces stock kernel
+RUN rpm-ostree install \
+    kernel-surface \
+    kernel-surface-devel \
+    iptsd \
+    libwacom-surface \
+    surface-control
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DESKTOP ENVIRONMENTS AND SESSIONS
+# ═══════════════════════════════════════════════════════════════════════════
+
+# KDE Plasma is already in Kinoite base
+# Add Openbox and required tools for lightweight session
+RUN rpm-ostree install \
+    openbox \
+    obconf \
+    tint2 \
+    nitrogen \
+    feh \
+    rofi \
+    dunst \
+    picom \
+    xterm
+
+# Wayland compositor for kiosk modes (cage wraps single app in Wayland)
+RUN rpm-ostree install \
+    cage \
+    wlr-randr
+
+# Browsers for kiosk modes
+RUN rpm-ostree install \
+    chromium \
+    firefox
+
+# Waydroid dependencies (Android container)
+RUN rpm-ostree install \
+    waydroid \
+    lzip
+
+# Session switcher dependencies
+RUN rpm-ostree install \
+    zenity \
+    kdialog
+
+# ═══════════════════════════════════════════════════════════════════════════
+# USERS: ANON AND DIEGO
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Create anon user (NO sudo, can run podman containers)
+RUN useradd -m -u 1000 -s /bin/bash anon && \
+    echo "anon:1234567890" | chpasswd && \
+    usermod -aG podman anon
+
+# Create diego user (full sudo, containers)
+# Note: In actual deployment, UID conflict resolved by different /etc mounts
+RUN useradd -m -u 1001 -G wheel -s /bin/bash diego && \
+    echo "diego:1234567890" | chpasswd && \
+    usermod -aG podman diego && \
+    echo "diego ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/diego && \
+    chmod 440 /etc/sudoers.d/diego
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SSH CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+RUN sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && \
+    sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
+    systemctl enable sshd
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CUSTOM SESSION FILES
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Openbox session (X11)
+RUN mkdir -p /usr/share/xsessions && \
+    cat > /usr/share/xsessions/openbox.desktop << 'EOF'
+[Desktop Entry]
+Name=Openbox
+Comment=Lightweight window manager
+Exec=openbox-session
+Type=Application
+DesktopNames=Openbox
+EOF
+
+# Android session (Waydroid fullscreen via cage)
+RUN mkdir -p /usr/share/wayland-sessions && \
+    cat > /usr/share/wayland-sessions/android.desktop << 'EOF'
+[Desktop Entry]
+Name=Android (Waydroid)
+Comment=Full Android UI via Waydroid
+Exec=cage -- waydroid show-full-ui
+Type=Application
+DesktopNames=Android
+EOF
+
+# Tor Kiosk session (ANON only - will be enabled/disabled at boot)
+RUN cat > /usr/share/wayland-sessions/tor-kiosk.desktop << 'EOF'
+[Desktop Entry]
+Name=Tor Kiosk
+Comment=Anonymous browsing with Tor Browser
+Exec=cage -- firefox --kiosk --private-window about:blank
+Type=Application
+DesktopNames=TorKiosk
+EOF
+
+# Chrome Kiosk session (AUTH only - will be enabled/disabled at boot)
+RUN cat > /usr/share/wayland-sessions/chrome-kiosk.desktop << 'EOF'
+[Desktop Entry]
+Name=Chrome Kiosk
+Comment=Google Chrome in kiosk mode
+Exec=cage -- chromium --kiosk --start-fullscreen
+Type=Application
+DesktopNames=ChromeKiosk
+EOF
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SESSION SWITCHER SCRIPT
+# ═══════════════════════════════════════════════════════════════════════════
+
+RUN mkdir -p /usr/local/bin && \
+    cat > /usr/local/bin/session-switcher.sh << 'SCRIPT'
+#!/bin/sh
+# Session Switcher - shows session picker after auto-login
+# Allows switching sessions without logging out to SDDM
+# POSIX-compliant
+
+LAST_SESSION="$HOME/.config/last-session"
+CURRENT_SESSION="${XDG_CURRENT_DESKTOP:-plasma}"
+
+# Detect profile based on current user
+if [ "$USER" = "anon" ]; then
+    SESSIONS="KDE Plasma
+Openbox
+Android
+Tor Kiosk"
+else
+    SESSIONS="KDE Plasma
+Openbox
+Android
+Chrome Kiosk"
+fi
+
+# Show picker if no saved session or --choose flag
+show_picker=0
+if [ ! -f "$LAST_SESSION" ]; then
+    show_picker=1
+elif [ "$1" = "--choose" ]; then
+    show_picker=1
+fi
+
+if [ "$show_picker" -eq 1 ]; then
+    CHOICE=$(echo "$SESSIONS" | zenity --list --title="Choose Session" \
+        --text="Select your desktop environment:" \
+        --column="Session" \
+        --width=300 --height=300)
+
+    if [ -n "$CHOICE" ]; then
+        echo "$CHOICE" > "$LAST_SESSION"
+
+        # Map choice to session file
+        case "$CHOICE" in
+            "KDE Plasma") SESSION="plasma" ;;
+            "Openbox") SESSION="openbox" ;;
+            "Android") SESSION="android" ;;
+            "Tor Kiosk") SESSION="tor-kiosk" ;;
+            "Chrome Kiosk") SESSION="chrome-kiosk" ;;
+        esac
+
+        # If different from current, logout and switch
+        if [ "$SESSION" != "$CURRENT_SESSION" ]; then
+            mkdir -p ~/.config
+            echo "Session=$SESSION.desktop" > ~/.config/sddm-session
+            loginctl terminate-user "$USER"
+        fi
+    fi
+fi
+SCRIPT
+RUN chmod +x /usr/local/bin/session-switcher.sh
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PROFILE DETECTION AND SESSION FILTERING (runs at boot)
+# ═══════════════════════════════════════════════════════════════════════════
+
+RUN cat > /usr/local/bin/configure-sessions.sh << 'SCRIPT'
+#!/bin/sh
+# Configure available sessions based on detected profile
+# Runs at boot via systemd service
+# POSIX-compliant
+
+SESSIONS_WAYLAND="/usr/share/wayland-sessions"
+SESSIONS_X11="/usr/share/xsessions"
+
+# Detect profile: if inner LUKS is mounted, we're AUTH
+# Check for @vault-auth mount (only available in AUTH profile)
+if findmnt /home/diego/vault >/dev/null 2>&1; then
+    PROFILE="auth"
+    AUTO_USER="diego"
+else
+    PROFILE="anon"
+    AUTO_USER="anon"
+fi
+
+echo "Detected profile: $PROFILE"
+
+# Enable/disable sessions based on profile
+if [ "$PROFILE" = "anon" ]; then
+    # ANON: Enable Tor Kiosk, disable Chrome Kiosk
+    chmod 644 "$SESSIONS_WAYLAND/tor-kiosk.desktop" 2>/dev/null || true
+    chmod 000 "$SESSIONS_WAYLAND/chrome-kiosk.desktop" 2>/dev/null || true
+else
+    # AUTH: Enable Chrome Kiosk, disable Tor Kiosk
+    chmod 000 "$SESSIONS_WAYLAND/tor-kiosk.desktop" 2>/dev/null || true
+    chmod 644 "$SESSIONS_WAYLAND/chrome-kiosk.desktop" 2>/dev/null || true
+fi
+
+# Update SDDM auto-login user
+mkdir -p /etc/sddm.conf.d
+cat > /etc/sddm.conf.d/autologin.conf << EOF
+[Autologin]
+User=$AUTO_USER
+Session=plasma.desktop
+EOF
+
+echo "Configured for $PROFILE profile (auto-login: $AUTO_USER)"
+SCRIPT
+RUN chmod +x /usr/local/bin/configure-sessions.sh
+
+# Systemd service to run session configuration at boot
+RUN cat > /etc/systemd/system/configure-sessions.service << 'EOF'
+[Unit]
+Description=Configure desktop sessions based on profile
+After=local-fs.target
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/configure-sessions.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+RUN systemctl enable configure-sessions.service
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ENABLE SERVICES
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Enable Surface touchscreen/pen daemon
+RUN systemctl enable iptsd
+
+# Enable podman socket for rootless containers
+RUN systemctl --global enable podman.socket
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HOME DIRECTORY STRUCTURE
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Create home directories (will be bind-mounted from subvolumes)
+RUN mkdir -p /var/home/anon/{shared,tools,private,vault} && \
+    mkdir -p /var/home/diego/{shared,tools,private,vault} && \
+    chown -R anon:anon /var/home/anon && \
+    chown -R diego:diego /var/home/diego
+
+# Create Openbox autostart for session switcher
+RUN mkdir -p /var/home/anon/.config/openbox && \
+    mkdir -p /var/home/diego/.config/openbox && \
+    echo '/usr/local/bin/session-switcher.sh &' > /var/home/anon/.config/openbox/autostart && \
+    echo '/usr/local/bin/session-switcher.sh &' > /var/home/diego/.config/openbox/autostart && \
+    chown -R anon:anon /var/home/anon/.config && \
+    chown -R diego:diego /var/home/diego/.config
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CLEANUP
+# ═══════════════════════════════════════════════════════════════════════════
+
+RUN rpm-ostree cleanup -m

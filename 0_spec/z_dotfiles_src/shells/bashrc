@@ -1,0 +1,158 @@
+# ~/.bashrc - Dual Profile Architecture
+# Sourced for interactive non-login shells
+
+# If not running interactively, don't do anything
+[[ $- != *i* ]] && return
+
+# ============================================
+# PROFILE DETECTION
+# ============================================
+if [[ "$USER" == "anon" ]]; then
+    export PROFILE="anon"
+    export PROFILE_COLOR="\033[0;35m"  # Purple for anon
+elif [[ "$USER" == "diego" ]]; then
+    export PROFILE="auth"
+    export PROFILE_COLOR="\033[0;32m"  # Green for auth
+else
+    export PROFILE="unknown"
+    export PROFILE_COLOR="\033[0;31m"  # Red for unknown
+fi
+
+# ============================================
+# HISTORY
+# ============================================
+HISTSIZE=10000
+HISTFILESIZE=20000
+HISTCONTROL=ignoreboth:erasedups
+shopt -s histappend
+
+# ============================================
+# SHELL OPTIONS
+# ============================================
+shopt -s checkwinsize
+shopt -s globstar 2>/dev/null
+shopt -s cdspell
+shopt -s dirspell 2>/dev/null
+
+# ============================================
+# PROMPT
+# ============================================
+# Use starship if available, otherwise fallback
+if command -v starship &>/dev/null; then
+    eval "$(starship init bash)"
+else
+    # Fallback prompt with profile indicator
+    PS1='\[\033[01;34m\]\w\[\033[00m\] [$PROFILE] \$ '
+fi
+
+# ============================================
+# ALIASES - Common
+# ============================================
+alias ls='ls --color=auto'
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+alias grep='grep --color=auto'
+alias ..='cd ..'
+alias ...='cd ../..'
+
+# ============================================
+# ALIASES - Git
+# ============================================
+alias gs='git status'
+alias ga='git add'
+alias gc='git commit'
+alias gp='git push'
+alias gl='git log --oneline -20'
+alias gd='git diff'
+
+# ============================================
+# ALIASES - Podman/Docker
+# ============================================
+alias docker='podman'
+alias dc='podman-compose'
+alias dps='podman ps'
+alias dpsa='podman ps -a'
+alias dimg='podman images'
+alias dlog='podman logs'
+alias dexec='podman exec -it'
+
+# ============================================
+# PROFILE-SPECIFIC CONFIGURATION
+# ============================================
+if [[ "$PROFILE" == "anon" ]]; then
+    # Anonymous profile - privacy focused
+    export BROWSER="firefox"
+
+    # Tor aliases
+    alias torify='torsocks'
+    alias tor-check='curl --socks5 localhost:9050 https://check.torproject.org/api/ip'
+
+    # DNS over HTTPS check
+    alias dns-check='dig +short myip.opendns.com @resolver1.opendns.com'
+
+    # Network isolation reminder
+    echo -e "${PROFILE_COLOR}[ANON MODE]${NC} Privacy profile active"
+
+elif [[ "$PROFILE" == "auth" ]]; then
+    # Authenticated profile - full access
+    export EDITOR="vim"
+    export VISUAL="code"
+
+    # Development paths
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
+    # Cloud CLI
+    if [[ -f "$HOME/.config/gcloud/active_config" ]]; then
+        source "$HOME/.config/gcloud/completion.bash.inc" 2>/dev/null
+    fi
+
+    # SSH agent
+    if [[ -z "$SSH_AUTH_SOCK" ]]; then
+        eval "$(ssh-agent -s)" &>/dev/null
+        ssh-add ~/.ssh/id_rsa 2>/dev/null
+    fi
+
+    echo -e "${PROFILE_COLOR}[AUTH MODE]${NC} Authenticated profile active"
+fi
+
+# ============================================
+# FUNCTIONS
+# ============================================
+
+# Quick directory creation and navigation
+mkcd() {
+    mkdir -p "$1" && cd "$1"
+}
+
+# Extract any archive
+extract() {
+    if [[ -f "$1" ]]; then
+        case "$1" in
+            *.tar.bz2)   tar xjf "$1"     ;;
+            *.tar.gz)    tar xzf "$1"     ;;
+            *.tar.xz)    tar xJf "$1"     ;;
+            *.bz2)       bunzip2 "$1"     ;;
+            *.gz)        gunzip "$1"      ;;
+            *.tar)       tar xf "$1"      ;;
+            *.tbz2)      tar xjf "$1"     ;;
+            *.tgz)       tar xzf "$1"     ;;
+            *.zip)       unzip "$1"       ;;
+            *.7z)        7z x "$1"        ;;
+            *)           echo "'$1' cannot be extracted" ;;
+        esac
+    else
+        echo "'$1' is not a valid file"
+    fi
+}
+
+# Container shell helper
+csh() {
+    local container="${1:-$(podman ps --format '{{.Names}}' | head -1)}"
+    podman exec -it "$container" /bin/bash || podman exec -it "$container" /bin/sh
+}
+
+# ============================================
+# LOCAL OVERRIDES
+# ============================================
+[[ -f ~/.bashrc.local ]] && source ~/.bashrc.local

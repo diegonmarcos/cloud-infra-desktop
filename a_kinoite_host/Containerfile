@@ -1,0 +1,18 @@
+FROM quay.io/fedora/fedora-kinoite:41
+
+# Create user with password
+RUN useradd -m -G wheel user && \
+    echo "user:1234567890" | chpasswd
+
+# Enable SSH password authentication
+RUN sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && \
+    systemctl enable sshd
+
+# Sudo without password for wheel group
+RUN echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd && \
+    chmod 440 /etc/sudoers.d/wheel-nopasswd
+
+# Create home directory structure
+RUN mkdir -p /var/home/user && \
+    chown -R user:user /var/home/user

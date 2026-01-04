@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "name": "Kinoite Desktop VM",
+    "version": "1.0",
+    "description": "Fedora Kinoite VM - SSH ready, podman tools included"
+  },
+
+  "vm": {
+    "name": "kinoite-host",
+    "ram_mb": 4096,
+    "vcpus": 2,
+    "disk_size": "40G",
+    "disk_path": "kinoite-host.qcow2",
+    "iso_path": "Fedora-Kinoite-ostree-x86_64-41-1.4.iso",
+    "os_variant": "fedora40",
+    "network": "default"
+  },
+
+  "build": {
+    "http_port": 8888,
+    "podman_source": "/shared/@images/1_podman_container"
+  },
+
+  "user": {
+    "name": "diego",
+    "password": "1234567890",
+    "groups": ["wheel"],
+    "sudo_nopasswd": true
+  },
+
+  "ssh": {
+    "enabled": true,
+    "password_auth": true,
+    "permit_root": false,
+    "port": 22
+  },
+
+  "post_install": {
+    "copy_podman_folder": true,
+    "podman_dest": "/home/diego/podman"
+  }
+}
