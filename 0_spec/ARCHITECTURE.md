@@ -325,36 +325,37 @@ Since IPU6 cameras don't work reliably on Linux:
 
 ## User & Authentication Configuration
 
-### Authentication Model: Single Password + Auto-Login
+### Authentication Model: Dual-Layer Security (LUKS + SDDM)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    SINGLE PASSWORD AUTHENTICATION                            │
+│                    DUAL-LAYER AUTHENTICATION                                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ANON Profile:                                                              │
 │  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐                │
-│  │ Enter ANON   │  →  │  OUTER LUKS  │  →  │  Auto-login  │                │
+│  │ Enter ANON   │  →  │  OUTER LUKS  │  →  │ SDDM login   │                │
 │  │ LUKS password│     │   unlocked   │     │  as 'anon'   │                │
 │  └──────────────┘     └──────────────┘     └──────────────┘                │
 │                                                                             │
 │  AUTH Profile:                                                              │
 │  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐                │
-│  │ Enter AUTH   │  →  │ OUTER+INNER  │  →  │  Auto-login  │                │
+│  │ Enter AUTH   │  →  │ OUTER+INNER  │  →  │ SDDM login   │                │
 │  │ LUKS password│     │   unlocked   │     │  as 'diego'  │                │
 │  └──────────────┘     └──────────────┘     └──────────────┘                │
 │                                                                             │
-│  ONE PASSWORD = Full access (LUKS is the security layer)                    │
+│  TWO PASSWORDS = Defense in depth (LUKS + user password)                    │
+│  NO AUTO-LOGIN = Prevents access if laptop left unlocked                    │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Users
 
-| User | Password | UID | Host sudo | Podman/Container | Auto-login | Profile |
+| User | Password | UID | Host sudo | Podman/Container | SDDM Login | Profile |
 |------|----------|-----|-----------|------------------|------------|---------|
-| `anon` | `1234567890` | 1000 | **NO** | ✓ Root inside containers | ✓ After ANON LUKS | ANON |
-| `diego` | `1234567890` | 1000 | **NOPASSWD** | ✓ Root inside containers | ✓ After AUTH LUKS | AUTH |
+| `anon` | `1234567890` | 1000 | **NO** | ✓ Root inside containers | Password required | ANON |
+| `diego` | `1234567890` | 1001 | **NOPASSWD** | ✓ Root inside containers | Password required | AUTH |
 
 ```bash
 # ANON user - NO host sudo, but can run rootless containers
@@ -385,24 +386,24 @@ podman run --rm -it alpine sh
 # On host: anon still can't sudo
 ```
 
-### Configure Auto-Login
+### SDDM Configuration (NO Auto-Login)
 
-**KDE (SDDM):**
+**SECURITY: Auto-login is DISABLED. Users must enter password at SDDM.**
+
 ```bash
-# /etc/sddm.conf.d/autologin.conf
+# /etc/sddm.conf - NO auto-login for security
 [Autologin]
-User=diego          # or 'anon' for ANON profile
-Session=plasma.desktop
+# DISABLED - require password entry
+
+[Users]
+RememberLastUser=true
+RememberLastSession=true
 ```
 
-**Light (LightDM/getty):**
-```bash
-# /etc/systemd/system/getty@tty1.service.d/autologin.conf
-[Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin diego --noclear %I $TERM
-# or 'anon' for ANON profile
-```
+**Why no auto-login:**
+- Defense in depth (LUKS + user password)
+- Prevents access if laptop left unlocked after LUKS
+- User can still choose session at SDDM login screen
 
 ### Permission Model
 
@@ -427,8 +428,8 @@ ExecStart=-/sbin/agetty --autologin diego --noclear %I $TERM
 ```
 
 **Security Model:**
-- LUKS password = THE security (protects all data)
-- User password = Not needed (auto-login)
+- LUKS password = Primary security (protects all data at rest)
+- User password = Required at SDDM (defense in depth)
 - anon: No host sudo, but root inside containers (isolated)
 - diego: Full sudo + containers (trusted after AUTH LUKS)
 
@@ -490,15 +491,15 @@ MaxAuthTries 5
 | Context | anon | diego | Method |
 |---------|------|-------|--------|
 | LUKS unlock | ANON password | AUTH password | Single password entry |
-| GUI/Console | **Auto-login** | **Auto-login** | No password needed |
+| GUI/Console | **SDDM login** | **SDDM login** | Password required |
 | SSH | RSA key (password fallback) | RSA key (password fallback) | No 2FA |
 | Host sudo | **BLOCKED** | **NOPASSWD** | anon cannot modify host |
 | Podman containers | ✓ Root inside | ✓ Root inside | Rootless containers |
 | Screen lock | Optional | Optional | 2FA optional |
 
 **Notes:**
-- LUKS password is THE security layer
-- Auto-login after LUKS unlock (no second password)
+- LUKS password = Primary security (protects data at rest)
+- SDDM password = Defense in depth (prevents access if left unlocked)
 - anon: No host sudo, but can run containers with root inside
 - diego: Full host sudo + containers
 
@@ -544,10 +545,10 @@ MaxAuthTries 5
 
 ### Available Modes (2 boots + Windows, session selection at SDDM)
 
-| Boot Entry | LUKS Password | Auto-login User | Session Options |
-|------------|---------------|-----------------|-----------------|
-| Kinoite ANON | ANON | anon | KDE, Openbox, Android, Tor Kiosk |
-| Kinoite AUTH | AUTH | diego | KDE, Openbox, Android, Chrome Kiosk |
+| Boot Entry | LUKS Password | SDDM User | Session Options |
+|------------|---------------|-----------|-----------------|
+| Kinoite ANON | ANON | anon (password required) | KDE, Openbox, Android, Tor Kiosk |
+| Kinoite AUTH | AUTH | diego (password required) | KDE, Openbox, Android, Chrome Kiosk |
 | Windows | - | - | Windows (Camera/Firmware) |
 
 ### Session Matrix
@@ -563,6 +564,60 @@ MaxAuthTries 5
 **Single OS = KDE + Openbox + Waydroid + Kiosk modes (~12 GB)**
 **All dev tools run in Podman containers**
 **Session selection happens at SDDM login screen (or via session switcher)**
+
+### Session Requirements
+
+#### Waydroid (Android) Requirements
+
+**CRITICAL: Waydroid has specific hardware requirements that CANNOT be satisfied in VMs without GPU passthrough.**
+
+| Requirement | Description | Status |
+|-------------|-------------|--------|
+| **GPU** | Intel/AMD/NVIDIA with OpenGL 3.0+ | Required on real hardware |
+| **Wayland** | Compositor must be running (KDE, cage) | Required |
+| **binderfs** | Kernel support (built-in on 5.0+) | ✓ Included |
+| **LXC** | Container runtime | ✓ Auto-installed |
+| **gbinder** | Binder IPC library | ✓ Auto-installed |
+
+**Will NOT work in:**
+- VMs without GPU passthrough (no graphics acceleration)
+- X11 sessions (requires Wayland only)
+- SSH/headless environments (needs display)
+
+**First-time setup (user must run):**
+```bash
+waydroid init              # Download Android images (~2GB)
+waydroid session start     # Start Android container
+waydroid show-full-ui      # Launch Android UI
+```
+
+**Troubleshooting:**
+- "Failed to get service waydroidplatform": Graphics driver issue, surfaceflinger can't start
+- Black screen: Check `waydroid logcat` for errors
+- No network: Check `waydroid0` interface exists
+
+#### Openbox Requirements
+
+**X11 window manager with pipe menu system.**
+
+| Requirement | Description | Status |
+|-------------|-------------|--------|
+| **xorg-x11-server-Xorg** | X11 server | ✓ Included |
+| **xorg-x11-drv-libinput** | Input driver for touchscreen | ✓ Included |
+| **python3-pyxdg** | XDG menu generation | ✓ Included |
+| **python3-gobject** | GTK bindings for icons | ✓ Included |
+| **gtk3** | Icon theme support | ✓ Included |
+
+**Menu not working?** Check: `DISPLAY=:0 openbox-xdg-menu applications`
+
+#### Kiosk Modes Requirements
+
+Both kiosk modes use `cage` (Wayland compositor) to wrap a single app fullscreen.
+
+| Mode | App | Profile | Purpose |
+|------|-----|---------|---------|
+| Tor Kiosk | Firefox (private) | ANON only | Anonymous browsing |
+| Chrome Kiosk | Chromium | AUTH only | Google services |
 
 ---
 
@@ -708,7 +763,7 @@ After LUKS unlock → SDDM session selection:
 │           │ Tor Kiosk      │    │    │           │ Chrome Kiosk   │    │
 │           └────────────────┘    │    │           └────────────────┘    │
 │                                 │    │                                 │
-│  User: anon (auto-login)        │    │  User: diego (auto-login)       │
+│  User: anon (SDDM login)        │    │  User: diego (SDDM login)       │
 └─────────────────────────────────┘    └─────────────────────────────────┘
 ```
 
@@ -728,8 +783,8 @@ After LUKS unlock → SDDM session selection:
    - @var-anon → /var    (ANON's logs, containers, cache)
    - @tools-anon, @vault-anon, @shared-anon, @shared-common
 5. Inner LUKS (auth.luks) remains LOCKED - AUTH data INVISIBLE
-6. SDDM starts → Session switcher OR auto-login
-7. Choose: KDE Plasma | Openbox | Android | Tor Kiosk
+6. SDDM starts → Login screen (password required)
+7. Enter password, choose session: KDE Plasma | Openbox | Android | Tor Kiosk
 8. Desktop loads with ANON profile
 ```
 
@@ -748,36 +803,33 @@ After LUKS unlock → SDDM session selection:
    - @root → /           (shared OS, immutable /usr)
    - @shared-common
    - Optionally @*-anon → /mnt/anon/ for full access
-7. SDDM starts → Session switcher OR auto-login
-8. Choose: KDE Plasma | Openbox | Android | Chrome Kiosk
+7. SDDM starts → Login screen (password required)
+8. Enter password, choose session: KDE Plasma | Openbox | Android | Chrome Kiosk
 9. Desktop loads with AUTH profile (full access to both)
 ```
 
-### Session Selection with Auto-Login
+### Session Selection at SDDM
 
-**Problem:** Auto-login skips SDDM, so no session choice.
+**Session selection happens at SDDM login screen:**
+1. Enter username (or select from list)
+2. Choose session from dropdown (Plasma, Openbox, Android, Kiosk)
+3. Enter password
+4. Desktop loads
 
-**Solution:** Session Switcher script runs after auto-login:
+**Available sessions by profile:**
 
+| Profile | Sessions Available |
+|---------|-------------------|
+| ANON | KDE Plasma, Openbox, Android, Tor Kiosk |
+| AUTH | KDE Plasma, Openbox, Android, Chrome Kiosk |
+
+**Session Switcher (optional hotkey):**
 ```bash
 # /usr/local/bin/session-switcher.sh
-# Shows graphical session picker on first login, remembers choice
-
-#!/bin/bash
-LAST_SESSION="$HOME/.config/last-session"
-
-if [[ ! -f "$LAST_SESSION" ]] || [[ "$1" == "--choose" ]]; then
-    # Show session picker (zenity/kdialog)
-    SESSION=$(zenity --list --title="Choose Session" \
-        --column="Session" "plasma" "openbox" "android" "kiosk")
-    echo "$SESSION" > "$LAST_SESSION"
-fi
-
-# Switch to chosen session if different from current
-# (logout and re-login with selected session)
+# Quick session switch without going back to SDDM
+# Bind to hotkey (e.g., Super+S) in Openbox/KDE
+session-switcher.sh --choose
 ```
-
-**Alternative:** Disable auto-login, use SDDM session dropdown (requires entering password twice: LUKS + SDDM)
 
 ---
 
@@ -1019,23 +1071,22 @@ if [[ "$PROFILE" == "anon" ]]; then
     # ANON: Enable Tor, disable Chrome
     chmod 644 "$SESSIONS_DIR/tor-kiosk.desktop"
     chmod 000 "$SESSIONS_DIR/chrome-kiosk.desktop"
-    # Set auto-login user
-    sed -i 's/^User=.*/User=anon/' /etc/sddm.conf.d/autologin.conf
 else
     # AUTH: Enable Chrome, disable Tor
     chmod 000 "$SESSIONS_DIR/tor-kiosk.desktop"
     chmod 644 "$SESSIONS_DIR/chrome-kiosk.desktop"
-    # Set auto-login user
-    sed -i 's/^User=.*/User=diego/' /etc/sddm.conf.d/autologin.conf
 fi
+
+# SECURITY: Remove any auto-login - require password at SDDM
+rm -f /etc/sddm.conf.d/autologin.conf
 ```
 
-### Session Switcher (for auto-login)
+### Session Switcher (optional hotkey)
 
 ```bash
 # ═══════════════════════════════════════════════════════════════════════════
 # /usr/local/bin/session-switcher.sh
-# Shows session picker after auto-login, allows switching without logout
+# Quick session switch without going back to SDDM - bind to hotkey
 # ═══════════════════════════════════════════════════════════════════════════
 #!/bin/bash
 
@@ -1812,3 +1863,205 @@ Options:
 - **Looking Glass**: Zero-latency Windows VM display
 - **VeraCrypt hidden volume**: True deniability if needed
 - **Heads/Skulls firmware**: Tamper-evident boot
+
+---
+
+## Lessons Learned & Common Pitfalls
+
+### Dependency Verification (CRITICAL)
+
+**ALWAYS verify ALL dependencies before declaring a feature complete.**
+
+#### Pitfall #1: Openbox without X11 Server
+
+**Problem:** Installed `openbox` but forgot `xorg-x11-server-Xorg`.
+
+**Symptom:** Black screen when selecting Openbox session in SDDM.
+
+**Root Cause:** Openbox is an X11 window manager - it requires an X server to run. Without Xorg installed, there's nothing to render the display.
+
+**Fix:** Always install X11 server with X11-only applications:
+```dockerfile
+RUN rpm-ostree install \
+    openbox \
+    xorg-x11-server-Xorg \
+    xorg-x11-drv-libinput  # For touchscreen/trackpad
+```
+
+#### Pitfall #2: Openbox Menu Without Python Dependencies
+
+**Problem:** Openbox menu wouldn't open (right-click did nothing).
+
+**Symptom:** `openbox-xdg-menu` crashed with Python/GTK errors.
+
+**Root Cause:** The default menu.xml uses pipe menus that call `openbox-xdg-menu`, which requires:
+- `python3-pyxdg`: For XDG menu parsing
+- `python3-gobject`: For GTK icon loading
+- `gtk3`: For icon theme support
+
+**Fix:** Install ALL runtime dependencies for pipe menu scripts:
+```dockerfile
+RUN rpm-ostree install \
+    python3-pyxdg \
+    python3-gobject \
+    gtk3
+```
+
+#### Pitfall #3: Auto-Login Breaking Security Model
+
+**Problem:** configure-sessions.sh created auto-login config, bypassing password requirement.
+
+**Symptom:** Anyone with physical access could login without password after LUKS unlock.
+
+**Root Cause:** Script was designed for convenience, not security. Defense-in-depth requires BOTH LUKS password AND user password.
+
+**Fix:** Remove all auto-login configuration:
+```bash
+# In configure-sessions.sh
+rm -f /etc/sddm.conf.d/autologin.conf
+```
+
+#### Pitfall #4: Waydroid Without GPU
+
+**Problem:** "Failed to get service waydroidplatform" repeated forever.
+
+**Symptom:** Android container runs but Android UI never appears.
+
+**Root Cause:** Waydroid requires real GPU for surfaceflinger/hwcomposer. VMs without GPU passthrough cannot provide this.
+
+**What's NOT the problem:**
+- Kernel modules (binderfs works with built-in support)
+- LXC (container starts fine)
+- Python dependencies (gbinder, dbus work)
+
+**Solution:** Only test Waydroid on real hardware with GPU.
+
+#### Pitfall #5: Chrome Kiosk Wrong Binary Name
+
+**Problem:** Chrome Kiosk session didn't launch.
+
+**Symptom:** Session file referenced `chromium` but binary doesn't exist.
+
+**Root Cause:** On Fedora, the binary is `chromium-browser`, NOT `chromium`. Never assume binary names match package names.
+
+**Fix:** Always verify binary paths after installation:
+```bash
+rpm -ql chromium | grep '/bin/'
+# Returns: /usr/bin/chromium-browser
+```
+
+Update session file:
+```ini
+Exec=cage -- chromium-browser --kiosk --start-fullscreen
+```
+
+#### Pitfall #6: VM Cannot Run Waydroid
+
+**Problem:** Waydroid shows "Failed to get service waydroidplatform" in VM.
+
+**Symptom:** Android container starts but UI never appears.
+
+**Root Cause:** Intel integrated GPUs CANNOT be passed through to VMs. Only discrete GPUs (NVIDIA/AMD) support VFIO passthrough.
+
+**What virgl/virtio-3d provides:**
+- Software OpenGL rendering
+- Good enough for KDE Plasma, Openbox
+- NOT good enough for Android (needs hardware GPU)
+
+**For Waydroid in VM, you would need:**
+1. Discrete GPU (NVIDIA/AMD)
+2. IOMMU enabled in BIOS
+3. VFIO passthrough configured
+4. `--hostdev pci=0000:XX:XX.X` for the GPU
+
+**Solution:** Test Waydroid ONLY on real hardware.
+
+#### Pitfall #7: Tor Kiosk Without Tor Browser
+
+**Problem:** "Tor Kiosk" session claimed to use Tor but didn't.
+
+**Symptom:** Session launched Firefox in private mode - NO anonymity.
+
+**Root Cause:** Session file used `firefox --private-window` instead of actual Tor Browser. Private mode does NOT route through Tor network.
+
+**What was wrong:**
+```ini
+# WRONG - Just Firefox, no Tor routing!
+Exec=cage -- firefox --kiosk --private-window about:blank
+```
+
+**Fix:** Install `torbrowser-launcher` and use it:
+```dockerfile
+RUN rpm-ostree install torbrowser-launcher
+```
+
+```ini
+# CORRECT - Uses actual Tor Browser
+Exec=cage -- torbrowser-launcher
+```
+
+**NOTE:** First launch downloads Tor Browser (~100MB). Subsequent launches are instant.
+
+#### Pitfall #8: Missing System Groups
+
+**Problem:** Hundreds of boot errors: "Unknown group 'audio'", "Failed to resolve group 'video'", etc.
+
+**Symptom:** udev rules fail, tmpfiles fail, device permissions wrong.
+
+**Root Cause:** bootc-image-builder or ostree strips /etc/group to minimal entries. Standard Fedora system groups don't exist.
+
+**Fix:** Create all required system groups in Containerfile:
+```dockerfile
+RUN groupadd -g 5 tty && \
+    groupadd -g 6 disk && \
+    groupadd -g 7 lp && \
+    groupadd -g 9 kmem && \
+    groupadd -g 11 cdrom && \
+    groupadd -g 22 utmp && \
+    groupadd -g 29 audio && \
+    groupadd -g 39 video && \
+    groupadd -g 63 input && \
+    groupadd -g 76 render && \
+    groupadd -g 77 sgx && \
+    groupadd -g 36 kvm && \
+    groupadd -g 4 adm
+```
+
+#### Pitfall #9: Dunst Conflicts with KDE Notifications
+
+**Problem:** Boot logs show "Ignoring duplicate name 'org.freedesktop.Notifications'".
+
+**Symptom:** Both dunst and KDE register as notification handler.
+
+**Root Cause:** dunst installs `/usr/share/dbus-1/services/org.knopwob.dunst.service` which registers as `org.freedesktop.Notifications` - same as KDE.
+
+**Fix:** Remove dunst's dbus service (dunst still works via autostart in Openbox):
+```dockerfile
+RUN rpm-ostree install dunst ... && \
+    rm -f /usr/share/dbus-1/services/org.knopwob.dunst.service
+```
+
+#### Pitfall #10: Service File Permissions Warning
+
+**Problem:** Boot log: "Configuration file marked world-inaccessible".
+
+**Symptom:** systemd warns about file permissions.
+
+**Root Cause:** COPY in Dockerfile preserves source permissions. If source file is 600, systemd complains.
+
+**Fix:** Explicitly set permissions after COPY:
+```dockerfile
+COPY scripts/service.service /etc/systemd/system/service.service
+RUN chmod 644 /etc/systemd/system/service.service
+```
+
+### Dependency Verification Checklist
+
+Before declaring any feature complete:
+
+1. ✓ **Research dependencies FIRST** - Check official docs, rpm -qR
+2. ✓ **Check runtime dependencies** - Not just build deps
+3. ✓ **Test ALL features** - Menus, plugins, integrations
+4. ✓ **Verify helper scripts work** - Test pipe menus, startup scripts
+5. ✓ **Document dependencies** - Add comments explaining WHY
+6. ✓ **Test on target platform** - VM limitations differ from hardware

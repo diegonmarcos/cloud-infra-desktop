@@ -1,6 +1,6 @@
 #!/bin/sh
 # ╔═══════════════════════════════════════════════════════════════════════════╗
-# ║                         B_TOOLS - Unified Builder                         ║
+# ║                         B_APPS - Unified Builder                          ║
 # ║                                                                           ║
 # ║   Build toolsets for Docker, Podman, or direct host installation         ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
@@ -18,13 +18,15 @@ set -e
 # PATHS
 # ═══════════════════════════════════════════════════════════════════════════
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-TOOLS_DIR="$SCRIPT_DIR/tools_profiles"
+APPS_DIR="$SCRIPT_DIR/apps_profiles"
 SRC_DOCKER="$SCRIPT_DIR/src_docker"
 SRC_PODMAN="$SCRIPT_DIR/src_podman"
 SRC_HOST="$SCRIPT_DIR/src_host"
-DIST_DOCKER="$SCRIPT_DIR/dist_docker"
-DIST_PODMAN="$SCRIPT_DIR/dist_podman"
-DIST_HOST="$SCRIPT_DIR/dist_host"
+# Large file outputs go to pool (not in git)
+POOL_BASE="/shared/@images/b_apps"
+DIST_DOCKER="$POOL_BASE/dist_docker"
+DIST_PODMAN="$POOL_BASE/dist_podman"
+DIST_HOST="$POOL_BASE/dist_host"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # COLORS (ANSI)
@@ -91,7 +93,7 @@ detect_distro() {
 # ═══════════════════════════════════════════════════════════════════════════
 load_config() {
     profile="$1"
-    config_file="$TOOLS_DIR/${profile}.conf"
+    config_file="$APPS_DIR/${profile}.conf"
 
     if [ ! -f "$config_file" ]; then
         error "Config file not found: $config_file"
@@ -121,8 +123,8 @@ build_docker() {
 
     cd "$SRC_DOCKER"
     if command -v docker >/dev/null 2>&1; then
-        docker build -t "b_tools:$profile" .
-        log "Docker image built: b_tools:$profile"
+        docker build -t "b_apps:$profile" .
+        log "Docker image built: b_apps:$profile"
     else
         error "Docker not found"
     fi
@@ -138,8 +140,8 @@ build_podman() {
 
     cd "$SRC_PODMAN"
     if command -v podman >/dev/null 2>&1; then
-        podman build -t "b_tools:$profile" .
-        log "Podman image built: b_tools:$profile"
+        podman build -t "b_apps:$profile" .
+        log "Podman image built: b_apps:$profile"
     else
         error "Podman not found"
     fi
@@ -161,7 +163,7 @@ build_host() {
     eval "$PKG_UPDATE" || warn "Update failed, continuing..."
 
     # Install each category
-    for category in BASE SHELL MODERN NETWORK PRIVACY COMPILER LANG SANDBOX DESKTOP GUI; do
+    for category in BASE SHELL MODERN FILESYNC CLOUD NETWORK PRIVACY COMPILER DOCS LANG SANDBOX DESKTOP GUI; do
         packages=$(get_packages "$category" "$DISTRO")
         if [ -n "$packages" ]; then
             info "Installing $category..."
@@ -194,17 +196,17 @@ generate_containerfile() {
 
     # Get all arch packages (container base is arch)
     all_packages=""
-    for category in BASE SHELL MODERN NETWORK PRIVACY COMPILER LANG SANDBOX DESKTOP GUI; do
+    for category in BASE SHELL MODERN FILESYNC CLOUD NETWORK PRIVACY COMPILER DOCS LANG SANDBOX DESKTOP GUI; do
         packages=$(get_packages "$category" "arch")
         all_packages="$all_packages $packages"
     done
 
     cat > "$output" << 'CONTAINERFILE_HEAD'
 # ═══════════════════════════════════════════════════════════════════════════
-# B_TOOLS Container
+# B_APPS Container
 # Auto-generated - do not edit directly
 # ═══════════════════════════════════════════════════════════════════════════
-FROM archlinux:latest
+FROM docker.io/archlinux:latest
 
 # Update and install packages
 RUN pacman -Syu --noconfirm && \
@@ -222,6 +224,9 @@ RUN useradd -m -s /bin/bash user && \
 # Install npm global packages
 RUN npm install -g @anthropic-ai/claude-code @google/gemini-cli || true
 
+# Install cloud CLIs via pip (not in standard repos)
+RUN pip install --break-system-packages oci-cli || true
+
 USER user
 WORKDIR /home/user
 CMD ["/bin/bash"]
@@ -237,7 +242,7 @@ show_menu() {
     clear_screen
 
     printf "\n"
-    draw_box "B_TOOLS - Unified Builder"
+    draw_box "B_APPS - Unified Builder"
     printf "\n"
 
     printf "  ${WHITE}Select Target:${NC}\n"
@@ -249,9 +254,8 @@ show_menu() {
     printf "\n"
 
     printf "  ${WHITE}Select Profile:${NC}\n"
-    printf "    ${GREEN}a${NC}) min        ${DIM}~2GB - CLI + privacy + AI${NC}\n"
+    printf "    ${GREEN}a${NC}) min        ${DIM}~5GB - CLI + privacy + AI${NC}\n"
     printf "    ${YELLOW}b${NC}) basic      ${DIM}~6GB - min + compilers + GUI${NC}\n"
-    printf "    ${MAGENTA}c${NC}) full       ${DIM}~8GB - basic + nix${NC}\n"
     printf "\n"
     draw_separator
     printf "\n"
@@ -280,7 +284,6 @@ run_tui() {
             3|host)    target="host" ;;
             a|min)     profile="min" ;;
             b|basic)   profile="basic" ;;
-            c|full)    profile="full" ;;
             q|quit)    exit 0 ;;
             *)
                 # Check if it's a combined choice like "1a" or "2b"
@@ -297,7 +300,6 @@ run_tui() {
                     case "$p_char" in
                         a) profile="min" ;;
                         b) profile="basic" ;;
-                        c) profile="full" ;;
                     esac
                 fi
                 ;;
@@ -331,7 +333,7 @@ run_tui() {
 # ═══════════════════════════════════════════════════════════════════════════
 show_help() {
     cat << 'EOF'
-B_TOOLS - Unified Builder
+B_APPS - Unified Builder
 
 Usage:
   ./build.sh                     Interactive TUI menu
@@ -344,16 +346,15 @@ Targets:
   host      Install directly on host system
 
 Profiles:
-  min       Minimum (~2GB) - CLI, privacy, AI tools
+  min       Minimum (~5GB) - CLI, privacy, AI tools
   basic     Basic (~6GB)   - min + compilers, GUI apps
-  full      Full (~8GB)    - basic + nix package manager
 
 Examples:
   ./build.sh docker min      Build minimal Docker image
   ./build.sh podman basic    Build basic Podman image
   ./build.sh host full       Install full profile on host
 
-Config files: tools_profiles/*.conf
+Config files: apps_profiles/*.conf
 EOF
 }
 
@@ -369,7 +370,7 @@ main() {
             target="$1"
             profile="${2:-min}"
 
-            if [ ! -f "$TOOLS_DIR/${profile}.conf" ]; then
+            if [ ! -f "$APPS_DIR/${profile}.conf" ]; then
                 error "Unknown profile: $profile (available: min, basic, full)"
             fi
 

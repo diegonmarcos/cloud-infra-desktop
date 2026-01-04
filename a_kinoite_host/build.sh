@@ -34,6 +34,7 @@ cd "$SCRIPT_DIR"
 # Build config
 BASE_IMAGE="quay.io/fedora/fedora-kinoite:41"
 IMAGE_NAME="localhost/kinoite-custom:41"
+OUTPUT_BASE="/shared/@images/a_kinoite_host"
 
 # Installation config
 TARGET_DISK="${TARGET_DISK:-/dev/nvme0n1}"
@@ -45,7 +46,7 @@ LUKS_KEY_SIZE="512"
 LUKS_HASH="sha512"
 SWAP_SIZE="16G"
 INNER_LUKS_SIZE="55G"
-RAW_IMAGE="$SCRIPT_DIR/src_btrfs/image/disk.raw"
+RAW_IMAGE="$OUTPUT_BASE/2_raw/btrfs/disk.raw"
 
 # Colors
 RED='\033[0;31m'
@@ -270,7 +271,8 @@ unmount_vm_home() {
 
 build_container() {
     log "Creating Containerfile..."
-    cat > Containerfile << 'DOCKERFILE'
+    mkdir -p 1_oci
+    cat > 1_oci/Containerfile << 'DOCKERFILE'
 FROM quay.io/fedora/fedora-kinoite:41
 
 RUN useradd -m -G wheel user && \
@@ -288,15 +290,15 @@ RUN mkdir -p /var/home/user && \
 DOCKERFILE
 
     log "Building container image..."
-    podman build --pull=newer --dns=none --no-cache -t "$IMAGE_NAME" -f Containerfile .
+    podman build --pull=newer --no-cache --isolation=chroot -t "$IMAGE_NAME" -f 1_oci/Containerfile .
 }
 
 build_raw() {
     rootfs="$1"
     if [ "$rootfs" = "ext4" ]; then
-        output_dir="src_raw"
+        output_dir="$OUTPUT_BASE/2_raw/ext4"
     else
-        output_dir="src_btrfs"
+        output_dir="$OUTPUT_BASE/2_raw/btrfs"
     fi
 
     printf "\n"
@@ -310,7 +312,7 @@ build_raw() {
         --privileged \
         --pull=never \
         --security-opt label=disable \
-        -v "$(pwd)/$output_dir":/output \
+        -v "$output_dir":/output \
         -v /var/lib/containers/storage:/var/lib/containers/storage \
         quay.io/centos-bootc/bootc-image-builder:latest \
         build \
@@ -319,8 +321,13 @@ build_raw() {
         --output /output \
         "$IMAGE_NAME"
 
+    # bootc-image-builder outputs to /output/image/disk.raw
     raw_file="$output_dir/image/disk.raw"
     if [ -f "$raw_file" ]; then
+        # Move to expected location
+        mv "$raw_file" "$output_dir/disk.raw"
+        rm -rf "$output_dir/image"
+        raw_file="$output_dir/disk.raw"
         log "Build complete!"
         log "Raw image: $raw_file"
         log "Size: $(du -h "$raw_file" | cut -f1)"
@@ -336,9 +343,10 @@ build_profile() {
     printf "\n"
     log "Building USER PROFILE container (dev tools + apps)..."
 
-    if [ ! -f "Containerfile.profile" ]; then
-        log "Containerfile.profile not found, creating default..."
-        cat > Containerfile.profile << 'DOCKERFILE'
+    if [ ! -f "1_oci/Containerfile.profile" ]; then
+        log "1_oci/Containerfile.profile not found, creating default..."
+        mkdir -p 1_oci
+        cat > 1_oci/Containerfile.profile << 'DOCKERFILE'
 FROM quay.io/fedora/fedora-kinoite:41
 
 RUN rpm-ostree install \
@@ -368,7 +376,7 @@ DOCKERFILE
     fi
 
     log "Building profile container image (this takes ~15 minutes)..."
-    podman build --pull=newer --no-cache -t "$profile_image" -f Containerfile.profile .
+    podman build --pull=newer --no-cache -t "$profile_image" -f 1_oci/Containerfile.profile .
 
     if [ $? -eq 0 ]; then
         log "Profile container built successfully!"
@@ -380,19 +388,19 @@ DOCKERFILE
 }
 
 build_surface() {
-    output_dir="src_btrfs"
+    output_dir="$OUTPUT_BASE/2_raw/btrfs"
     surface_image="localhost/kinoite-surface:41"
 
     printf "\n"
     log "Building Surface Pro image (KDE + Openbox + Waydroid + Sessions)..."
 
-    if [ ! -f "Containerfile.surface" ]; then
-        error "Containerfile.surface not found"
+    if [ ! -f "1_oci/Containerfile.surface" ]; then
+        error "1_oci/Containerfile.surface not found"
         return 1
     fi
 
     log "Building Surface container image (this takes ~20 minutes)..."
-    podman build --pull=newer --dns=none --no-cache -t "$surface_image" -f Containerfile.surface .
+    podman build --pull=newer --isolation=chroot -t "$surface_image" -f 1_oci/Containerfile.surface .
 
     mkdir -p "$output_dir"
 
@@ -402,7 +410,7 @@ build_surface() {
         --privileged \
         --pull=never \
         --security-opt label=disable \
-        -v "$(pwd)/$output_dir":/output \
+        -v "$output_dir":/output \
         -v /var/lib/containers/storage:/var/lib/containers/storage \
         quay.io/centos-bootc/bootc-image-builder:latest \
         build \
@@ -411,8 +419,13 @@ build_surface() {
         --output /output \
         "$surface_image"
 
+    # bootc-image-builder outputs to /output/image/disk.raw
     raw_file="$output_dir/image/disk.raw"
     if [ -f "$raw_file" ]; then
+        # Move to expected location
+        mv "$raw_file" "$output_dir/disk.raw"
+        rm -rf "$output_dir/image"
+        raw_file="$output_dir/disk.raw"
         log "Surface image build complete!"
         log "Raw image: $raw_file"
         log "Size: $(du -h "$raw_file" | cut -f1)"
@@ -460,9 +473,9 @@ do_burn() {
 burn_to_usb() {
     rootfs="$1"
     if [ "$rootfs" = "ext4" ]; then
-        raw_file="src_raw/image/disk.raw"
+        raw_file="$OUTPUT_BASE/2_raw/ext4/disk.raw"
     else
-        raw_file="src_btrfs/image/disk.raw"
+        raw_file="$OUTPUT_BASE/2_raw/btrfs/disk.raw"
     fi
 
     if [ ! -f "$raw_file" ]; then
@@ -971,9 +984,9 @@ create_vm() {
     usb_product="$4"
 
     if [ "$rootfs" = "ext4" ]; then
-        raw_file="$(pwd)/src_raw/image/disk.raw"
+        raw_file="$OUTPUT_BASE/2_raw/ext4/disk.raw"
     else
-        raw_file="$(pwd)/src_btrfs/image/disk.raw"
+        raw_file="$OUTPUT_BASE/2_raw/btrfs/disk.raw"
     fi
 
     if [ ! -f "$raw_file" ]; then
@@ -999,21 +1012,35 @@ create_vm() {
 
     log "Creating VM '$vm_name' from $rootfs image..."
 
+    # VIDEO OPTIONS:
+    #   --video virtio,3d=on   Enable virgl 3D acceleration (software OpenGL)
+    #   --graphics spice,gl=on Enable OpenGL in SPICE (requires host GPU)
+    #
+    # NOTE: Intel iGPU CANNOT be passed through to VMs (only discrete GPUs)
+    # Waydroid requires real GPU - will NOT work in VMs without GPU passthrough
+    #
+    # For Waydroid to work in VM, you would need:
+    # 1. A discrete GPU (NVIDIA/AMD)
+    # 2. IOMMU enabled in BIOS
+    # 3. VFIO passthrough configured
+    # 4. --hostdev pci=0000:XX:XX.X for the GPU
+
     if [ -n "$usb_vendor" ] && [ -n "$usb_product" ]; then
         log "USB WiFi passthrough: ${usb_vendor}:${usb_product}"
         virt-install \
             --name "$vm_name" --ram 4096 --vcpus 2 \
             --disk "path=$raw_file,format=raw" --import \
             --os-variant fedora40 --network none \
-            --graphics spice,listen=none --video virtio \
+            --graphics spice,gl=on,listen=none --video virtio,model.heads=1,driver.iommu=off,model.vram=65536,accel3d=yes \
             --hostdev "${usb_vendor}:${usb_product}" \
             --boot uefi --noautoconsole
     else
+        # Enable 3D acceleration for better graphics (still software, not Waydroid-compatible)
         virt-install \
             --name "$vm_name" --ram 4096 --vcpus 2 \
             --disk "path=$raw_file,format=raw" --import \
             --os-variant fedora40 --network default \
-            --graphics spice,listen=none --video virtio \
+            --graphics spice,gl=on,listen=none --video virtio,model.heads=1,driver.iommu=off,model.vram=65536,accel3d=yes \
             --boot uefi --noautoconsole
     fi
 
@@ -1047,9 +1074,9 @@ tui_create_vm() {
     check_vm_deps
 
     if [ "$rootfs" = "ext4" ]; then
-        raw_file="src_raw/image/disk.raw"
+        raw_file="$OUTPUT_BASE/2_raw/ext4/disk.raw"
     else
-        raw_file="src_btrfs/image/disk.raw"
+        raw_file="$OUTPUT_BASE/2_raw/btrfs/disk.raw"
     fi
 
     if [ ! -f "$raw_file" ]; then
@@ -1315,9 +1342,9 @@ if [ $# -gt 0 ]; then
                 exit 1
             fi
             if [ "$2" = "ext4" ]; then
-                raw_file="src_raw/image/disk.raw"
+                raw_file="$OUTPUT_BASE/2_raw/ext4/disk.raw"
             else
-                raw_file="src_btrfs/image/disk.raw"
+                raw_file="$OUTPUT_BASE/2_raw/btrfs/disk.raw"
             fi
             if [ ! -f "$raw_file" ]; then
                 error "Image not found: $raw_file"

@@ -20,14 +20,22 @@ FROM quay.io/fedora/fedora-kinoite:41
 # SURFACE PRO 8 KERNEL AND DRIVERS
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Add linux-surface repository
+# Add linux-surface repository (GPG key from GitHub)
 RUN curl -o /etc/yum.repos.d/linux-surface.repo \
     https://pkg.surfacelinux.com/fedora/linux-surface.repo && \
-    rpm --import https://pkg.surfacelinux.com/keys/surface.asc
+    rpm --import https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc
 
-# Install Surface kernel and tools (will be layered via rpm-ostree on boot)
-# Note: kernel-surface replaces stock kernel
-RUN rpm-ostree install \
+# Remove stock kernel and install Surface kernel
+# bootc requires only ONE kernel in /usr/lib/modules
+RUN rpm-ostree override remove \
+    kernel \
+    kernel-core \
+    kernel-modules \
+    kernel-modules-core \
+    kernel-modules-extra \
+    libwacom \
+    libwacom-data && \
+    rpm-ostree install \
     kernel-surface \
     kernel-surface-devel \
     iptsd \
@@ -40,16 +48,31 @@ RUN rpm-ostree install \
 
 # KDE Plasma is already in Kinoite base
 # Add Openbox and required tools for lightweight session
+# CRITICAL DEPENDENCIES:
+#   - xorg-x11-server-Xorg: X11 server (Openbox is X11-only)
+#   - xorg-x11-drv-libinput: Input driver for touchscreen/trackpad
+#   - python3-pyxdg: Required by openbox-xdg-menu for dynamic menus
+#   - python3-gobject: GTK bindings for menu icons
+#   - gtk3: GTK3 for icon theme support in menus
 RUN rpm-ostree install \
     openbox \
     obconf \
-    tint2 \
+    polybar \
     nitrogen \
     feh \
     rofi \
     dunst \
     picom \
-    xterm
+    xterm \
+    xorg-x11-server-Xorg \
+    xorg-x11-drv-libinput \
+    python3-pyxdg \
+    python3-gobject \
+    gtk3 && \
+    # Remove dunst's dbus service to prevent conflict with KDE notifications
+    # Dunst will still work in Openbox (started via autostart), just won't
+    # register as system notification handler (which conflicts with KDE)
+    rm -f /usr/share/dbus-1/services/org.knopwob.dunst.service
 
 # Wayland compositor for kiosk modes (cage wraps single app in Wayland)
 RUN rpm-ostree install \
@@ -57,14 +80,39 @@ RUN rpm-ostree install \
     wlr-randr
 
 # Browsers for kiosk modes
+# CRITICAL: torbrowser-launcher downloads and runs actual Tor Browser
+#           Firefox alone does NOT provide anonymity!
 RUN rpm-ostree install \
     chromium \
-    firefox
+    firefox \
+    torbrowser-launcher
 
 # Waydroid dependencies (Android container)
+# CRITICAL REQUIREMENTS:
+#   - waydroid: Main package (pulls lxc, python3-gbinder, python3-dbus)
+#   - lzip: Required for image decompression during waydroid init
+#   - mesa-dri-drivers: Software OpenGL (llvmpipe) for VM testing
+#   - dnsmasq: Network DHCP for Android container (usually pulled as dep)
+#
+# HARDWARE REQUIREMENTS (not installable):
+#   - GPU with OpenGL/Vulkan support (Intel/AMD/NVIDIA)
+#   - OR software renderer (llvmpipe) - slow but works
+#   - Kernel with binderfs support (built-in on modern kernels)
+#   - Wayland compositor MUST be running (Plasma, cage, etc.)
+#
+# NOTE: Waydroid will NOT work in:
+#   - VMs without GPU passthrough (no graphics acceleration)
+#   - X11 sessions (requires Wayland)
+#   - Headless/SSH environments (needs display)
+#
+# FIRST RUN SETUP (user must run after first boot):
+#   waydroid init              # Download Android images
+#   waydroid session start     # Start Android container
+#   waydroid show-full-ui      # Launch Android UI
 RUN rpm-ostree install \
     waydroid \
-    lzip
+    lzip \
+    mesa-dri-drivers
 
 # Session switcher dependencies
 RUN rpm-ostree install \
@@ -72,19 +120,48 @@ RUN rpm-ostree install \
     kdialog
 
 # ═══════════════════════════════════════════════════════════════════════════
+# SYSTEM CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Set default timezone to London (Europe/London)
+RUN ln -sf /usr/share/zoneinfo/Europe/London /etc/localtime && \
+    echo "Europe/London" > /etc/timezone
+
+# Set UTF-8 locale to prevent Qt/KDE warnings
+RUN echo "LANG=en_GB.UTF-8" > /etc/locale.conf
+
+# CRITICAL: Create all required system groups
+# These are needed by udev rules, tmpfiles, and various system services
+# Without these, boot logs show hundreds of "Unknown group" errors
+RUN groupadd -g 5 tty && \
+    groupadd -g 6 disk && \
+    groupadd -g 7 lp && \
+    groupadd -g 9 kmem && \
+    groupadd -g 11 cdrom && \
+    groupadd -g 15 floppy && \
+    groupadd -g 19 tape && \
+    groupadd -g 22 utmp && \
+    groupadd -g 29 audio && \
+    groupadd -g 39 video && \
+    groupadd -g 54 lock && \
+    groupadd -g 63 input && \
+    groupadd -g 76 render && \
+    groupadd -g 77 sgx && \
+    groupadd -g 36 kvm && \
+    groupadd -g 4 adm
+
+# ═══════════════════════════════════════════════════════════════════════════
 # USERS: ANON AND DIEGO
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Create anon user (NO sudo, can run podman containers)
+# Create anon user (NO sudo, can run podman rootless)
 RUN useradd -m -u 1000 -s /bin/bash anon && \
-    echo "anon:1234567890" | chpasswd && \
-    usermod -aG podman anon
+    echo "anon:1234567890" | chpasswd
 
 # Create diego user (full sudo, containers)
 # Note: In actual deployment, UID conflict resolved by different /etc mounts
 RUN useradd -m -u 1001 -G wheel -s /bin/bash diego && \
     echo "diego:1234567890" | chpasswd && \
-    usermod -aG podman diego && \
     echo "diego ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/diego && \
     chmod 440 /etc/sudoers.d/diego
 
@@ -103,181 +180,46 @@ RUN sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/
 
 # Openbox session (X11)
 RUN mkdir -p /usr/share/xsessions && \
-    cat > /usr/share/xsessions/openbox.desktop << 'EOF'
-[Desktop Entry]
-Name=Openbox
-Comment=Lightweight window manager
-Exec=openbox-session
-Type=Application
-DesktopNames=Openbox
-EOF
+    printf '[Desktop Entry]\nName=Openbox\nComment=Lightweight window manager\nExec=openbox-session\nType=Application\nDesktopNames=Openbox\n' > /usr/share/xsessions/openbox.desktop
 
 # Android session (Waydroid fullscreen via cage)
 RUN mkdir -p /usr/share/wayland-sessions && \
-    cat > /usr/share/wayland-sessions/android.desktop << 'EOF'
-[Desktop Entry]
-Name=Android (Waydroid)
-Comment=Full Android UI via Waydroid
-Exec=cage -- waydroid show-full-ui
-Type=Application
-DesktopNames=Android
-EOF
+    printf '[Desktop Entry]\nName=Android (Waydroid)\nComment=Full Android UI via Waydroid\nExec=cage -- waydroid show-full-ui\nType=Application\nDesktopNames=Android\n' > /usr/share/wayland-sessions/android.desktop
 
 # Tor Kiosk session (ANON only - will be enabled/disabled at boot)
-RUN cat > /usr/share/wayland-sessions/tor-kiosk.desktop << 'EOF'
-[Desktop Entry]
-Name=Tor Kiosk
-Comment=Anonymous browsing with Tor Browser
-Exec=cage -- firefox --kiosk --private-window about:blank
-Type=Application
-DesktopNames=TorKiosk
-EOF
+# NOTE: torbrowser-launcher downloads Tor Browser on first run (~100MB)
+#       First launch may take time, subsequent launches are instant
+RUN printf '[Desktop Entry]\nName=Tor Kiosk\nComment=Anonymous browsing with Tor Browser\nExec=cage -- torbrowser-launcher\nType=Application\nDesktopNames=TorKiosk\n' > /usr/share/wayland-sessions/tor-kiosk.desktop
 
 # Chrome Kiosk session (AUTH only - will be enabled/disabled at boot)
-RUN cat > /usr/share/wayland-sessions/chrome-kiosk.desktop << 'EOF'
-[Desktop Entry]
-Name=Chrome Kiosk
-Comment=Google Chrome in kiosk mode
-Exec=cage -- chromium --kiosk --start-fullscreen
-Type=Application
-DesktopNames=ChromeKiosk
-EOF
+# NOTE: Binary is 'chromium-browser' on Fedora, NOT 'chromium'
+RUN printf '[Desktop Entry]\nName=Chrome Kiosk\nComment=Google Chrome in kiosk mode\nExec=cage -- chromium-browser --kiosk --start-fullscreen\nType=Application\nDesktopNames=ChromeKiosk\n' > /usr/share/wayland-sessions/chrome-kiosk.desktop
 
 # ═══════════════════════════════════════════════════════════════════════════
-# SESSION SWITCHER SCRIPT
+# SCRIPTS (COPY from scripts/ folder)
 # ═══════════════════════════════════════════════════════════════════════════
 
-RUN mkdir -p /usr/local/bin && \
-    cat > /usr/local/bin/session-switcher.sh << 'SCRIPT'
-#!/bin/sh
-# Session Switcher - shows session picker after auto-login
-# Allows switching sessions without logging out to SDDM
-# POSIX-compliant
-
-LAST_SESSION="$HOME/.config/last-session"
-CURRENT_SESSION="${XDG_CURRENT_DESKTOP:-plasma}"
-
-# Detect profile based on current user
-if [ "$USER" = "anon" ]; then
-    SESSIONS="KDE Plasma
-Openbox
-Android
-Tor Kiosk"
-else
-    SESSIONS="KDE Plasma
-Openbox
-Android
-Chrome Kiosk"
-fi
-
-# Show picker if no saved session or --choose flag
-show_picker=0
-if [ ! -f "$LAST_SESSION" ]; then
-    show_picker=1
-elif [ "$1" = "--choose" ]; then
-    show_picker=1
-fi
-
-if [ "$show_picker" -eq 1 ]; then
-    CHOICE=$(echo "$SESSIONS" | zenity --list --title="Choose Session" \
-        --text="Select your desktop environment:" \
-        --column="Session" \
-        --width=300 --height=300)
-
-    if [ -n "$CHOICE" ]; then
-        echo "$CHOICE" > "$LAST_SESSION"
-
-        # Map choice to session file
-        case "$CHOICE" in
-            "KDE Plasma") SESSION="plasma" ;;
-            "Openbox") SESSION="openbox" ;;
-            "Android") SESSION="android" ;;
-            "Tor Kiosk") SESSION="tor-kiosk" ;;
-            "Chrome Kiosk") SESSION="chrome-kiosk" ;;
-        esac
-
-        # If different from current, logout and switch
-        if [ "$SESSION" != "$CURRENT_SESSION" ]; then
-            mkdir -p ~/.config
-            echo "Session=$SESSION.desktop" > ~/.config/sddm-session
-            loginctl terminate-user "$USER"
-        fi
-    fi
-fi
-SCRIPT
+# Session switcher script
+COPY 1_oci/scripts/session-switcher.sh /usr/local/bin/session-switcher.sh
 RUN chmod +x /usr/local/bin/session-switcher.sh
 
-# ═══════════════════════════════════════════════════════════════════════════
-# PROFILE DETECTION AND SESSION FILTERING (runs at boot)
-# ═══════════════════════════════════════════════════════════════════════════
-
-RUN cat > /usr/local/bin/configure-sessions.sh << 'SCRIPT'
-#!/bin/sh
-# Configure available sessions based on detected profile
-# Runs at boot via systemd service
-# POSIX-compliant
-
-SESSIONS_WAYLAND="/usr/share/wayland-sessions"
-SESSIONS_X11="/usr/share/xsessions"
-
-# Detect profile: if inner LUKS is mounted, we're AUTH
-# Check for @vault-auth mount (only available in AUTH profile)
-if findmnt /home/diego/vault >/dev/null 2>&1; then
-    PROFILE="auth"
-    AUTO_USER="diego"
-else
-    PROFILE="anon"
-    AUTO_USER="anon"
-fi
-
-echo "Detected profile: $PROFILE"
-
-# Enable/disable sessions based on profile
-if [ "$PROFILE" = "anon" ]; then
-    # ANON: Enable Tor Kiosk, disable Chrome Kiosk
-    chmod 644 "$SESSIONS_WAYLAND/tor-kiosk.desktop" 2>/dev/null || true
-    chmod 000 "$SESSIONS_WAYLAND/chrome-kiosk.desktop" 2>/dev/null || true
-else
-    # AUTH: Enable Chrome Kiosk, disable Tor Kiosk
-    chmod 000 "$SESSIONS_WAYLAND/tor-kiosk.desktop" 2>/dev/null || true
-    chmod 644 "$SESSIONS_WAYLAND/chrome-kiosk.desktop" 2>/dev/null || true
-fi
-
-# Update SDDM auto-login user
-mkdir -p /etc/sddm.conf.d
-cat > /etc/sddm.conf.d/autologin.conf << EOF
-[Autologin]
-User=$AUTO_USER
-Session=plasma.desktop
-EOF
-
-echo "Configured for $PROFILE profile (auto-login: $AUTO_USER)"
-SCRIPT
+# Profile detection and session configuration script
+COPY 1_oci/scripts/configure-sessions.sh /usr/local/bin/configure-sessions.sh
 RUN chmod +x /usr/local/bin/configure-sessions.sh
 
 # Systemd service to run session configuration at boot
-RUN cat > /etc/systemd/system/configure-sessions.service << 'EOF'
-[Unit]
-Description=Configure desktop sessions based on profile
-After=local-fs.target
-Before=display-manager.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/configure-sessions.sh
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-RUN systemctl enable configure-sessions.service
+COPY 1_oci/scripts/configure-sessions.service /etc/systemd/system/configure-sessions.service
+RUN chmod 644 /etc/systemd/system/configure-sessions.service && \
+    systemctl enable configure-sessions.service
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ENABLE SERVICES
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Enable Surface touchscreen/pen daemon
-RUN systemctl enable iptsd
+# Enable Surface touchscreen/pen daemon (may not exist in all builds)
+RUN systemctl enable iptsd.service 2>/dev/null || \
+    systemctl enable iptsd 2>/dev/null || \
+    echo "iptsd service not found - will be enabled manually"
 
 # Enable podman socket for rootless containers
 RUN systemctl --global enable podman.socket
@@ -292,13 +234,23 @@ RUN mkdir -p /var/home/anon/{shared,tools,private,vault} && \
     chown -R anon:anon /var/home/anon && \
     chown -R diego:diego /var/home/diego
 
-# Create Openbox autostart for session switcher
-RUN mkdir -p /var/home/anon/.config/openbox && \
-    mkdir -p /var/home/diego/.config/openbox && \
-    echo '/usr/local/bin/session-switcher.sh &' > /var/home/anon/.config/openbox/autostart && \
-    echo '/usr/local/bin/session-switcher.sh &' > /var/home/diego/.config/openbox/autostart && \
+# Setup Openbox with proper config (rc.xml, menu.xml, autostart)
+RUN mkdir -p /var/home/anon/.config/openbox /var/home/diego/.config/openbox && \
+    cp /etc/xdg/openbox/rc.xml /var/home/anon/.config/openbox/ && \
+    cp /etc/xdg/openbox/menu.xml /var/home/anon/.config/openbox/ && \
+    cp /etc/xdg/openbox/rc.xml /var/home/diego/.config/openbox/ && \
+    cp /etc/xdg/openbox/menu.xml /var/home/diego/.config/openbox/ && \
+    printf 'picom -b &\npolybar -q main 2>/dev/null &\nxterm &\n' > /var/home/anon/.config/openbox/autostart && \
+    printf 'picom -b &\npolybar -q main 2>/dev/null &\nxterm &\n' > /var/home/diego/.config/openbox/autostart && \
     chown -R anon:anon /var/home/anon/.config && \
     chown -R diego:diego /var/home/diego/.config
+
+# Create basic polybar config
+RUN mkdir -p /var/home/anon/.config/polybar /var/home/diego/.config/polybar && \
+    printf '[bar/main]\nwidth = 100%%\nheight = 24\nbackground = #222222\nforeground = #dfdfdf\nfont-0 = monospace:size=10\nmodules-left = date\nmodules-right = memory cpu\n\n[module/date]\ntype = internal/date\ndate = %%Y-%%m-%%d %%H:%%M\n\n[module/memory]\ntype = internal/memory\nformat = RAM: <label>\nlabel = %%percentage_used%%%%\n\n[module/cpu]\ntype = internal/cpu\nformat = CPU: <label>\nlabel = %%percentage%%%%\n' > /var/home/anon/.config/polybar/config.ini && \
+    cp /var/home/anon/.config/polybar/config.ini /var/home/diego/.config/polybar/ && \
+    chown -R anon:anon /var/home/anon/.config/polybar && \
+    chown -R diego:diego /var/home/diego/.config/polybar
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CLEANUP
