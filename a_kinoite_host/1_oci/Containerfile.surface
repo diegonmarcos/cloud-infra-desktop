@@ -130,25 +130,27 @@ RUN ln -sf /usr/share/zoneinfo/Europe/London /etc/localtime && \
 # Set UTF-8 locale to prevent Qt/KDE warnings
 RUN echo "LANG=en_GB.UTF-8" > /etc/locale.conf
 
-# CRITICAL: Create all required system groups
+# CRITICAL: Create all required system groups (skip if already exist)
 # These are needed by udev rules, tmpfiles, and various system services
 # Without these, boot logs show hundreds of "Unknown group" errors
-RUN groupadd -g 5 tty && \
-    groupadd -g 6 disk && \
-    groupadd -g 7 lp && \
-    groupadd -g 9 kmem && \
-    groupadd -g 11 cdrom && \
-    groupadd -g 15 floppy && \
-    groupadd -g 19 tape && \
-    groupadd -g 22 utmp && \
-    groupadd -g 29 audio && \
-    groupadd -g 39 video && \
-    groupadd -g 54 lock && \
-    groupadd -g 63 input && \
-    groupadd -g 76 render && \
-    groupadd -g 77 sgx && \
-    groupadd -g 36 kvm && \
-    groupadd -g 4 adm
+# Note: Kinoite base may already have some groups, use -f to ignore errors
+RUN getent group tty || groupadd -g 5 tty; \
+    getent group disk || groupadd -g 6 disk; \
+    getent group lp || groupadd -g 7 lp; \
+    getent group kmem || groupadd -g 9 kmem; \
+    getent group cdrom || groupadd -g 11 cdrom; \
+    getent group floppy || groupadd -g 15 floppy; \
+    getent group tape || groupadd -g 19 tape; \
+    getent group utmp || groupadd -g 22 utmp; \
+    getent group audio || groupadd -g 29 audio; \
+    getent group video || groupadd -g 39 video; \
+    getent group lock || groupadd -g 54 lock; \
+    getent group input || groupadd -g 63 input; \
+    getent group render || groupadd -g 76 render; \
+    getent group sgx || groupadd -g 77 sgx; \
+    getent group kvm || groupadd -g 36 kvm; \
+    getent group adm || groupadd -g 4 adm; \
+    true
 
 # ═══════════════════════════════════════════════════════════════════════════
 # USERS: ANON AND DIEGO

@@ -57,6 +57,7 @@
           nixos-hardware.nixosModules.microsoft-surface-pro-intel
           impermanence.nixosModules.impermanence
           ./configuration.nix
+          ./hardware-configuration.nix
         ];
         format = "raw-efi";
       };
@@ -64,7 +65,10 @@
       # VM for quick testing
       vm = nixos-generators.nixosGenerate {
         inherit system;
-        modules = [ ./configuration.nix ];
+        modules = [
+          impermanence.nixosModules.impermanence
+          ./configuration.nix
+        ];
         format = "vm";
       };
     };

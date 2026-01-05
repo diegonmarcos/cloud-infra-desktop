@@ -36,10 +36,24 @@
     kernelModules = [ "kvm-intel" ];
     extraModulePackages = [ ];
 
-    # Disable systemd-boot (we use GRUB from Ubuntu/independent)
-    loader.grub.enable = false;
-    loader.systemd-boot.enable = false;
-    loader.efi.canTouchEfiVariables = false;
+    # NixOS-independent GRUB (won't touch Kubuntu's GRUB)
+    loader = {
+      efi = {
+        canTouchEfiVariables = true;
+        efiSysMountPoint = "/boot/efi";
+      };
+      grub = {
+        enable = true;
+        device = "nodev";  # EFI install, not MBR
+        efiSupport = true;
+        efiInstallAsRemovable = false;
+        # Install to its own directory, don't overwrite Kubuntu
+        extraInstallCommands = ''
+          # Copy NixOS boot files to separate directory
+          mkdir -p /boot/efi/EFI/nixos
+        '';
+      };
+    };
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -103,8 +117,11 @@
     options = [ "subvol=@android" "compress=zstd" "noatime" ];
   };
 
-  # No swap
-  swapDevices = [ ];
+  # 8GB swap file on pool
+  swapDevices = [{
+    device = "/mnt/shared/.swapfile";
+    size = 8192;  # 8GB in MB
+  }];
 
   # ═══════════════════════════════════════════════════════════════════════════
   # HARDWARE
@@ -116,8 +133,8 @@
   # Enable firmware for WiFi, etc.
   hardware.enableRedistributableFirmware = true;
 
-  # Power management
-  powerManagement.cpuFreqGovernor = lib.mkDefault "powersave";
+  # Power management - no CPU cap, full performance
+  powerManagement.cpuFreqGovernor = lib.mkDefault "performance";
 
   # Platform
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";

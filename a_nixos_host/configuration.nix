@@ -71,7 +71,7 @@
     hostName = "surface-nixos";
     networkmanager.enable = true;
     firewall = {
-      enable = true;
+      enable = lib.mkDefault true;
       allowedTCPPorts = [ 22 ];
     };
   };
