@@ -163,7 +163,7 @@ build_host() {
     eval "$PKG_UPDATE" || warn "Update failed, continuing..."
 
     # Install each category
-    for category in BASE SHELL MODERN FILESYNC CLOUD NETWORK PRIVACY COMPILER DOCS LANG SANDBOX DESKTOP GUI; do
+    for category in BASE SHELL MODERN FILESYNC CLOUD NETWORK PRIVACY REMOTE COMPILER DOCS LANG SANDBOX DESKTOP GUI; do
         packages=$(get_packages "$category" "$DISTRO")
         if [ -n "$packages" ]; then
             info "Installing $category..."
@@ -196,7 +196,7 @@ generate_containerfile() {
 
     # Get all arch packages (container base is arch)
     all_packages=""
-    for category in BASE SHELL MODERN FILESYNC CLOUD NETWORK PRIVACY COMPILER DOCS LANG SANDBOX DESKTOP GUI; do
+    for category in BASE SHELL MODERN FILESYNC CLOUD NETWORK PRIVACY REMOTE COMPILER DOCS LANG SANDBOX DESKTOP GUI; do
         packages=$(get_packages "$category" "arch")
         all_packages="$all_packages $packages"
     done

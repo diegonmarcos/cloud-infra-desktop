@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  b_apps:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: b_apps:min
+    container_name: b_apps
+    hostname: b_apps
+
+    volumes:
+      - b_apps-home:/home/user
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+    environment:
+      - DISPLAY=${DISPLAY}
+
+    ports:
+      - "5900:5900"  # x11vnc
+
+    cap_add:
+      - NET_ADMIN
+
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+    restart: unless-stopped
+
+volumes:
+  b_apps-home:

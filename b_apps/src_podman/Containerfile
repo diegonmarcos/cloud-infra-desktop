@@ -1,0 +1,24 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# B_APPS Container
+# Auto-generated - do not edit directly
+# ═══════════════════════════════════════════════════════════════════════════
+FROM docker.io/archlinux:latest
+
+# Update and install packages
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm  base-devel git sudo which curl wget bash zsh fish coreutils findutils grep sed gawk less tree htop bc jq vim unzip xclip eza bat fd ripgrep fzf zoxide starship yazi btop ncdu rsync rclone github-cli iproute2 iputils bind net-tools openssh ca-certificates mtr openbsd-netcat nmap tor torsocks dnscrypt-proxy wireguard-tools openvpn openresolv  gcc clang cmake ninja make rustup go valgrind pandoc nodejs pnpm python python-pip python-pipx docker podman firejail flatpak xorg-server xorg-xinit openbox dmenu x11vnc ttf-dejavu breeze-icons konsole falkon dolphin okular libreoffice-fresh code virt-manager partitionmanager filelight krita && \
+    pacman -Scc --noconfirm
+
+# Create user
+RUN useradd -m -s /bin/bash user && \
+    echo "user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Install npm global packages
+RUN npm install -g @anthropic-ai/claude-code @google/gemini-cli || true
+
+# Install cloud CLIs via pip (not in standard repos)
+RUN pip install --break-system-packages oci-cli || true
+
+USER user
+WORKDIR /home/user
+CMD ["/bin/bash"]

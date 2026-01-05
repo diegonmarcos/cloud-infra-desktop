@@ -1,6 +1,4 @@
 # Large build artifacts - keep folders via .gitkeep
-src_*/
-!src_*/.gitkeep
 dist_*/
 !dist_*/.gitkeep
 

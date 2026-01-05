@@ -23,10 +23,11 @@ B_APPS provides curated package sets for development containers with two profile
 |----------|----------|
 | **Base** | base-devel, git, sudo, curl, wget |
 | **Shell** | bash, zsh, fish, vim, htop, jq, tree, bc, gawk |
-| **Modern CLI** | eza, bat, fd, ripgrep, fzf, zoxide, starship |
+| **Modern CLI** | eza, bat, fd, ripgrep, fzf, zoxide, starship, btop |
 | **Network** | iproute2, bind (dig/nslookup), net-tools, openssh |
 | **Privacy** | tor, torsocks, dnscrypt-proxy, wireguard, openvpn |
 | **Languages** | nodejs, npm, python, pip, pipx, rust |
+| **Remote** | x11vnc |
 | **GUI** | konsole, falkon, dolphin, okular |
 | **AI Tools** | claude-code, gemini-cli |
 
@@ -37,7 +38,7 @@ B_APPS provides curated package sets for development containers with two profile
 | **Compilers** | gcc, clang, cmake, ninja, make, rustup, go |
 | **Languages** | pnpm (replaces npm) |
 | **Sandbox** | firejail, flatpak |
-| **Desktop** | xorg-server, openbox, dmenu, tigervnc |
+| **Desktop** | xorg-server, openbox, dmenu, x11vnc |
 | **GUI** | libreoffice-fresh |
 
 ---

@@ -1,0 +1,43 @@
+{
+  "profile": "min",
+  "packages": {
+    "arch": [
+      "base-devel", "git", "sudo", "curl", "wget",
+      "bash", "zsh", "fish", "coreutils", "findutils", "grep", "sed", "gawk", "less", "tree", "htop", "bc", "jq", "vim", "unzip", "xclip",
+      "eza", "bat", "fd", "ripgrep", "fzf", "zoxide", "starship", "yazi", "btop",
+      "rsync", "rclone",
+      "github-cli",
+      "iproute2", "iputils", "bind", "net-tools", "openssh", "ca-certificates",
+      "tor", "torsocks", "dnscrypt-proxy", "wireguard-tools", "openvpn", "openresolv",
+      "nodejs", "npm", "python", "python-pip", "python-pipx", "rust",
+      "x11vnc",
+      "konsole", "falkon", "dolphin", "okular", "breeze-icons", "ttf-dejavu", "virt-manager", "partitionmanager", "filelight", "krita"
+    ],
+    "fedora": [
+      "@development-tools", "git", "sudo", "curl", "wget",
+      "bash", "zsh", "fish", "coreutils", "findutils", "grep", "sed", "gawk", "less", "tree", "htop", "bc", "jq", "vim", "unzip", "xclip",
+      "eza", "bat", "fd-find", "ripgrep", "fzf", "zoxide", "starship", "yazi", "btop",
+      "rsync", "rclone",
+      "gh",
+      "iproute", "bind-utils", "net-tools", "openssh", "ca-certificates",
+      "tor", "torsocks", "dnscrypt-proxy", "wireguard-tools", "openvpn",
+      "nodejs", "npm", "python3", "python3-pip", "pipx", "rust", "cargo",
+      "x11vnc",
+      "konsole5", "falkon", "dolphin", "okular", "breeze-icon-theme", "dejavu-fonts-all", "virt-manager", "partitionmanager", "filelight", "krita"
+    ],
+    "debian": [
+      "build-essential", "git", "sudo", "curl", "wget",
+      "bash", "zsh", "fish", "coreutils", "findutils", "grep", "sed", "gawk", "less", "tree", "htop", "bc", "jq", "vim", "unzip", "xclip",
+      "eza", "bat", "fd-find", "ripgrep", "fzf", "zoxide", "starship", "yazi", "btop",
+      "rsync", "rclone",
+      "gh",
+      "iproute2", "iputils-ping", "dnsutils", "net-tools", "openssh-client", "ca-certificates",
+      "tor", "torsocks", "dnscrypt-proxy", "wireguard-tools", "openvpn", "openresolv",
+      "nodejs", "npm", "python3", "python3-pip", "pipx", "rustc", "cargo",
+      "x11vnc",
+      "konsole", "falkon", "dolphin", "okular", "breeze-icon-theme", "fonts-dejavu", "virt-manager", "partitionmanager", "filelight", "krita"
+    ]
+  },
+  "npm": ["@anthropic-ai/claude-code", "@google/gemini-cli"],
+  "pip": ["oci-cli"]
+}

@@ -1,0 +1,52 @@
+{
+  "profile": "basic",
+  "packages": {
+    "arch": [
+      "base-devel", "git", "sudo", "which", "curl", "wget",
+      "bash", "zsh", "fish", "coreutils", "findutils", "grep", "sed", "gawk", "less", "tree", "htop", "bc", "jq", "vim", "unzip", "xclip",
+      "eza", "bat", "fd", "ripgrep", "fzf", "zoxide", "starship", "yazi", "btop", "ncdu",
+      "rsync", "rclone",
+      "github-cli",
+      "iproute2", "iputils", "bind", "net-tools", "openssh", "ca-certificates", "mtr", "openbsd-netcat", "nmap",
+      "tor", "torsocks", "dnscrypt-proxy", "wireguard-tools", "openvpn", "openresolv",
+      "gcc", "clang", "cmake", "ninja", "make", "rustup", "go", "valgrind",
+      "pandoc",
+      "nodejs", "pnpm", "python", "python-pip", "python-pipx",
+      "docker", "podman", "firejail", "flatpak",
+      "xorg-server", "xorg-xinit", "openbox", "dmenu", "x11vnc", "ttf-dejavu", "breeze-icons",
+      "konsole", "falkon", "dolphin", "okular", "libreoffice-fresh", "code", "virt-manager", "partitionmanager", "filelight", "krita"
+    ],
+    "fedora": [
+      "@development-tools", "git", "sudo", "which", "curl", "wget",
+      "bash", "zsh", "fish", "coreutils", "findutils", "grep", "sed", "gawk", "less", "tree", "htop", "bc", "jq", "vim", "unzip", "xclip",
+      "eza", "bat", "fd-find", "ripgrep", "fzf", "zoxide", "starship", "yazi", "btop", "ncdu",
+      "rsync", "rclone",
+      "gh",
+      "iproute", "bind-utils", "net-tools", "openssh", "ca-certificates", "mtr", "nmap-ncat", "nmap",
+      "tor", "torsocks", "dnscrypt-proxy", "wireguard-tools", "openvpn",
+      "gcc", "clang", "cmake", "ninja-build", "make", "rust", "cargo", "golang", "valgrind",
+      "pandoc",
+      "nodejs", "pnpm", "python3", "python3-pip", "pipx",
+      "docker", "podman", "firejail", "flatpak",
+      "xorg-x11-server-Xorg", "xorg-x11-xinit", "openbox", "dmenu", "x11vnc", "dejavu-fonts-all", "breeze-icon-theme",
+      "konsole5", "falkon", "dolphin", "okular", "libreoffice", "code", "virt-manager", "partitionmanager", "filelight", "krita"
+    ],
+    "debian": [
+      "build-essential", "git", "sudo", "curl", "wget",
+      "bash", "zsh", "fish", "coreutils", "findutils", "grep", "sed", "gawk", "less", "tree", "htop", "bc", "jq", "vim", "unzip", "xclip",
+      "eza", "bat", "fd-find", "ripgrep", "fzf", "zoxide", "starship", "yazi", "btop", "ncdu",
+      "rsync", "rclone",
+      "gh",
+      "iproute2", "iputils-ping", "dnsutils", "net-tools", "openssh-client", "ca-certificates", "mtr", "netcat-openbsd", "nmap",
+      "tor", "torsocks", "dnscrypt-proxy", "wireguard-tools", "openvpn", "openresolv",
+      "gcc", "clang", "cmake", "ninja-build", "make", "rustc", "cargo", "golang", "valgrind",
+      "pandoc",
+      "nodejs", "npm", "python3", "python3-pip", "pipx",
+      "docker.io", "podman", "firejail", "flatpak",
+      "xorg", "openbox", "dmenu", "x11vnc", "fonts-dejavu", "breeze-icon-theme",
+      "konsole", "falkon", "dolphin", "okular", "libreoffice", "code", "virt-manager", "partitionmanager", "filelight", "krita"
+    ]
+  },
+  "npm": ["@anthropic-ai/claude-code", "@google/gemini-cli"],
+  "pip": ["oci-cli", "uv"]
+}
