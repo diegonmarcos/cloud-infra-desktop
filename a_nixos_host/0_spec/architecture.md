@@ -111,7 +111,7 @@ Location: `/etc/grub.d/40_nixos` (on Kubuntu)
 ```
 menuentry "NixOS" --class nixos --class gnu-linux --class os {
     search --no-floppy --fs-uuid --set=root 0eaf7961-48c5-4b55-8a8f-04cd0b71de07
-    linux /nixos/vmlinuz init=/nix/store/hmj4damlkx7pp4b4dsh1yqbw3w91p0sc-nixos-system-surface-nixos-24.11.20250630.50ab793/init loglevel=4
+    linux /nixos/vmlinuz init=/nix/store/pl0y29z2i540q27fh63q1m9kw21jwgvn-nixos-system-surface-nixos-24.11.20250630.50ab793/init loglevel=4
     initrd /nixos/initrd
 }
 ```

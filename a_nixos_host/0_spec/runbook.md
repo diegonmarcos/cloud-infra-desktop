@@ -115,7 +115,7 @@ menuentry "NixOS" --class nixos --class gnu-linux --class os {
 
     search --no-floppy --fs-uuid --set=root 0eaf7961-48c5-4b55-8a8f-04cd0b71de07
 
-    linux /nixos/vmlinuz init=/nix/store/hmj4damlkx7pp4b4dsh1yqbw3w91p0sc-nixos-system-surface-nixos-24.11.20250630.50ab793/init loglevel=4
+    linux /nixos/vmlinuz init=/nix/store/pl0y29z2i540q27fh63q1m9kw21jwgvn-nixos-system-surface-nixos-24.11.20250630.50ab793/init loglevel=4
     initrd /nixos/initrd
 }
 EOF
@@ -317,9 +317,9 @@ sudo update-grub
 
 | Component | Store Path |
 |-----------|------------|
-| **System** | `hmj4damlkx7pp4b4dsh1yqbw3w91p0sc-nixos-system-surface-nixos-24.11.20250630.50ab793` |
+| **System** | `pl0y29z2i540q27fh63q1m9kw21jwgvn-nixos-system-surface-nixos-24.11.20250630.50ab793` |
 | **Kernel** | `6qxqvpa0v7is69dvy9y2hikvjzr9r6id-linux-6.12.19` |
-| **Initrd** | `zschm0208pc06nlcmydgj0ak43m1accn-initrd-linux-6.12.19` |
+| **Initrd** | `jc47rn58hbskcrbrzj52xr8ab6xv0p8b-initrd-linux-6.12.19` |
 | **Bash** | `mjhcjikhxps97mq5z54j4gjjfzgmsir5-bash-5.2p37` |
 | **Systemd** | `3n52dlrwqb79mc5zcr4nni17dkvaxwa1-systemd-256.10` |
 
