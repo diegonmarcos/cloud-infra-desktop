@@ -1,338 +1,498 @@
-# NixOS Bifrost Runbook
+# NixOS Host Runbook
+
+> **Device**: Surface Pro 8
+> **OS**: NixOS 24.11 with Full Impermanence
+> **Updated**: 2026-01-06
+
+---
 
 ## Quick Reference
 
-| Credential | Value |
-|------------|-------|
-| **User** | `user` |
-| **Password** | `1234567890` |
-| **SSH** | `ssh user@<IP>` (password enabled) |
-| **LUKS** | Same as user password |
-
-## Available Sessions
-
-| Session | Type | Description |
-|---------|------|-------------|
-| **Plasma (KDE)** | Wayland | Full desktop environment (default) |
-| **GNOME** | Wayland | Alternative full desktop |
-| **Openbox** | X11 | Lightweight window manager |
-| **Android (Waydroid)** | Wayland | Full Android UI via Waydroid |
-| **Tor Kiosk** | Wayland | Tor Browser in kiosk mode |
-| **Chrome Kiosk** | Wayland | Chromium in kiosk mode |
+| Credential | Value | Notes |
+|------------|-------|-------|
+| **User** | `user` | UID 1000 |
+| **Password** | `1234567890` | **CHANGE AFTER SETUP** |
+| **LUKS** | Same as user | Slot 0 |
+| **USB Key** | Slot 1 | Auto-unlock if present |
+| **SSH** | Port 22 open | Password enabled |
 
 ---
 
-## INITIAL INSTALLATION (Completed 2026-01-05)
+## Boot Scenarios
 
-### Prerequisites (on Kubuntu)
-
-1. Install Nix package manager:
-```bash
-sh <(curl -L https://nixos.org/nix/install) --daemon
-```
-
-2. Enable flakes in `/etc/nix/nix.conf`:
-```
-experimental-features = nix-command flakes
-```
-
-3. Mount LUKS pool and bind /nix:
-```bash
-sudo cryptsetup open /dev/nvme0n1p4 pool
-sudo mount /dev/mapper/pool /mnt/pool
-sudo mount --bind /mnt/pool/@shared/nix /nix
-```
-
-### Step 1: Build Raw Image
-
-```bash
-cd /home/diego/mnt_git/unix/a_nixos_host
-nix build .#raw --out-link /mnt/nixos/result
-```
-
-Build time: ~2 hours on Surface Pro 8 (4 cores, 8 threads)
-Output: `/mnt/nixos/result/nixos.img` (27.6 GB)
-
-### Step 2: Mount and Extract Image
-
-```bash
-# Attach image
-sudo losetup -fP /mnt/nixos/result/nixos.img
-sudo mount /dev/loop0p2 /mnt/nixos-img
-
-# Copy kernel and initrd
-sudo mkdir -p /boot/nixos
-sudo cp -L /nix/store/hmj4damlkx7pp4b4dsh1yqbw3w91p0sc-nixos-system-*/kernel /boot/nixos/vmlinuz
-sudo cp -L /nix/store/hmj4damlkx7pp4b4dsh1yqbw3w91p0sc-nixos-system-*/initrd /boot/nixos/initrd
-```
-
-### Step 3: Copy Nix Store Closure
-
-```bash
-# Get closure paths
-nix-store -qR /nix/store/hmj4damlkx7pp4b4dsh1yqbw3w91p0sc-nixos-system-* > /tmp/nixos-closure.txt
-
-# Copy to @root-nixos/nix (uses btrfs reflinks - instant, no extra space)
-xargs -a /tmp/nixos-closure.txt -I {} sudo cp -a --reflink=auto {} /mnt/pool/@root-nixos/nix/store/
-```
-
-### Step 4: Set Up Profiles
-
-```bash
-sudo mkdir -p /mnt/pool/@root-nixos/nix/var/nix/profiles
-sudo ln -sf /nix/store/hmj4damlkx7pp4b4dsh1yqbw3w91p0sc-nixos-system-* /mnt/pool/@root-nixos/nix/var/nix/profiles/system-1-link
-sudo ln -sf system-1-link /mnt/pool/@root-nixos/nix/var/nix/profiles/system
-```
-
-### Step 5: Set Up Persist
-
-```bash
-# Create directory structure
-sudo mkdir -p /mnt/pool/@root-nixos/persist/{var/lib/nixos,var/lib/systemd,var/lib/bluetooth,var/lib/NetworkManager,var/log,etc/NetworkManager/system-connections,etc/ssh}
-sudo mkdir -p /mnt/pool/@root-nixos/persist/home/user/{.config,.local,.cache,.ssh,.gnupg,Documents,Downloads,Projects}
-
-# Generate machine-id
-sudo sh -c 'uuidgen | tr -d - > /mnt/pool/@root-nixos/persist/etc/machine-id'
-
-# Generate SSH host keys
-sudo ssh-keygen -t ed25519 -f /mnt/pool/@root-nixos/persist/etc/ssh/ssh_host_ed25519_key -N ""
-sudo ssh-keygen -t rsa -b 4096 -f /mnt/pool/@root-nixos/persist/etc/ssh/ssh_host_rsa_key -N ""
-```
-
-### Step 6: Add GRUB Entry
-
-```bash
-cat << 'EOF' | sudo tee /etc/grub.d/40_nixos
-#!/bin/sh
-exec tail -n +3 $0
-
-menuentry "NixOS" --class nixos --class gnu-linux --class os {
-    insmod gzio
-    insmod part_gpt
-    insmod btrfs
-    insmod cryptodisk
-    insmod luks2
-
-    search --no-floppy --fs-uuid --set=root 0eaf7961-48c5-4b55-8a8f-04cd0b71de07
-
-    linux /nixos/vmlinuz init=/nix/store/pl0y29z2i540q27fh63q1m9kw21jwgvn-nixos-system-surface-nixos-24.11.20250630.50ab793/init loglevel=4
-    initrd /nixos/initrd
-}
-EOF
-
-sudo chmod +x /etc/grub.d/40_nixos
-sudo update-grub
-```
-
-### Step 7: Cleanup and Boot
-
-```bash
-sudo umount /mnt/nixos-img
-sudo losetup -d /dev/loop0
-
-# Reboot and select NixOS from GRUB
-sudo reboot
-```
-
----
-
-## BOOTING NIXOS
+### Normal Boot (USB Key Present)
 
 1. Power on Surface Pro 8
-2. GRUB menu appears
-3. Select **"NixOS"**
-4. Enter LUKS password when prompted
-5. SDDM login appears
-6. Login: `user` / `1234567890`
-7. Select session (Plasma, GNOME, Openbox, etc.)
+2. USB key detected (Ventoy)
+3. LUKS unlocks automatically
+4. SDDM login appears
+5. Select session (Plasma/GNOME/Openbox)
+
+### Normal Boot (No USB Key)
+
+1. Power on Surface Pro 8
+2. LUKS password prompt appears
+3. Enter password: `1234567890`
+4. SDDM login appears
+
+### Boot to Alpine Recovery
+
+1. Power on Surface Pro 8
+2. Select "Alpine Recovery" from boot menu
+3. No password required
+4. Recovery shell available
+
+### Boot to Kali Linux
+
+1. Power on Surface Pro 8
+2. Select "Kali Linux" from boot menu
+3. No LUKS involved (separate partition)
+4. Login with Kali credentials
+5. Use for security testing/pentesting
+
+### Boot to Windows 11 Webcam
+
+1. Power on Surface Pro 8
+2. Select "Windows 11" from boot menu
+3. No LUKS involved (separate partition)
+4. Use for webcam streaming
 
 ---
 
-## POST-INSTALLATION PROCEDURES
-
-### Initialize Waydroid (Android)
-
-First boot after installation:
-```bash
-sudo waydroid init
-waydroid session start
-waydroid show-full-ui
-```
-
-### Setup Flatpak
-
-```bash
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak install flathub com.visualstudio.code
-```
+## Daily Operations
 
 ### Update System
 
 ```bash
 cd /home/diego/mnt_git/unix/a_nixos_host
+
+# Update flake inputs
+nix flake update
+
+# Check configuration
+nix flake check
+
+# Build and switch
 sudo nixos-rebuild switch --flake .#surface
 ```
 
-### Rollback to Previous Generation
+### Rollback
 
 ```bash
-# List generations
-sudo nix-env --list-generations -p /nix/var/nix/profiles/system
-
-# Rollback
+# Rollback to previous generation
 sudo nixos-rebuild switch --rollback
 
-# Or select from GRUB boot menu
+# Or select generation from GRUB menu at boot
+
+# List all generations
+sudo nix-env --list-generations -p /nix/var/nix/profiles/system
 ```
-
----
-
-## TROUBLESHOOTING
-
-### NixOS Won't Boot
-
-1. Check GRUB entry exists:
-```bash
-sudo grep "NixOS" /boot/grub/grub.cfg
-```
-
-2. Check kernel/initrd exist:
-```bash
-ls -la /boot/nixos/
-```
-
-3. Check system store path exists:
-```bash
-ls /mnt/pool/@root-nixos/nix/store/hmj4damlkx7pp4b4dsh1yqbw3w91p0sc-*
-```
-
-### LUKS Won't Unlock
-
-The LUKS password is the same as the user password: `1234567890`
-
-If still failing, boot Kubuntu and check:
-```bash
-sudo cryptsetup open /dev/nvme0n1p4 pool
-```
-
-### No Network After Boot
-
-1. Check NetworkManager:
-```bash
-systemctl status NetworkManager
-```
-
-2. WiFi connections should persist in `/persist/etc/NetworkManager/system-connections/`
-
-### Session Not Appearing in SDDM
-
-1. Check session files:
-```bash
-ls -la /run/current-system/etc/wayland-sessions/
-```
-
-2. Restart SDDM:
-```bash
-sudo systemctl restart sddm
-```
-
-### Waydroid Not Working
-
-1. Check binder modules:
-```bash
-lsmod | grep binder
-```
-
-2. Initialize:
-```bash
-sudo waydroid init
-```
-
-3. Restart:
-```bash
-waydroid session stop
-waydroid session start
-```
-
----
-
-## MAINTENANCE
 
 ### Garbage Collection
 
 ```bash
-# Clean old generations (keep last 5)
+# Remove old generations (keep last 7 days)
 sudo nix-collect-garbage --delete-older-than 7d
 
-# Optimize store
+# Optimize store (deduplication)
 sudo nix store optimise
 ```
 
-### Update Flake Inputs
+---
+
+## Vault Operations
+
+### Open Vault
 
 ```bash
-cd /home/diego/mnt_git/unix/a_nixos_host
-nix flake update
+# With USB key
+tomb open ~/vault.tomb -k /media/VTOYEFI/.vault/vault.key
+
+# With password (if no USB)
+tomb open ~/vault.tomb
 ```
 
-### Rebuild with Changes
+### Close Vault
 
 ```bash
-sudo nixos-rebuild switch --flake .#surface
+tomb close vault
 ```
 
-### Update Kernel/Initrd After Rebuild
+### List Open Tombs
 
-After `nixos-rebuild`, update boot files:
 ```bash
-SYSTEM=$(readlink -f /nix/var/nix/profiles/system)
-sudo cp -L $SYSTEM/kernel /boot/nixos/vmlinuz
-sudo cp -L $SYSTEM/initrd /boot/nixos/initrd
+tomb list
+```
 
-# Update GRUB entry with new init path
-sudo sed -i "s|init=/nix/store/[^/]*/init|init=$SYSTEM/init|" /etc/grub.d/40_nixos
-sudo update-grub
+### Create New Vault (First Time)
+
+```bash
+# Create 1GB tomb file
+tomb dig -s 1024 ~/vault.tomb
+
+# Create key (store on USB!)
+tomb forge /media/VTOYEFI/.vault/vault.key
+
+# Lock tomb with key
+tomb lock ~/vault.tomb -k /media/VTOYEFI/.vault/vault.key
 ```
 
 ---
 
-## FILE LOCATIONS
+## Container Operations
+
+### Distrobox
+
+```bash
+# Create Arch container
+distrobox create --name arch-dev --image archlinux:latest
+
+# Enter container
+distrobox enter arch-dev
+
+# Export app to host
+distrobox-export --app code
+
+# List containers
+distrobox list
+```
+
+### Podman
+
+```bash
+# Run container (rootless)
+podman run -d --name nginx -p 8080:80 nginx
+
+# List containers
+podman ps -a
+
+# Stop and remove
+podman stop nginx && podman rm nginx
+```
+
+### microvm.nix (Security VMs)
+
+```bash
+# Start a microVM
+systemctl start microvm@sandbox
+
+# Connect to VM console
+microvm -c sandbox
+
+# Stop VM
+systemctl stop microvm@sandbox
+
+# Verify isolation (different kernel)
+# Inside VM: uname -r shows guest kernel
+```
+
+### Flatpak
+
+```bash
+# Add Flathub (first time)
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+# Install app
+flatpak install flathub com.visualstudio.code
+
+# Run app
+flatpak run com.visualstudio.code
+
+# Update all
+flatpak update
+```
+
+### Waydroid (Android)
+
+```bash
+# Initialize (first time)
+sudo waydroid init
+
+# Start session
+waydroid session start
+
+# Show full UI
+waydroid show-full-ui
+
+# Stop session
+waydroid session stop
+```
+
+---
+
+## Mount Operations
+
+### Cloud Storage
+
+```bash
+# Mount all (script)
+~/mnt_git/unix/b_mnt/mount.sh start
+
+# Unmount all
+~/mnt_git/unix/b_mnt/mount.sh stop
+
+# Check status
+~/mnt_git/unix/b_mnt/mount.sh status
+
+# Manual rclone mount
+rclone mount gdrive_dnm: ~/mnt_cloud/gdrive_personal --vfs-cache-mode writes --daemon
+```
+
+### Remote Servers
+
+```bash
+# SSHFS mount
+sshfs ubuntu@130.110.251.193:/home/ubuntu ~/mnt_remote/oci_micro_1 -o IdentityFile=~/.ssh/id_rsa
+
+# Unmount
+fusermount -u ~/mnt_remote/oci_micro_1
+```
+
+---
+
+## Troubleshooting
+
+### LUKS Won't Unlock
+
+```bash
+# From Alpine Recovery:
+cryptsetup open /dev/nvme0n1p5 pool
+
+# Check keyslots
+cryptsetup luksDump /dev/nvme0n1p5
+
+# Add new key (if needed)
+sudo cryptsetup luksAddKey /dev/nvme0n1p5
+```
+
+### USB Keyfile Not Working
+
+Check initrd has vfat module:
+```nix
+# In hardware-configuration.nix
+boot.initrd.availableKernelModules = [
+  "vfat"    # MUST be present for USB keyfile
+  "nls_cp437"
+  "nls_iso8859_1"
+  # ... other modules
+];
+```
+
+### No Network After Boot
+
+```bash
+# Check NetworkManager
+systemctl status NetworkManager
+
+# Restart
+sudo systemctl restart NetworkManager
+
+# Check connections persist
+ls /persist/etc/NetworkManager/system-connections/
+```
+
+### Desktop Session Missing
+
+```bash
+# Check session files
+ls /run/current-system/etc/wayland-sessions/
+
+# Restart SDDM
+sudo systemctl restart sddm
+```
+
+### Waydroid Not Starting
+
+```bash
+# Check binder modules
+lsmod | grep binder
+
+# Reinitialize
+sudo waydroid init
+
+# Check logs
+journalctl -u waydroid-container
+```
+
+### Flatpak Apps Missing Data
+
+Ensure `.var` is in persistence:
+```nix
+# In configuration.nix
+environment.persistence."/persist".users.user.directories = [
+  ".var"    # Flatpak user data
+];
+```
+
+### microvm.nix Not Working
+
+```bash
+# Check if microvm host is enabled
+systemctl status microvm@sandbox
+
+# Check KVM is available
+ls /dev/kvm
+
+# Check microvm.nix flake input is added
+nix flake metadata | grep microvm
+```
+
+---
+
+## Subvolume Migration (Phase 2)
+
+### Prerequisites
+
+- Full backup completed
+- Boot into Alpine Recovery
+- LUKS password known
+
+### Step 1: Backup Current Data
+
+```bash
+# From Alpine Recovery
+cryptsetup open /dev/nvme0n1p5 pool
+mount /dev/mapper/pool /mnt
+
+# Create backups
+btrfs send /mnt/@root-nixos > /backup/root-nixos.btrfs
+btrfs send /mnt/@home-nixos > /backup/home-nixos.btrfs
+```
+
+### Step 2: Create New Structure
+
+```bash
+# Create semantic subvolumes
+btrfs subvolume create /mnt/@system
+btrfs subvolume create /mnt/@system/nix
+btrfs subvolume create /mnt/@system/state
+btrfs subvolume create /mnt/@system/logs
+
+btrfs subvolume create /mnt/@user
+btrfs subvolume create /mnt/@user/home
+
+btrfs subvolume create /mnt/@shared
+btrfs subvolume create /mnt/@shared/containers
+btrfs subvolume create /mnt/@shared/flatpak
+btrfs subvolume create /mnt/@shared/microvm
+btrfs subvolume create /mnt/@shared/waydroid
+```
+
+### Step 3: Migrate Data
+
+```bash
+# Copy with reflinks (fast, no extra space)
+cp -a --reflink=auto /mnt/@root-nixos/nix/* /mnt/@system/nix/
+cp -a --reflink=auto /mnt/@root-nixos/persist/* /mnt/@system/state/
+cp -a --reflink=auto /mnt/@home-nixos/* /mnt/@user/home/
+```
+
+### Step 4: Verify and Delete Old
+
+```bash
+# Verify new structure
+btrfs subvolume list /mnt
+
+# Delete old (after verification!)
+btrfs subvolume delete /mnt/@root-nixos
+btrfs subvolume delete /mnt/@home-nixos
+btrfs subvolume delete /mnt/@root-kinoite  # If exists
+btrfs subvolume delete /mnt/@home-kinoite  # If exists
+```
+
+---
+
+## Alpine Recovery Procedures
+
+### Unlock and Mount BTRFS
+
+```bash
+# Unlock LUKS
+cryptsetup open /dev/nvme0n1p5 pool
+
+# Mount pool
+mount /dev/mapper/pool /mnt
+
+# Mount specific subvolume
+mount -o subvol=@system/nix /dev/mapper/pool /mnt/nix
+```
+
+### Rebuild GRUB
+
+```bash
+# Mount necessary partitions
+mount /dev/nvme0n1p2 /mnt/boot
+mount /dev/nvme0n1p1 /mnt/boot/efi
+
+# Chroot and update
+chroot /mnt /bin/bash
+grub-mkconfig -o /boot/grub/grub.cfg
+exit
+```
+
+### Restore from Backup
+
+```bash
+# Receive backup
+btrfs receive /mnt < /backup/root-nixos.btrfs
+
+# Rename if needed
+btrfs subvolume snapshot /mnt/root-nixos /mnt/@system/nix
+```
+
+---
+
+## File Locations
 
 | File | Path |
 |------|------|
-| **Git Repo** | `/home/diego/mnt_git/unix/a_nixos_host/` |
 | **Flake** | `/home/diego/mnt_git/unix/a_nixos_host/flake.nix` |
 | **Configuration** | `/home/diego/mnt_git/unix/a_nixos_host/configuration.nix` |
 | **Hardware Config** | `/home/diego/mnt_git/unix/a_nixos_host/hardware-configuration.nix` |
-| **Build Output** | `/mnt/nixos/result/` |
-| **Kernel** | `/boot/nixos/vmlinuz` |
-| **Initrd** | `/boot/nixos/initrd` |
-| **GRUB Entry** | `/etc/grub.d/40_nixos` |
-| **Nix Store** | `/mnt/pool/@root-nixos/nix/store/` |
-| **Persist** | `/mnt/pool/@root-nixos/persist/` |
+| **Architecture Spec** | `/home/diego/mnt_git/unix/0_spec/ARCHITECTURE.md` |
+| **Disk Layout Spec** | `/home/diego/mnt_git/unix/0_spec/DISK_LAYOUT.md` |
+| **Roadmap** | `/home/diego/mnt_git/unix/0_spec/ROADMAP.md` |
+| **Kali Setup** | `/home/diego/mnt_git/unix/a_kali_security/SETUP.md` |
+| **Vault File** | `/home/user/vault.tomb` |
+| **Vault Key** | `/media/VTOYEFI/.vault/vault.key` (USB) |
+| **LUKS Key** | `/media/VTOYEFI/.luks/surface.key` (USB) |
 
 ---
 
-## STORE PATHS (Current Installation)
+## Verification Checklist
 
-| Component | Store Path |
-|-----------|------------|
-| **System** | `pl0y29z2i540q27fh63q1m9kw21jwgvn-nixos-system-surface-nixos-24.11.20250630.50ab793` |
-| **Kernel** | `6qxqvpa0v7is69dvy9y2hikvjzr9r6id-linux-6.12.19` |
-| **Initrd** | `jc47rn58hbskcrbrzj52xr8ab6xv0p8b-initrd-linux-6.12.19` |
-| **Bash** | `mjhcjikhxps97mq5z54j4gjjfzgmsir5-bash-5.2p37` |
-| **Systemd** | `3n52dlrwqb79mc5zcr4nni17dkvaxwa1-systemd-256.10` |
+### After Fresh Install
 
----
+- [ ] System boots with USB key (auto-unlock)
+- [ ] System boots without USB (password prompt)
+- [ ] All desktop sessions available (KDE, GNOME, Openbox)
+- [ ] WiFi connects and persists
+- [ ] Bluetooth pairs and persists
+- [ ] SSH access works
+- [ ] Flatpak apps install and run
+- [ ] Podman containers run
+- [ ] Waydroid initializes
 
-## VERIFICATION CHECKLIST
+### After Configuration Change
 
-Before rebooting to NixOS, verify:
+- [ ] `nix flake check` passes
+- [ ] Build succeeds
+- [ ] Switch succeeds
+- [ ] Reboot successful
+- [ ] Persistence working (check after reboot)
 
-- [ ] `/boot/nixos/vmlinuz` exists (kernel)
-- [ ] `/boot/nixos/initrd` exists (initramfs)
-- [ ] GRUB entry in `/boot/grub/grub.cfg`
-- [ ] System in `/mnt/pool/@root-nixos/nix/store/`
-- [ ] Profile symlink at `/mnt/pool/@root-nixos/nix/var/nix/profiles/system`
-- [ ] SSH keys in `/mnt/pool/@root-nixos/persist/etc/ssh/`
-- [ ] machine-id in `/mnt/pool/@root-nixos/persist/etc/machine-id`
+### After Subvolume Migration
+
+- [ ] All data accessible
+- [ ] Correct subvolume names
+- [ ] Correct mount points
+- [ ] Boot completes successfully
+- [ ] Containers still work
+- [ ] User data intact
+
+### Kali Linux
+
+- [ ] Kali boots from boot menu
+- [ ] WiFi connects
+- [ ] Security tools work (nmap, burpsuite)
+- [ ] Isolated from LUKS partition (cannot access encrypted data)

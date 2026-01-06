@@ -43,6 +43,20 @@ RUN rpm-ostree override remove \
     surface-control
 
 # ═══════════════════════════════════════════════════════════════════════════
+# PLYMOUTH (Boot Splash with Touch Keyboard Fallback)
+# ═══════════════════════════════════════════════════════════════════════════
+# Plymouth provides a graphical boot splash with password entry.
+# If the Type Cover keyboard doesn't initialize in time, Plymouth's
+# touch-friendly interface can be used with the Surface touchscreen.
+# FALLBACK: USB keyboard always works as last resort.
+
+RUN rpm-ostree install \
+    plymouth \
+    plymouth-theme-spinner \
+    plymouth-plugin-two-step && \
+    plymouth-set-default-theme spinner
+
+# ═══════════════════════════════════════════════════════════════════════════
 # DESKTOP ENVIRONMENTS AND SESSIONS
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -118,6 +132,24 @@ RUN rpm-ostree install \
 RUN rpm-ostree install \
     zenity \
     kdialog
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SELINUX CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+# CRITICAL: Set SELinux to PERMISSIVE mode
+#
+# When deploying bootc images with separated /etc and /var subvolumes,
+# SELinux contexts get lost/mismatched during rsync. This causes:
+#   - Hundreds of "Permission denied" errors
+#   - "Failed to allocate manager object" (systemd can't start)
+#
+# Permissive mode logs violations but allows boot. After first successful
+# boot, you can relabel and switch back to enforcing if needed:
+#   sudo fixfiles -F relabel
+#   sudo setenforce 1
+
+RUN sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config && \
+    sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/sysconfig/selinux 2>/dev/null || true
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SYSTEM CONFIGURATION

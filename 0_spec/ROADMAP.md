@@ -1,282 +1,464 @@
-# Surface Multi-OS Pool - Implementation Roadmap
+# Implementation Roadmap
 
-> **Status**: In Progress
-> **Last Updated**: 2026-01-05
-
----
-
-## Phase 1: Kinoite Base Setup [COMPLETED]
-
-- [x] Update ARCHITECTURE.md with new design
-- [x] Backup Kinoite from /pool/@root to /home/diego
-- [x] Unmount /pool and delete old nvme0n1p3
-- [x] Create nvme0n1p3 (2GB /boot) + nvme0n1p4 (116GB LUKS)
-- [x] Format nvme0n1p3 as ext4 /boot
-- [x] LUKS format nvme0n1p4 (password: 1234567890)
-- [x] Create BTRFS inside LUKS with initial subvolumes
-- [x] Restore Kinoite to @root-kinoite
-- [x] Copy kernel/initramfs to /boot/kinoite/
-- [x] Update GRUB for Kinoite boot
+> **Status**: Phase 1 In Progress
+> **Last Updated**: 2026-01-06
 
 ---
 
-## Phase 2: Subvolume Restructure [PENDING]
+## Overview
 
-- [ ] Backup @home contents
-- [ ] Rename @home to @home-kinoite
-- [ ] Delete @images subvolume
-- [ ] Create @home-nixos subvolume
-- [ ] Create @shared subvolume
-- [ ] Create @android subvolume
-- [ ] Update Kinoite fstab for new mount structure
-- [ ] Test Kinoite boot with new subvolumes
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         IMPLEMENTATION PHASES                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Phase 1        Phase 2         Phase 3         Phase 4         Phase 4b   │
+│  DOCS           SUBVOLUMES      NIXOS           ALPINE          KALI       │
+│  ████████░░     ░░░░░░░░░░      ░░░░░░░░░░      ░░░░░░░░░░      ░░░░░░░░░░ │
+│  80%            0%              0%              0%              0%         │
+│                                                                             │
+│  Phase 5        Phase 6         Phase 7                                     │
+│  WINDOWS        VAULT           TESTING                                     │
+│  ░░░░░░░░░░     ░░░░░░░░░░      ░░░░░░░░░░                                  │
+│  0%             0%              0%                                          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-### Subvolume Commands
+---
+
+## Phase 1: Documentation [IN PROGRESS]
+
+**Goal**: Complete architecture documentation before implementation
+
+### Tasks
+
+- [x] Rewrite ARCHITECTURE.md with new design
+- [x] Create DISK_LAYOUT.md specification
+- [x] Create ISOLATION_LAYERS.md specification
+- [x] Create PERSONAL_SPACE.md specification
+- [x] Rewrite ROADMAP.md (this file)
+- [ ] Archive HANDOFF.md to z_archive/
+- [ ] Update a_nixos_host/0_spec/architecture.md
+- [ ] Update a_nixos_host/0_spec/runbook.md
+- [ ] Create a_win11_webcam/SETUP.md
+
+### Deliverables
+
+| File | Status | Description |
+|------|--------|-------------|
+| `0_spec/ARCHITECTURE.md` | DONE | Main architecture overview |
+| `0_spec/DISK_LAYOUT.md` | DONE | Partition and subvolume spec |
+| `0_spec/ISOLATION_LAYERS.md` | DONE | Security zones and sandboxing |
+| `0_spec/PERSONAL_SPACE.md` | DONE | User space organization |
+| `0_spec/ROADMAP.md` | DONE | This implementation checklist |
+| `z_archive/HANDOFF.md` | PENDING | Archive obsolete design |
+| `a_nixos_host/0_spec/*` | PENDING | NixOS-specific docs |
+| `a_win11_webcam/SETUP.md` | PENDING | Windows 11 setup guide |
+
+---
+
+## Phase 2: Subvolume Migration [PENDING]
+
+**Goal**: Restructure BTRFS subvolumes with semantic naming
+
+### Prerequisites
+
+- [ ] Full backup of existing data
+- [ ] Boot into Alpine recovery or live USB
+- [ ] Verify LUKS can be unlocked
+
+### Tasks
+
 ```bash
-# From Ubuntu with LUKS open:
-sudo mount /dev/mapper/pool /mnt/pool
+# 1. Backup current data
+sudo btrfs send @root-nixos > /backup/root-nixos.btrfs
+sudo btrfs send @home-nixos > /backup/home-nixos.btrfs
 
-# Backup home
-sudo tar -cvf /home/diego/home-backup.tar -C /mnt/pool/@home .
+# 2. Create new subvolume structure
+sudo btrfs subvolume create @system
+sudo btrfs subvolume create @system/nix
+sudo btrfs subvolume create @system/state
+sudo btrfs subvolume create @system/logs
 
-# Rename @home to @home-kinoite
-sudo btrfs subvolume snapshot /mnt/pool/@home /mnt/pool/@home-kinoite
-sudo btrfs subvolume delete /mnt/pool/@home
+sudo btrfs subvolume create @user
+sudo btrfs subvolume create @user/home
 
-# Delete @images
-sudo btrfs subvolume delete /mnt/pool/@images
+sudo btrfs subvolume create @shared
+sudo btrfs subvolume create @shared/containers
+sudo btrfs subvolume create @shared/flatpak
+sudo btrfs subvolume create @shared/microvm
+sudo btrfs subvolume create @shared/waydroid
 
-# Create new subvolumes
-sudo btrfs subvolume create /mnt/pool/@home-nixos
-sudo btrfs subvolume create /mnt/pool/@shared
-sudo btrfs subvolume create /mnt/pool/@android
+# 3. Migrate data
+sudo cp -a @root-nixos/nix/* @system/nix/
+sudo cp -a @root-nixos/persist/* @system/state/
+sudo cp -a @home-nixos/* @user/home/
 
-# Verify
-sudo btrfs subvolume list /mnt/pool
+# 4. Delete old subvolumes (after verification)
+sudo btrfs subvolume delete @root-nixos
+sudo btrfs subvolume delete @home-nixos
+sudo btrfs subvolume delete @root-kinoite  # If exists
+sudo btrfs subvolume delete @home-kinoite  # If exists
 ```
+
+### Verification Checklist
+
+- [ ] All data migrated successfully
+- [ ] Subvolume permissions correct (755)
+- [ ] Old subvolumes deleted
+- [ ] `btrfs subvolume list` shows new structure
 
 ---
 
-## Phase 3: NixOS Flake Setup [PENDING]
+## Phase 3: NixOS Configuration Update [PENDING]
 
-- [ ] Create /home/diego/mnt_git/unix/a_nixos_host/flake.nix
-- [ ] Add nixos-hardware flake input (Surface support)
-- [ ] Add impermanence flake input
-- [ ] Create configuration.nix with:
-  - [ ] Surface Pro 8 kernel (linux-surface)
-  - [ ] LUKS boot configuration
-  - [ ] tmpfs root + BTRFS mounts
-  - [ ] Impermanence module
-- [ ] Create hardware-configuration.nix
-- [ ] Create modules/surface.nix (hardware tweaks)
-- [ ] Create modules/desktop.nix (KDE, GNOME, Openbox)
-- [ ] Create modules/containers.nix (Docker + Podman)
-- [ ] Create modules/users.nix (user config)
-- [ ] Create modules/impermanence.nix (persist declarations)
+**Goal**: Update NixOS configs for new subvolumes and features
 
-### Flake Structure
-```
-a_nixos_host/
-├── flake.nix
-├── flake.lock
-├── configuration.nix
-├── hardware-configuration.nix
-└── modules/
-    ├── surface.nix
-    ├── desktop.nix
-    ├── containers.nix
-    ├── users.nix
-    └── impermanence.nix
-```
+### Tasks
 
----
+#### hardware-configuration.nix
 
-## Phase 4: Build NixOS OCI Image [PENDING]
+- [ ] Update /nix mount: `subvol=@system/nix`
+- [ ] Add /var/lib mount: `subvol=@system/state`
+- [ ] Add /var/log mount: `subvol=@system/logs`
+- [ ] Update /home mount: `subvol=@user/home`
+- [ ] Add container mounts: `@shared/containers`, `@shared/flatpak`, `@shared/microvm`
+- [ ] Replace file swap with zram
+- [ ] Verify LUKS configuration intact
 
-- [ ] Install Nix on Ubuntu (if not present)
-- [ ] Build NixOS system closure
-- [ ] Generate OCI image from closure
-- [ ] Verify image contents
+#### configuration.nix
 
-### Build Commands
+- [ ] Add microvm.nix flake input
+- [ ] Enable microvm.host and define sandbox VMs
+- [ ] Add Distrobox package
+- [ ] Add Tomb and age packages
+- [ ] Enable thermald service
+- [ ] Configure SDDM sessions:
+  - [ ] KDE Plasma 6 (Wayland, default)
+  - [ ] GNOME (Wayland)
+  - [ ] Waydroid standalone session (cage + waydroid)
+  - [ ] Openbox (X11, lightweight)
+  - [ ] Brave Kiosk session (cage + brave --kiosk)
+- [ ] Update persistence declarations:
+  - [ ] Add `.var` directory
+  - [ ] Add `.local/share/fish/fish_history`
+  - [ ] Add `vault.tomb` file
+- [ ] Remove container directories from persistence (now subvolumes)
+
+### Build and Test
+
 ```bash
-# Install Nix (if needed)
-curl -L https://nixos.org/nix/install | sh
+# Check configuration
+nix flake check
 
-# Build OCI image
-cd /home/diego/mnt_git/unix/a_nixos_host
-nix build .#nixosConfigurations.surface.config.system.build.toplevel
+# Build without switching
+nixos-rebuild build --flake .#surface
 
-# Or build OCI directly
-nix build .#packages.x86_64-linux.oci-image
+# Test in VM (if possible)
+nixos-rebuild build-vm --flake .#surface
+
+# Switch (after subvolume migration)
+sudo nixos-rebuild switch --flake .#surface
 ```
+
+### Verification Checklist
+
+- [ ] System boots successfully
+- [ ] All mounts correct (`mount | grep btrfs`)
+- [ ] Zram swap active (`swapon --show`)
+- [ ] Thermald running (`systemctl status thermald`)
+- [ ] microvm.nix available (`systemctl list-units microvm@*`)
+- [ ] Persistence working (reboot and verify)
 
 ---
 
-## Phase 5: Deploy NixOS to Subvolume [PENDING]
+## Phase 4: Alpine Recovery Setup [PENDING]
 
-- [ ] Mount @root-nixos subvolume
-- [ ] Create nested subvolumes for impermanence:
-  - [ ] @root-nixos/nix
-  - [ ] @root-nixos/persist
-- [ ] Extract/copy NixOS system to @root-nixos
-- [ ] Copy kernel to /boot/nixos/kernel
-- [ ] Copy initrd to /boot/nixos/initrd
-- [ ] Set correct permissions
+**Goal**: Install Alpine recovery OS on unencrypted partition
 
-### Deploy Commands
+### Tasks
+
+- [ ] Create 5GB partition for Alpine (nvme0n1p3)
+- [ ] Build Alpine ISO using `a_alpine_fallback/build.sh`
+- [ ] Install Alpine to partition
+- [ ] Configure network (DHCP + WiFi)
+- [ ] Install recovery tools:
+  - [ ] cryptsetup
+  - [ ] btrfs-progs
+  - [ ] e2fsprogs
+  - [ ] openssh
+  - [ ] vim
+- [ ] Add boot entry to rEFInd/GRUB
+- [ ] Test recovery procedures
+
+### Boot Entry
+
 ```bash
-# Mount target
-sudo mount -o subvol=@root-nixos /dev/mapper/pool /mnt/nixos
-
-# Create nested subvolumes
-sudo btrfs subvolume create /mnt/nixos/nix
-sudo btrfs subvolume create /mnt/nixos/persist
-
-# Extract NixOS (method depends on build output)
-# Option A: From OCI image
-podman load < result
-podman create --name nixos-temp localhost/nixos:latest
-podman export nixos-temp | sudo tar -xf - -C /mnt/nixos/nix
-podman rm nixos-temp
-
-# Option B: Direct copy from Nix store
-sudo cp -a /nix/store/...-nixos-system-surface-*/* /mnt/nixos/
-
-# Copy boot files
-sudo mkdir -p /boot/nixos
-sudo cp /mnt/nixos/nix/store/...-linux-*/bzImage /boot/nixos/kernel
-sudo cp /mnt/nixos/nix/store/...-initrd-*/initrd /boot/nixos/initrd
-```
-
----
-
-## Phase 6: GRUB Configuration [PENDING]
-
-- [ ] Create /etc/grub.d/12_nixos entry
-- [ ] Create /boot/grub/update-grub.sh script
-- [ ] Make script executable by both OSes
-- [ ] Regenerate grub.cfg
-- [ ] Test GRUB menu shows both entries
-
-### GRUB Entry for NixOS
-```bash
-# /etc/grub.d/12_nixos
-#!/bin/sh
-exec tail -n +3 $0
-# NixOS with Full Impermanence
-
-menuentry 'NixOS (Impermanence)' --class nixos --class gnu-linux --class gnu --class os {
-    insmod part_gpt
-    insmod ext2
-    insmod btrfs
-
-    # Find /boot partition
-    search --no-floppy --fs-uuid --set=root 0eaf7961-48c5-4b55-8a8f-04cd0b71de07
-
-    # Load kernel - initramfs will unlock LUKS
-    linux /nixos/kernel init=/nix/store/...-nixos-system-.../init root=tmpfs rd.luks.uuid=3c75c6db-4d7c-4570-81f1-02d168781aac
-    initrd /nixos/initrd
+# /boot/efi/EFI/refind/refind.conf addition
+menuentry "Alpine Recovery" {
+    icon     /EFI/refind/icons/os_linux.png
+    volume   "Alpine"
+    loader   /boot/vmlinuz-lts
+    initrd   /boot/initramfs-lts
+    options  "root=/dev/nvme0n1p3 modules=sd-mod,usb-storage,ext4"
 }
 ```
 
-### Independent GRUB Update Script
+### Verification Checklist
+
+- [ ] Alpine boots from menu
+- [ ] Network connectivity works
+- [ ] Can unlock LUKS manually
+- [ ] Can mount BTRFS subvolumes
+- [ ] SSH access works
+
+---
+
+## Phase 4b: Kali Linux Security Setup [PENDING]
+
+**Goal**: Install Kali Linux for penetration testing and security auditing
+
+### Tasks
+
+- [ ] Create ~20GB partition for Kali (nvme0n1p4)
+- [ ] Install Kali Linux (full or minimal)
+- [ ] Configure network (DHCP + WiFi)
+- [ ] Install essential security tools:
+  - [ ] nmap, masscan (network scanning)
+  - [ ] burpsuite, zap (web testing)
+  - [ ] metasploit (exploitation framework)
+  - [ ] wireshark (packet analysis)
+  - [ ] john, hashcat (password cracking)
+  - [ ] aircrack-ng (wireless)
+- [ ] Configure isolated network namespace
+- [ ] Add boot entry to rEFInd/GRUB
+- [ ] Test security workflows
+
+### Boot Entry
+
 ```bash
-#!/bin/bash
-# /boot/grub/update-grub.sh
-# Regenerates GRUB config - can be called from either OS
-
-set -e
-
-# Ensure we're running as root
-if [ "$EUID" -ne 0 ]; then
-    echo "Please run as root"
-    exit 1
-fi
-
-# Generate new grub.cfg
-grub-mkconfig -o /boot/grub/grub.cfg
-
-echo "GRUB configuration updated successfully"
+# /boot/efi/EFI/refind/refind.conf addition
+menuentry "Kali Linux" {
+    icon     /EFI/refind/icons/os_kali.png
+    volume   "Kali"
+    loader   /boot/vmlinuz-*
+    initrd   /boot/initrd.img-*
+    options  "root=/dev/nvme0n1p4 ro quiet"
+}
 ```
 
----
+### Verification Checklist
 
-## Phase 7: Testing [PENDING]
-
-- [ ] Reboot and test Kinoite boot
-- [ ] Verify Kinoite mounts correct subvolumes
-- [ ] Reboot and test NixOS boot
-- [ ] Verify NixOS impermanence (/ is tmpfs)
-- [ ] Verify NixOS /nix mount
-- [ ] Verify NixOS /persist mount
-- [ ] Verify NixOS /home mount
-- [ ] Verify @shared accessible from both OSes
-- [ ] Test KDE Plasma session
-- [ ] Test GNOME session
-- [ ] Test Openbox session
-- [ ] Test Docker functionality
-- [ ] Test Podman rootless
+- [ ] Kali boots from menu
+- [ ] Network connectivity works
+- [ ] Security tools launch correctly
+- [ ] WiFi adapter recognized (monitor mode if supported)
+- [ ] Isolated from NixOS LUKS partition
 
 ---
 
-## Phase 8: Post-Install Configuration [PENDING]
+## Phase 5: Windows 11 Webcam Setup [PENDING]
 
-- [ ] Configure Waydroid in @android
-- [ ] Setup shared container storage in @shared
-- [ ] Configure user dotfiles sync strategy
-- [ ] Test reboot persistence (NixOS should be clean)
-- [ ] Commit all configs to git
-- [ ] Push to remote
+**Goal**: Minimal Windows 11 for Surface webcam driver compatibility
+
+### Tasks
+
+- [ ] Create ~20GB partition for Windows (nvme0n1p5)
+- [ ] Install Windows 11 (minimal, no MS account)
+- [ ] Debloat Windows:
+  - [ ] Remove preinstalled apps
+  - [ ] Disable Cortana, telemetry
+  - [ ] Disable Windows Update (or limit)
+  - [ ] Disable Defender real-time (optional)
+- [ ] Install Surface webcam drivers
+- [ ] Install OBS Studio for virtual camera
+- [ ] Configure network streaming (NDI/MJPEG)
+- [ ] Add boot entry
+- [ ] Document webcam piping to NixOS
+
+### Webcam Streaming Options
+
+| Method | Latency | Complexity | NixOS Package |
+|--------|---------|------------|---------------|
+| NDI | Low | Medium | ndi-sdk |
+| RTSP | Medium | Low | ffmpeg |
+| MJPEG over HTTP | Medium | Low | curl + v4l2loopback |
+| USB/IP | Low | High | usbip |
+
+### Verification Checklist
+
+- [ ] Windows 11 boots
+- [ ] Webcam works in Windows
+- [ ] Streaming to network works
+- [ ] NixOS can receive stream
+- [ ] v4l2loopback creates virtual device
 
 ---
 
-## Phase 9: Cleanup (Optional) [FUTURE]
+## Phase 6: Vault Configuration [PENDING]
 
-- [ ] Delete Ubuntu partition (nvme0n1p5)
-- [ ] Expand LUKS partition to use freed space
-- [ ] Grow BTRFS filesystem
-- [ ] Update partition documentation
+**Goal**: Set up Tomb vault for secrets with USB key
+
+### Tasks
+
+- [ ] Create tomb file: `tomb dig -s 2048 ~/vault.tomb`
+- [ ] Create key on USB: `tomb forge /usb-key/.vault/vault.key`
+- [ ] Lock tomb: `tomb lock ~/vault.tomb -k /usb-key/.vault/vault.key`
+- [ ] Create vault directory structure
+- [ ] Migrate secrets to vault:
+  - [ ] SSH keys
+  - [ ] API tokens
+  - [ ] Password database
+  - [ ] 2FA recovery codes
+- [ ] Create unlock script
+- [ ] Configure SSH agent integration
+- [ ] Test open/close cycle
+- [ ] Backup vault to cloud
+
+### Vault Structure
+
+```
+~/vault/
+├── keys/
+│   ├── ssh/
+│   ├── gpg/
+│   └── api/
+├── secrets/
+│   ├── passwords.kdbx
+│   └── 2fa-recovery/
+└── documents/
+    ├── identity/
+    └── financial/
+```
+
+### Verification Checklist
+
+- [ ] Tomb opens with USB key
+- [ ] Tomb opens with password fallback
+- [ ] SSH keys load to agent
+- [ ] Tomb closes cleanly
+- [ ] Vault survives reboot (file persisted)
+- [ ] Backup to cloud works
 
 ---
 
-## Key Files Reference
+## Phase 7: Final Testing [PENDING]
 
-| File | Purpose |
-|------|---------|
-| `/boot/kinoite/vmlinuz-kinoite` | Kinoite kernel |
-| `/boot/kinoite/initramfs-kinoite.img` | Kinoite initramfs |
-| `/boot/nixos/kernel` | NixOS kernel |
-| `/boot/nixos/initrd` | NixOS initramfs |
-| `/boot/grub/grub.cfg` | GRUB configuration |
-| `/boot/grub/update-grub.sh` | GRUB update script |
-| `/etc/grub.d/11_kinoite` | Kinoite GRUB entry |
-| `/etc/grub.d/12_nixos` | NixOS GRUB entry |
+**Goal**: Comprehensive testing of all components
+
+### Boot Scenarios
+
+- [ ] Normal boot with USB key (auto-unlock)
+- [ ] Normal boot without USB (password prompt)
+- [ ] Boot to Alpine recovery
+- [ ] Boot to Kali Linux
+- [ ] Boot to Windows 11
+- [ ] Boot after power failure (filesystem integrity)
+
+### Desktop Sessions
+
+- [ ] KDE Plasma (Wayland) - default
+- [ ] KDE Plasma (X11) - fallback
+- [ ] GNOME (Wayland)
+- [ ] Openbox (X11)
+- [ ] Waydroid (Android)
+- [ ] Custom kiosk sessions
+
+### Container Runtimes
+
+- [ ] Podman rootless containers
+- [ ] Docker compatibility
+- [ ] Distrobox containers
+- [ ] Flatpak applications
+- [ ] microvm.nix VMs (isolated)
+
+### Persistence
+
+- [ ] System state survives reboot
+- [ ] User configs survive reboot
+- [ ] Container data survives reboot
+- [ ] Flatpak apps survive reboot
+- [ ] Vault file survives reboot
+
+### Security
+
+- [ ] LUKS encryption verified
+- [ ] Vault double-encryption verified
+- [ ] Flatpak sandboxing verified
+- [ ] microvm.nix isolation verified
+- [ ] SSH keys protected
+
+### Kali Linux
+
+- [ ] Kali boots and reaches desktop
+- [ ] Network scanning tools work (nmap, masscan)
+- [ ] Web testing tools work (burpsuite, zap)
+- [ ] WiFi adapter recognized
+- [ ] Isolated from NixOS encrypted partition
+- [ ] No access to LUKS data from Kali
 
 ---
 
-## Key UUIDs
+## Key UUIDs Reference
 
 | Component | UUID |
 |-----------|------|
-| /boot (ext4) | `0eaf7961-48c5-4b55-8a8f-04cd0b71de07` |
-| LUKS partition | `3c75c6db-4d7c-4570-81f1-02d168781aac` |
-| BTRFS pool | `6818afcb-97f5-43be-9436-4b9c3db98c00` |
+| EFI Partition | `2CE0-6722` |
+| /boot Partition | `0eaf7961-48c5-4b55-8a8f-04cd0b71de07` |
+| LUKS Partition | `3c75c6db-4d7c-4570-81f1-02d168781aac` |
+| USB Keyfile (Ventoy) | `223C-F3F8` |
 
 ---
 
-## Current Status
+## Rollback Procedures
 
-```
-Phase 1: [##########] 100% - COMPLETED
-Phase 2: [          ]   0% - PENDING (next)
-Phase 3: [          ]   0% - PENDING
-Phase 4: [          ]   0% - PENDING
-Phase 5: [          ]   0% - PENDING
-Phase 6: [          ]   0% - PENDING
-Phase 7: [          ]   0% - PENDING
-Phase 8: [          ]   0% - PENDING
-Phase 9: [          ]   0% - FUTURE
+### NixOS Generation Rollback
+
+```bash
+# List generations
+sudo nix-env --list-generations --profile /nix/var/nix/profiles/system
+
+# Rollback to previous
+sudo nixos-rebuild switch --rollback
+
+# Boot to specific generation
+# Select from GRUB menu at boot
 ```
 
-**Next Action**: Test Kinoite boot, then proceed with Phase 2 (Subvolume Restructure)
+### BTRFS Snapshot Rollback
+
+```bash
+# Create snapshot before changes
+sudo btrfs subvolume snapshot @system/nix @system/nix-backup-$(date +%Y%m%d)
+
+# Rollback by renaming
+sudo btrfs subvolume delete @system/nix
+sudo btrfs subvolume snapshot @system/nix-backup-20260106 @system/nix
+```
+
+### Full Recovery
+
+1. Boot Alpine recovery
+2. Unlock LUKS
+3. Mount subvolumes
+4. Restore from backup
+5. Rebuild GRUB
+6. Reboot
+
+---
+
+## Progress Summary
+
+| Phase | Status | Completion |
+|-------|--------|------------|
+| Phase 1: Documentation | IN PROGRESS | 90% |
+| Phase 2: Subvolume Migration | PENDING | 0% |
+| Phase 3: NixOS Config | PENDING | 0% |
+| Phase 4: Alpine Recovery | PENDING | 0% |
+| Phase 4b: Kali Security | PENDING | 0% |
+| Phase 5: Windows 11 | PENDING | 0% |
+| Phase 6: Vault | PENDING | 0% |
+| Phase 7: Testing | PENDING | 0% |
+
+**Next Action**: Complete Phase 1 documentation (create a_kali_security/SETUP.md), then proceed to Phase 2.

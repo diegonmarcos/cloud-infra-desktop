@@ -869,8 +869,61 @@ EOF
     LUKS_UUID=$(cryptsetup luksUUID "$LUKS_PART")
 
     cat > /mnt/pool/etc/dracut.conf.d/surface-profile.conf << EOF
-add_dracutmodules+=" crypt btrfs profile-detect "
-kernel_cmdline="rd.luks.uuid=$LUKS_UUID root=/dev/mapper/cryptouter rootflags=subvol=@root"
+add_dracutmodules+=" crypt btrfs profile-detect plymouth usrmount "
+
+# Kernel command line:
+# - rd.driver.pre: Force these modules to load FIRST, before anything else
+# - enforcing=0: SELinux permissive mode (backup for /etc/selinux/config)
+# - rd.luks.timeout=30: Give keyboard time to initialize before password prompt
+kernel_cmdline="rd.luks.uuid=$LUKS_UUID rd.luks.key=/.luks/surface.key:UUID=223C-F3F8 rd.luks.timeout=30 root=/dev/mapper/cryptouter rootflags=subvol=@root enforcing=0 rd.driver.pre=surface_aggregator,surface_aggregator_registry,surface_hid quiet splash"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SURFACE TYPE COVER KEYBOARD - LOAD ORDER MATTERS!
+# ═══════════════════════════════════════════════════════════════════════════
+# The Surface Pro 8 Type Cover connects via SAM (Surface Aggregator Module).
+# These modules MUST load in order: aggregator -> registry -> hid
+#
+# If keyboard doesn't work at LUKS prompt:
+# 1. Try USB keyboard as fallback
+# 2. After boot: check dmesg | grep -i surface
+
+# Core SAM drivers (required for ALL Surface peripherals)
+force_drivers+=" surface_aggregator surface_aggregator_registry surface_aggregator_hub "
+
+# Surface HID driver (keyboard, trackpad, pen over SAM)
+force_drivers+=" surface_hid surface_hid_core "
+
+# Intel platform drivers (required for SAM communication)
+force_drivers+=" intel_lpss intel_lpss_pci "
+force_drivers+=" 8250_dw 8250_lpss "
+force_drivers+=" pinctrl_tigerlake pinctrl_intel "
+
+# Generic HID support
+force_drivers+=" hid hid_generic hid_multitouch usbhid "
+
+# USB HID fallback (for USB keyboard if Type Cover fails)
+force_drivers+=" xhci_hcd xhci_pci ehci_hcd ehci_pci uhci_hcd "
+force_drivers+=" usb_common usbcore "
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TOUCHSCREEN (Plymouth on-screen keyboard fallback)
+# ═══════════════════════════════════════════════════════════════════════════
+force_drivers+=" i2c_hid i2c_hid_acpi "
+force_drivers+=" intel_ish_ipc intel_ishtp intel_ishtp_hid "
+force_drivers+=" hid_multitouch "
+
+# Intel graphics for early display (Plymouth needs KMS)
+force_drivers+=" i915 "
+
+# ═══════════════════════════════════════════════════════════════════════════
+# USB KEYFILE SUPPORT
+# ═══════════════════════════════════════════════════════════════════════════
+# Boot flow: Wait for USB, try keyfile from Ventoy VTOYEFI partition
+force_drivers+=" usb_storage uas vfat fat "
+filesystems+=" vfat "
+
+# Install all modules (don't skip any)
+hostonly="no"
 EOF
 
     log "Creating rEFInd configuration..."

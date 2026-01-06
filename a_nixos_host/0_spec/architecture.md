@@ -1,252 +1,308 @@
-# NixOS Bifrost Architecture
+# NixOS Host Architecture
+
+> **Device**: Surface Pro 8 (Intel Tiger Lake, 8GB RAM, 256GB NVMe)
+> **OS**: NixOS 24.11 with Full Impermanence
+> **Boot**: rEFInd / GRUB (LUKS2 unlock)
+> **Status**: Primary OS (standalone, not dual-boot)
+
+---
 
 ## Overview
 
-NixOS companion to Kubuntu - a declarative, reproducible operating system for the Surface Pro 8 dual-boot setup with full impermanence (tmpfs root).
+NixOS serves as the primary operating system with full impermanence (tmpfs root). All state is explicitly declared in Nix expressions and persisted via the impermanence module.
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        SURFACE PRO 8                                │
-├─────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │    GRUB      │  │   Kubuntu    │  │    NixOS     │              │
-│  │  Bootloader  │──│   (Host)     │──│   Bifrost    │              │
-│  └──────────────┘  └──────────────┘  └──────────────┘              │
-│         │                 │                 │                       │
-│         ▼                 ▼                 ▼                       │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                    LUKS2 Encrypted Pool                       │  │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │  │
-│  │  │ @root-nixos │  │ @home-nixos │  │  @shared    │          │  │
-│  │  │  /nix       │  │   /home     │  │  (common)   │          │  │
-│  │  │  /persist   │  │             │  │             │          │  │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘          │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                           SURFACE PRO 8 NixOS Host                           │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────────┐  │
+│  │                              RUNTIME                                   │  │
+│  │                                                                        │  │
+│  │   /                  tmpfs (2GB RAM) - wiped every boot               │  │
+│  │   /nix               @system/nix subvolume (read-only store)          │  │
+│  │   /var/lib           @system/state subvolume (system state)           │  │
+│  │   /var/log           @system/logs subvolume (logs)                    │  │
+│  │   /home              @user/home subvolume (user data)                 │  │
+│  │   /var/lib/containers  @shared/containers subvolume (Podman)          │  │
+│  │   /var/lib/flatpak     @shared/flatpak subvolume (Flatpak)            │  │
+│  │   /var/lib/microvms    @shared/microvm subvolume (microvm.nix)        │  │
+│  │   /var/lib/waydroid    @shared/waydroid subvolume (Android)           │  │
+│  │                                                                        │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────────┐  │
+│  │                              STORAGE                                   │  │
+│  │                                                                        │  │
+│  │   nvme0n1p1 (100MB)  EFI System Partition (/boot/efi)                 │  │
+│  │   nvme0n1p2 (2GB)    /boot partition (kernels, initrd)                │  │
+│  │   nvme0n1p3 (5GB)    Alpine Recovery OS (unencrypted)                 │  │
+│  │   nvme0n1p4 (~20GB)  Kali Linux Security (unencrypted)                │  │
+│  │   nvme0n1p5 (~20GB)  Windows 11 Webcam (unencrypted)                  │  │
+│  │   nvme0n1p6 (~180GB) LUKS2 → BTRFS Pool (encrypted)                   │  │
+│  │                                                                        │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Current Installation Status
+---
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| **NixOS Version** | 24.11.20250630 | Kernel 6.12.19 |
-| **Boot** | GRUB entry | Shared with Kubuntu |
-| **Root** | tmpfs (2GB) | Wiped on reboot |
-| **Nix Store** | @root-nixos/nix | 14,255 store paths |
-| **Persist** | @root-nixos/persist | SSH keys, machine-id |
-| **Desktop** | KDE Plasma 6 + GNOME + Openbox | SDDM display manager |
+## Design Principles
 
-## Comparison: Kubuntu vs NixOS
+| Principle | Implementation |
+|-----------|----------------|
+| **Declarative** | All config in Nix expressions, reproducible |
+| **Immutable Core** | tmpfs root, /nix/store read-only |
+| **Explicit Persistence** | Only declared paths survive reboot |
+| **Semantic Storage** | @system/, @user/, @shared/ subvolumes |
+| **Defense in Depth** | LUKS + namespaces + microvm.nix |
 
-| Feature | Kubuntu (Host) | NixOS Bifrost |
-|---------|----------------|---------------|
-| **Base** | Ubuntu 24.04 | NixOS 24.11 |
-| **Updates** | apt | nixos-rebuild |
-| **Config** | /etc files | Nix expressions |
-| **Rollback** | Timeshift | generations |
-| **Packages** | apt + snap | nixpkgs + flakes |
-| **Desktop** | KDE Plasma | KDE + GNOME + Openbox |
-| **Root** | ext4 | tmpfs (impermanence) |
+---
 
-## Directory Structure
+## Filesystem Layout
 
-```
-/home/diego/mnt_git/unix/a_nixos_host/     # Git repo (scripts & config)
-├── 0_spec/
-│   ├── architecture.md                    # This file
-│   └── runbook.md                         # Step-by-step procedures
-├── flake.nix                              # Flake definition
-├── configuration.nix                      # NixOS configuration
-└── hardware-configuration.nix             # Hardware & filesystem config
+### Mount Points
 
-/mnt/nixos/result/                         # Build output symlink
-└── nixos.img                              # Raw disk image (27.6 GB)
-```
-
-## Disk Layout
-
-### Partitions
-
-| Partition | UUID | Type | Mount | Size |
-|-----------|------|------|-------|------|
-| nvme0n1p1 | 2CE0-6722 | vfat | /boot/efi | 512M |
-| nvme0n1p2 | 0eaf7961-... | ext4 | /boot | 1G |
-| nvme0n1p3 | 7e3626ac-... | ext4 | / (Kubuntu) | ~50G |
-| nvme0n1p4 | 3c75c6db-... | LUKS2 | /dev/mapper/pool | ~117G |
-
-### BTRFS Subvolumes (on /dev/mapper/pool)
-
-```
-/dev/mapper/pool (117GB, btrfs, zstd compression)
-├── @root-kinoite        # Reserved for Kinoite
-├── @root-nixos          # NixOS root container
-│   ├── nix/             # Nested: /nix store (21GB)
-│   └── persist/         # Nested: persistent state
-├── @home-kinoite        # Reserved for Kinoite
-├── @home-nixos          # NixOS /home
-├── @shared              # Shared between OSes
-│   └── nix/             # Build-time nix store
-└── @android             # Waydroid storage
-```
-
-### NixOS Filesystem Mounts
-
-| Mount Point | Device | Type | Options |
+| Mount Point | Source | Type | Purpose |
 |-------------|--------|------|---------|
-| `/` | none | tmpfs | size=2G, mode=755 |
-| `/nix` | pool | btrfs | subvol=@root-nixos/nix |
-| `/persist` | pool | btrfs | subvol=@root-nixos/persist |
-| `/home` | pool | btrfs | subvol=@home-nixos |
-| `/mnt/shared` | pool | btrfs | subvol=@shared |
-| `/boot` | nvme0n1p2 | ext4 | - |
-| `/boot/efi` | nvme0n1p1 | vfat | umask=0077 |
-| `/var/lib/waydroid` | pool | btrfs | subvol=@android |
+| `/` | none | tmpfs | Ephemeral root (2GB RAM) |
+| `/nix` | @system/nix | btrfs | Nix store (immutable packages) |
+| `/var/lib` | @system/state | btrfs | System persistent state |
+| `/var/log` | @system/logs | btrfs | System logs |
+| `/home` | @user/home | btrfs | User data and configs |
+| `/var/lib/containers` | @shared/containers | btrfs | Podman/Docker storage |
+| `/var/lib/flatpak` | @shared/flatpak | btrfs | Flatpak apps |
+| `/var/lib/microvms` | @shared/microvm | btrfs | microvm.nix VMs |
+| `/var/lib/waydroid` | @shared/waydroid | btrfs | Android container |
+| `/boot` | nvme0n1p2 | ext4 | Kernels, initramfs |
+| `/boot/efi` | nvme0n1p1 | vfat | EFI System Partition |
 
-## Boot Configuration
-
-### GRUB Entry
-
-Location: `/etc/grub.d/40_nixos` (on Kubuntu)
+### BTRFS Subvolume Structure
 
 ```
-menuentry "NixOS" --class nixos --class gnu-linux --class os {
-    search --no-floppy --fs-uuid --set=root 0eaf7961-48c5-4b55-8a8f-04cd0b71de07
-    linux /nixos/vmlinuz init=/nix/store/pl0y29z2i540q27fh63q1m9kw21jwgvn-nixos-system-surface-nixos-24.11.20250630.50ab793/init loglevel=4
-    initrd /nixos/initrd
+/dev/mapper/pool (BTRFS, zstd compression)
+│
+├── @system/                    # OS-managed, declarative
+│   ├── nix/                    # Nix store (~30-50GB)
+│   ├── state/                  # /var/lib state (~5GB)
+│   └── logs/                   # /var/log (~2-5GB)
+│
+├── @user/                      # Personal data
+│   └── home/                   # /home/user (~20-50GB)
+│
+└── @shared/                    # Shared resources
+    ├── containers/             # Podman storage (~30GB)
+    ├── flatpak/                # Flatpak apps (~20GB)
+    ├── microvm/                # microvm.nix VMs (~20GB)
+    └── waydroid/               # Android (~10GB)
+```
+
+---
+
+## Impermanence Configuration
+
+### What Survives Reboot
+
+```nix
+# System state (bound from @system/state)
+environment.persistence."/persist" = {
+  directories = [
+    "/var/lib/nixos"           # NixOS state
+    "/var/lib/systemd"         # systemd machine state
+    "/var/lib/bluetooth"       # Bluetooth pairings
+    "/var/lib/NetworkManager"  # Network connections
+  ];
+  files = [
+    "/etc/machine-id"
+    "/etc/ssh/ssh_host_ed25519_key"
+    "/etc/ssh/ssh_host_ed25519_key.pub"
+    "/etc/ssh/ssh_host_rsa_key"
+    "/etc/ssh/ssh_host_rsa_key.pub"
+  ];
+};
+
+# User state (bound from @user/home)
+environment.persistence."/persist".users.user = {
+  directories = [
+    ".config"                  # App configurations
+    ".local"                   # Local data, scripts
+    ".cache"                   # Caches
+    ".ssh"                     # SSH keys
+    ".gnupg"                   # GPG keys
+    ".var"                     # Flatpak user data
+    "Documents"
+    "Downloads"
+    "Projects"
+  ];
+  files = [
+    ".bash_history"
+    ".zsh_history"
+    ".local/share/fish/fish_history"
+    "vault.tomb"               # Encrypted secrets
+  ];
+};
+```
+
+### What Gets Wiped
+
+Everything in `/` that's not explicitly persisted:
+- `/tmp`, `/var/tmp` (tmpfs anyway)
+- `/root` (root home)
+- `/etc` (regenerated from Nix)
+- Application runtime state
+
+---
+
+## Container Runtime Comparison
+
+| Runtime | Kernel | Filesystem | Network | Overhead | Use Case |
+|---------|--------|------------|---------|----------|----------|
+| **Nix Native** | Shared | Full | Full | 0% | CLI tools |
+| **Distrobox** | Shared | $HOME | Full | ~1% | Dev environments |
+| **Flatpak** | Shared | Portal | Restricted | ~2% | GUI apps |
+| **Podman** | Shared | Volume | Isolated | ~2% | Services |
+| **microvm.nix** | **Isolated** | **Isolated** | Isolated | ~5-10% | Untrusted |
+
+### When to Use Each
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           CONTAINER DECISION TREE                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Is it a CLI tool or system utility?                                    │
+│    YES → Nix Native (add to configuration.nix)                          │
+│                                                                         │
+│  Is it a development environment (compiler, interpreter)?               │
+│    YES → Distrobox (create Arch/Fedora/Ubuntu container)                │
+│                                                                         │
+│  Is it a GUI application (browser, chat, office)?                       │
+│    YES → Flatpak (install from Flathub)                                 │
+│                                                                         │
+│  Is it a long-running service (database, web server)?                   │
+│    YES → Podman (rootless container)                                    │
+│                                                                         │
+│  Is it untrusted code or CI/CD workload?                                │
+│    YES → microvm.nix (VM isolation)                                     │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Desktop Sessions (SDDM)
+
+| Session | Type | Protocol | Use Case |
+|---------|------|----------|----------|
+| **KDE Plasma** | Desktop | Wayland | Full desktop, Windows-like (default) |
+| **GNOME** | Desktop | Wayland | ChromeOS-like, touch-friendly |
+| **Waydroid (Android)** | Container | Wayland | Android apps fullscreen |
+| **Openbox (Light)** | WM | X11 | Minimal, fast, low RAM |
+| **Brave Kiosk** | Browser | Wayland | Web-only, digital signage |
+
+### Session Configuration
+
+```nix
+# Custom sessions in configuration.nix
+
+let
+  # Waydroid session (Android in fullscreen)
+  waydroid-session = pkgs.writeTextDir "share/wayland-sessions/waydroid.desktop" ''
+    [Desktop Entry]
+    Name=Waydroid (Android)
+    Comment=Android in a container
+    Exec=${pkgs.cage}/bin/cage -s -- ${pkgs.waydroid}/bin/waydroid show-full-ui
+    Type=Application
+    DesktopNames=Waydroid
+  '';
+
+  # Brave Kiosk session
+  brave-kiosk = pkgs.writeTextDir "share/wayland-sessions/brave-kiosk.desktop" ''
+    [Desktop Entry]
+    Name=Brave Kiosk
+    Comment=Brave Browser in Kiosk Mode
+    Exec=${pkgs.cage}/bin/cage -s -- ${pkgs.brave}/bin/brave --kiosk --no-first-run
+    Type=Application
+    DesktopNames=BraveKiosk
+  '';
+in {
+  services.displayManager = {
+    sddm = {
+      enable = true;
+      wayland.enable = true;
+    };
+    sessionPackages = [ waydroid-session brave-kiosk ];
+  };
+
+  # KDE Plasma 6
+  services.desktopManager.plasma6.enable = true;
+
+  # GNOME
+  services.xserver.desktopManager.gnome.enable = true;
+
+  # Openbox
+  services.xserver.windowManager.openbox.enable = true;
+
+  # Waydroid
+  virtualisation.waydroid.enable = true;
 }
 ```
 
-### Boot Files
-
-```
-/boot/
-├── nixos/
-│   ├── vmlinuz          # NixOS kernel (6.12.19)
-│   └── initrd           # NixOS initramfs
-├── grub/
-│   └── grub.cfg         # GRUB config (includes NixOS)
-└── efi/
-    └── EFI/
-        ├── GRUB/        # Kubuntu's GRUB
-        ├── ubuntu/      # Ubuntu boot
-        └── Microsoft/   # Windows boot
-```
-
-## Impermanence Model
-
-NixOS runs with tmpfs root - everything is wiped on reboot except:
-
-### Persisted Directories (`/persist`)
-
-```
-/persist/
-├── var/
-│   ├── lib/
-│   │   ├── nixos/           # NixOS state
-│   │   ├── systemd/         # systemd state
-│   │   ├── bluetooth/       # Bluetooth pairings
-│   │   ├── NetworkManager/  # Network connections
-│   │   ├── docker/          # Docker data
-│   │   └── containers/      # Podman data
-│   └── log/                 # System logs
-├── etc/
-│   ├── machine-id           # Machine identifier
-│   ├── ssh/                 # SSH host keys
-│   └── NetworkManager/
-│       └── system-connections/  # WiFi passwords
-└── home/
-    └── user/
-        ├── .config/
-        ├── .local/
-        ├── .cache/
-        ├── .ssh/
-        ├── .gnupg/
-        ├── Documents/
-        ├── Downloads/
-        └── Projects/
-```
-
-## Build Pipeline
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    BUILD PIPELINE (from Kubuntu)                 │
-└─────────────────────────────────────────────────────────────────┘
-
- 1. Setup                  2. Build                  3. Extract
-┌───────────────┐      ┌───────────────┐      ┌───────────────┐
-│ Mount pool    │      │ nix build     │      │ Copy closure  │
-│ Bind /nix to  │ ───▶ │ .#raw         │ ───▶ │ to @root-nixos│
-│ @shared       │      │               │      │ /nix/store    │
-└───────────────┘      └───────────────┘      └───────────────┘
-                                                      │
-                              ┌────────────────────────┤
-                              │                        │
-                              ▼                        ▼
-                       ┌───────────┐            ┌───────────┐
-                       │ Copy      │            │ Add GRUB  │
-                       │ kernel +  │            │ entry     │
-                       │ initrd    │            │           │
-                       └───────────┘            └───────────┘
-                              │
-                              ▼
- 4. Boot
-┌───────────────┐
-│ Reboot        │
-│ Select NixOS  │
-│ Enter LUKS pw │
-└───────────────┘
-```
-
-## Package Sources
-
-1. **nixpkgs** - Primary package source (100k+ packages)
-2. **nixos-hardware** - Surface Pro 8 specific support
-3. **impermanence** - Persistent state management
-4. **nixos-generators** - Image building
-5. **Flatpak** - GUI apps not in nixpkgs
-
-## System Resources
-
-| Resource | Kubuntu | NixOS |
-|----------|---------|-------|
-| **Swap** | 8GB (`/swapfile`) | 8GB (`/mnt/shared/.swapfile`) |
-| **CPU Governor** | performance | performance (no cap) |
-| **RAM** | 8GB total | 8GB total |
+---
 
 ## Security Stack
 
 | Layer | Implementation |
 |-------|----------------|
-| Disk | LUKS2 encrypted pool |
-| Boot | GRUB with LUKS unlock |
-| Firewall | nftables (port 22 open) |
-| Updates | Atomic generations |
-| SSH | Key-based + password |
+| **Disk** | LUKS2 (USB keyfile + password) |
+| **Vault** | Tomb (LUKS-in-LUKS for secrets) |
+| **Network** | nftables firewall |
+| **Apps** | Flatpak sandboxing |
+| **Untrusted** | microvm.nix VMs |
+| **Updates** | Atomic generations (rollback) |
 
-## Desktop Sessions
+---
 
-| Session | Type | Description |
-|---------|------|-------------|
-| **Plasma (KDE)** | Wayland | Full desktop (default) |
-| **GNOME** | Wayland | Alternative desktop |
-| **Openbox** | X11 | Lightweight WM |
-| **Android (Waydroid)** | Wayland | Full Android UI |
-| **Tor Kiosk** | Wayland | Tor Browser kiosk |
-| **Chrome Kiosk** | Wayland | Chromium kiosk |
+## Build Pipeline
 
-## Container Setup
+```bash
+# Check configuration
+nix flake check
 
-| Engine | Storage Location | Network |
-|--------|------------------|---------|
-| Docker | /mnt/shared/containers/docker | bridge |
-| Podman | /mnt/shared/containers/podman | rootless |
+# Build without switching
+sudo nixos-rebuild build --flake .#surface
 
-Both use btrfs storage driver on the shared subvolume.
+# Switch to new generation
+sudo nixos-rebuild switch --flake .#surface
 
-## Related Resources
+# Rollback if needed
+sudo nixos-rebuild switch --rollback
 
-- [NixOS Manual](https://nixos.org/manual/nixos/stable/)
-- [nixos-generators](https://github.com/nix-community/nixos-generators)
-- [Impermanence](https://github.com/nix-community/impermanence)
-- [nixos-hardware Surface](https://github.com/NixOS/nixos-hardware/tree/master/microsoft/surface)
+# List generations
+sudo nix-env --list-generations -p /nix/var/nix/profiles/system
+```
+
+---
+
+## Key UUIDs
+
+| Component | UUID |
+|-----------|------|
+| EFI Partition | `2CE0-6722` |
+| /boot Partition | `0eaf7961-48c5-4b55-8a8f-04cd0b71de07` |
+| LUKS Partition | `3c75c6db-4d7c-4570-81f1-02d168781aac` |
+| USB Keyfile | `223C-F3F8` (Ventoy) |
+
+---
+
+## Related Documentation
+
+| Document | Path | Purpose |
+|----------|------|---------|
+| Main Architecture | `0_spec/ARCHITECTURE.md` | High-level overview |
+| Disk Layout | `0_spec/DISK_LAYOUT.md` | Partition details |
+| Isolation Layers | `0_spec/ISOLATION_LAYERS.md` | Security zones |
+| Personal Space | `0_spec/PERSONAL_SPACE.md` | User organization |
+| Roadmap | `0_spec/ROADMAP.md` | Implementation plan |
+| Runbook | `a_nixos_host/0_spec/runbook.md` | Step-by-step procedures |
