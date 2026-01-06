@@ -44,14 +44,14 @@ nvme0n1p5   118G   ext4        / (Kubuntu)    ← RECLAIM THIS
 **PREFER OCI IMAGES** - They are faster to deploy than ISOs when available
 
 **Already have:**
-- [x] Alpine ISO: `/home/diego/alpine-official.iso` (994M)
-- [x] Alpine fixed: `/home/diego/alpine-fixed.iso` (687M)
+- [x] Alpine ISO: `/home/diego/alpine-official.iso` (994M) - USB recovery only
+- [x] Kali ISO: `/home/diego/kali-installer.iso` (4.5G)
 - [x] NixOS Plasma: `/home/diego/nixos-plasma.iso` (3.2G)
 
 **Still need:**
-- [ ] Download Kali Live ISO (with desktop): https://www.kali.org/get-kali/
-      - Choose "Installer" with XFCE desktop (~4GB)
-      - Or check for Kali OCI/container image (faster if available)
+- [ ] Download Arch Linux ISO: https://archlinux.org/download/
+      - ~800MB, rolling release
+      - Need USB keyboard during install (Surface keyboard works AFTER linux-surface installed)
 
 **USB Setup:**
 - [ ] Create bootable USB with Ventoy
@@ -71,37 +71,49 @@ nvme0n1p5   118G   ext4        / (Kubuntu)    ← RECLAIM THIS
 - [ ] Apply changes
 - [ ] Reboot to verify Kubuntu still works
 
-### Step 0.3: Install Alpine Recovery (5GB)
-- [ ] Boot Kali Live USB again
-- [ ] Mount Alpine ISO
-- [ ] Install Alpine to nvme0n1p6:
+### Step 0.3: Install Arch Linux + linux-surface (5GB)
+**Why Arch instead of Alpine?** Surface Pro keyboard needs linux-surface drivers. Alpine doesn't have them. Arch has official linux-surface repo.
+
+- [ ] Boot Arch ISO from USB (need USB keyboard initially)
+- [ ] Connect to WiFi: `iwctl station wlan0 connect "SSID"`
+- [ ] Mount: `mount /dev/nvme0n1p6 /mnt`
+- [ ] Install base:
       ```bash
-      # From Kali Live
-      setup-alpine  # or manual install
+      pacstrap -K /mnt base linux linux-firmware \
+          networkmanager vim sudo cryptsetup btrfs-progs openssh curl wget git
+      genfstab -U /mnt >> /mnt/etc/fstab
       ```
-- [ ] Install essential tools:
+- [ ] Chroot and configure:
       ```bash
-      apk add cryptsetup btrfs-progs openssh vim wget curl git
+      arch-chroot /mnt
+      # Set root password: 1234567890
+      # Create user with sudo
       ```
-- [ ] Install Node.js:
+- [ ] Add linux-surface repo to /etc/pacman.conf:
       ```bash
-      apk add nodejs npm
+      [linux-surface]
+      Server = https://pkg.surfacelinux.com/arch/
       ```
-- [ ] Install Claude Code CLI:
+- [ ] Install Surface kernel:
       ```bash
-      npm install -g @anthropic-ai/claude-code
-      # Set API key
-      export ANTHROPIC_API_KEY="sk-..."
+      pacman-key --recv-keys 56C464BAAC421453
+      pacman-key --lsign-key 56C464BAAC421453
+      pacman -Syu linux-surface linux-surface-headers iptsd
+      systemctl enable iptsd NetworkManager sshd
       ```
-- [ ] Configure networking
-- [ ] Add boot entry to GRUB:
+- [ ] Install bootloader (systemd-boot)
+- [ ] Reboot and test Surface keyboard works
+- [ ] Install Node.js + Claude CLI:
       ```bash
-      sudo update-grub  # from Kubuntu after reboot
+      sudo pacman -S nodejs npm
+      sudo npm install -g @anthropic-ai/claude-code
       ```
-- [ ] TEST: Can boot into Alpine
-- [ ] TEST: Can unlock LUKS from Alpine
-- [ ] TEST: `node --version` works
+- [ ] TEST: Can boot into Arch
+- [ ] TEST: Surface keyboard works!
+- [ ] TEST: Can unlock LUKS from Arch
 - [ ] TEST: `claude` command works
+
+**Full guide**: See `/home/diego/mnt_git/unix/a_arch-surface_fallback_desk/SETUP.md`
 
 ### Step 0.4: Install Kali Linux (25GB) - WITH DESKTOP
 - [ ] Boot Kali Live USB
@@ -135,16 +147,29 @@ nvme0n1p5   118G   ext4        / (Kubuntu)    ← RECLAIM THIS
 - [ ] TEST: `claude` command works
 
 ### Step 0.5: Verify Escape Route
-- [ ] Can boot Alpine from GRUB menu
+- [ ] Can boot Arch from systemd-boot/GRUB menu
 - [ ] Can boot Kali from GRUB menu
+- [ ] **Surface keyboard works in Arch**
 - [ ] Kali has full XFCE/KDE desktop working
 - [ ] Both have network access (WiFi or ethernet)
-- [ ] Can unlock LUKS from Alpine (cryptsetup open)
+- [ ] Can unlock LUKS from Arch (cryptsetup open)
 - [ ] Can browse web from Kali
 
 **CHECKPOINT: Once verified, Kubuntu can be DELETED entirely**
 
-### Step 0.6: Reclaim Kubuntu Space (after verification)
+---
+
+## KUBUNTU STAYS UNTIL THE END
+
+Kubuntu is our safety net. Only delete AFTER:
+- Arch boots with Surface keyboard working
+- Kali boots with full desktop
+- Both have Node.js + Claude working
+- Network works on both
+
+---
+
+### Step 0.6: Reclaim Kubuntu Space (FINAL STEP - LAST)
 - [ ] Boot into Kali (installed, not USB)
 - [ ] Delete nvme0n1p5 (old Kubuntu) with GParted
 - [ ] Decide what to do with ~70G freed space:
@@ -244,18 +269,17 @@ nvme0n1p5   118G   ext4        / (Kubuntu)    ← RECLAIM THIS
 
 ---
 
-## Phase 4: Alpine Recovery [0%]
+## Phase 4: Arch Linux Recovery [MOVED TO PHASE 0]
 
-- [ ] Create 5GB partition (nvme0n1p3)
-- [ ] Download Alpine extended ISO
-- [ ] Install Alpine to partition
-- [ ] Configure network (DHCP + WiFi)
-- [ ] Install tools: cryptsetup, btrfs-progs, openssh, vim
-- [ ] Add boot entry to rEFInd
-- [ ] Test: boots from menu
-- [ ] Test: can unlock LUKS
-- [ ] Test: can mount BTRFS subvolumes
-- [ ] Test: SSH access works
+**NOTE**: Arch Linux with linux-surface replaces Alpine as fallback OS.
+Alpine moved to USB-only recovery (see `a_alpine_fallback_usb/`).
+
+- [x] Partition created: nvme0n1p6 (5GB)
+- [ ] Install Arch + linux-surface (see Step 0.3)
+- [ ] Surface keyboard works
+- [ ] Can unlock LUKS
+- [ ] Can mount BTRFS subvolumes
+- [ ] Node.js + Claude CLI work
 
 ---
 
@@ -311,7 +335,7 @@ nvme0n1p5   118G   ext4        / (Kubuntu)    ← RECLAIM THIS
 **Boot Scenarios:**
 - [ ] NixOS with USB key (auto-unlock)
 - [ ] NixOS without USB (password prompt)
-- [ ] Alpine recovery
+- [ ] Arch Linux recovery (Surface keyboard works!)
 - [ ] Kali Linux
 - [ ] Windows 11
 
@@ -340,8 +364,9 @@ nvme0n1p5   118G   ext4        / (Kubuntu)    ← RECLAIM THIS
 1. **NO BUILDS IN KUBUNTU** - No disk space
 2. **Backup before Phase 2** - Subvolume migration is destructive
 3. **Test each phase** before proceeding to next
-4. **Keep Alpine working** - It's your recovery lifeline
-5. **Document any deviations** from this plan
+4. **Keep Arch working** - It's your recovery lifeline (has Surface keyboard support!)
+5. **Alpine is USB-only** - For emergency recovery when nothing else works
+6. **Document any deviations** from this plan
 
 ---
 
@@ -349,11 +374,14 @@ nvme0n1p5   118G   ext4        / (Kubuntu)    ← RECLAIM THIS
 
 | Phase | Status | Notes |
 |-------|--------|-------|
+| Phase 0: Escape Route | 30% | Partitions ready, need Arch + Kali install |
 | Phase 1: Documentation | 90% | Final review pending |
 | Phase 2: Subvolumes | 0% | Needs backup first |
 | Phase 3: NixOS Config | 0% | After Phase 2 |
-| Phase 4: Alpine | 0% | Can do independently |
-| Phase 4b: Kali | 0% | Can do independently |
+| Phase 4: Arch Recovery | 30% | Partition ready, install pending |
+| Phase 4b: Kali | 0% | Partition ready, install pending |
 | Phase 5: Windows | 0% | Can do independently |
 | Phase 6: Vault | 0% | After Phase 3 |
 | Phase 7: Testing | 0% | After all phases |
+
+**Alpine**: Moved to USB-only recovery (`a_alpine_fallback_usb/`)

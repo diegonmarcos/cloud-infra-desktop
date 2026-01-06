@@ -1,0 +1,67 @@
+{
+  "meta": {
+    "name": "Alpine Recovery",
+    "version": "1.0",
+    "target": "Surface Pro 8",
+    "alpine": "3.21"
+  },
+  "users": {
+    "diego": {
+      "shell": "/usr/bin/fish",
+      "groups": ["wheel"],
+      "sudo": "NOPASSWD"
+    }
+  },
+  "apk": {
+    "base": ["alpine-base", "linux-lts", "openrc"],
+    "shells": ["bash", "zsh", "fish"],
+    "editors": ["vim", "nano"],
+    "network": ["networkmanager", "networkmanager-wifi", "wpa_supplicant", "openssh", "curl", "wget", "git"],
+    "graphics": ["xorg-server", "xinit", "openbox", "xterm", "mesa-dri-gallium", "ttf-dejavu"],
+    "browsers": ["dillo", "links"],
+    "monitors": ["btop", "htop"],
+    "dev": ["nodejs", "npm", "python3", "py3-pip"],
+    "utils": ["util-linux", "e2fsprogs", "dosfstools", "grub", "grub-efi", "sudo"],
+    "cli_tools": ["ripgrep", "fd", "fzf", "jq", "yq", "tmux", "neofetch"],
+    "gui_apps": ["pcmanfm", "lxappearance", "adwaita-icon-theme"]
+  },
+  "npm": {
+    "global": ["@anthropic-ai/claude-code"],
+    "optional": ["gemini-cli"]
+  },
+  "pip": {
+    "global": ["google-generativeai"]
+  },
+  "services": {
+    "default": ["dbus", "networkmanager", "sshd"]
+  },
+  "mounts": {
+    "kubuntu": {
+      "device": "UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793",
+      "mountpoint": "/mnt/kubuntu",
+      "fstype": "ext4",
+      "options": "defaults,noauto"
+    }
+  },
+  "openbox": {
+    "menu": [
+      {"label": "Terminal", "cmd": "xterm"},
+      {"label": "Files", "cmd": "pcmanfm"},
+      {"label": "Dillo", "cmd": "dillo"},
+      {"label": "Links", "cmd": "links -g"},
+      {"type": "separator"},
+      {"label": "AI Tools", "submenu": [
+        {"label": "Claude Code", "cmd": "xterm -e claude"},
+        {"label": "Gemini", "cmd": "xterm -e gemini"}
+      ]},
+      {"label": "System", "submenu": [
+        {"label": "btop", "cmd": "xterm -e btop"},
+        {"label": "htop", "cmd": "xterm -e htop"},
+        {"label": "WiFi", "cmd": "xterm -e nmtui"},
+        {"label": "Mount Kubuntu", "cmd": "xterm -e 'sudo mount /mnt/kubuntu && pcmanfm /mnt/kubuntu'"}
+      ]},
+      {"type": "separator"},
+      {"label": "Exit", "action": "Exit"}
+    ]
+  }
+}

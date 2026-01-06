@@ -76,12 +76,25 @@
     };
   };
 
+  # Avahi for mDNS/DNS-SD (local network discovery)
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;  # Enable NSS mDNS support for .local resolution
+    openFirewall = true;
+  };
+
   # ═══════════════════════════════════════════════════════════════════════════
   # TIMEZONE AND LOCALE
   # ═══════════════════════════════════════════════════════════════════════════
 
   time.timeZone = "Europe/Madrid";
   i18n.defaultLocale = "en_US.UTF-8";
+  i18n.extraLocaleSettings = {
+    LC_ALL = "en_US.UTF-8";
+    LANG = "en_US.UTF-8";
+  };
+  # Generate the locale
+  i18n.supportedLocales = [ "en_US.UTF-8/UTF-8" "es_ES.UTF-8/UTF-8" ];
 
   # ═══════════════════════════════════════════════════════════════════════════
   # USER ACCOUNT
@@ -123,6 +136,18 @@
 
   # Resolve KDE/GNOME askpass conflict - use KDE's
   programs.ssh.askPassword = lib.mkForce "${pkgs.libsForQt5.ksshaskpass}/bin/ksshaskpass";
+
+  # XDG Portal configuration - handle KDE/GNOME coexistence
+  xdg.portal = {
+    enable = true;
+    # KDE portal as default, GNOME as fallback
+    extraPortals = with pkgs; [
+      xdg-desktop-portal-kde
+      xdg-desktop-portal-gtk
+    ];
+    # Prefer KDE portal for most things when in Plasma
+    config.common.default = [ "kde" "gtk" ];
+  };
 
   # ═══════════════════════════════════════════════════════════════════════════
   # SESSION 3: OPENBOX (X11 Lightweight)
@@ -181,6 +206,22 @@
     enable = true;
     enable32Bit = true;
   };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PLYMOUTH (Boot Splash with Touch Keyboard Fallback)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # If Type Cover keyboard fails, Plymouth provides a touch-friendly
+  # password entry screen that works with the Surface touchscreen.
+  # FALLBACK: USB keyboard always works as last resort.
+
+  boot.plymouth = {
+    enable = true;
+    # Use a theme that works well with touch input
+    theme = "bgrt";  # Uses OEM logo, simple and reliable
+  };
+
+  # Enable early KMS for Plymouth to work with LUKS
+  boot.initrd.kernelModules = [ "i915" ];  # Intel graphics early init
 
   # ═══════════════════════════════════════════════════════════════════════════
   # CONTAINERS (Docker + Podman)
@@ -244,6 +285,7 @@
 
     # ─── Network ─────────────────────────────────────────────────────────────
     nmap dig tcpdump iproute2 wireguard-tools
+    nssmdns  # mDNS/DNS-SD support for Avahi
 
     # ─── Development ─────────────────────────────────────────────────────────
     gcc gnumake cmake
@@ -359,6 +401,17 @@
   system.activationScripts.updateGrub = ''
     if [ -x /boot/grub/update-grub.sh ]; then
       /boot/grub/update-grub.sh || true
+    fi
+  '';
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FIX HOME DIRECTORY PERMISSIONS
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Ensure user home directory has correct ownership
+  # The impermanence module creates dirs as root, this fixes ownership
+  system.activationScripts.fixHomePermissions = lib.stringAfter [ "users" ] ''
+    if [ -d /home/user ]; then
+      chown -R 1000:1000 /home/user
     fi
   '';
 }

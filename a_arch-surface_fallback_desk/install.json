@@ -1,0 +1,83 @@
+{
+  "meta": {
+    "name": "Arch Linux Surface Recovery",
+    "version": "1.0",
+    "target": "Surface Pro 8",
+    "arch": "rolling"
+  },
+  "users": {
+    "diego": {
+      "shell": "/usr/bin/fish",
+      "groups": ["wheel", "video", "input"],
+      "sudo": "NOPASSWD"
+    }
+  },
+  "repos": {
+    "linux-surface": {
+      "name": "linux-surface",
+      "server": "https://pkg.surfacelinux.com/arch/",
+      "key": "56C464BAAC421453"
+    }
+  },
+  "pacman": {
+    "surface": ["linux-surface", "linux-surface-headers", "iptsd"],
+    "base": ["base", "base-devel", "linux-firmware"],
+    "shells": ["bash", "zsh", "fish"],
+    "editors": ["vim", "nano", "neovim"],
+    "network": ["networkmanager", "wpa_supplicant", "openssh", "curl", "wget", "git", "iwd"],
+    "graphics": ["xorg-server", "xorg-xinit", "openbox", "xterm", "mesa", "ttf-dejavu", "ttf-liberation"],
+    "wayland": ["sway", "foot", "wofi", "wl-clipboard"],
+    "browsers": ["lynx"],
+    "monitors": ["btop", "htop"],
+    "dev": ["nodejs", "npm", "python", "python-pip"],
+    "utils": ["sudo", "grub", "efibootmgr", "dosfstools", "e2fsprogs", "cryptsetup", "btrfs-progs"],
+    "cli_tools": ["ripgrep", "fd", "fzf", "jq", "yq", "tmux", "neofetch", "eza", "bat", "zoxide"],
+    "gui_apps": ["pcmanfm", "lxappearance"]
+  },
+  "npm": {
+    "global": ["@anthropic-ai/claude-code"]
+  },
+  "services": {
+    "enable": ["NetworkManager", "sshd", "iptsd"]
+  },
+  "mounts": {
+    "luks_pool": {
+      "device": "UUID=3c75c6db-4d7c-4570-81f1-02d168781aac",
+      "luks_name": "pool",
+      "mountpoint": "/mnt/pool",
+      "fstype": "btrfs",
+      "options": "defaults,noauto,compress=zstd"
+    },
+    "kubuntu": {
+      "device": "UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793",
+      "mountpoint": "/mnt/kubuntu",
+      "fstype": "ext4",
+      "options": "defaults,noauto"
+    }
+  },
+  "install_order": [
+    "1. Clean Arch install (base + linux-firmware)",
+    "2. Add linux-surface repo",
+    "3. Install linux-surface + iptsd (Surface keyboard WORKS after this)",
+    "4. Reboot - verify keyboard",
+    "5. Run install.sh for remaining tools"
+  ],
+  "openbox": {
+    "menu": [
+      {"label": "Terminal", "cmd": "xterm"},
+      {"label": "Files", "cmd": "pcmanfm"},
+      {"type": "separator"},
+      {"label": "AI Tools", "submenu": [
+        {"label": "Claude Code", "cmd": "xterm -e claude"}
+      ]},
+      {"label": "System", "submenu": [
+        {"label": "btop", "cmd": "xterm -e btop"},
+        {"label": "WiFi", "cmd": "xterm -e nmtui"},
+        {"label": "Unlock LUKS", "cmd": "xterm -e 'sudo cryptsetup open /dev/nvme0n1p4 pool && sudo mount /dev/mapper/pool /mnt/pool'"}
+      ]},
+      {"type": "separator"},
+      {"label": "Sway (Wayland)", "cmd": "sway"},
+      {"label": "Exit", "action": "Exit"}
+    ]
+  }
+}
