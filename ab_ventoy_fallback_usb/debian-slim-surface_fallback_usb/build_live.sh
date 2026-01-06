@@ -9,7 +9,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BUILD_DIR="/tmp/debian-surface-live"
+BUILD_DIR="/var/tmp/debian-surface-live"  # Use /var/tmp for more space (tmpfs /tmp is too small)
 OUTPUT_DIR="$SCRIPT_DIR"
 ISO_NAME="debian-surface-live.iso"
 
@@ -99,11 +99,12 @@ apt-get install -y \
     openssh-client curl wget git \
     live-boot live-boot-initramfs-tools
 
-# Lightweight GUI
+# Lightweight GUI (ultra-minimal)
 apt-get install -y \
-    xorg openbox xterm \
-    mesa-utils fonts-dejavu \
-    pcmanfm lxappearance
+    xorg openbox \
+    sakura \
+    pcmanfm \
+    mesa-utils fonts-dejavu
 
 # CLI tools
 apt-get install -y \
@@ -141,6 +142,50 @@ systemctl enable iptsd || true
 echo "exec openbox-session" > /home/diego/.xinitrc
 chown diego:diego /home/diego/.xinitrc
 
+# Create openbox config directory
+mkdir -p /home/diego/.config/openbox
+
+# Openbox menu (right-click)
+cat > /home/diego/.config/openbox/menu.xml << 'MENU'
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+<menu id="root-menu" label="Menu">
+  <item label="Terminal"><action name="Execute"><command>sakura</command></action></item>
+  <item label="Files"><action name="Execute"><command>pcmanfm</command></action></item>
+  <separator />
+  <item label="WiFi (nmtui)"><action name="Execute"><command>sakura -e nmtui</command></action></item>
+  <item label="Claude Code"><action name="Execute"><command>sakura -e claude</command></action></item>
+  <item label="System Monitor"><action name="Execute"><command>sakura -e btop</command></action></item>
+  <separator />
+  <item label="Reboot"><action name="Execute"><command>systemctl reboot</command></action></item>
+  <item label="Shutdown"><action name="Execute"><command>systemctl poweroff</command></action></item>
+</menu>
+</openbox_menu>
+MENU
+
+# Openbox autostart
+cat > /home/diego/.config/openbox/autostart << 'AUTOSTART'
+# Set background color
+xsetroot -solid "#2e3440" &
+AUTOSTART
+
+# Openbox rc.xml (keyboard shortcuts)
+cat > /home/diego/.config/openbox/rc.xml << 'RCXML'
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+<keyboard>
+  <keybind key="W-Return"><action name="Execute"><command>sakura</command></action></keybind>
+  <keybind key="W-e"><action name="Execute"><command>pcmanfm</command></action></keybind>
+  <keybind key="W-q"><action name="Close"/></keybind>
+  <keybind key="A-F4"><action name="Close"/></keybind>
+  <keybind key="A-Tab"><action name="NextWindow"/></keybind>
+</keyboard>
+<mouse><context name="Root"><mousebind button="Right" action="Press"><action name="ShowMenu"><menu>root-menu</menu></action></mousebind></context></mouse>
+</openbox_config>
+RCXML
+
+chown -R diego:diego /home/diego/.config
+
 # Install Claude Code (do this last, takes time)
 npm install -g @anthropic-ai/claude-code || true
 
@@ -168,6 +213,9 @@ echo ""
 neofetch --off
 EOF2
 chown diego:diego /home/diego/.bash_profile
+
+# critical: update initramfs to ensure live-boot hooks are present
+update-initramfs -u -k all
 
 echo "Chroot installation complete!"
 CHROOT_SCRIPT
@@ -213,7 +261,59 @@ menuentry "Debian Surface Recovery (Debug)" {
 EOF
 log_ok "GRUB config created"
 
-# Create ISO
+# Setup BIOS boot (isolinux)
+log_head "Setting up BIOS Boot (isolinux)"
+apt-get install -y isolinux syslinux-common
+cp /usr/lib/ISOLINUX/isolinux.bin image/isolinux/
+cp /usr/lib/syslinux/modules/bios/{ldlinux.c32,libcom32.c32,libutil.c32,vesamenu.c32} image/isolinux/
+
+cat > image/isolinux/isolinux.cfg << 'EOF'
+DEFAULT vesamenu.c32
+TIMEOUT 50
+PROMPT 0
+MENU TITLE Debian Surface Recovery
+
+LABEL toram
+    MENU LABEL Debian Surface (Load to RAM)
+    KERNEL /live/vmlinuz
+    APPEND initrd=/live/initrd.img boot=live toram quiet splash
+
+LABEL normal
+    MENU LABEL Debian Surface (Normal Boot)
+    KERNEL /live/vmlinuz
+    APPEND initrd=/live/initrd.img boot=live quiet splash
+
+LABEL debug
+    MENU LABEL Debian Surface (Debug Mode)
+    KERNEL /live/vmlinuz
+    APPEND initrd=/live/initrd.img boot=live debug
+EOF
+log_ok "isolinux configured"
+
+# Setup UEFI boot (grub-efi)
+log_head "Setting up UEFI Boot"
+apt-get install -y grub-efi-amd64-bin mtools dosfstools
+
+# Create EFI boot image
+mkdir -p image/efi/boot
+EFI_IMG="image/boot/grub/efi.img"
+dd if=/dev/zero of="$EFI_IMG" bs=1M count=4
+mkfs.vfat "$EFI_IMG"
+mmd -i "$EFI_IMG" ::/EFI ::/EFI/BOOT
+
+# Create standalone GRUB EFI binary
+grub-mkstandalone \
+    --format=x86_64-efi \
+    --output=image/efi/boot/bootx64.efi \
+    --locales="" \
+    --fonts="" \
+    "boot/grub/grub.cfg=image/boot/grub/grub.cfg"
+
+# Copy EFI binary to efi.img
+mcopy -i "$EFI_IMG" image/efi/boot/bootx64.efi ::/EFI/BOOT/BOOTX64.EFI
+log_ok "UEFI boot configured"
+
+# Create ISO with both BIOS and UEFI support
 log_head "Building ISO Image"
 xorriso -as mkisofs \
     -o "$OUTPUT_DIR/$ISO_NAME" \
@@ -225,12 +325,7 @@ xorriso -as mkisofs \
     -e boot/grub/efi.img \
     -no-emul-boot -isohybrid-gpt-basdat \
     -V "DEBIAN_SURFACE" \
-    image 2>/dev/null || {
-    # Fallback: simpler ISO creation
-    log_info "Using fallback ISO creation..."
-    apt-get install -y grub-pc-bin grub-efi-amd64-bin
-    grub-mkrescue -o "$OUTPUT_DIR/$ISO_NAME" image
-}
+    image
 
 log_ok "ISO created: $OUTPUT_DIR/$ISO_NAME"
 
