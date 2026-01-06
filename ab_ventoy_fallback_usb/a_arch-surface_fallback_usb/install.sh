@@ -293,17 +293,6 @@ cmd_install() {
 
 cmd_desktop() {
     log_head "Starting Openbox Desktop"
-
-    # Check if startx exists
-    if ! command -v startx >/dev/null 2>&1; then
-        log_err "startx not found! Install xorg-xinit first:"
-        echo "  sudo pacman -S xorg-xinit xorg-server openbox xterm"
-        echo ""
-        echo "If network is down, connect WiFi first:"
-        echo "  nmtui"
-        exit 1
-    fi
-
     if [ ! -f ~/.xinitrc ]; then
         echo "exec openbox-session" > ~/.xinitrc
     fi

@@ -1,0 +1,70 @@
+{
+  "control": [
+    { "VTOY_DEFAULT_MENU_MODE": "1" },
+    { "VTOY_LINUX_REMOUNT": "1" },
+    { "VTOY_FILT_DOT_UNDERSCORE_FILE": "1" },
+    { "VTOY_DEFAULT_SEARCH_ROOT": "/" },
+    { "VTOY_MENU_TIMEOUT": "10" }
+  ],
+  "theme": {
+    "display_mode": "GUI",
+    "gfxmode": "1920x1280",
+    "ventoy_left": "5%",
+    "ventoy_top": "25%",
+    "ventoy_color": "#ffffff"
+  },
+  "menu_class": [
+    { "key": "debian", "class": "debian" },
+    { "key": "arch", "class": "arch" },
+    { "key": "alpine", "class": "alpine" }
+  ],
+  "menu_alias": [
+    {
+      "image": "/debian-surface-live.iso",
+      "alias": "Debian Surface Recovery"
+    },
+    {
+      "image": "/arch-surface-live.iso",
+      "alias": "Arch Linux Surface"
+    },
+    {
+      "image": "/alpine-live.iso",
+      "alias": "Alpine Linux Minimal"
+    }
+  ],
+  "menu_tip": [
+    {
+      "image": "/debian-surface-live.iso",
+      "tip": "Debian 12 + Surface drivers (~800MB) - Press F2 for boot options"
+    },
+    {
+      "image": "/arch-surface-live.iso",
+      "tip": "Arch Linux + Surface drivers (~1.2GB) - Press F2 for boot options"
+    },
+    {
+      "image": "/alpine-live.iso",
+      "tip": "Alpine Linux ultra-light (~400MB) - Press F2 for boot options"
+    }
+  ],
+  "image_list_extra": [
+    {
+      "image": "/debian-surface-live.iso",
+      "tip": "@@Press F2 for toram vs normal boot@@"
+    },
+    {
+      "image": "/arch-surface-live.iso",
+      "tip": "@@Press F2 for toram vs normal boot@@"
+    },
+    {
+      "image": "/alpine-live.iso",
+      "tip": "@@Press F2 for toram vs normal boot@@"
+    }
+  ],
+  "conf_replace": [
+    {
+      "image": "/debian-surface-live.iso",
+      "org": "boot=live",
+      "new": "boot=live toram"
+    }
+  ]
+}

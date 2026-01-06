@@ -1,0 +1,68 @@
+{
+  "meta": {
+    "name": "Kali Linux Surface Security",
+    "version": "1.0",
+    "target": "Surface Pro 8",
+    "distro": "kali-rolling"
+  },
+  "users": {
+    "diego": {
+      "shell": "/usr/bin/fish",
+      "groups": ["sudo", "audio", "video", "plugdev", "netdev"],
+      "sudo": "NOPASSWD"
+    }
+  },
+  "repos": {
+    "linux-surface": {
+      "name": "linux-surface",
+      "url": "https://pkg.surfacelinux.com/debian",
+      "key_url": "https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc",
+      "key_file": "/etc/apt/trusted.gpg.d/linux-surface.gpg"
+    }
+  },
+  "apt": {
+    "surface": ["linux-image-surface", "linux-headers-surface", "iptsd"],
+    "base": ["build-essential", "linux-headers-amd64"],
+    "shells": ["bash", "zsh", "fish"],
+    "editors": ["vim", "nano", "neovim"],
+    "network": ["network-manager", "wpasupplicant", "openssh-server", "curl", "wget", "git", "iwd"],
+    "graphics": ["xorg", "openbox", "xterm", "mesa-utils", "fonts-dejavu", "fonts-liberation"],
+    "wayland": ["sway", "foot", "wofi", "wl-clipboard"],
+    "browsers": ["lynx", "firefox-esr"],
+    "monitors": ["btop", "htop"],
+    "dev": ["nodejs", "npm", "python3", "python3-pip", "python3-venv"],
+    "utils": ["sudo", "grub-efi-amd64", "efibootmgr", "dosfstools", "e2fsprogs", "cryptsetup", "btrfs-progs"],
+    "cli_tools": ["ripgrep", "fd-find", "fzf", "jq", "tmux", "neofetch", "eza", "bat", "zoxide"],
+    "gui_apps": ["pcmanfm", "lxappearance"],
+    "kali_core": ["kali-linux-core"],
+    "kali_tools": ["nmap", "netcat-openbsd", "tcpdump", "wireshark", "aircrack-ng", "john", "hashcat", "hydra", "sqlmap", "metasploit-framework", "burpsuite"]
+  },
+  "npm": {
+    "global": ["@anthropic-ai/claude-code"]
+  },
+  "services": {
+    "enable": ["NetworkManager", "ssh", "iptsd"]
+  },
+  "mounts": {
+    "luks_pool": {
+      "device": "UUID=3c75c6db-4d7c-4570-81f1-02d168781aac",
+      "luks_name": "pool",
+      "mountpoint": "/mnt/pool",
+      "fstype": "btrfs",
+      "options": "defaults,noauto,compress=zstd"
+    },
+    "kubuntu": {
+      "device": "UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793",
+      "mountpoint": "/mnt/kubuntu",
+      "fstype": "ext4",
+      "options": "defaults,noauto"
+    }
+  },
+  "install_order": [
+    "1. Boot Kali with linux-surface kernel",
+    "2. Run ./install.sh surface (verify drivers)",
+    "3. Run ./install.sh scan (check what's missing)",
+    "4. Run ./install.sh install (install all)",
+    "5. Run ./install.sh kali (install security tools)"
+  ]
+}
