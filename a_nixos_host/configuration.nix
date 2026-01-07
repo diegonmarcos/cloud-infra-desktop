@@ -119,12 +119,12 @@
     home = "/home/guest";
   };
 
-  # Fixed GIDs for groups
+  # Fixed GIDs for groups (mkForce to override module defaults)
   users.groups.users.gid = 100;
-  users.groups.docker.gid = 998;
-  users.groups.podman.gid = 997;
-  users.groups.libvirtd.gid = 996;
-  users.groups.kvm.gid = 995;
+  users.groups.docker.gid = lib.mkForce 998;
+  users.groups.podman.gid = lib.mkForce 997;
+  users.groups.libvirtd.gid = lib.mkForce 996;
+  users.groups.kvm.gid = lib.mkForce 995;
 
   security.sudo.wheelNeedsPassword = false;
 
@@ -274,6 +274,11 @@
       experimental-features = [ "nix-command" "flakes" ];
       auto-optimise-store = true;
       trusted-users = [ "root" "diego" ];
+
+      # CRITICAL: Use disk-backed build directory, NOT tmpfs
+      # Kernel builds need 5-10GB temp space, tmpfs only has ~4GB
+      # This prevents "No space left on device" during large builds
+      build-dir = "/var/tmp/nix-build";
     };
     gc = {
       automatic = true;
@@ -408,6 +413,10 @@
   # ═══════════════════════════════════════════════════════════════════════════
 
   systemd.tmpfiles.rules = [
+    # CRITICAL: Nix build directory on disk (not tmpfs)
+    # Kernel builds need 5-10GB, tmpfs only has ~4GB → "No space left" errors
+    "d /var/tmp/nix-build 1777 root root -"
+
     # Tools directories
     "d /mnt/shared/tools/base/bin 0755 diego users -"
     "d /mnt/shared/tools/dev/bin 0755 diego users -"

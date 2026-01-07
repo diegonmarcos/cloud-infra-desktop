@@ -19,3 +19,4 @@ storage/
 initrd.img
 vmlinuz
 *.img
+a_nixos_host/result

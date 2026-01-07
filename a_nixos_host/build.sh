@@ -30,6 +30,54 @@ cd "$SCRIPT_DIR"
 OUTPUT_BASE="/mnt/kinoite/@images/a_nixos_host"
 FLAKE_PATH="$SCRIPT_DIR"
 
+# ═══════════════════════════════════════════════════════════════════════════
+# CRITICAL: Use disk-backed temp directory for builds
+# ═══════════════════════════════════════════════════════════════════════════
+# Kernel compilation needs 5-10GB, but tmpfs (/tmp) is often only ~4GB
+# This prevents "No space left on device" errors during large builds
+#
+# NOTE: Setting TMPDIR alone does NOT work - nix-daemon doesn't inherit env vars
+# We must configure build-dir in /etc/nix/nix.conf for the daemon to use it
+# ═══════════════════════════════════════════════════════════════════════════
+
+NIX_BUILD_DIR="/var/tmp/nix-build"
+
+setup_nix_build_dir() {
+    # Create build directory with proper permissions
+    if [ ! -d "$NIX_BUILD_DIR" ]; then
+        sudo mkdir -p "$NIX_BUILD_DIR"
+        sudo chmod 1777 "$NIX_BUILD_DIR"
+    fi
+
+    # Ensure nix.conf has build-dir setting (daemon needs this, not just env vars)
+    if [ -f /etc/nix/nix.conf ]; then
+        if ! grep -q "^build-dir" /etc/nix/nix.conf 2>/dev/null; then
+            log "Configuring nix daemon to use disk-backed build directory..."
+            echo "build-dir = $NIX_BUILD_DIR" | sudo tee -a /etc/nix/nix.conf >/dev/null
+
+            # Restart nix-daemon to pick up new config
+            if pgrep -x nix-daemon >/dev/null 2>&1; then
+                log "Restarting nix-daemon..."
+                sudo pkill nix-daemon
+                sleep 1
+                if command -v systemctl >/dev/null 2>&1 && systemctl is-active nix-daemon >/dev/null 2>&1; then
+                    sudo systemctl restart nix-daemon
+                else
+                    sudo /nix/var/nix/profiles/default/bin/nix-daemon &
+                fi
+                sleep 2
+            fi
+        fi
+    fi
+
+    # Also set env vars as fallback for non-daemon builds
+    export TMPDIR="$NIX_BUILD_DIR"
+    export TEMP="$NIX_BUILD_DIR"
+    export TMP="$NIX_BUILD_DIR"
+}
+
+setup_nix_build_dir
+
 # Installation config
 TARGET_DISK="${TARGET_DISK:-/dev/nvme0n1}"
 EFI_SIZE="500M"

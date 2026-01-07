@@ -324,6 +324,53 @@ environment.persistence."/persist".users.user.directories = [
 ];
 ```
 
+### Build Fails: "No space left on device" (Kernel Compilation)
+
+**Problem**: Nix builds use `/tmp` by default, which is often tmpfs (RAM-backed).
+Kernel compilation needs 5-10GB of temp space, but tmpfs is limited to ~half RAM.
+
+```
+error writing to /build/ccWmUM49.s: No space left on device
+note: build failure may have been caused by lack of free disk space
+```
+
+**Root Cause**:
+- `/tmp` is mounted as tmpfs (RAM-based, ~4GB on 8GB system)
+- Kernel builds need 5-10GB scratch space
+- `TMPDIR` env var alone does NOT fix this - nix-daemon ignores it
+
+**Solution**: Configure nix-daemon to use disk-backed build directory:
+
+```bash
+# Add to /etc/nix/nix.conf
+echo 'build-dir = /var/tmp/nix-build' | sudo tee -a /etc/nix/nix.conf
+
+# Create directory with proper permissions
+sudo mkdir -p /var/tmp/nix-build
+sudo chmod 1777 /var/tmp/nix-build
+
+# Restart nix-daemon to pick up new config
+sudo systemctl restart nix-daemon
+# OR if running manually:
+sudo pkill nix-daemon && sudo nix-daemon &
+```
+
+**Permanent Fix** (already in configuration.nix):
+```nix
+nix.settings.build-dir = "/var/tmp/nix-build";
+
+systemd.tmpfiles.rules = [
+  "d /var/tmp/nix-build 1777 root root -"
+];
+```
+
+**Verification**:
+```bash
+# During kernel build, check temp usage on disk (not tmpfs)
+sudo du -sh /var/tmp/nix-build/
+# Should show 5-10GB during kernel compilation
+```
+
 ### microvm.nix Not Working
 
 ```bash
