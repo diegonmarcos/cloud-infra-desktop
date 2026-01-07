@@ -98,7 +98,8 @@
     description = "Diego";
     uid = 1000;
     group = "users";
-    initialPassword = "1234567890";
+    # Password: 1234567890 (hashedPassword ensures it works every boot, not just first)
+    hashedPassword = "$6$0lk5nosoLlNAcDTp$or4FVVs/Lq1gFMYgjuw6FUdh6dKNE8e/vBClzgik290mxMCzctvN43odeGq7D.qpuJCyyDxJJAsSQNSsB3Vst0";
     extraGroups = [
       "wheel" "networkmanager" "video" "audio"
       "docker" "podman" "kvm" "libvirtd"
@@ -113,7 +114,8 @@
     description = "Guest User";
     uid = 1001;
     group = "users";
-    initialPassword = "guest";
+    # Password: 1234567890 (same as diego for convenience)
+    hashedPassword = "$6$0lk5nosoLlNAcDTp$or4FVVs/Lq1gFMYgjuw6FUdh6dKNE8e/vBClzgik290mxMCzctvN43odeGq7D.qpuJCyyDxJJAsSQNSsB3Vst0";
     extraGroups = [ "networkmanager" "video" "audio" ];
     shell = pkgs.fish;
     home = "/home/guest";
@@ -341,7 +343,21 @@
   # CUSTOM SESSION FILES
   # ═══════════════════════════════════════════════════════════════════════════
 
+  # SDDM session directories - ensure custom sessions are found
+  services.displayManager.sddm.extraPackages = [];
+  environment.pathsToLink = [ "/share/wayland-sessions" "/share/xsessions" ];
+
   environment.etc = {
+    # Waydroid session - symlink to standard location for SDDM
+    "xdg/wayland-sessions/android.desktop".text = ''
+      [Desktop Entry]
+      Name=Android (Waydroid)
+      Comment=Full Android UI via Waydroid
+      Exec=cage -- waydroid show-full-ui
+      Type=Application
+      DesktopNames=Android
+    '';
+    # Also put in legacy location
     "wayland-sessions/android.desktop".text = ''
       [Desktop Entry]
       Name=Android (Waydroid)

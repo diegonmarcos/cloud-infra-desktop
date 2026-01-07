@@ -95,6 +95,18 @@
 
         # Pre-open: mount USB to find keyfile
         preOpenCommands = ''
+          # CRITICAL: Force-load Surface keyboard modules BEFORE USB check
+          # Without this, USB keyfile unlocks too fast and keyboard never loads
+          echo "[SURFACE] Loading keyboard modules..."
+          modprobe surface_aggregator 2>/dev/null || true
+          modprobe surface_aggregator_registry 2>/dev/null || true
+          modprobe surface_aggregator_hub 2>/dev/null || true
+          modprobe surface_hid_core 2>/dev/null || true
+          modprobe surface_hid 2>/dev/null || true
+          modprobe hid_multitouch 2>/dev/null || true
+          sleep 2  # Give modules time to initialize
+          echo "[SURFACE] Keyboard modules loaded"
+
           echo "[USB-KEY] Searching for USB keyfile..."
           mkdir -p /usb-key
 
@@ -128,9 +140,19 @@
           fi
         '';
 
-        # Post-open: cleanup USB mount
+        # Post-open: cleanup USB mount and ensure keyboard is loaded
         postOpenCommands = ''
           umount /usb-key 2>/dev/null || true
+
+          # SECOND STAGE: Ensure Surface keyboard modules are loaded after LUKS
+          # This is a safety net in case first-stage loading failed
+          echo "[SURFACE] Second-stage keyboard module check..."
+          modprobe surface_aggregator 2>/dev/null || true
+          modprobe surface_aggregator_registry 2>/dev/null || true
+          modprobe surface_aggregator_hub 2>/dev/null || true
+          modprobe surface_hid_core 2>/dev/null || true
+          modprobe surface_hid 2>/dev/null || true
+          echo "[SURFACE] Keyboard modules verified"
         '';
       };
     };
@@ -180,25 +202,25 @@
   # NO /persist - system is user-agnostic
   # All persistent state goes to @shared or @home-*
 
-  # /home/diego - main user home
+  # /home/diego - main user home (nofail: boot continues if missing)
   fileSystems."/home/diego" = {
     device = "/dev/mapper/pool";
     fsType = "btrfs";
-    options = [ "subvol=@home-diego" "compress=zstd" "noatime" ];
+    options = [ "subvol=@home-diego" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
   };
 
-  # /home/guest - guest user home
+  # /home/guest - guest user home (nofail: boot continues if missing)
   fileSystems."/home/guest" = {
     device = "/dev/mapper/pool";
     fsType = "btrfs";
-    options = [ "subvol=@home-guest" "compress=zstd" "noatime" ];
+    options = [ "subvol=@home-guest" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
   };
 
-  # /mnt/shared - common storage for both OSes
+  # /mnt/shared - common storage for both OSes (nofail: boot continues if missing)
   fileSystems."/mnt/shared" = {
     device = "/dev/mapper/pool";
     fsType = "btrfs";
-    options = [ "subvol=@shared" "compress=zstd" "noatime" ];
+    options = [ "subvol=@shared" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
   };
 
   # /boot - shared boot partition (ext4, unencrypted)
@@ -214,25 +236,25 @@
     options = [ "umask=0077" ];
   };
 
-  # Waydroid base image (shared between users)
+  # Waydroid base image (shared between users) - nofail for boot resilience
   fileSystems."/var/lib/waydroid" = {
     device = "/dev/mapper/pool";
     fsType = "btrfs";
-    options = [ "subvol=@shared/waydroid-base" "compress=zstd" "noatime" ];
+    options = [ "subvol=@shared/waydroid-base" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
   };
 
-  # Waydroid per-user data - diego
+  # Waydroid per-user data - diego - nofail for boot resilience
   fileSystems."/home/diego/.local/share/waydroid" = {
     device = "/dev/mapper/pool";
     fsType = "btrfs";
-    options = [ "subvol=@home-diego/waydroid" "compress=zstd" "noatime" ];
+    options = [ "subvol=@home-diego/waydroid" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
   };
 
-  # Waydroid per-user data - guest
+  # Waydroid per-user data - guest - nofail for boot resilience
   fileSystems."/home/guest/.local/share/waydroid" = {
     device = "/dev/mapper/pool";
     fsType = "btrfs";
-    options = [ "subvol=@home-guest/waydroid" "compress=zstd" "noatime" ];
+    options = [ "subvol=@home-guest/waydroid" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
   };
 
   # Kubuntu root - read-only access to host OS
