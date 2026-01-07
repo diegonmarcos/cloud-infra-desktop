@@ -390,32 +390,12 @@
   # ═══════════════════════════════════════════════════════════════════════════
   # CLAUDE CODE INSTALLATION
   # ═══════════════════════════════════════════════════════════════════════════
-  # Install Claude Code globally via npm on first boot
-  # This runs as a systemd service to ensure npm is available
+  # Claude Code via npx wrapper - more reliable than global npm install on NixOS
 
-  systemd.services.install-claude-code = {
-    description = "Install Claude Code CLI";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
-
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = "${pkgs.bash}/bin/bash -c '${pkgs.nodejs_22}/bin/npm install -g @anthropic-ai/claude-code || true'";
-    };
-
-    # Only run if not already installed
-    unitConfig = {
-      ConditionPathExists = "!/usr/local/lib/node_modules/@anthropic-ai/claude-code";
-    };
-  };
-
-  # Also provide a wrapper script in case global install fails
-  environment.etc."profile.d/claude-code.sh".text = ''
-    # Claude Code wrapper
-    if ! command -v claude &>/dev/null; then
-      alias claude='npx @anthropic-ai/claude-code'
-    fi
-  '';
+  # Create a wrapper script that uses npx
+  environment.systemPackages = with pkgs; [
+    (writeShellScriptBin "claude" ''
+      exec ${nodejs_22}/bin/npx --yes @anthropic-ai/claude-code "$@"
+    '')
+  ];
 }

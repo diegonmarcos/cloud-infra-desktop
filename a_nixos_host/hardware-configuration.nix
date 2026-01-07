@@ -35,31 +35,34 @@
         "vfat" "fat" "nls_cp437" "nls_iso8859-1" "nls_utf8"
       ];
       # CRITICAL: Force-load these modules BEFORE LUKS prompt
+      # ORDER MATTERS - dependencies must load first!
       kernelModules = [
         "dm-snapshot"
-        # FAT/VFAT for USB keyfile - load early for preOpenCommands
+
+        # 1. FAT/VFAT for USB keyfile
         "vfat" "fat" "nls_cp437" "nls_iso8859-1" "nls_utf8"
-        # Surface Aggregator Module (SAM) - controls Type Cover
+
+        # 2. BUS & POWER SUBSYSTEMS (MUST LOAD FIRST!)
+        "intel_lpss"              # Low Power Subsystem - SAM depends on this
+        "intel_lpss_pci"
+        "8250_dw"                 # UART for Surface Embedded Controller
+        "pinctrl_tigerlake"       # GPIO controller for Tiger Lake
+        "xhci_pci"                # USB controller (for keyfile fallback)
+
+        # 3. SURFACE AGGREGATOR (The "Hub" - depends on LPSS)
         "surface_aggregator"
         "surface_aggregator_registry"
         "surface_aggregator_hub"
-        # Surface HID drivers for keyboard/touchpad
-        "surface_hid"
+
+        # 4. SURFACE HID (Keyboard/Touchpad - depends on SAM)
         "surface_hid_core"
-        # Intel LPSS (Low Power Subsystem) - required for SAM communication
-        "intel_lpss"
-        "intel_lpss_pci"
-        # Serial driver for SAM
-        "8250_dw"
-        # GPIO controller for Tiger Lake
-        "pinctrl_tigerlake"
-        # HID for touch/multitouch input
+        "surface_hid"
+
+        # 5. TOUCH/INPUT (Fallback)
         "hid_multitouch"
         "hid_generic"
-        # I2C HID for touchscreen (fallback on-screen keyboard)
         "i2c_hid"
         "i2c_hid_acpi"
-        # Intel touch controller
         "intel_ish_ipc"
         "intel_ishtp"
         "intel_ishtp_hid"
@@ -95,10 +98,10 @@
           echo "[USB-KEY] Searching for USB keyfile..."
           mkdir -p /usb-key
 
-          # Wait for USB device to appear (max 5 seconds)
+          # Wait for USB device to appear (max 15 seconds - Surface USB init is slow)
           attempts=0
           usb_found=0
-          while [ $attempts -lt 5 ]; do
+          while [ $attempts -lt 15 ]; do
             if [ -b /dev/disk/by-uuid/223C-F3F8 ]; then
               echo "[USB-KEY] USB device found, mounting..."
               if mount -t vfat -o ro,iocharset=utf8 /dev/disk/by-uuid/223C-F3F8 /usb-key 2>&1; then
