@@ -56,11 +56,9 @@
         # HID for touch/multitouch input
         "hid_multitouch"
         "hid_generic"
-        # FALLBACK: Surface touchscreen modules (for on-screen keyboard)
-        "surface_hid"
+        # I2C HID for touchscreen (fallback on-screen keyboard)
         "i2c_hid"
         "i2c_hid_acpi"
-        "hid_multitouch"
         # Intel touch controller
         "intel_ish_ipc"
         "intel_ishtp"
@@ -241,10 +239,9 @@
     options = [ "ro" "noatime" "nofail" ];
   };
 
-  # 8GB swap file on pool
+  # 8GB swap file on pool (already exists, don't specify size)
   swapDevices = [{
     device = "/mnt/shared/.swapfile";
-    size = 8192;  # 8GB in MB
   }];
 
   # ═══════════════════════════════════════════════════════════════════════════

@@ -1,12 +1,10 @@
 {
-  description = "NixOS Surface Pro 8 - Full Impermanence";
+  description = "NixOS Surface Pro 8 - Minimal + User Agnostic";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
 
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
-
-    impermanence.url = "github:nix-community/impermanence";
 
     nixos-generators = {
       url = "github:nix-community/nixos-generators";
@@ -14,7 +12,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, nixos-hardware, impermanence, nixos-generators, ... }:
+  outputs = { self, nixpkgs, nixos-hardware, nixos-generators, ... }:
   let
     system = "x86_64-linux";
   in {
@@ -22,11 +20,8 @@
     nixosConfigurations.surface = nixpkgs.lib.nixosSystem {
       inherit system;
       modules = [
-        # Surface Pro hardware support
+        # Surface Pro hardware support (linux-surface kernel, firmware)
         nixos-hardware.nixosModules.microsoft-surface-pro-intel
-
-        # Impermanence module
-        impermanence.nixosModules.impermanence
 
         # Main configuration
         ./configuration.nix
@@ -43,7 +38,6 @@
         inherit system;
         modules = [
           nixos-hardware.nixosModules.microsoft-surface-pro-intel
-          impermanence.nixosModules.impermanence
           ./configuration.nix
           ./hardware-configuration.nix
         ];
@@ -55,18 +49,16 @@
         inherit system;
         modules = [
           nixos-hardware.nixosModules.microsoft-surface-pro-intel
-          impermanence.nixosModules.impermanence
           ./configuration.nix
           ./hardware-configuration.nix
         ];
         format = "raw-efi";
       };
 
-      # VM for quick testing
+      # VM for quick testing (no Surface hardware needed)
       vm = nixos-generators.nixosGenerate {
         inherit system;
         modules = [
-          impermanence.nixosModules.impermanence
           ./configuration.nix
         ];
         format = "vm";
