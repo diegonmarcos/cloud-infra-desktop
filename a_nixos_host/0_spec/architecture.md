@@ -1,286 +1,385 @@
 # NixOS Host Architecture
 
 > **Device**: Surface Pro 8 (Intel Tiger Lake, 8GB RAM, 256GB NVMe)
-> **OS**: NixOS 24.11 with Full Impermanence
-> **Boot**: rEFInd / GRUB (LUKS2 unlock)
-> **Status**: Primary OS (standalone, not dual-boot)
+> **OS**: NixOS 24.11 - Minimal + User Agnostic
+> **Boot**: GRUB (LUKS2 + USB keyfile unlock)
+> **Status**: Dual-boot with Kubuntu
+> **Philosophy**: Minimal NixOS + Shared Profiles + Detachable Homes
 
 ---
 
 ## Overview
 
-NixOS serves as the primary operating system with full impermanence (tmpfs root). All state is explicitly declared in Nix expressions and persisted via the impermanence module.
+**Extremely minimal, user-agnostic NixOS** with full impermanence (tmpfs root).
+
+### Design Principles
+
+1. **User Agnostic** - No `/persist` subvolume. Truly stateless OS.
+2. **Detachable Homes** - @home-* subvolumes can move to any NixOS
+3. **Shared Tools** - All dev tools in @shared/profiles/
+4. **Per-User Credentials** - WiFi passwords and Bluetooth pairings travel with user's home
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                           SURFACE PRO 8 NixOS Host                           │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐  │
-│  │                              RUNTIME                                   │  │
-│  │                                                                        │  │
-│  │   /                  tmpfs (2GB RAM) - wiped every boot               │  │
-│  │   /nix               @system/nix subvolume (read-only store)          │  │
-│  │   /var/lib           @system/state subvolume (system state)           │  │
-│  │   /var/log           @system/logs subvolume (logs)                    │  │
-│  │   /home              @user/home subvolume (user data)                 │  │
-│  │   /var/lib/containers  @shared/containers subvolume (Podman)          │  │
-│  │   /var/lib/flatpak     @shared/flatpak subvolume (Flatpak)            │  │
-│  │   /var/lib/microvms    @shared/microvm subvolume (microvm.nix)        │  │
-│  │   /var/lib/waydroid    @shared/waydroid subvolume (Android)           │  │
-│  │                                                                        │  │
-│  └────────────────────────────────────────────────────────────────────────┘  │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐  │
-│  │                              STORAGE                                   │  │
-│  │                                                                        │  │
-│  │   nvme0n1p1 (100MB)  EFI System Partition (/boot/efi)                 │  │
-│  │   nvme0n1p2 (2GB)    /boot partition (kernels, initrd)                │  │
-│  │   nvme0n1p3 (5GB)    Alpine Recovery OS (unencrypted)                 │  │
-│  │   nvme0n1p4 (~20GB)  Kali Linux Security (unencrypted)                │  │
-│  │   nvme0n1p5 (~20GB)  Windows 11 Webcam (unencrypted)                  │  │
-│  │   nvme0n1p6 (~180GB) LUKS2 → BTRFS Pool (encrypted)                   │  │
-│  │                                                                        │  │
-│  └────────────────────────────────────────────────────────────────────────┘  │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
++===============================================================================+
+|                    NIXOS SURFACE PRO 8 - USER AGNOSTIC                        |
++===============================================================================+
 
----
-
-## Design Principles
-
-| Principle | Implementation |
-|-----------|----------------|
-| **Declarative** | All config in Nix expressions, reproducible |
-| **Immutable Core** | tmpfs root, /nix/store read-only |
-| **Explicit Persistence** | Only declared paths survive reboot |
-| **Semantic Storage** | @system/, @user/, @shared/ subvolumes |
-| **Defense in Depth** | LUKS + namespaces + microvm.nix |
-
----
-
-## Filesystem Layout
-
-### Mount Points
-
-| Mount Point | Source | Type | Purpose |
-|-------------|--------|------|---------|
-| `/` | none | tmpfs | Ephemeral root (2GB RAM) |
-| `/nix` | @system/nix | btrfs | Nix store (immutable packages) |
-| `/var/lib` | @system/state | btrfs | System persistent state |
-| `/var/log` | @system/logs | btrfs | System logs |
-| `/home` | @user/home | btrfs | User data and configs |
-| `/var/lib/containers` | @shared/containers | btrfs | Podman/Docker storage |
-| `/var/lib/flatpak` | @shared/flatpak | btrfs | Flatpak apps |
-| `/var/lib/microvms` | @shared/microvm | btrfs | microvm.nix VMs |
-| `/var/lib/waydroid` | @shared/waydroid | btrfs | Android container |
-| `/boot` | nvme0n1p2 | ext4 | Kernels, initramfs |
-| `/boot/efi` | nvme0n1p1 | vfat | EFI System Partition |
-
-### BTRFS Subvolume Structure
-
-```
-/dev/mapper/pool (BTRFS, zstd compression)
-│
-├── @system/                    # OS-managed, declarative
-│   ├── nix/                    # Nix store (~30-50GB)
-│   ├── state/                  # /var/lib state (~5GB)
-│   └── logs/                   # /var/log (~2-5GB)
-│
-├── @user/                      # Personal data
-│   └── home/                   # /home/user (~20-50GB)
-│
-└── @shared/                    # Shared resources
-    ├── containers/             # Podman storage (~30GB)
-    ├── flatpak/                # Flatpak apps (~20GB)
-    ├── microvm/                # microvm.nix VMs (~20GB)
-    └── waydroid/               # Android (~10GB)
++-------------------------------------------------------------------------------+
+|                              DESIGN PHILOSOPHY                                 |
+|-------------------------------------------------------------------------------+
+|                                                                               |
+|   NixOS provides ONLY:              @shared (cross-user):                     |
+|   +---------------------+           +----------------------------------+      |
+|   | SDDM Display Manager|           | profiles/  : dev tools           |      |
+|   | KDE Plasma 6        |           | containers/: Docker, Podman      |      |
+|   | GNOME               |           | cache/     : cargo, npm, pip     |      |
+|   | Openbox             |           +----------------------------------+      |
+|   | Waydroid            |                                                     |
+|   | Kiosk modes         |           @home-* (per-user, PORTABLE):             |
+|   +---------------------+           +----------------------------------+      |
+|           |                         | WiFi passwords (in keyring)      |      |
+|           |                         | Bluetooth pairings               |      |
+|           |                         | All configs, data, state         |      |
+|           +------------------------>| Fully detachable to ANY NixOS    |      |
+|                                     +----------------------------------+      |
+|                                                                               |
+|   NO /persist subvolume - truly stateless OS                                 |
+|                                                                               |
++-------------------------------------------------------------------------------+
 ```
 
 ---
 
-## Impermanence Configuration
+## BTRFS Subvolume Structure
 
-### What Survives Reboot
+```
+/dev/mapper/pool (BTRFS - 80GB shared pool with zstd compression)
+|
++-- @nixos/                           # NixOS system (minimal, stateless)
+|   +-- nix/                          # Nix store (~10-15GB minimal)
+|       +-- store/                    # Only essential packages
+|       +-- var/                      # Nix daemon state
+|
++-- @home-diego/                      # Diego's home (FULLY PORTABLE)
+|   +-- .config/                      # App configs
+|   +-- .local/                       # Local data
+|   |   +-- share/
+|   |       +-- keyrings/             # GNOME Keyring (WiFi passwords)
+|   |       +-- bluetooth/            # Bluetooth pairings (symlinked at login)
+|   +-- .ssh/                         # SSH keys
+|   +-- .gnupg/                       # GPG keys
+|   +-- Documents/
+|   +-- Downloads/
+|   +-- Projects/
+|   +-- waydroid/                     # Diego's Android apps/data
+|
++-- @home-guest/                      # Guest home (FULLY PORTABLE)
+|   +-- .config/
+|   +-- .local/
+|   |   +-- share/
+|   |       +-- keyrings/             # Guest's WiFi passwords
+|   |       +-- bluetooth/            # Guest's Bluetooth pairings
+|   +-- .cache/
+|   +-- Downloads/
+|   +-- waydroid/                     # Guest's Android apps/data
+|
++-- @shared/                          # Shared between OSes and users
+    +-- .swapfile (8GB)
+    +-- containers/
+    |   +-- docker/                   # Docker data-root
+    |   +-- podman/                   # Podman graphroot
+    +-- waydroid-base/                # Android OS image (shared ~3GB)
+    +-- profiles/                     # SHARED TOOL PROFILES
+    |   +-- base/bin/                 # curl, wget, git, htop
+    |   +-- dev/bin/                  # gcc, clang, cargo, go
+    |   +-- data/bin/                 # python, pandas, jupyter
+    |   +-- devops/bin/               # kubectl, terraform
+    +-- cache/                        # Shared caches
+        +-- cargo/
+        +-- npm/
+        +-- pip/
+        +-- go/
+```
+
+---
+
+## User Agnostic Design
+
+### What "User Agnostic" Means
+
+| Aspect | Traditional NixOS | This Design |
+|--------|-------------------|-------------|
+| `/persist` subvolume | Required | **None** |
+| SSH host keys | Persisted | Ephemeral (regenerate on boot) |
+| machine-id | Persisted | Hardcoded in config |
+| WiFi passwords | /etc/NetworkManager | **User's keyring** (~/.local/share/keyrings/) |
+| Bluetooth pairings | /var/lib/bluetooth | **User's home** (~/.local/share/bluetooth/) |
+| User homes | Bind mounts | Dedicated subvolumes |
+| Home portability | Tied to system | **Fully detachable with all credentials** |
+
+### Benefits
+
+1. **Plug @home-diego into ANY NixOS** - Just mount the subvolume, WiFi/Bluetooth comes with it
+2. **Per-user credentials** - Each user owns their WiFi passwords and Bluetooth pairings
+3. **True separation** - OS is disposable, all user data is portable
+4. **Minimal attack surface** - Nothing persists in root filesystem
+5. **No credential conflicts** - Users don't share or overwrite each other's connections
+
+### Trade-offs
+
+1. SSH clients see "host key changed" warnings (acceptable for personal device)
+2. WiFi networks must be re-authenticated per user (each user has their own password storage)
+3. Bluetooth devices must be paired per user
+
+---
+
+## Runtime Filesystem (After Boot)
+
+```
+/  (tmpfs 2GB - WIPED EVERY REBOOT)
+|
++-- /nix ---------------------------> btrfs subvol=@nixos/nix
+|   +-- /nix/store                    (persistent, minimal packages)
+|
++-- /etc ---------------------------> tmpfs (ephemeral)
+|   +-- machine-id                    (hardcoded in config)
+|   +-- ssh/                          (keys regenerate on boot)
+|
++-- /var ---------------------------> tmpfs (ephemeral)
+|   +-- lib/bluetooth --------------> symlink to $HOME/.local/share/bluetooth (at login)
+|
++-- /home/diego --------------------> btrfs subvol=@home-diego
+|   +-- .local/share/
+|   |   +-- keyrings/                (WiFi passwords - GNOME Keyring)
+|   |   +-- bluetooth/               (Bluetooth pairings - symlinked to /var/lib/bluetooth)
+|   |   +-- waydroid/                (Diego's Android apps/data)
+|
++-- /home/guest --------------------> btrfs subvol=@home-guest
+|   +-- .local/share/
+|   |   +-- keyrings/                (Guest's WiFi passwords)
+|   |   +-- bluetooth/               (Guest's Bluetooth pairings)
+|   |   +-- waydroid/                (Guest's Android apps/data)
+|
++-- /mnt/shared --------------------> btrfs subvol=@shared
+|   +-- profiles/                    (SHARED TOOLS)
+|   +-- cache/                       (Shared build caches)
+|   +-- containers/                  (Docker, Podman data)
+|   +-- .swapfile                    (8GB swap)
+|
++-- /var/lib/waydroid --------------> btrfs subvol=@shared/waydroid-base
+|
++-- /mnt/kubuntu -------------------> ext4 /dev/nvme0n1p5 (READ-ONLY)
+|
++-- /boot --------------------------> ext4 /dev/nvme0n1p3
+|
++-- /boot/efi ----------------------> vfat /dev/nvme0n1p1
+```
+
+---
+
+## NixOS System Configuration
+
+### What NixOS Provides
+
+| Category | Packages/Services |
+|----------|-------------------|
+| **Display** | SDDM |
+| **Sessions** | KDE Plasma, GNOME, Openbox, Waydroid, Kiosks |
+| **Shell** | vim, fish |
+| **System** | pciutils, usbutils, btrfs-progs, cryptsetup |
+| **Openbox** | openbox, obconf, polybar, nitrogen, feh, rofi, dunst, picom, xterm |
+| **Kiosk** | cage, wlr-randr |
+| **Dialogs** | zenity, kdialog |
+| **Fonts** | noto-fonts, noto-fonts-emoji, liberation_ttf, jetbrains-mono |
+
+### What NixOS Does NOT Provide
+
+All development tools come from @shared/profiles/:
+
+- CLI tools (curl, wget, git, htop, ripgrep, etc.)
+- Compilers (gcc, clang, rustc, go)
+- Languages (python, nodejs)
+- DevOps (kubectl, terraform, docker-compose)
+
+---
+
+## User Accounts
+
+| User | UID | GID | Groups | Shell | Home |
+|------|-----|-----|--------|-------|------|
+| diego | 1000 | 100 (users) | wheel, networkmanager, video, audio, docker, podman, kvm, libvirtd | fish | @home-diego |
+| guest | 1001 | 100 (users) | networkmanager, video, audio | fish | @home-guest |
+
+### Fixed IDs (Cross-OS Compatible)
 
 ```nix
-# System state (bound from @system/state)
-environment.persistence."/persist" = {
-  directories = [
-    "/var/lib/nixos"           # NixOS state
-    "/var/lib/systemd"         # systemd machine state
-    "/var/lib/bluetooth"       # Bluetooth pairings
-    "/var/lib/NetworkManager"  # Network connections
-  ];
-  files = [
-    "/etc/machine-id"
-    "/etc/ssh/ssh_host_ed25519_key"
-    "/etc/ssh/ssh_host_ed25519_key.pub"
-    "/etc/ssh/ssh_host_rsa_key"
-    "/etc/ssh/ssh_host_rsa_key.pub"
-  ];
-};
-
-# User state (bound from @user/home)
-environment.persistence."/persist".users.user = {
-  directories = [
-    ".config"                  # App configurations
-    ".local"                   # Local data, scripts
-    ".cache"                   # Caches
-    ".ssh"                     # SSH keys
-    ".gnupg"                   # GPG keys
-    ".var"                     # Flatpak user data
-    "Documents"
-    "Downloads"
-    "Projects"
-  ];
-  files = [
-    ".bash_history"
-    ".zsh_history"
-    ".local/share/fish/fish_history"
-    "vault.tomb"               # Encrypted secrets
-  ];
-};
+users.mutableUsers = false;  # Users only from config
+users.users.diego.uid = 1000;
+users.users.guest.uid = 1001;
+users.groups.users.gid = 100;
+users.groups.docker.gid = 998;
+users.groups.podman.gid = 997;
+users.groups.libvirtd.gid = 996;
+users.groups.kvm.gid = 995;
 ```
-
-### What Gets Wiped
-
-Everything in `/` that's not explicitly persisted:
-- `/tmp`, `/var/tmp` (tmpfs anyway)
-- `/root` (root home)
-- `/etc` (regenerated from Nix)
-- Application runtime state
 
 ---
 
-## Container Runtime Comparison
+## Per-User WiFi & Bluetooth
 
-| Runtime | Kernel | Filesystem | Network | Overhead | Use Case |
-|---------|--------|------------|---------|----------|----------|
-| **Nix Native** | Shared | Full | Full | 0% | CLI tools |
-| **Distrobox** | Shared | $HOME | Full | ~1% | Dev environments |
-| **Flatpak** | Shared | Portal | Restricted | ~2% | GUI apps |
-| **Podman** | Shared | Volume | Isolated | ~2% | Services |
-| **microvm.nix** | **Isolated** | **Isolated** | Isolated | ~5-10% | Untrusted |
+### Design
 
-### When to Use Each
+Each user owns their credentials - they travel with the home subvolume:
+
+| Credential | Storage | Mechanism |
+|------------|---------|-----------|
+| **WiFi passwords** | `~/.local/share/keyrings/` | GNOME Keyring (auto-unlocked at login) |
+| **Bluetooth pairings** | `~/.local/share/bluetooth/` | PAM session hook symlinks to /var/lib/bluetooth |
+
+### How WiFi Works
+
+NetworkManager stores WiFi passwords in the user's keyring (not system-connections):
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           CONTAINER DECISION TREE                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  Is it a CLI tool or system utility?                                    │
-│    YES → Nix Native (add to configuration.nix)                          │
-│                                                                         │
-│  Is it a development environment (compiler, interpreter)?               │
-│    YES → Distrobox (create Arch/Fedora/Ubuntu container)                │
-│                                                                         │
-│  Is it a GUI application (browser, chat, office)?                       │
-│    YES → Flatpak (install from Flathub)                                 │
-│                                                                         │
-│  Is it a long-running service (database, web server)?                   │
-│    YES → Podman (rootless container)                                    │
-│                                                                         │
-│  Is it untrusted code or CI/CD workload?                                │
-│    YES → microvm.nix (VM isolation)                                     │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+~/.local/share/keyrings/
+├── default.keyring      # Contains WiFi passwords
+└── login.keyring        # Auto-unlocked at login
+```
+
+NixOS enables keyring integration:
+```nix
+services.gnome.gnome-keyring.enable = true;
+security.pam.services.sddm.enableGnomeKeyring = true;
+security.pam.services.sddm.enableKwallet = true;  # For KDE users
+```
+
+### How Bluetooth Works
+
+At login, a PAM session hook symlinks the user's bluetooth directory:
+
+```nix
+# PAM session hook for per-user bluetooth
+security.pam.services.sddm.text = lib.mkAfter ''
+  session optional pam_exec.so /run/current-system/sw/bin/bash -c '
+    mkdir -p $HOME/.local/share/bluetooth
+    rm -rf /var/lib/bluetooth
+    ln -sf $HOME/.local/share/bluetooth /var/lib/bluetooth
+    chown -R $USER:users $HOME/.local/share/bluetooth 2>/dev/null || true
+  '
+'';
+```
+
+Structure after pairing a device:
+```
+~/.local/share/bluetooth/
+└── <adapter-mac>/           # e.g., AA:BB:CC:DD:EE:FF
+    └── <device-mac>/        # Paired device
+        └── info             # Pairing keys
+```
+
+### Portability
+
+When you move @home-diego to another NixOS:
+- **WiFi**: First login will unlock keyring, NetworkManager reads passwords from it
+- **Bluetooth**: PAM hook creates symlink, bluetoothd finds existing pairings
+
+---
+
+## Shared Profiles System
+
+### Profile Structure
+
+```
+/mnt/shared/profiles/
+├── base/
+│   ├── bin/           # curl, wget, git, htop, btop, ripgrep, fd, jq, tmux
+│   └── activate.sh
+├── dev/
+│   ├── bin/           # gcc, g++, clang, rustc, cargo, go, node, npm
+│   └── activate.sh
+├── data/
+│   ├── bin/           # python3, pip, jupyter, pandas
+│   └── activate.sh
+└── devops/
+    ├── bin/           # kubectl, helm, terraform, ansible, docker-compose
+    └── activate.sh
+```
+
+### Environment Variables
+
+Set by NixOS:
+
+```bash
+# Shared caches
+CARGO_HOME=/mnt/shared/cache/cargo
+GOPATH=/mnt/shared/cache/go
+npm_config_cache=/mnt/shared/cache/npm
+PIP_CACHE_DIR=/mnt/shared/cache/pip
+
+# Profile directories in PATH
+PATH=/mnt/shared/profiles/base/bin:/mnt/shared/profiles/dev/bin:...
+```
+
+### Populating Profiles
+
+```bash
+# Using Nix profiles
+nix profile install nixpkgs#{curl,wget,git,htop,ripgrep} --profile /mnt/shared/profiles/base
+
+# Or static binaries
+curl -L https://...ripgrep...tar.gz | tar xz -C /mnt/shared/profiles/base/bin/
 ```
 
 ---
 
 ## Desktop Sessions (SDDM)
 
-| Session | Type | Protocol | Use Case |
-|---------|------|----------|----------|
-| **KDE Plasma** | Desktop | Wayland | Full desktop, Windows-like (default) |
-| **GNOME** | Desktop | Wayland | ChromeOS-like, touch-friendly |
-| **Waydroid (Android)** | Container | Wayland | Android apps fullscreen |
-| **Openbox (Light)** | WM | X11 | Minimal, fast, low RAM |
-| **Brave Kiosk** | Browser | Wayland | Web-only, digital signage |
+| Session | Type | Description |
+|---------|------|-------------|
+| **KDE Plasma** | Wayland | Full desktop (default) |
+| **GNOME** | Wayland | Alternative full desktop |
+| **Openbox** | X11 | Lightweight window manager |
+| **Android** | Wayland | Full Waydroid UI via cage |
+| **Tor Kiosk** | Wayland | Anonymous browsing kiosk |
+| **Chrome Kiosk** | Wayland | Chromium fullscreen kiosk |
+| **GNOME Kiosk** | Wayland | Locked down GNOME |
 
-### Session Configuration
+---
 
-```nix
-# Custom sessions in configuration.nix
+## Boot Flow
 
-let
-  # Waydroid session (Android in fullscreen)
-  waydroid-session = pkgs.writeTextDir "share/wayland-sessions/waydroid.desktop" ''
-    [Desktop Entry]
-    Name=Waydroid (Android)
-    Comment=Android in a container
-    Exec=${pkgs.cage}/bin/cage -s -- ${pkgs.waydroid}/bin/waydroid show-full-ui
-    Type=Application
-    DesktopNames=Waydroid
-  '';
-
-  # Brave Kiosk session
-  brave-kiosk = pkgs.writeTextDir "share/wayland-sessions/brave-kiosk.desktop" ''
-    [Desktop Entry]
-    Name=Brave Kiosk
-    Comment=Brave Browser in Kiosk Mode
-    Exec=${pkgs.cage}/bin/cage -s -- ${pkgs.brave}/bin/brave --kiosk --no-first-run
-    Type=Application
-    DesktopNames=BraveKiosk
-  '';
-in {
-  services.displayManager = {
-    sddm = {
-      enable = true;
-      wayland.enable = true;
-    };
-    sessionPackages = [ waydroid-session brave-kiosk ];
-  };
-
-  # KDE Plasma 6
-  services.desktopManager.plasma6.enable = true;
-
-  # GNOME
-  services.xserver.desktopManager.gnome.enable = true;
-
-  # Openbox
-  services.xserver.windowManager.openbox.enable = true;
-
-  # Waydroid
-  virtualisation.waydroid.enable = true;
-}
 ```
-
----
-
-## Security Stack
-
-| Layer | Implementation |
-|-------|----------------|
-| **Disk** | LUKS2 (USB keyfile + password) |
-| **Vault** | Tomb (LUKS-in-LUKS for secrets) |
-| **Network** | nftables firewall |
-| **Apps** | Flatpak sandboxing |
-| **Untrusted** | microvm.nix VMs |
-| **Updates** | Atomic generations (rollback) |
-
----
-
-## Build Pipeline
-
-```bash
-# Check configuration
-nix flake check
-
-# Build without switching
-sudo nixos-rebuild build --flake .#surface
-
-# Switch to new generation
-sudo nixos-rebuild switch --flake .#surface
-
-# Rollback if needed
-sudo nixos-rebuild switch --rollback
-
-# List generations
-sudo nix-env --list-generations -p /nix/var/nix/profiles/system
+UEFI --> GRUB --> linux-surface kernel + initramfs
+                        |
+                        v
+              +-------------------+
+              |    INITRAMFS      |
+              |-------------------|
+              | 1. Load modules   |
+              | 2. USB keyfile?   |
+              | 3. LUKS decrypt   |
+              | 4. Mount:         |
+              |    / = tmpfs      |
+              |    /nix = @nixos  |
+              +-------------------+
+                        |
+                        v
+              +-------------------+
+              |     SYSTEMD       |
+              |-------------------|
+              | 5. Mount homes    |
+              | 6. Mount @shared  |
+              | 7. Create symlinks|
+              | 8. Start services |
+              +-------------------+
+                        |
+                        v
+              +-------------------+
+              |       SDDM        |
+              |-------------------|
+              | User: diego/guest |
+              | Session: KDE/etc  |
+              +-------------------+
 ```
 
 ---
@@ -292,17 +391,62 @@ sudo nix-env --list-generations -p /nix/var/nix/profiles/system
 | EFI Partition | `2CE0-6722` |
 | /boot Partition | `0eaf7961-48c5-4b55-8a8f-04cd0b71de07` |
 | LUKS Partition | `3c75c6db-4d7c-4570-81f1-02d168781aac` |
-| USB Keyfile | `223C-F3F8` (Ventoy) |
+| USB Keyfile (Ventoy) | `223C-F3F8` |
+| Kubuntu Root | `7e3626ac-ce13-4adc-84e2-1a843d7e2793` |
+| Machine ID | `a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4` (hardcoded) |
 
 ---
 
-## Related Documentation
+## Build Commands
 
-| Document | Path | Purpose |
-|----------|------|---------|
-| Main Architecture | `0_spec/ARCHITECTURE.md` | High-level overview |
-| Disk Layout | `0_spec/DISK_LAYOUT.md` | Partition details |
-| Isolation Layers | `0_spec/ISOLATION_LAYERS.md` | Security zones |
-| Personal Space | `0_spec/PERSONAL_SPACE.md` | User organization |
-| Roadmap | `0_spec/ROADMAP.md` | Implementation plan |
-| Runbook | `a_nixos_host/0_spec/runbook.md` | Step-by-step procedures |
+```bash
+# Check configuration
+nix flake check
+
+# Build without switching
+sudo nixos-rebuild build --flake .#surface
+
+# Switch to new generation
+sudo nixos-rebuild switch --flake .#surface
+
+# Rollback
+sudo nixos-rebuild switch --rollback
+
+# List generations
+sudo nix-env --list-generations -p /nix/var/nix/profiles/system
+```
+
+---
+
+## Making Homes Portable
+
+To move @home-diego to another NixOS system:
+
+```bash
+# On source system
+sudo btrfs send /mnt/pool/@home-diego | zstd > home-diego.btrfs.zst
+
+# On target system
+zstd -d home-diego.btrfs.zst | sudo btrfs receive /mnt/pool/
+
+# Update fstab/hardware-config to mount @home-diego
+```
+
+The home will work immediately because:
+- UIDs are fixed (1000)
+- No bind mounts to /persist needed
+- All user data is self-contained
+- **WiFi passwords** travel in `~/.local/share/keyrings/`
+- **Bluetooth pairings** travel in `~/.local/share/bluetooth/`
+
+### What Transfers With Home
+
+| Component | Location | Portable? |
+|-----------|----------|-----------|
+| User configs | ~/.config/ | Yes |
+| SSH keys | ~/.ssh/ | Yes |
+| GPG keys | ~/.gnupg/ | Yes |
+| WiFi passwords | ~/.local/share/keyrings/ | Yes |
+| Bluetooth pairings | ~/.local/share/bluetooth/ | Yes |
+| Android data | ~/.local/share/waydroid/ | Yes |
+| Documents | ~/Documents/ | Yes |

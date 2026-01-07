@@ -9,6 +9,18 @@
   ];
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # LINUX-SURFACE KERNEL
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CRITICAL: Surface Pro 8 Type Cover keyboard requires linux-surface kernel
+  # The mainline kernel lacks surface_aggregator_hub module needed for SAM
+
+  hardware.microsoft-surface = {
+    # Use stable linux-surface kernel (latest patched release)
+    # Options: "stable" (latest) or "longterm" (LTS, default)
+    kernelVersion = "stable";
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # BOOT CONFIGURATION
   # ═══════════════════════════════════════════════════════════════════════════
 
@@ -19,13 +31,13 @@
         "xhci_pci" "thunderbolt" "nvme" "usb_storage" "sd_mod" "uas"
         # BTRFS
         "btrfs"
-        # VFAT for USB keyfile - MUST be in availableKernelModules to be included in initrd
-        "vfat" "fat" "nls_cp437" "nls_iso8859_1" "nls_utf8"
+        # VFAT for USB keyfile - module names use hyphen (nls_iso8859-1.ko)
+        "vfat" "fat" "nls_cp437" "nls_iso8859-1" "nls_utf8"
       ];
       # CRITICAL: Force-load these modules BEFORE LUKS prompt
       kernelModules = [
         "dm-snapshot"
-        # FAT/VFAT for USB keyfile - MUST load early for preOpenCommands
+        # FAT/VFAT for USB keyfile - load early for preOpenCommands
         "vfat" "fat" "nls_cp437" "nls_iso8859-1" "nls_utf8"
         # Surface Aggregator Module (SAM) - controls Type Cover
         "surface_aggregator"
@@ -77,7 +89,7 @@
         #   3. If not found, prompt for password
         keyFile = "/usb-key/.luks/surface.key";
         keyFileSize = 4096;
-        keyFileTimeout = 5;
+        # keyFileTimeout requires systemd initrd - handled in preOpenCommands instead
         fallbackToPassword = true;
 
         # Pre-open: mount USB to find keyfile
@@ -156,27 +168,29 @@
     options = [ "defaults" "size=2G" "mode=755" ];
   };
 
-  # /nix - persistent Nix store (inside @root-nixos)
+  # /nix - persistent Nix store
   fileSystems."/nix" = {
     device = "/dev/mapper/pool";
     fsType = "btrfs";
-    options = [ "subvol=@root-nixos/nix" "compress=zstd" "noatime" ];
+    options = [ "subvol=@nixos/nix" "compress=zstd" "noatime" ];
     neededForBoot = true;
   };
 
-  # /persist - persistent state (inside @root-nixos)
-  fileSystems."/persist" = {
+  # NO /persist - system is user-agnostic
+  # All persistent state goes to @shared or @home-*
+
+  # /home/diego - main user home
+  fileSystems."/home/diego" = {
     device = "/dev/mapper/pool";
     fsType = "btrfs";
-    options = [ "subvol=@root-nixos/persist" "compress=zstd" "noatime" ];
-    neededForBoot = true;
+    options = [ "subvol=@home-diego" "compress=zstd" "noatime" ];
   };
 
-  # /home - user home directory
-  fileSystems."/home" = {
+  # /home/guest - guest user home
+  fileSystems."/home/guest" = {
     device = "/dev/mapper/pool";
     fsType = "btrfs";
-    options = [ "subvol=@home-nixos" "compress=zstd" "noatime" ];
+    options = [ "subvol=@home-guest" "compress=zstd" "noatime" ];
   };
 
   # /mnt/shared - common storage for both OSes
@@ -199,11 +213,25 @@
     options = [ "umask=0077" ];
   };
 
-  # Waydroid storage
+  # Waydroid base image (shared between users)
   fileSystems."/var/lib/waydroid" = {
     device = "/dev/mapper/pool";
     fsType = "btrfs";
-    options = [ "subvol=@android" "compress=zstd" "noatime" ];
+    options = [ "subvol=@shared/waydroid-base" "compress=zstd" "noatime" ];
+  };
+
+  # Waydroid per-user data - diego
+  fileSystems."/home/diego/.local/share/waydroid" = {
+    device = "/dev/mapper/pool";
+    fsType = "btrfs";
+    options = [ "subvol=@home-diego/waydroid" "compress=zstd" "noatime" ];
+  };
+
+  # Waydroid per-user data - guest
+  fileSystems."/home/guest/.local/share/waydroid" = {
+    device = "/dev/mapper/pool";
+    fsType = "btrfs";
+    options = [ "subvol=@home-guest/waydroid" "compress=zstd" "noatime" ];
   };
 
   # Kubuntu root - read-only access to host OS

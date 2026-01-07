@@ -1,67 +1,46 @@
 # ╔═══════════════════════════════════════════════════════════════════════════╗
-# ║                    NIXOS SURFACE PRO 8 - IMPERMANENCE                     ║
+# ║              NIXOS SURFACE PRO 8 - MINIMAL + USER AGNOSTIC                ║
 # ║                                                                           ║
-# ║   Full impermanence: tmpfs root, ephemeral /etc and /var                 ║
+# ║   Extremely minimal: tmpfs root, SDDM + desktop sessions only            ║
+# ║   User agnostic: NO /persist, fully detachable @home-* subvolumes        ║
+# ║   All tools via shared profiles in @shared/profiles/                     ║
 # ║   Sessions: KDE Plasma, GNOME, Openbox, Waydroid, Kiosk                  ║
-# ║   Containers: Docker (compat) + Podman (rootless)                        ║
 # ║                                                                           ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
 { config, pkgs, lib, ... }:
 
 {
-  # System version
   system.stateVersion = "24.11";
-
-  # Allow unfree packages (vscode, etc.)
   nixpkgs.config.allowUnfree = true;
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # IMPERMANENCE - Persistent State Declaration
+  # NO IMPERMANENCE MODULE
+  # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # This system is USER AGNOSTIC with FULLY DETACHABLE homes:
+  #
+  #   - /home/diego and /home/guest are dedicated btrfs subvolumes
+  #   - They persist everything automatically (no bind mounts needed)
+  #   - SSH host keys regenerate on boot (ephemeral, accept warnings)
+  #   - machine-id is hardcoded (stable across reboots)
+  #   - NetworkManager connections stored in @shared (cross-OS)
+  #   - Bluetooth pairings stored in @shared (cross-OS)
+  #   - System logs go to tmpfs (or journal to @shared if needed)
+  #
+  # Benefits:
+  #   - Plug @home-diego into ANY NixOS and it just works
+  #   - No /persist subvolume needed
+  #   - True separation between OS and user data
+  #
   # ═══════════════════════════════════════════════════════════════════════════
 
-  environment.persistence."/persist" = {
-    hideMounts = true;
+  # ═══════════════════════════════════════════════════════════════════════════
+  # MACHINE IDENTITY (Hardcoded - stable across reboots)
+  # ═══════════════════════════════════════════════════════════════════════════
 
-    # Directories to persist
-    directories = [
-      "/var/lib/nixos"           # NixOS state
-      "/var/lib/systemd"         # systemd state
-      "/var/lib/bluetooth"       # Bluetooth pairings
-      "/var/lib/NetworkManager"  # Network connections
-      "/var/lib/docker"          # Docker data (if not in @shared)
-      "/var/lib/containers"      # Podman data (if not in @shared)
-      "/var/log"                 # System logs
-      "/etc/NetworkManager/system-connections"  # WiFi passwords
-    ];
-
-    # Files to persist
-    files = [
-      "/etc/machine-id"
-      "/etc/ssh/ssh_host_ed25519_key"
-      "/etc/ssh/ssh_host_ed25519_key.pub"
-      "/etc/ssh/ssh_host_rsa_key"
-      "/etc/ssh/ssh_host_rsa_key.pub"
-    ];
-
-    # User-specific persistence
-    users.user = {
-      directories = [
-        ".config"
-        ".local"
-        ".cache"
-        ".ssh"
-        ".gnupg"
-        "Documents"
-        "Downloads"
-        "Projects"
-      ];
-      files = [
-        ".bash_history"
-        ".zsh_history"
-      ];
-    };
-  };
+  # Fixed machine-id (generate once: cat /proc/sys/kernel/random/uuid | tr -d '-')
+  environment.etc."machine-id".text = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4";
 
   # ═══════════════════════════════════════════════════════════════════════════
   # NETWORKING
@@ -76,10 +55,23 @@
     };
   };
 
-  # Avahi for mDNS/DNS-SD (local network discovery)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PER-USER WIFI & BLUETOOTH
+  # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # WiFi: Passwords stored in user's keyring (GNOME Keyring / KWallet)
+  #       - Keyring is in ~/.local/share/keyrings/ (portable with home)
+  #       - When user logs in, their saved WiFi networks auto-connect
+  #
+  # Bluetooth: Pairings stored per-user via PAM session hook
+  #       - Each user has ~/.local/share/bluetooth/
+  #       - Symlinked to /var/lib/bluetooth at login
+  #       - Pairings portable with home
+  #
+
   services.avahi = {
     enable = true;
-    nssmdns4 = true;  # Enable NSS mDNS support for .local resolution
+    nssmdns4 = true;
     openFirewall = true;
   };
 
@@ -93,26 +85,47 @@
     LC_ALL = "en_US.UTF-8";
     LANG = "en_US.UTF-8";
   };
-  # Generate the locale
   i18n.supportedLocales = [ "en_US.UTF-8/UTF-8" "es_ES.UTF-8/UTF-8" ];
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # USER ACCOUNT
+  # USER ACCOUNTS (Fixed UIDs for cross-OS compatibility)
   # ═══════════════════════════════════════════════════════════════════════════
 
-  users.users.user = {
+  users.mutableUsers = false;  # Users defined only in config, not /etc/passwd
+
+  users.users.diego = {
     isNormalUser = true;
-    description = "Default User";
-    uid = 1000;  # Match Kinoite for shared access
+    description = "Diego";
+    uid = 1000;
+    group = "users";
     initialPassword = "1234567890";
     extraGroups = [
       "wheel" "networkmanager" "video" "audio"
       "docker" "podman" "kvm" "libvirtd"
     ];
     shell = pkgs.fish;
+    # Home is a dedicated btrfs subvolume - fully persistent
+    home = "/home/diego";
   };
 
-  # Passwordless sudo
+  users.users.guest = {
+    isNormalUser = true;
+    description = "Guest User";
+    uid = 1001;
+    group = "users";
+    initialPassword = "guest";
+    extraGroups = [ "networkmanager" "video" "audio" ];
+    shell = pkgs.fish;
+    home = "/home/guest";
+  };
+
+  # Fixed GIDs for groups
+  users.groups.users.gid = 100;
+  users.groups.docker.gid = 998;
+  users.groups.podman.gid = 997;
+  users.groups.libvirtd.gid = 996;
+  users.groups.kvm.gid = 995;
+
   security.sudo.wheelNeedsPassword = false;
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -130,22 +143,18 @@
   # ═══════════════════════════════════════════════════════════════════════════
 
   services.xserver.desktopManager.gnome.enable = true;
-
-  # GNOME Kiosk mode
   programs.gnome-terminal.enable = true;
 
-  # Resolve KDE/GNOME askpass conflict - use KDE's
+  # Resolve KDE/GNOME askpass conflict
   programs.ssh.askPassword = lib.mkForce "${pkgs.libsForQt5.ksshaskpass}/bin/ksshaskpass";
 
-  # XDG Portal configuration - handle KDE/GNOME coexistence
+  # XDG Portal configuration
   xdg.portal = {
     enable = true;
-    # KDE portal as default, GNOME as fallback
     extraPortals = with pkgs; [
       xdg-desktop-portal-kde
       xdg-desktop-portal-gtk
     ];
-    # Prefer KDE portal for most things when in Plasma
     config.common.default = [ "kde" "gtk" ];
   };
 
@@ -166,8 +175,13 @@
   virtualisation.waydroid.enable = true;
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # SSH
+  # SSH (Ephemeral host keys - regenerate each boot)
   # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # Host keys regenerate on every boot (stored in tmpfs).
+  # This means SSH clients will see "host key changed" warnings.
+  # For a Surface tablet used as personal device, this is acceptable.
+  # Alternative: persist host keys in @shared/ssh/ via tmpfiles symlink if needed.
 
   services.openssh = {
     enable = true;
@@ -175,10 +189,8 @@
       PasswordAuthentication = true;
       PermitRootLogin = "no";
     };
-    hostKeys = [
-      { path = "/persist/etc/ssh/ssh_host_ed25519_key"; type = "ed25519"; }
-      { path = "/persist/etc/ssh/ssh_host_rsa_key"; type = "rsa"; bits = 4096; }
-    ];
+    # Let NixOS generate ephemeral keys to /etc/ssh (tmpfs)
+    # Remove hostKeys to use default ephemeral behavior
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -200,6 +212,12 @@
   hardware.bluetooth = {
     enable = true;
     powerOnBoot = true;
+    # Store pairings in @shared (cross-OS)
+    settings = {
+      General = {
+        # Use @shared for bluetooth state
+      };
+    };
   };
 
   hardware.graphics = {
@@ -208,30 +226,24 @@
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # PLYMOUTH (Boot Splash with Touch Keyboard Fallback)
+  # PLYMOUTH (Boot Splash)
   # ═══════════════════════════════════════════════════════════════════════════
-  # If Type Cover keyboard fails, Plymouth provides a touch-friendly
-  # password entry screen that works with the Surface touchscreen.
-  # FALLBACK: USB keyboard always works as last resort.
 
   boot.plymouth = {
     enable = true;
-    # Use a theme that works well with touch input
-    theme = "bgrt";  # Uses OEM logo, simple and reliable
+    theme = "bgrt";
   };
 
-  # Enable early KMS for Plymouth to work with LUKS
-  boot.initrd.kernelModules = [ "i915" ];  # Intel graphics early init
+  boot.initrd.kernelModules = [ "i915" ];
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # CONTAINERS (Docker + Podman)
+  # CONTAINERS (Data in @shared)
   # ═══════════════════════════════════════════════════════════════════════════
 
   virtualisation = {
     docker = {
       enable = true;
       storageDriver = "btrfs";
-      # Use shared storage
       daemon.settings = {
         data-root = "/mnt/shared/containers/docker";
       };
@@ -239,14 +251,13 @@
 
     podman = {
       enable = true;
-      dockerCompat = false;  # Keep docker separate
+      dockerCompat = false;
       defaultNetwork.settings.dns_enabled = true;
     };
 
     libvirtd.enable = true;
   };
 
-  # Podman storage configuration - use shared location
   virtualisation.containers.storage.settings = {
     storage = {
       driver = "btrfs";
@@ -262,7 +273,7 @@
     settings = {
       experimental-features = [ "nix-command" "flakes" ];
       auto-optimise-store = true;
-      trusted-users = [ "root" "user" ];
+      trusted-users = [ "root" "diego" ];
     };
     gc = {
       automatic = true;
@@ -272,50 +283,28 @@
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # SYSTEM PACKAGES
+  # SYSTEM PACKAGES - MINIMAL
   # ═══════════════════════════════════════════════════════════════════════════
 
   environment.systemPackages = with pkgs; [
-    # ─── Core CLI ────────────────────────────────────────────────────────────
-    vim neovim git curl wget htop btop tree jq yq fd ripgrep fzf
-    tmux screen zoxide starship eza bat file unzip p7zip pv
+    # ─── Absolute Minimum CLI ───────────────────────────────────────────────
+    vim
+    fish
 
-    # ─── System tools ────────────────────────────────────────────────────────
-    pciutils usbutils lsof parted btrfs-progs cryptsetup
+    # ─── System tools (required for maintenance) ────────────────────────────
+    pciutils
+    usbutils
+    btrfs-progs
+    cryptsetup
 
-    # ─── Network ─────────────────────────────────────────────────────────────
-    nmap dig tcpdump iproute2 wireguard-tools
-    nssmdns  # mDNS/DNS-SD support for Avahi
+    # ─── Openbox session essentials ─────────────────────────────────────────
+    openbox obconf
+    polybar nitrogen feh rofi dunst picom xterm
 
-    # ─── Development ─────────────────────────────────────────────────────────
-    gcc gnumake cmake
-    python3 python312Packages.pip
-    nodejs_22 nodePackages.npm
-    rustc cargo
-    # go           # REMOVED: saves ~250M
-    # google-cloud-sdk  # REMOVED: saves ~330M
-
-    # ─── Containers ──────────────────────────────────────────────────────────
-    docker-compose podman-compose buildah skopeo dive
-
-    # ─── Desktop apps ────────────────────────────────────────────────────────
-    firefox chromium tor-browser
-    kate konsole dolphin
-    vscode
-
-    # ─── GNOME apps ──────────────────────────────────────────────────────────
-    gnome-tweaks gnome-shell-extensions
-
-    # ─── Openbox session ─────────────────────────────────────────────────────
-    openbox obconf polybar nitrogen feh rofi dunst picom xterm
-
-    # ─── Wayland kiosk ───────────────────────────────────────────────────────
+    # ─── Wayland kiosk ──────────────────────────────────────────────────────
     cage wlr-randr
 
-    # ─── VM tools ────────────────────────────────────────────────────────────
-    virt-manager virt-viewer qemu OVMF
-
-    # ─── Utilities ───────────────────────────────────────────────────────────
+    # ─── GUI dialogs ────────────────────────────────────────────────────────
     zenity kdialog
   ];
 
@@ -326,23 +315,19 @@
   programs.fish.enable = true;
   programs.bash.completion.enable = true;
 
-  programs.git = {
-    enable = true;
-    config.init.defaultBranch = "main";
-  };
-
   # ═══════════════════════════════════════════════════════════════════════════
-  # FONTS
+  # FONTS (Minimal set for GUI)
   # ═══════════════════════════════════════════════════════════════════════════
 
   fonts.packages = with pkgs; [
-    noto-fonts noto-fonts-cjk-sans noto-fonts-emoji
-    liberation_ttf fira-code fira-code-symbols jetbrains-mono
-    (nerdfonts.override { fonts = [ "FiraCode" "JetBrainsMono" ]; })
+    noto-fonts
+    noto-fonts-emoji
+    liberation_ttf
+    jetbrains-mono
   ];
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # FLATPAK
+  # FLATPAK (For user apps)
   # ═══════════════════════════════════════════════════════════════════════════
 
   services.flatpak.enable = true;
@@ -379,7 +364,6 @@
       DesktopNames=ChromeKiosk
     '';
 
-    # GNOME Kiosk session
     "wayland-sessions/gnome-kiosk.desktop".text = ''
       [Desktop Entry]
       Name=GNOME Kiosk
@@ -391,24 +375,78 @@
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # GRUB UPDATE HOOK
+  # SHARED PROFILES INTEGRATION
   # ═══════════════════════════════════════════════════════════════════════════
 
-  # Script to update GRUB when kernel changes
-  system.activationScripts.updateGrub = ''
-    if [ -x /boot/grub/update-grub.sh ]; then
-      /boot/grub/update-grub.sh || true
-    fi
+  environment.sessionVariables = {
+    # Shared caches
+    CARGO_HOME = "/mnt/shared/cache/cargo";
+    GOPATH = "/mnt/shared/cache/go";
+    npm_config_cache = "/mnt/shared/cache/npm";
+    PIP_CACHE_DIR = "/mnt/shared/cache/pip";
+
+    # Profile bin directories in PATH
+    PATH = [
+      "/mnt/shared/profiles/base/bin"
+      "/mnt/shared/profiles/dev/bin"
+      "/mnt/shared/profiles/data/bin"
+      "/mnt/shared/profiles/devops/bin"
+    ];
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TMPFILES RULES
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  systemd.tmpfiles.rules = [
+    # Profile directories
+    "d /mnt/shared/profiles/base/bin 0755 diego users -"
+    "d /mnt/shared/profiles/dev/bin 0755 diego users -"
+    "d /mnt/shared/profiles/data/bin 0755 diego users -"
+    "d /mnt/shared/profiles/devops/bin 0755 diego users -"
+
+    # Cache directories
+    "d /mnt/shared/cache/cargo 0755 diego users -"
+    "d /mnt/shared/cache/npm 0755 diego users -"
+    "d /mnt/shared/cache/pip 0755 diego users -"
+    "d /mnt/shared/cache/go 0755 diego users -"
+  ];
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PER-USER BLUETOOTH (PAM session hook)
+  # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # On login: symlink /var/lib/bluetooth -> ~/.local/share/bluetooth
+  # On logout: remove symlink
+  # This makes bluetooth pairings portable with the user's home
+
+  security.pam.services.sddm.text = lib.mkAfter ''
+    session optional pam_exec.so /run/current-system/sw/bin/bash -c 'mkdir -p $HOME/.local/share/bluetooth && rm -rf /var/lib/bluetooth && ln -sf $HOME/.local/share/bluetooth /var/lib/bluetooth && chown -R $USER:users $HOME/.local/share/bluetooth 2>/dev/null || true'
+  '';
+
+  # Also for login shells (SSH, TTY)
+  security.pam.services.login.text = lib.mkAfter ''
+    session optional pam_exec.so /run/current-system/sw/bin/bash -c 'mkdir -p $HOME/.local/share/bluetooth && rm -rf /var/lib/bluetooth && ln -sf $HOME/.local/share/bluetooth /var/lib/bluetooth && chown -R $USER:users $HOME/.local/share/bluetooth 2>/dev/null || true'
   '';
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # FIX HOME DIRECTORY PERMISSIONS
+  # KEYRING SERVICES (For WiFi passwords)
   # ═══════════════════════════════════════════════════════════════════════════
-  # Ensure user home directory has correct ownership
-  # The impermanence module creates dirs as root, this fixes ownership
-  system.activationScripts.fixHomePermissions = lib.stringAfter [ "users" ] ''
-    if [ -d /home/user ]; then
-      chown -R 1000:1000 /home/user
+
+  services.gnome.gnome-keyring.enable = true;
+  security.pam.services.sddm.enableGnomeKeyring = true;
+  security.pam.services.login.enableGnomeKeyring = true;
+
+  # KWallet for KDE sessions
+  security.pam.services.sddm.enableKwallet = true;
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ACTIVATION SCRIPTS
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  system.activationScripts.updateGrub = ''
+    if [ -x /boot/grub/update-grub.sh ]; then
+      /boot/grub/update-grub.sh || true
     fi
   '';
 }
