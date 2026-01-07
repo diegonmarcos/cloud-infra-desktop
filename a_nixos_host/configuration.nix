@@ -292,11 +292,8 @@
     python3 python312Packages.pip
     nodejs_22 nodePackages.npm
     rustc cargo
-    go
-
-    # ─── Cloud CLI ───────────────────────────────────────────────────────────
-    google-cloud-sdk
-    # oci-cli  # Add if available
+    # go           # REMOVED: saves ~250M
+    # google-cloud-sdk  # REMOVED: saves ~330M
 
     # ─── Containers ──────────────────────────────────────────────────────────
     docker-compose podman-compose buildah skopeo dive

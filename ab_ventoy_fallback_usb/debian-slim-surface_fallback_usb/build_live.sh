@@ -115,8 +115,8 @@ apt-get install -y \
 # Development (for Claude Code)
 apt-get install -y nodejs npm
 
-# Browser
-apt-get install -y lynx
+# Browser (minimal webkit browser for Claude OAuth authentication)
+apt-get install -y surf
 
 # Clean cache
 apt-get clean
@@ -152,6 +152,7 @@ cat > /home/diego/.config/openbox/menu.xml << 'MENU'
 <menu id="root-menu" label="Menu">
   <item label="Terminal"><action name="Execute"><command>sakura</command></action></item>
   <item label="Files"><action name="Execute"><command>pcmanfm</command></action></item>
+  <item label="Browser"><action name="Execute"><command>surf https://claude.ai</command></action></item>
   <separator />
   <item label="WiFi (nmtui)"><action name="Execute"><command>sakura -e nmtui</command></action></item>
   <item label="Claude Code"><action name="Execute"><command>sakura -e claude</command></action></item>
@@ -169,22 +170,109 @@ cat > /home/diego/.config/openbox/autostart << 'AUTOSTART'
 xsetroot -solid "#2e3440" &
 AUTOSTART
 
-# Openbox rc.xml (keyboard shortcuts)
+# Openbox rc.xml (complete minimal config)
 cat > /home/diego/.config/openbox/rc.xml << 'RCXML'
 <?xml version="1.0" encoding="UTF-8"?>
-<openbox_config xmlns="http://openbox.org/3.4/rc">
+<openbox_config xmlns="http://openbox.org/3.4/rc"
+        xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<resistance><strength>10</strength><screen_edge_strength>20</screen_edge_strength></resistance>
+
+<focus>
+  <focusNew>yes</focusNew>
+  <followMouse>no</followMouse>
+  <focusLast>yes</focusLast>
+  <underMouse>no</underMouse>
+  <focusDelay>200</focusDelay>
+  <raiseOnFocus>no</raiseOnFocus>
+</focus>
+
+<placement>
+  <policy>Smart</policy>
+  <center>yes</center>
+  <monitor>Primary</monitor>
+  <primaryMonitor>1</primaryMonitor>
+</placement>
+
+<theme>
+  <name>Clearlooks-3.4</name>
+  <titleLayout>NLIMC</titleLayout>
+  <keepBorder>yes</keepBorder>
+  <animateIconify>yes</animateIconify>
+  <font place="ActiveWindow"><name>sans</name><size>10</size><weight>Bold</weight><slant>Normal</slant></font>
+  <font place="InactiveWindow"><name>sans</name><size>10</size><weight>Bold</weight><slant>Normal</slant></font>
+  <font place="MenuHeader"><name>sans</name><size>10</size><weight>Normal</weight><slant>Normal</slant></font>
+  <font place="MenuItem"><name>sans</name><size>10</size><weight>Normal</weight><slant>Normal</slant></font>
+</theme>
+
+<desktops>
+  <number>1</number>
+  <firstdesk>1</firstdesk>
+  <names><name>Desktop</name></names>
+  <popupTime>875</popupTime>
+</desktops>
+
+<resize><drawContents>yes</drawContents><popupShow>Nonpixel</popupShow><popupPosition>Center</popupPosition></resize>
+
 <keyboard>
   <keybind key="W-Return"><action name="Execute"><command>sakura</command></action></keybind>
   <keybind key="W-e"><action name="Execute"><command>pcmanfm</command></action></keybind>
+  <keybind key="W-b"><action name="Execute"><command>surf https://claude.ai</command></action></keybind>
   <keybind key="W-q"><action name="Close"/></keybind>
   <keybind key="A-F4"><action name="Close"/></keybind>
-  <keybind key="A-Tab"><action name="NextWindow"/></keybind>
+  <keybind key="A-Tab"><action name="NextWindow"><finalactions><action name="Focus"/><action name="Raise"/><action name="Unshade"/></finalactions></action></keybind>
+  <keybind key="A-S-Tab"><action name="PreviousWindow"><finalactions><action name="Focus"/><action name="Raise"/><action name="Unshade"/></finalactions></action></keybind>
 </keyboard>
-<mouse><context name="Root"><mousebind button="Right" action="Press"><action name="ShowMenu"><menu>root-menu</menu></action></mousebind></context></mouse>
+
+<mouse>
+  <dragThreshold>1</dragThreshold>
+  <doubleClickTime>500</doubleClickTime>
+  <screenEdgeWarpTime>400</screenEdgeWarpTime>
+  <screenEdgeWarpMouse>false</screenEdgeWarpMouse>
+  <context name="Frame">
+    <mousebind button="A-Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+    <mousebind button="A-Left" action="Click"><action name="Unshade"/></mousebind>
+    <mousebind button="A-Left" action="Drag"><action name="Move"/></mousebind>
+    <mousebind button="A-Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="Unshade"/></mousebind>
+    <mousebind button="A-Right" action="Drag"><action name="Resize"/></mousebind>
+  </context>
+  <context name="Titlebar">
+    <mousebind button="Left" action="Drag"><action name="Move"/></mousebind>
+    <mousebind button="Left" action="DoubleClick"><action name="ToggleMaximize"/></mousebind>
+    <mousebind button="Up" action="Click"><action name="if"><shaded>no</shaded><then><action name="Shade"/></then></action></mousebind>
+    <mousebind button="Down" action="Click"><action name="if"><shaded>yes</shaded><then><action name="Unshade"/></then></action></mousebind>
+  </context>
+  <context name="Close"><mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind><mousebind button="Left" action="Click"><action name="Close"/></mousebind></context>
+  <context name="Maximize"><mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind><mousebind button="Left" action="Click"><action name="ToggleMaximize"/></mousebind></context>
+  <context name="Iconify"><mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind><mousebind button="Left" action="Click"><action name="Iconify"/></mousebind></context>
+  <context name="Root">
+    <mousebind button="Right" action="Press"><action name="ShowMenu"><menu>root-menu</menu></action></mousebind>
+    <mousebind button="Middle" action="Press"><action name="ShowMenu"><menu>client-list-combined-menu</menu></action></mousebind>
+  </context>
+  <context name="Client">
+    <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>
+  </context>
+</mouse>
+
+<menu>
+  <file>/home/diego/.config/openbox/menu.xml</file>
+  <hideDelay>200</hideDelay>
+  <middle>no</middle>
+  <submenuShowDelay>100</submenuShowDelay>
+  <submenuHideDelay>400</submenuHideDelay>
+  <showIcons>yes</showIcons>
+  <manageDesktops>yes</manageDesktops>
+</menu>
+
+<applications></applications>
+
 </openbox_config>
 RCXML
 
 chown -R diego:diego /home/diego/.config
+chmod 644 /home/diego/.config/openbox/menu.xml
+chmod 644 /home/diego/.config/openbox/rc.xml
+chmod 755 /home/diego/.config/openbox/autostart
 
 # Install Claude Code (do this last, takes time)
 npm install -g @anthropic-ai/claude-code || true
@@ -197,7 +285,28 @@ ExecStart=
 ExecStart=-/sbin/agetty --autologin diego --noclear %I $TERM
 EOF2
 
-# Create welcome message
+# Create welcome message for FISH shell (user's default shell)
+mkdir -p /home/diego/.config/fish
+cat > /home/diego/.config/fish/config.fish << 'EOF2'
+# Welcome message
+function fish_greeting
+    echo ""
+    echo "=================================="
+    echo "  Debian Surface Recovery"
+    echo "=================================="
+    echo ""
+    echo "Commands:"
+    echo "  startx     - Start Openbox GUI"
+    echo "  nmtui      - WiFi configuration"
+    echo "  claude     - Claude Code CLI"
+    echo "  btop       - System monitor"
+    echo ""
+    neofetch --off 2>/dev/null || true
+end
+EOF2
+chown -R diego:diego /home/diego/.config/fish
+
+# Also create bash_profile as fallback (if user switches to bash)
 cat > /home/diego/.bash_profile << 'EOF2'
 echo ""
 echo "=================================="
@@ -210,7 +319,7 @@ echo "  nmtui      - WiFi configuration"
 echo "  claude     - Claude Code CLI"
 echo "  btop       - System monitor"
 echo ""
-neofetch --off
+neofetch --off 2>/dev/null || true
 EOF2
 chown diego:diego /home/diego/.bash_profile
 
@@ -234,13 +343,22 @@ log_ok "SquashFS created"
 
 # Copy kernel and initrd
 log_head "Copying Kernel and Initrd"
-cp chroot/boot/vmlinuz-*-surface image/live/vmlinuz
-cp chroot/boot/initrd.img-*-surface image/live/initrd.img
+cp chroot/boot/vmlinuz-*-surface-* image/live/vmlinuz
+cp chroot/boot/initrd.img-*-surface-* image/live/initrd.img
 log_ok "Kernel files copied"
 
 # Create GRUB config
 log_head "Creating GRUB Configuration"
 cat > image/boot/grub/grub.cfg << 'EOF'
+insmod part_gpt
+insmod part_msdos
+insmod fat
+insmod iso9660
+insmod loopback
+
+# Search for the ISO volume label
+search --no-floppy --set=root --label "DEBIAN_SURFACE"
+
 set timeout=5
 set default=0
 

@@ -1,0 +1,81 @@
+{
+  "meta": {
+    "name": "NixOS Surface Slim",
+    "version": "1.0",
+    "target": "Surface Pro 8",
+    "nixos": "24.11",
+    "estimated_size": "~700-900MB",
+    "boot_modes": ["normal", "toram"]
+  },
+  "credentials": {
+    "diego": {
+      "password": "1234567890",
+      "shell": "/run/current-system/sw/bin/fish",
+      "groups": ["wheel", "networkmanager", "video", "input", "audio"],
+      "sudo": "NOPASSWD"
+    },
+    "root": {
+      "password": "1234567890"
+    }
+  },
+  "boot": {
+    "display_manager": "sddm",
+    "window_manager": "openbox",
+    "auto_login": true
+  },
+  "hardware": {
+    "kernel": "linux-surface (via nixos-hardware)",
+    "touch": "iptsd",
+    "graphics": "i915 (Intel)",
+    "wifi": "iwd + NetworkManager"
+  },
+  "packages": {
+    "shells": ["fish", "bash", "zsh"],
+    "editors": ["vim", "nano"],
+    "network": ["networkmanager", "iwd", "openssh", "curl", "wget", "git"],
+    "gui": {
+      "display_manager": "sddm",
+      "window_manager": "openbox",
+      "terminal": "sakura",
+      "file_manager": "pcmanfm",
+      "browser": "surf (minimal webkit)"
+    },
+    "cli_tools": ["btop", "htop", "ripgrep", "fd", "fzf", "jq", "tmux", "eza", "bat", "zoxide", "neofetch"],
+    "disk_tools": ["parted", "gptfdisk", "btrfs-progs", "cryptsetup", "e2fsprogs", "dosfstools"],
+    "dev": ["nodejs", "npm"]
+  },
+  "npm_global": ["@anthropic-ai/claude-code"],
+  "services": {
+    "enabled": ["NetworkManager", "sshd", "sddm", "iptsd"]
+  },
+  "openbox": {
+    "shortcuts": {
+      "Super+Return": "sakura (terminal)",
+      "Super+E": "pcmanfm (files)",
+      "Super+B": "surf (browser)",
+      "Super+D": "rofi (launcher)",
+      "Super+Q": "close window",
+      "Alt+Tab": "switch windows"
+    },
+    "menu": [
+      {"label": "Terminal", "command": "sakura"},
+      {"label": "Files", "command": "pcmanfm"},
+      {"label": "Browser", "command": "surf https://claude.ai"},
+      {"separator": true},
+      {"label": "WiFi (nmtui)", "command": "sakura -e nmtui"},
+      {"label": "Claude Code", "command": "sakura -e claude"},
+      {"label": "System Monitor", "command": "sakura -e btop"},
+      {"separator": true},
+      {"label": "Reboot", "command": "systemctl reboot"},
+      {"label": "Shutdown", "command": "systemctl poweroff"}
+    ]
+  },
+  "build": {
+    "command": "./build.sh",
+    "outputs": {
+      "iso": "nixos-surface-slim.iso",
+      "vm": "result-vm/bin/run-*-vm",
+      "raw": "result-raw"
+    }
+  }
+}
