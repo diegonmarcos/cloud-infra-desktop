@@ -4,7 +4,7 @@
 > **OS**: NixOS 24.11 - Minimal + User Agnostic
 > **Boot**: GRUB (LUKS2 + USB keyfile unlock)
 > **Status**: Dual-boot with Kubuntu
-> **Philosophy**: Minimal NixOS + Shared Profiles + Detachable Homes
+> **Philosophy**: Minimal NixOS + Shared Tools + Detachable Homes
 
 ---
 
@@ -16,7 +16,7 @@
 
 1. **User Agnostic** - No `/persist` subvolume. Truly stateless OS.
 2. **Detachable Homes** - @home-* subvolumes can move to any NixOS
-3. **Shared Tools** - All dev tools in @shared/profiles/
+3. **Shared Tools** - All dev tools in @shared/tools/
 4. **Per-User Credentials** - WiFi passwords and Bluetooth pairings travel with user's home
 
 ```
@@ -30,16 +30,17 @@
 |                                                                               |
 |   NixOS provides ONLY:              @shared (cross-user):                     |
 |   +---------------------+           +----------------------------------+      |
-|   | SDDM Display Manager|           | profiles/  : dev tools           |      |
-|   | KDE Plasma 6        |           | containers/: Docker, Podman      |      |
-|   | GNOME               |           | cache/     : cargo, npm, pip     |      |
-|   | Openbox             |           +----------------------------------+      |
-|   | Waydroid            |                                                     |
-|   | Kiosk modes         |           @home-* (per-user, PORTABLE):             |
-|   +---------------------+           +----------------------------------+      |
+|   | SDDM Display Manager|           | tools/   : CLI tools + scripts   |      |
+|   | KDE Plasma 6        |           | configs/ : shared configurations |      |
+|   | GNOME               |           | data/    : cache, containers, vm |      |
+|   | Openbox             |           | waydroid/: Android base image    |      |
+|   | Waydroid            |           | mnt/     : external drive mounts |      |
+|   | Kiosk modes         |           +----------------------------------+      |
+|   +---------------------+                                                     |
+|           |                         @home-* (per-user, PORTABLE):             |
+|           |                         +----------------------------------+      |
 |           |                         | WiFi passwords (in keyring)      |      |
 |           |                         | Bluetooth pairings               |      |
-|           |                         | All configs, data, state         |      |
 |           +------------------------>| Fully detachable to ANY NixOS    |      |
 |                                     +----------------------------------+      |
 |                                                                               |
@@ -85,20 +86,33 @@
 |
 +-- @shared/                          # Shared between OSes and users
     +-- .swapfile (8GB)
-    +-- containers/
-    |   +-- docker/                   # Docker data-root
-    |   +-- podman/                   # Podman graphroot
-    +-- waydroid-base/                # Android OS image (shared ~3GB)
-    +-- profiles/                     # SHARED TOOL PROFILES
-    |   +-- base/bin/                 # curl, wget, git, htop
-    |   +-- dev/bin/                  # gcc, clang, cargo, go
+    |
+    +-- tools/                        # CLI TOOLS + SCRIPTS
+    |   +-- base/bin/                 # curl, wget, git, htop, ripgrep
+    |   +-- dev/bin/                  # gcc, clang, cargo, go, node
     |   +-- data/bin/                 # python, pandas, jupyter
-    |   +-- devops/bin/               # kubectl, terraform
-    +-- cache/                        # Shared caches
-        +-- cargo/
-        +-- npm/
-        +-- pip/
-        +-- go/
+    |   +-- devops/bin/               # kubectl, terraform, ansible
+    |   +-- scripts/                  # Utility scripts
+    |
+    +-- configs/                      # SHARED CONFIGURATIONS
+    |   +-- (vpn, app configs, etc.)
+    |
+    +-- data/                         # PERSISTENT DATA/STATE
+    |   +-- cache/
+    |   |   +-- cargo/
+    |   |   +-- npm/
+    |   |   +-- pip/
+    |   |   +-- go/
+    |   +-- containers/
+    |   |   +-- docker/               # Docker data-root
+    |   |   +-- podman/               # Podman graphroot
+    |   +-- vm/                       # libvirt VM images
+    |   +-- fonts/                    # Custom fonts
+    |   +-- themes/                   # GTK/Qt themes
+    |
+    +-- waydroid/                     # Android OS image (~3GB)
+    |
+    +-- mnt/                          # External drive mount points
 ```
 
 ---
@@ -161,12 +175,14 @@
 |   |   +-- waydroid/                (Guest's Android apps/data)
 |
 +-- /mnt/shared --------------------> btrfs subvol=@shared
-|   +-- profiles/                    (SHARED TOOLS)
-|   +-- cache/                       (Shared build caches)
-|   +-- containers/                  (Docker, Podman data)
+|   +-- tools/                       (CLI tools + scripts)
+|   +-- configs/                     (Shared configurations)
+|   +-- data/                        (cache, containers, vm, fonts, themes)
+|   +-- waydroid/                    (Android base image)
+|   +-- mnt/                         (External drive mount points)
 |   +-- .swapfile                    (8GB swap)
 |
-+-- /var/lib/waydroid --------------> btrfs subvol=@shared/waydroid-base
++-- /var/lib/waydroid --------------> bind to /mnt/shared/waydroid
 |
 +-- /mnt/kubuntu -------------------> ext4 /dev/nvme0n1p5 (READ-ONLY)
 |
@@ -194,12 +210,13 @@
 
 ### What NixOS Does NOT Provide
 
-All development tools come from @shared/profiles/:
+All development tools come from @shared/tools/:
 
 - CLI tools (curl, wget, git, htop, ripgrep, etc.)
 - Compilers (gcc, clang, rustc, go)
 - Languages (python, nodejs)
 - DevOps (kubectl, terraform, docker-compose)
+- Utility scripts (@shared/tools/scripts/)
 
 ---
 
@@ -285,24 +302,21 @@ When you move @home-diego to another NixOS:
 
 ---
 
-## Shared Profiles System
+## Shared Tools System
 
-### Profile Structure
+### Tools Structure
 
 ```
-/mnt/shared/profiles/
+/mnt/shared/tools/
 ├── base/
-│   ├── bin/           # curl, wget, git, htop, btop, ripgrep, fd, jq, tmux
-│   └── activate.sh
+│   └── bin/           # curl, wget, git, htop, btop, ripgrep, fd, jq, tmux
 ├── dev/
-│   ├── bin/           # gcc, g++, clang, rustc, cargo, go, node, npm
-│   └── activate.sh
+│   └── bin/           # gcc, g++, clang, rustc, cargo, go, node, npm
 ├── data/
-│   ├── bin/           # python3, pip, jupyter, pandas
-│   └── activate.sh
-└── devops/
-    ├── bin/           # kubectl, helm, terraform, ansible, docker-compose
-    └── activate.sh
+│   └── bin/           # python3, pip, jupyter, pandas
+├── devops/
+│   └── bin/           # kubectl, helm, terraform, ansible, docker-compose
+└── scripts/           # Utility scripts (shared across all)
 ```
 
 ### Environment Variables
@@ -310,25 +324,35 @@ When you move @home-diego to another NixOS:
 Set by NixOS:
 
 ```bash
-# Shared caches
-CARGO_HOME=/mnt/shared/cache/cargo
-GOPATH=/mnt/shared/cache/go
-npm_config_cache=/mnt/shared/cache/npm
-PIP_CACHE_DIR=/mnt/shared/cache/pip
+# Shared caches (in data/)
+CARGO_HOME=/mnt/shared/data/cache/cargo
+GOPATH=/mnt/shared/data/cache/go
+npm_config_cache=/mnt/shared/data/cache/npm
+PIP_CACHE_DIR=/mnt/shared/data/cache/pip
 
-# Profile directories in PATH
-PATH=/mnt/shared/profiles/base/bin:/mnt/shared/profiles/dev/bin:...
+# Tools directories in PATH
+PATH=/mnt/shared/tools/base/bin:/mnt/shared/tools/dev/bin:/mnt/shared/tools/data/bin:/mnt/shared/tools/devops/bin:/mnt/shared/tools/scripts
 ```
 
-### Populating Profiles
+### Populating Tools
 
 ```bash
 # Using Nix profiles
-nix profile install nixpkgs#{curl,wget,git,htop,ripgrep} --profile /mnt/shared/profiles/base
+nix profile install nixpkgs#{curl,wget,git,htop,ripgrep} --profile /mnt/shared/tools/base
 
 # Or static binaries
-curl -L https://...ripgrep...tar.gz | tar xz -C /mnt/shared/profiles/base/bin/
+curl -L https://...ripgrep...tar.gz | tar xz -C /mnt/shared/tools/base/bin/
 ```
+
+### @shared Directory Overview
+
+| Directory | Purpose |
+|-----------|---------|
+| `tools/` | CLI tools organized by category + scripts |
+| `configs/` | Shared configurations (VPN, app configs) |
+| `data/` | Persistent data: cache, containers, vm, fonts, themes |
+| `waydroid/` | Android base image |
+| `mnt/` | Mount points for external drives |
 
 ---
 

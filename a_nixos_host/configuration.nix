@@ -237,7 +237,7 @@
   boot.initrd.kernelModules = [ "i915" ];
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # CONTAINERS (Data in @shared)
+  # CONTAINERS (Data in @shared/data/containers/)
   # ═══════════════════════════════════════════════════════════════════════════
 
   virtualisation = {
@@ -245,7 +245,7 @@
       enable = true;
       storageDriver = "btrfs";
       daemon.settings = {
-        data-root = "/mnt/shared/containers/docker";
+        data-root = "/mnt/shared/data/containers/docker";
       };
     };
 
@@ -261,7 +261,7 @@
   virtualisation.containers.storage.settings = {
     storage = {
       driver = "btrfs";
-      graphroot = "/mnt/shared/containers/podman";
+      graphroot = "/mnt/shared/data/containers/podman";
     };
   };
 
@@ -375,22 +375,31 @@
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # SHARED PROFILES INTEGRATION
+  # SHARED TOOLS & DATA INTEGRATION
   # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # @shared/ structure:
+  #   tools/      - CLI tools (base, dev, data, devops) + scripts
+  #   configs/    - Shared configurations (vpn, app configs)
+  #   data/       - Persistent data (cache, containers, vm, fonts, themes)
+  #   waydroid/   - Android
+  #   mnt/        - External drive mount points
+  #
 
   environment.sessionVariables = {
-    # Shared caches
-    CARGO_HOME = "/mnt/shared/cache/cargo";
-    GOPATH = "/mnt/shared/cache/go";
-    npm_config_cache = "/mnt/shared/cache/npm";
-    PIP_CACHE_DIR = "/mnt/shared/cache/pip";
+    # Shared caches (inside data/)
+    CARGO_HOME = "/mnt/shared/data/cache/cargo";
+    GOPATH = "/mnt/shared/data/cache/go";
+    npm_config_cache = "/mnt/shared/data/cache/npm";
+    PIP_CACHE_DIR = "/mnt/shared/data/cache/pip";
 
-    # Profile bin directories in PATH
+    # Tools bin directories in PATH
     PATH = [
-      "/mnt/shared/profiles/base/bin"
-      "/mnt/shared/profiles/dev/bin"
-      "/mnt/shared/profiles/data/bin"
-      "/mnt/shared/profiles/devops/bin"
+      "/mnt/shared/tools/base/bin"
+      "/mnt/shared/tools/dev/bin"
+      "/mnt/shared/tools/data/bin"
+      "/mnt/shared/tools/devops/bin"
+      "/mnt/shared/tools/scripts"
     ];
   };
 
@@ -399,17 +408,29 @@
   # ═══════════════════════════════════════════════════════════════════════════
 
   systemd.tmpfiles.rules = [
-    # Profile directories
-    "d /mnt/shared/profiles/base/bin 0755 diego users -"
-    "d /mnt/shared/profiles/dev/bin 0755 diego users -"
-    "d /mnt/shared/profiles/data/bin 0755 diego users -"
-    "d /mnt/shared/profiles/devops/bin 0755 diego users -"
+    # Tools directories
+    "d /mnt/shared/tools/base/bin 0755 diego users -"
+    "d /mnt/shared/tools/dev/bin 0755 diego users -"
+    "d /mnt/shared/tools/data/bin 0755 diego users -"
+    "d /mnt/shared/tools/devops/bin 0755 diego users -"
+    "d /mnt/shared/tools/scripts 0755 diego users -"
 
-    # Cache directories
-    "d /mnt/shared/cache/cargo 0755 diego users -"
-    "d /mnt/shared/cache/npm 0755 diego users -"
-    "d /mnt/shared/cache/pip 0755 diego users -"
-    "d /mnt/shared/cache/go 0755 diego users -"
+    # Configs directory
+    "d /mnt/shared/configs 0755 diego users -"
+
+    # Data directories
+    "d /mnt/shared/data/cache/cargo 0755 diego users -"
+    "d /mnt/shared/data/cache/npm 0755 diego users -"
+    "d /mnt/shared/data/cache/pip 0755 diego users -"
+    "d /mnt/shared/data/cache/go 0755 diego users -"
+    "d /mnt/shared/data/containers/docker 0755 root root -"
+    "d /mnt/shared/data/containers/podman 0755 root root -"
+    "d /mnt/shared/data/vm 0755 diego users -"
+    "d /mnt/shared/data/fonts 0755 diego users -"
+    "d /mnt/shared/data/themes 0755 diego users -"
+
+    # Mount points
+    "d /mnt/shared/mnt 0755 diego users -"
   ];
 
   # ═══════════════════════════════════════════════════════════════════════════
