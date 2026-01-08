@@ -1,0 +1,44 @@
+# Diego's Dev Environment - Fallback Containerfile
+# Use this when Nix-built image isn't available
+#
+# Build: podman build -t diego-dev:latest -f Containerfile .
+# Run:   podman run -it diego-dev:latest
+
+FROM nixos/nix:latest
+
+LABEL maintainer="Diego Nepomuceno Marcos <me@diegonmarcos.com>"
+LABEL description="Diego's portable development environment"
+
+# Enable flakes
+RUN mkdir -p /etc/nix && \
+    echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
+
+# Create diego user
+RUN echo "diego:x:1000:1000:Diego:/home/diego:/bin/bash" >> /etc/passwd && \
+    echo "diego:x:1000:" >> /etc/group && \
+    mkdir -p /home/diego && \
+    chown -R 1000:1000 /home/diego
+
+# Copy flake configuration
+WORKDIR /home/diego/.config/nix-config
+COPY --chown=1000:1000 flake.nix flake.lock ./
+COPY --chown=1000:1000 modules ./modules/
+COPY --chown=1000:1000 hosts ./hosts/
+COPY --chown=1000:1000 lib ./lib/
+
+# Switch to diego user
+USER diego
+WORKDIR /home/diego
+
+# Install home-manager and apply CLI profile
+RUN nix run home-manager -- switch --flake /home/diego/.config/nix-config#diego@cli
+
+# Set shell to fish
+ENV SHELL=/home/diego/.nix-profile/bin/fish
+ENV TERM=xterm-256color
+ENV LANG=en_US.UTF-8
+ENV HOME=/home/diego
+ENV USER=diego
+
+# Default command
+CMD ["/home/diego/.nix-profile/bin/fish"]

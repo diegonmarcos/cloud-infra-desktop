@@ -1,8 +1,16 @@
-# Cloud profile - Cloud CLIs and DevOps tools
+# Profile 4: Containers & Cloud
+# DevOps, infrastructure, orchestration
 { config, pkgs, lib, ... }:
 
 {
   home.packages = with pkgs; [
+    # Container tools
+    podman
+    podman-compose
+    buildah
+    skopeo
+    dive             # Docker image analyzer
+
     # Kubernetes
     kubectl
     kubernetes-helm
@@ -19,12 +27,10 @@
     google-cloud-sdk
     awscli2
     azure-cli
-
     # Note: oci-cli installed via pipx (not in nixpkgs)
 
-    # Docker/Containers
+    # Docker Compose (for compatibility)
     docker-compose
-    dive             # Docker image analyzer
 
     # Service mesh
     istioctl
@@ -34,7 +40,6 @@
     grafana
 
     # CI/CD
-    gh               # GitHub CLI
     gitlab-runner
 
     # Secrets management

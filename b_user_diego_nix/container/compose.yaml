@@ -1,0 +1,98 @@
+# Diego's Dev Environment - Compose Configuration
+# Works with both podman-compose and docker compose
+#
+# Usage:
+#   podman-compose up -d        # Start container
+#   podman-compose exec dev fish  # Enter shell
+#   podman-compose down         # Stop container
+#
+# With Docker:
+#   docker compose up -d
+#   docker compose exec dev fish
+#   docker compose down
+
+services:
+  dev:
+    # Option 1: Use Nix-built image (preferred)
+    image: diego-dev:latest
+
+    # Option 2: Build from Containerfile (fallback)
+    # build:
+    #   context: ..
+    #   dockerfile: container/Containerfile
+
+    container_name: diego-dev
+    hostname: diego-dev
+
+    # Keep container running
+    stdin_open: true
+    tty: true
+
+    # User mapping
+    user: "1000:1000"
+
+    # Environment
+    environment:
+      - TERM=xterm-256color
+      - LANG=en_US.UTF-8
+      - HOME=/home/diego
+      - USER=diego
+      - CONTAINER=podman
+
+    # Volume mounts
+    volumes:
+      # Persist home directory
+      - diego-home:/home/diego
+
+      # Mount projects from host
+      - ~/Documents/Git:/home/diego/projects:z
+
+      # Mount SSH keys (read-only)
+      - ~/.ssh:/home/diego/.ssh:ro,z
+
+      # Mount Git config (read-only)
+      - ~/.gitconfig:/home/diego/.gitconfig:ro,z
+
+      # Optional: Mount vault for credentials
+      # - ~/vault:/home/diego/vault:ro,z
+
+    # Working directory
+    working_dir: /home/diego
+
+    # Network mode
+    network_mode: host
+
+    # Security options for rootless
+    security_opt:
+      - label=disable
+
+    # Resource limits (optional)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '4'
+    #       memory: 8G
+
+  # Optional: Minimal dev container
+  dev-minimal:
+    image: diego-dev-minimal:latest
+    container_name: diego-dev-minimal
+    hostname: diego-minimal
+    stdin_open: true
+    tty: true
+    user: "1000:1000"
+    environment:
+      - TERM=xterm-256color
+      - HOME=/home/diego
+    volumes:
+      - diego-minimal-home:/home/diego
+      - ~/Documents/Git:/home/diego/projects:z
+    working_dir: /home/diego
+    profiles:
+      - minimal
+
+volumes:
+  diego-home:
+    name: diego-dev-home
+  diego-minimal-home:
+    name: diego-dev-minimal-home

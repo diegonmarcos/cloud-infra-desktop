@@ -1,4 +1,5 @@
-# Data Science profile - ML/AI, data analysis, and scientific computing
+# Profile 6: Data Science & Databases
+# ML/AI, analysis, storage
 { config, pkgs, lib, ... }:
 
 {
@@ -42,7 +43,7 @@
     # Visualization
     python312Packages.bokeh
 
-    # Statistics
+    # Statistics (R)
     R
     rPackages.ggplot2
     rPackages.dplyr
@@ -67,7 +68,7 @@
   # Install AI CLI tools via npm
   home.activation.installAiTools = lib.hm.dag.entryAfter ["writeBoundary"] ''
     if command -v npm &>/dev/null; then
-      $DRY_RUN_CMD npm install -g @anthropic-ai/claude-code @google/gemini-cli 2>/dev/null || true
+      $DRY_RUN_CMD npm install -g @anthropic-ai/claude-code 2>/dev/null || true
     fi
   '';
 

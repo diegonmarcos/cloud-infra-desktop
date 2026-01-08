@@ -1,0 +1,14 @@
+# Ignore patterns for container builds
+.git
+.gitignore
+*.md
+0.spec/
+1.ops/
+result
+result-*
+.direnv
+.envrc
+*.swp
+*.swo
+*~
+.DS_Store

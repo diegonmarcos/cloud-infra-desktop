@@ -1,4 +1,5 @@
-# Dev Tools profile - Build tools and debugging
+# Profile 3: Build & Debug Tools
+# Compilation, testing, analysis
 { config, pkgs, lib, ... }:
 
 {
@@ -31,13 +32,7 @@
     doxygen
     graphviz
 
-    # Container tools
-    podman
-    podman-compose
-    buildah
-    skopeo
-
-    # Version control
+    # Version control extras
     git-lfs
     diff-so-fancy
     delta            # Better git diff
@@ -45,7 +40,7 @@
     # Testing
     act              # Run GitHub Actions locally
 
-    # Other development tools
+    # Development utilities
     direnv
     just             # Command runner
     watchexec        # Watch files and execute commands

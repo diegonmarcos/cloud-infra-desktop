@@ -1,4 +1,5 @@
-# Media profile - Audio, video, and image processing
+# Profile 8: Media & Graphics
+# Image, video, audio, capture
 { config, pkgs, lib, ... }:
 
 {

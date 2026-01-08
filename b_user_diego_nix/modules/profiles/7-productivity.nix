@@ -1,4 +1,5 @@
-# Productivity profile - Office, notes, and organization tools
+# Profile 7: Productivity & Documents
+# Office, notes, organization
 { config, pkgs, lib, ... }:
 
 {
@@ -14,7 +15,7 @@
     # PDF tools
     okular
     zathura
-    poppler_utils    # pdftools
+    poppler_utils    # pdftotext, etc.
 
     # File managers
     dolphin

@@ -1,4 +1,5 @@
-# Security profile - Privacy, pentesting, and security tools
+# Profile 5: Security & Networking
+# Privacy, analysis, encryption
 { config, pkgs, lib, ... }:
 
 {
@@ -25,7 +26,6 @@
     # Security scanning
     lynis
 
-
     # Encryption & Crypto
     gnupg
     age
@@ -36,7 +36,7 @@
     pass
     gopass
 
-    # SSH
+    # SSH tools
     openssh
     ssh-audit
 
@@ -44,16 +44,12 @@
     binwalk
     hexyl
     xxd
-    file
-    binutils  # includes strings, objdump, etc.
+    binutils         # includes strings, objdump, etc.
 
     # Web security
-    curl
-    wget
     httpie
 
     # SSL/TLS
-    openssl
     certbot
 
     # Firewall

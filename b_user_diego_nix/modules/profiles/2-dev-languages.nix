@@ -1,4 +1,5 @@
-# Dev Languages profile - Compilers and programming languages
+# Profile 2: Development Languages
+# Compilers, interpreters, runtimes
 { config, pkgs, lib, ... }:
 
 {
@@ -12,7 +13,7 @@
     # Go
     go
     gopls
-    delve          # Go debugger
+    delve            # Go debugger
 
     # Node.js
     nodejs_20
@@ -24,8 +25,8 @@
     python312
     python312Packages.pip
     python312Packages.virtualenv
-    pipx           # Install Python apps in isolated environments
-    uv             # Fast Python package manager
+    pipx             # Install Python apps in isolated environments
+    uv               # Fast Python package manager
 
     # C/C++
     gcc
