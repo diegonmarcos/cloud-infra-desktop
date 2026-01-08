@@ -257,6 +257,13 @@
     options = [ "subvol=@home-guest/waydroid" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
   };
 
+  # BTRFS ROOT - Shows all subvolumes (@home-diego, @home-guest, @nixos, @shared)
+  fileSystems."/mnt/btrfs-root" = {
+    device = "/dev/mapper/pool";
+    fsType = "btrfs";
+    options = [ "subvolid=5" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
+  };
+
   # Kubuntu root - read-only access to host OS
   fileSystems."/mnt/kubuntu" = {
     device = "/dev/disk/by-uuid/7e3626ac-ce13-4adc-84e2-1a843d7e2793";

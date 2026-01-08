@@ -15,6 +15,12 @@
   nixpkgs.config.allowUnfree = true;
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # FIRMWARE (Intel IPU6 camera, WiFi, Bluetooth, etc.)
+  # ═══════════════════════════════════════════════════════════════════════════
+  hardware.firmware = with pkgs; [ linux-firmware ];
+  hardware.enableAllFirmware = true;
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # NIX SETTINGS
   # ═══════════════════════════════════════════════════════════════════════════
   # NOTE: linux-surface kernel is cached LOCALLY in @nixos/nix after first build.
@@ -37,8 +43,8 @@
   #   - They persist everything automatically (no bind mounts needed)
   #   - SSH host keys regenerate on boot (ephemeral, accept warnings)
   #   - machine-id is hardcoded (stable across reboots)
-  #   - NetworkManager connections stored in @shared (cross-OS)
-  #   - Bluetooth pairings stored in @shared (cross-OS)
+  #   - WiFi passwords stored in user's keyring (~/.local/share/keyrings/)
+  #   - Bluetooth pairings stored in @shared/bluetooth (cross-OS)
   #   - System logs go to tmpfs (or journal to @shared if needed)
   #
   # Benefits:
@@ -69,17 +75,18 @@
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # PER-USER WIFI & BLUETOOTH
+  # WIFI & BLUETOOTH PERSISTENCE
   # ═══════════════════════════════════════════════════════════════════════════
   #
   # WiFi: Passwords stored in user's keyring (GNOME Keyring / KWallet)
   #       - Keyring is in ~/.local/share/keyrings/ (portable with home)
   #       - When user logs in, their saved WiFi networks auto-connect
+  #       - Each user has their own WiFi passwords (per-user, portable)
   #
-  # Bluetooth: Pairings stored per-user via PAM session hook
-  #       - Each user has ~/.local/share/bluetooth/
-  #       - Symlinked to /var/lib/bluetooth at login
-  #       - Pairings portable with home
+  # Bluetooth: Pairings stored in @shared/bluetooth (cross-OS)
+  #       - Hardware/adapter-specific, not user-specific
+  #       - Symlinked from /var/lib/bluetooth at boot
+  #       - Shared between NixOS and Kubuntu
   #
 
   services.avahi = {
@@ -87,6 +94,9 @@
     nssmdns4 = true;
     openFirewall = true;
   };
+
+  # KDE Connect - phone/tablet integration
+  programs.kdeconnect.enable = true;
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TIMEZONE AND LOCALE
@@ -99,6 +109,9 @@
     LANG = "en_US.UTF-8";
   };
   i18n.supportedLocales = [ "en_US.UTF-8/UTF-8" "es_ES.UTF-8/UTF-8" ];
+
+  # Console (TTY) keyboard layout - Spanish
+  console.keyMap = "es";
 
   # ═══════════════════════════════════════════════════════════════════════════
   # USER ACCOUNTS (Fixed UIDs for cross-OS compatibility)
@@ -143,6 +156,149 @@
 
   security.sudo.wheelNeedsPassword = false;
 
+  # Root password (same as diego: 1234567890)
+  users.users.root.hashedPassword = "$6$0lk5nosoLlNAcDTp$or4FVVs/Lq1gFMYgjuw6FUdh6dKNE8e/vBClzgik290mxMCzctvN43odeGq7D.qpuJCyyDxJJAsSQNSsB3Vst0";
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # RESCUE MODE (Boot specialisation)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Appears in GRUB as "NixOS - Rescue"
+  # - No desktop (text mode only)
+  # - Auto-login as root on TTY1
+  # - WiFi available via nmtui/nmcli
+  # - Recovery tools included
+
+  specialisation.rescue.configuration = {
+    # Disable graphical interface
+    services.xserver.enable = lib.mkForce false;
+    services.desktopManager.plasma6.enable = lib.mkForce false;
+    services.xserver.desktopManager.gnome.enable = lib.mkForce false;
+    services.displayManager.sddm.enable = lib.mkForce false;
+
+    # Auto-login root on TTY1
+    services.getty.autologinUser = lib.mkForce "root";
+
+    # Keep NetworkManager for WiFi (nmtui works in terminal)
+    networking.networkmanager.enable = lib.mkForce true;
+
+    # Rescue tools
+    environment.systemPackages = with pkgs; [
+      # Network (nmtui for WiFi)
+      networkmanager  # Provides nmtui, nmcli
+      iw
+      wirelesstools
+      wpa_supplicant
+      inetutils       # ping, hostname, etc.
+      curl
+      wget
+
+      # Filesystem
+      btrfs-progs
+      e2fsprogs
+      dosfstools
+      ntfs3g
+      cryptsetup
+      gptfdisk
+      parted
+
+      # Development (for Claude Code)
+      nodejs          # npm, npx
+      git
+
+      # Recovery
+      testdisk
+      ddrescue
+      rsync
+
+      # Editors
+      vim
+      nano
+
+      # System
+      htop
+      lsof
+      strace
+      pciutils
+      usbutils
+      smartmontools
+      file
+      tree
+
+      # Nix tools
+      nix-tree
+      nix-diff
+    ];
+
+    # Show rescue banner on login
+    environment.etc."motd".text = ''
+
+      ╔═══════════════════════════════════════════════════════════════════╗
+      ║                    NIXOS RESCUE MODE                              ║
+      ╠═══════════════════════════════════════════════════════════════════╣
+      ║                                                                   ║
+      ║  WiFi:     nmtui  or  nmcli device wifi connect SSID password PW  ║
+      ║  Claude:   bash ~/user/claude.sh  (after WiFi connected)          ║
+      ║                                                                   ║
+      ║  Rebuild:  nixos-rebuild switch --flake /nix/specs#surface        ║
+      ║  Rollback: nixos-rebuild switch --rollback                        ║
+      ║  Disks:    lsblk, btrfs fi show, cryptsetup status pool           ║
+      ║                                                                   ║
+      ║  Config:   /nix/specs/  or  vim /nix/specs/configuration.nix      ║
+      ║  Logs:     journalctl -xb                                         ║
+      ║  Exit:     reboot                                                 ║
+      ║                                                                   ║
+      ╚═══════════════════════════════════════════════════════════════════╝
+
+    '';
+
+    # Minimal boot (faster)
+    boot.plymouth.enable = lib.mkForce false;
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # HOME MANAGER (Per-user configuration management)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  home-manager = {
+    useGlobalPkgs = true;
+    useUserPackages = true;
+    backupFileExtension = "backup";
+
+    users.diego = { pkgs, ... }: {
+      home.stateVersion = "24.11";
+
+      # User-specific packages (not system-wide)
+      home.packages = with pkgs; [
+        # Add user-specific tools here
+        htop
+      ];
+
+      # Git configuration
+      programs.git = {
+        enable = true;
+        userName = "Diego";
+        userEmail = "me@diegonmarcos.com";
+      };
+
+      # Fish shell configuration
+      programs.fish = {
+        enable = true;
+        shellAliases = {
+          ll = "ls -lah";
+          ".." = "cd ..";
+        };
+        shellInit = ''
+          # Add npm global packages to PATH
+          set -gx PATH $HOME/.npm-global/bin $PATH
+        '';
+      };
+    };
+
+    users.guest = { pkgs, ... }: {
+      home.stateVersion = "24.11";
+    };
+  };
+
   # ═══════════════════════════════════════════════════════════════════════════
   # SESSION 1: KDE PLASMA 6 (Default)
   # ═══════════════════════════════════════════════════════════════════════════
@@ -182,7 +338,8 @@
 
   services.xserver = {
     enable = true;
-    xkb.layout = "us";
+    xkb.layout = "es";
+    xkb.options = "eurosign:e";  # Euro sign with AltGr+E
     windowManager.openbox.enable = true;
   };
 
@@ -314,6 +471,13 @@
     vim
     fish
 
+    # ─── Bootstrap Tools (CRITICAL - for building user space) ───────────────
+    firefox      # Web browser (authenticate, download, research)
+    git          # Version control (clone repos, manage dotfiles)
+    wget         # Download tool
+    curl         # Alternative download tool
+    nodejs       # Includes npm, npx (for Claude Code and JS development)
+
     # ─── System tools (required for maintenance) ────────────────────────────
     pciutils
     usbutils
@@ -329,6 +493,30 @@
 
     # ─── GUI dialogs ────────────────────────────────────────────────────────
     zenity kdialog
+
+    # ─── KDE Applications Suite ───────────────────────────────────────────────
+    kdePackages.kdeconnect-kde   # Phone/tablet integration
+    kdePackages.kate             # Advanced text editor
+    kdePackages.kcalc            # Calculator
+    kdePackages.ark              # Archive manager
+    kdePackages.okular           # Document viewer (PDF, etc.)
+    kdePackages.gwenview         # Image viewer
+    kdePackages.spectacle        # Screenshot tool
+    kdePackages.dolphin          # File manager (likely already via Plasma)
+    kdePackages.konsole          # Terminal (likely already via Plasma)
+    kdePackages.kcolorchooser    # Color picker
+    kdePackages.kmousetool       # Accessibility - auto-click
+    kdePackages.partitionmanager # Disk partition manager
+    kdePackages.filelight        # Disk usage visualizer
+    kdePackages.kcharselect      # Character selector
+    kdePackages.ksystemlog       # System log viewer
+    kdePackages.kfind            # File search
+    kdePackages.krdc             # Remote desktop client
+    kdePackages.krfb             # Remote desktop server (VNC)
+    kdePackages.elisa            # Music player
+    kdePackages.dragon           # Video player
+    # kdePackages.kamoso         # Camera app - BROKEN in nixpkgs
+    kdePackages.skanlite         # Scanner app
   ];
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -354,6 +542,40 @@
   # ═══════════════════════════════════════════════════════════════════════════
 
   services.flatpak.enable = true;
+
+  # Add Flathub remote on boot (tmpfs root requires this)
+  systemd.services.flatpak-add-flathub = {
+    description = "Add Flathub remote to Flatpak";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      # Retry up to 3 times with 5 second delay (network may not be ready)
+      Restart = "on-failure";
+      RestartSec = "5s";
+      StartLimitBurst = 3;
+      ExecStart = pkgs.writeShellScript "flatpak-add-flathub" ''
+        echo "[FLATPAK] Adding Flathub remote..."
+
+        # Check if already configured
+        if ${pkgs.flatpak}/bin/flatpak remotes | grep -q flathub; then
+          echo "[FLATPAK] Flathub already configured"
+          exit 0
+        fi
+
+        # Add flathub
+        if ${pkgs.flatpak}/bin/flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
+          echo "[FLATPAK] SUCCESS: Flathub remote added"
+        else
+          echo "[FLATPAK] ERROR: Failed to add Flathub (exit $?)" >&2
+          echo "[FLATPAK] HINT: Check network connectivity" >&2
+          exit 1
+        fi
+      '';
+    };
+  };
 
   # ═══════════════════════════════════════════════════════════════════════════
   # CUSTOM SESSION FILES
@@ -475,6 +697,38 @@
 
     # Mount points
     "d /mnt/shared/mnt 0755 diego users -"
+
+    # ─── USER HOME DIRECTORIES (Fix permission issues) ────────────────────────
+    # CRITICAL: Ensure ~/.local structure exists with correct ownership
+    # This fixes Issues #2, #5, #6, #7, #10, #12, #14, #15
+    # These directories may have been created as root when subvolumes were made
+
+    # Diego's home structure
+    "d /home/diego/.local 0700 diego users -"
+    "d /home/diego/.local/share 0700 diego users -"
+    "d /home/diego/.local/share/Trash 0700 diego users -"
+    "d /home/diego/.local/share/Trash/files 0700 diego users -"
+    "d /home/diego/.local/share/Trash/info 0700 diego users -"
+    "d /home/diego/.local/share/keyrings 0700 diego users -"
+    "d /home/diego/.local/share/bluetooth 0700 diego users -"
+    "d /home/diego/.local/share/waydroid 0700 diego users -"
+    "d /home/diego/.local/state 0700 diego users -"
+    "d /home/diego/.local/state/nix 0700 diego users -"
+    "d /home/diego/.cache 0700 diego users -"
+    "d /home/diego/.config 0700 diego users -"
+
+    # Guest's home structure
+    "d /home/guest/.local 0700 guest users -"
+    "d /home/guest/.local/share 0700 guest users -"
+    "d /home/guest/.local/share/Trash 0700 guest users -"
+    "d /home/guest/.local/share/Trash/files 0700 guest users -"
+    "d /home/guest/.local/share/Trash/info 0700 guest users -"
+    "d /home/guest/.local/share/keyrings 0700 guest users -"
+    "d /home/guest/.local/share/bluetooth 0700 guest users -"
+    "d /home/guest/.local/share/waydroid 0700 guest users -"
+    "d /home/guest/.local/state 0700 guest users -"
+    "d /home/guest/.cache 0700 guest users -"
+    "d /home/guest/.config 0700 guest users -"
   ];
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -502,12 +756,179 @@
   security.pam.services.sddm.enableKwallet = true;
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # UDEV RULES (Device naming for Dolphin/KDE)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  services.udev.extraRules = ''
+    # Set friendly name for btrfs pool in Dolphin/KDE file manager
+    # This overrides the default which shows just "home-diego"
+    ENV{ID_FS_TYPE}=="btrfs", ENV{ID_FS_LABEL}=="pool", ENV{UDISKS_NAME}="NixOS Pool (btrfs)"
+  '';
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # ACTIVATION SCRIPTS
   # ═══════════════════════════════════════════════════════════════════════════
 
   system.activationScripts.updateGrub = ''
+    echo "[GRUB] Checking for update script..."
     if [ -x /boot/grub/update-grub.sh ]; then
-      /boot/grub/update-grub.sh || true
+      if /boot/grub/update-grub.sh; then
+        echo "[GRUB] Successfully updated GRUB"
+      else
+        echo "[GRUB] WARNING: update-grub.sh failed (exit $?)" >&2
+      fi
+    else
+      echo "[GRUB] No update script found (skipping)"
     fi
   '';
+
+  # FIX Issue #17: Create /bin/bash for script compatibility
+  # NixOS doesn't have /bin/bash by default, but 99% of scripts expect it
+  system.activationScripts.binBash = ''
+    echo "[BASH] Creating /bin/bash symlink..."
+    if mkdir -p /bin 2>/dev/null; then
+      if ln -sf ${pkgs.bash}/bin/bash /bin/bash 2>/dev/null; then
+        echo "[BASH] /bin/bash -> ${pkgs.bash}/bin/bash"
+      else
+        echo "[BASH] ERROR: Failed to create symlink" >&2
+      fi
+    else
+      echo "[BASH] ERROR: Failed to create /bin directory" >&2
+    fi
+  '';
+
+  # FIX Issue #4: Disable command-not-found (using flakes, no channels)
+  programs.command-not-found.enable = false;
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # /nix/specs/ - SYSTEM SPECIFICATIONS & CONFIG
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Creates /nix/specs/ with symlink to git repo containing:
+  #   - flake.nix, configuration.nix, hardware-configuration.nix
+  #   - USER-MANUAL.md (quick reference)
+  #   - ARCHITECTURE.md (technical docs)
+  #   - ISSUES-STATUS.md (known issues)
+  #
+  # Canonical source: /mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host/
+  # Convenient access: /nix/specs/
+
+  system.activationScripts.nixSpecs = ''
+    echo "[SPECS] Setting up /nix/specs/..."
+    SPECS_SRC="/mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host"
+
+    # Check if source exists
+    if [ -d "$SPECS_SRC" ]; then
+      # Remove existing symlink/directory
+      if [ -L /nix/specs ]; then
+        rm -f /nix/specs
+        echo "[SPECS] Removed old symlink"
+      elif [ -d /nix/specs ]; then
+        rm -rf /nix/specs
+        echo "[SPECS] Removed old directory"
+      fi
+
+      # Create symlink
+      if ln -sf "$SPECS_SRC" /nix/specs; then
+        echo "[SPECS] SUCCESS: /nix/specs -> $SPECS_SRC"
+
+        # Verify symlink works
+        if [ -f /nix/specs/flake.nix ]; then
+          echo "[SPECS] Verified: flake.nix accessible"
+        else
+          echo "[SPECS] WARNING: Symlink created but flake.nix not found" >&2
+        fi
+      else
+        echo "[SPECS] ERROR: Failed to create symlink (exit $?)" >&2
+      fi
+    else
+      # Source not found - check if kubuntu is mounted
+      echo "[SPECS] WARNING: Config source not found at $SPECS_SRC" >&2
+
+      if ! mountpoint -q /mnt/kubuntu 2>/dev/null; then
+        echo "[SPECS] HINT: /mnt/kubuntu is not mounted" >&2
+      fi
+
+      # Create fallback directory with README
+      mkdir -p /nix/specs
+      cat > /nix/specs/README.md << 'SPECEOF'
+# NixOS Specs - FALLBACK MODE
+
+Configuration source not found at expected location.
+
+## Expected Location
+/mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host/
+
+## Troubleshooting
+
+1. Check if Kubuntu partition is mounted:
+   mountpoint /mnt/kubuntu
+
+2. Mount it manually:
+   sudo mount /mnt/kubuntu
+
+3. Rebuild NixOS to refresh symlink:
+   sudo nixos-rebuild switch --flake /mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host#surface
+
+## Alternative
+
+The system is fully functional without /nix/specs.
+Edit configuration directly at the source location.
+SPECEOF
+      echo "[SPECS] Created fallback README at /nix/specs/"
+    fi
+  '';
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # BLUETOOTH PERSISTENCE (via @shared)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Bluetooth pairings stored in @shared for cross-OS sharing (NixOS + Kubuntu)
+  # This is adapter-specific (hardware), not user-specific
+  # Symlink /var/lib/bluetooth -> /mnt/shared/bluetooth at boot
+
+  systemd.services.bluetooth-persistent = {
+    description = "Symlink Bluetooth pairings to @shared";
+    wantedBy = [ "multi-user.target" ];
+    before = [ "bluetooth.service" ];
+    after = [ "local-fs.target" ];
+    path = [ pkgs.util-linux pkgs.coreutils ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = pkgs.writeShellScript "bluetooth-shared-symlink" ''
+        echo "[BLUETOOTH] Setting up persistent bluetooth storage..."
+
+        # Check if @shared is mounted
+        if ! mountpoint -q /mnt/shared 2>/dev/null; then
+          echo "[BLUETOOTH] ERROR: /mnt/shared is not mounted" >&2
+          exit 1
+        fi
+
+        # Create @shared bluetooth directory if needed
+        if mkdir -p /mnt/shared/bluetooth 2>/dev/null; then
+          chmod 700 /mnt/shared/bluetooth
+          echo "[BLUETOOTH] Created /mnt/shared/bluetooth"
+        else
+          echo "[BLUETOOTH] ERROR: Failed to create /mnt/shared/bluetooth" >&2
+          exit 1
+        fi
+
+        # Remove any existing /var/lib/bluetooth
+        if [ -e /var/lib/bluetooth ]; then
+          if rm -rf /var/lib/bluetooth 2>/dev/null; then
+            echo "[BLUETOOTH] Removed existing /var/lib/bluetooth"
+          else
+            echo "[BLUETOOTH] WARNING: Could not remove /var/lib/bluetooth" >&2
+          fi
+        fi
+
+        # Create symlink
+        if ln -sf /mnt/shared/bluetooth /var/lib/bluetooth; then
+          echo "[BLUETOOTH] SUCCESS: /var/lib/bluetooth -> /mnt/shared/bluetooth"
+        else
+          echo "[BLUETOOTH] ERROR: Failed to create symlink" >&2
+          exit 1
+        fi
+      '';
+    };
+  };
 }

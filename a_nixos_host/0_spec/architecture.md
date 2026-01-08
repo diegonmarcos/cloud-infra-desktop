@@ -6,6 +6,19 @@
 > **Status**: Dual-boot with Kubuntu
 > **Philosophy**: Minimal NixOS + Shared Tools + Detachable Homes
 
+**For daily usage, see [USER-MANUAL.md](USER-MANUAL.md)** - quick reference for commands, paths, and troubleshooting.
+
+---
+
+## Documentation
+
+| Document | Audience | Purpose |
+|----------|----------|---------|
+| **USER-MANUAL.md** | End users | Daily commands, troubleshooting, quick reference |
+| **ARCHITECTURE.md** | Engineers | This document - technical design, boot flow, internals |
+| **ISSUES-STATUS.md** | Developers | Known issues, fixes, status tracking |
+| **runbook.md** | Operations | Operational procedures, recovery |
+
 ---
 
 ## CRITICAL: Build & Store Architecture
@@ -80,7 +93,8 @@ cp result/* /mnt/shared/images/
 1. **User Agnostic** - No `/persist` subvolume. Truly stateless OS.
 2. **Detachable Homes** - @home-* subvolumes can move to any NixOS
 3. **Shared Tools** - All dev tools in @shared/tools/
-4. **Per-User Credentials** - WiFi passwords and Bluetooth pairings travel with user's home
+4. **Per-User WiFi** - WiFi passwords travel with user's home (in keyring)
+5. **Cross-OS Bluetooth** - Bluetooth pairings in @shared (NixOS + Kubuntu)
 
 ```
 +===============================================================================+
@@ -91,19 +105,18 @@ cp result/* /mnt/shared/images/
 |                              DESIGN PHILOSOPHY                                 |
 |-------------------------------------------------------------------------------+
 |                                                                               |
-|   NixOS provides ONLY:              @shared (cross-user):                     |
+|   NixOS provides ONLY:              @shared (cross-user, cross-OS):           |
 |   +---------------------+           +----------------------------------+      |
-|   | SDDM Display Manager|           | tools/   : CLI tools + scripts   |      |
-|   | KDE Plasma 6        |           | configs/ : shared configurations |      |
-|   | GNOME               |           | data/    : cache, containers, vm |      |
-|   | Openbox             |           | waydroid/: Android base image    |      |
-|   | Waydroid            |           | mnt/     : external drive mounts |      |
-|   | Kiosk modes         |           +----------------------------------+      |
-|   +---------------------+                                                     |
+|   | SDDM Display Manager|           | tools/    : CLI tools + scripts  |      |
+|   | KDE Plasma 6        |           | configs/  : shared configurations|      |
+|   | GNOME               |           | data/     : cache, containers, vm|      |
+|   | Openbox             |           | bluetooth/: BT pairings (hw-tied)|      |
+|   | Waydroid            |           | waydroid/ : Android base image   |      |
+|   | Kiosk modes         |           | mnt/      : external drive mounts|      |
+|   +---------------------+           +----------------------------------+      |
 |           |                         @home-* (per-user, PORTABLE):             |
 |           |                         +----------------------------------+      |
 |           |                         | WiFi passwords (in keyring)      |      |
-|           |                         | Bluetooth pairings               |      |
 |           +------------------------>| Fully detachable to ANY NixOS    |      |
 |                                     +----------------------------------+      |
 |                                                                               |
@@ -129,7 +142,6 @@ cp result/* /mnt/shared/images/
 |   +-- .local/                       # Local data
 |   |   +-- share/
 |   |       +-- keyrings/             # GNOME Keyring (WiFi passwords)
-|   |       +-- bluetooth/            # Bluetooth pairings (symlinked at login)
 |   +-- .ssh/                         # SSH keys
 |   +-- .gnupg/                       # GPG keys
 |   +-- Documents/
@@ -142,13 +154,16 @@ cp result/* /mnt/shared/images/
 |   +-- .local/
 |   |   +-- share/
 |   |       +-- keyrings/             # Guest's WiFi passwords
-|   |       +-- bluetooth/            # Guest's Bluetooth pairings
 |   +-- .cache/
 |   +-- Downloads/
 |   +-- waydroid/                     # Guest's Android apps/data
 |
 +-- @shared/                          # Shared between OSes and users
     +-- .swapfile (8GB)
+    |
+    +-- bluetooth/                    # Bluetooth pairings (cross-OS)
+    |   +-- <adapter-mac>/            # Hardware adapter
+    |       +-- <device-mac>/info     # Paired device keys
     |
     +-- tools/                        # CLI TOOLS + SCRIPTS
     |   +-- base/bin/                 # curl, wget, git, htop, ripgrep
@@ -190,23 +205,23 @@ cp result/* /mnt/shared/images/
 | SSH host keys | Persisted | Ephemeral (regenerate on boot) |
 | machine-id | Persisted | Hardcoded in config |
 | WiFi passwords | /etc/NetworkManager | **User's keyring** (~/.local/share/keyrings/) |
-| Bluetooth pairings | /var/lib/bluetooth | **User's home** (~/.local/share/bluetooth/) |
+| Bluetooth pairings | /var/lib/bluetooth | **@shared** (/mnt/shared/bluetooth/) |
 | User homes | Bind mounts | Dedicated subvolumes |
-| Home portability | Tied to system | **Fully detachable with all credentials** |
+| Home portability | Tied to system | **Fully detachable (WiFi travels with home)** |
 
 ### Benefits
 
-1. **Plug @home-diego into ANY NixOS** - Just mount the subvolume, WiFi/Bluetooth comes with it
-2. **Per-user credentials** - Each user owns their WiFi passwords and Bluetooth pairings
-3. **True separation** - OS is disposable, all user data is portable
-4. **Minimal attack surface** - Nothing persists in root filesystem
-5. **No credential conflicts** - Users don't share or overwrite each other's connections
+1. **Plug @home-diego into ANY NixOS** - Just mount the subvolume, WiFi comes with it
+2. **Per-user WiFi** - Each user owns their WiFi passwords (in keyring)
+3. **Cross-OS Bluetooth** - Pair once, works in both NixOS and Kubuntu
+4. **True separation** - OS is disposable, all user data is portable
+5. **Minimal attack surface** - Nothing persists in root filesystem
 
 ### Trade-offs
 
 1. SSH clients see "host key changed" warnings (acceptable for personal device)
 2. WiFi networks must be re-authenticated per user (each user has their own password storage)
-3. Bluetooth devices must be paired per user
+3. Bluetooth pairings are hardware-tied, not user-portable
 
 ---
 
@@ -223,21 +238,20 @@ cp result/* /mnt/shared/images/
 |   +-- ssh/                          (keys regenerate on boot)
 |
 +-- /var ---------------------------> tmpfs (ephemeral)
-|   +-- lib/bluetooth --------------> symlink to $HOME/.local/share/bluetooth (at login)
+|   +-- lib/bluetooth --------------> symlink to /mnt/shared/bluetooth (at boot)
 |
 +-- /home/diego --------------------> btrfs subvol=@home-diego
 |   +-- .local/share/
 |   |   +-- keyrings/                (WiFi passwords - GNOME Keyring)
-|   |   +-- bluetooth/               (Bluetooth pairings - symlinked to /var/lib/bluetooth)
 |   |   +-- waydroid/                (Diego's Android apps/data)
 |
 +-- /home/guest --------------------> btrfs subvol=@home-guest
 |   +-- .local/share/
 |   |   +-- keyrings/                (Guest's WiFi passwords)
-|   |   +-- bluetooth/               (Guest's Bluetooth pairings)
 |   |   +-- waydroid/                (Guest's Android apps/data)
 |
 +-- /mnt/shared --------------------> btrfs subvol=@shared
+|   +-- bluetooth/                   (BT pairings - /var/lib/bluetooth symlinks here)
 |   +-- tools/                       (CLI tools + scripts)
 |   +-- configs/                     (Shared configurations)
 |   +-- data/                        (cache, containers, vm, fonts, themes)
@@ -305,16 +319,16 @@ users.groups.kvm.gid = 995;
 
 ---
 
-## Per-User WiFi & Bluetooth
+## WiFi & Bluetooth Persistence
 
 ### Design
 
-Each user owns their credentials - they travel with the home subvolume:
+| Credential | Storage | Mechanism | Portability |
+|------------|---------|-----------|-------------|
+| **WiFi passwords** | `~/.local/share/keyrings/` | GNOME Keyring (auto-unlocked at login) | Per-user, travels with home |
+| **Bluetooth pairings** | `/mnt/shared/bluetooth/` | systemd service symlinks to /var/lib/bluetooth | Cross-OS (NixOS + Kubuntu) |
 
-| Credential | Storage | Mechanism |
-|------------|---------|-----------|
-| **WiFi passwords** | `~/.local/share/keyrings/` | GNOME Keyring (auto-unlocked at login) |
-| **Bluetooth pairings** | `~/.local/share/bluetooth/` | PAM session hook symlinks to /var/lib/bluetooth |
+**Note:** Bluetooth pairings are adapter/hardware-specific, not user-specific. They're stored in @shared for cross-OS sharing.
 
 ### How WiFi Works
 
@@ -335,33 +349,177 @@ security.pam.services.sddm.enableKwallet = true;  # For KDE users
 
 ### How Bluetooth Works
 
-At login, a PAM session hook symlinks the user's bluetooth directory:
+At boot, a systemd service symlinks /var/lib/bluetooth to @shared:
 
 ```nix
-# PAM session hook for per-user bluetooth
-security.pam.services.sddm.text = lib.mkAfter ''
-  session optional pam_exec.so /run/current-system/sw/bin/bash -c '
-    mkdir -p $HOME/.local/share/bluetooth
-    rm -rf /var/lib/bluetooth
-    ln -sf $HOME/.local/share/bluetooth /var/lib/bluetooth
-    chown -R $USER:users $HOME/.local/share/bluetooth 2>/dev/null || true
-  '
-'';
+systemd.services.bluetooth-persistent = {
+  description = "Symlink Bluetooth pairings to @shared";
+  wantedBy = [ "multi-user.target" ];
+  before = [ "bluetooth.service" ];
+  after = [ "local-fs.target" ];
+  serviceConfig = {
+    Type = "oneshot";
+    RemainAfterExit = true;
+    ExecStart = pkgs.writeShellScript "bluetooth-shared-symlink" ''
+      mkdir -p /mnt/shared/bluetooth
+      chmod 700 /mnt/shared/bluetooth
+      rm -rf /var/lib/bluetooth 2>/dev/null || true
+      ln -sf /mnt/shared/bluetooth /var/lib/bluetooth
+    '';
+  };
+};
 ```
 
 Structure after pairing a device:
 ```
-~/.local/share/bluetooth/
+/mnt/shared/bluetooth/
 └── <adapter-mac>/           # e.g., AA:BB:CC:DD:EE:FF
     └── <device-mac>/        # Paired device
         └── info             # Pairing keys
 ```
 
+**Why @shared instead of per-user?**
+- Bluetooth pairings are tied to the hardware adapter, not user identity
+- Using @shared allows the same pairings in NixOS and Kubuntu
+- Avoids complexity of PAM hooks (which broke authentication - see Known Issues)
+
 ### Portability
 
 When you move @home-diego to another NixOS:
 - **WiFi**: First login will unlock keyring, NetworkManager reads passwords from it
-- **Bluetooth**: PAM hook creates symlink, bluetoothd finds existing pairings
+- **Bluetooth**: Pairings stay with the machine (in @shared), user needs to re-pair on new hardware
+
+---
+
+## Camera (Intel IPU6 - Surface Pro 8)
+
+### Hardware
+
+| Component | Details |
+|-----------|---------|
+| **ISP** | Intel IPU6 (Image Processing Unit 6) |
+| **Front Camera** | OV5693 (5MP, 2592x1944) |
+| **Rear Camera** | OV13858 (13MP) - may not be fully supported |
+| **Interface** | MIPI CSI-2 via IPU6 ISYS |
+| **Kernel Driver** | `intel_ipu6`, `intel_ipu6_isys`, `ov5693` |
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     Surface Pro 8 Camera Pipeline                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────┐    ┌─────────────┐    ┌──────────────┐    ┌────────────┐ │
+│  │ OV5693   │───>│ IPU6 CSI-2  │───>│ IPU6 ISYS    │───>│ /dev/video │ │
+│  │ Sensor   │    │ Interface   │    │ (64 nodes)   │    │ 0-63       │ │
+│  └──────────┘    └─────────────┘    └──────────────┘    └────────────┘ │
+│       │                                    │                     │      │
+│       │                                    ▼                     │      │
+│       │                          ┌─────────────────┐             │      │
+│       │                          │ Software ISP    │             │      │
+│       │                          │ (libcamera IPA) │             │      │
+│       │                          │ - Demosaic      │             │      │
+│       │                          │ - White balance │             │      │
+│       │                          │ - Exposure ctrl │             │      │
+│       │                          └─────────────────┘             │      │
+│       │                                    │                     │      │
+│       ▼                                    ▼                     ▼      │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                        libcamera                                  │  │
+│  │  - Camera enumeration                                            │  │
+│  │  - Pipeline configuration                                        │  │
+│  │  - Frame capture                                                 │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                    │                                    │
+│                                    ▼                                    │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                    PipeWire (Camera Portal)                       │  │
+│  │  node.description = "Built-in Front Camera"                      │  │
+│  │  device.api = "libcamera"                                        │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                    │                                    │
+│                                    ▼                                    │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │              Applications (via GStreamer/PipeWire)                │  │
+│  │  gst-launch-1.0 libcamerasrc ! videoconvert ! autovideosink      │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Required Configuration
+
+```nix
+# configuration.nix
+
+# 1. Firmware (CRITICAL - IPU6 requires signed firmware)
+hardware.firmware = with pkgs; [ linux-firmware ];
+hardware.enableAllFirmware = true;
+
+# 2. Kernel (linux-surface includes IPU6 patches)
+# Already configured via nixos-hardware.nixosModules.microsoft-surface-pro-intel
+```
+
+### Firmware Files
+
+Located at `/run/current-system/firmware/intel/ipu/`:
+- `ipu6_fw.bin` - Standard IPU6
+- `ipu6ep_fw.bin` - IPU6 EP variant
+- `ipu6se_fw.bin` - IPU6 SE variant
+
+**Without firmware**: IPU6 runs in "secure mode", camera light turns on but produces black frames.
+
+### Testing the Camera
+
+```bash
+# Check if camera is detected
+cam --list
+# Should show: "Internal front camera (\_SB_.PC00.I2C2.CAMF)"
+
+# View camera feed with GStreamer
+nix-shell -p gst_all_1.gstreamer gst_all_1.gst-plugins-base \
+  gst_all_1.gst-plugins-good gst_all_1.gst-plugins-bad libcamera --run \
+  'gst-launch-1.0 libcamerasrc ! videoconvert ! autovideosink'
+
+# Check kernel messages
+sudo dmesg | grep -iE "ipu6|ov5693"
+```
+
+### Known Issues
+
+| Issue | Cause | Status |
+|-------|-------|--------|
+| Black frames | Missing firmware | Fixed with `hardware.enableAllFirmware` |
+| "IPU6 in secure mode" | Firmware not loaded at boot | Requires reboot after config |
+| "stream stop time out" | Pipeline configuration issues | May occur during development |
+| Missing `ov5693.yaml` | No sensor calibration | Falls back to `uncalibrated.yaml` |
+| Apps show black | Using V4L2 instead of libcamera | Use libcamera-compatible apps |
+
+### Compatible Applications
+
+| App | Works | Notes |
+|-----|-------|-------|
+| `gst-launch-1.0 libcamerasrc` | ✓ | Best for testing |
+| OBS Studio | ✓ | Use "Video Capture Device (PipeWire)" |
+| Firefox/Chrome | ✓ | WebRTC uses PipeWire |
+| Cheese | ✗ | Uses V4L2, not libcamera |
+| Kamoso | ✗ | Broken in nixpkgs |
+
+### Troubleshooting
+
+1. **Camera light on but black video**
+   - Check firmware: `ls /run/current-system/firmware/intel/ipu/`
+   - Reboot if firmware was just added
+   - Check dmesg for "secure mode" message
+
+2. **"No cameras found"**
+   - Check kernel modules: `lsmod | grep ipu`
+   - Check media devices: `ls /dev/video* /dev/media*`
+
+3. **App doesn't see camera**
+   - Use libcamera-based apps, not V4L2
+   - Check PipeWire: `pw-cli ls | grep -i camera`
 
 ---
 
@@ -411,6 +569,7 @@ curl -L https://...ripgrep...tar.gz | tar xz -C /mnt/shared/tools/base/bin/
 
 | Directory | Purpose |
 |-----------|---------|
+| `bluetooth/` | Bluetooth pairings (cross-OS, hardware-tied) |
 | `tools/` | CLI tools organized by category + scripts |
 | `configs/` | Shared configurations (VPN, app configs) |
 | `data/` | Persistent data: cache, containers, vm, fonts, themes |
@@ -502,6 +661,56 @@ sudo nixos-rebuild switch --rollback
 # List generations
 sudo nix-env --list-generations -p /nix/var/nix/profiles/system
 ```
+
+---
+
+## /nix/specs/ - Configuration Access Point
+
+The system creates a convenient symlink at `/nix/specs/` pointing to the git repo:
+
+```
+/nix/specs/ -> /mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host/
+│
+├── README.md                    # Repository index
+├── flake.nix                    # Flake definition (inputs, outputs)
+├── flake.lock                   # Locked dependencies
+├── configuration.nix            # Main NixOS configuration
+├── hardware-configuration.nix   # Hardware-specific settings
+│
+├── 0_spec/                      # Documentation
+│   ├── USER-MANUAL.md           # User guide (daily usage)
+│   ├── ARCHITECTURE.md          # This document (technical)
+│   └── runbook.md               # Operational procedures
+│
+├── ISSUES-STATUS.md             # Known issues tracker
+├── build.sh                     # Build script
+└── diagnose-nixos.sh            # Diagnostic script
+```
+
+### Usage
+
+```bash
+# Rebuild from /nix/specs (convenient)
+sudo nixos-rebuild switch --flake /nix/specs#surface
+
+# Or from git repo directly
+sudo nixos-rebuild switch --flake /mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host#surface
+```
+
+### Implementation
+
+The symlink is created by an activation script during boot:
+
+```nix
+system.activationScripts.nixSpecs = ''
+  SPECS_SRC="/mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host"
+  if [ -d "$SPECS_SRC" ]; then
+    ln -sf "$SPECS_SRC" /nix/specs
+  fi
+'';
+```
+
+**Fallback:** If `/mnt/kubuntu` is not mounted, a placeholder README is created at `/nix/specs/` with troubleshooting instructions.
 
 ---
 
@@ -602,7 +811,7 @@ The home will work immediately because:
 - No bind mounts to /persist needed
 - All user data is self-contained
 - **WiFi passwords** travel in `~/.local/share/keyrings/`
-- **Bluetooth pairings** travel in `~/.local/share/bluetooth/`
+- **Bluetooth pairings** stay with machine (in `/mnt/shared/bluetooth/`)
 
 ### What Transfers With Home
 
@@ -612,7 +821,7 @@ The home will work immediately because:
 | SSH keys | ~/.ssh/ | Yes |
 | GPG keys | ~/.gnupg/ | Yes |
 | WiFi passwords | ~/.local/share/keyrings/ | Yes |
-| Bluetooth pairings | ~/.local/share/bluetooth/ | Yes |
+| Bluetooth pairings | /mnt/shared/bluetooth/ | No (stays with machine) |
 | Android data | ~/.local/share/waydroid/ | Yes |
 | Documents | ~/Documents/ | Yes |
 

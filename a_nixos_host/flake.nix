@@ -10,9 +10,14 @@
       url = "github:nix-community/nixos-generators";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    home-manager = {
+      url = "github:nix-community/home-manager/release-24.11";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, nixos-hardware, nixos-generators, ... }:
+  outputs = { self, nixpkgs, nixos-hardware, nixos-generators, home-manager, ... }:
   let
     system = "x86_64-linux";
   in {
@@ -22,6 +27,9 @@
       modules = [
         # Surface Pro hardware support (linux-surface kernel, firmware)
         nixos-hardware.nixosModules.microsoft-surface-pro-intel
+
+        # Home Manager integration
+        home-manager.nixosModules.home-manager
 
         # Main configuration
         ./configuration.nix
