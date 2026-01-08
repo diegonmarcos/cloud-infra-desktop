@@ -69,58 +69,64 @@
 
 ```
 b_user_diego_nix/
-├── 0.spec/                      # Documentation
+│
+├── build.sh                     # Main build script (TUI + CLI)
+├── build.json                   # Configuration file
+├── build.log                    # Build log (appending)
+│
+├── a_spec/                      # Documentation
 │   ├── spec.md                  # This file (architecture)
 │   └── README.md                # Usage guide
 │
-├── 1.ops/                       # Scripts & operations
-│   ├── install.sh               # Fresh Nix + Home Manager install
-│   ├── switch.sh                # Rebuild configuration
-│   ├── update.sh                # Update flake inputs
-│   ├── container-build.sh       # Build Nix OCI image
-│   ├── container-run.sh         # Run container
-│   └── distrobox-create.sh      # Create distrobox
+├── src/                         # ALL source files
+│   ├── flake.nix                # Main Nix entry point
+│   ├── flake.lock               # Locked dependencies
+│   │
+│   ├── hosts/                   # Host-specific configs
+│   │   ├── surface.nix
+│   │   ├── desktop.nix
+│   │   └── server.nix
+│   │
+│   ├── lib/                     # Nix helper functions
+│   │   └── default.nix
+│   │
+│   ├── modules/                 # Nix modules
+│   │   ├── common.nix           # Shared config
+│   │   ├── profiles/            # 8 package categories
+│   │   │   ├── 1-shell-core.nix
+│   │   │   ├── 2-dev-languages.nix
+│   │   │   ├── 3-build-debug.nix
+│   │   │   ├── 4-containers-cloud.nix
+│   │   │   ├── 5-security-network.nix
+│   │   │   ├── 6-data-science.nix
+│   │   │   ├── 7-productivity.nix
+│   │   │   └── 8-media-graphics.nix
+│   │   ├── programs/            # Dotfile configurations
+│   │   │   ├── shells/
+│   │   │   │   ├── bash.nix
+│   │   │   │   ├── fish.nix
+│   │   │   │   ├── zsh.nix
+│   │   │   │   └── starship.nix
+│   │   │   ├── editors/
+│   │   │   │   └── vim.nix
+│   │   │   ├── git.nix
+│   │   │   └── tmux.nix
+│   │   └── dotfiles/            # Extra config files
+│   │       ├── fish/
+│   │       ├── kde/
+│   │       └── konsole/
+│   │
+│   └── container/               # Container source files
+│       ├── compose.yaml         # Podman/Docker Compose
+│       ├── Containerfile        # Fallback OCI build
+│       ├── distrobox.ini        # Distrobox config
+│       └── .containerignore
 │
-├── container/                   # Container definitions
-│   ├── compose.yaml             # Podman/Docker Compose
-│   ├── Containerfile            # Fallback OCI build
-│   ├── distrobox.ini            # Distrobox configuration
-│   └── .containerignore
+├── dist/                        # Build outputs
+│   ├── container-full           # Full container image
+│   └── container-minimal        # Minimal container image
 │
-├── modules/                     # Nix modules
-│   ├── common.nix               # Shared config (shells, editors)
-│   ├── profiles/                # 8 package categories
-│   │   ├── 1-shell-core.nix
-│   │   ├── 2-dev-languages.nix
-│   │   ├── 3-build-debug.nix
-│   │   ├── 4-containers-cloud.nix
-│   │   ├── 5-security-network.nix
-│   │   ├── 6-data-science.nix
-│   │   ├── 7-productivity.nix
-│   │   └── 8-media-graphics.nix
-│   ├── programs/                # Dotfile configurations
-│   │   ├── shells/
-│   │   │   ├── bash.nix
-│   │   │   ├── fish.nix
-│   │   │   ├── zsh.nix
-│   │   │   └── starship.nix
-│   │   ├── editors/
-│   │   │   └── vim.nix
-│   │   ├── git.nix
-│   │   └── tmux.nix
-│   └── dotfiles/                # Extra config files
-│       ├── fish/                # Fish extras (config.fish)
-│       └── kde/                 # KDE configs
-│
-├── hosts/                       # Host-specific configs
-│   ├── surface.nix              # Surface Pro 8
-│   ├── desktop.nix              # Desktop workstation
-│   └── server.nix               # Server/VPS
-│
-├── lib/                         # Helper functions
-│
-├── flake.nix                    # Main entry point
-└── flake.lock                   # Locked dependencies
+└── lib/                         # External libraries (future)
 ```
 
 ---
@@ -129,14 +135,14 @@ b_user_diego_nix/
 
 | # | Profile | Packages | Description |
 |---|---------|----------|-------------|
-| 1 | **shell-core** | ~35 | CLI essentials: eza, bat, fd, fzf, ripgrep, zoxide |
+| 1 | **shell-core** | ~35 | CLI essentials: eza, bat, fd, fzf, ripgrep |
 | 2 | **dev-languages** | ~15 | Rust, Go, Node, Python, C/C++, Java |
-| 3 | **build-debug** | ~20 | cmake, gdb, valgrind, shellcheck, direnv |
-| 4 | **containers-cloud** | ~25 | podman, kubectl, terraform, aws/gcp/azure |
-| 5 | **security-network** | ~25 | nmap, wireguard, gnupg, tor, openssl |
-| 6 | **data-science** | ~30 | pandas, torch, jupyter, postgres, R |
+| 3 | **build-debug** | ~20 | cmake, gdb, valgrind, shellcheck |
+| 4 | **containers-cloud** | ~25 | podman, kubectl, terraform, aws/gcp |
+| 5 | **security-network** | ~25 | nmap, wireguard, gnupg, tor |
+| 6 | **data-science** | ~30 | pandas, torch, jupyter, postgres |
 | 7 | **productivity** | ~20 | obsidian, libreoffice, taskwarrior |
-| 8 | **media-graphics** | ~25 | ffmpeg, gimp, obs, mpv, inkscape |
+| 8 | **media-graphics** | ~25 | ffmpeg, gimp, obs, mpv |
 
 **Total: ~195 packages**
 
@@ -153,110 +159,123 @@ b_user_diego_nix/
 
 ---
 
+## Build Script Usage
+
+### TUI Mode (Interactive)
+```bash
+./build.sh
+```
+
+### CLI Mode (Direct Commands)
+```bash
+# Nix Operations
+./build.sh install              # Install Nix
+./build.sh switch [host]        # Apply config (default: surface)
+./build.sh update               # Update flake inputs
+./build.sh show                 # Show flake outputs
+./build.sh develop              # Enter dev shell
+
+# Container Operations
+./build.sh container-build [full|minimal]
+./build.sh container-load [full|minimal]
+./build.sh container-run [full|minimal]
+./build.sh container-push <registry>
+
+# Compose Operations
+./build.sh compose-up
+./build.sh compose-down
+./build.sh compose-shell
+
+# Distrobox Operations
+./build.sh distrobox-create [name]
+./build.sh distrobox-enter [name]
+./build.sh distrobox-remove [name]
+
+# Utilities
+./build.sh status               # System status
+./build.sh clean                # Clean build artifacts
+./build.sh log                  # View build log
+./build.sh clear-log            # Clear build log
+./build.sh --help               # Show help
+```
+
+---
+
 ## 5 Deployment Methods
 
 ### Method 1: Pure Nix (Native)
 ```bash
-# Install Nix + apply config
-./1.ops/install.sh surface
-
-# Or manually:
-home-manager switch --flake .#diego@surface
+./build.sh install
+./build.sh switch surface
 ```
 
 ### Method 2: Nix-Built Container
 ```bash
-# Build OCI image with Nix
-nix build .#container
-
-# Load into Podman
-podman load < result
-
-# Run
-podman run -it diego-dev:latest
+./build.sh container-build
+./build.sh container-load
+./build.sh container-run
 ```
 
 ### Method 3: Podman Compose
 ```bash
-cd container
-podman-compose up -d
-podman-compose exec dev fish
+./build.sh container-build
+./build.sh container-load
+./build.sh compose-up
+./build.sh compose-shell
 ```
 
 ### Method 4: Docker Compose
 ```bash
-cd container
-docker compose up -d
-docker compose exec dev fish
+./build.sh container-build
+./build.sh container-load
+./build.sh compose-up
+./build.sh compose-shell
 ```
 
 ### Method 5: Distrobox
 ```bash
-# Create from Nix image
-./1.ops/distrobox-create.sh
-
-# Or manually:
-distrobox create -n diego-dev -i diego-dev:latest
+./build.sh container-build
+./build.sh container-load
+./build.sh distrobox-create
 distrobox enter diego-dev
+```
+
+---
+
+## Configuration
+
+### build.json
+```json
+{
+  "project": { "name": "diego-dev", "version": "1.0.0" },
+  "paths": { "src": "src", "dist": "dist", "lib": "lib" },
+  "defaults": { "user": "diego", "host": "surface", "preset": "full" },
+  "container": { "image_name": "diego-dev", "image_tag": "latest" }
+}
 ```
 
 ---
 
 ## Dotfiles Managed
 
-| Tool | Config Location | Key Features |
-|------|-----------------|--------------|
-| **Fish** | `modules/programs/shells/fish.nix` | Aliases, functions, vi-mode |
-| **Bash** | `modules/programs/shells/bash.nix` | Aliases, functions |
-| **Starship** | `modules/programs/shells/starship.nix` | Cross-shell prompt |
-| **Vim** | `modules/programs/editors/vim.nix` | Leader=Space, statusline |
-| **Git** | `modules/programs/git.nix` | 30+ aliases, global ignores |
-| **Tmux** | `modules/programs/tmux.nix` | Prefix=C-a, vi-mode |
+| Tool | Location | Key Features |
+|------|----------|--------------|
+| **Fish** | `src/modules/programs/shells/fish.nix` | Aliases, vi-mode |
+| **Bash** | `src/modules/programs/shells/bash.nix` | Aliases, functions |
+| **Starship** | `src/modules/programs/shells/starship.nix` | Prompt |
+| **Vim** | `src/modules/programs/editors/vim.nix` | Leader=Space |
+| **Git** | `src/modules/programs/git.nix` | 30+ aliases |
+| **Tmux** | `src/modules/programs/tmux.nix` | Prefix=C-a |
 
 ---
 
-## Environment Variables
+## Notes
 
-```bash
-# Set automatically by Nix
-EDITOR=vim
-CARGO_HOME=$HOME/.cargo
-RUSTUP_HOME=$HOME/.rustup
-GOPATH=$HOME/go
-npm_config_prefix=$HOME/.npm-global
-DEVICE=surface|desktop|server
-```
-
----
-
-## Container Images
-
-| Image | Contents | Size (approx) |
-|-------|----------|---------------|
-| `diego-dev:latest` | Full CLI tools (profiles 1-6) | ~2GB |
-| `diego-dev-minimal:latest` | Shell + core only | ~500MB |
-
----
-
-## Quick Reference
-
-```bash
-# Check what's available
-nix flake show
-
-# Apply configuration
-home-manager switch --flake .#diego@surface
-
-# Build container
-nix build .#container
-nix build .#container-minimal
-
-# Enter dev shell
-nix develop
-
-# Update flake inputs
-nix flake update
-```
+- **src/** contains ALL source files (nix, container, dotfiles)
+- **dist/** contains build outputs (container images)
+- **lib/** reserved for future external libraries
+- **build.log** appends all build activity
+- Nix handles package management (downloads to /nix/store)
 
 ---
 
