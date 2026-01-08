@@ -1,8 +1,11 @@
 { config, pkgs, lib, ... }:
 
 # Rclone configuration
-# NOTE: This file contains SENSITIVE tokens - use sops-nix or agenix for secrets!
-# The actual rclone.conf should be managed separately or encrypted.
+# Google Drive token is managed by sops-nix at:
+#   /run/user/<uid>/secrets/rclone_gdrive_token
+#
+# To configure rclone with the secret token:
+#   rclone config set Gdrive_dnm token "$(cat /run/user/$(id -u)/secrets/rclone_gdrive_token)"
 
 {
   home.packages = [ pkgs.rclone ];

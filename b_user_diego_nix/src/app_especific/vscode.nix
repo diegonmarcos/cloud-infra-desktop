@@ -1,7 +1,12 @@
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
 
 # VSCode / Cursor settings
-# NOTE: wakatime.apiKey is sensitive - consider using sops-nix or agenix for secrets
+# WakaTime API key is managed by sops-nix at:
+#   /run/user/<uid>/secrets/wakatime_api_key
+#
+# To set it in VSCode, either:
+# 1. Run: wakatime --config-write api_key $(cat /run/user/$(id -u)/secrets/wakatime_api_key)
+# 2. Or manually paste from: cat /run/user/$(id -u)/secrets/wakatime_api_key
 
 {
   programs.vscode = {

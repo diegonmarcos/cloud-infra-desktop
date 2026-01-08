@@ -11,9 +11,15 @@
     };
 
     nur.url = "github:nix-community/NUR";
+
+    # Secrets management
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nur, ... }@inputs:
+  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nur, sops-nix, ... }@inputs:
     let
       system = "x86_64-linux";
 
@@ -100,6 +106,10 @@
         inherit pkgs;
         extraSpecialArgs = { inherit inputs; };
         modules = [
+          # Secrets management
+          sops-nix.homeManagerModules.sops
+          ./modules/sops.nix
+
           ./modules/common.nix
           hostModule
           {
