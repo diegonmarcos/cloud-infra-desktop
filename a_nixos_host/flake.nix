@@ -15,15 +15,22 @@
       url = "github:nix-community/home-manager/release-24.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    plasma-manager = {
+      url = "github:nix-community/plasma-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.home-manager.follows = "home-manager";
+    };
   };
 
-  outputs = { self, nixpkgs, nixos-hardware, nixos-generators, home-manager, ... }:
+  outputs = { self, nixpkgs, nixos-hardware, nixos-generators, home-manager, plasma-manager, ... }:
   let
     system = "x86_64-linux";
   in {
     # Main NixOS configuration for Surface Pro 8
     nixosConfigurations.surface = nixpkgs.lib.nixosSystem {
       inherit system;
+      specialArgs = { inherit plasma-manager; };
       modules = [
         # Surface Pro hardware support (linux-surface kernel, firmware)
         nixos-hardware.nixosModules.microsoft-surface-pro-intel
@@ -33,6 +40,9 @@
 
         # Main configuration
         ./configuration.nix
+
+        # Custom SDDM sessions
+        ./sessions.nix
 
         # Hardware-specific
         ./hardware-configuration.nix

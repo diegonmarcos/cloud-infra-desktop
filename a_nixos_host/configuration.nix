@@ -8,7 +8,7 @@
 # ║                                                                           ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, plasma-manager, ... }:
 
 {
   system.stateVersion = "24.11";
@@ -265,6 +265,7 @@
     backupFileExtension = "backup";
 
     users.diego = { pkgs, ... }: {
+      imports = [ plasma-manager.homeManagerModules.plasma-manager ];
       home.stateVersion = "24.11";
 
       # User-specific packages (not system-wide)
@@ -291,6 +292,32 @@
           # Add npm global packages to PATH
           set -gx PATH $HOME/.npm-global/bin $PATH
         '';
+      };
+
+      # ─────────────────────────────────────────────────────────────────────────
+      # KDE PLASMA SETTINGS (via plasma-manager)
+      # ─────────────────────────────────────────────────────────────────────────
+      programs.plasma = {
+        enable = true;
+
+        # Dark theme
+        workspace = {
+          colorScheme = "BreezeDark";
+          theme = "breeze-dark";
+          lookAndFeel = "org.kde.breezedark.desktop";
+        };
+
+        # Night Light always on (2200K warm)
+        kwin.nightLight = {
+          enable = true;
+          mode = "constant";
+          temperature = {
+            day = 2200;
+            night = 2200;
+          };
+        };
+
+        # Panels and shortcuts preserved by plasma-manager
       };
     };
 
@@ -588,53 +615,7 @@
   ];
   environment.pathsToLink = [ "/share/wayland-sessions" "/share/xsessions" ];
 
-  environment.etc = {
-    # Waydroid session - symlink to standard location for SDDM
-    "xdg/wayland-sessions/android.desktop".text = ''
-      [Desktop Entry]
-      Name=Android (Waydroid)
-      Comment=Full Android UI via Waydroid
-      Exec=cage -- waydroid show-full-ui
-      Type=Application
-      DesktopNames=Android
-    '';
-    # Also put in legacy location
-    "wayland-sessions/android.desktop".text = ''
-      [Desktop Entry]
-      Name=Android (Waydroid)
-      Comment=Full Android UI via Waydroid
-      Exec=cage -- waydroid show-full-ui
-      Type=Application
-      DesktopNames=Android
-    '';
-
-    "wayland-sessions/tor-kiosk.desktop".text = ''
-      [Desktop Entry]
-      Name=Tor Kiosk
-      Comment=Anonymous browsing
-      Exec=cage -- tor-browser
-      Type=Application
-      DesktopNames=TorKiosk
-    '';
-
-    "wayland-sessions/chrome-kiosk.desktop".text = ''
-      [Desktop Entry]
-      Name=Chrome Kiosk
-      Comment=Chromium kiosk mode
-      Exec=cage -- chromium --kiosk --start-fullscreen
-      Type=Application
-      DesktopNames=ChromeKiosk
-    '';
-
-    "wayland-sessions/gnome-kiosk.desktop".text = ''
-      [Desktop Entry]
-      Name=GNOME Kiosk
-      Comment=Locked down GNOME session
-      Exec=gnome-session --session=gnome
-      Type=Application
-      DesktopNames=GNOME-Kiosk
-    '';
-  };
+  # Custom SDDM sessions defined in ./sessions.nix (proper Nix module)
 
   # ═══════════════════════════════════════════════════════════════════════════
   # SHARED TOOLS & DATA INTEGRATION
@@ -883,6 +864,59 @@ SPECEOF
   # ═══════════════════════════════════════════════════════════════════════════
   # Bluetooth pairings stored in @shared for cross-OS sharing (NixOS + Kubuntu)
   # This is adapter-specific (hardware), not user-specific
+  # Symlink WiFi connections -> /mnt/shared/NetworkManager at boot
+
+  systemd.services.networkmanager-persistent = {
+    description = "Symlink NetworkManager connections to @shared";
+    wantedBy = [ "multi-user.target" ];
+    before = [ "NetworkManager.service" ];
+    after = [ "local-fs.target" ];
+    path = [ pkgs.util-linux pkgs.coreutils ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = pkgs.writeShellScript "networkmanager-shared-symlink" ''
+        echo "[NETWORKMANAGER] Setting up persistent WiFi storage..."
+
+        # Check if @shared is mounted
+        if ! mountpoint -q /mnt/shared 2>/dev/null; then
+          echo "[NETWORKMANAGER] ERROR: /mnt/shared is not mounted" >&2
+          exit 1
+        fi
+
+        # Create @shared NetworkManager directory if needed
+        if mkdir -p /mnt/shared/NetworkManager/system-connections 2>/dev/null; then
+          chmod 700 /mnt/shared/NetworkManager
+          chmod 700 /mnt/shared/NetworkManager/system-connections
+          echo "[NETWORKMANAGER] Created /mnt/shared/NetworkManager/system-connections"
+        else
+          echo "[NETWORKMANAGER] ERROR: Failed to create directory" >&2
+          exit 1
+        fi
+
+        # Ensure /etc/NetworkManager exists
+        mkdir -p /etc/NetworkManager
+
+        # Remove any existing system-connections
+        if [ -e /etc/NetworkManager/system-connections ]; then
+          if rm -rf /etc/NetworkManager/system-connections 2>/dev/null; then
+            echo "[NETWORKMANAGER] Removed existing system-connections"
+          else
+            echo "[NETWORKMANAGER] WARNING: Could not remove system-connections" >&2
+          fi
+        fi
+
+        # Create symlink
+        if ln -sf /mnt/shared/NetworkManager/system-connections /etc/NetworkManager/system-connections; then
+          echo "[NETWORKMANAGER] SUCCESS: system-connections -> /mnt/shared/NetworkManager/system-connections"
+        else
+          echo "[NETWORKMANAGER] ERROR: Failed to create symlink" >&2
+          exit 1
+        fi
+      '';
+    };
+  };
+
   # Symlink /var/lib/bluetooth -> /mnt/shared/bluetooth at boot
 
   systemd.services.bluetooth-persistent = {

@@ -110,10 +110,10 @@
           echo "[USB-KEY] Searching for USB keyfile..."
           mkdir -p /usb-key
 
-          # Wait for USB device to appear (max 15 seconds - Surface USB init is slow)
+          # Wait for USB device to appear (max 1 second)
           attempts=0
           usb_found=0
-          while [ $attempts -lt 15 ]; do
+          while [ $attempts -lt 1 ]; do
             if [ -b /dev/disk/by-uuid/223C-F3F8 ]; then
               echo "[USB-KEY] USB device found, mounting..."
               if mount -t vfat -o ro,iocharset=utf8 /dev/disk/by-uuid/223C-F3F8 /usb-key 2>&1; then
@@ -160,7 +160,7 @@
     kernelModules = [ "kvm-intel" ];
     extraModulePackages = [ ];
 
-    # NixOS-independent GRUB (won't touch Kubuntu's GRUB)
+    # NixOS GRUB - Primary bootloader with all OSes
     loader = {
       efi = {
         canTouchEfiVariables = true;
@@ -171,10 +171,15 @@
         device = "nodev";  # EFI install, not MBR
         efiSupport = true;
         efiInstallAsRemovable = false;
-        # Install to its own directory, don't overwrite Kubuntu
+
+        # Default: NixOS (first entry, index 0)
+        default = 0;
+
+        # Include all other OSes (Kubuntu, Arch, Kali, Windows)
+        extraEntries = import ./grub-extra-entries.nix;
+
         extraInstallCommands = ''
-          # Copy NixOS boot files to separate directory
-          mkdir -p /boot/efi/EFI/nixos
+          ${pkgs.coreutils}/bin/mkdir -p /boot/efi/EFI/nixos
         '';
       };
     };
