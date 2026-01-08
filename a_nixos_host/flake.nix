@@ -32,6 +32,8 @@
     };
 
     # Build outputs
+    # NOTE: Image generators define their own filesystems, so we DON'T include
+    # hardware-configuration.nix (which has tmpfs root for impermanence)
     packages.${system} = {
       # OCI/Docker image for deployment
       oci-image = nixos-generators.nixosGenerate {
@@ -39,20 +41,40 @@
         modules = [
           nixos-hardware.nixosModules.microsoft-surface-pro-intel
           ./configuration.nix
-          ./hardware-configuration.nix
         ];
         format = "docker";
       };
 
-      # Raw disk image for testing
+      # Raw disk image for installation
       raw = nixos-generators.nixosGenerate {
         inherit system;
         modules = [
           nixos-hardware.nixosModules.microsoft-surface-pro-intel
           ./configuration.nix
-          ./hardware-configuration.nix
+          # Disk size: 48GB to accommodate closure (~15GB) + overhead + working space
+          { config.virtualisation.diskSize = 48 * 1024; }
         ];
         format = "raw-efi";
+      };
+
+      # ISO for live boot/installation (uses squashfs, more reliable)
+      iso = nixos-generators.nixosGenerate {
+        inherit system;
+        modules = [
+          nixos-hardware.nixosModules.microsoft-surface-pro-intel
+          ./configuration.nix
+          # ISO-specific overrides
+          ({ lib, pkgs, ... }: {
+            # ISO uses wpa_supplicant instead of NetworkManager for live env
+            networking.networkmanager.enable = lib.mkForce false;
+            # Ensure our users have working passwords (ISO profile can interfere)
+            users.users.diego.initialPassword = lib.mkForce "1234567890";
+            users.users.guest.initialPassword = lib.mkForce "1234567890";
+            # Also set password for the ISO's default nixos user
+            users.users.nixos.initialPassword = lib.mkForce "1234567890";
+          })
+        ];
+        format = "install-iso";
       };
 
       # VM for quick testing (no Surface hardware needed)

@@ -116,3 +116,47 @@ sudo umount /nix
 If NixOS still broken after rebuild:
 - Boot Kubuntu
 - Re-run build with fixes
+
+---
+
+═══════════════════════════════════════════════════════════════════════════════
+                            WORK LOG
+═══════════════════════════════════════════════════════════════════════════════
+
+## 2026-01-08: ISO Build Success + PAM Bug Fix
+
+### Achievements
+
+**1. ISO Build Completed**
+- Successfully built NixOS ISO (~4.4GB) using `nix build .#iso`
+- Used squashfs format (workaround for raw-efi QEMU I/O errors on low-RAM systems)
+- Kernel cached from previous build - no recompilation needed
+
+**2. Critical PAM Bug Fixed**
+- **Problem**: SDDM and TTY login failed with "Permission denied" while SSH worked
+- **Root Cause**: `security.pam.services.login.text = lib.mkAfter` REPLACES entire PAM config instead of appending
+- **Impact**: `/etc/pam.d/login` only had our bluetooth hook, missing auth/account/password entries
+- **Fix**: Removed broken PAM entries from configuration.nix (lines 483-490)
+- **Lesson**: Never use `.text` for PAM in NixOS - it replaces, not appends!
+
+**3. SDDM Virtual Keyboard Added**
+- Added Qt6 virtual keyboard for Surface Pro touchscreen login
+- Important: Must use `pkgs.kdePackages.qtvirtualkeyboard` (Qt6), NOT `libsForQt5` (Qt5)
+- Qt5/Qt6 mismatch causes build failure with Plasma 6
+
+**4. VM Testing Verified**
+- Created VM in virt-manager with UEFI (no Secure Boot)
+- SDDM login works: `diego` / `1234567890`
+- KDE Plasma 6 desktop loads correctly
+- All applications accessible
+
+### Files Modified
+- `configuration.nix` - Removed broken PAM entries, added SDDM virtual keyboard
+- `flake.nix` - ISO format added with password overrides
+- `0_spec/architecture.md` - Added "Known Issues & Fixes" section
+- `.gitignore` - Created to exclude `result` symlink
+
+### Next Steps
+- [ ] Test on actual Surface Pro 8 hardware
+- [ ] Implement bluetooth portable pairings via systemd user service (not PAM)
+- [ ] Try raw-efi build on machine with more RAM

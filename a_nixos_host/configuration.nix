@@ -15,6 +15,19 @@
   nixpkgs.config.allowUnfree = true;
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # NIX SETTINGS
+  # ═══════════════════════════════════════════════════════════════════════════
+  # NOTE: linux-surface kernel is cached LOCALLY in @nixos/nix after first build.
+  # Kubuntu mounts @nixos/nix as /nix when building, so kernel is never rebuilt.
+  # See architecture.md for ONE STORE design.
+  # ═══════════════════════════════════════════════════════════════════════════
+  nix.settings = {
+    max-jobs = 4;
+    substituters = [ "https://cache.nixos.org" ];
+    trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # NO IMPERMANENCE MODULE
   # ═══════════════════════════════════════════════════════════════════════════
   #
@@ -48,7 +61,7 @@
 
   networking = {
     hostName = "surface-nixos";
-    networkmanager.enable = true;
+    networkmanager.enable = lib.mkDefault true;  # ISO disables this
     firewall = {
       enable = lib.mkDefault true;
       allowedTCPPorts = [ 22 ];
@@ -138,7 +151,10 @@
   services.displayManager.sddm = {
     enable = true;
     wayland.enable = true;
+    # Virtual keyboard for touchscreen login (Surface Pro)
+    settings.General.InputMethod = "qtvirtualkeyboard";
   };
+  services.displayManager.defaultSession = "plasma";
 
   # ═══════════════════════════════════════════════════════════════════════════
   # SESSION 2: GNOME
@@ -189,7 +205,7 @@
     enable = true;
     settings = {
       PasswordAuthentication = true;
-      PermitRootLogin = "no";
+      PermitRootLogin = lib.mkDefault "no";  # ISO installer overrides to "yes"
     };
     # Let NixOS generate ephemeral keys to /etc/ssh (tmpfs)
     # Remove hostKeys to use default ephemeral behavior
@@ -344,7 +360,10 @@
   # ═══════════════════════════════════════════════════════════════════════════
 
   # SDDM session directories - ensure custom sessions are found
-  services.displayManager.sddm.extraPackages = [];
+  # Qt6 virtual keyboard for touchscreen login (Surface Pro with Plasma 6)
+  services.displayManager.sddm.extraPackages = with pkgs.kdePackages; [
+    qtvirtualkeyboard
+  ];
   environment.pathsToLink = [ "/share/wayland-sessions" "/share/xsessions" ];
 
   environment.etc = {
@@ -466,14 +485,10 @@
   # On logout: remove symlink
   # This makes bluetooth pairings portable with the user's home
 
-  security.pam.services.sddm.text = lib.mkAfter ''
-    session optional pam_exec.so /run/current-system/sw/bin/bash -c 'mkdir -p $HOME/.local/share/bluetooth && rm -rf /var/lib/bluetooth && ln -sf $HOME/.local/share/bluetooth /var/lib/bluetooth && chown -R $USER:users $HOME/.local/share/bluetooth 2>/dev/null || true'
-  '';
-
-  # Also for login shells (SSH, TTY)
-  security.pam.services.login.text = lib.mkAfter ''
-    session optional pam_exec.so /run/current-system/sw/bin/bash -c 'mkdir -p $HOME/.local/share/bluetooth && rm -rf /var/lib/bluetooth && ln -sf $HOME/.local/share/bluetooth /var/lib/bluetooth && chown -R $USER:users $HOME/.local/share/bluetooth 2>/dev/null || true'
-  '';
+  # NOTE: Bluetooth portable pairings disabled for now
+  # The .text = lib.mkAfter approach REPLACES the entire PAM config instead of appending,
+  # which breaks authentication. This needs a different approach (udev rules or systemd service).
+  # TODO: Implement bluetooth symlink via systemd user service instead of PAM
 
   # ═══════════════════════════════════════════════════════════════════════════
   # KEYRING SERVICES (For WiFi passwords)

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # ╔═══════════════════════════════════════════════════════════════════════════╗
 # ║                           NIXOS BIFROST                                    ║
 # ║                    Build & Installation System                             ║
@@ -6,16 +6,288 @@
 # ║   NixOS companion to Kinoite - declarative, reproducible OS               ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 #
-# POSIX-compliant with TUI menu and CLI args
+# ═══════════════════════════════════════════════════════════════════════════════
+# DESCRIPTION
+# ═══════════════════════════════════════════════════════════════════════════════
 #
-# Usage:
-#   ./build.sh                            # Interactive TUI
-#   ./build.sh build raw                  # Build raw EFI image
-#   ./build.sh build iso                  # Build ISO image
-#   ./build.sh build qcow                 # Build QCOW2 for VM
-#   ./build.sh burn /dev/sdX              # Burn raw image to USB
-#   ./build.sh vm [name]                  # Create VM from QCOW2
-#   ./build.sh install                    # Full installation
+#   Bifrost is a build system for INSTALLING NixOS to Microsoft Surface devices.
+#   The goal is a full desktop OS on the internal NVMe, NOT a live USB system.
+#
+#   It builds installer images using a shared nix store on a LUKS-encrypted
+#   btrfs pool, enabling fast incremental builds by caching the compiled kernel.
+#
+#   BUILD FORMATS:
+#     - Raw EFI (~20GB) - PRIMARY: Direct disk image, dd to USB, boot & install
+#     - ISO (~4.4GB)    - WORKAROUND: When raw-efi fails (QEMU I/O errors)
+#     - QCOW2           - For VM testing before real hardware
+#
+#   INSTALLATION FLOW:
+#     Build image → Boot from USB → Install to NVMe → Reboot → Desktop NixOS
+#
+#   The final system runs from the Surface's internal drive with LUKS encryption,
+#   optionally auto-unlocked via USB keyfile on Ventoy.
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# QUICK START
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   # Interactive TUI menu
+#   ./build.sh
+#
+#   # Build bootable ISO (recommended)
+#   ./build.sh build iso
+#
+#   # Build raw EFI disk image
+#   ./build.sh build raw
+#
+#   # Burn to USB drive
+#   ./build.sh burn /dev/sdX
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# COMMANDS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   BUILD COMMANDS:
+#   ---------------
+#   build raw     [PRIMARY] Build raw EFI disk image (~20GB)
+#                 Can be dd'd directly to USB, then boot & install to NVMe.
+#                 Uses QEMU internally to populate the image.
+#                 WARNING: May fail with I/O errors on systems with <16GB RAM.
+#                 Output: $OUTPUT_BASE/2_raw/nixos.raw
+#
+#   build iso     [WORKAROUND] Build ISO installer (~4.4GB)
+#                 Use when 'build raw' fails with QEMU I/O errors.
+#                 Uses squashfs + xorriso (no QEMU, works on 8GB RAM).
+#                 Boot ISO → run nixos-install → same result as raw.
+#                 Output: $OUTPUT_BASE/2_raw/nixos.iso
+#
+#   build qcow    Build QCOW2 virtual machine image
+#                 For testing in libvirt/virt-manager before real hardware.
+#                 Output: $OUTPUT_BASE/2_raw/nixos.qcow2
+#
+#   build vm      Build VM runner script (nix run style)
+#                 Quick QEMU test without full VM setup.
+#                 Output: $OUTPUT_BASE/2_raw/result-vm/bin/run-*-vm
+#
+#   DEPLOY COMMANDS:
+#   ----------------
+#   burn [device] Burn raw image to USB drive
+#                 Interactive device selection if not specified.
+#                 Example: ./build.sh burn /dev/sdb
+#
+#   vm [name]     Create libvirt VM from QCOW2 image
+#                 Default name: nixos-test
+#                 Requires: libvirt, virt-install
+#                 Example: ./build.sh vm my-nixos
+#
+#   install       Full installation to physical disk
+#                 Creates LUKS partition, btrfs subvolumes, installs NixOS.
+#                 Use TARGET_DISK env var to specify disk.
+#                 Example: TARGET_DISK=/dev/nvme0n1 ./build.sh install
+#
+#   UTILITY COMMANDS:
+#   -----------------
+#   check         Validate flake configuration without building
+#                 Runs: nix flake check
+#
+#   update        Update flake.lock with latest nixpkgs
+#                 Runs: nix flake update
+#
+#   show          Show available flake outputs
+#                 Runs: nix flake show
+#
+#   diff          Show changes between current and new config
+#                 Only works when running on NixOS
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# PREREQUISITES
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   REQUIRED:
+#   - nix          Nix package manager with flakes enabled
+#   - LUKS pool    Encrypted btrfs pool at /dev/mapper/luks_pool
+#   - @nixos/nix   Btrfs subvolume for shared nix store
+#
+#   OPTIONAL:
+#   - pv           Progress viewer for burn operations
+#   - libvirt      For VM creation (vm command)
+#   - virt-install For VM creation (vm command)
+#
+#   DISK SPACE:
+#   - /nix         ~30GB for store (kernel + packages cached here)
+#   - /var/tmp     ~50GB for builds (nix-build temp directory)
+#   - Output       ~5GB for ISO, ~20GB for raw image
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENVIRONMENT VARIABLES
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   TARGET_DISK   Target disk for install command (default: /dev/nvme0n1)
+#   OUTPUT_BASE   Where to save built images (default: /mnt/kinoite/@images/a_nixos_host)
+#   NIX_BUILD_FLAGS  Additional flags for nix build
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# ARCHITECTURE
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   STORE SHARING:
+#   This script is designed to run from a non-NixOS host (e.g., Kubuntu, Fedora)
+#   while sharing a nix store with a NixOS installation. The store lives on a
+#   LUKS-encrypted btrfs subvolume (@nixos/nix) and is mounted as /nix.
+#
+#   This architecture means:
+#   - Kernel compilation happens ONCE and is cached forever
+#   - Subsequent builds take ~10-15 minutes instead of ~2 hours
+#   - Both the host OS and NixOS share the same compiled packages
+#
+#   SUBVOLUME LAYOUT:
+#   /dev/mapper/luks_pool (btrfs)
+#   ├── @nixos/nix        -> mounted as /nix (shared store)
+#   ├── @images           -> built images saved here
+#   └── @shared           -> shared data between OSes
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# BUILD TIMES (approximate, cached kernel)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   First build (no cache):     ~2-3 hours (kernel compilation)
+#   ISO build (cached):         ~10-15 minutes
+#   Raw build (cached):         ~15-20 minutes
+#   QCOW build (cached):        ~10-15 minutes
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# TROUBLESHOOTING
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   "LUKS device not open":
+#     Run: sudo cryptsetup open /dev/disk/by-uuid/YOUR-UUID luks_pool
+#
+#   "Raw build fails with I/O errors":
+#     The raw-efi format uses QEMU to populate disk image. If you have <16GB
+#     RAM, use ISO format instead: ./build.sh build iso
+#
+#   "Build hangs / no progress":
+#     Check logs: tail -f logs/build-*.log
+#     View processes: ps aux | grep nix
+#
+#   "Not enough disk space":
+#     Clean old builds: nix-collect-garbage -d
+#     Check /nix usage: df -h /nix
+#     Check /var/tmp: df -h /var/tmp
+#
+#   "NetworkManager conflicts with wireless":
+#     Fixed in flake.nix - ISO uses wpa_supplicant, installed system uses NM
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXAMPLES
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   # Build and burn ISO to USB
+#   ./build.sh build iso
+#   ./build.sh burn /dev/sdb
+#
+#   # Quick VM test
+#   ./build.sh build vm
+#   ./result-vm/bin/run-*-vm
+#
+#   # Full installation to NVMe
+#   TARGET_DISK=/dev/nvme0n1 sudo ./build.sh install
+#
+#   # Update to latest nixpkgs and rebuild
+#   ./build.sh update
+#   ./build.sh build iso
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# OUTPUT LOCATIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   Built images:     /mnt/kinoite/@images/a_nixos_host/2_raw/
+#     - nixos.iso     Bootable ISO image
+#     - nixos.raw     Raw EFI disk image
+#     - nixos.qcow2   QCOW2 VM image
+#     - result-*      Symlinks to nix store
+#
+#   Build logs:       ./logs/build-YYYYMMDD-HHMMSS.log
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEFAULT CREDENTIALS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   User:     user
+#   Password: 1234567890
+#   Root:     (use sudo, root login disabled)
+#
+#   LUKS:     Same as user password (slot 0)
+#             USB keyfile auto-unlock (slot 1) if Ventoy USB present
+#
+#   Desktop:  KDE Plasma 6 (default), GNOME, Openbox also available
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# BOOT & USB KEYFILE
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   NORMAL BOOT (USB Key Present):
+#     1. Power on Surface Pro 8
+#     2. USB key detected (Ventoy)
+#     3. LUKS unlocks automatically
+#     4. SDDM login appears
+#
+#   NORMAL BOOT (No USB Key):
+#     1. Power on Surface Pro 8
+#     2. LUKS password prompt appears
+#     3. Enter password: 1234567890
+#     4. SDDM login appears
+#
+#   USB KEYFILE LOCATION:
+#     /media/VTOYEFI/.luks/surface.key (on Ventoy USB)
+#
+#   BURN ISO TO USB:
+#     Option 1: dd (overwrites entire USB)
+#       dd if=nixos.iso of=/dev/sdX bs=4M conv=fsync status=progress
+#
+#     Option 2: Ventoy (multi-boot, preserves other ISOs)
+#       1. Install Ventoy on USB: https://ventoy.net
+#       2. Copy nixos.iso to USB partition
+#       3. Boot and select ISO from Ventoy menu
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# SESSIONS (SDDM)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   KDE Plasma 6   Wayland   Full desktop (DEFAULT)
+#   GNOME          Wayland   Alternative full desktop
+#   Openbox        X11       Lightweight window manager
+#   Android        Wayland   Full Waydroid UI via cage
+#   Tor Kiosk      Wayland   Anonymous browsing kiosk
+#   Chrome Kiosk   Wayland   Chromium fullscreen kiosk
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# USER-AGNOSTIC DESIGN
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   This NixOS is designed to be user-agnostic with full impermanence:
+#
+#   - Root filesystem is tmpfs (wiped every reboot)
+#   - No /persist subvolume - truly stateless OS
+#   - User homes are separate btrfs subvolumes (@home-diego, @home-guest)
+#   - WiFi passwords stored in user's keyring (portable with home)
+#   - Bluetooth pairings stored in user's home (portable with home)
+#   - Homes can be moved to ANY NixOS system
+#
+#   When you move @home-* to another NixOS:
+#   - WiFi works immediately (passwords in ~/.local/share/keyrings/)
+#   - Bluetooth works immediately (pairings in ~/.local/share/bluetooth/)
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# SEE ALSO
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   Architecture:  ./0_spec/architecture.md
+#   Runbook:       ./0_spec/runbook.md
+#   Flake:         ./flake.nix
+#   Configuration: ./configuration.nix
+#
+# ═══════════════════════════════════════════════════════════════════════════════
 
 set -e
 
@@ -29,54 +301,146 @@ cd "$SCRIPT_DIR"
 # Build paths
 OUTPUT_BASE="/mnt/kinoite/@images/a_nixos_host"
 FLAKE_PATH="$SCRIPT_DIR"
+LOG_DIR="$SCRIPT_DIR/logs"
+LOG_FILE="$LOG_DIR/build-$(date +%Y%m%d-%H%M%S).log"
+
+# Nix build flags - parallel jobs for faster builds
+NIX_BUILD_FLAGS="--max-jobs 4 -L --extra-experimental-features nix-command --extra-experimental-features flakes"
 
 # ═══════════════════════════════════════════════════════════════════════════
-# CRITICAL: Use disk-backed temp directory for builds
+# LOGGING SETUP
 # ═══════════════════════════════════════════════════════════════════════════
-# Kernel compilation needs 5-10GB, but tmpfs (/tmp) is often only ~4GB
-# This prevents "No space left on device" errors during large builds
+# All build output is logged to $LOG_DIR with timestamps
+# ═══════════════════════════════════════════════════════════════════════════
+
+setup_logging() {
+    mkdir -p "$LOG_DIR"
+
+    # Create new log file with header
+    {
+        echo "═══════════════════════════════════════════════════════════════"
+        echo "NixOS Bifrost Build Log"
+        echo "Started: $(date)"
+        echo "═══════════════════════════════════════════════════════════════"
+        echo ""
+    } > "$LOG_FILE"
+
+    # Redirect all output to both terminal and log file
+    exec > >(tee -a "$LOG_FILE") 2>&1
+
+    echo "[LOG] Output being saved to: $LOG_FILE"
+}
+
+setup_logging
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CRITICAL: STORE ARCHITECTURE
+# ═══════════════════════════════════════════════════════════════════════════
 #
-# NOTE: Setting TMPDIR alone does NOT work - nix-daemon doesn't inherit env vars
-# We must configure build-dir in /etc/nix/nix.conf for the daemon to use it
+#   There is ONE nix store: @nixos/nix on the LUKS pool
+#
+#   Kubuntu (this host) has NO local store. It:
+#     1. Mounts @nixos/nix as /nix
+#     2. Runs nix-daemon against that store
+#     3. All builds go into @nixos/nix (kernel cached forever!)
+#     4. Output images saved to @shared or OUTPUT_BASE
+#
+#   This prevents rebuilding the 2-hour kernel every time!
+#
 # ═══════════════════════════════════════════════════════════════════════════
 
+LUKS_DEVICE="/dev/mapper/luks_pool"
+POOL_MOUNT="/mnt/pool"
+NIXOS_STORE_SUBVOL="@nixos/nix"
 NIX_BUILD_DIR="/var/tmp/nix-build"
 
-setup_nix_build_dir() {
-    # Create build directory with proper permissions
+# Track if we mounted things (for cleanup)
+POOL_MOUNTED_BY_US=0
+NIX_MOUNTED_BY_US=0
+
+setup_nix_store() {
+    log "Setting up nix store from pool..."
+
+    # 1. Check LUKS is open
+    if [ ! -b "$LUKS_DEVICE" ]; then
+        error "LUKS device not open: $LUKS_DEVICE"
+        error "Run: sudo cryptsetup open /dev/disk/by-uuid/3c75c6db-4d7c-4570-81f1-02d168781aac luks_pool"
+        exit 1
+    fi
+
+    # 2. Mount pool if needed
+    if ! mountpoint -q "$POOL_MOUNT" 2>/dev/null; then
+        log "Mounting pool..."
+        sudo mkdir -p "$POOL_MOUNT"
+        sudo mount "$LUKS_DEVICE" "$POOL_MOUNT"
+        POOL_MOUNTED_BY_US=1
+    fi
+
+    # 3. Mount @nixos/nix as /nix (THE ONLY STORE)
+    if ! mountpoint -q /nix 2>/dev/null; then
+        log "Mounting @nixos/nix as /nix..."
+        sudo mkdir -p /nix
+        sudo mount -o subvol="$NIXOS_STORE_SUBVOL",compress=zstd,noatime "$LUKS_DEVICE" /nix
+        NIX_MOUNTED_BY_US=1
+    else
+        # Verify it's the right store
+        current_subvol=$(findmnt -n -o SOURCE /nix 2>/dev/null || echo "unknown")
+        if echo "$current_subvol" | grep -q "@nixos/nix"; then
+            log "/nix already mounted from @nixos/nix"
+        else
+            warn "/nix is mounted but NOT from @nixos/nix!"
+            warn "Current: $current_subvol"
+            warn "Builds will go to wrong store!"
+        fi
+    fi
+
+    # 4. Create temp build directory on disk (not tmpfs)
     if [ ! -d "$NIX_BUILD_DIR" ]; then
         sudo mkdir -p "$NIX_BUILD_DIR"
         sudo chmod 1777 "$NIX_BUILD_DIR"
     fi
 
-    # Ensure nix.conf has build-dir setting (daemon needs this, not just env vars)
+    # 5. Ensure nix.conf has build-dir setting
     if [ -f /etc/nix/nix.conf ]; then
         if ! grep -q "^build-dir" /etc/nix/nix.conf 2>/dev/null; then
             log "Configuring nix daemon to use disk-backed build directory..."
             echo "build-dir = $NIX_BUILD_DIR" | sudo tee -a /etc/nix/nix.conf >/dev/null
-
-            # Restart nix-daemon to pick up new config
-            if pgrep -x nix-daemon >/dev/null 2>&1; then
-                log "Restarting nix-daemon..."
-                sudo pkill nix-daemon
-                sleep 1
-                if command -v systemctl >/dev/null 2>&1 && systemctl is-active nix-daemon >/dev/null 2>&1; then
-                    sudo systemctl restart nix-daemon
-                else
-                    sudo /nix/var/nix/profiles/default/bin/nix-daemon &
-                fi
-                sleep 2
-            fi
         fi
     fi
 
-    # Also set env vars as fallback for non-daemon builds
+    # 6. Start/restart nix-daemon
+    if ! pgrep -x nix-daemon >/dev/null 2>&1; then
+        log "Starting nix-daemon..."
+        sudo /nix/var/nix/profiles/default/bin/nix-daemon &
+        sleep 2
+    fi
+
     export TMPDIR="$NIX_BUILD_DIR"
     export TEMP="$NIX_BUILD_DIR"
     export TMP="$NIX_BUILD_DIR"
+
+    log "Nix store ready: /nix (from @nixos/nix)"
 }
 
-setup_nix_build_dir
+cleanup_nix_store() {
+    log "Cleaning up mounts..."
+
+    # Stop daemon
+    sudo pkill nix-daemon 2>/dev/null || true
+
+    # Unmount /nix if we mounted it
+    if [ "$NIX_MOUNTED_BY_US" -eq 1 ]; then
+        sudo umount /nix 2>/dev/null || true
+    fi
+
+    # Unmount pool if we mounted it
+    if [ "$POOL_MOUNTED_BY_US" -eq 1 ]; then
+        sudo umount "$POOL_MOUNT" 2>/dev/null || true
+    fi
+}
+
+# NOTE: setup_nix_store() is called by build functions, not here
+# (log/warn/error functions must be defined first)
 
 # Installation config
 TARGET_DISK="${TARGET_DISK:-/dev/nvme0n1}"
@@ -168,7 +532,7 @@ draw_menu() {
     printf "\n"
     printf "${BOLD}┌─ Burn / Deploy ───────────────────────────────────────────┐${NC}\n"
     printf "│  ${YELLOW}5${NC}) Burn raw to USB         ${YELLOW}6${NC}) Create VM from QCOW2       │\n"
-    printf "│  ${RED}i${NC}) Full installation to disk                             │\n"
+    printf "│  ${GREEN}7${NC}) Deploy to existing       ${RED}i${NC}) Full install (WIPES DISK)  │\n"
     printf "${BOLD}└─────────────────────────────────────────────────────────────┘${NC}\n"
     printf "\n"
     printf "${BOLD}┌─ Utilities ─────────────────────────────────────────────────┐${NC}\n"
@@ -176,7 +540,7 @@ draw_menu() {
     printf "│  ${CYAN}s${NC}) Show build outputs       ${CYAN}d${NC}) Diff with current system    │\n"
     printf "${BOLD}└─────────────────────────────────────────────────────────────┘${NC}\n"
     printf "\n"
-    printf "  ${RED}q${NC}) Quit\n"
+    printf "  ${CYAN}h${NC}) Help/Documentation    ${RED}q${NC}) Quit\n"
     printf "\n"
 }
 
@@ -187,13 +551,16 @@ draw_menu() {
 build_raw() {
     header "Building NixOS raw-efi image"
 
+    # Setup nix store from @nixos/nix
+    setup_nix_store
+
     mkdir -p "$OUTPUT_BASE/2_raw"
 
     log "Building raw EFI disk image (this takes ~15-30 minutes)..."
     log "Output will be in: $OUTPUT_BASE/2_raw/"
 
     # Build with nixos-generators
-    nix build "$FLAKE_PATH#raw" --out-link "$OUTPUT_BASE/2_raw/result"
+    nix build $NIX_BUILD_FLAGS "$FLAKE_PATH#raw" --out-link "$OUTPUT_BASE/2_raw/result"
 
     if [ -L "$OUTPUT_BASE/2_raw/result" ]; then
         # Copy from nix store to local
@@ -219,11 +586,13 @@ build_raw() {
 build_iso() {
     header "Building NixOS ISO image"
 
+    setup_nix_store
+
     mkdir -p "$OUTPUT_BASE/2_raw"
 
     log "Building ISO image (this takes ~15-30 minutes)..."
 
-    nix build "$FLAKE_PATH#iso" --out-link "$OUTPUT_BASE/2_raw/result-iso"
+    nix build $NIX_BUILD_FLAGS "$FLAKE_PATH#iso" --out-link "$OUTPUT_BASE/2_raw/result-iso"
 
     if [ -L "$OUTPUT_BASE/2_raw/result-iso" ]; then
         iso_dir=$(readlink -f "$OUTPUT_BASE/2_raw/result-iso")
@@ -248,11 +617,13 @@ build_iso() {
 build_qcow() {
     header "Building NixOS QCOW2 image"
 
+    setup_nix_store
+
     mkdir -p "$OUTPUT_BASE/2_raw"
 
     log "Building QCOW2 image (this takes ~10-20 minutes)..."
 
-    nix build "$FLAKE_PATH#qcow" --out-link "$OUTPUT_BASE/2_raw/result-qcow"
+    nix build $NIX_BUILD_FLAGS "$FLAKE_PATH#qcow" --out-link "$OUTPUT_BASE/2_raw/result-qcow"
 
     if [ -L "$OUTPUT_BASE/2_raw/result-qcow" ]; then
         qcow_dir=$(readlink -f "$OUTPUT_BASE/2_raw/result-qcow")
@@ -277,9 +648,11 @@ build_qcow() {
 build_vm() {
     header "Building NixOS VM runner"
 
+    setup_nix_store
+
     log "Building VM runner script..."
 
-    nix build "$FLAKE_PATH#vm" --out-link "$OUTPUT_BASE/2_raw/result-vm"
+    nix build $NIX_BUILD_FLAGS "$FLAKE_PATH#vm" --out-link "$OUTPUT_BASE/2_raw/result-vm"
 
     if [ -L "$OUTPUT_BASE/2_raw/result-vm" ]; then
         log "VM runner built!"
@@ -513,6 +886,128 @@ install_full() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
+# DEPLOY TO EXISTING SETUP
+# ═══════════════════════════════════════════════════════════════════════════
+# Deploy NixOS to existing partitions without wiping disk.
+# Use when you already have LUKS pool, btrfs subvolumes, and cached nix store.
+
+deploy_existing() {
+    header "Deploy NixOS to Existing Setup"
+
+    # Configuration
+    local LUKS_DEVICE="/dev/mapper/luks_pool"
+    local BOOT_PART="/dev/nvme0n1p3"
+    local EFI_PART="/dev/nvme0n1p1"
+    local MOUNT_ROOT="/mnt/nixos"
+
+    printf "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}\n"
+    printf "${CYAN}║  Deploy to existing partitions (no wipe)                     ║${NC}\n"
+    printf "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}\n"
+    printf "${CYAN}║  LUKS:  ${NC}$LUKS_DEVICE${CYAN}                                        ║${NC}\n"
+    printf "${CYAN}║  Root:  ${NC}@nixos subvolume${CYAN}                                    ║${NC}\n"
+    printf "${CYAN}║  Boot:  ${NC}$BOOT_PART${CYAN}                                      ║${NC}\n"
+    printf "${CYAN}║  EFI:   ${NC}$EFI_PART${CYAN}                                      ║${NC}\n"
+    printf "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}\n"
+    printf "\n"
+    printf "${YELLOW}Continue? [y/N]:${NC} "
+    read -r confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        warn "Aborted"
+        return 1
+    fi
+
+    # Step 1: Ensure nix store is ready
+    log "Step 1: Setting up nix store..."
+    setup_nix_store
+
+    # Step 2: Mount target filesystems
+    log "Step 2: Mounting target filesystems..."
+    sudo mkdir -p "$MOUNT_ROOT"
+
+    # Check if LUKS is open
+    if [ ! -e "$LUKS_DEVICE" ]; then
+        log "Opening LUKS device..."
+        sudo cryptsetup open /dev/nvme0n1p4 luks_pool
+    fi
+
+    # Mount @nixos subvolume
+    if ! mountpoint -q "$MOUNT_ROOT" 2>/dev/null; then
+        sudo mount -o subvol=@nixos,compress=zstd,noatime "$LUKS_DEVICE" "$MOUNT_ROOT"
+    fi
+
+    # Mount boot and EFI
+    sudo mkdir -p "$MOUNT_ROOT/boot"
+    if ! mountpoint -q "$MOUNT_ROOT/boot" 2>/dev/null; then
+        sudo mount "$BOOT_PART" "$MOUNT_ROOT/boot"
+    fi
+
+    sudo mkdir -p "$MOUNT_ROOT/boot/efi"
+    if ! mountpoint -q "$MOUNT_ROOT/boot/efi" 2>/dev/null; then
+        sudo mount "$EFI_PART" "$MOUNT_ROOT/boot/efi"
+    fi
+
+    # Bind mount the nix store
+    sudo mkdir -p "$MOUNT_ROOT/nix"
+    if ! mountpoint -q "$MOUNT_ROOT/nix" 2>/dev/null; then
+        sudo mount --bind /nix "$MOUNT_ROOT/nix"
+    fi
+
+    log "Mounts ready:"
+    mount | grep "$MOUNT_ROOT"
+
+    # Step 3: Build the system
+    log "Step 3: Building NixOS system..."
+    cd "$FLAKE_PATH"
+    nix build .#nixosConfigurations.surface.config.system.build.toplevel
+
+    NEW_SYSTEM=$(readlink -f ./result)
+    log "Built system: $NEW_SYSTEM"
+
+    # Step 4: Install to target
+    log "Step 4: Installing system (nixos-install)..."
+    sudo nixos-install --root "$MOUNT_ROOT" --system "$NEW_SYSTEM" --no-root-passwd
+
+    # Step 5: Update GRUB on host (Kubuntu's GRUB)
+    log "Step 5: Updating GRUB..."
+
+    # Get the init path for GRUB entry
+    INIT_PATH="$NEW_SYSTEM/init"
+    log "New init path: $INIT_PATH"
+
+    # Update existing NixOS entry in GRUB
+    if grep -q 'menuentry "NixOS"' /boot/grub/grub.cfg 2>/dev/null; then
+        log "Updating NixOS entry in GRUB..."
+        # Backup current grub.cfg
+        sudo cp /boot/grub/grub.cfg /boot/grub/grub.cfg.bak.$(date +%Y%m%d-%H%M%S)
+
+        # Update the init= path in NixOS entry
+        sudo sed -i "s|init=/nix/store/[^/]*-nixos-system[^/]*/init|init=$INIT_PATH|g" /boot/grub/grub.cfg
+
+        log "GRUB updated. Verify:"
+        grep -A5 'menuentry "NixOS"' /boot/grub/grub.cfg | head -8
+    else
+        warn "NixOS entry not found in GRUB. May need manual update."
+    fi
+
+    # Step 6: Cleanup mounts
+    log "Step 6: Cleaning up mounts..."
+    sudo umount "$MOUNT_ROOT/nix" 2>/dev/null || true
+    sudo umount "$MOUNT_ROOT/boot/efi" 2>/dev/null || true
+    sudo umount "$MOUNT_ROOT/boot" 2>/dev/null || true
+    sudo umount "$MOUNT_ROOT" 2>/dev/null || true
+
+    printf "\n"
+    printf "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}\n"
+    printf "${GREEN}║  ${BOLD}DEPLOYMENT COMPLETE!${NC}${GREEN}                                       ║${NC}\n"
+    printf "${GREEN}╠══════════════════════════════════════════════════════════════╣${NC}\n"
+    printf "${GREEN}║  Reboot and select 'NixOS' from GRUB menu                    ║${NC}\n"
+    printf "${GREEN}║  Login: diego / 1234567890                                   ║${NC}\n"
+    printf "${GREEN}║                                                              ║${NC}\n"
+    printf "${GREEN}║  If NixOS fails, select Kubuntu to recover                   ║${NC}\n"
+    printf "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}\n"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
 # UTILITY FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -592,6 +1087,11 @@ main() {
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
+            7)
+                deploy_existing
+                printf "\nPress Enter to continue..."
+                read -r _
+                ;;
             i|I)
                 install_full
                 printf "\nPress Enter to continue..."
@@ -616,6 +1116,11 @@ main() {
                 diff_system
                 printf "\nPress Enter to continue..."
                 read -r _
+                ;;
+            h|H)
+                clear
+                # Show documentation from script header
+                head -200 "$0" | grep "^#" | sed 's/^#//' | less
                 ;;
             q|Q)
                 printf "\n"
@@ -660,6 +1165,9 @@ if [ $# -gt 0 ]; then
         install)
             install_full
             ;;
+        deploy)
+            deploy_existing
+            ;;
         check)
             check_config
             ;;
@@ -684,7 +1192,8 @@ if [ $# -gt 0 ]; then
             printf "${BOLD}Deploy:${NC}\n"
             printf "  burn [device]       Burn raw image to USB\n"
             printf "  vm [name]           Create VM from QCOW2\n"
-            printf "  install             Full installation to disk\n"
+            printf "  install             Full installation (WIPES DISK)\n"
+            printf "  deploy              Deploy to existing partitions (safe)\n"
             printf "\n"
             printf "${BOLD}Utilities:${NC}\n"
             printf "  check               Check configuration\n"

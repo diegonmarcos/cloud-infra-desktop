@@ -8,6 +8,69 @@
 
 ---
 
+## CRITICAL: Build & Store Architecture
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                        ONE STORE - NO DUPLICATION                              ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                                ║
+║   THE ONLY NIX STORE: @nixos/nix                                              ║
+║                                                                                ║
+║   ┌─────────────────────────────────────────────────────────────────────────┐ ║
+║   │ Kubuntu (Build Host)                                                     │ ║
+║   │   - Has NO local /nix store                                             │ ║
+║   │   - Mounts @nixos/nix as /nix before building                           │ ║
+║   │   - Runs nix-daemon against @nixos/nix                                  │ ║
+║   │   - All builds go directly into @nixos/nix                              │ ║
+║   │   - Kernel compiled ONCE, cached in @nixos/nix FOREVER                  │ ║
+║   │   - Output images (.iso, .raw, .qcow) saved to @shared/images/          │ ║
+║   └─────────────────────────────────────────────────────────────────────────┘ ║
+║                                    │                                           ║
+║                                    ▼                                           ║
+║   ┌─────────────────────────────────────────────────────────────────────────┐ ║
+║   │ @nixos/nix (THE STORE)                                                   │ ║
+║   │   - Contains ALL nix derivations                                        │ ║
+║   │   - linux-surface kernel (2h compile - CACHED HERE!)                    │ ║
+║   │   - NixOS system closure                                                │ ║
+║   │   - Mounted as /nix when NixOS boots                                    │ ║
+║   │   - Mounted as /nix on Kubuntu when building                            │ ║
+║   └─────────────────────────────────────────────────────────────────────────┘ ║
+║                                                                                ║
+║   ┌─────────────────────────────────────────────────────────────────────────┐ ║
+║   │ @shared (NOT A STORE - Large Files Only)                                 │ ║
+║   │   - images/      : Built .iso, .raw, .qcow files                        │ ║
+║   │   - tools/       : Shared CLI tools                                     │ ║
+║   │   - data/        : Cache, containers, VM images                         │ ║
+║   │   - waydroid/    : Android base image                                   │ ║
+║   └─────────────────────────────────────────────────────────────────────────┘ ║
+║                                                                                ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+**Build Flow:**
+```bash
+# 1. build.sh mounts @nixos/nix as /nix
+sudo mount -o subvol=@nixos/nix /dev/mapper/luks_pool /nix
+
+# 2. nix-daemon runs against @nixos/nix
+sudo nix-daemon &
+
+# 3. Build - kernel is cached in @nixos/nix
+nix build .#nixosConfigurations.surface...
+
+# 4. Output image saved to @shared
+cp result/* /mnt/shared/images/
+```
+
+**Why This Matters:**
+- Kernel takes 2+ hours to compile
+- With ONE store, kernel is built ONCE
+- Future builds reuse cached kernel from @nixos/nix
+- No wasted rebuilds, no duplicate stores
+
+---
+
 ## Overview
 
 **Extremely minimal, user-agnostic NixOS** with full impermanence (tmpfs root).
@@ -442,6 +505,84 @@ sudo nix-env --list-generations -p /nix/var/nix/profiles/system
 
 ---
 
+## Image Build Formats
+
+### Primary Method: Raw EFI Image
+
+The intended installation method is building a **raw-efi** disk image:
+
+```bash
+./build.sh build raw
+```
+
+This creates a bootable disk image that can be:
+1. Written directly to USB: `dd if=nixos.raw of=/dev/sdX bs=4M`
+2. Booted on Surface to run `nixos-install`
+3. Or dd'd directly to the target NVMe partition
+
+**Advantages:**
+- Direct disk image, minimal overhead
+- Can be resized after dd
+- Fastest boot time
+
+### Workaround: ISO Image (When Raw Fails)
+
+**Problem Discovered (2026-01-08):**
+The `raw-efi` format uses QEMU internally to populate the disk image. On systems
+with limited RAM (<16GB), QEMU encounters I/O errors during the copy phase:
+
+```
+I/O error, dev vda, sector XXXXX op 0x1:(WRITE)
+EXT4-fs warning: I/O error writing to inode...
+ERROR: cptofs failed. diskSize might be too small for closure.
+```
+
+This happens even with sufficient disk size (32-48GB) because the issue is
+QEMU memory/buffer exhaustion, not actual disk space.
+
+**Workaround:**
+Build an ISO image instead, which uses squashfs (no QEMU):
+
+```bash
+./build.sh build iso
+```
+
+**ISO Characteristics:**
+- Uses squashfs compression (~4.4GB for full Plasma desktop)
+- No QEMU involvement - more reliable on low-RAM systems
+- Boot ISO → run installer → install to NVMe
+- Slightly longer installation process (extra boot step)
+
+### Format Comparison
+
+| Format | Size | Method | RAM Needed | Use Case |
+|--------|------|--------|------------|----------|
+| **raw-efi** | ~20GB | QEMU + cptofs | 16GB+ | Direct dd to disk |
+| **iso** | ~4.4GB | squashfs + xorriso | 8GB | Boot & install (workaround) |
+| **qcow2** | ~15GB | QEMU | 8GB | VM testing |
+
+### Recommendation
+
+1. **First try**: `./build.sh build raw`
+2. **If I/O errors**: `./build.sh build iso` (workaround)
+3. **For VM testing**: `./build.sh build qcow` or `./build.sh build vm`
+
+### Installation Flow
+
+**With Raw Image:**
+```
+Build raw → dd to USB → Boot USB → dd to NVMe → Reboot → NixOS
+```
+
+**With ISO (Workaround):**
+```
+Build ISO → Copy to Ventoy USB → Boot ISO → nixos-install → Reboot → NixOS
+```
+
+Both result in the same installed system on the Surface's internal NVMe.
+
+---
+
 ## Making Homes Portable
 
 To move @home-diego to another NixOS system:
@@ -474,3 +615,95 @@ The home will work immediately because:
 | Bluetooth pairings | ~/.local/share/bluetooth/ | Yes |
 | Android data | ~/.local/share/waydroid/ | Yes |
 | Documents | ~/Documents/ | Yes |
+
+---
+
+## Known Issues & Fixes
+
+### PAM Configuration Bug (Fixed 2026-01-08)
+
+**Problem:**
+SDDM graphical login would fail with "Permission denied" while SSH worked perfectly with the same credentials.
+
+**Root Cause:**
+The bluetooth portable pairings feature used `security.pam.services.login.text = lib.mkAfter` to add a session hook. However, in NixOS, setting `.text` **completely replaces** the PAM configuration instead of appending to it.
+
+This resulted in `/etc/pam.d/login` only containing our bluetooth session hook:
+```
+session optional pam_exec.so /run/current-system/sw/bin/bash -c 'mkdir -p $HOME/.local/share/bluetooth...'
+```
+
+Missing the critical `auth`, `account`, and `password` entries required for password validation.
+
+**Why SSH worked:**
+SSH has its own complete PAM config at `/etc/pam.d/sshd` that wasn't affected.
+
+**Why SDDM failed:**
+SDDM's PAM config uses `auth substack login`, which references the broken `/etc/pam.d/login`.
+
+**Fix:**
+Removed the problematic PAM entries. The bluetooth symlink functionality needs to be reimplemented using:
+- A systemd user service, OR
+- udev rules, OR
+- A login script
+
+**Lesson Learned:**
+Never use `security.pam.services.<name>.text` in NixOS - it replaces the entire PAM config. Use structured options like `.rules` instead, or find alternative mechanisms for login hooks.
+
+### SDDM Virtual Keyboard (Surface Pro)
+
+For touchscreen-only login on Surface Pro, the Qt6 virtual keyboard must be enabled:
+
+```nix
+services.displayManager.sddm = {
+  settings.General.InputMethod = "qtvirtualkeyboard";
+};
+# IMPORTANT: Use Qt6 (kdePackages) for Plasma 6, NOT Qt5 (libsForQt5)
+services.displayManager.sddm.extraPackages = with pkgs.kdePackages; [
+  qtvirtualkeyboard
+];
+```
+
+**Warning:** Using `libsForQt5.qtvirtualkeyboard` with Plasma 6 causes build failure:
+```
+Error: detected mismatched Qt dependencies:
+    qtbase-5.15.15-dev
+    qtbase-6.8.3
+```
+
+### VM Testing Requirements
+
+When testing the ISO in virt-manager or QEMU:
+
+1. **Disable Secure Boot** - NixOS bootloader is unsigned
+2. Use OVMF without Secure Boot: `OVMF_CODE_4M.fd`
+3. Create VM with: `--boot uefi,loader=/usr/share/OVMF/OVMF_CODE_4M.fd`
+
+Secure Boot causes "Access Denied" on boot.
+
+### Build Verification (2026-01-08)
+
+**ISO Build Tested & Verified:**
+- ✅ ISO builds successfully (~4.4GB)
+- ✅ Uses cached kernel (no recompilation needed after initial build)
+- ✅ Boots in VM with UEFI (OVMF_CODE_4M.fd)
+- ✅ SDDM login works with `diego` / `1234567890`
+- ✅ KDE Plasma 6 desktop loads correctly
+- ✅ All applications accessible (Dolphin, Web, Waydroid, etc.)
+- ✅ TTY login works (Ctrl+Alt+F2)
+- ✅ SSH access works
+
+**Test Command:**
+```bash
+# Build ISO
+nix build .#iso
+
+# Create VM (no Secure Boot)
+virt-install --name nixos-test \
+  --memory 4096 --vcpus 2 \
+  --cdrom result/iso/*.iso \
+  --disk size=20,bus=virtio \
+  --osinfo nixos-unstable \
+  --boot uefi,loader=/usr/share/OVMF/OVMF_CODE_4M.fd,cdrom,hd \
+  --graphics spice
+```

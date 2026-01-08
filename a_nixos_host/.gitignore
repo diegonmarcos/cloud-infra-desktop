@@ -1,0 +1,15 @@
+# Nix build outputs
+result
+result-*
+
+# Build logs (kept locally for debugging)
+logs/
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# macOS
+.DS_Store
