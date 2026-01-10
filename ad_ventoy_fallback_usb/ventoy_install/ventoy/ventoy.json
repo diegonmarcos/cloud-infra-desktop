@@ -10,13 +10,12 @@
     "display_mode": "GUI",
     "gfxmode": "1920x1280",
     "ventoy_left": "5%",
-    "ventoy_top": "25%",
+    "ventoy_top": "20%",
     "ventoy_color": "#ffffff"
   },
   "menu_class": [
     { "key": "debian", "class": "debian" },
-    { "key": "arch", "class": "arch" },
-    { "key": "alpine", "class": "alpine" }
+    { "key": "nixos", "class": "nixos" }
   ],
   "menu_alias": [
     {
@@ -24,40 +23,28 @@
       "alias": "Debian Surface Recovery"
     },
     {
-      "image": "/arch-surface-live.iso",
-      "alias": "Arch Linux Surface"
-    },
-    {
-      "image": "/alpine-live.iso",
-      "alias": "Alpine Linux Minimal"
+      "image": "/nixos-surface-slim.iso",
+      "alias": "NixOS Surface Slim"
     }
   ],
   "menu_tip": [
     {
       "image": "/debian-surface-live.iso",
-      "tip": "Debian 12 + Surface drivers (~800MB) - Press F2 for boot options"
+      "tip": "Debian 12 + linux-surface (~823MB) - Openbox GUI, Claude Code"
     },
     {
-      "image": "/arch-surface-live.iso",
-      "tip": "Arch Linux + Surface drivers (~1.2GB) - Press F2 for boot options"
-    },
-    {
-      "image": "/alpine-live.iso",
-      "tip": "Alpine Linux ultra-light (~400MB) - Press F2 for boot options"
+      "image": "/nixos-surface-slim.iso",
+      "tip": "NixOS 24.11 + linux-surface (~700MB) - Openbox GUI, Claude Code"
     }
   ],
   "image_list_extra": [
     {
       "image": "/debian-surface-live.iso",
-      "tip": "@@Press F2 for toram vs normal boot@@"
+      "tip": "@@Press F2 for boot options (toram loads to RAM)@@"
     },
     {
-      "image": "/arch-surface-live.iso",
-      "tip": "@@Press F2 for toram vs normal boot@@"
-    },
-    {
-      "image": "/alpine-live.iso",
-      "tip": "@@Press F2 for toram vs normal boot@@"
+      "image": "/nixos-surface-slim.iso",
+      "tip": "@@Press F2 for boot options (copytoram loads to RAM)@@"
     }
   ],
   "conf_replace": [
