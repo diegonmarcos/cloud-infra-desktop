@@ -1,0 +1,2 @@
+dev,diego-cli:latest,Up 6 hours
+flatpak-box,fedora:41,Up 21 hours

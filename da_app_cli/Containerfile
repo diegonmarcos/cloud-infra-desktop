@@ -1,0 +1,80 @@
+# Diego's CLI Development Container
+# Build: docker build -t diego-cli -f Containerfile .
+# Use:   distrobox create -n dev -i diego-cli:latest
+
+FROM fedora:41
+
+# Metadata
+LABEL maintainer="Diego Nepomuceno Marcos"
+LABEL description="CLI development environment with compilers, Python/Poetry, Node, Rust, Go"
+
+# Install development tools in groups
+RUN dnf install -y \
+    # Shells
+    bash zsh fish \
+    # C/C++ Compilers & Build Tools
+    gcc gcc-c++ make cmake ninja-build meson pkgconf-pkg-config \
+    # Debuggers & Analysis
+    gdb valgrind strace ltrace \
+    # Libraries
+    openssl-devel zlib-devel libffi-devel ncurses-devel readline-devel \
+    sqlite-devel postgresql-devel libxml2-devel libyaml-devel \
+    # Python
+    python3 python3-pip python3-devel python3-wheel python3-virtualenv \
+    # Node.js
+    nodejs npm \
+    # Rust
+    rust cargo \
+    # Go
+    golang \
+    # Java
+    java-21-openjdk java-21-openjdk-devel \
+    # Ruby
+    ruby ruby-devel rubygem-bundler \
+    # Git & Version Control
+    git git-lfs gh \
+    # Modern CLI Tools
+    ripgrep fd-find bat eza fzf jq yq tree htop ncdu pv \
+    # Archive & Compression
+    tar gzip bzip2 xz zstd unzip zip p7zip \
+    # Network Tools
+    curl wget rsync openssh-clients nmap iproute \
+    # System Utils
+    procps-ng coreutils findutils grep sed gawk less which file lsof \
+    # Shell Scripting
+    ShellCheck shfmt \
+    # Editors
+    nano vim neovim \
+    # File Managers
+    ranger \
+    # Docs
+    pandoc graphviz \
+    # Misc
+    qrencode \
+    # CA Certificates
+    ca-certificates \
+    && dnf clean all
+
+# Install OCI CLI (Oracle Cloud Infrastructure)
+RUN curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh -o /tmp/oci-install.sh && \
+    bash /tmp/oci-install.sh --accept-all-defaults && \
+    rm /tmp/oci-install.sh && \
+    echo 'export PATH="$HOME/bin:$PATH"' >> /etc/profile.d/oci.sh
+
+# Install Google Cloud SDK (gcloud)
+RUN curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz && \
+    tar -xzf google-cloud-cli-linux-x86_64.tar.gz -C /opt && \
+    rm google-cloud-cli-linux-x86_64.tar.gz && \
+    /opt/google-cloud-sdk/install.sh --quiet --usage-reporting false --path-update true && \
+    echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> /etc/profile.d/gcloud.sh
+
+# Install Poetry
+RUN pip3 install --user poetry && \
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> /etc/profile.d/poetry.sh
+
+# Install Starship prompt
+RUN curl -sS https://starship.rs/install.sh | sh -s -- -y
+
+# Set default shell
+ENV SHELL=/bin/fish
+CMD ["/bin/fish"]

@@ -1,0 +1,90 @@
+{
+  "meta": {
+    "name": "NixOS Surface Slim",
+    "version": "2.0",
+    "target": "Surface Pro 8",
+    "nixos": "24.11",
+    "kernel": "linux-surface (via nixos-hardware)",
+    "estimated_size": "~600-700MB",
+    "boot_modes": ["normal", "copytoram"]
+  },
+  "credentials": {
+    "diego": {
+      "password": "1234567890",
+      "shell": "fish",
+      "groups": ["wheel", "networkmanager", "video", "input", "audio"],
+      "sudo": "NOPASSWD"
+    },
+    "root": {
+      "password": "1234567890"
+    }
+  },
+  "boot": {
+    "display_manager": "none (startx)",
+    "window_manager": "openbox",
+    "auto_login": "console (getty)"
+  },
+  "hardware": {
+    "kernel": "linux-surface (nixos-hardware module)",
+    "touch": "iptsd",
+    "graphics": "i915 (Intel)",
+    "wifi": "iwd + NetworkManager",
+    "bluetooth": "disabled (slim)"
+  },
+  "packages": {
+    "shells": ["fish", "bash"],
+    "editors": ["vim", "nano"],
+    "network": ["networkmanager", "iwd", "openssh", "curl", "wget", "git"],
+    "gui": {
+      "window_manager": "openbox",
+      "terminal": "sakura",
+      "file_manager": "pcmanfm",
+      "browser": "surf",
+      "launcher": "dmenu",
+      "wifi_gui": "nm-connection-editor"
+    },
+    "cli_tools": ["btop", "htop", "ripgrep", "fzf", "jq", "tmux", "neofetch"],
+    "disk_tools": ["parted", "gptfdisk", "btrfs-progs", "cryptsetup", "e2fsprogs", "dosfstools", "ntfs3g"],
+    "recovery": ["testdisk", "ddrescue"],
+    "dev": ["nodejs_22"]
+  },
+  "claude": {
+    "install_method": "npx wrapper",
+    "command": "claude"
+  },
+  "services": {
+    "enabled": ["NetworkManager", "sshd", "iptsd"],
+    "disabled": ["pipewire", "bluetooth", "sddm"]
+  },
+  "openbox": {
+    "shortcuts": {
+      "Super+Return": "sakura (terminal)",
+      "Super+E": "pcmanfm (files)",
+      "Super+B": "surf (browser)",
+      "Super+D": "dmenu_run (launcher)",
+      "Super+W": "nm-connection-editor (WiFi)",
+      "Super+Q": "close window",
+      "Alt+Tab": "switch windows"
+    },
+    "menu": [
+      {"label": "Terminal", "command": "sakura"},
+      {"label": "Files", "command": "pcmanfm"},
+      {"label": "Browser", "command": "surf https://claude.ai"},
+      {"separator": true},
+      {"label": "WiFi Settings", "command": "nm-connection-editor"},
+      {"label": "WiFi (nmtui)", "command": "sakura -e nmtui"},
+      {"label": "Claude Code", "command": "sakura -e claude"},
+      {"label": "System Monitor", "command": "sakura -e btop"},
+      {"separator": true},
+      {"label": "Recovery submenu", "items": ["Unlock LUKS", "Mount Pool", "Disk Usage"]},
+      {"separator": true},
+      {"label": "Reboot", "command": "systemctl reboot"},
+      {"label": "Shutdown", "command": "systemctl poweroff"}
+    ]
+  },
+  "build": {
+    "command": "./build.sh",
+    "output": "nixos-surface-slim.iso",
+    "uses_cached_kernel": true
+  }
+}

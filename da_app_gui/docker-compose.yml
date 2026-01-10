@@ -1,0 +1,70 @@
+# Docker Compose for Flatpak GUI Apps Container
+#
+# This is mainly for documentation/reference.
+# For desktop integration, use distrobox instead of docker-compose directly.
+#
+# Usage with distrobox (recommended):
+#   1. Build image:    podman build -t flatpak-box -f Containerfile .
+#   2. Create box:     distrobox create --image localhost/flatpak-box --name flatpak-box
+#   3. Enter box:      distrobox enter flatpak-box
+#   4. Export apps:    ./export-apps.sh
+#
+# Usage with docker-compose (for reference/testing):
+#   docker-compose up -d
+#   docker exec -it flatpak-box bash
+
+services:
+  flatpak-box:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: flatpak-box:latest
+    container_name: flatpak-box
+    hostname: flatpak-box
+
+    # Required for GUI applications
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-}
+      - XDG_RUNTIME_DIR=/run/user/1000
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      - DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+
+    # Volume mounts for GUI and home integration
+    volumes:
+      # X11/Wayland display
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${XDG_RUNTIME_DIR:-/run/user/1000}:${XDG_RUNTIME_DIR:-/run/user/1000}:rw
+
+      # Home directory integration
+      - ${HOME}:${HOME}:rw
+
+      # Flatpak app data persistence
+      - ${HOME}/.var/app:${HOME}/.var/app:rw
+
+      # Device access for GPU
+      - /dev/dri:/dev/dri:rw
+
+      # DBus
+      - /run/dbus:/run/dbus:ro
+
+    # Security options for GUI apps
+    security_opt:
+      - seccomp:unconfined
+
+    # Device access
+    devices:
+      - /dev/dri:/dev/dri
+
+    # Network mode for proper integration
+    network_mode: host
+
+    # Keep container running
+    stdin_open: true
+    tty: true
+
+    # Run as current user
+    user: "${UID:-1000}:${GID:-1000}"
+
+    # Restart policy
+    restart: unless-stopped

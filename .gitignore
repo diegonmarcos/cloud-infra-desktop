@@ -1,18 +1,23 @@
 # Large build artifacts - keep folders via .gitkeep
-dist_*/
-!dist_*/.gitkeep
+libs/**
+libs/*
+libs/
+
+# MyShell bundled nix store (500MB+)
+ba_myshell/dist/*/_bundled/
+ba_myshell/bin/
 
 # Container storage
 storage/
+
 !storage/.gitkeep
-*.tar.gz
+
 *.raw
 *.qcow2
 *.iso
 
 # Temp files
-*.tmp
-*.log
+
 .DS_Store
 
 # Kernel/initrd (extract from ISO or build)

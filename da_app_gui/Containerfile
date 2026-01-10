@@ -1,0 +1,63 @@
+# Flatpak GUI Apps Container for Distrobox
+# Base: Fedora 41 (glibc required for flatpak apps)
+#
+# Build:   podman build -t flatpak-box -f Containerfile .
+# Create:  distrobox create --image localhost/flatpak-box --name flatpak-box
+# Enter:   distrobox enter flatpak-box
+# Export:  distrobox enter flatpak-box -- distrobox-export --app <app-id>
+
+FROM registry.fedoraproject.org/fedora:41
+
+LABEL maintainer="Diego <dinepomu@student.42berlin.de>"
+LABEL description="Distrobox container with flatpak GUI applications"
+LABEL version="1.0"
+
+# Install base dependencies
+RUN dnf install -y \
+    flatpak \
+    xdg-utils \
+    dbus-x11 \
+    mesa-dri-drivers \
+    mesa-vulkan-drivers \
+    pipewire \
+    pipewire-pulseaudio \
+    && dnf clean all
+
+# Add Flathub repository (system-wide)
+RUN flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+# Install all flatpak applications
+# Browsers
+RUN flatpak install -y --noninteractive flathub com.brave.Browser
+
+# Office & Productivity
+RUN flatpak install -y --noninteractive flathub org.libreoffice.LibreOffice
+RUN flatpak install -y --noninteractive flathub md.obsidian.Obsidian
+
+# Development
+RUN flatpak install -y --noninteractive flathub com.visualstudio.code
+
+# KDE Applications
+RUN flatpak install -y --noninteractive flathub org.kde.dolphin
+RUN flatpak install -y --noninteractive flathub org.kde.kate
+RUN flatpak install -y --noninteractive flathub org.kde.okular
+RUN flatpak install -y --noninteractive flathub org.kde.krita
+
+# Communication
+RUN flatpak install -y --noninteractive flathub org.mozilla.Thunderbird
+RUN flatpak install -y --noninteractive flathub com.slack.Slack
+
+# Media
+RUN flatpak install -y --noninteractive flathub com.spotify.Client
+
+# VPN
+RUN flatpak install -y --noninteractive flathub com.protonvpn.www
+
+# Cleanup flatpak cache
+RUN flatpak uninstall --unused -y || true
+RUN rm -rf /var/tmp/flatpak-cache-*
+
+# Set default shell
+ENV SHELL=/bin/bash
+
+CMD ["/bin/bash"]

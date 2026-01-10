@@ -1,0 +1,2 @@
+diego-cli,latest,2.86GB
+fedora,41,162MB

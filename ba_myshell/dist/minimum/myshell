@@ -1,0 +1,141 @@
+#!/bin/sh
+# MyShell - Self-Contained Portable Nix Shell Environment
+# Uses bwrap for real isolation in isolated mode
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+error() { printf "${RED}✗${NC} %s\n" "$1" >&2; }
+
+# Find dist directory
+DIST_DIR="$(cd "$(dirname "$0")" && pwd)"
+BUNDLED_DIR="$DIST_DIR/_bundled"
+
+# Export for shellHook
+export MYSHELL_DIR="$DIST_DIR"
+export NIX_PORTABLE_ROOT="$BUNDLED_DIR"
+
+NIX_PORTABLE="$BUNDLED_DIR/nix-portable"
+SHELL_NIX="$BUNDLED_DIR/config/shell.nix"
+
+# Verify files exist
+if [ ! -f "$NIX_PORTABLE" ]; then
+    error "nix-portable not found at $NIX_PORTABLE"
+    exit 1
+fi
+
+if [ ! -f "$SHELL_NIX" ]; then
+    error "shell.nix not found at $SHELL_NIX"
+    exit 1
+fi
+
+# Parse arguments
+SHELL_TYPE="fish"
+COMMAND=""
+ISOLATION_MODE="true"
+
+while [ $# -gt 0 ]; do
+    case $1 in
+        --fish|-f) SHELL_TYPE="fish"; shift ;;
+        --zsh|-z) SHELL_TYPE="zsh"; shift ;;
+        --bash|-b) SHELL_TYPE="bash"; shift ;;
+        --isolated|-i) ISOLATION_MODE="true"; shift ;;
+        --mirror|-m) ISOLATION_MODE="false"; shift ;;
+        --command|-c) COMMAND="$2"; shift 2 ;;
+        --help|-h)
+            cat << EOF
+MyShell - Self-Contained Portable Nix Shell Environment
+
+Usage:
+  $0 [OPTIONS] [COMMAND]
+
+Options:
+  -f, --fish      Start fish shell (default)
+  -z, --zsh       Start zsh shell
+  -b, --bash      Start bash shell
+  -i, --isolated  Use isolated home with bwrap (default)
+  -m, --mirror    Mirror real home (no sandbox)
+  -c, --command   Run a command
+  -h, --help      Show this help
+
+EOF
+            exit 0
+            ;;
+        *) error "Unknown option: $1"; exit 1 ;;
+    esac
+done
+
+export ISOLATION_MODE
+REAL_HOME="$HOME"
+
+if [ "$ISOLATION_MODE" = "true" ]; then
+    # ISOLATED MODE: Use bwrap for real sandbox (with fallback)
+    ISOLATED_HOME="$REAL_HOME/.temp/home-tmp"
+    mkdir -p "$ISOLATED_HOME"
+    mkdir -p "$ISOLATED_HOME/real-home" 2>/dev/null || true
+
+    # Export for fallback mode
+    export ISOLATED_HOME
+    export REAL_HOME
+
+    # Copy README.md into isolated home
+    cp "$DIST_DIR/README.md" "$ISOLATED_HOME/README.md" 2>/dev/null || true
+
+    # Welcome message function
+    WELCOME="
+echo '╔════════════════════════════════════════╗'
+echo '║  MyShell - ISOLATED Mode               ║'
+echo '╚════════════════════════════════════════╝'
+echo ''
+echo \"🏠 Isolated HOME: \$HOME\"
+echo \"🔗 Real home: ~/real-home\"
+echo ''
+echo 'Shells: fish (default), zsh, bash'
+echo ''
+echo '📖 Full reference: bat ~/README.md'
+echo ''
+"
+
+    if [ -n "$COMMAND" ]; then
+        exec "$NIX_PORTABLE" nix-shell "$SHELL_NIX" --run "
+            export HOME=$ISOLATED_HOME
+            export REAL_HOME=$REAL_HOME
+            ln -sfn $REAL_HOME $ISOLATED_HOME/real-home 2>/dev/null || true
+            $COMMAND
+        "
+    else
+        exec "$NIX_PORTABLE" nix-shell "$SHELL_NIX" --run "
+            export HOME=$ISOLATED_HOME
+            export REAL_HOME=$REAL_HOME
+            ln -sfn $REAL_HOME $ISOLATED_HOME/real-home 2>/dev/null || true
+            $WELCOME
+            exec $SHELL_TYPE
+        "
+    fi
+else
+    # MIRROR MODE: Direct access, no sandbox
+    WELCOME_MIRROR="
+echo '╔════════════════════════════════════════╗'
+echo '║  MyShell - MIRROR Mode                 ║'
+echo '╚════════════════════════════════════════╝'
+echo ''
+echo \"🏠 Using real HOME: \$HOME\"
+echo ''
+echo 'Shells: fish (default), zsh, bash'
+echo ''
+echo '📖 Full reference: bat $DIST_DIR/README.md'
+echo ''
+"
+    if [ -n "$COMMAND" ]; then
+        exec "$NIX_PORTABLE" nix-shell "$SHELL_NIX" --run "$COMMAND"
+    else
+        exec "$NIX_PORTABLE" nix-shell "$SHELL_NIX" --run "
+            $WELCOME_MIRROR
+            exec $SHELL_TYPE
+        "
+    fi
+fi

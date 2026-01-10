@@ -1,0 +1,21 @@
+[project]
+name = "poetry-venv-1"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "diegonmarcos",email = "diegonmarcos@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "requests (>=2.32.5,<3.0.0)",
+    "ps-mem (>=3.14,<4.0)",
+    "smem (>=1.0.1,<2.0.0)"
+]
+
+[tool.poetry]
+packages = [{include = "poetry_venv_1", from = "src"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
