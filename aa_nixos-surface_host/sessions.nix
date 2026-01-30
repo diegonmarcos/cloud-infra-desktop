@@ -147,6 +147,12 @@ Hidden=true
 NoDisplay=true
 EOF
 
+    cat > $out/share/xsessions/none+openbox.desktop << EOF
+[Desktop Entry]
+Hidden=true
+NoDisplay=true
+EOF
+
     # Hide any GNOME X11/Xorg variants
     cat > $out/share/xsessions/gnome.desktop << EOF
 [Desktop Entry]
