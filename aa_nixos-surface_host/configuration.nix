@@ -475,6 +475,14 @@
           # Kate dark theme
           "katerc"."KTextEditor Renderer"."Auto Color Theme Selection" = false;
           "katerc"."KTextEditor Renderer"."Color Theme" = "Breeze Dark";
+
+          # Lock screen virtual keyboard (Surface Pro touchscreen)
+          "kscreenlockerrc"."Greeter"."VirtualKeyboard" = true;
+          "kscreenlockerrc"."Greeter"."VirtualKeyboardTheme" = "breeze";
+
+          # Plasma virtual keyboard settings
+          "kwinrc"."Wayland"."VirtualKeyboard" = true;
+          "kwinrc"."Wayland"."InputMethod[$e]" = "/run/current-system/sw/share/applications/com.github.nickvyni.maliit-keyboard.desktop";
         };
       };
     };
@@ -746,6 +754,10 @@
 
     # ─── SDDM Dark Theme (user icons) ────────────────────────────────────────
     sddm-sugar-dark
+
+    # ─── Virtual Keyboard (Surface Pro touchscreen) ───────────────────────────
+    maliit-keyboard
+    maliit-framework
 
     # ─── Wallpapers ───────────────────────────────────────────────────────────
     kdePackages.plasma-workspace-wallpapers
