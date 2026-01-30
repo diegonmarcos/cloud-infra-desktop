@@ -509,8 +509,10 @@
   services.displayManager.sddm = {
     enable = true;
     wayland.enable = true;
+    theme = "sugar-dark";
     extraPackages = with pkgs; [
       kdePackages.qtvirtualkeyboard
+      sddm-sugar-dark
     ];
     settings = {
       General.InputMethod = "qtvirtualkeyboard";
@@ -530,20 +532,6 @@
       X11 = {
         EnableHiDPI = true;
         ServerArguments = "-nolisten tcp -dpi 120";
-      };
-    };
-    # Sugar Candy theme (from sddm-sugar-candy-nix flake)
-    sugarCandyNix = {
-      enable = true;
-      settings = {
-        ScreenWidth = 2304;
-        ScreenHeight = 1536;
-        FormPosition = "center";
-        HaveFormBackground = true;
-        PartialBlur = true;
-        BlurRadius = 100;
-        AccentColor = "#3daee9";
-        HeaderText = "NixOS Surface";
       };
     };
   };
@@ -772,6 +760,9 @@
 
     # ─── GUI dialogs ────────────────────────────────────────────────────────
     zenity kdialog
+
+    # ─── SDDM Dark Theme ───────────────────────────────────────────────────────
+    sddm-sugar-dark
 
     # ─── Virtual Keyboard (Surface Pro touchscreen) ───────────────────────────
     maliit-keyboard

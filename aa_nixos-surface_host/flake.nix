@@ -24,14 +24,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.home-manager.follows = "home-manager";
     };
-
-    sddm-sugar-candy-nix = {
-      url = "github:Zhaith-Izaliel/sddm-sugar-candy-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, home-manager, plasma-manager, sddm-sugar-candy-nix, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, home-manager, plasma-manager, ... }:
   let
     system = "x86_64-linux";
 
@@ -54,9 +49,6 @@
 
         # Home Manager integration
         home-manager.nixosModules.home-manager
-
-        # SDDM Sugar Candy theme
-        sddm-sugar-candy-nix.nixosModules.default
 
         # Main configuration
         ./configuration.nix
