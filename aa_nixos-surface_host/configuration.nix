@@ -370,11 +370,12 @@
             height = 44;
             floating = true;
             widgets = [
-              # LEFT SIDE: User switcher + Show desktop
+              # LEFT SIDE: User switcher
               "org.kde.plasma.userswitcher"
-              "org.kde.plasma.showdesktop"
               # App launcher (kickoff)
               "org.kde.plasma.kickoff"
+              # Show desktop (peek) - AFTER launcher
+              "org.kde.plasma.showdesktop"
               # Virtual desktops pager
               {
                 name = "org.kde.plasma.pager";
@@ -384,13 +385,13 @@
                   showWindowIcons = "true";
                 };
               }
-              # Task manager (icon-only)
+              # Task manager (icon-only) - Settings FIRST (leftmost)
               {
                 name = "org.kde.plasma.icontasks";
                 config.General = {
                   launchers = [
-                    "applications:brave-browser.desktop"
                     "applications:systemsettings.desktop"
+                    "applications:brave-browser.desktop"
                     "applications:org.kde.dolphin.desktop"
                     "applications:org.kde.konsole.desktop"
                   ];
@@ -491,10 +492,10 @@
   services.displayManager.sddm = {
     enable = true;
     wayland.enable = true;
-    theme = "catppuccin-mocha";
+    theme = "sugar-dark";
     extraPackages = with pkgs; [
       kdePackages.qtvirtualkeyboard
-      catppuccin-sddm
+      sddm-sugar-dark
     ];
     settings = {
       General.InputMethod = "qtvirtualkeyboard";
@@ -503,7 +504,11 @@
         CursorTheme = "breeze_cursors";
         CursorSize = 24;
       };
-      # Scale 125% for Surface Pro HiDPI (smaller than 150%)
+      Users = {
+        MaximumUid = 60000;
+        MinimumUid = 1000;
+      };
+      # Scale 125% for Surface Pro HiDPI
       Wayland = {
         EnableHiDPI = true;
       };
@@ -739,8 +744,8 @@
     # ─── GUI dialogs ────────────────────────────────────────────────────────
     zenity kdialog
 
-    # ─── SDDM Dark Theme ──────────────────────────────────────────────────────
-    catppuccin-sddm
+    # ─── SDDM Dark Theme (user icons) ────────────────────────────────────────
+    sddm-sugar-dark
 
     # ─── Wallpapers ───────────────────────────────────────────────────────────
     kdePackages.plasma-workspace-wallpapers
