@@ -511,7 +511,7 @@
     theme = "sddm-astronaut-theme";
     extraPackages = with pkgs; [
       kdePackages.qtvirtualkeyboard
-      sddm-astronaut
+      sddm-astronaut-custom
     ];
     settings = {
       General.InputMethod = "qtvirtualkeyboard";
@@ -547,64 +547,46 @@
     GreeterEnvironment=QT_SCREEN_SCALE_FACTORS=1.25,QT_FONT_DPI=120
   '';
 
-  # SDDM Astronaut theme config - Glassmorphism with mountain background
-  environment.etc."sddm.conf.d/theme.conf".text = ''
-    [Theme]
-    ThemeDir=/run/current-system/sw/share/sddm/themes/sddm-astronaut-theme
-  '';
-
-  # Custom theme.conf for sddm-astronaut (glassmorphism + mountain)
-  environment.etc."sddm/themes/sddm-astronaut-theme/theme.conf".text = ''
-    [General]
-    # Mountain wallpaper from Plasma wallpapers
-    Background="/run/current-system/sw/share/wallpapers/MilkyWay/contents/images/5120x2880.png"
-    DimBackgroundImage="0.2"
-    ScaleImageCropped="true"
-
-    # Surface Pro 8 resolution
-    ScreenWidth="2304"
-    ScreenHeight="1536"
-
-    # Glassmorphism blur settings
-    FullBlur="false"
-    PartialBlur="true"
-    BlurRadius="100"
-
-    # Form with glass effect
-    HaveFormBackground="true"
-    FormPosition="center"
-
-    # Dark glassmorphism colors
-    MainColor="#ffffff"
-    AccentColor="#3daee9"
-    BackgroundColor="#1a1a2e"
-    placeholderColor="#aaaaaa"
-    IconColor="#ffffff"
-
-    # Rounded modern look
-    RoundCorners="20"
-    InterfaceShadowSize="6"
-    InterfaceShadowOpacity="0.6"
-    ScreenPadding="0"
-
-    # Fonts
-    Font="Noto Sans"
-    FontSize=""
-
-    # UX
-    HideLoginButton="false"
-    ForceLastUser="true"
-    ForcePasswordFocus="true"
-    ForceHideCompletePassword="true"
-    ForceHideVirtualKeyboardButton="false"
-
-    # Header
-    HeaderText="NixOS Surface"
-
-    # Date/time format
-    HourFormat="HH:mm"
-    DateFormat="dddd d MMMM"
-  '';
+  # Custom SDDM Astronaut theme with glassmorphism + mountain background
+  nixpkgs.overlays = lib.mkAfter [
+    (final: prev: {
+      sddm-astronaut-custom = prev.sddm-astronaut.overrideAttrs (old: {
+        postInstall = (old.postInstall or "") + ''
+          cat > $out/share/sddm/themes/sddm-astronaut-theme/theme.conf << 'EOF'
+[General]
+Background="/run/current-system/sw/share/wallpapers/MilkyWay/contents/images/5120x2880.png"
+DimBackgroundImage="0.2"
+ScaleImageCropped="true"
+ScreenWidth="2304"
+ScreenHeight="1536"
+FullBlur="false"
+PartialBlur="true"
+BlurRadius="100"
+HaveFormBackground="true"
+FormPosition="center"
+MainColor="#ffffff"
+AccentColor="#3daee9"
+BackgroundColor="#1a1a2e"
+placeholderColor="#aaaaaa"
+IconColor="#ffffff"
+RoundCorners="20"
+InterfaceShadowSize="6"
+InterfaceShadowOpacity="0.6"
+ScreenPadding="0"
+Font="Noto Sans"
+HideLoginButton="false"
+ForceLastUser="true"
+ForcePasswordFocus="true"
+ForceHideCompletePassword="true"
+ForceHideVirtualKeyboardButton="false"
+HeaderText="NixOS Surface"
+HourFormat="HH:mm"
+DateFormat="dddd d MMMM"
+EOF
+        '';
+      });
+    })
+  ];
   # Default session set in sessions.nix (01-plasma)
 
   # Disable Plasma Discover update notifier (auto-starts and checks for updates)
@@ -848,8 +830,8 @@
     # ─── GUI dialogs ────────────────────────────────────────────────────────
     zenity kdialog
 
-    # ─── SDDM Astronaut Theme (Qt6) ──────────────────────────────────────────
-    sddm-astronaut
+    # ─── SDDM Astronaut Theme (Qt6) - custom glassmorphism ───────────────────
+    sddm-astronaut-custom
 
     # ─── Virtual Keyboard (Surface Pro touchscreen) ───────────────────────────
     maliit-keyboard
