@@ -399,11 +399,17 @@
               }
               # 6. Spacer
               "org.kde.plasma.panelspacer"
-              # 7. Disk usage (piechart)
+              # 7. Disk usage (piechart - pool only)
               {
                 name = "org.kde.plasma.systemmonitor.diskusage";
-                config.Appearance.title = "Disk";
-                config.Appearance.chartFace = "org.kde.ksysguard.piechart";
+                config.Appearance = {
+                  title = "Disk";
+                  chartFace = "org.kde.ksysguard.piechart";
+                };
+                config.Sensors = {
+                  highPrioritySensorIds = ''["disk/all/usedPercent"]'';
+                  totalSensors = ''["disk/all/usedPercent"]'';
+                };
               }
               # 8. Disk I/O (linechart)
               {
