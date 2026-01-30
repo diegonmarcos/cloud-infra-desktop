@@ -554,6 +554,35 @@
     Hidden=true
   '';
 
+  # Fix system tray showAllItems (plasma-manager writes to applet, but Plasma reads from containment)
+  environment.etc."xdg/autostart/fix-systray-showall.desktop".text = ''
+    [Desktop Entry]
+    Type=Application
+    Name=Fix System Tray ShowAll
+    Exec=${pkgs.writeShellScript "fix-systray-showall" ''
+      # Wait for plasma to fully start
+      sleep 5
+      CONFIG="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+      if [ -f "$CONFIG" ]; then
+        # Find the systemtray containment ID (the one with private.systemtray plugin)
+        CONTAINMENT_ID=$(grep -B5 "plugin=org.kde.plasma.private.systemtray" "$CONFIG" | grep -oP '\[Containments\]\[\K[0-9]+')
+        if [ -n "$CONTAINMENT_ID" ]; then
+          # Check if showAllItems is already set in this containment
+          if ! grep -A20 "^\[Containments\]\[$CONTAINMENT_ID\]\[General\]" "$CONFIG" | grep -q "^showAllItems=true"; then
+            # Use sed to add showAllItems=true after the [General] section header
+            ${pkgs.gnused}/bin/sed -i "/^\[Containments\]\[$CONTAINMENT_ID\]\[General\]/a showAllItems=true" "$CONFIG"
+            # Restart plasmashell to apply
+            kquitapp6 plasmashell 2>/dev/null
+            sleep 1
+            kstart plasmashell &
+          fi
+        fi
+      fi
+    ''}
+    X-KDE-autostart-phase=2
+    OnlyShowIn=KDE;
+  '';
+
   # ═══════════════════════════════════════════════════════════════════════════
   # SESSION 2: GNOME
   # ═══════════════════════════════════════════════════════════════════════════
