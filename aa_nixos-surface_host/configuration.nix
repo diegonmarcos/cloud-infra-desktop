@@ -338,11 +338,17 @@
       programs.plasma = {
         enable = true;
 
-        # Dark theme
+        # Dark theme (global)
         workspace = {
           colorScheme = "BreezeDark";
           theme = "breeze-dark";
           lookAndFeel = "org.kde.breezedark.desktop";
+          cursor = {
+            theme = "breeze_cursors";
+            size = 24;
+          };
+          iconTheme = "breeze-dark";
+          wallpaper = "${pkgs.kdePackages.plasma-workspace-wallpapers}/share/wallpapers/MilkyWay/contents/images/5120x2880.png";
         };
 
         # Night Light always on (2200K warm)
@@ -355,7 +361,89 @@
           };
         };
 
-        # Panels and shortcuts preserved by plasma-manager
+        # ─────────────────────────────────────────────────────────────────────
+        # PANEL CONFIGURATION (horizontal bottom panel)
+        # ─────────────────────────────────────────────────────────────────────
+        panels = [
+          {
+            location = "bottom";
+            height = 44;
+            floating = true;
+            widgets = [
+              # App launcher (kickoff)
+              "org.kde.plasma.kickoff"
+              # Virtual desktops pager
+              {
+                name = "org.kde.plasma.pager";
+                config.General = {
+                  currentDesktopSelected = "ShowDesktop";
+                  displayedText = "Number";
+                  showWindowIcons = "true";
+                };
+              }
+              # Task manager (icon-only)
+              {
+                name = "org.kde.plasma.icontasks";
+                config.General = {
+                  launchers = [
+                    "applications:systemsettings.desktop"
+                    "applications:org.kde.dolphin.desktop"
+                    "applications:org.kde.konsole.desktop"
+                  ];
+                };
+              }
+              # Spacer
+              "org.kde.plasma.panelspacer"
+              # System monitors
+              {
+                name = "org.kde.plasma.systemmonitor.cpu";
+                config.Appearance.title = "CPU";
+              }
+              {
+                name = "org.kde.plasma.systemmonitor.memory";
+                config.Appearance.title = "RAM";
+              }
+              # System tray
+              {
+                name = "org.kde.plasma.systemtray";
+                config.General = {
+                  scaleIconsToFit = "true";
+                };
+              }
+              # Digital clock (24h, dd-mm-yyyy)
+              {
+                name = "org.kde.plasma.digitalclock";
+                config.Appearance = {
+                  showDate = "true";
+                  dateFormat = "custom";
+                  customDateFormat = "dd-MM-yyyy";
+                  use24hFormat = "2";  # Force 24h
+                };
+              }
+              # User switcher
+              "org.kde.plasma.userswitcher"
+              # Show desktop
+              "org.kde.plasma.showdesktop"
+            ];
+          }
+        ];
+
+        # ─────────────────────────────────────────────────────────────────────
+        # APPLICATION SETTINGS
+        # ─────────────────────────────────────────────────────────────────────
+        configFile = {
+          # Dolphin dark theme
+          "dolphinrc"."General"."GlobalViewProps" = true;
+          "dolphinrc"."KFileDialog Settings"."Places Icons Auto-resize" = false;
+          "dolphinrc"."KFileDialog Settings"."Places Icons Static Size" = 22;
+
+          # Konsole dark profile
+          "konsolerc"."Desktop Entry"."DefaultProfile" = "Breeze.profile";
+
+          # Kate dark theme
+          "katerc"."KTextEditor Renderer"."Auto Color Theme Selection" = false;
+          "katerc"."KTextEditor Renderer"."Color Theme" = "Breeze Dark";
+        };
       };
     };
 
@@ -372,14 +460,40 @@
   services.displayManager.sddm = {
     enable = true;
     wayland.enable = true;
-    theme = "breeze";
+    theme = "catppuccin-mocha";
+    extraPackages = with pkgs; [
+      kdePackages.qtvirtualkeyboard
+      catppuccin-sddm
+    ];
     settings = {
       General.InputMethod = "qtvirtualkeyboard";
-      # HiDPI scaling for Surface Pro display
-      Theme.EnableAvatars = true;
-      Theme.CursorTheme = "breeze_cursors";
+      Theme = {
+        EnableAvatars = true;
+        CursorTheme = "breeze_cursors";
+        CursorSize = 24;
+      };
+      # Scale 150% for Surface Pro HiDPI
+      Wayland = {
+        EnableHiDPI = true;
+      };
+      X11 = {
+        EnableHiDPI = true;
+        ServerArguments = "-nolisten tcp -dpi 144";
+      };
     };
   };
+
+  # Global dark theme for ALL apps (Qt + GTK)
+  environment.variables = {
+    QT_QPA_PLATFORMTHEME = "kde";
+    GTK_THEME = "Breeze-Dark";
+  };
+
+  # Force 150% scaling for SDDM (1.5x)
+  environment.etc."sddm.conf.d/hidpi.conf".text = ''
+    [General]
+    GreeterEnvironment=QT_SCREEN_SCALE_FACTORS=1.5,QT_FONT_DPI=144
+  '';
   # Default session set in sessions.nix (01-plasma)
 
   # Disable Plasma Discover update notifier (auto-starts and checks for updates)
@@ -568,10 +682,15 @@
 
     # ─── Bootstrap Tools (CRITICAL - for building user space) ───────────────
     firefox      # Web browser (authenticate, download, research)
+    brave        # Privacy-focused browser
     git          # Version control (clone repos, manage dotfiles)
     wget         # Download tool
     curl         # Alternative download tool
     nodejs       # Includes npm, npx (for Claude Code and JS development)
+
+    # ─── Productivity ─────────────────────────────────────────────────────────
+    libreoffice  # Office suite
+    obsidian     # Note-taking
 
     # ─── System tools (required for maintenance) ────────────────────────────
     pciutils
@@ -588,6 +707,12 @@
 
     # ─── GUI dialogs ────────────────────────────────────────────────────────
     zenity kdialog
+
+    # ─── SDDM Dark Theme ──────────────────────────────────────────────────────
+    catppuccin-sddm
+
+    # ─── Wallpapers ───────────────────────────────────────────────────────────
+    kdePackages.plasma-workspace-wallpapers
 
     # ─── KDE Applications Suite ───────────────────────────────────────────────
     kdePackages.kdeconnect-kde   # Phone/tablet integration
@@ -670,10 +795,6 @@
   # ═══════════════════════════════════════════════════════════════════════════
 
   # SDDM session directories - ensure custom sessions are found
-  # Qt6 virtual keyboard for touchscreen login (Surface Pro with Plasma 6)
-  services.displayManager.sddm.extraPackages = with pkgs.kdePackages; [
-    qtvirtualkeyboard
-  ];
   environment.pathsToLink = [ "/share/wayland-sessions" "/share/xsessions" ];
 
   # Custom SDDM sessions defined in ./sessions.nix (proper Nix module)
