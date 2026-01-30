@@ -17,9 +17,16 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # Plasma configuration manager
+    plasma-manager = {
+      url = "github:nix-community/plasma-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.home-manager.follows = "home-manager";
+    };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nur, sops-nix, ... }@inputs:
+  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nur, sops-nix, plasma-manager, ... }@inputs:
     let
       system = "x86_64-linux";
 
@@ -41,9 +48,10 @@
       };
 
       # ============================================================
-      # Profile Definitions (8 Categories)
+      # Profile Definitions (8 Tool Categories + 2 Desktop Environments)
       # ============================================================
       profiles = {
+        # Tool profiles
         shell-core        = ./modules/profiles/1-shell-core.nix;
         dev-languages     = ./modules/profiles/2-dev-languages.nix;
         build-debug       = ./modules/profiles/3-build-debug.nix;
@@ -52,6 +60,9 @@
         data-science      = ./modules/profiles/6-data-science.nix;
         productivity      = ./modules/profiles/7-productivity.nix;
         media-graphics    = ./modules/profiles/8-media-graphics.nix;
+        # Desktop environment profiles (pick one)
+        desktop-plasma    = ./modules/desktop/plasma.nix;
+        desktop-gnome     = ./modules/desktop/gnome.nix;
       };
 
       # Helper to enable profiles by name
@@ -61,8 +72,8 @@
       # ============================================================
       # Host Presets
       # ============================================================
-      presets = {
-        # Full development setup (all 8 profiles)
+      # Base tool sets (no DE)
+      toolsets = {
         full = [
           "shell-core"
           "dev-languages"
@@ -73,8 +84,6 @@
           "productivity"
           "media-graphics"
         ];
-
-        # CLI-only (no GUI apps) - good for containers/servers
         cli = [
           "shell-core"
           "dev-languages"
@@ -83,20 +92,32 @@
           "security-network"
           "data-science"
         ];
-
-        # Minimal (base + dev)
         minimal = [
           "shell-core"
           "dev-languages"
           "build-debug"
         ];
-
-        # Server (cloud ops)
         server = [
           "shell-core"
           "containers-cloud"
           "security-network"
         ];
+      };
+
+      # Presets with Desktop Environments
+      presets = {
+        # Full + Plasma (dark theme, 125% scale, touchpad)
+        full-plasma = toolsets.full ++ [ "desktop-plasma" ];
+        # Full + GNOME (dark theme, 125% scale, touchpad)
+        full-gnome = toolsets.full ++ [ "desktop-gnome" ];
+        # CLI-only (no GUI/DE)
+        cli = toolsets.cli;
+        # Minimal (shell + dev)
+        minimal = toolsets.minimal;
+        # Server (cloud ops)
+        server = toolsets.server;
+        # Legacy: full without DE config
+        full = toolsets.full;
       };
 
       # ============================================================
@@ -109,6 +130,9 @@
           # Secrets management
           sops-nix.homeManagerModules.sops
           ./modules/sops.nix
+
+          # Plasma configuration (for desktop-plasma profile)
+          plasma-manager.homeManagerModules.plasma-manager
 
           ./modules/common.nix
           hostModule
@@ -161,20 +185,24 @@
       # Home Manager Configurations
       # ============================================================
       homeConfigurations = {
-        # diego_nix user - Full Nix-centric setup (ALL profiles)
-        "diego_nix@surface" = mkHost "diego_nix" "/home/diego_nix" ./hosts/surface.nix presets.full;
+        # ─── Surface Pro (with DE) ────────────────────────────────────
+        "diego@surface-plasma" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-plasma;
+        "diego@surface-gnome"  = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-gnome;
+        "diego@surface"        = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-plasma;  # default
 
-        # diego user configurations
-        "diego@surface" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full;
-        "diego@desktop" = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full;
-        "diego@server" = mkHost "diego" "/home/diego" ./hosts/server.nix presets.server;
+        # ─── Desktop (with DE) ────────────────────────────────────────
+        "diego@desktop-plasma" = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full-plasma;
+        "diego@desktop-gnome"  = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full-gnome;
+        "diego@desktop"        = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full-plasma;  # default
 
-        # CLI-only (good for containers)
-        "diego@cli" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.cli;
+        # ─── Server/CLI (no DE) ───────────────────────────────────────
+        "diego@server"  = mkHost "diego" "/home/diego" ./hosts/server.nix presets.server;
+        "diego@cli"     = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.cli;
         "diego@minimal" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.minimal;
 
-        # Generic fallback
-        "diego" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full;
+        # ─── Legacy/fallback ──────────────────────────────────────────
+        "diego_nix@surface" = mkHost "diego_nix" "/home/diego_nix" ./hosts/surface.nix presets.full-plasma;
+        "diego" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-plasma;
       };
 
       # ============================================================
@@ -258,12 +286,12 @@
       # Development Shell
       # ============================================================
       devShells.${system}.default = pkgs.mkShell {
-        buildInputs = with pkgs; [
-          home-manager
-          nil           # Nix LSP
-          nixpkgs-fmt
-          podman
-          skopeo
+        buildInputs = [
+          home-manager.packages.${system}.default
+          pkgs.nil           # Nix LSP
+          pkgs.nixpkgs-fmt
+          pkgs.podman
+          pkgs.skopeo
         ];
         shellHook = ''
           echo "Diego's Nix Dev Environment"
