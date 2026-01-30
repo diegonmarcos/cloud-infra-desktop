@@ -370,13 +370,13 @@
             height = 44;
             floating = true;
             widgets = [
-              # LEFT SIDE: User switcher
+              # 1. User switcher
               "org.kde.plasma.userswitcher"
-              # App launcher (kickoff)
+              # 2. App launcher (kickoff)
               "org.kde.plasma.kickoff"
-              # Show desktop (peek) - AFTER launcher
+              # 3. Show desktop (peek)
               "org.kde.plasma.showdesktop"
-              # Virtual desktops pager
+              # 4. Virtual desktops pager
               {
                 name = "org.kde.plasma.pager";
                 config.General = {
@@ -385,56 +385,59 @@
                   showWindowIcons = "true";
                 };
               }
-              # Task manager (icon-only) - Settings FIRST (leftmost)
+              # 5. Task manager (icon-only): Brave, Settings, Dolphin, Konsole
               {
                 name = "org.kde.plasma.icontasks";
                 config.General = {
                   launchers = [
-                    "applications:systemsettings.desktop"
                     "applications:brave-browser.desktop"
+                    "applications:systemsettings.desktop"
                     "applications:org.kde.dolphin.desktop"
                     "applications:org.kde.konsole.desktop"
                   ];
                 };
               }
-              # Spacer
+              # 6. Spacer
               "org.kde.plasma.panelspacer"
-              # System monitors
-              {
-                name = "org.kde.plasma.systemmonitor.cpu";
-                config.Appearance.title = "CPU";
-                config.Appearance.chartFace = "org.kde.ksysguard.piechart";
-              }
-              {
-                name = "org.kde.plasma.systemmonitor.cpucore";
-                config.Appearance.title = "Cores";
-                config.Appearance.chartFace = "org.kde.ksysguard.barchart";
-              }
-              {
-                name = "org.kde.plasma.systemmonitor.memory";
-                config.Appearance.title = "RAM";
-                config.Appearance.chartFace = "org.kde.ksysguard.piechart";
-              }
+              # 7. Disk usage (piechart)
               {
                 name = "org.kde.plasma.systemmonitor.diskusage";
                 config.Appearance.title = "Disk";
-                config.Appearance.chartFace = "org.kde.ksysguard.horizontalbars";
+                config.Appearance.chartFace = "org.kde.ksysguard.piechart";
               }
+              # 8. Disk I/O (linechart)
               {
                 name = "org.kde.plasma.systemmonitor.diskactivity";
                 config.Appearance.title = "I/O";
                 config.Appearance.chartFace = "org.kde.ksysguard.linechart";
               }
-              # System tray - ALWAYS SHOW ALL
+              # 9. RAM (piechart)
+              {
+                name = "org.kde.plasma.systemmonitor.memory";
+                config.Appearance.title = "RAM";
+                config.Appearance.chartFace = "org.kde.ksysguard.piechart";
+              }
+              # 10. CPU cores (barchart)
+              {
+                name = "org.kde.plasma.systemmonitor.cpucore";
+                config.Appearance.title = "Cores";
+                config.Appearance.chartFace = "org.kde.ksysguard.barchart";
+              }
+              # 11. CPU total (piechart)
+              {
+                name = "org.kde.plasma.systemmonitor.cpu";
+                config.Appearance.title = "CPU";
+                config.Appearance.chartFace = "org.kde.ksysguard.piechart";
+              }
+              # 12. System tray - SHOW ALL ITEMS
               {
                 name = "org.kde.plasma.systemtray";
                 config.General = {
                   scaleIconsToFit = "true";
-                  hiddenItems = "";
-                  shownItems = "org.kde.plasma.volume,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.battery,org.kde.plasma.networkmanagement,org.kde.plasma.clipboard,org.kde.plasma.notifications,org.kde.plasma.devicenotifier,org.kde.plasma.mediacontroller,org.kde.plasma.weather,org.kde.plasma.keyboardlayout,org.kde.kscreen,org.kde.kdeconnect";
+                  showAllItems = "true";
                 };
               }
-              # Digital clock (24h, dd-mm-yyyy)
+              # 13. Digital clock (24h, dd-MM-yyyy)
               {
                 name = "org.kde.plasma.digitalclock";
                 config.Appearance = {
