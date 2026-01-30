@@ -551,7 +551,7 @@
   nixpkgs.overlays = lib.mkAfter [
     (final: prev: {
       sddm-astronaut-custom = prev.sddm-astronaut.overrideAttrs (old: {
-        postInstall = (old.postInstall or "") + ''
+        postFixup = (old.postFixup or "") + ''
           cat > $out/share/sddm/themes/sddm-astronaut-theme/theme.conf << 'EOF'
 [General]
 Background="/run/current-system/sw/share/wallpapers/MilkyWay/contents/images/5120x2880.png"
