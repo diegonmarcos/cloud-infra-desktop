@@ -380,7 +380,7 @@
       Theme.CursorTheme = "breeze_cursors";
     };
   };
-  services.displayManager.defaultSession = "1-plasma";
+  # Default session set in sessions.nix (01-plasma)
 
   # Disable Plasma Discover update notifier (auto-starts and checks for updates)
   environment.etc."xdg/autostart/org.kde.discover.notifier.desktop".text = ''
@@ -546,22 +546,15 @@
   # NIX SETTINGS
   # ═══════════════════════════════════════════════════════════════════════════
 
-  nix = {
-    settings = {
-      experimental-features = [ "nix-command" "flakes" ];
-      auto-optimise-store = true;
-      trusted-users = [ "root" "diego" ];
+  nix.settings = {
+    experimental-features = [ "nix-command" "flakes" ];
+    auto-optimise-store = true;
+    trusted-users = [ "root" "diego" ];
 
-      # CRITICAL: Use disk-backed build directory, NOT tmpfs
-      # Kernel builds need 5-10GB temp space, tmpfs only has ~4GB
-      # This prevents "No space left on device" during large builds
-      build-dir = "/var/tmp/nix-build";
-    };
-    gc = {
-      automatic = true;
-      dates = "weekly";
-      options = "--delete-older-than 7d";
-    };
+    # CRITICAL: Use disk-backed build directory, NOT tmpfs
+    # Kernel builds need 5-10GB temp space, tmpfs only has ~4GB
+    # This prevents "No space left on device" during large builds
+    build-dir = "/var/tmp/nix-build";
   };
 
   # ═══════════════════════════════════════════════════════════════════════════

@@ -179,5 +179,7 @@ in {
   services.displayManager.sessionPackages = [ customSessions ];
 
   # Default session
-  services.displayManager.defaultSession = lib.mkDefault "01-plasma";
+  # Default to Plasma (our custom 01-plasma session)
+  # mkForce needed to override plasma6.nix default
+  services.displayManager.defaultSession = lib.mkForce "01-plasma";
 }
