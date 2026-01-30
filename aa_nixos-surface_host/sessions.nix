@@ -1,169 +1,183 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # CUSTOM SDDM SESSIONS MODULE
 # ═══════════════════════════════════════════════════════════════════════════
-# Defines custom wayland sessions, hides unwanted sessions, and controls order.
+# Controls session list order and hides unwanted sessions.
 # Default: Plasma (Wayland)
 #
-# Order: Plasma, GNOME, Android, Openbox, Chrome Kiosk, Tor Kiosk, GNOME Kiosk
+# Visible (in order): Plasma, GNOME, Android, Chrome Kiosk, Tor Kiosk, Openbox
 
 { config, pkgs, lib, ... }:
 
 let
-  # Helper to create a wayland session package with providedSessions
-  mkWaylandSession = { name, desktopName, comment, exec }:
-    pkgs.runCommand "${name}-session" {
-      passthru.providedSessions = [ name ];
-    } ''
-      mkdir -p $out/share/wayland-sessions
-      cat > $out/share/wayland-sessions/${name}.desktop << EOF
-      [Desktop Entry]
-      Name=${desktopName}
-      Comment=${comment}
-      Exec=${exec}
-      Type=Application
-      DesktopNames=${desktopName}
-      EOF
-    '';
-
-  # Helper to create an X11 session package with providedSessions
-  mkX11Session = { name, desktopName, comment, exec }:
-    pkgs.runCommand "${name}-session" {
-      passthru.providedSessions = [ name ];
-    } ''
-      mkdir -p $out/share/xsessions
-      cat > $out/share/xsessions/${name}.desktop << EOF
-      [Desktop Entry]
-      Name=${desktopName}
-      Comment=${comment}
-      Exec=${exec}
-      Type=Application
-      DesktopNames=${desktopName}
-      EOF
-    '';
-
-  # Helper to hide an X11 session (no providedSessions needed for hidden)
-  mkHiddenX11Session = name:
-    pkgs.runCommand "hide-${name}-x11-session" {
-      passthru.providedSessions = [ name ];
-    } ''
-      mkdir -p $out/share/xsessions
-      cat > $out/share/xsessions/${name}.desktop << EOF
-      [Desktop Entry]
-      Hidden=true
-      NoDisplay=true
-      EOF
-    '';
-
-  # Helper to hide a Wayland session
-  mkHiddenWaylandSession = name:
-    pkgs.runCommand "hide-${name}-wayland-session" {
-      passthru.providedSessions = [ name ];
-    } ''
-      mkdir -p $out/share/wayland-sessions
-      cat > $out/share/wayland-sessions/${name}.desktop << EOF
-      [Desktop Entry]
-      Hidden=true
-      NoDisplay=true
-      EOF
-    '';
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # ORDERED SESSIONS (numeric prefix in FILENAME for SDDM alphabetical sort)
-  # ─────────────────────────────────────────────────────────────────────────
-  # 1. Plasma (Wayland) - override default
-  plasmaSession = mkWaylandSession {
-    name = "1-plasma";
-    desktopName = "Plasma";
-    comment = "KDE Plasma Desktop (Wayland)";
-    exec = "${pkgs.kdePackages.plasma-workspace}/bin/startplasma-wayland";
-  };
-
-  # 2. GNOME - override default
-  gnomeSession = mkWaylandSession {
-    name = "2-gnome";
-    desktopName = "GNOME";
-    comment = "GNOME Desktop Environment";
-    exec = "${pkgs.gnome-session}/bin/gnome-session";
-  };
-
-  # 3. Android (Waydroid)
-  # Creates /run/waydroid-enabled flag to allow waydroid-container.service to start
-  # (blocked by ConditionPathExists in configuration.nix to prevent D-Bus activation from Plasma)
+  # Script for Android session (enables waydroid service)
   androidSessionScript = pkgs.writeShellScript "android-session" ''
     sudo ${pkgs.coreutils}/bin/touch /run/waydroid-enabled
     trap 'sudo ${pkgs.coreutils}/bin/rm -f /run/waydroid-enabled' EXIT
     ${pkgs.cage}/bin/cage -- ${pkgs.waydroid}/bin/waydroid show-full-ui
   '';
 
-  androidSession = mkWaylandSession {
-    name = "3-android";
-    desktopName = "Android";
-    comment = "Full Android UI via Waydroid";
-    exec = "${androidSessionScript}";
-  };
-
-  # 4. Openbox (X11)
-  openboxSession = mkX11Session {
-    name = "4-openbox";
-    desktopName = "Openbox";
-    comment = "Openbox window manager";
-    exec = "openbox-session";
-  };
-
-  # 5. Chrome Kiosk
-  chromeKioskSession = mkWaylandSession {
-    name = "5-chrome-kiosk";
-    desktopName = "Chrome Kiosk";
-    comment = "Chromium kiosk mode";
-    exec = "${pkgs.cage}/bin/cage -- ${pkgs.chromium}/bin/chromium --kiosk --start-fullscreen";
-  };
-
-  # 6. Tor Kiosk
-  torKioskSession = mkWaylandSession {
-    name = "6-tor-kiosk";
-    desktopName = "Tor Kiosk";
-    comment = "Anonymous browsing via Tor Browser";
-    exec = "${pkgs.cage}/bin/cage -- ${pkgs.tor-browser}/bin/tor-browser";
-  };
-
-  # 7. GNOME Kiosk
-  gnomeKioskSession = mkWaylandSession {
-    name = "7-gnome-kiosk";
-    desktopName = "GNOME Kiosk";
-    comment = "Locked down GNOME session";
-    exec = "${pkgs.gnome-session}/bin/gnome-session --session=gnome";
-  };
+  # Paths for Exec= lines
+  plasmaExec = "${pkgs.kdePackages.plasma-workspace}/bin/startplasma-wayland";
+  gnomeExec = "${pkgs.gnome-session}/bin/gnome-session";
+  chromeExec = "${pkgs.cage}/bin/cage -- ${pkgs.chromium}/bin/chromium --kiosk --start-fullscreen";
+  torExec = "${pkgs.cage}/bin/cage -- ${pkgs.tor-browser}/bin/tor-browser";
 
   # ─────────────────────────────────────────────────────────────────────────
-  # HIDDEN SESSIONS
+  # SESSION PACKAGE
   # ─────────────────────────────────────────────────────────────────────────
-  # Hide all X11 sessions (except our Openbox override)
-  hiddenPlasmaX11 = mkHiddenX11Session "plasmax11";
-  hiddenGnomeX11 = mkHiddenX11Session "gnome-x11";
-  hiddenGnomeXorg = mkHiddenX11Session "gnome-xorg";
+  customSessions = pkgs.runCommand "custom-sddm-sessions" {
+    passthru.providedSessions = [
+      "01-plasma"
+      "02-gnome"
+      "03-android"
+      "04-chrome-kiosk"
+      "05-tor-kiosk"
+      "06-openbox"
+      "07-gnome-kiosk"
+    ];
+  } ''
+    mkdir -p $out/share/wayland-sessions
+    mkdir -p $out/share/xsessions
 
-  # Hide duplicate/original Wayland sessions
-  hiddenGnomeWayland = mkHiddenWaylandSession "gnome-wayland";
+    # ─── 1. Plasma (Wayland) ───────────────────────────────────────────────
+    cat > $out/share/wayland-sessions/01-plasma.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=Plasma
+Comment=KDE Plasma Desktop (Wayland)
+Exec=${plasmaExec}
+DesktopNames=KDE
+EOF
+
+    # ─── 2. GNOME (Wayland) ────────────────────────────────────────────────
+    cat > $out/share/wayland-sessions/02-gnome.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=GNOME
+Comment=GNOME Desktop (Wayland)
+Exec=${gnomeExec}
+DesktopNames=GNOME
+EOF
+
+    # ─── 3. Android (Waydroid in Cage) ─────────────────────────────────────
+    cat > $out/share/wayland-sessions/03-android.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=Android
+Comment=Android via Waydroid
+Exec=${androidSessionScript}
+DesktopNames=Android
+EOF
+
+    # ─── 4. Chrome Kiosk ───────────────────────────────────────────────────
+    cat > $out/share/wayland-sessions/04-chrome-kiosk.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=Chrome Kiosk
+Comment=Chromium in kiosk mode
+Exec=${chromeExec}
+DesktopNames=Chromium
+EOF
+
+    # ─── 5. Tor Kiosk ──────────────────────────────────────────────────────
+    cat > $out/share/wayland-sessions/05-tor-kiosk.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=Tor Browser
+Comment=Anonymous browsing via Tor
+Exec=${torExec}
+DesktopNames=Tor
+EOF
+
+    # ─── 6. Openbox (X11) ──────────────────────────────────────────────────
+    cat > $out/share/xsessions/06-openbox.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=Openbox
+Comment=Lightweight X11 window manager
+Exec=openbox-session
+DesktopNames=Openbox
+EOF
+
+    # ─── 7. GNOME Kiosk ────────────────────────────────────────────────────
+    cat > $out/share/wayland-sessions/07-gnome-kiosk.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=GNOME Kiosk
+Comment=Locked-down GNOME session
+Exec=${gnomeExec} --session=gnome
+DesktopNames=GNOME
+EOF
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # HIDE DUPLICATE/UNWANTED SESSIONS
+    # ═══════════════════════════════════════════════════════════════════════
+    # Must match EXACT filename of original to override
+
+    # Hide original Plasma Wayland (we have 01-plasma)
+    cat > $out/share/wayland-sessions/plasma.desktop << EOF
+[Desktop Entry]
+Hidden=true
+NoDisplay=true
+EOF
+
+    # Hide Plasma X11
+    cat > $out/share/xsessions/plasmax11.desktop << EOF
+[Desktop Entry]
+Hidden=true
+NoDisplay=true
+EOF
+
+    # Hide original Openbox variants (we have 06-openbox)
+    cat > $out/share/xsessions/openbox.desktop << EOF
+[Desktop Entry]
+Hidden=true
+NoDisplay=true
+EOF
+
+    cat > $out/share/xsessions/openbox-gnome.desktop << EOF
+[Desktop Entry]
+Hidden=true
+NoDisplay=true
+EOF
+
+    cat > $out/share/xsessions/openbox-kde.desktop << EOF
+[Desktop Entry]
+Hidden=true
+NoDisplay=true
+EOF
+
+    # Hide any GNOME X11/Xorg variants
+    cat > $out/share/xsessions/gnome.desktop << EOF
+[Desktop Entry]
+Hidden=true
+NoDisplay=true
+EOF
+
+    cat > $out/share/xsessions/gnome-xorg.desktop << EOF
+[Desktop Entry]
+Hidden=true
+NoDisplay=true
+EOF
+
+    # Hide original GNOME Wayland (we have 02-gnome)
+    cat > $out/share/wayland-sessions/gnome.desktop << EOF
+[Desktop Entry]
+Hidden=true
+NoDisplay=true
+EOF
+
+    cat > $out/share/wayland-sessions/gnome-wayland.desktop << EOF
+[Desktop Entry]
+Hidden=true
+NoDisplay=true
+EOF
+  '';
 
 in {
-  # Register all sessions with display manager
-  services.displayManager.sessionPackages = [
-    # Ordered sessions
-    plasmaSession
-    gnomeSession
-    androidSession
-    openboxSession
-    chromeKioskSession
-    torKioskSession
-    gnomeKioskSession
-    # Hidden X11 sessions
-    hiddenPlasmaX11
-    hiddenGnomeX11
-    hiddenGnomeXorg
-    # Hidden duplicate Wayland
-    hiddenGnomeWayland
-  ];
+  # Register custom sessions
+  services.displayManager.sessionPackages = [ customSessions ];
 
-  # Default session: Plasma Wayland
-  services.displayManager.defaultSession = lib.mkDefault "1-plasma";
+  # Default session
+  services.displayManager.defaultSession = lib.mkDefault "01-plasma";
 }

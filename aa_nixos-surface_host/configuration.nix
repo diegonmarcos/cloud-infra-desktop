@@ -109,6 +109,33 @@
   # KDE Connect - phone/tablet integration
   programs.kdeconnect.enable = true;
 
+  # KDE Connect clipboard sync workaround for Wayland
+  # Monitors clipboard changes and sends to paired device
+  # (Fixes "Ignoring clipboard without timestamp" issue on Plasma 6 Wayland)
+  systemd.user.services.kdeconnect-clipboard-sync = {
+    description = "KDE Connect Clipboard Sync (Wayland workaround)";
+    wantedBy = [ "graphical-session.target" ];
+    after = [ "graphical-session.target" ];
+    serviceConfig = {
+      Type = "simple";
+      Restart = "on-failure";
+      RestartSec = 5;
+      ExecStart = pkgs.writeShellScript "kdeconnect-clipboard-sync" ''
+        LAST_CLIP=""
+        while true; do
+          CURRENT_CLIP=$(${pkgs.wl-clipboard}/bin/wl-paste 2>/dev/null)
+          if [[ "$CURRENT_CLIP" != "$LAST_CLIP" && -n "$CURRENT_CLIP" ]]; then
+            ${pkgs.kdePackages.qttools}/bin/qdbus org.kde.kdeconnect \
+              /modules/kdeconnect/devices/*/clipboard \
+              org.kde.kdeconnect.device.clipboard.sendClipboard "$CURRENT_CLIP" 2>/dev/null || true
+            LAST_CLIP="$CURRENT_CLIP"
+          fi
+          sleep 1
+        done
+      '';
+    };
+  };
+
   # ═══════════════════════════════════════════════════════════════════════════
   # TIMEZONE AND LOCALE
   # ═══════════════════════════════════════════════════════════════════════════
