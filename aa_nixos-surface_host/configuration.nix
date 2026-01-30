@@ -338,7 +338,7 @@
       programs.plasma = {
         enable = true;
 
-        # Dark theme (global)
+        # Dark theme (global) - FULL dark mode
         workspace = {
           colorScheme = "BreezeDark";
           theme = "breeze-dark";
@@ -370,6 +370,9 @@
             height = 44;
             floating = true;
             widgets = [
+              # LEFT SIDE: User switcher + Show desktop
+              "org.kde.plasma.userswitcher"
+              "org.kde.plasma.showdesktop"
               # App launcher (kickoff)
               "org.kde.plasma.kickoff"
               # Virtual desktops pager
@@ -386,6 +389,7 @@
                 name = "org.kde.plasma.icontasks";
                 config.General = {
                   launchers = [
+                    "applications:brave-browser.desktop"
                     "applications:systemsettings.desktop"
                     "applications:org.kde.dolphin.desktop"
                     "applications:org.kde.konsole.desktop"
@@ -398,16 +402,35 @@
               {
                 name = "org.kde.plasma.systemmonitor.cpu";
                 config.Appearance.title = "CPU";
+                config.Appearance.chartFace = "org.kde.ksysguard.piechart";
+              }
+              {
+                name = "org.kde.plasma.systemmonitor.cpucore";
+                config.Appearance.title = "Cores";
+                config.Appearance.chartFace = "org.kde.ksysguard.barchart";
               }
               {
                 name = "org.kde.plasma.systemmonitor.memory";
                 config.Appearance.title = "RAM";
+                config.Appearance.chartFace = "org.kde.ksysguard.piechart";
               }
-              # System tray
+              {
+                name = "org.kde.plasma.systemmonitor.diskusage";
+                config.Appearance.title = "Disk";
+                config.Appearance.chartFace = "org.kde.ksysguard.horizontalbars";
+              }
+              {
+                name = "org.kde.plasma.systemmonitor.diskactivity";
+                config.Appearance.title = "I/O";
+                config.Appearance.chartFace = "org.kde.ksysguard.linechart";
+              }
+              # System tray - ALWAYS SHOW ALL
               {
                 name = "org.kde.plasma.systemtray";
                 config.General = {
                   scaleIconsToFit = "true";
+                  hiddenItems = "";
+                  shownItems = "org.kde.plasma.volume,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.battery,org.kde.plasma.networkmanagement,org.kde.plasma.clipboard,org.kde.plasma.notifications,org.kde.plasma.devicenotifier,org.kde.plasma.mediacontroller,org.kde.plasma.weather,org.kde.plasma.keyboardlayout,org.kde.kscreen,org.kde.kdeconnect";
                 };
               }
               # Digital clock (24h, dd-mm-yyyy)
@@ -417,22 +440,30 @@
                   showDate = "true";
                   dateFormat = "custom";
                   customDateFormat = "dd-MM-yyyy";
-                  use24hFormat = "2";  # Force 24h
+                  use24hFormat = "2";
                 };
               }
-              # User switcher
-              "org.kde.plasma.userswitcher"
-              # Show desktop
-              "org.kde.plasma.showdesktop"
             ];
           }
         ];
 
         # ─────────────────────────────────────────────────────────────────────
-        # APPLICATION SETTINGS
+        # APPLICATION SETTINGS & DEFAULT BROWSER
         # ─────────────────────────────────────────────────────────────────────
         configFile = {
-          # Dolphin dark theme
+          # Brave as default browser
+          "kdeglobals"."General"."BrowserApplication" = "brave-browser.desktop";
+
+          # Force dark color scheme everywhere
+          "kdeglobals"."General"."ColorScheme" = "BreezeDark";
+          "kdeglobals"."KDE"."LookAndFeelPackage" = "org.kde.breezedark.desktop";
+          "kdeglobals"."KDE"."widgetStyle" = "Breeze";
+
+          # GTK dark theme
+          "gtk-3.0/settings.ini"."Settings"."gtk-application-prefer-dark-theme" = 1;
+          "gtk-4.0/settings.ini"."Settings"."gtk-application-prefer-dark-theme" = 1;
+
+          # Dolphin
           "dolphinrc"."General"."GlobalViewProps" = true;
           "dolphinrc"."KFileDialog Settings"."Places Icons Auto-resize" = false;
           "dolphinrc"."KFileDialog Settings"."Places Icons Static Size" = 22;
@@ -472,13 +503,13 @@
         CursorTheme = "breeze_cursors";
         CursorSize = 24;
       };
-      # Scale 150% for Surface Pro HiDPI
+      # Scale 125% for Surface Pro HiDPI (smaller than 150%)
       Wayland = {
         EnableHiDPI = true;
       };
       X11 = {
         EnableHiDPI = true;
-        ServerArguments = "-nolisten tcp -dpi 144";
+        ServerArguments = "-nolisten tcp -dpi 120";
       };
     };
   };
@@ -489,10 +520,10 @@
     GTK_THEME = "Breeze-Dark";
   };
 
-  # Force 150% scaling for SDDM (1.5x)
+  # Force 125% scaling for SDDM (1.25x)
   environment.etc."sddm.conf.d/hidpi.conf".text = ''
     [General]
-    GreeterEnvironment=QT_SCREEN_SCALE_FACTORS=1.5,QT_FONT_DPI=144
+    GreeterEnvironment=QT_SCREEN_SCALE_FACTORS=1.25,QT_FONT_DPI=120
   '';
   # Default session set in sessions.nix (01-plasma)
 
