@@ -509,10 +509,10 @@
   services.displayManager.sddm = {
     enable = true;
     wayland.enable = true;
-    theme = "sugar-dark";
+    theme = "sddm-astronaut-theme";
     extraPackages = with pkgs; [
       kdePackages.qtvirtualkeyboard
-      sddm-sugar-dark
+      sddm-astronaut
     ];
     settings = {
       General.InputMethod = "qtvirtualkeyboard";
@@ -761,8 +761,8 @@
     # ─── GUI dialogs ────────────────────────────────────────────────────────
     zenity kdialog
 
-    # ─── SDDM Dark Theme ───────────────────────────────────────────────────────
-    sddm-sugar-dark
+    # ─── SDDM Astronaut Theme (Qt6) ──────────────────────────────────────────
+    sddm-astronaut
 
     # ─── Virtual Keyboard (Surface Pro touchscreen) ───────────────────────────
     maliit-keyboard
