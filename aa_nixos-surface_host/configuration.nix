@@ -437,10 +437,9 @@
               }
               # 12. System tray - SHOW ALL ITEMS
               {
-                name = "org.kde.plasma.systemtray";
-                config.General = {
-                  scaleIconsToFit = "true";
-                  showAllItems = "true";
+                systemTray = {
+                  icons.scaleToFit = true;
+                  items.showAll = true;
                 };
               }
               # 13. Digital clock (24h, dd-MM-yyyy)
