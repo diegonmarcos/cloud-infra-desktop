@@ -68,60 +68,68 @@ let
     '';
 
   # ─────────────────────────────────────────────────────────────────────────
-  # ORDERED SESSIONS (using numeric prefix for SDDM alphabetical sort)
+  # ORDERED SESSIONS (numeric prefix in FILENAME for SDDM alphabetical sort)
   # ─────────────────────────────────────────────────────────────────────────
   # 1. Plasma (Wayland) - override default
   plasmaSession = mkWaylandSession {
-    name = "plasma";
-    desktopName = "1. Plasma";
+    name = "1-plasma";
+    desktopName = "Plasma";
     comment = "KDE Plasma Desktop (Wayland)";
     exec = "${pkgs.kdePackages.plasma-workspace}/bin/startplasma-wayland";
   };
 
   # 2. GNOME - override default
   gnomeSession = mkWaylandSession {
-    name = "gnome";
-    desktopName = "2. GNOME";
+    name = "2-gnome";
+    desktopName = "GNOME";
     comment = "GNOME Desktop Environment";
     exec = "${pkgs.gnome-session}/bin/gnome-session";
   };
 
   # 3. Android (Waydroid)
+  # Creates /run/waydroid-enabled flag to allow waydroid-container.service to start
+  # (blocked by ConditionPathExists in configuration.nix to prevent D-Bus activation from Plasma)
+  androidSessionScript = pkgs.writeShellScript "android-session" ''
+    sudo ${pkgs.coreutils}/bin/touch /run/waydroid-enabled
+    trap 'sudo ${pkgs.coreutils}/bin/rm -f /run/waydroid-enabled' EXIT
+    ${pkgs.cage}/bin/cage -- ${pkgs.waydroid}/bin/waydroid show-full-ui
+  '';
+
   androidSession = mkWaylandSession {
-    name = "android";
-    desktopName = "3. Android";
+    name = "3-android";
+    desktopName = "Android";
     comment = "Full Android UI via Waydroid";
-    exec = "${pkgs.cage}/bin/cage -- ${pkgs.waydroid}/bin/waydroid show-full-ui";
+    exec = "${androidSessionScript}";
   };
 
   # 4. Openbox (X11)
   openboxSession = mkX11Session {
-    name = "none+openbox";
-    desktopName = "4. Openbox";
+    name = "4-openbox";
+    desktopName = "Openbox";
     comment = "Openbox window manager";
     exec = "openbox-session";
   };
 
   # 5. Chrome Kiosk
   chromeKioskSession = mkWaylandSession {
-    name = "chrome-kiosk";
-    desktopName = "5. Chrome Kiosk";
+    name = "5-chrome-kiosk";
+    desktopName = "Chrome Kiosk";
     comment = "Chromium kiosk mode";
     exec = "${pkgs.cage}/bin/cage -- ${pkgs.chromium}/bin/chromium --kiosk --start-fullscreen";
   };
 
   # 6. Tor Kiosk
   torKioskSession = mkWaylandSession {
-    name = "tor-kiosk";
-    desktopName = "6. Tor Kiosk";
+    name = "6-tor-kiosk";
+    desktopName = "Tor Kiosk";
     comment = "Anonymous browsing via Tor Browser";
     exec = "${pkgs.cage}/bin/cage -- ${pkgs.tor-browser}/bin/tor-browser";
   };
 
   # 7. GNOME Kiosk
   gnomeKioskSession = mkWaylandSession {
-    name = "gnome-kiosk";
-    desktopName = "7. GNOME Kiosk";
+    name = "7-gnome-kiosk";
+    desktopName = "GNOME Kiosk";
     comment = "Locked down GNOME session";
     exec = "${pkgs.gnome-session}/bin/gnome-session --session=gnome";
   };
@@ -157,5 +165,5 @@ in {
   ];
 
   # Default session: Plasma Wayland
-  services.displayManager.defaultSession = lib.mkDefault "plasma";
+  services.displayManager.defaultSession = lib.mkDefault "1-plasma";
 }

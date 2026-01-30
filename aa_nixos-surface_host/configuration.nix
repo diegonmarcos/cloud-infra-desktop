@@ -334,10 +334,21 @@
   services.displayManager.sddm = {
     enable = true;
     wayland.enable = true;
-    # Virtual keyboard for touchscreen login (Surface Pro)
-    settings.General.InputMethod = "qtvirtualkeyboard";
+    theme = "breeze";
+    settings = {
+      General.InputMethod = "qtvirtualkeyboard";
+      # HiDPI scaling for Surface Pro display
+      Theme.EnableAvatars = true;
+      Theme.CursorTheme = "breeze_cursors";
+    };
   };
-  services.displayManager.defaultSession = "plasma";
+  services.displayManager.defaultSession = "1-plasma";
+
+  # Disable Plasma Discover update notifier (auto-starts and checks for updates)
+  environment.etc."xdg/autostart/org.kde.discover.notifier.desktop".text = ''
+    [Desktop Entry]
+    Hidden=true
+  '';
 
   # ═══════════════════════════════════════════════════════════════════════════
   # SESSION 2: GNOME
@@ -373,8 +384,34 @@
   # ═══════════════════════════════════════════════════════════════════════════
   # SESSION 4: WAYDROID (Android Container)
   # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # FIX: Don't auto-start container at boot to prevent GUI freezes.
+  # The hwcomposer crash-loops every 5 seconds due to cgroup permission issues,
+  # which creates resource contention that freezes KWin/Plasma.
+  #
+  # Start manually with: waydroid session start
+  # Or select the "Android" session from SDDM login screen.
+  #
 
   virtualisation.waydroid.enable = true;
+
+  systemd.services.waydroid-container = {
+    # Don't auto-start - only run when Android session is selected or manually started
+    wantedBy = lib.mkForce [];
+
+    # Prevent D-Bus activation from Plasma (apps querying id.waydro.Container bus name)
+    # Service only starts when /run/waydroid-enabled exists (created by Android session)
+    unitConfig = {
+      ConditionPathExists = "/run/waydroid-enabled";
+    };
+
+    # When started, delegate cgroups properly to fix permission errors
+    serviceConfig = {
+      Delegate = "yes";
+      KillMode = "mixed";
+      TimeoutStopSec = 30;
+    };
+  };
 
   # ═══════════════════════════════════════════════════════════════════════════
   # SSH (Ephemeral host keys - regenerate each boot)
@@ -570,34 +607,27 @@
 
   services.flatpak.enable = true;
 
-  # Add Flathub remote on boot (tmpfs root requires this)
+  # Add Flathub remote on boot (only if not already configured)
+  # Uses ConditionPathExists to skip entirely if flathub is already set up
   systemd.services.flatpak-add-flathub = {
     description = "Add Flathub remote to Flatpak";
     wantedBy = [ "multi-user.target" ];
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
+    unitConfig = {
+      # Skip if flathub remote already exists (persisted in /var/lib/flatpak)
+      ConditionPathExists = "!/var/lib/flatpak/repo/flathub.trustedkeys.gpg";
+    };
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      # Retry up to 3 times with 5 second delay (network may not be ready)
-      Restart = "on-failure";
-      RestartSec = "5s";
-      StartLimitBurst = 3;
       ExecStart = pkgs.writeShellScript "flatpak-add-flathub" ''
         echo "[FLATPAK] Adding Flathub remote..."
-
-        # Check if already configured
-        if ${pkgs.flatpak}/bin/flatpak remotes | grep -q flathub; then
-          echo "[FLATPAK] Flathub already configured"
-          exit 0
-        fi
-
-        # Add flathub
         if ${pkgs.flatpak}/bin/flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
           echo "[FLATPAK] SUCCESS: Flathub remote added"
         else
           echo "[FLATPAK] ERROR: Failed to add Flathub (exit $?)" >&2
-          echo "[FLATPAK] HINT: Check network connectivity" >&2
+          echo "[FLATPAK] HINT: Run manually: flatpak remote-add flathub https://flathub.org/repo/flathub.flatpakrepo" >&2
           exit 1
         fi
       '';
