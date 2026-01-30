@@ -4,6 +4,9 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
 
+    # Unstable for newer KDE packages (clipboard fixes in KF6 6.22+)
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
 
     nixos-generators = {
@@ -23,15 +26,24 @@
     };
   };
 
-  outputs = { self, nixpkgs, nixos-hardware, nixos-generators, home-manager, plasma-manager, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, home-manager, plasma-manager, ... }:
   let
     system = "x86_64-linux";
+
+    # Overlay to use newer KDE Connect from unstable (fixes clipboard freeze)
+    kdeUnstableOverlay = final: prev: {
+      kdePackages = prev.kdePackages // {
+        kdeconnect-kde = nixpkgs-unstable.legacyPackages.${system}.kdePackages.kdeconnect-kde;
+      };
+    };
   in {
     # Main NixOS configuration for Surface Pro 8
     nixosConfigurations.surface = nixpkgs.lib.nixosSystem {
       inherit system;
       specialArgs = { inherit plasma-manager; };
       modules = [
+        # KDE Connect from unstable (clipboard freeze fix)
+        { nixpkgs.overlays = [ kdeUnstableOverlay ]; }
         # Surface Pro hardware support (linux-surface kernel, firmware)
         nixos-hardware.nixosModules.microsoft-surface-pro-intel
 

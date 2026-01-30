@@ -19,9 +19,9 @@
     stern            # Multi-pod log tailing
 
     # Infrastructure as Code
-    terraform
+    # terraform  # DISABLED: builds from source (~30min)
     ansible
-    packer
+    # packer     # DISABLED: builds from source (~20min)
 
     # Cloud CLIs
     google-cloud-sdk
@@ -43,7 +43,7 @@
     gitlab-runner
 
     # Secrets management
-    vault
+    # vault      # DISABLED: builds from source (~20min)
     sops
     age
   ];

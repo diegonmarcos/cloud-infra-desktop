@@ -17,8 +17,8 @@
     python312Packages.torch
     python312Packages.torchvision
 
-    # Jupyter
-    jupyter
+    # Jupyter - DISABLED: causes collisions with individual python packages
+    # jupyter  # creates python3-env that collides with individual packages
     python312Packages.jupyterlab
     python312Packages.notebook
     python312Packages.ipython
@@ -33,7 +33,7 @@
     postgresql
     mysql80
     redis
-    mongodb
+    # mongodb    # DISABLED: builds from source (~2-3 hours!)
 
     # Database CLIs
     pgcli

@@ -33,6 +33,17 @@
     trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
   };
 
+  # Auto garbage collection - keep only 5 generations, run weekly
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 7d";
+  };
+
+  # Keep max 5 system generations
+  boot.loader.systemd-boot.configurationLimit = 5;
+  boot.loader.grub.configurationLimit = 5;
+
   # ═══════════════════════════════════════════════════════════════════════════
   # NO IMPERMANENCE MODULE
   # ═══════════════════════════════════════════════════════════════════════════

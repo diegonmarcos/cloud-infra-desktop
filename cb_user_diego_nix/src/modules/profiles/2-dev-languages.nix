@@ -28,9 +28,9 @@
     pipx             # Install Python apps in isolated environments
     uv               # Fast Python package manager
 
-    # C/C++
+    # C/C++ (only gcc - clang collides on c++/cc)
     gcc
-    clang
+    # clang      # collision with gcc on c++/cc binaries
     llvm
     lldb
 
