@@ -74,6 +74,9 @@
 
       # Custom tools
       gdrive = "bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh";
+
+      # Welcome screen
+      welcome = "_show_welcome";
     };
 
     functions = {
@@ -161,40 +164,44 @@
       '';
 
       _show_welcome = ''
-        # Gather system info (use command to bypass aliases)
+        # Gather system info
         set -l user (whoami)
         set -l host (hostname -s)
+        set -l hostname_full (hostname)
+        set -l profile "$HM_PROFILE"; test -z "$profile" && set profile "unknown"
         set -l os "NixOS"
-        set -l kernel (uname -r | cut -d'-' -f1)
+        set -l kernel (uname -r)
+        set -l kernel_short (uname -r | cut -d'-' -f1)
         set -l arch (uname -m)
         set -l shell "Fish $FISH_VERSION"
-        set -l term "$TERM"
         set -l de "$XDG_CURRENT_DESKTOP"
         set -l uptime_secs (command cat /proc/uptime | cut -d. -f1)
         set -l uptime_days (math -s0 "$uptime_secs / 86400")
         set -l uptime_hours (math -s0 "($uptime_secs % 86400) / 3600")
         set -l uptime_mins (math -s0 "($uptime_secs % 3600) / 60")
-        set -l uptime_str "$uptime_days"'d '"$uptime_hours"'h '"$uptime_mins"'m'
-        set -l cpu_name (command grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | sed 's/^ //' | sed 's/(R)//g' | sed 's/(TM)//g' | cut -c1-30)
+        set -l uptime_str "$uptime_days"d" ""$uptime_hours"h" ""$uptime_mins"m
+        set -l cpu_name (command grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | sed 's/^ //' | sed 's/(R)//g' | sed 's/(TM)//g' | string sub -l 25)
         set -l cpu_cores (nproc)
-        set -l cpu_freq_raw (command cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
-        set -l cpu_freq (math -s0 "$cpu_freq_raw / 1000")
-        set -l mem_used (command free -h | awk '/Mem:/ {print $3}')
-        set -l mem_total (command free -h | awk '/Mem:/ {print $2}')
+        set -l cpu_freq (math -s0 (command cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)" / 1000")
+        set -l mem_info (command free -h | awk '/Mem:/ {print $3"/"$2}')
         set -l mem_perc (command free | awk '/Mem:/ {printf "%.0f", $3/$2*100}')
-        set -l disk_used (command df -h /nix | awk 'NR==2 {print $3}')
-        set -l disk_total (command df -h /nix | awk 'NR==2 {print $2}')
+        set -l disk_info (command df -h /nix | awk 'NR==2 {print $3"/"$2}')
         set -l disk_perc (command df /nix | awk 'NR==2 {gsub(/%/,""); print $5}')
         set -l ip_addr (ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
-        set -l load_avg (command cat /proc/loadavg | awk '{print $1, $2, $3}')
-        set -l pkgs (command ls /nix/store 2>/dev/null | wc -l)
+        set -l load_avg (command cat /proc/loadavg | awk '{print $1" "$2" "$3}')
+        set -l pkgs (command ls /nix/store 2>/dev/null | wc -l | string trim)
         set -l procs (command ls /proc 2>/dev/null | grep -c '^[0-9]')
-        set -l datetime (date '+%d-%m-%Y %H:%M:%S')
-        set -l curpath (pwd | sed "s|$HOME|~|")
-        set -l gpu (lspci 2>/dev/null | grep -i vga | sed 's/.*controller: //' | sed 's/ (rev .*//' | cut -c1-40)
-        set -l node_ver (node --version 2>/dev/null | tr -d 'v')
-        set -l python_ver (python3 --version 2>/dev/null | awk '{print $2}')
-        set -l git_ver (git --version 2>/dev/null | awk '{print $3}')
+        set -l datetime (date '+%d-%m-%Y %H:%M')
+        set -l gpu (lspci 2>/dev/null | grep -i vga | sed 's/.*: //' | string sub -l 25)
+        set -l node_ver (node --version 2>/dev/null | tr -d 'v'); test -z "$node_ver" && set node_ver "-"
+
+        # Security info
+        set -l ssh_status (systemctl is-active sshd 2>/dev/null); test -z "$ssh_status" && set ssh_status "n/a"
+        set -l fw_status (systemctl is-active firewalld 2>/dev/null); test -z "$fw_status" && set fw_status "n/a"
+        set -l fail2ban (systemctl is-active fail2ban 2>/dev/null); test -z "$fail2ban" && set fail2ban "n/a"
+        set -l open_ports (ss -tuln 2>/dev/null | grep LISTEN | wc -l | string trim)
+        set -l last_login (last -1 -R $user 2>/dev/null | head -1 | awk '{print $4" "$5" "$6}')
+        test -z "$last_login" && set last_login "n/a"
 
         # ASCII Art Banner
         echo
@@ -208,120 +215,113 @@
         set_color normal
         echo
 
-        # Header bar
+        # Header bar with profile name
         set_color --bold blue
-        printf "  ╭────────────────────────────────────────────────────────────────────╮\n"
-        printf "  │"; set_color --bold white; printf " %s" $user; set_color brblack; printf "@"; set_color --bold green; printf "%s " $host
-        set_color brblack; printf "│ "; set_color cyan; printf "%s " $datetime
-        set_color brblack; printf "│ "; set_color yellow; printf "%-16s" (string sub -l 16 $curpath); set_color --bold blue; printf "│\n"
-        printf "  ╰────────────────────────────────────────────────────────────────────╯\n"
+        printf "  ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮\n"
+        printf "  │ "; set_color --bold white; printf "%s" $user; set_color brblack; printf "@"; set_color --bold green; printf "%-18s" $host
+        set_color brblack; printf "│ "; set_color cyan; printf "%-17s" $datetime
+        set_color brblack; printf "│ "; set_color yellow; printf "Profile: %-12s" $profile
+        set_color brblack; printf "│ "; set_color magenta; printf "%-18s" "$os $kernel_short"; set_color --bold blue; printf "│\n"
+        printf "  ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\n"
         set_color normal
         echo
 
-        # System Info Card
-        set_color --bold yellow; printf "  ┌─ SYSTEM ─────────────────────────────────────────────────────────────┐\n"; set_color normal
-        printf "  │  "; set_color yellow; printf "%-9s" "OS"; set_color normal; printf "%-58s" "$os $kernel ($arch)"; printf "│\n"
-        printf "  │  "; set_color yellow; printf "%-9s" "HOST"; set_color normal; printf "%-58s" (hostname); printf "│\n"
-        printf "  │  "; set_color yellow; printf "%-9s" "KERNEL"; set_color normal; printf "%-58s" (uname -r); printf "│\n"
-        printf "  │  "; set_color yellow; printf "%-9s" "DESKTOP"; set_color normal; printf "%-58s" "$de ($term)"; printf "│\n"
-        printf "  │  "; set_color yellow; printf "%-9s" "UPTIME"; set_color normal; printf "%-58s" "$uptime_str"; printf "│\n"
-        set_color --bold yellow; printf "  └──────────────────────────────────────────────────────────────────────┘\n"; set_color normal
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+        # ROW 1: HARDWARE | OS (MAGENTA)
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+        set_color --bold magenta
+        printf "  ┌─ HARDWARE ─────────────────────────────────────┐ ┌─ SYSTEM ──────────────────────────────────────┐\n"
+        set_color normal
+        printf "  │ "; set_color magenta; printf "CPU    "; set_color normal; printf "%-40s" "$cpu_name"; printf "│ │ "; set_color magenta; printf "OS     "; set_color normal; printf "%-39s" "$os $kernel_short"; printf "│\n"
+        printf "  │ "; set_color magenta; printf "Cores  "; set_color normal; printf "%-40s" "$cpu_cores @ $cpu_freq MHz"; printf "│ │ "; set_color magenta; printf "Host   "; set_color normal; printf "%-39s" (string sub -l 39 "$hostname_full"); printf "│\n"
+        printf "  │ "; set_color magenta; printf "GPU    "; set_color normal; printf "%-40s" "$gpu"; printf "│ │ "; set_color magenta; printf "Kernel "; set_color normal; printf "%-39s" "$kernel"; printf "│\n"
+        printf "  │ "; set_color magenta; printf "RAM    "; set_color normal; printf "%-40s" "$mem_info ($mem_perc%)"; printf "│ │ "; set_color magenta; printf "DE     "; set_color normal; printf "%-39s" "$de"; printf "│\n"
+        printf "  │ "; set_color magenta; printf "Disk   "; set_color normal; printf "%-40s" "$disk_info ($disk_perc%)"; printf "│ │ "; set_color magenta; printf "Shell  "; set_color normal; printf "%-39s" "$shell"; printf "│\n"
+        set_color --bold magenta
+        printf "  └─────────────────────────────────────────────────┘ └───────────────────────────────────────────────┘\n"
+        set_color normal
         echo
 
-        # Hardware Card
-        set_color --bold magenta; printf "  ┌─ HARDWARE ───────────────────────────────────────────────────────────┐\n"; set_color normal
-        printf "  │  "; set_color magenta; printf "%-9s" "CPU"; set_color normal; printf "%-58s" "$cpu_name"; printf "│\n"
-        printf "  │  "; set_color magenta; printf "%-9s" "CORES"; set_color normal; printf "%-58s" "$cpu_cores cores @ $cpu_freq MHz"; printf "│\n"
-        printf "  │  "; set_color magenta; printf "%-9s" "GPU"; set_color normal; printf "%-58s" "$gpu"; printf "│\n"
-        printf "  │  "; set_color magenta; printf "%-9s" "MEMORY"; set_color normal; printf "%-58s" "$mem_used / $mem_total ($mem_perc%)"; printf "│\n"
-        printf "  │  "; set_color magenta; printf "%-9s" "DISK"; set_color normal; printf "%-58s" "$disk_used / $disk_total ($disk_perc%)"; printf "│\n"
-        set_color --bold magenta; printf "  └──────────────────────────────────────────────────────────────────────┘\n"; set_color normal
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+        # ROW 2: NETWORK | SECURITY (YELLOW)
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+        set_color --bold yellow
+        printf "  ┌─ NETWORK ──────────────────────────────────────┐ ┌─ SECURITY STATUS ────────────────────────────┐\n"
+        set_color normal
+        printf "  │ "; set_color yellow; printf "IP     "; set_color normal; printf "%-40s" "$ip_addr"; printf "│ │ "; set_color yellow; printf "SSH      "; set_color normal; printf "%-37s" "$ssh_status"; printf "│\n"
+        printf "  │ "; set_color yellow; printf "Load   "; set_color normal; printf "%-40s" "$load_avg"; printf "│ │ "; set_color yellow; printf "Firewall "; set_color normal; printf "%-37s" "$fw_status"; printf "│\n"
+        printf "  │ "; set_color yellow; printf "Uptime "; set_color normal; printf "%-40s" "$uptime_str"; printf "│ │ "; set_color yellow; printf "Fail2ban "; set_color normal; printf "%-37s" "$fail2ban"; printf "│\n"
+        printf "  │ "; set_color yellow; printf "Pkgs   "; set_color normal; printf "%-40s" "$pkgs packages"; printf "│ │ "; set_color yellow; printf "Ports    "; set_color normal; printf "%-37s" "$open_ports listening"; printf "│\n"
+        printf "  │ "; set_color yellow; printf "Procs  "; set_color normal; printf "%-40s" "$procs running"; printf "│ │ "; set_color yellow; printf "Last     "; set_color normal; printf "%-37s" "$last_login"; printf "│\n"
+        set_color --bold yellow
+        printf "  └─────────────────────────────────────────────────┘ └───────────────────────────────────────────────┘\n"
+        set_color normal
         echo
 
-        # Environment Card
-        set_color --bold green; printf "  ┌─ ENVIRONMENT ────────────────────────────────────────────────────────┐\n"; set_color normal
-        printf "  │  "; set_color green; printf "%-9s" "SHELL"; set_color normal; printf "%-58s" "$shell"; printf "│\n"
-        printf "  │  "; set_color green; printf "%-9s" "PYTHON"; set_color normal; printf "%-58s" "$python_ver"; printf "│\n"
-        printf "  │  "; set_color green; printf "%-9s" "NODE"; set_color normal; printf "%-58s" "$node_ver"; printf "│\n"
-        printf "  │  "; set_color green; printf "%-9s" "GIT"; set_color normal; printf "%-58s" "$git_ver"; printf "│\n"
-        printf "  │  "; set_color green; printf "%-9s" "PACKAGES"; set_color normal; printf "%-58s" "$pkgs (nix-store)"; printf "│\n"
-        printf "  │  "; set_color green; printf "%-9s" "PROCS"; set_color normal; printf "%-58s" "$procs running"; printf "│\n"
-        set_color --bold green; printf "  └──────────────────────────────────────────────────────────────────────┘\n"; set_color normal
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+        # ROW 3: DEV ENV - Languages | Containers | SDKs (GREEN)
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+        set rust_v (rustc --version 2>/dev/null | awk '{print $2}'); test -z "$rust_v" && set rust_v "-"
+        set go_v (go version 2>/dev/null | awk '{gsub(/go/,"",$3); print $3}'); test -z "$go_v" && set go_v "-"
+        set py_v (python3 --version 2>/dev/null | awk '{print $2}'); test -z "$py_v" && set py_v "-"
+        set gcc_v (gcc --version 2>/dev/null | head -1 | awk '{print $NF}'); test -z "$gcc_v" && set gcc_v "-"
+        set java_v (java --version 2>/dev/null | head -1 | awk '{print $2}'); test -z "$java_v" && set java_v "-"
+
+        set_color --bold green
+        printf "  ┌─ LANGUAGES ────────────────────┐ ┌─ CONTAINERS ────────────────────┐ ┌─ SDKs & CLOUD ────────────────┐\n"
+        set_color green
+        printf "  │ %-10s %-10s %-10s │ │ %-10s %-10s %-10s │ │ %-10s %-10s %-8s │\n" "rust" "go" "python" "podman" "buildah" "skopeo" "aws" "gcloud" "azure"
+        printf "  │ %-10s %-10s %-10s │ │ %-10s %-10s %-10s │ │ %-10s %-10s %-8s │\n" "$rust_v" "$go_v" "$py_v" "kubectl" "helm" "k9s" "terraform" "pulumi" "oci-cli"
+        printf "  │ %-10s %-10s %-10s │ │ %-10s %-10s %-10s │ │ %-10s %-10s %-8s │\n" "node" "gcc" "java" "compose" "kind" "minikube" "firebase" "supabase" "netlify"
+        printf "  │ %-10s %-10s %-10s │ │ %-10s %-10s %-10s │ │ %-10s %-10s %-8s │\n" "$node_ver" "$gcc_v" "$java_v" "ansible" "sops" "vault" "vercel" "fly.io" "railway"
+        set_color --bold green
+        printf "  └──────────────────────────────────┘ └──────────────────────────────────┘ └────────────────────────────────┘\n"
+        set_color normal
         echo
 
-        # Network Card
-        set_color --bold blue; printf "  ┌─ NETWORK ────────────────────────────────────────────────────────────┐\n"; set_color normal
-        printf "  │  "; set_color blue; printf "%-9s" "IP"; set_color normal; printf "%-58s" "$ip_addr"; printf "│\n"
-        printf "  │  "; set_color blue; printf "%-9s" "LOAD"; set_color normal; printf "%-58s" "$load_avg"; printf "│\n"
-        set_color --bold blue; printf "  └──────────────────────────────────────────────────────────────────────┘\n"; set_color normal
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+        # ROW 4: SHELL - Aliases | Functions | Keybindings (CYAN)
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+        set_color --bold cyan
+        printf "  ┌─ ALIASES ────────────────────────┐ ┌─ FUNCTIONS ────────────────────┐ ┌─ KEYBINDINGS ────────────────┐\n"
+        set_color cyan
+        printf "  │ %-6s %-6s %-6s %-6s %-6s │ │ %-10s %-19s │ │ %-10s %-17s │\n" "ll" "la" "lt" "lh" "tree" "mkcd" "create & cd dir" "Ctrl+R" "fzf history"
+        printf "  │ %-6s %-6s %-6s %-6s %-6s │ │ %-10s %-19s │ │ %-10s %-17s │\n" "gs" "ga" "gc" "gp" "gl" "extract" "unpack archive" "Ctrl+T" "fzf files"
+        printf "  │ %-6s %-6s %-6s %-6s %-6s │ │ %-10s %-19s │ │ %-10s %-17s │\n" ".." "..." "...." "z" "c" "backup" "timestamped copy" "Alt+C" "fzf cd dir"
+        printf "  │ %-6s %-6s %-6s %-6s %-6s │ │ %-10s %-19s │ │ %-10s %-17s │\n" "df" "du" "free" "ports" "myip" "serve" "start http server" "Ctrl+G" "lazygit"
+        set_color --bold cyan
+        printf "  └────────────────────────────────────┘ └────────────────────────────────┘ └────────────────────────────────┘\n"
+        set_color normal
         echo
 
-        # Aliases Card
-        set_color --bold cyan; printf "  ┌─ ALIASES ────────────────────────────────────────────────────────────┐\n"; set_color normal
-        printf "  │  FILES    ll la lt lh tree       NAV       .. ... .... mkcd z        │\n"
-        printf "  │  GIT      gs ga gc gp gl gd      DOCKER    dps dpsa dcu dcd dlog     │\n"
-        printf "  │  SYSTEM   df free ports myip     PYTHON    py pip ppy                │\n"
-        set_color --bold cyan; printf "  └──────────────────────────────────────────────────────────────────────┘\n"; set_color normal
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+        # ROW 5: CLI TOOLS (RED)
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+        set_color --bold red
+        printf "  ┌─ SHELL TOOLS ────────────────────┐ ┌─ BUILD & DEBUG ────────────────┐ ┌─ NETWORK & DATA ──────────────┐\n"
+        set_color red
+        printf "  │ %-8s %-8s %-8s %-8s │ │ %-8s %-8s %-8s %-6s │ │ %-8s %-7s %-7s %-6s │\n" "eza" "bat" "fd" "rg" "cmake" "ninja" "make" "meson" "nmap" "mtr" "curl" "wget"
+        printf "  │ %-8s %-8s %-8s %-8s │ │ %-8s %-8s %-8s %-6s │ │ %-8s %-7s %-7s %-6s │\n" "fzf" "zoxide" "yazi" "btop" "gdb" "lldb" "strace" "ltrace" "httpie" "rsync" "rclone" "ssh"
+        printf "  │ %-8s %-8s %-8s %-8s │ │ %-8s %-8s %-8s %-6s │ │ %-8s %-7s %-7s %-6s │\n" "ncdu" "duf" "tree" "htop" "clang" "gcc" "shfmt" "just" "jq" "yq" "sqlite" "redis"
+        printf "  │ %-8s %-8s %-8s %-8s │ │ %-8s %-8s %-8s %-6s │ │ %-8s %-7s %-7s %-6s │\n" "lazygit" "gh" "delta" "difft" "pandoc" "doxygen" "meson" "ninja" "gnupg" "pass" "age" "sops"
+        set_color --bold red
+        printf "  └────────────────────────────────────┘ └────────────────────────────────┘ └────────────────────────────────┘\n"
+        set_color normal
         echo
 
-        # Functions Card
-        set_color --bold red; printf "  ┌─ FUNCTIONS ──────────────────────────────────────────────────────────┐\n"; set_color normal
-        printf "  │  mkcd <dir>     Create and cd         extract <file>  Unpack archive │\n"
-        printf "  │  backup <file>  Timestamped copy      qfind <name>    Quick search   │\n"
-        printf "  │  serve [port]   HTTP server           cpucap          CPU frequency  │\n"
-        printf "  │  gcam <msg>     Git add+commit        gpsh            Push to origin │\n"
-        set_color --bold red; printf "  └──────────────────────────────────────────────────────────────────────┘\n"; set_color normal
-        echo
-
-        # Tools Card
-        set_color --bold white; printf "  ┌─ MODERN TOOLS ───────────────────────────────────────────────────────┐\n"; set_color normal
-        printf "  │  starship   Prompt             zoxide      Smart cd (z)              │\n"
-        printf "  │  fzf        Fuzzy finder       direnv      Auto environments         │\n"
-        printf "  │  bat        Better cat         eza         Better ls                 │\n"
-        printf "  │  fd         Better find        rg          Better grep (ripgrep)     │\n"
-        set_color --bold white; printf "  └──────────────────────────────────────────────────────────────────────┘\n"; set_color normal
-        echo
-
-        # FZF Card
-        set_color --bold yellow; printf "  ┌─ FZF KEYBINDINGS ────────────────────────────────────────────────────┐\n"; set_color normal
-        printf "  │  Ctrl+R     Search history     Ctrl+T      Search files (insert)     │\n"
-        printf "  │  Alt+C      cd into dir        Ctrl+/      Toggle preview            │\n"
-        printf "  │  Ctrl+A     Select all         Ctrl+Y      Copy to clipboard         │\n"
-        set_color --bold yellow; printf "  └──────────────────────────────────────────────────────────────────────┘\n"; set_color normal
-        echo
-
-        # Languages Card - Get versions dynamically
-        set rust_v (rustc --version 2>/dev/null | awk '{print $2}'); test -z "$rust_v" && set rust_v "n/a"
-        set go_v (go version 2>/dev/null | awk '{gsub(/go/,"",$3); print $3}'); test -z "$go_v" && set go_v "n/a"
-        set node_v2 (node --version 2>/dev/null | tr -d 'v'); test -z "$node_v2" && set node_v2 "n/a"
-        set py_v (python3 --version 2>/dev/null | awk '{print $2}'); test -z "$py_v" && set py_v "n/a"
-        set gcc_v (gcc --version 2>/dev/null | head -1 | awk '{print $NF}'); test -z "$gcc_v" && set gcc_v "n/a"
-        set java_v (java --version 2>/dev/null | head -1 | awk '{print $2}'); test -z "$java_v" && set java_v "n/a"
-        set ruby_v (ruby --version 2>/dev/null | awk '{print $2}'); test -z "$ruby_v" && set ruby_v "n/a"
-        set R_v (R --version 2>/dev/null | head -1 | awk '{print $3}'); test -z "$R_v" && set R_v "n/a"
-
-        set_color --bold magenta; printf "  ┌─ LANGUAGES & COMPILERS ──────────────────────────────────────────────┐\n"; set_color normal
-        printf "  │  "; set_color magenta; printf "CLI"; set_color normal; printf "  rust $rust_v    go $go_v    node $node_v2    python $py_v     │\n"
-        printf "  │        gcc $gcc_v       java $java_v       ruby $ruby_v       R $R_v      │\n"
-        set_color --bold magenta; printf "  └──────────────────────────────────────────────────────────────────────┘\n"; set_color normal
-        echo
-
-        # CLI Tools Card
-        set_color --bold cyan; printf "  ┌─ CLI TOOLKIT (nix-home-manager) ─────────────────────────────────────┐\n"; set_color normal
-        printf "  │  "; set_color cyan; printf "SHELL"; set_color normal; printf "    eza bat fd rg fzf zoxide yazi btop ncdu duf jq yq gh    │\n"
-        printf "  │  "; set_color cyan; printf "BUILD"; set_color normal; printf "    cmake ninja make meson gdb valgrind strace shellcheck   │\n"
-        printf "  │  "; set_color cyan; printf "CLOUD"; set_color normal; printf "    podman kubectl helm k9s aws gcloud azure ansible sops   │\n"
-        printf "  │  "; set_color cyan; printf "NET  "; set_color normal; printf "    nmap mtr tcpdump wireshark iftop tor wireguard httpie   │\n"
-        printf "  │  "; set_color cyan; printf "DATA "; set_color normal; printf "    sqlite postgres mysql redis pgcli jupyter pandas torch  │\n"
-        set_color --bold cyan; printf "  └──────────────────────────────────────────────────────────────────────┘\n"; set_color normal
-        echo
-
-        # GUI Apps Card
-        set_color --bold green; printf "  ┌─ GUI APPS (nix-home-manager) ────────────────────────────────────────┐\n"; set_color normal
-        printf "  │  "; set_color green; printf "OFFICE"; set_color normal; printf "   libreoffice obsidian zettlr joplin okular zathura       │\n"
-        printf "  │  "; set_color green; printf "MEDIA "; set_color normal; printf "   gimp krita inkscape kdenlive obs-studio vlc mpv audacity│\n"
-        printf "  │  "; set_color green; printf "FILES "; set_color normal; printf "   dolphin ranger mc digikam gwenview drawio flameshot     │\n"
-        set_color --bold green; printf "  └──────────────────────────────────────────────────────────────────────┘\n"; set_color normal
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+        # ROW 6: GUI APPS (BLUE)
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+        set_color --bold blue
+        printf "  ┌─ OFFICE & NOTES ─────────────────┐ ┌─ MEDIA & GRAPHICS ─────────────┐ ┌─ FILES & VIEWERS ─────────────┐\n"
+        set_color blue
+        printf "  │ %-11s %-11s %-10s │ │ %-10s %-10s %-10s │ │ %-10s %-9s %-9s │\n" "libreoffice" "onlyoffice" "calligra" "gimp" "krita" "inkscape" "dolphin" "ranger" "mc"
+        printf "  │ %-11s %-11s %-10s │ │ %-10s %-10s %-10s │ │ %-10s %-9s %-9s │\n" "obsidian" "zettlr" "joplin" "kdenlive" "obs-studio" "shotcut" "okular" "zathura" "evince"
+        printf "  │ %-11s %-11s %-10s │ │ %-10s %-10s %-10s │ │ %-10s %-9s %-9s │\n" "logseq" "notion" "typora" "vlc" "mpv" "audacity" "gwenview" "feh" "imv"
+        printf "  │ %-11s %-11s %-10s │ │ %-10s %-10s %-10s │ │ %-10s %-9s %-9s │\n" "taskwarrior" "calcurse" "vit" "ffmpeg" "imagemagick" "sox" "flameshot" "peek" "maim"
+        set_color --bold blue
+        printf "  └────────────────────────────────────┘ └────────────────────────────────┘ └────────────────────────────────┘\n"
+        set_color normal
         echo
       '';
     };

@@ -123,7 +123,7 @@
       # ============================================================
       # Home Manager Configuration Builder
       # ============================================================
-      mkHost = username: homeDir: hostModule: enabledProfiles: home-manager.lib.homeManagerConfiguration {
+      mkHost = username: homeDir: hostModule: enabledProfiles: profileName: home-manager.lib.homeManagerConfiguration {
         inherit pkgs;
         extraSpecialArgs = { inherit inputs; };
         modules = [
@@ -141,6 +141,7 @@
               username = username;
               homeDirectory = homeDir;
               stateVersion = "24.11";
+              sessionVariables.HM_PROFILE = profileName;
             };
             imports = enableProfiles enabledProfiles;
           }
@@ -186,23 +187,23 @@
       # ============================================================
       homeConfigurations = {
         # ─── Surface Pro (with DE) ────────────────────────────────────
-        "diego@surface-plasma" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-plasma;
-        "diego@surface-gnome"  = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-gnome;
-        "diego@surface"        = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-plasma;  # default
+        "diego@surface-plasma" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-plasma "surface-plasma";
+        "diego@surface-gnome"  = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-gnome "surface-gnome";
+        "diego@surface"        = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-plasma "surface-plasma";
 
         # ─── Desktop (with DE) ────────────────────────────────────────
-        "diego@desktop-plasma" = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full-plasma;
-        "diego@desktop-gnome"  = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full-gnome;
-        "diego@desktop"        = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full-plasma;  # default
+        "diego@desktop-plasma" = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full-plasma "desktop-plasma";
+        "diego@desktop-gnome"  = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full-gnome "desktop-gnome";
+        "diego@desktop"        = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full-plasma "desktop-plasma";
 
         # ─── Server/CLI (no DE) ───────────────────────────────────────
-        "diego@server"  = mkHost "diego" "/home/diego" ./hosts/server.nix presets.server;
-        "diego@cli"     = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.cli;
-        "diego@minimal" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.minimal;
+        "diego@server"  = mkHost "diego" "/home/diego" ./hosts/server.nix presets.server "server";
+        "diego@cli"     = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.cli "cli";
+        "diego@minimal" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.minimal "minimal";
 
         # ─── Legacy/fallback ──────────────────────────────────────────
-        "diego_nix@surface" = mkHost "diego_nix" "/home/diego_nix" ./hosts/surface.nix presets.full-plasma;
-        "diego" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-plasma;
+        "diego_nix@surface" = mkHost "diego_nix" "/home/diego_nix" ./hosts/surface.nix presets.full-plasma "surface-plasma";
+        "diego" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-plasma "full-plasma";
       };
 
       # ============================================================

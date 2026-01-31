@@ -103,6 +103,9 @@
 
       # Custom tools
       gdrive = "bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh";
+
+      # Welcome screen
+      welcome = "_show_welcome";
     };
 
     initExtra = ''
@@ -312,110 +315,71 @@
         echo "$BLU  ╰────────────────────────────────────────────────────────────────────╯$RST"
         echo ""
 
-        # System Card
-        echo "$YLW  ┌─ SYSTEM ─────────────────────────────────────────────────────────────┐$RST"
-        printf "  │  $YLW%-9s$RST%-58s│\n" "OS" "$os $kernel_short ($arch)"
-        printf "  │  $YLW%-9s$RST%-58s│\n" "HOST" "$hostname_full"
-        printf "  │  $YLW%-9s$RST%-58s│\n" "KERNEL" "$kernel"
-        printf "  │  $YLW%-9s$RST%-58s│\n" "DESKTOP" "$de ($term)"
-        printf "  │  $YLW%-9s$RST%-58s│\n" "UPTIME" "$uptime"
-        echo "$YLW  └──────────────────────────────────────────────────────────────────────┘$RST"
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+        # ROW 1: SYSTEM LEVEL - Hardware | System | Network (wider cards ~35 chars each = 105+ total)
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+        echo "$MAG  ┌─ HARDWARE ─────────────────────┐$RST $YLW┌─ SYSTEM ───────────────────────┐$RST $BLU┌─ NETWORK ──────────────────────┐$RST"
+        printf "  │ CPU   %-25s│ │ OS     %-24s│ │ IP    %-25s│\n" "$cpu_model" "$os $kernel_short ($arch)" "$ip"
+        printf "  │ Cores %-25s│ │ Host   %-24s│ │ Load  %-25s│\n" "$cpu_cores cores @ $cpu_freq MHz" "$hostname_full" "$load"
+        printf "  │ GPU   %-25s│ │ Kernel %-24s│ │ Up    %-25s│\n" "${gpu:0:25}" "$kernel" "$uptime"
+        printf "  │ RAM   %-25s│ │ DE     %-24s│ │ Pkgs  %-25s│\n" "$mem_used / $mem_total ($mem_perc%)" "$de ($term)" "$pkgs (nix-store)"
+        printf "  │ Disk  %-25s│ │ Shell  %-24s│ │ Procs %-25s│\n" "$disk_used / $disk_total ($disk_perc%)" "$shell" "$procs running"
+        echo "$MAG  └────────────────────────────────┘$RST $YLW└────────────────────────────────┘$RST $BLU└────────────────────────────────┘$RST"
         echo ""
 
-        # Hardware Card
-        echo "$MAG  ┌─ HARDWARE ───────────────────────────────────────────────────────────┐$RST"
-        printf "  │  $MAG%-9s$RST%-58s│\n" "CPU" "$cpu_model"
-        printf "  │  $MAG%-9s$RST%-58s│\n" "CORES" "$cpu_cores cores @ $cpu_freq MHz"
-        printf "  │  $MAG%-9s$RST%-58s│\n" "GPU" "$gpu"
-        printf "  │  $MAG%-9s$RST%-58s│\n" "MEMORY" "$mem_used / $mem_total ($mem_perc%)"
-        printf "  │  $MAG%-9s$RST%-58s│\n" "DISK" "$disk_used / $disk_total ($disk_perc%)"
-        echo "$MAG  └──────────────────────────────────────────────────────────────────────┘$RST"
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+        # ROW 2: LANGUAGES & COMPILERS
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+        local rust_v=$(rustc --version 2>/dev/null | awk '{print $2}' || echo "-")
+        local go_v=$(go version 2>/dev/null | awk '{print $3}' | sed 's/go//' || echo "-")
+        local py_v=$(python3 --version 2>/dev/null | awk '{print $2}' || echo "-")
+        local gcc_v=$(gcc --version 2>/dev/null | head -1 | awk '{print $NF}' || echo "-")
+        local java_v=$(java --version 2>/dev/null | head -1 | awk '{print $2}' || echo "-")
+        local ruby_v=$(ruby --version 2>/dev/null | awk '{print $2}' || echo "-")
+        local R_v=$(R --version 2>/dev/null | head -1 | awk '{print $3}' || echo "-")
+
+        echo "$GRN  ┌─ LANGUAGES ────────────────────┐$RST $CYN┌─ CLI CORE ─────────────────────┐$RST $WHT┌─ CONTAINERS & CLOUD ───────────┐$RST"
+        printf "  │ rust %-9s go %-12s│ │ eza bat fd rg fzf zoxide     │ │ podman buildah skopeo dive    │\n" "$rust_v" "$go_v"
+        printf "  │ python %-7s gcc %-10s│ │ yazi btop ncdu duf tree htop │ │ kubectl helm k9s kubectx stern│\n" "$py_v" "$gcc_v"
+        printf "  │ node %-9s java %-9s│ │ jq yq gh rsync rclone curl   │ │ ansible sops age prometheus   │\n" "$node_ver" "$java_v"
+        printf "  │ ruby %-9s R %-12s│ │ wget xclip wl-clipboard neofet│ │ aws gcloud azure-cli oci-cli  │\n" "$ruby_v" "$R_v"
+        echo "$GRN  └────────────────────────────────┘$RST $CYN└────────────────────────────────┘$RST $WHT└────────────────────────────────┘$RST"
         echo ""
 
-        # Environment Card
-        echo "$GRN  ┌─ ENVIRONMENT ────────────────────────────────────────────────────────┐$RST"
-        printf "  │  $GRN%-9s$RST%-58s│\n" "SHELL" "$shell"
-        printf "  │  $GRN%-9s$RST%-58s│\n" "PYTHON" "$python_ver"
-        printf "  │  $GRN%-9s$RST%-58s│\n" "NODE" "$node_ver"
-        printf "  │  $GRN%-9s$RST%-58s│\n" "GIT" "$git_ver"
-        printf "  │  $GRN%-9s$RST%-58s│\n" "PACKAGES" "$pkgs (nix-store)"
-        printf "  │  $GRN%-9s$RST%-58s│\n" "PROCS" "$procs running"
-        echo "$GRN  └──────────────────────────────────────────────────────────────────────┘$RST"
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+        # ROW 3: DEV TOOLS - Build | Network | Data
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+        echo "$RED  ┌─ BUILD & DEBUG ────────────────┐$RST $BLU┌─ NETWORK & SECURITY ───────────┐$RST $MAG┌─ DATA & SCIENCE ───────────────┐$RST"
+        printf "  │ cmake ninja make meson autoconf│ │ nmap mtr tcpdump iftop nethogs│ │ sqlite postgres mysql redis   │\n"
+        printf "  │ gdb lldb valgrind strace ltrace│ │ wireshark tshark netcat httpie│ │ pgcli mycli litecli           │\n"
+        printf "  │ clang-tools cppcheck shellcheck│ │ tor wireguard openvpn dnscrypt│ │ jupyter pandas numpy scipy    │\n"
+        printf "  │ shfmt delta diff-so-fancy act  │ │ gnupg pass gopass openssl age │ │ torch scikit-learn matplotlib │\n"
+        printf "  │ pandoc doxygen graphviz just   │ │ ssh-audit lynis binwalk hexyl │ │ R ggplot2 dplyr polars dask   │\n"
+        echo "$RED  └────────────────────────────────┘$RST $BLU└────────────────────────────────┘$RST $MAG└────────────────────────────────┘$RST"
         echo ""
 
-        # Network Card
-        echo "$BLU  ┌─ NETWORK ────────────────────────────────────────────────────────────┐$RST"
-        printf "  │  $BLU%-9s$RST%-58s│\n" "IP" "$ip"
-        printf "  │  $BLU%-9s$RST%-58s│\n" "LOAD" "$load"
-        echo "$BLU  └──────────────────────────────────────────────────────────────────────┘$RST"
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+        # ROW 4: SHELL HELP - Aliases | Functions | FZF Keys
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+        echo "$CYN  ┌─ ALIASES ──────────────────────┐$RST $YLW┌─ FUNCTIONS ────────────────────┐$RST $GRN┌─ FZF KEYBINDINGS ──────────────┐$RST"
+        printf "  │ ll la lt lh tree  (eza)       │ │ mkcd <dir>    mkdir and cd    │ │ Ctrl+R   Search command history│\n"
+        printf "  │ gs ga gc gp gl gd glog (git)  │ │ extract <f>   unpack any arch │ │ Ctrl+T   Search files (insert) │\n"
+        printf "  │ .. ... .... z mkcd  (nav)     │ │ backup <f>    timestamped copy│ │ Alt+C    cd into directory     │\n"
+        printf "  │ df du free ports myip (sys)   │ │ qfind <name>  quick find      │ │ Ctrl+/   Toggle preview window │\n"
+        printf "  │ py pip docker dps dcu (dev)   │ │ gcam gpsh serve cpucap        │ │ Ctrl+A/Y Select all / Yank     │\n"
+        echo "$CYN  └────────────────────────────────┘$RST $YLW└────────────────────────────────┘$RST $GRN└────────────────────────────────┘$RST"
         echo ""
 
-        # Aliases Card
-        echo "$CYN  ┌─ ALIASES ────────────────────────────────────────────────────────────┐$RST"
-        echo "  │  FILES    ll la lt lh tree       NAV       .. ... .... mkcd z        │"
-        echo "  │  GIT      gs ga gc gp gl gd      DOCKER    dps dpsa dcu dcd dlog     │"
-        echo "  │  SYSTEM   df free ports myip     PYTHON    py pip ppy                │"
-        echo "$CYN  └──────────────────────────────────────────────────────────────────────┘$RST"
-        echo ""
-
-        # Functions Card
-        echo "$RED  ┌─ FUNCTIONS ──────────────────────────────────────────────────────────┐$RST"
-        echo "  │  mkcd <dir>     Create and cd         extract <file>  Unpack archive │"
-        echo "  │  backup <file>  Timestamped copy      qfind <name>    Quick search   │"
-        echo "  │  serve [port]   HTTP server           cpucap          CPU frequency  │"
-        echo "  │  gcam <msg>     Git add+commit        gpsh            Push to origin │"
-        echo "$RED  └──────────────────────────────────────────────────────────────────────┘$RST"
-        echo ""
-
-        # Tools Card
-        echo "$WHT  ┌─ MODERN TOOLS ───────────────────────────────────────────────────────┐$RST"
-        echo "  │  starship   Prompt             zoxide      Smart cd (z)              │"
-        echo "  │  fzf        Fuzzy finder       direnv      Auto environments         │"
-        echo "  │  bat        Better cat         eza         Better ls                 │"
-        echo "  │  fd         Better find        rg          Better grep (ripgrep)     │"
-        echo "$WHT  └──────────────────────────────────────────────────────────────────────┘$RST"
-        echo ""
-
-        # FZF Card
-        echo "$YLW  ┌─ FZF KEYBINDINGS ────────────────────────────────────────────────────┐$RST"
-        echo "  │  Ctrl+R     Search history     Ctrl+T      Search files (insert)     │"
-        echo "  │  Alt+C      cd into dir        Ctrl+/      Toggle preview            │"
-        echo "  │  Ctrl+A     Select all         Ctrl+Y      Copy to clipboard         │"
-        echo "$YLW  └──────────────────────────────────────────────────────────────────────┘$RST"
-        echo ""
-
-        # Languages Card - Get versions dynamically
-        local rust_v=$(rustc --version 2>/dev/null | awk '{print $2}' || echo "n/a")
-        local go_v=$(go version 2>/dev/null | awk '{print $3}' | sed 's/go//' || echo "n/a")
-        local node_v2=$(node --version 2>/dev/null | tr -d 'v' || echo "n/a")
-        local py_v=$(python3 --version 2>/dev/null | awk '{print $2}' || echo "n/a")
-        local gcc_v=$(gcc --version 2>/dev/null | head -1 | awk '{print $NF}' || echo "n/a")
-        local java_v=$(java --version 2>/dev/null | head -1 | awk '{print $2}' || echo "n/a")
-        local ruby_v=$(ruby --version 2>/dev/null | awk '{print $2}' || echo "n/a")
-        local R_v=$(R --version 2>/dev/null | head -1 | awk '{print $3}' || echo "n/a")
-
-        echo "$MAG  ┌─ LANGUAGES & COMPILERS ──────────────────────────────────────────────┐$RST"
-        echo "  │  $MAG CLI$RST  rust $rust_v    go $go_v    node $node_v2    python $py_v     │"
-        echo "  │        gcc $gcc_v       java $java_v       ruby $ruby_v       R $R_v      │"
-        echo "$MAG  └──────────────────────────────────────────────────────────────────────┘$RST"
-        echo ""
-
-        # CLI Tools Card
-        echo "$CYN  ┌─ CLI TOOLKIT (nix-home-manager) ─────────────────────────────────────┐$RST"
-        echo "  │  $CYN SHELL$RST    eza bat fd rg fzf zoxide yazi btop ncdu duf jq yq gh    │"
-        echo "  │  $CYN BUILD$RST    cmake ninja make meson gdb valgrind strace shellcheck   │"
-        echo "  │  $CYN CLOUD$RST    podman kubectl helm k9s aws gcloud azure ansible sops   │"
-        echo "  │  $CYN NET  $RST    nmap mtr tcpdump wireshark iftop tor wireguard httpie   │"
-        echo "  │  $CYN DATA $RST    sqlite postgres mysql redis pgcli jupyter pandas torch  │"
-        echo "$CYN  └──────────────────────────────────────────────────────────────────────┘$RST"
-        echo ""
-
-        # GUI Apps Card
-        echo "$GRN  ┌─ GUI APPS (nix-home-manager) ────────────────────────────────────────┐$RST"
-        echo "  │  $GRN OFFICE$RST   libreoffice obsidian zettlr joplin okular zathura       │"
-        echo "  │  $GRN MEDIA $RST   gimp krita inkscape kdenlive obs-studio vlc mpv audacity│"
-        echo "  │  $GRN FILES $RST   dolphin ranger mc digikam gwenview drawio flameshot     │"
-        echo "$GRN  └──────────────────────────────────────────────────────────────────────┘$RST"
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+        # ROW 5: GUI APPS - Office | Media | Files
+        # ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+        echo "$BLU  ┌─ OFFICE & PRODUCTIVITY ────────┐$RST $MAG┌─ MEDIA & GRAPHICS ─────────────┐$RST $GRN┌─ FILES & UTILITIES ────────────┐$RST"
+        printf "  │ libreoffice (office suite)    │ │ gimp krita inkscape (graphics)│ │ dolphin ranger mc yazi (files)│\n"
+        printf "  │ obsidian zettlr joplin (notes)│ │ kdenlive obs-studio (video)   │ │ okular zathura (pdf viewers)  │\n"
+        printf "  │ okular zathura (pdf readers)  │ │ vlc mpv audacity (audio/video)│ │ gwenview feh imv (images)     │\n"
+        printf "  │ taskwarrior vit calcurse (org)│ │ ffmpeg imagemagick sox (cli)  │ │ flameshot peek maim (capture) │\n"
+        printf "  │ pandoc mdcat glow (markdown)  │ │ digikam drawio gpick (utils)  │ │ p7zip unrar zip ark (archive) │\n"
+        echo "$BLU  └────────────────────────────────┘$RST $MAG└────────────────────────────────┘$RST $GRN└────────────────────────────────┘$RST"
         echo ""
       }
 
