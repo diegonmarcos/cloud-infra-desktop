@@ -18,7 +18,8 @@
     poppler_utils    # pdftotext, etc.
 
     # File managers
-    dolphin
+    kdePackages.dolphin          # Use KDE 6 version to match system konsole
+    kdePackages.dolphin-plugins  # Git/SVN integration
     ranger
     mc               # Midnight Commander
 

@@ -478,6 +478,17 @@
       "dolphinrc"."VersionControl" = {
         enabledPlugins = "Git";
       };
+
+      # Terminal panel config - uses konsolepart KPart plugin
+      "dolphinrc"."Terminal Panel" = {
+        ShowTerminal = true;
+      };
+
+      # Disable session restore (prevents duplicate windows on login)
+      "ksmserverrc"."General" = {
+        loginMode = "emptySession";
+      };
+
       "kdeglobals"."WM" = {
         activeBackground = "49,54,59";
         activeBlend = "252,252,252";
