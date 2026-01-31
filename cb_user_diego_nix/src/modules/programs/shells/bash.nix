@@ -99,6 +99,9 @@
 
       # Custom tools
       gdrive = "bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh";
+
+      # Welcome screen
+      welcome = "_show_welcome";
     };
 
     initExtra = ''
