@@ -12,22 +12,18 @@
       command_timeout = 500;
 
       format = lib.concatStrings [
-        "$username"
-        "$hostname"
+        "$time"
+        "[ ❯](bold cyan) "
         "$directory"
         "$git_branch"
         "$git_status"
-        "$python"
-        "$nodejs"
-        "$rust"
-        "$golang"
         "$container"
         "$cmd_duration"
         "$line_break"
         "$character"
       ];
 
-      right_format = "$time";
+      right_format = "$username$hostname";
 
       username = {
         show_always = false;
@@ -84,8 +80,8 @@
 
       time = {
         disabled = false;
-        format = "[$time](dimmed white)";
-        time_format = "%H:%M";
+        format = "[$time](bold cyan)";
+        time_format = "%H:%M:%S";
       };
 
       character = {
@@ -96,24 +92,28 @@
 
       nodejs = {
         format = "[$symbol($version )]($style)";
+        version_format = "\${raw}";
         symbol = " ";
         detect_files = [ "package.json" ".node-version" ];
       };
 
       python = {
         format = "[$symbol$pyenv_prefix($version )(\\($virtualenv\\) )]($style)";
+        version_format = "\${raw}";
         symbol = " ";
         detect_files = [ ".python-version" "Pipfile" "pyproject.toml" "requirements.txt" ];
       };
 
       rust = {
         format = "[$symbol($version )]($style)";
+        version_format = "\${raw}";
         symbol = " ";
         detect_files = [ "Cargo.toml" ];
       };
 
       golang = {
         format = "[$symbol($version )]($style)";
+        version_format = "\${raw}";
         symbol = " ";
         detect_files = [ "go.mod" "go.sum" ];
       };

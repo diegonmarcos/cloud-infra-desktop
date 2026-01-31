@@ -1,23 +1,52 @@
 { config, pkgs, lib, ... }:
 
+# =============================================================================
 # Shell Configuration for Diego
+# =============================================================================
 # Usage: Import this in your main home.nix
 #   imports = [ ./shell/home.nix ];
+#
+# Structure:
+#   shell/
+#   ├── bash/
+#   │   ├── bashrc           # Main config
+#   │   ├── aliases.bash     # All aliases
+#   │   ├── functions.bash   # All functions
+#   │   ├── integrations.bash # External tools
+#   │   └── startup.bash     # Welcome screen
+#   ├── zsh/
+#   │   ├── zshrc            # Main config
+#   │   ├── aliases.zsh      # All aliases
+#   │   ├── functions.zsh    # All functions
+#   │   ├── functions-c-dev.zsh # C development
+#   │   ├── integrations.zsh # External tools
+#   │   ├── startup.zsh      # Welcome screen
+#   │   ├── p10k.zsh         # Powerlevel10k config
+#   │   └── zprofile         # Login profile
+#   └── fish/
+#       ├── config.fish      # Main config
+#       ├── conf.d/          # Auto-sourced configs
+#       │   ├── 00-aliases.fish
+#       │   ├── 10-integrations.fish
+#       │   ├── 99-startup.fish
+#       │   └── wakatime.fish
+#       └── functions/       # Auto-loaded functions
+# =============================================================================
 
 let
-  shellConfigDir = ./.; # Relative to this file
+  shellConfigDir = ./.;
 in
 {
-  # ============================================================================
+  # ===========================================================================
   # PACKAGES - Shell tools and dependencies
-  # ============================================================================
+  # ===========================================================================
   home.packages = with pkgs; [
     # Shell essentials
     zsh
     fish
     starship
 
-    # Oh-my-zsh and powerlevel10k (zsh)
+    # Zsh enhancements
     oh-my-zsh
     zsh-powerlevel10k
 
@@ -28,127 +57,113 @@ in
     ripgrep
     fd
     bat
-    eza          # modern ls
+    eza
     fzf
     jq
+    zoxide
 
-    # Dev tools referenced in configs
+    # Dev tools
     python3
     poetry
 
     # System tools
     lsof
-    nettools     # netstat
     unzip
     p7zip
     unrar
   ];
 
-  # ============================================================================
+  # ===========================================================================
   # BASH Configuration
-  # ============================================================================
+  # ===========================================================================
   programs.bash = {
     enable = true;
-
-    # Source the existing bashrc content
     bashrcExtra = builtins.readFile ./bash/bashrc;
-
     profileExtra = lib.optionalString (builtins.pathExists ./profile)
       (builtins.readFile ./profile);
   };
 
-  # ============================================================================
+  # ===========================================================================
   # ZSH Configuration
-  # ============================================================================
+  # ===========================================================================
   programs.zsh = {
     enable = true;
 
-    # Oh-my-zsh
-    oh-my-zsh = {
-      enable = true;
-      plugins = [ "git" "wakatime" ];
-      theme = ""; # We use powerlevel10k instead
-    };
+    # Let our modular zshrc handle oh-my-zsh and plugins
+    initExtra = builtins.readFile ./zsh/zshrc;
 
-    # Powerlevel10k
-    plugins = [
-      {
-        name = "powerlevel10k";
-        src = pkgs.zsh-powerlevel10k;
-        file = "share/zsh-powerlevel10k/powerlevel10k.zsh-theme";
-      }
-    ];
-
-    # Source the existing zshrc (after oh-my-zsh setup)
-    initExtra = ''
-      # Powerlevel10k instant prompt
-      typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet
-      if [[ -r "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh" ]]; then
-        source "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh"
-      fi
-
-      # Load p10k config
-      [[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh
-
-      # Load custom config
-      ${builtins.readFile ./zsh/zshrc}
-    '';
-
-    # Profile
     profileExtra = lib.optionalString (builtins.pathExists ./zsh/zprofile)
       (builtins.readFile ./zsh/zprofile);
   };
 
-  # ============================================================================
+  # ===========================================================================
   # FISH Configuration
-  # ============================================================================
+  # ===========================================================================
   programs.fish = {
     enable = true;
 
-    # Starship prompt
-    interactiveShellInit = ''
-      # Starship prompt
-      starship init fish | source
+    # Main config
+    interactiveShellInit = builtins.readFile ./fish/config.fish;
 
-      # Load main config
-      ${builtins.readFile ./fish/config.fish}
-    '';
-
-    # Plugins via fisher
+    # Plugins
     plugins = [
       # Add plugins here if needed
       # { name = "z"; src = pkgs.fishPlugins.z.src; }
     ];
   };
 
-  # ============================================================================
-  # STARSHIP Prompt (shared across shells)
-  # ============================================================================
+  # ===========================================================================
+  # STARSHIP Prompt
+  # ===========================================================================
   programs.starship = {
     enable = true;
-    enableBashIntegration = false;  # We handle this in bashrc
-    enableZshIntegration = false;   # We use p10k for zsh
-    enableFishIntegration = false;  # We handle this in config.fish
+    enableBashIntegration = false;  # Handled in integrations.bash
+    enableZshIntegration = false;   # Using p10k for zsh
+    enableFishIntegration = false;  # Handled in integrations.fish
   };
 
-  # ============================================================================
-  # HOME FILES - Copy additional config files
-  # ============================================================================
+  # ===========================================================================
+  # HOME FILES - Copy config files to appropriate locations
+  # ===========================================================================
   home.file = {
-    # Powerlevel10k config
+    # --- BASH ---
+    ".config/shell/bash/aliases.bash".source = ./bash/aliases.bash;
+    ".config/shell/bash/functions.bash".source = ./bash/functions.bash;
+    ".config/shell/bash/integrations.bash".source = ./bash/integrations.bash;
+    ".config/shell/bash/startup.bash".source = ./bash/startup.bash;
+
+    # --- ZSH ---
+    ".config/shell/zsh/aliases.zsh".source = ./zsh/aliases.zsh;
+    ".config/shell/zsh/functions.zsh".source = ./zsh/functions.zsh;
+    ".config/shell/zsh/functions-c-dev.zsh".source = ./zsh/functions-c-dev.zsh;
+    ".config/shell/zsh/integrations.zsh".source = ./zsh/integrations.zsh;
+    ".config/shell/zsh/startup.zsh".source = ./zsh/startup.zsh;
     ".p10k.zsh" = lib.mkIf (builtins.pathExists ./zsh/p10k.zsh) {
       source = ./zsh/p10k.zsh;
     };
 
-    # Fish functions
-    ".config/fish/functions" = lib.mkIf (builtins.pathExists ./fish/functions) {
-      source = ./fish/functions;
-      recursive = true;
+    # --- FISH ---
+    ".config/fish/conf.d/00-aliases.fish".source = ./fish/conf.d/00-aliases.fish;
+    ".config/fish/conf.d/10-integrations.fish".source = ./fish/conf.d/10-integrations.fish;
+    ".config/fish/conf.d/99-startup.fish".source = ./fish/conf.d/99-startup.fish;
+
+    # Keep existing fish conf.d files
+    ".config/fish/conf.d/wakatime.fish" = lib.mkIf (builtins.pathExists ./fish/conf.d/wakatime.fish) {
+      source = ./fish/conf.d/wakatime.fish;
+    };
+    ".config/fish/conf.d/nix.fish" = lib.mkIf (builtins.pathExists ./fish/conf.d/nix.fish) {
+      source = ./fish/conf.d/nix.fish;
+    };
+    ".config/fish/conf.d/rustup.fish" = lib.mkIf (builtins.pathExists ./fish/conf.d/rustup.fish) {
+      source = ./fish/conf.d/rustup.fish;
+    };
+    ".config/fish/conf.d/chrome-dev.fish" = lib.mkIf (builtins.pathExists ./fish/conf.d/chrome-dev.fish) {
+      source = ./fish/conf.d/chrome-dev.fish;
     };
 
-    # Fish conf.d
-    ".config/fish/conf.d" = lib.mkIf (builtins.pathExists ./fish/conf.d) {
-      source = ./fish/conf.d;
+    # Fish functions directory
+    ".config/fish/functions" = lib.mkIf (builtins.pathExists ./fish/functions) {
+      source = ./fish/functions;
       recursive = true;
     };
 
@@ -158,11 +173,13 @@ in
     };
   };
 
-  # ============================================================================
+  # ===========================================================================
   # ENVIRONMENT VARIABLES
-  # ============================================================================
+  # ===========================================================================
   home.sessionVariables = {
     EDITOR = "nano";
+    VISUAL = "nano";
+    PAGER = "less";
     PATH = "$HOME/.local/bin:$PATH";
     DBX_CONTAINER_MANAGER = "docker";
   };

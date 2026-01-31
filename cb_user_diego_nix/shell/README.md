@@ -1,93 +1,188 @@
-# Shell Configurations for Nix/Home-Manager
+# Shell Configuration
+
+Modular shell configuration for Bash, Zsh, and Fish with unified features.
 
 ## Structure
 
 ```
 shell/
-├── home.nix          # Full home-manager integration (programs.bash/zsh/fish)
-├── home-simple.nix   # Simple file copy approach (avoids escaping issues)
+├── home.nix              # NixOS Home Manager integration
+├── home-simple.nix       # Simple file copy approach
+├── profile               # Shared login profile
+├── README.md             # This file
+│
 ├── bash/
-│   └── bashrc        # Bash configuration
+│   ├── bashrc            # Main config (sources modules)
+│   ├── aliases.bash      # All aliases
+│   ├── functions.bash    # All functions
+│   ├── integrations.bash # External tools (starship, wakatime, nvm, cargo)
+│   └── startup.bash      # Welcome screen with system info
+│
 ├── zsh/
-│   ├── zshrc         # Zsh configuration (oh-my-zsh, p10k, aliases, functions)
-│   ├── zprofile      # Zsh login profile
-│   └── p10k.zsh      # Powerlevel10k theme config
-├── fish/
-│   ├── config.fish   # Fish configuration
-│   ├── fish_plugins  # Fisher plugin list
-│   ├── functions/    # Fish functions
-│   └── conf.d/       # Fish conf.d scripts
-└── profile           # Login shell profile
+│   ├── zshrc             # Main config (sources modules)
+│   ├── aliases.zsh       # All aliases
+│   ├── functions.zsh     # All functions
+│   ├── functions-c-dev.zsh # C development functions
+│   ├── integrations.zsh  # External tools (p10k, oh-my-zsh, wakatime, nvm)
+│   ├── startup.zsh       # Welcome screen with system info
+│   ├── p10k.zsh          # Powerlevel10k theme config
+│   └── zprofile          # Login profile
+│
+└── fish/
+    ├── config.fish       # Main config
+    ├── conf.d/           # Auto-sourced configs (alphabetical order)
+    │   ├── 00-aliases.fish
+    │   ├── 10-integrations.fish
+    │   ├── 99-startup.fish
+    │   ├── chrome-dev.fish
+    │   ├── nix.fish
+    │   ├── rustup.fish
+    │   └── wakatime.fish
+    ├── functions/        # Auto-loaded functions (one per file)
+    │   ├── backup.fish
+    │   ├── ccusage-models.fish
+    │   ├── cpucap.fish
+    │   ├── duh.fish
+    │   ├── extract.fish
+    │   ├── fisher.fish
+    │   ├── gcam.fish
+    │   ├── git_current_branch.fish
+    │   ├── gpsh.fish
+    │   ├── hg.fish
+    │   ├── localip.fish
+    │   ├── mkcd.fish
+    │   ├── mkd.fish
+    │   ├── myhelp.fish
+    │   ├── path.fish
+    │   ├── pyp.fish
+    │   ├── qfind.fish
+    │   ├── show_aliases.fish
+    │   └── show_functions.fish
+    └── fish_plugins      # Fisher plugin list
 ```
+
+## Features (All Shells)
+
+### Aliases
+
+| Category | Aliases |
+|----------|---------|
+| **Python** | `py`, `python`, `pip`, `ppy` |
+| **Navigation** | `..`, `...`, `....`, `.....` |
+| **Listing** | `ll`, `la`, `l`, `lh`, `lt` |
+| **Git Basic** | `gs`, `ga`, `gaa`, `gc`, `gcm`, `gp`, `gl`, `gla`, `gd`, `gds`, `gco`, `gb`, `gba`, `gpl`, `gcl`, `gst`, `gstp` |
+| **Git Quick** | `push` (add+commit+push) |
+| **Safety** | `cp`, `mv`, `rm` (all with `-i`) |
+| **System** | `df`, `du`, `duh`, `free`, `psg`, `mem` |
+| **Network** | `ports`, `myip`, `localip`, `ping` |
+| **Docker** | `dps`, `dpsa`, `dcu`, `dcd`, `dlog`, `dex` |
+| **Dev** | `serve`, `jn` |
+| **Browser** | `chrome_no_CORS`, `chromium_no_CORS`, `brave_no_CORS` |
+| **Misc** | `c`, `h`, `hg`, `path`, `reload`, `week`, `timer` |
+| **Custom** | `gdrive`, `gdrive_mount`, `gdrive_umount`, `mem_recover`, `mem_usage` |
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `mkcd <dir>` | Create directory and cd into it |
+| `mkd <dir>` | Alias for mkcd |
+| `extract <file>` | Extract any archive format |
+| `qfind <pattern>` | Quick find by filename |
+| `backup <file>` | Backup file with timestamp |
+| `gcam <msg>` | Git add all + commit |
+| `gpsh` | Git push to current branch |
+| `cpucap` | Show CPU frequency per core |
+| `pyp <pkg> [args]` | Poetry package runner |
+| `myhelp` | Show all aliases and functions |
+| `show_aliases` | List all aliases |
+| `show_functions` | List all functions |
+
+### C Development (Zsh only)
+
+| Function | Description |
+|----------|-------------|
+| `c <file>` | Compile C file |
+| `cx <file> [args]` | Compile and execute |
+| `cv <file> [test] [stdin] [args]` | Compile with Valgrind |
+| `cl <file>` | Compile with mylibc |
+| `clx <file> [args]` | Compile with mylibc and execute |
+| `clv <file> [args]` | Compile with mylibc and Valgrind |
+| `cdb <file>` | Debug with lldb |
+| `cldb <file>` | Debug with lldb + mylibc |
+| `cldbg <file>` | Debug with gdb + mylibc |
+| `myhelp_c` | Show C dev help |
+
+### Integrations
+
+| Tool | Bash | Zsh | Fish |
+|------|:----:|:---:|:----:|
+| **Starship** | ✅ | ❌ (uses p10k) | ✅ |
+| **Powerlevel10k** | ❌ | ✅ | ❌ |
+| **Oh-My-Zsh** | ❌ | ✅ | ❌ |
+| **WakaTime** | ✅ | ✅ (plugin) | ✅ |
+| **NVM** | ✅ | ✅ | ✅ (via bass) |
+| **Cargo/Rust** | ✅ | ✅ | ✅ |
+| **FZF** | ✅ | ✅ | ✅ |
+| **Direnv** | ✅ | ✅ | ✅ |
+| **Zoxide** | ✅ | ✅ | ✅ |
+
+### Welcome Screen
+
+All shells display on startup:
+- System info (OS, kernel, hostname, uptime, CPU, memory)
+- Network info (IP, gateway)
+- Disk usage
+- Mounted rclone drives
+- Quick reference cheatsheet
+- ASCII art
 
 ## Usage
 
-### Option 1: Import into your home.nix
+### With NixOS Home Manager
 
 ```nix
-{ config, pkgs, ... }:
-
-{
-  imports = [
-    ./shell/home.nix        # Full integration
-    # OR
-    ./shell/home-simple.nix # Just copy files (safer with ASCII art)
-  ];
-
-  # ... rest of your config
-}
+# In your home.nix
+imports = [ ./shell/home.nix ];
 ```
 
-### Option 2: Standalone flake
-
-```nix
-{
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    home-manager.url = "github:nix-community/home-manager";
-  };
-
-  outputs = { nixpkgs, home-manager, ... }:
-    let
-      system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
-    in {
-      homeConfigurations."diego" = home-manager.lib.homeManagerConfiguration {
-        inherit pkgs;
-        modules = [
-          ./shell/home-simple.nix
-          {
-            home.username = "diego";
-            home.homeDirectory = "/home/diego";
-            home.stateVersion = "24.05";
-          }
-        ];
-      };
-    };
-}
-```
-
-### Apply
+### Standalone
 
 ```bash
-# If using flakes
-home-manager switch --flake .#diego
+# Bash
+ln -sf /path/to/shell/bash/bashrc ~/.bashrc
 
-# If using channels
-home-manager switch
+# Zsh
+ln -sf /path/to/shell/zsh/zshrc ~/.zshrc
+ln -sf /path/to/shell/zsh/p10k.zsh ~/.p10k.zsh
+
+# Fish
+ln -sf /path/to/shell/fish/config.fish ~/.config/fish/config.fish
+ln -sf /path/to/shell/fish/conf.d ~/.config/fish/conf.d
+ln -sf /path/to/shell/fish/functions ~/.config/fish/functions
 ```
+
+## Local Customizations
+
+Each shell supports local overrides (not tracked in git):
+- Bash: `~/.bashrc.local`
+- Zsh: `~/.zshrc.local`
+- Fish: `~/.config/fish/config.fish.local`
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `myhelp` | Show all aliases and functions |
+| `reload` | Reload shell configuration |
+| `editbash` / `editzsh` / `editfish` | Edit main config |
+| `editalias` | Edit aliases file |
 
 ## Dependencies
 
-The configs reference these external tools:
-- oh-my-zsh
-- powerlevel10k
-- starship
-- wakatime plugin
-- rclone (for gdrive mount)
-
-## Notes
-
-- `home-simple.nix` copies files directly - use this if escaping issues occur
-- `home.nix` uses `programs.*` modules for deeper integration
-- ASCII art and escape sequences are preserved in the raw files
+The configs reference these tools (installed via home.nix):
+- starship (prompt for bash/fish)
+- oh-my-zsh + powerlevel10k (zsh prompt)
+- wakatime (coding time tracking)
+- ripgrep, fd, bat, eza, fzf, jq, zoxide (CLI tools)
+- python3, poetry (dev tools)

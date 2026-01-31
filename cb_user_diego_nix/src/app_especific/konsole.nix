@@ -7,7 +7,7 @@
   home.file.".local/share/konsole/Profile 1.profile".text = ''
     [Appearance]
     ColorScheme=Breeze
-    Font=Hack,10,-1,5,50,1,0,0,0,0,Italic
+    Font=JetBrainsMono NF,11,-1,5,50,0,0,0,0,0
 
     [General]
     Command=/usr/bin/fish
