@@ -291,67 +291,109 @@
         echo ""
 
         # System Card
-        echo -e "$YLW  ┌─ SYSTEM ───────────────────────────────────────────────────────────┐$RST"
-        printf "  │  $YLW%-9s$RST%-42s│\n" "OS" "$os $kernel_short ($arch)"
-        printf "  │  $YLW%-9s$RST%-42s│\n" "HOST" "$hostname_full"
-        printf "  │  $YLW%-9s$RST%-42s│\n" "KERNEL" "$kernel"
-        printf "  │  $YLW%-9s$RST%-42s│\n" "DESKTOP" "$de ($term)"
-        printf "  │  $YLW%-9s$RST%-42s│\n" "UPTIME" "$uptime"
-        echo -e "$YLW  └─────────────────────────────────────────────────────────────────────┘$RST"
+        echo -e "$YLW  ┌─ SYSTEM ─────────────────────────────────────────────────────────────┐$RST"
+        printf "  │  $YLW%-9s$RST%-58s│\n" "OS" "$os $kernel_short ($arch)"
+        printf "  │  $YLW%-9s$RST%-58s│\n" "HOST" "$hostname_full"
+        printf "  │  $YLW%-9s$RST%-58s│\n" "KERNEL" "$kernel"
+        printf "  │  $YLW%-9s$RST%-58s│\n" "DESKTOP" "$de ($term)"
+        printf "  │  $YLW%-9s$RST%-58s│\n" "UPTIME" "$uptime"
+        echo -e "$YLW  └──────────────────────────────────────────────────────────────────────┘$RST"
         echo ""
 
         # Hardware Card
-        echo -e "$MAG  ┌─ HARDWARE ──────────────────────────────────────────────────────────┐$RST"
-        printf "  │  $MAG%-9s$RST%-42s│\n" "CPU" "$cpu_model"
-        printf "  │  $MAG%-9s$RST%-42s│\n" "CORES" "$cpu_cores cores @ $cpu_freq MHz"
-        printf "  │  $MAG%-9s$RST%-42s│\n" "GPU" "$gpu"
-        printf "  │  $MAG%-9s$RST%-42s│\n" "MEMORY" "$mem_used / $mem_total ($mem_perc%)"
-        printf "  │  $MAG%-9s$RST%-42s│\n" "DISK" "$disk_used / $disk_total ($disk_perc%)"
-        echo -e "$MAG  └─────────────────────────────────────────────────────────────────────┘$RST"
+        echo -e "$MAG  ┌─ HARDWARE ───────────────────────────────────────────────────────────┐$RST"
+        printf "  │  $MAG%-9s$RST%-58s│\n" "CPU" "$cpu_model"
+        printf "  │  $MAG%-9s$RST%-58s│\n" "CORES" "$cpu_cores cores @ $cpu_freq MHz"
+        printf "  │  $MAG%-9s$RST%-58s│\n" "GPU" "$gpu"
+        printf "  │  $MAG%-9s$RST%-58s│\n" "MEMORY" "$mem_used / $mem_total ($mem_perc%)"
+        printf "  │  $MAG%-9s$RST%-58s│\n" "DISK" "$disk_used / $disk_total ($disk_perc%)"
+        echo -e "$MAG  └──────────────────────────────────────────────────────────────────────┘$RST"
         echo ""
 
         # Environment Card
-        echo -e "$GRN  ┌─ ENVIRONMENT ───────────────────────────────────────────────────────┐$RST"
-        printf "  │  $GRN%-9s$RST%-42s│\n" "SHELL" "$shell"
-        printf "  │  $GRN%-9s$RST%-42s│\n" "PYTHON" "$python_ver"
-        printf "  │  $GRN%-9s$RST%-42s│\n" "NODE" "$node_ver"
-        printf "  │  $GRN%-9s$RST%-42s│\n" "GIT" "$git_ver"
-        printf "  │  $GRN%-9s$RST%-42s│\n" "PACKAGES" "$pkgs (nix-store)"
-        printf "  │  $GRN%-9s$RST%-42s│\n" "PROCS" "$procs running"
-        echo -e "$GRN  └─────────────────────────────────────────────────────────────────────┘$RST"
+        echo -e "$GRN  ┌─ ENVIRONMENT ────────────────────────────────────────────────────────┐$RST"
+        printf "  │  $GRN%-9s$RST%-58s│\n" "SHELL" "$shell"
+        printf "  │  $GRN%-9s$RST%-58s│\n" "PYTHON" "$python_ver"
+        printf "  │  $GRN%-9s$RST%-58s│\n" "NODE" "$node_ver"
+        printf "  │  $GRN%-9s$RST%-58s│\n" "GIT" "$git_ver"
+        printf "  │  $GRN%-9s$RST%-58s│\n" "PACKAGES" "$pkgs (nix-store)"
+        printf "  │  $GRN%-9s$RST%-58s│\n" "PROCS" "$procs running"
+        echo -e "$GRN  └──────────────────────────────────────────────────────────────────────┘$RST"
         echo ""
 
         # Network Card
-        echo -e "$BLU  ┌─ NETWORK ───────────────────────────────────────────────────────────┐$RST"
-        printf "  │  $BLU%-9s$RST%-42s│\n" "IP" "$ip"
-        printf "  │  $BLU%-9s$RST%-42s│\n" "LOAD" "$load"
-        echo -e "$BLU  └─────────────────────────────────────────────────────────────────────┘$RST"
+        echo -e "$BLU  ┌─ NETWORK ────────────────────────────────────────────────────────────┐$RST"
+        printf "  │  $BLU%-9s$RST%-58s│\n" "IP" "$ip"
+        printf "  │  $BLU%-9s$RST%-58s│\n" "LOAD" "$load"
+        echo -e "$BLU  └──────────────────────────────────────────────────────────────────────┘$RST"
         echo ""
 
         # Aliases Card
-        echo -e "$CYN  ┌─ ALIASES ───────────────────────────────────────────────────────────┐$RST"
-        echo -e "  │  FILES    ll la lt lh tree      NAV       .. ... .... mkcd z       │"
-        echo -e "  │  GIT      gs ga gc gp gl gd     DOCKER    dps dpsa dcu dcd dlog    │"
-        echo -e "  │  SYSTEM   df free ports myip    PYTHON    py pip ppy               │"
-        echo -e "$CYN  └─────────────────────────────────────────────────────────────────────┘$RST"
+        echo -e "$CYN  ┌─ ALIASES ────────────────────────────────────────────────────────────┐$RST"
+        echo -e "  │  FILES    ll la lt lh tree       NAV       .. ... .... mkcd z        │"
+        echo -e "  │  GIT      gs ga gc gp gl gd      DOCKER    dps dpsa dcu dcd dlog     │"
+        echo -e "  │  SYSTEM   df free ports myip     PYTHON    py pip ppy                │"
+        echo -e "$CYN  └──────────────────────────────────────────────────────────────────────┘$RST"
         echo ""
 
         # Functions Card
-        echo -e "$RED  ┌─ FUNCTIONS ─────────────────────────────────────────────────────────┐$RST"
-        echo -e "  │  mkcd <dir>     Create and cd        extract <file>  Unpack archive│"
-        echo -e "  │  backup <file>  Timestamped copy     qfind <name>    Quick search  │"
-        echo -e "  │  serve [port]   HTTP server          cpucap          CPU frequency │"
-        echo -e "  │  gcam <msg>     Git add+commit       gpsh            Push to origin│"
-        echo -e "$RED  └─────────────────────────────────────────────────────────────────────┘$RST"
+        echo -e "$RED  ┌─ FUNCTIONS ──────────────────────────────────────────────────────────┐$RST"
+        echo -e "  │  mkcd <dir>     Create and cd         extract <file>  Unpack archive │"
+        echo -e "  │  backup <file>  Timestamped copy      qfind <name>    Quick search   │"
+        echo -e "  │  serve [port]   HTTP server           cpucap          CPU frequency  │"
+        echo -e "  │  gcam <msg>     Git add+commit        gpsh            Push to origin │"
+        echo -e "$RED  └──────────────────────────────────────────────────────────────────────┘$RST"
         echo ""
 
         # Tools Card
-        echo -e "$WHT  ┌─ MODERN TOOLS ──────────────────────────────────────────────────────┐$RST"
-        echo -e "  │  starship   Prompt            zoxide      Smart cd (z)             │"
-        echo -e "  │  fzf        Fuzzy finder      direnv      Auto environments        │"
-        echo -e "  │  bat        Better cat        eza         Better ls                │"
-        echo -e "  │  fd         Better find       rg          Better grep (ripgrep)    │"
-        echo -e "$WHT  └─────────────────────────────────────────────────────────────────────┘$RST"
+        echo -e "$WHT  ┌─ MODERN TOOLS ───────────────────────────────────────────────────────┐$RST"
+        echo -e "  │  starship   Prompt             zoxide      Smart cd (z)              │"
+        echo -e "  │  fzf        Fuzzy finder       direnv      Auto environments         │"
+        echo -e "  │  bat        Better cat         eza         Better ls                 │"
+        echo -e "  │  fd         Better find        rg          Better grep (ripgrep)     │"
+        echo -e "$WHT  └──────────────────────────────────────────────────────────────────────┘$RST"
+        echo ""
+
+        # FZF Card
+        echo -e "$YLW  ┌─ FZF KEYBINDINGS ────────────────────────────────────────────────────┐$RST"
+        echo -e "  │  Ctrl+R     Search history     Ctrl+T      Search files (insert)     │"
+        echo -e "  │  Alt+C      cd into dir        Ctrl+/      Toggle preview            │"
+        echo -e "  │  Ctrl+A     Select all         Ctrl+Y      Copy to clipboard         │"
+        echo -e "$YLW  └──────────────────────────────────────────────────────────────────────┘$RST"
+        echo ""
+
+        # Languages Card - Get versions dynamically
+        local rust_v=$(rustc --version 2>/dev/null | awk '{print $2}' || echo "n/a")
+        local go_v=$(go version 2>/dev/null | awk '{print $3}' | sed 's/go//' || echo "n/a")
+        local node_v2=$(node --version 2>/dev/null | tr -d 'v' || echo "n/a")
+        local py_v=$(python3 --version 2>/dev/null | awk '{print $2}' || echo "n/a")
+        local gcc_v=$(gcc --version 2>/dev/null | head -1 | awk '{print $NF}' || echo "n/a")
+        local java_v=$(java --version 2>/dev/null | head -1 | awk '{print $2}' || echo "n/a")
+        local ruby_v=$(ruby --version 2>/dev/null | awk '{print $2}' || echo "n/a")
+        local R_v=$(R --version 2>/dev/null | head -1 | awk '{print $3}' || echo "n/a")
+
+        echo -e "$MAG  ┌─ LANGUAGES & COMPILERS ──────────────────────────────────────────────┐$RST"
+        echo -e "  │  $MAG CLI$RST  rust $rust_v    go $go_v    node $node_v2    python $py_v     │"
+        echo -e "  │        gcc $gcc_v       java $java_v       ruby $ruby_v       R $R_v      │"
+        echo -e "$MAG  └──────────────────────────────────────────────────────────────────────┘$RST"
+        echo ""
+
+        # CLI Tools Card
+        echo -e "$CYN  ┌─ CLI TOOLKIT (nix-home-manager) ─────────────────────────────────────┐$RST"
+        echo -e "  │  $CYN SHELL$RST    eza bat fd rg fzf zoxide yazi btop ncdu duf jq yq gh    │"
+        echo -e "  │  $CYN BUILD$RST    cmake ninja make meson gdb valgrind strace shellcheck   │"
+        echo -e "  │  $CYN CLOUD$RST    podman kubectl helm k9s aws gcloud azure ansible sops   │"
+        echo -e "  │  $CYN NET  $RST    nmap mtr tcpdump wireshark iftop tor wireguard httpie   │"
+        echo -e "  │  $CYN DATA $RST    sqlite postgres mysql redis pgcli jupyter pandas torch  │"
+        echo -e "$CYN  └──────────────────────────────────────────────────────────────────────┘$RST"
+        echo ""
+
+        # GUI Apps Card
+        echo -e "$GRN  ┌─ GUI APPS (nix-home-manager) ────────────────────────────────────────┐$RST"
+        echo -e "  │  $GRN OFFICE$RST   libreoffice obsidian zettlr joplin okular zathura       │"
+        echo -e "  │  $GRN MEDIA $RST   gimp krita inkscape kdenlive obs-studio vlc mpv audacity│"
+        echo -e "  │  $GRN FILES $RST   dolphin ranger mc digikam gwenview drawio flameshot     │"
+        echo -e "$GRN  └──────────────────────────────────────────────────────────────────────┘$RST"
         echo ""
       }
 
