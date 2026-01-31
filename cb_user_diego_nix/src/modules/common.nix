@@ -23,6 +23,12 @@
       experimental-features = [ "nix-command" "flakes" ];
       warn-dirty = false;
     };
+    # Automatic garbage collection
+    gc = {
+      automatic = true;
+      frequency = "weekly";
+      options = "--delete-older-than 7d";
+    };
   };
 
   # XDG Base Directory compliance
