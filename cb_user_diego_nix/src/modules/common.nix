@@ -7,6 +7,7 @@
     ./programs/shells/zsh.nix
     ./programs/shells/fish.nix
     ./programs/shells/starship.nix
+    ./programs/shells/fzf.nix
     ./programs/editors/vim.nix
     ./programs/git.nix
     ./programs/tmux.nix

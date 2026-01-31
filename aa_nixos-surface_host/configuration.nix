@@ -670,14 +670,8 @@ EOF
   virtualisation.waydroid.enable = true;
 
   systemd.services.waydroid-container = {
-    # Don't auto-start - only run when Android session is selected or manually started
+    # Don't auto-start - only run when manually started
     wantedBy = lib.mkForce [];
-
-    # Prevent D-Bus activation from Plasma (apps querying id.waydro.Container bus name)
-    # Service only starts when /run/waydroid-enabled exists (created by Android session)
-    unitConfig = {
-      ConditionPathExists = "/run/waydroid-enabled";
-    };
 
     # When started, delegate cgroups properly to fix permission errors
     serviceConfig = {
@@ -798,6 +792,22 @@ EOF
   # ═══════════════════════════════════════════════════════════════════════════
 
   environment.systemPackages = with pkgs; [
+    # ─── Waydroid launcher ─────────────────────────────────────────────────
+    (writeShellScriptBin "waydroid-launch" ''
+      # Start container if not running
+      if ! systemctl is-active --quiet waydroid-container; then
+        sudo systemctl start waydroid-container
+        sleep 2
+      fi
+      # Start session if not running
+      if ! waydroid status 2>/dev/null | grep -q "Session.*RUNNING"; then
+        waydroid session start &
+        sleep 3
+      fi
+      # Show UI
+      waydroid show-full-ui
+    '')
+
     # ─── Absolute Minimum CLI ───────────────────────────────────────────────
     vim
     fish
@@ -870,6 +880,7 @@ EOF
   # ═══════════════════════════════════════════════════════════════════════════
 
   programs.fish.enable = true;
+  programs.zsh.enable = true;
   programs.bash.completion.enable = true;
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -894,8 +905,8 @@ EOF
   systemd.services.flatpak-add-flathub = {
     description = "Add Flathub remote to Flatpak";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
+    after = [ "network-online.target" "nss-lookup.target" ];
+    wants = [ "network-online.target" "nss-lookup.target" ];
     unitConfig = {
       # Skip if flathub remote already exists (persisted in /var/lib/flatpak)
       ConditionPathExists = "!/var/lib/flatpak/repo/flathub.trustedkeys.gpg";
@@ -903,7 +914,22 @@ EOF
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
+      # Retry up to 3 times with 10s delay between attempts
+      Restart = "on-failure";
+      RestartSec = "10s";
+      RestartMaxDelaySec = "30s";
+      StartLimitIntervalSec = "120";
+      StartLimitBurst = "3";
       ExecStart = pkgs.writeShellScript "flatpak-add-flathub" ''
+        # Wait for DNS to be available
+        for i in 1 2 3 4 5; do
+          if ${pkgs.iputils}/bin/ping -c1 -W2 flathub.org >/dev/null 2>&1; then
+            break
+          fi
+          echo "[FLATPAK] Waiting for network... (attempt $i/5)"
+          sleep 2
+        done
+
         echo "[FLATPAK] Adding Flathub remote..."
         if ${pkgs.flatpak}/bin/flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
           echo "[FLATPAK] SUCCESS: Flathub remote added"
