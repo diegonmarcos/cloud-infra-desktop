@@ -136,6 +136,12 @@ alias editzsh='${EDITOR:-nano} ~/.zshrc'
 alias editalias='${EDITOR:-nano} ~/.config/shell/zsh/aliases.zsh'
 
 # =============================================================================
+# NIX MANAGEMENT
+# =============================================================================
+alias nix-gc='nix-env --delete-generations +3 && sudo nix-env --delete-generations +3 -p /nix/var/nix/profiles/system && sudo nix-collect-garbage -d'
+alias nix-gc-check='command df -h /nix && echo "--- User generations:" && nix-env --list-generations | tail -5 && echo "--- System generations:" && sudo nix-env --list-generations -p /nix/var/nix/profiles/system | tail -5'
+
+# =============================================================================
 # CUSTOM TOOLS (Diego's)
 # =============================================================================
 alias gdrive='bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh'

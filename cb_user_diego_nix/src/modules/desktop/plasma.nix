@@ -150,23 +150,9 @@
     ];
 
     # ─────────────────────────────────────────────────────────────────
-    # Startup - Autostart apps
+    # Startup script (runs once when config changes)
+    # For every-login startup, use xdg.configFile autostart below
     # ─────────────────────────────────────────────────────────────────
-    startup = {
-      startupScript = {
-        "launch-konsole-dolphin" = {
-          text = ''
-            # Wait for Plasma to fully start
-            sleep 2
-            # Open Konsole on left half
-            konsole &
-            sleep 0.5
-            # Open Dolphin on right half
-            dolphin ~ &
-          '';
-        };
-      };
-    };
 
     # ─────────────────────────────────────────────────────────────────
     # Panel Configuration - Bottom Panel
@@ -530,4 +516,17 @@
     terminal = false;
     categories = [ "System" "Emulator" ];
   };
+
+  # ─────────────────────────────────────────────────────────────────
+  # Autostart - Runs every login
+  # ─────────────────────────────────────────────────────────────────
+  xdg.configFile."autostart/launch-workspace.desktop".text = ''
+    [Desktop Entry]
+    Type=Application
+    Name=Launch Workspace
+    Comment=Open Konsole and Dolphin on startup
+    Exec=sh -c "sleep 2 && konsole & sleep 0.5 && dolphin ~"
+    X-KDE-autostart-phase=2
+    X-GNOME-Autostart-enabled=true
+  '';
 }
