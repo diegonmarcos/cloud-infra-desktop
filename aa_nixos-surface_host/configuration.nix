@@ -140,7 +140,14 @@
   # TIMEZONE AND LOCALE
   # ═══════════════════════════════════════════════════════════════════════════
 
-  time.timeZone = "Europe/Madrid";
+  # Automatic timezone based on location (uses geoclue)
+  time.timeZone = null;
+  services.geoclue2 = {
+    enable = true;
+    enableDemoAgent = lib.mkForce true;
+    geoProviderUrl = "https://beacondb.net/v1/geolocate";
+  };
+  services.automatic-timezoned.enable = true;
   i18n.defaultLocale = "en_US.UTF-8";
   i18n.extraLocaleSettings = {
     LC_ALL = "en_US.UTF-8";
@@ -391,6 +398,15 @@ EOF
   environment.etc."xdg/autostart/org.kde.discover.notifier.desktop".text = ''
     [Desktop Entry]
     Hidden=true
+  '';
+
+  # Picom: X11 compositor - only run in Openbox session (not Wayland)
+  environment.etc."xdg/autostart/picom.desktop".text = ''
+    [Desktop Entry]
+    Type=Application
+    Name=picom
+    Exec=picom
+    OnlyShowIn=OPENBOX;
   '';
 
   # NOTE: System tray fix moved to home-manager (plasma-manager workaround)
