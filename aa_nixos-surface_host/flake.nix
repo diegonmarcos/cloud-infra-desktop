@@ -1,5 +1,5 @@
 {
-  description = "NixOS Surface Pro 8 - Minimal + User Agnostic";
+  description = "NixOS Surface Pro 8 - System Only (no home-manager)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
@@ -14,41 +14,23 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    home-manager = {
-      url = "github:nix-community/home-manager/release-24.11";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    plasma-manager = {
-      url = "github:nix-community/plasma-manager";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.home-manager.follows = "home-manager";
-    };
+    # NOTE: home-manager is NOT here - it's managed separately in cb_user_diego_nix
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, home-manager, plasma-manager, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, ... }:
   let
     system = "x86_64-linux";
 
-    # Overlay to use newer KDE Connect from unstable (fixes clipboard freeze)
-    kdeUnstableOverlay = final: prev: {
-      kdePackages = prev.kdePackages // {
-        kdeconnect-kde = nixpkgs-unstable.legacyPackages.${system}.kdePackages.kdeconnect-kde;
-      };
-    };
+    # NOTE: KDE Connect unstable overlay removed - caused Qt version mismatch
+    # (unstable kdeconnect 25.12.1 needs Qt 6.10, but Plasma 6.2.5 uses Qt 6.8)
+    # Clipboard sync is handled by kdeconnect-clipboard-sync systemd service instead
   in {
     # Main NixOS configuration for Surface Pro 8
     nixosConfigurations.surface = nixpkgs.lib.nixosSystem {
       inherit system;
-      specialArgs = { inherit plasma-manager; };
       modules = [
-        # KDE Connect from unstable (clipboard freeze fix)
-        { nixpkgs.overlays = [ kdeUnstableOverlay ]; }
         # Surface Pro hardware support (linux-surface kernel, firmware)
         nixos-hardware.nixosModules.microsoft-surface-pro-intel
-
-        # Home Manager integration
-        home-manager.nixosModules.home-manager
 
         # Main configuration
         ./configuration.nix

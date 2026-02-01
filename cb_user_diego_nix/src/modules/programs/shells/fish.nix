@@ -163,6 +163,25 @@
         echo "Tools:       extract  backup  qfind  serve  duh"
       '';
 
+      # Search available commands with fzf (Ctrl+P)
+      __fzf_search_commands = ''
+        set -l cmd (begin
+          # Get all commands from PATH
+          for dir in $PATH
+            if test -d $dir
+              command ls -1 $dir 2>/dev/null
+            end
+          end
+          # Also include fish functions and builtins
+          functions -n
+          builtin -n
+        end | sort -u | fzf --height 40% --reverse --border --prompt="Commands> ")
+        if test -n "$cmd"
+          commandline -i $cmd
+        end
+        commandline -f repaint
+      '';
+
       _show_welcome = ''
         # Gather system info
         set -l user (whoami)
@@ -288,7 +307,7 @@
         printf "  │ %-6s %-6s %-6s %-6s %-6s │ │ %-10s %-19s │ │ %-10s %-17s │\n" "ll" "la" "lt" "lh" "tree" "mkcd" "create & cd dir" "Ctrl+R" "fzf history"
         printf "  │ %-6s %-6s %-6s %-6s %-6s │ │ %-10s %-19s │ │ %-10s %-17s │\n" "gs" "ga" "gc" "gp" "gl" "extract" "unpack archive" "Ctrl+T" "fzf files"
         printf "  │ %-6s %-6s %-6s %-6s %-6s │ │ %-10s %-19s │ │ %-10s %-17s │\n" ".." "..." "...." "z" "c" "backup" "timestamped copy" "Alt+C" "fzf cd dir"
-        printf "  │ %-6s %-6s %-6s %-6s %-6s │ │ %-10s %-19s │ │ %-10s %-17s │\n" "df" "du" "free" "ports" "myip" "serve" "start http server" "Ctrl+G" "lazygit"
+        printf "  │ %-6s %-6s %-6s %-6s %-6s │ │ %-10s %-19s │ │ %-10s %-17s │\n" "df" "du" "free" "ports" "myip" "serve" "start http server" "Ctrl+P" "fzf commands"
         set_color --bold cyan
         printf "  └────────────────────────────────────┘ └────────────────────────────────┘ └────────────────────────────────┘\n"
         set_color normal
@@ -349,6 +368,10 @@
 
       # Vi mode
       fish_vi_key_bindings
+
+      # Keybinding: Ctrl+P to search available commands with fzf
+      bind \cp '__fzf_search_commands'
+      bind -M insert \cp '__fzf_search_commands'
 
       # NVM via bass (if available)
       # set -gx NVM_DIR $HOME/.nvm

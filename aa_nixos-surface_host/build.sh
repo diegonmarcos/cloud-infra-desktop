@@ -525,7 +525,12 @@ draw_header() {
 }
 
 draw_menu() {
-    printf "${BOLD}┌─ Build Options ────────────────────────────────────────────┐${NC}\n"
+    printf "${BOLD}┌─ Live System (NixOS only) ────────────────────────────────┐${NC}\n"
+    printf "│  ${GREEN}r${NC}) Rebuild & switch        ${GREEN}b${NC}) Build for next boot         │\n"
+    printf "│  ${YELLOW}t${NC}) Test (reverts on reboot)                                │\n"
+    printf "${BOLD}└─────────────────────────────────────────────────────────────┘${NC}\n"
+    printf "\n"
+    printf "${BOLD}┌─ Build Images ─────────────────────────────────────────────┐${NC}\n"
     printf "│  ${GREEN}1${NC}) Build raw-efi image     ${GREEN}2${NC}) Build ISO image            │\n"
     printf "│  ${GREEN}3${NC}) Build QCOW2 (VM)        ${GREEN}4${NC}) Build VM runner            │\n"
     printf "${BOLD}└─────────────────────────────────────────────────────────────┘${NC}\n"
@@ -1040,6 +1045,84 @@ diff_system() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
+# LIVE SYSTEM REBUILD
+# ═══════════════════════════════════════════════════════════════════════════
+# Rebuild the running NixOS system using nixos-rebuild switch
+
+switch_system() {
+    header "Rebuilding NixOS System"
+
+    # Check if we're running on NixOS
+    if [ ! -f /etc/NIXOS ]; then
+        error "Not running on NixOS!"
+        error "Use 'deploy' to install from another OS, or boot into NixOS first."
+        return 1
+    fi
+
+    log "Rebuilding NixOS with flake: $FLAKE_PATH#surface"
+    log "This will switch to the new configuration immediately."
+
+    sudo nixos-rebuild switch --flake "$FLAKE_PATH#surface" 2>&1
+
+    if [ $? -eq 0 ]; then
+        printf "\n"
+        printf "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}\n"
+        printf "${GREEN}║  ${BOLD}SYSTEM REBUILD COMPLETE!${NC}${GREEN}                                   ║${NC}\n"
+        printf "${GREEN}╠══════════════════════════════════════════════════════════════╣${NC}\n"
+        printf "${GREEN}║  New configuration is now active.                            ║${NC}\n"
+        printf "${GREEN}║  Some services may need manual restart.                      ║${NC}\n"
+        printf "${GREEN}║                                                              ║${NC}\n"
+        printf "${GREEN}║  To apply all changes: reboot                                ║${NC}\n"
+        printf "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}\n"
+    else
+        error "Rebuild failed! Check errors above."
+        return 1
+    fi
+}
+
+boot_system() {
+    header "Building NixOS (Boot Only)"
+
+    if [ ! -f /etc/NIXOS ]; then
+        error "Not running on NixOS!"
+        return 1
+    fi
+
+    log "Building NixOS config (will activate on next boot)..."
+
+    sudo nixos-rebuild boot --flake "$FLAKE_PATH#surface" 2>&1
+
+    if [ $? -eq 0 ]; then
+        log "Build complete! Reboot to activate new configuration."
+    else
+        error "Build failed!"
+        return 1
+    fi
+}
+
+test_system() {
+    header "Testing NixOS Configuration"
+
+    if [ ! -f /etc/NIXOS ]; then
+        error "Not running on NixOS!"
+        return 1
+    fi
+
+    log "Building and activating temporarily (reverts on reboot)..."
+
+    sudo nixos-rebuild test --flake "$FLAKE_PATH#surface" 2>&1
+
+    if [ $? -eq 0 ]; then
+        log "Test activation complete!"
+        log "This configuration will revert on next reboot."
+        log "Run 'switch' to make it permanent."
+    else
+        error "Test build failed!"
+        return 1
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
 # MAIN TUI
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -1055,6 +1138,21 @@ main() {
         read -r choice
 
         case "$choice" in
+            r|R)
+                switch_system
+                printf "\nPress Enter to continue..."
+                read -r _
+                ;;
+            b|B)
+                boot_system
+                printf "\nPress Enter to continue..."
+                read -r _
+                ;;
+            t|T)
+                test_system
+                printf "\nPress Enter to continue..."
+                read -r _
+                ;;
             1)
                 build_raw
                 printf "\nPress Enter to continue..."
@@ -1143,6 +1241,15 @@ if [ $# -gt 0 ]; then
     check_nix
 
     case "$1" in
+        switch)
+            switch_system
+            ;;
+        boot)
+            boot_system
+            ;;
+        test)
+            test_system
+            ;;
         build)
             case "$2" in
                 raw)    build_raw ;;
@@ -1183,7 +1290,12 @@ if [ $# -gt 0 ]; then
         *)
             printf "${BOLD}NixOS Bifrost Build System${NC}\n\n"
             printf "Usage: %s [command]\n\n" "$0"
-            printf "${BOLD}Build:${NC}\n"
+            printf "${BOLD}Live System (NixOS only):${NC}\n"
+            printf "  switch              Rebuild and switch to new config NOW\n"
+            printf "  boot                Build config, activate on next boot\n"
+            printf "  test                Test config (reverts on reboot)\n"
+            printf "\n"
+            printf "${BOLD}Build Images:${NC}\n"
             printf "  build raw           Build raw EFI disk image\n"
             printf "  build iso           Build bootable ISO\n"
             printf "  build qcow          Build QCOW2 VM image\n"

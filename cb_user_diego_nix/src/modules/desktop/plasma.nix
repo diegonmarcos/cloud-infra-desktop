@@ -4,35 +4,38 @@
 
 {
   # Fix system tray visibility after home-manager switch
-  # This is needed because plasma-manager's configFile uses dot notation
-  # which KDE doesn't recognize for bracket-notation sections
+  # Plasma reads shownItems from the PRIVATE systemtray containment, not the applet
   home.activation.fixSystemTray = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
     APPLETS_FILE="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
     if [ -f "$APPLETS_FILE" ]; then
-      # All items that should be shown
       ALL_ITEMS="org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.clipboard,org.kde.plasma.devicenotifier,org.kde.plasma.notifications,org.kde.kdeconnect,org.kde.kscreen,org.kde.plasma.keyboardlayout,org.kde.plasma.keyboardindicator,org.kde.plasma.cameraindicator,org.kde.plasma.manage-inputmethod,org.kde.plasma.mediacontroller"
 
-      # Find the private systemtray containment ID by looking for the plugin line
-      TRAY_ID=$(grep -B20 "plugin=org.kde.plasma.private.systemtray" "$APPLETS_FILE" | grep -oP '(?<=\[Containments\]\[)[0-9]+(?=\])' | tail -1)
+      # Find the PRIVATE systemtray containment ID (plugin=org.kde.plasma.private.systemtray)
+      TRAY_ID=$(${pkgs.gawk}/bin/awk '
+        /^\[Containments\]\[[0-9]+\]$/ { current_id = gensub(/.*\[([0-9]+)\]$/, "\\1", "g") }
+        /^plugin=org\.kde\.plasma\.private\.systemtray$/ { print current_id; exit }
+      ' "$APPLETS_FILE")
 
       if [ -n "$TRAY_ID" ]; then
-        # Check if the General section exists
-        if grep -q "^\[Containments\]\[$TRAY_ID\]\[General\]$" "$APPLETS_FILE"; then
-          # Add or update shownItems in the General section
-          if grep -q "^shownItems=" "$APPLETS_FILE"; then
-            sed -i "/^\[Containments\]\[$TRAY_ID\]\[General\]$/,/^\[/ {
-              /^shownItems=/d
-              /^hiddenItems=/d
-            }" "$APPLETS_FILE"
-          fi
-          # Append the settings after the [General] header
-          sed -i "/^\[Containments\]\[$TRAY_ID\]\[General\]$/a shownItems=$ALL_ITEMS\nhiddenItems=" "$APPLETS_FILE"
+        GENERAL_SECTION="[Containments][$TRAY_ID][General]"
+
+        # Check if [General] section exists for this containment
+        if grep -qF "$GENERAL_SECTION" "$APPLETS_FILE"; then
+          # Remove existing shownItems/hiddenItems in this section
+          ${pkgs.gnused}/bin/sed -i "/^\[Containments\]\[$TRAY_ID\]\[General\]$/,/^\[/ {
+            /^shownItems=/d
+            /^hiddenItems=/d
+          }" "$APPLETS_FILE"
+          # Add shownItems and hiddenItems after the section header
+          ${pkgs.gnused}/bin/sed -i "/^\[Containments\]\[$TRAY_ID\]\[General\]$/a shownItems=$ALL_ITEMS\nhiddenItems=" "$APPLETS_FILE"
+        else
+          # Section doesn't exist, append it at end of file
+          echo "" >> "$APPLETS_FILE"
+          echo "$GENERAL_SECTION" >> "$APPLETS_FILE"
+          echo "shownItems=$ALL_ITEMS" >> "$APPLETS_FILE"
+          echo "hiddenItems=" >> "$APPLETS_FILE"
         fi
       fi
-
-      # Also update any existing shownItems= lines in systemtray applet config
-      sed -i "s/^shownItems=.*/shownItems=$ALL_ITEMS/" "$APPLETS_FILE"
-      sed -i "s/^hiddenItems=.*/hiddenItems=/" "$APPLETS_FILE"
     fi
   '';
 
@@ -105,6 +108,16 @@
         rows = 1;
         names = [ "Desktop 1" "Desktop 2" "Desktop 3" "Desktop 4" ];
       };
+
+      # Night Light always on (2200K warm)
+      nightLight = {
+        enable = true;
+        mode = "constant";
+        temperature = {
+          day = 2200;
+          night = 2200;
+        };
+      };
     };
 
     # Window rules for autostart positioning
@@ -155,151 +168,50 @@
     # ─────────────────────────────────────────────────────────────────
 
     # ─────────────────────────────────────────────────────────────────
-    # Panel Configuration - Bottom Panel
+    # Panel Configuration - DISABLED (User-managed)
     # ─────────────────────────────────────────────────────────────────
-    # Using panels config - this will be managed by Nix
-    # Note: This recreates panels on rebuild, but ensures declarative state
-    panels = [
-      {
-        location = "bottom";
-        height = 44;
-        hiding = "none";
-        floating = false;
-        widgets = [
-          # Application Menu (Kickoff) - LEFT
-          {
-            kickoff = {
-              icon = "nix-snowflake-white";
-            };
-          }
-          # Virtual Desktop Pager
-          {
-            pager = {
-              general = {
-                displayedText = "desktopNumber";
-              };
-            };
-          }
-          # Separator
-          "org.kde.plasma.marginsseparator"
-          # Icon Tasks (Taskbar)
-          {
-            iconTasks = {
-              launchers = [
-                "applications:org.kde.dolphin.desktop"
-                "applications:org.kde.konsole.desktop"
-                "applications:obsidian.desktop"
-                "applications:brave-browser.desktop"
-                "applications:waydroid.desktop"
-                "applications:systemsettings.desktop"
-              ];
-            };
-          }
-          # Spacer
-          "org.kde.plasma.panelspacer"
-          # System Monitors (CPU, RAM, Disk)
-          {
-            systemMonitor = {
-              displayStyle = "org.kde.ksysguard.textonly";
-              sensors = [
-                {
-                  name = "cpu/all/usage";
-                  color = "97,174,238";
-                  label = "CPU";
-                }
-              ];
-            };
-          }
-          {
-            systemMonitor = {
-              displayStyle = "org.kde.ksysguard.textonly";
-              sensors = [
-                {
-                  name = "memory/physical/usedPercent";
-                  color = "46,194,126";
-                  label = "RAM";
-                }
-              ];
-            };
-          }
-          {
-            systemMonitor = {
-              displayStyle = "org.kde.ksysguard.textonly";
-              sensors = [
-                {
-                  name = "disk/all/usedPercent";
-                  color = "246,116,0";
-                  label = "Disk";
-                }
-              ];
-            };
-          }
-          # System Tray - ALL VISIBLE
-          {
-            systemTray = {
-              items = {
-                shown = [
-                  "org.kde.plasma.battery"
-                  "org.kde.plasma.bluetooth"
-                  "org.kde.plasma.brightness"
-                  "org.kde.plasma.networkmanagement"
-                  "org.kde.plasma.volume"
-                  "org.kde.plasma.clipboard"
-                  "org.kde.plasma.devicenotifier"
-                  "org.kde.plasma.notifications"
-                  "org.kde.kdeconnect"
-                  "org.kde.kscreen"
-                  "org.kde.plasma.keyboardlayout"
-                  "org.kde.plasma.keyboardindicator"
-                  "org.kde.plasma.cameraindicator"
-                  "org.kde.plasma.manage-inputmethod"
-                  "org.kde.plasma.mediacontroller"
-                ];
-                hidden = [];
-              };
-            };
-          }
-          # Digital Clock
-          {
-            digitalClock = {
-              date = {
-                enable = true;
-                format = { custom = "dd-MM-yyyy"; };
-                position = "belowTime";
-              };
-              time = {
-                format = "24h";
-                showSeconds = "onlyInTooltip";
-              };
-              calendar = {
-                firstDayOfWeek = "monday";
-              };
-            };
-          }
-          # User Switcher - RIGHT
-          "org.kde.plasma.userswitcher"
-        ];
-      }
-    ];
+    # IMPORTANT: panels section is DISABLED because it recreates panels
+    # on every home-manager switch, which:
+    #   1. Assigns new containment IDs each time
+    #   2. Loses manually added widgets
+    #   3. Breaks configFile entries that reference old IDs
+    #
+    # Panel layout is now managed manually via KDE System Settings.
+    # Your panel configuration persists in:
+    #   ~/.config/plasma-org.kde.plasma.desktop-appletsrc
+    #
+    # ═══════════════════════════════════════════════════════════════
+    # CURRENT PANEL LAYOUT (Updated: 2026-02-01)
+    # ═══════════════════════════════════════════════════════════════
+    # Bottom panel, height 44, no hiding, not floating
+    #
+    # Widgets (left to right):
+    #   - Kickoff (icon: nix-snowflake-white)
+    #   - Pager (show desktop numbers)
+    #   - Margins Separator
+    #   - Icon Tasks (Dolphin, Konsole, Obsidian, Brave, Waydroid, Settings)
+    #   - Panel Spacer
+    #   - System Monitors:
+    #       • CPU (org.kde.plasma.systemmonitor.cpu)
+    #       • CPU Core (org.kde.plasma.systemmonitor.cpucore)
+    #       • Memory (org.kde.plasma.systemmonitor.memory)
+    #       • Disk Usage (org.kde.plasma.systemmonitor.diskusage)
+    #       • Disk Activity (org.kde.plasma.systemmonitor.diskactivity)
+    #       • Network (org.kde.plasma.systemmonitor.net)
+    #   - Margins Separator
+    #   - Weather (org.kde.plasma.weather)
+    #   - System Tray (all items visible)
+    #   - Digital Clock (24h, dd-MM-yyyy below time, Monday first)
+    #   - User Switcher
+    # ═══════════════════════════════════════════════════════════════
 
     # ─────────────────────────────────────────────────────────────────
     # KDE Config Files (via configFile - non-destructive merge)
     # ─────────────────────────────────────────────────────────────────
     configFile = {
-      # Digital Clock - 24h format and dd-MM-yyyy date
-      "plasma-org.kde.plasma.desktop-appletsrc"."Containments.244.Applets.265.Configuration.Appearance" = {
-        use24hFormat = 2;
-        dateFormat = "custom";
-        customDateFormat = "dd-MM-yyyy";
-      };
-
-      # System Tray - ALL items always visible (ID 308 after panel recreation)
-      "plasma-org.kde.plasma.desktop-appletsrc"."Containments.308.General" = {
-        extraItems = "org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.clipboard,org.kde.plasma.devicenotifier,org.kde.plasma.notifications,org.kde.kdeconnect,org.kde.kscreen,org.kde.plasma.keyboardlayout,org.kde.plasma.keyboardindicator,org.kde.plasma.cameraindicator,org.kde.plasma.manage-inputmethod,org.kde.plasma.mediacontroller";
-        knownItems = "org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.clipboard,org.kde.plasma.devicenotifier,org.kde.plasma.notifications,org.kde.kdeconnect,org.kde.kscreen,org.kde.plasma.keyboardlayout,org.kde.plasma.keyboardindicator,org.kde.plasma.cameraindicator,org.kde.plasma.manage-inputmethod,org.kde.plasma.mediacontroller";
-        shownItems = "org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.clipboard,org.kde.plasma.devicenotifier,org.kde.plasma.notifications,org.kde.kdeconnect,org.kde.kscreen,org.kde.plasma.keyboardlayout,org.kde.plasma.keyboardindicator,org.kde.plasma.cameraindicator,org.kde.plasma.manage-inputmethod,org.kde.plasma.mediacontroller";
-        hiddenItems = "";
-      };
+      # NOTE: Panel/widget containment IDs (like 244, 308) are NOT configured here
+      # because Plasma assigns dynamic IDs. Panel config is user-managed.
+      # The activation script (fixSystemTray) handles system tray visibility dynamically.
 
       # Mouse/Touchpad settings
       "kcminputrc"."Libinput.1267.12693.ELAN0732:00 04F3:3195 Touchpad" = {
@@ -475,6 +387,52 @@
         loginMode = "emptySession";
       };
 
+      # ─────────────────────────────────────────────────────────────────
+      # KWin Desktop Effects
+      # ─────────────────────────────────────────────────────────────────
+      "kwinrc"."Plugins" = {
+        cubeEnabled = true;
+        cubeslideEnabled = true;
+        diminactiveEnabled = true;
+        wobblywindowsEnabled = true;
+        translucencyEnabled = true;
+      };
+
+      # Cube effect settings
+      "kwinrc"."Effect-cube" = {
+        BorderActivate = 9;  # No border activation
+        TouchBorderActivate = 9;
+      };
+
+      # Dim inactive settings (how much to dim)
+      "kwinrc"."Effect-diminactive" = {
+        Strength = 15;  # 15% dimming
+      };
+
+      # Wobbly windows settings
+      "kwinrc"."Effect-wobblywindows" = {
+        Drag = 85;
+        Stiffness = 10;
+        WobblynessLevel = 1;
+      };
+
+      # Translucency settings (moving/resizing windows)
+      "kwinrc"."Effect-translucency" = {
+        MoveResize = 80;  # 80% opacity when moving
+      };
+
+      # Virtual keyboard (for Surface touchscreen)
+      "kwinrc"."Wayland" = {
+        VirtualKeyboard = true;
+        "InputMethod[$e]" = "/run/current-system/sw/share/applications/com.github.nickvyni.maliit-keyboard.desktop";
+      };
+
+      # Lock screen virtual keyboard
+      "kscreenlockerrc"."Greeter" = {
+        VirtualKeyboard = true;
+        VirtualKeyboardTheme = "breeze";
+      };
+
       "kdeglobals"."WM" = {
         activeBackground = "49,54,59";
         activeBlend = "252,252,252";
@@ -528,5 +486,15 @@
     Exec=sh -c "sleep 2 && konsole & sleep 0.5 && dolphin ~"
     X-KDE-autostart-phase=2
     X-GNOME-Autostart-enabled=true
+  '';
+
+  # Fix system tray showAllItems (plasma-manager writes to applet, but Plasma reads from containment)
+  xdg.configFile."autostart/fix-systray-showall.desktop".text = ''
+    [Desktop Entry]
+    Type=Application
+    Name=Fix System Tray ShowAll
+    Exec=sh -c 'sleep 8; CONFIG="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"; if [ -f "$CONFIG" ]; then CONTAINMENT_ID=$(awk "/^\\[Containments\\]\\[[0-9]+\\]$/ { current_id = gensub(/.*\\[([0-9]+)\\]$/, \"\\\\1\", \"g\") } /^plugin=org\\.kde\\.plasma\\.private\\.systemtray$/ { print current_id; exit }" "$CONFIG"); if [ -n "$CONTAINMENT_ID" ]; then if ! grep -q "^showAllItems=true" "$CONFIG"; then sed -i "/^\\[Containments\\]\\[$CONTAINMENT_ID\\]\\[General\\]$/a showAllItems=true" "$CONFIG"; kquitapp6 plasmashell 2>/dev/null; sleep 2; kstart plasmashell &; fi; fi; fi'
+    X-KDE-autostart-phase=2
+    OnlyShowIn=KDE;
   '';
 }
