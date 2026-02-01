@@ -69,6 +69,11 @@
       path = "echo $PATH | tr ':' '\\n'";
       reload = "source ~/.config/fish/config.fish";
 
+      # Session (Plasma 6)
+      logout = "qdbus org.kde.Shutdown /Shutdown logout";
+      reboot = "qdbus org.kde.Shutdown /Shutdown logoutAndReboot";
+      poweroff = "qdbus org.kde.Shutdown /Shutdown logoutAndShutdown";
+
       # Browser dev
       chrome_no_CORS = "chromium --disable-web-security --user-data-dir=/tmp/chrome-nocors";
 
@@ -131,6 +136,7 @@
       git_current_branch = "git branch 2>/dev/null | sed -n '/\\* /s///p'";
       gcam = "git add --all; and git commit -m $argv[1]";
       gpsh = "git push origin (git_current_branch)";
+      gacp = "git add --all; and git commit -m $argv[1]; and git push";
 
       cpucap = ''
         for i in /sys/devices/system/cpu/cpu[0-9]*/cpufreq
