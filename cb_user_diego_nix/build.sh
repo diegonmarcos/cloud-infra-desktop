@@ -181,10 +181,20 @@ nix_switch() {
 
     log_info "Applying Home Manager configuration..."
 
+    # Capture exit code properly with pipefail behavior
+    # Use -b backup to automatically backup conflicting files
+    exit_code=0
     if check_home_manager 2>/dev/null; then
-        home-manager switch --flake "$flake_ref" 2>&1 | tee -a "$LOG_FILE"
+        home-manager switch -b backup --flake "$flake_ref" 2>&1 | tee -a "$LOG_FILE" || exit_code=$?
     else
-        nix run home-manager -- switch --flake "$flake_ref" 2>&1 | tee -a "$LOG_FILE"
+        nix run home-manager -- switch -b backup --flake "$flake_ref" 2>&1 | tee -a "$LOG_FILE" || exit_code=$?
+    fi
+
+    # Check for actual failure (exit code from home-manager)
+    if [ $exit_code -ne 0 ]; then
+        log_error "Configuration failed with exit code $exit_code"
+        log_info "Check $LOG_FILE for details"
+        return $exit_code
     fi
 
     log_success "Configuration applied: $flake_ref"
@@ -199,7 +209,14 @@ nix_update() {
 
     cd "$SRC_DIR"
     log_info "Updating flake.lock..."
-    nix flake update 2>&1 | tee -a "$LOG_FILE"
+
+    exit_code=0
+    nix flake update 2>&1 | tee -a "$LOG_FILE" || exit_code=$?
+
+    if [ $exit_code -ne 0 ]; then
+        log_error "Flake update failed with exit code $exit_code"
+        return $exit_code
+    fi
 
     log_success "Flake inputs updated"
 }

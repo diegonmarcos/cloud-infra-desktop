@@ -294,211 +294,9 @@
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # HOME MANAGER (Per-user configuration management)
+  # NOTE: Home-manager is managed separately in cb_user_diego_nix
+  # This flake is SYSTEM ONLY - no per-user configuration here
   # ═══════════════════════════════════════════════════════════════════════════
-
-  home-manager = {
-    useGlobalPkgs = true;
-    useUserPackages = true;
-    backupFileExtension = "backup";
-
-    users.diego = { pkgs, ... }: {
-      imports = [ plasma-manager.homeManagerModules.plasma-manager ];
-      home.stateVersion = "24.11";
-
-      # User-specific packages (not system-wide)
-      home.packages = with pkgs; [
-        # Add user-specific tools here
-        htop
-      ];
-
-      # Git configuration
-      programs.git = {
-        enable = true;
-        userName = "Diego";
-        userEmail = "me@diegonmarcos.com";
-      };
-
-      # Fish shell configuration
-      programs.fish = {
-        enable = true;
-        shellAliases = {
-          ll = "ls -lah";
-          ".." = "cd ..";
-        };
-        shellInit = ''
-          # Add npm global packages to PATH
-          set -gx PATH $HOME/.npm-global/bin $PATH
-        '';
-      };
-
-      # ─────────────────────────────────────────────────────────────────────────
-      # KDE PLASMA SETTINGS (via plasma-manager)
-      # ─────────────────────────────────────────────────────────────────────────
-      programs.plasma = {
-        enable = true;
-
-        # Dark theme (global) - FULL dark mode
-        workspace = {
-          colorScheme = "BreezeDark";
-          theme = "breeze-dark";
-          lookAndFeel = "org.kde.breezedark.desktop";
-          cursor = {
-            theme = "breeze_cursors";
-            size = 24;
-          };
-          iconTheme = "breeze-dark";
-          wallpaper = "${pkgs.kdePackages.plasma-workspace-wallpapers}/share/wallpapers/MilkyWay/contents/images/5120x2880.png";
-        };
-
-        # Night Light always on (2200K warm)
-        kwin.nightLight = {
-          enable = true;
-          mode = "constant";
-          temperature = {
-            day = 2200;
-            night = 2200;
-          };
-        };
-
-        # ─────────────────────────────────────────────────────────────────────
-        # PANEL CONFIGURATION (horizontal bottom panel)
-        # ─────────────────────────────────────────────────────────────────────
-        panels = [
-          {
-            location = "bottom";
-            height = 44;
-            floating = true;
-            widgets = [
-              # 1. User switcher
-              "org.kde.plasma.userswitcher"
-              # 2. App launcher (kickoff)
-              "org.kde.plasma.kickoff"
-              # 3. Show desktop (peek)
-              "org.kde.plasma.showdesktop"
-              # 4. Virtual desktops pager
-              {
-                name = "org.kde.plasma.pager";
-                config.General = {
-                  currentDesktopSelected = "ShowDesktop";
-                  displayedText = "Number";
-                  showWindowIcons = "true";
-                };
-              }
-              # 5. Task manager (icon-only): Brave, Settings, Dolphin, Konsole
-              {
-                name = "org.kde.plasma.icontasks";
-                config.General = {
-                  launchers = [
-                    "applications:brave-browser.desktop"
-                    "applications:systemsettings.desktop"
-                    "applications:org.kde.dolphin.desktop"
-                    "applications:org.kde.konsole.desktop"
-                  ];
-                };
-              }
-              # 6. Spacer
-              "org.kde.plasma.panelspacer"
-              # 7. Disk usage (piechart - pool only)
-              {
-                name = "org.kde.plasma.systemmonitor.diskusage";
-                config.Appearance = {
-                  title = "Disk";
-                  chartFace = "org.kde.ksysguard.piechart";
-                };
-                config.Sensors = {
-                  highPrioritySensorIds = ''["disk/all/usedPercent"]'';
-                  totalSensors = ''["disk/all/usedPercent"]'';
-                };
-              }
-              # 8. Disk I/O (linechart)
-              {
-                name = "org.kde.plasma.systemmonitor.diskactivity";
-                config.Appearance.title = "I/O";
-                config.Appearance.chartFace = "org.kde.ksysguard.linechart";
-              }
-              # 9. RAM (piechart)
-              {
-                name = "org.kde.plasma.systemmonitor.memory";
-                config.Appearance.title = "RAM";
-                config.Appearance.chartFace = "org.kde.ksysguard.piechart";
-              }
-              # 10. CPU cores (barchart)
-              {
-                name = "org.kde.plasma.systemmonitor.cpucore";
-                config.Appearance.title = "Cores";
-                config.Appearance.chartFace = "org.kde.ksysguard.barchart";
-              }
-              # 11. CPU total (piechart)
-              {
-                name = "org.kde.plasma.systemmonitor.cpu";
-                config.Appearance.title = "CPU";
-                config.Appearance.chartFace = "org.kde.ksysguard.piechart";
-              }
-              # 12. System tray - SHOW ALL ITEMS
-              {
-                systemTray = {
-                  icons.scaleToFit = true;
-                  items.showAll = true;
-                };
-              }
-              # 13. Digital clock (24h, dd-MM-yyyy)
-              {
-                name = "org.kde.plasma.digitalclock";
-                config.Appearance = {
-                  showDate = "true";
-                  dateFormat = "custom";
-                  customDateFormat = "dd-MM-yyyy";
-                  use24hFormat = "2";
-                };
-              }
-            ];
-          }
-        ];
-
-        # ─────────────────────────────────────────────────────────────────────
-        # APPLICATION SETTINGS & DEFAULT BROWSER
-        # ─────────────────────────────────────────────────────────────────────
-        configFile = {
-          # Brave as default browser
-          "kdeglobals"."General"."BrowserApplication" = "brave-browser.desktop";
-
-          # Force dark color scheme everywhere
-          "kdeglobals"."General"."ColorScheme" = "BreezeDark";
-          "kdeglobals"."KDE"."LookAndFeelPackage" = "org.kde.breezedark.desktop";
-          "kdeglobals"."KDE"."widgetStyle" = "Breeze";
-
-          # GTK dark theme
-          "gtk-3.0/settings.ini"."Settings"."gtk-application-prefer-dark-theme" = 1;
-          "gtk-4.0/settings.ini"."Settings"."gtk-application-prefer-dark-theme" = 1;
-
-          # Dolphin
-          "dolphinrc"."General"."GlobalViewProps" = true;
-          "dolphinrc"."KFileDialog Settings"."Places Icons Auto-resize" = false;
-          "dolphinrc"."KFileDialog Settings"."Places Icons Static Size" = 22;
-
-          # Konsole dark profile
-          "konsolerc"."Desktop Entry"."DefaultProfile" = "Breeze.profile";
-
-          # Kate dark theme
-          "katerc"."KTextEditor Renderer"."Auto Color Theme Selection" = false;
-          "katerc"."KTextEditor Renderer"."Color Theme" = "Breeze Dark";
-
-          # Lock screen virtual keyboard (Surface Pro touchscreen)
-          "kscreenlockerrc"."Greeter"."VirtualKeyboard" = true;
-          "kscreenlockerrc"."Greeter"."VirtualKeyboardTheme" = "breeze";
-
-          # Plasma virtual keyboard settings
-          "kwinrc"."Wayland"."VirtualKeyboard" = true;
-          "kwinrc"."Wayland"."InputMethod[$e]" = "/run/current-system/sw/share/applications/com.github.nickvyni.maliit-keyboard.desktop";
-        };
-      };
-    };
-
-    users.guest = { pkgs, ... }: {
-      home.stateVersion = "24.11";
-    };
-  };
 
   # ═══════════════════════════════════════════════════════════════════════════
   # SESSION 1: KDE PLASMA 6 (Default)
@@ -541,10 +339,10 @@
     GTK_THEME = "Breeze-Dark";
   };
 
-  # Force 125% scaling for SDDM (1.25x)
+  # Force 125% scaling for SDDM + Virtual Keyboard QML path
   environment.etc."sddm.conf.d/hidpi.conf".text = ''
     [General]
-    GreeterEnvironment=QT_SCREEN_SCALE_FACTORS=1.25,QT_FONT_DPI=120
+    GreeterEnvironment=QT_SCREEN_SCALE_FACTORS=1.25,QT_FONT_DPI=120,QT_IM_MODULE=qtvirtualkeyboard,QML2_IMPORT_PATH=${pkgs.kdePackages.qtvirtualkeyboard}/lib/qt-6/qml
   '';
 
   # Custom SDDM Astronaut theme with glassmorphism + mountain background
@@ -595,34 +393,7 @@ EOF
     Hidden=true
   '';
 
-  # Fix system tray showAllItems (plasma-manager writes to applet, but Plasma reads from containment)
-  environment.etc."xdg/autostart/fix-systray-showall.desktop".text = ''
-    [Desktop Entry]
-    Type=Application
-    Name=Fix System Tray ShowAll
-    Exec=${pkgs.writeShellScript "fix-systray-showall" ''
-      # Wait for plasma to fully start
-      sleep 5
-      CONFIG="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
-      if [ -f "$CONFIG" ]; then
-        # Find the systemtray containment ID (the one with private.systemtray plugin)
-        CONTAINMENT_ID=$(grep -B5 "plugin=org.kde.plasma.private.systemtray" "$CONFIG" | grep -oP '\[Containments\]\[\K[0-9]+')
-        if [ -n "$CONTAINMENT_ID" ]; then
-          # Check if showAllItems is already set in this containment
-          if ! grep -A20 "^\[Containments\]\[$CONTAINMENT_ID\]\[General\]" "$CONFIG" | grep -q "^showAllItems=true"; then
-            # Use sed to add showAllItems=true after the [General] section header
-            ${pkgs.gnused}/bin/sed -i "/^\[Containments\]\[$CONTAINMENT_ID\]\[General\]/a showAllItems=true" "$CONFIG"
-            # Restart plasmashell to apply
-            kquitapp6 plasmashell 2>/dev/null
-            sleep 1
-            kstart plasmashell &
-          fi
-        fi
-      fi
-    ''}
-    X-KDE-autostart-phase=2
-    OnlyShowIn=KDE;
-  '';
+  # NOTE: System tray fix moved to home-manager (plasma-manager workaround)
 
   # ═══════════════════════════════════════════════════════════════════════════
   # SESSION 2: GNOME
