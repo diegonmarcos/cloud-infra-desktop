@@ -7,8 +7,12 @@
   # Install sops for editing secrets
   home.packages = [ pkgs.sops pkgs.age ];
 
+  # Symlink age key from vault to expected location
+  xdg.configFile."sops/age/keys.txt".source =
+    config.lib.file.mkOutOfStoreSymlink "/home/diego/Mounts/Git/vault/A0_keys/age/keys.txt";
+
   sops = {
-    # Age key location (generated with: age-keygen -o ~/.config/sops/age/keys.txt)
+    # Age key location (symlinked from vault)
     age.keyFile = "${config.home.homeDirectory}/.config/sops/age/keys.txt";
 
     # Default secrets file
