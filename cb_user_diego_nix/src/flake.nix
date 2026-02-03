@@ -191,11 +191,6 @@
         "diego@surface-gnome"  = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-gnome "surface-gnome";
         "diego@surface"        = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-plasma "surface-plasma";
 
-        # ─── Desktop (with DE) ────────────────────────────────────────
-        "diego@desktop-plasma" = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full-plasma "desktop-plasma";
-        "diego@desktop-gnome"  = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full-gnome "desktop-gnome";
-        "diego@desktop"        = mkHost "diego" "/home/diego" ./hosts/desktop.nix presets.full-plasma "desktop-plasma";
-
         # ─── Server/CLI (no DE) ───────────────────────────────────────
         "diego@server"  = mkHost "diego" "/home/diego" ./hosts/server.nix presets.server "server";
         "diego@cli"     = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.cli "cli";

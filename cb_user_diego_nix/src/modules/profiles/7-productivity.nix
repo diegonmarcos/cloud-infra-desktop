@@ -1,8 +1,17 @@
 # Profile 7: Productivity & Documents
-# Office, notes, organization
+# Office, notes, organization, browsers
 { config, pkgs, lib, ... }:
 
 {
+  # Brave browser with extensions
+  programs.chromium = {
+    enable = true;
+    package = pkgs.brave;
+    extensions = [
+      { id = "nngceckbapebfimnlniiiahkandclblb"; }  # Bitwarden
+    ];
+  };
+
   home.packages = with pkgs; [
     # Office suite
     libreoffice

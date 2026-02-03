@@ -488,6 +488,26 @@ EOF
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # OOM PROTECTION (Prevent GUI freezes under memory pressure)
+  # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # earlyoom is more aggressive than systemd-oomd and prevents GUI freezes
+  # by killing memory-hungry processes BEFORE the system becomes unresponsive.
+  # Without this, high memory usage causes compositor starvation → frozen GUI.
+  #
+
+  services.earlyoom = {
+    enable = true;
+    freeMemThreshold = 5;          # Kill when <5% RAM free
+    freeSwapThreshold = 10;        # Kill when <10% swap free
+    enableNotifications = true;    # Desktop notifications when killing
+    extraArgs = [
+      "--prefer" "^(brave|firefox|chromium|electron)$"  # Kill browsers first
+      "--avoid" "^(kwin|plasma|sddm|Xwayland|pipewire)$"  # Protect desktop
+    ];
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # AUDIO (Pipewire)
   # ═══════════════════════════════════════════════════════════════════════════
 

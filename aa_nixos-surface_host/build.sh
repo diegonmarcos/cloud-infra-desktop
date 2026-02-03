@@ -284,8 +284,8 @@
 #
 #   Architecture:  ./0_spec/architecture.md
 #   Runbook:       ./0_spec/runbook.md
-#   Flake:         ./flake.nix
-#   Configuration: ./configuration.nix
+#   Flake:         ./src/flake.nix
+#   Configuration: ./src/configuration.nix
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -300,7 +300,7 @@ cd "$SCRIPT_DIR"
 
 # Build paths
 OUTPUT_BASE="/mnt/kinoite/@images/a_nixos_host"
-FLAKE_PATH="$SCRIPT_DIR"
+FLAKE_PATH="$SCRIPT_DIR/src"
 LOG_DIR="$SCRIPT_DIR/logs"
 LOG_FILE="$LOG_DIR/build-$(date +%Y%m%d-%H%M%S).log"
 
