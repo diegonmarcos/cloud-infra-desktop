@@ -35,6 +35,7 @@
     # Password management
     pass
     gopass
+    bitwarden-desktop  # Vaultwarden/Bitwarden GUI client
 
     # SSH tools
     openssh

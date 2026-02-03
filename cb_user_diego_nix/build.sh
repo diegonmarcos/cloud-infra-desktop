@@ -179,6 +179,13 @@ nix_switch() {
         return 1
     fi
 
+    # Clean old backup files that block home-manager activation
+    backup_count=$(command find "$HOME" -maxdepth 1 -name "*.backup" -type f 2>/dev/null | wc -l)
+    if [ "$backup_count" -gt 0 ]; then
+        log_info "Cleaning $backup_count old backup file(s)..."
+        command find "$HOME" -maxdepth 1 -name "*.backup" -type f -delete 2>/dev/null || true
+    fi
+
     log_info "Applying Home Manager configuration..."
 
     # Capture exit code properly with pipefail behavior
@@ -571,35 +578,33 @@ print_menu() {
 }
 
 read_choice() {
-    printf "${BOLD}Enter choice: ${NC}"
+    printf "${BOLD}Enter choice: ${NC}" >&2
     read -r choice
     printf "%s" "$choice"
 }
 
 prompt_host() {
-    printf "\n${YELLOW}Available hosts:${NC}\n"
-    printf "  1) surface  - Full development (default)\n"
-    printf "  2) desktop  - Desktop workstation\n"
-    printf "  3) server   - Server/cloud ops\n"
-    printf "  4) cli      - CLI-only\n"
-    printf "  5) minimal  - Base development\n"
-    printf "\n${BOLD}Select host [1]: ${NC}"
+    printf "\n${YELLOW}Available hosts:${NC}\n" >&2
+    printf "  1) surface  - Full development (default)\n" >&2
+    printf "  2) server   - Server/cloud ops\n" >&2
+    printf "  3) cli      - CLI-only\n" >&2
+    printf "  4) minimal  - Base development\n" >&2
+    printf "\n${BOLD}Select host [1]: ${NC}" >&2
     read -r host_choice
 
     case "$host_choice" in
-        2) printf "desktop" ;;
-        3) printf "server" ;;
-        4) printf "cli" ;;
-        5) printf "minimal" ;;
+        2) printf "server" ;;
+        3) printf "cli" ;;
+        4) printf "minimal" ;;
         *) printf "surface" ;;
     esac
 }
 
 prompt_image_type() {
-    printf "\n${YELLOW}Image type:${NC}\n"
-    printf "  1) full    - All CLI tools (default)\n"
-    printf "  2) minimal - Shell + core only\n"
-    printf "\n${BOLD}Select type [1]: ${NC}"
+    printf "\n${YELLOW}Image type:${NC}\n" >&2
+    printf "  1) full    - All CLI tools (default)\n" >&2
+    printf "  2) minimal - Shell + core only\n" >&2
+    printf "\n${BOLD}Select type [1]: ${NC}" >&2
     read -r type_choice
 
     case "$type_choice" in
@@ -713,8 +718,7 @@ ${YELLOW}UTILITY COMMANDS:${NC}
     clear-log               Clear build log
 
 ${YELLOW}HOSTS:${NC}
-    surface                 Full development (all profiles)
-    desktop                 Desktop workstation
+    surface                 Full development (all profiles + Plasma)
     server                  Server/cloud ops
     cli                     CLI-only (no GUI)
     minimal                 Base development

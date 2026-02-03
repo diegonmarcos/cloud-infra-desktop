@@ -39,6 +39,37 @@
     fi
   '';
 
+  # Configure battery widget to show percentage instead of icon
+  home.activation.fixBatteryPercentage = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
+    APPLETS_FILE="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+    if [ -f "$APPLETS_FILE" ]; then
+      # Find the battery applet section: [Containments][X][Applets][Y] where plugin=org.kde.plasma.battery
+      BATTERY_SECTION=$(${pkgs.gawk}/bin/awk '
+        /^\[Containments\]\[[0-9]+\]\[Applets\]\[[0-9]+\]$/ { section = $0 }
+        /^plugin=org\.kde\.plasma\.battery$/ { gsub(/\[|\]/, " ", section); split(section, a); printf "[Containments][%s][Applets][%s]", a[2], a[4]; exit }
+      ' "$APPLETS_FILE")
+
+      if [ -n "$BATTERY_SECTION" ]; then
+        CONFIG_SECTION="$BATTERY_SECTION[Configuration][General]"
+
+        # Check if Configuration/General section exists
+        if grep -qF "$CONFIG_SECTION" "$APPLETS_FILE"; then
+          # Update existing showPercentage
+          ${pkgs.gnused}/bin/sed -i "s/^showPercentage=.*/showPercentage=true/" "$APPLETS_FILE"
+          # Add if not present
+          if ! grep -q "^showPercentage=" "$APPLETS_FILE"; then
+            ${pkgs.gnused}/bin/sed -i "/^$(echo "$CONFIG_SECTION" | ${pkgs.gnused}/bin/sed 's/\[/\\[/g; s/\]/\\]/g')$/a showPercentage=true" "$APPLETS_FILE"
+          fi
+        else
+          # Section doesn't exist, append it
+          echo "" >> "$APPLETS_FILE"
+          echo "$CONFIG_SECTION" >> "$APPLETS_FILE"
+          echo "showPercentage=true" >> "$APPLETS_FILE"
+        fi
+      fi
+    fi
+  '';
+
   programs.plasma = {
     enable = true;
 
@@ -121,12 +152,19 @@
     };
 
     # Window rules for autostart positioning
+    # Screen: 2880x1920 @ 1.25 scale = 2304x1536 effective
+    # Left half (1152px): 2 Konsoles stacked (768px each)
+    # Right half (1152px): Dolphin full height
     window-rules = [
       {
-        description = "Konsole - Left Half";
+        description = "Konsole Top - Top Left";
         match = {
           window-class = {
             value = "konsole";
+            type = "substring";
+          };
+          title = {
+            value = "Konsole Top";
             type = "substring";
           };
         };
@@ -136,7 +174,30 @@
             apply = "initially";
           };
           size = {
-            value = "960,1080";
+            value = "1152,768";
+            apply = "initially";
+          };
+        };
+      }
+      {
+        description = "Konsole Bottom - Bottom Left";
+        match = {
+          window-class = {
+            value = "konsole";
+            type = "substring";
+          };
+          title = {
+            value = "Konsole Bottom";
+            type = "substring";
+          };
+        };
+        apply = {
+          position = {
+            value = "0,768";
+            apply = "initially";
+          };
+          size = {
+            value = "1152,768";
             apply = "initially";
           };
         };
@@ -151,11 +212,11 @@
         };
         apply = {
           position = {
-            value = "960,0";
+            value = "1152,0";
             apply = "initially";
           };
           size = {
-            value = "960,1080";
+            value = "1152,1536";
             apply = "initially";
           };
         };
@@ -482,8 +543,8 @@
     [Desktop Entry]
     Type=Application
     Name=Launch Workspace
-    Comment=Open Konsole and Dolphin on startup
-    Exec=sh -c "sleep 2 && konsole & sleep 0.5 && dolphin ~"
+    Comment=Open 2 Konsoles (left) and Dolphin (right) on startup
+    Exec=sh -c "sleep 3 && kstart --geometry 1152x768+0+0 konsole --title 'Konsole Top' & sleep 0.5 && kstart --geometry 1152x768+0+768 konsole --title 'Konsole Bottom' & sleep 0.5 && kstart --geometry 1152x1536+1152+0 dolphin ~"
     X-KDE-autostart-phase=2
     X-GNOME-Autostart-enabled=true
   '';

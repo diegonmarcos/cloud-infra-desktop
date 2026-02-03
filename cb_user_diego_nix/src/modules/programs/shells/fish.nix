@@ -70,7 +70,7 @@
       reload = "source ~/.config/fish/config.fish";
 
       # Session (Plasma 6)
-      logout = "qdbus org.kde.Shutdown /Shutdown logout";
+      logout = "killall -9 -u $USER; qdbus org.kde.Shutdown /Shutdown logout";
       reboot = "qdbus org.kde.Shutdown /Shutdown logoutAndReboot";
       poweroff = "qdbus org.kde.Shutdown /Shutdown logoutAndShutdown";
 
