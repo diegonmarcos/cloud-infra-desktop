@@ -65,7 +65,7 @@
 
   services.gpg-agent = {
     enable = true;
-    enableSshSupport = true;
+    enableSshSupport = false;  # Disable to stop SSH key passphrase prompts
     pinentryPackage = pkgs.pinentry-curses;
   };
 }
