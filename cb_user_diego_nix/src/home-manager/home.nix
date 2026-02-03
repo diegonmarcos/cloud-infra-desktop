@@ -246,12 +246,6 @@
       set -g path_to_my_git "/home/diego/Documents/Git/"
       set -gx DBX_CONTAINER_MANAGER docker
 
-      # Rclone mount check on login (run in background to avoid blocking shell)
-      if not mount | grep -q "/home/diego/Documents/Gdrive"
-        bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh a2 2>/dev/null &
-        disown 2>/dev/null
-      end
-
       # Startup dashboard
       clear
       printf "\x1b[1;34mWelcome to your shell, %s!\x1b[0m\n" (whoami)
