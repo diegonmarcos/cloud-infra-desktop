@@ -550,12 +550,17 @@
   '';
 
   # Fix system tray showAllItems (plasma-manager writes to applet, but Plasma reads from containment)
-  xdg.configFile."autostart/fix-systray-showall.desktop".text = ''
-    [Desktop Entry]
-    Type=Application
-    Name=Fix System Tray ShowAll
-    Exec=sh -c 'sleep 8; CONFIG="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"; if [ -f "$CONFIG" ]; then CONTAINMENT_ID=$(awk "/^\\[Containments\\]\\[[0-9]+\\]$/ { current_id = gensub(/.*\\[([0-9]+)\\]$/, \"\\\\1\", \"g\") } /^plugin=org\\.kde\\.plasma\\.private\\.systemtray$/ { print current_id; exit }" "$CONFIG"); if [ -n "$CONTAINMENT_ID" ]; then if ! grep -q "^showAllItems=true" "$CONFIG"; then sed -i "/^\\[Containments\\]\\[$CONTAINMENT_ID\\]\\[General\\]$/a showAllItems=true" "$CONFIG"; kquitapp6 plasmashell 2>/dev/null; sleep 2; kstart plasmashell &; fi; fi; fi'
-    X-KDE-autostart-phase=2
-    OnlyShowIn=KDE;
-  '';
+  # DISABLED: The kquitapp6/kstart plasmashell combo causes GUI freezes 8 seconds after every login.
+  # The activation script (fixSystemTray) handles this during home-manager switch instead.
+  # If you need to fix system tray visibility, run manually:
+  #   kquitapp6 plasmashell && kstart plasmashell
+  #
+  # xdg.configFile."autostart/fix-systray-showall.desktop".text = ''
+  #   [Desktop Entry]
+  #   Type=Application
+  #   Name=Fix System Tray ShowAll
+  #   Exec=sh -c 'sleep 8; CONFIG="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"; ...'
+  #   X-KDE-autostart-phase=2
+  #   OnlyShowIn=KDE;
+  # '';
 }
