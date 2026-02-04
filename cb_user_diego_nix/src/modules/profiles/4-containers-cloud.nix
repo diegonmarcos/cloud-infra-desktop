@@ -27,9 +27,9 @@
     google-cloud-sdk
     awscli2
     azure-cli
+    oci-cli
     cloudflared
     flarectl
-    # Note: oci-cli installed via pipx (not in nixpkgs)
 
     # Docker Compose (for compatibility)
     docker-compose
@@ -49,11 +49,4 @@
     sops
     age
   ];
-
-  # Install oci-cli via pipx (not available in nixpkgs)
-  home.activation.installOciCli = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    if command -v pipx &>/dev/null; then
-      $DRY_RUN_CMD pipx install oci-cli 2>/dev/null || true
-    fi
-  '';
 }

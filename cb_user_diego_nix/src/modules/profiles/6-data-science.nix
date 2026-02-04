@@ -4,6 +4,10 @@
 
 {
   home.packages = with pkgs; [
+    # AI CLI tools (custom packages)
+    customPkgs.claude-code
+    customPkgs.gemini-cli
+
     # Python data science core
     python312Packages.numpy
     python312Packages.pandas
@@ -64,13 +68,6 @@
     # Data validation
     python312Packages.pydantic
   ];
-
-  # Install AI CLI tools via npm
-  home.activation.installAiTools = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    if command -v npm &>/dev/null; then
-      $DRY_RUN_CMD npm install -g @anthropic-ai/claude-code 2>/dev/null || true
-    fi
-  '';
 
   # Python environment
   home.sessionVariables = {

@@ -87,6 +87,164 @@
     functions = {
       fish_greeting = "";
 
+      # ══════════════════════════════════════════════════════════════════════════
+      # NixOS Package Installation Guards
+      # Prevent accidental use of imperative package managers
+      # ══════════════════════════════════════════════════════════════════════════
+      __nix_guard_msg = ''
+        set_color --bold red
+        echo "⚠️  STOP! This is NixOS - packages are managed declaratively."
+        set_color normal
+        echo ""
+        set_color yellow
+        echo "To install packages permanently:"
+        set_color normal
+        echo "  1. nix search nixpkgs <package>     # Find package"
+        echo "  2. Add to flake: ~/Mounts/Git/unix/cb_user_diego_nix"
+        echo "  3. ./build.sh switch surface        # Apply changes"
+        echo ""
+        set_color yellow
+        echo "For temporary/non-persistent use:"
+        set_color normal
+        echo "  nix-shell -p <package>              # Opens shell with package"
+        echo "  nix run nixpkgs#<package>           # Run package directly"
+        echo ""
+        set_color brblack
+        echo "Blocked command: $argv"
+        set_color normal
+      '';
+
+      apt = ''
+        if string match -qr '^(install|remove|purge|update|upgrade|autoremove)' -- $argv[1]
+          __nix_guard_msg "apt $argv"
+          return 1
+        else
+          command apt $argv
+        end
+      '';
+
+      apt-get = ''
+        if string match -qr '^(install|remove|purge|update|upgrade|autoremove)' -- $argv[1]
+          __nix_guard_msg "apt-get $argv"
+          return 1
+        else
+          command apt-get $argv
+        end
+      '';
+
+      npm = ''
+        if begin; test "$argv[1]" = "install"; or test "$argv[1]" = "i"; end
+          if contains -- -g $argv; or contains -- --global $argv
+            __nix_guard_msg "npm $argv"
+            return 1
+          else
+            set_color yellow
+            echo "⚠️  Consider using 'nix develop' for reproducible project deps"
+            set_color normal
+          end
+        end
+        command npm $argv
+      '';
+
+      pipx = ''
+        if test "$argv[1]" = "install"
+          __nix_guard_msg "pipx $argv"
+          return 1
+        else
+          command pipx $argv
+        end
+      '';
+
+      pip = ''
+        if test "$argv[1]" = "install"
+          set_color yellow
+          echo "⚠️  Consider using 'nix develop' for reproducible project deps"
+          set_color normal
+        end
+        command pip $argv
+      '';
+
+      pip3 = ''
+        if test "$argv[1]" = "install"
+          set_color yellow
+          echo "⚠️  Consider using 'nix develop' for reproducible project deps"
+          set_color normal
+        end
+        command pip3 $argv
+      '';
+
+      brew = ''
+        __nix_guard_msg "brew $argv"
+        echo ""
+        set_color brblack
+        echo "Homebrew is not used on NixOS."
+        set_color normal
+        return 1
+      '';
+
+      pacman = ''
+        if string match -qr '^-S' -- $argv[1]
+          __nix_guard_msg "pacman $argv"
+          return 1
+        else
+          command pacman $argv
+        end
+      '';
+
+      yay = ''
+        __nix_guard_msg "yay $argv"
+        return 1
+      '';
+
+      paru = ''
+        __nix_guard_msg "paru $argv"
+        return 1
+      '';
+
+      dnf = ''
+        if test "$argv[1]" = "install"
+          __nix_guard_msg "dnf $argv"
+          return 1
+        else
+          command dnf $argv
+        end
+      '';
+
+      yum = ''
+        if test "$argv[1]" = "install"
+          __nix_guard_msg "yum $argv"
+          return 1
+        else
+          command yum $argv
+        end
+      '';
+
+      cargo = ''
+        if test "$argv[1]" = "install"
+          __nix_guard_msg "cargo $argv"
+          echo ""
+          set_color brblack
+          echo "Tip: Search nixpkgs for Rust packages or use nix develop"
+          set_color normal
+          return 1
+        else
+          command cargo $argv
+        end
+      '';
+
+      go = ''
+        if test "$argv[1]" = "install"
+          __nix_guard_msg "go $argv"
+          echo ""
+          set_color brblack
+          echo "Tip: Search nixpkgs for Go packages or use nix develop"
+          set_color normal
+          return 1
+        else
+          command go $argv
+        end
+      '';
+
       mkcd = "mkdir -p $argv[1]; and cd $argv[1]";
       mkd = "mkdir -p $argv; and cd $argv[-1]";
 

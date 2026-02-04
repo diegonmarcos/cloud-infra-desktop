@@ -38,6 +38,8 @@
             inherit system;
             config.allowUnfree = true;
           };
+          # Custom packages (AI CLIs, etc.)
+          customPkgs = import ./modules/packages { pkgs = final; };
         })
       ];
 

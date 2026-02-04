@@ -90,4 +90,12 @@
 
   # News notifications
   news.display = "silent";
+
+  # Claude Code configuration
+  home.file.".claude/CLAUDE.md".source = ./dotfiles/claude/CLAUDE.md;
+  home.file.".claude/statusline-command.sh" = {
+    source = ./dotfiles/claude/statusline-command.sh;
+    executable = true;
+  };
+  home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;
 }
