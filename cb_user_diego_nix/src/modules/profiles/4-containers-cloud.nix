@@ -27,6 +27,8 @@
     google-cloud-sdk
     awscli2
     azure-cli
+    cloudflared
+    flarectl
     # Note: oci-cli installed via pipx (not in nixpkgs)
 
     # Docker Compose (for compatibility)

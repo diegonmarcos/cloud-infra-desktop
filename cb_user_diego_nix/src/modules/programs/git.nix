@@ -98,7 +98,6 @@
 
       # Build
       "node_modules/"
-      "dist/"
       "build/"
       "__pycache__/"
       "*.pyc"

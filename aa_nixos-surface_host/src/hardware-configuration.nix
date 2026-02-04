@@ -63,9 +63,7 @@
         "hid_generic"
         "i2c_hid"
         "i2c_hid_acpi"
-        "intel_ish_ipc"
-        "intel_ishtp"
-        "intel_ishtp_hid"
+        # NOTE: intel_ish* removed - Surface Pro 8 uses SAM, not Intel ISH
       ];
 
       # DISABLED: systemd-initrd breaks tmpfs root + impermanence
