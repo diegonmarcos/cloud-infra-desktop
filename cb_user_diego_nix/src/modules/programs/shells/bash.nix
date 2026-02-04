@@ -140,6 +140,141 @@
       [ -f "$HOME/.bash-wakatime/bash-wakatime.sh" ] && source "$HOME/.bash-wakatime/bash-wakatime.sh"
 
       # =======================================================================
+      # NIXOS PACKAGE INSTALLATION GUARDS
+      # =======================================================================
+
+      __nix_guard_msg() {
+        echo -e "\033[1;31m⚠️  STOP! This is NixOS - packages are managed declaratively.\033[0m"
+        echo ""
+        echo -e "\033[1;33mTo install packages permanently:\033[0m"
+        echo "  1. nix search nixpkgs <package>     # Find package"
+        echo "  2. Add to flake: ~/Mounts/Git/unix/cb_user_diego_nix"
+        echo "  3. ./build.sh switch surface        # Apply changes"
+        echo ""
+        echo -e "\033[1;33mFor temporary/non-persistent use:\033[0m"
+        echo "  nix-shell -p <package>              # Opens shell with package"
+        echo "  nix run nixpkgs#<package>           # Run package directly"
+        echo ""
+        echo -e "\033[0;90mBlocked command: $1\033[0m"
+      }
+
+      __nix_warn_msg() {
+        echo -e "\033[1;33m⚠️  Consider using 'nix develop' for reproducible project deps\033[0m"
+      }
+
+      apt() {
+        case "$1" in
+          install|remove|purge|update|upgrade|autoremove)
+            __nix_guard_msg "apt $*"
+            return 1
+            ;;
+          *) command apt "$@" ;;
+        esac
+      }
+
+      apt-get() {
+        case "$1" in
+          install|remove|purge|update|upgrade|autoremove)
+            __nix_guard_msg "apt-get $*"
+            return 1
+            ;;
+          *) command apt-get "$@" ;;
+        esac
+      }
+
+      npm() {
+        if [[ "$1" == "install" || "$1" == "i" ]]; then
+          if [[ " $* " == *" -g "* || " $* " == *" --global "* ]]; then
+            __nix_guard_msg "npm $*"
+            return 1
+          else
+            __nix_warn_msg
+          fi
+        fi
+        command npm "$@"
+      }
+
+      pipx() {
+        if [[ "$1" == "install" ]]; then
+          __nix_guard_msg "pipx $*"
+          return 1
+        fi
+        command pipx "$@"
+      }
+
+      pip() {
+        if [[ "$1" == "install" ]]; then
+          __nix_warn_msg
+        fi
+        command pip "$@"
+      }
+
+      pip3() {
+        if [[ "$1" == "install" ]]; then
+          __nix_warn_msg
+        fi
+        command pip3 "$@"
+      }
+
+      brew() {
+        __nix_guard_msg "brew $*"
+        echo -e "\033[0;90mHomebrew is not used on NixOS.\033[0m"
+        return 1
+      }
+
+      pacman() {
+        if [[ "$1" == -S* ]]; then
+          __nix_guard_msg "pacman $*"
+          return 1
+        fi
+        command pacman "$@"
+      }
+
+      yay() {
+        __nix_guard_msg "yay $*"
+        return 1
+      }
+
+      paru() {
+        __nix_guard_msg "paru $*"
+        return 1
+      }
+
+      dnf() {
+        if [[ "$1" == "install" ]]; then
+          __nix_guard_msg "dnf $*"
+          return 1
+        fi
+        command dnf "$@"
+      }
+
+      yum() {
+        if [[ "$1" == "install" ]]; then
+          __nix_guard_msg "yum $*"
+          return 1
+        fi
+        command yum "$@"
+      }
+
+      cargo() {
+        if [[ "$1" == "install" ]]; then
+          __nix_guard_msg "cargo $*"
+          echo -e "\033[0;90mTip: Search nixpkgs for Rust packages or use nix develop\033[0m"
+          return 1
+        fi
+        command cargo "$@"
+      }
+
+      go() {
+        if [[ "$1" == "install" ]]; then
+          __nix_guard_msg "go $*"
+          echo -e "\033[0;90mTip: Search nixpkgs for Go packages or use nix develop\033[0m"
+          return 1
+        fi
+        command go "$@"
+      }
+
+      # =======================================================================
       # FUNCTIONS
       # =======================================================================
 
