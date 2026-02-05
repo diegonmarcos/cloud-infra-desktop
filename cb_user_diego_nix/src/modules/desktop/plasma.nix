@@ -494,6 +494,16 @@
         VirtualKeyboardTheme = "breeze";
       };
 
+      # Keyboard layout - Spanish as default
+      "kxkbrc"."Layout" = {
+        LayoutList = "es";
+        DisplayNames = "Spanish";
+        Options = "";
+        ResetOldOptions = true;
+        SwitchMode = "Global";
+        Use = true;
+      };
+
       "kdeglobals"."WM" = {
         activeBackground = "49,54,59";
         activeBlend = "252,252,252";
