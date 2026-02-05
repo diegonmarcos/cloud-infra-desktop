@@ -351,6 +351,19 @@
     GTK_THEME = "Breeze-Dark";
   };
 
+  # Onboard virtual keyboard - appears in KDE Virtual Keyboard settings
+  # This creates a .desktop file that KDE recognizes as a virtual keyboard option
+  environment.etc."xdg/applications/org.onboard.Onboard-VirtualKeyboard.desktop".text = ''
+    [Desktop Entry]
+    Name=Onboard (Full Keyboard)
+    Comment=Virtual keyboard with Fn keys, arrows, and mouse buttons
+    Exec=onboard
+    Type=Application
+    X-KDE-Wayland-VirtualKeyboard=true
+    Icon=onboard
+    NoDisplay=true
+  '';
+
   # Force 125% scaling for SDDM + Virtual Keyboard QML path
   environment.etc."sddm.conf.d/hidpi.conf".text = ''
     [General]
@@ -658,6 +671,14 @@ EOF
     # ─── Virtual Keyboard (Surface Pro touchscreen) ───────────────────────────
     maliit-keyboard
     maliit-framework
+    onboard              # Full-featured: arrows, Fn keys, mouse buttons, word prediction
+    kdePackages.qtvirtualkeyboard  # Qt virtual keyboard for SDDM login screen
+
+    # Input method frameworks (appear in Plasma Virtual Keyboard settings)
+    fcitx5                         # Modern input method with virtual keyboard
+    kdePackages.fcitx5-qt          # Fcitx5 Qt6/KDE integration
+    kdePackages.fcitx5-configtool  # Fcitx5 configuration GUI
+    ibus                           # IBus input method framework
 
     # ─── Wallpapers ───────────────────────────────────────────────────────────
     kdePackages.plasma-workspace-wallpapers
@@ -890,6 +911,14 @@ EOF
     # Set friendly name for btrfs pool in Dolphin/KDE file manager
     # This overrides the default which shows just "home-diego"
     ENV{ID_FS_TYPE}=="btrfs", ENV{ID_FS_LABEL}=="pool", ENV{UDISKS_NAME}="NixOS Pool (btrfs)"
+
+    # Prevent SAM (Surface Aggregator Module) autosuspend - fixes Type Cover disconnects
+    # Without this, power management suspends SAM communication, causing trackpad/keyboard failures
+    ACTION=="add", SUBSYSTEM=="platform", ATTR{driver}=="surface_aggregator", ATTR{power/control}="on"
+
+    # Prevent Type Cover devices from suspending (trackpad/keyboard on SAM bus)
+    # The above rule only affects the main controller; this targets the child devices (01:15:*)
+    ACTION=="add", SUBSYSTEM=="surface_aggregator", ATTR{power/control}="on"
   '';
 
   # ═══════════════════════════════════════════════════════════════════════════
