@@ -57,8 +57,8 @@
         set_color --bold red
         echo "STOP: packages are managed via nix flake."
         set_color normal
-        echo "  Add to: ~/git/unix/cb_user_Diego_Termux_Nix/src/modules/packages.nix"
-        echo "  Then:   home-manager switch --flake ~/git/unix/cb_user_Diego_Termux_Nix/src#nix-on-droid"
+        echo "  Add to: ~/git/unix/bb_flakes_termux/src/modules/packages.nix"
+        echo "  Then:   home-manager switch --flake ~/git/unix/bb_flakes_termux/src#nix-on-droid"
         echo "  Temp:   nix-shell -p <package>"
         set_color brblack
         echo "Blocked: $argv"

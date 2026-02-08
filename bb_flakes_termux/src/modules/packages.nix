@@ -14,6 +14,7 @@
     ncdu
     duf
     tree
+    yazi
 
     # JSON/YAML processing
     jq

@@ -90,8 +90,8 @@
       # Nix package guard
       __nix_guard_msg() {
         echo -e "\033[1;31mSTOP: packages are managed via nix flake.\033[0m"
-        echo "  Add to: ~/git/unix/cb_user_Diego_Termux_Nix/src/modules/packages.nix"
-        echo "  Then:   home-manager switch --flake ~/git/unix/cb_user_Diego_Termux_Nix/src#nix-on-droid"
+        echo "  Add to: ~/git/unix/bb_flakes_termux/src/modules/packages.nix"
+        echo "  Then:   home-manager switch --flake ~/git/unix/bb_flakes_termux/src#nix-on-droid"
         echo "  Temp:   nix-shell -p <package>"
         echo -e "\033[0;90mBlocked: $1\033[0m"
       }
