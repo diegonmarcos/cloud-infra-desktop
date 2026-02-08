@@ -58,9 +58,7 @@ check_home_manager() {
 # ============================================================================
 
 cmd_switch() {
-    flake_ref="$SRC_DIR#nix-on-droid"
-
-    log_header "Switching to $flake_ref"
+    log_header "Switching to $SRC_DIR"
     check_nix || return 1
 
     # Clean old backup files
@@ -70,14 +68,10 @@ cmd_switch() {
         command find "$HOME" -maxdepth 1 -name "*.backup" -type f -delete 2>/dev/null || true
     fi
 
-    log_info "Applying Home Manager configuration..."
+    log_info "Applying nix-on-droid configuration..."
 
     exit_code=0
-    if check_home_manager 2>/dev/null; then
-        home-manager switch -b backup --flake "$flake_ref" 2>&1 | tee -a "$LOG_FILE" || exit_code=$?
-    else
-        nix run home-manager -- switch -b backup --flake "$flake_ref" 2>&1 | tee -a "$LOG_FILE" || exit_code=$?
-    fi
+    nix-on-droid switch --flake "$SRC_DIR" 2>&1 | tee -a "$LOG_FILE" || exit_code=$?
 
     if [ $exit_code -ne 0 ]; then
         log_error "Configuration failed (exit $exit_code)"
@@ -85,7 +79,7 @@ cmd_switch() {
         return $exit_code
     fi
 
-    log_success "Configuration applied: $flake_ref"
+    log_success "Configuration applied: $SRC_DIR"
 }
 
 cmd_update() {

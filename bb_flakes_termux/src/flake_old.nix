@@ -579,9 +579,6 @@
                   # Disable default greeting
                   set -g fish_greeting ""
 
-                  # Override gcc cc with cclaude (function beats PATH)
-                  function cc; cclaude $argv; end
-
                   # FZF configuration
                   set -gx FZF_DEFAULT_OPTS "--height 40% --layout=reverse --border"
 
