@@ -82,9 +82,16 @@
               jemalloc
               mimalloc
 
+              # Secrets
+              sops
+              yq-go
+
               # Cloud CLIs
+              gh
               flarectl
+              cloudflared
               google-cloud-sdk
+              oci-cli
 
               # Node 18
               nodejs_18
@@ -113,267 +120,14 @@
                 exec ${pkgs.nodejs_18}/bin/npx -y @anthropic-ai/claude-code "$@"
               '')
 
-              # 3. SYNC (Unison + Rclone wrapper with help)
+              # 3. SYNC — delegates to ~/git/front/sync.sh (Rclone + Eruda HTTP)
               (writeShellScriptBin "sync" ''
-                CACHE_DIR="$HOME/.cache"
-                CERT_DIR="$HOME/.config/rclone/certs"
-                PORT_WEBDAV=8082
-                PORT_SFTP=2022
-                PORT_HTTP=8083
-                SFTP_USER="termux"
-                SFTP_PASS="Tx#9kL@mZ2pQw!"
-                WEBDAV_USER="termux"
-                WEBDAV_PASS="Tx#9kL@mZ2pQw!"
+                exec "$HOME/git/front/sync.sh" "$@"
+              '')
 
-                # Generate self-signed certificate if not exists
-                ensure_certs() {
-                  if [ ! -f "$CERT_DIR/cert.pem" ] || [ ! -f "$CERT_DIR/key.pem" ]; then
-                    mkdir -p "$CERT_DIR"
-                    ${pkgs.openssl}/bin/openssl req -x509 -newkey rsa:2048 -keyout "$CERT_DIR/key.pem" -out "$CERT_DIR/cert.pem" -days 365 -nodes -subj "/CN=termux-local" 2>/dev/null
-                    printf "''${C_GREEN}Generated SSL certificate''${C_RESET}\n"
-                  fi
-                }
-
-                # Colors
-                C_RESET="\033[0m"
-                C_CYAN="\033[0;36m"
-                C_GREEN="\033[0;32m"
-                C_YELLOW="\033[0;33m"
-                C_RED="\033[0;31m"
-                C_MAGENTA="\033[0;35m"
-                C_BLUE="\033[0;34m"
-
-                pid_file() { echo "$CACHE_DIR/rclone-$1.pid"; }
-                log_file() { echo "$CACHE_DIR/rclone-$1.log"; }
-                mode_file() { echo "$CACHE_DIR/rclone-$1.mode"; }
-
-                get_lan_ip() {
-                  ${pkgs.python3}/bin/python3 -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0]); s.close()" 2>/dev/null || echo "<no-network>"
-                }
-
-                is_running() {
-                  local pf="$(pid_file "$1")"
-                  [ -f "$pf" ] && kill -0 "$(cat "$pf")" 2>/dev/null
-                }
-
-                start_serve() {
-                  local proto="$1" mode="$2" port="$3"
-                  local pf="$(pid_file "$proto")"
-                  local extra_args=""
-                  local bind_addr
-
-                  # Determine bind address based on mode
-                  if [ "$mode" = "lan" ]; then
-                    bind_addr="0.0.0.0:$port"
-                  else
-                    bind_addr="127.0.0.1:$port"
-                  fi
-
-                  # SFTP always requires user/password
-                  if [ "$proto" = "sftp" ]; then
-                    extra_args="--user $SFTP_USER --pass $SFTP_PASS"
-                  fi
-
-                  # WebDAV requires auth only on LAN
-                  if [ "$proto" = "webdav" ] && [ "$mode" = "lan" ]; then
-                    extra_args="--user $WEBDAV_USER --pass $WEBDAV_PASS"
-                  fi
-
-                  # Add HTTPS for webdav and http
-                  if [ "$proto" = "webdav" ] || [ "$proto" = "http" ]; then
-                    ensure_certs
-                    extra_args="$extra_args --cert $CERT_DIR/cert.pem --key $CERT_DIR/key.pem"
-                  fi
-
-                  if is_running "$proto"; then
-                    printf "''${C_YELLOW}$proto already running (PID: $(cat "$pf"))''${C_RESET}\n"
-                  else
-                    printf "''${C_CYAN}Starting rclone $proto on $bind_addr...''${C_RESET}\n"
-                    mkdir -p "$CACHE_DIR"
-                    ${pkgs.rclone}/bin/rclone serve "$proto" "$HOME" \
-                      --addr "$bind_addr" \
-                      --vfs-cache-mode full \
-                      --no-modtime \
-                      $extra_args \
-                      > "$(log_file "$proto")" 2>&1 &
-                    echo $! > "$pf"
-                    sleep 1
-                    if is_running "$proto"; then
-                      echo "$mode" > "$(mode_file "$proto")"
-                      printf "''${C_GREEN}Started $proto on $bind_addr''${C_RESET}\n"
-                    else
-                      printf "''${C_RED}Failed. Check $(log_file "$proto")''${C_RESET}\n"
-                    fi
-                  fi
-                }
-
-                stop_serve() {
-                  local proto="$1"
-                  local pf="$(pid_file "$proto")"
-                  if is_running "$proto"; then
-                    kill "$(cat "$pf")" 2>/dev/null
-                    rm -f "$pf" "$(mode_file "$proto")"
-                    printf "''${C_YELLOW}Stopped $proto''${C_RESET}\n"
-                  else
-                    printf "$proto not running\n"
-                  fi
-                }
-
-                show_status() {
-                  local proto="$1" port="$2" indent="''${3:-  }"
-                  if is_running "$proto"; then
-                    local mode=$(cat "$(mode_file "$proto")" 2>/dev/null || echo "local")
-                    local url
-                    if [ "$mode" = "lan" ]; then
-                      url="$(get_lan_ip):$port"
-                    else
-                      url="127.0.0.1:$port"
-                    fi
-                    # Add protocol prefix for display
-                    case "$proto" in
-                      webdav) url="https://$url" ;;
-                      sftp) url="sftp://$url" ;;
-                      http) url="https://$url" ;;
-                    esac
-                    printf "$indent''${C_GREEN}$proto: RUNNING''${C_RESET} ''${C_CYAN}$url''${C_RESET}\n"
-                  else
-                    printf "$indent''${C_RED}$proto: stopped''${C_RESET}\n"
-                  fi
-                }
-
-                case "''${1:-help}" in
-                  -h|--help|help|"")
-                    printf "''${C_CYAN}=== Sync Tools ===''${C_RESET}\n"
-                    echo ""
-                    printf "''${C_YELLOW}STATUS:''${C_RESET}\n"
-                    printf "  ''${C_MAGENTA}UNISON:''${C_RESET}\n"
-                    if [ -d "/storage/emulated/0/Mounts/Termux-Home" ]; then
-                      printf "    Target: ''${C_GREEN}EXISTS''${C_RESET} ($(ls -1 /storage/emulated/0/Mounts/Termux-Home 2>/dev/null | wc -l) items)\n"
-                    else
-                      printf "    Target: ''${C_RED}NOT FOUND''${C_RESET}\n"
-                    fi
-                    printf "  ''${C_MAGENTA}RCLONE:''${C_RESET}\n"
-                    show_status webdav $PORT_WEBDAV "    "
-                    show_status sftp $PORT_SFTP "    "
-                    show_status http $PORT_HTTP "    "
-                    echo ""
-                    printf "''${C_YELLOW}UNISON - Bidirectional Sync:''${C_RESET}\n"
-                    echo "  Syncs ~/desktop and ~/nix-home-manager to Android storage"
-                    echo "  Target: /storage/emulated/0/Mounts/Termux-Home"
-                    echo ""
-                    printf "''${C_YELLOW}RCLONE SERVE - File Servers (HTTPS):''${C_RESET}\n"
-                    printf "  ''${C_GREEN}webdav''${C_RESET}  :$PORT_WEBDAV  File managers, mount as drive\n"
-                    printf "  ''${C_GREEN}sftp''${C_RESET}    :$PORT_SFTP  SSH/SFTP clients\n"
-                    printf "  ''${C_GREEN}http''${C_RESET}    :$PORT_HTTP  Browser, read-only\n"
-                    echo ""
-                    printf "''${C_YELLOW}NOTE:''${C_RESET} Android apps cannot use 127.0.0.1 - use ''${C_CYAN}lan''${C_RESET} mode with device IP\n"
-                    echo ""
-                    printf "''${C_YELLOW}AUTHENTICATION:''${C_RESET}\n"
-                    printf "  WebDAV: ''${C_CYAN}local:''${C_RESET} no auth  ''${C_CYAN}lan:''${C_RESET} ''${C_GREEN}$WEBDAV_USER''${C_RESET}/''${C_GREEN}$WEBDAV_PASS''${C_RESET}\n"
-                    printf "  SFTP:   ''${C_CYAN}User:''${C_RESET} ''${C_GREEN}$SFTP_USER''${C_RESET}  ''${C_CYAN}Pass:''${C_RESET} ''${C_GREEN}$SFTP_PASS''${C_RESET}\n"
-                    printf "  HTTP:   ''${C_CYAN}No auth (read-only)''${C_RESET}\n"
-                    echo ""
-                    printf "''${C_YELLOW}USAGE:''${C_RESET}\n"
-                    printf "  ''${C_BLUE}sync bisync''${C_RESET}             Run Unison bidirectional sync\n"
-                    printf "  ''${C_BLUE}sync status''${C_RESET}             Show all services status\n"
-                    printf "  ''${C_BLUE}sync webdav local|lan''${C_RESET}   Start WebDAV server (:$PORT_WEBDAV)\n"
-                    printf "  ''${C_BLUE}sync sftp local|lan''${C_RESET}     Start SFTP server (:$PORT_SFTP)\n"
-                    printf "  ''${C_BLUE}sync http local|lan''${C_RESET}     Start HTTP server (:$PORT_HTTP)\n"
-                    printf "  ''${C_BLUE}sync stop [protocol]''${C_RESET}    Stop server (or all if no arg)\n"
-                    printf "  ''${C_BLUE}sync -h''${C_RESET}                 Show this help\n"
-                    ;;
-                  status)
-                    printf "''${C_CYAN}=== Sync Status ===''${C_RESET}\n"
-                    echo ""
-                    printf "''${C_MAGENTA}UNISON:''${C_RESET}\n"
-                    if [ -d "/storage/emulated/0/Mounts/Termux-Home" ]; then
-                      printf "  Target: ''${C_GREEN}EXISTS''${C_RESET} ($(ls -1 /storage/emulated/0/Mounts/Termux-Home 2>/dev/null | wc -l) items)\n"
-                    else
-                      printf "  Target: ''${C_RED}NOT FOUND''${C_RESET}\n"
-                    fi
-                    echo ""
-                    printf "''${C_MAGENTA}RCLONE SERVERS:''${C_RESET}\n"
-                    show_status webdav $PORT_WEBDAV
-                    show_status sftp $PORT_SFTP
-                    show_status http $PORT_HTTP
-                    echo ""
-                    printf "''${C_MAGENTA}CREDENTIALS:''${C_RESET}\n"
-                    printf "  SFTP:   ''${C_GREEN}$SFTP_USER''${C_RESET} / ''${C_GREEN}$SFTP_PASS''${C_RESET}\n"
-                    printf "  WebDAV: ''${C_GREEN}$WEBDAV_USER''${C_RESET} / ''${C_GREEN}$WEBDAV_PASS''${C_RESET} (lan only)\n"
-                    ;;
-                  webdav)
-                    case "''${2:-}" in
-                      local) start_serve webdav local $PORT_WEBDAV ;;
-                      lan) start_serve webdav lan $PORT_WEBDAV ;;
-                      *)
-                        printf "''${C_RED}Error: Missing argument. Use local or lan''${C_RESET}\n"
-                        printf "  ''${C_BLUE}sync webdav local''${C_RESET}  Localhost only (127.0.0.1:$PORT_WEBDAV)\n"
-                        printf "  ''${C_BLUE}sync webdav lan''${C_RESET}    LAN accessible (0.0.0.0:$PORT_WEBDAV)\n"
-                        ;;
-                    esac
-                    ;;
-                  sftp)
-                    case "''${2:-}" in
-                      local) start_serve sftp local $PORT_SFTP ;;
-                      lan) start_serve sftp lan $PORT_SFTP ;;
-                      *)
-                        printf "''${C_RED}Error: Missing argument. Use local or lan''${C_RESET}\n"
-                        printf "  ''${C_BLUE}sync sftp local''${C_RESET}  Localhost only (127.0.0.1:$PORT_SFTP)\n"
-                        printf "  ''${C_BLUE}sync sftp lan''${C_RESET}    LAN accessible (0.0.0.0:$PORT_SFTP)\n"
-                        ;;
-                    esac
-                    ;;
-                  http)
-                    case "''${2:-}" in
-                      local) start_serve http local $PORT_HTTP ;;
-                      lan) start_serve http lan $PORT_HTTP ;;
-                      *)
-                        printf "''${C_RED}Error: Missing argument. Use local or lan''${C_RESET}\n"
-                        printf "  ''${C_BLUE}sync http local''${C_RESET}  Localhost only (127.0.0.1:$PORT_HTTP)\n"
-                        printf "  ''${C_BLUE}sync http lan''${C_RESET}    LAN accessible (0.0.0.0:$PORT_HTTP)\n"
-                        ;;
-                    esac
-                    ;;
-                  stop)
-                    case "''${2:-all}" in
-                      webdav) stop_serve webdav ;;
-                      sftp) stop_serve sftp ;;
-                      http) stop_serve http ;;
-                      all|"")
-                        stop_serve webdav
-                        stop_serve sftp
-                        stop_serve http
-                        ;;
-                    esac
-                    ;;
-                  bisync|unison)
-                    echo "Starting Unison bidirectional sync..."
-                    exec ${pkgs.unison}/bin/unison termux-home
-                    ;;
-                  *)
-                    printf "''${C_CYAN}=== Sync Tools ===''${C_RESET}\n"
-                    echo ""
-                    printf "''${C_MAGENTA}UNISON:''${C_RESET}\n"
-                    if [ -d "/storage/emulated/0/Mounts/Termux-Home" ]; then
-                      printf "  Target: ''${C_GREEN}EXISTS''${C_RESET} ($(ls -1 /storage/emulated/0/Mounts/Termux-Home 2>/dev/null | wc -l) items)\n"
-                    else
-                      printf "  Target: ''${C_RED}NOT FOUND''${C_RESET}\n"
-                    fi
-                    echo ""
-                    printf "''${C_MAGENTA}RCLONE SERVERS:''${C_RESET}\n"
-                    show_status webdav $PORT_WEBDAV
-                    show_status sftp $PORT_SFTP
-                    show_status http $PORT_HTTP
-                    echo ""
-                    printf "''${C_YELLOW}COMMANDS:''${C_RESET}\n"
-                    printf "  ''${C_BLUE}sync bisync''${C_RESET}           Run Unison bidirectional sync\n"
-                    printf "  ''${C_BLUE}sync webdav local|lan''${C_RESET} Start WebDAV (:$PORT_WEBDAV)\n"
-                    printf "  ''${C_BLUE}sync sftp local|lan''${C_RESET}   Start SFTP (:$PORT_SFTP)\n"
-                    printf "  ''${C_BLUE}sync http local|lan''${C_RESET}   Start HTTP (:$PORT_HTTP)\n"
-                    printf "  ''${C_BLUE}sync stop [proto]''${C_RESET}     Stop server(s)\n"
-                    printf "  ''${C_BLUE}sync -h''${C_RESET}               Detailed help\n"
-                    ;;
-                esac
+              # 3b. SERVER — delegates to ~/git/front/server.sh (dev server control)
+              (writeShellScriptBin "server" ''
+                exec "$HOME/git/front/server.sh" "$@"
               '')
 
               # 4. CODE-SERVER (trying aggressive V8/Node fixes for Android)
@@ -640,7 +394,8 @@
                   set_color normal
                   set_color magenta; echo -n "  up      "; set_color normal; echo "Rebuild Nix config"
                   set_color magenta; echo -n "  conf    "; set_color normal; echo "Edit flake.nix"
-                  set_color magenta; echo -n "  sync    "; set_color normal; echo "File server & sync (WebDAV:8082 SFTP:2022 HTTP:8083)"
+                  set_color magenta; echo -n "  sync    "; set_color normal; echo "File sync & serve (WebDAV SFTP HTTP+Eruda)"
+                  set_color magenta; echo -n "  server  "; set_color normal; echo "Dev server control (dev/stop/status)"
                   set_color cyan
                   echo ""
                   echo "Search (fzf):"
