@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    nixpkgs-new.url = "github:NixOS/nixpkgs/nixos-24.11";
 
     nix-on-droid = {
       url = "github:nix-community/nix-on-droid/release-24.05";
@@ -15,8 +16,10 @@
     };
   };
 
-  outputs = { self, nixpkgs, nix-on-droid, home-manager }:
+  outputs = { self, nixpkgs, nixpkgs-new, nix-on-droid, home-manager }:
     let
+      pkgsNew = import nixpkgs-new { system = "aarch64-linux"; };
+
       # Shared aliases for all shells
       sharedAliases = {
         ll = "ls -alh";
@@ -93,8 +96,8 @@
               google-cloud-sdk
               oci-cli
 
-              # Node 18
-              nodejs_18
+              # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
+              pkgsNew.nodejs_22
 
               # 1. CLAUDE (Standard with jemalloc fix)
               (writeShellScriptBin "claude" ''
@@ -103,7 +106,7 @@
                 export UV_USE_IO_URING=0
                 export NODE_OPTIONS="--no-node-snapshot --max-old-space-size=1024"
                 export npm_config_cache="$HOME/.npm"
-                exec ${pkgs.nodejs_18}/bin/npx -y @anthropic-ai/claude-code "$@"
+                exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
               '')
 
               # 2. CCLAUDE (With tmp dir workaround)
@@ -117,7 +120,7 @@
                 mkdir -p "$CLAUDE_TMP"
                 export TMPDIR="$CLAUDE_TMP"
                 export npm_config_cache="$HOME/.npm"
-                exec ${pkgs.nodejs_18}/bin/npx -y @anthropic-ai/claude-code "$@"
+                exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
               '')
 
               # 3. SYNC — delegates to ~/git/front/sync.sh (Rclone + Eruda HTTP)
