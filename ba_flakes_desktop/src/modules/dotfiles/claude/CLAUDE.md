@@ -1,7 +1,7 @@
 # Diego's Master Context for Claude Agents
 
 > **Owner**: Diego Nepomuceno Marcos
-> **Updated**: 2026-02-04
+> **Updated**: 2026-02-11
 > **System**: NixOS (Surface Pro 8) + Kubuntu (dual-boot)
 > **Git Root**: `/home/diego/Mounts/Git`
 
@@ -10,6 +10,8 @@
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION A: UNIX (NixOS & System Configuration)
 # ══════════════════════════════════════════════════════════════════════════════
+
+> **Full documentation**: See `~/git/unix/README.md`
 
 ## A.1 System Overview
 
@@ -27,7 +29,7 @@
 |----------|------|
 | **Unix Repo** | `/home/diego/Mounts/Git/unix` |
 | **Surface Host Flake** | `/home/diego/Mounts/Git/unix/aa_nixos-surface_host/` |
-| **User Home-Manager** | `/home/diego/Mounts/Git/unix/cb_user_diego_nix/` |
+| **User Home-Manager** | `/home/diego/Mounts/Git/unix/ba_flakes_desktop/` |
 
 ### Flake Structure
 
@@ -42,25 +44,22 @@
 │   │   └── grub-extra-entries.nix
 │   └── build.sh                # Interactive build TUI
 │
-├── cb_user_diego_nix/          # Home-manager standalone configuration
+├── ba_flakes_desktop/          # Home-manager standalone configuration
 │   ├── src/
 │   │   ├── flake.nix           # Main flake with host configs
 │   │   ├── hosts/              # Per-host configurations
-│   │   │   ├── surface.nix     # Surface-specific (powertop, tlp, syncthing)
-│   │   │   ├── server.nix      # Server-specific
-│   │   │   └── cli.nix         # CLI-only minimal
-│   │   ├── modules/
-│   │   │   ├── profiles/       # Tool category profiles (8 profiles)
-│   │   │   ├── desktop/        # Desktop environments (Plasma, GNOME)
-│   │   │   ├── programs/       # Individual program configs
-│   │   │   └── dotfiles/       # Dotfile management
+│   │   ├── modules/            # Profiles, desktop, programs, dotfiles
 │   │   └── home-manager/       # Home-manager base config
 │   └── build.sh
 │
-└── [other flakes...]           # Container builds, dev shells, etc.
+├── bb_flakes_termux/           # Home-manager for Android/Termux
+│   ├── src/flake.nix
+│   └── build.sh
+│
+└── [other: ab_arch, ab_kali, ac_win11, ad_ventoy, ae_mobile, da_app_*, de_claude-sandbox]
 ```
 
-### Home-Manager Profiles (cb_user_diego_nix)
+### Home-Manager Profiles (ba_flakes_desktop)
 
 | Profile | File | Packages |
 |---------|------|----------|
@@ -98,7 +97,7 @@
 # Options: r) rebuild switch, b) build, t) test, 1-4) images
 
 # Rebuild home-manager
-/home/diego/Mounts/Git/unix/cb_user_diego_nix/build.sh
+/home/diego/Mounts/Git/unix/ba_flakes_desktop/build.sh
 ```
 
 ## A.3 Filesystem Layout
@@ -128,6 +127,8 @@
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION B: CLOUD INFRASTRUCTURE
 # ══════════════════════════════════════════════════════════════════════════════
+
+> **Full documentation**: See `~/git/cloud/README.md`
 
 ## B.1 Repository & Resources
 
@@ -294,17 +295,12 @@ python ~/git/vault/A0_keys/providers/authelia/oauth/get_token.py
 ---
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SECTION D: OPS & BEST PRACTICES
+# SECTION D: FRONT-END DEVELOPMENT
 # ══════════════════════════════════════════════════════════════════════════════
 
-## D.1 Working Directory Rule
+> **Full documentation**: See `~/git/front/README.md` and `~/git/front/1.ops/` for specs
 
-**ALL Claude Code sessions MUST start from `~/.claude` directory.**
-This ensures consistent context loading and access to CLAUDE.md instructions.
-
-## D.2 Front-End Development
-
-### Repository & Resources
+## D.1 Repository & Resources
 
 | Resource | Path |
 |----------|------|
@@ -313,7 +309,7 @@ This ensures consistent context loading and access to CLAUDE.md instructions.
 | **Code Practices** | `/home/diego/Mounts/Git/front/1.ops/30_Code_Practise.md` |
 | **Master Build** | `/home/diego/Mounts/Git/front/1.ops/build_main.sh` |
 
-### Build System
+## D.2 Build System
 
 ```bash
 cd /home/diego/Mounts/Git/front
@@ -323,18 +319,20 @@ cd /home/diego/Mounts/Git/front
 ./1.ops/build_main.sh dev       # Start all dev servers
 ```
 
-Each project has `<project>/1.ops/build.sh`:
+Each project has `build.sh` + `build.json` at project root:
 ```bash
-./1.ops/build.sh build    # Build for production
-./1.ops/build.sh dev      # Start dev server
+./<category>/<project>/build.sh build    # Build for production
+./<category>/<project>/build.sh dev      # Start dev server
 ```
 
 ### Project Folder Structure
 
 ```
 /project
+├── build.sh            # Build engine (universal)
+├── build.json          # Build config
 ├── 0.spec/             # Specs & docs
-├── 1.ops/              # Build scripts (build.sh)
+├── 1.ops/              # Legacy build scripts
 ├── src_static/ | src/  # Source files
 │   ├── scss/           # Sass (ITCSS methodology)
 │   ├── typescript/     # TS source
@@ -398,7 +396,36 @@ _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
 </script>
 ```
 
-## D.5 Dependency Verification (CRITICAL)
+---
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION E: OPS & BUILD SYSTEM
+# ══════════════════════════════════════════════════════════════════════════════
+
+## ⚠️ CRITICAL: NIX WAY — ALWAYS FLAKES IN THE REPO ⚠️
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║   NEVER use system-level flakes. Flakes live IN the repository.  ║
+║                                                                  ║
+║   Every project uses build.sh (engine) + build.json (config)     ║
+║   at project root.                                               ║
+║                                                                  ║
+║   build.sh is the ONLY build interface. ALWAYS use it.           ║
+║                                                                  ║
+║   NEVER run nix build/switch/etc. directly — use the repo's      ║
+║   build.sh.                                                      ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+## E.1 Working Directory Rule
+
+**ALL Claude Code sessions MUST start from `~/.claude` directory.**
+This ensures consistent context loading and access to CLAUDE.md instructions.
+
+## E.2 Dependency Verification (CRITICAL)
 
 **ALWAYS check and install ALL dependencies before declaring a feature complete.**
 
@@ -420,10 +447,10 @@ rpm -qR <package>           # RPM-based
 ---
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SECTION E: OTHERS (Quick Reference)
+# SECTION F: OTHERS (Quick Reference)
 # ══════════════════════════════════════════════════════════════════════════════
 
-## E.1 Primary Paths
+## F.1 Primary Paths
 
 | Area | Path |
 |------|------|
@@ -433,7 +460,7 @@ rpm -qR <package>           # RPM-based
 | Unix/NixOS | `/home/diego/Mounts/Git/unix` |
 | Security Vault | `/home/diego/Mounts/Git/vault` |
 
-## E.2 Front-End Projects
+## F.2 Front-End Projects
 
 | Project | Type | Framework | Port |
 |---------|------|-----------|------|
@@ -457,12 +484,12 @@ rpm -qR <package>           # RPM-based
 | Leafy | Digital Card | Vanilla | :8021 |
 | MyTrips | Browser Tool | Vanilla | :8022 |
 
-## E.3 Domains
+## F.3 Domains
 
 - **Main**: diegonmarcos.com (Cloudflare DNS)
 - **GitHub Pages**: diegonmarcos.github.io
 
-## E.4 Docker Debugging
+## F.4 Docker Debugging
 
 ```bash
 docker ps                           # List containers
@@ -471,7 +498,7 @@ docker exec -it <container> bash    # Enter container
 docker stats --no-stream            # Container stats
 ```
 
-## E.5 GitHub CLI
+## F.5 GitHub CLI
 
 ```bash
 gh auth status              # Auth status
@@ -481,12 +508,12 @@ gh pr list                  # List PRs
 gh pr create                # Create PR
 ```
 
-## E.6 Important Notes for Claude
+## F.6 Important Notes for Claude
 
 1. **Read specs first**: Before modifying any project, read the relevant spec files
 2. **Follow code practices**: TypeScript strict mode, Svelte 5 runes, Vue 3 composition API
-3. **Build system**: Use `./1.ops/build.sh` scripts, not manual npm commands
+3. **Build system**: Use `build.sh` scripts, not manual npm commands
 4. **Sensitive data**: vault contains credentials - never expose or commit
 5. **Analytics**: All web projects must include Matomo tracking
-6. **Ports**: Dev servers have assigned ports (8000-8017) - don't conflict
+6. **Ports**: Dev servers have assigned ports (8000-8022) - don't conflict
 7. **architecture.json**: Source of truth for cloud infrastructure data
