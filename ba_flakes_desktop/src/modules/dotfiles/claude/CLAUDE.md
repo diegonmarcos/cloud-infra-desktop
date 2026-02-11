@@ -134,8 +134,8 @@
 | Resource | Path | Type |
 |----------|------|------|
 | **Cloud Repo** | `/home/diego/Mounts/Git/cloud` | Git Repository |
-| **Architecture JSON** | `/home/diego/Mounts/Git/cloud/1.ops/cloud_architecture.json` | Source of Truth |
-| **Cloud Spec** | `/home/diego/Mounts/Git/cloud/1.ops/Cloud-spec.md` | Documentation |
+| **Container Configs** | `/home/diego/Mounts/Git/cloud/a_solutions/container-nix/` | Nix Flakes |
+| **Home Manager** | `/home/diego/Mounts/Git/cloud/a_solutions/home-manager/` | VM Configs |
 
 ## B.2 Cloud Providers
 
@@ -149,108 +149,81 @@
 ## B.3 Virtual Machines
 
 ### Always-On (24/7) - Free Tier
-| VM ID | Provider | IP | RAM | Services | Cost |
-|-------|----------|-----|-----|----------|------|
-| oci-f-micro_1 | Oracle | 130.110.251.193 | 1 GB | Mailu Mail | $0 |
-| oci-f-micro_2 | Oracle | 129.151.228.66 | 1 GB | Matomo Analytics | $0 |
-| gcp-f-micro_1 | GCloud | 35.226.147.64 | 1 GB | NPM, Authelia, ntfy, NocoDB | $0 |
+| VM | Alias | IP | WG IP | RAM | Services |
+|----|-------|-----|-------|-----|----------|
+| gcp-f-micro_1 | gcp-proxy | 35.226.147.64 | 10.0.0.1 | 1 GB | Caddy, Authelia, introspect-proxy, Vaultwarden, ntfy |
+| oci-f-micro_1 | oci-mail | 130.110.251.193 | 10.0.0.3 | 1 GB | Mailu, Syncthing, Radicale |
+| oci-f-micro_2 | oci-analytics | 129.151.228.66 | 10.0.0.4 | 1 GB | Matomo (hybrid wake/sleep), Windmill |
 
 ### Wake-on-Demand - Paid
-| VM ID | Provider | IP | RAM | Services | Cost |
-|-------|----------|-----|-----|----------|------|
-| oci-p-flex_1 | Oracle | 144.24.196.72 | 8 GB | Photoprism, Radicale, Syncthing | $5.50/mo |
+| VM | Alias | IP | WG IP | RAM | Services |
+|----|-------|-----|-------|-----|----------|
+| oci-p-flex_1 | oci-flex | 144.24.196.72 | 10.0.0.2 | 8 GB | PhotoPrism, NocoDB, Code Server, AFFiNE |
 
-**Wake-on-Demand Services** (on oci-p-flex_1):
-- Photoprism (photos.diegonmarcos.com)
-- Radicale Calendar (cal.diegonmarcos.com)
-- Code Server IDE (ide.diegonmarcos.com)
+## B.4 Networking
 
-## B.4 Wake-on-Demand (Flex VM)
+All VMs connected via **WireGuard mesh** (hub: gcp-proxy 10.0.0.1). All public traffic flows: **Cloudflare → Caddy (gcp-proxy) → WireGuard → target VM**.
 
-The paid flex VM (`oci-p-flex_1`) is stopped when idle to save costs. It auto-stops after 30 minutes of inactivity.
+Caddy handles automatic HTTPS (Let's Encrypt) and two auth paths:
+- **Browser**: Authelia forward-auth (cookie/session + 2FA)
+- **CLI/API**: Bearer token via introspect-proxy (OIDC token introspection)
 
-### Wake Up Methods
-
-**1. Via Cloud Dashboard UI:**
-- Go to https://cloud.diegonmarcos.com
-- Click the VM control buttons (Start/Stop/Reboot)
-
-**2. Via OCI CLI:**
-```bash
-# Start the flex VM
-oci compute instance action --action START \
-  --instance-id <INSTANCE_OCID>
-
-# Stop the flex VM
-oci compute instance action --action STOP \
-  --instance-id <INSTANCE_OCID>
-
-# Check status
-oci compute instance get --instance-id <INSTANCE_OCID> \
-  --query 'data."lifecycle-state"'
-```
-
-**3. Via API (Flask endpoint on GCloud):**
-```bash
-# Wake up
-curl -X POST https://api.diegonmarcos.com/vm/flex/start
-
-# Stop
-curl -X POST https://api.diegonmarcos.com/vm/flex/stop
-
-# Status
-curl https://api.diegonmarcos.com/vm/flex/status
-```
-
-**4. Via Linktree UI:**
-- The Linktree DEVING card has VM control buttons
-- Shows live status indicator (green=running, red=stopped)
+SSH aliases configured in vault: `ssh oci-flex`, `ssh oci-mail`, `ssh oci-analytics`, `ssh gcp-proxy`.
 
 ## B.5 Active Services
 
-| Service | Domain | VM | Availability |
-|---------|--------|-----|--------------|
-| Matomo Analytics | analytics.diegonmarcos.com | oci-f-micro_2 | 24/7 |
-| Mailu Mail | mail.diegonmarcos.com | oci-f-micro_1 | 24/7 |
-| NPM Proxy | proxy.diegonmarcos.com | gcp-f-micro_1 | 24/7 |
-| Authelia 2FA | auth.diegonmarcos.com | gcp-f-micro_1 | 24/7 |
-| ntfy Push | rss.diegonmarcos.com | gcp-f-micro_1 | 24/7 |
-| NocoDB | db.diegonmarcos.com | gcp-f-micro_1 | 24/7 |
-| Cloud Dashboard | cloud.diegonmarcos.com | GitHub Pages | 24/7 |
-| Photoprism | photos.diegonmarcos.com | oci-p-flex_1 | wake |
-| Radicale Calendar | cal.diegonmarcos.com | oci-p-flex_1 | wake |
-| Code Server IDE | ide.diegonmarcos.com | oci-p-flex_1 | wake |
+| Service | Domain | VM | Port | Availability |
+|---------|--------|-----|------|--------------|
+| Caddy Proxy | proxy.diegonmarcos.com | gcp-proxy | 80/443 | 24/7 |
+| Authelia 2FA | auth.diegonmarcos.com | gcp-proxy | 9091 | 24/7 |
+| Vaultwarden | vault.diegonmarcos.com | gcp-proxy | 80 | 24/7 |
+| ntfy Push | rss.diegonmarcos.com | gcp-proxy | 8090 | 24/7 |
+| API (Flask+Rust) | api.diegonmarcos.com | gcp-proxy | 5000/8080 | 24/7 |
+| Mailu Mail | mail.diegonmarcos.com | oci-mail | 8444 | 24/7 |
+| Syncthing | sync.diegonmarcos.com | oci-mail | 8384 | 24/7 |
+| Radicale Calendar | cal.diegonmarcos.com | oci-mail | 5232 | 24/7 |
+| Matomo Analytics | analytics.diegonmarcos.com | oci-analytics | 8080 | 24/7 (hybrid) |
+| Windmill | — | oci-analytics | — | 24/7 (toggles with Matomo) |
+| PhotoPrism | photos.diegonmarcos.com | oci-flex | 3013 | wake-on-demand |
+| NocoDB | db.diegonmarcos.com | oci-flex | 8085 | wake-on-demand |
+| Code Server | ide.diegonmarcos.com | oci-flex | 8443 | wake-on-demand |
+| AFFiNE | drive-notes-affine.diegonmarcos.com | oci-flex | 3010 | wake-on-demand |
 
-## B.6 SSH Access
+## B.6 Matomo Hybrid Wake/Sleep
+
+oci-analytics (1GB RAM) can't run Matomo + Windmill simultaneously. Matomo uses a hybrid container with supervisord:
+- **Awake**: MariaDB + Matomo PHP + Nginx (~160MB). Tracking goes direct to DB.
+- **Sleeping**: Only receiver-nginx + receiver-php-fpm (~7MB). Tracking buffered to `/inbox/` JSON files. Wake imports buffered payloads.
 
 ```bash
-# Oracle Micro 1 (Mail)
-ssh -i /home/diego/Mounts/Git/vault/A0_keys/ssh/id_rsa ubuntu@130.110.251.193
-
-# Oracle Micro 2 (Analytics)
-ssh -i /home/diego/Mounts/Git/vault/A0_keys/ssh/id_rsa ubuntu@129.151.228.66
-
-# GCloud (Proxy)
-gcloud compute ssh arch-1 --zone us-central1-a
-
-# Oracle Flex 1 (Wake-on-Demand)
-ssh -i /home/diego/Mounts/Git/vault/A0_keys/ssh/id_rsa ubuntu@144.24.196.72
+# Toggle via build.sh
+~/git/cloud/a_solutions/container-nix/bc-obs_matomo/build.sh wake   # stops windmill, wakes matomo
+~/git/cloud/a_solutions/container-nix/bc-obs_matomo/build.sh sleep  # sleeps matomo, starts windmill
 ```
 
-## B.7 IP Change Management (CRITICAL)
+## B.7 Bearer Token Auth (CLI Access)
 
-**When VM IPs change, ONLY update:**
-1. Cloudflare DNS records
-2. NPM Proxy Host forward addresses
-3. Mailu `PROXY_AUTH_WHITELIST` (if GCloud IP changed)
-4. WireGuard peer endpoints (if needed)
+All Caddy-protected services accept bearer tokens from Authelia OIDC.
 
-**DO NOT TOUCH:**
-- iptables rules (Docker manages automatically)
-- Container IP addresses
-- Docker network configurations
+```bash
+# Get token (interactive, opens browser for 2FA)
+python ~/git/vault/A0_keys/providers/authelia/oauth/get_token.py
 
-**If something breaks:** `sudo systemctl restart docker`
+# Use token
+TOKEN=$(jq -r .access_token ~/git/vault/A0_keys/providers/authelia/oauth/authelia_tokens.json)
+curl -H "Authorization: Bearer $TOKEN" https://photos.diegonmarcos.com/api/v1/status
+```
+
+Token lifetime: 1 year. See `vault/A0_keys/providers/authelia/README.md` for details.
+
+## B.8 IP Change Management
+
+**When VM IPs change, update:**
+1. Cloudflare DNS records (Terraform in `ba-clo_cloudflare/`)
+2. WireGuard peer endpoints
+3. Mailu `PROXY_AUTH_WHITELIST` (if gcp-proxy IP changed)
+
+**DO NOT TOUCH:** iptables, container IPs, Docker networks.
 
 ---
 
@@ -264,37 +237,43 @@ ssh -i /home/diego/Mounts/Git/vault/A0_keys/ssh/id_rsa ubuntu@144.24.196.72
 |----------|------|
 | **Vault Repo** | `/home/diego/Mounts/Git/vault` |
 
-**WARNING**: This repository contains sensitive credentials. NEVER expose or commit to public repos.
+**WARNING**: Contains sensitive credentials. NEVER expose or commit to public repos.
 
 ## C.2 Vault Structure
 
 ```
 /home/diego/Mounts/Git/vault/
-├── A0_keys/                  # Machine credentials
+├── A0_keys/
 │   ├── ssh/                  # SSH keys (symlinked to ~/.ssh/)
-│   ├── wireguard/            # VPN keys
-│   ├── oci/                  # Oracle Cloud CLI config
-│   ├── gcloud/               # Google Cloud CLI config
-│   ├── github/               # GitHub CLI tokens
-│   └── api_tokens.json       # Cloud service API credentials
-├── A1_bitwarden/             # Bitwarden vault backup
-├── A2_2fa/                   # TOTP seeds + recovery codes
-├── A3_gpg/                   # GPG encryption keys
-├── A4_certificates/          # Manual SSL certificates
-├── B0_ID/                    # Identity documents
-├── B1_Payment/               # Payment card info
-└── B2_Notes/                 # Secure notes
+│   ├── providers/
+│   │   ├── authelia/oauth/   # Bearer token + get_token.py
+│   │   ├── cloudflare/       # DNS API credentials
+│   │   ├── gcloud/           # Google Cloud CLI config
+│   │   ├── github/           # GitHub CLI + OAuth tokens
+│   │   ├── nocodb/           # NocoDB API tokens
+│   │   ├── oci/              # Oracle Cloud CLI config
+│   │   ├── system/           # System-level credentials
+│   │   └── wireguard/        # VPN keys
+│   └── api_tokens.json       # Master credentials file
+├── B0_Passwords/             # Service passwords
+├── B1_2fa/                   # TOTP seeds + recovery codes
+├── B2_Wifi/                  # WiFi connection configs
+├── C0_ID/                    # Identity documents
+├── C1_Payment/               # Payment card info
+├── C2_Notes/                 # Secure notes
+└── D0_bitwarden/             # Bitwarden vault export
 ```
 
 ## C.3 Security Stack
 
 | Layer | Components |
 |-------|------------|
-| **Network Edge** | Cloud Firewalls, UFW |
-| **Traffic** | NPM Reverse Proxy, TLS/SSL (Let's Encrypt) |
-| **Authentication** | Authelia 2FA, OIDC |
-| **Application** | Docker Networks, Container Isolation |
-| **Credentials** | Bitwarden (passwords), Aegis (TOTP) |
+| **Network Edge** | Cloudflare Proxy, Cloud Firewalls |
+| **Traffic** | Caddy Reverse Proxy, Let's Encrypt TLS |
+| **Authentication** | Authelia 2FA (TOTP/WebAuthn), OIDC bearer tokens |
+| **Token Validation** | introspect-proxy (OIDC introspection sidecar) |
+| **Application** | Docker Networks, WireGuard VPN, Container Isolation |
+| **Credentials** | Vaultwarden (passwords), Aegis (TOTP) |
 
 ## C.4 CLI Authentication
 
@@ -307,6 +286,9 @@ oci session authenticate
 
 # Google Cloud CLI
 gcloud auth login
+
+# Authelia bearer token (for Caddy-protected services)
+python ~/git/vault/A0_keys/providers/authelia/oauth/get_token.py
 ```
 
 ---
