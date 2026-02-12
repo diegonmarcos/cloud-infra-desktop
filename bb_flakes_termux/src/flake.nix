@@ -296,6 +296,9 @@
                 $DRY_RUN_CMD mkdir -p "/storage/emulated/0/Mounts/Termux-Home"
               '';
 
+              # Claude Code master context
+              home.file.".claude/CLAUDE.md".source = ../src/modules/dotfiles/claude/CLAUDE.md;
+
               # Unison profile for bidirectional sync
               home.file.".unison/termux-home.prf".text = ''
                 # Bidirectional sync: Termux home <-> Android storage
