@@ -755,15 +755,7 @@ gh pr create                # Create PR
 
 # IV. APIs
 
-## IV.1 Flask API — `https://api.diegonmarcos.com` (port 5000)
-
-Python Flask server on gcp-proxy. Accessed via MCP tool `api_call`. 83+ endpoints across 7 blueprints: api, auth, admin, c3, alerts, cloudflare, web.
-
-**Swagger docs**: `https://api.diegonmarcos.com/docs`
-
-**Repo**: `~/git/cloud/a_solutions/container-nix/bb-sec_flask-api/`
-
-## IV.2 Rust API — `https://api.diegonmarcos.com:8080`
+## IV.1 Rust API — `https://api.diegonmarcos.com:8080` (PRIMARY)
 
 Axum + utoipa server on gcp-proxy. 47 endpoints focused on VM/container control and health monitoring.
 
@@ -797,6 +789,14 @@ Axum + utoipa server on gcp-proxy. 47 endpoints focused on VM/container control 
 | `/rust/vms/{vm_id}/containers/{name}/restart` | Restart container on VM |
 | `/rust/vms/{vm_id}/services/{service}/start` | Start service on VM |
 | `/rust/vms/{vm_id}/services/{service}/stop` | Stop service on VM |
+
+## IV.2 Flask API — `https://api.diegonmarcos.com` (port 5000) — STALE BACKUP
+
+**Being replaced by Rust API.** Flask API is kept as a reference implementation for porting endpoints to Rust. Use Rust API for all new work.
+
+**Swagger docs**: `https://api.diegonmarcos.com/docs`
+
+**Repo**: `~/git/cloud/a_solutions/container-nix/bb-sec_flask-api/`
 
 ## IV.3 Cloud Provider CLIs (not covered by MCP directly)
 
