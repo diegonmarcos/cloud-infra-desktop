@@ -21,11 +21,15 @@
 ## Operating Systems
 
 ### NixOS Host — [`aa_nixos-surface_host/`](./aa_nixos-surface_host)
+- **Version**: NixOS 24.11
 - **Immutable Root**: `tmpfs` wiped every boot.
 - **Persistence**: `impermanence` module binds `@system/state` and `@user/home` to BTRFS subvolumes.
 - **Declarative**: Everything defined via Nix Flakes (`flake.nix`, `configuration.nix`).
 - **Desktop**: KDE Plasma 6 (Wayland) default, GNOME and Openbox available.
+- **Shell**: Fish (default), Zsh, Bash available.
 - **Kernel**: linux-surface (mainline 6.15+ with Surface patches).
+- **Dual-boot**: Kubuntu (ext4 partition, shared boot).
+- **Multi-user**: `diego` (UID 1000), `guest` (UID 1001), cross-OS compatible.
 
 ### Arch Linux Fallback — [`ab_arch-surface_fallback_desk/`](./ab_arch-surface_fallback_desk)
 Desktop fallback with Surface hardware support. Bootstrap scripts + install automation.
@@ -113,6 +117,39 @@ unix/
 │
 └── z_archive/                         # Archived configs (old Kinoite host)
 ```
+
+---
+
+## Filesystem Layout
+
+> Full details: [Disk Layout](./0_spec/DISK_LAYOUT.md)
+
+```
+/                       # tmpfs (ephemeral, wiped on reboot)
+├── nix/                # @system/nix subvolume (persistent)
+├── home/diego/         # @user/home-diego subvolume (persistent)
+├── home/guest/         # @user/home-guest subvolume (persistent)
+├── mnt/
+│   ├── shared/         # @shared subvolume (cross-OS data)
+│   ├── btrfs-root/     # Pool root (all subvolumes visible)
+│   └── kubuntu/        # Kubuntu ext4 partition (ro)
+└── boot/               # Shared boot partition
+    └── efi/            # EFI system partition
+```
+
+- **LUKS2 Encryption**: Full disk, USB keyfile with password fallback
+- **BTRFS**: zstd compression, noatime on all subvolumes
+- **zRAM swap**: 50% of RAM (4GB compressed)
+- **Docker/Podman data**: `/mnt/shared/data/containers/`
+
+---
+
+## Surface Hardware Notes
+
+- **initrd modules**: `surface_aggregator`, `surface_hid` must be loaded early for Type Cover keyboard
+- **No Intel ISH**: Surface Pro 8 uses SAM (Surface Aggregator Module), not Intel Integrated Sensor Hub
+- **Wayland**: Default (Plasma 6), X11 available for Openbox
+- **Touchscreen/Pen**: via `nixos-hardware` Surface module
 
 ---
 

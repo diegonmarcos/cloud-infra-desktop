@@ -1,7 +1,7 @@
 # Diego's Master Context for Claude Agents
 
 > **Owner**: Diego Nepomuceno Marcos
-> **Updated**: 2026-02-11
+> **Updated**: 2026-02-12
 > **System**: NixOS (Surface Pro 8) + Kubuntu (dual-boot)
 > **Git Root**: `/home/diego/Mounts/Git`
 
@@ -54,103 +54,32 @@
 | **Desktop** | KDE Plasma 6 (Wayland), GNOME, Openbox available |
 | **Shell** | Fish (default), Zsh, Bash available |
 
-## A.2 NixOS Flakes Repository
+## A.2 Key Paths & Build
 
 | Resource | Path |
 |----------|------|
 | **Unix Repo** | `/home/diego/Mounts/Git/unix` |
-| **Surface Host Flake** | `/home/diego/Mounts/Git/unix/aa_nixos-surface_host/` |
-| **User Home-Manager** | `/home/diego/Mounts/Git/unix/ba_flakes_desktop/` |
-
-### Flake Structure
-
-```
-/home/diego/Mounts/Git/unix/
-├── aa_nixos-surface_host/      # NixOS system configuration
-│   ├── src/
-│   │   ├── flake.nix           # Main flake (nixos-hardware, nixpkgs)
-│   │   ├── configuration.nix   # System config (Plasma, GNOME, services)
-│   │   ├── hardware-configuration.nix  # LUKS, btrfs, Surface modules
-│   │   ├── sessions.nix        # SDDM session definitions
-│   │   └── grub-extra-entries.nix
-│   └── build.sh                # Interactive build TUI
-│
-├── ba_flakes_desktop/          # Home-manager standalone configuration
-│   ├── src/
-│   │   ├── flake.nix           # Main flake with host configs
-│   │   ├── hosts/              # Per-host configurations
-│   │   ├── modules/            # Profiles, desktop, programs, dotfiles
-│   │   └── home-manager/       # Home-manager base config
-│   └── build.sh
-│
-├── bb_flakes_termux/           # Home-manager for Android/Termux
-│   ├── src/flake.nix
-│   └── build.sh
-│
-└── [other: ab_arch, ab_kali, ac_win11, ad_ventoy, ae_mobile, da_app_*, de_claude-sandbox]
-```
-
-### Home-Manager Profiles (ba_flakes_desktop)
-
-| Profile | File | Packages |
-|---------|------|----------|
-| `shell-core` | `1-shell-core.nix` | zsh, starship, fzf, ripgrep, fd, bat, eza |
-| `dev-languages` | `2-dev-languages.nix` | Node, Python, Rust, Go runtimes |
-| `build-debug` | `3-build-debug.nix` | cmake, gcc, gdb, valgrind, strace |
-| `containers-cloud` | `4-containers-cloud.nix` | podman, kubectl, helm, gcloud, aws, **oci-cli (pipx)** |
-| `security-network` | `5-security-network.nix` | nmap, wireshark, burpsuite, openssl |
-| `data-science` | `6-data-science.nix` | jupyter, pandas, numpy, R |
-| `productivity` | `7-productivity.nix` | obsidian, zotero, libreoffice |
-| `media-graphics` | `8-media-graphics.nix` | gimp, inkscape, ffmpeg, imagemagick |
-
-### Host Configurations
-
-| Config | Profiles | Desktop |
-|--------|----------|---------|
-| `diego@surface-plasma` | All 8 profiles | Plasma 6 |
-| `diego@surface-gnome` | All 8 profiles | GNOME |
-| `diego@server` | shell, containers, security | None |
-| `diego@cli` | shell, dev-languages | None |
-| `diego@minimal` | shell-core only | None |
-
-### Key NixOS Features
-
-- **Impermanence**: Root is tmpfs, `/nix` and `/home/*` are persistent btrfs subvolumes
-- **LUKS Encryption**: Full disk encryption with optional USB keyfile unlock
-- **Surface Hardware**: Type Cover keyboard, touchscreen, pen via `nixos-hardware`
-- **Multi-user**: `diego` (UID 1000), `guest` (UID 1001), cross-OS compatible
-
-### Build Commands
+| **Surface Host Flake** | `unix/aa_nixos-surface_host/` |
+| **Home-Manager Desktop** | `unix/ba_flakes_desktop/` |
+| **Home-Manager Termux** | `unix/bb_flakes_termux/` |
 
 ```bash
 # Rebuild NixOS system
-/home/diego/Mounts/Git/unix/aa_nixos-surface_host/build.sh
-# Options: r) rebuild switch, b) build, t) test, 1-4) images
+~/git/unix/aa_nixos-surface_host/build.sh    # Options: r) switch, b) build, t) test
 
 # Rebuild home-manager
-/home/diego/Mounts/Git/unix/ba_flakes_desktop/build.sh
+~/git/unix/ba_flakes_desktop/build.sh        # Desktop
+~/git/unix/bb_flakes_termux/build.sh         # Termux
 ```
 
-## A.3 Filesystem Layout
+**Host Configs**: `surface-plasma` (all 8 profiles + Plasma 6), `surface-gnome`, `server`, `cli`, `minimal`.
 
-```
-/                       # tmpfs (ephemeral, wiped on reboot)
-├── nix/                # @nixos/nix subvolume (persistent)
-├── home/diego/         # @home-diego subvolume (persistent)
-├── home/guest/         # @home-guest subvolume (persistent)
-├── mnt/
-│   ├── shared/         # @shared subvolume (cross-OS data)
-│   ├── btrfs-root/     # Pool root (all subvolumes visible)
-│   └── kubuntu/        # Kubuntu ext4 partition (ro)
-└── boot/               # Shared boot partition
-    └── efi/            # EFI system partition
-```
+## A.3 Agent-Essential Notes
 
-## A.4 Important NixOS Notes
-
-- **initrd modules**: Surface keyboard needs `surface_aggregator`, `surface_hid` loaded early
+- **Impermanence**: Root is tmpfs — `/nix` and `/home/*` are persistent btrfs subvolumes
+- **LUKS**: Full disk encryption, USB keyfile with password fallback
+- **initrd**: Surface keyboard needs `surface_aggregator`, `surface_hid` loaded early
 - **No Intel ISH**: Surface Pro 8 uses SAM, not Intel Integrated Sensor Hub
-- **Wayland default**: Plasma 6 on Wayland, X11 available for Openbox
 - **Docker/Podman**: Data stored in `/mnt/shared/data/containers/`
 
 ---
@@ -169,16 +98,7 @@
 | **Container Configs** | `/home/diego/Mounts/Git/cloud/a_solutions/container-nix/` | Nix Flakes |
 | **Home Manager** | `/home/diego/Mounts/Git/cloud/a_solutions/home-manager/` | VM Configs |
 
-## B.2 Cloud Providers
-
-| Provider | Tier | Region | Console |
-|----------|------|--------|---------|
-| Oracle Cloud | Always Free | eu-marseille-1 | cloud.oracle.com |
-| Google Cloud | Free Tier | us-central1 | console.cloud.google.com |
-| Cloudflare | Free | Global | dash.cloudflare.com |
-| GitHub Pages | Free | Global | github.com |
-
-## B.3 Virtual Machines
+## B.2 Virtual Machines
 
 ### Always-On (24/7) - Free Tier
 | VM | Alias | IP | WG IP | RAM | Services |
@@ -192,17 +112,13 @@
 |----|-------|-----|-------|-----|----------|
 | oci-p-flex_1 | oci-flex | 144.24.196.72 | 10.0.0.2 | 8 GB | PhotoPrism, NocoDB, Code Server, AFFiNE |
 
-## B.4 Networking
+## B.3 Networking
 
-All VMs connected via **WireGuard mesh** (hub: gcp-proxy 10.0.0.1). All public traffic flows: **Cloudflare → Caddy (gcp-proxy) → WireGuard → target VM**.
+Traffic flow: **Cloudflare → Caddy (gcp-proxy) → WireGuard → target VM**. Auth: Authelia 2FA (browser) or Bearer token via introspect-proxy (CLI/API).
 
-Caddy handles automatic HTTPS (Let's Encrypt) and two auth paths:
-- **Browser**: Authelia forward-auth (cookie/session + 2FA)
-- **CLI/API**: Bearer token via introspect-proxy (OIDC token introspection)
+SSH aliases: `ssh oci-flex`, `ssh oci-mail`, `ssh oci-analytics`, `ssh gcp-proxy`.
 
-SSH aliases configured in vault: `ssh oci-flex`, `ssh oci-mail`, `ssh oci-analytics`, `ssh gcp-proxy`.
-
-## B.5 Active Services
+## B.4 Active Services
 
 | Service | Domain | VM | Port | Availability |
 |---------|--------|-----|------|--------------|
@@ -221,21 +137,7 @@ SSH aliases configured in vault: `ssh oci-flex`, `ssh oci-mail`, `ssh oci-analyt
 | Code Server | ide.diegonmarcos.com | oci-flex | 8443 | wake-on-demand |
 | AFFiNE | drive-notes-affine.diegonmarcos.com | oci-flex | 3010 | wake-on-demand |
 
-## B.6 Matomo Hybrid Wake/Sleep
-
-oci-analytics (1GB RAM) can't run Matomo + Windmill simultaneously. Matomo uses a hybrid container with supervisord:
-- **Awake**: MariaDB + Matomo PHP + Nginx (~160MB). Tracking goes direct to DB.
-- **Sleeping**: Only receiver-nginx + receiver-php-fpm (~7MB). Tracking buffered to `/inbox/` JSON files. Wake imports buffered payloads.
-
-```bash
-# Toggle via build.sh
-~/git/cloud/a_solutions/container-nix/bc-obs_matomo/build.sh wake   # stops windmill, wakes matomo
-~/git/cloud/a_solutions/container-nix/bc-obs_matomo/build.sh sleep  # sleeps matomo, starts windmill
-```
-
-## B.7 Bearer Token Auth (CLI Access)
-
-All Caddy-protected services accept bearer tokens from Authelia OIDC.
+## B.5 Bearer Token Auth (CLI Access)
 
 ```bash
 # Get token (interactive, opens browser for 2FA)
@@ -243,19 +145,10 @@ python ~/git/vault/A0_keys/providers/authelia/oauth/get_token.py
 
 # Use token
 TOKEN=$(jq -r .access_token ~/git/vault/A0_keys/providers/authelia/oauth/authelia_tokens.json)
-curl -H "Authorization: Bearer $TOKEN" https://photos.diegonmarcos.com/api/v1/status
+curl -H "Authorization: Bearer $TOKEN" https://<service>.diegonmarcos.com/...
 ```
 
-Token lifetime: 1 year. See `vault/A0_keys/providers/authelia/README.md` for details.
-
-## B.8 IP Change Management
-
-**When VM IPs change, update:**
-1. Cloudflare DNS records (Terraform in `ba-clo_cloudflare/`)
-2. WireGuard peer endpoints
-3. Mailu `PROXY_AUTH_WHITELIST` (if gcp-proxy IP changed)
-
-**DO NOT TOUCH:** iptables, container IPs, Docker networks.
+> Matomo hybrid toggle, IP change management, security stack details: See `~/git/cloud/README.md`
 
 ---
 
@@ -343,33 +236,10 @@ python ~/git/vault/A0_keys/providers/authelia/oauth/get_token.py
 ## D.2 Build System
 
 ```bash
-cd /home/diego/Mounts/Git/front
-
-./1.ops/build_main.sh           # Interactive TUI
-./1.ops/build_main.sh build     # Build all projects
-./1.ops/build_main.sh dev       # Start all dev servers
-```
-
-Each project has `build.sh` + `build.json` at project root:
-```bash
-./<category>/<project>/build.sh build    # Build for production
-./<category>/<project>/build.sh dev      # Start dev server
-```
-
-### Project Folder Structure
-
-```
-/project
-├── build.sh            # Build engine (universal)
-├── build.json          # Build config
-├── 0.spec/             # Specs & docs
-├── 1.ops/              # Legacy build scripts
-├── src_static/ | src/  # Source files
-│   ├── scss/           # Sass (ITCSS methodology)
-│   ├── typescript/     # TS source
-│   └── index.html      # Dev HTML
-├── dist/               # Build output
-└── public/             # Static assets
+~/git/front/1.ops/build_main.sh           # Interactive TUI (all projects)
+~/git/front/1.ops/build_main.sh build     # Build all
+~/git/front/<category>/<project>/build.sh build    # Single project
+~/git/front/<category>/<project>/build.sh dev      # Dev server
 ```
 
 ## D.3 Code Standards
@@ -451,6 +321,16 @@ _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+### Build Pattern per Repository
+
+| Repo | Pattern | What build.sh does |
+|------|---------|-------------------|
+| **front/** | `build.sh` + `build.json` per project | Sass/TS/Vite/SvelteKit build, dev server, deploy to GitHub Pages |
+| **cloud/** | `build.sh` + `build.json` per service (Nix flake → Docker Compose) | `build` generates docker-compose.yml, `ship` deploys to VM via SSH |
+| **unix/** | `build.sh` per flake (NixOS host, home-manager desktop/termux) | `switch` applies NixOS/home-manager config, `build` builds without applying |
+
+**All three repos follow the same interface**: `build.sh <command>`. NEVER bypass it with raw `npm`, `nix`, `docker-compose`, or other commands.
+
 ## E.1 Working Directory Rule
 
 **ALL Claude Code sessions MUST start from `~/.claude` directory.**
@@ -491,55 +371,12 @@ rpm -qR <package>           # RPM-based
 | Unix/NixOS | `/home/diego/Mounts/Git/unix` |
 | Security Vault | `/home/diego/Mounts/Git/vault` |
 
-## F.2 Front-End Projects
-
-| Project | Type | Framework | Port |
-|---------|------|-----------|------|
-| Landpage | Digital Card | Vanilla | :8000 |
-| Linktree | Digital Card | Vanilla | :8001 |
-| CV Web | Digital Card | Vanilla | :8002 |
-| MyFeed | Dashboard | Vue 3 | :8003 |
-| MyGames | Browser Tool | SvelteKit | :8004 |
-| Nexus | Digital Card | Vanilla | :8005 |
-| Cloud | Dashboard | Vanilla | :8006 |
-| Feed Yourself | Browser Tool | Vanilla | :8007 |
-| Market Watch | Dashboard | Vanilla | :8010 |
-| Central Bank | Browser Tool | Vanilla | :8011 |
-| MyProfile | Platform | SvelteKit | :8013 |
-| MyMaps | Browser Tool | React+Vite | :8014 |
-| MyMovies | Browser Tool | Vue 3 | :8015 |
-| MyMusic | Browser Tool | Vue 3 | :8016 |
-| JSON Vision | Browser Tool | Vue 3 | :8017 |
-| Astro | Browser Tool | Vanilla | :8019 |
-| Carto | Browser Tool | Vanilla | :8020 |
-| Leafy | Digital Card | Vanilla | :8021 |
-| MyTrips | Browser Tool | Vanilla | :8022 |
-
-## F.3 Domains
+## F.2 Domains
 
 - **Main**: diegonmarcos.com (Cloudflare DNS)
 - **GitHub Pages**: diegonmarcos.github.io
 
-## F.4 Docker Debugging
-
-```bash
-docker ps                           # List containers
-docker logs --tail 100 <container>  # View logs
-docker exec -it <container> bash    # Enter container
-docker stats --no-stream            # Container stats
-```
-
-## F.5 GitHub CLI
-
-```bash
-gh auth status              # Auth status
-gh run list                 # List workflow runs
-gh run view <run-id> --log  # View logs
-gh pr list                  # List PRs
-gh pr create                # Create PR
-```
-
-## F.6 Important Notes for Claude
+## F.3 Important Notes for Claude
 
 1. **Read specs first**: Before modifying any project, read the relevant spec files
 2. **Follow code practices**: TypeScript strict mode, Svelte 5 runes, Vue 3 composition API
