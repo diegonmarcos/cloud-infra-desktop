@@ -32,7 +32,7 @@
     in
     {
       nixOnDroidConfigurations.default = nix-on-droid.lib.nixOnDroidConfiguration {
-        pkgs = import nixpkgs { system = "aarch64-linux"; };
+        pkgs = import nixpkgs { system = "aarch64-linux"; config.allowUnfree = true; };
         modules = [
           ({ config, lib, pkgs, ... }: {
             system.stateVersion = "24.05";
@@ -95,6 +95,9 @@
               cloudflared
               google-cloud-sdk
               oci-cli
+
+              # Infrastructure as Code
+              terraform
 
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22

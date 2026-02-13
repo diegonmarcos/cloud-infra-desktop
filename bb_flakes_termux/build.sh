@@ -70,16 +70,24 @@ cmd_switch() {
 
     log_info "Applying nix-on-droid configuration..."
 
-    exit_code=0
-    nix-on-droid switch --flake "$SRC_DIR" 2>&1 | tee -a "$LOG_FILE" || exit_code=$?
+    _rc_file=$(mktemp)
+    { nix-on-droid switch --flake "$SRC_DIR" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+    exit_code=$(cat "$_rc_file")
+    rm -f "$_rc_file"
 
-    if [ $exit_code -ne 0 ]; then
+    if [ "$exit_code" -ne 0 ]; then
         log_error "Configuration failed (exit $exit_code)"
         log_info "Check $LOG_FILE for details"
         return $exit_code
     fi
 
     log_success "Configuration applied: $SRC_DIR"
+
+    # Trim to last 3 generations and GC
+    log_info "Trimming generations (keep last 3)..."
+    nix-env --delete-generations +3 2>&1 || true
+    nix-collect-garbage 2>&1 || true
+    log_success "GC complete"
 }
 
 cmd_update() {
@@ -89,10 +97,12 @@ cmd_update() {
     cd "$SRC_DIR"
     log_info "Updating flake.lock..."
 
-    exit_code=0
-    nix flake update 2>&1 | tee -a "$LOG_FILE" || exit_code=$?
+    _rc_file=$(mktemp)
+    { nix flake update 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+    exit_code=$(cat "$_rc_file")
+    rm -f "$_rc_file"
 
-    if [ $exit_code -ne 0 ]; then
+    if [ "$exit_code" -ne 0 ]; then
         log_error "Flake update failed (exit $exit_code)"
         return $exit_code
     fi
