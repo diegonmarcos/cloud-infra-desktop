@@ -19,7 +19,7 @@
     stern            # Multi-pod log tailing
 
     # Infrastructure as Code
-    # terraform  # DISABLED: builds from source (~30min)
+    terraform
     ansible
     # packer     # DISABLED: builds from source (~20min)
 
