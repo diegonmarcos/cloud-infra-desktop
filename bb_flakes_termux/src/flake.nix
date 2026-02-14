@@ -292,8 +292,10 @@
               '')
 
               # 7. BEARER (Authelia bearer token for CLI access)
+              # Auto-discovers token at ~/.config/authelia/tokens.json
+              # (symlinked by vault/build.sh setup authelia)
               (writeShellScriptBin "bearer" ''
-                TOKEN_FILE="$HOME/git/vault/A0_keys/providers/authelia/oauth/authelia_tokens.json"
+                TOKEN_FILE="$HOME/.config/authelia/tokens.json"
                 if [ ! -f "$TOKEN_FILE" ]; then
                   printf "\033[0;31mToken file not found: %s\033[0m\n" "$TOKEN_FILE" >&2
                   exit 1
