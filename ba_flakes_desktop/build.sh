@@ -179,6 +179,15 @@ nix_switch() {
         return 1
     fi
 
+    # Stage dirty files so nix flake evaluation sees changes
+    if command -v git >/dev/null 2>&1; then
+        dirty=$(git -C "$SRC_DIR" status --porcelain 2>/dev/null || true)
+        if [ -n "$dirty" ]; then
+            log_info "Staging dirty files for flake evaluation..."
+            git -C "$SRC_DIR" add -A 2>/dev/null || true
+        fi
+    fi
+
     # Clean old backup files that block home-manager activation
     backup_count=$(command find "$HOME" -maxdepth 1 -name "*.backup" -type f 2>/dev/null | wc -l)
     if [ "$backup_count" -gt 0 ]; then
@@ -206,12 +215,6 @@ nix_switch() {
     fi
 
     log_success "Configuration applied: $flake_ref"
-
-    # Trim to last 3 generations and GC
-    log_info "Trimming generations (keep last 3)..."
-    nix-env --delete-generations +3 2>&1 || true
-    nix-collect-garbage 2>&1 || true
-    log_success "GC complete"
 }
 
 nix_update() {
@@ -470,6 +473,9 @@ clean() {
 
     log_info "Removing Nix result symlinks..."
     rm -f "$SRC_DIR/result" "$SRC_DIR/result-*"
+
+    log_info "Trimming generations (keep last 3)..."
+    nix-env --delete-generations +3 2>&1 || true
 
     log_info "Cleaning Nix store (garbage collection)..."
     if check_nix 2>/dev/null; then

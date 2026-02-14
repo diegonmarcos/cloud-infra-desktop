@@ -3,6 +3,9 @@
 
 {
   home.packages = with pkgs; [
+    # Nerd Fonts (for terminal icons)
+    (nerdfonts.override { fonts = [ "JetBrainsMono" "FiraCode" ]; })
+
     # Modern CLI replacements
     eza
     bat
