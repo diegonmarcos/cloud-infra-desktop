@@ -1065,6 +1065,13 @@ switch_system() {
     sudo nixos-rebuild switch --flake "$FLAKE_PATH#surface" 2>&1
 
     if [ $? -eq 0 ]; then
+        # Trim to last 3 generations and GC
+        log "Trimming generations (keep last 3)..."
+        sudo nix-env --delete-generations +3 -p /nix/var/nix/profiles/system 2>&1 || true
+        nix-env --delete-generations +3 2>&1 || true
+        sudo nix-collect-garbage 2>&1 || true
+        log "GC complete"
+
         printf "\n"
         printf "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}\n"
         printf "${GREEN}║  ${BOLD}SYSTEM REBUILD COMPLETE!${NC}${GREEN}                                   ║${NC}\n"

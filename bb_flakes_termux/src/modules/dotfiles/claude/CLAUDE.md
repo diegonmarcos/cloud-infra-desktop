@@ -392,270 +392,40 @@ rpm -qR <package>           # RPM-based
 #                           SKILLS & MCPs
 # ████████████████████████████████████████████████████████████████████████████
 
----
+> **Full documentation**: See `~/git/front/b_Work_Tools/skills_mcp/README.md`
+> **Individual docs**: See `~/git/front/b_Work_Tools/skills_mcp/docs/`
 
-# I. Skills Senior
+## Skills Summary
 
-## I.1 Cloud Architect Senior
+| Level | Skill | Brief | Skill File |
+|-------|-------|-------|------------|
+| Senior | Cloud Architect | 4-VM infra, WireGuard, Caddy, Authelia, 43 services | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
+| Senior | Software Engineer | Full-stack — Rust API, Flask, MCP server, Nix, Python | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
+| Senior | Software Architecture | System design, Nix flake composition, build.sh engine | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
+| Senior | Front-End Developer | 32-project monorepo, TS strict, Svelte 5, Vue 3, SCSS | `front/.../skills_mcp/0.spec/skills.md` |
+| Senior | Designer | ITCSS, responsive, WCAG, semantic HTML, no-inline-CSS | `front/.../skills_mcp/0.spec/skills.md` |
+| Junior | Software Engineer | Bug fixes, small features, follows existing patterns | `front/.../skills_mcp/0.spec/skills.md` |
+| Junior | Ops | Docker management, logs, restarts, health checks | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
 
-**Brief**: Designs and manages the 4-VM cloud infrastructure — WireGuard mesh, Caddy reverse proxy, Authelia 2FA, 43 containerized services across OCI and GCP free tiers. Handles VM lifecycle, networking, DNS (Terraform), and cost optimization.
+All skills use the `cloud-infra` MCP.
 
-**Skill**: `~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/SKILL.md`
+## MCP: cloud-infra
 
-**MCPs used**: `cloud-infra`
+**Repo**: `~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/` | **SDK**: `@modelcontextprotocol/sdk ^1.12.0`
 
-**APIs**:
-| Source | API | Endpoints Used |
-|--------|-----|----------------|
-| MCP | Flask API | `/vms`, `/vms/{id}/status`, `/vms/{id}/start`, `/vms/{id}/stop`, `/vms/{id}/reset`, `/services`, `/services/{id}`, `/dashboard/summary`, `/wake/trigger`, `/wake/status`, `/providers`, `/domains` |
-| MCP | OCI CLI | `oci compute instance action` (start/stop/reset) |
-| MCP | gcloud CLI | `gcloud compute instances start/stop/reset` |
-| MCP | Cloudflare | Terraform via `ba-clo_cloudflare/build.sh` |
-| Direct | SSH | All 4 VMs (Docker, system commands, build.sh) |
-| Direct | WireGuard | 10.0.0.0/24 mesh (inter-VM communication) |
+**21 Tools**: `list_vms`, `list_services`, `get_service_detail`, `read_file`, `search_repos`, `list_directory`, `build_service`, `build_all`, `ssh_exec`, `check_vm`, `docker_ps`, `docker_control`, `docker_logs`, `docker_compose_up`, `api_call`, `api_vm_control`, `front_list_projects`, `front_get_project`, `front_build`, `front_dev_server`, `front_deploy`
 
----
+**5 Resources**: `cloud://config`, `cloud://ssh-config`, `cloud://services-overview`, `cloud://readme`, `cloud://front-projects`
 
-## I.2 Software Engineer Senior
+**1 Prompt**: `cloud-architect`
 
-**Brief**: Full-stack development across all repos — Rust API (gcp-proxy), Flask API, MCP server (TypeScript/Node), Nix flake configurations, Python tooling. Writes production code, reviews architecture, manages dependencies.
+## APIs
 
-**Skill**: `~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/SKILL.md`
+| API | URL | Swagger |
+|-----|-----|---------|
+| **Rust API** (PRIMARY) | `https://api.diegonmarcos.com:8080` | `https://api.diegonmarcos.com:8080/rust/api-docs` |
+| **Flask API** (STALE) | `https://api.diegonmarcos.com` | `https://api.diegonmarcos.com/docs` |
 
-**MCPs used**: `cloud-infra`
+**Cloud CLIs**: `oci`, `gcloud`, `gh`, `terraform` — not covered by MCP.
 
-**APIs**:
-| Source | API | Endpoints Used |
-|--------|-----|----------------|
-| MCP | Flask API | `/health`, `/config`, all CRUD endpoints |
-| MCP | Rust API | `api.diegonmarcos.com:8080` (replacing Flask) |
-| MCP | Repo tools | `read_file`, `search_repos`, `list_directory` across all 5 repos |
-| MCP | Build tools | `build_service`, `build_all` |
-| Direct | GitHub CLI | `gh pr`, `gh run`, `gh api` |
-| Direct | npm/node | Package management, build toolchain |
-| Direct | Cargo/rustc | Rust compilation (`--jobs 1` on micro VMs) |
-
----
-
-## I.3 Software Architecture Senior
-
-**Brief**: System design and Nix flake architecture — repo structure, module organization, build.sh engine design, flake composition (NixOS host, home-manager desktop/termux, cloud home-manager). Defines project archetypes and enforces the Nix Way.
-
-**Skill**: `~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/SKILL.md`
-
-**MCPs used**: `cloud-infra`
-
-**APIs**:
-| Source | API | Endpoints Used |
-|--------|-----|----------------|
-| MCP | Repo tools | `read_file`, `search_repos`, `list_directory` (all repos) |
-| MCP | Flask API | `/config`, `/cloud_control/infrastructure` |
-| Direct | Nix CLI | `nix flake show`, `nix flake metadata` (via build.sh only) |
-| Direct | Git | Cross-repo structure analysis |
-
----
-
-## I.4 Front-End Developer Senior
-
-**Brief**: Develops and maintains the 32-project front-end monorepo — TypeScript strict mode, Svelte 5 runes, Vue 3 composition API, SCSS/ITCSS. Manages build system (build.sh + build.json), dev servers, GitHub Pages CI/CD pipeline.
-
-**Skill**: `~/git/front/b_Work_Tools/skills_mcp/0.spec/skills.md` (frontend-developer persona)
-
-**MCPs used**: `cloud-infra`
-
-**APIs**:
-| Source | API | Endpoints Used |
-|--------|-----|----------------|
-| MCP | Front tools | `front_list_projects`, `front_get_project`, `front_build`, `front_dev_server`, `front_deploy` |
-| MCP | Repo tools | `read_file`, `search_repos` (front repo) |
-| Direct | Matomo | `analytics.diegonmarcos.com/js/container_odwLIyPV.js` (tracking) |
-| Direct | GitHub Actions | `.github/workflows/deploy.yml` (conditional per-project builds) |
-| Direct | GitHub Pages | `diegonmarcos.github.io/*` (deployment target) |
-| Direct | NocoDB | `db.diegonmarcos.com` (data backend for some projects) |
-| Direct | PhotoPrism | `photos.diegonmarcos.com/api/v1/` (photo data for myphotos) |
-
----
-
-## I.5 Designer Senior
-
-**Brief**: UI/UX design and visual implementation — SCSS architecture (ITCSS), responsive breakpoints, accessibility (WCAG), semantic HTML, no-inline-CSS enforcement. Designs component layouts, color systems, and typography across all 32 projects.
-
-**Skill**: `~/git/front/b_Work_Tools/skills_mcp/0.spec/skills.md` (ui-designer / ux-researcher persona)
-
-**MCPs used**: `cloud-infra`
-
-**APIs**:
-| Source | API | Endpoints Used |
-|--------|-----|----------------|
-| MCP | Front tools | `front_list_projects`, `front_get_project`, `front_build`, `front_dev_server` |
-| MCP | Repo tools | `read_file` (SCSS files, HTML templates) |
-| Direct | Google Fonts | Font loading via `<link>` |
-| Direct | CDN assets | Icons, images from `public/` directories |
-
----
-
-# II. Skills Junior
-
-## II.1 Software Engineer
-
-**Brief**: Handles basic coding tasks — bug fixes, small features, test writing, documentation updates. Works within existing patterns without architectural decisions. Follows established code standards (TS strict, Svelte runes, Vue composition).
-
-**Skill**: `~/git/front/b_Work_Tools/skills_mcp/0.spec/skills.md` (rapid-prototyper persona)
-
-**MCPs used**: `cloud-infra`
-
-**APIs**:
-| Source | API | Endpoints Used |
-|--------|-----|----------------|
-| MCP | Repo tools | `read_file`, `search_repos`, `list_directory` |
-| MCP | Front tools | `front_get_project`, `front_build`, `front_dev_server` |
-| Direct | GitHub CLI | `gh pr create`, `gh run list` |
-
----
-
-## II.2 Ops
-
-**Brief**: Handles operational tasks — Docker container management, log inspection, service restarts, VM health checks, backup verification. Executes established runbooks without infrastructure changes.
-
-**Skill**: `~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/SKILL.md`
-
-**MCPs used**: `cloud-infra`
-
-**APIs**:
-| Source | API | Endpoints Used |
-|--------|-----|----------------|
-| MCP | Docker tools | `docker_ps`, `docker_control`, `docker_logs`, `docker_compose_up` |
-| MCP | SSH tools | `ssh_exec`, `check_vm` |
-| MCP | Flask API | `/vms/{id}/status`, `/vms/{id}/containers`, `/dashboard/quick-status` |
-| MCP | Build tools | `build_service` (rebuild containers) |
-| Direct | SSH | Log tailing, systemd service management |
-
----
-
-# III. MCPs
-
-## III.1 cloud-infra
-
-| Field | Value |
-|-------|-------|
-| **Name** | `cloud-infra` |
-| **Version** | `1.0.0` |
-| **Transport** | stdio |
-| **Runtime** | Node.js (TypeScript) |
-| **Repo** | `~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/` |
-| **Entry** | `src/index.ts` |
-| **SDK** | `@modelcontextprotocol/sdk ^1.12.0` |
-
-### Tools (21)
-
-| Category | Tool | Description |
-|----------|------|-------------|
-| **Infra** | `list_vms` | List all 4 VMs with IPs, aliases, descriptions |
-| **Infra** | `list_services` | List 42+ services (filter by VM or category) |
-| **Infra** | `get_service_detail` | Full service info: flake.nix, secrets, dist files |
-| **Repo** | `read_file` | Read file from any repo (cloud, unix, vault, front, tools) |
-| **Repo** | `search_repos` | Grep across repositories |
-| **Repo** | `list_directory` | List directory contents |
-| **Build** | `build_service` | Run build.sh for a service (build/secrets/ship/clean/all) |
-| **Build** | `build_all` | Run root orchestrator for all services |
-| **SSH** | `ssh_exec` | Execute command on VM via SSH |
-| **SSH** | `check_vm` | Test VM reachability + system info |
-| **Docker** | `docker_ps` | List containers on a VM |
-| **Docker** | `docker_control` | Start/stop/restart container |
-| **Docker** | `docker_logs` | Get container logs |
-| **Docker** | `docker_compose_up` | Rebuild + restart service on its VM |
-| **API** | `api_call` | Call any Flask API endpoint |
-| **API** | `api_vm_control` | Start/stop/reset VM via OCI/gcloud CLI |
-| **Front** | `front_list_projects` | List all 32 web projects |
-| **Front** | `front_get_project` | Full project detail: build.json, deps, dist, dev server |
-| **Front** | `front_build` | Build a project using universal build.sh |
-| **Front** | `front_dev_server` | Start/stop/status of project dev server |
-| **Front** | `front_deploy` | Run deploy.sh (merge deps + build all changed) |
-
-### Resources (5)
-
-| URI | Description |
-|-----|-------------|
-| `cloud://config` | Full infrastructure config (config.json) |
-| `cloud://ssh-config` | SSH configuration file |
-| `cloud://services-overview` | Services overview markdown table |
-| `cloud://readme` | Container-nix README |
-| `cloud://front-projects` | Front-end projects overview |
-
-### Prompts (1)
-
-| Name | Description |
-|------|-------------|
-| `cloud-architect` | Full cloud architect persona with VM table, services, architecture, and operational principles |
-
----
-
-# IV. APIs
-
-## IV.1 Rust API — `https://api.diegonmarcos.com:8080` (PRIMARY)
-
-Axum + utoipa server on gcp-proxy. 47 endpoints focused on VM/container control and health monitoring.
-
-**Swagger docs**: `https://api.diegonmarcos.com:8080/rust/api-docs`
-
-**Repo**: `~/git/cloud/a_solutions/container-nix/bb-sec_rust-api/`
-
-### Generic Engine Endpoints (GET)
-
-| Endpoint | Description |
-|----------|-------------|
-| `/rust/health` | API alive check |
-| `/rust/health/all` | Full health summary (all VMs + containers) |
-| `/rust/health/containers-by-vm` | Container status grouped by VM |
-| `/rust/health/containers-by-service` | Container status grouped by service |
-| `/rust/health/proxied-by-services` | Proxied service health checks |
-| `/rust/health/resources-all` | Resource usage (CPU, RAM, disk) all VMs |
-| `/rust/health/ids` | List all VM and container IDs |
-| `/rust/health/{vm_id}` | Health for a specific VM |
-| `/rust/health/{vm_id}/{container_name}` | Status for a specific container |
-
-### Generic Engine Endpoints (POST)
-
-| Endpoint | Description |
-|----------|-------------|
-| `/rust/vms/{vm_id}/start` | Start a VM |
-| `/rust/vms/{vm_id}/stop` | Stop a VM |
-| `/rust/vms/{vm_id}/reset` | Reset/reboot a VM |
-| `/rust/vms/{vm_id}/containers/{name}/start` | Start container on VM |
-| `/rust/vms/{vm_id}/containers/{name}/stop` | Stop container on VM |
-| `/rust/vms/{vm_id}/containers/{name}/restart` | Restart container on VM |
-| `/rust/vms/{vm_id}/services/{service}/start` | Start service on VM |
-| `/rust/vms/{vm_id}/services/{service}/stop` | Stop service on VM |
-
-## IV.2 Flask API — `https://api.diegonmarcos.com` (port 5000) — STALE BACKUP
-
-**Being replaced by Rust API.** Flask API is kept as a reference implementation for porting endpoints to Rust. Use Rust API for all new work.
-
-**Swagger docs**: `https://api.diegonmarcos.com/docs`
-
-**Repo**: `~/git/cloud/a_solutions/container-nix/bb-sec_flask-api/`
-
-## IV.3 Cloud Provider CLIs (not covered by MCP directly)
-
-| CLI | Auth | Usage |
-|-----|------|-------|
-| `oci` | Session token | `oci compute instance action --action START --instance-id <ocid>` |
-| `gcloud` | Service account | `gcloud compute instances start <name> --zone <zone>` |
-| `gh` | OAuth token | `gh api`, `gh pr`, `gh run` |
-| `terraform` | Cloudflare API token | DNS record management in `ba-clo_cloudflare/` |
-
-## IV.4 Service APIs (not covered by MCP)
-
-| Service | Base URL | Auth | Usage |
-|---------|----------|------|-------|
-| PhotoPrism | `photos.diegonmarcos.com/api/v1/` | Bearer token | Photo management, album API |
-| NocoDB | `db.diegonmarcos.com/api/v1/` | Bearer token | Database CRUD, table API |
-| Matomo | `analytics.diegonmarcos.com/` | Token auth | Reporting API, tracking API |
-| Vaultwarden | `vault.diegonmarcos.com/api/` | Bearer token | Password vault API |
-| Syncthing | `sync.diegonmarcos.com/rest/` | API key | Folder/device management |
-| Radicale | `cal.diegonmarcos.com/` | Basic auth | CalDAV/CardDAV |
-| ntfy | `rss.diegonmarcos.com/` | Bearer token | Push notifications |
-| Mailu | `mail.diegonmarcos.com/api/v1/` | API key | Mail admin API |
-| AFFiNE | `drive-notes-affine.diegonmarcos.com/` | Session | Workspace API |
-| Authelia | `auth.diegonmarcos.com/api/` | Session/OIDC | Auth status, OIDC endpoints |
-| Windmill | Internal only | — | Workflow execution API |
+**Service APIs**: PhotoPrism, NocoDB, Matomo, Vaultwarden, Syncthing, Radicale, ntfy, Mailu, AFFiNE, Authelia, Windmill — see `docs/apis/service-apis.md`.
