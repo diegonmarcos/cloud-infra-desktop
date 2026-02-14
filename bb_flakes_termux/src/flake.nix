@@ -58,6 +58,9 @@
             user.shell = "${pkgs.fish}/bin/fish";
 
             environment.packages = with pkgs; [
+              # Nerd Fonts (for terminal icons)
+              (nerdfonts.override { fonts = [ "JetBrainsMono" "FiraCode" ]; })
+
               # Core Tools
               nano
               gnused
@@ -85,7 +88,8 @@
               jemalloc
               mimalloc
 
-              # Secrets
+              # Secrets & crypto
+              openssl
               sops
               yq-go
 
@@ -298,6 +302,10 @@
               home.activation.createUnisonTarget = lib.hm.dag.entryBefore ["writeBoundary"] ''
                 $DRY_RUN_CMD mkdir -p "/storage/emulated/0/Mounts/Termux-Home"
               '';
+
+              # Termux font — JetBrainsMono Nerd Font
+              home.file.".termux/font.ttf".source =
+                "${pkgs.nerdfonts.override { fonts = [ "JetBrainsMono" ]; }}/share/fonts/truetype/NerdFonts/JetBrainsMonoNerdFont-Regular.ttf";
 
               # Claude Code master context
               home.file.".claude/CLAUDE.md".source = ../src/modules/dotfiles/claude/CLAUDE.md;
