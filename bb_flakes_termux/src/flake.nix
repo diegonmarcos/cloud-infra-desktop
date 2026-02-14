@@ -379,7 +379,6 @@
                 shellAliases = sharedAliases;
                 profileExtra = ''
                   export PATH="$HOME/.nix-profile/bin:/run/current-system/sw/bin:$PATH"
-                  export SOPS_AGE_KEY_FILE="$HOME/git/vault/A0_keys/providers/system/oauth/age_keys.txt"
                 '';
               };
 
