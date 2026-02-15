@@ -53,11 +53,11 @@ get_phone_config() {
     jq -r ".[\"_phone\"].$key // empty" "$CONFIG_FILE" 2>/dev/null
 }
 
-# Get OCI Flex config from JSON
+# Get OCI Flex config from JSON (flex-1 by default for wake/sleep)
 get_oci_flex_config() {
     key="$1"
     check_jq
-    jq -r ".[\"_oci_flex\"].$key // empty" "$CONFIG_FILE" 2>/dev/null
+    jq -r ".[\"_oci_flex_1\"].$key // empty" "$CONFIG_FILE" 2>/dev/null
 }
 
 # List enabled mounts by type
