@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "cloud-infra": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["tsx", "/home/diego/Mounts/Git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/src/index.ts"]
+    }
+  }
+}

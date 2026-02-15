@@ -318,6 +318,12 @@ _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
 ║   NEVER run nix build/switch/etc. directly — use the repo's      ║
 ║   build.sh.                                                      ║
 ║                                                                  ║
+║   NEVER edit deployed/output files directly (e.g. ~/.claude/,    ║
+║   dist/, ~/). ALWAYS find and edit the SOURCE in the git repo    ║
+║   flake. This file (CLAUDE.md) is deployed output — its source:  ║
+║     ~/git/unix/ba_flakes_desktop/src/modules/dotfiles/claude/    ║
+║     ~/git/unix/bb_flakes_termux/src/modules/dotfiles/claude/     ║
+║                                                                  ║
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
@@ -330,6 +336,53 @@ _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
 | **unix/** | `build.sh` per flake (NixOS host, home-manager desktop/termux) | `switch` applies NixOS/home-manager config, `build` builds without applying |
 
 **All three repos follow the same interface**: `build.sh <command>`. NEVER bypass it with raw `npm`, `nix`, `docker-compose`, or other commands.
+
+### ⚠️ Cloud Service Structure (MANDATORY)
+
+```
+⚠️ BEFORE modifying ANY cloud/ service: READ ~/git/cloud/README.md
+   THIS IS NOT OPTIONAL — it is the full spec for the cloud build system.
+```
+
+Every service in `container-nix/` MUST follow this exact structure:
+
+```
+<category-prefix>_<name>/
+├── build.sh        ← Universal engine (DO NOT customize — copy from template)
+├── build.json      ← Service config (name, description, deploy target)
+└── src/
+    ├── flake.nix   ← REQUIRED — Nix flake that builds config files → dist/
+    ├── secrets.yaml ← Optional, sops-encrypted (age key)
+    └── ...          ← Service-specific source files
+```
+
+**build.json schema** (cloud/ services):
+```json
+{
+  "name": "service-name",
+  "description": "What this service does",
+  "deploy": {
+    "host": "ssh-alias (e.g. gcp-proxy, oci-flex) or 'local'",
+    "remote_path": "/opt/containers/<service-name>"
+  }
+}
+```
+
+**build.sh pipeline steps** (same for ALL services — NEVER create custom steps):
+
+| Command | What it does |
+|---------|-------------|
+| `build` | `nix build` in `src/` → copy result to `dist/` + any extra build steps |
+| `secrets` | `sops -d src/secrets.yaml` → `dist/.secrets` (KEY=VALUE env file) |
+| `deploy` | `rsync dist/` → VM via SSH (or local copy for local services) |
+| `compose` | `docker compose up -d` on VM (or equivalent for local services) |
+| `all` | `build + secrets` (default) |
+| `ship` | `build + secrets + deploy + compose` (FULL PIPELINE — use this to deploy) |
+| `clean` | Remove `dist/` and `.result` |
+
+**Template reference**: `bb-sec_authelia/build.sh` — copy this for new services.
+
+**Category prefixes**: `aa-sui_` (app), `ab-mic_` (mic), `ba-clo_` (cloud), `bb-sec_` (sec), `bc-obs_` (tools), `ca-dat_` (data)
 
 ## E.1 Working Directory Rule
 
