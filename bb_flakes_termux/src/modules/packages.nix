@@ -65,5 +65,10 @@
 
     # Cloud ops
     google-cloud-sdk
+
+    # Container CLIs (remote only — no daemon on Android, talks to VMs via SSH)
+    docker-client
+    docker-buildx
+    podman
   ];
 }
