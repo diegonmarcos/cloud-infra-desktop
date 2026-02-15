@@ -65,6 +65,7 @@
 
     # Cloud ops
     google-cloud-sdk
+    oci-cli
 
     # Container CLIs (remote only — no daemon on Android, talks to VMs via SSH)
     docker-client

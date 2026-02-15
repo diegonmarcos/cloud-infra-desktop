@@ -342,7 +342,7 @@
                     printf "''${C_CYAN}=== WireGuard Mesh Status ===''${C_RESET}\n"
                     printf "\n"
                     # TCP connect to port 22 (ping needs root for ICMP)
-                    for peer in "10.0.0.1 gcp-proxy" "10.0.0.2 oci-flex" "10.0.0.3 oci-mail" "10.0.0.4 oci-analytics"; do
+                    for peer in "10.0.0.1 gcp-proxy" "10.0.0.6 oci-flex-0" "10.0.0.2 oci-flex-1" "10.0.0.3 oci-mail" "10.0.0.4 oci-analytics"; do
                       IP=$(echo "$peer" | cut -d' ' -f1)
                       NAME=$(echo "$peer" | cut -d' ' -f2)
                       printf "  %-16s %-8s " "$NAME" "$IP"
@@ -367,7 +367,8 @@
                     printf "''${C_CYAN}=== Mesh Peers ===''${C_RESET}\n"
                     printf "  ''${C_GREEN}%-16s''${C_RESET} %-10s %-22s %s\n" "NAME" "WG IP" "PUBLIC IP" "ROLE"
                     printf "  %-16s %-10s %-22s %s\n" "gcp-proxy"      "10.0.0.1" "35.226.147.64"   "hub (24/7)"
-                    printf "  %-16s %-10s %-22s %s\n" "oci-flex"       "10.0.0.2" "144.24.196.72"   "apps (wake-on-demand)"
+                    printf "  %-16s %-10s %-22s %s\n" "oci-flex-0"     "10.0.0.6" "82.70.229.129"   "general (3cpu/16gb)"
+                    printf "  %-16s %-10s %-22s %s\n" "oci-flex-1"     "10.0.0.2" "144.24.196.72"   "apps (wake-on-demand)"
                     printf "  %-16s %-10s %-22s %s\n" "oci-mail"       "10.0.0.3" "130.110.251.193" "mail (24/7)"
                     printf "  %-16s %-10s %-22s %s\n" "oci-analytics"  "10.0.0.4" "129.151.228.66"  "analytics (24/7)"
                     printf "  ''${C_YELLOW}%-16s''${C_RESET} %-10s %-22s %s\n" "local (you)" "10.0.0.5" "N/A" "client"

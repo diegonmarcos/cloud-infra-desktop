@@ -10,7 +10,13 @@
     }
   },
   {
-    "_oci_flex": {
+    "_oci_flex_0": {
+      "instance_id": "ocid1.instance.oc1.eu-marseille-1.anwxeljruadvczacj7dfxl7uifar574je7fzlvtdjp4ghljdwuwdemsdbiva",
+      "region": "eu-marseille-1"
+    }
+  },
+  {
+    "_oci_flex_1": {
       "instance_id": "ocid1.instance.oc1.eu-marseille-1.anwxeljruadvczachwpa3qrh7n25vfez3smidz4o7gpmtj4ga4d7zqlja5yq",
       "region": "eu-marseille-1"
     }
@@ -46,6 +52,13 @@
   {
     "name": "OCI_micro_1",
     "remote": "OCI_micro_1",
+    "type": "vm",
+    "enabled": true,
+    "vm_subdirs": ["sys", "home", "docker", "mnt"]
+  },
+  {
+    "name": "OCI_Flex_0",
+    "remote": "OCI_Flex_0",
     "type": "vm",
     "enabled": true,
     "vm_subdirs": ["sys", "home", "docker", "mnt"]
