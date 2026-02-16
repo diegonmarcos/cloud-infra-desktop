@@ -349,24 +349,46 @@ elif command -v intel_gpu_top &>/dev/null; then
 fi
 vram_color=$(get_color "$vram_percent")
 
+# Find ip command (try common locations)
+IP_CMD=""
+for p in /sbin/ip /usr/sbin/ip /bin/ip $HOME/.nix-profile/bin/ip /run/current-system/sw/bin/ip; do
+    [ -x "$p" ] && IP_CMD="$p" && break
+done
+
 # Check WireGuard mesh status (quick check)
 mesh_status="down"
 mesh_color="31"  # red
 mesh_ip="none"
-if ip link show wg0 &>/dev/null; then
-    # Get mesh IP from wg0
-    mesh_ip=$(ip -4 addr show wg0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
-    [ -z "$mesh_ip" ] && mesh_ip="none"
 
-    # wg0 exists, check if we can reach hub (10.0.0.1) with 1 second timeout
-    if ping -c 1 -W 1 10.0.0.1 &>/dev/null; then
-        mesh_status="up"
-        mesh_color="32"  # green
+# Primary check: Can we reach the mesh network? (works on desktop + Termux/Android WireGuard)
+if ping -c 1 -W 1 10.0.0.1 &>/dev/null 2>&1; then
+    mesh_status="up"
+    mesh_color="32"  # green
+
+    # Try to get our mesh IP from wg0 interface (desktop/direct WireGuard)
+    if [ -n "$IP_CMD" ] && $IP_CMD link show wg0 &>/dev/null 2>&1; then
+        mesh_ip=$($IP_CMD -4 addr show wg0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+    elif [ -d "/sys/class/net/wg0" ]; then
+        # Fallback: sysfs
+        mesh_ip=$(ip addr show wg0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
     fi
+    [ -z "$mesh_ip" ] && mesh_ip="none"
 fi
 
-# Get private IP (local network)
-private_ip=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+' | head -1)
+# Get private IP (local network) - try multiple methods
+private_ip=""
+if [ -n "$IP_CMD" ]; then
+    private_ip=$($IP_CMD route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+' | head -1)
+fi
+# Fallback: parse from hostname or network interfaces
+if [ -z "$private_ip" ]; then
+    private_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+fi
+# Filter out localhost
+if [ "$private_ip" = "127.0.0.1" ] || [ -z "$private_ip" ]; then
+    # Try reading from /proc/net interfaces
+    private_ip=$(cat /proc/net/fib_trie 2>/dev/null | grep -oP '(?<=\|-- )\d+\.\d+\.\d+\.\d+' | grep -v "^127\." | grep -v "^10\.0\.0\." | head -1)
+fi
 [ -z "$private_ip" ] && private_ip="none"
 
 # Get public IP (with 2 second timeout)
