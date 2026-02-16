@@ -349,6 +349,17 @@ elif command -v intel_gpu_top &>/dev/null; then
 fi
 vram_color=$(get_color "$vram_percent")
 
+# Check WireGuard mesh status (quick check)
+mesh_status="down"
+mesh_color="31"  # red
+if ip link show wg0 &>/dev/null; then
+    # wg0 exists, check if we can reach hub (10.0.0.1) with 1 second timeout
+    if ping -c 1 -W 1 10.0.0.1 &>/dev/null; then
+        mesh_status="up"
+        mesh_color="32"  # green
+    fi
+fi
+
 # Build status line with FULL information
 # Format: HH:MM:SS  opus-4-5 diego@surface directory  branch@hash*+?↑↓ ≡stash CTX:tokens RAM:% CPU:% Disk:% VRAM:%
 # Using Nerd Font icons:  for model,  for git,  for context
@@ -389,7 +400,8 @@ fi
 printf " \033[${mem_color}mRAM:%s%%\033[0m" "$mem_percent"
 printf " \033[${cpu_color}mCPU:%s%%\033[0m" "$cpu_percent"
 printf " \033[${disk_color}mDisk:%s%%\033[0m" "$disk_percent"
-printf " \033[${vram_color}mVRAM:%s%%\033[0m\n" "$vram_percent"
+printf " \033[${vram_color}mVRAM:%s%%\033[0m" "$vram_percent"
+printf " \033[${mesh_color}mMesh:%s\033[0m\n" "$mesh_status"
 
 # === SECOND LINE: [Context Window] | [Session Usage] ===
 ctx_current_fmt=$(format_tokens "$current_ctx")
