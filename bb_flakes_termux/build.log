@@ -3621,3 +3621,53 @@ warning: Use 'nix profile list' to see the current profile.
 [2026-02-16 18:36:55] ========== Build script started ==========
 [2026-02-16 18:36:55] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-02-16 18:36:55] INFO: Staging dirty files for flake evaluation...
+[2026-02-16 18:36:55] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 4 derivations will be built:
+  /nix/store/vlsq3hn405bk0wrimafwzg4m0z4v41ic-home-manager-files.drv
+  /nix/store/r7vs9mdc4r7kv3v3qpmbiilpk5cp2259-home-manager-generation.drv
+  /nix/store/75qd1dmbfxxnnprbnk5msa4rh98n9hrn-activation-script.drv
+  /nix/store/r3p5y576aqr485606q8v88wz3bzy02wj-nix-on-droid-generation.drv
+building '/nix/store/vlsq3hn405bk0wrimafwzg4m0z4v41ic-home-manager-files.drv'...
+building '/nix/store/r7vs9mdc4r7kv3v3qpmbiilpk5cp2259-home-manager-generation.drv'...
+building '/nix/store/75qd1dmbfxxnnprbnk5msa4rh98n9hrn-activation-script.drv'...
+building '/nix/store/r3p5y576aqr485606q8v88wz3bzy02wj-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating installPackages
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 40
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-02-16 18:37:21] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-02-16 18:37:21] ========== Build script finished ==========
+[2026-02-16 18:45:29] ========== Build script started ==========
+[2026-02-16 18:45:29] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-02-16 18:45:29] INFO: Staging dirty files for flake evaluation...
