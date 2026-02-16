@@ -77,8 +77,8 @@ sess_cache_total=$((sess_cache_read))               # Cached tokens read
 
 # Format session start date/time
 if [ "$session_start_ts" != "unknown" ] && [ -n "$session_start_ts" ]; then
-    # Convert ISO timestamp to local date/time (YYYY-MM-DD HH:MM)
-    session_date=$(date -d "$session_start_ts" "+%Y-%m-%d %H:%M" 2>/dev/null || echo "$session_start_ts")
+    # Convert ISO timestamp to local date/time (MM-DD HH:MM)
+    session_date=$(date -d "$session_start_ts" "+%m-%d %H:%M" 2>/dev/null || echo "$session_start_ts")
 else
     session_date="unknown"
 fi
@@ -136,7 +136,7 @@ if [ -f "$ctx_reset_file" ]; then
     last_reset_line=$(tail -1 "$ctx_reset_file" 2>/dev/null)
     if [ -n "$last_reset_line" ]; then
         last_reset_iso=$(echo "$last_reset_line" | cut -d' ' -f1)
-        last_reset_ts=$(date -d "$last_reset_iso" "+%Y-%m-%d %H:%M" 2>/dev/null || echo "$last_reset_iso")
+        last_reset_ts=$(date -d "$last_reset_iso" "+%m-%d %H:%M" 2>/dev/null || echo "$last_reset_iso")
     fi
 fi
 
@@ -358,10 +358,11 @@ done
 # Check WireGuard mesh status (quick check)
 mesh_status="down"
 mesh_color="31"  # red
-mesh_ip="none"
+mesh_ip=""  # Will be set to IP or "none" later
 
 # Primary check: Can we reach the mesh network? (works on desktop + Termux/Android WireGuard)
-if ping -c 1 -W 1 10.0.0.1 &>/dev/null 2>&1; then
+# Use curl instead of ping - more reliable on Termux (ping has setuid issues)
+if timeout 1 curl -s http://10.0.0.1:80 >/dev/null 2>&1; then
     mesh_status="up"
     mesh_color="32"  # green
 
@@ -372,6 +373,13 @@ if ping -c 1 -W 1 10.0.0.1 &>/dev/null 2>&1; then
         # Fallback: sysfs
         mesh_ip=$(ip addr show wg0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
     fi
+
+    # If still empty, try WireGuard config file (Termux/Android WireGuard app)
+    WG_CONF="${HOME}/.config/wireguard/wg0.conf"
+    if [ -z "$mesh_ip" ] && [ -f "$WG_CONF" ]; then
+        mesh_ip=$(grep -i "^Address" "$WG_CONF" 2>/dev/null | awk '{print $3}' | cut -d'/' -f1)
+    fi
+
     [ -z "$mesh_ip" ] && mesh_ip="none"
 fi
 
@@ -384,10 +392,14 @@ fi
 if [ -z "$private_ip" ]; then
     private_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
 fi
-# Filter out localhost
-if [ "$private_ip" = "127.0.0.1" ] || [ -z "$private_ip" ]; then
+# Filter out localhost and mesh IPs
+if [ "$private_ip" = "127.0.0.1" ] || [ -z "$private_ip" ] || [[ "$private_ip" == 10.0.0.* ]]; then
     # Try reading from /proc/net interfaces
     private_ip=$(cat /proc/net/fib_trie 2>/dev/null | grep -oP '(?<=\|-- )\d+\.\d+\.\d+\.\d+' | grep -v "^127\." | grep -v "^10\.0\.0\." | head -1)
+fi
+# Final fallback: Use Python socket method (works on Termux/Android)
+if [ -z "$private_ip" ] || [ "$private_ip" = "127.0.0.1" ] || [[ "$private_ip" == 10.0.0.* ]]; then
+    private_ip=$(python3 -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8',80)); print(s.getsockname()[0]); s.close()" 2>/dev/null)
 fi
 [ -z "$private_ip" ] && private_ip="none"
 
@@ -431,18 +443,29 @@ if [ -n "$git_branch" ]; then
     fi
 fi
 
-# Add system metrics with FULL labels and colored thresholds
-printf " \033[${mem_color}mRAM:%s%%\033[0m" "$mem_percent"
+# End first line
+printf "\n"
+
+# === SECOND LINE: System Metrics | Network Info | Context Window | Session Usage ===
+# System metrics with colored thresholds
+printf "\033[${mem_color}mRAM:%s%%\033[0m" "$mem_percent"
 printf " \033[${cpu_color}mCPU:%s%%\033[0m" "$cpu_percent"
 printf " \033[${disk_color}mDisk:%s%%\033[0m" "$disk_percent"
 printf " \033[${vram_color}mVRAM:%s%%\033[0m" "$vram_percent"
-printf " \033[${mesh_color}mMesh:%s\033[0m" "$mesh_status"
-# Add IPs: mesh IP, private IP, public IP
+
+# Separator
+printf " \033[37m|\033[0m "
+
+# Network info: Mesh status and IPs
+printf "\033[${mesh_color}mMesh:%s\033[0m" "$mesh_status"
 printf " \033[36mM:%s\033[0m" "$mesh_ip"
 printf " \033[36mP:%s\033[0m" "$private_ip"
-printf " \033[36mPub:%s\033[0m\n" "$public_ip"
+printf " \033[36mPub:%s\033[0m" "$public_ip"
 
-# === SECOND LINE: [Context Window] | [Session Usage] ===
+# End second line
+printf "\n"
+
+# === THIRD LINE: Context Window | Session Usage ===
 ctx_current_fmt=$(format_tokens "$current_ctx")
 ctx_input_fmt=$(format_tokens "$ctx_input")
 ctx_output_fmt=$(format_tokens "$ctx_output")
