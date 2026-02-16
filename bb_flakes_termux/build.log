@@ -3461,3 +3461,138 @@ User systemd daemon not running. Skipping reload.
 Activating linkProfile
 [2026-02-16 00:27:20] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
 [2026-02-16 00:27:20] ========== Build script finished ==========
+[2026-02-16 10:50:50] ========== Build script started ==========
+[2026-02-16 10:50:50] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-02-16 10:50:51] INFO: Staging dirty files for flake evaluation...
+[2026-02-16 10:50:51] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 6 derivations will be built:
+  /nix/store/adn2kbbvhqb8c2s39fwnyhvj2fpxcaj3-home-manager-files.drv
+  /nix/store/85wi7wd744rfw2msasm55xj3il87l5hc-home-manager-generation.drv
+  /nix/store/zdwwiwsx88l46apccmc0pn255f1r8j01-mesh.drv
+  /nix/store/q486djkmywwd9l842pjywbh0pn0nm1mn-nix-on-droid-path.drv
+  /nix/store/nymaygw380zpiim5cv4v5r41sxbq5xg2-activation-script.drv
+  /nix/store/azjrjvcav620zzzfrlindalgx47zjprg-nix-on-droid-generation.drv
+building '/nix/store/zdwwiwsx88l46apccmc0pn255f1r8j01-mesh.drv'...
+building '/nix/store/adn2kbbvhqb8c2s39fwnyhvj2fpxcaj3-home-manager-files.drv'...
+building '/nix/store/q486djkmywwd9l842pjywbh0pn0nm1mn-nix-on-droid-path.drv'...
+building '/nix/store/85wi7wd744rfw2msasm55xj3il87l5hc-home-manager-generation.drv'...
+building '/nix/store/nymaygw380zpiim5cv4v5r41sxbq5xg2-activation-script.drv'...
+building '/nix/store/azjrjvcav620zzzfrlindalgx47zjprg-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+error: profile '/nix/var/nix/profiles/per-user/nix-on-droid/profile' is incompatible with 'nix-env'; please use 'nix profile' instead
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+nix profile remove
+removed 0 packages, kept 9 packages
+warning: Use 'nix profile list' to see the current profile.
+error: An existing package already provides the following file:
+
+         /nix/store/3rwqrf252iclzwxczhg7cb0p45aciybw-nix-on-droid-path/bin/2to3
+
+       This is the conflicting file from the new package:
+
+         /nix/store/d02giypr8s3yi0pp591v9jvbx2xa49li-nix-on-droid-path/bin/2to3
+
+       To remove the existing package:
+
+         nix profile remove /nix/store/3rwqrf252iclzwxczhg7cb0p45aciybw-nix-on-droid-path
+
+       The new package can also be installed next to the existing one by assigning a different priority.
+       The conflicting packages have a priority of 5.
+       To prioritise the new package:
+
+         nix profile install /nix/store/d02giypr8s3yi0pp591v9jvbx2xa49li-nix-on-droid-path --priority 4
+
+       To prioritise the existing package:
+
+         nix profile install /nix/store/d02giypr8s3yi0pp591v9jvbx2xa49li-nix-on-droid-path --priority 6
+[2026-02-16 10:51:37] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-02-16 10:51:37] ========== Build script finished ==========
+[2026-02-16 10:54:48] ========== Build script started ==========
+[2026-02-16 10:54:48] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-02-16 10:54:48] INFO: Staging dirty files for flake evaluation...
+[2026-02-16 10:54:48] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+error: profile '/nix/var/nix/profiles/per-user/nix-on-droid/profile' is incompatible with 'nix-env'; please use 'nix profile' instead
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+nix profile remove
+removed 0 packages, kept 9 packages
+warning: Use 'nix profile list' to see the current profile.
+error: An existing package already provides the following file:
+
+         /nix/store/3rwqrf252iclzwxczhg7cb0p45aciybw-nix-on-droid-path/bin/2to3
+
+       This is the conflicting file from the new package:
+
+         /nix/store/d02giypr8s3yi0pp591v9jvbx2xa49li-nix-on-droid-path/bin/2to3
+
+       To remove the existing package:
+
+         nix profile remove /nix/store/3rwqrf252iclzwxczhg7cb0p45aciybw-nix-on-droid-path
+
+       The new package can also be installed next to the existing one by assigning a different priority.
+       The conflicting packages have a priority of 5.
+       To prioritise the new package:
+
+         nix profile install /nix/store/d02giypr8s3yi0pp591v9jvbx2xa49li-nix-on-droid-path --priority 4
+
+       To prioritise the existing package:
+
+         nix profile install /nix/store/d02giypr8s3yi0pp591v9jvbx2xa49li-nix-on-droid-path --priority 6
+[2026-02-16 10:55:05] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-02-16 10:55:05] ========== Build script finished ==========
+[2026-02-16 11:36:12] ========== Build script started ==========
+[2026-02-16 11:36:12] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-02-16 11:36:12] INFO: Staging dirty files for flake evaluation...
+[2026-02-16 11:36:13] INFO: Removing 6 stale nix-on-droid-path profile entries...
+[] INFO: Applying nix-on-droid configuration...
+[2026-02-16 11:38:31] ========== Build script started ==========
+[2026-02-16 11:38:31] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-02-16 11:38:31] INFO: Staging dirty files for flake evaluation...
+[2026-02-16 11:38:31] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+error: profile '/nix/var/nix/profiles/per-user/nix-on-droid/profile' is incompatible with 'nix-env'; please use 'nix profile' instead
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+nix profile remove
+removed 0 packages, kept 3 packages
+warning: Use 'nix profile list' to see the current profile.
+[2026-02-16 11:38:49] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-02-16 11:38:49] ========== Build script finished ==========
+[2026-02-16 11:56:32] ========== Build script started ==========
+[2026-02-16 11:56:32] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-02-16 11:56:33] INFO: Staging dirty files for flake evaluation...
+[2026-02-16 11:56:33] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+[2026-02-16 11:59:56] ========== Build script started ==========
+[2026-02-16 11:59:56] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-02-16 11:59:56] INFO: Staging dirty files for flake evaluation...
