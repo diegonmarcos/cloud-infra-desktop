@@ -352,13 +352,26 @@ vram_color=$(get_color "$vram_percent")
 # Check WireGuard mesh status (quick check)
 mesh_status="down"
 mesh_color="31"  # red
+mesh_ip="none"
 if ip link show wg0 &>/dev/null; then
+    # Get mesh IP from wg0
+    mesh_ip=$(ip -4 addr show wg0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+    [ -z "$mesh_ip" ] && mesh_ip="none"
+
     # wg0 exists, check if we can reach hub (10.0.0.1) with 1 second timeout
     if ping -c 1 -W 1 10.0.0.1 &>/dev/null; then
         mesh_status="up"
         mesh_color="32"  # green
     fi
 fi
+
+# Get private IP (local network)
+private_ip=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+' | head -1)
+[ -z "$private_ip" ] && private_ip="none"
+
+# Get public IP (with 2 second timeout)
+public_ip=$(curl -s --max-time 2 ifconfig.me 2>/dev/null)
+[ -z "$public_ip" ] && public_ip="..."
 
 # Build status line with FULL information
 # Format: HH:MM:SS  opus-4-5 diego@surface directory  branch@hash*+?↑↓ ≡stash CTX:tokens RAM:% CPU:% Disk:% VRAM:%
@@ -401,7 +414,11 @@ printf " \033[${mem_color}mRAM:%s%%\033[0m" "$mem_percent"
 printf " \033[${cpu_color}mCPU:%s%%\033[0m" "$cpu_percent"
 printf " \033[${disk_color}mDisk:%s%%\033[0m" "$disk_percent"
 printf " \033[${vram_color}mVRAM:%s%%\033[0m" "$vram_percent"
-printf " \033[${mesh_color}mMesh:%s\033[0m\n" "$mesh_status"
+printf " \033[${mesh_color}mMesh:%s\033[0m" "$mesh_status"
+# Add IPs: mesh IP, private IP, public IP
+printf " \033[36mM:%s\033[0m" "$mesh_ip"
+printf " \033[36mP:%s\033[0m" "$private_ip"
+printf " \033[36mPub:%s\033[0m\n" "$public_ip"
 
 # === SECOND LINE: [Context Window] | [Session Usage] ===
 ctx_current_fmt=$(format_tokens "$current_ctx")
