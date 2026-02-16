@@ -454,6 +454,10 @@
               # Claude Code master context + MCP server config
               home.file.".claude/CLAUDE.md".source = ../src/modules/dotfiles/claude/CLAUDE.md;
               home.file.".mcp.json".source = ../src/modules/dotfiles/claude/mcp.json;
+              home.file.".claude/statusline-command.sh" = {
+                source = ../src/modules/dotfiles/claude/statusline-command.sh;
+                executable = true;
+              };
 
               # Unison profile for bidirectional sync
               home.file.".unison/termux-home.prf".text = ''

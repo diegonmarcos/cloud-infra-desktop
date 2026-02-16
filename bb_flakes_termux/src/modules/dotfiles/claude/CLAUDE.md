@@ -1,7 +1,7 @@
 # Diego's Master Context for Claude Agents
 
 > **Owner**: Diego Nepomuceno Marcos
-> **Updated**: 2026-02-12
+> **Updated**: 2026-02-16
 > **System**: NixOS (Surface Pro 8) + Kubuntu (dual-boot)
 > **Git Root**: `/home/diego/Mounts/Git`
 
@@ -18,17 +18,9 @@
 - [F. OTHERS (Quick Reference)](#section-f-others-quick-reference)
 
 ### SKILLS & MCPs
-- [I. Skills Senior](#i-skills-senior)
-  - [I.1 Cloud Architect Senior](#i1-cloud-architect-senior)
-  - [I.2 Software Engineer Senior](#i2-software-engineer-senior)
-  - [I.3 Software Architecture Senior](#i3-software-architecture-senior)
-  - [I.4 Front-End Developer Senior](#i4-front-end-developer-senior)
-  - [I.5 Designer Senior](#i5-designer-senior)
-- [II. Skills Junior](#ii-skills-junior)
-  - [II.1 Software Engineer](#ii1-software-engineer)
-  - [II.2 Ops](#ii2-ops)
-- [III. MCPs](#iii-mcps)
-- [IV. APIs](#iv-apis)
+- [Skills](#skills)
+- [MCP: cloud-infra](#mcp-cloud-infra)
+- [APIs](#apis)
 
 ---
 
@@ -103,14 +95,14 @@
 ### Always-On (24/7) - Free Tier
 | VM | Alias | IP | WG IP | RAM | Services |
 |----|-------|-----|-------|-----|----------|
-| gcp-f-micro_1 | gcp-proxy | 35.226.147.64 | 10.0.0.1 | 1 GB | Caddy, Authelia, introspect-proxy, Vaultwarden, ntfy |
+| gcp-f-micro_1 | gcp-proxy | 35.226.147.64 | 10.0.0.1 | 1 GB | Caddy, Authelia, introspect-proxy, Vaultwarden, ntfy, Hickory DNS |
 | oci-f-micro_1 | oci-mail | 130.110.251.193 | 10.0.0.3 | 1 GB | Mailu, Syncthing, Radicale |
 | oci-f-micro_2 | oci-analytics | 129.151.228.66 | 10.0.0.4 | 1 GB | Matomo (hybrid wake/sleep), Windmill |
 
 ### Paid - A1.Flex (Free Tier: 4 OCPUs / 24GB total)
 | VM | Alias | IP | WG IP | CPUs/RAM | Services |
 |----|-------|-----|-------|----------|----------|
-| oci-p-flex_0 | oci-flex-0 | 82.70.229.129 | 10.0.0.6 | 3 / 16GB | (none initially) |
+| oci-p-flex_0 | oci-flex-0 | 82.70.229.129 | 10.0.0.6 | 3 / 16GB | Crawlee Cloud |
 | oci-p-flex_1 | oci-flex-1 | 144.24.196.72 | 10.0.0.2 | 1 / 8GB | PhotoPrism, NocoDB, Code Server, AFFiNE |
 
 ## B.3 Networking
@@ -137,6 +129,8 @@ SSH aliases: `ssh oci-flex-0`, `ssh oci-flex-1`, `ssh oci-mail`, `ssh oci-analyt
 | NocoDB | db.diegonmarcos.com | oci-flex-1 | 8085 | wake-on-demand |
 | Code Server | ide.diegonmarcos.com | oci-flex-1 | 8443 | wake-on-demand |
 | AFFiNE | drive-notes-affine.diegonmarcos.com | oci-flex-1 | 3010 | wake-on-demand |
+| Hickory DNS | dns.internal (WG only) | gcp-proxy | 53 | 24/7 |
+| Crawlee Cloud | api.diegonmarcos.com/crawlee/ | oci-flex-0 | 3000/3001 | wake-on-demand |
 
 ## B.5 Bearer Token Auth (CLI Access)
 
@@ -383,7 +377,7 @@ Every service in `container-nix/` MUST follow this exact structure:
 
 **Template reference**: `bb-sec_authelia/build.sh` — copy this for new services.
 
-**Category prefixes**: `aa-sui_` (app), `ab-mic_` (mic), `ba-clo_` (cloud), `bb-sec_` (sec), `bc-obs_` (tools), `ca-dat_` (data)
+**Category prefixes**: `aa-sui_` (app), `ab-mic_` (mic), `ac-fin_` (fin), `ba-clo_` (cloud), `bb-sec_` (sec), `bc-obs_` (tools), `ca-dat_` (data)
 
 ## E.1 Working Directory Rule
 
@@ -446,40 +440,66 @@ rpm -qR <package>           # RPM-based
 #                           SKILLS & MCPs
 # ████████████████████████████████████████████████████████████████████████████
 
-> **Full documentation**: See `~/git/front/b_Work_Tools/skills_mcp/README.md`
-> **Individual docs**: See `~/git/front/b_Work_Tools/skills_mcp/docs/`
-
-## Skills Summary
+## Skills
 
 | Level | Skill | Brief | Skill File |
 |-------|-------|-------|------------|
-| Senior | Cloud Architect | 4-VM infra, WireGuard, Caddy, Authelia, 43 services | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
+| Senior | Cloud Architect | 5-VM infra, WireGuard, Caddy, Authelia, 44+ services | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
 | Senior | Software Engineer | Full-stack — Rust API, Flask, MCP server, Nix, Python | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
 | Senior | Software Architecture | System design, Nix flake composition, build.sh engine | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
-| Senior | Front-End Developer | 32-project monorepo, TS strict, Svelte 5, Vue 3, SCSS | `front/.../skills_mcp/0.spec/skills.md` |
-| Senior | Designer | ITCSS, responsive, WCAG, semantic HTML, no-inline-CSS | `front/.../skills_mcp/0.spec/skills.md` |
-| Junior | Software Engineer | Bug fixes, small features, follows existing patterns | `front/.../skills_mcp/0.spec/skills.md` |
+| Senior | Front-End Developer | 32-project monorepo, TS strict, Svelte 5, Vue 3, SCSS | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
+| Senior | Designer | ITCSS, responsive, WCAG, semantic HTML, no-inline-CSS | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
+| Junior | Software Engineer | Bug fixes, small features, follows existing patterns | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
 | Junior | Ops | Docker management, logs, restarts, health checks | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
 
-All skills use the `cloud-infra` MCP.
+- **Source**: `~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/src/skills/`
+- **Deployed to**: `~/.claude/skills/personal-cloud-manager/` (auto-discovered by Claude Code)
+- **Deploy command**: `cd ~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills && ./build.sh deploy`
 
 ## MCP: cloud-infra
 
 **Repo**: `~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/` | **SDK**: `@modelcontextprotocol/sdk ^1.12.0`
 
-**21 Tools**: `list_vms`, `list_services`, `get_service_detail`, `read_file`, `search_repos`, `list_directory`, `build_service`, `build_all`, `ssh_exec`, `check_vm`, `docker_ps`, `docker_control`, `docker_logs`, `docker_compose_up`, `api_call`, `api_vm_control`, `front_list_projects`, `front_get_project`, `front_build`, `front_dev_server`, `front_deploy`
+### Architecture — Hybrid "Chef + Waiter" Model
 
-**5 Resources**: `cloud://config`, `cloud://ssh-config`, `cloud://services-overview`, `cloud://readme`, `cloud://front-projects`
+| Layer | Tools | What it does |
+|-------|-------|-------------|
+| **Chef (Native)** | `ssh_exec`, `check_vm`, `docker_ps`, `docker_control`, `docker_logs`, `docker_compose_up` | Direct SSH/Docker — works even if Rust API is down |
+| **Chef (Build)** | `build_service`, `build_all`, `build_ship`, `build_docker`, `secrets_status`, `backup_trigger` | Nix build pipeline, deployment, secrets, backups |
+| **Chef (Repo)** | `read_file`, `search_repos`, `list_directory`, `reload_config` | Read files across all 5 repos (cloud, unix, vault, front, tools) |
+| **Waiter (Read)** | `health_alive`, `health_declared`, `health_deployed`, `health_drift`, `health_status`, `profile_container`, `profile_vm`, `service_list_apis`, `service_get_info`, `service_get_spec`, `service_discover_all` | Rust API proxy — health, profiling, API discovery |
+| **Waiter (Write)** | `vm_start`, `vm_stop`, `vm_reset`, `container_start`, `container_stop`, `container_restart`, `service_start`, `service_stop`, `service_api_call` | Rust API proxy — VM/container lifecycle, service API calls |
+| **Front-End** | `front_list_projects`, `front_get_project`, `front_build`, `front_dev_server`, `front_deploy` | 32-project monorepo build, dev servers, CI deploy |
+| **Infra** | `list_vms`, `list_services`, `get_service_detail`, `reload_config` | Config introspection from config.json |
 
-**1 Prompt**: `cloud-architect`
+**44 Tools** · **9 Resources** (`cloud://config`, `cloud://ssh-config`, `cloud://services-overview`, `cloud://readme`, `cloud://front-projects`, `cloud://rust-api-endpoints`, `cloud://service-apis`, `cloud://services/{name}`, `cloud://vms/{vm_id}`) · **1 Prompt** (`cloud-architect`)
+
+**Runtime**: `npx tsx` (primary) or Podman/Docker container (fallback)
+
+### Tool Modules
+
+```
+src/tools/
+├── infra.ts              # 4 tools — VM/service config introspection
+├── repo.ts               # 3 tools — cross-repo file read/search
+├── build.ts              # 2 tools — nix build pipeline
+├── ssh-tools.ts          # 2 tools — SSH exec, VM health check
+├── docker.ts             # 4 tools — container ops via SSH
+├── native-ops.ts         # 4 tools — build_ship, docker build, secrets, backup
+├── rust-api-health.ts    # 11 tools — health dashboard, profiling, API discovery
+├── rust-api-control.ts   # 8 tools — VM/container/service lifecycle
+├── rust-api-proxy.ts     # 1 tool  — generic service API proxy
+└── front.ts              # 5 tools — front-end monorepo ops
+```
 
 ## APIs
 
 | API | URL | Swagger |
 |-----|-----|---------|
-| **Rust API** (PRIMARY) | `https://api.diegonmarcos.com:8080` | `https://api.diegonmarcos.com:8080/rust/api-docs` |
+| **Rust API** (PRIMARY) | `https://api.diegonmarcos.com:8080` | `https://api.diegonmarcos.com:8080/api/docs` |
 | **Flask API** (STALE) | `https://api.diegonmarcos.com` | `https://api.diegonmarcos.com/docs` |
+| **Crawlee API** | `https://api.diegonmarcos.com/crawlee/` | — |
 
 **Cloud CLIs**: `oci`, `gcloud`, `gh`, `terraform` — not covered by MCP.
 
-**Service APIs**: PhotoPrism, NocoDB, Matomo, Vaultwarden, Syncthing, Radicale, ntfy, Mailu, AFFiNE, Authelia, Windmill — see `docs/apis/service-apis.md`.
+**Service APIs**: PhotoPrism, NocoDB, Matomo, Vaultwarden, Syncthing, Radicale, ntfy, Mailu, AFFiNE, Authelia, Windmill, Crawlee — see service specs via `service_get_spec` MCP tool.
