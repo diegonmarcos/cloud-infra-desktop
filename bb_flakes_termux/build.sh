@@ -77,31 +77,15 @@ cmd_switch() {
         command find "$HOME" -maxdepth 1 -name "*.backup" -type f -delete 2>/dev/null || true
     fi
 
-    # Workaround: nix-on-droid's installPackages uses old nix profile list format
-    # (space-delimited) but Nix 2.18+ uses multi-line key-value format.
-    # This causes stale nix-on-droid-path entries to accumulate.
-    # Clean them before switch so the activation's install step succeeds.
+    # Guard: profile must use nix-env format (manifest.nix), not nix profile
+    # format (manifest.json). nix-on-droid's installPackages can't parse
+    # nix profile list output from Nix 2.18+, causing duplicate entries.
+    # If someone runs 'nix profile install', it converts the profile and breaks things.
     _profile="/nix/var/nix/profiles/per-user/nix-on-droid/profile"
-    if [ -L "$_profile" ]; then
-        _raw=$(nix profile list --profile "$_profile" 2>/dev/null \
-            | sed 's/\x1b\[[0-9;]*m//g' || true)
-        _indices=$(printf '%s\n' "$_raw" \
-            | awk '/^Index:/{idx=$2} /nix-on-droid-path/{print idx}')
-        _count=$(printf '%s\n' "$_indices" | grep -c '[0-9]' || true)
-        if [ "$_count" -gt 0 ]; then
-            # Save store path before removal — PATH references the profile
-            # symlink's bin/, which empties when entries are removed.
-            _droid_store=$(printf '%s\n' "$_raw" \
-                | awk '/nix-on-droid-path/{print $NF; exit}')
-            log_info "Removing $_count stale nix-on-droid-path profile entries..."
-            printf '%s\n' "$_indices" | sort -rn | while read -r idx; do
-                nix profile remove --profile "$_profile" "$idx" 2>/dev/null || true
-            done
-            # Restore PATH: store path persists until GC even after profile removal
-            if [ -n "$_droid_store" ] && [ -d "$_droid_store/bin" ]; then
-                export PATH="$_droid_store/bin:$PATH"
-            fi
-        fi
+    if [ -L "$_profile" ] && [ -f "$_profile/manifest.json" ]; then
+        log_error "Profile uses 'nix profile' format (manifest.json) — incompatible with nix-on-droid"
+        log_error "Use 'nix-env --profile $_profile -i <pkg>' instead of 'nix profile install'"
+        return 1
     fi
 
     log_info "Applying nix-on-droid configuration..."
@@ -115,23 +99,6 @@ cmd_switch() {
         log_error "Configuration failed (exit $exit_code)"
         log_info "Check $LOG_FILE for details"
         return $exit_code
-    fi
-
-    # Fallback: if upstream installPackages didn't re-add nix-on-droid-path
-    # (broken parser on Nix 2.18+), install it from the system generation.
-    _raw_post=$(nix profile list --profile "$_profile" 2>/dev/null \
-        | sed 's/\x1b\[[0-9;]*m//g' || true)
-    _has_path=$(printf '%s\n' "$_raw_post" | grep -c 'nix-on-droid-path' || true)
-    if [ "$_has_path" -eq 0 ]; then
-        log_warn "nix-on-droid-path missing after switch — reinstalling from generation..."
-        _gen_path=$(nix-store -qR /nix/var/nix/profiles/nix-on-droid 2>/dev/null \
-            | while read -r p; do case "$p" in *nix-on-droid-path) echo "$p";; esac; done)
-        if [ -n "$_gen_path" ]; then
-            nix profile install --profile "$_profile" "$_gen_path" 2>/dev/null || true
-            log_success "Reinstalled nix-on-droid-path: $_gen_path"
-        else
-            log_error "Could not find nix-on-droid-path in system generation!"
-        fi
     fi
 
     log_success "Configuration applied: $SRC_DIR"

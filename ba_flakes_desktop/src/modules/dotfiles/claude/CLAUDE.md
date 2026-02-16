@@ -95,21 +95,21 @@
 ### Always-On (24/7) - Free Tier
 | VM | Alias | IP | WG IP | RAM | Services |
 |----|-------|-----|-------|-----|----------|
-| gcp-f-micro_1 | gcp-proxy | 35.226.147.64 | 10.0.0.1 | 1 GB | Caddy, Authelia, introspect-proxy, Vaultwarden, ntfy, Hickory DNS |
-| oci-f-micro_1 | oci-mail | 130.110.251.193 | 10.0.0.3 | 1 GB | Mailu, Syncthing, Radicale |
-| oci-f-micro_2 | oci-analytics | 129.151.228.66 | 10.0.0.4 | 1 GB | Matomo (hybrid wake/sleep), Windmill |
+| gcp-E2-f_0 | gcp-proxy | 35.226.147.64 | 10.0.0.1 | 1 GB | Caddy, Authelia, introspect-proxy, Vaultwarden, ntfy, Hickory DNS |
+| oci-E2-f_0 | oci-mail | 130.110.251.193 | 10.0.0.3 | 1 GB | Mailu, Syncthing, Radicale |
+| oci-E2-f_1 | oci-analytics | 129.151.228.66 | 10.0.0.4 | 1 GB | Matomo (hybrid wake/sleep), Windmill |
 
 ### Paid - A1.Flex (Free Tier: 4 OCPUs / 24GB total)
 | VM | Alias | IP | WG IP | CPUs/RAM | Services |
 |----|-------|-----|-------|----------|----------|
-| oci-p-flex_0 | oci-flex-0 | 82.70.229.129 | 10.0.0.6 | 3 / 16GB | Crawlee Cloud |
-| oci-p-flex_1 | oci-flex-1 | 144.24.196.72 | 10.0.0.2 | 1 / 8GB | PhotoPrism, NocoDB, Code Server, AFFiNE |
+| oci-A1-f_0 | oci-apps | 82.70.229.129 | 10.0.0.6 | 3 / 16GB | Crawlee Cloud |
+| oci-A1-f_1 | oci-apps-1 | 144.24.196.72 | 10.0.0.2 | 1 / 8GB | PhotoPrism, NocoDB, Code Server, AFFiNE |
 
 ## B.3 Networking
 
 Traffic flow: **Cloudflare → Caddy (gcp-proxy) → WireGuard → target VM**. Auth: Authelia 2FA (browser) or Bearer token via introspect-proxy (CLI/API).
 
-SSH aliases: `ssh oci-flex-0`, `ssh oci-flex-1`, `ssh oci-mail`, `ssh oci-analytics`, `ssh gcp-proxy`.
+SSH aliases: `ssh oci-apps`, `ssh oci-apps-1`, `ssh oci-mail`, `ssh oci-analytics`, `ssh gcp-proxy`.
 
 ## B.4 Active Services
 
@@ -125,12 +125,12 @@ SSH aliases: `ssh oci-flex-0`, `ssh oci-flex-1`, `ssh oci-mail`, `ssh oci-analyt
 | Radicale Calendar | cal.diegonmarcos.com | oci-mail | 5232 | 24/7 |
 | Matomo Analytics | analytics.diegonmarcos.com | oci-analytics | 8080 | 24/7 (hybrid) |
 | Windmill | — | oci-analytics | — | 24/7 (toggles with Matomo) |
-| PhotoPrism | photos.diegonmarcos.com | oci-flex-1 | 3013 | wake-on-demand |
-| NocoDB | db.diegonmarcos.com | oci-flex-1 | 8085 | wake-on-demand |
-| Code Server | ide.diegonmarcos.com | oci-flex-1 | 8443 | wake-on-demand |
-| AFFiNE | drive-notes-affine.diegonmarcos.com | oci-flex-1 | 3010 | wake-on-demand |
+| PhotoPrism | photos.diegonmarcos.com | oci-apps-1 | 3013 | wake-on-demand |
+| NocoDB | db.diegonmarcos.com | oci-apps-1 | 8085 | wake-on-demand |
+| Code Server | ide.diegonmarcos.com | oci-apps-1 | 8443 | wake-on-demand |
+| AFFiNE | drive-notes-affine.diegonmarcos.com | oci-apps-1 | 3010 | wake-on-demand |
 | Hickory DNS | dns.internal (WG only) | gcp-proxy | 53 | 24/7 |
-| Crawlee Cloud | api.diegonmarcos.com/crawlee/ | oci-flex-0 | 3000/3001 | wake-on-demand |
+| Crawlee Cloud | api.diegonmarcos.com/crawlee/ | oci-apps | 3000/3001 | wake-on-demand |
 
 ## B.5 Bearer Token Auth (CLI Access)
 
@@ -357,7 +357,7 @@ Every service in `container-nix/` MUST follow this exact structure:
   "name": "service-name",
   "description": "What this service does",
   "deploy": {
-    "host": "ssh-alias (e.g. gcp-proxy, oci-flex-1) or 'local'",
+    "host": "ssh-alias (e.g. gcp-proxy, oci-apps-1) or 'local'",
     "remote_path": "/opt/containers/<service-name>"
   }
 }
