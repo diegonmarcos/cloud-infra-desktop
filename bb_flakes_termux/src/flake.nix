@@ -82,6 +82,7 @@
               gawk
               findutils
               fzf
+              iproute2  # Provides 'ip' command for network interface management
 
               # Dependencies that stop npm from panicking
               python3
