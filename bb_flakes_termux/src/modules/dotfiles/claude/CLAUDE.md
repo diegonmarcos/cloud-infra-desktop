@@ -440,21 +440,17 @@ rpm -qR <package>           # RPM-based
 #                           SKILLS & MCPs
 # ████████████████████████████████████████████████████████████████████████████
 
-## Skills
+## MCP Prompts (on-demand skills, loaded via cloud-infra MCP)
 
-| Level | Skill | Brief | Skill File |
-|-------|-------|-------|------------|
-| Senior | Cloud Architect | 5-VM infra, WireGuard, Caddy, Authelia, 44+ services | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
-| Senior | Software Engineer | Full-stack — Rust API, Flask, MCP server, Nix, Python | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
-| Senior | Software Architecture | System design, Nix flake composition, build.sh engine | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
-| Senior | Front-End Developer | 32-project monorepo, TS strict, Svelte 5, Vue 3, SCSS | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
-| Senior | Designer | ITCSS, responsive, WCAG, semantic HTML, no-inline-CSS | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
-| Junior | Software Engineer | Bug fixes, small features, follows existing patterns | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
-| Junior | Ops | Docker management, logs, restarts, health checks | `cloud/.../bb-sec_mcp-server-skills/SKILL.md` |
+| Prompt | When to use | Content |
+|--------|-------------|---------|
+| `cloud-architect` | Infrastructure tasks — deploy, networking, VM lifecycle | VM table, service categories, Chef+Waiter decision matrix |
+| `frontend-developer` | Front-end project work — build, dev, code standards | Project archetypes, TS/Svelte5/Vue3/SCSS standards, Matomo |
+| `debug-ops` | Debug containers, logs, health issues | Debug workflow, common pitfalls, WireGuard gotchas |
+| `crawlee-scraping` | Web scraping, data extraction | Crawlee workflow, actor management, result extraction |
 
-- **Source**: `~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/src/skills/`
-- **Deployed to**: `~/.claude/skills/personal-cloud-manager/` (auto-discovered by Claude Code)
-- **Deploy command**: `cd ~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills && ./build.sh deploy`
+- **Source**: `~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/src/prompts/index.ts`
+- **Loaded on-demand** via MCP protocol (0 bytes always-on context, vs 4.7KB before)
 
 ## MCP: cloud-infra
 
@@ -472,7 +468,7 @@ rpm -qR <package>           # RPM-based
 | **Front-End** | `front_list_projects`, `front_get_project`, `front_build`, `front_dev_server`, `front_deploy` | 32-project monorepo build, dev servers, CI deploy |
 | **Infra** | `list_vms`, `list_services`, `get_service_detail`, `reload_config` | Config introspection from config.json |
 
-**44 Tools** · **9 Resources** (`cloud://config`, `cloud://ssh-config`, `cloud://services-overview`, `cloud://readme`, `cloud://front-projects`, `cloud://rust-api-endpoints`, `cloud://service-apis`, `cloud://services/{name}`, `cloud://vms/{vm_id}`) · **1 Prompt** (`cloud-architect`)
+**44 Tools** · **9 Resources** (`cloud://config`, `cloud://ssh-config`, `cloud://services-overview`, `cloud://readme`, `cloud://front-projects`, `cloud://rust-api-endpoints`, `cloud://service-apis`, `cloud://services/{name}`, `cloud://vms/{vm_id}`) · **4 Prompts** (`cloud-architect`, `frontend-developer`, `debug-ops`, `crawlee-scraping`)
 
 **Runtime**: `npx tsx` (primary) or Podman/Docker container (fallback)
 
