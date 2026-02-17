@@ -1,13 +1,7 @@
 {
   "statusLine": {
     "type": "command",
-    "command": "bash /home/diego/.claude/statusline-command.sh"
-  },
-  "enabledPlugins": {
-    "rust-analyzer-lsp@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "frontend-design@claude-plugins-official": true,
-    "ralph-loop@claude-plugins-official": true
+    "command": "bash $HOME/.claude/statusline-command.sh"
   },
   "alwaysThinkingEnabled": true,
   "hooks": {

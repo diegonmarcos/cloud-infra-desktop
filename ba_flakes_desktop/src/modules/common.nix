@@ -98,5 +98,9 @@
     source = ./dotfiles/claude/statusline-command.sh;
     executable = true;
   };
+  home.file.".claude/hooks/claude-memory.sh" = {
+    source = ./dotfiles/claude/claude-memory.sh;
+    executable = true;
+  };
   home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;
 }
