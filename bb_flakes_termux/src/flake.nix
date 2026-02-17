@@ -459,6 +459,11 @@
                 source = ../src/modules/dotfiles/claude/statusline-command.sh;
                 executable = true;
               };
+              home.file.".claude/hooks/claude-memory.sh" = {
+                source = ../src/modules/dotfiles/claude/claude-memory.sh;
+                executable = true;
+              };
+              home.file.".claude/settings.json".source = ../src/modules/dotfiles/claude/settings.json;
 
               # Unison profile for bidirectional sync
               home.file.".unison/termux-home.prf".text = ''
