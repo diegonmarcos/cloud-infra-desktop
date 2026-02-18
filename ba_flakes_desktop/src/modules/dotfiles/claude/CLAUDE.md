@@ -87,7 +87,7 @@
 | Resource | Path | Type |
 |----------|------|------|
 | **Cloud Repo** | `/home/diego/Mounts/Git/cloud` | Git Repository |
-| **Container Configs** | `/home/diego/Mounts/Git/cloud/a_solutions/container-nix/` | Nix Flakes |
+| **Container Configs** | `/home/diego/Mounts/Git/cloud/a_solutions/` | Nix Flakes |
 | **Home Manager** | `/home/diego/Mounts/Git/cloud/a_solutions/home-manager/` | VM Configs |
 
 ## B.2 Virtual Machines
@@ -339,7 +339,7 @@ _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
    THIS IS NOT OPTIONAL — it is the full spec for the cloud build system.
 ```
 
-Every service in `container-nix/` MUST follow this exact structure:
+Every service in `` MUST follow this exact structure:
 
 ```
 <category-prefix>_<name>/
@@ -449,12 +449,12 @@ rpm -qR <package>           # RPM-based
 | `debug-ops` | Debug containers, logs, health issues | Debug workflow, common pitfalls, WireGuard gotchas |
 | `crawlee-scraping` | Web scraping, data extraction | Crawlee workflow, actor management, result extraction |
 
-- **Source**: `~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/src/prompts/index.ts`
+- **Source**: `~/git/cloud/a_solutions/bb-sec_mcp-server-skills/src/prompts/index.ts`
 - **Loaded on-demand** via MCP protocol (0 bytes always-on context, vs 4.7KB before)
 
 ## MCP: cloud-infra
 
-**Repo**: `~/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/` | **SDK**: `@modelcontextprotocol/sdk ^1.12.0`
+**Repo**: `~/git/cloud/a_solutions/bb-sec_mcp-server-skills/` | **SDK**: `@modelcontextprotocol/sdk ^1.12.0`
 
 ### Architecture — Hybrid "Chef + Waiter" Model
 
