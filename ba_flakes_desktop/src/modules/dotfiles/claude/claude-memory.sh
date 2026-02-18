@@ -31,4 +31,5 @@ Before EVERY modification:
 | `which cmd` | `command -v cmd` |
 | Edit `dist/` files | Edit `src/` + `build.sh build` |
 | Edit `~/.claude/CLAUDE.md` | Edit source in `~/git/unix/` flakes |
+| `cd dir && git mv dir/...` | `git -C /abs/path mv ...` (absolute paths) |
 CHECKLIST

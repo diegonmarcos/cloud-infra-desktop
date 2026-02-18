@@ -3,7 +3,7 @@
     "cloud-infra": {
       "type": "stdio",
       "command": "npx",
-      "args": ["tsx", "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/container-nix/bb-sec_mcp-server-skills/src/index.ts"]
+      "args": ["tsx", "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bb-sec_mcp-server-skills/src/index.ts"]
     }
   }
 }
