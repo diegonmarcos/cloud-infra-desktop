@@ -88,7 +88,7 @@
 |----------|------|------|
 | **Cloud Repo** | `/home/diego/Mounts/Git/cloud` | Git Repository |
 | **Container Configs** | `/home/diego/Mounts/Git/cloud/a_solutions/` | Nix Flakes |
-| **Home Manager** | `/home/diego/Mounts/Git/cloud/a_solutions/home-manager/` | VM Configs |
+| **Home Manager** | `/home/diego/Mounts/Git/cloud/b_infra/home-manager/` | VM Configs |
 
 ## B.2 Virtual Machines
 
