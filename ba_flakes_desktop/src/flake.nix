@@ -144,6 +144,8 @@
               homeDirectory = homeDir;
               stateVersion = "24.11";
               sessionVariables.HM_PROFILE = profileName;
+              # Terraform: shared plugin cache (avoid 100MB+ provider binaries per project)
+              sessionVariables.TF_PLUGIN_CACHE_DIR = "$HOME/.terraform.d/plugin-cache";
             };
             imports = enableProfiles enabledProfiles;
           }
