@@ -448,6 +448,16 @@
                 $DRY_RUN_CMD mkdir -p "/storage/emulated/0/Mounts/Termux-Home"
               '';
 
+              # Initialize $HOME as minimal git repo so Claude Code uses git ls-files (instant)
+              # instead of ripgrep fallback (97s timeout scanning all of $HOME)
+              home.activation.initHomeGit = lib.hm.dag.entryAfter ["linkGeneration"] ''
+                if [ ! -d "$HOME/.git" ]; then
+                  $DRY_RUN_CMD ${pkgs.git}/bin/git init "$HOME" 2>/dev/null
+                fi
+                # Ensure .gitignore is tracked (it's a nix-managed symlink)
+                $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$HOME" add -f .gitignore 2>/dev/null || true
+              '';
+
               # Termux font — JetBrainsMono Nerd Font
               home.file.".termux/font.ttf".source =
                 "${pkgs.nerdfonts.override { fonts = [ "JetBrainsMono" ]; }}/share/fonts/truetype/NerdFonts/JetBrainsMonoNerdFont-Regular.ttf";
@@ -465,6 +475,10 @@
               };
               home.file.".claude/settings.json".source = ../src/modules/dotfiles/claude/settings.json;
               home.file.".rgignore".source = ../src/modules/dotfiles/claude/rgignore;
+
+              # Minimal .gitignore so $HOME is a git repo (ignore everything)
+              # This makes Claude Code use `git ls-files` (instant) instead of ripgrep (97s timeout)
+              home.file.".gitignore".text = "*";
 
               # Unison profile for bidirectional sync
               home.file.".unison/termux-home.prf".text = ''

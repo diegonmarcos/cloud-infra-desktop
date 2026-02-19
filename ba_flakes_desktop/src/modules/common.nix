@@ -104,4 +104,18 @@
   };
   home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;
   home.file.".rgignore".source = ./dotfiles/claude/rgignore;
+
+  # Minimal .gitignore so $HOME is a git repo (ignore everything)
+  # This makes Claude Code use `git ls-files` (instant) instead of ripgrep (97s timeout)
+  home.file.".gitignore".text = "*";
+
+  # Initialize $HOME as minimal git repo so Claude Code uses git ls-files (instant)
+  # instead of ripgrep fallback (97s timeout scanning all of $HOME)
+  home.activation.initHomeGit = lib.hm.dag.entryAfter ["linkGeneration"] ''
+    if [ ! -d "$HOME/.git" ]; then
+      $DRY_RUN_CMD ${pkgs.git}/bin/git init "$HOME" 2>/dev/null
+    fi
+    # Ensure .gitignore is tracked (it's a nix-managed symlink)
+    $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$HOME" add -f .gitignore 2>/dev/null || true
+  '';
 }
