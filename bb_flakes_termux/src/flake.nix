@@ -57,6 +57,8 @@
               MIMALLOC_PAGE_RESET = "0";
               MIMALLOC_LARGE_OS_PAGES = "0";
               MALLOC_ARENA_MAX = "2";
+              # Terraform: shared plugin cache (avoid 100MB+ provider binaries per project)
+              TF_PLUGIN_CACHE_DIR = "$HOME/.terraform.d/plugin-cache";
             };
 
             user.shell = "${pkgs.fish}/bin/fish";
