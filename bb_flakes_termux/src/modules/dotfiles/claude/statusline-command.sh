@@ -309,8 +309,12 @@ mem_color=$(get_color "$mem_percent")
 cpu_percent=$(awk '{u=$2+$4; t=$2+$4+$5; if (NR==1){u1=u; t1=t;} else printf "%.0f", (($2+$4-u1) * 100 / (t-t1))}' <(grep 'cpu ' /proc/stat) <(sleep 0.1; grep 'cpu ' /proc/stat))
 cpu_color=$(get_color "$cpu_percent")
 
-# Get disk usage percentage for root filesystem (/)
-disk_percent=$(df / | tail -n 1 | awk '{print $5}' | sed 's/%//')
+# Get disk usage percentage (/data on Android/Termux, / on desktop)
+if [ -d "/data/data/com.termux.nix" ]; then
+    disk_percent=$(df /data | tail -n 1 | awk '{print $5}' | sed 's/%//')
+else
+    disk_percent=$(df / | tail -n 1 | awk '{print $5}' | sed 's/%//')
+fi
 disk_color=$(get_color "$disk_percent")
 
 # Get VRAM usage percentage
@@ -407,65 +411,37 @@ fi
 public_ip=$(curl -s --max-time 2 ifconfig.me 2>/dev/null)
 [ -z "$public_ip" ] && public_ip="..."
 
-# Build status line with FULL information
+# Build status line with FULL information — buffered to prevent word-by-word rendering
 # Format: HH:MM:SS  opus-4-5 diego@surface directory  branch@hash*+?↑↓ ≡stash CTX:tokens RAM:% CPU:% Disk:% VRAM:%
-# Using Nerd Font icons:  for model,  for git,  for context
-# Git status icons: * (dirty), + (staged), ? (untracked), ↑ (ahead), ↓ (behind), ≡ (stash)
-# Context: ⚠ appears when >90% (compacting imminent)
+OUT=""
 
-# Date/time first (leftmost) - same color as other dates (dim gray)
-printf "\033[90m%s\033[0m" "$timestamp"
+# === LINE 1: Date/Time + Model + User@Host + Dir + Git ===
+OUT+="\033[90m${timestamp}\033[0m"
+OUT+=" \033[35m\033[0m \033[35m${model_name}\033[0m"
+OUT+=" \033[36m${user_host}\033[0m"
+OUT+=" \033[34m$(basename "$cwd")\033[0m"
 
-# Model with icon
-printf " \033[35m\033[0m \033[35m%s\033[0m" "$model_name"
-
-# User@host (cyan)
-printf " \033[36m%s\033[0m" "$user_host"
-
-# Directory
-printf " \033[34m%s\033[0m" "$current_dir"
-
-# Add comprehensive git info if in a git repo
 if [ -n "$git_branch" ]; then
-    # Branch with icon
-    printf " \033[33m\033[0m \033[33m%s\033[0m" "$git_branch"
-    # Commit hash (yellow, same as branch)
-    if [ -n "$git_commit" ]; then
-        printf "\033[33m@%s\033[0m" "$git_commit"
-    fi
-    # Status icons (red for dirty/staged, cyan for untracked, green for ahead, red for behind)
-    if [ -n "$git_status_icons" ]; then
-        printf "\033[31m%s\033[0m" "$git_status_icons"
-    fi
-    # Stash count (magenta)
-    if [ -n "$git_stash" ]; then
-        printf " \033[35m%s\033[0m" "$git_stash"
-    fi
+    OUT+=" \033[33m\033[0m \033[33m${git_branch}\033[0m"
+    [ -n "$git_commit" ] && OUT+="\033[33m@${git_commit}\033[0m"
+    [ -n "$git_status_icons" ] && OUT+="\033[31m${git_status_icons}\033[0m"
+    [ -n "$git_stash" ] && OUT+=" \033[35m${git_stash}\033[0m"
 fi
+OUT+="\n"
 
-# End first line
-printf "\n"
+# === LINE 2: System Metrics | Network ===
+OUT+="\033[${mem_color}mRAM:${mem_percent}%\033[0m"
+OUT+=" \033[${cpu_color}mCPU:${cpu_percent}%\033[0m"
+OUT+=" \033[${disk_color}mDisk:${disk_percent}%\033[0m"
+OUT+=" \033[${vram_color}mVRAM:${vram_percent}%\033[0m"
+OUT+=" \033[37m|\033[0m "
+OUT+="\033[${mesh_color}mMesh:${mesh_status}\033[0m"
+OUT+=" \033[36mM:${mesh_ip}\033[0m"
+OUT+=" \033[36mP:${private_ip}\033[0m"
+OUT+=" \033[36mPub:${public_ip}\033[0m"
+OUT+="\n"
 
-# === SECOND LINE: System Metrics | Network Info | Context Window | Session Usage ===
-# System metrics with colored thresholds
-printf "\033[${mem_color}mRAM:%s%%\033[0m" "$mem_percent"
-printf " \033[${cpu_color}mCPU:%s%%\033[0m" "$cpu_percent"
-printf " \033[${disk_color}mDisk:%s%%\033[0m" "$disk_percent"
-printf " \033[${vram_color}mVRAM:%s%%\033[0m" "$vram_percent"
-
-# Separator
-printf " \033[37m|\033[0m "
-
-# Network info: Mesh status and IPs
-printf "\033[${mesh_color}mMesh:%s\033[0m" "$mesh_status"
-printf " \033[36mM:%s\033[0m" "$mesh_ip"
-printf " \033[36mP:%s\033[0m" "$private_ip"
-printf " \033[36mPub:%s\033[0m" "$public_ip"
-
-# End second line
-printf "\n"
-
-# === THIRD LINE: Context Window | Session Usage ===
+# === LINE 3: Context Window | Session Usage ===
 ctx_current_fmt=$(format_tokens "$current_ctx")
 ctx_input_fmt=$(format_tokens "$ctx_input")
 ctx_output_fmt=$(format_tokens "$ctx_output")
@@ -473,41 +449,35 @@ sess_in_fmt=$(format_tokens "$sess_in_total")
 sess_cache_fmt=$(format_tokens "$sess_cache_total")
 sess_out_fmt=$(format_tokens "$sess_output")
 
-# Calculate context window costs (based on current context tokens)
 ctx_cost_in=$(LC_NUMERIC=C awk "BEGIN {printf \"%.2f\", ${ctx_input:-0} * ${price_input:-3} / 1000000}")
 ctx_cost_out=$(LC_NUMERIC=C awk "BEGIN {printf \"%.2f\", ${ctx_output:-0} * ${price_output:-15} / 1000000}")
 
-# --- BLOCK 1: Context Window ---
-# Last reset timestamp
-printf "\033[90m%s\033[0m " "$last_reset_ts"
-# CTX usage
+OUT+="\033[90m${last_reset_ts}\033[0m "
 if [ "$exceeds_200k" = "true" ]; then
-    printf "\033[31mCTX:%s/200K(⚠)\033[0m" "$ctx_current_fmt"
+    OUT+="\033[31mCTX:${ctx_current_fmt}/200K(⚠)\033[0m"
 else
-    printf "\033[${ctx_color}mCTX:%s/200K(%s%%)\033[0m" "$ctx_current_fmt" "$ctx_percent"
+    OUT+="\033[${ctx_color}mCTX:${ctx_current_fmt}/200K(${ctx_percent}%)\033[0m"
 fi
-printf " \033[36mIn:%s\033[0m" "$ctx_input_fmt"
-printf " \033[36mOut:%s\033[0m" "$ctx_output_fmt"
-printf " \033[32m\$%s/\$%s\033[0m" "${ctx_cost_in:-0.00}" "${ctx_cost_out:-0.00}"
+OUT+=" \033[36mIn:${ctx_input_fmt}\033[0m"
+OUT+=" \033[36mOut:${ctx_output_fmt}\033[0m"
+OUT+=" \033[32m\$${ctx_cost_in:-0.00}/\$${ctx_cost_out:-0.00}\033[0m"
+OUT+=" \033[37m|\033[0m"
+OUT+=" \033[90m${session_date}\033[0m"
+OUT+=" \033[36mIn:${sess_in_fmt}\033[0m"
+OUT+=" \033[36mCache:${sess_cache_fmt}\033[0m"
+OUT+=" \033[36mOut:${sess_out_fmt}\033[0m"
 
-# Separator (white)
-printf " \033[37m|\033[0m"
-
-# --- BLOCK 2: Session Usage ---
-printf " \033[90m%s\033[0m" "$session_date"
-printf " \033[36mIn:%s\033[0m" "$sess_in_fmt"
-printf " \033[36mCache:%s\033[0m" "$sess_cache_fmt"
-printf " \033[36mOut:%s\033[0m" "$sess_out_fmt"
-
-# Session cost color
 sess_cost_total_cents=$(LC_NUMERIC=C awk "BEGIN {printf \"%.0f\", (${sess_cost_in:-0} + ${sess_cost_out:-0}) * 100}")
 [ -z "$sess_cost_total_cents" ] && sess_cost_total_cents=0
 if [ "$sess_cost_total_cents" -ge 1000 ]; then
-    cost_color="31"  # red (>$10)
+    cost_color="31"
 elif [ "$sess_cost_total_cents" -ge 500 ]; then
-    cost_color="33"  # yellow (>$5)
+    cost_color="33"
 else
-    cost_color="32"  # green
+    cost_color="32"
 fi
-printf " \033[${cost_color}m\$%s/\$%s\033[0m" "${sess_cost_in:-0.00}" "${sess_cost_out:-0.00}"
-printf "\n"
+OUT+=" \033[${cost_color}m\$${sess_cost_in:-0.00}/\$${sess_cost_out:-0.00}\033[0m"
+OUT+="\n"
+
+# Print everything at once (atomic render — no word-by-word flickering)
+printf "%b" "$OUT"
