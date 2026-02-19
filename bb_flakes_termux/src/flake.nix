@@ -464,6 +464,7 @@
                 executable = true;
               };
               home.file.".claude/settings.json".source = ../src/modules/dotfiles/claude/settings.json;
+              home.file.".rgignore".source = ../src/modules/dotfiles/claude/rgignore;
 
               # Unison profile for bidirectional sync
               home.file.".unison/termux-home.prf".text = ''
