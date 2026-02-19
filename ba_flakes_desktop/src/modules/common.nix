@@ -103,4 +103,5 @@
     executable = true;
   };
   home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;
+  home.file.".rgignore".source = ./dotfiles/claude/rgignore;
 }
