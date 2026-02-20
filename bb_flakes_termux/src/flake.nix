@@ -437,6 +437,9 @@
 
             # --- HOME MANAGER CONFIG ---
             home-manager.config = { pkgs, lib, ... }: {
+              imports = [
+                ./modules/packages.nix
+              ];
               home.stateVersion = "24.05";
 
               # This runs BEFORE packages are linked
