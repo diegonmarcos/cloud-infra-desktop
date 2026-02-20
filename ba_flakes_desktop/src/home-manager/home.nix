@@ -26,6 +26,7 @@
     # Development
     git
     gh  # GitHub CLI
+    mdbook
 
     # Shell
     fish
