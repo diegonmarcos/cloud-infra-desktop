@@ -81,7 +81,7 @@
     networkmanager.enable = lib.mkDefault true;  # ISO disables this
     firewall = {
       enable = lib.mkDefault true;
-      allowedTCPPorts = [ 22 ];
+      allowedTCPPorts = [ 22 8000 ];  # SSH + Windmill
     };
   };
 
@@ -153,15 +153,35 @@
     geoProviderUrl = "https://beacondb.net/v1/geolocate";
   };
   services.automatic-timezoned.enable = true;
-  i18n.defaultLocale = "en_US.UTF-8";
+  i18n.defaultLocale = "en_GB.UTF-8";
   i18n.extraLocaleSettings = {
-    LC_ALL = "en_US.UTF-8";
-    LANG = "en_US.UTF-8";
+    LC_ALL = "en_GB.UTF-8";
+    LANG = "en_GB.UTF-8";
   };
-  i18n.supportedLocales = [ "en_US.UTF-8/UTF-8" "es_ES.UTF-8/UTF-8" ];
+  i18n.supportedLocales = [
+    "en_GB.UTF-8/UTF-8"   # British English (international date format DD/MM/YYYY)
+    "en_US.UTF-8/UTF-8"   # American English
+    "es_ES.UTF-8/UTF-8"   # Spanish
+    "fr_FR.UTF-8/UTF-8"   # French
+  ];
 
   # Console (TTY) keyboard layout - Spanish
   console.keyMap = "es";
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # INPUT METHOD - FCITX5 (Wayland-native)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # For KDE Plasma Wayland: Go to System Settings -> Virtual Keyboard -> Fcitx 5
+  # This enables the Wayland input method frontend for better integration
+  i18n.inputMethod = {
+    enable = true;
+    type = "fcitx5";
+    fcitx5.addons = with pkgs; [
+      fcitx5-gtk                       # GTK input module
+      kdePackages.fcitx5-qt            # Qt6/KDE integration
+      kdePackages.fcitx5-configtool    # Configuration GUI
+    ];
+  };
 
   # ═══════════════════════════════════════════════════════════════════════════
   # USER ACCOUNTS (Fixed UIDs for cross-OS compatibility)
@@ -675,10 +695,8 @@ EOF
     kdePackages.qtvirtualkeyboard  # Qt virtual keyboard for SDDM login screen
 
     # Input method frameworks (appear in Plasma Virtual Keyboard settings)
-    fcitx5                         # Modern input method with virtual keyboard
-    kdePackages.fcitx5-qt          # Fcitx5 Qt6/KDE integration
-    kdePackages.fcitx5-configtool  # Fcitx5 configuration GUI
-    ibus                           # IBus input method framework
+    # NOTE: fcitx5 + addons now configured via i18n.inputMethod module above
+    ibus                           # IBus input method framework (alternative)
 
     # ─── Wallpapers ───────────────────────────────────────────────────────────
     kdePackages.plasma-workspace-wallpapers
@@ -726,6 +744,30 @@ EOF
     liberation_ttf
     jetbrains-mono
   ];
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WINDMILL - Workflow Orchestrator
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Web UI: http://localhost:8000
+  # Use for: NixOS updates, home-manager updates, system maintenance workflows
+
+  services.windmill = {
+    enable = true;
+    serverPort = 8000;
+    lspPort = 3001;
+
+    # Local PostgreSQL database (auto-managed)
+    database = {
+      createLocally = true;
+      name = "windmill";
+      user = "windmill";
+    };
+
+    # Base URL for webhooks and external access
+    baseUrl = "http://localhost:8000";
+
+    logLevel = "info";
+  };
 
   # ═══════════════════════════════════════════════════════════════════════════
   # FLATPAK (For user apps)
@@ -902,6 +944,17 @@ EOF
 
   # KWallet for KDE sessions
   security.pam.services.sddm.enableKwallet = true;
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LOGIND - Lid/Power Button Behavior
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Lock on lid close instead of suspend - Surface Pro 8 suspend/resume is
+  # unreliable: surface_hid reprobe fails (error -71), DRM atomic commits
+  # error, and logind marks the session Active=no, which causes kscreenlocker
+  # to silently reject correct passwords.
+  services.logind.lidSwitch = "lock";
+  services.logind.lidSwitchExternalPower = "lock";
+  services.logind.lidSwitchDocked = "ignore";
 
   # ═══════════════════════════════════════════════════════════════════════════
   # UDEV RULES (Device naming for Dolphin/KDE)
