@@ -576,6 +576,48 @@
   };
 
   # ─────────────────────────────────────────────────────────────────
+  # Fcitx5 Input Method - Keyboard Layouts
+  # ─────────────────────────────────────────────────────────────────
+  # On Plasma Wayland, fcitx5 (i18n.inputMethod) takes over layout
+  # management from KDE's kxkbrc. Must configure layouts here too.
+  xdg.configFile."fcitx5/profile".text = ''
+    [Groups/0]
+    # Group Name
+    Name=Default
+    # Layout
+    Default Layout=es
+    # Default Input Method
+    DefaultIM=keyboard-es
+
+    [Groups/0/Items/0]
+    # Name
+    Name=keyboard-es
+    # Layout
+    Layout=
+
+    [Groups/0/Items/1]
+    # Name
+    Name=keyboard-us
+    # Layout
+    Layout=
+
+    [Groups/0/Items/2]
+    # Name
+    Name=keyboard-fr
+    # Layout
+    Layout=
+
+    [Groups/0/Items/3]
+    # Name
+    Name=keyboard-gb
+    # Layout
+    Layout=
+
+    [GroupOrder]
+    0=Default
+  '';
+
+  # ─────────────────────────────────────────────────────────────────
   # Autostart - Runs every login
   # ─────────────────────────────────────────────────────────────────
   xdg.configFile."autostart/launch-workspace.desktop".text = ''
