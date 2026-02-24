@@ -20,6 +20,9 @@
     nodePackages.pnpm
     nodePackages.npm
     nodePackages.yarn
+    nodePackages.typescript  # tsc
+    esbuild                  # JS/TS bundler
+    dart-sass                # SCSS compiler (sass CLI)
 
     # Python
     python312
