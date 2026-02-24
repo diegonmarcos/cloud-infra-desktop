@@ -626,10 +626,11 @@ EOF
     auto-optimise-store = true;
     trusted-users = [ "root" "diego" ];
 
-    # CRITICAL: Use disk-backed build directory, NOT tmpfs
-    # Kernel builds need 5-10GB temp space, tmpfs only has ~4GB
-    # This prevents "No space left on device" during large builds
-    build-dir = "/var/tmp/nix-build";
+    # CRITICAL: Use btrfs-backed build directory, NOT tmpfs
+    # Root (/) is a 2GB tmpfs (impermanence), /var/tmp lives there too.
+    # Large builds (terraform go-modules, kernel) need 5-10GB temp space.
+    # /nix is on btrfs with ~26GB free, so builds always have enough room.
+    build-dir = "/nix/tmp";
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
