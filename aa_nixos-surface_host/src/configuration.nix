@@ -973,6 +973,11 @@ EOF
     # Prevent Type Cover devices from suspending (trackpad/keyboard on SAM bus)
     # The above rule only affects the main controller; this targets the child devices (01:15:*)
     ACTION=="add", SUBSYSTEM=="surface_aggregator", ATTR{power/control}="on"
+
+    # Suppress ghost Type Cover device 01:15:02:02:00 - always fails probe with error -71
+    # SAM firmware 11.401.139 advertises this device but returns empty HID descriptor (0 bytes).
+    # Preventing surface_hid from probing it avoids SAM bus contention that can freeze the touchpad.
+    ACTION=="add", SUBSYSTEM=="surface_aggregator", ATTR{modalias}=="ssam:d01c15t02i02f00", ATTR{driver_override}="none"
   '';
 
   # ═══════════════════════════════════════════════════════════════════════════
