@@ -85,6 +85,21 @@
     };
   };
 
+  # WireGuard mesh VPN (on-demand, not auto-start)
+  networking.wireguard.interfaces.wg0 = {
+    ips = [ "10.0.0.5/24" ];
+    privateKeyFile = "/home/diego/.config/wireguard/privatekey";
+    peers = [
+      {
+        publicKey = "vV/phXUwnCjxACQ5Df11Uw47BzJaK4r85jPYMu2HmDc=";
+        endpoint = "35.226.147.64:51820";
+        allowedIPs = [ "10.0.0.0/24" ];
+        persistentKeepalive = 25;
+      }
+    ];
+  };
+  systemd.services.wireguard-wg0.wantedBy = lib.mkForce [];
+
   # ═══════════════════════════════════════════════════════════════════════════
   # WIFI & BLUETOOTH PERSISTENCE
   # ═══════════════════════════════════════════════════════════════════════════
