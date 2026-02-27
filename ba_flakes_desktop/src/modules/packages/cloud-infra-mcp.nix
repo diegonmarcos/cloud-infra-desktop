@@ -5,8 +5,11 @@ buildNpmPackage rec {
   pname = "cloud-infra-mcp";
   version = "1.0.0";
 
-  # Use local source from cloud repo
-  src = /home/diego/Mounts/Git/cloud/a_solutions/bb-sec_mcp-server-skills;
+  # Use local source from cloud repo (filtered to avoid unnecessary rebuilds)
+  src = builtins.path {
+    path = /home/diego/Mounts/Git/cloud/a_solutions/bb-sec_mcp-server-skills;
+    name = "cloud-infra-mcp-src";
+  };
 
   # Hash computed via: nix run nixpkgs#prefetch-npm-deps -- package-lock.json
   npmDepsHash = "sha256-Kk32pI2b5ir+e5hGiWTjtrMczey3fHOtLFXUjzg+SfE=";

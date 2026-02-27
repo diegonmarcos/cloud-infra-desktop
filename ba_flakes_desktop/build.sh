@@ -201,9 +201,9 @@ nix_switch() {
     # Use -b backup to automatically backup conflicting files
     _rc_file=$(mktemp)
     if check_home_manager 2>/dev/null; then
-        { home-manager switch -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+        { home-manager switch --impure -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     else
-        { nix run home-manager -- switch -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+        { nix run home-manager -- switch --impure -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     fi
     exit_code=$(cat "$_rc_file")
     rm -f "$_rc_file"

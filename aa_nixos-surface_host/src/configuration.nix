@@ -177,26 +177,13 @@
     "en_GB.UTF-8/UTF-8"   # British English (international date format DD/MM/YYYY)
     "en_US.UTF-8/UTF-8"   # American English
     "es_ES.UTF-8/UTF-8"   # Spanish
-    "fr_FR.UTF-8/UTF-8"   # French
+    "pt_PT.UTF-8/UTF-8"   # Portuguese
+    "pt_BR.UTF-8/UTF-8"   # Brazilian Portuguese
+    "de_DE.UTF-8/UTF-8"   # German
   ];
 
   # Console (TTY) keyboard layout - Spanish
   console.keyMap = "es";
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # INPUT METHOD - FCITX5 (Wayland-native)
-  # ═══════════════════════════════════════════════════════════════════════════
-  # For KDE Plasma Wayland: Go to System Settings -> Virtual Keyboard -> Fcitx 5
-  # This enables the Wayland input method frontend for better integration
-  i18n.inputMethod = {
-    enable = true;
-    type = "fcitx5";
-    fcitx5.addons = with pkgs; [
-      fcitx5-gtk                       # GTK input module
-      kdePackages.fcitx5-qt            # Qt6/KDE integration
-      kdePackages.fcitx5-configtool    # Configuration GUI
-    ];
-  };
 
   # ═══════════════════════════════════════════════════════════════════════════
   # USER ACCOUNTS (Fixed UIDs for cross-OS compatibility)
@@ -709,10 +696,6 @@ EOF
     maliit-framework
     onboard              # Full-featured: arrows, Fn keys, mouse buttons, word prediction
     kdePackages.qtvirtualkeyboard  # Qt virtual keyboard for SDDM login screen
-
-    # Input method frameworks (appear in Plasma Virtual Keyboard settings)
-    # NOTE: fcitx5 + addons now configured via i18n.inputMethod module above
-    ibus                           # IBus input method framework (alternative)
 
     # ─── Wallpapers ───────────────────────────────────────────────────────────
     kdePackages.plasma-workspace-wallpapers
