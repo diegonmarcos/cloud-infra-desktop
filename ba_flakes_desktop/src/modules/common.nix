@@ -11,6 +11,7 @@
     ./programs/editors/vim.nix
     ./programs/git.nix
     ./programs/tmux.nix
+    ./programs/mesh.nix
   ];
 
   # Enable Home Manager
