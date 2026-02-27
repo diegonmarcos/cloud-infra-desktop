@@ -699,9 +699,9 @@ show_help() {
 ${BOLD}Diego's Dev Environment - Build Script${NC}
 
 ${YELLOW}USAGE:${NC}
-    ./build.sh              Launch TUI menu
+    ./build.sh              Show this help
     ./build.sh <command>    Run specific command
-    ./build.sh --help       Show this help
+    ./build.sh tui          Launch interactive TUI menu
 
 ${YELLOW}NIX COMMANDS:${NC}
     install                 Install Nix package manager
@@ -727,6 +727,7 @@ ${YELLOW}DISTROBOX COMMANDS:${NC}
     distrobox-remove [name] Remove distrobox
 
 ${YELLOW}UTILITY COMMANDS:${NC}
+    tui|menu                Launch interactive TUI menu
     status                  Show system status
     clean                   Clean build artifacts
     log                     View build log
@@ -761,9 +762,9 @@ main() {
     # Initialize log
     log "========== Build script started =========="
 
-    # No arguments - run TUI
+    # No arguments - show help
     if [ $# -eq 0 ]; then
-        run_tui
+        show_help
         exit 0
     fi
 
@@ -828,6 +829,11 @@ main() {
             ;;
         distrobox-remove)
             distrobox_remove "${1:-diego-dev}"
+            ;;
+
+        # Interactive TUI
+        tui|menu)
+            run_tui
             ;;
 
         # Utility commands
