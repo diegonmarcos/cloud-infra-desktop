@@ -190,6 +190,30 @@ if [ -z "$model_name" ]; then
     model_name="unknown"
 fi
 
+# Extract session ID from JSON input
+session_id=$(echo "$input" | jq -r '.session_id // empty')
+# Fallback: extract from transcript path (.../sessions/<id>/transcript.jsonl)
+if [ -z "$session_id" ]; then
+    session_id=$(basename "$(dirname "$transcript_path")" 2>/dev/null)
+fi
+session_short="${session_id:0:8}"
+
+# MCP server status - count configured servers from config files
+mcp_configured=0
+if [ -f "$HOME/.mcp.json" ]; then
+    n=$(jq '.mcpServers // {} | keys | length' "$HOME/.mcp.json" 2>/dev/null)
+    [ -n "$n" ] && mcp_configured=$((mcp_configured + n))
+fi
+if [ -f "${cwd}/.mcp.json" ]; then
+    n=$(jq '.mcpServers // {} | keys | length' "${cwd}/.mcp.json" 2>/dev/null)
+    [ -n "$n" ] && mcp_configured=$((mcp_configured + n))
+fi
+if [ "$mcp_configured" -gt 0 ]; then
+    mcp_color="32"  # green
+else
+    mcp_color="90"  # dim
+fi
+
 # Format token count (K for thousands, M for millions)
 format_tokens() {
     local tokens=$1
@@ -415,9 +439,13 @@ public_ip=$(curl -s --max-time 2 ifconfig.me 2>/dev/null)
 # Format: HH:MM:SS  opus-4-5 diego@surface directory  branch@hash*+?↑↓ ≡stash CTX:tokens RAM:% CPU:% Disk:% VRAM:%
 OUT=""
 
-# === LINE 1: Date/Time + Model + User@Host + Dir + Git ===
+# === LINE 1: Date/Time + Model + Session + MCP + User@Host + Dir + Git ===
 OUT+="\033[90m${timestamp}\033[0m"
 OUT+=" \033[35m\033[0m \033[35m${model_name}\033[0m"
+OUT+=" \033[37m|\033[0m"
+OUT+=" \033[90m${session_short}\033[0m"
+OUT+=" \033[${mcp_color}mMCP:${mcp_configured}\033[0m"
+OUT+=" \033[37m|\033[0m"
 OUT+=" \033[36m${user_host}\033[0m"
 OUT+=" \033[34m$(basename "$cwd")\033[0m"
 

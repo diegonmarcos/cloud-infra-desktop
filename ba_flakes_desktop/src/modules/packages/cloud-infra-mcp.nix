@@ -12,7 +12,7 @@ buildNpmPackage rec {
   };
 
   # Hash computed via: nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-  npmDepsHash = "sha256-Kk32pI2b5ir+e5hGiWTjtrMczey3fHOtLFXUjzg+SfE=";
+  npmDepsHash = "sha256-MxaYQAzRBRbigHmGUUi/y3LIwK6eNhmRh3yyL8xYcCs=";
 
   # Build TypeScript to JavaScript
   npmBuildScript = "build";
