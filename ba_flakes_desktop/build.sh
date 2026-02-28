@@ -205,8 +205,11 @@ nix_switch() {
     else
         { nix run home-manager -- switch --impure -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     fi
-    exit_code=$(cat "$_rc_file")
+    exit_code=$(cat "$_rc_file" 2>/dev/null)
     rm -f "$_rc_file"
+
+    # Default to 0 if exit_code is empty
+    exit_code=${exit_code:-0}
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Configuration failed with exit code $exit_code"
@@ -229,8 +232,11 @@ nix_update() {
 
     _rc_file=$(mktemp)
     { nix flake update 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
-    exit_code=$(cat "$_rc_file")
+    exit_code=$(cat "$_rc_file" 2>/dev/null)
     rm -f "$_rc_file"
+
+    # Default to 0 if exit_code is empty
+    exit_code=${exit_code:-0}
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Flake update failed with exit code $exit_code"
