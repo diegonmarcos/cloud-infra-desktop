@@ -5487,3 +5487,10 @@ Activating linkProfile
 [2026-02-20 14:09:01] ========== Build script started ==========
 [2026-02-20 14:09:01] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-02-20 14:09:01] INFO: Staging dirty files for flake evaluation...
+[2026-02-28 15:14:38] ========== Build script started ==========
+[2026-02-28 15:14:38] === Switching to /home/diego/Mounts/Git/unix/bb_flakes_termux/src ===
+[2026-02-28 15:14:38] INFO: Staging dirty files for flake evaluation...
+[2026-02-28 15:14:38] INFO: Applying nix-on-droid configuration...
+./build.sh: line 94: nix-on-droid: command not found
+[2026-02-28 15:14:38] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/bb_flakes_termux/src
+[2026-02-28 15:14:38] ========== Build script finished ==========

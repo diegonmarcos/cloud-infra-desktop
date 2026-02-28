@@ -102,14 +102,13 @@
 ### Paid - A1.Flex (Free Tier: 4 OCPUs / 24GB total)
 | VM | Alias | IP | WG IP | CPUs/RAM | Services |
 |----|-------|-----|-------|----------|----------|
-| oci-A1-f_0 | oci-apps | 82.70.229.129 | 10.0.0.6 | 3 / 16GB | C3 API, Crawlee Cloud |
-| oci-A1-f_1 | oci-apps-1 | 144.24.196.72 | 10.0.0.2 | 1 / 8GB | PhotoPrism, NocoDB, Code Server, AFFiNE |
+| oci-A1-f_0 | oci-apps | 82.70.229.129 | 10.0.0.6 | 4 / 24GB | All services (consolidated from oci-apps-1) |
 
 ## B.3 Networking
 
 Traffic flow: **Cloudflare → Caddy (gcp-proxy) → WireGuard → target VM**. Auth: Authelia 2FA (browser) or Bearer token via introspect-proxy (CLI/API).
 
-SSH aliases: `ssh oci-apps`, `ssh oci-apps-1`, `ssh oci-mail`, `ssh oci-analytics`, `ssh gcp-proxy`.
+SSH aliases: `ssh oci-apps`, `ssh oci-mail`, `ssh oci-analytics`, `ssh gcp-proxy`.
 
 ## B.4 Active Services
 
@@ -125,10 +124,11 @@ SSH aliases: `ssh oci-apps`, `ssh oci-apps-1`, `ssh oci-mail`, `ssh oci-analytic
 | Radicale Calendar | cal.diegonmarcos.com | oci-mail | 5232 | 24/7 |
 | Matomo Analytics | analytics.diegonmarcos.com | oci-analytics | 8080 | 24/7 (hybrid) |
 | Windmill | — | oci-analytics | — | 24/7 (toggles with Matomo) |
-| PhotoPrism | photos.diegonmarcos.com | oci-apps-1 | 3013 | wake-on-demand |
-| NocoDB | db.diegonmarcos.com | oci-apps-1 | 8085 | wake-on-demand |
-| Code Server | ide.diegonmarcos.com | oci-apps-1 | 8443 | wake-on-demand |
-| AFFiNE | drive-notes-affine.diegonmarcos.com | oci-apps-1 | 3010 | wake-on-demand |
+| PhotoPrism | photos.diegonmarcos.com | oci-apps | 3013 | wake-on-demand |
+| NocoDB | db.diegonmarcos.com | oci-apps | 8085 | wake-on-demand |
+| Code Server | ide.diegonmarcos.com | oci-apps | 8443 | wake-on-demand |
+| Gitea | git.diegonmarcos.com | oci-apps | 3017 | wake-on-demand |
+| HedgeDoc | drive-notes-hedgedoc.diegonmarcos.com | oci-apps | 3018 | wake-on-demand |
 | Hickory DNS | dns.internal (WG only) | gcp-proxy | 53 | 24/7 |
 | Crawlee Cloud | api.diegonmarcos.com/crawlee/ | oci-apps | 3000/3001 | wake-on-demand |
 
@@ -339,8 +339,7 @@ _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
 | Workflow | Trigger (path) | What it does |
 |----------|---------------|-------------|
 | `ship-gcp-proxy.yml` | `bb-sec_caddy/`, `bb-sec_authelia/`, etc. | Ship services to gcp-proxy |
-| `ship-oci-apps.yml` | `bb-sec_mcp-server-skills/`, `bb-sec_rust-api/`, `bc-obs_rig/`, etc. | Ship services to oci-apps (REMOTE_BUILD for Docker) |
-| `ship-oci-apps-1.yml` | `aa-sui_*` services | Ship services to oci-apps-1 |
+| `ship-oci-apps.yml` | All oci-apps services (consolidated) | Ship services to oci-apps (REMOTE_BUILD for Docker) |
 | `ship-oci-mail.yml` | `aa-sui_tools-mailu/`, etc. | Ship services to oci-mail |
 | `ship-oci-analytics.yml` | `bc-obs_*` services | Ship services to oci-analytics |
 | `home-manager.yml` | `b_infra/home-manager/` | Deploy home-manager to all VMs |
@@ -376,7 +375,7 @@ Every service in `` MUST follow this exact structure:
   "name": "service-name",
   "description": "What this service does",
   "deploy": {
-    "host": "ssh-alias (e.g. gcp-proxy, oci-apps-1) or 'local'",
+    "host": "ssh-alias (e.g. gcp-proxy, oci-apps) or 'local'",
     "remote_path": "/opt/containers/<service-name>"
   }
 }
