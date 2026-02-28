@@ -102,7 +102,7 @@
 ### Paid - A1.Flex (Free Tier: 4 OCPUs / 24GB total)
 | VM | Alias | IP | WG IP | CPUs/RAM | Services |
 |----|-------|-----|-------|----------|----------|
-| oci-A1-f_0 | oci-apps | 82.70.229.129 | 10.0.0.6 | 3 / 16GB | Crawlee Cloud |
+| oci-A1-f_0 | oci-apps | 82.70.229.129 | 10.0.0.6 | 3 / 16GB | C3 API, Crawlee Cloud |
 | oci-A1-f_1 | oci-apps-1 | 144.24.196.72 | 10.0.0.2 | 1 / 8GB | PhotoPrism, NocoDB, Code Server, AFFiNE |
 
 ## B.3 Networking
@@ -119,7 +119,7 @@ SSH aliases: `ssh oci-apps`, `ssh oci-apps-1`, `ssh oci-mail`, `ssh oci-analytic
 | Authelia 2FA | auth.diegonmarcos.com | gcp-proxy | 9091 | 24/7 |
 | Vaultwarden | vault.diegonmarcos.com | gcp-proxy | 80 | 24/7 |
 | ntfy Push | rss.diegonmarcos.com | gcp-proxy | 8090 | 24/7 |
-| API (Flask+Rust) | api.diegonmarcos.com | gcp-proxy | 5000/8080 | 24/7 |
+| C3 API | api.diegonmarcos.com/c3-api | oci-apps | 8081 | 24/7 |
 | Mailu Mail | mail.diegonmarcos.com | oci-mail | 8444 | 24/7 |
 | Syncthing | sync.diegonmarcos.com | oci-mail | 8384 | 24/7 |
 | Radicale Calendar | cal.diegonmarcos.com | oci-mail | 5232 | 24/7 |
@@ -332,6 +332,25 @@ _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
 
 **All three repos follow the same interface**: `build.sh <command>`. NEVER bypass it with raw `npm`, `nix`, `docker-compose`, or other commands.
 
+### GitHub Actions CI/CD (cloud/ repo)
+
+**Cloud repo has GHA workflows** in `.github/workflows/` that auto-deploy on push to `main`:
+
+| Workflow | Trigger (path) | What it does |
+|----------|---------------|-------------|
+| `ship-gcp-proxy.yml` | `bb-sec_caddy/`, `bb-sec_authelia/`, etc. | Ship services to gcp-proxy |
+| `ship-oci-apps.yml` | `bb-sec_mcp-server-skills/`, `bb-sec_rust-api/`, `bc-obs_rig/`, etc. | Ship services to oci-apps (REMOTE_BUILD for Docker) |
+| `ship-oci-apps-1.yml` | `aa-sui_*` services | Ship services to oci-apps-1 |
+| `ship-oci-mail.yml` | `aa-sui_tools-mailu/`, etc. | Ship services to oci-mail |
+| `ship-oci-analytics.yml` | `bc-obs_*` services | Ship services to oci-analytics |
+| `home-manager.yml` | `b_infra/home-manager/` | Deploy home-manager to all VMs |
+
+All workflows use: `cachix/install-nix-action`, SSH key from secrets, SOPS age key, then `build.sh ship`.
+Services with Docker images use `REMOTE_BUILD=true` (builds on target VM, avoids cross-compilation).
+All workflows support `workflow_dispatch` for manual triggering with optional service filter.
+
+**IMPORTANT**: Pushing to `main` with changes in `a_solutions/*/src/` triggers auto-deploy. Be aware of this when committing.
+
 ### ⚠️ Cloud Service Structure (MANDATORY)
 
 ```
@@ -449,7 +468,7 @@ rpm -qR <package>           # RPM-based
 | `debug-ops` | Debug containers, logs, health issues | Debug workflow, common pitfalls, WireGuard gotchas |
 | `crawlee-scraping` | Web scraping, data extraction | Crawlee workflow, actor management, result extraction |
 
-- **Source**: `~/git/cloud/a_solutions/bb-sec_mcp-server-skills/src/prompts/index.ts`
+- **Source**: `~/git/cloud/a_solutions/bb-sec_mcp-server-skills/src/mcp/prompts/index.ts`
 - **Loaded on-demand** via MCP protocol (0 bytes always-on context, vs 4.7KB before)
 
 ## MCP: cloud-infra
@@ -460,31 +479,35 @@ rpm -qR <package>           # RPM-based
 
 | Layer | Tools | What it does |
 |-------|-------|-------------|
-| **Chef (Native)** | `ssh_exec`, `check_vm`, `docker_ps`, `docker_control`, `docker_logs`, `docker_compose_up` | Direct SSH/Docker — works even if Rust API is down |
+| **Chef (Native)** | `ssh_exec`, `check_vm`, `docker_ps`, `docker_control`, `docker_logs`, `docker_compose_up` | Direct SSH/Docker — works even if C3 API is down |
 | **Chef (Build)** | `build_service`, `build_all`, `build_ship`, `build_docker`, `secrets_status`, `backup_trigger` | Nix build pipeline, deployment, secrets, backups |
 | **Chef (Repo)** | `read_file`, `search_repos`, `list_directory`, `reload_config` | Read files across all 5 repos (cloud, unix, vault, front, tools) |
-| **Waiter (Read)** | `health_alive`, `health_declared`, `health_deployed`, `health_drift`, `health_status`, `profile_container`, `profile_vm`, `service_list_apis`, `service_get_info`, `service_get_spec`, `service_discover_all` | Rust API proxy — health, profiling, API discovery |
-| **Waiter (Write)** | `vm_start`, `vm_stop`, `vm_reset`, `container_start`, `container_stop`, `container_restart`, `service_start`, `service_stop`, `service_api_call` | Rust API proxy — VM/container lifecycle, service API calls |
+| **Waiter (Read)** | `health_alive`, `health_declared`, `health_deployed`, `health_drift`, `health_status`, `profile_container`, `profile_vm`, `service_list_apis`, `service_get_info`, `service_get_spec`, `service_discover_all` | C3 API — health, profiling, API discovery |
+| **Waiter (Write)** | `vm_start`, `vm_stop`, `vm_reset`, `container_start`, `container_stop`, `container_restart`, `service_start`, `service_stop`, `service_api_call` | C3 API — VM/container lifecycle, service API calls |
+| **C3 New** | `c3_topology`, `c3_topology_drift`, `c3_topology_security`, `c3_test`, `c3_file`, `c3_report`, `c3_vm_status`, `health_tier1`, `health_tier2`, `health_tier3` | Topology, dynamic tests, file retrieval, tiered health |
 | **Front-End** | `front_list_projects`, `front_get_project`, `front_build`, `front_dev_server`, `front_deploy` | 32-project monorepo build, dev servers, CI deploy |
 | **Infra** | `list_vms`, `list_services`, `get_service_detail`, `reload_config` | Config introspection from config.json |
 
-**44 Tools** · **9 Resources** (`cloud://config`, `cloud://ssh-config`, `cloud://services-overview`, `cloud://readme`, `cloud://front-projects`, `cloud://rust-api-endpoints`, `cloud://service-apis`, `cloud://services/{name}`, `cloud://vms/{vm_id}`) · **4 Prompts** (`cloud-architect`, `frontend-developer`, `debug-ops`, `crawlee-scraping`)
+**70 Tools** · **9 Resources** (`cloud://config`, `cloud://ssh-config`, `cloud://services-overview`, `cloud://readme`, `cloud://front-projects`, `cloud://c3-api-endpoints`, `cloud://service-apis`, `cloud://services/{name}`, `cloud://vms/{vm_id}`) · **4 Prompts** (`cloud-architect`, `frontend-developer`, `debug-ops`, `crawlee-scraping`)
 
 **Runtime**: `npx tsx` (primary) or Podman/Docker container (fallback)
 
 ### Tool Modules
 
 ```
-src/tools/
+src/mcp/tools/
 ├── infra.ts              # 4 tools — VM/service config introspection
 ├── repo.ts               # 3 tools — cross-repo file read/search
 ├── build.ts              # 2 tools — nix build pipeline
 ├── ssh-tools.ts          # 2 tools — SSH exec, VM health check
 ├── docker.ts             # 4 tools — container ops via SSH
 ├── native-ops.ts         # 4 tools — build_ship, docker build, secrets, backup
-├── rust-api-health.ts    # 11 tools — health dashboard, profiling, API discovery
-├── rust-api-control.ts   # 8 tools — VM/container/service lifecycle
-├── rust-api-proxy.ts     # 1 tool  — generic service API proxy
+├── health.ts             # 11 tools — health dashboard, profiling, API discovery
+├── control.ts            # 8 tools — VM/container/service lifecycle
+├── discovery.ts          # 1 tool  — generic service API proxy
+├── cloud.ts              # 7 tools — OCI + GCP cloud operations
+├── c3.ts                 # 14 tools — topology, tests, files, tiered health
+├── crawlee.ts            # 7 tools — Crawlee Cloud scraping
 └── front.ts              # 5 tools — front-end monorepo ops
 ```
 
@@ -492,8 +515,8 @@ src/tools/
 
 | API | URL | Swagger |
 |-----|-----|---------|
-| **Rust API** (PRIMARY) | `https://api.diegonmarcos.com:8080` | `https://api.diegonmarcos.com:8080/api/docs` |
-| **Flask API** (STALE) | `https://api.diegonmarcos.com` | `https://api.diegonmarcos.com/docs` |
+| **C3 API** (PRIMARY) | `https://api.diegonmarcos.com/c3-api` | `https://api.diegonmarcos.com/c3-api/docs` |
+| **Rust API** (LEGACY) | `https://api.diegonmarcos.com/rust-api` | `https://api.diegonmarcos.com/rust-api/docs` |
 | **Crawlee API** | `https://api.diegonmarcos.com/crawlee/` | — |
 
 **Cloud CLIs**: `oci`, `gcloud`, `gh`, `terraform` — not covered by MCP.
