@@ -598,7 +598,7 @@ EOF
     CPUQuota = "400%";      # 50% of 8 logical CPUs
   };
 
-  # ─── Disk watchdog: auto-GC when /nix fills up ──────────────────────────
+  # ─── JANITOR: Disk watchdog — escalating cleanup ────────────────────────
   systemd.timers."disk-watchdog" = {
     wantedBy = [ "timers.target" ];
     timerConfig = {
@@ -609,11 +609,67 @@ EOF
 
   systemd.services."disk-watchdog" = {
     serviceConfig.Type = "oneshot";
+    path = with pkgs; [ coreutils findutils systemd nix util-linux ];
     script = ''
-      USAGE=$(${pkgs.coreutils}/bin/df /nix --output=pcent | tail -1 | tr -d ' %')
-      if [ "$USAGE" -gt 90 ]; then
-        echo "Disk >90% — running nix GC" | ${pkgs.systemd}/bin/systemd-cat -t disk-watchdog -p warning
-        ${pkgs.nix}/bin/nix-collect-garbage --delete-older-than 3d
+      WARN=85
+      CRIT=90
+      EMERG=95
+
+      USAGE=$(df / --output=pcent | tail -1 | tr -d ' %')
+      echo "[disk-watchdog] Root disk usage: ''${USAGE}%"
+
+      [ "$USAGE" -lt "$WARN" ] && exit 0
+
+      echo "[disk-watchdog] WARNING: ''${USAGE}% — starting cleanup"
+
+      # Level 1 (>85%): Safe targets
+      find /tmp -type f -atime +2 -delete 2>/dev/null || true
+      find /var/tmp -type f -atime +2 -delete 2>/dev/null || true
+      journalctl --vacuum-size=100M 2>/dev/null || true
+
+      # Desktop: clean user caches
+      find /home/*/. -maxdepth 0 2>/dev/null | while read home; do
+        find "$home/.cache" -type f -atime +7 -delete 2>/dev/null || true
+      done
+
+      # Docker/Podman cleanup
+      if command -v docker >/dev/null 2>&1; then
+        docker container prune -f 2>/dev/null || true
+        docker image prune -f 2>/dev/null || true
+        docker builder prune -f --keep-storage=1G 2>/dev/null || true
+      fi
+      if command -v podman >/dev/null 2>&1; then
+        podman system prune -f 2>/dev/null || true
+      fi
+
+      USAGE=$(df / --output=pcent | tail -1 | tr -d ' %')
+      [ "$USAGE" -lt "$CRIT" ] && echo "[disk-watchdog] Resolved at ''${USAGE}%" && exit 0
+
+      # Level 2 (>90%): Aggressive
+      echo "[disk-watchdog] Level 2: aggressive cleanup (''${USAGE}%)"
+      journalctl --vacuum-size=50M 2>/dev/null || true
+
+      if command -v docker >/dev/null 2>&1; then
+        docker image prune -af 2>/dev/null || true
+        docker volume prune -f 2>/dev/null || true
+      fi
+
+      nix-collect-garbage --delete-older-than 3d 2>/dev/null || true
+
+      USAGE=$(df / --output=pcent | tail -1 | tr -d ' %')
+      [ "$USAGE" -lt "$EMERG" ] && echo "[disk-watchdog] Resolved at ''${USAGE}%" && exit 0
+
+      # Level 3 (>95%): Emergency
+      echo "[disk-watchdog] CRITICAL: ''${USAGE}% — emergency cleanup"
+      find /var/log -name "*.log" -size +10M -exec truncate -s 1M {} \; 2>/dev/null || true
+      find /var/log -name "*.gz" -delete 2>/dev/null || true
+      find /var/log -name "*.old" -delete 2>/dev/null || true
+      nix-collect-garbage -d 2>/dev/null || true
+
+      USAGE=$(df / --output=pcent | tail -1 | tr -d ' %')
+      echo "[disk-watchdog] Final: ''${USAGE}%"
+      if [ "$USAGE" -ge "$EMERG" ]; then
+        echo "[disk-watchdog] ALERT: still ''${USAGE}% — manual intervention needed"
       fi
     '';
   };
