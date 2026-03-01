@@ -5,8 +5,8 @@
 {
   home.packages = with pkgs; [
     # Container tools
+    docker-client
     podman
-    podman-compose
     buildah
     skopeo
     dive             # Docker image analyzer
@@ -31,8 +31,9 @@
     cloudflared
     flarectl
 
-    # Docker Compose (for compatibility)
+    # Docker Compose
     docker-compose
+    docker-buildx
 
     # Service mesh
     istioctl

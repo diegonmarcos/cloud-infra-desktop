@@ -81,7 +81,7 @@
     networkmanager.enable = lib.mkDefault true;  # ISO disables this
     firewall = {
       enable = lib.mkDefault true;
-      allowedTCPPorts = [ 22 8000 ];  # SSH + Windmill
+      allowedTCPPorts = [ 22 ];  # SSH only
     };
   };
 
@@ -546,6 +546,15 @@ EOF
       "--avoid" "^(kwin|plasma|sddm|Xwayland|pipewire)$"  # Protect desktop
     ];
   };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOURNALD (Survive hard freezes)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  services.journald.extraConfig = ''
+    SyncIntervalSec=1s
+    MaxRetentionSec=1week
+  '';
 
   # ═══════════════════════════════════════════════════════════════════════════
   # AUDIO (Pipewire)
