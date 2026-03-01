@@ -134,7 +134,7 @@
           ./modules/sops.nix
 
           # Plasma configuration (for desktop-plasma profile)
-          plasma-manager.homeManagerModules.plasma-manager
+          plasma-manager.homeModules.plasma-manager
 
           ./modules/common.nix
           hostModule

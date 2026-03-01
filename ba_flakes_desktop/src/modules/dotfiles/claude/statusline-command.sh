@@ -190,6 +190,30 @@ if [ -z "$model_name" ]; then
     model_name="unknown"
 fi
 
+# Extract session ID from JSON input
+session_id=$(echo "$input" | jq -r '.session_id // empty')
+# Fallback: extract from transcript path (.../sessions/<id>/transcript.jsonl)
+if [ -z "$session_id" ]; then
+    session_id=$(basename "$(dirname "$transcript_path")" 2>/dev/null)
+fi
+session_short="${session_id:0:8}"
+
+# MCP server status - count configured servers from config files
+mcp_configured=0
+if [ -f "$HOME/.mcp.json" ]; then
+    n=$(jq '.mcpServers // {} | keys | length' "$HOME/.mcp.json" 2>/dev/null)
+    [ -n "$n" ] && mcp_configured=$((mcp_configured + n))
+fi
+if [ -f "${cwd}/.mcp.json" ]; then
+    n=$(jq '.mcpServers // {} | keys | length' "${cwd}/.mcp.json" 2>/dev/null)
+    [ -n "$n" ] && mcp_configured=$((mcp_configured + n))
+fi
+if [ "$mcp_configured" -gt 0 ]; then
+    mcp_color="32"  # green
+else
+    mcp_color="90"  # dim
+fi
+
 # Format token count (K for thousands, M for millions)
 format_tokens() {
     local tokens=$1
@@ -415,9 +439,14 @@ public_ip=$(curl -s --max-time 2 ifconfig.me 2>/dev/null)
 # Format: HH:MM:SS  opus-4-5 diego@surface directory  branch@hash*+?↑↓ ≡stash CTX:tokens RAM:% CPU:% Disk:% VRAM:%
 OUT=""
 
-# === LINE 1: Date/Time + Model + User@Host + Dir + Git ===
-OUT+="\033[90m${timestamp}\033[0m"
+# === LINE 1: | date | model session mcp_status | host repo branch | ===
+OUT+="\033[37m|\033[0m"
+OUT+=" \033[90m${timestamp}\033[0m"
+OUT+=" \033[37m|\033[0m"
 OUT+=" \033[35m\033[0m \033[35m${model_name}\033[0m"
+OUT+=" \033[90m${session_short}\033[0m"
+OUT+=" \033[${mcp_color}mMCP:${mcp_configured}\033[0m"
+OUT+=" \033[37m|\033[0m"
 OUT+=" \033[36m${user_host}\033[0m"
 OUT+=" \033[34m$(basename "$cwd")\033[0m"
 
@@ -427,18 +456,21 @@ if [ -n "$git_branch" ]; then
     [ -n "$git_status_icons" ] && OUT+="\033[31m${git_status_icons}\033[0m"
     [ -n "$git_stash" ] && OUT+=" \033[35m${git_stash}\033[0m"
 fi
+OUT+=" \033[37m|\033[0m"
 OUT+="\n"
 
-# === LINE 2: System Metrics | Network ===
-OUT+="\033[${mem_color}mRAM:${mem_percent}%\033[0m"
+# === LINE 2: | System Metrics | Network | ===
+OUT+="\033[37m|\033[0m"
+OUT+=" \033[${mem_color}mRAM:${mem_percent}%\033[0m"
 OUT+=" \033[${cpu_color}mCPU:${cpu_percent}%\033[0m"
 OUT+=" \033[${disk_color}mDisk:${disk_percent}%\033[0m"
 OUT+=" \033[${vram_color}mVRAM:${vram_percent}%\033[0m"
-OUT+=" \033[37m|\033[0m "
-OUT+="\033[${mesh_color}mMesh:${mesh_status}\033[0m"
+OUT+=" \033[37m|\033[0m"
+OUT+=" \033[${mesh_color}mMesh:${mesh_status}\033[0m"
 OUT+=" \033[36mM:${mesh_ip}\033[0m"
 OUT+=" \033[36mP:${private_ip}\033[0m"
 OUT+=" \033[36mPub:${public_ip}\033[0m"
+OUT+=" \033[37m|\033[0m"
 OUT+="\n"
 
 # === LINE 3: Context Window | Session Usage ===
@@ -452,7 +484,8 @@ sess_out_fmt=$(format_tokens "$sess_output")
 ctx_cost_in=$(LC_NUMERIC=C awk "BEGIN {printf \"%.2f\", ${ctx_input:-0} * ${price_input:-3} / 1000000}")
 ctx_cost_out=$(LC_NUMERIC=C awk "BEGIN {printf \"%.2f\", ${ctx_output:-0} * ${price_output:-15} / 1000000}")
 
-OUT+="\033[90m${last_reset_ts}\033[0m "
+OUT+="\033[37m|\033[0m"
+OUT+=" \033[90m${last_reset_ts}\033[0m"
 if [ "$exceeds_200k" = "true" ]; then
     OUT+="\033[31mCTX:${ctx_current_fmt}/200K(⚠)\033[0m"
 else
@@ -477,6 +510,7 @@ else
     cost_color="32"
 fi
 OUT+=" \033[${cost_color}m\$${sess_cost_in:-0.00}/\$${sess_cost_out:-0.00}\033[0m"
+OUT+=" \033[37m|\033[0m"
 OUT+="\n"
 
 # Print everything at once (atomic render — no word-by-word flickering)
