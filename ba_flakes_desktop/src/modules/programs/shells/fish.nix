@@ -20,10 +20,10 @@
       gcl = "git clone";
 
       # Docker abbreviations
-      dps = "podman ps";
-      dpsa = "podman ps -a";
-      dcu = "podman-compose up";
-      dcd = "podman-compose down";
+      dps = "docker ps";
+      dpsa = "docker ps -a";
+      dcu = "docker compose up";
+      dcd = "docker compose down";
     };
 
     shellAliases = {
@@ -37,7 +37,7 @@
       cat = "bat --paging=never";
       grep = "rg";
       find = "fd";
-      docker = "podman";
+      # docker is real docker — no alias needed
 
       # Navigation
       ".." = "cd ..";

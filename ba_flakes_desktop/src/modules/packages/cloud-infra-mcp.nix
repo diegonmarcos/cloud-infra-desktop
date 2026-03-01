@@ -7,15 +7,15 @@ buildNpmPackage rec {
 
   # Use local source from cloud repo (filtered to avoid unnecessary rebuilds)
   src = builtins.path {
-    path = /home/diego/Mounts/Git/cloud/a_solutions/bb-sec_mcp-server-skills;
+    path = /home/diego/Mounts/Git/cloud/a_solutions/mcp-api-c3;
     name = "cloud-infra-mcp-src";
   };
 
   # Hash computed via: nix run nixpkgs#prefetch-npm-deps -- package-lock.json
   npmDepsHash = "sha256-MxaYQAzRBRbigHmGUUi/y3LIwK6eNhmRh3yyL8xYcCs=";
 
-  # Build TypeScript to JavaScript
-  npmBuildScript = "build";
+  # Skip TS build — MCP server runs via npx tsx at runtime
+  dontNpmBuild = true;
 
   # The compiled output is the MCP server entrypoint
   # Node will find @modelcontextprotocol/sdk in node_modules bundled by Nix
