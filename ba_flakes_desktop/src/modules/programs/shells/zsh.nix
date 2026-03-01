@@ -66,15 +66,14 @@
       gst = "git stash";
       gstp = "git stash pop";
 
-      # Docker/Podman
-      docker = "podman";
-      dc = "podman-compose";
-      dps = "podman ps";
-      dpsa = "podman ps -a";
-      dcu = "podman-compose up";
-      dcd = "podman-compose down";
-      dlog = "podman logs --tail 100";
-      dex = "podman exec -it";
+      # Docker
+      dc = "docker compose";
+      dps = "docker ps";
+      dpsa = "docker ps -a";
+      dcu = "docker compose up";
+      dcd = "docker compose down";
+      dlog = "docker logs --tail 100";
+      dex = "docker exec -it";
 
       # System
       df = "duf";

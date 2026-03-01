@@ -201,12 +201,15 @@ nix_switch() {
     # Use -b backup to automatically backup conflicting files
     _rc_file=$(mktemp)
     if check_home_manager 2>/dev/null; then
-        { home-manager switch -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+        { home-manager switch --impure -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     else
-        { nix run home-manager -- switch -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+        { nix run home-manager -- switch --impure -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     fi
-    exit_code=$(cat "$_rc_file")
+    exit_code=$(cat "$_rc_file" 2>/dev/null)
     rm -f "$_rc_file"
+
+    # Default to 0 if exit_code is empty
+    exit_code=${exit_code:-0}
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Configuration failed with exit code $exit_code"
@@ -229,8 +232,11 @@ nix_update() {
 
     _rc_file=$(mktemp)
     { nix flake update 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
-    exit_code=$(cat "$_rc_file")
+    exit_code=$(cat "$_rc_file" 2>/dev/null)
     rm -f "$_rc_file"
+
+    # Default to 0 if exit_code is empty
+    exit_code=${exit_code:-0}
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Flake update failed with exit code $exit_code"
@@ -699,9 +705,9 @@ show_help() {
 ${BOLD}Diego's Dev Environment - Build Script${NC}
 
 ${YELLOW}USAGE:${NC}
-    ./build.sh              Launch TUI menu
+    ./build.sh              Show this help
     ./build.sh <command>    Run specific command
-    ./build.sh --help       Show this help
+    ./build.sh tui          Launch interactive TUI menu
 
 ${YELLOW}NIX COMMANDS:${NC}
     install                 Install Nix package manager
@@ -727,6 +733,7 @@ ${YELLOW}DISTROBOX COMMANDS:${NC}
     distrobox-remove [name] Remove distrobox
 
 ${YELLOW}UTILITY COMMANDS:${NC}
+    tui|menu                Launch interactive TUI menu
     status                  Show system status
     clean                   Clean build artifacts
     log                     View build log
@@ -761,9 +768,9 @@ main() {
     # Initialize log
     log "========== Build script started =========="
 
-    # No arguments - run TUI
+    # No arguments - show help
     if [ $# -eq 0 ]; then
-        run_tui
+        show_help
         exit 0
     fi
 
@@ -828,6 +835,11 @@ main() {
             ;;
         distrobox-remove)
             distrobox_remove "${1:-diego-dev}"
+            ;;
+
+        # Interactive TUI
+        tui|menu)
+            run_tui
             ;;
 
         # Utility commands

@@ -62,6 +62,7 @@
     dnsutils
     inetutils        # telnet, ftp, etc.
     openssh
+    socat
 
     # Other essentials
     file

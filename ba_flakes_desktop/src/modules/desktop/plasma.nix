@@ -494,14 +494,31 @@
         VirtualKeyboardTheme = "breeze";
       };
 
-      # Keyboard layout - Spanish as default
+      # ─────────────────────────────────────────────────────────────────
+      # Power Management - Lock on lid close instead of suspend
+      # Surface Pro 8 suspend/resume is broken: surface_hid reprobe fails,
+      # DRM atomic commit errors, and logind marks the session Active=no,
+      # which causes kscreenlocker to silently ignore correct passwords.
+      # ─────────────────────────────────────────────────────────────────
+      "powerdevilrc"."AC][HandleButtonEvents" = {
+        lidAction = 64;  # Lock Screen
+      };
+      "powerdevilrc"."Battery][HandleButtonEvents" = {
+        lidAction = 64;  # Lock Screen
+      };
+      "powerdevilrc"."LowBattery][HandleButtonEvents" = {
+        lidAction = 64;  # Lock Screen
+      };
+
+      # Keyboard layouts - Spanish (default), British, Portuguese, German
       "kxkbrc"."Layout" = {
-        LayoutList = "es";
-        DisplayNames = "Spanish";
-        Options = "";
+        LayoutList = "es,gb,pt,de";
+        DisplayNames = "Spanish,British,Portuguese,German";
+        Options = "grp:alt_shift_toggle";  # Switch layouts with Alt+Shift
         ResetOldOptions = true;
         SwitchMode = "Global";
         Use = true;
+        VariantList = ",,,";  # Default variants for each layout
       };
 
       "kdeglobals"."WM" = {

@@ -21,17 +21,8 @@
   hardware.enableAllFirmware = true;
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # NIX SETTINGS
+  # NIX SETTINGS (consolidated below near CONTAINERS section)
   # ═══════════════════════════════════════════════════════════════════════════
-  # NOTE: linux-surface kernel is cached LOCALLY in @nixos/nix after first build.
-  # Kubuntu mounts @nixos/nix as /nix when building, so kernel is never rebuilt.
-  # See architecture.md for ONE STORE design.
-  # ═══════════════════════════════════════════════════════════════════════════
-  nix.settings = {
-    max-jobs = 4;
-    substituters = [ "https://cache.nixos.org" ];
-    trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
-  };
 
   # Auto garbage collection - keep only 5 generations, run weekly
   nix.gc = {
@@ -81,9 +72,24 @@
     networkmanager.enable = lib.mkDefault true;  # ISO disables this
     firewall = {
       enable = lib.mkDefault true;
-      allowedTCPPorts = [ 22 ];
+      allowedTCPPorts = [ 22 ];  # SSH only
     };
   };
+
+  # WireGuard mesh VPN (on-demand, not auto-start)
+  networking.wireguard.interfaces.wg0 = {
+    ips = [ "10.0.0.5/24" ];
+    privateKeyFile = "/home/diego/.config/wireguard/privatekey";
+    peers = [
+      {
+        publicKey = "vV/phXUwnCjxACQ5Df11Uw47BzJaK4r85jPYMu2HmDc=";
+        endpoint = "35.226.147.64:51820";
+        allowedIPs = [ "10.0.0.0/24" ];
+        persistentKeepalive = 25;
+      }
+    ];
+  };
+  systemd.services.wireguard-wg0.wantedBy = lib.mkForce [];
 
   # ═══════════════════════════════════════════════════════════════════════════
   # WIFI & BLUETOOTH PERSISTENCE
@@ -153,12 +159,19 @@
     geoProviderUrl = "https://beacondb.net/v1/geolocate";
   };
   services.automatic-timezoned.enable = true;
-  i18n.defaultLocale = "en_US.UTF-8";
+  i18n.defaultLocale = "en_GB.UTF-8";
   i18n.extraLocaleSettings = {
-    LC_ALL = "en_US.UTF-8";
-    LANG = "en_US.UTF-8";
+    LC_ALL = "en_GB.UTF-8";
+    LANG = "en_GB.UTF-8";
   };
-  i18n.supportedLocales = [ "en_US.UTF-8/UTF-8" "es_ES.UTF-8/UTF-8" ];
+  i18n.supportedLocales = [
+    "en_GB.UTF-8/UTF-8"   # British English (international date format DD/MM/YYYY)
+    "en_US.UTF-8/UTF-8"   # American English
+    "es_ES.UTF-8/UTF-8"   # Spanish
+    "pt_PT.UTF-8/UTF-8"   # Portuguese
+    "pt_BR.UTF-8/UTF-8"   # Brazilian Portuguese
+    "de_DE.UTF-8/UTF-8"   # German
+  ];
 
   # Console (TTY) keyboard layout - Spanish
   console.keyMap = "es";
@@ -506,24 +519,169 @@ EOF
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # OOM PROTECTION (Prevent GUI freezes under memory pressure)
+  # RESOURCE BOUNCER — System That NEVER Freezes
   # ═══════════════════════════════════════════════════════════════════════════
   #
-  # earlyoom is more aggressive than systemd-oomd and prevents GUI freezes
-  # by killing memory-hungry processes BEFORE the system becomes unresponsive.
-  # Without this, high memory usage causes compositor starvation → frozen GUI.
+  # Surface Pro 8, 7.6GB RAM. Prevents hard lockups under memory pressure
+  # using cgroups v2 caps, zram, earlyoom, and compositor memory guarantees.
+  #
+  # Architecture:
+  #   system.slice  → MemoryMin=500M (systemd, sshd, docker daemon)
+  #   user-.slice   → MemoryMax=90% cap, compositor gets MemoryMin guarantee
+  #   machine.slice → MemoryMax=50% cap (docker/podman containers)
+  #   nix-daemon    → MemoryMax=70% cap, CPUQuota=50%
+  #   Safety nets   → zram (50% compressed) + earlyoom (10% threshold)
+  #
+  # Result: system slows down under pressure — NEVER locks up.
   #
 
+  # ─── Kernel sysctl: memory management tuning ────────────────────────────
+  boot.kernel.sysctl = {
+    "vm.min_free_kbytes" = 262144;         # 256MB kernel reserve
+    "vm.swappiness" = 150;                 # zram: prefer compressed swap over dropping caches
+    "vm.dirty_ratio" = 10;                 # Sync writeback at ~760MB dirty
+    "vm.dirty_background_ratio" = 5;       # Async writeback at ~380MB dirty
+    "vm.watermark_scale_factor" = 500;     # Aggressive kswapd wake-up
+  };
+
+  # ─── zram: compressed swap in RAM ───────────────────────────────────────
+  zramSwap = {
+    enable = true;
+    algorithm = "zstd";
+    memoryPercent = 50;    # 3.8GB → ~11GB effective compressed swap
+    priority = 100;        # Fill before disk swap
+  };
+
+  # ─── earlyoom: last resort OOM killer ───────────────────────────────────
   services.earlyoom = {
     enable = true;
-    freeMemThreshold = 5;          # Kill when <5% RAM free
-    freeSwapThreshold = 10;        # Kill when <10% swap free
-    enableNotifications = true;    # Desktop notifications when killing
+    freeMemThreshold = 10;          # SIGTERM at ~760MB free
+    freeSwapThreshold = 10;
+    freeMemKillThreshold = 5;       # SIGKILL at ~380MB free
+    freeSwapKillThreshold = 5;
+    enableNotifications = true;
+    reportInterval = 0;
     extraArgs = [
-      "--prefer" "^(brave|firefox|chromium|electron)$"  # Kill browsers first
-      "--avoid" "^(kwin|plasma|sddm|Xwayland|pipewire)$"  # Protect desktop
+      "--prefer" "^(brave|firefox|chromium|electron|nix-daemon|nix-build|nix)$"
+      "--avoid" "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus)$"
     ];
   };
+
+  # ─── THE BOUNCER: cgroup slice limits ───────────────────────────────────
+
+  # System slice: guaranteed minimum for systemd, sshd, docker daemon, etc
+  systemd.slices."system".sliceConfig = {
+    MemoryMin = "500M";
+    CPUWeight = 10000;      # Highest priority when CPU contested
+  };
+
+  # User slice: 90% cap — no browser/app eats the whole system
+  systemd.slices."user-".sliceConfig = {
+    MemoryMax = "6800M";    # 90% of 7.6GB
+    CPUQuota = "720%";      # 90% of 8 logical CPUs
+  };
+
+  # Compositor protection INSIDE user.slice — guaranteed memory per service
+  systemd.user.services."plasma-kwin_wayland".serviceConfig = {
+    MemoryMin = "300M";     # Kernel CANNOT reclaim below this
+  };
+  systemd.user.services."plasma-plasmashell".serviceConfig = {
+    MemoryMin = "200M";
+  };
+  systemd.user.services."pipewire".serviceConfig = {
+    MemoryMin = "50M";
+  };
+
+  # Machine slice: 50% cap — containers are secondary workloads
+  systemd.slices."machine".sliceConfig = {
+    MemoryMax = "3800M";    # 50% of 7.6GB
+    CPUQuota = "400%";      # 50% of 8 logical CPUs
+  };
+
+  # ─── JANITOR: Disk watchdog — escalating cleanup ────────────────────────
+  systemd.timers."disk-watchdog" = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2min";
+      OnUnitActiveSec = "5min";
+    };
+  };
+
+  systemd.services."disk-watchdog" = {
+    serviceConfig.Type = "oneshot";
+    path = with pkgs; [ coreutils findutils systemd nix util-linux ];
+    script = ''
+      WARN=85
+      CRIT=90
+      EMERG=95
+
+      USAGE=$(df / --output=pcent | tail -1 | tr -d ' %')
+      echo "[disk-watchdog] Root disk usage: ''${USAGE}%"
+
+      [ "$USAGE" -lt "$WARN" ] && exit 0
+
+      echo "[disk-watchdog] WARNING: ''${USAGE}% — starting cleanup"
+
+      # Level 1 (>85%): Safe targets
+      find /tmp -type f -atime +2 -delete 2>/dev/null || true
+      find /var/tmp -type f -atime +2 -delete 2>/dev/null || true
+      journalctl --vacuum-size=100M 2>/dev/null || true
+
+      # Desktop: clean user caches
+      find /home/*/. -maxdepth 0 2>/dev/null | while read home; do
+        find "$home/.cache" -type f -atime +7 -delete 2>/dev/null || true
+      done
+
+      # Docker/Podman cleanup
+      if command -v docker >/dev/null 2>&1; then
+        docker container prune -f 2>/dev/null || true
+        docker image prune -f 2>/dev/null || true
+        docker builder prune -f --keep-storage=1G 2>/dev/null || true
+      fi
+      if command -v podman >/dev/null 2>&1; then
+        podman system prune -f 2>/dev/null || true
+      fi
+
+      USAGE=$(df / --output=pcent | tail -1 | tr -d ' %')
+      [ "$USAGE" -lt "$CRIT" ] && echo "[disk-watchdog] Resolved at ''${USAGE}%" && exit 0
+
+      # Level 2 (>90%): Aggressive
+      echo "[disk-watchdog] Level 2: aggressive cleanup (''${USAGE}%)"
+      journalctl --vacuum-size=50M 2>/dev/null || true
+
+      if command -v docker >/dev/null 2>&1; then
+        docker image prune -af 2>/dev/null || true
+        docker volume prune -f 2>/dev/null || true
+      fi
+
+      nix-collect-garbage --delete-older-than 3d 2>/dev/null || true
+
+      USAGE=$(df / --output=pcent | tail -1 | tr -d ' %')
+      [ "$USAGE" -lt "$EMERG" ] && echo "[disk-watchdog] Resolved at ''${USAGE}%" && exit 0
+
+      # Level 3 (>95%): Emergency
+      echo "[disk-watchdog] CRITICAL: ''${USAGE}% — emergency cleanup"
+      find /var/log -name "*.log" -size +10M -exec truncate -s 1M {} \; 2>/dev/null || true
+      find /var/log -name "*.gz" -delete 2>/dev/null || true
+      find /var/log -name "*.old" -delete 2>/dev/null || true
+      nix-collect-garbage -d 2>/dev/null || true
+
+      USAGE=$(df / --output=pcent | tail -1 | tr -d ' %')
+      echo "[disk-watchdog] Final: ''${USAGE}%"
+      if [ "$USAGE" -ge "$EMERG" ]; then
+        echo "[disk-watchdog] ALERT: still ''${USAGE}% — manual intervention needed"
+      fi
+    '';
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOURNALD (Survive hard freezes)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  services.journald.extraConfig = ''
+    SyncIntervalSec=1s
+    MaxRetentionSec=1week
+  '';
 
   # ═══════════════════════════════════════════════════════════════════════════
   # AUDIO (Pipewire)
@@ -602,14 +760,18 @@ EOF
   # ═══════════════════════════════════════════════════════════════════════════
 
   nix.settings = {
+    max-jobs = 2;
+    substituters = [ "https://cache.nixos.org" ];
+    trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
     experimental-features = [ "nix-command" "flakes" ];
     auto-optimise-store = true;
     trusted-users = [ "root" "diego" ];
 
-    # CRITICAL: Use disk-backed build directory, NOT tmpfs
-    # Kernel builds need 5-10GB temp space, tmpfs only has ~4GB
-    # This prevents "No space left on device" during large builds
-    build-dir = "/var/tmp/nix-build";
+    # CRITICAL: Use btrfs-backed build directory, NOT tmpfs
+    # Root (/) is a 2GB tmpfs (impermanence), /var/tmp lives there too.
+    # Large builds (terraform go-modules, kernel) need 5-10GB temp space.
+    # /nix is on btrfs with ~26GB free, so builds always have enough room.
+    build-dir = "/nix/tmp";
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -674,12 +836,6 @@ EOF
     onboard              # Full-featured: arrows, Fn keys, mouse buttons, word prediction
     kdePackages.qtvirtualkeyboard  # Qt virtual keyboard for SDDM login screen
 
-    # Input method frameworks (appear in Plasma Virtual Keyboard settings)
-    fcitx5                         # Modern input method with virtual keyboard
-    kdePackages.fcitx5-qt          # Fcitx5 Qt6/KDE integration
-    kdePackages.fcitx5-configtool  # Fcitx5 configuration GUI
-    ibus                           # IBus input method framework
-
     # ─── Wallpapers ───────────────────────────────────────────────────────────
     kdePackages.plasma-workspace-wallpapers
 
@@ -726,6 +882,30 @@ EOF
     liberation_ttf
     jetbrains-mono
   ];
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WINDMILL - Workflow Orchestrator
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Web UI: http://localhost:8000
+  # Use for: NixOS updates, home-manager updates, system maintenance workflows
+
+  services.windmill = {
+    enable = true;
+    serverPort = 8000;
+    lspPort = 3001;
+
+    # Local PostgreSQL database (auto-managed)
+    database = {
+      createLocally = true;
+      name = "windmill";
+      user = "windmill";
+    };
+
+    # Base URL for webhooks and external access
+    baseUrl = "http://localhost:8000";
+
+    logLevel = "info";
+  };
 
   # ═══════════════════════════════════════════════════════════════════════════
   # FLATPAK (For user apps)
@@ -904,6 +1084,17 @@ EOF
   security.pam.services.sddm.enableKwallet = true;
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # LOGIND - Lid/Power Button Behavior
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Lock on lid close instead of suspend - Surface Pro 8 suspend/resume is
+  # unreliable: surface_hid reprobe fails (error -71), DRM atomic commits
+  # error, and logind marks the session Active=no, which causes kscreenlocker
+  # to silently reject correct passwords.
+  services.logind.lidSwitch = "lock";
+  services.logind.lidSwitchExternalPower = "lock";
+  services.logind.lidSwitchDocked = "ignore";
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # UDEV RULES (Device naming for Dolphin/KDE)
   # ═══════════════════════════════════════════════════════════════════════════
 
@@ -919,6 +1110,11 @@ EOF
     # Prevent Type Cover devices from suspending (trackpad/keyboard on SAM bus)
     # The above rule only affects the main controller; this targets the child devices (01:15:*)
     ACTION=="add", SUBSYSTEM=="surface_aggregator", ATTR{power/control}="on"
+
+    # Suppress ghost Type Cover device 01:15:02:02:00 - always fails probe with error -71
+    # SAM firmware 11.401.139 advertises this device but returns empty HID descriptor (0 bytes).
+    # Preventing surface_hid from probing it avoids SAM bus contention that can freeze the touchpad.
+    ACTION=="add", SUBSYSTEM=="surface_aggregator", ATTR{modalias}=="ssam:d01c15t02i02f00", ATTR{driver_override}="none"
   '';
 
   # ═══════════════════════════════════════════════════════════════════════════

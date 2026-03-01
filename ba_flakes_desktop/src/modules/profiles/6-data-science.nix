@@ -7,6 +7,7 @@
     # AI CLI tools (custom packages)
     customPkgs.claude-code
     customPkgs.gemini-cli
+    customPkgs.cloud-infra-mcp
 
     # Python data science core
     python312Packages.numpy
