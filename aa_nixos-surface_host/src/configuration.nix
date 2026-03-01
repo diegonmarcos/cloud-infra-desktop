@@ -21,17 +21,8 @@
   hardware.enableAllFirmware = true;
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # NIX SETTINGS
+  # NIX SETTINGS (consolidated below near CONTAINERS section)
   # ═══════════════════════════════════════════════════════════════════════════
-  # NOTE: linux-surface kernel is cached LOCALLY in @nixos/nix after first build.
-  # Kubuntu mounts @nixos/nix as /nix when building, so kernel is never rebuilt.
-  # See architecture.md for ONE STORE design.
-  # ═══════════════════════════════════════════════════════════════════════════
-  nix.settings = {
-    max-jobs = 4;
-    substituters = [ "https://cache.nixos.org" ];
-    trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
-  };
 
   # Auto garbage collection - keep only 5 generations, run weekly
   nix.gc = {
@@ -528,23 +519,103 @@ EOF
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # OOM PROTECTION (Prevent GUI freezes under memory pressure)
+  # RESOURCE BOUNCER — System That NEVER Freezes
   # ═══════════════════════════════════════════════════════════════════════════
   #
-  # earlyoom is more aggressive than systemd-oomd and prevents GUI freezes
-  # by killing memory-hungry processes BEFORE the system becomes unresponsive.
-  # Without this, high memory usage causes compositor starvation → frozen GUI.
+  # Surface Pro 8, 7.6GB RAM. Prevents hard lockups under memory pressure
+  # using cgroups v2 caps, zram, earlyoom, and compositor memory guarantees.
+  #
+  # Architecture:
+  #   system.slice  → MemoryMin=500M (systemd, sshd, docker daemon)
+  #   user-.slice   → MemoryMax=90% cap, compositor gets MemoryMin guarantee
+  #   machine.slice → MemoryMax=50% cap (docker/podman containers)
+  #   nix-daemon    → MemoryMax=70% cap, CPUQuota=50%
+  #   Safety nets   → zram (50% compressed) + earlyoom (10% threshold)
+  #
+  # Result: system slows down under pressure — NEVER locks up.
   #
 
+  # ─── Kernel sysctl: memory management tuning ────────────────────────────
+  boot.kernel.sysctl = {
+    "vm.min_free_kbytes" = 262144;         # 256MB kernel reserve
+    "vm.swappiness" = 150;                 # zram: prefer compressed swap over dropping caches
+    "vm.dirty_ratio" = 10;                 # Sync writeback at ~760MB dirty
+    "vm.dirty_background_ratio" = 5;       # Async writeback at ~380MB dirty
+    "vm.watermark_scale_factor" = 500;     # Aggressive kswapd wake-up
+  };
+
+  # ─── zram: compressed swap in RAM ───────────────────────────────────────
+  zramSwap = {
+    enable = true;
+    algorithm = "zstd";
+    memoryPercent = 50;    # 3.8GB → ~11GB effective compressed swap
+    priority = 100;        # Fill before disk swap
+  };
+
+  # ─── earlyoom: last resort OOM killer ───────────────────────────────────
   services.earlyoom = {
     enable = true;
-    freeMemThreshold = 5;          # Kill when <5% RAM free
-    freeSwapThreshold = 10;        # Kill when <10% swap free
-    enableNotifications = true;    # Desktop notifications when killing
+    freeMemThreshold = 10;          # SIGTERM at ~760MB free
+    freeSwapThreshold = 10;
+    freeMemKillThreshold = 5;       # SIGKILL at ~380MB free
+    freeSwapKillThreshold = 5;
+    enableNotifications = true;
+    reportInterval = 0;
     extraArgs = [
-      "--prefer" "^(brave|firefox|chromium|electron)$"  # Kill browsers first
-      "--avoid" "^(kwin|plasma|sddm|Xwayland|pipewire)$"  # Protect desktop
+      "--prefer" "^(brave|firefox|chromium|electron|nix-daemon|nix-build|nix)$"
+      "--avoid" "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus)$"
     ];
+  };
+
+  # ─── THE BOUNCER: cgroup slice limits ───────────────────────────────────
+
+  # System slice: guaranteed minimum for systemd, sshd, docker daemon, etc
+  systemd.slices."system".sliceConfig = {
+    MemoryMin = "500M";
+    CPUWeight = 10000;      # Highest priority when CPU contested
+  };
+
+  # User slice: 90% cap — no browser/app eats the whole system
+  systemd.slices."user-".sliceConfig = {
+    MemoryMax = "6800M";    # 90% of 7.6GB
+    CPUQuota = "720%";      # 90% of 8 logical CPUs
+  };
+
+  # Compositor protection INSIDE user.slice — guaranteed memory per service
+  systemd.user.services."plasma-kwin_wayland".serviceConfig = {
+    MemoryMin = "300M";     # Kernel CANNOT reclaim below this
+  };
+  systemd.user.services."plasma-plasmashell".serviceConfig = {
+    MemoryMin = "200M";
+  };
+  systemd.user.services."pipewire".serviceConfig = {
+    MemoryMin = "50M";
+  };
+
+  # Machine slice: 50% cap — containers are secondary workloads
+  systemd.slices."machine".sliceConfig = {
+    MemoryMax = "3800M";    # 50% of 7.6GB
+    CPUQuota = "400%";      # 50% of 8 logical CPUs
+  };
+
+  # ─── Disk watchdog: auto-GC when /nix fills up ──────────────────────────
+  systemd.timers."disk-watchdog" = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2min";
+      OnUnitActiveSec = "5min";
+    };
+  };
+
+  systemd.services."disk-watchdog" = {
+    serviceConfig.Type = "oneshot";
+    script = ''
+      USAGE=$(${pkgs.coreutils}/bin/df /nix --output=pcent | tail -1 | tr -d ' %')
+      if [ "$USAGE" -gt 90 ]; then
+        echo "Disk >90% — running nix GC" | ${pkgs.systemd}/bin/systemd-cat -t disk-watchdog -p warning
+        ${pkgs.nix}/bin/nix-collect-garbage --delete-older-than 3d
+      fi
+    '';
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -633,6 +704,9 @@ EOF
   # ═══════════════════════════════════════════════════════════════════════════
 
   nix.settings = {
+    max-jobs = 2;
+    substituters = [ "https://cache.nixos.org" ];
+    trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
     experimental-features = [ "nix-command" "flakes" ];
     auto-optimise-store = true;
     trusted-users = [ "root" "diego" ];
