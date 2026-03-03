@@ -2,8 +2,20 @@
   "mcpServers": {
     "cloud-infra": {
       "type": "stdio",
-      "command": "node",
-      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bb-sec_mcp-server-skills/dist/index.js"]
+      "command": "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/mcp-api-c3/node_modules/.bin/tsx",
+      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/mcp-api-c3/src/mcp/index.ts"]
+    },
+    "mattermost": {
+      "type": "stdio",
+      "command": "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/aa-sui_mattermost-mcp/node_modules/.bin/tsx",
+      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/aa-sui_mattermost-mcp/src/index.ts"],
+      "env": {
+        "MM_URL": "https://chat.diegonmarcos.com",
+        "MM_CLAUDE_PASSWORD": "Claude3AI-2026",
+        "MM_TEAM_ID": "x89hszqz97g6dxytbtx3p5mmkc",
+        "MM_ADMIN_USERNAME": "me@diegonmarcos.com",
+        "CLAUDE_MODEL": "opus"
+      }
     }
   }
 }

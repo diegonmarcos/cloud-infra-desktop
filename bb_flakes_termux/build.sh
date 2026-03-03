@@ -5,8 +5,8 @@
 # Manages home-manager switch for mobile nix-on-droid environment
 #
 # Usage:
-#   ./build.sh              # Launch TUI menu
-#   ./build.sh switch       # Apply home-manager config
+#   ./build.sh              # Apply home-manager config (switch)
+#   ./build.sh tui          # Launch interactive TUI menu
 #   ./build.sh update       # Update flake inputs
 #   ./build.sh --help       # Show help
 # ============================================================================
@@ -235,11 +235,12 @@ show_help() {
 ${BOLD}Termux/nix-on-droid Home Manager${NC}
 
 ${YELLOW}USAGE:${NC}
-    ./build.sh              Launch TUI menu
+    ./build.sh              Apply config (switch, default)
     ./build.sh <command>    Run command
 
 ${YELLOW}COMMANDS:${NC}
-    switch      Apply home-manager config
+    switch      Apply home-manager config (default)
+    tui         Launch interactive TUI menu
     update      Update flake inputs
     show        Show flake outputs
     check       Validate flake
@@ -248,9 +249,9 @@ ${YELLOW}COMMANDS:${NC}
     log         View build log
 
 ${YELLOW}EXAMPLES:${NC}
-    ./build.sh switch       # Apply config
+    ./build.sh              # Apply config (same as switch)
+    ./build.sh tui          # Interactive menu
     ./build.sh update       # Update nixpkgs
-    ./build.sh status       # Show installed packages
 EOF
 }
 
@@ -260,14 +261,10 @@ EOF
 
 log "========== Build script started =========="
 
-if [ $# -eq 0 ]; then
-    run_tui
-    exit 0
-fi
-
-case "$1" in
+case "${1:-switch}" in
     -h|--help|help) show_help ;;
     switch)  cmd_switch ;;
+    tui)     run_tui ;;
     update)  cmd_update ;;
     show)    cmd_show ;;
     check)   cmd_check ;;

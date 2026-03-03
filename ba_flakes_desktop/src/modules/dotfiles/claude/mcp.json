@@ -4,6 +4,18 @@
       "type": "stdio",
       "command": "npx",
       "args": ["tsx", "/home/diego/Mounts/Git/cloud/a_solutions/mcp-api-c3/src/mcp/index.ts"]
+    },
+    "mattermost": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["tsx", "/home/diego/Mounts/Git/cloud/a_solutions/aa-sui_mattermost-mcp/src/index.ts"],
+      "env": {
+        "MM_URL": "https://chat.diegonmarcos.com",
+        "MM_CLAUDE_PASSWORD": "Claude3AI-2026",
+        "MM_TEAM_ID": "x89hszqz97g6dxytbtx3p5mmkc",
+        "MM_ADMIN_USERNAME": "me@diegonmarcos.com",
+        "CLAUDE_MODEL": "opus"
+      }
     }
   }
 }
