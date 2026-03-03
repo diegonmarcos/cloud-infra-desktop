@@ -143,18 +143,18 @@
       # =======================================================================
 
       __nix_guard_msg() {
-        echo -e "\033[1;31m⚠️  STOP! This is NixOS - packages are managed declaratively.\033[0m"
         echo ""
-        echo -e "\033[1;33mTo install packages permanently:\033[0m"
-        echo "  1. nix search nixpkgs <package>     # Find package"
-        echo "  2. Add to flake: ~/Mounts/Git/unix/cb_user_diego_nix"
-        echo "  3. ./build.sh switch surface        # Apply changes"
+        echo -e "\033[1;31m  ╔══════════════════════════════════════════════════════════════╗\033[0m"
+        echo -e "\033[1;31m  ║  READ CLAUDE.MD AND MEMORY.MD!                              ║\033[0m"
+        echo -e "\033[1;31m  ║  THIS IS A FULL DECLARATIVE ENVIRONMENT, NIX-FLAKES WAY!!!  ║\033[0m"
+        echo -e "\033[1;31m  ╚══════════════════════════════════════════════════════════════╝\033[0m"
         echo ""
-        echo -e "\033[1;33mFor temporary/non-persistent use:\033[0m"
-        echo "  nix-shell -p <package>              # Opens shell with package"
-        echo "  nix run nixpkgs#<package>           # Run package directly"
+        echo -e "\033[0;33m  Packages → ~/git/unix/ba_flakes_desktop/src/modules/packages.nix\033[0m"
+        echo -e "\033[0;33m  JS deps  → project/package.json → build.sh deps\033[0m"
+        echo -e "\033[0;33m  Build    → build.sh (ALWAYS)\033[0m"
+        echo -e "\033[0;33m  Temp pkg → nix-shell -p <package>\033[0m"
         echo ""
-        echo -e "\033[0;90mBlocked command: $1\033[0m"
+        echo -e "\033[0;90m  Blocked: $1\033[0m"
       }
 
       __nix_warn_msg() {
