@@ -92,26 +92,25 @@
       # Prevent accidental use of imperative package managers
       # ══════════════════════════════════════════════════════════════════════════
       __nix_guard_msg = ''
+        echo ""
         set_color --bold red
-        echo "⚠️  STOP! This is NixOS - packages are managed declaratively."
+        echo "  ╔══════════════════════════════════════════════════════════════╗"
+        echo "  ║  READ CLAUDE.MD AND MEMORY.MD!                              ║"
+        echo "  ║  THIS IS A FULL DECLARATIVE ENVIRONMENT, NIX-FLAKES WAY!!!  ║"
+        echo "  ╚══════════════════════════════════════════════════════════════╝"
         set_color normal
         echo ""
         set_color yellow
-        echo "To install packages permanently:"
+        echo "  Packages → ~/git/unix/ba_flakes_desktop/src/modules/packages.nix"
+        echo "  JS deps  → project/package.json → build.sh deps"
+        echo "  Build    → build.sh (ALWAYS)"
+        echo "  Temp pkg → nix-shell -p <package>"
         set_color normal
-        echo "  1. nix search nixpkgs <package>     # Find package"
-        echo "  2. Add to flake: ~/Mounts/Git/unix/cb_user_diego_nix"
-        echo "  3. ./build.sh switch surface        # Apply changes"
-        echo ""
-        set_color yellow
-        echo "For temporary/non-persistent use:"
-        set_color normal
-        echo "  nix-shell -p <package>              # Opens shell with package"
-        echo "  nix run nixpkgs#<package>           # Run package directly"
         echo ""
         set_color brblack
-        echo "Blocked command: $argv"
+        echo "  Blocked: $argv"
         set_color normal
+        return 1
       '';
 
       apt = ''
