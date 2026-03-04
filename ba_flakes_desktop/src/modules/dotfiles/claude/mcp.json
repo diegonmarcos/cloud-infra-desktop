@@ -5,6 +5,14 @@
       "command": "npx",
       "args": ["tsx", "/home/diego/Mounts/Git/cloud/a_solutions/mcp-api-c3/src/mcp/index.ts"]
     },
+    "mailu-mcp": {
+      "type": "stdio",
+      "command": "sh",
+      "args": [
+        "-c",
+        "eval $(sops -d --output-type dotenv /home/diego/Mounts/Git/cloud/a_solutions/aa-sui_mailu-mcp/src/secrets.yaml) && exec npx tsx /home/diego/Mounts/Git/cloud/a_solutions/aa-sui_mailu-mcp/src/mcp/index.ts"
+      ]
+    },
     "mattermost": {
       "type": "stdio",
       "command": "npx",
