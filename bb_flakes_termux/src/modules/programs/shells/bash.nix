@@ -87,33 +87,6 @@
         eval "$(fzf --bash)"
       fi
 
-      # Nix declarative environment guard
-      __nix_guard_msg() {
-        echo ""
-        echo -e "\033[1;31m  ╔══════════════════════════════════════════════════════════════╗\033[0m"
-        echo -e "\033[1;31m  ║  READ CLAUDE.MD AND MEMORY.MD!                              ║\033[0m"
-        echo -e "\033[1;31m  ║  THIS IS A FULL DECLARATIVE ENVIRONMENT, NIX-FLAKES WAY!!!  ║\033[0m"
-        echo -e "\033[1;31m  ╚══════════════════════════════════════════════════════════════╝\033[0m"
-        echo ""
-        echo -e "\033[0;33m  Packages → ~/git/unix/bb_flakes_termux/src/modules/packages.nix\033[0m"
-        echo -e "\033[0;33m  JS deps  → project/package.json → build.sh deps\033[0m"
-        echo -e "\033[0;33m  Build    → build.sh (ALWAYS)\033[0m"
-        echo -e "\033[0;33m  Temp pkg → nix-shell -p <package>\033[0m"
-        echo ""
-        echo -e "\033[0;90m  Blocked: $1\033[0m"
-        return 1
-      }
-      npm()      { __nix_guard_msg "npm $*"; }
-      npx()      { __nix_guard_msg "npx $*"; }
-      apt()      { __nix_guard_msg "apt $*"; }
-      apt-get()  { __nix_guard_msg "apt-get $*"; }
-      pkg()      { __nix_guard_msg "pkg $*"; }
-      pip()      { __nix_guard_msg "pip $*"; }
-      pip3()     { __nix_guard_msg "pip3 $*"; }
-      nix-env()  { __nix_guard_msg "nix-env $*"; }
-      yarn()     { __nix_guard_msg "yarn $*"; }
-      pnpm()     { __nix_guard_msg "pnpm $*"; }
-
       # Functions
       mkcd() { mkdir -p "$1" && cd "$1"; }
 

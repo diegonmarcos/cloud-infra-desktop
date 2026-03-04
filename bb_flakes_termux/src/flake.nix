@@ -51,7 +51,7 @@
             # Global PATH and SHELL for Bash/Zsh/Fish
             environment.sessionVariables = {
               SHELL = "${pkgs.bash}/bin/bash";
-              PATH = "$HOME/.nix-profile/bin:/run/current-system/sw/bin:$PATH";
+              PATH = "$HOME/.local/bin:$HOME/.nix-profile/bin:/run/current-system/sw/bin:$PATH";
               # Global memory allocator fix for Android - propagates to ALL child processes
               LD_PRELOAD = "${pkgs.mimalloc}/lib/libmimalloc.so";
               MIMALLOC_PAGE_RESET = "0";
@@ -116,7 +116,21 @@
               terraform
 
               # VPN & networking
-              wireguard-tools
+              # NOTE: wireguard-tools (wg CLI) requires root — useless on Android.
+              # The WireGuard Android app manages the tunnel via VPN API instead.
+              # We provide a wrapper that warns and redirects to `mesh`.
+              (writeShellScriptBin "wg" ''
+                echo ""
+                echo "  THIS IS A ROOTLESS ANDROID!"
+                echo "  You should NEVER try to check WireGuard connection using wg!"
+                echo ""
+                echo "  Use the 'mesh' command instead:"
+                echo "    mesh status   — check VPN tunnel status"
+                echo "    mesh up       — bring tunnel up (via Android WG app)"
+                echo "    mesh down     — bring tunnel down"
+                echo "    mesh peers    — show configured peers"
+                echo ""
+              '')
               inetutils
               termux-am
 
@@ -440,6 +454,7 @@
             home-manager.config = { pkgs, lib, ... }: {
               imports = [
                 ./modules/packages.nix
+                ./modules/guardrails.nix
               ];
               home.stateVersion = "24.05";
 

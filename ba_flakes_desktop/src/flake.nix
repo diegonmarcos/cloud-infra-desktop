@@ -137,6 +137,7 @@
           plasma-manager.homeModules.plasma-manager
 
           ./modules/common.nix
+          ./modules/guardrails.nix
           hostModule
           {
             home = {

@@ -95,39 +95,6 @@
         set_color normal
       '';
 
-      __nix_guard_msg = ''
-        echo ""
-        set_color --bold red
-        echo "  ╔══════════════════════════════════════════════════════════════╗"
-        echo "  ║  READ CLAUDE.MD AND MEMORY.MD!                              ║"
-        echo "  ║  THIS IS A FULL DECLARATIVE ENVIRONMENT, NIX-FLAKES WAY!!!  ║"
-        echo "  ╚══════════════════════════════════════════════════════════════╝"
-        set_color normal
-        echo ""
-        set_color yellow
-        echo "  Packages → ~/git/unix/bb_flakes_termux/src/modules/packages.nix"
-        echo "  JS deps  → project/package.json → build.sh deps"
-        echo "  Build    → build.sh (ALWAYS)"
-        echo "  Temp pkg → nix-shell -p <package>"
-        set_color normal
-        echo ""
-        set_color brblack
-        echo "  Blocked: $argv"
-        set_color normal
-        return 1
-      '';
-
-      npm = "__nix_guard_msg npm $argv";
-      npx = "__nix_guard_msg npx $argv";
-      apt = "__nix_guard_msg apt $argv";
-      apt-get = "__nix_guard_msg apt-get $argv";
-      pkg = "__nix_guard_msg pkg $argv";
-      pip = "__nix_guard_msg pip $argv";
-      pip3 = "__nix_guard_msg pip3 $argv";
-      nix-env = "__nix_guard_msg nix-env $argv";
-      yarn = "__nix_guard_msg yarn $argv";
-      pnpm = "__nix_guard_msg pnpm $argv";
-
       mkcd = "mkdir -p $argv[1]; and cd $argv[1]";
 
       extract = ''
