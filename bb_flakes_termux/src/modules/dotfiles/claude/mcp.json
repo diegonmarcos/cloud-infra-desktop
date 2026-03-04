@@ -16,6 +16,14 @@
         "MM_ADMIN_USERNAME": "me@diegonmarcos.com",
         "CLAUDE_MODEL": "opus"
       }
+    },
+    "mailu-mcp": {
+      "type": "stdio",
+      "command": "sh",
+      "args": [
+        "-c",
+        "eval $(sops -d --output-type dotenv /data/data/com.termux.nix/files/home/git/cloud/a_solutions/aa-sui_mailu-mcp/src/secrets.yaml) && exec /data/data/com.termux.nix/files/home/git/cloud/a_solutions/aa-sui_mailu-mcp/src/node_modules/.bin/tsx /data/data/com.termux.nix/files/home/git/cloud/a_solutions/aa-sui_mailu-mcp/src/mcp/index.ts"
+      ]
     }
   }
 }

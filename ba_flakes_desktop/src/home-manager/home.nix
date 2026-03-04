@@ -22,6 +22,7 @@
     unzip
     wget
     curl
+    netcat-openbsd  # nc — WireGuard peer probing in mesh.sh
 
     # Development
     git

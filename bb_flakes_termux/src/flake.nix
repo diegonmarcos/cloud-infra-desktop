@@ -111,6 +111,7 @@
               cloudflared
               google-cloud-sdk
               oci-cli
+              awscli2
 
               # Infrastructure as Code
               terraform

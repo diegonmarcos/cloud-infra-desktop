@@ -6,5 +6,6 @@
   home.packages = with pkgs; [
     mdbook
     tree
+    netcat-openbsd  # nc — WireGuard peer probing in mesh.sh
   ];
 }
