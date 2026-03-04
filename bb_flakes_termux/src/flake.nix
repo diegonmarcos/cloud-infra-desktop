@@ -320,95 +320,9 @@
               '')
 
               # 7. MESH (WireGuard VPN mesh management)
-              # Auto-discovers config at ~/.config/wireguard/wg0.conf
-              # (symlinked by vault/build.sh setup wireguard)
+              # Source: ~/git/tools/a-Mesh/mesh.sh + mesh.json
               (writeShellScriptBin "mesh" ''
-                WG_DIR="$HOME/.config/wireguard"
-                WG_CONF="$WG_DIR/wg0.conf"
-
-                C_RESET="\033[0m"
-                C_CYAN="\033[0;36m"
-                C_GREEN="\033[0;32m"
-                C_YELLOW="\033[0;33m"
-                C_RED="\033[0;31m"
-                C_DIM="\033[2m"
-
-                if [ ! -f "$WG_CONF" ]; then
-                  printf "''${C_RED}WireGuard config not found: %s''${C_RESET}\n" "$WG_CONF" >&2
-                  printf "''${C_DIM}Run: ~/git/vault/build.sh setup wireguard''${C_RESET}\n" >&2
-                  exit 1
-                fi
-
-                WG_TUNNEL="wg0"
-
-                case "''${1:-}" in
-                  up)
-                    printf "''${C_CYAN}Starting WireGuard tunnel...''${C_RESET}\n"
-                    ${termux-am}/bin/am broadcast -a com.wireguard.android.action.SET_TUNNEL_UP -n com.wireguard.android/.model.TunnelManager\$IntentReceiver -e tunnel "$WG_TUNNEL" 2>&1 | grep -v "^$"
-                    sleep 2
-                    if ${pkgs.inetutils}/bin/ping -c 1 -W 2 10.0.0.1 >/dev/null 2>&1; then
-                      printf "''${C_GREEN}Mesh is UP''${C_RESET}\n"
-                    else
-                      printf "''${C_YELLOW}Broadcast sent — check WireGuard app if peers don't respond''${C_RESET}\n"
-                    fi
-                    ;;
-                  down)
-                    printf "''${C_YELLOW}Stopping WireGuard tunnel...''${C_RESET}\n"
-                    ${termux-am}/bin/am broadcast -a com.wireguard.android.action.SET_TUNNEL_DOWN -n com.wireguard.android/.model.TunnelManager\$IntentReceiver -e tunnel "$WG_TUNNEL" 2>&1 | grep -v "^$"
-                    printf "''${C_GREEN}Mesh is DOWN''${C_RESET}\n"
-                    ;;
-                  status)
-                    printf "''${C_CYAN}=== WireGuard Mesh Status ===''${C_RESET}\n"
-                    printf "\n"
-                    # TCP connect to port 22 (ping needs root for ICMP)
-                    for peer in "10.0.0.1 gcp-proxy" "10.0.0.6 oci-flex-0" "10.0.0.2 oci-flex-1" "10.0.0.3 oci-mail" "10.0.0.4 oci-analytics"; do
-                      IP=$(echo "$peer" | cut -d' ' -f1)
-                      NAME=$(echo "$peer" | cut -d' ' -f2)
-                      printf "  %-16s %-8s " "$NAME" "$IP"
-                      if timeout 3 bash -c "echo >/dev/tcp/$IP/22" 2>/dev/null; then
-                        printf "''${C_GREEN}UP''${C_RESET}\n"
-                      else
-                        printf "''${C_RED}DOWN''${C_RESET}\n"
-                      fi
-                    done
-                    printf "\n"
-                    printf "''${C_DIM}Local: 10.0.0.5''${C_RESET}\n"
-                    ;;
-                  config)
-                    # Output config for WireGuard Android app import
-                    cat "$WG_CONF"
-                    ;;
-                  path)
-                    # Output config path (for WireGuard app file import)
-                    printf "%s" "$WG_CONF"
-                    ;;
-                  peers)
-                    printf "''${C_CYAN}=== Mesh Peers ===''${C_RESET}\n"
-                    printf "  ''${C_GREEN}%-16s''${C_RESET} %-10s %-22s %s\n" "NAME" "WG IP" "PUBLIC IP" "ROLE"
-                    printf "  %-16s %-10s %-22s %s\n" "gcp-proxy"      "10.0.0.1" "35.226.147.64"   "hub (24/7)"
-                    printf "  %-16s %-10s %-22s %s\n" "oci-flex-0"     "10.0.0.6" "82.70.229.129"   "general (3cpu/16gb)"
-                    printf "  %-16s %-10s %-22s %s\n" "oci-flex-1"     "10.0.0.2" "144.24.196.72"   "apps (wake-on-demand)"
-                    printf "  %-16s %-10s %-22s %s\n" "oci-mail"       "10.0.0.3" "130.110.251.193" "mail (24/7)"
-                    printf "  %-16s %-10s %-22s %s\n" "oci-analytics"  "10.0.0.4" "129.151.228.66"  "analytics (24/7)"
-                    printf "  ''${C_YELLOW}%-16s''${C_RESET} %-10s %-22s %s\n" "local (you)" "10.0.0.5" "N/A" "client"
-                    ;;
-                  *)
-                    printf "''${C_CYAN}=== WireGuard Mesh VPN ===''${C_RESET}\n"
-                    printf "\n"
-                    printf "''${C_YELLOW}Commands:''${C_RESET}\n"
-                    printf "  ''${C_GREEN}mesh up''${C_RESET}       Start VPN tunnel\n"
-                    printf "  ''${C_GREEN}mesh down''${C_RESET}     Stop VPN tunnel\n"
-                    printf "  ''${C_GREEN}mesh status''${C_RESET}   Ping all peers\n"
-                    printf "  ''${C_GREEN}mesh config''${C_RESET}   Show wg0.conf (for app import)\n"
-                    printf "  ''${C_GREEN}mesh path''${C_RESET}     Show config file path\n"
-                    printf "  ''${C_GREEN}mesh peers''${C_RESET}    Show peer topology\n"
-                    printf "\n"
-                    printf "''${C_YELLOW}First-time setup:''${C_RESET}\n"
-                    printf "  1. Install WireGuard app + allow external control\n"
-                    printf "  2. Import config: ''${C_DIM}mesh config''${C_RESET}\n"
-                    printf "  3. Then use: ''${C_DIM}mesh up / mesh down''${C_RESET}\n"
-                    ;;
-                esac
+                exec "$HOME/git/tools/a-Mesh/mesh.sh" "$@"
               '')
 
               # 8. BEARER (Authelia bearer token for CLI access)
