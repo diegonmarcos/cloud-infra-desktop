@@ -6678,3 +6678,78 @@ error:
 [2026-03-05 15:17:34] ========== Build script started ==========
 [2026-03-05 15:17:34] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-03-05 15:17:34] INFO: Staging dirty files for flake evaluation...
+[2026-03-05 15:17:34] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 15 derivations will be built:
+  /nix/store/2czc81xrns19ncgk0hmry8ykvlylmd08-hm_.localbinpip.drv
+  /nix/store/6cv5gc7d0h4axx2wwl3b9xwfmbh77qqi-hm_.localbinpnpm.drv
+  /nix/store/b6ghyr1kbcy9vfvzf04mlx47hqhs41y2-hm_.localbinnpx.drv
+  /nix/store/csih550vx9vgsrpsyig5m3v97acnqwgh-hm_.localbinaptget.drv
+  /nix/store/gslaza5fg1rflmhnawdzmhwln2pcpipm-hm_.localbinyarn.drv
+  /nix/store/kffhic1jy9bv9g4nnx01zlrqhaj3lw70-hm_.localbinnixenv.drv
+  /nix/store/n3h4idlk4icvpkjbxl0zkwfk9bsimrvd-hm_.localbinnpm.drv
+  /nix/store/pqqpl5h3lvl074ki5khz5d3lh48bmq56-hm_.localbinpkg.drv
+  /nix/store/r0m3x2rvjrjsbhgdrga5rvax3zw10zn2-hm_.localbinapt.drv
+  /nix/store/vnijp1c478hsgqdkdwvsnpwqwhhr4bbg-hm_.localbinpip3.drv
+  /nix/store/4dwdfjvb99rgfa15x2gqnrsiddrdc0wz-home-manager-files.drv
+  /nix/store/wxz9cgskn9pidfbqvr1rk1l8i4r1zvcy-activation-script.drv
+  /nix/store/swhqgkr1x83p8m26g55ayrciqb56rx2j-home-manager-generation.drv
+  /nix/store/ns01pnwgd4s3aibh7j9xn8fh3q03pc0z-activation-script.drv
+  /nix/store/yi8240s6b2kvl8p4aqs9hsl854h5hjl3-nix-on-droid-generation.drv
+building '/nix/store/wxz9cgskn9pidfbqvr1rk1l8i4r1zvcy-activation-script.drv'...
+building '/nix/store/r0m3x2rvjrjsbhgdrga5rvax3zw10zn2-hm_.localbinapt.drv'...
+building '/nix/store/csih550vx9vgsrpsyig5m3v97acnqwgh-hm_.localbinaptget.drv'...
+building '/nix/store/kffhic1jy9bv9g4nnx01zlrqhaj3lw70-hm_.localbinnixenv.drv'...
+building '/nix/store/n3h4idlk4icvpkjbxl0zkwfk9bsimrvd-hm_.localbinnpm.drv'...
+building '/nix/store/b6ghyr1kbcy9vfvzf04mlx47hqhs41y2-hm_.localbinnpx.drv'...
+building '/nix/store/2czc81xrns19ncgk0hmry8ykvlylmd08-hm_.localbinpip.drv'...
+building '/nix/store/vnijp1c478hsgqdkdwvsnpwqwhhr4bbg-hm_.localbinpip3.drv'...
+building '/nix/store/pqqpl5h3lvl074ki5khz5d3lh48bmq56-hm_.localbinpkg.drv'...
+building '/nix/store/6cv5gc7d0h4axx2wwl3b9xwfmbh77qqi-hm_.localbinpnpm.drv'...
+building '/nix/store/gslaza5fg1rflmhnawdzmhwln2pcpipm-hm_.localbinyarn.drv'...
+building '/nix/store/4dwdfjvb99rgfa15x2gqnrsiddrdc0wz-home-manager-files.drv'...
+building '/nix/store/swhqgkr1x83p8m26g55ayrciqb56rx2j-home-manager-generation.drv'...
+building '/nix/store/ns01pnwgd4s3aibh7j9xn8fh3q03pc0z-activation-script.drv'...
+building '/nix/store/yi8240s6b2kvl8p4aqs9hsl854h5hjl3-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 76
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating mcpDeps
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-05 15:18:31] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-05 15:18:31] ========== Build script finished ==========
+[2026-03-05 15:34:09] ========== Build script started ==========
+[2026-03-05 15:34:09] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-05 15:34:10] INFO: Staging dirty files for flake evaluation...
