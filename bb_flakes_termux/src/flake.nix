@@ -141,6 +141,7 @@
               # 1. CLAUDE (Standard with jemalloc fix)
               (writeShellScriptBin "claude" ''
                 export HOME="/data/data/com.termux.nix/files/home"
+                export PATH="$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
                 export LD_PRELOAD="$(nix-build '<nixpkgs>' -A jemalloc --no-out-link)/lib/libjemalloc.so"
                 export UV_USE_IO_URING=0
                 export NODE_OPTIONS="--no-node-snapshot --max-old-space-size=1024"
@@ -151,6 +152,7 @@
               # 2. CCLAUDE (With tmp dir workaround)
               (writeShellScriptBin "cclaude" ''
                 export HOME="/data/data/com.termux.nix/files/home"
+                export PATH="$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
                 export LD_PRELOAD="$(nix-build '<nixpkgs>' -A jemalloc --no-out-link)/lib/libjemalloc.so"
                 export MALLOC_ARENA_MAX=2
                 export UV_USE_IO_URING=0

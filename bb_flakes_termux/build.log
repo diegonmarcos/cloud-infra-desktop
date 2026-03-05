@@ -6656,3 +6656,25 @@ Activating linkProfile
 [2026-03-04 19:04:53] ========== Build script started ==========
 [2026-03-04 19:04:53] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-03-04 19:04:54] INFO: Staging dirty files for flake evaluation...
+[2026-03-04 19:04:54] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+error:
+       … while calling the 'derivationStrict' builtin
+
+         at /builtin/derivation.nix:9:12: (source not available)
+
+       … while evaluating derivation 'nix-on-droid-generation'
+         whose name attribute is located at /nix/store/lv9bmgm6v1wc3fiz00v29gi4rk13ja6l-source/pkgs/stdenv/generic/make-derivation.nix:333:7
+
+       … while evaluating attribute 'buildCommand' of derivation 'nix-on-droid-generation'
+
+         at /nix/store/lv9bmgm6v1wc3fiz00v29gi4rk13ja6l-source/pkgs/build-support/trivial-builders/default.nix:68:16: (source not available)
+
+       (stack trace truncated; use '--show-trace' to show the full trace)
+
+       error: statting lock file '/nix/store/4dwdfjvb99rgfa15x2gqnrsiddrdc0wz-home-manager-files.drv.lock': Function not implemented
+[2026-03-05 15:17:34] ========== Build script started ==========
+[2026-03-05 15:17:34] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-05 15:17:34] INFO: Staging dirty files for flake evaluation...
