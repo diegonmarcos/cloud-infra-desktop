@@ -138,7 +138,7 @@
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22
 
-              # 1. CLAUDE (Standard with jemalloc fix)
+              # 1. CLAUDE (Standard with jemalloc fix — always latest via npx)
               (writeShellScriptBin "claude" ''
                 export HOME="/data/data/com.termux.nix/files/home"
                 export PATH="$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
@@ -149,7 +149,7 @@
                 exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
               '')
 
-              # 2. CCLAUDE (With tmp dir workaround)
+              # 2. CCLAUDE (With tmp dir workaround + higher memory limit)
               (writeShellScriptBin "cclaude" ''
                 export HOME="/data/data/com.termux.nix/files/home"
                 export PATH="$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
@@ -161,7 +161,12 @@
                 mkdir -p "$CLAUDE_TMP"
                 export TMPDIR="$CLAUDE_TMP"
                 export npm_config_cache="$HOME/.npm"
-                exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
+                GLOBAL_BIN="/data/data/com.termux.nix/files/usr/bin/claude"
+                NPM_BIN="$(${pkgsNew.nodejs_22}/bin/npm root -g 2>/dev/null)/../bin/claude"
+                if [ -x "$GLOBAL_BIN" ]; then exec "$GLOBAL_BIN" "$@"
+                elif [ -x "$NPM_BIN" ]; then exec "$NPM_BIN" "$@"
+                else exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
+                fi
               '')
 
               # 3. SYNC — delegates to ~/git/front/sync.sh (Rclone + Eruda HTTP)
