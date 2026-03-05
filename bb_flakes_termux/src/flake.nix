@@ -447,6 +447,7 @@
                 executable = true;
               };
               home.file.".claude/settings.json".source = ../src/modules/dotfiles/claude/settings.json;
+              home.file.".claude/skills/frontend-design.md".source = ../src/modules/dotfiles/claude/skills/frontend-design.md;
               home.file.".rgignore".source = ../src/modules/dotfiles/claude/rgignore;
 
               # Minimal .gitignore so $HOME is a git repo (ignore everything)
