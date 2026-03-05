@@ -138,7 +138,7 @@
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22
 
-              # 1. CLAUDE (Standard with jemalloc fix — always latest via npx)
+              # 1. CLAUDE (native install preferred, npx fallback for legacy)
               (writeShellScriptBin "claude" ''
                 export HOME="/data/data/com.termux.nix/files/home"
                 export PATH="$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
@@ -146,7 +146,12 @@
                 export UV_USE_IO_URING=0
                 export NODE_OPTIONS="--no-node-snapshot --max-old-space-size=1024"
                 export npm_config_cache="$HOME/.npm"
-                exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
+                GLOBAL_BIN="/data/data/com.termux.nix/files/usr/bin/claude"
+                NPM_BIN="$(${pkgsNew.nodejs_22}/bin/npm root -g 2>/dev/null)/../bin/claude"
+                if [ -x "$GLOBAL_BIN" ]; then exec "$GLOBAL_BIN" "$@"
+                elif [ -x "$NPM_BIN" ]; then exec "$NPM_BIN" "$@"
+                else exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
+                fi
               '')
 
               # 2. CCLAUDE (With tmp dir workaround + higher memory limit)
