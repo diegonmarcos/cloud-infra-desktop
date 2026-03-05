@@ -404,6 +404,23 @@
                 fi
               '';
 
+              # Symlink nix-profile bins into Termux usr/bin so non-shell processes
+              # (Claude Code, Android app launchers) can find nix-installed tools
+              # without relying on shell init PATH expansion.
+              home.activation.linkNixBinsToTermux = lib.hm.dag.entryAfter ["linkGeneration"] ''
+                TERMUX_BIN="/data/data/com.termux.nix/files/usr/bin"
+                NIX_BIN="$HOME/.nix-profile/bin"
+                if [ -d "$TERMUX_BIN" ] && [ -d "$NIX_BIN" ]; then
+                  for f in "$NIX_BIN"/*; do
+                    name="$(basename "$f")"
+                    target="$TERMUX_BIN/$name"
+                    if [ ! -e "$target" ] && [ ! -L "$target" ]; then
+                      $DRY_RUN_CMD ln -sf "$f" "$target"
+                    fi
+                  done
+                fi
+              '';
+
               # Termux font — JetBrainsMono Nerd Font
               home.file.".termux/font.ttf".source =
                 "${pkgs.nerdfonts.override { fonts = [ "JetBrainsMono" ]; }}/share/fonts/truetype/NerdFonts/JetBrainsMonoNerdFont-Regular.ttf";

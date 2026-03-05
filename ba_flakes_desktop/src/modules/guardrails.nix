@@ -19,6 +19,8 @@ let
         echo -e "\033[0;33m  JS deps  → build.sh deps | Build → build.sh build\033[0m"
         echo -e "\033[0;33m  Temp pkg → nix-shell -p <package>\033[0m"
         echo ""
+        echo -e "\033[1;35m  USE build.sh ENGINE, NEVER RUN NATIVE HARDCODED EASY FIXES!\033[0m"
+        echo ""
         PATH="''${PATH//$HOME\/.local\/bin:/}" exec ${cmd} "$@"
       '';
     };
