@@ -18,7 +18,6 @@ let
         echo -e "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m"
         echo -e "\033[1;33m  ║  2) BUILD.SH ALWAYS                                          ║\033[0m"
         echo -e "\033[1;33m  ║     JS deps  → build.sh deps | Build → build.sh build        ║\033[0m"
-        echo -e "\033[1;33m  ║     Temp pkg → nix-shell -p <package>                        ║\033[0m"
         echo -e "\033[1;33m  ╠══════════════════════════════════════════════════════════════╣\033[0m"
         echo -e "\033[1;35m  ║  3) NO HARDCODE EASY FIX                                     ║\033[0m"
         echo -e "\033[1;35m  ║     Always report a bug in the build.sh engine               ║\033[0m"
