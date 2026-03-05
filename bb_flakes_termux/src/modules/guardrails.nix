@@ -4,7 +4,7 @@
 { config, lib, ... }:
 
 let
-  commands = [ "npm" "npx" "apt" "apt-get" "pkg" "pip" "pip3" "nix-env" "yarn" "pnpm" "docker" "docker-compose" ];
+  commands = [ "npm" "npx" "apt" "apt-get" "pkg" "pip" "pip3" "nix-env" "yarn" "pnpm" "docker" "docker-compose" "nix" "nixos-rebuild" "home-manager" "bun" "cargo" "go" "conda" "poetry" "uv" "snap" "flatpak" ];
 
   mkWrapper = cmd: {
     name = ".local/bin/${cmd}";
