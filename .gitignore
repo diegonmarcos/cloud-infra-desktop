@@ -25,3 +25,4 @@ initrd.img
 vmlinuz
 *.img
 a_nixos_host/result
+.obsidian/workspace-mobile.json
