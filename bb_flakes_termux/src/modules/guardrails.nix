@@ -1,18 +1,99 @@
 # Guardrails: PATH wrapper scripts in ~/.local/bin/
-# Prints a declarative environment alert, then runs the real command.
-# Works in both interactive and non-interactive shells (unlike shell functions).
+# Three-tier command protection:
+#   BLOCKED   → dangerous flag combos that wipe databases/volumes — hard stop
+#   CONFIRM   → declarative reminder + ask y/N (auto-confirmed by build.sh)
+#   WARNING   → reminder banner, then run
+#   (no match on flags → falls through to CONFIRM or WARNING tier)
+#
+# build.sh sets BUILDSH_GUARDRAIL=1 to auto-confirm tier 2.
+# BLOCKED is never bypassed, not even by build.sh.
 { config, lib, ... }:
 
 let
-  commands = [ "npm" "npx" "apt" "apt-get" "pkg" "pip" "pip3" "nix-env" "yarn" "pnpm" "docker" "docker-compose" "nix" "nixos-rebuild" "home-manager" "bun" "cargo" "go" "conda" "poetry" "uv" "snap" "flatpak" ];
+  # ── Tier 1: BLOCKED — flag patterns that destroy data ──────────────
+  # The COMMAND is fine. The ARGS are the problem.
+  blocked = [
+    { cmd = "docker";         match = "compose down -v";           reason = "'-v' wipes Docker volumes — databases, state, everything persistent"; }
+    { cmd = "docker";         match = "compose down --volumes";    reason = "'--volumes' wipes Docker volumes — databases, state, everything persistent"; }
+    { cmd = "docker";         match = "volume rm";                 reason = "'volume rm' permanently deletes named volumes — databases live there"; }
+    { cmd = "docker";         match = "volume prune";              reason = "'volume prune' deletes ALL unused volumes — may contain databases"; }
+    { cmd = "docker";         match = "system prune -a --volumes"; reason = "'--volumes' with system prune removes everything including databases"; }
+    { cmd = "docker-compose"; match = "down -v";                   reason = "'-v' wipes Docker volumes — databases, state, everything persistent"; }
+    { cmd = "docker-compose"; match = "down --volumes";            reason = "'--volumes' wipes Docker volumes — databases, state, everything persistent"; }
+    { cmd = "rsync";          match = "--delete";                  reason = "'--delete' removes remote files not in source — use build.sh deploy instead"; }
+  ];
 
-  mkWrapper = cmd: {
+  # ── Tier 2: CONFIRM — show declarative reminder + ask y/N ──────────
+  # All commands that were already wrapped (the original 24)
+  confirmCmds = [
+    "npm" "npx" "apt" "apt-get" "pkg" "pip" "pip3" "nix-env"
+    "yarn" "pnpm" "docker" "docker-compose" "nix" "nixos-rebuild"
+    "home-manager" "snap" "flatpak" "pacman" "yay" "paru"
+    "dnf" "yum" "brew" "pipx" "conda" "poetry" "uv"
+  ];
+
+  # ── Tier 3: WARNING — reminder banner, then run ────────────────────
+  # Safe build/dev tools — you need them to work, just a nudge
+  warningCmds = [ "bun" "cargo" "go" ];
+
+  # All commands that need wrappers
+  allCommands = lib.unique (confirmCmds ++ warningCmds);
+
+  # ── Rule matching helpers ──────────────────────────────────────────
+  blockedRulesFor = cmd: builtins.filter (r: r.cmd == cmd) blocked;
+
+  mkBlockChecks = cmd: let
+    rules = blockedRulesFor cmd;
+    mkCheck = rule: ''
+      if echo " $ARGS " | grep -qi "${rule.match}"; then
+        echo -e ""
+        echo -e "\033[1;31m  ╔══════════════════════════════════════════════════════════════╗\033[0m"
+        echo -e "\033[1;31m  ║  ✖ BLOCKED — DESTRUCTIVE OPERATION                          ║\033[0m"
+        echo -e "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m"
+        echo -e "\033[1;31m  ║  The command itself is fine. The flags are the problem:      ║\033[0m"
+        echo -e "\033[1;31m  ║                                                              ║\033[0m"
+        echo -e "\033[1;33m  ║  ${rule.reason}\033[0m"
+        echo -e "\033[1;31m  ║                                                              ║\033[0m"
+        echo -e "\033[0;37m  ║  Ran: ${cmd} $ARGS\033[0m"
+        echo -e "\033[1;31m  ║                                                              ║\033[0m"
+        echo -e "\033[0;33m  ║  Use build.sh for safe deploy/compose operations.            ║\033[0m"
+        echo -e "\033[1;31m  ╚══════════════════════════════════════════════════════════════╝\033[0m"
+        echo -e ""
+        exit 1
+      fi
+    '';
+  in builtins.concatStringsSep "\n" (map mkCheck rules);
+
+  # ── Wrapper generator ──────────────────────────────────────────────
+  mkWrapper = cmd: let
+    isWarning = builtins.elem cmd warningCmds;
+    blockChecks = mkBlockChecks cmd;
+  in {
     name = ".local/bin/${cmd}";
     value = {
       executable = true;
       text = ''
         #!/usr/bin/env bash
+        ARGS="$*"
+        ${blockChecks}
+      '' + (if isWarning then ''
+        echo -e ""
+        echo -e "\033[0;33m  ╔══════════════════════════════════════════════════════════════╗\033[0m"
+        echo -e "\033[0;33m  ║  ⚠ REMINDER                                                 ║\033[0m"
+        echo -e "\033[0;33m  ╠══════════════════════════════════════════════════════════════╣\033[0m"
+        echo -e "\033[0;33m  ║  build.sh is the preferred interface for builds and deps.    ║\033[0m"
+        echo -e "\033[0;33m  ║  Direct use is fine for quick tasks — just be aware.         ║\033[0m"
+        echo -e "\033[0;33m  ╚══════════════════════════════════════════════════════════════╝\033[0m"
+        echo -e ""
+        PATH="''${PATH//$HOME\/.local\/bin:/}" exec ${cmd} "$@"
+      '' else ''
+        if [ "''${BUILDSH_GUARDRAIL:-}" = "1" ]; then
+          PATH="''${PATH//$HOME\/.local\/bin:/}" exec ${cmd} "$@"
+        fi
+        echo -e ""
         echo -e "\033[1;31m  ╔══════════════════════════════════════════════════════════════╗\033[0m"
+        echo -e "\033[1;31m  ║  ⚠ CONFIRM — DECLARATIVE ENVIRONMENT                        ║\033[0m"
+        echo -e "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m"
         echo -e "\033[1;31m  ║  1) DECLARATIVE ONLY                                         ║\033[0m"
         echo -e "\033[1;31m  ║     THIS IS A FULL DECLARATIVE ENVIRONMENT, NIX-FLAKES WAY  ║\033[0m"
         echo -e "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m"
@@ -22,15 +103,20 @@ let
         echo -e "\033[1;35m  ║  3) NO HARDCODE EASY FIX                                     ║\033[0m"
         echo -e "\033[1;35m  ║     Always report a bug in the build.sh engine               ║\033[0m"
         echo -e "\033[1;35m  ╚══════════════════════════════════════════════════════════════╝\033[0m"
-        echo ""
+        echo -e ""
+        printf "\033[1;37m  Proceed? [y/N] \033[0m"
+        read -r REPLY < /dev/tty
+        if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
+          echo -e "\033[0;31m  Aborted.\033[0m"
+          exit 1
+        fi
         PATH="''${PATH//$HOME\/.local\/bin:/}" exec ${cmd} "$@"
-      '';
+      '');
     };
   };
+
 in
 {
-  # Ensure ~/.local/bin is first on PATH so wrappers intercept commands
   home.sessionPath = [ "$HOME/.local/bin" ];
-
-  home.file = builtins.listToAttrs (map mkWrapper commands);
+  home.file = builtins.listToAttrs (map mkWrapper allCommands);
 }
