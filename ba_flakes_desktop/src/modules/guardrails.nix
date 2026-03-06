@@ -7,6 +7,7 @@
 #
 # build.sh sets BUILDSH_GUARDRAIL=1 to auto-confirm tier 2.
 # BLOCKED is never bypassed, not even by build.sh.
+# All wrappers are POSIX sh — no bash required.
 { config, lib, ... }:
 
 let
@@ -36,8 +37,11 @@ let
   # Safe build/dev tools — you need them to work, just a nudge
   warningCmds = [ "bun" "cargo" "go" ];
 
+  # Commands from blocked rules need wrappers too (so flags get intercepted)
+  blockedCmds = lib.unique (map (r: r.cmd) blocked);
+
   # All commands that need wrappers
-  allCommands = lib.unique (confirmCmds ++ warningCmds);
+  allCommands = lib.unique (confirmCmds ++ warningCmds ++ blockedCmds);
 
   # ── Rule matching helpers ──────────────────────────────────────────
   blockedRulesFor = cmd: builtins.filter (r: r.cmd == cmd) blocked;
@@ -45,20 +49,20 @@ let
   mkBlockChecks = cmd: let
     rules = blockedRulesFor cmd;
     mkCheck = rule: ''
-      if echo " $ARGS " | grep -qi "${rule.match}"; then
-        echo -e ""
-        echo -e "\033[1;31m  ╔══════════════════════════════════════════════════════════════╗\033[0m"
-        echo -e "\033[1;31m  ║  ✖ BLOCKED — DESTRUCTIVE OPERATION                          ║\033[0m"
-        echo -e "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m"
-        echo -e "\033[1;31m  ║  The command itself is fine. The flags are the problem:      ║\033[0m"
-        echo -e "\033[1;31m  ║                                                              ║\033[0m"
-        echo -e "\033[1;33m  ║  ${rule.reason}\033[0m"
-        echo -e "\033[1;31m  ║                                                              ║\033[0m"
-        echo -e "\033[0;37m  ║  Ran: ${cmd} $ARGS\033[0m"
-        echo -e "\033[1;31m  ║                                                              ║\033[0m"
-        echo -e "\033[0;33m  ║  Use build.sh for safe deploy/compose operations.            ║\033[0m"
-        echo -e "\033[1;31m  ╚══════════════════════════════════════════════════════════════╝\033[0m"
-        echo -e ""
+      if printf " %s " "$ARGS" | grep -qiF -- "${rule.match}"; then
+        printf "\n"
+        printf "\033[1;31m  ╔══════════════════════════════════════════════════════════════╗\033[0m\n"
+        printf "\033[1;31m  ║  ✖ BLOCKED — DESTRUCTIVE OPERATION                          ║\033[0m\n"
+        printf "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m\n"
+        printf "\033[1;31m  ║  The command itself is fine. The flags are the problem:      ║\033[0m\n"
+        printf "\033[1;31m  ║                                                              ║\033[0m\n"
+        printf "\033[1;33m  ║  ${rule.reason}\033[0m\n"
+        printf "\033[1;31m  ║                                                              ║\033[0m\n"
+        printf "\033[0;37m  ║  Ran: ${cmd} %s\033[0m\n" "$ARGS"
+        printf "\033[1;31m  ║                                                              ║\033[0m\n"
+        printf "\033[0;33m  ║  Use build.sh for safe deploy/compose operations.            ║\033[0m\n"
+        printf "\033[1;31m  ╚══════════════════════════════════════════════════════════════╝\033[0m\n"
+        printf "\n"
         exit 1
       fi
     '';
@@ -73,44 +77,49 @@ let
     value = {
       executable = true;
       text = ''
-        #!/usr/bin/env bash
+        #!/bin/sh
+        # Re-entry guard: skip if already inside a guardrail wrapper
+        if [ "''${_GUARDRAIL:-}" = "1" ]; then exec ${cmd} "$@"; fi
+        export _GUARDRAIL=1
+        # Strip ~/.local/bin from PATH so exec hits the real binary
+        PATH="$(printf "%s" "$PATH" | tr ':' '\n' | grep -v '\.local/bin' | tr '\n' ':')"
         ARGS="$*"
         ${blockChecks}
       '' + (if isWarning then ''
-        echo -e ""
-        echo -e "\033[0;33m  ╔══════════════════════════════════════════════════════════════╗\033[0m"
-        echo -e "\033[0;33m  ║  ⚠ REMINDER                                                 ║\033[0m"
-        echo -e "\033[0;33m  ╠══════════════════════════════════════════════════════════════╣\033[0m"
-        echo -e "\033[0;33m  ║  build.sh is the preferred interface for builds and deps.    ║\033[0m"
-        echo -e "\033[0;33m  ║  Direct use is fine for quick tasks — just be aware.         ║\033[0m"
-        echo -e "\033[0;33m  ╚══════════════════════════════════════════════════════════════╝\033[0m"
-        echo -e ""
-        PATH="''${PATH//$HOME\/.local\/bin:/}" exec ${cmd} "$@"
+        printf "\n"
+        printf "\033[0;33m  ╔══════════════════════════════════════════════════════════════╗\033[0m\n"
+        printf "\033[0;33m  ║  ⚠ REMINDER                                                 ║\033[0m\n"
+        printf "\033[0;33m  ╠══════════════════════════════════════════════════════════════╣\033[0m\n"
+        printf "\033[0;33m  ║  build.sh is the preferred interface for builds and deps.    ║\033[0m\n"
+        printf "\033[0;33m  ║  Direct use is fine for quick tasks — just be aware.         ║\033[0m\n"
+        printf "\033[0;33m  ╚══════════════════════════════════════════════════════════════╝\033[0m\n"
+        printf "\n"
+        exec ${cmd} "$@"
       '' else ''
         if [ "''${BUILDSH_GUARDRAIL:-}" = "1" ]; then
-          PATH="''${PATH//$HOME\/.local\/bin:/}" exec ${cmd} "$@"
+          exec ${cmd} "$@"
         fi
-        echo -e ""
-        echo -e "\033[1;31m  ╔══════════════════════════════════════════════════════════════╗\033[0m"
-        echo -e "\033[1;31m  ║  ⚠ CONFIRM — DECLARATIVE ENVIRONMENT                        ║\033[0m"
-        echo -e "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m"
-        echo -e "\033[1;31m  ║  1) DECLARATIVE ONLY                                         ║\033[0m"
-        echo -e "\033[1;31m  ║     THIS IS A FULL DECLARATIVE ENVIRONMENT, NIX-FLAKES WAY  ║\033[0m"
-        echo -e "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m"
-        echo -e "\033[1;33m  ║  2) BUILD.SH ALWAYS                                          ║\033[0m"
-        echo -e "\033[1;33m  ║     JS deps  → build.sh deps | Build → build.sh build        ║\033[0m"
-        echo -e "\033[1;33m  ╠══════════════════════════════════════════════════════════════╣\033[0m"
-        echo -e "\033[1;35m  ║  3) NO HARDCODE EASY FIX                                     ║\033[0m"
-        echo -e "\033[1;35m  ║     Always report a bug in the build.sh engine               ║\033[0m"
-        echo -e "\033[1;35m  ╚══════════════════════════════════════════════════════════════╝\033[0m"
-        echo -e ""
+        printf "\n"
+        printf "\033[1;31m  ╔══════════════════════════════════════════════════════════════╗\033[0m\n"
+        printf "\033[1;31m  ║  ⚠ CONFIRM — DECLARATIVE ENVIRONMENT                        ║\033[0m\n"
+        printf "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m\n"
+        printf "\033[1;31m  ║  1) DECLARATIVE ONLY                                         ║\033[0m\n"
+        printf "\033[1;31m  ║     THIS IS A FULL DECLARATIVE ENVIRONMENT, NIX-FLAKES WAY  ║\033[0m\n"
+        printf "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m\n"
+        printf "\033[1;33m  ║  2) BUILD.SH ALWAYS                                          ║\033[0m\n"
+        printf "\033[1;33m  ║     JS deps  → build.sh deps | Build → build.sh build        ║\033[0m\n"
+        printf "\033[1;33m  ╠══════════════════════════════════════════════════════════════╣\033[0m\n"
+        printf "\033[1;35m  ║  3) NO HARDCODE EASY FIX                                     ║\033[0m\n"
+        printf "\033[1;35m  ║     Always report a bug in the build.sh engine               ║\033[0m\n"
+        printf "\033[1;35m  ╚══════════════════════════════════════════════════════════════╝\033[0m\n"
+        printf "\n"
         printf "\033[1;37m  Proceed? [y/N] \033[0m"
         read -r REPLY < /dev/tty
         if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
-          echo -e "\033[0;31m  Aborted.\033[0m"
+          printf "\033[0;31m  Aborted.\033[0m\n"
           exit 1
         fi
-        PATH="''${PATH//$HOME\/.local\/bin:/}" exec ${cmd} "$@"
+        exec ${cmd} "$@"
       '');
     };
   };
