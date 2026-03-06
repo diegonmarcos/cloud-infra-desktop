@@ -12,6 +12,7 @@
     ./programs/git.nix
     ./programs/tmux.nix
     ./programs/mesh.nix
+    ./programs/cloud-connect.nix
   ];
 
   # Enable Home Manager
