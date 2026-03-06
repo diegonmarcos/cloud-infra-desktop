@@ -7675,3 +7675,79 @@ User systemd daemon not running. Skipping reload.
 Activating linkProfile
 [2026-03-06 15:16:42] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
 [2026-03-06 15:16:42] ========== Build script finished ==========
+[2026-03-06 21:39:14] ========== Build script started ==========
+[2026-03-06 21:39:14] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-06 21:39:15] INFO: Staging dirty files for flake evaluation...
+[2026-03-06 21:39:16] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 13 derivations will be built:
+  /nix/store/01hmc6ggqff1kamvlvx5v9kbwlnadpji-nix-on-droid-path.drv
+  /nix/store/5c1jf4q8qx1mc95dalhgm3z2kvcj61sl-home-manager-path.drv
+  /nix/store/4ayryqsgqlc54dh0cvxaqwj1zw9wgify-config.fish.drv
+  /nix/store/gswmdyjrxljkxw0ki5w0wzblv5i80mxp-bashrc.drv
+  /nix/store/i1jfj26mm9ssrwxwk5sblap1kc3p9wss-man-paths.drv
+  /nix/store/l6553wydd3vn66zrjldhxkh1x1crby1i-man-cache.drv
+  /nix/store/jhwp93plq8zrd4kq14fh1rz2j24a4v77-hm_.manpath.drv
+  /nix/store/cdd32ckcxvmjzf0fxkhhk2frq67s42ps-hm-session-vars.sh-fish-completions.drv
+  /nix/store/xn7bzf11pamh523vabms7cdgank8p8ny-nix-on-droid-fish-completions.drv
+  /nix/store/6jkwfcpdq34pw33a4mgy1nc363p6jhbc-home-manager-files.drv
+  /nix/store/0afqwhhirp43fvcq2lyxwd1r8cwrdbin-home-manager-generation.drv
+  /nix/store/xyjr68j60d5737wca273bs9iysdyrwyb-activation-script.drv
+  /nix/store/78s68gry8n6ljs43ylmkfv8zyxxzgpjc-nix-on-droid-generation.drv
+building '/nix/store/01hmc6ggqff1kamvlvx5v9kbwlnadpji-nix-on-droid-path.drv'...
+building '/nix/store/gswmdyjrxljkxw0ki5w0wzblv5i80mxp-bashrc.drv'...
+building '/nix/store/4ayryqsgqlc54dh0cvxaqwj1zw9wgify-config.fish.drv'...
+building '/nix/store/cdd32ckcxvmjzf0fxkhhk2frq67s42ps-hm-session-vars.sh-fish-completions.drv'...
+building '/nix/store/5c1jf4q8qx1mc95dalhgm3z2kvcj61sl-home-manager-path.drv'...
+building '/nix/store/i1jfj26mm9ssrwxwk5sblap1kc3p9wss-man-paths.drv'...
+building '/nix/store/xn7bzf11pamh523vabms7cdgank8p8ny-nix-on-droid-fish-completions.drv'...
+building '/nix/store/l6553wydd3vn66zrjldhxkh1x1crby1i-man-cache.drv'...
+building '/nix/store/jhwp93plq8zrd4kq14fh1rz2j24a4v77-hm_.manpath.drv'...
+building '/nix/store/6jkwfcpdq34pw33a4mgy1nc363p6jhbc-home-manager-files.drv'...
+building '/nix/store/0afqwhhirp43fvcq2lyxwd1r8cwrdbin-home-manager-generation.drv'...
+building '/nix/store/xyjr68j60d5737wca273bs9iysdyrwyb-activation-script.drv'...
+building '/nix/store/78s68gry8n6ljs43ylmkfv8zyxxzgpjc-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+building '/nix/store/ygx6wdmd10dlamfmb8lgs68ccgajrgb8-user-environment.drv'...
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/data/data/com.termux.nix/files/home/.claude/skills/frontend-design.md' is in the way of '/nix/store/3592jwxhyk7jjz73sm3cp904v5fjn5df-home-manager-files/.claude/skills/frontend-design.md', will be skipped since they are the same
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 85
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating mcpDeps
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-06 21:41:34] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-06 21:41:34] ========== Build script finished ==========
+[2026-03-06 21:42:41] ========== Build script started ==========
+[2026-03-06 21:42:41] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-06 21:42:42] INFO: Staging dirty files for flake evaluation...
