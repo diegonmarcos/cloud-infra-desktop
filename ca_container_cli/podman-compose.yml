@@ -1,0 +1,46 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# CLI Development Container — Podman Compose
+#
+# Usage:
+#   podman compose up -d          # Start container
+#   podman exec -it cli-dev fish  # Enter shell
+#   podman compose down            # Stop container
+# ═══════════════════════════════════════════════════════════════════════════
+
+services:
+  cli-dev:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: cli-dev:latest
+    container_name: cli-dev
+    hostname: cli-dev
+
+    volumes:
+      # Persistent home directory
+      - cli-dev-home:/home/user
+
+      # Mount host projects (read-write)
+      - ${HOME}/git:/home/user/git:rw
+
+      # SSH agent forwarding
+      - ${SSH_AUTH_SOCK:-/dev/null}:/tmp/ssh-agent:ro
+
+    environment:
+      - TERM=xterm-256color
+      - SSH_AUTH_SOCK=/tmp/ssh-agent
+
+    # VPN/network tools need NET_ADMIN
+    cap_add:
+      - NET_ADMIN
+
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+    # Keep container running
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+volumes:
+  cli-dev-home:

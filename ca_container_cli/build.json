@@ -1,0 +1,9 @@
+{
+  "name": "cli-dev",
+  "description": "CLI development container — shells, compilers, languages, cloud CLIs, privacy, modern tools",
+  "container": {
+    "engine": "podman",
+    "image": "cli-dev:latest",
+    "compose": "podman-compose.yml"
+  }
+}

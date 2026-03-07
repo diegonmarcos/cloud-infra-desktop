@@ -1,0 +1,102 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# CLI Development Container
+# Consolidated from da_app_cli + db_apps_gui_2 (CLI categories)
+#
+# Build:  podman build -t cli-dev -f Containerfile .
+# Run:    podman compose up -d
+# Enter:  podman exec -it cli-dev fish
+# ═══════════════════════════════════════════════════════════════════════════
+
+FROM registry.fedoraproject.org/fedora:41
+
+LABEL maintainer="Diego Nepomuceno Marcos"
+LABEL description="CLI development environment — shells, compilers, languages, cloud CLIs, privacy, modern tools"
+
+# ─── Shells & Base System ─────────────────────────────────────────────────
+RUN dnf install -y \
+    bash zsh fish \
+    coreutils findutils grep sed gawk less which file lsof \
+    procps-ng bc tree unzip zip xclip \
+    sudo curl wget ca-certificates \
+    && dnf clean all
+
+# ─── Modern CLI Tools ────────────────────────────────────────────────────
+RUN dnf install -y \
+    eza bat fd-find ripgrep fzf jq yq \
+    htop btop ncdu pv \
+    zoxide \
+    ranger \
+    nano vim neovim \
+    ShellCheck shfmt \
+    && dnf clean all
+
+# ─── C/C++ Compilers & Build Tools ───────────────────────────────────────
+RUN dnf install -y \
+    gcc gcc-c++ make cmake ninja-build meson pkgconf-pkg-config \
+    gdb valgrind strace ltrace \
+    openssl-devel zlib-devel libffi-devel ncurses-devel readline-devel \
+    sqlite-devel postgresql-devel libxml2-devel libyaml-devel \
+    && dnf clean all
+
+# ─── Languages & Runtimes ────────────────────────────────────────────────
+RUN dnf install -y \
+    python3 python3-pip python3-devel python3-wheel python3-virtualenv \
+    nodejs npm \
+    rust cargo \
+    golang \
+    java-21-openjdk java-21-openjdk-devel \
+    ruby ruby-devel rubygem-bundler \
+    && dnf clean all
+
+# ─── Git & Version Control ───────────────────────────────────────────────
+RUN dnf install -y \
+    git git-lfs gh \
+    && dnf clean all
+
+# ─── Network & File Sync ─────────────────────────────────────────────────
+RUN dnf install -y \
+    iproute bind-utils net-tools openssh-clients \
+    mtr nmap-ncat nmap \
+    rsync rclone \
+    && dnf clean all
+
+# ─── Privacy & VPN ───────────────────────────────────────────────────────
+RUN dnf install -y \
+    tor torsocks dnscrypt-proxy \
+    wireguard-tools openvpn \
+    && dnf clean all
+
+# ─── Archive & Compression ───────────────────────────────────────────────
+RUN dnf install -y \
+    tar gzip bzip2 xz zstd p7zip \
+    && dnf clean all
+
+# ─── Docs & Misc ─────────────────────────────────────────────────────────
+RUN dnf install -y \
+    pandoc graphviz qrencode \
+    && dnf clean all
+
+# ─── Cloud CLIs ──────────────────────────────────────────────────────────
+RUN pip3 install --user poetry && \
+    pip3 install --user oci-cli || true
+
+RUN curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz && \
+    tar -xzf google-cloud-cli-linux-x86_64.tar.gz -C /opt && \
+    rm google-cloud-cli-linux-x86_64.tar.gz && \
+    /opt/google-cloud-sdk/install.sh --quiet --usage-reporting false --path-update true && \
+    echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> /etc/profile.d/gcloud.sh
+
+# ─── AI Tools (npm global) ───────────────────────────────────────────────
+RUN npm install -g @anthropic-ai/claude-code @google/gemini-cli || true
+
+# ─── Starship Prompt ─────────────────────────────────────────────────────
+RUN curl -sS https://starship.rs/install.sh | sh -s -- -y
+
+# ─── User Setup ──────────────────────────────────────────────────────────
+RUN useradd -m -s /bin/fish user && \
+    echo "user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER user
+WORKDIR /home/user
+ENV SHELL=/bin/fish
+CMD ["/bin/fish"]
