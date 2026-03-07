@@ -172,9 +172,10 @@
                 fi
               '')
 
-              # 3. SYNC — delegates to ~/git/front/sync.sh (Rclone + Eruda HTTP)
+              # 3. SYNC — unified sync engine (git + rclone)
+              # Source: ~/git/tools/a-sync/sync.sh
               (writeShellScriptBin "sync" ''
-                exec "$HOME/git/front/sync.sh" "$@"
+                exec "$HOME/git/tools/a-sync/sync.sh" "$@"
               '')
 
               # 3b. SERVER — delegates to ~/git/front/server.sh (dev server control)
@@ -293,20 +294,9 @@
                 esac
               '')
 
-              # 5. GACP (Git Add, Commit, Push)
+              # 5. GACP (Git Add, Commit, Push) — convenience wrapper for sync
               (writeShellScriptBin "gacp" ''
-                if [ -z "$1" ]; then
-                  printf "\033[0;31mError: Commit message required\033[0m\n"
-                  printf "Usage: gacp \"commit message\"\n"
-                  exit 1
-                fi
-                printf "\033[0;36m→ Adding all changes...\033[0m\n"
-                git add . || exit 1
-                printf "\033[0;36m→ Committing: $1\033[0m\n"
-                git commit -m "$1" || exit 1
-                printf "\033[0;36m→ Pushing...\033[0m\n"
-                git push || exit 1
-                printf "\033[0;32m✓ Done\033[0m\n"
+                exec "$HOME/git/tools/a-sync/sync.sh" git remote "$@"
               '')
 
               # 6. GCL (Git Clone shortcut)

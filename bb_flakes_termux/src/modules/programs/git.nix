@@ -80,6 +80,12 @@
       aliases = "config --get-regexp alias";
       whoami = "!git config user.name && git config user.email";
       root = "rev-parse --show-toplevel";
+
+      # gacp: git add all + commit + push (happy path)
+      gacp = "!f() { git add -A && git commit -m \"$1\" && git push; }; f";
+
+      # sync-remote: gacp failed? fetch + rebase (remote wins conflicts) + push
+      sync-remote = "!f() { git pull --rebase -X theirs && git push; }; f";
     };
 
     ignores = [
