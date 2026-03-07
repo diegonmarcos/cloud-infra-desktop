@@ -645,7 +645,141 @@ locals {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# I. OPS & MISC
+# I. NETWORK & SECURITY — "VPS-level" rules
+# ═══════════════════════════════════════════════════════════════════════════════
+
+locals {
+  network = {
+    hostname = "surface-nixos"
+
+    # ─── Interfaces ──────────────────────────────────────────────────────────
+    interfaces = {
+      wifi = {
+        driver  = "iwd + NetworkManager"
+        device  = "Intel WiFi 6 AX201"
+        managed = true
+      }
+      wg0 = {
+        type        = "WireGuard"
+        ip          = "10.0.0.5/24"
+        private_key = "/home/diego/.config/wireguard/privatekey"
+        autostart   = false  # on-demand, wantedBy = mkForce []
+        peers = [
+          {
+            name       = "gcp-proxy"
+            endpoint   = "35.226.147.64:51820"
+            public_key = "(in vault)"
+            allowed_ips = ["10.0.0.0/24"]
+            persistent_keepalive = 25
+          }
+        ]
+      }
+    }
+
+    # ─── Firewall (nftables via NixOS networking.firewall) ───────────────────
+    firewall = {
+      enabled = true
+      backend = "nftables (NixOS default)"
+
+      inbound_allow_tcp = [22]   # SSH only
+      inbound_allow_udp = []     # Nothing
+      inbound_default   = "DROP"
+
+      # Outbound: unrestricted (workstation, not server)
+      outbound_default = "ACCEPT"
+
+      notes = [
+        "No web server ports — this is a workstation, not a server",
+        "WireGuard (wg0) traffic traverses the tunnel, not the firewall",
+        "Container ports (5900/VNC) are localhost-only via podman compose",
+        "Kali partition has its own network stack (separate OS, no shared rules)",
+      ]
+    }
+
+    # ─── SSH Server ──────────────────────────────────────────────────────────
+    ssh = {
+      enabled                 = true
+      port                    = 22
+      password_authentication = true   # Acceptable for personal LAN device
+      permit_root_login       = "no"
+      pubkey_authentication   = true
+      host_keys               = "ephemeral (tmpfs root — regenerated each boot)"
+
+      authorized_users = {
+        diego = {
+          groups = ["wheel"]
+          sudo   = "NOPASSWD"
+          keys   = "~/.ssh/authorized_keys (from vault)"
+        }
+      }
+
+      hardening_notes = [
+        "Host keys are ephemeral (tmpfs root) — clients see new fingerprint after reboot",
+        "To persist: symlink from @shared/ssh/ via tmpfiles (not currently done)",
+        "PasswordAuthentication=true is intentional — LAN-only device, no public IP",
+        "If exposed to internet: switch to pubkey-only + fail2ban",
+      ]
+    }
+
+    # ─── VPN Mesh (WireGuard to cloud VMs) ───────────────────────────────────
+    vpn = {
+      type    = "WireGuard"
+      network = "10.0.0.0/24"
+      role    = "client (on-demand)"
+
+      mesh_peers = {
+        "10.0.0.1" = "gcp-proxy   (Caddy, Authelia, Vaultwarden, ntfy, DNS)"
+        "10.0.0.2" = "oci-apps-1  (PhotoPrism, NocoDB, Code Server, AFFiNE)"
+        "10.0.0.3" = "oci-mail    (Mailu, Syncthing, Radicale)"
+        "10.0.0.4" = "oci-analytics (Matomo, Windmill)"
+        "10.0.0.5" = "surface     (THIS DEVICE)"
+        "10.0.0.6" = "oci-apps    (C3 API, Crawlee)"
+      }
+
+      notes = [
+        "Surface is NOT always-on — wg0 started manually when needed",
+        "All cloud traffic routes: Surface → wg0 → gcp-proxy → target VM",
+        "DNS over WireGuard: Hickory DNS at 10.0.0.1:53 (wg-only)",
+      ]
+    }
+
+    # ─── DNS ──────────────────────────────────────────────────────────────────
+    dns = {
+      resolver = "NetworkManager (system default)"
+      internal = "Hickory DNS at 10.0.0.1 (via WireGuard, when connected)"
+      external = "Cloudflare DNS for *.diegonmarcos.com"
+    }
+  }
+
+  # ─── Resource Limits (cgroups v2 — "The Bouncer") ────────────────────────
+  resource_limits = {
+    system_slice = {
+      memory_min = "500M"
+      cpu_weight = 10000
+      note       = "systemd, sshd, docker daemon — guaranteed minimum"
+    }
+    user_slice = {
+      memory_max = "90%"
+      note       = "All user sessions capped; compositor gets MemoryMin guarantee"
+    }
+    machine_slice = {
+      memory_max = "50%"
+      note       = "docker/podman containers capped"
+    }
+    nix_daemon = {
+      memory_max = "70%"
+      cpu_quota  = "50%"
+      note       = "Nix builds don't starve the desktop"
+    }
+    oom = {
+      earlyoom  = true
+      zram_swap = "zstd, 50% of RAM"
+    }
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# J. OPS & MISC
 # ═══════════════════════════════════════════════════════════════════════════════
 
 locals {
@@ -670,7 +804,7 @@ locals {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# J. STORAGE BUDGET
+# K. STORAGE BUDGET
 # ═══════════════════════════════════════════════════════════════════════════════
 
 locals {
@@ -722,4 +856,8 @@ output "containers" {
 
 output "home_manager" {
   value = "2 flakes: desktop (NixOS/Linux) + termux (Android)"
+}
+
+output "network" {
+  value = "Firewall: TCP 22 only, default DROP. WireGuard: 10.0.0.5/24 (on-demand). SSH: password+pubkey, no root."
 }
