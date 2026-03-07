@@ -90,6 +90,17 @@
   # Systemd user services (for Linux)
   systemd.user.startServices = "sd-switch";
 
+  # Busybox httpd — lightweight static file server (home dir on :8090)
+  systemd.user.services.httpd = {
+    Unit.Description = "Busybox httpd file server";
+    Service = {
+      ExecStart = "${pkgs.busybox}/bin/busybox httpd -f -p 8090 -h %h";
+      Restart = "always";
+      RestartSec = 5;
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
+
   # News notifications
   news.display = "silent";
 

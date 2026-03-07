@@ -151,7 +151,12 @@
         end
       '';
 
-      serve = "python3 -m http.server $argv[1]; or python3 -m http.server 8000";
+      serve = ''
+        set -l port (test (count $argv) -gt 0; and echo $argv[1]; or echo 8090)
+        set -l dir (test (count $argv) -gt 1; and echo $argv[2]; or echo $HOME)
+        echo "Serving $dir on http://localhost:$port"
+        busybox httpd -f -p $port -h $dir
+      '';
 
       duh = "command du -h --max-depth=1 | sort -h";
 

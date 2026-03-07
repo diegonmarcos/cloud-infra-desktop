@@ -76,6 +76,7 @@
         set_color normal
         set_color magenta; echo -n "  up      "; set_color normal; echo "Rebuild Nix config"
         set_color magenta; echo -n "  conf    "; set_color normal; echo "Edit flake.nix"
+        set_color magenta; echo -n "  serve   "; set_color normal; echo "File server (default :8090 ~/)"
         set_color magenta; echo -n "  sync    "; set_color normal; echo "File server & sync (WebDAV:8082 SFTP:2022 HTTP:8083)"
         set_color cyan
         echo ""
@@ -130,7 +131,12 @@
 
       gcam = "git add --all; and git commit -m $argv[1]";
 
-      serve = "python3 -m http.server $argv[1]; or python3 -m http.server 8000";
+      serve = ''
+        set -l port (test (count $argv) -gt 0; and echo $argv[1]; or echo 8090)
+        set -l dir (test (count $argv) -gt 1; and echo $argv[2]; or echo $HOME)
+        echo "Serving $dir on http://localhost:$port"
+        busybox httpd -f -p $port -h $dir
+      '';
 
       hg = "history | grep $argv";
     };
@@ -153,6 +159,11 @@
 
       # Vi mode
       fish_vi_key_bindings
+
+      # Auto-start busybox httpd file server (home dir on :8090)
+      if not pgrep -f "busybox httpd.*-p 8090" >/dev/null 2>&1
+        busybox httpd -p 8090 -h $HOME
+      end
 
       # Cargo
       if test -d $HOME/.cargo/bin

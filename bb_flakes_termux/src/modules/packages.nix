@@ -4,6 +4,7 @@
 
 {
   home.packages = with pkgs; [
+    busybox          # httpd — lightweight static file server
     mdbook
     tree
     netcat-openbsd  # nc — WireGuard peer probing in mesh.sh

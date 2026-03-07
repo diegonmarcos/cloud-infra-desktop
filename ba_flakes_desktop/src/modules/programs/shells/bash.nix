@@ -192,7 +192,7 @@
         done
       }
 
-      serve() { python3 -m http.server "''${1:-8000}"; }
+      serve() { busybox httpd -f -p "''${1:-8090}" -h "''${2:-$HOME}"; }
 
       duh() { du -h --max-depth=1 | sort -h; }
 

@@ -57,6 +57,9 @@
     procps
     psmisc
 
+    # Lightweight servers
+    busybox          # httpd — static file server (~100KB)
+
     # Network basics
     bind             # dig, nslookup
     dnsutils
