@@ -335,10 +335,10 @@
                 exec "$HOME/git/tools/a-Mesh/mesh.sh" "$@"
               '')
 
-              # 7b. CLOUD-CONNECT (Unified dashboard: git, mounts, sync, servers)
-              # Source: ~/git/tools/a-cloud-connect/cloud-connect.sh
-              (writeShellScriptBin "cloud-connect" ''
-                exec "$HOME/git/tools/a-cloud-connect/cloud-connect.sh" "$@"
+              # 7b. CONNECT (Unified dashboard: git, mounts, sync, servers)
+              # Source: ~/git/tools/a-cloud-connect/connect.sh
+              (writeShellScriptBin "connect" ''
+                exec "$HOME/git/tools/a-cloud-connect/connect.sh" "$@"
               '')
 
               # 8. BEARER (Authelia bearer token for CLI access)
@@ -571,7 +571,7 @@
                   set_color magenta; echo -n "  up      "; set_color normal; echo "Rebuild Nix config"
                   set_color magenta; echo -n "  conf    "; set_color normal; echo "Edit flake.nix"
                   set_color magenta; echo -n "  sync    "; set_color normal; echo "File sync & serve (WebDAV SFTP HTTP+Eruda)"
-                  set_color magenta; echo -n "  cloud-connect "; set_color normal; echo "Unified dashboard (git/mounts/sync/servers)"
+                  set_color magenta; echo -n "  connect "; set_color normal; echo "Unified dashboard (git/mounts/sync/servers)"
                   set_color magenta; echo -n "  server  "; set_color normal; echo "Dev server control (dev/stop/status)"
                   set_color cyan
                   echo ""
