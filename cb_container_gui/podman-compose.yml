@@ -1,0 +1,64 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# GUI Applications Container — Podman Compose
+#
+# Usage:
+#   podman compose up -d          # Start container
+#   podman exec -it gui-apps bash # Enter shell
+#   podman compose down            # Stop container
+#
+# VNC access: connect to localhost:5900
+# ═══════════════════════════════════════════════════════════════════════════
+
+services:
+  gui-apps:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: gui-apps:latest
+    container_name: gui-apps
+    hostname: gui-apps
+
+    volumes:
+      # Persistent home directory
+      - gui-apps-home:/home/user
+
+      # X11/Wayland display
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${XDG_RUNTIME_DIR:-/run/user/1000}:${XDG_RUNTIME_DIR:-/run/user/1000}:rw
+
+      # Home directory integration
+      - ${HOME}:${HOME}:rw
+
+      # Flatpak app data persistence
+      - ${HOME}/.var/app:${HOME}/.var/app:rw
+
+      # DBus
+      - /run/dbus:/run/dbus:ro
+
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-}
+      - XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/1000}
+      - PULSE_SERVER=unix:${XDG_RUNTIME_DIR:-/run/user/1000}/pulse/native
+      - DBUS_SESSION_BUS_ADDRESS=unix:path=${XDG_RUNTIME_DIR:-/run/user/1000}/bus
+
+    ports:
+      - "5900:5900"   # x11vnc
+
+    # GPU access
+    devices:
+      - /dev/dri:/dev/dri
+
+    security_opt:
+      - seccomp:unconfined
+
+    # Host network for full desktop integration
+    network_mode: host
+
+    # Keep container running
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+volumes:
+  gui-apps-home:

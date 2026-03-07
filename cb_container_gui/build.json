@@ -1,0 +1,9 @@
+{
+  "name": "gui-apps",
+  "description": "GUI applications container — Flatpak apps + native KDE/Qt apps + X11/VNC",
+  "container": {
+    "engine": "podman",
+    "image": "gui-apps:latest",
+    "compose": "podman-compose.yml"
+  }
+}
