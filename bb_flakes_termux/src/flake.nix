@@ -446,6 +446,9 @@
               home.file.".claude/skills/frontend-design.md".source = ../src/modules/dotfiles/claude/skills/frontend-design.md;
               home.file.".rgignore".source = ../src/modules/dotfiles/claude/rgignore;
 
+              # Lightweight Node.js file server with Eruda DevTools injection
+              home.file.".local/bin/httpd-eruda.mjs".source = ../src/modules/dotfiles/httpd-eruda.mjs;
+
               # Minimal .gitignore so $HOME is a git repo (ignore everything)
               # This makes Claude Code use `git ls-files` (instant) instead of ripgrep (97s timeout)
               home.file.".gitignore".text = "*";
@@ -495,6 +498,23 @@
 
                   # Override gcc cc with cclaude (function beats PATH)
                   function cc; cclaude $argv; end
+
+                  # Auto-start node file server with Eruda DevTools on port 8000
+                  set -g __httpd_port 8000
+                  set -g __httpd_dir "$HOME"
+                  set -g __httpd_pid_file "$HOME/.cache/httpd-eruda.pid"
+                  set -l httpd_running 0
+                  if test -f "$__httpd_pid_file"
+                    set -l pid (cat "$__httpd_pid_file" 2>/dev/null)
+                    if test -n "$pid"; and kill -0 $pid 2>/dev/null
+                      set httpd_running 1
+                    end
+                  end
+                  if test $httpd_running -eq 0
+                    mkdir -p (dirname "$__httpd_pid_file")
+                    node "$HOME/.local/bin/httpd-eruda.mjs" "$__httpd_port" "$__httpd_dir" >/dev/null 2>&1 &
+                    echo $last_pid > "$__httpd_pid_file"
+                  end
 
                   # FZF configuration
                   set -gx FZF_DEFAULT_OPTS "--height 40% --layout=reverse --border"
@@ -563,6 +583,12 @@
                   set_color magenta; echo -n "  sync    "; set_color normal; echo "File sync & serve (WebDAV SFTP HTTP+Eruda)"
                   set_color magenta; echo -n "  connect "; set_color normal; echo "Unified dashboard (git/mounts/sync/servers)"
                   set_color magenta; echo -n "  server  "; set_color normal; echo "Dev server control (dev/stop/status)"
+                  if test -f "$__httpd_pid_file"; and kill -0 (cat "$__httpd_pid_file" 2>/dev/null) 2>/dev/null
+                    set -l __httpd_pid (cat "$__httpd_pid_file")
+                    set_color green; echo -n "  httpd   "; set_color normal; echo -n "● Eruda server "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: $__httpd_pid)"
+                  else
+                    set_color red; echo -n "  httpd   "; set_color normal; echo "○ Not running"
+                  end
                   set_color cyan
                   echo ""
                   echo "Search (fzf):"
