@@ -8403,3 +8403,118 @@ Activating linkProfile
 [2026-03-08 18:15:46] ========== Build script started ==========
 [2026-03-08 18:15:46] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-03-08 18:15:46] INFO: Staging dirty files for flake evaluation...
+[2026-03-08 18:15:47] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/data/data/com.termux.nix/files/home/.claude/skills/frontend-design.md' is in the way of '/nix/store/b1hqkad3v4081ziyr2yw7nlhwny3r87a-home-manager-files/.claude/skills/frontend-design.md', will be skipped since they are the same
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+No change so reusing latest profile generation 95
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating mcpDeps
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-08 18:16:22] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-08 18:16:23] ========== Build script finished ==========
+[2026-03-09 02:00:01] ========== Build script started ==========
+[2026-03-09 02:00:01] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-09 02:00:02] INFO: Staging dirty files for flake evaluation...
+[2026-03-09 02:00:02] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 11 derivations will be built:
+  /nix/store/4727ygjzwzpmhwmjlhvz9x3bhfr338w3-man-paths.drv
+  /nix/store/bpik9cvix7sj2d4galns2xmdslx61mcb-nix-on-droid-path.drv
+  /nix/store/f5qms9dh4l7z815sqpwlsz09pca9ll3l-home-manager-path.drv
+  /nix/store/m2sr86jvnqym2nxbq01hlsy8lbl4cn6h-rsync-3.3.0-fish-completions.drv
+  /nix/store/l49k30n1b702naak5s2mvmyz0mprck10-nix-on-droid-fish-completions.drv
+  /nix/store/lcrv03dk9c5l72r788zzgw9qiapn3kcy-man-cache.drv
+  /nix/store/q51m84k4pxbjb3jgj83k0vh8zl1v9rnk-hm_.manpath.drv
+  /nix/store/jnzww3jp7ir88zgxi3na6bqjjf1ziqw7-home-manager-files.drv
+  /nix/store/z1h8y96syg3gqnizfzlwml7fna314hr4-home-manager-generation.drv
+  /nix/store/697dd3y67w2f3b3m3mmrcjcp2ymfrkjv-activation-script.drv
+  /nix/store/j8c5dn9d9yfvx6pymrggfvd816cmz5pb-nix-on-droid-generation.drv
+these 3 paths will be fetched (0.43 MiB download, 1.27 MiB unpacked):
+  /nix/store/7ga9pv4pwjii001nxci807yqply0if5j-popt-1.19
+  /nix/store/acmjf1cg9hbm7bnmk1bxpjqcx0mfk05p-rsync-3.3.0
+  /nix/store/7x3vwiwzhfz57jb4g4p10lj40vdllhyx-xxHash-0.8.2
+copying path '/nix/store/7ga9pv4pwjii001nxci807yqply0if5j-popt-1.19' from 'https://cache.nixos.org'...
+copying path '/nix/store/7x3vwiwzhfz57jb4g4p10lj40vdllhyx-xxHash-0.8.2' from 'https://cache.nixos.org'...
+copying path '/nix/store/acmjf1cg9hbm7bnmk1bxpjqcx0mfk05p-rsync-3.3.0' from 'https://cache.nixos.org'...
+building '/nix/store/f5qms9dh4l7z815sqpwlsz09pca9ll3l-home-manager-path.drv'...
+building '/nix/store/4727ygjzwzpmhwmjlhvz9x3bhfr338w3-man-paths.drv'...
+building '/nix/store/bpik9cvix7sj2d4galns2xmdslx61mcb-nix-on-droid-path.drv'...
+building '/nix/store/lcrv03dk9c5l72r788zzgw9qiapn3kcy-man-cache.drv'...
+[2026-03-09 02:01:20] ========== Build script started ==========
+[2026-03-09 02:01:20] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-09 02:01:20] INFO: Staging dirty files for flake evaluation...
+[2026-03-09 02:01:20] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 8 derivations will be built:
+  /nix/store/m2sr86jvnqym2nxbq01hlsy8lbl4cn6h-rsync-3.3.0-fish-completions.drv
+  /nix/store/l49k30n1b702naak5s2mvmyz0mprck10-nix-on-droid-fish-completions.drv
+  /nix/store/lcrv03dk9c5l72r788zzgw9qiapn3kcy-man-cache.drv
+  /nix/store/q51m84k4pxbjb3jgj83k0vh8zl1v9rnk-hm_.manpath.drv
+  /nix/store/jnzww3jp7ir88zgxi3na6bqjjf1ziqw7-home-manager-files.drv
+  /nix/store/z1h8y96syg3gqnizfzlwml7fna314hr4-home-manager-generation.drv
+  /nix/store/697dd3y67w2f3b3m3mmrcjcp2ymfrkjv-activation-script.drv
+  /nix/store/j8c5dn9d9yfvx6pymrggfvd816cmz5pb-nix-on-droid-generation.drv
+building '/nix/store/lcrv03dk9c5l72r788zzgw9qiapn3kcy-man-cache.drv'...
+building '/nix/store/m2sr86jvnqym2nxbq01hlsy8lbl4cn6h-rsync-3.3.0-fish-completions.drv'...
+building '/nix/store/q51m84k4pxbjb3jgj83k0vh8zl1v9rnk-hm_.manpath.drv'...
+building '/nix/store/l49k30n1b702naak5s2mvmyz0mprck10-nix-on-droid-fish-completions.drv'...
+[2026-03-09 02:02:36] ========== Build script started ==========
+[2026-03-09 02:02:36] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-09 02:02:36] INFO: Staging dirty files for flake evaluation...
+[2026-03-09 02:02:36] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 5 derivations will be built:
+  /nix/store/l49k30n1b702naak5s2mvmyz0mprck10-nix-on-droid-fish-completions.drv
+  /nix/store/jnzww3jp7ir88zgxi3na6bqjjf1ziqw7-home-manager-files.drv
+  /nix/store/z1h8y96syg3gqnizfzlwml7fna314hr4-home-manager-generation.drv
+  /nix/store/697dd3y67w2f3b3m3mmrcjcp2ymfrkjv-activation-script.drv
+  /nix/store/j8c5dn9d9yfvx6pymrggfvd816cmz5pb-nix-on-droid-generation.drv
+building '/nix/store/l49k30n1b702naak5s2mvmyz0mprck10-nix-on-droid-fish-completions.drv'...
+building '/nix/store/jnzww3jp7ir88zgxi3na6bqjjf1ziqw7-home-manager-files.drv'...
+building '/nix/store/z1h8y96syg3gqnizfzlwml7fna314hr4-home-manager-generation.drv'...
+building '/nix/store/697dd3y67w2f3b3m3mmrcjcp2ymfrkjv-activation-script.drv'...
+building '/nix/store/j8c5dn9d9yfvx6pymrggfvd816cmz5pb-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+[2026-03-09 02:03:34] ========== Build script started ==========
+[2026-03-09 02:03:34] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-09 02:03:34] INFO: Staging dirty files for flake evaluation...
