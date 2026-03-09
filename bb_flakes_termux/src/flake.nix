@@ -446,8 +446,10 @@
               home.file.".claude/skills/frontend-design.md".source = ../src/modules/dotfiles/claude/skills/frontend-design.md;
               home.file.".rgignore".source = ../src/modules/dotfiles/claude/rgignore;
 
-              # Lightweight Node.js file server with Eruda DevTools injection
-              home.file.".local/bin/httpd-eruda.mjs".source = ../src/modules/dotfiles/httpd-eruda.mjs;
+              # Lightweight Node.js file server with Eruda DevTools + Markdown rendering
+              home.file.".local/bin/web-server-md-eruda.mjs".source = ../src/modules/dotfiles/web-server-md-eruda.mjs;
+              home.file.".local/lib/httpd/marked.min.js".source = ../src/modules/dotfiles/httpd-lib/marked.min.js;
+              home.file.".local/lib/httpd/github-markdown-dark.css".source = ../src/modules/dotfiles/httpd-lib/github-markdown-dark.css;
 
               # Minimal .gitignore so $HOME is a git repo (ignore everything)
               # This makes Claude Code use `git ls-files` (instant) instead of ripgrep (97s timeout)
@@ -499,10 +501,10 @@
                   # Override gcc cc with cclaude (function beats PATH)
                   function cc; cclaude $argv; end
 
-                  # Auto-start node file server with Eruda DevTools on port 8000
+                  # Auto-start node file server with Eruda DevTools + Markdown on port 8000
                   set -g __httpd_port 8000
                   set -g __httpd_dir "$HOME"
-                  set -g __httpd_pid_file "$HOME/.cache/httpd-eruda.pid"
+                  set -g __httpd_pid_file "$HOME/.cache/web-server-md-eruda.pid"
                   set -l httpd_running 0
                   if test -f "$__httpd_pid_file"
                     set -l pid (cat "$__httpd_pid_file" 2>/dev/null)
@@ -512,7 +514,7 @@
                   end
                   if test $httpd_running -eq 0
                     mkdir -p (dirname "$__httpd_pid_file")
-                    node "$HOME/.local/bin/httpd-eruda.mjs" "$__httpd_port" "$__httpd_dir" >/dev/null 2>&1 &
+                    node "$HOME/.local/bin/web-server-md-eruda.mjs" "$__httpd_port" "$__httpd_dir" >/dev/null 2>&1 &
                     echo $last_pid > "$__httpd_pid_file"
                   end
 
@@ -585,7 +587,7 @@
                   set_color magenta; echo -n "  server  "; set_color normal; echo "Dev server control (dev/stop/status)"
                   if test -f "$__httpd_pid_file"; and kill -0 (cat "$__httpd_pid_file" 2>/dev/null) 2>/dev/null
                     set -l __httpd_pid (cat "$__httpd_pid_file")
-                    set_color green; echo -n "  httpd   "; set_color normal; echo -n "● Eruda server "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: $__httpd_pid)"
+                    set_color green; echo -n "  httpd   "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: $__httpd_pid)"
                   else
                     set_color red; echo -n "  httpd   "; set_color normal; echo "○ Not running"
                   end
