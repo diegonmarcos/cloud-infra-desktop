@@ -78,11 +78,20 @@ let
       executable = true;
       text = ''
         #!/bin/sh
+        # Error handling — NEVER fail silently
+        _die() { printf "\033[1;31m  [guardrail/${cmd}] ERROR: %s\033[0m\n" "$1" >&2; exit 1; }
+
         # Re-entry guard: skip if already inside a guardrail wrapper
-        if [ "''${_GUARDRAIL:-}" = "1" ]; then exec ${cmd} "$@"; fi
+        if [ "''${_GUARDRAIL:-}" = "1" ]; then
+          exec ${cmd} "$@" || _die "exec '${cmd}' failed (not found on PATH?)"
+        fi
         export _GUARDRAIL=1
         # Strip ~/.local/bin from PATH so exec hits the real binary
         PATH="$(printf "%s" "$PATH" | tr ':' '\n' | grep -v '\.local/bin' | tr '\n' ':')"
+        # Verify the real binary exists after PATH strip
+        if ! command -v ${cmd} >/dev/null 2>&1; then
+          _die "'${cmd}' not found on PATH after stripping ~/.local/bin. Is it installed?"
+        fi
         ARGS="$*"
         ${blockChecks}
       '' + (if isWarning then ''
@@ -94,10 +103,10 @@ let
         printf "\033[0;33m  ║  Direct use is fine for quick tasks — just be aware.         ║\033[0m\n"
         printf "\033[0;33m  ╚══════════════════════════════════════════════════════════════╝\033[0m\n"
         printf "\n"
-        exec ${cmd} "$@"
+        exec ${cmd} "$@" || _die "exec '${cmd}' failed"
       '' else ''
         if [ "''${BUILDSH_GUARDRAIL:-}" = "1" ]; then
-          exec ${cmd} "$@"
+          exec ${cmd} "$@" || _die "exec '${cmd}' failed (BUILDSH_GUARDRAIL path)"
         fi
         printf "\n"
         printf "\033[1;31m  ╔══════════════════════════════════════════════════════════════╗\033[0m\n"
@@ -113,13 +122,28 @@ let
         printf "\033[1;35m  ║     Always report a bug in the build.sh engine               ║\033[0m\n"
         printf "\033[1;35m  ╚══════════════════════════════════════════════════════════════╝\033[0m\n"
         printf "\n"
+        # Non-interactive (no TTY) — explain how to approve via env var
+        if ! [ -e /dev/tty ]; then
+          printf "\033[1;33m  ┌─────────────────────────────────────────────────────────────┐\033[0m\n"
+          printf "\033[1;33m  │  NO TTY — cannot prompt for confirmation.                   │\033[0m\n"
+          printf "\033[1;33m  │                                                             │\033[0m\n"
+          printf "\033[1;37m  │  To approve, re-run with:                                   │\033[0m\n"
+          printf "\033[1;36m  │    BUILDSH_GUARDRAIL=1 ${cmd} %s\033[0m\n" "$ARGS"
+          printf "\033[1;33m  │                                                             │\033[0m\n"
+          printf "\033[0;37m  │  Or use build.sh which auto-approves guardrails.            │\033[0m\n"
+          printf "\033[1;33m  └─────────────────────────────────────────────────────────────┘\033[0m\n"
+          printf "\n"
+          exit 1
+        fi
         printf "\033[1;37m  Proceed? [y/N] \033[0m"
-        read -r REPLY < /dev/tty
+        if ! read -r REPLY < /dev/tty 2>/dev/null; then
+          _die "failed to read from /dev/tty — non-interactive session? Use: BUILDSH_GUARDRAIL=1 ${cmd} $ARGS"
+        fi
         if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
           printf "\033[0;31m  Aborted.\033[0m\n"
           exit 1
         fi
-        exec ${cmd} "$@"
+        exec ${cmd} "$@" || _die "exec '${cmd}' failed after confirmation"
       '');
     };
   };

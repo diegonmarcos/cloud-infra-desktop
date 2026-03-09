@@ -9,5 +9,6 @@
     tree
     netcat-openbsd  # nc — WireGuard peer probing in mesh.sh
     ncurses          # clear, tput
+    rsync            # build.sh deploy — sync dist/ to VMs
   ];
 }
