@@ -362,12 +362,16 @@
                 $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$HOME" add -f .gitignore 2>/dev/null || true
               '';
 
-              # MCP server deps — npm install in mcp-api-c3 if node_modules missing/stale
+              # Global tsx + MCP server deps
               home.activation.mcpDeps = lib.hm.dag.entryAfter ["linkGeneration"] ''
-                MCP_DIR="$HOME/git/cloud/a_solutions/mcp-api-c3"
+                PATH="${pkgsNew.nodejs_22}/bin:$PATH"
+                if ! command -v tsx >/dev/null 2>&1; then
+                  $DRY_RUN_CMD ${pkgsNew.nodejs_22}/bin/npm install -g tsx --no-audit --no-fund || true
+                fi
+                MCP_DIR="$HOME/git/cloud/a_solutions/bc-obs_mcp-api-c3"
                 if [ -d "$MCP_DIR" ] && [ -f "$MCP_DIR/package.json" ]; then
                   if [ ! -d "$MCP_DIR/node_modules" ] || [ "$MCP_DIR/package.json" -nt "$MCP_DIR/node_modules/.package-lock.json" ]; then
-                    PATH="${pkgsNew.nodejs_22}/bin:$PATH" $DRY_RUN_CMD ${pkgsNew.nodejs_22}/bin/npm install --prefix "$MCP_DIR" --no-audit --no-fund || true
+                    $DRY_RUN_CMD ${pkgsNew.nodejs_22}/bin/npm install --prefix "$MCP_DIR" --no-audit --no-fund || true
                   fi
                 fi
               '';
