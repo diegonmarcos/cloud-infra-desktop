@@ -2,8 +2,8 @@
   "mcpServers": {
     "cloud-infra": {
       "type": "stdio",
-      "command": "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/mcp-api-c3/node_modules/.bin/tsx",
-      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/mcp-api-c3/src/mcp/index.ts"]
+      "command": "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_mcp-api-c3/node_modules/.bin/tsx",
+      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_mcp-api-c3/src/mcp/index.ts"]
     },
     "mattermost": {
       "type": "stdio",

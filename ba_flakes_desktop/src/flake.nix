@@ -138,6 +138,7 @@
 
           ./modules/common.nix
           ./modules/guardrails.nix
+          ./modules/curl-wrapper.nix
           hostModule
           {
             home = {

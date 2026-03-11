@@ -330,45 +330,6 @@
               (writeShellScriptBin "connect" ''
                 exec "$HOME/git/tools/a-cloud-connect/connect.sh" "$@"
               '')
-
-              # 8. BEARER (Authelia bearer token for CLI access)
-              # Auto-discovers token at ~/.config/authelia/tokens.json
-              # (symlinked by vault/build.sh setup authelia)
-              (writeShellScriptBin "bearer" ''
-                TOKEN_FILE="$HOME/.config/authelia/tokens.json"
-                if [ ! -f "$TOKEN_FILE" ]; then
-                  printf "\033[0;31mToken file not found: %s\033[0m\n" "$TOKEN_FILE" >&2
-                  exit 1
-                fi
-                TOKEN=$(${pkgs.jq}/bin/jq -r .access_token "$TOKEN_FILE")
-                if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
-                  printf "\033[0;31mNo access_token in %s\033[0m\n" "$TOKEN_FILE" >&2
-                  exit 1
-                fi
-                case "''${1:-}" in
-                  -H|--header)
-                    printf "Authorization: Bearer %s" "$TOKEN"
-                    ;;
-                  -e|--export)
-                    printf "export AUTHELIA_BEARER_TOKEN='%s'" "$TOKEN"
-                    ;;
-                  -c|--curl)
-                    shift
-                    exec ${pkgs.curl}/bin/curl -s -H "Authorization: Bearer $TOKEN" "$@"
-                    ;;
-                  -i|--info)
-                    EXPIRES=$(${pkgs.jq}/bin/jq -r .expires_at "$TOKEN_FILE")
-                    OBTAINED=$(${pkgs.jq}/bin/jq -r .obtained_at "$TOKEN_FILE")
-                    printf "\033[0;36mAuthelia Bearer Token\033[0m\n"
-                    printf "  Obtained: \033[0;33m%s\033[0m\n" "$OBTAINED"
-                    printf "  Expires:  \033[0;33m%s\033[0m\n" "$EXPIRES"
-                    printf "  Token:    \033[0;32m%s...\033[0m\n" "$(echo "$TOKEN" | cut -c1-40)"
-                    ;;
-                  *)
-                    printf "%s" "$TOKEN"
-                    ;;
-                esac
-              '')
             ];
 
             # --- HOME MANAGER CONFIG ---
@@ -376,6 +337,7 @@
               imports = [
                 ./modules/packages.nix
                 ./modules/guardrails.nix
+                ./modules/curl-wrapper.nix
               ];
               home.stateVersion = "24.05";
 
@@ -574,7 +536,7 @@
                   echo ""
                   echo "Cloud:"
                   set_color normal
-                  set_color red; echo -n "  bearer  "; set_color normal; echo "Authelia token (-c curl, -i info, -H header)"
+                  set_color red; echo -n "  curl    "; set_color normal; echo "Auto-injects Authelia token for *.diegonmarcos.com"
                   set_color red; echo -n "  mesh    "; set_color normal; echo "WireGuard VPN (status, config, peers)"
                   set_color cyan
                   echo ""
