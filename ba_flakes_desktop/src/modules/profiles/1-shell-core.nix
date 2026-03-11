@@ -27,6 +27,7 @@
     # File sync & transfer
     rsync
     rclone
+    wrangler
 
     # Clipboard
     xclip
