@@ -141,7 +141,7 @@
               # 1. CLAUDE (native install preferred, npx fallback for legacy)
               (writeShellScriptBin "claude" ''
                 export HOME="/data/data/com.termux.nix/files/home"
-                export PATH="$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
+                export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
                 export UV_USE_IO_URING=0
                 export NODE_OPTIONS="--no-node-snapshot --max-old-space-size=1024"
                 export npm_config_cache="$HOME/.npm"
@@ -156,7 +156,7 @@
               # 2. CCLAUDE (With tmp dir workaround + higher memory limit)
               (writeShellScriptBin "cclaude" ''
                 export HOME="/data/data/com.termux.nix/files/home"
-                export PATH="$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
+                export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
                 export MALLOC_ARENA_MAX=2
                 export UV_USE_IO_URING=0
                 export NODE_OPTIONS="--no-node-snapshot --max-old-space-size=2048"
