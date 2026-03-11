@@ -10,5 +10,6 @@
     netcat-openbsd  # nc — WireGuard peer probing in mesh.sh
     ncurses          # clear, tput
     rsync            # build.sh deploy — sync dist/ to VMs
+    wrangler         # Cloudflare Worker CLI — build.sh ship for CF workers
   ];
 }
