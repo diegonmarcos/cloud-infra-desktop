@@ -35,7 +35,7 @@ let
     ]; }
     { cmd = "nix"; subcommands = [
       "eval" "show-derivation" "path-info" "log" "why-depends"
-      "store" "hash" "flake show" "flake info" "flake metadata"
+      "build" "store" "hash" "flake show" "flake check" "flake info" "flake metadata"
       "registry list" "doctor" "profile list"
       "--version" "--help" "-h"
     ]; }
