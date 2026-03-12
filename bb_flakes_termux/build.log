@@ -9561,3 +9561,6 @@ npm warn deprecated source-map-resolve@0.6.0: See https://github.com/lydell/sour
 
 added 860 packages in 60s
 [front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/c-Tools/mygames/
+[2026-03-12 17:27:09] ========== Build script started ==========
+[2026-03-12 17:27:09] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-12 17:27:10] INFO: Staging dirty files for flake evaluation...
