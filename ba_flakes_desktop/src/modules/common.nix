@@ -132,17 +132,11 @@
     $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$HOME" add -f .gitignore 2>/dev/null || true
   '';
 
-  # Global tsx + MCP server deps
-  home.activation.mcpDeps = lib.hm.dag.entryAfter ["linkGeneration"] ''
+  # Global tsx (TypeScript runner)
+  home.activation.globalTsx = lib.hm.dag.entryAfter ["linkGeneration"] ''
     PATH="${pkgs.nodejs_20}/bin:$PATH"
     if ! command -v tsx >/dev/null 2>&1; then
       $DRY_RUN_CMD ${pkgs.nodejs_20}/bin/npm install -g tsx --no-audit --no-fund || true
-    fi
-    MCP_DIR="$HOME/git/cloud/a_solutions/bc-obs_mcp-api-c3"
-    if [ -d "$MCP_DIR" ] && [ -f "$MCP_DIR/package.json" ]; then
-      if [ ! -d "$MCP_DIR/node_modules" ] || [ "$MCP_DIR/package.json" -nt "$MCP_DIR/node_modules/.package-lock.json" ]; then
-        $DRY_RUN_CMD ${pkgs.nodejs_20}/bin/npm install --prefix "$MCP_DIR" --no-audit --no-fund || true
-      fi
     fi
   '';
 }

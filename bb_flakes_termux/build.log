@@ -9408,3 +9408,156 @@ User systemd daemon not running. Skipping reload.
 Activating linkProfile
 [2026-03-11 15:00:27] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
 [2026-03-11 15:00:27] ========== Build script finished ==========
+[2026-03-12 08:11:34] ========== Build script started ==========
+[2026-03-12 08:11:34] ERROR: Unknown: build
+[2026-03-12 08:15:38] ========== Build script started ==========
+[2026-03-12 08:15:38] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-12 08:15:38] INFO: Staging dirty files for flake evaluation...
+[2026-03-12 08:15:39] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+[2026-03-12 08:17:51] ========== Build script started ==========
+[2026-03-12 08:17:51] === Building /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src (no apply) ===
+[2026-03-12 08:17:52] INFO: Staging dirty files for flake evaluation...
+[2026-03-12 08:17:52] INFO: Building activation package...
+/data/data/com.termux.nix/files/home/.local/bin/nix: line 25: syntax error near unexpected token `show'
+/data/data/com.termux.nix/files/home/.local/bin/nix: line 25: `    flake show) exec nix "$@" || _die "exec 'nix' failed (whitelist)" ;;'
+[2026-03-12 08:17:52] SUCCESS: Build succeeded (not applied — use 'switch' to apply)
+[2026-03-12 08:17:52] ========== Build script finished ==========
+[2026-03-12 08:19:49] ========== Build script started ==========
+[2026-03-12 08:19:49] === Building /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src (no apply) ===
+[2026-03-12 08:19:49] INFO: Staging dirty files for flake evaluation...
+[2026-03-12 08:19:49] INFO: Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 5 derivations will be built:
+  /nix/store/x6hkps88690w699i9v5fbki542jah407-hm_.localbinnix.drv
+  /nix/store/i5494lqf3vrjh04l4672cajf41g8v6b8-home-manager-files.drv
+  /nix/store/qpx3zn6nmhbq69ybqzd42wsbgs0hl4m2-home-manager-generation.drv
+  /nix/store/h6ch8aaxjf6gj0rvzh262ldym9sx4hm6-activation-script.drv
+  /nix/store/pl7hbrpqxq9scdlkzkaa00v3ipqd0kd7-nix-on-droid-generation.drv
+building '/nix/store/x6hkps88690w699i9v5fbki542jah407-hm_.localbinnix.drv'...
+building '/nix/store/i5494lqf3vrjh04l4672cajf41g8v6b8-home-manager-files.drv'...
+building '/nix/store/qpx3zn6nmhbq69ybqzd42wsbgs0hl4m2-home-manager-generation.drv'...
+building '/nix/store/h6ch8aaxjf6gj0rvzh262ldym9sx4hm6-activation-script.drv'...
+building '/nix/store/pl7hbrpqxq9scdlkzkaa00v3ipqd0kd7-nix-on-droid-generation.drv'...
+[2026-03-12 08:20:14] SUCCESS: Build succeeded (not applied — use 'switch' to apply)
+[2026-03-12 08:20:14] ========== Build script finished ==========
+[2026-03-12 08:22:32] ========== Build script started ==========
+[2026-03-12 08:22:32] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-12 08:22:32] INFO: Staging dirty files for flake evaluation...
+[2026-03-12 08:22:32] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/data/data/com.termux.nix/files/home/.claude/skills/frontend-design.md' is in the way of '/nix/store/0si92hpfh69iyirjjpjrc0456fbckm2d-home-manager-files/.claude/skills/frontend-design.md', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/github-markdown-dark.css' is in the way of '/nix/store/0si92hpfh69iyirjjpjrc0456fbckm2d-home-manager-files/.local/lib/httpd/github-markdown-dark.css', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/marked.min.js' is in the way of '/nix/store/0si92hpfh69iyirjjpjrc0456fbckm2d-home-manager-files/.local/lib/httpd/marked.min.js', will be skipped since they are the same
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 107
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating cloudDeps
+Activating frontDeps
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/a-Portals/cloud/
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated eslint@8.57.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+npm warn deprecated @humanwhocodes/config-array@0.13.0: Use @eslint/config-array instead
+npm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+
+added 149 packages in 46s
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/a-Portals/linktree_mindmap/
+
+added 21 packages in 31s
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/a-Portals/linktree_pixel-world/
+
+added 28 packages in 51s
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/b-Profiles/cv_web/
+
+added 21 packages in 45s
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/b-Profiles/leafy/
+
+added 14 packages in 28s
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/b-Profiles/myprofile/
+
+added 64 packages in 23s
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/b-Profiles/nexus/
+
+added 19 packages in 5s
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/c-Suite/json-vision/
+
+added 70 packages in 48s
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/c-Tools/astro/
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated keygrip@1.1.0: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated @koa/router@12.0.2: Please upgrade to v15 or higher. All reported bugs in this version are fixed in newer releases, dependencies have been updated, and security has been improved.
+
+> nuxt-astro-life@1.0.0 postinstall
+> nuxt prepare
+
+[nuxt:tailwindcss] ℹ Using default Tailwind CSS file
+ℹ Nuxt Icon server bundle mode is set to local
+│
+◆  Types generated in .nuxt.
+
+added 760 packages in 3m
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/c-Tools/central_bank/
+
+added 56 packages in 2m
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/c-Tools/feed_yourself/
+
+added 21 packages in 11s
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/c-Tools/maps/
+
+> maps@2.0.0 prepare
+> svelte-kit sync || echo ''
+
+
+added 37 packages, and removed 35 packages in 1m
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/c-Tools/market_watch/
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated @humanwhocodes/config-array@0.13.0: Use @eslint/config-array instead
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
+npm warn deprecated eslint@8.57.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 149 packages in 10s
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/c-Tools/myfeed/
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated @humanwhocodes/config-array@0.13.0: Use @eslint/config-array instead
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated eslint@8.57.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+npm warn deprecated source-map-resolve@0.6.0: See https://github.com/lydell/source-map-resolve#deprecated
+
+added 860 packages in 60s
+[front.nix] npm install: /data/data/com.termux.nix/files/home/git/front/c-Tools/mygames/

@@ -131,6 +131,52 @@ cmd_show() {
     nix flake show
 }
 
+cmd_build() {
+    log_header "Building $SRC_DIR (no apply)"
+    check_nix || return 1
+
+    if command -v git >/dev/null 2>&1; then
+        dirty=$(git -C "$SRC_DIR" status --porcelain 2>/dev/null || true)
+        if [ -n "$dirty" ]; then
+            log_info "Staging dirty files for flake evaluation..."
+            git -C "$SRC_DIR" add -A 2>/dev/null || true
+        fi
+    fi
+
+    log_info "Building activation package..."
+    _nix="nix"
+    [ -x "$HOME/.nix-profile/bin/nix" ] && _nix="$HOME/.nix-profile/bin/nix"
+    _rc_file=$(mktemp)
+    { BUILDSH_GUARDRAIL=1 "$_nix" build "$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" --impure --no-link 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+    exit_code=$(cat "$_rc_file")
+    rm -f "$_rc_file"
+
+    if [ "$exit_code" -ne 0 ]; then
+        log_error "Build failed (exit $exit_code)"
+        return $exit_code
+    fi
+
+    log_success "Build succeeded (not applied — use 'switch' to apply)"
+}
+
+cmd_dry_run() {
+    log_header "Dry run — $SRC_DIR"
+    check_nix || return 1
+
+    if command -v git >/dev/null 2>&1; then
+        dirty=$(git -C "$SRC_DIR" status --porcelain 2>/dev/null || true)
+        if [ -n "$dirty" ]; then
+            log_info "Staging dirty files for flake evaluation..."
+            git -C "$SRC_DIR" add -A 2>/dev/null || true
+        fi
+    fi
+
+    log_info "Evaluating what would be built..."
+    _nix="nix"
+    [ -x "$HOME/.nix-profile/bin/nix" ] && _nix="$HOME/.nix-profile/bin/nix"
+    BUILDSH_GUARDRAIL=1 "$_nix" build "$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" --impure --no-link --dry-run 2>&1 | tee -a "$LOG_FILE"
+}
+
 cmd_check() {
     log_header "Flake Check"
     check_nix || return 1
@@ -240,6 +286,9 @@ ${YELLOW}USAGE:${NC}
 
 ${YELLOW}COMMANDS:${NC}
     switch      Apply home-manager config (default)
+    build       Build without applying (validate only)
+    dry-run     Show what would be built (fast, no build)
+    plan        Alias for dry-run
     tui         Launch interactive TUI menu
     update      Update flake inputs
     show        Show flake outputs
@@ -264,6 +313,8 @@ log "========== Build script started =========="
 case "${1:-switch}" in
     -h|--help|help) show_help ;;
     switch)  cmd_switch ;;
+    build)   cmd_build ;;
+    dry-run|plan) cmd_dry_run ;;
     tui)     run_tui ;;
     update)  cmd_update ;;
     show)    cmd_show ;;
