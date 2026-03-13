@@ -1,28 +1,68 @@
-# Large build artifacts - keep folders via .gitkeep
+# ══════════════════════════════════════════════════════════
+# REPO: unix (PUBLIC)
+# https://github.com/diegonmarcos/unix
+# ══════════════════════════════════════════════════════════
+
+# ── Secrets & Credentials (reinforces global gitignore) ──
+# KEEP IN SYNC with global gitignore: ~/git/unix/ba_flakes_desktop/src/modules/programs/git.nix
+#                                      ~/git/unix/bb_flakes_termux/src/modules/programs/git.nix
+## Decrypted secrets output
+.secrets
+*.secrets
+**/.secrets
+.secrets.d/
+**/.secrets.d/
+## Environment files
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+## Private keys & certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+## Auth tokens & credentials
+*.token
+*credentials*.json
+*_token.json
+*_tokens.json
+## Cloud provider configs
+.oci/
+.gcloud/
+## GPG & age
+*.asc
+*.age
+!*.age.pub
+## Terraform secrets
+terraform.tfvars
+*.tfvars
+!*.tfvars.example
+
+# ── Repo-specific ──
+## Large build artifacts - keep folders via .gitkeep
 libs/**
 libs/*
 libs/
-
-# MyShell bundled nix store (500MB+)
+## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/
-
-# Container storage
+## Container storage
 storage/
-
 !storage/.gitkeep
-
+## Disk images
 *.raw
 *.qcow2
 *.iso
-
-# Temp files
-
-.DS_Store
-
-# Kernel/initrd (extract from ISO or build)
+## Kernel/initrd
 initrd.img
 vmlinuz
 *.img
+## Nix build artifacts
 a_nixos_host/result
+## Obsidian
 .obsidian/workspace-mobile.json
