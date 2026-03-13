@@ -87,12 +87,7 @@
 
       gcam = "git add --all; and git commit -m $argv[1]";
 
-      serve = ''
-        set -l port (test (count $argv) -gt 0; and echo $argv[1]; or echo 8090)
-        set -l dir (test (count $argv) -gt 1; and echo $argv[2]; or echo $HOME)
-        echo "Serving $dir on http://localhost:$port"
-        busybox httpd -f -p $port -h $dir
-      '';
+      serve = "http-dev start $argv";
 
       hg = "history | grep $argv";
     };
@@ -116,10 +111,7 @@
       # Vi mode
       fish_vi_key_bindings
 
-      # Auto-start busybox httpd file server (home dir on :8090)
-      if not pgrep -f "busybox httpd.*-p 8090" >/dev/null 2>&1
-        busybox httpd -p 8090 -h $HOME
-      end
+      # http-dev auto-start is handled in flake.nix interactiveShellInit
 
       # Cargo
       if test -d $HOME/.cargo/bin

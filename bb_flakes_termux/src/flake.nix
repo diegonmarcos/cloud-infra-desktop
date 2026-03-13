@@ -342,6 +342,7 @@
                 ./modules/node-deps.nix
                 ./modules/cloud.nix
                 ./modules/front.nix
+                ./modules/web-server-md-eruda.nix
                 ./modules/programs/shells/fish-greeting.nix
               ];
               home.stateVersion = "24.05";
@@ -411,10 +412,6 @@
               home.file.".claude/skills/frontend-design.md".source = ../src/modules/dotfiles/claude/skills/frontend-design.md;
               home.file.".rgignore".source = ../src/modules/dotfiles/claude/rgignore;
 
-              # Lightweight Node.js file server with Eruda DevTools + Markdown rendering
-              home.file.".local/bin/web-server-md-eruda.mjs".source = ../src/modules/dotfiles/web-server-md-eruda.mjs;
-              home.file.".local/lib/httpd/marked.min.js".source = ../src/modules/dotfiles/httpd-lib/marked.min.js;
-              home.file.".local/lib/httpd/github-markdown-dark.css".source = ../src/modules/dotfiles/httpd-lib/github-markdown-dark.css;
 
               # Minimal .gitignore so $HOME is a git repo (ignore everything)
               # This makes Claude Code use `git ls-files` (instant) instead of ripgrep (97s timeout)
@@ -461,22 +458,9 @@
                 shellAliases = sharedAliases;
                 interactiveShellInit = ''
 
-                  # Auto-start node file server with Eruda DevTools + Markdown on port 8000
+                  # Auto-start http-dev (web-server-md-eruda)
                   set -g __httpd_port 8000
-                  set -g __httpd_dir "$HOME"
-                  set -g __httpd_pid_file "$HOME/.cache/web-server-md-eruda.pid"
-                  set -l httpd_running 0
-                  if test -f "$__httpd_pid_file"
-                    set -l pid (cat "$__httpd_pid_file" 2>/dev/null)
-                    if test -n "$pid"; and kill -0 $pid 2>/dev/null
-                      set httpd_running 1
-                    end
-                  end
-                  if test $httpd_running -eq 0
-                    mkdir -p (dirname "$__httpd_pid_file")
-                    node "$HOME/.local/bin/web-server-md-eruda.mjs" "$__httpd_port" "$__httpd_dir" >/dev/null 2>&1 &
-                    echo $last_pid > "$__httpd_pid_file"
-                  end
+                  set -g __httpd_pid (http-dev start 2>/dev/null)
 
                   # FZF configuration
                   set -gx FZF_DEFAULT_OPTS "--height 40% --layout=reverse --border"

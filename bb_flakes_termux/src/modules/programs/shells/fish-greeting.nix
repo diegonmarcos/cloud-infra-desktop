@@ -124,11 +124,10 @@
     set_color magenta; echo -n "    sync    "; set_color normal; echo "File sync & serve (WebDAV SFTP HTTP+Eruda)"
     set_color magenta; echo -n "    connect "; set_color normal; echo "Unified dashboard (git/mounts/sync/servers)"
     set_color magenta; echo -n "    server  "; set_color normal; echo "Dev server control (dev/stop/status)"
-    if test -f "$__httpd_pid_file"; and kill -0 (cat "$__httpd_pid_file" 2>/dev/null) 2>/dev/null
-      set -l __httpd_pid (cat "$__httpd_pid_file")
-      set_color green; echo -n "    httpd   "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: $__httpd_pid)"
+    if test -n "$__httpd_pid"; and kill -0 $__httpd_pid 2>/dev/null
+      set_color green; echo -n "    http-dev"; set_color normal; echo -n " ● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: $__httpd_pid)"
     else
-      set_color red; echo -n "    httpd   "; set_color normal; echo "○ Not running"
+      set_color red; echo -n "    http-dev"; set_color normal; echo " ○ Not running"
     end
     # H3: Search
     set_color cyan; echo "  Search (fzf):"
