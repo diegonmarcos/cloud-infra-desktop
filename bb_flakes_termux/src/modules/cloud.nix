@@ -1,10 +1,16 @@
-# cloud/ repo — npm install for all services with package.json
+# cloud/ repo — fallback per-service npm install (only if ~/.node_modules missing)
 { config, lib, pkgs, nodejs, ... }:
 
 let
   repoDir = "$HOME/git/cloud";
 in {
-  home.activation.cloudDeps = lib.hm.dag.entryAfter ["linkGeneration"] ''
+  home.activation.cloudDeps = lib.hm.dag.entryAfter ["sharedNodeModules"] ''
+    # Skip if shared node_modules exists (tier 2 handles it)
+    if [ -d "$HOME/.node_modules/node_modules" ]; then
+      printf "[cloud.nix] Skipped — using shared ~/.node_modules/\n"
+      exit 0
+    fi
+
     CLOUD="${repoDir}"
     [ -d "$CLOUD/a_solutions" ] || exit 0
 
@@ -12,8 +18,8 @@ in {
       dir="$1"
       if [ -f "$dir/package.json" ]; then
         if [ ! -d "$dir/node_modules" ] || [ "$dir/package.json" -nt "$dir/node_modules/.package-lock.json" ]; then
-          printf "[cloud.nix] npm install: %s\n" "$dir"
-          $DRY_RUN_CMD ${nodejs}/bin/npm install --prefix "$dir" --no-audit --no-fund || true
+          printf "[cloud.nix] fallback npm install: %s\n" "$dir"
+          $DRY_RUN_CMD ${nodejs}/bin/npm install --prefix "$dir" --no-audit --no-fund --legacy-peer-deps || true
         fi
       fi
     }
