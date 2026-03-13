@@ -51,50 +51,6 @@
     };
 
     functions = {
-      fish_greeting = ''
-        set_color cyan
-        echo "=================================="
-        echo "   Nix-on-Droid Terminal"
-        echo "=================================="
-        set_color normal
-        echo ""
-        set_color yellow
-        echo "Commands:"
-        set_color normal
-        set_color green; echo -n "  c       "; set_color normal; echo "Launch Claude Code"
-        set_color green; echo -n "  claude-malloc "; set_color normal; echo "Launch Claude Code (malloc workaround)"
-        set_color green; echo -n "  code    "; set_color normal; echo "VS Code Server (local/lan/stop)"
-        set_color cyan
-        echo ""
-        echo "Git:"
-        set_color normal
-        set_color yellow; echo -n "  gacp    "; set_color normal; echo "git add . && commit && push"
-        set_color yellow; echo -n "  gcl     "; set_color normal; echo "git clone <url>"
-        set_color cyan
-        echo ""
-        echo "System:"
-        set_color normal
-        set_color magenta; echo -n "  up      "; set_color normal; echo "Rebuild Nix config"
-        set_color magenta; echo -n "  conf    "; set_color normal; echo "Edit flake.nix"
-        set_color magenta; echo -n "  serve   "; set_color normal; echo "File server (default :8090 ~/)"
-        set_color magenta; echo -n "  sync    "; set_color normal; echo "File server & sync (WebDAV:8082 SFTP:2022 HTTP:8083)"
-        set_color cyan
-        echo ""
-        echo "Search (fzf):"
-        set_color normal
-        set_color blue; echo -n "  Ctrl+T  "; set_color normal; echo "Find file"
-        set_color blue; echo -n "  Ctrl+R  "; set_color normal; echo "Search history"
-        set_color blue; echo -n "  Alt+C   "; set_color normal; echo "Cd to folder"
-        set_color cyan
-        echo ""
-        echo "Navigation:"
-        set_color normal
-        set_color blue; echo -n "  ll      "; set_color normal; echo "List files (detailed)"
-        set_color blue; echo -n "  ..      "; set_color normal; echo "Go up one directory"
-        set_color cyan
-        echo "=================================="
-        set_color normal
-      '';
 
       mkcd = "mkdir -p $argv[1]; and cd $argv[1]";
 
