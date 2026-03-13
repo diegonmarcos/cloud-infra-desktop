@@ -2,8 +2,8 @@
   "mcpServers": {
     "cloud-infra": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["tsx", "/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_mcp-api-c3/src/mcp/index.ts"]
+      "command": "/home/diego/Mounts/Git/cloud/run-mcp.sh",
+      "args": []
     },
     "mailu-mcp": {
       "type": "stdio",
