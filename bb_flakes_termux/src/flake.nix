@@ -342,6 +342,7 @@
                 ./modules/node-deps.nix
                 ./modules/cloud.nix
                 ./modules/front.nix
+                ./modules/programs/shells/fish-greeting.nix
               ];
               home.stateVersion = "24.05";
 
@@ -459,8 +460,6 @@
                 enable = true;
                 shellAliases = sharedAliases;
                 interactiveShellInit = ''
-                  # Disable default greeting
-                  set -g fish_greeting ""
 
                   # Auto-start node file server with Eruda DevTools + Markdown on port 8000
                   set -g __httpd_port 8000
