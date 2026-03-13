@@ -115,7 +115,7 @@
 
       gcam() { git add --all && git commit -m "$1"; }
 
-      serve() { busybox httpd -f -p "''${1:-8090}" -h "''${2:-$HOME}"; }
+      serve() { http-dev start "$@"; }
 
       # Local overrides
       [[ -f ~/.bashrc.local ]] && source ~/.bashrc.local
