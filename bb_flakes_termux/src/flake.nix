@@ -51,7 +51,8 @@
             # Global PATH and SHELL for Bash/Zsh/Fish
             environment.sessionVariables = {
               SHELL = "${pkgs.bash}/bin/bash";
-              PATH = "$HOME/.local/bin:$HOME/.nix-profile/bin:/run/current-system/sw/bin:$PATH";
+              PATH = "$HOME/.node_modules/node_modules/.bin:$HOME/.local/bin:$HOME/.nix-profile/bin:/run/current-system/sw/bin:$PATH";
+              NODE_PATH = "$HOME/.node_modules/node_modules";
               # Global memory allocator fix for Android - propagates to ALL child processes
               LD_PRELOAD = "${pkgs.mimalloc}/lib/libmimalloc.so";
               MIMALLOC_PAGE_RESET = "0";
@@ -339,6 +340,7 @@
                 ./modules/packages.nix
                 ./modules/guardrails.nix
                 ./modules/curl-wrapper.nix
+                ./modules/node-deps.nix
                 ./modules/cloud.nix
                 ./modules/front.nix
               ];
