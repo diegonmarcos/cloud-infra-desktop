@@ -467,12 +467,12 @@ rpm -qR <package>           # RPM-based
 | `debug-ops` | Debug containers, logs, health issues | Debug workflow, common pitfalls, WireGuard gotchas |
 | `crawlee-scraping` | Web scraping, data extraction | Crawlee workflow, actor management, result extraction |
 
-- **Source**: `~/git/cloud/a_solutions/bb-sec_mcp-server-skills/src/mcp/prompts/index.ts`
+- **Source**: `~/git/cloud/a_solutions/bc-obs_c3-mcp-api/src/mcp/prompts/index.ts`
 - **Loaded on-demand** via MCP protocol (0 bytes always-on context, vs 4.7KB before)
 
 ## MCP: cloud-infra
 
-**Repo**: `~/git/cloud/a_solutions/bb-sec_mcp-server-skills/` | **SDK**: `@modelcontextprotocol/sdk ^1.12.0`
+**Repo**: `~/git/cloud/a_solutions/bc-obs_c3-mcp-api/` | **SDK**: `@modelcontextprotocol/sdk ^1.12.0`
 
 ### Architecture — Hybrid "Chef + Waiter" Model
 
