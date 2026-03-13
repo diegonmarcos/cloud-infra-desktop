@@ -6,6 +6,8 @@ let
   repoDir = "$HOME/git/front";
 in {
   home.activation.frontDeps = lib.hm.dag.entryAfter ["sharedNodeModules"] ''
+    (
+    trap 'echo "[front.nix] FAILED at line $LINENO (''${FUNCNAME[0]:-main}): $BASH_COMMAND" >&2' ERR
     # Skip if shared node_modules exists (tier 2 handles it)
     if [ -d "$HOME/.node_modules/node_modules" ]; then
       printf "[front.nix] Skipped — using shared ~/.node_modules/\n"
@@ -36,5 +38,6 @@ in {
         _npm_install "$project"
       done
     done
+    ) || echo "[front.nix] FAILED — see errors above, activation continues"
   '';
 }
