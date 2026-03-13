@@ -6,6 +6,8 @@ let
   repoDir = "$HOME/git/cloud";
 in {
   home.activation.cloudDeps = lib.hm.dag.entryAfter ["sharedNodeModules"] ''
+    (
+    trap 'echo "[cloud.nix] FAILED at line $LINENO (''${FUNCNAME[0]:-main}): $BASH_COMMAND" >&2' ERR
     # Skip if shared node_modules exists (tier 2 handles it)
     if [ -d "$HOME/.node_modules/node_modules" ]; then
       printf "[cloud.nix] Skipped — using shared ~/.node_modules/\n"
@@ -31,5 +33,6 @@ in {
       _npm_install "$svc"
       [ -d "''${svc}src" ] && _npm_install "''${svc}src"
     done
+    ) || echo "[cloud.nix] FAILED — see errors above, activation continues"
   '';
 }
