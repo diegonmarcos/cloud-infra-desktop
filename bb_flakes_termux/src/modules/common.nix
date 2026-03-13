@@ -5,6 +5,7 @@
   imports = [
     ./programs/shells/bash.nix
     ./programs/shells/fish.nix
+    ./programs/shells/fish-greeting.nix
     ./programs/shells/starship.nix
     ./programs/editors/vim.nix
     ./programs/git.nix
