@@ -31,7 +31,6 @@
         conf = "nano ~/nix-home-manager/flake.nix";
         up = "~/nix-home-manager/build.sh switch";
         c = "claude";
-        cc = "claude-malloc";
       };
     in
     {
@@ -463,9 +462,6 @@
                   # Disable default greeting
                   set -g fish_greeting ""
 
-                  # Override gcc cc with claude-malloc (function beats PATH)
-                  function cc; claude-malloc $argv; end
-
                   # Auto-start node file server with Eruda DevTools + Markdown on port 8000
                   set -g __httpd_port 8000
                   set -g __httpd_dir "$HOME"
@@ -622,7 +618,7 @@
                   set_color cyan; echo "  Tools:"
                   set_color normal
                   set_color green; echo -n "    c       "; set_color normal; echo "Launch Claude Code"
-                  set_color green; echo -n "    cc      "; set_color normal; echo "Launch Claude Code (alt)"
+                  set_color green; echo -n "    claude-malloc "; set_color normal; echo "Launch Claude Code (malloc workaround)"
                   set_color green; echo -n "    code    "; set_color normal; echo "VS Code Server (local/lan/stop)"
                   # H3: Git
                   set_color cyan; echo "  Git:"
