@@ -31,7 +31,7 @@
         conf = "nano ~/nix-home-manager/flake.nix";
         up = "~/nix-home-manager/build.sh switch";
         c = "claude";
-        cc = "cclaude";
+        cc = "claude-malloc";
       };
     in
     {
@@ -154,8 +154,8 @@
                 fi
               '')
 
-              # 2. CCLAUDE (With tmp dir workaround + higher memory limit)
-              (writeShellScriptBin "cclaude" ''
+              # 2. CLAUDE-MALLOC (With tmp dir workaround + higher memory limit)
+              (writeShellScriptBin "claude-malloc" ''
                 export HOME="/data/data/com.termux.nix/files/home"
                 export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
                 export MALLOC_ARENA_MAX=2
@@ -463,8 +463,8 @@
                   # Disable default greeting
                   set -g fish_greeting ""
 
-                  # Override gcc cc with cclaude (function beats PATH)
-                  function cc; cclaude $argv; end
+                  # Override gcc cc with claude-malloc (function beats PATH)
+                  function cc; claude-malloc $argv; end
 
                   # Auto-start node file server with Eruda DevTools + Markdown on port 8000
                   set -g __httpd_port 8000

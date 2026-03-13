@@ -62,7 +62,7 @@
         echo "Commands:"
         set_color normal
         set_color green; echo -n "  c       "; set_color normal; echo "Launch Claude Code"
-        set_color green; echo -n "  cc      "; set_color normal; echo "Launch Claude Code (alt)"
+        set_color green; echo -n "  cc      "; set_color normal; echo "Launch Claude Code (malloc workaround)"
         set_color green; echo -n "  code    "; set_color normal; echo "VS Code Server (local/lan/stop)"
         set_color cyan
         echo ""
