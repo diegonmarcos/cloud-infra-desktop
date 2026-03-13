@@ -365,13 +365,6 @@
                 $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$HOME" add -f .gitignore 2>/dev/null || true
               '';
 
-              # Global tsx (TypeScript runner)
-              home.activation.globalTsx = lib.hm.dag.entryAfter ["linkGeneration"] ''
-                PATH="${pkgsNew.nodejs_22}/bin:$PATH"
-                if ! command -v tsx >/dev/null 2>&1; then
-                  $DRY_RUN_CMD ${pkgsNew.nodejs_22}/bin/npm install -g tsx --no-audit --no-fund || true
-                fi
-              '';
 
               # Symlink nix-profile bins into Termux usr/bin so non-shell processes
               # (Claude Code, Android app launchers) can find nix-installed tools

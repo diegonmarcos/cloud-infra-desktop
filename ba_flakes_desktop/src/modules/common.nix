@@ -132,11 +132,4 @@
     $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$HOME" add -f .gitignore 2>/dev/null || true
   '';
 
-  # Global tsx (TypeScript runner)
-  home.activation.globalTsx = lib.hm.dag.entryAfter ["linkGeneration"] ''
-    PATH="${pkgs.nodejs_20}/bin:$PATH"
-    if ! command -v tsx >/dev/null 2>&1; then
-      $DRY_RUN_CMD ${pkgs.nodejs_20}/bin/npm install -g tsx --no-audit --no-fund || true
-    fi
-  '';
 }
