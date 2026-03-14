@@ -133,38 +133,103 @@ if cd "$cwd" 2>/dev/null && git rev-parse --git-dir > /dev/null 2>&1; then
     fi
 fi
 
-# === TEMPORARILY DISABLED: Async system metrics (lines 2-3 of statusline) ===
-# _async="/tmp/statusline_async_$$"
-# mkdir -p "$_async"
-# mem_info=$(free | grep Mem)
-# mem_total=$(echo "$mem_info" | awk '{print $2}')
-# mem_used=$(echo "$mem_info" | awk '{print $3}')
-# mem_percent=$(awk "BEGIN {printf \"%.0f\", ($mem_used/$mem_total)*100}")
-# if [ -d "/data/data/com.termux.nix" ]; then
-#     disk_percent=$(df /data | tail -n 1 | awk '{print $5}' | sed 's/%//')
-# else
-#     disk_percent=$(df / | tail -n 1 | awk '{print $5}' | sed 's/%//')
-# fi
-# IP_CMD=""
-# for p in /sbin/ip /usr/sbin/ip /bin/ip $HOME/.nix-profile/bin/ip /run/current-system/sw/bin/ip; do
-#     [ -x "$p" ] && IP_CMD="$p" && break
-# done
-# (cpu=...; echo "${cpu:-0}" > "$_async/cpu") &
-# (vp="N/A"; ...; echo "$vp" > "$_async/vram") &
-# (ms="down"; ...; echo "$ms $mc $mi" > "$_async/mesh") &
-# (pip=""; ...; echo "$pip" > "$_async/pip") &
-# (pub=$(curl ...); echo "$pub" > "$_async/pub") &
-# wait
-# cpu_percent=$(cat "$_async/cpu" 2>/dev/null)
-# vram_percent=$(cat "$_async/vram" 2>/dev/null)
-# read mesh_status mesh_color mesh_ip < "$_async/mesh" 2>/dev/null
-# private_ip=$(cat "$_async/pip" 2>/dev/null)
-# public_ip=$(cat "$_async/pub" 2>/dev/null)
-# rm -rf "$_async"
-# mem_color=$(get_color "$mem_percent")
-# cpu_color=$(get_color "$cpu_percent")
-# disk_color=$(get_color "$disk_percent")
-# vram_color=$(get_color "$vram_percent")
+# === Async system metrics — all slow commands run in parallel ===
+_async="/tmp/statusline_async_$$"
+mkdir -p "$_async"
+
+# RAM + Disk (instant)
+mem_info=$(free | grep Mem)
+mem_total=$(echo "$mem_info" | awk '{print $2}')
+mem_used=$(echo "$mem_info" | awk '{print $3}')
+mem_percent=$(awk "BEGIN {printf \"%.0f\", ($mem_used/$mem_total)*100}")
+
+if [ -d "/data/data/com.termux.nix" ]; then
+    disk_percent=$(df /data | tail -n 1 | awk '{print $5}' | sed 's/%//')
+else
+    disk_percent=$(df / | tail -n 1 | awk '{print $5}' | sed 's/%//')
+fi
+
+# Find ip command once
+IP_CMD=""
+for p in /sbin/ip /usr/sbin/ip /bin/ip $HOME/.nix-profile/bin/ip /run/current-system/sw/bin/ip; do
+    [ -x "$p" ] && IP_CMD="$p" && break
+done
+
+# --- Background: CPU (100ms) ---
+(
+    cpu=$(awk '{u=$2+$4; t=$2+$4+$5; if (NR==1){u1=u; t1=t;} else printf "%.0f", (($2+$4-u1) * 100 / (t-t1))}' <(grep 'cpu ' /proc/stat) <(sleep 0.1; grep 'cpu ' /proc/stat))
+    echo "${cpu:-0}" > "$_async/cpu"
+) &
+
+# --- Background: VRAM (timeout 2s) ---
+(
+    vp="N/A"
+    if command -v nvidia-smi &>/dev/null; then
+        vi=$(timeout 2 nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null | head -n 1)
+        if [ -n "$vi" ]; then
+            vu=$(echo "$vi" | awk -F',' '{print $1}'); vt=$(echo "$vi" | awk -F',' '{print $2}')
+            [ -n "$vu" ] && [ -n "$vt" ] && [ "$vt" != "0" ] && vp=$(awk "BEGIN {printf \"%.0f\", ($vu/$vt)*100}")
+        fi
+    fi
+    echo "$vp" > "$_async/vram"
+) &
+
+# --- Background: Mesh (timeout 1s) ---
+(
+    ms="down"; mc="31"; mi=""
+    if timeout 1 curl -s http://10.0.0.1:80 >/dev/null 2>&1; then
+        ms="up"; mc="32"
+        if [ -n "$IP_CMD" ] && $IP_CMD link show wg0 &>/dev/null 2>&1; then
+            mi=$($IP_CMD -4 addr show wg0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+        elif [ -d "/sys/class/net/wg0" ]; then
+            mi=$(ip addr show wg0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+        fi
+        WG_CONF="${HOME}/.config/wireguard/wg0.conf"
+        [ -z "$mi" ] && [ -f "$WG_CONF" ] && mi=$(grep -i "^Address" "$WG_CONF" 2>/dev/null | awk '{print $3}' | cut -d'/' -f1)
+        [ -z "$mi" ] && mi="none"
+    fi
+    echo "$ms $mc $mi" > "$_async/mesh"
+) &
+
+# --- Background: Private IP (timeout 2s) ---
+(
+    pip=""
+    [ -n "$IP_CMD" ] && pip=$($IP_CMD route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+' | head -1)
+    [ -z "$pip" ] && pip=$(timeout 1 hostname -I 2>/dev/null | awk '{print $1}')
+    if [ "$pip" = "127.0.0.1" ] || [ -z "$pip" ] || [[ "$pip" == 10.0.0.* ]]; then
+        pip=$(cat /proc/net/fib_trie 2>/dev/null | grep -oP '(?<=\|-- )\d+\.\d+\.\d+\.\d+' | grep -v "^127\." | grep -v "^10\.0\.0\." | head -1)
+    fi
+    [ -z "$pip" ] && pip="none"
+    echo "$pip" > "$_async/pip"
+) &
+
+# --- Background: Public IP (timeout 2s) ---
+(
+    pub=$(timeout 2 curl -s --max-time 2 ifconfig.me 2>/dev/null)
+    [ -z "$pub" ] && pub="..."
+    echo "$pub" > "$_async/pub"
+) &
+
+# Wait for all background jobs (hard kill after 3s to prevent statusline hangs)
+( sleep 3; kill 0 2>/dev/null ) &
+_killer=$!
+wait %1 %2 %3 %4 %5 2>/dev/null
+kill $_killer 2>/dev/null; wait $_killer 2>/dev/null
+
+# Read async results
+cpu_percent=$(cat "$_async/cpu" 2>/dev/null); [ -z "$cpu_percent" ] && cpu_percent=0
+vram_percent=$(cat "$_async/vram" 2>/dev/null); [ -z "$vram_percent" ] && vram_percent="N/A"
+read mesh_status mesh_color mesh_ip < "$_async/mesh" 2>/dev/null
+[ -z "$mesh_status" ] && mesh_status="down" && mesh_color="31"
+private_ip=$(cat "$_async/pip" 2>/dev/null); [ -z "$private_ip" ] && private_ip="none"
+public_ip=$(cat "$_async/pub" 2>/dev/null); [ -z "$public_ip" ] && public_ip="..."
+rm -rf "$_async"
+
+# Colors
+mem_color=$(get_color "$mem_percent")
+cpu_color=$(get_color "$cpu_percent")
+disk_color=$(get_color "$disk_percent")
+vram_color=$(get_color "$vram_percent")
 
 # === BUILD OUTPUT ===
 OUT=""
@@ -188,32 +253,34 @@ if [ -n "$git_branch" ]; then
 fi
 OUT+=" \033[37m|\033[0m\n"
 
-# TEMPORARILY DISABLED: LINE 2 (system metrics) and LINE 3 (context/cost)
-# OUT+="\033[37m|\033[0m"
-# OUT+=" \033[${mem_color}mRAM:${mem_percent}%\033[0m"
-# OUT+=" \033[${cpu_color}mCPU:${cpu_percent}%\033[0m"
-# OUT+=" \033[${disk_color}mDisk:${disk_percent}%\033[0m"
-# OUT+=" \033[${vram_color}mVRAM:${vram_percent}%\033[0m"
-# OUT+=" \033[37m|\033[0m"
-# OUT+=" \033[${mesh_color}mMesh:${mesh_status}\033[0m"
-# OUT+=" \033[36mM:${mesh_ip}\033[0m"
-# OUT+=" \033[36mP:${private_ip}\033[0m"
-# OUT+=" \033[36mPub:${public_ip}\033[0m"
-# OUT+=" \033[37m|\033[0m\n"
-#
-# ctx_fmt=$(fmt_tok "$current_ctx")
-# in_fmt=$(fmt_tok "${ctx_input:-0}")
-# out_fmt=$(fmt_tok "${ctx_output:-0}")
-# OUT+="\033[37m|\033[0m"
-# OUT+=" \033[90m${last_reset_ts}\033[0m"
-# if [ "$exceeds_200k" = "true" ]; then
-#     OUT+=" \033[31mCTX:${ctx_fmt}/200K(⚠)\033[0m"
-# else
-#     OUT+=" \033[${ctx_color}mCTX:${ctx_fmt}/200K(${ctx_percent}%)\033[0m"
-# fi
-# OUT+=" \033[36mIn:${in_fmt}\033[0m"
-# OUT+=" \033[36mOut:${out_fmt}\033[0m"
-# OUT+=" \033[${cost_color}m\$${session_cost}\033[0m"
-# OUT+=" \033[37m|\033[0m\n"
+# LINE 2: | RAM CPU Disk VRAM | Mesh M:ip P:ip Pub:ip |
+OUT+="\033[37m|\033[0m"
+OUT+=" \033[${mem_color}mRAM:${mem_percent}%\033[0m"
+OUT+=" \033[${cpu_color}mCPU:${cpu_percent}%\033[0m"
+OUT+=" \033[${disk_color}mDisk:${disk_percent}%\033[0m"
+OUT+=" \033[${vram_color}mVRAM:${vram_percent}%\033[0m"
+OUT+=" \033[37m|\033[0m"
+OUT+=" \033[${mesh_color}mMesh:${mesh_status}\033[0m"
+OUT+=" \033[36mM:${mesh_ip}\033[0m"
+OUT+=" \033[36mP:${private_ip}\033[0m"
+OUT+=" \033[36mPub:${public_ip}\033[0m"
+OUT+=" \033[37m|\033[0m\n"
+
+# LINE 3: | last_reset CTX:used/200K(%) In:tok Out:tok $cost |
+ctx_fmt=$(fmt_tok "$current_ctx")
+in_fmt=$(fmt_tok "${ctx_input:-0}")
+out_fmt=$(fmt_tok "${ctx_output:-0}")
+OUT+="\033[37m|\033[0m"
+OUT+=" \033[90m${last_reset_ts}\033[0m"
+if [ "$exceeds_200k" = "true" ]; then
+    OUT+=" \033[31mCTX:${ctx_fmt}/200K(⚠)\033[0m"
+else
+    OUT+=" \033[${ctx_color}mCTX:${ctx_fmt}/200K(${ctx_percent}%)\033[0m"
+fi
+OUT+=" \033[36mIn:${in_fmt}\033[0m"
+OUT+=" \033[36mOut:${out_fmt}\033[0m"
+cost_fmt=$(LC_NUMERIC=C awk "BEGIN {printf \"%.2f\", ${session_cost:-0}}")
+OUT+=" \033[${cost_color}m\$${cost_fmt}\033[0m"
+OUT+=" \033[37m|\033[0m\n"
 
 printf "%b" "$OUT"

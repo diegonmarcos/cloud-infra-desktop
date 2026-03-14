@@ -56,12 +56,19 @@ let
 
   mkWhitelistCheck = cmd: let
     subs = whitelistFor cmd;
-    # Match first argument against each whitelisted subcommand
+    # Match first non-flag argument against each whitelisted subcommand
     checks = map (sub: ''
       ${sub}) exec ${cmd} "$@" || _die "exec '${cmd}' failed (whitelist)" ;;'') subs;
   in if subs == [] then "" else ''
-    # Tier 0: WHITELIST — read-only subcommands pass through
-    case "$1" in
+    # Tier 0: WHITELIST — scan past flags to find the subcommand
+    _sub=""
+    for _arg in "$@"; do
+      case "$_arg" in
+        -*) continue ;;
+        *) _sub="$_arg"; break ;;
+      esac
+    done
+    case "$_sub" in
     ${builtins.concatStringsSep "\n    " checks}
     esac
   '';
@@ -193,8 +200,10 @@ let
           exit 1
         fi
         printf "\033[1;37m  Proceed? [y/N] \033[0m"
-        if ! read -r REPLY < /dev/tty 2>/dev/null; then
-          _die "failed to read from /dev/tty — non-interactive session? Use: BUILDSH_GUARDRAIL=1 ${cmd} $ARGS"
+        if ! read -t 5 -r REPLY < /dev/tty 2>/dev/null; then
+          printf "\n\033[0;31m  [guardrail] BLOCKED (no TTY or timeout): ${cmd} %s\033[0m\n" "$ARGS" >&2
+          printf "\033[0;33m  Source: ~/git/unix/bb_flakes_termux/src/modules/guardrails.nix\033[0m\n" >&2
+          exit 1
         fi
         if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
           printf "\033[0;31m  Aborted.\033[0m\n"
