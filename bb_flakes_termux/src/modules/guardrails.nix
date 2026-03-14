@@ -13,6 +13,8 @@
 { config, lib, ... }:
 
 let
+  managed = import ./managed-header.nix { inherit lib; repo = "unix/bb_flakes_termux"; };
+
   # ── Tier 0: WHITELIST — read-only subcommands, pass immediately ────
   # These never modify the system. Needed for Claude Code internals
   # (npm root -g, npm config get prefix, etc.) and general safe queries.
@@ -139,7 +141,7 @@ let
     name = ".local/bin/${cmd}";
     value = {
       executable = true;
-      text = ''
+      text = managed.inject { source = "src/modules/guardrails.nix"; text = (''
         #!/bin/sh
         # Error handling — NEVER fail silently
         _die() { printf "\033[1;31m  [guardrail/${cmd}] ERROR: %s\033[0m\n" "$1" >&2; exit 1; }
@@ -210,7 +212,7 @@ let
           exit 1
         fi
         exec ${cmd} "$@" || _die "exec '${cmd}' failed after confirmation"
-      '');
+      '')); };
     };
   };
 
