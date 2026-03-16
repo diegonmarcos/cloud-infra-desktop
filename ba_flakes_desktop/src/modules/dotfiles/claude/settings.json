@@ -22,6 +22,18 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$HOME\"/.claude/hooks/declarative-guard.sh",
+            "timeout": 3
+          }
+        ]
+      }
     ]
   }
 }

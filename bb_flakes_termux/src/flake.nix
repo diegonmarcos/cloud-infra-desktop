@@ -414,6 +414,10 @@
                 source = ../src/modules/dotfiles/claude/claude-memory.sh;
                 executable = true;
               };
+              home.file.".claude/hooks/declarative-guard.sh" = {
+                source = ../src/modules/dotfiles/claude/declarative-guard.sh;
+                executable = true;
+              };
               home.file.".claude/settings.json".source = ../src/modules/dotfiles/claude/settings.json;
               home.file.".claude/skills/frontend-design.md".source = ../src/modules/dotfiles/claude/skills/frontend-design.md;
               home.file.".rgignore".source = ../src/modules/dotfiles/claude/rgignore;
