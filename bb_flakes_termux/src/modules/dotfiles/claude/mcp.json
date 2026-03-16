@@ -9,11 +9,11 @@
       }
     },
     "cloud-infra": {
-      "type": "streamable-http",
+      "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-mcp/mcp"
     },
     "cloud-services": {
-      "type": "streamable-http",
+      "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-services-mcp/mcp"
     },
     "mattermost": {
