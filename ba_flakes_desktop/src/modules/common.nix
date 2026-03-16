@@ -115,6 +115,10 @@
     source = ./dotfiles/claude/claude-memory.sh;
     executable = true;
   };
+  home.file.".claude/hooks/declarative-guard.sh" = {
+    source = ./dotfiles/claude/declarative-guard.sh;
+    executable = true;
+  };
   home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;
   home.file.".rgignore".source = ./dotfiles/claude/rgignore;
 
