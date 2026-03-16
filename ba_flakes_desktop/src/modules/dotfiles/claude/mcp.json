@@ -1,9 +1,8 @@
 {
   "mcpServers": {
     "cloud-infra": {
-      "type": "stdio",
-      "command": "/home/diego/Mounts/Git/cloud/run-mcp.sh",
-      "args": []
+      "type": "streamable-http",
+      "url": "http://10.0.0.6:3100/mcp"
     },
     "mailu-mcp": {
       "type": "stdio",
