@@ -2,24 +2,34 @@
   "mcpServers": {
     "unix": {
       "type": "stdio",
-      "command": "/data/data/com.termux.nix/files/home/git/unix/bc_unix-mcp-api/src/node_modules/.bin/tsx",
-      "args": ["/data/data/com.termux.nix/files/home/git/unix/bc_unix-mcp-api/src/index.ts"]
+      "command": "tsx",
+      "args": ["/data/data/com.termux.nix/files/home/git/unix/bc_unix-mcp-api/src/index.ts"],
+      "env": {
+        "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules"
+      }
     },
     "cloud-infra": {
       "type": "stdio",
-      "command": "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-mcp-api/src/node_modules/.bin/tsx",
-      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-mcp-api/src/mcp/index.ts"]
+      "command": "tsx",
+      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-mcp-api/src/mcp/index.ts"],
+      "env": {
+        "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules"
+      }
     },
     "cloud-services": {
       "type": "stdio",
-      "command": "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-services-mcp-api/src/node_modules/.bin/tsx",
-      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-services-mcp-api/src/mcp/index.ts"]
+      "command": "tsx",
+      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-services-mcp-api/src/mcp/index.ts"],
+      "env": {
+        "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules"
+      }
     },
     "mattermost": {
       "type": "stdio",
-      "command": "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/aa-sui_mattermost-mcp/node_modules/.bin/tsx",
+      "command": "tsx",
       "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/aa-sui_mattermost-mcp/src/index.ts"],
       "env": {
+        "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
         "MM_URL": "https://chat.diegonmarcos.com",
         "MM_CLAUDE_PASSWORD": "Claude3AI-2026",
         "MM_TEAM_ID": "x89hszqz97g6dxytbtx3p5mmkc",

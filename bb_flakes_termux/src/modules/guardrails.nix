@@ -58,20 +58,31 @@ let
 
   mkWhitelistCheck = cmd: let
     subs = whitelistFor cmd;
-    # Match first non-flag argument against each whitelisted subcommand
-    checks = map (sub: ''
-      ${sub}) _log_guardrail "whitelist"; exec ${cmd} "$@" || _die "exec '${cmd}' failed (whitelist)" ;;'') subs;
+    # Split into single-word and multi-word subcommands
+    singleSubs = builtins.filter (s: !lib.hasInfix " " s) subs;
+    multiSubs = builtins.filter (s: lib.hasInfix " " s) subs;
+    # Single-word: match _sub1 in case statement
+    singleChecks = map (sub: ''
+      ${sub}) _log_guardrail "whitelist"; exec ${cmd} "$@" || _die "exec '${cmd}' failed (whitelist)" ;;'') singleSubs;
+    # Multi-word: match "_sub1 _sub2" in case statement (quoted for spaces)
+    multiChecks = map (sub: ''
+      "${sub}") _log_guardrail "whitelist"; exec ${cmd} "$@" || _die "exec '${cmd}' failed (whitelist)" ;;'') multiSubs;
   in if subs == [] then "" else ''
-    # Tier 0: WHITELIST — scan past flags to find the subcommand
-    _sub=""
+    # Tier 0: WHITELIST — scan past flags to find the first two non-flag args
+    _sub1="" _sub2=""
     for _arg in "$@"; do
       case "$_arg" in
         -*) continue ;;
-        *) _sub="$_arg"; break ;;
+        *) if [ -z "$_sub1" ]; then _sub1="$_arg"; else _sub2="$_arg"; break; fi ;;
       esac
     done
-    case "$_sub" in
-    ${builtins.concatStringsSep "\n    " checks}
+    # Check compound subcommands first (e.g. "network ls", "volume inspect")
+    case "$_sub1 $_sub2" in
+    ${builtins.concatStringsSep "\n    " multiChecks}
+    esac
+    # Check single-word subcommands
+    case "$_sub1" in
+    ${builtins.concatStringsSep "\n    " singleChecks}
     esac
   '';
 
