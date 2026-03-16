@@ -1,8 +1,19 @@
 {
   "mcpServers": {
+    "unix": {
+      "type": "stdio",
+      "command": "/data/data/com.termux.nix/files/home/git/unix/bc_unix-mcp-api/src/node_modules/.bin/tsx",
+      "args": ["/data/data/com.termux.nix/files/home/git/unix/bc_unix-mcp-api/src/index.ts"]
+    },
     "cloud-infra": {
-      "type": "http",
-      "url": "http://10.0.0.6:3100/mcp"
+      "type": "stdio",
+      "command": "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-mcp-api/src/node_modules/.bin/tsx",
+      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-mcp-api/src/mcp/index.ts"]
+    },
+    "cloud-services": {
+      "type": "stdio",
+      "command": "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-services-mcp-api/src/node_modules/.bin/tsx",
+      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-services-mcp-api/src/mcp/index.ts"]
     },
     "mattermost": {
       "type": "stdio",
@@ -20,11 +31,6 @@
       "type": "stdio",
       "command": "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/aa-sui_mailu-mcp/src/run.sh",
       "args": []
-    },
-    "unix": {
-      "type": "stdio",
-      "command": "/data/data/com.termux.nix/files/home/git/unix/bc_flakes_mcp_api/src/node_modules/.bin/tsx",
-      "args": ["/data/data/com.termux.nix/files/home/git/unix/bc_flakes_mcp_api/src/index.ts"]
     }
   }
 }

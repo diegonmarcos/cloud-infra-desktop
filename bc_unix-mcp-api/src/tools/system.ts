@@ -1,7 +1,7 @@
 // System tools — platform info, environment, processes, disk
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { bash, formatResult } from "../exec.js";
+import { sh, formatResult } from "../exec.js";
 import { PLATFORM } from "../paths.js";
 
 export function registerSystemTools(server: McpServer) {
@@ -10,7 +10,7 @@ export function registerSystemTools(server: McpServer) {
     "Show system information (platform, kernel, memory, disk, nix version)",
     {},
     async () => {
-      const result = bash(`
+      const result = sh(`
         echo "platform: ${PLATFORM}"
         echo "kernel: $(uname -r)"
         echo "arch: $(uname -m)"
@@ -32,7 +32,7 @@ export function registerSystemTools(server: McpServer) {
     "Show relevant environment variables (PATH, NIX, NODE, SHELL)",
     {},
     async () => {
-      const result = bash(`
+      const result = sh(`
         for var in PATH SHELL HOME USER NODE_PATH NIX_PATH LD_PRELOAD PLATFORM; do
           val="$(printenv "$var" 2>/dev/null || echo '<unset>')"
           printf "%-15s %s\n" "$var" "$val"
@@ -49,7 +49,7 @@ export function registerSystemTools(server: McpServer) {
       tools: z.string().describe("Space-separated list of tool names (e.g. 'git nix jq curl')"),
     },
     async ({ tools }) => {
-      const result = bash(`
+      const result = sh(`
         for t in ${tools}; do
           path="$(command -v "$t" 2>/dev/null)"
           if [ -n "$path" ]; then
@@ -73,7 +73,7 @@ export function registerSystemTools(server: McpServer) {
       const cmd = pattern
         ? `ps aux 2>/dev/null | head -1; ps aux 2>/dev/null | grep -i "${pattern}" | grep -v grep | head -30`
         : `ps aux 2>/dev/null | head -20`;
-      const result = bash(cmd);
+      const result = sh(cmd);
       return { content: [{ type: "text", text: result.stdout || "No processes found" }] };
     }
   );
@@ -83,7 +83,7 @@ export function registerSystemTools(server: McpServer) {
     "List nix-profile installed packages",
     {},
     async () => {
-      const result = bash(`nix-env -q 2>/dev/null || ls ~/.nix-profile/bin/ 2>/dev/null | sort`);
+      const result = sh(`nix-env -q 2>/dev/null || ls ~/.nix-profile/bin/ 2>/dev/null | sort`);
       return {
         content: [{ type: "text", text: result.ok ? result.stdout : formatResult("packages", result) }],
         isError: !result.ok,
