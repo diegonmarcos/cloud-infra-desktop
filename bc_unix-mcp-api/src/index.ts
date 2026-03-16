@@ -8,28 +8,30 @@ import { registerSystemTools } from "./tools/system.js";
 import { registerScriptTools } from "./tools/scripts.js";
 import { registerGitTools } from "./tools/git.js";
 import { registerShellTools } from "./tools/shell.js";
+import { registerShellConfigTools } from "./tools/shell-config.js";
 
 import { PLATFORM } from "./paths.js";
 
 const server = new McpServer({
   name: "unix-mcp",
-  version: "1.0.0",
+  version: "1.1.0",
 });
 
 // ── Tool categories ─────────────────────────────
-registerDriftTools(server);   //  3: nix-drift (version drift detection)
-registerNixTools(server);     //  6: flake info, update, switch, search, store, generations
-registerSystemTools(server);  //  5: info, env, which, processes, packages
-registerScriptTools(server);  //  8: sync, gacp, mesh, connect, server, code
-registerGitTools(server);     //  4: status-all, log, diff, remote-status
-registerShellTools(server);   //  3: exec, npm-list, npm-install
+registerDriftTools(server);       //  3: nix-drift (version drift detection)
+registerNixTools(server);         //  6: flake info, update, switch, search, store, generations
+registerSystemTools(server);      //  5: info, env, which, processes, packages
+registerScriptTools(server);      //  8: sync, gacp, mesh, connect, server, code
+registerGitTools(server);         //  4: status-all, log, diff, remote-status
+registerShellTools(server);       //  3: exec, npm-list, npm-install
+registerShellConfigTools(server); //  7: aliases, functions, greeting, starship, guardrails
 
 // All logging to stderr (stdout = JSON-RPC)
 const log = (msg: string) => process.stderr.write(`[unix-mcp] ${msg}\n`);
 
 async function main() {
   const transport = new StdioServerTransport();
-  log(`Starting unix-mcp v1.0.0 (29 tools, platform=${PLATFORM})...`);
+  log(`Starting unix-mcp v1.1.0 (36 tools, platform=${PLATFORM})...`);
   await server.connect(transport);
   log("Connected via stdio transport");
 }

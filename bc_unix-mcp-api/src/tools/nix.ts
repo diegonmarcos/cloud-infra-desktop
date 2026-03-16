@@ -1,7 +1,7 @@
 // Nix ecosystem tools — flake operations, package queries, build system
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { bash, exec, formatResult } from "../exec.js";
+import { sh, exec, formatResult } from "../exec.js";
 import { UNIX_ROOT, FLAKE_TERMUX, FLAKE_DESKTOP, FLAKE_HOST, PLATFORM } from "../paths.js";
 import { join } from "path";
 import { readFileSync, existsSync } from "fs";
@@ -51,7 +51,7 @@ export function registerNixTools(server: McpServer) {
     },
     async ({ flake, input }) => {
       const dir = FLAKE_MAP[flake];
-      const result = bash(`cd "${dir}" && nix flake lock --update-input "${input}"`, { timeout: 120_000 });
+      const result = sh(`cd "${dir}" && nix flake lock --update-input "${input}"`, { timeout: 120_000 });
       return {
         content: [{ type: "text", text: formatResult(`Update ${flake}/${input}`, result) }],
         isError: !result.ok,
@@ -92,7 +92,7 @@ export function registerNixTools(server: McpServer) {
     },
     async ({ query, channel }) => {
       const src = channel ?? "nixpkgs";
-      const result = bash(`nix search ${src} "${query}" --json 2>/dev/null | head -c 8000`, { timeout: 60_000 });
+      const result = sh(`nix search ${src} "${query}" --json 2>/dev/null | head -c 8000`, { timeout: 60_000 });
       return {
         content: [{ type: "text", text: result.ok ? result.stdout || "No results" : formatResult("nix search", result) }],
         isError: !result.ok,
@@ -107,7 +107,7 @@ export function registerNixTools(server: McpServer) {
       package: z.string().describe("Package attribute (e.g. nixpkgs#jq)"),
     },
     async ({ package: pkg }) => {
-      const result = bash(`nix path-info "${pkg}" 2>/dev/null`, { timeout: 60_000 });
+      const result = sh(`nix path-info "${pkg}" 2>/dev/null`, { timeout: 60_000 });
       return {
         content: [{ type: "text", text: result.ok ? result.stdout.trim() : formatResult("nix path-info", result) }],
         isError: !result.ok,
@@ -131,7 +131,7 @@ export function registerNixTools(server: McpServer) {
       } else {
         cmd = "home-manager generations 2>/dev/null | head -20";
       }
-      const result = bash(cmd, { timeout: 30_000 });
+      const result = sh(cmd, { timeout: 30_000 });
       return {
         content: [{ type: "text", text: result.ok ? result.stdout || "No generations found" : formatResult("generations", result) }],
         isError: !result.ok,

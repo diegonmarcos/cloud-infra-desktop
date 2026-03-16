@@ -29,8 +29,8 @@ export function exec(
   };
 }
 
-export function bash(script: string, options?: { timeout?: number; cwd?: string }): ExecResult {
-  return exec("bash", ["-c", script], options);
+export function sh(script: string, options?: { timeout?: number; cwd?: string }): ExecResult {
+  return exec("sh", ["-c", script], options);
 }
 
 export function formatResult(label: string, result: ExecResult): string {

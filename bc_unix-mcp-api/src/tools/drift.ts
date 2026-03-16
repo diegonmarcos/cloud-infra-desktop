@@ -1,7 +1,7 @@
 // nix-drift tools — version drift detection across nix flakes ecosystem
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { bash, formatResult } from "../exec.js";
+import { sh, formatResult } from "../exec.js";
 import { UNIX_ROOT } from "../paths.js";
 import { join } from "path";
 
@@ -22,7 +22,7 @@ export function registerDriftTools(server: McpServer) {
       if (outdatedOnly) args.push("--outdated");
       if (filter) args.push("--filter", filter);
 
-      const result = bash(`bash "${DRIFT_SCRIPT}" ${args.join(" ")}`, { timeout: 120_000 });
+      const result = sh(`"${DRIFT_SCRIPT}" ${args.join(" ")}`, { timeout: 120_000 });
       return {
         content: [{ type: "text", text: result.ok ? result.stdout : formatResult("nix-drift", result) }],
         isError: !result.ok,
@@ -43,7 +43,7 @@ export function registerDriftTools(server: McpServer) {
       else args.push("--dry-run");
       if (pkg) args.push("--package", pkg);
 
-      const result = bash(`bash "${DRIFT_SCRIPT}" ${args.join(" ")}`, { timeout: 120_000 });
+      const result = sh(`"${DRIFT_SCRIPT}" ${args.join(" ")}`, { timeout: 120_000 });
       return {
         content: [{ type: "text", text: formatResult("nix-drift plan", result) }],
         isError: !result.ok,
@@ -56,7 +56,7 @@ export function registerDriftTools(server: McpServer) {
     "Clear nix-drift cache (version query results)",
     {},
     async () => {
-      const result = bash(`bash "${DRIFT_SCRIPT}" clean`);
+      const result = sh(`"${DRIFT_SCRIPT}" clean`);
       return {
         content: [{ type: "text", text: formatResult("nix-drift clean", result) }],
         isError: !result.ok,

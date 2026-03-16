@@ -1,7 +1,7 @@
 // Custom script tools — wrappers around the writeShellScriptBin tools from flakes
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { bash, formatResult } from "../exec.js";
+import { sh, formatResult } from "../exec.js";
 
 export function registerScriptTools(server: McpServer) {
   // ── sync (git + rclone unified sync engine) ──
@@ -10,7 +10,7 @@ export function registerScriptTools(server: McpServer) {
     "Show sync status for all git repos and rclone mounts",
     {},
     async () => {
-      const result = bash(`sync status 2>&1`, { timeout: 30_000 });
+      const result = sh(`sync status 2>&1`, { timeout: 30_000 });
       return { content: [{ type: "text", text: result.stdout || result.stderr }] };
     }
   );
@@ -22,7 +22,7 @@ export function registerScriptTools(server: McpServer) {
       mode: z.enum(["local", "remote"]).optional().describe("local=pull only, remote=pull+push (default: local)"),
     },
     async ({ mode }) => {
-      const result = bash(`sync git ${mode ?? "local"} 2>&1`, { timeout: 120_000 });
+      const result = sh(`sync git ${mode ?? "local"} 2>&1`, { timeout: 120_000 });
       return {
         content: [{ type: "text", text: formatResult("sync git", result) }],
         isError: !result.ok,
@@ -39,7 +39,7 @@ export function registerScriptTools(server: McpServer) {
     },
     async ({ message }) => {
       const args = message ? `"${message}"` : "";
-      const result = bash(`gacp ${args} 2>&1`, { timeout: 120_000 });
+      const result = sh(`gacp ${args} 2>&1`, { timeout: 120_000 });
       return {
         content: [{ type: "text", text: formatResult("gacp", result) }],
         isError: !result.ok,
@@ -53,7 +53,7 @@ export function registerScriptTools(server: McpServer) {
     "Show WireGuard VPN mesh status (tunnel connectivity, peers)",
     {},
     async () => {
-      const result = bash(`mesh status 2>&1`, { timeout: 15_000 });
+      const result = sh(`mesh status 2>&1`, { timeout: 15_000 });
       return { content: [{ type: "text", text: result.stdout || result.stderr }] };
     }
   );
@@ -65,7 +65,7 @@ export function registerScriptTools(server: McpServer) {
       action: z.enum(["up", "down", "peers"]).describe("VPN action"),
     },
     async ({ action }) => {
-      const result = bash(`mesh ${action} 2>&1`, { timeout: 15_000 });
+      const result = sh(`mesh ${action} 2>&1`, { timeout: 15_000 });
       return {
         content: [{ type: "text", text: formatResult(`mesh ${action}`, result) }],
         isError: !result.ok,
@@ -79,7 +79,7 @@ export function registerScriptTools(server: McpServer) {
     "Show unified dashboard: git repos, mounts, sync, servers status",
     {},
     async () => {
-      const result = bash(`connect status 2>&1`, { timeout: 30_000 });
+      const result = sh(`connect status 2>&1`, { timeout: 30_000 });
       return { content: [{ type: "text", text: result.stdout || result.stderr }] };
     }
   );
@@ -94,7 +94,7 @@ export function registerScriptTools(server: McpServer) {
     },
     async ({ action, project }) => {
       const args = project ? `${action} ${project}` : action;
-      const result = bash(`server ${args} 2>&1`, { timeout: 30_000 });
+      const result = sh(`server ${args} 2>&1`, { timeout: 30_000 });
       return {
         content: [{ type: "text", text: formatResult(`server ${action}`, result) }],
         isError: !result.ok,
@@ -111,7 +111,7 @@ export function registerScriptTools(server: McpServer) {
         .describe("Action (default: status)"),
     },
     async ({ action }) => {
-      const result = bash(`code ${action ?? ""} 2>&1`, { timeout: 15_000 });
+      const result = sh(`code ${action ?? ""} 2>&1`, { timeout: 15_000 });
       return { content: [{ type: "text", text: result.stdout || result.stderr }] };
     }
   );

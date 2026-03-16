@@ -1,7 +1,7 @@
 // Git tools — repo status, log, diff across all tracked repos
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { bash, formatResult } from "../exec.js";
+import { sh, formatResult } from "../exec.js";
 import { GIT_ROOT } from "../paths.js";
 
 const REPOS = ["unix", "cloud", "front", "vault", "tools"];
@@ -14,7 +14,7 @@ export function registerGitTools(server: McpServer) {
     async () => {
       const lines: string[] = [];
       for (const repo of REPOS) {
-        const result = bash(
+        const result = sh(
           `cd "${GIT_ROOT}/${repo}" 2>/dev/null && echo "=== ${repo} ($(git branch --show-current)) ===" && git status -s | head -20 || echo "=== ${repo}: not found ==="`,
           { timeout: 10_000 }
         );
@@ -33,7 +33,7 @@ export function registerGitTools(server: McpServer) {
     },
     async ({ repo, count }) => {
       const n = count ?? 10;
-      const result = bash(
+      const result = sh(
         `git -C "${GIT_ROOT}/${repo}" log --oneline -${n} 2>&1`,
         { timeout: 10_000 }
       );
@@ -53,7 +53,7 @@ export function registerGitTools(server: McpServer) {
     },
     async ({ repo, staged }) => {
       const flag = staged ? "--cached" : "";
-      const result = bash(
+      const result = sh(
         `git -C "${GIT_ROOT}/${repo}" diff ${flag} 2>&1 | head -200`,
         { timeout: 10_000 }
       );
@@ -71,7 +71,7 @@ export function registerGitTools(server: McpServer) {
     async () => {
       const lines: string[] = [];
       for (const repo of REPOS) {
-        const result = bash(
+        const result = sh(
           `cd "${GIT_ROOT}/${repo}" 2>/dev/null && git fetch --dry-run 2>&1; echo "$(git rev-list --left-right --count HEAD...@{upstream} 2>/dev/null || echo '? ?')" | awk '{print "'${repo}': ahead="$1" behind="$2}'`,
           { timeout: 15_000 }
         );
