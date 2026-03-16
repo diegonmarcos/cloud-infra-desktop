@@ -1,0 +1,40 @@
+[2026-03-16 14:12:18] ========== Build script started ==========
+[2026-03-16 14:12:18] === Installing Dependencies ===
+[2026-03-16 14:12:18] INFO: npm install...
+[2026-03-16 14:13:25] ========== Build script started ==========
+[2026-03-16 14:13:25] === Installing Dependencies ===
+[2026-03-16 14:13:25] INFO: npm install...
+
+added 97 packages in 12s
+[2026-03-16 14:13:38] SUCCESS: Dependencies installed
+[2026-03-16 14:13:38] ========== Build script finished ==========
+[2026-03-16 14:13:49] ========== Build script started ==========
+[2026-03-16 14:13:49] === Type Check ===
+[2026-03-16 14:13:49] INFO: Running tsc --noEmit...
+exec.ts(1,27): error TS2307: Cannot find module 'child_process' or its corresponding type declarations.
+exec.ts(20,10): error TS2580: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node`.
+index.ts(28,30): error TS2580: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node`.
+index.ts(39,3): error TS2580: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node`.
+paths.ts(1,28): error TS2307: Cannot find module 'fs' or its corresponding type declarations.
+paths.ts(2,22): error TS2307: Cannot find module 'path' or its corresponding type declarations.
+paths.ts(4,14): error TS2580: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node`.
+tools/drift.ts(6,22): error TS2307: Cannot find module 'path' or its corresponding type declarations.
+tools/nix.ts(6,22): error TS2307: Cannot find module 'path' or its corresponding type declarations.
+tools/nix.ts(7,42): error TS2307: Cannot find module 'fs' or its corresponding type declarations.
+[2026-03-16 14:13:55] SUCCESS: Type check passed
+[2026-03-16 14:13:55] ========== Build script finished ==========
+[2026-03-16 14:14:30] ========== Build script started ==========
+[2026-03-16 14:14:30] === Installing Dependencies ===
+[2026-03-16 14:14:30] INFO: npm install...
+[2026-03-16 14:19:30] ========== Build script started ==========
+[2026-03-16 14:19:30] === Installing Dependencies ===
+[2026-03-16 14:19:30] INFO: npm install...
+
+added 2 packages in 5s
+[2026-03-16 14:19:35] SUCCESS: Dependencies installed
+[2026-03-16 14:19:35] ========== Build script finished ==========
+[2026-03-16 14:20:03] ========== Build script started ==========
+[2026-03-16 14:20:03] === Type Check ===
+[2026-03-16 14:20:03] INFO: Running tsc --noEmit...
+[2026-03-16 14:20:10] SUCCESS: Type check passed
+[2026-03-16 14:20:10] ========== Build script finished ==========

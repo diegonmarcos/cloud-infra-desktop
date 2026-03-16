@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "cloud-infra": {
-      "type": "streamable-http",
+      "type": "http",
       "url": "http://10.0.0.6:3100/mcp"
     },
     "mattermost": {
@@ -20,6 +20,11 @@
       "type": "stdio",
       "command": "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/aa-sui_mailu-mcp/src/run.sh",
       "args": []
+    },
+    "unix": {
+      "type": "stdio",
+      "command": "/data/data/com.termux.nix/files/home/git/unix/bc_flakes_mcp_api/src/node_modules/.bin/tsx",
+      "args": ["/data/data/com.termux.nix/files/home/git/unix/bc_flakes_mcp_api/src/index.ts"]
     }
   }
 }

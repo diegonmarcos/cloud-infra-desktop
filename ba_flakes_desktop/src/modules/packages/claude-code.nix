@@ -1,37 +1,39 @@
 # Claude Code CLI - Anthropic's AI coding assistant
-# Pre-bundled npm package, no build step needed
-{ lib, stdenv, fetchurl, nodejs, makeWrapper }:
+# Native binary — fetched from GCS, patched with autoPatchelfHook
+# To bump: update version + hash (nix build will error with correct hash)
+{ lib, stdenv, fetchurl, autoPatchelfHook, glibc }:
 
-stdenv.mkDerivation rec {
+let
+  version = "2.1.76";
+  bucket = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases";
+in
+stdenv.mkDerivation {
   pname = "claude-code";
-  version = "2.1.34";
+  inherit version;
 
   src = fetchurl {
-    url = "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-${version}.tgz";
-    hash = "sha256-9poksTheZl3zwxmGwTNwAmUmTooZCY5huFqe73RYh1A=";
+    url = "${bucket}/${version}/linux-x64/claude";
+    # To get hash: nix-prefetch-url --type sha256 <url>
+    # then nix hash to-sri --type sha256 <hash>
+    hash = "";
   };
 
-  nativeBuildInputs = [ makeWrapper ];
-  buildInputs = [ nodejs ];
+  nativeBuildInputs = [ autoPatchelfHook ];
+  buildInputs = [ glibc ];
 
-  unpackPhase = ''
-    tar -xzf $src
-    mv package $out
-  '';
-
-  dontBuild = true;
+  dontUnpack = true;
 
   installPhase = ''
     mkdir -p $out/bin
-    makeWrapper ${nodejs}/bin/node $out/bin/claude \
-      --add-flags "$out/cli.js"
+    cp $src $out/bin/claude
+    chmod +x $out/bin/claude
   '';
 
   meta = with lib; {
     description = "Claude Code - Anthropic's AI coding assistant for the terminal";
     homepage = "https://github.com/anthropics/claude-code";
     license = licenses.unfree;
-    platforms = platforms.linux ++ platforms.darwin;
+    platforms = [ "x86_64-linux" ];
     mainProgram = "claude";
   };
 }

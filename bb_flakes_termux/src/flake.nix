@@ -330,6 +330,12 @@
               (writeShellScriptBin "connect" ''
                 exec "$HOME/git/tools/a-cloud-connect/connect.sh" "$@"
               '')
+
+              # 8. NIX-DRIFT (Version drift detection for nix flakes)
+              # Source: ./nix-version-drift.sh
+              (writeShellScriptBin "nix-drift" ''
+                exec ${pkgs.bash}/bin/bash ${./nix-version-drift.sh} "$@"
+              '')
             ];
 
             # --- HOME MANAGER CONFIG ---
