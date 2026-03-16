@@ -10817,3 +10817,399 @@ Activating linkProfile
 [2026-03-16 15:02:10] ========== Build script started ==========
 [2026-03-16 15:02:10] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-03-16 15:02:12] INFO: Staging dirty files for flake evaluation...
+[2026-03-16 15:02:13] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 5 derivations will be built:
+  /nix/store/b540372ll6blpiin7cia8xzsdp06jsq6-home-manager-files.drv
+  /nix/store/ra2gx361kwwvb0sya7i0ffxwd0zl6jji-activation-script.drv
+  /nix/store/vxmixlliivmqdj974fvm4c0g7saqrdx2-home-manager-generation.drv
+  /nix/store/vk86i4c9v3yb0dc2290niqa5j2zd3r33-activation-script.drv
+  /nix/store/yhkf3lb3pfah6izgpa7177g3n2dm332w-nix-on-droid-generation.drv
+building '/nix/store/ra2gx361kwwvb0sya7i0ffxwd0zl6jji-activation-script.drv'...
+building '/nix/store/b540372ll6blpiin7cia8xzsdp06jsq6-home-manager-files.drv'...
+building '/nix/store/vxmixlliivmqdj974fvm4c0g7saqrdx2-home-manager-generation.drv'...
+building '/nix/store/vk86i4c9v3yb0dc2290niqa5j2zd3r33-activation-script.drv'...
+building '/nix/store/yhkf3lb3pfah6izgpa7177g3n2dm332w-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/data/data/com.termux.nix/files/home/.claude/skills/frontend-design.md' is in the way of '/nix/store/ajzi3j9hic2vjpdvdc3zglp5pjj3kg06-home-manager-files/.claude/skills/frontend-design.md', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/github-markdown-dark.css' is in the way of '/nix/store/ajzi3j9hic2vjpdvdc3zglp5pjj3kg06-home-manager-files/.local/lib/httpd/github-markdown-dark.css', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/marked.min.js' is in the way of '/nix/store/ajzi3j9hic2vjpdvdc3zglp5pjj3kg06-home-manager-files/.local/lib/httpd/marked.min.js', will be skipped since they are the same
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 144
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating sharedNodeModules
+[node-deps.nix] No deps JSONs found, using fallback
+[node-deps.nix] npm install: ~/.node_modules/
+
+added 9 packages in 13s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating globalTsx
+
+changed 5 packages in 4s
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-16 15:03:32] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-16 15:03:32] ========== Build script finished ==========
+[2026-03-16 17:01:40] ========== Build script started ==========
+[2026-03-16 17:01:40] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-16 17:01:42] INFO: Staging dirty files for flake evaluation...
+[2026-03-16 17:01:43] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 4 derivations will be built:
+  /nix/store/s0l6rzwjlr7glp9jlhxh56csvh7yxza2-home-manager-files.drv
+  /nix/store/v3al7qlva0scydc5lds3gkz1nnvvaa6j-home-manager-generation.drv
+  /nix/store/s9p4g52d95z55i17j2zxfmg8rjmrxn7f-activation-script.drv
+  /nix/store/h9qdf9701da6w817bw5b61vk032z0kid-nix-on-droid-generation.drv
+building '/nix/store/s0l6rzwjlr7glp9jlhxh56csvh7yxza2-home-manager-files.drv'...
+building '/nix/store/v3al7qlva0scydc5lds3gkz1nnvvaa6j-home-manager-generation.drv'...
+building '/nix/store/s9p4g52d95z55i17j2zxfmg8rjmrxn7f-activation-script.drv'...
+building '/nix/store/h9qdf9701da6w817bw5b61vk032z0kid-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/data/data/com.termux.nix/files/home/.claude/skills/frontend-design.md' is in the way of '/nix/store/2f3hc6q20vqvdpiaibijn6hzhjshv9ih-home-manager-files/.claude/skills/frontend-design.md', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/github-markdown-dark.css' is in the way of '/nix/store/2f3hc6q20vqvdpiaibijn6hzhjshv9ih-home-manager-files/.local/lib/httpd/github-markdown-dark.css', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/marked.min.js' is in the way of '/nix/store/2f3hc6q20vqvdpiaibijn6hzhjshv9ih-home-manager-files/.local/lib/httpd/marked.min.js', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.mcp.json' is in the way of '/nix/store/2f3hc6q20vqvdpiaibijn6hzhjshv9ih-home-manager-files/.mcp.json', will be skipped since they are the same
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 145
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating sharedNodeModules
+[node-deps.nix] No deps JSONs found, using fallback
+[node-deps.nix] ~/.node_modules/ is up to date
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating globalTsx
+
+changed 5 packages in 11s
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-16 17:02:49] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-16 17:02:49] ========== Build script finished ==========
+[2026-03-16 18:11:20] ========== Build script started ==========
+[2026-03-16 18:11:20] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-16 18:11:22] INFO: Staging dirty files for flake evaluation...
+[2026-03-16 18:11:25] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 4 derivations will be built:
+  /nix/store/4hh35248j3la97awz1l3gv2yb9mhz80n-home-manager-files.drv
+  /nix/store/2cxcyvpj3880yz3697g0vvxp6c4df9rn-home-manager-generation.drv
+  /nix/store/ng7cy157s3r003yj4nb9plng7kz35ndg-activation-script.drv
+  /nix/store/9h4l8dryql6zva62p39k9ajsmr4v0gws-nix-on-droid-generation.drv
+building '/nix/store/4hh35248j3la97awz1l3gv2yb9mhz80n-home-manager-files.drv'...
+building '/nix/store/2cxcyvpj3880yz3697g0vvxp6c4df9rn-home-manager-generation.drv'...
+building '/nix/store/ng7cy157s3r003yj4nb9plng7kz35ndg-activation-script.drv'...
+building '/nix/store/9h4l8dryql6zva62p39k9ajsmr4v0gws-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/data/data/com.termux.nix/files/home/.claude/skills/frontend-design.md' is in the way of '/nix/store/0ykni9kfqz48ms3d71gb02ad139vaslb-home-manager-files/.claude/skills/frontend-design.md', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/github-markdown-dark.css' is in the way of '/nix/store/0ykni9kfqz48ms3d71gb02ad139vaslb-home-manager-files/.local/lib/httpd/github-markdown-dark.css', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/marked.min.js' is in the way of '/nix/store/0ykni9kfqz48ms3d71gb02ad139vaslb-home-manager-files/.local/lib/httpd/marked.min.js', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.mcp.json' is in the way of '/nix/store/0ykni9kfqz48ms3d71gb02ad139vaslb-home-manager-files/.mcp.json'
+Please move the above files and try again or use 'home-manager switch -b backup' to back up existing files automatically.
+[2026-03-16 18:12:38] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-16 18:12:38] ========== Build script finished ==========
+[2026-03-16 18:13:00] ========== Build script started ==========
+[2026-03-16 18:13:00] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-16 18:13:01] INFO: Staging dirty files for flake evaluation...
+[2026-03-16 18:13:02] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/data/data/com.termux.nix/files/home/.claude/skills/frontend-design.md' is in the way of '/nix/store/0ykni9kfqz48ms3d71gb02ad139vaslb-home-manager-files/.claude/skills/frontend-design.md', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/github-markdown-dark.css' is in the way of '/nix/store/0ykni9kfqz48ms3d71gb02ad139vaslb-home-manager-files/.local/lib/httpd/github-markdown-dark.css', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/marked.min.js' is in the way of '/nix/store/0ykni9kfqz48ms3d71gb02ad139vaslb-home-manager-files/.local/lib/httpd/marked.min.js', will be skipped since they are the same
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 146
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating sharedNodeModules
+[node-deps.nix] No deps JSONs found, using fallback
+[node-deps.nix] ~/.node_modules/ is up to date
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating globalTsx
+
+changed 5 packages in 12s
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-16 18:14:15] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-16 18:14:15] ========== Build script finished ==========
+[2026-03-16 18:36:02] ========== Build script started ==========
+[2026-03-16 18:36:02] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-16 18:36:05] INFO: Staging dirty files for flake evaluation...
+[2026-03-16 18:36:07] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 4 derivations will be built:
+  /nix/store/c0amca2cmlc4xij6q8j8jzzmbd7qx264-activation-script.drv
+  /nix/store/lcwg2pix6cg9jhg046ysiv92ymskz093-home-manager-generation.drv
+  /nix/store/vnds2yc3hrc1k8s24ia7zn4i6q2fsf2h-activation-script.drv
+  /nix/store/amw3rxlcfyym7chm5wm05rys39a0v9vp-nix-on-droid-generation.drv
+building '/nix/store/c0amca2cmlc4xij6q8j8jzzmbd7qx264-activation-script.drv'...
+building '/nix/store/lcwg2pix6cg9jhg046ysiv92ymskz093-home-manager-generation.drv'...
+building '/nix/store/vnds2yc3hrc1k8s24ia7zn4i6q2fsf2h-activation-script.drv'...
+building '/nix/store/amw3rxlcfyym7chm5wm05rys39a0v9vp-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/data/data/com.termux.nix/files/home/.claude/skills/frontend-design.md' is in the way of '/nix/store/0ykni9kfqz48ms3d71gb02ad139vaslb-home-manager-files/.claude/skills/frontend-design.md', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/github-markdown-dark.css' is in the way of '/nix/store/0ykni9kfqz48ms3d71gb02ad139vaslb-home-manager-files/.local/lib/httpd/github-markdown-dark.css', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/marked.min.js' is in the way of '/nix/store/0ykni9kfqz48ms3d71gb02ad139vaslb-home-manager-files/.local/lib/httpd/marked.min.js', will be skipped since they are the same
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 147
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating sharedNodeModules
+[node-deps.nix] No deps JSONs found, using fallback
+[node-deps.nix] ~/.node_modules/ is up to date
+Activating cloudDeps
+[cloud.nix] Symlinked shared node_modules into 2 services
+Activating frontDeps
+[front.nix] Symlinked shared node_modules into front/
+Activating globalTsx
+
+changed 5 packages in 6s
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-16 18:37:29] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-16 18:37:29] ========== Build script finished ==========
+[2026-03-16 18:50:27] ========== Build script started ==========
+[2026-03-16 18:50:27] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-16 18:50:30] INFO: Staging dirty files for flake evaluation...
+[2026-03-16 18:50:31] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 10 derivations will be built:
+  /nix/store/65zavrwh8nn6v95az5iwdxjvvqgr52f8-hm_.localbinpip3.drv
+  /nix/store/6wdh4g6lxhgygy30rkiq9rjx5d0qai87-hm_.localbinnpx.drv
+  /nix/store/7dr6a7xi254dwk7d6vwpz1bfzbz1xhdv-hm_.localbindocker.drv
+  /nix/store/9vrbsx1hmd42imfmqaa8i57h1m98qmmz-hm_.localbinnpm.drv
+  /nix/store/dcaigi042isnbvp28kyvbay3hxdrc8ms-hm_.localbinnix.drv
+  /nix/store/dpl8mlm9z5xrpgbaqi2z6175ffj2k3bp-hm_.localbinpip.drv
+  /nix/store/jjzn2qrmfm63jjx4hbi91mjzfc1f1j70-home-manager-files.drv
+  /nix/store/i6gdw82q5bhcla7v5zrikdzbgyfxrggf-home-manager-generation.drv
+  /nix/store/pmpb0680059j8pfd6lfh839x17v2x49g-activation-script.drv
+  /nix/store/jh92hid3hzba9axn2jqrv90655pig6b4-nix-on-droid-generation.drv
+building '/nix/store/7dr6a7xi254dwk7d6vwpz1bfzbz1xhdv-hm_.localbindocker.drv'...
+building '/nix/store/dcaigi042isnbvp28kyvbay3hxdrc8ms-hm_.localbinnix.drv'...
+building '/nix/store/9vrbsx1hmd42imfmqaa8i57h1m98qmmz-hm_.localbinnpm.drv'...
+building '/nix/store/6wdh4g6lxhgygy30rkiq9rjx5d0qai87-hm_.localbinnpx.drv'...
+building '/nix/store/dpl8mlm9z5xrpgbaqi2z6175ffj2k3bp-hm_.localbinpip.drv'...
+building '/nix/store/65zavrwh8nn6v95az5iwdxjvvqgr52f8-hm_.localbinpip3.drv'...
+building '/nix/store/jjzn2qrmfm63jjx4hbi91mjzfc1f1j70-home-manager-files.drv'...
+building '/nix/store/i6gdw82q5bhcla7v5zrikdzbgyfxrggf-home-manager-generation.drv'...
+building '/nix/store/pmpb0680059j8pfd6lfh839x17v2x49g-activation-script.drv'...
+building '/nix/store/jh92hid3hzba9axn2jqrv90655pig6b4-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/data/data/com.termux.nix/files/home/.claude/skills/frontend-design.md' is in the way of '/nix/store/iwgiwv68srlb1liv96d18ia7syri4xjn-home-manager-files/.claude/skills/frontend-design.md', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/github-markdown-dark.css' is in the way of '/nix/store/iwgiwv68srlb1liv96d18ia7syri4xjn-home-manager-files/.local/lib/httpd/github-markdown-dark.css', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/marked.min.js' is in the way of '/nix/store/iwgiwv68srlb1liv96d18ia7syri4xjn-home-manager-files/.local/lib/httpd/marked.min.js', will be skipped since they are the same
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 148
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating sharedNodeModules
+[node-deps.nix] No deps JSONs found, using fallback
+[node-deps.nix] ~/.node_modules/ is up to date
+Activating cloudDeps
+[cloud.nix] Symlinked shared node_modules into 2 services
+Activating frontDeps
+[front.nix] Symlinked shared node_modules into front/
+Activating globalTsx
+
+changed 5 packages in 6s
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-16 18:51:47] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-16 18:51:47] ========== Build script finished ==========
+[2026-03-16 18:52:22] ========== Build script started ==========
+[2026-03-16 18:52:22] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-16 18:52:24] INFO: Staging dirty files for flake evaluation...
+[2026-03-16 18:52:25] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+error:
+       … while calling the 'derivationStrict' builtin
+
+         at /builtin/derivation.nix:9:12: (source not available)
+
+       … while evaluating derivation 'nix-on-droid-generation'
+         whose name attribute is located at /nix/store/lv9bmgm6v1wc3fiz00v29gi4rk13ja6l-source/pkgs/stdenv/generic/make-derivation.nix:333:7
+
+       … while evaluating attribute 'buildCommand' of derivation 'nix-on-droid-generation'
+
+         at /nix/store/lv9bmgm6v1wc3fiz00v29gi4rk13ja6l-source/pkgs/build-support/trivial-builders/default.nix:68:16: (source not available)
+
+       (stack trace truncated; use '--show-trace' to show the full trace)
+
+       error: opening file '/nix/store/lc5bxq4vsgpjjc7i9phdm8s0bxjz0drm-source/pkgs/development/libraries/acl/default.nix': No such file or directory
+[2026-03-16 18:55:12] ========== Build script started ==========
+[2026-03-16 18:55:12] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-16 18:55:15] INFO: Staging dirty files for flake evaluation...

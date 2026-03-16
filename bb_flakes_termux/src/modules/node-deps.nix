@@ -75,5 +75,16 @@
         printf "[node-deps.nix] ~/.node_modules/ is up to date\n"
       fi
     fi
+
+    # Symlink shared node_modules into unix MCP repos (ESM needs local node_modules/)
+    SHARED="$NODE_MODULES/node_modules"
+    if [ -d "$SHARED" ]; then
+      for mcp in "$HOME/git/unix"/bc_*/; do
+        [ -f "''${mcp}src/package.json" ] || continue
+        if [ ! -d "''${mcp}node_modules" ] || [ -L "''${mcp}node_modules" ]; then
+          ln -sfn "$SHARED" "''${mcp}node_modules"
+        fi
+      done
+    fi
   '';
 }
