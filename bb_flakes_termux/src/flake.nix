@@ -346,8 +346,7 @@
                 ./modules/guardrails.nix
                 ./modules/curl-wrapper.nix
                 ./modules/node-deps.nix
-                ./modules/cloud.nix
-                ./modules/front.nix
+                ./modules/node-bins.nix
                 ./modules/web-server-md-eruda.nix
                 ./modules/programs/shells/fish-greeting.nix
               ];
@@ -372,14 +371,6 @@
                 fi
                 # Ensure .gitignore is tracked (it's a nix-managed symlink)
                 $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$HOME" add -f .gitignore 2>/dev/null || true
-              '';
-
-              # Global tsx (TypeScript runner)
-              home.activation.globalTsx = lib.hm.dag.entryAfter ["linkGeneration"] ''
-                PATH="${pkgsNew.nodejs_22}/bin:$PATH"
-                if ! command -v tsx >/dev/null 2>&1; then
-                  $DRY_RUN_CMD ${pkgsNew.nodejs_22}/bin/npm install -g tsx --no-audit --no-fund || true
-                fi
               '';
 
               # Symlink nix-profile bins into Termux usr/bin so non-shell processes
