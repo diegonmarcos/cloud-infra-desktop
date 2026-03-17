@@ -119,6 +119,10 @@
     source = ./dotfiles/claude/declarative-guard.sh;
     executable = true;
   };
+  home.file.".claude/hooks/pretool-guard.sh" = {
+    source = ./dotfiles/claude/pretool-guard.sh;
+    executable = true;
+  };
   home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;
   home.file.".rgignore".source = ./dotfiles/claude/rgignore;
 

@@ -9,6 +9,7 @@
     set -l _mt (free -h 2>/dev/null | awk '/Mem:/{print $2}'); test -z "$_mt"; and set _mt "n/a"
     set -l _mu (free -h 2>/dev/null | awk '/Mem:/{print $3}'); test -z "$_mu"; and set _mu "n/a"
     set -l _kern (uname -r 2>/dev/null | string split "-" | head -1; or echo "n/a")
+    set -l _android_kern (uname -r 2>/dev/null | string split "-" | head -1; or echo "n/a")
     set -l _host (hostname 2>/dev/null; or echo "termux")
     set -l _up (uptime -p 2>/dev/null | string replace "up " ""); test -z "$_up"; and set _up "n/a"
     set -l _nix ("$HOME/.nix-profile/bin/nix" --version 2>/dev/null | string replace -r ".*\\) " ""); test -z "$_nix"; and set _nix "n/a"
@@ -46,7 +47,7 @@
     printf "│"; set_color normal; printf " %-30s" "Arch: $_cpu ($_cores cores)"; set_color yellow; printf "│ │"; set_color normal; printf " %-30s" "Type: Android/Termux"; set_color yellow; printf "│ │"; set_color normal; printf " %-29s" "Nix: $_nix"; set_color yellow; printf "│\n"
     printf "│"; set_color normal; printf " %-30s" "RAM: $_mu / $_mt"; set_color yellow; printf "│ │"; set_color normal; printf " %-30s" "Host: $_host"; set_color yellow; printf "│ │"; set_color normal; printf " %-29s" "HM Generation: $_hmg"; set_color yellow; printf "│\n"
     printf "│"; set_color normal; printf " %-30s" "Kernel: $_kern"; set_color yellow; printf "│ │"; set_color normal; printf " %-30s" "Shell: fish"; set_color yellow; printf "│ │"; set_color normal; printf " %-29s" "HM: git/unix/bb_flakes_termux"; set_color yellow; printf "│\n"
-    printf "│"; set_color normal; printf " %-30s" ""; set_color yellow; printf "│ │"; set_color normal; printf " %-30s" "Uptime: $_up"; set_color yellow; printf "│ │"; set_color normal; printf " %-29s" "OS Flake: n/a (Termux)"; set_color yellow; printf "│\n"
+    printf "│"; set_color normal; printf " %-30s" "Android Kernel: $_android_kern"; set_color yellow; printf "│ │"; set_color normal; printf " %-30s" "Uptime: $_up"; set_color yellow; printf "│ │"; set_color normal; printf " %-29s" "OS Flake: n/a (Termux)"; set_color yellow; printf "│\n"
     printf "└────────────────────────────────┘ └────────────────────────────────┘ └───────────────────────────────┘\n"
     set_color normal
 
