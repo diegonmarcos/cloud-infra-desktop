@@ -6,16 +6,22 @@
 # at switch time, merges them into a single package.json, and runs npm install.
 #
 # Fallback: if deps JSON files are missing, uses the static dotfiles/node/package.json.
+#
+# Per-repo fallback: if ~/.node_modules is missing, installs per-service/per-project
+# node_modules (absorbed from cloud.nix and front.nix).
 { config, lib, pkgs, nodejs, ... }:
 
-{
+let
+  cloudRepoDir = "$HOME/git/cloud";
+  frontRepoDir = "$HOME/git/front";
+in {
   # Static fallback package.json (used when deps JSONs are unavailable)
   home.file.".node_modules/package.json.fallback".source = ./dotfiles/node/package.json;
 
   # Set NODE_PATH so all tools resolve from shared dir
   home.sessionVariables.NODE_PATH = "$HOME/.node_modules/node_modules";
 
-  # Activation: merge deps from cloud-data + front-data, generate package.json, npm install
+  # 1. Shared node_modules — merge cloud + front deps into single package.json
   home.activation.sharedNodeModules = lib.hm.dag.entryAfter ["linkGeneration"] ''
     NODE_MODULES="$HOME/.node_modules"
     PKG_JSON="$NODE_MODULES/package.json"
@@ -27,7 +33,7 @@
 
     # Generate package.json from deps JSONs (or use fallback)
     if [ -f "$CLOUD_DEPS" ] || [ -f "$FRONT_DEPS" ]; then
-      printf "[node-deps.nix] Merging deps from cloud-data + front-data...\n"
+      printf "[node-deps] Merging deps from cloud-data + front-data...\n"
       PATH="${nodejs}/bin:$PATH" ${nodejs}/bin/node -e "
         const fs = require('fs');
         const deps = {}, devDeps = {};
@@ -56,25 +62,94 @@
         const total = Object.keys(deps).length + Object.keys(devDeps).length;
         console.log('package.json: ' + total + ' packages merged');
       " || {
-        printf "[node-deps.nix] WARN: merge failed, using fallback\n"
+        printf "[node-deps] WARN: merge failed, using fallback\n"
         cp "$FALLBACK" "$PKG_JSON" 2>/dev/null || true
       }
     else
-      printf "[node-deps.nix] No deps JSONs found, using fallback\n"
+      printf "[node-deps] No deps JSONs found, using fallback\n"
       cp "$FALLBACK" "$PKG_JSON" 2>/dev/null || true
     fi
 
     # npm install if package.json is newer than lock
     if [ -f "$PKG_JSON" ]; then
       if [ ! -d "$NODE_MODULES/node_modules" ] || [ "$PKG_JSON" -nt "$LOCK" ]; then
-        printf "[node-deps.nix] npm install: ~/.node_modules/\n"
+        printf "[node-deps] npm install: ~/.node_modules/\n"
         PATH="${nodejs}/bin:$PATH" $DRY_RUN_CMD ${nodejs}/bin/npm install \
           --prefix "$NODE_MODULES" \
           --no-audit --no-fund --legacy-peer-deps || true
       else
-        printf "[node-deps.nix] ~/.node_modules/ is up to date\n"
+        printf "[node-deps] ~/.node_modules/ is up to date\n"
       fi
     fi
 
+  '';
+
+  # 2. cloud/ repo — fallback per-service npm install (only if ~/.node_modules missing)
+  home.activation.cloudDeps = lib.hm.dag.entryAfter ["sharedNodeModules"] ''
+    (
+    trap 'echo "[node-deps:cloud] FAILED at line $LINENO (''${FUNCNAME[0]:-main}): $BASH_COMMAND" >&2' ERR
+    # Skip if shared node_modules exists (NODE_PATH in _engine.sh handles resolution)
+    if [ -d "$HOME/.node_modules/node_modules" ]; then
+      printf "[node-deps:cloud] Skipped — using shared ~/.node_modules/\n"
+      exit 0
+    fi
+
+    CLOUD="${cloudRepoDir}"
+    [ -d "$CLOUD/a_solutions" ] || exit 0
+
+    _npm_install() {
+      dir="$1"
+      if [ -f "$dir/package.json" ]; then
+        if [ ! -d "$dir/node_modules" ] || [ "$dir/package.json" -nt "$dir/node_modules/.package-lock.json" ]; then
+          printf "[node-deps:cloud] fallback npm install: %s\n" "$dir"
+          $DRY_RUN_CMD ${nodejs}/bin/npm install --prefix "$dir" --no-audit --no-fund --legacy-peer-deps || true
+        fi
+      fi
+    }
+
+    PATH="${nodejs}/bin:$PATH"
+    for svc in "$CLOUD"/a_solutions/*/; do
+      case "$svc" in */z_archive/*|*/node_modules/*) continue ;; esac
+      _npm_install "$svc"
+      [ -d "''${svc}src" ] && _npm_install "''${svc}src"
+    done
+    ) || echo "[node-deps:cloud] FAILED — see errors above, activation continues"
+  '';
+
+  # 3. front/ repo — fallback per-project npm install (only if ~/.node_modules missing)
+  home.activation.frontDeps = lib.hm.dag.entryAfter ["sharedNodeModules"] ''
+    (
+    trap 'echo "[node-deps:front] FAILED at line $LINENO (''${FUNCNAME[0]:-main}): $BASH_COMMAND" >&2' ERR
+    # Skip if shared node_modules exists (NODE_PATH in build_main.sh handles resolution)
+    if [ -d "$HOME/.node_modules/node_modules" ]; then
+      printf "[node-deps:front] Skipped — using shared ~/.node_modules/\n"
+      exit 0
+    fi
+
+    FRONT="${frontRepoDir}"
+    [ -d "$FRONT" ] || exit 0
+
+    _npm_install() {
+      dir="$1"
+      if [ -f "$dir/package.json" ]; then
+        if [ ! -d "$dir/node_modules" ] || [ "$dir/package.json" -nt "$dir/node_modules/.package-lock.json" ]; then
+          printf "[node-deps:front] fallback npm install: %s\n" "$dir"
+          $DRY_RUN_CMD ${nodejs}/bin/npm install --prefix "$dir" --no-audit --no-fund --legacy-peer-deps || true
+        fi
+      fi
+    }
+
+    PATH="${nodejs}/bin:$PATH"
+    _npm_install "$FRONT"
+
+    for category in "$FRONT"/*/; do
+      case "$category" in */node_modules/*|*/z_archive/*|*/.git/*) continue ;; esac
+      _npm_install "$category"
+      for project in "$category"*/; do
+        case "$project" in */node_modules/*|*/dist/*|*/static/*|*/z_archive/*) continue ;; esac
+        _npm_install "$project"
+      done
+    done
+    ) || echo "[node-deps:front] FAILED — see errors above, activation continues"
   '';
 }
