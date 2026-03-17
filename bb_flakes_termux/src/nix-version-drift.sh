@@ -248,7 +248,7 @@ collect_custom_derivations() {
 
   # cloud-infra-mcp (desktop) — local npm
   local mcp_file="$FLAKE_DESKTOP/modules/packages/cloud-infra-mcp.nix"
-  local mcp_pkg="$CLOUD_ROOT/a_solutions/bc-obs_c3-mcp-api/package.json"
+  local mcp_pkg="$CLOUD_ROOT/a_solutions/bc-obs_c3-infra-mcp-api/package.json"
   if [[ -f "$mcp_file" ]] && [[ -f "$mcp_pkg" ]]; then
     local mcp_current mcp_latest mcp_hash
     mcp_current=$(get_nix_version "$mcp_file")
