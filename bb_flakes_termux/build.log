@@ -12632,3 +12632,376 @@ Please move the above files and try again or use 'home-manager switch -b backup'
 [2026-03-18 02:14:43] ========== Build script started ==========
 [2026-03-18 02:14:43] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-03-18 02:14:45] INFO: Staging dirty files for flake evaluation...
+[2026-03-18 02:14:46] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/data/data/com.termux.nix/files/home/.claude/hooks/pretool-guard.sh' is in the way of '/nix/store/n8j93bmviaqay9ls672njk538ixfrwak-home-manager-files/.claude/hooks/pretool-guard.sh', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.claude/settings.json' is in the way of '/nix/store/n8j93bmviaqay9ls672njk538ixfrwak-home-manager-files/.claude/settings.json'
+Existing file '/data/data/com.termux.nix/files/home/.claude/skills/frontend-design.md' is in the way of '/nix/store/n8j93bmviaqay9ls672njk538ixfrwak-home-manager-files/.claude/skills/frontend-design.md', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/github-markdown-dark.css' is in the way of '/nix/store/n8j93bmviaqay9ls672njk538ixfrwak-home-manager-files/.local/lib/httpd/github-markdown-dark.css', will be skipped since they are the same
+Existing file '/data/data/com.termux.nix/files/home/.local/lib/httpd/marked.min.js' is in the way of '/nix/store/n8j93bmviaqay9ls672njk538ixfrwak-home-manager-files/.local/lib/httpd/marked.min.js', will be skipped since they are the same
+Please move the above files and try again or use 'home-manager switch -b backup' to back up existing files automatically.
+[2026-03-18 02:15:30] WARN: Resolving file conflicts (flake wins)...
+[2026-03-18 02:15:30] INFO:   Backed up: /data/data/com.termux.nix/files/home/.claude/hooks/pretool-guard.sh → /data/data/com.termux.nix/files/home/.claude/hooks/pretool-guard.sh.hm-conflict
+[2026-03-18 02:15:30] INFO:   Backed up: /data/data/com.termux.nix/files/home/.claude/settings.json → /data/data/com.termux.nix/files/home/.claude/settings.json.hm-conflict
+[2026-03-18 02:15:30] INFO:   Backed up: /data/data/com.termux.nix/files/home/.claude/skills/frontend-design.md → /data/data/com.termux.nix/files/home/.claude/skills/frontend-design.md.hm-conflict
+[2026-03-18 02:15:30] INFO:   Backed up: /data/data/com.termux.nix/files/home/.local/lib/httpd/github-markdown-dark.css → /data/data/com.termux.nix/files/home/.local/lib/httpd/github-markdown-dark.css.hm-conflict
+[2026-03-18 02:15:30] INFO:   Backed up: /data/data/com.termux.nix/files/home/.local/lib/httpd/marked.min.js → /data/data/com.termux.nix/files/home/.local/lib/httpd/marked.min.js.hm-conflict
+[2026-03-18 02:15:30] INFO: Retrying nix-on-droid switch...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 163
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating sharedNodeModules
+[node-deps] Merging deps from cloud-data + front-data...
+node:fs:2426
+    return binding.writeFileUtf8(
+                   ^
+
+Error: EACCES: permission denied, open '/data/data/com.termux.nix/files/home/.node_modules/package.json'
+    at Object.writeFileSync (node:fs:2426:20)
+    at [eval]:25:8
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:449:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:447:60)
+    at evalFunction (node:internal/process/execution:87:30)
+    at evalScript (node:internal/process/execution:99:3)
+    at node:internal/main/eval_string:74:3 {
+  errno: -13,
+  code: 'EACCES',
+  syscall: 'open',
+  path: '/data/data/com.termux.nix/files/home/.node_modules/package.json'
+}
+
+Node.js v22.16.0
+[node-deps] WARN: merge failed, using fallback
+[node-deps] ~/.node_modules/ is up to date
+Activating cloudDeps
+[node-deps:cloud] Skipped — using shared ~/.node_modules/
+Activating frontDeps
+[node-deps:front] Skipped — using shared ~/.node_modules/
+Activating globalClaudeCode
+[node-bins] Installing claude-code@2.1.78
+
+changed 3 packages in 22s
+Activating globalTsx
+
+changed 5 packages in 6s
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-18 02:17:13] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-18 02:17:13] ========== Build script finished ==========
+[2026-03-18 02:27:25] ========== Build script started ==========
+[2026-03-18 02:27:25] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-18 02:27:26] INFO: Staging dirty files for flake evaluation...
+[2026-03-18 02:27:26] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+No change so reusing latest profile generation 163
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating sharedNodeModules
+[node-deps] Merging deps from cloud-data + front-data...
+node:fs:2426
+    return binding.writeFileUtf8(
+                   ^
+
+Error: EACCES: permission denied, open '/data/data/com.termux.nix/files/home/.node_modules/package.json'
+    at Object.writeFileSync (node:fs:2426:20)
+    at [eval]:25:8
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:449:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:447:60)
+    at evalFunction (node:internal/process/execution:87:30)
+    at evalScript (node:internal/process/execution:99:3)
+    at node:internal/main/eval_string:74:3 {
+  errno: -13,
+  code: 'EACCES',
+  syscall: 'open',
+  path: '/data/data/com.termux.nix/files/home/.node_modules/package.json'
+}
+
+Node.js v22.16.0
+[node-deps] WARN: merge failed, using fallback
+[node-deps] ~/.node_modules/ is up to date
+Activating cloudDeps
+[node-deps:cloud] Skipped — using shared ~/.node_modules/
+Activating frontDeps
+[node-deps:front] Skipped — using shared ~/.node_modules/
+Activating globalClaudeCode
+[node-bins] Installing claude-code@2.1.78
+
+changed 3 packages in 5s
+Activating globalTsx
+
+changed 5 packages in 5s
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-18 02:28:33] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-18 02:28:33] ========== Build script finished ==========
+[2026-03-18 11:30:35] ========== Build script started ==========
+[2026-03-18 11:30:35] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-18 11:30:37] INFO: Staging dirty files for flake evaluation...
+[2026-03-18 11:30:38] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 4 derivations will be built:
+  /nix/store/3nhvbn7b0yxr727x2dsvzm9kiszvjril-home-manager-files.drv
+  /nix/store/bgv6fxdinmaz4c5znm1qmikni39bm5jf-home-manager-generation.drv
+  /nix/store/bh0i7bk18mkib5anlxmavjp2hafswdqv-activation-script.drv
+  /nix/store/bnx8vgn54x83392nd1d4z2zqfv93r3pj-nix-on-droid-generation.drv
+building '/nix/store/3nhvbn7b0yxr727x2dsvzm9kiszvjril-home-manager-files.drv'...
+building '/nix/store/bgv6fxdinmaz4c5znm1qmikni39bm5jf-home-manager-generation.drv'...
+building '/nix/store/bh0i7bk18mkib5anlxmavjp2hafswdqv-activation-script.drv'...
+building '/nix/store/bnx8vgn54x83392nd1d4z2zqfv93r3pj-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 164
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating sharedNodeModules
+[node-deps] Merging deps from cloud-data + front-data...
+node:fs:2426
+    return binding.writeFileUtf8(
+                   ^
+
+Error: EACCES: permission denied, open '/data/data/com.termux.nix/files/home/.node_modules/package.json'
+    at Object.writeFileSync (node:fs:2426:20)
+    at [eval]:25:8
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:449:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:447:60)
+    at evalFunction (node:internal/process/execution:87:30)
+    at evalScript (node:internal/process/execution:99:3)
+    at node:internal/main/eval_string:74:3 {
+  errno: -13,
+  code: 'EACCES',
+  syscall: 'open',
+  path: '/data/data/com.termux.nix/files/home/.node_modules/package.json'
+}
+
+Node.js v22.16.0
+[node-deps] WARN: merge failed, using fallback
+[node-deps] ~/.node_modules/ is up to date
+Activating cloudDeps
+[node-deps:cloud] Skipped — using shared ~/.node_modules/
+Activating frontDeps
+[node-deps:front] Skipped — using shared ~/.node_modules/
+Activating globalClaudeCode
+[node-bins] Installing claude-code@2.1.78
+
+changed 3 packages in 12s
+Activating globalTsx
+
+changed 5 packages in 9s
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-18 11:32:32] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-18 11:32:32] ========== Build script finished ==========
+[2026-03-18 11:50:20] ========== Build script started ==========
+[2026-03-18 11:50:20] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-18 11:50:22] INFO: Staging dirty files for flake evaluation...
+[2026-03-18 11:50:23] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+[2026-03-18 11:56:59] ========== Build script started ==========
+[2026-03-18 11:56:59] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-18 11:57:02] INFO: Staging dirty files for flake evaluation...
+[2026-03-18 11:57:02] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+No change so reusing latest profile generation 164
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating sharedNodeModules
+[node-deps] Merging deps from cloud-data + front-data...
+node:fs:2426
+    return binding.writeFileUtf8(
+                   ^
+
+Error: EACCES: permission denied, open '/data/data/com.termux.nix/files/home/.node_modules/package.json'
+    at Object.writeFileSync (node:fs:2426:20)
+    at [eval]:25:8
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:449:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:447:60)
+    at evalFunction (node:internal/process/execution:87:30)
+    at evalScript (node:internal/process/execution:99:3)
+    at node:internal/main/eval_string:74:3 {
+  errno: -13,
+  code: 'EACCES',
+  syscall: 'open',
+  path: '/data/data/com.termux.nix/files/home/.node_modules/package.json'
+}
+
+Node.js v22.16.0
+[node-deps] WARN: merge failed, using fallback
+[node-deps] ~/.node_modules/ is up to date
+Activating cloudDeps
+[node-deps:cloud] Skipped — using shared ~/.node_modules/
+Activating frontDeps
+[node-deps:front] Skipped — using shared ~/.node_modules/
+Activating globalClaudeCode
+[node-bins] Installing claude-code@2.1.78
+
+changed 3 packages in 5s
+Activating globalTsx
+
+changed 5 packages in 4s
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-18 11:58:06] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-18 11:58:06] ========== Build script finished ==========
+[2026-03-18 12:53:51] ========== Build script started ==========
+[2026-03-18 12:53:51] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-18 12:53:53] INFO: Staging dirty files for flake evaluation...
