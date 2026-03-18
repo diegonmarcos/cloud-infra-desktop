@@ -5,7 +5,31 @@
 
 ---
 
-## Security Zones
+## Table of Contents
+
+### A) Documentation Overview
+- [A.1 Security Zones](#a1-security-zones)
+- [A.2 Operating Systems](#a2-operating-systems)
+- [A.3 Nix Flakes (User Environment)](#a3-nix-flakes-user-environment)
+- [A.4 Applications & Containers](#a4-applications--containers)
+- [A.5 Quick Start](#a5-quick-start)
+- [A.6 Filesystem Layout](#a6-filesystem-layout)
+- [A.7 Surface Hardware Notes](#a7-surface-hardware-notes)
+
+### B) Architectural Design
+- [B.1 Repository Structure](#b1-repository-structure)
+- [B.2 Build System](#b2-build-system)
+- [B.3 NixOS Host Configuration](#b3-nixos-host-configuration)
+- [B.4 Home Manager Profiles](#b4-home-manager-profiles)
+- [B.5 Isolation Layers](#b5-isolation-layers)
+- [B.6 MCP Server](#b6-mcp-server)
+- [B.7 Disk Partitioning](#b7-disk-partitioning)
+
+---
+
+## A) Documentation Overview
+
+### A.1 Security Zones
 
 | Zone | System | Encryption | Purpose |
 | :--- | :--- | :--- | :--- |
@@ -16,113 +40,52 @@
 | **3** | **User Space** | LUKS + Vault | Personal data & secret management |
 | **4** | **Untrusted** | LUKS | Isolated workloads via `microvm.nix` |
 
----
+### A.2 Operating Systems
 
-## Operating Systems
+| OS | Folder | Purpose |
+|----|--------|---------|
+| **NixOS 24.11** | `aa_nixos-surface_host/` | Primary workstation. Immutable root (tmpfs), impermanence, KDE Plasma 6 |
+| **Arch Linux** | `ab_arch-surface_fallback_desk/` | Desktop fallback with Surface hardware support |
+| **Kali Linux** | `ab_kali_security/` | Security auditing, network forensics (debootstrap) |
+| **Windows 11 Lite** | `ac_win11_webcam/` | Surface webcam driver support |
+| **Ventoy USB** | `ad_ventoy_fallback_usb/` | Multi-OS recovery: Debian, Arch, Alpine, NixOS Slim |
+| **Android/Mobile** | `ae_mobile_image/` | BlissOS QEMU VM, Samsung app extraction |
 
-### NixOS Host — [`aa_nixos-surface_host/`](./aa_nixos-surface_host)
-- **Version**: NixOS 24.11
-- **Immutable Root**: `tmpfs` wiped every boot.
-- **Persistence**: `impermanence` module binds `@system/state` and `@user/home` to BTRFS subvolumes.
-- **Declarative**: Everything defined via Nix Flakes (`flake.nix`, `configuration.nix`).
-- **Desktop**: KDE Plasma 6 (Wayland) default, GNOME and Openbox available.
-- **Shell**: Fish (default), Zsh, Bash available.
-- **Kernel**: linux-surface (mainline 6.15+ with Surface patches).
-- **Dual-boot**: Kubuntu (ext4 partition, shared boot).
-- **Multi-user**: `diego` (UID 1000), `guest` (UID 1001), cross-OS compatible.
+### A.3 Nix Flakes (User Environment)
 
-### Arch Linux Fallback — [`ab_arch-surface_fallback_desk/`](./ab_arch-surface_fallback_desk)
-Desktop fallback with Surface hardware support. Bootstrap scripts + install automation.
+#### Desktop — [`ba_flakes_desktop/`](./ba_flakes_desktop)
 
-### Kali Security — [`ab_kali_security/`](./ab_kali_security)
-Unencrypted partition for rapid security auditing and network forensics. Debootstrap-based install.
-
-### Windows 11 Lite — [`ac_win11_webcam/`](./ac_win11_webcam)
-Minimized Windows instance for Surface Pro 8 hardware driver support (webcam piping).
-
-### Ventoy USB Recovery — [`ad_ventoy_fallback_usb/`](./ad_ventoy_fallback_usb)
-Multi-OS recovery drive with `toram` support:
-- **Debian Surface** — Full GUI recovery with `linux-surface` kernel
-- **Arch Surface** — Rolling release recovery + AUR
-- **Alpine Minimal** — Ultra-lightweight CLI rescue (~400MB)
-- **NixOS Slim** — Minimal NixOS ISO builder
-
-### Mobile / Android — [`ae_mobile_image/`](./ae_mobile_image)
-BlissOS QEMU VM config, Samsung app extraction, OVMF firmware for Android virtualization.
-
----
-
-## Nix Flakes (User Environment)
-
-### Desktop — [`ba_flakes_desktop/`](./ba_flakes_desktop)
-
-Standalone Home Manager configuration that works on **any Linux distro** (not just NixOS). Manages user-level packages, dotfiles, and desktop environments.
-
-**Profiles** (modular, composable):
-
-| Profile | Content |
-|---------|---------|
-| `shell-core` | zsh, starship, fzf, ripgrep, fd, bat, eza |
-| `dev-languages` | Node, Python, Rust, Go runtimes |
-| `build-debug` | cmake, gcc, gdb, valgrind, strace |
-| `containers-cloud` | podman, kubectl, helm, gcloud, aws, oci-cli |
-| `security-network` | nmap, wireshark, burpsuite, openssl |
-| `data-science` | jupyter, pandas, numpy, R |
-| `productivity` | obsidian, zotero, libreoffice |
-| `media-graphics` | gimp, inkscape, ffmpeg, imagemagick |
+Standalone Home Manager that works on **any Linux distro**. Manages packages, dotfiles, desktop environments.
 
 **Host Configs**: `surface-plasma` (all profiles + Plasma 6), `surface-gnome`, `server`, `cli`, `minimal`.
 
-### Termux — [`bb_flakes_termux/`](./bb_flakes_termux)
+#### Termux — [`bb_flakes_termux/`](./bb_flakes_termux)
 
-Nix Home Manager for Android/Termux. Mobile development environment with flake-based reproducibility.
+Nix Home Manager for Android/Termux. Mobile development environment with Claude Code, MCP servers, and full CLI tooling.
 
----
-
-## Applications
+### A.4 Applications & Containers
 
 | Directory | Purpose |
 |-----------|---------|
-| [`da_app_cli/`](./da_app_cli) | CLI tools (Python Poetry + Nix containerization) |
-| [`db_apps_gui_2/`](./db_apps_gui_2) | GUI apps via Docker, Podman, or host install (profiles: basic, min) |
-| [`de_claude-sandbox/`](./de_claude-sandbox) | Claude AI sandbox (AppImage + Nix) |
+| `ca_container_cli/` | CLI tools container (Podman/Docker) |
+| `cb_container_gui/` | GUI apps container (Podman/Docker) |
+| `de_claude-sandbox/` | Claude AI sandbox (Nix + AppImage) |
+| `bc_unix-mcp-api/` | Unix MCP server (system introspection) |
 
----
+### A.5 Quick Start
 
-## Repository Structure
+```bash
+# Rebuild NixOS system
+~/git/unix/aa_nixos-surface_host/build.sh       # Interactive TUI
 
-```
-unix/
-├── 0_spec/                            # Specifications & design docs
-│   ├── ARCHITECTURE.md                # System-wide design overview
-│   ├── DISK_LAYOUT.md                 # Partition & subvolume map
-│   ├── ISOLATION_LAYERS.md            # Sandbox technology breakdown
-│   ├── ROADMAP.md                     # Progress & milestones
-│   ├── TOOLS.md                       # Curated package lists
-│   └── z_dotfiles_src/                # Dotfile templates
-│
-├── aa_nixos-surface_host/             # NixOS host configuration (Primary OS)
-├── ab_arch-surface_fallback_desk/     # Arch Linux desktop fallback
-├── ab_kali_security/                  # Kali Linux security zone
-├── ac_win11_webcam/                   # Windows hardware fallback
-├── ad_ventoy_fallback_usb/            # Multi-OS USB recovery builder
-├── ae_mobile_image/                   # Mobile/Android image management
-│
-├── ba_flakes_desktop/                 # Nix Home Manager (desktop)
-├── bb_flakes_termux/                  # Nix Home Manager (mobile/Termux)
-│
-├── da_app_cli/                        # CLI applications
-├── db_apps_gui_2/                     # GUI applications (containers)
-├── de_claude-sandbox/                 # Claude AI sandbox
-│
-└── z_archive/                         # Archived configs (old Kinoite host)
+# Rebuild Home Manager (desktop)
+~/git/unix/ba_flakes_desktop/build.sh switch surface
+
+# Rebuild Home Manager (Termux/mobile)
+~/git/unix/bb_flakes_termux/build.sh switch
 ```
 
----
-
-## Filesystem Layout
-
-> Full details: [Disk Layout](./0_spec/DISK_LAYOUT.md)
+### A.6 Filesystem Layout
 
 ```
 /                       # tmpfs (ephemeral, wiped on reboot)
@@ -133,58 +96,121 @@ unix/
 │   ├── shared/         # @shared subvolume (cross-OS data)
 │   ├── btrfs-root/     # Pool root (all subvolumes visible)
 │   └── kubuntu/        # Kubuntu ext4 partition (ro)
-└── boot/               # Shared boot partition
-    └── efi/            # EFI system partition
+└── boot/efi/           # EFI system partition
 ```
 
-- **LUKS2 Encryption**: Full disk, USB keyfile with password fallback
-- **BTRFS**: zstd compression, noatime on all subvolumes
+- **LUKS2**: Full disk encryption, USB keyfile + password fallback
+- **BTRFS**: zstd compression, noatime
 - **zRAM swap**: 50% of RAM (4GB compressed)
 - **Docker/Podman data**: `/mnt/shared/data/containers/`
 
----
+### A.7 Surface Hardware Notes
 
-## Surface Hardware Notes
-
-- **initrd modules**: `surface_aggregator`, `surface_hid` must be loaded early for Type Cover keyboard
-- **No Intel ISH**: Surface Pro 8 uses SAM (Surface Aggregator Module), not Intel Integrated Sensor Hub
+- **initrd modules**: `surface_aggregator`, `surface_hid` loaded early for Type Cover keyboard
+- **No Intel ISH**: Surface Pro 8 uses SAM (Surface Aggregator Module)
 - **Wayland**: Default (Plasma 6), X11 available for Openbox
 - **Touchscreen/Pen**: via `nixos-hardware` Surface module
+- **Kernel**: linux-surface (mainline 6.15+ with Surface patches)
+- **Dual-boot**: Kubuntu (ext4 partition, shared boot)
 
 ---
 
-## Build System
+## B) Architectural Design
+
+### B.1 Repository Structure
+
+```
+unix/
+├── 0_spec/                            Specifications & design docs
+│   ├── ARCHITECTURE.md                System-wide design
+│   ├── DISK_LAYOUT.md                 Partition & subvolume map
+│   ├── ISOLATION_LAYERS.md            Sandbox breakdown
+│   └── TOOLS.md                       Curated package lists
+│
+├── aa_nixos-surface_host/             NixOS host configuration
+├── ab_arch-surface_fallback_desk/     Arch Linux fallback
+├── ab_kali_security/                  Kali security zone
+├── ac_win11_webcam/                   Windows hardware fallback
+├── ad_ventoy_fallback_usb/            Multi-OS USB recovery
+├── ae_mobile_image/                   Android image management
+│
+├── ba_flakes_desktop/                 Home Manager (desktop)
+├── bb_flakes_termux/                  Home Manager (Termux)
+├── bc_unix-mcp-api/                   Unix MCP server
+│
+├── ca_container_cli/                  CLI container (Podman)
+├── cb_container_gui/                  GUI container (Podman)
+├── de_claude-sandbox/                 Claude AI sandbox
+│
+└── z_archive/                         Archived configs
+```
+
+### B.2 Build System
 
 Every major project uses `build.sh` (engine) + `build.json` (config) at project root.
 
-```bash
-# Rebuild NixOS system
-~/git/unix/aa_nixos-surface_host/build.sh
+| Project | Engine | Purpose |
+|---------|--------|---------|
+| `aa_nixos-surface_host/build.sh` | NixOS installer | Create raw EFI / ISO images for Surface |
+| `ba_flakes_desktop/build.sh` | Home Manager | Switch/build/update desktop environment |
+| `bb_flakes_termux/build.sh` | nix-on-droid | Switch/build/update Termux environment |
+| `bc_unix-mcp-api/build.sh` | Node.js | Build MCP server |
+| `ca_container_cli/build.sh` | Podman | Build CLI container |
+| `cb_container_gui/build.sh` | Podman | Build GUI container |
 
-# Rebuild Home Manager (desktop)
-~/git/unix/ba_flakes_desktop/build.sh
+### B.3 NixOS Host Configuration
 
-# Rebuild Home Manager (Termux)
-~/git/unix/bb_flakes_termux/build.sh
-```
+- **Flake**: `aa_nixos-surface_host/src/flake.nix`
+- **Impermanence**: Root is `tmpfs`, wiped on reboot. Persistent data via BTRFS subvolumes.
+- **Multi-user**: `diego` (UID 1000), `guest` (UID 1001)
+- **Desktop**: KDE Plasma 6 (Wayland), GNOME, Openbox
+- **Shell**: Fish (default), Zsh, Bash
+
+### B.4 Home Manager Profiles
+
+Desktop flake provides modular, composable profiles:
+
+| Profile | Packages |
+|---------|----------|
+| `shell-core` | zsh, starship, fzf, ripgrep, fd, bat, eza |
+| `dev-languages` | Node, Python, Rust, Go runtimes |
+| `build-debug` | cmake, gcc, gdb, valgrind, strace |
+| `containers-cloud` | podman, kubectl, helm, gcloud, aws, oci-cli |
+| `security-network` | nmap, wireshark, burpsuite, openssl |
+| `data-science` | jupyter, pandas, numpy, R |
+| `productivity` | obsidian, zotero, libreoffice |
+| `media-graphics` | gimp, inkscape, ffmpeg, imagemagick |
+
+### B.5 Isolation Layers
+
+| Layer | Technology | Trust Level | Use Case |
+|-------|-----------|-------------|----------|
+| 1 | Nix Native | Trusted | CLI & system utilities |
+| 2 | Distrobox | Semi-trusted | Development environments (Arch, Ubuntu) |
+| 3 | Flatpak | Sandboxed | GUI applications |
+| 4 | Podman | Rootless | Containerized services |
+| 5 | MicroVM | Fully isolated | Untrusted workloads (separate kernel) |
+
+### B.6 MCP Server
+
+`bc_unix-mcp-api/` — stdio MCP server for system introspection.
+
+Provides tools for shell management, Nix operations, Git sync, mesh networking, dev servers, and system information. Used by Claude Code for local system context.
+
+### B.7 Disk Partitioning
+
+| Partition | Size | FS | Mount | Purpose |
+|-----------|------|-----|-------|---------|
+| EFI | 512M | FAT32 | `/boot/efi` | Bootloader (systemd-boot) |
+| NixOS | ~200G | BTRFS (LUKS) | `/` | System + user data |
+| Kubuntu | ~50G | ext4 | `/mnt/kubuntu` (ro) | Dual-boot fallback |
+| Kali | ~20G | ext4 | — | Security zone |
+| Recovery | ~2G | ext4 | — | Alpine rescue |
+
+BTRFS subvolumes: `@system/nix`, `@system/state`, `@user/home-diego`, `@user/home-guest`, `@shared`.
 
 ---
 
-## Isolation Layers
+**Quick Links**: [Architecture](./0_spec/ARCHITECTURE.md) | [Disk Layout](./0_spec/DISK_LAYOUT.md) | [Isolation Layers](./0_spec/ISOLATION_LAYERS.md) | [Roadmap](./0_spec/ROADMAP.md)
 
-1. **Nix Native** — Trusted CLI & system utilities
-2. **Distrobox** — Development environments (Arch, Ubuntu)
-3. **Flatpak** — Sandboxed GUI applications
-4. **Podman** — Rootless containerized services
-5. **MicroVM** — Fully isolated kernels for untrusted workloads
-
----
-
-## Quick Links
-
-- [Architecture Deep-Dive](./0_spec/ARCHITECTURE.md)
-- [Partition & Disk Layout](./0_spec/DISK_LAYOUT.md)
-- [Isolation Layers](./0_spec/ISOLATION_LAYERS.md)
-- [USB Recovery Guide](./ad_ventoy_fallback_usb/README.md)
-- [Home Manager Guide](./ba_flakes_desktop/a_spec/README.md)
-- [System Roadmap](./0_spec/ROADMAP.md)
+**Last Updated**: 2026-03-18
