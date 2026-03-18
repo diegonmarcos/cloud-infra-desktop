@@ -42,6 +42,10 @@
     "mailu-mcp": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/mailu-mcp/mcp"
+    },
+    "google-workspace": {
+      "type": "http",
+      "url": "https://mcp.diegonmarcos.com/google-workspace-mcp/mcp"
     }
   }
 }
