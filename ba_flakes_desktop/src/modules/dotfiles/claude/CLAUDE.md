@@ -458,19 +458,57 @@ rpm -qR <package>           # RPM-based
 #                           SKILLS & MCPs
 # ████████████████████████████████████████████████████████████████████████████
 
-## MCP: cloud-skills (stdio, local knowledge retrieval)
+## MCP: cloud-specs-docs (stdio, local knowledge retrieval)
 
-**Source**: `~/git/cloud/a_solutions/bc-obs_c3-skills-mcp-prompts/src/`
+**Source**: `~/git/cloud/a_solutions/bc-obs_c3-specs-docs-mcp/src/` · **17 tools, 2 resources**
 
-| Tool | When to use | Content |
-|------|-------------|---------|
-| `skill_cloud_architect` | Infrastructure tasks — deploy, networking, VM lifecycle | Live VM/service data, Chef+Waiter decision matrix |
-| `skill_frontend_developer` | Front-end project work — build, dev, code standards | TS/Svelte5/Vue3/SCSS standards, Matomo |
-| `skill_debug_ops` | Debug containers, logs, health issues | Debug workflow, common pitfalls, WireGuard gotchas |
-| `skill_crawlee_scraping` | Web scraping, data extraction | Crawlee workflow, actor management |
-| `knowledge_service_spec` | Need service details before modifying/debugging | build.json + flake.nix config + topology |
-| `knowledge_vm_info` | VM-specific operations | IP, services, SSH alias |
-| `knowledge_services_by_category` | Infrastructure overview | All services grouped by category |
+### A: Specs (9 tools)
+| Tool | When to use |
+|------|-------------|
+| `c3_topology` | Full infrastructure map (VMs, services, networking) |
+| `c3_configs` | Generated config (domains, ports, images, routes) |
+| `c3_deps` | Cloud service npm dependencies |
+| `c3_topology_md` | Human-readable topology |
+| `c3_configs_md` | Human-readable configs (Caddy, Authelia, DNS) |
+| `c3_deps_front` | Front-end project dependencies |
+| `knowledge_service_spec` | Service build.json + flake.nix + topology |
+| `knowledge_vm_info` | VM details — IP, WG IP, services, SSH alias |
+| `knowledge_services_by_category` | All services grouped by category |
+
+### B: Docs (4 tools)
+| Tool | When to use |
+|------|-------------|
+| `c3_docs_overview` | Cloud docs portal overview + index |
+| `c3_docs_service` | Service-specific documentation |
+| `c3_readme` | Cloud repo README.md |
+| `cloud_context` | Dynamic infrastructure summary (compact/full) |
+
+### C: Skills (4 tools)
+| Tool | When to use |
+|------|-------------|
+| `skill_cloud_architect` | Infrastructure tasks — deploy, networking, VM lifecycle |
+| `skill_frontend_developer` | Front-end project work — build, dev, code standards |
+| `skill_debug_ops` | Debug containers, logs, health issues |
+| `skill_crawlee_scraping` | Web scraping, data extraction |
+
+### Resources
+| URI | Description |
+|-----|-------------|
+| `cloud://context/compact` | ~10k token infrastructure summary |
+| `cloud://context/full` | ~50k token full infrastructure context |
+
+## MCP: diego-personal-data (stdio, local vault/personal data)
+
+**Source**: `~/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/` · **16 tools, READ-ONLY**
+
+| Category | Tools |
+|----------|-------|
+| Vault | `vault_structure`, `vault_providers`, `vault_ssh_keys`, `vault_passwords_summary`, `vault_2fa_status` |
+| Identity | `identity_documents`, `identity_notes`, `identity_read_note` |
+| Comms | `comms_email_status`, `comms_whatsapp` (TBD), `comms_notes` (TBD) |
+| Media | `media_photos`, `media_git_repos` |
+| Finance | `finance_cards`, `finance_wifi` |
+| Health | `health_data` (TBD) |
 
 ## MCP: cloud-infra
 

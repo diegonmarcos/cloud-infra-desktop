@@ -106,7 +106,8 @@
 
   # Claude Code configuration + MCP server config
   home.file.".claude/CLAUDE.md".source = ./dotfiles/claude/CLAUDE.md;
-  home.file.".mcp.json".source = ./dotfiles/claude/mcp.json;
+  home.file.".claude/mcp.json.tpl".source = ./dotfiles/claude/mcp.json.tpl;
+  home.file.".claude/secrets.yaml".source = ./dotfiles/claude/secrets.yaml;
   home.file.".claude/statusline-command.sh" = {
     source = ./dotfiles/claude/statusline-command.sh;
     executable = true;
@@ -146,5 +147,64 @@
     if ! command -v tsx >/dev/null 2>&1; then
       $DRY_RUN_CMD ${pkgs.nodejs_20}/bin/npm install -g tsx --no-audit --no-fund || true
     fi
+  '';
+
+  # MCP secrets: decrypt secrets.yaml → awk subst ''${VAR} → ~/.mcp.json
+  # Mimics Docker env_file + init.sh pattern using awk index() (literal, no regex)
+  home.activation.mcpSecrets = lib.hm.dag.entryAfter ["linkGeneration"] ''
+    SOPS="${pkgs.sops}/bin/sops"
+    TPL="$HOME/.claude/mcp.json.tpl"
+    SECRETS_YAML="$HOME/.claude/secrets.yaml"
+    OUT="$HOME/.mcp.json"
+    YQ="${pkgs.yq-go}/bin/yq"
+    AWK="${pkgs.gawk}/bin/awk"
+
+    if [ ! -f "$SOPS" ] || [ ! -f "$SECRETS_YAML" ] || [ ! -f "$TPL" ]; then
+      echo "[mcp-secrets] WARNING: sops/secrets/template not found, copying template as-is"
+      [ -f "$TPL" ] && cp "$TPL" "$OUT"
+      exit 0
+    fi
+
+    # Decrypt secrets.yaml (same as cloud/ _engine.sh pattern)
+    DECRYPTED=$("$SOPS" -d "$SECRETS_YAML" 2>/dev/null) || true
+    if [ -z "$DECRYPTED" ]; then
+      echo "[mcp-secrets] WARNING: failed to decrypt secrets.yaml"
+      cp "$TPL" "$OUT"
+      exit 0
+    fi
+
+    # Copy template to output
+    cp "$TPL" "$OUT"
+
+    # Extract ''${VAR} placeholders using awk (no sed, no regex on secrets)
+    VARS=$($AWK '{
+      s = $0
+      while (match(s, /\$\{[A-Za-z_][A-Za-z0-9_-]*\}/)) {
+        v = substr(s, RSTART+2, RLENGTH-3)
+        print v
+        s = substr(s, RSTART+RLENGTH)
+      }
+    }' "$OUT" | sort -u) || true
+
+    # awk index() substitution — literal string match, no regex
+    # Same proven pattern as Authelia init.sh and cloud/ _engine.sh
+    for _var in $VARS; do
+      _val=$(printf '%s' "$DECRYPTED" | "$YQ" -r ".[\"$_var\"]" 2>/dev/null) || true
+      if [ -z "$_val" ] || [ "$_val" = "null" ]; then
+        echo "[mcp-secrets] WARNING: $_var not found in secrets — leaving placeholder"
+        continue
+      fi
+      _pat="\''${''${_var}}"
+      $AWK -v pat="$_pat" -v rep="$_val" '{
+        while (i = index($0, pat)) {
+          $0 = substr($0, 1, i-1) rep substr($0, i+length(pat))
+        }
+        print
+      }' "$OUT" > "$OUT.tmp"
+      mv "$OUT.tmp" "$OUT"
+    done
+
+    chmod 600 "$OUT"
+    echo "[mcp-secrets] ~/.mcp.json templated ($(echo $VARS | wc -w) vars substituted)"
   '';
 }

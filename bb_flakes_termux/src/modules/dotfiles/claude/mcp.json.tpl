@@ -15,12 +15,22 @@
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
       }
     },
-    "cloud-skills": {
+    "cloud-specs-docs": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-skills-mcp-prompts/src/index.ts"],
+      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-specs-docs-mcp/src/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
+        "CONFIG_PATH": "/data/data/com.termux.nix/files/home/git/cloud/config.json"
+      }
+    },
+    "diego-personal-data": {
+      "type": "stdio",
+      "command": "tsx",
+      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
+      "env": {
+        "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
+        "VAULT_PATH": "/data/data/com.termux.nix/files/home/git/vault",
         "CONFIG_PATH": "/data/data/com.termux.nix/files/home/git/cloud/config.json"
       }
     },

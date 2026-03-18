@@ -7,7 +7,10 @@
     },
     "cloud-infra": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/c3-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/c3-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
     },
     "cloud-specs-docs": {
       "type": "stdio",
@@ -28,15 +31,24 @@
     },
     "cloud-services": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/c3-services-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/c3-services-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
     },
     "mattermost": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/mattermost-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/mattermost-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
     },
     "mailu-mcp": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/mailu-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/mailu-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
     }
   }
 }
