@@ -90,35 +90,24 @@ cmd_switch() {
 
     log_info "Applying nix-on-droid configuration..."
 
-    _rc_file=$(mktemp)
-    _out_file=$(mktemp)
-    { nix-on-droid switch --flake "$SRC_DIR" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE" | tee "$_out_file"
-    exit_code=$(cat "$_rc_file")
-
-    # Auto-resolve conflicts: flake always wins — back up conflicting files and retry
-    if [ "$exit_code" -ne 0 ] && grep -q "is in the way of" "$_out_file"; then
-        _conflicts=$(awk -F"'" '/is in the way of/ {print $2}' "$_out_file")
-        if [ -n "$_conflicts" ]; then
-            log_warn "Resolving file conflicts (flake wins)..."
-            echo "$_conflicts" | while IFS= read -r f; do
-                [ -z "$f" ] && continue
-                if [ -f "$f" ] && [ ! -L "$f" ]; then
-                    mv "$f" "${f}.hm-conflict"
-                    log_info "  Backed up: $f → ${f}.hm-conflict"
-                fi
-            done
-            log_info "Retrying nix-on-droid switch..."
-            { nix-on-droid switch --flake "$SRC_DIR" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
-            exit_code=$(cat "$_rc_file")
+    # Flake always wins: delete regular files where HM needs to place symlinks
+    for _hm_file in .claude/settings.json .claude/hooks/pretool-guard.sh .claude/skills/frontend-design.md .local/lib/httpd/github-markdown-dark.css .local/lib/httpd/marked.min.js; do
+        _full="$HOME/$_hm_file"
+        if [ -f "$_full" ] && [ ! -L "$_full" ]; then
+            rm -f "$_full"
         fi
-    fi
+    done
 
-    rm -f "$_rc_file" "$_out_file"
+    _rc_file=$(mktemp)
+    { nix-on-droid switch --flake "$SRC_DIR" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+    exit_code=$(cat "$_rc_file" 2>/dev/null)
+    exit_code=${exit_code:-0}
+    rm -f "$_rc_file"
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Configuration failed (exit $exit_code)"
         log_info "Check $LOG_FILE for details"
-        return $exit_code
+        return "$exit_code"
     fi
 
     log_success "Configuration applied: $SRC_DIR"

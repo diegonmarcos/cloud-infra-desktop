@@ -458,17 +458,19 @@ rpm -qR <package>           # RPM-based
 #                           SKILLS & MCPs
 # ████████████████████████████████████████████████████████████████████████████
 
-## MCP Prompts (on-demand skills, loaded via cloud-infra MCP)
+## MCP: cloud-skills (stdio, local knowledge retrieval)
 
-| Prompt | When to use | Content |
-|--------|-------------|---------|
-| `cloud-architect` | Infrastructure tasks — deploy, networking, VM lifecycle | VM table, service categories, Chef+Waiter decision matrix |
-| `frontend-developer` | Front-end project work — build, dev, code standards | Project archetypes, TS/Svelte5/Vue3/SCSS standards, Matomo |
-| `debug-ops` | Debug containers, logs, health issues | Debug workflow, common pitfalls, WireGuard gotchas |
-| `crawlee-scraping` | Web scraping, data extraction | Crawlee workflow, actor management, result extraction |
+**Source**: `~/git/cloud/a_solutions/bc-obs_c3-skills-mcp-prompts/src/`
 
-- **Source**: `~/git/cloud/a_solutions/bc-obs_c3-skills-mcp-prompts/src/prompts/index.ts`
-- **Loaded on-demand** via MCP stdio server (cloud-skills)
+| Tool | When to use | Content |
+|------|-------------|---------|
+| `skill_cloud_architect` | Infrastructure tasks — deploy, networking, VM lifecycle | Live VM/service data, Chef+Waiter decision matrix |
+| `skill_frontend_developer` | Front-end project work — build, dev, code standards | TS/Svelte5/Vue3/SCSS standards, Matomo |
+| `skill_debug_ops` | Debug containers, logs, health issues | Debug workflow, common pitfalls, WireGuard gotchas |
+| `skill_crawlee_scraping` | Web scraping, data extraction | Crawlee workflow, actor management |
+| `knowledge_service_spec` | Need service details before modifying/debugging | build.json + flake.nix config + topology |
+| `knowledge_vm_info` | VM-specific operations | IP, services, SSH alias |
+| `knowledge_services_by_category` | Infrastructure overview | All services grouped by category |
 
 ## MCP: cloud-infra
 
