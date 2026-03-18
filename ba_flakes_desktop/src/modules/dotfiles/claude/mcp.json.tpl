@@ -52,10 +52,7 @@
     },
     "google-workspace": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/google-workspace-mcp/mcp",
-      "headers": {
-        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
-      }
+      "url": "http://10.0.0.6:3104/mcp"
     }
   }
 }
