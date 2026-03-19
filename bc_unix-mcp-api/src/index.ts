@@ -14,14 +14,14 @@ import { PLATFORM } from "./paths.js";
 
 const server = new McpServer({
   name: "unix-mcp",
-  version: "1.1.0",
+  version: "1.2.0",
 });
 
 // ── Tool categories ─────────────────────────────
 registerDriftTools(server);       //  3: nix-drift (version drift detection)
 registerNixTools(server);         //  6: flake info, update, switch, search, store, generations
 registerSystemTools(server);      //  5: info, env, which, processes, packages
-registerScriptTools(server);      //  8: sync, gacp, mesh, connect, server, code
+registerScriptTools(server);      // 12: connect hub (status, logs, mesh, git, drives, sync, server, dev, code, hm, security)
 registerGitTools(server);         //  4: status-all, log, diff, remote-status
 registerShellTools(server);       //  3: exec, npm-list, npm-install
 registerShellConfigTools(server); //  7: aliases, functions, greeting, starship, guardrails
@@ -31,7 +31,7 @@ const log = (msg: string) => process.stderr.write(`[unix-mcp] ${msg}\n`);
 
 async function main() {
   const transport = new StdioServerTransport();
-  log(`Starting unix-mcp v1.1.0 (36 tools, platform=${PLATFORM})...`);
+  log(`Starting unix-mcp v1.2.0 (40 tools, platform=${PLATFORM})...`);
   await server.connect(transport);
   log("Connected via stdio transport");
 }
