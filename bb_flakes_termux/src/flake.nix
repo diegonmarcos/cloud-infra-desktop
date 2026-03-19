@@ -119,17 +119,17 @@
               # VPN & networking
               # NOTE: wireguard-tools (wg CLI) requires root — useless on Android.
               # The WireGuard Android app manages the tunnel via VPN API instead.
-              # We provide a wrapper that warns and redirects to `mesh`.
+              # We provide a wrapper that warns and redirects to `connect`.
               (writeShellScriptBin "wg" ''
                 echo ""
                 echo "  THIS IS A ROOTLESS ANDROID!"
                 echo "  You should NEVER try to check WireGuard connection using wg!"
                 echo ""
-                echo "  Use the 'mesh' command instead:"
-                echo "    mesh status   — check VPN tunnel status"
-                echo "    mesh up       — bring tunnel up (via Android WG app)"
-                echo "    mesh down     — bring tunnel down"
-                echo "    mesh peers    — show configured peers"
+                echo "  Use the 'connect' command instead:"
+                echo "    connect status       — unified dashboard"
+                echo "    connect flex-status  — OCI VM status"
+                echo "    connect mount-all-vm — mount VMs via SSHFS"
+                echo "    connect logs | jq .mesh — mesh JSON data"
                 echo ""
               '')
               inetutils
@@ -319,13 +319,7 @@
                 printf "\033[0;32m✓ Done\033[0m\n"
               '')
 
-              # 7. MESH (WireGuard VPN mesh management)
-              # Source: ~/git/tools/a-Mesh/mesh.sh + mesh.json
-              (writeShellScriptBin "mesh" ''
-                exec "$HOME/git/tools/a-Mesh/mesh.sh" "$@"
-              '')
-
-              # 7b. CONNECT (Unified dashboard: git, mounts, sync, servers)
+              # 7. CONNECT (Unified hub: HM, mesh, git, drives, sync, servers, security)
               # Source: ~/git/tools/a-cloud-connect/connect.sh
               (writeShellScriptBin "connect" ''
                 exec "$HOME/git/tools/a-cloud-connect/connect.sh" "$@"
