@@ -13095,3 +13095,129 @@ Activating linkProfile
 [2026-03-18 13:40:16] ========== Build script started ==========
 [2026-03-18 13:40:16] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-03-18 13:40:17] INFO: Staging dirty files for flake evaluation...
+[2026-03-18 13:40:18] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 4 derivations will be built:
+  /nix/store/g9zz75y9rd325lysmj1wdfj5hf6a4wsp-home-manager-files.drv
+  /nix/store/vfn01qkx6z61i5d7kb48y9nkx1lbsmqp-home-manager-generation.drv
+  /nix/store/d5bfm9drys1fkbzghbkpy1acx7wc0674-activation-script.drv
+  /nix/store/03l1qp0w2d1168n4f2yrp4wlip99y8s2-nix-on-droid-generation.drv
+building '/nix/store/g9zz75y9rd325lysmj1wdfj5hf6a4wsp-home-manager-files.drv'...
+building '/nix/store/vfn01qkx6z61i5d7kb48y9nkx1lbsmqp-home-manager-generation.drv'...
+building '/nix/store/d5bfm9drys1fkbzghbkpy1acx7wc0674-activation-script.drv'...
+building '/nix/store/03l1qp0w2d1168n4f2yrp4wlip99y8s2-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 166
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating sharedNodeModules
+[node-deps] Merging deps from cloud-data + front-data...
+node:fs:2426
+    return binding.writeFileUtf8(
+                   ^
+
+Error: EACCES: permission denied, open '/data/data/com.termux.nix/files/home/.node_modules/package.json'
+    at Object.writeFileSync (node:fs:2426:20)
+    at [eval]:25:8
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:449:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:447:60)
+    at evalFunction (node:internal/process/execution:87:30)
+    at evalScript (node:internal/process/execution:99:3)
+    at node:internal/main/eval_string:74:3 {
+  errno: -13,
+  code: 'EACCES',
+  syscall: 'open',
+  path: '/data/data/com.termux.nix/files/home/.node_modules/package.json'
+}
+
+Node.js v22.16.0
+[node-deps] WARN: merge failed, using fallback
+[node-deps] ~/.node_modules/ is up to date
+Activating cloudDeps
+[node-deps:cloud] Skipped — using shared ~/.node_modules/
+Activating frontDeps
+[node-deps:front] Skipped — using shared ~/.node_modules/
+Activating globalClaudeCode
+[node-bins] Installing claude-code@2.1.78
+
+changed 3 packages in 5s
+Activating globalTsx
+
+changed 5 packages in 5s
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-18 13:41:34] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-18 13:41:34] ========== Build script finished ==========
+[2026-03-18 13:53:52] ========== Build script started ==========
+[2026-03-18 13:53:52] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-18 13:53:54] INFO: Staging dirty files for flake evaluation...
+[2026-03-18 13:53:56] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 4 derivations will be built:
+  /nix/store/jyz5pn1jcr8bmvfkjky7c621j411c9qm-home-manager-files.drv
+  /nix/store/qn796vcyar4i0fgay2yppx1n7jg6247n-home-manager-generation.drv
+  /nix/store/bv07jhc2xpry1npc5zr7fyjqyprldx4z-activation-script.drv
+  /nix/store/xxyj9xih2jgv03qvwd5vczliw0ma6m7v-nix-on-droid-generation.drv
+building '/nix/store/jyz5pn1jcr8bmvfkjky7c621j411c9qm-home-manager-files.drv'...
+building '/nix/store/qn796vcyar4i0fgay2yppx1n7jg6247n-home-manager-generation.drv'...
+building '/nix/store/bv07jhc2xpry1npc5zr7fyjqyprldx4z-activation-script.drv'...
+building '/nix/store/xxyj9xih2jgv03qvwd5vczliw0ma6m7v-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+[2026-03-18 13:58:55] ========== Build script started ==========
+[2026-03-18 13:58:55] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-18 13:58:56] INFO: Staging dirty files for flake evaluation...
