@@ -1,5 +1,28 @@
 # Diego's Master Context for Claude Agents
 
+```
+  ─────────────────────
+  ───────────████████──     NO DINOSAUR SYNTAX!
+  ──────────███▄███████
+  ──────────███████████     Use modern Compose v2, current APIs,
+  ──────────███████████     latest Nix patterns. If you catch
+  ──────────██████─────     yourself writing deprecated syntax,
+  ──────────█████████──     STOP and look up the modern way.
+  █───────███████──────
+  ██────████████████───     deprecated = extinct
+  ███──██████████──█───
+  ███████████████──────
+  ███████████████──────
+  ─█████████████───────
+  ──███████████────────
+  ────████████─────────
+  ─────███──██─────────
+  ─────██────█─────────
+  ─────█─────█─────────
+  ─────██────██────────
+  ─────────────────────
+```
+
 > **Owner**: Diego Nepomuceno Marcos
 > **Updated**: 2026-02-16
 > **System**: NixOS (Surface Pro 8) + Kubuntu (dual-boot)
