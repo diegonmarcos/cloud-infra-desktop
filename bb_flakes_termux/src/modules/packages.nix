@@ -11,6 +11,7 @@
     netcat-openbsd  # nc — WireGuard peer probing
     ncurses          # clear, tput
     rsync            # build.sh deploy — sync dist/ to VMs
-    wrangler         # Cloudflare Worker CLI — build.sh ship for CF workers
+    # wrangler: installed from pkgsNew (24.11) in flake.nix environment.packages
+    #           nixpkgs 24.05 has 3.34 which lacks [observability] support (needs 3.60+)
   ];
 }
