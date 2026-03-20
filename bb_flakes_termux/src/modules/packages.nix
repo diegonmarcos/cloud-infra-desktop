@@ -7,7 +7,8 @@
     busybox          # httpd — lightweight static file server
     mdbook
     tree
-    netcat-openbsd  # nc — WireGuard peer probing in mesh.sh
+    dnsutils         # dig, nslookup — DNS health checks in MCP tools
+    netcat-openbsd  # nc — WireGuard peer probing
     ncurses          # clear, tput
     rsync            # build.sh deploy — sync dist/ to VMs
     wrangler         # Cloudflare Worker CLI — build.sh ship for CF workers
