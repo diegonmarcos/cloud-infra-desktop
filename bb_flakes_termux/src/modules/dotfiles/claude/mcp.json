@@ -29,7 +29,7 @@
     },
     "cloud-infra": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/c3-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/c3-infra-mcp/mcp"
     },
     "cloud-services": {
       "type": "http",
