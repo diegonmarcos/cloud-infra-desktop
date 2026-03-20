@@ -115,6 +115,7 @@
 
               # Infrastructure as Code
               terraform
+              pkgsNew.wrangler  # CF Workers CLI (24.11 has 3.80+ with [observability] support)
 
               # VPN & networking
               # NOTE: wireguard-tools (wg CLI) requires root — useless on Android.
