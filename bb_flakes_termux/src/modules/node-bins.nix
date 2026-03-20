@@ -17,9 +17,14 @@
     CURRENT=$(${nodejs}/bin/node -e "try{console.log(require('wrangler/package.json').version)}catch{}" 2>/dev/null || true)
     LATEST=$(${nodejs}/bin/npm view wrangler version 2>/dev/null || true)
 
+    # Remove stale wrangler2 symlink from old nix package (conflicts with npm global)
+    for stale in wrangler2; do
+      [ -L "/data/data/com.termux.nix/files/usr/bin/$stale" ] && rm -f "/data/data/com.termux.nix/files/usr/bin/$stale"
+    done
+
     if [ -z "$CURRENT" ]; then
       printf "[node-bins] Installing wrangler@%s\n" "$LATEST"
-      $DRY_RUN_CMD ${nodejs}/bin/npm install -g wrangler --no-audit --no-fund || true
+      $DRY_RUN_CMD ${nodejs}/bin/npm install -g wrangler --no-audit --no-fund --force || true
     elif [ -n "$LATEST" ] && [ "$CURRENT" != "$LATEST" ]; then
       printf "[node-bins] Updating wrangler: %s → %s\n" "$CURRENT" "$LATEST"
       $DRY_RUN_CMD ${nodejs}/bin/npm install -g wrangler@latest --no-audit --no-fund || true
