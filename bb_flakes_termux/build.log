@@ -13571,3 +13571,69 @@ building '/nix/store/jphvfxs6hzkxvssv58saiykzpn0xc72i-wrangler-3.80.1.drv'...
 [2026-03-20 20:41:44] ========== Build script started ==========
 [2026-03-20 20:41:44] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-03-20 20:41:47] INFO: Staging dirty files for flake evaluation...
+[2026-03-20 20:41:50] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+error:
+       … while evaluating a branch condition
+
+         at /nix/store/3wqs0zryk11j09mhllxsnnaxpswvjfnp-source/modules/default.nix:33:5: (source not available)
+
+       … while calling the 'map' builtin
+
+         at /nix/store/3wqs0zryk11j09mhllxsnnaxpswvjfnp-source/modules/default.nix:30:22: (source not available)
+
+       (stack trace truncated; use '--show-trace' to show the full trace)
+
+       error: getting status of '/nix/store/lv9bmgm6v1wc3fiz00v29gi4rk13ja6l-source/pkgs/development/libraries/glibc/locales.nix': Function not implemented
+[2026-03-20 20:53:23] ========== Build script started ==========
+[2026-03-20 20:53:23] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-20 20:53:26] INFO: Staging dirty files for flake evaluation...
+[2026-03-20 20:53:27] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 4 derivations will be built:
+  /nix/store/jphvfxs6hzkxvssv58saiykzpn0xc72i-wrangler-3.80.1.drv
+  /nix/store/gcvqnndxdz2s32dg337liax7851na2mc-nix-on-droid-path.drv
+  /nix/store/svn8va74gi14slwp3frlh3ssshmlabcl-activation-script.drv
+  /nix/store/g5260w30faldvhj18lbn422c71f2lc94-nix-on-droid-generation.drv
+building '/nix/store/jphvfxs6hzkxvssv58saiykzpn0xc72i-wrangler-3.80.1.drv'...
+[2026-03-20 20:56:23] ========== Build script started ==========
+[2026-03-20 20:56:23] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-20 20:56:25] INFO: Staging dirty files for flake evaluation...
+[2026-03-20 20:56:27] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 4 derivations will be built:
+  /nix/store/jphvfxs6hzkxvssv58saiykzpn0xc72i-wrangler-3.80.1.drv
+  /nix/store/gcvqnndxdz2s32dg337liax7851na2mc-nix-on-droid-path.drv
+  /nix/store/svn8va74gi14slwp3frlh3ssshmlabcl-activation-script.drv
+  /nix/store/g5260w30faldvhj18lbn422c71f2lc94-nix-on-droid-generation.drv
+error (ignored): error: opening directory '/data/data/com.termux.nix/files/home/tmp/claude/nix-build-wrangler-3.80.1.drv-1': Function not implemented
+error (ignored): error: cannot get exit status of PID 26633: Function not implemented
+terminate called after throwing an instance of 'nix::SysError'
+  what():  [31;1merror:[0m cannot get exit status of PID [35;1m26633[0m: [35;1mFunction not implemented[0m
+building '/nix/store/jphvfxs6hzkxvssv58saiykzpn0xc72i-wrangler-3.80.1.drv'...
+[2026-03-20 21:20:23] ========== Build script started ==========
+[2026-03-20 21:20:23] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-20 21:20:25] INFO: Staging dirty files for flake evaluation...
+[2026-03-20 21:20:26] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 4 derivations will be built:
+  /nix/store/gifw2zr6d7s9m754wnbg5kz22w9jkykf-wrangler.drv
+  /nix/store/ky0x0c8wr13wzm27hn9h7qi0dpw7abwq-nix-on-droid-path.drv
+  /nix/store/yazdjv28my09pvna0bk2srrhblj5415a-activation-script.drv
+  /nix/store/4k8dl43lzywgydcz6sw2nwwqwmhvs659-nix-on-droid-generation.drv
+building '/nix/store/gifw2zr6d7s9m754wnbg5kz22w9jkykf-wrangler.drv'...
+building '/nix/store/ky0x0c8wr13wzm27hn9h7qi0dpw7abwq-nix-on-droid-path.drv'...
+building '/nix/store/yazdjv28my09pvna0bk2srrhblj5415a-activation-script.drv'...
+building '/nix/store/4k8dl43lzywgydcz6sw2nwwqwmhvs659-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+[2026-03-20 21:24:48] ========== Build script started ==========
+[2026-03-20 21:24:48] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-20 21:24:50] INFO: Staging dirty files for flake evaluation...
