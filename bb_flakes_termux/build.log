@@ -13637,3 +13637,129 @@ warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
 [2026-03-20 21:24:48] ========== Build script started ==========
 [2026-03-20 21:24:48] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-03-20 21:24:50] INFO: Staging dirty files for flake evaluation...
+[2026-03-20 21:24:52] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 5 derivations will be built:
+  /nix/store/c2czxvnfcr8gqgbv1id2zqkx48x35xad-nix-on-droid-path.drv
+  /nix/store/s6r4p28nmgxpg404fj77gvihf3pd5kdc-activation-script.drv
+  /nix/store/dcssan9bgmga1gx7lf164jp6ihhq3kyp-home-manager-generation.drv
+  /nix/store/9zy0jhv7ir2z1xqww9ys9l4g6kjz79z7-activation-script.drv
+  /nix/store/1gyzmg6nh0xfgh551xjk15wr7n594vfk-nix-on-droid-generation.drv
+building '/nix/store/c2czxvnfcr8gqgbv1id2zqkx48x35xad-nix-on-droid-path.drv'...
+error (ignored): error: opening directory '/data/data/com.termux.nix/files/home/tmp/claude/nix-build-nix-on-droid-path.drv-0': Function not implemented
+error (ignored): error: cannot get exit status of PID 23985: Function not implemented
+terminate called after throwing an instance of 'nix::SysError'
+  what():  [31;1merror:[0m cannot get exit status of PID [35;1m23985[0m: [35;1mFunction not implemented[0m
+error (ignored): error: opening directory '/data/data/com.termux.nix/files/home/tmp/claude/nix-build-wrangler-3.80.1.drv-2': Function not implemented
+error (ignored): error: cannot get exit status of PID 16646: Function not implemented
+terminate called after throwing an instance of 'nix::SysError'
+  what():  [31;1merror:[0m cannot get exit status of PID [35;1m16646[0m: [35;1mFunction not implemented[0m
+/data/data/com.termux.nix/files/home/.nix-profile/bin/nix-on-droid: line 26: 23326 Aborted                 nix "${command}" "${extraArgs[@]}"
+/data/data/com.termux.nix/files/home/.nix-profile/bin/nix-on-droid: line 26: 28454 Aborted                 nix "${command}" "${extraArgs[@]}"
+[2026-03-20 21:36:27] ========== Build script started ==========
+[2026-03-20 21:36:27] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-20 21:36:31] INFO: Staging dirty files for flake evaluation...
+[2026-03-20 21:36:36] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 5 derivations will be built:
+  /nix/store/c2czxvnfcr8gqgbv1id2zqkx48x35xad-nix-on-droid-path.drv
+  /nix/store/s6r4p28nmgxpg404fj77gvihf3pd5kdc-activation-script.drv
+  /nix/store/dcssan9bgmga1gx7lf164jp6ihhq3kyp-home-manager-generation.drv
+  /nix/store/9zy0jhv7ir2z1xqww9ys9l4g6kjz79z7-activation-script.drv
+  /nix/store/1gyzmg6nh0xfgh551xjk15wr7n594vfk-nix-on-droid-generation.drv
+building '/nix/store/c2czxvnfcr8gqgbv1id2zqkx48x35xad-nix-on-droid-path.drv'...
+building '/nix/store/s6r4p28nmgxpg404fj77gvihf3pd5kdc-activation-script.drv'...
+building '/nix/store/dcssan9bgmga1gx7lf164jp6ihhq3kyp-home-manager-generation.drv'...
+building '/nix/store/9zy0jhv7ir2z1xqww9ys9l4g6kjz79z7-activation-script.drv'...
+building '/nix/store/1gyzmg6nh0xfgh551xjk15wr7n594vfk-nix-on-droid-generation.drv'...
+Executing activation script...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+building '/nix/store/6larzi8y68bgsn9n9l7f85afdcvggk9n-user-environment.drv'...
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 169
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating sharedNodeModules
+[node-deps] Merging deps from cloud-data + front-data...
+node:fs:2426
+    return binding.writeFileUtf8(
+                   ^
+
+Error: EACCES: permission denied, open '/data/data/com.termux.nix/files/home/.node_modules/package.json'
+    at Object.writeFileSync (node:fs:2426:20)
+    at [eval]:25:8
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:449:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:447:60)
+    at evalFunction (node:internal/process/execution:87:30)
+    at evalScript (node:internal/process/execution:99:3)
+    at node:internal/main/eval_string:74:3 {
+  errno: -13,
+  code: 'EACCES',
+  syscall: 'open',
+  path: '/data/data/com.termux.nix/files/home/.node_modules/package.json'
+}
+
+Node.js v22.16.0
+[node-deps] WARN: merge failed, using fallback
+[node-deps] ~/.node_modules/ is up to date
+Activating cloudDeps
+[node-deps:cloud] Skipped — using shared ~/.node_modules/
+Activating frontDeps
+[node-deps:front] Skipped — using shared ~/.node_modules/
+Activating globalClaudeCode
+[node-bins] Installing claude-code@2.1.80
+
+changed 3 packages in 15s
+Activating globalTsx
+
+changed 5 packages in 13s
+Activating globalWrangler
+[node-bins] Installing wrangler@4.76.0
+npm error code EEXIST
+npm error path /data/data/com.termux.nix/files/usr/bin/wrangler2
+npm error EEXIST: file already exists
+npm error File exists: /data/data/com.termux.nix/files/usr/bin/wrangler2
+npm error Remove the existing file and try again, or run npm
+npm error with --force to overwrite files recklessly.
+npm error A complete log of this run can be found in: /data/data/com.termux.nix/files/home/.npm/_logs/2026-03-20T19_42_46_937Z-debug-0.log
+Activating initHomeGit
+Activating installPackages
+Activating linkNixBinsToTermux
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-03-20 21:44:09] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-03-20 21:44:09] ========== Build script finished ==========
+[2026-03-20 21:53:52] ========== Build script started ==========
+[2026-03-20 21:53:52] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-03-20 21:53:57] INFO: Staging dirty files for flake evaluation...
