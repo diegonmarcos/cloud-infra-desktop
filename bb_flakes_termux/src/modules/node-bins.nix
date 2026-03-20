@@ -11,6 +11,23 @@
     fi
   '';
 
+  # Wrangler (Cloudflare Workers CLI — needs 3.60+ for [observability])
+  home.activation.globalWrangler = lib.hm.dag.entryAfter ["linkGeneration"] ''
+    PATH="${nodejs}/bin:$PATH"
+    CURRENT=$(${nodejs}/bin/node -e "try{console.log(require('wrangler/package.json').version)}catch{}" 2>/dev/null || true)
+    LATEST=$(${nodejs}/bin/npm view wrangler version 2>/dev/null || true)
+
+    if [ -z "$CURRENT" ]; then
+      printf "[node-bins] Installing wrangler@%s\n" "$LATEST"
+      $DRY_RUN_CMD ${nodejs}/bin/npm install -g wrangler --no-audit --no-fund || true
+    elif [ -n "$LATEST" ] && [ "$CURRENT" != "$LATEST" ]; then
+      printf "[node-bins] Updating wrangler: %s → %s\n" "$CURRENT" "$LATEST"
+      $DRY_RUN_CMD ${nodejs}/bin/npm install -g wrangler@latest --no-audit --no-fund || true
+    else
+      printf "[node-bins] wrangler@%s is up to date\n" "$CURRENT"
+    fi
+  '';
+
   # Claude Code (@anthropic-ai/claude-code)
   home.activation.globalClaudeCode = lib.hm.dag.entryAfter ["linkGeneration"] ''
     PATH="${nodejs}/bin:$PATH"
