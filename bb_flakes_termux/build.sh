@@ -17,6 +17,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/src"
 LOG_FILE="$SCRIPT_DIR/build.log"
 
+# Age key — dotfile symlink from vault/build.sh setup system, sops-nix fallback
+: "${SOPS_AGE_KEY_FILE:=$HOME/.config/sops/age/keys.txt}"
+export SOPS_AGE_KEY_FILE
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
