@@ -135,6 +135,17 @@
               inetutils
               termux-am
 
+              # getconf — POSIX sysconf utility needed by wrangler (Cloudflare Workers CLI)
+              # Not included in Termux/nix-on-droid by default (normally from glibc)
+              (writeShellScriptBin "getconf" ''
+                case "$1" in
+                  LONG_BIT)       echo 64 ;;
+                  PAGE_SIZE)      echo 4096 ;;
+                  _NPROCESSORS_ONLN) nproc 2>/dev/null || echo 1 ;;
+                  *)              echo "" ;;
+                esac
+              '')
+
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22
 
