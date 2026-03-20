@@ -10,7 +10,7 @@
     },
     "cloud-infra": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/c3-mcp/mcp",
+      "url": "https://mcp.diegonmarcos.com/c3-infra-mcp/mcp",
       "headers": {
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
       }
