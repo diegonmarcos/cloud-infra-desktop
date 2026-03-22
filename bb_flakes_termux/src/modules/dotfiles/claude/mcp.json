@@ -39,9 +39,9 @@
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/mattermost-mcp/mcp"
     },
-    "mailu-mcp": {
+    "mail-mcp": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/mailu-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/mail-mcp/mcp"
     },
     "google-workspace": {
       "type": "http",
