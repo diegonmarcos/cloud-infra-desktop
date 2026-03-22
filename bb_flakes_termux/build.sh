@@ -65,12 +65,12 @@ _PERF_STEP_NAME=""
 _PERF_STEPS=""      # newline-separated "seconds label" pairs
 
 _epoch_ms() {
-    # Prefer date +%s%N (GNU), fall back to python3, then plain seconds
-    if date +%s%N >/dev/null 2>&1; then
-        _ns=$(date +%s%N)
-        echo $(( ${_ns% *} ))  # full nanoseconds as integer
-    elif command -v python3 >/dev/null 2>&1; then
+    # date +%s%N gives nanoseconds — divide by 1000000 for ms
+    # Fall back to python3, then plain seconds
+    if command -v python3 >/dev/null 2>&1; then
         python3 -c "import time; print(int(time.time()*1000))"
+    elif date +%s%N >/dev/null 2>&1; then
+        echo $(( $(date +%s%N) / 1000000 ))
     else
         echo "$(date +%s)000"
     fi
