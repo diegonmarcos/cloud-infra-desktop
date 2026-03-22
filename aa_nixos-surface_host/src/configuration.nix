@@ -761,10 +761,14 @@ EOF
 
   nix.settings = {
     max-jobs = 2;
+    cores = 4;
     substituters = [ "https://cache.nixos.org" ];
     trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
     experimental-features = [ "nix-command" "flakes" ];
     auto-optimise-store = true;
+    keep-derivations = false;
+    min-free = 1073741824;
+    min-free-check-interval = 30;
     trusted-users = [ "root" "diego" ];
 
     # CRITICAL: Use btrfs-backed build directory, NOT tmpfs
