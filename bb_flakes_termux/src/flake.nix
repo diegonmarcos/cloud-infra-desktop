@@ -356,7 +356,7 @@
               imports = [
                 ./modules/packages.nix
                 ./modules/guardrails.nix
-                ./modules/curl-wrapper.nix
+                ./modules/curl-wget-wrapper.nix
                 ./modules/node-deps.nix
                 ./modules/node-bins.nix
                 ./modules/web-server-md-eruda.nix

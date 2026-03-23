@@ -3,7 +3,7 @@
 { config, lib, pkgs, ... }:
 
 let
-  tokenFile = "$HOME/.config/authelia/tokens.json";
+  tokenFile = "$HOME/Mounts/Git/vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens/cloud-admin.json";
 
   # Token check + inject (shared between curl/wget)
   mkWrapper = tool: headerFlag: ''
