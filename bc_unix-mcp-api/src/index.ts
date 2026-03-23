@@ -9,12 +9,13 @@ import { registerScriptTools } from "./tools/scripts.js";
 import { registerGitTools } from "./tools/git.js";
 import { registerShellTools } from "./tools/shell.js";
 import { registerShellConfigTools } from "./tools/shell-config.js";
+import { registerEmailTools } from "./tools/email.js";
 
 import { PLATFORM } from "./paths.js";
 
 const server = new McpServer({
   name: "unix-mcp",
-  version: "1.2.0",
+  version: "1.3.0",
 });
 
 // ── Tool categories ─────────────────────────────
@@ -25,13 +26,14 @@ registerScriptTools(server);      // 12: connect hub (status, logs, mesh, git, d
 registerGitTools(server);         //  4: status-all, log, diff, remote-status
 registerShellTools(server);       //  3: exec, npm-list, npm-install
 registerShellConfigTools(server); //  7: aliases, functions, greeting, starship, guardrails
+registerEmailTools(server);      //  5: imap-fetch, imap-list, imap-raw, cert-check, smtp-test
 
 // All logging to stderr (stdout = JSON-RPC)
 const log = (msg: string) => process.stderr.write(`[unix-mcp] ${msg}\n`);
 
 async function main() {
   const transport = new StdioServerTransport();
-  log(`Starting unix-mcp v1.2.0 (40 tools, platform=${PLATFORM})...`);
+  log(`Starting unix-mcp v1.3.0 (45 tools, platform=${PLATFORM})...`);
   await server.connect(transport);
   log("Connected via stdio transport");
 }

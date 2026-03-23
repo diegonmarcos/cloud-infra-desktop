@@ -50,7 +50,7 @@
     },
     "mailu-mcp": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/mailu-mcp/mcp",
+      "url": "https://mcp.diegonmarcos.com/mail-mcp/mcp",
       "headers": {
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
       }
