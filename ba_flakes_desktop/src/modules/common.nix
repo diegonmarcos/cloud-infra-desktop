@@ -170,11 +170,7 @@
 
     if [ ! -f "$SOPS" ] || [ ! -f "$SECRETS_YAML" ] || [ ! -f "$TPL" ]; then
       echo "[mcp-secrets] WARNING: sops/secrets/template not found, copying template as-is"
-      if [ -f "$TPL" ]; then
-        chmod 644 "$OUT" 2>/dev/null || true
-        cp "$TPL" "$OUT"
-        chmod 644 "$OUT"
-      fi
+      [ -f "$TPL" ] && cp --no-preserve=mode "$TPL" "$OUT"
       exit 0
     fi
 
@@ -182,14 +178,12 @@
     DECRYPTED=$("$SOPS" -d "$SECRETS_YAML" 2>/dev/null) || true
     if [ -z "$DECRYPTED" ]; then
       echo "[mcp-secrets] WARNING: failed to decrypt secrets.yaml"
-      chmod 644 "$OUT" 2>/dev/null || true
-      cp "$TPL" "$OUT"
-      chmod 644 "$OUT"
+      cp --no-preserve=mode "$TPL" "$OUT"
       exit 0
     fi
 
-    # Copy template to output
-    cp "$TPL" "$OUT"
+    # Copy template to output (--no-preserve=mode: nix store files are r--, output must be rw-)
+    cp --no-preserve=mode "$TPL" "$OUT"
 
     # Extract ''${VAR} placeholders using awk (no sed, no regex on secrets)
     VARS=$($AWK '{
