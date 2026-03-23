@@ -15,10 +15,10 @@
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
       }
     },
-    "cloud-specs-docs": {
+    "code-graph-context": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-specs-docs-mcp/src/index.ts"],
+      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_code-graph-context-kg-infra-mcp/src/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
         "CONFIG_PATH": "/data/data/com.termux.nix/files/home/git/cloud/config.json"
