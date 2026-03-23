@@ -15,7 +15,7 @@ stdenv.mkDerivation {
     url = "${bucket}/${version}/linux-x64/claude";
     # To get hash: nix-prefetch-url --type sha256 <url>
     # then nix hash to-sri --type sha256 <hash>
-    hash = "";
+    hash = "sha256-gBoIVnbD1UOSxC6OQ8RJR998UhMjVldffZJnxPItaZI=";
   };
 
   nativeBuildInputs = [ autoPatchelfHook ];
