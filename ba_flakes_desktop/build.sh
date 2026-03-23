@@ -334,9 +334,9 @@ nix_switch() {
     # Use run_logged instead of | tee (avoids pipe hang in non-TTY)
     # -b backup: automatically backup conflicting files
     if check_home_manager 2>/dev/null; then
-        run_logged home-manager switch --impure -b backup --flake "$flake_ref"
+        run_logged home-manager switch --impure -b backup --print-build-logs --verbose --flake "$flake_ref"
     else
-        run_logged nix run home-manager -- switch --impure -b backup --flake "$flake_ref"
+        run_logged nix run home-manager -- switch --impure -b backup --print-build-logs --verbose --flake "$flake_ref"
     fi
     exit_code=$?
 
