@@ -18,6 +18,9 @@ export const FLAKE_TERMUX = join(UNIX_ROOT, "bb_flakes_termux");
 export const FLAKE_DESKTOP = join(UNIX_ROOT, "ba_flakes_desktop");
 export const FLAKE_HOST = join(UNIX_ROOT, "aa_nixos-surface_host");
 export const CLOUD_HM = join(CLOUD_ROOT, "b_infra/home-manager");
+export const CLOUD_DATA = IS_TERMUX
+  ? join(HOME, "git/cloud-data")
+  : join(HOME, "git/cloud-data");
 
 export const PLATFORM = IS_TERMUX ? "termux" : "desktop";
 

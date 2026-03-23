@@ -10,15 +10,16 @@ export interface ExecResult {
 export function exec(
   command: string,
   args: string[],
-  options?: { timeout?: number; cwd?: string }
+  options?: { timeout?: number; cwd?: string; input?: string; env?: Record<string, string> }
 ): ExecResult {
   const timeout = options?.timeout ?? 30_000;
   const result = spawnSync(command, args, {
     timeout,
     cwd: options?.cwd,
     encoding: "utf-8",
-    env: process.env,
+    env: options?.env ? { ...process.env, ...options.env } : process.env,
     maxBuffer: 10 * 1024 * 1024,
+    ...(options?.input !== undefined ? { input: options.input } : {}),
   });
 
   return {

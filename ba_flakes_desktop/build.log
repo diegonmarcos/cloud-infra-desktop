@@ -1678,3 +1678,104 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-23 19:03:50] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
 [2026-03-23 19:03:50] PERF: start switch
 [2026-03-23 19:03:51] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 19:03:51] PERF: git stage = 36ms
+[2026-03-23 19:03:51] PERF: clean backups = 18ms
+[2026-03-23 19:03:51] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 3 derivations will be built:
+  /nix/store/m89siaxrq8nvpi4p4sd3p2i76fmn9rrb-activation-script.drv
+  /nix/store/m9091xxl6x872gnkjwad8w4kx6l9jdss-home-manager-files.drv
+  /nix/store/dda8znpbpyjbi4jqsklspysm2zhi1n8g-home-manager-generation.drv
+building '/nix/store/m89siaxrq8nvpi4p4sd3p2i76fmn9rrb-activation-script.drv'...
+building '/nix/store/m9091xxl6x872gnkjwad8w4kx6l9jdss-home-manager-files.drv'...
+building '/nix/store/dda8znpbpyjbi4jqsklspysm2zhi1n8g-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 147
+Creating home file links in /home/diego
+Activating sharedNodeModules
+[node-deps.nix] Merging deps from cloud-data + front-data...
+WARN: /home/diego/git/cloud/cloud-data/cloud-deps.json: Unexpected end of JSON input
+package.json: 90 packages merged
+[node-deps.nix] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/v6kzn70a7zf5b4ah1dhks5vviqd2azw6-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (6 VMs, 28 services, date=2026-03-23)
+Activating globalTsx
+
+changed 5 packages in 491ms
+Activating initHomeGit
+Activating mcpNodeModulesSymlinks
+[node-deps.nix] Symlinked /home/diego/git/cloud/a_solutions/bc-obs_c3-specs-docs-mcp/src/node_modules -> shared node_modules
+[node-deps.nix] Symlinked /home/diego/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/node_modules -> shared node_modules
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-03-23 19:04:11] PERF: home-manager switch = 20.6s
+[2026-03-23 19:04:11] PERF: TOTAL switch = 20.7s
+[2026-03-23 19:04:11] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface
+[2026-03-23 19:04:11] ========== Build script finished ==========
+[2026-03-23 20:10:33] ========== Build script started ==========
+[2026-03-23 20:10:33] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 20:10:33] PERF: start switch
+[2026-03-23 20:10:33] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 20:10:33] PERF: git stage = 49ms
+[2026-03-23 20:10:33] PERF: clean backups = 21ms
+[2026-03-23 20:10:33] INFO: Applying Home Manager configuration...
+[2026-03-23 20:52:37] ========== Build script started ==========
+[2026-03-23 20:52:37] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 20:52:37] PERF: start switch
+[2026-03-23 20:52:37] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 20:52:37] PERF: git stage = 54ms
+[2026-03-23 20:52:37] PERF: clean backups = 17ms
+[2026-03-23 20:52:37] INFO: Applying Home Manager configuration...
+[2026-03-23 21:03:43] ========== Build script started ==========
+[2026-03-23 21:03:43] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 21:03:44] PERF: start switch
+[2026-03-23 21:03:44] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 21:03:44] PERF: git stage = 130ms
+[2026-03-23 21:03:44] PERF: clean backups = 36ms
+[2026-03-23 21:03:44] INFO: Applying Home Manager configuration...
+[2026-03-23 22:16:26] ========== Build script started ==========
+[2026-03-23 22:16:26] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 22:16:26] PERF: start switch
+[2026-03-23 22:16:26] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 22:16:26] PERF: git stage = 99ms
+[2026-03-23 22:16:26] PERF: clean backups = 31ms
+[2026-03-23 22:16:26] INFO: Applying Home Manager configuration...
+[2026-03-23 22:23:46] ========== Build script started ==========
+[2026-03-23 22:23:46] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 22:23:46] PERF: start switch
+[2026-03-23 22:23:46] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 22:23:46] PERF: git stage = 108ms
+[2026-03-23 22:23:47] PERF: clean backups = 30ms
+[2026-03-23 22:23:47] INFO: Applying Home Manager configuration...
+[2026-03-23 22:25:51] ========== Build script started ==========
+[2026-03-23 22:25:51] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 22:25:51] PERF: start switch
+[2026-03-23 22:25:51] INFO: Staging dirty files for flake evaluation...

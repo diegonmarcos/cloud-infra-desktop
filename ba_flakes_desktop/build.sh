@@ -79,6 +79,31 @@ log_header() {
     printf "\n${BOLD}${CYAN}=== %s ===${NC}\n\n" "$*"
 }
 
+# ── run_logged: execute a command, stream output to both stdout and log file ──
+# Avoids `| tee` pipes that hang in non-TTY environments (Claude Code, CI, cron).
+# Uses a temp file + tail -f background reader for real-time streaming.
+# Returns the command's actual exit code.
+run_logged() {
+    _rl_out=$(mktemp)
+    # Run command, redirect all output to temp file
+    "$@" >> "$_rl_out" 2>&1 &
+    _rl_pid=$!
+    # Stream output in real-time via tail -f
+    tail -f "$_rl_out" 2>/dev/null &
+    _rl_tail=$!
+    # Wait for command to finish
+    wait "$_rl_pid" 2>/dev/null
+    _rl_rc=$?
+    # Give tail a moment to flush, then kill it
+    sleep 0.2
+    kill "$_rl_tail" 2>/dev/null
+    wait "$_rl_tail" 2>/dev/null
+    # Append to persistent log file
+    cat "$_rl_out" >> "$LOG_FILE"
+    rm -f "$_rl_out"
+    return "$_rl_rc"
+}
+
 # ============================================================================
 # PERF — step timing library
 # ============================================================================
@@ -306,19 +331,14 @@ nix_switch() {
     perf_step "home-manager switch"
     log_info "Applying Home Manager configuration..."
 
-    # Capture exit code from the actual command, not tee
-    # Use -b backup to automatically backup conflicting files
-    _rc_file=$(mktemp)
+    # Use run_logged instead of | tee (avoids pipe hang in non-TTY)
+    # -b backup: automatically backup conflicting files
     if check_home_manager 2>/dev/null; then
-        { home-manager switch --impure -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+        run_logged home-manager switch --impure -b backup --flake "$flake_ref"
     else
-        { nix run home-manager -- switch --impure -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+        run_logged nix run home-manager -- switch --impure -b backup --flake "$flake_ref"
     fi
-    exit_code=$(cat "$_rc_file" 2>/dev/null)
-    rm -f "$_rc_file"
-
-    # Default to 0 if exit_code is empty
-    exit_code=${exit_code:-0}
+    exit_code=$?
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Configuration failed with exit code $exit_code"
@@ -341,13 +361,8 @@ nix_update() {
     cd "$SRC_DIR"
     log_info "Updating flake.lock..."
 
-    _rc_file=$(mktemp)
-    { nix flake update 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
-    exit_code=$(cat "$_rc_file" 2>/dev/null)
-    rm -f "$_rc_file"
-
-    # Default to 0 if exit_code is empty
-    exit_code=${exit_code:-0}
+    run_logged nix flake update
+    exit_code=$?
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Flake update failed with exit code $exit_code"
@@ -398,11 +413,11 @@ container_build() {
     case "$image_type" in
         full)
             log_info "Building full image..."
-            nix build .#container -o "$DIST_DIR/container-full" 2>&1 | tee -a "$LOG_FILE"
+            nix build .#container -o "$DIST_DIR/container-full" >> "$LOG_FILE" 2>&1
             ;;
         minimal)
             log_info "Building minimal image..."
-            nix build .#container-minimal -o "$DIST_DIR/container-minimal" 2>&1 | tee -a "$LOG_FILE"
+            nix build .#container-minimal -o "$DIST_DIR/container-minimal" >> "$LOG_FILE" 2>&1
             ;;
         *)
             log_error "Unknown image type: $image_type (use: full, minimal)"
@@ -430,7 +445,7 @@ container_load() {
     fi
 
     log_info "Loading image with $runtime..."
-    $runtime load < "$image_file" 2>&1 | tee -a "$LOG_FILE"
+    $runtime load < "$image_file" >> "$LOG_FILE" 2>&1
 
     log_success "Image loaded"
 }
@@ -484,7 +499,7 @@ container_push() {
     $runtime tag "${image_name}:${image_tag}" "$full_image"
 
     log_info "Pushing to $registry..."
-    $runtime push "$full_image" 2>&1 | tee -a "$LOG_FILE"
+    $runtime push "$full_image" >> "$LOG_FILE" 2>&1
 
     log_success "Pushed: $full_image"
 }
@@ -501,10 +516,10 @@ compose_up() {
 
     if [ "$runtime" = "podman" ] && command -v podman-compose >/dev/null 2>&1; then
         log_info "Using podman-compose..."
-        podman-compose up -d 2>&1 | tee -a "$LOG_FILE"
+        podman-compose up -d >> "$LOG_FILE" 2>&1
     elif [ "$runtime" = "docker" ]; then
         log_info "Using docker compose..."
-        docker compose up -d 2>&1 | tee -a "$LOG_FILE"
+        docker compose up -d >> "$LOG_FILE" 2>&1
     else
         log_error "No compose tool found"
         return 1
@@ -521,9 +536,9 @@ compose_down() {
     cd "$CONTAINER_DIR"
 
     if [ "$runtime" = "podman" ] && command -v podman-compose >/dev/null 2>&1; then
-        podman-compose down 2>&1 | tee -a "$LOG_FILE"
+        podman-compose down >> "$LOG_FILE" 2>&1
     elif [ "$runtime" = "docker" ]; then
-        docker compose down 2>&1 | tee -a "$LOG_FILE"
+        docker compose down >> "$LOG_FILE" 2>&1
     fi
 
     log_success "Services stopped"
@@ -560,7 +575,7 @@ distrobox_create() {
         --name "$box_name" \
         --image "${image_name}:${image_tag}" \
         --home "$HOME" \
-        --yes 2>&1 | tee -a "$LOG_FILE"
+        --yes >> "$LOG_FILE" 2>&1
 
     log_success "Distrobox created: $box_name"
     printf "\nEnter with: distrobox enter %s\n" "$box_name"
@@ -577,7 +592,7 @@ distrobox_remove() {
     check_distrobox || return 1
 
     log_info "Removing distrobox: $box_name"
-    distrobox rm "$box_name" --force 2>&1 | tee -a "$LOG_FILE"
+    distrobox rm "$box_name" --force >> "$LOG_FILE" 2>&1
     log_success "Distrobox removed"
 }
 
@@ -606,12 +621,12 @@ clean() {
     # 3. Garbage collect unreferenced store paths
     perf_step "nix-collect-garbage"
     log_info "Nix garbage collection..."
-    nix-collect-garbage 2>&1 | tee -a "$LOG_FILE"
+    nix-collect-garbage >> "$LOG_FILE" 2>&1
 
     # 4. Optimise store (deduplicate via hardlinks)
     perf_step "nix store optimise"
     log_info "Optimising nix store (dedup)..."
-    nix store optimise 2>&1 | tee -a "$LOG_FILE"
+    nix store optimise >> "$LOG_FILE" 2>&1
 
     # 5. Clean nix eval/build caches
     perf_step "clear eval cache"
