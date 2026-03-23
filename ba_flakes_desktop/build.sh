@@ -771,19 +771,21 @@ read_choice() {
 }
 
 prompt_host() {
-    printf "\n${YELLOW}Available hosts:${NC}\n" >&2
-    printf "  1) surface  - Full development (default)\n" >&2
-    printf "  2) server   - Server/cloud ops\n" >&2
-    printf "  3) cli      - CLI-only\n" >&2
-    printf "  4) minimal  - Base development\n" >&2
-    printf "\n${BOLD}Select host [1]: ${NC}" >&2
+    printf "\n${YELLOW}Available profiles:${NC}\n" >&2
+    printf "  ${GREEN}1) user${NC}     - Dotfiles only — fast (~15s)  ${BOLD}(default)${NC}\n" >&2
+    printf "  2) surface  - Full system + Plasma (~10-30m)\n" >&2
+    printf "  3) server   - Server/cloud ops\n" >&2
+    printf "  4) cli      - CLI-only\n" >&2
+    printf "  5) minimal  - Base development\n" >&2
+    printf "\n${BOLD}Select profile [1]: ${NC}" >&2
     read -r host_choice
 
     case "$host_choice" in
-        2) printf "server" ;;
-        3) printf "cli" ;;
-        4) printf "minimal" ;;
-        *) printf "surface" ;;
+        2) printf "surface" ;;
+        3) printf "server" ;;
+        4) printf "cli" ;;
+        5) printf "minimal" ;;
+        *) printf "user" ;;
     esac
 }
 
@@ -877,7 +879,7 @@ ${YELLOW}USAGE:${NC}
 
 ${YELLOW}NIX COMMANDS:${NC}
     install                 Install Nix package manager
-    switch [host]           Apply Home Manager config (default: surface)
+    switch [profile]        Apply Home Manager config (default: user — fast ~15s)
     update                  Update flake inputs
     show                    Show flake outputs
     develop                 Enter nix develop shell
@@ -905,14 +907,16 @@ ${YELLOW}UTILITY COMMANDS:${NC}
     log                     View build log
     clear-log               Clear build log
 
-${YELLOW}HOSTS:${NC}
-    surface                 Full development (all profiles + Plasma)
+${YELLOW}PROFILES:${NC}
+    user                    Dotfiles only — fast ~15s (default)
+    surface                 Full system + Plasma — slow ~10-30m
     server                  Server/cloud ops
     cli                     CLI-only (no GUI)
     minimal                 Base development
 
 ${YELLOW}EXAMPLES:${NC}
-    ./build.sh switch surface       # Apply surface config
+    ./build.sh switch               # Apply dotfiles only (fast)
+    ./build.sh switch surface       # Full system rebuild (slow)
     ./build.sh container-build      # Build full image
     ./build.sh compose-up           # Start with compose
     ./build.sh distrobox-create     # Create distrobox
@@ -955,7 +959,7 @@ main() {
             nix_install
             ;;
         switch)
-            nix_switch "${1:-surface}" "${2:-diego}"
+            nix_switch "${1:-user}" "${2:-diego}"
             ;;
         update)
             nix_update
