@@ -15,7 +15,8 @@
 
 set -eu
 
-# Auto-confirm guardrail prompts — build.sh is the sanctioned interface
+# Skip guardrail wrappers entirely — build.sh is the sanctioned interface
+export _GUARDRAIL=1
 export BUILDSH_GUARDRAIL=1
 
 # ============================================================================

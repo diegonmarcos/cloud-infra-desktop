@@ -58,20 +58,31 @@ let
 
   mkWhitelistCheck = cmd: let
     subs = whitelistFor cmd;
-    # Match first non-flag argument against each whitelisted subcommand
-    checks = map (sub: ''
-      ${sub}) _log_guardrail "whitelist"; exec ${cmd} "$@" || _die "exec '${cmd}' failed (whitelist)" ;;'') subs;
+    hasMultiWord = builtins.any (sub: builtins.match ".* .*" sub != null) subs;
+    singleWord = builtins.filter (sub: builtins.match ".* .*" sub == null) subs;
+    multiWord = builtins.filter (sub: builtins.match ".* .*" sub != null) subs;
+    mkCase = sub: ''"${sub}") _log_guardrail "whitelist"; exec ${cmd} "$@" || _die "exec '${cmd}' failed (whitelist)" ;;'';
   in if subs == [] then "" else ''
-    # Tier 0: WHITELIST — scan past flags to find the subcommand
-    _sub=""
+    # Tier 0: WHITELIST — scan past flags to find the subcommand(s)
+    _sub1="" _sub2=""
     for _arg in "$@"; do
       case "$_arg" in
         -*) continue ;;
-        *) _sub="$_arg"; break ;;
+        *)
+          if [ -z "$_sub1" ]; then _sub1="$_arg"
+          elif [ -z "$_sub2" ]; then _sub2="$_arg"; break
+          fi ;;
       esac
     done
-    case "$_sub" in
-    ${builtins.concatStringsSep "\n    " checks}
+  '' + (if multiWord != [] then ''
+    # Multi-word subcommand match (e.g. "flake show", "network ls")
+    case "$_sub1 $_sub2" in
+    ${builtins.concatStringsSep "\n    " (map mkCase multiWord)}
+    esac
+  '' else "") + ''
+    # Single-word subcommand match
+    case "$_sub1" in
+    ${builtins.concatStringsSep "\n    " (map mkCase singleWord)}
     esac
   '';
 
