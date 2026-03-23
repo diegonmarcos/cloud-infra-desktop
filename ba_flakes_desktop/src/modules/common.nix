@@ -158,6 +158,17 @@
     fi
   '';
 
+  # Remove npm-global claude-code — superseded by the patchelf'd Nix package.
+  # npm's ELF binary lacks a patched interpreter and triggers the NixOS stub-ld error.
+  home.activation.removeNpmClaude = lib.hm.dag.entryAfter ["linkGeneration"] ''
+    NPM_PKG="$HOME/.npm-global/lib/node_modules/@anthropic-ai/claude-code"
+    NPM_BIN="$HOME/.npm-global/bin/claude"
+    if [ -d "$NPM_PKG" ] || [ -L "$NPM_BIN" ]; then
+      echo "[remove-npm-claude] Removing @anthropic-ai/claude-code (Nix package takes precedence)"
+      $DRY_RUN_CMD rm -rf "$NPM_PKG" "$NPM_BIN" || true
+    fi
+  '';
+
   # MCP secrets: decrypt secrets.yaml → awk subst ''${VAR} → ~/.mcp.json
   # Mimics Docker env_file + init.sh pattern using awk index() (literal, no regex)
   home.activation.mcpSecrets = lib.hm.dag.entryAfter ["linkGeneration"] ''
