@@ -183,6 +183,7 @@
     set_color normal
     set_color magenta; echo -n "    tree             "; set_color normal; echo "Directory tree"
     set_color magenta; echo -n "    yazi             "; set_color normal; echo "Terminal file manager"
+    set_color magenta; echo -n "    carbonyl         "; set_color normal; echo "Chromium browser in the terminal"
     # H3: Search (fzf)
     set_color cyan; echo "  Search (fzf):"
     set_color normal

@@ -18,6 +18,7 @@
     "@types/topojson-client": "^3.1.5",
     "@vueuse/core": "^10.9.0",
     "axios": "^1.6.0",
+    "carbonyl": "^0.0.3",
     "blurhash": "^2.0.0",
     "chart.js": "^4.5.1",
     "clsx": "^2.1.0",
