@@ -138,7 +138,7 @@
 
           ./modules/common.nix
           ./modules/guardrails.nix
-          ./modules/curl-wrapper.nix
+          ./modules/curl-wget-wrapper.nix
           ./modules/node-deps.nix
           ./modules/cloud.nix
           ./modules/front.nix
