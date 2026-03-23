@@ -32,14 +32,14 @@
         # Surface Pro hardware support (linux-surface kernel, firmware)
         nixos-hardware.nixosModules.microsoft-surface-pro-intel
 
-        # Main configuration
-        ./configuration.nix
+        # Main configuration (modular)
+        ./modules/configuration.nix
 
         # Custom SDDM sessions
-        ./sessions.nix
+        ./modules/sessions.nix
 
         # Hardware-specific
-        ./hardware-configuration.nix
+        ./modules/hardware.nix
       ];
     };
 
@@ -52,7 +52,7 @@
         inherit system;
         modules = [
           nixos-hardware.nixosModules.microsoft-surface-pro-intel
-          ./configuration.nix
+          ./modules/configuration.nix
         ];
         format = "docker";
       };
@@ -62,7 +62,7 @@
         inherit system;
         modules = [
           nixos-hardware.nixosModules.microsoft-surface-pro-intel
-          ./configuration.nix
+          ./modules/configuration.nix
           # Disk size: 48GB to accommodate closure (~15GB) + overhead + working space
           { config.virtualisation.diskSize = 48 * 1024; }
         ];
@@ -74,7 +74,7 @@
         inherit system;
         modules = [
           nixos-hardware.nixosModules.microsoft-surface-pro-intel
-          ./configuration.nix
+          ./modules/configuration.nix
           # ISO-specific overrides
           ({ lib, pkgs, ... }: {
             # ISO uses wpa_supplicant instead of NetworkManager for live env
@@ -93,7 +93,7 @@
       vm = nixos-generators.nixosGenerate {
         inherit system;
         modules = [
-          ./configuration.nix
+          ./modules/configuration.nix
         ];
         format = "vm";
       };
