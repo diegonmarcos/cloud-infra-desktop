@@ -12,10 +12,10 @@
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
       }
     },
-    "cloud-specs-docs": {
+    "code-graph-context": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_c3-specs-docs-mcp/src/index.ts"],
+      "args": ["/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_code-graph-context-kg-infra-mcp/src/index.ts"],
       "env": {
         "CONFIG_PATH": "/home/diego/Mounts/Git/cloud/config.json"
       }
