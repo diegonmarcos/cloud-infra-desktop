@@ -1789,3 +1789,24 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-23 22:28:32] PERF: git stage = 63ms
 [2026-03-23 22:28:32] PERF: clean backups = 35ms
 [2026-03-23 22:28:32] INFO: Applying Home Manager configuration...
+[2026-03-23 22:44:58] ========== Build script started ==========
+[2026-03-23 22:44:58] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 22:44:58] PERF: start switch
+[2026-03-23 22:44:58] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 22:44:58] PERF: git stage = 106ms
+[2026-03-23 22:44:59] PERF: clean backups = 48ms
+[2026-03-23 22:44:59] INFO: Applying Home Manager configuration...
+[2026-03-23 22:47:46] ========== Build script started ==========
+[2026-03-23 22:47:46] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 22:47:46] PERF: start switch
+[2026-03-23 22:47:47] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 22:47:47] PERF: git stage = 117ms
+[2026-03-23 22:47:47] PERF: clean backups = 32ms
+[2026-03-23 22:47:47] INFO: Applying Home Manager configuration...
+[2026-03-23 23:58:15] ========== Build script started ==========
+[2026-03-23 23:58:15] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 23:58:15] PERF: start switch
+[2026-03-23 23:58:15] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 23:58:15] PERF: git stage = 67ms
+[2026-03-23 23:58:15] PERF: clean backups = 32ms
+[2026-03-23 23:58:15] INFO: Applying Home Manager configuration...
