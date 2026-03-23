@@ -136,6 +136,10 @@
   home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;
   home.file.".rgignore".source = ./dotfiles/claude/rgignore;
 
+  # Gemini CLI configuration + MCP server config
+  # Uses the same sops secret substitution as Claude's mcp.json
+  home.file.".gemini/settings.json.tpl".source = ./dotfiles/gemini/settings.json.tpl;
+
   # Minimal .gitignore so $HOME is a git repo (ignore everything)
   # This makes Claude Code use `git ls-files` (instant) instead of ripgrep (97s timeout)
   home.file.".gitignore".text = "*";
@@ -226,6 +230,60 @@
 
     chmod 600 "$OUT"
     echo "[mcp-secrets] ~/.mcp.json templated ($(echo $VARS | wc -w) vars substituted)"
+  '';
+
+  # Gemini CLI: decrypt secrets.yaml → awk subst ''${VAR} → ~/.gemini/settings.json
+  # Same pattern as Claude's mcpSecrets, but outputs to Gemini's settings.json
+  home.activation.geminiMcpSecrets = lib.hm.dag.entryAfter ["linkGeneration"] ''
+    SOPS="${pkgs.sops}/bin/sops"
+    TPL="$HOME/.gemini/settings.json.tpl"
+    SECRETS_YAML="$HOME/.claude/secrets.yaml"
+    OUT="$HOME/.gemini/settings.json"
+    YQ="${pkgs.yq-go}/bin/yq"
+    AWK="${pkgs.gawk}/bin/awk"
+
+    if [ ! -f "$SOPS" ] || [ ! -f "$SECRETS_YAML" ] || [ ! -f "$TPL" ]; then
+      echo "[gemini-mcp] WARNING: sops/secrets/template not found, copying template as-is"
+      [ -f "$TPL" ] && cp --no-preserve=mode "$TPL" "$OUT"
+      exit 0
+    fi
+
+    DECRYPTED=$("$SOPS" -d "$SECRETS_YAML" 2>/dev/null) || true
+    if [ -z "$DECRYPTED" ]; then
+      echo "[gemini-mcp] WARNING: failed to decrypt secrets.yaml"
+      cp --no-preserve=mode "$TPL" "$OUT"
+      exit 0
+    fi
+
+    cp --no-preserve=mode "$TPL" "$OUT"
+
+    VARS=$($AWK '{
+      s = $0
+      while (match(s, /\$\{[A-Za-z_][A-Za-z0-9_-]*\}/)) {
+        v = substr(s, RSTART+2, RLENGTH-3)
+        print v
+        s = substr(s, RSTART+RLENGTH)
+      }
+    }' "$OUT" | sort -u) || true
+
+    for _var in $VARS; do
+      _val=$(printf '%s' "$DECRYPTED" | "$YQ" -r ".[\"$_var\"]" 2>/dev/null) || true
+      if [ -z "$_val" ] || [ "$_val" = "null" ]; then
+        echo "[gemini-mcp] WARNING: $_var not found in secrets — leaving placeholder"
+        continue
+      fi
+      _pat="\''${''${_var}}"
+      $AWK -v pat="$_pat" -v rep="$_val" '{
+        while (i = index($0, pat)) {
+          $0 = substr($0, 1, i-1) rep substr($0, i+length(pat))
+        }
+        print
+      }' "$OUT" > "$OUT.tmp"
+      mv "$OUT.tmp" "$OUT"
+    done
+
+    chmod 600 "$OUT"
+    echo "[gemini-mcp] ~/.gemini/settings.json templated ($(echo $VARS | wc -w) vars substituted)"
   '';
 
   # Generate CLAUDE.md from template + cloud-data (dynamic VM/service tables)
