@@ -89,6 +89,49 @@ cmd_start() {
     exec npx tsx index.ts
 }
 
+MCP_HTTP_PORT="${MCP_HTTP_PORT:-3200}"
+PID_FILE="$SCRIPT_DIR/.unix-mcp.pid"
+
+cmd_serve() {
+    log_header "Starting unix-mcp HTTP daemon"
+    cd "$SRC_DIR"
+
+    if [ ! -d "node_modules" ]; then
+        log_info "No node_modules — installing deps first..."
+        cmd_deps
+    fi
+
+    # Kill existing if running
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+        log_info "Stopping existing daemon (pid $(cat "$PID_FILE"))..."
+        kill "$(cat "$PID_FILE")" 2>/dev/null || true
+        sleep 1
+    fi
+
+    log_info "Starting HTTP daemon on 127.0.0.1:${MCP_HTTP_PORT}/mcp..."
+    MCP_HTTP=1 MCP_HTTP_PORT="$MCP_HTTP_PORT" nohup npx tsx index.ts \
+        >> "$LOG_FILE" 2>&1 &
+    echo "$!" > "$PID_FILE"
+    log_success "Daemon started (pid $!, port ${MCP_HTTP_PORT})"
+}
+
+cmd_stop() {
+    log_header "Stopping unix-mcp daemon"
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+        kill "$(cat "$PID_FILE")"
+        rm -f "$PID_FILE"
+        log_success "Daemon stopped"
+    else
+        log_warn "No running daemon found"
+        rm -f "$PID_FILE"
+    fi
+}
+
+cmd_restart() {
+    cmd_stop
+    cmd_serve
+}
+
 cmd_build() {
     log_header "Build (deps + check)"
     cmd_deps
@@ -138,6 +181,9 @@ ${YELLOW}COMMANDS:${NC}
     build       Install deps + type check (default)
     check       TypeScript type check only
     start       Start MCP server (stdio transport)
+    serve       Start persistent HTTP daemon (127.0.0.1:3200/mcp)
+    stop        Stop HTTP daemon
+    restart     Restart HTTP daemon
     status      Show project status
     clean       Remove node_modules
 
@@ -166,6 +212,9 @@ case "${1:-build}" in
     build)   cmd_build ;;
     check)   cmd_check ;;
     start)   cmd_start ;;
+    serve)   cmd_serve ;;
+    stop)    cmd_stop ;;
+    restart) cmd_restart ;;
     status)  cmd_status ;;
     clean)   cmd_clean ;;
     *)       log_error "Unknown: $1"; show_help; exit 1 ;;

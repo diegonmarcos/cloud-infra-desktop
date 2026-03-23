@@ -1,9 +1,8 @@
 {
   "mcpServers": {
     "unix": {
-      "type": "stdio",
-      "command": "tsx",
-      "args": ["/home/diego/Mounts/Git/unix/bc_unix-mcp-api/src/index.ts"]
+      "type": "http",
+      "url": "http://127.0.0.1:3200/mcp"
     },
     "cloud-infra": {
       "type": "http",

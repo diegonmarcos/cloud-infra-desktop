@@ -1,42 +1,96 @@
 // Email tools — IMAP/SMTP access via openssl s_client
+// Credentials auto-loaded from cloud-data/secrets; no secrets in this repo.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { sh, formatResult } from "../exec.js";
+import { readFileSync } from "fs";
+import { join } from "path";
+import { exec, sh, formatResult } from "../exec.js";
+import { CLOUD_DATA } from "../paths.js";
 
-const DEFAULT_HOST = process.env.IMAP_HOST ?? "mail.diegonmarcos.com";
+const MAIL_SECRETS_PATH = join(
+  CLOUD_DATA,
+  "secrets/aa-sui_mailu-mcp-secrets.json.secrets"
+);
+const DEFAULT_IMAP_HOST = process.env.IMAP_HOST ?? "imap.diegonmarcos.com";
+const DEFAULT_SMTP_HOST = process.env.SMTP_HOST ?? "smtp.diegonmarcos.com";
 const DEFAULT_PORT_IMAP = 993;
 const DEFAULT_PORT_SMTP = 465;
 
-/** Build a piped openssl s_client IMAP session */
-function imapSession(
+/** Load mail credentials from cloud-data secrets file */
+function loadMailSecrets(): { user: string; pass: string } | null {
+  try {
+    const raw = readFileSync(MAIL_SECRETS_PATH, "utf-8");
+    const data = JSON.parse(raw);
+    if (data.MAIL_USER && data.MAIL_PASSWORD) {
+      return { user: data.MAIL_USER, pass: data.MAIL_PASSWORD };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Run an IMAP session via openssl s_client.
+ * Credentials are passed via stdin — never appear in process listings or shell history.
+ */
+function imapExec(
   host: string,
   port: number,
   user: string,
   pass: string,
-  commands: string[]
-): string {
-  // Escape single-quotes in credentials
-  const u = user.replace(/'/g, "'\\''");
-  const p = pass.replace(/'/g, "'\\''");
-  const cmds = ["A001 LOGIN " + u + " " + p, ...commands, "Z LOGOUT"].join(
-    "\n"
-  );
-  // Use printf + openssl; -quiet suppresses TLS handshake noise
-  return `printf '${cmds.replace(/'/g, "'\\''")}\r\n' | openssl s_client -connect ${host}:${port} -quiet -crlf 2>/dev/null`;
+  commands: string[],
+  timeoutMs = 20_000
+) {
+  // Build a shell script that sends commands with delays.
+  // Credentials passed via env vars — never in process args or shell history.
+  const postLoginCmds = commands
+    .map((c) => `sleep 0.3; echo '${c.replace(/'/g, "'\\''")}'`)
+    .join("; ");
+  const script = `{ echo "A001 LOGIN $IMAP_U $IMAP_P"; sleep 0.5; ${postLoginCmds}; sleep 0.3; echo 'Z LOGOUT'; } | openssl s_client -connect ${host}:${port} -quiet -crlf 2>/dev/null`;
+
+  const result = exec("sh", ["-c", script], {
+    timeout: timeoutMs,
+    env: { IMAP_U: user, IMAP_P: pass },
+  });
+  // openssl s_client exits 1 on SSL EOF after LOGOUT — treat as success if we got auth OK
+  const authOk = result.stdout.includes("Authentication successful");
+  return { ...result, ok: authOk || result.ok };
+}
+
+/** Resolve credentials: explicit params > secrets file */
+function resolveCredentials(
+  userParam?: string,
+  passParam?: string
+): { user: string; pass: string } | null {
+  if (userParam && passParam) return { user: userParam, pass: passParam };
+  const secrets = loadMailSecrets();
+  if (!secrets)
+    return null;
+  return {
+    user: userParam ?? secrets.user,
+    pass: passParam ?? secrets.pass,
+  };
 }
 
 export function registerEmailTools(server: McpServer) {
   // ── 1. Fetch recent emails ───────────────────────────────────────────────
   server.tool(
     "email_imap_fetch",
-    "Fetch recent emails from an IMAP mailbox via openssl s_client (SSL/TLS). Returns headers (From, Subject, Date) for the N most recent messages.",
+    "Fetch recent emails from an IMAP mailbox via openssl s_client (SSL/TLS). Returns headers (From, Subject, Date) for the N most recent messages. Credentials auto-loaded from cloud-data secrets.",
     {
-      user: z.string().describe("IMAP username / email address"),
-      pass: z.string().describe("IMAP password"),
+      user: z
+        .string()
+        .optional()
+        .describe("IMAP username (auto-loaded from secrets if omitted)"),
+      pass: z
+        .string()
+        .optional()
+        .describe("IMAP password (auto-loaded from secrets if omitted)"),
       host: z
         .string()
         .optional()
-        .describe(`IMAP host (default: ${DEFAULT_HOST})`),
+        .describe(`IMAP host (default: ${DEFAULT_IMAP_HOST})`),
       port: z
         .number()
         .optional()
@@ -48,10 +102,24 @@ export function registerEmailTools(server: McpServer) {
       count: z
         .number()
         .optional()
-        .describe("Number of recent messages to fetch (default: 10, max: 50)"),
+        .describe(
+          "Number of recent messages to fetch (default: 10, max: 50)"
+        ),
     },
     async ({ user, pass, host, port, mailbox, count }) => {
-      const h = host ?? DEFAULT_HOST;
+      const creds = resolveCredentials(user, pass);
+      if (!creds)
+        return {
+          content: [
+            {
+              type: "text",
+              text: "No credentials: provide user/pass or ensure cloud-data secrets exist",
+            },
+          ],
+          isError: true,
+        };
+
+      const h = host ?? DEFAULT_IMAP_HOST;
       const p = port ?? DEFAULT_PORT_IMAP;
       const mb = mailbox ?? "INBOX";
       const n = Math.min(count ?? 10, 50);
@@ -59,14 +127,14 @@ export function registerEmailTools(server: McpServer) {
       const cmds = [
         `A002 SELECT "${mb}"`,
         `A003 SEARCH ALL`,
-        // FETCH last N messages by sequence — we fetch 1:* then trim client-side
         `A004 FETCH 1:${n} (FLAGS BODY[HEADER.FIELDS (FROM TO SUBJECT DATE)])`,
       ];
 
-      const cmd = imapSession(h, p, user, pass, cmds);
-      const result = sh(cmd, { timeout: 20_000 });
+      const result = imapExec(h, p, creds.user, creds.pass, cmds, 20_000);
       return {
-        content: [{ type: "text", text: formatResult(`imap:fetch(${h})`, result) }],
+        content: [
+          { type: "text", text: formatResult(`imap:fetch(${h})`, result) },
+        ],
         isError: !result.ok,
       };
     }
@@ -75,28 +143,53 @@ export function registerEmailTools(server: McpServer) {
   // ── 2. List IMAP mailboxes/folders ───────────────────────────────────────
   server.tool(
     "email_imap_list",
-    "List all mailboxes/folders on an IMAP server via openssl s_client.",
+    "List all mailboxes/folders on an IMAP server via openssl s_client. Credentials auto-loaded from cloud-data secrets.",
     {
-      user: z.string().describe("IMAP username / email address"),
-      pass: z.string().describe("IMAP password"),
+      user: z
+        .string()
+        .optional()
+        .describe("IMAP username (auto-loaded from secrets if omitted)"),
+      pass: z
+        .string()
+        .optional()
+        .describe("IMAP password (auto-loaded from secrets if omitted)"),
       host: z
         .string()
         .optional()
-        .describe(`IMAP host (default: ${DEFAULT_HOST})`),
+        .describe(`IMAP host (default: ${DEFAULT_IMAP_HOST})`),
       port: z
         .number()
         .optional()
         .describe(`IMAP port (default: ${DEFAULT_PORT_IMAP})`),
     },
     async ({ user, pass, host, port }) => {
-      const h = host ?? DEFAULT_HOST;
+      const creds = resolveCredentials(user, pass);
+      if (!creds)
+        return {
+          content: [
+            {
+              type: "text",
+              text: "No credentials: provide user/pass or ensure cloud-data secrets exist",
+            },
+          ],
+          isError: true,
+        };
+
+      const h = host ?? DEFAULT_IMAP_HOST;
       const p = port ?? DEFAULT_PORT_IMAP;
 
-      const cmds = [`A002 LIST "" "*"`];
-      const cmd = imapSession(h, p, user, pass, cmds);
-      const result = sh(cmd, { timeout: 15_000 });
+      const result = imapExec(
+        h,
+        p,
+        creds.user,
+        creds.pass,
+        [`A002 LIST "" "*"`],
+        15_000
+      );
       return {
-        content: [{ type: "text", text: formatResult(`imap:list(${h})`, result) }],
+        content: [
+          { type: "text", text: formatResult(`imap:list(${h})`, result) },
+        ],
         isError: !result.ok,
       };
     }
@@ -105,32 +198,51 @@ export function registerEmailTools(server: McpServer) {
   // ── 3. Raw IMAP commands ─────────────────────────────────────────────────
   server.tool(
     "email_imap_raw",
-    "Send raw IMAP commands to a server via openssl s_client. Useful for advanced queries (SEARCH, FETCH body parts, etc.). Login is handled automatically; provide only post-login commands.",
+    "Send raw IMAP commands to a server via openssl s_client. Login is handled automatically; provide only post-login commands. Credentials auto-loaded from cloud-data secrets.",
     {
-      user: z.string().describe("IMAP username / email address"),
-      pass: z.string().describe("IMAP password"),
       commands: z
         .array(z.string())
         .describe(
           "IMAP commands to run after login (e.g. ['A002 SELECT INBOX', 'A003 SEARCH UNSEEN'])"
         ),
+      user: z
+        .string()
+        .optional()
+        .describe("IMAP username (auto-loaded from secrets if omitted)"),
+      pass: z
+        .string()
+        .optional()
+        .describe("IMAP password (auto-loaded from secrets if omitted)"),
       host: z
         .string()
         .optional()
-        .describe(`IMAP host (default: ${DEFAULT_HOST})`),
+        .describe(`IMAP host (default: ${DEFAULT_IMAP_HOST})`),
       port: z
         .number()
         .optional()
         .describe(`IMAP port (default: ${DEFAULT_PORT_IMAP})`),
     },
-    async ({ user, pass, commands, host, port }) => {
-      const h = host ?? DEFAULT_HOST;
+    async ({ commands, user, pass, host, port }) => {
+      const creds = resolveCredentials(user, pass);
+      if (!creds)
+        return {
+          content: [
+            {
+              type: "text",
+              text: "No credentials: provide user/pass or ensure cloud-data secrets exist",
+            },
+          ],
+          isError: true,
+        };
+
+      const h = host ?? DEFAULT_IMAP_HOST;
       const p = port ?? DEFAULT_PORT_IMAP;
 
-      const cmd = imapSession(h, p, user, pass, commands);
-      const result = sh(cmd, { timeout: 30_000 });
+      const result = imapExec(h, p, creds.user, creds.pass, commands, 30_000);
       return {
-        content: [{ type: "text", text: formatResult(`imap:raw(${h})`, result) }],
+        content: [
+          { type: "text", text: formatResult(`imap:raw(${h})`, result) },
+        ],
         isError: !result.ok,
       };
     }
@@ -144,7 +256,7 @@ export function registerEmailTools(server: McpServer) {
       host: z
         .string()
         .optional()
-        .describe(`Mail host to check (default: ${DEFAULT_HOST})`),
+        .describe(`Mail host to check (default: ${DEFAULT_IMAP_HOST})`),
       port: z
         .number()
         .optional()
@@ -157,8 +269,8 @@ export function registerEmailTools(server: McpServer) {
         .describe("Protocol hint — affects starttls mode (default: imap)"),
     },
     async ({ host, port, protocol }) => {
-      const h = host ?? DEFAULT_HOST;
       const proto = protocol ?? "imap";
+      const h = host ?? (proto === "smtp" ? DEFAULT_SMTP_HOST : DEFAULT_IMAP_HOST);
       const p =
         port ?? (proto === "smtp" ? DEFAULT_PORT_SMTP : DEFAULT_PORT_IMAP);
 
@@ -167,7 +279,9 @@ export function registerEmailTools(server: McpServer) {
       const cmd = `echo Q | openssl s_client -connect ${h}:${p} ${starttls} -showcerts 2>&1 | openssl x509 -noout -text 2>/dev/null | grep -E '(Subject|Issuer|Not Before|Not After|DNS:|IP Address)' | head -40`;
       const result = sh(cmd, { timeout: 15_000 });
       return {
-        content: [{ type: "text", text: formatResult(`cert:${h}:${p}`, result) }],
+        content: [
+          { type: "text", text: formatResult(`cert:${h}:${p}`, result) },
+        ],
         isError: !result.ok,
       };
     }
@@ -181,20 +295,25 @@ export function registerEmailTools(server: McpServer) {
       host: z
         .string()
         .optional()
-        .describe(`SMTP host (default: ${DEFAULT_HOST})`),
+        .describe(`SMTP host (default: ${DEFAULT_SMTP_HOST})`),
       port: z
         .number()
         .optional()
         .describe(`SMTP port (default: ${DEFAULT_PORT_SMTP})`),
     },
     async ({ host, port }) => {
-      const h = host ?? DEFAULT_HOST;
+      const h = host ?? DEFAULT_SMTP_HOST;
       const p = port ?? DEFAULT_PORT_SMTP;
       const starttls = p === 587 || p === 25 ? "-starttls smtp" : "";
       const cmd = `echo QUIT | openssl s_client -connect ${h}:${p} ${starttls} -quiet 2>&1 | head -30`;
       const result = sh(cmd, { timeout: 15_000 });
       return {
-        content: [{ type: "text", text: formatResult(`smtp:test(${h}:${p})`, result) }],
+        content: [
+          {
+            type: "text",
+            text: formatResult(`smtp:test(${h}:${p})`, result),
+          },
+        ],
         isError: !result.ok,
       };
     }
