@@ -192,7 +192,7 @@
         done
       }
 
-      serve() { busybox httpd -f -p "''${1:-8090}" -h "''${2:-$HOME}"; }
+      serve() { http-dev start "''${1:-}" "''${2:-}"; }
 
       duh() { du -h --max-depth=1 | sort -h; }
 

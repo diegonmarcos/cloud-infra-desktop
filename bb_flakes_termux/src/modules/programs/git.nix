@@ -43,6 +43,7 @@
       pull.rebase = true;
       fetch.prune = true;
       rebase.autoStash = true;
+      submodule.recurse = true;
     };
 
     aliases = {

@@ -151,12 +151,7 @@
         end
       '';
 
-      serve = ''
-        set -l port (test (count $argv) -gt 0; and echo $argv[1]; or echo 8090)
-        set -l dir (test (count $argv) -gt 1; and echo $argv[2]; or echo $HOME)
-        echo "Serving $dir on http://localhost:$port"
-        busybox httpd -f -p $port -h $dir
-      '';
+      serve = "http-dev start $argv";
 
       duh = "command du -h --max-depth=1 | sort -h";
 
@@ -337,6 +332,13 @@
         set_color --bold red
         printf "  └────────────────────────────────────┘ └────────────────────────────────┘ └────────────────────────────────┘\n"
         set_color normal
+
+        # http-dev status line
+        if test -n "$__httpd_pid"; and kill -0 $__httpd_pid 2>/dev/null
+          printf "  "; set_color green; printf "  ● http-dev"; set_color normal; printf "  Web+MD+Eruda  "; set_color cyan; printf "http://127.0.0.1:%s" "$__httpd_port"; set_color normal; printf "  (PID: %s)\n" "$__httpd_pid"
+        else
+          printf "  "; set_color red; printf "  ○ http-dev"; set_color normal; printf "  Not running\n"
+        end
         echo
 
         # ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -391,6 +393,10 @@
       if test -d $HOME/.cargo/bin
         fish_add_path $HOME/.cargo/bin
       end
+
+      # Auto-start http-dev (web-server-md-eruda)
+      set -g __httpd_port 8000
+      set -g __httpd_pid (http-dev start 2>/dev/null)
 
       # Show welcome
       _show_welcome
