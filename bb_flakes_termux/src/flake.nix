@@ -407,7 +407,12 @@
                 "${pkgs.nerdfonts.override { fonts = [ "JetBrainsMono" ]; }}/share/fonts/truetype/NerdFonts/JetBrainsMonoNerdFont-Regular.ttf";
 
               # Claude Code master context + MCP server config
-              home.file.".claude/CLAUDE.md".source = ../src/modules/dotfiles/claude/CLAUDE.md;
+              # CLAUDE.md is generated dynamically from template + cloud-data at activation time
+              home.file.".claude/CLAUDE.md.tpl".source = ../src/modules/dotfiles/claude/CLAUDE.md.tpl;
+              home.file.".claude/gen-claude-md.sh" = {
+                source = ../src/modules/dotfiles/claude/gen-claude-md.sh;
+                executable = true;
+              };
               home.file.".claude/mcp.json.tpl".source = ../src/modules/dotfiles/claude/mcp.json.tpl;
               home.file.".claude/secrets.yaml".source = ../src/modules/dotfiles/claude/secrets.yaml;
               home.file.".claude/statusline-command.sh" = {
@@ -487,6 +492,21 @@
 
                 chmod 600 "$OUT"
                 echo "[mcp-secrets] ~/.mcp.json templated ($(echo $VARS | wc -w) vars substituted)"
+              '';
+
+              # Generate CLAUDE.md from template + cloud-data (dynamic VM/service tables)
+              home.activation.genClaudeMd = lib.hm.dag.entryAfter ["linkGeneration"] ''
+                GEN="$HOME/.claude/gen-claude-md.sh"
+                if [ -x "$GEN" ]; then
+                  NODE_BIN="${pkgs.nodejs_22}/bin/node" \
+                    $DRY_RUN_CMD "$GEN" \
+                      "$HOME/.claude/CLAUDE.md.tpl" \
+                      "$HOME/.claude/CLAUDE.md" \
+                      "$HOME/git/cloud/cloud-data" \
+                    || echo "[gen-claude-md] WARNING: generation failed, template used as fallback"
+                else
+                  echo "[gen-claude-md] WARNING: gen-claude-md.sh not found"
+                fi
               '';
 
               # Minimal .gitignore so $HOME is a git repo (ignore everything)
