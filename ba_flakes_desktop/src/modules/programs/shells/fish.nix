@@ -410,6 +410,11 @@
       if test -d $HOME/.local/bin
         fish_add_path $HOME/.local/bin
       end
+      # nix-profile must come LAST so it has highest PATH priority
+      # (patchelf'd binaries like claude-code override unpatched npm/cargo copies)
+      if test -d $HOME/.nix-profile/bin
+        fish_add_path $HOME/.nix-profile/bin
+      end
 
       # http-dev runs as systemd user service (not per-shell)
       set -g __httpd_port 8000
