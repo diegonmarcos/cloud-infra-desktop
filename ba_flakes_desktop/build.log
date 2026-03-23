@@ -1,2 +1,1150 @@
 [2026-03-04 12:25:38] ========== Build script started ==========
 [2026-03-04 12:25:38] ERROR: Unknown command: check
+[2026-03-23 16:55:52] ========== Build script started ==========
+[2026-03-23 16:55:52] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 16:55:52] PERF: start switch
+[2026-03-23 16:55:52] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 16:55:52] PERF: git stage = 35ms
+[2026-03-23 16:55:52] INFO: Cleaning 1 old backup file(s)...
+[2026-03-23 16:55:52] PERF: clean backups = 21ms
+[2026-03-23 16:55:52] INFO: Applying Home Manager configuration...
+copying path '/nix/store/0yj36irhwn225ywy1saz0gf5wr2ciz50-source' from 'https://cache.nixos.org'...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+warning: found empty hash, assuming 'sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+these 194 derivations will be built:
+  /nix/store/0f28rcdi4cf8pn4aqs3jnhfx3irzlgay-cmake-3.30.5-fish-completions.drv
+  /nix/store/0mwb5jzi4mql4cx694jsc97k9j8am0a2-hm_.localbincargo.drv
+  /nix/store/0p5hf24vfbmmm7bqfkps349gkv86g65p-feh-3.10.3-fish-completions.drv
+  /nix/store/0r0slmxqbffydc4kn06jsb36mg7riaq2-terraform-1.9.8-fish-completions.drv
+  /nix/store/0w2l1dpngv352lzmfc8jgqpyhvjggarq-nix-zsh-completions-0.5.1-fish-completions.drv
+  /nix/store/108k34mxgrvpii4xf8lij57lcmpyhq49-krita-5.2.9-fish-completions.drv
+  /nix/store/10x8qzx91gprpxvrzhxbdika99w2gmnd-home-manager-fish-completions.drv
+  /nix/store/13c4xl5lglvb9fs0k59fkjs9csgbw7kj-python3.12-numpy-1.26.4-fish-completions.drv
+  /nix/store/17rvipaqgwpwgvlsiyd15lxr56c6zz1j-bitwarden-desktop-2025.2.0-fish-completions.drv
+  /nix/store/19644ln7ngbb9chcdn2kpgpwfdjzfln1-hm_.localbinaptget.drv
+  /nix/store/19cjm619dwwrpzhn5fdrdlic2baj31lv-xxd-tinyxxd-1.3.7-fish-completions.drv
+  /nix/store/yscblfayda4xarxkpc84ccy6dihjg0ml-connect.drv
+  /nix/store/1jmj0f42xa4lh33pr0kfxk4l58ir9155-connect-fish-completions.drv
+  /nix/store/1knppwwyh786nl95v75r3iy8njsyyk9a-gwenview-23.08.5-fish-completions.drv
+  /nix/store/1nz3ajwaczwd76y7d7fr6v899aq142pq-dummy-xdg-mime-dirs1.drv
+  /nix/store/1p3hhjp82w8nzlsr76m9nj6r823xhdl5-hm_.localbinwget.drv
+  /nix/store/1r7xw0v4c8y11njbx6ggq5i2fpdacwh3-grafana-11.3.7+security-01-fish-completions.drv
+  /nix/store/1zfn3zv13fdqpvqnx0rgix3jqjcd4fb1-hm-session-vars.sh.drv
+  /nix/store/22f907f6crnkww1mr0g8r8frhxpnb2g9-hm_.localbincurl.drv
+  /nix/store/232igi2dbx0vn4m2dpwcrv2xb109y3q3-password-store-1.7.4-fish-completions.drv
+  /nix/store/269vh2602zhnl4jzcv2iz9cj4akyh3cv-btop-1.4.0-fish-completions.drv
+  /nix/store/29hlzq7lgm4vs80zcj8jnvczv6pmshbi-hm_.localbinsnap.drv
+  /nix/store/2bqv3mvnfjn4nzi0fpkjfjzasy11dc49-hm_.localbinpnpm.drv
+  /nix/store/98p9a058i4h7mqv99v1gshi9k5cdw7b7-dummy-fc-dir1.drv
+  /nix/store/2hp833ikrdp0rqb3fyb0wmv9cibphc61-dummy-fc-dir1-fish-completions.drv
+  /nix/store/2j7c9dbps98zdd5bvqnlwbh2nhblzl6m-vlc-3.0.21-fish-completions.drv
+  /nix/store/2j9l8qyg2y2ixz32jlzk8kyc0p796iwm-wrangler-3.80.1-fish-completions.drv
+  /nix/store/2jvrrn5hzrd21qjvjywwjfc7rdr4ix3f-dnscrypt-proxy-2.1.5-fish-completions.drv
+  /nix/store/2nxgbyqgzjvs3wphn60av9s2163rmh6a-hm_.localbinyay.drv
+  /nix/store/38y7s2gvlacwq743bm42ymv238yzxaby-cargo-edit-0.13.0-fish-completions.drv
+  /nix/store/3i6p9dgyv3gd7wckjrw819bhm7sa0spy-kubectx-0.9.5-fish-completions.drv
+  /nix/store/3ws0cipcd4hsi4ml098ikzjqxmn1kxqi-dummy-xdg-mime-dirs1-fish-completions.drv
+  /nix/store/42cayivlas8jg6kdlq7w9x54rmvcw9jj-yq-go-4.44.3-fish-completions.drv
+  /nix/store/46vq9czqd2hdnz65cd4360ynwqjv9z2s-diff-so-fancy-1.4.4-fish-completions.drv
+  /nix/store/4bnzlnv0sqff8bp1f5samm7gx79c06df-llvm-18.1.8-fish-completions.drv
+  /nix/store/4m91kxn4xmfw8h2bcl86y6s93lyqqn53-wireguard-tools-1.0.20210914-fish-completions.drv
+  /nix/store/4mhxdrfzk2f245lfk78whh96phj8aqwj-awscli2-2.19.0-fish-completions.drv
+  /nix/store/4np26d1bzhd7r0nbhl4a2vcrw8g9rad0-libreoffice-24.2.7.2-wrapped-fish-completions.drv
+  /nix/store/4xfla8k7p0p0bhdl55w51f229p9zi8lz-gopls-0.16.2-fish-completions.drv
+  /nix/store/512pcp8pc3m4vi8dlknmlxljif98vik5-gemini-cli-0.27.0-fish-completions.drv
+  /nix/store/5c5b8lb59gw4adf1zr9bbbcdpnj9b1ss-hm_.localbinpip.drv
+  /nix/store/9093ckcsv5lw5c872ml7a9h1rn2h3hqf-hm-session-vars.fish.drv
+  /nix/store/5cajhpqlj6irgaamzfig9w1i323pkhs7-config.fish.drv
+  /nix/store/5d3knzlk6czjv8nwl0xqya35csc57h55-rustup-1.27.1-fish-completions.drv
+  /nix/store/5fb1dqdmbnsyjb1m1j4f6wxcpkv1znab-ninja-1.12.1-fish-completions.drv
+  /nix/store/5i08qj331iqz7agw0y4adzqxzhsfswgs-python3.12-pyarrow-18.0.0-fish-completions.drv
+  /nix/store/5ima4rr9rqz91pmsa1gjfmhj4cakklgi-hm_.localbinnixosrebuild.drv
+  /nix/store/6a3ay4sv29qn6s6dbxdpxw84z8abc5cc-dive-0.12.0-fish-completions.drv
+  /nix/store/6dhrfhq1zxh26imml1nypsg11bfsjqz9-go-1.23.8-fish-completions.drv
+  /nix/store/6wcivsgp9dwgs3mgfzrsyb52jk7l3dbk-hm_.localbinpkg.drv
+  /nix/store/6ymwq9296i5qcgivs00q2pxxmsid4m8k-hm_.localbinbun.drv
+  /nix/store/7b66dqs56cdiq05i8qvyf9xbn6g7axbn-hm_.localbindocker.drv
+  /nix/store/7fskcg1agh2wlfgnmcgxp61fa5zj0yqh-dolphin-24.08.3-fish-completions.drv
+  /nix/store/7hkv68j410lcfs36rj0dmp5fh0rvzy36-obsidian-1.7.6-fish-completions.drv
+  /nix/store/s5fi9ihnknx6kmckzym7af9v3zik8ick-dummy-xdg-mime-dirs2.drv
+  /nix/store/7v4ns250rvlbvpjszx3dzdpj11953k2a-dummy-xdg-mime-dirs2-fish-completions.drv
+  /nix/store/83d5fbir3dvzglabb6xp4j8kvxg8jd78-bashrc.drv
+  /nix/store/8axklsgrnlm4xhq1g9g3w6m5l1g2ihrb-pipx-1.7.1-fish-completions.drv
+  /nix/store/8js4skrrslq4vyzy8rys1644qip73k39-oci-cli-3.14.0-fish-completions.drv
+  /nix/store/8xbrdk9n2f68fx5pw9caz6bxmmm5w4bc-gopass-1.15.14-fish-completions.drv
+  /nix/store/90j5qggy8vnklblgczcrzgcxr3fymq9m-python3.12-torch-2.5.1-fish-completions.drv
+  /nix/store/9jyzd0czbby1dbijdzgf3aqpk38bxpyv-obs-studio-30.2.3-fish-completions.drv
+  /nix/store/9ki424g964nwjrva7sbr6i4dq1xh84ps-httpie-3.2.4-fish-completions.drv
+  /nix/store/9pf9n4hgaapnv80qngbgxgr5mwj8xh82-wget-1.25.0-fish-completions.drv
+  /nix/store/9sfmcagv69q0k66iwf4m325rismgsjb9-redis-7.2.7-fish-completions.drv
+  /nix/store/a11wjby2vcv3c1lk69mcydfwx01j531w-python3.12-virtualenv-20.26.6-fish-completions.drv
+  /nix/store/a473n5jr6b5m8jx3gb5j4kn4vibgqb7p-breeze-6.2.5-fish-completions.drv
+  /nix/store/axa5q9y8cx4afx52mcm5wlc3wy5kkd1f-hm_.localbinnixenv.drv
+  /nix/store/azw9rdi94rw68m5gm7npjgm0rscpvgsg-jq-1.7.1-fish-completions.drv
+  /nix/store/bgmpxqc92dkkh8r9k6iz4vxcvjrx9yhw-python3.12-notebook-7.2.2-fish-completions.drv
+  /nix/store/bhv0fbznpsd1gv478hvapjyl8yikqq6n-yarn-1.22.22-fish-completions.drv
+  /nix/store/bip0a7h5s1skil95j55h4i72s3cp633g-mediainfo-24.06-fish-completions.drv
+  /nix/store/bjflwvj4w18kpq3dv4kzqnpn8l0c474j-hexyl-0.15.0-fish-completions.drv
+  /nix/store/bll91l707y68nf39mhbm4d0xaras6chr-hm_.localbinapt.drv
+  /nix/store/bpnw7p5d62gp0hw6iijn5m4bnf79v9gs-unrar-7.0.9-fish-completions.drv
+  /nix/store/brvggy7bai64mfzw55ars5b7dxs5bxgh-clang-tools-18.1.8-fish-completions.drv
+  /nix/store/bs0ry366d8sqw2a5m38mwsfaz06vw5ja-hm_.localbinrsync.drv
+  /nix/store/c3d6mv5n1r3xih7lx6vwa7lkdlp68hls-stern-1.31.0-fish-completions.drv
+  /nix/store/c5rvwpc7j12yvsbq893a5633gqms5v87-r-tidyr-1.3.1-fish-completions.drv
+  /nix/store/c68wmqjpzsj7273wa4bbkjix6xa9bkpc-python3.12-jupyterlab-4.2.5-fish-completions.drv
+  /nix/store/chcgg9hrjk9wpi23saphdmazi91y58dh-python3.12-dask-2024.10.0-fish-completions.drv
+  /nix/store/cjsly2jac48api399l05rxb6vkmbbn9m-direnv-2.35.0-fish-completions.drv
+  /nix/store/clf9hnhxhqngbahqsjnxqs1yrxhqmg1p-cloud-infra-mcp-1.0.0-npm-deps.drv
+  /nix/store/k6rgiyj7wqzzmlaf8hmxfq0hfv1j6hab-claude.drv
+  /nix/store/cqhkr6lqa7dayfnwmy6ywnppdj3yri9p-claude-code-2.1.76.drv
+  /nix/store/g1684wa3x59zsl2agv6dmrdl91rgksk2-cloud-infra-mcp-1.0.0.drv
+  /nix/store/z7kcimxwkmhy54qa0ddm1a9sa54ppfwd-dummy-fc-dir2.drv
+  /nix/store/y7imiwv31ls09l2wk4yvza09habxyqd9-man-paths.drv
+  /nix/store/crzwagq145vriyalxw10k9mfsyjknhaq-man-cache.drv
+  /nix/store/cwzzapz7a3gr10f9q13zyl0ipdwfv4zk-joplin-desktop-3.0.15-fish-completions.drv
+  /nix/store/cz39y6i9af175as4b1h4kv5ar2il3n54-glow-2.0.0-fish-completions.drv
+  /nix/store/dilcsnicj8cl0i922rvcdmhz7bsaq0kx-pnpm-9.15.9-fish-completions.drv
+  /nix/store/diwgl754h6snq93ghqzablvcbvgzpm0z-rclone-1.68.2-fish-completions.drv
+  /nix/store/dnan1br5ha5gmlj765490wsk7611r2cq-hm_.localbinflatpak.drv
+  /nix/store/f7z468gv7n4mdnkr60nsm6gv3pb12alr-docker-buildx-0.18.0-fish-completions.drv
+  /nix/store/f84wsqxmr8plzjfd1kdb3fqjdl4lybrr-busybox-1.36.1-fish-completions.drv
+  /nix/store/fp8lnjdlga37fazinx5s8l7lwnmvpap3-python3.12-bokeh-3.6.0-fish-completions.drv
+  /nix/store/fp9z4zrf6ws42a1b4yq2n4hrsh546lbv-delta-0.18.2-fish-completions.drv
+  /nix/store/fpfsk939h07cz49b3wliclsrvry72rbg-claude-code-2.1.76-fish-completions.drv
+  /nix/store/g24cb79chzgcj92av02dcsnx34mfnwjb-zettlr-3.2.0-fish-completions.drv
+  /nix/store/gcb12yf7ixs8rm2ys0rnjcijrz5gmwdl-gitlab-runner-17.2.0-fish-completions.drv
+  /nix/store/ggrdf3fp489zg8gq8s0mmbk36d3hr7g6-certbot-2.11.0-fish-completions.drv
+  /nix/store/ggsbwsgr05fhln3bx55pzgc75qzk8r21-sops-3.9.4-fish-completions.drv
+  /nix/store/ghwn6qgxkkav3b1zf0qrzr68qxdx6ha9-zsh-5.9-fish-completions.drv
+  /nix/store/gj8z4g8q09jb6m6cr3s977r5sxfd3x12-python3.12-ipython-8.29.0-fish-completions.drv
+  /nix/store/h12rcq8siwrcnhwm8yh9xyazgk3s6605-docker-compose-2.30.3-fish-completions.drv
+  /nix/store/hg8pg3r6fy0jcybg94j32f4vk50pxk75-aspell-dict-en-2020.12.07-0-fish-completions.drv
+  /nix/store/igdwfbwv0n8khkbl0j6d0x4gn7w4vs55-flarectl-0.108.0-fish-completions.drv
+  /nix/store/is4m3qvzjdi2aywm64qxzbwgamy6ijy0-starship-1.22.1-fish-completions.drv
+  /nix/store/j2jh9x50hckd8kfq4zs04hysgzngwrks-doxygen-1.10.0-fish-completions.drv
+  /nix/store/j2jw5drfzlhkcjrvjrp0a314yrr1bzdm-dart-sass-1.80.5-fish-completions.drv
+  /nix/store/j65q7qbxbg86sw40g0x9g7gjzma4jjd8-nerdfonts-3.2.1-fish-completions.drv
+  /nix/store/jcrplkqbk0wy3i8ymwf03l4zs5c7zr3z-python3.12-scikit-learn-1.5.2-fish-completions.drv
+  /nix/store/jhzpvklii6055gxa04g9ikdsqa875zg5-delve-1.23.1-fish-completions.drv
+  /nix/store/k38h0ppysy6ni2ngr35pc62yp1v449nd-audacity-3.7.0-fish-completions.drv
+  /nix/store/l0k91nyn1pzw5vbb352xnl4fbqn663kx-breeze-icons-6.8.0-fish-completions.drv
+  /nix/store/l8xi8w9g7gqfd3430yyyp4iayz2r4d18-cargo-watch-8.5.3-fish-completions.drv
+  /nix/store/ll2di3c7sgyim7srkh0d82qld7ygm56b-docker-27.5.1-fish-completions.drv
+  /nix/store/lrfakrp305p6pri3bjdvdna0j2d6b6q9-k9s-0.32.7-fish-completions.drv
+  /nix/store/lz2v0x2ap8m7pyn38yj2f9xfjjjhp657-mycli-1.27.2-fish-completions.drv
+  /nix/store/mi4pkmiq8fipw861z8n8r7ppcr7kxzza-sqlite-3.46.1-fish-completions.drv
+  /nix/store/n5fx3d2zkla1m7jz32s0fpnj31346j83-kubernetes-helm-3.16.3-fish-completions.drv
+  /nix/store/n7bav80g5n4686w504jy5zrndblvacdn-esbuild-0.24.0-fish-completions.drv
+  /nix/store/ndwdlcypygq66a9iyic8c3x60r3wa67m-taskwarrior-2.6.2-fish-completions.drv
+  /nix/store/p10lwqpkcgdphy8h0iw85scd3ndlkgv2-binwalk-2.4.3-fish-completions.drv
+  /nix/store/p2w03d3zzssgi3vka8jfcjjy656aah5l-azure-cli-2.65.0-fish-completions.drv
+  /nix/store/p95dja5rkzpai7grrr06snc3bk1bmm7w-python3.12-matplotlib-3.9.2-fish-completions.drv
+  /nix/store/pamvbbj4s2dh8agkldprhmfdxjv08wpy-mesh-fish-completions.drv
+  /nix/store/pcxcy5xchba6i7vmfvhp6lsj58jl0gmx-cloudflared-2024.10.0-fish-completions.drv
+  /nix/store/pgndm1vxrvgchgq2v2ckrlm2wgrxicsb-breeze-gtk-6.2.5-fish-completions.drv
+  /nix/store/pqf7cdim9rxjycx8g0czq0dkss8kbx4l-litecli-1.12.3-fish-completions.drv
+  /nix/store/py2kmhvrfnbvcdxjfmvq1g8pk9kapydd-r-dplyr-1.1.4-fish-completions.drv
+  /nix/store/pydyi0yl99dlyigh8ia8r541q5swwsdq-python3.12-pandas-2.2.3-fish-completions.drv
+  /nix/store/q2i01zhwfmaiws0ywzdx6c6wjq98gwn7-python3.12-scipy-1.14.1-fish-completions.drv
+  /nix/store/q3sdxvxlv3fsds0zh3s2mj1yvzdhwiqg-r-ggplot2-3.5.1-fish-completions.drv
+  /nix/store/q7h5nz407rwzqmakrli33rlda8g53fhx-lldb-18.1.8-fish-completions.drv
+  /nix/store/qgv63rd59ag125ycbl1bv57agv261fqy-act-0.2.68-fish-completions.drv
+  /nix/store/qiqyrg0r32vigm5jkr5bkmv1xhz36fgy-python3.12-pydantic-2.9.2-fish-completions.drv
+  /nix/store/qkdsagak39z3ws97qxwvs2xjf48aj7sg-typescript-5.6.3-fish-completions.drv
+  /nix/store/qmrkj5210mddgqkspli8z8316qz44av0-google-cloud-sdk-494.0.0-fish-completions.drv
+  /nix/store/qw3m5iydafc1piz7fr6jj2n612990zf8-coreutils-9.5-fish-completions.drv
+  /nix/store/rpq6grqzg7aawy2xy5marqli0r3zpik1-bind-9.18.33-fish-completions.drv
+  /nix/store/rxvcqnn9bfx190k0m6fzgyylsimdpj0f-mdcat-2.6.1-fish-completions.drv
+  /nix/store/shn9vsl528hz0zv66djm1f9mp5510jld-prometheus-2.55.0-fish-completions.drv
+  /nix/store/skh93s6mgvca3lvzi9v30wi723hmaryx-python3.12-requests-2.32.3-fish-completions.drv
+  /nix/store/v0712yc37gp4vsv52j4rkj7s6fi4fdd1-cloud-infra-mcp-1.0.0-fish-completions.drv
+  /nix/store/v26d1yfgrlf6drk4n45ac2zhs42pv1pf-drawio-24.7.17-fish-completions.drv
+  /nix/store/vddbgynj8fhz2ywv0n619i1wcf18bn51-waydroid.desktop-fish-completions.drv
+  /nix/store/vg8ijzc34cfa5vm9vwhrvqbr4wwzb021-dummy-fc-dir2-fish-completions.drv
+  /nix/store/vm2c59vx9s8b7jvgxx5vp0xsvg1h5vdf-aspell-dict-es-1.11-2-fish-completions.drv
+  /nix/store/vzf7dvl8p8xz8jzx0zyj9fipir64b082-peek-1.5.1-fish-completions.drv
+  /nix/store/wnvzr9ajjsa34d8frgnnb60phz528h4h-hm-session-vars.sh-fish-completions.drv
+  /nix/store/wppdk4zncldm7qw7vpimynk9dfzdfxyf-python3.12-polars-1.12.0-fish-completions.drv
+  /nix/store/wywpsycjqfhxj8jsly498ybaq10bxggg-dolphin-plugins-24.08.3-fish-completions.drv
+  /nix/store/wz6i73diz7pw8dxfp7k4f4nfclisxnfl-cargo-audit-0.21.0-fish-completions.drv
+  /nix/store/x21yfaxwsfqrvf90bwz2k4dnq89jb60m-python3.12-plotly-5.24.1-fish-completions.drv
+  /nix/store/xdl8lamyg68j9l24ag9y5y1srjx7b0xv-python3.12-beautifulsoup4-4.12.3-fish-completions.drv
+  /nix/store/xkqz753y6lj895wn4pikycxjs3nnxl1l-python3.12-httpx-0.27.2-fish-completions.drv
+  /nix/store/y1b85mafmgv0qpclm2hj0p61pa9354gb-yazi-0.3.3-fish-completions.drv
+  /nix/store/y6k3x0q1skd7v9n59fjywbh911nyvxvd-python3.12-seaborn-0.13.2-fish-completions.drv
+  /nix/store/y849rvf3q3b2mhq4mlg32cp5lr2wiqin-python3.12-torchvision-0.20.1-fish-completions.drv
+  /nix/store/y98c00ab7cbp0kl8z18dyd9rpxw07k9r-vit-2.3.2-fish-completions.drv
+  /nix/store/yddmslczqrci4xpxk3s37f8bhgkbivkd-python3.12-sympy-1.13.3-fish-completions.drv
+  /nix/store/ywxzy6xam3gdnwrn3qga7ilb51d182z0-pgcli-4.1.0-fish-completions.drv
+  /nix/store/zfs566zci67w58s91m6lmj58d5kcsmx3-uv-0.4.30-fish-completions.drv
+  /nix/store/zp68kk523b6sjhjrandydkpfbax2jagr-eza-0.20.24-fish-completions.drv
+  /nix/store/fdls9blql52lhjrzavjiikrpv25rf4n6-diego-fish-completions.drv
+  /nix/store/fnf9fzcwgis7h64bhsfhdkpnn1956ivq-serve.fish.drv
+  /nix/store/fylzl4linyq5dh6rw2my2v65y5nq8b1p-hm_.localbinconda.drv
+  /nix/store/icvby9nn2b2dm69ndqkhjsbri0xl6y4y-hm_.localbinpacman.drv
+  /nix/store/iksfm1gicrwndshd2c66yb5i94qfd4zj-hm_.localbinpoetry.drv
+  /nix/store/jckarnzvazfpv5scwrfrsvwkmnhi4jhv-hm_.localbindnf.drv
+  /nix/store/jiq2323vqvdp6l9ndjxpb849csqkq5pk-hm_.localbinuv.drv
+  /nix/store/jjq2grs35hhakp5h60bmgh7m4nib61wa-hm_.localbingo.drv
+  /nix/store/k9kq1qi84gs6jakar8kszzmws8mw7hgp-hm_.localbinbrew.drv
+  /nix/store/kclmrzrp3zppa1a46i0484dqqcfnwpcj-httpd.service.drv
+  /nix/store/l53hw9p47ksn002kgwm777sfb09nds31-hm_.localbinnpx.drv
+  /nix/store/k6c6s8jzvscngn4fl97m7xynmlkgxiiz-home-manager-path.drv
+  /nix/store/lw26pb6q0w67p42jhgcpzrg5dhskyiqg-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/mqywkp107bwry1z0vhfblym62a7dmn2k-profile.drv
+  /nix/store/pa0xgywj25x2sm1nmaxvf65830nfrrn1-hm_.manpath.drv
+  /nix/store/pxw6wjxf7hni6a3r0628bx1b2mrxcmw4-hm_.localbinnix.drv
+  /nix/store/rakwpjb13nkn1nql80rkmkdrbh2yi329-hm_.zshrc.drv
+  /nix/store/s1hq841rkc4hfp7avsx156zkkii5qm3q-hm_.localbinpipx.drv
+  /nix/store/vdv8hs80p53bamqwid1qj6l1qkw0pzid-hm_.localbindockercompose.drv
+  /nix/store/wxmddc6cwicvhriicy2dy6iiiy3j4hmc-hm_.localbinyarn.drv
+  /nix/store/y7rjy1njzzsz2gq0a2757rrlqixj2q3w-hm_.localbinhomemanager.drv
+  /nix/store/yp30ncqw7hc2wy6adp1n5w4w71z1nx0b-hm_.localbinyum.drv
+  /nix/store/z1pr707y6w7lb3ivwziil0zcqpzyx8d9-hm_.localbinparu.drv
+  /nix/store/z9c16k8whnr2k07xmdfawpsa5rcdavyr-hm_.localbinnpm.drv
+  /nix/store/za5q5bw53s4czcigr9a0w9xxvcfq35v5-hm_.localbinpip3.drv
+  /nix/store/dmb3z9v46p127jmpz06g9aspcmz38mx5-home-manager-files.drv
+  /nix/store/f7jvwvyvvqwg30qdfpi7ak1hxdfxjblc-activation-script.drv
+  /nix/store/xdcvs7jj33d9hnx4qin6racq9hxsjksx-home-manager-generation.drv
+these 32 paths will be fetched (119.11 MiB download, 929.65 MiB unpacked):
+  /nix/store/9dgpj7ippixca65z13smbavpp1fbf5rr-auto-patchelf-0-unstable-2024-08-14
+  /nix/store/zmia540cpzlan8dbnf6hnmgxn3fs3zhf-auto-patchelf-hook
+  /nix/store/z2w2a7sn9wh9kcja3frfv1bgrp9a4010-babelfish-1.2.1
+  /nix/store/snjjpdgph0hyha4vm58jyk4mpw03wgq3-busybox-1.36.1
+  /nix/store/0llkf2nyl0nsk46kxw89jac09rp782by-curl-8.12.1
+  /nix/store/azmm9a0b076mnbnvp1bsjlihkankydbl-curl-8.12.1-bin
+  /nix/store/bylbai6fm97ykcdrfjy2v5smhh18bsby-curl-8.12.1-dev
+  /nix/store/8g00d8psl74nk8qqgl4byhj5fawy544k-curl-8.12.1-man
+  /nix/store/kr2rkfi2b15k3whwj2gmibv7xkx22yfx-krb5-1.21.3
+  /nix/store/yz2sqhcrnkx12g124qrjjf2wmcsmhxhd-krb5-1.21.3-dev
+  /nix/store/pblf27mh4afpjadsv9r7qnpfi3f0ikrn-krb5-1.21.3-lib
+  /nix/store/pjqrsq0cbl9faj7v2x03hwnfhsi5b9ph-libssh2-1.11.1
+  /nix/store/s44hqfz5vk6d2g4ddpdkl38x99iw8k1c-libssh2-1.11.1-dev
+  /nix/store/lkfxic36p5rnbwyqfgnh9akwnxs0agsy-mirrors-list
+  /nix/store/ginkzb6g0s8bdijz5ixhg7hha02v7v91-musl-1.2.5
+  /nix/store/gqw9qzznhgnbqycbdrwz6xwsy62c3gl3-nghttp2-1.64.0
+  /nix/store/ap4f1dba1k99xivql14nrhncgc39g1xr-nghttp2-1.64.0-dev
+  /nix/store/28611j8cjjvifa0lxcm2ddvjl35rj9zb-nghttp2-1.64.0-lib
+  /nix/store/r4vcgcx91pgrira0nh8pkhnxsyawk8m8-nodejs-install-executables
+  /nix/store/qyaax7sm8a66pca51j2w7kbji1bi29ym-nodejs-install-manuals
+  /nix/store/2i7kk9s6s7xd1mbk84ad9krg1r00cijk-npm-build-hook
+  /nix/store/2pvpgyb77hrfj1nrq58ip412snfqxvjs-npm-config-hook
+  /nix/store/an8ww07vc744m294jydnp49n1cyjp6gb-npm-install-hook
+  /nix/store/jnm3rnrij3889ag29kilwfcmzf484sfr-openssl-3.3.3
+  /nix/store/bh7a22vm8bkcngscl70wkq3n2xbkynbq-openssl-3.3.3-bin
+  /nix/store/khr2vkk1absw0i6ik9v0iv7077m1cii5-openssl-3.3.3-dev
+  /nix/store/n94cwwn7jwa0f1y0d75j4alpjgn7hfjq-prefetch-npm-deps-0.1.0
+  /nix/store/jag2131a95gw6ng7grig9pj3dn2q8vrv-python3-3.12.8-env
+  /nix/store/s4d11a0d10b0mlwgjl7qd639fgpkfww0-python3.12-pyelftools-0.31
+  /nix/store/j7fs0issycvpg0gxgaz73sz2w7ax9pqg-tinyxxd-1.3.7
+  /nix/store/15swx9lfzkzbq07ypd0h8si5dc3jfp3z-wrangler-3.80.1
+  /nix/store/2ijxynarg69zrrmlg9jjczdjxh38f0av-xxd-tinyxxd-1.3.7
+copying path '/nix/store/ginkzb6g0s8bdijz5ixhg7hha02v7v91-musl-1.2.5' from 'https://cache.nixos.org'...
+copying path '/nix/store/snjjpdgph0hyha4vm58jyk4mpw03wgq3-busybox-1.36.1' from 'https://cache.nixos.org'...
+building '/nix/store/83d5fbir3dvzglabb6xp4j8kvxg8jd78-bashrc.drv'...
+building '/nix/store/yscblfayda4xarxkpc84ccy6dihjg0ml-connect.drv'...
+building '/nix/store/98p9a058i4h7mqv99v1gshi9k5cdw7b7-dummy-fc-dir1.drv'...
+building '/nix/store/z7kcimxwkmhy54qa0ddm1a9sa54ppfwd-dummy-fc-dir2.drv'...
+building '/nix/store/1nz3ajwaczwd76y7d7fr6v899aq142pq-dummy-xdg-mime-dirs1.drv'...
+building '/nix/store/s5fi9ihnknx6kmckzym7af9v3zik8ick-dummy-xdg-mime-dirs2.drv'...
+building '/nix/store/1zfn3zv13fdqpvqnx0rgix3jqjcd4fb1-hm-session-vars.sh.drv'...
+building '/nix/store/bll91l707y68nf39mhbm4d0xaras6chr-hm_.localbinapt.drv'...
+copying path '/nix/store/2i7kk9s6s7xd1mbk84ad9krg1r00cijk-npm-build-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/j7fs0issycvpg0gxgaz73sz2w7ax9pqg-tinyxxd-1.3.7' from 'https://cache.nixos.org'...
+copying path '/nix/store/z2w2a7sn9wh9kcja3frfv1bgrp9a4010-babelfish-1.2.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/lkfxic36p5rnbwyqfgnh9akwnxs0agsy-mirrors-list' from 'https://cache.nixos.org'...
+copying path '/nix/store/qyaax7sm8a66pca51j2w7kbji1bi29ym-nodejs-install-manuals' from 'https://cache.nixos.org'...
+copying path '/nix/store/r4vcgcx91pgrira0nh8pkhnxsyawk8m8-nodejs-install-executables' from 'https://cache.nixos.org'...
+copying path '/nix/store/n94cwwn7jwa0f1y0d75j4alpjgn7hfjq-prefetch-npm-deps-0.1.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/8g00d8psl74nk8qqgl4byhj5fawy544k-curl-8.12.1-man' from 'https://cache.nixos.org'...
+copying path '/nix/store/gqw9qzznhgnbqycbdrwz6xwsy62c3gl3-nghttp2-1.64.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/s4d11a0d10b0mlwgjl7qd639fgpkfww0-python3.12-pyelftools-0.31' from 'https://cache.nixos.org'...
+copying path '/nix/store/28611j8cjjvifa0lxcm2ddvjl35rj9zb-nghttp2-1.64.0-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/jnm3rnrij3889ag29kilwfcmzf484sfr-openssl-3.3.3' from 'https://cache.nixos.org'...
+copying path '/nix/store/15swx9lfzkzbq07ypd0h8si5dc3jfp3z-wrangler-3.80.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/2ijxynarg69zrrmlg9jjczdjxh38f0av-xxd-tinyxxd-1.3.7' from 'https://cache.nixos.org'...
+building '/nix/store/qgv63rd59ag125ycbl1bv57agv261fqy-act-0.2.68-fish-completions.drv'...
+building '/nix/store/hg8pg3r6fy0jcybg94j32f4vk50pxk75-aspell-dict-en-2020.12.07-0-fish-completions.drv'...
+building '/nix/store/vm2c59vx9s8b7jvgxx5vp0xsvg1h5vdf-aspell-dict-es-1.11-2-fish-completions.drv'...
+building '/nix/store/k38h0ppysy6ni2ngr35pc62yp1v449nd-audacity-3.7.0-fish-completions.drv'...
+building '/nix/store/4mhxdrfzk2f245lfk78whh96phj8aqwj-awscli2-2.19.0-fish-completions.drv'...
+building '/nix/store/p2w03d3zzssgi3vka8jfcjjy656aah5l-azure-cli-2.65.0-fish-completions.drv'...
+building '/nix/store/rpq6grqzg7aawy2xy5marqli0r3zpik1-bind-9.18.33-fish-completions.drv'...
+building '/nix/store/p10lwqpkcgdphy8h0iw85scd3ndlkgv2-binwalk-2.4.3-fish-completions.drv'...
+copying path '/nix/store/pblf27mh4afpjadsv9r7qnpfi3f0ikrn-krb5-1.21.3-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/pjqrsq0cbl9faj7v2x03hwnfhsi5b9ph-libssh2-1.11.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/ap4f1dba1k99xivql14nrhncgc39g1xr-nghttp2-1.64.0-dev' from 'https://cache.nixos.org'...
+copying path '/nix/store/2pvpgyb77hrfj1nrq58ip412snfqxvjs-npm-config-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/jag2131a95gw6ng7grig9pj3dn2q8vrv-python3-3.12.8-env' from 'https://cache.nixos.org'...
+copying path '/nix/store/bh7a22vm8bkcngscl70wkq3n2xbkynbq-openssl-3.3.3-bin' from 'https://cache.nixos.org'...
+copying path '/nix/store/an8ww07vc744m294jydnp49n1cyjp6gb-npm-install-hook' from 'https://cache.nixos.org'...
+building '/nix/store/17rvipaqgwpwgvlsiyd15lxr56c6zz1j-bitwarden-desktop-2025.2.0-fish-completions.drv'...
+building '/nix/store/a473n5jr6b5m8jx3gb5j4kn4vibgqb7p-breeze-6.2.5-fish-completions.drv'...
+building '/nix/store/pgndm1vxrvgchgq2v2ckrlm2wgrxicsb-breeze-gtk-6.2.5-fish-completions.drv'...
+building '/nix/store/l0k91nyn1pzw5vbb352xnl4fbqn663kx-breeze-icons-6.8.0-fish-completions.drv'...
+building '/nix/store/269vh2602zhnl4jzcv2iz9cj4akyh3cv-btop-1.4.0-fish-completions.drv'...
+building '/nix/store/f84wsqxmr8plzjfd1kdb3fqjdl4lybrr-busybox-1.36.1-fish-completions.drv'...
+building '/nix/store/wz6i73diz7pw8dxfp7k4f4nfclisxnfl-cargo-audit-0.21.0-fish-completions.drv'...
+copying path '/nix/store/0llkf2nyl0nsk46kxw89jac09rp782by-curl-8.12.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/9dgpj7ippixca65z13smbavpp1fbf5rr-auto-patchelf-0-unstable-2024-08-14' from 'https://cache.nixos.org'...
+copying path '/nix/store/kr2rkfi2b15k3whwj2gmibv7xkx22yfx-krb5-1.21.3' from 'https://cache.nixos.org'...
+copying path '/nix/store/khr2vkk1absw0i6ik9v0iv7077m1cii5-openssl-3.3.3-dev' from 'https://cache.nixos.org'...
+building '/nix/store/38y7s2gvlacwq743bm42ymv238yzxaby-cargo-edit-0.13.0-fish-completions.drv'...
+building '/nix/store/l8xi8w9g7gqfd3430yyyp4iayz2r4d18-cargo-watch-8.5.3-fish-completions.drv'...
+building '/nix/store/ggrdf3fp489zg8gq8s0mmbk36d3hr7g6-certbot-2.11.0-fish-completions.drv'...
+building '/nix/store/brvggy7bai64mfzw55ars5b7dxs5bxgh-clang-tools-18.1.8-fish-completions.drv'...
+building '/nix/store/clf9hnhxhqngbahqsjnxqs1yrxhqmg1p-cloud-infra-mcp-1.0.0-npm-deps.drv'...
+building '/nix/store/pcxcy5xchba6i7vmfvhp6lsj58jl0gmx-cloudflared-2024.10.0-fish-completions.drv'...
+building '/nix/store/0f28rcdi4cf8pn4aqs3jnhfx3irzlgay-cmake-3.30.5-fish-completions.drv'...
+copying path '/nix/store/zmia540cpzlan8dbnf6hnmgxn3fs3zhf-auto-patchelf-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/azmm9a0b076mnbnvp1bsjlihkankydbl-curl-8.12.1-bin' from 'https://cache.nixos.org'...
+copying path '/nix/store/yz2sqhcrnkx12g124qrjjf2wmcsmhxhd-krb5-1.21.3-dev' from 'https://cache.nixos.org'...
+copying path '/nix/store/s44hqfz5vk6d2g4ddpdkl38x99iw8k1c-libssh2-1.11.1-dev' from 'https://cache.nixos.org'...
+building '/nix/store/1jmj0f42xa4lh33pr0kfxk4l58ir9155-connect-fish-completions.drv'...
+building '/nix/store/qw3m5iydafc1piz7fr6jj2n612990zf8-coreutils-9.5-fish-completions.drv'...
+building '/nix/store/j2jw5drfzlhkcjrvjrp0a314yrr1bzdm-dart-sass-1.80.5-fish-completions.drv'...
+building '/nix/store/fp9z4zrf6ws42a1b4yq2n4hrsh546lbv-delta-0.18.2-fish-completions.drv'...
+building '/nix/store/jhzpvklii6055gxa04g9ikdsqa875zg5-delve-1.23.1-fish-completions.drv'...
+building '/nix/store/46vq9czqd2hdnz65cd4360ynwqjv9z2s-diff-so-fancy-1.4.4-fish-completions.drv'...
+error: builder for '/nix/store/clf9hnhxhqngbahqsjnxqs1yrxhqmg1p-cloud-infra-mcp-1.0.0-npm-deps.drv' failed with exit code 1;
+       last 16 log lines:
+       > Running phase: unpackPhase
+       > unpacking source archive /nix/store/575j8h5xlsxvpsympzhr4c1lsxvzgvxi-cloud-infra-mcp-src
+       > source root is cloud-infra-mcp-src
+       > Running phase: patchPhase
+       > Running phase: updateAutotoolsGnuConfigScriptsPhase
+       > Running phase: configurePhase
+       > no configure script, doing nothing
+       > Running phase: buildPhase
+       >
+       > ERROR: The package-lock.json file does not exist!
+       >
+       > package-lock.json is required to make sure that npmDepsHash doesn't change
+       > when packages are updated on npm.
+       >
+       > Hint: You can copy a vendored package-lock.json file via postPatch.
+       >
+       For full logs, run 'nix log /nix/store/clf9hnhxhqngbahqsjnxqs1yrxhqmg1p-cloud-infra-mcp-1.0.0-npm-deps.drv'.
+error: 1 dependencies of derivation '/nix/store/g1684wa3x59zsl2agv6dmrdl91rgksk2-cloud-infra-mcp-1.0.0.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/v0712yc37gp4vsv52j4rkj7s6fi4fdd1-cloud-infra-mcp-1.0.0-fish-completions.drv' failed to build
+copying path '/nix/store/bylbai6fm97ykcdrfjy2v5smhh18bsby-curl-8.12.1-dev' from 'https://cache.nixos.org'...
+building '/nix/store/cjsly2jac48api399l05rxb6vkmbbn9m-direnv-2.35.0-fish-completions.drv'...
+building '/nix/store/6a3ay4sv29qn6s6dbxdpxw84z8abc5cc-dive-0.12.0-fish-completions.drv'...
+building '/nix/store/2jvrrn5hzrd21qjvjywwjfc7rdr4ix3f-dnscrypt-proxy-2.1.5-fish-completions.drv'...
+building '/nix/store/ll2di3c7sgyim7srkh0d82qld7ygm56b-docker-27.5.1-fish-completions.drv'...
+building '/nix/store/f7z468gv7n4mdnkr60nsm6gv3pb12alr-docker-buildx-0.18.0-fish-completions.drv'...
+building '/nix/store/h12rcq8siwrcnhwm8yh9xyazgk3s6605-docker-compose-2.30.3-fish-completions.drv'...
+building '/nix/store/7fskcg1agh2wlfgnmcgxp61fa5zj0yqh-dolphin-24.08.3-fish-completions.drv'...
+building '/nix/store/wywpsycjqfhxj8jsly498ybaq10bxggg-dolphin-plugins-24.08.3-fish-completions.drv'...
+error: 1 dependencies of derivation '/nix/store/k6c6s8jzvscngn4fl97m7xynmlkgxiiz-home-manager-path.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/y7imiwv31ls09l2wk4yvza09habxyqd9-man-paths.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/xdcvs7jj33d9hnx4qin6racq9hxsjksx-home-manager-generation.drv' failed to build
+[2026-03-23 16:56:49] PERF: home-manager switch = 56.9s
+[2026-03-23 16:56:49] PERF: TOTAL switch = 57.0s
+[2026-03-23 16:56:49] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface
+[2026-03-23 16:56:49] ========== Build script finished ==========
+[2026-03-23 16:59:13] ========== Build script started ==========
+[2026-03-23 16:59:13] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 16:59:13] PERF: start switch
+[2026-03-23 16:59:13] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 16:59:13] PERF: git stage = 42ms
+[2026-03-23 16:59:13] PERF: clean backups = 16ms
+[2026-03-23 16:59:13] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+warning: found empty hash, assuming 'sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+these 160 derivations will be built:
+  /nix/store/k6rgiyj7wqzzmlaf8hmxfq0hfv1j6hab-claude.drv
+  /nix/store/cqhkr6lqa7dayfnwmy6ywnppdj3yri9p-claude-code-2.1.76.drv
+  /nix/store/qfgsbl9ghqkabrzmwv2dlw7x1qk4mnk3-cloud-infra-mcp-1.0.0-npm-deps.drv
+  /nix/store/r42867q22cd4ag6dlmvl9dksd0v6ybv7-cloud-infra-mcp-1.0.0.drv
+  /nix/store/y7wd0bb5r3n06vdvabxjz2dxcv462fkv-man-paths.drv
+  /nix/store/ljj5rcs3rnk0kcmbfr3byzfc7vskarrd-man-cache.drv
+  /nix/store/0bvakf46s83qc1j53inrdj4xpc5v74bp-hm_.manpath.drv
+  /nix/store/0mwb5jzi4mql4cx694jsc97k9j8am0a2-hm_.localbincargo.drv
+  /nix/store/0p5hf24vfbmmm7bqfkps349gkv86g65p-feh-3.10.3-fish-completions.drv
+  /nix/store/0r0slmxqbffydc4kn06jsb36mg7riaq2-terraform-1.9.8-fish-completions.drv
+  /nix/store/0w2l1dpngv352lzmfc8jgqpyhvjggarq-nix-zsh-completions-0.5.1-fish-completions.drv
+  /nix/store/108k34mxgrvpii4xf8lij57lcmpyhq49-krita-5.2.9-fish-completions.drv
+  /nix/store/10x8qzx91gprpxvrzhxbdika99w2gmnd-home-manager-fish-completions.drv
+  /nix/store/13c4xl5lglvb9fs0k59fkjs9csgbw7kj-python3.12-numpy-1.26.4-fish-completions.drv
+  /nix/store/19644ln7ngbb9chcdn2kpgpwfdjzfln1-hm_.localbinaptget.drv
+  /nix/store/19cjm619dwwrpzhn5fdrdlic2baj31lv-xxd-tinyxxd-1.3.7-fish-completions.drv
+  /nix/store/1knppwwyh786nl95v75r3iy8njsyyk9a-gwenview-23.08.5-fish-completions.drv
+  /nix/store/1p3hhjp82w8nzlsr76m9nj6r823xhdl5-hm_.localbinwget.drv
+  /nix/store/1r7xw0v4c8y11njbx6ggq5i2fpdacwh3-grafana-11.3.7+security-01-fish-completions.drv
+  /nix/store/22f907f6crnkww1mr0g8r8frhxpnb2g9-hm_.localbincurl.drv
+  /nix/store/232igi2dbx0vn4m2dpwcrv2xb109y3q3-password-store-1.7.4-fish-completions.drv
+  /nix/store/29hlzq7lgm4vs80zcj8jnvczv6pmshbi-hm_.localbinsnap.drv
+  /nix/store/2bqv3mvnfjn4nzi0fpkjfjzasy11dc49-hm_.localbinpnpm.drv
+  /nix/store/2hp833ikrdp0rqb3fyb0wmv9cibphc61-dummy-fc-dir1-fish-completions.drv
+  /nix/store/2j7c9dbps98zdd5bvqnlwbh2nhblzl6m-vlc-3.0.21-fish-completions.drv
+  /nix/store/2j9l8qyg2y2ixz32jlzk8kyc0p796iwm-wrangler-3.80.1-fish-completions.drv
+  /nix/store/fkzdv0p8cbpiwbk8xdjycxskyfa3rwph-home-manager-path.drv
+  /nix/store/2jmbqjldjg0yl9a7vrnjp7pzbly135h4-activation-script.drv
+  /nix/store/2jvrrn5hzrd21qjvjywwjfc7rdr4ix3f-dnscrypt-proxy-2.1.5-fish-completions.drv
+  /nix/store/2nxgbyqgzjvs3wphn60av9s2163rmh6a-hm_.localbinyay.drv
+  /nix/store/5c5b8lb59gw4adf1zr9bbbcdpnj9b1ss-hm_.localbinpip.drv
+  /nix/store/9093ckcsv5lw5c872ml7a9h1rn2h3hqf-hm-session-vars.fish.drv
+  /nix/store/5cajhpqlj6irgaamzfig9w1i323pkhs7-config.fish.drv
+  /nix/store/5ima4rr9rqz91pmsa1gjfmhj4cakklgi-hm_.localbinnixosrebuild.drv
+  /nix/store/6wcivsgp9dwgs3mgfzrsyb52jk7l3dbk-hm_.localbinpkg.drv
+  /nix/store/6ymwq9296i5qcgivs00q2pxxmsid4m8k-hm_.localbinbun.drv
+  /nix/store/7b66dqs56cdiq05i8qvyf9xbn6g7axbn-hm_.localbindocker.drv
+  /nix/store/axa5q9y8cx4afx52mcm5wlc3wy5kkd1f-hm_.localbinnixenv.drv
+  /nix/store/bs0ry366d8sqw2a5m38mwsfaz06vw5ja-hm_.localbinrsync.drv
+  /nix/store/dnan1br5ha5gmlj765490wsk7611r2cq-hm_.localbinflatpak.drv
+  /nix/store/fnf9fzcwgis7h64bhsfhdkpnn1956ivq-serve.fish.drv
+  /nix/store/fylzl4linyq5dh6rw2my2v65y5nq8b1p-hm_.localbinconda.drv
+  /nix/store/icvby9nn2b2dm69ndqkhjsbri0xl6y4y-hm_.localbinpacman.drv
+  /nix/store/3i6p9dgyv3gd7wckjrw819bhm7sa0spy-kubectx-0.9.5-fish-completions.drv
+  /nix/store/3ws0cipcd4hsi4ml098ikzjqxmn1kxqi-dummy-xdg-mime-dirs1-fish-completions.drv
+  /nix/store/42cayivlas8jg6kdlq7w9x54rmvcw9jj-yq-go-4.44.3-fish-completions.drv
+  /nix/store/46vq9czqd2hdnz65cd4360ynwqjv9z2s-diff-so-fancy-1.4.4-fish-completions.drv
+  /nix/store/4bnzlnv0sqff8bp1f5samm7gx79c06df-llvm-18.1.8-fish-completions.drv
+  /nix/store/4m91kxn4xmfw8h2bcl86y6s93lyqqn53-wireguard-tools-1.0.20210914-fish-completions.drv
+  /nix/store/4np26d1bzhd7r0nbhl4a2vcrw8g9rad0-libreoffice-24.2.7.2-wrapped-fish-completions.drv
+  /nix/store/4xfla8k7p0p0bhdl55w51f229p9zi8lz-gopls-0.16.2-fish-completions.drv
+  /nix/store/512pcp8pc3m4vi8dlknmlxljif98vik5-gemini-cli-0.27.0-fish-completions.drv
+  /nix/store/5d3knzlk6czjv8nwl0xqya35csc57h55-rustup-1.27.1-fish-completions.drv
+  /nix/store/5fb1dqdmbnsyjb1m1j4f6wxcpkv1znab-ninja-1.12.1-fish-completions.drv
+  /nix/store/5i08qj331iqz7agw0y4adzqxzhsfswgs-python3.12-pyarrow-18.0.0-fish-completions.drv
+  /nix/store/6a3ay4sv29qn6s6dbxdpxw84z8abc5cc-dive-0.12.0-fish-completions.drv
+  /nix/store/6dhrfhq1zxh26imml1nypsg11bfsjqz9-go-1.23.8-fish-completions.drv
+  /nix/store/7fskcg1agh2wlfgnmcgxp61fa5zj0yqh-dolphin-24.08.3-fish-completions.drv
+  /nix/store/7hkv68j410lcfs36rj0dmp5fh0rvzy36-obsidian-1.7.6-fish-completions.drv
+  /nix/store/7v4ns250rvlbvpjszx3dzdpj11953k2a-dummy-xdg-mime-dirs2-fish-completions.drv
+  /nix/store/8axklsgrnlm4xhq1g9g3w6m5l1g2ihrb-pipx-1.7.1-fish-completions.drv
+  /nix/store/8js4skrrslq4vyzy8rys1644qip73k39-oci-cli-3.14.0-fish-completions.drv
+  /nix/store/8xbrdk9n2f68fx5pw9caz6bxmmm5w4bc-gopass-1.15.14-fish-completions.drv
+  /nix/store/90j5qggy8vnklblgczcrzgcxr3fymq9m-python3.12-torch-2.5.1-fish-completions.drv
+  /nix/store/9jyzd0czbby1dbijdzgf3aqpk38bxpyv-obs-studio-30.2.3-fish-completions.drv
+  /nix/store/9ki424g964nwjrva7sbr6i4dq1xh84ps-httpie-3.2.4-fish-completions.drv
+  /nix/store/9pf9n4hgaapnv80qngbgxgr5mwj8xh82-wget-1.25.0-fish-completions.drv
+  /nix/store/9sfmcagv69q0k66iwf4m325rismgsjb9-redis-7.2.7-fish-completions.drv
+  /nix/store/a11wjby2vcv3c1lk69mcydfwx01j531w-python3.12-virtualenv-20.26.6-fish-completions.drv
+  /nix/store/azw9rdi94rw68m5gm7npjgm0rscpvgsg-jq-1.7.1-fish-completions.drv
+  /nix/store/bgmpxqc92dkkh8r9k6iz4vxcvjrx9yhw-python3.12-notebook-7.2.2-fish-completions.drv
+  /nix/store/bhv0fbznpsd1gv478hvapjyl8yikqq6n-yarn-1.22.22-fish-completions.drv
+  /nix/store/bip0a7h5s1skil95j55h4i72s3cp633g-mediainfo-24.06-fish-completions.drv
+  /nix/store/bjflwvj4w18kpq3dv4kzqnpn8l0c474j-hexyl-0.15.0-fish-completions.drv
+  /nix/store/bpnw7p5d62gp0hw6iijn5m4bnf79v9gs-unrar-7.0.9-fish-completions.drv
+  /nix/store/c3d6mv5n1r3xih7lx6vwa7lkdlp68hls-stern-1.31.0-fish-completions.drv
+  /nix/store/c5rvwpc7j12yvsbq893a5633gqms5v87-r-tidyr-1.3.1-fish-completions.drv
+  /nix/store/c68wmqjpzsj7273wa4bbkjix6xa9bkpc-python3.12-jupyterlab-4.2.5-fish-completions.drv
+  /nix/store/chcgg9hrjk9wpi23saphdmazi91y58dh-python3.12-dask-2024.10.0-fish-completions.drv
+  /nix/store/cjsly2jac48api399l05rxb6vkmbbn9m-direnv-2.35.0-fish-completions.drv
+  /nix/store/cwzzapz7a3gr10f9q13zyl0ipdwfv4zk-joplin-desktop-3.0.15-fish-completions.drv
+  /nix/store/cz39y6i9af175as4b1h4kv5ar2il3n54-glow-2.0.0-fish-completions.drv
+  /nix/store/dilcsnicj8cl0i922rvcdmhz7bsaq0kx-pnpm-9.15.9-fish-completions.drv
+  /nix/store/diwgl754h6snq93ghqzablvcbvgzpm0z-rclone-1.68.2-fish-completions.drv
+  /nix/store/f7z468gv7n4mdnkr60nsm6gv3pb12alr-docker-buildx-0.18.0-fish-completions.drv
+  /nix/store/fp8lnjdlga37fazinx5s8l7lwnmvpap3-python3.12-bokeh-3.6.0-fish-completions.drv
+  /nix/store/fpfsk939h07cz49b3wliclsrvry72rbg-claude-code-2.1.76-fish-completions.drv
+  /nix/store/g24cb79chzgcj92av02dcsnx34mfnwjb-zettlr-3.2.0-fish-completions.drv
+  /nix/store/gcb12yf7ixs8rm2ys0rnjcijrz5gmwdl-gitlab-runner-17.2.0-fish-completions.drv
+  /nix/store/ggsbwsgr05fhln3bx55pzgc75qzk8r21-sops-3.9.4-fish-completions.drv
+  /nix/store/ghwn6qgxkkav3b1zf0qrzr68qxdx6ha9-zsh-5.9-fish-completions.drv
+  /nix/store/gj8z4g8q09jb6m6cr3s977r5sxfd3x12-python3.12-ipython-8.29.0-fish-completions.drv
+  /nix/store/h12rcq8siwrcnhwm8yh9xyazgk3s6605-docker-compose-2.30.3-fish-completions.drv
+  /nix/store/igdwfbwv0n8khkbl0j6d0x4gn7w4vs55-flarectl-0.108.0-fish-completions.drv
+  /nix/store/is4m3qvzjdi2aywm64qxzbwgamy6ijy0-starship-1.22.1-fish-completions.drv
+  /nix/store/j2jh9x50hckd8kfq4zs04hysgzngwrks-doxygen-1.10.0-fish-completions.drv
+  /nix/store/j65q7qbxbg86sw40g0x9g7gjzma4jjd8-nerdfonts-3.2.1-fish-completions.drv
+  /nix/store/jcrplkqbk0wy3i8ymwf03l4zs5c7zr3z-python3.12-scikit-learn-1.5.2-fish-completions.drv
+  /nix/store/ll2di3c7sgyim7srkh0d82qld7ygm56b-docker-27.5.1-fish-completions.drv
+  /nix/store/lrfakrp305p6pri3bjdvdna0j2d6b6q9-k9s-0.32.7-fish-completions.drv
+  /nix/store/lz2v0x2ap8m7pyn38yj2f9xfjjjhp657-mycli-1.27.2-fish-completions.drv
+  /nix/store/mi4pkmiq8fipw861z8n8r7ppcr7kxzza-sqlite-3.46.1-fish-completions.drv
+  /nix/store/n5fx3d2zkla1m7jz32s0fpnj31346j83-kubernetes-helm-3.16.3-fish-completions.drv
+  /nix/store/n7bav80g5n4686w504jy5zrndblvacdn-esbuild-0.24.0-fish-completions.drv
+  /nix/store/ndwdlcypygq66a9iyic8c3x60r3wa67m-taskwarrior-2.6.2-fish-completions.drv
+  /nix/store/p95dja5rkzpai7grrr06snc3bk1bmm7w-python3.12-matplotlib-3.9.2-fish-completions.drv
+  /nix/store/pamvbbj4s2dh8agkldprhmfdxjv08wpy-mesh-fish-completions.drv
+  /nix/store/pqf7cdim9rxjycx8g0czq0dkss8kbx4l-litecli-1.12.3-fish-completions.drv
+  /nix/store/py2kmhvrfnbvcdxjfmvq1g8pk9kapydd-r-dplyr-1.1.4-fish-completions.drv
+  /nix/store/pydyi0yl99dlyigh8ia8r541q5swwsdq-python3.12-pandas-2.2.3-fish-completions.drv
+  /nix/store/q2i01zhwfmaiws0ywzdx6c6wjq98gwn7-python3.12-scipy-1.14.1-fish-completions.drv
+  /nix/store/q3sdxvxlv3fsds0zh3s2mj1yvzdhwiqg-r-ggplot2-3.5.1-fish-completions.drv
+  /nix/store/q7h5nz407rwzqmakrli33rlda8g53fhx-lldb-18.1.8-fish-completions.drv
+  /nix/store/qiqyrg0r32vigm5jkr5bkmv1xhz36fgy-python3.12-pydantic-2.9.2-fish-completions.drv
+  /nix/store/qkdsagak39z3ws97qxwvs2xjf48aj7sg-typescript-5.6.3-fish-completions.drv
+  /nix/store/qmrkj5210mddgqkspli8z8316qz44av0-google-cloud-sdk-494.0.0-fish-completions.drv
+  /nix/store/rxvcqnn9bfx190k0m6fzgyylsimdpj0f-mdcat-2.6.1-fish-completions.drv
+  /nix/store/shn9vsl528hz0zv66djm1f9mp5510jld-prometheus-2.55.0-fish-completions.drv
+  /nix/store/skh93s6mgvca3lvzi9v30wi723hmaryx-python3.12-requests-2.32.3-fish-completions.drv
+  /nix/store/v26d1yfgrlf6drk4n45ac2zhs42pv1pf-drawio-24.7.17-fish-completions.drv
+  /nix/store/vddbgynj8fhz2ywv0n619i1wcf18bn51-waydroid.desktop-fish-completions.drv
+  /nix/store/vg8ijzc34cfa5vm9vwhrvqbr4wwzb021-dummy-fc-dir2-fish-completions.drv
+  /nix/store/vzf7dvl8p8xz8jzx0zyj9fipir64b082-peek-1.5.1-fish-completions.drv
+  /nix/store/wnvzr9ajjsa34d8frgnnb60phz528h4h-hm-session-vars.sh-fish-completions.drv
+  /nix/store/wppdk4zncldm7qw7vpimynk9dfzdfxyf-python3.12-polars-1.12.0-fish-completions.drv
+  /nix/store/wywpsycjqfhxj8jsly498ybaq10bxggg-dolphin-plugins-24.08.3-fish-completions.drv
+  /nix/store/x21yfaxwsfqrvf90bwz2k4dnq89jb60m-python3.12-plotly-5.24.1-fish-completions.drv
+  /nix/store/xdl8lamyg68j9l24ag9y5y1srjx7b0xv-python3.12-beautifulsoup4-4.12.3-fish-completions.drv
+  /nix/store/xkqz753y6lj895wn4pikycxjs3nnxl1l-python3.12-httpx-0.27.2-fish-completions.drv
+  /nix/store/xpyb5y3qyl2ahp76ykdvpcs558x6rjkq-cloud-infra-mcp-1.0.0-fish-completions.drv
+  /nix/store/y1b85mafmgv0qpclm2hj0p61pa9354gb-yazi-0.3.3-fish-completions.drv
+  /nix/store/y6k3x0q1skd7v9n59fjywbh911nyvxvd-python3.12-seaborn-0.13.2-fish-completions.drv
+  /nix/store/y849rvf3q3b2mhq4mlg32cp5lr2wiqin-python3.12-torchvision-0.20.1-fish-completions.drv
+  /nix/store/y98c00ab7cbp0kl8z18dyd9rpxw07k9r-vit-2.3.2-fish-completions.drv
+  /nix/store/yddmslczqrci4xpxk3s37f8bhgkbivkd-python3.12-sympy-1.13.3-fish-completions.drv
+  /nix/store/ywxzy6xam3gdnwrn3qga7ilb51d182z0-pgcli-4.1.0-fish-completions.drv
+  /nix/store/zfs566zci67w58s91m6lmj58d5kcsmx3-uv-0.4.30-fish-completions.drv
+  /nix/store/zp68kk523b6sjhjrandydkpfbax2jagr-eza-0.20.24-fish-completions.drv
+  /nix/store/ig4gdjs9vdpspv1ra0g0ykpzw0q6m902-diego-fish-completions.drv
+  /nix/store/iksfm1gicrwndshd2c66yb5i94qfd4zj-hm_.localbinpoetry.drv
+  /nix/store/jckarnzvazfpv5scwrfrsvwkmnhi4jhv-hm_.localbindnf.drv
+  /nix/store/jiq2323vqvdp6l9ndjxpb849csqkq5pk-hm_.localbinuv.drv
+  /nix/store/jjq2grs35hhakp5h60bmgh7m4nib61wa-hm_.localbingo.drv
+  /nix/store/k9kq1qi84gs6jakar8kszzmws8mw7hgp-hm_.localbinbrew.drv
+  /nix/store/kclmrzrp3zppa1a46i0484dqqcfnwpcj-httpd.service.drv
+  /nix/store/l53hw9p47ksn002kgwm777sfb09nds31-hm_.localbinnpx.drv
+  /nix/store/lwncbv1wzh2lz7mn0xg29ss483ncvmwl-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/mqywkp107bwry1z0vhfblym62a7dmn2k-profile.drv
+  /nix/store/pxw6wjxf7hni6a3r0628bx1b2mrxcmw4-hm_.localbinnix.drv
+  /nix/store/rakwpjb13nkn1nql80rkmkdrbh2yi329-hm_.zshrc.drv
+  /nix/store/s1hq841rkc4hfp7avsx156zkkii5qm3q-hm_.localbinpipx.drv
+  /nix/store/vdv8hs80p53bamqwid1qj6l1qkw0pzid-hm_.localbindockercompose.drv
+  /nix/store/wxmddc6cwicvhriicy2dy6iiiy3j4hmc-hm_.localbinyarn.drv
+  /nix/store/y7rjy1njzzsz2gq0a2757rrlqixj2q3w-hm_.localbinhomemanager.drv
+  /nix/store/yp30ncqw7hc2wy6adp1n5w4w71z1nx0b-hm_.localbinyum.drv
+  /nix/store/z1pr707y6w7lb3ivwziil0zcqpzyx8d9-hm_.localbinparu.drv
+  /nix/store/z9c16k8whnr2k07xmdfawpsa5rcdavyr-hm_.localbinnpm.drv
+  /nix/store/za5q5bw53s4czcigr9a0w9xxvcfq35v5-hm_.localbinpip3.drv
+  /nix/store/3i2c0382gbj39xxv8kcan8s2p782c4rc-home-manager-files.drv
+  /nix/store/6j737z510pm8rp6zj94x1snsbfncnn3k-home-manager-generation.drv
+building '/nix/store/19644ln7ngbb9chcdn2kpgpwfdjzfln1-hm_.localbinaptget.drv'...
+building '/nix/store/k9kq1qi84gs6jakar8kszzmws8mw7hgp-hm_.localbinbrew.drv'...
+building '/nix/store/6ymwq9296i5qcgivs00q2pxxmsid4m8k-hm_.localbinbun.drv'...
+building '/nix/store/0mwb5jzi4mql4cx694jsc97k9j8am0a2-hm_.localbincargo.drv'...
+building '/nix/store/fylzl4linyq5dh6rw2my2v65y5nq8b1p-hm_.localbinconda.drv'...
+building '/nix/store/22f907f6crnkww1mr0g8r8frhxpnb2g9-hm_.localbincurl.drv'...
+building '/nix/store/jckarnzvazfpv5scwrfrsvwkmnhi4jhv-hm_.localbindnf.drv'...
+building '/nix/store/7b66dqs56cdiq05i8qvyf9xbn6g7axbn-hm_.localbindocker.drv'...
+building '/nix/store/k6rgiyj7wqzzmlaf8hmxfq0hfv1j6hab-claude.drv'...
+building '/nix/store/qfgsbl9ghqkabrzmwv2dlw7x1qk4mnk3-cloud-infra-mcp-1.0.0-npm-deps.drv'...
+building '/nix/store/46vq9czqd2hdnz65cd4360ynwqjv9z2s-diff-so-fancy-1.4.4-fish-completions.drv'...
+building '/nix/store/cjsly2jac48api399l05rxb6vkmbbn9m-direnv-2.35.0-fish-completions.drv'...
+building '/nix/store/6a3ay4sv29qn6s6dbxdpxw84z8abc5cc-dive-0.12.0-fish-completions.drv'...
+building '/nix/store/2jvrrn5hzrd21qjvjywwjfc7rdr4ix3f-dnscrypt-proxy-2.1.5-fish-completions.drv'...
+building '/nix/store/ll2di3c7sgyim7srkh0d82qld7ygm56b-docker-27.5.1-fish-completions.drv'...
+building '/nix/store/f7z468gv7n4mdnkr60nsm6gv3pb12alr-docker-buildx-0.18.0-fish-completions.drv'...
+building '/nix/store/h12rcq8siwrcnhwm8yh9xyazgk3s6605-docker-compose-2.30.3-fish-completions.drv'...
+building '/nix/store/7fskcg1agh2wlfgnmcgxp61fa5zj0yqh-dolphin-24.08.3-fish-completions.drv'...
+building '/nix/store/wywpsycjqfhxj8jsly498ybaq10bxggg-dolphin-plugins-24.08.3-fish-completions.drv'...
+building '/nix/store/j2jh9x50hckd8kfq4zs04hysgzngwrks-doxygen-1.10.0-fish-completions.drv'...
+building '/nix/store/v26d1yfgrlf6drk4n45ac2zhs42pv1pf-drawio-24.7.17-fish-completions.drv'...
+building '/nix/store/2hp833ikrdp0rqb3fyb0wmv9cibphc61-dummy-fc-dir1-fish-completions.drv'...
+building '/nix/store/vg8ijzc34cfa5vm9vwhrvqbr4wwzb021-dummy-fc-dir2-fish-completions.drv'...
+building '/nix/store/3ws0cipcd4hsi4ml098ikzjqxmn1kxqi-dummy-xdg-mime-dirs1-fish-completions.drv'...
+building '/nix/store/7v4ns250rvlbvpjszx3dzdpj11953k2a-dummy-xdg-mime-dirs2-fish-completions.drv'...
+building '/nix/store/n7bav80g5n4686w504jy5zrndblvacdn-esbuild-0.24.0-fish-completions.drv'...
+building '/nix/store/zp68kk523b6sjhjrandydkpfbax2jagr-eza-0.20.24-fish-completions.drv'...
+building '/nix/store/0p5hf24vfbmmm7bqfkps349gkv86g65p-feh-3.10.3-fish-completions.drv'...
+building '/nix/store/igdwfbwv0n8khkbl0j6d0x4gn7w4vs55-flarectl-0.108.0-fish-completions.drv'...
+building '/nix/store/512pcp8pc3m4vi8dlknmlxljif98vik5-gemini-cli-0.27.0-fish-completions.drv'...
+building '/nix/store/gcb12yf7ixs8rm2ys0rnjcijrz5gmwdl-gitlab-runner-17.2.0-fish-completions.drv'...
+building '/nix/store/cz39y6i9af175as4b1h4kv5ar2il3n54-glow-2.0.0-fish-completions.drv'...
+building '/nix/store/6dhrfhq1zxh26imml1nypsg11bfsjqz9-go-1.23.8-fish-completions.drv'...
+building '/nix/store/qmrkj5210mddgqkspli8z8316qz44av0-google-cloud-sdk-494.0.0-fish-completions.drv'...
+building '/nix/store/8xbrdk9n2f68fx5pw9caz6bxmmm5w4bc-gopass-1.15.14-fish-completions.drv'...
+building '/nix/store/4xfla8k7p0p0bhdl55w51f229p9zi8lz-gopls-0.16.2-fish-completions.drv'...
+building '/nix/store/1r7xw0v4c8y11njbx6ggq5i2fpdacwh3-grafana-11.3.7+security-01-fish-completions.drv'...
+building '/nix/store/1knppwwyh786nl95v75r3iy8njsyyk9a-gwenview-23.08.5-fish-completions.drv'...
+building '/nix/store/bjflwvj4w18kpq3dv4kzqnpn8l0c474j-hexyl-0.15.0-fish-completions.drv'...
+building '/nix/store/9093ckcsv5lw5c872ml7a9h1rn2h3hqf-hm-session-vars.fish.drv'...
+building '/nix/store/wnvzr9ajjsa34d8frgnnb60phz528h4h-hm-session-vars.sh-fish-completions.drv'...
+building '/nix/store/vdv8hs80p53bamqwid1qj6l1qkw0pzid-hm_.localbindockercompose.drv'...
+building '/nix/store/dnan1br5ha5gmlj765490wsk7611r2cq-hm_.localbinflatpak.drv'...
+building '/nix/store/jjq2grs35hhakp5h60bmgh7m4nib61wa-hm_.localbingo.drv'...
+building '/nix/store/y7rjy1njzzsz2gq0a2757rrlqixj2q3w-hm_.localbinhomemanager.drv'...
+building '/nix/store/pxw6wjxf7hni6a3r0628bx1b2mrxcmw4-hm_.localbinnix.drv'...
+building '/nix/store/5cajhpqlj6irgaamzfig9w1i323pkhs7-config.fish.drv'...
+building '/nix/store/axa5q9y8cx4afx52mcm5wlc3wy5kkd1f-hm_.localbinnixenv.drv'...
+building '/nix/store/5ima4rr9rqz91pmsa1gjfmhj4cakklgi-hm_.localbinnixosrebuild.drv'...
+building '/nix/store/z9c16k8whnr2k07xmdfawpsa5rcdavyr-hm_.localbinnpm.drv'...
+building '/nix/store/l53hw9p47ksn002kgwm777sfb09nds31-hm_.localbinnpx.drv'...
+building '/nix/store/icvby9nn2b2dm69ndqkhjsbri0xl6y4y-hm_.localbinpacman.drv'...
+building '/nix/store/z1pr707y6w7lb3ivwziil0zcqpzyx8d9-hm_.localbinparu.drv'...
+building '/nix/store/5c5b8lb59gw4adf1zr9bbbcdpnj9b1ss-hm_.localbinpip.drv'...
+building '/nix/store/za5q5bw53s4czcigr9a0w9xxvcfq35v5-hm_.localbinpip3.drv'...
+building '/nix/store/s1hq841rkc4hfp7avsx156zkkii5qm3q-hm_.localbinpipx.drv'...
+building '/nix/store/6wcivsgp9dwgs3mgfzrsyb52jk7l3dbk-hm_.localbinpkg.drv'...
+building '/nix/store/2bqv3mvnfjn4nzi0fpkjfjzasy11dc49-hm_.localbinpnpm.drv'...
+building '/nix/store/iksfm1gicrwndshd2c66yb5i94qfd4zj-hm_.localbinpoetry.drv'...
+building '/nix/store/bs0ry366d8sqw2a5m38mwsfaz06vw5ja-hm_.localbinrsync.drv'...
+building '/nix/store/29hlzq7lgm4vs80zcj8jnvczv6pmshbi-hm_.localbinsnap.drv'...
+building '/nix/store/jiq2323vqvdp6l9ndjxpb849csqkq5pk-hm_.localbinuv.drv'...
+building '/nix/store/1p3hhjp82w8nzlsr76m9nj6r823xhdl5-hm_.localbinwget.drv'...
+building '/nix/store/wxmddc6cwicvhriicy2dy6iiiy3j4hmc-hm_.localbinyarn.drv'...
+building '/nix/store/2nxgbyqgzjvs3wphn60av9s2163rmh6a-hm_.localbinyay.drv'...
+building '/nix/store/yp30ncqw7hc2wy6adp1n5w4w71z1nx0b-hm_.localbinyum.drv'...
+building '/nix/store/rakwpjb13nkn1nql80rkmkdrbh2yi329-hm_.zshrc.drv'...
+building '/nix/store/10x8qzx91gprpxvrzhxbdika99w2gmnd-home-manager-fish-completions.drv'...
+building '/nix/store/kclmrzrp3zppa1a46i0484dqqcfnwpcj-httpd.service.drv'...
+building '/nix/store/9ki424g964nwjrva7sbr6i4dq1xh84ps-httpie-3.2.4-fish-completions.drv'...
+building '/nix/store/cwzzapz7a3gr10f9q13zyl0ipdwfv4zk-joplin-desktop-3.0.15-fish-completions.drv'...
+building '/nix/store/azw9rdi94rw68m5gm7npjgm0rscpvgsg-jq-1.7.1-fish-completions.drv'...
+building '/nix/store/lrfakrp305p6pri3bjdvdna0j2d6b6q9-k9s-0.32.7-fish-completions.drv'...
+building '/nix/store/108k34mxgrvpii4xf8lij57lcmpyhq49-krita-5.2.9-fish-completions.drv'...
+building '/nix/store/3i6p9dgyv3gd7wckjrw819bhm7sa0spy-kubectx-0.9.5-fish-completions.drv'...
+building '/nix/store/n5fx3d2zkla1m7jz32s0fpnj31346j83-kubernetes-helm-3.16.3-fish-completions.drv'...
+building '/nix/store/4np26d1bzhd7r0nbhl4a2vcrw8g9rad0-libreoffice-24.2.7.2-wrapped-fish-completions.drv'...
+building '/nix/store/pqf7cdim9rxjycx8g0czq0dkss8kbx4l-litecli-1.12.3-fish-completions.drv'...
+building '/nix/store/q7h5nz407rwzqmakrli33rlda8g53fhx-lldb-18.1.8-fish-completions.drv'...
+building '/nix/store/4bnzlnv0sqff8bp1f5samm7gx79c06df-llvm-18.1.8-fish-completions.drv'...
+building '/nix/store/rxvcqnn9bfx190k0m6fzgyylsimdpj0f-mdcat-2.6.1-fish-completions.drv'...
+building '/nix/store/bip0a7h5s1skil95j55h4i72s3cp633g-mediainfo-24.06-fish-completions.drv'...
+building '/nix/store/pamvbbj4s2dh8agkldprhmfdxjv08wpy-mesh-fish-completions.drv'...
+building '/nix/store/lz2v0x2ap8m7pyn38yj2f9xfjjjhp657-mycli-1.27.2-fish-completions.drv'...
+building '/nix/store/j65q7qbxbg86sw40g0x9g7gjzma4jjd8-nerdfonts-3.2.1-fish-completions.drv'...
+building '/nix/store/5fb1dqdmbnsyjb1m1j4f6wxcpkv1znab-ninja-1.12.1-fish-completions.drv'...
+building '/nix/store/0w2l1dpngv352lzmfc8jgqpyhvjggarq-nix-zsh-completions-0.5.1-fish-completions.drv'...
+building '/nix/store/9jyzd0czbby1dbijdzgf3aqpk38bxpyv-obs-studio-30.2.3-fish-completions.drv'...
+building '/nix/store/7hkv68j410lcfs36rj0dmp5fh0rvzy36-obsidian-1.7.6-fish-completions.drv'...
+building '/nix/store/8js4skrrslq4vyzy8rys1644qip73k39-oci-cli-3.14.0-fish-completions.drv'...
+building '/nix/store/232igi2dbx0vn4m2dpwcrv2xb109y3q3-password-store-1.7.4-fish-completions.drv'...
+building '/nix/store/vzf7dvl8p8xz8jzx0zyj9fipir64b082-peek-1.5.1-fish-completions.drv'...
+building '/nix/store/ywxzy6xam3gdnwrn3qga7ilb51d182z0-pgcli-4.1.0-fish-completions.drv'...
+building '/nix/store/8axklsgrnlm4xhq1g9g3w6m5l1g2ihrb-pipx-1.7.1-fish-completions.drv'...
+building '/nix/store/dilcsnicj8cl0i922rvcdmhz7bsaq0kx-pnpm-9.15.9-fish-completions.drv'...
+building '/nix/store/mqywkp107bwry1z0vhfblym62a7dmn2k-profile.drv'...
+building '/nix/store/shn9vsl528hz0zv66djm1f9mp5510jld-prometheus-2.55.0-fish-completions.drv'...
+building '/nix/store/xdl8lamyg68j9l24ag9y5y1srjx7b0xv-python3.12-beautifulsoup4-4.12.3-fish-completions.drv'...
+building '/nix/store/fp8lnjdlga37fazinx5s8l7lwnmvpap3-python3.12-bokeh-3.6.0-fish-completions.drv'...
+building '/nix/store/chcgg9hrjk9wpi23saphdmazi91y58dh-python3.12-dask-2024.10.0-fish-completions.drv'...
+building '/nix/store/xkqz753y6lj895wn4pikycxjs3nnxl1l-python3.12-httpx-0.27.2-fish-completions.drv'...
+building '/nix/store/gj8z4g8q09jb6m6cr3s977r5sxfd3x12-python3.12-ipython-8.29.0-fish-completions.drv'...
+building '/nix/store/c68wmqjpzsj7273wa4bbkjix6xa9bkpc-python3.12-jupyterlab-4.2.5-fish-completions.drv'...
+building '/nix/store/p95dja5rkzpai7grrr06snc3bk1bmm7w-python3.12-matplotlib-3.9.2-fish-completions.drv'...
+building '/nix/store/bgmpxqc92dkkh8r9k6iz4vxcvjrx9yhw-python3.12-notebook-7.2.2-fish-completions.drv'...
+building '/nix/store/13c4xl5lglvb9fs0k59fkjs9csgbw7kj-python3.12-numpy-1.26.4-fish-completions.drv'...
+building '/nix/store/pydyi0yl99dlyigh8ia8r541q5swwsdq-python3.12-pandas-2.2.3-fish-completions.drv'...
+building '/nix/store/x21yfaxwsfqrvf90bwz2k4dnq89jb60m-python3.12-plotly-5.24.1-fish-completions.drv'...
+building '/nix/store/wppdk4zncldm7qw7vpimynk9dfzdfxyf-python3.12-polars-1.12.0-fish-completions.drv'...
+building '/nix/store/5i08qj331iqz7agw0y4adzqxzhsfswgs-python3.12-pyarrow-18.0.0-fish-completions.drv'...
+building '/nix/store/qiqyrg0r32vigm5jkr5bkmv1xhz36fgy-python3.12-pydantic-2.9.2-fish-completions.drv'...
+building '/nix/store/skh93s6mgvca3lvzi9v30wi723hmaryx-python3.12-requests-2.32.3-fish-completions.drv'...
+building '/nix/store/jcrplkqbk0wy3i8ymwf03l4zs5c7zr3z-python3.12-scikit-learn-1.5.2-fish-completions.drv'...
+building '/nix/store/q2i01zhwfmaiws0ywzdx6c6wjq98gwn7-python3.12-scipy-1.14.1-fish-completions.drv'...
+building '/nix/store/y6k3x0q1skd7v9n59fjywbh911nyvxvd-python3.12-seaborn-0.13.2-fish-completions.drv'...
+building '/nix/store/yddmslczqrci4xpxk3s37f8bhgkbivkd-python3.12-sympy-1.13.3-fish-completions.drv'...
+building '/nix/store/90j5qggy8vnklblgczcrzgcxr3fymq9m-python3.12-torch-2.5.1-fish-completions.drv'...
+building '/nix/store/y849rvf3q3b2mhq4mlg32cp5lr2wiqin-python3.12-torchvision-0.20.1-fish-completions.drv'...
+building '/nix/store/a11wjby2vcv3c1lk69mcydfwx01j531w-python3.12-virtualenv-20.26.6-fish-completions.drv'...
+building '/nix/store/py2kmhvrfnbvcdxjfmvq1g8pk9kapydd-r-dplyr-1.1.4-fish-completions.drv'...
+building '/nix/store/q3sdxvxlv3fsds0zh3s2mj1yvzdhwiqg-r-ggplot2-3.5.1-fish-completions.drv'...
+building '/nix/store/c5rvwpc7j12yvsbq893a5633gqms5v87-r-tidyr-1.3.1-fish-completions.drv'...
+building '/nix/store/diwgl754h6snq93ghqzablvcbvgzpm0z-rclone-1.68.2-fish-completions.drv'...
+building '/nix/store/9sfmcagv69q0k66iwf4m325rismgsjb9-redis-7.2.7-fish-completions.drv'...
+building '/nix/store/5d3knzlk6czjv8nwl0xqya35csc57h55-rustup-1.27.1-fish-completions.drv'...
+building '/nix/store/fnf9fzcwgis7h64bhsfhdkpnn1956ivq-serve.fish.drv'...
+building '/nix/store/ggsbwsgr05fhln3bx55pzgc75qzk8r21-sops-3.9.4-fish-completions.drv'...
+building '/nix/store/mi4pkmiq8fipw861z8n8r7ppcr7kxzza-sqlite-3.46.1-fish-completions.drv'...
+building '/nix/store/is4m3qvzjdi2aywm64qxzbwgamy6ijy0-starship-1.22.1-fish-completions.drv'...
+building '/nix/store/c3d6mv5n1r3xih7lx6vwa7lkdlp68hls-stern-1.31.0-fish-completions.drv'...
+building '/nix/store/ndwdlcypygq66a9iyic8c3x60r3wa67m-taskwarrior-2.6.2-fish-completions.drv'...
+building '/nix/store/0r0slmxqbffydc4kn06jsb36mg7riaq2-terraform-1.9.8-fish-completions.drv'...
+building '/nix/store/qkdsagak39z3ws97qxwvs2xjf48aj7sg-typescript-5.6.3-fish-completions.drv'...
+building '/nix/store/bpnw7p5d62gp0hw6iijn5m4bnf79v9gs-unrar-7.0.9-fish-completions.drv'...
+building '/nix/store/zfs566zci67w58s91m6lmj58d5kcsmx3-uv-0.4.30-fish-completions.drv'...
+building '/nix/store/y98c00ab7cbp0kl8z18dyd9rpxw07k9r-vit-2.3.2-fish-completions.drv'...
+building '/nix/store/2j7c9dbps98zdd5bvqnlwbh2nhblzl6m-vlc-3.0.21-fish-completions.drv'...
+building '/nix/store/vddbgynj8fhz2ywv0n619i1wcf18bn51-waydroid.desktop-fish-completions.drv'...
+building '/nix/store/9pf9n4hgaapnv80qngbgxgr5mwj8xh82-wget-1.25.0-fish-completions.drv'...
+building '/nix/store/4m91kxn4xmfw8h2bcl86y6s93lyqqn53-wireguard-tools-1.0.20210914-fish-completions.drv'...
+building '/nix/store/2j9l8qyg2y2ixz32jlzk8kyc0p796iwm-wrangler-3.80.1-fish-completions.drv'...
+building '/nix/store/19cjm619dwwrpzhn5fdrdlic2baj31lv-xxd-tinyxxd-1.3.7-fish-completions.drv'...
+building '/nix/store/bhv0fbznpsd1gv478hvapjyl8yikqq6n-yarn-1.22.22-fish-completions.drv'...
+building '/nix/store/y1b85mafmgv0qpclm2hj0p61pa9354gb-yazi-0.3.3-fish-completions.drv'...
+building '/nix/store/42cayivlas8jg6kdlq7w9x54rmvcw9jj-yq-go-4.44.3-fish-completions.drv'...
+building '/nix/store/g24cb79chzgcj92av02dcsnx34mfnwjb-zettlr-3.2.0-fish-completions.drv'...
+building '/nix/store/ghwn6qgxkkav3b1zf0qrzr68qxdx6ha9-zsh-5.9-fish-completions.drv'...
+error: hash mismatch in fixed-output derivation '/nix/store/k6rgiyj7wqzzmlaf8hmxfq0hfv1j6hab-claude.drv':
+         specified: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+            got:    sha256-gBoIVnbD1UOSxC6OQ8RJR998UhMjVldffZJnxPItaZI=
+error: 1 dependencies of derivation '/nix/store/cqhkr6lqa7dayfnwmy6ywnppdj3yri9p-claude-code-2.1.76.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/fpfsk939h07cz49b3wliclsrvry72rbg-claude-code-2.1.76-fish-completions.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/fkzdv0p8cbpiwbk8xdjycxskyfa3rwph-home-manager-path.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/y7wd0bb5r3n06vdvabxjz2dxcv462fkv-man-paths.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/6j737z510pm8rp6zj94x1snsbfncnn3k-home-manager-generation.drv' failed to build
+[2026-03-23 16:59:53] PERF: home-manager switch = 39.9s
+[2026-03-23 16:59:53] PERF: TOTAL switch = 40.0s
+[2026-03-23 16:59:53] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface
+[2026-03-23 16:59:53] ========== Build script finished ==========
+[2026-03-23 17:00:29] ========== Build script started ==========
+[2026-03-23 17:00:29] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 17:00:29] PERF: start switch
+[2026-03-23 17:00:29] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 17:00:29] PERF: git stage = 37ms
+[2026-03-23 17:00:29] PERF: clean backups = 17ms
+[2026-03-23 17:00:29] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 14 derivations will be built:
+  /nix/store/0y6p0y2phx1xjs7b3grlxa53w6fmvk5s-claude-code-2.1.76.drv
+  /nix/store/dxaffvixkl4nwmrd1pf0n0nvf12zh5k9-claude-code-2.1.76-fish-completions.drv
+  /nix/store/qfgsbl9ghqkabrzmwv2dlw7x1qk4mnk3-cloud-infra-mcp-1.0.0-npm-deps.drv
+  /nix/store/r42867q22cd4ag6dlmvl9dksd0v6ybv7-cloud-infra-mcp-1.0.0.drv
+  /nix/store/xpyb5y3qyl2ahp76ykdvpcs558x6rjkq-cloud-infra-mcp-1.0.0-fish-completions.drv
+  /nix/store/64wfrii6lzkynbggpgp1nkcw79626fm0-diego-fish-completions.drv
+  /nix/store/hhlhz43id6bimd5glx01i7j4ji9fca5s-home-manager-path.drv
+  /nix/store/7gg5qhfslvsm4fw7bf6rawijzrd73b5i-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/d6iwg9r7j441lpp1ymlm70358ixw33fg-activation-script.drv
+  /nix/store/hv7s16ssky6cij7g0nk2a46gjxi3s2fd-man-paths.drv
+  /nix/store/nfjjhr485818khjym33vq18drnrh5s7g-man-cache.drv
+  /nix/store/a66qry1wk0g9wzz7aa4gp2x0zx54nr9s-hm_.manpath.drv
+  /nix/store/fwr0jhvfbqkfvdj0i2m8k8bk80mvmbwm-home-manager-files.drv
+  /nix/store/953cljbkx2gy2hbsrc0hl86fyqy6nisn-home-manager-generation.drv
+building '/nix/store/0y6p0y2phx1xjs7b3grlxa53w6fmvk5s-claude-code-2.1.76.drv'...
+building '/nix/store/qfgsbl9ghqkabrzmwv2dlw7x1qk4mnk3-cloud-infra-mcp-1.0.0-npm-deps.drv'...
+building '/nix/store/dxaffvixkl4nwmrd1pf0n0nvf12zh5k9-claude-code-2.1.76-fish-completions.drv'...
+building '/nix/store/r42867q22cd4ag6dlmvl9dksd0v6ybv7-cloud-infra-mcp-1.0.0.drv'...
+building '/nix/store/xpyb5y3qyl2ahp76ykdvpcs558x6rjkq-cloud-infra-mcp-1.0.0-fish-completions.drv'...
+building '/nix/store/hhlhz43id6bimd5glx01i7j4ji9fca5s-home-manager-path.drv'...
+building '/nix/store/hv7s16ssky6cij7g0nk2a46gjxi3s2fd-man-paths.drv'...
+building '/nix/store/64wfrii6lzkynbggpgp1nkcw79626fm0-diego-fish-completions.drv'...
+building '/nix/store/nfjjhr485818khjym33vq18drnrh5s7g-man-cache.drv'...
+building '/nix/store/d6iwg9r7j441lpp1ymlm70358ixw33fg-activation-script.drv'...
+building '/nix/store/7gg5qhfslvsm4fw7bf6rawijzrd73b5i-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/a66qry1wk0g9wzz7aa4gp2x0zx54nr9s-hm_.manpath.drv'...
+building '/nix/store/fwr0jhvfbqkfvdj0i2m8k8bk80mvmbwm-home-manager-files.drv'...
+building '/nix/store/953cljbkx2gy2hbsrc0hl86fyqy6nisn-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/home/diego/.config/sops/age/keys.txt' is in the way of '/nix/store/lr81m1pyww53wf3xadgs1jk6zjflwhqq-home-manager-files/.config/sops/age/keys.txt'
+Existing file '/home/diego/.gtkrc-2.0' is in the way of '/nix/store/lr81m1pyww53wf3xadgs1jk6zjflwhqq-home-manager-files/.gtkrc-2.0', will be moved to '/home/diego/.gtkrc-2.0.backup'
+Please do one of the following:
+- Move or remove the above files and try again.
+- In standalone mode, use 'home-manager switch -b backup' to back up
+  files automatically.
+- When used as a NixOS or nix-darwin module, set
+    'home-manager.backupFileExtension'
+  to, for example, 'backup' and rebuild.
+[2026-03-23 17:02:41] PERF: home-manager switch = 2m 12s
+[2026-03-23 17:02:41] PERF: TOTAL switch = 2m 12s
+[2026-03-23 17:02:41] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface
+[2026-03-23 17:02:41] ========== Build script finished ==========
+[2026-03-23 17:11:09] ========== Build script started ==========
+[2026-03-23 17:11:09] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 17:11:09] PERF: start switch
+[2026-03-23 17:11:09] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 17:11:09] PERF: git stage = 41ms
+[2026-03-23 17:11:09] PERF: clean backups = 17ms
+[2026-03-23 17:11:09] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 11 derivations will be built:
+  /nix/store/3lfm5zifbhi075jnlil8s43smxdslxqf-cloud-infra-mcp-1.0.0.drv
+  /nix/store/mjqg060rrs09l4y51510xsz0n12whqv9-home-manager-path.drv
+  /nix/store/57l8na3z78498sni3llk9xn7zqh39nzc-activation-script.drv
+  /nix/store/izg9mjcg8qjmr9589wl3cxrwa9ai4a52-man-paths.drv
+  /nix/store/rvw5vqp5y9npmnw8gqi1bg8s5dg3p3dx-man-cache.drv
+  /nix/store/5gw61h43yypwn5asya2y57c8i335hksm-hm_.manpath.drv
+  /nix/store/q062b5m6sslmad996srsghhmq5xpygwp-cloud-infra-mcp-1.0.0-fish-completions.drv
+  /nix/store/dl4m4iph00c3cm46ix2r2waszkxln9fh-diego-fish-completions.drv
+  /nix/store/fx4gn59lkb1jy6ba4vygvjfyqiglh0ik-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/6zhs5xw85ig4il2x6dvv310l2yc3c7s3-home-manager-files.drv
+  /nix/store/m054mca9mi4bs8n3yqvc4z1w2iygl4yi-home-manager-generation.drv
+building '/nix/store/3lfm5zifbhi075jnlil8s43smxdslxqf-cloud-infra-mcp-1.0.0.drv'...
+building '/nix/store/q062b5m6sslmad996srsghhmq5xpygwp-cloud-infra-mcp-1.0.0-fish-completions.drv'...
+building '/nix/store/mjqg060rrs09l4y51510xsz0n12whqv9-home-manager-path.drv'...
+building '/nix/store/izg9mjcg8qjmr9589wl3cxrwa9ai4a52-man-paths.drv'...
+building '/nix/store/dl4m4iph00c3cm46ix2r2waszkxln9fh-diego-fish-completions.drv'...
+building '/nix/store/rvw5vqp5y9npmnw8gqi1bg8s5dg3p3dx-man-cache.drv'...
+building '/nix/store/57l8na3z78498sni3llk9xn7zqh39nzc-activation-script.drv'...
+building '/nix/store/fx4gn59lkb1jy6ba4vygvjfyqiglh0ik-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/5gw61h43yypwn5asya2y57c8i335hksm-hm_.manpath.drv'...
+building '/nix/store/6zhs5xw85ig4il2x6dvv310l2yc3c7s3-home-manager-files.drv'...
+building '/nix/store/m054mca9mi4bs8n3yqvc4z1w2iygl4yi-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/home/diego/.gtkrc-2.0' is in the way of '/nix/store/q270337yh53wffss6p0zhf9vxfna1rz9-home-manager-files/.gtkrc-2.0', will be moved to '/home/diego/.gtkrc-2.0.backup'
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Path '/home/diego/.config/sops/age/keys.txt' does not link into a Home Manager generation. Skipping delete.
+Creating profile generation 136
+Creating home file links in /home/diego
+Activating sharedNodeModules
+[node-deps.nix] Merging deps from cloud-data + front-data...
+package.json: 90 packages merged
+[node-deps.nix] npm install: ~/.node_modules/
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated source-map-resolve@0.6.0: See https://github.com/lydell/source-map-resolve#deprecated
+npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated deep-diff@1.0.2: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated glob@11.1.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+
+added 1136 packages in 1m
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/s5kmqywngy6divjbzjl5pppsklfwi5si-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating genClaudeMd
+[gen-claude-md] WARNING: cloud-data or template not found, using static fallback
+Activating globalTsx
+
+added 5 packages in 659ms
+Activating initHomeGit
+Activating mcpSecrets
+[mcp-secrets] WARNING: failed to decrypt secrets.yaml
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-03-23 17:14:44] PERF: home-manager switch = 3m 34s
+[2026-03-23 17:14:44] PERF: TOTAL switch = 3m 34s
+[2026-03-23 17:14:44] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface
+[2026-03-23 17:14:44] ========== Build script finished ==========
+[2026-03-23 17:18:07] ========== Build script started ==========
+[2026-03-23 17:18:07] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 17:18:07] PERF: start switch
+[2026-03-23 17:18:07] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 17:18:07] PERF: git stage = 37ms
+[2026-03-23 17:18:07] INFO: Cleaning 1 old backup file(s)...
+[2026-03-23 17:18:07] PERF: clean backups = 23ms
+[2026-03-23 17:18:07] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 15 derivations will be built:
+  /nix/store/0632566apvrznyxifc172v8cg1nmb35l-bashrc.drv
+  /nix/store/fzalw4b7yl9g0x4scpl1hb67s66vb4ba-home-manager-path.drv
+  /nix/store/4glryzpypal5afc6q9ixr2cxxi12g99d-activation-script.drv
+  /nix/store/d0px9gv8bl4arq0py1klaq3wgzar1rwp-man-paths.drv
+  /nix/store/mk46sfaf40f4nwj3z5lllcj1ykvd3x9g-man-cache.drv
+  /nix/store/4pxis3c06p9zd2lksv8hqrqj8vli0ps1-hm_.manpath.drv
+  /nix/store/66x2dbmyn3j0dlapcbqhf0m6vhb9c0w1-hm_gitconfig.drv
+  /nix/store/8vk84gpf445168mdw52ppfxfzbxzh86f-diego-fish-completions.drv
+  /nix/store/cr95qm9z50lhzd327crr97z02cqvz9hw-config.fish.drv
+  /nix/store/dj9walqhpnmm4hya2l7xmfgp3ij9hz8c-serve.fish.drv
+  /nix/store/dylm4nh3awbakwc6bcv6hb1jc7l95l2s-http-dev.drv
+  /nix/store/q3qvhwpz8hc1fl58ilp1xavb6d4hgj8z-_show_welcome.fish.drv
+  /nix/store/yz3m584zvgrlyk9sd7q3r28m1knr5vgv-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/nqfsxj9hvb39p72kpiwrbcm9rn32s8y1-home-manager-files.drv
+  /nix/store/lflps353p936p3yvs9mnzfl074fm7vbw-home-manager-generation.drv
+building '/nix/store/fzalw4b7yl9g0x4scpl1hb67s66vb4ba-home-manager-path.drv'...
+building '/nix/store/0632566apvrznyxifc172v8cg1nmb35l-bashrc.drv'...
+building '/nix/store/8vk84gpf445168mdw52ppfxfzbxzh86f-diego-fish-completions.drv'...
+building '/nix/store/66x2dbmyn3j0dlapcbqhf0m6vhb9c0w1-hm_gitconfig.drv'...
+building '/nix/store/dylm4nh3awbakwc6bcv6hb1jc7l95l2s-http-dev.drv'...
+building '/nix/store/q3qvhwpz8hc1fl58ilp1xavb6d4hgj8z-_show_welcome.fish.drv'...
+building '/nix/store/cr95qm9z50lhzd327crr97z02cqvz9hw-config.fish.drv'...
+building '/nix/store/d0px9gv8bl4arq0py1klaq3wgzar1rwp-man-paths.drv'...
+building '/nix/store/dj9walqhpnmm4hya2l7xmfgp3ij9hz8c-serve.fish.drv'...
+building '/nix/store/mk46sfaf40f4nwj3z5lllcj1ykvd3x9g-man-cache.drv'...
+building '/nix/store/4glryzpypal5afc6q9ixr2cxxi12g99d-activation-script.drv'...
+building '/nix/store/yz3m584zvgrlyk9sd7q3r28m1knr5vgv-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/4pxis3c06p9zd2lksv8hqrqj8vli0ps1-hm_.manpath.drv'...
+building '/nix/store/nqfsxj9hvb39p72kpiwrbcm9rn32s8y1-home-manager-files.drv'...
+building '/nix/store/lflps353p936p3yvs9mnzfl074fm7vbw-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 137
+Creating home file links in /home/diego
+Activating sharedNodeModules
+[node-deps.nix] Merging deps from cloud-data + front-data...
+package.json: 90 packages merged
+[node-deps.nix] npm install: ~/.node_modules/
+
+added 4 packages in 2s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/7q9rzj89vmkf0csgbahnkyn6ggmpxa07-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating genClaudeMd
+[gen-claude-md] WARNING: cloud-data or template not found, using static fallback
+Activating globalTsx
+
+changed 5 packages in 6s
+Activating initHomeGit
+Activating mcpSecrets
+[mcp-secrets] WARNING: failed to decrypt secrets.yaml
+cp: cannot create regular file '/home/diego/.mcp.json': Permission denied
+[2026-03-23 17:18:59] PERF: home-manager switch = 52.1s
+[2026-03-23 17:18:59] PERF: TOTAL switch = 52.3s
+[2026-03-23 17:18:59] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface
+[2026-03-23 17:18:59] ========== Build script finished ==========
+[2026-03-23 17:27:43] ========== Build script started ==========
+[2026-03-23 17:27:43] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 17:27:43] PERF: start switch
+[2026-03-23 17:27:43] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 17:27:43] PERF: git stage = 38ms
+[2026-03-23 17:27:43] PERF: clean backups = 17ms
+[2026-03-23 17:27:43] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 5 derivations will be built:
+  /nix/store/2p0hsa64k1wbvmgg9f1i706x2v2va1bh-http-dev.service.drv
+  /nix/store/35yg79ihshj0wz9ayq7yn99q22h2y2n0-_show_welcome.fish.drv
+  /nix/store/7c2sps2rj2358qdzj1qqy3yw2i1smnih-config.fish.drv
+  /nix/store/aif222jzvb27xaajzy8p4h7cv8pmdzfx-home-manager-files.drv
+  /nix/store/7bh3f0d7r4y7ihzr677gdr9vbx930isi-home-manager-generation.drv
+building '/nix/store/2p0hsa64k1wbvmgg9f1i706x2v2va1bh-http-dev.service.drv'...
+building '/nix/store/35yg79ihshj0wz9ayq7yn99q22h2y2n0-_show_welcome.fish.drv'...
+building '/nix/store/7c2sps2rj2358qdzj1qqy3yw2i1smnih-config.fish.drv'...
+building '/nix/store/aif222jzvb27xaajzy8p4h7cv8pmdzfx-home-manager-files.drv'...
+building '/nix/store/7bh3f0d7r4y7ihzr677gdr9vbx930isi-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 138
+Creating home file links in /home/diego
+Activating sharedNodeModules
+[node-deps.nix] Merging deps from cloud-data + front-data...
+WARN: /home/diego/git/cloud/cloud-data/cloud-deps.json: Unexpected end of JSON input
+package.json: 90 packages merged
+[node-deps.nix] npm install: ~/.node_modules/
+
+up to date in 970ms
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/9jl1p80ksad7sj5q7ra05rkhmhrssgw7-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (6 VMs, 28 services, date=2026-03-23)
+Activating globalTsx
+
+changed 5 packages in 1s
+Activating initHomeGit
+Activating mcpSecrets
+[mcp-secrets] WARNING: failed to decrypt secrets.yaml
+cp: cannot create regular file '/home/diego/.mcp.json': Permission denied
+[2026-03-23 17:27:59] PERF: home-manager switch = 16.4s
+[2026-03-23 17:27:59] PERF: TOTAL switch = 16.5s
+[2026-03-23 17:27:59] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface
+[2026-03-23 17:27:59] ========== Build script finished ==========
+[2026-03-23 18:04:52] ========== Build script started ==========
+[2026-03-23 18:04:52] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 18:04:52] PERF: start switch
+[2026-03-23 18:04:52] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 18:04:52] PERF: git stage = 35ms
+[2026-03-23 18:04:52] PERF: clean backups = 16ms
+[2026-03-23 18:04:52] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 14 derivations will be built:
+  /nix/store/4md9pznpik6zcgiiw26lxjlskyaxq3gj-hm-session-vars.sh.drv
+  /nix/store/a3f3bn0jv76wji3qr46nxy9xdp33ss89-claude-code-2.1.81-fish-completions.drv
+  /nix/store/cfwvy3s3a8njjwvbnxj3wb40x6ca3kky-hm-session-vars.sh-fish-completions.drv
+  /nix/store/6d07k0c5yvizyza05ar8qbq3jwppgxg8-diego-fish-completions.drv
+  /nix/store/f03kzshxb8zirqwclnvgmzcb1ji9cvwf-home-manager-path.drv
+  /nix/store/k6zg0mqk1y48988y3khbd3zj37xyrn9f-activation-script.drv
+  /nix/store/m3680dyncaixjpsv7n3pmsiidqbavc7v-man-paths.drv
+  /nix/store/d0cgswicnq2yi8fwwnv40sc103vddr85-man-cache.drv
+  /nix/store/gwrhk9i7c0zn7cic85h1kjdkyp62266q-hm_.manpath.drv
+  /nix/store/khiz4zi62xrxll6zja8whgvqa7w6nb9k-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/s3vr7qv4xzfn20760rvzwfisjvda8xdx-hm-session-vars.fish.drv
+  /nix/store/nwvs0cn1492m2s6ni3bnxr3dad4pxvk8-config.fish.drv
+  /nix/store/xjgsvq9pjdsk3vipvknm8d77gmf3aks8-home-manager-files.drv
+  /nix/store/73pz1cxrvk39z9l2n6h42dcxy1naiphr-home-manager-generation.drv
+building '/nix/store/4md9pznpik6zcgiiw26lxjlskyaxq3gj-hm-session-vars.sh.drv'...
+building '/nix/store/a3f3bn0jv76wji3qr46nxy9xdp33ss89-claude-code-2.1.81-fish-completions.drv'...
+building '/nix/store/s3vr7qv4xzfn20760rvzwfisjvda8xdx-hm-session-vars.fish.drv'...
+building '/nix/store/cfwvy3s3a8njjwvbnxj3wb40x6ca3kky-hm-session-vars.sh-fish-completions.drv'...
+building '/nix/store/f03kzshxb8zirqwclnvgmzcb1ji9cvwf-home-manager-path.drv'...
+building '/nix/store/m3680dyncaixjpsv7n3pmsiidqbavc7v-man-paths.drv'...
+building '/nix/store/nwvs0cn1492m2s6ni3bnxr3dad4pxvk8-config.fish.drv'...
+building '/nix/store/6d07k0c5yvizyza05ar8qbq3jwppgxg8-diego-fish-completions.drv'...
+building '/nix/store/d0cgswicnq2yi8fwwnv40sc103vddr85-man-cache.drv'...
+building '/nix/store/k6zg0mqk1y48988y3khbd3zj37xyrn9f-activation-script.drv'...
+building '/nix/store/khiz4zi62xrxll6zja8whgvqa7w6nb9k-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/gwrhk9i7c0zn7cic85h1kjdkyp62266q-hm_.manpath.drv'...
+building '/nix/store/xjgsvq9pjdsk3vipvknm8d77gmf3aks8-home-manager-files.drv'...
+building '/nix/store/73pz1cxrvk39z9l2n6h42dcxy1naiphr-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 139
+Creating home file links in /home/diego
+Activating sharedNodeModules
+[node-deps.nix] Merging deps from cloud-data + front-data...
+WARN: /home/diego/git/cloud/cloud-data/cloud-deps.json: Unexpected end of JSON input
+package.json: 90 packages merged
+[node-deps.nix] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/9jl1p80ksad7sj5q7ra05rkhmhrssgw7-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (6 VMs, 28 services, date=2026-03-23)
+Activating globalTsx
+
+changed 5 packages in 6s
+Activating initHomeGit
+Activating mcpSecrets
+[mcp-secrets] WARNING: failed to decrypt secrets.yaml
+cp: cannot create regular file '/home/diego/.mcp.json': Permission denied
+[2026-03-23 18:05:46] PERF: home-manager switch = 53.8s
+[2026-03-23 18:05:46] PERF: TOTAL switch = 53.9s
+[2026-03-23 18:05:46] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface
+[2026-03-23 18:05:46] ========== Build script finished ==========
+[2026-03-23 18:07:04] ========== Build script started ==========
+[2026-03-23 18:07:04] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 18:07:04] PERF: start switch
+[2026-03-23 18:07:04] INFO: Staging dirty files for flake evaluation...
+[2026-03-23 18:07:04] PERF: git stage = 37ms
+[2026-03-23 18:07:05] PERF: clean backups = 17ms
+[2026-03-23 18:07:05] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 29 derivations will be built:
+  /nix/store/7cahnplsrcxv239iznha1vnkmiqrx3ph-man-paths.drv
+  /nix/store/013wybky5rcl53jks5s04mv0h1lhfmha-man-cache.drv
+  /nix/store/15ac0q1ac6j8d4mw1ma17605njzsd0gg-krfb-24.08.3-fish-completions.drv
+  /nix/store/1givmcdq284kp4rg7fvfc81k865fkfv9-partitionmanager-24.08.3-fish-completions.drv
+  /nix/store/n9c88dnqlh24ydj1giaf3a63njr2qs75-home-manager-path.drv
+  /nix/store/2k9499y124i80f3f2fp0f91lihhmwcbz-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/6821kd3rbbdqpci7vi0y76lpn1774jd7-config.fish.drv
+  /nix/store/4k98k9rykvwndqf1awnnx6qdkhf08vl5-kcolorchooser-24.08.3-fish-completions.drv
+  /nix/store/5627qsw8737abpxbv8w3pfjf5xm9dp18-kate-24.08.3-fish-completions.drv
+  /nix/store/96r6r71p8l19fy2sy9g5naa7dg5w3s52-kmousetool-24.08.3-fish-completions.drv
+  /nix/store/a8lw25xwln9j7wv1b73fqi1kyjwqc9nb-krdc-24.08.3-fish-completions.drv
+  /nix/store/f9cx73x7w2gd5q9v35w9x781spaymb5l-kcharselect-24.08.3-fish-completions.drv
+  /nix/store/fma3w0q8jgh55grc1w4wfm8sgz5s3vwl-kcalc-24.08.3-fish-completions.drv
+  /nix/store/ichwzfqj3wrklzxiaji5bzbsfxm49hzl-zenity-4.0.3-fish-completions.drv
+  /nix/store/lzq418bm908q5bqgc1gkawnxa5dla2fp-kdialog-23.08.5-fish-completions.drv
+  /nix/store/m248mfa344nlq2f18zp7bbpzyjinrq1k-spectacle-24.08.3-fish-completions.drv
+  /nix/store/m8ks75mfsl94xvfgq6zqgizpl426l4hh-skanlite-24.08.3-fish-completions.drv
+  /nix/store/ng92jqwywmgwivsmq1892aljwphav1bb-kfind-24.08.3-fish-completions.drv
+  /nix/store/psi0j4jbqmf3x74s0g4d5s794zmmdsq6-ark-24.08.3-fish-completions.drv
+  /nix/store/q7ras1pb855d1f4mqnipppi8gz11zvz6-elisa-24.08.3-fish-completions.drv
+  /nix/store/s9ai5l26v182qkpj4s3kl9n4r67k50w7-dragon-24.08.3-fish-completions.drv
+  /nix/store/wshp4qa7ka8vhr389sjw9didassjn29z-filelight-24.08.3-fish-completions.drv
+  /nix/store/wyi1z5lh9c544n93sm75plg5klam0rrl-ksystemlog-24.08.3-fish-completions.drv
+  /nix/store/z7zgwpwl86ac489lbaxi1g8dbkvml855-firefox-140.0.1-fish-completions.drv
+  /nix/store/8v0si0g6z0ddal70vh2qr8qb9l6ff2d0-diego-fish-completions.drv
+  /nix/store/n3v56xak9q2hqhx681pxrfkcq68xsyrq-hm_.manpath.drv
+  /nix/store/25p4sjk41525rhh5y9dn81r64rw8545d-home-manager-files.drv
+  /nix/store/z3yr1mkm23qxxpzpwdqw921mmxqr5fw4-activation-script.drv
+  /nix/store/cgsv9dixm9a9vsxiydwdycshi4g287i6-home-manager-generation.drv
+building '/nix/store/n9c88dnqlh24ydj1giaf3a63njr2qs75-home-manager-path.drv'...
+building '/nix/store/psi0j4jbqmf3x74s0g4d5s794zmmdsq6-ark-24.08.3-fish-completions.drv'...
+building '/nix/store/6821kd3rbbdqpci7vi0y76lpn1774jd7-config.fish.drv'...
+building '/nix/store/7cahnplsrcxv239iznha1vnkmiqrx3ph-man-paths.drv'...
+building '/nix/store/s9ai5l26v182qkpj4s3kl9n4r67k50w7-dragon-24.08.3-fish-completions.drv'...
+building '/nix/store/q7ras1pb855d1f4mqnipppi8gz11zvz6-elisa-24.08.3-fish-completions.drv'...
+building '/nix/store/wshp4qa7ka8vhr389sjw9didassjn29z-filelight-24.08.3-fish-completions.drv'...
+building '/nix/store/z7zgwpwl86ac489lbaxi1g8dbkvml855-firefox-140.0.1-fish-completions.drv'...
+building '/nix/store/5627qsw8737abpxbv8w3pfjf5xm9dp18-kate-24.08.3-fish-completions.drv'...
+building '/nix/store/fma3w0q8jgh55grc1w4wfm8sgz5s3vwl-kcalc-24.08.3-fish-completions.drv'...
+building '/nix/store/f9cx73x7w2gd5q9v35w9x781spaymb5l-kcharselect-24.08.3-fish-completions.drv'...
+building '/nix/store/4k98k9rykvwndqf1awnnx6qdkhf08vl5-kcolorchooser-24.08.3-fish-completions.drv'...
+building '/nix/store/lzq418bm908q5bqgc1gkawnxa5dla2fp-kdialog-23.08.5-fish-completions.drv'...
+building '/nix/store/ng92jqwywmgwivsmq1892aljwphav1bb-kfind-24.08.3-fish-completions.drv'...
+building '/nix/store/96r6r71p8l19fy2sy9g5naa7dg5w3s52-kmousetool-24.08.3-fish-completions.drv'...
+building '/nix/store/a8lw25xwln9j7wv1b73fqi1kyjwqc9nb-krdc-24.08.3-fish-completions.drv'...
+building '/nix/store/15ac0q1ac6j8d4mw1ma17605njzsd0gg-krfb-24.08.3-fish-completions.drv'...
+building '/nix/store/wyi1z5lh9c544n93sm75plg5klam0rrl-ksystemlog-24.08.3-fish-completions.drv'...
+building '/nix/store/1givmcdq284kp4rg7fvfc81k865fkfv9-partitionmanager-24.08.3-fish-completions.drv'...
+building '/nix/store/013wybky5rcl53jks5s04mv0h1lhfmha-man-cache.drv'...
+building '/nix/store/m8ks75mfsl94xvfgq6zqgizpl426l4hh-skanlite-24.08.3-fish-completions.drv'...
+building '/nix/store/m248mfa344nlq2f18zp7bbpzyjinrq1k-spectacle-24.08.3-fish-completions.drv'...
+building '/nix/store/ichwzfqj3wrklzxiaji5bzbsfxm49hzl-zenity-4.0.3-fish-completions.drv'...
+building '/nix/store/z3yr1mkm23qxxpzpwdqw921mmxqr5fw4-activation-script.drv'...
+building '/nix/store/2k9499y124i80f3f2fp0f91lihhmwcbz-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/8v0si0g6z0ddal70vh2qr8qb9l6ff2d0-diego-fish-completions.drv'...
+building '/nix/store/n3v56xak9q2hqhx681pxrfkcq68xsyrq-hm_.manpath.drv'...
+building '/nix/store/25p4sjk41525rhh5y9dn81r64rw8545d-home-manager-files.drv'...
+building '/nix/store/cgsv9dixm9a9vsxiydwdycshi4g287i6-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 140
+Creating home file links in /home/diego
+Activating sharedNodeModules
+[node-deps.nix] Merging deps from cloud-data + front-data...
+WARN: /home/diego/git/cloud/cloud-data/cloud-deps.json: Unexpected end of JSON input
+package.json: 90 packages merged
+[node-deps.nix] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/mgzkyn0l1gsimf968x4v2g8r9piar5na-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (6 VMs, 28 services, date=2026-03-23)
+Activating globalTsx
+
+changed 5 packages in 502ms
+Activating initHomeGit
+Activating mcpSecrets
+[mcp-secrets] WARNING: failed to decrypt secrets.yaml
+cp: cannot create regular file '/home/diego/.mcp.json': Permission denied
+[2026-03-23 18:07:58] PERF: home-manager switch = 53.1s
+[2026-03-23 18:07:58] PERF: TOTAL switch = 53.2s
+[2026-03-23 18:07:58] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface
+[2026-03-23 18:07:58] ========== Build script finished ==========
+[2026-03-23 18:14:42] ========== Build script started ==========
+[2026-03-23 18:14:42] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-03-23 18:14:42] PERF: start switch
+[2026-03-23 18:14:42] INFO: Staging dirty files for flake evaluation...

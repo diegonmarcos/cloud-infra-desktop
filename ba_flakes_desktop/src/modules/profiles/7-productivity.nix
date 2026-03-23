@@ -13,6 +13,9 @@
   };
 
   home.packages = with pkgs; [
+    # Browsers
+    firefox
+
     # Office suite
     libreoffice
 
@@ -33,10 +36,27 @@
     mc               # Midnight Commander
 
     # Archive tools
+    kdePackages.ark              # Archive manager (GUI)
     p7zip
     unrar
     unzip
     zip
+
+    # KDE utilities
+    kdePackages.kate             # Advanced text editor
+    kdePackages.kcalc            # Calculator
+    kdePackages.spectacle        # Screenshot tool
+    kdePackages.kmousetool       # Accessibility - auto-click
+    kdePackages.partitionmanager # Disk partition manager
+    kdePackages.filelight        # Disk usage visualizer
+    kdePackages.kcharselect      # Character selector
+    kdePackages.ksystemlog       # System log viewer
+    kdePackages.kfind            # File search
+    kdePackages.krdc             # Remote desktop client
+    kdePackages.krfb             # Remote desktop server (VNC)
+    kdePackages.skanlite         # Scanner app
+    zenity                       # GTK dialog helper (used by scripts)
+    kdialog                      # KDE dialog helper (used by scripts)
 
     # Task management
     taskwarrior

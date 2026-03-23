@@ -74,7 +74,17 @@
   };
 
   # Session path additions
+  # NOTE: These are appended to PATH in hm-session-vars.fish on login.
+  # For interactive fish shells, fish.nix also calls fish_add_path (idempotent)
+  # to ensure paths are available even when __HM_SESS_VARS_SOURCED is inherited.
   home.sessionPath = [
+    # Shared tools (previously in OS environment.sessionVariables.PATH)
+    "/mnt/shared/tools/base/bin"
+    "/mnt/shared/tools/dev/bin"
+    "/mnt/shared/tools/data/bin"
+    "/mnt/shared/tools/devops/bin"
+    "/mnt/shared/tools/scripts"
+    # User-local tools
     "$HOME/.local/bin"
     "$HOME/.cargo/bin"
     "$HOME/.npm-global/bin"
@@ -160,7 +170,11 @@
 
     if [ ! -f "$SOPS" ] || [ ! -f "$SECRETS_YAML" ] || [ ! -f "$TPL" ]; then
       echo "[mcp-secrets] WARNING: sops/secrets/template not found, copying template as-is"
-      [ -f "$TPL" ] && cp "$TPL" "$OUT"
+      if [ -f "$TPL" ]; then
+        chmod 644 "$OUT" 2>/dev/null || true
+        cp "$TPL" "$OUT"
+        chmod 644 "$OUT"
+      fi
       exit 0
     fi
 
@@ -168,7 +182,9 @@
     DECRYPTED=$("$SOPS" -d "$SECRETS_YAML" 2>/dev/null) || true
     if [ -z "$DECRYPTED" ]; then
       echo "[mcp-secrets] WARNING: failed to decrypt secrets.yaml"
+      chmod 644 "$OUT" 2>/dev/null || true
       cp "$TPL" "$OUT"
+      chmod 644 "$OUT"
       exit 0
     fi
 

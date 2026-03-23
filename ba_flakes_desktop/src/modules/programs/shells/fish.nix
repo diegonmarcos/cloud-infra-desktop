@@ -333,9 +333,10 @@
         printf "  └────────────────────────────────────┘ └────────────────────────────────┘ └────────────────────────────────┘\n"
         set_color normal
 
-        # http-dev status line
-        if test -n "$__httpd_pid"; and kill -0 $__httpd_pid 2>/dev/null
-          printf "  "; set_color green; printf "  ● http-dev"; set_color normal; printf "  Web+MD+Eruda  "; set_color cyan; printf "http://127.0.0.1:%s" "$__httpd_port"; set_color normal; printf "  (PID: %s)\n" "$__httpd_pid"
+        # http-dev status line (systemd user service)
+        if systemctl --user is-active http-dev.service >/dev/null 2>&1
+          set -l _httpd_pid (systemctl --user show http-dev.service -p MainPID --value 2>/dev/null)
+          printf "  "; set_color green; printf "  ● http-dev"; set_color normal; printf "  Web+MD+Eruda  "; set_color cyan; printf "http://127.0.0.1:%s" "$__httpd_port"; set_color normal; printf "  (PID: %s)\n" "$_httpd_pid"
         else
           printf "  "; set_color red; printf "  ○ http-dev"; set_color normal; printf "  Not running\n"
         end
@@ -389,14 +390,29 @@
       # NVM via bass (if available)
       # set -gx NVM_DIR $HOME/.nvm
 
-      # Cargo
+      # Ensure user PATH entries are set even when __HM_SESS_VARS_SOURCED is
+      # inherited from a parent process (e.g. Plasma → Konsole).
+      # fish_add_path is idempotent: no duplicates added.
+      if test -d /mnt/shared/tools/scripts
+        fish_add_path /mnt/shared/tools/scripts
+      end
+      for dir in /mnt/shared/tools/devops/bin /mnt/shared/tools/data/bin /mnt/shared/tools/dev/bin /mnt/shared/tools/base/bin
+        if test -d $dir
+          fish_add_path $dir
+        end
+      end
+      if test -d $HOME/.npm-global/bin
+        fish_add_path $HOME/.npm-global/bin
+      end
       if test -d $HOME/.cargo/bin
         fish_add_path $HOME/.cargo/bin
       end
+      if test -d $HOME/.local/bin
+        fish_add_path $HOME/.local/bin
+      end
 
-      # Auto-start http-dev (web-server-md-eruda)
+      # http-dev runs as systemd user service (not per-shell)
       set -g __httpd_port 8000
-      set -g __httpd_pid (http-dev start 2>/dev/null)
 
       # Show welcome
       _show_welcome

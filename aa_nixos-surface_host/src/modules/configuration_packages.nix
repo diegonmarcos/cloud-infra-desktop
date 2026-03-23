@@ -23,42 +23,26 @@
       waydroid show-full-ui
     '')
 
-    # ─── Absolute Minimum CLI ───────────────────────────────────────────────
-    vim
-    fish
+    # ─── Absolute Minimum CLI (system-level only) ───────────────────────────
+    # vim, git, curl, wget, nodejs → managed by home-manager profiles
+    fish  # Must be here for users.users.*.shell = pkgs.fish
 
-    # ─── Bootstrap Tools (CRITICAL - for building user space) ───────────────
-    firefox      # Web browser (authenticate, download, research)
-    brave        # Privacy-focused browser
-    git          # Version control (clone repos, manage dotfiles)
-    wget         # Download tool
-    curl         # Alternative download tool
-    nodejs       # Includes npm, npx (for Claude Code and JS development)
-
-    # ─── Productivity ─────────────────────────────────────────────────────────
-    libreoffice  # Office suite
-    obsidian     # Note-taking
-
-    # ─── System tools (required for maintenance) ────────────────────────────
-    pciutils
-    usbutils
+    # ─── System tools (required for maintenance / boot) ─────────────────────
     btrfs-progs
     cryptsetup
 
-    # ─── Openbox session essentials ─────────────────────────────────────────
+    # ─── Openbox session essentials (launched by SDDM, must be system-level) ─
     openbox obconf
     polybar nitrogen feh rofi dunst picom xterm
 
     # ─── Wayland kiosk ──────────────────────────────────────────────────────
     cage wlr-randr
 
-    # ─── GUI dialogs ────────────────────────────────────────────────────────
-    zenity kdialog
-
     # ─── SDDM Astronaut Theme (Qt6) - custom glassmorphism ───────────────────
     sddm-astronaut-custom
 
     # ─── Virtual Keyboard (Surface Pro touchscreen) ───────────────────────────
+    # Must be system-level: used at SDDM login screen (pre-user-session)
     maliit-keyboard
     maliit-framework
     onboard              # Full-featured: arrows, Fn keys, mouse buttons, word prediction
@@ -67,29 +51,12 @@
     # ─── Wallpapers ───────────────────────────────────────────────────────────
     kdePackages.plasma-workspace-wallpapers
 
-    # ─── KDE Applications Suite ───────────────────────────────────────────────
-    kdePackages.kdeconnect-kde   # Phone/tablet integration
-    kdePackages.kate             # Advanced text editor
-    kdePackages.kcalc            # Calculator
-    kdePackages.ark              # Archive manager
-    kdePackages.okular           # Document viewer (PDF, etc.)
-    kdePackages.gwenview         # Image viewer
-    kdePackages.spectacle        # Screenshot tool
-    kdePackages.dolphin          # File manager (likely already via Plasma)
-    kdePackages.konsole          # Terminal (likely already via Plasma)
-    kdePackages.kcolorchooser    # Color picker
-    kdePackages.kmousetool       # Accessibility - auto-click
-    kdePackages.partitionmanager # Disk partition manager
-    kdePackages.filelight        # Disk usage visualizer
-    kdePackages.kcharselect      # Character selector
-    kdePackages.ksystemlog       # System log viewer
-    kdePackages.kfind            # File search
-    kdePackages.krdc             # Remote desktop client
-    kdePackages.krfb             # Remote desktop server (VNC)
-    kdePackages.elisa            # Music player
-    kdePackages.dragon           # Video player
-    # kdePackages.kamoso         # Camera app - BROKEN in nixpkgs
-    kdePackages.skanlite         # Scanner app
+    # ─── KDE system-level integrations ────────────────────────────────────────
+    # kdeconnect needs system D-Bus + firewall rules via programs.kdeconnect
+    kdePackages.kdeconnect-kde
+
+    # All other KDE apps → managed by home-manager profile 7 (productivity)
+    #                      and profile 8 (media-graphics)
   ];
 
   # ═══════════════════════════════════════════════════════════════════════════

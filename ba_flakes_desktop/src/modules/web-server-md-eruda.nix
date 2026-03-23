@@ -73,4 +73,15 @@ in
     source = httpDevScript;
     executable = true;
   };
+
+  # Systemd user service — start on login (not per-shell like termux)
+  systemd.user.services.http-dev = {
+    Unit.Description = "http-dev — Node.js file server (Markdown + Eruda)";
+    Service = {
+      ExecStart = "${pkgs.nodejs_20}/bin/node %h/.local/bin/web-server-md-eruda.mjs 8000 %h";
+      Restart = "always";
+      RestartSec = 5;
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
 }
