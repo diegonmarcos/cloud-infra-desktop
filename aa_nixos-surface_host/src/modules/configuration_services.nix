@@ -40,18 +40,14 @@
 
   environment.sessionVariables = {
     # Shared caches (inside data/)
+    # NOTE: home-manager overrides CARGO_HOME/GOPATH to ~/.cargo / ~/go
+    # These system-level vars apply to root and system services only
     CARGO_HOME = "/mnt/shared/data/cache/cargo";
     GOPATH = "/mnt/shared/data/cache/go";
     npm_config_cache = "/mnt/shared/data/cache/npm";
     PIP_CACHE_DIR = "/mnt/shared/data/cache/pip";
 
-    # Tools bin directories in PATH
-    PATH = [
-      "/mnt/shared/tools/base/bin"
-      "/mnt/shared/tools/dev/bin"
-      "/mnt/shared/tools/data/bin"
-      "/mnt/shared/tools/devops/bin"
-      "/mnt/shared/tools/scripts"
-    ];
+    # PATH for /mnt/shared/tools is managed by home-manager (home.sessionPath)
+    # so it is centralized with all other user PATH entries there
   };
 }

@@ -31,6 +31,11 @@
     feh
     imv
     gwenview
+    kdePackages.kcolorchooser    # Color picker
+
+    # KDE media apps
+    kdePackages.elisa            # Music player
+    kdePackages.dragon           # Video player
 
     # Photo management
     digikam

@@ -361,6 +361,7 @@
                 ./modules/node-bins.nix
                 ./modules/web-server-md-eruda.nix
                 ./modules/programs/shells/fish-greeting.nix
+                ./modules/wireguard.nix
               ];
               home.stateVersion = "24.05";
 
