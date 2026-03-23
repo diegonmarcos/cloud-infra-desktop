@@ -123,25 +123,32 @@
       };
 
       # ============================================================
-      # Home Manager Configuration Builder
+      # Shared base modules (USER tier — dotfiles, configs, activation scripts)
+      # These are lightweight and evaluate in ~15 seconds.
       # ============================================================
+      userModules = [
+        sops-nix.homeManagerModules.sops
+        ./modules/sops.nix
+        ./modules/common.nix
+        ./modules/guardrails.nix
+        ./modules/curl-wget-wrapper.nix
+        ./modules/node-deps.nix
+        ./modules/cloud.nix
+        ./modules/front.nix
+      ];
+
+      # ============================================================
+      # Home Manager Configuration Builders
+      # ============================================================
+
+      # Full builder (SYS tier — profiles + desktop environments)
+      # Evaluates all profiles + Plasma/GNOME → ~10-30 min on constrained hardware
       mkHost = username: homeDir: hostModule: enabledProfiles: profileName: home-manager.lib.homeManagerConfiguration {
         inherit pkgs;
         extraSpecialArgs = { inherit inputs; };
-        modules = [
-          # Secrets management
-          sops-nix.homeManagerModules.sops
-          ./modules/sops.nix
-
-          # Plasma configuration (for desktop-plasma profile)
+        modules = userModules ++ [
+          # Plasma configuration (only evaluated when desktop-plasma profile is enabled)
           plasma-manager.homeModules.plasma-manager
-
-          ./modules/common.nix
-          ./modules/guardrails.nix
-          ./modules/curl-wget-wrapper.nix
-          ./modules/node-deps.nix
-          ./modules/cloud.nix
-          ./modules/front.nix
           hostModule
           {
             home = {
@@ -149,10 +156,27 @@
               homeDirectory = homeDir;
               stateVersion = "24.11";
               sessionVariables.HM_PROFILE = profileName;
-              # Terraform: shared plugin cache (avoid 100MB+ provider binaries per project)
               sessionVariables.TF_PLUGIN_CACHE_DIR = "$HOME/.terraform.d/plugin-cache";
             };
             imports = enableProfiles enabledProfiles;
+          }
+        ];
+      };
+
+      # User-only builder (USER tier — dotfiles, shell configs, MCP, secrets)
+      # No profiles, no desktop env → evaluates in ~15 seconds
+      mkHostUser = username: homeDir: hostModule: home-manager.lib.homeManagerConfiguration {
+        inherit pkgs;
+        extraSpecialArgs = { inherit inputs; };
+        modules = userModules ++ [
+          hostModule
+          {
+            home = {
+              username = username;
+              homeDirectory = homeDir;
+              stateVersion = "24.11";
+              sessionVariables.HM_PROFILE = "user";
+            };
           }
         ];
       };
@@ -195,12 +219,15 @@
       # Home Manager Configurations
       # ============================================================
       homeConfigurations = {
-        # ─── Surface Pro (with DE) ────────────────────────────────────
+        # ─── USER tier (dotfiles only, ~15 sec eval) ──────────────────
+        "diego@user" = mkHostUser "diego" "/home/diego" ./hosts/surface.nix;
+
+        # ─── SYS tier: Surface Pro (with DE, ~10-30 min eval) ─────────
         "diego@surface-plasma" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-plasma "surface-plasma";
         "diego@surface-gnome"  = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-gnome "surface-gnome";
         "diego@surface"        = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.full-plasma "surface-plasma";
 
-        # ─── Server/CLI (no DE) ───────────────────────────────────────
+        # ─── SYS tier: Server/CLI (no DE) ─────────────────────────────
         "diego@server"  = mkHost "diego" "/home/diego" ./hosts/server.nix presets.server "server";
         "diego@cli"     = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.cli "cli";
         "diego@minimal" = mkHost "diego" "/home/diego" ./hosts/surface.nix presets.minimal "minimal";
