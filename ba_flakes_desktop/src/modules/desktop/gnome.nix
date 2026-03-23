@@ -116,6 +116,16 @@
         night-light-schedule-automatic = true;
       };
 
+      # ─── Extensions ────────────────────────────────────────────────
+      "org/gnome/shell" = {
+        enabled-extensions = [
+          "appindicatorsupport@rgcjonas.gmail.com"
+          "dash-to-dock@micxgx.gmail.com"
+          "clipboard-indicator@tudmotu.com"
+          "gsconnect@andyholmes.github.io"
+        ];
+      };
+
       # ─── Privacy ──────────────────────────────────────────────────
       "org/gnome/desktop/privacy" = {
         remember-recent-files = true;
@@ -131,5 +141,6 @@
     gnomeExtensions.appindicator
     gnomeExtensions.dash-to-dock
     gnomeExtensions.clipboard-indicator
+    gnomeExtensions.gsconnect
   ];
 }
