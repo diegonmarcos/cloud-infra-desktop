@@ -489,11 +489,13 @@ rpm -qR <package>           # RPM-based
 #                           SKILLS & MCPs
 # ████████████████████████████████████████████████████████████████████████████
 
-## MCP: cloud-specs-docs (stdio, local knowledge retrieval)
+## MCP: code-graph-context (stdio, knowledge graph + infra)
 
-**Source**: `~/git/cloud/a_solutions/bc-obs_c3-specs-docs-mcp/src/` · **17 tools, 2 resources**
+**Source**: `~/git/cloud/a_solutions/bc-obs_code-graph-context-kg-infra-mcp/src/` · **23 tools, 2 resources**
 
-### A: Specs (9 tools)
+### Section A: Raw JSON Infra Knowledge (17 tools)
+
+#### Specs (9 tools)
 | Tool | When to use |
 |------|-------------|
 | `c3_topology` | Full infrastructure map (VMs, services, networking) |
@@ -506,7 +508,7 @@ rpm -qR <package>           # RPM-based
 | `knowledge_vm_info` | VM details — IP, WG IP, services, SSH alias |
 | `knowledge_services_by_category` | All services grouped by category |
 
-### B: Docs (4 tools)
+#### Docs (4 tools)
 | Tool | When to use |
 |------|-------------|
 | `c3_docs_overview` | Cloud docs portal overview + index |
@@ -514,13 +516,27 @@ rpm -qR <package>           # RPM-based
 | `c3_readme` | Cloud repo README.md |
 | `cloud_context` | Dynamic infrastructure summary (compact/full) |
 
-### C: Skills (4 tools)
+#### Skills (4 tools)
 | Tool | When to use |
 |------|-------------|
 | `skill_cloud_architect` | Infrastructure tasks — deploy, networking, VM lifecycle |
 | `skill_frontend_developer` | Front-end project work — build, dev, code standards |
 | `skill_debug_ops` | Debug containers, logs, health issues |
 | `skill_crawlee_scraping` | Web scraping, data extraction |
+
+### Section B: Octocode — Semantic Code Search (3 tools)
+| Tool | When to use |
+|------|-------------|
+| `octocode_search` | Semantic code search across indexed repositories |
+| `octocode_memory` | Query code memory — semantic summaries of files/functions |
+| `octocode_index` | Trigger re-indexing of a repository or directory |
+
+### Section C: CodeGraph-Rust — Graph Analysis (3 stub tools, future)
+| Tool | When to use |
+|------|-------------|
+| `codegraph_trace_call_path` | [Future] Trace full call chains between functions |
+| `codegraph_impact_analysis` | [Future] Analyze blast radius of code changes |
+| `codegraph_dependencies` | [Future] Query dependency graph for modules/files |
 
 ### Resources
 | URI | Description |
