@@ -426,6 +426,14 @@ Every service in `` MUST follow this exact structure:
 **ALL Claude Code sessions MUST start from `~/.claude` directory.**
 This ensures consistent context loading and access to CLAUDE.md instructions.
 
+## E.1.1 Broken Shell from Deleted Working Directory
+
+If a directory that the shell `cd`'d into gets deleted (`rm -rf`), all subsequent Bash calls silently fail (exit code 1, no output).
+
+**FIX: `mkdir -p /the/deleted/path`** — recreate the directory. The shell's cwd is just a string reference; once the path exists again, the shell recovers immediately. No restart needed.
+
+**Prevention:** Always use absolute paths (`git -C /abs/path`), avoid `cd` into temp directories.
+
 ## E.2 Dependency Verification (CRITICAL)
 
 **ALWAYS check and install ALL dependencies before declaring a feature complete.**
