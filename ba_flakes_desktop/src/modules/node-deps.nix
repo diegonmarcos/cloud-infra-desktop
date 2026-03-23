@@ -81,4 +81,26 @@ in {
       fi
     fi
   '';
+
+  # Symlink node_modules into stdio MCP src/ dirs so ESM imports resolve.
+  # NODE_PATH only works for CJS require() — ESM import ignores it and walks
+  # the filesystem up from the importing file looking for node_modules/.
+  home.activation.mcpNodeModulesSymlinks = lib.hm.dag.entryAfter ["sharedNodeModules"] ''
+    SHARED="$HOME/.node_modules/node_modules"
+    MCP_DIRS="
+      $HOME/git/cloud/a_solutions/bc-obs_c3-specs-docs-mcp/src
+      $HOME/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src
+    "
+    for dir in $MCP_DIRS; do
+      [ -d "$dir" ] || continue
+      target="$dir/node_modules"
+      if [ -L "$target" ]; then
+        continue  # already a symlink
+      elif [ -d "$target" ]; then
+        continue  # real node_modules, don't override
+      fi
+      ln -s "$SHARED" "$target"
+      printf "[node-deps.nix] Symlinked %s -> shared node_modules\n" "$target"
+    done
+  '';
 }
