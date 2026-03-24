@@ -55,7 +55,7 @@
     functions = {
       cloud-ai-cli = ''
         switch "$argv[1]"
-          case -h --help help
+          case -h --help help models
             echo "cloud-ai-cli — Goose AI with model selector"
             echo ""
             echo "Usage: cloud-ai-cli [model] [goose args...]"
