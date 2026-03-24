@@ -12,7 +12,7 @@ buildNpmPackage rec {
   };
 
   # Hash computed via: nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-  npmDepsHash = "sha256-epursp3p/uxiRoUHsZZTHClMSPndPl7ohMEW8cOhsGI=";
+  npmDepsHash = lib.fakeHash;
 
   # Skip TS build — MCP server runs via npx tsx at runtime
   dontNpmBuild = true;
