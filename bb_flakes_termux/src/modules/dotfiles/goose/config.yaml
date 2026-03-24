@@ -28,7 +28,7 @@ extensions:
     args:
       - /home/diego/Mounts/Git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts
     type: stdio
-    enabled: true
+    enabled: false
     envs:
       CONFIG_PATH: /home/diego/Mounts/Git/cloud/config.json
     timeout: 300
