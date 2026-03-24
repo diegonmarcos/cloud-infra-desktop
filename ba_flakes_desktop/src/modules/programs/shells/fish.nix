@@ -460,18 +460,12 @@
             echo ""
             # TABLE 2: Resolved (cat files, ls dirs, mask secrets, echo values)
             set_color --bold cyan; echo "═══ Resolved ═══"; set_color normal; echo ""
-            set -l _secrets ANTHROPIC_API_KEY OPENAI_API_KEY
             for v in $_vars
               if not set -q $v
                 set_color red; printf "  %-34s" "$v"; echo "→ (not set)"; set_color normal
                 continue
               end
               set -l val $$v
-              # Mask secrets
-              if contains $v $_secrets
-                set_color yellow; printf "  %-34s" "$v"; set_color --dim; echo "→ "(string sub -l 8 -- "$val")"...(masked)"
-                set_color normal; continue
-              end
               # Resolve paths
               if string match -qr '^/' -- "$val"
                 if test -L "$val"
