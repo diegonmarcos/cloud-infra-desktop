@@ -5,6 +5,7 @@
 GOOSE_PROVIDER: ollama
 GOOSE_MODEL: qwen2.5:1.5b
 OLLAMA_HOST: http://10.0.0.6:11435
+GOOSE_CONTEXT_WINDOW: 4096
 
 # Extensions (MCP servers)
 extensions:
