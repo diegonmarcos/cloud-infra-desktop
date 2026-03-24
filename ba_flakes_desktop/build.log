@@ -2061,3 +2061,4 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-24 11:55:55] PERF: TOTAL switch = 13.8s
 [2026-03-24 11:55:55] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user
 [2026-03-24 11:55:55] ========== Build script finished ==========
+[2026-03-24 12:03:26] ========== Build script started ==========
