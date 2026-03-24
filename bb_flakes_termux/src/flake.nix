@@ -338,9 +338,15 @@
               '')
 
               # 7. CONNECT (Unified hub: HM, mesh, git, drives, sync, servers, security)
-              # Source: ~/git/tools/a-cloud-connect/connect.sh
+              # Source: ~/git/tools/a-connect/connect.sh
               (writeShellScriptBin "connect" ''
-                exec "$HOME/git/tools/a-cloud-connect/connect.sh" "$@"
+                exec "$HOME/git/tools/a-connect/connect.sh" "$@"
+              '')
+
+              # 7b. SYNC (Rclone sync manager)
+              # Source: ~/git/tools/a-sync/sync.sh
+              (writeShellScriptBin "sync" ''
+                exec "$HOME/git/tools/a-sync/sync.sh" "$@"
               '')
 
               # 8. NIX-DRIFT (Version drift detection for nix flakes)

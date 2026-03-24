@@ -2633,3 +2633,97 @@ error:
 [2026-03-24 12:26:06] PERF: TOTAL switch = 3.5s
 [2026-03-24 12:26:06] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-03-24 12:26:06] ========== Build script finished ==========
+[2026-03-24 14:50:58] ========== Build script started ==========
+[2026-03-24 14:50:58] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 14:50:58] PERF: start switch
+[2026-03-24 14:50:58] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 14:50:58] PERF: git stage = 36ms
+[2026-03-24 14:50:59] PERF: clean backups = 16ms
+[2026-03-24 14:50:59] INFO: Applying Home Manager configuration...
+unpacking 'github:nix-community/home-manager/d5f1f641b289553927b3801580598d200a501863?narHash=sha256-ypL9WAZfmJr5V70jEVzqGjjQzF0uCkz%2BAFQF7n9NmNc%3D' into the Git cache...
+error:
+       … in the condition of the assert statement
+         at «nix-internal»/call-flake.nix:79:7:
+           78|     if node.flake or true then
+           79|       assert builtins.isFunction flake.outputs;
+             |       ^
+           80|       result
+
+       … while calling the 'isFunction' builtin
+         at «nix-internal»/call-flake.nix:79:14:
+           78|     if node.flake or true then
+           79|       assert builtins.isFunction flake.outputs;
+             |              ^
+           80|       result
+
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+       error: opening Git repository '"/home/diego/.cache/nix/tarball-cache"': could not find repository at '/home/diego/.cache/nix/tarball-cache'
+[2026-03-24 14:51:01] PERF: home-manager switch = 2.4s
+[2026-03-24 14:51:01] PERF: TOTAL switch = 2.6s
+[2026-03-24 14:51:01] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 14:51:01] ========== Build script finished ==========
+[2026-03-24 15:01:48] ========== Build script started ==========
+[2026-03-24 15:01:48] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 15:01:48] PERF: start switch
+[2026-03-24 15:01:48] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 15:01:48] PERF: git stage = 44ms
+[2026-03-24 15:01:48] PERF: clean backups = 17ms
+[2026-03-24 15:01:48] INFO: Applying Home Manager configuration...
+unpacking 'github:nix-community/home-manager/d5f1f641b289553927b3801580598d200a501863?narHash=sha256-ypL9WAZfmJr5V70jEVzqGjjQzF0uCkz%2BAFQF7n9NmNc%3D' into the Git cache...
+error:
+       … in the condition of the assert statement
+         at «nix-internal»/call-flake.nix:79:7:
+           78|     if node.flake or true then
+           79|       assert builtins.isFunction flake.outputs;
+             |       ^
+           80|       result
+
+       … while calling the 'isFunction' builtin
+         at «nix-internal»/call-flake.nix:79:14:
+           78|     if node.flake or true then
+           79|       assert builtins.isFunction flake.outputs;
+             |              ^
+           80|       result
+
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+       error: opening Git repository '"/home/diego/.cache/nix/tarball-cache"': could not find repository at '/home/diego/.cache/nix/tarball-cache'
+[2026-03-24 15:01:50] PERF: home-manager switch = 1.6s
+[2026-03-24 15:01:50] PERF: TOTAL switch = 1.8s
+[2026-03-24 15:01:50] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 15:01:50] ========== Build script finished ==========
+[2026-03-24 15:05:23] ========== Build script started ==========
+[2026-03-24 15:05:23] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 15:05:23] PERF: start switch
+[2026-03-24 15:05:23] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 15:05:23] PERF: git stage = 39ms
+[2026-03-24 15:05:23] PERF: clean backups = 18ms
+[2026-03-24 15:05:23] INFO: Applying Home Manager configuration...
+unpacking 'github:nix-community/home-manager/d5f1f641b289553927b3801580598d200a501863?narHash=sha256-ypL9WAZfmJr5V70jEVzqGjjQzF0uCkz%2BAFQF7n9NmNc%3D' into the Git cache...
+error:
+       … in the condition of the assert statement
+         at «nix-internal»/call-flake.nix:79:7:
+           78|     if node.flake or true then
+           79|       assert builtins.isFunction flake.outputs;
+             |       ^
+           80|       result
+
+       … while calling the 'isFunction' builtin
+         at «nix-internal»/call-flake.nix:79:14:
+           78|     if node.flake or true then
+           79|       assert builtins.isFunction flake.outputs;
+             |              ^
+           80|       result
+
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+       error: opening Git repository '"/home/diego/.cache/nix/tarball-cache"': could not find repository at '/home/diego/.cache/nix/tarball-cache'
+[2026-03-24 15:05:25] PERF: home-manager switch = 1.8s
+[2026-03-24 15:05:25] PERF: TOTAL switch = 2.0s
+[2026-03-24 15:05:25] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 15:05:25] ========== Build script finished ==========
+[2026-03-24 15:07:02] ========== Build script started ==========
+[2026-03-24 15:07:02] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 15:07:02] PERF: start switch
+[2026-03-24 15:07:02] INFO: Staging dirty files for flake evaluation...
