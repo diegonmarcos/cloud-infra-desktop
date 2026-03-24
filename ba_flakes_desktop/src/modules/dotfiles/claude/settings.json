@@ -9,6 +9,15 @@
     "frontend-design@claude-plugins-official": true,
     "ralph-loop@claude-plugins-official": true
   },
+  "env": {
+    "NODE_PATH": "$HOME/.node_modules/node_modules",
+    "GIT_BASE": "$HOME/Mounts/Git",
+    "AUTHELIA_OIDC_CREDENTIALS_DIR": "$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/credentials",
+    "AUTHELIA_OIDC_TOKENS_DIR": "$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens",
+    "AUTHELIA_OIDC_CLIENT_ID": "claude-admin",
+    "AUTHELIA_TOKEN_URL": "https://auth.diegonmarcos.com/api/oidc/token",
+    "BUILDSH_GUARDRAIL": "1"
+  },
   "alwaysThinkingEnabled": true,
   "hooks": {
     "SessionStart": [
