@@ -55,8 +55,21 @@
     functions = {
       cloud-ai-cli = ''
         switch "$argv[1]"
-          case haiku
-            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-haiku-4-5-20251001 goose $argv[2..]
+          case -h --help help
+            echo "cloud-ai-cli — Goose AI with model selector"
+            echo ""
+            echo "Usage: cloud-ai-cli [model] [goose args...]"
+            echo ""
+            echo "Models:"
+            echo "  (default)  Haiku 4.5 · 200K ctx · \$0.80/\$4 in|out (batch: \$0.40/\$2) · ~2s"
+            echo "  sonnet     Sonnet 4.6 · 200K ctx · \$3/\$15 in|out (batch: \$1.50/\$7.50) · ~3s"
+            echo "  opus       Opus 4.6 · 200K ctx · \$15/\$75 in|out (batch: \$7.50/\$37.50) · ~5s"
+            echo "  local      qwen2.5 1.5B Q4 · 4K ctx · Ollama oci-apps · free · ~12s"
+            echo ""
+            echo "Examples:"
+            echo "  cloud-ai-cli              # Haiku (default)"
+            echo "  cloud-ai-cli sonnet       # Sonnet"
+            echo "  cloud-ai-cli local        # Local qwen on Ollama"
           case sonnet
             GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-sonnet-4-6 goose $argv[2..]
           case opus
@@ -64,9 +77,11 @@
           case local qwen
             GOOSE_PROVIDER=ollama GOOSE_MODEL=qwen2.5-4k goose $argv[2..]
           case ""
-            goose
+            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-haiku-4-5-20251001 goose
+          case haiku
+            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-haiku-4-5-20251001 goose $argv[2..]
           case "*"
-            goose $argv
+            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-haiku-4-5-20251001 goose $argv
         end
       '';
 
