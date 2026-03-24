@@ -2347,3 +2347,70 @@ error: 1 dependencies of derivation '/nix/store/3k56fbxkq01sm3i1gxw1fvgv5lk7wdlk
 [2026-03-24 12:16:39] PERF: TOTAL switch = 12.1s
 [2026-03-24 12:16:39] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-03-24 12:16:39] ========== Build script finished ==========
+[2026-03-24 12:16:55] ========== Build script started ==========
+[2026-03-24 12:16:55] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 12:16:55] PERF: start switch
+[2026-03-24 12:16:55] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 12:16:55] PERF: git stage = 34ms
+[2026-03-24 12:16:55] PERF: clean backups = 6ms
+[2026-03-24 12:16:55] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 11 derivations will be built:
+  /nix/store/18lbyffr7qd8cn110df668jav7krz7pv-cloud-infra-mcp-1.0.0.drv
+  /nix/store/6lrv6mj9yy8j74axbx1lpj5gagqi5p13-home-manager-path.drv
+  /nix/store/8rxb2crxxm0vq564x9zsrw1zgfxxdl09-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/fxwpiz82x5vil2ddk9ir6ayjxixwpp49-man-paths.drv
+  /nix/store/sw79z83m5j5cvv0n8n4bbxg03gj6c3ak-man-cache.drv
+  /nix/store/ky9vfnyc8v29vmgb0vdchk141b08y61m-hm_.manpath.drv
+  /nix/store/z2nqipijpp1x7hyn336xf7jslrds34cp-cloud-infra-mcp-1.0.0-fish-completions.drv
+  /nix/store/mfsr51b8xdyd2pyfyab7dmn78bi0lq51-diego-fish-completions.drv
+  /nix/store/c4jw0xxsscg6kirwjazvp7g22pfc2iln-home-manager-files.drv
+  /nix/store/qf42mkpikkjv2gjhz1rdaziyq0jy2hfm-activation-script.drv
+  /nix/store/6gac186v3a2pafj69ni09cfz397ydfaa-home-manager-generation.drv
+building '/nix/store/18lbyffr7qd8cn110df668jav7krz7pv-cloud-infra-mcp-1.0.0.drv'...
+error: builder for '/nix/store/18lbyffr7qd8cn110df668jav7krz7pv-cloud-infra-mcp-1.0.0.drv' failed with exit code 1;
+       last 25 log lines:
+       > <       "license": "BlueOak-1.0.0"
+       > <     },
+       > 2877,2888d2689
+       > <       }
+       > <     },
+       > <     "node_modules/signal-exit": {
+       > <       "version": "4.1.0",
+       > <       "resolved": "https://registry.npmjs.org/signal-exit/-/signal-exit-4.1.0.tgz",
+       > <       "integrity": "sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==",
+       > <       "license": "ISC",
+       > <       "engines": {
+       > <         "node": ">=14"
+       > <       },
+       > <       "funding": {
+       > <         "url": "https://github.com/sponsors/isaacs"
+       >
+       > ERROR: npmDepsHash is out of date
+       >
+       > The package-lock.json in src is not the same as the in /nix/store/i4803520a6nvb0ix08dmbk8y61nilcnj-cloud-infra-mcp-1.0.0-npm-deps.
+       >
+       > To fix the issue:
+       > 1. Use `lib.fakeHash` as the npmDepsHash value
+       > 2. Build the derivation and wait for it to fail with a hash mismatch
+       > 3. Copy the 'got: sha256-' value back into the npmDepsHash field
+       >
+       For full logs, run 'nix log /nix/store/18lbyffr7qd8cn110df668jav7krz7pv-cloud-infra-mcp-1.0.0.drv'.
+error: 1 dependencies of derivation '/nix/store/z2nqipijpp1x7hyn336xf7jslrds34cp-cloud-infra-mcp-1.0.0-fish-completions.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/6lrv6mj9yy8j74axbx1lpj5gagqi5p13-home-manager-path.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/fxwpiz82x5vil2ddk9ir6ayjxixwpp49-man-paths.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/6gac186v3a2pafj69ni09cfz397ydfaa-home-manager-generation.drv' failed to build
+[2026-03-24 12:17:06] PERF: home-manager switch = 10.6s
+[2026-03-24 12:17:06] PERF: TOTAL switch = 10.6s
+[2026-03-24 12:17:06] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 12:17:06] ========== Build script finished ==========
+[2026-03-24 12:17:20] ========== Build script started ==========
+[2026-03-24 12:17:20] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 12:17:20] PERF: start switch
+[2026-03-24 12:17:20] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 12:17:20] PERF: git stage = 27ms
+[2026-03-24 12:17:20] PERF: clean backups = 6ms
+[2026-03-24 12:17:20] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/

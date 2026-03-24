@@ -3,7 +3,7 @@
 { config, lib, pkgs, ... }:
 
 let
-  nodejs = pkgs.nodejs_20;
+  nodejs = pkgs.nodejs_22;
 in {
   options.nodeNpmDeps.front = lib.mkOption {
     type = lib.types.attrsOf lib.types.str;
