@@ -116,6 +116,7 @@
         set -l disk_perc (command df /nix | awk 'NR==2 {gsub(/%/,""); print $5}')
         set -l ip_addr (curl -sf --max-time 2 ifconfig.me 2>/dev/null; or echo "offline")
         set -l ip_priv (ip -4 addr show scope global 2>/dev/null | awk '/inet / {gsub(/\/.*/, "", $2); iface=$NF; if (iface !~ /docker|br-|veth/) printf "%s(%s) ", $2, iface}' | string trim)
+        set -l dns_servers (command awk '/^nameserver/ {printf "%s ", $2}' /etc/resolv.conf 2>/dev/null | string trim)
         set -l load_avg (command cat /proc/loadavg | awk '{print $1" "$2" "$3}')
         set -l pkgs (command ls /nix/store 2>/dev/null | wc -l | string trim)
         set -l procs (command ls /proc 2>/dev/null | grep -c '^[0-9]')
@@ -173,9 +174,9 @@
         set_color normal
         printf "  │ "; set_color yellow; printf "IP-Pub "; set_color normal; printf "%-40s" "$ip_addr"; printf "│ │ "; set_color yellow; printf "SSH      "; set_color normal; printf "%-37s" "$ssh_status"; printf "│\n"
         printf "  │ "; set_color yellow; printf "IP-Priv"; set_color normal; printf " %-39s" "$ip_priv"; printf "│ │ "; set_color yellow; printf "Firewall "; set_color normal; printf "%-37s" "$fw_status"; printf "│\n"
-        printf "  │ "; set_color yellow; printf "Load   "; set_color normal; printf "%-40s" "$load_avg"; printf "│ │ "; set_color yellow; printf "Fail2ban "; set_color normal; printf "%-37s" "$fail2ban"; printf "│\n"
-        printf "  │ "; set_color yellow; printf "Uptime "; set_color normal; printf "%-40s" "$uptime_str"; printf "│ │ "; set_color yellow; printf "Ports    "; set_color normal; printf "%-37s" "$open_ports listening"; printf "│\n"
-        printf "  │ "; set_color yellow; printf "Pkgs   "; set_color normal; printf "%-40s" "$pkgs packages"; printf "│ │ "; set_color yellow; printf "Last     "; set_color normal; printf "%-37s" "$last_login"; printf "│\n"
+        printf "  │ "; set_color yellow; printf "DNS    "; set_color normal; printf "%-40s" "$dns_servers"; printf "│ │ "; set_color yellow; printf "Fail2ban "; set_color normal; printf "%-37s" "$fail2ban"; printf "│\n"
+        printf "  │ "; set_color yellow; printf "Load   "; set_color normal; printf "%-40s" "$load_avg"; printf "│ │ "; set_color yellow; printf "Ports    "; set_color normal; printf "%-37s" "$open_ports listening"; printf "│\n"
+        printf "  │ "; set_color yellow; printf "Uptime "; set_color normal; printf "%-40s" "$uptime_str"; printf "│ │ "; set_color yellow; printf "Last     "; set_color normal; printf "%-37s" "$last_login"; printf "│\n"
         set_color --bold yellow
         printf "  └─────────────────────────────────────────────────┘ └───────────────────────────────────────────────┘\n"
         set_color normal
