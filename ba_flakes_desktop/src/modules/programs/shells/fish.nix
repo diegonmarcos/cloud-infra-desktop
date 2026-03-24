@@ -458,42 +458,44 @@
             end
 
             echo ""
-            # TABLE 2: Resolved (cat files, ls dirs, mask secrets)
+            # TABLE 2: Resolved (cat files, ls dirs, mask secrets, echo values)
             set_color --bold cyan; echo "═══ Resolved ═══"; set_color normal; echo ""
             set -l _secrets ANTHROPIC_API_KEY OPENAI_API_KEY
             for v in $_vars
-              if not set -q $v; continue; end
+              if not set -q $v
+                set_color red; printf "  %-34s" "$v"; echo "→ (not set)"; set_color normal
+                continue
+              end
               set -l val $$v
               # Mask secrets
               if contains $v $_secrets
-                set_color yellow; printf "  %-34s" "$v"; set_color --dim; echo (string sub -l 8 -- "$val")"...(masked)"
+                set_color yellow; printf "  %-34s" "$v"; set_color --dim; echo "→ "(string sub -l 8 -- "$val")"...(masked)"
                 set_color normal; continue
               end
               # Resolve paths
               if string match -qr '^/' -- "$val"
                 if test -L "$val"
-                  # Symlink — show target and cat
                   set -l target (readlink -f "$val" 2>/dev/null)
-                  set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ $target"
+                  set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ symlink: $target"
                   if test -f "$target"
-                    set_color --dim; printf "  %-34s" ""; echo "  "(command head -1 "$target" 2>/dev/null | string sub -l 70)
+                    set_color --dim; printf "  %-34s" ""; echo "  cat: "(command head -1 "$target" 2>/dev/null | string sub -l 70)
                   end
                   set_color normal
                 else if test -d "$val"
-                  # Directory — ls
                   set -l items (command ls "$val" 2>/dev/null | head -8 | string join "  ")
                   set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ ls: $items"
                   set_color normal
                 else if test -f "$val"
-                  # File — cat first line
                   set -l line (command head -1 "$val" 2>/dev/null | string sub -l 70)
                   set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ cat: $line"
                   set_color normal
                 else
-                  # Path doesn't exist
-                  set_color red; printf "  %-34s" "$v"; echo "→ path not found: $val"
-                  set_color normal
+                  set_color red; printf "  %-34s" "$v"; echo "→ path not found"; set_color normal
                 end
+              else
+                # Plain value — echo it
+                set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ $val"
+                set_color normal
               end
             end
 
