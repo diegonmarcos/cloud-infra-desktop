@@ -50,8 +50,8 @@
       reload = "source ~/.config/fish/config.fish";
 
       # AI CLIs — script in ~/git/tools/b-scripts/ai-cli/
-      ai-cli = "sh /home/diego/git/tools/b-scripts/ai-cli/ai-cli.sh";
-      cloud-ai-cli = "ai-cli";  # back-compat
+      "ai-cli" = "sh /home/diego/git/tools/b-scripts/ai-cli/ai-cli.sh";
+      "cloud-ai-cli" = "ai-cli";  # back-compat
     };
 
     functions = {
