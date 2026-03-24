@@ -11,7 +11,7 @@
     cargo-audit
 
     # Code analysis
-    (callPackage ../../pkgs/octocode.nix {})
+    (callPackage ../../pkgs/octocode.nix {})  # ../../ from modules/profiles/ → src/pkgs/
 
     # Go
     go
