@@ -444,28 +444,54 @@
             end
 
           case envvar
-            set_color --bold cyan; echo "═══ Environment Variables ═══"; set_color normal; echo ""
-            # Secrets to mask
-            set -l _secrets ANTHROPIC_API_KEY OPENAI_API_KEY
-            for v in EDITOR VISUAL PAGER LANG LC_ALL MANPAGER LESS ANTHROPIC_API_KEY OPENAI_BASE_URL OPENAI_API_KEY OLLAMA_HOST AUTHELIA_OIDC_CLIENT_ID AUTHELIA_TOKEN_URL AUTHELIA_OIDC_CREDENTIALS_DIR AUTHELIA_OIDC_TOKENS_DIR CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix COREPACK_ENABLE_AUTO_PIN DEVICE HM_PROFILE BUILDSH_GUARDRAIL TF_PLUGIN_CACHE_DIR GNUPGHOME GIT_EDITOR RUSTUP_HOME PYTHONPATH JUPYTER_CONFIG_DIR STARSHIP_SHELL FZF_DEFAULT_COMMAND
-              if not set -q $v
-                set_color red; printf "  %-36s" "$v"; echo "(not set)"; set_color normal
-                continue
+            set -l _vars EDITOR VISUAL PAGER LANG LC_ALL MANPAGER LESS ANTHROPIC_API_KEY OPENAI_BASE_URL OPENAI_API_KEY OLLAMA_HOST AUTHELIA_OIDC_CLIENT_ID AUTHELIA_TOKEN_URL AUTHELIA_OIDC_CREDENTIALS_DIR AUTHELIA_OIDC_TOKENS_DIR CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix COREPACK_ENABLE_AUTO_PIN DEVICE HM_PROFILE BUILDSH_GUARDRAIL TF_PLUGIN_CACHE_DIR GNUPGHOME GIT_EDITOR RUSTUP_HOME PYTHONPATH JUPYTER_CONFIG_DIR STARSHIP_SHELL FZF_DEFAULT_COMMAND
+
+            # TABLE 1: Declarations (raw values as declared)
+            set_color --bold cyan; echo "═══ Declared Values ═══"; set_color normal; echo ""
+            for v in $_vars
+              if set -q $v
+                set_color green; printf "  %-34s = " "$v"; set_color --dim; echo "$$v"; set_color normal
+              else
+                set_color red; printf "  %-34s = " "$v"; echo "(not set)"; set_color normal
               end
+            end
+
+            echo ""
+            # TABLE 2: Resolved (cat files, ls dirs, mask secrets)
+            set_color --bold cyan; echo "═══ Resolved ═══"; set_color normal; echo ""
+            set -l _secrets ANTHROPIC_API_KEY OPENAI_API_KEY
+            for v in $_vars
+              if not set -q $v; continue; end
               set -l val $$v
               # Mask secrets
               if contains $v $_secrets
-                set val (string sub -l 12 -- "$val")"..."
+                set_color yellow; printf "  %-34s" "$v"; set_color --dim; echo (string sub -l 8 -- "$val")"...(masked)"
+                set_color normal; continue
               end
-              set_color green; printf "  %-36s" "$v"; set_color --dim; echo "$val"; set_color normal
-              # If value looks like a path, resolve it
-              if string match -qr '^/' -- "$$v"; and test -e "$$v"
-                if test -d "$$v"
-                  set -l contents (command ls "$$v" 2>/dev/null | head -5 | string join ", ")
-                  set_color --dim; printf "  %-36s" ""; echo "→ dir: $contents"; set_color normal
-                else if test -f "$$v"
-                  set -l first (command head -1 "$$v" 2>/dev/null | string sub -l 60)
-                  set_color --dim; printf "  %-36s" ""; echo "→ $first"; set_color normal
+              # Resolve paths
+              if string match -qr '^/' -- "$val"
+                if test -L "$val"
+                  # Symlink — show target and cat
+                  set -l target (readlink -f "$val" 2>/dev/null)
+                  set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ $target"
+                  if test -f "$target"
+                    set_color --dim; printf "  %-34s" ""; echo "  "(command head -1 "$target" 2>/dev/null | string sub -l 70)
+                  end
+                  set_color normal
+                else if test -d "$val"
+                  # Directory — ls
+                  set -l items (command ls "$val" 2>/dev/null | head -8 | string join "  ")
+                  set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ ls: $items"
+                  set_color normal
+                else if test -f "$val"
+                  # File — cat first line
+                  set -l line (command head -1 "$val" 2>/dev/null | string sub -l 70)
+                  set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ cat: $line"
+                  set_color normal
+                else
+                  # Path doesn't exist
+                  set_color red; printf "  %-34s" "$v"; echo "→ path not found: $val"
+                  set_color normal
                 end
               end
             end
