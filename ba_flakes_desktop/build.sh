@@ -321,15 +321,43 @@ nix_switch() {
 
     perf_step "home-manager switch"
     log_info "Applying Home Manager configuration..."
+    log_info "Flake ref: $flake_ref"
+    log_info "BUILDSH_GUARDRAIL=$BUILDSH_GUARDRAIL _GUARDRAIL=$_GUARDRAIL"
 
-    # Use run_logged instead of | tee (avoids pipe hang in non-TTY)
-    # -b backup: automatically backup conflicting files
+    # Resolve which home-manager binary to use
     if check_home_manager 2>/dev/null; then
-        run_logged home-manager switch --impure -b backup --print-build-logs --flake "$flake_ref"
+        _hm_bin=$(command -v home-manager)
+        log_info "Using home-manager: $_hm_bin"
     else
-        run_logged nix run home-manager -- switch --impure -b backup --print-build-logs --flake "$flake_ref"
+        _hm_bin="nix run home-manager --"
+        log_info "Using nix run home-manager (no home-manager in PATH)"
     fi
-    exit_code=$?
+
+    # Debug: show the exact command
+    _hm_cmd="$_hm_bin switch --impure -b backup --print-build-logs --flake $flake_ref"
+    log_info "Running: $_hm_cmd"
+
+    # Run directly — no run_logged, no tee, no backgrounding
+    # Output goes straight to stdout/stderr + appended to log file
+    _hm_log=$(mktemp)
+    log_info "Temp log: $_hm_log"
+    log_info "Starting home-manager switch at $(date '+%H:%M:%S')..."
+
+    if check_home_manager 2>/dev/null; then
+        home-manager switch --impure -b backup --print-build-logs --flake "$flake_ref" > "$_hm_log" 2>&1
+        exit_code=$?
+    else
+        nix run home-manager -- switch --impure -b backup --print-build-logs --flake "$flake_ref" > "$_hm_log" 2>&1
+        exit_code=$?
+    fi
+
+    log_info "home-manager switch finished at $(date '+%H:%M:%S') with exit code $exit_code"
+
+    # Show output
+    cat "$_hm_log"
+    # Append to persistent log
+    cat "$_hm_log" >> "$LOG_FILE"
+    rm -f "$_hm_log"
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Configuration failed with exit code $exit_code"
