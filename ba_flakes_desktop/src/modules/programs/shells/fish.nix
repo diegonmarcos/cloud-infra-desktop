@@ -289,9 +289,7 @@
         set_color cyan; echo "  Cloud:"
         set_color normal
         set_color red; echo -n "    connect          "; set_color normal; echo "Cloud Connect Unified dashboard (git/mounts/sync/servers)"
-        set_color red; echo -n "    mesh             "; set_color normal; echo "WireGuard VPN (status, config, peers)"
         set_color red; echo -n "    sync             "; set_color normal; echo "File sync & serve (WebDAV SFTP HTTP+Eruda)"
-        set_color red; echo -n "    server           "; set_color normal; echo "Dev server control (dev/stop/status)"
         # http-dev status
         if systemctl --user is-active http-dev.service >/dev/null 2>&1
           set -l _httpd_pid (systemctl --user show http-dev.service -p MainPID --value 2>/dev/null)
