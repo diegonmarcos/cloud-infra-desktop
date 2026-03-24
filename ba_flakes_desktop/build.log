@@ -1893,3 +1893,10 @@ Terminated
 [2026-03-24 11:09:16] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user ==========
 [2026-03-24 11:09:16] PERF: start switch
 [2026-03-24 11:09:16] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 11:09:16] PERF: git stage = 40ms
+[2026-03-24 11:09:16] PERF: clean backups = 16ms
+[2026-03-24 11:09:16] INFO: Applying Home Manager configuration...
+[2026-03-24 11:09:16] INFO: Flake ref: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user
+[2026-03-24 11:09:16] INFO: BUILDSH_GUARDRAIL=1 _GUARDRAIL=1
+[2026-03-24 11:09:16] INFO: Using home-manager: /home/diego/.nix-profile/bin/home-manager
+[2026-03-24 11:09:16] INFO: Starting home-manager switch at 11:09:16...
