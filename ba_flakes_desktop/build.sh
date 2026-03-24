@@ -862,7 +862,7 @@ ${YELLOW}USAGE:${NC}
 
 ${YELLOW}NIX COMMANDS:${NC}
     install                 Install Nix package manager
-    switch [host]           Apply Home Manager config (default: surface)
+    switch [profile]        Apply Home Manager config (default: user — fast)
     update                  Update flake inputs
     show                    Show flake outputs
     develop                 Enter nix develop shell
@@ -940,7 +940,7 @@ main() {
             nix_install
             ;;
         switch)
-            nix_switch "${1:-surface}" "${2:-diego}"
+            nix_switch "${1:-user}" "${2:-diego}"
             ;;
         update)
             nix_update
