@@ -165,3 +165,4 @@ http.ts(115,33): error TS2554: Expected 1 arguments, but got 2.
 [unix-mcp-http] Persistent session ready: unix-mcp-session
 [unix-mcp] HTTP transport on 127.0.0.1:3200/mcp
 [unix-mcp-http] New client initialize — recreating session
+[unix-mcp-http] New client initialize — recreating session
