@@ -2581,3 +2581,8 @@ Activating reloadSystemd
 Starting units: gpg-agent.socket, sops-nix.service
 Activating removeNpmClaude
 Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-03-24 12:21:53] PERF: home-manager switch = 2m 7s
+[2026-03-24 12:21:53] PERF: TOTAL switch = 2m 7s
+[2026-03-24 12:21:53] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 12:21:53] ========== Build script finished ==========
