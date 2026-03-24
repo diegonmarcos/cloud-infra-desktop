@@ -266,9 +266,9 @@
         set_color green; echo -n "    cloud-ai-cli     "; set_color normal; echo "Goose AI (v$_goose_ver) — model selector:"
         set_color --dim
         echo "                       (no arg)  qwen2.5 1.5B Q4 · 4K ctx · Ollama oci-apps · free · ~12s"
-        echo "                       haiku     Haiku 4.5 · 200K ctx · \$0.80/\$4 per 1M tok · ~2s"
-        echo "                       sonnet    Sonnet 4.6 · 200K ctx · \$3/\$15 per 1M tok · ~3s"
-        echo "                       opus      Opus 4.6 · 200K ctx · \$15/\$75 per 1M tok · ~5s"
+        echo "                       haiku     Haiku 4.5 · 200K ctx · \$0.80/\$4 in|out (batch: \$0.40/\$2) · ~2s"
+        echo "                       sonnet    Sonnet 4.6 · 200K ctx · \$3/\$15 in|out (batch: \$1.50/\$7.50) · ~3s"
+        echo "                       opus      Opus 4.6 · 200K ctx · \$15/\$75 in|out (batch: \$7.50/\$37.50) · ~5s"
         set_color normal
         set_color green; echo -n "    code             "; set_color normal; echo "VS Code Server (local/lan/stop)"
         # Cloud
