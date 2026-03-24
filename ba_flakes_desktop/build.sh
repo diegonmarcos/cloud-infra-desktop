@@ -16,7 +16,6 @@
 set -eu
 
 # Skip guardrail wrappers entirely — build.sh is the sanctioned interface
-export _GUARDRAIL=1
 export BUILDSH_GUARDRAIL=1
 
 # ============================================================================
@@ -862,7 +861,7 @@ ${YELLOW}USAGE:${NC}
 
 ${YELLOW}NIX COMMANDS:${NC}
     install                 Install Nix package manager
-    switch [profile]        Apply Home Manager config (default: user — fast)
+    switch [profile]        Apply Home Manager config (default: surface-plasma — full)
     update                  Update flake inputs
     show                    Show flake outputs
     develop                 Enter nix develop shell
@@ -940,7 +939,7 @@ main() {
             nix_install
             ;;
         switch)
-            nix_switch "${1:-user}" "${2:-diego}"
+            nix_switch "${1:-surface-plasma}" "${2:-diego}"
             ;;
         update)
             nix_update
