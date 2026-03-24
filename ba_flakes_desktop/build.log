@@ -2302,3 +2302,48 @@ error:
 [2026-03-24 12:13:56] PERF: TOTAL switch = 7.3s
 [2026-03-24 12:13:56] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-03-24 12:13:56] ========== Build script finished ==========
+[2026-03-24 12:16:26] ========== Build script started ==========
+[2026-03-24 12:16:26] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 12:16:26] PERF: start switch
+[2026-03-24 12:16:26] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 12:16:27] PERF: git stage = 21ms
+[2026-03-24 12:16:27] PERF: clean backups = 5ms
+[2026-03-24 12:16:27] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 11 derivations will be built:
+  /nix/store/x05sgvqxi09n8x5dhy23xphhyz6h6086-cloud-infra-mcp-1.0.0.drv
+  /nix/store/01c3bshyhrbpq4z4ml9qbfpkajqjni5f-man-paths.drv
+  /nix/store/3rz5ihjk1lqybhziv46gxgda114zpc1g-home-manager-path.drv
+  /nix/store/calzv23jcn8mn6vhvsckcfgbp143hzig-man-cache.drv
+  /nix/store/cc49f523xdz0dxj5qk0f8r6k5n3wi83v-hm_.manpath.drv
+  /nix/store/s3rpdj1gzqd3lwfjbc4bw26vd2vvbp92-cloud-infra-mcp-1.0.0-fish-completions.drv
+  /nix/store/dynfk82knc1kh4nl2barwci2rv6aipxc-diego-fish-completions.drv
+  /nix/store/z3xq5w5a79cygm4d2w3rc090m4q78cgj-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/4p4vgnl0cgb8ka6xmkv6kywmqlrv1hpi-home-manager-files.drv
+  /nix/store/w5b6ggjglkv18s76lnxy6wyfqqvlba6q-activation-script.drv
+  /nix/store/3k56fbxkq01sm3i1gxw1fvgv5lk7wdlk-home-manager-generation.drv
+building '/nix/store/x05sgvqxi09n8x5dhy23xphhyz6h6086-cloud-infra-mcp-1.0.0.drv'...
+error: builder for '/nix/store/x05sgvqxi09n8x5dhy23xphhyz6h6086-cloud-infra-mcp-1.0.0.drv' failed with exit code 1;
+       last 12 log lines:
+       > Running phase: unpackPhase
+       > unpacking source archive /nix/store/3g8waq69kqhdfxfrrar4h6n8l5jd38s4-cloud-infra-mcp-src
+       > source root is cloud-infra-mcp-src
+       > Running phase: patchPhase
+       > Executing npmConfigHook
+       > Configuring npm
+       > Validating consistency between /build/cloud-infra-mcp-src/package-lock.json and /nix/store/i4803520a6nvb0ix08dmbk8y61nilcnj-cloud-infra-mcp-1.0.0-npm-deps/package-lock.json
+       > /nix/store/hzq8xr58wgsdjwk7f1q8dirhzhpxiigp-diffutils-3.10/bin/diff: /build/cloud-infra-mcp-src/package-lock.json: No such file or directory
+       >
+       > ERROR: Missing package-lock.json from src. Expected to find it at: /build/cloud-infra-mcp-src/package-lock.json
+       > Hint: You can copy a vendored package-lock.json file via postPatch.
+       >
+       For full logs, run 'nix log /nix/store/x05sgvqxi09n8x5dhy23xphhyz6h6086-cloud-infra-mcp-1.0.0.drv'.
+error: 1 dependencies of derivation '/nix/store/s3rpdj1gzqd3lwfjbc4bw26vd2vvbp92-cloud-infra-mcp-1.0.0-fish-completions.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/3rz5ihjk1lqybhziv46gxgda114zpc1g-home-manager-path.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/01c3bshyhrbpq4z4ml9qbfpkajqjni5f-man-paths.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/3k56fbxkq01sm3i1gxw1fvgv5lk7wdlk-home-manager-generation.drv' failed to build
+[2026-03-24 12:16:39] PERF: home-manager switch = 12.1s
+[2026-03-24 12:16:39] PERF: TOTAL switch = 12.1s
+[2026-03-24 12:16:39] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 12:16:39] ========== Build script finished ==========
