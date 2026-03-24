@@ -343,12 +343,17 @@ nix_switch() {
     log_info "Temp log: $_hm_log"
     log_info "Starting home-manager switch at $(date '+%H:%M:%S')..."
 
+    # --verbose: log every file nix evaluates
+    # --print-build-logs: show build output
+    # --show-trace: full error trace on failure
+    # --log-format bar-with-logs: progress bar + logs (falls back to raw in non-TTY)
+    # Output streams directly to stdout/stderr (no capture) so we see byte-by-byte
     if check_home_manager 2>/dev/null; then
-        home-manager switch --impure -b backup --print-build-logs --flake "$flake_ref" > "$_hm_log" 2>&1
-        exit_code=$?
+        home-manager switch --impure -b backup --verbose --print-build-logs --show-trace --flake "$flake_ref" 2>&1 | tee "$_hm_log"
+        exit_code=${PIPESTATUS[0]:-$?}
     else
-        nix run home-manager -- switch --impure -b backup --print-build-logs --flake "$flake_ref" > "$_hm_log" 2>&1
-        exit_code=$?
+        nix run home-manager -- switch --impure -b backup --verbose --print-build-logs --show-trace --flake "$flake_ref" 2>&1 | tee "$_hm_log"
+        exit_code=${PIPESTATUS[0]:-$?}
     fi
 
     log_info "home-manager switch finished at $(date '+%H:%M:%S') with exit code $exit_code"
