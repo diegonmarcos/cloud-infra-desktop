@@ -3,7 +3,7 @@
     "unix": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/data/data/com.termux.nix/files/home/git/unix/bc_unix-mcp-api/src/index.ts"],
+      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/unix/bc_unix-mcp-api/src/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules"
       }
@@ -18,7 +18,7 @@
     "code-graph-context": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_code-graph-context-kg-infra-mcp/src/index.ts"],
+      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_code-graph-context-kg-infra-mcp/src/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
         "CONFIG_PATH": "/data/data/com.termux.nix/files/home/git/cloud/config.json"
@@ -27,7 +27,7 @@
     "diego-personal-data": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
+      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
         "VAULT_PATH": "/data/data/com.termux.nix/files/home/git/vault",

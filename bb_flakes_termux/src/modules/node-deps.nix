@@ -18,6 +18,11 @@ in {
   # Static fallback package.json (used when deps JSONs are unavailable)
   home.file.".node_modules/package.json.fallback".source = ./dotfiles/node/package.json;
 
+  # ESM NODE_PATH loader — makes ESM honor NODE_PATH (Node.js ESM ignores it by default)
+  # Usage: tsx --import ~/.node_modules/esm-loader-register.mjs script.ts
+  home.file.".node_modules/esm-loader-register.mjs".source = ./dotfiles/node/esm-loader-register.mjs;
+  home.file.".node_modules/esm-loader-resolve.mjs".source = ./dotfiles/node/esm-loader-resolve.mjs;
+
   # Set NODE_PATH so all tools resolve from shared dir
   home.sessionVariables.NODE_PATH = "$HOME/.node_modules/node_modules";
 
@@ -27,9 +32,12 @@ in {
     PKG_JSON="$NODE_MODULES/package.json"
     LOCK="$NODE_MODULES/node_modules/.package-lock.json"
 
-    CLOUD_DEPS="$HOME/git/cloud/cloud-data/cloud-deps.json"
+    CLOUD_DEPS="$HOME/git/cloud/cloud-data/cloud-data-deps.json"
     FRONT_DEPS="$HOME/git/front/front-data/front-deps.json"
     FALLBACK="$NODE_MODULES/package.json.fallback"
+
+    # Ensure package.json is writable (may be read-only from previous generation)
+    [ -f "$PKG_JSON" ] && chmod u+w "$PKG_JSON" 2>/dev/null || true
 
     # Generate package.json from deps JSONs (or use fallback)
     if [ -f "$CLOUD_DEPS" ] || [ -f "$FRONT_DEPS" ]; then
