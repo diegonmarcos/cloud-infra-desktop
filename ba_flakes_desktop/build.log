@@ -3525,3 +3525,74 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-24 15:21:32] PERF: TOTAL switch = 20.3s
 [2026-03-24 15:21:32] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-03-24 15:21:32] ========== Build script finished ==========
+[2026-03-24 16:13:29] ========== Build script started ==========
+[2026-03-24 16:13:29] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 16:13:29] PERF: start switch
+[2026-03-24 16:13:29] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 16:13:29] PERF: git stage = 35ms
+[2026-03-24 16:13:29] PERF: clean backups = 16ms
+[2026-03-24 16:13:29] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 12 derivations will be built:
+  /nix/store/hqwpng4fdg6shpi8h9lvbvl7l0p0i7zv-goose-1.28.0.drv
+  /nix/store/1mbz8yv22709an7cyz8yfcf3hicv0d7s-man-paths.drv
+  /nix/store/j5vjfvxyizs8qflix293hsarvl695l4q-man-cache.drv
+  /nix/store/1xfy8sqw3nsi3m5x0vmg28zwqrp91xa1-hm_.manpath.drv
+  /nix/store/9wp7c2f6z41ikg1b1jijssj74blr6fav-home-manager-path.drv
+  /nix/store/2s25xgv7yny7k311693vqgsmqzp1mvnf-activation-script.drv
+  /nix/store/8cd0wmif57731kr61r6j86icv7lppsy1-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/s0w044ny53c07smn5gv197wfv2m4hdpp-config.fish.drv
+  /nix/store/k9xghy8x1xqpfgqrmr1pmsj7rxln8pc4-goose-1.28.0-fish-completions.drv
+  /nix/store/s50ks95qn0nxban4sxwv902wj86zbr2p-diego-fish-completions.drv
+  /nix/store/fndvyvr43jgs5sgx4s7gx7ddzgdijq36-home-manager-files.drv
+  /nix/store/8bbh851pw5kxdw0arn0fdxj8wknscmyz-home-manager-generation.drv
+these 5 paths will be fetched (0.32 MiB download, 2.40 MiB unpacked):
+  /nix/store/9dgpj7ippixca65z13smbavpp1fbf5rr-auto-patchelf-0-unstable-2024-08-14
+  /nix/store/zmia540cpzlan8dbnf6hnmgxn3fs3zhf-auto-patchelf-hook
+  /nix/store/jag2131a95gw6ng7grig9pj3dn2q8vrv-python3-3.12.8-env
+  /nix/store/s4d11a0d10b0mlwgjl7qd639fgpkfww0-python3.12-pyelftools-0.31
+  /nix/store/l65gpmjg5rhr3cv53g7sslqawwmvwmxm-stdenv-linux
+building '/nix/store/s0w044ny53c07smn5gv197wfv2m4hdpp-config.fish.drv'...
+copying path '/nix/store/l65gpmjg5rhr3cv53g7sslqawwmvwmxm-stdenv-linux' from 'https://cache.nixos.org'...
+copying path '/nix/store/s4d11a0d10b0mlwgjl7qd639fgpkfww0-python3.12-pyelftools-0.31' from 'https://cache.nixos.org'...
+copying path '/nix/store/jag2131a95gw6ng7grig9pj3dn2q8vrv-python3-3.12.8-env' from 'https://cache.nixos.org'...
+copying path '/nix/store/9dgpj7ippixca65z13smbavpp1fbf5rr-auto-patchelf-0-unstable-2024-08-14' from 'https://cache.nixos.org'...
+copying path '/nix/store/zmia540cpzlan8dbnf6hnmgxn3fs3zhf-auto-patchelf-hook' from 'https://cache.nixos.org'...
+building '/nix/store/hqwpng4fdg6shpi8h9lvbvl7l0p0i7zv-goose-1.28.0.drv'...
+error: builder for '/nix/store/hqwpng4fdg6shpi8h9lvbvl7l0p0i7zv-goose-1.28.0.drv' failed with exit code 1;
+       last 25 log lines:
+       >           PosixPath('/nix/store/fyaryjvghbkpfnsyw97hb3lyb37s1pd6-move-lib64.sh/lib'),
+       >           PosixPath('/nix/store/kd4xwxjpjxi71jkm6ka0np72if9rm3y0-move-sbin.sh/lib'),
+       >           PosixPath('/nix/store/pag6l61paj1dc9sv15l7bm5c17xn5kyk-move-systemd-user-units.sh/lib'),
+       >           PosixPath('/nix/store/jivxp510zxakaaic7qkrb7v1dd2rdbw9-multiple-outputs.sh/lib'),
+       >           PosixPath('/nix/store/12lvf0c7xric9cny7slvf9cmhypl1p67-patch-shebangs.sh/lib'),
+       >           PosixPath('/nix/store/cickvswrvann041nqxb0rxilc46svw1n-prune-libtool-files.sh/lib'),
+       >           PosixPath('/nix/store/xyff06pkhki3qy1ls77w10s0v79c9il0-reproducible-builds.sh/lib'),
+       >           PosixPath('/nix/store/aazf105snicrlvyzzbdj85sx4179rpfp-set-source-date-epoch-to-latest.sh/lib'),
+       >           PosixPath('/nix/store/gps9qrh99j7g02840wv5x78ykmz30byp-strip.sh/lib'),
+       >           PosixPath('/nix/store/zx71vq7s1v840wqsrw2m2ckmxn413a2b-gcc-wrapper-13.3.0/lib'),
+       >           PosixPath('/nix/store/ds04v6rdcnsvr48aa9dfmkdrb5k3k0vg-binutils-wrapper-2.43.1/lib')],
+       >  'paths': [PosixPath('/nix/store/aqjwqwvq87igrwaxh6id7vi8y3qgigbx-goose-1.28.0')],
+       >  'recursive': True,
+       >  'runtime_dependencies': []}
+       > setting interpreter of /nix/store/aqjwqwvq87igrwaxh6id7vi8y3qgigbx-goose-1.28.0/bin/goose
+       > searching for dependencies of /nix/store/aqjwqwvq87igrwaxh6id7vi8y3qgigbx-goose-1.28.0/bin/goose
+       >     libgomp.so.1 -> not found!
+       >     libstdc++.so.6 -> not found!
+       >     libgcc_s.so.1 -> not found!
+       > auto-patchelf: 3 dependencies could not be satisfied
+       > error: auto-patchelf could not satisfy dependency libgomp.so.1 wanted by /nix/store/aqjwqwvq87igrwaxh6id7vi8y3qgigbx-goose-1.28.0/bin/goose
+       > error: auto-patchelf could not satisfy dependency libstdc++.so.6 wanted by /nix/store/aqjwqwvq87igrwaxh6id7vi8y3qgigbx-goose-1.28.0/bin/goose
+       > error: auto-patchelf could not satisfy dependency libgcc_s.so.1 wanted by /nix/store/aqjwqwvq87igrwaxh6id7vi8y3qgigbx-goose-1.28.0/bin/goose
+       > auto-patchelf failed to find all the required dependencies.
+       > Add the missing dependencies to --libs or use `--ignore-missing="foo.so.1 bar.so etc.so"`.
+       For full logs, run 'nix log /nix/store/hqwpng4fdg6shpi8h9lvbvl7l0p0i7zv-goose-1.28.0.drv'.
+error: 1 dependencies of derivation '/nix/store/k9xghy8x1xqpfgqrmr1pmsj7rxln8pc4-goose-1.28.0-fish-completions.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/9wp7c2f6z41ikg1b1jijssj74blr6fav-home-manager-path.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/1mbz8yv22709an7cyz8yfcf3hicv0d7s-man-paths.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/8bbh851pw5kxdw0arn0fdxj8wknscmyz-home-manager-generation.drv' failed to build
+[2026-03-24 16:13:52] PERF: home-manager switch = 23.1s
+[2026-03-24 16:13:52] PERF: TOTAL switch = 23.2s
+[2026-03-24 16:13:52] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 16:13:52] ========== Build script finished ==========
