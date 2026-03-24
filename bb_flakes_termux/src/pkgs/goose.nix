@@ -1,4 +1,4 @@
-{ lib, stdenv, fetchurl, autoPatchelfHook }:
+{ lib, stdenv, fetchurl, autoPatchelfHook, gcc-unwrapped, libgcc }:
 
 let
   version = "1.28.0";
@@ -26,6 +26,7 @@ stdenv.mkDerivation {
   unpackPhase = "tar xf $src";
 
   nativeBuildInputs = lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ];
+  buildInputs = [ gcc-unwrapped.lib libgcc ];
 
   installPhase = ''
     mkdir -p $out/bin
