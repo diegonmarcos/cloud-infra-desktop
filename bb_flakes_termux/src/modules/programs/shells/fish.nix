@@ -57,20 +57,45 @@
       ai-cli = ''
         switch "$argv[1]"
           case -h --help help models
-            echo "ai-cli — Unified AI Agent launcher (Goose + MCP)"
+            set_color --bold cyan
+            echo "  ___  ____        ___  __    ____ "
+            echo " / _ |/  _/ ____  / _/ / /   /  _/ "
+            echo "/ __ |_/ /  /___// /_ / /__ _/ /   "
+            echo "/_/ |_/___/      /___//____//___/  "
+            set_color normal
             echo ""
-            echo "Usage: ai-cli [model] [goose args...]"
+            set_color --bold; echo "  Unified AI Agent Launcher (Goose + MCP)"; set_color normal
+            set_color --dim; echo "  Powered by Goose (block/goose) v"(goose --version 2>/dev/null | string match -r '[\d.]+'; or echo "?"); set_color normal
             echo ""
-            echo "Models:"
-            echo "  (default)  Haiku 4.5 · 200K ctx · \$0.80/\$4 in|out (batch: \$0.40/\$2) · ~2s"
-            echo "  sonnet     Sonnet 4.6 · 200K ctx · \$3/\$15 in|out (batch: \$1.50/\$7.50) · ~3s"
-            echo "  opus       Opus 4.6 · 200K ctx · \$15/\$75 in|out (batch: \$7.50/\$37.50) · ~5s"
-            echo "  local      qwen2.5 1.5B Q4 · 4K ctx · Ollama oci-apps · free · ~12s"
+            set_color --bold yellow; echo "── Cloud Models (Anthropic API) ────────────────────────────────"; set_color normal
+            set_color green; echo -n "  (default) "; set_color normal; echo "Haiku 4.5    200K ctx   \$0.80/\$4 per 1M tok   batch: \$0.40/\$2"
+            set_color green; echo -n "  sonnet    "; set_color normal; echo "Sonnet 4.6   200K ctx   \$3/\$15 per 1M tok     batch: \$1.50/\$7.50"
+            set_color green; echo -n "  opus      "; set_color normal; echo "Opus 4.6     200K ctx   \$15/\$75 per 1M tok    batch: \$7.50/\$37.50"
             echo ""
-            echo "Examples:"
-            echo "  ai-cli              # Haiku (default)"
-            echo "  ai-cli sonnet       # Sonnet"
-            echo "  ai-cli local        # Local qwen on Ollama"
+            set_color --bold yellow; echo "── Local Models (Ollama on oci-apps) ───────────────────────────"; set_color normal
+            set_color cyan; echo -n "  local     "; set_color normal; echo "qwen2.5 1.5B Q4   4K ctx   free   ARM CPU ~12s/msg"
+            echo ""
+            set_color --bold yellow; echo "── MCP Extensions ─────────────────────────────────────────────"; set_color normal
+            set_color --dim
+            echo "  cloud-services       c3-services-mcp (Mattermost, Mail, Dagu, GHA, Ollama...)"
+            echo "  cloud-infra          c3-infra-mcp (SSH, Docker, health, builds)"
+            echo "  google-workspace     Gmail, Calendar, Drive, Docs, Sheets"
+            echo "  code-graph-context   Infra knowledge, octocode search"
+            echo "  diego-personal-data  Vault, identity, finance (read-only)"
+            set_color normal
+            echo "  Enable via: goose configure → Extensions"
+            echo ""
+            set_color --bold yellow; echo "── Usage ──────────────────────────────────────────────────────"; set_color normal
+            echo "  ai-cli                  Launch with Haiku 4.5 (default)"
+            echo "  ai-cli sonnet           Launch with Sonnet 4.6"
+            echo "  ai-cli local            Launch with local qwen (free)"
+            echo "  ai-cli -h               This help"
+            echo ""
+            set_color --bold yellow; echo "── Goose Commands ─────────────────────────────────────────────"; set_color normal
+            echo "  goose configure         Configure providers, extensions, permissions"
+            echo "  goose session           Start/resume sessions"
+            echo "  goose info              Show current config"
+            echo ""
           case sonnet
             GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-sonnet-4-6 goose $argv[2..]
           case opus
