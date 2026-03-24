@@ -52,6 +52,9 @@ in {
             take(d.node?.merged?.devDependencies, devDeps);
           } catch (e) { console.error('WARN: ' + f + ': ' + e.message); }
         }
+        // Ensure essential tools are always present
+        if (!deps['tsx'] && !devDeps['tsx']) devDeps['tsx'] = '^4.19.0';
+        if (!deps['typescript'] && !devDeps['typescript']) devDeps['typescript'] = '^5.7.0';
         const sort = o => Object.fromEntries(Object.entries(o).sort(([a],[b]) => a.localeCompare(b)));
         const pkg = {
           name: 'shared-node-modules',
