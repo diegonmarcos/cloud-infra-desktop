@@ -7,6 +7,7 @@
     busybox          # httpd — lightweight static file server
     mdbook
     tree
+    (callPackage ../pkgs/octocode.nix {})
     dnsutils         # dig, nslookup — DNS health checks in MCP tools
     netcat-openbsd  # nc — WireGuard peer probing
     ncurses          # clear, tput
