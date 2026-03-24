@@ -9,7 +9,7 @@
 
   # Symlink age key from vault to expected location
   xdg.configFile."sops/age/keys.txt".source =
-    config.lib.file.mkOutOfStoreSymlink "/home/diego/Mounts/Git/vault/A0_keys/providers/system/ssh_asymmetric/age_keys.txt";
+    config.lib.file.mkOutOfStoreSymlink "/home/diego/git/vault/A0_keys/providers/system/ssh_asymmetric/age_keys.txt";
 
   sops = {
     # Age key location (symlinked from vault)

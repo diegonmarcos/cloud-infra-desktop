@@ -2523,3 +2523,61 @@ these 11 derivations will be built:
   /nix/store/yrk33vpp16fqgg3b05cmw3m8akwrq6bp-activation-script.drv
   /nix/store/1dakg23nsjnm8jlznsq5vba99vyyj6al-home-manager-generation.drv
 building '/nix/store/ll6q09asba10iqbrlh3hr003jiw933ld-cloud-infra-mcp-1.0.0.drv'...
+building '/nix/store/h3k0vi725lbg7xqwhzlly44zczrfnzx1-cloud-infra-mcp-1.0.0-fish-completions.drv'...
+building '/nix/store/n91iqcvad76d7nmxq5w1mywrb9nwm825-home-manager-path.drv'...
+building '/nix/store/73ff35pm5zh0j5sjfm185cdsc2g62iad-man-paths.drv'...
+building '/nix/store/qdiwz2s9saxwsbv6viw384p5760l9c51-diego-fish-completions.drv'...
+building '/nix/store/vi21zkypxh9ran39r4hmpzs2013psxi0-man-cache.drv'...
+building '/nix/store/yrk33vpp16fqgg3b05cmw3m8akwrq6bp-activation-script.drv'...
+building '/nix/store/krkzsl4mq9lsl027g4x41hcj3x6n15nq-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/l2l1d02153kicrq01ch9xvd8cn5zxvk5-hm_.manpath.drv'...
+building '/nix/store/cb21abv56y5c6xglzsqbbfhqjhbkjc92-home-manager-files.drv'...
+building '/nix/store/1dakg23nsjnm8jlznsq5vba99vyyj6al-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 152
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+WARN: cloud-deps: Unexpected end of JSON input
+[node-npm-deps-cloud] 0 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/lbllmiqs360kyshnzbg2mhqn0b1v6b9w-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (6 VMs, 28 services, date=2026-03-24)
+Activating globalTsx
+
+changed 5 packages in 1s
+Activating initHomeGit
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: gpg-agent.socket, sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
