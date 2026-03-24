@@ -2586,3 +2586,50 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-24 12:21:53] PERF: TOTAL switch = 2m 7s
 [2026-03-24 12:21:53] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-03-24 12:21:53] ========== Build script finished ==========
+[2026-03-24 12:26:02] ========== Build script started ==========
+[2026-03-24 12:26:02] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 12:26:03] PERF: start switch
+[2026-03-24 12:26:03] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 12:26:03] PERF: git stage = 35ms
+[2026-03-24 12:26:03] PERF: clean backups = 17ms
+[2026-03-24 12:26:03] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+error:
+       … while calling the 'derivationStrict' builtin
+         at <nix/derivation-internal.nix>:37:12:
+           36|
+           37|   strict = derivationStrict drvAttrs;
+             |            ^
+           38|
+
+       … while evaluating derivation 'home-manager-generation'
+         whose name attribute is located at /nix/store/lc5bxq4vsgpjjc7i9phdm8s0bxjz0drm-source/pkgs/stdenv/generic/make-derivation.nix:396:13
+
+       … while evaluating attribute 'buildCommand' of derivation 'home-manager-generation'
+         at /nix/store/lc5bxq4vsgpjjc7i9phdm8s0bxjz0drm-source/pkgs/build-support/trivial-builders/default.nix:76:17:
+           75|         enableParallelBuilding = true;
+           76|         inherit buildCommand name;
+             |                 ^
+           77|         passAsFile = [ "buildCommand" ] ++ (derivationArgs.passAsFile or [ ]);
+
+       … while evaluating the option `home.activation.installPackages.data':
+
+       … while evaluating definitions from `/nix/store/dimhhb7nhymgd9f35ajdzf6xkij6rsh8-source/modules/home-environment.nix':
+
+       … while evaluating the option `home.packages':
+
+       … while evaluating definitions from `/nix/store/z0yfzbr0yk0ajv9l2wxx8waxid47llyh-source/ba_flakes_desktop/src/modules/profiles/6-data-science.nix':
+
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+       error: attribute 'cloud-infra-mcp' missing
+       at /nix/store/z0yfzbr0yk0ajv9l2wxx8waxid47llyh-source/ba_flakes_desktop/src/modules/profiles/6-data-science.nix:10:5:
+            9|     customPkgs.gemini-cli
+           10|     customPkgs.cloud-infra-mcp
+             |     ^
+           11|
+[2026-03-24 12:26:06] PERF: home-manager switch = 3.4s
+[2026-03-24 12:26:06] PERF: TOTAL switch = 3.5s
+[2026-03-24 12:26:06] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 12:26:06] ========== Build script finished ==========
