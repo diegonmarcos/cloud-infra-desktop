@@ -81,7 +81,7 @@
       gdrive = "bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh";
 
       # AI CLIs — script in ~/git/tools/b-scripts/ai-cli/
-      "ai-cli" = "sh /home/diego/Mounts/Git/tools/b-scripts/ai-cli/ai-cli.sh";
+      "ai-cli" = "sh $HOME/git/tools/b-scripts/ai-cli/ai-cli.sh";
       "cloud-ai-cli" = "ai-cli";  # back-compat
 
       # Welcome screen
