@@ -3,7 +3,7 @@
 
 # Default provider and model (Ollama on oci-apps, always on)
 GOOSE_PROVIDER: ollama
-GOOSE_MODEL: qwen2.5:1.5b
+GOOSE_MODEL: qwen2.5-4k
 OLLAMA_HOST: http://10.0.0.6:11435
 GOOSE_CONTEXT_WINDOW: 4096
 
