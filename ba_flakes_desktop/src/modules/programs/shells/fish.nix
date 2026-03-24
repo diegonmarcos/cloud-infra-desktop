@@ -445,11 +445,28 @@
 
           case envvar
             set_color --bold cyan; echo "═══ Environment Variables ═══"; set_color normal; echo ""
+            # Secrets to mask
+            set -l _secrets ANTHROPIC_API_KEY OPENAI_API_KEY
             for v in EDITOR VISUAL PAGER LANG LC_ALL MANPAGER LESS ANTHROPIC_API_KEY OPENAI_BASE_URL OPENAI_API_KEY OLLAMA_HOST AUTHELIA_OIDC_CLIENT_ID AUTHELIA_TOKEN_URL AUTHELIA_OIDC_CREDENTIALS_DIR AUTHELIA_OIDC_TOKENS_DIR CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix COREPACK_ENABLE_AUTO_PIN DEVICE HM_PROFILE BUILDSH_GUARDRAIL TF_PLUGIN_CACHE_DIR GNUPGHOME GIT_EDITOR RUSTUP_HOME PYTHONPATH JUPYTER_CONFIG_DIR STARSHIP_SHELL FZF_DEFAULT_COMMAND
-              if set -q $v
-                set_color green; printf "  %-36s" "$v"; set_color --dim; echo "$$v"; set_color normal
-              else
+              if not set -q $v
                 set_color red; printf "  %-36s" "$v"; echo "(not set)"; set_color normal
+                continue
+              end
+              set -l val $$v
+              # Mask secrets
+              if contains $v $_secrets
+                set val (string sub -l 12 -- "$val")"..."
+              end
+              set_color green; printf "  %-36s" "$v"; set_color --dim; echo "$val"; set_color normal
+              # If value looks like a path, resolve it
+              if string match -qr '^/' -- "$$v"; and test -e "$$v"
+                if test -d "$$v"
+                  set -l contents (command ls "$$v" 2>/dev/null | head -5 | string join ", ")
+                  set_color --dim; printf "  %-36s" ""; echo "→ dir: $contents"; set_color normal
+                else if test -f "$$v"
+                  set -l first (command head -1 "$$v" 2>/dev/null | string sub -l 60)
+                  set_color --dim; printf "  %-36s" ""; echo "→ $first"; set_color normal
+                end
               end
             end
 
