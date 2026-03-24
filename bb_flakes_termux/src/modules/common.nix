@@ -36,7 +36,13 @@
   };
 
   # Goose AI CLI config (cloud-ai-cli alias)
-  home.file.".config/goose/config.yaml".source = ./dotfiles/goose/config.yaml;
+  # NOTE: Goose can't follow Nix store symlinks, so we copy instead
+  home.activation.gooseConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    mkdir -p "$HOME/.config/goose"
+    rm -f "$HOME/.config/goose/config.yaml"
+    cp ${./dotfiles/goose/config.yaml} "$HOME/.config/goose/config.yaml"
+    chmod 644 "$HOME/.config/goose/config.yaml"
+  '';
 
   home.sessionPath = [
     "$HOME/.cargo/bin"

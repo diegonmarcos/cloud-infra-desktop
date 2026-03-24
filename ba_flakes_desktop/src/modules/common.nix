@@ -148,7 +148,13 @@
   home.file.".rgignore".source = ./dotfiles/claude/rgignore;
 
   # Goose AI CLI configuration (cloud-ai-cli alias)
-  home.file.".config/goose/config.yaml".source = ./dotfiles/goose/config.yaml;
+  # NOTE: Goose can't follow Nix store symlinks, so we copy instead of symlink
+  home.activation.gooseConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    mkdir -p "$HOME/.config/goose"
+    rm -f "$HOME/.config/goose/config.yaml"
+    cp ${./dotfiles/goose/config.yaml} "$HOME/.config/goose/config.yaml"
+    chmod 644 "$HOME/.config/goose/config.yaml"
+  '';
 
   # Gemini CLI configuration + MCP server config
   # Uses the same sops secret substitution as Claude's mcp.json

@@ -23,7 +23,7 @@
     "code-graph-context": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_code-graph-context-kg-infra-mcp/src/index.ts"],
+      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts"],
       "env": {
         "CONFIG_PATH": "/home/diego/git/cloud/config.json"
       }

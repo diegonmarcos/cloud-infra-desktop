@@ -3596,3 +3596,102 @@ error: 1 dependencies of derivation '/nix/store/8bbh851pw5kxdw0arn0fdxj8wknscmyz
 [2026-03-24 16:13:52] PERF: TOTAL switch = 23.2s
 [2026-03-24 16:13:52] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-03-24 16:13:52] ========== Build script finished ==========
+[2026-03-24 16:15:09] ========== Build script started ==========
+[2026-03-24 16:15:09] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 16:15:09] PERF: start switch
+[2026-03-24 16:15:09] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 16:15:09] PERF: git stage = 36ms
+[2026-03-24 16:15:09] PERF: clean backups = 17ms
+[2026-03-24 16:15:09] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 11 derivations will be built:
+  /nix/store/8n8xn51ils080dbp8s7bx247vq6d99gd-goose-1.28.0.drv
+  /nix/store/ib50zld7vlyh0nh0s69qxpc5ifh423bc-home-manager-path.drv
+  /nix/store/5x5xwyh5yxb1s294xzzf9k2flxgj6fyd-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/8f452gs08lh9mribkn5gj1dk4acs45bg-activation-script.drv
+  /nix/store/93wgp66pci90x9i8hryhdk2p943nc52i-man-paths.drv
+  /nix/store/cpgj0svf0mn9p72w7c4jf2049xyim13c-goose-1.28.0-fish-completions.drv
+  /nix/store/dc8xhrfsfmylsiq5c5j7s32djgn0vsdd-man-cache.drv
+  /nix/store/d82y34kdzdj7ag1vyry078js51lzvrvh-hm_.manpath.drv
+  /nix/store/kr87nrfsx3n4h8d3zbi7p9cmck4lvik9-diego-fish-completions.drv
+  /nix/store/lbrqz8vvyvd2h0aj6gy1q2al017s9y0g-home-manager-files.drv
+  /nix/store/yjdh8lqah5gv0kx8nx73kz6vvnh20zi7-home-manager-generation.drv
+building '/nix/store/8n8xn51ils080dbp8s7bx247vq6d99gd-goose-1.28.0.drv'...
+building '/nix/store/cpgj0svf0mn9p72w7c4jf2049xyim13c-goose-1.28.0-fish-completions.drv'...
+building '/nix/store/ib50zld7vlyh0nh0s69qxpc5ifh423bc-home-manager-path.drv'...
+building '/nix/store/93wgp66pci90x9i8hryhdk2p943nc52i-man-paths.drv'...
+building '/nix/store/kr87nrfsx3n4h8d3zbi7p9cmck4lvik9-diego-fish-completions.drv'...
+building '/nix/store/dc8xhrfsfmylsiq5c5j7s32djgn0vsdd-man-cache.drv'...
+building '/nix/store/8f452gs08lh9mribkn5gj1dk4acs45bg-activation-script.drv'...
+building '/nix/store/5x5xwyh5yxb1s294xzzf9k2flxgj6fyd-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/d82y34kdzdj7ag1vyry078js51lzvrvh-hm_.manpath.drv'...
+building '/nix/store/lbrqz8vvyvd2h0aj6gy1q2al017s9y0g-home-manager-files.drv'...
+building '/nix/store/yjdh8lqah5gv0kx8nx73kz6vvnh20zi7-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 156
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+WARN: cloud-deps: Unexpected end of JSON input
+[node-npm-deps-cloud] 0 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/7zra7cy0qvfgxdpjj0xlzsk4qnx434km-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+<anonymous_script>:1
+
+
+SyntaxError: Unexpected end of JSON input
+    at JSON.parse (<anonymous>)
+    at [eval]:4:19
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:118:14
+    at [eval]-wrapper:6:24
+    at runScript (node:internal/process/execution:101:62)
+    at evalScript (node:internal/process/execution:133:3)
+    at node:internal/main/eval_string:51:3
+
+Node.js v20.19.1
+[gen-claude-md] WARNING: generation failed, template used as fallback
+Activating globalTsx
+
+changed 5 packages in 1s
+Activating initHomeGit
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-03-24 16:16:19] PERF: home-manager switch = 1m 10s
+[2026-03-24 16:16:19] PERF: TOTAL switch = 1m 10s
+[2026-03-24 16:16:19] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 16:16:19] ========== Build script finished ==========
