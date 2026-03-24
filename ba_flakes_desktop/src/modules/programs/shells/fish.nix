@@ -80,6 +80,9 @@
       # Custom tools
       gdrive = "bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh";
 
+      # AI CLIs
+      cloud-ai-cli = "goose";
+
       # Welcome screen
       welcome = "_show_welcome";
     };

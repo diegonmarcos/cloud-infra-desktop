@@ -8,6 +8,7 @@
     mdbook
     tree
     (callPackage ../pkgs/octocode.nix {})
+    (callPackage ../pkgs/goose.nix {})
     dnsutils         # dig, nslookup — DNS health checks in MCP tools
     netcat-openbsd  # nc — WireGuard peer probing
     ncurses          # clear, tput

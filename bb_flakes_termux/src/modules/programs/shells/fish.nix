@@ -48,6 +48,9 @@
       h = "history";
       path = "echo $PATH | tr ':' '\\n'";
       reload = "source ~/.config/fish/config.fish";
+
+      # AI CLIs
+      cloud-ai-cli = "goose";
     };
 
     functions = {

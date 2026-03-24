@@ -1,0 +1,53 @@
+# Goose AI CLI config — managed by home-manager
+# Source: ~/git/unix/ba_flakes_desktop/src/modules/dotfiles/goose/
+
+# Default provider and model (Ollama on oci-apps, always on)
+GOOSE_PROVIDER: ollama
+GOOSE_MODEL: qwen2.5:1.5b
+OLLAMA_HOST: http://10.0.0.6:11435
+
+# Extensions (MCP servers)
+extensions:
+  cloud-services:
+    name: Cloud Services MCP
+    type: sse
+    uri: https://mcp.diegonmarcos.com/c3-services-mcp/mcp
+    enabled: true
+    timeout: 300
+
+  cloud-infra:
+    name: Cloud Infra MCP
+    type: sse
+    uri: https://mcp.diegonmarcos.com/c3-infra-mcp/mcp
+    enabled: true
+    timeout: 300
+
+  code-graph-context:
+    name: Code Graph Context
+    cmd: tsx
+    args:
+      - /home/diego/Mounts/Git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts
+    type: stdio
+    enabled: true
+    envs:
+      CONFIG_PATH: /home/diego/Mounts/Git/cloud/config.json
+    timeout: 300
+
+  diego-personal-data:
+    name: Diego Personal Data
+    cmd: tsx
+    args:
+      - /home/diego/Mounts/Git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts
+    type: stdio
+    enabled: true
+    envs:
+      VAULT_PATH: /home/diego/Mounts/Git/vault
+      CONFIG_PATH: /home/diego/Mounts/Git/cloud/config.json
+    timeout: 300
+
+  google-workspace:
+    name: Google Workspace MCP
+    type: sse
+    uri: https://mcp.diegonmarcos.com/g-workspace/mcp
+    enabled: true
+    timeout: 300
