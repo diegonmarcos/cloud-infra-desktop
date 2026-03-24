@@ -2501,3 +2501,25 @@ error: 1 dependencies of derivation '/nix/store/gq57zpb4fv8xg64a2rps3ncmbnchwjcc
 [2026-03-24 12:19:23] PERF: TOTAL switch = 1m 21s
 [2026-03-24 12:19:23] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-03-24 12:19:23] ========== Build script finished ==========
+[2026-03-24 12:19:45] ========== Build script started ==========
+[2026-03-24 12:19:45] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 12:19:45] PERF: start switch
+[2026-03-24 12:19:45] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 12:19:45] PERF: git stage = 26ms
+[2026-03-24 12:19:45] PERF: clean backups = 5ms
+[2026-03-24 12:19:46] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 11 derivations will be built:
+  /nix/store/ll6q09asba10iqbrlh3hr003jiw933ld-cloud-infra-mcp-1.0.0.drv
+  /nix/store/n91iqcvad76d7nmxq5w1mywrb9nwm825-home-manager-path.drv
+  /nix/store/krkzsl4mq9lsl027g4x41hcj3x6n15nq-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/73ff35pm5zh0j5sjfm185cdsc2g62iad-man-paths.drv
+  /nix/store/vi21zkypxh9ran39r4hmpzs2013psxi0-man-cache.drv
+  /nix/store/l2l1d02153kicrq01ch9xvd8cn5zxvk5-hm_.manpath.drv
+  /nix/store/h3k0vi725lbg7xqwhzlly44zczrfnzx1-cloud-infra-mcp-1.0.0-fish-completions.drv
+  /nix/store/qdiwz2s9saxwsbv6viw384p5760l9c51-diego-fish-completions.drv
+  /nix/store/cb21abv56y5c6xglzsqbbfhqjhbkjc92-home-manager-files.drv
+  /nix/store/yrk33vpp16fqgg3b05cmw3m8akwrq6bp-activation-script.drv
+  /nix/store/1dakg23nsjnm8jlznsq5vba99vyyj6al-home-manager-generation.drv
+building '/nix/store/ll6q09asba10iqbrlh3hr003jiw933ld-cloud-infra-mcp-1.0.0.drv'...
