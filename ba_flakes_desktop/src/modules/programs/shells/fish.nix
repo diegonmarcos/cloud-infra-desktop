@@ -492,32 +492,77 @@
             end
 
             echo ""
-            # TABLE 2: Every var, resolved (cat value → if file cat it, if dir ls it, if plain echo it)
-            set_color --bold cyan; echo "═══ Table 2: Resolved (cat/ls) ═══"; set_color normal; echo ""
-            for v in $_vars
-              if not set -q $v
-                set_color red; printf "  %-34s" "$v"; echo "→ (not set)"; set_color normal
-                continue
-              end
-              set -l val $$v
-              if test -L "$val" 2>/dev/null
-                set -l target (readlink -f "$val" 2>/dev/null)
-                set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ symlink → $target"
+            # TABLE 2: Resolve declared values (NO runtime env — script resolves paths/cats)
+            set_color --bold cyan; echo "═══ Table 2: Resolved (cat/ls from declared) ═══"; set_color normal; echo ""
+            set -l _hm_root "$HOME/git/unix/ba_flakes_desktop/src"
+            set -l _os_root "$HOME/git/unix/aa_nixos-surface_host/src"
+            # Collect unique var=value pairs from nix source, resolve $HOME, then cat/ls
+            command find "$_hm_root" "$_os_root" -name '*.nix' 2>/dev/null | sort | while read -l f
+              command awk '
+                /[Ss]ession[Vv]ariables\s*=\s*\{/ { inside=1; next }
+                inside && /^\s*\};/ { inside=0; next }
+                inside && /=/ && !/^[[:space:]]*#/ {
+                  line = $0; gsub(/^\s+/, "", line); gsub(/;\s*$/, "", line)
+                  if (line == "") next
+                  n = index(line, " = ")
+                  if (n > 0) {
+                    name = substr(line, 1, n-1); gsub(/"/, "", name)
+                    val = substr(line, n+3); gsub(/^"/, "", val); gsub(/";?\s*$/, "", val)
+                    if (name !~ /^LESS_TERMCAP/) print name "\t" val
+                  }
+                }
+              ' "$f" 2>/dev/null
+            end | command awk -F'\t' '!seen[$1]++ {print}' | while read -l line
+              set -l name (echo "$line" | cut -f1)
+              set -l val (echo "$line" | cut -f2)
+              # Resolve $HOME in the value
+              set -l resolved (echo "$val" | command sed "s|\\\$HOME|$HOME|g; s|~|$HOME|g")
+              # Now resolve: dir→ls, file→cat, symlink→follow, value→echo
+              if test -L "$resolved" 2>/dev/null
+                set -l target (readlink -f "$resolved" 2>/dev/null)
+                set_color cyan; printf "  %-34s" "$name"; set_color --dim; echo "→ symlink → $target"
                 if test -f "$target"
                   set_color --dim; printf "  %-34s" ""; echo "  cat: "(command head -1 "$target" 2>/dev/null | string sub -l 70)
                 else if test -d "$target"
                   set_color --dim; printf "  %-34s" ""; echo "  ls: "(command ls "$target" 2>/dev/null | head -6 | string join "  ")
                 end
                 set_color normal
-              else if test -d "$val" 2>/dev/null
-                set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ ls: "(command ls "$val" 2>/dev/null | head -8 | string join "  ")
+              else if test -d "$resolved" 2>/dev/null
+                set_color cyan; printf "  %-34s" "$name"; set_color --dim; echo "→ ls: "(command ls "$resolved" 2>/dev/null | head -8 | string join "  ")
                 set_color normal
-              else if test -f "$val" 2>/dev/null
-                set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ cat: "(command head -1 "$val" 2>/dev/null | string sub -l 70)
+              else if test -f "$resolved" 2>/dev/null
+                set_color cyan; printf "  %-34s" "$name"; set_color --dim; echo "→ cat: "(command head -1 "$resolved" 2>/dev/null | string sub -l 70)
                 set_color normal
               else
-                # Not a path or path doesn't exist — cat of a value IS the value
-                set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ $val"
+                set_color cyan; printf "  %-34s" "$name"; set_color --dim; echo "→ $val"
+                set_color normal
+              end
+            end
+            # Also resolve fish set -gx (cat commands)
+            command find "$_hm_root" -name '*.nix' 2>/dev/null | while read -l f
+              command awk '
+                /set -gx [A-Za-z_]/ && !/^[[:space:]]*#/ {
+                  line = $0; gsub(/^\s+/, "", line)
+                  if (line ~ /set -gx [A-Za-z_]+ \(cat /) {
+                    gsub(/set -gx /, "", line)
+                    sp = index(line, " ")
+                    name = substr(line, 1, sp-1)
+                    val = substr(line, sp+1)
+                    gsub(/[()]/, "", val); gsub(/^\s+/, "", val)
+                    print name "\t" val
+                  }
+                }
+              ' "$f" 2>/dev/null
+            end | while read -l line
+              set -l name (echo "$line" | cut -f1)
+              set -l catcmd (echo "$line" | cut -f2)
+              set -l filepath (echo "$catcmd" | command sed "s|^cat ||; s|~|$HOME|g; s|\\\$HOME|$HOME|g" | string trim)
+              if test -f "$filepath"
+                set -l content (command head -1 "$filepath" 2>/dev/null | string sub -l 20)"..."
+                set_color yellow; printf "  %-34s" "$name"; set_color --dim; echo "→ cat($filepath) = $content"
+                set_color normal
+              else
+                set_color red; printf "  %-34s" "$name"; echo "→ file not found: $filepath"
                 set_color normal
               end
             end
