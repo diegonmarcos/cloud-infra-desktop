@@ -49,11 +49,26 @@
       path = "echo $PATH | tr ':' '\\n'";
       reload = "source ~/.config/fish/config.fish";
 
-      # AI CLIs
-      cloud-ai-cli = "goose";
+      # AI CLIs — use function instead (see functions block)
     };
 
     functions = {
+      cloud-ai-cli = ''
+        switch "$argv[1]"
+          case haiku
+            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-haiku-4-5-20251001 goose $argv[2..]
+          case sonnet
+            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-sonnet-4-6 goose $argv[2..]
+          case opus
+            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-opus-4-6 goose $argv[2..]
+          case local qwen
+            GOOSE_PROVIDER=ollama GOOSE_MODEL=qwen2.5-4k goose $argv[2..]
+          case ""
+            goose
+          case "*"
+            goose $argv
+        end
+      '';
 
       mkcd = "mkdir -p $argv[1]; and cd $argv[1]";
 
