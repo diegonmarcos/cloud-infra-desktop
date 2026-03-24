@@ -690,6 +690,12 @@
         fish_add_path $HOME/.nix-profile/bin
       end
 
+      # Authelia OIDC credentials (vault paths)
+      set -gx AUTHELIA_OIDC_CREDENTIALS_DIR "$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/credentials"
+      set -gx AUTHELIA_OIDC_TOKENS_DIR "$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens"
+      set -gx AUTHELIA_OIDC_CLIENT_ID "claude-admin"
+      set -gx AUTHELIA_TOKEN_URL "https://auth.diegonmarcos.com/api/oidc/token"
+
       # http-dev runs as systemd user service (not per-shell)
       set -g __httpd_port 8000
 

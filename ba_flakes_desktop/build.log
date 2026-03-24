@@ -5113,3 +5113,88 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-24 19:15:55] INFO: Applying Home Manager configuration...
 warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
 evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 15 derivations will be built:
+  /nix/store/54zcvk91v46l3kmv7ck41m1q10ngsndv-hm-session-vars.sh.drv
+  /nix/store/3a8xg0znl804x9j537bi3l6b3y3f5nkb-home-manager-path.drv
+  /nix/store/lxxrn59zrz4dmd7wl4v8y3lh19jslwfx-man-paths.drv
+  /nix/store/i8fj976j5c50061ip3v97qxyph1cjcjl-man-cache.drv
+  /nix/store/49mpcx60vprd3rg3ss091py5gd11z43m-hm_.manpath.drv
+  /nix/store/6m1h8angiqd7ap51y3dvbf5p582rmbhd-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/cyn7abdqb5nk8r46pb3svyzprmlxcwdk-cloud-ai-cli.fish.drv
+  /nix/store/hgwv84l6nmgjql58pr3g038l1lspz95c-hm-session-vars.sh-fish-completions.drv
+  /nix/store/gql95597syvihs2ld4gsamjppzv4j3mw-diego-fish-completions.drv
+  /nix/store/p42z313jlvkl9m443pjqh9ak4p70ycsg-ai-cli.fish.drv
+  /nix/store/mpm57h2kgbjhdgjyjms1ih3k0pg0smxx-hm-session-vars.fish.drv
+  /nix/store/qzlrgvp2i1w1f8n9vma4519gyw3kxb4j-config.fish.drv
+  /nix/store/8v1cv3n2ffflq4d3x714zdhpvgfnv82w-home-manager-files.drv
+  /nix/store/yzs7dqn17945qmp0d7xpiya0f36z2pp3-activation-script.drv
+  /nix/store/frvp61pqxs9730yalx7yrs95949rpv6y-home-manager-generation.drv
+building '/nix/store/54zcvk91v46l3kmv7ck41m1q10ngsndv-hm-session-vars.sh.drv'...
+building '/nix/store/p42z313jlvkl9m443pjqh9ak4p70ycsg-ai-cli.fish.drv'...
+building '/nix/store/cyn7abdqb5nk8r46pb3svyzprmlxcwdk-cloud-ai-cli.fish.drv'...
+building '/nix/store/mpm57h2kgbjhdgjyjms1ih3k0pg0smxx-hm-session-vars.fish.drv'...
+building '/nix/store/hgwv84l6nmgjql58pr3g038l1lspz95c-hm-session-vars.sh-fish-completions.drv'...
+building '/nix/store/3a8xg0znl804x9j537bi3l6b3y3f5nkb-home-manager-path.drv'...
+building '/nix/store/lxxrn59zrz4dmd7wl4v8y3lh19jslwfx-man-paths.drv'...
+building '/nix/store/qzlrgvp2i1w1f8n9vma4519gyw3kxb4j-config.fish.drv'...
+building '/nix/store/gql95597syvihs2ld4gsamjppzv4j3mw-diego-fish-completions.drv'...
+building '/nix/store/i8fj976j5c50061ip3v97qxyph1cjcjl-man-cache.drv'...
+building '/nix/store/yzs7dqn17945qmp0d7xpiya0f36z2pp3-activation-script.drv'...
+building '/nix/store/6m1h8angiqd7ap51y3dvbf5p582rmbhd-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/49mpcx60vprd3rg3ss091py5gd11z43m-hm_.manpath.drv'...
+building '/nix/store/8v1cv3n2ffflq4d3x714zdhpvgfnv82w-home-manager-files.drv'...
+building '/nix/store/frvp61pqxs9730yalx7yrs95949rpv6y-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 177
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+WARN: cloud-deps: Unexpected end of JSON input
+[node-npm-deps-cloud] 0 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 2s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/b356jncaf74fw9j4y5q2apq9jwcwfxdm-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 31 services, date=2026-03-24)
+Activating globalTsx
+
+changed 5 packages in 2s
+Activating gooseConfig
+Activating initHomeGit
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-03-24 19:17:33] PERF: home-manager switch = 1m 37s
+[2026-03-24 19:17:33] PERF: TOTAL switch = 1m 37s
+[2026-03-24 19:17:33] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 19:17:33] ========== Build script finished ==========
