@@ -178,13 +178,14 @@ let
             >> "$_logfile" 2>/dev/null || true
         }
 
+        # Strip ~/.local/bin from PATH so exec hits the real binary (must happen BEFORE any exec)
+        PATH="$(printf "%s" "$PATH" | tr ':' '\n' | grep -v '\.local/bin' | tr '\n' ':')"
+
         # Re-entry guard: skip if already inside a guardrail wrapper
         if [ "''${_GUARDRAIL:-}" = "1" ]; then
           exec ${cmd} "$@" || _die "exec '${cmd}' failed (not found on PATH?)"
         fi
         export _GUARDRAIL=1
-        # Strip ~/.local/bin from PATH so exec hits the real binary
-        PATH="$(printf "%s" "$PATH" | tr ':' '\n' | grep -v '\.local/bin' | tr '\n' ':')"
         # Verify the real binary exists after PATH strip
         if ! command -v ${cmd} >/dev/null 2>&1; then
           _die "'${cmd}' not found on PATH after stripping ~/.local/bin. Is it installed?"
