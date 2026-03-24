@@ -211,37 +211,37 @@
         set_color normal
         set_color blue; echo -n "  Shell:         "; set_color normal
         for v in EDITOR VISUAL PAGER LANG LC_ALL MANPAGER
-          if set -q $v; set_color green; else; set_color red; end
+          if set -q $v; set_color --dim green; else; set_color --dim red; end
           printf "%-16s" "$v"
         end
         set_color normal; echo ""
         set_color blue; echo -n "  AI / LLM:      "; set_color normal
         for v in ANTHROPIC_API_KEY OPENAI_BASE_URL OPENAI_API_KEY
-          if set -q $v; set_color green; else; set_color red; end
+          if set -q $v; set_color --dim green; else; set_color --dim red; end
           printf "%-22s" "$v"
         end
         set_color normal; echo ""
         set_color blue; echo -n "  Auth:          "; set_color normal
         for v in AUTHELIA_OIDC_CLIENT_ID AUTHELIA_TOKEN_URL
-          if set -q $v; set_color green; else; set_color red; end
+          if set -q $v; set_color --dim green; else; set_color --dim red; end
           printf "%-26s" "$v"
         end
         set_color normal; echo ""
         set_color blue; echo -n "                 "; set_color normal
         for v in AUTHELIA_OIDC_CREDENTIALS_DIR AUTHELIA_OIDC_TOKENS_DIR
-          if set -q $v; set_color green; else; set_color red; end
+          if set -q $v; set_color --dim green; else; set_color --dim red; end
           printf "%-34s" "$v"
         end
         set_color normal; echo ""
         set_color blue; echo -n "  Dev:           "; set_color normal
         for v in CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix
-          if set -q $v; set_color green; else; set_color red; end
+          if set -q $v; set_color --dim green; else; set_color --dim red; end
           printf "%-18s" "$v"
         end
         set_color normal; echo ""
         set_color blue; echo -n "  System:        "; set_color normal
         for v in DEVICE HM_PROFILE BUILDSH_GUARDRAIL TF_PLUGIN_CACHE_DIR GNUPGHOME GIT_EDITOR
-          if set -q $v; set_color green; else; set_color red; end
+          if set -q $v; set_color --dim green; else; set_color --dim red; end
           printf "%-16s" "$v"
         end
         set_color normal; echo ""; echo ""
