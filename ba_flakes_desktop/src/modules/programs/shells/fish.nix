@@ -682,6 +682,9 @@
     };
 
     interactiveShellInit = ''
+      # NODE_PATH for shared ~/.node_modules (ESM doesn't read NODE_PATH, but CJS + tsx do)
+      set -gx NODE_PATH "$HOME/.node_modules/node_modules"
+
       # Starship prompt
       if command -v starship &>/dev/null
         starship init fish | source
