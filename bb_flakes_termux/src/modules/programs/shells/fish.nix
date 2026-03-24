@@ -58,43 +58,44 @@
         switch "$argv[1]"
           case -h --help help models
             set_color --bold cyan
-            echo "  ___  ____        ___  __    ____ "
-            echo " / _ |/  _/ ____  / _/ / /   /  _/ "
-            echo "/ __ |_/ /  /___// /_ / /__ _/ /   "
-            echo "/_/ |_/___/      /___//____//___/  "
+            echo ""
+            echo "    ╔═══╗ ╔══╗        ╔═══╗ ╦    ╔══╗"
+            echo "    ╠═══╣  ║   ═══    ║    ║     ║  "
+            echo "    ║   ║ ╚══╝        ╚═══╝ ╩══╝ ╩  "
             set_color normal
+            set_color --bold white; echo "    Unified AI Agent Launcher"; set_color normal
+            set_color --dim; echo "    goose v"(goose --version 2>/dev/null | string match -r '[\d.]+'; or echo "?")" · block/goose · MCP-native"; set_color normal
             echo ""
-            set_color --bold; echo "  Unified AI Agent Launcher (Goose + MCP)"; set_color normal
-            set_color --dim; echo "  Powered by Goose (block/goose) v"(goose --version 2>/dev/null | string match -r '[\d.]+'; or echo "?"); set_color normal
+            set_color --bold yellow; echo "  ── Cloud Models (Anthropic API) ─────────────────────────────────────"; set_color normal
             echo ""
-            set_color --bold yellow; echo "── Cloud Models (Anthropic API) ────────────────────────────────"; set_color normal
-            set_color green; echo -n "  (default) "; set_color normal; echo "Haiku 4.5    200K ctx   \$0.80/\$4 per 1M tok   batch: \$0.40/\$2"
-            set_color green; echo -n "  sonnet    "; set_color normal; echo "Sonnet 4.6   200K ctx   \$3/\$15 per 1M tok     batch: \$1.50/\$7.50"
-            set_color green; echo -n "  opus      "; set_color normal; echo "Opus 4.6     200K ctx   \$15/\$75 per 1M tok    batch: \$7.50/\$37.50"
+            set_color green; echo -n "    (default)  "; set_color --bold white; echo -n "Haiku  4.5  "; set_color normal; echo -n " 200K ctx  "; set_color --dim; echo "\$0.80/\$4.00   batch \$0.40/\$2.00"; set_color normal
+            set_color green; echo -n "    sonnet     "; set_color --bold white; echo -n "Sonnet 4.6  "; set_color normal; echo -n " 200K ctx  "; set_color --dim; echo "\$3.00/\$15.00  batch \$1.50/\$7.50"; set_color normal
+            set_color green; echo -n "    opus       "; set_color --bold white; echo -n "Opus   4.6  "; set_color normal; echo -n "   1M ctx  "; set_color --dim; echo "\$15.00/\$75.00 batch \$7.50/\$37.50"; set_color normal
             echo ""
-            set_color --bold yellow; echo "── Local Models (Ollama on oci-apps) ───────────────────────────"; set_color normal
-            set_color cyan; echo -n "  local     "; set_color normal; echo "qwen2.5 1.5B Q4   4K ctx   free   ARM CPU ~12s/msg"
+            set_color --bold yellow; echo "  ── Local Models (Ollama · oci-apps ARM) ────────────────────────────"; set_color normal
             echo ""
-            set_color --bold yellow; echo "── MCP Extensions ─────────────────────────────────────────────"; set_color normal
+            set_color cyan; echo -n "    local      "; set_color --bold white; echo -n "Qwen   1.5B "; set_color normal; echo -n "   4K ctx  "; set_color --dim; echo "free · Q4_K_M · ~12s/msg"; set_color normal
+            echo ""
+            set_color --bold yellow; echo "  ── MCP Extensions ───────────────────────────────────────────────────"; set_color normal
+            echo ""
             set_color --dim
-            echo "  cloud-services       c3-services-mcp (Mattermost, Mail, Dagu, GHA, Ollama...)"
-            echo "  cloud-infra          c3-infra-mcp (SSH, Docker, health, builds)"
-            echo "  google-workspace     Gmail, Calendar, Drive, Docs, Sheets"
-            echo "  code-graph-context   Infra knowledge, octocode search"
-            echo "  diego-personal-data  Vault, identity, finance (read-only)"
+            echo "    cloud-services         Mattermost, Mail, Dagu, GHA, Ollama, ntfy"
+            echo "    cloud-infra            SSH, Docker, health checks, builds, deploys"
+            echo "    cloud-cgc-mcp          Infra knowledge graph, octocode semantic search"
+            echo "    google-workspace       Gmail, Calendar, Drive, Docs, Sheets"
+            echo "    diego-personal-data    Vault, identity, finance (read-only)"
             set_color normal
-            echo "  Enable via: goose configure → Extensions"
+            echo "    Enable: goose configure → Extensions"
             echo ""
-            set_color --bold yellow; echo "── Usage ──────────────────────────────────────────────────────"; set_color normal
-            echo "  ai-cli                  Launch with Haiku 4.5 (default)"
-            echo "  ai-cli sonnet           Launch with Sonnet 4.6"
-            echo "  ai-cli local            Launch with local qwen (free)"
-            echo "  ai-cli -h               This help"
+            set_color --bold yellow; echo "  ── Usage ────────────────────────────────────────────────────────────"; set_color normal
             echo ""
-            set_color --bold yellow; echo "── Goose Commands ─────────────────────────────────────────────"; set_color normal
-            echo "  goose configure         Configure providers, extensions, permissions"
-            echo "  goose session           Start/resume sessions"
-            echo "  goose info              Show current config"
+            echo "    ai-cli                 Launch with Haiku 4.5 (default)"
+            echo "    ai-cli sonnet          Launch with Sonnet 4.6"
+            echo "    ai-cli opus            Launch with Opus 4.6"
+            echo "    ai-cli local           Launch with local Qwen (free)"
+            echo "    ai-cli -h              This help"
+            echo ""
+            set_color --dim; echo "    Config: ~/.config/goose/config.yaml"; set_color normal
             echo ""
           case sonnet
             GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-sonnet-4-6 goose $argv[2..]
