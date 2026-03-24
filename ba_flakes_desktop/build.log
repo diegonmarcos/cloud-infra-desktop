@@ -2414,3 +2414,32 @@ error: 1 dependencies of derivation '/nix/store/6gac186v3a2pafj69ni09cfz397ydfaa
 [2026-03-24 12:17:20] INFO: Applying Home Manager configuration...
 warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
 evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 12 derivations will be built:
+  /nix/store/4as4z7wmxs52nh5qpci2qq9bijjz3p0z-cloud-infra-mcp-1.0.0-npm-deps.drv
+  /nix/store/hvkr6jvwdcz3ddphyl6sc52xpvhkcgb5-cloud-infra-mcp-1.0.0.drv
+  /nix/store/y6ajjahw8bawkya0r4qgyb5cin61f2g9-man-paths.drv
+  /nix/store/p6w77ashb6gx2kavdmlwg596wikyig62-man-cache.drv
+  /nix/store/07fzs8bpv377z9bbsksgwns11kdw701j-hm_.manpath.drv
+  /nix/store/5kqqg0z1p1qnc9l7x3aqb2nsj6rmxxbv-home-manager-path.drv
+  /nix/store/3f518a2xpl2mwl57hs3npzvc2rkfxnq1-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/kwvfyjz30x3fh64prs9r80627kr1j3bc-cloud-infra-mcp-1.0.0-fish-completions.drv
+  /nix/store/pzmqxfg4i71p783cqm9sr5qzlb1ggzkj-diego-fish-completions.drv
+  /nix/store/jwm2fl2bjb076rr6xi5d09gksq948nn1-home-manager-files.drv
+  /nix/store/z3d2mbadqzb0ls7apfqpd8fy17lg0hrh-activation-script.drv
+  /nix/store/j472kgjdbzkkmpzpv8v50k5hn7brqzms-home-manager-generation.drv
+this path will be fetched (18.38 MiB download, 90.66 MiB unpacked):
+  /nix/store/b3x7xvp565xqlj0whi2giwgbrplfwfpb-nodejs-22.16.0
+copying path '/nix/store/b3x7xvp565xqlj0whi2giwgbrplfwfpb-nodejs-22.16.0' from 'https://cache.nixos.org'...
+building '/nix/store/4as4z7wmxs52nh5qpci2qq9bijjz3p0z-cloud-infra-mcp-1.0.0-npm-deps.drv'...
+error: hash mismatch in fixed-output derivation '/nix/store/4as4z7wmxs52nh5qpci2qq9bijjz3p0z-cloud-infra-mcp-1.0.0-npm-deps.drv':
+         specified: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+            got:    sha256-OInQyAlRXxSVKJpi+2G7hCncKJHoUhDWNQPM3PT9iMM=
+error: 1 dependencies of derivation '/nix/store/hvkr6jvwdcz3ddphyl6sc52xpvhkcgb5-cloud-infra-mcp-1.0.0.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/kwvfyjz30x3fh64prs9r80627kr1j3bc-cloud-infra-mcp-1.0.0-fish-completions.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/5kqqg0z1p1qnc9l7x3aqb2nsj6rmxxbv-home-manager-path.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/y6ajjahw8bawkya0r4qgyb5cin61f2g9-man-paths.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/j472kgjdbzkkmpzpv8v50k5hn7brqzms-home-manager-generation.drv' failed to build
+[2026-03-24 12:17:45] PERF: home-manager switch = 24.0s
+[2026-03-24 12:17:45] PERF: TOTAL switch = 24.0s
+[2026-03-24 12:17:45] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 12:17:45] ========== Build script finished ==========
