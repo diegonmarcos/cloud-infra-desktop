@@ -447,24 +447,9 @@
           case envvar
             set -l _vars EDITOR VISUAL PAGER LANG LC_ALL MANPAGER LESS ANTHROPIC_API_KEY OPENAI_BASE_URL OPENAI_API_KEY OLLAMA_HOST AUTHELIA_OIDC_CLIENT_ID AUTHELIA_TOKEN_URL AUTHELIA_OIDC_CREDENTIALS_DIR AUTHELIA_OIDC_TOKENS_DIR CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix COREPACK_ENABLE_AUTO_PIN DEVICE HM_PROFILE BUILDSH_GUARDRAIL TF_PLUGIN_CACHE_DIR GNUPGHOME GIT_EDITOR RUSTUP_HOME PYTHONPATH JUPYTER_CONFIG_DIR STARSHIP_SHELL FZF_DEFAULT_COMMAND
 
-            # TABLE 1: Declarations (as declared in nix source, not runtime)
-            set_color --bold cyan; echo "═══ Declared (nix source) ═══"; set_color normal; echo ""
-            set_color --dim; echo "  # home.sessionVariables (common.nix)"; set_color normal
-            set_color green; printf "  %-34s = " "EDITOR"; set_color --dim; echo "vim"; set_color normal
-            set_color green; printf "  %-34s = " "VISUAL"; set_color --dim; echo "vim"; set_color normal
-            set_color green; printf "  %-34s = " "PAGER"; set_color --dim; echo "less"; set_color normal
-            set_color green; printf "  %-34s = " "MANPAGER"; set_color --dim; echo "less -R"; set_color normal
-            set_color green; printf "  %-34s = " "LANG"; set_color --dim; echo "en_US.UTF-8"; set_color normal
-            set_color green; printf "  %-34s = " "LC_ALL"; set_color --dim; echo "en_US.UTF-8"; set_color normal
-            set_color green; printf "  %-34s = " "LESS"; set_color --dim; echo "-R -F -X"; set_color normal
-            set_color green; printf "  %-34s = " "OPENAI_BASE_URL"; set_color --dim; echo "http://10.0.0.6:11435/v1"; set_color normal
-            set_color green; printf "  %-34s = " "OPENAI_API_KEY"; set_color --dim; echo "sk-dummy"; set_color normal
-            echo ""
-            set_color --dim; echo "  # interactiveShellInit (fish.nix) — loaded from vault at login"; set_color normal
-            set_color yellow; printf "  %-34s = " "ANTHROPIC_API_KEY"; set_color --dim; echo "cat(~/git/vault/A0_keys/providers/anthropic/api-key_opaque)"; set_color normal
-            echo ""
-            set_color --dim; echo "  # NixOS / home-manager (system + profile)"; set_color normal
-            for v in CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix TF_PLUGIN_CACHE_DIR GNUPGHOME RUSTUP_HOME DEVICE HM_PROFILE
+            # TABLE 1: Every var, its declared value (what nix wrote)
+            set_color --bold cyan; echo "═══ Table 1: Declared ═══"; set_color normal; echo ""
+            for v in $_vars
               if set -q $v
                 set_color green; printf "  %-34s = " "$v"; set_color --dim; echo "$$v"; set_color normal
               else
@@ -473,36 +458,31 @@
             end
 
             echo ""
-            # TABLE 2: Resolved (cat files, ls dirs, mask secrets, echo values)
-            set_color --bold cyan; echo "═══ Resolved ═══"; set_color normal; echo ""
+            # TABLE 2: Every var, resolved (cat value → if file cat it, if dir ls it, if plain echo it)
+            set_color --bold cyan; echo "═══ Table 2: Resolved (cat/ls) ═══"; set_color normal; echo ""
             for v in $_vars
               if not set -q $v
                 set_color red; printf "  %-34s" "$v"; echo "→ (not set)"; set_color normal
                 continue
               end
               set -l val $$v
-              # Resolve paths
-              if string match -qr '^/' -- "$val"
-                if test -L "$val"
-                  set -l target (readlink -f "$val" 2>/dev/null)
-                  set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ symlink: $target"
-                  if test -f "$target"
-                    set_color --dim; printf "  %-34s" ""; echo "  cat: "(command head -1 "$target" 2>/dev/null | string sub -l 70)
-                  end
-                  set_color normal
-                else if test -d "$val"
-                  set -l items (command ls "$val" 2>/dev/null | head -8 | string join "  ")
-                  set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ ls: $items"
-                  set_color normal
-                else if test -f "$val"
-                  set -l line (command head -1 "$val" 2>/dev/null | string sub -l 70)
-                  set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ cat: $line"
-                  set_color normal
-                else
-                  set_color red; printf "  %-34s" "$v"; echo "→ path not found"; set_color normal
+              if test -L "$val" 2>/dev/null
+                set -l target (readlink -f "$val" 2>/dev/null)
+                set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ symlink → $target"
+                if test -f "$target"
+                  set_color --dim; printf "  %-34s" ""; echo "  cat: "(command head -1 "$target" 2>/dev/null | string sub -l 70)
+                else if test -d "$target"
+                  set_color --dim; printf "  %-34s" ""; echo "  ls: "(command ls "$target" 2>/dev/null | head -6 | string join "  ")
                 end
+                set_color normal
+              else if test -d "$val" 2>/dev/null
+                set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ ls: "(command ls "$val" 2>/dev/null | head -8 | string join "  ")
+                set_color normal
+              else if test -f "$val" 2>/dev/null
+                set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ cat: "(command head -1 "$val" 2>/dev/null | string sub -l 70)
+                set_color normal
               else
-                # Plain value — echo it
+                # Not a path or path doesn't exist — cat of a value IS the value
                 set_color cyan; printf "  %-34s" "$v"; set_color --dim; echo "→ $val"
                 set_color normal
               end
