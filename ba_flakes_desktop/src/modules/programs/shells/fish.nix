@@ -80,14 +80,30 @@
       # Custom tools
       gdrive = "bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh";
 
-      # AI CLIs
-      cloud-ai-cli = "goose";
+      # AI CLIs — use function instead (see functions block)
 
       # Welcome screen
       welcome = "_show_welcome";
     };
 
     functions = {
+      cloud-ai-cli = ''
+        switch "$argv[1]"
+          case haiku
+            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-haiku-4-5-20251001 goose $argv[2..]
+          case sonnet
+            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-sonnet-4-6 goose $argv[2..]
+          case opus
+            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-opus-4-6 goose $argv[2..]
+          case local qwen
+            GOOSE_PROVIDER=ollama GOOSE_MODEL=qwen2.5-4k goose $argv[2..]
+          case ""
+            goose
+          case "*"
+            goose $argv
+        end
+      '';
+
       fish_greeting = ''
         # Gather system info
         set -l user (whoami)
