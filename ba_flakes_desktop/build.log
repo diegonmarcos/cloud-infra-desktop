@@ -6657,3 +6657,12 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-24 21:26:12] PERF: TOTAL switch = 55.5s
 [2026-03-24 21:26:12] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-03-24 21:26:12] ========== Build script finished ==========
+[2026-03-24 21:29:14] ========== Build script started ==========
+[2026-03-24 21:29:14] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 21:29:14] PERF: start switch
+[2026-03-24 21:29:14] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 21:29:14] PERF: git stage = 128ms
+[2026-03-24 21:29:14] PERF: clean backups = 49ms
+[2026-03-24 21:29:15] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
