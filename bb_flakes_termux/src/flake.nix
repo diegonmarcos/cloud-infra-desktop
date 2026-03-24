@@ -45,7 +45,7 @@
               experimental-features = nix-command flakes
               max-jobs = 2
               cores = 4
-              auto-optimise-store = true
+              auto-optimise-store = false
               min-free = 1073741824
               min-free-check-interval = 30
               keep-derivations = false

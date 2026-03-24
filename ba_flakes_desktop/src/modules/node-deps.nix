@@ -26,9 +26,12 @@ in {
     PKG_JSON="$NODE_MODULES/package.json"
     LOCK="$NODE_MODULES/node_modules/.package-lock.json"
 
-    CLOUD_DEPS="$HOME/git/cloud/cloud-data/cloud-deps.json"
+    CLOUD_DEPS="$HOME/git/cloud/cloud-data/cloud-data-deps.json"
     FRONT_DEPS="$HOME/git/front/front-data/front-deps.json"
     FALLBACK="$NODE_MODULES/package.json.fallback"
+
+    # Ensure package.json is writable (may be read-only from previous generation)
+    [ -f "$PKG_JSON" ] && chmod u+w "$PKG_JSON" 2>/dev/null || true
 
     # Generate package.json from deps JSONs (or use fallback)
     if [ -f "$CLOUD_DEPS" ] || [ -f "$FRONT_DEPS" ]; then
