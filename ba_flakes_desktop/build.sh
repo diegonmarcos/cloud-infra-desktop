@@ -79,25 +79,16 @@ log_header() {
     printf "\n${BOLD}${CYAN}=== %s ===${NC}\n\n" "$*"
 }
 
-# ── run_logged: execute a command, stream output to both stdout and log file ──
-# Avoids `| tee` pipes that hang in non-TTY environments (Claude Code, CI, cron).
-# Uses a temp file + tail -f background reader for real-time streaming.
-# Returns the command's actual exit code.
+# ── run_logged: execute a command, log output to file, stream to stdout ──
+# Runs foreground (no backgrounding — preserves env vars, TTY, guardrail state).
+# Output goes to both stdout and the log file via a temp file.
 run_logged() {
     _rl_out=$(mktemp)
-    # Run command, redirect all output to temp file
-    "$@" >> "$_rl_out" 2>&1 &
-    _rl_pid=$!
-    # Stream output in real-time via tail -f
-    tail -f "$_rl_out" 2>/dev/null &
-    _rl_tail=$!
-    # Wait for command to finish
-    wait "$_rl_pid" 2>/dev/null
+    # Run command foreground, capture output to temp file
+    "$@" > "$_rl_out" 2>&1
     _rl_rc=$?
-    # Give tail a moment to flush, then kill it
-    sleep 0.2
-    kill "$_rl_tail" 2>/dev/null
-    wait "$_rl_tail" 2>/dev/null
+    # Show output to stdout
+    cat "$_rl_out"
     # Append to persistent log file
     cat "$_rl_out" >> "$LOG_FILE"
     rm -f "$_rl_out"
