@@ -2264,3 +2264,41 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-24 12:11:48] PERF: TOTAL switch = 16.1s
 [2026-03-24 12:11:48] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user
 [2026-03-24 12:11:48] ========== Build script finished ==========
+[2026-03-24 12:13:48] ========== Build script started ==========
+[2026-03-24 12:13:48] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 12:13:48] PERF: start switch
+[2026-03-24 12:13:48] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 12:13:48] PERF: git stage = 30ms
+[2026-03-24 12:13:48] PERF: clean backups = 5ms
+[2026-03-24 12:13:48] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+error:
+       … while calling the 'derivationStrict' builtin
+         at <nix/derivation-internal.nix>:37:12:
+           36|
+           37|   strict = derivationStrict drvAttrs;
+             |            ^
+           38|
+
+       … while evaluating derivation 'home-manager-generation'
+         whose name attribute is located at /nix/store/lc5bxq4vsgpjjc7i9phdm8s0bxjz0drm-source/pkgs/stdenv/generic/make-derivation.nix:396:13
+
+       … while evaluating attribute 'buildCommand' of derivation 'home-manager-generation'
+         at /nix/store/lc5bxq4vsgpjjc7i9phdm8s0bxjz0drm-source/pkgs/build-support/trivial-builders/default.nix:76:17:
+           75|         enableParallelBuilding = true;
+           76|         inherit buildCommand name;
+             |                 ^
+           77|         passAsFile = [ "buildCommand" ] ++ (derivationArgs.passAsFile or [ ]);
+
+       … while evaluating the option `home.activation.installPackages.data':
+
+       … while evaluating definitions from `/nix/store/dimhhb7nhymgd9f35ajdzf6xkij6rsh8-source/modules/home-environment.nix':
+
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+       error: path '/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_c3-infra-mcp-api' does not exist
+[2026-03-24 12:13:56] PERF: home-manager switch = 7.3s
+[2026-03-24 12:13:56] PERF: TOTAL switch = 7.3s
+[2026-03-24 12:13:56] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 12:13:56] ========== Build script finished ==========
