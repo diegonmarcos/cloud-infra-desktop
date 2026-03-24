@@ -50,11 +50,13 @@
       reload = "source ~/.config/fish/config.fish";
 
       # AI CLIs — script in ~/git/tools/b-scripts/ai-cli/
-      "ai-cli" = "sh $HOME/git/tools/b-scripts/ai-cli/ai-cli.sh";
-      "cloud-ai-cli" = "ai-cli";  # back-compat
+      # AI CLIs — see functions block
     };
 
     functions = {
+      "ai-cli" = "sh $HOME/git/tools/b-scripts/ai-cli/ai-cli.sh $argv";
+      "cloud-ai-cli" = "ai-cli $argv";
+
       mkcd = "mkdir -p $argv[1]; and cd $argv[1]";
 
       extract = ''

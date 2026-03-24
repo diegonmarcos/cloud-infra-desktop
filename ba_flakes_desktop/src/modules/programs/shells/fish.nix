@@ -80,15 +80,16 @@
       # Custom tools
       gdrive = "bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh";
 
-      # AI CLIs — script in ~/git/tools/b-scripts/ai-cli/
-      "ai-cli" = "sh $HOME/git/tools/b-scripts/ai-cli/ai-cli.sh";
-      "cloud-ai-cli" = "ai-cli";  # back-compat
+      # AI CLIs — see interactiveShellInit for ai-cli function
 
       # Welcome screen
       welcome = "_show_welcome";
     };
 
     functions = {
+      "ai-cli" = "sh $HOME/git/tools/b-scripts/ai-cli/ai-cli.sh $argv";
+      "cloud-ai-cli" = "ai-cli $argv";
+
       fish_greeting = ''
         # Gather system info
         set -l user (whoami)
