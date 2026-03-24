@@ -447,59 +447,14 @@
           case envvar
             set -l _vars EDITOR VISUAL PAGER LANG LC_ALL MANPAGER LESS ANTHROPIC_API_KEY OPENAI_BASE_URL OPENAI_API_KEY OLLAMA_HOST AUTHELIA_OIDC_CLIENT_ID AUTHELIA_TOKEN_URL AUTHELIA_OIDC_CREDENTIALS_DIR AUTHELIA_OIDC_TOKENS_DIR CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix COREPACK_ENABLE_AUTO_PIN DEVICE HM_PROFILE BUILDSH_GUARDRAIL TF_PLUGIN_CACHE_DIR GNUPGHOME GIT_EDITOR RUSTUP_HOME PYTHONPATH JUPYTER_CONFIG_DIR STARSHIP_SHELL FZF_DEFAULT_COMMAND
 
-            # TABLE 1: Declared in nix source (scan ALL flake nix files)
-            set_color --bold cyan; echo "═══ Table 1: Declared (nix source) ═══"; set_color normal; echo ""
+            # Collect ALL env var declarations into a temp file (one pass, both tables use it)
             set -l _hm_root "$HOME/git/unix/ba_flakes_desktop/src"
             set -l _os_root "$HOME/git/unix/aa_nixos-surface_host/src"
-            # Parse all sessionVariables from all .nix files
+            set -l _tmpfile (mktemp)
+            # sessionVariables from all nix files
             command find "$_hm_root" "$_os_root" -name '*.nix' 2>/dev/null | sort | while read -l f
               command awk -v file="$f" '
                 /[Ss]ession[Vv]ariables\s*=\s*\{/ { inside=1; src=file; gsub(/.*\/src\//, "", src); next }
-                inside && /^\s*\};/ { inside=0; next }
-                inside && /=/ && !/^[[:space:]]*#/ {
-                  line = $0
-                  gsub(/^\s+/, "", line)
-                  gsub(/;\s*$/, "", line)
-                  if (line == "") next
-                  n = index(line, " = ")
-                  if (n > 0) {
-                    name = substr(line, 1, n-1)
-                    val = substr(line, n+3)
-                    gsub(/"/, "", name)
-                    gsub(/^"/, "", val); gsub(/";?\s*$/, "", val)
-                    printf "  \033[32m%-34s\033[0m = \033[2m%-40s\033[0m \033[2;35m(%s)\033[0m\n", name, val, src
-                  }
-                }
-              ' "$f" 2>/dev/null
-            end
-            # Parse set -gx from fish shell init
-            command find "$_hm_root" -name '*.nix' 2>/dev/null | while read -l f
-              command awk -v file="$f" '
-                /set -gx [A-Za-z_]/ {
-                  line = $0; gsub(/^\s+/, "", line)
-                  n = match(line, /set -gx ([A-Za-z_]+) (.+)/)
-                  if (n > 0) {
-                    gsub(/set -gx /, "", line)
-                    sp = index(line, " ")
-                    name = substr(line, 1, sp-1)
-                    val = substr(line, sp+1)
-                    gsub(/\)?\s*$/, "", val)
-                    src = file; gsub(/.*\/src\//, "", src)
-                    printf "  \033[33m%-34s\033[0m = \033[2m%-40s\033[0m \033[2;35m(%s)\033[0m\n", name, val, src
-                  }
-                }
-              ' "$f" 2>/dev/null
-            end
-
-            echo ""
-            # TABLE 2: Resolve declared values (NO runtime env — script resolves paths/cats)
-            set_color --bold cyan; echo "═══ Table 2: Resolved (cat/ls from declared) ═══"; set_color normal; echo ""
-            set -l _hm_root "$HOME/git/unix/ba_flakes_desktop/src"
-            set -l _os_root "$HOME/git/unix/aa_nixos-surface_host/src"
-            # Collect unique var=value pairs from nix source, resolve $HOME, then cat/ls
-            command find "$_hm_root" "$_os_root" -name '*.nix' 2>/dev/null | sort | while read -l f
-              command awk '
-                /[Ss]ession[Vv]ariables\s*=\s*\{/ { inside=1; next }
                 inside && /^\s*\};/ { inside=0; next }
                 inside && /=/ && !/^[[:space:]]*#/ {
                   line = $0; gsub(/^\s+/, "", line); gsub(/;\s*$/, "", line)
@@ -508,64 +463,70 @@
                   if (n > 0) {
                     name = substr(line, 1, n-1); gsub(/"/, "", name)
                     val = substr(line, n+3); gsub(/^"/, "", val); gsub(/";?\s*$/, "", val)
-                    if (name !~ /^LESS_TERMCAP/) print name "\t" val
+                    printf "%s\t%s\t%s\n", name, val, src
                   }
                 }
               ' "$f" 2>/dev/null
-            end | command awk -F'\t' '!seen[$1]++ {print}' | while read -l line
-              set -l name (echo "$line" | cut -f1)
-              set -l val (echo "$line" | cut -f2)
-              # Resolve $HOME in the value
-              set -l resolved (echo "$val" | command sed "s|\\\$HOME|$HOME|g; s|~|$HOME|g")
-              # Now resolve: dir→ls, file→cat, symlink→follow, value→echo
-              if test -L "$resolved" 2>/dev/null
+            end >> "$_tmpfile"
+            # set -gx from fish init
+            command find "$_hm_root" -name '*.nix' 2>/dev/null | while read -l f
+              command awk -v file="$f" '
+                /set -gx [A-Za-z_]/ && !/^[[:space:]]*#/ && !/^\s*if / {
+                  line = $0; gsub(/^\s+/, "", line)
+                  gsub(/set -gx /, "", line)
+                  sp = index(line, " ")
+                  if (sp > 0) {
+                    name = substr(line, 1, sp-1)
+                    val = substr(line, sp+1); gsub(/\)?\s*$/, "", val)
+                    src = file; gsub(/.*\/src\//, "", src)
+                    if (name !~ /^#/) printf "%s\t%s\t%s\n", name, val, src
+                  }
+                }
+              ' "$f" 2>/dev/null
+            end >> "$_tmpfile"
+
+            # TABLE 1: Print every line from the collected data
+            set_color --bold cyan; echo "═══ Table 1: Declared (nix source) ═══"; set_color normal; echo ""
+            while IFS=\t read -l name val src
+              set_color green; printf "  %-34s" "$name"; set_color normal; printf " = "; set_color --dim; printf "%-42s" "$val"; set_color normal; set_color --dim magenta; echo "($src)"; set_color normal
+            end < "$_tmpfile"
+
+            echo ""
+            # TABLE 2: For EACH line from the SAME data, resolve the value
+            set_color --bold cyan; echo "═══ Table 2: Resolved ═══"; set_color normal; echo ""
+            while IFS=\t read -l name val src
+              # Resolve $HOME and ~ in value
+              set -l resolved (echo "$val" | command sed "s|\\\$HOME|$HOME|g; s|~|$HOME|g; s|\\\$PYTHONPATH||g")
+              # Strip quotes
+              set resolved (echo "$resolved" | command sed 's/^"//; s/"$//')
+              # Resolve: cat(file), dir→ls, file→cat, symlink→follow, else→echo
+              if string match -q '*cat *' -- "$val"
+                # It's a cat command — extract filepath and cat it
+                set -l filepath (echo "$resolved" | command sed 's/^(cat //; s/)$//' | string trim)
+                if test -f "$filepath"
+                  set -l content (command head -1 "$filepath" 2>/dev/null | string sub -l 20)"..."
+                  set_color yellow; printf "  %-34s" "$name"; set_color --dim; echo "→ $content"
+                else
+                  set_color red; printf "  %-34s" "$name"; echo "→ file not found"; set_color normal
+                end
+              else if test -L "$resolved" 2>/dev/null
                 set -l target (readlink -f "$resolved" 2>/dev/null)
                 set_color cyan; printf "  %-34s" "$name"; set_color --dim; echo "→ symlink → $target"
-                if test -f "$target"
-                  set_color --dim; printf "  %-34s" ""; echo "  cat: "(command head -1 "$target" 2>/dev/null | string sub -l 70)
-                else if test -d "$target"
-                  set_color --dim; printf "  %-34s" ""; echo "  ls: "(command ls "$target" 2>/dev/null | head -6 | string join "  ")
-                end
                 set_color normal
               else if test -d "$resolved" 2>/dev/null
-                set_color cyan; printf "  %-34s" "$name"; set_color --dim; echo "→ ls: "(command ls "$resolved" 2>/dev/null | head -8 | string join "  ")
+                set -l items (command ls "$resolved" 2>/dev/null | head -8 | string join "  ")
+                set_color cyan; printf "  %-34s" "$name"; set_color --dim; echo "→ ls: $items"
                 set_color normal
               else if test -f "$resolved" 2>/dev/null
-                set_color cyan; printf "  %-34s" "$name"; set_color --dim; echo "→ cat: "(command head -1 "$resolved" 2>/dev/null | string sub -l 70)
+                set -l line (command head -1 "$resolved" 2>/dev/null | string sub -l 70)
+                set_color cyan; printf "  %-34s" "$name"; set_color --dim; echo "→ cat: $line"
                 set_color normal
               else
                 set_color cyan; printf "  %-34s" "$name"; set_color --dim; echo "→ $val"
                 set_color normal
               end
-            end
-            # Also resolve fish set -gx (cat commands)
-            command find "$_hm_root" -name '*.nix' 2>/dev/null | while read -l f
-              command awk '
-                /set -gx [A-Za-z_]/ && !/^[[:space:]]*#/ {
-                  line = $0; gsub(/^\s+/, "", line)
-                  if (line ~ /set -gx [A-Za-z_]+ \(cat /) {
-                    gsub(/set -gx /, "", line)
-                    sp = index(line, " ")
-                    name = substr(line, 1, sp-1)
-                    val = substr(line, sp+1)
-                    gsub(/[()]/, "", val); gsub(/^\s+/, "", val)
-                    print name "\t" val
-                  }
-                }
-              ' "$f" 2>/dev/null
-            end | while read -l line
-              set -l name (echo "$line" | cut -f1)
-              set -l catcmd (echo "$line" | cut -f2)
-              set -l filepath (echo "$catcmd" | command sed "s|^cat ||; s|~|$HOME|g; s|\\\$HOME|$HOME|g" | string trim)
-              if test -f "$filepath"
-                set -l content (command head -1 "$filepath" 2>/dev/null | string sub -l 20)"..."
-                set_color yellow; printf "  %-34s" "$name"; set_color --dim; echo "→ cat($filepath) = $content"
-                set_color normal
-              else
-                set_color red; printf "  %-34s" "$name"; echo "→ file not found: $filepath"
-                set_color normal
-              end
-            end
+            end < "$_tmpfile"
+            command rm -f "$_tmpfile"
 
           case alias
             set_color --bold cyan; echo "═══ Shell Functions & Aliases ═══"; set_color normal; echo ""
