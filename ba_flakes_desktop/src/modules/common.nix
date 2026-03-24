@@ -13,7 +13,7 @@
     ./programs/git.nix
     ./programs/tmux.nix
     ./programs/mesh.nix
-    ./programs/cloud-connect.nix
+    ./programs/connect.nix
   ];
 
   # Enable Home Manager
@@ -77,6 +77,10 @@
     LESS_TERMCAP_so = "$(printf '\\e[1;44;33m')";
     LESS_TERMCAP_ue = "$(printf '\\e[0m')";
     LESS_TERMCAP_us = "$(printf '\\e[1;32m')";
+
+    # Octocode — OpenAI-compatible endpoint (Ollama on oci-apps)
+    OPENAI_BASE_URL = "http://10.0.0.6:11435/v1";
+    OPENAI_API_KEY = "sk-dummy";
   };
 
   # Session path additions
