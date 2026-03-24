@@ -10,14 +10,14 @@ OLLAMA_HOST: http://10.0.0.6:11435
 extensions:
   cloud-services:
     name: Cloud Services MCP
-    type: sse
+    type: streamable_http
     uri: https://mcp.diegonmarcos.com/c3-services-mcp/mcp
     enabled: true
     timeout: 300
 
   cloud-infra:
     name: Cloud Infra MCP
-    type: sse
+    type: streamable_http
     uri: https://mcp.diegonmarcos.com/c3-infra-mcp/mcp
     enabled: true
     timeout: 300
@@ -47,7 +47,7 @@ extensions:
 
   google-workspace:
     name: Google Workspace MCP
-    type: sse
+    type: streamable_http
     uri: https://mcp.diegonmarcos.com/g-workspace/mcp
     enabled: true
     timeout: 300
