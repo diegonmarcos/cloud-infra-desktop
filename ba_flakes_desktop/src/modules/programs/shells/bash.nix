@@ -104,6 +104,9 @@
     };
 
     initExtra = ''
+      # NODE_PATH for shared ~/.node_modules
+      export NODE_PATH="$HOME/.node_modules/node_modules"
+
       # =======================================================================
       # INTEGRATIONS
       # =======================================================================
