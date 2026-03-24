@@ -49,69 +49,12 @@
       path = "echo $PATH | tr ':' '\\n'";
       reload = "source ~/.config/fish/config.fish";
 
-      # AI CLIs — ai-cli function in functions block
-      cloud-ai-cli = "ai-cli";  # back-compat alias
+      # AI CLIs — script in ~/git/tools/b-scripts/ai-cli/
+      ai-cli = "sh /home/diego/git/tools/b-scripts/ai-cli/ai-cli.sh";
+      cloud-ai-cli = "ai-cli";  # back-compat
     };
 
     functions = {
-      ai-cli = ''
-        switch "$argv[1]"
-          case -h --help help models
-            set_color --bold cyan
-            echo ""
-            echo "    ╔═══╗ ╔══╗        ╔═══╗ ╦    ╔══╗"
-            echo "    ╠═══╣  ║   ═══    ║    ║     ║  "
-            echo "    ║   ║ ╚══╝        ╚═══╝ ╩══╝ ╩  "
-            set_color normal
-            set_color --bold white; echo "    Unified AI Agent Launcher"; set_color normal
-            set_color --dim; echo "    goose v"(goose --version 2>/dev/null | string match -r '[\d.]+'; or echo "?")" · block/goose · MCP-native"; set_color normal
-            echo ""
-            set_color --bold yellow; echo "  ── Cloud Models (Anthropic API) ─────────────────────────────────────"; set_color normal
-            echo ""
-            set_color green; echo -n "    (default)  "; set_color --bold white; echo -n "Haiku  4.5  "; set_color normal; echo -n " 200K ctx  "; set_color --dim; echo "\$0.80/\$4.00   batch \$0.40/\$2.00"; set_color normal
-            set_color green; echo -n "    sonnet     "; set_color --bold white; echo -n "Sonnet 4.6  "; set_color normal; echo -n " 200K ctx  "; set_color --dim; echo "\$3.00/\$15.00  batch \$1.50/\$7.50"; set_color normal
-            set_color green; echo -n "    opus       "; set_color --bold white; echo -n "Opus   4.6  "; set_color normal; echo -n "   1M ctx  "; set_color --dim; echo "\$15.00/\$75.00 batch \$7.50/\$37.50"; set_color normal
-            echo ""
-            set_color --bold yellow; echo "  ── Local Models (Ollama · oci-apps ARM) ────────────────────────────"; set_color normal
-            echo ""
-            set_color cyan; echo -n "    local      "; set_color --bold white; echo -n "Qwen   1.5B "; set_color normal; echo -n "   4K ctx  "; set_color --dim; echo "free · Q4_K_M · ~12s/msg"; set_color normal
-            echo ""
-            set_color --bold yellow; echo "  ── MCP Extensions ───────────────────────────────────────────────────"; set_color normal
-            echo ""
-            set_color --dim
-            echo "    cloud-services         Mattermost, Mail, Dagu, GHA, Ollama, ntfy"
-            echo "    cloud-infra            SSH, Docker, health checks, builds, deploys"
-            echo "    cloud-cgc-mcp          Infra knowledge graph, octocode semantic search"
-            echo "    google-workspace       Gmail, Calendar, Drive, Docs, Sheets"
-            echo "    diego-personal-data    Vault, identity, finance (read-only)"
-            set_color normal
-            echo "    Enable: goose configure → Extensions"
-            echo ""
-            set_color --bold yellow; echo "  ── Usage ────────────────────────────────────────────────────────────"; set_color normal
-            echo ""
-            echo "    ai-cli                 Launch with Haiku 4.5 (default)"
-            echo "    ai-cli sonnet          Launch with Sonnet 4.6"
-            echo "    ai-cli opus            Launch with Opus 4.6"
-            echo "    ai-cli local           Launch with local Qwen (free)"
-            echo "    ai-cli -h              This help"
-            echo ""
-            set_color --dim; echo "    Config: ~/.config/goose/config.yaml"; set_color normal
-            echo ""
-          case sonnet
-            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-sonnet-4-6 goose $argv[2..]
-          case opus
-            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-opus-4-6 goose $argv[2..]
-          case local qwen
-            GOOSE_PROVIDER=ollama GOOSE_MODEL=qwen2.5-4k goose $argv[2..]
-          case ""
-            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-haiku-4-5-20251001 goose
-          case haiku
-            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-haiku-4-5-20251001 goose $argv[2..]
-          case "*"
-            GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-haiku-4-5-20251001 goose $argv
-        end
-      '';
-
       mkcd = "mkdir -p $argv[1]; and cd $argv[1]";
 
       extract = ''
