@@ -487,14 +487,18 @@
 
             # TABLE 1: Print every line from the collected data
             set_color --bold cyan; echo "═══ Table 1: Declared (nix source) ═══"; set_color normal; echo ""
-            while IFS=\t read -l name val src
+            while read -l line
+              set -l parts (string split \t -- "$line")
+              set -l name $parts[1]; set -l val $parts[2]; set -l src $parts[3]
               set_color green; printf "  %-34s" "$name"; set_color normal; printf " = "; set_color --dim; printf "%-42s" "$val"; set_color normal; set_color --dim magenta; echo "($src)"; set_color normal
             end < "$_tmpfile"
 
             echo ""
             # TABLE 2: For EACH line from the SAME data, resolve the value
             set_color --bold cyan; echo "═══ Table 2: Resolved ═══"; set_color normal; echo ""
-            while IFS=\t read -l name val src
+            while read -l line
+              set -l parts (string split \t -- "$line")
+              set -l name $parts[1]; set -l val $parts[2]; set -l src $parts[3]
               # Resolve $HOME and ~ in value
               set -l resolved (echo "$val" | command sed "s|\\\$HOME|$HOME|g; s|~|$HOME|g; s|\\\$PYTHONPATH||g")
               # Strip quotes
