@@ -107,6 +107,12 @@
       # NODE_PATH for shared ~/.node_modules
       export NODE_PATH="$HOME/.node_modules/node_modules"
 
+      # Authelia OIDC credentials (vault paths)
+      export AUTHELIA_OIDC_CREDENTIALS_DIR="$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/credentials"
+      export AUTHELIA_OIDC_TOKENS_DIR="$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens"
+      export AUTHELIA_OIDC_CLIENT_ID="claude-admin"
+      export AUTHELIA_TOKEN_URL="https://auth.diegonmarcos.com/api/oidc/token"
+
       # =======================================================================
       # INTEGRATIONS
       # =======================================================================
