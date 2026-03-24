@@ -3,7 +3,10 @@
     "unix": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/Mounts/Git/unix/bc_unix-mcp-api/src/index.ts"]
+      "args": ["/home/diego/Mounts/Git/unix/bc_unix-mcp-api/src/index.ts"],
+      "env": {
+        "NODE_PATH": "/home/diego/.node_modules/node_modules"
+      }
     },
     "cloud-infra": {
       "type": "http",
@@ -17,6 +20,7 @@
       "command": "tsx",
       "args": ["/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_code-graph-context-kg-infra-mcp/src/index.ts"],
       "env": {
+        "NODE_PATH": "/home/diego/.node_modules/node_modules",
         "CONFIG_PATH": "/home/diego/Mounts/Git/cloud/config.json"
       }
     },
@@ -25,6 +29,7 @@
       "command": "tsx",
       "args": ["/home/diego/Mounts/Git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
       "env": {
+        "NODE_PATH": "/home/diego/.node_modules/node_modules",
         "VAULT_PATH": "/home/diego/Mounts/Git/vault",
         "CONFIG_PATH": "/home/diego/Mounts/Git/cloud/config.json"
       }

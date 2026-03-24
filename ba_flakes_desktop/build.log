@@ -6666,3 +6666,127 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-24 21:29:15] INFO: Applying Home Manager configuration...
 warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
 evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+[2026-03-24 21:29:38] ========== Build script started ==========
+[2026-03-24 21:29:38] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 21:29:38] PERF: start switch
+[2026-03-24 21:29:39] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 21:29:39] PERF: git stage = 131ms
+[2026-03-24 21:29:39] PERF: clean backups = 50ms
+[2026-03-24 21:29:39] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+these 3 derivations will be built:
+  /nix/store/l4p329s8nk4y50k495vbmrkjqxkbibj5-hhelp.fish.drv
+  /nix/store/64cqsvhj41b8rxkjbyclbj8ih5yxlg4z-home-manager-files.drv
+  /nix/store/5bpnmz91211fiqjxhzmzwppjzxpp3kfa-home-manager-generation.drv
+building '/nix/store/l4p329s8nk4y50k495vbmrkjqxkbibj5-hhelp.fish.drv'...
+building '/nix/store/64cqsvhj41b8rxkjbyclbj8ih5yxlg4z-home-manager-files.drv'...
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+building '/nix/store/5bpnmz91211fiqjxhzmzwppjzxpp3kfa-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 196
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+WARN: cloud-deps: Unexpected end of JSON input
+[node-npm-deps-cloud] 0 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 5s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/0snmnw0jyggz3kq112nffmf9zip5mqyj-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 31 services, date=2026-03-24)
+Activating globalTsx
+
+changed 5 packages in 4s
+Activating gooseConfig
+Activating initHomeGit
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+No change so reusing latest profile generation 196
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+WARN: cloud-deps: Unexpected end of JSON input
+[node-npm-deps-cloud] 0 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+[2026-03-24 21:30:31] PERF: home-manager switch = 1m 16s
+[2026-03-24 21:30:31] PERF: TOTAL switch = 1m 16s
+[2026-03-24 21:30:31] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 21:30:31] ========== Build script finished ==========
+
+up to date in 5s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/0snmnw0jyggz3kq112nffmf9zip5mqyj-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 31 services, date=2026-03-24)
+Activating globalTsx
+
+changed 5 packages in 2s
+Activating gooseConfig
+Activating initHomeGit
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-03-24 21:30:49] PERF: home-manager switch = 1m 10s
+[2026-03-24 21:30:49] PERF: TOTAL switch = 1m 10s
+[2026-03-24 21:30:49] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 21:30:49] ========== Build script finished ==========
