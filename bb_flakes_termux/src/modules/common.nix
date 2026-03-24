@@ -29,7 +29,14 @@
     LANG = "en_US.UTF-8";
     LC_ALL = "en_US.UTF-8";
     LESS = "-R -F -X";
+
+    # Octocode — OpenAI-compatible endpoint (Ollama on oci-apps)
+    OPENAI_BASE_URL = "http://10.0.0.6:11435/v1";
+    OPENAI_API_KEY = "sk-dummy";
   };
+
+  # Goose AI CLI config (cloud-ai-cli alias)
+  home.file.".config/goose/config.yaml".source = ./dotfiles/goose/config.yaml;
 
   home.sessionPath = [
     "$HOME/.cargo/bin"

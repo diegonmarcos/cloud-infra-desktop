@@ -22,6 +22,7 @@
   # Packages needed by MCP servers (all profiles)
   home.packages = [
     (pkgs.callPackage ../pkgs/octocode.nix {})  # code-graph-context MCP
+    (pkgs.callPackage ../pkgs/goose.nix {})      # cloud-ai-cli (MCP-native AI agent)
   ];
 
   # Nix settings
@@ -145,6 +146,9 @@
   };
   home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;
   home.file.".rgignore".source = ./dotfiles/claude/rgignore;
+
+  # Goose AI CLI configuration (cloud-ai-cli alias)
+  home.file.".config/goose/config.yaml".source = ./dotfiles/goose/config.yaml;
 
   # Gemini CLI configuration + MCP server config
   # Uses the same sops secret substitution as Claude's mcp.json
