@@ -1861,3 +1861,35 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-24 11:05:53] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user ==========
 [2026-03-24 11:05:53] PERF: start switch
 [2026-03-24 11:05:53] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 11:05:53] PERF: git stage = 34ms
+[2026-03-24 11:05:53] PERF: clean backups = 17ms
+[2026-03-24 11:05:53] INFO: Applying Home Manager configuration...
+[2026-03-24 11:05:53] INFO: Flake ref: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user
+[2026-03-24 11:05:53] INFO: BUILDSH_GUARDRAIL=1 _GUARDRAIL=1
+[2026-03-24 11:05:54] INFO: Using home-manager: /home/diego/.nix-profile/bin/home-manager
+[2026-03-24 11:05:54] INFO: Running: /home/diego/.nix-profile/bin/home-manager switch --impure -b backup --print-build-logs --flake /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user
+[2026-03-24 11:05:54] INFO: Temp log: /tmp/tmp.erqBXX5uQs
+[2026-03-24 11:05:54] INFO: Starting home-manager switch at 11:05:54...
+[2026-03-24 11:06:51] INFO: home-manager switch finished at 11:06:51 with exit code 143
+Terminated
+[2026-03-24 11:06:51] ERROR: Configuration failed with exit code 143
+[2026-03-24 11:06:51] INFO: Check /home/diego/Mounts/Git/unix/ba_flakes_desktop/build.log for details
+[2026-03-24 11:06:51] PERF: home-manager switch = 57.0s
+[2026-03-24 11:06:51] PERF: TOTAL switch = 57.1s
+[2026-03-24 11:07:19] ========== Build script started ==========
+[2026-03-24 11:07:19] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user ==========
+[2026-03-24 11:07:19] PERF: start switch
+[2026-03-24 11:07:19] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 11:07:19] PERF: git stage = 38ms
+[2026-03-24 11:07:19] PERF: clean backups = 17ms
+[2026-03-24 11:07:19] INFO: Applying Home Manager configuration...
+[2026-03-24 11:07:19] INFO: Flake ref: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user
+[2026-03-24 11:07:19] INFO: BUILDSH_GUARDRAIL=1 _GUARDRAIL=1
+[2026-03-24 11:07:19] INFO: Using home-manager: /home/diego/.nix-profile/bin/home-manager
+[2026-03-24 11:07:19] INFO: Running: /home/diego/.nix-profile/bin/home-manager switch --impure -b backup --print-build-logs --flake /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user
+[2026-03-24 11:07:19] INFO: Temp log: /tmp/tmp.n8JsnWGIXJ
+[2026-03-24 11:07:19] INFO: Starting home-manager switch at 11:07:19...
+[2026-03-24 11:09:16] ========== Build script started ==========
+[2026-03-24 11:09:16] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user ==========
+[2026-03-24 11:09:16] PERF: start switch
+[2026-03-24 11:09:16] INFO: Staging dirty files for flake evaluation...

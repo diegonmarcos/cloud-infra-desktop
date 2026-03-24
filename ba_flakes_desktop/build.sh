@@ -79,22 +79,6 @@ log_header() {
     printf "\n${BOLD}${CYAN}=== %s ===${NC}\n\n" "$*"
 }
 
-# ── run_logged: execute a command, log output to file, stream to stdout ──
-# Runs foreground (no backgrounding — preserves env vars, TTY, guardrail state).
-# Output goes to both stdout and the log file via a temp file.
-run_logged() {
-    _rl_out=$(mktemp)
-    # Run command foreground, capture output to temp file
-    "$@" > "$_rl_out" 2>&1
-    _rl_rc=$?
-    # Show output to stdout
-    cat "$_rl_out"
-    # Append to persistent log file
-    cat "$_rl_out" >> "$LOG_FILE"
-    rm -f "$_rl_out"
-    return "$_rl_rc"
-}
-
 # ============================================================================
 # PERF — step timing library
 # ============================================================================
@@ -321,47 +305,20 @@ nix_switch() {
 
     perf_step "home-manager switch"
     log_info "Applying Home Manager configuration..."
-    log_info "Flake ref: $flake_ref"
-    log_info "BUILDSH_GUARDRAIL=$BUILDSH_GUARDRAIL _GUARDRAIL=$_GUARDRAIL"
 
-    # Resolve which home-manager binary to use
+    # Capture exit code from the actual command, not tee
+    # Use -b backup to automatically backup conflicting files
+    _rc_file=$(mktemp)
     if check_home_manager 2>/dev/null; then
-        _hm_bin=$(command -v home-manager)
-        log_info "Using home-manager: $_hm_bin"
+        { home-manager switch --impure -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     else
-        _hm_bin="nix run home-manager --"
-        log_info "Using nix run home-manager (no home-manager in PATH)"
+        { nix run home-manager -- switch --impure -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     fi
+    exit_code=$(cat "$_rc_file" 2>/dev/null)
+    rm -f "$_rc_file"
 
-    # Debug: show the exact command
-    _hm_cmd="$_hm_bin switch --impure -b backup --print-build-logs --flake $flake_ref"
-    log_info "Running: $_hm_cmd"
-
-    # Run directly — no run_logged, no tee, no backgrounding
-    # Output goes straight to stdout/stderr + appended to log file
-    _hm_log=$(mktemp)
-    log_info "Temp log: $_hm_log"
-    log_info "Starting home-manager switch at $(date '+%H:%M:%S')..."
-
-    # Use `script` to fake a PTY so nix outputs progress in real-time
-    # --verbose: log every file nix evaluates
-    # --print-build-logs: show build output
-    # --show-trace: full error trace on failure
-    if check_home_manager 2>/dev/null; then
-        script -qec "home-manager switch --impure -b backup --verbose --print-build-logs --show-trace --flake '$flake_ref'" "$_hm_log"
-        exit_code=$?
-    else
-        script -qec "nix run home-manager -- switch --impure -b backup --verbose --print-build-logs --show-trace --flake '$flake_ref'" "$_hm_log"
-        exit_code=$?
-    fi
-
-    log_info "home-manager switch finished at $(date '+%H:%M:%S') with exit code $exit_code"
-
-    # Show output
-    cat "$_hm_log"
-    # Append to persistent log
-    cat "$_hm_log" >> "$LOG_FILE"
-    rm -f "$_hm_log"
+    # Default to 0 if exit_code is empty
+    exit_code=${exit_code:-0}
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Configuration failed with exit code $exit_code"
@@ -384,8 +341,13 @@ nix_update() {
     cd "$SRC_DIR"
     log_info "Updating flake.lock..."
 
-    run_logged nix flake update
-    exit_code=$?
+    _rc_file=$(mktemp)
+    { nix flake update 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+    exit_code=$(cat "$_rc_file" 2>/dev/null)
+    rm -f "$_rc_file"
+
+    # Default to 0 if exit_code is empty
+    exit_code=${exit_code:-0}
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Flake update failed with exit code $exit_code"
@@ -436,11 +398,11 @@ container_build() {
     case "$image_type" in
         full)
             log_info "Building full image..."
-            nix build .#container -o "$DIST_DIR/container-full" >> "$LOG_FILE" 2>&1
+            nix build .#container -o "$DIST_DIR/container-full" 2>&1 | tee -a "$LOG_FILE"
             ;;
         minimal)
             log_info "Building minimal image..."
-            nix build .#container-minimal -o "$DIST_DIR/container-minimal" >> "$LOG_FILE" 2>&1
+            nix build .#container-minimal -o "$DIST_DIR/container-minimal" 2>&1 | tee -a "$LOG_FILE"
             ;;
         *)
             log_error "Unknown image type: $image_type (use: full, minimal)"
@@ -468,7 +430,7 @@ container_load() {
     fi
 
     log_info "Loading image with $runtime..."
-    $runtime load < "$image_file" >> "$LOG_FILE" 2>&1
+    $runtime load < "$image_file" 2>&1 | tee -a "$LOG_FILE"
 
     log_success "Image loaded"
 }
@@ -522,7 +484,7 @@ container_push() {
     $runtime tag "${image_name}:${image_tag}" "$full_image"
 
     log_info "Pushing to $registry..."
-    $runtime push "$full_image" >> "$LOG_FILE" 2>&1
+    $runtime push "$full_image" 2>&1 | tee -a "$LOG_FILE"
 
     log_success "Pushed: $full_image"
 }
@@ -539,10 +501,10 @@ compose_up() {
 
     if [ "$runtime" = "podman" ] && command -v podman-compose >/dev/null 2>&1; then
         log_info "Using podman-compose..."
-        podman-compose up -d >> "$LOG_FILE" 2>&1
+        podman-compose up -d 2>&1 | tee -a "$LOG_FILE"
     elif [ "$runtime" = "docker" ]; then
         log_info "Using docker compose..."
-        docker compose up -d >> "$LOG_FILE" 2>&1
+        docker compose up -d 2>&1 | tee -a "$LOG_FILE"
     else
         log_error "No compose tool found"
         return 1
@@ -559,9 +521,9 @@ compose_down() {
     cd "$CONTAINER_DIR"
 
     if [ "$runtime" = "podman" ] && command -v podman-compose >/dev/null 2>&1; then
-        podman-compose down >> "$LOG_FILE" 2>&1
+        podman-compose down 2>&1 | tee -a "$LOG_FILE"
     elif [ "$runtime" = "docker" ]; then
-        docker compose down >> "$LOG_FILE" 2>&1
+        docker compose down 2>&1 | tee -a "$LOG_FILE"
     fi
 
     log_success "Services stopped"
@@ -598,7 +560,7 @@ distrobox_create() {
         --name "$box_name" \
         --image "${image_name}:${image_tag}" \
         --home "$HOME" \
-        --yes >> "$LOG_FILE" 2>&1
+        --yes 2>&1 | tee -a "$LOG_FILE"
 
     log_success "Distrobox created: $box_name"
     printf "\nEnter with: distrobox enter %s\n" "$box_name"
@@ -615,7 +577,7 @@ distrobox_remove() {
     check_distrobox || return 1
 
     log_info "Removing distrobox: $box_name"
-    distrobox rm "$box_name" --force >> "$LOG_FILE" 2>&1
+    distrobox rm "$box_name" --force 2>&1 | tee -a "$LOG_FILE"
     log_success "Distrobox removed"
 }
 
@@ -644,12 +606,12 @@ clean() {
     # 3. Garbage collect unreferenced store paths
     perf_step "nix-collect-garbage"
     log_info "Nix garbage collection..."
-    nix-collect-garbage >> "$LOG_FILE" 2>&1
+    nix-collect-garbage 2>&1 | tee -a "$LOG_FILE"
 
     # 4. Optimise store (deduplicate via hardlinks)
     perf_step "nix store optimise"
     log_info "Optimising nix store (dedup)..."
-    nix store optimise >> "$LOG_FILE" 2>&1
+    nix store optimise 2>&1 | tee -a "$LOG_FILE"
 
     # 5. Clean nix eval/build caches
     perf_step "clear eval cache"
@@ -794,21 +756,19 @@ read_choice() {
 }
 
 prompt_host() {
-    printf "\n${YELLOW}Available profiles:${NC}\n" >&2
-    printf "  ${GREEN}1) user${NC}     - Dotfiles only — fast (~15s)  ${BOLD}(default)${NC}\n" >&2
-    printf "  2) surface  - Full system + Plasma (~10-30m)\n" >&2
-    printf "  3) server   - Server/cloud ops\n" >&2
-    printf "  4) cli      - CLI-only\n" >&2
-    printf "  5) minimal  - Base development\n" >&2
-    printf "\n${BOLD}Select profile [1]: ${NC}" >&2
+    printf "\n${YELLOW}Available hosts:${NC}\n" >&2
+    printf "  1) surface  - Full development (default)\n" >&2
+    printf "  2) server   - Server/cloud ops\n" >&2
+    printf "  3) cli      - CLI-only\n" >&2
+    printf "  4) minimal  - Base development\n" >&2
+    printf "\n${BOLD}Select host [1]: ${NC}" >&2
     read -r host_choice
 
     case "$host_choice" in
-        2) printf "surface" ;;
-        3) printf "server" ;;
-        4) printf "cli" ;;
-        5) printf "minimal" ;;
-        *) printf "user" ;;
+        2) printf "server" ;;
+        3) printf "cli" ;;
+        4) printf "minimal" ;;
+        *) printf "surface" ;;
     esac
 }
 
@@ -902,7 +862,7 @@ ${YELLOW}USAGE:${NC}
 
 ${YELLOW}NIX COMMANDS:${NC}
     install                 Install Nix package manager
-    switch [profile]        Apply Home Manager config (default: user — fast ~15s)
+    switch [host]           Apply Home Manager config (default: surface)
     update                  Update flake inputs
     show                    Show flake outputs
     develop                 Enter nix develop shell
@@ -930,16 +890,14 @@ ${YELLOW}UTILITY COMMANDS:${NC}
     log                     View build log
     clear-log               Clear build log
 
-${YELLOW}PROFILES:${NC}
-    user                    Dotfiles only — fast ~15s (default)
-    surface                 Full system + Plasma — slow ~10-30m
+${YELLOW}HOSTS:${NC}
+    surface                 Full development (all profiles + Plasma)
     server                  Server/cloud ops
     cli                     CLI-only (no GUI)
     minimal                 Base development
 
 ${YELLOW}EXAMPLES:${NC}
-    ./build.sh switch               # Apply dotfiles only (fast)
-    ./build.sh switch surface       # Full system rebuild (slow)
+    ./build.sh switch surface       # Apply surface config
     ./build.sh container-build      # Build full image
     ./build.sh compose-up           # Start with compose
     ./build.sh distrobox-create     # Create distrobox
@@ -982,7 +940,7 @@ main() {
             nix_install
             ;;
         switch)
-            nix_switch "${1:-user}" "${2:-diego}"
+            nix_switch "${1:-surface}" "${2:-diego}"
             ;;
         update)
             nix_update
