@@ -24,15 +24,13 @@ buildNpmPackage rec {
 
     mkdir -p $out/bin $out/lib/cloud-infra-mcp
 
-    # Copy built dist/ and node_modules
-    cp -r dist $out/lib/cloud-infra-mcp/
-    cp -r node_modules $out/lib/cloud-infra-mcp/
-    cp package.json $out/lib/cloud-infra-mcp/
+    # Copy source + node_modules (runs via tsx, no compiled dist/)
+    cp -r . $out/lib/cloud-infra-mcp/
 
     # Create wrapper script
     cat > $out/bin/cloud-infra-mcp <<EOF
 #!/bin/sh
-exec ${nodejs}/bin/node $out/lib/cloud-infra-mcp/dist/index.js "\$@"
+exec ${nodejs}/bin/npx tsx $out/lib/cloud-infra-mcp/index.ts "\$@"
 EOF
     chmod +x $out/bin/cloud-infra-mcp
 
