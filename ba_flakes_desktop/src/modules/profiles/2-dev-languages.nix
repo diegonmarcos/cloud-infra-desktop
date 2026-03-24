@@ -10,6 +10,9 @@
     cargo-watch
     cargo-audit
 
+    # Code analysis
+    (callPackage ../pkgs/octocode.nix {})
+
     # Go
     go
     gopls
