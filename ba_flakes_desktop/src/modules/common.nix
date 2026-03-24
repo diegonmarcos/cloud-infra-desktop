@@ -82,6 +82,12 @@
     # Octocode — OpenAI-compatible endpoint (Ollama on oci-apps)
     OPENAI_BASE_URL = "http://10.0.0.6:11435/v1";
     OPENAI_API_KEY = "sk-dummy";
+
+    # Authelia OIDC — paths to vault credentials + tokens
+    AUTHELIA_OIDC_CREDENTIALS_DIR = "$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/credentials";
+    AUTHELIA_OIDC_TOKENS_DIR = "$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens";
+    AUTHELIA_OIDC_CLIENT_ID = "claude-admin";
+    AUTHELIA_TOKEN_URL = "https://auth.diegonmarcos.com/api/oidc/token";
   };
 
   # Session path additions
