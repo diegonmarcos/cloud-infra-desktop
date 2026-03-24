@@ -206,6 +206,38 @@
         end
         set_color normal; echo ""; echo ""
 
+        # ══════════════════ Env Vars ══════════════════
+        set_color --bold yellow; echo "── Env Vars ───────────────────────────────────────────────────────────────────────────────────"
+        set_color normal
+        printf "  "
+        set_color cyan; printf "%-22s" "EDITOR=$EDITOR"; set_color normal
+        set_color cyan; printf "%-22s" "VISUAL=$VISUAL"; set_color normal
+        set_color cyan; printf "%-22s" "PAGER=$PAGER"; set_color normal
+        set_color cyan; printf "%-22s" "LANG=$LANG"; set_color normal
+        echo ""
+        printf "  "
+        set_color green; printf "%-22s" "OPENAI_BASE_URL"; set_color normal
+        set_color --dim; printf "%-44s" "$OPENAI_BASE_URL"; set_color normal
+        echo ""
+        printf "  "
+        set_color green; printf "%-22s" "OPENAI_API_KEY"; set_color normal
+        set_color --dim; printf "%-44s" "(set)"; set_color normal
+        echo ""
+        printf "  "
+        set_color green; printf "%-22s" "ANTHROPIC_API_KEY"; set_color normal
+        if set -q ANTHROPIC_API_KEY
+          set_color --dim; printf "%-44s" "(set)"; set_color normal
+        else
+          set_color red; printf "%-44s" "(not set)"; set_color normal
+        end
+        echo ""
+        printf "  "
+        set_color magenta; printf "%-22s" "LD_PRELOAD"; set_color normal
+        set_color --dim; printf "%-44s" "mimalloc"; set_color normal
+        set_color magenta; printf "%-22s" "TF_PLUGIN_CACHE"; set_color normal
+        set_color --dim; printf "%-22s" "~/.terraform.d/"; set_color normal
+        echo ""; echo ""
+
         # ══════════════════ Configuration ══════════════════
         set_color --bold magenta; echo "── Configuration ──────────────────────────────────────────────────────────────────────────────"
         set_color normal
@@ -226,12 +258,6 @@
         set_color cyan; echo "  Wrappers - Custom:"
         set_color normal
         set_color green; echo -n "    curl/wget        "; set_color normal; echo "Auto-inject Authelia token for *.diegonmarcos.com"
-        # Env Vars
-        set_color cyan; echo "  Env Vars:"
-        set_color normal
-        set_color magenta; echo -n "    LD_PRELOAD       "; set_color normal; echo "mimalloc (memory allocator fix)"
-        set_color magenta; echo -n "    TF_PLUGIN_CACHE  "; set_color normal; echo "~/.terraform.d/plugin-cache"
-        echo ""
         set_color --dim; echo "    ('hhelp config' — cat flake.nix)"; set_color normal
         echo ""
 
