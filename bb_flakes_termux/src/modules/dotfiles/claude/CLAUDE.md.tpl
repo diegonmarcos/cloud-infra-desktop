@@ -25,7 +25,7 @@
 
 > **Owner**: Diego Nepomuceno Marcos
 > **System**: NixOS (Surface Pro 8) + Kubuntu (dual-boot)
-> **Git Root**: `/home/diego/Mounts/Git`
+> **Git Root**: `/home/diego/git`
 <!-- INJECT:generated_date -->
 > **Updated**: (static template — cloud-data not available at build time)
 <!-- /INJECT -->
@@ -75,7 +75,7 @@
 
 | Resource | Path |
 |----------|------|
-| **Unix Repo** | `/home/diego/Mounts/Git/unix` |
+| **Unix Repo** | `/home/diego/git/unix` |
 | **Surface Host Flake** | `unix/aa_nixos-surface_host/` |
 | **Home-Manager Desktop** | `unix/ba_flakes_desktop/` |
 | **Home-Manager Termux** | `unix/bb_flakes_termux/` |
@@ -119,9 +119,9 @@
 
 | Resource | Path | Type |
 |----------|------|------|
-| **Cloud Repo** | `/home/diego/Mounts/Git/cloud` | Git Repository |
-| **Container Configs** | `/home/diego/Mounts/Git/cloud/a_solutions/` | Nix Flakes |
-| **Home Manager** | `/home/diego/Mounts/Git/cloud/b_infra/home-manager/` | VM Configs |
+| **Cloud Repo** | `/home/diego/git/cloud` | Git Repository |
+| **Container Configs** | `/home/diego/git/cloud/a_solutions/` | Nix Flakes |
+| **Home Manager** | `/home/diego/git/cloud/b_infra/home-manager/` | VM Configs |
 
 ## B.2 Virtual Machines
 
@@ -170,14 +170,14 @@ curl -H "Authorization: Bearer $TOKEN" https://<service>.diegonmarcos.com/...
 
 | Resource | Path |
 |----------|------|
-| **Vault Repo** | `/home/diego/Mounts/Git/vault` |
+| **Vault Repo** | `/home/diego/git/vault` |
 
 **WARNING**: Contains sensitive credentials. NEVER expose or commit to public repos.
 
 ## C.2 Vault Structure
 
 ```
-/home/diego/Mounts/Git/vault/
+/home/diego/git/vault/
 ├── A0_keys/
 │   ├── ssh/                  # SSH keys (symlinked to ~/.ssh/)
 │   ├── providers/
@@ -238,10 +238,10 @@ python ~/git/vault/A0_keys/providers/authelia/oauth/get_token.py
 
 | Resource | Path |
 |----------|------|
-| **Front Repo** | `/home/diego/Mounts/Git/front` |
-| **Stack Spec** | `/home/diego/Mounts/Git/front/1.ops/00_Stack_Main.md` |
-| **Code Practices** | `/home/diego/Mounts/Git/front/1.ops/30_Code_Practise.md` |
-| **Master Build** | `/home/diego/Mounts/Git/front/1.ops/build_main.sh` |
+| **Front Repo** | `/home/diego/git/front` |
+| **Stack Spec** | `/home/diego/git/front/1.ops/00_Stack_Main.md` |
+| **Code Practices** | `/home/diego/git/front/1.ops/30_Code_Practise.md` |
+| **Master Build** | `/home/diego/git/front/1.ops/build_main.sh` |
 
 ## D.2 Build System
 
@@ -447,11 +447,11 @@ rpm -qR <package>           # RPM-based
 
 | Area | Path |
 |------|------|
-| Git Root | `/home/diego/Mounts/Git` |
-| Front-end | `/home/diego/Mounts/Git/front` |
-| Cloud Backend | `/home/diego/Mounts/Git/cloud` |
-| Unix/NixOS | `/home/diego/Mounts/Git/unix` |
-| Security Vault | `/home/diego/Mounts/Git/vault` |
+| Git Root | `/home/diego/git` |
+| Front-end | `/home/diego/git/front` |
+| Cloud Backend | `/home/diego/git/cloud` |
+| Unix/NixOS | `/home/diego/git/unix` |
+| Security Vault | `/home/diego/git/vault` |
 
 ## F.2 Domains
 

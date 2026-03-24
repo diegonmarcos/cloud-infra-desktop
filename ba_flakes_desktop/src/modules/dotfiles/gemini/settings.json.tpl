@@ -11,7 +11,7 @@
     "unix": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/Mounts/Git/unix/bc_unix-mcp-api/src/index.ts"]
+      "args": ["/home/diego/git/unix/bc_unix-mcp-api/src/index.ts"]
     },
     "cloud-infra": {
       "type": "http",
@@ -23,18 +23,18 @@
     "code-graph-context": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_code-graph-context-kg-infra-mcp/src/index.ts"],
+      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_code-graph-context-kg-infra-mcp/src/index.ts"],
       "env": {
-        "CONFIG_PATH": "/home/diego/Mounts/Git/cloud/config.json"
+        "CONFIG_PATH": "/home/diego/git/cloud/config.json"
       }
     },
     "diego-personal-data": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/Mounts/Git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
+      "args": ["/home/diego/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
       "env": {
-        "VAULT_PATH": "/home/diego/Mounts/Git/vault",
-        "CONFIG_PATH": "/home/diego/Mounts/Git/cloud/config.json"
+        "VAULT_PATH": "/home/diego/git/vault",
+        "CONFIG_PATH": "/home/diego/git/cloud/config.json"
       }
     },
     "cloud-services": {
