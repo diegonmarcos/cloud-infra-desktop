@@ -7,7 +7,7 @@ buildNpmPackage rec {
 
   # Use local source from cloud repo (filtered to avoid unnecessary rebuilds)
   src = builtins.path {
-    path = /home/diego/Mounts/Git/cloud/a_solutions/bc-obs_c3-infra-mcp-api;
+    path = /home/diego/Mounts/Git/cloud/a_solutions/bc-obs_c3-infra-mcp;
     name = "cloud-infra-mcp-src";
   };
 
