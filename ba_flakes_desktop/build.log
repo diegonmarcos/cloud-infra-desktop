@@ -2062,3 +2062,61 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-24 11:55:55] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user
 [2026-03-24 11:55:55] ========== Build script finished ==========
 [2026-03-24 12:03:26] ========== Build script started ==========
+[2026-03-24 12:03:47] ========== Build script started ==========
+[2026-03-24 12:03:47] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user ==========
+[2026-03-24 12:03:47] PERF: start switch
+[2026-03-24 12:03:47] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 12:03:47] PERF: git stage = 33ms
+[2026-03-24 12:03:47] PERF: clean backups = 6ms
+[2026-03-24 12:03:47] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+these 2 derivations will be built:
+  /nix/store/akx62zy80kwg490q0mhvl8a2jk0j7j2w-activation-script.drv
+  /nix/store/9xmijr814nh8cbyysnvllr0a5q62x1v4-home-manager-generation.drv
+building '/nix/store/akx62zy80kwg490q0mhvl8a2jk0j7j2w-activation-script.drv'...
+building '/nix/store/9xmijr814nh8cbyysnvllr0a5q62x1v4-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 149
+Creating home file links in /home/diego
+Activating sharedNodeModules
+[node-deps.nix] Merging deps from cloud-data + front-data...
+WARN: /home/diego/git/cloud/cloud-data/cloud-data-deps.json: Unexpected end of JSON input
+package.json: 91 packages merged
+[node-deps.nix] npm install: ~/.node_modules/
+
+added 3 packages in 7s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating createXdgUserDirectories
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (6 VMs, 28 services, date=2026-03-24)
+Activating globalTsx
+
+changed 5 packages in 6s
+Activating initHomeGit
+Activating installPackages
+nix profile remove /nix/store/q52r92amvj6ghdrcwrz0z0ip0bwfb5l6-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-03-24 12:04:08] PERF: home-manager switch = 20.0s
+[2026-03-24 12:04:08] PERF: TOTAL switch = 20.1s
+[2026-03-24 12:04:08] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user
+[2026-03-24 12:04:08] ========== Build script finished ==========

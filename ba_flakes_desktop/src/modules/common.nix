@@ -19,6 +19,11 @@
   # Enable Home Manager
   programs.home-manager.enable = true;
 
+  # Packages needed by MCP servers (all profiles)
+  home.packages = [
+    (pkgs.callPackage ../pkgs/octocode.nix {})  # code-graph-context MCP
+  ];
+
   # Nix settings
   nix = {
     package = pkgs.nix;
