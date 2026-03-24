@@ -1835,3 +1835,16 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-24 10:52:38] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user ==========
 [2026-03-24 10:52:38] PERF: start switch
 [2026-03-24 10:52:38] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 10:52:39] PERF: git stage = 39ms
+[2026-03-24 10:52:39] PERF: clean backups = 17ms
+[2026-03-24 10:52:39] INFO: Applying Home Manager configuration...
+[2026-03-24 10:52:39] INFO: Flake ref: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user
+[2026-03-24 10:52:39] INFO: BUILDSH_GUARDRAIL=1 _GUARDRAIL=1
+[2026-03-24 10:52:39] INFO: Using home-manager: /home/diego/.nix-profile/bin/home-manager
+[2026-03-24 10:52:39] INFO: Running: /home/diego/.nix-profile/bin/home-manager switch --impure -b backup --print-build-logs --flake /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user
+[2026-03-24 10:52:39] INFO: Temp log: /tmp/tmp.xx8fEVCpfj
+[2026-03-24 10:52:39] INFO: Starting home-manager switch at 10:52:39...
+[2026-03-24 11:03:55] ========== Build script started ==========
+[2026-03-24 11:03:55] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user ==========
+[2026-03-24 11:03:55] PERF: start switch
+[2026-03-24 11:03:55] INFO: Staging dirty files for flake evaluation...
