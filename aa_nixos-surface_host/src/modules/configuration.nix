@@ -48,7 +48,7 @@
     ./configuration_display.nix
     ./configuration_audio.nix
     ./configuration_containers.nix
-    ./configuration_resource-bouncer.nix
+    ./configuration_system-protection.nix
     ./configuration_packages.nix
     ./configuration_persistence.nix
     ./configuration_services.nix

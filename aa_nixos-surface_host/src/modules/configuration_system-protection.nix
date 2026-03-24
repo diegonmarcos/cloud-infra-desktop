@@ -1,6 +1,8 @@
-# Resource Bouncer — System That NEVER Freezes
+# System Protection — Desktop (NixOS native)
 # Surface Pro 8, 7.6GB RAM. Prevents hard lockups under memory pressure
 # using cgroups v2 caps, zram, earlyoom, and compositor memory guarantees.
+#
+# VM equivalent: cloud/b_infra/home-manager/_shared/modules/system-protection*.nix
 #
 # Architecture:
 #   system.slice  → MemoryMin=500M (systemd, sshd, docker daemon)

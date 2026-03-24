@@ -130,7 +130,7 @@
         sops-nix.homeManagerModules.sops
         ./modules/sops.nix
         ./modules/common.nix
-        ./modules/guardrails.nix
+        ./modules/system-protection-guardrails.nix
         ./modules/curl-wget-wrapper.nix
         ./modules/node-npm-deps.nix
         ./modules/cloud.nix
