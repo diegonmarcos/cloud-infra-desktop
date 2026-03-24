@@ -2443,3 +2443,61 @@ error: 1 dependencies of derivation '/nix/store/j472kgjdbzkkmpzpv8v50k5hn7brqzms
 [2026-03-24 12:17:45] PERF: TOTAL switch = 24.0s
 [2026-03-24 12:17:45] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-03-24 12:17:45] ========== Build script finished ==========
+[2026-03-24 12:18:01] ========== Build script started ==========
+[2026-03-24 12:18:01] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-24 12:18:01] PERF: start switch
+[2026-03-24 12:18:01] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 12:18:01] PERF: git stage = 34ms
+[2026-03-24 12:18:01] PERF: clean backups = 5ms
+[2026-03-24 12:18:01] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 11 derivations will be built:
+  /nix/store/vdyjv3i7wf5v4hvwibcppi83g5lnbbnm-cloud-infra-mcp-1.0.0.drv
+  /nix/store/bmc6lav518r8a61kfgh8is3hw9zdf87d-man-paths.drv
+  /nix/store/dn01mmhkkknwh0g3zd98qnvvvdih8gi9-cloud-infra-mcp-1.0.0-fish-completions.drv
+  /nix/store/c33yn2vcm3m341hg9lzi1zxc6vc66cqa-diego-fish-completions.drv
+  /nix/store/lxmads461xdb3is4krbfrgcdl5xkhnzr-home-manager-path.drv
+  /nix/store/f6awcpgs9gykrvkbhi0ihpzdws68rzxr-activation-script.drv
+  /nix/store/l7cprpmhqa0qmf81297c95f6f4f004gv-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/pa4g4xf7mbbjjxd9snchcd5imq97jbwc-man-cache.drv
+  /nix/store/n7rgglll5d8albcr1mbm4gzq2mf1czrs-hm_.manpath.drv
+  /nix/store/m1b3grazzwzrywjnlhrnapmbssyxs7d4-home-manager-files.drv
+  /nix/store/gq57zpb4fv8xg64a2rps3ncmbnchwjcc-home-manager-generation.drv
+building '/nix/store/vdyjv3i7wf5v4hvwibcppi83g5lnbbnm-cloud-infra-mcp-1.0.0.drv'...
+error: builder for '/nix/store/vdyjv3i7wf5v4hvwibcppi83g5lnbbnm-cloud-infra-mcp-1.0.0.drv' failed with exit code 1;
+       last 25 log lines:
+       > node_modules/which/bin/node-which: interpreter directive changed from "#!/usr/bin/env node" to "/nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node"
+       > node_modules/yaml/bin.mjs: interpreter directive changed from "#!/usr/bin/env node" to "/nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node"
+       > node_modules/glob/dist/esm/bin.mjs: interpreter directive changed from "#!/usr/bin/env node" to "/nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node"
+       > node_modules/mime/cli.js: interpreter directive changed from "#!/usr/bin/env node" to "/nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node"
+       > node_modules/nunjucks/bin/precompile: interpreter directive changed from "#!/usr/bin/env node" to "/nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node"
+       > node_modules/pino/test/fixtures/ts/transpile.cjs: interpreter directive changed from "#!/usr/bin/env node" to "/nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node"
+       > node_modules/pino/bin.js: interpreter directive changed from "#!/usr/bin/env node" to "/nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node"
+       > node_modules/pino/inc-version.sh: interpreter directive changed from "#!/bin/bash" to "/nix/store/mjhcjikhxps97mq5z54j4gjjfzgmsir5-bash-5.2p37/bin/bash"
+       > node_modules/pino-abstract-transport/.husky/pre-commit: interpreter directive changed from "#!/usr/bin/env sh" to "/nix/store/mjhcjikhxps97mq5z54j4gjjfzgmsir5-bash-5.2p37/bin/sh"
+       > node_modules/prebuild-install/bin.js: interpreter directive changed from "#!/usr/bin/env node" to "/nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node"
+       > node_modules/rc/cli.js: interpreter directive changed from "#! /usr/bin/env node" to "/nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node"
+       > node_modules/safe-regex2/bin/safe-regex2.js: interpreter directive changed from "#!/usr/bin/env node" to "/nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node"
+       > node_modules/semver/bin/semver.js: interpreter directive changed from "#!/usr/bin/env node" to "/nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node"
+       > node_modules/esbuild/bin/esbuild: interpreter directive changed from "#!/usr/bin/env node" to "/nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node"
+       > rebuilt dependencies successfully
+       > patching script interpreter paths in node_modules
+       > Finished npmConfigHook
+       > patchPhase completed in 1 minutes 11 seconds
+       > Running phase: updateAutotoolsGnuConfigScriptsPhase
+       > Running phase: configurePhase
+       > no configure script, doing nothing
+       > Running phase: buildPhase
+       > no Makefile or custom buildPhase, doing nothing
+       > Running phase: installPhase
+       > cp: cannot stat 'dist': No such file or directory
+       For full logs, run 'nix log /nix/store/vdyjv3i7wf5v4hvwibcppi83g5lnbbnm-cloud-infra-mcp-1.0.0.drv'.
+error: 1 dependencies of derivation '/nix/store/dn01mmhkkknwh0g3zd98qnvvvdih8gi9-cloud-infra-mcp-1.0.0-fish-completions.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/lxmads461xdb3is4krbfrgcdl5xkhnzr-home-manager-path.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/bmc6lav518r8a61kfgh8is3hw9zdf87d-man-paths.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/gq57zpb4fv8xg64a2rps3ncmbnchwjcc-home-manager-generation.drv' failed to build
+[2026-03-24 12:19:23] PERF: home-manager switch = 1m 21s
+[2026-03-24 12:19:23] PERF: TOTAL switch = 1m 21s
+[2026-03-24 12:19:23] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-24 12:19:23] ========== Build script finished ==========
