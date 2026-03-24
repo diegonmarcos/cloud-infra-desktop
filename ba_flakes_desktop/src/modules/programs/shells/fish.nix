@@ -80,19 +80,20 @@
       # Custom tools
       gdrive = "bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh";
 
-      # AI CLIs — use function instead (see functions block)
+      # AI CLIs — ai-cli function in functions block
+      cloud-ai-cli = "ai-cli";  # back-compat alias
 
       # Welcome screen
       welcome = "_show_welcome";
     };
 
     functions = {
-      cloud-ai-cli = ''
+      ai-cli = ''
         switch "$argv[1]"
           case -h --help help models
-            echo "cloud-ai-cli — Goose AI with model selector"
+            echo "ai-cli — Unified AI Agent launcher (Goose + MCP)"
             echo ""
-            echo "Usage: cloud-ai-cli [model] [goose args...]"
+            echo "Usage: ai-cli [model] [goose args...]"
             echo ""
             echo "Models:"
             echo "  (default)  Haiku 4.5 · 200K ctx · \$0.80/\$4 in|out (batch: \$0.40/\$2) · ~2s"
@@ -101,9 +102,9 @@
             echo "  local      qwen2.5 1.5B Q4 · 4K ctx · Ollama oci-apps · free · ~12s"
             echo ""
             echo "Examples:"
-            echo "  cloud-ai-cli              # Haiku (default)"
-            echo "  cloud-ai-cli sonnet       # Sonnet"
-            echo "  cloud-ai-cli local        # Local qwen on Ollama"
+            echo "  ai-cli              # Haiku (default)"
+            echo "  ai-cli sonnet       # Sonnet"
+            echo "  ai-cli local        # Local qwen on Ollama"
           case sonnet
             GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-sonnet-4-6 goose $argv[2..]
           case opus
@@ -278,7 +279,7 @@
         set_color cyan; echo "  Dev:"
         set_color normal
         set_color green; echo -n "    claude           "; set_color normal; echo "Launch Claude Code (v$_claude_ver)"
-        set_color green; echo -n "    cloud-ai-cli     "; set_color normal; echo "Goose AI (v$_goose_ver) — model selector:"
+        set_color green; echo -n "    ai-cli           "; set_color normal; echo "Unified AI launcher — Claude + Goose (v$_goose_ver) — models:"
         set_color --dim
         echo "                       (no arg)  qwen2.5 1.5B Q4 · 4K ctx · Ollama oci-apps · free · ~12s"
         echo "                       haiku     Haiku 4.5 · 200K ctx · \$0.80/\$4 in|out (batch: \$0.40/\$2) · ~2s"

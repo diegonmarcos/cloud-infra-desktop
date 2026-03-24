@@ -49,16 +49,17 @@
       path = "echo $PATH | tr ':' '\\n'";
       reload = "source ~/.config/fish/config.fish";
 
-      # AI CLIs — use function instead (see functions block)
+      # AI CLIs — ai-cli function in functions block
+      cloud-ai-cli = "ai-cli";  # back-compat alias
     };
 
     functions = {
-      cloud-ai-cli = ''
+      ai-cli = ''
         switch "$argv[1]"
           case -h --help help models
-            echo "cloud-ai-cli — Goose AI with model selector"
+            echo "ai-cli — Unified AI Agent launcher (Goose + MCP)"
             echo ""
-            echo "Usage: cloud-ai-cli [model] [goose args...]"
+            echo "Usage: ai-cli [model] [goose args...]"
             echo ""
             echo "Models:"
             echo "  (default)  Haiku 4.5 · 200K ctx · \$0.80/\$4 in|out (batch: \$0.40/\$2) · ~2s"
@@ -67,9 +68,9 @@
             echo "  local      qwen2.5 1.5B Q4 · 4K ctx · Ollama oci-apps · free · ~12s"
             echo ""
             echo "Examples:"
-            echo "  cloud-ai-cli              # Haiku (default)"
-            echo "  cloud-ai-cli sonnet       # Sonnet"
-            echo "  cloud-ai-cli local        # Local qwen on Ollama"
+            echo "  ai-cli              # Haiku (default)"
+            echo "  ai-cli sonnet       # Sonnet"
+            echo "  ai-cli local        # Local qwen on Ollama"
           case sonnet
             GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-sonnet-4-6 goose $argv[2..]
           case opus
