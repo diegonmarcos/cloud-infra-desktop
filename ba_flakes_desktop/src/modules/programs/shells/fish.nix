@@ -209,34 +209,57 @@
         # ══════════════════ Env Vars ══════════════════
         set_color --bold yellow; echo "── Env Vars ───────────────────────────────────────────────────────────────────────────────────"
         set_color normal
-        printf "  "
-        set_color cyan; printf "%-22s" "EDITOR=$EDITOR"; set_color normal
-        set_color cyan; printf "%-22s" "VISUAL=$VISUAL"; set_color normal
-        set_color cyan; printf "%-22s" "PAGER=$PAGER"; set_color normal
-        set_color cyan; printf "%-22s" "LANG=$LANG"; set_color normal
-        echo ""
-        printf "  "
-        set_color green; printf "%-22s" "OPENAI_BASE_URL"; set_color normal
-        set_color --dim; printf "%-44s" "$OPENAI_BASE_URL"; set_color normal
-        echo ""
-        printf "  "
-        set_color green; printf "%-22s" "OPENAI_API_KEY"; set_color normal
-        set_color --dim; printf "%-44s" "(set)"; set_color normal
-        echo ""
-        printf "  "
-        set_color green; printf "%-22s" "ANTHROPIC_API_KEY"; set_color normal
-        if set -q ANTHROPIC_API_KEY
-          set_color --dim; printf "%-44s" "(set)"; set_color normal
-        else
-          set_color red; printf "%-44s" "(not set)"; set_color normal
+        # Row helper: 4 vars per row, green=set red=unset
+        set_color cyan; echo "  Shell:"
+        printf "    "
+        for v in EDITOR VISUAL PAGER LANG LC_ALL MANPAGER
+          if set -q $v
+            set_color green; printf "%-16s" "$v"
+          else
+            set_color red; printf "%-16s" "$v"
+          end
         end
-        echo ""
-        printf "  "
-        set_color magenta; printf "%-22s" "LD_PRELOAD"; set_color normal
-        set_color --dim; printf "%-44s" "mimalloc"; set_color normal
-        set_color magenta; printf "%-22s" "TF_PLUGIN_CACHE"; set_color normal
-        set_color --dim; printf "%-22s" "~/.terraform.d/"; set_color normal
-        echo ""; echo ""
+        set_color normal; echo ""
+        set_color cyan; echo "  AI / LLM:"
+        printf "    "
+        for v in ANTHROPIC_API_KEY OPENAI_BASE_URL OPENAI_API_KEY OLLAMA_HOST
+          if set -q $v
+            set_color green; printf "%-22s" "$v"
+          else
+            set_color red; printf "%-22s" "$v"
+          end
+        end
+        set_color normal; echo ""
+        set_color cyan; echo "  Auth / Cloud:"
+        printf "    "
+        for v in AUTHELIA_OIDC_CREDENTIALS_DIR AUTHELIA_OIDC_TOKENS_DIR AUTHELIA_OIDC_CLIENT_ID AUTHELIA_TOKEN_URL
+          if set -q $v
+            set_color green; printf "%-34s" "$v"
+          else
+            set_color red; printf "%-34s" "$v"
+          end
+        end
+        set_color normal; echo ""
+        set_color cyan; echo "  Dev / Build:"
+        printf "    "
+        for v in CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix COREPACK_ENABLE_AUTO_PIN
+          if set -q $v
+            set_color green; printf "%-16s" "$v"
+          else
+            set_color red; printf "%-16s" "$v"
+          end
+        end
+        set_color normal; echo ""
+        set_color cyan; echo "  System:"
+        printf "    "
+        for v in DEVICE HM_PROFILE BUILDSH_GUARDRAIL TF_PLUGIN_CACHE_DIR GNUPGHOME GIT_EDITOR
+          if set -q $v
+            set_color green; printf "%-22s" "$v"
+          else
+            set_color red; printf "%-22s" "$v"
+          end
+        end
+        set_color normal; echo ""; echo ""
 
         # ══════════════════ Configuration ══════════════════
         set_color --bold magenta; echo "── Configuration ──────────────────────────────────────────────────────────────────────────────"
