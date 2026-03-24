@@ -265,10 +265,10 @@
         set_color green; echo -n "    claude           "; set_color normal; echo "Launch Claude Code (v$_claude_ver)"
         set_color green; echo -n "    cloud-ai-cli     "; set_color normal; echo "Goose AI (v$_goose_ver) — model selector:"
         set_color --dim
-        echo "                       (no arg)  qwen2.5 1.5B Q4 · 4K ctx · Ollama oci-apps (free/slow)"
-        echo "                       haiku     Claude Haiku 4.5 · 200K ctx · Anthropic API (fast/paid)"
-        echo "                       sonnet    Claude Sonnet 4.6 · 200K ctx · Anthropic API"
-        echo "                       opus      Claude Opus 4.6 · 200K ctx · Anthropic API"
+        echo "                       (no arg)  qwen2.5 1.5B Q4 · 4K ctx · Ollama oci-apps · free · ~12s"
+        echo "                       haiku     Haiku 4.5 · 200K ctx · \$0.80/\$4 per 1M tok · ~2s"
+        echo "                       sonnet    Sonnet 4.6 · 200K ctx · \$3/\$15 per 1M tok · ~3s"
+        echo "                       opus      Opus 4.6 · 200K ctx · \$15/\$75 per 1M tok · ~5s"
         set_color normal
         set_color green; echo -n "    code             "; set_color normal; echo "VS Code Server (local/lan/stop)"
         # Cloud
