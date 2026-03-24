@@ -115,6 +115,7 @@
         set -l disk_info (command df -h /nix | awk 'NR==2 {print $3"/"$2}')
         set -l disk_perc (command df /nix | awk 'NR==2 {gsub(/%/,""); print $5}')
         set -l ip_addr (ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+        set -l ip_priv (ip -4 addr show scope global 2>/dev/null | awk '/inet / {gsub(/\/.*/, "", $2); printf "%s ", $2}' | string trim)
         set -l load_avg (command cat /proc/loadavg | awk '{print $1" "$2" "$3}')
         set -l pkgs (command ls /nix/store 2>/dev/null | wc -l | string trim)
         set -l procs (command ls /proc 2>/dev/null | grep -c '^[0-9]')
@@ -170,11 +171,11 @@
         set_color --bold yellow
         printf "  ┌─ NETWORK ──────────────────────────────────────┐ ┌─ SECURITY STATUS ────────────────────────────┐\n"
         set_color normal
-        printf "  │ "; set_color yellow; printf "IP     "; set_color normal; printf "%-40s" "$ip_addr"; printf "│ │ "; set_color yellow; printf "SSH      "; set_color normal; printf "%-37s" "$ssh_status"; printf "│\n"
-        printf "  │ "; set_color yellow; printf "Load   "; set_color normal; printf "%-40s" "$load_avg"; printf "│ │ "; set_color yellow; printf "Firewall "; set_color normal; printf "%-37s" "$fw_status"; printf "│\n"
-        printf "  │ "; set_color yellow; printf "Uptime "; set_color normal; printf "%-40s" "$uptime_str"; printf "│ │ "; set_color yellow; printf "Fail2ban "; set_color normal; printf "%-37s" "$fail2ban"; printf "│\n"
-        printf "  │ "; set_color yellow; printf "Pkgs   "; set_color normal; printf "%-40s" "$pkgs packages"; printf "│ │ "; set_color yellow; printf "Ports    "; set_color normal; printf "%-37s" "$open_ports listening"; printf "│\n"
-        printf "  │ "; set_color yellow; printf "Procs  "; set_color normal; printf "%-40s" "$procs running"; printf "│ │ "; set_color yellow; printf "Last     "; set_color normal; printf "%-37s" "$last_login"; printf "│\n"
+        printf "  │ "; set_color yellow; printf "IP-Pub "; set_color normal; printf "%-40s" "$ip_addr"; printf "│ │ "; set_color yellow; printf "SSH      "; set_color normal; printf "%-37s" "$ssh_status"; printf "│\n"
+        printf "  │ "; set_color yellow; printf "IP-Priv"; set_color normal; printf " %-39s" "$ip_priv"; printf "│ │ "; set_color yellow; printf "Firewall "; set_color normal; printf "%-37s" "$fw_status"; printf "│\n"
+        printf "  │ "; set_color yellow; printf "Load   "; set_color normal; printf "%-40s" "$load_avg"; printf "│ │ "; set_color yellow; printf "Fail2ban "; set_color normal; printf "%-37s" "$fail2ban"; printf "│\n"
+        printf "  │ "; set_color yellow; printf "Uptime "; set_color normal; printf "%-40s" "$uptime_str"; printf "│ │ "; set_color yellow; printf "Ports    "; set_color normal; printf "%-37s" "$open_ports listening"; printf "│\n"
+        printf "  │ "; set_color yellow; printf "Pkgs   "; set_color normal; printf "%-40s" "$pkgs packages"; printf "│ │ "; set_color yellow; printf "Last     "; set_color normal; printf "%-37s" "$last_login"; printf "│\n"
         set_color --bold yellow
         printf "  └─────────────────────────────────────────────────┘ └───────────────────────────────────────────────┘\n"
         set_color normal
@@ -244,7 +245,9 @@
           if set -q $v; set_color --dim green; else; set_color --dim red; end
           printf "%-16s" "$v"
         end
-        set_color normal; echo ""; echo ""
+        set_color normal; echo ""
+        set_color --dim; echo "    ('hhelp envvar' — list all env vars with values)"; set_color normal
+        echo ""
 
         # ══════════════════ Configuration ══════════════════
         set_color --bold magenta; echo "── Configuration ──────────────────────────────────────────────────────────────────────────────"
@@ -372,6 +375,7 @@
           echo "    hhelp config             Show flake.nix + common.nix (imports, session vars, paths)"
           echo "    hhelp tools              List all packages declared in profile modules"
           echo "    hhelp alias              List all shell functions and aliases (fish + bash + zsh)"
+          echo "    hhelp envvar             List all env vars with current values"
           echo "    hhelp profiles           List profile modules with descriptions"
           echo "    hhelp grep <pattern>     Search across all flake source files"
           return 0
@@ -436,6 +440,16 @@
               test -f "$pkg"; or continue
               set -l desc (command grep -m1 'description' "$pkg" 2>/dev/null | command sed 's/.*"\(.*\)".*/\1/')
               printf "  %-28s %s\n" (basename $pkg .nix) "$desc"
+            end
+
+          case envvar
+            set_color --bold cyan; echo "═══ Environment Variables ═══"; set_color normal; echo ""
+            for v in EDITOR VISUAL PAGER LANG LC_ALL MANPAGER LESS ANTHROPIC_API_KEY OPENAI_BASE_URL OPENAI_API_KEY OLLAMA_HOST AUTHELIA_OIDC_CLIENT_ID AUTHELIA_TOKEN_URL AUTHELIA_OIDC_CREDENTIALS_DIR AUTHELIA_OIDC_TOKENS_DIR CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix COREPACK_ENABLE_AUTO_PIN DEVICE HM_PROFILE BUILDSH_GUARDRAIL TF_PLUGIN_CACHE_DIR GNUPGHOME GIT_EDITOR RUSTUP_HOME PYTHONPATH JUPYTER_CONFIG_DIR STARSHIP_SHELL FZF_DEFAULT_COMMAND
+              if set -q $v
+                set_color green; printf "  %-36s" "$v"; set_color --dim; echo "$$v"; set_color normal
+              else
+                set_color red; printf "  %-36s" "$v"; echo "(not set)"; set_color normal
+              end
             end
 
           case alias
