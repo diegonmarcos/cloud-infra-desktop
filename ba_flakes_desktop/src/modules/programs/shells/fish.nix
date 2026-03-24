@@ -644,6 +644,11 @@
         direnv hook fish | source
       end
 
+      # API keys from vault (read at shell init, not baked into Nix store)
+      if test -f ~/git/vault/A0_keys/providers/anthropic/api-key_opaque
+        set -gx ANTHROPIC_API_KEY (cat ~/git/vault/A0_keys/providers/anthropic/api-key_opaque)
+      end
+
       # Vi mode
       fish_vi_key_bindings
 
