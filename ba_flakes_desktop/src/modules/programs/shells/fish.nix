@@ -447,37 +447,49 @@
           case envvar
             set -l _vars EDITOR VISUAL PAGER LANG LC_ALL MANPAGER LESS ANTHROPIC_API_KEY OPENAI_BASE_URL OPENAI_API_KEY OLLAMA_HOST AUTHELIA_OIDC_CLIENT_ID AUTHELIA_TOKEN_URL AUTHELIA_OIDC_CREDENTIALS_DIR AUTHELIA_OIDC_TOKENS_DIR CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix COREPACK_ENABLE_AUTO_PIN DEVICE HM_PROFILE BUILDSH_GUARDRAIL TF_PLUGIN_CACHE_DIR GNUPGHOME GIT_EDITOR RUSTUP_HOME PYTHONPATH JUPYTER_CONFIG_DIR STARSHIP_SHELL FZF_DEFAULT_COMMAND
 
-            # TABLE 1: Declared in nix source (parsed from common.nix + fish.nix)
+            # TABLE 1: Declared in nix source (scan ALL flake nix files)
             set_color --bold cyan; echo "═══ Table 1: Declared (nix source) ═══"; set_color normal; echo ""
-            set -l _common "$HOME/git/unix/ba_flakes_desktop/src/modules/common.nix"
-            set -l _fish "$HOME/git/unix/ba_flakes_desktop/src/modules/programs/shells/fish.nix"
-            # Parse sessionVariables from common.nix
-            command awk '
-              /home\.sessionVariables\s*=\s*\{/ { inside=1; next }
-              inside && /^\s*\};/ { exit }
-              inside && /=/ {
-                line = $0
-                gsub(/^\s+/, "", line)
-                gsub(/;\s*$/, "", line)
-                if (line ~ /^#/) next
-                if (line == "") next
-                split(line, p, " = ")
-                name = p[1]; gsub(/"/, "", name)
-                val = p[2]; gsub(/"/, "", val)
-                printf "  \033[32m%-34s\033[0m = \033[2m%s\033[0m\n", name, val
-              }
-            ' "$_common" 2>/dev/null
-            # Parse fish interactiveShellInit for set -gx
-            command awk '
-              /set -gx [A-Z]/ {
-                line = $0
-                gsub(/^\s+/, "", line)
-                # extract: set -gx VAR (cmd...)
-                if (match(line, /set -gx ([A-Za-z_]+) (.+)/, m)) {
-                  printf "  \033[33m%-34s\033[0m = \033[2m%s\033[0m\n", m[1], m[2]
+            set -l _hm_root "$HOME/git/unix/ba_flakes_desktop/src"
+            set -l _os_root "$HOME/git/unix/aa_nixos-surface_host/src"
+            # Parse all sessionVariables from all .nix files
+            command find "$_hm_root" "$_os_root" -name '*.nix' 2>/dev/null | sort | while read -l f
+              command awk -v file="$f" '
+                /[Ss]ession[Vv]ariables\s*=\s*\{/ { inside=1; src=file; gsub(/.*\/src\//, "", src); next }
+                inside && /^\s*\};/ { inside=0; next }
+                inside && /=/ && !/^[[:space:]]*#/ {
+                  line = $0
+                  gsub(/^\s+/, "", line)
+                  gsub(/;\s*$/, "", line)
+                  if (line == "") next
+                  n = index(line, " = ")
+                  if (n > 0) {
+                    name = substr(line, 1, n-1)
+                    val = substr(line, n+3)
+                    gsub(/"/, "", name)
+                    gsub(/^"/, "", val); gsub(/";?\s*$/, "", val)
+                    printf "  \033[32m%-34s\033[0m = \033[2m%-40s\033[0m \033[2;35m(%s)\033[0m\n", name, val, src
+                  }
                 }
-              }
-            ' "$_fish" 2>/dev/null
+              ' "$f" 2>/dev/null
+            end
+            # Parse set -gx from fish shell init
+            command find "$_hm_root" -name '*.nix' 2>/dev/null | while read -l f
+              command awk -v file="$f" '
+                /set -gx [A-Za-z_]/ {
+                  line = $0; gsub(/^\s+/, "", line)
+                  n = match(line, /set -gx ([A-Za-z_]+) (.+)/)
+                  if (n > 0) {
+                    gsub(/set -gx /, "", line)
+                    sp = index(line, " ")
+                    name = substr(line, 1, sp-1)
+                    val = substr(line, sp+1)
+                    gsub(/\)?\s*$/, "", val)
+                    src = file; gsub(/.*\/src\//, "", src)
+                    printf "  \033[33m%-34s\033[0m = \033[2m%-40s\033[0m \033[2;35m(%s)\033[0m\n", name, val, src
+                  }
+                }
+              ' "$f" 2>/dev/null
+            end
 
             echo ""
             # TABLE 2: Every var, resolved (cat value → if file cat it, if dir ls it, if plain echo it)
