@@ -306,6 +306,7 @@
         set_color magenta; echo -n "    tree             "; set_color normal; echo "Directory tree"
         set_color magenta; echo -n "    yazi             "; set_color normal; echo "Terminal file manager"
         set_color magenta; echo -n "    carbonyl         "; set_color normal; echo "Chromium browser in the terminal"
+        set_color magenta; echo -n "    nmtui            "; set_color normal; echo "Network Manager TUI (WiFi, VPN, connections)"
         # Search (fzf)
         set_color cyan; echo "  Search (fzf):"
         set_color normal
