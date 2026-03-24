@@ -15,10 +15,10 @@
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
       }
     },
-    "code-graph-context": {
+    "cloud-cgc-mcp": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_code-graph-context-kg-infra-mcp/src/index.ts"],
+      "args": ["/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts"],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
         "CONFIG_PATH": "/home/diego/Mounts/Git/cloud/config.json"
