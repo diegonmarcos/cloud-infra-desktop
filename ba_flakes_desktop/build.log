@@ -1810,3 +1810,10 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-23 23:58:15] PERF: git stage = 67ms
 [2026-03-23 23:58:15] PERF: clean backups = 32ms
 [2026-03-23 23:58:15] INFO: Applying Home Manager configuration...
+[2026-03-24 00:48:34] ========== Build script started ==========
+[2026-03-24 00:48:34] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@user ==========
+[2026-03-24 00:48:34] PERF: start switch
+[2026-03-24 00:48:34] INFO: Staging dirty files for flake evaluation...
+[2026-03-24 00:48:34] PERF: git stage = 42ms
+[2026-03-24 00:48:34] PERF: clean backups = 15ms
+[2026-03-24 00:48:34] INFO: Applying Home Manager configuration...
