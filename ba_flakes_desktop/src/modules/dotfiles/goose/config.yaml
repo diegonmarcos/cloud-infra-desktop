@@ -12,14 +12,14 @@ extensions:
     name: Cloud Services MCP
     type: streamable_http
     uri: https://mcp.diegonmarcos.com/c3-services-mcp/mcp
-    enabled: true
+    enabled: false
     timeout: 300
 
   cloud-infra:
     name: Cloud Infra MCP
     type: streamable_http
     uri: https://mcp.diegonmarcos.com/c3-infra-mcp/mcp
-    enabled: true
+    enabled: false
     timeout: 300
 
   code-graph-context:
@@ -39,7 +39,7 @@ extensions:
     args:
       - /home/diego/Mounts/Git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts
     type: stdio
-    enabled: true
+    enabled: false
     envs:
       VAULT_PATH: /home/diego/Mounts/Git/vault
       CONFIG_PATH: /home/diego/Mounts/Git/cloud/config.json
@@ -49,5 +49,5 @@ extensions:
     name: Google Workspace MCP
     type: streamable_http
     uri: https://mcp.diegonmarcos.com/g-workspace/mcp
-    enabled: true
+    enabled: false
     timeout: 300
