@@ -243,9 +243,11 @@
         set_color magenta; echo -n "    conf             "; set_color normal; echo "Edit flake.nix"
         # Dev
         set -l _claude_ver (claude --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
+        set -l _goose_ver (goose --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
         set_color cyan; echo "  Dev:"
         set_color normal
         set_color green; echo -n "    claude           "; set_color normal; echo "Launch Claude Code (v$_claude_ver)"
+        set_color green; echo -n "    cloud-ai-cli     "; set_color normal; echo "Launch Goose AI — local Ollama + MCP (v$_goose_ver)"
         set_color green; echo -n "    code             "; set_color normal; echo "VS Code Server (local/lan/stop)"
         # Cloud
         set_color cyan; echo "  Cloud:"
