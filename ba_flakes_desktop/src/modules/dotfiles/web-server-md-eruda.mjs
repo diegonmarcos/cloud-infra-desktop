@@ -18,7 +18,24 @@ const MIME = {
   '.mp4': 'video/mp4', '.webm': 'video/webm', '.txt': 'text/plain',
   '.xml': 'text/xml', '.mjs': 'application/javascript',
   '.md': 'text/markdown',
+  // Code & config — serve as text so iframes render them
+  '.ts': 'text/plain', '.tsx': 'text/plain', '.rs': 'text/plain',
+  '.py': 'text/plain', '.sh': 'text/plain', '.fish': 'text/plain',
+  '.nix': 'text/plain', '.yaml': 'text/plain', '.yml': 'text/plain',
+  '.toml': 'text/plain', '.conf': 'text/plain', '.ini': 'text/plain',
+  '.env': 'text/plain', '.log': 'text/plain', '.lock': 'text/plain',
+  '.secrets': 'text/plain', '.service': 'text/plain', '.timer': 'text/plain',
+  '.sql': 'text/plain', '.graphql': 'text/plain', '.tf': 'text/plain',
+  '.scss': 'text/plain', '.less': 'text/plain',
 };
+
+// Fallback: if extension not in MIME map, try to detect text vs binary
+function guessMime(ext, content) {
+  if (MIME[ext]) return MIME[ext];
+  // If content is provided and looks like text, serve as text/plain
+  if (content && !content.includes('\0')) return 'text/plain';
+  return 'application/octet-stream';
+}
 
 function dirListing(urlPath, entries) {
   const rows = entries.map(e => {
@@ -214,7 +231,7 @@ const server = createServer(async (req, res) => {
       }
       const ext = extname(libFile).toLowerCase();
       res.writeHead(200, {
-        'content-type': MIME[ext] || 'application/octet-stream',
+        'content-type': guessMime(ext),
         'cache-control': 'public, max-age=86400',
       });
       return res.end(data);
@@ -247,7 +264,7 @@ const server = createServer(async (req, res) => {
 
     // Serve file
     const ext = extname(fsPath).toLowerCase();
-    const mime = MIME[ext] || 'application/octet-stream';
+    const mime = guessMime(ext);
 
     // ?raw query: serve any text file as plain text
     if (url.searchParams.has('raw') && ext !== '.md') {
@@ -278,7 +295,10 @@ const server = createServer(async (req, res) => {
     }
 
     const data = await readFile(fsPath);
-    res.writeHead(200, { 'content-type': mime });
+    const finalMime = mime === 'application/octet-stream'
+      ? guessMime(ext, data.toString('utf8', 0, Math.min(data.length, 512)))
+      : mime;
+    res.writeHead(200, { 'content-type': finalMime });
     res.end(data);
   } catch (err) {
     res.writeHead(500, { 'content-type': 'text/plain' });
