@@ -1,0 +1,1 @@
+/home/diego/git/cloud/b_infra/home-manager/_shared/modules/system-protection-resource-bouncer.nix
