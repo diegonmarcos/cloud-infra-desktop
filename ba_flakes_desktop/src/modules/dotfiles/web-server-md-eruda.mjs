@@ -101,11 +101,103 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const urlPath = decodeURIComponent(url.pathname);
 
+    // ── Browse SPA ──
+    if (urlPath === '/__browse__' || urlPath === '/__browse__/') {
+      const browsePath = join(LIB_DIR, 'browse.html');
+      const html = await readFile(browsePath, 'utf8').catch(() => null);
+      if (!html) { res.writeHead(404); return res.end('browse.html not found'); }
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end(html);
+    }
+
+    // ── API: directory listing ──
+    if (urlPath === '/__api__/ls') {
+      const dirPath = url.searchParams.get('path') || '/';
+      const fsDir = join(ROOT, dirPath);
+      const info = await stat(fsDir).catch(() => null);
+      if (!info || !info.isDirectory()) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Not a directory' }));
+      }
+      const items = await readdir(fsDir, { withFileTypes: true });
+      const entries = items
+        .filter(d => !d.name.startsWith('.'))
+        .map(d => ({ name: d.name, isDir: d.isDirectory() }))
+        .sort((a, b) => (b.isDir - a.isDir) || a.name.localeCompare(b.name));
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify(entries));
+    }
+
+    // ── API: read file ──
+    if (urlPath === '/__api__/read') {
+      const filePath = url.searchParams.get('path') || '/';
+      const fsFile = join(ROOT, filePath);
+      const info = await stat(fsFile).catch(() => null);
+      if (!info || info.isDirectory()) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Not a file' }));
+      }
+      if (info.size > 5 * 1024 * 1024) {
+        res.writeHead(413, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'File too large (>5MB)' }));
+      }
+      const content = await readFile(fsFile, 'utf8').catch(() => null);
+      if (content === null) {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Cannot read file' }));
+      }
+      const ext = extname(fsFile).toLowerCase();
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify({ path: filePath, ext, size: info.size, content }));
+    }
+
+    // ── API: search ──
+    if (urlPath === '/__api__/search') {
+      const q = (url.searchParams.get('q') || '').toLowerCase();
+      const mode = url.searchParams.get('mode') || 'filename';
+      const base = url.searchParams.get('path') || '/';
+      if (!q) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        return res.end('[]');
+      }
+      const results = [];
+      async function walk(dir, rel) {
+        if (results.length > 200) return;
+        const items = await readdir(dir, { withFileTypes: true }).catch(() => []);
+        for (const d of items) {
+          if (d.name.startsWith('.')) continue;
+          const childRel = rel ? rel + '/' + d.name : d.name;
+          const childFs = join(dir, d.name);
+          if (d.isDirectory()) {
+            if (mode === 'filename' && d.name.toLowerCase().includes(q)) {
+              results.push({ path: childRel, isDir: true });
+            }
+            await walk(childFs, childRel);
+          } else {
+            if (mode === 'filename' && d.name.toLowerCase().includes(q)) {
+              results.push({ path: childRel, isDir: false });
+            } else if (mode === 'content') {
+              const info = await stat(childFs).catch(() => null);
+              if (info && info.size < 1024 * 1024) {
+                const txt = await readFile(childFs, 'utf8').catch(() => null);
+                if (txt && txt.toLowerCase().includes(q)) {
+                  results.push({ path: childRel, isDir: false });
+                }
+              }
+            }
+          }
+        }
+      }
+      await walk(join(ROOT, base), '');
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify(results));
+    }
+
     // Serve lib assets from ~/.local/lib/httpd/
     if (urlPath.startsWith('/__lib__/')) {
       const libFile = urlPath.slice('/__lib__/'.length);
       // Only allow known lib files (no path traversal)
-      if (libFile !== 'marked.min.js' && libFile !== 'github-markdown-dark.css') {
+      if (!['marked.min.js', 'github-markdown-dark.css', 'browse.html'].includes(libFile)) {
         res.writeHead(404, { 'content-type': 'text/plain' });
         return res.end('Not found');
       }
