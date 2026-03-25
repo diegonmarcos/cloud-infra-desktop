@@ -119,11 +119,14 @@ const server = createServer(async (req, res) => {
         res.writeHead(404, { 'content-type': 'application/json' });
         return res.end(JSON.stringify({ error: 'Not a directory' }));
       }
-      const items = await readdir(fsDir, { withFileTypes: true });
-      const entries = items
-        .filter(d => !d.name.startsWith('.'))
-        .map(d => ({ name: d.name, isDir: d.isDirectory() }))
-        .sort((a, b) => (b.isDir - a.isDir) || a.name.localeCompare(b.name));
+      const items = await readdir(fsDir);
+      const entries = [];
+      for (const name of items) {
+        if (name.startsWith('.')) continue;
+        const s = await stat(join(fsDir, name)).catch(() => null);
+        if (s) entries.push({ name, isDir: s.isDirectory() });
+      }
+      entries.sort((a, b) => (b.isDir - a.isDir) || a.name.localeCompare(b.name));
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end(JSON.stringify(entries));
     }
@@ -163,18 +166,20 @@ const server = createServer(async (req, res) => {
       const results = [];
       async function walk(dir, rel) {
         if (results.length > 200) return;
-        const items = await readdir(dir, { withFileTypes: true }).catch(() => []);
-        for (const d of items) {
-          if (d.name.startsWith('.')) continue;
-          const childRel = rel ? rel + '/' + d.name : d.name;
-          const childFs = join(dir, d.name);
-          if (d.isDirectory()) {
-            if (mode === 'filename' && d.name.toLowerCase().includes(q)) {
+        const names = await readdir(dir).catch(() => []);
+        for (const name of names) {
+          if (name.startsWith('.')) continue;
+          const childRel = rel ? rel + '/' + name : name;
+          const childFs = join(dir, name);
+          const s = await stat(childFs).catch(() => null);
+          if (!s) continue;
+          if (s.isDirectory()) {
+            if (mode === 'filename' && name.toLowerCase().includes(q)) {
               results.push({ path: childRel, isDir: true });
             }
             await walk(childFs, childRel);
           } else {
-            if (mode === 'filename' && d.name.toLowerCase().includes(q)) {
+            if (mode === 'filename' && name.toLowerCase().includes(q)) {
               results.push({ path: childRel, isDir: false });
             } else if (mode === 'content') {
               const info = await stat(childFs).catch(() => null);

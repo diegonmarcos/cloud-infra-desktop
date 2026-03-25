@@ -174,16 +174,29 @@ body {
   flex-shrink: 0;
 }
 
-.toggle-label {
+.toggle-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--accent);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-dim);
-  font-size: 11px;
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px 10px;
+  letter-spacing: 0.5px;
+  transition: all 0.15s;
 }
 
-.toggle-label input[type="checkbox"] { accent-color: var(--accent); }
+.toggle-btn:hover {
+  border-color: var(--accent);
+  background: rgba(0,214,143,0.1);
+}
+
+.toggle-btn.raw-active {
+  color: #ff6b6b;
+  border-color: #ff6b6b;
+  background: rgba(255,107,107,0.1);
+}
 
 #viewer {
   flex: 1;
@@ -222,7 +235,7 @@ html { min-width: 900px; }
   <div id="viewer-toolbar">
     <span id="viewer-path"></span>
     <div class="toolbar-actions">
-      <label class="toggle-label"><input type="checkbox" id="raw-toggle"> Raw</label>
+      <button id="raw-toggle" class="toggle-btn">Render</button>
     </div>
   </div>
   <iframe id="viewer" src="about:blank"></iframe>
@@ -296,17 +309,27 @@ function openFile(path, el) {
   if (el) el.classList.add('active');
   currentFilePath = path;
   document.getElementById('viewer-path').textContent = path;
-  document.getElementById('raw-toggle').checked = false;
+  const btn = document.getElementById('raw-toggle');
+  btn.classList.remove('raw-active');
+  btn.textContent = 'Render';
   loadViewer(path, false);
 }
 
+let isRaw = false;
+
 function loadViewer(path, raw) {
+  isRaw = raw;
   const src = raw ? path + (path.includes('?') ? '&' : '?') + 'raw' : path;
   document.getElementById('viewer').src = src;
 }
 
-document.getElementById('raw-toggle').addEventListener('change', (e) => {
-  if (currentFilePath) loadViewer(currentFilePath, e.target.checked);
+document.getElementById('raw-toggle').addEventListener('click', () => {
+  if (!currentFilePath) return;
+  isRaw = !isRaw;
+  const btn = document.getElementById('raw-toggle');
+  btn.textContent = isRaw ? 'Raw' : 'Render';
+  btn.classList.toggle('raw-active', isRaw);
+  loadViewer(currentFilePath, isRaw);
 });
 
 function updatePathBar() {
