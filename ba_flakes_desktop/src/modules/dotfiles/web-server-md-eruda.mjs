@@ -106,6 +106,16 @@ function breadcrumb(urlPath) {
   return crumbs;
 }
 
+async function serveBrowse(res, initPath) {
+  const browsePath = join(LIB_DIR, 'browse.html');
+  let html = await readFile(browsePath, 'utf8').catch(() => null);
+  if (!html) { res.writeHead(404); return res.end('browse.html not found'); }
+  // Inject the initial path so no redirect/hash needed
+  html = html.replace('__INIT_PATH__', JSON.stringify(initPath));
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+  return res.end(html);
+}
+
 const server = createServer(async (req, res) => {
   try {
     // App-level firewall: reject non-loopback requests
@@ -118,13 +128,9 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const urlPath = decodeURIComponent(url.pathname);
 
-    // ── Browse SPA ──
+    // ── Browse SPA (backward compat) ──
     if (urlPath === '/__browse__' || urlPath === '/__browse__/') {
-      const browsePath = join(LIB_DIR, 'browse.html');
-      const html = await readFile(browsePath, 'utf8').catch(() => null);
-      if (!html) { res.writeHead(404); return res.end('browse.html not found'); }
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      return res.end(html);
+      return serveBrowse(res, '/');
     }
 
     // ── API: directory listing ──
@@ -257,9 +263,8 @@ const server = createServer(async (req, res) => {
         return res.end(html);
       }
 
-      // Redirect directory listings to browse UI
-      res.writeHead(302, { 'Location': '/__browse__#' + encodeURIComponent(urlPath) });
-      return res.end();
+      // Serve browse SPA for directory listings
+      return serveBrowse(res, urlPath);
     }
 
     // Serve file
