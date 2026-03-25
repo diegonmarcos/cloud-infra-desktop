@@ -398,19 +398,16 @@ function renderEntries(entries, isSearch) {
   for (const e of entries) {
     const fullName = isSearch ? e.path : e.name;
     const displayName = isSearch ? fullName.split('/').pop() : e.name;
+    const absPath = isSearch
+      ? (currentDir === '/' ? '/' + e.path : currentDir + '/' + e.path)
+      : (currentDir === '/' ? '/' + e.name : currentDir + '/' + e.name);
     const icon = e.isDir ? '&#128193;' : fileIcon(fullName);
-    const el = mkEntry(icon, displayName, e.isDir, isSearch ? fullName : null);
+    const el = mkEntry(icon, displayName, e.isDir, absPath);
 
     if (e.isDir) {
-      const dirPath = isSearch
-        ? (currentDir === '/' ? '/' + e.path : currentDir + '/' + e.path)
-        : (currentDir === '/' ? '/' + e.name : currentDir + '/' + e.name);
-      el.addEventListener('click', () => loadDir(dirPath));
+      el.addEventListener('click', () => loadDir(absPath));
     } else {
-      const filePath = isSearch
-        ? (currentDir === '/' ? '/' + e.path : currentDir + '/' + e.path)
-        : (currentDir === '/' ? '/' + e.name : currentDir + '/' + e.name);
-      el.addEventListener('click', () => openFile(filePath, el));
+      el.addEventListener('click', () => openFile(absPath, el));
     }
     list.appendChild(el);
   }
