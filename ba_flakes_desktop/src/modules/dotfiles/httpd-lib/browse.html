@@ -320,6 +320,73 @@ body.sidebar-hidden #sidebar { display: none; }
   font-style: italic;
 }
 
+.info-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  width: 18px;
+  height: 18px;
+  line-height: 16px;
+  text-align: center;
+  padding: 0;
+  float: right;
+  transition: all 0.15s;
+}
+
+.info-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.info-panel {
+  position: absolute;
+  bottom: 40px;
+  left: 8px;
+  right: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  font-size: 11px;
+  color: var(--text-dim);
+  z-index: 20;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.info-panel h3 {
+  color: var(--accent);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.info-panel h4 {
+  color: var(--link);
+  font-size: 11px;
+  margin: 10px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-panel ul {
+  margin: 4px 0 8px 16px;
+  line-height: 1.6;
+}
+
+.info-panel p { margin: 4px 0; }
+
+.info-close a {
+  color: var(--link);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.info-close a:hover { text-decoration: underline; }
+
 html { min-width: 900px; }
 </style>
 </head>
@@ -336,7 +403,35 @@ html { min-width: 900px; }
   </div>
   <div class="path-bar" id="path-bar">/</div>
   <div id="file-list"></div>
-  <div class="meta" id="meta">http-dev</div>
+  <div class="meta" id="meta">
+    http-dev
+    <button id="info-btn" class="info-btn" title="About">?</button>
+  </div>
+  <div id="info-panel" class="info-panel" style="display:none">
+    <h3>http-dev File Browser</h3>
+    <p>A local-only Node.js file server with native rendering.</p>
+    <ul>
+      <li><b>.md</b> — Markdown rendered via marked.js (GitHub dark theme)</li>
+      <li><b>.json</b> — Structured tables: arrays, KV, nested cards + copy buttons</li>
+      <li><b>.yaml / .yml</b> — Parsed to structured tables (flat keys)</li>
+      <li><b>.secrets</b> — Decrypted KV table with per-row copy buttons</li>
+      <li><b>.html</b> — Rendered natively with Eruda DevTools injected</li>
+      <li><b>Other text</b> — Served as plain text (auto-detected)</li>
+    </ul>
+    <h4>Features</h4>
+    <ul>
+      <li>Sidebar file browser with recursive search (filename / content)</li>
+      <li>Raw / Render toggle switch</li>
+      <li>Copy raw file button + double-click row to copy value</li>
+      <li>Hover tooltip shows full file path</li>
+      <li>Resizable sidebar + hamburger collapse</li>
+      <li>URL-addressable: bookmark any file via hash</li>
+      <li>Symlinks followed transparently</li>
+      <li>Eruda DevTools on every HTML page</li>
+      <li>Localhost-only (127.0.0.1 + app firewall)</li>
+    </ul>
+    <p class="info-close"><a id="info-close">Close</a></p>
+  </div>
 </div>
 
 <div id="right-panel">
@@ -446,6 +541,14 @@ function loadViewer(path, raw) {
   document.getElementById('viewer').src = src;
   document.getElementById('copy-raw').style.display = raw ? '' : 'none';
 }
+
+document.getElementById('info-btn').addEventListener('click', () => {
+  const panel = document.getElementById('info-panel');
+  panel.style.display = panel.style.display === 'none' ? '' : 'none';
+});
+document.getElementById('info-close').addEventListener('click', () => {
+  document.getElementById('info-panel').style.display = 'none';
+});
 
 document.getElementById('hamburger').addEventListener('click', () => {
   document.body.classList.toggle('sidebar-hidden');
