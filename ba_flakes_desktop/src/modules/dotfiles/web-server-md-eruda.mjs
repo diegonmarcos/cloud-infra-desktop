@@ -235,20 +235,23 @@ const server = createServer(async (req, res) => {
         return res.end(html);
       }
 
-      // Directory listing
-      const items = await readdir(fsPath, { withFileTypes: true });
-      const entries = items
-        .filter(d => !d.name.startsWith('.'))
-        .map(d => ({ name: d.name, isDir: d.isDirectory() }))
-        .sort((a, b) => (b.isDir - a.isDir) || a.name.localeCompare(b.name));
-
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      return res.end(dirListing(urlPath, entries));
+      // Redirect directory listings to browse UI
+      res.writeHead(302, { 'Location': '/__browse__#' + encodeURIComponent(urlPath) });
+      return res.end();
     }
 
     // Serve file
     const ext = extname(fsPath).toLowerCase();
     const mime = MIME[ext] || 'application/octet-stream';
+
+    // ?raw query: serve any text file as plain text
+    if (url.searchParams.has('raw') && ext !== '.md') {
+      const data = await readFile(fsPath, 'utf8').catch(() => null);
+      if (data !== null) {
+        res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+        return res.end(data);
+      }
+    }
 
     // Markdown rendering
     if (ext === '.md') {
