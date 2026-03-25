@@ -200,8 +200,8 @@ body.sidebar-hidden #sidebar { display: none; }
   letter-spacing: 0.5px;
 }
 
-.switch-label.left { color: #ff6b6b; }
-.switch-label.right { color: var(--accent); }
+.switch-label.left { color: var(--text-dim); }
+.switch-label.right { color: var(--text-dim); }
 
 .switch {
   position: relative;
@@ -216,7 +216,7 @@ body.sidebar-hidden #sidebar { display: none; }
   position: absolute;
   cursor: pointer;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: #ff6b6b;
+  background: var(--border);
   border-radius: 18px;
   transition: 0.25s;
 }
@@ -234,7 +234,7 @@ body.sidebar-hidden #sidebar { display: none; }
 }
 
 .switch input:checked + .slider {
-  background: var(--accent);
+  background: var(--text-dim);
 }
 
 .switch input:checked + .slider::before {
