@@ -467,8 +467,8 @@ document.getElementById('search').addEventListener('input', (e) => {
 async function runSearch(q) {
   if (!q) { loadDir(currentDir); return; }
   const mode = document.querySelector('input[name="smode"]:checked').value;
-  // Search recursively from root, not just current dir
-  const results = await api('search', { q, mode, path: '/' });
+  // Search recursively from current directory into children
+  const results = await api('search', { q, mode, path: currentDir });
   renderEntries(results, true);
 }
 
