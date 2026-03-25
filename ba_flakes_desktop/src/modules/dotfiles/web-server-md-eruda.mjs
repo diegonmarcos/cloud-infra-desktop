@@ -464,21 +464,17 @@ const server = createServer(async (req, res) => {
       }
     }
 
+    // Structured rendering — only for browser navigation (Accept: text/html),
+    // not for fetch()/XHR (which need raw data for apps like cloud-data)
+    const acceptsHtml = (req.headers.accept || '').includes('text/html');
+    const wantsRaw = url.searchParams.has('raw');
+
     // Secrets rendering — KV table with copy buttons
-    if (fsPath.endsWith('.secrets') || fsPath.endsWith('.secrets.json')) {
+    if ((fsPath.endsWith('.secrets') || fsPath.endsWith('.secrets.json')) && acceptsHtml && !wantsRaw) {
       const content = await readFile(fsPath, 'utf8');
-      if (url.searchParams.has('raw')) {
-        res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
-        return res.end(content);
-      }
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       return res.end(structuredPage(urlPath, content, 'secrets'));
     }
-
-    // JSON / YAML structured rendering — only for browser navigation,
-    // not for fetch()/XHR (which need raw JSON for apps like cloud-data)
-    const acceptsHtml = (req.headers.accept || '').includes('text/html');
-    const wantsRaw = url.searchParams.has('raw');
 
     if (ext === '.json' && acceptsHtml && !wantsRaw) {
       const content = await readFile(fsPath, 'utf8');
