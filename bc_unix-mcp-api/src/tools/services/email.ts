@@ -11,8 +11,8 @@ const MAIL_SECRETS_PATH = join(
   CLOUD_DATA,
   "secrets/aa-sui_mailu-mcp-secrets.json.secrets"
 );
-const DEFAULT_IMAP_HOST = process.env.IMAP_HOST ?? "imap.diegonmarcos.com";
-const DEFAULT_SMTP_HOST = process.env.SMTP_HOST ?? "smtp.diegonmarcos.com";
+const DEFAULT_IMAP_HOST = process.env.IMAP_HOST ?? "mail.diegonmarcos.com";
+const DEFAULT_SMTP_HOST = process.env.SMTP_HOST ?? "mail.diegonmarcos.com";
 const DEFAULT_PORT_IMAP = 993;
 const DEFAULT_PORT_SMTP = 465;
 
