@@ -2,16 +2,22 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { registerDriftTools } from "./tools/drift.js";
-import { registerNixTools } from "./tools/nix.js";
-import { registerSystemTools } from "./tools/system.js";
-import { registerScriptTools } from "./tools/scripts.js";
-import { registerGitTools } from "./tools/git.js";
-import { registerShellTools } from "./tools/shell.js";
-import { registerShellConfigTools } from "./tools/shell-config.js";
-import { registerEmailTools } from "./tools/email.js";
-import { startMcpHttpServer } from "./http.js";
+// A) Infra-Dev
+import { registerSystemShellTools } from "./tools/infra/system-shell.js";
+import { registerHomeManagerTools } from "./tools/infra/home-manager.js";
+import { registerMeshTools } from "./tools/infra/mesh.js";
+import { registerGitSyncTools } from "./tools/infra/git-sync.js";
+import { registerFuseDrivesTools } from "./tools/infra/fuse-drives.js";
+import { registerSyncTools } from "./tools/infra/sync.js";
+import { registerDataServerTools } from "./tools/infra/data-servers.js";
+import { registerWebServerTools } from "./tools/infra/web-servers.js";
+import { registerSecurityTools } from "./tools/infra/security.js";
 
+// B) User-Services
+import { registerEmailTools } from "./tools/services/email.js";
+import { registerDashboardTools } from "./tools/services/dashboard.js";
+
+import { startMcpHttpServer } from "./http.js";
 import { PLATFORM } from "./paths.js";
 
 // All logging to stderr (stdout = JSON-RPC in stdio mode)
@@ -20,18 +26,23 @@ const log = (msg: string) => process.stderr.write(`[unix-mcp] ${msg}\n`);
 function createServer(): McpServer {
   const server = new McpServer({
     name: "unix-mcp",
-    version: "1.3.0",
+    version: "2.0.0",
   });
 
-  // ── Tool categories ─────────────────────────────
-  registerDriftTools(server);       //  3: nix-drift (version drift detection)
-  registerNixTools(server);         //  6: flake info, update, switch, search, store, generations
-  registerSystemTools(server);      //  5: info, env, which, processes, packages
-  registerScriptTools(server);      // 12: connect hub (status, logs, mesh, git, drives, sync, server, dev, code, hm, security)
-  registerGitTools(server);         //  4: status-all, log, diff, remote-status
-  registerShellTools(server);       //  3: exec, npm-list, npm-install
-  registerShellConfigTools(server); //  7: aliases, functions, greeting, starship, guardrails
-  registerEmailTools(server);       //  5: imap-fetch, imap-list, imap-raw, cert-check, smtp-test
+  // ── A) Infra-Dev ──────────────────────────────────
+  registerSystemShellTools(server);   // 15: sys_* + shell_* + npm_*
+  registerHomeManagerTools(server);   // 10: connect_hm + nix_* + nix_drift_*
+  registerMeshTools(server);          //  2: connect_mesh_*
+  registerGitSyncTools(server);       //  6: connect_git/gacp + git_*
+  registerFuseDrivesTools(server);    //  1: connect_drives
+  registerSyncTools(server);          //  1: connect_sync
+  registerDataServerTools(server);    //  1: connect_server
+  registerWebServerTools(server);     //  2: connect_dev_server + connect_code_server
+  registerSecurityTools(server);      //  1: connect_security
+
+  // ── B) User-Services ──────────────────────────────
+  registerEmailTools(server);         //  5: email_*
+  registerDashboardTools(server);     //  2: connect_status + connect_logs
 
   return server;
 }
@@ -42,7 +53,7 @@ function createServer(): McpServer {
 const useHttp = process.argv.includes("--http") || process.env.MCP_HTTP === "1";
 
 async function main() {
-  log(`Starting unix-mcp v1.3.0 (45 tools, platform=${PLATFORM})...`);
+  log(`Starting unix-mcp v2.0.0 (46 tools, platform=${PLATFORM})...`);
 
   if (useHttp) {
     const port = parseInt(process.env.MCP_HTTP_PORT ?? "3200", 10);
