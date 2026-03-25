@@ -106,6 +106,81 @@ function breadcrumb(urlPath) {
   return crumbs;
 }
 
+function secretsPage(urlPath, rawContent) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${urlPath}</title>
+<style>
+  :root{--bg:#1a1a2e;--card:#16213e;--border:#2a3a5e;--text:#e0e0e0;--dim:#8899aa;--accent:#00d68f;--red:#ff6b6b;--mono:'Courier New',Consolas,monospace}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);padding:24px 32px}
+  h1{font-size:16px;color:var(--accent);margin-bottom:4px}
+  .badge{font-size:10px;color:var(--red);background:rgba(255,107,107,0.15);border:1px solid rgba(255,107,107,0.3);border-radius:3px;padding:2px 6px;letter-spacing:1px;vertical-align:middle}
+  .nav{margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border);font-size:12px}
+  .nav a{color:#56c5ff;text-decoration:none}.nav a:hover{text-decoration:underline}
+  .nav .sep{color:#484f58;margin:0 4px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:16px}
+  td{padding:8px 14px;border:1px solid var(--border);vertical-align:top}
+  tr:nth-child(even){background:#1b2a4a}
+  tr:hover{background:rgba(0,214,143,0.05);cursor:pointer}
+  tr.copied{background:rgba(0,214,143,0.2);transition:background 0.3s}
+  .key{font-weight:bold;white-space:nowrap;width:1%;color:var(--dim)}
+  .val{word-break:break-all}
+  .copy-btn{background:none;border:1px solid var(--border);border-radius:3px;color:var(--dim);cursor:pointer;font-size:14px;padding:2px 6px;margin-left:8px;font-family:var(--mono);transition:all 0.15s}
+  .copy-btn:hover{color:var(--accent);border-color:var(--accent);background:rgba(0,214,143,0.1)}
+  .copy-btn.ok{color:var(--accent);border-color:var(--accent)}
+  .error{color:var(--red);padding:20px}
+</style></head><body>
+<div class="nav">${breadcrumb(urlPath)} <a style="float:right;color:var(--dim);font-size:11px" href="${urlPath}?raw">view raw</a></div>
+<h1>${urlPath.split('/').pop()} <span class="badge">DECRYPTED</span></h1>
+<div id="root"></div>
+<script>
+const raw = ${JSON.stringify(rawContent)};
+try {
+  const data = JSON.parse(raw);
+  const root = document.getElementById('root');
+  if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+    const table = document.createElement('table');
+    for (const [k, v] of Object.entries(data)) {
+      const tr = document.createElement('tr');
+      const tdK = document.createElement('td');
+      tdK.className = 'key';
+      tdK.textContent = k;
+      tr.appendChild(tdK);
+      const tdV = document.createElement('td');
+      tdV.className = 'val';
+      tdV.textContent = v === null ? '—' : String(v);
+      const btn = document.createElement('button');
+      btn.className = 'copy-btn';
+      btn.innerHTML = '\\u2398';
+      btn.title = 'Copy value';
+      btn.onclick = () => {
+        navigator.clipboard.writeText(String(v ?? '')).then(() => {
+          btn.classList.add('ok'); btn.innerHTML = '\\u2713';
+          setTimeout(() => { btn.classList.remove('ok'); btn.innerHTML = '\\u2398'; }, 1500);
+        });
+      };
+      tdV.appendChild(btn);
+      tr.appendChild(tdV);
+      tr.addEventListener('dblclick', () => {
+        navigator.clipboard.writeText(String(v ?? '')).then(() => {
+          tr.classList.add('copied');
+          setTimeout(() => tr.classList.remove('copied'), 800);
+        });
+      });
+      table.appendChild(tr);
+    }
+    root.appendChild(table);
+  } else {
+    root.innerHTML = '<pre style="background:var(--card);padding:16px;border-radius:6px;border:1px solid var(--border);white-space:pre-wrap">' + raw.replace(/</g,'&lt;') + '</pre>';
+  }
+} catch(e) {
+  document.getElementById('root').innerHTML = '<pre style="background:var(--card);padding:16px;border-radius:6px;border:1px solid var(--border);white-space:pre-wrap">' + raw.replace(/</g,'&lt;') + '</pre>';
+}
+</script>
+${ERUDA_SCRIPT}
+</body></html>`;
+}
+
 async function serveBrowse(res, initPath) {
   const browsePath = join(LIB_DIR, 'browse.html');
   let html = await readFile(browsePath, 'utf8').catch(() => null);
@@ -278,6 +353,17 @@ const server = createServer(async (req, res) => {
         res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
         return res.end(data);
       }
+    }
+
+    // Secrets rendering — KV table with copy buttons
+    if (fsPath.endsWith('.secrets') || fsPath.endsWith('.secrets.json')) {
+      const content = await readFile(fsPath, 'utf8');
+      if (url.searchParams.has('raw')) {
+        res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+        return res.end(content);
+      }
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end(secretsPage(urlPath, content));
     }
 
     // Markdown rendering
