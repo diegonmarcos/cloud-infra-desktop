@@ -8,8 +8,7 @@
 # Flow: whitelist? → pass | blocked? → stop | confirm/warning? → prompt | else → pass
 #
 # BUILDSH_GUARDRAIL=1 bypasses all prompts (re-entry + auto-confirm).
-# Set by build.sh, Claude Code hooks, and propagated to child processes.
-# BLOCKED is never bypassed, not even by BUILDSH_GUARDRAIL.
+# BLOCKED is never bypassed, not even by build.sh.
 # All wrappers are POSIX sh — no bash required.
 { config, lib, ... }:
 
@@ -59,31 +58,20 @@ let
 
   mkWhitelistCheck = cmd: let
     subs = whitelistFor cmd;
-    hasMultiWord = builtins.any (sub: builtins.match ".* .*" sub != null) subs;
-    singleWord = builtins.filter (sub: builtins.match ".* .*" sub == null) subs;
-    multiWord = builtins.filter (sub: builtins.match ".* .*" sub != null) subs;
-    mkCase = sub: ''"${sub}") _log_guardrail "whitelist"; exec ${cmd} "$@" || _die "exec '${cmd}' failed (whitelist)" ;;'';
+    # Match first non-flag argument against each whitelisted subcommand
+    checks = map (sub: ''
+      ${sub}) _log_guardrail "whitelist"; exec ${cmd} "$@" || _die "exec '${cmd}' failed (whitelist)" ;;'') subs;
   in if subs == [] then "" else ''
-    # Tier 0: WHITELIST — scan past flags to find the subcommand(s)
-    _sub1="" _sub2=""
+    # Tier 0: WHITELIST — scan past flags to find the subcommand
+    _sub=""
     for _arg in "$@"; do
       case "$_arg" in
         -*) continue ;;
-        *)
-          if [ -z "$_sub1" ]; then _sub1="$_arg"
-          elif [ -z "$_sub2" ]; then _sub2="$_arg"; break
-          fi ;;
+        *) _sub="$_arg"; break ;;
       esac
     done
-  '' + (if multiWord != [] then ''
-    # Multi-word subcommand match (e.g. "flake show", "network ls")
-    case "$_sub1 $_sub2" in
-    ${builtins.concatStringsSep "\n    " (map mkCase multiWord)}
-    esac
-  '' else "") + ''
-    # Single-word subcommand match
-    case "$_sub1" in
-    ${builtins.concatStringsSep "\n    " (map mkCase singleWord)}
+    case "$_sub" in
+    ${builtins.concatStringsSep "\n    " checks}
     esac
   '';
 
@@ -154,7 +142,7 @@ let
     name = ".local/bin/${cmd}";
     value = {
       executable = true;
-      text = managed.inject { source = "src/modules/guardrails.nix"; text = (''
+      text = managed.inject { source = "_shared/modules/guardrails.nix"; text = (''
         #!/bin/sh
         # Error handling — NEVER fail silently
         _die() { printf "\033[1;31m  [guardrail/${cmd}] ERROR: %s\033[0m\n" "$1" >&2; exit 1; }
@@ -236,7 +224,7 @@ let
         printf "\033[1;37m  Proceed? [y/N] \033[0m"
         if ! read -t 5 -r REPLY < /dev/tty 2>/dev/null; then
           printf "\n\033[0;31m  [guardrail] BLOCKED (no TTY or timeout): ${cmd} %s\033[0m\n" "$ARGS" >&2
-          printf "\033[0;33m  Source: ~/git/unix/ba_flakes_desktop/src/modules/guardrails.nix\033[0m\n" >&2
+          printf "\033[0;33m  Source: ~/git/unix/ba_flakes_desktop/src/modules/system-protection-guardrails.nix\033[0m\n" >&2
           exit 1
         fi
         if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then

@@ -87,8 +87,8 @@
 #
 #   UTILITY COMMANDS:
 #   -----------------
-#   check         Validate flake configuration without building
-#                 Runs: nix flake check
+#   dry-run       Build + diff without applying (nixos-rebuild dry-activate)
+#                 On non-NixOS: runs nix flake check (evaluation only)
 #
 #   update        Update flake.lock with latest nixpkgs
 #                 Runs: nix flake update
@@ -295,6 +295,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # ═══════════════════════════════════════════════════════════════════════════
+# GUARDRAILS BYPASS — build.sh is the authorized interface
+# ═══════════════════════════════════════════════════════════════════════════
+export BUILDSH_GUARDRAIL=1
+
+# ═══════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -304,8 +309,12 @@ FLAKE_PATH="$SCRIPT_DIR/src"
 LOG_DIR="$SCRIPT_DIR/logs"
 LOG_FILE="$LOG_DIR/build-$(date +%Y%m%d-%H%M%S).log"
 
-# Nix build flags - parallel jobs for faster builds
-NIX_BUILD_FLAGS="--max-jobs 4 -L --extra-experimental-features nix-command --extra-experimental-features flakes"
+# CPU limits — 6 cores max to avoid earlyoom kills on 8GB Surface
+# --cores: threads per derivation build, --max-jobs: parallel derivations
+# 6 cores * 2 jobs = 12 max threads (leaves 2 cores for desktop + earlyoom)
+MAX_CORES=6
+MAX_JOBS=2
+NIX_BUILD_FLAGS="--max-jobs $MAX_JOBS --cores $MAX_CORES -L --extra-experimental-features nix-command --extra-experimental-features flakes"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # LOGGING SETUP
@@ -457,12 +466,69 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
-log() { printf "${GREEN}[+]${NC} %s\n" "$1"; }
-warn() { printf "${YELLOW}[!]${NC} %s\n" "$1"; }
-error() { printf "${RED}[x]${NC} %s\n" "$1"; }
+# ── Perf logging: elapsed time per step ──────────────────────────────────
+_PERF_START=$(date +%s%N 2>/dev/null || date +%s)
+_PERF_LAST=$_PERF_START
+
+_elapsed_ms() {
+    local now
+    now=$(date +%s%N 2>/dev/null || date +%s)
+    if [ ${#now} -gt 10 ]; then
+        # nanosecond precision
+        echo $(( (now - _PERF_START) / 1000000 ))
+    else
+        echo $(( (now - _PERF_START) * 1000 ))
+    fi
+}
+
+_delta_ms() {
+    local now
+    now=$(date +%s%N 2>/dev/null || date +%s)
+    local delta
+    if [ ${#now} -gt 10 ]; then
+        delta=$(( (now - _PERF_LAST) / 1000000 ))
+    else
+        delta=$(( (now - _PERF_LAST) * 1000 ))
+    fi
+    _PERF_LAST=$now
+    echo "$delta"
+}
+
+_fmt_ms() {
+    local ms=$1
+    if [ "$ms" -ge 60000 ]; then
+        printf "%dm%ds" $((ms / 60000)) $(( (ms % 60000) / 1000 ))
+    elif [ "$ms" -ge 1000 ]; then
+        printf "%d.%ds" $((ms / 1000)) $(( (ms % 1000) / 100 ))
+    else
+        printf "%dms" "$ms"
+    fi
+}
+
+log() {
+    local elapsed delta
+    elapsed=$(_elapsed_ms)
+    delta=$(_delta_ms)
+    printf "${DIM}[%s +%s]${NC} ${GREEN}[+]${NC} %s\n" "$(_fmt_ms "$elapsed")" "$(_fmt_ms "$delta")" "$1"
+}
+warn() {
+    local elapsed delta
+    elapsed=$(_elapsed_ms)
+    delta=$(_delta_ms)
+    printf "${DIM}[%s +%s]${NC} ${YELLOW}[!]${NC} %s\n" "$(_fmt_ms "$elapsed")" "$(_fmt_ms "$delta")" "$1"
+}
+error() {
+    local elapsed delta
+    elapsed=$(_elapsed_ms)
+    delta=$(_delta_ms)
+    printf "${DIM}[%s +%s]${NC} ${RED}[x]${NC} %s\n" "$(_fmt_ms "$elapsed")" "$(_fmt_ms "$delta")" "$1"
+}
 header() {
+    local elapsed delta
+    elapsed=$(_elapsed_ms)
+    delta=$(_delta_ms)
     printf "\n${CYAN}═══════════════════════════════════════════════════════════════${NC}\n"
-    printf "${BOLD}%s${NC}\n" "$1"
+    printf "${BOLD}%s${NC} ${DIM}[%s +%s]${NC}\n" "$1" "$(_fmt_ms "$elapsed")" "$(_fmt_ms "$delta")"
     printf "${CYAN}═══════════════════════════════════════════════════════════════${NC}\n\n"
 }
 
@@ -541,7 +607,7 @@ draw_menu() {
     printf "${BOLD}└─────────────────────────────────────────────────────────────┘${NC}\n"
     printf "\n"
     printf "${BOLD}┌─ Utilities ─────────────────────────────────────────────────┐${NC}\n"
-    printf "│  ${CYAN}c${NC}) Check configuration      ${CYAN}u${NC}) Update flake inputs         │\n"
+    printf "│  ${CYAN}c${NC}) Dry-run (build+diff)      ${CYAN}u${NC}) Update flake inputs         │\n"
     printf "│  ${CYAN}s${NC}) Show build outputs       ${CYAN}d${NC}) Diff with current system    │\n"
     printf "${BOLD}└─────────────────────────────────────────────────────────────┘${NC}\n"
     printf "\n"
@@ -1016,12 +1082,33 @@ deploy_existing() {
 # UTILITY FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════
 
-check_config() {
-    header "Checking NixOS Configuration"
-    log "Evaluating flake..."
-    nix flake check "$FLAKE_PATH" 2>&1 || true
-    log "Configuration check complete"
+dry_run() {
+    header "NixOS Dry Run (build + diff, no apply)"
+
+    if [ ! -f /etc/NIXOS ]; then
+        # Not on NixOS — just evaluate the flake
+        log "Not on NixOS — evaluating flake only..."
+        nix flake check "$FLAKE_PATH" 2>&1 || true
+        log "Flake evaluation complete"
+        return
+    fi
+
+    log "Building NixOS config (dry-activate — no switch)..."
+    log "CPU limits: $MAX_CORES cores, $MAX_JOBS parallel jobs"
+
+    sudo BUILDSH_GUARDRAIL=1 nixos-rebuild dry-activate --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
+
+    if [ $? -eq 0 ]; then
+        log "Dry run complete — no changes applied"
+        log "Run 'switch' to apply, or 'test' to activate temporarily"
+    else
+        error "Dry run failed! Check errors above."
+        return 1
+    fi
 }
+
+# Legacy alias
+check_config() { dry_run; }
 
 update_flake() {
     header "Updating Flake Inputs"
@@ -1060,9 +1147,10 @@ switch_system() {
     fi
 
     log "Rebuilding NixOS with flake: $FLAKE_PATH#surface"
+    log "CPU limits: $MAX_CORES cores, $MAX_JOBS parallel jobs"
     log "This will switch to the new configuration immediately."
 
-    sudo nixos-rebuild switch --flake "$FLAKE_PATH#surface" 2>&1
+    sudo BUILDSH_GUARDRAIL=1 nixos-rebuild switch --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
 
     if [ $? -eq 0 ]; then
         # Trim to last 3 generations and GC
@@ -1096,8 +1184,9 @@ boot_system() {
     fi
 
     log "Building NixOS config (will activate on next boot)..."
+    log "CPU limits: $MAX_CORES cores, $MAX_JOBS parallel jobs"
 
-    sudo nixos-rebuild boot --flake "$FLAKE_PATH#surface" 2>&1
+    sudo BUILDSH_GUARDRAIL=1 nixos-rebuild boot --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
 
     if [ $? -eq 0 ]; then
         log "Build complete! Reboot to activate new configuration."
@@ -1116,8 +1205,9 @@ test_system() {
     fi
 
     log "Building and activating temporarily (reverts on reboot)..."
+    log "CPU limits: $MAX_CORES cores, $MAX_JOBS parallel jobs"
 
-    sudo nixos-rebuild test --flake "$FLAKE_PATH#surface" 2>&1
+    sudo BUILDSH_GUARDRAIL=1 nixos-rebuild test --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
 
     if [ $? -eq 0 ]; then
         log "Test activation complete!"
@@ -1203,7 +1293,7 @@ main() {
                 read -r _
                 ;;
             c|C)
-                check_config
+                dry_run
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
@@ -1282,8 +1372,8 @@ if [ $# -gt 0 ]; then
         deploy)
             deploy_existing
             ;;
-        check)
-            check_config
+        dry-run|check)
+            dry_run
             ;;
         update)
             update_flake
@@ -1315,7 +1405,7 @@ if [ $# -gt 0 ]; then
             printf "  deploy              Deploy to existing partitions (safe)\n"
             printf "\n"
             printf "${BOLD}Utilities:${NC}\n"
-            printf "  check               Check configuration\n"
+            printf "  dry-run             Build + diff without applying (safe)\n"
             printf "  update              Update flake inputs\n"
             printf "  show                Show available outputs\n"
             printf "  diff                Diff with current system\n"
