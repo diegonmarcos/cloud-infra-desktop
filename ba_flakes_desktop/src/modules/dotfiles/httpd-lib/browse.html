@@ -287,6 +287,25 @@ body.sidebar-hidden #sidebar { display: none; }
   border-color: var(--accent);
 }
 
+.open-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.open-btn:hover {
+  color: var(--link);
+  border-color: var(--link);
+  background: rgba(91,192,235,0.1);
+}
+
 #viewer {
   flex: 1;
   border: none;
@@ -317,7 +336,7 @@ html { min-width: 900px; }
   </div>
   <div class="path-bar" id="path-bar">/</div>
   <div id="file-list"></div>
-  <div class="meta" id="meta">http-dev &middot; <a style="color:var(--link)" href="/" target="_self">classic view</a></div>
+  <div class="meta" id="meta">http-dev</div>
 </div>
 
 <div id="right-panel">
@@ -334,6 +353,7 @@ html { min-width: 900px; }
         <span class="switch-label right">Render</span>
       </div>
       <button id="copy-raw" class="copy-raw-btn" title="Copy raw file" style="display:none">&#x2398; Copy</button>
+      <a id="open-direct" class="open-btn" title="Open in new tab" target="_blank" style="display:none">&#8599; Open</a>
     </div>
   </div>
   <iframe id="viewer" src="about:blank"></iframe>
@@ -351,6 +371,8 @@ async function api(endpoint, params) {
 async function loadDir(path) {
   currentDir = path;
   document.getElementById('search').value = '';
+  document.getElementById('open-direct').style.display = 'none';
+  history.replaceState(null, '', '/__browse__#' + encodeURIComponent(path));
   updatePathBar();
   const entries = await api('ls', { path });
   renderEntries(entries, false);
@@ -413,6 +435,12 @@ function openFile(path, el) {
   document.getElementById('viewer-path').textContent = path;
   document.getElementById('raw-toggle').checked = true;
   document.getElementById('copy-raw').style.display = 'none';
+  // Show Open button with direct link
+  const openBtn = document.getElementById('open-direct');
+  openBtn.href = path;
+  openBtn.style.display = '';
+  // Update URL hash for bookmarking/sharing
+  history.replaceState(null, '', '/__browse__#' + encodeURIComponent(path));
   loadViewer(path, false);
 }
 
@@ -490,13 +518,22 @@ function esc(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Init from hash (directory redirects set #/path)
-const initDir = decodeURIComponent(location.hash.slice(1)) || '/';
-loadDir(initDir);
-window.addEventListener('hashchange', () => {
-  const dir = decodeURIComponent(location.hash.slice(1)) || '/';
-  if (dir !== currentDir) loadDir(dir);
-});
+// Init from hash — supports both dirs and files
+async function initFromHash() {
+  const path = decodeURIComponent(location.hash.slice(1)) || '/';
+  // Check if it's a file (has an extension) or directory
+  const lastPart = path.split('/').pop();
+  if (lastPart && lastPart.includes('.')) {
+    // It's a file — load its parent dir, then open the file
+    const parentDir = path.replace(/\/[^/]+$/, '') || '/';
+    await loadDir(parentDir);
+    openFile(path, null);
+  } else {
+    await loadDir(path);
+  }
+}
+
+initFromHash();
 </script>
 </body>
 </html>
