@@ -29,12 +29,15 @@ body {
 
 #sidebar {
   width: 280px;
-  min-width: 280px;
+  min-width: 180px;
+  max-width: 50vw;
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   height: 100vh;
+  resize: horizontal;
+  overflow: hidden;
 }
 
 #sidebar h1 {
@@ -118,6 +121,26 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  position: relative;
+}
+
+.file-entry[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: 16px;
+  top: 100%;
+  z-index: 10;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  max-width: 500px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 .file-entry:hover {
@@ -340,7 +363,7 @@ function renderEntries(entries, isSearch) {
   // Parent dir link
   if (!isSearch && currentDir !== '/') {
     const parent = currentDir.replace(/\/[^/]+\/?$/, '') || '/';
-    const el = mkEntry('&#128193;', '../', true);
+    const el = mkEntry('&#128193;', '../', true, null);
     el.addEventListener('click', () => loadDir(parent));
     list.appendChild(el);
   }
@@ -351,9 +374,10 @@ function renderEntries(entries, isSearch) {
   }
 
   for (const e of entries) {
-    const name = isSearch ? e.path : e.name;
-    const icon = e.isDir ? '&#128193;' : fileIcon(name);
-    const el = mkEntry(icon, name, e.isDir);
+    const fullName = isSearch ? e.path : e.name;
+    const displayName = isSearch ? fullName.split('/').pop() : e.name;
+    const icon = e.isDir ? '&#128193;' : fileIcon(fullName);
+    const el = mkEntry(icon, displayName, e.isDir, isSearch ? fullName : null);
 
     if (e.isDir) {
       const dirPath = isSearch
@@ -370,10 +394,13 @@ function renderEntries(entries, isSearch) {
   }
 }
 
-function mkEntry(icon, name, isDir) {
+function mkEntry(icon, displayName, isDir, fullPath) {
   const el = document.createElement('div');
   el.className = 'file-entry' + (isDir ? ' is-dir' : '');
-  el.innerHTML = '<span class="file-icon">' + icon + '</span>' + esc(name);
+  el.innerHTML = '<span class="file-icon">' + icon + '</span>' + esc(displayName);
+  if (fullPath && fullPath !== displayName) {
+    el.title = fullPath;
+  }
   return el;
 }
 
