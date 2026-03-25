@@ -1,14 +1,52 @@
-// Git tools — repo status, log, diff across all tracked repos
+// A) Infra-Dev — Git (multi-repo sync + standalone git operations)
+// Merged: git.ts + connect_git_sync + connect_gacp from scripts.ts
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { sh, formatResult } from "../exec.js";
-import { GIT_ROOT } from "../paths.js";
+import { sh, formatResult } from "../../exec.js";
+import { GIT_ROOT } from "../../paths.js";
 
 const REPOS = ["unix", "cloud", "front", "vault", "tools"];
 
-export function registerGitTools(server: McpServer) {
+export function registerGitSyncTools(server: McpServer) {
+  // ═══ Connect: git sync (2 tools) ═══
+
   server.tool(
-    "git_status_all",
+    "infra.git.sync",
+    "Sync all git repos (commit + pull + push)",
+    {
+      action: z.enum(["sync", "pull", "push", "commit", "fetch", "fetch-status", "dirty", "git-refresh"])
+        .optional().describe("Git action (default: sync)"),
+    },
+    async ({ action }) => {
+      const cmd = action ?? "sync";
+      const result = sh(`connect ${cmd} 2>&1`, { timeout: 120_000 });
+      return {
+        content: [{ type: "text", text: formatResult(`connect ${cmd}`, result) }],
+        isError: !result.ok,
+      };
+    }
+  );
+
+  server.tool(
+    "infra.git.gacp",
+    "Git add, commit, and push all repos (convenience wrapper)",
+    {
+      message: z.string().optional().describe("Commit message (default: auto-generated)"),
+    },
+    async ({ message }) => {
+      const args = message ? `"${message}"` : "";
+      const result = sh(`gacp ${args} 2>&1`, { timeout: 120_000 });
+      return {
+        content: [{ type: "text", text: formatResult("gacp", result) }],
+        isError: !result.ok,
+      };
+    }
+  );
+
+  // ═══ Standalone git operations (4 tools) ═══
+
+  server.tool(
+    "infra.git.status_all",
     "Show git status across all tracked repos (unix, cloud, front, vault, tools)",
     {},
     async () => {
@@ -25,7 +63,7 @@ export function registerGitTools(server: McpServer) {
   );
 
   server.tool(
-    "git_log",
+    "infra.git.log",
     "Show recent git log for a repo",
     {
       repo: z.enum(["unix", "cloud", "front", "vault", "tools"]).describe("Repository name"),
@@ -45,7 +83,7 @@ export function registerGitTools(server: McpServer) {
   );
 
   server.tool(
-    "git_diff",
+    "infra.git.diff",
     "Show git diff for a repo (staged or unstaged)",
     {
       repo: z.enum(["unix", "cloud", "front", "vault", "tools"]).describe("Repository name"),
@@ -65,7 +103,7 @@ export function registerGitTools(server: McpServer) {
   );
 
   server.tool(
-    "git_remote_status",
+    "infra.git.remote_status",
     "Check if repos are ahead/behind their remote",
     {},
     async () => {
