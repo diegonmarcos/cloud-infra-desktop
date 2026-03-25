@@ -1,21 +1,28 @@
 # System Protection — Desktop (NixOS native)
-# Surface Pro 8, 7.6GB RAM. Prevents hard lockups under memory pressure
-# using cgroups v2 caps, zram, earlyoom, and compositor memory guarantees.
-#
-# VM equivalent: cloud/b_infra/home-manager/_shared/modules/system-protection*.nix
+# Surface Pro 8, 8GB RAM. Prevents hard lockups under memory pressure.
 #
 # Architecture:
+#   FIFO (lane 1): sshd, rescue-ssh (Dropbear) — absolute CPU priority, NEVER waits
+#   RR   (lane 2): earlyoom — real-time round-robin, protection daemon
+#   CFS  (lane 3): everything else — normal fair share with caps
+#
 #   system.slice  → MemoryMin=500M (systemd, sshd, docker daemon)
 #   user-.slice   → MemoryMax=90% cap, compositor gets MemoryMin guarantee
 #   machine.slice → MemoryMax=50% cap (docker/podman containers)
 #   nix-daemon    → MemoryMax=70% cap, CPUQuota=50%
 #   Safety nets   → zram (50% compressed) + earlyoom (10% threshold)
 #
-# Result: system slows down under pressure — NEVER locks up.
+# VM equivalent: cloud/b_infra/home-manager/_shared/modules/system-protection*.nix
+# HM desktop:    unix/ba_flakes_desktop/src/modules/system-protection-guardrails.nix (user-level PATH wrappers only)
 { config, pkgs, lib, ... }:
 
+let
+  rescuePort = 2200;
+in
 {
-  # ─── Kernel sysctl: memory management tuning ────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════════
+  # KERNEL SYSCTL: memory management tuning
+  # ═══════════════════════════════════════════════════════════════════════════
   boot.kernel.sysctl = {
     "vm.min_free_kbytes" = 262144;         # 256MB kernel reserve
     "vm.swappiness" = 150;                 # zram: prefer compressed swap over dropping caches
@@ -24,15 +31,19 @@
     "vm.watermark_scale_factor" = 500;     # Aggressive kswapd wake-up
   };
 
-  # ─── zram: compressed swap in RAM ───────────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ZRAM: compressed swap in RAM
+  # ═══════════════════════════════════════════════════════════════════════════
   zramSwap = {
     enable = true;
     algorithm = "zstd";
-    memoryPercent = 50;    # 3.8GB → ~11GB effective compressed swap
+    memoryPercent = 50;    # ~4GB → ~12GB effective compressed swap
     priority = 100;        # Fill before disk swap
   };
 
-  # ─── earlyoom: last resort OOM killer ───────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════════
+  # EARLYOOM: last resort OOM killer (RR lane 2)
+  # ═══════════════════════════════════════════════════════════════════════════
   services.earlyoom = {
     enable = true;
     freeMemThreshold = 10;          # SIGTERM at ~760MB free
@@ -47,7 +58,74 @@
     ];
   };
 
-  # ─── THE BOUNCER: cgroup slice limits ───────────────────────────────────
+  # Earlyoom: RR scheduler (lane 2) — real-time but time-sliced among RR peers
+  systemd.services.earlyoom.serviceConfig = {
+    CPUSchedulingPolicy = "rr";
+    CPUSchedulingPriority = 1;
+    IOSchedulingClass = "best-effort";
+    IOSchedulingPriority = 0;
+    OOMScoreAdjust = lib.mkForce (-999);
+    OOMPolicy = "continue";
+    Nice = -20;
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FIFO SCHEDULER (lane 1): sshd — NEVER waits, preempts ALL normal processes
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Proven by stress test: SSH hung with CPUWeight=10000 but survived with FIFO.
+  # FIFO is kernel-enforced real-time scheduling — runs BEFORE any CFS process.
+  systemd.services.sshd.serviceConfig = {
+    CPUSchedulingPolicy = "fifo";
+    CPUSchedulingPriority = 1;
+    IOSchedulingClass = "realtime";
+    IOSchedulingPriority = 0;
+    OOMScoreAdjust = lib.mkForce (-1000);
+    OOMPolicy = "continue";
+    MemoryMin = "50M";
+    Nice = -20;
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # RESCUE SSH: Dropbear on port 2200 (FIFO lane 1)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Independent SSH daemon — survives even if sshd is misconfigured or down.
+  # Uses FIFO scheduler so it's always reachable under any load.
+  systemd.services.rescue-ssh = {
+    description = "Rescue SSH (Dropbear on port ${toString rescuePort}) — UNTOUCHABLE";
+    after = [ "network.target" ];
+    wantedBy = [ "multi-user.target" ];
+
+    preStart = ''
+      mkdir -p /etc/dropbear
+      if [ ! -f /etc/dropbear/dropbear_ed25519_host_key ]; then
+        ${pkgs.dropbear}/bin/dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key
+        echo "[rescue-ssh] Generated ed25519 host key"
+      fi
+      echo "[rescue-ssh] Ready on port ${toString rescuePort}"
+    '';
+
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = "${pkgs.dropbear}/bin/dropbear -F -E -p ${toString rescuePort} -r /etc/dropbear/dropbear_ed25519_host_key";
+      Restart = "always";
+      RestartSec = 2;
+      # FIFO lane 1 — absolute priority
+      CPUSchedulingPolicy = "fifo";
+      CPUSchedulingPriority = 1;
+      IOSchedulingClass = "realtime";
+      IOSchedulingPriority = 0;
+      OOMScoreAdjust = -1000;
+      OOMPolicy = "continue";
+      MemoryMin = "20M";
+      MemoryMax = "30M";
+      MemoryHigh = "25M";
+      Nice = -20;
+    };
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # THE BOUNCER: cgroup slice limits
+  # ═══════════════════════════════════════════════════════════════════════════
 
   # System slice: guaranteed minimum for systemd, sshd, docker daemon, etc
   systemd.slices."system".sliceConfig = {
@@ -57,22 +135,19 @@
 
   # User slice: 90% cap — no browser/app eats the whole system
   systemd.slices."user-".sliceConfig = {
-    MemoryMax = "6800M";    # 90% of 7.6GB
+    MemoryMax = "6800M";    # 90% of ~7.6GB
     CPUQuota = "720%";      # 90% of 8 logical CPUs
   };
 
-  # Compositor protection — guaranteed memory for the user session
-  # NOTE: Per-service MemoryMin via systemd.user.services is broken in NixOS 24.11
-  # (replaces the entire unit file, wiping ExecStart). Using slice-level protection
-  # instead — the user-.slice MemoryMin (above) protects the entire session.
-
   # Machine slice: 50% cap — containers are secondary workloads
   systemd.slices."machine".sliceConfig = {
-    MemoryMax = "3800M";    # 50% of 7.6GB
+    MemoryMax = "3800M";    # 50% of ~7.6GB
     CPUQuota = "400%";      # 50% of 8 logical CPUs
   };
 
-  # ─── JANITOR: Disk watchdog — escalating cleanup ────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JANITOR: Disk watchdog — escalating cleanup
+  # ═══════════════════════════════════════════════════════════════════════════
   systemd.timers."disk-watchdog" = {
     wantedBy = [ "timers.target" ];
     timerConfig = {
@@ -147,4 +222,14 @@
       fi
     '';
   };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PACKAGES: dropbear for rescue SSH
+  # ═══════════════════════════════════════════════════════════════════════════
+  environment.systemPackages = [ pkgs.dropbear ];
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FIREWALL: allow rescue SSH port
+  # ═══════════════════════════════════════════════════════════════════════════
+  networking.firewall.allowedTCPPorts = [ rescuePort ];
 }
