@@ -188,28 +188,80 @@ body.sidebar-hidden #sidebar { display: none; }
   flex-shrink: 0;
 }
 
-.toggle-btn {
-  background: var(--bg);
+.switch-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.switch-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.switch-label.left { color: #ff6b6b; }
+.switch-label.right { color: var(--accent); }
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 18px;
+}
+
+.switch input { opacity: 0; width: 0; height: 0; }
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #ff6b6b;
+  border-radius: 18px;
+  transition: 0.25s;
+}
+
+.slider::before {
+  content: "";
+  position: absolute;
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.25s;
+}
+
+.switch input:checked + .slider {
+  background: var(--accent);
+}
+
+.switch input:checked + .slider::before {
+  transform: translateX(18px);
+}
+
+.copy-raw-btn {
+  background: none;
   border: 1px solid var(--border);
   border-radius: 4px;
-  color: var(--accent);
+  color: var(--text-dim);
   cursor: pointer;
   font-family: var(--mono);
   font-size: 10px;
-  padding: 3px 10px;
-  letter-spacing: 0.5px;
+  padding: 3px 8px;
   transition: all 0.15s;
 }
 
-.toggle-btn:hover {
+.copy-raw-btn:hover {
+  color: var(--accent);
   border-color: var(--accent);
   background: rgba(0,214,143,0.1);
 }
 
-.toggle-btn.raw-active {
-  color: #ff6b6b;
-  border-color: #ff6b6b;
-  background: rgba(255,107,107,0.1);
+.copy-raw-btn.copied {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 #viewer {
@@ -250,7 +302,15 @@ html { min-width: 900px; }
     <button id="hamburger" title="Toggle sidebar">&#9776;</button>
     <span id="viewer-path"></span>
     <div class="toolbar-actions">
-      <button id="raw-toggle" class="toggle-btn">Render</button>
+      <div class="switch-wrap">
+        <span class="switch-label left">Raw</span>
+        <label class="switch">
+          <input type="checkbox" id="raw-toggle" checked>
+          <span class="slider"></span>
+        </label>
+        <span class="switch-label right">Render</span>
+      </div>
+      <button id="copy-raw" class="copy-raw-btn" title="Copy raw file" style="display:none">&#x2398; Copy</button>
     </div>
   </div>
   <iframe id="viewer" src="about:blank"></iframe>
@@ -324,31 +384,37 @@ function openFile(path, el) {
   if (el) el.classList.add('active');
   currentFilePath = path;
   document.getElementById('viewer-path').textContent = path;
-  const btn = document.getElementById('raw-toggle');
-  btn.classList.remove('raw-active');
-  btn.textContent = 'Render';
+  document.getElementById('raw-toggle').checked = true;
+  document.getElementById('copy-raw').style.display = 'none';
   loadViewer(path, false);
 }
 
-let isRaw = false;
-
 function loadViewer(path, raw) {
-  isRaw = raw;
   const src = raw ? path + (path.includes('?') ? '&' : '?') + 'raw' : path;
   document.getElementById('viewer').src = src;
+  document.getElementById('copy-raw').style.display = raw ? '' : 'none';
 }
 
 document.getElementById('hamburger').addEventListener('click', () => {
   document.body.classList.toggle('sidebar-hidden');
 });
 
-document.getElementById('raw-toggle').addEventListener('click', () => {
+document.getElementById('raw-toggle').addEventListener('change', (e) => {
   if (!currentFilePath) return;
-  isRaw = !isRaw;
-  const btn = document.getElementById('raw-toggle');
-  btn.textContent = isRaw ? 'Raw' : 'Render';
-  btn.classList.toggle('raw-active', isRaw);
-  loadViewer(currentFilePath, isRaw);
+  loadViewer(currentFilePath, !e.target.checked);
+});
+
+document.getElementById('copy-raw').addEventListener('click', async () => {
+  if (!currentFilePath) return;
+  const btn = document.getElementById('copy-raw');
+  try {
+    const res = await fetch(currentFilePath + (currentFilePath.includes('?') ? '&' : '?') + 'raw');
+    const text = await res.text();
+    await navigator.clipboard.writeText(text);
+    btn.classList.add('copied');
+    btn.innerHTML = '&#x2713; Copied';
+    setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = '&#x2398; Copy'; }, 1500);
+  } catch {}
 });
 
 function updatePathBar() {
