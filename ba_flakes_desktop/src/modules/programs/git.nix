@@ -44,6 +44,7 @@
       fetch.prune = true;
       rebase.autoStash = true;
       submodule.recurse = true;
+      push.recurseSubmodules = "on-demand";
     };
 
     aliases = {
