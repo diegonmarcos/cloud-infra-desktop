@@ -372,7 +372,7 @@ async function loadDir(path) {
   currentDir = path;
   document.getElementById('search').value = '';
   document.getElementById('open-direct').style.display = 'none';
-  history.replaceState(null, '', '#' + encodeURIComponent(path));
+  history.replaceState(null, '', '#' + (path));
   updatePathBar();
   const entries = await api('ls', { path });
   renderEntries(entries, false);
@@ -440,7 +440,7 @@ function openFile(path, el) {
   openBtn.href = path;
   openBtn.style.display = '';
   // Update URL hash for bookmarking/sharing
-  history.replaceState(null, '', '#' + encodeURIComponent(path));
+  history.replaceState(null, '', '#' + (path));
   loadViewer(path, false);
 }
 
@@ -524,7 +524,7 @@ const INIT_PATH = __INIT_PATH__;
 async function init() {
   // Use hash if present (for shared links), otherwise server-injected path
   const path = location.hash.length > 1
-    ? decodeURIComponent(location.hash.slice(1))
+    ? location.hash.slice(1)
     : INIT_PATH;
   const lastPart = path.split('/').pop();
   if (lastPart && lastPart.includes('.')) {
