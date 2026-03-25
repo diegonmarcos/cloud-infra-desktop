@@ -150,6 +150,20 @@ body {
   height: 100vh;
 }
 
+#hamburger {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 8px 0 0;
+  line-height: 1;
+}
+
+#hamburger:hover { color: var(--accent); }
+
+body.sidebar-hidden #sidebar { display: none; }
+
 #viewer-toolbar {
   display: flex;
   align-items: center;
@@ -233,6 +247,7 @@ html { min-width: 900px; }
 
 <div id="right-panel">
   <div id="viewer-toolbar">
+    <button id="hamburger" title="Toggle sidebar">&#9776;</button>
     <span id="viewer-path"></span>
     <div class="toolbar-actions">
       <button id="raw-toggle" class="toggle-btn">Render</button>
@@ -322,6 +337,10 @@ function loadViewer(path, raw) {
   const src = raw ? path + (path.includes('?') ? '&' : '?') + 'raw' : path;
   document.getElementById('viewer').src = src;
 }
+
+document.getElementById('hamburger').addEventListener('click', () => {
+  document.body.classList.toggle('sidebar-hidden');
+});
 
 document.getElementById('raw-toggle').addEventListener('click', () => {
   if (!currentFilePath) return;
