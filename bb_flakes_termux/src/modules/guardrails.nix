@@ -37,8 +37,8 @@ let
     ]; }
     { cmd = "nix"; subcommands = [
       "eval" "show-derivation" "path-info" "log" "why-depends"
-      "build" "store" "hash" "flake show" "flake check" "flake info" "flake metadata"
-      "registry list" "doctor" "profile list"
+      "build" "store" "hash" "flake" "registry" "doctor" "profile"
+      "copy" "derivation" "nar" "key" "daemon" "describe-stores"
       "--version" "--help" "-h"
     ]; }
     { cmd = "pip"; subcommands = [
