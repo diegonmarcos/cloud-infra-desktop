@@ -1,15 +1,13 @@
-{ lib, stdenv, fetchurl, autoPatchelfHook }:
+{ lib, stdenv, fetchurl, autoPatchelfHook, gcc-unwrapped, openssl }:
 
 let
   version = "0.12.2";
+  # Full-featured build: fastembed + huggingface + graphrag, glibc-linked
+  # Docker image: ghcr.io/diegonmarcos/octocode-fastembed-huggingface-graphrag-cpu-x86-linux-static
   assets = {
     x86_64-linux = {
-      url = "https://github.com/Muvon/octocode/releases/download/${version}/octocode-${version}-x86_64-unknown-linux-musl.tar.gz";
-      hash = "sha256:0iwcyig9kkplmd008mc274dhvfsqfm0gpdf7q95zf0m84pvjba4s";
-    };
-    aarch64-linux = {
-      url = "https://github.com/Muvon/octocode/releases/download/${version}/octocode-${version}-aarch64-unknown-linux-musl.tar.gz";
-      hash = "sha256:1qkk96xqbsi1jzgrlkgyzsqnzyvfz1nc132cj87ppm1fskylaagg";
+      url = "https://github.com/diegonmarcos/ops-Tooling/releases/download/octocode-v${version}-fastembed/octocode-${version}-fastembed-x86_64";
+      hash = "sha256-jTYcvdWIjQ8IVJR1U77bTUd+1a6wAnYmfp4kNbFp3aM=";
     };
   };
   asset = assets.${stdenv.hostPlatform.system} or (throw "octocode: unsupported platform ${stdenv.hostPlatform.system}");
@@ -22,21 +20,21 @@ stdenv.mkDerivation {
     inherit (asset) url hash;
   };
 
-  sourceRoot = ".";
-  unpackPhase = "tar xf $src";
+  dontUnpack = true;
 
-  nativeBuildInputs = lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ];
+  nativeBuildInputs = [ autoPatchelfHook ];
+  buildInputs = [ gcc-unwrapped.lib openssl ];
 
   installPhase = ''
     mkdir -p $out/bin
-    cp octocode $out/bin/
+    cp $src $out/bin/octocode
     chmod +x $out/bin/octocode
   '';
 
   meta = with lib; {
-    description = "Semantic code search and indexing tool";
+    description = "Semantic code search with FastEmbed, HuggingFace, GraphRAG, and LanceDB";
     homepage = "https://github.com/Muvon/octocode";
     license = licenses.mit;
-    platforms = [ "x86_64-linux" "aarch64-linux" ];
+    platforms = [ "x86_64-linux" ];
   };
 }
