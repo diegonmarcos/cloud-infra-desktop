@@ -513,7 +513,7 @@ rpm -qR <package>           # RPM-based
 | Tool | When to use |
 |------|-------------|
 | `octocode_search` | Semantic code search across indexed repositories |
-| `octocode_memory` | Query code memory — semantic summaries of files/functions |
+| `octocode_graphrag` | Query code relationship graph — search nodes, get relationships, find paths, overview |
 | `octocode_index` | Trigger re-indexing of a repository or directory |
 
 ### Section C: CodeGraph-Rust — Graph Analysis (3 stub tools, future)
