@@ -1,4 +1,7 @@
-# Containers: Docker, Podman, libvirt, Waydroid
+# Containers: Podman, libvirt, Waydroid
+#
+# Docker daemon configuration is in docker-daemon.nix and its sub-modules.
+# This file owns everything else: Podman, libvirtd, Waydroid.
 { config, pkgs, lib, ... }:
 
 {
@@ -29,18 +32,10 @@
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # CONTAINERS (Data in @shared/data/containers/)
+  # PODMAN + LIBVIRT (Data in @shared/data/containers/)
   # ═══════════════════════════════════════════════════════════════════════════
 
   virtualisation = {
-    docker = {
-      enable = true;
-      storageDriver = "btrfs";
-      daemon.settings = {
-        data-root = "/mnt/shared/data/containers/docker";
-      };
-    };
-
     podman = {
       enable = true;
       dockerCompat = false;

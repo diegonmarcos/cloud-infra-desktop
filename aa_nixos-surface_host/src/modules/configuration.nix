@@ -47,6 +47,7 @@
     ./configuration_security.nix
     ./configuration_display.nix
     ./configuration_audio.nix
+    ./docker-daemon.nix
     ./configuration_containers.nix
     ./configuration_system-protection.nix
     ./configuration_packages.nix
