@@ -6,7 +6,8 @@
 #   RR   (lane 2): earlyoom — real-time round-robin, protection daemon
 #   CFS  (lane 3): everything else — normal fair share with caps
 #
-#   system.slice  → MemoryMin=500M (systemd, sshd, docker daemon)
+#   connectivity  → MemoryMin=200M (sshd, rescue-ssh) — kernel-guaranteed, NEVER reclaimed
+#   system.slice  → MemoryMin=500M (systemd, docker daemon)
 #   user-.slice   → MemoryMax=90% cap, compositor gets MemoryMin guarantee
 #   machine.slice → MemoryMax=50% cap (docker/podman containers)
 #   nix-daemon    → MemoryMax=70% cap, CPUQuota=50%
@@ -70,11 +71,29 @@ in
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # CONNECTIVITY SLICE: kernel-guaranteed memory for SSH/Dropbear
+  # ═══════════════════════════════════════════════════════════════════════════
+  # cgroups v2 MemoryMin is a HARD guarantee — kernel will NEVER reclaim this.
+  # OOMScoreAdjust is just a hint; MemoryMin is the real protection.
+  # Lesson from cloud VMs: OOMScoreAdjust=-1000 failed under extreme pressure,
+  # but MemoryMin in a dedicated slice survived.
+  systemd.slices."connectivity" = {
+    description = "Protected connectivity slice — SSH, Dropbear";
+    sliceConfig = {
+      MemoryMin = "200M";
+      MemoryLow = "200M";
+      CPUWeight = 10000;
+      IOWeight = 1000;
+    };
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # FIFO SCHEDULER (lane 1): sshd — NEVER waits, preempts ALL normal processes
   # ═══════════════════════════════════════════════════════════════════════════
   # Proven by stress test: SSH hung with CPUWeight=10000 but survived with FIFO.
   # FIFO is kernel-enforced real-time scheduling — runs BEFORE any CFS process.
   systemd.services.sshd.serviceConfig = {
+    Slice = "connectivity.slice";
     CPUSchedulingPolicy = "fifo";
     CPUSchedulingPriority = 1;
     IOSchedulingClass = "realtime";
@@ -105,6 +124,7 @@ in
     '';
 
     serviceConfig = {
+      Slice = "connectivity.slice";
       Type = "simple";
       ExecStart = "${pkgs.dropbear}/bin/dropbear -F -E -p ${toString rescuePort} -r /etc/dropbear/dropbear_ed25519_host_key";
       Restart = "always";
@@ -143,6 +163,18 @@ in
   systemd.slices."machine".sliceConfig = {
     MemoryMax = "3800M";    # 50% of ~7.6GB
     CPUQuota = "400%";      # 50% of 8 logical CPUs
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # NIX-DAEMON: memory + CPU caps (builds can eat everything otherwise)
+  # ═══════════════════════════════════════════════════════════════════════════
+  systemd.services.nix-daemon.serviceConfig = {
+    MemoryMax = "5400M";     # ~70% of 7.6GB
+    MemoryHigh = "4800M";    # throttle before hard limit
+    CPUQuota = "400%";       # 50% of 8 logical CPUs
+    OOMScoreAdjust = 250;    # prefer killing nix over desktop
+    IOWeight = 50;
+    Nice = 10;
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
