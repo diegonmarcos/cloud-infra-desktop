@@ -15,6 +15,15 @@
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
       }
     },
+    "cloud-infra-local": {
+      "type": "stdio",
+      "command": "tsx",
+      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/mcp/index.ts"],
+      "env": {
+        "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
+        "GIT_BASE": "/data/data/com.termux.nix/files/home/git"
+      }
+    },
     "cloud-cgc-mcp": {
       "type": "stdio",
       "command": "tsx",

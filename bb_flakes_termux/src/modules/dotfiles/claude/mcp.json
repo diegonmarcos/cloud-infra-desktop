@@ -31,6 +31,15 @@
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-infra-mcp/mcp"
     },
+    "cloud-infra-local": {
+      "type": "stdio",
+      "command": "tsx",
+      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/mcp/index.ts"],
+      "env": {
+        "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
+        "GIT_BASE": "/data/data/com.termux.nix/files/home/git"
+      }
+    },
     "cloud-services": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-services-mcp/mcp"

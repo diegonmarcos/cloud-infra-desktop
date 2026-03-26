@@ -8,6 +8,14 @@
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-infra-mcp/mcp"
     },
+    "cloud-infra-local": {
+      "type": "stdio",
+      "command": "tsx",
+      "args": ["/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/mcp/index.ts"],
+      "env": {
+        "GIT_BASE": "/home/diego/Mounts/Git"
+      }
+    },
     "cloud-cgc-mcp": {
       "type": "stdio",
       "command": "tsx",

@@ -15,14 +15,29 @@
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
       }
     },
+    "cloud-infra-local": {
+      "type": "stdio",
+      "command": "tsx",
+      "args": ["/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/mcp/index.ts"],
+      "env": {
+        "NODE_PATH": "/home/diego/.node_modules/node_modules",
+        "GIT_BASE": "/home/diego/Mounts/Git"
+      }
+    },
     "cloud-cgc-mcp": {
+      "type": "http",
+      "url": "https://mcp.diegonmarcos.com/cloud-cgc-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
+    },
+    "cloud-cgc-mcp-local": {
       "type": "stdio",
       "command": "tsx",
       "args": ["/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts"],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
-        "CONFIG_PATH": "/home/diego/Mounts/Git/cloud/config.json",
-        "OCTOCODE_BIN": "/home/diego/.local/bin/octocode"
+        "CONFIG_PATH": "/home/diego/Mounts/Git/cloud/config.json"
       }
     },
     "diego-personal-data": {
