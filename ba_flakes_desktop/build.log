@@ -8499,3 +8499,316 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-25 14:24:54] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-03-25 14:24:54] PERF: start switch
 [2026-03-25 14:24:54] INFO: Staging dirty files for flake evaluation...
+[2026-03-25 14:24:54] PERF: git stage = 64ms
+[2026-03-25 14:24:54] PERF: clean backups = 24ms
+[2026-03-25 14:24:54] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 2 derivations will be built:
+  /nix/store/lsjgdjcfadm7ar7dgsqdih8fcmz9dybb-home-manager-files.drv
+  /nix/store/521g48gmy7frja5l8w4lj850f2g45m9x-home-manager-generation.drv
+building '/nix/store/lsjgdjcfadm7ar7dgsqdih8fcmz9dybb-home-manager-files.drv'...
+building '/nix/store/521g48gmy7frja5l8w4lj850f2g45m9x-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 221
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+WARN: cloud-deps: Expected double-quoted property name in JSON at position 127 (line 5 column 1)
+[node-npm-deps-cloud] 0 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/0snmnw0jyggz3kq112nffmf9zip5mqyj-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 32 services, date=2026-03-25)
+Activating globalTsx
+
+changed 5 packages in 1s
+Activating gooseConfig
+Activating initHomeGit
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-03-25 14:25:27] PERF: home-manager switch = 32.4s
+[2026-03-25 14:25:27] PERF: TOTAL switch = 32.6s
+[2026-03-25 14:25:27] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-25 14:25:27] ========== Build script finished ==========
+[2026-03-25 15:07:06] ========== Build script started ==========
+[2026-03-25 15:07:06] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-25 15:07:06] PERF: start switch
+[2026-03-25 15:07:06] INFO: Staging dirty files for flake evaluation...
+[2026-03-25 15:07:06] PERF: git stage = 41ms
+[2026-03-25 15:07:06] PERF: clean backups = 19ms
+[2026-03-25 15:07:06] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 49 derivations will be built:
+  /nix/store/1l6rrgpd9m2fxmyh7hl1qr46mssk15mj-hm_.localbinnix.drv
+  /nix/store/23yrx525q8myyn8c842b2l4782b4l6hl-hm_.localbinnpm.drv
+  /nix/store/2h4a4w9ccbrk3x17p1qrniab80c00019-hm_.localbingo.drv
+  /nix/store/2qd16a04qa82hb607nb5qn6zvm5jhph8-hm_.localbinconda.drv
+  /nix/store/3bd1zx9sz0n2xmfzf9g22lzy7msx3cnl-hm_.localbinyay.drv
+  /nix/store/3ww9b0mqj3gmd0icnls8c7k7nbqr2l6i-hm_.localbinpipx.drv
+  /nix/store/41675k3ishhgjbd88q6616y7qgpzgjrp-man-paths.drv
+  /nix/store/41q8g53k5r3a5yi6dh44zg1acl232fan-hm_.localbinhomemanager.drv
+  /nix/store/4g3zx0rhfiy82ragj6aggixcsh50rvjn-hm_.localsharesystemprotectionzramsetup.sh.drv
+  /nix/store/51z3h89ln9hll6wyalngk6wxi4vpsp8d-earlyoom-1.8.2-fish-completions.drv
+  /nix/store/zb3q5ai13rb9bk5zbvahch11vzwgp36s-home-manager-path.drv
+  /nix/store/5qdhf1l0c8mfywk75j70amlbyrarwz93-activation-script.drv
+  /nix/store/75myvc37m8fmv0mkq6vlzcyi3vdc3h2s-hm_.localbinyarn.drv
+  /nix/store/7gw44qzrpci3gfrai3zbdgvaidykbs6k-hm_.localbinpip3.drv
+  /nix/store/7s1xmqwislq4j29mb7hmxs0zfybzld7b-hm_.localbindockercompose.drv
+  /nix/store/82mmc3568v2kklnyn9mwlxl4rl7l3fmk-hm_.localbinpip.drv
+  /nix/store/8fcal9bbr3nqf68y6hpg92rq1zmk631p-hm_.localsharesystemprotectiondockermemorycap.conf.drv
+  /nix/store/8fvdflgmsi3fyzq02162i2ypb08s55y8-hm_.localsharesystemprotectionzramsetup.service.drv
+  /nix/store/8z33x1vpri5k4rc5d10p760bhhd86nxp-e2fsprogs-1.47.1-fish-completions.drv
+  /nix/store/92yywsb3c8cg7k4kinhlv8jm128pag72-hm_.localbinaptget.drv
+  /nix/store/9lcjgxl3f98b6bmm4mqaqxzn343c2qcp-hm_.localbindocker.drv
+  /nix/store/ax0v10dyal7v9pa3r63jlr2x2kqqhhxs-hm_.localbinpacman.drv
+  /nix/store/bm18xpsdszw1pys4mv5s59rv323bdxmk-hm_.localbinnixosrebuild.drv
+  /nix/store/bwwy3y3m5xygzjla19pnlm2k6qkwrc4z-hm_.localbinpkg.drv
+  /nix/store/cm9bgmhnd2cjknlbslmxy93ndb5y4r19-hm_.localbinuv.drv
+  /nix/store/d58188j0s47jwsldb6z4ngc3p0qk72n7-hm_.localsharesystemprotectiondiskswap.service.drv
+  /nix/store/d7dj7082ncza064s2q58m2gn87fk2k0a-hm_.localbinnixenv.drv
+  /nix/store/gzjisqfqj7r87jp9xis82bp2v6kf49kw-dropbear-2022.83-fish-completions.drv
+  /nix/store/dqn87vrnprnk3qy5jkf5d7gnyyzbj9w6-diego-fish-completions.drv
+  /nix/store/ffc8zxjkwiv0vdifqsvhdj9xxyvvwqbm-hm_.localbinbun.drv
+  /nix/store/fqs4s6nh6s90m7hpk027d0p3m5kp5zf2-hm_.localsharesystemprotectiondiskswap.sh.drv
+  /nix/store/g9wi1b9hzj3qlvxhlda0svianpx0sx5b-hm_.localbindnf.drv
+  /nix/store/h01agdblycicd5c8l3fm5vnfd0a0lljy-hm_.localbinbrew.drv
+  /nix/store/h5n7rywrirfflnpqrxcfpkwbk32kf7z7-hm_.localbincargo.drv
+  /nix/store/i852c7w6m3ffvx40vyc4wxm7gb68l0wr-hm_.localbinsnap.drv
+  /nix/store/idjak8ykmk2m23bq5bhkc459qcycn9wg-hm_.localbinnpx.drv
+  /nix/store/imrw3ix43a8jf82qmmxws9w26agwibxr-hm_.localbinflatpak.drv
+  /nix/store/kg8zxxxvzwb8scc807rpqkx44a1fcb3b-hm_.localbinrsync.drv
+  /nix/store/lnl381w2y5z1rjxsqfx6pgajh5mxpjp1-hm_.localsharesystemprotectionsysctl.conf.drv
+  /nix/store/kvl2k6475q9zzr9h1mvh9wb0gs5lwdxr-man-cache.drv
+  /nix/store/mcrw49a2yy7vnlihxnkcdffjwjhgqxaf-hm_.manpath.drv
+  /nix/store/p9cvrzr2fjhg2bgyxsj7a70jxsmnisjp-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/rs93gr1kchnbg8r92zzkdsaj3iay9lf0-hm_.localbinapt.drv
+  /nix/store/s405h312pxh847ml6znnrf31n721grz4-hm_.localbinyum.drv
+  /nix/store/w1lqnsn03inc29rp678jbxbxx7j1s32l-hm_.localbinpoetry.drv
+  /nix/store/xc2gc0cxhijws7b481gxlpvqq55597r2-hm_.localbinparu.drv
+  /nix/store/zcmyln1v5y8bf9ihvhxhij8y6bvn0ryj-hm_.localbinpnpm.drv
+  /nix/store/j5alx4kzvarlx40w1y7kbykcc3hazrv4-home-manager-files.drv
+  /nix/store/dx9dj3w8jkd7hgw9zq1qwwkyxp7msn38-home-manager-generation.drv
+building '/nix/store/zb3q5ai13rb9bk5zbvahch11vzwgp36s-home-manager-path.drv'...
+building '/nix/store/rs93gr1kchnbg8r92zzkdsaj3iay9lf0-hm_.localbinapt.drv'...
+building '/nix/store/92yywsb3c8cg7k4kinhlv8jm128pag72-hm_.localbinaptget.drv'...
+building '/nix/store/h01agdblycicd5c8l3fm5vnfd0a0lljy-hm_.localbinbrew.drv'...
+building '/nix/store/ffc8zxjkwiv0vdifqsvhdj9xxyvvwqbm-hm_.localbinbun.drv'...
+building '/nix/store/h5n7rywrirfflnpqrxcfpkwbk32kf7z7-hm_.localbincargo.drv'...
+building '/nix/store/2qd16a04qa82hb607nb5qn6zvm5jhph8-hm_.localbinconda.drv'...
+building '/nix/store/g9wi1b9hzj3qlvxhlda0svianpx0sx5b-hm_.localbindnf.drv'...
+building '/nix/store/gzjisqfqj7r87jp9xis82bp2v6kf49kw-dropbear-2022.83-fish-completions.drv'...
+building '/nix/store/8z33x1vpri5k4rc5d10p760bhhd86nxp-e2fsprogs-1.47.1-fish-completions.drv'...
+building '/nix/store/51z3h89ln9hll6wyalngk6wxi4vpsp8d-earlyoom-1.8.2-fish-completions.drv'...
+building '/nix/store/9lcjgxl3f98b6bmm4mqaqxzn343c2qcp-hm_.localbindocker.drv'...
+building '/nix/store/7s1xmqwislq4j29mb7hmxs0zfybzld7b-hm_.localbindockercompose.drv'...
+building '/nix/store/imrw3ix43a8jf82qmmxws9w26agwibxr-hm_.localbinflatpak.drv'...
+building '/nix/store/2h4a4w9ccbrk3x17p1qrniab80c00019-hm_.localbingo.drv'...
+building '/nix/store/41q8g53k5r3a5yi6dh44zg1acl232fan-hm_.localbinhomemanager.drv'...
+building '/nix/store/1l6rrgpd9m2fxmyh7hl1qr46mssk15mj-hm_.localbinnix.drv'...
+building '/nix/store/d7dj7082ncza064s2q58m2gn87fk2k0a-hm_.localbinnixenv.drv'...
+building '/nix/store/bm18xpsdszw1pys4mv5s59rv323bdxmk-hm_.localbinnixosrebuild.drv'...
+building '/nix/store/23yrx525q8myyn8c842b2l4782b4l6hl-hm_.localbinnpm.drv'...
+building '/nix/store/idjak8ykmk2m23bq5bhkc459qcycn9wg-hm_.localbinnpx.drv'...
+building '/nix/store/dqn87vrnprnk3qy5jkf5d7gnyyzbj9w6-diego-fish-completions.drv'...
+building '/nix/store/ax0v10dyal7v9pa3r63jlr2x2kqqhhxs-hm_.localbinpacman.drv'...
+building '/nix/store/xc2gc0cxhijws7b481gxlpvqq55597r2-hm_.localbinparu.drv'...
+building '/nix/store/82mmc3568v2kklnyn9mwlxl4rl7l3fmk-hm_.localbinpip.drv'...
+building '/nix/store/7gw44qzrpci3gfrai3zbdgvaidykbs6k-hm_.localbinpip3.drv'...
+building '/nix/store/3ww9b0mqj3gmd0icnls8c7k7nbqr2l6i-hm_.localbinpipx.drv'...
+building '/nix/store/bwwy3y3m5xygzjla19pnlm2k6qkwrc4z-hm_.localbinpkg.drv'...
+building '/nix/store/zcmyln1v5y8bf9ihvhxhij8y6bvn0ryj-hm_.localbinpnpm.drv'...
+building '/nix/store/w1lqnsn03inc29rp678jbxbxx7j1s32l-hm_.localbinpoetry.drv'...
+building '/nix/store/kg8zxxxvzwb8scc807rpqkx44a1fcb3b-hm_.localbinrsync.drv'...
+building '/nix/store/i852c7w6m3ffvx40vyc4wxm7gb68l0wr-hm_.localbinsnap.drv'...
+building '/nix/store/cm9bgmhnd2cjknlbslmxy93ndb5y4r19-hm_.localbinuv.drv'...
+building '/nix/store/75myvc37m8fmv0mkq6vlzcyi3vdc3h2s-hm_.localbinyarn.drv'...
+building '/nix/store/5qdhf1l0c8mfywk75j70amlbyrarwz93-activation-script.drv'...
+building '/nix/store/3bd1zx9sz0n2xmfzf9g22lzy7msx3cnl-hm_.localbinyay.drv'...
+building '/nix/store/s405h312pxh847ml6znnrf31n721grz4-hm_.localbinyum.drv'...
+building '/nix/store/d58188j0s47jwsldb6z4ngc3p0qk72n7-hm_.localsharesystemprotectiondiskswap.service.drv'...
+building '/nix/store/fqs4s6nh6s90m7hpk027d0p3m5kp5zf2-hm_.localsharesystemprotectiondiskswap.sh.drv'...
+building '/nix/store/8fcal9bbr3nqf68y6hpg92rq1zmk631p-hm_.localsharesystemprotectiondockermemorycap.conf.drv'...
+building '/nix/store/lnl381w2y5z1rjxsqfx6pgajh5mxpjp1-hm_.localsharesystemprotectionsysctl.conf.drv'...
+building '/nix/store/8fvdflgmsi3fyzq02162i2ypb08s55y8-hm_.localsharesystemprotectionzramsetup.service.drv'...
+building '/nix/store/4g3zx0rhfiy82ragj6aggixcsh50rvjn-hm_.localsharesystemprotectionzramsetup.sh.drv'...
+building '/nix/store/p9cvrzr2fjhg2bgyxsj7a70jxsmnisjp-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/41675k3ishhgjbd88q6616y7qgpzgjrp-man-paths.drv'...
+building '/nix/store/kvl2k6475q9zzr9h1mvh9wb0gs5lwdxr-man-cache.drv'...
+building '/nix/store/mcrw49a2yy7vnlihxnkcdffjwjhgqxaf-hm_.manpath.drv'...
+building '/nix/store/j5alx4kzvarlx40w1y7kbykcc3hazrv4-home-manager-files.drv'...
+building '/nix/store/dx9dj3w8jkd7hgw9zq1qwwkyxp7msn38-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 222
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+WARN: cloud-deps: Expected double-quoted property name in JSON at position 127 (line 5 column 1)
+[node-npm-deps-cloud] 0 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/0snmnw0jyggz3kq112nffmf9zip5mqyj-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 32 services, date=2026-03-25)
+Activating globalTsx
+
+changed 5 packages in 2s
+Activating gooseConfig
+Activating initHomeGit
+Activating installResourceBouncer
+cp: cannot create regular file '/etc/systemd/system/zram-setup.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve zram=4096MB docker-cap=7680MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=8192MB rescue-ssh=port2200
+Activating installScheduler
+sudo: systemctl: command not found
+[scheduler] deployed: FIFO=sshd+wg | RR=earlyoom+watchdog | CFS=docker+container-init
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-03-25 15:08:22] PERF: home-manager switch = 1m 15s
+[2026-03-25 15:08:22] PERF: TOTAL switch = 1m 16s
+[2026-03-25 15:08:22] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-25 15:08:22] ========== Build script finished ==========
+[2026-03-25 15:35:30] ========== Build script started ==========
+[2026-03-25 15:35:30] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-25 15:35:30] PERF: start switch
+[2026-03-25 15:35:30] INFO: Staging dirty files for flake evaluation...
+[2026-03-25 15:35:30] PERF: git stage = 53ms
+[2026-03-25 15:35:30] PERF: clean backups = 18ms
+[2026-03-25 15:35:30] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 2 derivations will be built:
+  /nix/store/29wfnnpv7bx88g9l8q5y4z3hjsrid31a-home-manager-files.drv
+  /nix/store/crfslrkhr6rbvxk6n3747zdph8f4f348-home-manager-generation.drv
+building '/nix/store/29wfnnpv7bx88g9l8q5y4z3hjsrid31a-home-manager-files.drv'...
+building '/nix/store/crfslrkhr6rbvxk6n3747zdph8f4f348-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 223
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+WARN: cloud-deps: Expected double-quoted property name in JSON at position 127 (line 5 column 1)
+[node-npm-deps-cloud] 0 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/2znclpvn5f5wgp11inqd9vlpxhk3xd42-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 32 services, date=2026-03-25)
+Activating globalTsx
+
+changed 5 packages in 1s
+Activating gooseConfig
+Activating initHomeGit
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-03-25 15:35:54] PERF: home-manager switch = 23.3s
+[2026-03-25 15:35:54] PERF: TOTAL switch = 23.5s
+[2026-03-25 15:35:54] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-25 15:35:54] ========== Build script finished ==========
+[2026-03-26 03:54:18] ========== Build script started ==========
+[2026-03-26 03:54:18] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-26 03:54:18] PERF: start switch
+[2026-03-26 03:54:18] INFO: Staging dirty files for flake evaluation...

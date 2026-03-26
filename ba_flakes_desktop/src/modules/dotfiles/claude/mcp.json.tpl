@@ -21,7 +21,8 @@
       "args": ["/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts"],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
-        "CONFIG_PATH": "/home/diego/Mounts/Git/cloud/config.json"
+        "CONFIG_PATH": "/home/diego/Mounts/Git/cloud/config.json",
+        "OCTOCODE_BIN": "/home/diego/.local/bin/octocode"
       }
     },
     "diego-personal-data": {
