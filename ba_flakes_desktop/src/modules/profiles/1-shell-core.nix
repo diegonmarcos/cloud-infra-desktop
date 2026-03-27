@@ -16,6 +16,7 @@
     zoxide           # smart cd (frecency)
     yazi             # TUI file manager
     btop             # resource monitor
+    multitail        # multi-file tail with split view
     ncdu             # disk usage analyzer
     duf              # df replacement
     tree             # directory tree view
