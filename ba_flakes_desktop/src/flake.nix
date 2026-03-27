@@ -131,6 +131,7 @@
         ./modules/sops.nix
         ./modules/common.nix
         ./modules/system-protection.nix
+        ./modules/ssh-stale-socket-cleaner.nix
         ./modules/curl-wget-wrapper.nix
         ./modules/node-npm-deps.nix
         ./modules/cloud.nix
