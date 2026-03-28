@@ -135,6 +135,7 @@
         ./modules/curl-wget-wrapper.nix
         ./modules/node-npm-deps.nix
         ./modules/cloud.nix
+        ./modules/cloud-network-wg-dns.nix
         ./modules/front.nix
       ];
 
