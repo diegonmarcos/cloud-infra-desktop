@@ -1,35 +1,80 @@
-# System Protection — Desktop (NixOS native)
-# Surface Pro 8, 8GB RAM. Prevents hard lockups under memory pressure.
+# System Protection — NixOS Desktop (Surface Pro 8: 8 cores, 8GB RAM)
 #
-# Architecture:
-#   FIFO (lane 1): sshd, rescue-ssh (Dropbear) — absolute CPU priority, NEVER waits
-#   RR   (lane 2): earlyoom — real-time round-robin, protection daemon
-#   CFS  (lane 3): everything else — normal fair share with caps
+# LOCAL (system.slice) — daemons started by systemd:
+#   ├── kernel.slice        → NO CAP   — bare minimum for Linux to function
+#   ├── os-essentials.slice → 95% cap  — protection + connectivity daemons
+#   └── workload.slice      → 75% cap  — everything else (catch-all)
 #
-#   connectivity  → MemoryMin=200M (sshd, rescue-ssh) — kernel-guaranteed, NEVER reclaimed
-#   system.slice  → MemoryMin=500M (systemd, docker daemon)
-#   user-.slice   → MemoryMax=90% cap, compositor gets MemoryMin guarantee
-#   machine.slice → MemoryMax=50% cap (docker/podman containers)
-#   nix-daemon    → MemoryMax=70% cap, CPUQuota=50%
-#   Safety nets   → zram (50% compressed) + earlyoom (10% threshold)
+# REMOTE (user.slice) — login sessions:
+#   ├── user-0.slice        → 90% cap  — root emergency
+#   └── user-1000.slice     → 75% cap  — diego normal ops
 #
-# VM equivalent: cloud/b_infra/home-manager/_shared/modules/system-protection*.nix
-# HM desktop:    unix/ba_flakes_desktop/src/modules/system-protection-guardrails.nix (user-level PATH wrappers only)
+# DESKTOP (machine.slice) — containers (Docker/Podman):
+#   └── machine.slice       → 50% cap  — secondary workloads
+#
+# CPU guarantees (8 logical CPUs = 800% total):
+#   kernel:        uncapped
+#   os-essentials: 760% (95% of 800%)
+#   workload:      600% (75% of 800%)
+#   user-1000:     600% (75% of 800%)
+#   user-0:        720% (90% of 800%)
+#   machine:       400% (50% of 800%)
+#
+# VM equivalent: cloud/b_infra/home-manager/_shared/modules/system-protection-layer2-identity.nix
+#
+# ┌─────────────────────────┬──────────┬──────────┬──────────────┐
+# │ Slice                   │ CPU      │ MemHigh  │ MemMax       │
+# ├─────────────────────────┼──────────┼──────────┼──────────────┤
+# │ kernel.slice            │ uncapped │ —        │ —            │
+# │ os-essentials.slice     │ 760%/95% │ —        │ —            │
+# │ connectivity.slice      │ weight   │ 200M min │ 200M min     │
+# │ workload.slice          │ 600%/75% │ —        │ —            │
+# │   └── nix-daemon        │ 700%/87% │ 5324M    │ 6144M        │
+# │ machine.slice           │ 700%/87% │ —        │ 6144M        │
+# ├─────────────────────────┼──────────┼──────────┼──────────────┤
+# │ user-1000 (diego)       │ 600%/75% │ 6144M    │ 6963M        │
+# │ user-0 (root)           │ 720%/90% │ 6963M    │ 7782M        │
+# ├─────────────────────────┼──────────┼──────────┼──────────────┤
+# │ sshd                    │ FIFO p1  │ 50M min  │ connectivity │
+# │ rescue-ssh (dropbear)   │ FIFO p1  │ 20M min  │ connectivity │
+# │ earlyoom                │ RR p1    │ —        │ (default)    │
+# └─────────────────────────┴──────────┴──────────┴──────────────┘
+#
 { config, pkgs, lib, ... }:
 
 let
+  # ── Hardware specs (Surface Pro 8) ─────────────────────────────────────
+  cpus = 8;       # logical CPUs (4 cores × 2 threads)
+  ramMB = 8192;   # 8GB RAM
   rescuePort = 2200;
+
+  # ── Slice budgets (scaled by core count) ───────────────────────────────
+  workloadCpuQuota = "${toString (cpus * 75)}%";     # 600%
+  osEssentialsCpuQuota = "${toString (cpus * 95)}%";  # 760%
+  userCpuQuota = "${toString (cpus * 75)}%";          # 600%
+  rootCpuQuota = "${toString (cpus * 90)}%";          # 720%
+  machineCpuQuota = "${toString (cpus * 700 / 8)}%";   # 700% (7/8 cores)
+  nixDaemonCpuQuota = "${toString (cpus * 700 / 8)}%"; # 700% (7/8 cores)
+
+  # ── Memory budgets ─────────────────────────────────────────────────────
+  userMemMax = "${toString (ramMB * 85 / 100)}M";     # 6963M
+  userMemHigh = "${toString (ramMB * 75 / 100)}M";    # 6144M
+  rootMemMax = "${toString (ramMB * 95 / 100)}M";     # 7782M
+  rootMemHigh = "${toString (ramMB * 85 / 100)}M";    # 6963M
+  machineMemMax = "${toString (ramMB * 75 / 100)}M";  # 6144M
+  nixMemMax = "${toString (ramMB * 75 / 100)}M";      # 6144M
+  nixMemHigh = "${toString (ramMB * 65 / 100)}M";     # 5324M
 in
 {
   # ═══════════════════════════════════════════════════════════════════════════
-  # KERNEL SYSCTL: memory management tuning
+  # KERNEL SYSCTL
   # ═══════════════════════════════════════════════════════════════════════════
   boot.kernel.sysctl = {
     "vm.min_free_kbytes" = 262144;         # 256MB kernel reserve
-    "vm.swappiness" = 150;                 # zram: prefer compressed swap over dropping caches
-    "vm.dirty_ratio" = 10;                 # Sync writeback at ~760MB dirty
-    "vm.dirty_background_ratio" = 5;       # Async writeback at ~380MB dirty
-    "vm.watermark_scale_factor" = 500;     # Aggressive kswapd wake-up
+    "vm.swappiness" = 150;                 # zram: prefer compressed swap
+    "vm.dirty_ratio" = 10;
+    "vm.dirty_background_ratio" = 5;
+    "vm.watermark_scale_factor" = 500;
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -38,18 +83,18 @@ in
   zramSwap = {
     enable = true;
     algorithm = "zstd";
-    memoryPercent = 50;    # ~4GB → ~12GB effective compressed swap
-    priority = 100;        # Fill before disk swap
+    memoryPercent = 50;    # ~4GB → ~12GB effective
+    priority = 100;
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # EARLYOOM: last resort OOM killer (RR lane 2)
+  # EARLYOOM: last resort OOM killer (RR scheduler)
   # ═══════════════════════════════════════════════════════════════════════════
   services.earlyoom = {
     enable = true;
-    freeMemThreshold = 10;          # SIGTERM at ~760MB free
+    freeMemThreshold = 10;
     freeSwapThreshold = 10;
-    freeMemKillThreshold = 5;       # SIGKILL at ~380MB free
+    freeMemKillThreshold = 5;
     freeSwapKillThreshold = 5;
     enableNotifications = true;
     reportInterval = 0;
@@ -59,7 +104,6 @@ in
     ];
   };
 
-  # Earlyoom: RR scheduler (lane 2) — real-time but time-sliced among RR peers
   systemd.services.earlyoom.serviceConfig = {
     CPUSchedulingPolicy = "rr";
     CPUSchedulingPriority = 1;
@@ -71,14 +115,25 @@ in
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # CONNECTIVITY SLICE: kernel-guaranteed memory for SSH/Dropbear
+  # LOCAL TIER: SYSTEM SLICES (3-tier hierarchy)
   # ═══════════════════════════════════════════════════════════════════════════
-  # cgroups v2 MemoryMin is a HARD guarantee — kernel will NEVER reclaim this.
-  # OOMScoreAdjust is just a hint; MemoryMin is the real protection.
-  # Lesson from cloud VMs: OOMScoreAdjust=-1000 failed under extreme pressure,
-  # but MemoryMin in a dedicated slice survived.
+
+  # kernel.slice — uncapped, Linux essentials
+  systemd.slices."kernel" = {
+    description = "Kernel-essential services — no cap";
+  };
+
+  # os-essentials.slice — 95% cap, protection + connectivity
+  systemd.slices."os-essentials" = {
+    description = "OS-essential services — protection, connectivity";
+    sliceConfig = {
+      CPUQuota = osEssentialsCpuQuota;
+    };
+  };
+
+  # connectivity.slice — sub-slice of os-essentials for SSH/VPN
   systemd.slices."connectivity" = {
-    description = "Protected connectivity slice — SSH, Dropbear";
+    description = "Protected connectivity — SSH, Dropbear";
     sliceConfig = {
       MemoryMin = "200M";
       MemoryLow = "200M";
@@ -87,11 +142,57 @@ in
     };
   };
 
+  # workload.slice — 75% cap, catch-all for non-essential services
+  systemd.slices."workload" = {
+    description = "Workload services — docker, containers, nix-daemon";
+    sliceConfig = {
+      CPUQuota = workloadCpuQuota;
+    };
+  };
+
   # ═══════════════════════════════════════════════════════════════════════════
-  # FIFO SCHEDULER (lane 1): sshd — NEVER waits, preempts ALL normal processes
+  # REMOTE TIER: USER SLICES (login sessions)
   # ═══════════════════════════════════════════════════════════════════════════
-  # Proven by stress test: SSH hung with CPUWeight=10000 but survived with FIFO.
-  # FIFO is kernel-enforced real-time scheduling — runs BEFORE any CFS process.
+
+  # user-1000 (diego) — normal operations
+  systemd.slices."user-1000" = {
+    description = "User diego (UID 1000) resource limits";
+    sliceConfig = {
+      CPUQuota = userCpuQuota;
+      MemoryHigh = userMemHigh;
+      MemoryMax = userMemMax;
+      IOWeight = 100;
+    };
+  };
+
+  # user-0 (root) — emergency maintenance
+  systemd.slices."user-0" = {
+    description = "Root (UID 0) resource limits — emergency";
+    sliceConfig = {
+      CPUQuota = rootCpuQuota;
+      MemoryHigh = rootMemHigh;
+      MemoryMax = rootMemMax;
+      IOWeight = 200;
+    };
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DESKTOP TIER: machine.slice (containers)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  systemd.slices."machine" = {
+    description = "Container workloads — Docker/Podman";
+    sliceConfig = {
+      MemoryMax = machineMemMax;
+      CPUQuota = machineCpuQuota;
+    };
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SERVICE ASSIGNMENTS: FIFO / RR / slice placement
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  # sshd — FIFO lane 1, connectivity.slice
   systemd.services.sshd.serviceConfig = {
     Slice = "connectivity.slice";
     CPUSchedulingPolicy = "fifo";
@@ -104,11 +205,20 @@ in
     Nice = -20;
   };
 
+  # nix-daemon — workload.slice, capped
+  systemd.services.nix-daemon.serviceConfig = {
+    Slice = "workload.slice";
+    MemoryMax = nixMemMax;
+    MemoryHigh = nixMemHigh;
+    CPUQuota = nixDaemonCpuQuota;
+    OOMScoreAdjust = 250;
+    IOWeight = 50;
+    Nice = 10;
+  };
+
   # ═══════════════════════════════════════════════════════════════════════════
   # RESCUE SSH: Dropbear on port 2200 (FIFO lane 1)
   # ═══════════════════════════════════════════════════════════════════════════
-  # Independent SSH daemon — survives even if sshd is misconfigured or down.
-  # Uses FIFO scheduler so it's always reachable under any load.
   systemd.services.rescue-ssh = {
     description = "Rescue SSH (Dropbear on port ${toString rescuePort}) — UNTOUCHABLE";
     after = [ "network.target" ];
@@ -129,7 +239,6 @@ in
       ExecStart = "${pkgs.dropbear}/bin/dropbear -F -E -p ${toString rescuePort} -r /etc/dropbear/dropbear_ed25519_host_key";
       Restart = "always";
       RestartSec = 2;
-      # FIFO lane 1 — absolute priority
       CPUSchedulingPolicy = "fifo";
       CPUSchedulingPriority = 1;
       IOSchedulingClass = "realtime";
@@ -144,41 +253,7 @@ in
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # THE BOUNCER: cgroup slice limits
-  # ═══════════════════════════════════════════════════════════════════════════
-
-  # System slice: guaranteed minimum for systemd, sshd, docker daemon, etc
-  systemd.slices."system".sliceConfig = {
-    MemoryMin = "500M";
-    CPUWeight = 10000;      # Highest priority when CPU contested
-  };
-
-  # User slice: 90% cap — no browser/app eats the whole system
-  systemd.slices."user-".sliceConfig = {
-    MemoryMax = "6800M";    # 90% of ~7.6GB
-    CPUQuota = "720%";      # 90% of 8 logical CPUs
-  };
-
-  # Machine slice: 50% cap — containers are secondary workloads
-  systemd.slices."machine".sliceConfig = {
-    MemoryMax = "3800M";    # 50% of ~7.6GB
-    CPUQuota = "400%";      # 50% of 8 logical CPUs
-  };
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # NIX-DAEMON: memory + CPU caps (builds can eat everything otherwise)
-  # ═══════════════════════════════════════════════════════════════════════════
-  systemd.services.nix-daemon.serviceConfig = {
-    MemoryMax = "5400M";     # ~70% of 7.6GB
-    MemoryHigh = "4800M";    # throttle before hard limit
-    CPUQuota = "400%";       # 50% of 8 logical CPUs
-    OOMScoreAdjust = 250;    # prefer killing nix over desktop
-    IOWeight = 50;
-    Nice = 10;
-  };
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # JANITOR: Disk watchdog — escalating cleanup
+  # DISK WATCHDOG: escalating cleanup
   # ═══════════════════════════════════════════════════════════════════════════
   systemd.timers."disk-watchdog" = {
     wantedBy = [ "timers.target" ];
@@ -208,12 +283,10 @@ in
       find /var/tmp -type f -atime +2 -delete 2>/dev/null || true
       journalctl --vacuum-size=100M 2>/dev/null || true
 
-      # Desktop: clean user caches
       find /home/*/. -maxdepth 0 2>/dev/null | while read home; do
         find "$home/.cache" -type f -atime +7 -delete 2>/dev/null || true
       done
 
-      # Docker/Podman cleanup
       if command -v docker >/dev/null 2>&1; then
         docker container prune -f 2>/dev/null || true
         docker image prune -f 2>/dev/null || true
@@ -256,12 +329,8 @@ in
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # PACKAGES: dropbear for rescue SSH
+  # PACKAGES + FIREWALL
   # ═══════════════════════════════════════════════════════════════════════════
   environment.systemPackages = [ pkgs.dropbear ];
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # FIREWALL: allow rescue SSH port
-  # ═══════════════════════════════════════════════════════════════════════════
   networking.firewall.allowedTCPPorts = [ rescuePort ];
 }
