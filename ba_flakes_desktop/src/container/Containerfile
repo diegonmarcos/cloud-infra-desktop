@@ -1,18 +1,19 @@
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║ Diego's Dev Environment — diego-user-env                        ║
+# ║ Diego's Dev Environment — diego-deb-nix                         ║
 # ║                                                                  ║
-# ║ Base: Debian 12 (bookworm) + Nix 2.28 + NixOS 24.11 channel     ║
-# ║ Packages: nix profile install (not home-manager in container)    ║
+# ║ Base: Debian 12 (bookworm) + Nix + Home-Manager                 ║
+# ║ Config: exact match of desktop flake (diego@cli profile)         ║
+# ║ Source: unix/ba_flakes_desktop/src/container/Containerfile       ║
 # ║                                                                  ║
-# ║ Build:  docker build -t ghcr.io/diegonmarcos/diego-user-env .    ║
-# ║ Push:   docker push ghcr.io/diegonmarcos/diego-user-env:latest   ║
-# ║ Run:    sh ~/git/tools/dtk.sh containers {cli|gui|tty}           ║
+# ║ Build:  docker build -t ghcr.io/diegonmarcos/diego-deb-nix .    ║
+# ║ Push:   docker push ghcr.io/diegonmarcos/diego-deb-nix:latest   ║
+# ║ Run:    sh ~/git/tools/dtk.sh containers deb-nix {cli|gui|tty}  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 FROM debian:bookworm-slim
 
-# ── Labels (OCI standard + custom) ────────────────────────────────
-LABEL org.opencontainers.image.title="diego-user-env"
-LABEL org.opencontainers.image.description="Diego's portable dev environment — Nix + Fish + Rust + Go + Node + Python + Cloud CLIs"
+# ── OCI Standard Labels ──────────────────────────────────────────
+LABEL org.opencontainers.image.title="diego-deb-nix"
+LABEL org.opencontainers.image.description="Diego's portable dev environment — Debian + Nix Home-Manager (diego@cli profile)"
 LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/unix"
 LABEL org.opencontainers.image.url="https://github.com/diegonmarcos/unix/tree/main/ba_flakes_desktop/src/container"
 LABEL org.opencontainers.image.documentation="https://github.com/diegonmarcos/unix/blob/main/README.md"
@@ -22,28 +23,31 @@ LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.base.name="debian:bookworm-slim"
 LABEL org.opencontainers.image.ref.name="latest"
 
-# Custom labels
-LABEL diego.image.name="diego-user-env"
+# ── Diego Custom Labels ──────────────────────────────────────────
+LABEL diego.image.name="diego-deb-nix"
 LABEL diego.image.type="dev-environment"
+LABEL diego.image.variant="deb-nix"
 LABEL diego.image.profiles="cli,gui,tty"
-LABEL diego.image.runner="~/git/tools/dtk.sh containers {cli|gui|tty}"
+LABEL diego.image.runner="~/git/tools/dtk.sh containers deb-nix {cli|gui|tty}"
 LABEL diego.image.flake.repo="github.com/diegonmarcos/unix"
 LABEL diego.image.flake.path="ba_flakes_desktop/src/"
+LABEL diego.image.flake.config="diego@cli"
+LABEL diego.image.flake.toolsets="shell-core dev-languages build-debug containers-cloud security-network data-science"
 LABEL diego.image.container.path="ba_flakes_desktop/src/container/"
 LABEL diego.image.compose.path="ba_flakes_desktop/src/container/compose.yaml"
 LABEL diego.image.dockerfile.path="ba_flakes_desktop/src/container/Containerfile"
-LABEL diego.image.ghcr="ghcr.io/diegonmarcos/diego-user-env"
+LABEL diego.image.ghcr="ghcr.io/diegonmarcos/diego-deb-nix"
 LABEL diego.image.nix.channel="nixos-24.11"
-LABEL diego.image.nix.version="2.28"
+LABEL diego.image.home-manager="release-24.11"
 LABEL diego.image.shell.default="fish"
 LABEL diego.image.user="diego"
 LABEL diego.image.uid="1000"
+LABEL diego.image.embedded="/home/diego/.image-meta/ (Containerfile + compose.yaml)"
 LABEL diego.image.packages.shell="fish starship eza bat fd ripgrep fzf delta zoxide jq yq-go"
-LABEL diego.image.packages.lang="rustup go nodejs_22 python312 ruby gcc llvm cmake ninja gnumake"
-LABEL diego.image.packages.dev="git git-lfs openssh curl wget htop tmux vim tree ncdu"
-LABEL diego.image.packages.cloud="docker-client kubectl kubernetes-helm terraform sops age"
+LABEL diego.image.packages.lang="rustup go nodejs python ruby gcc llvm cmake ninja"
+LABEL diego.image.packages.cloud="docker-client kubectl helm terraform sops age"
 LABEL diego.image.packages.net="nmap mtr wireguard-tools openssl gnupg"
-LABEL diego.image.packages.node="pnpm typescript dart-sass"
+LABEL diego.image.packages.node="pnpm typescript sass"
 LABEL diego.image.packages.tools="shellcheck shfmt just watchexec direnv"
 
 # ── System setup ──────────────────────────────────────────────────
@@ -69,41 +73,38 @@ RUN curl -L https://releases.nixos.org/nix/nix-2.28.3/install | sh -s -- --no-da
     && mkdir -p /home/diego/.config/nix \
     && echo "experimental-features = nix-command flakes" > /home/diego/.config/nix/nix.conf
 
-# ── Setup channels ───────────────────────────────────────────────
+# ── Setup channels (for home-manager) ────────────────────────────
 RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh \
     && nix-channel --add https://github.com/nix-community/home-manager/archive/release-24.11.tar.gz home-manager \
     && nix-channel --add https://nixos.org/channels/nixos-24.11 nixpkgs \
     && nix-channel --update
 
-# ── Clone unix repo (for flake reference) ────────────────────────
+# ── Clone unix repo (flake source) ───────────────────────────────
 RUN git clone --depth 1 https://github.com/diegonmarcos/unix.git /home/diego/git/unix
 
-# ── Install packages via nix profile ─────────────────────────────
+# ── Apply home-manager (diego@cli = exact desktop match, no DE) ──
 RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh \
+    && cd /home/diego/git/unix/ba_flakes_desktop/src \
+    && nix run home-manager/release-24.11 -- switch --flake .#diego@cli --impure \
+    || echo "home-manager switch failed — falling back to nix profile install" \
+    && . /home/diego/.nix-profile/etc/profile.d/nix.sh \
     && export NIXPKGS_ALLOW_UNFREE=1 \
-    # Shell & CLI
     && nix profile install --impure nixpkgs#fish nixpkgs#starship nixpkgs#eza nixpkgs#bat \
        nixpkgs#fd nixpkgs#ripgrep nixpkgs#fzf nixpkgs#delta nixpkgs#zoxide nixpkgs#jq nixpkgs#yq-go \
-    # Languages & compilers
     && nix profile install --impure nixpkgs#rustup nixpkgs#go nixpkgs#nodejs_22 nixpkgs#python312 \
        nixpkgs#ruby nixpkgs#gcc nixpkgs#llvm nixpkgs#lldb nixpkgs#cmake nixpkgs#ninja nixpkgs#gnumake \
-    # Dev tools
     && nix profile install --impure nixpkgs#git nixpkgs#git-lfs nixpkgs#openssh nixpkgs#curl \
        nixpkgs#wget nixpkgs#htop nixpkgs#tmux nixpkgs#vim nixpkgs#tree nixpkgs#ncdu \
-    # Cloud & infra
     && nix profile install --impure nixpkgs#docker-client nixpkgs#kubectl \
        nixpkgs#kubernetes-helm nixpkgs#terraform nixpkgs#sops nixpkgs#age \
-    # Networking & security
     && nix profile install --impure nixpkgs#nmap nixpkgs#mtr nixpkgs#wireguard-tools \
        nixpkgs#openssl nixpkgs#gnupg \
-    # Node ecosystem
     && nix profile install --impure nixpkgs#nodePackages.pnpm nixpkgs#nodePackages.typescript \
        nixpkgs#dart-sass \
-    # Shell tooling
     && nix profile install --impure nixpkgs#shellcheck nixpkgs#shfmt nixpkgs#just \
        nixpkgs#watchexec nixpkgs#direnv
 
-# ── Embed build files in image (for self-documentation) ──────────
+# ── Embed build files in image (self-documentation) ──────────────
 RUN mkdir -p /home/diego/.image-meta
 COPY --chown=diego:diego Containerfile /home/diego/.image-meta/Containerfile
 COPY --chown=diego:diego compose.yaml /home/diego/.image-meta/compose.yaml
