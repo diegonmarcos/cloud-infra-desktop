@@ -10281,3 +10281,225 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-03-28 17:22:13] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-03-28 17:22:13] PERF: start switch
 [2026-03-28 17:22:13] INFO: Staging dirty files for flake evaluation...
+[2026-03-28 17:22:13] PERF: git stage = 63ms
+[2026-03-28 17:22:13] INFO: Cleaning 2 old backup file(s)...
+[2026-03-28 17:22:13] PERF: clean backups = 28ms
+[2026-03-28 17:22:13] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 5 derivations will be built:
+  /nix/store/as70fnanipkafzymdw2ay07vblidansr-wg-dns-down.drv
+  /nix/store/bxbf5j0pdy6jq3jlz55p4dhbqkyqqvvb-wg-dns-up.drv
+  /nix/store/4j37g0mm52cy0fcgfmlrgxkribshf3gi-wg-dns-config.service.drv
+  /nix/store/35qfhv7vz2c6rxkw2mshrmxjgfpg9lib-home-manager-files.drv
+  /nix/store/1c82ychxw8cja5y49k7pdwrnd0ihv6nr-home-manager-generation.drv
+building '/nix/store/as70fnanipkafzymdw2ay07vblidansr-wg-dns-down.drv'...
+building '/nix/store/bxbf5j0pdy6jq3jlz55p4dhbqkyqqvvb-wg-dns-up.drv'...
+building '/nix/store/4j37g0mm52cy0fcgfmlrgxkribshf3gi-wg-dns-config.service.drv'...
+building '/nix/store/35qfhv7vz2c6rxkw2mshrmxjgfpg9lib-home-manager-files.drv'...
+building '/nix/store/1c82ychxw8cja5y49k7pdwrnd0ihv6nr-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 231
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 22 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 104 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 2s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/9jfb9245n8bfcavnza7d2hnli1cpjf4w-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 29 services, date=2026-03-28)
+Activating globalTsx
+
+changed 5 packages in 765ms
+Activating gooseConfig
+Activating initHomeGit
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Stopping units: wg-dns-config.service
+Starting units: sops-nix.service, wg-dns-config.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-03-28 17:22:41] PERF: home-manager switch = 27.5s
+[2026-03-28 17:22:41] PERF: TOTAL switch = 27.7s
+[2026-03-28 17:22:41] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-28 17:22:41] ========== Build script finished ==========
+[2026-03-29 05:58:02] ========== Build script started ==========
+[2026-03-29 05:58:02] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-29 05:58:02] PERF: start switch
+[2026-03-29 05:58:02] INFO: Staging dirty files for flake evaluation...
+[2026-03-29 05:58:02] PERF: git stage = 67ms
+[2026-03-29 05:58:02] PERF: clean backups = 26ms
+[2026-03-29 05:58:02] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 18 derivations will be built:
+  /nix/store/pnwx4k11saw26v3rc3mm9rq0nfa0n0kc-hm-session-vars.sh.drv
+  /nix/store/60w5rv7403mrlf4049n1h9b45bbil0ld-home-manager-path.drv
+  /nix/store/99s335mrjr0479qfrlkiraz8k6348la8-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/cq7r63jz7jlk4ryl4fc5l2csz4c5mzwk-man-paths.drv
+  /nix/store/mz62zgw17gfzyvca9zqddyg94in6yy81-man-cache.drv
+  /nix/store/awq1c4rn70j2vllx7q3wlqsg99jdkkzj-hm_.manpath.drv
+  /nix/store/bkxcdvk40l7v0s8x38fk5zz2l12cv4ra-rustfmt-1.82.0-fish-completions.drv
+  /nix/store/bv8ijna9nhf6y2sc21n7lsa0vmw5kwbq-rust-analyzer-2024-09-02-fish-completions.drv
+  /nix/store/cwq6ypxxpawm20qr6am4hhc9g1qdwbap-hm-session-vars.sh-fish-completions.drv
+  /nix/store/s438rrim6an70nmraiypw70vk8lipzkq-hm-session-vars.fish.drv
+  /nix/store/q960agj676dra2gc9b2cxwf896l3z61l-config.fish.drv
+  /nix/store/gz11bx2i2blcmmnini94dmw3v5n4xnha-clippy-1.82.0-fish-completions.drv
+  /nix/store/wb2xlyhdc1xawmfnhw01wklhpk9imf8y-rustc-wrapper-1.82.0-fish-completions.drv
+  /nix/store/ym0xivhb7bbvjr07df2l7ng9jbnqixgp-cargo-1.82.0-fish-completions.drv
+  /nix/store/rr9dyfbcdhzhxz3avf8g0k9x2vc4z08l-diego-fish-completions.drv
+  /nix/store/l0z4ih8afp08slypxw5s1q2bzn6s8vs5-home-manager-files.drv
+  /nix/store/nq60lsrd7ddcx27dak0ph6xlysmpvgnc-activation-script.drv
+  /nix/store/dpvj3igcz867wha9bbkbrsg2b6ycyil5-home-manager-generation.drv
+these 10 paths will be fetched (190.38 MiB download, 924.80 MiB unpacked):
+  /nix/store/9dgvap9qqn7chl3gljm1f8921qhqc9an-cargo-1.82.0
+  /nix/store/z0wzmxcqpbs5vr969x0zxf7h78vssvj4-clippy-1.82.0
+  /nix/store/cj03immz6jm6yc04q8yy272ynkggbzra-rust-analyzer-2024-09-02
+  /nix/store/00zxw2pjxfxw5xlwm5crlnpmci86i2zr-rust-analyzer-unwrapped-2024-09-02
+  /nix/store/ls4h5a697n7hndnxsbb05b0c7wdn6z92-rust-lib-src
+  /nix/store/y3xjq81i5dvdz2s5iz1hrmpyq84k56i6-rustc-1.82.0
+  /nix/store/cmzqv4r4s7v6a2s603ximxp28077frhl-rustc-1.82.0-man
+  /nix/store/9i1mxch5nn2y0mjmsgni6qw1s8b6w3z9-rustc-wrapper-1.82.0
+  /nix/store/ah1f17mgk47328pmzq7xfs29z2lv6zly-rustc-wrapper-1.82.0-man
+  /nix/store/nv06i9mwjhcszckaix6dpi1s3521dv46-rustfmt-1.82.0
+copying path '/nix/store/ls4h5a697n7hndnxsbb05b0c7wdn6z92-rust-lib-src' from 'https://cache.nixos.org'...
+copying path '/nix/store/cmzqv4r4s7v6a2s603ximxp28077frhl-rustc-1.82.0-man' from 'https://cache.nixos.org'...
+building '/nix/store/pnwx4k11saw26v3rc3mm9rq0nfa0n0kc-hm-session-vars.sh.drv'...
+copying path '/nix/store/00zxw2pjxfxw5xlwm5crlnpmci86i2zr-rust-analyzer-unwrapped-2024-09-02' from 'https://cache.nixos.org'...
+copying path '/nix/store/y3xjq81i5dvdz2s5iz1hrmpyq84k56i6-rustc-1.82.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/ah1f17mgk47328pmzq7xfs29z2lv6zly-rustc-wrapper-1.82.0-man' from 'https://cache.nixos.org'...
+building '/nix/store/s438rrim6an70nmraiypw70vk8lipzkq-hm-session-vars.fish.drv'...
+building '/nix/store/cwq6ypxxpawm20qr6am4hhc9g1qdwbap-hm-session-vars.sh-fish-completions.drv'...
+building '/nix/store/q960agj676dra2gc9b2cxwf896l3z61l-config.fish.drv'...
+copying path '/nix/store/cj03immz6jm6yc04q8yy272ynkggbzra-rust-analyzer-2024-09-02' from 'https://cache.nixos.org'...
+building '/nix/store/bv8ijna9nhf6y2sc21n7lsa0vmw5kwbq-rust-analyzer-2024-09-02-fish-completions.drv'...
+copying path '/nix/store/z0wzmxcqpbs5vr969x0zxf7h78vssvj4-clippy-1.82.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/9i1mxch5nn2y0mjmsgni6qw1s8b6w3z9-rustc-wrapper-1.82.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/nv06i9mwjhcszckaix6dpi1s3521dv46-rustfmt-1.82.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/9dgvap9qqn7chl3gljm1f8921qhqc9an-cargo-1.82.0' from 'https://cache.nixos.org'...
+building '/nix/store/wb2xlyhdc1xawmfnhw01wklhpk9imf8y-rustc-wrapper-1.82.0-fish-completions.drv'...
+building '/nix/store/bkxcdvk40l7v0s8x38fk5zz2l12cv4ra-rustfmt-1.82.0-fish-completions.drv'...
+building '/nix/store/gz11bx2i2blcmmnini94dmw3v5n4xnha-clippy-1.82.0-fish-completions.drv'...
+building '/nix/store/ym0xivhb7bbvjr07df2l7ng9jbnqixgp-cargo-1.82.0-fish-completions.drv'...
+building '/nix/store/60w5rv7403mrlf4049n1h9b45bbil0ld-home-manager-path.drv'...
+building '/nix/store/cq7r63jz7jlk4ryl4fc5l2csz4c5mzwk-man-paths.drv'...
+building '/nix/store/rr9dyfbcdhzhxz3avf8g0k9x2vc4z08l-diego-fish-completions.drv'...
+building '/nix/store/mz62zgw17gfzyvca9zqddyg94in6yy81-man-cache.drv'...
+building '/nix/store/nq60lsrd7ddcx27dak0ph6xlysmpvgnc-activation-script.drv'...
+building '/nix/store/99s335mrjr0479qfrlkiraz8k6348la8-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/awq1c4rn70j2vllx7q3wlqsg99jdkkzj-hm_.manpath.drv'...
+building '/nix/store/l0z4ih8afp08slypxw5s1q2bzn6s8vs5-home-manager-files.drv'...
+building '/nix/store/dpvj3igcz867wha9bbkbrsg2b6ycyil5-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/home/diego/.config/fish/config.fish.backup' would be clobbered by backing up '/home/diego/.config/fish/config.fish'
+Existing file '/home/diego/.config/sops/age/keys.txt' is in the way of '/nix/store/7jqcg7smwi336m3igz8izxhpv21ashn0-home-manager-files/.config/sops/age/keys.txt', will be skipped since they are the same
+Existing file '/home/diego/.bashrc' is in the way of '/nix/store/7jqcg7smwi336m3igz8izxhpv21ashn0-home-manager-files/.bashrc', will be moved to '/home/diego/.bashrc.backup'
+Existing file '/home/diego/.profile' is in the way of '/nix/store/7jqcg7smwi336m3igz8izxhpv21ashn0-home-manager-files/.profile', will be moved to '/home/diego/.profile.backup'
+Please do one of the following:
+- Move or remove the above files and try again.
+- In standalone mode, use 'home-manager switch -b backup' to back up
+  files automatically.
+- When used as a NixOS or nix-darwin module, set
+    'home-manager.backupFileExtension'
+  to, for example, 'backup' and rebuild.
+[2026-03-29 05:59:55] PERF: home-manager switch = 1m 53s
+[2026-03-29 05:59:55] PERF: TOTAL switch = 1m 53s
+[2026-03-29 05:59:55] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-29 05:59:55] ========== Build script finished ==========
+[2026-03-29 06:00:04] ========== Build script started ==========
+[2026-03-29 06:00:04] ========== Switching to /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-03-29 06:00:04] PERF: start switch
+[2026-03-29 06:00:04] INFO: Staging dirty files for flake evaluation...
+[2026-03-29 06:00:04] PERF: git stage = 100ms
+[2026-03-29 06:00:04] PERF: clean backups = 40ms
+[2026-03-29 06:00:04] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/home/diego/.config/fish/config.fish' is in the way of '/nix/store/7jqcg7smwi336m3igz8izxhpv21ashn0-home-manager-files/.config/fish/config.fish', will be moved to '/home/diego/.config/fish/config.fish.backup'
+Existing file '/home/diego/.config/sops/age/keys.txt' is in the way of '/nix/store/7jqcg7smwi336m3igz8izxhpv21ashn0-home-manager-files/.config/sops/age/keys.txt', will be skipped since they are the same
+Existing file '/home/diego/.bashrc' is in the way of '/nix/store/7jqcg7smwi336m3igz8izxhpv21ashn0-home-manager-files/.bashrc', will be moved to '/home/diego/.bashrc.backup'
+Existing file '/home/diego/.profile' is in the way of '/nix/store/7jqcg7smwi336m3igz8izxhpv21ashn0-home-manager-files/.profile', will be moved to '/home/diego/.profile.backup'
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 232
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 22 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 104 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 2s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating installPackages
+nix profile remove /nix/store/9jfb9245n8bfcavnza7d2hnli1cpjf4w-home-manager-path
+removing 'home-manager-path'
+removed 1 packages, kept 2 packages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 30 services, date=2026-03-29)
+Activating globalTsx
+
+changed 5 packages in 3s
+Activating gooseConfig
+Activating initHomeGit
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-03-29 06:00:44] PERF: home-manager switch = 39.1s
+[2026-03-29 06:00:44] PERF: TOTAL switch = 39.3s
+[2026-03-29 06:00:44] SUCCESS: Configuration applied: /home/diego/Mounts/Git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-03-29 06:00:44] ========== Build script finished ==========
