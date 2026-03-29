@@ -1,78 +1,98 @@
 #!/usr/bin/env bash
 # Konsole Quick Commands — all commands live here, nix just calls: bash this.sh <id>
 # No escaping hell. Pure bash.
+# Every command prints itself (dimmed) so you can copy-paste and re-run.
 set -euo pipefail
 
 cmd="$1"; shift || true
 vm="${1:-}"; shift || true
 
+# Print the command being run (dimmed gray, copyable)
+show() { printf '\033[0;90m$ %s\033[0m\n' "$*"; "$@"; }
+
 case "$cmd" in
 
   # ── VM commands (require $vm) ───────────────────────────────────────
-  vm-htop)              ssh "$vm" -t htop ;;
-  vm-journalctl-f)      ssh "$vm" -t journalctl -f ;;
-  vm-journal-docker)    ssh "$vm" -t journalctl -u docker -n 15 --no-pager ;;
-  vm-journal-sshd)      ssh "$vm" -t journalctl -u sshd -u ssh -n 15 --no-pager ;;
-  vm-journal-wg)        ssh "$vm" -t journalctl -u wg-quick@wg0 -n 15 --no-pager ;;
-  vm-journal-cinit)     ssh "$vm" -t journalctl -u container-init -n 15 --no-pager ;;
-  vm-journal-kernel)    ssh "$vm" -t journalctl -k -n 15 --no-pager ;;
-  vm-journal-errors)    ssh "$vm" -t journalctl -p err -n 15 --no-pager ;;
-  vm-systemctl-status)  ssh "$vm" -t systemctl status ;;
-  vm-systemctl-list)    ssh "$vm" -t systemctl list-units --type=service --state=running ;;
-  vm-docker-start)      ssh "$vm" -t sudo systemctl start docker ;;
-  vm-docker-stop)       ssh "$vm" -t sudo systemctl stop docker ;;
-  vm-docker-ps)         ssh "$vm" -t 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"' ;;
-  vm-docker-stats)      ssh "$vm" -t docker stats ;;
-  vm-docker-exec)       ssh "$vm" -t 'docker ps --format "{{.Names}}" && echo "---" && read -p "Container: " c && docker exec -it "$c" sh' ;;
+  vm-htop)              show ssh "$vm" -t htop ;;
+  vm-journalctl-f)      show ssh "$vm" -t journalctl -f ;;
+  vm-journal-docker)    show ssh "$vm" -t journalctl -u docker -n 15 --no-pager ;;
+  vm-journal-sshd)      show ssh "$vm" -t journalctl -u sshd -u ssh -n 15 --no-pager ;;
+  vm-journal-wg)        show ssh "$vm" -t journalctl -u wg-quick@wg0 -n 15 --no-pager ;;
+  vm-journal-cinit)     show ssh "$vm" -t journalctl -u container-init -n 15 --no-pager ;;
+  vm-journal-kernel)    show ssh "$vm" -t journalctl -k -n 15 --no-pager ;;
+  vm-journal-errors)    show ssh "$vm" -t journalctl -p err -n 15 --no-pager ;;
+  vm-systemctl-status)  show ssh "$vm" -t systemctl status ;;
+  vm-systemctl-list)    show ssh "$vm" -t systemctl list-units --type=service --state=running ;;
+  vm-docker-start)      show ssh "$vm" -t sudo systemctl start docker ;;
+  vm-docker-stop)       show ssh "$vm" -t sudo systemctl stop docker ;;
+  vm-docker-ps)
+    printf '\033[0;90m$ ssh %s -t docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"\033[0m\n' "$vm"
+    ssh "$vm" -t 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
+    ;;
+  vm-docker-stats)      show ssh "$vm" -t docker stats ;;
+  vm-docker-exec)
+    printf '\033[0;90m$ ssh %s -t '\''docker ps --format "{{.Names}}" && read -p "Container: " c && docker exec -it "$c" sh'\''\033[0m\n' "$vm"
+    ssh "$vm" -t 'docker ps --format "{{.Names}}" && echo "---" && read -p "Container: " c && docker exec -it "$c" sh'
+    ;;
 
   # ── Desktop commands ────────────────────────────────────────────────
-  dtk)              bash ~/git/cloud-data/dtk.sh ;;
-  dtk-install)      bash ~/git/cloud-data/dtk.sh install ;;
-  dtk-docker)       bash ~/git/cloud-data/dtk.sh docker-start ;;
-  dtk-git-clone)    bash ~/git/cloud-data/dtk.sh git-clone ~/git ;;
-  dtk-info)         bash ~/git/cloud-data/dtk.sh info ;;
-  dtk-commands)     bash ~/git/cloud-data/dtk.sh commands ;;
-  dtk-ssh)          bash ~/git/cloud-data/dtk.sh ssh ;;
-  desktop-htop)     htop ;;
-  hm-switch)        ~/git/unix/ba_flakes_desktop/build.sh switch ;;
-  nixos-switch)     ~/git/unix/aa_nixos-surface_host/build.sh switch ;;
+  dtk)              show bash ~/git/cloud-data/dtk.sh ;;
+  dtk-install)      show bash ~/git/cloud-data/dtk.sh install ;;
+  dtk-docker)       show bash ~/git/cloud-data/dtk.sh docker-start ;;
+  dtk-git-clone)    show bash ~/git/cloud-data/dtk.sh git-clone ~/git ;;
+  dtk-info)         show bash ~/git/cloud-data/dtk.sh info ;;
+  dtk-commands)     show bash ~/git/cloud-data/dtk.sh commands ;;
+  dtk-ssh)          show bash ~/git/cloud-data/dtk.sh ssh ;;
+  desktop-htop)     show htop ;;
+  hm-switch)        show ~/git/unix/ba_flakes_desktop/build.sh switch ;;
+  nixos-switch)     show ~/git/unix/aa_nixos-surface_host/build.sh switch ;;
   git-status-all)
+    printf '\033[0;90m$ for d in ~/git/*/; do git -C "$d" status -sb; done\033[0m\n'
     for d in ~/git/*/; do
       echo "=== $(basename "$d") ==="
       git -C "$d" status -sb
       echo
     done
     ;;
-  wg-status)        sudo wg show wg0 ;;
-  docker-ps-local)  docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' ;;
-  free-mem)         free -h ;;
-  disk-usage)       df -h / /home /nix /mnt/shared 2>/dev/null ;;
+  wg-status)        show sudo wg show wg0 ;;
+  docker-ps-local)
+    printf '\033[0;90m$ docker ps --format '\''table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'\''\033[0m\n'
+    docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+    ;;
+  free-mem)         show free -h ;;
+  disk-usage)       show df -h / /home /nix /mnt/shared 2>/dev/null ;;
 
   # ── VPS - Cloud ─────────────────────────────────────────────────────
   oci-list)
+    printf '\033[0;90m$ oci compute instance list --output table\033[0m\n'
     CID="$(oci iam compartment list --query 'data[0].id' --raw-output)"
     oci compute instance list --compartment-id "$CID" --output table \
       --query 'data[*].{Name:"display-name",State:"lifecycle-state",Shape:shape}'
     ;;
   oci-details)
+    printf '\033[0;90m$ oci compute instance list --output json | jq ...\033[0m\n'
     CID="$(oci iam compartment list --query 'data[0].id' --raw-output)"
     oci compute instance list --compartment-id "$CID" --all --output json \
       | jq '.data[] | {name: ."display-name", state: ."lifecycle-state", shape: .shape, ocpus: ."shape-config".ocpus, memory: ."shape-config"."memory-in-gbs", created: ."time-created"}'
     ;;
   oci-vnics)
+    printf '\033[0;90m$ oci network vnic list --output table\033[0m\n'
     CID="$(oci iam compartment list --query 'data[0].id' --raw-output)"
     oci network vnic list --compartment-id "$CID" --all --output table \
       --query 'data[*].{Name:"display-name",PublicIP:"public-ip",PrivateIP:"private-ip",State:"lifecycle-state"}'
     ;;
   gcloud-list)
+    printf '\033[0;90m$ gcloud compute instances list\033[0m\n'
     gcloud compute instances list \
       --format='table(name,zone,machineType.basename(),status,networkInterfaces[0].accessConfigs[0].natIP)'
     ;;
   gcloud-details)
+    printf '\033[0;90m$ gcloud compute instances list --format=json | jq ...\033[0m\n'
     gcloud compute instances list --format=json \
       | jq '.[] | {name: .name, zone: .zone, machine: .machineType, status: .status, ip: .networkInterfaces[0].accessConfigs[0].natIP, disks: [.disks[].diskSizeGb]}'
     ;;
   gcloud-billing)
+    printf '\033[0;90m$ gcloud billing accounts list + instances + budgets + disks\033[0m\n'
     echo "=== Billing Account ==="
     gcloud billing accounts list --format='table(name,displayName,open)'
     echo
@@ -90,25 +110,28 @@ case "$cmd" in
     ;;
 
   # ── VPS - GH Actions ───────────────────────────────────────────────
-  gha-runs-cloud)     gh run list --repo diegonmarcos/cloud --limit 15 ;;
-  gha-failed-cloud)   gh run list --repo diegonmarcos/cloud --status failure --limit 10 ;;
+  gha-runs-cloud)     show gh run list --repo diegonmarcos/cloud --limit 15 ;;
+  gha-failed-cloud)   show gh run list --repo diegonmarcos/cloud --status failure --limit 10 ;;
   gha-log-cloud)
+    printf '\033[0;90m$ gh run view --repo diegonmarcos/cloud --log <latest> | tail -50\033[0m\n'
     RUN_ID="$(gh run list --repo diegonmarcos/cloud --limit 1 --json databaseId --jq '.[0].databaseId')"
     gh run view --repo diegonmarcos/cloud --log "$RUN_ID" 2>/dev/null | tail -50
     ;;
-  gha-workflows)      gh workflow list --repo diegonmarcos/cloud ;;
-  gha-runs-unix)      gh run list --repo diegonmarcos/unix --limit 10 ;;
-  gha-runs-front)     gh run list --repo diegonmarcos/front --limit 10 ;;
+  gha-workflows)      show gh workflow list --repo diegonmarcos/cloud ;;
+  gha-runs-unix)      show gh run list --repo diegonmarcos/unix --limit 10 ;;
+  gha-runs-front)     show gh run list --repo diegonmarcos/front --limit 10 ;;
 
   # ── VPS - GH Repos ─────────────────────────────────────────────────
   gh-repos-status)
+    printf '\033[0;90m$ gh repo list diegonmarcos --limit 50 | jq ... | column -t\033[0m\n'
     gh repo list diegonmarcos --limit 50 --json name,visibility,pushedAt \
       | jq -r '.[] | [.name, .visibility, .pushedAt[:10]] | @tsv' | sort | column -t
     ;;
-  gh-repos-list)      gh repo list diegonmarcos --limit 50 ;;
-  gh-prs)             gh pr list --repo diegonmarcos/cloud ;;
-  gh-issues)          gh issue list --repo diegonmarcos/cloud ;;
+  gh-repos-list)      show gh repo list diegonmarcos --limit 50 ;;
+  gh-prs)             show gh pr list --repo diegonmarcos/cloud ;;
+  gh-issues)          show gh issue list --repo diegonmarcos/cloud ;;
   gh-commits)
+    printf '\033[0;90m$ gh api repos/diegonmarcos/{cloud,unix,...}/commits?per_page=3\033[0m\n'
     for r in cloud cloud-data unix vault front-data octocode; do
       echo "=== $r ==="
       gh api "repos/diegonmarcos/$r/commits?per_page=3" \
@@ -120,16 +143,20 @@ case "$cmd" in
 
   # ── VPS - GH Registry ──────────────────────────────────────────────
   ghcr-list)
+    printf '\033[0;90m$ gh api user/packages?package_type=container --jq .[].name\033[0m\n'
     gh api 'user/packages?package_type=container' --jq '.[].name' | sort
     ;;
   ghcr-versions)
+    printf '\033[0;90m$ gh api user/packages?package_type=container --jq ...\033[0m\n'
     gh api 'user/packages?package_type=container' \
       --jq '.[] | .name + " (" + .package_type + ") updated: " + .updated_at[:10]' | sort
     ;;
   ghcr-count)
+    printf '\033[0;90m$ gh api user/packages?package_type=container --jq ". | length"\033[0m\n'
     echo "Total GHCR packages: $(gh api 'user/packages?package_type=container' --jq '. | length')"
     ;;
   ghcr-inspect)
+    printf '\033[0;90m$ gh api user/packages/container/<name>/versions\033[0m\n'
     echo "Package name:"
     read -r pkg
     gh api "user/packages/container/$pkg/versions" \
@@ -137,12 +164,14 @@ case "$cmd" in
       2>/dev/null || echo "Not found: $pkg"
     ;;
   ghcr-latest)
+    printf '\033[0;90m$ gh api user/packages?package_type=container → versions for each\033[0m\n'
     gh api 'user/packages?package_type=container' --jq '.[].name' | while read -r pkg; do
       latest="$(gh api "user/packages/container/$pkg/versions" --jq '.[0].name // "?"' 2>/dev/null)"
       echo "$pkg: $latest"
     done | sort
     ;;
   ghcr-visibility)
+    printf '\033[0;90m$ gh api user/packages?package_type=container --jq ".[] | .name + .visibility"\033[0m\n'
     gh api 'user/packages?package_type=container' \
       --jq '.[] | .name + ": " + .visibility' | sort
     ;;
