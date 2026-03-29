@@ -4,12 +4,12 @@
 
 {
   home.packages = with pkgs; [
-    # Rust (full toolchain — no rustup, pure Nix)
-    rustc
-    cargo
-    rust-analyzer
-    clippy
-    rustfmt
+    # Rust (unstable channel for latest rustc/cargo)
+    unstable.rustc
+    unstable.cargo
+    unstable.rust-analyzer
+    unstable.clippy
+    unstable.rustfmt
     cargo-edit
     cargo-watch
     cargo-audit
