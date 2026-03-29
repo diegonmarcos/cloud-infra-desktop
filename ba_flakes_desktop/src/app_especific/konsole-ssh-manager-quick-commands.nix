@@ -8,11 +8,11 @@
 let
   # ── VM definitions ──────────────────────────────────────────────────────
   vms = [
-    { alias = "gcp-proxy";     ip = "10.0.0.1"; user = "diego";  hasDropbear = true;  provider = "gcp"; }
-    { alias = "oci-mail";      ip = "10.0.0.3"; user = "ubuntu"; hasDropbear = true;  provider = "oci"; }
-    { alias = "oci-analytics"; ip = "10.0.0.4"; user = "ubuntu"; hasDropbear = true;  provider = "oci"; }
-    { alias = "oci-apps";      ip = "10.0.0.6"; user = "ubuntu"; hasDropbear = true;  provider = "oci"; }
-    { alias = "gcp-t4";        ip = "10.0.0.8"; user = "diego";  hasDropbear = false; provider = "gcp"; }
+    { alias = "gcp-proxy";     ip = "10.0.0.1"; user = "diego";  hasDropbear = true;  provider = "gcp"; gcInstance = "arch-1"; gcZone = "us-central1-a"; }
+    { alias = "oci-mail";      ip = "10.0.0.3"; user = "ubuntu"; hasDropbear = true;  provider = "oci"; gcInstance = ""; gcZone = ""; }
+    { alias = "oci-analytics"; ip = "10.0.0.4"; user = "ubuntu"; hasDropbear = true;  provider = "oci"; gcInstance = ""; gcZone = ""; }
+    { alias = "oci-apps";      ip = "10.0.0.6"; user = "ubuntu"; hasDropbear = true;  provider = "oci"; gcInstance = ""; gcZone = ""; }
+    { alias = "gcp-t4";        ip = "10.0.0.8"; user = "diego";  hasDropbear = false; provider = "gcp"; gcInstance = "ollama-spot-gpu"; gcZone = "us-central1-a"; }
   ];
 
   sshKey = "/home/diego/.ssh/id_rsa";
@@ -89,7 +89,19 @@ let
     + (mkQuickCmd f "docker daemon stop"    "${c}-docker-stop ${v}"      "Stop Docker daemon")
     + (mkQuickCmd f "docker ps"             "${c}-docker-ps ${v}"        "List running containers")
     + (mkQuickCmd f "docker stats"          "${c}-docker-stats ${v}"     "Live container resource usage")
-    + (mkQuickCmd f "docker exec"           "${c}-docker-exec ${v}"      "Pick a container and exec into it");
+    + (mkQuickCmd f "docker exec"           "${c}-docker-exec ${v}"      "Pick a container and exec into it")
+    # Cloud control (per-VM)
+    + (if vm.provider == "oci" then
+      (mkQuickCmd f "oci start"   "${cmd} vm-oci-start ${v}"   "Start OCI instance")
+      + (mkQuickCmd f "oci stop"   "${cmd} vm-oci-stop ${v}"    "Stop OCI instance")
+      + (mkQuickCmd f "oci reset"  "${cmd} vm-oci-reset ${v}"   "Reset OCI instance")
+      + (mkQuickCmd f "oci serial" "${cmd} vm-oci-serial ${v}"  "OCI serial console")
+    else
+      (mkQuickCmd f "gcloud start"  "${cmd} vm-gcloud-start ${vm.gcInstance}"  "Start GCP instance")
+      + (mkQuickCmd f "gcloud stop"  "${cmd} vm-gcloud-stop ${vm.gcInstance}"   "Stop GCP instance")
+      + (mkQuickCmd f "gcloud reset" "${cmd} vm-gcloud-reset ${vm.gcInstance}"  "Reset GCP instance")
+      + (mkQuickCmd f "gcloud serial" "${cmd} vm-gcloud-serial ${vm.gcInstance}" "GCloud serial console")
+    );
 
   desktopCommands =
     (mkQuickCmd "Desktop" "dtk.sh (interactive)"      "${cmd} dtk"            "Full interactive toolkit menu")

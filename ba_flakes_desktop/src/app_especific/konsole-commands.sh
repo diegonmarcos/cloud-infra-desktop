@@ -35,6 +35,41 @@ case "$cmd" in
     ssh "$vm" -t 'docker ps --format "{{.Names}}" && echo "---" && read -p "Container: " c && docker exec -it "$c" sh'
     ;;
 
+  # ── VM cloud control (oci/gcloud per-VM) ─────────────────────────────
+  # OCI VM map: vm alias → OCI instance OCID (looked up dynamically)
+  vm-oci-start)
+    printf '\033[0;90m$ oci compute instance action --action START --instance-id <id>\033[0m\n'
+    CID="$(grep tenancy ~/.oci/config | head -1 | cut -d= -f2)"
+    OCID="$(oci compute instance list --compartment-id "$CID" --all --output json \
+      | jq -r ".data[] | select(.\"display-name\" | test(\"$vm\"; \"i\")) | .id" | head -1)"
+    [ -n "$OCID" ] && oci compute instance action --action START --instance-id "$OCID" --output table || echo "Instance not found for: $vm"
+    ;;
+  vm-oci-stop)
+    printf '\033[0;90m$ oci compute instance action --action STOP --instance-id <id>\033[0m\n'
+    CID="$(grep tenancy ~/.oci/config | head -1 | cut -d= -f2)"
+    OCID="$(oci compute instance list --compartment-id "$CID" --all --output json \
+      | jq -r ".data[] | select(.\"display-name\" | test(\"$vm\"; \"i\")) | .id" | head -1)"
+    [ -n "$OCID" ] && oci compute instance action --action STOP --instance-id "$OCID" --output table || echo "Instance not found for: $vm"
+    ;;
+  vm-oci-reset)
+    printf '\033[0;90m$ oci compute instance action --action RESET --instance-id <id>\033[0m\n'
+    CID="$(grep tenancy ~/.oci/config | head -1 | cut -d= -f2)"
+    OCID="$(oci compute instance list --compartment-id "$CID" --all --output json \
+      | jq -r ".data[] | select(.\"display-name\" | test(\"$vm\"; \"i\")) | .id" | head -1)"
+    [ -n "$OCID" ] && oci compute instance action --action RESET --instance-id "$OCID" --output table || echo "Instance not found for: $vm"
+    ;;
+  vm-oci-serial)
+    printf '\033[0;90m$ oci compute instance-console-connection create + ssh serial\033[0m\n'
+    echo "OCI serial console requires a console connection — use OCI web console or:"
+    echo "  oci compute instance-console-connection create --instance-id <OCID>"
+    echo "  ssh -o ProxyCommand='...' ocid1.instanceconsoleconnection..."
+    ;;
+  # GCloud VM control
+  vm-gcloud-start)  show gcloud compute instances start "$vm" --zone=us-central1-a ;;
+  vm-gcloud-stop)   show gcloud compute instances stop "$vm" --zone=us-central1-a ;;
+  vm-gcloud-reset)  show gcloud compute instances reset "$vm" --zone=us-central1-a ;;
+  vm-gcloud-serial) show gcloud compute connect-to-serial-port "$vm" --zone=us-central1-a ;;
+
   # ── Desktop commands ────────────────────────────────────────────────
   dtk)              show bash ~/git/cloud-data/dtk.sh ;;
   dtk-install)      show bash ~/git/cloud-data/dtk.sh install ;;
@@ -65,21 +100,21 @@ case "$cmd" in
   # ── VPS - Cloud ─────────────────────────────────────────────────────
   oci-list)
     printf '\033[0;90m$ oci compute instance list --output table\033[0m\n'
-    CID="$(oci iam compartment list --query 'data[0].id' --raw-output)"
+    CID="$(grep tenancy ~/.oci/config | head -1 | cut -d= -f2)"
     oci compute instance list --compartment-id "$CID" --output table \
       --query 'data[*].{Name:"display-name",State:"lifecycle-state",Shape:shape}'
     ;;
   oci-details)
     printf '\033[0;90m$ oci compute instance list --output json | jq ...\033[0m\n'
-    CID="$(oci iam compartment list --query 'data[0].id' --raw-output)"
+    CID="$(grep tenancy ~/.oci/config | head -1 | cut -d= -f2)"
     oci compute instance list --compartment-id "$CID" --all --output json \
       | jq '.data[] | {name: ."display-name", state: ."lifecycle-state", shape: .shape, ocpus: ."shape-config".ocpus, memory: ."shape-config"."memory-in-gbs", created: ."time-created"}'
     ;;
   oci-vnics)
-    printf '\033[0;90m$ oci network vnic list --output table\033[0m\n'
-    CID="$(oci iam compartment list --query 'data[0].id' --raw-output)"
-    oci network vnic list --compartment-id "$CID" --all --output table \
-      --query 'data[*].{Name:"display-name",PublicIP:"public-ip",PrivateIP:"private-ip",State:"lifecycle-state"}'
+    printf '\033[0;90m$ oci compute vnic-attachment list\033[0m\n'
+    CID="$(grep tenancy ~/.oci/config | head -1 | cut -d= -f2)"
+    oci compute vnic-attachment list --compartment-id "$CID" --all --output json \
+      | jq '.data[] | {instance: ."instance-id"[-12:], vnic: ."vnic-id"[-12:], state: ."lifecycle-state"}'
     ;;
   gcloud-list)
     printf '\033[0;90m$ gcloud compute instances list\033[0m\n'
