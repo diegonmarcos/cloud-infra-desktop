@@ -3,6 +3,10 @@
 { config, pkgs, lib, ... }:
 
 {
+  imports = [
+    ../../app_especific/konsole-ssh-manager-quick-commands.nix
+  ];
+
   # Fix system tray visibility after home-manager switch
   # Plasma reads shownItems from the PRIVATE systemtray containment, not the applet
   home.activation.fixSystemTray = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''

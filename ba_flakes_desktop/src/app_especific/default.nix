@@ -8,6 +8,7 @@
     ./vscode.nix
     ./btop.nix
     ./konsole.nix
+    ./konsole-ssh-manager-quick-commands.nix
     ./rclone.nix
   ];
 }
