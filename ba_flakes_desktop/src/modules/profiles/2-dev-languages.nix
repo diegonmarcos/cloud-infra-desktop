@@ -4,11 +4,17 @@
 
 {
   home.packages = with pkgs; [
-    # Rust
-    rustup
+    # Rust (full toolchain — no rustup, pure Nix)
+    rustc
+    cargo
+    rust-analyzer
+    clippy
+    rustfmt
     cargo-edit
     cargo-watch
     cargo-audit
+    pkg-config
+    openssl
 
     # Code analysis
     (callPackage ../../pkgs/octocode.nix {})  # ../../ from modules/profiles/ → src/pkgs/
@@ -50,7 +56,6 @@
   # Environment variables for languages
   home.sessionVariables = {
     CARGO_HOME = "$HOME/.cargo";
-    RUSTUP_HOME = "$HOME/.rustup";
     GOPATH = "$HOME/go";
     npm_config_prefix = "$HOME/.npm-global";
   };
