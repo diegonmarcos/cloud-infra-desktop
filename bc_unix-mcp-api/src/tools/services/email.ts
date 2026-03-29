@@ -37,12 +37,40 @@ function imapExec(
   commands: string[],
   timeoutMs = 20_000
 ) {
-  const postLoginCmds = commands
-    .map((c) => `sleep 0.3; echo '${c.replace(/'/g, "'\\''")}'`)
-    .join("; ");
-  const script = `{ echo "A001 LOGIN $IMAP_U $IMAP_P"; sleep 0.5; ${postLoginCmds}; sleep 0.3; echo 'Z LOGOUT'; } | openssl s_client -connect ${host}:${port} -quiet -crlf 2>/dev/null`;
+  // Use bash coprocess for proper IMAP command sequencing.
+  // Each command waits for its tagged response before sending the next.
+  const tags = commands.map((_, i) => `A${String(i + 2).padStart(3, "0")}`);
+  const escapedCmds = commands
+    .map((c, i) => {
+      const escaped = c.replace(/'/g, "'\\''");
+      // Strip any user-provided tag prefix — we use our own tags
+      const body = escaped.replace(/^[A-Z]\d+\s+/, "");
+      return [
+        `echo '${tags[i]} ${body}' >&\${COPROC[1]}`,
+        `while IFS= read -r -t 5 line; do printf '%s\\n' "$line"; [[ "$line" == "${tags[i]} "* ]] && break; done <&\${COPROC[0]}`,
+      ].join("\n");
+    })
+    .join("\n");
 
-  const result = exec("sh", ["-c", script], {
+  const script = `
+coproc openssl s_client -connect ${host}:${port} -quiet -crlf 2>/dev/null
+
+# Wait for server greeting (OK line)
+while IFS= read -r -t 3 line; do printf '%s\\n' "$line"; [[ "$line" == *OK* ]] && break; done <&\${COPROC[0]}
+
+# LOGIN — wait for A001 response
+echo "A001 LOGIN $IMAP_U $IMAP_P" >&\${COPROC[1]}
+while IFS= read -r -t 5 line; do printf '%s\\n' "$line"; [[ "$line" == "A001 "* ]] && break; done <&\${COPROC[0]}
+
+# Post-login commands
+${escapedCmds}
+
+# LOGOUT
+echo 'Z000 LOGOUT' >&\${COPROC[1]}
+while IFS= read -r -t 2 line; do printf '%s\\n' "$line"; [[ "$line" == "Z000 "* ]] && break; done <&\${COPROC[0]}
+`;
+
+  const result = exec("bash", ["-c", script], {
     timeout: timeoutMs,
     env: { IMAP_U: user, IMAP_P: pass },
   });
@@ -90,8 +118,7 @@ export function registerEmailTools(server: McpServer) {
 
       const cmds = [
         `A002 SELECT "${mb}"`,
-        `A003 SEARCH ALL`,
-        `A004 FETCH 1:${n} (FLAGS BODY[HEADER.FIELDS (FROM TO SUBJECT DATE)])`,
+        `A003 FETCH 1:${n} (FLAGS BODY[HEADER.FIELDS (FROM TO SUBJECT DATE)])`,
       ];
 
       const result = imapExec(h, p, creds.user, creds.pass, cmds, 20_000);
