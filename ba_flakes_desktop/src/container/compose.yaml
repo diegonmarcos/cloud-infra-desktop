@@ -1,98 +1,106 @@
-# Diego's Dev Environment - Compose Configuration
-# Works with both podman-compose and docker compose
-#
-# Usage:
-#   podman-compose up -d        # Start container
-#   podman-compose exec dev fish  # Enter shell
-#   podman-compose down         # Stop container
-#
-# With Docker:
-#   docker compose up -d
-#   docker compose exec dev fish
-#   docker compose down
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ Diego's Dev Environment — docker compose profiles                ║
+# ║                                                                  ║
+# ║ Profiles:                                                        ║
+# ║   cli   — headless (VMs, SSH, rescue, CI)                        ║
+# ║   gui   — desktop integration (X11/Wayland/GPU/audio/clipboard)  ║
+# ║   tty   — non-interactive (scripts, Dagu, cron)                  ║
+# ║                                                                  ║
+# ║ Usage:                                                           ║
+# ║   docker compose --profile cli up      # interactive shell       ║
+# ║   docker compose --profile gui up      # desktop integrated      ║
+# ║   docker compose run --rm tty cmd      # run command and exit    ║
+# ║                                                                  ║
+# ║ Preferred: sh ~/git/tools/dtk.sh containers {cli|gui|tty}        ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+x-common: &common
+  image: ghcr.io/diegonmarcos/diego-user-env:latest
+  build:
+    context: .
+    dockerfile: Containerfile
+  user: "1000:1000"
+  working_dir: /home/diego
+  network_mode: host
+  privileged: true
+  environment:
+    - HOME=/home/diego
+    - USER=diego
+    - TERM=xterm-256color
+    - LANG=en_US.UTF-8
+    - PATH=/home/diego/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/sbin
+  volumes:
+    - ${HOME:-/home/diego}:/home/diego
+    - /var/run/docker.sock:/var/run/docker.sock
+  labels:
+    diego.managed-by: "dtk.sh"
+    diego.image: "diego-user-env"
 
 services:
-  dev:
-    # Option 1: Use Nix-built image (preferred)
-    image: diego-dev:latest
-
-    # Option 2: Build from Containerfile (fallback)
-    # build:
-    #   context: ..
-    #   dockerfile: container/Containerfile
-
-    container_name: diego-dev
-    hostname: diego-dev
-
-    # Keep container running
+  # ── CLI: headless dev environment ────────────────────────────────
+  cli:
+    <<: *common
+    container_name: diego-cli
+    hostname: ${HOSTNAME:-dev}-cli
     stdin_open: true
     tty: true
-
-    # User mapping
-    user: "1000:1000"
-
-    # Environment
-    environment:
-      - TERM=xterm-256color
-      - LANG=en_US.UTF-8
-      - HOME=/home/diego
-      - USER=diego
-      - CONTAINER=podman
-
-    # Volume mounts
+    pid: host
     volumes:
-      # Persist home directory
-      - diego-home:/home/diego
+      - ${HOME:-/home/diego}:/home/diego
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/wireguard:/etc/wireguard:ro
+      - /opt:/opt
+    profiles: [cli]
 
-      # Mount projects from host
-      - ~/Documents/Git:/home/diego/projects:z
-
-      # Mount SSH keys (read-only)
-      - ~/.ssh:/home/diego/.ssh:ro,z
-
-      # Mount Git config (read-only)
-      - ~/.gitconfig:/home/diego/.gitconfig:ro,z
-
-      # Optional: Mount vault for credentials
-      # - ~/vault:/home/diego/vault:ro,z
-
-    # Working directory
-    working_dir: /home/diego
-
-    # Network mode
-    network_mode: host
-
-    # Security options for rootless
+  # ── GUI: full desktop integration (distrobox-equivalent) ─────────
+  gui:
+    <<: *common
+    container_name: diego-gui
+    hostname: ${HOSTNAME:-dev}-gui
+    stdin_open: true
+    tty: true
+    pid: host
+    ipc: host
     security_opt:
       - label=disable
-
-    # Resource limits (optional)
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '4'
-    #       memory: 8G
-
-  # Optional: Minimal dev container
-  dev-minimal:
-    image: diego-dev-minimal:latest
-    container_name: diego-dev-minimal
-    hostname: diego-minimal
-    stdin_open: true
-    tty: true
-    user: "1000:1000"
+      - apparmor=unconfined
     environment:
-      - TERM=xterm-256color
       - HOME=/home/diego
+      - USER=diego
+      - TERM=xterm-256color
+      - LANG=en_US.UTF-8
+      - DISPLAY=${DISPLAY:-}
+      - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-}
+      - XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/1000}
+      - DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-}
+      - PULSE_SERVER=${PULSE_SERVER:-}
+      - SHELL=fish
+      - PATH=/home/diego/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/sbin
     volumes:
-      - diego-minimal-home:/home/diego
-      - ~/Documents/Git:/home/diego/projects:z
-    working_dir: /home/diego
-    profiles:
-      - minimal
+      - ${HOME:-/home/diego}:/home/diego:rslave
+      - /tmp:/tmp:rslave
+      - /dev:/dev:rslave
+      - /sys:/sys:rslave
+      - ${XDG_RUNTIME_DIR:-/run/user/1000}:${XDG_RUNTIME_DIR:-/run/user/1000}:rslave
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/wireguard:/etc/wireguard:ro
+      - /opt:/opt
+      - /nix:/nix
+      - /var/log/journal:/var/log/journal
+      - /etc/hosts:/etc/hosts:ro
+      - /etc/resolv.conf:/etc/resolv.conf:ro
+      - /etc/hostname:/etc/hostname:ro
+    profiles: [gui]
 
-volumes:
-  diego-home:
-    name: diego-dev-home
-  diego-minimal-home:
-    name: diego-dev-minimal-home
+  # ── TTY: non-interactive (CI, scripts, Dagu, cron) ──────────────
+  tty:
+    <<: *common
+    container_name: diego-tty
+    hostname: ${HOSTNAME:-dev}-tty
+    pid: host
+    volumes:
+      - ${HOME:-/home/diego}:/home/diego
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/wireguard:/etc/wireguard:ro
+      - /opt:/opt
+    profiles: [tty]
