@@ -807,6 +807,9 @@
       if test -d $HOME/.cargo/bin
         fish_add_path $HOME/.cargo/bin
       end
+      if set -q CARGO_HOME; and test -d $CARGO_HOME/bin
+        fish_add_path $CARGO_HOME/bin
+      end
       if test -d $HOME/.local/bin
         fish_add_path $HOME/.local/bin
       end
