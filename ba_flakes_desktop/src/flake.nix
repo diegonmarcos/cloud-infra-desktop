@@ -330,13 +330,29 @@
 
           contents = containerPackages ++ [
             (pkgs.runCommand "base-files" {} ''
-              mkdir -p $out/bin $out/etc $out/home/diego $out/tmp
+              mkdir -p $out/bin $out/etc $out/home/diego/git $out/tmp
               ln -s ${pkgs.bashInteractive}/bin/bash $out/bin/sh
               echo "root:x:0:0:root:/root:/bin/bash" > $out/etc/passwd
               echo "diego:x:1000:1000:Diego:/home/diego:${pkgs.fish}/bin/fish" >> $out/etc/passwd
               echo "root:x:0:" > $out/etc/group
               echo "diego:x:1000:" >> $out/etc/group
               echo "diego-nixos-hm" > $out/etc/hostname
+            '')
+            # All repos (self-contained image) — fetched by Nix, baked into layer
+            (let
+              repos = {
+                unix       = builtins.fetchGit { url = "https://github.com/diegonmarcos/unix.git";       ref = "main"; shallow = true; };
+                cloud      = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud.git";      ref = "main"; shallow = true; };
+                cloud-data = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud-data.git"; ref = "main"; shallow = true; };
+                front      = builtins.fetchGit { url = "https://github.com/diegonmarcos/front.git";      ref = "main"; shallow = true; };
+                front-data = builtins.fetchGit { url = "https://github.com/diegonmarcos/front-data.git"; ref = "main"; shallow = true; };
+                tools      = builtins.fetchGit { url = "https://github.com/diegonmarcos/tools.git";      ref = "main"; shallow = true; };
+              };
+            in pkgs.runCommand "bake-repos" {} ''
+              mkdir -p $out/home/diego/git
+              ${builtins.concatStringsSep "\n" (builtins.attrValues (builtins.mapAttrs (name: src:
+                "cp -r ${src} $out/home/diego/git/${name}"
+              ) repos))}
             '')
           ];
 
