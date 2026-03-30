@@ -78,6 +78,7 @@
       chrome_no_CORS = "chromium --disable-web-security --user-data-dir=/tmp/chrome-nocors";
 
       # Custom tools
+      dtk = "bash ~/git/tools/dtk.sh";
       gdrive = "bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh";
 
       # AI CLIs — see interactiveShellInit for ai-cli function

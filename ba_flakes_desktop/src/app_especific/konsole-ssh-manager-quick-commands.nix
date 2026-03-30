@@ -42,14 +42,8 @@ let
       (mkSshEntry f "SSH Dropbear (port 2200)" {
         hostname = vm.ip; port = 2200; user = vm.user; useSshConfig = false;
       }))
-    + (lib.optionalString (vm.provider == "gcp")
-      (mkSshEntry f "GCloud Serial Console" {
-        hostname = vm.ip; user = vm.user;
-      }))
-    + (lib.optionalString (vm.provider == "oci")
-      (mkSshEntry f "OCI Serial Console" {
-        hostname = vm.ip; user = vm.user;
-      }));
+    # Serial consoles are in Quick Commands (require proxy/script, not simple SSH)
+    ;
 
   sshConfig = ''
     [Global plugin config]

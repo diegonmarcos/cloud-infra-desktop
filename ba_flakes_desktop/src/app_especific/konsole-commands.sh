@@ -36,33 +36,40 @@ case "$cmd" in
     ;;
 
   # ── VM cloud control (oci/gcloud per-VM) ─────────────────────────────
-  # OCI VM map: vm alias → OCI instance OCID (looked up dynamically)
-  vm-oci-start)
-    printf '\033[0;90m$ oci compute instance action --action START --instance-id <id>\033[0m\n'
-    CID="$(grep tenancy ~/.oci/config | head -1 | cut -d= -f2)"
-    OCID="$(oci compute instance list --compartment-id "$CID" --all --output json \
-      | jq -r ".data[] | select(.\"display-name\" | test(\"$vm\"; \"i\")) | .id" | head -1)"
-    [ -n "$OCID" ] && oci compute instance action --action START --instance-id "$OCID" --output table || echo "Instance not found for: $vm"
-    ;;
-  vm-oci-stop)
-    printf '\033[0;90m$ oci compute instance action --action STOP --instance-id <id>\033[0m\n'
-    CID="$(grep tenancy ~/.oci/config | head -1 | cut -d= -f2)"
-    OCID="$(oci compute instance list --compartment-id "$CID" --all --output json \
-      | jq -r ".data[] | select(.\"display-name\" | test(\"$vm\"; \"i\")) | .id" | head -1)"
-    [ -n "$OCID" ] && oci compute instance action --action STOP --instance-id "$OCID" --output table || echo "Instance not found for: $vm"
-    ;;
-  vm-oci-reset)
-    printf '\033[0;90m$ oci compute instance action --action RESET --instance-id <id>\033[0m\n'
-    CID="$(grep tenancy ~/.oci/config | head -1 | cut -d= -f2)"
-    OCID="$(oci compute instance list --compartment-id "$CID" --all --output json \
-      | jq -r ".data[] | select(.\"display-name\" | test(\"$vm\"; \"i\")) | .id" | head -1)"
-    [ -n "$OCID" ] && oci compute instance action --action RESET --instance-id "$OCID" --output table || echo "Instance not found for: $vm"
+  # OCI VM map: ssh_alias → instance_id from cloud-data (no API calls for lookup)
+  vm-oci-start|vm-oci-stop|vm-oci-reset)
+    ACTION="${cmd#vm-oci-}"
+    ACTION_UPPER="$(echo "$ACTION" | tr '[:lower:]' '[:upper:]')"
+    printf '\033[0;90m$ oci compute instance action --action %s (%s)\033[0m\n' "$ACTION_UPPER" "$vm"
+    CLOUD_DATA="${CLOUD_DATA:-$HOME/git/cloud/cloud-data/_cloud-data-consolidated.json}"
+    OCID="$(jq -r ".vms | to_entries[] | select(.value.ssh_alias==\"$vm\") | .value.instance_id" "$CLOUD_DATA" 2>/dev/null)"
+    [ -z "$OCID" ] && { echo "Instance not found in cloud-data for: $vm"; exit 1; }
+    oci compute instance action --action "$ACTION_UPPER" --instance-id "$OCID" --output table
     ;;
   vm-oci-serial)
-    printf '\033[0;90m$ oci compute instance-console-connection create + ssh serial\033[0m\n'
-    echo "OCI serial console requires a console connection — use OCI web console or:"
-    echo "  oci compute instance-console-connection create --instance-id <OCID>"
-    echo "  ssh -o ProxyCommand='...' ocid1.instanceconsoleconnection..."
+    printf '\033[0;90m$ oci serial console → %s\033[0m\n' "$vm"
+    CLOUD_DATA="${CLOUD_DATA:-$HOME/git/cloud/cloud-data/_cloud-data-consolidated.json}"
+    OCID="$(jq -r ".vms | to_entries[] | select(.value.ssh_alias==\"$vm\") | .value.instance_id" "$CLOUD_DATA" 2>/dev/null)"
+    [ -z "$OCID" ] && { echo "Instance not found in cloud-data for: $vm"; exit 1; }
+    CID="$(grep tenancy ~/.oci/config | head -1 | cut -d= -f2)"
+    # Find or create console connection
+    CONN="$(oci compute instance-console-connection list --compartment-id "$CID" --instance-id "$OCID" --output json \
+      | jq -r '.data[] | select(."lifecycle-state"=="ACTIVE") | ."connection-string"' | head -1)"
+    if [ -z "$CONN" ]; then
+      echo "Creating console connection..."
+      oci compute instance-console-connection create --instance-id "$OCID" --wait-for-state ACTIVE --output json >/dev/null
+      CONN="$(oci compute instance-console-connection list --compartment-id "$CID" --instance-id "$OCID" --output json \
+        | jq -r '.data[] | select(."lifecycle-state"=="ACTIVE") | ."connection-string"' | head -1)"
+    fi
+    [ -z "$CONN" ] && { echo "Failed to get console connection"; exit 1; }
+    echo "Connecting to serial console for $vm..."
+    # OCI serial needs: ssh-rsa (legacy key), no ControlPath (OCID paths > 108 chars)
+    # Both inner (ProxyCommand) and outer SSH must have these flags
+    SSH_OPTS="-o ControlPath=none -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa"
+    # The connection string looks like: ssh -o ProxyCommand='ssh -W %h:%p -p 443 <connid>@instance-console...' <instanceid>
+    # Replace ALL 'ssh ' with 'ssh <opts> ' to cover both inner and outer
+    FIXED_CONN="$(echo "$CONN" | sed "s|ssh -o |ssh $SSH_OPTS -o |g; s|ssh -W |ssh $SSH_OPTS -W |g")"
+    eval "$FIXED_CONN"
     ;;
   # GCloud VM control
   vm-gcloud-start)  show gcloud compute instances start "$vm" --zone=us-central1-a ;;

@@ -1,31 +1,7 @@
-# Services: Windmill, shared tools & data integration
+# Services: shared tools & data integration
 { config, pkgs, lib, ... }:
 
 {
-  # ═══════════════════════════════════════════════════════════════════════════
-  # WINDMILL - Workflow Orchestrator
-  # ═══════════════════════════════════════════════════════════════════════════
-  # Web UI: http://localhost:8000
-  # Use for: NixOS updates, home-manager updates, system maintenance workflows
-
-  services.windmill = {
-    enable = true;
-    serverPort = 8000;
-    lspPort = 3001;
-
-    # Local PostgreSQL database (auto-managed)
-    database = {
-      createLocally = true;
-      name = "windmill";
-      user = "windmill";
-    };
-
-    # Base URL for webhooks and external access
-    baseUrl = "http://localhost:8000";
-
-    logLevel = "info";
-  };
-
   # ═══════════════════════════════════════════════════════════════════════════
   # SHARED TOOLS & DATA INTEGRATION
   # ═══════════════════════════════════════════════════════════════════════════

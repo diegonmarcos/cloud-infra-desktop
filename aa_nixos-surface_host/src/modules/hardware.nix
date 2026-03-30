@@ -7,6 +7,6 @@
     ./hardware_surface.nix
     ./hardware_boot.nix
     ./hardware_filesystems.nix
-    ./grub.nix
+    ./hardware_grub.nix
   ];
 }

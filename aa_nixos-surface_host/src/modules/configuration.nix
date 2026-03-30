@@ -56,5 +56,6 @@
     ./configuration_services.nix
     ./configuration_rescue.nix
     ./configuration_fallback.nix
+    ./configuration_session_isolation.nix
   ];
 }

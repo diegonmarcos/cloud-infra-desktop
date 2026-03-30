@@ -16,10 +16,23 @@
     };
   };
 
+  # DNS: tier 2 baseline — Cloudflare + Google (always present)
+  # Tier 1 (Hickory) added dynamically by WG postSetup via resolvconf
+  networking.nameservers = [ "1.1.1.1" "1.0.0.1" "8.8.8.8" ];
+
   # WireGuard mesh VPN (on-demand, not auto-start)
   networking.wireguard.interfaces.wg0 = {
     ips = [ "10.0.0.5/24" ];
     privateKeyFile = "/home/diego/.config/wireguard/privatekey";
+    # DNS tier 1: Hickory (added when WG up, removed when WG down)
+    postSetup = ''
+      ${pkgs.openresolv}/bin/resolvconf -a wg0 <<EOF
+      nameserver 10.0.0.1
+      EOF
+    '';
+    postShutdown = ''
+      ${pkgs.openresolv}/bin/resolvconf -d wg0
+    '';
     peers = [
       {
         publicKey = "vV/phXUwnCjxACQ5Df11Uw47BzJaK4r85jPYMu2HmDc=";
