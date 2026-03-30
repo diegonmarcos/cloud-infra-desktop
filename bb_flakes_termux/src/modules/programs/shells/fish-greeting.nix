@@ -205,6 +205,7 @@
     # H3: Others
     set_color cyan; echo "  Others:"
     set_color normal
+    set_color yellow; echo -n "    dtk              "; set_color normal; echo "Tools TUI menu (~/git/tools/dtk.sh)"
     set_color yellow; echo -n "    hhelp            "; set_color normal; echo "Parse flake configs (config/tools/alias)"
     echo ""
     set_color --dim; echo "    ('hhelp alias' — all functions and aliases in bash and fish)"; set_color normal

@@ -322,6 +322,53 @@
           };
         };
 
+        # ── nixos-hm: layered image for GHCR (used by cc_containers-compose) ──
+        container-nixos-hm = pkgs.dockerTools.buildLayeredImage {
+          name = "ghcr.io/diegonmarcos/diego-nixos-hm";
+          tag = "latest";
+          maxLayers = 125;
+
+          contents = containerPackages ++ [
+            (pkgs.runCommand "base-files" {} ''
+              mkdir -p $out/bin $out/etc $out/home/diego $out/tmp
+              ln -s ${pkgs.bashInteractive}/bin/bash $out/bin/sh
+              echo "root:x:0:0:root:/root:/bin/bash" > $out/etc/passwd
+              echo "diego:x:1000:1000:Diego:/home/diego:${pkgs.fish}/bin/fish" >> $out/etc/passwd
+              echo "root:x:0:" > $out/etc/group
+              echo "diego:x:1000:" >> $out/etc/group
+              echo "diego-nixos-hm" > $out/etc/hostname
+            '')
+          ];
+
+          config = {
+            Cmd = [ "${pkgs.fish}/bin/fish" ];
+            Env = [
+              "TERM=xterm-256color"
+              "LANG=en_US.UTF-8"
+              "HOME=/home/diego"
+              "USER=diego"
+              "SHELL=${pkgs.fish}/bin/fish"
+              "PATH=/bin:/home/diego/.nix-profile/bin:/nix/var/nix/profiles/default/bin"
+            ];
+            WorkingDir = "/home/diego";
+            User = "diego";
+            Labels = {
+              "org.opencontainers.image.title" = "diego-nixos-hm";
+              "org.opencontainers.image.description" = "Pure Nix container — Home-Manager cli profile (dockerTools.buildLayeredImage)";
+              "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
+              "diego.image.variant" = "nixos-hm";
+              "diego.image.flake.path" = "ba_flakes_desktop/src/";
+              "diego.image.flake.config" = "diego@cli";
+              "diego.image.ghcr" = "ghcr.io/diegonmarcos/diego-nixos-hm";
+              "diego.image.profiles" = "cli,gui,tty";
+              "diego.image.runner" = "dtk.sh containers nixos-hm {cli|gui|tty}";
+              "diego.image.packages.shell" = "fish starship eza bat fd rg fzf jq";
+              "diego.image.packages.lang" = "rustup go node python gcc clang";
+              "diego.image.packages.cloud" = "kubectl helm terraform ansible";
+            };
+          };
+        };
+
         # Default package
         default = self.packages.${system}.container;
       };

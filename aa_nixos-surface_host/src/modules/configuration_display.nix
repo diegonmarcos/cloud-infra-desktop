@@ -191,15 +191,8 @@ EOF
   # Resolve KDE/GNOME askpass conflict
   programs.ssh.askPassword = lib.mkForce "${pkgs.libsForQt5.ksshaskpass}/bin/ksshaskpass";
 
-  # XDG Portal configuration
-  xdg.portal = {
-    enable = true;
-    extraPortals = with pkgs; [
-      xdg-desktop-portal-kde
-      xdg-desktop-portal-gtk
-    ];
-    config.common.default = [ "kde" "gtk" ];
-  };
+  # XDG Portal configuration moved to configuration_session_isolation.nix
+  # (session-aware defaults: KDE portal for Plasma, GNOME portal for GNOME)
 
   # ═══════════════════════════════════════════════════════════════════════════
   # SESSION 3: OPENBOX (X11 Lightweight)

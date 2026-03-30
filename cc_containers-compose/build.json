@@ -1,0 +1,27 @@
+{
+  "name": "containers-compose",
+  "description": "Docker Compose files for all 3 container variants (deb-nix, deb-apt, nixos-hm)",
+  "images": {
+    "deb-nix": {
+      "ghcr": "ghcr.io/diegonmarcos/diego-deb-nix:latest",
+      "source_flake": "../ba_flakes_desktop/src",
+      "source_containerfile": "../ba_flakes_desktop/src/container/Containerfile",
+      "hm_config": "diego@cli",
+      "base": "debian:bookworm-slim + nix + home-manager"
+    },
+    "deb-apt": {
+      "ghcr": "ghcr.io/diegonmarcos/diego-deb-apt:latest",
+      "source_containerfile": "src/Containerfile.deb-apt",
+      "base": "debian:bookworm-slim + apt packages"
+    },
+    "nixos-hm": {
+      "ghcr": "ghcr.io/diegonmarcos/diego-nixos-hm:latest",
+      "source_flake": "../aa_nixos-surface_host/src",
+      "hm_flake": "../ba_flakes_desktop/src",
+      "hm_config": "diego@cli",
+      "base": "pure nix (dockerTools.buildLayeredImage)"
+    }
+  },
+  "profiles": ["cli", "gui", "tty"],
+  "registry": "ghcr.io/diegonmarcos"
+}
