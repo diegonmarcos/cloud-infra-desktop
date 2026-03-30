@@ -117,7 +117,7 @@
 
   in {
     packages = forAllSystems (system: let
-      pkgs = nixpkgs.legacyPackages.''${system};
+      pkgs = nixpkgs.legacyPackages.${system};
     in {
       default = pkgs.runCommand "containers-compose" {} ''
         mkdir -p $out
