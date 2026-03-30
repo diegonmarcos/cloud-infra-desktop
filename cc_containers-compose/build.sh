@@ -89,14 +89,16 @@ step_push() {
 
 _push_deb_nix() {
     _img="$REGISTRY/diego-deb-nix:latest"
-    _containerfile=$(jq -r '.images["deb-nix"].source_containerfile' "$CONFIG")
-    _context=$(dirname "$SCRIPT_DIR/$_containerfile")
+    _containerfile="$SRC_DIR/Containerfile.deb-nix"
+
+    if [ ! -f "$_containerfile" ]; then
+        error "deb-nix Containerfile not found at $_containerfile"
+    fi
 
     log "Building deb-nix: $_img"
-    log "  Containerfile: $SCRIPT_DIR/$_containerfile"
-    log "  Context: $_context"
+    log "  Containerfile: $_containerfile"
 
-    $ENGINE build -t "$_img" -f "$SCRIPT_DIR/$_containerfile" "$_context"
+    $ENGINE build -t "$_img" -f "$_containerfile" "$SRC_DIR"
     $ENGINE push "$_img"
     log "Pushed: $_img"
 }
