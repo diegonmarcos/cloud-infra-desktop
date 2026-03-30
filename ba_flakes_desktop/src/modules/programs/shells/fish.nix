@@ -306,7 +306,7 @@
         set_color normal
         set_color magenta; echo -n "    tree             "; set_color normal; echo "Directory tree"
         set_color magenta; echo -n "    yazi             "; set_color normal; echo "Terminal file manager"
-        set_color magenta; echo -n "    carbonyl         "; set_color normal; echo "Chromium browser in the terminal"
+        set_color magenta; echo -n "    carbonyl         "; set_color normal; echo "Chromium in terminal (npx carbonyl)"
         set_color magenta; echo -n "    nmtui            "; set_color normal; echo "Network Manager TUI (WiFi, VPN, connections)"
         # Search (fzf)
         set_color cyan; echo "  Search (fzf):"
@@ -330,6 +330,7 @@
         set_color cyan; echo "  Others:"
         set_color normal
         set_color yellow; echo -n "    hhelp            "; set_color normal; echo "Parse flake configs (config/tools/alias)"
+        set_color yellow; echo -n "    fish-e           "; set_color normal; echo "Web terminal + mobile keys (ttyd on WireGuard)"
         echo ""
         set_color --dim; echo "    ('hhelp alias' — all functions and aliases in bash and fish)"; set_color normal
 
@@ -713,6 +714,62 @@
       '';
 
       serve = "http-dev start $argv";
+
+      fish-e = ''
+        set -l port 7681
+        while ss -tln | command grep -q ":$port "
+          set port (math $port + 1)
+        end
+
+        set -l session "fish-e-$port"
+        set -l wg_ip (ip -4 addr show wg0 2>/dev/null | command awk '/inet / {split($2,a,"/"); print a[1]}')
+
+        if test -z "$wg_ip"
+          set wg_ip "127.0.0.1"
+          set_color yellow; echo "⚠ WireGuard not active, binding to localhost only"; set_color normal
+        end
+
+        # Create tmux session
+        tmux new-session -d -s $session fish
+
+        # Start ttyd in background serving the tmux session
+        ttyd --writable -t enableMobileKeyboard=true -p $port tmux attach -t $session &
+        set -l ttyd_pid $last_pid
+
+        echo ""
+        set_color --bold cyan; echo "── fish-e: Web Terminal ──────────────────────"; set_color normal
+        set_color green; echo "  http://$wg_ip:$port"; set_color normal
+        set_color green; echo "  http://localhost:$port"; set_color normal
+        echo ""
+        set_color --bold yellow; echo "  tmux session: $session"; set_color normal
+        set_color --dim; echo "  ttyd PID: $ttyd_pid"; set_color normal
+        set_color --dim; echo "  Stop: fish-e-stop $session $ttyd_pid"; set_color normal
+        echo ""
+
+        # Also display the URL inside the tmux session
+        tmux send-keys -t $session "echo '── fish-e: http://$wg_ip:$port ── tmux: $session ──'" Enter
+
+        # Drop into the shared tmux session
+        tmux attach -t $session
+
+        # Cleanup: when tmux exits, stop ttyd
+        kill $ttyd_pid 2>/dev/null
+      '';
+
+      fish-e-stop = ''
+        if test (count $argv) -ge 2
+          kill $argv[2] 2>/dev/null
+          tmux kill-session -t $argv[1] 2>/dev/null
+          echo "Stopped ttyd (PID $argv[2]) and tmux session $argv[1]"
+        else
+          # Kill all fish-e sessions
+          for s in (tmux list-sessions -F "#{session_name}" 2>/dev/null | command grep "^fish-e-")
+            tmux kill-session -t $s 2>/dev/null
+          end
+          pkill -f "ttyd.*fish-e" 2>/dev/null
+          echo "Stopped all fish-e sessions"
+        end
+      '';
 
       duh = "command du -h --max-depth=1 | sort -h";
 

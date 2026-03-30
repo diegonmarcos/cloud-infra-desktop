@@ -2,7 +2,8 @@
 { config, pkgs, lib, ... }:
 
 {
-  # Auto garbage collection - keep only 5 generations, run weekly
+  # GC handled by storage-maintenance.service (daily at 4AM with btrfs balance)
+  # Kept as fallback in case storage-maintenance is disabled
   nix.gc = {
     automatic = true;
     dates = "weekly";
