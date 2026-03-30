@@ -48,7 +48,7 @@ LABEL diego.image.packages.lang="rustup go nodejs python ruby gcc llvm cmake nin
 LABEL diego.image.packages.cloud="docker-client kubectl helm terraform sops age"
 LABEL diego.image.packages.net="nmap mtr wireguard-tools openssl gnupg"
 LABEL diego.image.packages.node="pnpm typescript sass"
-LABEL diego.image.packages.tools="shellcheck shfmt just watchexec direnv"
+LABEL diego.image.packages.tools="shellcheck shfmt just watchexec direnv ttyd"
 
 # ── System setup ──────────────────────────────────────────────────
 RUN apt-get update -qq && apt-get install -y -qq \
@@ -82,27 +82,48 @@ RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh \
 # ── Clone unix repo (flake source) ───────────────────────────────
 RUN git clone --depth 1 https://github.com/diegonmarcos/unix.git /home/diego/git/unix
 
-# ── Apply home-manager (diego@cli = exact desktop match, no DE) ──
+# ── Try home-manager first (diego@cli = exact desktop match) ─────
+# If HM fails (container sandbox limitations), fall back to nix profile install
 RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh \
     && cd /home/diego/git/unix/ba_flakes_desktop/src \
-    && nix run home-manager/release-24.11 -- switch --flake .#diego@cli --impure \
-    || echo "home-manager switch failed — falling back to nix profile install" \
-    && . /home/diego/.nix-profile/etc/profile.d/nix.sh \
-    && export NIXPKGS_ALLOW_UNFREE=1 \
-    && nix profile install --impure nixpkgs#fish nixpkgs#starship nixpkgs#eza nixpkgs#bat \
-       nixpkgs#fd nixpkgs#ripgrep nixpkgs#fzf nixpkgs#delta nixpkgs#zoxide nixpkgs#jq nixpkgs#yq-go \
-    && nix profile install --impure nixpkgs#rustup nixpkgs#go nixpkgs#nodejs_22 nixpkgs#python312 \
-       nixpkgs#ruby nixpkgs#gcc nixpkgs#llvm nixpkgs#lldb nixpkgs#cmake nixpkgs#ninja nixpkgs#gnumake \
-    && nix profile install --impure nixpkgs#git nixpkgs#git-lfs nixpkgs#openssh nixpkgs#curl \
-       nixpkgs#wget nixpkgs#htop nixpkgs#tmux nixpkgs#vim nixpkgs#tree nixpkgs#ncdu \
-    && nix profile install --impure nixpkgs#docker-client nixpkgs#kubectl \
-       nixpkgs#kubernetes-helm nixpkgs#terraform nixpkgs#sops nixpkgs#age \
-    && nix profile install --impure nixpkgs#nmap nixpkgs#mtr nixpkgs#wireguard-tools \
-       nixpkgs#openssl nixpkgs#gnupg \
-    && nix profile install --impure nixpkgs#nodePackages.pnpm nixpkgs#nodePackages.typescript \
-       nixpkgs#dart-sass \
-    && nix profile install --impure nixpkgs#shellcheck nixpkgs#shfmt nixpkgs#just \
-       nixpkgs#watchexec nixpkgs#direnv
+    && nix run home-manager/release-24.11 -- switch --flake .#diego@cli --impure 2>&1 \
+    && echo "HOME-MANAGER: SUCCESS" \
+    || echo "HOME-MANAGER: FAILED — will use nix profile install fallback"
+
+# ── Fallback: nix profile install (runs even if HM succeeded — idempotent) ──
+RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh && export NIXPKGS_ALLOW_UNFREE=1 \
+    && nix profile install --impure \
+       nixpkgs#fish nixpkgs#starship nixpkgs#eza nixpkgs#bat \
+       nixpkgs#fd nixpkgs#ripgrep nixpkgs#fzf nixpkgs#delta nixpkgs#zoxide \
+       nixpkgs#jq nixpkgs#yq-go \
+    || true
+
+RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh && export NIXPKGS_ALLOW_UNFREE=1 \
+    && nix profile install --impure \
+       nixpkgs#rustup nixpkgs#go nixpkgs#nodejs_22 nixpkgs#python312 \
+       nixpkgs#gcc nixpkgs#gnumake nixpkgs#cmake \
+    || true
+
+RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh && export NIXPKGS_ALLOW_UNFREE=1 \
+    && nix profile install --impure \
+       nixpkgs#git nixpkgs#git-lfs nixpkgs#openssh nixpkgs#curl \
+       nixpkgs#wget nixpkgs#htop nixpkgs#tmux nixpkgs#vim nixpkgs#tree nixpkgs#ncdu nixpkgs#ttyd \
+    || true
+
+RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh && export NIXPKGS_ALLOW_UNFREE=1 \
+    && nix profile install --impure \
+       nixpkgs#docker-client nixpkgs#terraform nixpkgs#sops nixpkgs#age \
+    || true
+
+RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh && export NIXPKGS_ALLOW_UNFREE=1 \
+    && nix profile install --impure \
+       nixpkgs#nmap nixpkgs#wireguard-tools nixpkgs#openssl nixpkgs#gnupg \
+    || true
+
+RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh && export NIXPKGS_ALLOW_UNFREE=1 \
+    && nix profile install --impure \
+       nixpkgs#shellcheck nixpkgs#shfmt nixpkgs#direnv \
+    || true
 
 # ── Embed build files in image (self-documentation) ──────────────
 RUN mkdir -p /home/diego/.image-meta

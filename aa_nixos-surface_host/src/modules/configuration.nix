@@ -50,6 +50,7 @@
     ./docker-daemon.nix
     ./configuration_containers.nix
     ./configuration_system-protection.nix
+    ./configuration_system-protection-storage.nix
     ./configuration_packages.nix
     ./configuration_persistence.nix
     ./configuration_services.nix

@@ -12,6 +12,7 @@
     firewall = {
       enable = lib.mkDefault true;
       allowedTCPPorts = [ 22 ];  # SSH only
+      trustedInterfaces = [ "wg0" ];  # Allow all traffic on WireGuard mesh
     };
   };
 

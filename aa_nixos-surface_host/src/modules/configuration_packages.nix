@@ -43,8 +43,10 @@
 
     # ─── Virtual Keyboard (Surface Pro touchscreen) ───────────────────────────
     # Must be system-level: used at SDDM login screen (pre-user-session)
-    maliit-keyboard
-    maliit-framework
+    # NOTE: maliit-keyboard REMOVED — causes trackpad click freeze on Plasma 6 Wayland
+    #   see: https://github.com/maliit/keyboard/issues/210
+    # maliit-keyboard
+    # maliit-framework
     onboard              # Full-featured: arrows, Fn keys, mouse buttons, word prediction
     kdePackages.qtvirtualkeyboard  # Qt virtual keyboard for SDDM login screen
 

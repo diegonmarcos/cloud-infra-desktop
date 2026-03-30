@@ -40,6 +40,16 @@
           };
           # Custom packages (AI CLIs, etc.)
           customPkgs = import ./modules/packages { pkgs = final; };
+          # ttyd with mobile keyboard (PR #1504)
+          ttyd = prev.ttyd.overrideAttrs (old: {
+            version = "1.7.7-mobile-keyboard";
+            src = final.fetchFromGitHub {
+              owner = "someonegg";
+              repo = "ttyd";
+              rev = "051962523e5e5e61ffbf627a27134c2a9484e0a9";
+              hash = "sha256-GVCpiHip6vxuz6RKRhVk1A7L1I2zuYurDUFloo/xLAs=";
+            };
+          });
         })
       ];
 

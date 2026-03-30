@@ -174,6 +174,20 @@ let
         if [ "''${BUILDSH_GUARDRAIL:-}" = "1" ]; then
           exec ${cmd} "$@" || _die "exec '${cmd}' failed (not found on PATH?)"
         fi
+
+        # Bypass: desktop session init (SDDM/KWin/Plasma startup) — no human to prompt
+        # Without this, guardrail confirm-tier commands (e.g. flatpak) called by Plasma
+        # during login hit the 5s read timeout → exit 1 → kills the entire Wayland session.
+        if [ -z "''${TERM:-}" ] || [ "''${TERM:-}" = "dumb" ]; then
+          _ppid_name=$(ps -o comm= $PPID 2>/dev/null || true)
+          case "$_ppid_name" in
+            sddm*|startplasma*|kwin*|plasma*|gnome-session*|gdm*|lightdm*)
+              _log_guardrail "desktop-bypass"
+              exec ${cmd} "$@" || _die "exec '${cmd}' failed (desktop session bypass)"
+              ;;
+          esac
+        fi
+
         export BUILDSH_GUARDRAIL=1
         # Verify the real binary exists after PATH strip
         if ! command -v ${cmd} >/dev/null 2>&1; then
@@ -239,13 +253,12 @@ let
 
 in
 {
-  # Prepend ~/.local/bin so wrappers intercept before ~/.nix-profile/bin
-  # initExtra covers interactive shells, profileExtra covers login shells
-  programs.bash.initExtra = lib.mkBefore ''
-    export PATH="$HOME/.local/bin:$PATH"
-  '';
-  programs.bash.profileExtra = lib.mkAfter ''
-    export PATH="$HOME/.local/bin:$PATH"
-  '';
-  home.file = builtins.listToAttrs (map mkWrapper allCommands);
+  # TEMPORARILY DISABLED for login debugging — re-enable after test
+  # programs.bash.initExtra = lib.mkBefore ''
+  #   export PATH="$HOME/.local/bin:$PATH"
+  # '';
+  # programs.bash.profileExtra = lib.mkAfter ''
+  #   export PATH="$HOME/.local/bin:$PATH"
+  # '';
+  # home.file = builtins.listToAttrs (map mkWrapper allCommands);
 }

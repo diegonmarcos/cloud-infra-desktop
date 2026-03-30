@@ -72,6 +72,9 @@
     diffutils
     patch
 
+    # Web terminal (Termux-style mobile keyboard)
+    ttyd
+
     # GitHub CLI
     gh
   ];
