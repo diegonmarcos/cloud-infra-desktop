@@ -1,10 +1,6 @@
 name: "Ship → Builder images"
 
 on:
-  push:
-    paths:
-      - "cb_containers-builders/src/**"
-    branches: [main]
   workflow_dispatch:
 
 permissions:
