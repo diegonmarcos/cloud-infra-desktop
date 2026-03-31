@@ -3,7 +3,7 @@
 # ║                                                                 ║
 # ║ Base: Debian 12 (bookworm) + apt packages only (no Nix)        ║
 # ║ Packages mirror ba_flakes_desktop profiles via apt equivalents  ║
-# ║ Source: unix/cc_containers-compose/src/Containerfile.deb-apt    ║
+# ║ Source: unix/ca_containers_user/src/Containerfile.deb-apt    ║
 # ║                                                                 ║
 # ║ Build:  docker build -t ghcr.io/diegonmarcos/diego-deb-apt .   ║
 # ║ Push:   docker push ghcr.io/diegonmarcos/diego-deb-apt:latest  ║

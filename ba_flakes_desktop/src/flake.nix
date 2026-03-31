@@ -322,7 +322,7 @@
           };
         };
 
-        # ── nixos-hm: layered image for GHCR (used by cc_containers-compose) ──
+        # ── nixos-hm: layered image for GHCR (used by ca_containers_user) ──
         container-nixos-hm = pkgs.dockerTools.buildLayeredImage {
           name = "ghcr.io/diegonmarcos/diego-nixos-hm";
           tag = "latest";
