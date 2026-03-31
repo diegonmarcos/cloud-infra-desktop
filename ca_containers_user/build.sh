@@ -50,21 +50,23 @@ ghcr_login() {
     fi
 }
 
-# ── Step: Build (nix flake → dist/) ────────────────────────────────────
+# ── Step: Build (src/ + flake → dist/) ────────────────────────────────
 step_build() {
-    log "Building compose files from flake..."
+    log "Building dist/ (self-contained production artifact)..."
     rm -rf "$DIST_DIR"
     mkdir -p "$DIST_DIR"
 
+    # 1. Copy all src/ files (Containerfiles, distrobox, etc.)
+    cp -rL "$SRC_DIR"/* "$DIST_DIR/"
+
+    # 2. Generate compose files from flake
     cd "$SRC_DIR"
     nix build --no-link --print-out-paths 2>/dev/null | while read -r path; do
-        cp -rL "$path"/* "$DIST_DIR/"
+        cp -rL "$path"/*.yaml "$DIST_DIR/" 2>/dev/null || true
+        cp -rL "$path"/*.json "$DIST_DIR/" 2>/dev/null || true
     done
 
-    # Copy compose files into src/ so Containerfiles can COPY them
-    cp "$DIST_DIR"/compose-*.yaml "$SRC_DIR/" 2>/dev/null || true
-
-    log "Generated in dist/:"
+    log "dist/ contents:"
     ls -la "$DIST_DIR"/*.yaml 2>/dev/null || warn "No compose files generated"
 }
 

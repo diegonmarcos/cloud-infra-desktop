@@ -10,6 +10,11 @@
 services:
   builder:
     image: ghcr.io/diegonmarcos/cloud-builder-arm-nixos:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        NIX_SYSTEM: aarch64-linux
     container_name: cloud-builder-arm-cloudlight
     platform: linux/arm64
     network_mode: host
