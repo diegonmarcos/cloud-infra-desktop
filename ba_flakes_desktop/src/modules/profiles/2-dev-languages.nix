@@ -4,17 +4,7 @@
 
 {
   home.packages = with pkgs; [
-    # Rust (unstable channel for latest rustc/cargo)
-    unstable.rustc
-    unstable.cargo
-    unstable.rust-analyzer
-    unstable.clippy
-    unstable.rustfmt
-    cargo-edit
-    cargo-watch
-    cargo-audit
-    pkg-config
-    openssl
+    # Rust: managed by rust-cargo-deps.nix (toolchain + cargo subcommands + cargo install)
 
     # Code analysis
     (callPackage ../../pkgs/octocode.nix {})  # ../../ from modules/profiles/ → src/pkgs/
@@ -54,8 +44,8 @@
   ];
 
   # Environment variables for languages
+  # CARGO_HOME: managed by rust-cargo-deps.nix
   home.sessionVariables = {
-    CARGO_HOME = "$HOME/.cargo";
     GOPATH = "$HOME/go";
     npm_config_prefix = "$HOME/.npm-global";
   };

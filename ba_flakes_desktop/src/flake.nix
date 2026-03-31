@@ -144,6 +144,7 @@
         ./modules/ssh-stale-socket-cleaner.nix
         ./modules/curl-wget-wrapper.nix
         ./modules/node-npm-deps.nix
+        ./modules/rust-cargo-deps.nix
         ./modules/cloud.nix
         ./modules/cloud-network-wg-dns.nix
         ./modules/front.nix
@@ -203,7 +204,7 @@
         jq yq-go curl wget htop less git gh rsync
 
         # Dev Languages (Profile 2)
-        rustup go nodejs_20 python312 gcc clang
+        unstable.rustc unstable.cargo go nodejs_20 python312 gcc clang
 
         # Build & Debug (Profile 3)
         cmake ninja gnumake gdb shellcheck shfmt delta direnv just

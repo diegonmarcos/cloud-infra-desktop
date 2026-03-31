@@ -122,17 +122,17 @@
       default = pkgs.runCommand "containers-compose" {} ''
         mkdir -p $out
         cp ${pkgs.writeText "compose-deb-nix.yaml" (mkCompose {
-          imageName = "diego-deb-nix";
+          imageName = "user-dev-x86-deb-nix-hm";
           variant = "deb-nix";
         })} $out/compose-deb-nix.yaml
 
         cp ${pkgs.writeText "compose-deb-apt.yaml" (mkCompose {
-          imageName = "diego-deb-apt";
+          imageName = "user-dev-x86-deb-apt";
           variant = "deb-apt";
         })} $out/compose-deb-apt.yaml
 
         cp ${pkgs.writeText "compose-nixos-hm.yaml" (mkCompose {
-          imageName = "diego-nixos-hm";
+          imageName = "user-dev-x86-nixos-nix-hm";
           variant = "nixos-hm";
         })} $out/compose-nixos-hm.yaml
 
