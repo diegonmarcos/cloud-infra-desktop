@@ -61,6 +61,9 @@ step_build() {
         cp -rL "$path"/* "$DIST_DIR/"
     done
 
+    # Copy compose files into src/ so Containerfiles can COPY them
+    cp "$DIST_DIR"/compose-*.yaml "$SRC_DIR/" 2>/dev/null || true
+
     log "Generated in dist/:"
     ls -la "$DIST_DIR"/*.yaml 2>/dev/null || warn "No compose files generated"
 }

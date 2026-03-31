@@ -83,9 +83,11 @@ RUN curl -sS https://starship.rs/install.sh | sh -s -- -y 2>/dev/null || true
 RUN useradd -m -s /usr/bin/fish -u 1000 diego \
     && echo "diego ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# ── Embed build files ──────────────────────────────────────────────
+# ── Embed build files + compose in image (self-documentation) ────
+# compose-*.yaml placed in src/ by build.sh build before docker build
 RUN mkdir -p /home/diego/.image-meta
 COPY Containerfile.deb-apt /home/diego/.image-meta/Containerfile
+COPY compose-*.yaml /home/diego/.image-meta/
 
 USER diego
 WORKDIR /home/diego

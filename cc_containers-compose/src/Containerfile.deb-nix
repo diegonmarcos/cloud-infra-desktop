@@ -131,9 +131,11 @@ RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh && export NIXPKGS_ALLOW_UNFR
        nixpkgs#shellcheck nixpkgs#shfmt nixpkgs#direnv \
     || true
 
-# ── Embed build files in image (self-documentation) ──────────────
+# ── Embed build files + compose in image (self-documentation) ────
+# compose-*.yaml placed in src/ by build.sh build before docker build
 RUN mkdir -p /home/diego/.image-meta
 COPY --chown=diego:diego Containerfile.deb-nix /home/diego/.image-meta/Containerfile
+COPY --chown=diego:diego compose-*.yaml /home/diego/.image-meta/
 
 # ── Shell config ─────────────────────────────────────────────────
 ENV SHELL=/home/diego/.nix-profile/bin/fish
