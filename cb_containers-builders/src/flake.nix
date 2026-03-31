@@ -70,11 +70,6 @@
       services:
         builder:
           image: ${registry}/${imageName}:latest
-          build:
-            context: .
-            dockerfile: docker/Dockerfile
-            args:
-              NIX_SYSTEM: ${nixSystem}
           container_name: cloud-builder-${variant}
           ${if platform != null then "platform: ${platform}" else ""}
           network_mode: host
