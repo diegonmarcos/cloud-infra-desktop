@@ -5,20 +5,20 @@
 # ║ Packages mirror ba_flakes_desktop profiles via apt equivalents  ║
 # ║ Source: unix/ca_containers_user/src/Containerfile.deb-apt    ║
 # ║                                                                 ║
-# ║ Build:  docker build -t ghcr.io/diegonmarcos/diego-deb-apt .   ║
-# ║ Push:   docker push ghcr.io/diegonmarcos/diego-deb-apt:latest  ║
+# ║ Build:  docker build -t ghcr.io/diegonmarcos/user-dev-x86-deb-apt .   ║
+# ║ Push:   docker push ghcr.io/diegonmarcos/user-dev-x86-deb-apt:latest  ║
 # ║ Run:    dtk.sh containers deb-apt {cli|gui|tty}                ║
 # ╚══════════════════════════════════════════════════════════════════╝
 FROM debian:bookworm-slim
 
 # ── OCI Labels ──────────────────────────────────────────────────────
-LABEL org.opencontainers.image.title="diego-deb-apt"
+LABEL org.opencontainers.image.title="user-dev-x86-deb-apt"
 LABEL org.opencontainers.image.description="Diego's portable dev environment — Debian + apt packages (no Nix)"
 LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/unix"
 LABEL org.opencontainers.image.vendor="Diego Nepomuceno Marcos"
 LABEL org.opencontainers.image.base.name="debian:bookworm-slim"
 LABEL diego.image.variant="deb-apt"
-LABEL diego.image.ghcr="ghcr.io/diegonmarcos/diego-deb-apt"
+LABEL diego.image.ghcr="ghcr.io/diegonmarcos/user-dev-x86-deb-apt"
 LABEL diego.image.profiles="cli,gui,tty"
 LABEL diego.image.runner="dtk.sh containers deb-apt {cli|gui|tty}"
 LABEL diego.image.packages.shell="fish starship eza bat fd-find ripgrep fzf jq"

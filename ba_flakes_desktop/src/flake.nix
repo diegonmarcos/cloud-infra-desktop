@@ -324,7 +324,7 @@
 
         # ── nixos-hm: layered image for GHCR (used by ca_containers_user) ──
         container-nixos-hm = pkgs.dockerTools.buildLayeredImage {
-          name = "ghcr.io/diegonmarcos/diego-nixos-hm";
+          name = "ghcr.io/diegonmarcos/user-dev-x86-nixos-nix-hm";
           tag = "latest";
           maxLayers = 125;
 
@@ -336,7 +336,7 @@
               echo "diego:x:1000:1000:Diego:/home/diego:${pkgs.fish}/bin/fish" >> $out/etc/passwd
               echo "root:x:0:" > $out/etc/group
               echo "diego:x:1000:" >> $out/etc/group
-              echo "diego-nixos-hm" > $out/etc/hostname
+              echo "user-dev-x86-nixos-nix-hm" > $out/etc/hostname
             '')
             # All repos (self-contained image) — fetched by Nix, baked into layer
             (let
@@ -369,13 +369,13 @@
             WorkingDir = "/home/diego";
             User = "diego";
             Labels = {
-              "org.opencontainers.image.title" = "diego-nixos-hm";
+              "org.opencontainers.image.title" = "user-dev-x86-nixos-nix-hm";
               "org.opencontainers.image.description" = "Pure Nix container — Home-Manager cli profile (dockerTools.buildLayeredImage)";
               "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
               "diego.image.variant" = "nixos-hm";
               "diego.image.flake.path" = "ba_flakes_desktop/src/";
               "diego.image.flake.config" = "diego@cli";
-              "diego.image.ghcr" = "ghcr.io/diegonmarcos/diego-nixos-hm";
+              "diego.image.ghcr" = "ghcr.io/diegonmarcos/user-dev-x86-nixos-nix-hm";
               "diego.image.profiles" = "cli,gui,tty";
               "diego.image.runner" = "dtk.sh containers nixos-hm {cli|gui|tty}";
               "diego.image.packages.shell" = "fish starship eza bat fd rg fzf jq";
