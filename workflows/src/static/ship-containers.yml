@@ -5,7 +5,7 @@ on:
     paths:
       - "ba_flakes_desktop/src/**"
       - "aa_nixos-surface_host/src/**"
-      - "cc_containers-compose/src/**"
+      - "ca_containers_user/src/**"
     branches: [main]
   workflow_dispatch:
 
@@ -35,7 +35,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Ship all container images
-        run: sh cc_containers-compose/build.sh ship
+        run: sh ca_containers_user/build.sh ship
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
