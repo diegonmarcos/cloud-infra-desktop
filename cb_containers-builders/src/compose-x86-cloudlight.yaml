@@ -1,0 +1,34 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ Cloud Builder — x86 Cloudlight                                  ║
+# ║ DO NOT EDIT — source: cb_containers-builders/src/               ║
+# ║ Rebuild: build.sh ship x86-cloudlight                           ║
+# ╠══════════════════════════════════════════════════════════════════╣
+# ║ Usage:                                                          ║
+# ║   docker compose -f compose-x86-cloudlight.yaml run builder cmd ║
+# ║   docker compose -f compose-x86-cloudlight.yaml up              ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+services:
+  builder:
+    image: ghcr.io/diegonmarcos/cloud-builder-x86-nixos:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        NIX_SYSTEM: x86_64-linux
+    container_name: cloud-builder-x86
+    network_mode: host
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${HOME:-/root}/.ssh:/root/.ssh:ro
+      - ${HOME:-/root}/.config/sops:/root/.config/sops:ro
+    working_dir: /workspace
+    entrypoint: ["/opt/cloud-builder/entrypoint.sh"]
+    environment:
+      - TERM=xterm-256color
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_ACTOR=${GITHUB_ACTOR:-}
+    labels:
+      diego.managed-by: "build.sh"
+      diego.image.variant: "x86-cloudlight"
