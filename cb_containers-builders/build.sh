@@ -70,7 +70,7 @@ _build_variant() {
     [ -n "$_build_args" ] && _args="--build-arg $_build_args"
     [ -n "$_platform" ] && _args="$_args --platform=$_platform"
 
-    $ENGINE build $_args -t "$_ghcr:latest" -f "$_dockerfile_path" "$SCRIPT_DIR"
+    $ENGINE build $_args -t "$_ghcr:latest" -f "$_dockerfile_path" "$SRC_DIR"
 
     if [ "$_push" = "true" ]; then
         log "Pushing $_ghcr:latest"
