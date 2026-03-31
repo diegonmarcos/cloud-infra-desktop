@@ -25,8 +25,8 @@ ENV CONNECTIQ_HOME=/opt/connectiq
 ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH:-}"
 
 # Source of truth
-COPY deps.json /etc/forge/deps.json
-COPY install.sh /etc/forge/install.sh
+COPY forge-deps.json /etc/forge/deps.json
+COPY forge-install.sh /etc/forge/install.sh
 RUN chmod +x /etc/forge/install.sh
 
 # Layer 1: System packages (apt)
@@ -67,8 +67,7 @@ RUN git config --global submodule.recurse true \
     && git config --global init.defaultBranch main
 RUN /etc/forge/install.sh repos
 
-# Layer 12: Fish config
-COPY fish/ /root/.config/fish/
+# Layer 12: Fish config (install.sh handles config creation)
 RUN /etc/forge/install.sh fish
 
 # Layer 13: Octocode
@@ -77,7 +76,7 @@ RUN curl -fsSL "https://github.com/Muvon/octocode/releases/download/${OCTOCODE_V
     | tar -xzf - -C /usr/local/bin/ && chmod +x /usr/local/bin/octocode && octocode --version
 
 # Layer 14: Embed Dockerfile + verify
-COPY Dockerfile /root/Dockerfile
+COPY Dockerfile.x86-forge /root/Dockerfile
 RUN /etc/forge/install.sh verify
 
 WORKDIR /build

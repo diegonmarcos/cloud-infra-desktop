@@ -16,10 +16,8 @@
 
   environment.sessionVariables = {
     # Shared caches (inside data/)
-    # NOTE: home-manager overrides CARGO_HOME/GOPATH to ~/.cargo / ~/go
-    # These system-level vars apply to root and system services only
-    CARGO_HOME = "/mnt/shared/data/cache/cargo";
-    GOPATH = "/mnt/shared/data/cache/go";
+    # CARGO_HOME: owned by home-manager (rust-cargo-deps.nix)
+    # GOPATH: owned by home-manager (2-dev-languages.nix)
     npm_config_cache = "/mnt/shared/data/cache/npm";
     PIP_CACHE_DIR = "/mnt/shared/data/cache/pip";
 

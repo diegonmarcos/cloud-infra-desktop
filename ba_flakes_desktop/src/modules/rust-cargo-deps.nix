@@ -104,7 +104,7 @@ NIXEOF
         // ver is either a quoted string like '\"0.3\"' or an inline table like '{ version = ... }'
         toml += name + ' = ' + ver + '\n';
       }
-      toml += '\n[profile.release]\nopt-level = 2\nlto = false\nstrip = false\n';
+      toml += '\n[profile.release]\nopt-level = 3\nlto = false\nstrip = false\n';
 
       fs.writeFileSync('$CARGO_TOML', toml);
       console.log('[rust-cargo-deps] Cargo.toml: ' + Object.keys(deps).length + ' crates');
