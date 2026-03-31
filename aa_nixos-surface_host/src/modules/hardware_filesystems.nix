@@ -93,11 +93,11 @@
     options = [ "subvolid=5" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
   };
 
-  # Kubuntu root - read-only access to host OS
+  # Kubuntu root - read-write access to host OS
   fileSystems."/mnt/kubuntu" = {
     device = "/dev/disk/by-uuid/7e3626ac-ce13-4adc-84e2-1a843d7e2793";
     fsType = "ext4";
-    options = [ "ro" "noatime" "nofail" ];
+    options = [ "rw" "noatime" "nofail" ];
   };
 
   # 8GB swap file on pool (already exists, don't specify size)
