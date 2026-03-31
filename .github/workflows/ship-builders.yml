@@ -2,6 +2,11 @@ name: "Ship → Builder images"
 
 on:
   workflow_dispatch:
+    inputs:
+      variant:
+        description: "Image variant (x86-cloudlight, x86-forge, arm-cloudlight, all)"
+        required: false
+        default: "x86-cloudlight"
 
 permissions:
   contents: read
@@ -13,14 +18,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Ship all builder images
-        run: sh cb_containers-builders/build.sh ship
+      - name: Ship builder image
+        run: sh cb_containers-builders/build.sh ship ${{ github.event.inputs.variant }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
