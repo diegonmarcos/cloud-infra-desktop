@@ -89,12 +89,12 @@ step_docker() {
     [ ! -d "$DIST_DIR" ] && { error "No dist/ — run build first"; }
 
     case "$_variant" in
-        deb-nix)   _docker_build_containerfile deb-nix "diego-deb-nix" ;;
-        deb-apt)   _docker_build_containerfile deb-apt "diego-deb-apt" ;;
+        deb-nix)   _docker_build_containerfile deb-nix "user-dev-x86-deb-nix-hm" ;;
+        deb-apt)   _docker_build_containerfile deb-apt "user-dev-x86-deb-apt" ;;
         nixos-hm)  _docker_build_nix ;;
         all)
-            _docker_build_containerfile deb-nix "diego-deb-nix"
-            _docker_build_containerfile deb-apt "diego-deb-apt"
+            _docker_build_containerfile deb-nix "user-dev-x86-deb-nix-hm"
+            _docker_build_containerfile deb-apt "user-dev-x86-deb-apt"
             _docker_build_nix ;;
         *)         error "Unknown variant: $_variant" ;;
     esac
@@ -116,7 +116,7 @@ _docker_build_containerfile() {
 }
 
 _docker_build_nix() {
-    _img="$REGISTRY/diego-nixos-hm:latest"
+    _img="$REGISTRY/user-dev-x86-nixos-nix-hm:latest"
     _hm_flake=$(jq -r '.images["nixos-hm"].hm_flake' "$CONFIG")
     _flake_path="$SCRIPT_DIR/$_hm_flake"
 
@@ -140,13 +140,13 @@ step_push() {
     ghcr_login
 
     case "$_variant" in
-        deb-nix)   _docker_push "diego-deb-nix" ;;
-        deb-apt)   _docker_push "diego-deb-apt" ;;
-        nixos-hm)  _docker_push "diego-nixos-hm" ;;
+        deb-nix)   _docker_push "user-dev-x86-deb-nix-hm" ;;
+        deb-apt)   _docker_push "user-dev-x86-deb-apt" ;;
+        nixos-hm)  _docker_push "user-dev-x86-nixos-nix-hm" ;;
         all)
-            _docker_push "diego-deb-nix"
-            _docker_push "diego-deb-apt"
-            _docker_push "diego-nixos-hm" ;;
+            _docker_push "user-dev-x86-deb-nix-hm"
+            _docker_push "user-dev-x86-deb-apt"
+            _docker_push "user-dev-x86-nixos-nix-hm" ;;
         *)         error "Unknown variant: $_variant" ;;
     esac
 }

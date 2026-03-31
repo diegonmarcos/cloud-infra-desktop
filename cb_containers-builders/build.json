@@ -16,7 +16,7 @@
       "description": "ARM builder for OCI A1 VMs"
     },
     "x86-forge": {
-      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-forge-rust-go-clang",
+      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x86-nixos-forge",
       "dockerfile": "src/Dockerfile.x86-forge",
       "platform": "linux/amd64",
       "description": "x86 forge — rust + go + clang full toolchain"
