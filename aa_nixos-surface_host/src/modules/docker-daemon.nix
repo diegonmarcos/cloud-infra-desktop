@@ -18,9 +18,9 @@
 
   virtualisation.docker = {
     enable = true;
-    storageDriver = "btrfs";
+    storageDriver = "overlay2";
     daemon.settings = {
-      data-root = "/mnt/shared/data/containers/docker";
+      data-root = "/mnt/kubuntu/docker";
     };
   };
 }
