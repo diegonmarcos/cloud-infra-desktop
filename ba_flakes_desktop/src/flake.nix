@@ -344,7 +344,7 @@
                 unix       = builtins.fetchGit { url = "https://github.com/diegonmarcos/unix.git";       ref = "main"; shallow = true; };
                 cloud      = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud.git";      ref = "main"; shallow = true; };
                 cloud-data = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud-data.git"; ref = "main"; shallow = true; };
-                front      = builtins.fetchGit { url = "https://github.com/diegonmarcos/front.git";      ref = "main"; shallow = true; };
+                front      = builtins.fetchGit { url = "https://github.com/diegonmarcos/diegonmarcos.github.io.git"; ref = "main"; shallow = true; };
                 front-data = builtins.fetchGit { url = "https://github.com/diegonmarcos/front-data.git"; ref = "main"; shallow = true; };
                 tools      = builtins.fetchGit { url = "https://github.com/diegonmarcos/tools.git";      ref = "main"; shallow = true; };
               };
