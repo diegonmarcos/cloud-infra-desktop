@@ -1,0 +1,111 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ Diego's Dev Environment — deb-apt                              ║
+# ║                                                                 ║
+# ║ Base: Debian 12 (bookworm) + apt packages only (no Nix)        ║
+# ║ Packages mirror ba_flakes_desktop profiles via apt equivalents  ║
+# ║ Source: unix/ca_containers_user/src/Containerfile.deb-apt    ║
+# ║                                                                 ║
+# ║ Build:  docker build -t ghcr.io/diegonmarcos/diego-deb-apt .   ║
+# ║ Push:   docker push ghcr.io/diegonmarcos/diego-deb-apt:latest  ║
+# ║ Run:    dtk.sh containers deb-apt {cli|gui|tty}                ║
+# ╚══════════════════════════════════════════════════════════════════╝
+FROM debian:bookworm-slim
+
+# ── OCI Labels ──────────────────────────────────────────────────────
+LABEL org.opencontainers.image.title="diego-deb-apt"
+LABEL org.opencontainers.image.description="Diego's portable dev environment — Debian + apt packages (no Nix)"
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/unix"
+LABEL org.opencontainers.image.vendor="Diego Nepomuceno Marcos"
+LABEL org.opencontainers.image.base.name="debian:bookworm-slim"
+LABEL diego.image.variant="deb-apt"
+LABEL diego.image.ghcr="ghcr.io/diegonmarcos/diego-deb-apt"
+LABEL diego.image.profiles="cli,gui,tty"
+LABEL diego.image.runner="dtk.sh containers deb-apt {cli|gui|tty}"
+LABEL diego.image.packages.shell="fish starship eza bat fd-find ripgrep fzf jq"
+LABEL diego.image.packages.lang="rustc cargo golang nodejs python3 gcc clang"
+LABEL diego.image.packages.cloud="docker.io terraform sops age"
+
+# ── Profile 1: Shell & Core ────────────────────────────────────────
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    fish bash coreutils findutils grep sed gawk \
+    eza bat fd-find ripgrep fzf zoxide btop ncdu tree \
+    jq curl wget htop less git git-lfs gh rsync \
+    sudo locales ca-certificates xz-utils \
+    && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Profile 2: Dev Languages ───────────────────────────────────────
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    rustc cargo \
+    golang \
+    nodejs npm \
+    python3 python3-pip python3-venv python3-dev \
+    gcc g++ clang \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Profile 3: Build & Debug ───────────────────────────────────────
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    cmake ninja-build make \
+    gdb strace \
+    shellcheck \
+    tmux vim nano \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Profile 4: Containers & Cloud ──────────────────────────────────
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    docker.io \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install terraform + sops + age (not in bookworm repos)
+RUN curl -fsSL https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip -o /tmp/tf.zip \
+    && unzip -q /tmp/tf.zip -d /usr/local/bin && rm /tmp/tf.zip \
+    && curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 -o /usr/local/bin/sops \
+    && chmod +x /usr/local/bin/sops \
+    && curl -fsSL https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz | tar xz -C /tmp \
+    && mv /tmp/age/age /tmp/age/age-keygen /usr/local/bin/ && rm -rf /tmp/age \
+    || true
+
+# ── Profile 5: Security & Network ──────────────────────────────────
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    nmap mtr-tiny openssh-client gnupg openssl \
+    wireguard-tools iproute2 dnsutils net-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Profile 6: Data Science ────────────────────────────────────────
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    python3-numpy python3-pandas ipython3 sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Starship prompt ────────────────────────────────────────────────
+RUN curl -sS https://starship.rs/install.sh | sh -s -- -y 2>/dev/null || true
+
+# ── User setup ──────────────────────────────────────────────────────
+RUN useradd -m -s /usr/bin/fish -u 1000 diego \
+    && echo "diego ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# ── Embed build files + compose in image (self-documentation) ────
+# compose-*.yaml placed in src/ by build.sh build before docker build
+RUN mkdir -p /home/diego/.image-meta
+COPY Containerfile.deb-apt /home/diego/.image-meta/Containerfile
+COPY compose-*.yaml /home/diego/.image-meta/
+
+USER diego
+WORKDIR /home/diego
+
+# ── Clone all repos (self-contained image) ──────────────────────
+RUN mkdir -p /home/diego/git && cd /home/diego/git \
+    && git clone --depth 1 https://github.com/diegonmarcos/unix.git \
+    && git clone --depth 1 https://github.com/diegonmarcos/cloud.git \
+    && git clone --depth 1 https://github.com/diegonmarcos/cloud-data.git \
+    && git clone --depth 1 https://github.com/diegonmarcos/front.git \
+    && git clone --depth 1 https://github.com/diegonmarcos/front-data.git \
+    && git clone --depth 1 https://github.com/diegonmarcos/tools.git
+
+ENV SHELL=/usr/bin/fish
+ENV TERM=xterm-256color
+ENV LANG=en_US.UTF-8
+ENV HOME=/home/diego
+ENV USER=diego
+ENV PATH="/usr/local/bin:/usr/bin:/bin:/sbin"
+
+CMD ["fish"]

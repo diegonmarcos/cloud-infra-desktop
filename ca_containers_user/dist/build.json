@@ -5,7 +5,7 @@
     "deb-nix": {
       "ghcr": "ghcr.io/diegonmarcos/diego-deb-nix:latest",
       "source_flake": "../ba_flakes_desktop/src",
-      "source_containerfile": "../ba_flakes_desktop/src/container/Containerfile",
+      "source_containerfile": "src/Containerfile.deb-nix",
       "hm_config": "diego@cli",
       "base": "debian:bookworm-slim + nix + home-manager"
     },
