@@ -2,8 +2,10 @@
 # Konsole Quick Commands — all commands live here, nix just calls: bash this.sh <id>
 # No escaping hell. Pure bash.
 # Every command prints itself (dimmed) so you can copy-paste and re-run.
-set -euo pipefail
+set -euxo pipefail  # -x = verbose: print every command before execution
 export BUILDSH_GUARDRAIL=1  # All commands here are intentional — bypass guardrail prompts
+
+# Commands that need root use sudo inline — script runs as calling user
 
 cmd="$1"; shift || true
 vm="${1:-}"; shift || true
@@ -15,25 +17,29 @@ case "$cmd" in
 
   # ── VM commands (require $vm) ───────────────────────────────────────
   vm-htop)              show ssh "$vm" -t htop ;;
-  vm-journalctl-f)      show ssh "$vm" -t journalctl -f ;;
-  vm-journal-docker)    show ssh "$vm" -t journalctl -u docker -n 15 --no-pager ;;
-  vm-journal-sshd)      show ssh "$vm" -t journalctl -u sshd -u ssh -n 15 --no-pager ;;
-  vm-journal-wg)        show ssh "$vm" -t journalctl -u wg-quick@wg0 -n 15 --no-pager ;;
-  vm-journal-cinit)     show ssh "$vm" -t journalctl -u container-init -n 15 --no-pager ;;
-  vm-journal-kernel)    show ssh "$vm" -t journalctl -k -n 15 --no-pager ;;
-  vm-journal-errors)    show ssh "$vm" -t journalctl -p err -n 15 --no-pager ;;
-  vm-systemctl-status)  show ssh "$vm" -t systemctl status ;;
-  vm-systemctl-list)    show ssh "$vm" -t systemctl list-units --type=service --state=running ;;
-  vm-docker-start)      show ssh "$vm" -t sudo systemctl start docker ;;
-  vm-docker-stop)       show ssh "$vm" -t sudo systemctl stop docker ;;
-  vm-docker-ps)
-    printf '\033[0;90m$ ssh %s -t docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"\033[0m\n' "$vm"
-    ssh "$vm" -t 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
+  vm-journalctl-f)      show ssh "$vm" -t sudo journalctl -f ;;
+  vm-journal-docker)    show ssh "$vm" -t sudo journalctl -u docker -n 15 --no-pager ;;
+  vm-journal-sshd)      show ssh "$vm" -t sudo journalctl -u sshd -u ssh -n 15 --no-pager ;;
+  vm-journal-wg)        show ssh "$vm" -t sudo journalctl -u wg-quick@wg0 -n 15 --no-pager ;;
+  vm-journal-cinit)     show ssh "$vm" -t sudo journalctl -u container-init -n 15 --no-pager ;;
+  vm-journal-kernel)    show ssh "$vm" -t sudo journalctl -k -n 15 --no-pager ;;
+  vm-journal-errors)    show ssh "$vm" -t sudo journalctl -p err -n 15 --no-pager ;;
+  vm-systemctl-status)  show ssh "$vm" -t sudo systemctl status ;;
+  vm-systemctl-list)    show ssh "$vm" -t sudo systemctl list-units --type=service --state=running ;;
+  vm-docker-start)
+    show ssh "$vm" -t 'sudo systemctl start docker && systemctl status docker --no-pager -l'
     ;;
-  vm-docker-stats)      show ssh "$vm" -t docker stats ;;
+  vm-docker-stop)
+    show ssh "$vm" -t 'sudo systemctl stop docker && echo "Docker stopped" && systemctl is-active docker || true'
+    ;;
+  vm-docker-ps)
+    printf '\033[0;90m$ ssh %s -t sudo docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"\033[0m\n' "$vm"
+    ssh "$vm" -t 'sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
+    ;;
+  vm-docker-stats)      show ssh "$vm" -t sudo docker stats ;;
   vm-docker-exec)
-    printf '\033[0;90m$ ssh %s -t '\''docker ps --format "{{.Names}}" && read -p "Container: " c && docker exec -it "$c" sh'\''\033[0m\n' "$vm"
-    ssh "$vm" -t 'docker ps --format "{{.Names}}" && echo "---" && read -p "Container: " c && docker exec -it "$c" sh'
+    printf '\033[0;90m$ ssh %s -t '\''sudo docker ps --format "{{.Names}}" && read -p "Container: " c && sudo docker exec -it "$c" sh'\''\033[0m\n' "$vm"
+    ssh "$vm" -t 'sudo docker ps --format "{{.Names}}" && echo "---" && read -p "Container: " c && sudo docker exec -it "$c" sh'
     ;;
 
   # ── VM cloud control (oci/gcloud per-VM) ─────────────────────────────
@@ -78,6 +84,56 @@ case "$cmd" in
   vm-gcloud-reset)  show gcloud compute instances reset "$vm" --zone=us-central1-a ;;
   vm-gcloud-serial) show gcloud compute connect-to-serial-port "$vm" --zone=us-central1-a ;;
 
+  # ── Orchestration commands (run on ALL VMs) ─────────────────────────
+  all-script-push)
+    ALL_VMS="gcp-proxy oci-mail oci-analytics oci-apps gcp-t4"
+    RAW_URL="https://raw.githubusercontent.com/diegonmarcos/unix/main/ba_flakes_desktop/src/app_especific/konsole-commands.sh"
+    for v in $ALL_VMS; do
+      printf '\033[1;36m══ %s ══\033[0m\n' "$v"
+      ssh "$v" "mkdir -p ~/.local/share/konsole && curl -fsSL '$RAW_URL' -o ~/.local/share/konsole/konsole-commands.sh && chmod +x ~/.local/share/konsole/konsole-commands.sh && echo 'Done'" 2>&1 || printf '\033[0;31m  [FAILED]\033[0m\n'
+      echo
+    done
+    ;;
+  all-*)
+    SUB="${cmd#all-}"
+    ALL_VMS="gcp-proxy oci-mail oci-analytics oci-apps gcp-t4"
+    for v in $ALL_VMS; do
+      printf '\033[1;36m══ %s ══\033[0m\n' "$v"
+      bash "$0" "vm-${SUB}" "$v" 2>&1 || printf '\033[0;31m  [FAILED]\033[0m\n'
+      echo
+    done
+    ;;
+
+  # ── Local commands (same as VM but run directly) ────────────────────
+  local-htop)              show htop ;;
+  local-journalctl-f)      show sudo journalctl -f ;;
+  local-journal-docker)    show sudo journalctl -u docker -n 15 --no-pager ;;
+  local-journal-sshd)      show sudo journalctl -u sshd -u ssh -n 15 --no-pager ;;
+  local-journal-wg)        show sudo journalctl -u wg-quick@wg0 -n 15 --no-pager ;;
+  local-journal-cinit)     show sudo journalctl -u container-init -n 15 --no-pager ;;
+  local-journal-kernel)    show sudo journalctl -k -n 15 --no-pager ;;
+  local-journal-errors)    show sudo journalctl -p err -n 15 --no-pager ;;
+  local-systemctl-status)  show sudo systemctl status ;;
+  local-systemctl-list)    show sudo systemctl list-units --type=service --state=running ;;
+  local-docker-start)
+    show sudo systemctl start docker
+    sudo systemctl status docker --no-pager -l
+    ;;
+  local-docker-stop)
+    show sudo systemctl stop docker
+    echo "Docker stopped"
+    sudo systemctl is-active docker || true
+    ;;
+  local-docker-ps)
+    printf '\033[0;90m$ sudo docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"\033[0m\n'
+    sudo docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+    ;;
+  local-docker-stats)      show sudo docker stats ;;
+  local-docker-exec)
+    printf '\033[0;90m$ sudo docker ps + exec\033[0m\n'
+    sudo docker ps --format "{{.Names}}" && echo "---" && read -rp "Container: " c && sudo docker exec -it "$c" sh
+    ;;
+
   # ── Desktop commands ────────────────────────────────────────────────
   dtk)              show bash ~/git/cloud-data/dtk.sh ;;
   dtk-install)      show bash ~/git/cloud-data/dtk.sh install ;;
@@ -99,8 +155,8 @@ case "$cmd" in
     ;;
   wg-status)        show sudo wg show wg0 ;;
   docker-ps-local)
-    printf '\033[0;90m$ docker ps --format '\''table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'\''\033[0m\n'
-    docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+    printf '\033[0;90m$ sudo docker ps --format '\''table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'\''\033[0m\n'
+    sudo docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
     ;;
   free-mem)         show free -h ;;
   disk-usage)       show df -h / /home /nix /mnt/shared 2>/dev/null ;;

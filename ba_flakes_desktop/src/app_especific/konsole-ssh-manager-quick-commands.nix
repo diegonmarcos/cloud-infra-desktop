@@ -97,6 +97,46 @@ let
       + (mkQuickCmd f "gcloud serial" "${cmd} vm-gcloud-serial ${vm.gcInstance}" "GCloud serial console")
     );
 
+  orchCommands = let
+    f = "VM - Orchestration";
+    c = "${cmd} all";
+  in
+    (mkQuickCmd f "htop (all)"                    "${c}-htop"              "htop on all VMs sequentially")
+    + (mkQuickCmd f "journalctl -f (all)"         "${c}-journalctl-f"     "Follow journal on all VMs")
+    + (mkQuickCmd f "journal-watch docker (all)"  "${c}-journal-docker"   "Docker journal on all VMs")
+    + (mkQuickCmd f "journal-watch sshd (all)"    "${c}-journal-sshd"     "SSH journal on all VMs")
+    + (mkQuickCmd f "journal-watch wg (all)"      "${c}-journal-wg"       "WireGuard journal on all VMs")
+    + (mkQuickCmd f "journal-watch cinit (all)"   "${c}-journal-cinit"    "container-init journal on all VMs")
+    + (mkQuickCmd f "journal-watch kernel (all)"  "${c}-journal-kernel"   "Kernel messages on all VMs")
+    + (mkQuickCmd f "journal-watch errors (all)"  "${c}-journal-errors"   "Error journal on all VMs")
+    + (mkQuickCmd f "systemctl status (all)"      "${c}-systemctl-status" "systemd status on all VMs")
+    + (mkQuickCmd f "systemctl list-units (all)"  "${c}-systemctl-list"   "Running services on all VMs")
+    + (mkQuickCmd f "docker daemon start (all)"   "${c}-docker-start"     "Start Docker on all VMs")
+    + (mkQuickCmd f "docker daemon stop (all)"    "${c}-docker-stop"      "Stop Docker on all VMs")
+    + (mkQuickCmd f "docker ps (all)"             "${c}-docker-ps"        "List containers on all VMs")
+    + (mkQuickCmd f "docker stats (all)"          "${c}-docker-stats"     "Container stats on all VMs")
+    + (mkQuickCmd f "konsole script push (all)"   "${c}-script-push"     "Push konsole-commands.sh to all VMs");
+
+  localCommands = let
+    f = "Local";
+    c = "${cmd} local";
+  in
+    (mkQuickCmd f "htop"                    "${c}-htop"              "Interactive process viewer")
+    + (mkQuickCmd f "journalctl -f"         "${c}-journalctl-f"     "Follow system journal")
+    + (mkQuickCmd f "journal-watch docker"  "${c}-journal-docker"   "Last 15 lines of Docker daemon journal")
+    + (mkQuickCmd f "journal-watch sshd"    "${c}-journal-sshd"     "Last 15 lines of SSH daemon journal")
+    + (mkQuickCmd f "journal-watch wg"      "${c}-journal-wg"       "Last 15 lines of WireGuard journal")
+    + (mkQuickCmd f "journal-watch cinit"   "${c}-journal-cinit"    "Last 15 lines of container-init journal")
+    + (mkQuickCmd f "journal-watch kernel"  "${c}-journal-kernel"   "Last 15 kernel messages")
+    + (mkQuickCmd f "journal-watch errors"  "${c}-journal-errors"   "Last 15 error-level journal entries")
+    + (mkQuickCmd f "systemctl status"      "${c}-systemctl-status" "Show systemd status overview")
+    + (mkQuickCmd f "systemctl list-units"  "${c}-systemctl-list"   "List running systemd services")
+    + (mkQuickCmd f "docker daemon start"   "${c}-docker-start"     "Start Docker daemon")
+    + (mkQuickCmd f "docker daemon stop"    "${c}-docker-stop"      "Stop Docker daemon")
+    + (mkQuickCmd f "docker ps"             "${c}-docker-ps"        "List running containers")
+    + (mkQuickCmd f "docker stats"          "${c}-docker-stats"     "Live container resource usage")
+    + (mkQuickCmd f "docker exec"           "${c}-docker-exec"      "Pick a container and exec into it");
+
   desktopCommands =
     (mkQuickCmd "Desktop" "dtk.sh (interactive)"      "${cmd} dtk"            "Full interactive toolkit menu")
     + (mkQuickCmd "Desktop" "install dev toolchain"   "${cmd} dtk-install"    "Install full dev environment for detected OS")
@@ -144,7 +184,7 @@ let
     + (mkQuickCmd "VPS - GH Registry" "latest — all images"     "${cmd} ghcr-latest"      "All packages with latest version tag")
     + (mkQuickCmd "VPS - GH Registry" "visibility — all"        "${cmd} ghcr-visibility"  "Public vs private for all packages");
 
-  quickCommandsConfig = builtins.concatStringsSep "" (map mkQuickVmEntries vms) + desktopCommands + vpsCommands;
+  quickCommandsConfig = builtins.concatStringsSep "" (map mkQuickVmEntries vms) + orchCommands + localCommands + desktopCommands + vpsCommands;
 
 in {
   # SSH Manager sidebar
