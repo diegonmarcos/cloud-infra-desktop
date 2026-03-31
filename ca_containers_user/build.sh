@@ -1,14 +1,21 @@
 #!/bin/sh
 # ╔═══════════════════════════════════════════════════════════════════════════╗
-# ║ Containers Compose — Build + Push all 3 image variants                  ║
+# ║ User Container Images — Full pipeline: src → dist → GHCR                ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 #
+# Pipeline steps:
+#   build    = generate compose + copy src → dist/ (self-contained artifact)
+#   docker   = docker build images from dist/ Containerfiles
+#   push     = docker push images from dist/ to GHCR
+#   ship     = build + docker + push (full pipeline)
+#
 # Usage:
-#   ./build.sh              # Interactive TUI
-#   ./build.sh build        # Generate compose files from flake → dist/
-#   ./build.sh push         # Build + push all Docker images to GHCR
-#   ./build.sh push deb-nix # Build + push single variant
-#   ./build.sh ship         # build + push (full pipeline)
+#   ./build.sh                          # Interactive TUI
+#   ./build.sh build                    # Generate dist/
+#   ./build.sh docker [variant]         # Build Docker images
+#   ./build.sh push [variant]           # Push images to GHCR
+#   ./build.sh ship [variant]           # Full pipeline
+#   Variants: deb-nix, deb-apt, nixos-hm, all (default)
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -50,16 +57,18 @@ ghcr_login() {
     fi
 }
 
-# ── Step: Build (src/ + flake → dist/) ────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+# STEP 1: BUILD — src/ + flake → dist/ (self-contained artifact)
+# ═══════════════════════════════════════════════════════════════════
 step_build() {
-    log "Building dist/ (self-contained production artifact)..."
+    log "Step 1: BUILD — generating dist/..."
     rm -rf "$DIST_DIR"
     mkdir -p "$DIST_DIR"
 
-    # 1. Copy all src/ files (Containerfiles, distrobox, etc.)
+    # Copy all src/ files (Containerfiles, distrobox, flake, etc.)
     cp -rL "$SRC_DIR"/* "$DIST_DIR/"
 
-    # 2. Generate compose files from flake
+    # Generate compose files from flake → overwrite into dist/
     cd "$SRC_DIR"
     nix build --no-link --print-out-paths 2>/dev/null | while read -r path; do
         cp -rL "$path"/*.yaml "$DIST_DIR/" 2>/dev/null || true
@@ -67,123 +76,141 @@ step_build() {
     done
 
     log "dist/ contents:"
-    ls -la "$DIST_DIR"/*.yaml 2>/dev/null || warn "No compose files generated"
+    ls -1 "$DIST_DIR/" 2>/dev/null
 }
 
-# ── Step: Push Docker images to GHCR ───────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+# STEP 2: DOCKER — build images from dist/ Containerfiles
+# ═══════════════════════════════════════════════════════════════════
+step_docker() {
+    _variant="${1:-all}"
+    detect_engine
+
+    [ ! -d "$DIST_DIR" ] && { error "No dist/ — run build first"; }
+
+    case "$_variant" in
+        deb-nix)   _docker_build_containerfile deb-nix "diego-deb-nix" ;;
+        deb-apt)   _docker_build_containerfile deb-apt "diego-deb-apt" ;;
+        nixos-hm)  _docker_build_nix ;;
+        all)
+            _docker_build_containerfile deb-nix "diego-deb-nix"
+            _docker_build_containerfile deb-apt "diego-deb-apt"
+            _docker_build_nix ;;
+        *)         error "Unknown variant: $_variant" ;;
+    esac
+}
+
+_docker_build_containerfile() {
+    _variant="$1"; _name="$2"
+    _img="$REGISTRY/$_name:latest"
+    _containerfile="$DIST_DIR/Containerfile.$_variant"
+
+    [ ! -f "$_containerfile" ] && { warn "$_variant: $_containerfile not found — skipping"; return 0; }
+
+    log "Step 2: DOCKER BUILD — $_variant: $_img"
+    log "  Containerfile: $_containerfile"
+    log "  Context: $DIST_DIR"
+
+    $ENGINE build -t "$_img" -f "$_containerfile" "$DIST_DIR"
+    log "Built: $_img"
+}
+
+_docker_build_nix() {
+    _img="$REGISTRY/diego-nixos-hm:latest"
+    _hm_flake=$(jq -r '.images["nixos-hm"].hm_flake' "$CONFIG")
+    _flake_path="$SCRIPT_DIR/$_hm_flake"
+
+    log "Step 2: DOCKER BUILD — nixos-hm: $_img (dockerTools)"
+    log "  Flake: $_flake_path"
+
+    if nix build "$_flake_path#container-nixos-hm" --no-link --print-out-paths 2>/dev/null | read -r _tarball; then
+        $ENGINE load < "$_tarball"
+        log "Built: $_img (from nix)"
+    else
+        warn "nixos-hm: flake output #container-nixos-hm not found — skipping"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP 3: PUSH — push images to GHCR
+# ═══════════════════════════════════════════════════════════════════
 step_push() {
     _variant="${1:-all}"
     detect_engine
     ghcr_login
 
     case "$_variant" in
-        deb-nix)
-            _push_deb_nix ;;
-        deb-apt)
-            _push_deb_apt ;;
-        nixos-hm)
-            _push_nixos_hm ;;
+        deb-nix)   _docker_push "diego-deb-nix" ;;
+        deb-apt)   _docker_push "diego-deb-apt" ;;
+        nixos-hm)  _docker_push "diego-nixos-hm" ;;
         all)
-            _push_deb_nix
-            _push_deb_apt
-            _push_nixos_hm ;;
-        *)
-            error "Unknown variant: $_variant (use: deb-nix, deb-apt, nixos-hm, all)" ;;
+            _docker_push "diego-deb-nix"
+            _docker_push "diego-deb-apt"
+            _docker_push "diego-nixos-hm" ;;
+        *)         error "Unknown variant: $_variant" ;;
     esac
 }
 
-_push_deb_nix() {
-    _img="$REGISTRY/diego-deb-nix:latest"
-    _containerfile="$SRC_DIR/Containerfile.deb-nix"
-
-    if [ ! -f "$_containerfile" ]; then
-        error "deb-nix Containerfile not found at $_containerfile"
-    fi
-
-    log "Building deb-nix: $_img"
-    log "  Containerfile: $_containerfile"
-
-    $ENGINE build -t "$_img" -f "$_containerfile" "$SRC_DIR"
+_docker_push() {
+    _img="$REGISTRY/$1:latest"
+    log "Step 3: PUSH — $_img"
     $ENGINE push "$_img"
     log "Pushed: $_img"
 }
 
-_push_deb_apt() {
-    _img="$REGISTRY/diego-deb-apt:latest"
-    _containerfile="$SRC_DIR/Containerfile.deb-apt"
-
-    if [ ! -f "$_containerfile" ]; then
-        warn "deb-apt Containerfile not found at $_containerfile — skipping"
-        return 0
-    fi
-
-    log "Building deb-apt: $_img"
-    $ENGINE build -t "$_img" -f "$_containerfile" "$SRC_DIR"
-    $ENGINE push "$_img"
-    log "Pushed: $_img"
-}
-
-_push_nixos_hm() {
-    _img="$REGISTRY/diego-nixos-hm:latest"
-    _hm_flake=$(jq -r '.images["nixos-hm"].hm_flake' "$CONFIG")
-    _hm_config=$(jq -r '.images["nixos-hm"].hm_config' "$CONFIG")
-
-    log "Building nixos-hm: $_img"
-    log "  HM flake: $SCRIPT_DIR/$_hm_flake"
-    log "  HM config: $_hm_config"
-
-    # Build via dockerTools in the HM flake (requires container-nixos-hm output)
-    _flake_path="$SCRIPT_DIR/$_hm_flake"
-    if nix build "$_flake_path#container-nixos-hm" --no-link --print-out-paths 2>/dev/null | read -r _tarball; then
-        $ENGINE load < "$_tarball"
-        $ENGINE push "$_img"
-        log "Pushed: $_img"
-    else
-        warn "nixos-hm: flake output #container-nixos-hm not found — skipping"
-        warn "  Add dockerTools.buildLayeredImage output to $_flake_path/flake.nix"
-    fi
-}
-
-# ── Step: Ship (build + push) ──────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+# SHIP — full pipeline: build + docker + push
+# ═══════════════════════════════════════════════════════════════════
 step_ship() {
+    _variant="${1:-all}"
     step_build
-    step_push "${1:-all}"
+    step_docker "$_variant"
+    step_push "$_variant"
 }
 
-# ── TUI Menu ───────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+# TUI Menu
+# ═══════════════════════════════════════════════════════════════════
 show_menu() {
     printf "\n"
-    printf "  Containers Compose\n"
+    printf "  User Container Images\n"
     printf "  ──────────────────────────────────\n"
-    printf "  1) build         Generate compose files (flake → dist/)\n"
-    printf "  2) push all      Build + push all 3 images to GHCR\n"
-    printf "  3) push deb-nix  Build + push deb-nix only\n"
-    printf "  4) push deb-apt  Build + push deb-apt only\n"
-    printf "  5) push nixos-hm Build + push nixos-hm only\n"
-    printf "  6) ship          Full pipeline (build + push all)\n"
+    printf "  1) deb-nix     Debian + Nix + HM\n"
+    printf "  2) deb-apt     Debian + apt\n"
+    printf "  3) nixos-hm    Pure Nix (dockerTools)\n"
     printf "  ──────────────────────────────────\n"
+    printf "  a) build       Generate dist/\n"
+    printf "  b) docker all  Build all images\n"
+    printf "  c) ship all    Full pipeline\n"
     printf "> "
     read -r _choice
     case "$_choice" in
-        1) step_build ;;
-        2) step_push all ;;
-        3) step_push deb-nix ;;
-        4) step_push deb-apt ;;
-        5) step_push nixos-hm ;;
-        6) step_ship ;;
+        a) step_build ;;
+        b) step_docker all ;;
+        c) step_ship all ;;
+        1) step_ship deb-nix ;; 2) step_ship deb-apt ;; 3) step_ship nixos-hm ;;
         *) echo "Invalid"; show_menu ;;
     esac
 }
 
-# ── Entry Point ─────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+# Entry Point
+# ═══════════════════════════════════════════════════════════════════
 case "${1:-}" in
     "")          show_menu ;;
     build)       step_build ;;
+    docker)      step_docker "${2:-all}" ;;
     push)        step_push "${2:-all}" ;;
     ship)        step_ship "${2:-all}" ;;
     --help|-h)
-        echo "Usage: $0 [build|push [variant]|ship [variant]]"
+        echo "Usage: $0 [build|docker|push|ship [variant]]"
         echo "Variants: deb-nix, deb-apt, nixos-hm, all (default)"
+        echo ""
+        echo "Steps:"
+        echo "  build   src/ + flake → dist/ (compose + Containerfiles + deps)"
+        echo "  docker  build images from dist/ Containerfiles"
+        echo "  push    push images to GHCR"
+        echo "  ship    build + docker + push (full pipeline)"
         ;;
-    *)           error "Unknown command: $1 (use: build, push, ship)" ;;
+    *)           error "Unknown command: $1 (use: build, docker, push, ship)" ;;
 esac
