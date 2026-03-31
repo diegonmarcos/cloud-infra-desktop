@@ -15,6 +15,12 @@
       "platform": "linux/arm64",
       "description": "ARM builder for OCI A1 VMs"
     },
+    "x86-apt": {
+      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x86-apt",
+      "dockerfile": "src/Dockerfile.x86-apt",
+      "platform": "linux/amd64",
+      "description": "x86 builder Debian apt (no Nix, lighter)"
+    },
     "x86-forge": {
       "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x86-nixos-forge",
       "dockerfile": "src/Dockerfile.x86-forge",
