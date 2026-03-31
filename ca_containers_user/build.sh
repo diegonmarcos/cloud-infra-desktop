@@ -111,7 +111,7 @@ _docker_build_containerfile() {
     log "  Containerfile: $_containerfile"
     log "  Context: $DIST_DIR"
 
-    $ENGINE build -t "$_img" -f "$_containerfile" "$DIST_DIR"
+    $ENGINE build --network=host -t "$_img" -f "$_containerfile" "$DIST_DIR"
     log "Built: $_img"
 }
 
