@@ -3,7 +3,7 @@
 # Konsole SSH Manager + Quick Commands plugin configuration
 # SSH Manager: connection bookmarks (opens new tab)
 # Quick Commands: operation bookmarks (sends to active terminal)
-# All commands delegate to konsole-commands.sh — zero escaping in nix
+# All commands delegate to cloud-container-orchestrator.sh — zero escaping in nix
 
 let
   # ── VM definitions ──────────────────────────────────────────────────────
@@ -16,7 +16,7 @@ let
   ];
 
   sshKey = "/home/diego/.ssh/id_rsa";
-  cmd = "bash ~/.local/share/konsole/konsole-commands.sh";
+  cmd = "bash ~/.local/share/konsole/cloud-container-orchestrator.sh";
 
   # ── SSH Manager: konsolesshconfig ───────────────────────────────────────
 
@@ -84,6 +84,7 @@ let
     + (mkQuickCmd f "docker ps"             "${c}-docker-ps ${v}"        "List running containers")
     + (mkQuickCmd f "docker stats"          "${c}-docker-stats ${v}"     "Live container resource usage")
     + (mkQuickCmd f "docker exec"           "${c}-docker-exec ${v}"      "Pick a container and exec into it")
+    + (mkQuickCmd f "dashboard"             "${cmd} vm-dashboard ${v}"   "tmux: docker stats + htop split")
     # Cloud control (per-VM)
     + (if vm.provider == "oci" then
       (mkQuickCmd f "oci start"   "${cmd} vm-oci-start ${v}"   "Start OCI instance")
@@ -101,7 +102,13 @@ let
     f = "VM - Orchestration";
     c = "${cmd} all";
   in
-    (mkQuickCmd f "htop (all)"                    "${c}-htop"              "htop on all VMs sequentially")
+    # Mode switcher
+    (mkQuickCmd f "⚡ mode: SSH (default)"         "${cmd} mode-ssh"        "Set connection mode to SSH (port 22)")
+    + (mkQuickCmd f "⚡ mode: Dropbear"             "${cmd} mode-dropbear"   "Set connection mode to Dropbear (port 2200)")
+    + (mkQuickCmd f "⚡ mode: Serial"               "${cmd} mode-serial"     "Set connection mode to serial console")
+    + (mkQuickCmd f "⚡ mode: status"               "${cmd} mode-status"     "Show current connection mode")
+    # Commands
+    + (mkQuickCmd f "htop (all)"                    "${c}-htop"              "htop on all VMs sequentially")
     + (mkQuickCmd f "journalctl -f (all)"         "${c}-journalctl-f"     "Follow journal on all VMs")
     + (mkQuickCmd f "journal-watch docker (all)"  "${c}-journal-docker"   "Docker journal on all VMs")
     + (mkQuickCmd f "journal-watch sshd (all)"    "${c}-journal-sshd"     "SSH journal on all VMs")
@@ -115,7 +122,9 @@ let
     + (mkQuickCmd f "docker daemon stop (all)"    "${c}-docker-stop"      "Stop Docker on all VMs")
     + (mkQuickCmd f "docker ps (all)"             "${c}-docker-ps"        "List containers on all VMs")
     + (mkQuickCmd f "docker stats (all)"          "${c}-docker-stats"     "Container stats on all VMs")
-    + (mkQuickCmd f "konsole script push (all)"   "${c}-script-push"     "Push konsole-commands.sh to all VMs");
+    + (mkQuickCmd f "dashboard-stats (all)"         "${c}-dashboard-stats"   "tmux: docker stats + htop for all VMs (one tab per VM)")
+    + (mkQuickCmd f "dashboard-journal (all)"       "${c}-dashboard-journal" "tmux: journalctl -f + htop for all VMs (one tab per VM)")
+    + (mkQuickCmd f "konsole script push (all)"   "${c}-script-push"     "Push cloud-container-orchestrator.sh to all VMs");
 
   localCommands = let
     f = "Local";
@@ -153,7 +162,7 @@ let
     + (mkQuickCmd "Desktop" "docker ps (local)"       "${cmd} docker-ps-local" "List local running containers")
     + (mkQuickCmd "Desktop" "free memory"             "${cmd} free-mem"       "Show memory usage")
     + (mkQuickCmd "Desktop" "disk usage"              "${cmd} disk-usage"     "Show disk usage for key partitions")
-    + (mkQuickCmd "Desktop" "konsole script push"     "mkdir -p ~/.local/share/konsole && curl -fsSL https://raw.githubusercontent.com/diegonmarcos/unix/main/ba_flakes_desktop/src/app_especific/konsole-commands.sh -o ~/.local/share/konsole/konsole-commands.sh && chmod +x ~/.local/share/konsole/konsole-commands.sh && echo 'Done: ~/.local/share/konsole/konsole-commands.sh'" "Download konsole-commands.sh from GitHub to current host (no dependencies)");
+    + (mkQuickCmd "Desktop" "konsole script push"     "mkdir -p ~/.local/share/konsole && curl -fsSL https://raw.githubusercontent.com/diegonmarcos/tools/main/4-others/6-engines/cloud-container-orchestrator/cloud-container-orchestrator.sh -o ~/.local/share/konsole/cloud-container-orchestrator.sh && chmod +x ~/.local/share/konsole/cloud-container-orchestrator.sh && echo 'Done: ~/.local/share/konsole/cloud-container-orchestrator.sh'" "Download cloud-container-orchestrator.sh from GitHub to current host (no dependencies)");
 
   vpsCommands =
     # Cloud
@@ -193,6 +202,7 @@ in {
   # Quick Commands sidebar
   home.file.".config/konsolequickcommandsconfig".text = quickCommandsConfig;
 
-  # Commands script (referenced by Quick Commands)
-  home.file.".local/share/konsole/konsole-commands.sh".source = ./konsole-commands.sh;
+  # Commands script — source lives in tools repo, deployed here for Konsole
+  home.file.".local/share/konsole/cloud-container-orchestrator.sh".source =
+    /home/diego/git/tools/4-others/6-engines/cloud-container-orchestrator/cloud-container-orchestrator.sh;
 }
