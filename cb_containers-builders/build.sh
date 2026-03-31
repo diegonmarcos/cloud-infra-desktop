@@ -117,7 +117,7 @@ _docker_build() {
     _args=""
     [ -n "$_platform" ] && _args="--platform=$_platform"
 
-    $ENGINE build $_args -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
+    $ENGINE build --network=host $_args -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
     log "Built: $_ghcr:latest"
 }
 

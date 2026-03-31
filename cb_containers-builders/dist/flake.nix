@@ -73,6 +73,7 @@
           build:
             context: .
             dockerfile: docker/Dockerfile
+            network: host
             args:
               NIX_SYSTEM: ${nixSystem}
           container_name: cloud-builder-${variant}

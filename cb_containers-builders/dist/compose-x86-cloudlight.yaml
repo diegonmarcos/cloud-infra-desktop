@@ -13,6 +13,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      network: host
       args:
         NIX_SYSTEM: x86_64-linux
     container_name: cloud-builder-x86-cloudlight
