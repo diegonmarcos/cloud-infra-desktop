@@ -131,6 +131,12 @@ RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh && export NIXPKGS_ALLOW_UNFR
        nixpkgs#shellcheck nixpkgs#shfmt nixpkgs#direnv \
     || true
 
+# ── Prune nix store (remove build-time-only deps) ────────────────
+RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh \
+    && nix-collect-garbage -d 2>/dev/null \
+    && nix store optimise 2>/dev/null \
+    || true
+
 # ── Embed build files + compose in image (self-documentation) ────
 # compose-*.yaml placed in src/ by build.sh build before docker build
 RUN mkdir -p /home/diego/.image-meta

@@ -146,8 +146,11 @@ let
     + (mkQuickCmd f "docker stats"          "${c}-docker-stats"     "Live container resource usage")
     + (mkQuickCmd f "docker exec"           "${c}-docker-exec"      "Pick a container and exec into it");
 
+  tuiCmd = "bash ~/git/tools/4-others/6-engines/cloud-container-orchestrator/cloud-container-orchestrator-tui.sh";
+
   desktopCommands =
-    (mkQuickCmd "Desktop" "dtk.sh (interactive)"      "${cmd} dtk"            "Full interactive toolkit menu")
+    (mkQuickCmd "Desktop" "TUI (tmux + fzf)"          tuiCmd                  "Full TUI: fzf menu (left) + output (right) in tmux")
+    + (mkQuickCmd "Desktop" "dtk.sh (interactive)"    "${cmd} dtk"            "Full interactive toolkit menu")
     + (mkQuickCmd "Desktop" "install dev toolchain"   "${cmd} dtk-install"    "Install full dev environment for detected OS")
     + (mkQuickCmd "Desktop" "docker-start (dev container)" "${cmd} dtk-docker" "Pull and run diego-user-env container")
     + (mkQuickCmd "Desktop" "git-clone (all repos)"   "${cmd} dtk-git-clone"  "Clone/pull all 5 repos to ~/git")
