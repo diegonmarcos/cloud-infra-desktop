@@ -29,6 +29,9 @@ COPY forge-deps.json /etc/forge/deps.json
 COPY forge-install.sh /etc/forge/install.sh
 RUN chmod +x /etc/forge/install.sh
 
+# Bootstrap: jq needed by install.sh to parse deps.json
+RUN apt-get update -qq && apt-get install -y -qq jq && rm -rf /var/lib/apt/lists/*
+
 # Layer 1: System packages (apt)
 RUN /etc/forge/install.sh apt
 
