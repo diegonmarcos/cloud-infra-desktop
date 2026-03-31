@@ -1,0 +1,144 @@
+{
+  "_meta": {
+    "name": "cloud-builder-forge-rust-go-clang",
+    "description": "Full dev/CI/ML builder — multi-arch, deps.json-driven",
+    "version": "2.0.0",
+    "base_image": "debian:bookworm",
+    "maintainer": "Diego Nepomuceno Marcos"
+  },
+
+  "apt": {
+    "compilers": ["gcc", "g++", "clang", "llvm", "lld", "lldb", "clang-format", "clang-tidy", "cppcheck"],
+    "build": ["cmake", "make", "ninja-build", "meson", "autoconf", "automake", "libtool", "bison", "flex", "pkg-config", "libssl-dev", "protobuf-compiler"],
+    "libs": ["libffi-dev", "libreadline-dev", "libsqlite3-dev", "libbz2-dev", "libncurses-dev", "libgdbm-dev", "liblzma-dev", "zlib1g-dev", "libssl3"],
+    "shells": ["bash", "zsh", "fish"],
+    "vcs": ["git", "git-lfs"],
+    "net": ["openssh-client", "openssh-server", "curl", "wget", "ca-certificates", "gnupg", "wireguard-tools", "iproute2", "iputils-ping", "dnsutils", "netcat-openbsd", "socat", "nmap", "mtr-tiny", "tcpdump", "iftop", "nethogs", "openssl", "iptables", "nftables", "httpie", "tshark", "tor", "torsocks", "openvpn"],
+    "system": ["lsb-release", "sudo", "xz-utils", "unzip", "zip", "jq", "rsync", "parallel", "bc", "expect", "gettext", "locales", "cron", "diffutils", "patch"],
+    "terminal": ["tmux", "screen", "vim", "nano", "less", "htop", "btop", "tree", "ncdu", "ranger", "mc", "bat", "fd-find", "ripgrep", "fzf", "shellcheck", "yq"],
+    "debug": ["strace", "ltrace", "gdb", "valgrind", "binutils", "binwalk", "file", "elfutils", "patchelf", "chrpath", "hexyl", "xxd", "direnv"],
+    "archive": ["zstd", "lz4", "brotli", "pigz", "p7zip-full"],
+    "fs": ["inotify-tools", "fuse3", "sshfs"],
+    "db": ["sqlite3", "postgresql-client", "redis-tools"],
+    "doc": ["pandoc", "graphviz"],
+    "media": ["imagemagick", "ffmpeg", "sox", "lame", "mediainfo", "libimage-exiftool-perl", "poppler-utils", "aspell", "aspell-en", "aspell-es"],
+    "cloud": ["rclone", "certbot"],
+    "misc": ["neofetch", "lshw", "pciutils", "usbutils", "procps", "psmisc", "wl-clipboard", "xclip", "inetutils-tools", "gnupg", "pass"],
+    "crypto": ["stunnel4"],
+    "python": ["python3-pip", "python3-venv", "python3-dev"],
+    "ruby": ["ruby", "ruby-dev"],
+    "java": ["openjdk-17-jdk-headless", "maven", "gradle"],
+    "r": ["r-base", "r-base-dev"],
+    "octave": ["octave"],
+    "containers": ["podman", "buildah", "skopeo"]
+  },
+
+  "rust": {
+    "channel": "stable",
+    "extra_toolchains": ["nightly"],
+    "components": ["clippy", "rustfmt", "rust-analyzer"],
+    "cargo_tools": ["cargo-audit", "cargo-edit", "cargo-watch", "cargo-nextest", "sccache"],
+    "cargo_terminal": ["eza", "delta", "yazi-fm", "zoxide", "just", "watchexec-cli"]
+  },
+
+  "go": {
+    "version": "latest",
+    "tools": [
+      "golang.org/x/tools/gopls@latest",
+      "github.com/golangci/golangci-lint/cmd/golangci-lint@latest",
+      "github.com/go-delve/delve/cmd/dlv@latest",
+      "mvdan.cc/sh/v3/cmd/shfmt@latest",
+      "github.com/wagoodman/dive@latest",
+      "github.com/stern/stern@latest"
+    ]
+  },
+
+  "node": {
+    "version": "22",
+    "global": [
+      "pnpm", "yarn", "tsx", "typescript", "ts-node", "esbuild", "nodemon", "concurrently",
+      "@modelcontextprotocol/sdk", "@anthropic-ai/sdk",
+      "@fastify/cors", "@fastify/static", "@fastify/swagger", "@fastify/swagger-ui",
+      "fastify", "fastify-plugin",
+      "better-sqlite3", "yaml", "zod", "zod-to-json-schema",
+      "fast-xml-parser", "nunjucks",
+      "imapflow", "mailparser", "nodemailer",
+      "vite", "svelte", "rollup", "webpack", "sass", "dart-sass", "postcss", "autoprefixer", "tailwindcss",
+      "eslint", "prettier", "biome", "vitest", "jest",
+      "wrangler", "diff-so-fancy",
+      "@anthropic-ai/claude-code",
+      "@types/better-sqlite3", "@types/node", "@types/nodemailer", "@types/nunjucks"
+    ]
+  },
+
+  "pip": {
+    "tools": ["poetry", "pipx", "uv", "black", "ruff", "mypy", "pylint"],
+    "testing": ["pytest", "httpx", "requests", "pydantic"],
+    "config": ["pyyaml", "toml", "rich", "click", "typer"],
+    "infra": ["ansible", "ansible-lint", "oci-cli"],
+    "data_science": ["numpy", "pandas", "scipy", "matplotlib", "seaborn", "plotly", "scikit-learn", "polars", "pyarrow", "dask", "sympy", "bokeh"],
+    "jupyter": ["jupyterlab", "notebook", "ipython"],
+    "ml": ["torch", "torchvision", "transformers", "datasets", "tokenizers", "accelerate", "huggingface-hub", "safetensors", "onnxruntime", "langchain", "langchain-community", "openai", "anthropic", "tensorflow-cpu", "xgboost", "lightgbm", "catboost", "mlflow", "wandb"],
+    "scraping": ["beautifulsoup4", "scrapy"],
+    "db_cli": ["pgcli", "mycli", "litecli"]
+  },
+
+  "ruby_gems": ["bundler", "jekyll"],
+
+  "r_packages": ["ggplot2", "dplyr", "tidyr"],
+
+  "github_releases": {
+    "sops": { "repo": "getsops/sops", "binary": "sops-v{VERSION}.linux.{ARCH}" },
+    "age": { "repo": "FiloSottile/age", "archive": "age-v{VERSION}-linux-{ARCH}.tar.gz", "strip": 1 },
+    "duf": { "repo": "muesli/duf", "deb": "duf_{VERSION}_linux_{ARCH}.deb" },
+    "act": { "repo": "nektos/act", "archive": "act_Linux_x86_64.tar.gz", "extract": ["act"] }
+  },
+
+  "curl_installers": {
+    "rust": "https://sh.rustup.rs",
+    "starship": "https://starship.rs/install.sh",
+    "nix": "https://nixos.org/nix/install",
+    "helm": "https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3",
+    "node": "https://deb.nodesource.com/setup_{VERSION}.x"
+  },
+
+  "cloud_cli": {
+    "docker": { "method": "apt_repo", "repo": "https://download.docker.com/linux/debian" },
+    "kubectl": { "method": "curl", "url": "https://dl.k8s.io/release/{VERSION}/bin/linux/{ARCH}/kubectl" },
+    "terraform": { "method": "hashicorp_zip" },
+    "gh": { "method": "github_release", "repo": "cli/cli" }
+  },
+
+  "cuda": {
+    "version": "12-6",
+    "packages": ["cuda-toolkit-12-6", "libcudnn9-cuda-12", "libcudnn9-dev-cuda-12"]
+  },
+
+  "android": {
+    "cmdline_tools": "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip",
+    "sdk_packages": ["platform-tools", "build-tools;34.0.0", "platforms;android-34"],
+    "kotlin_version": "latest"
+  },
+
+  "nix": {
+    "install": true,
+    "flakes": true,
+    "channel": "nixos-24.11"
+  },
+
+  "fish": {
+    "default_shell": true,
+    "plugins": ["jorgebucaran/fisher"],
+    "starship": true,
+    "config_source": "embedded"
+  },
+
+  "repos": {
+    "cloud": "diegonmarcos/cloud",
+    "cloud-data": "diegonmarcos/cloud-data",
+    "front": "diegonmarcos/diegonmarcos.github.io",
+    "front-data": "diegonmarcos/front-data",
+    "tools": "diegonmarcos/ops-Tooling",
+    "unix": "diegonmarcos/unix"
+  }
+}

@@ -145,6 +145,12 @@
           platform = "linux/arm64";
         })} $out/compose-arm-cloudlight.yaml
 
+        cp ${pkgs.writeText "compose-x86-forge.yaml" (mkBuilderCompose {
+          variant = "x86-forge";
+          imageName = "cloud-builder-forge-rust-go-clang";
+          nixSystem = "x86_64-linux";
+        })} $out/compose-x86-forge.yaml
+
         cp ${../build.json} $out/build.json
       '';
     });
