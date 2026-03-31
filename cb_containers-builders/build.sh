@@ -12,6 +12,7 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/src"
+DIST_DIR="$SCRIPT_DIR/dist"
 CONFIG="$SCRIPT_DIR/build.json"
 
 REGISTRY=$(jq -r '.registry' "$CONFIG")
@@ -48,6 +49,21 @@ ghcr_login() {
     fi
 }
 
+# ── Step: Build compose files (nix flake → dist/) ─────────────────────
+step_build() {
+    log "Building compose files from flake..."
+    rm -rf "$DIST_DIR"
+    mkdir -p "$DIST_DIR"
+
+    cd "$SRC_DIR"
+    nix build --no-link --print-out-paths 2>/dev/null | while read -r path; do
+        cp -rL "$path"/* "$DIST_DIR/"
+    done
+
+    log "Generated in dist/:"
+    ls -la "$DIST_DIR"/*.yaml 2>/dev/null || warn "No compose files generated"
+}
+
 # ── Build a single variant ──────────────────────────────────────────────
 _build_variant() {
     _variant="$1"
@@ -79,8 +95,8 @@ _build_variant() {
     fi
 }
 
-# ── Step: Build ─────────────────────────────────────────────────────────
-step_build() {
+# ── Step: Docker build ──────────────────────────────────────────────────
+step_docker() {
     _variant="${1:-all}"
     detect_engine
 
@@ -93,9 +109,10 @@ step_build() {
     fi
 }
 
-# ── Step: Ship (build + push) ──────────────────────────────────────────
+# ── Step: Ship (compose + docker build + push) ────────────────────────
 step_ship() {
     _variant="${1:-all}"
+    step_build
     detect_engine
     ghcr_login
 
@@ -142,7 +159,8 @@ show_menu() {
 # ── Entry Point ─────────────────────────────────────────────────────────
 case "${1:-}" in
     "")          show_menu ;;
-    build)       step_build "${2:-all}" ;;
+    build)       step_build ;;
+    docker)      step_docker "${2:-all}" ;;
     ship)        step_ship "${2:-all}" ;;
     --help|-h)
         echo "Usage: $0 [build|ship [variant]]"
