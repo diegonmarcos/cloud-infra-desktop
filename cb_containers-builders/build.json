@@ -1,0 +1,28 @@
+{
+  "name": "containers-builders",
+  "description": "CI/CD builder images — self-contained nix + sops + docker + rsync + ssh",
+  "registry": "ghcr.io/diegonmarcos",
+  "images": {
+    "x86-cloudlight": {
+      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x86-nixos",
+      "dockerfile": "src/docker/Dockerfile",
+      "build_args": "NIX_SYSTEM=x86_64-linux",
+      "platform": "linux/amd64",
+      "description": "x86 builder for GHA (lightweight, cloud workflows)"
+    },
+    "arm-cloudlight": {
+      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-arm-nixos",
+      "dockerfile": "src/docker/Dockerfile",
+      "build_args": "NIX_SYSTEM=aarch64-linux",
+      "platform": "linux/arm64",
+      "description": "ARM builder for OCI A1 VMs"
+    },
+    "x86-forge": {
+      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x86-forge",
+      "dockerfile": "src/docker/Dockerfile.forge",
+      "build_args": "NIX_SYSTEM=x86_64-linux",
+      "platform": "linux/amd64",
+      "description": "x86 forge — full toolchain for heavy builds"
+    }
+  }
+}
