@@ -14,48 +14,7 @@ permissions:
   packages: write
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: diego-deb-nix
-            context: cc_containers-compose/src
-            file: cc_containers-compose/src/Containerfile.deb-nix
-          - name: diego-deb-apt
-            context: cc_containers-compose/src
-            file: cc_containers-compose/src/Containerfile.deb-apt
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Update submodules
-        run: git submodule update --remote
-
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.file }}
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ghcr.io/diegonmarcos/${{ matrix.name }}:latest
-            ghcr.io/diegonmarcos/${{ matrix.name }}:${{ github.sha }}
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,scope=${{ matrix.name }},mode=max
-
-  build-nix:
+  ship:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,14 +34,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build nix-hm image
-        run: |
-          nix build ./ba_flakes_desktop/src#container-nixos-hm --no-link --print-out-paths | while read -r tarball; do
-            docker load < "$tarball"
-          done
-
-      - name: Push nix-hm image
-        run: |
-          docker tag ghcr.io/diegonmarcos/diego-nixos-hm:latest ghcr.io/diegonmarcos/diego-nixos-hm:${{ github.sha }}
-          docker push ghcr.io/diegonmarcos/diego-nixos-hm:latest
-          docker push ghcr.io/diegonmarcos/diego-nixos-hm:${{ github.sha }}
+      - name: Ship all container images
+        run: sh cc_containers-compose/build.sh ship
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
