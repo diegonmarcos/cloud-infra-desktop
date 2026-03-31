@@ -152,6 +152,13 @@
           nixSystem = "x86_64-linux";
         })} $out/compose-x86-apt.yaml
 
+        cp ${pkgs.writeText "compose-arm-apt.yaml" (mkBuilderCompose {
+          variant = "arm-apt";
+          imageName = "cloud-builder-arm-apt";
+          nixSystem = "aarch64-linux";
+          platform = "linux/arm64";
+        })} $out/compose-arm-apt.yaml
+
         cp ${pkgs.writeText "compose-x86-forge.yaml" (mkBuilderCompose {
           variant = "x86-forge";
           imageName = "cloud-builder-x86-nixos-forge";

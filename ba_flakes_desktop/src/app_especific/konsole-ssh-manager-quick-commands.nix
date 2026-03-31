@@ -16,7 +16,7 @@ let
   ];
 
   sshKey = "/home/diego/.ssh/id_rsa";
-  cmd = "bash ~/.local/share/konsole/cloud-container-orchestrator.sh";
+  cmd = "bash ~/git/tools/4-others/6-engines/cloud-container-orchestrator/cloud-container-orchestrator.sh";
 
   # ── SSH Manager: konsolesshconfig ───────────────────────────────────────
 
@@ -162,7 +162,7 @@ let
     + (mkQuickCmd "Desktop" "docker ps (local)"       "${cmd} docker-ps-local" "List local running containers")
     + (mkQuickCmd "Desktop" "free memory"             "${cmd} free-mem"       "Show memory usage")
     + (mkQuickCmd "Desktop" "disk usage"              "${cmd} disk-usage"     "Show disk usage for key partitions")
-    + (mkQuickCmd "Desktop" "konsole script push"     "mkdir -p ~/.local/share/konsole && curl -fsSL https://raw.githubusercontent.com/diegonmarcos/tools/main/4-others/6-engines/cloud-container-orchestrator/cloud-container-orchestrator.sh -o ~/.local/share/konsole/cloud-container-orchestrator.sh && chmod +x ~/.local/share/konsole/cloud-container-orchestrator.sh && echo 'Done: ~/.local/share/konsole/cloud-container-orchestrator.sh'" "Download cloud-container-orchestrator.sh from GitHub to current host (no dependencies)");
+    + (mkQuickCmd "Desktop" "konsole script push"     "if [ -d ~/git/tools/.git ]; then git -C ~/git/tools pull; else git clone https://github.com/diegonmarcos/tools.git ~/git/tools; fi && echo 'Done: ~/git/tools'" "Clone/pull tools repo from GitHub");
 
   vpsCommands =
     # Cloud
@@ -202,7 +202,5 @@ in {
   # Quick Commands sidebar
   home.file.".config/konsolequickcommandsconfig".text = quickCommandsConfig;
 
-  # Commands script — source lives in tools repo, deployed here for Konsole
-  home.file.".local/share/konsole/cloud-container-orchestrator.sh".source =
-    /home/diego/git/tools/4-others/6-engines/cloud-container-orchestrator/cloud-container-orchestrator.sh;
+  # Commands script — runs directly from ~/git/tools (clone via "konsole script push" quick command)
 }
