@@ -12,7 +12,7 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 x-common: &common
-  image: ghcr.io/diegonmarcos/diego-deb-apt:latest
+  image: ghcr.io/diegonmarcos/user-dev-x86-deb-apt:latest
   user: "1000:1000"
   working_dir: /home/diego
   network_mode: host

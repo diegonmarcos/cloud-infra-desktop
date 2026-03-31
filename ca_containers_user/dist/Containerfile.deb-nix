@@ -1,18 +1,18 @@
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║ Diego's Dev Environment — diego-deb-nix                         ║
+# ║ Diego's Dev Environment — user-dev-x86-deb-nix-hm                         ║
 # ║                                                                  ║
 # ║ Base: Debian 12 (bookworm) + Nix + Home-Manager                 ║
 # ║ Config: exact match of desktop flake (diego@cli profile)         ║
 # ║ Source: unix/ba_flakes_desktop/src/container/Containerfile       ║
 # ║                                                                  ║
-# ║ Build:  docker build -t ghcr.io/diegonmarcos/diego-deb-nix .    ║
-# ║ Push:   docker push ghcr.io/diegonmarcos/diego-deb-nix:latest   ║
+# ║ Build:  docker build -t ghcr.io/diegonmarcos/user-dev-x86-deb-nix-hm .    ║
+# ║ Push:   docker push ghcr.io/diegonmarcos/user-dev-x86-deb-nix-hm:latest   ║
 # ║ Run:    sh ~/git/tools/dtk.sh containers deb-nix {cli|gui|tty}  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 FROM debian:bookworm-slim
 
 # ── OCI Standard Labels ──────────────────────────────────────────
-LABEL org.opencontainers.image.title="diego-deb-nix"
+LABEL org.opencontainers.image.title="user-dev-x86-deb-nix-hm"
 LABEL org.opencontainers.image.description="Diego's portable dev environment — Debian + Nix Home-Manager (diego@cli profile)"
 LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/unix"
 LABEL org.opencontainers.image.url="https://github.com/diegonmarcos/unix/tree/main/ca_containers_user/src"
@@ -24,7 +24,7 @@ LABEL org.opencontainers.image.base.name="debian:bookworm-slim"
 LABEL org.opencontainers.image.ref.name="latest"
 
 # ── Diego Custom Labels ──────────────────────────────────────────
-LABEL diego.image.name="diego-deb-nix"
+LABEL diego.image.name="user-dev-x86-deb-nix-hm"
 LABEL diego.image.type="dev-environment"
 LABEL diego.image.variant="deb-nix"
 LABEL diego.image.profiles="cli,gui,tty"
@@ -36,7 +36,7 @@ LABEL diego.image.flake.toolsets="shell-core dev-languages build-debug container
 LABEL diego.image.container.path="ca_containers_user/src/"
 LABEL diego.image.compose.path="ca_containers_user/dist/compose-deb-nix.yaml"
 LABEL diego.image.dockerfile.path="ca_containers_user/src/Containerfile.deb-nix"
-LABEL diego.image.ghcr="ghcr.io/diegonmarcos/diego-deb-nix"
+LABEL diego.image.ghcr="ghcr.io/diegonmarcos/user-dev-x86-deb-nix-hm"
 LABEL diego.image.nix.channel="nixos-24.11"
 LABEL diego.image.home-manager="release-24.11"
 LABEL diego.image.shell.default="fish"
@@ -84,7 +84,7 @@ RUN mkdir -p /home/diego/git && cd /home/diego/git \
     && git clone --depth 1 https://github.com/diegonmarcos/unix.git \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud.git \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-data.git \
-    && git clone --depth 1 https://github.com/diegonmarcos/front.git \
+    && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git front \
     && git clone --depth 1 https://github.com/diegonmarcos/front-data.git \
     && git clone --depth 1 https://github.com/diegonmarcos/tools.git
 

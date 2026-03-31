@@ -57,7 +57,7 @@ case "$cmd" in
       | jq -r '.data[] | select(."lifecycle-state"=="ACTIVE") | ."connection-string"' | head -1)"
     if [ -z "$CONN" ]; then
       echo "Creating console connection..."
-      oci compute instance-console-connection create --instance-id "$OCID" --wait-for-state ACTIVE --output json >/dev/null
+      oci compute instance-console-connection create --instance-id "$OCID" --ssh-public-key-file ~/.ssh/id_rsa.pub --wait-for-state ACTIVE --output json >/dev/null
       CONN="$(oci compute instance-console-connection list --compartment-id "$CID" --instance-id "$OCID" --output json \
         | jq -r '.data[] | select(."lifecycle-state"=="ACTIVE") | ."connection-string"' | head -1)"
     fi

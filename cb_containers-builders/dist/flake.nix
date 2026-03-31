@@ -148,7 +148,7 @@
 
         cp ${pkgs.writeText "compose-x86-forge.yaml" (mkBuilderCompose {
           variant = "x86-forge";
-          imageName = "cloud-builder-forge-rust-go-clang";
+          imageName = "cloud-builder-x86-nixos-forge";
           nixSystem = "x86_64-linux";
         })} $out/compose-x86-forge.yaml
 

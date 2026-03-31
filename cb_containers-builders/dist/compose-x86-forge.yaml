@@ -9,7 +9,7 @@
 
 services:
   builder:
-    image: ghcr.io/diegonmarcos/cloud-builder-forge-rust-go-clang:latest
+    image: ghcr.io/diegonmarcos/cloud-builder-x86-nixos-forge:latest
     build:
       context: .
       dockerfile: docker/Dockerfile

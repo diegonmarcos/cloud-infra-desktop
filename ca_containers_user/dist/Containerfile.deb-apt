@@ -5,20 +5,20 @@
 # ║ Packages mirror ba_flakes_desktop profiles via apt equivalents  ║
 # ║ Source: unix/ca_containers_user/src/Containerfile.deb-apt    ║
 # ║                                                                 ║
-# ║ Build:  docker build -t ghcr.io/diegonmarcos/diego-deb-apt .   ║
-# ║ Push:   docker push ghcr.io/diegonmarcos/diego-deb-apt:latest  ║
+# ║ Build:  docker build -t ghcr.io/diegonmarcos/user-dev-x86-deb-apt .   ║
+# ║ Push:   docker push ghcr.io/diegonmarcos/user-dev-x86-deb-apt:latest  ║
 # ║ Run:    dtk.sh containers deb-apt {cli|gui|tty}                ║
 # ╚══════════════════════════════════════════════════════════════════╝
 FROM debian:bookworm-slim
 
 # ── OCI Labels ──────────────────────────────────────────────────────
-LABEL org.opencontainers.image.title="diego-deb-apt"
+LABEL org.opencontainers.image.title="user-dev-x86-deb-apt"
 LABEL org.opencontainers.image.description="Diego's portable dev environment — Debian + apt packages (no Nix)"
 LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/unix"
 LABEL org.opencontainers.image.vendor="Diego Nepomuceno Marcos"
 LABEL org.opencontainers.image.base.name="debian:bookworm-slim"
 LABEL diego.image.variant="deb-apt"
-LABEL diego.image.ghcr="ghcr.io/diegonmarcos/diego-deb-apt"
+LABEL diego.image.ghcr="ghcr.io/diegonmarcos/user-dev-x86-deb-apt"
 LABEL diego.image.profiles="cli,gui,tty"
 LABEL diego.image.runner="dtk.sh containers deb-apt {cli|gui|tty}"
 LABEL diego.image.packages.shell="fish starship eza bat fd-find ripgrep fzf jq"
@@ -26,55 +26,66 @@ LABEL diego.image.packages.lang="rustc cargo golang nodejs python3 gcc clang"
 LABEL diego.image.packages.cloud="docker.io terraform sops age"
 
 # ── Profile 1: Shell & Core ────────────────────────────────────────
-RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+RUN apt-get update -qq && for pkg in \
     fish bash coreutils findutils grep sed gawk \
     eza bat fd-find ripgrep fzf zoxide btop ncdu tree \
     jq curl wget htop less git git-lfs gh rsync \
-    sudo locales ca-certificates xz-utils \
+    sudo locales ca-certificates xz-utils; do \
+      apt-get install -y -qq --no-install-recommends "$pkg" 2>/dev/null \
+      || echo "[SKIP] $pkg not available"; \
+    done \
     && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Profile 2: Dev Languages ───────────────────────────────────────
-RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    rustc cargo \
-    golang \
-    nodejs npm \
+RUN apt-get update -qq && for pkg in \
+    rustc cargo golang nodejs npm \
     python3 python3-pip python3-venv python3-dev \
-    gcc g++ clang \
-    && rm -rf /var/lib/apt/lists/*
+    gcc g++ clang; do \
+      apt-get install -y -qq --no-install-recommends "$pkg" 2>/dev/null \
+      || echo "[SKIP] $pkg not available"; \
+    done && rm -rf /var/lib/apt/lists/*
 
 # ── Profile 3: Build & Debug ───────────────────────────────────────
-RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    cmake ninja-build make \
-    gdb strace \
-    shellcheck \
-    tmux vim nano \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -qq && for pkg in \
+    cmake ninja-build make gdb strace shellcheck \
+    tmux vim nano; do \
+      apt-get install -y -qq --no-install-recommends "$pkg" 2>/dev/null \
+      || echo "[SKIP] $pkg not available"; \
+    done && rm -rf /var/lib/apt/lists/*
 
 # ── Profile 4: Containers & Cloud ──────────────────────────────────
-RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    docker.io \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -qq && for pkg in \
+    docker.io unzip; do \
+      apt-get install -y -qq --no-install-recommends "$pkg" 2>/dev/null \
+      || echo "[SKIP] $pkg not available"; \
+    done && rm -rf /var/lib/apt/lists/*
 
 # Install terraform + sops + age (not in bookworm repos)
 RUN curl -fsSL https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip -o /tmp/tf.zip \
     && unzip -q /tmp/tf.zip -d /usr/local/bin && rm /tmp/tf.zip \
-    && curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 -o /usr/local/bin/sops \
+    || echo "[SKIP] terraform install failed"
+RUN curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 -o /usr/local/bin/sops \
     && chmod +x /usr/local/bin/sops \
-    && curl -fsSL https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz | tar xz -C /tmp \
+    || echo "[SKIP] sops install failed"
+RUN curl -fsSL https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz | tar xz -C /tmp \
     && mv /tmp/age/age /tmp/age/age-keygen /usr/local/bin/ && rm -rf /tmp/age \
-    || true
+    || echo "[SKIP] age install failed"
 
 # ── Profile 5: Security & Network ──────────────────────────────────
-RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+RUN apt-get update -qq && for pkg in \
     nmap mtr-tiny openssh-client gnupg openssl \
-    wireguard-tools iproute2 dnsutils net-tools \
-    && rm -rf /var/lib/apt/lists/*
+    wireguard-tools iproute2 dnsutils net-tools; do \
+      apt-get install -y -qq --no-install-recommends "$pkg" 2>/dev/null \
+      || echo "[SKIP] $pkg not available"; \
+    done && rm -rf /var/lib/apt/lists/*
 
 # ── Profile 6: Data Science ────────────────────────────────────────
-RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    python3-numpy python3-pandas ipython3 sqlite3 \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -qq && for pkg in \
+    python3-numpy python3-pandas ipython3 sqlite3; do \
+      apt-get install -y -qq --no-install-recommends "$pkg" 2>/dev/null \
+      || echo "[SKIP] $pkg not available"; \
+    done && rm -rf /var/lib/apt/lists/*
 
 # ── Starship prompt ────────────────────────────────────────────────
 RUN curl -sS https://starship.rs/install.sh | sh -s -- -y 2>/dev/null || true
@@ -97,7 +108,7 @@ RUN mkdir -p /home/diego/git && cd /home/diego/git \
     && git clone --depth 1 https://github.com/diegonmarcos/unix.git \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud.git \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-data.git \
-    && git clone --depth 1 https://github.com/diegonmarcos/front.git \
+    && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git front \
     && git clone --depth 1 https://github.com/diegonmarcos/front-data.git \
     && git clone --depth 1 https://github.com/diegonmarcos/tools.git
 

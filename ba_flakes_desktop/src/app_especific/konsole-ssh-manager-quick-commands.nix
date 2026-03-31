@@ -112,7 +112,8 @@ let
     + (mkQuickCmd "Desktop" "wg status"               "${cmd} wg-status"      "Show WireGuard tunnel status")
     + (mkQuickCmd "Desktop" "docker ps (local)"       "${cmd} docker-ps-local" "List local running containers")
     + (mkQuickCmd "Desktop" "free memory"             "${cmd} free-mem"       "Show memory usage")
-    + (mkQuickCmd "Desktop" "disk usage"              "${cmd} disk-usage"     "Show disk usage for key partitions");
+    + (mkQuickCmd "Desktop" "disk usage"              "${cmd} disk-usage"     "Show disk usage for key partitions")
+    + (mkQuickCmd "Desktop" "konsole script push"     "mkdir -p ~/.local/share/konsole && curl -fsSL https://raw.githubusercontent.com/diegonmarcos/unix/main/ba_flakes_desktop/src/app_especific/konsole-commands.sh -o ~/.local/share/konsole/konsole-commands.sh && chmod +x ~/.local/share/konsole/konsole-commands.sh && echo 'Done: ~/.local/share/konsole/konsole-commands.sh'" "Download konsole-commands.sh from GitHub to current host (no dependencies)");
 
   vpsCommands =
     # Cloud

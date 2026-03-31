@@ -123,7 +123,7 @@ _docker_build_nix() {
     log "Step 2: DOCKER BUILD — nixos-hm: $_img (dockerTools)"
     log "  Flake: $_flake_path"
 
-    if nix build "$_flake_path#container-nixos-hm" --no-link --print-out-paths 2>/dev/null | read -r _tarball; then
+    if nix build "$_flake_path#container-nixos-hm" --impure --no-link --print-out-paths 2>/dev/null | read -r _tarball; then
         $ENGINE load < "$_tarball"
         log "Built: $_img (from nix)"
     else
