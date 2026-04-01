@@ -55,11 +55,11 @@
       ppy = "poetry run python3";
 
       # System
-      df = "duf";
       du = "ncdu";
       free = "free -h";
       ports = "ss -tulanp";
       myip = "curl -s ifconfig.me";
+      top-batch = "echo '=== CPU/MEM ===' && top -bn1 | head -5 && echo '\\n=== TOP PROCS (CPU) ===' && top -bn1 -o %CPU | tail -n+8 | head -15 && echo '\\n=== DISK ===' && df -h / /home /boot 2>/dev/null && echo '\\n=== DOCKER ===' && docker stats --no-stream --format 'table {{.Name}}\\t{{.CPUPerc}}\\t{{.MemUsage}}\\t{{.MemPerc}}' 2>/dev/null || true";
 
       # Misc
       c = "clear";
