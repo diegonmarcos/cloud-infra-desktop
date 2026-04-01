@@ -16,7 +16,7 @@ let
   ];
 
   sshKey = "/home/diego/.ssh/id_rsa";
-  cmd = "bash ~/git/tools/4-others/6-engines/cloud-container-orchestrator/cloud-container-orchestrator.sh";
+  cmd = "bash ~/git/tools/1-aliases/engines/cloud-container-orchestrator/cloud-container-orchestrator.sh";
 
   # ── SSH Manager: konsolesshconfig ───────────────────────────────────────
 
@@ -146,7 +146,7 @@ let
     + (mkQuickCmd f "docker stats"          "${c}-docker-stats"     "Live container resource usage")
     + (mkQuickCmd f "docker exec"           "${c}-docker-exec"      "Pick a container and exec into it");
 
-  tuiCmd = "bash ~/git/tools/4-others/6-engines/cloud-container-orchestrator/cloud-container-orchestrator-tui.sh";
+  tuiCmd = "bash ~/git/tools/1-aliases/engines/cloud-container-orchestrator/cloud-container-orchestrator-tui.sh";
 
   desktopCommands =
     (mkQuickCmd "Desktop" "TUI (tmux + fzf)"          tuiCmd                  "Full TUI: fzf menu (left) + output (right) in tmux")
