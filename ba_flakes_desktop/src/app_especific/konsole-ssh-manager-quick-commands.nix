@@ -198,12 +198,19 @@ let
 
   quickCommandsConfig = builtins.concatStringsSep "" (map mkQuickVmEntries vms) + orchCommands + localCommands + desktopCommands + vpsCommands;
 
+  # Asset files in tools repo (source of truth, also fetchable standalone)
+  toolsRepo = "${config.home.homeDirectory}/git/tools";
+  quickCmdsAsset = "${toolsRepo}/4-quick-cmds/konsolequickcommandsconfig";
+  sshAsset = "${toolsRepo}/4-quick-cmds/konsolesshconfig";
+
 in {
-  # SSH Manager sidebar
+  # SSH Manager sidebar — asset file from tools repo, fallback to inline generation
   home.file.".config/konsolesshconfig".text = sshConfig;
 
-  # Quick Commands sidebar
+  # Quick Commands sidebar — asset file from tools repo, fallback to inline generation
   home.file.".config/konsolequickcommandsconfig".text = quickCommandsConfig;
 
-  # Commands script — runs directly from ~/git/tools (clone via "konsole script push" quick command)
+  # Asset paths exported for reference (used by dtk.sh 22e installer)
+  # Source files: ~/git/tools/4-quick-cmds/konsolequickcommandsconfig
+  #               ~/git/tools/4-quick-cmds/konsolesshconfig
 }
