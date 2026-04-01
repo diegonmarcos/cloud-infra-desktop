@@ -16186,3 +16186,79 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-04-01 17:06:16] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-04-01 17:06:16] PERF: start switch
 [2026-04-01 17:06:16] INFO: Staging dirty files for flake evaluation...
+[2026-04-01 17:06:17] PERF: git stage = 130ms
+[2026-04-01 17:06:17] PERF: clean backups = 26ms
+[2026-04-01 17:06:17] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 4 derivations will be built:
+  /nix/store/6vvnh2dbd6gk1cisz7xx39d7misyhbiv-hm_.configkonsolequickcommandsconfig.drv
+  /nix/store/rg1pi58kviih45xvlabjgbn7732w5452-home-manager-files.drv
+  /nix/store/ysbh23vjnxssijkxc9k8ya5iy92xgvw6-activation-script.drv
+  /nix/store/3xrg0a171yv90vxwyhqcvcx1sp7qzx5l-home-manager-generation.drv
+building '/nix/store/ysbh23vjnxssijkxc9k8ya5iy92xgvw6-activation-script.drv'...
+building '/nix/store/6vvnh2dbd6gk1cisz7xx39d7misyhbiv-hm_.configkonsolequickcommandsconfig.drv'...
+building '/nix/store/rg1pi58kviih45xvlabjgbn7732w5452-home-manager-files.drv'...
+building '/nix/store/3xrg0a171yv90vxwyhqcvcx1sp7qzx5l-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 295
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 22 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 104 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 2s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: fusuma
+[hm] Removing imperative nix profile package: home-manager-path
+[hm] Removing imperative nix profile package: linuxquota
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 30 services, date=2026-04-01)
+Activating globalTsx
+
+changed 5 packages in 2s
+Activating gooseConfig
+Activating initHomeGit
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-01 17:07:07] PERF: home-manager switch = 50.1s
+[2026-04-01 17:07:07] PERF: TOTAL switch = 50.4s
+[2026-04-01 17:07:07] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-01 17:07:07] ========== Build script finished ==========
+[2026-04-01 18:18:20] ========== Build script started ==========
+[2026-04-01 18:18:20] ERROR: Unknown command: r
+[2026-04-01 18:18:26] ========== Build script started ==========
+[2026-04-01 18:18:26] ========== Build script finished ==========
+[2026-04-01 18:18:30] ========== Build script started ==========
+[2026-04-01 18:18:30] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-01 18:18:30] PERF: start switch
+[2026-04-01 18:18:30] INFO: Staging dirty files for flake evaluation...
