@@ -6,6 +6,8 @@
   home.packages = with pkgs; [
     busybox          # httpd — lightweight static file server
     mdbook
+    iotop            # per-process disk I/O monitoring
+    sysstat          # iostat, mpstat, pidstat, sar
     multitail        # multi-file tail with split view
     tree
     (callPackage ../pkgs/octocode.nix {})

@@ -43,6 +43,8 @@
     curl
     wget
     htop
+    iotop
+    sysstat      # iostat, mpstat, pidstat, sar
     less
     bc
     unzip
