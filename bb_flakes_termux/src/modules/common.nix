@@ -43,6 +43,16 @@
     OPENAI_API_KEY = "sk-dummy";
   };
 
+  # HM always wins — remove imperative nix profile packages that conflict
+  home.activation.removeImperativePackages = lib.hm.dag.entryBefore ["installPackages"] ''
+    if command -v nix >/dev/null 2>&1 && nix profile list >/dev/null 2>&1; then
+      for pkg in $(nix profile list 2>/dev/null | grep "^Name:" | sed 's/.*Name:[[:space:]]*//' | sed 's/\x1b\[[0-9;]*m//g'); do
+        echo "[hm] Removing imperative nix profile package: $pkg"
+        nix profile remove "$pkg" 2>/dev/null || true
+      done
+    fi
+  '';
+
   # Goose AI CLI config (cloud-ai-cli alias)
   # NOTE: Goose can't follow Nix store symlinks, so we copy instead
   home.activation.gooseConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
