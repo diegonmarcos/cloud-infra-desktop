@@ -88,7 +88,7 @@ in {
     WantedBy=multi-user.target
   '';
 
-  # SSH + WG + Docker scheduler configs moved to system-protection-scheduler-fifo-rr-cfs.nix
+  # SSH + WG + Docker slice assignments handled by system-protection-layer2-identity.nix
 
   # ── Docker memory cap ─────────────────────────────────────────────────
   home.file.".local/share/system-protection/docker-memory-cap.conf".text = ''
@@ -123,7 +123,7 @@ in {
       $SUDO tune2fs -m 5 "$ROOT_DEV" 2>/dev/null || true
     fi
 
-    # SSH/WG/Docker scheduler drop-ins handled by system-protection-scheduler-fifo-rr-cfs.nix
+    # SSH/WG/Docker slice assignments handled by system-protection-layer2-identity.nix
 
     # Docker memory cap (separate from scheduler)
     if $SUDO systemctl cat "docker.service" >/dev/null 2>&1; then
