@@ -1,5 +1,5 @@
-set -l nixos_dir "$HOME/Mounts/Git/unix/aa_nixos-surface_host/src"
-set -l flake_dir "$HOME/Mounts/Git/unix/ba_flakes_desktop/src"
+set -l nixos_dir "$HOME/git/unix/aa_nixos-surface_host/src"
+set -l flake_dir "$HOME/git/unix/ba_flakes_desktop/src"
 set -l profiles_dir "$flake_dir/modules/profiles"
 set -l shells_dir "$flake_dir/modules/programs/shells"
 
@@ -13,7 +13,7 @@ if test (count $argv) -eq 0
   if test -d "$nixos_dir"
     set -l nixos_rev (git -C "$nixos_dir/.." rev-parse --short HEAD 2>/dev/null; or echo "?")
     set -l nixos_dirty (git -C "$nixos_dir/.." diff --quiet 2>/dev/null; and echo ""; or echo " *dirty*")
-    echo "~/Mounts/Git/unix/aa_nixos-surface_host/  ($nixos_rev$nixos_dirty)"
+    echo "~/git/unix/aa_nixos-surface_host/  ($nixos_rev$nixos_dirty)"
   else
     echo "(not found)"
   end
@@ -25,7 +25,7 @@ if test (count $argv) -eq 0
     if test -L "$HOME/.local/state/nix/profiles/home-manager"
       set hm_gen (readlink "$HOME/.local/state/nix/profiles/home-manager" 2>/dev/null | string replace -r '.*-(\d+)-link' '$1')
     end
-    echo "~/Mounts/Git/unix/ba_flakes_desktop/  ($hm_rev$hm_dirty) gen $hm_gen"
+    echo "~/git/unix/ba_flakes_desktop/  ($hm_rev$hm_dirty) gen $hm_gen"
   else
     echo "(not found)"
   end

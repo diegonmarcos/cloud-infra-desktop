@@ -92,11 +92,11 @@ echo
 # ══════════════════ Tree ══════════════════
 set_color --bold blue; echo "── Tree ───────────────────────────────────────────────────────────────────────────────────────"
 set_color normal
-set_color blue; echo -n "  ~/Mounts/Git/"; set_color normal
+set_color blue; echo -n "  ~/git/"; set_color normal
 echo ""
 printf "    "
 for d in front cloud vault unix tools cloud-data front-data
-  if test -d "$HOME/Mounts/Git/$d"
+  if test -d "$HOME/git/$d"
     set_color green; printf "%-14s" "$d/"
   else
     set_color red; printf "%-14s" "$d/"
@@ -163,10 +163,10 @@ set_color normal
 # Flakes
 set_color cyan; echo "  Flakes:"
 set_color normal
-set_color magenta; echo -n "    NixOS            "; set_color normal; echo "~/Mounts/Git/unix/aa_nixos-surface_host/"
-set_color magenta; echo -n "    OS Modules       "; set_color normal; echo "~/Mounts/Git/unix/aa_nixos-surface_host/src/modules/"
-set_color magenta; echo -n "    Home-Manager     "; set_color normal; echo "~/Mounts/Git/unix/ba_flakes_desktop/"
-set_color magenta; echo -n "    HM Modules       "; set_color normal; echo "~/Mounts/Git/unix/ba_flakes_desktop/src/modules/"
+set_color magenta; echo -n "    NixOS            "; set_color normal; echo "~/git/unix/aa_nixos-surface_host/"
+set_color magenta; echo -n "    OS Modules       "; set_color normal; echo "~/git/unix/aa_nixos-surface_host/src/modules/"
+set_color magenta; echo -n "    Home-Manager     "; set_color normal; echo "~/git/unix/ba_flakes_desktop/"
+set_color magenta; echo -n "    HM Modules       "; set_color normal; echo "~/git/unix/ba_flakes_desktop/src/modules/"
 # Wrappers - Guardrails
 set_color cyan; echo "  Wrappers - Guardrails:"
 set_color normal
