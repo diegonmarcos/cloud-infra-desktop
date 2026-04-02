@@ -305,8 +305,12 @@ nix_switch() {
     perf_step "home-manager switch"
     log_info "Applying Home Manager configuration..."
 
+    # Force nix to re-evaluate by touching flake.nix (busts eval cache)
+    touch "$SRC_DIR/flake.nix" 2>/dev/null || true
+
     # Capture exit code from the actual command, not tee
     # Use -b backup to automatically backup conflicting files
+    # --recreate-lock-file not needed: touching flake.nix + --impure forces re-eval
     _rc_file=$(mktemp)
     if check_home_manager 2>/dev/null; then
         { home-manager switch --impure -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
@@ -316,8 +320,8 @@ nix_switch() {
     exit_code=$(cat "$_rc_file" 2>/dev/null)
     rm -f "$_rc_file"
 
-    # Default to 0 if exit_code is empty
-    exit_code=${exit_code:-0}
+    # If exit code capture failed, treat as error (flakes always win)
+    exit_code=${exit_code:-1}
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Configuration failed with exit code $exit_code"
@@ -345,8 +349,8 @@ nix_update() {
     exit_code=$(cat "$_rc_file" 2>/dev/null)
     rm -f "$_rc_file"
 
-    # Default to 0 if exit_code is empty
-    exit_code=${exit_code:-0}
+    # If exit code capture failed, treat as error (flakes always win)
+    exit_code=${exit_code:-1}
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Flake update failed with exit code $exit_code"
