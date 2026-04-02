@@ -2,7 +2,7 @@
 {
   home.packages = [
     (pkgs.writeShellScriptBin "mesh" ''
-      exec "$HOME/git/tools/a-Mesh/mesh.sh" "$@"
+      exec "$HOME/git/tools/3-dashboards/mesh/mesh.sh" "$@"
     '')
   ];
 }
