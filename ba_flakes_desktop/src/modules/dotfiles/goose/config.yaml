@@ -27,23 +27,23 @@ extensions:
     name: Code Graph Context
     cmd: tsx
     args:
-      - /home/diego/Mounts/Git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts
+      - /home/diego/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts
     type: stdio
     enabled: false
     envs:
-      CONFIG_PATH: /home/diego/Mounts/Git/cloud/config.json
+      CONFIG_PATH: /home/diego/git/cloud/config.json
     timeout: 300
 
   diego-personal-data:
     name: Diego Personal Data
     cmd: tsx
     args:
-      - /home/diego/Mounts/Git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts
+      - /home/diego/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts
     type: stdio
     enabled: false
     envs:
-      VAULT_PATH: /home/diego/Mounts/Git/vault
-      CONFIG_PATH: /home/diego/Mounts/Git/cloud/config.json
+      VAULT_PATH: /home/diego/git/vault
+      CONFIG_PATH: /home/diego/git/cloud/config.json
     timeout: 300
 
   google-workspace:

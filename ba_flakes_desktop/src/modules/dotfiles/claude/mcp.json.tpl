@@ -3,7 +3,7 @@
     "unix": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/Mounts/Git/unix/bc_unix-mcp-api/src/index.ts"],
+      "args": ["/home/diego/git/unix/bc_unix-mcp-api/src/index.ts"],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules"
       }
@@ -18,10 +18,10 @@
     "cloud-infra-local": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/mcp/index.ts"],
+      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/mcp/index.ts"],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
-        "GIT_BASE": "/home/diego/Mounts/Git"
+        "GIT_BASE": "/home/diego/git"
       }
     },
     "cloud-cgc-mcp": {
@@ -34,20 +34,20 @@
     "cloud-cgc-mcp-local": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/Mounts/Git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts"],
+      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts"],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
-        "CONFIG_PATH": "/home/diego/Mounts/Git/cloud/config.json"
+        "CONFIG_PATH": "/home/diego/git/cloud/config.json"
       }
     },
     "diego-personal-data": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/Mounts/Git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
+      "args": ["/home/diego/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
-        "VAULT_PATH": "/home/diego/Mounts/Git/vault",
-        "CONFIG_PATH": "/home/diego/Mounts/Git/cloud/config.json"
+        "VAULT_PATH": "/home/diego/git/vault",
+        "CONFIG_PATH": "/home/diego/git/cloud/config.json"
       }
     },
     "cloud-services": {
