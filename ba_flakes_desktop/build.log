@@ -16661,3 +16661,85 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-04-01 18:25:00] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-04-01 18:25:00] PERF: start switch
 [2026-04-01 18:25:00] INFO: Staging dirty files for flake evaluation...
+[2026-04-01 18:25:00] PERF: git stage = 191ms
+[2026-04-01 18:25:00] PERF: clean backups = 55ms
+[2026-04-01 18:25:00] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 10 derivations will be built:
+  /nix/store/iaf4hrnmvnw4ykbjy5d6sdw0bzs0pz26-home-manager-path.drv
+  /nix/store/b6fk51jy6f995x48qrf05580sgvc61mi-activation-script.drv
+  /nix/store/5c2mqmd0zaw44wm7zjghp4qv9ghiblmk-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/ng5r21bqkysv8pwzj6wd3kwwda2jsy3r-man-paths.drv
+  /nix/store/cc0sicxlppzggls5wb6hp4dscg18xiy6-man-cache.drv
+  /nix/store/9sb614lsng0xp54qdyslzs4qyrbpg04j-hm_.manpath.drv
+  /nix/store/1bh60zdla8qgk2sdi3aabab6d5sy932n-sysstat-12.7.4-fish-completions.drv
+  /nix/store/r93h214xjz3r7mvhb0vfhg75fd6ndrrl-diego-fish-completions.drv
+  /nix/store/wjl1hd2fgbqhz19jsgvcbv0v1dghawap-home-manager-files.drv
+  /nix/store/0r1qwg94v0dmnlbg1f123k1dp6qrc6nk-home-manager-generation.drv
+building '/nix/store/iaf4hrnmvnw4ykbjy5d6sdw0bzs0pz26-home-manager-path.drv'...
+building '/nix/store/ng5r21bqkysv8pwzj6wd3kwwda2jsy3r-man-paths.drv'...
+building '/nix/store/1bh60zdla8qgk2sdi3aabab6d5sy932n-sysstat-12.7.4-fish-completions.drv'...
+building '/nix/store/r93h214xjz3r7mvhb0vfhg75fd6ndrrl-diego-fish-completions.drv'...
+building '/nix/store/cc0sicxlppzggls5wb6hp4dscg18xiy6-man-cache.drv'...
+building '/nix/store/b6fk51jy6f995x48qrf05580sgvc61mi-activation-script.drv'...
+building '/nix/store/5c2mqmd0zaw44wm7zjghp4qv9ghiblmk-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/9sb614lsng0xp54qdyslzs4qyrbpg04j-hm_.manpath.drv'...
+building '/nix/store/wjl1hd2fgbqhz19jsgvcbv0v1dghawap-home-manager-files.drv'...
+building '/nix/store/0r1qwg94v0dmnlbg1f123k1dp6qrc6nk-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 297
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 22 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 104 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 2s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 30 services, date=2026-04-01)
+Activating globalTsx
+
+changed 5 packages in 2s
+Activating gooseConfig
+Activating initHomeGit
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-01 18:26:52] PERF: home-manager switch = 1m 52s
+[2026-04-01 18:26:52] PERF: TOTAL switch = 1m 52s
+[2026-04-01 18:26:52] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-01 18:26:52] ========== Build script finished ==========
+[2026-04-02 14:21:27] ========== Build script started ==========
+[2026-04-02 14:21:27] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-02 14:21:27] PERF: start switch
+[2026-04-02 14:21:27] INFO: Staging dirty files for flake evaluation...
