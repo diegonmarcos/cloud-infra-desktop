@@ -7,6 +7,7 @@
     # Container tools
     docker-client
     podman
+    youki            # Rust OCI runtime — replaces runc (Go)
     buildah
     skopeo
     dive             # Docker image analyzer
