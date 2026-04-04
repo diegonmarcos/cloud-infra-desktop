@@ -1,37 +1,25 @@
 {
   "name": "containers-builders",
-  "description": "CI/CD builder images — self-contained nix + sops + docker + rsync + ssh",
+  "description": "CI/CD builder images — multi-arch (amd64 + arm64 via QEMU fallback)",
   "registry": "ghcr.io/diegonmarcos",
   "images": {
-    "x86-cloudlight": {
+    "cloudlight": {
       "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x86-nixos",
-      "dockerfile": "src/Dockerfile.x86-cloudlight",
-      "platform": "linux/amd64",
-      "description": "x86 builder for GHA (lightweight, cloud workflows)"
+      "dockerfile": "src/Dockerfile.cloudlight",
+      "platform": "linux/amd64,linux/arm64",
+      "description": "Multi-arch builder for GHA + VMs (nix + sops + docker)"
     },
-    "arm-cloudlight": {
-      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-arm-nixos",
-      "dockerfile": "src/Dockerfile.arm-cloudlight",
-      "platform": "linux/arm64",
-      "description": "ARM builder for OCI A1 VMs"
-    },
-    "x86-apt": {
+    "apt": {
       "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x86-apt",
-      "dockerfile": "src/Dockerfile.x86-apt",
-      "platform": "linux/amd64",
-      "description": "x86 builder Debian apt (no Nix, lighter)"
+      "dockerfile": "src/Dockerfile.apt",
+      "platform": "linux/amd64,linux/arm64",
+      "description": "Multi-arch builder Debian apt (no Nix, lighter)"
     },
-    "arm-apt": {
-      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-arm-apt",
-      "dockerfile": "src/Dockerfile.arm-apt",
-      "platform": "linux/arm64",
-      "description": "ARM builder Debian apt (no Nix, for OCI A1)"
-    },
-    "x86-forge": {
+    "forge": {
       "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x86-nixos-forge",
-      "dockerfile": "src/Dockerfile.x86-forge",
-      "platform": "linux/amd64",
-      "description": "x86 forge — rust + go + clang full toolchain"
+      "dockerfile": "src/Dockerfile.forge",
+      "platform": "linux/amd64,linux/arm64",
+      "description": "Multi-arch forge — rust + go + clang full toolchain"
     }
   }
 }

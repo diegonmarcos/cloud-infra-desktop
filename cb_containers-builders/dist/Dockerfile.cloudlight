@@ -1,7 +1,7 @@
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║ cloud-builder x86-cloudlight                                    ║
+# ║ cloud-builder cloudlight (multi-arch: amd64 + arm64 via QEMU)  ║
 # ║ ghcr.io/diegonmarcos/cloud-builder-x86-nixos                   ║
-# ║ Source: cb_containers-builders/src/Dockerfile.x86-cloudlight    ║
+# ║ Source: cb_containers-builders/src/Dockerfile.cloudlight        ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 FROM nixos/nix:latest AS builder
@@ -53,7 +53,8 @@ COPY --from=builder /build /opt/cloud-builder-flake
 COPY docker/Dockerfile /opt/cloud-builder/Dockerfile
 COPY docker/docker-up.sh /opt/cloud-builder/docker-up.sh
 COPY docker/entrypoint.sh /opt/cloud-builder/entrypoint.sh
-RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh
+COPY docker/ship-hm.sh /opt/cloud-builder/ship-hm.sh
+RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh /opt/cloud-builder/ship-hm.sh
 ARG DOCKERFILE_B64=""
 LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud"
 LABEL org.opencontainers.image.description="cloud-builder — self-contained CI/CD image (nix, sops, rsync, ssh, docker)"

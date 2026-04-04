@@ -9,7 +9,7 @@ case "${1:-}" in
 echo "Cloud Builder X86 Nixos" \
 && OP="ship" \
 && VM="all" \
-&& IMG="ghcr.io/diegonmarcos/cloud-builder-x86-nixos:latest" \
+&& IMG="ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest" \
 && echo "---" \
   && docker pull $IMG \
   && docker run --rm $IMG docker-up | \

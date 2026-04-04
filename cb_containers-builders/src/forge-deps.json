@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "name": "cloud-builder-x86-nixos-forge",
+    "name": "cloud-builder-x-deb-nixhm-forge",
     "description": "Full dev/CI/ML builder — multi-arch, deps.json-driven",
     "version": "2.0.0",
     "base_image": "debian:bookworm",
