@@ -18326,3 +18326,466 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-04-02 19:36:52] PERF: TOTAL switch = 50.5s
 [2026-04-02 19:36:52] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-04-02 19:36:52] ========== Build script finished ==========
+[2026-04-03 05:35:04] ========== Build script started ==========
+[2026-04-03 05:35:04] ERROR: Unknown command: r
+[2026-04-03 05:35:08] ========== Build script started ==========
+[2026-04-03 05:35:08] ========== Build script finished ==========
+[2026-04-03 05:35:10] ========== Build script started ==========
+[2026-04-03 05:35:10] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-03 05:35:10] PERF: start switch
+[2026-04-03 05:35:11] INFO: Staging dirty files for flake evaluation...
+[2026-04-03 05:35:11] PERF: git stage = 59ms
+[2026-04-03 05:35:11] PERF: clean backups = 18ms
+[2026-04-03 05:35:11] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 4 derivations will be built:
+  /nix/store/irmv28rrjlp7i31xmx9x0dq2av7zc72w-data.json.drv
+  /nix/store/sp3jmak3pfkcpxi8rvc1n6b6lr3xn6c4-plasma-config.drv
+  /nix/store/1r2i1icz1ljvlrmcz3r04vzk1d09m6l4-activation-script.drv
+  /nix/store/na7x72igpznr3f6p5k1v7ws9gryajfwv-home-manager-generation.drv
+building '/nix/store/irmv28rrjlp7i31xmx9x0dq2av7zc72w-data.json.drv'...
+building '/nix/store/sp3jmak3pfkcpxi8rvc1n6b6lr3xn6c4-plasma-config.drv'...
+building '/nix/store/1r2i1icz1ljvlrmcz3r04vzk1d09m6l4-activation-script.drv'...
+building '/nix/store/na7x72igpznr3f6p5k1v7ws9gryajfwv-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/home/diego/.gtkrc-2.0' is in the way of '/nix/store/nn5hf2sxm41gslq18q3x932z2fz1c6rv-home-manager-files/.gtkrc-2.0', will be moved to '/home/diego/.gtkrc-2.0.backup'
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 306
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 22 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 104 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 30 services, date=2026-04-03)
+Activating globalTsx
+
+changed 5 packages in 3s
+Activating gooseConfig
+Activating initHomeGit
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.1chHMcZY2K/generation/activate: line 767: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot create regular file '/etc/systemd/system/zram-setup.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve zram=3889MB docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=7778MB(+24h-maint) rescue-ssh=port2200
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+The user systemd session is degraded:
+  UNIT                                                         LOAD   ACTIVE SUB    DESCRIPTION
+● app-launch\x2dworkspace@autostart.service                    loaded failed failed Launch Workspace
+● app-org.gnome.Evolution\x2dalarm\x2dnotify@autostart.service loaded failed failed Events and Tasks Reminders
+
+Legend: LOAD   → Reflects whether the unit definition was properly loaded.
+        ACTIVE → The high-level unit activation state, i.e. generalization of SUB.
+        SUB    → The low-level unit activation state, values depend on unit type.
+
+2 loaded units listed.
+Attempting to reload services anyway...
+The service manager is degraded.
+Failed services: app-org.gnome.Evolution\x2dalarm\x2dnotify@autostart.service, app-launch\x2dworkspace@autostart.service
+Attempting to continue anyway...
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-03 05:35:46] PERF: home-manager switch = 34.9s
+[2026-04-03 05:35:46] PERF: TOTAL switch = 35.0s
+[2026-04-03 05:35:46] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-03 05:35:46] ========== Build script finished ==========
+[2026-04-03 06:12:06] ========== Build script started ==========
+[2026-04-03 06:12:06] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-03 06:12:06] PERF: start switch
+[2026-04-03 06:12:06] INFO: Staging dirty files for flake evaluation...
+[2026-04-03 06:12:06] PERF: git stage = 66ms
+[2026-04-03 06:12:06] INFO: Cleaning 1 old backup file(s)...
+[2026-04-03 06:12:06] PERF: clean backups = 19ms
+[2026-04-03 06:12:06] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 2 derivations will be built:
+  /nix/store/5imv2qzaf0sf5hsxcir79k2h979d2nyi-home-manager-files.drv
+  /nix/store/nl1ic6gshlv91g0csd0wbb9wxpnfw13q-home-manager-generation.drv
+building '/nix/store/5imv2qzaf0sf5hsxcir79k2h979d2nyi-home-manager-files.drv'...
+building '/nix/store/nl1ic6gshlv91g0csd0wbb9wxpnfw13q-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 307
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 22 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 104 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 30 services, date=2026-04-03)
+Activating globalTsx
+
+changed 5 packages in 1s
+Activating gooseConfig
+Activating initHomeGit
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.04eD6UtCt2/generation/activate: line 767: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot create regular file '/etc/systemd/system/zram-setup.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve zram=3889MB docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=7778MB(+24h-maint) rescue-ssh=port2200
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+The user systemd session is degraded:
+  UNIT                            LOAD   ACTIVE SUB    DESCRIPTION
+● drkonqi-coredump-pickup.service loaded failed failed Consume pending crashes using DrKonqi
+
+Legend: LOAD   → Reflects whether the unit definition was properly loaded.
+        ACTIVE → The high-level unit activation state, i.e. generalization of SUB.
+        SUB    → The low-level unit activation state, values depend on unit type.
+
+1 loaded units listed.
+Attempting to reload services anyway...
+The service manager is degraded.
+Failed services: drkonqi-coredump-pickup.service
+Attempting to continue anyway...
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-03 06:12:27] PERF: home-manager switch = 20.4s
+[2026-04-03 06:12:27] PERF: TOTAL switch = 20.5s
+[2026-04-03 06:12:27] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-03 06:12:27] ========== Build script finished ==========
+[2026-04-03 06:16:33] ========== Build script started ==========
+[2026-04-03 06:16:33] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-03 06:16:33] PERF: start switch
+[2026-04-03 06:16:33] INFO: Staging dirty files for flake evaluation...
+[2026-04-03 06:16:33] PERF: git stage = 49ms
+[2026-04-03 06:16:33] PERF: clean backups = 15ms
+[2026-04-03 06:16:33] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+error:
+       … while calling the 'derivationStrict' builtin
+         at <nix/derivation-internal.nix>:37:12:
+           36|
+           37|   strict = derivationStrict drvAttrs;
+             |            ^
+           38|
+
+       … while evaluating derivation 'home-manager-generation'
+         whose name attribute is located at /nix/store/lc5bxq4vsgpjjc7i9phdm8s0bxjz0drm-source/pkgs/stdenv/generic/make-derivation.nix:396:13
+
+       … while evaluating attribute 'buildCommand' of derivation 'home-manager-generation'
+         at /nix/store/lc5bxq4vsgpjjc7i9phdm8s0bxjz0drm-source/pkgs/build-support/trivial-builders/default.nix:76:17:
+           75|         enableParallelBuilding = true;
+           76|         inherit buildCommand name;
+             |                 ^
+           77|         passAsFile = [ "buildCommand" ] ++ (derivationArgs.passAsFile or [ ]);
+
+       … while evaluating the option `home.activation.configure-plasma.data':
+
+       … while evaluating definitions from `/nix/store/1jp9qks511axba7b9x5vqay8dx8b5p6l-source/modules/files.nix':
+
+       … while evaluating the option `programs.plasma.configFile.kwinrc.Plugins.shakecursorEnabled.value':
+
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+       error: The option `programs.plasma.configFile.kwinrc.Plugins.shakecursorEnabled.value' has conflicting definition values:
+       - In `/nix/store/vkccrz57gq4xar0y51kv60km9cl0hjwd-source/ba_flakes_desktop/src/modules/desktop/plasma.nix': false
+       - In `/nix/store/1jp9qks511axba7b9x5vqay8dx8b5p6l-source/modules/kwin.nix': true
+       Use `lib.mkForce value` or `lib.mkDefault value` to change the priority on any of these definitions.
+[2026-04-03 06:16:36] ERROR: Configuration failed with exit code 1
+[2026-04-03 06:16:36] INFO: Check /home/diego/git/unix/ba_flakes_desktop/build.log for details
+[2026-04-03 06:16:36] PERF: home-manager switch = 2.5s
+[2026-04-03 06:16:36] PERF: TOTAL switch = 2.6s
+[2026-04-03 06:16:54] ========== Build script started ==========
+[2026-04-03 06:16:54] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-03 06:16:54] PERF: start switch
+[2026-04-03 06:16:54] INFO: Staging dirty files for flake evaluation...
+[2026-04-03 06:16:54] PERF: git stage = 48ms
+[2026-04-03 06:16:54] PERF: clean backups = 17ms
+[2026-04-03 06:16:54] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 4 derivations will be built:
+  /nix/store/q7mq871svm0rlcsfjhz5a27b11240an9-data.json.drv
+  /nix/store/z3mf5fdl2mxw4a8fwycrk2ls36yqk25n-plasma-config.drv
+  /nix/store/b3da942p77jwkny6ry19385zhvif3g6i-activation-script.drv
+  /nix/store/vdg6rr0xzfqdkxzsx5bg4naxwavwax6x-home-manager-generation.drv
+building '/nix/store/q7mq871svm0rlcsfjhz5a27b11240an9-data.json.drv'...
+building '/nix/store/z3mf5fdl2mxw4a8fwycrk2ls36yqk25n-plasma-config.drv'...
+building '/nix/store/b3da942p77jwkny6ry19385zhvif3g6i-activation-script.drv'...
+building '/nix/store/vdg6rr0xzfqdkxzsx5bg4naxwavwax6x-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 308
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 22 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 104 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 986ms
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 30 services, date=2026-04-03)
+Activating globalTsx
+
+changed 5 packages in 500ms
+Activating gooseConfig
+Activating initHomeGit
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.CJLjYOrC1r/generation/activate: line 767: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot create regular file '/etc/systemd/system/zram-setup.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve zram=3889MB docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=7778MB(+24h-maint) rescue-ssh=port2200
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-03 06:17:12] PERF: home-manager switch = 17.9s
+[2026-04-03 06:17:12] PERF: TOTAL switch = 18.0s
+[2026-04-03 06:17:12] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-03 06:17:12] ========== Build script finished ==========
+[2026-04-03 06:39:47] ========== Build script started ==========
+[2026-04-03 06:39:47] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-03 06:39:47] PERF: start switch
+[2026-04-03 06:39:47] INFO: Staging dirty files for flake evaluation...
+[2026-04-03 06:39:47] PERF: git stage = 58ms
+[2026-04-03 06:39:47] PERF: clean backups = 19ms
+[2026-04-03 06:39:47] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 4 derivations will be built:
+  /nix/store/6zymw0jpl2zg53iwzb5j50w9y7b2k1pc-data.json.drv
+  /nix/store/s2fmr3vdlm247a2ya0f6r0s808kdjk64-plasma-config.drv
+  /nix/store/kjqjh53n4rp88l9mvksmlizic8f37azw-activation-script.drv
+  /nix/store/hrasbw8cdv7l1335ikiqm8rmb2nx48ph-home-manager-generation.drv
+building '/nix/store/6zymw0jpl2zg53iwzb5j50w9y7b2k1pc-data.json.drv'...
+building '/nix/store/s2fmr3vdlm247a2ya0f6r0s808kdjk64-plasma-config.drv'...
+building '/nix/store/kjqjh53n4rp88l9mvksmlizic8f37azw-activation-script.drv'...
+building '/nix/store/hrasbw8cdv7l1335ikiqm8rmb2nx48ph-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 309
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 22 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 104 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 30 services, date=2026-04-03)
+Activating globalTsx
+
+changed 5 packages in 1s
+Activating gooseConfig
+Activating initHomeGit
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.LHenlxeckz/generation/activate: line 767: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot create regular file '/etc/systemd/system/zram-setup.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve zram=3889MB docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=7778MB(+24h-maint) rescue-ssh=port2200
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-03 06:40:08] PERF: home-manager switch = 21.0s
+[2026-04-03 06:40:08] PERF: TOTAL switch = 21.2s
+[2026-04-03 06:40:08] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-03 06:40:08] ========== Build script finished ==========
+[2026-04-03 06:47:10] ========== Build script started ==========
+[2026-04-03 06:47:10] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-03 06:47:10] PERF: start switch
+[2026-04-03 06:47:10] INFO: Staging dirty files for flake evaluation...

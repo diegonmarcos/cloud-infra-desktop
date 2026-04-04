@@ -43,27 +43,19 @@
     SUBSYSTEM=="surface_aggregator_clients", ATTR{modalias}=="ssam:d01c15t02i02f00", ENV{MODALIAS}="", ATTR{driver_override}="(none)"
   '';
 
-  # Option 1 (pending): kernel patch — proper fix, return -ENODEV for empty descriptors
-  # Uncomment when ready for kernel rebuild (~2h). Safe to use alongside udev rule.
-  # boot.kernelPatches = [{
-  #   name = "surface-hid-enodev-for-empty-descriptor";
-  #   patch = pkgs.writeText "surface-hid-empty-descriptor.patch" ''
-  #     --- a/drivers/hid/surface-hid/surface_hid.c
-  #     +++ b/drivers/hid/surface-hid/surface_hid.c
-  #     @@ ssam_hid_get_descriptor
-  #      	if (offset >= len) {
-  #     -		dev_err(&sdev->dev, "unexpected descriptor length: got %zu, expected %zu\n",
-  #     -			offset, len);
-  #     -		return -EPROTO;
-  #     +		if (offset == 0) {
-  #     +			dev_info(&sdev->dev, "empty descriptor, device not present\n");
-  #     +			return -ENODEV;
-  #     +		} else {
-  #     +			dev_err(&sdev->dev, "unexpected descriptor length: got %zu, expected %zu\n",
-  #     +				offset, len);
-  #     +			return -EPROTO;
-  #     +		}
-  #      	}
-  #   '';
-  # }];
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LIBINPUT QUIRK: Disable touch-jump detection on Surface Type Cover
+  # ═══════════════════════════════════════════════════════════════════════════
+  # libinput detects "touch jumps" on the Surface touchpad and discards events.
+  # After too many discards, it rate-limits and drops ALL input including clicks.
+  # Journal shows: "kernel bug: Touch jump detected and discarded"
+  # This quirk raises the threshold so libinput stops falsely detecting jumps.
+  # See: https://wayland.freedesktop.org/libinput/doc/latest/touchpad-jumping-cursors.html
+  environment.etc."libinput/local-overrides.quirks".text = ''
+    [Microsoft Surface Type Cover Touchpad]
+    MatchUdevType=touchpad
+    MatchVendor=0x045E
+    MatchProduct=0x09AF
+    AttrUseVelocityAveraging=1
+  '';
 }

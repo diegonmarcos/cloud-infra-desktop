@@ -552,13 +552,7 @@
       LC_NUMERIC=es_ES.UTF-8
     '';
 
-    # Touchpad - Tap drag lock enabled (Surface)
-    ".config/kcminputrc".text = ''
-      [Libinput][1118][2479][Microsoft Surface 045E:09AF Touchpad]
-      TapDragLock=true
-
-      [Mouse]
-      X11LibInputXAccelProfileFlat=true
-    '';
+    # Touchpad config moved to plasma.nix (configFile) to avoid
+    # raw .text overwriting plasma-manager's kcminputrc merge
   };
 }
