@@ -3,7 +3,7 @@
     "unix": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/git/unix/bc_unix-mcp-api/src/index.ts"],
+      "args": ["/home/diego/git/tools/6-unix-mcp-api/src/index.ts"],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules"
       }

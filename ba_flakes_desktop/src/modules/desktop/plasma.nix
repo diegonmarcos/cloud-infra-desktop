@@ -282,9 +282,21 @@
       "kcminputrc"."Libinput.1267.12693.ELAN0732:00 04F3:3195 Touchpad" = {
         NaturalScroll = true;
         TapToClick = true;
+        TapAndDrag = true;
+        TapDragLock = true;
+        ClickMethod = 2;  # clickfinger (1=button_areas, 2=clickfinger)
+      };
+      # Microsoft Surface Type Cover touchpad (alternate device ID)
+      "kcminputrc"."Libinput.25.2479.Microsoft Surface 045E:09AF Touchpad" = {
+        NaturalScroll = true;
+        TapToClick = true;
+        TapAndDrag = true;
+        TapDragLock = true;
+        ClickMethod = 2;  # clickfinger
       };
       "kcminputrc"."Mouse" = {
         cursorSize = 24;
+        X11LibInputXAccelProfileFlat = true;
       };
 
       # Full Breeze Dark Color Scheme
@@ -453,14 +465,31 @@
       };
 
       # ─────────────────────────────────────────────────────────────────
+      # KWin Window Behavior — fix focus stealing on Surface touchpad
+      # FocusStealingPreventionLevel: 0=None 1=Low 2=Medium 3=High 4=Extreme
+      # Default (1) misinterprets touchpad clicks as focus-steal attempts on Wayland
+      # ─────────────────────────────────────────────────────────────────
+      "kwinrc"."Windows" = {
+        FocusStealingPreventionLevel = 0;
+        FocusPolicy = "ClickToFocus";
+        ClickRaise = true;
+        RollOverDesktops = true;
+      };
+
+      # ─────────────────────────────────────────────────────────────────
       # KWin Desktop Effects
       # ─────────────────────────────────────────────────────────────────
       "kwinrc"."Plugins" = {
         cubeEnabled = true;
         cubeslideEnabled = true;
-        diminactiveEnabled = true;
+        # DISABLED: diminactive hooks into focus-change events and interferes
+        # with window activation on Surface Wayland touchpad
+        diminactiveEnabled = false;
         wobblywindowsEnabled = true;
         translucencyEnabled = true;
+        # DISABLED: shakecursor monitors touchpad movement patterns and
+        # intercepts/delays click events on Wayland — causes lost clicks on Surface
+        shakecursorEnabled = lib.mkForce false;
       };
 
       # Cube effect settings
@@ -486,11 +515,10 @@
         MoveResize = 80;  # 80% opacity when moving
       };
 
-      # Virtual keyboard (for Surface touchscreen)
-      "kwinrc"."Wayland" = {
-        VirtualKeyboard = true;
-        "InputMethod[$e]" = "/run/current-system/sw/share/applications/com.github.nickvyni.maliit-keyboard.desktop";
-      };
+      # Virtual keyboard DISABLED — VirtualKeyboard=true causes KWin to
+      # redirect focus/input back to the active window, breaking click-to-switch
+      # on Surface Wayland touchpad. Use on-screen keyboard apps directly instead.
+      # (maliit-keyboard also removed — causes trackpad click freeze)
 
       # Lock screen virtual keyboard
       "kscreenlockerrc"."Greeter" = {
