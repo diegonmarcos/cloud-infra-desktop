@@ -15,7 +15,7 @@
 #   ./build.sh docker [variant]         # Build Docker images
 #   ./build.sh push [variant]           # Push images to GHCR
 #   ./build.sh ship [variant]           # Full pipeline
-#   Variants: x86-cloudlight, arm-cloudlight, x86-forge, all (default)
+#   Variants: cloudlight, apt, forge, all (default) — all multi-arch (amd64 + arm64)
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -114,10 +114,16 @@ _docker_build() {
     log "  Dockerfile: $_dockerfile_path"
     log "  Context: $DIST_DIR"
 
-    _args=""
-    [ -n "$_platform" ] && _args="--platform=$_platform"
-
-    $ENGINE build --network=host $_args -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
+    # Multi-arch: use buildx for multi-platform, regular build for single
+    if echo "$_platform" | grep -q ","; then
+        log "  Multi-arch: $_platform (buildx)"
+        $ENGINE buildx build --network=host --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR" --load 2>/dev/null \
+          || $ENGINE buildx build --network=host --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
+    elif [ -n "$_platform" ]; then
+        $ENGINE build --network=host --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
+    else
+        $ENGINE build --network=host -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
+    fi
     log "Built: $_ghcr:latest"
 }
 
@@ -141,10 +147,19 @@ step_push() {
 _docker_push() {
     _variant="$1"
     _ghcr=$(jq -r ".images.\"$_variant\".ghcr" "$CONFIG")
+    _platform=$(jq -r ".images.\"$_variant\".platform // empty" "$CONFIG")
+    _dockerfile=$(jq -r ".images.\"$_variant\".dockerfile" "$CONFIG")
     [ "$_ghcr" = "null" ] && { error "Unknown variant: $_variant"; }
 
-    log "Step 3: PUSH — $_ghcr:latest"
-    $ENGINE push "$_ghcr:latest"
+    # Multi-arch: rebuild with --push (buildx can't push after --load for multi-platform)
+    if echo "$_platform" | grep -q ","; then
+        _dockerfile_path="$DIST_DIR/$(basename "$_dockerfile")"
+        log "Step 3: PUSH (multi-arch buildx) — $_ghcr:latest"
+        $ENGINE buildx build --network=host --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR" --push
+    else
+        log "Step 3: PUSH — $_ghcr:latest"
+        $ENGINE push "$_ghcr:latest"
+    fi
     log "Pushed: $_ghcr:latest"
 }
 

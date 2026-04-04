@@ -133,37 +133,27 @@
     in {
       default = pkgs.runCommand "builders-compose" {} ''
         mkdir -p $out
-        cp ${pkgs.writeText "compose-x86-cloudlight.yaml" (mkBuilderCompose {
-          variant = "x86-cloudlight";
+        # Multi-arch images: native on matching host, QEMU fallback on x86
+        cp ${pkgs.writeText "compose-cloudlight.yaml" (mkBuilderCompose {
+          variant = "cloudlight";
           imageName = "cloud-builder-x86-nixos";
           nixSystem = "x86_64-linux";
-        })} $out/compose-x86-cloudlight.yaml
+          platform = "linux/amd64,linux/arm64";
+        })} $out/compose-cloudlight.yaml
 
-        cp ${pkgs.writeText "compose-arm-cloudlight.yaml" (mkBuilderCompose {
-          variant = "arm-cloudlight";
-          imageName = "cloud-builder-arm-nixos";
-          nixSystem = "aarch64-linux";
-          platform = "linux/arm64";
-        })} $out/compose-arm-cloudlight.yaml
-
-        cp ${pkgs.writeText "compose-x86-apt.yaml" (mkBuilderCompose {
-          variant = "x86-apt";
+        cp ${pkgs.writeText "compose-apt.yaml" (mkBuilderCompose {
+          variant = "apt";
           imageName = "cloud-builder-x86-apt";
           nixSystem = "x86_64-linux";
-        })} $out/compose-x86-apt.yaml
+          platform = "linux/amd64,linux/arm64";
+        })} $out/compose-apt.yaml
 
-        cp ${pkgs.writeText "compose-arm-apt.yaml" (mkBuilderCompose {
-          variant = "arm-apt";
-          imageName = "cloud-builder-arm-apt";
-          nixSystem = "aarch64-linux";
-          platform = "linux/arm64";
-        })} $out/compose-arm-apt.yaml
-
-        cp ${pkgs.writeText "compose-x86-forge.yaml" (mkBuilderCompose {
-          variant = "x86-forge";
+        cp ${pkgs.writeText "compose-forge.yaml" (mkBuilderCompose {
+          variant = "forge";
           imageName = "cloud-builder-x86-nixos-forge";
           nixSystem = "x86_64-linux";
-        })} $out/compose-x86-forge.yaml
+          platform = "linux/amd64,linux/arm64";
+        })} $out/compose-forge.yaml
 
         cp ${../build.json} $out/build.json
       '';
