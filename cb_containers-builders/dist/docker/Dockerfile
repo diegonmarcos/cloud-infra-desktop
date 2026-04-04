@@ -6,7 +6,7 @@
 # ║ Does NOT contain: code, secrets, service outputs (built fresh)   ║
 # ║                                                                  ║
 # ║ Source: workflows/src/cloud-builder/docker/Dockerfile                     ║
-# ║ Registry: ghcr.io/diegonmarcos/cloud-builder-{x86,arm}-nixos    ║
+# ║ Registry: ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm    ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 # NIX_SYSTEM: x86_64-linux or aarch64-linux (set by GHA matrix)
@@ -67,7 +67,7 @@ LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud"
 LABEL org.opencontainers.image.description="cloud-builder — self-contained CI/CD image (nix, sops, rsync, ssh, docker)"
 LABEL org.opencontainers.image.dockerfile-path="workflows/src/cloud-builder/docker/Dockerfile"
 LABEL cloud.builder.dockerfile-base64="${DOCKERFILE_B64}"
-LABEL cloud.builder.usage="docker run --rm ghcr.io/diegonmarcos/cloud-builder-x86-nixos:latest docker-up | sh -s ship all"
+LABEL cloud.builder.usage="docker run --rm ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest docker-up | sh -s ship all"
 
 # Entrypoint: no args = print usage, docker-up = print script, anything else = nix develop
 WORKDIR /workspace

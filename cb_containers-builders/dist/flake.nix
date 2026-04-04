@@ -136,21 +136,21 @@
         # Multi-arch images: native on matching host, QEMU fallback on x86
         cp ${pkgs.writeText "compose-cloudlight.yaml" (mkBuilderCompose {
           variant = "cloudlight";
-          imageName = "cloud-builder-x86-nixos";
+          imageName = "cloud-builder-x-deb-nixhm";
           nixSystem = "x86_64-linux";
           platform = "linux/amd64,linux/arm64";
         })} $out/compose-cloudlight.yaml
 
         cp ${pkgs.writeText "compose-apt.yaml" (mkBuilderCompose {
           variant = "apt";
-          imageName = "cloud-builder-x86-apt";
+          imageName = "cloud-builder-x-deb-apt";
           nixSystem = "x86_64-linux";
           platform = "linux/amd64,linux/arm64";
         })} $out/compose-apt.yaml
 
         cp ${pkgs.writeText "compose-forge.yaml" (mkBuilderCompose {
           variant = "forge";
-          imageName = "cloud-builder-x86-nixos-forge";
+          imageName = "cloud-builder-x-deb-nixhm-forge";
           nixSystem = "x86_64-linux";
           platform = "linux/amd64,linux/arm64";
         })} $out/compose-forge.yaml
