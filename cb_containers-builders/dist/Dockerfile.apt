@@ -1,6 +1,6 @@
 # ╔══════════════════════════════════════════════════════════════════╗
 # ║ cloud-builder x86-apt                                          ║
-# ║ ghcr.io/diegonmarcos/cloud-builder-x86-apt                    ║
+# ║ ghcr.io/diegonmarcos/cloud-builder-x-deb-apt                    ║
 # ║ Source: cb_containers-builders/src/Dockerfile.x86-apt          ║
 # ║                                                                ║
 # ║ Pure Debian builder — no Nix. Uses apt for all deps.           ║
@@ -62,11 +62,11 @@ COPY docker/docker-up.sh /opt/cloud-builder/docker-up.sh
 RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh
 
 # ── Labels ───────────────────────────────────────────────────────
-LABEL org.opencontainers.image.title="cloud-builder-x86-apt"
+LABEL org.opencontainers.image.title="cloud-builder-x-deb-apt"
 LABEL org.opencontainers.image.description="cloud-builder — Debian apt CI/CD image (no Nix)"
 LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/unix"
 LABEL diego.image.variant="x86-apt"
-LABEL diego.image.ghcr="ghcr.io/diegonmarcos/cloud-builder-x86-apt"
+LABEL diego.image.ghcr="ghcr.io/diegonmarcos/cloud-builder-x-deb-apt"
 
 ENV LANG=en_US.UTF-8
 ENV NODE_PATH=/root/.node_modules/node_modules

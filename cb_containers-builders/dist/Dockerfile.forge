@@ -1,6 +1,6 @@
 # ══════════════════════════════════════════════════════════════
-# cloud-builder-x86-nixos-forge v2 — deps.json-driven
-# ghcr.io/diegonmarcos/cloud-builder-x86-nixos-forge:latest
+# cloud-builder-x-deb-nixhm-forge v2 — deps.json-driven
+# ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm-forge:latest
 #
 # deps.json = source of truth
 # install.sh = reads deps.json, installs everything
@@ -10,7 +10,7 @@
 FROM debian:bookworm
 
 LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud"
-LABEL org.opencontainers.image.title="cloud-builder-x86-nixos-forge"
+LABEL org.opencontainers.image.title="cloud-builder-x-deb-nixhm-forge"
 LABEL org.opencontainers.image.description="Full dev/CI/ML builder — deps.json-driven, multi-arch"
 LABEL org.opencontainers.image.authors="Diego Nepomuceno Marcos"
 LABEL forge.deps="/etc/forge/deps.json"

@@ -134,12 +134,12 @@
       default = pkgs.runCommand "builders-compose" {} ''
         mkdir -p $out
         # Multi-arch images: native on matching host, QEMU fallback on x86
-        cp ${pkgs.writeText "compose-cloudlight.yaml" (mkBuilderCompose {
-          variant = "cloudlight";
+        cp ${pkgs.writeText "compose-x-deb-nixhm.yaml" (mkBuilderCompose {
+          variant = "x-deb-nixhm";
           imageName = "cloud-builder-x-deb-nixhm";
           nixSystem = "x86_64-linux";
           platform = "linux/amd64,linux/arm64";
-        })} $out/compose-cloudlight.yaml
+        })} $out/compose-x-deb-nixhm.yaml
 
         cp ${pkgs.writeText "compose-apt.yaml" (mkBuilderCompose {
           variant = "apt";

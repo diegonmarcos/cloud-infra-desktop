@@ -4,19 +4,19 @@
   "registry": "ghcr.io/diegonmarcos",
   "images": {
     "cloudlight": {
-      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x86-nixos",
+      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm",
       "dockerfile": "src/Dockerfile.cloudlight",
       "platform": "linux/amd64,linux/arm64",
       "description": "Multi-arch builder for GHA + VMs (nix + sops + docker)"
     },
     "apt": {
-      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x86-apt",
+      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x-deb-apt",
       "dockerfile": "src/Dockerfile.apt",
       "platform": "linux/amd64,linux/arm64",
       "description": "Multi-arch builder Debian apt (no Nix, lighter)"
     },
     "forge": {
-      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x86-nixos-forge",
+      "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm-forge",
       "dockerfile": "src/Dockerfile.forge",
       "platform": "linux/amd64,linux/arm64",
       "description": "Multi-arch forge — rust + go + clang full toolchain"

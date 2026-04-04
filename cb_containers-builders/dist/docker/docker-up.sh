@@ -9,7 +9,7 @@ set -e
 
 OP="${1:-ship}"
 VM="${2:-all}"
-IMG="ghcr.io/diegonmarcos/cloud-builder-x86-nixos:latest"
+IMG="ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest"
 REPO="https://github.com/diegonmarcos/cloud.git"
 
 # Auto-detect GHCR token
