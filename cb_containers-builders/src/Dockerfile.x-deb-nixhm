@@ -10,7 +10,7 @@ FROM nixos/nix:latest AS builder
 ARG TARGETARCH=amd64
 
 # Enable flakes
-RUN mkdir -p /etc/nix && echo "experimental-features = nix-command flakes" > /etc/nix/nix.conf
+RUN mkdir -p /etc/nix && printf "experimental-features = nix-command flakes\nsandbox = false\nfilter-syscalls = false\n" > /etc/nix/nix.conf
 
 # Copy cloud-builder flake (context is workflows/src/cloud-builder/)
 WORKDIR /build
@@ -20,12 +20,13 @@ COPY flake.nix flake.lock ./
 RUN nix flake update config-json --flake .
 
 # Build the devShell — populates nix store with all deps
-# Map TARGETARCH (amd64|arm64) → nix system (x86_64-linux|aarch64-linux)
-RUN NIX_SYS=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64-linux" || echo "x86_64-linux") && \
+# Detect actual nix system at runtime (QEMU makes TARGETARCH unreliable)
+RUN NIX_SYS=$(nix eval --raw nixpkgs#system 2>/dev/null || (uname -m | grep -q aarch64 && echo aarch64-linux || echo x86_64-linux)) && \
+    echo "Detected nix system: $NIX_SYS" && \
     nix build ".#devShells.${NIX_SYS}.default.inputDerivation" --no-link
 
 # Also pre-populate nixpkgs evaluations for faster service builds
-RUN NIX_SYS=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64-linux" || echo "x86_64-linux") && \
+RUN NIX_SYS=$(nix eval --raw nixpkgs#system 2>/dev/null || (uname -m | grep -q aarch64 && echo aarch64-linux || echo x86_64-linux)) && \
     nix eval --json ".#devShells.${NIX_SYS}.default.name" > /dev/null
 
 # Install npm packages to /root/.node_modules (shared node deps)
@@ -38,7 +39,7 @@ RUN nix develop .# --command bash -c '\
 # ── Final image: nix store + node_modules + docker CLI ready ──
 FROM nixos/nix:latest
 
-RUN mkdir -p /etc/nix && echo "experimental-features = nix-command flakes" > /etc/nix/nix.conf
+RUN mkdir -p /etc/nix && printf "experimental-features = nix-command flakes\nsandbox = false\nfilter-syscalls = false\n" > /etc/nix/nix.conf
 
 # Copy populated nix store from builder (devShell + npm deps)
 COPY --from=builder /nix/store /nix/store
