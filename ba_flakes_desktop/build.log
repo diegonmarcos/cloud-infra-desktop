@@ -19439,3 +19439,87 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-04-05 12:25:39] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-04-05 12:25:39] PERF: start switch
 [2026-04-05 12:25:39] INFO: Staging dirty files for flake evaluation...
+[2026-04-05 12:25:39] PERF: git stage = 57ms
+[2026-04-05 12:25:39] PERF: clean backups = 17ms
+[2026-04-05 12:25:39] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+No change so reusing latest profile generation 311
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 22 cloud deps extracted
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 104 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (5 VMs, 31 services, date=2026-04-05)
+Activating globalTsx
+
+changed 5 packages in 1s
+Activating gooseConfig
+Activating initHomeGit
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.slqMU5tPAL/generation/activate: line 767: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot create regular file '/etc/systemd/system/zram-setup.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve zram=3889MB docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=7778MB(+24h-maint) rescue-ssh=port2200
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-05 12:25:57] PERF: home-manager switch = 17.9s
+[2026-04-05 12:25:57] PERF: TOTAL switch = 18.1s
+[2026-04-05 12:25:57] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-05 12:25:57] ========== Build script finished ==========

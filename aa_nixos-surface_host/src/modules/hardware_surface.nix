@@ -75,58 +75,52 @@
       Type = "simple";
       Restart = "always";
       RestartSec = 5;
+      StandardOutput = "journal";
+      StandardError = "journal";
     };
-    script = ''
-      #!/bin/bash
-      # Only run on Plasma (KWin) — GNOME doesn't trigger this bug
-      if ! pgrep -x kwin_wayland >/dev/null 2>&1; then
-        echo "[trackpad-watchdog] Not Plasma session, exiting"
-        # Wait for Plasma to maybe start, then check again
-        while ! pgrep -x kwin_wayland >/dev/null 2>&1; do
-          sleep 30
+    script = let watchdog = pkgs.writeShellApplication {
+      name = "surface-trackpad-watchdog";
+      runtimeInputs = with pkgs; [ kmod coreutils gnugrep gawk evtest procps ];
+      text = ''
+        # Only run on Plasma — GNOME doesn't trigger this bug
+        while ! pgrep -u diego -f kwin_wayland >/dev/null 2>&1; do
+          sleep 5
         done
-      fi
-      echo "[trackpad-watchdog] Plasma detected, starting"
+        echo "[trackpad-watchdog] Plasma detected"
 
-      find_touchpad() {
-        for f in /sys/class/input/event*/device/name; do
-          if grep -q "045E:09AF Touchpad" "$f" 2>/dev/null; then
-            echo "/dev/input/$(echo "$f" | grep -oP 'event\d+')"
-            return
+        find_touchpad() {
+          for f in /sys/class/input/event*/device/name; do
+            if grep -q "045E:09AF Touchpad" "$f" 2>/dev/null; then
+              basename "$(dirname "$(dirname "$f")")"
+              return 0
+            fi
+          done
+          return 1
+        }
+
+        reset_hid() {
+          echo "[trackpad-watchdog] BTN_LEFT lost — resetting HID stack"
+          modprobe -r surface_hid_core surface_hid 2>/dev/null || true
+          modprobe surface_hid_core surface_hid
+          modprobe -r hid_multitouch
+          modprobe hid_multitouch
+        }
+
+        while true; do
+          TP_DEV=$(find_touchpad) || { sleep 3; continue; }
+          TOUCHPAD="/dev/input/$TP_DEV"
+
+          EVENTS=$(timeout 3 evtest "$TOUCHPAD" 2>/dev/null || true)
+          TOUCHES=$(echo "$EVENTS" | grep -c "BTN_TOUCH.*value 1" || true)
+          CLICKS=$(echo "$EVENTS" | grep -c "BTN_LEFT.*value 1" || true)
+
+          if [ "$TOUCHES" -ge 3 ] && [ "$CLICKS" -eq 0 ]; then
+            echo "[trackpad-watchdog] Dead: $TOUCHES touches, 0 clicks in 3s"
+            reset_hid
+            sleep 5
           fi
         done
-      }
-
-      reset_hid() {
-        echo "[trackpad-watchdog] BTN_LEFT lost — resetting HID stack"
-        modprobe -r surface_hid_core surface_hid 2>/dev/null || true
-        modprobe surface_hid_core surface_hid
-        modprobe -r hid_multitouch
-        modprobe hid_multitouch
-      }
-
-      while true; do
-        TOUCHPAD=$(find_touchpad)
-        if [ -z "$TOUCHPAD" ]; then
-          sleep 5
-          continue
-        fi
-
-        echo "[trackpad-watchdog] Monitoring $TOUCHPAD"
-
-        # Sample 3 seconds of events
-        EVENTS=$(timeout 3 evtest "$TOUCHPAD" 2>/dev/null || true)
-        TOUCHES=$(echo "$EVENTS" | grep -c "BTN_TOUCH.*value 1" || true)
-        CLICKS=$(echo "$EVENTS" | grep -c "BTN_LEFT.*value 1" || true)
-
-        if [ "$TOUCHES" -ge 3 ] && [ "$CLICKS" -eq 0 ]; then
-          echo "[trackpad-watchdog] Dead: $TOUCHES touches, 0 clicks in 3s"
-          reset_hid
-          sleep 5
-        else
-          sleep 1
-        fi
-      done
-    '';
+      '';
+    }; in "${watchdog}/bin/surface-trackpad-watchdog";
   };
 }
