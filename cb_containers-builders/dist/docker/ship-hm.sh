@@ -36,9 +36,18 @@ git -C cloud-data fetch origin main 2>/dev/null && git -C cloud-data reset --har
 
 # ── 2. Setup SSH ────────────────────────────────────────────────
 echo "[2/5] Setting up SSH for $VM"
-GHA_CONFIG="cloud-data/cloud-data-gha-config.json"
-HOST=$(jq -r --arg vm "$VM" '.vms[$vm].wg_ip // .vms[$vm].host' "$GHA_CONFIG")
-USER=$(jq -r --arg vm "$VM" '.vms[$vm].user' "$GHA_CONFIG")
+# Source of truth: per-VM build.json (NOT cloud-data — that's derived, can be stale)
+BUILD_JSON="/workspace/b_infra/home-manager/nixhm-sudo-${VM}/build.json"
+if [ ! -f "$BUILD_JSON" ]; then
+  echo "FATAL: $BUILD_JSON not found"
+  exit 1
+fi
+HOST=$(jq -r '.vm.network.wg_ip' "$BUILD_JSON")
+USER=$(jq -r '.hm.user' "$BUILD_JSON")
+if [ -z "$HOST" ] || [ "$HOST" = "null" ] || [ -z "$USER" ] || [ "$USER" = "null" ]; then
+  echo "FATAL: build.json missing vm.network.wg_ip ($HOST) or hm.user ($USER)"
+  exit 1
+fi
 
 # SSH key: read from file path (_FILE) or env var (GHA secrets)
 case "$VM" in
@@ -85,8 +94,7 @@ echo "[4/5] Updating builder flake inputs"
 nix flake update config-json --flake /opt/cloud-builder-flake 2>&1 || echo "[builder] flake update skipped"
 
 # ── 5. Ship ─────────────────────────────────────────────────────
-echo "[5/5] Running build.sh ship for $VM"
-# Resolve alias → directory name (nixhm-sudo-<alias>)
+echo "[5/6] Running build.sh ship for $VM"
 HM_DIR="/workspace/b_infra/home-manager/nixhm-sudo-${VM}"
 if [ ! -d "$HM_DIR" ]; then
   echo "FATAL: $HM_DIR does not exist"
@@ -96,12 +104,12 @@ cd "$HM_DIR"
 bash build.sh ship 2>&1
 
 # ── 6. Activate on VM (docker delivery only) ──────────────────
-DELIVERY=$(node -e "console.log(require('$HM_DIR/build.json').hm.delivery || '')" 2>/dev/null || echo "")
-REMOTE_BUILDER=$(node -e "console.log(require('$HM_DIR/build.json').hm.remote_builder || false)" 2>/dev/null || echo "false")
-HM_IMAGE=$(node -e "console.log(require('$HM_DIR/build.json').hm.image || '')" 2>/dev/null || echo "")
-HM_USER=$(node -e "console.log(require('$HM_DIR/build.json').hm.user || '')" 2>/dev/null || echo "")
+# All config from build.json — single source of truth
+DELIVERY=$(jq -r '.hm.delivery // ""' "$BUILD_JSON")
+REMOTE_BUILDER=$(jq -r '.hm.remote_builder // false' "$BUILD_JSON")
+HM_IMAGE=$(jq -r '.hm.image // ""' "$BUILD_JSON")
 
-if [ "$DELIVERY" = "docker" ] && [ "$REMOTE_BUILDER" != "true" ] && [ -n "$HM_IMAGE" ]; then
+if [ "$DELIVERY" = "docker" ] && [ "$REMOTE_BUILDER" != "true" ] && [ -n "$HM_IMAGE" ] && [ "$HM_IMAGE" != "null" ]; then
   echo "[6/6] Activating on $VM: docker pull + run $HM_IMAGE"
   ssh "$VM" "
     set -e
@@ -112,10 +120,10 @@ if [ "$DELIVERY" = "docker" ] && [ "$REMOTE_BUILDER" != "true" ] && [ -n "$HM_IM
       -v /:/host \
       -v /nix:/host/nix \
       -v /etc:/host/etc \
-      -v /home/$HM_USER:/host/home/$HM_USER \
+      -v /home/$USER:/host/home/$USER \
       '$HM_IMAGE:latest' 2>&1
     echo '[activate] Done'
   "
 else
-  echo "[6/6] Skipped docker activate (remote_builder=$REMOTE_BUILDER delivery=$DELIVERY)"
+  echo "[6/6] Skipped docker activate (delivery=$DELIVERY remote_builder=$REMOTE_BUILDER)"
 fi
