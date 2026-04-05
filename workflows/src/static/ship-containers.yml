@@ -26,11 +26,11 @@ jobs:
 
       - name: Ship via builder container
         run: |
-          docker pull ghcr.io/diegonmarcos/cloud-builder-x86-nixos:latest
+          docker pull ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "${{ github.workspace }}:/workspace" \
             -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             -e GITHUB_ACTOR="${{ github.actor }}" \
-            ghcr.io/diegonmarcos/cloud-builder-x86-nixos:latest \
+            ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest \
             bash -c "cd /workspace && sh ca_containers_user/build.sh ship"
