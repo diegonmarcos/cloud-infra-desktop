@@ -3,9 +3,9 @@
   "description": "CI/CD builder images — multi-arch (amd64 + arm64 via QEMU fallback)",
   "registry": "ghcr.io/diegonmarcos",
   "images": {
-    "cloudlight": {
+    "x-deb-nixhm": {
       "ghcr": "ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm",
-      "dockerfile": "src/Dockerfile.cloudlight",
+      "dockerfile": "src/Dockerfile.x-deb-nixhm",
       "platform": "linux/amd64,linux/arm64",
       "description": "Multi-arch builder for GHA + VMs (nix + sops + docker)"
     },
