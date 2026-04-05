@@ -92,6 +92,10 @@
               fzf
               iproute2  # Provides 'ip' command for network interface management
 
+              # Rust toolchain
+              pkgsNew.rustc
+              pkgsNew.cargo
+
               # Dependencies that stop npm from panicking
               python3
               gnumake
@@ -361,7 +365,6 @@
               _module.args.nodejs = pkgsNew.nodejs_22;
               imports = [
                 ./modules/packages.nix
-                ./modules/guardrails.nix
                 ./modules/curl-wget-wrapper.nix
                 ./modules/node-npm-deps.nix
                 ./modules/node-bins.nix
