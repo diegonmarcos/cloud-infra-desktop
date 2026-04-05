@@ -94,3 +94,28 @@ if [ ! -d "$HM_DIR" ]; then
 fi
 cd "$HM_DIR"
 bash build.sh ship 2>&1
+
+# ── 6. Activate on VM (docker delivery only) ──────────────────
+DELIVERY=$(node -e "console.log(require('$HM_DIR/build.json').hm.delivery || '')" 2>/dev/null || echo "")
+REMOTE_BUILDER=$(node -e "console.log(require('$HM_DIR/build.json').hm.remote_builder || false)" 2>/dev/null || echo "false")
+HM_IMAGE=$(node -e "console.log(require('$HM_DIR/build.json').hm.image || '')" 2>/dev/null || echo "")
+HM_USER=$(node -e "console.log(require('$HM_DIR/build.json').hm.user || '')" 2>/dev/null || echo "")
+
+if [ "$DELIVERY" = "docker" ] && [ "$REMOTE_BUILDER" != "true" ] && [ -n "$HM_IMAGE" ]; then
+  echo "[6/6] Activating on $VM: docker pull + run $HM_IMAGE"
+  ssh "$VM" "
+    set -e
+    echo '[activate] Pulling $HM_IMAGE:latest'
+    docker pull '$HM_IMAGE:latest' 2>&1 | tail -3
+    echo '[activate] Running activation'
+    docker run --rm --privileged \
+      -v /:/host \
+      -v /nix:/host/nix \
+      -v /etc:/host/etc \
+      -v /home/$HM_USER:/host/home/$HM_USER \
+      '$HM_IMAGE:latest' 2>&1
+    echo '[activate] Done'
+  "
+else
+  echo "[6/6] Skipped docker activate (remote_builder=$REMOTE_BUILDER delivery=$DELIVERY)"
+fi

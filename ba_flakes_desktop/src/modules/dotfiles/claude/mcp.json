@@ -1,8 +1,11 @@
 {
   "mcpServers": {
     "unix": {
-      "type": "http",
-      "url": "http://127.0.0.1:3200/mcp"
+      "type": "stdio",
+      "command": "/home/diego/git/tools/6-unix-mcp-api/src/start.sh",
+      "env": {
+        "NODE_PATH": "/home/diego/.node_modules/node_modules"
+      }
     },
     "cloud-infra": {
       "type": "http",
