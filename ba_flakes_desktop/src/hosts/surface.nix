@@ -22,9 +22,9 @@
     PROFILE = "auth";
   };
 
-  # Enable syncthing service
-  services.syncthing = {
-    enable = true;
-    tray.enable = false;  # No tray in standalone mode
-  };
+  # Syncthing disabled — no folders configured, unused
+  # services.syncthing = {
+  #   enable = true;
+  #   tray.enable = false;
+  # };
 }
