@@ -111,19 +111,19 @@ HM_IMAGE=$(jq -r '.hm.image // ""' "$BUILD_JSON")
 
 if [ "$DELIVERY" = "docker" ] && [ "$REMOTE_BUILDER" != "true" ] && [ -n "$HM_IMAGE" ] && [ "$HM_IMAGE" != "null" ]; then
   echo "[6/6] Activating on $VM: docker pull + run $HM_IMAGE"
-  ssh "$VM" "
+  ssh "$VM" bash -c "'
     set -e
-    echo '[activate] Pulling $HM_IMAGE:latest'
-    docker pull '$HM_IMAGE:latest' 2>&1 | tail -3
-    echo '[activate] Running activation'
+    echo \"[activate] Pulling $HM_IMAGE:latest\"
+    docker pull $HM_IMAGE:latest 2>&1 | tail -3
+    echo \"[activate] Running activation\"
     docker run --rm --privileged \
       -v /:/host \
       -v /nix:/host/nix \
       -v /etc:/host/etc \
       -v /home/$USER:/host/home/$USER \
-      '$HM_IMAGE:latest' 2>&1
-    echo '[activate] Done'
-  "
+      $HM_IMAGE:latest 2>&1
+    echo \"[activate] Done\"
+  '"
 else
   echo "[6/6] Skipped docker activate (delivery=$DELIVERY remote_builder=$REMOTE_BUILDER)"
 fi
