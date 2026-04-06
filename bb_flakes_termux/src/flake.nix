@@ -4,6 +4,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
     nixpkgs-new.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     nix-on-droid = {
       url = "github:nix-community/nix-on-droid/release-24.05";
@@ -16,9 +17,10 @@
     };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-new, nix-on-droid, home-manager }:
+  outputs = { self, nixpkgs, nixpkgs-new, nixpkgs-unstable, nix-on-droid, home-manager }:
     let
       pkgsNew = import nixpkgs-new { system = "aarch64-linux"; };
+      pkgsUnstable = import nixpkgs-unstable { system = "aarch64-linux"; };
 
       # Build termux-am from nix-on-droid source (provides `am` for Android intents)
       termux-am = (import nixpkgs { system = "aarch64-linux"; }).callPackage
@@ -92,9 +94,9 @@
               fzf
               iproute2  # Provides 'ip' command for network interface management
 
-              # Rust toolchain
-              pkgsNew.rustc
-              pkgsNew.cargo
+              # Rust toolchain (unstable for edition2024 support, 1.85+)
+              pkgsUnstable.rustc
+              pkgsUnstable.cargo
 
               # Dependencies that stop npm from panicking
               python3
