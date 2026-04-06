@@ -72,7 +72,7 @@ Host ${VM}
   IdentityFile ~/.ssh/id_deploy
   StrictHostKeyChecking no
   ServerAliveInterval 30
-  ServerAliveCountMax 10
+  ServerAliveCountMax 60
 EOF
 chmod 600 ~/.ssh/config
 
