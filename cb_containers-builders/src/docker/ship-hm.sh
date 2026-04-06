@@ -110,20 +110,29 @@ REMOTE_BUILDER=$(jq -r '.hm.remote_builder // false' "$BUILD_JSON")
 HM_IMAGE=$(jq -r '.hm.image // ""' "$BUILD_JSON")
 
 if [ "$DELIVERY" = "docker" ] && [ "$REMOTE_BUILDER" != "true" ] && [ -n "$HM_IMAGE" ] && [ "$HM_IMAGE" != "null" ]; then
-  echo "[6/6] Activating on $VM: docker pull + run $HM_IMAGE"
-  ssh "$VM" bash -c "'
-    set -e
-    echo \"[activate] Pulling $HM_IMAGE:latest\"
-    docker pull $HM_IMAGE:latest 2>&1 | tail -3
-    echo \"[activate] Running activation\"
-    docker run --rm --privileged \
-      -v /:/host \
-      -v /nix:/host/nix \
-      -v /etc:/host/etc \
-      -v /home/$USER:/host/home/$USER \
-      $HM_IMAGE:latest 2>&1
-    echo \"[activate] Done\"
-  '"
+  echo "[6/6] Activating on $VM: pull + copy nix store + activate natively"
+  # Step A: pull image + run container to copy nix store to host
+  ssh "$VM" bash <<ACTIVATE_SSH
+set -e
+echo "[activate] Pulling $HM_IMAGE:latest"
+docker pull $HM_IMAGE:latest 2>&1 | tail -3
+echo "[activate] Copying nix store to host"
+docker run --rm --privileged \
+  -v /:/host \
+  -v /nix:/host/nix \
+  -v /etc:/host/etc \
+  -v /home/$USER:/host/home/$USER \
+  $HM_IMAGE:latest 2>&1
+# Step B: activate natively on the host (nix is in PATH, no chroot needed)
+ACTIVATION_PATH=\$(cat /tmp/.hm-activation-path 2>/dev/null)
+if [ -z "\$ACTIVATION_PATH" ]; then
+  echo "[activate] FATAL: /tmp/.hm-activation-path not found"
+  exit 1
+fi
+echo "[activate] Running \$ACTIVATION_PATH/activate natively"
+\$ACTIVATION_PATH/activate
+echo "[activate] Done — new generation active"
+ACTIVATE_SSH
 else
   echo "[6/6] Skipped docker activate (delivery=$DELIVERY remote_builder=$REMOTE_BUILDER)"
 fi
