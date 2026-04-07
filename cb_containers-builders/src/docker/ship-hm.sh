@@ -130,6 +130,9 @@ if [ -z "\$ACTIVATION_PATH" ]; then
   exit 1
 fi
 echo "[activate] Running \$ACTIVATION_PATH/activate natively"
+# Source nix profile so nix-env/nix-build are in PATH before activate overwrites it
+export PATH="\$HOME/.local/bin:\$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin"
+. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true
 \$ACTIVATION_PATH/activate
 echo "[activate] Done — new generation active"
 ACTIVATE_SSH
