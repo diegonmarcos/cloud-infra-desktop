@@ -1,85 +1,91 @@
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║ cloud-builder cloudlight (multi-arch: amd64 + arm64 via QEMU)  ║
-# ║ ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm                   ║
-# ║ Source: cb_containers-builders/src/Dockerfile.cloudlight        ║
+# ║ cloud-builder — Debian flat OS + Nix + Home Manager            ║
+# ║ ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm                ║
+# ║ Source: cb_containers-builders/src/Dockerfile.x-deb-nixhm      ║
+# ╠══════════════════════════════════════════════════════════════════╣
+# ║ Architecture:                                                   ║
+# ║   1. Debian bookworm-slim base (flat OS, like VMs)              ║
+# ║   2. Install nix (single-user, no daemon)                       ║
+# ║   3. Build home-manager activation package                      ║
+# ║   4. Activate HM → all tools installed via nix store            ║
+# ║   5. nix develop locally = identical environment                ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-FROM nixos/nix:latest AS builder
+# ── Stage 1: Debian base with nix ───────────────────────────────
+FROM debian:bookworm-slim AS base
 
-# buildx sets TARGETARCH automatically (amd64|arm64)
-ARG TARGETARCH=amd64
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Enable flakes
-RUN mkdir -p /etc/nix && printf "experimental-features = nix-command flakes\nsandbox = false\nfilter-syscalls = false\n" > /etc/nix/nix.conf
+# Minimal apt deps for nix installer + git operations
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl xz-utils git ca-certificates sudo locales \
+    && rm -rf /var/lib/apt/lists/* \
+    && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen && locale-gen
 
-# Copy cloud-builder flake (context is workflows/src/cloud-builder/)
+ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+
+# Install nix — single-user mode (no daemon, simpler for Docker)
+# Pre-create nix.conf: disable build-users-group (no nixbld group in Docker)
+RUN mkdir -p /etc/nix \
+    && printf "build-users-group =\nexperimental-features = nix-command flakes\nsandbox = false\nfilter-syscalls = false\n" > /etc/nix/nix.conf \
+    && curl -L https://nixos.org/nix/install | sh -s -- --no-daemon \
+    && . /root/.nix-profile/etc/profile.d/nix.sh
+
+# Make nix available for subsequent RUN commands
+ENV PATH="/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:${PATH}"
+
+# ── Stage 2: Build HM activation package ────────────────────────
+FROM base AS builder
+
 WORKDIR /build
-COPY flake.nix flake.lock ./
+COPY flake.nix cloud-builder.nix ./
 
-# Fetch config.json from GitHub (same as flake input does)
-RUN nix flake update config-json --flake .
+# Fetch config.json from GitHub (flake input) and generate lock
+RUN nix flake update
 
-# Build the devShell — populates nix store with all deps
-# Detect actual nix system at runtime (QEMU makes TARGETARCH unreliable)
-RUN NIX_SYS=$(nix eval --raw nixpkgs#system 2>/dev/null || (uname -m | grep -q aarch64 && echo aarch64-linux || echo x86_64-linux)) && \
-    echo "Detected nix system: $NIX_SYS" && \
-    nix build ".#devShells.${NIX_SYS}.default.inputDerivation" --no-link
+# Build the home-manager activation package
+RUN nix build '.#homeConfigurations."root@cloud-builder".activationPackage' \
+    --no-link --print-out-paths > /build/hm-result-path.txt
 
-# Also pre-populate nixpkgs evaluations for faster service builds
-RUN NIX_SYS=$(nix eval --raw nixpkgs#system 2>/dev/null || (uname -m | grep -q aarch64 && echo aarch64-linux || echo x86_64-linux)) && \
-    nix eval --json ".#devShells.${NIX_SYS}.default.name" > /dev/null
+# ── Stage 3: Final image ────────────────────────────────────────
+FROM base
 
-# Install npm packages to /root/.node_modules (shared node deps)
-RUN nix develop .# --command bash -c '\
-    mkdir -p /root/.node_modules && \
-    cd /root/.node_modules && \
-    npm install --silent tsx yaml nunjucks 2>/dev/null && \
-    echo "Node modules installed: $(ls node_modules | wc -l) packages"'
-
-# ── Final image: nix store + node_modules + docker CLI ready ──
-FROM nixos/nix:latest
-
-RUN mkdir -p /etc/nix && printf "experimental-features = nix-command flakes\nsandbox = false\nfilter-syscalls = false\n" > /etc/nix/nix.conf
-
-# Copy populated nix store from builder (devShell + npm deps)
+# Copy entire nix store from builder (HM closure + all deps)
 COPY --from=builder /nix/store /nix/store
 COPY --from=builder /nix/var /nix/var
+COPY --from=builder /root/.nix-profile /root/.nix-profile
+COPY --from=builder /root/.nix-defexpr /root/.nix-defexpr
+COPY --from=builder /build/hm-result-path.txt /tmp/hm-result-path.txt
 
-# Install Docker CLI AFTER nix store copy (otherwise COPY overwrites it)
-RUN nix profile install nixpkgs#docker-client nixpkgs#docker-compose
-
-# Copy node_modules
-COPY --from=builder /root/.node_modules /root/.node_modules
-
-# Copy cloud-builder flake for nix develop at runtime
+# Copy flake for nix develop at runtime
 COPY --from=builder /build /opt/cloud-builder-flake
 
-# Self-documenting: Dockerfile + docker-up.sh + entrypoint baked in
-COPY docker/Dockerfile /opt/cloud-builder/Dockerfile
-COPY docker/docker-up.sh /opt/cloud-builder/docker-up.sh
+# Activate home-manager (installs all packages, sets up shell, PATH, etc.)
+RUN HM_PATH=$(cat /tmp/hm-result-path.txt) \
+    && "$HM_PATH/activate" \
+    && rm /tmp/hm-result-path.txt
+
+# Self-documenting: entrypoint + helpers baked in
 COPY docker/entrypoint.sh /opt/cloud-builder/entrypoint.sh
+COPY docker/docker-up.sh /opt/cloud-builder/docker-up.sh
 COPY docker/ship-hm.sh /opt/cloud-builder/ship-hm.sh
-RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh /opt/cloud-builder/ship-hm.sh && \
-    echo '. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true' >> /etc/profile && \
-    echo '. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true' >> /root/.bashrc && \
-    echo 'export PATH="$HOME/.node_modules/node_modules/.bin:$PATH"' >> /root/.bashrc && \
-    echo 'git config --global --add safe.directory "*" 2>/dev/null || true' >> /root/.bashrc
 COPY docker/compose.yaml /opt/cloud-builder/compose.yaml
-ARG DOCKERFILE_B64=""
-LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud"
-LABEL org.opencontainers.image.description="cloud-builder — self-contained CI/CD image (nix, sops, rsync, ssh, docker)"
-LABEL cloud.builder.usage="docker compose -f <(docker run --rm ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest cat /opt/cloud-builder/compose.yaml) run cloud-builder bash"
+RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh /opt/cloud-builder/ship-hm.sh
 
 # Clone all repos (HTTPS, public) — entrypoint refreshes on start
-RUN git config --global --add safe.directory "*" && \
-    mkdir -p /root/git && \
-    git clone --depth 1 --recurse-submodules https://github.com/diegonmarcos/cloud.git /root/git/cloud && \
-    git clone --depth 1 https://github.com/diegonmarcos/unix.git /root/git/unix && \
-    git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git /root/git/front && \
-    git clone --depth 1 https://github.com/diegonmarcos/front-data.git /root/git/front-data && \
-    git clone --depth 1 https://github.com/diegonmarcos/cloud-data.git /root/git/cloud-data && \
-    git clone --depth 1 https://github.com/diegonmarcos/tools.git /root/git/tools && \
-    git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.git /root/git/diegonmarcos
+RUN mkdir -p /root/git \
+    && git config --global --add safe.directory "*" \
+    && git clone --depth 1 --recurse-submodules https://github.com/diegonmarcos/cloud.git /root/git/cloud \
+    && git clone --depth 1 https://github.com/diegonmarcos/unix.git /root/git/unix \
+    && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git /root/git/front \
+    && git clone --depth 1 https://github.com/diegonmarcos/front-data.git /root/git/front-data \
+    && git clone --depth 1 https://github.com/diegonmarcos/cloud-data.git /root/git/cloud-data \
+    && git clone --depth 1 https://github.com/diegonmarcos/tools.git /root/git/tools \
+    && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.git /root/git/diegonmarcos
+
+ARG DOCKERFILE_B64=""
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud"
+LABEL org.opencontainers.image.description="cloud-builder — Debian flat + nix + home-manager CI/CD image"
 
 WORKDIR /root/git/cloud
 ENTRYPOINT ["/opt/cloud-builder/entrypoint.sh"]
