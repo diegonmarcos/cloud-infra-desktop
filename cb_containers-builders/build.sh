@@ -257,7 +257,13 @@ _show_help() {
     _R="\033[0m"    # reset
 
     printf "\n"
-    printf "  ${_B}Builder Images${_R}\n"
+    printf "  ${_C}  ██████╗ ${_G}██████╗ ${_Y}██╗     ${_M}██████╗ ${_R}\n"
+    printf "  ${_C}  ██╔══██╗${_G}██╔══██╗${_Y}██║     ${_M}██╔══██╗${_R}\n"
+    printf "  ${_C}  ██████╔╝${_G}██║  ██║${_Y}██║     ${_M}██║  ██║${_R}  ${_B}Cloud Builder${_R}\n"
+    printf "  ${_C}  ██╔══██╗${_G}██║  ██║${_Y}██║     ${_M}██║  ██║${_R}  ${_D}CI/CD builder images (nix + docker + sops)${_R}\n"
+    printf "  ${_C}  ██████╔╝${_G}██████╔╝${_Y}██████╗${_M}██████╔╝${_R}\n"
+    printf "  ${_C}  ╚═════╝ ${_G}╚═════╝ ${_Y}╚═════╝${_M}╚═════╝ ${_R}\n"
+    printf "\n"
     printf "  ${_D}────────────────────────────────────────────────────────${_R}\n"
     printf "\n"
     printf "  ${_B}COMMANDS${_R}\n"
