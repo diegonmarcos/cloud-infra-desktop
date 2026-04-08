@@ -38,6 +38,7 @@ if test (count $argv) -eq 0
   echo "    hhelp alias              List all shell functions and aliases (fish + bash + zsh)"
   echo "    hhelp envvar             List all env vars with current values"
   echo "    hhelp profiles           List profile modules with descriptions"
+  echo "    hhelp mounts             Show all declared storage (filesystems, LUKS, swap, zram)"
   echo "    hhelp grep <pattern>     Search across all flake source files"
   return 0
 end
@@ -290,6 +291,162 @@ switch $argv[1]
       set -l pkgcount (command grep -cE '^\s+pkgs\.|^\s+[a-z].*$' "$pfile" 2>/dev/null; or echo 0)
       printf "  %-30s %s\n" "$pname" "$desc"
     end
+
+  case mounts
+    set_color --bold cyan; echo "═══ NixOS Declared Storage (from flake source) ═══"; set_color normal; echo ""
+
+    set -l fs_file "$nixos_dir/modules/hardware_filesystems.nix"
+    set -l boot_file "$nixos_dir/modules/hardware_boot.nix"
+    set -l prot_file "$nixos_dir/modules/configuration_system-protection.nix"
+
+    # 1. LUKS Volumes
+    set_color --bold yellow; echo "── LUKS Volumes ──"; set_color normal
+    printf "  %-4s %-20s %-50s %-16s\n" "#" "Name" "Device" "Source"
+    printf "  %-4s %-20s %-50s %-16s\n" "─" "────" "──────" "──────"
+    if test -f "$boot_file"
+      command awk '
+        /luks\.devices\."/ {
+          gsub(/.*luks\.devices\."/, ""); gsub(/".*/, "")
+          name = $0; getline
+          while ($0 !~ /};/) {
+            if ($0 ~ /device =/) {
+              dev = $0; gsub(/.*= "/, "", dev); gsub(/".*/, "", dev)
+            }
+            getline
+          }
+          printf "  %-4s %-20s %-50s %-16s\n", "1", name, dev, "hardware_boot.nix"
+        }
+      ' "$boot_file" 2>/dev/null
+    end
+    echo ""
+
+    # 2. Btrfs Subvolumes
+    set_color --bold yellow; echo "── Btrfs Subvolumes ──"; set_color normal
+    printf "  %-4s %-42s %-26s %-10s %-16s\n" "#" "Mount" "Subvolume" "Type" "Source"
+    printf "  %-4s %-42s %-26s %-10s %-16s\n" "─" "─────" "─────────" "────" "──────"
+    if test -f "$fs_file"
+      set -l n 0
+      command awk '
+        /fileSystems\."/ {
+          gsub(/.*fileSystems\."/, ""); gsub(/".*/, "")
+          mount = $0
+          dev = ""; fs = ""; subvol = ""
+          while (1) {
+            getline
+            if ($0 ~ /device =/) { dev = $0; gsub(/.*= "/, "", dev); gsub(/".*/, "", dev) }
+            if ($0 ~ /fsType =/) { fs = $0; gsub(/.*= "/, "", fs); gsub(/".*/, "", fs) }
+            if ($0 ~ /subvol=/) { subvol = $0; gsub(/.*subvol=/, "", subvol); gsub(/".*/, "", subvol) }
+            if ($0 ~ /subvolid=/) { subvol = $0; gsub(/.*subvolid=/, "", subvol); gsub(/".*/, "", subvol); subvol = "subvolid=" subvol }
+            if ($0 ~ /};/) break
+          }
+          if (fs == "btrfs") {
+            count++
+            printf "  %-4s %-42s %-26s %-10s %-16s\n", count, mount, subvol, fs, "hardware_filesystems.nix"
+          }
+        }
+      ' "$fs_file" 2>/dev/null
+    end
+    echo ""
+
+    # 3. Partitions
+    set_color --bold yellow; echo "── Partition Mounts ──"; set_color normal
+    printf "  %-4s %-24s %-50s %-10s %-16s\n" "#" "Mount" "Device" "Type" "Source"
+    printf "  %-4s %-24s %-50s %-10s %-16s\n" "─" "─────" "──────" "────" "──────"
+    if test -f "$fs_file"
+      command awk '
+        /fileSystems\."/ {
+          gsub(/.*fileSystems\."/, ""); gsub(/".*/, "")
+          mount = $0
+          dev = ""; fs = ""
+          while (1) {
+            getline
+            if ($0 ~ /device =/) { dev = $0; gsub(/.*= "/, "", dev); gsub(/".*/, "", dev) }
+            if ($0 ~ /fsType =/) { fs = $0; gsub(/.*= "/, "", fs); gsub(/".*/, "", fs) }
+            if ($0 ~ /};/) break
+          }
+          if (fs == "ext4" || fs == "vfat") {
+            count++
+            printf "  %-4s %-24s %-50s %-10s %-16s\n", count, mount, dev, fs, "hardware_filesystems.nix"
+          }
+        }
+      ' "$fs_file" 2>/dev/null
+    end
+    echo ""
+
+    # 4. tmpfs
+    set_color --bold yellow; echo "── tmpfs ──"; set_color normal
+    printf "  %-4s %-24s %-16s %-10s %-16s\n" "#" "Mount" "Size" "Type" "Source"
+    printf "  %-4s %-24s %-16s %-10s %-16s\n" "─" "─────" "────" "────" "──────"
+    if test -f "$fs_file"
+      command awk '
+        /fileSystems\."/ {
+          gsub(/.*fileSystems\."/, ""); gsub(/".*/, "")
+          mount = $0
+          dev = ""; fs = ""; size = ""
+          while (1) {
+            getline
+            if ($0 ~ /fsType =/) { fs = $0; gsub(/.*= "/, "", fs); gsub(/".*/, "", fs) }
+            if ($0 ~ /size=/) { size = $0; gsub(/.*size=/, "", size); gsub(/".*/, "", size) }
+            if ($0 ~ /};/) break
+          }
+          if (fs == "tmpfs") {
+            count++
+            printf "  %-4s %-24s %-16s %-10s %-16s\n", count, mount, size, fs, "hardware_filesystems.nix"
+          }
+        }
+      ' "$fs_file" 2>/dev/null
+    end
+    echo ""
+
+    # 5. Swap Devices
+    set_color --bold yellow; echo "── Swap Devices ──"; set_color normal
+    printf "  %-4s %-40s %-16s %-16s\n" "#" "Device" "Type" "Source"
+    printf "  %-4s %-40s %-16s %-16s\n" "─" "──────" "────" "──────"
+    set -l swap_n 0
+    if test -f "$fs_file"
+      command awk '
+        /swapDevices/ { inside=1; next }
+        inside && /device =/ {
+          dev = $0; gsub(/.*= "/, "", dev); gsub(/".*/, "", dev)
+          count++
+          printf "  %-4s %-40s %-16s %-16s\n", count, dev, "swap file", "hardware_filesystems.nix"
+        }
+        inside && /\];/ { inside=0 }
+      ' "$fs_file" 2>/dev/null
+      set swap_n (command awk '/swapDevices/,/\];/ { if (/device =/) count++ } END { print count+0 }' "$fs_file" 2>/dev/null)
+    end
+    if test -f "$prot_file"
+      command awk -v n="$swap_n" '
+        /zramSwap\s*=\s*\{/ { inside=1; alg=""; pct=""; maxb=""; prio=""; next }
+        inside && /algorithm/ { alg=$0; gsub(/.*= "/, "", alg); gsub(/".*/, "", alg) }
+        inside && /memoryPercent/ { pct=$0; gsub(/.*= /, "", pct); gsub(/;.*/, "", pct) }
+        inside && /memoryMax/ { maxb=$0; gsub(/.*= /, "", maxb); gsub(/;.*/, "", maxb) }
+        inside && /priority/ { prio=$0; gsub(/.*= /, "", prio); gsub(/;.*/, "", prio) }
+        inside && /};/ {
+          inside=0
+          desc = sprintf("zram (%s, %s%% RAM, prio %s)", alg, pct, prio)
+          printf "  %-4s %-40s %-16s %-16s\n", n+1, "/dev/zram0", desc, "config_system-protection.nix"
+        }
+      ' "$prot_file" 2>/dev/null
+    end
+    echo ""
+
+    # Summary
+    set_color --bold cyan; echo "── Summary ──"; set_color normal
+    set -l luks_n 0; set -l btrfs_n 0; set -l part_n 0; set -l tmpfs_n 0; set -l swap_total 0
+    if test -f "$boot_file"
+      set luks_n (command grep -c 'luks\.devices\.' "$boot_file" 2>/dev/null)
+    end
+    if test -f "$fs_file"
+      set btrfs_n (command awk '/fileSystems\."/{m=$0} /fsType = "btrfs"/{if(m)count++; m=""} END{print count+0}' "$fs_file" 2>/dev/null)
+      set part_n (command awk '/fileSystems\."/{m=$0} /fsType = "(ext4|vfat)"/{if(m)count++; m=""} END{print count+0}' "$fs_file" 2>/dev/null)
+      set tmpfs_n (command awk '/fileSystems\."/{m=$0} /fsType = "tmpfs"/{if(m)count++; m=""} END{print count+0}' "$fs_file" 2>/dev/null)
+      set swap_total (math "$swap_n + 1") # +1 for zram
+    end
+    printf "  LUKS: %s  Btrfs: %s  Partitions: %s  tmpfs: %s  Swap: %s  " "$luks_n" "$btrfs_n" "$part_n" "$tmpfs_n" "$swap_total"
+    set_color --bold
+    printf "Total: %s\n" (math "$luks_n + $btrfs_n + $part_n + $tmpfs_n + $swap_total")
+    set_color normal
 
   case grep
     if test (count $argv) -lt 2

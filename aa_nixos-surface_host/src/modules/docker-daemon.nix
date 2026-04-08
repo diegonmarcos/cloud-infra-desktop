@@ -26,6 +26,28 @@
     };
     daemon.settings = {
       data-root = "/mnt/kubuntu/docker";
+      live-restore = true;
     };
+  };
+
+  # Docker on-demand only — don't autostart, start manually with: systemctl start docker
+  systemd.services.docker.wantedBy = lib.mkForce [];
+
+  # Force all containers to restart=no — prevents buildkit etc from auto-starting
+  # Runs once after docker starts, updates any container with a restart policy
+  systemd.services.docker-no-restart = {
+    description = "Set all Docker containers to restart=no";
+    after = [ "docker.service" ];
+    wantedBy = [ "docker.service" ];
+    path = [ config.virtualisation.docker.package ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      for cid in $(docker ps -aq 2>/dev/null); do
+        docker update --restart=no "$cid" 2>/dev/null || true
+      done
+    '';
   };
 }

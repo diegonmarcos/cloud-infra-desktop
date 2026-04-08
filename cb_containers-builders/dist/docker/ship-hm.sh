@@ -10,6 +10,11 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 set -euo pipefail
 
+# Source nix profile + devShell PATH (tools like jq, sops, rsync live here)
+[ -f /etc/devshell-path.txt ] && export PATH="$(cat /etc/devshell-path.txt)"
+[ -f /root/.nix-profile/etc/profile.d/hm-session-vars.sh ] && . /root/.nix-profile/etc/profile.d/hm-session-vars.sh 2>/dev/null
+export PATH="$HOME/.nix-profile/bin:$HOME/.node_modules/node_modules/.bin:${PATH:-/usr/bin:/bin}"
+
 VM="${VM:?VM env var required}"
 REPO="https://github.com/${GITHUB_REPOSITORY:?}.git"
 
@@ -72,7 +77,7 @@ Host ${VM}
   IdentityFile ~/.ssh/id_deploy
   StrictHostKeyChecking no
   ServerAliveInterval 30
-  ServerAliveCountMax 10
+  ServerAliveCountMax 60
 EOF
 chmod 600 ~/.ssh/config
 
@@ -110,20 +115,32 @@ REMOTE_BUILDER=$(jq -r '.hm.remote_builder // false' "$BUILD_JSON")
 HM_IMAGE=$(jq -r '.hm.image // ""' "$BUILD_JSON")
 
 if [ "$DELIVERY" = "docker" ] && [ "$REMOTE_BUILDER" != "true" ] && [ -n "$HM_IMAGE" ] && [ "$HM_IMAGE" != "null" ]; then
-  echo "[6/6] Activating on $VM: docker pull + run $HM_IMAGE"
-  ssh "$VM" "
-    set -e
-    echo '[activate] Pulling $HM_IMAGE:latest'
-    docker pull '$HM_IMAGE:latest' 2>&1 | tail -3
-    echo '[activate] Running activation'
-    docker run --rm --privileged \
-      -v /:/host \
-      -v /nix:/host/nix \
-      -v /etc:/host/etc \
-      -v /home/$USER:/host/home/$USER \
-      '$HM_IMAGE:latest' 2>&1
-    echo '[activate] Done'
-  "
+  echo "[6/6] Activating on $VM: pull + copy nix store + activate natively"
+  # Step A: pull image + run container to copy nix store to host
+  ssh "$VM" bash <<ACTIVATE_SSH
+set -e
+echo "[activate] Pulling $HM_IMAGE:latest"
+docker pull $HM_IMAGE:latest 2>&1 | tail -3
+echo "[activate] Copying nix store to host"
+docker run --rm --privileged \
+  -v /:/host \
+  -v /nix:/host/nix \
+  -v /etc:/host/etc \
+  -v /home/$USER:/host/home/$USER \
+  $HM_IMAGE:latest 2>&1
+# Step B: activate natively on the host (nix is in PATH, no chroot needed)
+ACTIVATION_PATH=\$(cat /tmp/.hm-activation-path 2>/dev/null)
+if [ -z "\$ACTIVATION_PATH" ]; then
+  echo "[activate] FATAL: /tmp/.hm-activation-path not found"
+  exit 1
+fi
+echo "[activate] Running \$ACTIVATION_PATH/activate natively"
+# Source nix profile so nix-env/nix-build are in PATH before activate overwrites it
+export PATH="\$HOME/.local/bin:\$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin"
+. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true
+\$ACTIVATION_PATH/activate
+echo "[activate] Done — new generation active"
+ACTIVATE_SSH
 else
   echo "[6/6] Skipped docker activate (delivery=$DELIVERY remote_builder=$REMOTE_BUILDER)"
 fi
