@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       variant:
-        description: "Image variant (x86-cloudlight, x86-forge, arm-cloudlight, all)"
+        description: "Image variant (cloud-builder-x-deb-nixhm, cloud-builder-x-deb-apt, cloud-builder-x-deb-apt-forge, all)"
         required: false
-        default: "x86-cloudlight"
+        default: "cloud-builder-x-deb-nixhm"
 
 permissions:
   contents: read
