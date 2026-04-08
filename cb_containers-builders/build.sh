@@ -116,9 +116,8 @@ _docker_build() {
 
     # Multi-arch: use buildx for multi-platform, regular build for single
     if echo "$_platform" | grep -q ","; then
-        log "  Multi-arch: $_platform (buildx)"
-        $ENGINE buildx build --network=host --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR" --load 2>/dev/null \
-          || $ENGINE buildx build --network=host --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
+        log "  Multi-arch: $_platform (buildx, push-only — use 'push' or 'ship' to push)"
+        log "  Skipping local build (multi-arch requires --push, done in push step)"
     elif [ -n "$_platform" ]; then
         $ENGINE build --network=host --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
     else
@@ -161,6 +160,7 @@ _docker_push() {
         $ENGINE push "$_ghcr:latest"
     fi
     log "Pushed: $_ghcr:latest"
+    $ENGINE image prune -f >/dev/null 2>&1 || true
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -211,23 +211,86 @@ show_menu() {
 }
 
 # ═══════════════════════════════════════════════════════════════════
+# Run — start container interactively
+# ═══════════════════════════════════════════════════════════════════
+step_run() {
+    _variant="${1:-x-deb-nixhm}"
+    _variant=$(resolve_variant "$_variant")
+    [ -z "$_variant" ] && return 1
+    _ghcr=$(jq -r ".images.\"$_variant\".ghcr" "$CONFIG")
+    log "Running $_ghcr:latest interactively"
+    # Use compose if available, else docker run
+    if [ -f "$DIST_DIR/docker/compose.yaml" ]; then
+        docker compose -f "$DIST_DIR/docker/compose.yaml" run --rm cloud-builder bash
+    else
+        docker run -it --rm --network=host \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            "$_ghcr:latest" bash
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# Resolve variant — by name or number
+# ═══════════════════════════════════════════════════════════════════
+resolve_variant() {
+    _input="$1"
+    if echo "$_input" | grep -q '^[0-9]'; then
+        _idx=$(( _input - 1 ))
+        _resolved=$(jq -r ".images | keys[$_idx]" "$CONFIG")
+        [ "$_resolved" = "null" ] && { error "Invalid variant number: $_input"; return 1; }
+        echo "$_resolved"
+    else
+        echo "$_input"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════
 # Entry Point
 # ═══════════════════════════════════════════════════════════════════
+_show_help() {
+    echo "Builder Images"
+    echo ""
+    echo "  Images:"
+    _n=1
+    for v in $(jq -r '.images | keys[]' "$CONFIG"); do
+        _ghcr=$(jq -r ".images.\"$v\".ghcr" "$CONFIG")
+        printf "    %d) %-20s %s\n" "$_n" "$v" "$_ghcr"
+        _n=$(( _n + 1 ))
+    done
+    echo ""
+    echo "  Commands:"
+    echo "    a) ship              full pipeline: flake-build + image-build + image-push"
+    echo "       a0) flake-build   src/ + flake → dist/"
+    echo "       a1) image-build   build docker image locally"
+    echo "       a2) image-push    build + push to GHCR (multi-arch)"
+    echo "    b) run               start container interactively"
+    echo ""
+    echo "  Usage: $0 <command> <variant|number>"
+    echo ""
+    echo "  Examples:"
+    echo "    $0 ship 1              # ship x-deb-nixhm (by number)"
+    echo "    $0 ship x-deb-nixhm    # ship by name"
+    echo "    $0 ship all            # ship everything"
+    echo "    $0 run 1               # interactive shell in x-deb-nixhm"
+    echo "    $0 run x-deb-nixhm     # same"
+    echo "    $0 a0                  # flake-build (dist/)"
+    echo "    $0 a1 1                # image-build variant 1"
+    echo "    $0 a2 1                # image-push variant 1"
+}
+
 case "${1:-}" in
-    "")          show_menu ;;
-    build)       step_build ;;
-    docker)      step_docker "${2:-all}" ;;
-    push)        step_push "${2:-all}" ;;
-    ship)        step_ship "${2:-all}" ;;
-    --help|-h)
-        echo "Usage: $0 [build|docker|push|ship [variant]]"
-        echo "Variants: $(jq -r '.images | keys | join(", ")' "$CONFIG"), all (default)"
-        echo ""
-        echo "Steps:"
-        echo "  build   src/ + flake → dist/ (compose + Dockerfiles + deps)"
-        echo "  docker  build images from dist/ Dockerfiles"
-        echo "  push    push images to GHCR"
-        echo "  ship    build + docker + push (full pipeline)"
-        ;;
-    *)           error "Unknown command: $1 (use: build, docker, push, ship)" ;;
+    ""|--help|-h)    _show_help ;;
+    menu)            show_menu ;;
+    # a) ship pipeline
+    ship|a)          step_ship "$(resolve_variant "${2:-all}")" ;;
+    a0|flake-build)  step_build ;;
+    a1|image-build)  step_docker "$(resolve_variant "${2:-all}")" ;;
+    a2|image-push)   step_push "$(resolve_variant "${2:-all}")" ;;
+    # b) run
+    run|b)           step_run "${2:-1}" ;;
+    # Legacy aliases
+    build)           step_build ;;
+    docker)          step_docker "$(resolve_variant "${2:-all}")" ;;
+    push)            step_push "$(resolve_variant "${2:-all}")" ;;
+    *)               error "Unknown: $1 — run '$0' for help" ;;
 esac
