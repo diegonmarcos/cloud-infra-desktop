@@ -89,7 +89,7 @@ step_docker() {
     [ ! -d "$DIST_DIR" ] && { error "No dist/ — run build first"; }
 
     if [ "$_variant" = "all" ]; then
-        for v in $(jq -r '.images | keys[]' "$CONFIG"); do
+        for v in $(jq -r '.images | keys_unsorted[]' "$CONFIG"); do
             _docker_build "$v"
         done
     else
@@ -135,7 +135,7 @@ step_push() {
     ghcr_login
 
     if [ "$_variant" = "all" ]; then
-        for v in $(jq -r '.images | keys[]' "$CONFIG"); do
+        for v in $(jq -r '.images | keys_unsorted[]' "$CONFIG"); do
             _docker_push "$v"
         done
     else
@@ -181,7 +181,7 @@ show_menu() {
     printf "  Builder Images\n"
     printf "  ──────────────────────────────────\n"
     _n=1
-    for v in $(jq -r '.images | keys[]' "$CONFIG"); do
+    for v in $(jq -r '.images | keys_unsorted[]' "$CONFIG"); do
         _desc=$(jq -r ".images.\"$v\".description" "$CONFIG")
         printf "  %d) %-20s %s\n" "$_n" "$v" "$_desc"
         _n=$(( _n + 1 ))
@@ -197,7 +197,7 @@ show_menu() {
         b) step_docker all ;;
         c) step_ship all ;;
         [0-9]*)
-            _v=$(jq -r ".images | keys[$(( _choice - 1 ))]" "$CONFIG")
+            _v=$(jq -r ".images | keys_unsorted[$(( _choice - 1 ))]" "$CONFIG")
             [ "$_v" = "null" ] && { echo "Invalid"; show_menu; return; }
             printf "  1) build  2) docker  3) push  4) ship\n> "
             read -r _action
@@ -236,7 +236,7 @@ resolve_variant() {
     _input="$1"
     if echo "$_input" | grep -q '^[0-9]'; then
         _idx=$(( _input - 1 ))
-        _resolved=$(jq -r ".images | keys[$_idx]" "$CONFIG")
+        _resolved=$(jq -r ".images | keys_unsorted[$_idx]" "$CONFIG")
         [ "$_resolved" = "null" ] && { error "Invalid variant number: $_input"; return 1; }
         echo "$_resolved"
     else
@@ -250,32 +250,31 @@ resolve_variant() {
 _show_help() {
     echo "Builder Images"
     echo ""
+    echo "  Commands:"
+    echo "    a)  ship              full pipeline: flake-build + image-build + image-push"
+    echo "    a0) flake-build       src/ + flake → dist/"
+    echo "    a1) image-build       build docker image locally"
+    echo "    a2) image-push        build + push to GHCR (multi-arch)"
+    echo "    b)  run               start container interactively"
+    echo ""
     echo "  Images:"
     _n=1
-    for v in $(jq -r '.images | keys[]' "$CONFIG"); do
-        _ghcr=$(jq -r ".images.\"$v\".ghcr" "$CONFIG")
-        printf "    %d) %-20s %s\n" "$_n" "$v" "$_ghcr"
+    for v in $(jq -r '.images | keys_unsorted[]' "$CONFIG"); do
+        _desc=$(jq -r ".images.\"$v\".description" "$CONFIG")
+        printf "    %d) %-20s %s\n" "$_n" "$v" "$_desc"
         _n=$(( _n + 1 ))
     done
     echo ""
-    echo "  Commands:"
-    echo "    a) ship              full pipeline: flake-build + image-build + image-push"
-    echo "       a0) flake-build   src/ + flake → dist/"
-    echo "       a1) image-build   build docker image locally"
-    echo "       a2) image-push    build + push to GHCR (multi-arch)"
-    echo "    b) run               start container interactively"
-    echo ""
-    echo "  Usage: $0 <command> <variant|number>"
+    echo "  Usage: $0 <command> <image-name|number>"
     echo ""
     echo "  Examples:"
-    echo "    $0 ship 1              # ship x-deb-nixhm (by number)"
-    echo "    $0 ship x-deb-nixhm    # ship by name"
-    echo "    $0 ship all            # ship everything"
-    echo "    $0 run 1               # interactive shell in x-deb-nixhm"
-    echo "    $0 run x-deb-nixhm     # same"
-    echo "    $0 a0                  # flake-build (dist/)"
-    echo "    $0 a1 1                # image-build variant 1"
-    echo "    $0 a2 1                # image-push variant 1"
+    echo "    $0 ship 1                # ship cloud-builder-x-deb-nixhm"
+    echo "    $0 ship x-deb-nixhm      # same, by name"
+    echo "    $0 ship all              # ship all images"
+    echo "    $0 run 1                 # shell in cloud-builder-x-deb-nixhm"
+    echo "    $0 a0                    # flake-build only"
+    echo "    $0 a1 2                  # image-build apt"
+    echo "    $0 a2 3                  # image-push forge"
 }
 
 case "${1:-}" in
