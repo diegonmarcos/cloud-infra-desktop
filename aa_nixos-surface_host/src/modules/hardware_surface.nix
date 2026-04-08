@@ -51,6 +51,22 @@
   # Journal shows: "kernel bug: Touch jump detected and discarded"
   # This quirk raises the threshold so libinput stops falsely detecting jumps.
   # See: https://wayland.freedesktop.org/libinput/doc/latest/touchpad-jumping-cursors.html
+  # ═══════════════════════════════════════════════════════════════════════════
+  # XWAYLAND: Prevent Xwayland from grabbing the Surface touchpad
+  # ═══════════════════════════════════════════════════════════════════════════
+  # On Wayland, input is handled by KWin's compositor-level libinput.
+  # But Xwayland also grabs physical input devices as X11 inputs, causing a
+  # race condition where BTN_LEFT events get consumed by Xwayland instead of
+  # reaching KWin. This makes clicks stop working intermittently.
+  # Fix: tell X11 to ignore the Surface touchpad entirely.
+  environment.etc."X11/xorg.conf.d/99-surface-touchpad-ignore.conf".text = ''
+    Section "InputClass"
+      Identifier "Ignore Surface Touchpad in Xwayland"
+      MatchProduct "Microsoft Surface 045E:09AF Touchpad"
+      Option "Ignore" "true"
+    EndSection
+  '';
+
   environment.etc."libinput/local-overrides.quirks".text = ''
     [Microsoft Surface Type Cover Touchpad]
     MatchUdevType=touchpad
@@ -80,7 +96,7 @@
     };
     script = let watchdog = pkgs.writeShellApplication {
       name = "surface-trackpad-watchdog";
-      runtimeInputs = with pkgs; [ kmod coreutils gnugrep gawk evtest procps ];
+      runtimeInputs = with pkgs; [ kmod coreutils gnugrep procps ];
       text = ''
         # Only run on Plasma — GNOME doesn't trigger this bug
         while ! pgrep -u diego -f kwin_wayland >/dev/null 2>&1; do
@@ -88,37 +104,31 @@
         done
         echo "[trackpad-watchdog] Plasma detected"
 
-        find_touchpad() {
-          for f in /sys/class/input/event*/device/name; do
-            if grep -q "045E:09AF Touchpad" "$f" 2>/dev/null; then
-              basename "$(dirname "$(dirname "$f")")"
-              return 0
-            fi
-          done
-          return 1
-        }
-
         reset_hid() {
-          echo "[trackpad-watchdog] BTN_LEFT lost — resetting HID stack"
+          echo "[trackpad-watchdog] BTN_LEFT lost — full HID stack reset"
           modprobe -r surface_hid_core surface_hid 2>/dev/null || true
           modprobe surface_hid_core surface_hid
-          modprobe -r hid_multitouch
+          modprobe -r hid_multitouch 2>/dev/null || true
           modprobe hid_multitouch
+          modprobe -r usbhid 2>/dev/null || true
+          modprobe usbhid
+          modprobe -r surface_aggregator_registry surface_aggregator_hub surface_hid surface_hid_core 2>/dev/null || true
+          sleep 1
+          modprobe surface_aggregator_registry
+          modprobe surface_hid
+          echo "[trackpad-watchdog] Reset complete"
         }
 
-        while true; do
-          TP_DEV=$(find_touchpad) || { sleep 3; continue; }
-          TOUCHPAD="/dev/input/$TP_DEV"
-
-          EVENTS=$(timeout 3 evtest "$TOUCHPAD" 2>/dev/null || true)
-          TOUCHES=$(echo "$EVENTS" | grep -c "BTN_TOUCH.*value 1" || true)
-          CLICKS=$(echo "$EVENTS" | grep -c "BTN_LEFT.*value 1" || true)
-
-          if [ "$TOUCHES" -ge 3 ] && [ "$CLICKS" -eq 0 ]; then
-            echo "[trackpad-watchdog] Dead: $TOUCHES touches, 0 clicks in 3s"
-            reset_hid
-            sleep 5
-          fi
+        # Monitor system journal for KWin touch-jump rate limit message
+        # Using system journal (not --user) since this service runs as root
+        journalctl -f --no-tail -o cat _COMM=kwin_wayland | while IFS= read -r line; do
+          case "$line" in
+            *"WARNING: log rate limit exceeded"*)
+              echo "[trackpad-watchdog] Rate limit hit — clicks likely dead, resetting"
+              reset_hid
+              sleep 10
+              ;;
+          esac
         done
       '';
     }; in "${watchdog}/bin/surface-trackpad-watchdog";
