@@ -256,6 +256,9 @@ _show_help() {
     echo "    a1) image-build       build docker image locally"
     echo "    a2) image-push        build + push to GHCR (multi-arch)"
     echo "    b)  run               start container interactively"
+    echo "    c)  list              list running containers + local images"
+    echo "    c0) list-containers   list running containers"
+    echo "    c1) list-images       list local images"
     echo ""
     echo "  Images:"
     _n=1
@@ -287,6 +290,10 @@ case "${1:-}" in
     a2|image-push)   step_push "$(resolve_variant "${2:-all}")" ;;
     # b) run
     run|b)           step_run "${2:-1}" ;;
+    # c) list
+    list|c)          docker ps -a --filter "name=cloud-builder" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null; echo ""; docker images --filter "reference=ghcr.io/diegonmarcos/cloud-builder-*" --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}" 2>/dev/null ;;
+    c0|list-containers) docker ps -a --filter "name=cloud-builder" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null ;;
+    c1|list-images)  docker images --filter "reference=ghcr.io/diegonmarcos/cloud-builder-*" --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}" 2>/dev/null ;;
     # Legacy aliases
     build)           step_build ;;
     docker)          step_docker "$(resolve_variant "${2:-all}")" ;;
