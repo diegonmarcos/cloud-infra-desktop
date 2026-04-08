@@ -12,10 +12,8 @@ services:
     image: ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm-forge:latest
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile.x-deb-nixhm
       network: host
-      args:
-        NIX_SYSTEM: x86_64-linux
     container_name: cloud-builder-forge
     platform: linux/amd64,linux/arm64
     network_mode: host
@@ -24,7 +22,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${HOME:-/root}/.ssh:/root/.ssh:ro
       - ${HOME:-/root}/.config/sops:/root/.config/sops:ro
-    working_dir: /workspace
+    working_dir: /root/git/cloud
     entrypoint: ["/opt/cloud-builder/entrypoint.sh"]
     environment:
       - TERM=xterm-256color
