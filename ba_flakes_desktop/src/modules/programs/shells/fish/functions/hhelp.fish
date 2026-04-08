@@ -299,6 +299,41 @@ switch $argv[1]
     set -l boot_file "$nixos_dir/modules/hardware_boot.nix"
     set -l prot_file "$nixos_dir/modules/configuration_system-protection.nix"
 
+    # Collect runtime df data once (1K blocks for math, then human-readable)
+    set -l df_data (command df -k 2>/dev/null | command awk 'NR>1 { printf "%s|%s|%s|%s\n", $6, $2, $3, $5 }')
+    set -l swap_data (command swapon --bytes --noheadings 2>/dev/null)
+
+    # Helper: find df line for a mount point, return "used|total|pct" human-readable
+    # Usage: _mnt_size /mount → sets _ms_used _ms_total _ms_pct
+    function _mnt_size --no-scope-shadowing -a mnt
+      set _ms_used "-"; set _ms_total "-"; set _ms_pct "-"
+      for line in $df_data
+        set -l parts (string split "|" $line)
+        if test "$parts[1]" = "$mnt"
+          # parts: mount|1K-blocks-total|1K-blocks-used|use%
+          set _ms_total (math --scale=1 "$parts[2] / 1048576")"G"
+          set _ms_used (math --scale=1 "$parts[3] / 1048576")"G"
+          set _ms_pct "$parts[4]"
+          break
+        end
+      end
+    end
+
+    set -l grand_total_kb 0
+    set -l grand_used_kb 0
+
+    # Helper: accumulate KB for grand total
+    function _mnt_accum --no-scope-shadowing -a mnt
+      for line in $df_data
+        set -l parts (string split "|" $line)
+        if test "$parts[1]" = "$mnt"
+          set grand_total_kb (math "$grand_total_kb + $parts[2]")
+          set grand_used_kb (math "$grand_used_kb + $parts[3]")
+          break
+        end
+      end
+    end
+
     # 1. LUKS Volumes
     set_color --bold yellow; echo "── LUKS Volumes ──"; set_color normal
     printf "  %-4s %-20s %-50s %-16s\n" "#" "Name" "Device" "Source"
@@ -321,39 +356,61 @@ switch $argv[1]
     echo ""
 
     # 2. Btrfs Subvolumes
-    set_color --bold yellow; echo "── Btrfs Subvolumes ──"; set_color normal
-    printf "  %-4s %-42s %-26s %-10s %-16s\n" "#" "Mount" "Subvolume" "Type" "Source"
-    printf "  %-4s %-42s %-26s %-10s %-16s\n" "─" "─────" "─────────" "────" "──────"
+    set_color --bold yellow; echo "── Btrfs Subvolume Mounts ──"; set_color normal
+    printf "  %-4s %-42s %-26s %-8s %-8s %-6s %-16s\n" "#" "Mount" "Subvolume" "Used" "Total" "%" "Source"
+    printf "  %-4s %-42s %-26s %-8s %-8s %-6s %-16s\n" "─" "─────" "─────────" "────" "─────" "──" "──────"
+    set -l btrfs_total_kb 0; set -l btrfs_used_kb 0; set -l btrfs_count 0
     if test -f "$fs_file"
-      set -l n 0
-      command awk '
+      set -l btrfs_mounts (command awk '
         /fileSystems\."/ {
           gsub(/.*fileSystems\."/, ""); gsub(/".*/, "")
           mount = $0
-          dev = ""; fs = ""; subvol = ""
+          fs = ""; subvol = ""
           while (1) {
             getline
-            if ($0 ~ /device =/) { dev = $0; gsub(/.*= "/, "", dev); gsub(/".*/, "", dev) }
             if ($0 ~ /fsType =/) { fs = $0; gsub(/.*= "/, "", fs); gsub(/".*/, "", fs) }
             if ($0 ~ /subvol=/) { subvol = $0; gsub(/.*subvol=/, "", subvol); gsub(/".*/, "", subvol) }
             if ($0 ~ /subvolid=/) { subvol = $0; gsub(/.*subvolid=/, "", subvol); gsub(/".*/, "", subvol); subvol = "subvolid=" subvol }
             if ($0 ~ /};/) break
           }
-          if (fs == "btrfs") {
-            count++
-            printf "  %-4s %-42s %-26s %-10s %-16s\n", count, mount, subvol, fs, "hardware_filesystems.nix"
-          }
+          if (fs == "btrfs") printf "%s|%s\n", mount, subvol
         }
-      ' "$fs_file" 2>/dev/null
+      ' "$fs_file" 2>/dev/null)
+      for entry in $btrfs_mounts
+        set btrfs_count (math "$btrfs_count + 1")
+        set -l parts (string split "|" $entry)
+        set -l mnt "$parts[1]"; set -l subvol "$parts[2]"
+        _mnt_size "$mnt"
+        _mnt_accum "$mnt"
+        # Track btrfs subtotals
+        for line in $df_data
+          set -l dp (string split "|" $line)
+          if test "$dp[1]" = "$mnt"
+            set btrfs_total_kb (math "$btrfs_total_kb + $dp[2]")
+            set btrfs_used_kb (math "$btrfs_used_kb + $dp[3]")
+            break
+          end
+        end
+        printf "  %-4s %-42s %-26s %-8s %-8s %-6s %-16s\n" "$btrfs_count" "$mnt" "$subvol" "$_ms_used" "$_ms_total" "$_ms_pct" "hardware_filesystems.nix"
+      end
+      if test $btrfs_count -gt 0
+        set -l sub_t (math --scale=1 "$btrfs_total_kb / 1048576")"G"
+        set -l sub_u (math --scale=1 "$btrfs_used_kb / 1048576")"G"
+        set -l sub_p (test $btrfs_total_kb -gt 0; and math --scale=0 "$btrfs_used_kb * 100 / $btrfs_total_kb"; or echo 0)"%"
+        set_color --dim
+        printf "  %-4s %-42s %-26s %-8s %-8s %-6s\n" "" "" "Subtotal ($btrfs_count)" "$sub_u" "$sub_t" "$sub_p"
+        set_color normal
+      end
     end
     echo ""
 
     # 3. Partitions
     set_color --bold yellow; echo "── Partition Mounts ──"; set_color normal
-    printf "  %-4s %-24s %-50s %-10s %-16s\n" "#" "Mount" "Device" "Type" "Source"
-    printf "  %-4s %-24s %-50s %-10s %-16s\n" "─" "─────" "──────" "────" "──────"
+    printf "  %-4s %-24s %-40s %-8s %-8s %-8s %-6s %-16s\n" "#" "Mount" "Device" "Type" "Used" "Total" "%" "Source"
+    printf "  %-4s %-24s %-40s %-8s %-8s %-8s %-6s %-16s\n" "─" "─────" "──────" "────" "────" "─────" "──" "──────"
+    set -l part_total_kb 0; set -l part_used_kb 0; set -l part_count 0
     if test -f "$fs_file"
-      command awk '
+      set -l part_mounts (command awk '
         /fileSystems\."/ {
           gsub(/.*fileSystems\."/, ""); gsub(/".*/, "")
           mount = $0
@@ -364,89 +421,186 @@ switch $argv[1]
             if ($0 ~ /fsType =/) { fs = $0; gsub(/.*= "/, "", fs); gsub(/".*/, "", fs) }
             if ($0 ~ /};/) break
           }
-          if (fs == "ext4" || fs == "vfat") {
-            count++
-            printf "  %-4s %-24s %-50s %-10s %-16s\n", count, mount, dev, fs, "hardware_filesystems.nix"
-          }
+          if (fs == "ext4" || fs == "vfat") printf "%s|%s|%s\n", mount, dev, fs
         }
-      ' "$fs_file" 2>/dev/null
+      ' "$fs_file" 2>/dev/null)
+      for entry in $part_mounts
+        set part_count (math "$part_count + 1")
+        set -l parts (string split "|" $entry)
+        set -l mnt "$parts[1]"; set -l dev "$parts[2]"; set -l fstype "$parts[3]"
+        _mnt_size "$mnt"
+        _mnt_accum "$mnt"
+        for line in $df_data
+          set -l dp (string split "|" $line)
+          if test "$dp[1]" = "$mnt"
+            set part_total_kb (math "$part_total_kb + $dp[2]")
+            set part_used_kb (math "$part_used_kb + $dp[3]")
+            break
+          end
+        end
+        printf "  %-4s %-24s %-40s %-8s %-8s %-8s %-6s %-16s\n" "$part_count" "$mnt" "$dev" "$fstype" "$_ms_used" "$_ms_total" "$_ms_pct" "hardware_filesystems.nix"
+      end
+      if test $part_count -gt 0
+        set -l sub_t (math --scale=1 "$part_total_kb / 1048576")"G"
+        set -l sub_u (math --scale=1 "$part_used_kb / 1048576")"G"
+        set -l sub_p (test $part_total_kb -gt 0; and math --scale=0 "$part_used_kb * 100 / $part_total_kb"; or echo 0)"%"
+        set_color --dim
+        printf "  %-4s %-24s %-40s %-8s %-8s %-8s %-6s\n" "" "" "Subtotal ($part_count)" "" "$sub_u" "$sub_t" "$sub_p"
+        set_color normal
+      end
     end
     echo ""
 
     # 4. tmpfs
     set_color --bold yellow; echo "── tmpfs ──"; set_color normal
-    printf "  %-4s %-24s %-16s %-10s %-16s\n" "#" "Mount" "Size" "Type" "Source"
-    printf "  %-4s %-24s %-16s %-10s %-16s\n" "─" "─────" "────" "────" "──────"
+    printf "  %-4s %-24s %-16s %-8s %-8s %-6s %-16s\n" "#" "Mount" "Declared" "Used" "Total" "%" "Source"
+    printf "  %-4s %-24s %-16s %-8s %-8s %-6s %-16s\n" "─" "─────" "────────" "────" "─────" "──" "──────"
+    set -l tmpfs_total_kb 0; set -l tmpfs_used_kb 0; set -l tmpfs_count 0
     if test -f "$fs_file"
-      command awk '
+      set -l tmpfs_mounts (command awk '
         /fileSystems\."/ {
           gsub(/.*fileSystems\."/, ""); gsub(/".*/, "")
           mount = $0
-          dev = ""; fs = ""; size = ""
+          fs = ""; size = ""
           while (1) {
             getline
             if ($0 ~ /fsType =/) { fs = $0; gsub(/.*= "/, "", fs); gsub(/".*/, "", fs) }
             if ($0 ~ /size=/) { size = $0; gsub(/.*size=/, "", size); gsub(/".*/, "", size) }
             if ($0 ~ /};/) break
           }
-          if (fs == "tmpfs") {
-            count++
-            printf "  %-4s %-24s %-16s %-10s %-16s\n", count, mount, size, fs, "hardware_filesystems.nix"
-          }
+          if (fs == "tmpfs") printf "%s|%s\n", mount, size
         }
-      ' "$fs_file" 2>/dev/null
+      ' "$fs_file" 2>/dev/null)
+      for entry in $tmpfs_mounts
+        set tmpfs_count (math "$tmpfs_count + 1")
+        set -l parts (string split "|" $entry)
+        set -l mnt "$parts[1]"; set -l declared "$parts[2]"
+        _mnt_size "$mnt"
+        _mnt_accum "$mnt"
+        for line in $df_data
+          set -l dp (string split "|" $line)
+          if test "$dp[1]" = "$mnt"
+            set tmpfs_total_kb (math "$tmpfs_total_kb + $dp[2]")
+            set tmpfs_used_kb (math "$tmpfs_used_kb + $dp[3]")
+            break
+          end
+        end
+        printf "  %-4s %-24s %-16s %-8s %-8s %-6s %-16s\n" "$tmpfs_count" "$mnt" "$declared" "$_ms_used" "$_ms_total" "$_ms_pct" "hardware_filesystems.nix"
+      end
+      if test $tmpfs_count -gt 0
+        set -l sub_t (math --scale=1 "$tmpfs_total_kb / 1048576")"G"
+        set -l sub_u (math --scale=1 "$tmpfs_used_kb / 1048576")"G"
+        set -l sub_p (test $tmpfs_total_kb -gt 0; and math --scale=0 "$tmpfs_used_kb * 100 / $tmpfs_total_kb"; or echo 0)"%"
+        set_color --dim
+        printf "  %-4s %-24s %-16s %-8s %-8s %-6s\n" "" "" "Subtotal ($tmpfs_count)" "$sub_u" "$sub_t" "$sub_p"
+        set_color normal
+      end
     end
     echo ""
 
     # 5. Swap Devices
     set_color --bold yellow; echo "── Swap Devices ──"; set_color normal
-    printf "  %-4s %-40s %-16s %-16s\n" "#" "Device" "Type" "Source"
-    printf "  %-4s %-40s %-16s %-16s\n" "─" "──────" "────" "──────"
-    set -l swap_n 0
+    printf "  %-4s %-40s %-20s %-8s %-8s %-6s %-16s\n" "#" "Device" "Type" "Used" "Total" "%" "Source"
+    printf "  %-4s %-40s %-20s %-8s %-8s %-6s %-16s\n" "─" "──────" "────" "────" "─────" "──" "──────"
+    set -l swap_n 0; set -l swap_total_kb 0; set -l swap_used_kb 0
     if test -f "$fs_file"
-      command awk '
+      set -l swap_devs (command awk '
         /swapDevices/ { inside=1; next }
         inside && /device =/ {
           dev = $0; gsub(/.*= "/, "", dev); gsub(/".*/, "", dev)
-          count++
-          printf "  %-4s %-40s %-16s %-16s\n", count, dev, "swap file", "hardware_filesystems.nix"
+          print dev
         }
         inside && /\];/ { inside=0 }
-      ' "$fs_file" 2>/dev/null
-      set swap_n (command awk '/swapDevices/,/\];/ { if (/device =/) count++ } END { print count+0 }' "$fs_file" 2>/dev/null)
+      ' "$fs_file" 2>/dev/null)
+      for dev in $swap_devs
+        set swap_n (math "$swap_n + 1")
+        # Find runtime swap info
+        set -l s_used "-"; set -l s_total "-"; set -l s_pct "-"
+        for sline in $swap_data
+          if string match -q "*$dev*" "$sline"
+            set -l sp (string split -n " " (string trim "$sline"))
+            # swapon --bytes: NAME TYPE SIZE USED PRIO
+            if test (count $sp) -ge 4
+              set -l sz_b $sp[3]; set -l us_b $sp[4]
+              set s_total (math --scale=1 "$sz_b / 1073741824")"G"
+              set s_used (math --scale=1 "$us_b / 1073741824")"G"
+              set s_pct (test $sz_b -gt 0; and math --scale=0 "$us_b * 100 / $sz_b"; or echo 0)"%"
+              set swap_total_kb (math "$swap_total_kb + $sz_b / 1024")
+              set swap_used_kb (math "$swap_used_kb + $us_b / 1024")
+            end
+            break
+          end
+        end
+        printf "  %-4s %-40s %-20s %-8s %-8s %-6s %-16s\n" "$swap_n" "$dev" "swap file" "$s_used" "$s_total" "$s_pct" "hardware_filesystems.nix"
+      end
     end
     if test -f "$prot_file"
-      command awk -v n="$swap_n" '
-        /zramSwap\s*=\s*\{/ { inside=1; alg=""; pct=""; maxb=""; prio=""; next }
+      set -l zram_info (command awk '
+        /zramSwap\s*=\s*\{/ { inside=1; alg=""; pct=""; prio=""; next }
         inside && /algorithm/ { alg=$0; gsub(/.*= "/, "", alg); gsub(/".*/, "", alg) }
         inside && /memoryPercent/ { pct=$0; gsub(/.*= /, "", pct); gsub(/;.*/, "", pct) }
-        inside && /memoryMax/ { maxb=$0; gsub(/.*= /, "", maxb); gsub(/;.*/, "", maxb) }
         inside && /priority/ { prio=$0; gsub(/.*= /, "", prio); gsub(/;.*/, "", prio) }
         inside && /};/ {
           inside=0
-          desc = sprintf("zram (%s, %s%% RAM, prio %s)", alg, pct, prio)
-          printf "  %-4s %-40s %-16s %-16s\n", n+1, "/dev/zram0", desc, "config_system-protection.nix"
+          printf "%s|%s|%s", alg, pct, prio
         }
-      ' "$prot_file" 2>/dev/null
+      ' "$prot_file" 2>/dev/null)
+      if test -n "$zram_info"
+        set -l zparts (string split "|" $zram_info)
+        set -l desc "zram ($zparts[1], $zparts[2]% RAM, prio $zparts[3])"
+        set swap_n (math "$swap_n + 1")
+        # Runtime zram swap info
+        set -l s_used "-"; set -l s_total "-"; set -l s_pct "-"
+        for sline in $swap_data
+          if string match -q "*/dev/zram*" "$sline"
+            set -l sp (string split -n " " (string trim "$sline"))
+            if test (count $sp) -ge 4
+              set -l sz_b $sp[3]; set -l us_b $sp[4]
+              set s_total (math --scale=1 "$sz_b / 1073741824")"G"
+              set s_used (math --scale=1 "$us_b / 1073741824")"G"
+              set s_pct (test $sz_b -gt 0; and math --scale=0 "$us_b * 100 / $sz_b"; or echo 0)"%"
+              set swap_total_kb (math "$swap_total_kb + $sz_b / 1024")
+              set swap_used_kb (math "$swap_used_kb + $us_b / 1024")
+            end
+            break
+          end
+        end
+        printf "  %-4s %-40s %-20s %-8s %-8s %-6s %-16s\n" "$swap_n" "/dev/zram0" "$desc" "$s_used" "$s_total" "$s_pct" "config_system-protection.nix"
+      end
+    end
+    if test $swap_n -gt 0
+      set -l sub_t (math --scale=1 "$swap_total_kb / 1048576")"G"
+      set -l sub_u (math --scale=1 "$swap_used_kb / 1048576")"G"
+      set -l sub_p (test $swap_total_kb -gt 0; and math --scale=0 "$swap_used_kb * 100 / $swap_total_kb"; or echo 0)"%"
+      set_color --dim
+      printf "  %-4s %-40s %-20s %-8s %-8s %-6s\n" "" "" "Subtotal ($swap_n)" "$sub_u" "$sub_t" "$sub_p"
+      set_color normal
     end
     echo ""
 
+    # Add swap to grand totals
+    set grand_total_kb (math "$grand_total_kb + $swap_total_kb")
+    set grand_used_kb (math "$grand_used_kb + $swap_used_kb")
+
     # Summary
     set_color --bold cyan; echo "── Summary ──"; set_color normal
-    set -l luks_n 0; set -l btrfs_n 0; set -l part_n 0; set -l tmpfs_n 0; set -l swap_total 0
+    set -l luks_n 0; set -l btrfs_n $btrfs_count; set -l part_n $part_count; set -l tmpfs_n $tmpfs_count; set -l swap_total $swap_n
     if test -f "$boot_file"
       set luks_n (command grep -c 'luks\.devices\.' "$boot_file" 2>/dev/null)
     end
-    if test -f "$fs_file"
-      set btrfs_n (command awk '/fileSystems\."/{m=$0} /fsType = "btrfs"/{if(m)count++; m=""} END{print count+0}' "$fs_file" 2>/dev/null)
-      set part_n (command awk '/fileSystems\."/{m=$0} /fsType = "(ext4|vfat)"/{if(m)count++; m=""} END{print count+0}' "$fs_file" 2>/dev/null)
-      set tmpfs_n (command awk '/fileSystems\."/{m=$0} /fsType = "tmpfs"/{if(m)count++; m=""} END{print count+0}' "$fs_file" 2>/dev/null)
-      set swap_total (math "$swap_n + 1") # +1 for zram
-    end
+    set -l total_n (math "$luks_n + $btrfs_n + $part_n + $tmpfs_n + $swap_total")
+    set -l gt (math --scale=1 "$grand_total_kb / 1048576")"G"
+    set -l gu (math --scale=1 "$grand_used_kb / 1048576")"G"
+    set -l gp (test $grand_total_kb -gt 0; and math --scale=0 "$grand_used_kb * 100 / $grand_total_kb"; or echo 0)"%"
     printf "  LUKS: %s  Btrfs: %s  Partitions: %s  tmpfs: %s  Swap: %s  " "$luks_n" "$btrfs_n" "$part_n" "$tmpfs_n" "$swap_total"
     set_color --bold
-    printf "Total: %s\n" (math "$luks_n + $btrfs_n + $part_n + $tmpfs_n + $swap_total")
+    printf "Total: %s" "$total_n"
     set_color normal
+    printf "  │  %s / %s (%s)\n" "$gu" "$gt" "$gp"
+
+    # Cleanup helpers
+    functions -e _mnt_size
+    functions -e _mnt_accum
 
   case grep
     if test (count $argv) -lt 2

@@ -1,6 +1,7 @@
 # System Protection — Resource Bouncer
-# Memory: zram, earlyoom, sysctl, cgroup caps, Docker MemoryMax
+# Memory: earlyoom, sysctl, cgroup caps, Docker MemoryMax
 # SSH/WG OOM immunity, ext4 reserved blocks
+# NOTE: zram is managed by NixOS host (configuration_system-protection.nix), not here
 #
 # Desktop equivalent: unix/aa_nixos-surface_host/src/modules/configuration_system-protection.nix
 # Imported by: system-protection.nix (orchestrator)
@@ -11,10 +12,6 @@ let
   minFreeKB = if ramMB <= 1024 then 65536
               else if ramMB <= 8192 then 131072
               else 262144;
-
-  # zram: 100% of RAM, min 2GB, max 8GB (fast compressed swap, priority 100)
-  zramSizeMB = let v = ramMB; in if v < 2048 then 2048 else if v > 8192 then 8192 else v;
-  zramSizeBytes = toString (zramSizeMB * 1024 * 1024);
 
   dockerMaxMB = if ramMB <= 1024 then ramMB - 350
                 else if ramMB <= 8192 then ramMB - 512
@@ -32,40 +29,6 @@ in {
     vm.dirty_background_ratio = 5
     vm.watermark_scale_factor = 500
     net.ipv4.ip_forward = 1
-  '';
-
-  # ── Zram ──────────────────────────────────────────────────────────────
-  home.file.".local/share/system-protection/zram-setup.sh" = {
-    executable = true;
-    text = ''
-      #!/bin/bash
-      set -euo pipefail
-      modprobe zram num_devices=1 2>/dev/null || true
-      if swapon --show=NAME,TYPE 2>/dev/null | grep -q zram; then
-        echo "[zram] Already active, skipping"; exit 0
-      fi
-      if [ -e /sys/block/zram0/reset ]; then
-        echo 1 > /sys/block/zram0/reset 2>/dev/null || true
-      fi
-      echo zstd > /sys/block/zram0/comp_algorithm 2>/dev/null || \
-        echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null || true
-      echo ${zramSizeBytes} > /sys/block/zram0/disksize
-      mkswap /dev/zram0
-      swapon -p 100 /dev/zram0
-      echo "[zram] Activated ${toString zramSizeMB}MB compressed swap"
-    '';
-  };
-
-  home.file.".local/share/system-protection/zram-setup.service".text = ''
-    [Unit]
-    Description=Setup zram compressed swap (${toString zramSizeMB}MB)
-    After=local-fs.target
-    [Service]
-    Type=oneshot
-    RemainAfterExit=yes
-    ExecStart=/opt/scripts/zram-setup.sh
-    [Install]
-    WantedBy=multi-user.target
   '';
 
   # ── Earlyoom ──────────────────────────────────────────────────────────
@@ -132,19 +95,14 @@ in {
       $SUDO cp -f "$SRC/docker-memory-cap.conf" "/etc/systemd/system/docker.service.d/memory-cap.conf"
     fi
 
-    # Services
-    $SUDO mkdir -p /opt/scripts
-    $SUDO cp -f "$SRC/zram-setup.sh" /opt/scripts/zram-setup.sh
-    $SUDO chmod +x /opt/scripts/zram-setup.sh
-    $SUDO cp -f "$SRC/zram-setup.service" /etc/systemd/system/zram-setup.service
+    # Earlyoom service
     $SUDO cp -f "$SRC/earlyoom.service" /etc/systemd/system/earlyoom.service
 
     $SUDO systemctl daemon-reload
-    $SUDO systemctl enable zram-setup.service earlyoom.service 2>/dev/null || true
-    $SUDO systemctl start zram-setup.service 2>/dev/null || true
+    $SUDO systemctl enable earlyoom.service 2>/dev/null || true
     $SUDO systemctl restart earlyoom.service 2>/dev/null || true
 
-    echo "[resource-bouncer] deployed: mem=${toString (minFreeKB / 1024)}MB-reserve zram=${toString zramSizeMB}MB docker-cap=${toString dockerMaxMB}MB"
+    echo "[resource-bouncer] deployed: mem=${toString (minFreeKB / 1024)}MB-reserve docker-cap=${toString dockerMaxMB}MB"
     ) || echo "[resource-bouncer] FAILED — activation continues"
   '';
 }

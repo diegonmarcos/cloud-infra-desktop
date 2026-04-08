@@ -78,7 +78,7 @@ in
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # ZRAM: compressed swap in RAM
+  # ZRAM: compressed swap in RAM (NixOS-only — HM can't write /etc/systemd/)
   # ═══════════════════════════════════════════════════════════════════════════
   zramSwap = {
     enable = true;
