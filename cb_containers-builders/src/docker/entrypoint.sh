@@ -1,11 +1,11 @@
 #!/bin/sh
 # Cloud-builder entrypoint
-# Sources nix, refreshes repos, then routes commands
+# Sources HM profile, refreshes repos, then routes commands
 
-# Nix profile
-. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true
-export PATH="$HOME/.nix-profile/bin:$HOME/.node_modules/node_modules/.bin:/nix/var/nix/profiles/default/bin:$PATH"
-git config --global --add safe.directory "*" 2>/dev/null || true
+# Home Manager profile (manages PATH, env vars, shell config)
+[ -f /root/.nix-profile/etc/profile.d/nix.sh ] && . /root/.nix-profile/etc/profile.d/nix.sh 2>/dev/null
+[ -f /root/.nix-profile/etc/profile.d/hm-session-vars.sh ] && . /root/.nix-profile/etc/profile.d/hm-session-vars.sh 2>/dev/null
+export PATH="$HOME/.nix-profile/bin:$HOME/.node_modules/node_modules/.bin:$PATH"
 
 # Refresh repos (remote always wins)
 for repo in cloud unix front cloud-data; do
@@ -20,7 +20,8 @@ case "${1:-}" in
     cat /opt/cloud-builder/docker-up.sh
     ;;
   ""|--help|-h)
-    echo "cloud-builder — repos at ~/git/{cloud,unix,front,cloud-data}"
+    echo "cloud-builder — Debian flat + nix + home-manager"
+    echo "Repos at ~/git/{cloud,unix,front,cloud-data}"
     echo "Usage: docker compose -f compose.yaml run cloud-builder bash"
     echo "       docker run --rm <image> bash -c 'cd ~/git/cloud && bash build.sh config'"
     ;;
