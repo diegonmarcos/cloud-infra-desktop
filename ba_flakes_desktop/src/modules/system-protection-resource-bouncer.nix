@@ -12,7 +12,8 @@ let
               else if ramMB <= 8192 then 131072
               else 262144;
 
-  zramSizeMB = ramMB / 2;
+  # zram: 100% of RAM, min 2GB, max 8GB (fast compressed swap, priority 100)
+  zramSizeMB = let v = ramMB; in if v < 2048 then 2048 else if v > 8192 then 8192 else v;
   zramSizeBytes = toString (zramSizeMB * 1024 * 1024);
 
   dockerMaxMB = if ramMB <= 1024 then ramMB - 350

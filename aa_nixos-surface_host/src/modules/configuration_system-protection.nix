@@ -83,7 +83,8 @@ in
   zramSwap = {
     enable = true;
     algorithm = "zstd";
-    memoryPercent = 50;    # ~4GB → ~12GB effective
+    memoryPercent = 100;   # 100% of RAM, capped at 8GB
+    memoryMax = 8 * 1024 * 1024 * 1024;  # 8GB max
     priority = 100;
   };
 
