@@ -43,10 +43,8 @@ in {
     # Shell
     fish
     bash
-
-    # Nix tools
-    nix
-    cachix
+    # Note: nix itself is installed by the Dockerfile base layer, NOT here
+    # Adding it here causes profile conflicts with nix-env-installed nix
   ]);
 
   # Fish shell
