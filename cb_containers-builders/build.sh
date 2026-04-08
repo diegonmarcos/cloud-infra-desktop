@@ -248,43 +248,53 @@ resolve_variant() {
 # Entry Point
 # ═══════════════════════════════════════════════════════════════════
 _show_help() {
-    echo "Builder Images"
-    echo ""
-    echo "  COMMANDS:"
-    echo "    a)  ship              full pipeline: flake-build + image-build + image-push"
-    echo "      a0) flake-build       src/ + flake → dist/"
-    echo "      a1) image-build       build docker image locally"
-    echo "      a2) image-push        build + push to GHCR (multi-arch)"
-    echo "    b)  run               pull + start container interactively"
-    echo "      b0) image-pull        pull latest image from GHCR"
-    echo "      b1) image-run         start container (no pull)"
-    echo "    c)  list              list running containers + local images + stats"
-    echo "      c0) list-containers   list running containers"
-    echo "      c1) list-images       list local images"
-    echo "      c2) container-stats   live resource usage"
-    echo ""
-    echo "  IMAGES:"
+    _B="\033[1m"    # bold
+    _D="\033[2m"    # dim
+    _C="\033[36m"   # cyan
+    _G="\033[32m"   # green
+    _Y="\033[33m"   # yellow
+    _M="\033[35m"   # magenta
+    _R="\033[0m"    # reset
+
+    printf "\n"
+    printf "  ${_B}Builder Images${_R}\n"
+    printf "  ${_D}────────────────────────────────────────────────────────${_R}\n"
+    printf "\n"
+    printf "  ${_B}COMMANDS${_R}\n"
+    printf "    ${_C}a)${_R}  ${_B}ship${_R}              full pipeline: flake-build + image-build + image-push\n"
+    printf "        ${_D}a0)${_R} flake-build       src/ + flake → dist/\n"
+    printf "        ${_D}a1)${_R} image-build       build docker image locally\n"
+    printf "        ${_D}a2)${_R} image-push        build + push to GHCR (multi-arch)\n"
+    printf "    ${_G}b)${_R}  ${_B}run${_R}               pull + start container interactively\n"
+    printf "        ${_D}b0)${_R} image-pull        pull latest image from GHCR\n"
+    printf "        ${_D}b1)${_R} image-run         start container (no pull)\n"
+    printf "    ${_Y}c)${_R}  ${_B}list${_R}              list running containers + local images + stats\n"
+    printf "        ${_D}c0)${_R} list-containers   list running containers\n"
+    printf "        ${_D}c1)${_R} list-images       list local images\n"
+    printf "        ${_D}c2)${_R} container-stats   live resource usage\n"
+    printf "\n"
+    printf "  ${_B}IMAGES${_R}\n"
     _n=1
     for v in $(jq -r '.images | keys_unsorted[]' "$CONFIG"); do
         _desc=$(jq -r ".images.\"$v\".description" "$CONFIG")
-        printf "    %d) %-25s %s\n" "$_n" "$v" "$_desc"
+        printf "    ${_M}%d)${_R} %-30s ${_D}%s${_R}\n" "$_n" "$v" "$_desc"
         _n=$(( _n + 1 ))
     done
-    echo ""
-    echo "  PROFILES:"
-    echo "    I)  User-Dev          Desktop development environment"
-    echo "    II) Server-Dev        Server/cloud operations environment"
-    echo ""
-    echo "  Usage: $0 <command> <image-name|number>"
-    echo ""
-    echo "  Examples:"
-    echo "    $0 ship 1                          # ship cloud-builder-x-deb-nixhm"
-    echo "    $0 ship cloud-builder-x-deb-nixhm  # same, by name"
-    echo "    $0 ship all                        # ship all images"
-    echo "    $0 run 1                           # pull + shell in cloud-builder-x-deb-nixhm"
-    echo "    $0 b1 1                            # shell without pull"
-    echo "    $0 a 1                             # ship image 1"
-    echo "    $0 b 1                             # run image 1"
+    printf "\n"
+    printf "  ${_B}PROFILES${_R}\n"
+    printf "    ${_D}I)${_R}  User-Dev          ${_D}Desktop development environment${_R}\n"
+    printf "    ${_D}II)${_R} Server-Dev        ${_D}Server/cloud operations environment${_R}\n"
+    printf "\n"
+    printf "  ${_D}────────────────────────────────────────────────────────${_R}\n"
+    printf "  ${_B}Usage:${_R} $0 ${_C}<command>${_R} ${_M}<image|number>${_R}\n"
+    printf "\n"
+    printf "  ${_D}Examples:${_R}\n"
+    printf "    $0 ${_C}ship${_R} ${_M}1${_R}                          ${_D}# ship cloud-builder-x-deb-nixhm${_R}\n"
+    printf "    $0 ${_C}ship${_R} ${_M}cloud-builder-x-deb-nixhm${_R}  ${_D}# same, by name${_R}\n"
+    printf "    $0 ${_C}ship${_R} ${_M}all${_R}                        ${_D}# ship all images${_R}\n"
+    printf "    $0 ${_G}run${_R}  ${_M}1${_R}                          ${_D}# pull + shell${_R}\n"
+    printf "    $0 ${_Y}c${_R}                              ${_D}# list everything${_R}\n"
+    printf "\n"
 }
 
 case "${1:-}" in
