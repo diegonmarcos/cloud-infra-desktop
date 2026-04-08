@@ -162,6 +162,11 @@ _docker_push() {
     if echo "$_platform" | grep -q ","; then
         _dockerfile_path="$DIST_DIR/$(basename "$_dockerfile")"
         log "Step 3: PUSH (multi-arch buildx) — $_ghcr:latest"
+        # Ensure a buildx builder with multi-platform support exists
+        if ! $ENGINE buildx inspect multiarch >/dev/null 2>&1; then
+            $ENGINE buildx create --name multiarch --driver docker-container --use 2>/dev/null || true
+        fi
+        $ENGINE buildx use multiarch 2>/dev/null || true
         $ENGINE buildx build --network=host $_build_args --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR" --push
     else
         log "Step 3: PUSH — $_ghcr:latest"
