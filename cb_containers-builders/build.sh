@@ -114,10 +114,10 @@ _docker_build() {
     log "  Dockerfile: $_dockerfile_path"
     log "  Context: $DIST_DIR"
 
-    # Multi-arch: use buildx for multi-platform, regular build for single
+    # Multi-arch: local build uses native platform only, push uses buildx for all
     if echo "$_platform" | grep -q ","; then
-        log "  Multi-arch: $_platform (buildx, push-only — use 'push' or 'ship' to push)"
-        log "  Skipping local build (multi-arch requires --push, done in push step)"
+        log "  Multi-arch: $_platform (local build uses native platform only)"
+        $ENGINE build --network=host -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
     elif [ -n "$_platform" ]; then
         $ENGINE build --network=host --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
     else

@@ -61,6 +61,8 @@ COPY --from=builder /build/hm-result-path.txt /tmp/hm-result-path.txt
 COPY --from=builder /build /opt/cloud-builder-flake
 
 # Activate home-manager (installs all packages, sets up shell, PATH, etc.)
+# HM activate requires USER and HOME to be set
+ENV USER=root HOME=/root
 RUN HM_PATH=$(cat /tmp/hm-result-path.txt) \
     && "$HM_PATH/activate" \
     && rm /tmp/hm-result-path.txt
