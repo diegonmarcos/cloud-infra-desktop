@@ -1,0 +1,23 @@
+services:
+  cloud-builder:
+    image: ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest
+    container_name: cloud-builder
+    network_mode: host
+    volumes:
+      # Local dev: mount live repos (overrides baked-in clones)
+      - /home/diego/git/cloud:/root/git/cloud
+      - /home/diego/git/unix:/root/git/unix
+      - /home/diego/git/front:/root/git/front
+      - /home/diego/git/cloud-data:/root/git/cloud-data
+      - /home/diego/git/vault:/root/git/vault:ro
+      # Docker socket + credentials
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/diego/.ssh:/root/.ssh:ro
+      - /home/diego/.config/sops:/root/.config/sops:ro
+    environment:
+      - GIT_BASE=/root
+      - SOPS_AGE_KEY_FILE=/root/.config/sops/age/keys.txt
+    working_dir: /root/git/cloud
+    stdin_open: true
+    tty: true
+    restart: "no"

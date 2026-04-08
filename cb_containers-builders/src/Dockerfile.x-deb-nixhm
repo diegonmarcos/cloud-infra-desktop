@@ -59,15 +59,28 @@ COPY docker/Dockerfile /opt/cloud-builder/Dockerfile
 COPY docker/docker-up.sh /opt/cloud-builder/docker-up.sh
 COPY docker/entrypoint.sh /opt/cloud-builder/entrypoint.sh
 COPY docker/ship-hm.sh /opt/cloud-builder/ship-hm.sh
-RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh /opt/cloud-builder/ship-hm.sh
+RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh /opt/cloud-builder/ship-hm.sh && \
+    echo '. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true' >> /etc/profile && \
+    echo '. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true' >> /root/.bashrc && \
+    echo 'export PATH="$HOME/.node_modules/node_modules/.bin:$PATH"' >> /root/.bashrc && \
+    echo 'git config --global --add safe.directory "*" 2>/dev/null || true' >> /root/.bashrc
+COPY docker/compose.yaml /opt/cloud-builder/compose.yaml
 ARG DOCKERFILE_B64=""
 LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud"
 LABEL org.opencontainers.image.description="cloud-builder — self-contained CI/CD image (nix, sops, rsync, ssh, docker)"
-LABEL org.opencontainers.image.dockerfile-path="workflows/src/cloud-builder/docker/Dockerfile"
-LABEL cloud.builder.dockerfile-base64="${DOCKERFILE_B64}"
-LABEL cloud.builder.usage="docker run --rm ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest docker-up | sh -s ship all"
+LABEL cloud.builder.usage="docker compose -f <(docker run --rm ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest cat /opt/cloud-builder/compose.yaml) run cloud-builder bash"
 
-# Entrypoint: no args = print usage, docker-up = print script, anything else = nix develop
-WORKDIR /workspace
+# Clone all repos (HTTPS, public) — entrypoint refreshes on start
+RUN git config --global --add safe.directory "*" && \
+    mkdir -p /root/git && \
+    git clone --depth 1 --recurse-submodules https://github.com/diegonmarcos/cloud.git /root/git/cloud && \
+    git clone --depth 1 https://github.com/diegonmarcos/unix.git /root/git/unix && \
+    git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git /root/git/front && \
+    git clone --depth 1 https://github.com/diegonmarcos/front-data.git /root/git/front-data && \
+    git clone --depth 1 https://github.com/diegonmarcos/cloud-data.git /root/git/cloud-data && \
+    git clone --depth 1 https://github.com/diegonmarcos/tools.git /root/git/tools && \
+    git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.git /root/git/diegonmarcos
+
+WORKDIR /root/git/cloud
 ENTRYPOINT ["/opt/cloud-builder/entrypoint.sh"]
 CMD []
