@@ -10,6 +10,11 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 set -euo pipefail
 
+# Source nix profile + devShell PATH (tools like jq, sops, rsync live here)
+[ -f /etc/devshell-path.txt ] && export PATH="$(cat /etc/devshell-path.txt)"
+[ -f /root/.nix-profile/etc/profile.d/hm-session-vars.sh ] && . /root/.nix-profile/etc/profile.d/hm-session-vars.sh 2>/dev/null
+export PATH="$HOME/.nix-profile/bin:$HOME/.node_modules/node_modules/.bin:${PATH:-/usr/bin:/bin}"
+
 VM="${VM:?VM env var required}"
 REPO="https://github.com/${GITHUB_REPOSITORY:?}.git"
 
