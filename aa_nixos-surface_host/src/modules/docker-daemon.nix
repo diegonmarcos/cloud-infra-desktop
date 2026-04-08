@@ -19,6 +19,11 @@
   virtualisation.docker = {
     enable = true;
     storageDriver = "overlay2";
+    autoPrune = {
+      enable = true;
+      dates = "daily";
+      flags = [ "--all" "--filter" "until=24h" ];
+    };
     daemon.settings = {
       data-root = "/mnt/kubuntu/docker";
     };
