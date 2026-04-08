@@ -38,10 +38,17 @@ ENV PATH="/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:${PATH}"
 FROM base AS builder
 
 WORKDIR /build
-COPY flake.nix cloud-builder.nix ./
+COPY flake.nix flake.lock cloud-builder.nix ./
 
-# Fetch config.json from GitHub (flake input) and generate lock
-RUN nix flake update
+# Pass GITHUB_TOKEN for authenticated GitHub API requests (avoids rate limiting)
+ARG GITHUB_TOKEN=""
+RUN if [ -n "$GITHUB_TOKEN" ]; then \
+      mkdir -p ~/.config/nix && \
+      printf "access-tokens = github.com=%s\n" "$GITHUB_TOKEN" >> /etc/nix/nix.conf; \
+    fi
+
+# Update only config-json (lock already has home-manager + nixpkgs pinned)
+RUN nix flake update config-json
 
 # Build the home-manager activation package
 RUN nix build '.#homeConfigurations."root@cloud-builder".activationPackage' \

@@ -114,14 +114,18 @@ _docker_build() {
     log "  Dockerfile: $_dockerfile_path"
     log "  Context: $DIST_DIR"
 
+    # Pass GITHUB_TOKEN as build-arg for authenticated GitHub API (avoids rate limiting)
+    _build_args=""
+    [ -n "${GITHUB_TOKEN:-}" ] && _build_args="--build-arg GITHUB_TOKEN=$GITHUB_TOKEN"
+
     # Multi-arch: local build uses native platform only, push uses buildx for all
     if echo "$_platform" | grep -q ","; then
         log "  Multi-arch: $_platform (local build uses native platform only)"
-        $ENGINE build --network=host -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
+        $ENGINE build --network=host $_build_args -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
     elif [ -n "$_platform" ]; then
-        $ENGINE build --network=host --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
+        $ENGINE build --network=host $_build_args --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
     else
-        $ENGINE build --network=host -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
+        $ENGINE build --network=host $_build_args -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
     fi
     log "Built: $_ghcr:latest"
 }
@@ -150,11 +154,15 @@ _docker_push() {
     _dockerfile=$(jq -r ".images.\"$_variant\".dockerfile" "$CONFIG")
     [ "$_ghcr" = "null" ] && { error "Unknown variant: $_variant"; }
 
+    # Pass GITHUB_TOKEN as build-arg for authenticated GitHub API
+    _build_args=""
+    [ -n "${GITHUB_TOKEN:-}" ] && _build_args="--build-arg GITHUB_TOKEN=$GITHUB_TOKEN"
+
     # Multi-arch: rebuild with --push (buildx can't push after --load for multi-platform)
     if echo "$_platform" | grep -q ","; then
         _dockerfile_path="$DIST_DIR/$(basename "$_dockerfile")"
         log "Step 3: PUSH (multi-arch buildx) — $_ghcr:latest"
-        $ENGINE buildx build --network=host --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR" --push
+        $ENGINE buildx build --network=host $_build_args --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR" --push
     else
         log "Step 3: PUSH — $_ghcr:latest"
         $ENGINE push "$_ghcr:latest"
