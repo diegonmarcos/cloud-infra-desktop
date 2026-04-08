@@ -255,8 +255,10 @@ _show_help() {
     echo "    a0) flake-build       src/ + flake → dist/"
     echo "    a1) image-build       build docker image locally"
     echo "    a2) image-push        build + push to GHCR (multi-arch)"
-    echo "    b)  run               start container interactively"
-    echo "    c)  list              list running containers + local images"
+    echo "    b)  run               pull + start container interactively"
+    echo "    b0) image-pull        pull latest image from GHCR"
+    echo "    b1) image-run         start container (no pull)"
+    echo "    c)  list              list running containers + local images + stats"
     echo "    c0) list-containers   list running containers"
     echo "    c1) list-images       list local images"
     echo "    c2) container-stats   live resource usage"
@@ -265,20 +267,20 @@ _show_help() {
     _n=1
     for v in $(jq -r '.images | keys_unsorted[]' "$CONFIG"); do
         _desc=$(jq -r ".images.\"$v\".description" "$CONFIG")
-        printf "    %d) %-20s %s\n" "$_n" "$v" "$_desc"
+        printf "    %d) %-25s %s\n" "$_n" "$v" "$_desc"
         _n=$(( _n + 1 ))
     done
     echo ""
     echo "  Usage: $0 <command> <image-name|number>"
     echo ""
     echo "  Examples:"
-    echo "    $0 ship 1                # ship cloud-builder-x-deb-nixhm"
-    echo "    $0 ship x-deb-nixhm      # same, by name"
-    echo "    $0 ship all              # ship all images"
-    echo "    $0 run 1                 # shell in cloud-builder-x-deb-nixhm"
-    echo "    $0 a0                    # flake-build only"
-    echo "    $0 a1 2                  # image-build apt"
-    echo "    $0 a2 3                  # image-push forge"
+    echo "    $0 ship 1                          # ship cloud-builder-x-deb-nixhm"
+    echo "    $0 ship cloud-builder-x-deb-nixhm  # same, by name"
+    echo "    $0 ship all                        # ship all images"
+    echo "    $0 run 1                           # pull + shell in cloud-builder-x-deb-nixhm"
+    echo "    $0 b1 1                            # shell without pull"
+    echo "    $0 a 1                             # ship image 1"
+    echo "    $0 b 1                             # run image 1"
 }
 
 case "${1:-}" in
@@ -289,8 +291,10 @@ case "${1:-}" in
     a0|flake-build)  step_build ;;
     a1|image-build)  step_docker "$(resolve_variant "${2:-all}")" ;;
     a2|image-push)   step_push "$(resolve_variant "${2:-all}")" ;;
-    # b) run
-    run|b)           step_run "${2:-1}" ;;
+    # b) run (pull + run)
+    run|b)           _v=$(resolve_variant "${2:-1}"); _ghcr=$(jq -r ".images.\"$_v\".ghcr" "$CONFIG"); docker pull "$_ghcr:latest" 2>&1 | tail -3; step_run "$_v" ;;
+    b0|image-pull)   _v=$(resolve_variant "${2:-1}"); _ghcr=$(jq -r ".images.\"$_v\".ghcr" "$CONFIG"); docker pull "$_ghcr:latest" ;;
+    b1|image-run)    step_run "$(resolve_variant "${2:-1}")" ;;
     # c) list
     list|c)          docker ps -a --filter "name=cloud-builder" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null; echo ""; docker images --filter "reference=ghcr.io/diegonmarcos/cloud-builder-*" --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}" 2>/dev/null; echo ""; docker stats --no-stream --filter "name=cloud-builder" --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" 2>/dev/null ;;
     c0|list-containers) docker ps -a --filter "name=cloud-builder" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null ;;
