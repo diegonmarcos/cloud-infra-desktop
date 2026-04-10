@@ -21385,3 +21385,40 @@ Activating linkProfile
 [2026-04-05 19:39:04] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-04-05 19:39:04] PERF: start switch
 [2026-04-05 19:39:05] INFO: Staging dirty files for flake evaluation...
+[2026-04-09 16:36:00] ========== Build script started ==========
+[2026-04-09 16:36:00] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-04-09 16:36:00] PERF: start switch
+[2026-04-09 16:36:01] INFO: Staging dirty files for flake evaluation...
+[2026-04-09 16:36:03] PERF: git stage = 1.9s
+[2026-04-09 16:36:03] PERF: clean backups = 137ms
+[2026-04-09 16:36:03] PERF: profile guard = 74ms
+[2026-04-09 16:36:03] PERF: clear stale files = 110ms
+[2026-04-09 16:36:03] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+[2026-04-09 16:44:31] ========== Build script started ==========
+[2026-04-09 16:44:31] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-04-09 16:44:31] PERF: start switch
+[2026-04-09 16:44:32] INFO: Staging dirty files for flake evaluation...
+[2026-04-09 16:44:33] PERF: git stage = 1.6s
+[2026-04-09 16:44:33] PERF: clean backups = 124ms
+[2026-04-09 16:44:33] PERF: profile guard = 92ms
+[2026-04-09 16:44:34] PERF: clear stale files = 91ms
+[2026-04-09 16:44:34] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+[2026-04-09 16:47:56] ========== Build script started ==========
+[2026-04-09 16:47:56] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-04-09 16:47:56] PERF: start switch
+[2026-04-09 16:47:57] INFO: Staging dirty files for flake evaluation...
+[2026-04-09 16:47:59] PERF: git stage = 2.5s
+[2026-04-09 16:47:59] PERF: clean backups = 152ms
+[2026-04-09 16:47:59] PERF: profile guard = 110ms
+[2026-04-09 16:48:00] PERF: clear stale files = 214ms
+[2026-04-09 16:48:00] INFO: Applying nix-on-droid configuration...
+Building activation package...
+warning: Git tree '/data/data/com.termux.nix/files/home/git/unix' is dirty
+[2026-04-09 16:51:01] ========== Build script started ==========
+[2026-04-09 16:51:01] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-04-09 16:51:02] PERF: start switch
+[2026-04-09 16:51:03] INFO: Staging dirty files for flake evaluation...
