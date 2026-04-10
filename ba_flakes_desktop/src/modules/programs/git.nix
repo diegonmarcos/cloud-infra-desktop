@@ -116,6 +116,11 @@
       "*.log"
       "*.sqlite"
 
+      # Terraform
+      "*.tfstate"
+      "*.tfstate.backup"
+      ".terraform/"
+
       # Nix
       "result"
       "result-*"

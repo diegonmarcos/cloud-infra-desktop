@@ -77,6 +77,9 @@
     # Web terminal (Termux-style mobile keyboard)
     ttyd
 
+    # Git extras
+    git-filter-repo  # git history rewriting (purge secrets from commits)
+
     # GitHub CLI
     gh
   ];
