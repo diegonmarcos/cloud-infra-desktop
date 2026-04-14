@@ -75,6 +75,17 @@ step_build() {
         cp -rL "$path"/*.json "$DIST_DIR/" 2>/dev/null || true
     done
 
+    # Generate docker-deps.sh from cloud/config.json
+    _cloud_config=""
+    for _p in "$SCRIPT_DIR/../../../cloud/config.json" "/root/git/cloud/config.json" "/workspace/config.json"; do
+        [ -f "$_p" ] && { _cloud_config="$_p"; break; }
+    done
+    if [ -n "$_cloud_config" ]; then
+        jq -r '"#!/bin/bash\nset -e\n\n# AUTO-GENERATED from cloud/config.json — DO NOT EDIT\n\napt-get update && apt-get install -y --no-install-recommends " + (.deps.docker_apt | join(" ")) + " && rm -rf /var/lib/apt/lists/*\nsed -i \"s/^# *\\(en_US.UTF-8\\)/\\1/\" /etc/locale.gen && locale-gen\n\nTF_VER=" + .deps.docker_binary.terraform + "\ncurl -sL \"https://releases.hashicorp.com/terraform/${TF_VER}/terraform_${TF_VER}_linux_amd64.zip\" -o /tmp/tf.zip\nunzip -o /tmp/tf.zip -d /usr/local/bin/ && rm /tmp/tf.zip\n\nRUST_VER=" + .deps.docker_binary.rust + "\ncurl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VER}\nln -sf /root/.cargo/bin/* /usr/local/bin/"' "$_cloud_config" > "$DIST_DIR/docker-deps.sh"
+        chmod +x "$DIST_DIR/docker-deps.sh"
+        log "Generated docker-deps.sh from config.json"
+    fi
+
     log "dist/ contents:"
     ls -1 "$DIST_DIR/" 2>/dev/null
 }
@@ -114,23 +125,9 @@ _docker_build() {
     log "  Dockerfile: $_dockerfile_path"
     log "  Context: $DIST_DIR"
 
-    # Pass GITHUB_TOKEN + config.json deps as build args
+    # Build args
     _build_args=""
     [ -n "${GITHUB_TOKEN:-}" ] && _build_args="--build-arg GITHUB_TOKEN=$GITHUB_TOKEN"
-
-    # Extract deps from cloud/config.json if available
-    _cloud_config=""
-    for _p in "$SCRIPT_DIR/../../../cloud/config.json" "/root/git/cloud/config.json" "/workspace/config.json"; do
-        [ -f "$_p" ] && { _cloud_config="$_p"; break; }
-    done
-    if [ -n "$_cloud_config" ]; then
-        _apt_docker=$(jq -r '.deps.docker_apt | join(" ")' "$_cloud_config" 2>/dev/null)
-        _tf_ver=$(jq -r '.deps.docker_binary.terraform // empty' "$_cloud_config" 2>/dev/null)
-        _rust_ver=$(jq -r '.deps.docker_binary.rust // empty' "$_cloud_config" 2>/dev/null)
-        [ -n "$_apt_docker" ] && _build_args="$_build_args --build-arg APT_DOCKER=$_apt_docker"
-        [ -n "$_tf_ver" ] && _build_args="$_build_args --build-arg TERRAFORM_VERSION=$_tf_ver"
-        [ -n "$_rust_ver" ] && _build_args="$_build_args --build-arg RUST_VERSION=$_rust_ver"
-    fi
 
     # Multi-arch: local build uses native platform only, push uses buildx for all
     if echo "$_platform" | grep -q ","; then
