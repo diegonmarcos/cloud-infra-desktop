@@ -51,7 +51,10 @@ RUN if [ -n "$GITHUB_TOKEN" ]; then \
 RUN nix flake update config-json
 
 # Build the home-manager activation package
-RUN nix build '.#homeConfigurations."root@cloud-builder".activationPackage' \
+# rm /homeless-shelter: nix creates it for sandboxless builds, terraform go-modules
+# leaves it behind which breaks subsequent derivations
+RUN rm -rf /homeless-shelter && \
+    nix build '.#homeConfigurations."root@cloud-builder".activationPackage' \
     --no-link --print-out-paths > /build/hm-result-path.txt
 
 # ── Stage 3: Final image ────────────────────────────────────────
