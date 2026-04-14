@@ -78,8 +78,9 @@ RUN HM_PATH=$(cat /tmp/hm-result-path.txt) \
 COPY docker/entrypoint.sh /opt/cloud-builder/entrypoint.sh
 COPY docker/docker-up.sh /opt/cloud-builder/docker-up.sh
 COPY docker/ship-hm.sh /opt/cloud-builder/ship-hm.sh
+COPY docker/ship-services.sh /opt/cloud-builder/ship-services.sh
 COPY docker/compose.yaml /opt/cloud-builder/compose.yaml
-RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh /opt/cloud-builder/ship-hm.sh
+RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh /opt/cloud-builder/ship-hm.sh /opt/cloud-builder/ship-services.sh
 
 # Clone all repos (HTTPS, public) — entrypoint refreshes on start
 RUN mkdir -p /root/git \
