@@ -52,13 +52,8 @@ RUN if [ -n "$GITHUB_TOKEN" ]; then \
 RUN nix flake update config-json
 
 # Build the home-manager activation package
-# nix sandbox=false: terraform go-modules creates /homeless-shelter which breaks
-# subsequent derivations. Split: build terraform deps first, clean, then build all.
 RUN nix build '.#homeConfigurations."root@cloud-builder".activationPackage' \
-    --no-link --print-out-paths > /build/hm-result-path.txt 2>&1 \
-    || (rm -rf /homeless-shelter && \
-        nix build '.#homeConfigurations."root@cloud-builder".activationPackage' \
-        --no-link --print-out-paths > /build/hm-result-path.txt)
+    --no-link --print-out-paths > /build/hm-result-path.txt
 
 # ── Stage 3: Final image ────────────────────────────────────────
 FROM base
@@ -79,6 +74,11 @@ ENV USER=root HOME=/root
 RUN HM_PATH=$(cat /tmp/hm-result-path.txt) \
     && "$HM_PATH/activate" \
     && rm /tmp/hm-result-path.txt
+
+# Terraform — direct binary (nix go-modules breaks sandbox=false in Docker, see NixOS/nix#11295)
+ARG TERRAFORM_VERSION=1.9.8
+RUN curl -sL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
+    | funzip > /usr/local/bin/terraform && chmod +x /usr/local/bin/terraform
 
 # Self-documenting: entrypoint + helpers baked in
 COPY docker/entrypoint.sh /opt/cloud-builder/entrypoint.sh
