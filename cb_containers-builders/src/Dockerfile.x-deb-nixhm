@@ -25,9 +25,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
 # Install nix — single-user mode (no daemon, simpler for Docker)
-# sandbox = true: docker build must use --security-opt seccomp=unconfined
+# sandbox=false required: docker build RUN steps can't create namespaces
+# filter-syscalls=false: avoid seccomp conflicts with Docker's own seccomp
 RUN mkdir -p /etc/nix \
-    && printf "build-users-group =\nexperimental-features = nix-command flakes\n" > /etc/nix/nix.conf \
+    && printf "build-users-group =\nexperimental-features = nix-command flakes\nsandbox = false\nfilter-syscalls = false\n" > /etc/nix/nix.conf \
     && curl -L https://nixos.org/nix/install | sh -s -- --no-daemon \
     && . /root/.nix-profile/etc/profile.d/nix.sh
 
@@ -51,8 +52,13 @@ RUN if [ -n "$GITHUB_TOKEN" ]; then \
 RUN nix flake update config-json
 
 # Build the home-manager activation package
-RUN nix build '.#homeConfigurations."root@cloud-builder".activationPackage' \
-    --no-link --print-out-paths > /build/hm-result-path.txt
+# nix sandbox=false uses /homeless-shelter as build HOME. Tell nix it's expected.
+ENV HOME=/homeless-shelter
+RUN mkdir -p /homeless-shelter && \
+    nix build '.#homeConfigurations."root@cloud-builder".activationPackage' \
+    --no-link --print-out-paths > /build/hm-result-path.txt && \
+    rm -rf /homeless-shelter
+ENV HOME=/root
 
 # ── Stage 3: Final image ────────────────────────────────────────
 FROM base

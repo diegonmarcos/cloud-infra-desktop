@@ -121,11 +121,11 @@ _docker_build() {
     # Multi-arch: local build uses native platform only, push uses buildx for all
     if echo "$_platform" | grep -q ","; then
         log "  Multi-arch: $_platform (local build uses native platform only)"
-        DOCKER_BUILDKIT=1 $ENGINE build --network=host --security-opt seccomp=unconfined $_build_args -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
+        DOCKER_BUILDKIT=1 $ENGINE build --network=host $_build_args -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
     elif [ -n "$_platform" ]; then
-        DOCKER_BUILDKIT=1 $ENGINE build --network=host --security-opt seccomp=unconfined $_build_args --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
+        DOCKER_BUILDKIT=1 $ENGINE build --network=host $_build_args --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
     else
-        DOCKER_BUILDKIT=1 $ENGINE build --network=host --security-opt seccomp=unconfined $_build_args -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
+        DOCKER_BUILDKIT=1 $ENGINE build --network=host $_build_args -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR"
     fi
     log "Built: $_ghcr:latest"
 }
