@@ -34,9 +34,10 @@ Endpoint = 35.226.147.64:51820
 AllowedIPs = 10.0.0.0/24
 PersistentKeepalive = 25
 WGEOF
-  sudo cp /tmp/wg0.conf /etc/wireguard/wg0.conf
+  mkdir -p /etc/wireguard
+  cp /tmp/wg0.conf /etc/wireguard/wg0.conf
   rm /tmp/wg0.conf
-  sudo wg-quick up wg0
+  wg-quick up wg0
   ping -c1 -W3 10.0.0.1 >/dev/null 2>&1 && echo "[wg] Hub reachable" || echo "[wg] Hub not reachable"
 fi
 

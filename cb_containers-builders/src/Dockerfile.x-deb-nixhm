@@ -75,11 +75,14 @@ RUN HM_PATH=$(cat /tmp/hm-result-path.txt) \
     && "$HM_PATH/activate" \
     && rm /tmp/hm-result-path.txt
 
-# Terraform — direct binary (nix go-modules breaks sandbox=false in Docker, see NixOS/nix#11295)
+# Direct binary installs (nix go-modules/edition2024 break sandbox=false in Docker)
 ARG TERRAFORM_VERSION=1.9.8
-RUN apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf /var/lib/apt/lists/* \
+ARG RUST_VERSION=1.86.0
+RUN apt-get update && apt-get install -y --no-install-recommends unzip wireguard-tools && rm -rf /var/lib/apt/lists/* \
     && curl -sL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/tf.zip \
-    && unzip -o /tmp/tf.zip -d /usr/local/bin/ && rm /tmp/tf.zip && chmod +x /usr/local/bin/terraform
+    && unzip -o /tmp/tf.zip -d /usr/local/bin/ && rm /tmp/tf.zip \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VERSION} \
+    && ln -sf /root/.cargo/bin/* /usr/local/bin/
 
 # Self-documenting: entrypoint + helpers baked in
 COPY docker/entrypoint.sh /opt/cloud-builder/entrypoint.sh
