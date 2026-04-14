@@ -77,8 +77,9 @@ RUN HM_PATH=$(cat /tmp/hm-result-path.txt) \
 
 # Terraform — direct binary (nix go-modules breaks sandbox=false in Docker, see NixOS/nix#11295)
 ARG TERRAFORM_VERSION=1.9.8
-RUN curl -sL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
-    | funzip > /usr/local/bin/terraform && chmod +x /usr/local/bin/terraform
+RUN apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf /var/lib/apt/lists/* \
+    && curl -sL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/tf.zip \
+    && unzip -o /tmp/tf.zip -d /usr/local/bin/ && rm /tmp/tf.zip && chmod +x /usr/local/bin/terraform
 
 # Self-documenting: entrypoint + helpers baked in
 COPY docker/entrypoint.sh /opt/cloud-builder/entrypoint.sh
