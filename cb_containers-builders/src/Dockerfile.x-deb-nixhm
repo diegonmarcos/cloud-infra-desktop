@@ -16,11 +16,10 @@ FROM debian:bookworm-slim AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Minimal apt deps for nix installer + git operations
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl xz-utils git ca-certificates sudo locales \
-    && rm -rf /var/lib/apt/lists/* \
-    && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen && locale-gen
+# Base apt deps (nix installer needs curl+xz, git for repos, ca-certificates for HTTPS)
+ARG APT_BASE="curl xz-utils git ca-certificates sudo"
+RUN apt-get update && apt-get install -y --no-install-recommends $APT_BASE \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
@@ -75,10 +74,13 @@ RUN HM_PATH=$(cat /tmp/hm-result-path.txt) \
     && "$HM_PATH/activate" \
     && rm /tmp/hm-result-path.txt
 
-# Direct binary installs (nix go-modules/edition2024 break sandbox=false in Docker)
+# Docker-only apt deps + direct binary installs
+# Declared in cloud/config.json deps.docker + deps.binary — passed as build args by build.sh
+ARG APT_DOCKER="build-essential pkg-config libssl-dev unzip wireguard-tools locales"
 ARG TERRAFORM_VERSION=1.9.8
 ARG RUST_VERSION=1.86.0
-RUN apt-get update && apt-get install -y --no-install-recommends unzip wireguard-tools && rm -rf /var/lib/apt/lists/* \
+RUN apt-get update && apt-get install -y --no-install-recommends $APT_DOCKER && rm -rf /var/lib/apt/lists/* \
+    && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen && locale-gen \
     && curl -sL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/tf.zip \
     && unzip -o /tmp/tf.zip -d /usr/local/bin/ && rm /tmp/tf.zip \
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VERSION} \

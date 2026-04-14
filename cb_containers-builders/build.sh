@@ -114,9 +114,23 @@ _docker_build() {
     log "  Dockerfile: $_dockerfile_path"
     log "  Context: $DIST_DIR"
 
-    # Pass GITHUB_TOKEN as build-arg for authenticated GitHub API (avoids rate limiting)
+    # Pass GITHUB_TOKEN + config.json deps as build args
     _build_args=""
     [ -n "${GITHUB_TOKEN:-}" ] && _build_args="--build-arg GITHUB_TOKEN=$GITHUB_TOKEN"
+
+    # Extract deps from cloud/config.json if available
+    _cloud_config=""
+    for _p in "$SCRIPT_DIR/../../../cloud/config.json" "/root/git/cloud/config.json" "/workspace/config.json"; do
+        [ -f "$_p" ] && { _cloud_config="$_p"; break; }
+    done
+    if [ -n "$_cloud_config" ]; then
+        _apt_docker=$(jq -r '[.deps.docker // {} | to_entries[] | .value.apt // empty] | join(" ")' "$_cloud_config")
+        _tf_ver=$(jq -r '.deps.binary.terraform.version // empty' "$_cloud_config")
+        _rust_ver=$(jq -r '.deps.binary.rust.version // empty' "$_cloud_config")
+        [ -n "$_apt_docker" ] && _build_args="$_build_args --build-arg APT_DOCKER=$_apt_docker"
+        [ -n "$_tf_ver" ] && _build_args="$_build_args --build-arg TERRAFORM_VERSION=$_tf_ver"
+        [ -n "$_rust_ver" ] && _build_args="$_build_args --build-arg RUST_VERSION=$_rust_ver"
+    fi
 
     # Multi-arch: local build uses native platform only, push uses buildx for all
     if echo "$_platform" | grep -q ","; then
