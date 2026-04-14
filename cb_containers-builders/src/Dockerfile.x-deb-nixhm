@@ -25,9 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
 # Install nix — single-user mode (no daemon, simpler for Docker)
-# Pre-create nix.conf: disable build-users-group (no nixbld group in Docker)
+# sandbox = true: docker build must use --security-opt seccomp=unconfined
 RUN mkdir -p /etc/nix \
-    && printf "build-users-group =\nexperimental-features = nix-command flakes\nsandbox = false\nfilter-syscalls = false\n" > /etc/nix/nix.conf \
+    && printf "build-users-group =\nexperimental-features = nix-command flakes\n" > /etc/nix/nix.conf \
     && curl -L https://nixos.org/nix/install | sh -s -- --no-daemon \
     && . /root/.nix-profile/etc/profile.d/nix.sh
 
@@ -73,10 +73,6 @@ ENV USER=root HOME=/root
 RUN HM_PATH=$(cat /tmp/hm-result-path.txt) \
     && "$HM_PATH/activate" \
     && rm /tmp/hm-result-path.txt
-
-# Terraform — direct binary (unfree, nix go-modules breaks in Docker sandboxless mode)
-RUN curl -sL https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip \
-    | funzip > /usr/local/bin/terraform && chmod +x /usr/local/bin/terraform
 
 # Self-documenting: entrypoint + helpers baked in
 COPY docker/entrypoint.sh /opt/cloud-builder/entrypoint.sh
