@@ -52,13 +52,13 @@ RUN if [ -n "$GITHUB_TOKEN" ]; then \
 RUN nix flake update config-json
 
 # Build the home-manager activation package
-# nix sandbox=false uses /homeless-shelter as build HOME. Tell nix it's expected.
-ENV HOME=/homeless-shelter
-RUN mkdir -p /homeless-shelter && \
-    nix build '.#homeConfigurations."root@cloud-builder".activationPackage' \
-    --no-link --print-out-paths > /build/hm-result-path.txt && \
-    rm -rf /homeless-shelter
-ENV HOME=/root
+# nix sandbox=false: terraform go-modules creates /homeless-shelter which breaks
+# subsequent derivations. Split: build terraform deps first, clean, then build all.
+RUN nix build '.#homeConfigurations."root@cloud-builder".activationPackage' \
+    --no-link --print-out-paths > /build/hm-result-path.txt 2>&1 \
+    || (rm -rf /homeless-shelter && \
+        nix build '.#homeConfigurations."root@cloud-builder".activationPackage' \
+        --no-link --print-out-paths > /build/hm-result-path.txt)
 
 # ── Stage 3: Final image ────────────────────────────────────────
 FROM base
