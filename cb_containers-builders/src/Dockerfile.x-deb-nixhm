@@ -79,8 +79,10 @@ COPY docker/entrypoint.sh /opt/cloud-builder/entrypoint.sh
 COPY docker/docker-up.sh /opt/cloud-builder/docker-up.sh
 COPY docker/ship-hm.sh /opt/cloud-builder/ship-hm.sh
 COPY docker/ship-services.sh /opt/cloud-builder/ship-services.sh
+COPY docker/gen-configs.sh /opt/cloud-builder/gen-configs.sh
+COPY docker/health.sh /opt/cloud-builder/health.sh
 COPY docker/compose.yaml /opt/cloud-builder/compose.yaml
-RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh /opt/cloud-builder/ship-hm.sh /opt/cloud-builder/ship-services.sh
+RUN chmod +x /opt/cloud-builder/*.sh
 
 # Clone all repos (HTTPS, public) — entrypoint refreshes on start
 RUN mkdir -p /root/git \
