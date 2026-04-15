@@ -157,6 +157,7 @@
         })} $out/compose-forge.yaml
 
         cp ${../build.json} $out/build.json
+        cp ${config-json} $out/config.json
       '';
     });
   };
