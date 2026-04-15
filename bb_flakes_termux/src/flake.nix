@@ -162,30 +162,19 @@
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22
 
-              # 1. CLAUDE (find cached npx binary or npm global, npx -y as last resort)
-              (writeShellScriptBin "claude" ''
-                export HOME="/data/data/com.termux.nix/files/home"
-                export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
+              # claude = raw Anthropic binary from shared node_modules (no wrapper)
+              # Exposed via home.sessionPath: $HOME/.node_modules/node_modules/.bin/claude
+
+              # claude-termux: Android-safe wrapper (io_uring fix + memory cap)
+              (writeShellScriptBin "claude-termux" ''
                 export UV_USE_IO_URING=0
                 export NODE_OPTIONS="--no-node-snapshot --max-old-space-size=1024"
                 export npm_config_cache="$HOME/.npm"
-                # 1) npm global install
-                NPM_BIN="$(${pkgsNew.nodejs_22}/bin/npm root -g 2>/dev/null)/../bin/claude"
-                if [ -x "$NPM_BIN" ]; then exec "$NPM_BIN" "$@"; fi
-                # 2) shared node_modules
-                LOCAL_BIN="$HOME/.node_modules/node_modules/.bin/claude"
-                if [ -x "$LOCAL_BIN" ]; then exec "$LOCAL_BIN" "$@"; fi
-                # 3) npx cache
-                CACHED=$(find "$HOME/.npm/_npx" -name claude -perm /111 -type f 2>/dev/null | head -1)
-                if [ -x "$CACHED" ]; then exec "$CACHED" "$@"; fi
-                # 4) download via npx
-                exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
+                exec "$HOME/.node_modules/node_modules/.bin/claude" "$@"
               '')
 
-              # 2. CLAUDE-MALLOC (With tmp dir workaround + higher memory limit)
+              # claude-malloc: max memory + tmpdir isolation
               (writeShellScriptBin "claude-malloc" ''
-                export HOME="/data/data/com.termux.nix/files/home"
-                export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
                 export MALLOC_ARENA_MAX=2
                 export UV_USE_IO_URING=0
                 export NODE_OPTIONS="--no-node-snapshot --max-old-space-size=2048"
@@ -193,14 +182,23 @@
                 mkdir -p "$CLAUDE_TMP"
                 export TMPDIR="$CLAUDE_TMP"
                 export npm_config_cache="$HOME/.npm"
-                # Find native claude binary (same resolution as claude wrapper)
-                NPM_BIN="$(${pkgsNew.nodejs_22}/bin/npm root -g 2>/dev/null)/../bin/claude"
-                if [ -x "$NPM_BIN" ]; then exec "$NPM_BIN" "$@"; fi
-                LOCAL_BIN="$HOME/.node_modules/node_modules/.bin/claude"
-                if [ -x "$LOCAL_BIN" ]; then exec "$LOCAL_BIN" "$@"; fi
-                CACHED=$(find "$HOME/.npm/_npx" -name claude -perm /111 -type f 2>/dev/null | head -1)
-                if [ -x "$CACHED" ]; then exec "$CACHED" "$@"; fi
-                exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
+                exec "$HOME/.node_modules/node_modules/.bin/claude" "$@"
+              '')
+
+              # claude-rescue: fresh podman container for root debugging
+              (writeShellScriptBin "claude-rescue" ''
+                echo "Claude Rescue Shell — root debug environment"
+                echo "Starting fresh container..."
+                exec ${pkgs.podman or "podman"}/bin/podman run --rm -it \
+                  --name claude-rescue \
+                  -v "$HOME:/host-home:ro" \
+                  -v "/nix:/nix:ro" \
+                  -e ANTHROPIC_API_KEY="''${ANTHROPIC_API_KEY:-}" \
+                  -e TERM="''${TERM:-xterm-256color}" \
+                  --user root \
+                  --entrypoint /bin/sh \
+                  node:22-slim \
+                  -c 'npm install -g @anthropic-ai/claude-code && claude "$@"' -- "$@"
               '')
 
               # 3. SYNC — unified sync engine (git + rclone)
