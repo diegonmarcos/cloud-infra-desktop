@@ -9,7 +9,7 @@ set -l kernel_short (uname -r | cut -d'-' -f1)
 set -l arch (uname -m)
 set -l shell "Fish $FISH_VERSION"
 set -l de "$XDG_CURRENT_DESKTOP"
-set -l uptime_secs (command cat /proc/uptime | cut -d. -f1)
+set -l uptime_secs (command cat /proc/uptime 2>/dev/null | cut -d. -f1); test -z "$uptime_secs" && set uptime_secs 0
 set -l uptime_days (math -s0 "$uptime_secs / 86400")
 set -l uptime_hours (math -s0 "($uptime_secs % 86400) / 3600")
 set -l uptime_mins (math -s0 "($uptime_secs % 3600) / 60")
@@ -24,16 +24,16 @@ set -l disk_perc (command df /nix | awk 'NR==2 {gsub(/%/,""); print $5}')
 set -l ip_addr (curl -sf --max-time 2 ifconfig.me 2>/dev/null; or echo "offline")
 set -l ip_priv (ip -4 addr show scope global 2>/dev/null | awk '/inet / {gsub(/\/.*/, "", $2); iface=$NF; if (iface !~ /docker|br-|veth/) printf "%s(%s) ", $2, iface}' | string trim)
 set -l dns_servers (command awk '/^nameserver/ {printf "%s ", $2}' /etc/resolv.conf 2>/dev/null | string trim)
-set -l load_avg (command cat /proc/loadavg | awk '{print $1" "$2" "$3}')
+set -l load_avg (command cat /proc/loadavg 2>/dev/null | awk '{print $1" "$2" "$3}'); test -z "$load_avg" && set load_avg "n/a"
 set -l pkgs (command ls /nix/store 2>/dev/null | wc -l | string trim)
 set -l procs (command ls /proc 2>/dev/null | grep -c '^[0-9]')
 set -l datetime (date '+%d-%m-%Y %H:%M')
-set -l gpu (lspci 2>/dev/null | grep -i vga | sed 's/.*: //' | string sub -l 25)
+set -l gpu (command -q lspci && lspci 2>/dev/null | grep -i vga | sed 's/.*: //' | string sub -l 25; or echo "n/a")
 
 # Security info
-set -l ssh_status (systemctl is-active sshd 2>/dev/null); test -z "$ssh_status" && set ssh_status "n/a"
-set -l fw_status (systemctl is-active firewalld 2>/dev/null); test -z "$fw_status" && set fw_status "n/a"
-set -l fail2ban (systemctl is-active fail2ban 2>/dev/null); test -z "$fail2ban" && set fail2ban "n/a"
+set -l ssh_status (command -q systemctl && systemctl is-active sshd 2>/dev/null; or echo "n/a")
+set -l fw_status (command -q systemctl && systemctl is-active firewalld 2>/dev/null; or echo "n/a")
+set -l fail2ban (command -q systemctl && systemctl is-active fail2ban 2>/dev/null; or echo "n/a")
 set -l open_ports (ss -tuln 2>/dev/null | grep LISTEN | wc -l | string trim)
 set -l last_login (last -1 -R $user 2>/dev/null | head -1 | awk '{print $4" "$5" "$6}')
 test -z "$last_login" && set last_login "n/a"
@@ -163,18 +163,10 @@ set_color normal
 # Flakes
 set_color cyan; echo "  Flakes:"
 set_color normal
-set_color magenta; echo -n "    NixOS            "; set_color normal; echo "~/git/unix/aa_nixos-surface_host/"
-set_color magenta; echo -n "    OS Modules       "; set_color normal; echo "~/git/unix/aa_nixos-surface_host/src/modules/"
-set_color magenta; echo -n "    Home-Manager     "; set_color normal; echo "~/git/unix/ba_flakes_desktop/"
-set_color magenta; echo -n "    HM Modules       "; set_color normal; echo "~/git/unix/ba_flakes_desktop/src/modules/"
-# Wrappers - Guardrails
-set_color cyan; echo "  Wrappers - Guardrails:"
-set_color normal
-set_color red; echo -n "    BLOCKED          "; set_color normal; echo "rm -rf /, mkfs, dd (always denied)"
-set_color yellow; echo -n "    CONFIRM          "; set_color normal; echo "npm npx docker nix pip apt pkg (ask before run)"
-set_color blue; echo -n "    WARNING          "; set_color normal; echo "bun cargo go (warn on write ops)"
+set_color magenta; echo -n "    nix-on-droid     "; set_color normal; echo "~/git/unix/bb_flakes_termux/"
+set_color magenta; echo -n "    HM Modules       "; set_color normal; echo "~/git/unix/bb_flakes_termux/src/modules/"
 # Wrappers - Custom
-set_color cyan; echo "  Wrappers - Custom:"
+set_color cyan; echo "  Wrappers:"
 set_color normal
 set_color green; echo -n "    curl/wget        "; set_color normal; echo "Auto-inject Authelia token for *.diegonmarcos.com"
 set_color --dim; echo "    ('hhelp config' — cat flake.nix)"; set_color normal
@@ -189,8 +181,8 @@ set_color normal
 set_color magenta; echo -n "    up               "; set_color normal; echo "Rebuild Nix config"
 set_color magenta; echo -n "    conf             "; set_color normal; echo "Edit flake.nix"
 # Dev
-set -l _claude_ver (claude --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
-set -l _goose_ver (goose --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
+set -l _claude_ver (command -q claude && timeout 3 claude --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
+set -l _goose_ver (command -q goose && timeout 3 goose --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
 set_color cyan; echo "  Dev:"
 set_color normal
 set_color green; echo -n "    claude           "; set_color normal; echo "Launch Claude Code (v$_claude_ver)"
@@ -202,7 +194,9 @@ set_color normal
 set_color red; echo -n "    connect          "; set_color normal; echo "Cloud Connect Unified dashboard (git/mounts/sync/servers)"
 set_color red; echo -n "    sync             "; set_color normal; echo "File sync & serve (WebDAV SFTP HTTP+Eruda)"
 # http-dev status
-if systemctl --user is-active http-dev.service >/dev/null 2>&1
+if test -n "$__httpd_pid" && kill -0 $__httpd_pid 2>/dev/null
+  set_color green; echo -n "    http-dev         "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: $__httpd_pid)"
+else if command -q systemctl && systemctl --user is-active http-dev.service >/dev/null 2>&1
   set -l _httpd_pid (systemctl --user show http-dev.service -p MainPID --value 2>/dev/null)
   set_color green; echo -n "    http-dev         "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: $_httpd_pid)"
 else
