@@ -19,7 +19,7 @@
       "autocd"
     ];
 
-    shellAliases = {
+    shellAliases = lib.mkDefault {
       # Modern CLI replacements
       ls = "eza --color=auto --icons";
       ll = "eza -alF --icons";
