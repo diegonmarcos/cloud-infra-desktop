@@ -58,18 +58,21 @@ case "${1:-}" in
 esac
 
 # ── 3. SSH setup (env vars OR mounted files) ──────────────────────
-mkdir -p ~/.ssh 2>/dev/null || true
-chmod 700 ~/.ssh 2>/dev/null || true
-ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
-
-if [ -n "${SSH_KEY:-}" ]; then
-  # CI mode: SSH key from env var
-  echo "$SSH_KEY" > ~/.ssh/id_deploy
-  chmod 600 ~/.ssh/id_deploy
-  echo "[setup] SSH key from env var"
-elif [ -f ~/.ssh/id_rsa ] || [ -f ~/.ssh/vault_id_rsa ]; then
-  # Local mode: SSH keys mounted from host
-  echo "[setup] SSH keys from mounted ~/.ssh"
+# If ~/.ssh is mounted read-only (compose :ro), files are already there — skip writing
+if touch ~/.ssh/.write-test 2>/dev/null; then
+  rm -f ~/.ssh/.write-test
+  mkdir -p ~/.ssh
+  chmod 700 ~/.ssh
+  ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+  if [ -n "${SSH_KEY:-}" ]; then
+    echo "$SSH_KEY" > ~/.ssh/id_deploy
+    chmod 600 ~/.ssh/id_deploy
+    echo "[setup] SSH key from env var"
+  else
+    echo "[setup] SSH dir writable but no SSH_KEY env var"
+  fi
+elif [ -f ~/.ssh/id_deploy ] || [ -f ~/.ssh/id_rsa ] || [ -f ~/.ssh/vault_id_rsa ]; then
+  echo "[setup] SSH keys from mounted ~/.ssh (read-only)"
 else
   echo "[setup] WARNING: no SSH keys found (env or mount)"
 fi
@@ -93,14 +96,15 @@ elif [ -f ~/.ssh/config ]; then
 fi
 
 # ── 4. SOPS setup (env var OR mounted file) ───────────────────────
-if [ -n "${SOPS_AGE_KEY:-}" ]; then
+if [ -f ~/.config/sops/age/keys.txt ]; then
+  # Already mounted from host (compose :ro) or written by runner
+  export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
+  echo "[setup] SOPS age key from mounted file"
+elif [ -n "${SOPS_AGE_KEY:-}" ]; then
   mkdir -p ~/.config/sops/age
   echo "$SOPS_AGE_KEY" > ~/.config/sops/age/keys.txt
   export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
   echo "[setup] SOPS age key from env var"
-elif [ -f ~/.config/sops/age/keys.txt ]; then
-  export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
-  echo "[setup] SOPS age key from mounted file"
 else
   echo "[setup] WARNING: no SOPS age key found"
 fi
