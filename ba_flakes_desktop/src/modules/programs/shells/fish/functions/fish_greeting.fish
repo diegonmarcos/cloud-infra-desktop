@@ -188,6 +188,7 @@ set_color cyan; echo "  Nix Flakes:"
 set_color normal
 set_color magenta; echo -n "    up               "; set_color normal; echo "Rebuild Nix config"
 set_color magenta; echo -n "    conf             "; set_color normal; echo "Edit flake.nix"
+set_color magenta; echo -n "    dtk              "; set_color normal; echo "Diego's Toolkit (cloud ops, dashboards, webhooks)"
 # Dev
 set -l _claude_ver (claude --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
 set -l _goose_ver (goose --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
