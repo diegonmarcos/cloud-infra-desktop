@@ -162,17 +162,24 @@
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22
 
-              # 1. CLAUDE (npm-installed preferred, npx fallback)
+              # 1. CLAUDE (find cached npx binary or npm global, npx -y as last resort)
               (writeShellScriptBin "claude" ''
                 export HOME="/data/data/com.termux.nix/files/home"
                 export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
                 export UV_USE_IO_URING=0
                 export NODE_OPTIONS="--no-node-snapshot --max-old-space-size=1024"
                 export npm_config_cache="$HOME/.npm"
+                # 1) npm global install
                 NPM_BIN="$(${pkgsNew.nodejs_22}/bin/npm root -g 2>/dev/null)/../bin/claude"
-                if [ -x "$NPM_BIN" ]; then exec "$NPM_BIN" "$@"
-                else exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
-                fi
+                if [ -x "$NPM_BIN" ]; then exec "$NPM_BIN" "$@"; fi
+                # 2) shared node_modules
+                LOCAL_BIN="$HOME/.node_modules/node_modules/.bin/claude"
+                if [ -x "$LOCAL_BIN" ]; then exec "$LOCAL_BIN" "$@"; fi
+                # 3) npx cache
+                CACHED=$(find "$HOME/.npm/_npx" -name claude -perm /111 -type f 2>/dev/null | head -1)
+                if [ -x "$CACHED" ]; then exec "$CACHED" "$@"; fi
+                # 4) download via npx
+                exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
               '')
 
               # 2. CLAUDE-MALLOC (With tmp dir workaround + higher memory limit)
@@ -186,10 +193,8 @@
                 mkdir -p "$CLAUDE_TMP"
                 export TMPDIR="$CLAUDE_TMP"
                 export npm_config_cache="$HOME/.npm"
-                NPM_BIN="$(${pkgsNew.nodejs_22}/bin/npm root -g 2>/dev/null)/../bin/claude"
-                if [ -x "$NPM_BIN" ]; then exec "$NPM_BIN" "$@"
-                else exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
-                fi
+                # Reuse claude wrapper (inherits our env vars)
+                exec claude "$@"
               '')
 
               # 3. SYNC — unified sync engine (git + rclone)
