@@ -77,7 +77,7 @@ step_build() {
 
     # Generate docker-deps.sh from cloud/config.json
     _cloud_config=""
-    for _p in "$SCRIPT_DIR/../../../cloud/config.json" "/root/git/cloud/config.json" "/workspace/config.json"; do
+    for _p in "$SCRIPT_DIR/../../cloud/config.json" "$SCRIPT_DIR/../../../cloud/config.json" "/root/git/cloud/config.json" "/workspace/config.json"; do
         [ -f "$_p" ] && { _cloud_config="$_p"; break; }
     done
     if [ -n "$_cloud_config" ]; then
