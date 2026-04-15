@@ -366,6 +366,7 @@
             home-manager.config = { pkgs, lib, ... }: {
               _module.args.nodejs = pkgsNew.nodejs_22;
               imports = [
+                ./modules/common.nix
                 ./modules/packages.nix
                 ./modules/curl-wget-wrapper.nix
                 ./modules/node-npm-deps.nix
