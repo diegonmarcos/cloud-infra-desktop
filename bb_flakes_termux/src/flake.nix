@@ -32,7 +32,6 @@
         ".." = "cd ..";
         conf = "nano ~/git/unix/bb_flakes_termux/src/flake.nix";
         up = "~/git/unix/bb_flakes_termux/build.sh";
-        cl = "claude";
         dtk = "sh ~/git/tools/dtk.sh";
       };
     in
