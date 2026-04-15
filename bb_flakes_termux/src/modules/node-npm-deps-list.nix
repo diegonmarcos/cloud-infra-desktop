@@ -13,6 +13,7 @@
 
   config.nodeNpmDeps.static = {
     # ── Essential CLI tools ──
+    "@anthropic-ai/claude-code" = "^2.1.0";
     "tsx" = "^4.19.0";
     "typescript" = "^5.7.0";
 
