@@ -8,7 +8,7 @@
 
     historySize = 10000;
     historyFileSize = 20000;
-    historyControl = [ "ignoreboth" "erasedups" ];
+    historyControl = [ "ignoredups" "ignorespace" "erasedups" ];
     historyIgnore = [ "ls" "ll" "la" "cd" "pwd" "exit" "clear" "c" ];
 
     shellOptions = [
