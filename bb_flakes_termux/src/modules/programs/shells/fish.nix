@@ -26,7 +26,7 @@
       dcd = "docker compose down";
     };
 
-    shellAliases = {
+    shellAliases = lib.mkDefault {
       # Modern CLI
       ls = "eza --color=auto --icons";
       ll = "eza -alF --icons";
