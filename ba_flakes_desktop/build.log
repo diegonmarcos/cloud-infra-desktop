@@ -20420,3 +20420,131 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-04-15 15:46:07] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface ==========
 [2026-04-15 15:46:07] PERF: start switch
 [2026-04-15 15:46:07] INFO: Staging dirty files for flake evaluation...
+[2026-04-15 15:46:07] PERF: git stage = 228ms
+[2026-04-15 15:46:08] PERF: clean backups = 72ms
+[2026-04-15 15:46:08] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 16 derivations will be built:
+  /nix/store/kd0v9bfv7dc1ai1fk4lcx3a5rs3r0awx-claude-malloc.drv
+  /nix/store/6wj24i86cbpsan13jq83jc6nd6k8bac0-claude-malloc-fish-completions.drv
+  /nix/store/kxd484jyi5lh0ffcasq22jwnzhhh8011-claude-rescue.drv
+  /nix/store/dvmhk3igshkcscrb0m43hdp98a8rzw16-claude-rescue-fish-completions.drv
+  /nix/store/rxp9d52iqhjyf7vdnfh400q2gbj8f588-claude-termux.drv
+  /nix/store/hmp3ha6qgdcbjvj92qsy48jgngzdb449-claude-termux-fish-completions.drv
+  /nix/store/57dhj82vm246pqg8s1hkry5k3bv0vkdr-diego-fish-completions.drv
+  /nix/store/8rcjai3sz7pkyrmnhhjg7y2qa40b0l1q-man-paths.drv
+  /nix/store/i3l0pb21m1jpg4bz1lqk3ns50zi8cbn4-home-manager-path.drv
+  /nix/store/k46bkh5xnywas5dbl2bngdd3pmsgg9r1-fish_greeting.fish.drv
+  /nix/store/xqvkaxqkyxsgx7vn305vw74lymh5iyg3-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/z89ak4ndvn92q2g8c39m4pssswwhj4zc-man-cache.drv
+  /nix/store/yd7prbq4n5n534cvqizpf2983nwrc9s3-hm_.manpath.drv
+  /nix/store/ryn2hfx8wfi55jlql9kfw1yyalncq9q5-home-manager-files.drv
+  /nix/store/x4p3p3rv3904pyrgm8yplrdi9h35bymr-activation-script.drv
+  /nix/store/yjhxv34k4rvqarp9j0033higjzxkh5vc-home-manager-generation.drv
+building '/nix/store/kd0v9bfv7dc1ai1fk4lcx3a5rs3r0awx-claude-malloc.drv'...
+building '/nix/store/kxd484jyi5lh0ffcasq22jwnzhhh8011-claude-rescue.drv'...
+building '/nix/store/rxp9d52iqhjyf7vdnfh400q2gbj8f588-claude-termux.drv'...
+building '/nix/store/k46bkh5xnywas5dbl2bngdd3pmsgg9r1-fish_greeting.fish.drv'...
+building '/nix/store/6wj24i86cbpsan13jq83jc6nd6k8bac0-claude-malloc-fish-completions.drv'...
+building '/nix/store/dvmhk3igshkcscrb0m43hdp98a8rzw16-claude-rescue-fish-completions.drv'...
+building '/nix/store/hmp3ha6qgdcbjvj92qsy48jgngzdb449-claude-termux-fish-completions.drv'...
+building '/nix/store/i3l0pb21m1jpg4bz1lqk3ns50zi8cbn4-home-manager-path.drv'...
+building '/nix/store/8rcjai3sz7pkyrmnhhjg7y2qa40b0l1q-man-paths.drv'...
+building '/nix/store/57dhj82vm246pqg8s1hkry5k3bv0vkdr-diego-fish-completions.drv'...
+building '/nix/store/z89ak4ndvn92q2g8c39m4pssswwhj4zc-man-cache.drv'...
+building '/nix/store/x4p3p3rv3904pyrgm8yplrdi9h35bymr-activation-script.drv'...
+building '/nix/store/xqvkaxqkyxsgx7vn305vw74lymh5iyg3-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/yd7prbq4n5n534cvqizpf2983nwrc9s3-hm_.manpath.drv'...
+building '/nix/store/ryn2hfx8wfi55jlql9kfw1yyalncq9q5-home-manager-files.drv'...
+building '/nix/store/yjhxv34k4rvqarp9j0033higjzxkh5vc-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 316
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] No cloud-data-deps.json found
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+npm warn deprecated source-map-resolve@0.6.0: See https://github.com/lydell/source-map-resolve#deprecated
+npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated prebuild-install@7.1.3: No longer maintained. Please contact the author of the relevant native addon; alternatives are available.
+npm warn deprecated deep-diff@1.0.2: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated glob@11.1.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+
+added 1246 packages in 38s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] WARNING: cloud-data or template not found, using static fallback
+Activating globalTsx
+
+changed 5 packages in 3s
+Activating gooseConfig
+Activating initHomeGit
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.aO62rVqoJX/generation/activate: line 767: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating removeNpmClaude
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-15 15:50:12] PERF: home-manager switch = 4m 4s
+[2026-04-15 15:50:12] PERF: TOTAL switch = 4m 4s
+[2026-04-15 15:50:12] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface
+[2026-04-15 15:50:12] ========== Build script finished ==========
+[2026-04-15 16:04:37] ========== Build script started ==========
+[2026-04-15 16:04:37] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-04-15 16:04:37] PERF: start switch
+[2026-04-15 16:04:37] INFO: Staging dirty files for flake evaluation...
