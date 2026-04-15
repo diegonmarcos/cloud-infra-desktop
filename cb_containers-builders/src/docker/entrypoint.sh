@@ -63,7 +63,7 @@ if touch ~/.ssh/.write-test 2>/dev/null; then
   rm -f ~/.ssh/.write-test
   mkdir -p ~/.ssh
   chmod 700 ~/.ssh
-  ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+  ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
   if [ -n "${SSH_KEY:-}" ]; then
     echo "$SSH_KEY" > ~/.ssh/id_deploy
     chmod 600 ~/.ssh/id_deploy
@@ -105,7 +105,7 @@ fi
 
 # ── 5. GHCR login ─────────────────────────────────────────────────
 if [ -n "${GITHUB_TOKEN:-}" ]; then
-  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR:-diegonmarcos}" --password-stdin 2>/dev/null
+  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR:-diegonmarcos}" --password-stdin 2>/dev/null || true
   echo "[setup] GHCR authenticated"
 elif command -v gh >/dev/null 2>&1 && gh auth token >/dev/null 2>&1; then
   gh auth token 2>/dev/null | docker login ghcr.io -u "$(gh api user --jq .login 2>/dev/null || echo diegonmarcos)" --password-stdin 2>/dev/null
@@ -139,23 +139,24 @@ REPO="${GITHUB_REPOSITORY:-diegonmarcos/cloud}"
 
 if [ -d "$WORKSPACE/.git" ]; then
   echo "[setup] Refreshing $WORKSPACE"
-  git -C "$WORKSPACE" fetch origin main 2>/dev/null && git -C "$WORKSPACE" reset --hard origin/main 2>/dev/null
-  git -C "$WORKSPACE" submodule update --init --recursive 2>/dev/null
+  git -C "$WORKSPACE" fetch origin main 2>/dev/null || true
+  git -C "$WORKSPACE" reset --hard origin/main 2>/dev/null || true
+  git -C "$WORKSPACE" submodule update --init --recursive 2>/dev/null || true
 elif [ -d "$HOME/git/cloud/.git" ]; then
   echo "[setup] Using baked-in repo at ~/git/cloud"
   for repo in cloud unix front cloud-data tools; do
     dir="$HOME/git/$repo"
-    [ -d "$dir/.git" ] && git -C "$dir" fetch origin main 2>/dev/null && git -C "$dir" reset --hard origin/main 2>/dev/null
+    [ -d "$dir/.git" ] && { git -C "$dir" fetch origin main 2>/dev/null || true; git -C "$dir" reset --hard origin/main 2>/dev/null || true; }
   done
-  git -C "$HOME/git/cloud" submodule update --init --recursive 2>/dev/null
+  git -C "$HOME/git/cloud" submodule update --init --recursive 2>/dev/null || true
   WORKSPACE="$HOME/git/cloud"
 else
   echo "[setup] Cloning $REPO → $WORKSPACE"
-  git clone --depth 2 --recurse-submodules "https://github.com/$REPO.git" "$WORKSPACE" 2>&1 | tail -3
-  git -C "$WORKSPACE" submodule update --remote 2>/dev/null
+  git clone --depth 2 --recurse-submodules "https://github.com/$REPO.git" "$WORKSPACE" 2>&1 | tail -3 || true
+  git -C "$WORKSPACE" submodule update --remote 2>/dev/null || true
 fi
 
-cd "$WORKSPACE"
+cd "$WORKSPACE" || { echo "[setup] FATAL: cannot cd to $WORKSPACE"; exit 1; }
 echo "[setup] Ready: $(pwd) @ $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
 # ── 8. Dispatch ────────────────────────────────────────────────────
