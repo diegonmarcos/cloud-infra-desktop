@@ -64,7 +64,6 @@
       myip = "curl -s ifconfig.me";
 
       # Misc
-      c = "clear";
       h = "history";
       hg = "history | grep";
       path = "echo $PATH | tr ':' '\\n'";
