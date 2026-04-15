@@ -102,6 +102,9 @@ RUN mkdir -p /root/git \
 ARG DOCKERFILE_B64=""
 LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud"
 LABEL org.opencontainers.image.description="cloud-builder — Debian flat + nix + home-manager CI/CD image"
+LABEL org.opencontainers.image.usage="docker run --rm ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm cat /opt/cloud-builder/cloud-builder.sh | sh -s ship oci-apps"
+
+COPY docker/cloud-builder.sh /opt/cloud-builder/cloud-builder.sh
 
 WORKDIR /root/git/cloud
 ENTRYPOINT ["/opt/cloud-builder/entrypoint.sh"]
