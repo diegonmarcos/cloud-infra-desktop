@@ -1,20 +1,26 @@
 services:
   cloud-builder:
     image: ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest
-    container_name: cloud-builder
     network_mode: host
     volumes:
-      # Private repos (not in image, mount from host)
-      - /home/diego/git/vault:/root/git/vault:ro
-      # Credentials (read-only)
-      - /home/diego/.ssh:/root/.ssh:ro
-      - /home/diego/.config/sops:/root/.config/sops:ro
-      # Docker socket
       - /var/run/docker.sock:/var/run/docker.sock
+      - ${HOME}/.ssh:/root/.ssh:ro
+      - ${HOME}/.config/sops:/root/.config/sops:ro
     environment:
-      - GIT_BASE=/root
-      - SOPS_AGE_KEY_FILE=/root/.config/sops/age/keys.txt
-    working_dir: /root/git/cloud
-    stdin_open: true
-    tty: true
-    restart: "no"
+      - GITHUB_TOKEN
+      - GITHUB_ACTOR
+      - GITHUB_ACTIONS
+      - GITHUB_EVENT_NAME
+      - GITHUB_REPOSITORY
+      - GITHUB_RUN_ID
+      - GITHUB_SHA
+      - SSH_KEY
+      - SSH_HOST
+      - SSH_USER
+      - SSH_ALIAS
+      - SOPS_AGE_KEY
+      - WG_PRIVATE_KEY
+      - CHANGED_DIRS
+      - OCI_SSH_KEY
+      - GCP_PROXY_SSH_KEY
+      - GCP_T4_SSH_KEY

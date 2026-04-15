@@ -105,6 +105,7 @@ LABEL org.opencontainers.image.description="cloud-builder — Debian flat + nix 
 LABEL org.opencontainers.image.usage="docker run --rm ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm cat /opt/cloud-builder/cloud-builder.sh | sh -s ship oci-apps"
 
 COPY docker/cloud-builder.sh /opt/cloud-builder/cloud-builder.sh
+COPY docker/compose.yaml /opt/cloud-builder/compose.yaml
 
 WORKDIR /root/git/cloud
 ENTRYPOINT ["/opt/cloud-builder/entrypoint.sh"]
