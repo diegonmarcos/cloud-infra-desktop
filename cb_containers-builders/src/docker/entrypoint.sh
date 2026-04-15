@@ -34,6 +34,8 @@ case "${1:-}" in
     echo "Commands:"
     echo "  ship <vm>           Ship services to a VM"
     echo "  ship --all          Ship all VMs"
+    echo "  gen-configs         Generate configs (Caddy, DNS, etc.)"
+    echo "  ship-hm             Ship home-manager to VMs"
     echo "  health              Run health checks"
     echo "  bash                Interactive shell"
     echo ""
@@ -46,7 +48,7 @@ case "${1:-}" in
   bash|sh|fish)
     # Interactive shell — setup env but don't dispatch
     ;;
-  ship|health)
+  ship|health|gen-configs|ship-hm)
     # Handled below after setup
     ;;
   *)
@@ -175,6 +177,12 @@ case "$CMD" in
     ;;
   health)
     exec bash "$SCRIPTS/cloud-health-full.sh" "$@"
+    ;;
+  gen-configs)
+    exec bash "$SCRIPTS/cloud-ship-orchestrate-gen-configs.sh" "$@"
+    ;;
+  ship-hm)
+    exec bash "$SCRIPTS/cloud-ship-ci-builder-dispatch.sh" "$@"
     ;;
   bash|sh)
     exec bash "$@"
