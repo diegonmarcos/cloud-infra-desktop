@@ -8,6 +8,14 @@
         "NODE_PATH": "/home/diego/.node_modules/node_modules"
       }
     },
+    "dtk": {
+      "type": "stdio",
+      "command": "tsx",
+      "args": ["/home/diego/git/tools/7-dtk-mcp/src/index.ts"],
+      "env": {
+        "NODE_PATH": "/home/diego/.node_modules/node_modules"
+      }
+    },
     "cloud-infra": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-infra-mcp/mcp",

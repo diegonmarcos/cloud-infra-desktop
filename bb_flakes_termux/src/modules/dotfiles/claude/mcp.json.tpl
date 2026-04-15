@@ -8,6 +8,14 @@
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules"
       }
     },
+    "dtk": {
+      "type": "stdio",
+      "command": "tsx",
+      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/tools/7-dtk-mcp/src/index.ts"],
+      "env": {
+        "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules"
+      }
+    },
     "cloud-infra": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-infra-mcp/mcp",
