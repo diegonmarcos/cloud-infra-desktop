@@ -30,9 +30,10 @@
       sharedAliases = {
         ll = "ls -alh";
         ".." = "cd ..";
-        conf = "nano ~/nix-home-manager/flake.nix";
-        up = "~/nix-home-manager/build.sh switch";
+        conf = "nano ~/git/unix/bb_flakes_termux/src/flake.nix";
+        up = "~/git/unix/bb_flakes_termux/build.sh";
         c = "claude";
+        dtk = "sh ~/git/tools/dtk.sh";
       };
     in
     {
