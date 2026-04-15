@@ -622,8 +622,11 @@
                 shellAliases = sharedAliases;
                 interactiveShellInit = ''
 
-                  # http-dev runs as systemd user service (not per-shell)
+                  # Auto-start http-dev (web-server-md-eruda)
                   set -g __httpd_port 8000
+                  if command -q http-dev
+                    set -g __httpd_pid (http-dev start 2>/dev/null)
+                  end
 
                   # FZF configuration
                   set -gx FZF_DEFAULT_OPTS "--height 40% --layout=reverse --border"
