@@ -216,7 +216,7 @@ cmd_switch() {
 
     # Flake always wins: delete regular files where HM needs to place symlinks
     perf_step "clear stale files"
-    for _hm_file in .claude/settings.json .claude/hooks/pretool-guard.sh .claude/skills/frontend-design.md .local/lib/httpd/github-markdown-dark.css .local/lib/httpd/marked.min.js; do
+    for _hm_file in .claude/settings.json .claude/hooks/pretool-guard.sh .claude/skills/frontend-design.md .local/lib/httpd/github-markdown-dark.css .local/lib/httpd/marked.min.js .config/git/ignore .config/nix/nix.conf; do
         _full="$HOME/$_hm_file"
         if [ -f "$_full" ] && [ ! -L "$_full" ]; then
             rm -f "$_full"
