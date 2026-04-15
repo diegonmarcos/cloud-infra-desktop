@@ -196,7 +196,7 @@
                 # 1) Podman — full container, root, clean slate
                 if command -v podman >/dev/null 2>&1; then
                   echo "[1/4] Trying podman..."
-                  podman run --rm -it \
+                  timeout 60 podman run --rm -it \
                     --name claude-rescue \
                     -v "$HOME:/host-home:ro" \
                     -e ANTHROPIC_API_KEY -e TERM \
@@ -207,23 +207,23 @@
                   echo "[1/4] podman failed, trying next..."
                 fi
 
-                # 2) Nix shell — ephemeral env with nodejs, no profile pollution
-                if command -v nix >/dev/null 2>&1; then
-                  echo "[2/4] Trying nix shell..."
-                  nix shell nixpkgs#nodejs_22 --command sh -c \
-                    'npx -y @anthropic-ai/claude-code "$@"' -- "$@" \
-                    && exit 0
-                  echo "[2/4] nix shell failed, trying next..."
-                fi
-
-                # 3) npx — direct download with whatever node is on PATH
+                # 2) npx — direct download with whatever node is on PATH (fast)
                 if command -v npx >/dev/null 2>&1; then
-                  echo "[3/4] Trying npx..."
+                  echo "[2/4] Trying npx..."
                   UV_USE_IO_URING=0 npx -y @anthropic-ai/claude-code "$@" && exit 0
-                  echo "[3/4] npx failed, trying next..."
+                  echo "[2/4] npx failed, trying next..."
                 fi
 
-                # 4) Raw node — manual bootstrap
+                # 3) Nix shell — ephemeral env (slow on first run, downloads nixpkgs)
+                if command -v nix >/dev/null 2>&1; then
+                  echo "[3/4] Trying nix shell..."
+                  timeout 120 nix shell nixpkgs#nodejs_22 --command sh -c \
+                    'UV_USE_IO_URING=0 npx -y @anthropic-ai/claude-code "$@"' -- "$@" \
+                    && exit 0
+                  echo "[3/4] nix shell failed, trying next..."
+                fi
+
+                # 4) Raw node — manual bootstrap in tmpdir
                 if command -v node >/dev/null 2>&1; then
                   echo "[4/4] Trying raw node bootstrap..."
                   _tmp=$(mktemp -d)
