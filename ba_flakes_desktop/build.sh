@@ -15,6 +15,9 @@
 
 set -eu
 
+# Ensure PATH includes nix profile + local bins (shell PATH may be broken)
+export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
 # Skip guardrail wrappers entirely — build.sh is the sanctioned interface
 export BUILDSH_GUARDRAIL=1
 
