@@ -58,9 +58,9 @@ case "${1:-}" in
 esac
 
 # ── 3. SSH setup (env vars OR mounted files) ──────────────────────
-mkdir -p ~/.ssh
-chmod 700 ~/.ssh
-ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+mkdir -p ~/.ssh 2>/dev/null || true
+chmod 700 ~/.ssh 2>/dev/null || true
+ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
 
 if [ -n "${SSH_KEY:-}" ]; then
   # CI mode: SSH key from env var
