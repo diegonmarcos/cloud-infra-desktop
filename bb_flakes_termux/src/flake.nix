@@ -193,8 +193,14 @@
                 mkdir -p "$CLAUDE_TMP"
                 export TMPDIR="$CLAUDE_TMP"
                 export npm_config_cache="$HOME/.npm"
-                # Reuse claude wrapper (inherits our env vars)
-                exec claude "$@"
+                # Find native claude binary (same resolution as claude wrapper)
+                NPM_BIN="$(${pkgsNew.nodejs_22}/bin/npm root -g 2>/dev/null)/../bin/claude"
+                if [ -x "$NPM_BIN" ]; then exec "$NPM_BIN" "$@"; fi
+                LOCAL_BIN="$HOME/.node_modules/node_modules/.bin/claude"
+                if [ -x "$LOCAL_BIN" ]; then exec "$LOCAL_BIN" "$@"; fi
+                CACHED=$(find "$HOME/.npm/_npx" -name claude -perm /111 -type f 2>/dev/null | head -1)
+                if [ -x "$CACHED" ]; then exec "$CACHED" "$@"; fi
+                exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
               '')
 
               # 3. SYNC — unified sync engine (git + rclone)
