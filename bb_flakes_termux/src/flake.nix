@@ -162,17 +162,15 @@
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22
 
-              # 1. CLAUDE (native install preferred, npx fallback for legacy)
+              # 1. CLAUDE (npm-installed preferred, npx fallback)
               (writeShellScriptBin "claude" ''
                 export HOME="/data/data/com.termux.nix/files/home"
                 export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:/data/data/com.termux.nix/files/usr/bin:$PATH"
                 export UV_USE_IO_URING=0
                 export NODE_OPTIONS="--no-node-snapshot --max-old-space-size=1024"
                 export npm_config_cache="$HOME/.npm"
-                GLOBAL_BIN="/data/data/com.termux.nix/files/usr/bin/claude"
                 NPM_BIN="$(${pkgsNew.nodejs_22}/bin/npm root -g 2>/dev/null)/../bin/claude"
-                if [ -x "$GLOBAL_BIN" ]; then exec "$GLOBAL_BIN" "$@"
-                elif [ -x "$NPM_BIN" ]; then exec "$NPM_BIN" "$@"
+                if [ -x "$NPM_BIN" ]; then exec "$NPM_BIN" "$@"
                 else exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
                 fi
               '')
@@ -188,10 +186,8 @@
                 mkdir -p "$CLAUDE_TMP"
                 export TMPDIR="$CLAUDE_TMP"
                 export npm_config_cache="$HOME/.npm"
-                GLOBAL_BIN="/data/data/com.termux.nix/files/usr/bin/claude"
                 NPM_BIN="$(${pkgsNew.nodejs_22}/bin/npm root -g 2>/dev/null)/../bin/claude"
-                if [ -x "$GLOBAL_BIN" ]; then exec "$GLOBAL_BIN" "$@"
-                elif [ -x "$NPM_BIN" ]; then exec "$NPM_BIN" "$@"
+                if [ -x "$NPM_BIN" ]; then exec "$NPM_BIN" "$@"
                 else exec ${pkgsNew.nodejs_22}/bin/npx -y @anthropic-ai/claude-code "$@"
                 fi
               '')
@@ -626,7 +622,8 @@
                   # Auto-start http-dev (web-server-md-eruda)
                   set -g __httpd_port 8000
                   if command -q http-dev
-                    set -g __httpd_pid (http-dev start 2>/dev/null)
+                    http-dev start >/dev/null 2>&1
+                    set -g __httpd_pid (cat ~/.cache/web-server-md-eruda.pid 2>/dev/null)
                   end
 
                   # FZF configuration
