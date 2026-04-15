@@ -185,20 +185,54 @@
                 exec "$HOME/.node_modules/node_modules/.bin/claude" "$@"
               '')
 
-              # claude-rescue: fresh podman container for root debugging
+              # claude-rescue: fallback chain for when everything is broken
+              # 1) podman (full isolation, root), 2) nix shell (fresh env),
+              # 3) npx (direct download), 4) raw node (absolute last resort)
               (writeShellScriptBin "claude-rescue" ''
-                echo "Claude Rescue Shell — root debug environment"
-                echo "Starting fresh container..."
-                exec ${pkgs.podman or "podman"}/bin/podman run --rm -it \
-                  --name claude-rescue \
-                  -v "$HOME:/host-home:ro" \
-                  -v "/nix:/nix:ro" \
-                  -e ANTHROPIC_API_KEY="''${ANTHROPIC_API_KEY:-}" \
-                  -e TERM="''${TERM:-xterm-256color}" \
-                  --user root \
-                  --entrypoint /bin/sh \
-                  node:22-slim \
-                  -c 'npm install -g @anthropic-ai/claude-code && claude "$@"' -- "$@"
+                echo "Claude Rescue — fallback chain"
+                export ANTHROPIC_API_KEY="''${ANTHROPIC_API_KEY:-}"
+                export TERM="''${TERM:-xterm-256color}"
+
+                # 1) Podman — full container, root, clean slate
+                if command -v podman >/dev/null 2>&1; then
+                  echo "[1/4] Trying podman..."
+                  podman run --rm -it \
+                    --name claude-rescue \
+                    -v "$HOME:/host-home:ro" \
+                    -e ANTHROPIC_API_KEY -e TERM \
+                    --user root \
+                    node:22-slim \
+                    sh -c 'npm install -g @anthropic-ai/claude-code 2>/dev/null && claude "$@"' -- "$@" \
+                    && exit 0
+                  echo "[1/4] podman failed, trying next..."
+                fi
+
+                # 2) Nix shell — ephemeral env with nodejs, no profile pollution
+                if command -v nix >/dev/null 2>&1; then
+                  echo "[2/4] Trying nix shell..."
+                  nix shell nixpkgs#nodejs_22 --command sh -c \
+                    'npx -y @anthropic-ai/claude-code "$@"' -- "$@" \
+                    && exit 0
+                  echo "[2/4] nix shell failed, trying next..."
+                fi
+
+                # 3) npx — direct download with whatever node is on PATH
+                if command -v npx >/dev/null 2>&1; then
+                  echo "[3/4] Trying npx..."
+                  UV_USE_IO_URING=0 npx -y @anthropic-ai/claude-code "$@" && exit 0
+                  echo "[3/4] npx failed, trying next..."
+                fi
+
+                # 4) Raw node — manual bootstrap
+                if command -v node >/dev/null 2>&1; then
+                  echo "[4/4] Trying raw node bootstrap..."
+                  _tmp=$(mktemp -d)
+                  cd "$_tmp" && npm init -y >/dev/null 2>&1 && npm install @anthropic-ai/claude-code >/dev/null 2>&1
+                  UV_USE_IO_URING=0 ./node_modules/.bin/claude "$@" && exit 0
+                fi
+
+                echo "ALL METHODS FAILED — no working node/container runtime found"
+                exit 1
               '')
 
               # 3. SYNC — unified sync engine (git + rclone)
