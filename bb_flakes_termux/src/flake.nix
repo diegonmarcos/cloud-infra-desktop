@@ -82,7 +82,7 @@
               git
               curl
               wget
-              vim
+              # vim — provided by programs.vim in common.nix
               coreutils
               openssh
               strace
