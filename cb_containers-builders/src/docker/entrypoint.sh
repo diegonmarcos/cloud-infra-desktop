@@ -68,19 +68,10 @@ if touch ~/.ssh/.write-test 2>/dev/null; then
     echo "$SSH_KEY" > ~/.ssh/id_deploy
     chmod 600 ~/.ssh/id_deploy
     echo "[setup] SSH key from env var"
-  else
-    echo "[setup] SSH dir writable but no SSH_KEY env var"
   fi
-elif [ -f ~/.ssh/id_deploy ] || [ -f ~/.ssh/id_rsa ] || [ -f ~/.ssh/vault_id_rsa ]; then
-  echo "[setup] SSH keys from mounted ~/.ssh (read-only)"
-else
-  echo "[setup] WARNING: no SSH keys found (env or mount)"
-fi
-
-# SSH config: if env vars set (CI), generate config per VM
-# If mounted (local), host ~/.ssh/config is already there
-if [ -n "${SSH_ALIAS:-}" ] && [ -n "${SSH_HOST:-}" ]; then
-  cat >> ~/.ssh/config <<EOF
+  # Generate SSH config if env vars provided
+  if [ -n "${SSH_ALIAS:-}" ] && [ -n "${SSH_HOST:-}" ]; then
+    cat >> ~/.ssh/config <<EOF
 Host ${SSH_ALIAS}
   HostName ${SSH_HOST}
   User ${SSH_USER:-ubuntu}
@@ -89,10 +80,13 @@ Host ${SSH_ALIAS}
   ServerAliveInterval 30
   ServerAliveCountMax 10
 EOF
-  chmod 600 ~/.ssh/config
-  echo "[setup] SSH config generated for ${SSH_ALIAS}"
-elif [ -f ~/.ssh/config ]; then
-  echo "[setup] SSH config from mounted ~/.ssh/config"
+    chmod 600 ~/.ssh/config
+    echo "[setup] SSH config for ${SSH_ALIAS} → ${SSH_HOST}"
+  fi
+elif [ -f ~/.ssh/id_deploy ] || [ -f ~/.ssh/id_rsa ] || [ -f ~/.ssh/vault_id_rsa ]; then
+  echo "[setup] SSH from mounted ~/.ssh (read-only)"
+else
+  echo "[setup] WARNING: no SSH keys found"
 fi
 
 # ── 4. SOPS setup (env var OR mounted file) ───────────────────────
@@ -133,9 +127,9 @@ Endpoint = 35.226.147.64:51820
 AllowedIPs = 10.0.0.0/24
 PersistentKeepalive = 25
 WGEOF
-  $SUDO mkdir -p /etc/wireguard
-  $SUDO cp /tmp/wg0.conf /etc/wireguard/wg0.conf
-  rm /tmp/wg0.conf
+  $SUDO mkdir -p /etc/wireguard 2>/dev/null || true
+  $SUDO cp /tmp/wg0.conf /etc/wireguard/wg0.conf 2>/dev/null || true
+  rm -f /tmp/wg0.conf
   $SUDO wg-quick up wg0 2>/dev/null && echo "[setup] WireGuard up" || echo "[setup] WireGuard failed (non-fatal)"
 fi
 
