@@ -241,15 +241,18 @@ step_run() {
     _variant="${1:-x-deb-nixhm}"
     _variant=$(resolve_variant "$_variant")
     [ -z "$_variant" ] && return 1
+    shift
+    _cmd="${*:-bash}"
     _ghcr=$(jq -r ".images.\"$_variant\".ghcr" "$CONFIG")
-    log "Running $_ghcr:latest interactively"
+
+    log "Running $_ghcr:latest — $_cmd"
     # Use compose if available, else docker run
     if [ -f "$DIST_DIR/docker/compose.yaml" ]; then
-        docker compose -f "$DIST_DIR/docker/compose.yaml" run --rm cloud-builder bash
+        docker compose -f "$DIST_DIR/docker/compose.yaml" run --rm cloud-builder $_cmd
     else
         docker run -it --rm --network=host \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            "$_ghcr:latest" bash
+            "$_ghcr:latest" $_cmd
     fi
 }
 
@@ -338,7 +341,7 @@ case "${1:-}" in
     # b) run (pull + run)
     run|b)           _v=$(resolve_variant "${2:-1}"); _ghcr=$(jq -r ".images.\"$_v\".ghcr" "$CONFIG"); docker pull "$_ghcr:latest" 2>&1 | tail -3; step_run "$_v" ;;
     b0|image-pull)   _v=$(resolve_variant "${2:-1}"); _ghcr=$(jq -r ".images.\"$_v\".ghcr" "$CONFIG"); docker pull "$_ghcr:latest" ;;
-    b1|image-run)    step_run "$(resolve_variant "${2:-1}")" ;;
+    b1|image-run)    step_run "$(resolve_variant "${2:-1}")" "${@:3}" ;;
     # c) list
     list|c)          docker ps -a --filter "name=cloud-builder" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null; echo ""; docker images --filter "reference=ghcr.io/diegonmarcos/cloud-builder-*" --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}" 2>/dev/null; echo ""; docker stats --no-stream --filter "name=cloud-builder" --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" 2>/dev/null ;;
     c0|list-containers) docker ps -a --filter "name=cloud-builder" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" 2>/dev/null ;;

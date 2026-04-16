@@ -39,8 +39,30 @@ git submodule update --remote
 # cloud-data: remote always wins
 git -C cloud-data fetch origin main 2>/dev/null && git -C cloud-data reset --hard origin/main 2>/dev/null || true
 
+# ── 1b. WireGuard (if key provided) ─────────────────────────────
+if [ -n "${WG_PRIVATE_KEY:-}" ]; then
+  echo "[1b/6] Setting up WireGuard"
+  umask 077
+  cat > /tmp/wg0.conf << WGEOF
+[Interface]
+PrivateKey = ${WG_PRIVATE_KEY}
+Address = 10.0.0.200/24
+
+[Peer]
+PublicKey = vV/phXUwnCjxACQ5Df11Uw47BzJaK4r85jPYMu2HmDc=
+Endpoint = 35.226.147.64:51820
+AllowedIPs = 10.0.0.0/24
+PersistentKeepalive = 25
+WGEOF
+  mkdir -p /etc/wireguard
+  cp /tmp/wg0.conf /etc/wireguard/wg0.conf
+  rm /tmp/wg0.conf
+  wg-quick up wg0
+  ping -c1 -W3 10.0.0.1 >/dev/null 2>&1 && echo "[wg] Hub reachable" || echo "[wg] Hub not reachable"
+fi
+
 # ── 2. Setup SSH ────────────────────────────────────────────────
-echo "[2/5] Setting up SSH for $VM"
+echo "[2/6] Setting up SSH for $VM"
 # Source of truth: per-VM build.json (NOT cloud-data — that's derived, can be stale)
 BUILD_JSON="/workspace/b_infra/home-manager/nixhm-sudo-${VM}/build.json"
 if [ ! -f "$BUILD_JSON" ]; then
