@@ -104,4 +104,9 @@
   swapDevices = [{
     device = "/mnt/shared/.swapfile";
   }];
+
+  # Hibernation resume: LUKS partition → btrfs swapfile
+  # Offset from: sudo btrfs inspect-internal map-swapfile /mnt/shared/.swapfile
+  boot.resumeDevice = "/dev/mapper/pool";
+  boot.kernelParams = [ "resume_offset=4954822" ];
 }

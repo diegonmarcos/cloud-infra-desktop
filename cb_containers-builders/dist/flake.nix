@@ -87,7 +87,7 @@
     # ── Output 1: devShell (nix develop locally) ────────────────────
     # Same packages as HM profile — identical environment
     devShells = forAllSystems (system: let
-      pkgs = nixpkgs.legacyPackages.${system};
+      pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
     in {
       default = pkgs.mkShell {
         buildInputs = collectPkgs pkgs ++ (with pkgs; [
@@ -127,7 +127,7 @@
     # Same packages as devShell — identical environment
     homeConfigurations."root@cloud-builder" =
       home-manager.lib.homeManagerConfiguration {
-        pkgs = nixpkgs.legacyPackages.x86_64-linux;
+        pkgs = import nixpkgs { system = "x86_64-linux"; config.allowUnfree = true; };
         modules = [ ./cloud-builder.nix ];
         extraSpecialArgs = { inherit configJson; };
       };

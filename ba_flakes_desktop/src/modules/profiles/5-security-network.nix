@@ -42,6 +42,7 @@
     ssh-audit
 
     # Forensics & Analysis
+    yara             # malware pattern matching (used by cloud-data-reports)
     binwalk
     hexyl
     xxd

@@ -6,6 +6,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${HOME}/.ssh:/root/.ssh:ro
       - ${HOME}/.config/sops:/root/.config/sops:ro
+      - ${HOME}/.config/gh:/root/.config/gh:ro
+      - ${HOME}/git/vault/A0_keys/providers/github:/home/diego/git/vault/A0_keys/providers/github:ro
+      - ${HOME}/.docker/config.json:/root/.docker/config.json:ro
     environment:
       - GITHUB_TOKEN
       - GITHUB_ACTOR

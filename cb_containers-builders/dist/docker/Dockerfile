@@ -3,10 +3,10 @@
 # ║                                                                  ║
 # ║ Contains: nix + devShell (sops, rsync, ssh, git, jq, yq, node)  ║
 # ║           + docker CLI (for docker compose build --push)         ║
-# ║ Does NOT contain: code, secrets, service outputs (built fresh)   ║
+# ║           + all repos baked under ~/git/ (entrypoint rebases)    ║
 # ║                                                                  ║
-# ║ Source: workflows/src/cloud-builder/docker/Dockerfile                     ║
-# ║ Registry: ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm    ║
+# ║ Source: unix/cb_containers-builders/src/docker/Dockerfile       ║
+# ║ Registry: ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm       ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 # NIX_SYSTEM: x86_64-linux or aarch64-linux (set by GHA matrix)
@@ -57,19 +57,23 @@ COPY --from=builder /root/.node_modules /root/.node_modules
 # Copy cloud-builder flake for nix develop at runtime
 COPY --from=builder /build /opt/cloud-builder-flake
 
+# ── Clone all repos under ~/git/ (HTTPS, public) ────────────────
+RUN mkdir -p /root/git && \
+    for repo in cloud cloud-data unix front tools; do \
+      git clone --depth 1 "https://github.com/diegonmarcos/${repo}.git" "/root/git/${repo}"; \
+    done && \
+    git -C /root/git/cloud submodule update --init --recursive 2>/dev/null || true
+
 # Self-documenting: Dockerfile + docker-up.sh + entrypoint baked in
 COPY docker/Dockerfile /opt/cloud-builder/Dockerfile
 COPY docker/docker-up.sh /opt/cloud-builder/docker-up.sh
 COPY docker/entrypoint.sh /opt/cloud-builder/entrypoint.sh
 RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh
-ARG DOCKERFILE_B64=""
-LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud"
-LABEL org.opencontainers.image.description="cloud-builder — self-contained CI/CD image (nix, sops, rsync, ssh, docker)"
-LABEL org.opencontainers.image.dockerfile-path="workflows/src/cloud-builder/docker/Dockerfile"
-LABEL cloud.builder.dockerfile-base64="${DOCKERFILE_B64}"
-LABEL cloud.builder.usage="docker run --rm ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest docker-up | sh -s ship all"
 
-# Entrypoint: no args = print usage, docker-up = print script, anything else = nix develop
-WORKDIR /workspace
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud"
+LABEL org.opencontainers.image.description="cloud-builder — self-contained CI/CD image (nix, sops, rsync, docker, all repos)"
+
+# Entrypoint: no args = print usage, anything else = dispatch command
+WORKDIR /root/git/cloud
 ENTRYPOINT ["/opt/cloud-builder/entrypoint.sh"]
 CMD []

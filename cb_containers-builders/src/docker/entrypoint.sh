@@ -36,6 +36,7 @@ case "${1:-}" in
     echo "  ship --all          Ship all VMs"
     echo "  gen-configs         Generate configs (Caddy, DNS, etc.)"
     echo "  ship-hm             Ship home-manager to VMs"
+    echo "  ship-reports        Build + push cloud-data-reports image"
     echo "  health              Run health checks"
     echo "  bash                Interactive shell"
     echo ""
@@ -48,7 +49,7 @@ case "${1:-}" in
   bash|sh|fish)
     # Interactive shell — setup env but don't dispatch
     ;;
-  ship|health|gen-configs|ship-hm)
+  ship|health|gen-configs|ship-hm|ship-reports)
     # Handled below after setup
     ;;
   *)
@@ -58,20 +59,26 @@ case "${1:-}" in
 esac
 
 # ── 3. SSH setup (env vars OR mounted files) ──────────────────────
-# If ~/.ssh is mounted read-only (compose :ro), files are already there — skip writing
-if touch ~/.ssh/.write-test 2>/dev/null; then
-  rm -f ~/.ssh/.write-test
-  mkdir -p ~/.ssh
-  chmod 700 ~/.ssh
-  ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
-  if [ -n "${SSH_KEY:-}" ]; then
-    echo "$SSH_KEY" > ~/.ssh/id_deploy
-    chmod 600 ~/.ssh/id_deploy
-    echo "[setup] SSH key from env var"
-  fi
-  # Generate SSH config if env vars provided
-  if [ -n "${SSH_ALIAS:-}" ] && [ -n "${SSH_HOST:-}" ]; then
-    cat >> ~/.ssh/config <<EOF
+mkdir -p ~/.ssh 2>/dev/null || true
+chmod 700 ~/.ssh 2>/dev/null || true
+ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
+
+if [ -n "${SSH_KEY:-}" ]; then
+  # CI mode: SSH key from env var
+  echo "$SSH_KEY" > ~/.ssh/id_deploy
+  chmod 600 ~/.ssh/id_deploy
+  echo "[setup] SSH key from env var"
+elif [ -f ~/.ssh/id_rsa ] || [ -f ~/.ssh/vault_id_rsa ]; then
+  # Local mode: SSH keys mounted from host
+  echo "[setup] SSH keys from mounted ~/.ssh"
+else
+  echo "[setup] WARNING: no SSH keys found (env or mount)"
+fi
+
+# SSH config: if env vars set (CI), generate config per VM
+# If mounted (local), host ~/.ssh/config is already there
+if [ -n "${SSH_ALIAS:-}" ] && [ -n "${SSH_HOST:-}" ]; then
+  cat >> ~/.ssh/config <<EOF
 Host ${SSH_ALIAS}
   HostName ${SSH_HOST}
   User ${SSH_USER:-ubuntu}
@@ -80,32 +87,28 @@ Host ${SSH_ALIAS}
   ServerAliveInterval 30
   ServerAliveCountMax 10
 EOF
-    chmod 600 ~/.ssh/config
-    echo "[setup] SSH config for ${SSH_ALIAS} → ${SSH_HOST}"
-  fi
-elif [ -f ~/.ssh/id_deploy ] || [ -f ~/.ssh/id_rsa ] || [ -f ~/.ssh/vault_id_rsa ]; then
-  echo "[setup] SSH from mounted ~/.ssh (read-only)"
-else
-  echo "[setup] WARNING: no SSH keys found"
+  chmod 600 ~/.ssh/config
+  echo "[setup] SSH config generated for ${SSH_ALIAS}"
+elif [ -f ~/.ssh/config ]; then
+  echo "[setup] SSH config from mounted ~/.ssh/config"
 fi
 
 # ── 4. SOPS setup (env var OR mounted file) ───────────────────────
-if [ -f ~/.config/sops/age/keys.txt ]; then
-  # Already mounted from host (compose :ro) or written by runner
-  export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
-  echo "[setup] SOPS age key from mounted file"
-elif [ -n "${SOPS_AGE_KEY:-}" ]; then
+if [ -n "${SOPS_AGE_KEY:-}" ]; then
   mkdir -p ~/.config/sops/age
   echo "$SOPS_AGE_KEY" > ~/.config/sops/age/keys.txt
   export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
   echo "[setup] SOPS age key from env var"
+elif [ -f ~/.config/sops/age/keys.txt ]; then
+  export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
+  echo "[setup] SOPS age key from mounted file"
 else
   echo "[setup] WARNING: no SOPS age key found"
 fi
 
 # ── 5. GHCR login ─────────────────────────────────────────────────
 if [ -n "${GITHUB_TOKEN:-}" ]; then
-  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR:-diegonmarcos}" --password-stdin 2>/dev/null || true
+  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR:-diegonmarcos}" --password-stdin 2>/dev/null
   echo "[setup] GHCR authenticated"
 elif command -v gh >/dev/null 2>&1 && gh auth token >/dev/null 2>&1; then
   gh auth token 2>/dev/null | docker login ghcr.io -u "$(gh api user --jq .login 2>/dev/null || echo diegonmarcos)" --password-stdin 2>/dev/null
@@ -127,36 +130,30 @@ Endpoint = 35.226.147.64:51820
 AllowedIPs = 10.0.0.0/24
 PersistentKeepalive = 25
 WGEOF
-  $SUDO mkdir -p /etc/wireguard 2>/dev/null || true
-  $SUDO cp /tmp/wg0.conf /etc/wireguard/wg0.conf 2>/dev/null || true
-  rm -f /tmp/wg0.conf
+  $SUDO mkdir -p /etc/wireguard
+  $SUDO cp /tmp/wg0.conf /etc/wireguard/wg0.conf
+  rm /tmp/wg0.conf
   $SUDO wg-quick up wg0 2>/dev/null && echo "[setup] WireGuard up" || echo "[setup] WireGuard failed (non-fatal)"
 fi
 
-# ── 7. Clone/refresh repo ─────────────────────────────────────────
-WORKSPACE="${WORKSPACE:-/workspace}"
-REPO="${GITHUB_REPOSITORY:-diegonmarcos/cloud}"
+# ── 7. Rebase all repos (baked at build time under ~/git/) ───────
+GIT_ROOT="$HOME/git"
+git config --global --add safe.directory "*"
 
-if [ -d "$WORKSPACE/.git" ]; then
-  echo "[setup] Refreshing $WORKSPACE"
-  git -C "$WORKSPACE" fetch origin main 2>/dev/null || true
-  git -C "$WORKSPACE" reset --hard origin/main 2>/dev/null || true
-  git -C "$WORKSPACE" submodule update --init --recursive 2>/dev/null || true
-elif [ -d "$HOME/git/cloud/.git" ]; then
-  echo "[setup] Using baked-in repo at ~/git/cloud"
-  for repo in cloud unix front cloud-data tools; do
-    dir="$HOME/git/$repo"
-    [ -d "$dir/.git" ] && { git -C "$dir" fetch origin main 2>/dev/null || true; git -C "$dir" reset --hard origin/main 2>/dev/null || true; }
-  done
-  git -C "$HOME/git/cloud" submodule update --init --recursive 2>/dev/null || true
-  WORKSPACE="$HOME/git/cloud"
-else
-  echo "[setup] Cloning $REPO → $WORKSPACE"
-  git clone --depth 2 --recurse-submodules "https://github.com/$REPO.git" "$WORKSPACE" 2>&1 | tail -3 || true
-  git -C "$WORKSPACE" submodule update --remote 2>/dev/null || true
-fi
+echo "[setup] Syncing all repos..."
+for repo in cloud cloud-data unix front tools; do
+  dir="$GIT_ROOT/$repo"
+  if [ -d "$dir/.git" ]; then
+    git -C "$dir" fetch origin main 2>/dev/null \
+      && git -C "$dir" reset --hard origin/main 2>/dev/null \
+      && echo "[setup] Synced $repo" \
+      || echo "[setup] Sync failed for $repo (non-fatal)"
+  fi
+done
+git -C "$GIT_ROOT/cloud" submodule update --init --recursive 2>/dev/null
 
-cd "$WORKSPACE" || { echo "[setup] FATAL: cannot cd to $WORKSPACE"; exit 1; }
+WORKSPACE="$GIT_ROOT/cloud"
+cd "$WORKSPACE"
 echo "[setup] Ready: $(pwd) @ $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
 # ── 8. Dispatch ────────────────────────────────────────────────────
@@ -164,28 +161,28 @@ SCRIPTS=".github/workflows/scripts"
 CMD="$1"; shift
 
 case "$CMD" in
-  ship|ship-hm)
-    VM="${1:-all}"
-    export SSH_ALIAS="${SSH_ALIAS:-$VM}"
-    export CHANGED_DIRS="${CHANGED_DIRS:-}"
-    exec bash "$SCRIPTS/cloud-ship-ci-builder-dispatch.sh" "$CMD" "$VM" "$@"
+  ship)
+    VM="${1:-}"
+    if [ "$VM" = "--all" ] || [ -z "$VM" ]; then
+      exec bash "$SCRIPTS/cloud-ship-orchestrate-portable.sh" "$@"
+    else
+      export SSH_ALIAS="${SSH_ALIAS:-$VM}"
+      export CHANGED_DIRS="${CHANGED_DIRS:-}"
+      exec bash "$SCRIPTS/cloud-ship-ci-builder-dispatch.sh" "$VM" "$@"
+    fi
     ;;
-  health|cicd-health)
+  health)
     exec bash "$SCRIPTS/cloud-health-full.sh" "$@"
     ;;
-  gen-configs|cicd-gen-configs)
+  gen-configs)
     exec bash "$SCRIPTS/cloud-ship-orchestrate-gen-configs.sh" "$@"
     ;;
-  cicd-ship|cicd-ship-hm)
-    # Strip cicd- prefix and dispatch
-    ENGINE="${CMD#cicd-}"
-    VM="${1:-all}"
-    export SSH_ALIAS="${SSH_ALIAS:-$VM}"
-    export CHANGED_DIRS="${CHANGED_DIRS:-}"
-    exec bash "$SCRIPTS/cloud-ship-ci-builder-dispatch.sh" "$ENGINE" "$VM" "$@"
+  ship-hm)
+    exec bash "$SCRIPTS/cloud-ship-ci-builder-dispatch.sh" "$@"
     ;;
-  cicd-terraform)
-    exec bash "$SCRIPTS/cloud-ship-terraform-deploy-apply.sh" "$@"
+  ship-reports)
+    CLOUD_DATA_SCRIPTS="$HOME/git/cloud-data/.github/workflows/scripts"
+    exec bash "$CLOUD_DATA_SCRIPTS/ship-reports.sh" "$@"
     ;;
   bash|sh)
     exec bash "$@"
