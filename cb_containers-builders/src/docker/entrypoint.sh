@@ -164,24 +164,28 @@ SCRIPTS=".github/workflows/scripts"
 CMD="$1"; shift
 
 case "$CMD" in
-  ship)
-    VM="${1:-}"
-    if [ "$VM" = "--all" ] || [ -z "$VM" ]; then
-      exec bash "$SCRIPTS/cloud-ship-orchestrate-portable.sh" "$@"
-    else
-      export SSH_ALIAS="${SSH_ALIAS:-$VM}"
-      export CHANGED_DIRS="${CHANGED_DIRS:-}"
-      exec bash "$SCRIPTS/cloud-ship-ci-builder-dispatch.sh" "$VM" "$@"
-    fi
+  ship|ship-hm)
+    VM="${1:-all}"
+    export SSH_ALIAS="${SSH_ALIAS:-$VM}"
+    export CHANGED_DIRS="${CHANGED_DIRS:-}"
+    exec bash "$SCRIPTS/cloud-ship-ci-builder-dispatch.sh" "$CMD" "$VM" "$@"
     ;;
-  health)
+  health|cicd-health)
     exec bash "$SCRIPTS/cloud-health-full.sh" "$@"
     ;;
-  gen-configs)
+  gen-configs|cicd-gen-configs)
     exec bash "$SCRIPTS/cloud-ship-orchestrate-gen-configs.sh" "$@"
     ;;
-  ship-hm)
-    exec bash "$SCRIPTS/cloud-ship-ci-builder-dispatch.sh" "$@"
+  cicd-ship|cicd-ship-hm)
+    # Strip cicd- prefix and dispatch
+    ENGINE="${CMD#cicd-}"
+    VM="${1:-all}"
+    export SSH_ALIAS="${SSH_ALIAS:-$VM}"
+    export CHANGED_DIRS="${CHANGED_DIRS:-}"
+    exec bash "$SCRIPTS/cloud-ship-ci-builder-dispatch.sh" "$ENGINE" "$VM" "$@"
+    ;;
+  cicd-terraform)
+    exec bash "$SCRIPTS/cloud-ship-terraform-deploy-apply.sh" "$@"
     ;;
   bash|sh)
     exec bash "$@"
