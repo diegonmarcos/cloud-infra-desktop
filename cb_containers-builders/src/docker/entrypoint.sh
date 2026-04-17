@@ -20,7 +20,11 @@ set -e
 # ── 1. Nix/HM profile ─────────────────────────────────────────────
 [ -f /root/.nix-profile/etc/profile.d/nix.sh ] && . /root/.nix-profile/etc/profile.d/nix.sh 2>/dev/null
 [ -f /root/.nix-profile/etc/profile.d/hm-session-vars.sh ] && . /root/.nix-profile/etc/profile.d/hm-session-vars.sh 2>/dev/null
-export PATH="$HOME/.nix-profile/bin:$HOME/.node_modules/node_modules/.bin:/usr/local/bin:$PATH"
+# HM home-path has the actual tool binaries (jq, node, sops, etc.)
+HM_PROFILE="$HOME/.local/state/nix/profiles/home-manager"
+HM_PATH=""
+[ -d "$HM_PROFILE/home-path/bin" ] && HM_PATH="$HM_PROFILE/home-path/bin"
+export PATH="$HM_PATH:$HOME/.nix-profile/bin:$HOME/.node_modules/node_modules/.bin:/usr/local/bin:$PATH"
 
 # ── 2. Help / passthrough ─────────────────────────────────────────
 case "${1:-}" in
