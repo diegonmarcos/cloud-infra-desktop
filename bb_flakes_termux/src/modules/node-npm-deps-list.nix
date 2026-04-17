@@ -13,7 +13,7 @@
 
   config.nodeNpmDeps.static = {
     # ── Essential CLI tools ──
-    "@anthropic-ai/claude-code" = "^2.1.0";
+    # claude-code: installed as direct Bun binary from GCS (node-bins.nix), not npm
     "tsx" = "^4.19.0";
     "typescript" = "^5.7.0";
 
