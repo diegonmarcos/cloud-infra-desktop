@@ -11,6 +11,11 @@ if command -v zoxide &>/dev/null
   zoxide init fish | source
 end
 
+# Atuin (shell history)
+if command -v atuin &>/dev/null
+  atuin init fish | source
+end
+
 # FZF
 if command -v fzf &>/dev/null
   fzf --fish | source
