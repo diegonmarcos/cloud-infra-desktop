@@ -179,7 +179,7 @@ case "$CMD" in
     exec bash "$SCRIPTS/cloud-ship-orchestrate-gen-configs.sh" "$@"
     ;;
   ship-hm)
-    exec bash "$SCRIPTS/cloud-ship-ci-builder-dispatch.sh" "$@"
+    exec bash "$SCRIPTS/cloud-ship-ci-builder-dispatch.sh" ship-hm "$@"
     ;;
   ship-reports)
     CLOUD_DATA_SCRIPTS="$HOME/git/cloud-data/.github/workflows/scripts"
