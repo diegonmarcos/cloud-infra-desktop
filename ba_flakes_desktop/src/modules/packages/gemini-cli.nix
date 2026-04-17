@@ -4,12 +4,12 @@
 
 buildNpmPackage rec {
   pname = "gemini-cli";
-  version = "0.27.0";
+  version = "0.38.1";
 
   # Use pre-built npm tarball (has dist/ already compiled)
   src = fetchurl {
     url = "https://registry.npmjs.org/@google/gemini-cli/-/gemini-cli-${version}.tgz";
-    hash = "sha256-wTbwHC2gFTDq85trg/kRczio8QjHmOVNWG2RrB6AiEQ=";
+    hash = "sha256-eXyPigS+RQwzCX5p+p4VhBVKgd7vJwLMuwAT/pPfpFg=";
   };
 
   # Package-lock.json generated from npm tarball
@@ -18,7 +18,7 @@ buildNpmPackage rec {
   '';
 
   # Hash computed via: nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-  npmDepsHash = "sha256-V6TvgcvfTaMgdoKo2TTp3tx7cCzV4keNYxh3OheOk58=";
+  npmDepsHash = "sha256-amRpURnPXoqrv1WObFnkZMVzi4IJn/CKmA7WGbeasIU=";
 
   # Native deps for keytar (credential storage)
   nativeBuildInputs = [ pkg-config python3 makeWrapper ];

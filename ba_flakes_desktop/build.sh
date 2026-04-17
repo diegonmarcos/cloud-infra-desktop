@@ -335,6 +335,13 @@ nix_switch() {
 
     perf_end
     log_success "Configuration applied: $flake_ref"
+
+    # Show cached drift summary (instant, no network)
+    if command -v nix-drift >/dev/null 2>&1; then
+        nix-drift drift --cached 2>/dev/null || true
+        # Refresh cache in background for next switch
+        nix-drift refresh &
+    fi
 }
 
 nix_update() {
