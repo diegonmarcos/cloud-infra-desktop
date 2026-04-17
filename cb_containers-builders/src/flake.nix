@@ -136,8 +136,10 @@
     packages = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
     in {
-      default = pkgs.runCommand "builders-compose" {} ''
-        mkdir -p $out
+      default = pkgs.runCommand "builders-dist" {} ''
+        mkdir -p $out/docker
+
+        # ── Generated compose files ──
         cp ${pkgs.writeText "compose-x-deb-nixhm.yaml" (mkBuilderCompose {
           variant = "x-deb-nixhm";
           imageName = "cloud-builder-x-deb-nixhm";
@@ -150,6 +152,22 @@
           platform = "linux/amd64,linux/arm64";
         })} $out/compose-apt.yaml
 
+        # ── Dockerfiles ──
+        cp ${./Dockerfile.x-deb-nixhm} $out/Dockerfile.x-deb-nixhm
+        cp ${./Dockerfile.apt} $out/Dockerfile.apt
+
+        # ── Docker runtime files (entrypoint, scripts, compose) ──
+        cp ${./docker/Dockerfile} $out/docker/Dockerfile
+        cp ${./docker/compose.yaml} $out/docker/compose.yaml
+        cp ${./docker/entrypoint.sh} $out/docker/entrypoint.sh
+        cp ${./docker/cloud-builder.sh} $out/docker/cloud-builder.sh
+        cp ${./docker/docker-up.sh} $out/docker/docker-up.sh
+        cp ${./docker/gen-configs.sh} $out/docker/gen-configs.sh
+        cp ${./docker/health.sh} $out/docker/health.sh
+        cp ${./docker/ship-hm.sh} $out/docker/ship-hm.sh
+        cp ${./docker/ship-services.sh} $out/docker/ship-services.sh
+
+        # ── Config ──
         cp ${../build.json} $out/build.json
         cp ${config-json} $out/config.json
       '';
