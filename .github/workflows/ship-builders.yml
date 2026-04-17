@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       variant:
-        description: "Image variant (cloud-builder-x-deb-nixhm, cloud-builder-x-deb-apt, cloud-builder-x-deb-apt-forge, all)"
+        description: "Image variant (cloud-builder-x-deb-nixhm, cloud-builder-x-deb-apt, all)"
         required: false
         default: "cloud-builder-x-deb-nixhm"
 
