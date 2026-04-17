@@ -12,6 +12,7 @@
     "AUTHELIA_TOKEN_URL": "https://auth.diegonmarcos.com/api/oidc/token"
   },
   "alwaysThinkingEnabled": true,
+  "effortLevel": "xhigh",
   "hooks": {
     "SessionStart": [
       {

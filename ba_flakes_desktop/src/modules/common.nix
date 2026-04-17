@@ -125,6 +125,12 @@
   # News notifications
   news.display = "silent";
 
+  # nix-drift — version drift detection, runs post-switch
+  home.file.".local/bin/nix-drift" = {
+    source = ./dotfiles/nix-drift.sh;
+    executable = true;
+  };
+
   # Claude Code configuration + MCP server config
   # CLAUDE.md is generated dynamically from template + cloud-data at activation time
   home.file.".claude/CLAUDE.md.tpl".source = ./dotfiles/claude/CLAUDE.md.tpl;

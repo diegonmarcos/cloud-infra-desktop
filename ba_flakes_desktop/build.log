@@ -21772,3 +21772,629 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-04-17 17:19:10] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-04-17 17:19:10] PERF: start switch
 [2026-04-17 17:19:10] INFO: Staging dirty files for flake evaluation...
+[2026-04-17 17:19:10] PERF: git stage = 97ms
+[2026-04-17 17:19:10] PERF: clean backups = 20ms
+[2026-04-17 17:19:10] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+No change so reusing latest profile generation 321
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] No cloud-data-deps.json found
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] WARNING: cloud-data or template not found, using static fallback
+Activating globalTsx
+
+changed 5 packages in 2s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] none → 2.1.112 (linux-x64)
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.dymGxJ46vY/generation/activate: line 800: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-17 17:20:22] PERF: home-manager switch = 1m 12s
+[2026-04-17 17:20:22] PERF: TOTAL switch = 1m 12s
+[2026-04-17 17:20:22] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-17 17:20:22] ========== Build script finished ==========
+[2026-04-17 17:56:21] ========== Build script started ==========
+[2026-04-17 17:56:21] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-17 17:56:21] PERF: start switch
+[2026-04-17 17:56:21] INFO: Staging dirty files for flake evaluation...
+[2026-04-17 17:56:21] PERF: git stage = 96ms
+[2026-04-17 17:56:21] PERF: clean backups = 19ms
+[2026-04-17 17:56:21] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 2 derivations will be built:
+  /nix/store/h05qhdl9s2lbzh5rxlg1hvswl2x6whff-home-manager-files.drv
+  /nix/store/n4lv5wnh4s53zqxpy193r8d2w47y9q98-home-manager-generation.drv
+building '/nix/store/h05qhdl9s2lbzh5rxlg1hvswl2x6whff-home-manager-files.drv'...
+building '/nix/store/n4lv5wnh4s53zqxpy193r8d2w47y9q98-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 322
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] No cloud-data-deps.json found
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] WARNING: cloud-data or template not found, using static fallback
+Activating globalTsx
+
+changed 5 packages in 2s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.112 is up to date
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.XoZih8OT5z/generation/activate: line 800: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-17 17:56:46] PERF: home-manager switch = 25.1s
+[2026-04-17 17:56:46] PERF: TOTAL switch = 25.3s
+[2026-04-17 17:56:46] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-17 17:56:46] ========== Build script finished ==========
+[2026-04-17 18:00:32] ========== Build script started ==========
+[2026-04-17 18:00:32] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-17 18:00:32] PERF: start switch
+[2026-04-17 18:00:32] INFO: Staging dirty files for flake evaluation...
+[2026-04-17 18:00:32] PERF: git stage = 83ms
+[2026-04-17 18:00:32] PERF: clean backups = 18ms
+[2026-04-17 18:00:32] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 2 derivations will be built:
+  /nix/store/id5jkf6amdc6l1iwih3kr540hmi4iafm-home-manager-files.drv
+  /nix/store/x6y67qqcp6wdpwgyd2wk07ifkmn21gwb-home-manager-generation.drv
+building '/nix/store/id5jkf6amdc6l1iwih3kr540hmi4iafm-home-manager-files.drv'...
+building '/nix/store/x6y67qqcp6wdpwgyd2wk07ifkmn21gwb-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 323
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] No cloud-data-deps.json found
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] WARNING: cloud-data or template not found, using static fallback
+Activating globalTsx
+
+changed 5 packages in 530ms
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.112 is up to date
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.P5giFrIRnu/generation/activate: line 800: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-17 18:00:56] PERF: home-manager switch = 24.0s
+[2026-04-17 18:00:56] PERF: TOTAL switch = 24.2s
+[2026-04-17 18:00:56] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-17 18:00:57] ========== Build script finished ==========
+[2026-04-17 18:01:22] ========== Build script started ==========
+[2026-04-17 18:01:22] ========== Build script finished ==========
+[2026-04-17 18:01:28] ========== Build script started ==========
+[2026-04-17 18:01:28] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-17 18:01:28] PERF: start switch
+[2026-04-17 18:01:28] INFO: Staging dirty files for flake evaluation...
+[2026-04-17 18:01:28] PERF: git stage = 96ms
+[2026-04-17 18:01:28] PERF: clean backups = 27ms
+[2026-04-17 18:01:28] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+No change so reusing latest profile generation 323
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] No cloud-data-deps.json found
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 2s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] WARNING: cloud-data or template not found, using static fallback
+Activating globalTsx
+
+changed 5 packages in 3s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.112 is up to date
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.q8CtgyZ5K4/generation/activate: line 800: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-17 18:02:29] PERF: home-manager switch = 1m 0s
+[2026-04-17 18:02:29] PERF: TOTAL switch = 1m 0s
+[2026-04-17 18:02:29] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-17 18:02:30] ========== Build script finished ==========
+[2026-04-17 18:52:55] ========== Build script started ==========
+[2026-04-17 18:52:55] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-17 18:52:55] PERF: start switch
+[2026-04-17 18:52:55] INFO: Staging dirty files for flake evaluation...
+[2026-04-17 18:52:55] PERF: git stage = 106ms
+[2026-04-17 18:52:55] PERF: clean backups = 21ms
+[2026-04-17 18:52:55] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 17 derivations will be built:
+  /nix/store/q553v6ynmgnhk97rcgc3c74zirl57mlx-gemini-cli-0.38.1-npm-deps.drv
+  /nix/store/260jccz5lxp8sc9nmwcfnwdgl5db3yw6-gemini-cli-0.38.1.drv
+  /nix/store/3a2jhc1gs8dhksbv5kblnilzymrxqyzd-home-manager-path.drv
+  /nix/store/30fl36brv1cislrw95j69nlx74456w6x-activation-script.drv
+  /nix/store/3d8l6jch301rzqwzj1flgmnhki6p8ns4-man-paths.drv
+  /nix/store/5bsj52fr756yi792hszyakinj3mkhf8g-rustc-wrapper-1.94.0-fish-completions.drv
+  /nix/store/5cyfiw1v9m924q9jm5x53vjgdgb8rw6b-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/5rjg8skfr1k56hzi6xap2wkn26j9jikk-gemini-cli-0.38.1-fish-completions.drv
+  /nix/store/cz0n604hhw929id4is4065pkzp8xizv0-rust-analyzer-2026-04-06-fish-completions.drv
+  /nix/store/npnrqykna5warv79m6gy2s43p4bzlpig-man-cache.drv
+  /nix/store/y5q8ip6722qgy4minbwwgaz82m9349ca-hm_.manpath.drv
+  /nix/store/mmm0i4sc2iwvs5m1pw7kpa92iw50v91x-clippy-1.94.0-fish-completions.drv
+  /nix/store/p1c0c760jb61g2q4ssi9l6z6ridqmjc9-rustfmt-1.94.0-fish-completions.drv
+  /nix/store/wf0rdmjrmwq1x2w4834wq4disrl6whx9-cargo-1.94.0-fish-completions.drv
+  /nix/store/y7w9l89s0vmvhdlv3x5gzv9d645p8lvx-diego-fish-completions.drv
+  /nix/store/hcn7gqw6rxijg3l5w9j241dd62lzz6nz-home-manager-files.drv
+  /nix/store/n0cbd07dz2v8n5xdz1bw9ixyv4fa09lk-home-manager-generation.drv
+these 47 paths will be fetched (489.79 MiB download, 2400.53 MiB unpacked):
+  /nix/store/v8sa6r6q037ihghxfbwzjj4p59v2x0pv-bash-5.3p9
+  /nix/store/sfvyavxai6qvzmv9p9x6mp4wwdz4v41m-bash-interactive-5.3p9
+  /nix/store/91nr5z1cwr1qch2wl58dppl02zrnlza3-brotli-1.2.0-lib
+  /nix/store/xlli1a8m35h5kwavjajnp6nl90xmjgcx-cargo-1.94.0
+  /nix/store/q2mk8k3ck5i720j6n3pwxhkh09sb1lp0-cargo-bootstrap-1.94.0
+  /nix/store/mzg6zmhw137mbbpq8z68ndq2rijmfwpb-clippy-1.94.0
+  /nix/store/dhdysbgmgqp936mvkf5f9s8fh2mk68k5-curl-8.18.0
+  /nix/store/wy0ak10aphfdh13nnm5k7ww6aidsxzi0-die-hook
+  /nix/store/ab3753m6i7isgvzphlar0a8xb84gl96i-gcc-15.2.0-lib
+  /nix/store/hbnbbbx1n96v1waiiaid9fmg4li4i1kp-gcc-15.2.0-libgcc
+  /nix/store/jms7zxzm7w1whczwny5m3gkgdjghmi2r-glibc-2.42-51
+  /nix/store/xq05h92mbb3xkn0fgkzcqgsldrsvmf27-install-shell-files
+  /nix/store/vy4nwn1qa5cm5nzfvn4zxqkrqwpm2by5-keyutils-1.6.3-lib
+  /nix/store/g2g1jvyldykkq49hhgvvkndbj731c676-krb5-1.22.1-lib
+  /nix/store/8zgy79sw0zjwfcfp78p883hkkdw0pdzs-libffi-3.5.2
+  /nix/store/1ga782ml07vy0h503ac4cin0h8d7q6yh-libidn2-2.3.8
+  /nix/store/bmjrwa35lpkc6b63ih8jfkdmyx6lpxy4-libpsl-0.21.5
+  /nix/store/lq3xr8iiayj65lpwazxpqfywm98n9lsh-libssh2-1.11.1
+  /nix/store/p7jg95rzvfalb95k3mskk0jqxc9d724n-libunistring-1.4.1
+  /nix/store/v5k7aj5qfr8spbak4xnjhb9g5g3dzsar-libxml2-2.15.1
+  /nix/store/aay8jyj44zii2l6k6y242s454d77nfrh-llvm-21.1.8-lib
+  /nix/store/nmlyrgn3klrc349b24k8yascjy62687p-make-shell-wrapper-hook
+  /nix/store/4zmr3iw5s719y5zz7h2dnym67x2i6n23-ncurses-6.6
+  /nix/store/jv35gdc4dfr0h8idwicn6h1h3r7pa13v-nghttp2-1.67.1-lib
+  /nix/store/wp4km4x6x2h98i412lr9mwgsr82r56j3-nghttp3-1.14.0
+  /nix/store/afhc4clmmfc8p62k9h7bh7kb7ayl72c4-ngtcp2-1.19.0
+  /nix/store/r4vcgcx91pgrira0nh8pkhnxsyawk8m8-nodejs-install-executables
+  /nix/store/qyaax7sm8a66pca51j2w7kbji1bi29ym-nodejs-install-manuals
+  /nix/store/2i7kk9s6s7xd1mbk84ad9krg1r00cijk-npm-build-hook
+  /nix/store/2pvpgyb77hrfj1nrq58ip412snfqxvjs-npm-config-hook
+  /nix/store/an8ww07vc744m294jydnp49n1cyjp6gb-npm-install-hook
+  /nix/store/bga5xf95jaypy385hvxm4h3yxl3m1566-openssl-3.6.1
+  /nix/store/d89jdm44kd24yn0yaz7aishw1cyzi396-publicsuffix-list-0-unstable-2026-03-02
+  /nix/store/qq90p0xx02ydaqv2gv28mx4qx2vk98fq-readline-8.3p3
+  /nix/store/1baa9cw5lga4ynkps32x6f81jrmwvbkq-rust-analyzer-2026-04-06
+  /nix/store/m3gbwm7gjgibla2gfqcwc0pv34d2xhsr-rust-analyzer-unwrapped-2026-04-06
+  /nix/store/g0h0cwdg435zp26jkabi6qmqnz5ibv9g-rust-lib-src
+  /nix/store/yg8bg3shg4rrxc8yy2qbmbay1mjv48v5-rustc-1.94.0
+  /nix/store/0q926k3knv9ywv773vd3yr00yph02gmc-rustc-1.94.0-man
+  /nix/store/1jib3n4b8k199ga8bg20zdpfvz0ajlrk-rustc-bootstrap-1.94.0
+  /nix/store/4ccsp8cd78v5mq501hxnjkkdcjk3flwm-rustc-bootstrap-wrapper-1.94.0
+  /nix/store/0xjd3nsmh0ffrwl54bagfrx9kzx1cwic-rustc-wrapper-1.94.0
+  /nix/store/jx11xay19n65xnk0hkhh1xvlj0hnkjxl-rustc-wrapper-1.94.0-man
+  /nix/store/c96dfsfw69vss3qr9k5z70sg3zbmvp68-rustfmt-1.94.0
+  /nix/store/vpxblivamvic1p5r5zny934jvg33m50r-xgcc-15.2.0-libgcc
+  /nix/store/2kdz3m7ic8w226pcvkz1dlg169v91p6a-zlib-1.3.2
+  /nix/store/29mmnqpc1p3iv8wj0lpvicajy3jsbx87-zstd-1.5.7
+copying path '/nix/store/g0h0cwdg435zp26jkabi6qmqnz5ibv9g-rust-lib-src' from 'https://cache.nixos.org'...
+copying path '/nix/store/0q926k3knv9ywv773vd3yr00yph02gmc-rustc-1.94.0-man' from 'https://cache.nixos.org'...
+copying path '/nix/store/hbnbbbx1n96v1waiiaid9fmg4li4i1kp-gcc-15.2.0-libgcc' from 'https://cache.nixos.org'...
+copying path '/nix/store/vpxblivamvic1p5r5zny934jvg33m50r-xgcc-15.2.0-libgcc' from 'https://cache.nixos.org'...
+copying path '/nix/store/p7jg95rzvfalb95k3mskk0jqxc9d724n-libunistring-1.4.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/2i7kk9s6s7xd1mbk84ad9krg1r00cijk-npm-build-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/d89jdm44kd24yn0yaz7aishw1cyzi396-publicsuffix-list-0-unstable-2026-03-02' from 'https://cache.nixos.org'...
+copying path '/nix/store/wy0ak10aphfdh13nnm5k7ww6aidsxzi0-die-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/xq05h92mbb3xkn0fgkzcqgsldrsvmf27-install-shell-files' from 'https://cache.nixos.org'...
+copying path '/nix/store/2pvpgyb77hrfj1nrq58ip412snfqxvjs-npm-config-hook' from 'https://cache.nixos.org'...
+building '/nix/store/q553v6ynmgnhk97rcgc3c74zirl57mlx-gemini-cli-0.38.1-npm-deps.drv'...
+copying path '/nix/store/1ga782ml07vy0h503ac4cin0h8d7q6yh-libidn2-2.3.8' from 'https://cache.nixos.org'...
+copying path '/nix/store/nmlyrgn3klrc349b24k8yascjy62687p-make-shell-wrapper-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/qyaax7sm8a66pca51j2w7kbji1bi29ym-nodejs-install-manuals' from 'https://cache.nixos.org'...
+copying path '/nix/store/jx11xay19n65xnk0hkhh1xvlj0hnkjxl-rustc-wrapper-1.94.0-man' from 'https://cache.nixos.org'...
+copying path '/nix/store/r4vcgcx91pgrira0nh8pkhnxsyawk8m8-nodejs-install-executables' from 'https://cache.nixos.org'...
+copying path '/nix/store/jms7zxzm7w1whczwny5m3gkgdjghmi2r-glibc-2.42-51' from 'https://cache.nixos.org'...
+copying path '/nix/store/an8ww07vc744m294jydnp49n1cyjp6gb-npm-install-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/v8sa6r6q037ihghxfbwzjj4p59v2x0pv-bash-5.3p9' from 'https://cache.nixos.org'...
+copying path '/nix/store/ab3753m6i7isgvzphlar0a8xb84gl96i-gcc-15.2.0-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/91nr5z1cwr1qch2wl58dppl02zrnlza3-brotli-1.2.0-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/vy4nwn1qa5cm5nzfvn4zxqkrqwpm2by5-keyutils-1.6.3-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/v5k7aj5qfr8spbak4xnjhb9g5g3dzsar-libxml2-2.15.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/jv35gdc4dfr0h8idwicn6h1h3r7pa13v-nghttp2-1.67.1-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/bmjrwa35lpkc6b63ih8jfkdmyx6lpxy4-libpsl-0.21.5' from 'https://cache.nixos.org'...
+copying path '/nix/store/8zgy79sw0zjwfcfp78p883hkkdw0pdzs-libffi-3.5.2' from 'https://cache.nixos.org'...
+copying path '/nix/store/4zmr3iw5s719y5zz7h2dnym67x2i6n23-ncurses-6.6' from 'https://cache.nixos.org'...
+copying path '/nix/store/wp4km4x6x2h98i412lr9mwgsr82r56j3-nghttp3-1.14.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/2kdz3m7ic8w226pcvkz1dlg169v91p6a-zlib-1.3.2' from 'https://cache.nixos.org'...
+copying path '/nix/store/bga5xf95jaypy385hvxm4h3yxl3m1566-openssl-3.6.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/lq3xr8iiayj65lpwazxpqfywm98n9lsh-libssh2-1.11.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/afhc4clmmfc8p62k9h7bh7kb7ayl72c4-ngtcp2-1.19.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/g2g1jvyldykkq49hhgvvkndbj731c676-krb5-1.22.1-lib' from 'https://cache.nixos.org'...
+building '/nix/store/260jccz5lxp8sc9nmwcfnwdgl5db3yw6-gemini-cli-0.38.1.drv'...
+copying path '/nix/store/aay8jyj44zii2l6k6y242s454d77nfrh-llvm-21.1.8-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/29mmnqpc1p3iv8wj0lpvicajy3jsbx87-zstd-1.5.7' from 'https://cache.nixos.org'...
+copying path '/nix/store/m3gbwm7gjgibla2gfqcwc0pv34d2xhsr-rust-analyzer-unwrapped-2026-04-06' from 'https://cache.nixos.org'...
+copying path '/nix/store/dhdysbgmgqp936mvkf5f9s8fh2mk68k5-curl-8.18.0' from 'https://cache.nixos.org'...
+warning: download buffer is full; consider increasing the 'download-buffer-size' setting
+copying path '/nix/store/1baa9cw5lga4ynkps32x6f81jrmwvbkq-rust-analyzer-2026-04-06' from 'https://cache.nixos.org'...
+building '/nix/store/cz0n604hhw929id4is4065pkzp8xizv0-rust-analyzer-2026-04-06-fish-completions.drv'...
+copying path '/nix/store/qq90p0xx02ydaqv2gv28mx4qx2vk98fq-readline-8.3p3' from 'https://cache.nixos.org'...
+copying path '/nix/store/sfvyavxai6qvzmv9p9x6mp4wwdz4v41m-bash-interactive-5.3p9' from 'https://cache.nixos.org'...
+copying path '/nix/store/1jib3n4b8k199ga8bg20zdpfvz0ajlrk-rustc-bootstrap-1.94.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/yg8bg3shg4rrxc8yy2qbmbay1mjv48v5-rustc-1.94.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/4ccsp8cd78v5mq501hxnjkkdcjk3flwm-rustc-bootstrap-wrapper-1.94.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/q2mk8k3ck5i720j6n3pwxhkh09sb1lp0-cargo-bootstrap-1.94.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/mzg6zmhw137mbbpq8z68ndq2rijmfwpb-clippy-1.94.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/0xjd3nsmh0ffrwl54bagfrx9kzx1cwic-rustc-wrapper-1.94.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/xlli1a8m35h5kwavjajnp6nl90xmjgcx-cargo-1.94.0' from 'https://cache.nixos.org'...
+building '/nix/store/5bsj52fr756yi792hszyakinj3mkhf8g-rustc-wrapper-1.94.0-fish-completions.drv'...
+building '/nix/store/mmm0i4sc2iwvs5m1pw7kpa92iw50v91x-clippy-1.94.0-fish-completions.drv'...
+building '/nix/store/5rjg8skfr1k56hzi6xap2wkn26j9jikk-gemini-cli-0.38.1-fish-completions.drv'...
+copying path '/nix/store/c96dfsfw69vss3qr9k5z70sg3zbmvp68-rustfmt-1.94.0' from 'https://cache.nixos.org'...
+building '/nix/store/wf0rdmjrmwq1x2w4834wq4disrl6whx9-cargo-1.94.0-fish-completions.drv'...
+building '/nix/store/3a2jhc1gs8dhksbv5kblnilzymrxqyzd-home-manager-path.drv'...
+building '/nix/store/3d8l6jch301rzqwzj1flgmnhki6p8ns4-man-paths.drv'...
+building '/nix/store/p1c0c760jb61g2q4ssi9l6z6ridqmjc9-rustfmt-1.94.0-fish-completions.drv'...
+building '/nix/store/y7w9l89s0vmvhdlv3x5gzv9d645p8lvx-diego-fish-completions.drv'...
+building '/nix/store/npnrqykna5warv79m6gy2s43p4bzlpig-man-cache.drv'...
+building '/nix/store/30fl36brv1cislrw95j69nlx74456w6x-activation-script.drv'...
+building '/nix/store/5cyfiw1v9m924q9jm5x53vjgdgb8rw6b-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/y5q8ip6722qgy4minbwwgaz82m9349ca-hm_.manpath.drv'...
+building '/nix/store/hcn7gqw6rxijg3l5w9j241dd62lzz6nz-home-manager-files.drv'...
+building '/nix/store/n0cbd07dz2v8n5xdz1bw9ixyv4fa09lk-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 324
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] No cloud-data-deps.json found
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+npm error code 1
+npm error path /home/diego/.node_modules/node_modules/better-sqlite3
+npm error command failed
+npm error command sh -c prebuild-install || node-gyp rebuild --release
+npm error prebuild-install warn install Request timed out
+npm error gyp info it worked if it ends with ok
+npm error gyp info using node-gyp@11.0.0
+npm error gyp info using node@22.16.0 | linux | x64
+npm error gyp ERR! find Python 
+npm error gyp ERR! find Python Python is not set from command line or npm configuration
+npm error gyp ERR! find Python Python is not set from environment variable PYTHON
+npm error gyp ERR! find Python checking if "python3" can be used
+npm error gyp ERR! find Python - executable path is ""
+npm error gyp ERR! find Python - "" could not be run
+npm error gyp ERR! find Python checking if "python" can be used
+npm error gyp ERR! find Python - executable path is ""
+npm error gyp ERR! find Python - "" could not be run
+npm error gyp ERR! find Python 
+npm error gyp ERR! find Python **********************************************************
+npm error gyp ERR! find Python You need to install the latest version of Python.
+npm error gyp ERR! find Python Node-gyp should be able to find and use Python. If not,
+npm error gyp ERR! find Python you can try one of the following options:
+npm error gyp ERR! find Python - Use the switch --python="/path/to/pythonexecutable"
+npm error gyp ERR! find Python (accepted by both node-gyp and npm)
+npm error gyp ERR! find Python - Set the environment variable PYTHON
+npm error gyp ERR! find Python - Set the npm configuration variable python:
+npm error gyp ERR! find Python npm config set python "/path/to/pythonexecutable"
+npm error gyp ERR! find Python For more information consult the documentation at:
+npm error gyp ERR! find Python https://github.com/nodejs/node-gyp#installation
+npm error gyp ERR! find Python **********************************************************
+npm error gyp ERR! find Python 
+npm error gyp ERR! configure error 
+npm error gyp ERR! stack Error: Could not find any Python installation to use
+npm error gyp ERR! stack at PythonFinder.fail (/nix/store/b3x7xvp565xqlj0whi2giwgbrplfwfpb-nodejs-22.16.0/lib/node_modules/npm/node_modules/node-gyp/lib/find-python.js:306:11)
+npm error gyp ERR! stack at PythonFinder.findPython (/nix/store/b3x7xvp565xqlj0whi2giwgbrplfwfpb-nodejs-22.16.0/lib/node_modules/npm/node_modules/node-gyp/lib/find-python.js:164:17)
+npm error gyp ERR! stack at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+npm error gyp ERR! stack at async configure (/nix/store/b3x7xvp565xqlj0whi2giwgbrplfwfpb-nodejs-22.16.0/lib/node_modules/npm/node_modules/node-gyp/lib/configure.js:27:18)
+npm error gyp ERR! stack at async run (/nix/store/b3x7xvp565xqlj0whi2giwgbrplfwfpb-nodejs-22.16.0/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js:81:18)
+npm error gyp ERR! System Linux 6.15.9
+npm error gyp ERR! command "/nix/store/b3x7xvp565xqlj0whi2giwgbrplfwfpb-nodejs-22.16.0/bin/node" "/nix/store/b3x7xvp565xqlj0whi2giwgbrplfwfpb-nodejs-22.16.0/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "rebuild" "--release"
+npm error gyp ERR! cwd /home/diego/.node_modules/node_modules/better-sqlite3
+npm error gyp ERR! node -v v22.16.0
+npm error gyp ERR! node-gyp -v v11.0.0
+npm error gyp ERR! not ok
+npm error A complete log of this run can be found in: /mnt/shared/data/cache/npm/_logs/2026-04-17T16_54_46_525Z-debug-0.log
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] WARNING: cloud-data or template not found, using static fallback
+Activating globalTsx
+
+changed 5 packages in 1s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.112 is up to date
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.L7ljPOjIEs/generation/activate: line 800: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-17 18:55:24] PERF: home-manager switch = 2m 28s
+[2026-04-17 18:55:24] PERF: TOTAL switch = 2m 28s
+[2026-04-17 18:55:24] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-17 18:55:24] ========== Build script finished ==========
+[2026-04-17 19:04:12] ========== Build script started ==========
+[2026-04-17 19:04:12] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-17 19:04:12] PERF: start switch
+[2026-04-17 19:04:12] INFO: Staging dirty files for flake evaluation...
