@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       variant:
-        description: "Image variant (x86-cloudlight, x86-forge, arm-cloudlight, all)"
+        description: "Image variant (x86-cloudlight, arm-cloudlight, all)"
         required: false
         default: "x86-cloudlight"
 
