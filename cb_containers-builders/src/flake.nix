@@ -145,11 +145,17 @@
       };
     });
 
-    # ── Output 2: Home Manager config (Docker image) ────────────────
+    # ── Output 2: Home Manager configs (per-arch for Docker image) ───
     # Same packages as devShell — identical environment
-    homeConfigurations."root@cloud-builder" =
+    homeConfigurations."root@cloud-builder-x86_64" =
       home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs { system = "x86_64-linux"; config.allowUnfree = true; };
+        modules = [ ./cloud-builder.nix ];
+        extraSpecialArgs = { inherit configJson; };
+      };
+    homeConfigurations."root@cloud-builder-aarch64" =
+      home-manager.lib.homeManagerConfiguration {
+        pkgs = import nixpkgs { system = "aarch64-linux"; config.allowUnfree = true; };
         modules = [ ./cloud-builder.nix ];
         extraSpecialArgs = { inherit configJson; };
       };

@@ -50,8 +50,14 @@ RUN if [ -n "$GITHUB_TOKEN" ]; then \
 # Update only config-json (lock already has home-manager + nixpkgs pinned)
 RUN nix flake update config-json
 
-# Build the home-manager activation package
-RUN nix build '.#homeConfigurations."root@cloud-builder".activationPackage' \
+# Build the home-manager activation package (arch-specific)
+RUN ARCH=$(uname -m); \
+    case "$ARCH" in \
+      x86_64)  HM_CONFIG="root@cloud-builder-x86_64" ;; \
+      aarch64) HM_CONFIG="root@cloud-builder-aarch64" ;; \
+      *)       echo "Unsupported arch: $ARCH"; exit 1 ;; \
+    esac; \
+    nix build ".#homeConfigurations.\"$HM_CONFIG\".activationPackage" \
     --no-link --print-out-paths > /build/hm-result-path.txt
 
 # ── Stage 3: Final image ────────────────────────────────────────
