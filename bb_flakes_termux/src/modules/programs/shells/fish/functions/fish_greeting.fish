@@ -211,14 +211,15 @@ set_color cyan; echo "  System:"
 set_color normal
 set_color magenta; echo -n "    tree             "; set_color normal; echo "Directory tree"
 set_color magenta; echo -n "    yazi             "; set_color normal; echo "Terminal file manager"
+set_color magenta; echo -n "    tldr             "; set_color normal; echo "Simplified man pages (tealdeer)"
 set_color magenta; echo -n "    carbonyl         "; set_color normal; echo "Chromium browser in the terminal"
 set_color magenta; echo -n "    nmtui            "; set_color normal; echo "Network Manager TUI (WiFi, VPN, connections)"
 # Search (fzf)
-set_color cyan; echo "  Search (fzf):"
+set_color cyan; echo "  Search (fzf + atuin):"
 set_color normal
-set_color blue; echo -n "    Ctrl+T           "; set_color normal; echo "Find file"
-set_color blue; echo -n "    Ctrl+R           "; set_color normal; echo "Search history"
-set_color blue; echo -n "    Alt+C            "; set_color normal; echo "Cd to folder"
+set_color blue; echo -n "    ↑ / Ctrl+R       "; set_color normal; echo "Atuin history search (synced, fuzzy)"
+set_color blue; echo -n "    Ctrl+T           "; set_color normal; echo "Find file (fzf)"
+set_color blue; echo -n "    Alt+C            "; set_color normal; echo "Cd to folder (fzf)"
 echo ""
 set_color --dim; echo "    ('hhelp tools' — all binaries declared in flake)"; set_color normal
 echo ""

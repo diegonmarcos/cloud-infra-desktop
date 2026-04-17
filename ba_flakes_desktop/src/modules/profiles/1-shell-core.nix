@@ -14,6 +14,8 @@
     ripgrep          # grep replacement
     fzf              # fuzzy finder
     zoxide           # smart cd (frecency)
+    atuin            # shell history search (arrow-up, Ctrl+R)
+    tealdeer         # tldr — simplified man pages
     yazi             # TUI file manager
     btop             # resource monitor
     multitail        # multi-file tail with split view
