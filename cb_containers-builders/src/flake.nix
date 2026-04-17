@@ -150,12 +150,6 @@
           platform = "linux/amd64,linux/arm64";
         })} $out/compose-apt.yaml
 
-        cp ${pkgs.writeText "compose-forge.yaml" (mkBuilderCompose {
-          variant = "forge";
-          imageName = "cloud-builder-x-deb-nixhm-forge";
-          platform = "linux/amd64,linux/arm64";
-        })} $out/compose-forge.yaml
-
         cp ${../build.json} $out/build.json
         cp ${config-json} $out/config.json
       '';
