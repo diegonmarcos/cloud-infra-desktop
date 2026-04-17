@@ -411,6 +411,7 @@
                 ./modules/node-npm-deps.nix
                 ./modules/node-bins.nix
                 ./modules/web-server-md-eruda.nix
+                ./modules/sshd.nix
                 ./modules/programs/shells/fish-greeting.nix
                 ./modules/wireguard.nix
               ];

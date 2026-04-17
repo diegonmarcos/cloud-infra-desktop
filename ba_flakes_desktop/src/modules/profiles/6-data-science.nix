@@ -4,8 +4,8 @@
 
 {
   home.packages = with pkgs; [
-    # AI CLI tools (custom packages)
-    customPkgs.claude-code
+    # AI CLI tools
+    # claude-code: direct Bun binary from Anthropic GCS + patchelf (common.nix activation)
     customPkgs.gemini-cli
     # customPkgs.cloud-infra-mcp  # TODO: define this custom package
 

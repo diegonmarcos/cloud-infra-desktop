@@ -33,20 +33,30 @@
     fi
   '';
 
-  # Claude Code (@anthropic-ai/claude-code)
+  # Claude Code — direct Bun binary from Anthropic GCS (no npm)
   home.activation.globalClaudeCode = lib.hm.dag.entryAfter ["linkGeneration"] ''
-    PATH="${nodejs}/bin:$PATH"
-    CURRENT=$(${nodejs}/bin/node -e "try{console.log(require('@anthropic-ai/claude-code/package.json').version)}catch{}" 2>/dev/null || true)
+    CLAUDE_BIN="$HOME/.local/bin/claude"
+    CLAUDE_GCS="https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases"
+    ARCH="linux-arm64"
+
+    mkdir -p "$HOME/.local/bin"
+
+    CURRENT=""
+    if [ -x "$CLAUDE_BIN" ]; then
+      CURRENT=$("$CLAUDE_BIN" --version 2>/dev/null | head -1 | sed 's/ .*//' || true)
+    fi
     LATEST=$(${nodejs}/bin/npm view @anthropic-ai/claude-code version 2>/dev/null || true)
 
     if [ -z "$CURRENT" ]; then
-      printf "[node-bins] Installing claude-code@%s\n" "$LATEST"
-      $DRY_RUN_CMD ${nodejs}/bin/npm install -g @anthropic-ai/claude-code --no-audit --no-fund || true
+      printf "[claude-code] Installing %s (%s)\n" "$LATEST" "$ARCH"
+      $DRY_RUN_CMD curl -fsSL "$CLAUDE_GCS/$LATEST/$ARCH/claude" -o "$CLAUDE_BIN"
+      $DRY_RUN_CMD chmod 755 "$CLAUDE_BIN"
     elif [ -n "$LATEST" ] && [ "$CURRENT" != "$LATEST" ]; then
-      printf "[node-bins] Updating claude-code: %s → %s\n" "$CURRENT" "$LATEST"
-      $DRY_RUN_CMD ${nodejs}/bin/npm install -g @anthropic-ai/claude-code@latest --no-audit --no-fund || true
+      printf "[claude-code] Updating: %s → %s\n" "$CURRENT" "$LATEST"
+      $DRY_RUN_CMD curl -fsSL "$CLAUDE_GCS/$LATEST/$ARCH/claude" -o "$CLAUDE_BIN"
+      $DRY_RUN_CMD chmod 755 "$CLAUDE_BIN"
     else
-      printf "[node-bins] claude-code@%s is up to date\n" "$CURRENT"
+      printf "[claude-code] %s is up to date\n" "$CURRENT"
     fi
   '';
 }

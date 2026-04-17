@@ -198,13 +198,37 @@
     fi
   '';
 
-  # Remove npm-global claude-code — superseded by the patchelf'd Nix package.
-  # npm's ELF binary lacks a patched interpreter and triggers the NixOS stub-ld error.
-  home.activation.removeNpmClaude = lib.hm.dag.entryAfter ["linkGeneration"] ''
+  # Claude Code — direct Bun binary from Anthropic GCS + patchelf for NixOS
+  # Auto-updates on every home-manager switch. No npm dependency.
+  home.activation.installClaudeCode = lib.hm.dag.entryAfter ["linkGeneration"] ''
+    CLAUDE_BIN="$HOME/.local/bin/claude"
+    CLAUDE_GCS="https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases"
+    ARCH="linux-x64"
+    PATCHELF="${pkgs.patchelf}/bin/patchelf"
+    INTERPRETER="${pkgs.glibc}/lib/ld-linux-x86-64.so.2"
+
+    mkdir -p "$HOME/.local/bin"
+
+    CURRENT=""
+    if [ -x "$CLAUDE_BIN" ]; then
+      CURRENT=$("$CLAUDE_BIN" --version 2>/dev/null | head -1 | sed 's/ .*//' || true)
+    fi
+    LATEST=$(${pkgs.nodejs_22}/bin/npm view @anthropic-ai/claude-code version 2>/dev/null || true)
+
+    if [ -z "$CURRENT" ] || { [ -n "$LATEST" ] && [ "$CURRENT" != "$LATEST" ]; }; then
+      printf "[claude-code] %s → %s (%s)\n" "''${CURRENT:-none}" "$LATEST" "$ARCH"
+      $DRY_RUN_CMD ${pkgs.curl}/bin/curl -fsSL "$CLAUDE_GCS/$LATEST/$ARCH/claude" -o "$CLAUDE_BIN"
+      $DRY_RUN_CMD chmod 755 "$CLAUDE_BIN"
+      $DRY_RUN_CMD $PATCHELF --set-interpreter "$INTERPRETER" "$CLAUDE_BIN"
+      $DRY_RUN_CMD chmod 555 "$CLAUDE_BIN"
+    else
+      printf "[claude-code] %s is up to date\n" "$CURRENT"
+    fi
+
+    # Clean up stale npm-global claude if present
     NPM_PKG="$HOME/.npm-global/lib/node_modules/@anthropic-ai/claude-code"
     NPM_BIN="$HOME/.npm-global/bin/claude"
     if [ -d "$NPM_PKG" ] || [ -L "$NPM_BIN" ]; then
-      echo "[remove-npm-claude] Removing @anthropic-ai/claude-code (Nix package takes precedence)"
       $DRY_RUN_CMD rm -rf "$NPM_PKG" "$NPM_BIN" || true
     fi
   '';
