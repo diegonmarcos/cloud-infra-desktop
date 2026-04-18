@@ -76,10 +76,15 @@ step_build() {
     done
 
     # Generate docker-deps.sh from cloud/config.json
+    # Env override wins: set CLOUD_CONFIG=/path/to/config.json to point explicitly.
     _cloud_config=""
-    for _p in "$SCRIPT_DIR/../../cloud/config.json" "$SCRIPT_DIR/../../../cloud/config.json" "/root/git/cloud/config.json" "/workspace/config.json"; do
-        [ -f "$_p" ] && { _cloud_config="$_p"; break; }
-    done
+    if [ -n "${CLOUD_CONFIG:-}" ] && [ -f "$CLOUD_CONFIG" ]; then
+        _cloud_config="$CLOUD_CONFIG"
+    else
+        for _p in "$SCRIPT_DIR/../../cloud/config.json" "$SCRIPT_DIR/../../../cloud/config.json" "/root/git/cloud/config.json" "/workspace/config.json" "$SCRIPT_DIR/../cloud-repo/config.json"; do
+            [ -f "$_p" ] && { _cloud_config="$_p"; break; }
+        done
+    fi
     if [ -n "$_cloud_config" ]; then
         jq -r '"#!/bin/bash\nset -e\n\n# AUTO-GENERATED from cloud/config.json — DO NOT EDIT\n\napt-get update && apt-get install -y --no-install-recommends " + (.deps.docker_apt | join(" ")) + " && rm -rf /var/lib/apt/lists/*\nsed -i \"s/^# *\\(en_US.UTF-8\\)/\\1/\" /etc/locale.gen && locale-gen\n\nTF_VER=" + .deps.docker_binary.terraform + "\ncurl -sL \"https://releases.hashicorp.com/terraform/${TF_VER}/terraform_${TF_VER}_linux_amd64.zip\" -o /tmp/tf.zip\nunzip -o /tmp/tf.zip -d /usr/local/bin/ && rm /tmp/tf.zip\n\nRUST_VER=" + .deps.docker_binary.rust + "\ncurl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VER}\nln -sf /root/.cargo/bin/* /usr/local/bin/"' "$_cloud_config" > "$DIST_DIR/docker-deps.sh"
         chmod +x "$DIST_DIR/docker-deps.sh"
