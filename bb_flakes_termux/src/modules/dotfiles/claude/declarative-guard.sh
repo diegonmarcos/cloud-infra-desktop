@@ -10,6 +10,12 @@
 # ============================================================================
 
 cat <<'GUARD'
+## FIRE RULES (non-negotiable)
+1. NO INLINE COMMANDS FULL OF ARGS. NO HACKS EVER. Always fix the engine (`build.sh` / `_engine.sh` / flake) — never bypass it with a one-liner.
+2. NO IMPERATIVE SOLUTION if it is not already DECLARED. An "easy fix" is not a fix — it is a new potential BUG. Declarative always.
+3. DATA-DRIVEN ONLY. Never hardcode data in scripts. Use `build.json` or auxiliary `.json` files (cloud-data-*.json, config.json, etc.) as the source of truth.
+4. A TASK IS NOT DONE UNTIL IT HAS A TESTER. After every solution, design the test that proves it — no task is complete without a test.
+
 ## Stack Philosophy
 0. IMPERATIVE SOLUTIONS ARE FORBIDDEN
 1. FULLY DECLARATIVE ENVIRONMENT

@@ -17,6 +17,7 @@
     ncurses          # clear, tput
     git-filter-repo  # git history rewriting (purge secrets from commits)
     rsync            # build.sh deploy — sync dist/ to VMs
+    cliphist         # clipboard history (wl-paste --watch cliphist store)
     # wrangler: installed from pkgsNew (24.11) in flake.nix environment.packages
     #           nixpkgs 24.05 has 3.34 which lacks [observability] support (needs 3.60+)
   ];

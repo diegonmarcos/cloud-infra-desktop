@@ -11,9 +11,9 @@ if command -v zoxide &>/dev/null
   zoxide init fish | source
 end
 
-# Atuin (shell history)
+# Atuin (shell history) — keep arrow-up for classic per-command recall, Ctrl+R for atuin
 if command -v atuin &>/dev/null
-  atuin init fish | source
+  atuin init fish --disable-up-arrow | source
 end
 
 # FZF

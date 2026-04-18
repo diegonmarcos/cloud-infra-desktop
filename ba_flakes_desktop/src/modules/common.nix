@@ -9,6 +9,7 @@
     ./programs/shells/starship.nix
     ./programs/shells/fzf.nix
     ./web-server-md-eruda.nix
+    ./cliphist.nix
     ./programs/editors/vim.nix
     ./programs/git.nix
     ./programs/tmux.nix
@@ -223,10 +224,20 @@
 
     if [ -z "$CURRENT" ] || { [ -n "$LATEST" ] && [ "$CURRENT" != "$LATEST" ]; }; then
       printf "[claude-code] %s → %s (%s)\n" "''${CURRENT:-none}" "$LATEST" "$ARCH"
-      $DRY_RUN_CMD ${pkgs.curl}/bin/curl -fsSL "$CLAUDE_GCS/$LATEST/$ARCH/claude" -o "$CLAUDE_BIN"
-      $DRY_RUN_CMD chmod 755 "$CLAUDE_BIN"
-      $DRY_RUN_CMD $PATCHELF --set-interpreter "$INTERPRETER" "$CLAUDE_BIN"
-      $DRY_RUN_CMD chmod 555 "$CLAUDE_BIN"
+      # Stage to a temp file then atomic mv. Avoids:
+      #   (a) curl error 23 "Failed writing body" when $CLAUDE_BIN is mode 555 (owner has no write bit)
+      #   (b) ETXTBSY when $CLAUDE_BIN is currently executing (running claude session)
+      # mv replaces the directory entry; the running process keeps its old inode.
+      TMP="$CLAUDE_BIN.new.$$"
+      # --retry 5 with exponential backoff: tolerate transient GCS errors
+      # (curl 56 "Connection reset", 52 "Empty reply", 18 "partial transfer").
+      $DRY_RUN_CMD ${pkgs.curl}/bin/curl -fsSL \
+        --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 \
+        "$CLAUDE_GCS/$LATEST/$ARCH/claude" -o "$TMP"
+      $DRY_RUN_CMD chmod 755 "$TMP"
+      $DRY_RUN_CMD $PATCHELF --set-interpreter "$INTERPRETER" "$TMP"
+      $DRY_RUN_CMD chmod 555 "$TMP"
+      $DRY_RUN_CMD mv -f "$TMP" "$CLAUDE_BIN"
     else
       printf "[claude-code] %s is up to date\n" "$CURRENT"
     fi

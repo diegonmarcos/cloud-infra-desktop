@@ -190,6 +190,9 @@
     set_color blue; echo -n "    Ctrl+T           "; set_color normal; echo "Find file"
     set_color blue; echo -n "    Ctrl+R           "; set_color normal; echo "Search history"
     set_color blue; echo -n "    Alt+C            "; set_color normal; echo "Cd to folder"
+    set_color cyan; echo "  Clipboard (cliphist):"
+    set_color normal
+    set_color blue; echo -n "    cliphist list    "; set_color normal; echo "Show clipboard history"
     echo ""
     set_color --dim; echo "    ('hhelp tools' — all binaries declared in flake)"; set_color normal
     echo ""
