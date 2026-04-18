@@ -89,19 +89,13 @@ EOF
     echo "[setup] SSH config generated for ${SSH_ALIAS}"
   fi
 elif [ -f ~/.ssh/id_rsa ] || [ -f ~/.ssh/vault_id_rsa ] || [ -f ~/.ssh/id_deploy ] || [ -f ~/.ssh/config ]; then
-  # Read-only mount — SSH rejects files with wrong owner (GHA runner UID ≠ root)
-  # Copy to writable location and fix permissions (same pattern as SOPS → /tmp)
-  mkdir -p /tmp/ssh-fixed && chmod 700 /tmp/ssh-fixed
-  cp -a ~/.ssh/* /tmp/ssh-fixed/ 2>/dev/null || true
-  chown -R root:root /tmp/ssh-fixed 2>/dev/null || true
-  chmod 700 /tmp/ssh-fixed
-  chmod 600 /tmp/ssh-fixed/config 2>/dev/null || true
-  chmod 600 /tmp/ssh-fixed/id_* 2>/dev/null || true
-  chmod 644 /tmp/ssh-fixed/known_hosts 2>/dev/null || true
-  # Rebind HOME ssh to the fixed copy
-  rm -rf ~/.ssh 2>/dev/null || true
-  ln -sf /tmp/ssh-fixed ~/.ssh
-  echo "[setup] SSH from mounted ~/.ssh (copied + permissions fixed)"
+  # Writable mount — fix ownership so SSH accepts files (GHA runner UID ≠ root)
+  chown -R root:root ~/.ssh 2>/dev/null || true
+  chmod 700 ~/.ssh
+  chmod 600 ~/.ssh/config 2>/dev/null || true
+  chmod 600 ~/.ssh/id_* 2>/dev/null || true
+  chmod 644 ~/.ssh/known_hosts 2>/dev/null || true
+  echo "[setup] SSH from mounted ~/.ssh (permissions fixed)"
 else
   echo "[setup] WARNING: no SSH keys found (env or mount)"
 fi
