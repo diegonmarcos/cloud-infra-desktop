@@ -69,6 +69,8 @@ _ssh_writable() { touch ~/.ssh/.probe 2>/dev/null && rm -f ~/.ssh/.probe; }
 
 if _ssh_writable; then
   # Writable ~/.ssh — CI mode or local dev without :ro mount
+  # Fix ownership first (GHA runner creates files as UID 1001, SSH needs root)
+  chown -R root:root ~/.ssh 2>/dev/null || true
   mkdir -p ~/.ssh && chmod 700 ~/.ssh
   ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
   if [ -n "${SSH_KEY:-}" ]; then
