@@ -36,4 +36,4 @@ jobs:
             -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             -e GITHUB_ACTOR="${{ github.actor }}" \
             ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest \
-            bash -c "cd /workspace && sh cb_containers-builders/build.sh ship ${{ github.event.inputs.variant }}"
+            bash -lc "export PATH=/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:\$PATH && cd /workspace && sh cb_containers-builders/build.sh ship ${{ github.event.inputs.variant }}"
