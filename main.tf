@@ -731,7 +731,7 @@ locals {
         "10.0.0.1" = "gcp-proxy   (Caddy, Authelia, Vaultwarden, ntfy, DNS)"
         "10.0.0.2" = "oci-apps-1  (PhotoPrism, NocoDB, Code Server, AFFiNE)"
         "10.0.0.3" = "oci-mail    (Mailu, Syncthing, Radicale)"
-        "10.0.0.4" = "oci-analytics (Matomo, Windmill)"
+        "10.0.0.4" = "oci-analytics (Matomo)"
         "10.0.0.5" = "surface     (THIS DEVICE)"
         "10.0.0.6" = "oci-apps    (C3 API, Crawlee)"
       }
