@@ -26,14 +26,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Ship via builder container
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Ship via runner (jq + docker buildx native)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
-          docker pull ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$HOME/.docker:/root/.docker" \
-            -v "${{ github.workspace }}:/workspace" \
-            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
-            -e GITHUB_ACTOR="${{ github.actor }}" \
-            ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest \
-            bash -lc "export PATH=/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:\$PATH && cd /workspace && sh cb_containers-builders/build.sh ship ${{ github.event.inputs.variant }}"
+          cd cb_containers-builders
+          sh build.sh ship ${{ github.event.inputs.variant }}
