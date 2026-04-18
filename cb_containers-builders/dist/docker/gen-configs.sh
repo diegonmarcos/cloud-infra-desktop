@@ -40,4 +40,4 @@ export GIT_BASE=/
 export GITHUB_WORKSPACE=/cloud
 
 # ── 4. Run gen-configs script ────────────────────────────────────
-bash .github/workflows/scripts/ship-gen-configs.sh
+bash .github/workflows/scripts/cloud-ship-orchestrate-gen-configs.sh
