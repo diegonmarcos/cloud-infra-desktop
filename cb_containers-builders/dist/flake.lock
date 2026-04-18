@@ -3,7 +3,7 @@
     "config-json": {
       "flake": false,
       "locked": {
-        "narHash": "sha256-nQTs48AE8GhnbDB9LfvgnhBcyM6ZH4yumpSjPp6hEqg=",
+        "narHash": "sha256-+zWl2cw43PES7hQkKJl7b+04RzDtWUukpLWgaL55xyg=",
         "type": "file",
         "url": "https://raw.githubusercontent.com/diegonmarcos/cloud/main/config.json"
       },

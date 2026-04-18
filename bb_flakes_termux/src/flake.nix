@@ -94,6 +94,7 @@
               fzf
               atuin     # shell history search (arrow-up, Ctrl+R)
               tealdeer  # tldr — simplified man pages
+              browsh    # terminal web browser (headless Firefox rendering)
               iproute2  # Provides 'ip' command for network interface management
 
               # Rust toolchain (unstable for edition2024 support, 1.85+)

@@ -46,6 +46,28 @@
     buildJson = builtins.fromJSON (builtins.readFile ../build.json);
     registry = buildJson.registry;
 
+    # ── docker-deps.sh: generated from config.json deps ────────────
+    dockerApt = configJson.deps.docker_apt or [];
+    dockerBinary = configJson.deps.docker_binary or {};
+    dockerDepsScript = ''
+      #!/bin/bash
+      set -e
+
+      # AUTO-GENERATED from cloud/config.json — DO NOT EDIT
+
+      apt-get update && apt-get install -y --no-install-recommends ${builtins.concatStringsSep " " dockerApt} && rm -rf /var/lib/apt/lists/*
+      sed -i "s/^# *\(en_US.UTF-8\)/\1/" /etc/locale.gen && locale-gen
+
+      TF_VER=${dockerBinary.terraform or "1.9.8"}
+      ARCH=$(dpkg --print-architecture)
+      curl -sL "https://releases.hashicorp.com/terraform/''${TF_VER}/terraform_''${TF_VER}_linux_''${ARCH}.zip" -o /tmp/tf.zip
+      unzip -o /tmp/tf.zip -d /usr/local/bin/ && rm /tmp/tf.zip
+
+      RUST_VER=${dockerBinary.rust or "1.86.0"}
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ''${RUST_VER}
+      ln -sf /root/.cargo/bin/* /usr/local/bin/
+    '';
+
     # ── Compose template for builder images ─────────────────────────
     mkBuilderCompose = { variant, imageName, platform ? null }: ''
       # ╔══════════════════════════════════════════════════════════════════╗
@@ -123,11 +145,17 @@
       };
     });
 
-    # ── Output 2: Home Manager config (Docker image) ────────────────
+    # ── Output 2: Home Manager configs (per-arch for Docker image) ───
     # Same packages as devShell — identical environment
-    homeConfigurations."root@cloud-builder" =
+    homeConfigurations."root@cloud-builder-x86_64" =
       home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs { system = "x86_64-linux"; config.allowUnfree = true; };
+        modules = [ ./cloud-builder.nix ];
+        extraSpecialArgs = { inherit configJson; };
+      };
+    homeConfigurations."root@cloud-builder-aarch64" =
+      home-manager.lib.homeManagerConfiguration {
+        pkgs = import nixpkgs { system = "aarch64-linux"; config.allowUnfree = true; };
         modules = [ ./cloud-builder.nix ];
         extraSpecialArgs = { inherit configJson; };
       };
@@ -136,8 +164,10 @@
     packages = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
     in {
-      default = pkgs.runCommand "builders-compose" {} ''
-        mkdir -p $out
+      default = pkgs.runCommand "builders-dist" {} ''
+        mkdir -p $out/docker
+
+        # ── Generated compose files ──
         cp ${pkgs.writeText "compose-x-deb-nixhm.yaml" (mkBuilderCompose {
           variant = "x-deb-nixhm";
           imageName = "cloud-builder-x-deb-nixhm";
@@ -150,13 +180,33 @@
           platform = "linux/amd64,linux/arm64";
         })} $out/compose-apt.yaml
 
-        cp ${pkgs.writeText "compose-forge.yaml" (mkBuilderCompose {
-          variant = "forge";
-          imageName = "cloud-builder-x-deb-nixhm-forge";
-          platform = "linux/amd64,linux/arm64";
-        })} $out/compose-forge.yaml
+        # ── Dockerfiles ──
+        cp ${./Dockerfile.x-deb-nixhm} $out/Dockerfile.x-deb-nixhm
+        cp ${./Dockerfile.apt} $out/Dockerfile.apt
 
+        # ── Docker runtime files (entrypoint, scripts, compose) ──
+        cp ${./docker/compose.yaml} $out/docker-compose.yml
+        cp ${./docker/Dockerfile} $out/docker/Dockerfile
+        cp ${./docker/compose.yaml} $out/docker/compose.yaml
+        cp ${./docker/entrypoint.sh} $out/docker/entrypoint.sh
+        cp ${./docker/cloud-builder.sh} $out/docker/cloud-builder.sh
+        cp ${./docker/docker-up.sh} $out/docker/docker-up.sh
+        cp ${./docker/gen-configs.sh} $out/docker/gen-configs.sh
+        cp ${./docker/health.sh} $out/docker/health.sh
+        cp ${./docker/ship-hm.sh} $out/docker/ship-hm.sh
+        cp ${./docker/ship-services.sh} $out/docker/ship-services.sh
+
+        # ── Flake source (needed by Dockerfile builder stage) ──
+        cp ${./flake.nix} $out/flake.nix
+        cp ${./flake.lock} $out/flake.lock
+        cp ${./cloud-builder.nix} $out/cloud-builder.nix
+
+        # ── Generated docker-deps.sh (from config.json) ──
+        cp ${pkgs.writeText "docker-deps.sh" dockerDepsScript} $out/docker-deps.sh
+
+        # ── Config ──
         cp ${../build.json} $out/build.json
+        cp ${config-json} $out/config.json
       '';
     });
   };

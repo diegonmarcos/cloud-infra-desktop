@@ -16,6 +16,7 @@
     zoxide           # smart cd (frecency)
     atuin            # shell history search (arrow-up, Ctrl+R)
     tealdeer         # tldr — simplified man pages
+    browsh           # terminal web browser (headless Firefox rendering)
     yazi             # TUI file manager
     btop             # resource monitor
     multitail        # multi-file tail with split view
@@ -35,6 +36,7 @@
     # Clipboard
     xclip
     wl-clipboard
+    cliphist         # clipboard history (wl-paste --watch cliphist store)
 
     # Core utilities
     coreutils

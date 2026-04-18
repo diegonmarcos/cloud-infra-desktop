@@ -27,10 +27,14 @@
     shellcheck
     shfmt
 
-    # Documentation
+    # Documentation & Diagrams
     pandoc
     doxygen
-    graphviz
+    graphviz         # dot — network graphs, auto-layout
+    d2               # Architecture diagrams, clean modern style
+    plantuml         # UML, sequence diagrams, enterprise
+    pikchr           # Inline SVG, precise positioning
+    # structurizr-cli is not in nixpkgs — use plantuml C4 stdlib instead
 
     # Version control extras
     git-lfs
