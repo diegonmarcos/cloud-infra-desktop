@@ -592,4 +592,3 @@ src/mcp/tools/
 
 **Cloud CLIs**: `oci`, `gcloud`, `gh`, `terraform` — not covered by MCP.
 
-**Service APIs**: PhotoPrism, NocoDB, Matomo, Vaultwarden, Syncthing, Radicale, ntfy, Mailu, AFFiNE, Authelia, Windmill, Crawlee — see service specs via `service_get_spec` MCP tool.

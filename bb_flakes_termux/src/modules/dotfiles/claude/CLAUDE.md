@@ -120,7 +120,6 @@
 |----|-------|-----|-------|-----|----------|
 | gcp-E2-f_0 | gcp-proxy | 35.226.147.64 | 10.0.0.1 | 1 GB | Caddy, Authelia, introspect-proxy, Vaultwarden, ntfy, Hickory DNS |
 | oci-E2-f_0 | oci-mail | 130.110.251.193 | 10.0.0.3 | 1 GB | Mailu, Syncthing, Radicale |
-| oci-E2-f_1 | oci-analytics | 129.151.228.66 | 10.0.0.4 | 1 GB | Matomo (hybrid wake/sleep), Windmill |
 
 ### Paid - A1.Flex (Free Tier: 4 OCPUs / 24GB total)
 | VM | Alias | IP | WG IP | CPUs/RAM | Services |
@@ -147,7 +146,6 @@ SSH aliases: `ssh oci-apps`, `ssh oci-apps-1`, `ssh oci-mail`, `ssh oci-analytic
 | Syncthing | sync.diegonmarcos.com | oci-mail | 8384 | 24/7 |
 | Radicale Calendar | cal.diegonmarcos.com | oci-mail | 5232 | 24/7 |
 | Matomo Analytics | analytics.diegonmarcos.com | oci-analytics | 8080 | 24/7 (hybrid) |
-| Windmill | — | oci-analytics | — | 24/7 (toggles with Matomo) |
 | PhotoPrism | photos.diegonmarcos.com | oci-apps-1 | 3013 | wake-on-demand |
 | NocoDB | db.diegonmarcos.com | oci-apps-1 | 8085 | wake-on-demand |
 | Code Server | ide.diegonmarcos.com | oci-apps-1 | 8443 | wake-on-demand |
@@ -608,4 +606,3 @@ src/mcp/tools/
 
 **Cloud CLIs**: `oci`, `gcloud`, `gh`, `terraform` — not covered by MCP.
 
-**Service APIs**: PhotoPrism, NocoDB, Matomo, Vaultwarden, Syncthing, Radicale, ntfy, Mailu, AFFiNE, Authelia, Windmill, Crawlee — see service specs via `service_get_spec` MCP tool.
