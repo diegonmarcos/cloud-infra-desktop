@@ -11,6 +11,7 @@
     "AUTHELIA_OIDC_CLIENT_ID": "claude-admin",
     "AUTHELIA_TOKEN_URL": "https://auth.diegonmarcos.com/api/oidc/token"
   },
+  "effortLevel": "xhigh",
   "alwaysThinkingEnabled": true,
   "effortLevel": "xhigh",
   "hooks": {
