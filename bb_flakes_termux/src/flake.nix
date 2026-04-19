@@ -666,6 +666,11 @@
                 shellAliases = sharedAliases;
                 interactiveShellInit = ''
 
+                  # Auto-start sshd (port 8022)
+                  if command -q sshd; and not pgrep -x sshd >/dev/null 2>&1
+                    sshd -f "$HOME/.ssh/sshd_config" 2>/dev/null
+                  end
+
                   # Auto-start http-dev (web-server-md-eruda)
                   set -g __httpd_port 8000
                   if command -q http-dev
