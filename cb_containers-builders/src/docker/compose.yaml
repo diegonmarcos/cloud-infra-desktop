@@ -4,9 +4,14 @@ services:
     network_mode: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${HOME}/.ssh:/root/.ssh
-      - ${HOME}/.config/sops:/root/.config/sops:ro
-      - ${HOME}/.config/gh:/root/.config/gh:ro
+      # Host secret dirs mount at /mnt/host-* (NOT /root/.ssh) — SSH rejects
+      # files whose UID differs from the in-container user. entrypoint.sh
+      # copies /mnt/host-ssh/* → /root/.ssh/ with chown root:root + chmod
+      # 600/700. Host mount stays read-only so the container can't corrupt
+      # the runner's FS.
+      - ${HOME}/.ssh:/mnt/host-ssh:ro
+      - ${HOME}/.config/sops:/mnt/host-sops:ro
+      - ${HOME}/.config/gh:/mnt/host-gh:ro
       - ${HOME}/git/vault/A0_keys/providers/github:/home/diego/git/vault/A0_keys/providers/github:ro
       - ${HOME}/.docker/config.json:/root/.docker/config.json:ro
     environment:
