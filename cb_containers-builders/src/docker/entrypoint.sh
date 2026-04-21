@@ -148,7 +148,16 @@ fi
 
 # ── 6. WireGuard (if key provided) ────────────────────────────────
 if [ -n "${WG_PRIVATE_KEY:-}" ]; then
-  SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+  # Smart privilege escalation: try sudo, fall back to direct (root in container)
+  _run() {
+    if [ "$(id -u)" = "0" ]; then
+      "$@"
+    elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+      sudo "$@"
+    else
+      "$@"  # last resort — may fail if not root, but won't hang
+    fi
+  }
   umask 077
   cat > /tmp/wg0.conf << WGEOF
 [Interface]
@@ -161,10 +170,11 @@ Endpoint = 35.226.147.64:51820
 AllowedIPs = 10.0.0.0/24
 PersistentKeepalive = 25
 WGEOF
-  $SUDO mkdir -p /etc/wireguard
-  $SUDO cp /tmp/wg0.conf /etc/wireguard/wg0.conf
+  _run mkdir -p /etc/wireguard
+  _run cp /tmp/wg0.conf /etc/wireguard/wg0.conf
   rm /tmp/wg0.conf
-  $SUDO wg-quick up wg0 2>/dev/null && echo "[setup] WireGuard up" || echo "[setup] WireGuard failed (non-fatal)"
+  _run wg-quick up wg0 2>/dev/null && echo "[setup] WireGuard up" || echo "[setup] WireGuard failed (non-fatal)"
+  unset -f _run
 fi
 
 # ── 7. Rebase all repos (baked at build time under ~/git/) ───────
