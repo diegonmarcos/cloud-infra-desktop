@@ -1,0 +1,20 @@
+# Repo-level git config — self-contained, no external engine deps.
+# Activate:  git config --local include.path ../.gitconfig
+[push]
+	recurseSubmodules = on-demand
+[submodule]
+	recurse = true
+[fetch]
+	recurseSubmodules = on-demand
+[core]
+	hooksPath = .githooks
+[pull]
+	rebase = true
+[rebase]
+	autoStash = true
+[alias]
+	# smart, non-destructive sync — see .githooks/cloud-git-sync.sh
+	#   git sync           → remote wins on conflict (default)
+	#   git sync remote    → remote wins on conflict
+	#   git sync local     → local commits win on conflict
+	sync = !./.githooks/cloud-git-sync.sh
