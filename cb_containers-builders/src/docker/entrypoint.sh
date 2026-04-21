@@ -112,28 +112,28 @@ fi
 
 # ── 4. SOPS setup ─────────────────────────────────────────────────
 # Precedence: env var (CI) > /mnt/host-sops (local).
-mkdir -p /root/.config/sops/age
+mkdir -p /root/.config/sops/age 2>/dev/null || true
 if [ -n "${SOPS_AGE_KEY:-}" ]; then
-  echo "$SOPS_AGE_KEY" > /root/.config/sops/age/keys.txt
-  chmod 600 /root/.config/sops/age/keys.txt
+  echo "$SOPS_AGE_KEY" > /root/.config/sops/age/keys.txt 2>/dev/null || true
+  chmod 600 /root/.config/sops/age/keys.txt 2>/dev/null || true
   export SOPS_AGE_KEY_FILE=/root/.config/sops/age/keys.txt
-  echo "[setup] SOPS age key from env var → /root/.config/sops/age/keys.txt"
+  echo "[setup] SOPS age key from env var"
 elif [ -f /mnt/host-sops/age/keys.txt ]; then
-  cp /mnt/host-sops/age/keys.txt /root/.config/sops/age/keys.txt
-  chown root:root /root/.config/sops/age/keys.txt
-  chmod 600 /root/.config/sops/age/keys.txt
+  cp /mnt/host-sops/age/keys.txt /root/.config/sops/age/keys.txt 2>/dev/null || true
+  chown root:root /root/.config/sops/age/keys.txt 2>/dev/null || true
+  chmod 600 /root/.config/sops/age/keys.txt 2>/dev/null || true
   export SOPS_AGE_KEY_FILE=/root/.config/sops/age/keys.txt
-  echo "[setup] SOPS age key from /mnt/host-sops (copied + re-owned)"
+  echo "[setup] SOPS age key from /mnt/host-sops"
 else
   echo "[setup] WARNING: no SOPS age key found"
 fi
 
 # ── 4b. gh CLI config (optional, local-dev) ───────────────────────
 if [ -d /mnt/host-gh ] && [ ! -d /root/.config/gh ]; then
-  mkdir -p /root/.config/gh
-  cp -r /mnt/host-gh/. /root/.config/gh/
-  chown -R root:root /root/.config/gh
-  echo "[setup] gh CLI config from /mnt/host-gh (copied + re-owned)"
+  mkdir -p /root/.config/gh 2>/dev/null || true
+  cp -r /mnt/host-gh/. /root/.config/gh/ 2>/dev/null || true
+  chown -R root:root /root/.config/gh 2>/dev/null || true
+  echo "[setup] gh CLI config from /mnt/host-gh"
 fi
 
 # ── 5. GHCR login ─────────────────────────────────────────────────
@@ -169,9 +169,9 @@ Endpoint = 35.226.147.64:51820
 AllowedIPs = 10.0.0.0/24
 PersistentKeepalive = 25
 WGEOF
-  _run mkdir -p /etc/wireguard
-  _run cp /tmp/wg0.conf /etc/wireguard/wg0.conf
-  rm /tmp/wg0.conf
+  _run mkdir -p /etc/wireguard 2>/dev/null || true
+  _run cp /tmp/wg0.conf /etc/wireguard/wg0.conf 2>/dev/null || true
+  rm /tmp/wg0.conf 2>/dev/null || true
   _run wg-quick up wg0 2>/dev/null && echo "[setup] WireGuard up" || echo "[setup] WireGuard failed (non-fatal)"
   unset -f _run
 fi
