@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# pre-push — rebase submodules onto upstream HEAD + tip about `git sync`.
+# Canonical source: diegonmarcos/cloud:1_workflows/src/hooks/pre-push
+set -uo pipefail
+
+if [ -t 2 ]; then
+  printf '\033[33m\n┌─ git push ─ tip ──────────────────────────────────────────────┐\n' >&2
+  printf   '│ Prefer `git sync` — safer: auto-stash + rebase + submodules.  │\n' >&2
+  printf   '│   git sync remote   (origin wins on conflict, default)        │\n' >&2
+  printf   '│   git sync local    (local commits win on conflict)           │\n' >&2
+  printf   '│   script: .githooks/cloud-git-sync.sh                         │\n' >&2
+  printf   '└───────────────────────────────────────────────────────────────┘\033[0m\n' >&2
+fi
+
+if [ -d "$(git rev-parse --git-path rebase-merge 2>/dev/null)" ] \
+   || [ -d "$(git rev-parse --git-path rebase-apply 2>/dev/null)" ] \
+   || [ -f "$(git rev-parse --git-path MERGE_HEAD   2>/dev/null)" ] \
+   || [ -f "$(git rev-parse --git-path BISECT_LOG   2>/dev/null)" ]; then
+  exit 0
+fi
+
+[ -f .gitmodules ] || exit 0
+
+echo "[pre-push] rebasing submodules onto upstream HEAD..."
+git submodule update --init --recursive --remote --rebase \
+  || echo "[pre-push] submodule rebase reported errors (non-blocking)." >&2
+exit 0

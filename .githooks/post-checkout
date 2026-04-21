@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# post-checkout — refresh submodules after branch switch.
+# Canonical source: diegonmarcos/cloud:1_workflows/src/hooks/post-checkout
+set -uo pipefail
+
+flag="${3:-0}"
+[ "$flag" = "1" ] || exit 0
+[ -f .gitmodules ] || exit 0
+
+echo "[post-checkout] rebasing submodules onto upstream HEAD..."
+git submodule update --init --recursive --remote --rebase \
+  || echo "[post-checkout] submodule rebase reported errors (non-blocking)." >&2
+exit 0

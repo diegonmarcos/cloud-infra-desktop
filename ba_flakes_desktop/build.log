@@ -24765,3 +24765,9 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-04-18 12:59:01] PERF: TOTAL switch = 30.0s
 [2026-04-18 12:59:01] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-04-18 12:59:01] ========== Build script finished ==========
+[2026-04-19 16:27:52] ========== Build script started ==========
+[2026-04-19 16:27:52] ========== Build script finished ==========
+[2026-04-19 16:27:57] ========== Build script started ==========
+[2026-04-19 16:27:57] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-19 16:27:57] PERF: start switch
+[2026-04-19 16:27:57] INFO: Staging dirty files for flake evaluation...
