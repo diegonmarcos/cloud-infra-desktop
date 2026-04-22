@@ -207,6 +207,12 @@ if echo "$CMD" | grep -qE 'cd\s+[^\s;]+\s*&&\s*rm\s+-rf'; then
   warn "'cd dir && rm -rf' kills the shell if CWD is deleted" "rm -rf /absolute/path (use absolute paths)"
 fi
 
+# ── git add force (bypasses gitignore — force-stages secrets/keys) ──
+
+if echo "$CMD" | grep -qE '(^|\s|;|&&|\|)\s*git\s+(-[Cc]\s+\S+\s+)?add\s+(-f\b|--force\b)'; then
+  warn "git add -f/--force bypasses gitignore — can stage decrypted secrets, private keys, sensitive/ by accident" "plain 'git add <path>' — if gitignore blocks a file, fix gitignore, NEVER force"
+fi
+
 # ── SSH write operations (declarative only — SSH is READ-ONLY) ──
 
 if echo "$CMD" | grep -qE 'ssh\s+\S+\s+.*\b(echo|sed|tee|cat)\s.*>'; then

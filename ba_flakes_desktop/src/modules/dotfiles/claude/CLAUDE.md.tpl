@@ -418,6 +418,23 @@ Every service in `` MUST follow this exact structure:
 **ALL Claude Code sessions MUST start from `~/.claude` directory.**
 This ensures consistent context loading and access to CLAUDE.md instructions.
 
+## E.1.2 Forbidden Commands (reinforced by hooks)
+
+| NEVER | ALWAYS |
+|-------|--------|
+| `ssh vm 'echo > .secrets'` | `src/secrets.yaml` + sops + `build.sh ship` |
+| `nix-env -i pkg` | Add to flake + rebuild |
+| `sed` on VM `/etc/` files | Edit nix source + deploy |
+| `docker compose up` on VM | `build.sh compose` |
+| `which cmd` | `command -v cmd` |
+| Edit `dist/` files | Edit `src/` + `build.sh build` |
+| Edit `~/.claude/CLAUDE.md` | Edit source in `~/git/unix/` flakes |
+| `cd dir && git mv dir/...` | `git -C /abs/path mv ...` (absolute paths) |
+| **`git add -f` / `git add --force`** | **plain `git add` — NEVER bypass gitignore. `-f` force-stages secrets, decrypted keys, sensitive/ — gitignore exists for a reason.** |
+
+Enforced by: `claude-memory.sh` (SessionStart), `declarative-guard.sh` (per-prompt), `pretool-guard.sh` (pre-tool-use warn).
+Commit-time defence: `1_workflows/src/hooks/pre-commit` **blocks** any gitignored file from being committed.
+
 ## E.2 Dependency Verification (CRITICAL)
 
 **ALWAYS check and install ALL dependencies before declaring a feature complete.**
