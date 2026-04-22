@@ -1,0 +1,198 @@
+{
+  "_comment": "Declarative disk-full defense. Source of truth for: per-mount watch thresholds, systemd-tmpfiles cleanup rules, journald limits, docker retention, and reclaim actions. Nix module `configuration_system-protection.nix` reads this file and generates systemd units + tmpfiles.d + logrotate rules. Change what gets protected = edit this file, `build.sh ship` home-manager.",
+  "version": 1,
+  "enabled": true,
+
+  "watches": {
+    "_comment": "Per-mount threshold-triggered actions. `critical_pct` fires the action list. Actions defined in `actions` map below.",
+    "mounts": [
+      {
+        "mount": "/",
+        "description": "tmpfs root — NixOS impermanence; filling blocks login, breaks systemd",
+        "warn_pct": 70,
+        "critical_pct": 85,
+        "actions_on_warn":     ["alert_ntfy"],
+        "actions_on_critical": ["alert_ntfy", "purge_tmp_worktrees", "purge_tmp_dotfiles"]
+      },
+      {
+        "mount": "/home",
+        "description": "btrfs user data — slow-fill; primary dev workspace",
+        "warn_pct": 80,
+        "critical_pct": 90,
+        "actions_on_warn":     ["alert_ntfy"],
+        "actions_on_critical": ["alert_ntfy", "cargo_sweep", "docker_prune_images"]
+      },
+      {
+        "mount": "/var/lib/docker",
+        "description": "Docker layers + volumes (when on dedicated mount)",
+        "warn_pct": 75,
+        "critical_pct": 85,
+        "actions_on_warn":     ["alert_ntfy"],
+        "actions_on_critical": ["alert_ntfy", "docker_prune_images", "docker_prune_volumes_dangling"]
+      },
+      {
+        "mount": "/nix",
+        "description": "Nix store — only shrinks via gc",
+        "warn_pct": 80,
+        "critical_pct": 90,
+        "actions_on_warn":     ["alert_ntfy"],
+        "actions_on_critical": ["alert_ntfy", "nix_gc_14d"]
+      }
+    ]
+  },
+
+  "tmpfiles_rules": {
+    "_comment": "Written to /etc/tmpfiles.d/50-cloud-data-disk-protection.conf via nix module. Format: `d <path> - - - <age> -`. Age in d (days), h (hours), m (minutes).",
+    "rules": [
+      "d /tmp/*-work-*        - - - 4h   -",
+      "d /tmp/cloud-clean-wt  - - - 4h   -",
+      "d /tmp/.tmp*           - - - 1h   -",
+      "d /tmp/test-*.git      - - - 2h   -",
+      "d /tmp/nix-build-*     - - - 6h   -",
+      "d /tmp/tmp.*           - - - 2h   -",
+      "D! /var/tmp            - - - 14d  -"
+    ]
+  },
+
+  "journald_limits": {
+    "_comment": "systemd-journald.conf values — data-driven. Applied via nix module `services.journald.extraConfig`.",
+    "SystemMaxUse":       "500M",
+    "SystemKeepFree":     "200M",
+    "RuntimeMaxUse":      "100M",
+    "MaxRetentionSec":    "14d",
+    "MaxFileSec":         "1d",
+    "ForwardToSyslog":    "no"
+  },
+
+  "docker_retention": {
+    "_comment": "Weekly `docker system prune` guarded by free-space check. Only prunes when real disk is >75% full to avoid churning healthy state.",
+    "enabled": true,
+    "schedule": "weekly",
+    "only_if_disk_pct_above": 75,
+    "prune_dangling_images":                true,
+    "prune_stopped_containers_older_than":  "7d",
+    "prune_dangling_volumes":               true,
+    "prune_unused_networks":                true,
+    "prune_build_cache_older_than":         "30d"
+  },
+
+  "cargo_sweep": {
+    "_comment": "cargo-sweep keeps ~/.cargo/target/ bounded. Runs weekly; keeps only targets touched in last `keep_days`.",
+    "enabled": true,
+    "target_dir": "~/.cargo/target",
+    "keep_days": 30,
+    "schedule": "weekly"
+  },
+
+  "nix_gc": {
+    "_comment": "Nix store garbage collection. Keeps generations younger than `keep_days`.",
+    "enabled": true,
+    "keep_days": 14,
+    "schedule": "weekly"
+  },
+
+  "script_hygiene": {
+    "_comment": "CI lint rules for scripts that create tmp dirs. Each violation fails CI.",
+    "require_exit_trap_on_mktemp":    true,
+    "require_exit_trap_on_workdir":   true,
+    "forbidden_patterns": [
+      "mktemp -d(?!.*trap)",
+      "TMPDIR=\\$\\(date[^)]+\\)"
+    ],
+    "ci_gate": true
+  },
+
+  "actions": {
+    "_comment": "Action definitions. Nix module generates the corresponding ExecStart for disk-watchdog.service.",
+    "alert_ntfy": {
+      "type": "notify",
+      "via":  "ntfy",
+      "topic": "diegonmarcos-infra",
+      "priority": "high",
+      "title_template": "disk-full {mount} {pct}%"
+    },
+    "purge_tmp_worktrees": {
+      "type": "exec",
+      "description": "Remove orphaned worktree dirs under /tmp (no active process)",
+      "safe_mode": true,
+      "script": "systemd-tmpfiles --clean --prefix=/tmp"
+    },
+    "purge_tmp_dotfiles": {
+      "type": "exec",
+      "description": "Remove /tmp/.tmp* scratch",
+      "safe_mode": true,
+      "script": "find /tmp -maxdepth 1 -name '.tmp*' -mmin +60 -exec rm -rf {} +"
+    },
+    "cargo_sweep": {
+      "type": "exec",
+      "description": "cargo-sweep --time 30 ~/.cargo/target",
+      "safe_mode": true,
+      "script": "cargo-sweep --time 30 ~/.cargo/target"
+    },
+    "docker_prune_images": {
+      "type": "exec",
+      "description": "Prune dangling docker images",
+      "safe_mode": true,
+      "script": "docker image prune -f"
+    },
+    "docker_prune_volumes_dangling": {
+      "type": "exec",
+      "description": "Prune dangling docker volumes — NEVER named volumes",
+      "safe_mode": true,
+      "script": "docker volume prune -f --filter label!=keep"
+    },
+    "nix_gc_14d": {
+      "type": "exec",
+      "description": "nix-collect-garbage --delete-older-than 14d",
+      "safe_mode": true,
+      "script": "nix-collect-garbage --delete-older-than 14d"
+    }
+  },
+
+  "testers": {
+    "_comment": "Each tester verifies one invariant of the disk defense. Wire into reports-logs or a dedicated CI job.",
+    "checks": [
+      {
+        "id": "disk_watchdog_active",
+        "description": "disk-watchdog.service is active on all VMs + desktop",
+        "command": "systemctl is-active disk-watchdog.service",
+        "expect": "active"
+      },
+      {
+        "id": "tmpfiles_rule_registered",
+        "description": "systemd-tmpfiles lists our worktree rule",
+        "command": "systemd-tmpfiles --cat-config | grep -c 'd /tmp/\\*-work-\\*'",
+        "expect": "1"
+      },
+      {
+        "id": "journald_limits_effective",
+        "description": "journald SystemMaxUse matches config",
+        "command": "journalctl --disk-usage",
+        "expect_regex": "^Archived.*[0-9]+ ?M"
+      },
+      {
+        "id": "docker_log_size_bounded",
+        "description": "Every container has max-size=10m",
+        "command": "docker inspect --format '{{.HostConfig.LogConfig.Config}}' $(docker ps -q)",
+        "expect_contains": "max-size:10m"
+      },
+      {
+        "id": "no_orphan_worktrees_older_than_4h",
+        "description": "tmpfiles.clean is actually cleaning",
+        "command": "find /tmp -maxdepth 1 -name '*-work-*' -mmin +240 | wc -l",
+        "expect": "0"
+      }
+    ]
+  },
+
+  "deployment": {
+    "_comment": "Where this config is consumed.",
+    "consumers": [
+      "~/git/unix/aa_nixos-surface_host/src/modules/configuration_system-protection.nix",
+      "~/git/cloud/b_infra/home-manager/modules/system-protection.nix",
+      "~/git/cloud-data/reports-logs/src/modules/index.sh (surfaces watch state as facets)"
+    ],
+    "reload_command": "cd ~/git/unix/aa_nixos-surface_host && ./build.sh switch",
+    "deploy_to_vms_command": "cd ~/git/cloud/b_infra/home-manager && ./build.sh ship"
+  }
+}
