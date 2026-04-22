@@ -54,6 +54,33 @@
     ]
   },
 
+  "tmp_mounts": {
+    "_comment": "Dedicated /tmp (btrfs, persistent, 3d age) + /tmpfs (RAM, ephemeral, 1d age). Decouples scratch from the 2G impermanence root so a leaky script can no longer block login by filling /. Nix module `configuration_tmp.nix` reads this and generates fileSystems.* + tmpfiles D! rules + activation-script that creates missing btrfs subvolumes. Rationale: previously /tmp lived inside tmpfs root and routinely hit 97% from orphaned working copies (e.g. /tmp/cloud-clean-work).",
+    "mounts": [
+      {
+        "path": "/tmp",
+        "type": "btrfs",
+        "subvol": "@shared/tmp",
+        "device": "/dev/mapper/pool",
+        "options": ["compress=zstd", "noatime", "nofail", "x-systemd.device-timeout=10s"],
+        "mode": "1777",
+        "clean_on_boot": true,
+        "max_age": "3d",
+        "description": "Large persistent scratch — wiped on boot, age 3 days. Use for build dirs, git worktrees, anything that might grow."
+      },
+      {
+        "path": "/tmpfs",
+        "type": "tmpfs",
+        "size": "2G",
+        "options": ["size=2G", "mode=1777", "nosuid", "nodev"],
+        "mode": "1777",
+        "clean_on_boot": true,
+        "max_age": "1d",
+        "description": "Fast RAM-backed scratch — 2G cap, wiped on every boot (tmpfs is RAM). Use for quick cache, ipc, workloads that benefit from RAM speed."
+      }
+    ]
+  },
+
   "journald_limits": {
     "_comment": "systemd-journald.conf values — data-driven. Applied via nix module `services.journald.extraConfig`.",
     "SystemMaxUse":       "500M",
@@ -181,6 +208,42 @@
         "description": "tmpfiles.clean is actually cleaning",
         "command": "find /tmp -maxdepth 1 -name '*-work-*' -mmin +240 | wc -l",
         "expect": "0"
+      },
+      {
+        "id": "tmp_is_btrfs",
+        "description": "/tmp is its own btrfs mount (not inside tmpfs root)",
+        "command": "findmnt -no FSTYPE /tmp",
+        "expect": "btrfs"
+      },
+      {
+        "id": "tmpfs_is_tmpfs",
+        "description": "/tmpfs is its own tmpfs RAM mount",
+        "command": "findmnt -no FSTYPE /tmpfs",
+        "expect": "tmpfs"
+      },
+      {
+        "id": "tmp_subvol_exists",
+        "description": "@shared/tmp btrfs subvolume exists on pool",
+        "command": "btrfs subvolume show /mnt/btrfs-root/@shared/tmp >/dev/null 2>&1 && echo OK",
+        "expect": "OK"
+      },
+      {
+        "id": "tmp_boot_wipe_rule",
+        "description": "systemd-tmpfiles has D! /tmp rule (wipe on boot)",
+        "command": "systemd-tmpfiles --cat-config | grep -cE '^D!\\s+/tmp\\s'",
+        "expect": "1"
+      },
+      {
+        "id": "tmpfs_boot_wipe_rule",
+        "description": "systemd-tmpfiles has D! /tmpfs rule (age + wipe on boot)",
+        "command": "systemd-tmpfiles --cat-config | grep -cE '^D!\\s+/tmpfs\\s'",
+        "expect": "1"
+      },
+      {
+        "id": "root_tmpfs_not_bloated_by_tmp",
+        "description": "Root tmpfs usage < 50% (since /tmp is no longer on it)",
+        "command": "df / --output=pcent | tail -1 | tr -d ' %'",
+        "expect_numeric_lt": 50
       }
     ]
   },
@@ -189,6 +252,8 @@
     "_comment": "Where this config is consumed.",
     "consumers": [
       "~/git/unix/aa_nixos-surface_host/src/modules/configuration_system-protection.nix",
+      "~/git/unix/aa_nixos-surface_host/src/modules/configuration_system-protection-disk.nix",
+      "~/git/unix/aa_nixos-surface_host/src/modules/configuration_tmp.nix",
       "~/git/cloud/b_infra/home-manager/modules/system-protection.nix",
       "~/git/cloud-data/reports-logs/src/modules/index.sh (surfaces watch state as facets)"
     ],
