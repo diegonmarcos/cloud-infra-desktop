@@ -1,5 +1,9 @@
 services:
   cloud-builder:
+    # Explicit name avoids docker-compose's auto-naming (<project>_<svc>_1)
+    # which drifted from the topology declaration. Health drift detector
+    # matches `container_name` literal vs `docker ps` — keep these aligned.
+    container_name: cloud-builder-x
     image: ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest
     network_mode: host
     volumes:
