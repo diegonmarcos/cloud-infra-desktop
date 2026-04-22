@@ -52,6 +52,7 @@
     ./configuration_system-protection.nix
     ./configuration_system-protection-disk.nix
     ./configuration_system-protection-storage.nix
+    ./configuration_tmp.nix
     ./configuration_packages.nix
     ./configuration_persistence.nix
     ./configuration_services.nix

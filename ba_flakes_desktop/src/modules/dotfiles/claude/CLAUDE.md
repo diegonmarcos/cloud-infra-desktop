@@ -431,6 +431,20 @@ If a directory that the shell `cd`'d into gets deleted (`rm -rf`), all subsequen
 
 **Prevention:** Always use absolute paths (`git -C /abs/path`), avoid `cd` into temp directories.
 
+## E.1.2 Long Session Safety: Tag HEAD + Snapshot Dirty Tree
+
+Before any multi-hour editing session, and before running any destructive git operation (filter-repo, reset --hard, force-push), create a rescue anchor:
+
+```bash
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+git -C /abs/repo tag -a "local-main-pre-$STAMP" -m "rescue anchor"
+git -C /abs/repo diff HEAD > /home/diego/.backups/<repo>-dirty-$STAMP.patch
+git -C /abs/repo status --porcelain | awk '$1 != "D" {print $2}' \
+  | tar --ignore-failed-read -czf /home/diego/.backups/<repo>-dirty-$STAMP.tar.gz -T -
+```
+
+The **tag** survives `reset --hard` (refs are immune). The **patch + tarball** in `~/.backups/` survive any local repo state change. Between them, no uncommitted work can ever be permanently lost. Never store rescue artifacts in `/tmp/` — it's tmpfs and gets wiped.
+
 ## E.2 Dependency Verification (CRITICAL)
 
 **ALWAYS check and install ALL dependencies before declaring a feature complete.**
