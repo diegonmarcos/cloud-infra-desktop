@@ -1084,6 +1084,7 @@ deploy_existing() {
 
 dry_run() {
     header "NixOS Dry Run (build + diff, no apply)"
+    sync_cloud_data
 
     if [ ! -f /etc/NIXOS ]; then
         # Not on NixOS — just evaluate the flake
@@ -1132,12 +1133,31 @@ diff_system() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
+# CLOUD-DATA SYNC — copy JSON configs into flake src/modules/ before build
+# ═══════════════════════════════════════════════════════════════════════════
+sync_cloud_data() {
+    local CD_ROOT="$SCRIPT_DIR/../../cloud-data"
+    if [ ! -d "$CD_ROOT" ]; then
+        warn "cloud-data not found at $CD_ROOT — skipping sync"
+        return 0
+    fi
+    local TARGET_DIR="$FLAKE_PATH/modules"
+    for f in cloud-data-disk-protection.json; do
+        if [ -f "$CD_ROOT/$f" ]; then
+            cp -f "$CD_ROOT/$f" "$TARGET_DIR/$f"
+            log "synced $f -> $TARGET_DIR/"
+        fi
+    done
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
 # LIVE SYSTEM REBUILD
 # ═══════════════════════════════════════════════════════════════════════════
 # Rebuild the running NixOS system using nixos-rebuild switch
 
 switch_system() {
     header "Rebuilding NixOS System"
+    sync_cloud_data
 
     # Check if we're running on NixOS
     if [ ! -f /etc/NIXOS ]; then
@@ -1177,6 +1197,7 @@ switch_system() {
 
 boot_system() {
     header "Building NixOS (Boot Only)"
+    sync_cloud_data
 
     if [ ! -f /etc/NIXOS ]; then
         error "Not running on NixOS!"
@@ -1198,6 +1219,7 @@ boot_system() {
 
 test_system() {
     header "Testing NixOS Configuration"
+    sync_cloud_data
 
     if [ ! -f /etc/NIXOS ]; then
         error "Not running on NixOS!"
