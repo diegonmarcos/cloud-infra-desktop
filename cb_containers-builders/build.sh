@@ -180,14 +180,17 @@ _find_runners_json() {
 }
 
 # Build + push a single arch image on the runner declared for that arch.
-# Emits a per-arch tag ($ghcr:$sha-$arch); never uses QEMU emulation.
+# Writes the produced tag to _LAST_ARCH_TAG so caller can collect it without
+# having to parse mixed log/stdout. Never uses QEMU emulation.
+_LAST_ARCH_TAG=""
 _build_push_arch() {
     _ghcr="$1"; _arch="$2"; _dockerfile_path="$3"; _sha="$4"; _runners_json="$5"
     _runner_type=$(jq -r --arg a "$_arch" '.runners[$a].type // empty' "$_runners_json")
     _runner_host=$(jq -r --arg a "$_arch" '.runners[$a].host // empty' "$_runners_json")
     _tag="$_ghcr:$_sha-$_arch"
+    _LAST_ARCH_TAG=""
 
-    [ -z "$_runner_type" ] && error "No runner declared for arch=$_arch in cloud-data-runners.json"
+    [ -z "$_runner_type" ] && { log_error "No runner declared for arch=$_arch in cloud-data-runners.json"; return 1; }
 
     _build_args=""
     [ -n "${GITHUB_TOKEN:-}" ] && _build_args="--build-arg GITHUB_TOKEN=$GITHUB_TOKEN"
@@ -197,29 +200,33 @@ _build_push_arch() {
             log "Native build $_arch → local (runner=$(uname -m))"
             DOCKER_BUILDKIT=1 $ENGINE build --network=host $_build_args \
                 --platform "linux/$_arch" \
-                -t "$_tag" -f "$_dockerfile_path" "$DIST_DIR"
-            $ENGINE push "$_tag"
+                -t "$_tag" -f "$_dockerfile_path" "$DIST_DIR" || return 1
+            $ENGINE push "$_tag" || return 1
             ;;
         ssh)
-            [ -z "$_runner_host" ] && error "runners[$_arch].host missing in cloud-data-runners.json"
+            [ -z "$_runner_host" ] && { log_error "runners[$_arch].host missing in cloud-data-runners.json"; return 1; }
             log "Native build $_arch → ssh://$_runner_host (no QEMU)"
             _remote_ctx="/tmp/cb-build-$_arch-$$"
-            ssh -o StrictHostKeyChecking=accept-new "$_runner_host" "mkdir -p $_remote_ctx"
+            ssh -o StrictHostKeyChecking=accept-new "$_runner_host" "mkdir -p $_remote_ctx" || return 1
             rsync -azL --delete -e "ssh -o StrictHostKeyChecking=accept-new" \
-                "$DIST_DIR/" "$_runner_host:$_remote_ctx/"
-            # Login on remote too (uses mounted docker config or ambient gh)
+                "$DIST_DIR/" "$_runner_host:$_remote_ctx/" || return 1
             if [ -n "${GITHUB_TOKEN:-}" ]; then
-                ssh "$_runner_host" "echo '$GITHUB_TOKEN' | docker login ghcr.io -u '${GITHUB_ACTOR:-diegonmarcos}' --password-stdin" >/dev/null
+                ssh "$_runner_host" "echo '$GITHUB_TOKEN' | docker login ghcr.io -u '${GITHUB_ACTOR:-diegonmarcos}' --password-stdin" >/dev/null || return 1
             fi
-            ssh "$_runner_host" "cd $_remote_ctx && DOCKER_BUILDKIT=1 docker build --network=host $_build_args --platform linux/$_arch -t '$_tag' -f '$(basename "$_dockerfile_path")' . && docker push '$_tag' && rm -rf $_remote_ctx"
+            ssh "$_runner_host" "cd $_remote_ctx && DOCKER_BUILDKIT=1 docker build --network=host $_build_args --platform linux/$_arch -t '$_tag' -f '$(basename "$_dockerfile_path")' . && docker push '$_tag' && rm -rf $_remote_ctx" || return 1
             ;;
         *)
-            error "Unknown runner type '$_runner_type' for arch=$_arch (valid: local, ssh)"
+            log_error "Unknown runner type '$_runner_type' for arch=$_arch (valid: local, ssh)"
+            return 1
             ;;
     esac
     log "Built + pushed $_tag"
-    echo "$_tag"
+    _LAST_ARCH_TAG="$_tag"
+    return 0
 }
+
+# log_error — same shape as log but marks the line as error (goes to stderr).
+log_error() { printf "${RED}[!]${NC} %s\n" "$1" >&2; }
 
 _docker_push() {
     _variant="$1"
@@ -239,10 +246,14 @@ _docker_push() {
     [ -z "$_arches" ] && error "$_variant: no platform declared in build.json"
 
     # Build + push each arch on its declared runner (native, no QEMU)
+    # Collect per-arch tags via _LAST_ARCH_TAG (no stdout-capture — keeps logs
+    # and return values separate). Fail loudly if any arch fails.
     _arch_tags=""
     for _arch in $_arches; do
-        _tag=$(_build_push_arch "$_ghcr" "$_arch" "$_dockerfile_path" "$_sha" "$_runners_json" | tail -1)
-        _arch_tags="$_arch_tags $_tag"
+        if ! _build_push_arch "$_ghcr" "$_arch" "$_dockerfile_path" "$_sha" "$_runners_json"; then
+            error "arch=$_arch build failed — refusing to push a partial multi-arch manifest"
+        fi
+        _arch_tags="$_arch_tags $_LAST_ARCH_TAG"
     done
 
     # Stitch per-arch images into a multi-arch manifest for :latest and :$sha
