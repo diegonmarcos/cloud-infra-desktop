@@ -18,14 +18,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Checkout cloud (sibling, for config.json)
+      # Cloud repo + cloud-data submodule — needed for cloud-data-runners.json
+      # which declares arch → runner mapping (amd64=local, arm64=ssh oci-apps).
+      - name: Checkout cloud (with cloud-data submodule)
         uses: actions/checkout@v4
         with:
           repository: diegonmarcos/cloud
           path: cloud-repo
+          submodules: recursive
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/setup-qemu-action@v3
 
       - uses: docker/login-action@v3
         with:
@@ -33,12 +34,65 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/setup-buildx-action@v3
+      # arm64 builds delegate to oci-apps (WG-only IP 10.0.0.2). Bring WG up
+      # on the runner so ssh/rsync/docker-over-ssh can reach it natively.
+      # NO QEMU EMULATION — cloud-data-runners.json is the single source of
+      # truth and it says arm64 = ssh oci-apps.
+      - name: WireGuard + SSH to oci-apps
+        env:
+          OCI_SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+          WG_PRIVATE_KEY: ${{ secrets.WG_PRIVATE_KEY }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq wireguard-tools rsync openssh-client
 
-      - name: Ship via runner (jq + docker buildx native)
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "$OCI_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+
+          # oci-apps host is derived from cloud-data-gha-config.json
+          OCI_APPS_IP=$(jq -r '.vms."oci-apps".wg_ip // .vms."oci-apps".host' \
+            cloud-repo/2_configs/dist/cloud-data-gha-config.json)
+          cat > ~/.ssh/config <<EOF
+          Host oci-apps
+            HostName ${OCI_APPS_IP}
+            User ubuntu
+            IdentityFile ~/.ssh/id_deploy
+            StrictHostKeyChecking accept-new
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+          EOF
+          chmod 600 ~/.ssh/config
+
+          # WG conf (matches the cloud-builder entrypoint's hardcoded peer).
+          # Source of truth for peer pubkey is intentionally kept in one place
+          # for this bootstrap workflow — not a cloud-data lookup — because
+          # this workflow runs BEFORE the cloud-builder image exists.
+          sudo install -m 700 -d /etc/wireguard
+          sudo tee /etc/wireguard/wg0.conf >/dev/null <<WGEOF
+          [Interface]
+          PrivateKey = ${WG_PRIVATE_KEY}
+          Address = 10.0.0.200/24
+
+          [Peer]
+          PublicKey = vV/phXUwnCjxACQ5Df11Uw47BzJaK4r85jPYMu2HmDc=
+          Endpoint = 35.226.147.64:51820
+          AllowedIPs = 10.0.0.0/24
+          PersistentKeepalive = 25
+          WGEOF
+          sudo chmod 600 /etc/wireguard/wg0.conf
+          sudo wg-quick up wg0
+
+          # Verify reach to oci-apps — fail loudly if WG is broken (no QEMU fallback)
+          ssh -o ConnectTimeout=15 oci-apps 'uname -m && docker --version'
+
+      - name: Ship via runner (amd64 local + arm64 ssh oci-apps)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_SHA: ${{ github.sha }}
+          # Export the runners JSON path for build.sh (avoids relying on $PWD)
+          CLOUD_DATA_RUNNERS_JSON: ${{ github.workspace }}/cloud-repo/2_configs/dist/cloud-data-runners.json
+          CLOUD_CONFIG: ${{ github.workspace }}/cloud-repo/config.json
         run: |
           cd cb_containers-builders
           sh build.sh ship ${{ github.event.inputs.variant }}
