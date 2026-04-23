@@ -157,8 +157,12 @@ if [ -n "${WG_PRIVATE_KEY:-}" ]; then
       "$@"  # last resort — may fail if not root, but won't hang
     fi
   }
-  umask 077
-  cat > /tmp/wg0.conf << WGEOF
+  # Subshell scopes umask — otherwise 077 persists for the whole entrypoint
+  # and every subsequent file (including /traces/*.json mounted from the GHA
+  # runner) becomes 600 root, which makes actions/upload-artifact fail with
+  # EACCES when it tries to read the trace as the non-root runner user.
+  ( umask 077
+    cat > /tmp/wg0.conf << WGEOF
 [Interface]
 PrivateKey = ${WG_PRIVATE_KEY}
 Address = 10.0.0.200/24
@@ -169,6 +173,7 @@ Endpoint = 35.226.147.64:51820
 AllowedIPs = 10.0.0.0/24
 PersistentKeepalive = 25
 WGEOF
+  )
   _run mkdir -p /etc/wireguard 2>/dev/null || true
   _run cp /tmp/wg0.conf /etc/wireguard/wg0.conf 2>/dev/null || true
   rm /tmp/wg0.conf 2>/dev/null || true
