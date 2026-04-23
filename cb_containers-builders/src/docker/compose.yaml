@@ -6,6 +6,8 @@ services:
     container_name: cloud-builder-x
     image: ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest
     network_mode: host
+    cap_add:
+      - NET_ADMIN
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # Host secret dirs mount at /mnt/host-* (NOT /root/.ssh) — SSH rejects
