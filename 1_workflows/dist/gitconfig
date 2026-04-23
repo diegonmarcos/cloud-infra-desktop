@@ -2,7 +2,7 @@
 # ║                                                                  ║
 # ║   GENERATED FILE — DO NOT EDIT                                   ║
 # ║                                                                  ║
-# ║   Source : 1_workflows/src/modules/gitmodules
+# ║   Source : 1_workflows/src/gitconfig
 # ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
 # ║   Rebuild: ./1_workflows/build.sh
 # ║                                                                  ║
@@ -10,15 +10,23 @@
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-[submodule "tools"]
-	path = tools
-	url = https://github.com/diegonmarcos/tools.git
-	ignore = all
-[submodule "cloud-data"]
-	path = cloud-data
-	url = https://github.com/diegonmarcos/cloud-data.git
-	ignore = all
-[submodule "front-data"]
-	path = front-data
-	url = https://github.com/diegonmarcos/front-data.git
-	ignore = all
+# Repo-level git config — deployed by 1_workflows/build.sh
+# Managed declaratively: edit src/gitconfig, run build.sh, commit.
+[push]
+	recurseSubmodules = on-demand
+[submodule]
+	recurse = true
+[fetch]
+	recurseSubmodules = on-demand
+[core]
+	hooksPath = 1_workflows/dist/hooks
+[pull]
+	rebase = true
+[rebase]
+	autoStash = true
+[alias]
+	# smart, non-destructive sync — see 1_workflows/src/scripts/cloud-git-sync.sh
+	#   git sync           → remote wins on conflict (default)
+	#   git sync remote    → remote wins on conflict
+	#   git sync local     → local commits win on conflict
+	sync = !./1_workflows/dist/scripts/cloud-git-sync.sh
