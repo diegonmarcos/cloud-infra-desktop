@@ -177,7 +177,21 @@ WGEOF
   _run mkdir -p /etc/wireguard 2>/dev/null || true
   _run cp /tmp/wg0.conf /etc/wireguard/wg0.conf 2>/dev/null || true
   rm /tmp/wg0.conf 2>/dev/null || true
-  _run wg-quick up wg0 2>/dev/null && echo "[setup] WireGuard up" || echo "[setup] WireGuard failed (non-fatal)"
+  # Do NOT silence errors — a silent "non-fatal" WG failure masks the
+  # single most common cause of downstream ssh timeouts to WG-only VMs
+  # (oci-mail 10.0.0.3, oci-apps 10.0.0.6). If wg-quick fails, print the
+  # actual kernel/ip/permission error so it's visible in the job log.
+  # "non-fatal" is kept only because some invocations genuinely don't need
+  # WG (local dev, health checks against public endpoints) — callers that
+  # need WG must check reachability afterwards, not trust this line.
+  if _run wg-quick up wg0; then
+    echo "[setup] WireGuard up"
+  else
+    _wg_rc=$?
+    echo "[setup] WireGuard FAILED (rc=$_wg_rc) — ssh to WG-only VMs will time out"
+    echo "[setup]   Common causes: missing cap_add: NET_ADMIN in compose OR --cap-add NET_ADMIN on docker run"
+    [ -z "${WG_PRIVATE_KEY:-}" ] && echo "[setup]   WG_PRIVATE_KEY was empty"
+  fi
   unset -f _run
 fi
 
