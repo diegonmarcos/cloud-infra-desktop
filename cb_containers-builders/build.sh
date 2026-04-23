@@ -163,6 +163,64 @@ step_push() {
     fi
 }
 
+# Locate cloud-data-runners.json — single source of truth for arch → runner.
+# Search order matches the cloud engine so the same pattern works in GHA,
+# locally, and in the cloud-builder container.
+_find_runners_json() {
+    for _p in \
+        "${CLOUD_DATA_RUNNERS_JSON:-}" \
+        "$SCRIPT_DIR/../../cloud/2_configs/dist/cloud-data-runners.json" \
+        "$SCRIPT_DIR/../../../cloud/2_configs/dist/cloud-data-runners.json" \
+        "$SCRIPT_DIR/../cloud-repo/2_configs/dist/cloud-data-runners.json" \
+        "${GITHUB_WORKSPACE:-}/cloud-repo/2_configs/dist/cloud-data-runners.json" \
+        "/root/git/cloud/2_configs/dist/cloud-data-runners.json"; do
+        [ -n "$_p" ] && [ -f "$_p" ] && { echo "$_p"; return 0; }
+    done
+    return 1
+}
+
+# Build + push a single arch image on the runner declared for that arch.
+# Emits a per-arch tag ($ghcr:$sha-$arch); never uses QEMU emulation.
+_build_push_arch() {
+    _ghcr="$1"; _arch="$2"; _dockerfile_path="$3"; _sha="$4"; _runners_json="$5"
+    _runner_type=$(jq -r --arg a "$_arch" '.runners[$a].type // empty' "$_runners_json")
+    _runner_host=$(jq -r --arg a "$_arch" '.runners[$a].host // empty' "$_runners_json")
+    _tag="$_ghcr:$_sha-$_arch"
+
+    [ -z "$_runner_type" ] && error "No runner declared for arch=$_arch in cloud-data-runners.json"
+
+    _build_args=""
+    [ -n "${GITHUB_TOKEN:-}" ] && _build_args="--build-arg GITHUB_TOKEN=$GITHUB_TOKEN"
+
+    case "$_runner_type" in
+        local)
+            log "Native build $_arch → local (runner=$(uname -m))"
+            DOCKER_BUILDKIT=1 $ENGINE build --network=host $_build_args \
+                --platform "linux/$_arch" \
+                -t "$_tag" -f "$_dockerfile_path" "$DIST_DIR"
+            $ENGINE push "$_tag"
+            ;;
+        ssh)
+            [ -z "$_runner_host" ] && error "runners[$_arch].host missing in cloud-data-runners.json"
+            log "Native build $_arch → ssh://$_runner_host (no QEMU)"
+            _remote_ctx="/tmp/cb-build-$_arch-$$"
+            ssh -o StrictHostKeyChecking=accept-new "$_runner_host" "mkdir -p $_remote_ctx"
+            rsync -azL --delete -e "ssh -o StrictHostKeyChecking=accept-new" \
+                "$DIST_DIR/" "$_runner_host:$_remote_ctx/"
+            # Login on remote too (uses mounted docker config or ambient gh)
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+                ssh "$_runner_host" "echo '$GITHUB_TOKEN' | docker login ghcr.io -u '${GITHUB_ACTOR:-diegonmarcos}' --password-stdin" >/dev/null
+            fi
+            ssh "$_runner_host" "cd $_remote_ctx && DOCKER_BUILDKIT=1 docker build --network=host $_build_args --platform linux/$_arch -t '$_tag' -f '$(basename "$_dockerfile_path")' . && docker push '$_tag' && rm -rf $_remote_ctx"
+            ;;
+        *)
+            error "Unknown runner type '$_runner_type' for arch=$_arch (valid: local, ssh)"
+            ;;
+    esac
+    log "Built + pushed $_tag"
+    echo "$_tag"
+}
+
 _docker_push() {
     _variant="$1"
     _ghcr=$(jq -r ".images.\"$_variant\".ghcr" "$CONFIG")
@@ -170,25 +228,31 @@ _docker_push() {
     _dockerfile=$(jq -r ".images.\"$_variant\".dockerfile" "$CONFIG")
     [ "$_ghcr" = "null" ] && { error "Unknown variant: $_variant"; }
 
-    # Pass GITHUB_TOKEN as build-arg for authenticated GitHub API
-    _build_args=""
-    [ -n "${GITHUB_TOKEN:-}" ] && _build_args="--build-arg GITHUB_TOKEN=$GITHUB_TOKEN"
+    _dockerfile_path="$DIST_DIR/$(basename "$_dockerfile")"
+    _sha="${GITHUB_SHA:-$(git rev-parse --short HEAD 2>/dev/null || echo local)}"
 
-    # Multi-arch: rebuild with --push (buildx can't push after --load for multi-platform)
-    if echo "$_platform" | grep -q ","; then
-        _dockerfile_path="$DIST_DIR/$(basename "$_dockerfile")"
-        log "Step 3: PUSH (multi-arch buildx) — $_ghcr:latest"
-        # Ensure a buildx builder with multi-platform support exists
-        if ! $ENGINE buildx inspect multiarch >/dev/null 2>&1; then
-            $ENGINE buildx create --name multiarch --driver docker-container --use 2>/dev/null || true
-        fi
-        $ENGINE buildx use multiarch 2>/dev/null || true
-        $ENGINE buildx build --network=host $_build_args --platform="$_platform" -t "$_ghcr:latest" -f "$_dockerfile_path" "$DIST_DIR" --push
-    else
-        log "Step 3: PUSH — $_ghcr:latest"
-        $ENGINE push "$_ghcr:latest"
-    fi
-    log "Pushed: $_ghcr:latest"
+    _runners_json=$(_find_runners_json) || error "cloud-data-runners.json not found — cannot resolve runners (no QEMU fallback)"
+    log "Runners source: $_runners_json"
+
+    # Parse platform list: "linux/amd64,linux/arm64" → arch tokens
+    _arches=$(echo "$_platform" | tr ',' '\n' | sed 's|linux/||g' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$')
+    [ -z "$_arches" ] && error "$_variant: no platform declared in build.json"
+
+    # Build + push each arch on its declared runner (native, no QEMU)
+    _arch_tags=""
+    for _arch in $_arches; do
+        _tag=$(_build_push_arch "$_ghcr" "$_arch" "$_dockerfile_path" "$_sha" "$_runners_json" | tail -1)
+        _arch_tags="$_arch_tags $_tag"
+    done
+
+    # Stitch per-arch images into a multi-arch manifest for :latest and :$sha
+    # --amend overwrites any stale manifest from previous runs.
+    log "Step 3: MANIFEST — $_ghcr:latest → [$_arch_tags ]"
+    DOCKER_CLI_EXPERIMENTAL=enabled $ENGINE manifest create --amend "$_ghcr:latest" $_arch_tags
+    DOCKER_CLI_EXPERIMENTAL=enabled $ENGINE manifest push --purge "$_ghcr:latest"
+    DOCKER_CLI_EXPERIMENTAL=enabled $ENGINE manifest create --amend "$_ghcr:$_sha" $_arch_tags
+    DOCKER_CLI_EXPERIMENTAL=enabled $ENGINE manifest push --purge "$_ghcr:$_sha"
+    log "Pushed multi-arch manifest: $_ghcr:latest ($_ghcr:$_sha)"
     $ENGINE image prune -f >/dev/null 2>&1 || true
 }
 
