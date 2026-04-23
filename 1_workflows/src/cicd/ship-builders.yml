@@ -1,15 +1,3 @@
-# ╔══════════════════════════════════════════════════════════════════╗
-# ║                                                                  ║
-# ║   GENERATED FILE — DO NOT EDIT                                   ║
-# ║                                                                  ║
-# ║   Source : 1_workflows/src/cicd/ship-builders.yml
-# ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
-# ║   Rebuild: ./1_workflows/build.sh
-# ║                                                                  ║
-# ║   Manual edits will be overwritten on next build.                ║
-# ║                                                                  ║
-# ╚══════════════════════════════════════════════════════════════════╝
-
 name: "Ship → Builder images (manual, local)"
 
 # The CI build pipeline for cloud-builder-x-deb-nixhm lives in the cloud repo

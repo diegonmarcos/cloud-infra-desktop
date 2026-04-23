@@ -1,5 +1,5 @@
-# Repo-level git config — self-contained, no external engine deps.
-# Activate:  git config --local include.path ../.gitconfig
+# Repo-level git config — deployed by 1_workflows/build.sh
+# Managed declaratively: edit src/gitconfig, run build.sh, commit.
 [push]
 	recurseSubmodules = on-demand
 [submodule]
@@ -7,14 +7,14 @@
 [fetch]
 	recurseSubmodules = on-demand
 [core]
-	hooksPath = .githooks
+	hooksPath = 1_workflows/dist/hooks
 [pull]
 	rebase = true
 [rebase]
 	autoStash = true
 [alias]
-	# smart, non-destructive sync — see .githooks/cloud-git-sync.sh
+	# smart, non-destructive sync — see 1_workflows/src/scripts/cloud-git-sync.sh
 	#   git sync           → remote wins on conflict (default)
 	#   git sync remote    → remote wins on conflict
 	#   git sync local     → local commits win on conflict
-	sync = !./.githooks/cloud-git-sync.sh
+	sync = !./1_workflows/dist/scripts/cloud-git-sync.sh
