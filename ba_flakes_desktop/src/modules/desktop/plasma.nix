@@ -449,6 +449,17 @@
       "dolphinrc"."General" = {
         ShowFullPath = true;
         ShowFullPathInTitlebar = true;
+        # Speculative: force re-list on window focus-in. Key is not part of
+        # the documented Plasma 6 dolphinrc schema (was present in some KDE
+        # forks). Harmless if ignored. The REAL fix for stale Dolphin views
+        # after bursty filesystem ops (git rm -rf / rsync --delete / cargo
+        # build) is raising inotify limits in the NixOS host flake:
+        #   boot.kernel.sysctl = {
+        #     "fs.inotify.max_user_watches"   = 1048576;
+        #     "fs.inotify.max_user_instances" = 1024;
+        #     "fs.inotify.max_queued_events"  = 65536;
+        #   };
+        AutoRefresh = true;
       };
       "dolphinrc"."VersionControl" = {
         enabledPlugins = "Git";
