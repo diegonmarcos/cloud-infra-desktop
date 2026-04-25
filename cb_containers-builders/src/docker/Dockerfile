@@ -58,9 +58,16 @@ COPY --from=builder /root/.node_modules /root/.node_modules
 COPY --from=builder /build /opt/cloud-builder-flake
 
 # ── Clone all repos under ~/git/ (HTTPS, public) ────────────────
+# After clone, run each repo's 1_workflows/build.sh deploy (when present)
+# to wire its [alias] sync / [alias] nuke into the local .git/config so the
+# entrypoint can call `git nuke` instead of hand-rolling fetch+reset+submodule
+# logic. Repos without 1_workflows/ (cloud-data, front) just stay vanilla.
 RUN mkdir -p /root/git && \
     for repo in cloud cloud-data unix front tools; do \
-      git clone --depth 1 "https://github.com/diegonmarcos/${repo}.git" "/root/git/${repo}"; \
+      git clone --depth 1 "https://github.com/diegonmarcos/${repo}.git" "/root/git/${repo}" && \
+      if [ -x "/root/git/${repo}/1_workflows/build.sh" ]; then \
+        bash -c "cd /root/git/${repo} && bash 1_workflows/build.sh deploy" || true; \
+      fi; \
     done && \
     git -C /root/git/cloud submodule update --init --recursive 2>/dev/null || true
 

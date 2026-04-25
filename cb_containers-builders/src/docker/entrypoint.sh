@@ -195,21 +195,37 @@ WGEOF
   unset -f _run
 fi
 
-# ── 7. Rebase all repos (baked at build time under ~/git/) ───────
+# ── 7. Re-sync all repos (baked at build time under ~/git/) ──────
+# Each repo's 1_workflows framework provides a `git nuke` alias —
+# bulletproof reset-from-origin (fetch + reset --hard + clean -fdx +
+# submodule update --remote --rebase --force). Survives force-pushed
+# origin, dirty work, untracked files, divergent history.
+# See ~/git/cloud/1_workflows/src/scripts/cloud-git-nuke.sh.
+#
+# Falls back to hand-rolled fetch+reset for repos without the framework
+# (cloud-data, front) or images that pre-date the alias.
 GIT_ROOT="$HOME/git"
 git config --global --add safe.directory "*"
 
-echo "[setup] Syncing all repos..."
+echo "[setup] Syncing all repos via git nuke..."
 for repo in cloud cloud-data unix front tools; do
   dir="$GIT_ROOT/$repo"
-  if [ -d "$dir/.git" ]; then
+  [ -d "$dir/.git" ] || continue
+  if git -C "$dir" config --get alias.nuke >/dev/null 2>&1; then
+    if (cd "$dir" && git nuke --quiet 2>/dev/null); then
+      echo "[setup] Synced $repo (via git nuke)"
+    else
+      echo "[setup] git nuke failed for $repo (non-fatal)"
+    fi
+  else
+    # Fallback: legacy path for repos without the 1_workflows framework
     git -C "$dir" fetch origin main 2>/dev/null \
       && git -C "$dir" reset --hard origin/main 2>/dev/null \
-      && echo "[setup] Synced $repo" \
+      && git -C "$dir" submodule update --init --recursive 2>/dev/null \
+      && echo "[setup] Synced $repo (legacy fetch+reset)" \
       || echo "[setup] Sync failed for $repo (non-fatal)"
   fi
 done
-git -C "$GIT_ROOT/cloud" submodule update --init --recursive 2>/dev/null
 
 WORKSPACE="$GIT_ROOT/cloud"
 cd "$WORKSPACE"
