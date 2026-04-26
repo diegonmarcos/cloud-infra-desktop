@@ -107,6 +107,12 @@
 
   # Hibernation resume: LUKS partition → btrfs swapfile
   # Offset from: sudo btrfs inspect-internal map-swapfile /mnt/shared/.swapfile
+  #
+  # NOTE: `resume=` must be in `boot.kernelParams` explicitly. nixpkgs only
+  # auto-injects `resume=${boot.resumeDevice}` when `boot.initrd.systemd.enable`
+  # is true (see nixos/modules/system/boot/systemd/initrd.nix:440). We use the
+  # legacy initrd, so the auto-injection never fires and the kernel can't find
+  # the hibernation image on resume without this explicit entry.
   boot.resumeDevice = "/dev/mapper/pool";
-  boot.kernelParams = [ "resume_offset=4954822" ];
+  boot.kernelParams = [ "resume=/dev/mapper/pool" "resume_offset=4954822" ];
 }

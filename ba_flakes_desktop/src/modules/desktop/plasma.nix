@@ -553,6 +553,24 @@
         lidAction = 64;  # Lock Screen
       };
 
+      # Critical-battery action: hibernate at 5%, warn at 15%.
+      # Group `BatteryManagement` and key names verified against
+      # PowerDevilGlobalSettings.kcfg (Plasma/6.2). Action enum values
+      # from daemon/powerdevilenums.h: NoAction=0, Sleep=1, Hibernate=2,
+      # Shutdown=8, LockScreen=32. PowerDevil reads BatteryCriticalAction via
+      # `static_cast<PowerButtonAction>(...)` (powerdevilcore.cpp).
+      #
+      # Note: this rule depends on upowerd reporting a numeric percentage.
+      # The Surface aggregator (SAM) intermittently returns voltage=0 making
+      # upowerd's percentage NaN, in which case this rule never fires.
+      # Sysfs-direct safety net lives at:
+      #   aa_nixos-surface_host/src/modules/configuration_system-protection-battery.nix
+      "powerdevilrc"."BatteryManagement" = {
+        BatteryCriticalAction = 2;   # Hibernate
+        BatteryCriticalLevel  = 5;
+        BatteryLowLevel       = 15;
+      };
+
       # Keyboard layouts - Spanish (default), British, Portuguese, German
       "kxkbrc"."Layout" = {
         LayoutList = "es,gb,pt,de";

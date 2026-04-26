@@ -1,0 +1,73 @@
+{
+  "_comment": "Declarative battery-critical defense. Source of truth for the sysfs-direct battery watchdog. Bypasses upowerd/PowerDevil so a SAM voltage glitch (intermittent voltage=0 → percentage=NaN) cannot prevent hibernation. Nix module `configuration_system-protection-battery.nix` reads this file and generates a systemd timer + service that polls /sys/class/power_supply/<device>/{capacity,status} directly and triggers `systemctl <action_at_critical>` when conditions match.",
+  "version": 1,
+  "enabled": true,
+
+  "watch": {
+    "_comment": "Source data is the kernel's `capacity` integer (0..100), which comes from a separate code path than the energy/voltage fields upowerd computes from. capacity has been clean across all journal logs even when voltage/percentage went NaN.",
+    "device": "BAT1",
+    "poll_seconds": 60
+  },
+
+  "thresholds": {
+    "_comment": "Trigger only when status is `Discharging`. Critical fires the action; low only logs a warning.",
+    "critical_capacity_pct": 5,
+    "low_capacity_pct": 15,
+    "require_status": "Discharging"
+  },
+
+  "action_at_critical": {
+    "_comment": "systemctl verb to invoke when critical_capacity is hit + status matches require_status. Allowed: hibernate, suspend-then-hibernate, hybrid-sleep, suspend, poweroff. Default `hibernate` requires `resume=` on kernel cmdline (see hardware_filesystems.nix).",
+    "command": "hibernate"
+  },
+
+  "testers": {
+    "_comment": "Each tester verifies one invariant of the battery defense. Wire into reports-logs or a dedicated CI job.",
+    "checks": [
+      {
+        "id": "battery_watchdog_timer_active",
+        "description": "battery-watchdog.timer is active",
+        "command": "systemctl is-active battery-watchdog.timer",
+        "expect": "active"
+      },
+      {
+        "id": "battery_sysfs_capacity_readable",
+        "description": "/sys/class/power_supply/BAT1/capacity returns an integer 0..100",
+        "command": "cat /sys/class/power_supply/BAT1/capacity",
+        "expect_regex": "^(100|[0-9]{1,2})$"
+      },
+      {
+        "id": "battery_sysfs_status_readable",
+        "description": "/sys/class/power_supply/BAT1/status returns a known state",
+        "command": "cat /sys/class/power_supply/BAT1/status",
+        "expect_regex": "^(Charging|Discharging|Full|Not charging|Unknown)$"
+      },
+      {
+        "id": "resume_param_on_cmdline",
+        "description": "Kernel cmdline has resume= so hibernation can resume on next boot",
+        "command": "grep -o 'resume=[^ ]*' /proc/cmdline",
+        "expect_regex": "^resume=/dev/"
+      },
+      {
+        "id": "loginctl_can_hibernate",
+        "description": "logind reports hibernate is permitted",
+        "command": "systemctl show -p CanHibernate --value",
+        "expect": "yes"
+      },
+      {
+        "id": "swap_size_ge_image_size",
+        "description": "Disk swap (non-zram) ≥ /sys/power/image_size budget",
+        "command": "awk 'NR>1 && $1!~/zram/ {sum+=$3} END{print sum*1024}' /proc/swaps; cat /sys/power/image_size",
+        "expect_compare": "first_ge_second"
+      }
+    ]
+  },
+
+  "deployment": {
+    "_comment": "Where this config is consumed.",
+    "consumers": [
+      "~/git/unix/aa_nixos-surface_host/src/modules/configuration_system-protection-battery.nix"
+    ],
+    "reload_command": "cd ~/git/unix/aa_nixos-surface_host && ./build.sh switch"
+  }
+}
