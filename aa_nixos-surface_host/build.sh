@@ -592,8 +592,8 @@ draw_header() {
 
 draw_menu() {
     printf "${BOLD}┌─ Live System (NixOS only) ────────────────────────────────┐${NC}\n"
-    printf "│  ${GREEN}r${NC}) Rebuild & switch        ${GREEN}b${NC}) Build for next boot         │\n"
-    printf "│  ${YELLOW}t${NC}) Test (reverts on reboot)                                │\n"
+    printf "│  ${GREEN}s${NC}) switch  (rebuild & switch)   ${GREEN}b${NC}) boot  (next boot)       │\n"
+    printf "│  ${YELLOW}t${NC}) test    (reverts on reboot)                                │\n"
     printf "${BOLD}└─────────────────────────────────────────────────────────────┘${NC}\n"
     printf "\n"
     printf "${BOLD}┌─ Build Images ─────────────────────────────────────────────┐${NC}\n"
@@ -607,11 +607,13 @@ draw_menu() {
     printf "${BOLD}└─────────────────────────────────────────────────────────────┘${NC}\n"
     printf "\n"
     printf "${BOLD}┌─ Utilities ─────────────────────────────────────────────────┐${NC}\n"
-    printf "│  ${CYAN}c${NC}) Dry-run (build+diff)      ${CYAN}u${NC}) Update flake inputs         │\n"
-    printf "│  ${CYAN}s${NC}) Show build outputs       ${CYAN}d${NC}) Diff with current system    │\n"
+    printf "│  ${CYAN}c${NC}) dry-run (check+diff)        ${CYAN}u${NC}) update (flake inputs)      │\n"
+    printf "│  ${CYAN}o${NC}) show    (build outputs)     ${CYAN}d${NC}) diff (vs current system)  │\n"
     printf "${BOLD}└─────────────────────────────────────────────────────────────┘${NC}\n"
     printf "\n"
-    printf "  ${CYAN}h${NC}) Help/Documentation    ${RED}q${NC}) Quit\n"
+    printf "  ${CYAN}h${NC}) help    ${RED}q${NC}) quit\n"
+    printf "\n"
+    printf "  ${BOLD}Hint:${NC} long names also work — type ${GREEN}switch${NC}, ${GREEN}boot${NC}, ${GREEN}test${NC}, ${CYAN}dry-run${NC}, …\n"
     printf "\n"
 }
 
@@ -1256,96 +1258,99 @@ main() {
         printf "${BOLD}Select option:${NC} "
         read -r choice
 
-        case "$choice" in
-            r|R)
+        # Normalise: lowercase, trim. Accept short keys, long names, dashes and spaces.
+        choice_norm=$(printf '%s' "$choice" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+
+        case "$choice_norm" in
+            s|switch|rebuild)
                 switch_system
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            b|B)
+            b|boot)
                 boot_system
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            t|T)
+            t|test)
                 test_system
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            1)
+            1|raw|build-raw)
                 build_raw
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            2)
+            2|iso|build-iso)
                 build_iso
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            3)
+            3|qcow|qcow2|build-qcow)
                 build_qcow
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            4)
+            4|vm-runner|build-vm)
                 build_vm
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            5)
+            5|burn|burn-usb)
                 burn_to_usb
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            6)
+            6|vm|create-vm)
                 printf "${BOLD}Enter VM name (default: nixos-test):${NC} "
                 read -r vm_name
                 create_vm "$vm_name"
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            7)
+            7|deploy)
                 deploy_existing
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            i|I)
+            i|install)
                 install_full
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            c|C)
+            c|check|dry-run|dryrun)
                 dry_run
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            u|U)
+            u|update)
                 update_flake
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            s|S)
+            o|show|outputs)
                 show_outputs
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            d|D)
+            d|diff)
                 diff_system
                 printf "\nPress Enter to continue..."
                 read -r _
                 ;;
-            h|H)
+            h|help|-h|--help|\?)
                 clear
                 # Show documentation from script header
                 head -200 "$0" | grep "^#" | sed 's/^#//' | less
                 ;;
-            q|Q)
+            q|quit|exit)
                 printf "\n"
                 log "Goodbye!"
                 exit 0
                 ;;
             *)
-                warn "Invalid option"
+                warn "Invalid option: '$choice'"
                 sleep 1
                 ;;
         esac
@@ -1359,14 +1364,17 @@ main() {
 if [ $# -gt 0 ]; then
     check_nix
 
-    case "$1" in
-        switch)
+    # Normalise: lowercase, trim. Same alias set as the interactive menu.
+    cli_cmd=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+
+    case "$cli_cmd" in
+        s|switch|rebuild)
             switch_system
             ;;
-        boot)
+        b|boot)
             boot_system
             ;;
-        test)
+        t|test)
             test_system
             ;;
         build)
@@ -1382,60 +1390,82 @@ if [ $# -gt 0 ]; then
                     ;;
             esac
             ;;
-        burn)
+        1|raw|build-raw)
+            build_raw
+            ;;
+        2|iso|build-iso)
+            build_iso
+            ;;
+        3|qcow|qcow2|build-qcow)
+            build_qcow
+            ;;
+        4|vm-runner|build-vm)
+            build_vm
+            ;;
+        5|burn|burn-usb)
             burn_to_usb "$2"
             ;;
-        vm)
+        6|vm|create-vm)
             create_vm "$2"
             ;;
-        install)
-            install_full
-            ;;
-        deploy)
+        7|deploy)
             deploy_existing
             ;;
-        dry-run|check)
+        i|install)
+            install_full
+            ;;
+        c|check|dry-run|dryrun)
             dry_run
             ;;
-        update)
+        u|update)
             update_flake
             ;;
-        show)
+        o|show|outputs)
             show_outputs
             ;;
-        diff)
+        d|diff)
             diff_system
+            ;;
+        h|help|-h|--help|\?)
+            clear
+            head -200 "$0" | grep "^#" | sed 's/^#//' | less
+            ;;
+        q|quit|exit)
+            exit 0
             ;;
         *)
             printf "${BOLD}NixOS Bifrost Build System${NC}\n\n"
-            printf "Usage: %s [command]\n\n" "$0"
+            printf "Usage: %s [command]\n" "$0"
+            printf "       %s            (interactive menu)\n\n" "$0"
             printf "${BOLD}Live System (NixOS only):${NC}\n"
-            printf "  switch              Rebuild and switch to new config NOW\n"
-            printf "  boot                Build config, activate on next boot\n"
-            printf "  test                Test config (reverts on reboot)\n"
+            printf "  s | switch                Rebuild and switch to new config NOW\n"
+            printf "  b | boot                  Build config, activate on next boot\n"
+            printf "  t | test                  Test config (reverts on reboot)\n"
             printf "\n"
             printf "${BOLD}Build Images:${NC}\n"
-            printf "  build raw           Build raw EFI disk image\n"
-            printf "  build iso           Build bootable ISO\n"
-            printf "  build qcow          Build QCOW2 VM image\n"
-            printf "  build vm            Build VM runner script\n"
+            printf "  1 | raw   | build raw     Build raw EFI disk image\n"
+            printf "  2 | iso   | build iso     Build bootable ISO\n"
+            printf "  3 | qcow  | build qcow    Build QCOW2 VM image\n"
+            printf "  4 | vm-runner | build vm  Build VM runner script\n"
             printf "\n"
             printf "${BOLD}Deploy:${NC}\n"
-            printf "  burn [device]       Burn raw image to USB\n"
-            printf "  vm [name]           Create VM from QCOW2\n"
-            printf "  install             Full installation (WIPES DISK)\n"
-            printf "  deploy              Deploy to existing partitions (safe)\n"
+            printf "  5 | burn [device]         Burn raw image to USB\n"
+            printf "  6 | vm   [name]           Create VM from QCOW2\n"
+            printf "  7 | deploy                Deploy to existing partitions (safe)\n"
+            printf "  i | install               Full installation (WIPES DISK)\n"
             printf "\n"
             printf "${BOLD}Utilities:${NC}\n"
-            printf "  dry-run             Build + diff without applying (safe)\n"
-            printf "  update              Update flake inputs\n"
-            printf "  show                Show available outputs\n"
-            printf "  diff                Diff with current system\n"
+            printf "  c | check | dry-run       Build + diff without applying (safe)\n"
+            printf "  u | update                Update flake inputs\n"
+            printf "  o | show                  Show available outputs\n"
+            printf "  d | diff                  Diff with current system\n"
+            printf "  h | help                  Show this help\n"
+            printf "  q | quit | exit           Exit\n"
             printf "\n"
             printf "${BOLD}Environment:${NC}\n"
             printf "  TARGET_DISK=/dev/sda %s install\n" "$0"
             printf "\n"
-            exit 1
+            [ -n "$cli_cmd" ] && exit 1 || exit 0
             ;;
     esac
 else
