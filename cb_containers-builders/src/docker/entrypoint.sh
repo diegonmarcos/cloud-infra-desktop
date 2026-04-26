@@ -137,12 +137,30 @@ if [ -d /mnt/host-gh ] && [ ! -d /root/.config/gh ]; then
 fi
 
 # ── 5. GHCR login ─────────────────────────────────────────────────
-if [ -n "${GITHUB_TOKEN:-}" ]; then
-  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR:-diegonmarcos}" --password-stdin 2>/dev/null
-  echo "[setup] GHCR authenticated"
+# In CI, the host runner already runs `docker login ghcr.io` before
+# `docker compose run`, and the resulting ~/.docker/config.json is
+# RO-mounted into the container per compose.yaml. A fresh `docker login`
+# inside the container tries to write back to that RO mount and fails.
+# Combined with `set -e` and silenced stderr, it killed the entrypoint
+# silently right after the gh CLI step (the original gen-configs/Ship
+# crash). Detect the RO-mount or pre-existing auth and skip; otherwise
+# attempt login but treat failure as non-fatal — GHCR login is best
+# effort, downstream consumers (docker pull, compose) surface the real
+# error if the registry is genuinely unreachable.
+if [ -f /root/.docker/config.json ] && grep -q '"ghcr.io"' /root/.docker/config.json 2>/dev/null; then
+  echo "[setup] GHCR auth already present (host-mounted ~/.docker/config.json)"
+elif [ -n "${GITHUB_TOKEN:-}" ]; then
+  if echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR:-diegonmarcos}" --password-stdin 2>&1; then
+    echo "[setup] GHCR authenticated"
+  else
+    echo "[setup] GHCR login failed (non-fatal — downstream docker pull will fail loud if needed)"
+  fi
 elif command -v gh >/dev/null 2>&1 && gh auth token >/dev/null 2>&1; then
-  gh auth token 2>/dev/null | docker login ghcr.io -u "$(gh api user --jq .login 2>/dev/null || echo diegonmarcos)" --password-stdin 2>/dev/null
-  echo "[setup] GHCR authenticated via gh CLI"
+  if gh auth token 2>/dev/null | docker login ghcr.io -u "$(gh api user --jq .login 2>/dev/null || echo diegonmarcos)" --password-stdin 2>&1; then
+    echo "[setup] GHCR authenticated via gh CLI"
+  else
+    echo "[setup] GHCR login via gh failed (non-fatal)"
+  fi
 fi
 
 # ── 6. WireGuard (if key provided) ────────────────────────────────
