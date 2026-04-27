@@ -25113,3 +25113,154 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-04-26 15:32:14] PERF: TOTAL switch = 6m 28s
 [2026-04-26 15:32:14] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-04-26 15:32:15] ========== Build script finished ==========
+[2026-04-27 16:02:10] ========== Build script started ==========
+[2026-04-27 16:02:10] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-27 16:02:11] PERF: start switch
+[2026-04-27 16:02:11] INFO: Staging dirty files for flake evaluation...
+[2026-04-27 16:02:12] PERF: git stage = 865ms
+[2026-04-27 16:02:12] INFO: Cleaning 1 old backup file(s)...
+[2026-04-27 16:02:12] PERF: clean backups = 220ms
+[2026-04-27 16:02:12] INFO: Applying Home Manager configuration...
+unpacking 'github:nix-community/home-manager/d5f1f641b289553927b3801580598d200a501863?narHash=sha256-ypL9WAZfmJr5V70jEVzqGjjQzF0uCkz%2BAFQF7n9NmNc%3D' into the Git cache...
+error:
+       … in the condition of the assert statement
+         at «nix-internal»/call-flake.nix:79:7:
+           78|     if node.flake or true then
+           79|       assert builtins.isFunction flake.outputs;
+             |       ^
+           80|       result
+
+       … while calling the 'isFunction' builtin
+         at «nix-internal»/call-flake.nix:79:14:
+           78|     if node.flake or true then
+           79|       assert builtins.isFunction flake.outputs;
+             |              ^
+           80|       result
+
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+       error: opening Git repository '"/home/diego/.cache/nix/tarball-cache"': could not find repository at '/home/diego/.cache/nix/tarball-cache'
+[2026-04-27 16:02:18] ERROR: Configuration failed with exit code 1
+[2026-04-27 16:02:18] INFO: Check /home/diego/git/unix/ba_flakes_desktop/build.log for details
+[2026-04-27 16:02:18] PERF: home-manager switch = 5.3s
+[2026-04-27 16:02:18] PERF: TOTAL switch = 7.1s
+[2026-04-27 16:04:13] ========== Build script started ==========
+[2026-04-27 16:04:13] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-27 16:04:13] PERF: start switch
+[2026-04-27 16:04:14] INFO: Staging dirty files for flake evaluation...
+[2026-04-27 16:04:16] PERF: git stage = 1.8s
+[2026-04-27 16:04:17] PERF: clean backups = 665ms
+[2026-04-27 16:04:18] INFO: Applying Home Manager configuration...
+unpacking 'github:nix-community/home-manager/d5f1f641b289553927b3801580598d200a501863?narHash=sha256-ypL9WAZfmJr5V70jEVzqGjjQzF0uCkz%2BAFQF7n9NmNc%3D' into the Git cache...
+unpacking 'github:nix-community/NUR/ac8ce1206965fa8b5fc57ef3526c5fb3584ff720?narHash=sha256-n0uTDvXGRPXi2oHxnb/Cfm87biebQ1i5hYlbQBoflRA%3D' into the Git cache...
+unpacking 'github:hercules-ci/flake-parts/205b12d8b7cd4802fbcb8e8ef6a0f1408781a4f9?narHash=sha256-4pDvzqnegAfRkPwO3wmwBhVi/Sye1mzps0zHWYnP88c%3D' into the Git cache...
+copying path '/nix/store/0yj36irhwn225ywy1saz0gf5wr2ciz50-source' from 'https://cache.nixos.org'...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+unpacking 'github:Mic92/sops-nix/c5eebd4eb2e3372fe12a8d70a248a6ee9dd02eff?narHash=sha256-wFcr32ZqspCxk4%2BFvIxIL0AZktRs6DuF8oOsLt59YBU%3D' into the Git cache...
+unpacking 'github:nix-community/plasma-manager/51816be33a1ff0d4b22427de83222d5bfa96d30e?narHash=sha256-d5Q1GmQ%2BsW1Bt8cgDE0vOihzLaswsm8cSdg8124EqXE%3D' into the Git cache...
+copying path '/nix/store/kn3m407mn5p4dyjb96z12daanqjaqmzc-source' from 'https://cache.nixos.org'...
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 4 derivations will be built:
+  /nix/store/72rdx9gkr2naghlrpc07qyajmkmvrwk9-hm_.configBraveSoftwareBraveBrowserpoliciesmanagedhomepagelocalhost8000.json.drv
+  /nix/store/8di6why58byiziym1shsqcmhfj8k6gr5-activation-script.drv
+  /nix/store/fzww2jp2dygv08s5qb34x4mcsrwx18al-home-manager-files.drv
+  /nix/store/9via6abzznjd3s8gvdxb4if9gb0zy8jc-home-manager-generation.drv
+building '/nix/store/8di6why58byiziym1shsqcmhfj8k6gr5-activation-script.drv'...
+building '/nix/store/72rdx9gkr2naghlrpc07qyajmkmvrwk9-hm_.configBraveSoftwareBraveBrowserpoliciesmanagedhomepagelocalhost8000.json.drv'...
+building '/nix/store/fzww2jp2dygv08s5qb34x4mcsrwx18al-home-manager-files.drv'...
+building '/nix/store/9via6abzznjd3s8gvdxb4if9gb0zy8jc-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 341
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] No cloud-data-deps.json found
+Activating mergeFrontDeps
+[node-npm-deps-front] 84 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 103 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 15s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] WARNING: cloud-data or template not found, using static fallback
+Activating globalTsx
+
+changed 5 packages in 10s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.119 is up to date
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.0aH7np80IR/generation/activate: line 810: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating sops-nix
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-04-27 16:15:11] PERF: home-manager switch = 10m 53s
+[2026-04-27 16:15:11] PERF: TOTAL switch = 10m 57s
+[2026-04-27 16:15:11] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-04-27 16:15:11] ========== Build script finished ==========
+[2026-04-27 19:17:31] ========== Build script started ==========
+[2026-04-27 19:17:31] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@test ==========
+[2026-04-27 19:17:31] PERF: start switch
+[2026-04-27 19:17:31] INFO: Staging dirty files for flake evaluation...
+[2026-04-27 19:17:32] PERF: git stage = 371ms
+[2026-04-27 19:17:32] PERF: clean backups = 95ms
+[2026-04-27 19:17:32] INFO: Applying Home Manager configuration...
+error: flake 'git+file:///home/diego/git/unix?dir=ba_flakes_desktop/src' does not provide attribute 'packages.x86_64-linux.homeConfigurations."diego@test".activationPackage', 'legacyPackages.x86_64-linux.homeConfigurations."diego@test".activationPackage' or 'homeConfigurations."diego@test".activationPackage'
+[2026-04-27 19:17:33] ERROR: Configuration failed with exit code 1
+[2026-04-27 19:17:33] INFO: Check /home/diego/git/unix/ba_flakes_desktop/build.log for details
+[2026-04-27 19:17:34] PERF: home-manager switch = 1.7s
+[2026-04-27 19:17:34] PERF: TOTAL switch = 2.6s
+[2026-04-27 19:17:34] ========== Build script started ==========
+[2026-04-27 19:17:34] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@test ==========
+[2026-04-27 19:17:34] PERF: start switch
+[2026-04-27 19:17:34] INFO: Staging dirty files for flake evaluation...
