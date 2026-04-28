@@ -103,5 +103,64 @@ if CONFIG_JSON=/nonexistent/path.json "$WATCHDOG" --dry-run 2>/dev/null; then
 fi
 pass "watchdog rejects missing config"
 
+# ─── PART C: INTEGRATION (opt-in, has side effects) ────────────
+# These prove the kernel/systemd actually enforce what we declared.
+# Skipped by default because they (a) burn memory briefly, (b) restart a
+# real Plasma user service. Run with --integration to enable.
+if [ "${1:-}" = "--integration" ]; then
+    echo ""
+    echo "── PART C: INTEGRATION (kernel + systemd enforcement) ──"
+
+    # C.1 — cgroup MemoryMax actually OOM-kills (proves the .conf drop-in
+    # mechanism works at runtime, not just on paper)
+    command -v python3   >/dev/null 2>&1 || fail "python3 required for integration tests"
+    command -v systemd-run >/dev/null 2>&1 || fail "systemd-run required for integration tests"
+
+    # Wrapped in subshell so bash's job-control "Killed" stderr noise stays
+    # contained when the cgroup OOM-kills the scope's process.
+    (
+        systemd-run --user --scope --quiet \
+            -p MemoryMax=50M -p MemorySwapMax=0 \
+            python3 -c '
+data = bytearray(200 * 1024 * 1024)
+for i in range(0, len(data), 4096):
+    data[i] = 1
+' >/dev/null 2>&1
+        exit $?
+    ) 2>/dev/null
+    cap_ec=$?
+    [ "$cap_ec" -ne 0 ] || fail "MemoryMax=50M did NOT enforce — 200M alloc succeeded"
+    pass "cgroup MemoryMax enforces (200M alloc → OOM-killed inside 50M scope, ec=$cap_ec)"
+
+    # Sanity: same alloc without cap must succeed
+    systemd-run --user --scope --quiet \
+        python3 -c 'bytearray(200 * 1024 * 1024)' >/dev/null 2>&1 \
+        || fail "200M alloc failed even without cap — environment broken"
+    pass "control: 200M alloc succeeds without cap"
+
+    # C.2 — watchdog detects over-threshold AND restarts the service
+    # Use ksystemstats (cheapest to restart, invisible to user)
+    INT_TEST_CONFIG=$(mktemp --suffix=.json)
+    trap 'rm -f "$INT_TEST_CONFIG" 2>/dev/null' EXIT INT TERM
+
+    jq '.services["plasma-ksystemstats.service"].watchdog_warn_mb = 1' \
+        "$JSON" > "$INT_TEST_CONFIG"
+
+    old_pid=$(systemctl --user show -p MainPID --value plasma-ksystemstats.service 2>/dev/null)
+    [ "$old_pid" != "0" ] && [ -n "$old_pid" ] \
+        || fail "plasma-ksystemstats not running — can't test watchdog"
+
+    CONFIG_JSON="$INT_TEST_CONFIG" "$WATCHDOG" 2>&1 | grep -q "restarted plasma-ksystemstats" \
+        || fail "watchdog did not log a restart for ksystemstats"
+
+    sleep 1.5
+    new_pid=$(systemctl --user show -p MainPID --value plasma-ksystemstats.service 2>/dev/null)
+    [ "$new_pid" != "$old_pid" ] && [ "$new_pid" != "0" ] \
+        || fail "ksystemstats PID did not change ($old_pid → $new_pid)"
+    pass "watchdog restart action works (ksystemstats PID $old_pid → $new_pid)"
+
+    rm -f "$INT_TEST_CONFIG"
+fi
+
 echo ""
 echo "=== desktop-session: PASS ==="
