@@ -461,8 +461,16 @@
         #   };
         AutoRefresh = true;
       };
+      # Disable VCS overlay plugins. Default ("Git") makes Dolphin run
+      # `git status --porcelain --ignored` on every directory it shows,
+      # walking ignored files (rust target/, node_modules, dist/, …) and
+      # auto-refreshing on inotify events. With ~/git holding cloud +
+      # cloud-data + unix + front + vault + tools that's 6+ cores of
+      # constant git activity for status badges nobody uses. Disable.
+      # Caught live (5/5 git samples had .dolphin-wrappe as parent):
+      #   git --no-optional-locks status --porcelain -z -u --ignored
       "dolphinrc"."VersionControl" = {
-        enabledPlugins = "Git";
+        enabledPlugins = "";
       };
 
       # Terminal panel config - uses konsolepart KPart plugin
@@ -637,6 +645,215 @@
   };
 
   # ─────────────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────────
+  # Baloo file indexer — declarative excludes
+  # ─────────────────────────────────────────────────────────────────
+  # Baloo at default settings indexes everything under $HOME except a tiny
+  # builtin list. On a dev machine that includes ~/git/ (rust target/,
+  # cargo cache, node_modules, docker layers, container build artefacts,
+  # nix store imports, VM images), turning baloo into a runaway 41% CPU
+  # process that pegs disk + LUKS + btrfs-compress while indexing files
+  # nobody will ever search by content.
+  #
+  # Strategy: KEEP baloo enabled (Krunner search, Dolphin tag/comment
+  # search are useful) but EXCLUDE every directory tree that's churn-only,
+  # and extend the file-extension blocklist to cover dev-build outputs.
+  #
+  # Schema (Baloo's KConfig dialect):
+  #   exclude filters=...           glob patterns matching BASENAMES.
+  #                                 Comma-separated. Single canonical key —
+  #                                 we replace baloo's baked-in default with
+  #                                 a superset (their list + dev/build/media
+  #                                 churn that should never index).
+  #   exclude folders[$e]=...       full paths to subtree-prune. Comma-
+  #                                 separated. The [$e] suffix tells KConfig
+  #                                 to expand env vars like $HOME.
+  #
+  # Source of truth: this file. Re-rendered on every home-manager switch.
+  # Apply the change WITHOUT logout via:
+  #   balooctl6 disable && balooctl6 purge && balooctl6 enable
+  xdg.configFile."baloofilerc".text = ''
+    [General]
+    dbVersion=2
+    exclude filters version=9
+    exclude filters=*~,*.part,*.o,*.la,*.lo,*.loT,*.moc,moc_*.cpp,qrc_*.cpp,ui_*.h,cmake_install.cmake,CMakeCache.txt,CTestTestfile.cmake,libtool,config.status,confdefs.h,autom4te,conftest,confstat,Makefile.am,*.gcode,.ninja_deps,.ninja_log,build.ninja,*.csproj,*.m4,*.rej,*.gmo,*.pc,*.omf,*.aux,*.tmp,*.po,*.vm*,*.nvram,*.rcore,*.swp,*.swap,lzo,litmain.sh,*.orig,.histfile.*,.xsession-errors*,*.map,*.so,*.a,*.db,*.qrc,*.ini,*.init,*.img,*.vdi,*.vbox*,vbox.log,*.qcow2,*.vmdk,*.vhd,*.vhdx,*.sql,*.sql.gz,*.ytdl,*.tfstate*,*.class,*.pyc,*.pyo,*.elc,*.qmlc,*.jsc,*.fastq,*.fq,*.gb,*.fasta,*.fna,*.gbff,*.faa,po,CVS,.svn,.git,_darcs,.bzr,.hg,CMakeFiles,CMakeTmp,CMakeTmpQmake,.moc,.obj,.pch,.uic,.npm,.yarn,.yarn-cache,__pycache__,node_modules,node_packages,nbproject,.terraform,.venv,venv,core-dumps,lost+found,*.rlib,*.rmeta,*.d,*.dSYM,*.o.d,*.crate,*.lock,*.deb,*.rpm,*.pkg,*.snap,*.AppImage,*.iso,*.tar,*.tar.gz,*.tgz,*.tar.xz,*.tar.bz2,*.tar.zst,*.zip,*.7z,*.gz,*.xz,*.zst,*.bz2,*.lz4,*.wasm,*.lib,*.dylib,*.dll,*.exe,*.bundle,*.dmg,*.cache,*.mp4,*.mkv,*.avi,*.mov,*.webm,*.flv,*.wmv,*.m4a,*.mp3,*.flac,*.wav,*.ogg,*.opus,*.aac,*.raw,*.dng,*.tif,*.tiff,*.psd,*.xcf,*.afphoto,*.ai,*.eps,*.indd,*.heic,*.heif,*.cr2,*.nef,*.arw,target,debug,release,dist,build,out,coverage,.nyc_output,.cache,.parcel-cache,.next,.nuxt,.svelte-kit,.vite,.turbo,.rollup.cache,.cargo,.rustup,.gradle,.m2,.ivy2,.sbt,.android,.docker,.containers,.podman,vendor,bower_components,jspm_packages,Pods,Carthage,DerivedData,*.dSYM,.tox,.pytest_cache,.mypy_cache,.ruff_cache,.eggs,*.egg-info,htmlcov,result,result-*
+    exclude folders[$e]=$HOME/git,$HOME/.cargo,$HOME/.rustup,$HOME/.cache,$HOME/.local/share/Trash,$HOME/.local/share/baloo,$HOME/.local/share/containers,$HOME/.local/share/flatpak,$HOME/.local/share/Steam,$HOME/.var,$HOME/.npm,$HOME/.npm-global,$HOME/.pnpm-store,$HOME/.yarn,$HOME/.bun,$HOME/.node_modules,$HOME/.docker,$HOME/.podman,$HOME/.gradle,$HOME/.m2,$HOME/.ivy2,$HOME/.android,$HOME/.terraform.d,$HOME/.nix-profile,$HOME/.local/state/nix,$HOME/.mozilla,$HOME/.config/google-chrome,$HOME/.config/chromium,$HOME/.config/BraveSoftware,$HOME/Backups,$HOME/Downloads,$HOME/Sync/.stversions,$HOME/Pictures/.thumbnails,$HOME/.thumbnails,$HOME/.dbus,$HOME/.gvfs,/tmp,/var/cache,/var/log,/nix,/mnt,/media
+
+    [Basic Settings]
+    Indexing-Enabled=true
+  '';
+
+  # ─────────────────────────────────────────────────────────────────
+  # Dolphin — disable VCS git plugin (the load-6 culprit)
+  # ─────────────────────────────────────────────────────────────────
+  # Dolphin's "Version Control: Git" plugin runs `git status --porcelain
+  # --ignored` on every directory shown, and re-runs it on inotify events.
+  # `--ignored` walks every git-ignored file too — which on this box
+  # means rust target/ (~100k objects), node_modules, dist/, .next, etc.
+  # With ~/git holding cloud + cloud-data + unix + front + vault + tools
+  # this turns into 6+ cores of git constantly walking working trees
+  # for tiny status overlay icons nobody uses.
+  #
+  # Evidence (caught live, 5/5 git samples had .dolphin-wrappe as parent):
+  #   git --no-optional-locks status --porcelain -z -u --ignored
+  #   git -c core.quotepath=false ls-files --others --exclude-standard
+  #
+  # Fix: empty enabledPlugins under [VersionControl]. Disables ALL VCS
+  # overlays (git/svn/hg). Dolphin still works fully — it just doesn't
+  # decorate file icons with git-status badges.
+  #
+  # To re-enable later (e.g. for a small repo) toggle in Dolphin →
+  # Configure → General → Services → "Git" checkbox.
+  #
+  # Apply: ba_flakes_desktop/build.sh switch  (then close + reopen Dolphin
+  # OR `kquitapp6 dolphin` — the running Dolphin holds the old config in
+  # memory until restart).
+  # NOTE: dolphinrc lives under programs.plasma.configFile (line ~464)
+  # — plasma-manager owns the file and writes it via its python helper,
+  # which conflicts with xdg.configFile (read-only /nix/store symlink
+  # vs python trying to open(..., "w")). VCS plugins disabled there.
+
+  # ─────────────────────────────────────────────────────────────────
+  # htop — 5-tab dashboard for full system breakdown
+  # ─────────────────────────────────────────────────────────────────
+  # htop 3.x supports multiple "screens" (tabs, switch with Tab/Shift-Tab
+  # or Fn-keys). This config defines 5:
+  #
+  #   1. MAIN     — generalist process list (PID/USER/PRI/NI/VIRT/RES/
+  #                 STATE/%CPU/%MEM/TIME), sorted by %CPU.
+  #   2. CPU      — CPU-pressure forensics: %CPU + normalized %CPU,
+  #                 thread count (NLWP), context switches (CTXT),
+  #                 page faults (MAJFLT/MINFLT) — pinpoints what's
+  #                 burning cores AND what's churning kernel.
+  #   3. MEMORY   — VIRT/RES/SHR + PSS (proportional, accurate when
+  #                 sharing) + SWAP per-process. Sorted by RES.
+  #   4. DISK     — IO_RATE + read/write split + IO_PRIORITY +
+  #                 PERCENT_IO_DELAY (time spent in iowait). Sorted
+  #                 by IO_RATE so disk hogs surface immediately.
+  #   5. GPU      — PERCENT_GPU + GPU_TIME (Intel Iris Xe via
+  #                 /sys/class/drm/card*/clients). Sorted by %GPU.
+  #
+  # Header is global (htop limitation — same top bars on every screen)
+  # and uses the four-column layout to pack maximum info:
+  #   col0: per-CPU usage bars + load average
+  #   col1: memory / swap / zram bars
+  #   col2: PSI pressure bars (CPU / mem / IO) — the same files at
+  #         /proc/pressure/* we drill into via /tmp/psi-breakdown.py
+  #   col3: disk + network IO + task counts + uptime + battery
+  #
+  # Apply: ba_flakes_desktop/build.sh switch  (any open htop picks
+  # up the new config on next launch — Ctrl+C + restart htop).
+  xdg.configFile."htop/htoprc".text = ''
+    # GENERATED BY home-manager — DO NOT EDIT (htop won't be able to
+    # write back to /nix/store — that's intentional, keeps it pinned).
+    htop_version=3.3.0
+    config_reader_min_version=3
+    fields=0 48 17 18 38 39 40 2 46 47 49 1
+    hide_kernel_threads=1
+    hide_userland_threads=0
+    hide_running_in_container=0
+    shadow_other_users=0
+    show_thread_names=0
+    show_program_path=1
+    highlight_base_name=1
+    highlight_deleted_exe=1
+    shadow_distribution_path_prefix=0
+    highlight_megabytes=1
+    highlight_threads=1
+    highlight_changes=1
+    highlight_changes_delay_secs=5
+    find_comm_in_cmdline=1
+    strip_exe_from_cmdline=1
+    show_merged_command=0
+    header_margin=1
+    screen_tabs=1
+    detailed_cpu_time=1
+    cpu_count_from_one=0
+    show_cpu_usage=1
+    show_cpu_frequency=1
+    show_cpu_temperature=1
+    degree_fahrenheit=0
+    update_process_names=0
+    account_guest_in_cpu_meter=0
+    color_scheme=0
+    enable_mouse=1
+    delay=15
+    hide_function_bar=0
+    header_layout=four
+    # col 0 — ALL 8 CORES as individual stacked bars (mode 1 = Bar). With
+    # detailed_cpu_time=1 each bar splits into colors:
+    #   blue   = user (low priority)         green = user (normal nice)
+    #   red    = kernel/system               yellow = irq    magenta = soft-irq
+    #   grey   = iowait                      cyan   = steal/guest
+    # So a "red+grey" core = doing kernel work + waiting on disk → exactly
+    # the green-vs-red-vs-IO visibility you want. NOT AllCPUs2 (that
+    # collapses two cores per row); plain AllCPUs gives one bar per core.
+    column_meters_0=AllCPUs
+    column_meter_modes_0=1
+    # col 1 — memory hierarchy bars
+    column_meters_1=Memory Swap ZRAM
+    column_meter_modes_1=1 1 1
+    # col 2 — PSI pressure bars (the same /proc/pressure/* files visible
+    # at all times — pinpoints stalls without leaving htop)
+    column_meters_2=Pressure_CPU Pressure_Memory Pressure_IO
+    column_meter_modes_2=1 1 1
+    # col 3 — text counters (compact, dense)
+    column_meters_3=LoadAverage Tasks Uptime DiskIO NetworkIO Battery ClocksSource
+    column_meter_modes_3=2 2 2 2 2 2 2
+    tree_view=0
+    sort_key=46
+    tree_sort_key=0
+    sort_direction=-1
+    tree_sort_direction=1
+    tree_view_always_by_pid=0
+    all_branches_collapsed=0
+    # MAIN tab — full forensics, every signal in one row:
+    # process basics + memory + state + %CPU/%MEM + per-process PSI delays
+    # (CPU stall %, IO stall %, swap stall %) + page faults major/minor +
+    # context switches + threads + IO rates. Use h/j/k/l or arrow keys to
+    # scroll horizontally if it overflows your terminal width.
+    screen:MAIN=PID USER PRIORITY NICE NLWP M_VIRT M_RESIDENT M_SHARE M_PSS M_SWAP STATE PERCENT_CPU PERCENT_MEM PERCENT_CPU_DELAY PERCENT_IO_DELAY PERCENT_SWAP_DELAY MAJFLT MINFLT IO_RATE PERCENT_GPU TIME Command
+    .sort_key=PERCENT_CPU
+    .tree_sort_key=PID
+    .tree_view_always_by_pid=0
+    .tree_view=0
+    .sort_direction=-1
+    .tree_sort_direction=1
+    .all_branches_collapsed=0
+    screen:CPU=PID USER PRIORITY NICE NLWP PERCENT_CPU PERCENT_NORM_CPU MAJFLT MINFLT STATE TIME Command
+    .sort_key=PERCENT_CPU
+    .tree_sort_key=PID
+    .tree_view_always_by_pid=0
+    .tree_view=0
+    .sort_direction=-1
+    .tree_sort_direction=1
+    .all_branches_collapsed=0
+    screen:MEMORY=PID USER M_VIRT M_RESIDENT M_SHARE M_PSS M_SWAP M_PSSWP PERCENT_MEM Command
+    .sort_key=M_RESIDENT
+    .tree_sort_key=PID
+    .tree_view_always_by_pid=0
+    .tree_view=0
+    .sort_direction=-1
+    .tree_sort_direction=1
+    .all_branches_collapsed=0
+    screen:DISK=PID USER IO_PRIORITY IO_RATE IO_READ_RATE IO_WRITE_RATE PERCENT_IO_DELAY PERCENT_CPU STATE Command
+    .sort_key=IO_RATE
+    .tree_sort_key=PID
+    .tree_view_always_by_pid=0
+    .tree_view=0
+    .sort_direction=-1
+    .tree_sort_direction=1
+    .all_branches_collapsed=0
+    screen:GPU=PID USER PERCENT_GPU GPU_TIME PERCENT_CPU PERCENT_MEM M_RESIDENT STATE Command
+    .sort_key=PERCENT_GPU
+    .tree_sort_key=PID
+    .tree_view_always_by_pid=0
+    .tree_view=0
+    .sort_direction=-1
+    .tree_sort_direction=1
+    .all_branches_collapsed=0
+  '';
+
   # Autostart - Runs every login
   # ─────────────────────────────────────────────────────────────────
   xdg.configFile."autostart/launch-workspace.desktop".text = ''
