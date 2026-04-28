@@ -1,7 +1,14 @@
-# Termux SSHD — declarative SSH daemon on port 8022
+# Termux SSHD — declarative SSH daemon on port 8022 (dropbear-based)
+#
+# Why dropbear instead of OpenSSH:
+#   OpenSSH's privsep uses fork+re-exec, which on Android/nix-on-droid fails
+#   with "sshd re-exec requires execution with an absolute path" because
+#   /proc/self/exe doesn't resolve correctly under Termux. Dropbear has no
+#   privsep, was designed for embedded/limited systems, and runs cleanly here.
+#
 # Provides: termux-sshd command (start|stop|status|restart)
-# Auto-starts via shell init (add to fish/bash profile)
-# Trusted pubkeys sourced from data/authorized-keys.json (data-driven)
+# Auto-starts via fish shellInit.
+# Trusted pubkeys sourced from data/authorized-keys.json (data-driven).
 { config, pkgs, lib, ... }:
 
 let
@@ -9,27 +16,23 @@ let
   authorizedKeysContent =
     lib.concatStringsSep "\n" authData.trusted_pubkeys + "\n";
 
-  # OpenSSH refuses to start unless invoked by an absolute path — it re-execs
-  # itself for privilege separation and falls back to the original argv[0]. On
-  # Termux the symlinked /bin/sshd path breaks that. Pin the absolute nix store
-  # path of the sshd binary at flake-eval time.
-  sshdBin = "${pkgs.openssh}/bin/sshd";
-  sshKeygenBin = "${pkgs.openssh}/bin/ssh-keygen";
+  # Absolute nix store paths — injected at flake-eval time so the wrapper
+  # never depends on PATH resolution.
+  dropbearBin    = "${pkgs.dropbear}/bin/dropbear";
+  dropbearKeyBin = "${pkgs.dropbear}/bin/dropbearkey";
 
   sshdScript = pkgs.writeShellScript "termux-sshd" ''
-    #!/bin/sh
-    # termux-sshd — POSIX wrapper for Termux SSHD
+    # termux-sshd — POSIX wrapper for Termux SSHD (dropbear)
     # Usage: termux-sshd [start|stop|status|restart]
-    # Listens on port 8022 (Termux default, no root needed)
-    #
-    # NOTE: SSHD_BIN / SSH_KEYGEN_BIN are absolute nix store paths injected by
-    # the flake. Required because OpenSSH re-exec needs an absolute path.
+    # Listens on port 8022 (no root needed).
 
-    SSHD_BIN="${sshdBin}"
-    SSH_KEYGEN_BIN="${sshKeygenBin}"
+    DROPBEAR_BIN="${dropbearBin}"
+    DROPBEARKEY_BIN="${dropbearKeyBin}"
 
     PID_FILE="$HOME/.cache/sshd.pid"
     LOG_FILE="$HOME/.cache/sshd.log"
+    ED25519_KEY="$HOME/.ssh/dropbear_ed25519_host_key"
+    RSA_KEY="$HOME/.ssh/dropbear_rsa_host_key"
 
     is_running() {
       [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null
@@ -42,22 +45,21 @@ let
         return 0
       fi
 
-      # Ensure host keys exist
-      mkdir -p ~/.ssh
+      mkdir -p ~/.ssh "$(dirname "$PID_FILE")"
       chmod 700 ~/.ssh
-      if [ ! -f ~/.ssh/ssh_host_ed25519_key ]; then
-        "$SSH_KEYGEN_BIN" -t ed25519 -f ~/.ssh/ssh_host_ed25519_key -N "" -q
-        echo "Generated host key: ~/.ssh/ssh_host_ed25519_key"
-      fi
 
-      # authorized_keys deployed declaratively by home.file (data/authorized-keys.json)
-      mkdir -p "$(dirname "$PID_FILE")"
+      # Generate dropbear host keys if missing (dropbear uses its own format,
+      # NOT OpenSSH's; can't reuse ssh_host_ed25519_key from openssh).
+      [ -f "$ED25519_KEY" ] || "$DROPBEARKEY_BIN" -t ed25519 -f "$ED25519_KEY" >/dev/null 2>&1
+      [ -f "$RSA_KEY" ]     || "$DROPBEARKEY_BIN" -t rsa     -f "$RSA_KEY"     -s 2048 >/dev/null 2>&1
 
-      # Start sshd via absolute nix store path (avoid PATH-resolved /bin/sshd
-      # which breaks privsep re-exec on Termux/nix-on-droid).
-      if [ -x "$SSHD_BIN" ]; then
-        "$SSHD_BIN" -p 8022 -o "PidFile=$PID_FILE" -o "HostKey=$HOME/.ssh/ssh_host_ed25519_key" >> "$LOG_FILE" 2>&1
-        sleep 0.5
+      # Authorized keys live at ~/.ssh/authorized_keys (deployed by home.file).
+      # dropbear reads it automatically.
+      if [ -x "$DROPBEAR_BIN" ]; then
+        # -p PORT, -r KEY (repeat for each algo), -P PIDFILE, -E log to stderr
+        # No -F: dropbear backgrounds itself by default and writes the pidfile.
+        "$DROPBEAR_BIN" -p 8022 -r "$ED25519_KEY" -r "$RSA_KEY" -P "$PID_FILE" -E >> "$LOG_FILE" 2>&1
+        sleep 0.3
         if is_running; then
           pid=$(cat "$PID_FILE")
           echo "sshd started (PID $pid) on :8022"
@@ -67,7 +69,7 @@ let
           return 1
         fi
       else
-        echo "ERROR: sshd binary not found at $SSHD_BIN"
+        echo "ERROR: dropbear binary not found at $DROPBEAR_BIN"
         return 1
       fi
     }
@@ -98,12 +100,16 @@ let
       start)   do_start ;;
       stop)    do_stop ;;
       status)  do_status ;;
-      restart) do_stop; sleep 0.5; do_start ;;
+      restart) do_stop; sleep 0.3; do_start ;;
       *)       echo "Usage: termux-sshd {start|stop|status|restart}"; exit 1 ;;
     esac
   '';
 in
 {
+  # Make dropbear available as a system package so it's in the closure even
+  # though we invoke it by absolute path in the wrapper.
+  home.packages = [ pkgs.dropbear ];
+
   # Deploy the wrapper
   home.file.".local/bin/termux-sshd" = {
     source = sshdScript;
@@ -116,9 +122,7 @@ in
   };
 
   # Auto-start sshd on shell init (fish)
-  # This ensures sshd is always running when Termux is open
   programs.fish.shellInit = lib.mkAfter ''
-    # Auto-start SSHD if not running
     if not test -f $HOME/.cache/sshd.pid; or not kill -0 (cat $HOME/.cache/sshd.pid 2>/dev/null) 2>/dev/null
       termux-sshd start >/dev/null 2>&1
     end
