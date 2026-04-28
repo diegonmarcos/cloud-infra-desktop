@@ -15,6 +15,7 @@
     dnsutils         # dig, nslookup — DNS health checks in MCP tools
     netcat-openbsd  # nc — WireGuard peer probing
     ncurses          # clear, tput
+    util-linux       # column, colrm, colcrt — table/column formatting
     git-filter-repo  # git history rewriting (purge secrets from commits)
     rsync            # build.sh deploy — sync dist/ to VMs
     cliphist         # clipboard history (wl-paste --watch cliphist store)
