@@ -67,6 +67,9 @@
     # Locale — en_DK.UTF-8 = ISO 8601 date (YYYY-MM-DD, dashes) + 24h time.
     # Same English vocabulary as en_US/en_GB; only date+time formats differ.
     # 2026-04-28 changed from en_US.UTF-8 (which gave AM/PM + MM/DD/YYYY).
+    # Sibling: home.file.".config/plasma-localerc" below — KDE Plasma 6 reads
+    # its own [Formats] file at runtime; without it Dolphin/Konsole/clock all
+    # fall back to en_US even with LC_ALL set.
     LANG = "en_DK.UTF-8";
     LC_ALL = "en_DK.UTF-8";
 
@@ -378,5 +381,21 @@
     else
       echo "[gen-claude-md] WARNING: gen-claude-md.sh not found"
     fi
+  '';
+
+  # KDE Plasma 6 [Formats] override — plasma-manager / Dolphin / Konsole /
+  # the panel clock read this file directly, ignoring LC_TIME from the
+  # environment. Aligned with home.sessionVariables.LC_ALL above.
+  # 2026-04-28: previously declared in home-manager/home.nix which is NOT
+  # imported by any host — declaration silently ignored. Moved here so it
+  # actually lands. `-b backup` (build.sh:319) handles existing-file
+  # conflicts at switch time; no per-file `force` needed.
+  home.file.".config/plasma-localerc".text = ''
+    [Formats]
+    LANG=en_DK.UTF-8
+    LC_TIME=en_DK.UTF-8
+    LC_MEASUREMENT=en_DK.UTF-8
+    LC_MONETARY=en_DK.UTF-8
+    LC_NUMERIC=en_DK.UTF-8
   '';
 }
