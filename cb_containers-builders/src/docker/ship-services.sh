@@ -70,21 +70,32 @@ fi
 
 # ── 3. SSH setup ─────────────────────────────────────────────────
 echo "[3/6] Setting up SSH for $VM"
-# Resolve GHA-shape config: prefer build-gha.json (post-2026-04-27 rename),
+# Resolve GHA-shape config: prefer build-builders.json (declarative, emitted
+# by 2_configs/src/engines/cloud-data-config-derive.ts via external-consumers.json),
 # fall back to legacy cloud-data-gha-config.json, then derive _gha slice
 # from _cloud-data-consolidated.json. Mirrors cloud_paths_gha_config from
-# 1_workflows/src/libs/cloud-paths.sh — the canonical lookup. When this
-# image and the cloud lib live side-by-side, source it instead.
+# 1_workflows/src/libs/cloud-paths.sh — the canonical lookup.
 GHA_CONFIG=""
+_BUILD_BUILDERS=""
 for _p in \
-    "build-gha.json" \
-    "cloud-data/build-gha.json" \
-    "2_configs/dist/build-gha.json" \
-    "cloud-data-gha-config.json" \
-    "cloud-data/cloud-data-gha-config.json" \
-    "2_configs/dist/cloud-data-gha-config.json"; do
-    [ -f "$_p" ] && { GHA_CONFIG="$_p"; break; }
+    "build-builders.json" \
+    "cloud-data/build-builders.json" \
+    "2_configs/dist/build-builders.json"; do
+    [ -f "$_p" ] && { _BUILD_BUILDERS="$_p"; break; }
 done
+if [ -n "$_BUILD_BUILDERS" ]; then
+    # Extract .gha slice (top-level shape: { services, vms }).
+    GHA_CONFIG="${TMPDIR:-/tmp}/gha-config.json"
+    jq '.gha' "$_BUILD_BUILDERS" > "$GHA_CONFIG"
+fi
+if [ -z "$GHA_CONFIG" ]; then
+    for _p in \
+        "cloud-data-gha-config.json" \
+        "cloud-data/cloud-data-gha-config.json" \
+        "2_configs/dist/cloud-data-gha-config.json"; do
+        [ -f "$_p" ] && { GHA_CONFIG="$_p"; break; }
+    done
+fi
 if [ -z "$GHA_CONFIG" ]; then
     # Last resort: derive _gha slice from consolidated.
     for _p in "_cloud-data-consolidated.json" "2_configs/dist/_cloud-data-consolidated.json" "cloud-data/_cloud-data-consolidated.json"; do
@@ -101,7 +112,7 @@ if [ -z "$GHA_CONFIG" ]; then
     done
 fi
 if [ -z "$GHA_CONFIG" ] || [ ! -f "$GHA_CONFIG" ]; then
-  echo "FATAL: build-gha.json (or legacy fallback) not found"
+  echo "FATAL: build-builders.json (or legacy fallback) not found"
   exit 1
 fi
 
