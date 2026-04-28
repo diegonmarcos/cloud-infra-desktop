@@ -1,14 +1,19 @@
-# Termux SSHD — declarative SSH daemon on port 8022 (dropbear-based)
+# Termux SSHD — declarative SSH daemon on port 8022, openssh-based.
 #
-# Why dropbear instead of OpenSSH:
-#   OpenSSH's privsep uses fork+re-exec, which on Android/nix-on-droid fails
-#   with "sshd re-exec requires execution with an absolute path" because
-#   /proc/self/exe doesn't resolve correctly under Termux. Dropbear has no
-#   privsep, was designed for embedded/limited systems, and runs cleanly here.
+# Recipe taken from the nix-on-droid maintainers (issue #32):
+# https://github.com/nix-community/nix-on-droid/issues/32
+#
+# Why these specifics:
+#   1. Run sshd via $HOME/.nix-profile/bin/sshd (the user-profile path),
+#      NOT /nix/store/.../bin/sshd. The profile path is what nix-on-droid's
+#      proot wrapper resolves correctly for privilege-separation re-exec.
+#   2. Pass `-f <absolute>/sshd_config`. A real config file (with HostKey
+#      and Port) works where inline `-o HostKey=...` flags fail under proot.
+#   3. Connecting shells get `/bin/sh` which does NOT read `.bashrc` —
+#      put nix env loading in `~/.profile` so PATH and tooling resolve.
 #
 # Provides: termux-sshd command (start|stop|status|restart)
-# Auto-starts via fish shellInit.
-# Trusted pubkeys sourced from data/authorized-keys.json (data-driven).
+# Trusted pubkeys: data-driven from data/authorized-keys.json.
 { config, pkgs, lib, ... }:
 
 let
@@ -16,23 +21,17 @@ let
   authorizedKeysContent =
     lib.concatStringsSep "\n" authData.trusted_pubkeys + "\n";
 
-  # Absolute nix store paths — injected at flake-eval time so the wrapper
-  # never depends on PATH resolution.
-  dropbearBin    = "${pkgs.dropbear}/bin/dropbear";
-  dropbearKeyBin = "${pkgs.dropbear}/bin/dropbearkey";
-
   sshdScript = pkgs.writeShellScript "termux-sshd" ''
-    # termux-sshd — POSIX wrapper for Termux SSHD (dropbear)
+    # termux-sshd — POSIX wrapper for nix-on-droid sshd
     # Usage: termux-sshd [start|stop|status|restart]
-    # Listens on port 8022 (no root needed).
 
-    DROPBEAR_BIN="${dropbearBin}"
-    DROPBEARKEY_BIN="${dropbearKeyBin}"
+    SSHD_BIN="$HOME/.nix-profile/bin/sshd"
+    SSH_KEYGEN_BIN="$HOME/.nix-profile/bin/ssh-keygen"
 
     PID_FILE="$HOME/.cache/sshd.pid"
     LOG_FILE="$HOME/.cache/sshd.log"
-    ED25519_KEY="$HOME/.ssh/dropbear_ed25519_host_key"
-    RSA_KEY="$HOME/.ssh/dropbear_rsa_host_key"
+    HOST_KEY="$HOME/.ssh/ssh_host_rsa_key"
+    SSHD_CONFIG="$HOME/.ssh/sshd_config"
 
     is_running() {
       [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null
@@ -48,28 +47,40 @@ let
       mkdir -p ~/.ssh "$(dirname "$PID_FILE")"
       chmod 700 ~/.ssh
 
-      # Generate dropbear host keys if missing (dropbear uses its own format,
-      # NOT OpenSSH's; can't reuse ssh_host_ed25519_key from openssh).
-      [ -f "$ED25519_KEY" ] || "$DROPBEARKEY_BIN" -t ed25519 -f "$ED25519_KEY" >/dev/null 2>&1
-      [ -f "$RSA_KEY" ]     || "$DROPBEARKEY_BIN" -t rsa     -f "$RSA_KEY"     -s 2048 >/dev/null 2>&1
+      # Host key — RSA (matches maintainer recipe; sshd accepts ed25519 too
+      # but RSA is what they tested under proot).
+      if [ ! -f "$HOST_KEY" ]; then
+        "$SSH_KEYGEN_BIN" -t rsa -b 4096 -f "$HOST_KEY" -N "" -q
+        echo "Generated host key: $HOST_KEY"
+      fi
 
-      # Authorized keys live at ~/.ssh/authorized_keys (deployed by home.file).
-      # dropbear reads it automatically.
-      if [ -x "$DROPBEAR_BIN" ]; then
-        # -p PORT, -r KEY (repeat for each algo), -P PIDFILE, -E log to stderr
-        # No -F: dropbear backgrounds itself by default and writes the pidfile.
-        "$DROPBEAR_BIN" -p 8022 -r "$ED25519_KEY" -r "$RSA_KEY" -P "$PID_FILE" -E >> "$LOG_FILE" 2>&1
-        sleep 0.3
+      # Write sshd_config (idempotent, regenerated each start so changes flow
+      # through the wrapper without manual edits).
+      cat > "$SSHD_CONFIG" <<EOF
+    HostKey $HOST_KEY
+    Port 8022
+    PidFile $PID_FILE
+    AuthorizedKeysFile $HOME/.ssh/authorized_keys
+    PermitRootLogin no
+    PasswordAuthentication no
+    PubkeyAuthentication yes
+    UsePAM no
+    EOF
+      chmod 600 "$SSHD_CONFIG"
+
+      if [ -x "$SSHD_BIN" ]; then
+        "$SSHD_BIN" -f "$SSHD_CONFIG" >> "$LOG_FILE" 2>&1
+        sleep 0.5
         if is_running; then
           pid=$(cat "$PID_FILE")
           echo "sshd started (PID $pid) on :8022"
         else
-          echo "sshd failed to start — check $LOG_FILE"
+          echo "sshd failed to start — last 10 lines of $LOG_FILE:"
           tail -10 "$LOG_FILE" 2>/dev/null | sed 's/^/  /'
           return 1
         fi
       else
-        echo "ERROR: dropbear binary not found at $DROPBEAR_BIN"
+        echo "ERROR: sshd not found at $SSHD_BIN (run nix-on-droid switch first)"
         return 1
       fi
     }
@@ -104,24 +115,37 @@ let
       *)       echo "Usage: termux-sshd {start|stop|status|restart}"; exit 1 ;;
     esac
   '';
+
+  # ~/.profile — nix-on-droid maintainer recipe: SSH-spawned shells default to
+  # /bin/sh which doesn't read .bashrc. Source the nix-on-droid session init
+  # here so PATH, NIX_PATH, etc. are available in the SSH session.
+  profileText = ''
+    # Generated by sshd.nix — required for SSH sessions on nix-on-droid.
+    # Without this, /bin/sh sessions have no nix tooling on PATH.
+    if [ -r "$HOME/.nix-profile/etc/profile.d/nix-on-droid-session-init.sh" ]; then
+      . "$HOME/.nix-profile/etc/profile.d/nix-on-droid-session-init.sh"
+    elif [ -r "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
+      . "$HOME/.nix-profile/etc/profile.d/nix.sh"
+    fi
+    [ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"
+  '';
 in
 {
-  # Make dropbear available as a system package so it's in the closure even
-  # though we invoke it by absolute path in the wrapper.
-  home.packages = [ pkgs.dropbear ];
+  # OpenSSH must be in the user profile — wrapper invokes ~/.nix-profile/bin/sshd
+  home.packages = [ pkgs.openssh ];
 
-  # Deploy the wrapper
   home.file.".local/bin/termux-sshd" = {
     source = sshdScript;
     executable = true;
   };
 
-  # Deploy authorized_keys declaratively (data-driven from data/authorized-keys.json)
   home.file.".ssh/authorized_keys" = {
     text = authorizedKeysContent;
   };
 
-  # Auto-start sshd on shell init (fish)
+  # ~/.profile loads nix env for ssh-spawned /bin/sh sessions
+  home.file.".profile".text = profileText;
+
   programs.fish.shellInit = lib.mkAfter ''
     if not test -f $HOME/.cache/sshd.pid; or not kill -0 (cat $HOME/.cache/sshd.pid 2>/dev/null) 2>/dev/null
       termux-sshd start >/dev/null 2>&1
