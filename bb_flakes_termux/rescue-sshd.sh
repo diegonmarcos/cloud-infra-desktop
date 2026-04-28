@@ -1,19 +1,26 @@
 #!/bin/sh
-# Termux SSHD rescue — start dropbear directly via nix-shell, no flake rebuild.
-# Pulls dropbear into the nix store, generates host key, daemonizes on :8022.
-# Bypasses home-manager / nix-on-droid / openssh entirely.
+# Termux SSHD rescue — start openssh sshd via the nix-on-droid recipe
+# from upstream issue #32: https://github.com/nix-community/nix-on-droid/issues/32
 #
-# Usage on termux (any of these):
+# - Uses $HOME/.nix-profile/bin/sshd (the profile path proot resolves correctly)
+# - Generates a real sshd_config file (inline -o HostKey=... fails under proot)
+# - No flake rebuild needed — only requires that openssh is already in the profile
+#
+# Usage on termux:
 #   sh ~/git/unix/bb_flakes_termux/rescue-sshd.sh
 #   curl -fsSL https://raw.githubusercontent.com/diegonmarcos/unix/main/bb_flakes_termux/rescue-sshd.sh | sh
 set -eu
 
 PORT=8022
 KEY_DIR="$HOME/.ssh"
-KEY_FILE="$KEY_DIR/dropbear_ed25519_host_key"
-PID_FILE="$HOME/.cache/dropbear.pid"
-LOG_FILE="$HOME/.cache/dropbear.log"
+HOST_KEY="$KEY_DIR/ssh_host_rsa_key"
+SSHD_CONFIG="$KEY_DIR/sshd_config"
+PID_FILE="$HOME/.cache/sshd.pid"
+LOG_FILE="$HOME/.cache/sshd.log"
 AUTH_KEYS="$KEY_DIR/authorized_keys"
+
+SSHD_BIN="$HOME/.nix-profile/bin/sshd"
+SSH_KEYGEN_BIN="$HOME/.nix-profile/bin/ssh-keygen"
 
 C_GREEN='\033[0;32m'; C_RED='\033[0;31m'; C_YEL='\033[0;33m'; C_BLU='\033[0;36m'; C_RST='\033[0m'
 ok()   { printf "${C_GREEN}[OK]${C_RST} %s\n" "$*"; }
@@ -21,66 +28,77 @@ warn() { printf "${C_YEL}[WARN]${C_RST} %s\n" "$*"; }
 fail() { printf "${C_RED}[FAIL]${C_RST} %s\n" "$*"; exit 1; }
 step() { printf "\n${C_BLU}>>>${C_RST} %s\n" "$*"; }
 
-# ── 1. Preflight ──────────────────────────────────────────────────────
+# ── 1. Preflight: ensure openssh is in the profile ────────────────────
 step "1/5  Preflight"
-command -v nix-shell >/dev/null 2>&1 || fail "nix-shell not found — broken nix install?"
 mkdir -p "$KEY_DIR" "$(dirname "$PID_FILE")"
 chmod 700 "$KEY_DIR"
+
+if [ ! -x "$SSHD_BIN" ]; then
+  warn "sshd not in profile yet, installing openssh via nix-env..."
+  nix-env -iA nixpkgs.openssh 2>&1 | tail -5 || fail "nix-env install failed"
+fi
+[ -x "$SSHD_BIN" ]       || fail "sshd still missing at $SSHD_BIN after install"
+[ -x "$SSH_KEYGEN_BIN" ] || fail "ssh-keygen missing at $SSH_KEYGEN_BIN"
+ok "sshd=$SSHD_BIN"
 
 # Bootstrap authorized_keys from repo if missing
 if [ ! -s "$AUTH_KEYS" ]; then
   REPO_KEYS="$HOME/git/unix/bb_flakes_termux/src/modules/data/authorized-keys.json"
   if [ -f "$REPO_KEYS" ]; then
-    # Extract pubkey strings without jq (POSIX awk)
     awk '/"ssh-/ { gsub(/^[[:space:]]*"|",?$/, ""); print }' "$REPO_KEYS" > "$AUTH_KEYS"
     chmod 600 "$AUTH_KEYS"
     ok "wrote authorized_keys from repo ($(wc -l < "$AUTH_KEYS") keys)"
   else
-    warn "no authorized_keys and repo file missing — only password auth will work (which dropbear disables by default)"
+    warn "no authorized_keys and repo file missing — pubkey auth will fail"
   fi
 else
   ok "authorized_keys present ($(wc -l < "$AUTH_KEYS") lines)"
 fi
 
-# ── 2. Stop any existing sshd / dropbear ──────────────────────────────
+# ── 2. Stop any existing sshd ─────────────────────────────────────────
 step "2/5  Stop existing"
 if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
   kill "$(cat "$PID_FILE")" 2>/dev/null || true
 fi
 pkill -f 'dropbear|sshd' 2>/dev/null || true
-rm -f "$PID_FILE" "$HOME/.cache/sshd.pid"
+rm -f "$PID_FILE"
 sleep 0.3
 ok "cleaned"
 
-# ── 3. Get dropbear via nix-shell ─────────────────────────────────────
-step "3/5  Resolve dropbear binary (nix-shell)"
-DROPBEAR=$(nix-shell -p dropbear --run 'echo $(command -v dropbear)' 2>/dev/null | tail -1)
-DROPBEARKEY=$(nix-shell -p dropbear --run 'echo $(command -v dropbearkey)' 2>/dev/null | tail -1)
-[ -x "$DROPBEAR" ]    || fail "could not resolve dropbear via nix-shell (got: $DROPBEAR)"
-[ -x "$DROPBEARKEY" ] || fail "could not resolve dropbearkey via nix-shell (got: $DROPBEARKEY)"
-ok "dropbear=$DROPBEAR"
-
-# ── 4. Generate host key if missing ───────────────────────────────────
-step "4/5  Host key"
-if [ ! -f "$KEY_FILE" ]; then
-  "$DROPBEARKEY" -t ed25519 -f "$KEY_FILE" >/dev/null 2>&1 || fail "dropbearkey failed"
-  ok "generated $KEY_FILE"
+# ── 3. Host key ───────────────────────────────────────────────────────
+step "3/5  Host key"
+if [ ! -f "$HOST_KEY" ]; then
+  "$SSH_KEYGEN_BIN" -t rsa -b 4096 -f "$HOST_KEY" -N "" -q || fail "ssh-keygen failed"
+  ok "generated $HOST_KEY"
 else
-  ok "$KEY_FILE exists"
+  ok "$HOST_KEY exists"
 fi
 
-# ── 5. Start dropbear (background) ────────────────────────────────────
-step "5/5  Start dropbear on :$PORT"
+# ── 4. sshd_config (a REAL file, not -o flags — see issue #32) ────────
+step "4/5  Write sshd_config"
+cat > "$SSHD_CONFIG" <<EOF
+HostKey $HOST_KEY
+Port $PORT
+PidFile $PID_FILE
+AuthorizedKeysFile $AUTH_KEYS
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+UsePAM no
+EOF
+chmod 600 "$SSHD_CONFIG"
+ok "wrote $SSHD_CONFIG"
+
+# ── 5. Start sshd ─────────────────────────────────────────────────────
+step "5/5  Start sshd"
 : > "$LOG_FILE"
-# -p PORT, -r KEY, -P PIDFILE, -E (log to stderr -> file)
-# No -F: dropbear backgrounds itself.
-"$DROPBEAR" -p "$PORT" -r "$KEY_FILE" -P "$PID_FILE" -E >> "$LOG_FILE" 2>&1
+"$SSHD_BIN" -f "$SSHD_CONFIG" >> "$LOG_FILE" 2>&1
 sleep 0.5
 
 if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-  ok "dropbear running (PID $(cat "$PID_FILE"))"
+  ok "sshd running (PID $(cat "$PID_FILE"))"
 else
-  fail "dropbear failed to start. Last 20 log lines:
+  fail "sshd failed to start. Last 20 log lines:
 $(tail -20 "$LOG_FILE" 2>/dev/null | sed 's/^/    /')"
 fi
 
@@ -95,6 +113,6 @@ printf "${C_GREEN}════════════ SSHD UP ═════�
 echo "  PID:       $(cat "$PID_FILE" 2>/dev/null)"
 [ -n "$LAN_IP" ] && echo "  LAN ssh:   ssh -p $PORT nix-on-droid@$LAN_IP"
 [ -n "$WG_IP" ]  && echo "  WG  ssh:   ssh -p $PORT nix-on-droid@$WG_IP"
+echo "  config:    $SSHD_CONFIG"
+echo "  hostkey:   $HOST_KEY"
 echo "  log:       $LOG_FILE"
-echo "  pidfile:   $PID_FILE"
-echo "  hostkey:   $KEY_FILE"
