@@ -70,9 +70,38 @@ fi
 
 # ── 3. SSH setup ─────────────────────────────────────────────────
 echo "[3/6] Setting up SSH for $VM"
-GHA_CONFIG="cloud-data/cloud-data-gha-config.json"
-if [ ! -f "$GHA_CONFIG" ]; then
-  echo "FATAL: $GHA_CONFIG not found"
+# Resolve GHA-shape config: prefer build-gha.json (post-2026-04-27 rename),
+# fall back to legacy cloud-data-gha-config.json, then derive _gha slice
+# from _cloud-data-consolidated.json. Mirrors cloud_paths_gha_config from
+# 1_workflows/src/libs/cloud-paths.sh — the canonical lookup. When this
+# image and the cloud lib live side-by-side, source it instead.
+GHA_CONFIG=""
+for _p in \
+    "build-gha.json" \
+    "cloud-data/build-gha.json" \
+    "2_configs/dist/build-gha.json" \
+    "cloud-data-gha-config.json" \
+    "cloud-data/cloud-data-gha-config.json" \
+    "2_configs/dist/cloud-data-gha-config.json"; do
+    [ -f "$_p" ] && { GHA_CONFIG="$_p"; break; }
+done
+if [ -z "$GHA_CONFIG" ]; then
+    # Last resort: derive _gha slice from consolidated.
+    for _p in "_cloud-data-consolidated.json" "2_configs/dist/_cloud-data-consolidated.json" "cloud-data/_cloud-data-consolidated.json"; do
+        if [ -f "$_p" ]; then
+            GHA_CONFIG="${TMPDIR:-/tmp}/gha-config.json"
+            jq '
+              ._gha as $g
+              | (.vms | to_entries | map({key: .value.ssh_alias, value: .value.wg_ip}) | from_entries) as $alias_to_wg
+              | $g
+              | .vms |= with_entries(.value += {wg_ip: ($alias_to_wg[.key] // null)})
+            ' "$_p" > "$GHA_CONFIG"
+            break
+        fi
+    done
+fi
+if [ -z "$GHA_CONFIG" ] || [ ! -f "$GHA_CONFIG" ]; then
+  echo "FATAL: build-gha.json (or legacy fallback) not found"
   exit 1
 fi
 

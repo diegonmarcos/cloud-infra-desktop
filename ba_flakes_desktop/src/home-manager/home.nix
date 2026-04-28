@@ -543,17 +543,10 @@
       Use=true
     '';
 
-    # Locale — en_DK.UTF-8 (ISO 8601 date YYYY-MM-DD, dashes, 24h time).
-    # 2026-04-28 changed from es_ES.UTF-8 (Spanish dd/mm/yyyy) to align with
-    # the global default in common.nix + configuration_locale.nix.
-    ".config/plasma-localerc".text = ''
-      [Formats]
-      LANG=en_DK.UTF-8
-      LC_TIME=en_DK.UTF-8
-      LC_MEASUREMENT=en_DK.UTF-8
-      LC_MONETARY=en_DK.UTF-8
-      LC_NUMERIC=en_DK.UTF-8
-    '';
+    # Locale plasma-localerc moved to modules/common.nix (which IS imported
+    # by every host — this home.nix is orphaned and kept only as a graveyard
+    # of legacy declarations until it's deleted in a future cleanup).
+    # 2026-04-28: see commit feat(locale) for the migration.
 
     # Touchpad config moved to plasma.nix (configFile) to avoid
     # raw .text overwriting plasma-manager's kcminputrc merge
