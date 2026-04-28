@@ -297,13 +297,22 @@ nix_switch() {
         fi
     fi
 
-    # Clean old backup files that block home-manager activation
-    perf_step "clean backups"
-    backup_count=$(command find "$HOME" -maxdepth 1 -name "*.backup" -type f 2>/dev/null | wc -l)
-    if [ "$backup_count" -gt 0 ]; then
-        log_info "Cleaning $backup_count old backup file(s)..."
-        command find "$HOME" -maxdepth 1 -name "*.backup" -type f -delete 2>/dev/null || true
-    fi
+    # ── home-manager-always-wins backup policy ────────────────────────────
+    # 2026-04-28: prior `-b backup` (fixed extension) failed when a previous
+    # backup already existed at the target path:
+    #   "Existing file '~/.config/plasma-localerc.backup' would be clobbered
+    #    by backing up '~/.config/plasma-localerc'"
+    # Engine fix: use a UNIQUE timestamp extension on every switch so home-
+    # manager never collides with a prior backup. Old backups age out via
+    # the 7-day prune below, so clutter doesn't accumulate forever.
+    perf_step "clean stale hm-backups"
+    # Prune hm-backup-* files older than 7 days across the home tree (depth
+    # bounded — KDE/typical config sits within 4 levels). Old fixed-name
+    # `*.backup` files (legacy) also pruned to unblock the very first run
+    # of this version of the engine.
+    command find "$HOME" -maxdepth 4 \
+        \( -name "*.hm-backup-*" -mtime +7 -o -name "*.backup" \) \
+        -type f -delete 2>/dev/null || true
 
     perf_step "home-manager switch"
     log_info "Applying Home Manager configuration..."
@@ -311,14 +320,18 @@ nix_switch() {
     # Force nix to re-evaluate by touching flake.nix (busts eval cache)
     touch "$SRC_DIR/flake.nix" 2>/dev/null || true
 
+    # Unique backup extension per switch — guarantees home-manager always
+    # wins, never blocked by a stale backup at the same path. Format:
+    # hm-backup-YYYYMMDD-HHMMSS. The 7-day prune above keeps clutter low.
+    HM_BACKUP_EXT="hm-backup-$(date +%Y%m%d-%H%M%S)"
+    log_info "home-manager backup extension: $HM_BACKUP_EXT"
+
     # Capture exit code from the actual command, not tee
-    # Use -b backup to automatically backup conflicting files
-    # --recreate-lock-file not needed: touching flake.nix + --impure forces re-eval
     _rc_file=$(mktemp)
     if check_home_manager 2>/dev/null; then
-        { home-manager switch --impure -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+        { home-manager switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     else
-        { nix run home-manager -- switch --impure -b backup --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+        { nix run home-manager -- switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     fi
     exit_code=$(cat "$_rc_file" 2>/dev/null)
     rm -f "$_rc_file"

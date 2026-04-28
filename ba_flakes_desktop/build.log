@@ -25826,3 +25826,34 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-04-28 12:53:33] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-04-28 12:53:34] PERF: start switch
 [2026-04-28 12:53:35] INFO: Staging dirty files for flake evaluation...
+[2026-04-28 12:53:37] PERF: git stage = 1.8s
+[2026-04-28 12:53:38] PERF: clean backups = 661ms
+[2026-04-28 12:53:38] INFO: Applying Home Manager configuration...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 3 derivations will be built:
+  /nix/store/64c0s2bd3f89bxam9kvd3fa39fanisi7-hm_.configplasmalocalerc.drv
+  /nix/store/581hwa009gl57y4c11mcga53jkx6qa1j-home-manager-files.drv
+  /nix/store/cpjzcyhrdkpn070yis2zwps97prmfbha-home-manager-generation.drv
+building '/nix/store/64c0s2bd3f89bxam9kvd3fa39fanisi7-hm_.configplasmalocalerc.drv'...
+building '/nix/store/581hwa009gl57y4c11mcga53jkx6qa1j-home-manager-files.drv'...
+building '/nix/store/cpjzcyhrdkpn070yis2zwps97prmfbha-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/home/diego/.config/plasma-localerc.backup' would be clobbered by backing up '/home/diego/.config/plasma-localerc'
+Please do one of the following:
+- Move or remove the above files and try again.
+- In standalone mode, use 'home-manager switch -b backup' to back up
+  files automatically.
+- When used as a NixOS or nix-darwin module, set
+    'home-manager.backupFileExtension'
+  to, for example, 'backup' and rebuild.
+[2026-04-28 12:59:50] ERROR: Configuration failed with exit code 1
+[2026-04-28 12:59:50] INFO: Check /home/diego/git/unix/ba_flakes_desktop/build.log for details
+[2026-04-28 12:59:50] PERF: home-manager switch = 6m 12s
+[2026-04-28 12:59:50] PERF: TOTAL switch = 6m 16s
+[2026-04-28 13:01:39] ========== Build script started ==========
+[2026-04-28 13:01:39] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-04-28 13:01:39] PERF: start switch
+[2026-04-28 13:01:39] INFO: Staging dirty files for flake evaluation...
