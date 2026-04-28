@@ -18,6 +18,7 @@
     extraGroups = [
       "wheel" "networkmanager" "video" "audio"
       "docker" "podman" "kvm" "libvirtd"
+      "render"  # GPU DRM render node access (Wayland zero-copy + Brave/Chromium GPU compositing)
     ];
     shell = pkgs.fish;
     # Home is a dedicated btrfs subvolume - fully persistent
@@ -31,7 +32,7 @@
     group = "users";
     # Password: 1234567890 (same as diego for convenience)
     hashedPassword = "$6$0lk5nosoLlNAcDTp$or4FVVs/Lq1gFMYgjuw6FUdh6dKNE8e/vBClzgik290mxMCzctvN43odeGq7D.qpuJCyyDxJJAsSQNSsB3Vst0";
-    extraGroups = [ "networkmanager" "video" "audio" ];
+    extraGroups = [ "networkmanager" "video" "audio" "render" ];
     shell = pkgs.fish;
     home = "/home/guest";
   };

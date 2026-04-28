@@ -223,6 +223,26 @@ EOF
   hardware.graphics = {
     enable = true;
     enable32Bit = true;
+    # Iris Xe (TigerLake-LP GT2) needs explicit VAAPI + Vulkan packages so Mesa
+    # can expose hardware compositing under Wayland. Without these, Brave/
+    # Chromium falls back to software compositing — backdrop-filter, blur and
+    # paint all run on the CPU, costing ~3.5× more per RasterTask on a 1920px
+    # viewport vs a 360px one. brave://gpu showed "Compositing: Software only"
+    # + "Failed to find drm render node path" until these landed.
+    extraPackages = with pkgs; [
+      intel-media-driver  # iHD VAAPI driver for Gen 9+ Intel (Iris Xe)
+      libvdpau-va-gl      # VDPAU bridge for legacy VA-API consumers
+      vpl-gpu-rt          # Modern Intel media SDK runtime (oneVPL)
+      vulkan-loader       # Vulkan ICD loader
+      vulkan-validation-layers
+    ];
+  };
+
+  # LIBVA_DRIVER_NAME=iHD pins Mesa to the modern Intel iHD driver so the
+  # browser/video stack picks the right one at startup (Mesa otherwise probes
+  # and may pick the legacy i965 driver which doesn't accelerate Iris Xe).
+  environment.sessionVariables = {
+    LIBVA_DRIVER_NAME = "iHD";
   };
 
   # ═══════════════════════════════════════════════════════════════════════════

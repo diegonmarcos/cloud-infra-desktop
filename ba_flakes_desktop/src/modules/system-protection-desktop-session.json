@@ -1,0 +1,61 @@
+{
+  "$comment": [
+    "Per-service memory ceilings for KDE Plasma 6 desktop services.",
+    "",
+    "Why this module exists: 2026-04-28 21:15 KWin OOM-style death from a",
+    "2-day-old session. kwin_wayland used 1.1G + 815M swap, plasmashell",
+    "used 692M + 983M swap, ksystemstats had a runaway leak (42min CPU,",
+    "known KDE 6.2.x bug). When KWin's INTERNAL allocation fails, the whole",
+    "Wayland session dies and SDDM kicks back to login. earlyoom would NOT",
+    "have helped — it has --avoid for these very services (correct: you",
+    "don't want earlyoom killing kwin under any circumstance).",
+    "",
+    "What this module does:",
+    "  1. systemd user drop-ins with MemoryHigh/MemoryMax per leaky service",
+    "  2. Periodic watchdog timer that proactively restarts before the cap",
+    "",
+    "Defense layers per service:",
+    "  MemoryHigh       = soft throttle (process paused for memory reclaim)",
+    "  MemoryMax        = hard ceiling (systemd kills the unit; Plasma respawns)",
+    "  watchdog_warn_mb = proactive threshold (restart BEFORE the ceiling)",
+    "  watchdog_action  = 'restart' (in-place safe) or 'notify' (kwin: never auto-restart)",
+    "",
+    "Sized for Surface Pro 8 (8GB RAM, 8 logical CPUs).",
+    "Adding services is data-driven: edit this JSON, no script change needed."
+  ],
+  "services": {
+    "plasma-kwin_wayland.service": {
+      "MemoryHigh": "1500M",
+      "MemoryMax": "2500M",
+      "watchdog_warn_mb": 1200,
+      "watchdog_action": "notify",
+      "_note": "Restarting kwin tears the Wayland session — only notify, NEVER auto-restart. Hard ceiling 2.5G lets systemd kill kwin if it truly runs away; Plasma can respawn it."
+    },
+    "plasma-plasmashell.service": {
+      "MemoryHigh": "1000M",
+      "MemoryMax": "1800M",
+      "watchdog_warn_mb": 800,
+      "watchdog_action": "restart",
+      "_note": "Plasmashell restart is in-place safe; user sees panel flicker only."
+    },
+    "plasma-ksystemstats.service": {
+      "MemoryHigh": "256M",
+      "MemoryMax": "512M",
+      "watchdog_warn_mb": 400,
+      "watchdog_action": "restart",
+      "_note": "Known leak in KDE 6.2.x — recycle aggressively, no UI impact."
+    },
+    "plasma-kded6.service": {
+      "MemoryHigh": "256M",
+      "MemoryMax": "512M",
+      "watchdog_warn_mb": 400,
+      "watchdog_action": "restart",
+      "_note": "Defense in depth — kded daemons can leak; restart is invisible."
+    }
+  },
+  "watchdog": {
+    "interval_minutes": 30,
+    "boot_delay_minutes": 5,
+    "log_to_journal": true
+  }
+}
