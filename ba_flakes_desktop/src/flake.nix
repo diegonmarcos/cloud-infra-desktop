@@ -283,7 +283,7 @@
             Cmd = [ "${pkgs.fish}/bin/fish" ];
             Env = [
               "TERM=xterm-256color"
-              "LANG=en_US.UTF-8"
+              "LANG=en_DK.UTF-8"
               "HOME=/home/diego"
               "USER=diego"
               "PATH=/bin:/usr/bin:/home/diego/.nix-profile/bin"
@@ -361,7 +361,7 @@
             Cmd = [ "${pkgs.fish}/bin/fish" ];
             Env = [
               "TERM=xterm-256color"
-              "LANG=en_US.UTF-8"
+              "LANG=en_DK.UTF-8"
               "HOME=/home/diego"
               "USER=diego"
               "SHELL=${pkgs.fish}/bin/fish"

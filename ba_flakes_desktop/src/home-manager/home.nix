@@ -543,13 +543,16 @@
       Use=true
     '';
 
-    # Locale - Spanish date format (dd/mm/yyyy), 24h time
+    # Locale — en_DK.UTF-8 (ISO 8601 date YYYY-MM-DD, dashes, 24h time).
+    # 2026-04-28 changed from es_ES.UTF-8 (Spanish dd/mm/yyyy) to align with
+    # the global default in common.nix + configuration_locale.nix.
     ".config/plasma-localerc".text = ''
       [Formats]
-      LC_TIME=es_ES.UTF-8
-      LC_MEASUREMENT=es_ES.UTF-8
-      LC_MONETARY=es_ES.UTF-8
-      LC_NUMERIC=es_ES.UTF-8
+      LANG=en_DK.UTF-8
+      LC_TIME=en_DK.UTF-8
+      LC_MEASUREMENT=en_DK.UTF-8
+      LC_MONETARY=en_DK.UTF-8
+      LC_NUMERIC=en_DK.UTF-8
     '';
 
     # Touchpad config moved to plasma.nix (configFile) to avoid
