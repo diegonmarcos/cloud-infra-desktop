@@ -101,37 +101,42 @@ get_color() {
     else echo "32"; fi
 }
 
-# === Git info (cached, 10s TTL) ===
+# === Git info — DISABLED 2026-04-28 ===
+# Git ops were costing 6+ CPU cores on large monorepos (~/git/cloud, ~/git/unix
+# with rust target/, node_modules/). 9 git invocations per render: branch,
+# rev-parse HEAD x2, diff-index x2, ls-files --others, rev-parse @{upstream},
+# rev-list --count x2, stash list. Vars stay declared empty so downstream
+# rendering at the status line below skips the git block entirely.
 git_branch=""; git_commit=""; git_status_icons=""; git_stash=""
-if cd "$cwd" 2>/dev/null && git rev-parse --git-dir > /dev/null 2>&1; then
-    git_cache="/tmp/statusline_git_$(echo "$cwd" | md5sum | cut -c1-8).cache"
-    git_cache_age=$(( $(date +%s) - $(stat -c %Y "$git_cache" 2>/dev/null || echo 0) ))
-
-    if [ -f "$git_cache" ] && [ "$git_cache_age" -lt 10 ]; then
-        IFS='|' read git_branch git_commit git_status_icons git_stash < "$git_cache" 2>/dev/null
-    else
-        branch=$(git -c core.useBuiltinFSMonitor=false -c core.useReplaceRefs=false branch --show-current 2>/dev/null)
-        [ -n "$branch" ] && git_branch="$branch" || git_branch=$(git -c core.useBuiltinFSMonitor=false rev-parse --short HEAD 2>/dev/null)
-        git_commit=$(git -c core.useBuiltinFSMonitor=false rev-parse --short HEAD 2>/dev/null)
-
-        git -c core.useBuiltinFSMonitor=false -c core.useReplaceRefs=false diff-index --quiet HEAD -- 2>/dev/null || git_status_icons+="*"
-        git -c core.useBuiltinFSMonitor=false diff-index --quiet --cached HEAD -- 2>/dev/null || git_status_icons+="+"
-        [ -n "$(git -c core.useBuiltinFSMonitor=false ls-files --others --exclude-standard 2>/dev/null | head -1)" ] && git_status_icons+="?"
-
-        upstream=$(git -c core.useBuiltinFSMonitor=false rev-parse --abbrev-ref @{upstream} 2>/dev/null)
-        if [ -n "$upstream" ]; then
-            ahead=$(git -c core.useBuiltinFSMonitor=false rev-list --count @{upstream}..HEAD 2>/dev/null)
-            behind=$(git -c core.useBuiltinFSMonitor=false rev-list --count HEAD..@{upstream} 2>/dev/null)
-            [ "$ahead" -gt 0 ] && git_status_icons+="↑${ahead}"
-            [ "$behind" -gt 0 ] && git_status_icons+="↓${behind}"
-        fi
-
-        stash_count=$(git -c core.useBuiltinFSMonitor=false stash list 2>/dev/null | wc -l)
-        [ "$stash_count" -gt 0 ] && git_stash="≡${stash_count}"
-
-        echo "${git_branch}|${git_commit}|${git_status_icons}|${git_stash}" > "$git_cache"
-    fi
-fi
+# if cd "$cwd" 2>/dev/null && git rev-parse --git-dir > /dev/null 2>&1; then
+#     git_cache="/tmp/statusline_git_$(echo "$cwd" | md5sum | cut -c1-8).cache"
+#     git_cache_age=$(( $(date +%s) - $(stat -c %Y "$git_cache" 2>/dev/null || echo 0) ))
+#
+#     if [ -f "$git_cache" ] && [ "$git_cache_age" -lt 10 ]; then
+#         IFS='|' read git_branch git_commit git_status_icons git_stash < "$git_cache" 2>/dev/null
+#     else
+#         branch=$(git -c core.useBuiltinFSMonitor=false -c core.useReplaceRefs=false branch --show-current 2>/dev/null)
+#         [ -n "$branch" ] && git_branch="$branch" || git_branch=$(git -c core.useBuiltinFSMonitor=false rev-parse --short HEAD 2>/dev/null)
+#         git_commit=$(git -c core.useBuiltinFSMonitor=false rev-parse --short HEAD 2>/dev/null)
+#
+#         git -c core.useBuiltinFSMonitor=false -c core.useReplaceRefs=false diff-index --quiet HEAD -- 2>/dev/null || git_status_icons+="*"
+#         git -c core.useBuiltinFSMonitor=false diff-index --quiet --cached HEAD -- 2>/dev/null || git_status_icons+="+"
+#         [ -n "$(git -c core.useBuiltinFSMonitor=false ls-files --others --exclude-standard 2>/dev/null | head -1)" ] && git_status_icons+="?"
+#
+#         upstream=$(git -c core.useBuiltinFSMonitor=false rev-parse --abbrev-ref @{upstream} 2>/dev/null)
+#         if [ -n "$upstream" ]; then
+#             ahead=$(git -c core.useBuiltinFSMonitor=false rev-list --count @{upstream}..HEAD 2>/dev/null)
+#             behind=$(git -c core.useBuiltinFSMonitor=false rev-list --count HEAD..@{upstream} 2>/dev/null)
+#             [ "$ahead" -gt 0 ] && git_status_icons+="↑${ahead}"
+#             [ "$behind" -gt 0 ] && git_status_icons+="↓${behind}"
+#         fi
+#
+#         stash_count=$(git -c core.useBuiltinFSMonitor=false stash list 2>/dev/null | wc -l)
+#         [ "$stash_count" -gt 0 ] && git_stash="≡${stash_count}"
+#
+#         echo "${git_branch}|${git_commit}|${git_status_icons}|${git_stash}" > "$git_cache"
+#     fi
+# fi
 
 # === Async system metrics — all slow commands run in parallel ===
 _async="/tmp/statusline_async_$$"
