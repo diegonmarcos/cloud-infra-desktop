@@ -22,6 +22,14 @@
       pkgsNew = import nixpkgs-new { system = "aarch64-linux"; };
       pkgsUnstable = import nixpkgs-unstable { system = "aarch64-linux"; };
 
+      # Node identity for DTK webhooks (ntfy topic = dtk-cmd-<dtkNode>).
+      # Source of truth: build.json -> defaults.dtk_node. Termux can't
+      # sethostname() on Android (no root) so `hostname -s` returns
+      # "localhost" — useless as a topic key. This makes the identity
+      # declarative + data-driven instead.
+      buildJson = builtins.fromJSON (builtins.readFile ../build.json);
+      dtkNode = buildJson.defaults.dtk_node or "unset";
+
       # Build termux-am from nix-on-droid source (provides `am` for Android intents)
       termux-am = (import nixpkgs { system = "aarch64-linux"; }).callPackage
         "${nix-on-droid}/pkgs/android-integration/termux-am.nix" {};
@@ -60,6 +68,8 @@
               SHELL = "${pkgs.bash}/bin/bash";
               PATH = "$HOME/.node_modules/node_modules/.bin:$HOME/.local/bin:$HOME/.nix-profile/bin:/run/current-system/sw/bin:$PATH";
               NODE_PATH = "$HOME/.node_modules/node_modules";
+              # DTK webhooks node identity (Android can't sethostname; see flake.nix `dtkNode`)
+              DTK_NODE_NAME = dtkNode;
               # Global memory allocator fix for Android - propagates to ALL child processes
               LD_PRELOAD = "${pkgs.mimalloc}/lib/libmimalloc.so";
               MIMALLOC_PAGE_RESET = "0";
@@ -666,10 +676,9 @@
                 shellAliases = sharedAliases;
                 interactiveShellInit = ''
 
-                  # Auto-start sshd (port 8022)
-                  if command -q sshd; and not pgrep -x sshd >/dev/null 2>&1
-                    sshd -f "$HOME/.ssh/sshd_config" 2>/dev/null
-                  end
+                  # NOTE: sshd auto-start lives in modules/sshd.nix (`termux-sshd start`).
+                  # The previous block here referenced ~/.ssh/sshd_config which is never
+                  # created — it failed silently and hid real startup errors. Removed.
 
                   # Auto-start http-dev (web-server-md-eruda)
                   set -g __httpd_port 8000

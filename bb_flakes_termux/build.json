@@ -11,6 +11,7 @@
   },
   "defaults": {
     "user": "nix-on-droid",
-    "host": "nix-on-droid"
+    "host": "nix-on-droid",
+    "dtk_node": "termux"
   }
 }
