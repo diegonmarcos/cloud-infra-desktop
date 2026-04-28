@@ -15,6 +15,14 @@ let
     { alias = "gcp-t4";        ip = "10.0.0.8"; user = "diego";  hasDropbear = false; provider = "gcp"; gcInstance = "ollama-spot-gpu"; gcZone = "us-central1-a"; }
   ];
 
+  # ── Non-VM SSH peers (mobile/edge) ──────────────────────────────────────
+  # Termux WG IP (10.0.0.9) declared in bb_flakes_termux/src/modules/wireguard.nix:21
+  # SSHD port (8022) declared in bb_flakes_termux/src/modules/sshd.nix:43
+  # User (nix-on-droid) declared in bb_flakes_termux/build.json:13
+  extraSshHosts = [
+    { alias = "phone"; ip = "10.0.0.9"; user = "nix-on-droid"; port = 8022; }
+  ];
+
   sshKey = "/home/diego/.ssh/id_rsa";
   cmd = "bash ~/git/tools/5-infos/engines/cloud-container-orchestrator/cloud-container-orchestrator.sh";
 
@@ -48,11 +56,17 @@ let
     # Serial consoles are in Quick Commands (require proxy/script, not simple SSH)
     ;
 
+  mkSshExtraEntry = h:
+    mkSshEntry h.alias "SSH (port ${toString h.port})" {
+      hostname = h.alias; user = h.user;
+    };
+
   sshConfig = ''
     [Global plugin config]
     manageProfile=false
   ''
   + builtins.concatStringsSep "" (map mkSshVmEntries vms)
+  + builtins.concatStringsSep "" (map mkSshExtraEntry extraSshHosts)
   + mkSshEntry "Git" "github.com" {
       hostname = "github.com"; user = "git";
     };
@@ -217,7 +231,9 @@ let
     (mkSshHostEntry { host = vm.alias; hostname = vm.ip; user = vm.user; })
     + (lib.optionalString vm.hasDropbear
       (mkSshHostEntry { host = "${vm.alias}-dropbear"; hostname = vm.ip; user = vm.user; port = 2200; }))
-  ) vms + ''
+  ) vms + lib.concatMapStrings (h:
+    (mkSshHostEntry { host = h.alias; hostname = h.ip; user = h.user; port = h.port; })
+  ) extraSshHosts + ''
     Host github.com
         HostName github.com
         User git

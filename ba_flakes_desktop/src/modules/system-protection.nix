@@ -24,5 +24,7 @@
     ./system-protection-layer2-identity.nix
     ./system-protection-resource-bouncer.nix
     ./system-protection-watchdog-dropbear.nix
+    ./system-protection-desktop-session.nix
+    ./system-protection-orphan-reaper.nix
   ];
 }
