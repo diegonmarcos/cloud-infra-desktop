@@ -4,7 +4,8 @@
 # WG interface is created by NixOS host (aa_nixos-surface_host/configuration_network.nix)
 # This module adds DNS routing so .app names resolve via Hickory (10.0.0.1)
 #
-# Source of truth: ~/git/cloud/cloud-data/cloud-data-wireguard-peers.json
+# Source of truth: ~/git/cloud/2_configs/dist/build-flakes_desktop.json (.wireguard slice)
+# Emitted by 2_configs/src/engines/cloud-data-config-derive.ts via external-consumers.json.
 { config, lib, pkgs, ... }:
 
 let

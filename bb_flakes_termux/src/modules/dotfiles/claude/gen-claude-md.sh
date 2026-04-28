@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
-# gen-claude-md.sh — Generate CLAUDE.md from template + cloud-data
-# Called by home-manager activation to inject dynamic infrastructure data
-# Source: cloud-data-topology.json from ~/git/cloud/cloud-data/
+# gen-claude-md.sh — Generate CLAUDE.md from template + cloud topology
+# Called by home-manager activation to inject dynamic infrastructure data.
+# Source: build-flakes_termux.json (vms, services slices) emitted by
+# 2_configs/src/engines/cloud-data-config-derive.ts via external-consumers.json.
 set -euo pipefail
 
 TPL="${1:-$HOME/.claude/CLAUDE.md.tpl}"
 OUT="${2:-$HOME/.claude/CLAUDE.md}"
-CLOUD_DATA="${3:-$HOME/git/cloud/cloud-data}"
-TOPOLOGY="$CLOUD_DATA/cloud-data-topology.json"
+# Priority chain: synced copy → cloud repo dist → legacy cloud-data dir.
+TOPOLOGY=""
+for _p in \
+    "${3:-}/build-flakes_termux.json" \
+    "$HOME/git/unix/bb_flakes_termux/build-flakes_termux.json" \
+    "$HOME/git/cloud/2_configs/dist/build-flakes_termux.json" \
+    "${3:-$HOME/git/cloud/cloud-data}/cloud-data-topology.json"; do
+  [ -f "$_p" ] && { TOPOLOGY="$_p"; break; }
+done
 NODE="${NODE_BIN:-node}"
 
-# Fallback: if cloud-data or node not available, strip markers and use template as-is
-if [ ! -f "$TOPOLOGY" ] || [ ! -f "$TPL" ]; then
+# Fallback: if topology source or node not available, strip markers and use template as-is
+if [ -z "$TOPOLOGY" ] || [ ! -f "$TPL" ]; then
   echo "[gen-claude-md] WARNING: cloud-data or template not found, using static fallback"
   if [ -f "$TPL" ]; then
     "$NODE" -e '

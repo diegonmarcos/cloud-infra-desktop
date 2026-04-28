@@ -1,6 +1,6 @@
 # Static list of all known npm dependencies — always installed.
 # This is the declarative baseline. Snapshot from 2026-03-24.
-# Merged from: cloud-data-deps.json + front-deps.json + essential tools.
+# Merged from: build-flakes_termux.json (.deps) + front-deps.json + essential tools.
 # Dynamic cloud/front modules add NEW packages on top; this list is the baseline.
 { lib, ... }:
 
