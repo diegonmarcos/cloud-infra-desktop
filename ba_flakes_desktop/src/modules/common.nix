@@ -64,9 +64,11 @@
     PAGER = "less";
     MANPAGER = "less -R";
 
-    # Locale
-    LANG = "en_US.UTF-8";
-    LC_ALL = "en_US.UTF-8";
+    # Locale — en_DK.UTF-8 = ISO 8601 date (YYYY-MM-DD, dashes) + 24h time.
+    # Same English vocabulary as en_US/en_GB; only date+time formats differ.
+    # 2026-04-28 changed from en_US.UTF-8 (which gave AM/PM + MM/DD/YYYY).
+    LANG = "en_DK.UTF-8";
+    LC_ALL = "en_DK.UTF-8";
 
     # Less options
     LESS = "-R -F -X";

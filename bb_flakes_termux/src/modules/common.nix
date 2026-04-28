@@ -34,8 +34,10 @@
     EDITOR = "vim";
     VISUAL = "vim";
     PAGER = "less";
-    LANG = "en_US.UTF-8";
-    LC_ALL = "en_US.UTF-8";
+    # Locale — en_DK.UTF-8 = ISO 8601 date + 24h time. Aligned with desktop +
+    # host flakes (2026-04-28 global migration from en_US.UTF-8).
+    LANG = "en_DK.UTF-8";
+    LC_ALL = "en_DK.UTF-8";
     LESS = "-R -F -X";
 
     # Octocode — OpenAI-compatible endpoint (Ollama on oci-apps)
