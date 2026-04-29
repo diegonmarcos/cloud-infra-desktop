@@ -39,29 +39,41 @@ let
   mkWatchdogScript = let
     mountChecks = lib.concatMapStringsSep "\n" (m: ''
       # Watch ${m.mount}
-      USAGE=$(df "${m.mount}" --output=pcent 2>/dev/null | tail -1 | tr -d ' %' || echo 0)
-      echo "[disk-watchdog] ${m.mount}: ''${USAGE}%"
-      if [ "$USAGE" -ge "${toString m.critical_pct}" ]; then
-        echo "[disk-watchdog] CRITICAL ${m.mount} ''${USAGE}% >= ${toString m.critical_pct}%"
-        # critical actions
-        ${lib.concatMapStringsSep "\n        " (a: "run_action ${a}") m.actions_on_critical}
-      elif [ "$USAGE" -ge "${toString m.warn_pct}" ]; then
-        echo "[disk-watchdog] WARN ${m.mount} ''${USAGE}% >= ${toString m.warn_pct}%"
-        ${lib.concatMapStringsSep "\n        " (a: "run_action ${a}") m.actions_on_warn}
+      if ! ${pkgs.util-linux}/bin/findmnt -n "${m.mount}" >/dev/null 2>&1; then
+        echo "[disk-watchdog] ${m.mount}: NOT MOUNTED — skipped"
+      else
+        USAGE=$(df "${m.mount}" --output=pcent 2>/dev/null | tail -1 | tr -d ' %')
+        if ! [[ "$USAGE" =~ ^[0-9]+$ ]]; then
+          echo "[disk-watchdog] ${m.mount}: unreadable usage ('$USAGE') — skipped"
+        else
+          echo "[disk-watchdog] ${m.mount}: ''${USAGE}%"
+          if [ "$USAGE" -ge "${toString m.critical_pct}" ]; then
+            echo "[disk-watchdog] CRITICAL ${m.mount} ''${USAGE}% >= ${toString m.critical_pct}%"
+            ${lib.concatMapStringsSep "\n            " (a: "run_action ${a} ${m.mount} \"$USAGE\"") m.actions_on_critical}
+          elif [ "$USAGE" -ge "${toString m.warn_pct}" ]; then
+            echo "[disk-watchdog] WARN ${m.mount} ''${USAGE}% >= ${toString m.warn_pct}%"
+            ${lib.concatMapStringsSep "\n            " (a: "run_action ${a} ${m.mount} \"$USAGE\"") m.actions_on_warn}
+          fi
+        fi
       fi
     '') (cfg.watches.mounts or []);
   in ''
     set -u
     run_action() {
-      case "$1" in
+      local action="$1" mount="''${2:-?}" pct="''${3:-?}"
+      case "$action" in
         alert_ntfy)
-          ${pkgs.curl}/bin/curl -sS -H "Title: disk-watchdog" \
-            -d "disk pressure detected" \
+          ${pkgs.curl}/bin/curl -sS -H "Title: disk-watchdog $mount $pct%" \
+            -d "disk pressure: $mount at $pct%" \
             https://ntfy.sh/diegonmarcos-infra 2>/dev/null || true ;;
         purge_tmp_worktrees)
           ${pkgs.systemd}/bin/systemd-tmpfiles --clean --prefix=/tmp 2>/dev/null || true ;;
         purge_tmp_dotfiles)
           ${pkgs.findutils}/bin/find /tmp -maxdepth 1 -name '.tmp*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true ;;
+        purge_audit_old)
+          # Bound the audit log dir even when high traffic outpaces tmpfiles cleanup.
+          ${pkgs.findutils}/bin/find /mnt/shared/log/audit -type f -mtime +3 -delete 2>/dev/null || true
+          ${pkgs.systemd}/bin/systemd-tmpfiles --clean --prefix=/mnt/shared/log/audit 2>/dev/null || true ;;
         cargo_sweep)
           command -v cargo-sweep >/dev/null 2>&1 && cargo-sweep --time 30 /home/diego/.cargo/target 2>/dev/null || true ;;
         docker_prune_images)
@@ -70,7 +82,7 @@ let
           command -v docker >/dev/null 2>&1 && docker volume prune -f 2>/dev/null || true ;;
         nix_gc_14d)
           ${pkgs.nix}/bin/nix-collect-garbage --delete-older-than 14d 2>/dev/null || true ;;
-        *) echo "[disk-watchdog] unknown action: $1" ;;
+        *) echo "[disk-watchdog] unknown action: $action" ;;
       esac
     }
 

@@ -12,7 +12,7 @@
         "warn_pct": 70,
         "critical_pct": 85,
         "actions_on_warn":     ["alert_ntfy"],
-        "actions_on_critical": ["alert_ntfy", "purge_tmp_worktrees", "purge_tmp_dotfiles"]
+        "actions_on_critical": ["alert_ntfy", "purge_tmp_worktrees", "purge_tmp_dotfiles", "purge_audit_old"]
       },
       {
         "mount": "/home",
@@ -23,8 +23,16 @@
         "actions_on_critical": ["alert_ntfy", "cargo_sweep", "docker_prune_images"]
       },
       {
-        "mount": "/var/lib/docker",
-        "description": "Docker layers + volumes (when on dedicated mount)",
+        "mount": "/mnt/shared",
+        "description": "btrfs @shared — persistent app state, audit logs, configs",
+        "warn_pct": 80,
+        "critical_pct": 90,
+        "actions_on_warn":     ["alert_ntfy"],
+        "actions_on_critical": ["alert_ntfy", "purge_audit_old", "docker_prune_images"]
+      },
+      {
+        "mount": "/mnt/shared/data/containers",
+        "description": "Docker/Podman storage (CLAUDE.md: data lives under @shared)",
         "warn_pct": 75,
         "critical_pct": 85,
         "actions_on_warn":     ["alert_ntfy"],
@@ -50,7 +58,17 @@
       "d /tmp/test-*.git      - - - 2h   -",
       "d /tmp/nix-build-*     - - - 6h   -",
       "d /tmp/tmp.*           - - - 2h   -",
-      "D! /var/tmp            - - - 14d  -"
+      "D! /var/tmp            - - - 14d  -",
+      "d /mnt/shared/log               0755 root root -",
+      "d /mnt/shared/log/audit         0700 root root -",
+      "e /mnt/shared/log/audit         - - -    3d   -",
+      "R! /var/log/audit               - - -    -    -",
+      "d /mnt/shared/log/account       0750 root root -",
+      "e /mnt/shared/log/account       - - -    14d  -",
+      "R! /var/log/account             - - -    -    -",
+      "d /mnt/shared/coredump          0755 root systemd-coredump -",
+      "e /mnt/shared/coredump          - - -    14d  -",
+      "L+ /var/lib/systemd/coredump    - - -    -    /mnt/shared/coredump"
     ]
   },
 
@@ -150,6 +168,12 @@
       "safe_mode": true,
       "script": "find /tmp -maxdepth 1 -name '.tmp*' -mmin +60 -exec rm -rf {} +"
     },
+    "purge_audit_old": {
+      "type": "exec",
+      "description": "Delete /mnt/shared/log/audit/* older than 3 days (auditd rotation backstop)",
+      "safe_mode": true,
+      "script": "find /mnt/shared/log/audit -type f -mtime +3 -delete"
+    },
     "cargo_sweep": {
       "type": "exec",
       "description": "cargo-sweep --time 30 ~/.cargo/target",
@@ -244,6 +268,30 @@
         "description": "Root tmpfs usage < 50% (since /tmp is no longer on it)",
         "command": "df / --output=pcent | tail -1 | tr -d ' %'",
         "expect_numeric_lt": 50
+      },
+      {
+        "id": "auditd_log_off_tmpfs_root",
+        "description": "auditd writes to /mnt/shared (btrfs), not /var/log/audit on tmpfs",
+        "command": "grep -E '^log_file' /etc/audit/auditd.conf | awk '{print $3}'",
+        "expect_regex": "^/mnt/shared/log/audit/"
+      },
+      {
+        "id": "audit_log_dir_on_btrfs",
+        "description": "/mnt/shared/log/audit lives on btrfs",
+        "command": "stat -f -c %T /mnt/shared/log/audit",
+        "expect": "btrfs"
+      },
+      {
+        "id": "audit_log_aged_3d",
+        "description": "tmpfiles has e rule that ages /mnt/shared/log/audit at 3d",
+        "command": "systemd-tmpfiles --cat-config | grep -cE '^e\\s+/mnt/shared/log/audit\\s'",
+        "expect": "1"
+      },
+      {
+        "id": "watchdog_critical_purges_audit",
+        "description": "/ watch's critical action list includes purge_audit_old",
+        "command": "jq -r '.watches.mounts[] | select(.mount==\"/\") | .actions_on_critical[]' /etc/cloud-data/disk-protection.json | grep -c purge_audit_old || true",
+        "expect": "1"
       }
     ]
   },
