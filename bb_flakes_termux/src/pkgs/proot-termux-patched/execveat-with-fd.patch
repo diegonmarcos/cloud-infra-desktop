@@ -1,0 +1,59 @@
+diff --git a/src/syscall/enter.c b/src/syscall/enter.c
+index 8c3eb2e..07dfe12 100644
+--- a/src/syscall/enter.c
++++ b/src/syscall/enter.c
+@@ -26,6 +26,8 @@
+ #include <linux/net.h>   /* SYS_*, */
+ #include <fcntl.h>       /* AT_FDCWD, */
+ #include <limits.h>      /* PATH_MAX, */
++#include <stdio.h>       /* snprintf(3), */
++#include <unistd.h>      /* readlink(2), */
+ #include <string.h>      /* strcpy */
+ #include <sys/prctl.h>   /* PR_SET_DUMPABLE */
+ #include <termios.h>     /* TCSETS, TCSANOW */
+@@ -129,16 +131,41 @@ int translate_syscall_enter(Tracee *tracee)
+ 		break;
+ 
+ 	case PR_execveat:
+-		if ((int) peek_reg(tracee, CURRENT, SYSARG_1) == AT_FDCWD) {
++	{
++		int execveat_fd = (int) peek_reg(tracee, CURRENT, SYSARG_1);
++
++		if (execveat_fd == AT_FDCWD) {
++			/* Standard path-based execveat: shift args to execve format. */
+ 			set_sysnum(tracee, PR_execve);
+ 			poke_reg(tracee, SYSARG_1, peek_reg(tracee, CURRENT, SYSARG_2));
+ 			poke_reg(tracee, SYSARG_2, peek_reg(tracee, CURRENT, SYSARG_3));
+ 			poke_reg(tracee, SYSARG_3, peek_reg(tracee, CURRENT, SYSARG_4));
+ 		} else {
+-			note(tracee, ERROR, SYSTEM, "execveat() with non-AT_FDCWD fd is not currently supported");
+-			status = -ENOSYS;
+-			break;
++			/* fexecve / AT_EMPTY_PATH — resolve fd via /proc/<pid>/fd/<fd>. */
++			char proc_fd[64];
++			char resolved[PATH_MAX];
++			ssize_t link_len;
++
++			snprintf(proc_fd, sizeof(proc_fd),
++				"/proc/%d/fd/%d", tracee->pid, execveat_fd);
++			link_len = readlink(proc_fd, resolved, sizeof(resolved) - 1);
++			if (link_len <= 0) {
++				note(tracee, ERROR, SYSTEM,
++					"execveat: cannot resolve fd %d via %s",
++					execveat_fd, proc_fd);
++				status = -ENOSYS;
++				break;
++			}
++			resolved[link_len] = '\0';
++
++			set_sysnum(tracee, PR_execve);
++			status = set_sysarg_path(tracee, resolved, SYSARG_1);
++			if (status < 0)
++				break;
++			poke_reg(tracee, SYSARG_2, peek_reg(tracee, CURRENT, SYSARG_3));
++			poke_reg(tracee, SYSARG_3, peek_reg(tracee, CURRENT, SYSARG_4));
+ 		}
++	}
+ 		status = translate_execve_enter(tracee);
+ 		break;
+ 
