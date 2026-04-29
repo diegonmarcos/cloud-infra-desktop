@@ -24,9 +24,9 @@
 ```
 
 > **Owner**: Diego Nepomuceno Marcos
-> **Updated**: 2026-02-16
 > **System**: NixOS (Surface Pro 8) + Kubuntu (dual-boot)
 > **Git Root**: `/home/diego/git`
+> **Auto-generated**: 2026-04-29 from cloud-data (5 VMs, 34 services with domains)
 
 ---
 
@@ -80,7 +80,7 @@
 
 ```bash
 # Rebuild NixOS system
-~/git/unix/aa_nixos-surface_host/build.sh    # Options: r) switch, b) build, t) test
+~/git/unix/aa_nixos-surface_host/build.sh    # Cmds: s|switch  b|boot  t|test  c|check  u|update  d|diff  i|install  build {raw|iso|qcow|vm}  burn  (no arg = TUI)
 
 # Rebuild home-manager
 ~/git/unix/ba_flakes_desktop/build.sh        # Desktop
@@ -96,6 +96,115 @@
 - **initrd**: Surface keyboard needs `surface_aggregator`, `surface_hid` loaded early
 - **No Intel ISH**: Surface Pro 8 uses SAM, not Intel Integrated Sensor Hub
 - **Docker/Podman**: Data stored in `/mnt/shared/data/containers/`
+
+## A.4 Terminal Welcome (rendered fish greeting)
+
+```
+
+    ███████╗██╗███████╗██╗  ██╗
+    ██╔════╝██║██╔════╝██║  ██║
+    █████╗  ██║███████╗███████║
+    ██╔══╝  ██║╚════██║██╔══██║
+    ██║     ██║███████║██║  ██║
+    ╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝
+(B
+  ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+  │ diego@surface-nixos     │ 29-04-2026 17:18 │ Profile: surface-plasma│ NixOS 6.15.9      │
+  ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+(B
+  ┌─ HARDWARE ─────────────────────────────────────┐ ┌─ SYSTEM ──────────────────────────────────────┐
+(B  │ CPU    (B11th Gen Intel Core i5-11               │ │ OS     (BNixOS 6.15.9                           │
+  │ Cores  (B8 @ 3722 MHz                            │ │ Host   (Bsurface-nixos                          │
+  │ GPU    (BIntel Corporation TigerLa               │ │ Kernel (B6.15.9                                 │
+  │ RAM    (B6,7Gi/7,6Gi (88%)                       │ │ DE     (BKDE                                    │
+  │ Disk   (B69G/80G (89%)                           │ │ Shell  (BFish 3.7.1                             │
+  └─────────────────────────────────────────────────┘ └───────────────────────────────────────────────┘
+(B
+  ┌─ NETWORK ──────────────────────────────────────┐ ┌─ SECURITY STATUS ────────────────────────────┐
+(B  │ IP-Pub (B31.222.104.28                           │ │ SSH      (Bactive                               │
+  │ IP-Priv(B 192.168.1.165(wlp0s20f3) 10.0.0.5(wg0) │ │ Firewall (Binactive                             │
+  │ DNS    (B10.0.0.1 192.168.1.254 8.8.4.4 1.1.1.1 1.0.0.1 8.8.8.8│ │ Fail2ban (Binactive                             │
+  │ Load   (B1.66 1.26 1.06                          │ │ Ports    (B5 listening                          │
+  │ Uptime (B3d 4h 2m                                │ │ Last     (B[-<lines>] [-n <lines>]              │
+  └─────────────────────────────────────────────────┘ └───────────────────────────────────────────────┘
+(B
+── Tree ───────────────────────────────────────────────────────────────────────────────────────
+(B  ~/git/(B
+    front/        cloud/        vault/        unix/         tools/        cloud-data/   front-data/   (B
+  ~/Mounts/Storage/(B
+    Gdrive_dnm/   Gdrive_me/    (B
+
+── Env Vars ───────────────────────────────────────────────────────────────────────────────────
+(B  Shell:         (BEDITOR          VISUAL          PAGER           LANG            LC_ALL          MANPAGER        (B
+  AI / LLM:      (BANTHROPIC_API_KEY     OPENAI_BASE_URL       OPENAI_API_KEY        (B
+  Auth:          (BAUTHELIA_OIDC_CLIENT_ID   AUTHELIA_TOKEN_URL        (B
+                 (BAUTHELIA_OIDC_CREDENTIALS_DIR     AUTHELIA_OIDC_TOKENS_DIR          (B
+  Dev:           (BCARGO_HOME        GOPATH            PIP_CACHE_DIR     npm_config_cache  npm_config_prefix (B
+  System:        (BDEVICE          HM_PROFILE      BUILDSH_GUARDRAILTF_PLUGIN_CACHE_DIRGNUPGHOME       GIT_EDITOR      (B
+    ('hhelp envvar' — list all env vars with values)
+(B
+── Configuration ──────────────────────────────────────────────────────────────────────────────
+(B  Flakes:
+(B    NixOS            (B~/git/unix/aa_nixos-surface_host/
+    OS Modules       (B~/git/unix/aa_nixos-surface_host/src/modules/
+    Home-Manager     (B~/git/unix/ba_flakes_desktop/
+    HM Modules       (B~/git/unix/ba_flakes_desktop/src/modules/
+  Wrappers - Guardrails:
+(B    BLOCKED          (Brm -rf /, mkfs, dd (always denied)
+    CONFIRM          (Bnpm npx docker nix pip apt pkg (ask before run)
+    WARNING          (Bbun cargo go (warn on write ops)
+  Wrappers - Custom:
+(B    curl/wget        (BAuto-inject Authelia token for *.diegonmarcos.com
+    ('hhelp config' — cat flake.nix)
+(B
+── Tools ──────────────────────────────────────────────────────────────────────────────────────
+(B  Nix Flakes:
+(B    up               (BRebuild Nix config
+    conf             (BEdit flake.nix
+    dtk              (BDiego's Toolkit (cloud ops, dashboards, webhooks)
+  Dev:
+(B    claude           (BNative Anthropic binary (v2.1.123)
+    claude-termux    (BAndroid-safe (io_uring fix + 1GB cap)
+    claude-malloc    (BMax memory (2GB) + TMPDIR isolation
+    claude-rescue    (BFallback chain: podman → npx → nix → node
+    ai-cli           (BGoose AI (v1.28.0) default: Haiku 4.5 · ai-cli -h for models
+(B    code             (BVS Code Server (local/lan/stop)
+  Cloud:
+(B    connect          (BCloud Connect Unified dashboard (git/mounts/sync/servers)
+    sync             (BFile sync & serve (WebDAV SFTP HTTP+Eruda)
+    http-dev         (B● Web+MD+Eruda http://127.0.0.1:(B (PID: 2956650)
+  System:
+(B    tree             (BDirectory tree
+    yazi             (BTerminal file manager
+    tldr             (BSimplified man pages (tealdeer)
+    tmux             (BTerminal multiplexer (sessions, splits, detach)
+    browsh           (BWeb browser in terminal (headless Firefox)
+    nmtui            (BNetwork Manager TUI (WiFi, VPN, connections)
+  Search (fzf + atuin):
+(B    ↑                (BClassic per-command history recall
+    Ctrl+R           (BAtuin fuzzy history search
+    Ctrl+T           (BFind file (fzf)
+    Alt+C            (BCd to folder (fzf)
+  Clipboard (cliphist):
+(B    cliphist list    (BShow clipboard history
+    cliphist list | fzf | cliphist decode | wl-copy(B
+
+    ('hhelp tools' — all binaries declared in flake)
+(B
+── Alias/Functions ────────────────────────────────────────────────────────────────────────────
+(B  Git:
+(B    gacp             (Bgit add . && commit && push
+    gcl              (Bgit clone <url>
+  Others:
+(B    dtk              (BTools TUI menu (~/git/tools/dtk.sh)
+    hhelp            (BParse flake configs (config/tools/alias)
+    fish-e           (BWeb terminal + mobile keys (ttyd on WireGuard)
+
+    ('hhelp alias' — all functions and aliases in bash and fish)
+(B
+═══════════════════════════════════════════════════════════════════════════════════════════════
+(B
+```
 
 ---
 
@@ -115,43 +224,58 @@
 
 ## B.2 Virtual Machines
 
-### Always-On (24/7) - Free Tier
-| VM | Alias | IP | WG IP | RAM | Services |
-|----|-------|-----|-------|-----|----------|
-| gcp-E2-f_0 | gcp-proxy | 35.226.147.64 | 10.0.0.1 | 1 GB | Caddy, Authelia, introspect-proxy, Vaultwarden, ntfy, Hickory DNS |
-| oci-E2-f_0 | oci-mail | 130.110.251.193 | 10.0.0.3 | 1 GB | Mailu, Syncthing, Radicale |
-
-### Paid - A1.Flex (Free Tier: 4 OCPUs / 24GB total)
-| VM | Alias | IP | WG IP | CPUs/RAM | Services |
-|----|-------|-----|-------|----------|----------|
-| oci-A1-f_0 | oci-apps | 82.70.229.129 | 10.0.0.6 | 3 / 16GB | C3 API, Crawlee Cloud |
-| oci-A1-f_1 | oci-apps-1 | 144.24.196.72 | 10.0.0.2 | 1 / 8GB | PhotoPrism, NocoDB, Code Server, AFFiNE |
+| VM | Alias | IP | WG IP | Description |
+|----|-------|-----|-------|-------------|
+| oci-E2-f_0 | oci-mail | 130.110.251.193 | 10.0.0.3 | Oracle Free - E2 Micro 0 - Mail Server |
+| oci-E2-f_1 | oci-analytics | 129.151.228.66 | 10.0.0.4 | Oracle Free - E2 Micro 1 - Analytics + Workflows |
+| oci-A1-f_0 | oci-apps | 82.70.229.129 | 10.0.0.6 | Oracle Free - A1 Flex 0 (4 OCPUs / 24GB / 100GB) — Consolidated |
+| gcp-T4-p_0 | gcp-t4 | 34.173.227.250 | 10.0.0.8 | GCloud Paid - N1 Std 4 + T4 GPU (Spot) - Ollama LLM |
+| gcp-E2-f_0 | gcp-proxy | 35.226.147.64 | 10.0.0.1 | GCloud Free - E2 Micro 0 - Central Proxy + Control |
 
 ## B.3 Networking
 
-Traffic flow: **Cloudflare → Caddy (gcp-proxy) → WireGuard → target VM**. Auth: Authelia 2FA (browser) or Bearer token via introspect-proxy (CLI/API).
+Traffic flow: **Cloudflare -> Caddy (gcp-proxy) -> WireGuard -> target VM**. Auth: Authelia 2FA (browser) or Bearer token via introspect-proxy (CLI/API).
 
-SSH aliases: `ssh oci-apps`, `ssh oci-apps-1`, `ssh oci-mail`, `ssh oci-analytics`, `ssh gcp-proxy`.
+SSH aliases: `ssh oci-mail`, `ssh oci-analytics`, `ssh oci-apps`, `ssh gcp-t4`, `ssh gcp-proxy`.
 
 ## B.4 Active Services
 
-| Service | Domain | VM | Port | Availability |
-|---------|--------|-----|------|--------------|
-| Caddy Proxy | proxy.diegonmarcos.com | gcp-proxy | 80/443 | 24/7 |
-| Authelia 2FA | auth.diegonmarcos.com | gcp-proxy | 9091 | 24/7 |
-| Vaultwarden | vault.diegonmarcos.com | gcp-proxy | 80 | 24/7 |
-| ntfy Push | rss.diegonmarcos.com | gcp-proxy | 8090 | 24/7 |
-| C3 API | api.diegonmarcos.com/c3-api | oci-apps | 8081 | 24/7 |
-| Mailu Mail | mail.diegonmarcos.com | oci-mail | 8444 | 24/7 |
-| Syncthing | sync.diegonmarcos.com | oci-mail | 8384 | 24/7 |
-| Radicale Calendar | cal.diegonmarcos.com | oci-mail | 5232 | 24/7 |
-| Matomo Analytics | analytics.diegonmarcos.com | oci-analytics | 8080 | 24/7 (hybrid) |
-| PhotoPrism | photos.diegonmarcos.com | oci-apps-1 | 3013 | wake-on-demand |
-| NocoDB | db.diegonmarcos.com | oci-apps-1 | 8085 | wake-on-demand |
-| Code Server | ide.diegonmarcos.com | oci-apps-1 | 8443 | wake-on-demand |
-| AFFiNE | drive-notes-affine.diegonmarcos.com | oci-apps-1 | 3010 | wake-on-demand |
-| Hickory DNS | dns.internal (WG only) | gcp-proxy | 53 | 24/7 |
-| Crawlee Cloud | api.diegonmarcos.com/crawlee/ | oci-apps | 3000/3001 | wake-on-demand |
+| Service | Domain | VM | Category |
+|---------|--------|-----|----------|
+| authelia | auth.diegonmarcos.com | gcp-proxy | sec |
+| caddy | proxy.diegonmarcos.com | gcp-proxy | sec |
+| hickory-dns | dns.internal | gcp-proxy | cloud |
+| dagu | workflows.diegonmarcos.com | oci-analytics | tools |
+| dozzle | logs.diegonmarcos.com | oci-analytics | tools |
+| c3-infra-api | api.diegonmarcos.com/c3-infra-api | oci-apps | sec |
+| c3-infra-mcp | mcp.diegonmarcos.com/c3-infra-mcp | oci-apps | sec |
+| c3-services-api | api.diegonmarcos.com/c3-services-api | oci-apps | obs |
+| code-server | ide.diegonmarcos.com | oci-apps | app |
+| crawlee-cloud | api.diegonmarcos.com | oci-apps | fin |
+| dbgate | db.diegonmarcos.com | oci-apps | tools |
+| etherpad | pad.diegonmarcos.com | oci-apps | app |
+| filebrowser | files.diegonmarcos.com | oci-apps | app |
+| fin-api | api.diegonmarcos.com/fin-api | oci-apps | fin |
+| gitea | git.diegonmarcos.com | oci-apps | data |
+| google-personal-mcp | mcp.diegonmarcos.com | oci-apps | app |
+| google-workspace-mcp | mcp.diegonmarcos.com | oci-apps | app |
+| grist | sheets.diegonmarcos.com | oci-apps | app |
+| hedgedoc | doc.diegonmarcos.com | oci-apps | app |
+| lgtm | grafana.diegonmarcos.com | oci-apps | tools |
+| mail-mcp | mcp.diegonmarcos.com | oci-apps | app |
+| matomo | analytics.diegonmarcos.com | oci-apps | tools |
+| mattermost-bots | chat.diegonmarcos.com | oci-apps | app |
+| ntfy | rss.diegonmarcos.com | oci-apps | tools |
+| photoprism | photos.diegonmarcos.com | oci-apps | app |
+| radicale | cal.diegonmarcos.com | oci-apps | app |
+| umami | analytics.diegonmarcos.com | oci-apps | tools |
+| vaultwarden | vault.diegonmarcos.com | oci-apps | mic |
+| cypht | webmail.diegonmarcos.com | oci-mail | app |
+| maddy | mail.diegonmarcos.com | oci-mail | app |
+| mail-puller | mail-puller.diegonmarcos.com | oci-mail | app |
+| smtp-proxy | smtp.diegonmarcos.com | oci-mail | app |
+| snappymail | webmail.diegonmarcos.com | oci-mail | app |
+| stalwart | mail-stalwart.diegonmarcos.com | oci-mail | app |
 
 ## B.5 Bearer Token Auth (CLI Access)
 
@@ -348,7 +472,7 @@ _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
 | Repo | Pattern | What build.sh does |
 |------|---------|-------------------|
 | **front/** | `build.sh` + `build.json` per project | Sass/TS/Vite/SvelteKit build, dev server, deploy to GitHub Pages |
-| **cloud/** | `build.sh` + `build.json` per service (Nix flake → Docker Compose) | `build` generates docker-compose.yml, `ship` deploys to VM via SSH |
+| **cloud/** | `build.sh` + `build.json` per service (Nix flake -> Docker Compose) | `build` generates docker-compose.yml, `ship` deploys to VM via SSH |
 | **unix/** | `build.sh` per flake (NixOS host, home-manager desktop/termux) | `switch` applies NixOS/home-manager config, `build` builds without applying |
 
 **All three repos follow the same interface**: `build.sh <command>`. NEVER bypass it with raw `npm`, `nix`, `docker-compose`, or other commands.
@@ -383,12 +507,12 @@ Every service in `` MUST follow this exact structure:
 
 ```
 <category-prefix>_<name>/
-├── build.sh        ← Universal engine (DO NOT customize — copy from template)
-├── build.json      ← Service config (name, description, deploy target)
+├── build.sh        <- Universal engine (DO NOT customize — copy from template)
+├── build.json      <- Service config (name, description, deploy target)
 └── src/
-    ├── flake.nix   ← REQUIRED — Nix flake that builds config files → dist/
-    ├── secrets.yaml ← Optional, sops-encrypted (age key)
-    └── ...          ← Service-specific source files
+    ├── flake.nix   <- REQUIRED — Nix flake that builds config files -> dist/
+    ├── secrets.yaml <- Optional, sops-encrypted (age key)
+    └── ...          <- Service-specific source files
 ```
 
 **build.json schema** (cloud/ services):
@@ -407,9 +531,9 @@ Every service in `` MUST follow this exact structure:
 
 | Command | What it does |
 |---------|-------------|
-| `build` | `nix build` in `src/` → copy result to `dist/` + any extra build steps |
-| `secrets` | `sops -d src/secrets.yaml` → `dist/.secrets` (KEY=VALUE env file) |
-| `deploy` | `rsync dist/` → VM via SSH (or local copy for local services) |
+| `build` | `nix build` in `src/` -> copy result to `dist/` + any extra build steps |
+| `secrets` | `sops -d src/secrets.yaml` -> `dist/.secrets` (KEY=VALUE env file) |
+| `deploy` | `rsync dist/` -> VM via SSH (or local copy for local services) |
 | `compose` | `docker compose up -d` on VM (or equivalent for local services) |
 | `all` | `build + secrets` (default) |
 | `ship` | `build + secrets + deploy + compose` (FULL PIPELINE — use this to deploy) |
@@ -424,27 +548,22 @@ Every service in `` MUST follow this exact structure:
 **ALL Claude Code sessions MUST start from `~/.claude` directory.**
 This ensures consistent context loading and access to CLAUDE.md instructions.
 
-## E.1.1 Broken Shell from Deleted Working Directory
+## E.1.2 Forbidden Commands (reinforced by hooks)
 
-If a directory that the shell `cd`'d into gets deleted (`rm -rf`), all subsequent Bash calls silently fail (exit code 1, no output).
+| NEVER | ALWAYS |
+|-------|--------|
+| `ssh vm 'echo > .secrets'` | `src/secrets.yaml` + sops + `build.sh ship` |
+| `nix-env -i pkg` | Add to flake + rebuild |
+| `sed` on VM `/etc/` files | Edit nix source + deploy |
+| `docker compose up` on VM | `build.sh compose` |
+| `which cmd` | `command -v cmd` |
+| Edit `dist/` files | Edit `src/` + `build.sh build` |
+| Edit `~/.claude/CLAUDE.md` | Edit source in `~/git/unix/` flakes |
+| `cd dir && git mv dir/...` | `git -C /abs/path mv ...` (absolute paths) |
+| **`git add -f` / `git add --force`** | **plain `git add` — NEVER bypass gitignore. `-f` force-stages secrets, decrypted keys, sensitive/ — gitignore exists for a reason.** |
 
-**FIX: `mkdir -p /the/deleted/path`** — recreate the directory. The shell's cwd is just a string reference; once the path exists again, the shell recovers immediately. No restart needed.
-
-**Prevention:** Always use absolute paths (`git -C /abs/path`), avoid `cd` into temp directories.
-
-## E.1.2 Long Session Safety: Tag HEAD + Snapshot Dirty Tree
-
-Before any multi-hour editing session, and before running any destructive git operation (filter-repo, reset --hard, force-push), create a rescue anchor:
-
-```bash
-STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-git -C /abs/repo tag -a "local-main-pre-$STAMP" -m "rescue anchor"
-git -C /abs/repo diff HEAD > /home/diego/.backups/<repo>-dirty-$STAMP.patch
-git -C /abs/repo status --porcelain | awk '$1 != "D" {print $2}' \
-  | tar --ignore-failed-read -czf /home/diego/.backups/<repo>-dirty-$STAMP.tar.gz -T -
-```
-
-The **tag** survives `reset --hard` (refs are immune). The **patch + tarball** in `~/.backups/` survive any local repo state change. Between them, no uncommitted work can ever be permanently lost. Never store rescue artifacts in `/tmp/` — it's tmpfs and gets wiped.
+Enforced by: `claude-memory.sh` (SessionStart), `declarative-guard.sh` (per-prompt), `pretool-guard.sh` (pre-tool-use warn).
+Commit-time defence: `1_workflows/src/hooks/pre-commit` **blocks** any gitignored file from being committed.
 
 ## E.2 Dependency Verification (CRITICAL)
 
@@ -494,7 +613,7 @@ rpm -qR <package>           # RPM-based
 4. **Sensitive data**: vault contains credentials - never expose or commit
 5. **Analytics**: All web projects must include Matomo tracking
 6. **Ports**: Dev servers have assigned ports (8000-8022) - don't conflict
-7. **architecture.json**: Source of truth for cloud infrastructure data
+7. **cloud-data**: Source of truth for cloud infrastructure (auto-injected into this file)
 
 ---
 
@@ -541,7 +660,7 @@ rpm -qR <package>           # RPM-based
 | Tool | When to use |
 |------|-------------|
 | `octocode_search` | Semantic code search across indexed repositories |
-| `octocode_memory` | Query code memory — semantic summaries of files/functions |
+| `octocode_graphrag` | Query code relationship graph — search nodes, get relationships, find paths, overview |
 | `octocode_index` | Trigger re-indexing of a repository or directory |
 
 ### Section C: CodeGraph-Rust — Graph Analysis (3 stub tools, future)
