@@ -3,8 +3,8 @@
   "commands": [
     {
       "name": "claude",
-      "path": "$HOME/.node_modules/node_modules/.bin/claude",
-      "fix": "Re-run: nix-on-droid switch --flake $HOME/git/unix/bb_flakes_termux/src; if npm install fails (OOM/SIGTERM), retry build.sh switch — the npm activation hook is idempotent.",
+      "path": "$HOME/.nix-profile/bin/claude",
+      "fix": "Installed by flake.nix via pkgs.callPackage ./pkgs/claude-code. If missing, the derivation didn't build — check build.log for `claude-code-2.x.x` errors. As a runtime fallback: `dtk 15` (claude-rescue 12-fallback chain).",
       "category": "ai"
     },
     {
