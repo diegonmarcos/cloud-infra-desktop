@@ -344,7 +344,7 @@ locals {
       display_mgr  = "SDDM"
       root         = "tmpfs (impermanence)"
       encryption   = "LUKS2 (USB keyfile + password)"
-      build_cmd    = "./build.sh"  # Options: r) switch, b) build, t) test
+      build_cmd    = "./build.sh"  # Cmds: s|switch  b|boot  t|test  c|check  u|update  d|diff  i|install  build {raw|iso|qcow|vm}  burn  (no arg = TUI)
 
       sessions = [
         "01-plasma    — KDE Plasma (Wayland, default)",

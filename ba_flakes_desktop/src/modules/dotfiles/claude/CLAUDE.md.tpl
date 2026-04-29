@@ -82,7 +82,7 @@
 
 ```bash
 # Rebuild NixOS system
-~/git/unix/aa_nixos-surface_host/build.sh    # Options: r) switch, b) build, t) test
+~/git/unix/aa_nixos-surface_host/build.sh    # Cmds: s|switch  b|boot  t|test  c|check  u|update  d|diff  i|install  build {raw|iso|qcow|vm}  burn  (no arg = TUI)
 
 # Rebuild home-manager
 ~/git/unix/ba_flakes_desktop/build.sh        # Desktop
