@@ -59,7 +59,51 @@ let
       [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null
     }
 
+    # Returns the PID(s) of any process currently listening on :8022, regardless
+    # of whether it's tracked by our PID file. Used to detect orphans from a
+    # previous start where the PID file got nuked but the process survived.
+    port_holder_pids() {
+      ss -tlnp 2>/dev/null | awk '/:8022 / {
+        # ss output: ... users:(("sshd",pid=12345,fd=3))
+        match($0, /pid=[0-9]+/);
+        if (RSTART) print substr($0, RSTART+4, RLENGTH-4)
+      }' | sort -u
+      # Fallback for Android/proot ss without -p detail: try fuser/lsof if present.
+      if [ -z "$(ss -tlnp 2>/dev/null | grep ":8022 ")" ]; then
+        :  # nothing on port
+      fi
+    }
+
+    # Self-heal step before do_start: if something else is on :8022 but our
+    # PID file is missing/stale, kill the orphan. Idempotent — safe to run
+    # whether or not anything is wrong.
+    self_heal() {
+      _occupied=$(ss -tln 2>/dev/null | grep ":8022 " || true)
+      if [ -n "$_occupied" ] && ! is_running; then
+        # Port bound but we don't own it via PID file — orphan.
+        _orphans=$(port_holder_pids)
+        if [ -n "$_orphans" ]; then
+          echo "self-heal: orphan(s) on :8022 (PID $_orphans) — killing"
+          for _p in $_orphans; do
+            kill -9 "$_p" 2>/dev/null || true
+          done
+        else
+          # No process info from ss. Carpet-bomb anything matching sshd.
+          echo "self-heal: :8022 bound but PID unknown — pkill sshd"
+          pkill -9 -f 'sshd|dropbear' 2>/dev/null || true
+        fi
+        # Clear stale PID file
+        rm -f "$PID_FILE"
+        sleep 0.4
+      elif [ -f "$PID_FILE" ] && ! kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null; then
+        # PID file exists but process is gone.
+        rm -f "$PID_FILE"
+      fi
+    }
+
     do_start() {
+      self_heal
+
       if is_running; then
         pid=$(cat "$PID_FILE")
         echo "sshd already running (PID $pid) on :8022"
@@ -100,9 +144,24 @@ let
           pid=$(cat "$PID_FILE")
           echo "sshd started (PID $pid) on :8022"
         else
-          echo "sshd failed to start — last 10 lines of $LOG_FILE:"
-          tail -10 "$LOG_FILE" 2>/dev/null | sed 's/^/  /'
-          return 1
+          # Self-heal retry: address-already-in-use is a common failure mode
+          # when the orphan check above didn't catch the holder. Force-kill
+          # anything on the port and try one more time before giving up.
+          if grep -q "Address already in use" "$LOG_FILE" 2>/dev/null; then
+            echo "self-heal: address-already-in-use — purging and retrying"
+            pkill -9 -f "sshd|dropbear" 2>/dev/null || true
+            sleep 0.5
+            "$SSHD_BIN" -f "$SSHD_CONFIG" >> "$LOG_FILE" 2>&1
+            sleep 0.5
+          fi
+          if is_running; then
+            pid=$(cat "$PID_FILE")
+            echo "sshd started (PID $pid) on :8022 (after self-heal)"
+          else
+            echo "sshd failed to start — last 15 lines of $LOG_FILE:"
+            tail -15 "$LOG_FILE" 2>/dev/null | sed 's/^/  /'
+            return 1
+          fi
         fi
       else
         echo "ERROR: sshd not found at $SSHD_BIN (run nix-on-droid switch first)"
