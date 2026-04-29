@@ -33,6 +33,12 @@ let
   authorizedKeysContent =
     lib.concatStringsSep "\n" authData.trusted_pubkeys + "\n";
 
+  # Read the WG IP from build.json (data-driven). sshd binds ONLY to this
+  # address — no public exposure. If wg0 is down, sshd refuses to start
+  # rather than fall back to listening on all interfaces.
+  buildJson = builtins.fromJSON (builtins.readFile ../../build.json);
+  wgIp = buildJson.defaults.wg_ip or "127.0.0.1";
+
   sshdScript = pkgs.writeShellScript "termux-sshd" ''
     # termux-sshd — POSIX wrapper for nix-on-droid sshd
     # Usage: termux-sshd [start|stop|status|restart]
@@ -71,9 +77,12 @@ let
       fi
 
       # Write sshd_config (idempotent, regenerated each start so changes flow
-      # through the wrapper without manual edits).
+      # through the wrapper without manual edits). ListenAddress is the WG IP
+      # from build.json — bind ONLY to wg0, no public exposure. If wg0 isn't
+      # up at start time sshd will fail to bind and the wrapper will log it.
       cat > "$SSHD_CONFIG" <<EOF
     HostKey $HOST_KEY
+    ListenAddress ${wgIp}
     Port 8022
     PidFile $PID_FILE
     AuthorizedKeysFile $HOME/.ssh/authorized_keys
