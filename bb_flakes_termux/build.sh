@@ -321,6 +321,61 @@ EOT
     fi
     perf_end
 
+    # ────────────────────────────────────────────────────────────────────
+    # Mandatory post-switch sshd guarantee: every successful switch MUST
+    # leave sshd up, OR loudly tell the user it's broken AND how to recover.
+    # No more "config applied" with sshd silently dead.
+    # ────────────────────────────────────────────────────────────────────
+    perf_step "sshd guarantee"
+    _wg_ip=$(awk -F'"' '/"wg_ip"/{print $4; exit}' "$SCRIPT_DIR/build.json" 2>/dev/null)
+    _wg_ip="${_wg_ip:-127.0.0.1}"
+    _sshd_up=0
+
+    # Path 1: the flake-deployed wrapper (uses opensshPinned + sshd_config).
+    if [ -x "$HOME/.local/bin/termux-sshd" ]; then
+        log_info "sshd-guarantee: (1/2) trying flake wrapper restart..."
+        if "$HOME/.local/bin/termux-sshd" restart 2>&1 | tee -a "$LOG_FILE"; then
+            sleep 1
+            if [ -f "$HOME/.cache/sshd.pid" ] && kill -0 "$(cat "$HOME/.cache/sshd.pid")" 2>/dev/null; then
+                _sshd_up=1
+            fi
+        fi
+    fi
+
+    # Path 2: independent rescue script (uses ~/.nix-profile/bin/sshd directly,
+    # not whatever the flake wrapper happens to point at). Last-resort.
+    if [ "$_sshd_up" -eq 0 ]; then
+        log_warn "sshd-guarantee: wrapper path failed, falling back to rescue-sshd..."
+        _rescue="$HOME/git/tools/5-infos/rescue-sshd/rescue-sshd.sh"
+        if [ -x "$_rescue" ] || [ -f "$_rescue" ]; then
+            sh "$_rescue" 2>&1 | tee -a "$LOG_FILE"
+            sleep 1
+            if [ -f "$HOME/.cache/sshd.pid" ] && kill -0 "$(cat "$HOME/.cache/sshd.pid")" 2>/dev/null; then
+                _sshd_up=1
+            fi
+        else
+            log_error "sshd-guarantee: $_rescue not found"
+        fi
+    fi
+
+    # Verify TCP listen actually accepts on :8022 (Android `ss` output is
+    # spotty — try ss first, fall back to nc against the WG IP and 127.0.0.1).
+    _bound=0
+    if ss -tln 2>/dev/null | grep -q ":8022 "; then _bound=1; fi
+    [ "$_bound" -eq 0 ] && nc -z -w 2 "$_wg_ip" 8022 2>/dev/null && _bound=1
+    [ "$_bound" -eq 0 ] && nc -z -w 2 127.0.0.1 8022 2>/dev/null && _bound=1
+
+    if [ "$_sshd_up" -eq 1 ] && [ "$_bound" -eq 1 ]; then
+        log_success "sshd-guarantee: listening on :8022 (WG=$_wg_ip)"
+    elif [ "$_sshd_up" -eq 1 ]; then
+        log_warn "sshd-guarantee: process up but port :8022 not detected — verify manually"
+    else
+        log_error "sshd-guarantee: BOTH wrapper AND rescue failed. SSH UNAVAILABLE."
+        log_error "  manual recovery on device: sh ~/git/tools/5-infos/rescue-sshd/rescue-sshd.sh"
+        log_error "  sshd log: $HOME/.cache/sshd.log"
+    fi
+    perf_end
+
     # Show cached drift summary (instant, no network)
     if command -v nix-drift >/dev/null 2>&1; then
         nix-drift drift --cached 2>/dev/null || true

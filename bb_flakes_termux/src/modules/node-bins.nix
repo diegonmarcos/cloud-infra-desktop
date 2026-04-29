@@ -33,38 +33,13 @@
     fi
   '';
 
-  # Claude Code (@anthropic-ai/claude-code)
-  home.activation.globalClaudeCode = lib.hm.dag.entryAfter ["linkGeneration"] ''
-    PATH="${nodejs}/bin:$PATH"
-    CURRENT=$(${nodejs}/bin/node -e "try{console.log(require('@anthropic-ai/claude-code/package.json').version)}catch{}" 2>/dev/null || true)
-    LATEST=$(${nodejs}/bin/npm view @anthropic-ai/claude-code version 2>/dev/null || true)
-
-    # Clean stale npm temp dirs from prior failed upgrades (ENOTEMPTY bug)
-    for d in /data/data/com.termux.nix/files/usr/lib/node_modules/@anthropic-ai/.claude-code-*; do
-      [ -d "$d" ] && rm -rf "$d"
-    done
-
-    # Helper: never block activation, but print the npm exit code loudly so
-    # the post-switch verifier in build.sh sees a missing binary AND the user
-    # gets a visible warning. The previous `|| true` pattern silently swallowed
-    # OOM kills (SIGTERM) on Android, leaving claude-code uninstalled.
-    _install() {
-      $DRY_RUN_CMD ${nodejs}/bin/npm install -g "$@" --no-audit --no-fund
-      _rc=$?
-      if [ "$_rc" -ne 0 ]; then
-        printf "[node-bins] WARN: npm install %s FAILED (exit %d) — likely SIGTERM/OOM. build.sh verify will flag the missing binary.\n" "$*" "$_rc" >&2
-      fi
-      return 0
-    }
-
-    if [ -z "$CURRENT" ]; then
-      printf "[node-bins] Installing claude-code@%s\n" "$LATEST"
-      _install "@anthropic-ai/claude-code"
-    elif [ -n "$LATEST" ] && [ "$CURRENT" != "$LATEST" ]; then
-      printf "[node-bins] Updating claude-code: %s → %s\n" "$CURRENT" "$LATEST"
-      _install "@anthropic-ai/claude-code@latest" --force
-    else
-      printf "[node-bins] claude-code@%s is up to date\n" "$CURRENT"
-    fi
-  '';
+  # Claude Code installation REMOVED from this module.
+  #
+  # Was: `npm install -g @anthropic-ai/claude-code` at every activation.
+  # OOM-killed by Android ~50% of the time, with `|| true` masking the
+  # failure → user ended up with no claude binary and no error.
+  #
+  # Now: claude-code is a real nix derivation in pkgs/claude-code/default.nix
+  # added to environment.packages in flake.nix. Permanent store path,
+  # deterministic, no runtime npm.
 }

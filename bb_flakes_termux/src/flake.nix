@@ -412,6 +412,12 @@
               (writeShellScriptBin "nix-drift" ''
                 exec ${pkgs.bash}/bin/bash ${./nix-version-drift.sh} "$@"
               '')
+
+              # 9. CLAUDE — native binary nix derivation. Permanent path,
+              # no npm install at activation (which OOM-killed half the time).
+              # Pulls the published native arm64-musl binary from npm registry
+              # as a content-addressed source.
+              (pkgs.callPackage ./pkgs/claude-code {})
             ];
 
             # --- HOME MANAGER CONFIG ---
