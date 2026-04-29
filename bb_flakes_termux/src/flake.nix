@@ -179,34 +179,57 @@
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22
 
-              # claude = native binary from pkgs/claude-code (added to packages
-              # below). Available at $HOME/.nix-profile/bin/claude.
-              # claude-termux / claude-malloc are convenience wrappers with
-              # tunable env vars; they all exec the SAME native binary.
-              # NOTE: NODE_OPTIONS is ignored — the binary is compiled, not Node.
-              # MALLOC_ARENA_MAX still helps (libc tunable affects glibc).
+              # claude family — every wrapper has the SAME failure-mode safety:
+              # try native nix-store binary first, on ANY failure (missing,
+              # SIGSEGV, exit≠0 from libc init, etc.) fall through to
+              # claude-rescue's 12-fallback chain. This is intentional — the
+              # phone is unreliable enough that a single-path wrapper is
+              # guaranteed to fail eventually, and the user shouldn't have to
+              # remember which command to run when it does.
+              #
+              # NOTE: NODE_OPTIONS is dropped — claude is a compiled native
+              # binary, not Node.js. MALLOC_ARENA_MAX still applies (libc).
 
               (writeShellScriptBin "claude-termux" ''
-                # Conservative: small malloc arenas, force libc allocator
-                # behavior friendly to phone RAM.
+                # Conservative malloc tuning for phone RAM.
                 export MALLOC_ARENA_MAX=2
-                exec "$HOME/.nix-profile/bin/claude" "$@"
+                _bin="$HOME/.nix-profile/bin/claude"
+                if [ -x "$_bin" ]; then
+                  "$_bin" "$@"
+                  _rc=$?
+                  # exit codes 0–125 are user-meaningful. 126/127 = exec
+                  # failure (interpreter/permission). 137/139 = SIGKILL/SEGV.
+                  case "$_rc" in
+                    126|127|137|139) ;;   # fall through to rescue
+                    *) exit "$_rc" ;;
+                  esac
+                fi
+                echo "[claude-termux] native exec failed — trying rescue chain..." >&2
+                exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
               '')
 
               (writeShellScriptBin "claude-malloc" ''
-                # Max-isolation: tighter malloc arenas + dedicated TMPDIR so
-                # caches don't pollute /tmp. Useful when the device is
-                # OOM-pressured.
+                # Max-isolation: tight malloc arenas + dedicated TMPDIR.
                 export MALLOC_ARENA_MAX=2
                 export CLAUDE_TMP="$HOME/tmp/claude"
                 mkdir -p "$CLAUDE_TMP"
                 export TMPDIR="$CLAUDE_TMP"
-                exec "$HOME/.nix-profile/bin/claude" "$@"
+                _bin="$HOME/.nix-profile/bin/claude"
+                if [ -x "$_bin" ]; then
+                  "$_bin" "$@"
+                  _rc=$?
+                  case "$_rc" in
+                    126|127|137|139) ;;   # exec/signal failure → rescue
+                    *) exit "$_rc" ;;
+                  esac
+                fi
+                echo "[claude-malloc] native exec failed — trying rescue chain..." >&2
+                exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
               '')
 
-              # claude-rescue: now lives in tools/5-infos/claude-rescue/ as a
-              # 12-fallback chain. This wrapper just delegates so the flake
-              # doesn't carry a stale duplicate of the rescue logic.
+              # claude-rescue: delegates to tools/5-infos/claude-rescue/
+              # (12-fallback chain). The flake-side wrapper is intentionally
+              # thin so the rescue logic has ONE home.
               (writeShellScriptBin "claude-rescue" ''
                 exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
               '')
