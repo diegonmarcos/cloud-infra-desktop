@@ -1,0 +1,63 @@
+{
+  "$comment": [
+    "Brave browser extensions — DECLARATIVE source of truth.",
+    "",
+    "Each entry is force-installed via Chromium's External Extensions",
+    "mechanism: brave.nix writes",
+    "  ~/.config/BraveSoftware/Brave-Browser/External Extensions/<id>.json",
+    "with `external_update_url` pointing at the Chrome Web Store. Brave",
+    "auto-fetches + auto-updates the extension on next launch and CANNOT",
+    "be uninstalled via the UI (force-installed extensions show a 'managed",
+    "by your organization' badge).",
+    "",
+    "Why this mechanism:",
+    "  programs.chromium.extensions = [...] from home-manager only works",
+    "  for the chromium-proper package, NOT for Brave. Brave silently",
+    "  ignores it. The External Extensions/<id>.json route is what KDE",
+    "  Plasma Integration, Brave's own internal extensions, and any",
+    "  enterprise policy uses — supported across all Chromium-derivatives.",
+    "",
+    "Adding a new extension:",
+    "  1. Find the extension on https://chromewebstore.google.com",
+    "  2. The 32-char ID is the last segment of the URL",
+    "  3. Add the entry below + run build.sh switch + relaunch Brave",
+    "",
+    "Removing one: delete entry, switch, relaunch — Brave drops it on next start.",
+    "",
+    "Schema: extensions.<id>.{name, rationale}"
+  ],
+  "extensions": {
+    "nngceckbapebfimnlniiiahkandclblb": {
+      "name": "Bitwarden Password Manager",
+      "rationale": "Vaultwarden self-hosted password manager (vault.diegonmarcos.com) — Bitwarden client speaks the same protocol"
+    },
+    "cimiefiiaegbelhefglklhhakcgmhkai": {
+      "name": "Plasma Integration",
+      "rationale": "KDE Plasma 6 desktop integration — media controls, notifications, taskbar progress, KRunner search results"
+    },
+    "ckkdlimhmcjmikdlpkmbgfkaikojcbjk": {
+      "name": "Markdown Viewer",
+      "rationale": "Render local .md files in-browser without a separate viewer"
+    },
+    "fcoeoabgfenejglbffodgkkbkcdhcgfn": {
+      "name": "Claude (Anthropic)",
+      "rationale": "Anthropic Claude in-page assistant"
+    },
+    "jnbbnacmeggbgdjgaoojpmhdlkkpblgi": {
+      "name": "WakaTime",
+      "rationale": "Coding time tracker — captures browser activity for the dev dashboard"
+    },
+    "kejbdjndbnbjgmefkgdddjlbokphdefk": {
+      "name": "Tag Assistant Companion",
+      "rationale": "Google Tag Manager debugging — verifies Matomo + Google Analytics fire correctly on diegonmarcos.com"
+    },
+    "lbnnfjfjdijcnaakaebgcoemmlicjbnl": {
+      "name": "Tile Tabs WE",
+      "rationale": "Multi-pane tab layouts — split-view browsing"
+    },
+    "ldgfbffkinooeloadekpmfoklnobpien": {
+      "name": "Raindrop.io",
+      "rationale": "Bookmark manager — sync bookmarks across devices"
+    }
+  }
+}

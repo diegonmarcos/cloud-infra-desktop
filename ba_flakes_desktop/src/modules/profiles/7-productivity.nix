@@ -3,30 +3,9 @@
 { config, pkgs, lib, ... }:
 
 {
-  # Brave browser with extensions
-  programs.chromium = {
-    enable = true;
-    package = pkgs.unstable.brave;
-    extensions = [
-      { id = "nngceckbapebfimnlniiiahkandclblb"; }  # Bitwarden
-    ];
-  };
-
-  # Brave default homepage + new-tab page → local webserver on :8000
-  # Brave reads managed policies from ~/.config/BraveSoftware/Brave-Browser/policies/managed/
-  # (declarative; survives Brave updates; takes effect on next launch).
-  home.file.".config/BraveSoftware/Brave-Browser/policies/managed/homepage-localhost-8000.json".text =
-    builtins.toJSON {
-      # On startup: open the configured URL list (4 = "Open a list of URLs")
-      RestoreOnStartup = 4;
-      RestoreOnStartupURLs = [ "http://localhost:8000" ];
-      # Home button → localhost:8000
-      HomepageLocation = "http://localhost:8000";
-      HomepageIsNewTabPage = false;
-      ShowHomeButton = true;
-      # New tab → localhost:8000 (overrides Brave's default new-tab page)
-      NewTabPageLocation = "http://localhost:8000";
-    };
+  # Brave browser — package + extensions + managed policies all live in
+  # the dedicated module. Single source of truth for everything Brave.
+  imports = [ ../brave.nix ];
 
   home.packages = with pkgs; [
     # Browsers
