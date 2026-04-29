@@ -25,10 +25,15 @@ export BUILDSH_GUARDRAIL=1
 : "${QUIET:=0}"
 [ "$QUIET" = "1" ] && VERBOSE=0
 
-# Nix flags applied to every nix / nix-on-droid invocation when verbose.
+# Verbose flags. `nix-on-droid` is a wrapper script that only accepts -h|--help
+# — passing nix flags to it errors out instantly. Only the underlying `nix`
+# / `nix build` / `nix flake` commands accept these.
 NIX_VERBOSE_FLAGS=""
+NIXOD_VERBOSE_FLAGS=""
 if [ "$VERBOSE" = "1" ]; then
   NIX_VERBOSE_FLAGS="--show-trace --print-build-logs --verbose"
+  # Nix-on-droid itself takes no flags; verbosity comes from underlying nix
+  # via NIX_CONFIG env var (handled per-call where it matters).
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -242,7 +247,7 @@ cmd_switch() {
     # tee to BOTH the log file AND the user's terminal — full visibility by
     # default. _switch_log captures the same output for the auto-medicine
     # scanner below. Verbose nix flags are appended for show-trace + build logs.
-    { nix-on-droid switch --flake "$SRC_DIR" $NIX_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE" "$_switch_log"
+    { nix-on-droid switch --flake "$SRC_DIR" $NIXOD_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE" "$_switch_log"
     exit_code=$(cat "$_rc_file" 2>/dev/null)
     exit_code=${exit_code:-0}
     rm -f "$_rc_file"
@@ -266,7 +271,7 @@ cmd_switch() {
         if [ "$_moved" -gt 0 ]; then
             log_info "Retrying nix-on-droid switch after moving $_moved conflict(s)..."
             _rc_file=$(mktemp)
-            { nix-on-droid switch --flake "$SRC_DIR" $NIX_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+            { nix-on-droid switch --flake "$SRC_DIR" $NIXOD_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
             exit_code=$(cat "$_rc_file" 2>/dev/null)
             exit_code=${exit_code:-0}
             rm -f "$_rc_file"
