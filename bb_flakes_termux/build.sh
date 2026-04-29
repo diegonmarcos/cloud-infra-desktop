@@ -19,6 +19,18 @@ export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:/nix/var/nix/profiles/defau
 # Auto-confirm guardrail prompts — build.sh is the sanctioned interface
 export BUILDSH_GUARDRAIL=1
 
+# Verbosity: ON by default. Set QUIET=1 to silence (mostly useful for cron).
+# When verbose, every command from the script body itself is also xtraced.
+: "${VERBOSE:=1}"
+: "${QUIET:=0}"
+[ "$QUIET" = "1" ] && VERBOSE=0
+
+# Nix flags applied to every nix / nix-on-droid invocation when verbose.
+NIX_VERBOSE_FLAGS=""
+if [ "$VERBOSE" = "1" ]; then
+  NIX_VERBOSE_FLAGS="--show-trace --print-build-logs --verbose"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/src"
 LOG_FILE="$SCRIPT_DIR/build.log"
@@ -224,12 +236,13 @@ cmd_switch() {
     done
 
     perf_step "nix-on-droid switch"
-    log_info "Applying nix-on-droid configuration..."
+    log_info "Applying nix-on-droid configuration (verbose=$VERBOSE)..."
     _rc_file=$(mktemp)
     _switch_log=$(mktemp)
-    { nix-on-droid switch --flake "$SRC_DIR" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE" "$_switch_log" >/dev/null
-    # Echo what we logged (tee'd to two files, suppressed stdout so we can show selectively)
-    cat "$_switch_log"
+    # tee to BOTH the log file AND the user's terminal — full visibility by
+    # default. _switch_log captures the same output for the auto-medicine
+    # scanner below. Verbose nix flags are appended for show-trace + build logs.
+    { nix-on-droid switch --flake "$SRC_DIR" $NIX_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE" "$_switch_log"
     exit_code=$(cat "$_rc_file" 2>/dev/null)
     exit_code=${exit_code:-0}
     rm -f "$_rc_file"
@@ -253,7 +266,7 @@ cmd_switch() {
         if [ "$_moved" -gt 0 ]; then
             log_info "Retrying nix-on-droid switch after moving $_moved conflict(s)..."
             _rc_file=$(mktemp)
-            { nix-on-droid switch --flake "$SRC_DIR" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+            { nix-on-droid switch --flake "$SRC_DIR" $NIX_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
             exit_code=$(cat "$_rc_file" 2>/dev/null)
             exit_code=${exit_code:-0}
             rm -f "$_rc_file"
@@ -287,7 +300,7 @@ cmd_update() {
     log_info "Updating flake.lock..."
 
     _rc_file=$(mktemp)
-    { nix flake update 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+    { nix flake update $NIX_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     exit_code=$(cat "$_rc_file")
     rm -f "$_rc_file"
 
@@ -322,7 +335,7 @@ cmd_build() {
     _nix="nix"
     [ -x "$HOME/.nix-profile/bin/nix" ] && _nix="$HOME/.nix-profile/bin/nix"
     _rc_file=$(mktemp)
-    { "$_nix" build "$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" --impure --no-link 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+    { "$_nix" build "$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" --impure --no-link $NIX_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     exit_code=$(cat "$_rc_file")
     rm -f "$_rc_file"
 
@@ -349,7 +362,7 @@ cmd_dry_run() {
     log_info "Evaluating what would be built..."
     _nix="nix"
     [ -x "$HOME/.nix-profile/bin/nix" ] && _nix="$HOME/.nix-profile/bin/nix"
-    "$_nix" build "$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" --impure --no-link --dry-run 2>&1 | tee -a "$LOG_FILE"
+    "$_nix" build "$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" --impure --no-link --dry-run $NIX_VERBOSE_FLAGS 2>&1 | tee -a "$LOG_FILE"
 }
 
 cmd_check() {
@@ -520,10 +533,15 @@ ${YELLOW}COMMANDS:${NC}
     clean       Garbage collect
     log         View build log
 
+${YELLOW}ENV VARS:${NC}
+    VERBOSE=1   (default) Pass --show-trace --print-build-logs --verbose to nix
+    QUIET=1     Suppress verbose flags (sets VERBOSE=0)
+
 ${YELLOW}EXAMPLES:${NC}
-    ./build.sh              # Apply config (same as switch)
+    ./build.sh              # Apply config (same as switch), full nix output
     ./build.sh tui          # Interactive menu
-    ./build.sh update       # Update nixpkgs
+    ./build.sh update       # Update nixpkgs (verbose)
+    QUIET=1 ./build.sh      # Same but with minimal output (cron mode)
 EOF
 }
 
