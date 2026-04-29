@@ -74,6 +74,27 @@
     fi
   '';
 
+  # Lock screen wallpaper — matches the desktop wallpaper (KDE "Path", a forest path).
+  # plasma-manager's configFile escapes ] [ in section names (turns them into \x5d\x5b),
+  # which breaks KDE's hierarchical [Greeter][Wallpaper][org.kde.image][General] section.
+  # kwriteconfig6 with multiple --group flags produces the correct nested-group syntax.
+  home.activation.lockScreenWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
+    LOCK_RC="$HOME/.config/kscreenlockerrc"
+    LOCK_IMG="${pkgs.kdePackages.plasma-workspace-wallpapers}/share/wallpapers/Path/contents/images/2560x1600.jpg"
+    # Strip stale sections (old buddha path + plasma-manager's escaped duplicate)
+    if [ -f "$LOCK_RC" ]; then
+      ${pkgs.gnused}/bin/sed -i \
+        -e '/^\[Greeter\\x5d\\x5bWallpaper\\x5d\\x5borg\.kde\.image\\x5d\\x5bGeneral\]$/,/^\[/{/^\[Greeter\\x5d\\x5bWallpaper\\x5d\\x5borg\.kde\.image\\x5d\\x5bGeneral\]$/d;/^\[/!d}' \
+        "$LOCK_RC"
+    fi
+    ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 --file kscreenlockerrc \
+      --group Greeter --group Wallpaper --group org.kde.image --group General \
+      --key Image "$LOCK_IMG"
+    ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 --file kscreenlockerrc \
+      --group Greeter --group Wallpaper --group org.kde.image --group General \
+      --key PreviewImage "$LOCK_IMG"
+  '';
+
   programs.plasma = {
     enable = true;
 
@@ -86,7 +107,7 @@
       cursor.theme = "breeze_cursors";
       iconTheme = "breeze-dark";
       lookAndFeel = "org.kde.breezedark.desktop";
-      wallpaper = "/home/diego/Pictures/Wallpapers/buddha-wallpaper.jpg";
+      wallpaper = "${pkgs.kdePackages.plasma-workspace-wallpapers}/share/wallpapers/Path/contents/images/2560x1600.jpg";
     };
 
     # Window decorations - Dark
