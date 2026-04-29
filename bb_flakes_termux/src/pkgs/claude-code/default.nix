@@ -18,22 +18,22 @@
 { stdenv
 , fetchurl
 , lib
+, autoPatchelfHook
+, glibc
+, gcc-unwrapped
 , version ? "2.1.123"
 }:
 
 let
-  # Pick the right tarball for the build host. musl arm64 works on bionic
-  # (Termux/nix-on-droid) AND on regular alpine/musl Linux. glibc arm64 for
-  # standard NixOS aarch64. x86_64 fallbacks for desktop builds.
+  # Anthropic publishes platform-specific native tarballs. We use the GLIBC
+  # arm64 build (NOT musl) because nix-on-droid's stdenv targets glibc — the
+  # autoPatchelfHook below rewrites the binary's loader to ${glibc}/lib/ld...
+  # so it runs cleanly inside proot.
   sources = {
     "aarch64-linux" = {
-      pkg = "claude-code-linux-arm64-musl";
-      hash = "sha256-3t09HB7VyYbran6C9OXdTMT6eSpEYx1gDz4yH+wFQa8=";
+      pkg = "claude-code-linux-arm64";
+      hash = "sha256-WIXjh2hgJNrrDLEe74R/njYhdlrldwMAdwjFopN8lxA=";
     };
-    # Note: nix-on-droid's stdenv is aarch64-linux. If switching to glibc
-    # variant later, swap the entry above for:
-    #   pkg = "claude-code-linux-arm64";
-    #   hash = "sha256-WIXjh2hgJNrrDLEe74R/njYhdlrldwMAdwjFopN8lxA=";
   };
 
   src = sources.${stdenv.hostPlatform.system}
@@ -58,7 +58,12 @@ stdenv.mkDerivation {
   dontConfigure = true;
   dontBuild = true;
   dontStrip = true;
-  dontPatchELF = true;  # Android binary; patchELF would corrupt the loader.
+
+  # autoPatchelfHook rewrites the binary's PT_INTERP and DT_NEEDED entries
+  # to point at the nix-store glibc / libstdc++. nix-on-droid's proot
+  # bind-mounts /nix correctly, so the patched paths resolve at runtime.
+  nativeBuildInputs = [ autoPatchelfHook ];
+  buildInputs = [ glibc gcc-unwrapped.lib ];
 
   installPhase = ''
     runHook preInstall
