@@ -44,12 +44,25 @@
       [ -d "$d" ] && rm -rf "$d"
     done
 
+    # Helper: never block activation, but print the npm exit code loudly so
+    # the post-switch verifier in build.sh sees a missing binary AND the user
+    # gets a visible warning. The previous `|| true` pattern silently swallowed
+    # OOM kills (SIGTERM) on Android, leaving claude-code uninstalled.
+    _install() {
+      $DRY_RUN_CMD ${nodejs}/bin/npm install -g "$@" --no-audit --no-fund
+      _rc=$?
+      if [ "$_rc" -ne 0 ]; then
+        printf "[node-bins] WARN: npm install %s FAILED (exit %d) — likely SIGTERM/OOM. build.sh verify will flag the missing binary.\n" "$*" "$_rc" >&2
+      fi
+      return 0
+    }
+
     if [ -z "$CURRENT" ]; then
       printf "[node-bins] Installing claude-code@%s\n" "$LATEST"
-      $DRY_RUN_CMD ${nodejs}/bin/npm install -g @anthropic-ai/claude-code --no-audit --no-fund || true
+      _install "@anthropic-ai/claude-code"
     elif [ -n "$LATEST" ] && [ "$CURRENT" != "$LATEST" ]; then
       printf "[node-bins] Updating claude-code: %s → %s\n" "$CURRENT" "$LATEST"
-      $DRY_RUN_CMD ${nodejs}/bin/npm install -g @anthropic-ai/claude-code@latest --no-audit --no-fund --force || true
+      _install "@anthropic-ai/claude-code@latest" --force
     else
       printf "[node-bins] claude-code@%s is up to date\n" "$CURRENT"
     fi
