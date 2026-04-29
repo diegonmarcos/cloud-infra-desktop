@@ -53,8 +53,12 @@
 
             nix.extraOptions = ''
               experimental-features = nix-command flakes
-              max-jobs = 2
-              cores = 4
+              # Phone has 7GB RAM. max-jobs=2 × cores=4 = up to 8 parallel
+              # compile jobs which OOM-thrashed during openssh-pinned + ncurses
+              # static builds (ate 4.6GB swap). Cap at 1 job × 2 cores so big
+              # native compiles finish without swap death.
+              max-jobs = 1
+              cores = 2
               auto-optimise-store = false
               min-free = 1073741824
               min-free-check-interval = 30
