@@ -1,4 +1,4 @@
-# Termux SSHD — declarative SSH daemon on port 8022, openssh-based.
+# Termux SSHD — declarative SSH daemon on port ${toString sshPort}, openssh-based.
 #
 # Recipe taken from the nix-on-droid maintainers (issue #32):
 # https://github.com/nix-community/nix-on-droid/issues/32
@@ -39,11 +39,16 @@ let
   authorizedKeysContent =
     lib.concatStringsSep "\n" authData.trusted_pubkeys + "\n";
 
-  # Read the WG IP from build.json (data-driven). sshd binds ONLY to this
-  # address — no public exposure. If wg0 is down, sshd refuses to start
+  # Read the WG IP + SSH port from build.json (data-driven). sshd binds ONLY
+  # to wgIp — no public exposure. If wg0 is down, sshd refuses to start
   # rather than fall back to listening on all interfaces.
+  #
+  # Default port is 8023, NOT 8022 — on this device 8022 hits EADDRINUSE
+  # despite /proc/net/tcp showing the port free (suspected kernel TIME_WAIT
+  # or Android sandbox lock invisible to proot's view).
   buildJson = builtins.fromJSON (builtins.readFile ../../build.json);
   wgIp = buildJson.defaults.wg_ip or "127.0.0.1";
+  sshPort = buildJson.defaults.ssh_port or 8023;
 
   sshdScript = pkgs.writeShellScript "termux-sshd" ''
     # termux-sshd — POSIX wrapper for nix-on-droid sshd
@@ -65,37 +70,37 @@ let
       [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null
     }
 
-    # Returns the PID(s) of any process currently listening on :8022, regardless
+    # Returns the PID(s) of any process currently listening on :${toString sshPort}, regardless
     # of whether it's tracked by our PID file. Used to detect orphans from a
     # previous start where the PID file got nuked but the process survived.
     port_holder_pids() {
-      ss -tlnp 2>/dev/null | awk '/:8022 / {
+      ss -tlnp 2>/dev/null | awk '/:${toString sshPort} / {
         # ss output: ... users:(("sshd",pid=12345,fd=3))
         match($0, /pid=[0-9]+/);
         if (RSTART) print substr($0, RSTART+4, RLENGTH-4)
       }' | sort -u
       # Fallback for Android/proot ss without -p detail: try fuser/lsof if present.
-      if [ -z "$(ss -tlnp 2>/dev/null | grep ":8022 ")" ]; then
+      if [ -z "$(ss -tlnp 2>/dev/null | grep ":${toString sshPort} ")" ]; then
         :  # nothing on port
       fi
     }
 
-    # Self-heal step before do_start: if something else is on :8022 but our
+    # Self-heal step before do_start: if something else is on :${toString sshPort} but our
     # PID file is missing/stale, kill the orphan. Idempotent — safe to run
     # whether or not anything is wrong.
     self_heal() {
-      _occupied=$(ss -tln 2>/dev/null | grep ":8022 " || true)
+      _occupied=$(ss -tln 2>/dev/null | grep ":${toString sshPort} " || true)
       if [ -n "$_occupied" ] && ! is_running; then
         # Port bound but we don't own it via PID file — orphan.
         _orphans=$(port_holder_pids)
         if [ -n "$_orphans" ]; then
-          echo "self-heal: orphan(s) on :8022 (PID $_orphans) — killing"
+          echo "self-heal: orphan(s) on :${toString sshPort} (PID $_orphans) — killing"
           for _p in $_orphans; do
             kill -9 "$_p" 2>/dev/null || true
           done
         else
           # No process info from ss. Carpet-bomb anything matching sshd.
-          echo "self-heal: :8022 bound but PID unknown — pkill sshd"
+          echo "self-heal: :${toString sshPort} bound but PID unknown — pkill sshd"
           pkill -9 -f 'sshd|dropbear' 2>/dev/null || true
         fi
         # Clear stale PID file
@@ -112,7 +117,7 @@ let
 
       if is_running; then
         pid=$(cat "$PID_FILE")
-        echo "sshd already running (PID $pid) on :8022"
+        echo "sshd already running (PID $pid) on :${toString sshPort}"
         return 0
       fi
 
@@ -133,7 +138,7 @@ let
       cat > "$SSHD_CONFIG" <<EOF
     HostKey $HOST_KEY
     ListenAddress ${wgIp}
-    Port 8022
+    Port ${toString sshPort}
     PidFile $PID_FILE
     AuthorizedKeysFile $HOME/.ssh/authorized_keys
     PermitRootLogin no
@@ -148,7 +153,7 @@ let
         sleep 0.5
         if is_running; then
           pid=$(cat "$PID_FILE")
-          echo "sshd started (PID $pid) on :8022"
+          echo "sshd started (PID $pid) on :${toString sshPort}"
         else
           # Self-heal retry: address-already-in-use is a common failure mode
           # when the orphan check above didn't catch the holder. Force-kill
@@ -162,7 +167,7 @@ let
           fi
           if is_running; then
             pid=$(cat "$PID_FILE")
-            echo "sshd started (PID $pid) on :8022 (after self-heal)"
+            echo "sshd started (PID $pid) on :${toString sshPort} (after self-heal)"
           else
             echo "sshd failed to start — last 15 lines of $LOG_FILE:"
             tail -15 "$LOG_FILE" 2>/dev/null | sed 's/^/  /'
@@ -190,7 +195,7 @@ let
     do_status() {
       if is_running; then
         pid=$(cat "$PID_FILE")
-        echo "sshd running (PID $pid) on :8022"
+        echo "sshd running (PID $pid) on :${toString sshPort}"
       else
         rm -f "$PID_FILE"
         echo "sshd not running"

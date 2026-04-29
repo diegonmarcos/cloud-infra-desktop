@@ -16,11 +16,13 @@ let
   ];
 
   # ── Non-VM SSH peers (mobile/edge) ──────────────────────────────────────
-  # Termux WG IP (10.0.0.9) declared in bb_flakes_termux/src/modules/wireguard.nix:21
-  # SSHD port (8022) declared in bb_flakes_termux/src/modules/sshd.nix:43
-  # User (nix-on-droid) declared in bb_flakes_termux/build.json:13
+  # Termux: WG IP + SSH port sourced from termux flake build.json.
+  # 8022 is broken on this device (EADDRINUSE invisible to /proc), use 8023.
+  termuxBuildJson = builtins.fromJSON (builtins.readFile ../../../bb_flakes_termux/build.json);
+  termuxWgIp = termuxBuildJson.defaults.wg_ip or "10.0.0.9";
+  termuxSshPort = termuxBuildJson.defaults.ssh_port or 8023;
   extraSshHosts = [
-    { alias = "phone"; ip = "10.0.0.9"; user = "nix-on-droid"; port = 8022; }
+    { alias = "phone"; ip = termuxWgIp; user = "nix-on-droid"; port = termuxSshPort; }
   ];
 
   sshKey = "/home/diego/.ssh/id_rsa";
