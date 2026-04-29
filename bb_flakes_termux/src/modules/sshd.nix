@@ -17,6 +17,11 @@
 { config, pkgs, lib, ... }:
 
 let
+  # Pin sshd to 8.9p1 — modern OpenSSH 9.x uses fexecve() (execveat with fd),
+  # which proot on Android doesn't implement → sshd child dies on every new
+  # connection. See pkgs/openssh-pinned.nix for the full reasoning.
+  opensshPinned = pkgs.callPackage ../pkgs/openssh-pinned.nix { inherit pkgs lib; };
+
   authData = builtins.fromJSON (builtins.readFile ./data/authorized-keys.json);
   authorizedKeysContent =
     lib.concatStringsSep "\n" authData.trusted_pubkeys + "\n";
@@ -24,9 +29,13 @@ let
   sshdScript = pkgs.writeShellScript "termux-sshd" ''
     # termux-sshd — POSIX wrapper for nix-on-droid sshd
     # Usage: termux-sshd [start|stop|status|restart]
+    #
+    # Hard-pinned to OpenSSH 8.9p1 (interpolated nix store path) to dodge
+    # the proot execveat-with-fd limitation that breaks 9.x child processes
+    # on Android. See pkgs/openssh-pinned.nix for the full story.
 
-    SSHD_BIN="$HOME/.nix-profile/bin/sshd"
-    SSH_KEYGEN_BIN="$HOME/.nix-profile/bin/ssh-keygen"
+    SSHD_BIN="${opensshPinned}/bin/sshd"
+    SSH_KEYGEN_BIN="${opensshPinned}/bin/ssh-keygen"
 
     PID_FILE="$HOME/.cache/sshd.pid"
     LOG_FILE="$HOME/.cache/sshd.log"
@@ -131,8 +140,9 @@ let
   '';
 in
 {
-  # OpenSSH must be in the user profile — wrapper invokes ~/.nix-profile/bin/sshd
-  home.packages = [ pkgs.openssh ];
+  # Pinned OpenSSH 8.9p1 — wrapper interpolates its absolute store path so
+  # there's no PATH ambiguity. Also expose it on PATH for ad-hoc use.
+  home.packages = [ opensshPinned ];
 
   home.file.".local/bin/termux-sshd" = {
     source = sshdScript;
