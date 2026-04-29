@@ -1,0 +1,54 @@
+{
+  "$comment": [
+    "Per-browser command-line flag overrides for GPU/compositing fixes.",
+    "Source of truth for browsers-gpu.nix — a Nix module that wraps any",
+    "declared browser package with these flags. To add a NEW browser:",
+    "just add an entry under `browsers` — wrapper auto-applies on next switch.",
+    "",
+    "Evidence (2026-04-29 chrome://gpu + 8 isolated-profile probes):",
+    "  Native Wayland mode (default on Plasma 6 / KWin) produces:",
+    "    - 'Failed to find drm render node path'",
+    "    - 'Compositing: Software only. Hardware acceleration disabled'",
+    "    - 'eglCreateContext: Requested version is not supported'",
+    "    - chrome://gpu Problems: 'Gpu compositing has been disabled'",
+    "  Chromium's OWN error suggests the fix:",
+    "    - probe 04 stderr: '--ozone-platform=wayland is not compatible with",
+    "      Vulkan. Consider switching to --ozone-platform=x11'",
+    "  Probes 06 + 08 with --ozone-platform=x11 produced ZERO GPU errors.",
+    "",
+    "XWayland path delivers a working DRM render node to Chromium-family",
+    "browsers via KWin's mature XWayland integration. Native Wayland may",
+    "work in a future Chromium/KWin release — flag is easy to remove here.",
+    "",
+    "Schema:",
+    "  browsers.<binname>.flags     extra args appended to every launch",
+    "  browsers.<binname>.rationale why this flag set is needed (for grep)"
+  ],
+  "browsers": {
+    "brave": {
+      "flags": [
+        "--ozone-platform=x11",
+        "--disable-features=AcceleratedVideoDecodeLinuxGL"
+      ],
+      "userDataDir": ".config/BraveSoftware/Brave-Browser-GPU",
+      "rationale": "(1) --ozone-platform=x11: KDE Plasma 6 / KWin Wayland fails to deliver DRM render node to Chromium 147 — force XWayland for hardware compositing. (2) --disable-features=AcceleratedVideoDecodeLinuxGL: under x11 mode, Tiger Lake's VAAPI hardware video decode path triggers PIPELINE_ERROR_DECODE on H.264 (verified 2026-04-29 via CDP probe of background3.mp4). Falling back to CPU video decode is cheap on i5-1135G7 and lets H.264/H.265 videos actually play; GPU still does compositing/raster (the main win). (3) userDataDir is separate so the GPU variant launches as independent process from the unwrapped brave (Chromium's singleton lock is per-data-dir); brave.nix symlinks shared config back from the original profile."
+    },
+    "google-chrome-stable": {
+      "flags": ["--ozone-platform=x11"],
+      "userDataDir": ".config/google-chrome-gpu",
+      "rationale": "Same upstream Chromium-on-KWin-Wayland bug (shared base)."
+    },
+    "vivaldi": {
+      "flags": ["--ozone-platform=x11"],
+      "userDataDir": ".config/vivaldi-gpu",
+      "rationale": "Same upstream Chromium-on-KWin-Wayland bug (shared base)."
+    },
+    "$exclude_comment": [
+      "DO NOT add `chromium` here. The chromium nixpkgs package exposes a",
+      "`.override` attribute that downstream packages (electron, signal-",
+      "desktop, etc.) depend on. symlinkJoin destroys `.override`, so",
+      "wrapping chromium breaks the entire electron build. Brave/Chrome/",
+      "Vivaldi are leaf packages — safe to wrap."
+    ]
+  }
+}

@@ -15,6 +15,8 @@
     ./programs/tmux.nix
     ./programs/mesh.nix
     ./programs/connect.nix
+    # browsers-gpu.nix is now a NIXPKGS OVERLAY (wired in src/flake.nix),
+    # not a home-manager module. No import needed here.
   ];
 
   # Enable Home Manager
