@@ -179,77 +179,36 @@
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22
 
-              # claude = raw Anthropic binary from shared node_modules (no wrapper)
-              # Exposed via home.sessionPath: $HOME/.node_modules/node_modules/.bin/claude
+              # claude = native binary from pkgs/claude-code (added to packages
+              # below). Available at $HOME/.nix-profile/bin/claude.
+              # claude-termux / claude-malloc are convenience wrappers with
+              # tunable env vars; they all exec the SAME native binary.
+              # NOTE: NODE_OPTIONS is ignored — the binary is compiled, not Node.
+              # MALLOC_ARENA_MAX still helps (libc tunable affects glibc).
 
-              # claude-termux: Android-safe wrapper (io_uring fix + memory cap)
               (writeShellScriptBin "claude-termux" ''
-                export UV_USE_IO_URING=0
-                export NODE_OPTIONS="--no-node-snapshot --max-old-space-size=1024"
-                export npm_config_cache="$HOME/.npm"
-                exec "$HOME/.node_modules/node_modules/.bin/claude" "$@"
+                # Conservative: small malloc arenas, force libc allocator
+                # behavior friendly to phone RAM.
+                export MALLOC_ARENA_MAX=2
+                exec "$HOME/.nix-profile/bin/claude" "$@"
               '')
 
-              # claude-malloc: max memory + tmpdir isolation
               (writeShellScriptBin "claude-malloc" ''
+                # Max-isolation: tighter malloc arenas + dedicated TMPDIR so
+                # caches don't pollute /tmp. Useful when the device is
+                # OOM-pressured.
                 export MALLOC_ARENA_MAX=2
-                export UV_USE_IO_URING=0
-                export NODE_OPTIONS="--no-node-snapshot --max-old-space-size=2048"
                 export CLAUDE_TMP="$HOME/tmp/claude"
                 mkdir -p "$CLAUDE_TMP"
                 export TMPDIR="$CLAUDE_TMP"
-                export npm_config_cache="$HOME/.npm"
-                exec "$HOME/.node_modules/node_modules/.bin/claude" "$@"
+                exec "$HOME/.nix-profile/bin/claude" "$@"
               '')
 
-              # claude-rescue: fallback chain for when everything is broken
-              # 1) podman (full isolation, root), 2) nix shell (fresh env),
-              # 3) npx (direct download), 4) raw node (absolute last resort)
+              # claude-rescue: now lives in tools/5-infos/claude-rescue/ as a
+              # 12-fallback chain. This wrapper just delegates so the flake
+              # doesn't carry a stale duplicate of the rescue logic.
               (writeShellScriptBin "claude-rescue" ''
-                echo "Claude Rescue — fallback chain"
-                export ANTHROPIC_API_KEY="''${ANTHROPIC_API_KEY:-}"
-                export TERM="''${TERM:-xterm-256color}"
-
-                # 1) Podman — full container, root, clean slate
-                if command -v podman >/dev/null 2>&1; then
-                  echo "[1/4] Trying podman..."
-                  timeout 60 podman run --rm -it \
-                    --name claude-rescue \
-                    -v "$HOME:/host-home:ro" \
-                    -e ANTHROPIC_API_KEY -e TERM \
-                    --user root \
-                    node:22-slim \
-                    sh -c 'npm install -g @anthropic-ai/claude-code 2>/dev/null && claude "$@"' -- "$@" \
-                    && exit 0
-                  echo "[1/4] podman failed, trying next..."
-                fi
-
-                # 2) npx — direct download with whatever node is on PATH (fast)
-                if command -v npx >/dev/null 2>&1; then
-                  echo "[2/4] Trying npx..."
-                  UV_USE_IO_URING=0 npx -y @anthropic-ai/claude-code "$@" && exit 0
-                  echo "[2/4] npx failed, trying next..."
-                fi
-
-                # 3) Nix shell — ephemeral env (slow on first run, downloads nixpkgs)
-                if command -v nix >/dev/null 2>&1; then
-                  echo "[3/4] Trying nix shell..."
-                  timeout 120 nix shell nixpkgs#nodejs_22 --command sh -c \
-                    'UV_USE_IO_URING=0 npx -y @anthropic-ai/claude-code "$@"' -- "$@" \
-                    && exit 0
-                  echo "[3/4] nix shell failed, trying next..."
-                fi
-
-                # 4) Raw node — manual bootstrap in tmpdir
-                if command -v node >/dev/null 2>&1; then
-                  echo "[4/4] Trying raw node bootstrap..."
-                  _tmp=$(mktemp -d)
-                  cd "$_tmp" && npm init -y >/dev/null 2>&1 && npm install @anthropic-ai/claude-code >/dev/null 2>&1
-                  UV_USE_IO_URING=0 ./node_modules/.bin/claude "$@" && exit 0
-                fi
-
-                echo "ALL METHODS FAILED — no working node/container runtime found"
-                exit 1
+                exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
               '')
 
               # 3. SYNC — unified sync engine (git + rclone)
