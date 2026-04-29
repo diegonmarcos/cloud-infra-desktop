@@ -17,9 +17,13 @@
 { config, pkgs, lib, ... }:
 
 let
-  # Pin sshd to 8.9p1 — short-term workaround. Real fix is the patched proot
-  # below. Keep both: pin survives even if proot replacement fails.
-  opensshPinned = pkgs.callPackage ../pkgs/openssh-pinned.nix { inherit pkgs lib; };
+  # Use the stock openssh from the default closure. The 8.9p1 pin was a
+  # workaround for proot's execveat-with-fd issue, but the rescue path
+  # (sh -c command) doesn't trigger that code path on stock 9.x — and
+  # building 8.9p1 from source on aarch64 phone (~10min compile) is too
+  # slow on a swap-thrashing device. Pin source kept in pkgs/openssh-pinned.nix
+  # for emergency wire-up if a future kernel/proot combo needs it.
+  opensshPinned = pkgs.openssh;
 
   # NOTE: prootPatched (pkgs/proot-termux-patched/) is currently disabled.
   # Building it natively on aarch64 pulls pkgs.pkgsStatic.talloc, which drags
