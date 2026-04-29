@@ -1,0 +1,53 @@
+{
+  "_doc": "Commands that MUST exist on PATH after `build.sh switch`. The post-switch verifier in build.sh checks each and prints WARN/FAIL lines for any that are missing or broken. Add new entries when introducing tools that need to survive every rebuild.",
+  "commands": [
+    {
+      "name": "claude",
+      "path": "$HOME/.node_modules/node_modules/.bin/claude",
+      "fix": "Re-run: nix-on-droid switch --flake $HOME/git/unix/bb_flakes_termux/src; if npm install fails (OOM/SIGTERM), retry build.sh switch — the npm activation hook is idempotent.",
+      "category": "ai"
+    },
+    {
+      "name": "claude-malloc",
+      "path": "$HOME/.nix-profile/bin/claude-malloc",
+      "fix": "Wrapper installed by flake.nix:claude-malloc; verify the closure built. Run build.sh dry-run to inspect.",
+      "category": "ai"
+    },
+    {
+      "name": "claude-rescue",
+      "path": "$HOME/.nix-profile/bin/claude-rescue",
+      "fix": "Wrapper installed by flake.nix:claude-rescue. Same as claude-malloc.",
+      "category": "ai"
+    },
+    {
+      "name": "claude-termux",
+      "path": "$HOME/.nix-profile/bin/claude-termux",
+      "fix": "Wrapper installed by flake.nix:claude-termux. Same as claude-malloc.",
+      "category": "ai"
+    },
+    {
+      "name": "termux-sshd",
+      "path": "$HOME/.local/bin/termux-sshd",
+      "fix": "Installed by sshd.nix via home.file. If missing, the flake didn't activate — re-run build.sh switch.",
+      "category": "system"
+    },
+    {
+      "name": "sshd",
+      "path": "$HOME/.nix-profile/bin/sshd",
+      "fix": "Installed by sshd.nix via home.packages = [ opensshPinned ]. If missing, openssh-pinned didn't build — check build.log for openssh-pinned-8.9p1 errors.",
+      "category": "system"
+    },
+    {
+      "name": "node",
+      "path": "$HOME/.nix-profile/bin/node",
+      "fix": "Installed by flake.nix:environment.packages = [ nodejs_22 ]. Required for claude.",
+      "category": "runtime"
+    },
+    {
+      "name": "npm",
+      "path": "$HOME/.nix-profile/bin/npm",
+      "fix": "Same closure as node.",
+      "category": "runtime"
+    }
+  ]
+}

@@ -289,6 +289,38 @@ cmd_switch() {
     perf_end
     log_success "Configuration applied: $SRC_DIR"
 
+    # Post-switch sanity check — data-driven from critical-commands.json.
+    # Catches the case where home-manager activation reported success but a
+    # silent `|| true` swallowed an npm/install failure (e.g. claude-code
+    # SIGTERM'd by Android OOM).
+    perf_step "post-switch verify"
+    _verify_json="$SRC_DIR/modules/data/critical-commands.json"
+    if [ -f "$_verify_json" ] && command -v jq >/dev/null 2>&1; then
+        _missing=0
+        _checked=0
+        # Parse: name, path, fix from JSON. Expand $HOME at shell time.
+        while IFS=$'\t' read -r _name _path _fix; do
+            _checked=$((_checked + 1))
+            _resolved=$(eval echo "$_path")
+            if [ -e "$_resolved" ] || command -v "$_name" >/dev/null 2>&1; then
+                continue
+            fi
+            _missing=$((_missing + 1))
+            log_warn "MISSING: $_name (expected at $_resolved)"
+            printf "         fix: %s\n" "$_fix"
+        done <<EOT
+$(jq -r '.commands[] | "\(.name)\t\(.path)\t\(.fix)"' "$_verify_json")
+EOT
+        if [ "$_missing" -eq 0 ]; then
+            log_success "verify: all $_checked critical commands present"
+        else
+            log_warn "verify: $_missing/$_checked critical commands MISSING — see warnings above"
+        fi
+    else
+        log_warn "verify: critical-commands.json or jq missing — skipping post-switch check"
+    fi
+    perf_end
+
     # Show cached drift summary (instant, no network)
     if command -v nix-drift >/dev/null 2>&1; then
         nix-drift drift --cached 2>/dev/null || true
