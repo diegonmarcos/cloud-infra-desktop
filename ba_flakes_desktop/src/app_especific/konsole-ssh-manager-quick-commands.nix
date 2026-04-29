@@ -244,9 +244,17 @@ let
         StrictHostKeyChecking accept-new
         ServerAliveInterval 60
         ServerAliveCountMax 3
+        # Multiplexing — ON BY DEFAULT for every host. First connection opens a
+        # background master; later `ssh <host>` reuses the same TCP/auth, so
+        # repeated commands skip the WG-handshake + key-exchange overhead
+        # (which is ~3-10s on a flaky mobile WG).
         ControlMaster auto
-        ControlPath ~/.ssh/sockets/%r@%h-%p
-        ControlPersist 600
+        ControlPath ~/.ssh/sockets/%C
+        ControlPersist 4h
+        # Compress text streams over slow links.
+        Compression yes
+        # Longer connect timeout so a brief WG flap doesn't kill the master.
+        ConnectTimeout 15
   '';
 
   # Asset files in tools repo (source of truth, also fetchable standalone)
@@ -260,6 +268,14 @@ in {
     text = desktopSshConfig;
     target = ".ssh/config";
   };
+
+  # Sockets directory for ControlMaster multiplexing. ssh silently disables
+  # multiplex if the directory doesn't exist, so make sure it's there before
+  # any session opens. 700 perms — sockets are auth handles, not for sharing.
+  home.activation.sshSocketsDir = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    $DRY_RUN_CMD mkdir -p $VERBOSE_ARG "$HOME/.ssh/sockets"
+    $DRY_RUN_CMD chmod 700 "$HOME/.ssh/sockets"
+  '';
 
   # SSH Manager sidebar
   home.file.".config/konsolesshconfig".text = sshConfig;
