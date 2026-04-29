@@ -17,10 +17,17 @@
 { config, pkgs, lib, ... }:
 
 let
-  # Pin sshd to 8.9p1 — modern OpenSSH 9.x uses fexecve() (execveat with fd),
-  # which proot on Android doesn't implement → sshd child dies on every new
-  # connection. See pkgs/openssh-pinned.nix for the full reasoning.
+  # Pin sshd to 8.9p1 — short-term workaround. Real fix is the patched proot
+  # below. Keep both: pin survives even if proot replacement fails.
   opensshPinned = pkgs.callPackage ../pkgs/openssh-pinned.nix { inherit pkgs lib; };
+
+  # Patched proot-termux: implements execveat() with non-AT_FDCWD fd so
+  # OpenSSH 9.x privsep / dropbear / apk-tools v3 don't die on child spawn.
+  # See pkgs/proot-termux-patched/ for the patch + reasoning.
+  prootPatched = pkgs.callPackage ../pkgs/proot-termux-patched {
+    talloc = pkgs.pkgsStatic.talloc;
+    stdenv = pkgs.stdenvAdapters.makeStaticBinaries pkgs.stdenv;
+  };
 
   authData = builtins.fromJSON (builtins.readFile ./data/authorized-keys.json);
   authorizedKeysContent =
@@ -143,6 +150,41 @@ in
   # Pinned OpenSSH 8.9p1 — wrapper interpolates its absolute store path so
   # there's no PATH ambiguity. Also expose it on PATH for ad-hoc use.
   home.packages = [ opensshPinned ];
+
+  # Replace nix-on-droid's bundled proot with our patched build at activation
+  # time. The hardcoded prootStatic option is `readOnly = true` in upstream
+  # nix-on-droid (modules/environment/login/default.nix), so we can't override
+  # via mkForce — we replace the file on disk after nix-on-droid's own
+  # installProotStatic activation runs.
+  #
+  # IMPORTANT: the running proot mmap's /bin/proot-static. Replacing the file
+  # affects only NEW proot processes (i.e. the next Termux app launch). After
+  # the build, fully close the Termux app and reopen.
+  home.activation.installPatchedProot =
+    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      _src="${prootPatched}/bin/proot-static"
+      _target="/data/data/com.termux.nix/files/usr/bin/proot-static"
+      _bin_target="/bin/proot-static"
+
+      if [ ! -f "$_src" ]; then
+        echo "[patched-proot] WARNING: $_src missing, skipping"
+        exit 0
+      fi
+
+      # Copy under a temp name then atomic-rename, in case the running
+      # proot has the file open (which it always does for any active session).
+      for _t in "$_target" "$_bin_target"; do
+        if [ -e "$_t" ] || [ -L "$(dirname "$_t")" ]; then
+          if ! cmp -s "$_src" "$_t" 2>/dev/null; then
+            $DRY_RUN_CMD cp "$_src" "$_t.patched-tmp"
+            $DRY_RUN_CMD chmod 755 "$_t.patched-tmp"
+            $DRY_RUN_CMD mv -f "$_t.patched-tmp" "$_t"
+            echo "[patched-proot] replaced $_t"
+          fi
+        fi
+      done
+      echo "[patched-proot] active on next Termux app launch"
+    '';
 
   home.file.".local/bin/termux-sshd" = {
     source = sshdScript;
