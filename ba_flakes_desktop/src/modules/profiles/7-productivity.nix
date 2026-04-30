@@ -3,13 +3,14 @@
 { config, pkgs, lib, ... }:
 
 {
-  # Brave browser — package + extensions + managed policies all live in
-  # the dedicated module. Single source of truth for everything Brave.
-  imports = [ ../brave.nix ];
+  # Brave + Firefox — each has its own dedicated declarative module.
+  # - brave.nix:   Brave + brave-gpu wrapper (HW-accelerated Chromium-side)
+  # - firefox.nix: Firefox configured for Vulkan-backed WebGPU + WebRender
+  #                + VAAPI (the Vulkan path Brave can't reach on KWin)
+  imports = [ ../brave.nix ../firefox.nix ];
 
   home.packages = with pkgs; [
-    # Browsers
-    firefox
+    # firefox installed via ../firefox.nix above (programs.firefox.enable)
 
     # Office suite
     libreoffice
