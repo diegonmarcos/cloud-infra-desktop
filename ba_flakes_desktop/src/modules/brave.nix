@@ -1,61 +1,54 @@
 # Brave browser — DEDICATED declarative module.
 # Single source of truth for everything Brave-related on this host.
 #
-#   Package           pkgs.unstable.brave + a separate GPU-wrapped variant
-#                     (browsers-gpu.nix). Both installed side-by-side.
+# DESIGN (refactored 2026-04-30): SINGLE patched brave install — no
+# wrapper, no second derivation, no separate profile dir. Mirrors the
+# Firefox approach: GPU flags are baked into the package itself via
+# `mkChromiumPatched` (browsers-gpu.nix), so plain `brave` always
+# launches with HW compositing + correct video decode.
 #
-#   Profile dirs      INDEPENDENT, NOT symlinked.
-#                     - brave        → ~/.config/BraveSoftware/Brave-Browser/
-#                     - brave-gpu    → ~/.config/BraveSoftware/Brave-Browser-GPU/
-#                     Each has its own Default/, SingletonLock, etc. → both
-#                     can run simultaneously without LevelDB lock conflicts.
+# Removed in this refactor:
+#   - `brave-opengl` second binary (had unique /proc/PID/exe for KDE pin)
+#   - `Brave-Browser-OpenGL` profile dir (was for the second variant)
+#   - 422 MiB of disk for the duplicated brave-gpu derivation
+#   - Wrapper script + custom .desktop generation
 #
-#   Declared configs  WRITTEN TO BOTH dirs by home-manager:
-#                     - External Extensions/<id>.json (force-install)
-#                       Source of truth: ./brave-extensions.json
-#                     - policies/managed/<file>.json
-#                       Defined inline below.
-#                     Result: same extensions + same policies on both
-#                     variants. Login state, bookmarks, cookies, history
-#                     stay per-variant (you log in to brave-gpu separately
-#                     once — it persists from then on).
+# What stayed declarative:
+#   - Force-installed extensions (./brave-extensions.json)
+#   - Managed policies (homepage, etc.)
 #
-# Why no symlink for Default/: Brave's per-database LevelDB locks
-# (Default/<dir>/LOCK files) are filesystem-level. Two processes pointing
-# at the same physical Default/ via symlink → "Something went wrong when
-# opening your profile" because lock acquisition fails for the second
-# process. Independent profiles + duplicated declarative configs is the
-# only design that allows concurrent use.
+# To restore the dual-variant pattern (brave + brave-gpu), revert this
+# module to the "wrapper + second derivation" design that lived here
+# 2026-04-29..30 (in git history) — but the simpler patched-package
+# approach is the recommended default.
 #
 # Imported by: modules/profiles/7-productivity.nix
 #
 { config, pkgs, lib, ... }:
 let
-  cfg = builtins.fromJSON (builtins.readFile ./brave-extensions.json);
-
+  extCfg = builtins.fromJSON (builtins.readFile ./brave-extensions.json);
   gpuLib = import ./browsers-gpu.nix { inherit pkgs lib; };
-  braveGpu = gpuLib.mkGpuVariant "brave" pkgs.unstable.brave;
 
-  # Both profile dirs — each variant gets its own. Configs below are
-  # generated for BOTH so they stay in sync declaratively.
-  profileDirs = [
-    ".config/BraveSoftware/Brave-Browser"      # original brave
-    ".config/BraveSoftware/Brave-Browser-GPU"  # brave-gpu (matches userDataDir in browsers-gpu.json)
-  ];
+  # Single patched brave — flags baked into the wrapper script via
+  # overrideAttrs/postFixup. Plain `brave` always uses HW compositing.
+  bravePatched = gpuLib.mkChromiumPatched "brave" pkgs.unstable.brave;
 
-  # Force-install JSON for one extension in one profile dir.
-  mkExtensionFile = dir: id: _meta: lib.nameValuePair
-    "${dir}/External Extensions/${id}.json"
+  bravePolicyDir = ".config/BraveSoftware/Brave-Browser";
+
+  # Force-install JSON for one extension. mechanism — Brave reads
+  # External Extensions/<id>.json on startup and auto-installs from the
+  # Chrome Web Store.
+  mkExtensionFile = id: _meta: lib.nameValuePair
+    "${bravePolicyDir}/External Extensions/${id}.json"
     { text = builtins.toJSON {
         external_update_url = "https://clients2.google.com/service/update2/crx";
       };
     };
 
-  # Inline policy definitions — converted to per-dir JSON files below.
+  # Managed policies — survive Brave updates AND any package hash changes.
   policyDefinitions = {
     "homepage-localhost-8000" = {
-      # 4 = "Open a list of URLs"
-      RestoreOnStartup = 4;
+      RestoreOnStartup = 4;  # 4 = "Open a list of URLs"
       RestoreOnStartupURLs = [ "http://localhost:8000" ];
       HomepageLocation = "http://localhost:8000";
       HomepageIsNewTabPage = false;
@@ -64,45 +57,21 @@ let
     };
   };
 
-  mkPolicyFile = dir: name: content: lib.nameValuePair
-    "${dir}/policies/managed/${name}.json"
+  mkPolicyFile = name: content: lib.nameValuePair
+    "${bravePolicyDir}/policies/managed/${name}.json"
     { text = builtins.toJSON content; };
 
-  # For each profile dir, generate the full set of extension + policy
-  # files. Concatenate everything into one big home.file attrset.
-  filesPerDir = dir:
-    (lib.mapAttrs' (mkExtensionFile dir) cfg.extensions) //
-    (lib.mapAttrs' (mkPolicyFile dir) policyDefinitions);
-
-  allFiles = lib.foldl (acc: dir: acc // (filesPerDir dir)) {} profileDirs;
+  extensionFiles = lib.mapAttrs' mkExtensionFile extCfg.extensions;
+  policyFiles    = lib.mapAttrs' mkPolicyFile policyDefinitions;
 in
 {
   programs.chromium = {
     enable = true;
-    package = pkgs.unstable.brave;  # untouched original
+    # Patched brave — bin/brave's wrapper has GPU flags injected at build
+    # time. No runtime wrapper, no separate binary.
+    package = bravePatched;
   };
 
-  # GPU-wrapped variant — KDE app menu / KRunner show TWO Brave entries.
-  # Same flags, same extensions, same homepage. Different profile dirs
-  # (independent runtime state) → both runnable at once.
-  home.packages = [ braveGpu ];
-
-  # Declarative configs duplicated to BOTH profile dirs.
-  home.file = allFiles;
-
-  # Cleanup: remove any leftover symlinks from the previous symlink-based
-  # design (Default → ../Brave-Browser/Default etc). Without this, the new
-  # home.file entries would conflict with stale symlinks. Idempotent.
-  home.activation.braveGpuCleanup =
-    lib.hm.dag.entryBefore [ "writeBoundary" ] ''
-      gpuDir="$HOME/.config/BraveSoftware/Brave-Browser-GPU"
-      for sub in "Default" "External Extensions" "policies" "Local State"; do
-        link="$gpuDir/$sub"
-        if [ -L "$link" ]; then
-          # Stale symlink from old design — remove so home.file (or Brave
-          # itself, for Default/) can manage the path freely.
-          rm "$link"
-        fi
-      done
-    '';
+  # Declarative configs land in the SINGLE profile dir.
+  home.file = extensionFiles // policyFiles;
 }

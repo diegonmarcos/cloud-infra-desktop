@@ -1,0 +1,64 @@
+{
+  "$comment": [
+    "Firefox extensions — DECLARATIVE source of truth, mirrors brave-extensions.json.",
+    "",
+    "Each entry is force-installed via Mozilla's enterprise policy mechanism:",
+    "policies.json → ExtensionSettings → installation_mode: force_installed",
+    "with install_url pointing at addons.mozilla.org/.../latest.xpi (always",
+    "latest version). Force-installed extensions can't be removed via the UI",
+    "(shows 'managed by your organization' badge).",
+    "",
+    "Key differences from brave-extensions.json:",
+    "  - Firefox uses a different addon ID format than Chrome:",
+    "    UUID '{446900e4-71c2-419f-a6a7-df9c091e268b}' or",
+    "    email-style 'wakatime@wakatime.com'",
+    "  - install_url points to AMO (addons.mozilla.org) not Chrome Web Store",
+    "  - Some Brave extensions don't have Firefox counterparts (e.g. Anthropic",
+    "    Claude has no published Firefox addon) — those are commented out below",
+    "    pending verification from the user.",
+    "",
+    "Adding/changing:",
+    "  1. Find addon on https://addons.mozilla.org/firefox/addon/<slug>",
+    "  2. Get the addon ID from `about:debugging` → This Firefox → installed",
+    "     OR from the addon page's Manifest URL",
+    "  3. Add entry below with id (UUID or email-style) + slug + name",
+    "  4. build.sh switch + relaunch Firefox"
+  ],
+  "extensions": {
+    "{446900e4-71c2-419f-a6a7-df9c091e268b}": {
+      "name": "Bitwarden Password Manager",
+      "slug": "bitwarden-password-manager",
+      "rationale": "Vaultwarden client (matches Brave's Bitwarden extension nngceckbapebfimnlniiiahkandclblb)"
+    },
+    "plasma-browser-integration@kde.org": {
+      "name": "Plasma Integration",
+      "slug": "plasma-integration",
+      "rationale": "KDE Plasma 6 desktop integration — matches Brave's cimiefiiaegbelhefglklhhakcgmhkai. Critical on Surface Pro for media controls + KRunner web search."
+    },
+    "wakatime@wakatime.com": {
+      "name": "WakaTime",
+      "slug": "wakatime",
+      "rationale": "Browser-activity time tracking — matches Brave's jnbbnacmeggbgdjgaoojpmhdlkkpblgi"
+    },
+    "tiletabs@dw-dev": {
+      "name": "Tile Tabs WE",
+      "slug": "tile-tabs-we",
+      "rationale": "Multi-pane tab layouts — matches Brave's lbnnfjfjdijcnaakaebgcoemmlicjbnl. Originally Firefox-first."
+    },
+    "$todo_unverified": [
+      "These have Firefox counterparts but the addon ID needs user verification",
+      "before declaring force-install (wrong ID = silent no-op):",
+      "",
+      "  • Markdown Viewer Webext     slug 'markdown-viewer-webext' (matches Brave ckkdlimh)",
+      "  • Raindrop.io                 slug 'raindropio'             (matches Brave ldgfbffk)",
+      "  • Google Tag Assistant        slug 'tag-assistant-companion' (matches Brave kejbdjnd)",
+      "",
+      "These have NO published Firefox equivalent (Brave-only):",
+      "  • Anthropic Claude (Brave fcoeoabg) — no Firefox addon as of 2026-04",
+      "",
+      "To verify: visit https://addons.mozilla.org/firefox/addon/<slug>, install",
+      "in browser, then about:debugging → This Firefox → copy the Internal UUID,",
+      "and add an entry above."
+    ]
+  }
+}
