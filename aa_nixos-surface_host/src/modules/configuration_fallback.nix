@@ -1,14 +1,25 @@
-# Fallback & safety: SDDM X11, safe-graphics specialisation, KWin watchdog, GC protection
+# Fallback & safety: safe-graphics specialisation, KWin watchdog, GC protection
 { config, pkgs, lib, ... }:
 
 {
   # ═══════════════════════════════════════════════════════════════════════════
-  # SDDM ON X11 — Prevent DRM master orphaning at login
+  # SDDM GREETER MODE — left to configuration_display.nix
   # ═══════════════════════════════════════════════════════════════════════════
-  # The login screen uses X11 (reliable VT switching, graceful failure).
-  # After login, KWin starts its own Wayland session — full experience preserved.
-  # If KWin crashes, you fall back to SDDM's X11 greeter instead of a black hole.
-  services.displayManager.sddm.wayland.enable = lib.mkForce false;
+  # The default greeter is Wayland (set in configuration_display.nix:
+  # services.displayManager.sddm.wayland.enable = true).
+  #
+  # Why NOT force X11 greeter here:
+  #   On Surface Pro 8 (Intel i915 + KMS), the SDDM X11 greeter acquires DRM
+  #   master on vt2 and does NOT release it cleanly when sddm-helper jumps VT
+  #   to start the Plasma Wayland session. The new kwin_wayland on the target
+  #   VT then fails every drmModeAtomicCommit with EACCES, leaving the GUI
+  #   permanently frozen. Reproduced 100% on 2026-04-28 (twice in one session).
+  #   Evidence: journalctl shows `kwin_wayland_drm: atomic commit failed:
+  #   Permission denied` + `[dix] couldn't enable device 11/12/13`.
+  #
+  # The genuine recovery path is the `safe-graphics` specialisation below
+  # (full GNOME-on-X11 + GDM stack), selectable from GRUB. A half-X11/half-
+  # Wayland greeter is not a fallback, it's a deadlock.
 
   # ═══════════════════════════════════════════════════════════════════════════
   # SAFE GRAPHICS — Fallback when Plasma/Wayland crashes

@@ -1,0 +1,84 @@
+{
+  "_meta": {
+    "purpose": "Producer-side verbosity config to make journald sufficient for forensic root-cause analysis (signal sender, target activation requester, KDE shutdown trace, kernel signal delivery, PSI throttle history). All sinks funnel into journald.",
+    "created": "2026-04-28",
+    "owner": "aa_nixos-surface_host"
+  },
+
+  "audit": {
+    "enable": true,
+    "backlog_limit": 8192,
+    "rate_limit_per_sec": 200,
+    "rules": [
+      "-D",
+      "-b 8192",
+      "-f 1",
+
+      "-a always,exit -F arch=b64 -S kill   -F a1!=0 -F auid>=1000 -F auid!=4294967295 -k user-signals",
+      "-a always,exit -F arch=b64 -S tkill  -F a1!=0 -F auid>=1000 -F auid!=4294967295 -k user-signals",
+      "-a always,exit -F arch=b64 -S tgkill -F a2!=0 -F auid>=1000 -F auid!=4294967295 -k user-signals",
+
+      "-a always,exit -F arch=b64 -S kill   -F a1=9  -k forced-kill",
+      "-a always,exit -F arch=b64 -S kill   -F a1=15 -k forced-kill",
+
+      "-w /run/user/1000/systemd/user-units -p wa -k systemd-user-units",
+      "-w /run/user/1000/bus                -p rwa -k user-dbus",
+
+      "-a never,exit -F arch=b64 -S kill -F a1=0",
+
+      "-e 1"
+    ]
+  },
+
+  "psacct": {
+    "enable": true
+  },
+
+  "systemd_user": {
+    "log_level": "debug",
+    "log_target": "journal",
+    "extra_config_lines": [
+      "DefaultEnvironment=QT_LOGGING_RULES_DEFAULT_PRESENT=1"
+    ]
+  },
+
+  "kernel_sysctl": {
+    "kernel.print-fatal-signals": 1,
+    "kernel.audit_backlog_limit": 8192
+  },
+
+  "qt_logging": {
+    "scope": "system-environment",
+    "rules": [
+      "kwin_core.debug=true",
+      "kwin_libinput.debug=true",
+      "kwin_wayland.debug=true",
+      "ksmserver.debug=true",
+      "qt.dbus.integration.debug=true",
+      "kf.dbusaddons.debug=true",
+      "kf.windowsystem.debug=true"
+    ]
+  },
+
+  "psi_recorder": {
+    "enable": true,
+    "interval_seconds": 10,
+    "slices": [
+      "user.slice",
+      "user.slice/user-1000.slice",
+      "user.slice/user-1000.slice/app.slice",
+      "user.slice/user-1000.slice/session.slice"
+    ],
+    "fields": [
+      "memory.events",
+      "memory.pressure",
+      "cpu.pressure",
+      "io.pressure"
+    ]
+  },
+
+  "ntfy": {
+    "topic": "diegonmarcos-infra",
+    "url": "https://ntfy.sh"
+  }
+}

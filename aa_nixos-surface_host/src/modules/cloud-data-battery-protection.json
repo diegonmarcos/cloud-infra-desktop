@@ -1,28 +1,68 @@
 {
-  "_comment": "Declarative battery-critical defense. Source of truth for the sysfs-direct battery watchdog. Bypasses upowerd/PowerDevil so a SAM voltage glitch (intermittent voltage=0 → percentage=NaN) cannot prevent hibernation. Nix module `configuration_system-protection-battery.nix` reads this file and generates a systemd timer + service that polls /sys/class/power_supply/<device>/{capacity,status} directly and triggers `systemctl <action_at_critical>` when conditions match.",
-  "version": 1,
+  "_comment": "Multi-voter battery defense (v2). Source of truth for the sysfs-direct battery watchdog. Cross-checks BAT1 + ADP1 + sample-history + wall-clock so a SAM data-path freeze cannot prevent hibernation. ANY enabled voter with critical verdict triggers `systemctl <action_at_critical>` (OR-vote). v1 (single capacity check) failed on 2026-04-30: BAT1 sysfs was wedged at capacity=100 for 3.5h while the laptop drained to firmware power-off — no userspace work was saved. Consumed by `configuration_system-protection-battery.nix`.",
+  "version": 2,
   "enabled": true,
 
   "watch": {
-    "_comment": "Source data is the kernel's `capacity` integer (0..100), which comes from a separate code path than the energy/voltage fields upowerd computes from. capacity has been clean across all journal logs even when voltage/percentage went NaN.",
-    "device": "BAT1",
-    "poll_seconds": 60
+    "_comment": "battery_device + ac_device are sysfs power_supply names. poll_seconds is the systemd OnUnitActiveSec interval. state_dir holds rolling sample history + last-charging timestamp; created by systemd StateDirectory=. history_polls bounds the rolling window (also used by stuck_sam voter).",
+    "battery_device": "BAT1",
+    "ac_device": "ADP1",
+    "poll_seconds": 60,
+    "state_dir": "/var/lib/battery-watchdog",
+    "history_polls": 10
   },
 
-  "thresholds": {
-    "_comment": "Trigger only when status is `Discharging`. Critical fires the action; low only logs a warning.",
-    "critical_capacity_pct": 5,
-    "low_capacity_pct": 15,
-    "require_status": "Discharging"
+  "voters": {
+    "_comment": "Each voter independently verdicts {ok, low, critical}. Disabled voters are skipped at evaluation time (no fallback). Designed for OR-vote: ANY critical → action.",
+
+    "bat_capacity": {
+      "_comment": "Original v1 check. Kernel-derived integer 0..100. Trusts SAM. Fast path; also drives low-warning logging. NOTE: this voter alone failed on 2026-04-30 — kept for early triggering on healthy SAM but no longer the only line of defense.",
+      "enabled": true,
+      "critical_pct": 5,
+      "low_pct": 15,
+      "require_status": "Discharging"
+    },
+
+    "bat_energy_ratio": {
+      "_comment": "Computes ratio from raw energy_now / energy_full µWh. Catches off-by-rounding cases the integer capacity field misses. Same SAM root as capacity, so freezes together — useful only against integer-rounding edge cases, not against full SAM freeze.",
+      "enabled": true,
+      "critical_pct": 5,
+      "require_status": "Discharging"
+    },
+
+    "voltage_under_min": {
+      "_comment": "voltage_now < (voltage_min_design - margin_uV) under load → Li-ion is essentially empty regardless of advertised SoC. Independent witness vs the capacity field but still SAM-sourced.",
+      "enabled": true,
+      "margin_uV": 0,
+      "require_status": "Discharging"
+    },
+
+    "firmware_alarm": {
+      "_comment": "ACPI/SAM alarm field non-zero means firmware itself crossed its low-battery threshold. Should fire well before deep discharge if firmware is healthy.",
+      "enabled": true
+    },
+
+    "adp_offline_time": {
+      "_comment": "Wall-clock fail-safe. ADP1/online=0 (or status=Discharging) for ≥ max_minutes_off_ac since the last observation of {Charging} or {Full + AC online}. Defeats stuck capacity/voltage as long as ADP1 is honest. Trigger window must be tuned to the laptop's battery life on full charge — set below worst-case runtime so it cannot be raced by a real depletion.",
+      "enabled": true,
+      "max_minutes_off_ac": 240
+    },
+
+    "stuck_sam": {
+      "_comment": "Catches yesterday's exact failure mode. Triggers when the last min_static_polls samples show {capacity, energy_now, voltage_now} all unchanged AND we observed at least one on-battery indicator (status=Discharging or ac_online=0) within the window. min_static_polls × poll_seconds = grace period before declaring SAM wedged. Conservative: requires both staticness AND an on-battery hint to avoid false positives on a quiescent fully-charged plugged-in machine.",
+      "enabled": true,
+      "min_static_polls": 5
+    }
   },
 
-  "action_at_critical": {
-    "_comment": "systemctl verb to invoke when critical_capacity is hit + status matches require_status. Allowed: hibernate, suspend-then-hibernate, hybrid-sleep, suspend, poweroff. Default `hibernate` requires `resume=` on kernel cmdline (see hardware_filesystems.nix).",
-    "command": "hibernate"
+  "policy": {
+    "_comment": "Voters are OR-ed (vote_logic=any). action_at_critical is a systemctl verb. Allowed: hibernate, suspend-then-hibernate, hybrid-sleep, suspend, poweroff. Default `hibernate` requires `resume=` on kernel cmdline and a swap area ≥ /sys/power/image_size on a non-zram backing device.",
+    "vote_logic": "any",
+    "action_at_critical": "hibernate"
   },
 
   "testers": {
-    "_comment": "Each tester verifies one invariant of the battery defense. Wire into reports-logs or a dedicated CI job.",
+    "_comment": "One invariant per voter input + infra invariants. Wire into reports-logs or a dedicated CI job.",
     "checks": [
       {
         "id": "battery_watchdog_timer_active",
@@ -31,16 +71,70 @@
         "expect": "active"
       },
       {
+        "id": "battery_watchdog_service_loaded",
+        "description": "battery-watchdog.service is loaded (timer-driven oneshot)",
+        "command": "systemctl show -p LoadState --value battery-watchdog.service",
+        "expect": "loaded"
+      },
+      {
         "id": "battery_sysfs_capacity_readable",
-        "description": "/sys/class/power_supply/BAT1/capacity returns an integer 0..100",
+        "description": "BAT1/capacity returns an integer 0..100 (voter: bat_capacity)",
         "command": "cat /sys/class/power_supply/BAT1/capacity",
         "expect_regex": "^(100|[0-9]{1,2})$"
       },
       {
         "id": "battery_sysfs_status_readable",
-        "description": "/sys/class/power_supply/BAT1/status returns a known state",
+        "description": "BAT1/status returns a known state (voters: bat_capacity, bat_energy_ratio, voltage_under_min, stuck_sam)",
         "command": "cat /sys/class/power_supply/BAT1/status",
         "expect_regex": "^(Charging|Discharging|Full|Not charging|Unknown)$"
+      },
+      {
+        "id": "battery_sysfs_energy_now_readable",
+        "description": "BAT1/energy_now returns a non-negative integer µWh (voter: bat_energy_ratio, stuck_sam)",
+        "command": "cat /sys/class/power_supply/BAT1/energy_now",
+        "expect_regex": "^[0-9]+$"
+      },
+      {
+        "id": "battery_sysfs_energy_full_readable",
+        "description": "BAT1/energy_full returns a positive integer µWh (voter: bat_energy_ratio)",
+        "command": "cat /sys/class/power_supply/BAT1/energy_full",
+        "expect_regex": "^[1-9][0-9]+$"
+      },
+      {
+        "id": "battery_sysfs_voltage_now_readable",
+        "description": "BAT1/voltage_now returns a non-negative integer µV (voter: voltage_under_min, stuck_sam)",
+        "command": "cat /sys/class/power_supply/BAT1/voltage_now",
+        "expect_regex": "^[0-9]+$"
+      },
+      {
+        "id": "battery_sysfs_voltage_min_design_readable",
+        "description": "BAT1/voltage_min_design returns a positive integer µV (voter: voltage_under_min)",
+        "command": "cat /sys/class/power_supply/BAT1/voltage_min_design",
+        "expect_regex": "^[1-9][0-9]+$"
+      },
+      {
+        "id": "battery_sysfs_alarm_readable",
+        "description": "BAT1/alarm returns an integer (voter: firmware_alarm)",
+        "command": "cat /sys/class/power_supply/BAT1/alarm",
+        "expect_regex": "^[0-9]+$"
+      },
+      {
+        "id": "ac_sysfs_online_readable",
+        "description": "ADP1/online returns 0 or 1 (voter: adp_offline_time, stuck_sam)",
+        "command": "cat /sys/class/power_supply/ADP1/online",
+        "expect_regex": "^[01]$"
+      },
+      {
+        "id": "battery_state_dir_exists",
+        "description": "StateDirectory created and writable (voters: adp_offline_time, stuck_sam)",
+        "command": "test -d /var/lib/battery-watchdog && test -w /var/lib/battery-watchdog && echo ok",
+        "expect": "ok"
+      },
+      {
+        "id": "battery_history_file_grows",
+        "description": "Rolling sample history file present after first run (voter: stuck_sam)",
+        "command": "test -s /var/lib/battery-watchdog/history && echo ok",
+        "expect": "ok"
       },
       {
         "id": "resume_param_on_cmdline",
