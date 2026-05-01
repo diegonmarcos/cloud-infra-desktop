@@ -2,6 +2,14 @@
 # Requires plasma-manager input in flake.nix
 { config, pkgs, lib, ... }:
 
+let
+  # Unified system wallpaper (declared in cloud-data-wallpaper.json, also
+  # consumed by aa_nixos-surface_host's SDDM Background). Resolved against
+  # the kdePackages.plasma-workspace-wallpapers derivation directly.
+  wallpaperJson = builtins.fromJSON (builtins.readFile ./cloud-data-wallpaper.json);
+  wallpaperPath = "${pkgs.kdePackages.plasma-workspace-wallpapers}/share/wallpapers/${wallpaperJson.wallpaper.theme}/contents/images/${wallpaperJson.wallpaper.image}";
+in
+
 {
   imports = [
     ../../app_especific/konsole-ssh-manager-quick-commands.nix
@@ -75,13 +83,14 @@
     fi
   '';
 
-  # Lock screen wallpaper — matches the desktop wallpaper (KDE "Path", a forest path).
+  # Lock screen wallpaper — matches the desktop + SDDM wallpaper (declared in
+  # cloud-data-wallpaper.json, consumed via wallpaperPath in this file's let-binding).
   # plasma-manager's configFile escapes ] [ in section names (turns them into \x5d\x5b),
   # which breaks KDE's hierarchical [Greeter][Wallpaper][org.kde.image][General] section.
   # kwriteconfig6 with multiple --group flags produces the correct nested-group syntax.
   home.activation.lockScreenWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
     LOCK_RC="$HOME/.config/kscreenlockerrc"
-    LOCK_IMG="${pkgs.kdePackages.plasma-workspace-wallpapers}/share/wallpapers/Path/contents/images/2560x1600.jpg"
+    LOCK_IMG="${wallpaperPath}"
     # Strip stale sections (old buddha path + plasma-manager's escaped duplicate)
     if [ -f "$LOCK_RC" ]; then
       ${pkgs.gnused}/bin/sed -i \
@@ -108,7 +117,7 @@
       cursor.theme = "breeze_cursors";
       iconTheme = "breeze-dark";
       lookAndFeel = "org.kde.breezedark.desktop";
-      wallpaper = "${pkgs.kdePackages.plasma-workspace-wallpapers}/share/wallpapers/Path/contents/images/2560x1600.jpg";
+      wallpaper = wallpaperPath;
     };
 
     # Window decorations - Dark
