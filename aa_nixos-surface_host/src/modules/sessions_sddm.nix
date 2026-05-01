@@ -18,6 +18,28 @@ let
 
   # Paths for Exec= lines
   plasmaExec = "${pkgs.kdePackages.plasma-workspace}/bin/startplasma-wayland";
+
+  # Plasma "Fresh" session — overrides ksmserverrc loginMode=emptySession via
+  # an XDG_CONFIG_HOME overlay so plasma starts clean WITHOUT mutating the
+  # user's real config (which has loginMode=restoreSavedSession baked in by
+  # ba_flakes_desktop/src/modules/desktop/session-restore.nix). On logout
+  # the overlay dir is discarded, so any session state plasma writes during
+  # this fresh login does NOT pollute the saved-session snapshot.
+  plasmaFreshExec = pkgs.writeShellScript "plasma-fresh-wayland" ''
+    set -e
+    REAL_CFG="''${XDG_CONFIG_HOME:-$HOME/.config}"
+    OVERLAY=$(${pkgs.coreutils}/bin/mktemp -d -t plasma-fresh-XXXXXX)
+    # Symlink everything from real config into overlay (cheap, no copy).
+    ${pkgs.coreutils}/bin/ln -s "$REAL_CFG"/* "$OVERLAY/" 2>/dev/null || true
+    # Override JUST ksmserverrc to force empty session for this login.
+    ${pkgs.coreutils}/bin/rm -f "$OVERLAY/ksmserverrc"
+    ${pkgs.coreutils}/bin/cp "$REAL_CFG/ksmserverrc" "$OVERLAY/ksmserverrc" 2>/dev/null || true
+    ${pkgs.gnused}/bin/sed -i 's/^loginMode=.*/loginMode=emptySession/' "$OVERLAY/ksmserverrc" 2>/dev/null || \
+      ${pkgs.coreutils}/bin/printf '[General]\nloginMode=emptySession\n' > "$OVERLAY/ksmserverrc"
+    # Clean overlay on session exit.
+    trap '${pkgs.coreutils}/bin/rm -rf "$OVERLAY"' EXIT
+    XDG_CONFIG_HOME="$OVERLAY" exec ${pkgs.kdePackages.plasma-workspace}/bin/startplasma-wayland
+  '';
   gnomeExec = "${pkgs.gnome-session}/bin/gnome-session";
   chromeExec = "${pkgs.cage}/bin/cage -- ${pkgs.chromium}/bin/chromium --kiosk --start-fullscreen";
   torExec = "${pkgs.cage}/bin/cage -- ${pkgs.tor-browser}/bin/tor-browser";
@@ -28,6 +50,7 @@ let
   customSessions = pkgs.runCommand "custom-sddm-sessions" {
     passthru.providedSessions = [
       "01-plasma"
+      "01b-plasma-fresh"
       "02-gnome"
       "03-android"
       "04-chrome-kiosk"
@@ -39,13 +62,30 @@ let
     mkdir -p $out/share/wayland-sessions
     mkdir -p $out/share/xsessions
 
-    # ─── 1. Plasma (Wayland) ───────────────────────────────────────────────
+    # ─── 1. Plasma 6 (Restore) — DEFAULT ──────────────────────────────────
+    # ksmserverrc loginMode is set declaratively by
+    # ba_flakes_desktop/src/modules/desktop/session-restore.nix.
+    # Currently restorePreviousSession (Stage A) → restoreSavedSession
+    # once a snapshot is captured (Stage B). Either way: this entry uses
+    # the user's real config, which restores the saved/previous session.
     cat > $out/share/wayland-sessions/01-plasma.desktop << EOF
 [Desktop Entry]
 Type=Application
-Name=Plasma
-Comment=KDE Plasma Desktop (Wayland)
+Name=Plasma 6 (Restore)
+Comment=KDE Plasma — restores saved session (default)
 Exec=${plasmaExec}
+DesktopNames=KDE
+EOF
+
+    # ─── 1b. Plasma 6 (Fresh) — toggle to skip session restore ────────────
+    # Wraps startplasma-wayland with an XDG_CONFIG_HOME overlay that
+    # forces ksmserverrc loginMode=emptySession. Real config untouched.
+    cat > $out/share/wayland-sessions/01b-plasma-fresh.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=Plasma 6 (Fresh)
+Comment=KDE Plasma — empty session (no restore, real config untouched)
+Exec=${plasmaFreshExec}
 DesktopNames=KDE
 EOF
 
