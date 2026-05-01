@@ -166,60 +166,20 @@ done
     echo "${cpu:-0}" > "$_async/cpu"
 ) &
 
-# --- Background: VRAM (timeout 2s) ---
-(
-    vp="N/A"
-    if command -v nvidia-smi &>/dev/null; then
-        vi=$(timeout 2 nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null | head -n 1)
-        if [ -n "$vi" ]; then
-            vu=$(echo "$vi" | awk -F',' '{print $1}'); vt=$(echo "$vi" | awk -F',' '{print $2}')
-            [ -n "$vu" ] && [ -n "$vt" ] && [ "$vt" != "0" ] && vp=$(awk "BEGIN {printf \"%.0f\", ($vu/$vt)*100}")
-        fi
-    fi
-    echo "$vp" > "$_async/vram"
-) &
+# === Expensive probes — DISABLED 2026-05-01 ===
+# Reason: Termux has no GPU (nvidia-smi wasted) and the mesh/public-IP curls
+# fired on every status render — external network calls per refresh. Private-IP
+# probe also disabled because it forks `ip route get` + reads /proc/net/fib_trie
+# every render despite the IP barely changing on a phone session.
+# Static stubs preserve the rendering contract; vars below are read by the
+# render block unchanged. To re-enable, restore from git history.
+echo "N/A" > "$_async/vram"
+echo "off 90 —" > "$_async/mesh"
+echo "—" > "$_async/pip"
+echo "—" > "$_async/pub"
 
-# --- Background: Mesh (timeout 1s) ---
-(
-    ms="down"; mc="31"; mi=""
-    if timeout 1 curl -s http://10.0.0.1:80 >/dev/null 2>&1; then
-        ms="up"; mc="32"
-        if [ -n "$IP_CMD" ] && $IP_CMD link show wg0 &>/dev/null 2>&1; then
-            mi=$($IP_CMD -4 addr show wg0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
-        elif [ -d "/sys/class/net/wg0" ]; then
-            mi=$(ip addr show wg0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
-        fi
-        WG_CONF="${HOME}/.config/wireguard/wg0.conf"
-        [ -z "$mi" ] && [ -f "$WG_CONF" ] && mi=$(grep -i "^Address" "$WG_CONF" 2>/dev/null | awk '{print $3}' | cut -d'/' -f1)
-        [ -z "$mi" ] && mi="none"
-    fi
-    echo "$ms $mc $mi" > "$_async/mesh"
-) &
-
-# --- Background: Private IP (timeout 2s) ---
-(
-    pip=""
-    [ -n "$IP_CMD" ] && pip=$($IP_CMD route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+' | head -1)
-    [ -z "$pip" ] && pip=$(timeout 1 hostname -I 2>/dev/null | awk '{print $1}')
-    if [ "$pip" = "127.0.0.1" ] || [ -z "$pip" ] || [[ "$pip" == 10.0.0.* ]]; then
-        pip=$(cat /proc/net/fib_trie 2>/dev/null | grep -oP '(?<=\|-- )\d+\.\d+\.\d+\.\d+' | grep -v "^127\." | grep -v "^10\.0\.0\." | head -1)
-    fi
-    [ -z "$pip" ] && pip="none"
-    echo "$pip" > "$_async/pip"
-) &
-
-# --- Background: Public IP (timeout 2s) ---
-(
-    pub=$(timeout 2 curl -s --max-time 2 ifconfig.me 2>/dev/null)
-    [ -z "$pub" ] && pub="..."
-    echo "$pub" > "$_async/pub"
-) &
-
-# Wait for all background jobs (hard kill after 3s to prevent statusline hangs)
-( sleep 3; kill 0 2>/dev/null ) &
-_killer=$!
-wait %1 %2 %3 %4 %5 2>/dev/null
-kill $_killer 2>/dev/null; wait $_killer 2>/dev/null
+# Wait for the only remaining background job (CPU sample, bounded by sleep 0.1)
+wait 2>/dev/null
 
 # Read async results
 cpu_percent=$(cat "$_async/cpu" 2>/dev/null); [ -z "$cpu_percent" ] && cpu_percent=0
