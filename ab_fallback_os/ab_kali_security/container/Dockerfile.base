@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1.7
+# STAGE 1 — heavy package layers only. Output: kali-fallback:base
+# Changes here invalidate the multi-GB metapackage layer; treat as immutable
+# unless apt.base / apt.gui_stack / apt.metapackages in install.json change.
+ARG BASE_IMAGE=kalilinux/kali-rolling:latest
+FROM ${BASE_IMAGE}
+
+ARG TZ=Etc/UTC
+ARG LANG_=en_US.UTF-8
+ARG APT_BASE=""
+ARG APT_GUI=""
+ARG APT_META=""
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=${TZ} \
+    LANG=${LANG_} \
+    LC_ALL=${LANG_}
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# 1) Base packages.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ${APT_BASE} \
+ && sed -i "s/^# *${LANG_}/${LANG_}/" /etc/locale.gen \
+ && locale-gen \
+ && ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime \
+ && rm -rf /var/lib/apt/lists/*
+
+# 2) GUI stack (XFCE + VNC + noVNC).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ${APT_GUI} \
+ && rm -rf /var/lib/apt/lists/*
+
+# 3) Kali metapackage (kali-linux-everything ~ very large).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ${APT_META} \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*

@@ -1,0 +1,5 @@
+# Runtime container state — bind-mounted volumes that capture user/cache/auth state at runtime.
+# Contains X11 auth tokens (.Xauthority, .ICEauthority), shell histories (.msf4/history),
+# KDE/dconf settings, scapy caches, and other transient runtime artifacts.
+# Must NEVER be committed — these are secrets/state, not source.
+data/

@@ -30,7 +30,7 @@
     "restart": "unless-stopped",
     "shm_size": "2g",
     "cap_add": ["NET_ADMIN", "NET_RAW", "SYS_PTRACE"],
-    "security_opt": ["seccomp=unconfined", "apparmor=unconfined"]
+    "security_opt": ["seccomp=unconfined", "apparmor=unconfined", "no-new-privileges:false"]
   },
   "user": {
     "name": "kali",
