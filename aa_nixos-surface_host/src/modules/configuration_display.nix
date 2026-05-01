@@ -1,6 +1,15 @@
 # Display: SDDM, Plasma 6, GNOME, Openbox, themes, HiDPI, XDG portals, graphics
 { config, pkgs, lib, ... }:
 
+let
+  # Unified system wallpaper (declared in cloud-data-wallpaper.json, also
+  # consumed by ba_flakes_desktop home-manager flake). Resolved at activation
+  # time via /run/current-system/sw which is populated from
+  # environment.systemPackages (kdePackages.plasma-workspace-wallpapers).
+  wallpaperJson = builtins.fromJSON (builtins.readFile ./cloud-data-wallpaper.json);
+  wallpaperPath = "/run/current-system/sw/share/wallpapers/${wallpaperJson.wallpaper.theme}/contents/images/${wallpaperJson.wallpaper.image}";
+in
+
 {
   # ═══════════════════════════════════════════════════════════════════════════
   # NOTE: Home-manager is managed separately in cb_user_diego_nix
@@ -74,7 +83,7 @@
         postFixup = (old.postFixup or "") + ''
           cat > $out/share/sddm/themes/sddm-astronaut-theme/theme.conf << 'EOF'
 [General]
-Background="/run/current-system/sw/share/wallpapers/MilkyWay/contents/images/5120x2880.png"
+Background="${wallpaperPath}"
 DimBackgroundImage="0.2"
 ScaleImageCropped="true"
 ScreenWidth="2304"
