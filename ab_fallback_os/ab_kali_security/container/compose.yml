@@ -5,6 +5,8 @@ x-kali-common: &kali-common
   image: ${KALI_IMAGE:-kali-fallback:full}
   hostname: ${KALI_HOSTNAME:-kali}
   network_mode: host
+  extra_hosts:
+    - "kali:127.0.0.1"
   restart: unless-stopped
   shm_size: 2g
   cap_add:
@@ -14,6 +16,7 @@ x-kali-common: &kali-common
   security_opt:
     - seccomp=unconfined
     - apparmor=unconfined
+    - no-new-privileges:false
   environment:
     TZ: ${TZ:-Etc/UTC}
     LANG: ${LANG:-en_US.UTF-8}

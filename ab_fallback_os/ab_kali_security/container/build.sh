@@ -3,7 +3,10 @@
 # Source of truth: ./install.json. NEVER hardcode values here.
 #
 # Usage: ./build.sh <command>
-#   build      Build the local image from install.json + Dockerfile
+#   build         Build runtime overlay (auto-builds base if missing)
+#   build-base    Build heavy stage1 image (Dockerfile.base) — kali-fallback:base
+#   build-runtime Build thin stage2 overlay (Dockerfile.runtime) — kali-fallback:full
+#   rebuild       Force rebuild of BOTH stages
 #   up-cli     Start CLI profile  (host network)
 #   up-gui     Start GUI profile  (host network, noVNC at :6901)
 #   down       Stop + remove both profiles
@@ -58,28 +61,51 @@ ensure_data_dirs() {
     )
 }
 
-cmd_build() {
-    # Build network: derived from install.json — same as runtime, so apt-get
-    # in RUN steps gets the host's resolver (avoids broken bridge-net DNS).
-    local netflag=()
+_netflag() {
     case "$(jq -r '.container.network_mode' "$CFG")" in
-        host) netflag=(--network=host) ;;
+        host) printf -- "--network=host" ;;
     esac
-    docker build \
-        "${netflag[@]}" \
+}
+
+_base_tag()    { echo "${KALI_IMAGE%:*}:base"; }
+_runtime_tag() { echo "${KALI_IMAGE}"; }
+
+cmd_build_base() {
+    local net; net="$(_netflag)"
+    # shellcheck disable=SC2086
+    docker build $net \
+        -f "$HERE/Dockerfile.base" \
         --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
-        --build-arg "USER_NAME=${USER_NAME}" \
-        --build-arg "USER_UID=${USER_UID}" \
-        --build-arg "USER_GID=${USER_GID}" \
-        --build-arg "USER_SHELL=${USER_SHELL}" \
         --build-arg "TZ=${TZ_VAL}" \
         --build-arg "LANG_=${LANG_VAL}" \
         --build-arg "APT_BASE=${APT_BASE}" \
         --build-arg "APT_GUI=${APT_GUI}" \
         --build-arg "APT_META=${APT_META}" \
-        --build-arg "APT_RUNTIME=${APT_RUNTIME}" \
-        -t "${KALI_IMAGE}" "$HERE"
+        -t "$(_base_tag)" "$HERE"
 }
+
+cmd_build_runtime() {
+    docker image inspect "$(_base_tag)" >/dev/null 2>&1 \
+        || { echo "base image $(_base_tag) missing — run: $0 build-base"; return 1; }
+    local net; net="$(_netflag)"
+    # shellcheck disable=SC2086
+    docker build $net \
+        -f "$HERE/Dockerfile.runtime" \
+        --build-arg "BASE_TAG=$(_base_tag)" \
+        --build-arg "USER_NAME=${USER_NAME}" \
+        --build-arg "USER_UID=${USER_UID}" \
+        --build-arg "USER_GID=${USER_GID}" \
+        --build-arg "USER_SHELL=${USER_SHELL}" \
+        --build-arg "APT_RUNTIME=${APT_RUNTIME}" \
+        -t "$(_runtime_tag)" "$HERE"
+}
+
+cmd_build() {
+    docker image inspect "$(_base_tag)" >/dev/null 2>&1 || cmd_build_base || return 1
+    cmd_build_runtime
+}
+
+cmd_rebuild() { cmd_build_base && cmd_build_runtime; }
 
 cmd_up_cli()  { ensure_data_dirs; "${DC[@]}" --profile cli up -d kali-cli; }
 cmd_up_gui()  { ensure_data_dirs; "${DC[@]}" --profile gui up -d kali-gui; \
@@ -183,7 +209,10 @@ cmd_clean() {
 }
 
 case "${1:-}" in
-    build)   cmd_build   ;;
+    build)         cmd_build         ;;
+    build-base)    cmd_build_base    ;;
+    build-runtime) cmd_build_runtime ;;
+    rebuild)       cmd_rebuild       ;;
     up-cli)  cmd_up_cli  ;;
     up-gui)  cmd_up_gui  ;;
     down)    cmd_down    ;;
