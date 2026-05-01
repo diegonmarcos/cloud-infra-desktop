@@ -35,6 +35,20 @@
   nixpkgs.config.allowUnfree = true;
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # GIT — system-wide safe.directory for nixos-rebuild via sudo on user flakes
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Without this, `sudo nixos-rebuild switch --flake /home/diego/git/...`
+  # fails with "repository path is not owned by current user" because
+  # nix's libgit2 honors git's CVE-2022-24765 ownership check. The build.sh
+  # engine also injects GIT_CONFIG_* env vars as a runtime backstop.
+  programs.git = {
+    enable = true;
+    config = {
+      safe.directory = [ "*" ];
+    };
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # FIRMWARE (Intel IPU6 camera, WiFi, Bluetooth, etc.)
   # ═══════════════════════════════════════════════════════════════════════════
   hardware.firmware = with pkgs; [ linux-firmware ];
@@ -60,5 +74,6 @@
     ./configuration_rescue.nix
     ./configuration_fallback.nix
     ./configuration_session_isolation.nix
+    ./configuration_observability.nix
   ];
 }

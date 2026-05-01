@@ -1,0 +1,41 @@
+# Generated/driven by build.sh. Two profiles: cli + gui.
+# Network: host (rules: install.json .container.network_mode = "host").
+# Both services share the same image; entrypoint dispatches on mode arg.
+x-kali-common: &kali-common
+  image: ${KALI_IMAGE:-kali-fallback:full}
+  hostname: ${KALI_HOSTNAME:-kali}
+  network_mode: host
+  restart: unless-stopped
+  shm_size: 2g
+  cap_add:
+    - NET_ADMIN
+    - NET_RAW
+    - SYS_PTRACE
+  security_opt:
+    - seccomp=unconfined
+    - apparmor=unconfined
+  environment:
+    TZ: ${TZ:-Etc/UTC}
+    LANG: ${LANG:-en_US.UTF-8}
+    KALI_INSTALL_JSON: /install.json
+    KALI_VNC_PASSWORD: ${KALI_VNC_PASSWORD:-kali}
+  volumes:
+    - ./install.json:/install.json:ro
+    - ./data/home:/home/kali
+    - ./data/workspace:/workspace
+    - ./data/loot:/loot
+
+services:
+  kali-cli:
+    <<: *kali-common
+    container_name: kali-fallback-cli
+    profiles: ["cli"]
+    stdin_open: true
+    tty: true
+    command: ["cli"]
+
+  kali-gui:
+    <<: *kali-common
+    container_name: kali-fallback-gui
+    profiles: ["gui"]
+    command: ["gui"]

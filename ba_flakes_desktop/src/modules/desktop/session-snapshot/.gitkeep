@@ -1,0 +1,6 @@
+# Session snapshot directory — Plasma's saved-session blobs go here.
+#
+# This dir starts empty; the capture-session.sh script populates it
+# AFTER you log out + log back in (Plasma writes the state to
+# ~/.config/session/* on logout). See session-restore.nix for the
+# 3-stage workflow.

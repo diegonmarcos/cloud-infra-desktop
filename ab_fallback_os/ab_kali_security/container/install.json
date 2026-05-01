@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "name": "Kali Linux Container",
+    "version": "1.0",
+    "description": "Full Kali Linux toolset in a container with CLI and GUI (noVNC) modes",
+    "distro": "kali-rolling"
+  },
+  "image": {
+    "registry": "docker.io",
+    "repo": "kalilinux/kali-rolling",
+    "tag": "latest",
+    "local_tag": "kali-fallback:full"
+  },
+  "ghcr": {
+    "registry": "ghcr.io",
+    "owner": "diegonmarcos",
+    "name": "kali-fallback",
+    "tags": ["latest", "full"],
+    "auth": {
+      "username_env": "GHCR_USER",
+      "username_default": "diegonmarcos",
+      "token_env": "GHCR_TOKEN",
+      "token_cmd": "gh auth token"
+    }
+  },
+  "container": {
+    "name": "kali-fallback",
+    "hostname": "kali",
+    "network_mode": "host",
+    "restart": "unless-stopped",
+    "shm_size": "2g",
+    "cap_add": ["NET_ADMIN", "NET_RAW", "SYS_PTRACE"],
+    "security_opt": ["seccomp=unconfined", "apparmor=unconfined"]
+  },
+  "user": {
+    "name": "kali",
+    "uid": 1000,
+    "gid": 1000,
+    "shell": "/usr/bin/zsh",
+    "groups": ["sudo", "audio", "video", "plugdev", "netdev"]
+  },
+  "apt": {
+    "metapackages": ["kali-linux-everything"],
+    "runtime_helpers": [
+      "jq"
+    ],
+    "gui_stack": [
+      "xfce4",
+      "xfce4-goodies",
+      "dbus-x11",
+      "tigervnc-standalone-server",
+      "tigervnc-common",
+      "novnc",
+      "websockify",
+      "xterm",
+      "fonts-dejavu",
+      "fonts-liberation"
+    ],
+    "base": [
+      "sudo",
+      "curl",
+      "wget",
+      "git",
+      "vim",
+      "tmux",
+      "zsh",
+      "ca-certificates",
+      "openssh-client",
+      "iproute2",
+      "iputils-ping",
+      "net-tools",
+      "dnsutils",
+      "procps",
+      "psmisc",
+      "less",
+      "locales",
+      "tzdata"
+    ]
+  },
+  "modes": {
+    "cli": {
+      "description": "Headless terminal (docker exec or attach)",
+      "entrypoint_arg": "cli",
+      "command": "/bin/zsh"
+    },
+    "gui": {
+      "description": "XFCE4 desktop via TigerVNC + noVNC (browser)",
+      "entrypoint_arg": "gui",
+      "vnc_port": 5901,
+      "novnc_port": 6901,
+      "display": ":1",
+      "geometry": "1920x1080",
+      "depth": 24
+    }
+  },
+  "volumes": {
+    "home":      { "host": "./data/home",      "container": "/home/kali",  "description": "Persistent user home"   },
+    "workspace": { "host": "./data/workspace", "container": "/workspace",  "description": "Pentest workspace"      },
+    "loot":      { "host": "./data/loot",      "container": "/loot",       "description": "Captures, hashes, etc." }
+  },
+  "env": {
+    "TZ": "Europe/Madrid",
+    "LANG": "en_US.UTF-8",
+    "VNC_PASSWORD_FILE": "/home/kali/.vnc/passwd"
+  },
+  "secrets": {
+    "vnc_password_var": "KALI_VNC_PASSWORD",
+    "vnc_password_default": "kali"
+  }
+}
