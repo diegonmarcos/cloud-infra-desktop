@@ -1,5 +1,29 @@
-# Runtime container state — bind-mounted volumes that capture user/cache/auth state at runtime.
-# Contains X11 auth tokens (.Xauthority, .ICEauthority), shell histories (.msf4/history),
-# KDE/dconf settings, scapy caches, and other transient runtime artifacts.
-# Must NEVER be committed — these are secrets/state, not source.
-data/
+# Container runtime state vs intelligence output — split policy.
+# ─────────────────────────────────────────────────────────────────────────────
+# DISCARD (runtime / secrets):
+#   data/home/       VNC passwords, X11 cookies, msf history, dnsrecon API keys,
+#                    subfinder provider configs, dbus session bus, scapy caches.
+#   data/workspace/  Active pentest workspace — transient WIP, can hold anything.
+data/home/
+data/workspace/
+
+# KEEP (intelligence):
+#   data/loot/<ts>/manifest.json   — declarative run record, no raw secrets
+#   data/loot/<ts>/report.md       — curated human summary
+#
+# DISCARD inside data/loot/ (raw artifacts can leak host paths, open ports,
+# vuln details, /etc contents, SUID lists, network state):
+data/loot/**/*.stderr
+data/loot/**/*.stdout
+data/loot/**/*.txt
+data/loot/**/*.xml
+data/loot/**/*.gnmap
+data/loot/**/*.nmap
+data/loot/**/*.dat
+data/loot/**/*.log
+data/loot/**/*.pickle
+data/loot/**/*.pcap
+data/loot/**/*.json
+# …but unignore the curated summaries:
+!data/loot/**/manifest.json
+!data/loot/**/report.md

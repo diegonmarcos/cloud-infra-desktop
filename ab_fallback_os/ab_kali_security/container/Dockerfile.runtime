@@ -1,10 +1,19 @@
 # syntax=docker/dockerfile:1.7
-# STAGE 2 — thin overlay on top of kali-fallback:base.
-# Output: kali-fallback:full
+# STAGE 2 — thin overlay on top of kali-linux:base.
+# Output: kali-linux:full
 # Cheap to rebuild — runtime helpers, user, entrypoint. Never invalidates
 # the heavy packages above.
-ARG BASE_TAG=kali-fallback:base
+ARG BASE_TAG=kali-linux:base
 FROM ${BASE_TAG}
+
+# OCI annotations — links this image to its source repo on GHCR, so the
+# package page surfaces the right README/license + lets repo-level visibility
+# propagate. Without these, GHCR shows "no source repository linked".
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/unix" \
+      org.opencontainers.image.description="Full Kali Linux toolset (kali-linux-everything) with CLI + noVNC GUI modes, host-network, scan orchestrator." \
+      org.opencontainers.image.licenses="GPL-3.0-or-later" \
+      org.opencontainers.image.title="kali-linux" \
+      org.opencontainers.image.documentation="https://github.com/diegonmarcos/unix/tree/main/ab_fallback_os/ab_kali_security/container"
 
 ARG USER_NAME=kali
 ARG USER_UID=1000

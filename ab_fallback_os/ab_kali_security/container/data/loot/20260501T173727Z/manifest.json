@@ -1,0 +1,37 @@
+{
+  "schema": "scan-run v1",
+  "timestamp": "20260501T173727Z",
+  "preset": "network-quick",
+  "target": "127.0.0.1",
+  "budget_s": 30,
+  "fsroot": "/",
+  "jobs": [
+    {
+      "tool": "whois",
+      "category": "recon",
+      "domain": "network",
+      "out_dir": "/loot/20260501T173727Z/network/127.0.0.1/recon/whois",
+      "exit_code": 0,
+      "duration_s": 1,
+      "ignored": false
+    },
+    {
+      "tool": "dnsrecon",
+      "category": "recon",
+      "domain": "network",
+      "out_dir": "/loot/20260501T173727Z/network/127.0.0.1/recon/dnsrecon",
+      "exit_code": 1,
+      "duration_s": 3,
+      "ignored": true
+    },
+    {
+      "tool": "subfinder",
+      "category": "recon",
+      "domain": "network",
+      "out_dir": "/loot/20260501T173727Z/network/127.0.0.1/recon/subfinder",
+      "exit_code": 0,
+      "duration_s": 31,
+      "ignored": false
+    }
+  ]
+}

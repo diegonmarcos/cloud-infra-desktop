@@ -1,0 +1,65 @@
+{
+  "schema":     "kali-scans v1",
+  "loot_root":  "/loot",
+  "defaults":   { "timeout_s": 600, "ignore_errors": false },
+
+  "_doc": {
+    "placeholders": {
+      "%TARGET%":  "host or CIDR passed to --target",
+      "%OUTDIR%":  "tool's output directory (auto-created)",
+      "%OUT%":     "primary output file path (= OUTDIR/<tool>.<ext>)",
+      "%OUTBASE%": "OUTDIR/<tool> (no extension, for nmap -oA etc)",
+      "%FSROOT%":  "/ in container, /host in scanner-local profile (RO host mount)"
+    }
+  },
+
+  "tools": {
+    "uname":         { "cmd": "uname",     "args": ["-a"],                                                                  "stdout_to": "uname.txt"     },
+    "lsb-release":   { "cmd": "lsb_release","args": ["-a"],                                                                  "stdout_to": "lsb-release.txt", "ignore_errors": true },
+    "ss-listen":     { "cmd": "ss",        "args": ["-tulnpH"],                                                              "stdout_to": "ss-listen.txt" },
+    "ip-addr":       { "cmd": "ip",        "args": ["-j","addr"],                                                            "stdout_to": "ip-addr.json"  },
+    "ip-route":      { "cmd": "ip",        "args": ["-j","route"],                                                           "stdout_to": "ip-route.json" },
+    "ps-aux":        { "cmd": "ps",        "args": ["auxf"],                                                                 "stdout_to": "ps-aux.txt"    },
+    "iptables-save": { "cmd": "iptables-save", "args": [],                                                                   "stdout_to": "iptables.txt", "sudo": true, "ignore_errors": true },
+    "passwd-host":   { "cmd": "cat",       "args": ["%FSROOT%/etc/passwd"],                                                  "stdout_to": "passwd.txt", "ignore_errors": true },
+    "sshd-config":   { "cmd": "cat",       "args": ["%FSROOT%/etc/ssh/sshd_config"],                                         "stdout_to": "sshd_config.txt", "ignore_errors": true },
+    "sudoers":       { "cmd": "cat",       "args": ["%FSROOT%/etc/sudoers"],                                                 "stdout_to": "sudoers.txt", "sudo": true, "ignore_errors": true },
+    "shadow-perms":  { "cmd": "stat",      "args": ["-c","%a %U:%G %n","%FSROOT%/etc/shadow","%FSROOT%/etc/passwd"],         "stdout_to": "shadow-perms.txt", "ignore_errors": true },
+    "suid":          { "cmd": "find",      "args": ["%FSROOT%","-xdev","-perm","-4000","-type","f"],                          "stdout_to": "suid.txt",     "sudo": true, "ignore_errors": true, "timeout_s": 300 },
+    "sgid":          { "cmd": "find",      "args": ["%FSROOT%","-xdev","-perm","-2000","-type","f"],                          "stdout_to": "sgid.txt",     "sudo": true, "ignore_errors": true, "timeout_s": 300 },
+    "world-writable":{ "cmd": "find",      "args": ["%FSROOT%","-xdev","-perm","-o+w","-type","f","-not","-path","*/proc/*"], "stdout_to": "ww.txt",       "sudo": true, "ignore_errors": true, "timeout_s": 300 },
+    "lynis":         { "cmd": "lynis",     "args": ["audit","system","--quick","--no-colors","--logfile","%OUTDIR%/lynis.log","--report-file","%OUTDIR%/lynis.dat"], "stdout_to": "lynis.stdout", "sudo": true, "timeout_s": 900 },
+
+    "whois":         { "cmd": "whois",     "args": ["%TARGET%"],                                                              "stdout_to": "whois.txt",      "ignore_errors": true },
+    "dnsrecon":      { "cmd": "dnsrecon",  "args": ["-d","%TARGET%","-t","std","--json","%OUT%"],                              "stdout_to": "dnsrecon.stdout","ignore_errors": true, "timeout_s": 300 },
+    "subfinder":     { "cmd": "subfinder", "args": ["-d","%TARGET%","-silent","-o","%OUT%"],                                   "stdout_to": "subfinder.stdout","ignore_errors": true, "timeout_s": 180 },
+    "nmap-fast":     { "cmd": "nmap",      "args": ["-T4","-F","-sV","-oA","%OUTBASE%","%TARGET%"],                            "stdout_to": "nmap-fast.stdout", "sudo": true, "timeout_s": 300 },
+    "nmap-vuln":     { "cmd": "nmap",      "args": ["-sV","--script=vuln","-oA","%OUTBASE%","%TARGET%"],                       "stdout_to": "nmap-vuln.stdout", "sudo": true, "timeout_s": 1800 },
+    "testssl":       { "cmd": "testssl.sh","args": ["--quiet","--jsonfile","%OUT%","%TARGET%"],                                "stdout_to": "testssl.stdout",   "ignore_errors": true, "timeout_s": 600 },
+    "headers":       { "cmd": "curl",      "args": ["-skLI","--max-time","10","https://%TARGET%/"],                            "stdout_to": "headers.txt",      "ignore_errors": true },
+    "nikto":         { "cmd": "nikto",     "args": ["-host","%TARGET%","-output","%OUT%","-Format","json"],                    "stdout_to": "nikto.stdout",     "ignore_errors": true, "timeout_s": 900 }
+  },
+
+  "categories": {
+    "system":      { "domain": "local",   "tools": ["uname","lsb-release"] },
+    "users":       { "domain": "local",   "tools": ["passwd-host","sshd-config","sudoers","shadow-perms"] },
+    "fs":          { "domain": "local",   "tools": ["suid","sgid","world-writable"] },
+    "net-state":   { "domain": "local",   "tools": ["ss-listen","ip-addr","ip-route","iptables-save"] },
+    "procs":       { "domain": "local",   "tools": ["ps-aux"] },
+    "audit":       { "domain": "local",   "tools": ["lynis"] },
+
+    "recon":       { "domain": "network", "tools": ["whois","dnsrecon","subfinder"] },
+    "ports":       { "domain": "network", "tools": ["nmap-fast"] },
+    "vuln":        { "domain": "network", "tools": ["nmap-vuln"] },
+    "tls":         { "domain": "network", "tools": ["testssl","headers"] },
+    "web":         { "domain": "network", "tools": ["nikto"] }
+  },
+
+  "presets": {
+    "local-quick":   ["system","net-state","procs"],
+    "local-full":    ["system","users","net-state","procs","fs","audit"],
+    "network-quick": ["recon","ports","tls"],
+    "network-full":  ["recon","ports","vuln","tls","web"],
+    "test":          ["system"]
+  }
+}

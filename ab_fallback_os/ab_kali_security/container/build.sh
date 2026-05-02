@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Universal engine for the Kali fallback container.
+# Universal engine for the Kali Linux container.
 # Source of truth: ./install.json. NEVER hardcode values here.
 #
 # Usage: ./build.sh <command>
 #   build         Build runtime overlay (auto-builds base if missing)
-#   build-base    Build heavy stage1 image (Dockerfile.base) — kali-fallback:base
-#   build-runtime Build thin stage2 overlay (Dockerfile.runtime) — kali-fallback:full
+#   build-base    Build heavy stage1 image (Dockerfile.base) — kali-linux:base
+#   build-runtime Build thin stage2 overlay (Dockerfile.runtime) — kali-linux:full
 #   rebuild       Force rebuild of BOTH stages
 #   up-cli     Start CLI profile  (host network)
 #   up-gui     Start GUI profile  (host network, noVNC at :6901)
@@ -17,9 +17,38 @@
 #   push       Tag local image with every ghcr.tags entry and push to GHCR
 #   pull       Pull every GHCR tag locally (and re-tag first as local_tag)
 #   ship       build + push (full release)
+#
+#   scan local    [preset] [budget]    Audit this host (default: local-quick)
+#   scan network <target> [preset] [budget]  Recon/scan target (default: network-quick)
+#   scan all     <target> [budget]     local-full + network-full
+#   scan list                          Print tools/categories/presets from scans.json
+#   scan report  <ts>                  Render report.md from data/loot/<ts>/manifest.json
+#   scan test                          Tester (schema valid + minimal dry-run)
+#
 #   test       Smoke test (JSON schema + image presence + GHCR reachability)
 #   clean      Remove image + ./data persistence
+#
+# Environment knobs:
+#   VERBOSE=1        enables full bash xtrace (set -x) — every command echoed
+#   QUIET=1          suppresses the [hh:mm:ss] timestamps and step banners
+#   BUILDKIT_PROGRESS overrides docker build progress (default: plain)
 set -euo pipefail
+
+# ─── verbose by default (timestamped logs, plain docker progress) ────────────
+[[ "${VERBOSE:-0}" == "1" ]] && set -x
+export DOCKER_BUILDKIT=1
+export BUILDKIT_PROGRESS="${BUILDKIT_PROGRESS:-plain}"
+
+if [[ "${QUIET:-0}" == "1" ]]; then
+    _log()  { :; }
+    _step() { :; }
+else
+    _log()  { printf '\033[36m[%s] %s\033[0m\n' "$(date +%H:%M:%S)" "$*" >&2; }
+    _step() { printf '\n\033[1;33m── %s ──\033[0m\n' "$*" >&2; }
+fi
+
+# Run + echo: always shows the command, runs it, returns its exit code.
+_run() { _log "+ $*"; "$@"; }
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HERE"
@@ -71,9 +100,10 @@ _base_tag()    { echo "${KALI_IMAGE%:*}:base"; }
 _runtime_tag() { echo "${KALI_IMAGE}"; }
 
 cmd_build_base() {
+    _step "BUILD stage1 → $(_base_tag) (network=$(jq -r .container.network_mode "$CFG"), progress=$BUILDKIT_PROGRESS)"
     local net; net="$(_netflag)"
     # shellcheck disable=SC2086
-    docker build $net \
+    _run docker build --progress="$BUILDKIT_PROGRESS" $net \
         -f "$HERE/Dockerfile.base" \
         --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
         --build-arg "TZ=${TZ_VAL}" \
@@ -82,14 +112,16 @@ cmd_build_base() {
         --build-arg "APT_GUI=${APT_GUI}" \
         --build-arg "APT_META=${APT_META}" \
         -t "$(_base_tag)" "$HERE"
+    _log "✔ stage1 done: $(_base_tag)"
 }
 
 cmd_build_runtime() {
     docker image inspect "$(_base_tag)" >/dev/null 2>&1 \
         || { echo "base image $(_base_tag) missing — run: $0 build-base"; return 1; }
+    _step "BUILD stage2 → $(_runtime_tag) (FROM $(_base_tag))"
     local net; net="$(_netflag)"
     # shellcheck disable=SC2086
-    docker build $net \
+    _run docker build --progress="$BUILDKIT_PROGRESS" $net \
         -f "$HERE/Dockerfile.runtime" \
         --build-arg "BASE_TAG=$(_base_tag)" \
         --build-arg "USER_NAME=${USER_NAME}" \
@@ -98,6 +130,7 @@ cmd_build_runtime() {
         --build-arg "USER_SHELL=${USER_SHELL}" \
         --build-arg "APT_RUNTIME=${APT_RUNTIME}" \
         -t "$(_runtime_tag)" "$HERE"
+    _log "✔ stage2 done: $(_runtime_tag)"
 }
 
 cmd_build() {
@@ -112,7 +145,7 @@ cmd_up_gui()  { ensure_data_dirs; "${DC[@]}" --profile gui up -d kali-gui; \
                 local p; p=$(jq -r '.modes.gui.novnc_port' "$CFG"); \
                 echo "→ open http://localhost:${p}/"; }
 cmd_down()    { "${DC[@]}" --profile cli --profile gui down; }
-cmd_shell()   { docker exec -it kali-fallback-cli "${USER_SHELL}" -l; }
+cmd_shell()   { docker exec -it kali-linux-cli "${USER_SHELL}" -l; }
 cmd_logs()    { "${DC[@]}" --profile cli --profile gui logs -f --tail=100; }
 cmd_ps()      { "${DC[@]}" --profile cli --profile gui ps; }
 
@@ -172,6 +205,7 @@ cmd_login() {
     local user token
     user="$(jq -r '.ghcr.auth.username_env as $e | (env[$e] // .ghcr.auth.username_default)' "$CFG")"
     token="$(ghcr_token)" || return 1
+    _step "LOGIN ${GHCR_REG} as ${user}"
     printf '%s' "$token" | docker login "$GHCR_REG" -u "$user" --password-stdin
 }
 
@@ -179,28 +213,125 @@ cmd_push() {
     docker image inspect "$KALI_IMAGE" >/dev/null 2>&1 \
         || { echo "local image $KALI_IMAGE missing — run: $0 build"; return 1; }
     cmd_login || return 1
+    _step "PUSH → ${GHCR_REPO}"
     while IFS= read -r tag; do
         local full="${GHCR_REPO}:${tag}"
-        echo "→ tag  $KALI_IMAGE  →  $full"
-        docker tag  "$KALI_IMAGE" "$full"
-        echo "→ push $full"
-        docker push "$full"
+        _log "tag  $KALI_IMAGE  →  $full"
+        _run docker tag  "$KALI_IMAGE" "$full"
+        _log "push $full"
+        _run docker push "$full"
     done < <(ghcr_tags)
+    _log "✔ push complete"
 }
 
 cmd_pull() {
     cmd_login || return 1
+    _step "PULL ← ${GHCR_REPO}"
     local first=""
     while IFS= read -r tag; do
         local full="${GHCR_REPO}:${tag}"
-        echo "→ pull $full"
-        docker pull "$full"
+        _log "pull $full"
+        _run docker pull "$full"
         [[ -z "$first" ]] && first="$full"
     done < <(ghcr_tags)
-    [[ -n "$first" ]] && docker tag "$first" "$KALI_IMAGE"
+    [[ -n "$first" ]] && _run docker tag "$first" "$KALI_IMAGE"
+    _log "✔ pull complete; local tag = $KALI_IMAGE"
 }
 
 cmd_ship() { cmd_build && cmd_push; }
+
+# ─── scan actions ─────────────────────────────────────────────────────────
+SCANS_JSON="$HERE/scans.json"
+TARGETS_JSON="$HERE/targets.json"
+
+_default_budget() { echo "${1:-600}"; }
+
+cmd_scan_local() {
+    local preset="${1:-local-quick}" budget; budget="$(_default_budget "${2:-}")"
+    [[ -r "$SCANS_JSON"   ]] || { echo "missing $SCANS_JSON";   return 1; }
+    [[ -r "$TARGETS_JSON" ]] || { echo "missing $TARGETS_JSON"; return 1; }
+    ensure_data_dirs
+    "${DC[@]}" --profile scan-local run --rm scanner-local \
+        --preset "$preset" --budget "$budget"
+}
+
+cmd_scan_network() {
+    local target="${1:-}" preset="${2:-network-quick}" budget; budget="$(_default_budget "${3:-}")"
+    [[ -n "$target" ]] || { echo "usage: scan network <target> [preset] [budget]"; return 2; }
+    [[ -r "$SCANS_JSON"   ]] || { echo "missing $SCANS_JSON";   return 1; }
+    [[ -r "$TARGETS_JSON" ]] || { echo "missing $TARGETS_JSON"; return 1; }
+    ensure_data_dirs
+    "${DC[@]}" --profile scan-network run --rm scanner-network \
+        --preset "$preset" --target "$target" --budget "$budget"
+}
+
+cmd_scan_all() {
+    local target="${1:-}" budget; budget="$(_default_budget "${2:-}")"
+    [[ -n "$target" ]] || { echo "usage: scan all <target> [budget]"; return 2; }
+    cmd_scan_local   "local-full"   "$budget" || return $?
+    cmd_scan_network "$target" "network-full" "$budget"
+}
+
+cmd_scan_list() {
+    jq -r '
+      "── Tools ──",        (.tools      | keys[]            | "  " + .),
+      "", "── Categories ──", (.categories | to_entries[]      | "  [\(.value.domain)] \(.key)  →  \(.value.tools|join(", "))"),
+      "", "── Presets ──",    (.presets    | to_entries[]      | "  \(.key)  →  \(.value|join(", "))")
+    ' "$SCANS_JSON"
+}
+
+cmd_scan_report() {
+    local ts="${1:-}"
+    [[ -n "$ts" ]] || { echo "usage: scan report <timestamp-dir>"; return 2; }
+    local m="$HERE/data/loot/$ts/manifest.json"
+    [[ -r "$m" ]] || { echo "no manifest at $m"; return 1; }
+    "$HERE/scripts/reporter.sh" "$m"
+}
+
+cmd_scan_test() {
+    local fail=0
+    echo -n "[scan-test 1/4] scans.json valid JSON ............ "
+    jq empty "$SCANS_JSON" 2>/dev/null && echo OK || { echo FAIL; fail=1; }
+
+    echo -n "[scan-test 2/4] every preset references valid cats . "
+    if jq -e '
+        [.presets | to_entries[].value[]] | unique
+        | map(. as $c | if (.|type=="string") and ($c | IN($c) ) then . else . end)
+      ' "$SCANS_JSON" >/dev/null 2>&1 && \
+       jq -e '
+         . as $root |
+         all(.presets[][];     . as $c | $root.categories | has($c))    and
+         all(.categories[].tools[]; . as $t | $root.tools | has($t))
+       ' "$SCANS_JSON" >/dev/null; then
+        echo OK
+    else echo FAIL; fail=1; fi
+
+    echo -n "[scan-test 3/4] targets.json valid JSON .......... "
+    jq empty "$TARGETS_JSON" 2>/dev/null && echo OK || { echo FAIL; fail=1; }
+
+    echo -n "[scan-test 4/4] dry run preset 'test' locally ..... "
+    if cmd_scan_local test 60 >/tmp/.scan-test.log 2>&1 && \
+       ls "$HERE"/data/loot/*/manifest.json >/dev/null 2>&1; then
+        echo OK
+    else
+        echo "FAIL (see /tmp/.scan-test.log)"; fail=1
+    fi
+    return "$fail"
+}
+
+cmd_scan() {
+    local sub="${1:-}"; shift || true
+    case "$sub" in
+        local)    cmd_scan_local    "$@" ;;
+        network)  cmd_scan_network  "$@" ;;
+        all)      cmd_scan_all      "$@" ;;
+        list)     cmd_scan_list          ;;
+        report)   cmd_scan_report   "$@" ;;
+        test)     cmd_scan_test          ;;
+        ""|help)  echo "scan: local|network|all|list|report|test" ;;
+        *)        echo "unknown scan sub: $sub"; return 2 ;;
+    esac
+}
 
 cmd_clean() {
     "${DC[@]}" --profile cli --profile gui down -v 2>/dev/null || true
@@ -223,6 +354,7 @@ case "${1:-}" in
     push)    cmd_push    ;;
     pull)    cmd_pull    ;;
     ship)    cmd_ship    ;;
+    scan)    shift; cmd_scan "$@" ;;
     test)    cmd_test    ;;
     clean)   cmd_clean   ;;
     ""|help|-h|--help)

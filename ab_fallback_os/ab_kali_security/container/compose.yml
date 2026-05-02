@@ -2,7 +2,7 @@
 # Network: host (rules: install.json .container.network_mode = "host").
 # Both services share the same image; entrypoint dispatches on mode arg.
 x-kali-common: &kali-common
-  image: ${KALI_IMAGE:-kali-fallback:full}
+  image: ${KALI_IMAGE:-kali-linux:full}
   hostname: ${KALI_HOSTNAME:-kali}
   network_mode: host
   extra_hosts:
@@ -31,7 +31,7 @@ x-kali-common: &kali-common
 services:
   kali-cli:
     <<: *kali-common
-    container_name: kali-fallback-cli
+    container_name: kali-linux-cli
     profiles: ["cli"]
     stdin_open: true
     tty: true
@@ -39,6 +39,55 @@ services:
 
   kali-gui:
     <<: *kali-common
-    container_name: kali-fallback-gui
+    container_name: kali-linux-gui
     profiles: ["gui"]
     command: ["gui"]
+
+  # ── Scanner: NETWORK profile ─────────────────────────────────────────────
+  # Runs as kali user. No host bind-mount. Auth gate via targets.json.
+  scanner-network:
+    <<: *kali-common
+    container_name: kali-scanner-network
+    profiles: ["scan-network"]
+    restart: "no"
+    entrypoint: ["/usr/local/bin/scanner.sh"]
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      LANG: ${LANG:-en_US.UTF-8}
+      KALI_INSTALL_JSON: /install.json
+      VERBOSE: ${VERBOSE:-0}
+      QUIET:   ${QUIET:-0}
+    volumes:
+      - ./install.json:/install.json:ro
+      - ./scans.json:/scans.json:ro
+      - ./targets.json:/targets.json:ro
+      - ./scripts/scanner.sh:/usr/local/bin/scanner.sh:ro
+      - ./scripts/reporter.sh:/usr/local/bin/reporter.sh:ro
+      - ./data/home:/home/kali
+      - ./data/loot:/loot
+
+  # ── Scanner: LOCAL profile ───────────────────────────────────────────────
+  # Runs as ROOT. Read-only host filesystem at /host. Audits THIS machine.
+  scanner-local:
+    <<: *kali-common
+    container_name: kali-scanner-local
+    profiles: ["scan-local"]
+    restart: "no"
+    user: "0:0"
+    pid: host
+    entrypoint: ["/usr/local/bin/scanner.sh"]
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      LANG: ${LANG:-en_US.UTF-8}
+      KALI_INSTALL_JSON: /install.json
+      FSROOT: /host
+      VERBOSE: ${VERBOSE:-0}
+      QUIET:   ${QUIET:-0}
+    volumes:
+      - ./install.json:/install.json:ro
+      - ./scans.json:/scans.json:ro
+      - ./targets.json:/targets.json:ro
+      - ./scripts/scanner.sh:/usr/local/bin/scanner.sh:ro
+      - ./scripts/reporter.sh:/usr/local/bin/reporter.sh:ro
+      - ./data/loot:/loot
+      - /:/host:ro

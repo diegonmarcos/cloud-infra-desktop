@@ -1,0 +1,73 @@
+{
+  "schema": "scan-run v1",
+  "timestamp": "20260501T173645Z",
+  "preset": "local-quick",
+  "target": "",
+  "budget_s": 120,
+  "fsroot": "/host",
+  "jobs": [
+    {
+      "tool": "uname",
+      "category": "system",
+      "domain": "local",
+      "out_dir": "/loot/20260501T173645Z/local/system/uname",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "lsb-release",
+      "category": "system",
+      "domain": "local",
+      "out_dir": "/loot/20260501T173645Z/local/system/lsb-release",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "ss-listen",
+      "category": "net-state",
+      "domain": "local",
+      "out_dir": "/loot/20260501T173645Z/local/net-state/ss-listen",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "ip-addr",
+      "category": "net-state",
+      "domain": "local",
+      "out_dir": "/loot/20260501T173645Z/local/net-state/ip-addr",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "ip-route",
+      "category": "net-state",
+      "domain": "local",
+      "out_dir": "/loot/20260501T173645Z/local/net-state/ip-route",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "iptables-save",
+      "category": "net-state",
+      "domain": "local",
+      "out_dir": "/loot/20260501T173645Z/local/net-state/iptables-save",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "ps-aux",
+      "category": "procs",
+      "domain": "local",
+      "out_dir": "/loot/20260501T173645Z/local/procs/ps-aux",
+      "exit_code": 0,
+      "duration_s": 1,
+      "ignored": false
+    }
+  ]
+}
