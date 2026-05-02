@@ -1,0 +1,226 @@
+{
+  "schema": "scan-run v1",
+  "timestamp": "20260502T154845Z",
+  "preset": "fired-self",
+  "target": "",
+  "budget_s": 2400,
+  "fsroot": "/host",
+  "jobs": [
+    {
+      "tool": "iw-survey",
+      "category": "wifi",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/wifi/iw-survey",
+      "exit_code": 0,
+      "duration_s": 2,
+      "ignored": false
+    },
+    {
+      "tool": "iw-survey",
+      "category": "tier1",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier1/iw-survey",
+      "exit_code": 0,
+      "duration_s": 2,
+      "ignored": false
+    },
+    {
+      "tool": "sshd-config",
+      "category": "tier1",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier1/sshd-config",
+      "exit_code": 1,
+      "duration_s": 0,
+      "ignored": true
+    },
+    {
+      "tool": "shadow-perms",
+      "category": "tier1",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier1/shadow-perms",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "ss-listen",
+      "category": "tier1",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier1/ss-listen",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "kernel-version",
+      "category": "tier1",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier1/kernel-version",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "nmap-localhost-vuln",
+      "category": "tier2",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier2/nmap-localhost-vuln",
+      "exit_code": 0,
+      "duration_s": 12,
+      "ignored": false
+    },
+    {
+      "tool": "linux-exploit-suggester",
+      "category": "tier2",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier2/linux-exploit-suggester",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "searchsploit-kernel",
+      "category": "tier2",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier2/searchsploit-kernel",
+      "exit_code": 0,
+      "duration_s": 1,
+      "ignored": false
+    },
+    {
+      "tool": "kernel-mitigations",
+      "category": "tier2",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier2/kernel-mitigations",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "linpeas-quick",
+      "category": "tier3",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier3/linpeas-quick",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "chkrootkit",
+      "category": "tier3",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier3/chkrootkit",
+      "exit_code": 0,
+      "duration_s": 2,
+      "ignored": false
+    },
+    {
+      "tool": "pspy-snapshot",
+      "category": "tier3",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier3/pspy-snapshot",
+      "exit_code": 0,
+      "duration_s": 13,
+      "ignored": false
+    },
+    {
+      "tool": "loaded-modules",
+      "category": "tier3",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier3/loaded-modules",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "trivy-host",
+      "category": "tier3",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier3/trivy-host",
+      "exit_code": 1,
+      "duration_s": 127,
+      "ignored": true
+    },
+    {
+      "tool": "docker-escape-check",
+      "category": "tier4",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier4/docker-escape-check",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "kernel-mitigations",
+      "category": "tier4",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier4/kernel-mitigations",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "loaded-modules",
+      "category": "tier4",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/tier4/loaded-modules",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "nuclei-localhost",
+      "category": "exploit-self",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/exploit-self/nuclei-localhost",
+      "exit_code": 0,
+      "duration_s": 65,
+      "ignored": false
+    },
+    {
+      "tool": "nikto-localhost",
+      "category": "exploit-self",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/exploit-self/nikto-localhost",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "msf-check-localhost",
+      "category": "exploit-self",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/exploit-self/msf-check-localhost",
+      "exit_code": 0,
+      "duration_s": 11,
+      "ignored": false
+    },
+    {
+      "tool": "linpeas-full-fired",
+      "category": "exploit-self",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/exploit-self/linpeas-full-fired",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "lynis-full",
+      "category": "exploit-self",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/exploit-self/lynis-full",
+      "exit_code": 0,
+      "duration_s": 121,
+      "ignored": false
+    },
+    {
+      "tool": "rkhunter-full",
+      "category": "exploit-self",
+      "domain": "local",
+      "out_dir": "/loot/20260502T154845Z/local/exploit-self/rkhunter-full",
+      "exit_code": 1,
+      "duration_s": 111,
+      "ignored": true
+    }
+  ]
+}

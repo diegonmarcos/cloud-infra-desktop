@@ -38,25 +38,31 @@ done
 jq -e --arg p "$preset" '.presets[$p]' "$SCANS" >/dev/null \
     || { echo "ERROR: preset '$preset' not in $SCANS" >&2; exit 2; }
 
-# ─── authorization gate ──────────────────────────────────────────────────────
-authorize_target() {
-    local t="$1" host="$1"
-    # Strip user@ scheme://, port :NNN, paths
+# ─── authorization gate (v2: per-block exploitation policy) ──────────────────
+# Returns the exploitation policy ("allowed" | "recon-only") for a target,
+# or empty string if the target is not in any authorized block.
+classify_target() {
+    local host="$1"
     host="${host##*@}"; host="${host%%/*}"; host="${host##*://}"; host="${host%%:*}"
 
-    # Hostname (literal or wildcard)
-    while IFS= read -r pat; do
-        if [[ "$pat" == "$host" ]]; then return 0; fi
-        if [[ "$pat" == \*.* ]] && [[ "$host" == ${pat#\*.} || "$host" == *.${pat#\*.} ]]; then
-            return 0
-        fi
-    done < <(jq -r '.hostnames[]?' "$TARGETS")
+    local block
+    for block in self_assets external_recon_only; do
+        local exploit; exploit="$(jq -r --arg b "$block" '.[$b].exploitation // empty' "$TARGETS")"
+        [[ -z "$exploit" ]] && continue
 
-    # IP / CIDR (loopback + private)
-    if [[ "$host" =~ ^[0-9a-fA-F:.]+(/[0-9]+)?$ ]]; then
-        local cidrs; cidrs="$(jq -r '.loopback[]?,.private_cidr[]?' "$TARGETS")"
-        if command -v python3 >/dev/null && [[ -n "$cidrs" ]]; then
-            python3 -c '
+        # hostnames (literal + *.wildcard)
+        while IFS= read -r pat; do
+            if [[ "$pat" == "$host" ]]; then echo "$exploit"; return 0; fi
+            if [[ "$pat" == \*.* ]] && [[ "$host" == "${pat#\*.}" || "$host" == *."${pat#\*.}" ]]; then
+                echo "$exploit"; return 0
+            fi
+        done < <(jq -r --arg b "$block" '.[$b].hostnames[]?' "$TARGETS")
+
+        # CIDR (loopback + private)
+        if [[ "$host" =~ ^[0-9a-fA-F:.]+(/[0-9]+)?$ ]]; then
+            local cidrs; cidrs="$(jq -r --arg b "$block" '.[$b].loopback[]?,.[$b].private_cidr[]?' "$TARGETS")"
+            if command -v python3 >/dev/null && [[ -n "$cidrs" ]]; then
+                if python3 -c '
 import ipaddress, sys
 ip = sys.argv[1].split("/")[0]
 try:
@@ -65,25 +71,27 @@ except ValueError:
     sys.exit(1)
 for cidr in sys.argv[2].splitlines():
     cidr = cidr.strip()
-    if not cidr:
-        continue
+    if not cidr: continue
     try:
         if addr in ipaddress.ip_network(cidr, strict=False):
             sys.exit(0)
-    except ValueError:
-        continue
+    except ValueError: continue
 sys.exit(1)
-' "$host" "$cidrs" && return 0
+' "$host" "$cidrs"; then echo "$exploit"; return 0; fi
+            fi
         fi
-    fi
-
+    done
     return 1
 }
 
+# Default policy when running a local audit with no --target: implicit self.
+EXPLOIT_POLICY="allowed"
 if [[ -n "$target" ]]; then
-    authorize_target "$target" \
+    EXPLOIT_POLICY="$(classify_target "$target")" \
         || { echo "REFUSED: '$target' is not authorized in $TARGETS" >&2; exit 3; }
-    log "target '$target' authorized"
+    log "target '$target' authorized — exploitation=$EXPLOIT_POLICY"
+else
+    log "local-host audit (no target) — exploitation=allowed (self)"
 fi
 
 # ─── prepare run dir ─────────────────────────────────────────────────────────
@@ -116,6 +124,18 @@ for cat in $(jq -r --arg p "$preset" '.presets[$p][]' "$SCANS"); do
         timeout_s="$( jq -r --arg t "$tool" '.tools[$t].timeout_s // (.defaults.timeout_s)'   "$SCANS")"
         ignore_err="$(jq -r --arg t "$tool" '.tools[$t].ignore_errors // (.defaults.ignore_errors)' "$SCANS")"
         stdout_to="$( jq -r --arg t "$tool" '.tools[$t].stdout_to // ""'                      "$SCANS")"
+        tool_class="$(jq -r --arg t "$tool" '.tools[$t].category // "recon"'                  "$SCANS")"
+
+        # Exploit-gate: skip exploit tools if scope is recon-only.
+        if [[ "$tool_class" == "exploit" && "$EXPLOIT_POLICY" != "allowed" ]]; then
+            log "[$domain/$cat] $tool — REFUSED (category=exploit, target policy=$EXPLOIT_POLICY)"
+            job="$(jq -n --arg tool "$tool" --arg cat "$cat" --arg dom "$domain" \
+                         --arg out "" --argjson rc 0 --argjson dur 0 \
+                         --arg note "skipped: exploitation not allowed for this target" \
+                         '{tool:$tool,category:$cat,domain:$dom,out_dir:$out,exit_code:$rc,duration_s:$dur,ignored:false,skipped:true,skip_reason:$note}')"
+            jq --argjson j "$job" '.jobs += [$j]' "$manifest" > "$manifest.tmp" && mv "$manifest.tmp" "$manifest"
+            continue
+        fi
 
         if [[ "$domain" == "network" ]]; then
             outdir="$RUN/network/$target_dir/$cat/$tool"
@@ -167,5 +187,12 @@ done
 if command -v reporter.sh >/dev/null 2>&1; then
     reporter.sh "$manifest" || true
 fi
+
+# ─── safety analyzer (post-process for safety/red-team presets) ─────────────
+case "$preset" in
+    safety-report|red-team|tier1-quick|tier2-junior|tier3-senior|tier4-expert|fired-self)
+        command -v safety-analyzer.sh >/dev/null 2>&1 && safety-analyzer.sh "$manifest" || true
+        ;;
+esac
 
 log "DONE — loot at $RUN"

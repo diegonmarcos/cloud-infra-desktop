@@ -1,0 +1,190 @@
+{
+  "schema": "scan-run v1",
+  "timestamp": "20260502T152441Z",
+  "preset": "safety-report",
+  "target": "",
+  "budget_s": 600,
+  "fsroot": "/host",
+  "jobs": [
+    {
+      "tool": "uname",
+      "category": "system",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/system/uname",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "lsb-release",
+      "category": "system",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/system/lsb-release",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "passwd-host",
+      "category": "users",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/users/passwd-host",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "sshd-config",
+      "category": "users",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/users/sshd-config",
+      "exit_code": 1,
+      "duration_s": 0,
+      "ignored": true
+    },
+    {
+      "tool": "sudoers",
+      "category": "users",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/users/sudoers",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "shadow-perms",
+      "category": "users",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/users/shadow-perms",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "ss-listen",
+      "category": "net-state",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/net-state/ss-listen",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "ip-addr",
+      "category": "net-state",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/net-state/ip-addr",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "ip-route",
+      "category": "net-state",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/net-state/ip-route",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "iptables-save",
+      "category": "net-state",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/net-state/iptables-save",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "ps-aux",
+      "category": "procs",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/procs/ps-aux",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "suid",
+      "category": "fs",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/fs/suid",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "sgid",
+      "category": "fs",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/fs/sgid",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "world-writable",
+      "category": "fs",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/fs/world-writable",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "iw-survey",
+      "category": "wifi",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/wifi/iw-survey",
+      "exit_code": 0,
+      "duration_s": 2,
+      "ignored": false
+    },
+    {
+      "tool": "arp-table",
+      "category": "dns-arp",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/dns-arp/arp-table",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "resolv-conf",
+      "category": "dns-arp",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/dns-arp/resolv-conf",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "hosts-file",
+      "category": "dns-arp",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/dns-arp/hosts-file",
+      "exit_code": 1,
+      "duration_s": 0,
+      "ignored": true
+    },
+    {
+      "tool": "who",
+      "category": "auth-state",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/auth-state/who",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "auth-failures",
+      "category": "auth-state",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152441Z/local/auth-state/auth-failures",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    }
+  ]
+}

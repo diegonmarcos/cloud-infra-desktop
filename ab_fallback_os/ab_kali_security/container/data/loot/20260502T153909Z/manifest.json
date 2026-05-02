@@ -1,0 +1,145 @@
+{
+  "schema": "scan-run v1",
+  "timestamp": "20260502T153909Z",
+  "preset": "tier3-senior",
+  "target": "",
+  "budget_s": 1500,
+  "fsroot": "/host",
+  "jobs": [
+    {
+      "tool": "iw-survey",
+      "category": "wifi",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/wifi/iw-survey",
+      "exit_code": 0,
+      "duration_s": 2,
+      "ignored": false
+    },
+    {
+      "tool": "iw-survey",
+      "category": "tier1",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier1/iw-survey",
+      "exit_code": 0,
+      "duration_s": 2,
+      "ignored": false
+    },
+    {
+      "tool": "sshd-config",
+      "category": "tier1",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier1/sshd-config",
+      "exit_code": 1,
+      "duration_s": 0,
+      "ignored": true
+    },
+    {
+      "tool": "shadow-perms",
+      "category": "tier1",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier1/shadow-perms",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "ss-listen",
+      "category": "tier1",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier1/ss-listen",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "kernel-version",
+      "category": "tier1",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier1/kernel-version",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "nmap-localhost-vuln",
+      "category": "tier2",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier2/nmap-localhost-vuln",
+      "exit_code": 0,
+      "duration_s": 12,
+      "ignored": false
+    },
+    {
+      "tool": "linux-exploit-suggester",
+      "category": "tier2",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier2/linux-exploit-suggester",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "searchsploit-kernel",
+      "category": "tier2",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier2/searchsploit-kernel",
+      "exit_code": 0,
+      "duration_s": 2,
+      "ignored": false
+    },
+    {
+      "tool": "kernel-mitigations",
+      "category": "tier2",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier2/kernel-mitigations",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "linpeas-quick",
+      "category": "tier3",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier3/linpeas-quick",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "chkrootkit",
+      "category": "tier3",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier3/chkrootkit",
+      "exit_code": 0,
+      "duration_s": 2,
+      "ignored": false
+    },
+    {
+      "tool": "pspy-snapshot",
+      "category": "tier3",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier3/pspy-snapshot",
+      "exit_code": 0,
+      "duration_s": 12,
+      "ignored": false
+    },
+    {
+      "tool": "loaded-modules",
+      "category": "tier3",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier3/loaded-modules",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "trivy-host",
+      "category": "tier3",
+      "domain": "local",
+      "out_dir": "/loot/20260502T153909Z/local/tier3/trivy-host",
+      "exit_code": 1,
+      "duration_s": 159,
+      "ignored": true
+    }
+  ]
+}
