@@ -24,6 +24,9 @@ data/loot/**/*.log
 data/loot/**/*.pickle
 data/loot/**/*.pcap
 data/loot/**/*.json
+data/loot/**/*.jsonl
+data/loot/**/*.conf
 # …but unignore the curated summaries:
 !data/loot/**/manifest.json
 !data/loot/**/report.md
+!data/loot/**/safety.md

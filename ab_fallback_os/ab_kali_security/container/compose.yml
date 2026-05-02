@@ -63,6 +63,8 @@ services:
       - ./targets.json:/targets.json:ro
       - ./scripts/scanner.sh:/usr/local/bin/scanner.sh:ro
       - ./scripts/reporter.sh:/usr/local/bin/reporter.sh:ro
+      - ./scripts/survey-wifi.sh:/usr/local/bin/survey-wifi.sh:ro
+      - ./scripts/safety-analyzer.sh:/usr/local/bin/safety-analyzer.sh:ro
       - ./data/home:/home/kali
       - ./data/loot:/loot
 
@@ -89,5 +91,7 @@ services:
       - ./targets.json:/targets.json:ro
       - ./scripts/scanner.sh:/usr/local/bin/scanner.sh:ro
       - ./scripts/reporter.sh:/usr/local/bin/reporter.sh:ro
+      - ./scripts/survey-wifi.sh:/usr/local/bin/survey-wifi.sh:ro
+      - ./scripts/safety-analyzer.sh:/usr/local/bin/safety-analyzer.sh:ro
       - ./data/loot:/loot
       - /:/host:ro

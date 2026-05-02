@@ -1,29 +1,31 @@
 {
-  "schema":  "scan-authorization v1",
+  "schema":  "scan-authorization v2",
   "owner":   "Diego Nepomuceno Marcos <me@diegonmarcos.com>",
   "scope":   "Self-hosted infrastructure and lab subnets only.",
   "expires": "2027-12-31T23:59:59Z",
 
   "_doc": {
-    "patterns_loopback":  "Anything that resolves to/within these CIDRs.",
-    "patterns_hostname":  "Exact match OR subdomain match if entry starts with '*.'.",
-    "edit_carefully":     "Adding a target = legal authorization. Lab/own assets only."
+    "self_assets":         "Targets the OWNER controls — laptop, own VMs, own domains, lab LAN. EXPLOITATION ALLOWED (active vuln scans, exploit modules, dictionary attacks against own assets, etc.).",
+    "external_recon_only": "Third-party assets the owner has NO authorization to attack. Tools tagged category=exploit will be REFUSED. Recon (whois, dns, headers) may proceed.",
+    "engine_rule":         "scanner.sh resolves target → matches one of the blocks. If tool.category == exploit and matched-block.exploitation != allowed, the tool is skipped with a refusal note in the manifest.",
+    "local_audit_implicit": "Local audits (no --target) run with FSROOT=/host and are implicitly 'self_assets' — exploitation is allowed because the host is the owner's machine."
   },
 
-  "loopback": [ "127.0.0.0/8", "::1/128" ],
+  "self_assets": {
+    "exploitation": "allowed",
+    "loopback":     [ "127.0.0.0/8", "::1/128" ],
+    "private_cidr": [ "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7" ],
+    "hostnames":    [
+      "localhost",
+      "kali",
+      "diegonmarcos.com",
+      "*.diegonmarcos.com",
+      "diegonmarcos.github.io"
+    ]
+  },
 
-  "private_cidr": [
-    "10.0.0.0/8",
-    "172.16.0.0/12",
-    "192.168.0.0/16",
-    "fc00::/7"
-  ],
-
-  "hostnames": [
-    "localhost",
-    "kali",
-    "diegonmarcos.com",
-    "*.diegonmarcos.com",
-    "diegonmarcos.github.io"
-  ]
+  "external_recon_only": {
+    "exploitation": "recon-only",
+    "hostnames":    []
+  }
 }

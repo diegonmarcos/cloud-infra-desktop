@@ -1,0 +1,28 @@
+{
+  "schema": "scan-run v1",
+  "timestamp": "20260502T152440Z",
+  "preset": "test",
+  "target": "",
+  "budget_s": 60,
+  "fsroot": "/host",
+  "jobs": [
+    {
+      "tool": "uname",
+      "category": "system",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152440Z/local/system/uname",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    },
+    {
+      "tool": "lsb-release",
+      "category": "system",
+      "domain": "local",
+      "out_dir": "/loot/20260502T152440Z/local/system/lsb-release",
+      "exit_code": 0,
+      "duration_s": 0,
+      "ignored": false
+    }
+  ]
+}

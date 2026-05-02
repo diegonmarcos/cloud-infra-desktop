@@ -10,6 +10,10 @@
       "%OUT%":     "primary output file path (= OUTDIR/<tool>.<ext>)",
       "%OUTBASE%": "OUTDIR/<tool> (no extension, for nmap -oA etc)",
       "%FSROOT%":  "/ in container, /host in scanner-local profile (RO host mount)"
+    },
+    "category": {
+      "recon":   "Passive observation OR safe banner-grab/port-scan. Always allowed.",
+      "exploit": "Active probe / vuln PoC / dictionary attack. Only runs against targets in self_assets (targets.json), or local-host audits."
     }
   },
 
@@ -30,6 +34,33 @@
     "world-writable":{ "cmd": "find",      "args": ["%FSROOT%","-xdev","-perm","-o+w","-type","f","-not","-path","*/proc/*"], "stdout_to": "ww.txt",       "sudo": true, "ignore_errors": true, "timeout_s": 300 },
     "lynis":         { "cmd": "lynis",     "args": ["audit","system","--quick","--no-colors","--logfile","%OUTDIR%/lynis.log","--report-file","%OUTDIR%/lynis.dat"], "stdout_to": "lynis.stdout", "sudo": true, "timeout_s": 900 },
 
+    "iw-survey":     { "cmd": "/usr/local/bin/survey-wifi.sh", "args": [],                                                "stdout_to": "wifi-survey.txt", "sudo": true, "ignore_errors": true, "timeout_s": 90 },
+    "arp-table":     { "cmd": "ip",        "args": ["-j","neigh"],                                                       "stdout_to": "arp.json",        "ignore_errors": true },
+    "resolv-conf":   { "cmd": "cat",       "args": ["%FSROOT%/etc/resolv.conf"],                                          "stdout_to": "resolv.conf",     "ignore_errors": true },
+    "hosts-file":    { "cmd": "cat",       "args": ["%FSROOT%/etc/hosts"],                                                "stdout_to": "hosts.txt",       "ignore_errors": true },
+    "who":           { "cmd": "who",       "args": ["-a"],                                                                "stdout_to": "who.txt",         "ignore_errors": true },
+    "auth-failures": { "cmd": "bash",      "args": ["-c","grep -hE 'Failed password|Invalid user|authentication failure' %FSROOT%/var/log/auth.log* 2>/dev/null | tail -200"], "stdout_to": "auth-failures.txt", "sudo": true, "ignore_errors": true },
+
+    "kernel-mitigations":   { "cmd": "bash", "args": ["-c","for f in %FSROOT%/sys/devices/system/cpu/vulnerabilities/*; do printf '%s = %s\\n' \"${f##*/}\" \"$(cat \"$f\" 2>/dev/null)\"; done"], "stdout_to": "mitigations.txt", "ignore_errors": true },
+    "kernel-version":       { "cmd": "bash", "args": ["-c","uname -r > %OUTDIR%/kernel.txt; cat %FSROOT%/proc/version 2>/dev/null"],                                                                                                            "stdout_to": "kernel-version.txt", "ignore_errors": true },
+    "loaded-modules":       { "cmd": "lsmod","args": [],                                                                                                                                                                                       "stdout_to": "lsmod.txt", "ignore_errors": true },
+    "docker-escape-check":  { "cmd": "bash", "args": ["-c","echo '## docker socket on host'; ls -la %FSROOT%/var/run/docker.sock 2>&1; echo; echo '## containers running on host'; %FSROOT%/run/current-system/sw/bin/docker ps 2>&1 || docker -H unix://%FSROOT%/var/run/docker.sock ps 2>&1 || true; echo; echo '## privileged containers'; docker -H unix://%FSROOT%/var/run/docker.sock inspect --format '{{.Name}} privileged={{.HostConfig.Privileged}} caps={{.HostConfig.CapAdd}}' $(docker -H unix://%FSROOT%/var/run/docker.sock ps -q) 2>/dev/null || true"], "stdout_to": "docker-escape.txt", "sudo": true, "ignore_errors": true },
+
+    "linux-exploit-suggester": { "cmd": "linux-exploit-suggester","args": ["-k","%FSROOT%/proc/version"],   "stdout_to": "les.txt",       "sudo": true, "ignore_errors": true, "timeout_s": 120 },
+    "searchsploit-kernel":     { "cmd": "bash",                   "args": ["-c","searchsploit -j -t \"linux kernel $(uname -r | cut -d. -f1-2)\" 2>/dev/null"], "stdout_to": "searchsploit.json","ignore_errors": true, "timeout_s": 120 },
+    "linpeas-quick":           { "cmd": "bash",                   "args": ["-c","cd %FSROOT% && linpeas -q -o SY,API,FCV 2>&1"], "stdout_to": "linpeas.txt",  "sudo": true, "ignore_errors": true, "timeout_s": 600 },
+    "pspy-snapshot":           { "cmd": "bash",                   "args": ["-c","timeout 30 pspy -pf -i 2000 2>&1 | head -300 || true"], "stdout_to": "pspy.txt",     "sudo": true, "ignore_errors": true, "timeout_s": 60 },
+    "nmap-localhost-vuln":     { "cmd": "nmap",                   "args": ["-sV","-sC","--script=vulners,smb-vuln-*,http-vuln-*,ssl-cert,ssl-enum-ciphers","-p-","--top-ports","100","-oA","%OUTBASE%","127.0.0.1"], "stdout_to": "nmap-localhost.stdout", "sudo": true, "ignore_errors": true, "timeout_s": 600, "category": "exploit" },
+    "chkrootkit":              { "cmd": "chkrootkit",             "args": ["-q","-r","%FSROOT%"],          "stdout_to": "chkrootkit.txt","sudo": true, "ignore_errors": true, "timeout_s": 600 },
+    "trivy-host":              { "cmd": "trivy",                  "args": ["rootfs","--scanners","vuln","--severity","HIGH,CRITICAL","--quiet","--format","json","--output","%OUTDIR%/trivy.json","%FSROOT%"], "stdout_to": "trivy.stdout", "sudo": true, "ignore_errors": true, "timeout_s": 900 },
+
+    "nuclei-localhost":        { "cmd": "nuclei",                  "args": ["-u","http://127.0.0.1","-severity","high,critical","-silent","-jsonl","-o","%OUTDIR%/nuclei.jsonl","-rate-limit","30","-timeout","10"], "stdout_to": "nuclei.stdout", "sudo": false, "ignore_errors": true, "timeout_s": 600, "category": "exploit" },
+    "nikto-localhost":         { "cmd": "nikto",                   "args": ["-host","127.0.0.1","-output","%OUTDIR%/nikto.json","-Format","json","-maxtime","300s"],                     "stdout_to": "nikto.stdout", "sudo": false, "ignore_errors": true, "timeout_s": 600, "category": "exploit" },
+    "msf-check-localhost":     { "cmd": "bash",                    "args": ["-c","msfconsole -q -x \"db_disconnect; setg RHOSTS 127.0.0.1; setg LHOST 127.0.0.1; auxiliary/scanner/ssh/ssh_version; run; auxiliary/scanner/http/http_version; run; auxiliary/scanner/ssl/openssl_heartbleed; run; exit\" 2>&1 | head -200"], "stdout_to": "msf-check.txt", "sudo": false, "ignore_errors": true, "timeout_s": 600, "category": "exploit" },
+    "linpeas-full-fired":      { "cmd": "bash",                    "args": ["-c","cd %FSROOT% && linpeas -a -o all 2>&1"],                                                              "stdout_to": "linpeas-full.txt","sudo": true, "ignore_errors": true, "timeout_s": 1200, "category": "exploit" },
+    "lynis-full":              { "cmd": "lynis",                   "args": ["audit","system","--no-colors","--logfile","%OUTDIR%/lynis.log","--report-file","%OUTDIR%/lynis.dat"],       "stdout_to": "lynis.stdout","sudo": true, "ignore_errors": true, "timeout_s": 1500, "category": "exploit" },
+    "rkhunter-full":           { "cmd": "rkhunter",                "args": ["--check","--rwo","--skip-keypress","--no-colors","--logfile","%OUTDIR%/rkhunter.log"],                      "stdout_to": "rkhunter.stdout","sudo": true, "ignore_errors": true, "timeout_s": 900, "category": "exploit" },
+
     "whois":         { "cmd": "whois",     "args": ["%TARGET%"],                                                              "stdout_to": "whois.txt",      "ignore_errors": true },
     "dnsrecon":      { "cmd": "dnsrecon",  "args": ["-d","%TARGET%","-t","std","--json","%OUT%"],                              "stdout_to": "dnsrecon.stdout","ignore_errors": true, "timeout_s": 300 },
     "subfinder":     { "cmd": "subfinder", "args": ["-d","%TARGET%","-silent","-o","%OUT%"],                                   "stdout_to": "subfinder.stdout","ignore_errors": true, "timeout_s": 180 },
@@ -47,6 +78,15 @@
     "net-state":   { "domain": "local",   "tools": ["ss-listen","ip-addr","ip-route","iptables-save"] },
     "procs":       { "domain": "local",   "tools": ["ps-aux"] },
     "audit":       { "domain": "local",   "tools": ["lynis"] },
+    "wifi":        { "domain": "local",   "tools": ["iw-survey"] },
+    "dns-arp":     { "domain": "local",   "tools": ["arp-table","resolv-conf","hosts-file"] },
+    "auth-state":  { "domain": "local",   "tools": ["who","auth-failures"] },
+
+    "tier1":       { "domain": "local",   "tools": ["iw-survey","sshd-config","shadow-perms","ss-listen","kernel-version"] },
+    "tier2":       { "domain": "local",   "tools": ["nmap-localhost-vuln","linux-exploit-suggester","searchsploit-kernel","kernel-mitigations"] },
+    "tier3":       { "domain": "local",   "tools": ["linpeas-quick","chkrootkit","pspy-snapshot","loaded-modules","trivy-host"] },
+    "tier4":       { "domain": "local",   "tools": ["docker-escape-check","kernel-mitigations","loaded-modules"] },
+    "exploit-self":{ "domain": "local",   "tools": ["nuclei-localhost","nikto-localhost","msf-check-localhost","linpeas-full-fired","lynis-full","rkhunter-full"] },
 
     "recon":       { "domain": "network", "tools": ["whois","dnsrecon","subfinder"] },
     "ports":       { "domain": "network", "tools": ["nmap-fast"] },
@@ -60,6 +100,13 @@
     "local-full":    ["system","users","net-state","procs","fs","audit"],
     "network-quick": ["recon","ports","tls"],
     "network-full":  ["recon","ports","vuln","tls","web"],
+    "safety-report": ["system","users","net-state","procs","fs","wifi","dns-arp","auth-state"],
+    "red-team":      ["system","users","net-state","procs","fs","wifi","dns-arp","auth-state","tier1","tier2","tier3","tier4"],
+    "tier1-quick":   ["wifi","tier1"],
+    "tier2-junior":  ["wifi","tier1","tier2"],
+    "tier3-senior":  ["wifi","tier1","tier2","tier3"],
+    "tier4-expert":  ["wifi","tier1","tier2","tier3","tier4"],
+    "fired-self":    ["wifi","tier1","tier2","tier3","tier4","exploit-self"],
     "test":          ["system"]
   }
 }
