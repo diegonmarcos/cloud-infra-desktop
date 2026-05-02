@@ -1,4 +1,4 @@
-name: "Ship → Kali fallback (GHCR public)"
+name: "Ship → kali-linux (GHCR public)"
 
 # Builds ab_fallback_os/ab_kali_security/container/ via its build.sh,
 # pushes to ghcr.io/<owner>/kali-linux:{latest,full}, then flips
