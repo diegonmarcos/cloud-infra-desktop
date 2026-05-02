@@ -333,5 +333,8 @@ in
   # PACKAGES + FIREWALL
   # ═══════════════════════════════════════════════════════════════════════════
   environment.systemPackages = [ pkgs.dropbear ];
-  networking.firewall.allowedTCPPorts = [ rescuePort ];
+  # Rescue dropbear (port ${toString rescuePort}) is reachable only via wg0
+  # (configuration_network.nix declares wg0 as trustedInterface, so all
+  # ports are accepted from peers in 10.0.0.0/24). No global TCP opening
+  # — anyone on the local LAN cannot brute-force the rescue daemon.
 }

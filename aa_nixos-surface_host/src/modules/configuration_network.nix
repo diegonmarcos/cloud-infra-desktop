@@ -11,7 +11,10 @@
     networkmanager.enable = lib.mkDefault true;  # ISO disables this
     firewall = {
       enable = lib.mkDefault true;
-      allowedTCPPorts = [ 22 ];  # SSH only
+      # No globally-open ports. SSH (22) is wg0-only via `trustedInterfaces`
+      # below — anyone on the local LAN (hostel WiFi etc) cannot reach sshd.
+      # See also: configuration_system-protection.nix for rescue dropbear (2200).
+      allowedTCPPorts = [];
       trustedInterfaces = [ "wg0" ];  # Allow all traffic on WireGuard mesh
     };
   };
@@ -111,6 +114,9 @@
 
   services.openssh = {
     enable = true;
+    # Don't auto-open port 22 globally; rely on `trustedInterfaces = ["wg0"]`
+    # in networking.firewall above so SSH is wg0-only (LAN cannot reach it).
+    openFirewall = false;
     settings = {
       PasswordAuthentication = true;
       PermitRootLogin = lib.mkDefault "no";  # ISO installer overrides to "yes"
