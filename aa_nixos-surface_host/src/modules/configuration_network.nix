@@ -120,8 +120,32 @@
     settings = {
       PasswordAuthentication = true;
       PermitRootLogin = lib.mkDefault "no";  # ISO installer overrides to "yes"
+      # Lynis SSH-7408 hardening — even though SSH is wg0-only, defense-in-depth
+      # against a compromised wg0 peer or laptop boot in untrusted env.
+      MaxAuthTries        = 3;        # was 6 — cuts brute-force window
+      MaxSessions         = 2;        # was 10 — one user per conn at most
+      ClientAliveCountMax = 2;        # was 3 — drop dead conns sooner
+      LogLevel            = "VERBOSE";# was INFO — better forensic trail
+      X11Forwarding       = false;    # already off; pin it
+      AllowTcpForwarding  = false;    # was yes — no SSH tunneling
+      AllowAgentForwarding = false;   # was yes — prevents agent hijack
+      TCPKeepAlive        = false;    # was yes — use ClientAlive instead
     };
     # Let NixOS generate ephemeral keys to /etc/ssh (tmpfs)
     # Remove hostKeys to use default ephemeral behavior
   };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # KERNEL ATTACK SURFACE (Lynis NETW-3200) — blacklist rare network protocols
+  # ═══════════════════════════════════════════════════════════════════════════
+  # These protocols are loadable kernel modules with their own CVE histories
+  # (e.g. SCTP CVE-2019-8956, TIPC CVE-2022-0435). You almost certainly never
+  # use any of them on a desktop — blacklisting closes the autoload-on-syscall
+  # path that worms can use for kernel-level exploitation.
+  boot.blacklistedKernelModules = [
+    "dccp"   # Datagram Congestion Control Protocol
+    "sctp"   # Stream Control Transmission Protocol
+    "rds"    # Reliable Datagram Sockets
+    "tipc"   # Transparent Inter-Process Communication
+  ];
 }
