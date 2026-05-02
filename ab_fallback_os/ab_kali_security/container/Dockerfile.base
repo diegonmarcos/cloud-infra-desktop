@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# STAGE 1 — heavy package layers only. Output: kali-fallback:base
+# STAGE 1 — heavy package layers only. Output: kali-linux:base
 # Changes here invalidate the multi-GB metapackage layer; treat as immutable
 # unless apt.base / apt.gui_stack / apt.metapackages in install.json change.
 ARG BASE_IMAGE=kalilinux/kali-rolling:latest

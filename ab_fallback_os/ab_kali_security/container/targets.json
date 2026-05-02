@@ -1,0 +1,29 @@
+{
+  "schema":  "scan-authorization v1",
+  "owner":   "Diego Nepomuceno Marcos <me@diegonmarcos.com>",
+  "scope":   "Self-hosted infrastructure and lab subnets only.",
+  "expires": "2027-12-31T23:59:59Z",
+
+  "_doc": {
+    "patterns_loopback":  "Anything that resolves to/within these CIDRs.",
+    "patterns_hostname":  "Exact match OR subdomain match if entry starts with '*.'.",
+    "edit_carefully":     "Adding a target = legal authorization. Lab/own assets only."
+  },
+
+  "loopback": [ "127.0.0.0/8", "::1/128" ],
+
+  "private_cidr": [
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "fc00::/7"
+  ],
+
+  "hostnames": [
+    "localhost",
+    "kali",
+    "diegonmarcos.com",
+    "*.diegonmarcos.com",
+    "diegonmarcos.github.io"
+  ]
+}

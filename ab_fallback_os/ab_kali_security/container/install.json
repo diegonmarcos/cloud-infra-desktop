@@ -9,12 +9,12 @@
     "registry": "docker.io",
     "repo": "kalilinux/kali-rolling",
     "tag": "latest",
-    "local_tag": "kali-fallback:full"
+    "local_tag": "kali-linux:full"
   },
   "ghcr": {
     "registry": "ghcr.io",
     "owner": "diegonmarcos",
-    "name": "kali-fallback",
+    "name": "kali-linux",
     "tags": ["latest", "full"],
     "auth": {
       "username_env": "GHCR_USER",
@@ -24,7 +24,7 @@
     }
   },
   "container": {
-    "name": "kali-fallback",
+    "name": "kali-linux",
     "hostname": "kali",
     "network_mode": "host",
     "restart": "unless-stopped",
