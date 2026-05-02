@@ -8,6 +8,27 @@ let
   # the kdePackages.plasma-workspace-wallpapers derivation directly.
   wallpaperJson = builtins.fromJSON (builtins.readFile ./cloud-data-wallpaper.json);
   wallpaperPath = "${pkgs.kdePackages.plasma-workspace-wallpapers}/share/wallpapers/${wallpaperJson.wallpaper.theme}/contents/images/${wallpaperJson.wallpaper.image}";
+
+  # Unified energy/power policy (cloud-data-power.json). Same SoT consumed by
+  # the host flake (UPower.conf, logind lid + power button, kernel cmdline).
+  pwrJson = builtins.fromJSON (builtins.readFile ./cloud-data-power.json);
+  thr     = pwrJson.thresholds;
+  idleAC  = pwrJson.idle_minutes.ac;
+  idleBat = pwrJson.idle_minutes.battery;
+  banned  = pwrJson.actions.never;
+  pdGuard = name: v:
+    if builtins.elem v banned
+    then throw "plasma.nix: ${name}=${v} is in actions.never (Surface S3 is broken)"
+    else v;
+  # PowerDevil action enum (from daemon/powerdevilenums.h): NoAction=0,
+  # Sleep=1, Hibernate=2, Shutdown=8, LockScreen=32.
+  pdAction = v:
+    if v == "hibernate" then 2
+    else if v == "lock" then 32
+    else if v == "poweroff" then 8
+    else throw "plasma.nix: pdAction(${v}) — unsupported (sleep/suspend banned)";
+  critAction = pdAction (pdGuard "actions.critical" pwrJson.actions.critical);
+  lidAction  = pdAction (pdGuard "events.lid_close" pwrJson.events.lid_close.battery);
 in
 
 {
@@ -103,6 +124,43 @@ in
     ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 --file kscreenlockerrc \
       --group Greeter --group Wallpaper --group org.kde.image --group General \
       --key PreviewImage "$LOCK_IMG"
+  '';
+
+  # PowerDevil [*][SuspendAndShutdown] groups via kwriteconfig6.
+  # plasma-manager's configFile mangles nested-bracket sections (writes them
+  # as [X\x5d\x5bY] which PowerDevil ignores), so we use kwriteconfig6 with
+  # multiple --group flags. Idle auto-hibernate values come from
+  # cloud-data-power.json (idle_minutes.{ac,battery}.hibernate, in minutes).
+  # AC trusts the user (long fail-safe so builds/downloads aren't killed);
+  # Battery defends the work (shorter). [LowBattery] uses the same battery
+  # value (already low → don't add extra delay).
+  home.activation.powerDevilSuspend = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
+    PD_RC="$HOME/.config/powerdevilrc"
+    AC_SEC=${toString (idleAC.hibernate * 60)}
+    BAT_SEC=${toString (idleBat.hibernate * 60)}
+    CRIT_ACT=${toString critAction}
+
+    # Strip stale escaped duplicates plasma-manager may have written.
+    if [ -f "$PD_RC" ]; then
+      ${pkgs.gnused}/bin/sed -i \
+        -e '/^\[AC\\x5d\\x5bSuspendAndShutdown\]$/,/^\[/{/^\[AC\\x5d\\x5bSuspendAndShutdown\]$/d;/^\[/!d}' \
+        -e '/^\[Battery\\x5d\\x5bSuspendAndShutdown\]$/,/^\[/{/^\[Battery\\x5d\\x5bSuspendAndShutdown\]$/d;/^\[/!d}' \
+        -e '/^\[LowBattery\\x5d\\x5bSuspendAndShutdown\]$/,/^\[/{/^\[LowBattery\\x5d\\x5bSuspendAndShutdown\]$/d;/^\[/!d}' \
+        -e '/^\[AC\\x5d\\x5bHandleButtonEvents\]$/,/^\[/{/^\[AC\\x5d\\x5bHandleButtonEvents\]$/d;/^\[/!d}' \
+        -e '/^\[Battery\\x5d\\x5bHandleButtonEvents\]$/,/^\[/{/^\[Battery\\x5d\\x5bHandleButtonEvents\]$/d;/^\[/!d}' \
+        -e '/^\[LowBattery\\x5d\\x5bHandleButtonEvents\]$/,/^\[/{/^\[LowBattery\\x5d\\x5bHandleButtonEvents\]$/d;/^\[/!d}' \
+        "$PD_RC"
+    fi
+
+    KW=${pkgs.kdePackages.kconfig}/bin/kwriteconfig6
+    for src_act in "AC:$AC_SEC" "Battery:$BAT_SEC" "LowBattery:$BAT_SEC"; do
+      src=''${src_act%%:*}
+      sec=''${src_act##*:}
+      "$KW" --file powerdevilrc --group "$src" --group SuspendAndShutdown \
+            --key AutoSuspendAction         "$CRIT_ACT"
+      "$KW" --file powerdevilrc --group "$src" --group SuspendAndShutdown \
+            --key AutoSuspendIdleTimeoutSec "$sec"
+    done
   '';
 
   programs.plasma = {
@@ -509,37 +567,42 @@ in
       };
 
       # ─────────────────────────────────────────────────────────────────
-      # Power Management - Lock on lid close instead of suspend
-      # Surface Pro 8 suspend/resume is broken: surface_hid reprobe fails,
-      # DRM atomic commit errors, and logind marks the session Active=no,
-      # which causes kscreenlocker to silently ignore correct passwords.
+      # Power Management — single-bracket sections only.
+      #
+      # Lid handling: lidSwitch=lock comes from configuration_security.nix
+      # (logind level), which is the path that actually locks the screen.
+      # PowerDevil's [*][HandleButtonEvents] are intentionally NOT declared
+      # here because plasma-manager's configFile escapes nested-bracket
+      # section names ([X][Y] → [X\x5d\x5bY]) which PowerDevil doesn't
+      # read. logind already covers the use case.
+      #
+      # Nested-bracket sections that PowerDevil DOES need (the
+      # [*][SuspendAndShutdown] family) are written via kwriteconfig6 in
+      # home.activation.powerDevilSuspend below.
       # ─────────────────────────────────────────────────────────────────
-      "powerdevilrc"."AC][HandleButtonEvents" = {
-        lidAction = 64;  # Lock Screen
-      };
-      "powerdevilrc"."Battery][HandleButtonEvents" = {
-        lidAction = 64;  # Lock Screen
-      };
-      "powerdevilrc"."LowBattery][HandleButtonEvents" = {
-        lidAction = 64;  # Lock Screen
-      };
-
-      # Critical-battery action: hibernate at 5%, warn at 15%.
-      # Group `BatteryManagement` and key names verified against
-      # PowerDevilGlobalSettings.kcfg (Plasma/6.2). Action enum values
-      # from daemon/powerdevilenums.h: NoAction=0, Sleep=1, Hibernate=2,
-      # Shutdown=8, LockScreen=32. PowerDevil reads BatteryCriticalAction via
-      # `static_cast<PowerButtonAction>(...)` (powerdevilcore.cpp).
+      #
+      # Critical/Low/Warn thresholds + critical action — sourced from
+      # cloud-data-power.json. Same SoT used by the host UPower.conf so
+      # PowerDevil and upowerd act on identical numbers (both Tier 1 — they
+      # share the SAM data path). Action enum from daemon/powerdevilenums.h:
+      # NoAction=0, Sleep=1, Hibernate=2, Shutdown=8, LockScreen=32.
       #
       # Note: this rule depends on upowerd reporting a numeric percentage.
-      # The Surface aggregator (SAM) intermittently returns voltage=0 making
-      # upowerd's percentage NaN, in which case this rule never fires.
-      # Sysfs-direct safety net lives at:
+      # SAM voltage=0 glitches → percentage NaN → this never fires. The
+      # SAM-independent safety net lives at:
       #   aa_nixos-surface_host/src/modules/configuration_system-protection-battery.nix
       "powerdevilrc"."BatteryManagement" = {
-        BatteryCriticalAction = 2;   # Hibernate
-        BatteryCriticalLevel  = 5;
-        BatteryLowLevel       = 15;
+        BatteryCriticalAction = critAction;       # actions.critical (= 2 / Hibernate)
+        BatteryCriticalLevel  = thr.critical_pct; # thresholds.critical_pct
+        BatteryLowLevel       = thr.low_pct;      # thresholds.low_pct
+      };
+
+      # Lock-screen idle (kscreenlocker, not PowerDevil). Timeout is in
+      # MINUTES, applied identically on AC and Battery — security shouldn't
+      # depend on power source. Sourced from idle_minutes.battery.lock.
+      "kscreenlockerrc"."Daemon" = {
+        Autolock = true;
+        Timeout  = idleBat.lock;
       };
 
       # Keyboard layouts - Spanish (default), British, Portuguese, German

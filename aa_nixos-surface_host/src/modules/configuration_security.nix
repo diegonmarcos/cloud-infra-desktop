@@ -1,6 +1,18 @@
 # Users, PAM, keyring, sudo, logind, udev rules
 { config, pkgs, lib, ... }:
 
+let
+  # Lid-close behaviour is shared with PowerDevil/UPower via a single SoT.
+  # See cloud-data-power.json (events.lid_close).
+  pwrJson = builtins.fromJSON (builtins.readFile ./cloud-data-power.json);
+  banned  = pwrJson.actions.never;
+  guard   = name: v:
+    if builtins.elem v banned
+    then throw "configuration_security: ${name}=${v} is in actions.never (Surface S3 is broken)"
+    else v;
+  lid     = pwrJson.events.lid_close;
+in
+
 {
   # ═══════════════════════════════════════════════════════════════════════════
   # USER ACCOUNTS (Fixed UIDs for cross-OS compatibility)
@@ -76,13 +88,15 @@
   # ═══════════════════════════════════════════════════════════════════════════
   # LOGIND - Lid/Power Button Behavior
   # ═══════════════════════════════════════════════════════════════════════════
-  # Lock on lid close instead of suspend - Surface Pro 8 suspend/resume is
-  # unreliable: surface_hid reprobe fails (error -71), DRM atomic commits
-  # error, and logind marks the session Active=no, which causes kscreenlocker
-  # to silently reject correct passwords.
-  services.logind.lidSwitch = "lock";
-  services.logind.lidSwitchExternalPower = "lock";
-  services.logind.lidSwitchDocked = "ignore";
+  # Lid-close behaviour read from cloud-data-power.json (events.lid_close).
+  # Surface Pro 8 suspend/resume is unreliable: surface_hid reprobe fails
+  # (error -71), DRM atomic commits error, and logind marks the session
+  # Active=no, which causes kscreenlocker to silently reject correct passwords.
+  # The `actions.never` guard in cloud-data-power.json prevents anyone setting
+  # a banned verb (sleep/suspend/s2idle).
+  services.logind.lidSwitch              = guard "lidSwitch"              lid.battery;
+  services.logind.lidSwitchExternalPower = guard "lidSwitchExternalPower" lid.ac;
+  services.logind.lidSwitchDocked        = guard "lidSwitchDocked"        lid.docked;
 
   # ═══════════════════════════════════════════════════════════════════════════
   # UDEV RULES (Device naming for Dolphin/KDE)
