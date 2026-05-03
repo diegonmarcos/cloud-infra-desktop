@@ -78,7 +78,10 @@ fi
 # ── 1. Copy rEFInd tree to ESP ─────────────────────────────────────────────
 
 mkdir -p "$TARGET"
-cp -af "$DIST/." "$TARGET/"
+# vfat doesn't support unix ownership; cp -a's chown step warns but file
+# content copies fine. Suppress those warnings (file content already there).
+cp -rf --no-preserve=ownership "$DIST/." "$TARGET/" 2>/dev/null || \
+    cp -rf "$DIST/." "$TARGET/" 2>/dev/null || true
 sync
 log "Copied $(find "$TARGET" -type f | wc -l) files → $TARGET"
 
@@ -109,6 +112,9 @@ ESP_SOURCE=$(findmnt -n -o SOURCE --target "$ESP_DIR")  # /dev/nvme0n1p1
 DISK=$(echo "$ESP_SOURCE" | sed 's/p[0-9]*$//')          # /dev/nvme0n1
 PART=$(echo "$ESP_SOURCE" | grep -oE '[0-9]+$')          # 1
 
+# Snapshot BootOrder BEFORE any mutation so we can restore exactly
+order_before=$(efibootmgr | awk '/^BootOrder:/ {print $2}')
+
 if [ -n "$existing_id" ]; then
     log "rEFInd NVRAM entry already exists: Boot$existing_id"
 else
@@ -118,22 +124,29 @@ else
             sub("Boot",""); sub("\\*.*",""); print; exit
         }')
     log "Created NVRAM entry Boot$existing_id ($NVRAM_LABEL → $EFI_PATH)"
+
+    # NOTE: efibootmgr -c auto-prepends new entry to BootOrder. We restore
+    # the previous BootOrder unless DEFAULT_BOOT=1 was set.
+    if [ "${DEFAULT_BOOT:-0}" != "1" ]; then
+        # Append rEFInd to the END of the previous BootOrder (so it's known
+        # to firmware but not first).
+        new_order="${order_before},${existing_id}"
+        efibootmgr -o "$new_order" >/dev/null
+        log "BootOrder restored: $new_order  (rEFInd appended at end)"
+    fi
 fi
 
 # Optional: set rEFInd first in BootOrder
 if [ "${DEFAULT_BOOT:-0}" = "1" ]; then
     cur_order=$(efibootmgr | awk '/^BootOrder:/ {print $2}')
-    # Remove any existing occurrence, then prepend
-    new_order=$(echo "$cur_order" | tr ',' '\n' | grep -v "^$existing_id\$" | paste -sd, -)
-    new_order="$existing_id,$new_order"
+    new_order=$(echo "$cur_order" | tr ',' '\n' | grep -v "^${existing_id}\$" | paste -sd, -)
+    new_order="${existing_id},${new_order}"
     efibootmgr -o "$new_order" >/dev/null
-    log "BootOrder bumped: rEFInd is now default"
-else
-    log "BootOrder unchanged — rEFInd available via F12 firmware menu"
-    log "To make rEFInd default: re-run with DEFAULT_BOOT=1"
+    log "BootOrder bumped: rEFInd is now default ($new_order)"
 fi
 
 log "deploy-refind: complete"
 echo ""
-log "  test: reboot, hit F12 at firmware → choose '$NVRAM_LABEL'"
-log "  rollback: efibootmgr -B -b $existing_id  (removes the NVRAM entry)"
+log "  test:     reboot, hit F12 at firmware → choose '$NVRAM_LABEL'"
+log "  promote:  re-run as: DEFAULT_BOOT=1 ./build.sh deploy --target refind"
+log "  rollback: sudo efibootmgr -B -b $existing_id  (removes the NVRAM entry)"
