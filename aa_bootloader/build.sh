@@ -19,10 +19,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # shellcheck source=gen/lib/log.sh
-. "$SCRIPT_DIR/gen/lib/log.sh"
+. "$SCRIPT_DIR/src/gen/lib/log.sh"
 
 # shellcheck source=gen/lib/json.sh
-. "$SCRIPT_DIR/gen/lib/json.sh"
+. "$SCRIPT_DIR/src/gen/lib/json.sh"
 
 BOOT_JSON="$SCRIPT_DIR/src/boot.json"
 SCHEMA="$SCRIPT_DIR/src/boot.schema.json"
@@ -33,11 +33,11 @@ SCHEMA="$SCRIPT_DIR/src/boot.schema.json"
 
 cmd_generate() {
     header "generate — src/ → dist/"
-    sh "$SCRIPT_DIR/gen/render-nixos-adapter.sh"
-    sh "$SCRIPT_DIR/gen/render-grub-cfg-preview.sh"
-    sh "$SCRIPT_DIR/gen/render-grub-cfg.sh"
-    sh "$SCRIPT_DIR/gen/render-debian-adapter.sh"
-    sh "$SCRIPT_DIR/gen/render-nvram.sh"
+    sh "$SCRIPT_DIR/src/gen/render-nixos-adapter.sh"
+    sh "$SCRIPT_DIR/src/gen/render-grub-cfg-preview.sh"
+    sh "$SCRIPT_DIR/src/gen/render-grub-cfg.sh"
+    sh "$SCRIPT_DIR/src/gen/render-debian-adapter.sh"
+    sh "$SCRIPT_DIR/src/gen/render-nvram.sh"
 
     # Write a MANIFEST that summarizes dist/ contents
     cat > "$SCRIPT_DIR/dist/MANIFEST.txt" <<EOF
