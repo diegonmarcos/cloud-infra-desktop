@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # shellcheck source=../gen/lib/log.sh
-. "$ROOT_DIR/gen/lib/log.sh"
+. "$ROOT_DIR/src/gen/lib/log.sh"
 
 warn "deploy-debian.sh is a Phase 2 stub — no actions performed."
 warn "When implemented, will:"

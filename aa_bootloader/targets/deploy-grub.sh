@@ -28,7 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # shellcheck source=../gen/lib/log.sh
-. "$ROOT_DIR/gen/lib/log.sh"
+. "$ROOT_DIR/src/gen/lib/log.sh"
 
 BOOT_JSON="$ROOT_DIR/src/boot.json"
 EXPECTED_BOOT_UUID=$(jq -r '.uefi.boot.uuid' "$BOOT_JSON")

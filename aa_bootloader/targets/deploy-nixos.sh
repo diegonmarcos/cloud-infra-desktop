@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # shellcheck source=../gen/lib/log.sh
-. "$ROOT_DIR/gen/lib/log.sh"
+. "$ROOT_DIR/src/gen/lib/log.sh"
 
 # ── Configuration ─────────────────────────────────────────────────────────
 
