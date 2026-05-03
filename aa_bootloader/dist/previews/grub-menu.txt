@@ -1,5 +1,5 @@
 # GRUB MENU STRUCTURE (preview from boot.json)
-# GENERATED 2026-05-03 22:01:18
+# GENERATED 2026-05-03 22:18:35
 
 ── UI ─────────────────────────────────────────────
 timeout:           5
@@ -8,7 +8,6 @@ gfxmode:           auto
 background_color:  #2F302F
 
 ── ENTRIES ────────────────────────────────────────
-[arch] Arch OS
 [kali] Kali Linux
 [windows] Windows Boot Manager
 [usb] Boot from USB (UEFI)
