@@ -101,5 +101,10 @@
 
     # Minimal boot (faster)
     boot.plymouth.enable = lib.mkForce false;
+
+    # CRITICAL: Do NOT resume from hibernation in rescue mode!
+    # Remove resume= and resume_offset= so we get a fresh boot.
+    # This allows escaping hibernate loops and fixing broken configs.
+    boot.kernelParams = lib.mkForce [ "mem_sleep_default=deep" "psi=1" "loglevel=4" "audit=1" ];
   };
 }

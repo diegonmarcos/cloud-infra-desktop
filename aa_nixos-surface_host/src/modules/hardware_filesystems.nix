@@ -100,19 +100,7 @@
     options = [ "rw" "noatime" "nofail" ];
   };
 
-  # 8GB swap file on pool (already exists, don't specify size)
-  swapDevices = [{
-    device = "/mnt/shared/.swapfile";
-  }];
-
-  # Hibernation resume: LUKS partition → btrfs swapfile
-  # Offset from: sudo btrfs inspect-internal map-swapfile /mnt/shared/.swapfile
-  #
-  # NOTE: `resume=` must be in `boot.kernelParams` explicitly. nixpkgs only
-  # auto-injects `resume=${boot.resumeDevice}` when `boot.initrd.systemd.enable`
-  # is true (see nixos/modules/system/boot/systemd/initrd.nix:440). We use the
-  # legacy initrd, so the auto-injection never fires and the kernel can't find
-  # the hibernation image on resume without this explicit entry.
-  boot.resumeDevice = "/dev/mapper/pool";
-  boot.kernelParams = [ "resume=/dev/mapper/pool" "resume_offset=4954822" ];
+  # NOTE: swapDevices, boot.resumeDevice, and the hibernate-related
+  # boot.kernelParams (resume=, resume_offset=) moved to ./swap_hibernate.nix
+  # which reads aa_bootloader/src/boot.json as the SoT.
 }
