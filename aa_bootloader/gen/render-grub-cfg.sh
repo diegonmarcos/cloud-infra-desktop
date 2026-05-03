@@ -26,11 +26,15 @@ DIST_GRUB_DIR="$ROOT_DIR/dist/boot/grub"
 OUT="$DIST_GRUB_DIR/grub.cfg"
 
 mkdir -p "$DIST_GRUB_DIR"
-log "Rendering grub.cfg from JSON + $NIX_PROFILES"
 
-if [ ! -d "$NIX_PROFILES" ]; then
-    error "NIX_PROFILES not found: $NIX_PROFILES"
-    exit 1
+# Multi-OS: NixOS is just one citizen. If /nix is absent (NixOS not installed,
+# or pool not mounted), skip NixOS rendering and continue with Arch/Kali/Win/USB.
+if [ -d "$NIX_PROFILES" ]; then
+    HAS_NIXOS=1
+    log "Rendering grub.cfg (NixOS: $NIX_PROFILES + multi-OS from boot.json)"
+else
+    HAS_NIXOS=0
+    log "Rendering grub.cfg (multi-OS only — $NIX_PROFILES not present, NixOS section skipped)"
 fi
 
 BOOT_UUID=$(jq_get '.uefi.boot.uuid')
@@ -335,7 +339,12 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════
 
 EOF
-    emit_nixos_generation "$NIX_PROFILES/system" ""
+    if [ "$HAS_NIXOS" = "1" ]; then
+        emit_nixos_generation "$NIX_PROFILES/system" ""
+    else
+        echo "# (NixOS not installed — section omitted)"
+        echo
+    fi
 
     cat <<EOF
 # ═══════════════════════════════════════════════════════════════════════════
@@ -349,13 +358,15 @@ EOF
     emit_usb
     emit_firmware
 
-    cat <<EOF
+    if [ "$HAS_NIXOS" = "1" ]; then
+        cat <<EOF
 # ═══════════════════════════════════════════════════════════════════════════
 # NixOS — rollback (older generations)
 # ═══════════════════════════════════════════════════════════════════════════
 
 EOF
-    emit_rollback_submenu
+        emit_rollback_submenu
+    fi
 } > "$OUT"
 
 log "Wrote: $OUT  ($(wc -l < "$OUT") lines)"
