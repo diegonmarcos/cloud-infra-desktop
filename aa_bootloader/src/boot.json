@@ -57,8 +57,16 @@
       "dont_scan_volumes": []
     },
     "manual_stanzas": {
-      "_description": "Hand-curated entries override autodetect. Each value mirrors the boot.json grub.menu shape so the same SoT drives both bootloaders.",
-      "use_grub_menu": true
+      "_description": "Ordered top-level entries shown in rEFInd. Each item picks a 'producer' (built-in renderer) and overrides the display label. NixOS data comes from /nix/var/nix/profiles; OS data comes from grub.menu.* via the 'from' field.",
+      "order": [
+        { "producer": "nixos_primary",   "label": "NixOS — Primary" },
+        { "producer": "linux_partition", "from": "kali", "label": "Kali — Lab" },
+        { "producer": "linux_partition", "from": "arch", "label": "Debian — Rescue", "_note": "p6 partition is being repurposed Arch → Debian by parallel agent; label preempts the rename" },
+        { "producer": "usb_chainload",   "from": "ventoy", "label": "USB Ventoy" },
+        { "producer": "nixos_rescue",    "label": "NixOS — Rescue" },
+        { "producer": "nixos_rollback",  "label": "NixOS — All Configurations", "max": 5 },
+        { "producer": "refind_self",     "label": "rEFInd Config", "_note": "chainloads refind binary itself — relaunches the menu / refreshes config" }
+      ]
     }
   },
 
@@ -153,6 +161,7 @@
         "enabled": true,
         "entries": [
           {
+            "id": "uefi-fallback",
             "label": "Boot from USB (UEFI)",
             "class": "usb",
             "type": "chainloader",
@@ -160,6 +169,7 @@
             "efi_path": "/EFI/BOOT/BOOTX64.EFI"
           },
           {
+            "id": "ventoy",
             "label": "Boot from Ventoy USB",
             "class": "usb",
             "type": "chainloader",
