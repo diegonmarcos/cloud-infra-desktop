@@ -35,6 +35,7 @@ cmd_generate() {
     header "generate — src/ → dist/"
     sh "$SCRIPT_DIR/gen/render-nixos-adapter.sh"
     sh "$SCRIPT_DIR/gen/render-grub-cfg-preview.sh"
+    sh "$SCRIPT_DIR/gen/render-grub-cfg.sh"
     sh "$SCRIPT_DIR/gen/render-debian-adapter.sh"
     sh "$SCRIPT_DIR/gen/render-nvram.sh"
 
