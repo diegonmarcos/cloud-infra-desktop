@@ -1,4 +1,4 @@
-# Shared logging helpers (POSIX, sourced by all gen/*.sh and targets/*.sh)
+# Shared logging helpers (POSIX, sourced by all src/gen/*.sh)
 # Borrowed from the previous build.sh.
 
 # Colors (POSIX-safe)
