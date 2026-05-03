@@ -1,6 +1,6 @@
 # NixOS YIELDS bootloader authority — aa_bootloader owns everything
 # GENERATED FROM aa_bootloader/src/adapters/nixos/grub_disable.nix
-# DO NOT EDIT BY HAND — re-generate via aa_bootloader/build.sh.new deploy --target nixos
+# DO NOT EDIT BY HAND — re-generate via aa_bootloader/build.sh deploy --target nixos
 #
 # After this module is imported:
 #   - NixOS does NOT run grub-install
@@ -16,9 +16,9 @@
 # Workflow becomes:
 #   1. nixos-rebuild build .#surface  → builds new closure (no /boot writes)
 #   2. nix-env --switch-generation    → bumps /nix/var/nix/profiles/system
-#   3. aa_bootloader/build.sh.new deploy --target grub  → writes /boot
+#   3. aa_bootloader/build.sh deploy --target grub  → writes /boot
 #
-# build.sh.new deploy --target nixos chains all three.
+# build.sh deploy --target nixos chains all three.
 { config, lib, pkgs, ... }:
 {
   boot.loader.grub.enable = lib.mkForce false;
