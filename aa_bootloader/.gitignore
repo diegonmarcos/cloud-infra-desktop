@@ -1,0 +1,19 @@
+# aa_bootloader/.gitignore
+# Binary artifacts in dist/ are regenerated from src/ — don't track them.
+# Keep only text artifacts (grub.cfg, MANIFEST.txt, previews, adapter .nix).
+
+# GRUB modules (from system grub package, ~280 .mod files)
+dist/boot/grub/x86_64-efi/
+
+# GRUB font (from system grub package)
+dist/boot/grub/fonts/
+
+# UEFI binaries (built fresh via grub-mkimage on each generate)
+dist/boot/efi/
+
+# NixOS kernel + initrd binaries (copied from /nix/store)
+dist/boot/kernels/
+
+# Logs
+logs/
+!logs/.gitkeep

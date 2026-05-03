@@ -36,6 +36,8 @@ cmd_generate() {
     sh "$SCRIPT_DIR/src/gen/render-nixos-adapter.sh"
     sh "$SCRIPT_DIR/src/gen/render-grub-cfg-preview.sh"
     sh "$SCRIPT_DIR/src/gen/render-grub-cfg.sh"
+    sh "$SCRIPT_DIR/src/gen/render-grub-binaries.sh"
+    sh "$SCRIPT_DIR/src/gen/render-kernels.sh"
     sh "$SCRIPT_DIR/src/gen/render-debian-adapter.sh"
     sh "$SCRIPT_DIR/src/gen/render-nvram.sh"
 
