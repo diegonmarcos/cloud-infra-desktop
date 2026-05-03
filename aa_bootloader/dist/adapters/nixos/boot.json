@@ -51,8 +51,8 @@
       "showtools": ["shell", "memtest", "gdisk", "reboot", "shutdown", "firmware"]
     },
     "scan": {
-      "_description": "Auto-discovery scope. internal=ESPs on internal disks, external=USB, optical=CDs.",
-      "scanfor": ["internal", "external", "manual"],
+      "_description": "Mode B: manual-only. The menu is exactly what aa_bootloader generates from boot.json. No autodetect surprises.",
+      "scanfor": ["manual"],
       "dont_scan_dirs": ["EFI/Boot", "EFI/GRUB", "EFI/ubuntu", "EFI/nixos"],
       "dont_scan_volumes": []
     },
