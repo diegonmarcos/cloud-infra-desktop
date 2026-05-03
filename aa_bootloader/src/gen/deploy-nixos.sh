@@ -23,10 +23,9 @@ FLAKE_MODULES_DIR="${FLAKE_MODULES_DIR:-$ROOT_DIR/../aa_nixos-surface_host/src/m
 # Files NOT in this list are ignored even if they exist in dist/.
 ADAPTER_FILES="
 boot.json
-hardware_bootloader_grub.nix
 hardware_bootloader_boot.nix
 swap_hibernate.nix
-grub_disable.nix
+nixos_yield.nix
 "
 
 # Old files that should be removed from the flake (replaced by new ones).
