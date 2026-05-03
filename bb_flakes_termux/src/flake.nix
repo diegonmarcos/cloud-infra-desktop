@@ -193,9 +193,18 @@
               (writeShellScriptBin "claude-termux" ''
                 # Conservative malloc tuning for phone RAM.
                 export MALLOC_ARENA_MAX=2
+
+                # Sweep stale orphans before launching (see claude-malloc).
+                command -v claude-orphan-sweep >/dev/null 2>&1 \
+                  && claude-orphan-sweep >/dev/null 2>&1 || true
+
                 _bin="$HOME/.nix-profile/bin/claude"
                 if [ -x "$_bin" ]; then
-                  "$_bin" "$@"
+                  # Same supervision as claude-malloc (setpriv --pdeathsig +
+                  # tini -s, synchronous foreground). See claude-malloc for the
+                  # full rationale.
+                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM \
+                    ${pkgs.tini}/bin/tini -s -- "$_bin" "$@"
                   _rc=$?
                   # exit codes 0–125 are user-meaningful. 126/127 = exec
                   # failure (interpreter/permission). 137/139 = SIGKILL/SEGV.
@@ -214,9 +223,27 @@
                 export CLAUDE_TMP="$HOME/tmp/claude"
                 mkdir -p "$CLAUDE_TMP"
                 export TMPDIR="$CLAUDE_TMP"
+
+                # Sweep stale orphans from previous Android-OOM-killed sessions
+                # before launching, so node/MCP zombies don't pile up over time.
+                command -v claude-orphan-sweep >/dev/null 2>&1 \
+                  && claude-orphan-sweep >/dev/null 2>&1 || true
+
                 _bin="$HOME/.nix-profile/bin/claude"
                 if [ -x "$_bin" ]; then
-                  "$_bin" "$@"
+                  # Process supervision (countermeasure to lmkd / parent-shell exits):
+                  #   setpriv --pdeathsig TERM : if THIS wrapper dies (any signal
+                  #                              except SIGKILL), kernel SIGTERMs
+                  #                              tini → tini cleans up claude tree.
+                  #   tini -s                  : subreaper + zombie reaper. Signals
+                  #                              from the terminal pgroup reach claude
+                  #                              naturally (no -g, no &, no trap),
+                  #                              so the interactive TUI keeps the
+                  #                              controlling terminal — Ctrl-C, etc.
+                  # SIGKILL on this wrapper is uncatchable (Android lmkd hard kill);
+                  # the orphan-sweep call above mops up survivors at next launch.
+                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM \
+                    ${pkgs.tini}/bin/tini -s -- "$_bin" "$@"
                   _rc=$?
                   case "$_rc" in
                     126|127|137|139) ;;   # exec/signal failure → rescue
@@ -232,6 +259,56 @@
               # thin so the rescue logic has ONE home.
               (writeShellScriptBin "claude-rescue" ''
                 exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
+              '')
+
+              # claude-orphan-sweep: reap stale claude/tini orphans left over
+              # from a previous SIGKILL'd session (Android lmkd hard kills are
+              # uncatchable; their children get reparented to PID 1 and just
+              # accumulate). Targets PPID=1 ONLY — active sessions parented by
+              # a fish/bash are never touched. Called automatically at the
+              # start of each claude-malloc / claude-termux launch.
+              (writeShellScriptBin "claude-orphan-sweep" ''
+                set -u
+                swept=0
+                _kill() {
+                  local sig=$1 pid=$2 sid=$3
+                  if [ -n "$sid" ] && [ "$sid" -gt 1 ] 2>/dev/null; then
+                    kill -"$sig" -- -"$sid" 2>/dev/null || true
+                  else
+                    kill -"$sig" "$pid" 2>/dev/null || true
+                  fi
+                }
+                for proc in /proc/[0-9]*; do
+                  pid=''${proc##*/}
+                  [ -r "$proc/status" ] || continue
+                  ppid=$(${pkgs.gawk}/bin/awk '/^PPid:/ {print $2}' "$proc/status" 2>/dev/null) || continue
+                  [ "$ppid" = "1" ] || continue
+                  comm=$(cat "$proc/comm" 2>/dev/null) || continue
+                  case "$comm" in
+                    claude|claude-malloc|claude-termux|tini)
+                      sid=$(${pkgs.gawk}/bin/awk '{print $6}' "$proc/stat" 2>/dev/null)
+                      _kill TERM "$pid" "$sid"
+                      swept=$((swept+1))
+                      ;;
+                  esac
+                done
+                if [ "$swept" -gt 0 ]; then
+                  sleep 2
+                  for proc in /proc/[0-9]*; do
+                    pid=''${proc##*/}
+                    [ -r "$proc/status" ] || continue
+                    ppid=$(${pkgs.gawk}/bin/awk '/^PPid:/ {print $2}' "$proc/status" 2>/dev/null) || continue
+                    [ "$ppid" = "1" ] || continue
+                    comm=$(cat "$proc/comm" 2>/dev/null) || continue
+                    case "$comm" in
+                      claude|claude-malloc|claude-termux|tini)
+                        sid=$(${pkgs.gawk}/bin/awk '{print $6}' "$proc/stat" 2>/dev/null)
+                        _kill KILL "$pid" "$sid"
+                        ;;
+                    esac
+                  done
+                fi
+                echo "claude-orphan-sweep: $swept process(es) reaped" >&2
               '')
 
               # 3. SYNC — unified sync engine (git + rclone)
