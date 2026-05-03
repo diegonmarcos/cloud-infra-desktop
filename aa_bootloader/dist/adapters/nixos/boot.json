@@ -1,0 +1,210 @@
+{
+  "$schema": "./boot.schema.json",
+  "_description": "Single SoT for the Surface Pro 8 bootloader: UEFI/NVRAM, GRUB install + UI + menu, kernel cmdline (hibernate slice), initrd, LUKS, swap. Phase 1 captures current behavior; Phase 3 yields full grub.cfg authority from NixOS to this SoT.",
+  "version": 1,
+
+  "uefi": {
+    "_description": "UEFI partition / NVRAM concerns",
+    "esp": {
+      "uuid": "2CE0-6722",
+      "fs": "vfat",
+      "mount": "/boot/efi"
+    },
+    "boot": {
+      "uuid": "0eaf7961-48c5-4b55-8a8f-04cd0b71de07",
+      "fs": "ext4",
+      "mount": "/boot"
+    },
+    "nvram": {
+      "_description": "Phase 3 will own these via efibootmgr. In Phase 1, NixOS still manages NVRAM (canTouchEfiVariables=true). The entries listed are the desired final state.",
+      "manage": false,
+      "entries": [
+        {
+          "name": "NixOS-boot-efi",
+          "path": "\\EFI\\NixOS-boot-efi\\grubx64.efi",
+          "default": true
+        },
+        {
+          "name": "Windows Boot Manager",
+          "path": "\\EFI\\Microsoft\\Boot\\bootmgfw.efi"
+        }
+      ],
+      "remove_stale": []
+    }
+  },
+
+  "grub": {
+    "_description": "GRUB install settings + UI + menu entries. Phase 1: extraEntries-only (NixOS still authors grub.cfg). Phase 3: full grub.cfg authored by aa_bootloader.",
+    "install": {
+      "device": "nodev",
+      "efi_install_dir": "/EFI/NixOS-boot-efi",
+      "efi_install_as_removable": false,
+      "enable_cryptodisk": true,
+      "configuration_limit": 5
+    },
+    "ui": {
+      "timeout": 5,
+      "default": 0,
+      "timeout_style": "menu",
+      "gfxmode": "auto",
+      "gfxpayload": "keep",
+      "background_color": "#2F302F",
+      "color_normal": "white/black",
+      "color_highlight": "black/white"
+    },
+    "modules": [
+      "part_gpt", "fat", "ext2", "btrfs",
+      "luks2", "cryptodisk", "gcry_rijndael", "gcry_sha256",
+      "chain", "search", "search_fs_uuid", "search_label",
+      "configfile", "normal", "linux", "echo",
+      "all_video", "efi_gop", "efi_uga",
+      "gfxterm", "font", "png"
+    ],
+    "menu": {
+      "nixos": {
+        "_description": "NixOS entries. Phase 1: NixOS auto-generates them. Phase 3: aa_bootloader walks /nix/var/nix/profiles/system-*-link.",
+        "enabled": true,
+        "auto_generate_in_phase_1": true,
+        "rollback_entries": {
+          "auto_walk_profiles": true,
+          "max": 5
+        },
+        "specialisations": ["rescue", "safe-graphics"]
+      },
+      "arch": {
+        "enabled": true,
+        "label": "Arch OS",
+        "class": "arch",
+        "root_uuid": "1648a2fb-f2ce-4da5-9966-645758a24929",
+        "kernel": "/boot/vmlinuz-linux-surface",
+        "initrd": "/boot/initramfs-linux-surface.img",
+        "options": "rw",
+        "recovery": {
+          "enabled": true,
+          "label": "Arch (linux-surface fallback)",
+          "kernel": "/boot/vmlinuz-linux-surface",
+          "initrd": "/boot/initramfs-linux-surface-fallback.img",
+          "options": "rw single"
+        }
+      },
+      "kali": {
+        "enabled": true,
+        "label": "Kali Linux",
+        "class": "kali",
+        "root_uuid": "509491e4-d3a7-426d-9b78-4b024b24cc32",
+        "kernel": "/vmlinuz",
+        "initrd": "/initrd.img",
+        "options": "ro quiet splash",
+        "recovery": {
+          "enabled": true,
+          "modes": [
+            {
+              "label": "Kali (single user)",
+              "options": "ro single"
+            },
+            {
+              "label": "Kali (old kernel)",
+              "kernel": "/vmlinuz.old",
+              "initrd": "/initrd.img.old",
+              "options": "ro quiet splash"
+            }
+          ]
+        }
+      },
+      "windows": {
+        "enabled": true,
+        "label": "Windows Boot Manager",
+        "class": "windows",
+        "type": "chainloader",
+        "efi_uuid": "2CE0-6722",
+        "efi_path": "/EFI/Microsoft/Boot/bootmgfw.efi"
+      },
+      "usb": {
+        "enabled": true,
+        "entries": [
+          {
+            "label": "Boot from USB (UEFI)",
+            "class": "usb",
+            "type": "chainloader",
+            "search_file": "/EFI/BOOT/BOOTX64.EFI",
+            "efi_path": "/EFI/BOOT/BOOTX64.EFI"
+          },
+          {
+            "label": "Boot from Ventoy USB",
+            "class": "usb",
+            "type": "chainloader",
+            "efi_uuid": "223C-F3F8",
+            "efi_path": "/EFI/BOOT/BOOTX64.EFI"
+          }
+        ]
+      },
+      "firmware": {
+        "enabled": true,
+        "label": "UEFI Firmware Settings",
+        "class": "settings"
+      }
+    }
+  },
+
+  "kernel": {
+    "_description": "Hibernate-related kernel cmdline. Other params (mem_sleep_default, splash, psi, audit, loglevel) come from configuration_power.nix and nixos-hardware in Phase 1. Phase 3 may consolidate.",
+    "default_params_managed_here": [],
+    "specialisations": {
+      "rescue": {
+        "_description": "Rescue strips hibernation cmdline so a fresh boot is forced. Phase 1: configuration_rescue.nix uses lib.mkForce; this JSON captures intent. Phase 3: kernel_params.nix consumes this.",
+        "params_strip": ["resume=*", "resume_offset=*", "splash"],
+        "params_add": ["noresume"],
+        "swap_disabled": true,
+        "resume_device_disabled": true
+      },
+      "safe-graphics": {
+        "_description": "GNOME-on-X11 fallback. configuration_fallback.nix owns the desktop overrides; this JSON only describes cmdline diff.",
+        "params_strip": ["splash"],
+        "params_add": []
+      }
+    }
+  },
+
+  "initrd": {
+    "available_modules": [
+      "xhci_pci", "thunderbolt", "nvme", "usb_storage", "sd_mod", "uas",
+      "btrfs", "vfat", "fat", "nls_cp437", "nls_iso8859-1", "nls_utf8"
+    ],
+    "early_modules": [
+      "dm-snapshot", "vfat", "fat", "nls_cp437", "nls_iso8859-1", "nls_utf8",
+      "intel_lpss", "intel_lpss_pci", "8250_dw", "pinctrl_tigerlake", "xhci_pci",
+      "surface_aggregator", "surface_aggregator_registry", "surface_aggregator_hub",
+      "surface_hid_core", "surface_hid", "hid_multitouch", "hid_generic", "i2c_hid", "i2c_hid_acpi"
+    ],
+    "supported_filesystems": ["vfat"],
+    "include_default_modules": true,
+    "luks": {
+      "device_name": "pool",
+      "device_uuid": "3c75c6db-4d7c-4570-81f1-02d168781aac",
+      "pre_lvm": true,
+      "allow_discards": true,
+      "keyfile": {
+        "enabled": true,
+        "usb_uuid": "223C-F3F8",
+        "path": "/.luks/surface.key",
+        "size": 4096,
+        "timeout_seconds": 5
+      },
+      "fallback_password": true,
+      "surface_keyboard_modules": [
+        "surface_aggregator", "surface_aggregator_registry", "surface_aggregator_hub",
+        "surface_hid_core", "surface_hid", "hid_multitouch", "hid_generic"
+      ]
+    }
+  },
+
+  "boot_kernel_modules": ["kvm-intel"],
+
+  "swap_hibernate": {
+    "_description": "Swapfile + hibernation resume. Phase 1: swap_hibernate.nix adapter sets boot.resumeDevice, swapDevices, and contributes resume= kernel params (replacing what was in hardware_filesystems.nix).",
+    "swapfile": "/mnt/shared/.swapfile",
+    "resume_device": "/dev/mapper/pool",
+    "resume_offset": 4954822,
+    "kernel_params": ["resume=/dev/mapper/pool", "resume_offset=4954822"]
+  }
+}
