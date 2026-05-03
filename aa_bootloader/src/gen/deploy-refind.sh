@@ -100,8 +100,8 @@ fi
 
 # Find existing rEFInd entry by name
 existing_id=$(efibootmgr | awk -v n="$NVRAM_LABEL" '
-    $0 ~ "Boot[0-9A-Fa-f]+\\* "n"$" || $0 ~ "Boot[0-9A-Fa-f]+\\* "n" " {
-        sub("Boot",""); sub("\\*.*",""); print; exit
+    $0 ~ "^Boot[0-9A-Fa-f]+\\* "n"([ \t]|$)" {
+        sub("^Boot",""); sub("[*\t ].*",""); print; exit
     }')
 
 # rEFInd EFI path with backslash separators

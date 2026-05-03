@@ -117,7 +117,54 @@ menuentry "$label" {
 EOF
 }
 
-# Windows is autodetected via EFI/Microsoft/Boot/bootmgfw.efi — no stanza needed
+# Chainload stanza for Windows / GRUB-fallback / Ventoy / arbitrary USB
+emit_chainload_stanza() {
+    label="$1"; icon="$2"; volume_uuid="$3"; efi_path="$4"
+
+    cat <<EOF
+menuentry "$label" {
+    icon $icon
+    volume "$volume_uuid"
+    loader $efi_path
+}
+
+EOF
+}
+
+emit_windows_stanza() {
+    enabled=$(jq -r '.grub.menu.windows.enabled // false' "$BOOT_JSON")
+    [ "$enabled" = "true" ] || return 0
+    label=$(jq -r '.grub.menu.windows.label' "$BOOT_JSON")
+    uuid=$(jq -r '.grub.menu.windows.efi_uuid' "$BOOT_JSON")
+    path=$(jq -r '.grub.menu.windows.efi_path' "$BOOT_JSON")
+    emit_chainload_stanza "$label" "/EFI/refind/icons/os_win.png" "$uuid" "$path"
+}
+
+emit_usb_stanzas() {
+    enabled=$(jq -r '.grub.menu.usb.enabled // false' "$BOOT_JSON")
+    [ "$enabled" = "true" ] || return 0
+    # Filter to entries WITH a known efi_uuid in jq (skip search_file-only
+    # entries — they need firmware autoselect, not a manual stanza).
+    # Use null-byte delimiter to survive any whitespace in labels.
+    jq -r '.grub.menu.usb.entries[] | select(.efi_uuid != null and .efi_uuid != "") | "\(.label)|\(.efi_uuid)|\(.efi_path)"' "$BOOT_JSON" | \
+    while IFS='|' read -r ULABEL UUUID UPATH; do
+        [ -n "$UUUID" ] || continue
+        emit_chainload_stanza "$ULABEL" "/EFI/refind/icons/vol_external.png" "$UUUID" "$UPATH"
+    done
+}
+
+# GRUB fallback — keep as a chainload entry so user can boot via GRUB if rEFInd
+# breaks. Emitted only if grub.cfg/grubx64.efi was deployed (Phase 4 transition).
+emit_grub_fallback_stanza() {
+    cat <<EOF
+menuentry "GRUB (fallback)" {
+    icon /EFI/refind/icons/os_linux.png
+    volume "$(jq -r '.uefi.esp.uuid' "$BOOT_JSON")"
+    loader /EFI/NixOS-boot-efi/grubx64.efi
+}
+
+EOF
+}
 
 {
     cat <<EOF
@@ -151,12 +198,10 @@ EOF
         emit_nixos_stanzas
         emit_linux_stanza arch
         emit_linux_stanza kali
+        emit_windows_stanza
+        emit_usb_stanzas
+        emit_grub_fallback_stanza
     fi
-
-    cat <<EOF
-# Windows: autodetected via /EFI/Microsoft/Boot/bootmgfw.efi
-# GRUB:    autodetected via /EFI/NixOS-boot-efi/grubx64.efi (kept as fallback)
-EOF
 
 } > "$OUT"
 
