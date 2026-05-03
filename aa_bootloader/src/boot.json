@@ -33,8 +33,37 @@
     }
   },
 
+  "refind": {
+    "_description": "rEFInd boot manager — primary bootloader as of Phase 4. Lives on ESP at /boot/efi/EFI/refind/. Auto-detects most OSes via EFI binary discovery; manual_stanzas overrides anything that needs hand-curated cmdlines/initrds.",
+    "version": "0.14.2",
+    "install": {
+      "esp_dir": "/EFI/refind",
+      "nvram_label": "rEFInd",
+      "include_drivers": ["btrfs_x64", "ext4_x64"],
+      "include_icons": true
+    },
+    "ui": {
+      "timeout": 5,
+      "default_selection": "NixOS",
+      "use_graphics_for": ["linux", "windows"],
+      "resolution": "max",
+      "banner": "",
+      "showtools": ["shell", "memtest", "gdisk", "reboot", "shutdown", "firmware"]
+    },
+    "scan": {
+      "_description": "Auto-discovery scope. internal=ESPs on internal disks, external=USB, optical=CDs.",
+      "scanfor": ["internal", "external", "manual"],
+      "dont_scan_dirs": ["EFI/Boot", "EFI/GRUB", "EFI/ubuntu", "EFI/nixos"],
+      "dont_scan_volumes": []
+    },
+    "manual_stanzas": {
+      "_description": "Hand-curated entries override autodetect. Each value mirrors the boot.json grub.menu shape so the same SoT drives both bootloaders.",
+      "use_grub_menu": true
+    }
+  },
+
   "grub": {
-    "_description": "GRUB install settings + UI + menu entries. Phase 1: extraEntries-only (NixOS still authors grub.cfg). Phase 3: full grub.cfg authored by aa_bootloader.",
+    "_description": "GRUB install settings + UI + menu entries. Kept for fallback during Phase 4 rEFInd transition. Once rEFInd is verified, this block can be deleted.",
     "install": {
       "device": "nodev",
       "efi_install_dir": "/EFI/NixOS-boot-efi",

@@ -39,6 +39,8 @@ cmd_generate() {
     sh "$SCRIPT_DIR/src/gen/render-grub-binaries.sh"
     sh "$SCRIPT_DIR/src/gen/render-kernels.sh"
     sh "$SCRIPT_DIR/src/gen/render-debian-adapter.sh"
+    sh "$SCRIPT_DIR/src/gen/render-refind-binary.sh"
+    sh "$SCRIPT_DIR/src/gen/render-refind-conf.sh"
     sh "$SCRIPT_DIR/src/gen/render-nvram.sh"
 
     # Write a MANIFEST that summarizes dist/ contents
@@ -149,13 +151,14 @@ cmd_deploy() {
             *) error "Unknown deploy flag: $1"; return 1 ;;
         esac
     done
-    [ -z "$target" ] && { error "deploy requires --target <nixos|debian|grub>"; return 1; }
+    [ -z "$target" ] && { error "deploy requires --target <nixos|debian|grub|refind>"; return 1; }
 
     cmd_generate
     case "$target" in
         nixos)  sh "$SCRIPT_DIR/src/gen/deploy-nixos.sh" ;;
         debian) sh "$SCRIPT_DIR/src/gen/deploy-debian.sh" ;;
         grub)   sh "$SCRIPT_DIR/src/gen/deploy-grub.sh" ;;
+        refind) sh "$SCRIPT_DIR/src/gen/deploy-refind.sh" ;;
         *) error "Unknown target: $target"; return 1 ;;
     esac
 }
