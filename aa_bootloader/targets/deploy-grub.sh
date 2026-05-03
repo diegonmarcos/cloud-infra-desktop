@@ -70,7 +70,7 @@ TARGET_CFG="$BOOT_DIR/grub/grub.cfg"
 BACKUPS_DIR="$BOOT_DIR/grub/.aa_bootloader-backups"
 
 if [ ! -f "$DIST_GRUB_CFG" ]; then
-    error "Missing $DIST_GRUB_CFG — run: ./build.sh.new generate"
+    error "Missing $DIST_GRUB_CFG — run: ./build.sh generate"
     exit 1
 fi
 
