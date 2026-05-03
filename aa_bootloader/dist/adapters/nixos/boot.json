@@ -16,8 +16,8 @@
       "mount": "/boot"
     },
     "nvram": {
-      "_description": "Phase 3 will own these via efibootmgr. In Phase 1, NixOS still manages NVRAM (canTouchEfiVariables=true). The entries listed are the desired final state.",
-      "manage": false,
+      "_description": "aa_bootloader owns NVRAM. deploy-grub.sh runs nvram/apply.sh which idempotently ensures these entries exist via efibootmgr.",
+      "manage": true,
       "entries": [
         {
           "name": "NixOS-boot-efi",

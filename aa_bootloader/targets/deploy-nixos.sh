@@ -26,6 +26,7 @@ boot.json
 hardware_bootloader_grub.nix
 hardware_bootloader_boot.nix
 swap_hibernate.nix
+grub_disable.nix
 "
 
 # Old files that should be removed from the flake (replaced by new ones).

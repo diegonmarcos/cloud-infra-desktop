@@ -87,9 +87,10 @@ EOF
 
 # Ensure required entries exist
 EOF
-        jq -c '.uefi.nvram.entries[]' "$BOOT_JSON" | while read -r entry; do
-            NAME=$(echo "$entry" | jq -r '.name')
-            EFIPATH=$(echo "$entry" | jq -r '.path')
+        # Pass name and path via tab-separated tuples to avoid round-tripping
+        # JSON-escaped backslashes through shell echo (which mangles them).
+        jq -r '.uefi.nvram.entries[] | [.name, .path] | @tsv' "$BOOT_JSON" | \
+        while IFS=$(printf '\t') read -r NAME EFIPATH; do
             cat <<EOF
 existing=\$(find_entry "$NAME")
 if [ -z "\$existing" ]; then
