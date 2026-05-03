@@ -147,6 +147,28 @@ in {
 
     extraInstallCommands = ''
       ${pkgs.coreutils}/bin/mkdir -p ${uefi.esp.mount}/EFI/nixos
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # aa_bootloader Phase 3b hook
+      # ═══════════════════════════════════════════════════════════════════════
+      # NixOS just wrote /boot/grub/grub.cfg via its own templating. Overwrite
+      # it with aa_bootloader's SoT-rendered version (multi-OS + auto-walked
+      # rollback submenu). Failures are non-fatal — NixOS's grub.cfg stays as
+      # a working fallback if aa_bootloader breaks.
+      AA_DIR=/home/diego/git/unix/aa_bootloader
+      if [ -x "$AA_DIR/build.sh.new" ]; then
+        echo "[aa_bootloader] regenerating SoT artifacts"
+        PATH="${pkgs.bash}/bin:${pkgs.jq}/bin:${pkgs.coreutils}/bin:${pkgs.findutils}/bin:${pkgs.gnugrep}/bin:${pkgs.gnused}/bin:${pkgs.util-linux}/bin:${pkgs.diffutils}/bin:$PATH" \
+          ${pkgs.bash}/bin/bash -c "cd $AA_DIR && ./build.sh.new generate" \
+          || echo "[aa_bootloader] generate failed (leaving NixOS grub.cfg)"
+
+        echo "[aa_bootloader] deploying grub.cfg to /boot/grub"
+        PATH="${pkgs.bash}/bin:${pkgs.jq}/bin:${pkgs.coreutils}/bin:${pkgs.findutils}/bin:${pkgs.util-linux}/bin:${pkgs.diffutils}/bin:$PATH" \
+          ${pkgs.bash}/bin/bash -c "cd $AA_DIR && YES=1 ./targets/deploy-grub.sh" \
+          || echo "[aa_bootloader] deploy failed (NixOS grub.cfg remains)"
+      else
+        echo "[aa_bootloader] $AA_DIR/build.sh.new not found — skipping hook"
+      fi
     '';
   };
 
