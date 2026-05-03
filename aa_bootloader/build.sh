@@ -151,9 +151,9 @@ cmd_deploy() {
 
     cmd_generate
     case "$target" in
-        nixos)  sh "$SCRIPT_DIR/targets/deploy-nixos.sh" ;;
-        debian) sh "$SCRIPT_DIR/targets/deploy-debian.sh" ;;
-        grub)   sh "$SCRIPT_DIR/targets/deploy-grub.sh" ;;
+        nixos)  sh "$SCRIPT_DIR/src/gen/deploy-nixos.sh" ;;
+        debian) sh "$SCRIPT_DIR/src/gen/deploy-debian.sh" ;;
+        grub)   sh "$SCRIPT_DIR/src/gen/deploy-grub.sh" ;;
         *) error "Unknown target: $target"; return 1 ;;
     esac
 }
