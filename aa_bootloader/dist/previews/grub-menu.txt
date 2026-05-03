@@ -1,5 +1,5 @@
 # GRUB MENU STRUCTURE (preview from boot.json)
-# GENERATED 2026-05-03 21:40:36
+# GENERATED 2026-05-03 22:01:18
 
 ── UI ─────────────────────────────────────────────
 timeout:           5
