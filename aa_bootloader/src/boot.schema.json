@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "boot.schema.json",
+  "title": "aa_bootloader boot.json",
+  "description": "Schema for the single SoT JSON consumed by aa_bootloader generators.",
+  "type": "object",
+  "required": ["version", "uefi", "grub", "initrd", "swap_hibernate"],
+  "additionalProperties": true,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_description": { "type": "string" },
+    "version": { "type": "integer", "minimum": 1 },
+
+    "uefi": {
+      "type": "object",
+      "required": ["esp", "boot", "nvram"],
+      "properties": {
+        "_description": { "type": "string" },
+        "esp": { "$ref": "#/$defs/partition" },
+        "boot": { "$ref": "#/$defs/partition" },
+        "nvram": {
+          "type": "object",
+          "required": ["manage", "entries"],
+          "properties": {
+            "_description": { "type": "string" },
+            "manage": { "type": "boolean" },
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "path"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "path": { "type": "string", "description": "EFI path with backslashes, e.g. \\EFI\\NixOS-boot-efi\\grubx64.efi" },
+                  "default": { "type": "boolean" }
+                }
+              }
+            },
+            "remove_stale": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "grub": {
+      "type": "object",
+      "required": ["install", "ui", "modules", "menu"],
+      "properties": {
+        "_description": { "type": "string" },
+        "install": {
+          "type": "object",
+          "properties": {
+            "device": { "type": "string" },
+            "efi_install_dir": { "type": "string" },
+            "efi_install_as_removable": { "type": "boolean" },
+            "enable_cryptodisk": { "type": "boolean" },
+            "configuration_limit": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "ui": {
+          "type": "object",
+          "properties": {
+            "timeout": { "type": "integer", "minimum": 0 },
+            "default": { "type": "integer", "minimum": 0 },
+            "timeout_style": { "type": "string", "enum": ["menu", "hidden", "countdown"] },
+            "gfxmode": { "type": "string" },
+            "gfxpayload": { "type": "string" },
+            "background_color": { "type": "string" },
+            "color_normal": { "type": "string" },
+            "color_highlight": { "type": "string" }
+          }
+        },
+        "modules": { "type": "array", "items": { "type": "string" } },
+        "menu": {
+          "type": "object",
+          "properties": {
+            "nixos": { "$ref": "#/$defs/menuNixos" },
+            "arch": { "$ref": "#/$defs/menuLinux" },
+            "kali": { "$ref": "#/$defs/menuLinux" },
+            "windows": { "$ref": "#/$defs/menuChainloader" },
+            "usb": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "entries": {
+                  "type": "array",
+                  "items": { "$ref": "#/$defs/menuChainloader" }
+                }
+              }
+            },
+            "firmware": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "label": { "type": "string" },
+                "class": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "kernel": {
+      "type": "object",
+      "properties": {
+        "_description": { "type": "string" },
+        "default_params_managed_here": { "type": "array", "items": { "type": "string" } },
+        "specialisations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "_description": { "type": "string" },
+              "params_strip": { "type": "array", "items": { "type": "string" } },
+              "params_add": { "type": "array", "items": { "type": "string" } },
+              "swap_disabled": { "type": "boolean" },
+              "resume_device_disabled": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+
+    "initrd": {
+      "type": "object",
+      "required": ["available_modules", "early_modules", "luks"],
+      "properties": {
+        "available_modules": { "type": "array", "items": { "type": "string" } },
+        "early_modules": { "type": "array", "items": { "type": "string" } },
+        "supported_filesystems": { "type": "array", "items": { "type": "string" } },
+        "include_default_modules": { "type": "boolean" },
+        "luks": {
+          "type": "object",
+          "required": ["device_name", "device_uuid"],
+          "properties": {
+            "device_name": { "type": "string" },
+            "device_uuid": { "type": "string", "pattern": "^[0-9a-fA-F-]{36}$" },
+            "pre_lvm": { "type": "boolean" },
+            "allow_discards": { "type": "boolean" },
+            "keyfile": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "usb_uuid": { "type": "string" },
+                "path": { "type": "string" },
+                "size": { "type": "integer", "minimum": 1 },
+                "timeout_seconds": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "fallback_password": { "type": "boolean" },
+            "surface_keyboard_modules": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "boot_kernel_modules": { "type": "array", "items": { "type": "string" } },
+
+    "swap_hibernate": {
+      "type": "object",
+      "required": ["swapfile", "resume_device", "resume_offset"],
+      "properties": {
+        "_description": { "type": "string" },
+        "swapfile": { "type": "string" },
+        "resume_device": { "type": "string" },
+        "resume_offset": { "type": "integer", "minimum": 0 },
+        "kernel_params": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+
+  "$defs": {
+    "partition": {
+      "type": "object",
+      "required": ["uuid", "fs", "mount"],
+      "properties": {
+        "uuid": { "type": "string" },
+        "fs": { "type": "string" },
+        "mount": { "type": "string" }
+      }
+    },
+    "menuNixos": {
+      "type": "object",
+      "properties": {
+        "_description": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "auto_generate_in_phase_1": { "type": "boolean" },
+        "rollback_entries": {
+          "type": "object",
+          "properties": {
+            "auto_walk_profiles": { "type": "boolean" },
+            "max": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "specialisations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "menuLinux": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "label": { "type": "string" },
+        "class": { "type": "string" },
+        "root_uuid": { "type": "string", "pattern": "^[0-9a-fA-F-]{36}$" },
+        "kernel": { "type": "string" },
+        "initrd": { "type": "string" },
+        "options": { "type": "string" },
+        "recovery": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "label": { "type": "string" },
+            "kernel": { "type": "string" },
+            "initrd": { "type": "string" },
+            "options": { "type": "string" },
+            "modes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": { "type": "string" },
+                  "kernel": { "type": "string" },
+                  "initrd": { "type": "string" },
+                  "options": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "menuChainloader": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "label": { "type": "string" },
+        "class": { "type": "string" },
+        "type": { "type": "string", "enum": ["chainloader"] },
+        "efi_uuid": { "type": "string" },
+        "search_file": { "type": "string" },
+        "efi_path": { "type": "string" }
+      }
+    }
+  }
+}

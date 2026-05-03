@@ -1,0 +1,105 @@
+# Plan: aa_bootloader/dist vs live system
+# 2026-05-03 16:20:08
+
+## adapters/nixos/ (Phase 1: NixOS flake state)
+  boot.json: would CREATE in flake
+  hardware_bootloader_grub.nix: DIFFERS — diff:
+    --- /run/media/diego/pool/@home-diego/git/unix/aa_bootloader/../aa_nixos-surface_host/src/modules/hardware_bootloader_grub.nix	2026-05-03 15:01:14.018972640 +0200
+    +++ /run/media/diego/pool/@home-diego/git/unix/aa_bootloader/dist/adapters/nixos/hardware_bootloader_grub.nix	2026-05-03 16:20:08.006943746 +0200
+    @@ -1,12 +1,19 @@
+     # GRUB Bootloader Configuration
+    -# Reads bootloader_grub.json - SOURCE OF TRUTH
+    +# GENERATED FROM aa_bootloader/src/boot.json
+    +# DO NOT EDIT BY HAND — re-generate via: aa_bootloader/build.sh deploy --target nixos
+    +#
+    +# Phase 1: NixOS still authors /boot/grub/grub.cfg. We feed multi-OS menu
+    +# entries via boot.loader.grub.extraEntries. Phase 3 will set
+    +# boot.loader.grub.enable = false and let aa_bootloader own grub.cfg directly.
+     { config, lib, pkgs, ... }:
+     
+     let
+    -  # Load the GRUB configuration from JSON
+    -  bootloaderConfig = builtins.fromJSON (builtins.readFile ./bootloader_grub.json);
+    +  bootCfg = builtins.fromJSON (builtins.readFile ./boot.json);
+    +  grubCfg = bootCfg.grub;
+    +  uefi = bootCfg.uefi;
+    +
+    +  # ── Helpers (shape borrowed from prior hardware_bootloader_grub.nix) ──
+     
+    -  # Helper to generate Linux menu entry
+       mkLinuxEntry = { label, root_uuid, kernel, initrd, options ? "rw", class ? "gnu-linux" }:
+         ''
+           menuentry "${label}" --class ${class} --class gnu-linux --class gnu --class os {
+    @@ -18,7 +25,6 @@
+           }
+         '';
+     
+    -  # Helper to generate chainloader entry
+       mkChainloaderEntry = { label, efi_uuid ? null, search_file ? null, efi_path, class ? "os" }:
+         ''
+           menuentry "${label}" --class ${class} --class os {
+    @@ -33,84 +39,70 @@
+           }
+         '';
+     
+    -  # Generate Arch entries
+    -  archEntries = lib.optionalString (bootloaderConfig.entries.arch.enabled or false) ''
+  hardware_bootloader_boot.nix: DIFFERS — diff:
+    --- /run/media/diego/pool/@home-diego/git/unix/aa_bootloader/../aa_nixos-surface_host/src/modules/hardware_bootloader_boot.nix	2026-05-03 15:01:18.609972612 +0200
+    +++ /run/media/diego/pool/@home-diego/git/unix/aa_bootloader/dist/adapters/nixos/hardware_bootloader_boot.nix	2026-05-03 16:20:08.003943746 +0200
+    @@ -1,49 +1,42 @@
+    -# Boot Configuration: LUKS, initrd, kernel modules
+    -# Reads bootloader_boot.json - SOURCE OF TRUTH
+    +# Boot Configuration: initrd, LUKS unlock, kernel modules
+    +# GENERATED FROM aa_bootloader/src/boot.json
+    +# DO NOT EDIT BY HAND — re-generate via: aa_bootloader/build.sh deploy --target nixos
+     { config, lib, pkgs, ... }:
+     
+     let
+    -  # Load the boot configuration from JSON
+    -  bootloaderConfig = builtins.fromJSON (builtins.readFile ./bootloader_boot.json);
+    -
+    -in {
+    -  # ═══════════════════════════════════════════════════════════════════════════
+    -  # INITRD MODULES
+    -  # ═══════════════════════════════════════════════════════════════════════════
+    -
+    +  bootCfg = builtins.fromJSON (builtins.readFile ./boot.json);
+    +  initrd = bootCfg.initrd;
+    +  luks = initrd.luks;
+    +in
+    +{
+       boot.initrd = {
+    -    availableKernelModules = bootloaderConfig.initrd.available_kernel_modules;
+    -    kernelModules = bootloaderConfig.initrd.kernel_modules;
+    -    supportedFilesystems = bootloaderConfig.initrd.supported_filesystems;
+    -    includeDefaultModules = bootloaderConfig.initrd.include_default_modules;
+    -
+    -    # ═══════════════════════════════════════════════════════════════════════════
+    -    # LUKS ENCRYPTION
+    -    # ═══════════════════════════════════════════════════════════════════════════
+    -
+    -    luks.devices.${bootloaderConfig.luks.device} = {
+    -      device = "/dev/disk/by-uuid/${bootloaderConfig.luks.uuid}";
+    -      preLVM = true;
+    -      allowDiscards = true;
+    -
+    -      # USB keyfile support
+  swap_hibernate.nix: would CREATE in flake
+
+## boot.json UUID sanity
+  .uefi.esp.uuid=2CE0-6722  ✓
+  .uefi.boot.uuid=0eaf7961-48c5-4b55-8a8f-04cd0b71de07  ✓
+  .initrd.luks.device_uuid=3c75c6db-4d7c-4570-81f1-02d168781aac  ✓
+
+## NVRAM (Phase 3 will manage)
+BootCurrent: 0006
+Timeout: 0 seconds
+BootOrder: 0006,0005,0001,0004,0000,0002
+Boot0000* Internal Storage	FvVol(a881d567-6cb0-4eee-8435-2e72d33e45b5)/FvFile(50670071-478f-4be7-ad13-8754f379c62f)53444400
+Boot0001* USB Storage	FvVol(a881d567-6cb0-4eee-8435-2e72d33e45b5)/FvFile(50670071-478f-4be7-ad13-8754f379c62f)55534200
+Boot0002* PXE Network	FvVol(a881d567-6cb0-4eee-8435-2e72d33e45b5)/FvFile(50670071-478f-4be7-ad13-8754f379c62f)50584500
+Boot0003* MsTemp	PciRoot(0x0)/Pci(0xd,0x0)/USB(2,0)/HD(2,MBR,0xda1ebd5,0x39b0000,0x10000)
+Boot0004* Windows Boot Manager	HD(1,GPT,2ec4376d-07aa-40e1-84b0-1aa9746dcaa5,0x800,0x32000)/\EFI\Microsoft\Boot\bootmgfw.efi57494e444f5753000100000088000000780000004200430044004f0042004a004500430054003d007b00390064006500610038003600320063002d0035006300640064002d0034006500370030002d0061006300630031002d006600330032006200330034003400640034003700390035007d00000032000100000010000000040000007fff0400
+Boot0005* Ubuntu	HD(1,GPT,2ec4376d-07aa-40e1-84b0-1aa9746dcaa5,0x800,0x32000)/\EFI\GRUB\shimx64.efi
+Boot0006* NixOS-boot-efi	HD(1,GPT,2ec4376d-07aa-40e1-84b0-1aa9746dcaa5,0x800,0x32000)/\EFI\NixOS-boot-efi\grubx64.efi
