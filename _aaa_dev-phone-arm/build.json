@@ -1,5 +1,5 @@
 {
-  "name": "arm_dev-phone",
+  "name": "dev-phone-arm",
   "description": "Pixel + GrapheneOS declarative provisioner — non-rooted, profile-aware, ADB-driven",
   "device": {
     "model": "pixel-9",
