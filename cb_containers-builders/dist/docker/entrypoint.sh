@@ -62,80 +62,125 @@ case "${1:-}" in
     ;;
 esac
 
-# ── 3. SSH setup (env vars OR mounted files) ──────────────────────
-# NEVER write to mounted paths — use /tmp for CI-generated files.
-# If ~/.ssh is mounted :ro, it already has what we need.
-_ssh_writable() { touch ~/.ssh/.probe 2>/dev/null && rm -f ~/.ssh/.probe; }
+# ── 3. SSH setup ──────────────────────────────────────────────────
+# /root/.ssh may be mounted :ro from host. Everything uses || true — failures are non-fatal.
+# Precedence:  env vars  >  /mnt/host-ssh copy  >  host-mounted .ssh  >  WARN.
+SSH_DIR=/root/.ssh
+mkdir -p "$SSH_DIR" 2>/dev/null || true
+chmod 700 "$SSH_DIR" 2>/dev/null || true
+ssh-keyscan github.com >> "$SSH_DIR/known_hosts" 2>/dev/null || true
 
-if _ssh_writable; then
-  # Writable ~/.ssh — CI mode or local dev without :ro mount
-  mkdir -p ~/.ssh && chmod 700 ~/.ssh
-  ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
-  if [ -n "${SSH_KEY:-}" ]; then
-    echo "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
-    echo "[setup] SSH key from env var → ~/.ssh/id_deploy"
-  fi
-  if [ -n "${SSH_ALIAS:-}" ] && [ -n "${SSH_HOST:-}" ]; then
-    cat >> ~/.ssh/config <<EOF
+# (a) CI-mode — env vars provided by GHA
+if [ -n "${SSH_KEY:-}" ]; then
+  echo "$SSH_KEY" > "$SSH_DIR/id_deploy" 2>/dev/null || true
+  chmod 600 "$SSH_DIR/id_deploy" 2>/dev/null || true
+  echo "[setup] SSH key from env var"
+fi
+if [ -n "${SSH_ALIAS:-}" ] && [ -n "${SSH_HOST:-}" ]; then
+  cat >> "$SSH_DIR/config" 2>/dev/null <<EOF || true
 Host ${SSH_ALIAS}
   HostName ${SSH_HOST}
   User ${SSH_USER:-ubuntu}
-  IdentityFile ~/.ssh/id_deploy
+  IdentityFile $SSH_DIR/id_deploy
   StrictHostKeyChecking no
   ServerAliveInterval 30
   ServerAliveCountMax 10
 EOF
-    chmod 600 ~/.ssh/config
-    echo "[setup] SSH config generated for ${SSH_ALIAS}"
-  fi
-elif [ -f ~/.ssh/id_rsa ] || [ -f ~/.ssh/vault_id_rsa ] || [ -f ~/.ssh/id_deploy ] || [ -f ~/.ssh/config ]; then
-  # Read-only mount — SSH rejects files with wrong owner (GHA runner UID ≠ root)
-  # Copy to writable location and fix permissions (same pattern as SOPS → /tmp)
-  mkdir -p /tmp/ssh-fixed && chmod 700 /tmp/ssh-fixed
-  cp -a ~/.ssh/* /tmp/ssh-fixed/ 2>/dev/null || true
-  chown -R root:root /tmp/ssh-fixed 2>/dev/null || true
-  chmod 700 /tmp/ssh-fixed
-  chmod 600 /tmp/ssh-fixed/config 2>/dev/null || true
-  chmod 600 /tmp/ssh-fixed/id_* 2>/dev/null || true
-  chmod 644 /tmp/ssh-fixed/known_hosts 2>/dev/null || true
-  # Rebind HOME ssh to the fixed copy
-  rm -rf ~/.ssh 2>/dev/null || true
-  ln -sf /tmp/ssh-fixed ~/.ssh
-  echo "[setup] SSH from mounted ~/.ssh (copied + permissions fixed)"
-else
-  echo "[setup] WARNING: no SSH keys found (env or mount)"
+  chmod 600 "$SSH_DIR/config" 2>/dev/null || true
+  echo "[setup] SSH config for ${SSH_ALIAS}"
 fi
 
-# ── 4. SOPS setup (env var OR mounted file) ───────────────────────
-# Same rule: never write to a read-only mount.
-if [ -f ~/.config/sops/age/keys.txt ]; then
-  # Already mounted — use directly
-  export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
-  echo "[setup] SOPS age key from mounted file"
-elif [ -n "${SOPS_AGE_KEY:-}" ]; then
-  # CI mode: write to /tmp (always writable)
-  mkdir -p /tmp/sops-age
-  echo "$SOPS_AGE_KEY" > /tmp/sops-age/keys.txt
-  export SOPS_AGE_KEY_FILE=/tmp/sops-age/keys.txt
-  echo "[setup] SOPS age key from env var → /tmp"
+# (b) Local/Dagu mode — host keys mounted at /mnt/host-ssh:ro
+if [ -d /mnt/host-ssh ]; then
+  for f in /mnt/host-ssh/id_* /mnt/host-ssh/config /mnt/host-ssh/known_hosts; do
+    [ -f "$f" ] || continue
+    bn=$(basename "$f")
+    [ -f "$SSH_DIR/$bn" ] && continue
+    cp "$f" "$SSH_DIR/$bn" 2>/dev/null || true
+    chown root:root "$SSH_DIR/$bn" 2>/dev/null || true
+    case "$bn" in
+      config|id_*) chmod 600 "$SSH_DIR/$bn" 2>/dev/null || true ;;
+      *)           chmod 644 "$SSH_DIR/$bn" 2>/dev/null || true ;;
+    esac
+  done
+  echo "[setup] SSH from /mnt/host-ssh"
+fi
+
+if [ ! -f "$SSH_DIR/config" ] && [ ! -f "$SSH_DIR/id_deploy" ]; then
+  echo "[setup] WARNING: no SSH keys found"
+fi
+
+# ── 4. SOPS setup ─────────────────────────────────────────────────
+# Precedence: env var (CI) > /mnt/host-sops (local).
+mkdir -p /root/.config/sops/age 2>/dev/null || true
+if [ -n "${SOPS_AGE_KEY:-}" ]; then
+  echo "$SOPS_AGE_KEY" > /root/.config/sops/age/keys.txt 2>/dev/null || true
+  chmod 600 /root/.config/sops/age/keys.txt 2>/dev/null || true
+  export SOPS_AGE_KEY_FILE=/root/.config/sops/age/keys.txt
+  echo "[setup] SOPS age key from env var"
+elif [ -f /mnt/host-sops/age/keys.txt ]; then
+  cp /mnt/host-sops/age/keys.txt /root/.config/sops/age/keys.txt 2>/dev/null || true
+  chown root:root /root/.config/sops/age/keys.txt 2>/dev/null || true
+  chmod 600 /root/.config/sops/age/keys.txt 2>/dev/null || true
+  export SOPS_AGE_KEY_FILE=/root/.config/sops/age/keys.txt
+  echo "[setup] SOPS age key from /mnt/host-sops"
 else
   echo "[setup] WARNING: no SOPS age key found"
 fi
 
+# ── 4b. gh CLI config (optional, local-dev) ───────────────────────
+if [ -d /mnt/host-gh ] && [ ! -d /root/.config/gh ]; then
+  mkdir -p /root/.config/gh 2>/dev/null || true
+  cp -r /mnt/host-gh/. /root/.config/gh/ 2>/dev/null || true
+  chown -R root:root /root/.config/gh 2>/dev/null || true
+  echo "[setup] gh CLI config from /mnt/host-gh"
+fi
+
 # ── 5. GHCR login ─────────────────────────────────────────────────
-if [ -n "${GITHUB_TOKEN:-}" ]; then
-  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR:-diegonmarcos}" --password-stdin 2>/dev/null
-  echo "[setup] GHCR authenticated"
+# In CI, the host runner already runs `docker login ghcr.io` before
+# `docker compose run`, and the resulting ~/.docker/config.json is
+# RO-mounted into the container per compose.yaml. A fresh `docker login`
+# inside the container tries to write back to that RO mount and fails.
+# Combined with `set -e` and silenced stderr, it killed the entrypoint
+# silently right after the gh CLI step (the original gen-configs/Ship
+# crash). Detect the RO-mount or pre-existing auth and skip; otherwise
+# attempt login but treat failure as non-fatal — GHCR login is best
+# effort, downstream consumers (docker pull, compose) surface the real
+# error if the registry is genuinely unreachable.
+if [ -f /root/.docker/config.json ] && grep -q '"ghcr.io"' /root/.docker/config.json 2>/dev/null; then
+  echo "[setup] GHCR auth already present (host-mounted ~/.docker/config.json)"
+elif [ -n "${GITHUB_TOKEN:-}" ]; then
+  if echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR:-diegonmarcos}" --password-stdin 2>&1; then
+    echo "[setup] GHCR authenticated"
+  else
+    echo "[setup] GHCR login failed (non-fatal — downstream docker pull will fail loud if needed)"
+  fi
 elif command -v gh >/dev/null 2>&1 && gh auth token >/dev/null 2>&1; then
-  gh auth token 2>/dev/null | docker login ghcr.io -u "$(gh api user --jq .login 2>/dev/null || echo diegonmarcos)" --password-stdin 2>/dev/null
-  echo "[setup] GHCR authenticated via gh CLI"
+  if gh auth token 2>/dev/null | docker login ghcr.io -u "$(gh api user --jq .login 2>/dev/null || echo diegonmarcos)" --password-stdin 2>&1; then
+    echo "[setup] GHCR authenticated via gh CLI"
+  else
+    echo "[setup] GHCR login via gh failed (non-fatal)"
+  fi
 fi
 
 # ── 6. WireGuard (if key provided) ────────────────────────────────
 if [ -n "${WG_PRIVATE_KEY:-}" ]; then
-  SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO="sudo"
-  umask 077
-  cat > /tmp/wg0.conf << WGEOF
+  # Smart privilege escalation: try sudo, fall back to direct (root in container)
+  _run() {
+    if [ "$(id -u)" = "0" ]; then
+      "$@"
+    elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+      sudo "$@"
+    else
+      "$@"  # last resort — may fail if not root, but won't hang
+    fi
+  }
+  # Subshell scopes umask — otherwise 077 persists for the whole entrypoint
+  # and every subsequent file (including /traces/*.json mounted from the GHA
+  # runner) becomes 600 root, which makes actions/upload-artifact fail with
+  # EACCES when it tries to read the trace as the non-root runner user.
+  ( umask 077
+    cat > /tmp/wg0.conf << WGEOF
 [Interface]
 PrivateKey = ${WG_PRIVATE_KEY}
 Address = 10.0.0.200/24
@@ -146,35 +191,84 @@ Endpoint = 35.226.147.64:51820
 AllowedIPs = 10.0.0.0/24
 PersistentKeepalive = 25
 WGEOF
-  $SUDO mkdir -p /etc/wireguard
-  $SUDO cp /tmp/wg0.conf /etc/wireguard/wg0.conf
-  rm /tmp/wg0.conf
-  $SUDO wg-quick up wg0 2>/dev/null && echo "[setup] WireGuard up" || echo "[setup] WireGuard failed (non-fatal)"
+  )
+  _run mkdir -p /etc/wireguard 2>/dev/null || true
+  _run cp /tmp/wg0.conf /etc/wireguard/wg0.conf 2>/dev/null || true
+  rm /tmp/wg0.conf 2>/dev/null || true
+  # Do NOT silence errors — a silent "non-fatal" WG failure masks the
+  # single most common cause of downstream ssh timeouts to WG-only VMs
+  # (oci-mail 10.0.0.3, oci-apps 10.0.0.6). If wg-quick fails, print the
+  # actual kernel/ip/permission error so it's visible in the job log.
+  # "non-fatal" is kept only because some invocations genuinely don't need
+  # WG (local dev, health checks against public endpoints) — callers that
+  # need WG must check reachability afterwards, not trust this line.
+  if _run wg-quick up wg0; then
+    echo "[setup] WireGuard up"
+  else
+    _wg_rc=$?
+    echo "[setup] WireGuard FAILED (rc=$_wg_rc) — ssh to WG-only VMs will time out"
+    echo "[setup]   Common causes: missing cap_add: NET_ADMIN in compose OR --cap-add NET_ADMIN on docker run"
+    [ -z "${WG_PRIVATE_KEY:-}" ] && echo "[setup]   WG_PRIVATE_KEY was empty"
+  fi
+  unset -f _run
 fi
 
-# ── 7. Rebase all repos (baked at build time under ~/git/) ───────
+# ── 7. Re-sync all repos (baked at build time under ~/git/) ──────
+# Each repo's 1_workflows framework provides a `git nuke` alias —
+# bulletproof reset-from-origin (fetch + reset --hard + clean -fdx +
+# submodule update --remote --rebase --force). Survives force-pushed
+# origin, dirty work, untracked files, divergent history.
+# See ~/git/cloud/1_workflows/src/scripts/cloud-git-nuke.sh.
+#
+# Falls back to hand-rolled fetch+reset for repos without the framework
+# (cloud-data, front) or images that pre-date the alias.
 GIT_ROOT="$HOME/git"
 git config --global --add safe.directory "*"
 
-echo "[setup] Syncing all repos..."
+echo "[setup] Syncing all repos via git nuke..."
 for repo in cloud cloud-data unix front tools; do
   dir="$GIT_ROOT/$repo"
-  if [ -d "$dir/.git" ]; then
+  [ -d "$dir/.git" ] || continue
+  if git -C "$dir" config --get alias.nuke >/dev/null 2>&1; then
+    if (cd "$dir" && git nuke --quiet 2>/dev/null); then
+      echo "[setup] Synced $repo (via git nuke)"
+    else
+      echo "[setup] git nuke failed for $repo (non-fatal)"
+    fi
+  else
+    # Fallback: legacy path for repos without the 1_workflows framework
     git -C "$dir" fetch origin main 2>/dev/null \
       && git -C "$dir" reset --hard origin/main 2>/dev/null \
-      && echo "[setup] Synced $repo" \
+      && git -C "$dir" submodule update --init --recursive 2>/dev/null \
+      && echo "[setup] Synced $repo (legacy fetch+reset)" \
       || echo "[setup] Sync failed for $repo (non-fatal)"
   fi
 done
-git -C "$GIT_ROOT/cloud" submodule update --init --recursive 2>/dev/null
 
 WORKSPACE="$GIT_ROOT/cloud"
 cd "$WORKSPACE"
 echo "[setup] Ready: $(pwd) @ $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
+# ── 7b. Docker daemon health-check ────────────────────────────────
+# The container mounts /var/run/docker.sock and every common payload
+# (docker login, docker build, docker push) needs the daemon
+# reachable. If the socket mount has wrong perms or the daemon is
+# down, the next docker call fails, `set -e` aborts the user payload
+# silently mid-pipeline → ssh closes → outer engine sees exit 255 with
+# zero diagnostic output. Surfacing the actual daemon error here means
+# future failures arrive with their cause attached.
+if ! docker info >/dev/null 2>&1; then
+  echo "[setup] FATAL: docker daemon unreachable from inside cloud-builder-x"
+  echo "[setup] docker info stderr:"
+  docker info 2>&1 | sed 's/^/[setup]   /' | head -10
+  exit 1
+fi
+echo "[setup] docker daemon ok ($(docker version --format '{{.Server.Version}}' 2>/dev/null || echo '?'))"
+
 # ── 8. Dispatch ────────────────────────────────────────────────────
 SCRIPTS=".github/workflows/scripts"
 CMD="$1"; shift
+echo "[setup] Dispatching: CMD=$CMD args=$*"
 
 case "$CMD" in
   ship)

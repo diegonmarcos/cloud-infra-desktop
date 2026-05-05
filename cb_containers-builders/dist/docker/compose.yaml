@@ -1,29 +1,52 @@
 services:
   cloud-builder:
+    # Explicit name avoids docker-compose's auto-naming (<project>_<svc>_1)
+    # which drifted from the topology declaration. Health drift detector
+    # matches `container_name` literal vs `docker ps` — keep these aligned.
+    container_name: cloud-builder-x
     image: ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm:latest
     network_mode: host
+    cap_add:
+      - NET_ADMIN
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${HOME}/.ssh:/root/.ssh:ro
-      - ${HOME}/.config/sops:/root/.config/sops:ro
-      - ${HOME}/.config/gh:/root/.config/gh:ro
-      - ${HOME}/git/vault/A0_keys/providers/github:/home/diego/git/vault/A0_keys/providers/github:ro
+      # Host secret dirs mount at /mnt/host-* (NOT /root/.ssh) — SSH rejects
+      # files whose UID differs from the in-container user. entrypoint.sh
+      # copies /mnt/host-ssh/* → /root/.ssh/ with chown root:root + chmod
+      # 600/700. Host mount stays read-only so the container can't corrupt
+      # the runner's FS.
+      - ${HOME}/.ssh:/mnt/host-ssh:ro
+      - ${HOME}/.config/sops:/mnt/host-sops:ro
+      - ${HOME}/.config/gh:/mnt/host-gh:ro
       - ${HOME}/.docker/config.json:/root/.docker/config.json:ro
+      # NOTE: ship.yml mounts the WHOLE vault at /root/git/vault:ro at `docker run`
+      # time, so the github provider files are reachable inside the container as
+      # /root/git/vault/A0_keys/providers/github/. No nested compose-level mount
+      # needed (the previous one hardcoded /home/diego — fragile across users).
+    # Scalar env vars (single-line: GITHUB_TOKEN, WG_PRIVATE_KEY, *_PUB, etc.)
+    # come from the docker-flavoured vault dialect — flat KEY=VAL with `$$`
+    # doubled so compose's interpolator doesn't mangle Argon2/PBKDF2 hashes.
+    # Source of truth: ~/git/vault/vault-keys.json → vault-keys-docker.envfile
+    env_file:
+      - ${HOME}/git/vault/vault-keys-docker.envfile
     environment:
-      - GITHUB_TOKEN
+      # Multi-line PEM/age private keys — env_file can't carry newlines,
+      # so they pass through from the parent shell (CI: fetch-vault action sourced
+      # vault-keys-bash.env first; local: home-manager fish/bash modules do the same).
+      - SOPS_AGE_KEY
+      - OCI_SSH_KEY
+      - GCP_PROXY_SSH_KEY
+      - GCP_T4_SSH_KEY
+      # CI-runtime vars (set by ship.yml's resolve-ssh step, not in vault).
+      - SSH_KEY
+      - SSH_HOST
+      - SSH_USER
+      - SSH_ALIAS
+      - CHANGED_DIRS
+      # GHA-injected (set by GitHub Actions runner — not in vault).
       - GITHUB_ACTOR
       - GITHUB_ACTIONS
       - GITHUB_EVENT_NAME
       - GITHUB_REPOSITORY
       - GITHUB_RUN_ID
       - GITHUB_SHA
-      - SSH_KEY
-      - SSH_HOST
-      - SSH_USER
-      - SSH_ALIAS
-      - SOPS_AGE_KEY
-      - WG_PRIVATE_KEY
-      - CHANGED_DIRS
-      - OCI_SSH_KEY
-      - GCP_PROXY_SSH_KEY
-      - GCP_T4_SSH_KEY

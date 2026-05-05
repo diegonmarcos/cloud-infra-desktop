@@ -62,6 +62,11 @@ ghcr_login() {
 # ═══════════════════════════════════════════════════════════════════
 step_build() {
     log "Step 1: BUILD — generating dist/..."
+    # Prior runs use `cp -rL` on nix-store outputs (read-only mode 444 / 555).
+    # The local copies retain those modes, so a plain `rm -rf` fails with
+    # "Permission denied" on every file. Pre-chmod -R u+w restores write
+    # permission on the directory tree before removal.
+    [ -d "$DIST_DIR" ] && chmod -R u+w "$DIST_DIR" 2>/dev/null
     rm -rf "$DIST_DIR"
     mkdir -p "$DIST_DIR"
 
