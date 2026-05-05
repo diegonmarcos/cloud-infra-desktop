@@ -63,4 +63,22 @@ if [ "$INCLUDE_ICONS" = "true" ] && [ -d "$VENDORED/icons" ]; then
     log "Staged $(ls "$OUT/icons" | wc -l) icons"
 fi
 
+# Theme (optional, declared in .refind.install.theme)
+THEME_ENABLED=$(jq -r '.refind.install.theme.enabled // false' "$BOOT_JSON")
+if [ "$THEME_ENABLED" = "true" ]; then
+    THEME_NAME=$(jq -r '.refind.install.theme.name' "$BOOT_JSON")
+    THEME_PATH=$(jq -r '.refind.install.theme.vendored_path' "$BOOT_JSON")
+    THEME_SRC="$ROOT_DIR/src/$THEME_PATH"
+    THEME_DST="$OUT/themes/$THEME_NAME"
+    if [ -d "$THEME_SRC" ]; then
+        mkdir -p "$THEME_DST"
+        cp -af "$THEME_SRC/." "$THEME_DST/"
+        # Drop docs that don't belong on ESP (LICENSE keeps for attribution).
+        rm -f "$THEME_DST/README.md"
+        log "Staged theme '$THEME_NAME' → $THEME_DST"
+    else
+        warn "Theme '$THEME_NAME' enabled but vendored path missing: $THEME_SRC"
+    fi
+fi
+
 log "rEFInd binaries staged: $(du -sh "$OUT" | cut -f1) → $OUT"

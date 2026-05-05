@@ -19,6 +19,18 @@ hdr "1. ESP /EFI/refind/ tree"
 [ -f "$REFIND/drivers_x64/ext4_x64.efi" ]  && ok "  ext4_x64.efi"  || bad "  MISSING ext4 driver"
 [ -d "$REFIND/icons" ] && ok "icons/ dir ($(ls "$REFIND/icons" | wc -l) files)" || warn "icons/ missing"
 
+# Theme (verified only if .refind.install.theme.enabled = true)
+BOOT_JSON_TEST=$(realpath "$(dirname "$0")/../boot.json" 2>/dev/null || echo "")
+if [ -f "$BOOT_JSON_TEST" ] && [ "$(jq -r '.refind.install.theme.enabled // false' "$BOOT_JSON_TEST" 2>/dev/null)" = "true" ]; then
+    THEME_NAME=$(jq -r '.refind.install.theme.name' "$BOOT_JSON_TEST")
+    THEME_CONF=$(jq -r '.refind.install.theme.theme_conf // "theme.conf"' "$BOOT_JSON_TEST")
+    [ -d "$REFIND/themes/$THEME_NAME" ] && ok "themes/$THEME_NAME/ dir present" || bad "themes/$THEME_NAME/ MISSING"
+    [ -f "$REFIND/themes/$THEME_NAME/$THEME_CONF" ] && ok "  themes/$THEME_NAME/$THEME_CONF present" || bad "  themes/$THEME_NAME/$THEME_CONF MISSING"
+    grep -qE "^[[:space:]]*include[[:space:]]+themes/$THEME_NAME/" "$CONF" 2>/dev/null \
+        && ok "  refind.conf includes themes/$THEME_NAME/$THEME_CONF" \
+        || bad "  refind.conf MISSING include for themes/$THEME_NAME/"
+fi
+
 # 2. EFI binary validity
 hdr "2. EFI binary integrity"
 file "$REFIND/refind_x64.efi" 2>&1 | grep -q "PE32+ executable for EFI" && ok "refind_x64.efi is valid PE32+ EFI" || bad "refind_x64.efi NOT valid"
