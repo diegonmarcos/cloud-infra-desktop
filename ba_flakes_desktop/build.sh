@@ -357,6 +357,62 @@ nix_switch() {
     fi
 }
 
+nix_build() {
+    # Dry build — evaluate the flake's activationPackage and produce a
+    # ./src/result symlink WITHOUT activating home-manager. Used to verify
+    # changes (closure equality, eval errors) before a real `switch`.
+    host="${1:-$(get_default_host)}"
+    user="${2:-$(get_default_user)}"
+    flake_ref="$SRC_DIR#${user}@${host}"
+
+    log_header "Building (no activate) $flake_ref"
+    perf_start "build"
+
+    if ! check_nix; then
+        return 1
+    fi
+
+    perf_step "git stage"
+    if command -v git >/dev/null 2>&1; then
+        dirty=$(git -C "$SRC_DIR" status --porcelain 2>/dev/null || true)
+        if [ -n "$dirty" ]; then
+            log_info "Staging dirty files for flake evaluation..."
+            git -C "$SRC_DIR" add -A 2>/dev/null || true
+        fi
+    fi
+
+    # Force nix to re-evaluate by touching flake.nix (busts eval cache)
+    touch "$SRC_DIR/flake.nix" 2>/dev/null || true
+
+    perf_step "home-manager build"
+    log_info "Building Home Manager activation package (no switch)..."
+
+    cd "$SRC_DIR"
+    _rc_file=$(mktemp)
+    if check_home_manager 2>/dev/null; then
+        { home-manager build --impure --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+    else
+        { nix run home-manager -- build --impure --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+    fi
+    exit_code=$(cat "$_rc_file" 2>/dev/null)
+    rm -f "$_rc_file"
+    exit_code=${exit_code:-1}
+
+    if [ "$exit_code" -ne 0 ]; then
+        log_error "Build failed with exit code $exit_code"
+        log_info "Check $LOG_FILE for details"
+        perf_end
+        return $exit_code
+    fi
+
+    perf_end
+    if [ -L "$SRC_DIR/result" ]; then
+        log_success "Built: $(readlink "$SRC_DIR/result")"
+    else
+        log_success "Build complete (no result symlink — check log)"
+    fi
+}
+
 nix_update() {
     log_header "Updating Flake Inputs"
 
@@ -889,6 +945,7 @@ ${YELLOW}USAGE:${NC}
 ${YELLOW}NIX COMMANDS:${NC}
     install                 Install Nix package manager
     switch [profile]        Apply Home Manager config (default: surface-plasma — full)
+    build [profile]         Dry build — evaluate flake without activating (verify-only)
     update                  Update flake inputs
     show                    Show flake outputs
     develop                 Enter nix develop shell
@@ -967,6 +1024,9 @@ main() {
             ;;
         switch)
             nix_switch "${1:-surface-plasma}" "${2:-diego}"
+            ;;
+        build)
+            nix_build "${1:-surface-plasma}" "${2:-diego}"
             ;;
         update)
             nix_update

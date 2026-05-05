@@ -62,19 +62,26 @@
       # ============================================================
       # Profile Definitions (8 Tool Categories + 2 Desktop Environments)
       # ============================================================
-      profiles = {
-        # Tool profiles
-        shell-core        = ./modules/profiles/1-shell-core.nix;
-        dev-languages     = ./modules/profiles/2-dev-languages.nix;
-        build-debug       = ./modules/profiles/3-build-debug.nix;
-        containers-cloud  = ./modules/profiles/4-containers-cloud.nix;
-        security-network  = ./modules/profiles/5-security-network.nix;
-        data-science      = ./modules/profiles/6-data-science.nix;
-        productivity      = ./modules/profiles/7-productivity.nix;
-        media-graphics    = ./modules/profiles/8-media-graphics.nix;
-        # Desktop environment profiles (pick one)
-        desktop-plasma    = ./modules/desktop/plasma.nix;
-        desktop-gnome     = ./modules/desktop/gnome.nix;
+      # Tool profiles are DATA-DRIVEN: source of truth is
+      # ./modules/leaves.json (a flat map of profile-name → list of
+      # "<category>/<leaf>" strings, with `_comment` ignored). Each leaf
+      # path resolves to ./modules/<category>/<leaf>.nix. Adding/removing a
+      # leaf is a one-line JSON edit — no Nix code change.
+      profileLeaves = nixpkgs.lib.filterAttrs
+        (n: _: !(nixpkgs.lib.hasPrefix "_" n))
+        (builtins.fromJSON (builtins.readFile ./modules/leaves.json));
+
+      mkProfile = leaves: {
+        imports = builtins.map
+          (l: ./modules + "/${l}.nix")
+          leaves;
+      };
+
+      profiles = (builtins.mapAttrs (_: mkProfile) profileLeaves) // {
+        # Desktop environment profiles (pick one) — full DE configs, not
+        # leaf-shaped, so they bypass the leaves.json pipeline.
+        desktop-plasma = ./modules/desktop/plasma.nix;
+        desktop-gnome  = ./modules/desktop/gnome.nix;
       };
 
       # Helper to enable profiles by name
@@ -140,7 +147,7 @@
         sops-nix.homeManagerModules.sops
         ./modules/sops.nix
         ./modules/common.nix
-        ./modules/system-protection.nix
+        ./modules/desktop-session/system-protection.nix
         ./modules/ssh-stale-socket-cleaner.nix
         ./modules/curl-wget-wrapper.nix
         ./modules/node-npm-deps.nix
