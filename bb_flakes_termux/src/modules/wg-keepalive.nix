@@ -42,6 +42,15 @@ let
     ts() { date -u +%FT%TZ; }
 
     HUB="''${WG_KEEPALIVE_HUB:-10.0.0.1}"
+    HUB_PORT="''${WG_KEEPALIVE_PORT:-22}"
+
+    # Probe: TCP connect to hub:port. Termux's ping needs setuid (not
+    # permitted on Android), so we use a non-setuid TCP check instead.
+    # SSH (:22) is always listening on the hub. Treat it as the canary.
+    probe_hub() {
+      curl -s -o /dev/null --max-time 4 --connect-timeout 4 \
+        "telnet://$HUB:$HUB_PORT" 2>/dev/null
+    }
 
     # 1) Wake the WireGuard Android app (idempotent — no toggle if already up)
     if command -v am >/dev/null 2>&1; then
@@ -49,13 +58,13 @@ let
         >/dev/null 2>&1 || true
     fi
 
-    # 2) Force a handshake by hitting the hub through wg0
-    if ping -c 1 -W 4 "$HUB" >/dev/null 2>&1; then
-      echo "$(ts) wg-keepalive: hub $HUB reachable" >> "$LOG"
+    # 2) Force a handshake by reaching the hub through wg0
+    if probe_hub; then
+      echo "$(ts) wg-keepalive: hub $HUB:$HUB_PORT reachable" >> "$LOG"
       exit 0
     fi
 
-    echo "$(ts) wg-keepalive: hub $HUB UNREACHABLE — toggling tunnel" >> "$LOG"
+    echo "$(ts) wg-keepalive: hub $HUB:$HUB_PORT UNREACHABLE — toggling tunnel" >> "$LOG"
 
     # 3) Send the tunnel toggle Intent the WireGuard Android app exposes.
     # Reference: com.wireguard.android.action.SET_TUNNEL_DOWN/UP
@@ -71,7 +80,7 @@ let
 
     # 4) Re-test after toggle (best effort, log only)
     sleep 3
-    if ping -c 1 -W 4 "$HUB" >/dev/null 2>&1; then
+    if probe_hub; then
       echo "$(ts) wg-keepalive: recovered after toggle" >> "$LOG"
     else
       echo "$(ts) wg-keepalive: still down after toggle" >> "$LOG"
