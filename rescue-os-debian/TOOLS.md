@@ -82,7 +82,7 @@ claude
 
 ### Mount partitions on demand
 ```bash
-./install.sh mount-all       # mounts ESP, /boot, /mnt/kubuntu, /mnt/kali (skips encrypted)
+./install.sh mount-all       # mounts ESP, /boot, /mnt/shared-lib, /mnt/kali (skips encrypted)
 ./install.sh mount-pool      # unlocks LUKS, mounts /mnt/pool
 ```
 
@@ -90,7 +90,7 @@ Or individually:
 ```bash
 sudo mount /mnt/efi          # ESP                      (p1)
 sudo mount /mnt/boot         # shared /boot             (p3)
-sudo mount /mnt/kubuntu      # Kubuntu root             (p5)
+sudo mount /mnt/shared-lib   # Shared-Lib (Docker data) (p5)
 sudo mount /mnt/kali         # Kali root                (p7)
 
 # LUKS pool (p4):

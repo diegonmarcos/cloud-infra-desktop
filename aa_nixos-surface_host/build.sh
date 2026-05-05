@@ -131,9 +131,10 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 #   STORE SHARING:
-#   This script is designed to run from a non-NixOS host (e.g., Kubuntu, Fedora)
-#   while sharing a nix store with a NixOS installation. The store lives on a
-#   LUKS-encrypted btrfs subvolume (@nixos/nix) and is mounted as /nix.
+#   This script is designed to run from a non-NixOS host (e.g., Debian rescue,
+#   Ventoy USB, Fedora) while sharing a nix store with a NixOS installation.
+#   The store lives on a LUKS-encrypted btrfs subvolume (@nixos/nix) and is
+#   mounted as /nix.
 #
 #   This architecture means:
 #   - Kernel compilation happens ONCE and is cached forever
@@ -348,7 +349,7 @@ setup_logging
 #
 #   There is ONE nix store: @nixos/nix on the LUKS pool
 #
-#   Kubuntu (this host) has NO local store. It:
+#   A non-NixOS host (e.g. rescue-os-debian) has NO local store. It:
 #     1. Mounts @nixos/nix as /nix
 #     2. Runs nix-daemon against that store
 #     3. All builds go into @nixos/nix (kernel cached forever!)
@@ -1040,26 +1041,18 @@ deploy_existing() {
     log "Step 4: Installing system (nixos-install)..."
     sudo nixos-install --root "$MOUNT_ROOT" --system "$NEW_SYSTEM" --no-root-passwd
 
-    # Step 5: Update GRUB on host (Kubuntu's GRUB)
-    log "Step 5: Updating GRUB..."
-
-    # Get the init path for GRUB entry
+    # Step 5: Update bootloader (rEFInd primary, GRUB chainload fallback)
+    # Bootloader is owned by aa_bootloader/ — re-render menu pointing at the
+    # new init path. The engine reads /nix/var/nix/profiles/system links and
+    # writes /boot/efi/EFI/refind/refind.conf + /boot/grub/grub.cfg.
+    log "Step 5: Re-rendering bootloader menu via aa_bootloader/..."
     INIT_PATH="$NEW_SYSTEM/init"
     log "New init path: $INIT_PATH"
-
-    # Update existing NixOS entry in GRUB
-    if grep -q 'menuentry "NixOS"' /boot/grub/grub.cfg 2>/dev/null; then
-        log "Updating NixOS entry in GRUB..."
-        # Backup current grub.cfg
-        sudo cp /boot/grub/grub.cfg /boot/grub/grub.cfg.bak.$(date +%Y%m%d-%H%M%S)
-
-        # Update the init= path in NixOS entry
-        sudo sed -i "s|init=/nix/store/[^/]*-nixos-system[^/]*/init|init=$INIT_PATH|g" /boot/grub/grub.cfg
-
-        log "GRUB updated. Verify:"
-        grep -A5 'menuentry "NixOS"' /boot/grub/grub.cfg | head -8
+    if [ -x ../aa_bootloader/build.sh ]; then
+        (cd ../aa_bootloader && YES=1 ./build.sh generate && YES=1 ./build.sh deploy --target refind) \
+            || warn "aa_bootloader render/deploy reported errors — verify rEFInd manually"
     else
-        warn "NixOS entry not found in GRUB. May need manual update."
+        warn "aa_bootloader/build.sh not found at expected relative path — skipping bootloader regen"
     fi
 
     # Step 6: Cleanup mounts
@@ -1073,10 +1066,11 @@ deploy_existing() {
     printf "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}\n"
     printf "${GREEN}║  ${BOLD}DEPLOYMENT COMPLETE!${NC}${GREEN}                                       ║${NC}\n"
     printf "${GREEN}╠══════════════════════════════════════════════════════════════╣${NC}\n"
-    printf "${GREEN}║  Reboot and select 'NixOS' from GRUB menu                    ║${NC}\n"
+    printf "${GREEN}║  Reboot and select 'NixOS — Primary' from rEFInd menu        ║${NC}\n"
     printf "${GREEN}║  Login: diego / 1234567890                                   ║${NC}\n"
     printf "${GREEN}║                                                              ║${NC}\n"
-    printf "${GREEN}║  If NixOS fails, select Kubuntu to recover                   ║${NC}\n"
+    printf "${GREEN}║  If NixOS fails, pick 'Rescue OS — Debian' or                ║${NC}\n"
+    printf "${GREEN}║  'Kali — Lab' from rEFInd to recover                         ║${NC}\n"
     printf "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}\n"
 }
 

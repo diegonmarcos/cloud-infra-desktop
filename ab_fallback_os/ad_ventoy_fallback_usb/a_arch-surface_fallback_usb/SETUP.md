@@ -244,7 +244,7 @@ nvme0n1p1   100M   EFI         /boot/efi
 nvme0n1p2    16M   (reserved)
 nvme0n1p3     2G   ext4        /boot
 nvme0n1p4    80G   LUKS→BTRFS  (NixOS)
-nvme0n1p5   118G   ext4        (Kubuntu - to be deleted)
-nvme0n1p6     5G   ext4        ← ARCH LINUX HERE
+nvme0n1p5   118G   ext4        (Shared-Lib — Docker data-root)
+nvme0n1p6     5G   ext4        (rescue-os-debian — replaced Arch 2026-05-03)
 nvme0n1p7    25G   ext4        (Kali)
 ```

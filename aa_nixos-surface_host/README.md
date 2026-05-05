@@ -62,7 +62,7 @@ sudo nixos-rebuild switch --flake .#surface
 # Rollback
 sudo nixos-rebuild switch --rollback
 
-# Build ISO (from Kubuntu)
+# Build ISO (from a non-NixOS environment with nix installed)
 ./build.sh build iso
 ```
 
@@ -71,7 +71,7 @@ sudo nixos-rebuild switch --rollback
 | Path | Description |
 |------|-------------|
 | `/nix/specs/` | Symlink to this repo (after boot) |
-| `/mnt/kubuntu/.../a_nixos_host/` | Git repo location |
+| `~/git/unix/aa_nixos-surface_host/` | Git repo location (canonical) |
 
 ## Credentials
 

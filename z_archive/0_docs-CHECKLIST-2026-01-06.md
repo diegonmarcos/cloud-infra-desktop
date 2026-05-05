@@ -1,9 +1,19 @@
-# Surface Pro 8 Build Checklist
+# Surface Pro 8 Build Checklist — ARCHIVED 2026-05-05
 
-> **Purpose**: Master tracking for multi-phase implementation
-> **Last Updated**: 2026-01-06
-> **WARNING**: DO NOT build images in Kubuntu (no disk space)
-> **PREFER**: OCI container images over ISOs when available (faster deployment)
+> ✅ **MIGRATION COMPLETE — DO NOT UPDATE**. This was the master tracking
+> document for migrating from Kubuntu primary → NixOS primary on Surface Pro 8.
+> Archived 2026-05-05. The migration outcome is the current live system:
+>
+> - NixOS is the primary OS on the encrypted btrfs pool (p4)
+> - Kubuntu (p5) was reformatted to ext4 "Shared-Lib" for Docker storage
+> - Arch (p6) was reformatted to "rescue-os-debian" with Debian trixie
+> - Kali (p7) and Windows-for-webcam (planned) are in place
+> - rEFInd is the active UEFI bootloader (managed by `aa_bootloader/`)
+>
+> See `~/git/unix/README.md`, `~/git/unix/aa_bootloader/README.md`, and
+> `~/git/unix/aa_nixos-surface_host/README.md` for the current state.
+>
+> **Last Updated**: 2026-01-06 (checklist) · 2026-05-05 (archived)
 
 ---
 
