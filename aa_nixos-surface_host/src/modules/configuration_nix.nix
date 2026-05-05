@@ -10,9 +10,12 @@
     options = "--delete-older-than 7d";
   };
 
-  # Keep max 5 system generations
+  # Keep max 5 system generations.
+  # NOTE: bootloader has been yielded to aa_bootloader/ — generation pruning
+  # for the actual menu lives in aa_bootloader/src/boot.json under
+  # `grub.install.configuration_limit`. The two settings below are kept as
+  # nix.gc-style hints (no-ops since both bootloader modules are disabled).
   boot.loader.systemd-boot.configurationLimit = 5;
-  boot.loader.grub.configurationLimit = 5;
 
   # ═══════════════════════════════════════════════════════════════════════════
   # NIX SETTINGS

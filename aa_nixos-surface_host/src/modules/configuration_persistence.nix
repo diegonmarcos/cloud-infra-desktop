@@ -96,18 +96,9 @@
   # ACTIVATION SCRIPTS
   # ═══════════════════════════════════════════════════════════════════════════
 
-  system.activationScripts.updateGrub = ''
-    echo "[GRUB] Checking for update script..."
-    if [ -x /boot/grub/update-grub.sh ]; then
-      if /boot/grub/update-grub.sh; then
-        echo "[GRUB] Successfully updated GRUB"
-      else
-        echo "[GRUB] WARNING: update-grub.sh failed (exit $?)" >&2
-      fi
-    else
-      echo "[GRUB] No update script found (skipping)"
-    fi
-  '';
+  # NOTE: GRUB activation script (was: system.activationScripts.updateGrub)
+  # removed in cleanup-after-rEFInd-yield. Bootloader is now owned by
+  # aa_bootloader/; run `aa_bootloader/build.sh deploy` after any change.
 
   # FIX Issue #17: Create /bin/bash for script compatibility
   # NixOS doesn't have /bin/bash by default, but 99% of scripts expect it

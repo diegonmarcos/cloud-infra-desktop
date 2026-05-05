@@ -258,7 +258,7 @@ cmd_install() {
 
     # Create mount points
     log_info "Creating mount points..."
-    $SUDO mkdir -p /mnt/pool /mnt/kubuntu
+    $SUDO mkdir -p /mnt/pool /mnt/shared-lib
 
     # Setup user
     if ! id diego &>/dev/null; then

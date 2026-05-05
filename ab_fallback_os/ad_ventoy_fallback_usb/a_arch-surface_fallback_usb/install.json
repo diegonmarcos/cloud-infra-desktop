@@ -48,9 +48,9 @@
       "fstype": "btrfs",
       "options": "defaults,noauto,compress=zstd"
     },
-    "kubuntu": {
+    "shared_lib": {
       "device": "UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793",
-      "mountpoint": "/mnt/kubuntu",
+      "mountpoint": "/mnt/shared-lib",
       "fstype": "ext4",
       "options": "defaults,noauto"
     }

@@ -158,7 +158,7 @@ Right-click menu:
 | `claude` | Launch Claude Code CLI |
 | `nmtui` | WiFi configuration TUI |
 | `btop` | System monitor |
-| `sudo mount /mnt/kubuntu` | Mount Kubuntu partition |
+| `sudo mount /mnt/shared-lib` | Mount Shared-Lib partition (former Kubuntu p5, now Docker storage) |
 
 ---
 
@@ -171,7 +171,7 @@ Right-click menu:
 ├── /home/diego      User home
 │   ├── install.sh   Setup script
 │   └── install.md   This file
-└── /mnt/kubuntu     Mount point for Kubuntu (118GB)
+└── /mnt/shared-lib  Mount point for Shared-Lib partition (118GB, ext4 — Docker storage)
 ```
 
 ---

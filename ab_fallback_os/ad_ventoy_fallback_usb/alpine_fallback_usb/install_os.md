@@ -48,8 +48,8 @@ UUID=2CE0-6722       /boot/efi    vfat    defaults,umask=0077 0 2
 # Shared Boot
 UUID=0eaf7961-48c5-4b55-8a8f-04cd0b71de07    /boot        ext4    defaults,noatime    0 2
 
-# Kubuntu mount
-UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793    /mnt/kubuntu ext4    defaults,noauto     0 0
+# Shared-Lib mount (former Kubuntu p5, repurposed 2026-05-04 for Docker storage)
+UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793    /mnt/shared-lib ext4    defaults,noauto     0 0
 ```
 
 ---
@@ -154,7 +154,7 @@ menuentry 'Alpine Linux (Recovery)' --class alpine --class gnu-linux {
 
 | Path | Purpose |
 |------|---------|
-| `/mnt/kubuntu` | Mount Kubuntu partition |
+| `/mnt/shared-lib` | Mount Shared-Lib partition (Docker storage) |
 | `/boot` | Shared boot partition |
 | `/boot/efi` | EFI system partition |
 
