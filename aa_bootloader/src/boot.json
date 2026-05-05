@@ -41,7 +41,14 @@
       "nvram_label": "rEFInd",
       "include_drivers": ["btrfs_x64", "ext4_x64"],
       "_drivers_note": "iso9660_x64 dropped — not used by any menu entry. ntfs/hfs unneeded.",
-      "include_icons": true
+      "include_icons": true,
+      "theme": {
+        "_description": "Optional rEFInd theme. Vendored at src/vendored/refind-themes/<name>/. The renderer copies that dir to dist/.../refind/themes/<name>/ and emits `include themes/<name>/theme.conf` in refind.conf. Set enabled=false to disable.",
+        "enabled": true,
+        "name": "darkmini",
+        "vendored_path": "vendored/refind-themes/darkmini",
+        "theme_conf": "theme.conf"
+      }
     },
     "ui": {
       "timeout": 5,

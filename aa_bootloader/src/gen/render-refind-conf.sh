@@ -275,6 +275,16 @@ scanfor         $SCANFOR
 EOF
     [ -n "$DONT_SCAN_DIRS" ] && echo "dont_scan_dirs   $DONT_SCAN_DIRS"
 
+    # Theme include — declarative via .refind.install.theme.{enabled,name,theme_conf}
+    THEME_ENABLED=$(jq -r '.refind.install.theme.enabled // false' "$BOOT_JSON")
+    if [ "$THEME_ENABLED" = "true" ]; then
+        THEME_NAME=$(jq -r '.refind.install.theme.name' "$BOOT_JSON")
+        THEME_CONF=$(jq -r '.refind.install.theme.theme_conf // "theme.conf"' "$BOOT_JSON")
+        echo ""
+        echo "# Theme (declarative — vendored at src/vendored/refind-themes/$THEME_NAME/)"
+        echo "include         themes/$THEME_NAME/$THEME_CONF"
+    fi
+
     cat <<EOF
 
 # ═══════════════════════════════════════════════════════════════════════════
