@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.7
-# STAGE 2 — thin overlay on top of kali-linux:base.
-# Output: kali-linux:full
+# STAGE 2 — thin overlay on top of kali-lib.
+# Output: kali-os:latest  (was kali-linux:full)
 # Cheap to rebuild — runtime helpers, user, entrypoint. Never invalidates
-# the heavy packages above.
-ARG BASE_TAG=kali-linux:base
+# the heavy packages in kali-lib.
+ARG BASE_TAG=kali-lib:latest
 FROM ${BASE_TAG}
 
 # OCI annotations — links this image to its source repo on GHCR, so the

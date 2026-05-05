@@ -1,8 +1,15 @@
 # Generated/driven by build.sh. Two profiles: cli + gui.
 # Network: host (rules: install.json .container.network_mode = "host").
 # Both services share the same image; entrypoint dispatches on mode arg.
+#
+# IMAGES — the Kali container is built as TWO GHCR images:
+#   • kali-lib:latest  — heavy stage (kali-linux-everything ~33 GiB)
+#   • kali-os:latest   — thin overlay (entrypoint, user, jq); FROM kali-lib
+# compose runs kali-os; layer-share means kali-os already carries the tools
+# at runtime. Pull both via `build.sh pull` (or just kali-os — Docker auto-
+# fetches the kali-lib parent layers).
 x-kali-common: &kali-common
-  image: ${KALI_IMAGE:-kali-linux:full}
+  image: ${KALI_IMAGE:-kali-os:latest}
   hostname: ${KALI_HOSTNAME:-kali}
   network_mode: host
   extra_hosts:
