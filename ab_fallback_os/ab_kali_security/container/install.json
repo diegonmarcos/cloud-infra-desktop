@@ -12,22 +12,25 @@
     "tag": "latest"
   },
   "images": {
-    "_description": "Two-image split. kali-os is the bootable minimum (~400 MB): base + apt-base + jq + user + entrypoint. kali-lib FROM kali-os adds the heavy GUI + kali-linux-everything layers (~34 GB total). Pull kali-os for fast CLI work; pull kali-lib when you need the full toolset / GUI. Both pushed to GHCR independently.",
+    "_description": "Two-image split, modularity by data-vs-code. kali-os is the single bootable image carrying OS + binaries + GUI + system-baked configs (~28 GB). kali-data is a separate sidecar carrying only path-addressable data sets (wordlists, seclists, exploitdb ~6 GB) that kali-os bind-mounts into /usr/share/* at runtime. Pull both for full functionality; CI runners that don't need wordlists pull only kali-os.",
     "os": {
       "local_tag": "kali-os:latest",
       "dockerfile": "Dockerfile.os",
       "ghcr_name": "kali-os",
-      "ghcr_tags": ["latest", "minimum"],
-      "_description": "Bootable minimum Kali — apt-base + jq + entrypoint, no tools, no GUI. ~400 MB."
-    },
-    "lib": {
-      "local_tag": "kali-lib:latest",
-      "dockerfile": "Dockerfile.lib",
-      "from": "kali-os:latest",
-      "ghcr_name": "kali-lib",
       "ghcr_tags": ["latest", "full"],
-      "_description": "Full pentest toolkit + GUI on top of kali-os. ~34.5 GB total."
+      "_description": "Full bootable Kali (OS + tools + GUI). Wordlists/exploitdb deleted; mount kali-data for those."
+    },
+    "data": {
+      "local_tag": "kali-data:latest",
+      "dockerfile": "Dockerfile.data",
+      "ghcr_name": "kali-data",
+      "ghcr_tags": ["latest", "wordlists"],
+      "_description": "Pure data — wordlists, seclists, exploitdb. Run as init container; kali-os bind-mounts the populated volumes."
     }
+  },
+  "data_dirs": {
+    "_description": "Directories that live in kali-data instead of kali-os. Each becomes a named volume populated by kali-data-init and bind-mounted into kali-os at the same path.",
+    "dirs": ["wordlists", "seclists", "exploitdb"]
   },
   "ghcr": {
     "registry": "ghcr.io",
