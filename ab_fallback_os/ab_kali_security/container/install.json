@@ -6,16 +6,32 @@
     "distro": "kali-rolling"
   },
   "image": {
+    "_description": "Upstream base image (input to Dockerfile.base / kali-lib).",
     "registry": "docker.io",
     "repo": "kalilinux/kali-rolling",
-    "tag": "latest",
-    "local_tag": "kali-linux:full"
+    "tag": "latest"
+  },
+  "images": {
+    "_description": "Two-image split for build-time efficiency. kali-lib carries the heavy kali-linux-everything layer (~33 GB, rarely rebuilt). kali-os is a thin overlay (~50 MiB unique) FROM kali-lib carrying entrypoint + user + runtime helpers; rebuilt on every config change. Both pushed to GHCR independently — Docker layer-shares the heavy layer at pull time, so users get one combined runtime image without duplication.",
+    "lib": {
+      "local_tag": "kali-lib:latest",
+      "dockerfile": "Dockerfile.base",
+      "ghcr_name": "kali-lib",
+      "ghcr_tags": ["latest"],
+      "_description": "Heavy stage — apt + base + GUI + kali-linux-everything"
+    },
+    "os": {
+      "local_tag": "kali-os:latest",
+      "dockerfile": "Dockerfile.runtime",
+      "from": "kali-lib:latest",
+      "ghcr_name": "kali-os",
+      "ghcr_tags": ["latest", "full"],
+      "_description": "Thin overlay — entrypoint, user, runtime helpers (jq). FROM kali-lib."
+    }
   },
   "ghcr": {
     "registry": "ghcr.io",
     "owner": "diegonmarcos",
-    "name": "kali-linux",
-    "tags": ["latest", "full"],
     "auth": {
       "username_env": "GHCR_USER",
       "username_default": "diegonmarcos",
