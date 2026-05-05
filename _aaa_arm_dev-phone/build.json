@@ -1,0 +1,32 @@
+{
+  "name": "arm_dev-phone",
+  "description": "Pixel + GrapheneOS declarative provisioner — non-rooted, profile-aware, ADB-driven",
+  "device": {
+    "model": "pixel-9",
+    "codename": "tokay",
+    "rom": "grapheneos",
+    "rom_channel": "stable",
+    "rom_pinned_build": "2026050500"
+  },
+  "data": {
+    "profiles":    "./data/profiles.json",
+    "apks":        "./data/apks.json",
+    "settings":    "./data/settings.json",
+    "permissions": "./data/permissions.json",
+    "scopes":      "./data/scopes.json"
+  },
+  "actions": {
+    "flash-rom":          "./lib/flash-rom.sh",
+    "reconcile-profiles": "./lib/reconcile-profiles.sh",
+    "install-apks":       "./lib/install-apks.sh",
+    "apply-settings":     "./lib/apply-settings.sh",
+    "apply-permissions":  "./lib/apply-permissions.sh",
+    "apply-scopes":       "./lib/apply-scopes.sh",
+    "test":               "./lib/test.sh"
+  },
+  "pipelines": {
+    "ship":      ["flash-rom", "reconcile-profiles", "install-apks", "apply-settings", "apply-permissions", "apply-scopes", "test"],
+    "configure": ["reconcile-profiles", "install-apks", "apply-settings", "apply-permissions", "apply-scopes"],
+    "verify":    ["test"]
+  }
+}

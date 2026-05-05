@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "_note": "GrapheneOS Storage/Contact/Calendar Scopes are not yet scriptable via stable AppOps codes. The engine emits dist/scopes-checklist.md for manual application until upstream exposes a scriptable API.",
+  "by_profile": {
+    "owner": {
+      "storage_scopes":  [
+        { "package": "org.thoughtcrime.securesms", "allow_paths": ["/sdcard/Signal"] }
+      ],
+      "contact_scopes":  [
+        { "package": "im.molly.app.unifiedpush",   "allow_groups": ["family"] }
+      ],
+      "calendar_scopes": []
+    },
+    "google":  { "storage_scopes": [], "contact_scopes": [], "calendar_scopes": [] },
+    "banking": { "storage_scopes": [], "contact_scopes": [], "calendar_scopes": [] }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "by_profile": {
+    "owner": {
+      "system": { "screen_off_timeout": 600000 },
+      "secure": { "lock_screen_show_notifications": 0 },
+      "global": { "wifi_scan_always_enabled": 0 }
+    },
+    "google": {
+      "system": { "screen_off_timeout": 300000 }
+    },
+    "banking": {
+      "system": { "screen_off_timeout": 60000 },
+      "secure": { "lock_screen_show_notifications": 0 }
+    }
+  }
+}
