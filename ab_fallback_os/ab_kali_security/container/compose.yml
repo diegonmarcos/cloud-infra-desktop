@@ -1,12 +1,15 @@
-# Generated/driven by build.sh. Two profiles: cli + gui + scanners.
-# Network: host (rules: install.json .container.network_mode = "host").
+# Driven by build.sh. Modularity split:
+#   kali-os    — single bootable image (OS + tools + GUI) ~28 GB
+#   kali-data  — pure-data sidecar (wordlists, seclists, exploitdb) ~6 GB
 #
-# IMAGE PER PROFILE:
-#   • kali-cli       → kali-os:latest  (~400 MB, no tools, no GUI — fast pull)
-#   • kali-gui       → kali-lib:latest (FROM kali-os, ~34.5 GB — XFCE+VNC+tools)
-#   • scanner-*      → kali-lib:latest (needs nmap/metasploit/etc.)
+# kali-data populates named volumes on first run; all other services
+# bind-mount those volumes at /usr/share/{wordlists,seclists,exploitdb}
+# read-only.
 #
-# Override per-profile via env: KALI_OS_IMAGE, KALI_LIB_IMAGE.
+# Override images via env: KALI_OS_IMAGE, KALI_DATA_IMAGE.
+# Skip the data init entirely on minimal CI runs by setting NO_DATA=1
+# (then services start without the bind-mounts — tools needing wordlists fail).
+
 x-kali-common: &kali-common
   hostname: ${KALI_HOSTNAME:-kali}
   network_mode: host
@@ -32,31 +35,63 @@ x-kali-common: &kali-common
     - ./data/home:/home/kali
     - ./data/workspace:/workspace
     - ./data/loot:/loot
+    # kali-data bind-mounts (populated by kali-data-init)
+    - kali-data-wordlists:/usr/share/wordlists:ro
+    - kali-data-seclists:/usr/share/seclists:ro
+    - kali-data-exploitdb:/usr/share/exploitdb:ro
+
+volumes:
+  kali-data-wordlists:
+  kali-data-seclists:
+  kali-data-exploitdb:
 
 services:
+  # ── kali-data init (one-shot, populates volumes) ─────────────────────────
+  # All other services depend on this completing successfully.
+  kali-data-init:
+    image: ${KALI_DATA_IMAGE:-kali-data:latest}
+    profiles: ["cli", "gui", "scan-network", "scan-local"]
+    container_name: kali-data-init
+    restart: "no"
+    environment:
+      DATA_DIRS: "wordlists seclists exploitdb"
+      DEST: /vol
+    volumes:
+      - kali-data-wordlists:/vol/wordlists
+      - kali-data-seclists:/vol/seclists
+      - kali-data-exploitdb:/vol/exploitdb
+
   kali-cli:
     <<: *kali-common
     image: ${KALI_OS_IMAGE:-kali-os:latest}
     container_name: kali-linux-cli
     profiles: ["cli"]
+    depends_on:
+      kali-data-init:
+        condition: service_completed_successfully
     stdin_open: true
     tty: true
     command: ["cli"]
 
   kali-gui:
     <<: *kali-common
-    image: ${KALI_LIB_IMAGE:-kali-lib:latest}
+    image: ${KALI_OS_IMAGE:-kali-os:latest}
     container_name: kali-linux-gui
     profiles: ["gui"]
+    depends_on:
+      kali-data-init:
+        condition: service_completed_successfully
     command: ["gui"]
 
   # ── Scanner: NETWORK profile ─────────────────────────────────────────────
-  # Runs as kali user. No host bind-mount. Auth gate via targets.json.
   scanner-network:
     <<: *kali-common
-    image: ${KALI_LIB_IMAGE:-kali-lib:latest}
+    image: ${KALI_OS_IMAGE:-kali-os:latest}
     container_name: kali-scanner-network
     profiles: ["scan-network"]
+    depends_on:
+      kali-data-init:
+        condition: service_completed_successfully
     restart: "no"
     entrypoint: ["/usr/local/bin/scanner.sh"]
     environment:
@@ -75,14 +110,19 @@ services:
       - ./scripts/safety-analyzer.sh:/usr/local/bin/safety-analyzer.sh:ro
       - ./data/home:/home/kali
       - ./data/loot:/loot
+      - kali-data-wordlists:/usr/share/wordlists:ro
+      - kali-data-seclists:/usr/share/seclists:ro
+      - kali-data-exploitdb:/usr/share/exploitdb:ro
 
-  # ── Scanner: LOCAL profile ───────────────────────────────────────────────
-  # Runs as ROOT. Read-only host filesystem at /host. Audits THIS machine.
+  # ── Scanner: LOCAL profile (root, read-only host fs at /host) ────────────
   scanner-local:
     <<: *kali-common
-    image: ${KALI_LIB_IMAGE:-kali-lib:latest}
+    image: ${KALI_OS_IMAGE:-kali-os:latest}
     container_name: kali-scanner-local
     profiles: ["scan-local"]
+    depends_on:
+      kali-data-init:
+        condition: service_completed_successfully
     restart: "no"
     user: "0:0"
     pid: host
@@ -104,3 +144,6 @@ services:
       - ./scripts/safety-analyzer.sh:/usr/local/bin/safety-analyzer.sh:ro
       - ./data/loot:/loot
       - /:/host:ro
+      - kali-data-wordlists:/usr/share/wordlists:ro
+      - kali-data-seclists:/usr/share/seclists:ro
+      - kali-data-exploitdb:/usr/share/exploitdb:ro

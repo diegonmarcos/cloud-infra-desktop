@@ -172,56 +172,63 @@ cmd_test() {
     jq empty "$CFG" && echo "OK"   || { echo "FAIL"; fail=1; }
 
     echo -n "[2/8] required keys present ........... "
-    jq -e '.images.lib.local_tag and .images.os.local_tag and (.container.network_mode=="host") and (.modes.cli and .modes.gui) and (.apt.metapackages | length > 0) and (.images.lib.ghcr_tags | length > 0) and (.images.os.ghcr_tags | length > 0)' "$CFG" >/dev/null \
+    jq -e '.images.os.local_tag and .images.data.local_tag and (.container.network_mode=="host") and (.modes.cli and .modes.gui) and (.apt.metapackages | length > 0) and (.images.os.ghcr_tags | length > 0) and (.images.data.ghcr_tags | length > 0) and (.data_dirs.dirs | length > 0)' "$CFG" >/dev/null \
         && echo "OK" || { echo "FAIL"; fail=1; }
 
     echo -n "[3/8] kali-os built locally ........... "
     docker image inspect "${KALI_IMAGE}" >/dev/null 2>&1 \
-        && echo "OK" || { echo "MISSING (run: $0 build)"; fail=1; }
+        && echo "OK" || { echo "MISSING (run: $0 build-os)"; fail=1; }
 
-    echo -n "[4/8] kali-lib built locally .......... "
-    docker image inspect "${LIB_IMAGE}" >/dev/null 2>&1 \
-        && echo "OK" || { echo "MISSING (run: $0 build-lib)"; fail=1; }
+    echo -n "[4/8] kali-data built locally ......... "
+    docker image inspect "${DATA_IMAGE}" >/dev/null 2>&1 \
+        && echo "OK" || { echo "MISSING (run: $0 build-data)"; fail=1; }
 
-    echo -n "[5/8] kali-lib FROM kali-os (layer share) ........ "
-    if docker image inspect "${KALI_IMAGE}" >/dev/null 2>&1 && docker image inspect "${LIB_IMAGE}" >/dev/null 2>&1; then
-        # All of kali-os's layers must appear at the bottom of kali-lib's stack.
-        os_layers=$(docker image inspect "${KALI_IMAGE}" --format '{{json .RootFS.Layers}}' | jq -r '.[]' | head -3 | sort -u)
-        lib_layers=$(docker image inspect "${LIB_IMAGE}" --format '{{json .RootFS.Layers}}' | jq -r '.[]' | sort -u)
-        if [ -n "$os_layers" ] && comm -12 <(echo "$os_layers") <(echo "$lib_layers") | grep -q .; then
+    echo -n "[5/8] kali-os has data dirs PURGED .... "
+    if docker image inspect "${KALI_IMAGE}" >/dev/null 2>&1; then
+        # /usr/share/{wordlists,seclists,exploitdb} should NOT exist in kali-os —
+        # they were rm-ed in the same RUN that installed kali-linux-everything.
+        # Tools that need them get them via the bind-mount from kali-data.
+        if docker run --rm --entrypoint /bin/sh "${KALI_IMAGE}" -c \
+              '! [ -d /usr/share/wordlists ] && ! [ -d /usr/share/seclists ] && ! [ -d /usr/share/exploitdb ]' >/dev/null 2>&1; then
             echo "OK"
         else
-            echo "FAIL — kali-lib does not share layers with kali-os (rebuild lib FROM os)"
+            echo "FAIL — bulk data dirs leaked into kali-os; rebuild Dockerfile.os"
             fail=1
         fi
     else echo "SKIP"; fi
 
-    echo -n "[6/8] image has jq + entrypoint ....... "
-    if docker image inspect "${KALI_IMAGE}" >/dev/null 2>&1; then
-        docker run --rm --entrypoint /bin/bash "${KALI_IMAGE}" -c \
-            'command -v jq >/dev/null && test -x /usr/local/bin/entrypoint.sh' \
-            && echo "OK" || { echo "FAIL"; fail=1; }
+    echo -n "[6/8] kali-data carries the data dirs . "
+    if docker image inspect "${DATA_IMAGE}" >/dev/null 2>&1; then
+        # All declared data_dirs must exist non-empty in kali-data.
+        local needed; needed=$(jq -r '.data_dirs.dirs | join(" ")' "$CFG")
+        if docker run --rm --entrypoint /bin/sh "${DATA_IMAGE}" -c \
+              "for d in $needed; do test -d /usr/share/\$d && [ -n \"\$(ls -A /usr/share/\$d 2>/dev/null | head -1)\" ] || exit 1; done"; then
+            echo "OK"
+        else
+            echo "FAIL — at least one of: $needed missing from kali-data"
+            fail=1
+        fi
     else echo "SKIP"; fi
 
     echo -n "[7/8] GHCR token reachable ............ "
     ghcr_token >/dev/null 2>&1 && echo "OK" || { echo "MISSING (set GHCR_TOKEN or 'gh auth login')"; fail=1; }
 
-    echo -n "[8/8] GHCR repos reachable (lib + os) ...... "
+    echo -n "[8/8] GHCR repos (os + data) reachable ...... "
     if command -v curl >/dev/null 2>&1 && tok="$(ghcr_token 2>/dev/null)"; then
         bearer=$(printf '%s' "$tok" | base64 -w0)
-        local lib_name os_name
-        lib_name="$(jq -r '.images.lib.ghcr_name' "$CFG")"
-        os_name="$(jq -r  '.images.os.ghcr_name'  "$CFG")"
-        local lib_code os_code
-        lib_code=$(curl -s -o /dev/null -w '%{http_code}' \
-                 -H "Authorization: Bearer ${bearer}" \
-                 "https://${GHCR_REG}/v2/${GHCR_OWNER}/${lib_name}/tags/list" || echo 000)
+        local os_name data_name
+        os_name="$(jq -r   '.images.os.ghcr_name'   "$CFG")"
+        data_name="$(jq -r '.images.data.ghcr_name' "$CFG")"
+        local os_code data_code
         os_code=$(curl -s -o /dev/null -w '%{http_code}' \
                  -H "Authorization: Bearer ${bearer}" \
                  "https://${GHCR_REG}/v2/${GHCR_OWNER}/${os_name}/tags/list" || echo 000)
-        case "${lib_code}/${os_code}" in
-            2*/2*|2*/4*|4*/2*|4*/4*) echo "OK (lib=$lib_code, os=$os_code — both addressable)" ;;
-            *) echo "FAIL (lib=$lib_code, os=$os_code)"; fail=1 ;;
+        data_code=$(curl -s -o /dev/null -w '%{http_code}' \
+                 -H "Authorization: Bearer ${bearer}" \
+                 "https://${GHCR_REG}/v2/${GHCR_OWNER}/${data_name}/tags/list" || echo 000)
+        case "${os_code}/${data_code}" in
+            2*/2*|2*/4*|4*/2*|4*/4*) echo "OK (os=$os_code, data=$data_code — both addressable)" ;;
+            *) echo "FAIL (os=$os_code, data=$data_code)"; fail=1 ;;
         esac
     else echo "SKIP"; fi
 
@@ -403,14 +410,15 @@ cmd_scan() {
 cmd_clean() {
     "${DC[@]}" --profile cli --profile gui down -v 2>/dev/null || true
     docker image rm "${KALI_IMAGE}" 2>/dev/null || true
-    docker image rm "${LIB_IMAGE}"  2>/dev/null || true
+    docker image rm "${DATA_IMAGE}" 2>/dev/null || true
     rm -rf "$HERE/data"
 }
 
 case "${1:-}" in
     build)                  cmd_build         ;;
     build-os|build-runtime) cmd_build_os      ;;  # build-runtime = legacy alias
-    build-lib|build-base)   cmd_build_lib     ;;  # build-base    = legacy alias
+    build-data)             cmd_build_data    ;;
+    build-lib|build-base)   cmd_build_data    ;;  # legacy aliases (lib/base both refer to data now)
     rebuild)                cmd_rebuild       ;;
     up-cli)  cmd_up_cli  ;;
     up-gui)  cmd_up_gui  ;;
