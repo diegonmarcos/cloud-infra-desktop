@@ -25,7 +25,7 @@
       flags = [ "--all" "--filter" "until=24h" ];
     };
     daemon.settings = {
-      data-root = "/mnt/kubuntu/docker";
+      data-root = "/mnt/shared-lib/docker";
       live-restore = true;
     };
   };
