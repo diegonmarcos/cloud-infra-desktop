@@ -40,6 +40,7 @@
       "esp_dir": "/EFI/refind",
       "nvram_label": "rEFInd",
       "include_drivers": ["btrfs_x64", "ext4_x64"],
+      "_drivers_note": "iso9660_x64 dropped — not used by any menu entry. ntfs/hfs unneeded.",
       "include_icons": true
     },
     "ui": {
@@ -65,7 +66,7 @@
         { "producer": "usb_chainload",   "from": "ventoy", "label": "USB Ventoy" },
         { "producer": "nixos_rescue",    "label": "NixOS — Rescue" },
         { "producer": "nixos_rollback",  "label": "NixOS — All Configurations", "max": 5 },
-        { "producer": "refind_self",     "label": "rEFInd Config", "_note": "chainloads refind binary itself — relaunches the menu / refreshes config" }
+        { "producer": "refind_self",     "label": "Reload rEFInd", "_note": "chainloads refind binary itself — useful after manually editing refind.conf via UEFI shell or another OS" }
       ]
     }
   },
