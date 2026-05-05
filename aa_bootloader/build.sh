@@ -163,6 +163,11 @@ cmd_deploy() {
     esac
 }
 
+cmd_test() {
+    header "test — health check live ESP / NVRAM / refind.conf vs dist"
+    sh "$SCRIPT_DIR/src/gen/test-refind.sh"
+}
+
 cmd_status() {
     header "status"
     if [ -d "$SCRIPT_DIR/dist" ]; then
@@ -239,6 +244,7 @@ case "$cmd" in
     validate) cmd_validate "$@" ;;
     plan)     cmd_plan "$@" ;;
     deploy)   cmd_deploy "$@" ;;
+    test)     cmd_test "$@" ;;
     status)   cmd_status "$@" ;;
     snapshot) cmd_snapshot "$@" ;;
     help|-h|--help) cmd_help ;;

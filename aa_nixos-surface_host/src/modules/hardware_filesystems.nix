@@ -93,8 +93,9 @@
     options = [ "subvolid=5" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
   };
 
-  # Kubuntu root - read-write access to host OS
-  fileSystems."/mnt/kubuntu" = {
+  # Shared-Lib partition (was kubuntu_2404, repurposed 2026-05-04 for
+  # Docker images / shared libs / cross-OS data). UUID unchanged.
+  fileSystems."/mnt/shared-lib" = {
     device = "/dev/disk/by-uuid/7e3626ac-ce13-4adc-84e2-1a843d7e2793";
     fsType = "ext4";
     options = [ "rw" "noatime" "nofail" ];

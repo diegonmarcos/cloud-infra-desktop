@@ -51,7 +51,7 @@
     "d /mnt/shared/data/cache/npm 0755 diego users -"
     "d /mnt/shared/data/cache/pip 0755 diego users -"
     "d /mnt/shared/data/cache/go 0755 diego users -"
-    "d /mnt/kubuntu/docker 0755 root root -"
+    "d /mnt/shared-lib/docker 0755 root root -"
     "d /mnt/shared/data/vm 0755 diego users -"
     "d /mnt/shared/data/fonts 0755 diego users -"
     "d /mnt/shared/data/themes 0755 diego users -"
@@ -136,12 +136,12 @@
   #   - ARCHITECTURE.md (technical docs)
   #   - ISSUES-STATUS.md (known issues)
   #
-  # Canonical source: /mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host/
+  # Canonical source: /mnt/shared-lib/home/diego/mnt_git/unix/a_nixos_host/
   # Convenient access: /nix/specs/
 
   system.activationScripts.nixSpecs = ''
     echo "[SPECS] Setting up /nix/specs/..."
-    SPECS_SRC="/mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host"
+    SPECS_SRC="/mnt/shared-lib/home/diego/mnt_git/unix/a_nixos_host"
 
     # Check if source exists
     if [ -d "$SPECS_SRC" ]; then
@@ -171,8 +171,8 @@
       # Source not found - check if kubuntu is mounted
       echo "[SPECS] WARNING: Config source not found at $SPECS_SRC" >&2
 
-      if ! mountpoint -q /mnt/kubuntu 2>/dev/null; then
-        echo "[SPECS] HINT: /mnt/kubuntu is not mounted" >&2
+      if ! mountpoint -q /mnt/shared-lib 2>/dev/null; then
+        echo "[SPECS] HINT: /mnt/shared-lib is not mounted" >&2
       fi
 
       # Create fallback directory with README
@@ -183,18 +183,18 @@
 Configuration source not found at expected location.
 
 ## Expected Location
-/mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host/
+/mnt/shared-lib/home/diego/mnt_git/unix/a_nixos_host/
 
 ## Troubleshooting
 
 1. Check if Kubuntu partition is mounted:
-   mountpoint /mnt/kubuntu
+   mountpoint /mnt/shared-lib
 
 2. Mount it manually:
-   sudo mount /mnt/kubuntu
+   sudo mount /mnt/shared-lib
 
 3. Rebuild NixOS to refresh symlink:
-   sudo nixos-rebuild switch --flake /mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host#surface
+   sudo nixos-rebuild switch --flake /mnt/shared-lib/home/diego/mnt_git/unix/a_nixos_host#surface
 
 ## Alternative
 
