@@ -1,0 +1,98 @@
+{
+  "meta": {
+    "name": "Debian Rescue OS (Surface)",
+    "version": "1.0",
+    "target": "Surface Pro 8 — fallback partition nvme0n1p6 (5GB)",
+    "release": "trixie",
+    "hostname": "rescue-os-debian",
+    "purpose": "Minimal CLI rescue OS with Node + Claude Code + on-demand X11 browser for OAuth"
+  },
+  "users": {
+    "diego": {
+      "uid": 1000,
+      "shell": "/usr/bin/fish",
+      "groups": ["sudo", "video", "input", "netdev", "plugdev"],
+      "sudo": "NOPASSWD",
+      "password": "1234567890"
+    },
+    "root": {
+      "password": "1234567890"
+    }
+  },
+  "apt": {
+    "core": ["systemd-sysv", "linux-image-amd64", "firmware-linux-free", "firmware-linux-nonfree", "firmware-iwlwifi", "firmware-misc-nonfree", "intel-microcode"],
+    "shells": ["bash", "fish", "bash-completion"],
+    "editors": ["vim", "nano"],
+    "network": ["network-manager", "network-manager-openvpn", "systemd-resolved", "iproute2", "iputils-ping", "dnsutils", "openssh-client", "openssh-server", "wpasupplicant", "iw", "rfkill", "ca-certificates", "curl", "wget"],
+    "graphics_x11": ["xserver-xorg-core", "xserver-xorg-input-libinput", "xserver-xorg-input-evdev", "xserver-xorg-video-fbdev", "xserver-xorg-video-intel", "xinit", "i3", "i3status", "dmenu", "xterm"],
+    "graphics_wayland": ["cage", "foot"],
+    "browsers": ["firefox-esr", "w3m"],
+    "monitors": ["htop", "btop", "iotop", "lsof"],
+    "dev": ["git", "build-essential", "pkg-config", "make", "python3", "python3-pip", "python3-venv"],
+    "cli_tools": ["ripgrep", "fd-find", "fzf", "jq", "tmux", "neofetch", "eza", "bat", "tree", "file"],
+    "files": ["rsync", "tar", "gzip", "xz-utils", "zip", "unzip"],
+    "fs": ["sudo", "dosfstools", "e2fsprogs", "cryptsetup", "btrfs-progs", "ntfs-3g"],
+    "tz_locale": ["tzdata", "locales", "manpages", "manpages-dev", "less", "man-db"],
+    "boot": ["efibootmgr"]
+  },
+  "node": {
+    "source": "nodesource",
+    "version": "lts",
+    "package": "nodejs"
+  },
+  "npm": {
+    "global": ["@anthropic-ai/claude-code"]
+  },
+  "services": {
+    "enable": ["NetworkManager", "ssh", "systemd-resolved"],
+    "note_systemd_networkd": "Ships as part of the 'systemd' apt package in trixie — no separate install. NetworkManager owns interfaces by default; systemd-networkd is masked. To switch: systemctl unmask systemd-networkd && systemctl enable --now systemd-networkd && systemctl disable --now NetworkManager"
+  },
+  "mounts": {
+    "luks_pool": {
+      "device": "UUID=3c75c6db-4d7c-4570-81f1-02d168781aac",
+      "luks_name": "pool",
+      "mapper": "/dev/mapper/pool",
+      "mountpoint": "/mnt/pool",
+      "fstype": "btrfs",
+      "options": "defaults,noauto,compress=zstd"
+    },
+    "kubuntu": {
+      "device": "UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793",
+      "mountpoint": "/mnt/kubuntu",
+      "fstype": "ext4",
+      "options": "defaults,noauto"
+    },
+    "kali": {
+      "device": "UUID=509491e4-d3a7-426d-9b78-4b024b24cc32",
+      "mountpoint": "/mnt/kali",
+      "fstype": "ext4",
+      "options": "defaults,noauto"
+    },
+    "boot_p3": {
+      "device": "UUID=0eaf7961-48c5-4b55-8a8f-04cd0b71de07",
+      "mountpoint": "/mnt/boot",
+      "fstype": "ext4",
+      "options": "defaults,noauto"
+    },
+    "esp": {
+      "device": "UUID=2CE0-6722",
+      "mountpoint": "/mnt/efi",
+      "fstype": "vfat",
+      "options": "defaults,noauto,uid=1000,gid=1000"
+    }
+  },
+  "bootloader": {
+    "type": "rEFInd",
+    "esp_path": "/mnt/efi",
+    "kernel_dir": "/mnt/efi/EFI/debian",
+    "refind_conf": "/mnt/efi/EFI/refind/refind.conf",
+    "refind_stanza_title": "Debian Rescue OS"
+  },
+  "install_order": [
+    "1. From Kali: bootstrap/install-debian.sh (mkfs p6, debootstrap trixie, install kernel/packages, write fstab, drop kernel to ESP, add refind stanza)",
+    "2. Reboot, select 'Debian Rescue OS' in rEFInd",
+    "3. Inside Debian: ./install.sh scan",
+    "4. Inside Debian: ./install.sh install (installs Node + Claude Code + any remaining tools)",
+    "5. ./install.sh browser (one-shot Firefox via xinit for Claude OAuth)"
+  ]
+}
