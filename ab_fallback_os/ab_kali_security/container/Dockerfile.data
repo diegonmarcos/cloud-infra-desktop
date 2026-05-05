@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1.7
+# kali-data — pure-data sidecar for kali-os.
+# Output: kali-data:latest  → ghcr.io/diegonmarcos/kali-data:{latest,wordlists}
+#
+# Carries the bulk Kali data sets (wordlists, seclists, exploitdb) that
+# are reachable via paths only — no binaries, no system services. ~6 GB.
+#
+# Designed to be run as a one-shot init container that copies its data
+# into named volumes; kali-os then bind-mounts those volumes read-only at
+# /usr/share/{wordlists,seclists,exploitdb}.
+ARG BASE_IMAGE=kalilinux/kali-rolling:latest
+FROM ${BASE_IMAGE}
+
+ARG APT_DATA="seclists wordlists exploitdb"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/unix" \
+      org.opencontainers.image.description="Kali data sets (wordlists, seclists, exploitdb) for bind-mount into kali-os." \
+      org.opencontainers.image.licenses="GPL-3.0-or-later" \
+      org.opencontainers.image.title="kali-data"
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ${APT_DATA} \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY data-init.sh /usr/local/bin/data-init.sh
+RUN chmod +x /usr/local/bin/data-init.sh
+
+# When run as an init container, populates a bind-mounted volume at /vol
+# with the data dirs. Idempotent — skips dirs that are already populated.
+ENTRYPOINT ["/usr/local/bin/data-init.sh"]

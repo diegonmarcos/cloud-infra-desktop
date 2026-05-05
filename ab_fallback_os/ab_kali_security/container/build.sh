@@ -3,20 +3,22 @@
 # Source of truth: ./install.json. NEVER hardcode values here.
 #
 # Usage: ./build.sh <command>
-#   build         Build full chain (kali-os then kali-lib FROM kali-os)
-#   build-os      Build STAGE 1 (Dockerfile.os) — kali-os:latest
-#                 Bootable minimum: base + apt-base + jq + entrypoint (~400 MB).
-#                 Boot this alone for fast `cli` mode. (legacy alias: build-runtime)
-#   build-lib     Build STAGE 2 (Dockerfile.lib) FROM kali-os — kali-lib:latest
-#                 Adds APT_GUI + APT_META (kali-linux-everything ~33 GB total).
-#                 Required for `gui` mode and scanner profiles. (legacy alias: build-base)
-#   rebuild       Force rebuild of BOTH stages (os then lib)
+#   build         Build BOTH images (kali-os and kali-data — independent)
+#   build-os      Build kali-os:latest from Dockerfile.os
+#                 Full bootable image (OS + binaries + GUI ~28 GB),
+#                 wordlists/seclists/exploitdb dirs deleted.
+#   build-data    Build kali-data:latest from Dockerfile.data
+#                 Pure-data sidecar (~6 GB) — wordlists + seclists + exploitdb.
+#   rebuild       Force rebuild of both images
 #
-# Two-image split:
-#   kali-os  : ~400 MB, bootable on its own. Pull this for CLI-only work.
-#   kali-lib : FROM kali-os, ~34.5 GB. Pull this when you need the toolkit/GUI.
-# Both pushed independently to GHCR; pulling kali-lib also fetches kali-os
-# layers via Docker's parent-image dedup.
+# Two-image MODULARITY split:
+#   kali-os   ~28 GB  : single bootable image; everything except bulk data.
+#   kali-data ~6 GB   : data-only sidecar; populates volumes at runtime so
+#                       kali-os bind-mounts /usr/share/{wordlists,seclists,
+#                       exploitdb} read-only.
+# Pull both for full functionality; pull only kali-os for CI jobs that
+# don't need wordlists. The two images are INDEPENDENT — neither FROMs the
+# other; they share no layers.
 #   up-cli     Start CLI profile  (host network)
 #   up-gui     Start GUI profile  (host network, noVNC at :6901)
 #   down       Stop + remove both profiles
@@ -71,10 +73,10 @@ command -v docker  >/dev/null || { echo "need docker";  exit 1; }
 # --- read install.json into env (data-driven, no hardcoding) ----------------
 BASE_IMAGE="$(jq -r '.image.registry+"/"+.image.repo+":"+.image.tag' "$CFG")"
 
-# Two-image split (kali-lib + kali-os). KALI_IMAGE = kali-os (the runtime
-# tag compose pulls). LIB_IMAGE = the heavy stage shared via FROM.
-LIB_IMAGE="$(jq -r '.images.lib.local_tag' "$CFG")"
-KALI_IMAGE="$(jq -r '.images.os.local_tag' "$CFG")"
+# Two-image modularity split (kali-os + kali-data, independent).
+KALI_IMAGE="$(jq -r '.images.os.local_tag'   "$CFG")"
+DATA_IMAGE="$(jq -r '.images.data.local_tag' "$CFG")"
+APT_DATA="$(jq -r  '.data_dirs.dirs | map(.) | join(" ") // "wordlists seclists exploitdb"' "$CFG")"
 
 KALI_HOSTNAME="$(jq -r '.container.hostname'                         "$CFG")"
 USER_NAME="$(jq -r '.user.name'                                     "$CFG")"
@@ -91,8 +93,8 @@ APT_RUNTIME="$(jq -r '.apt.runtime_helpers // [] | join(" ")'       "$CFG")"
 
 GHCR_REG="$(jq -r   '.ghcr.registry'                                "$CFG")"
 GHCR_OWNER="$(jq -r '.ghcr.owner'                                   "$CFG")"
-LIB_GHCR_REPO="${GHCR_REG}/${GHCR_OWNER}/$(jq -r '.images.lib.ghcr_name' "$CFG")"
-OS_GHCR_REPO="${GHCR_REG}/${GHCR_OWNER}/$(jq -r '.images.os.ghcr_name' "$CFG")"
+OS_GHCR_REPO="${GHCR_REG}/${GHCR_OWNER}/$(jq -r '.images.os.ghcr_name'   "$CFG")"
+DATA_GHCR_REPO="${GHCR_REG}/${GHCR_OWNER}/$(jq -r '.images.data.ghcr_name' "$CFG")"
 
 export KALI_IMAGE KALI_HOSTNAME TZ="$TZ_VAL" LANG="$LANG_VAL"
 export KALI_VNC_PASSWORD="${KALI_VNC_PASSWORD:-$(jq -r '.secrets.vnc_password_default' "$CFG")}"
@@ -111,11 +113,11 @@ _netflag() {
     esac
 }
 
-_os_tag()  { echo "${KALI_IMAGE}"; }  # kali-os:latest  (stage 1)
-_lib_tag() { echo "${LIB_IMAGE}"; }   # kali-lib:latest (stage 2, FROM kali-os)
+_os_tag()   { echo "${KALI_IMAGE}"; }  # kali-os:latest
+_data_tag() { echo "${DATA_IMAGE}"; }  # kali-data:latest
 
 cmd_build_os() {
-    _step "BUILD stage1 → $(_os_tag) (network=$(jq -r .container.network_mode "$CFG"), progress=$BUILDKIT_PROGRESS)"
+    _step "BUILD kali-os → $(_os_tag) (full toolkit, data dirs purged)"
     local net; net="$(_netflag)"
     # shellcheck disable=SC2086
     _run docker build --progress="$BUILDKIT_PROGRESS" $net \
@@ -124,41 +126,36 @@ cmd_build_os() {
         --build-arg "TZ=${TZ_VAL}" \
         --build-arg "LANG_=${LANG_VAL}" \
         --build-arg "APT_BASE=${APT_BASE}" \
+        --build-arg "APT_GUI=${APT_GUI}" \
+        --build-arg "APT_META=${APT_META}" \
         --build-arg "APT_RUNTIME=${APT_RUNTIME}" \
         --build-arg "USER_NAME=${USER_NAME}" \
         --build-arg "USER_UID=${USER_UID}" \
         --build-arg "USER_GID=${USER_GID}" \
         --build-arg "USER_SHELL=${USER_SHELL}" \
         -t "$(_os_tag)" "$HERE"
-    _log "✔ stage1 done: $(_os_tag)"
+    _log "✔ done: $(_os_tag)"
 }
 
-cmd_build_lib() {
-    docker image inspect "$(_os_tag)" >/dev/null 2>&1 \
-        || { echo "os image $(_os_tag) missing — run: $0 build-os"; return 1; }
-    _step "BUILD stage2 → $(_lib_tag) (FROM $(_os_tag))"
+cmd_build_data() {
+    _step "BUILD kali-data → $(_data_tag) (data-only: ${APT_DATA})"
     local net; net="$(_netflag)"
     # shellcheck disable=SC2086
     _run docker build --progress="$BUILDKIT_PROGRESS" $net \
-        -f "$HERE/Dockerfile.lib" \
-        --build-arg "BASE_TAG=$(_os_tag)" \
-        --build-arg "APT_GUI=${APT_GUI}" \
-        --build-arg "APT_META=${APT_META}" \
-        --build-arg "USER_NAME=${USER_NAME}" \
-        -t "$(_lib_tag)" "$HERE"
-    _log "✔ stage2 done: $(_lib_tag)"
+        -f "$HERE/Dockerfile.data" \
+        --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
+        --build-arg "APT_DATA=${APT_DATA}" \
+        -t "$(_data_tag)" "$HERE"
+    _log "✔ done: $(_data_tag)"
 }
 
-cmd_build() {
-    docker image inspect "$(_os_tag)" >/dev/null 2>&1 || cmd_build_os || return 1
-    cmd_build_lib
-}
+cmd_build()   { cmd_build_os && cmd_build_data; }
+cmd_rebuild() { cmd_build_os && cmd_build_data; }
 
-cmd_rebuild() { cmd_build_os && cmd_build_lib; }
-
-# Back-compat aliases (legacy names from before the os/lib flip).
-cmd_build_base()    { cmd_build_lib; }
-cmd_build_runtime() { cmd_build_os; }
+# Legacy aliases — pre-modularity-flatten naming.
+cmd_build_base()    { cmd_build_data; }   # was: heavy stage
+cmd_build_runtime() { cmd_build_os;   }   # was: thin overlay
+cmd_build_lib()     { cmd_build_data; }   # was: separate lib image (now kali-data)
 
 cmd_up_cli()  { ensure_data_dirs; "${DC[@]}" --profile cli up -d kali-cli; }
 cmd_up_gui()  { ensure_data_dirs; "${DC[@]}" --profile gui up -d kali-gui; \
@@ -231,8 +228,8 @@ cmd_test() {
     return "$fail"
 }
 
-ghcr_lib_tags() { jq -r '.images.lib.ghcr_tags[]' "$CFG"; }
-ghcr_os_tags()  { jq -r '.images.os.ghcr_tags[]'  "$CFG"; }
+ghcr_os_tags()   { jq -r '.images.os.ghcr_tags[]'   "$CFG"; }
+ghcr_data_tags() { jq -r '.images.data.ghcr_tags[]' "$CFG"; }
 
 ghcr_token() {
     local var cmd
@@ -255,20 +252,11 @@ cmd_login() {
 }
 
 cmd_push() {
-    docker image inspect "$LIB_IMAGE"  >/dev/null 2>&1 \
-        || { echo "local image $LIB_IMAGE missing — run: $0 build-lib"; return 1; }
     docker image inspect "$KALI_IMAGE" >/dev/null 2>&1 \
-        || { echo "local image $KALI_IMAGE missing — run: $0 build"; return 1; }
+        || { echo "local image $KALI_IMAGE missing — run: $0 build-os"; return 1; }
+    docker image inspect "$DATA_IMAGE" >/dev/null 2>&1 \
+        || { echo "local image $DATA_IMAGE missing — run: $0 build-data"; return 1; }
     cmd_login || return 1
-
-    _step "PUSH ${LIB_IMAGE} → ${LIB_GHCR_REPO}"
-    while IFS= read -r tag; do
-        local full="${LIB_GHCR_REPO}:${tag}"
-        _log "tag  $LIB_IMAGE  →  $full"
-        _run docker tag  "$LIB_IMAGE" "$full"
-        _log "push $full"
-        _run docker push "$full"
-    done < <(ghcr_lib_tags)
 
     _step "PUSH ${KALI_IMAGE} → ${OS_GHCR_REPO}"
     while IFS= read -r tag; do
@@ -279,23 +267,22 @@ cmd_push() {
         _run docker push "$full"
     done < <(ghcr_os_tags)
 
-    _log "✔ push complete (lib + os)"
+    _step "PUSH ${DATA_IMAGE} → ${DATA_GHCR_REPO}"
+    while IFS= read -r tag; do
+        local full="${DATA_GHCR_REPO}:${tag}"
+        _log "tag  $DATA_IMAGE  →  $full"
+        _run docker tag  "$DATA_IMAGE" "$full"
+        _log "push $full"
+        _run docker push "$full"
+    done < <(ghcr_data_tags)
+
+    _log "✔ push complete (os + data)"
 }
 
 cmd_pull() {
     cmd_login || return 1
     local first=""
 
-    _step "PULL ← ${LIB_GHCR_REPO}"
-    while IFS= read -r tag; do
-        local full="${LIB_GHCR_REPO}:${tag}"
-        _log "pull $full"
-        _run docker pull "$full"
-        [[ -z "$first" ]] && first="$full"
-    done < <(ghcr_lib_tags)
-    [[ -n "$first" ]] && _run docker tag "$first" "$LIB_IMAGE"
-
-    first=""
     _step "PULL ← ${OS_GHCR_REPO}"
     while IFS= read -r tag; do
         local full="${OS_GHCR_REPO}:${tag}"
@@ -305,7 +292,17 @@ cmd_pull() {
     done < <(ghcr_os_tags)
     [[ -n "$first" ]] && _run docker tag "$first" "$KALI_IMAGE"
 
-    _log "✔ pull complete; local tags: lib=$LIB_IMAGE, os=$KALI_IMAGE"
+    first=""
+    _step "PULL ← ${DATA_GHCR_REPO}"
+    while IFS= read -r tag; do
+        local full="${DATA_GHCR_REPO}:${tag}"
+        _log "pull $full"
+        _run docker pull "$full"
+        [[ -z "$first" ]] && first="$full"
+    done < <(ghcr_data_tags)
+    [[ -n "$first" ]] && _run docker tag "$first" "$DATA_IMAGE"
+
+    _log "✔ pull complete; local tags: os=$KALI_IMAGE, data=$DATA_IMAGE"
 }
 
 cmd_ship() { cmd_build && cmd_push; }
