@@ -1,7 +1,12 @@
 #!/bin/bash
-# Arch Linux Bootstrap Install Script
-# Run from Kubuntu to install Arch to nvme0n1p6
-# Surface keyboard will work on FIRST BOOT!
+# Arch Linux Bootstrap Install Script (USB Ventoy fallback live image)
+#
+# DEPRECATED 2026-05-03: nvme0n1p6 is now rescue-os-debian, not Arch.
+# This script targets p6 — running it would overwrite the on-disk Debian
+# rescue OS. Kept as a Ventoy USB live-boot artefact only. Do NOT run
+# unless you intend to repurpose p6.
+#
+# Run from any running Linux. Surface keyboard works on FIRST BOOT.
 
 set -e
 

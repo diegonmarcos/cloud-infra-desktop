@@ -59,7 +59,7 @@
   # Bluetooth: Pairings stored in @shared/bluetooth (cross-OS)
   #       - Hardware/adapter-specific, not user-specific
   #       - Symlinked from /var/lib/bluetooth at boot
-  #       - Shared between NixOS and Kubuntu
+  #       - Shared between NixOS and any chainloaded OS (Kali, rescue-os-debian)
   #
 
   services.avahi = {

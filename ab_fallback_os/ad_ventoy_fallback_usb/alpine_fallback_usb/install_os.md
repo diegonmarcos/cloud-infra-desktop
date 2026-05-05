@@ -1,8 +1,8 @@
 # Alpine Recovery - OS Installation Config
 
 > Pre-boot configurations applied during installation
-> Date: 2026-01-06
-> Source: Kubuntu Live
+> Date: 2026-01-06 (originally — see git history for updates)
+> Source: any running Linux with debootstrap (rescue-os-debian, NixOS, Ventoy live USB)
 
 ---
 

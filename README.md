@@ -58,11 +58,12 @@
 | OS | Folder | Purpose |
 |----|--------|---------|
 | **NixOS 24.11** | `aa_nixos-surface_host/` | Primary workstation. Immutable root (tmpfs), impermanence, KDE Plasma 6 |
-| **Arch Linux** | `ab_arch-surface_fallback_desk/` | Desktop fallback with Surface hardware support |
-| **Kali Linux** | `ab_kali_security/` | Security auditing, network forensics (debootstrap) |
-| **Windows 11 Lite** | `ac_win11_webcam/` | Surface webcam driver support |
-| **Ventoy USB** | `ad_ventoy_fallback_usb/` | Multi-OS recovery: Debian, Arch, Alpine, NixOS Slim |
-| **Android/Mobile** | `ae_mobile_image/` | BlissOS QEMU VM, Samsung app extraction |
+| **Bootloader (rEFInd)** | `aa_bootloader/` | UEFI bootloader engine — declarative `boot.json` → rEFInd menu + GRUB chainload |
+| **Rescue OS (Debian)** | `rescue-os-debian/` | On-disk minimal CLI rescue (p6) — replaces Arch, replaced 2026-05-03 |
+| **Kali Linux** | `ab_fallback_os/ab_kali_security/` | Security auditing, network forensics (debootstrap) |
+| **Windows 11 Lite** | `ab_fallback_os/ac_win11_webcam/` | Surface webcam driver support |
+| **Ventoy USB** | `ab_fallback_os/ad_ventoy_fallback_usb/` | Multi-OS recovery: Debian, Arch, Alpine, NixOS Slim |
+| **Android/Mobile** | `ab_fallback_os/ae_mobile_image/` | BlissOS QEMU VM, Samsung app extraction |
 
 ### A.3 Nix Flakes (User Environment)
 
@@ -102,20 +103,20 @@ Nix Home Manager for Android/Termux. Mobile development environment with Claude 
 
 ```
 /                       # tmpfs (ephemeral, wiped on reboot)
-├── nix/                # @system/nix subvolume (persistent)
-├── home/diego/         # @user/home-diego subvolume (persistent)
-├── home/guest/         # @user/home-guest subvolume (persistent)
+├── nix/                # @nixos/nix subvolume (persistent)
+├── home/diego/         # @home-diego subvolume (persistent)
+├── home/guest/         # @home-guest subvolume (persistent)
 ├── mnt/
 │   ├── shared/         # @shared subvolume (cross-OS data)
 │   ├── btrfs-root/     # Pool root (all subvolumes visible)
-│   └── kubuntu/        # Kubuntu ext4 partition (ro)
-└── boot/efi/           # EFI system partition
+│   └── shared-lib/     # ext4 p5 — Docker data-root + cross-OS shared libs
+└── boot/efi/           # EFI system partition (ESP)
 ```
 
-- **LUKS2**: Full disk encryption, USB keyfile + password fallback
+- **LUKS2**: Full disk encryption, USB keyfile (Ventoy) + password fallback
 - **BTRFS**: zstd compression, noatime
-- **zRAM swap**: 50% of RAM (4GB compressed)
-- **Docker/Podman data**: `/mnt/shared/data/containers/`
+- **zRAM swap**: 50% of RAM (compressed) + disk swapfile fallback (priority -2)
+- **Docker/Podman data**: `/mnt/shared-lib/docker/`
 
 ### A.7 Surface Hardware Notes
 
@@ -124,7 +125,7 @@ Nix Home Manager for Android/Termux. Mobile development environment with Claude 
 - **Wayland**: Default (Plasma 6), X11 available for Openbox
 - **Touchscreen/Pen**: via `nixos-hardware` Surface module
 - **Kernel**: linux-surface (mainline 6.15+ with Surface patches)
-- **Dual-boot**: Kubuntu (ext4 partition, shared boot)
+- **Multi-boot**: Rescue-OS-Debian (p6, ext4) · Kali Linux (p7, ext4) · Windows (ESP chainload, webcam-only) · Ventoy USB · all rendered into rEFInd menu by `aa_bootloader/`
 
 ---
 
@@ -141,11 +142,13 @@ unix/
 │   └── TOOLS.md                       Curated package lists
 │
 ├── aa_nixos-surface_host/             NixOS host configuration
-├── ab_arch-surface_fallback_desk/     Arch Linux fallback
-├── ab_kali_security/                  Kali security zone
-├── ac_win11_webcam/                   Windows hardware fallback
-├── ad_ventoy_fallback_usb/            Multi-OS USB recovery
-├── ae_mobile_image/                   Android image management
+├── aa_bootloader/                     UEFI bootloader engine (rEFInd + GRUB chainload)
+├── ab_fallback_os/                    Multi-OS fallback catalog
+│   ├── ab_kali_security/              Kali security zone (debootstrap)
+│   ├── ac_win11_webcam/               Windows hardware fallback
+│   ├── ad_ventoy_fallback_usb/        Multi-OS USB recovery
+│   └── ae_mobile_image/               Android (BlissOS) QEMU image
+├── rescue-os-debian/                  On-disk minimal Debian rescue (p6)
 │
 ├── ba_flakes_desktop/                 Home Manager (desktop)
 ├── bb_flakes_termux/                  Home Manager (Termux)
@@ -212,15 +215,21 @@ Provides tools for shell management, Nix operations, Git sync, mesh networking, 
 
 ### B.7 Disk Partitioning
 
-| Partition | Size | FS | Mount | Purpose |
-|-----------|------|-----|-------|---------|
-| EFI | 512M | FAT32 | `/boot/efi` | Bootloader (systemd-boot) |
-| NixOS | ~200G | BTRFS (LUKS) | `/` | System + user data |
-| Kubuntu | ~50G | ext4 | `/mnt/kubuntu` (ro) | Dual-boot fallback |
-| Kali | ~20G | ext4 | — | Security zone |
-| Recovery | ~2G | ext4 | — | Alpine rescue |
+Live layout (Surface Pro 8 NVMe, 237.54 GiB total):
 
-BTRFS subvolumes: `@system/nix`, `@system/state`, `@user/home-diego`, `@user/home-guest`, `@shared`.
+| Part | Size    | FS         | Label           | Mount             | Purpose                          |
+|------|---------|------------|-----------------|-------------------|----------------------------------|
+| p1   | 100 MiB | vfat       | (ESP)           | `/boot/efi`       | UEFI bootloader hub (rEFInd)     |
+| p2   |  16 MiB | raw        | MSR             | —                 | Microsoft Reserved (legacy)      |
+| p3   |   2 GiB | ext4       | boot            | `/boot`           | NixOS kernel + initrd            |
+| p4   |  80 GiB | LUKS2/btrfs| pool            | (multi)           | NixOS encrypted pool             |
+| p5   | 118 GiB | ext4       | Shared-Lib      | `/mnt/shared-lib` | Docker data-root + shared libs   |
+| p6   |   5 GiB | ext4       | rescue-os-debian| (unmounted)       | On-disk Debian rescue            |
+| p7   |  25 GiB | ext4       | kali-root       | (unmounted)       | Kali Linux                       |
+
+BTRFS subvolumes (in pool): `@nixos/nix`, `@home-diego`, `@home-guest`, `@shared` (with `@shared/{tmp,journal,coredump,log/audit,log/account,host/*,containers/*,...}` children).
+
+UEFI default boot: rEFInd (Boot0007). Bootloader source-of-truth: `aa_bootloader/src/boot.json`.
 
 ---
 

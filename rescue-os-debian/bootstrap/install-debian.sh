@@ -137,7 +137,7 @@ cat > "$MOUNT/etc/fstab" <<EOF
 UUID=$ROOT_UUID  /             ext4     defaults,noatime                       0      1
 UUID=$ESP_UUID                                                                 /mnt/efi      vfat     defaults,noauto,uid=1000,gid=1000      0      0
 UUID=0eaf7961-48c5-4b55-8a8f-04cd0b71de07                           /mnt/boot     ext4     defaults,noauto                        0      0
-UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793                           /mnt/kubuntu  ext4     defaults,noauto                        0      0
+UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793                           /mnt/shared-lib ext4   defaults,noauto                        0      0
 UUID=509491e4-d3a7-426d-9b78-4b024b24cc32                           /mnt/kali     ext4     defaults,noauto                        0      0
 /dev/mapper/pool                                                    /mnt/pool     btrfs    defaults,noauto,compress=zstd          0      0
 EOF

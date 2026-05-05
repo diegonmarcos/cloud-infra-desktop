@@ -144,7 +144,7 @@ Right-click menu:
 ├── System ───┬── btop
 │             ├── htop
 │             ├── WiFi (nmtui)
-│             └── Mount Kubuntu
+│             └── Mount Shared-Lib
 └── Exit
 ```
 
@@ -213,7 +213,7 @@ xterm -display :0
 ```sh
 # Check partition
 lsblk
-sudo fsck /dev/nvme0n1p5  # Kubuntu partition
+sudo fsck /dev/nvme0n1p5  # Shared-Lib partition (former Kubuntu p5)
 ```
 
 ---
@@ -222,7 +222,7 @@ sudo fsck /dev/nvme0n1p5  # Kubuntu partition
 
 This Alpine installation is designed for:
 
-1. **System Recovery** - Access Kubuntu/NixOS files when main OS fails
+1. **System Recovery** - Access NixOS / Shared-Lib / Kali / rescue-os-debian files when main OS fails
 2. **AI Assistance** - Use Claude Code to diagnose and fix issues
 3. **Network Diagnostics** - WiFi, SSH, curl for remote help
 4. **Disk Operations** - Mount, fsck, resize partitions

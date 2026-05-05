@@ -1,7 +1,8 @@
 #!/bin/sh
 # deploy-debian.sh — Phase 2 STUB
-# Will copy dist/adapters/debian/etc/* into /etc/ on Kali/Kubuntu,
-# disable Debian's grub.d auto-generation, run update-initramfs.
+# Will copy dist/adapters/debian/etc/* into /etc/ on a Debian-family chroot
+# (Kali, rescue-os-debian, etc.), disable Debian's grub.d auto-generation,
+# run update-initramfs.
 
 set -eu
 

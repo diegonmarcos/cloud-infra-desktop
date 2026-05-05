@@ -13,19 +13,19 @@ Install Kali Linux on Surface Pro with linux-surface kernel for keyboard/touchsc
 
 ## Prerequisites
 
-- Kubuntu or other Linux running
+- A running Linux host with debootstrap available (NixOS primary, rescue-os-debian, Ventoy USB live image, etc.)
 - Internet connection
 - ~30 minutes
 
 ## Quick Install
 
 ```bash
-# From Kubuntu
-cd /home/diego/mnt_git/unix/a_kali_security/os_debootstrap
+# From the running host
+cd ~/git/unix/ab_fallback_os/ab_kali_security/os_debootstrap
 sudo ./install-kali.sh
 
-# After completion
-sudo update-grub
+# After completion — re-render rEFInd menu via the bootloader engine
+cd ~/git/unix/aa_bootloader && YES=1 ./build.sh generate && YES=1 ./build.sh deploy --target refind
 sudo reboot
 ```
 
@@ -169,13 +169,14 @@ sudo systemctl restart iptsd
 
 ### Boot issues
 
-From Kubuntu:
+From any other running Linux (preferred: `tools/chroot-into kali`):
 ```bash
-sudo mount /dev/nvme0n1p7 /mnt/kali
-sudo chroot /mnt/kali
+sudo ~/git/unix/tools/chroot-into/chroot-into.sh kali
+# inside chroot:
 update-initramfs -u -k all
 exit
-sudo update-grub
+# back on host — re-render rEFInd menu
+cd ~/git/unix/aa_bootloader && YES=1 ./build.sh generate && YES=1 ./build.sh deploy --target refind
 ```
 
 ## Post-Install: Kali Tools

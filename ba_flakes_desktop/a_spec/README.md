@@ -1,6 +1,6 @@
 # Nix Home Manager - Standalone Multi-Distro Setup
 
-Portable, declarative user environment that works on any Linux distribution (Kubuntu, Arch, Fedora, etc.) without requiring NixOS.
+Portable, declarative user environment that works on any Linux distribution (Debian, Arch, Fedora, etc.) without requiring NixOS.
 
 ## Features
 
@@ -15,8 +15,8 @@ Portable, declarative user environment that works on any Linux distribution (Kub
 ### Installation
 
 ```bash
-cd /home/diego/mnt_git/unix/a_kubuntu
-./scripts/install.sh surface
+cd /home/diego/git/unix/ba_flakes_desktop
+./build.sh switch surface
 ```
 
 This will:
@@ -129,7 +129,7 @@ gp → git push
 ## Directory Structure
 
 ```
-a_kubuntu/
+ba_flakes_desktop/
 ├── flake.nix          # Main entry point
 ├── lib/               # Helper functions
 ├── modules/

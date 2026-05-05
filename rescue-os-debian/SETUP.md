@@ -2,7 +2,7 @@
 
 Almost always nothing to do here — Kali ships with `apt`, internet, and ESP auto-mounts. But for rare cold-start scenarios:
 
-## Requirements on the host (Kali / NixOS / Kubuntu)
+## Requirements on the host (Kali / NixOS / Ventoy live USB / any Debian-family)
 
 1. **Internet access** — `deb.debian.org` reachable.
 2. **`debootstrap`** — the bootstrapper auto-installs it on Debian-family hosts. On NixOS: `nix-shell -p debootstrap`.

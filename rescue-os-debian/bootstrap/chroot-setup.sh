@@ -107,7 +107,7 @@ EOF
 chmod 440 /etc/sudoers.d/90-diego
 
 section "Creating mount points"
-mkdir -p /mnt/efi /mnt/boot /mnt/pool /mnt/kubuntu /mnt/kali
+mkdir -p /mnt/efi /mnt/boot /mnt/pool /mnt/shared-lib /mnt/kali
 
 section "Enabling services"
 systemctl enable NetworkManager
@@ -131,7 +131,7 @@ CLAUDE CODE:
 MOUNTS (all noauto — mount on demand):
   sudo mount /mnt/efi             # EFI System Partition (p1)
   sudo mount /mnt/boot            # shared /boot         (p3)
-  sudo mount /mnt/kubuntu         # Kubuntu root         (p5)
+  sudo mount /mnt/shared-lib      # Shared-Lib (Docker)  (p5)
   sudo mount /mnt/kali            # Kali root            (p7)
 
 LUKS POOL (p4) — encrypted, unlock + mount manually:

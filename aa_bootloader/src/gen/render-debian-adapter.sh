@@ -1,7 +1,8 @@
 #!/bin/sh
 # render-debian-adapter.sh — Phase 2 STUB
-# Will emit /etc fragments for Kali/Kubuntu (crypttab, /etc/default/grub,
-# initramfs-tools conf.d). Not implemented in Phase 1.
+# Will emit /etc fragments for any Debian-family chroot (Kali,
+# rescue-os-debian) — crypttab, /etc/default/grub, initramfs-tools conf.d.
+# Not implemented in Phase 1.
 
 set -eu
 

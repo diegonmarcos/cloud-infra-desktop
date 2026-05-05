@@ -127,12 +127,12 @@
   #   - ARCHITECTURE.md (technical docs)
   #   - ISSUES-STATUS.md (known issues)
   #
-  # Canonical source: /mnt/shared-lib/home/diego/mnt_git/unix/a_nixos_host/
+  # Canonical source: /home/diego/git/unix/aa_nixos-surface_host/
   # Convenient access: /nix/specs/
 
   system.activationScripts.nixSpecs = ''
     echo "[SPECS] Setting up /nix/specs/..."
-    SPECS_SRC="/mnt/shared-lib/home/diego/mnt_git/unix/a_nixos_host"
+    SPECS_SRC="/home/diego/git/unix/aa_nixos-surface_host"
 
     # Check if source exists
     if [ -d "$SPECS_SRC" ]; then
@@ -159,11 +159,11 @@
         echo "[SPECS] ERROR: Failed to create symlink (exit $?)" >&2
       fi
     else
-      # Source not found - check if kubuntu is mounted
+      # Source not found — repo path missing or home not mounted yet.
       echo "[SPECS] WARNING: Config source not found at $SPECS_SRC" >&2
 
-      if ! mountpoint -q /mnt/shared-lib 2>/dev/null; then
-        echo "[SPECS] HINT: /mnt/shared-lib is not mounted" >&2
+      if ! mountpoint -q /home/diego 2>/dev/null; then
+        echo "[SPECS] HINT: /home/diego is not mounted (LUKS pool not unlocked?)" >&2
       fi
 
       # Create fallback directory with README
@@ -174,18 +174,19 @@
 Configuration source not found at expected location.
 
 ## Expected Location
-/mnt/shared-lib/home/diego/mnt_git/unix/a_nixos_host/
+/home/diego/git/unix/aa_nixos-surface_host/
 
 ## Troubleshooting
 
-1. Check if Kubuntu partition is mounted:
-   mountpoint /mnt/shared-lib
+1. Check if /home/diego is mounted (it lives on the LUKS btrfs pool):
+   mountpoint /home/diego
 
-2. Mount it manually:
-   sudo mount /mnt/shared-lib
+2. If LUKS is locked, unlock + mount the pool:
+   sudo cryptsetup open /dev/nvme0n1p4 pool
+   sudo mount -o subvol=@home-diego /dev/mapper/pool /home/diego
 
-3. Rebuild NixOS to refresh symlink:
-   sudo nixos-rebuild switch --flake /mnt/shared-lib/home/diego/mnt_git/unix/a_nixos_host#surface
+3. Rebuild NixOS once the source is reachable:
+   sudo nixos-rebuild switch --flake /home/diego/git/unix/aa_nixos-surface_host#surface
 
 ## Alternative
 
@@ -199,7 +200,7 @@ SPECEOF
   # ═══════════════════════════════════════════════════════════════════════════
   # BLUETOOTH PERSISTENCE (via @shared)
   # ═══════════════════════════════════════════════════════════════════════════
-  # Bluetooth pairings stored in @shared for cross-OS sharing (NixOS + Kubuntu)
+  # Bluetooth pairings stored in @shared for cross-OS sharing (NixOS + chainloaded OSes)
   # This is adapter-specific (hardware), not user-specific
   # Symlink WiFi connections -> /mnt/shared/NetworkManager at boot
 

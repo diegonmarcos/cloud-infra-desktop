@@ -48,7 +48,7 @@ cd ~/git/unix/rescue-os-debian
    - Installs kernel + firmware + base CLI + network + browser stack + Node + Claude Code
    - Creates user `diego` (UID 1000, fish shell, NOPASSWD sudo)
    - Sets root + diego password to `1234567890`
-   - Creates mount points `/mnt/{efi,boot,pool,kubuntu,kali}`
+   - Creates mount points `/mnt/{efi,boot,pool,shared-lib,kali}`
    - Enables `NetworkManager`, `ssh`, `systemd-resolved`; masks `systemd-networkd` (kept installed but inactive)
    - Writes `/etc/quickref` and configures bash + fish to display it on every login
 10. Generates `/etc/fstab` (root + every other partition as `noauto`) and `/etc/crypttab` (LUKS pool).
@@ -116,7 +116,7 @@ claude
 | 2 | 16 MB | (raw) | MSR | — | Microsoft Reserved |
 | 3 | 2 GB | ext4 | boot | `/mnt/boot` (noauto) | Shared `/boot` (legacy NixOS GRUB area; now optional storage for kernels) |
 | 4 | 79.8 GB | LUKS/btrfs | pool | `/mnt/pool` (noauto) | NixOS encrypted pool (`@nixos`, `@home-diego`, `@home-guest`, `@shared`) |
-| 5 | 118.4 GB | ext4 | Shared-Lib | `/mnt/kubuntu` (noauto) | Kubuntu root |
+| 5 | 118.4 GB | ext4 | Shared-Lib | `/mnt/shared-lib` (noauto) | Docker data-root + cross-OS shared libs |
 | 6 | 5 GB | ext4 | **debian** | `/` | **This Debian rescue OS** |
 | 7 | 25 GB | ext4 | kali-root | `/mnt/kali` (noauto) | Kali root |
 
