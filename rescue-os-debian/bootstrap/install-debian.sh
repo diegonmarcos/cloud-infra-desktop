@@ -75,8 +75,8 @@ fi
 # Format + mount
 # ────────────────────────────────────────────────────────────────────────────
 
-section "Formatting $TARGET as ext4 (label=debian)"
-mkfs.ext4 -F -L "debian" "$TARGET"
+section "Formatting $TARGET as ext4 (label=rescue-os-debian)"
+mkfs.ext4 -F -L "rescue-os-debian" "$TARGET"
 
 section "Mounting $TARGET → $MOUNT"
 mkdir -p "$MOUNT"

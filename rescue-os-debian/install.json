@@ -2,7 +2,7 @@
   "meta": {
     "name": "Debian Rescue OS (Surface)",
     "version": "1.0",
-    "target": "Surface Pro 8 — fallback partition nvme0n1p6 (5GB)",
+    "target": "Surface Pro 8 — fallback partition nvme0n1p6 (5GB, label=rescue-os-debian)",
     "release": "trixie",
     "hostname": "rescue-os-debian",
     "purpose": "Minimal CLI rescue OS with Node + Claude Code + on-demand X11 browser for OAuth"
