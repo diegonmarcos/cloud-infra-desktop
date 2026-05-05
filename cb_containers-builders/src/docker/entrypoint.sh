@@ -249,9 +249,26 @@ WORKSPACE="$GIT_ROOT/cloud"
 cd "$WORKSPACE"
 echo "[setup] Ready: $(pwd) @ $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
+# ── 7b. Docker daemon health-check ────────────────────────────────
+# The container mounts /var/run/docker.sock and every common payload
+# (docker login, docker build, docker push) needs the daemon
+# reachable. If the socket mount has wrong perms or the daemon is
+# down, the next docker call fails, `set -e` aborts the user payload
+# silently mid-pipeline → ssh closes → outer engine sees exit 255 with
+# zero diagnostic output. Surfacing the actual daemon error here means
+# future failures arrive with their cause attached.
+if ! docker info >/dev/null 2>&1; then
+  echo "[setup] FATAL: docker daemon unreachable from inside cloud-builder-x"
+  echo "[setup] docker info stderr:"
+  docker info 2>&1 | sed 's/^/[setup]   /' | head -10
+  exit 1
+fi
+echo "[setup] docker daemon ok ($(docker version --format '{{.Server.Version}}' 2>/dev/null || echo '?'))"
+
 # ── 8. Dispatch ────────────────────────────────────────────────────
 SCRIPTS=".github/workflows/scripts"
 CMD="$1"; shift
+echo "[setup] Dispatching: CMD=$CMD args=$*"
 
 case "$CMD" in
   ship)
