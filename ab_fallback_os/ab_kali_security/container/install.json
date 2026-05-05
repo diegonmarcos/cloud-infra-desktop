@@ -12,21 +12,21 @@
     "tag": "latest"
   },
   "images": {
-    "_description": "Two-image split for build-time efficiency. kali-lib carries the heavy kali-linux-everything layer (~33 GB, rarely rebuilt). kali-os is a thin overlay (~50 MiB unique) FROM kali-lib carrying entrypoint + user + runtime helpers; rebuilt on every config change. Both pushed to GHCR independently — Docker layer-shares the heavy layer at pull time, so users get one combined runtime image without duplication.",
-    "lib": {
-      "local_tag": "kali-lib:latest",
-      "dockerfile": "Dockerfile.base",
-      "ghcr_name": "kali-lib",
-      "ghcr_tags": ["latest"],
-      "_description": "Heavy stage — apt + base + GUI + kali-linux-everything"
-    },
+    "_description": "Two-image split. kali-os is the bootable minimum (~400 MB): base + apt-base + jq + user + entrypoint. kali-lib FROM kali-os adds the heavy GUI + kali-linux-everything layers (~34 GB total). Pull kali-os for fast CLI work; pull kali-lib when you need the full toolset / GUI. Both pushed to GHCR independently.",
     "os": {
       "local_tag": "kali-os:latest",
-      "dockerfile": "Dockerfile.runtime",
-      "from": "kali-lib:latest",
+      "dockerfile": "Dockerfile.os",
       "ghcr_name": "kali-os",
+      "ghcr_tags": ["latest", "minimum"],
+      "_description": "Bootable minimum Kali — apt-base + jq + entrypoint, no tools, no GUI. ~400 MB."
+    },
+    "lib": {
+      "local_tag": "kali-lib:latest",
+      "dockerfile": "Dockerfile.lib",
+      "from": "kali-os:latest",
+      "ghcr_name": "kali-lib",
       "ghcr_tags": ["latest", "full"],
-      "_description": "Thin overlay — entrypoint, user, runtime helpers (jq). FROM kali-lib."
+      "_description": "Full pentest toolkit + GUI on top of kali-os. ~34.5 GB total."
     }
   },
   "ghcr": {

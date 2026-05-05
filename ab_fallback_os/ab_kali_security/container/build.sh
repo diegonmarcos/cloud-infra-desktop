@@ -3,17 +3,20 @@
 # Source of truth: ./install.json. NEVER hardcode values here.
 #
 # Usage: ./build.sh <command>
-#   build         Build runtime overlay (auto-builds lib if missing)
-#   build-base    Build heavy stage1 image (Dockerfile.base) — kali-lib:latest
-#                 (alias: build-lib)
-#   build-runtime Build thin stage2 overlay (Dockerfile.runtime) — kali-os:latest
-#                 (alias: build-os)
-#   rebuild       Force rebuild of BOTH stages
+#   build         Build full chain (kali-os then kali-lib FROM kali-os)
+#   build-os      Build STAGE 1 (Dockerfile.os) — kali-os:latest
+#                 Bootable minimum: base + apt-base + jq + entrypoint (~400 MB).
+#                 Boot this alone for fast `cli` mode. (legacy alias: build-runtime)
+#   build-lib     Build STAGE 2 (Dockerfile.lib) FROM kali-os — kali-lib:latest
+#                 Adds APT_GUI + APT_META (kali-linux-everything ~33 GB total).
+#                 Required for `gui` mode and scanner profiles. (legacy alias: build-base)
+#   rebuild       Force rebuild of BOTH stages (os then lib)
 #
-# Two-image split: the heavy kali-linux-everything layer (~33 GiB) lives in
-# kali-lib:latest. The thin runtime overlay (entrypoint, user, jq) lives in
-# kali-os:latest, FROM kali-lib. Both pushed independently to GHCR; layer
-# share means pulling kali-os also fetches kali-lib's layers automatically.
+# Two-image split:
+#   kali-os  : ~400 MB, bootable on its own. Pull this for CLI-only work.
+#   kali-lib : FROM kali-os, ~34.5 GB. Pull this when you need the toolkit/GUI.
+# Both pushed independently to GHCR; pulling kali-lib also fetches kali-os
+# layers via Docker's parent-image dedup.
 #   up-cli     Start CLI profile  (host network)
 #   up-gui     Start GUI profile  (host network, noVNC at :6901)
 #   down       Stop + remove both profiles
@@ -108,49 +111,54 @@ _netflag() {
     esac
 }
 
-_base_tag()    { echo "${LIB_IMAGE}"; }   # kali-lib:latest
-_runtime_tag() { echo "${KALI_IMAGE}"; }  # kali-os:latest
+_os_tag()  { echo "${KALI_IMAGE}"; }  # kali-os:latest  (stage 1)
+_lib_tag() { echo "${LIB_IMAGE}"; }   # kali-lib:latest (stage 2, FROM kali-os)
 
-cmd_build_base() {
-    _step "BUILD stage1 → $(_base_tag) (network=$(jq -r .container.network_mode "$CFG"), progress=$BUILDKIT_PROGRESS)"
+cmd_build_os() {
+    _step "BUILD stage1 → $(_os_tag) (network=$(jq -r .container.network_mode "$CFG"), progress=$BUILDKIT_PROGRESS)"
     local net; net="$(_netflag)"
     # shellcheck disable=SC2086
     _run docker build --progress="$BUILDKIT_PROGRESS" $net \
-        -f "$HERE/Dockerfile.base" \
+        -f "$HERE/Dockerfile.os" \
         --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
         --build-arg "TZ=${TZ_VAL}" \
         --build-arg "LANG_=${LANG_VAL}" \
         --build-arg "APT_BASE=${APT_BASE}" \
-        --build-arg "APT_GUI=${APT_GUI}" \
-        --build-arg "APT_META=${APT_META}" \
-        -t "$(_base_tag)" "$HERE"
-    _log "✔ stage1 done: $(_base_tag)"
-}
-
-cmd_build_runtime() {
-    docker image inspect "$(_base_tag)" >/dev/null 2>&1 \
-        || { echo "base image $(_base_tag) missing — run: $0 build-base"; return 1; }
-    _step "BUILD stage2 → $(_runtime_tag) (FROM $(_base_tag))"
-    local net; net="$(_netflag)"
-    # shellcheck disable=SC2086
-    _run docker build --progress="$BUILDKIT_PROGRESS" $net \
-        -f "$HERE/Dockerfile.runtime" \
-        --build-arg "BASE_TAG=$(_base_tag)" \
+        --build-arg "APT_RUNTIME=${APT_RUNTIME}" \
         --build-arg "USER_NAME=${USER_NAME}" \
         --build-arg "USER_UID=${USER_UID}" \
         --build-arg "USER_GID=${USER_GID}" \
         --build-arg "USER_SHELL=${USER_SHELL}" \
-        --build-arg "APT_RUNTIME=${APT_RUNTIME}" \
-        -t "$(_runtime_tag)" "$HERE"
-    _log "✔ stage2 done: $(_runtime_tag)"
+        -t "$(_os_tag)" "$HERE"
+    _log "✔ stage1 done: $(_os_tag)"
+}
+
+cmd_build_lib() {
+    docker image inspect "$(_os_tag)" >/dev/null 2>&1 \
+        || { echo "os image $(_os_tag) missing — run: $0 build-os"; return 1; }
+    _step "BUILD stage2 → $(_lib_tag) (FROM $(_os_tag))"
+    local net; net="$(_netflag)"
+    # shellcheck disable=SC2086
+    _run docker build --progress="$BUILDKIT_PROGRESS" $net \
+        -f "$HERE/Dockerfile.lib" \
+        --build-arg "BASE_TAG=$(_os_tag)" \
+        --build-arg "APT_GUI=${APT_GUI}" \
+        --build-arg "APT_META=${APT_META}" \
+        --build-arg "USER_NAME=${USER_NAME}" \
+        -t "$(_lib_tag)" "$HERE"
+    _log "✔ stage2 done: $(_lib_tag)"
 }
 
 cmd_build() {
-    docker image inspect "$(_base_tag)" >/dev/null 2>&1 || cmd_build_base || return 1
-    cmd_build_runtime
+    docker image inspect "$(_os_tag)" >/dev/null 2>&1 || cmd_build_os || return 1
+    cmd_build_lib
 }
 
-cmd_rebuild() { cmd_build_base && cmd_build_runtime; }
+cmd_rebuild() { cmd_build_os && cmd_build_lib; }
+
+# Back-compat aliases (legacy names from before the os/lib flip).
+cmd_build_base()    { cmd_build_lib; }
+cmd_build_runtime() { cmd_build_os; }
 
 cmd_up_cli()  { ensure_data_dirs; "${DC[@]}" --profile cli up -d kali-cli; }
 cmd_up_gui()  { ensure_data_dirs; "${DC[@]}" --profile gui up -d kali-gui; \
@@ -176,17 +184,17 @@ cmd_test() {
 
     echo -n "[4/8] kali-lib built locally .......... "
     docker image inspect "${LIB_IMAGE}" >/dev/null 2>&1 \
-        && echo "OK" || { echo "MISSING (run: $0 build-base)"; fail=1; }
+        && echo "OK" || { echo "MISSING (run: $0 build-lib)"; fail=1; }
 
-    echo -n "[5/8] kali-os FROM kali-lib (layer share) ........ "
+    echo -n "[5/8] kali-lib FROM kali-os (layer share) ........ "
     if docker image inspect "${KALI_IMAGE}" >/dev/null 2>&1 && docker image inspect "${LIB_IMAGE}" >/dev/null 2>&1; then
-        # The LIB_IMAGE's first non-zero layer must appear in OS_IMAGE's layer list.
-        lib_layers=$(docker image inspect "${LIB_IMAGE}" --format '{{json .RootFS.Layers}}' | jq -r '.[]' | head -3 | sort -u)
-        os_layers=$(docker image inspect "${KALI_IMAGE}" --format '{{json .RootFS.Layers}}' | jq -r '.[]' | sort -u)
-        if [ -n "$lib_layers" ] && comm -12 <(echo "$lib_layers") <(echo "$os_layers") | grep -q .; then
+        # All of kali-os's layers must appear at the bottom of kali-lib's stack.
+        os_layers=$(docker image inspect "${KALI_IMAGE}" --format '{{json .RootFS.Layers}}' | jq -r '.[]' | head -3 | sort -u)
+        lib_layers=$(docker image inspect "${LIB_IMAGE}" --format '{{json .RootFS.Layers}}' | jq -r '.[]' | sort -u)
+        if [ -n "$os_layers" ] && comm -12 <(echo "$os_layers") <(echo "$lib_layers") | grep -q .; then
             echo "OK"
         else
-            echo "FAIL — kali-os does not share layers with kali-lib (rebuild os FROM lib)"
+            echo "FAIL — kali-lib does not share layers with kali-os (rebuild lib FROM os)"
             fail=1
         fi
     else echo "SKIP"; fi
@@ -248,7 +256,7 @@ cmd_login() {
 
 cmd_push() {
     docker image inspect "$LIB_IMAGE"  >/dev/null 2>&1 \
-        || { echo "local image $LIB_IMAGE missing — run: $0 build-base"; return 1; }
+        || { echo "local image $LIB_IMAGE missing — run: $0 build-lib"; return 1; }
     docker image inspect "$KALI_IMAGE" >/dev/null 2>&1 \
         || { echo "local image $KALI_IMAGE missing — run: $0 build"; return 1; }
     cmd_login || return 1
@@ -404,8 +412,8 @@ cmd_clean() {
 
 case "${1:-}" in
     build)                  cmd_build         ;;
-    build-base|build-lib)   cmd_build_base    ;;
-    build-runtime|build-os) cmd_build_runtime ;;
+    build-os|build-runtime) cmd_build_os      ;;  # build-runtime = legacy alias
+    build-lib|build-base)   cmd_build_lib     ;;  # build-base    = legacy alias
     rebuild)                cmd_rebuild       ;;
     up-cli)  cmd_up_cli  ;;
     up-gui)  cmd_up_gui  ;;
