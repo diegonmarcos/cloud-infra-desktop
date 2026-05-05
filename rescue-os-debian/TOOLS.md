@@ -1,8 +1,8 @@
 # Debian Rescue OS — Tools Reference
 
 > **Hostname**: rescue-os-debian
-> **Partition**: `/dev/nvme0n1p6` (5GB ext4, label `debian`)
-> **Bootloader**: rEFInd (kernel at `/EFI/debian/` on ESP)
+> **Partition**: `/dev/nvme0n1p6` (5GB ext4, label `rescue-os-debian`)
+> **Bootloader**: rEFInd (reads p6 directly; kernel stays on the partition)
 > **Default user**: `diego` / `1234567890` (fish shell, NOPASSWD sudo)
 > **Purpose**: Minimal CLI rescue OS for the Surface Pro 8. Boot it when NixOS or Kali is broken; use Node + Claude Code to fix things.
 
@@ -143,7 +143,7 @@ The menuentry in `/mnt/efi/EFI/refind/refind.conf`:
 ```
 menuentry "Debian Rescue OS" {
     icon     /EFI/refind/icons/os_debian.png
-    volume   debian              # filesystem label = p6
+    volume   "rescue-os-debian"   # FS label of p6 (or use UUID, also fine)
     loader   /vmlinuz            # symlink → /boot/vmlinuz-X.Y (latest)
     initrd   /initrd.img         # symlink → /boot/initrd.img-X.Y (latest)
     options  "root=UUID=<p6-uuid> rw quiet"
@@ -184,11 +184,11 @@ sudo cryptsetup luksDump /dev/nvme0n1p4
 ```
 
 ### Kernel update broke boot
+rEFInd reads `/vmlinuz` and `/initrd.img` (symlinks at the FS root) directly from p6. If `apt upgrade` left them in a weird state:
 1. From rEFInd, boot any other distro.
-2. Mount p6: `sudo mount /dev/nvme0n1p6 /mnt/p6`
-3. Mount ESP: `sudo mount /dev/nvme0n1p1 /mnt/efi`
-4. Recopy kernel: `sudo cp /mnt/p6/boot/vmlinuz-* /mnt/efi/EFI/debian/vmlinuz`
-5. Same for initrd.
+2. Mount p6: `sudo mount /dev/disk/by-label/rescue-os-debian /mnt/p6`
+3. Inspect: `ls -la /mnt/p6/vmlinuz /mnt/p6/initrd.img` — both should be valid symlinks.
+4. If broken, repoint: `cd /mnt/p6 && sudo ln -sf boot/vmlinuz-<latest> vmlinuz && sudo ln -sf boot/initrd.img-<latest> initrd.img`
 
 ---
 
