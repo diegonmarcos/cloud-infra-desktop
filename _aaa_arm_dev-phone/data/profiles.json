@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "name": "owner",
+      "user_id": 0,
+      "type": "owner",
+      "sandboxed_play": false,
+      "private_space": false,
+      "include_apk_tags": ["base", "privacy", "tools"]
+    },
+    {
+      "name": "google",
+      "user_id": "auto",
+      "type": "secondary",
+      "sandboxed_play": true,
+      "private_space": false,
+      "include_apk_tags": ["base", "google-services", "general"]
+    },
+    {
+      "name": "banking",
+      "user_id": "auto",
+      "type": "secondary",
+      "sandboxed_play": true,
+      "private_space": true,
+      "include_apk_tags": ["base", "google-services", "banking"]
+    }
+  ]
+}

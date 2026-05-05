@@ -1,0 +1,6 @@
+dist/
+.secrets
+*.log
+logs/
+result
+result-*

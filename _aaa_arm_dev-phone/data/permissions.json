@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "by_profile": {
+    "owner": {
+      "revoke": [
+        { "package": "com.google.android.apps.maps", "permission": "android.permission.ACCESS_FINE_LOCATION" }
+      ],
+      "grant":  []
+    },
+    "google": {
+      "revoke": [],
+      "grant":  [
+        { "package": "com.google.android.apps.maps", "permission": "android.permission.ACCESS_FINE_LOCATION" }
+      ]
+    },
+    "banking": {
+      "revoke": [
+        { "package": "com.bank.example", "permission": "android.permission.READ_CONTACTS" },
+        { "package": "com.bank.example", "permission": "android.permission.ACCESS_FINE_LOCATION" }
+      ],
+      "grant":  []
+    }
+  }
+}

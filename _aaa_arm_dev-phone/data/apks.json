@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "fdroid":             "https://f-droid.org/repo",
+    "izzyondroid":        "https://apt.izzysoft.de/fdroid/repo",
+    "graphene-app-store": "https://apps.grapheneos.org",
+    "play":               "aurora-store-anonymous"
+  },
+  "apks": [
+    { "package": "org.fdroid.fdroid",            "source": "fdroid",             "tags": ["base"] },
+    { "package": "com.aurora.store",             "source": "fdroid",             "tags": ["base"] },
+    { "package": "dev.imranr.obtainium",         "source": "fdroid",             "tags": ["base"] },
+    { "package": "com.termux",                   "source": "fdroid",             "tags": ["tools"] },
+
+    { "package": "org.thoughtcrime.securesms",   "source": "fdroid",             "tags": ["privacy", "general"] },
+    { "package": "im.molly.app.unifiedpush",     "source": "fdroid",             "tags": ["privacy"] },
+    { "package": "net.osmand.plus",              "source": "fdroid",             "tags": ["general"] },
+    { "package": "ws.xsoh.etar",                 "source": "fdroid",             "tags": ["general"] },
+    { "package": "at.bitfire.davdroid",          "source": "fdroid",             "tags": ["general"] },
+
+    { "package": "com.google.android.gms",       "source": "graphene-app-store", "tags": ["google-services"] },
+    { "package": "com.google.android.gsf",       "source": "graphene-app-store", "tags": ["google-services"] },
+    { "package": "com.android.vending",          "source": "graphene-app-store", "tags": ["google-services"] },
+
+    { "package": "com.google.android.apps.maps", "source": "play",               "tags": ["general"] },
+    { "package": "com.spotify.music",            "source": "play",               "tags": ["general"] },
+
+    { "package": "com.bank.example",             "source": "play",               "tags": ["banking"] }
+  ]
+}
