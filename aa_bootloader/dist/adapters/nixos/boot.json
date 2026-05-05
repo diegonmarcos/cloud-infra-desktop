@@ -114,11 +114,11 @@
         "label": "Debian Rescue OS",
         "class": "linux",
         "root_uuid": "42ccd674-d035-497d-b0eb-bffa28c5144c",
-        "fs_label": "debian",
+        "fs_label": "rescue-os-debian",
         "kernel": "/vmlinuz",
         "initrd": "/initrd.img",
         "options": "rw quiet",
-        "_note": "Replaces Arch on p6 (2026-05-03). Debian trixie minimal CLI rescue OS with Node + Claude Code + Firefox-for-OAuth. Kernel paths use Debian's auto-updating /vmlinuz and /initrd.img symlinks at the FS root — kernel upgrades via apt are picked up automatically. rEFInd reads p6 directly via ext4 driver (volume label = 'debian'); ESP is too small (100 MB) to host every distro's initrd.",
+        "_note": "Replaces Arch on p6 (2026-05-03). Debian trixie minimal CLI rescue OS with Node + Claude Code + Firefox-for-OAuth. Kernel paths use Debian's auto-updating /vmlinuz and /initrd.img symlinks at the FS root — kernel upgrades via apt are picked up automatically. rEFInd reads p6 directly via ext4 driver (volume label = 'rescue-os-debian'); ESP is too small (100 MB) to host every distro's initrd.",
         "recovery": {
           "enabled": false
         }
