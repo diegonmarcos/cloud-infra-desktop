@@ -1,0 +1,98 @@
+{
+  "_comment": "Source of truth for profile→leaves mapping. Read by flake.nix at eval time. Keys must stay stable — they are the public profile names referenced by toolsets/presets in flake.nix and build.json. To rename a profile, update this file + flake.nix toolsets + build.json presets in lockstep.",
+
+  "shell-core": [
+    "core/fonts",
+    "core/shell-utils",
+    "core/tui",
+    "core/data-formats",
+    "core/network-basics",
+    "core/clipboard",
+    "core/coreutils",
+    "core/sysinfo",
+    "core/archive",
+    "core/web-terminal",
+    "core/git-extras",
+    "infra-tools/wrangler"
+  ],
+
+  "dev-languages": [
+    "languages/rust",
+    "languages/go",
+    "languages/node",
+    "languages/python",
+    "languages/c-cpp",
+    "languages/java",
+    "languages/ruby"
+  ],
+
+  "build-debug": [
+    "build-tools/build-systems",
+    "build-tools/debug",
+    "build-tools/analysis",
+    "build-tools/docs-diagrams",
+    "build-tools/dev-utils",
+    "core/git-extras"
+  ],
+
+  "containers-cloud": [
+    "containers-cloud/containers",
+    "containers-cloud/kubernetes",
+    "containers-cloud/iac",
+    "containers-cloud/cloud-clis",
+    "containers-cloud/observability",
+    "containers-cloud/ci-cd",
+    "containers-cloud/secrets"
+  ],
+
+  "security-network": [
+    "security-net/privacy",
+    "security-net/vpn",
+    "security-net/network-analysis",
+    "security-net/scanning",
+    "security-net/secrets",
+    "security-net/passwords-gui",
+    "security-net/forensics",
+    "security-net/tls",
+    "security-net/firewall"
+  ],
+
+  "data-science": [
+    "ai/gemini",
+    "ai/claude",
+    "data-science/python-numerics",
+    "data-science/python-ml",
+    "data-science/jupyter",
+    "data-science/databases-cli",
+    "data-science/stats-r",
+    "data-science/scientific",
+    "data-science/scraping",
+    "data-science/api-clients"
+  ],
+
+  "productivity": [
+    "browsers/brave",
+    "browsers/firefox",
+    "productivity/office",
+    "productivity/notes",
+    "productivity/pdf",
+    "productivity/kde-tools",
+    "productivity/file-managers",
+    "productivity/tasks-time",
+    "productivity/screenshots",
+    "productivity/markdown",
+    "productivity/spell",
+    "core/archive"
+  ],
+
+  "media-graphics": [
+    "media-graphics/images-edit",
+    "media-graphics/video",
+    "media-graphics/audio",
+    "media-graphics/capture",
+    "media-graphics/viewers",
+    "media-graphics/photo-mgmt",
+    "media-graphics/media-info",
+    "media-graphics/design"
+  ]
+}
