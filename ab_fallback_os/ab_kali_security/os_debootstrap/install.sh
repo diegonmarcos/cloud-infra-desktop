@@ -295,7 +295,7 @@ cmd_install() {
 
     # Create mount points
     log_info "Creating mount points..."
-    $SUDO mkdir -p /mnt/pool /mnt/kubuntu
+    $SUDO mkdir -p /mnt/pool /mnt/shared-lib
 
     # Passwordless sudo for user
     if [ -n "$USER" ] && [ "$USER" != "root" ]; then

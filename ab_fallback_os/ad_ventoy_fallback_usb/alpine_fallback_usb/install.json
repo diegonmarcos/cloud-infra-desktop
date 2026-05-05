@@ -36,9 +36,9 @@
     "default": ["dbus", "networkmanager", "sshd"]
   },
   "mounts": {
-    "kubuntu": {
+    "shared_lib": {
       "device": "UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793",
-      "mountpoint": "/mnt/kubuntu",
+      "mountpoint": "/mnt/shared-lib",
       "fstype": "ext4",
       "options": "defaults,noauto"
     }
@@ -58,7 +58,7 @@
         {"label": "btop", "cmd": "xterm -e btop"},
         {"label": "htop", "cmd": "xterm -e htop"},
         {"label": "WiFi", "cmd": "xterm -e nmtui"},
-        {"label": "Mount Kubuntu", "cmd": "xterm -e 'sudo mount /mnt/kubuntu && pcmanfm /mnt/kubuntu'"}
+        {"label": "Mount Shared-Lib", "cmd": "xterm -e 'sudo mount /mnt/shared-lib && pcmanfm /mnt/shared-lib'"}
       ]},
       {"type": "separator"},
       {"label": "Exit", "action": "Exit"}

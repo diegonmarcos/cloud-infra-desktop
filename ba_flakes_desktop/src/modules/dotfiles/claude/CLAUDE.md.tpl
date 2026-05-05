@@ -24,7 +24,7 @@
 ```
 
 > **Owner**: Diego Nepomuceno Marcos
-> **System**: NixOS (Surface Pro 8) + Kubuntu (dual-boot)
+> **System**: NixOS (Surface Pro 8) primary · Rescue-OS-Debian (p6) · Kali Linux (p7) · Windows (webcam-only) · Shared-Lib (p5, Docker storage)
 > **Git Root**: `/home/diego/git`
 <!-- INJECT:generated_date -->
 > **Updated**: (static template — cloud-data not available at build time)
@@ -66,7 +66,9 @@
 | Component | Details |
 |-----------|---------|
 | **Primary OS** | NixOS 24.11 (Surface Pro 8) |
-| **Secondary OS** | Kubuntu (dual-boot, ext4 partition) |
+| **Bootloader** | rEFInd (UEFI), owned by `aa_bootloader/` engine |
+| **Multi-boot** | Rescue-OS-Debian (p6, ext4) · Kali Linux (p7, ext4) · Windows (ESP chainload, webcam-only) · Ventoy USB (LUKS keyfile + multi-OS live) |
+| **Data partition** | Shared-Lib (p5, ext4 → `/mnt/shared-lib`, Docker data-root) |
 | **Kernel** | linux-surface (mainline 6.15+ with Surface patches) |
 | **Desktop** | KDE Plasma 6 (Wayland), GNOME, Openbox available |
 | **Shell** | Fish (default), Zsh, Bash available |
@@ -97,7 +99,8 @@
 - **LUKS**: Full disk encryption, USB keyfile with password fallback
 - **initrd**: Surface keyboard needs `surface_aggregator`, `surface_hid` loaded early
 - **No Intel ISH**: Surface Pro 8 uses SAM, not Intel Integrated Sensor Hub
-- **Docker/Podman**: Data stored in `/mnt/shared/data/containers/`
+- **Docker/Podman**: Data stored at `/mnt/shared-lib/docker` (p5, former Kubuntu partition repurposed 2026-05-04)
+- **Bootloader**: NixOS yields all bootloader management to `aa_bootloader/` (rEFInd primary, GRUB secondary). Run `aa_bootloader/build.sh deploy` after any flake change that affects boot.
 
 ## A.4 Terminal Welcome (rendered fish greeting)
 

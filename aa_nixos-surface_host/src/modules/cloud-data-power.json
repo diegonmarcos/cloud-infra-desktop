@@ -94,8 +94,8 @@
       },
       {
         "id": "kernel_mem_sleep_default",
-        "description": "kernel cmdline forces deep sleep (no s2idle) per kernel.mem_sleep_default. NOTE: requires reboot to take effect — until then this checks the build-time GRUB entry, not /proc/cmdline.",
-        "command": "grep -hroE 'mem_sleep_default=[a-z]+' /boot/loader/entries/ /boot/grub/grub.cfg 2>/dev/null | head -1",
+        "description": "kernel cmdline forces deep sleep (no s2idle) per kernel.mem_sleep_default. Reads /proc/cmdline (always-current truth, bootloader-agnostic). Requires a reboot for changes from boot.json to take effect.",
+        "command": "grep -hoE 'mem_sleep_default=[a-z]+' /proc/cmdline | head -1",
         "expect": "mem_sleep_default=deep"
       },
       {

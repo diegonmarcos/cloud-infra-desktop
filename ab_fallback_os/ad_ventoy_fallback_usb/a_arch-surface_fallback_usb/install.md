@@ -102,9 +102,9 @@ sudo mount /dev/mapper/pool /mnt -o subvol=@root-nixos
 # Access NixOS files at /mnt
 ```
 
-### Mount Kubuntu
+### Mount Shared-Lib (former Kubuntu p5, now Docker storage)
 ```bash
-sudo mount /dev/nvme0n1p5 /mnt/kubuntu
+sudo mount /dev/nvme0n1p5 /mnt/shared-lib
 ```
 
 ### SSH Access

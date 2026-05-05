@@ -126,7 +126,7 @@ locals {
       filesystem = "ext4"
       uuid       = "0eaf7961-48c5-4b55-8a8f-04cd0b71de07"
       mount      = "/boot"
-      purpose    = "Shared /boot — kernels + initrd for NixOS + Kubuntu"
+      purpose    = "Shared /boot — kernels + initrd for NixOS + chainloaded OSes"
     }
     p3_alpine = {
       device     = "nvme0n1p3"
@@ -173,13 +173,13 @@ locals {
       }
     }
 
-    # ─── Kubuntu (ext4, separate partition) ─────────────────────────────────
-    kubuntu = {
+    # ─── Shared-Lib (ext4, was Kubuntu, repurposed 2026-05-04) ──────────────
+    shared_lib = {
       device     = "separate partition"
       filesystem = "ext4"
       uuid       = "7e3626ac-ce13-4adc-84e2-1a843d7e2793"
-      mount      = "/mnt/kubuntu (ro, nofail)"
-      purpose    = "Kubuntu dual-boot — secondary desktop OS"
+      mount      = "/mnt/shared-lib (rw, nofail)"
+      purpose    = "Docker images / shared libs / cross-OS data (former Kubuntu p5)"
     }
   }
 }
@@ -285,17 +285,14 @@ locals {
         type   = "native"
         note   = "Primary OS — managed by nixos-rebuild"
       }
-      "1_kubuntu" = {
-        name   = "Kubuntu OS"
+      # NOTE: Kubuntu retired 2026-05-04. Partition p5 (UUID 7e3626ac-...)
+      # is now ext4 "Shared-Lib" mounted at /mnt/shared-lib for Docker images
+      # and cross-OS data — no longer a bootable OS in the menu.
+      "2_rescue_os_debian" = {
+        name   = "Rescue OS (Debian trixie)"
         type   = "linux"
-        kernel = "/vmlinuz-6.18.2-surface-1"
-        root   = "UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793"
-      }
-      "2_arch" = {
-        name   = "Arch OS"
-        type   = "linux"
-        kernel = "/boot/vmlinuz-linux-surface"
-        root   = "UUID=1648a2fb-f2ce-4da5-9966-645758a24929"
+        kernel = "/vmlinuz"
+        root   = "UUID=42ccd674-d035-497d-b0eb-bffa28c5144c"
       }
       "3_kali" = {
         name   = "Kali Linux"
@@ -378,28 +375,28 @@ locals {
       }
     }
 
-    # ─── ab: Kubuntu (Dual-boot) ────────────────────────────────────────────
-    kubuntu = {
+    # ─── ab: Shared-Lib (former Kubuntu p5, repurposed 2026-05-04) ──────────
+    shared_lib = {
       partition   = "UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793"
       filesystem  = "ext4"
-      version     = "Kubuntu (linux-surface kernel)"
-      kernel      = "6.18.2-surface-1"
-      desktop     = "KDE Plasma"
+      version     = "n/a — Docker storage, not a bootable OS"
+      kernel      = "n/a"
+      desktop     = "n/a"
       encryption  = "none"
-      purpose     = "Secondary desktop OS, fallback"
-      mount_from_nixos = "/mnt/kubuntu (ro, nofail)"
+      purpose     = "Docker data-root + shared libs / cross-OS data"
+      mount_from_nixos = "/mnt/shared-lib (rw, nofail)"
     }
 
-    # ─── ab: Arch (Fallback Desktop) ────────────────────────────────────────
-    arch = {
-      repo_path   = "ab_arch-surface_fallback_desk"
-      partition   = "UUID=1648a2fb-f2ce-4da5-9966-645758a24929"
+    # ─── ab: Rescue OS (Debian trixie, replaces Arch on p6 since 2026-05-03) ─
+    rescue_os_debian = {
+      repo_path   = "ab_rescue-os-debian"
+      partition   = "UUID=42ccd674-d035-497d-b0eb-bffa28c5144c"
       filesystem  = "ext4"
-      version     = "Arch Linux (rolling)"
-      kernel      = "linux-surface"
-      desktop     = "Openbox + Sway"
+      version     = "Debian trixie (minimal CLI)"
+      kernel      = "linux-image-amd64 (Debian default)"
+      desktop     = "none — CLI rescue"
       encryption  = "none"
-      purpose     = "Fallback desktop with direct hardware access"
+      purpose     = "On-disk rescue OS with Node + Claude Code + Firefox-for-OAuth"
       install     = "install.json + install.sh"
 
       packages = {
@@ -839,11 +836,11 @@ output "device" {
 }
 
 output "os_count" {
-  value = "6 installed (NixOS, Kubuntu, Arch, Kali, Windows, Alpine) + 4 USB recovery images"
+  value = "5 bootable (NixOS, Rescue-OS-Debian, Kali, Windows, Ventoy USB) + Shared-Lib (data, not bootable) + 4 USB recovery images"
 }
 
 output "partitions" {
-  value = "6 partitions: EFI + /boot + Alpine + Kali + Windows + LUKS (BTRFS pool)"
+  value = "7 partitions: ESP + MSR + /boot + LUKS-pool + Shared-Lib + Rescue-OS-Debian + Kali"
 }
 
 output "sessions" {
