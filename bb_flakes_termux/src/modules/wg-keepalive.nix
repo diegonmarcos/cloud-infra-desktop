@@ -61,11 +61,11 @@ let
     # Reference: com.wireguard.android.action.SET_TUNNEL_DOWN/UP
     if command -v am >/dev/null 2>&1; then
       am broadcast -a com.wireguard.android.action.SET_TUNNEL_DOWN \
-        -n com.wireguard.android/.model.TunnelManager$IntentReceiver \
+        -n 'com.wireguard.android/.model.TunnelManager$IntentReceiver' \
         --es tunnel wg0 >/dev/null 2>&1 || true
       sleep 2
       am broadcast -a com.wireguard.android.action.SET_TUNNEL_UP \
-        -n com.wireguard.android/.model.TunnelManager$IntentReceiver \
+        -n 'com.wireguard.android/.model.TunnelManager$IntentReceiver' \
         --es tunnel wg0 >/dev/null 2>&1 || true
     fi
 
