@@ -87,19 +87,11 @@ RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh && export NIXPKGS_ALLOW_UNFR
        nixpkgs#shellcheck nixpkgs#shfmt nixpkgs#direnv \
     || true
 
-# Aggressive cleanup — this is the last step in the builder.
-# /home/diego/git is needed at HM-switch time (line ~50 above) to resolve
-# `cd /home/diego/git/unix/ba_flakes_desktop/src`, but the cloned repos
-# are dead weight in the final image: 919 MB of unix+cloud+cloud-data+
-# front+front-data+tools repos that nothing at runtime references. The
-# only consumer is `dtk.sh containers deb-nix` interactive sessions, and
-# even those can `git clone` lazily on first use. Removing here keeps
-# the dev-environment + HM-transport use cases both lean.
+# Aggressive cleanup — this is the last step in the builder
 RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh \
     && nix-collect-garbage -d 2>/dev/null \
     && nix store optimise 2>/dev/null \
     && rm -rf /home/diego/.cache/nix \
-    && rm -rf /home/diego/git \
     || true
 
 # ═══════════════════════════════════════════════════════════════════
