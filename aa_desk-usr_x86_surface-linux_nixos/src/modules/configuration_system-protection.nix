@@ -20,7 +20,7 @@
 #   user-0:        720% (90% of 800%)
 #   machine:       400% (50% of 800%)
 #
-# VM equivalent: cloud/b_infra/home-manager/_shared/modules/system-protection-layer2-identity.nix
+# VM equivalent: cloud/b_infra/_shared/vm-pilot/src/modules/protection/layer2-identity.nix
 #
 # ┌─────────────────────────┬──────────┬──────────┬──────────────┐
 # │ Slice                   │ CPU      │ MemHigh  │ MemMax       │

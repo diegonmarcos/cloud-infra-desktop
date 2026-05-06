@@ -18,7 +18,7 @@ CACHE_TTL=3600  # 1 hour
 FLAKE_TERMUX="$UNIX_ROOT/bb_flakes_termux/src"
 FLAKE_DESKTOP="$UNIX_ROOT/ba_flakes_desktop/src"
 FLAKE_HOST="$UNIX_ROOT/aa_nixos-surface_host/src"
-CLOUD_HM="$CLOUD_ROOT/b_infra/home-manager"
+CLOUD_HM="$CLOUD_ROOT/b_infra"
 
 # Cloud VMs with home-manager flakes
 CLOUD_VMS=(gcp-proxy gcp-t4 oci-mail oci-analytics oci-apps oci-apps-2)
@@ -267,7 +267,7 @@ collect_flake_inputs() {
   flake_dirs[desktop]="$FLAKE_DESKTOP"
   flake_dirs[host]="$FLAKE_HOST"
   for vm in "${CLOUD_VMS[@]}"; do
-    flake_dirs["$vm"]="$CLOUD_HM/$vm/src"
+    flake_dirs["$vm"]="$CLOUD_HM/nixhm-sudo-$vm/src"
   done
 
   for flake_name in "${!flake_dirs[@]}"; do
