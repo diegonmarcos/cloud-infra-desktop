@@ -18,11 +18,11 @@ set -eu
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# shellcheck source=gen/lib/log.sh
-. "$SCRIPT_DIR/src/gen/lib/log.sh"
+# shellcheck source=src/engine/lib/log.sh
+. "$SCRIPT_DIR/src/engine/lib/log.sh"
 
-# shellcheck source=gen/lib/json.sh
-. "$SCRIPT_DIR/src/gen/lib/json.sh"
+# shellcheck source=src/engine/lib/json.sh
+. "$SCRIPT_DIR/src/engine/lib/json.sh"
 
 BOOT_JSON="$SCRIPT_DIR/src/boot.json"
 SCHEMA="$SCRIPT_DIR/src/boot.schema.json"
@@ -33,15 +33,18 @@ SCHEMA="$SCRIPT_DIR/src/boot.schema.json"
 
 cmd_generate() {
     header "generate — src/ → dist/"
-    sh "$SCRIPT_DIR/src/gen/render-nixos-adapter.sh"
-    sh "$SCRIPT_DIR/src/gen/render-grub-cfg-preview.sh"
-    sh "$SCRIPT_DIR/src/gen/render-grub-cfg.sh"
-    sh "$SCRIPT_DIR/src/gen/render-grub-binaries.sh"
-    sh "$SCRIPT_DIR/src/gen/render-kernels.sh"
-    sh "$SCRIPT_DIR/src/gen/render-debian-adapter.sh"
-    sh "$SCRIPT_DIR/src/gen/render-refind-binary.sh"
-    sh "$SCRIPT_DIR/src/gen/render-refind-conf.sh"
-    sh "$SCRIPT_DIR/src/gen/render-nvram.sh"
+    # Adapters (per-OS yields + per-OS kernel staging)
+    sh "$SCRIPT_DIR/src/adapters/nixos/render-modules.sh"
+    sh "$SCRIPT_DIR/src/adapters/nixos/render-kernels.sh"
+    sh "$SCRIPT_DIR/src/adapters/debian/render.sh"
+    # Loaders (rEFInd default, GRUB fallback)
+    sh "$SCRIPT_DIR/src/loaders/grub/render-cfg-preview.sh"
+    sh "$SCRIPT_DIR/src/loaders/grub/render-cfg.sh"
+    sh "$SCRIPT_DIR/src/loaders/grub/render-binaries.sh"
+    sh "$SCRIPT_DIR/src/loaders/refind/render-binary.sh"
+    sh "$SCRIPT_DIR/src/loaders/refind/render-conf.sh"
+    # Firmware (UEFI/NVRAM)
+    sh "$SCRIPT_DIR/src/firmware/render-nvram.sh"
 
     # Write a MANIFEST that summarizes dist/ contents
     cat > "$SCRIPT_DIR/dist/MANIFEST.txt" <<EOF
@@ -155,17 +158,17 @@ cmd_deploy() {
 
     cmd_generate
     case "$target" in
-        nixos)  sh "$SCRIPT_DIR/src/gen/deploy-nixos.sh" ;;
-        debian) sh "$SCRIPT_DIR/src/gen/deploy-debian.sh" ;;
-        grub)   sh "$SCRIPT_DIR/src/gen/deploy-grub.sh" ;;
-        refind) sh "$SCRIPT_DIR/src/gen/deploy-refind.sh" ;;
+        nixos)  sh "$SCRIPT_DIR/src/adapters/nixos/install.sh" ;;
+        debian) sh "$SCRIPT_DIR/src/adapters/debian/install.sh" ;;
+        grub)   sh "$SCRIPT_DIR/src/loaders/grub/install.sh" ;;
+        refind) sh "$SCRIPT_DIR/src/loaders/refind/install.sh" ;;
         *) error "Unknown target: $target"; return 1 ;;
     esac
 }
 
 cmd_test() {
     header "test — health check live ESP / NVRAM / refind.conf vs dist"
-    sh "$SCRIPT_DIR/src/gen/test-refind.sh"
+    sh "$SCRIPT_DIR/src/loaders/refind/verify.sh"
 }
 
 cmd_status() {
@@ -212,7 +215,7 @@ COMMANDS:
   validate            JSON schema + UUID sanity
   plan                Diff dist/ vs live system + flake state
   deploy --target X   Copy dist/ artifacts into target system
-                      X = nixos | debian | grub
+                      X = refind | grub | nixos | debian
   status              dist/ freshness, snapshot count
   snapshot            Capture current /boot, NVRAM, blkid → snapshots/<date>/
   help                Show this help

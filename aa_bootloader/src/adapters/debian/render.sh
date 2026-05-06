@@ -7,10 +7,10 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+ROOT_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
 
 # shellcheck source=lib/log.sh
-. "$SCRIPT_DIR/lib/log.sh"
+. "$ROOT_DIR/src/engine/lib/log.sh"
 
 DIST="$ROOT_DIR/dist/adapters/debian"
 mkdir -p "$DIST/etc/default" "$DIST/etc/initramfs-tools/conf.d"

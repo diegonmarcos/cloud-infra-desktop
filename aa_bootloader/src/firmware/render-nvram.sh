@@ -12,9 +12,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 # shellcheck source=lib/log.sh
-. "$SCRIPT_DIR/lib/log.sh"
+. "$ROOT_DIR/src/engine/lib/log.sh"
 # shellcheck source=lib/json.sh
-. "$SCRIPT_DIR/lib/json.sh"
+. "$ROOT_DIR/src/engine/lib/json.sh"
 
 BOOT_JSON="$ROOT_DIR/src/boot.json"
 DIST="$ROOT_DIR/dist/nvram"
