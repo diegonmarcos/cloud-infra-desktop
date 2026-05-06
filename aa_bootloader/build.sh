@@ -2,15 +2,30 @@
 # aa_bootloader/build.sh — orchestrator for the boot SoT
 # POSIX. Run from any OS that mounts the LUKS pool.
 #
+# One engine, one SoT (src/boot.json). rEFInd is the default loader, GRUB is
+# co-installed as fallback — both built and deployed in parallel by default.
+# Per-target verbs (build-X, deploy-X) exist for surgical re-runs.
+#
 # Usage:
-#   ./build.sh generate                  # render src/ → dist/
-#   ./build.sh validate                  # JSON schema + sanity checks
-#   ./build.sh plan                      # diff dist/ vs live system
-#   ./build.sh deploy --target nixos     # copy dist/adapters/nixos/* into the flake
-#   ./build.sh deploy --target debian    # (Phase 2 stub)
-#   ./build.sh deploy --target grub      # (Phase 3 stub) write /boot/grub/grub.cfg
-#   ./build.sh status                    # show dist/ freshness, last deploy times
-#   ./build.sh snapshot                  # capture live system state into snapshots/
+#   ./build.sh build-all          # render every engine into dist/
+#   ./build.sh build-refind       # render only rEFInd artifacts
+#   ./build.sh build-grub         # render only GRUB artifacts
+#   ./build.sh build-nixos        # render NixOS adapter modules + kernels
+#   ./build.sh build-debian       # render Debian adapter
+#   ./build.sh build-nvram        # render NVRAM apply.sh
+#
+#   ./build.sh deploy-all         # build + install everything (refind, grub, nixos, debian, nvram)
+#   ./build.sh deploy-refind      # build-refind + install-refind
+#   ./build.sh deploy-grub        # build-grub  + install-grub
+#   ./build.sh deploy-nixos       # build-nixos + install-nixos (drops modules into flake)
+#   ./build.sh deploy-debian      # build-debian + install-debian (Phase 2 stub)
+#   ./build.sh deploy-nvram       # build-nvram + run efibootmgr apply.sh
+#
+#   ./build.sh validate           # JSON schema + UUID sanity
+#   ./build.sh plan               # diff dist/ vs live system
+#   ./build.sh verify             # health-check live ESP / NVRAM / refind.conf
+#   ./build.sh status             # dist/ freshness, snapshot count
+#   ./build.sh snapshot           # capture /boot, NVRAM, blkid → snapshots/<date>/
 #   ./build.sh help
 
 set -eu
@@ -18,54 +33,127 @@ set -eu
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
+ENGINE="$SCRIPT_DIR/src/engine"
+
 # shellcheck source=src/engine/lib/log.sh
-. "$SCRIPT_DIR/src/engine/lib/log.sh"
+. "$ENGINE/lib/log.sh"
 
 # shellcheck source=src/engine/lib/json.sh
-. "$SCRIPT_DIR/src/engine/lib/json.sh"
+. "$ENGINE/lib/json.sh"
 
 BOOT_JSON="$SCRIPT_DIR/src/boot.json"
 SCHEMA="$SCRIPT_DIR/src/boot.schema.json"
 
 # ═══════════════════════════════════════════════════════════════════════════
-# SUBCOMMANDS
+# BUILD — render src/ → dist/  (no system writes)
 # ═══════════════════════════════════════════════════════════════════════════
 
-cmd_generate() {
-    header "generate — src/ → dist/"
-    # Adapters (per-OS yields + per-OS kernel staging)
-    sh "$SCRIPT_DIR/src/adapters/nixos/render-modules.sh"
-    sh "$SCRIPT_DIR/src/adapters/nixos/render-kernels.sh"
-    sh "$SCRIPT_DIR/src/adapters/debian/render.sh"
-    # Loaders (rEFInd default, GRUB fallback)
-    sh "$SCRIPT_DIR/src/loaders/grub/render-cfg-preview.sh"
-    sh "$SCRIPT_DIR/src/loaders/grub/render-cfg.sh"
-    sh "$SCRIPT_DIR/src/loaders/grub/render-binaries.sh"
-    sh "$SCRIPT_DIR/src/loaders/refind/render-binary.sh"
-    sh "$SCRIPT_DIR/src/loaders/refind/render-conf.sh"
-    # Firmware (UEFI/NVRAM)
-    sh "$SCRIPT_DIR/src/firmware/render-nvram.sh"
+build_refind() {
+    sh "$ENGINE/render-refind-binary.sh"
+    sh "$ENGINE/render-refind-conf.sh"
+}
 
-    # Write a MANIFEST that summarizes dist/ contents
+build_grub() {
+    sh "$ENGINE/render-grub-cfg-preview.sh"
+    sh "$ENGINE/render-grub-cfg.sh"
+    sh "$ENGINE/render-grub-binaries.sh"
+}
+
+build_nixos() {
+    sh "$ENGINE/render-nixos-modules.sh"
+    sh "$ENGINE/render-nixos-kernels.sh"
+}
+
+build_debian() {
+    sh "$ENGINE/render-debian.sh"
+}
+
+build_nvram() {
+    sh "$ENGINE/render-nvram.sh"
+}
+
+build_all() {
+    header "build-all — render every engine into dist/"
+    build_nixos
+    build_debian
+    build_grub
+    build_refind
+    build_nvram
+    write_manifest
+    log "build-all: done"
+}
+
+write_manifest() {
     cat > "$SCRIPT_DIR/dist/MANIFEST.txt" <<EOF
 # aa_bootloader dist/ manifest
 # Generated $(date '+%Y-%m-%d %H:%M:%S')
 
-## Adapters (per-OS, copied at deploy time)
+## Adapters (per-OS, copied at install time)
 adapters/nixos/             → aa_nixos-surface_host/src/modules/
-adapters/debian/            → /etc/ (Phase 2)
+adapters/debian/            → /etc/ (Phase 2 stub)
 
-## Universal artifacts (Phase 3)
-boot/grub/grub.cfg          → /boot/grub/grub.cfg (Phase 3)
-boot/efi/EFI/...            → /boot/efi/EFI/...  (Phase 3)
-nvram/apply.sh              → run via efibootmgr (Phase 3)
+## Loaders (parallel: rEFInd primary + GRUB fallback)
+boot/efi/EFI/refind/        → /boot/efi/EFI/refind/
+boot/efi/EFI/NixOS-boot-efi/ → /boot/efi/EFI/NixOS-boot-efi/
+boot/grub/                  → /boot/grub/
+
+## Firmware (UEFI)
+nvram/apply.sh              → run via efibootmgr
 
 ## Previews (human-readable, not deployed)
-previews/grub-menu.txt      preview of GRUB menu structure from boot.json
+previews/                   preview of menu structure from boot.json
 EOF
     log "Wrote dist/MANIFEST.txt"
-    log "generate: done"
 }
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DEPLOY — build + install onto live system
+# ═══════════════════════════════════════════════════════════════════════════
+
+deploy_refind() {
+    header "deploy-refind — build + install rEFInd"
+    build_refind
+    sh "$ENGINE/install-refind.sh"
+}
+
+deploy_grub() {
+    header "deploy-grub — build + install GRUB (fallback loader)"
+    build_grub
+    sh "$ENGINE/install-grub.sh"
+}
+
+deploy_nixos() {
+    header "deploy-nixos — build + drop modules into NixOS flake"
+    build_nixos
+    sh "$ENGINE/install-nixos.sh"
+}
+
+deploy_debian() {
+    header "deploy-debian — build + install Debian adapter (Phase 2 stub)"
+    build_debian
+    sh "$ENGINE/install-debian.sh"
+}
+
+deploy_nvram() {
+    header "deploy-nvram — build + apply efibootmgr entries"
+    build_nvram
+    sh "$SCRIPT_DIR/dist/nvram/apply.sh"
+}
+
+deploy_all() {
+    header "deploy-all — build + install everything (rEFInd + GRUB in parallel)"
+    build_all
+    sh "$ENGINE/install-nixos.sh"
+    sh "$ENGINE/install-debian.sh"
+    sh "$ENGINE/install-grub.sh"
+    sh "$ENGINE/install-refind.sh"
+    sh "$SCRIPT_DIR/dist/nvram/apply.sh"
+    log "deploy-all: done"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# READ-ONLY COMMANDS
+# ═══════════════════════════════════════════════════════════════════════════
 
 cmd_validate() {
     header "validate — JSON + sanity"
@@ -77,129 +165,93 @@ cmd_validate() {
         error "Missing: $SCHEMA"
         return 1
     fi
-    validate_json "$BOOT_JSON" "$SCHEMA"
+    if command -v ajv >/dev/null 2>&1; then
+        ajv validate -s "$SCHEMA" -d "$BOOT_JSON" --strict=false
+    elif command -v check-jsonschema >/dev/null 2>&1; then
+        check-jsonschema --schemafile "$SCHEMA" "$BOOT_JSON"
+    else
+        warn "No JSON schema validator (ajv / check-jsonschema) — skipping schema check"
+        warn "Install with: nix-shell -p check-jsonschema"
+    fi
+    if ! jq empty "$BOOT_JSON" 2>/dev/null; then
+        error "Invalid JSON syntax in $BOOT_JSON"
+        return 1
+    fi
     log "JSON parses cleanly"
 
-    # Cross-check UUIDs against actual disks (informational)
     log "Cross-checking UUIDs against block devices..."
-    for key in '.uefi.esp.uuid' '.uefi.boot.uuid' '.initrd.luks.device_uuid'; do
-        uuid="$(jq_get "$key")"
-        # Just check if the UUID appears anywhere in blkid (lightweight)
-        if blkid 2>/dev/null | grep -qi "$uuid"; then
-            log "  $key=$uuid  ✓ found on disk"
-        else
-            warn "  $key=$uuid  not found on disk"
+    for path in .uefi.esp.uuid .uefi.boot.uuid .initrd.luks.device_uuid; do
+        uuid=$(jq -r "$path" "$BOOT_JSON")
+        if [ "$uuid" != "null" ] && [ -n "$uuid" ]; then
+            if blkid 2>/dev/null | grep -qF "$uuid"; then
+                log "  $path=$uuid  ✓ found on disk"
+            else
+                warn "  $path=$uuid  ✗ NOT found on disk (multi-OS env? OK if not on this machine)"
+            fi
         fi
     done
     log "validate: done"
 }
 
 cmd_plan() {
-    header "plan — dist/ vs live"
-    cmd_generate >/dev/null 2>&1 || true
-
-    DIFF_OUT="$SCRIPT_DIR/dist/previews/plan-vs-live.txt"
-    {
-        echo "# Plan: aa_bootloader/dist vs live system"
-        echo "# $(date '+%Y-%m-%d %H:%M:%S')"
-        echo ""
-
-        # NixOS adapter files
-        echo "## adapters/nixos/ (Phase 1: NixOS flake state)"
-        FLAKE_MODULES="${FLAKE_MODULES_DIR:-$SCRIPT_DIR/../aa_nixos-surface_host/src/modules}"
-        for f in boot.json hardware_bootloader_grub.nix hardware_bootloader_boot.nix swap_hibernate.nix; do
-            src="$SCRIPT_DIR/dist/adapters/nixos/$f"
-            dst="$FLAKE_MODULES/$f"
-            if [ ! -f "$src" ]; then
-                echo "  $f: dist MISSING"
-            elif [ ! -e "$dst" ]; then
-                echo "  $f: would CREATE in flake"
-            elif cmp -s "$src" "$dst"; then
-                echo "  $f: unchanged"
+    header "plan — diff dist/ vs live system"
+    log "(Phase 1: structural plan only)"
+    log ""
+    log "Adapter files dist/adapters/nixos/* → aa_nixos-surface_host/src/modules/"
+    for f in "$SCRIPT_DIR/dist/adapters/nixos/"*.nix; do
+        [ -f "$f" ] || continue
+        bn=$(basename "$f")
+        live="$SCRIPT_DIR/../aa_nixos-surface_host/src/modules/$bn"
+        if [ -f "$live" ]; then
+            if cmp -s "$f" "$live"; then
+                log "  unchanged   $bn"
             else
-                echo "  $f: DIFFERS — diff:"
-                diff -u "$dst" "$src" | sed 's/^/    /' | head -40
+                log "  WOULD COPY  $bn  (diff vs flake)"
             fi
-        done
-
-        echo ""
-        echo "## boot.json UUID sanity"
-        for key in '.uefi.esp.uuid' '.uefi.boot.uuid' '.initrd.luks.device_uuid'; do
-            uuid="$(jq_get "$key")"
-            if blkid 2>/dev/null | grep -qi "$uuid"; then
-                echo "  $key=$uuid  ✓"
-            else
-                echo "  $key=$uuid  ✗ not on disk"
-            fi
-        done
-
-        echo ""
-        echo "## NVRAM (Phase 3 will manage)"
-        if command -v efibootmgr >/dev/null 2>&1; then
-            efibootmgr 2>/dev/null | head -20
         else
-            echo "  efibootmgr not installed"
+            log "  WOULD ADD   $bn  (not in flake)"
         fi
-    } > "$DIFF_OUT"
-
-    log "Wrote: $DIFF_OUT"
-    cat "$DIFF_OUT"
-}
-
-cmd_deploy() {
-    target=""
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            --target) target="$2"; shift 2 ;;
-            *) error "Unknown deploy flag: $1"; return 1 ;;
-        esac
     done
-    [ -z "$target" ] && { error "deploy requires --target <nixos|debian|grub|refind>"; return 1; }
-
-    cmd_generate
-    case "$target" in
-        nixos)  sh "$SCRIPT_DIR/src/adapters/nixos/install.sh" ;;
-        debian) sh "$SCRIPT_DIR/src/adapters/debian/install.sh" ;;
-        grub)   sh "$SCRIPT_DIR/src/loaders/grub/install.sh" ;;
-        refind) sh "$SCRIPT_DIR/src/loaders/refind/install.sh" ;;
-        *) error "Unknown target: $target"; return 1 ;;
-    esac
+    log "plan: done"
 }
 
-cmd_test() {
-    header "test — health check live ESP / NVRAM / refind.conf vs dist"
-    sh "$SCRIPT_DIR/src/loaders/refind/verify.sh"
+cmd_verify() {
+    header "verify — health-check live ESP / NVRAM / refind.conf vs dist"
+    sh "$ENGINE/verify-refind.sh"
 }
 
 cmd_status() {
-    header "status"
+    header "status — dist freshness + snapshots"
     if [ -d "$SCRIPT_DIR/dist" ]; then
-        log "dist/ last generated: $(stat -c %y "$SCRIPT_DIR/dist/MANIFEST.txt" 2>/dev/null || echo 'unknown')"
+        n_files=$(find "$SCRIPT_DIR/dist" -type f 2>/dev/null | wc -l)
+        last=$(find "$SCRIPT_DIR/dist" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f1 || echo 0)
+        last_human=$(date -d "@$last" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "(unknown)")
+        log "dist/ files: $n_files (latest: $last_human)"
     else
-        warn "dist/ not generated yet — run: ./build.sh generate"
+        warn "dist/ does not exist — run: ./build.sh build-all"
     fi
-    log "src/boot.json last edited: $(stat -c %y "$BOOT_JSON")"
     if [ -d "$SCRIPT_DIR/snapshots" ]; then
-        log "snapshots: $(ls -1 "$SCRIPT_DIR/snapshots" 2>/dev/null | wc -l) entries"
+        n_snaps=$(find "$SCRIPT_DIR/snapshots" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+        log "snapshots: $n_snaps"
     fi
 }
 
 cmd_snapshot() {
     header "snapshot — capture live state"
-    ts="$(date '+%Y%m%d-%H%M%S')"
-    out="$SCRIPT_DIR/snapshots/$ts"
+    out="$SCRIPT_DIR/snapshots/$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$out"
-
-    # Capture relevant live state
-    cp /boot/grub/grub.cfg "$out/grub.cfg" 2>/dev/null || warn "no /boot/grub/grub.cfg"
-    efibootmgr -v > "$out/efibootmgr.txt" 2>&1 || true
-    blkid > "$out/blkid.txt" 2>&1 || true
-    lsblk -f > "$out/lsblk.txt" 2>&1 || true
-    cat /proc/cmdline > "$out/proc-cmdline.txt" 2>&1 || true
+    if command -v efibootmgr >/dev/null 2>&1; then
+        sudo efibootmgr -v > "$out/nvram.txt" 2>&1 || warn "efibootmgr capture failed"
+    fi
+    if command -v blkid >/dev/null 2>&1; then
+        sudo blkid > "$out/blkid.txt" 2>&1 || warn "blkid capture failed"
+    fi
+    if [ -d /boot ]; then
+        ls -laR /boot > "$out/boot-listing.txt" 2>&1 || true
+    fi
     if [ -f /boot/grub/grubenv ]; then
         cp /boot/grub/grubenv "$out/grubenv"
     fi
-
     log "Snapshot: $out"
 }
 
@@ -208,29 +260,37 @@ cmd_help() {
 aa_bootloader/build.sh — boot SoT orchestrator
 
 USAGE:
-  ./build.sh <command> [args]
+  ./build.sh <command>
 
-COMMANDS:
-  generate            Render src/ → dist/ (no system writes)
-  validate            JSON schema + UUID sanity
-  plan                Diff dist/ vs live system + flake state
-  deploy --target X   Copy dist/ artifacts into target system
-                      X = refind | grub | nixos | debian
-  status              dist/ freshness, snapshot count
-  snapshot            Capture current /boot, NVRAM, blkid → snapshots/<date>/
-  help                Show this help
+BUILD (render src/ → dist/, no system writes):
+  build-all         every engine
+  build-refind      rEFInd binary + refind.conf
+  build-grub        GRUB cfg + binaries (fallback loader)
+  build-nixos       NixOS adapter modules + kernel staging
+  build-debian      Debian adapter (Phase 2 stub)
+  build-nvram       UEFI NVRAM apply.sh
 
-ENVIRONMENT:
-  YES=1                    Skip interactive confirmations
-  REBUILD_ACTION=boot      For --target nixos: also run nixos-rebuild
-                           values: none (default), boot, switch, test, dry-build
-  FLAKE_MODULES_DIR=/path  Override location of NixOS flake modules
+DEPLOY (build + install onto live system):
+  deploy-all        rEFInd + GRUB (parallel) + adapters + NVRAM
+  deploy-refind     rEFInd only (ESP)
+  deploy-grub       GRUB only (ESP, fallback)
+  deploy-nixos      NixOS modules → host flake
+  deploy-debian     Debian adapter → /etc (Phase 2)
+  deploy-nvram      apply efibootmgr entries
 
-EXAMPLES:
-  ./build.sh validate
-  ./build.sh generate
-  ./build.sh plan
-  YES=1 REBUILD_ACTION=dry-build ./build.sh deploy --target nixos
+READ-ONLY:
+  validate          JSON schema + UUID sanity
+  plan              diff dist/ vs live
+  verify            health-check live ESP / NVRAM / refind.conf
+  status            dist freshness, snapshot count
+  snapshot          capture /boot + NVRAM + blkid → snapshots/
+  help              this message
+
+ARCHITECTURE:
+  One engine (this build.sh + src/engine/*.sh).
+  One SoT (src/boot.json).
+  rEFInd default + GRUB fallback — built in parallel, both end up on ESP.
+
 EOF
 }
 
@@ -243,13 +303,27 @@ EOF
 cmd="$1"; shift || true
 
 case "$cmd" in
-    generate) cmd_generate "$@" ;;
-    validate) cmd_validate "$@" ;;
-    plan)     cmd_plan "$@" ;;
-    deploy)   cmd_deploy "$@" ;;
-    test)     cmd_test "$@" ;;
-    status)   cmd_status "$@" ;;
-    snapshot) cmd_snapshot "$@" ;;
+    build-all)      build_all "$@" ;;
+    build-refind)   build_refind "$@" ;;
+    build-grub)     build_grub "$@" ;;
+    build-nixos)    build_nixos "$@" ;;
+    build-debian)   build_debian "$@" ;;
+    build-nvram)    build_nvram "$@" ;;
+    deploy-all)     deploy_all "$@" ;;
+    deploy-refind)  deploy_refind "$@" ;;
+    deploy-grub)    deploy_grub "$@" ;;
+    deploy-nixos)   deploy_nixos "$@" ;;
+    deploy-debian)  deploy_debian "$@" ;;
+    deploy-nvram)   deploy_nvram "$@" ;;
+    validate)       cmd_validate "$@" ;;
+    plan)           cmd_plan "$@" ;;
+    verify)         cmd_verify "$@" ;;
+    status)         cmd_status "$@" ;;
+    snapshot)       cmd_snapshot "$@" ;;
     help|-h|--help) cmd_help ;;
+    # Back-compat for old verbs (will print a deprecation note then dispatch)
+    generate)       warn "command 'generate' renamed → 'build-all'"; build_all ;;
+    deploy)         error "command 'deploy --target X' replaced by 'deploy-X'"; cmd_help; exit 1 ;;
+    test)           warn "command 'test' renamed → 'verify'"; cmd_verify ;;
     *) error "Unknown command: $cmd"; cmd_help; exit 1 ;;
 esac
