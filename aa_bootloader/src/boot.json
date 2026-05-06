@@ -3,6 +3,27 @@
   "_description": "Single SoT for the Surface Pro 8 bootloader: UEFI/NVRAM, GRUB install + UI + menu, kernel cmdline (hibernate slice), initrd, LUKS, swap. Phase 1 captures current behavior; Phase 3 yields full grub.cfg authority from NixOS to this SoT.",
   "version": 1,
 
+  "engine": {
+    "_description": "Engine policy — replaces the scattered env-var flags (YES, DRY_RUN, NO_NVRAM, DEFAULT_BOOT, SKIP_KERNELS, SKIP_GRUB_BIN, REBUILD_ACTION, FLAKE_MODULES_DIR) that previously controlled per-install-script behaviour. Each install-*.sh reads its slice from here. Env vars STILL override (for ad-hoc surgical runs and CI), but JSON is canonical. Setting interactive=false makes the engine declarative-by-default — no Proceed?[y/N] prompt, the JSON IS the decision.",
+    "interactive": false,
+    "dry_run": false,
+    "refind_install": {
+      "_description": "Knobs for engine/install-refind.sh.",
+      "manage_nvram": true,
+      "set_default_boot": true
+    },
+    "grub_install": {
+      "_description": "Knobs for engine/install-grub.sh. include_kernels=false skips /boot/kernels copy (faster re-deploy if kernels are unchanged); include_binaries=false skips grubx64.efi + modules (when only grub.cfg changed).",
+      "include_kernels": true,
+      "include_binaries": true
+    },
+    "nixos_install": {
+      "_description": "Knobs for engine/install-nixos.sh. trigger_rebuild = none|boot|switch|test|dry-build (if not 'none', engine runs nixos-rebuild after dropping modules into the host flake — but the recommended pattern is to leave this 'none' and let the host flake's build.sh switch own that step). flake_modules_dir overrides the default ../aa_nixos-surface_host/src/modules location.",
+      "trigger_rebuild": "none",
+      "flake_modules_dir": null
+    }
+  },
+
   "uefi": {
     "_description": "UEFI partition / NVRAM concerns",
     "esp": {
@@ -74,14 +95,15 @@
     },
     "manual_stanzas": {
       "_description": "Ordered top-level entries shown in rEFInd. Each item picks a 'producer' (built-in renderer) and overrides the display label. NixOS data comes from /nix/var/nix/profiles; OS data comes from grub.menu.* via the 'from' field.",
+      "_integration_note": "integration declares per-OS coupling — adapter = files dropped INTO the OS so it yields bootloader control to us (NixOS gets nixos_yield.nix + kernel staging); passive = we read the OS's kernels at their existing path, OS unaware (Kali, Debian: apt manages /vmlinuz, we just point at it); chainload = we hand control to the OS's own EFI binary with no integration (Windows, Ventoy, refind_self).",
       "order": [
-        { "producer": "nixos_primary",   "label": "NixOS — Primary" },
-        { "producer": "linux_partition", "from": "kali", "label": "Kali — Lab" },
-        { "producer": "linux_partition", "from": "debian", "label": "Debian Rescue OS" },
-        { "producer": "usb_chainload",   "from": "ventoy", "label": "USB Ventoy" },
-        { "producer": "nixos_rescue",    "label": "NixOS — Rescue" },
-        { "producer": "nixos_rollback",  "label": "NixOS — All Configurations", "max": 5 },
-        { "producer": "refind_self",     "label": "Reload rEFInd", "_note": "chainloads refind binary itself — useful after manually editing refind.conf via UEFI shell or another OS" }
+        { "producer": "nixos_primary",   "label": "NixOS — Primary",            "integration": "adapter" },
+        { "producer": "linux_partition", "from": "kali",   "label": "Kali — Lab",          "integration": "passive" },
+        { "producer": "linux_partition", "from": "debian", "label": "Debian Rescue OS",    "integration": "passive" },
+        { "producer": "usb_chainload",   "from": "ventoy", "label": "USB Ventoy",          "integration": "chainload" },
+        { "producer": "nixos_rescue",    "label": "NixOS — Rescue",             "integration": "adapter" },
+        { "producer": "nixos_rollback",  "label": "NixOS — All Configurations", "max": 5,  "integration": "adapter" },
+        { "producer": "refind_self",     "label": "Reload rEFInd",              "integration": "chainload", "_note": "chainloads refind binary itself — useful after manually editing refind.conf via UEFI shell or another OS" }
       ]
     }
   },

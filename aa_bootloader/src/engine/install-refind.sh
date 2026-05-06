@@ -30,6 +30,13 @@ EXPECTED_ESP_UUID=$(jq -r '.uefi.esp.uuid' "$BOOT_JSON")
 ESP_INSTALL_DIR=$(jq -r '.refind.install.esp_dir // "/EFI/refind"' "$BOOT_JSON")
 NVRAM_LABEL=$(jq -r '.refind.install.nvram_label // "rEFInd"' "$BOOT_JSON")
 
+# Engine policy from boot.json (env-var still overrides for ad-hoc / CI)
+: "${YES:=$(jq -r 'if (.engine.interactive // false) then "0" else "1" end' "$BOOT_JSON")}"
+: "${DRY_RUN:=$(jq -r 'if (.engine.dry_run // false) then "1" else "0" end' "$BOOT_JSON")}"
+: "${NO_NVRAM:=$(jq -r 'if (.engine.refind_install.manage_nvram // true) then "0" else "1" end' "$BOOT_JSON")}"
+: "${DEFAULT_BOOT:=$(jq -r 'if (.engine.refind_install.set_default_boot // true) then "1" else "0" end' "$BOOT_JSON")}"
+export YES DRY_RUN NO_NVRAM DEFAULT_BOOT
+
 DIST="$ROOT_DIR/dist/boot/efi$ESP_INSTALL_DIR"
 
 # ── Detect ESP ─────────────────────────────────────────────────────────────
