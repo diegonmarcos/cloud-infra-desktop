@@ -16,8 +16,17 @@ ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 # ── Configuration ─────────────────────────────────────────────────────────
 
-# The NixOS flake's modules directory. Adjust if the flake moves.
-FLAKE_MODULES_DIR="${FLAKE_MODULES_DIR:-$ROOT_DIR/../aa_nixos-surface_host/src/modules}"
+BOOT_JSON="$ROOT_DIR/src/boot.json"
+
+# Engine policy from boot.json (env-var still overrides for ad-hoc / CI).
+# Recommended: leave trigger_rebuild = "none" and let the host flake's
+# build.sh switch own the nixos-rebuild step.
+: "${YES:=$(jq -r 'if (.engine.interactive // false) then "0" else "1" end' "$BOOT_JSON")}"
+: "${DRY_RUN:=$(jq -r 'if (.engine.dry_run // false) then "1" else "0" end' "$BOOT_JSON")}"
+: "${REBUILD_ACTION:=$(jq -r '.engine.nixos_install.trigger_rebuild // "none"' "$BOOT_JSON")}"
+: "${FLAKE_MODULES_DIR:=$(jq -r '.engine.nixos_install.flake_modules_dir // ""' "$BOOT_JSON")}"
+[ -z "$FLAKE_MODULES_DIR" ] && FLAKE_MODULES_DIR="$ROOT_DIR/../aa_nixos-surface_host/src/modules"
+export YES DRY_RUN REBUILD_ACTION FLAKE_MODULES_DIR
 
 # Files we copy from dist/adapters/nixos/ into the flake's modules/.
 # Files NOT in this list are ignored even if they exist in dist/.
@@ -34,9 +43,9 @@ bootloader_grub.json
 bootloader_boot.json
 "
 
-# What to run after copying. Empty = just copy, no rebuild.
-# Override via: REBUILD_ACTION=boot|switch|test|none ./deploy-nixos.sh
-REBUILD_ACTION="${REBUILD_ACTION:-none}"
+# REBUILD_ACTION (boot|switch|test|none) and FLAKE_MODULES_DIR are set
+# above from boot.json .engine.nixos_install — recommended: leave none
+# and let the host flake's own build.sh switch run nixos-rebuild.
 
 # ── Pre-flight ────────────────────────────────────────────────────────────
 

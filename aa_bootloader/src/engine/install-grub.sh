@@ -36,6 +36,13 @@ EXPECTED_BOOT_UUID=$(jq -r '.uefi.boot.uuid' "$BOOT_JSON")
 EXPECTED_ESP_UUID=$(jq -r '.uefi.esp.uuid' "$BOOT_JSON")
 EFI_INSTALL_DIR=$(jq -r '.grub.install.efi_install_dir // "/EFI/NixOS-boot-efi"' "$BOOT_JSON")
 
+# Engine policy from boot.json (env-var still overrides for ad-hoc / CI)
+: "${YES:=$(jq -r 'if (.engine.interactive // false) then "0" else "1" end' "$BOOT_JSON")}"
+: "${DRY_RUN:=$(jq -r 'if (.engine.dry_run // false) then "1" else "0" end' "$BOOT_JSON")}"
+: "${SKIP_KERNELS:=$(jq -r 'if (.engine.grub_install.include_kernels // true) then "0" else "1" end' "$BOOT_JSON")}"
+: "${SKIP_GRUB_BIN:=$(jq -r 'if (.engine.grub_install.include_binaries // true) then "0" else "1" end' "$BOOT_JSON")}"
+export YES DRY_RUN SKIP_KERNELS SKIP_GRUB_BIN
+
 DIST_BOOT="$ROOT_DIR/dist/boot"
 DIST_NVRAM="$ROOT_DIR/dist/nvram"
 
