@@ -9,10 +9,10 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+ROOT_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
 
 # shellcheck source=../gen/lib/log.sh
-. "$ROOT_DIR/src/gen/lib/log.sh"
+. "$ROOT_DIR/src/engine/lib/log.sh"
 
 # ── Configuration ─────────────────────────────────────────────────────────
 

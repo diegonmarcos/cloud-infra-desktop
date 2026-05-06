@@ -15,10 +15,10 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+ROOT_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
 
 # shellcheck source=lib/log.sh
-. "$SCRIPT_DIR/lib/log.sh"
+. "$ROOT_DIR/src/engine/lib/log.sh"
 
 NIX_PROFILES="${NIX_PROFILES:-/nix/var/nix/profiles}"
 DIST_KERNELS="$ROOT_DIR/dist/boot/kernels"

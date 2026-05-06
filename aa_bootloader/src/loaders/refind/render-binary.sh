@@ -14,18 +14,18 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+ROOT_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
 
 # shellcheck source=lib/log.sh
-. "$SCRIPT_DIR/lib/log.sh"
+. "$ROOT_DIR/src/engine/lib/log.sh"
 # shellcheck source=lib/json.sh
-. "$SCRIPT_DIR/lib/json.sh"
+. "$ROOT_DIR/src/engine/lib/json.sh"
 
 BOOT_JSON="$ROOT_DIR/src/boot.json"
 VERSION=$(jq -r '.refind.version // "0.14.2"' "$BOOT_JSON")
 INCLUDE_ICONS=$(jq -r '.refind.install.include_icons // true' "$BOOT_JSON")
 
-VENDORED="$ROOT_DIR/src/vendored/refind-$VERSION"
+VENDORED="$ROOT_DIR/src/loaders/refind/vendored/refind-$VERSION"
 OUT="$ROOT_DIR/dist/boot/efi/EFI/refind"
 
 if [ ! -d "$VENDORED" ]; then
