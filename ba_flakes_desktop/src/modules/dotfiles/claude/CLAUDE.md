@@ -117,7 +117,7 @@
 |----------|------|------|
 | **Cloud Repo** | `/home/diego/git/cloud` | Git Repository |
 | **Container Configs** | `/home/diego/git/cloud/a_solutions/` | Nix Flakes |
-| **Home Manager** | `/home/diego/git/cloud/b_infra/home-manager/` | VM Configs |
+| **Home Manager** | `/home/diego/git/cloud/b_infra/nixhm-sudo-<vm>/` | Per-VM Configs |
 
 ## B.2 Virtual Machines
 
@@ -158,7 +158,7 @@ SSH aliases: `ssh oci-mail`, `ssh oci-analytics`, `ssh oci-apps`, `ssh gcp-t4`, 
 | google-workspace-mcp | mcp.diegonmarcos.com | oci-apps | app |
 | grist | sheets.diegonmarcos.com | oci-apps | app |
 | hedgedoc | doc.diegonmarcos.com | oci-apps | app |
-| lgtm | grafana.diegonmarcos.com | oci-apps | tools |
+| openobserve | grafana.diegonmarcos.com | oci-apps | tools |
 | mail-mcp | mcp.diegonmarcos.com | oci-apps | app |
 | matomo | analytics.diegonmarcos.com | oci-apps | tools |
 | mattermost-bots | chat.diegonmarcos.com | oci-apps | app |
@@ -385,7 +385,7 @@ _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
 | `ship-oci-apps-1.yml` | `aa-sui_*` services | Ship services to oci-apps-1 |
 | `ship-oci-mail.yml` | `aa-sui_tools-mailu/`, etc. | Ship services to oci-mail |
 | `ship-oci-analytics.yml` | `bc-obs_*` services | Ship services to oci-analytics |
-| `home-manager.yml` | `b_infra/home-manager/` | Deploy home-manager to all VMs |
+| `ship-home-manager.yml` | `b_infra/**` | Deploy home-manager to all VMs (cascaded by ship-gen-configs) |
 
 All workflows use: `cachix/install-nix-action`, SSH key from secrets, SOPS age key, then `build.sh ship`.
 Services with Docker images use `REMOTE_BUILD=true` (builds on target VM, avoids cross-compilation).

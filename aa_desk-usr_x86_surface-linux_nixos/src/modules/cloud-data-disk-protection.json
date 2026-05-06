@@ -302,10 +302,10 @@
       "~/git/unix/aa_nixos-surface_host/src/modules/configuration_system-protection.nix",
       "~/git/unix/aa_nixos-surface_host/src/modules/configuration_system-protection-disk.nix",
       "~/git/unix/aa_nixos-surface_host/src/modules/configuration_tmp.nix",
-      "~/git/cloud/b_infra/home-manager/modules/system-protection.nix",
+      "~/git/cloud/b_infra/_shared/vm-pilot/src/modules/protection/system-protection.nix",
       "~/git/cloud-data/reports-logs/src/modules/index.sh (surfaces watch state as facets)"
     ],
     "reload_command": "cd ~/git/unix/aa_nixos-surface_host && ./build.sh switch",
-    "deploy_to_vms_command": "cd ~/git/cloud/b_infra/home-manager && ./build.sh ship"
+    "deploy_to_vms_command": "for vm in gcp-proxy gcp-t4 oci-mail oci-analytics oci-apps; do (cd ~/git/cloud/b_infra/nixhm-sudo-$vm && ./build.sh ship); done"
   }
 }

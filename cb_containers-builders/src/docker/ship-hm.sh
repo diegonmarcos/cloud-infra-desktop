@@ -64,7 +64,7 @@ fi
 # ── 2. Setup SSH ────────────────────────────────────────────────
 echo "[2/6] Setting up SSH for $VM"
 # Source of truth: per-VM build.json (NOT cloud-data — that's derived, can be stale)
-BUILD_JSON="/workspace/b_infra/home-manager/nixhm-sudo-${VM}/build.json"
+BUILD_JSON="/workspace/b_infra/nixhm-sudo-${VM}/build.json"
 if [ ! -f "$BUILD_JSON" ]; then
   echo "FATAL: $BUILD_JSON not found"
   exit 1
@@ -122,7 +122,7 @@ nix flake update config-json --flake /opt/cloud-builder-flake 2>&1 || echo "[bui
 
 # ── 5. Ship ─────────────────────────────────────────────────────
 echo "[5/6] Running build.sh ship for $VM"
-HM_DIR="/workspace/b_infra/home-manager/nixhm-sudo-${VM}"
+HM_DIR="/workspace/b_infra/nixhm-sudo-${VM}"
 if [ ! -d "$HM_DIR" ]; then
   echo "FATAL: $HM_DIR does not exist"
   exit 1
