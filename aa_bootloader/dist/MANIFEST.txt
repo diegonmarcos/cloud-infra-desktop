@@ -1,5 +1,5 @@
 # aa_bootloader dist/ manifest
-# Generated 2026-05-05 21:18:39
+# Generated 2026-05-06 11:37:55
 
 ## Adapters (per-OS, copied at deploy time)
 adapters/nixos/             → aa_nixos-surface_host/src/modules/

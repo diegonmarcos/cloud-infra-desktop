@@ -29,6 +29,41 @@ if [ -f "$BOOT_JSON_TEST" ] && [ "$(jq -r '.refind.install.theme.enabled // fals
     grep -qE "^[[:space:]]*include[[:space:]]+themes/$THEME_NAME/" "$CONF" 2>/dev/null \
         && ok "  refind.conf includes themes/$THEME_NAME/$THEME_CONF" \
         || bad "  refind.conf MISSING include for themes/$THEME_NAME/"
+
+    # ── Theme-asset coverage (the redesign would fail silently otherwise) ──
+    # Verify every path the generated theme.conf points at actually exists.
+    # Catches the class of bug that left darkmini's icons unresolved for
+    # months: theme.conf referenced a directory that wasn't on the ESP, so
+    # rEFInd silently fell back to its built-in (ugly) icons + hid labels.
+    THEME_ICON_SET=$(jq -r '.refind.install.theme.icon_set // "256-96"' "$BOOT_JSON_TEST")
+    THEME_VARIANT=$(jq -r '.refind.install.theme.variant // "dark"' "$BOOT_JSON_TEST")
+    THEME_FONT=$(jq -r '.refind.install.theme.font // "source-code-pro-extralight-32"' "$BOOT_JSON_TEST")
+    THEME_SHOW_LABEL=$(jq -r '.refind.install.theme.show_label // true' "$BOOT_JSON_TEST")
+    case "$THEME_VARIANT" in
+        dark) BG="bg_dark.png"; SB="selection_dark-big.png"; SS="selection_dark-small.png" ;;
+        *)    BG="bg.png";      SB="selection-big.png";      SS="selection-small.png" ;;
+    esac
+    ICON_DIR="$REFIND/themes/$THEME_NAME/icons/$THEME_ICON_SET"
+    [ -d "$ICON_DIR" ] && ok "  icon set $THEME_ICON_SET present" || bad "  icon set $THEME_ICON_SET MISSING"
+    for f in "$BG" "$SB" "$SS"; do
+        [ -f "$ICON_DIR/$f" ] && ok "    $f" || bad "    MISSING $ICON_DIR/$f"
+    done
+    [ -f "$REFIND/themes/$THEME_NAME/fonts/$THEME_FONT.png" ] \
+        && ok "  font $THEME_FONT.png present" \
+        || bad "  font $THEME_FONT.png MISSING"
+    # The whole point of the redesign: labels MUST be visible.
+    if [ "$THEME_SHOW_LABEL" = "true" ]; then
+        if grep -qE "^[[:space:]]*hideui[[:space:]]+.*\\blabel\\b" "$REFIND/themes/$THEME_NAME/$THEME_CONF" 2>/dev/null; then
+            bad "  show_label=true but generated theme.conf STILL hides label (regression)"
+        else
+            ok "  labels visible (hideui does not contain 'label')"
+        fi
+    fi
+    # Producers must point icon paths at the theme dir, not the legacy default.
+    legacy=$(grep -cE '^[[:space:]]*icon[[:space:]]+/EFI/refind/icons/' "$CONF" 2>/dev/null || echo 0)
+    [ "$legacy" -eq 0 ] \
+        && ok "  no producer leaks legacy /EFI/refind/icons/ paths" \
+        || bad "  $legacy stanza(s) still hardcode /EFI/refind/icons/ — engine bug"
 fi
 
 # 2. EFI binary validity
