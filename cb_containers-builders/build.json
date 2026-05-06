@@ -14,6 +14,12 @@
       "dockerfile": "src/Dockerfile.apt",
       "platform": "linux/amd64,linux/arm64",
       "description": "Multi-arch builder Debian apt (no Nix, lighter)"
+    },
+    "nix-hm-runtime": {
+      "ghcr": "ghcr.io/diegonmarcos/nix-hm-runtime",
+      "dockerfile": "src/Dockerfile.hm-runtime",
+      "platform": "linux/amd64,linux/arm64",
+      "description": "Minimal HM-transport base (debian + nix only). FROM-line for cloud nixhm-sudo-<vm> images. NOT a dev environment — see user-dev-x86-deb-nix-hm for that."
     }
   }
 }
