@@ -41,7 +41,14 @@
       "nvram_label": "rEFInd",
       "include_drivers": ["btrfs_x64", "ext4_x64"],
       "_drivers_note": "iso9660_x64 dropped — not used by any menu entry. ntfs/hfs unneeded.",
-      "include_icons": true
+      "include_icons": true,
+      "theme": {
+        "_description": "Optional rEFInd theme. Vendored at src/vendored/refind-themes/<name>/. The renderer copies that dir to dist/.../refind/themes/<name>/ and emits `include themes/<name>/theme.conf` in refind.conf. Set enabled=false to disable.",
+        "enabled": true,
+        "name": "darkmini",
+        "vendored_path": "vendored/refind-themes/darkmini",
+        "theme_conf": "theme.conf"
+      }
     },
     "ui": {
       "timeout": 5,
@@ -239,10 +246,10 @@
   "boot_kernel_modules": ["kvm-intel"],
 
   "swap_hibernate": {
-    "_description": "Swapfile + hibernation resume. Phase 1: swap_hibernate.nix adapter sets boot.resumeDevice, swapDevices, and contributes resume= kernel params (replacing what was in hardware_filesystems.nix).",
+    "_description": "Swapfile + hibernation resume. Phase 1: swap_hibernate.nix adapter sets boot.resumeDevice, swapDevices, and contributes resume= kernel params (replacing what was in hardware_filesystems.nix). resume_offset is the FIRST PHYSICAL BLOCK of the btrfs swapfile in 4-KiB units, as reported by `btrfs inspect-internal map-swapfile -r <swapfile>`. This value DRIFTS whenever the swapfile is recreated, resized, or btrfs balance moves its extents — most recently 2026-05-03 21:26 (recreated, drifted 4954822 → 11884032), which broke hibernation 2026-05-05/06 with `Call to Hibernate failed: Specified resume device is missing or is not an active swap device`. The companion self-healing service (configuration_swapfile_resume_check.nix) auto-corrects /sys/power/resume_offset at boot and ntfys when this JSON drifts so the next switch+reboot fixes the cmdline side.",
     "swapfile": "/mnt/shared/.swapfile",
     "resume_device": "/dev/mapper/pool",
-    "resume_offset": 4954822,
-    "kernel_params": ["resume=/dev/mapper/pool", "resume_offset=4954822"]
+    "resume_offset": 11884032,
+    "kernel_params": ["resume=/dev/mapper/pool", "resume_offset=11884032"]
   }
 }

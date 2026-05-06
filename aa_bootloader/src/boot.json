@@ -43,11 +43,19 @@
       "_drivers_note": "iso9660_x64 dropped — not used by any menu entry. ntfs/hfs unneeded.",
       "include_icons": true,
       "theme": {
-        "_description": "Optional rEFInd theme. Vendored at src/vendored/refind-themes/<name>/. The renderer copies that dir to dist/.../refind/themes/<name>/ and emits `include themes/<name>/theme.conf` in refind.conf. Set enabled=false to disable.",
+        "_description": "rEFInd theme. Vendored at src/vendored/refind-themes/<name>/. The renderer (a) copies that dir to dist/.../refind/themes/<name>/ and (b) generates a theme.conf into the same dir overriding any upstream defaults — so paths/sizes/variant are always data-driven from this block. Producers also reference these to emit per-stanza icon paths under themes/<name>/icons/<icon_set>/.",
         "enabled": true,
-        "name": "darkmini",
-        "vendored_path": "vendored/refind-themes/darkmini",
-        "theme_conf": "theme.conf"
+        "name": "regular",
+        "vendored_path": "vendored/refind-themes/regular",
+        "theme_conf": "theme.conf",
+        "icon_set": "256-96",
+        "_icon_set_note": "256x256 OS icons + 96x96 tool icons — sized for the Surface Pro 8 HiDPI panel (~3000x2000). Other variants in the theme: 128-48 (legacy), 384-144 (4K+), 512-192 (8K).",
+        "variant": "dark",
+        "_variant_note": "'dark' picks bg_dark.png + selection_dark-{big,small}.png. 'light' picks bg.png + selection-{big,small}.png.",
+        "font": "source-code-pro-extralight-32",
+        "_font_note": "PNG glyph atlas under fonts/. Family-size combos available: source-code-pro-extralight-{14,16,18,28,30,32,42,44,46}, nimbus-mono-{same}, ubuntu-mono-{same}.",
+        "show_label": true,
+        "_show_label_note": "Whether boot-entry labels appear under each icon. true = labels visible (the whole point of having labels); false adds 'label' to hideui."
       }
     },
     "ui": {
@@ -246,10 +254,10 @@
   "boot_kernel_modules": ["kvm-intel"],
 
   "swap_hibernate": {
-    "_description": "Swapfile + hibernation resume. Phase 1: swap_hibernate.nix adapter sets boot.resumeDevice, swapDevices, and contributes resume= kernel params (replacing what was in hardware_filesystems.nix).",
+    "_description": "Swapfile + hibernation resume. Phase 1: swap_hibernate.nix adapter sets boot.resumeDevice, swapDevices, and contributes resume= kernel params (replacing what was in hardware_filesystems.nix). resume_offset is the FIRST PHYSICAL BLOCK of the btrfs swapfile in 4-KiB units, as reported by `btrfs inspect-internal map-swapfile -r <swapfile>`. This value DRIFTS whenever the swapfile is recreated, resized, or btrfs balance moves its extents — most recently 2026-05-03 21:26 (recreated, drifted 4954822 → 11884032), which broke hibernation 2026-05-05/06 with `Call to Hibernate failed: Specified resume device is missing or is not an active swap device`. The companion self-healing service (configuration_swapfile_resume_check.nix) auto-corrects /sys/power/resume_offset at boot and ntfys when this JSON drifts so the next switch+reboot fixes the cmdline side.",
     "swapfile": "/mnt/shared/.swapfile",
     "resume_device": "/dev/mapper/pool",
-    "resume_offset": 4954822,
-    "kernel_params": ["resume=/dev/mapper/pool", "resume_offset=4954822"]
+    "resume_offset": 11884032,
+    "kernel_params": ["resume=/dev/mapper/pool", "resume_offset=11884032"]
   }
 }

@@ -1,5 +1,5 @@
 # GRUB MENU STRUCTURE (preview from boot.json)
-# GENERATED 2026-05-05 21:18:38
+# GENERATED 2026-05-06 11:37:51
 
 ── UI ─────────────────────────────────────────────
 timeout:           5
@@ -21,5 +21,5 @@ background_color:  #2F302F
   specialisations:                     rescue, safe-graphics
 
 ── KERNEL CMDLINE (hibernate slice managed here) ──
-default: resume=/dev/mapper/pool resume_offset=4954822
+default: resume=/dev/mapper/pool resume_offset=11884032
 rescue:  strip=resume=*,resume_offset=*,splash  add=noresume
