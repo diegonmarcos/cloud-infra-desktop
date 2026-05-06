@@ -286,6 +286,11 @@ READ-ONLY:
   snapshot          capture /boot + NVRAM + blkid → snapshots/
   help              this message
 
+FLAGS (accepted anywhere on the command line):
+  --dry-run         install scripts exit before any write
+                    (env: DRY_RUN=1 — same effect)
+                    (json: .engine.dry_run=true — session-wide)
+
 ARCHITECTURE:
   One engine (this build.sh + src/engine/*.sh).
   One SoT (src/boot.json).
@@ -299,6 +304,29 @@ EOF
 # ═══════════════════════════════════════════════════════════════════════════
 
 [ $# -eq 0 ] && { cmd_help; exit 0; }
+
+# Parse global --dry-run flag (accepted anywhere on the command line).
+# Sets DRY_RUN=1 so every install-*.sh that's invoked downstream bails
+# before any write — install scripts already honor this env var (and
+# fall back to .engine.dry_run in boot.json if unset).
+NEW_ARGC=0
+for arg in "$@"; do
+    if [ "$arg" = "--dry-run" ]; then
+        DRY_RUN=1
+        export DRY_RUN
+    else
+        NEW_ARGC=$((NEW_ARGC + 1))
+        eval "NEW_ARG_${NEW_ARGC}=\"\$arg\""
+    fi
+done
+set -- ""
+i=0
+while [ $i -lt $NEW_ARGC ]; do
+    i=$((i + 1))
+    eval "set -- \"\$@\" \"\$NEW_ARG_${i}\""
+done
+shift  # drop the leading "" we used to seed
+[ "${DRY_RUN:-0}" = "1" ] && warn "--dry-run active: install scripts will exit before any write"
 
 cmd="$1"; shift || true
 
