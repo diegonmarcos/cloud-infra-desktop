@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # ============================================================================
-# declarative-guard.sh — UserPromptSubmit hook (L4: per-prompt reinforcement)
+# b-context-inject-prompt.sh — TIER B: UserPromptSubmit context injector
 #
-# Fires on EVERY prompt. Injects a short declarative-only reminder so the
-# agent never drifts into imperative solutions mid-conversation.
+# Fires on EVERY user prompt. Emits FIRE rules + Stack Philosophy + checklist
+# + forbidden patterns to stdout — Claude Code captures as additionalContext.
+# Deliberate per-prompt repetition pressure to prevent mid-session drift.
 #
-# Source: ~/git/unix/bb_flakes_termux/src/modules/dotfiles/claude/
-# Deployed to: ~/.claude/hooks/declarative-guard.sh (via home-manager)
+# Source: ~/git/unix/{ba_flakes_desktop,bb_flakes_termux}/src/modules/dotfiles/claude/
+# Deployed: ~/.claude/hooks/b-context-inject-prompt.sh (via home-manager)
+# Wired in: settings.json → hooks.UserPromptSubmit[0].hooks[0].command
 # ============================================================================
 
 cat <<'GUARD'

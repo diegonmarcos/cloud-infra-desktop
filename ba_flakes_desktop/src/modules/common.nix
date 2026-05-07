@@ -152,16 +152,25 @@
     source = ./dotfiles/claude/statusline-command.sh;
     executable = true;
   };
-  home.file.".claude/hooks/claude-memory.sh" = {
-    source = ./dotfiles/claude/claude-memory.sh;
+  # Tier-based Claude Code hooks (renamed 2026-05-07 from claude-memory /
+  # declarative-guard / pretool-guard for clearer event-tier mapping).
+  #   a-* → SessionStart       (one-shot context injection)
+  #   b-* → UserPromptSubmit   (per-prompt context injection)
+  #   c-* → PreToolUse(Bash)   (split into blockers + warnings)
+  home.file.".claude/hooks/a-context-inject-memory.sh" = {
+    source = ./dotfiles/claude/a-context-inject-memory.sh;
     executable = true;
   };
-  home.file.".claude/hooks/declarative-guard.sh" = {
-    source = ./dotfiles/claude/declarative-guard.sh;
+  home.file.".claude/hooks/b-context-inject-prompt.sh" = {
+    source = ./dotfiles/claude/b-context-inject-prompt.sh;
     executable = true;
   };
-  home.file.".claude/hooks/pretool-guard.sh" = {
-    source = ./dotfiles/claude/pretool-guard.sh;
+  home.file.".claude/hooks/c-pretool-guard-blockers.sh" = {
+    source = ./dotfiles/claude/c-pretool-guard-blockers.sh;
+    executable = true;
+  };
+  home.file.".claude/hooks/c-pretool-guard-warning.sh" = {
+    source = ./dotfiles/claude/c-pretool-guard-warning.sh;
     executable = true;
   };
   home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;

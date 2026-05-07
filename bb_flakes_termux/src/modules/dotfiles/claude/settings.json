@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/claude-memory.sh",
+            "command": "\"$HOME\"/.claude/hooks/a-context-inject-memory.sh",
             "timeout": 5
           }
         ]
@@ -33,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/declarative-guard.sh",
+            "command": "\"$HOME\"/.claude/hooks/b-context-inject-prompt.sh",
             "timeout": 3
           }
         ]
@@ -45,7 +45,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/pretool-guard.sh",
+            "command": "\"$HOME\"/.claude/hooks/c-pretool-guard-blockers.sh",
+            "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "\"$HOME\"/.claude/hooks/c-pretool-guard-warning.sh",
             "timeout": 5
           }
         ]
