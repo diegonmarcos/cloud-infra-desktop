@@ -51,6 +51,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "\"$HOME\"/.claude/hooks/c-context-inject-pretool.sh",
+            "timeout": 3
+          },
+          {
+            "type": "command",
             "command": "\"$HOME\"/.claude/hooks/c-pretool-guard-blockers.sh",
             "timeout": 3
           },
