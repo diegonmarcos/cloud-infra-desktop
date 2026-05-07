@@ -1,17 +1,33 @@
-# Rescue mode boot specialisation — text-only recovery environment
+# Rescue mode boot specialisation — text-only recovery environment (CURRENT-GEN)
+#
+# This is the FAST-PATH rescue: same generation, same kernel, same initrd, same
+# root identity, same custom modules — but with all DM/DE/desktop services
+# force-disabled and root auto-logged in on tty1. Useful when a config-layer
+# regression broke the desktop or an idle/lid/hibernate hook misfired.
+#
+# It does NOT protect against:
+#   - kernel regressions (shared kernel)
+#   - initrd / LUKS unlock breakage (shared key paths)
+#   - root identity drift (shared user definition)
+#   - nixpkgs upgrade regressions (shared flake input)
+#
+# For those scenarios, see configuration_rescue_native-install.nix
+# (`rescue-native-install` specialisation — clean module set, no custom code,
+# full dev environment) and the cross-distro tiers (Rescue-OS-Debian on p6,
+# Kali on p7, Ventoy USB).
 { config, pkgs, lib, ... }:
 
 {
   # ═══════════════════════════════════════════════════════════════════════════
-  # RESCUE MODE (Boot specialisation)
+  # RESCUE MODE — current-gen (boot specialisation)
   # ═══════════════════════════════════════════════════════════════════════════
-  # Appears in GRUB as "NixOS - Rescue"
+  # Appears in rEFInd as "NixOS - rescue-current-gen"
   # - No desktop (text mode only)
   # - Auto-login as root on TTY1
   # - WiFi available via nmtui/nmcli
   # - Recovery tools included
 
-  specialisation.rescue.configuration = {
+  specialisation.rescue-current-gen.configuration = {
     # Disable ALL graphical services
     services.displayManager.sddm.enable = lib.mkForce false;
     services.xserver.enable = lib.mkForce false;
@@ -81,7 +97,7 @@
     environment.etc."motd".text = ''
 
       ╔═══════════════════════════════════════════════════════════════════╗
-      ║                    NIXOS RESCUE MODE                              ║
+      ║              NIXOS RESCUE — current-gen                           ║
       ╠═══════════════════════════════════════════════════════════════════╣
       ║                                                                   ║
       ║  WiFi:     nmtui  or  nmcli device wifi connect SSID password PW  ║

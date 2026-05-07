@@ -1,0 +1,9 @@
+# Transient nix-build symlinks. Created by `nix build` when invoked
+# WITHOUT --no-link (e.g. by hand from src/). The build.sh engine uses
+# `nix build --no-link --print-out-paths` so they should never appear,
+# but a manual nix build can leave one behind. Gitignored so it never
+# gets force-added (`git add -f`); engine also skips them in cp.
+src/result
+src/result-*
+result
+result-*

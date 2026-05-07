@@ -31,8 +31,8 @@
     },
 
     "voltage_under_min": {
-      "_comment": "voltage_now < (voltage_min_design - margin_uV) under load → Li-ion is essentially empty regardless of advertised SoC. Independent witness vs the capacity field but still SAM-sourced.",
-      "enabled": true,
+      "_comment": "DISABLED 2026-05-07 — false positives on Surface Pro 8: voltage_now dips below voltage_min_design under transient load even at 60-90% SoC, triggering a hibernate loop (boot -1 fired at cap=63 / vnow=11.323V / vmin_design ~ 11.4V). Assumption that voltage<voltage_min_design ⇒ empty does not hold for SP8 cells. Other voters (capacity, energy_ratio, alarm, adp_offline_time, stuck_sam) cover the original failure modes without this false-positive vector. Re-enable only with margin_uV calibrated to observed SP8 sag depth + a require_capacity_below floor.",
+      "enabled": false,
       "margin_uV": 0,
       "require_status": "Discharging"
     },

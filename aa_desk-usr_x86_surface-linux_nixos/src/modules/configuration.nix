@@ -68,12 +68,14 @@
     ./configuration_system-protection-storage.nix
     ./configuration_system-protection-battery.nix
     ./configuration_power.nix
+    ./configuration_pre-hibernate-warning.nix
     ./configuration_swapfile_resume_check.nix
     ./configuration_tmp.nix
     ./configuration_packages.nix
     ./configuration_persistence.nix
     ./configuration_services.nix
     ./configuration_rescue.nix
+    ./configuration_rescue_native-install.nix
     ./configuration_fallback.nix
     ./configuration_session_isolation.nix
     ./configuration_observability.nix
