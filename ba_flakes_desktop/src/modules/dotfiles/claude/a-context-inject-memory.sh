@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
 # ============================================================================
-# claude-memory.sh — SessionStart hook that injects pre-action checklist
+# a-context-inject-memory.sh — TIER A: SessionStart context injector
 #
-# Runs at the start of every Claude Code session. Outputs the mandatory
-# checklist and forbidden patterns as additionalContext — guaranteed to be
-# in the prompt regardless of what Claude does to MEMORY.md.
+# Fires once per Claude Code session. Emits the mandatory pre-action checklist
+# + forbidden-pattern table to stdout — Claude Code captures it as
+# additionalContext, persisting in the conversation prompt for the whole
+# session.
 #
-# Called by Claude Code via settings.json SessionStart hooks.
-# Input: JSON on stdin (session_id, source, model, cwd, permission_mode)
-# Output: stdout text is injected as additional context into the session.
+# Source: ~/git/unix/{ba_flakes_desktop,bb_flakes_termux}/src/modules/dotfiles/claude/
+# Deployed: ~/.claude/hooks/a-context-inject-memory.sh (via home-manager)
+# Wired in: settings.json → hooks.SessionStart[0].hooks[0].command
+#
+# Tier model:
+#   a) SessionStart       → CLAUDE.md + a-context-inject-memory.sh
+#   b) UserPromptSubmit   → b-context-inject-prompt.sh
+#   c) PreToolUse(Bash)   → c-pretool-guard-blockers.sh (deny patterns)
+#                         + c-pretool-guard-warning.sh (advisory patterns)
 # ============================================================================
 
 cat <<'CHECKLIST'

@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
 # ============================================================================
-# claude-memory.sh — SessionStart hook that injects pre-action checklist
+# a-context-inject-memory.sh — TIER A: SessionStart context injector
 #
-# Runs at the start of every Claude Code session. Outputs the mandatory
-# checklist and forbidden patterns as additionalContext — guaranteed to be
-# in the prompt regardless of what Claude does to MEMORY.md.
+# Fires once per Claude Code session. Emits the mandatory pre-action checklist
+# + forbidden-pattern table to stdout — Claude Code captures it as
+# additionalContext, persisting in the conversation prompt for the whole
+# session.
 #
-# Called by Claude Code via settings.json SessionStart hooks.
-# Input: JSON on stdin (session_id, source, model, cwd, permission_mode)
-# Output: stdout text is injected as additional context into the session.
+# Source: ~/git/unix/{ba_flakes_desktop,bb_flakes_termux}/src/modules/dotfiles/claude/
+# Deployed: ~/.claude/hooks/a-context-inject-memory.sh (via home-manager)
+# Wired in: settings.json → hooks.SessionStart[0].hooks[0].command
+#
+# Tier model:
+#   a) SessionStart       → CLAUDE.md + a-context-inject-memory.sh
+#   b) UserPromptSubmit   → b-context-inject-prompt.sh
+#   c) PreToolUse(Bash)   → c-pretool-guard-blockers.sh (deny patterns)
+#                         + c-pretool-guard-warning.sh (advisory patterns)
 # ============================================================================
 
 cat <<'CHECKLIST'
@@ -33,10 +40,4 @@ Before EVERY modification:
 | Edit `~/.claude/CLAUDE.md` | Edit source in `~/git/unix/` flakes |
 | `cd dir && git mv dir/...` | `git -C /abs/path mv ...` (absolute paths) |
 | `git add -f` / `git add --force` | plain `git add` — NEVER bypass gitignore. `-f` force-stages secrets, decrypted keys, sensitive/ — gitignore exists for a reason. |
-
-## DEAD SHELL RECOVERY
-
-If Bash fails on everything (even `echo test`), the CWD was deleted by git mv/rm.
-**Fix**: Use `Write` tool to create a dummy file at the dead path → restores CWD → Bash works again.
-Then clean up with `git checkout HEAD -- path/` or continue with absolute paths.
 CHECKLIST
