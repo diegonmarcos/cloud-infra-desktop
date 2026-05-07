@@ -30,6 +30,18 @@
     "never":    ["sleep", "suspend", "s2idle"]
   },
 
+  "pre_hibernate_warning": {
+    "_comment": "Universal pre-hibernate countdown. Injects an ExecStartPre on systemd-hibernate.service so EVERY hibernation path (battery-watchdog, UPower critical, KDE Plasma idle, manual `systemctl hibernate`) is delayed by `delay_minutes` and announces itself first via journal + wall + notify-send. Cancel with: `sudo systemctl stop systemd-hibernate.service`. Set delay_minutes=0 to disable the warning entirely (immediate hibernate). channels.* gate which announcement vectors are used.",
+    "enabled": true,
+    "delay_minutes": 5,
+    "cancel_command": "sudo systemctl stop systemd-hibernate.service",
+    "channels": {
+      "journal":     true,
+      "wall":        true,
+      "notify_send": true
+    }
+  },
+
   "kernel": {
     "_comment": "Kernel power-management cmdline options. mem_sleep_default=deep forces S3 over s2idle so any rogue suspend attempt fails fast (S3 is broken too, but at least it errors out instead of half-sleeping forever in s2idle). Appended to boot.kernelParams.",
     "mem_sleep_default": "deep"
@@ -44,6 +56,7 @@
   "consumers": [
     "aa_nixos-surface_host/src/modules/configuration_security.nix (services.logind.lidSwitch family)",
     "aa_nixos-surface_host/src/modules/configuration_power.nix (UPower.conf + logind HandlePowerKey + kernelParams)",
+    "aa_nixos-surface_host/src/modules/configuration_pre-hibernate-warning.nix (systemd-hibernate.service ExecStartPre delay+announce — pre_hibernate_warning.*)",
     "ba_flakes_desktop/src/modules/desktop/plasma.nix (PowerDevil [BatteryManagement] + [*][SuspendAndShutdown] + HandleButtonEvents + kscreenlockerrc lock idle)"
   ],
 
@@ -127,6 +140,24 @@
         "description": "kscreenlockerrc Daemon.Timeout (minutes) matches idle_minutes.battery.lock (run as user)",
         "command": "awk '/^\\[Daemon\\]/{f=1;next} /^\\[/{f=0} f && /^Timeout=/ {gsub(/.*=/,\"\"); gsub(/[ \\t]/,\"\"); print; exit}' $HOME/.config/kscreenlockerrc",
         "expect": "15"
+      },
+      {
+        "id": "pre_hibernate_warning_dropin_present",
+        "description": "Drop-in directory for systemd-hibernate.service exists (created by configuration_pre-hibernate-warning.nix)",
+        "command": "test -d /etc/systemd/system/systemd-hibernate.service.d && echo ok",
+        "expect": "ok"
+      },
+      {
+        "id": "pre_hibernate_warning_execstartpre_set",
+        "description": "systemd-hibernate.service has an ExecStartPre that points at the prewarn wrapper — proves the universal intercept is wired",
+        "command": "systemctl cat systemd-hibernate.service | grep -c 'ExecStartPre=.*hibernate-prewarn'",
+        "expect_regex": "^[1-9][0-9]*$"
+      },
+      {
+        "id": "pre_hibernate_warning_delay_matches",
+        "description": "ExecStartPre wrapper script bakes in the delay_minutes from cloud-data-power.json",
+        "command": "grep -hoE 'DELAY_MIN=[0-9]+' $(systemctl cat systemd-hibernate.service | awk -F= '/ExecStartPre=/{print $2; exit}')",
+        "expect": "DELAY_MIN=5"
       }
     ]
   },

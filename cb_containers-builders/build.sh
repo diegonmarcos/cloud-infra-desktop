@@ -70,8 +70,19 @@ step_build() {
     rm -rf "$DIST_DIR"
     mkdir -p "$DIST_DIR"
 
-    # Copy all src/ files (Dockerfiles, flake, entrypoint, deps, etc.)
-    cp -rL "$SRC_DIR"/* "$DIST_DIR/"
+    # Copy all src/ files (Dockerfiles, flake, entrypoint, deps, etc.).
+    # Skip ./result — that's the transient nix-build symlink (gitignored).
+    # cp -rL would dereference it and drag the OLD nix-store closure into
+    # dist/result/, masking source edits. The fresh out path is captured
+    # below by `nix build --no-link --print-out-paths`, which is the
+    # correct + canonical compose/json source.
+    for _src_entry in "$SRC_DIR"/*; do
+        case "$(basename "$_src_entry")" in
+            result|result-*) continue ;;
+        esac
+        cp -rL "$_src_entry" "$DIST_DIR/"
+    done
+    unset _src_entry
 
     # Generate compose files from flake → overwrite into dist/
     cd "$SRC_DIR"
