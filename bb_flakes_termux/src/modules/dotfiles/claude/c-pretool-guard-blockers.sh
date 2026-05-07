@@ -71,13 +71,10 @@ if echo "$CMD" | grep -qE '(^|\s|;|&&|\|)\s*nix-env\s+(-i|--install|-iA)\b'; the
          "add the package to flake.nix (home.packages or environment.systemPackages) + build.sh switch"
 fi
 
-# ── SSH write-redirect: contradicts declarative stack ──
-# Pattern matches: ssh <host> "...echo/sed/tee/cat ... >..."
-# (Catches both `>` and `>>` write redirects executed remotely.)
-if echo "$CMD" | grep -qE 'ssh\s+\S+\s+.*\b(echo|sed|tee|cat|printf)\s.*>>?'; then
-    deny "SSH write-redirect contradicts declarative stack — VMs are read-only at runtime" \
-         "edit source in git repo (src/) + build.sh ship — config drifts only via the build pipeline"
-fi
+# Note: SSH write-redirect (ssh <host> '... echo/sed/tee/cat ... >') was
+# previously a hard block. Demoted to advisory in c-pretool-guard-warning.sh
+# 2026-05-07 — sometimes legitimate (one-shot debug, capturing remote output
+# locally), so warn-only is the right tier.
 
 # ── Default: allow (no blocker pattern matched) ──
 exit 0

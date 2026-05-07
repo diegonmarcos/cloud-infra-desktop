@@ -154,7 +154,11 @@ if echo "$CMD" | grep -qE 'cd\s+[^\s;]+\s*&&\s*rm\s+-rf'; then
     warn "'cd dir && rm -rf' kills the shell if CWD is deleted" "rm -rf /absolute/path (use absolute paths)"
 fi
 
-# ── SSH non-write imperatives (write-redirects are blocked in c-pretool-guard-blockers.sh) ──
+# ── SSH imperatives (advisory — never blocked) ──
+if echo "$CMD" | grep -qE 'ssh\s+\S+\s+.*\b(echo|sed|tee|cat|printf)\s.*>>?'; then
+    warn "SSH write-redirect on a VM is imperative — declarative stack expects edit-source + build.sh ship" \
+         "edit source in git repo (src/) + build.sh ship"
+fi
 if echo "$CMD" | grep -qE 'ssh\s+\S+\s+.*\bsysctl\s+-w'; then
     warn "SSH sysctl -w is imperative" "add to nix config + build.sh ship"
 fi
