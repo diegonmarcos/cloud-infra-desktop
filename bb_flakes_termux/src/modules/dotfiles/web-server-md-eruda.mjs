@@ -2,12 +2,42 @@ import { createServer } from 'node:http';
 import { readFile, stat, readdir } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { homedir } from 'node:os';
+import process from 'node:process';
 
 const PORT = parseInt(process.argv[2] || '8000');
 const ROOT = process.argv[3] || process.env.HOME || '.';
 const LIB_DIR = join(homedir(), '.local/lib/httpd');
+const VERBOSE = process.env.HTTPD_VERBOSE !== '0';  // default ON; set HTTPD_VERBOSE=0 to silence
 
 const ERUDA_SCRIPT = `<script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init();</script>`;
+
+// ── ANSI colours for console (auto-disabled when stdout isn't a TTY) ──────
+const TTY = process.stdout.isTTY;
+const C = TTY ? {
+  dim: '\x1b[2m', reset: '\x1b[0m', bold: '\x1b[1m',
+  red: '\x1b[31m', green: '\x1b[32m', yellow: '\x1b[33m',
+  blue: '\x1b[34m', magenta: '\x1b[35m', cyan: '\x1b[36m', gray: '\x1b[90m',
+} : Object.fromEntries(['dim','reset','bold','red','green','yellow','blue','magenta','cyan','gray'].map(k => [k, '']));
+
+function fmtBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(2)} MB`;
+}
+
+// Embed JSON content into an inline <script> tag SAFELY. The HTML parser
+// closes a <script> on the first `</script>` it sees in the raw stream, so
+// any JSON value containing that substring (or U+2028/U+2029, which JS
+// treats as line terminators inside string literals) breaks the page.
+// Standard fix used by every framework that inlines JSON in HTML.
+function safeJsonForScript(value) {
+  let s = JSON.stringify(value);
+  s = s.replace(/<\/script/gi, '<\\/script');
+  s = s.replace(/<!--/g, '<\\!--');
+  s = s.split('\u2028').join('\\u2028');
+  s = s.split('\u2029').join('\\u2029');
+  return s;
+}
 
 const MIME = {
   '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript',
@@ -85,7 +115,7 @@ function markdownPage(urlPath, mdContent) {
 <div id="content"></div>
 <script src="/__lib__/marked.min.js"></script>
 <script>
-  const rawMarkdown = ${JSON.stringify(mdContent)};
+  const rawMarkdown = ${safeJsonForScript(mdContent)};
   document.getElementById('content').innerHTML = marked.parse(rawMarkdown);
 </script>
 ${ERUDA_SCRIPT}
@@ -153,7 +183,7 @@ pre.fallback{background:var(--bg-card);padding:16px;border-radius:6px;border:1px
 <h2>${fileName} <span class="badge">${badgeText}</span></h2>
 <div id="root"></div>
 <script>
-const raw = ${JSON.stringify(rawContent)};
+const raw = ${safeJsonForScript(rawContent)};
 const isSecret = ${isSecret};
 
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -300,11 +330,45 @@ async function serveBrowse(res, initPath) {
   return res.end(html);
 }
 
+// ── Per-request logging ────────────────────────────────────────────────────
+// Captured at request start, finalised on res 'finish'. Emits one line per
+// request unless HTTPD_VERBOSE=0. Format:
+//   [HH:MM:SS] METHOD STATUS  duration  size  RENDER  /path
+function logRequest(req, res, ctx) {
+  if (!VERBOSE) return;
+  const t0 = process.hrtime.bigint();
+  res.on('finish', () => {
+    const dur = Number(process.hrtime.bigint() - t0) / 1e6;
+    const ts = new Date().toISOString().slice(11, 19);
+    const status = res.statusCode;
+    const statusColor = status < 300 ? C.green : status < 400 ? C.cyan : status < 500 ? C.yellow : C.red;
+    const ip = req.socket.remoteAddress?.replace(/^::ffff:/, '') || '?';
+    const size = res.getHeader('content-length') ?? ctx.size ?? 0;
+    const ct = (res.getHeader('content-type') || '').toString().split(';')[0] || '-';
+    const render = ctx.render || '-';
+    console.log(
+      `${C.gray}[${ts}]${C.reset} ` +
+      `${C.bold}${(req.method || '-').padEnd(4)}${C.reset} ` +
+      `${statusColor}${status}${C.reset}  ` +
+      `${C.dim}${dur.toFixed(1).padStart(6)}ms${C.reset}  ` +
+      `${C.dim}${fmtBytes(Number(size)).padStart(8)}${C.reset}  ` +
+      `${C.magenta}${render.padEnd(8)}${C.reset} ` +
+      `${C.cyan}${req.url}${C.reset}` +
+      (ctx.note ? `  ${C.dim}(${ctx.note})${C.reset}` : '') +
+      (ip !== '127.0.0.1' ? `  ${C.dim}from ${ip}${C.reset}` : '')
+    );
+  });
+}
+
 const server = createServer(async (req, res) => {
+  // ctx is filled progressively as we route; logRequest reads it on 'finish'
+  const ctx = { render: '-', size: 0, note: null };
+  logRequest(req, res, ctx);
   try {
     // App-level firewall: reject non-loopback requests
     const ip = req.socket.remoteAddress;
     if (ip !== '127.0.0.1' && ip !== '::1' && ip !== '::ffff:127.0.0.1') {
+      ctx.render = 'forbid'; ctx.note = `non-loopback ip=${ip}`;
       res.writeHead(403, { 'content-type': 'text/plain' });
       return res.end('Forbidden');
     }
@@ -314,11 +378,13 @@ const server = createServer(async (req, res) => {
 
     // ── Browse SPA (backward compat) ──
     if (urlPath === '/__browse__' || urlPath === '/__browse__/') {
+      ctx.render = 'browse';
       return serveBrowse(res, '/');
     }
 
     // ── API: directory listing ──
     if (urlPath === '/__api__/ls') {
+      ctx.render = 'api-ls';
       const dirPath = url.searchParams.get('path') || '/';
       const fsDir = join(ROOT, dirPath);
       const info = await stat(fsDir).catch(() => null);
@@ -340,6 +406,7 @@ const server = createServer(async (req, res) => {
 
     // ── API: read file ──
     if (urlPath === '/__api__/read') {
+      ctx.render = 'api-read';
       const filePath = url.searchParams.get('path') || '/';
       const fsFile = join(ROOT, filePath);
       const info = await stat(fsFile).catch(() => null);
@@ -363,6 +430,7 @@ const server = createServer(async (req, res) => {
 
     // ── API: search ──
     if (urlPath === '/__api__/search') {
+      ctx.render = 'api-search';
       const q = (url.searchParams.get('q') || '').toLowerCase();
       const mode = url.searchParams.get('mode') || 'filename';
       const base = url.searchParams.get('path') || '/';
@@ -407,6 +475,7 @@ const server = createServer(async (req, res) => {
 
     // Serve lib assets from ~/.local/lib/httpd/
     if (urlPath.startsWith('/__lib__/')) {
+      ctx.render = 'lib';
       const libFile = urlPath.slice('/__lib__/'.length);
       // Only allow known lib files (no path traversal)
       if (!['marked.min.js', 'github-markdown-dark.css', 'browse.html'].includes(libFile)) {
@@ -431,9 +500,11 @@ const server = createServer(async (req, res) => {
     const info = await stat(fsPath).catch(() => null);
 
     if (!info) {
+      ctx.render = 'notfound'; ctx.note = `path missing: ${fsPath}`;
       res.writeHead(404, { 'content-type': 'text/plain' });
       return res.end('Not found');
     }
+    ctx.size = info.size || 0;
 
     if (info.isDirectory()) {
       // Try index.html first
@@ -441,13 +512,14 @@ const server = createServer(async (req, res) => {
       const hasIndex = await stat(indexPath).catch(() => null);
 
       if (hasIndex) {
+        ctx.render = 'index'; ctx.note = `${join(urlPath, 'index.html')}`;
         let html = await readFile(indexPath, 'utf8');
         html = html.replace(/<\/body>/i, `${ERUDA_SCRIPT}</body>`);
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         return res.end(html);
       }
 
-      // Serve browse SPA for directory listings
+      ctx.render = 'browse-dir';
       return serveBrowse(res, urlPath);
     }
 
@@ -459,31 +531,33 @@ const server = createServer(async (req, res) => {
     if (url.searchParams.has('raw') && ext !== '.md') {
       const data = await readFile(fsPath, 'utf8').catch(() => null);
       if (data !== null) {
+        ctx.render = 'raw'; ctx.note = `ext=${ext} size=${fmtBytes(info.size)}`;
         res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
         return res.end(data);
       }
     }
 
-    // Structured rendering — only for browser navigation (Accept: text/html),
-    // not for fetch()/XHR (which need raw data for apps like cloud-data)
     const acceptsHtml = (req.headers.accept || '').includes('text/html');
     const wantsRaw = url.searchParams.has('raw');
 
     // Secrets rendering — KV table with copy buttons
     if ((fsPath.endsWith('.secrets') || fsPath.endsWith('.secrets.json')) && acceptsHtml && !wantsRaw) {
       const content = await readFile(fsPath, 'utf8');
+      ctx.render = 'secrets'; ctx.note = `size=${fmtBytes(content.length)}`;
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       return res.end(structuredPage(urlPath, content, 'secrets'));
     }
 
     if (ext === '.json' && acceptsHtml && !wantsRaw) {
       const content = await readFile(fsPath, 'utf8');
+      ctx.render = 'json-html'; ctx.note = `${fmtBytes(content.length)} of JSON → structured HTML`;
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       return res.end(structuredPage(urlPath, content, 'json'));
     }
 
     if ((ext === '.yaml' || ext === '.yml') && acceptsHtml && !wantsRaw) {
       const content = await readFile(fsPath, 'utf8');
+      ctx.render = 'yaml-html'; ctx.note = `${fmtBytes(content.length)} of YAML → structured HTML`;
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       return res.end(structuredPage(urlPath, content, 'yaml'));
     }
@@ -491,11 +565,12 @@ const server = createServer(async (req, res) => {
     // Markdown rendering
     if (ext === '.md') {
       const mdContent = await readFile(fsPath, 'utf8');
-      // ?raw query param serves raw markdown text
       if (url.searchParams.has('raw')) {
+        ctx.render = 'raw-md'; ctx.note = `size=${fmtBytes(mdContent.length)}`;
         res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
         return res.end(mdContent);
       }
+      ctx.render = 'md-html'; ctx.note = `${fmtBytes(mdContent.length)} → marked.js`;
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       return res.end(markdownPage(urlPath, mdContent));
     }
@@ -503,6 +578,7 @@ const server = createServer(async (req, res) => {
     if (ext === '.html') {
       let html = await readFile(fsPath, 'utf8');
       html = html.replace(/<\/body>/i, `${ERUDA_SCRIPT}</body>`);
+      ctx.render = 'html'; ctx.note = 'eruda injected';
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       return res.end(html);
     }
@@ -511,14 +587,66 @@ const server = createServer(async (req, res) => {
     const finalMime = mime === 'application/octet-stream'
       ? guessMime(ext, data.toString('utf8', 0, Math.min(data.length, 512)))
       : mime;
+    ctx.render = 'static'; ctx.note = `mime=${finalMime} size=${fmtBytes(data.length)}`;
     res.writeHead(200, { 'content-type': finalMime });
     res.end(data);
   } catch (err) {
+    ctx.render = 'error'; ctx.note = err && err.message ? err.message : String(err);
+    if (VERBOSE) console.error(`${C.red}[error]${C.reset} ${req.url}: ${err && err.stack || err}`);
     res.writeHead(500, { 'content-type': 'text/plain' });
     res.end('Internal error');
   }
 });
 
+// ── Startup banner ────────────────────────────────────────────────────────
+// Verbose by default. Set HTTPD_VERBOSE=0 to silence per-request logs (banner
+// always prints — tells you the server is alive). Tries to surface enough
+// context that a developer can debug a startup misconfiguration without
+// grep'ing the source.
+function startupBanner() {
+  const url = `http://127.0.0.1:${PORT}`;
+  const lines = [
+    '',
+    `${C.bold}${C.green}━━━ web-server-md-eruda ━━━${C.reset}`,
+    `  ${C.dim}url       ${C.reset}${C.cyan}${url}/${C.reset}`,
+    `  ${C.dim}root      ${C.reset}${ROOT}`,
+    `  ${C.dim}lib_dir   ${C.reset}${LIB_DIR}`,
+    `  ${C.dim}pid       ${C.reset}${process.pid}`,
+    `  ${C.dim}node      ${C.reset}${process.version}  ${C.dim}(${process.platform}/${process.arch})${C.reset}`,
+    `  ${C.dim}verbose   ${C.reset}${VERBOSE ? C.green + 'on' + C.reset + C.dim + ' (HTTPD_VERBOSE=0 to silence)' + C.reset : C.gray + 'off' + C.reset}`,
+    `  ${C.dim}firewall  ${C.reset}loopback only ${C.dim}(127.0.0.1, ::1)${C.reset}`,
+    `  ${C.dim}max size  ${C.reset}5 MB ${C.dim}(API /__api__/read)${C.reset}`,
+    '',
+    `  ${C.bold}routes${C.reset}`,
+    `    ${C.cyan}/${C.reset}                                  serve files from ${C.dim}\$ROOT${C.reset}`,
+    `    ${C.cyan}/<dir>/${C.reset}                            index.html if present, else SPA browse`,
+    `    ${C.cyan}/<file>.{json,yaml,yml,secrets}${C.reset}    structured HTML render`,
+    `    ${C.cyan}/<file>.md${C.reset}                         marked.js render`,
+    `    ${C.cyan}/<file>?raw${C.reset}                        plain text passthrough`,
+    `    ${C.cyan}/__browse__/${C.reset}                       SPA browser`,
+    `    ${C.cyan}/__api__/ls?path=...${C.reset}               directory listing JSON`,
+    `    ${C.cyan}/__api__/read?path=...${C.reset}             file content JSON (≤5MB)`,
+    `    ${C.cyan}/__api__/search?q=...&mode=filename|content${C.reset}  recursive search`,
+    `    ${C.cyan}/__lib__/{marked.min.js,github-markdown-dark.css,browse.html}${C.reset}`,
+    '',
+    `  ${C.bold}log columns${C.reset}  ${C.dim}timestamp method status duration size render-mode url${C.reset}`,
+    `${C.bold}${C.green}━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C.reset}`,
+    '',
+  ];
+  console.log(lines.join('\n'));
+}
+
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`web-server-md-eruda listening on http://127.0.0.1:${PORT} -> ${ROOT}`);
+  startupBanner();
 });
+
+// Graceful-shutdown summary (Ctrl-C friendly)
+let totalRequests = 0;
+server.on('request', () => { totalRequests++; });
+function shutdown(sig) {
+  console.log(`\n${C.dim}[${new Date().toISOString().slice(11,19)}]${C.reset} ${C.yellow}${sig} received${C.reset} — handled ${C.bold}${totalRequests}${C.reset} request(s); shutting down`);
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 2000).unref();
+}
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));

@@ -78,6 +78,13 @@
       "headers": {
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
       }
+    },
+    "google-personal": {
+      "type": "http",
+      "url": "https://mcp.diegonmarcos.com/g-personal/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
     }
   }
 }
