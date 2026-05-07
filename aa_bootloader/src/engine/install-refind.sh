@@ -89,7 +89,8 @@ mkdir -p "$TARGET"
 # content copies fine. Suppress those warnings (file content already there).
 cp -rf --no-preserve=ownership "$DIST/." "$TARGET/" 2>/dev/null || \
     cp -rf "$DIST/." "$TARGET/" 2>/dev/null || true
-sync
+# POSIX-default PATH so we bypass user-shadowed `sync` shims (best-effort).
+command -p sync 2>/dev/null || /bin/sync 2>/dev/null || true
 log "Copied $(find "$TARGET" -type f | wc -l) files → $TARGET"
 
 # ── 2. NVRAM entry ─────────────────────────────────────────────────────────
@@ -105,8 +106,38 @@ if [ ! -d /sys/firmware/efi ]; then
     exit 0
 fi
 
+# ── efibootmgr resolution ────────────────────────────────────────────────
+# NixOS hosts may not expose efibootmgr on PATH (it's only installed if listed
+# in environment.systemPackages). Look in standard locations, then fall back
+# to nix-build for a one-shot fetch from <nixpkgs>. FIRE RULE 4: this resolution
+# logic is data-free; the binary itself is the data. Once added to the host
+# flake's systemPackages, the first branch hits and the rest is dead code.
+if command -v efibootmgr >/dev/null 2>&1; then
+    EFIBOOTMGR=$(command -v efibootmgr)
+elif [ -x /run/current-system/sw/bin/efibootmgr ]; then
+    EFIBOOTMGR=/run/current-system/sw/bin/efibootmgr
+elif [ -x /usr/sbin/efibootmgr ]; then
+    EFIBOOTMGR=/usr/sbin/efibootmgr
+elif [ -x /sbin/efibootmgr ]; then
+    EFIBOOTMGR=/sbin/efibootmgr
+else
+    # Nix store fallback — build (or reuse) efibootmgr from <nixpkgs>.
+    EFIBOOTMGR=$(find /nix/store -maxdepth 3 -path '*efibootmgr*/bin/efibootmgr' -type f 2>/dev/null | head -1)
+    if [ -z "$EFIBOOTMGR" ] && command -v nix-build >/dev/null 2>&1; then
+        out=$(nix-build --no-out-link '<nixpkgs>' -A efibootmgr 2>/dev/null) && \
+            EFIBOOTMGR="$out/bin/efibootmgr"
+    fi
+fi
+if [ -z "${EFIBOOTMGR:-}" ] || [ ! -x "$EFIBOOTMGR" ]; then
+    error "efibootmgr not found on PATH, /usr/sbin, /sbin, or /nix/store."
+    error "Install it via the host flake's environment.systemPackages, or"
+    error "set NO_NVRAM=1 to skip the NVRAM step (rEFInd files are already deployed)."
+    exit 1
+fi
+log "efibootmgr: $EFIBOOTMGR"
+
 # Find existing rEFInd entry by name
-existing_id=$(efibootmgr | awk -v n="$NVRAM_LABEL" '
+existing_id=$("$EFIBOOTMGR" | awk -v n="$NVRAM_LABEL" '
     $0 ~ "^Boot[0-9A-Fa-f]+\\* "n"([ \t]|$)" {
         sub("^Boot",""); sub("[*\t ].*",""); print; exit
     }')
@@ -120,13 +151,13 @@ DISK=$(echo "$ESP_SOURCE" | sed 's/p[0-9]*$//')          # /dev/nvme0n1
 PART=$(echo "$ESP_SOURCE" | grep -oE '[0-9]+$')          # 1
 
 # Snapshot BootOrder BEFORE any mutation so we can restore exactly
-order_before=$(efibootmgr | awk '/^BootOrder:/ {print $2}')
+order_before=$("$EFIBOOTMGR" | awk '/^BootOrder:/ {print $2}')
 
 if [ -n "$existing_id" ]; then
     log "rEFInd NVRAM entry already exists: Boot$existing_id"
 else
-    efibootmgr -c -d "$DISK" -p "$PART" -L "$NVRAM_LABEL" -l "$EFI_PATH" >/dev/null
-    existing_id=$(efibootmgr | awk -v n="$NVRAM_LABEL" '
+    "$EFIBOOTMGR" -c -d "$DISK" -p "$PART" -L "$NVRAM_LABEL" -l "$EFI_PATH" >/dev/null
+    existing_id=$("$EFIBOOTMGR" | awk -v n="$NVRAM_LABEL" '
         $0 ~ "Boot[0-9A-Fa-f]+\\* "n"$" || $0 ~ "Boot[0-9A-Fa-f]+\\* "n" " {
             sub("Boot",""); sub("\\*.*",""); print; exit
         }')
@@ -138,17 +169,17 @@ else
         # Append rEFInd to the END of the previous BootOrder (so it's known
         # to firmware but not first).
         new_order="${order_before},${existing_id}"
-        efibootmgr -o "$new_order" >/dev/null
+        "$EFIBOOTMGR" -o "$new_order" >/dev/null
         log "BootOrder restored: $new_order  (rEFInd appended at end)"
     fi
 fi
 
 # Optional: set rEFInd first in BootOrder
 if [ "${DEFAULT_BOOT:-0}" = "1" ]; then
-    cur_order=$(efibootmgr | awk '/^BootOrder:/ {print $2}')
+    cur_order=$("$EFIBOOTMGR" | awk '/^BootOrder:/ {print $2}')
     new_order=$(echo "$cur_order" | tr ',' '\n' | grep -v "^${existing_id}\$" | paste -sd, -)
     new_order="${existing_id},${new_order}"
-    efibootmgr -o "$new_order" >/dev/null
+    "$EFIBOOTMGR" -o "$new_order" >/dev/null
     log "BootOrder bumped: rEFInd is now default ($new_order)"
 fi
 

@@ -66,29 +66,30 @@
       "include_drivers": ["btrfs_x64", "ext4_x64"],
       "_drivers_note": "iso9660_x64 dropped — not used by any menu entry. ntfs/hfs unneeded.",
       "include_icons": true,
+      "tools_dir": "tools",
+      "_tools_dir_note": "Sub-directory under /EFI/refind/ where vendored EFI binaries (shellx64.efi, memtest86.efi, ipxe.efi) live. Emitted as 'tools_dir tools' in refind.conf so rEFInd's bottom-row tool buttons (showtools) can find their binaries — without this, shellx64.efi at /EFI/refind/tools/ falls outside rEFInd's default search paths (/EFI/refind/, /EFI/tools/, /EFI/) and the 'shell' button silently no-ops.",
       "theme": {
-        "_description": "rEFInd theme. Vendored at src/loaders/refind/vendored/themes/<name>/. The renderer (a) copies that dir to dist/.../refind/themes/<name>/ and (b) generates a theme.conf into the same dir overriding any upstream defaults — so paths/sizes/variant are always data-driven from this block. Producers also reference $ICON_PATH (computed below) to emit per-stanza icon paths.",
+        "_description": "rEFInd theme. Vendored at src/loaders/refind/vendored/themes/<name>/. The renderer (a) copies that dir to dist/.../refind/themes/<name>/ and (b) generates a theme.conf into the same dir overriding any upstream defaults — so paths/sizes/variant are always data-driven from this block.",
         "enabled": true,
-        "name": "catppuccin",
-        "vendored_path": "loaders/refind/vendored/themes/catppuccin",
+        "name": "brads-refind-theme",
+        "vendored_path": "loaders/refind/vendored/themes/brads-refind-theme",
         "theme_conf": "theme.conf",
-        "_layout_note": "Two layouts supported by the renderer: (1) regular-style — theme.icon_set + theme.variant + theme.font; renderer derives icons_dir = themes/<name>/icons/<icon_set>/ and picks bg/selection PNGs from variant. (2) explicit-path — theme.{icons_path, banner_path, selection_big_path, selection_small_path, font_path, big_icon_size, small_icon_size}; renderer emits each path verbatim. Explicit fields win when present. Use (2) for themes with arbitrary directory layouts (Catppuccin uses assets/<flavor>/icons/).",
-        "flavor": "mocha",
-        "_flavor_note": "Catppuccin pastel-on-dark palette. Options: latte (light), frappe (medium dark), macchiato (cooler dark), mocha (deepest dark — best contrast on Surface OLED-class panel). To switch flavor: set this + the four *_path fields below to assets/<flavor>/.",
-        "icons_path": "themes/catppuccin/assets/mocha/icons",
-        "big_icon_size": 256,
-        "small_icon_size": 64,
-        "_icon_size_note": "Catppuccin ships 256x256 OS icons + 64x64 tool icons. The renderer emits these as big_icon_size/small_icon_size in theme.conf.",
-        "banner_path": "themes/catppuccin/assets/mocha/background.png",
-        "_banner_note": "Catppuccin background.png is a 1x1 solid-color tile scaled fillscreen — no graphical clutter, just the flavor's base color (#1e1e2e for mocha).",
-        "selection_big_path": "themes/catppuccin/assets/mocha/selection_big.png",
-        "selection_small_path": "themes/catppuccin/assets/mocha/selection_small.png",
+        "_upstream": "https://github.com/toptensoftware/brads-refind-theme",
+        "_layout_note": "Explicit-path mode. Brad's theme has a flat layout: theme.conf + icons/ + background.png + selection-{big,small}.png at the theme root. We backfilled os_kali, os_nixos, vol_external from Catppuccin's icon set (Brad's upstream doesn't ship them). 128x128 OS icons + 48x48 tool icons; rEFInd scales as needed.",
+        "icons_path": "themes/brads-refind-theme/icons",
+        "big_icon_size": 128,
+        "small_icon_size": 48,
+        "_icon_size_note": "Brad's icons are 128x128 OS / 48x48 tools. The 128 size sits well on the Surface Pro 8 1280-pixel half-screen at 100% scale, ~2x at 200%. Selection rect is 143x143 (ships from upstream).",
+        "banner_path": "themes/brads-refind-theme/background.png",
+        "_banner_note": "1024x768 painted background (real artwork, not a 1x1 tile). banner_scale=fillscreen lets it scale to the Surface's 2880x1920 panel.",
+        "selection_big_path": "themes/brads-refind-theme/selection-big.png",
+        "selection_small_path": "themes/brads-refind-theme/selection-small.png",
         "font_path": "",
-        "_font_note": "Empty = use rEFInd's bundled default ASCII font. Catppuccin ships no font atlas. To use a custom font, point this at e.g. themes/<name>/fonts/<file>.png. (regular-style themes can instead set theme.font = '<basename>' and the renderer composes themes/<name>/fonts/<basename>.png.)",
+        "_font_note": "Empty = use rEFInd's bundled default ASCII font (Luxi Mono Regular 12pt). Brad's theme ships no font atlas. ASCII labels in manual_stanzas.order ensure no '??' glyphs.",
         "show_label": true,
-        "_show_label_note": "Whether boot-entry labels appear under the SELECTED icon. rEFInd's graphical UI shows the label of the currently-selected entry only — that's an engine-level constraint, not a theme/setting. true keeps labels visible on selection; false adds 'label' to hideui (no labels at all).",
+        "_show_label_note": "rEFInd's graphical UI shows the label of the currently-selected icon only — engine-level constraint, not a theme setting. show_label=true keeps that label visible; false adds 'label' to hideui.",
         "variant": "dark",
-        "_variant_note": "Cosmetic field describing whether the flavor reads as light or dark. With explicit-path mode the variant string isn't used to pick filenames (Catppuccin doesn't have light/dark variants per flavor — each flavor IS one variant)."
+        "_variant_note": "Cosmetic only — Brad's theme has a single visual variant. No bg/selection name-suffix logic in explicit-path mode."
       }
     },
     "ui": {
@@ -97,7 +98,12 @@
       "use_graphics_for": ["linux", "windows"],
       "resolution": "max",
       "banner": "",
-      "showtools": ["shell", "memtest", "gdisk", "reboot", "shutdown", "firmware"]
+      "_showtools_note": "Bottom-row tool icons. rEFInd renders each one IFF it's either built-in (no external binary) or its EFI binary is on the ESP and inside rEFInd's tool search path (defaults + tools_dir). Add a tool here only after vendoring its EFI binary into src/loaders/refind/vendored/efi-tools/ AND declaring it in refind.tools.",
+      "showtools": ["shell", "memtest", "netboot", "bootorder", "hidden_tags", "csr_rotate", "firmware", "about", "exit", "reboot", "shutdown"],
+      "enable_touch": true,
+      "_enable_touch_note": "Surface Pro 8 has a digitiser/touchscreen exposed by UEFI. Tapping a top-row icon selects+activates it. Off by default in rEFInd; enabled here for Surface ergonomics.",
+      "enable_mouse": false,
+      "_enable_mouse_note": "USB/BT mouse pointer. Off by default — touchscreen via enable_touch is the primary input on this device. Toggle to true if a peripheral mouse is attached at boot."
     },
     "scan": {
       "_description": "Mode B: manual-only. The menu is exactly what aa_bootloader generates from boot.json. No autodetect surprises.",
@@ -105,18 +111,45 @@
       "dont_scan_dirs": ["EFI/Boot", "EFI/GRUB", "EFI/ubuntu", "EFI/nixos"],
       "dont_scan_volumes": []
     },
+    "_tools_note": "Vendored EFI utilities staged on the ESP at /EFI/refind/<tools_dir>/. Each entry: { source: filename in src/loaders/refind/vendored/efi-tools/, dest: filename written to the ESP, used_by: array of showtools keywords or menu entries that need this binary }. render-refind-binary.sh stages these; rEFInd's bottom-row showtools auto-finds them once tools_dir is set; manual_stanzas.order entries reference them via efi_chainload.",
+    "tools": [
+      {
+        "source": "shellx64.efi",
+        "dest": "shellx64.efi",
+        "used_by": ["showtools:shell", "manual_stanzas:efi_shell"],
+        "_upstream": "github.com/tianocore/edk2 — nixpkgs.edk2-uefi-shell"
+      },
+      {
+        "source": "memtest86.efi",
+        "dest": "memtest86.efi",
+        "used_by": ["showtools:memtest", "manual_stanzas:memtest"],
+        "_upstream": "memtest.org — nixpkgs.memtest86plus 7.00 (Linux EFI-stub bzImage; rEFInd loads via the PE32+ headers within)"
+      },
+      {
+        "source": "ipxe.efi",
+        "dest": "ipxe.efi",
+        "used_by": ["showtools:netboot", "manual_stanzas:ipxe"],
+        "_upstream": "ipxe.org — nixpkgs.ipxe (network boot — chain into PXE/HTTP/TFTP)"
+      }
+    ],
     "manual_stanzas": {
       "_description": "Ordered top-level entries shown in rEFInd. Each item picks a 'producer' (built-in renderer) and overrides the display label. NixOS data comes from /nix/var/nix/profiles; OS data comes from grub.menu.* via the 'from' field.",
       "_integration_note": "integration declares per-OS coupling — adapter = files dropped INTO the OS so it yields bootloader control to us (NixOS gets nixos_yield.nix + kernel staging); passive = we read the OS's kernels at their existing path, OS unaware (Kali, Debian: apt manages /vmlinuz, we just point at it); chainload = we hand control to the OS's own EFI binary with no integration (Windows, Ventoy, refind_self).",
+      "_icon_note": "Per-stanza 'icon' field overrides the producer default. Use bare basename (no .png extension); the renderer resolves to ${ICON_PATH}/<icon>.png. Pick from Brad's theme inventory: os_*, tool_*, func_*. Distinct icons per entry give a glanceable menu — no two boot targets share the same glyph.",
       "order": [
-        { "producer": "nixos_primary",   "label": "NixOS - Primary",            "integration": "adapter" },
-        { "producer": "efi_chainload",   "from": "kali",   "label": "Kali - Lab",          "integration": "chainload" },
-        { "producer": "efi_chainload",   "from": "debian", "label": "Debian Rescue OS",    "integration": "chainload" },
-        { "producer": "usb_chainload",   "from": "ventoy", "label": "USB Ventoy",          "integration": "chainload" },
-        { "producer": "nixos_rescue",    "label": "NixOS - Rescue",             "integration": "adapter" },
-        { "producer": "nixos_rollback",  "label": "NixOS - All Configurations", "max": 5,  "integration": "adapter" },
-        { "producer": "efi_chainload",   "from": "grub_fallback", "label": "GRUB (fallback)", "integration": "chainload", "_note": "Chainloads the co-installed GRUB at /EFI/bootloader/grubx64.efi as a fallback boot menu" },
-        { "producer": "refind_self",     "label": "Reload rEFInd",              "integration": "chainload", "_label_note": "ASCII-only — rEFInd's bundled PNG glyph atlas (source-code-pro-extralight-32.png, 1824x32px = 96 ASCII printable glyphs U+0020-U+007E) does not contain U+2014 EM DASH. Using a bare hyphen renders correctly across every theme; em dashes show as '??'. If a future theme ships a Unicode-extended atlas, this constraint can be relaxed centrally via the renderer." }
+        { "producer": "nixos_primary",        "label": "NixOS - Primary",                                          "icon": "os_nixos",       "integration": "adapter" },
+        { "producer": "efi_chainload",        "from": "kali",                  "label": "Kali - Lab",              "icon": "os_kali",        "integration": "chainload" },
+        { "producer": "efi_chainload",        "from": "debian",                "label": "Debian Rescue OS",        "icon": "os_debian",      "integration": "chainload" },
+        { "producer": "usb_chainload",        "from": "ventoy",                "label": "USB Ventoy",              "icon": "vol_external",   "integration": "chainload" },
+        { "producer": "nixos_specialisation", "from": "rescue-current-gen",    "label": "NixOS - Rescue (current gen)",    "icon": "tool_rescue",    "integration": "adapter" },
+        { "producer": "nixos_specialisation", "from": "rescue-native-install", "label": "NixOS - Rescue (native install)", "icon": "func_install",   "integration": "adapter" },
+        { "producer": "nixos_specialisation", "from": "safe-graphics",         "label": "NixOS - Safe Graphics",   "icon": "tool_fwupdate",  "integration": "adapter" },
+        { "producer": "nixos_rollback",       "label": "NixOS - All Configurations",  "max": 5,                    "icon": "func_bootorder", "integration": "adapter" },
+        { "producer": "efi_chainload",        "from": "grub_fallback",         "label": "GRUB (fallback)",         "icon": "os_linux",       "integration": "chainload", "_note": "Chainloads /EFI/bootloader/grubx64.efi (the co-installed GRUB) as a fallback multiboot menu" },
+        { "producer": "efi_chainload",        "from": "memtest",               "label": "Memory Test",             "icon": "tool_memtest",   "integration": "chainload", "_note": "memtest86+ 7.00 — full RAM diagnostic; runs without an OS. Lengthy (multiple passes); leave running for hours." },
+        { "producer": "efi_chainload",        "from": "ipxe",                  "label": "Network Boot",            "icon": "tool_netboot",   "integration": "chainload", "_note": "iPXE — open netboot. Drops to iPXE shell; useful for HTTP-chain into a rescue ISO or installer." },
+        { "producer": "efi_chainload",        "from": "efi_shell",             "label": "EFI Shell",               "icon": "tool_shell",     "integration": "chainload", "_note": "EDK2 UEFI Shell — pre-OS firmware prompt. NOT a Linux shell (no curl/wget/nmtui); use NixOS - Rescue (native install) for those." },
+        { "producer": "refind_self",          "label": "Reload rEFInd",                                            "icon": "os_refind",      "integration": "chainload", "_label_note": "ASCII-only labels — rEFInd's default PNG glyph atlas covers U+0020-U+007E. Em dashes render as '??'." }
       ]
     }
   },
@@ -247,6 +280,33 @@
         "efi_uuid": "2CE0-6722",
         "efi_path": "/EFI/bootloader/grubx64.efi",
         "icon": "tool_shell"
+      },
+      "efi_shell": {
+        "_description": "EDK2 UEFI Shell — minimal interactive prompt at firmware level. Vendored at src/loaders/refind/vendored/efi-tools/shellx64.efi (from nixpkgs.edk2-uefi-shell), staged to ESP at /EFI/refind/tools/shellx64.efi by render-refind-binary.sh. Use cases: low-level EFI debugging, NVRAM tweaks, fs traversal when nothing else boots. NOT a Linux shell — it's UEFI bytecode, no networking/wget/curl/nmtui.",
+        "enabled": true,
+        "label": "EFI Shell",
+        "type": "chainloader",
+        "efi_uuid": "2CE0-6722",
+        "efi_path": "/EFI/refind/tools/shellx64.efi",
+        "icon": "tool_shell"
+      },
+      "memtest": {
+        "_description": "Memtest86+ — RAM tester. Boots via Linux EFI-stub. Vendored from nixpkgs.memtest86plus 7.00 → /EFI/refind/tools/memtest86.efi. Reachable as top-row entry (manual_stanzas) AND as bottom-row 'memtest' showtools button.",
+        "enabled": true,
+        "label": "Memory Test",
+        "type": "chainloader",
+        "efi_uuid": "2CE0-6722",
+        "efi_path": "/EFI/refind/tools/memtest86.efi",
+        "icon": "tool_memtest"
+      },
+      "ipxe": {
+        "_description": "iPXE — open network bootloader. Vendored from nixpkgs.ipxe → /EFI/refind/tools/ipxe.efi. Reachable as top-row 'Network Boot' entry AND as bottom-row 'netboot' showtools button. Drops to iPXE shell where you can dhcp + chain http/tftp/iSCSI/etc.",
+        "enabled": true,
+        "label": "Network Boot",
+        "type": "chainloader",
+        "efi_uuid": "2CE0-6722",
+        "efi_path": "/EFI/refind/tools/ipxe.efi",
+        "icon": "tool_netboot"
       }
     }
   },

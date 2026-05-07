@@ -145,7 +145,14 @@ done
 # 7. NVRAM
 hdr "7. NVRAM"
 sudo efibootmgr 2>/dev/null | grep -q "rEFInd" && ok "rEFInd NVRAM entry exists" || bad "rEFInd entry MISSING"
-sudo efibootmgr 2>/dev/null | grep -q "NixOS-boot-efi" && ok "NixOS-boot-efi (GRUB fallback) exists" || warn "GRUB fallback NVRAM gone"
+# GRUB-fallback NVRAM label — read from boot.json (FIRE RULE 4: data-driven,
+# never hardcode). The default-NVRAM entry IS the GRUB binary one.
+GRUB_NVRAM_LABEL=$(jq -r '.uefi.nvram.entries[]? | select(.default == true) | .name' \
+    "$BOOT_JSON_TEST" 2>/dev/null | head -1)
+GRUB_NVRAM_LABEL="${GRUB_NVRAM_LABEL:-bootloader}"
+sudo efibootmgr 2>/dev/null | grep -q "$GRUB_NVRAM_LABEL" \
+    && ok "$GRUB_NVRAM_LABEL (GRUB fallback) NVRAM entry exists" \
+    || warn "GRUB fallback NVRAM '$GRUB_NVRAM_LABEL' missing"
 boot_order_first=$(sudo efibootmgr 2>/dev/null | awk '/^BootOrder:/ {print $2}' | cut -d, -f1)
 refind_id=$(sudo efibootmgr 2>/dev/null | awk '/rEFInd/ {gsub(/Boot/,""); gsub(/\*.*/,""); print; exit}')
 [ "$boot_order_first" = "$refind_id" ] && ok "rEFInd is first in BootOrder (default)" || warn "BootOrder first=$boot_order_first, rEFInd=$refind_id"

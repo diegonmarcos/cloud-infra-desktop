@@ -20,7 +20,10 @@ ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 # shellcheck source=lib/log.sh
 . "$ROOT_DIR/src/engine/lib/log.sh"
 
-NIX_PROFILES="${NIX_PROFILES:-/nix/var/nix/profiles}"
+# See render-refind-conf.sh: $NIX_PROFILES (NixOS env var) is the user-profile
+# search list — not a single dir path. Use NIXOS_SYSTEM_PROFILES override or
+# the canonical /nix/var/nix/profiles directly.
+NIX_PROFILES="${NIXOS_SYSTEM_PROFILES:-/nix/var/nix/profiles}"
 DIST_KERNELS="$ROOT_DIR/dist/boot/kernels"
 
 if [ ! -d "$NIX_PROFILES" ]; then

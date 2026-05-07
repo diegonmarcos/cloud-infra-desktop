@@ -38,7 +38,47 @@ PART="${NVRAM_ESP_PART:-1}"
 
 set -eu
 
-if [ "\$(id -u)" -ne 0 ]; then
+# DRY_RUN gate (set by build.sh --dry-run). Wrap every efibootmgr write call
+# below so dry runs print the command but don't touch firmware. Reads from
+# every read call (the efibootmgr | head snapshots) still executes; harmless.
+DRY_RUN="\${DRY_RUN:-0}"
+
+# efibootmgr resolution. NixOS hosts may not expose efibootmgr on PATH
+# (it's only installed if listed in environment.systemPackages). Look in
+# standard locations, then fall back to whatever's in /nix/store.
+if command -v efibootmgr >/dev/null 2>&1; then
+    EFIBOOTMGR=\$(command -v efibootmgr)
+elif [ -x /run/current-system/sw/bin/efibootmgr ]; then
+    EFIBOOTMGR=/run/current-system/sw/bin/efibootmgr
+elif [ -x /usr/sbin/efibootmgr ]; then
+    EFIBOOTMGR=/usr/sbin/efibootmgr
+elif [ -x /sbin/efibootmgr ]; then
+    EFIBOOTMGR=/sbin/efibootmgr
+else
+    EFIBOOTMGR=\$(find /nix/store -maxdepth 3 -path '*efibootmgr*/bin/efibootmgr' -type f 2>/dev/null | head -1)
+fi
+if [ -z "\${EFIBOOTMGR:-}" ] || [ ! -x "\$EFIBOOTMGR" ]; then
+    if [ "\$DRY_RUN" = "1" ]; then
+        echo "[nvram] (efibootmgr not found; using no-op for dry-run snapshot reads)" >&2
+        EBM_READ="true"
+    else
+        echo "[nvram/apply.sh] efibootmgr not found — add it to host flake's environment.systemPackages" >&2
+        exit 1
+    fi
+else
+    EBM_READ="\$EFIBOOTMGR"
+fi
+
+ebm_write() {
+    if [ "\$DRY_RUN" = "1" ]; then
+        echo "[nvram] DRY_RUN: efibootmgr \$*" >&2
+    else
+        "\$EFIBOOTMGR" "\$@"
+    fi
+}
+
+# Root check skipped in dry mode (no firmware writes happen).
+if [ "\$DRY_RUN" != "1" ] && [ "\$(id -u)" -ne 0 ]; then
     echo "[nvram/apply.sh] Must run as root" >&2
     exit 1
 fi
@@ -62,12 +102,33 @@ PART="$PART"
 
 # Snapshot current state for diff/log
 echo "[nvram] before:"
-efibootmgr | head -30
+\$EBM_READ | head -30
 
-# Helper: find existing entry by name (returns BootXXXX hex or empty)
+# Snapshot BootOrder so we can restore it after creates. efibootmgr -c
+# auto-prepends each new entry to BootOrder; without restoring, fallback
+# entries created here would silently become the firmware default.
+order_before=\$(\$EBM_READ | awk '/^BootOrder:/ {print \$2}')
+
+# Helper: find existing entry by name (returns BootXXXX hex or empty).
+# efibootmgr's output format is: "Boot####* <name>\t<path>" (tab-separated)
+# or "Boot####* <name>" (no path, e.g. firmware Volume entries with binary
+# trailers). Match the name followed by tab, space, end-of-line, or any
+# non-name character — anchor to the start of line so only top-level entries
+# match (not the nested boot-data hex).
 find_entry() {
     name="\$1"
-    efibootmgr | awk -v n="\$name" '\$0 ~ "Boot[0-9A-Fa-f]+\\\\* "n"\$" || \$0 ~ "Boot[0-9A-Fa-f]+\\\\* "n" " { sub("Boot",""); sub("\\\\*.*",""); print; exit }'
+    \$EBM_READ | awk -v n="\$name" '
+        # efibootmgr lines: "Boot####* <name>\t<path>" or "Boot####* <name>"
+        # Match the 4-hex prefix + "* "; that prefix is exactly 10 characters
+        # (Boot=4 + ####=4 + "*"=1 + " "=1). The hex ID is chars 5..8 (length 4).
+        match(\$0, /^Boot[0-9A-Fa-f]+\\* /) {
+            rest = substr(\$0, RLENGTH + 1)
+            if (rest == n || index(rest, n "\t") == 1 || index(rest, n " ") == 1) {
+                hex = substr(\$0, 5, RLENGTH - 6)
+                print hex
+                exit
+            }
+        }'
 }
 
 # Remove stale entries
@@ -78,7 +139,7 @@ echo "[nvram] checking stale: $stale_name"
 existing=\$(find_entry "$stale_name")
 if [ -n "\$existing" ]; then
     echo "[nvram] removing Boot\$existing ($stale_name)"
-    efibootmgr -B -b "\$existing" >/dev/null
+    ebm_write -B -b "\$existing" >/dev/null
 fi
 EOF
         done
@@ -95,7 +156,7 @@ EOF
 existing=\$(find_entry "$NAME")
 if [ -z "\$existing" ]; then
     echo "[nvram] creating: $NAME -> $EFIPATH"
-    efibootmgr -c -d "\$DISK" -p "\$PART" -L "$NAME" -l "$EFIPATH" >/dev/null
+    ebm_write -c -d "\$DISK" -p "\$PART" -L "$NAME" -l "$EFIPATH" >/dev/null
 else
     echo "[nvram] keeping Boot\$existing ($NAME)"
 fi
@@ -104,8 +165,27 @@ EOF
 
         cat <<'EOF'
 
+# Restore BootOrder. Any newly created entries got auto-prepended by
+# efibootmgr -c; we want them tracked but not promoted ahead of the
+# existing primary loader (rEFInd, set by install-refind.sh). Newly
+# created entries are appended to the end so firmware can still reach
+# them via F12/menu, just not as default.
+new_after=$($EBM_READ | awk '/^BootOrder:/ {print $2}')
+appended=$(echo "$new_after" | tr ',' '\n' | awk -v before="$order_before" '
+    BEGIN { n=split(before, arr, ","); for (i=1;i<=n;i++) seen[arr[i]]=1 }
+    !seen[$0] { print }')
+restored="$order_before"
+for hex in $appended; do
+    [ -z "$hex" ] && continue
+    restored="$restored,$hex"
+done
+if [ "$restored" != "$new_after" ] && [ -n "$order_before" ]; then
+    echo "[nvram] restoring BootOrder: $restored (was auto-prepended to $new_after)"
+    ebm_write -o "$restored" >/dev/null
+fi
+
 echo "[nvram] after:"
-efibootmgr | head -30
+$EBM_READ | head -30
 EOF
     fi
 } > "$OUT"

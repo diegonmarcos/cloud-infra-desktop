@@ -3,6 +3,28 @@
   "_description": "Single SoT for the Surface Pro 8 bootloader: UEFI/NVRAM, GRUB install + UI + menu, kernel cmdline (hibernate slice), initrd, LUKS, swap. Phase 1 captures current behavior; Phase 3 yields full grub.cfg authority from NixOS to this SoT.",
   "version": 1,
 
+  "engine": {
+    "_description": "Engine policy — replaces the scattered env-var flags (YES, DRY_RUN, NO_NVRAM, DEFAULT_BOOT, SKIP_KERNELS, SKIP_GRUB_BIN, REBUILD_ACTION, FLAKE_MODULES_DIR) that previously controlled per-install-script behaviour. Each install-*.sh reads its slice from here. Env vars STILL override (for ad-hoc surgical runs and CI), but JSON is canonical. Setting interactive=false makes the engine declarative-by-default — no Proceed?[y/N] prompt, the JSON IS the decision.",
+    "interactive": false,
+    "dry_run": false,
+    "refind_install": {
+      "_description": "Knobs for engine/install-refind.sh.",
+      "manage_nvram": true,
+      "set_default_boot": true
+    },
+    "grub_install": {
+      "_description": "Knobs for engine/install-grub.sh. include_kernels=false skips /boot/kernels copy (faster re-deploy if kernels are unchanged); include_binaries=false skips grubx64.efi + modules (when only grub.cfg changed).",
+      "include_kernels": true,
+      "include_binaries": true
+    },
+    "nixos_install": {
+      "_description": "Knobs for engine/install-nixos.sh. trigger_rebuild = none|boot|switch|test|dry-build (if not 'none', engine runs nixos-rebuild after dropping modules into the host flake — but the recommended pattern is to leave this 'none' and let the host flake's build.sh switch own that step). flake_modules_dir is the destination for adapter modules; relative paths resolve against aa_bootloader/ root.",
+      "trigger_rebuild": "none",
+      "flake_modules_dir": "../aa_desk-usr_x86_surface-linux_nixos/src/modules",
+      "_flake_modules_dir_note": "Host flake was renamed from aa_nixos-surface_host → aa_desk-usr_x86_surface-linux_nixos as part of the unix/ directory taxonomy refactor. Engine resolves relative paths against ROOT_DIR (= aa_bootloader/)."
+    }
+  },
+
   "uefi": {
     "_description": "UEFI partition / NVRAM concerns",
     "esp": {
@@ -17,11 +39,12 @@
     },
     "nvram": {
       "_description": "aa_bootloader owns NVRAM. deploy-grub.sh runs nvram/apply.sh which idempotently ensures these entries exist via efibootmgr.",
+      "_ownership_note": "GRUB EFI binary lives at /EFI/bootloader/grubx64.efi — neutral install dir, no distro owns it (2026-05-07 migration from /EFI/NixOS-boot-efi/). UEFI firmware doesn't care about dirname semantics; this name reflects that aa_bootloader is the SoT and the binary is overwritten on every `build.sh deploy-grub`. No distro's apt/pacman/grub-install can collide with this path.",
       "manage": true,
       "entries": [
         {
-          "name": "NixOS-boot-efi",
-          "path": "\\EFI\\NixOS-boot-efi\\grubx64.efi",
+          "name": "bootloader",
+          "path": "\\EFI\\bootloader\\grubx64.efi",
           "default": true
         },
         {
@@ -29,7 +52,8 @@
           "path": "\\EFI\\Microsoft\\Boot\\bootmgfw.efi"
         }
       ],
-      "remove_stale": []
+      "remove_stale": ["NixOS-boot-efi"],
+      "_remove_stale_note": "On deploy-nvram, efibootmgr removes any NVRAM entries with these labels. NixOS-boot-efi is the legacy name we used before 2026-05-07 — this purges the stale boot variable so firmware doesn't hold a dangling reference after the install dir was renamed."
     }
   },
 
@@ -43,11 +67,28 @@
       "_drivers_note": "iso9660_x64 dropped — not used by any menu entry. ntfs/hfs unneeded.",
       "include_icons": true,
       "theme": {
-        "_description": "Optional rEFInd theme. Vendored at src/vendored/refind-themes/<name>/. The renderer copies that dir to dist/.../refind/themes/<name>/ and emits `include themes/<name>/theme.conf` in refind.conf. Set enabled=false to disable.",
+        "_description": "rEFInd theme. Vendored at src/loaders/refind/vendored/themes/<name>/. The renderer (a) copies that dir to dist/.../refind/themes/<name>/ and (b) generates a theme.conf into the same dir overriding any upstream defaults — so paths/sizes/variant are always data-driven from this block. Producers also reference $ICON_PATH (computed below) to emit per-stanza icon paths.",
         "enabled": true,
-        "name": "darkmini",
-        "vendored_path": "vendored/refind-themes/darkmini",
-        "theme_conf": "theme.conf"
+        "name": "catppuccin",
+        "vendored_path": "loaders/refind/vendored/themes/catppuccin",
+        "theme_conf": "theme.conf",
+        "_layout_note": "Two layouts supported by the renderer: (1) regular-style — theme.icon_set + theme.variant + theme.font; renderer derives icons_dir = themes/<name>/icons/<icon_set>/ and picks bg/selection PNGs from variant. (2) explicit-path — theme.{icons_path, banner_path, selection_big_path, selection_small_path, font_path, big_icon_size, small_icon_size}; renderer emits each path verbatim. Explicit fields win when present. Use (2) for themes with arbitrary directory layouts (Catppuccin uses assets/<flavor>/icons/).",
+        "flavor": "mocha",
+        "_flavor_note": "Catppuccin pastel-on-dark palette. Options: latte (light), frappe (medium dark), macchiato (cooler dark), mocha (deepest dark — best contrast on Surface OLED-class panel). To switch flavor: set this + the four *_path fields below to assets/<flavor>/.",
+        "icons_path": "themes/catppuccin/assets/mocha/icons",
+        "big_icon_size": 256,
+        "small_icon_size": 64,
+        "_icon_size_note": "Catppuccin ships 256x256 OS icons + 64x64 tool icons. The renderer emits these as big_icon_size/small_icon_size in theme.conf.",
+        "banner_path": "themes/catppuccin/assets/mocha/background.png",
+        "_banner_note": "Catppuccin background.png is a 1x1 solid-color tile scaled fillscreen — no graphical clutter, just the flavor's base color (#1e1e2e for mocha).",
+        "selection_big_path": "themes/catppuccin/assets/mocha/selection_big.png",
+        "selection_small_path": "themes/catppuccin/assets/mocha/selection_small.png",
+        "font_path": "",
+        "_font_note": "Empty = use rEFInd's bundled default ASCII font. Catppuccin ships no font atlas. To use a custom font, point this at e.g. themes/<name>/fonts/<file>.png. (regular-style themes can instead set theme.font = '<basename>' and the renderer composes themes/<name>/fonts/<basename>.png.)",
+        "show_label": true,
+        "_show_label_note": "Whether boot-entry labels appear under the SELECTED icon. rEFInd's graphical UI shows the label of the currently-selected entry only — that's an engine-level constraint, not a theme/setting. true keeps labels visible on selection; false adds 'label' to hideui (no labels at all).",
+        "variant": "dark",
+        "_variant_note": "Cosmetic field describing whether the flavor reads as light or dark. With explicit-path mode the variant string isn't used to pick filenames (Catppuccin doesn't have light/dark variants per flavor — each flavor IS one variant)."
       }
     },
     "ui": {
@@ -66,14 +107,16 @@
     },
     "manual_stanzas": {
       "_description": "Ordered top-level entries shown in rEFInd. Each item picks a 'producer' (built-in renderer) and overrides the display label. NixOS data comes from /nix/var/nix/profiles; OS data comes from grub.menu.* via the 'from' field.",
+      "_integration_note": "integration declares per-OS coupling — adapter = files dropped INTO the OS so it yields bootloader control to us (NixOS gets nixos_yield.nix + kernel staging); passive = we read the OS's kernels at their existing path, OS unaware (Kali, Debian: apt manages /vmlinuz, we just point at it); chainload = we hand control to the OS's own EFI binary with no integration (Windows, Ventoy, refind_self).",
       "order": [
-        { "producer": "nixos_primary",   "label": "NixOS — Primary" },
-        { "producer": "linux_partition", "from": "kali", "label": "Kali — Lab" },
-        { "producer": "linux_partition", "from": "debian", "label": "Debian Rescue OS" },
-        { "producer": "usb_chainload",   "from": "ventoy", "label": "USB Ventoy" },
-        { "producer": "nixos_rescue",    "label": "NixOS — Rescue" },
-        { "producer": "nixos_rollback",  "label": "NixOS — All Configurations", "max": 5 },
-        { "producer": "refind_self",     "label": "Reload rEFInd", "_note": "chainloads refind binary itself — useful after manually editing refind.conf via UEFI shell or another OS" }
+        { "producer": "nixos_primary",   "label": "NixOS - Primary",            "integration": "adapter" },
+        { "producer": "efi_chainload",   "from": "kali",   "label": "Kali - Lab",          "integration": "chainload" },
+        { "producer": "efi_chainload",   "from": "debian", "label": "Debian Rescue OS",    "integration": "chainload" },
+        { "producer": "usb_chainload",   "from": "ventoy", "label": "USB Ventoy",          "integration": "chainload" },
+        { "producer": "nixos_rescue",    "label": "NixOS - Rescue",             "integration": "adapter" },
+        { "producer": "nixos_rollback",  "label": "NixOS - All Configurations", "max": 5,  "integration": "adapter" },
+        { "producer": "efi_chainload",   "from": "grub_fallback", "label": "GRUB (fallback)", "integration": "chainload", "_note": "Chainloads the co-installed GRUB at /EFI/bootloader/grubx64.efi as a fallback boot menu" },
+        { "producer": "refind_self",     "label": "Reload rEFInd",              "integration": "chainload", "_label_note": "ASCII-only — rEFInd's bundled PNG glyph atlas (source-code-pro-extralight-32.png, 1824x32px = 96 ASCII printable glyphs U+0020-U+007E) does not contain U+2014 EM DASH. Using a bare hyphen renders correctly across every theme; em dashes show as '??'. If a future theme ships a Unicode-extended atlas, this constraint can be relaxed centrally via the renderer." }
       ]
     }
   },
@@ -82,7 +125,7 @@
     "_description": "GRUB install settings + UI + menu entries. Kept for fallback during Phase 4 rEFInd transition. Once rEFInd is verified, this block can be deleted.",
     "install": {
       "device": "nodev",
-      "efi_install_dir": "/EFI/NixOS-boot-efi",
+      "efi_install_dir": "/EFI/bootloader",
       "efi_install_as_removable": false,
       "enable_cryptodisk": true,
       "configuration_limit": 5
@@ -105,6 +148,8 @@
       "all_video", "efi_gop", "efi_uga",
       "gfxterm", "font", "png"
     ],
+    "_linux_order_note": "Order in which non-NixOS Linux distros render in grub.cfg. Each entry MUST be a key in grub.menu.* with kernel/initrd/root_uuid set. The renderer's emit_linux_partition is fully generic — adding a distro is a 2-line edit (new grub.menu.<key> object + append to linux_order), no engine change.",
+    "linux_order": ["kali", "debian"],
     "menu": {
       "nixos": {
         "_description": "NixOS entries. Phase 1: NixOS auto-generates them. Phase 3: aa_bootloader walks /nix/var/nix/profiles/system-*-link.",
@@ -125,6 +170,9 @@
         "kernel": "/vmlinuz",
         "initrd": "/initrd.img",
         "options": "rw quiet",
+        "efi_uuid": "2CE0-6722",
+        "efi_path": "/EFI/bootloader/grubx64.efi",
+        "_efi_note": "rEFInd chainloads the co-installed GRUB at /EFI/bootloader/grubx64.efi (owned by aa_bootloader). debian-installer never dropped a /EFI/debian/ on the ESP — confirmed 2026-05-07. Once GRUB takes over, its richer ext4 driver follows Debian's /vmlinuz and /initrd.img symlinks correctly, where rEFInd's ext4_x64.efi cannot. The kernel/initrd/options fields above are consumed by render-grub-cfg.sh to add this menuentry to the same GRUB binary that's chainloaded here — closing the loop.",
         "_note": "Replaces Arch on p6 (2026-05-03). Debian trixie minimal CLI rescue OS with Node + Claude Code + Firefox-for-OAuth. Kernel paths use Debian's auto-updating /vmlinuz and /initrd.img symlinks at the FS root — kernel upgrades via apt are picked up automatically. rEFInd reads p6 directly via ext4 driver (volume label = 'rescue-os-debian'); ESP is too small (100 MB) to host every distro's initrd.",
         "recovery": {
           "enabled": false
@@ -138,6 +186,9 @@
         "kernel": "/vmlinuz",
         "initrd": "/initrd.img",
         "options": "ro quiet splash",
+        "efi_uuid": "2CE0-6722",
+        "efi_path": "/EFI/bootloader/grubx64.efi",
+        "_efi_note": "rEFInd chainloads the co-installed GRUB at /EFI/bootloader/grubx64.efi (owned by aa_bootloader). The Kali installer never dropped a /EFI/kali/ on the ESP — confirmed 2026-05-07. The previous 'Invalid Loader File!' came from the linux_partition producer pointing rEFInd's ext4_x64.efi at /vmlinuz, which it cannot follow as a relative symlink. Once GRUB takes over, its richer ext4 driver resolves the symlink. The kernel/initrd/options fields above are consumed by render-grub-cfg.sh to add this menuentry to the same GRUB binary that's chainloaded here.",
         "recovery": {
           "enabled": true,
           "modes": [
@@ -187,6 +238,15 @@
         "enabled": true,
         "label": "UEFI Firmware Settings",
         "class": "settings"
+      },
+      "grub_fallback": {
+        "_description": "rEFInd-side shortcut that chainloads the co-installed GRUB EFI binary (efi_install_dir = /EFI/bootloader). Reachable from rEFInd via the efi_chainload producer. Purely a rEFInd convenience entry — not consumed by the GRUB renderer (would be circular).",
+        "enabled": true,
+        "label": "GRUB (fallback)",
+        "type": "chainloader",
+        "efi_uuid": "2CE0-6722",
+        "efi_path": "/EFI/bootloader/grubx64.efi",
+        "icon": "tool_shell"
       }
     }
   },
