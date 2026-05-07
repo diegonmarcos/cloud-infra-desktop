@@ -34,7 +34,7 @@ ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 BOOT_JSON="$ROOT_DIR/src/boot.json"
 EXPECTED_BOOT_UUID=$(jq -r '.uefi.boot.uuid' "$BOOT_JSON")
 EXPECTED_ESP_UUID=$(jq -r '.uefi.esp.uuid' "$BOOT_JSON")
-EFI_INSTALL_DIR=$(jq -r '.grub.install.efi_install_dir // "/EFI/NixOS-boot-efi"' "$BOOT_JSON")
+EFI_INSTALL_DIR=$(jq -r '.grub.install.efi_install_dir // "/EFI/bootloader"' "$BOOT_JSON")
 
 # Engine policy from boot.json (env-var still overrides for ad-hoc / CI)
 : "${YES:=$(jq -r 'if (.engine.interactive // false) then "0" else "1" end' "$BOOT_JSON")}"
@@ -136,9 +136,13 @@ if [ "${SKIP_GRUB_BIN:-0}" != "1" ]; then
     fi
 
     # 3. grubx64.efi → ESP
+    # vfat doesn't support unix ownership; cp -a fails on chown step. Use
+    # --no-preserve=ownership (matches install-refind.sh's pattern). Fall
+    # back to plain cp -f if --no-preserve isn't available (BSD cp).
     if [ -n "$ESP_DIR" ] && [ -f "$DIST_BOOT/efi$EFI_INSTALL_DIR/grubx64.efi" ]; then
         mkdir -p "$ESP_DIR$EFI_INSTALL_DIR"
-        cp -af "$DIST_BOOT/efi$EFI_INSTALL_DIR/grubx64.efi" "$ESP_DIR$EFI_INSTALL_DIR/grubx64.efi"
+        cp -f --no-preserve=ownership "$DIST_BOOT/efi$EFI_INSTALL_DIR/grubx64.efi" "$ESP_DIR$EFI_INSTALL_DIR/grubx64.efi" 2>/dev/null || \
+            cp -f "$DIST_BOOT/efi$EFI_INSTALL_DIR/grubx64.efi" "$ESP_DIR$EFI_INSTALL_DIR/grubx64.efi"
         log "wrote $ESP_DIR$EFI_INSTALL_DIR/grubx64.efi"
     fi
 fi
@@ -150,7 +154,10 @@ if [ "${SKIP_KERNELS:-0}" != "1" ] && [ -d "$DIST_BOOT/kernels" ]; then
     log "wrote $(ls "$BOOT_DIR/kernels" | wc -l) kernel/initrd files → $BOOT_DIR/kernels/"
 fi
 
-sync
+# Flush dirty pages — use POSIX-default PATH so we don't pick up user-shadowed
+# `sync` shims (e.g. /home/diego/.nix-profile/bin/sync that points at a
+# missing script). Best-effort; tolerate failure rather than abort the install.
+command -p sync 2>/dev/null || /bin/sync 2>/dev/null || true
 
 # 5. NVRAM
 if [ "${NVRAM:-0}" = "1" ] && [ -x "$DIST_NVRAM/apply.sh" ]; then

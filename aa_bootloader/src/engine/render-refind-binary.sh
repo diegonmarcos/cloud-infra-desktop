@@ -81,4 +81,22 @@ if [ "$THEME_ENABLED" = "true" ]; then
     fi
 fi
 
+# ── EFI tools (data-driven, FIRE 4) ───────────────────────────────────────
+# Stage every entry declared in .refind.tools[] from src/loaders/refind/
+# vendored/efi-tools/<source> → dist/.../EFI/refind/tools/<dest>.
+TOOLS_SRC="$ROOT_DIR/src/loaders/refind/vendored/efi-tools"
+n_tools=$(jq -r '.refind.tools | length // 0' "$BOOT_JSON" 2>/dev/null || echo 0)
+if [ "$n_tools" -gt 0 ] && [ -d "$TOOLS_SRC" ]; then
+    mkdir -p "$OUT/tools"
+    jq -r '.refind.tools[] | [.source, .dest] | @tsv' "$BOOT_JSON" |
+        while IFS=$(printf '\t') read -r src dest; do
+            if [ -f "$TOOLS_SRC/$src" ]; then
+                cp -af "$TOOLS_SRC/$src" "$OUT/tools/$dest"
+                log "  tool: $dest ($(stat -c %s "$OUT/tools/$dest") bytes, source=$src)"
+            else
+                warn "  tool: source $src not in $TOOLS_SRC"
+            fi
+        done
+fi
+
 log "rEFInd binaries staged: $(du -sh "$OUT" | cut -f1) → $OUT"

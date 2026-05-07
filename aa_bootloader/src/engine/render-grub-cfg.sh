@@ -21,7 +21,10 @@ ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 . "$ROOT_DIR/src/engine/lib/json.sh"
 
 BOOT_JSON="$ROOT_DIR/src/boot.json"
-NIX_PROFILES="${NIX_PROFILES:-/nix/var/nix/profiles}"
+# DO NOT default to $NIX_PROFILES — NixOS exports that as a space-separated
+# search list of USER profile dirs, not the system profiles directory we need.
+# Use NIXOS_SYSTEM_PROFILES override or the canonical path directly.
+NIX_PROFILES="${NIXOS_SYSTEM_PROFILES:-/nix/var/nix/profiles}"
 DIST_GRUB_DIR="$ROOT_DIR/dist/boot/grub"
 OUT="$DIST_GRUB_DIR/grub.cfg"
 
@@ -119,16 +122,22 @@ emit_nixos_generation() {
     fi
 }
 
-# Multi-OS entries
-emit_arch() {
-    [ "$(jq -r '.grub.menu.arch.enabled // false' "$BOOT_JSON")" = "true" ] || return 0
-    L=$(jq_get '.grub.menu.arch.label')
-    U=$(jq_get '.grub.menu.arch.root_uuid')
-    K=$(jq_get '.grub.menu.arch.kernel')
-    I=$(jq_get '.grub.menu.arch.initrd')
-    O=$(jq_get '.grub.menu.arch.options')
+# Multi-OS entries — generic emitter, driven by grub.linux_order in boot.json
+# (FIRE RULE 4: data-driven, never hardcode a distro). Reads grub.menu.<key>:
+#   enabled, label, root_uuid, kernel, initrd, options, recovery{enabled,label,modes[]}
+# class is derived from <key> (used as GRUB --class), so adding a new distro
+# is a 2-line change in boot.json (entry + linux_order append) — no code edit.
+emit_linux_partition() {
+    key="$1"
+    [ "$(jq -r ".grub.menu.$key.enabled // false" "$BOOT_JSON")" = "true" ] || return 0
+    L=$(jq -r ".grub.menu.$key.label" "$BOOT_JSON")
+    U=$(jq -r ".grub.menu.$key.root_uuid" "$BOOT_JSON")
+    K=$(jq -r ".grub.menu.$key.kernel" "$BOOT_JSON")
+    I=$(jq -r ".grub.menu.$key.initrd" "$BOOT_JSON")
+    O=$(jq -r ".grub.menu.$key.options" "$BOOT_JSON")
+    RECOVERY_LABEL=$(jq -r ".grub.menu.$key.recovery.label // \"$L Recovery Mode\"" "$BOOT_JSON")
     cat <<EOF
-menuentry "$L" --class arch --class gnu-linux --class gnu --class os {
+menuentry "$L" --class $key --class gnu-linux --class gnu --class os {
   insmod part_gpt
   insmod ext2
   search --no-floppy --fs-uuid --set=root $U
@@ -137,52 +146,15 @@ menuentry "$L" --class arch --class gnu-linux --class gnu --class os {
 }
 
 EOF
-    if [ "$(jq -r '.grub.menu.arch.recovery.enabled // false' "$BOOT_JSON")" = "true" ]; then
-        RL=$(jq_get '.grub.menu.arch.recovery.label')
-        RK=$(jq_get '.grub.menu.arch.recovery.kernel')
-        RI=$(jq_get '.grub.menu.arch.recovery.initrd')
-        RO=$(jq_get '.grub.menu.arch.recovery.options')
-        cat <<EOF
-submenu "Arch OS Recovery Mode" --class arch {
-  menuentry "$RL" --class arch {
-    insmod part_gpt
-    insmod ext2
-    search --no-floppy --fs-uuid --set=root $U
-    linux $RK root=UUID=$U $RO
-    initrd $RI
-  }
-}
-
-EOF
-    fi
-}
-
-emit_kali() {
-    [ "$(jq -r '.grub.menu.kali.enabled // false' "$BOOT_JSON")" = "true" ] || return 0
-    L=$(jq_get '.grub.menu.kali.label')
-    U=$(jq_get '.grub.menu.kali.root_uuid')
-    K=$(jq_get '.grub.menu.kali.kernel')
-    I=$(jq_get '.grub.menu.kali.initrd')
-    O=$(jq_get '.grub.menu.kali.options')
-    cat <<EOF
-menuentry "$L" --class kali --class gnu-linux --class gnu --class os {
-  insmod part_gpt
-  insmod ext2
-  search --no-floppy --fs-uuid --set=root $U
-  linux $K root=UUID=$U $O
-  initrd $I
-}
-
-EOF
-    if [ "$(jq -r '.grub.menu.kali.recovery.enabled // false' "$BOOT_JSON")" = "true" ]; then
-        echo "submenu \"Kali Linux Recovery Mode\" --class kali {"
-        jq -c '.grub.menu.kali.recovery.modes[]' "$BOOT_JSON" | while read -r mode; do
+    if [ "$(jq -r ".grub.menu.$key.recovery.enabled // false" "$BOOT_JSON")" = "true" ]; then
+        echo "submenu \"$RECOVERY_LABEL\" --class $key {"
+        jq -c ".grub.menu.$key.recovery.modes[]" "$BOOT_JSON" | while read -r mode; do
             ML=$(echo "$mode" | jq -r '.label')
             MK=$(echo "$mode" | jq -r ".kernel // \"$K\"")
             MI=$(echo "$mode" | jq -r ".initrd // \"$I\"")
             MO=$(echo "$mode" | jq -r '.options')
             cat <<EOF2
-  menuentry "$ML" --class kali {
+  menuentry "$ML" --class $key {
     insmod part_gpt
     insmod ext2
     search --no-floppy --fs-uuid --set=root $U
@@ -352,8 +324,11 @@ EOF
 # ═══════════════════════════════════════════════════════════════════════════
 
 EOF
-    emit_arch
-    emit_kali
+    # Iterate the data-driven order (FIRE RULE 4): boot.json declares which
+    # distros render and in what order. Adding a new distro is a JSON-only edit.
+    for key in $(jq -r '.grub.linux_order[]?' "$BOOT_JSON"); do
+        emit_linux_partition "$key"
+    done
     emit_windows
     emit_usb
     emit_firmware

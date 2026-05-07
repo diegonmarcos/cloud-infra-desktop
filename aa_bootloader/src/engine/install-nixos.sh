@@ -25,7 +25,13 @@ BOOT_JSON="$ROOT_DIR/src/boot.json"
 : "${DRY_RUN:=$(jq -r 'if (.engine.dry_run // false) then "1" else "0" end' "$BOOT_JSON")}"
 : "${REBUILD_ACTION:=$(jq -r '.engine.nixos_install.trigger_rebuild // "none"' "$BOOT_JSON")}"
 : "${FLAKE_MODULES_DIR:=$(jq -r '.engine.nixos_install.flake_modules_dir // ""' "$BOOT_JSON")}"
-[ -z "$FLAKE_MODULES_DIR" ] && FLAKE_MODULES_DIR="$ROOT_DIR/../aa_nixos-surface_host/src/modules"
+[ -z "$FLAKE_MODULES_DIR" ] && FLAKE_MODULES_DIR="../aa_desk-usr_x86_surface-linux_nixos/src/modules"
+# Resolve relative paths against ROOT_DIR. Absolute paths pass through.
+# Boot.json default is the renamed unix/ taxonomy host flake.
+case "$FLAKE_MODULES_DIR" in
+    /*) ;;
+    *)  FLAKE_MODULES_DIR="$ROOT_DIR/$FLAKE_MODULES_DIR" ;;
+esac
 export YES DRY_RUN REBUILD_ACTION FLAKE_MODULES_DIR
 
 # Files we copy from dist/adapters/nixos/ into the flake's modules/.
@@ -106,6 +112,14 @@ if [ "${YES:-0}" != "1" ]; then
         y|Y) ;;
         *) warn "Aborted"; exit 1 ;;
     esac
+fi
+
+# ── DRY_RUN gate (FIRE RULE 4: data-driven, engine policy in boot.json) ───
+# Honor the same DRY_RUN flag every other install-*.sh respects. Without this
+# gate, --dry-run still wrote adapter files into the host flake (silent diff).
+if [ "${DRY_RUN:-0}" = "1" ]; then
+    log "DRY_RUN=1 — exiting before any write"
+    exit 0
 fi
 
 # ── Execute ───────────────────────────────────────────────────────────────

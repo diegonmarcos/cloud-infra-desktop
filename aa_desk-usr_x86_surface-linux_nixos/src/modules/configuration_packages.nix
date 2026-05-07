@@ -30,6 +30,11 @@
     # ─── System tools (required for maintenance / boot) ─────────────────────
     btrfs-progs
     cryptsetup
+    # aa_bootloader (../aa_bootloader/) is the SoT for boot; its build.sh
+    # needs these tools at deploy time. Without them, the engine falls back
+    # to scanning /nix/store, which is fragile.
+    efibootmgr   # NVRAM management (apply.sh + install-refind.sh)
+    grub2_efi    # grub-mkimage + modules dir for render-grub-binaries.sh
 
     # ─── Openbox session essentials (launched by SDDM, must be system-level) ─
     openbox obconf

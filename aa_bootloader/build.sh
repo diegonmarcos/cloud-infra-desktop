@@ -84,6 +84,7 @@ build_all() {
 }
 
 write_manifest() {
+    EFI_INSTALL_DIR=$(jq -r '.grub.install.efi_install_dir // "/EFI/bootloader"' "$BOOT_JSON")
     cat > "$SCRIPT_DIR/dist/MANIFEST.txt" <<EOF
 # aa_bootloader dist/ manifest
 # Generated $(date '+%Y-%m-%d %H:%M:%S')
@@ -94,7 +95,7 @@ adapters/debian/            → /etc/ (Phase 2 stub)
 
 ## Loaders (parallel: rEFInd primary + GRUB fallback)
 boot/efi/EFI/refind/        → /boot/efi/EFI/refind/
-boot/efi/EFI/NixOS-boot-efi/ → /boot/efi/EFI/NixOS-boot-efi/
+boot/efi${EFI_INSTALL_DIR}/ → /boot/efi${EFI_INSTALL_DIR}/  (from boot.json .grub.install.efi_install_dir)
 boot/grub/                  → /boot/grub/
 
 ## Firmware (UEFI)
@@ -220,6 +221,11 @@ cmd_verify() {
     sh "$ENGINE/verify-refind.sh"
 }
 
+cmd_verify_boot() {
+    header "verify-boot — comprehensive pre-reboot soft-boot integrity audit"
+    sh "$ENGINE/verify-boot-ready.sh"
+}
+
 cmd_status() {
     header "status — dist freshness + snapshots"
     if [ -d "$SCRIPT_DIR/dist" ]; then
@@ -234,6 +240,23 @@ cmd_status() {
         n_snaps=$(find "$SCRIPT_DIR/snapshots" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
         log "snapshots: $n_snaps"
     fi
+}
+
+cmd_test() {
+    sh "$ENGINE/test-build.sh"
+}
+
+cmd_clean() {
+    header "clean — remove dist/ and snapshots/.result"
+    if [ -d "$SCRIPT_DIR/dist" ]; then
+        n_files=$(find "$SCRIPT_DIR/dist" -type f 2>/dev/null | wc -l)
+        rm -rf "$SCRIPT_DIR/dist"
+        log "Removed dist/ ($n_files files)"
+    else
+        log "dist/ already absent"
+    fi
+    [ -e "$SCRIPT_DIR/.result" ] && { rm -rf "$SCRIPT_DIR/.result"; log "Removed .result"; }
+    log "clean: done — next build re-renders from src/ + boot.json"
 }
 
 cmd_snapshot() {
@@ -280,10 +303,13 @@ DEPLOY (build + install onto live system):
 
 READ-ONLY:
   validate          JSON schema + UUID sanity
+  test              run dist/ tests (FIRE RULE 5: no task done without a tester)
+  verify-boot       comprehensive pre-reboot integrity audit (T-A..T-I)
   plan              diff dist/ vs live
   verify            health-check live ESP / NVRAM / refind.conf
   status            dist freshness, snapshot count
   snapshot          capture /boot + NVRAM + blkid → snapshots/
+  clean             remove dist/ and .result (drops stale install dirs)
   help              this message
 
 FLAGS (accepted anywhere on the command line):
@@ -345,6 +371,9 @@ case "$cmd" in
     deploy-nvram)   deploy_nvram "$@" ;;
     validate)       cmd_validate "$@" ;;
     plan)           cmd_plan "$@" ;;
+    test)           cmd_test "$@" ;;
+    verify-boot)    cmd_verify_boot "$@" ;;
+    clean)          cmd_clean "$@" ;;
     verify)         cmd_verify "$@" ;;
     status)         cmd_status "$@" ;;
     snapshot)       cmd_snapshot "$@" ;;
