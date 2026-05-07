@@ -165,6 +165,10 @@
     source = ./dotfiles/claude/b-context-inject-prompt.sh;
     executable = true;
   };
+  home.file.".claude/hooks/c-context-inject-pretool.sh" = {
+    source = ./dotfiles/claude/c-context-inject-pretool.sh;
+    executable = true;
+  };
   home.file.".claude/hooks/c-pretool-guard-blockers.sh" = {
     source = ./dotfiles/claude/c-pretool-guard-blockers.sh;
     executable = true;
