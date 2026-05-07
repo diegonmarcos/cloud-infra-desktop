@@ -102,7 +102,13 @@ step_build() {
         done
     fi
     if [ -n "$_cloud_config" ]; then
-        jq -r '"#!/bin/bash\nset -e\n\n# AUTO-GENERATED from cloud/config.json — DO NOT EDIT\n\napt-get update && apt-get install -y --no-install-recommends " + (.deps.docker_apt | join(" ")) + " && rm -rf /var/lib/apt/lists/*\nsed -i \"s/^# *\\(en_US.UTF-8\\)/\\1/\" /etc/locale.gen && locale-gen\n\nTF_VER=" + .deps.docker_binary.terraform + "\ncurl -sL \"https://releases.hashicorp.com/terraform/${TF_VER}/terraform_${TF_VER}_linux_amd64.zip\" -o /tmp/tf.zip\nunzip -o /tmp/tf.zip -d /usr/local/bin/ && rm /tmp/tf.zip\n\nRUST_VER=" + .deps.docker_binary.rust + "\ncurl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VER}\nln -sf /root/.cargo/bin/* /usr/local/bin/"' "$_cloud_config" > "$DIST_DIR/docker-deps.sh"
+        # Generate docker-deps.sh in two segments:
+        #   1. apt + locale + terraform + rust   — driven by .deps.docker_apt + .deps.docker_binary
+        #   2. npm globals                        — driven by .deps.docker_npm (data-driven, FIRE rule 4)
+        #      Skips entries whose key starts with "_" (json-doc convention).
+        #      Each entry emits `npm install -g <pkg>@<version>` so binaries
+        #      land on $PATH without runtime install.
+        jq -r '"#!/bin/bash\nset -e\n\n# AUTO-GENERATED from cloud/config.json — DO NOT EDIT\n\napt-get update && apt-get install -y --no-install-recommends " + (.deps.docker_apt | join(" ")) + " && rm -rf /var/lib/apt/lists/*\nsed -i \"s/^# *\\(en_US.UTF-8\\)/\\1/\" /etc/locale.gen && locale-gen\n\nTF_VER=" + .deps.docker_binary.terraform + "\ncurl -sL \"https://releases.hashicorp.com/terraform/${TF_VER}/terraform_${TF_VER}_linux_amd64.zip\" -o /tmp/tf.zip\nunzip -o /tmp/tf.zip -d /usr/local/bin/ && rm /tmp/tf.zip\n\nRUST_VER=" + .deps.docker_binary.rust + "\ncurl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VER}\nln -sf /root/.cargo/bin/* /usr/local/bin/\n\n# ── npm globals (from .deps.docker_npm) ──\n" + (.deps.docker_npm // {} | to_entries | map(select(.key | startswith("_") | not)) | map("npm install -g " + .key + "@" + .value) | join("\n"))' "$_cloud_config" > "$DIST_DIR/docker-deps.sh"
         chmod +x "$DIST_DIR/docker-deps.sh"
         log "Generated docker-deps.sh from config.json"
     fi

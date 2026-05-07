@@ -13,3 +13,6 @@ unzip -o /tmp/tf.zip -d /usr/local/bin/ && rm /tmp/tf.zip
 RUST_VER=1.86.0
 curl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VER}
 ln -sf /root/.cargo/bin/* /usr/local/bin/
+
+# ── npm globals (from .deps.docker_npm) ──
+npm install -g wrangler@4.88.0
