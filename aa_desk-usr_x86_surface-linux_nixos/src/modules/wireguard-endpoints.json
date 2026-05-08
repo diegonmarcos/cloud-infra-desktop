@@ -1,0 +1,25 @@
+{
+  "_doc": "WireGuard hub endpoint declarations for the Surface Pro NixOS host. Mirrors the schema of cloud/config.json#native.wireguard. The 'fallback' endpoint is the hub-side NAT redirect (Phase 4: udp/<fallback.port> -> udp/<primary.port> on gcp-proxy via firewall.nix). Use the wg-fallback helper to switch when the primary port is blocked (airports/hotels).",
+  "client": {
+    "name": "surface",
+    "wg_ip": "10.0.0.5",
+    "interface": "wg0"
+  },
+  "hub": {
+    "name": "gcp-proxy",
+    "host": "35.226.147.64",
+    "wg_ip": "10.0.0.1",
+    "wg_public_key": "vV/phXUwnCjxACQ5Df11Uw47BzJaK4r85jPYMu2HmDc=",
+    "primary": {
+      "port": 51820,
+      "proto": "udp"
+    },
+    "fallback": {
+      "port": 443,
+      "proto": "udp",
+      "_doc": "Hub-side NAT redirect on gcp-proxy (deployed Phase 4 via firewall.nix). Use when networks block udp/51820."
+    }
+  },
+  "subnet": "10.0.0.0/24",
+  "persistent_keepalive": 25
+}
