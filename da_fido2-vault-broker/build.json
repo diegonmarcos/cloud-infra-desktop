@@ -21,7 +21,9 @@
       "aarch64-unknown-linux-gnu"
     ],
     "via_nix_flake": true,
-    "flake_path": "src/flake.nix"
+    "flake_path": "src/flake.nix",
+    "cargo_features": ["fido2"],
+    "cargo_features_comment": "Cargo features enabled by `build.sh build`. The daemon path (uhid + ctap2 + bw_api integration) is gated behind `fido2`. Drop this list to a subset to build a no-uhid version that still has seal/unseal subcommands."
   },
   "runtime": {
     "user_unit": true,

@@ -8,5 +8,6 @@ pub mod ctap2;
 pub mod error;
 pub mod store;
 pub mod uhid_dev;
+pub mod up_prompt;
 
 pub use error::{BrokerError, Result};

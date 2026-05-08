@@ -5,11 +5,11 @@
 //! reproducible roundtrip on any Linux box (incl. CI) so the on-disk
 //! format and the public API can be exercised without TPM hardware.
 //!
-//! `--features tpm` build = real `tss-esapi` backend, PCR-bound to 0+7+8.
-//! That hardware path is currently `todo!()` and will be fleshed out in
-//! Phase B.2-hw on a host with a real TPM2 chip. Today the mock proves
-//! the format and the API; the feature-gated stub guarantees the module
-//! compiles when the feature is OFF (default).
+//! `--features tpm` build = real `tss-esapi` backend (Phase B.2-hw).
+//! Sealed objects are KeyedHash data objects under the Owner-hierarchy
+//! SRK, bound to a SHA-256 PCR policy over PCRs 0 (firmware), 7
+//! (Secure-Boot config) and 8 (kernel cmdline). Drift in any of those
+//! PCRs causes `unseal` to refuse — the desired anti-tamper property.
 //!
 //! On-disk format (binary, all little-endian):
 //!   u32 version=1
@@ -234,25 +234,389 @@ pub(crate) fn unseal_from_path_with_machine_id_path(
     mock::unseal_with_key(&public_blob, &private_blob, &key)
 }
 
-// ─── Real TPM backend (feature-gated; hardware path not yet wired) ─────
+// ─── Real TPM backend (feature-gated; tss-esapi v7) ────────────────────
 
 #[cfg(feature = "tpm")]
+#[allow(clippy::doc_overindented_list_items, clippy::doc_lazy_continuation)]
 mod tpm {
-    use super::*;
+    //! Real TPM2 sealing via tss-esapi 7.x.
+    //!
+    //! Concepts (per-line, so the next reader doesn't need the TCG spec):
+    //!
+    //! - **Hierarchy** — TPM2 has 4 fixed key trees (Owner, Endorsement,
+    //!   Platform, Null). We use `Hierarchy::Owner` (a.k.a. Storage
+    //!   Hierarchy / SH) which survives reboots but is wiped by a
+    //!   `TPM2_Clear`. This is what tools like `tpm2-tools`/`clevis`
+    //!   default to.
+    //!
+    //! - **Primary key (SRK)** — the root of a hierarchy's key tree, derived
+    //!   deterministically from the hierarchy's seed + a public template.
+    //!   We use the standard `decryption_key_pub` template from tss-esapi's
+    //!   utils (RSA-2048 restricted-decrypt key, AES-256-CFB symmetric
+    //!   wrap) which matches what `tpm2_createprimary -C o` produces. The
+    //!   SRK is *never persisted* across calls — we re-derive it each
+    //!   time, get the same key, then flush it.
+    //!
+    //! - **Sealed object** — a `KeyedHash` TPM object whose `sensitive`
+    //!   slot holds our plaintext bytes (max 128 B per spec, but we use
+    //!   `MAX_SYM_DATA = 128` worth — calling code is responsible for
+    //!   chunking if needed). Sealed objects can never be loaded as keys;
+    //!   they only round-trip through `TPM2_Unseal`.
+    //!
+    //! - **PCR policy** — instead of a password (`userWithAuth`), we bind
+    //!   unsealing to the values of PCRs 0+7+8 in the SHA-256 bank:
+    //!     * PCR 0 — UEFI/BIOS firmware code
+    //!     * PCR 7 — Secure-Boot configuration + db/dbx + signing
+    //!     * PCR 8 — kernel cmdline (measured by shim/sd-stub)
+    //!   We compute the policy digest with a **trial session** at seal
+    //!   time (no real TPM state involved — just a hash chain following
+    //!   the policy commands), embed it as the object's `auth_policy`,
+    //!   and at unseal time we run a **real policy session** that the
+    //!   TPM only validates if the live PCR values still produce the
+    //!   same digest. Drift (kernel update, secure-boot toggle, …) ⇒
+    //!   policy mismatch ⇒ unseal refused. That's the security property.
+    //!
+    //! - **Transient handle hygiene** — every Esys_Create*, Esys_Load,
+    //!   Esys_StartAuthSession allocates a transient handle slot. The
+    //!   TPM has only 3-4 of those, so we MUST flush them before
+    //!   returning, or the next call hits OUT_OF_MEMORY.
+    //!     `Context` keeps a `HandleManager` that auto-flushes when
+    //!     the `Context` drops, so the canonical pattern is to keep
+    //!     the context narrowly scoped.
 
-    pub(super) fn seal(_plain: &[u8]) -> Result<(u32, Vec<u8>, Vec<u8>)> {
-        // PCR-bound (0+7+8) Create -> Load -> Unseal flow lives here.
-        // Phase B.2-hw on a host with a real TPM2 chip.
-        // See ~/.claude/plans/da_browser-fido2-rbw-stack.md.
-        todo!("tss-esapi seal: bind to PCRs 0,7,8 and emit framed blob")
+    use super::*;
+    use std::convert::TryFrom;
+    use tss_esapi::{
+        attributes::{ObjectAttributesBuilder, SessionAttributesBuilder},
+        constants::SessionType,
+        handles::ObjectHandle,
+        interface_types::{
+            algorithm::{HashingAlgorithm, PublicAlgorithm},
+            key_bits::RsaKeyBits,
+            resource_handles::Hierarchy,
+            session_handles::{AuthSession, PolicySession},
+        },
+        structures::{
+            Digest, KeyedHashScheme, MaxBuffer, PcrSelectionList, PcrSelectionListBuilder, PcrSlot,
+            Private, Public, PublicBuilder, PublicKeyedHashParameters, RsaExponent, SensitiveData,
+            SymmetricDefinition,
+        },
+        tcti_ldr::{DeviceConfig, TctiNameConf},
+        traits::{Marshall, UnMarshall},
+        utils, Context,
+    };
+
+    /// Bitmask we bind to: PCRs 0, 7, 8 (matches the `auth_policy` we
+    /// embed in the sealed object). On unseal we refuse blobs whose
+    /// header advertises a different mask — defence in depth against
+    /// somebody hand-rolling a blob with the policy stripped.
+    pub(super) const PCR_BITMASK: u32 = (1 << 0) | (1 << 7) | (1 << 8);
+
+    /// PCRs we lock the sealed object to, SHA-256 bank.
+    fn pcr_selection() -> Result<PcrSelectionList> {
+        PcrSelectionListBuilder::new()
+            .with_selection(
+                HashingAlgorithm::Sha256,
+                &[PcrSlot::Slot0, PcrSlot::Slot7, PcrSlot::Slot8],
+            )
+            .build()
+            .map_err(|e| BrokerError::TpmUnavailable(format!("PCR selection build failed: {e}")))
+    }
+
+    /// Open a TPM2 ESAPI context against `/dev/tpmrm0` (kernel resource
+    /// manager — does NOT need root, unlike `/dev/tpm0`).
+    fn open_context() -> Result<Context> {
+        // `DeviceConfig::default()` points at `/dev/tpm0` (root-only).
+        // We force `/dev/tpmrm0` so unprivileged users in the `tss`
+        // group can use the resource manager.
+        let tcti = TctiNameConf::Device(
+            "/dev/tpmrm0"
+                .parse::<DeviceConfig>()
+                .map_err(|e| BrokerError::TpmUnavailable(format!("DeviceConfig parse: {e}")))?,
+        );
+        Context::new(tcti).map_err(|e| BrokerError::TpmUnavailable(format!("Esys_Initialize: {e}")))
+    }
+
+    /// Start an HMAC session, set encrypt/decrypt attrs, install it as
+    /// session-1. Required by the spec for `create_primary`/`create`
+    /// command audit + parameter encryption.
+    fn install_hmac_session(ctx: &mut Context) -> Result<AuthSession> {
+        let session = ctx
+            .start_auth_session(
+                None,
+                None,
+                None,
+                SessionType::Hmac,
+                SymmetricDefinition::AES_256_CFB,
+                HashingAlgorithm::Sha256,
+            )
+            .map_err(|e| BrokerError::TpmUnavailable(format!("start HMAC session: {e}")))?
+            .ok_or_else(|| {
+                BrokerError::TpmUnavailable("start_auth_session returned NONE".into())
+            })?;
+        let (attrs, mask) = SessionAttributesBuilder::new()
+            .with_decrypt(true)
+            .with_encrypt(true)
+            .build();
+        ctx.tr_sess_set_attributes(session, attrs, mask)
+            .map_err(|e| BrokerError::TpmUnavailable(format!("tr_sess_set_attributes: {e}")))?;
+        ctx.set_sessions((Some(session), None, None));
+        Ok(session)
+    }
+
+    /// SRK template: RSA-2048 restricted-decrypt parent under the Owner
+    /// hierarchy (TCG-recommended storage primary). Same template as
+    /// `tpm2_createprimary -C o -G rsa2048 -g sha256 -G aes128cfb`
+    /// (within tss-esapi's defaults).
+    fn srk_template() -> Result<Public> {
+        utils::create_restricted_decryption_rsa_public(
+            tss_esapi::abstraction::cipher::Cipher::aes_256_cfb()
+                .try_into()
+                .map_err(|e| BrokerError::TpmUnavailable(format!("SRK symmetric template: {e}")))?,
+            RsaKeyBits::Rsa2048,
+            RsaExponent::default(),
+        )
+        .map_err(|e| BrokerError::TpmUnavailable(format!("SRK Public template build: {e}")))
+    }
+
+    /// Compute the auth_policy digest for the seal step using a **trial
+    /// session**. A trial session never touches actual PCR values — it
+    /// just hashes the policy commands. We then read the resulting
+    /// digest and embed it in the sealed object's `auth_policy`.
+    fn compute_pcr_policy_digest(ctx: &mut Context) -> Result<Digest> {
+        // Save & clear the HMAC session so the trial session starts clean.
+        let saved = ctx.sessions();
+        ctx.clear_sessions();
+
+        let trial = ctx
+            .start_auth_session(
+                None,
+                None,
+                None,
+                SessionType::Trial,
+                SymmetricDefinition::AES_256_CFB,
+                HashingAlgorithm::Sha256,
+            )
+            .map_err(|e| BrokerError::TpmUnavailable(format!("start trial session: {e}")))?
+            .ok_or_else(|| BrokerError::TpmUnavailable("trial session NONE".into()))?;
+        let (attrs, mask) = SessionAttributesBuilder::new()
+            .with_decrypt(true)
+            .with_encrypt(true)
+            .build();
+        ctx.tr_sess_set_attributes(trial, attrs, mask)
+            .map_err(|e| BrokerError::TpmUnavailable(format!("trial set_attributes: {e}")))?;
+        let trial_policy = PolicySession::try_from(trial)
+            .map_err(|e| BrokerError::TpmUnavailable(format!("trial -> policy: {e}")))?;
+
+        // For a trial session, `policy_pcr` requires the *expected*
+        // concatenated PCR digest (per spec): hash(PCRs 0||7||8 in
+        // selection order). We read live PCRs to compute it; that's
+        // fine here because seal happens once and we WANT the policy
+        // bound to current state.
+        let pcr_sel = pcr_selection()?;
+        let (_uc, _read_sel, pcr_data) = ctx
+            .pcr_read(pcr_sel.clone())
+            .map_err(|e| BrokerError::TpmUnavailable(format!("pcr_read for trial policy: {e}")))?;
+        let bank = tss_esapi::abstraction::pcr::PcrData::create(&_read_sel, &pcr_data)
+            .map_err(|e| BrokerError::TpmUnavailable(format!("PcrData::create: {e}")))?;
+        let sha = bank
+            .pcr_bank(HashingAlgorithm::Sha256)
+            .ok_or_else(|| BrokerError::TpmUnavailable("SHA-256 PCR bank not present".into()))?;
+        let mut concat = Vec::new();
+        for slot in [PcrSlot::Slot0, PcrSlot::Slot7, PcrSlot::Slot8] {
+            let d = sha.get_digest(slot).ok_or_else(|| {
+                BrokerError::TpmUnavailable(format!("PCR slot {slot:?} not in bank"))
+            })?;
+            concat.extend_from_slice(d.value());
+        }
+        let (hashed, _ticket) = ctx
+            .hash(
+                MaxBuffer::try_from(concat)
+                    .map_err(|e| BrokerError::TpmUnavailable(format!("hash buffer build: {e}")))?,
+                HashingAlgorithm::Sha256,
+                Hierarchy::Owner,
+            )
+            .map_err(|e| BrokerError::TpmUnavailable(format!("hash for policy_pcr: {e}")))?;
+
+        ctx.policy_pcr(trial_policy, hashed, pcr_sel)
+            .map_err(|e| BrokerError::TpmUnavailable(format!("policy_pcr (trial): {e}")))?;
+        let digest = ctx
+            .policy_get_digest(trial_policy)
+            .map_err(|e| BrokerError::TpmUnavailable(format!("policy_get_digest: {e}")))?;
+
+        // Trial session is now unused; flush + restore the HMAC session.
+        ctx.flush_context(session_as_object_handle(trial))
+            .map_err(|e| BrokerError::TpmUnavailable(format!("flush trial session: {e}")))?;
+        ctx.set_sessions(saved);
+        Ok(digest)
+    }
+
+    /// Convert an `AuthSession` (HMAC/Policy/Trial) to an `ObjectHandle`
+    /// suitable for `flush_context`. tss-esapi 7 exposes
+    /// `AuthSession -> SessionHandle -> ObjectHandle` chained `From`s.
+    fn session_as_object_handle(s: AuthSession) -> ObjectHandle {
+        let sh: tss_esapi::handles::SessionHandle = s.into();
+        ObjectHandle::from(sh)
+    }
+
+    /// Build the `Public` template for a sealed `KeyedHash` data object
+    /// bound to `policy_digest`.
+    fn sealed_object_template(policy_digest: Digest) -> Result<Public> {
+        // userWithAuth = false   -> no password auth, policy is mandatory
+        // adminWithPolicy = true -> admin role also needs policy
+        // fixedTPM + fixedParent -> can't migrate / re-parent
+        // noDA                   -> not subject to dictionary-attack lockout
+        let attrs = ObjectAttributesBuilder::new()
+            .with_fixed_tpm(true)
+            .with_fixed_parent(true)
+            .with_no_da(true)
+            .with_admin_with_policy(true)
+            .with_user_with_auth(false)
+            .build()
+            .map_err(|e| BrokerError::TpmUnavailable(format!("sealed-obj attrs: {e}")))?;
+
+        PublicBuilder::new()
+            .with_public_algorithm(PublicAlgorithm::KeyedHash)
+            .with_name_hashing_algorithm(HashingAlgorithm::Sha256)
+            .with_object_attributes(attrs)
+            .with_auth_policy(policy_digest)
+            .with_keyed_hash_parameters(PublicKeyedHashParameters::new(KeyedHashScheme::Null))
+            .with_keyed_hash_unique_identifier(Default::default())
+            .build()
+            .map_err(|e| BrokerError::TpmUnavailable(format!("sealed-obj template: {e}")))
+    }
+
+    pub(super) fn seal(plain: &[u8]) -> Result<(u32, Vec<u8>, Vec<u8>)> {
+        let mut ctx = open_context()?;
+        install_hmac_session(&mut ctx)?;
+
+        // 1. Re-derive the SRK under Owner.
+        let srk = ctx
+            .create_primary(Hierarchy::Owner, srk_template()?, None, None, None, None)
+            .map_err(|e| BrokerError::TpmUnavailable(format!("create_primary (SRK): {e}")))?
+            .key_handle;
+
+        // 2. Compute the PCR policy digest (trial session).
+        let policy_digest = compute_pcr_policy_digest(&mut ctx)?;
+
+        // 3. Create the sealed KeyedHash object under SRK with our
+        //    plaintext as `sensitive_data`.
+        let sensitive = SensitiveData::try_from(plain.to_vec()).map_err(|e| {
+            BrokerError::SealFormat(format!(
+                "plaintext too large for TPM2 sealed object ({} bytes): {e}",
+                plain.len()
+            ))
+        })?;
+        let create_res = ctx
+            .create(
+                srk,
+                sealed_object_template(policy_digest)?,
+                None,
+                Some(sensitive),
+                None,
+                None,
+            )
+            .map_err(|e| BrokerError::TpmUnavailable(format!("create (seal): {e}")))?;
+
+        // Marshall public; private has its own bytes.
+        let public_blob = create_res
+            .out_public
+            .marshall()
+            .map_err(|e| BrokerError::TpmUnavailable(format!("marshall public: {e}")))?;
+        let private_blob = create_res.out_private.value().to_vec();
+
+        // 4. Flush SRK transient handle (Context Drop also handles it,
+        //    but be explicit so we don't OOM the TPM if callers stack
+        //    seals in tight loops).
+        ctx.flush_context(srk.into())
+            .map_err(|e| BrokerError::TpmUnavailable(format!("flush SRK: {e}")))?;
+
+        Ok((PCR_BITMASK, public_blob, private_blob))
     }
 
     pub(super) fn unseal(
-        _pcr_bitmask: u32,
-        _public_blob: &[u8],
-        _private_blob: &[u8],
+        pcr_bitmask: u32,
+        public_blob: &[u8],
+        private_blob: &[u8],
     ) -> Result<Zeroizing<Vec<u8>>> {
-        todo!("tss-esapi unseal: load + Unseal against current PCR state")
+        // Defence-in-depth: refuse blobs not bound to the exact mask we
+        // commit to. The TPM itself enforces the policy via the embedded
+        // auth_policy digest, but a hand-edited header is cheaper to
+        // catch up here.
+        if pcr_bitmask != PCR_BITMASK {
+            return Err(BrokerError::SealFormat(format!(
+                "pcr_bitmask {pcr_bitmask:#b} != expected {PCR_BITMASK:#b}"
+            )));
+        }
+        // Unmarshall public, wrap private bytes back into a Private.
+        let public = Public::unmarshall(public_blob)
+            .map_err(|e| BrokerError::SealFormat(format!("unmarshall public: {e}")))?;
+        let private = Private::try_from(private_blob.to_vec())
+            .map_err(|e| BrokerError::SealFormat(format!("Private::try_from: {e}")))?;
+
+        let mut ctx = open_context()?;
+        install_hmac_session(&mut ctx)?;
+
+        // SRK re-derivation.
+        let srk = ctx
+            .create_primary(Hierarchy::Owner, srk_template()?, None, None, None, None)
+            .map_err(|e| BrokerError::TpmUnavailable(format!("create_primary (SRK): {e}")))?
+            .key_handle;
+
+        // Load the sealed object.
+        let sealed = ctx
+            .load(srk, private, public)
+            .map_err(|e| BrokerError::TpmUnavailable(format!("load sealed obj: {e}")))?;
+
+        // Build a *real* Policy session bound to live PCR values.
+        // If PCRs drift (firmware update, secure-boot toggle, kernel
+        // cmdline change), `policy_pcr` succeeds but the digest no
+        // longer matches what the sealed object was bound to ->
+        // `unseal` returns POLICY_FAIL. That's the desired property.
+        let policy_sess_handle = ctx
+            .start_auth_session(
+                None,
+                None,
+                None,
+                SessionType::Policy,
+                SymmetricDefinition::AES_256_CFB,
+                HashingAlgorithm::Sha256,
+            )
+            .map_err(|e| BrokerError::TpmUnavailable(format!("start policy session: {e}")))?
+            .ok_or_else(|| BrokerError::TpmUnavailable("policy session NONE".into()))?;
+        let (attrs, mask) = SessionAttributesBuilder::new()
+            .with_decrypt(true)
+            .with_encrypt(true)
+            .build();
+        ctx.tr_sess_set_attributes(policy_sess_handle, attrs, mask)
+            .map_err(|e| BrokerError::TpmUnavailable(format!("policy set_attributes: {e}")))?;
+        let policy_session = PolicySession::try_from(policy_sess_handle)
+            .map_err(|e| BrokerError::TpmUnavailable(format!("auth -> policy: {e}")))?;
+
+        // For real (non-trial) policy sessions, passing an empty Digest
+        // tells the TPM "compute the PCR digest yourself from current
+        // values" — exactly what we want.
+        ctx.policy_pcr(policy_session, Digest::default(), pcr_selection()?)
+            .map_err(|e| BrokerError::TpmUnavailable(format!("policy_pcr (real): {e}")))?;
+
+        // Swap the session set: the unseal call must run UNDER our
+        // policy session, not the HMAC one. Save & restore.
+        let saved = ctx.sessions();
+        ctx.set_sessions((Some(policy_sess_handle), None, None));
+        let unsealed = ctx
+            .unseal(ObjectHandle::from(sealed))
+            .map_err(|e| BrokerError::TpmUnavailable(format!("unseal: {e}")))?;
+        ctx.set_sessions(saved);
+
+        let plain = Zeroizing::new(unsealed.value().to_vec());
+
+        // Flush transient handles eagerly — Context::drop would do this
+        // too, but explicit is robust against panics later in the loop.
+        let _ = ctx.flush_context(sealed.into());
+        let _ = ctx.flush_context(srk.into());
+        let _ = ctx.flush_context(session_as_object_handle(policy_sess_handle));
+
+        Ok(plain)
     }
 }
 
@@ -324,6 +688,109 @@ mod tests {
         assert!(
             matches!(err, BrokerError::SealFormat(_)),
             "expected SealFormat, got {err:?}"
+        );
+    }
+}
+
+// ─── Real-TPM tests ────────────────────────────────────────────────────
+//
+// Skip cleanly when /dev/tpmrm0 is missing (CI / VMs without TPM).
+// Run with: `cargo test --features tpm` on a TPM2-equipped host.
+
+#[cfg(all(test, feature = "tpm"))]
+mod tpm_tests {
+    use super::*;
+    use rand::RngCore;
+
+    /// `true` ⇒ caller should `return` early because no TPM is wired
+    /// (device missing, or current user can't open it — typically the
+    /// `tss` group on Linux). We treat both cases as "skip" so CI on a
+    /// boxes-without-TPM and dev workstations without group membership
+    /// stay green.
+    fn skip_if_no_tpm() -> bool {
+        let path = std::path::Path::new("/dev/tpmrm0");
+        if !path.exists() {
+            eprintln!("[skip] /dev/tpmrm0 not present — TPM tests skipped");
+            return true;
+        }
+        // exists() is necessary but not sufficient — the resource manager
+        // is typically mode 0660 root:tss. Probe with a bare open() so we
+        // don't burn an Esys_Initialize round-trip on a permission failure.
+        match std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(path)
+        {
+            Ok(_) => false,
+            Err(e) => {
+                eprintln!(
+                    "[skip] cannot open /dev/tpmrm0 ({e}) — TPM tests skipped \
+                     (add user to `tss` group to enable)"
+                );
+                true
+            }
+        }
+    }
+
+    #[test]
+    fn tpm_seal_unseal_roundtrip() {
+        if skip_if_no_tpm() {
+            return;
+        }
+        // 32 bytes of fresh randomness — typical of a vault encryption key.
+        let mut plain = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut plain);
+        let sealed = tempfile::NamedTempFile::new().unwrap();
+
+        seal_to_path(&plain, sealed.path()).expect("seal failed");
+        let got = unseal_from_path(sealed.path()).expect("unseal failed");
+        assert_eq!(plain.as_slice(), got.as_slice(), "round-trip mismatch");
+    }
+
+    #[test]
+    fn tpm_unseal_rejects_wrong_pcr_bitmask() {
+        if skip_if_no_tpm() {
+            return;
+        }
+        // Seal first to grab a real public/private blob pair.
+        let plain = [0xABu8; 32];
+        let sealed = tempfile::NamedTempFile::new().unwrap();
+        seal_to_path(&plain, sealed.path()).expect("seal failed");
+
+        // Re-write the file with pcr_bitmask = 0 (mock-shaped).
+        let raw = std::fs::read(sealed.path()).unwrap();
+        // version u32 (offset 0..4), pcr_bitmask u32 (offset 4..8), rest unchanged.
+        let mut tampered = raw.clone();
+        tampered[4..8].copy_from_slice(&0u32.to_le_bytes());
+        let bad = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(bad.path(), &tampered).unwrap();
+
+        let err = unseal_from_path(bad.path()).expect_err("must reject wrong pcr_bitmask");
+        assert!(
+            matches!(err, BrokerError::SealFormat(_)),
+            "expected SealFormat, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn tpm_repeat_seal_produces_different_blob() {
+        if skip_if_no_tpm() {
+            return;
+        }
+        // Same plaintext, two seals: TPM samples a fresh nonce/symmetric
+        // wrap each call, so the Private blob (and usually the Public's
+        // unique field) MUST differ. If they don't, sealing is broken.
+        let plain = [0x55u8; 32];
+        let a = tempfile::NamedTempFile::new().unwrap();
+        let b = tempfile::NamedTempFile::new().unwrap();
+        seal_to_path(&plain, a.path()).expect("seal a failed");
+        seal_to_path(&plain, b.path()).expect("seal b failed");
+
+        let ra = std::fs::read(a.path()).unwrap();
+        let rb = std::fs::read(b.path()).unwrap();
+        assert_ne!(
+            ra, rb,
+            "two seals of the same plaintext produced identical blobs — TPM nonces missing?"
         );
     }
 }
