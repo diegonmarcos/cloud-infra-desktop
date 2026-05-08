@@ -1,7 +1,57 @@
 # Networking: NetworkManager, WireGuard, firewall, SSH, avahi, KDE Connect
 { config, pkgs, lib, ... }:
 
-{
+let
+  # ── WireGuard endpoint declarations (data-driven) ──────────────────────────
+  # Single source of truth for hub host/port + fallback port.
+  # Mirrors cloud/config.json#native.wireguard. Edit the JSON, not the .nix.
+  wgData = builtins.fromJSON (builtins.readFile ./wireguard-endpoints.json);
+  wgPrimary  = "${wgData.hub.host}:${toString wgData.hub.primary.port}";
+  wgFallback = "${wgData.hub.host}:${toString wgData.hub.fallback.port}";
+
+  # Helper: switch the running wg0 endpoint between primary and fallback
+  # without rebuilding NixOS. Reads the JSON above so ports are never
+  # hardcoded inside the script.
+  wg-fallback = pkgs.writeShellApplication {
+    name = "wg-fallback";
+    runtimeInputs = with pkgs; [ wireguard-tools gawk gnused coreutils iproute2 ];
+    text = ''
+      set -euo pipefail
+      MODE="''${1:-status}"
+      IFACE="${wgData.client.interface}"
+      HUB_HOST="${wgData.hub.host}"
+      PRIMARY_PORT="${toString wgData.hub.primary.port}"
+      FALLBACK_PORT="${toString wgData.hub.fallback.port}"
+      HUB_PUBKEY="${wgData.hub.wg_public_key}"
+
+      case "$MODE" in
+        status)
+          if ! sudo wg show "$IFACE" >/dev/null 2>&1; then
+            echo "[wg-fallback] $IFACE is DOWN"; exit 0
+          fi
+          CUR=$(sudo wg show "$IFACE" endpoints | awk '/'"$HUB_PUBKEY"'/{print $2}')
+          echo "[wg-fallback] $IFACE endpoint: ''${CUR:-unknown}"
+          echo "[wg-fallback] primary  = $HUB_HOST:$PRIMARY_PORT"
+          echo "[wg-fallback] fallback = $HUB_HOST:$FALLBACK_PORT (udp/443 -> udp/$PRIMARY_PORT NAT on hub)"
+          ;;
+        primary|fallback)
+          PORT="$PRIMARY_PORT"
+          [ "$MODE" = "fallback" ] && PORT="$FALLBACK_PORT"
+          echo "[wg-fallback] switching $IFACE to $HUB_HOST:$PORT ($MODE)"
+          sudo wg set "$IFACE" peer "$HUB_PUBKEY" endpoint "$HUB_HOST:$PORT"
+          # Force handshake refresh
+          sudo wg set "$IFACE" peer "$HUB_PUBKEY" persistent-keepalive 25
+          sleep 2
+          sudo wg show "$IFACE" latest-handshakes
+          ;;
+        *)
+          echo "Usage: wg-fallback {status|primary|fallback}" >&2
+          exit 1
+          ;;
+      esac
+    '';
+  };
+in {
   # ═══════════════════════════════════════════════════════════════════════════
   # NETWORKING
   # ═══════════════════════════════════════════════════════════════════════════
@@ -24,28 +74,34 @@
   networking.nameservers = [ "1.1.1.1" "1.0.0.1" "8.8.8.8" ];
 
   # WireGuard mesh VPN (on-demand, not auto-start)
-  networking.wireguard.interfaces.wg0 = {
-    ips = [ "10.0.0.5/24" ];
+  # Hub host/port read from ./wireguard-endpoints.json (data-driven).
+  # Default endpoint is the primary port. Switch to fallback at runtime with
+  # `wg-fallback fallback` (no NixOS rebuild needed).
+  networking.wireguard.interfaces.${wgData.client.interface} = {
+    ips = [ "${wgData.client.wg_ip}/24" ];
     privateKeyFile = "/home/diego/.config/wireguard/privatekey";
     # DNS tier 1: Hickory (added when WG up, removed when WG down)
     postSetup = ''
-      ${pkgs.openresolv}/bin/resolvconf -a wg0 <<EOF
-      nameserver 10.0.0.1
+      ${pkgs.openresolv}/bin/resolvconf -a ${wgData.client.interface} <<EOF
+      nameserver ${wgData.hub.wg_ip}
       EOF
     '';
     postShutdown = ''
-      ${pkgs.openresolv}/bin/resolvconf -d wg0
+      ${pkgs.openresolv}/bin/resolvconf -d ${wgData.client.interface}
     '';
     peers = [
       {
-        publicKey = "vV/phXUwnCjxACQ5Df11Uw47BzJaK4r85jPYMu2HmDc=";
-        endpoint = "35.226.147.64:51820";
-        allowedIPs = [ "10.0.0.0/24" ];
-        persistentKeepalive = 25;
+        publicKey = wgData.hub.wg_public_key;
+        endpoint = wgPrimary;          # fallback = "${wgFallback}" (use `wg-fallback fallback`)
+        allowedIPs = [ wgData.subnet ];
+        persistentKeepalive = wgData.persistent_keepalive;
       }
     ];
   };
-  systemd.services.wireguard-wg0.wantedBy = lib.mkForce [];
+  systemd.services."wireguard-${wgData.client.interface}".wantedBy = lib.mkForce [];
+
+  # Runtime endpoint switcher: `wg-fallback {status|primary|fallback}`
+  environment.systemPackages = [ wg-fallback ];
 
   # ═══════════════════════════════════════════════════════════════════════════
   # WIFI & BLUETOOTH PERSISTENCE
