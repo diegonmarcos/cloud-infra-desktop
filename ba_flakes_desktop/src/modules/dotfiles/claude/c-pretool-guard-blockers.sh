@@ -103,11 +103,30 @@ fi
 #   (b) secrets.yaml that contains the sops marker (^sops: or ENC[AES256_GCM)
 if echo "$CMD" | grep -qE '(^|[;&|])\s*git\s+(-[Cc]\s+\S+\s+)?add\b[^;|&]*(\.(env|key|pem|age|p12|pfx)([[:space:];|&]|$)|(^|/)\.secrets([[:space:];|&]|$)|secrets\.ya?ml([[:space:];|&]|$))'; then
     case "$PWD" in "$HOME"/git/vault*) exit 0 ;; esac
-    f=$(echo "$CMD" | grep -oE '\S+secrets\.ya?ml\b' | head -1 || true)
-    if [ -n "$f" ] && [ -f "$f" ] && grep -qE '^sops:|ENC\[AES256_GCM' "$f" 2>/dev/null; then
+    # Iterate ALL secret-shape tokens in the command. Per-token rules:
+    #   - deletion (file not on disk) → safe (git tracks removal of prior content)
+    #   - secrets.yaml + sops marker → safe
+    #   - anything else (.env/.key/.pem/.age/.p12/.pfx/.secrets/plaintext yaml) → deny
+    all_safe=1
+    unsafe=""
+    tokens=$(echo "$CMD" | grep -oE '[^[:space:]]+\.(env|key|pem|age|p12|pfx)\b|[^[:space:]]*(^|/)\.secrets\b|[^[:space:]]*secrets\.ya?ml\b' 2>/dev/null || true)
+    for tok in $tokens; do
+        [ ! -e "$tok" ] && continue   # deletion → safe
+        case "$tok" in
+            *secrets.yaml|*secrets.yml)
+                if grep -qE '^sops:|ENC\[AES256_GCM' "$tok" 2>/dev/null; then
+                    continue   # encrypted → safe
+                fi
+                ;;
+        esac
+        all_safe=0
+        unsafe="$tok"
+        break
+    done
+    if [ "$all_safe" -eq 1 ]; then
         exit 0
     fi
-    deny "git add of secret-shaped path — public-repo exposure risk" \
+    deny "git add of secret-shaped path '$unsafe' — public-repo exposure risk" \
          "sops-encrypt secrets.yaml first; raw key material lives only in ~/git/vault"
 fi
 
