@@ -1,0 +1,50 @@
+{
+  "project": {
+    "name": "da_browser-rbw-rofi",
+    "version": "0.1.0",
+    "description": "Hotkey-driven Bitwarden/Vaultwarden autofill via rbw + rofi/wofi + wtype/xdotool. Replaces the Bitwarden browser extension for the password+TOTP path."
+  },
+  "paths": {
+    "src": "src",
+    "rust_crate": "src",
+    "dist": "dist",
+    "systemd_unit": "src/systemd/da_browser-rbw-rofi.service",
+    "log": "build.log"
+  },
+  "build": {
+    "language": "rust",
+    "edition": "2021",
+    "binary_name": "da_browser-rbw-rofi",
+    "via_nix_flake": true,
+    "flake_path": "src/flake.nix"
+  },
+  "runtime": {
+    "user_unit": true,
+    "user_unit_name": "da_browser-rbw-rofi.service",
+    "picker": {
+      "wayland": "wofi --dmenu --prompt Vault",
+      "x11":     "rofi -dmenu -p Vault"
+    },
+    "typer": {
+      "wayland": "wtype",
+      "x11":     "xdotool type --clearmodifiers"
+    },
+    "clipboard": {
+      "wayland": "wl-copy",
+      "x11":     "xclip -selection clipboard -in"
+    },
+    "notifier": "notify-send",
+    "rbw": {
+      "list_cmd":   "rbw list --fields name,user",
+      "get_cmd":    "rbw get",
+      "user_field": "--field user",
+      "totp_cmd":   "rbw code",
+      "timeout_secs": 5
+    },
+    "actions": ["user", "pass", "totp", "user_tab_pass"],
+    "default_action": "user_tab_pass",
+    "totp_to_clipboard_seconds": 20,
+    "slow_typing_env_var": "DA_BROWSER_RBW_ROFI_SLOW",
+    "slow_typing_delay_ms": 8
+  }
+}
