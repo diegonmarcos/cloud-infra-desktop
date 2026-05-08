@@ -81,7 +81,7 @@ in
         PATH_PREFIX="$(cat "${secretFile}")"
         exec ${wstunnelBin} client \
           --local-to-remote 'udp://${toString localUdp}:127.0.0.1:${toString remoteWg}' \
-          --http-upgrade-path-prefix "$PATH_PREFIX" \
+          --restrict-http-upgrade-path-prefix "$PATH_PREFIX" \
           '${wsEndpoint}'
       '';
       Restart    = "on-failure";

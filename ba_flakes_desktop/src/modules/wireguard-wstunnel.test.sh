@@ -68,9 +68,9 @@ grep -q 'WantedBy = \[ \]'   "$MOD_FILE" && ok "service is opt-in (no auto-start
 # ── Phase 5 · secret reference ──────────────────────────────────────────
 echo "▶ Phase 5 · secrets contract"
 grep -q '\.wstunnel-secret' "$MOD_FILE" && ok "secret file path declared (.wstunnel-secret)" || nope "secret path missing"
-grep -q 'WSTUNNEL_PATH_PREFIX\|http-upgrade-path-prefix' "$MOD_FILE" \
-  && ok "uses --http-upgrade-path-prefix from secret" \
-  || nope "no path-prefix flag — server will reject"
+grep -q 'restrict-http-upgrade-path-prefix' "$MOD_FILE" \
+  && ok "uses --restrict-http-upgrade-path-prefix flag (matches wstunnel v10.5.4+)" \
+  || nope "no --restrict-http-upgrade-path-prefix flag — server will reject"
 
 # ── Phase 6 · helper script ─────────────────────────────────────────────
 echo "▶ Phase 6 · wg-tcp helper script"
