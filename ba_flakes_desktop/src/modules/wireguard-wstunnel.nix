@@ -100,19 +100,23 @@ in
     };
   };
 
-  # ── wg0-tcp.conf (WG client config pointing at the local loopback) ─────
-  # Activation script copies a pre-rendered conf into ~/.config/wireguard/.
-  # The actual private key + peer pubkey lives in the existing wg0.conf —
-  # this is just a duplicate Endpoint variant. User runs:
-  #     sudo cp ~/.config/wireguard/wg0-tcp.conf /etc/wireguard/wg0-tcp.conf
-  #     sudo wg-quick up wg0-tcp
-  # to switch transport.
+  # ── wg0-tcp.conf + NetworkManager auto-import (KDE applet visible) ─────
+  # Two-step activation:
+  #   1. Render ~/.config/wireguard/wg0-tcp.conf from existing wg0.conf
+  #      (rewrite Endpoint → 127.0.0.1:${localUdp})
+  #   2. Import into NetworkManager so the wg0-tcp profile appears in the
+  #      KDE Plasma network applet alongside wg0 — idempotent (skip if a
+  #      connection named "wg0-tcp" already exists).
+  #
+  # `nmcli connection import` needs root; we go through `sudo -n` so the
+  # activation succeeds when the user has passwordless sudo for nmcli (the
+  # standard NixOS surface-plasma profile). If sudo prompts, the import is
+  # skipped with a one-line hint — the wg-tcp helper still works.
   home.activation.installWg0TcpConf = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     set -eu
     mkdir -p "$(dirname '${wgTcpConf}')"
 
-    # If wg0.conf exists (existing direct-UDP config), render a sibling
-    # wg0-tcp.conf with the Endpoint pointed at the local wstunnel listener.
+    # ── (1) Render wg0-tcp.conf ───────────────────────────────────────
     SOURCE='${config.home.homeDirectory}/.config/wireguard/wg0.conf'
     if [ -r "$SOURCE" ]; then
       ${pkgs.gawk}/bin/awk '
@@ -127,6 +131,33 @@ in
       echo "[wireguard-wstunnel] rendered ${wgTcpConf} (Endpoint=127.0.0.1:${toString localUdp})"
     else
       echo "[wireguard-wstunnel] $SOURCE not found — skipping wg0-tcp.conf render"
+      exit 0
+    fi
+
+    # ── (2) NetworkManager import (so KDE applet sees wg0-tcp) ────────
+    # Skip when nmcli is unavailable (server/CI builds).
+    if ! command -v ${pkgs.networkmanager}/bin/nmcli >/dev/null 2>&1; then
+      exit 0
+    fi
+    NMCLI=${pkgs.networkmanager}/bin/nmcli
+
+    # If a profile named "wg0-tcp" already exists, leave it alone (user
+    # may have edited it). Idempotent re-runs are fast no-ops.
+    if $NMCLI -t -f NAME connection show 2>/dev/null | grep -qx 'wg0-tcp'; then
+      echo "[wireguard-wstunnel] NetworkManager profile 'wg0-tcp' already present — skipping import"
+      exit 0
+    fi
+
+    # Import requires root (system-connections live in /etc/NetworkManager/).
+    # Try passwordless sudo; if not allowed, surface a one-line hint and exit
+    # cleanly so home-manager activation doesn't fail.
+    if sudo -n $NMCLI connection import type wireguard file '${wgTcpConf}' >/dev/null 2>&1; then
+      echo "[wireguard-wstunnel] imported wg0-tcp into NetworkManager — visible in KDE applet"
+      sudo -n $NMCLI connection modify wg0-tcp connection.autoconnect no >/dev/null 2>&1 || true
+    else
+      echo "[wireguard-wstunnel] NM import needs root — run once manually:"
+      echo "    sudo nmcli connection import type wireguard file ${wgTcpConf}"
+      echo "    sudo nmcli connection modify wg0-tcp connection.autoconnect no"
     fi
   '';
 
