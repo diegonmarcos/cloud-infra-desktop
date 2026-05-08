@@ -80,6 +80,18 @@ grep -qE '^\s*(up|down|status)\)' "$MOD_FILE" \
   && ok "helper has up/down/status case branches" \
   || nope "helper modes missing"
 
+# ── Phase 6b · NetworkManager auto-import ───────────────────────────────
+echo "▶ Phase 6b · NetworkManager auto-import (KDE applet visible)"
+grep -q 'nmcli connection import type wireguard' "$MOD_FILE" \
+  && ok "module imports wg0-tcp.conf into NetworkManager (KDE applet sees it)" \
+  || nope "no nmcli import — wg0-tcp won't appear in KDE network applet"
+grep -q "grep -qx 'wg0-tcp'" "$MOD_FILE" \
+  && ok "import is idempotent (skips if profile already exists)" \
+  || nope "no idempotency guard — re-runs may duplicate the profile"
+grep -q 'autoconnect no' "$MOD_FILE" \
+  && ok "imported profile defaults to autoconnect=no (opt-in fallback)" \
+  || nope "should set autoconnect=no — wg0 stays primary, wg0-tcp is fallback only"
+
 # ── Phase 7 · no-hardcoded-data sweep ───────────────────────────────────
 echo "▶ Phase 7 · data-driven discipline"
 # Each port literal must appear at most ONCE as a let-binding value; everywhere
