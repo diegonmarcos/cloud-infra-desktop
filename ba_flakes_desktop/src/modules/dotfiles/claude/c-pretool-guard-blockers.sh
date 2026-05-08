@@ -71,22 +71,37 @@ if echo "$CMD" | grep -qE '(^|\s|;|&&|\|)\s*nix-env\s+(-i|--install|-iA)\b'; the
          "add the package to flake.nix (home.packages or environment.systemPackages) + build.sh switch"
 fi
 
-# ── 7A: imperative plaintext write into .secrets / .env bypasses sops ──
-# Anchor to command boundary (^|;|&|||newline) so the verb must START a
-# pipeline segment — prevents false-positives on quoted phrases inside
-# commit messages, sed scripts, here-strings, etc.
-if echo "$CMD" | grep -qE '(^|[;&|])\s*(echo|printf|tee)\b[^|;]*>>?\s*[^|;]*\.(secrets|env)\b'; then
-    deny "imperative write to .secrets/.env bypasses sops" \
+# ── 7A: imperative plaintext write into .secrets / .env / secrets.yaml ──
+# Anchor on command boundary (^|;|&||) so the verb must START a pipeline
+# segment — prevents false-positives on quoted phrases in commit messages.
+# Targets exact secret files only (.env, .secrets, secrets.yaml/.yml) —
+# NOT engine hash artefacts (.secrets-hash, .secrets-hash-new) which
+# legitimately get written by build.sh.
+#
+# Two write idioms:
+#   7A.1: echo/printf with > redirect into a secret file
+#   7A.2: tee with a secret file as argument (tee writes by argument)
+if echo "$CMD" | grep -qE '(^|[;&|])\s*(echo|printf)\b[^|;]*>>?\s*[^|;]*((^|/)\.env([[:space:];|&]|$)|(^|/)\.secrets([[:space:];|&]|$)|secrets\.ya?ml([[:space:];|&]|$))'; then
+    deny "imperative write (echo/printf >) to .secrets/.env/secrets.yaml bypasses sops" \
+         "edit src/secrets.yaml + build.sh secrets"
+fi
+if echo "$CMD" | grep -qE '(^|[;&|])\s*tee\b[^|;]*\s+[^|;]*((^|/)\.env([[:space:];|&]|$)|(^|/)\.secrets([[:space:];|&]|$)|secrets\.ya?ml([[:space:];|&]|$))'; then
+    deny "tee writing to .secrets/.env/secrets.yaml bypasses sops" \
          "edit src/secrets.yaml + build.sh secrets"
 fi
 
-# ── 7B: git add of secret-shaped paths (.env/.key/.pem/.age/*secret*) ──
+# ── 7B: git add of secret-shaped paths ──
 # Anchor on command boundary so `git add` must be the actual subcommand —
 # `git commit -m "...git add..."` (literal phrase in message) won't trip.
+# Targets:
+#   - file extensions: .env, .key, .pem, .age, .p12, .pfx (whole token)
+#   - literal .secrets file (NOT .secrets-hash / .secrets-hash-new — those
+#     are SHA records written by the build engine, safe to commit)
+#   - secrets.yaml / secrets.yml (gated on sops marker — see carve-out b)
 # Carve-outs:
 #   (a) inside ~/git/vault/  (private repo, sops-encrypted at rest)
 #   (b) secrets.yaml that contains the sops marker (^sops: or ENC[AES256_GCM)
-if echo "$CMD" | grep -qE '(^|[;&|])\s*git\s+(-[Cc]\s+\S+\s+)?add\b[^;|&]*(\.env|\.key|\.pem|\.age|secret)'; then
+if echo "$CMD" | grep -qE '(^|[;&|])\s*git\s+(-[Cc]\s+\S+\s+)?add\b[^;|&]*(\.(env|key|pem|age|p12|pfx)([[:space:];|&]|$)|(^|/)\.secrets([[:space:];|&]|$)|secrets\.ya?ml([[:space:];|&]|$))'; then
     case "$PWD" in "$HOME"/git/vault*) exit 0 ;; esac
     f=$(echo "$CMD" | grep -oE '\S+secrets\.ya?ml\b' | head -1 || true)
     if [ -n "$f" ] && [ -f "$f" ] && grep -qE '^sops:|ENC\[AES256_GCM' "$f" 2>/dev/null; then
