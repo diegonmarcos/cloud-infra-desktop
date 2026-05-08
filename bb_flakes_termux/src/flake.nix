@@ -496,6 +496,7 @@
                 ./modules/sshd.nix
                 ./modules/programs/shells/fish-greeting.nix
                 ./modules/wireguard.nix
+                ./modules/wireguard-wstunnel.nix
               ];
               home.stateVersion = "24.05";
 
