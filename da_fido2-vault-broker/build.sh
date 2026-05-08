@@ -33,14 +33,20 @@ UNIT_NAME="$(get runtime.user_unit_name)"
 UNIT_SRC="$ROOT/$(get paths.systemd_unit)"
 [ -z "$BINARY_NAME" ] && die "build.json: build.binary_name missing"
 
+# Cargo features (data-driven from build.json — never hardcoded).
+# Falls back to empty if the field is absent (default-feature build).
+CARGO_FEATURES="$(node -e "const c=require('$CONFIG'); const f=(c.build&&c.build.cargo_features)||[]; process.stdout.write(f.join(','))")"
+FEATURES_FLAG=""
+[ -n "$CARGO_FEATURES" ] && FEATURES_FLAG="--features $CARGO_FEATURES"
+
 # ── commands ───────────────────────────────────────────────────────────
 cmd="${1:-build}"
 
 case "$cmd" in
   build)
-    log "cargo build --release (in nix dev shell)"
+    log "cargo build --release ${FEATURES_FLAG:-(default features)} (in nix dev shell)"
     cd "$SRC"
-    nix develop --command cargo build --release
+    nix develop --command cargo build --release $FEATURES_FLAG
     mkdir -p "$DIST"
     # Resolve target dir from cargo metadata so we honour CARGO_TARGET_DIR
     # overrides (some users / CI / nix shells redirect target/ outside SRC).
@@ -52,12 +58,12 @@ case "$cmd" in
 
   test)
     cd "$SRC"
-    nix develop --command cargo test
+    nix develop --command cargo test $FEATURES_FLAG
     ;;
 
   check)
     cd "$SRC"
-    nix develop --command bash -c 'cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo check'
+    nix develop --command bash -c "cargo fmt --check && cargo clippy --all-targets $FEATURES_FLAG -- -D warnings && cargo check $FEATURES_FLAG"
     ;;
 
   fmt)
