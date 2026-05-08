@@ -71,6 +71,31 @@ if echo "$CMD" | grep -qE '(^|\s|;|&&|\|)\s*nix-env\s+(-i|--install|-iA)\b'; the
          "add the package to flake.nix (home.packages or environment.systemPackages) + build.sh switch"
 fi
 
+# ── 7A: imperative plaintext write into .secrets / .env bypasses sops ──
+# Anchor to command boundary (^|;|&|||newline) so the verb must START a
+# pipeline segment — prevents false-positives on quoted phrases inside
+# commit messages, sed scripts, here-strings, etc.
+if echo "$CMD" | grep -qE '(^|[;&|])\s*(echo|printf|tee)\b[^|;]*>>?\s*[^|;]*\.(secrets|env)\b'; then
+    deny "imperative write to .secrets/.env bypasses sops" \
+         "edit src/secrets.yaml + build.sh secrets"
+fi
+
+# ── 7B: git add of secret-shaped paths (.env/.key/.pem/.age/*secret*) ──
+# Anchor on command boundary so `git add` must be the actual subcommand —
+# `git commit -m "...git add..."` (literal phrase in message) won't trip.
+# Carve-outs:
+#   (a) inside ~/git/vault/  (private repo, sops-encrypted at rest)
+#   (b) secrets.yaml that contains the sops marker (^sops: or ENC[AES256_GCM)
+if echo "$CMD" | grep -qE '(^|[;&|])\s*git\s+(-[Cc]\s+\S+\s+)?add\b[^;|&]*(\.env|\.key|\.pem|\.age|secret)'; then
+    case "$PWD" in "$HOME"/git/vault*) exit 0 ;; esac
+    f=$(echo "$CMD" | grep -oE '\S+secrets\.ya?ml\b' | head -1 || true)
+    if [ -n "$f" ] && [ -f "$f" ] && grep -qE '^sops:|ENC\[AES256_GCM' "$f" 2>/dev/null; then
+        exit 0
+    fi
+    deny "git add of secret-shaped path — public-repo exposure risk" \
+         "sops-encrypt secrets.yaml first; raw key material lives only in ~/git/vault"
+fi
+
 # Note: SSH write-redirect (ssh <host> '... echo/sed/tee/cat ... >') was
 # previously a hard block. Demoted to advisory in c-pretool-guard-warning.sh
 # 2026-05-07 — sometimes legitimate (one-shot debug, capturing remote output

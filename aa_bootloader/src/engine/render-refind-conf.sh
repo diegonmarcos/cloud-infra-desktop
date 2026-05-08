@@ -494,7 +494,11 @@ if [ "$THEME_ENABLED" = "true" ]; then
     HIDEUI="singleuser,hints,badges"
     [ "$THEME_SHOW_LABEL" = "false" ] && HIDEUI="$HIDEUI,label"
 
-    THEME_CONF_OUT="$OUT_DIR/themes/$THEME_NAME/theme.conf"
+    # FIX 2026-05-07: generated theme.conf MUST match the filename declared
+    # in .refind.install.theme.theme_conf, otherwise the `include themes/<name>/<conf>`
+    # line above resolves to the upstream's bundled file (with wrong paths)
+    # and our generated config is silently ignored.
+    THEME_CONF_OUT="$OUT_DIR/themes/$THEME_NAME/$THEME_CONF"
     mkdir -p "$(dirname "$THEME_CONF_OUT")"
     {
         cat <<EOF

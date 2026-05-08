@@ -69,27 +69,62 @@
       "tools_dir": "tools",
       "_tools_dir_note": "Sub-directory under /EFI/refind/ where vendored EFI binaries (shellx64.efi, memtest86.efi, ipxe.efi) live. Emitted as 'tools_dir tools' in refind.conf so rEFInd's bottom-row tool buttons (showtools) can find their binaries — without this, shellx64.efi at /EFI/refind/tools/ falls outside rEFInd's default search paths (/EFI/refind/, /EFI/tools/, /EFI/) and the 'shell' button silently no-ops.",
       "theme": {
-        "_description": "rEFInd theme. Vendored at src/loaders/refind/vendored/themes/<name>/. The renderer (a) copies that dir to dist/.../refind/themes/<name>/ and (b) generates a theme.conf into the same dir overriding any upstream defaults — so paths/sizes/variant are always data-driven from this block.",
+        "_description": "rEFInd theme. Vendored at src/loaders/refind/vendored/themes/<name>/. The renderer (a) copies that dir to dist/.../refind/themes/<name>/ and (b) uses the theme_conf shipped by upstream (or generates one) — so paths/sizes/variant are always data-driven from this block.",
         "enabled": true,
-        "name": "brads-refind-theme",
-        "vendored_path": "loaders/refind/vendored/themes/brads-refind-theme",
-        "theme_conf": "theme.conf",
-        "_upstream": "https://github.com/toptensoftware/brads-refind-theme",
-        "_layout_note": "Explicit-path mode. Brad's theme has a flat layout: theme.conf + icons/ + background.png + selection-{big,small}.png at the theme root. We backfilled os_kali, os_nixos, vol_external from Catppuccin's icon set (Brad's upstream doesn't ship them). 128x128 OS icons + 48x48 tool icons; rEFInd scales as needed.",
-        "icons_path": "themes/brads-refind-theme/icons",
+        "name": "catppuccin",
+        "vendored_path": "loaders/refind/vendored/themes/catppuccin",
+        "theme_conf": "mocha.conf",
+        "_upstream": "https://github.com/catppuccin/refind",
+        "_layout_note": "Catppuccin/mocha variant. Per-variant layout: assets/<variant>/{background.png,selection_big.png,selection_small.png,icons/}. Catppuccin upstream's tool/func icon set is sparse (no tool_rescue/tool_fwupdate/tool_memtest/tool_netboot/func_install/func_bootorder/os_refind), so we backfilled those 7 PNGs into assets/mocha/icons/ from brads-refind-theme to keep the second-line tool row complete. All first-line OS icons (os_nixos/os_kali/os_debian/os_linux/vol_external/...) come from upstream catppuccin → consistent style. Switched 2026-05-07 from brads-refind-theme (which had Catppuccin-backfilled OS icons mixed with Brad's tool icons → visually inconsistent first row).",
+        "icons_path": "themes/catppuccin/assets/mocha/icons",
         "big_icon_size": 128,
         "small_icon_size": 48,
-        "_icon_size_note": "Brad's icons are 128x128 OS / 48x48 tools. The 128 size sits well on the Surface Pro 8 1280-pixel half-screen at 100% scale, ~2x at 200%. Selection rect is 143x143 (ships from upstream).",
-        "banner_path": "themes/brads-refind-theme/background.png",
-        "_banner_note": "1024x768 painted background (real artwork, not a 1x1 tile). banner_scale=fillscreen lets it scale to the Surface's 2880x1920 panel.",
-        "selection_big_path": "themes/brads-refind-theme/selection-big.png",
-        "selection_small_path": "themes/brads-refind-theme/selection-small.png",
+        "_icon_size_note": "Catppuccin ships 256x256 OS icons / 96x96 tool icons; rEFInd scales them down to these declared sizes. 128 OS / 48 tool sits well on the Surface Pro 8 1280-pixel half-screen at 100% scale, ~2x at 200%.",
+        "banner_path": "themes/catppuccin/assets/mocha/background.png",
+        "_banner_note": "Catppuccin/mocha background (dark base02 backdrop). banner_scale=fillscreen lets it scale to the Surface's 2880x1920 panel.",
+        "selection_big_path": "themes/catppuccin/assets/mocha/selection_big.png",
+        "selection_small_path": "themes/catppuccin/assets/mocha/selection_small.png",
         "font_path": "",
-        "_font_note": "Empty = use rEFInd's bundled default ASCII font (Luxi Mono Regular 12pt). Brad's theme ships no font atlas. ASCII labels in manual_stanzas.order ensure no '??' glyphs.",
+        "_font_note": "Empty = use rEFInd's bundled default ASCII font (Luxi Mono Regular 12pt). Catppuccin ships no font atlas. ASCII labels in manual_stanzas.order ensure no '??' glyphs.",
         "show_label": true,
         "_show_label_note": "rEFInd's graphical UI shows the label of the currently-selected icon only — engine-level constraint, not a theme setting. show_label=true keeps that label visible; false adds 'label' to hideui.",
-        "variant": "dark",
-        "_variant_note": "Cosmetic only — Brad's theme has a single visual variant. No bg/selection name-suffix logic in explicit-path mode."
+        "variant": "mocha",
+        "_variant_note": "Catppuccin variants: latte (light), frappe (mid-dark), macchiato (dark), mocha (darkest). Mocha matches the SP8 default Plasma dark theme. Switching variant requires updating: variant + theme_conf + icons_path + banner_path + selection_*_path together.",
+        "testers": {
+          "_description": "Post-deploy invariants for the active theme. Run after `aa_bootloader/build.sh deploy-refind` to confirm rEFInd will actually load what boot.json says.",
+          "checks": [
+            {
+              "id": "theme_dir_present_on_esp",
+              "description": "Theme dir exists on EFI partition",
+              "command": "test -d /boot/efi/EFI/refind/themes/catppuccin && echo ok",
+              "expect": "ok"
+            },
+            {
+              "id": "theme_conf_filename_matches_include",
+              "description": "Generated theme.conf has the filename declared in theme.theme_conf — without this the include line points at upstream's bundled mocha.conf (wrong paths) and our paths are silently ignored",
+              "command": "test -f /boot/efi/EFI/refind/themes/catppuccin/mocha.conf && grep -q '^icons_dir       themes/catppuccin/assets/mocha/icons' /boot/efi/EFI/refind/themes/catppuccin/mocha.conf && echo ok",
+              "expect": "ok"
+            },
+            {
+              "id": "all_first_line_icons_resolve",
+              "description": "Every per-entry first-line icon referenced in refind.manual_stanzas.order resolves to a real file on /boot/efi",
+              "command": "for i in os_nixos os_kali os_debian os_linux vol_external os_refind tool_rescue tool_fwupdate tool_memtest tool_netboot tool_shell func_install func_bootorder; do test -f /boot/efi/EFI/refind/themes/catppuccin/assets/mocha/icons/$i.png || { echo MISSING:$i; exit 1; }; done; echo ok",
+              "expect": "ok"
+            },
+            {
+              "id": "background_matches_source",
+              "description": "Deployed background.png is byte-identical to vendored source — proves the engine actually copied the new theme's banner",
+              "command": "diff -q /boot/efi/EFI/refind/themes/catppuccin/assets/mocha/background.png /home/diego/git/unix/aa_bootloader/src/loaders/refind/vendored/themes/catppuccin/assets/mocha/background.png && echo ok",
+              "expect": "ok"
+            },
+            {
+              "id": "include_line_matches_theme_conf",
+              "description": "refind.conf include line points at the same theme_conf the generator writes",
+              "command": "grep -E '^include[[:space:]]+themes/catppuccin/mocha\\.conf$' /boot/efi/EFI/refind/refind.conf >/dev/null && echo ok",
+              "expect": "ok"
+            }
+          ]
+        }
       }
     },
     "ui": {
