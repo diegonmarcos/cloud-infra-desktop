@@ -46,6 +46,8 @@ read -r -d '' CONTEXT <<'PRINCIPLES' || true
 4. IMPERATIVE SOLUTIONS FORBIDDEN — no `ssh vm 'echo > x'`, no `sed -i` on VMs, no `nix-env -i`.
 5. FOUND A BUG IN AN ENGINE → FIX IT. NO HACKS, NO WORKAROUNDS, NO BYPASSES.
 6. FOUND HARDCODED INLINED DATA → MOVE IT TO JSON. Never extend a hardcoded list.
+7A. SECRETS = SOPS. src/secrets.yaml encrypted; dist/.secrets gitignored. Never inline credentials.
+7B. NEVER git add .env/.key/.pem/.age/*secret*/dist/.secrets. secrets.yaml needs sops marker. Vault is the only carve-out.
 PRINCIPLES
 
 # Emit JSON with hookSpecificOutput.additionalContext so the model receives

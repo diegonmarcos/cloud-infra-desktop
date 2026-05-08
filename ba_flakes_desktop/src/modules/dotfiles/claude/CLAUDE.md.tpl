@@ -34,6 +34,9 @@
 
 ## Table of Contents
 
+### OVERVIEW
+- [Repository Map — Philosophy · Stack · Ops](#repository-map--philosophy--stack--ops)
+
 ### STACK
 - [A. UNIX (NixOS & System Configuration)](#section-a-unix-nixos--system-configuration)
 - [B. CLOUD INFRASTRUCTURE](#section-b-cloud-infrastructure)
@@ -46,6 +49,103 @@
 - [Skills](#skills)
 - [MCP: cloud-infra](#mcp-cloud-infra)
 - [APIs](#apis)
+
+---
+
+# ████████████████████████████████████████████████████████████████████████████
+#               REPOSITORY MAP — Philosophy · Stack · Ops
+# ████████████████████████████████████████████████████████████████████████████
+
+Five git repos under `~/git/`. Same engine interface (`build.sh` + `build.json`) — different role.
+
+| Repo | Visibility | Role |
+|------|------------|------|
+| `cloud` | **public** | Service infra — Nix flakes → Docker Compose, 60+ services on 5 VMs |
+| `unix`  | **public** | NixOS host + home-manager (desktop, termux, builders, per-VM) |
+| `front` | **public** | 32-project front-end monorepo → GitHub Pages |
+| `vault` | **PRIVATE** | All credentials — sops + age + OAuth + SSH/WG/TOTP |
+| `tools` | public | Cross-repo tooling (consumed as submodule from cloud / unix / front) |
+
+---
+
+## CLOUD (`~/git/cloud`) — public
+
+**Philosophy** · Every service is a Nix flake → generated Docker Compose. Sops for all secrets. `build.sh ship` is the only deploy. Zero manual VM mutation. All services delivered as GHCR images (no Docker Hub direct).
+
+**Stack**
+- `a_solutions/<prefix>_<name>/` — 60+ services. Prefixes: `aa-sui` app · `ab-mic` mic · `ac-fin` fin · `ad-agi` agi · `ba-clo` cloud · `bb-sec` sec · `bc-obs` tools · `ca-dat` data
+- `b_infra/nixhm-sudo-<vm>/` — per-VM home-manager (data-driven `build.json`; **master for public-port ownership** — `cloud/config.json` retired)
+- `1_workflows/src/scripts/` — universal engine (build / secrets / deploy / compose), CI runners, pre-commit defence, cloud-builder launcher
+- `2_configs/src/engines/` — derive scripts emit `cloud-data-*.json` (topology / caddy / dns / home-manager) consumed by all flakes
+- **External-consumers registry** — `external-consumers.json` + `deriveExternalConsumers` emits `build-{flakes_desktop,flakes_termux,builders,secrets}.json` from a single consolidated source (unix + cloud-data both consume)
+- **Port-enforcement shared lib** — Nix lib auto-injects port env vars from each service's `build.json`; flakes never hardcode ports
+- Edge: Cloudflare → Caddy (gcp-proxy) → WireGuard mesh → service VM. Auth: Authelia 2FA / OIDC bearer tokens
+
+**Ops**
+- `build.sh ship` = build + secrets + deploy + compose (full pipeline)
+- `CLOUD_PROFILE=<name> build.sh profile-ship` — deployment profiles (any topology, *not* DR / fallback)
+- GHA: `ship-{gcp-proxy,oci-apps,oci-mail,oci-analytics,home-manager}.yml` (path-triggered on `main`)
+- Submodules (`cloud/tools`, `cloud/I_cloud-data`) are read-only from parent → edit source clone (`~/git/tools`, `~/git/I_cloud-data`)
+- Builders: `cloud-builder-x` (multi-arch via QEMU on oci-apps), `forge` (52GB x86 cache)
+- Backups: Dagu DAG → restic → OCI S3, daily 03:00; per-service strategy declared in `build.json`
+
+---
+
+## UNIX (`~/git/unix`) — public
+
+**Philosophy** · Pure NixOS + home-manager flakes. Root is tmpfs (impermanence). HM modules consume cloud-data-derived JSON. **VMs receive HM as Docker images** (1GB hosts can't `nix eval` — they OOM).
+
+**Stack**
+- `aa_nixos-surface_host/` — Surface Pro 8 (LUKS + USB keyfile, KDE Plasma 6, linux-surface kernel, btrfs subvolumes)
+- `aa_bootloader/` — rEFInd primary, GRUB secondary; multi-boot (Rescue / Kali / Windows / Ventoy)
+- `ba_flakes_desktop/` — home-manager desktop *(this CLAUDE.md lives here under `src/modules/dotfiles/claude/`)*
+- `bb_flakes_termux/` — home-manager termux (nix-on-droid)
+- Container images shipped from this repo: `cloud-builder-x` (multi-arch builder), `vm-pilot` (37 HM modules consolidated)
+
+**Ops**
+- `build.sh switch | boot | test | check | update | diff | install` — one engine, all flakes
+- `build.sh build {raw|iso|qcow|vm}` — bootable artefacts; `build.sh burn` — flash USB
+- VM home-manager delivery: GHCR image push → VMs `docker pull` + activate (no nix eval at runtime)
+- System-protection: 3-tier cgroup slice hierarchy (FIFO scheduling on SSH / WG / Dropbear) on all VMs + desktop
+
+---
+
+## FRONT (`~/git/front`) — public
+
+**Philosophy** · TypeScript strict everywhere. Svelte 5 runes / Vue 3 Composition API. **No inline CSS** (SCSS mixins only). **No `fetch()` for JSON** — use `data-<key>.json.js` wrappers exposing `globalThis.PORTAL_DATA[key]` (CORS-safe, works under `file://`). Matomo tracking required on every HTML head.
+
+**Stack**
+- `1.ops/` — `00_Stack_Main.md` spec, `30_Code_Practise.md`, `build_main.sh` master TUI
+- `<category>/<project>/` — Sass + Vite + SvelteKit / Vue / vanilla TS, with per-project `build.sh` + `build.json`
+- SCSS mixins: `@include mq(sm|md|lg|xl)`, `flex-center`, `flex-row(j,a,gap)`, `grid-auto-fit(min,gap)`
+- Dev ports: 8000–8022 (assigned per project, no conflicts)
+
+**Ops**
+- `1.ops/build_main.sh` — interactive TUI for all 32 projects
+- `<project>/build.sh build | dev | deploy` — single project
+- Deploy target: `diegonmarcos.github.io` (GitHub Pages)
+- After source edits: `build.sh build` (never `dev` / `serve` unless explicitly asked)
+
+---
+
+## VAULT (`~/git/vault`) — **PRIVATE**
+
+**Philosophy** · The only place credentials live. Public repos reference vault *paths* only — never copy values. Sops-encrypted where possible; raw key material (age keys, SSH private keys) is itself the credential and lives here as canonical store.
+
+**Stack**
+- `A0_keys/`
+  - `ssh/` — symlinked into `~/.ssh/`
+  - `providers/{authelia,cloudflare,gcloud,github,nocodb,oci,system,wireguard}/` — provider-scoped
+  - `api_tokens.json` — master credentials index
+- `B0_Passwords/`, `B1_2fa/` (TOTP + recovery), `B2_Wifi/`
+- `C0_ID/`, `C1_Payment/`, `C2_Notes/`
+- `D0_bitwarden/` — exported vault
+
+**Ops**
+- Bearer tokens (interactive 2FA): `python ~/git/vault/A0_keys/providers/authelia/oauth/get_token.py`
+- Pre-signed JWTs (CI/automation): `~/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens/`
+- Local MCP `diego-personal-data` — 16 read-only tools (`vault_*`, `identity_*`, `finance_*`, `media_*`)
+- **Carve-out from Pillar 7B**: vault is the *only* repo where raw key material may be `git add`ed (private + sops-at-rest)
 
 ---
 
@@ -75,21 +175,7 @@
 
 ## A.2 Key Paths & Build
 
-| Resource | Path |
-|----------|------|
-| **Unix Repo** | `/home/diego/git/unix` |
-| **Surface Host Flake** | `unix/aa_nixos-surface_host/` |
-| **Home-Manager Desktop** | `unix/ba_flakes_desktop/` |
-| **Home-Manager Termux** | `unix/bb_flakes_termux/` |
-
-```bash
-# Rebuild NixOS system
-~/git/unix/aa_nixos-surface_host/build.sh    # Cmds: s|switch  b|boot  t|test  c|check  u|update  d|diff  i|install  build {raw|iso|qcow|vm}  burn  (no arg = TUI)
-
-# Rebuild home-manager
-~/git/unix/ba_flakes_desktop/build.sh        # Desktop
-~/git/unix/bb_flakes_termux/build.sh         # Termux
-```
+> Paths in **Repo Map → UNIX**. Engine commands: `~/git/unix/<flake>/build.sh -h` (cmds: `switch | boot | test | check | update | diff | install | build {raw|iso|qcow|vm} | burn`).
 
 **Host Configs**: `surface-plasma` (all 8 profiles + Plasma 6), `surface-gnome`, `server`, `cli`, `minimal`.
 
@@ -116,17 +202,9 @@
 # SECTION B: CLOUD INFRASTRUCTURE
 # ══════════════════════════════════════════════════════════════════════════════
 
-> **Full documentation**: See `~/git/cloud/README.md`
+> **Full documentation**: See `~/git/cloud/README.md`. Paths / role overview in **Repo Map → CLOUD**.
 
-## B.1 Repository & Resources
-
-| Resource | Path | Type |
-|----------|------|------|
-| **Cloud Repo** | `/home/diego/git/cloud` | Git Repository |
-| **Container Configs** | `/home/diego/git/cloud/a_solutions/` | Nix Flakes |
-| **Home Manager** | `/home/diego/git/cloud/b_infra/nixhm-sudo-<vm>/` | Per-VM Configs |
-
-## B.2 Virtual Machines
+## B.1 Virtual Machines
 
 <!-- INJECT:vm_table -->
 | VM | Alias | IP | WG IP | Description |
@@ -134,7 +212,7 @@
 | (cloud-data not available at build time — use `c3_topology` MCP tool) | | | | |
 <!-- /INJECT -->
 
-## B.3 Networking
+## B.2 Networking
 
 Traffic flow: **Cloudflare -> Caddy (gcp-proxy) -> WireGuard -> target VM**. Auth: Authelia 2FA (browser) or Bearer token via introspect-proxy (CLI/API).
 
@@ -142,7 +220,7 @@ Traffic flow: **Cloudflare -> Caddy (gcp-proxy) -> WireGuard -> target VM**. Aut
 SSH aliases: (generated from cloud-data at activation time).
 <!-- /INJECT -->
 
-## B.4 Active Services
+## B.3 Active Services
 
 <!-- INJECT:services_table -->
 | Service | Domain | VM | Category |
@@ -150,7 +228,7 @@ SSH aliases: (generated from cloud-data at activation time).
 | (cloud-data not available at build time — use `c3_configs` MCP tool) | | | |
 <!-- /INJECT -->
 
-## B.5 Bearer Token Auth (CLI Access)
+## B.4 Bearer Token Auth (CLI Access)
 
 ```bash
 # Get token (interactive, opens browser for 2FA)
@@ -340,16 +418,6 @@ _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
-### Build Pattern per Repository
-
-| Repo | Pattern | What build.sh does |
-|------|---------|-------------------|
-| **front/** | `build.sh` + `build.json` per project | Sass/TS/Vite/SvelteKit build, dev server, deploy to GitHub Pages |
-| **cloud/** | `build.sh` + `build.json` per service (Nix flake -> Docker Compose) | `build` generates docker-compose.yml, `ship` deploys to VM via SSH |
-| **unix/** | `build.sh` per flake (NixOS host, home-manager desktop/termux) | `switch` applies NixOS/home-manager config, `build` builds without applying |
-
-**All three repos follow the same interface**: `build.sh <command>`. NEVER bypass it with raw `npm`, `nix`, `docker-compose`, or other commands.
-
 ### GitHub Actions CI/CD (cloud/ repo)
 
 **Cloud repo has GHA workflows** in `.github/workflows/` that auto-deploy on push to `main`:
@@ -388,17 +456,22 @@ Every service in `` MUST follow this exact structure:
     └── ...          <- Service-specific source files
 ```
 
-**build.json schema** (cloud/ services):
+**build.json schema** (cloud/ services) — common fields:
 ```json
 {
   "name": "service-name",
   "description": "What this service does",
   "deploy": {
-    "host": "ssh-alias (e.g. gcp-proxy, oci-apps-1) or 'local'",
+    "host": "ssh-alias (gcp-proxy / oci-apps / oci-mail / oci-analytics) or 'local'",
     "remote_path": "/opt/containers/<service-name>"
-  }
+  },
+  "ports":   { /* port → owned_by + source mappings (Pillar 7-adjacent) */ },
+  "secrets": { "escape_dollars": true /* required for Argon2 / PBKDF2 hashes */ },
+  "backup":  { /* per-service strategy consumed by Dagu DAG */ },
+  "image":   { /* GHCR image config when service is delivered as Docker image */ }
 }
 ```
+> Authoritative: `~/git/cloud/README.md` + the live `build.json` of any reference service. Not all fields are required for every service.
 
 **build.sh pipeline steps** (same for ALL services — NEVER create custom steps):
 
@@ -414,14 +487,78 @@ Every service in `` MUST follow this exact structure:
 
 **Template reference**: `bb-sec_authelia/build.sh` — copy this for new services.
 
-**Category prefixes**: `aa-sui_` (app), `ab-mic_` (mic), `ac-fin_` (fin), `ba-clo_` (cloud), `bb-sec_` (sec), `bc-obs_` (tools), `ca-dat_` (data)
+**Category prefixes**: `aa-sui_` (app), `ab-mic_` (mic), `ac-fin_` (fin), `ad-agi_` (agi), `ba-clo_` (cloud), `bb-sec_` (sec), `bc-obs_` (tools), `ca-dat_` (data)
 
 ## E.1 Working Directory Rule
 
 **ALL Claude Code sessions MUST start from `~/.claude` directory.**
 This ensures consistent context loading and access to CLAUDE.md instructions.
 
-## E.1.2 Forbidden Commands (reinforced by hooks)
+## E.1.2 Guard-Rails (hooks)
+
+> Source: `~/git/unix/{ba_flakes_desktop,bb_flakes_termux}/src/modules/dotfiles/claude/`. Wired via `settings.json`. Deployed by home-manager to `~/.claude/hooks/`.
+
+### Hook lifecycle
+
+| Tier | Event | Script | Role |
+|------|-------|--------|------|
+| **A** | SessionStart (1×/session) | `a-context-inject-memory.sh` | Inject full CORE PRINCIPLES + checklist + forbidden patterns into session context |
+| **B** | UserPromptSubmit (every prompt) | `b-context-inject-prompt.sh` | Re-inject CORE + FIRE rules + Stack Philosophy + dead-shell recovery |
+| **C₀** | PreToolUse:Bash (every Bash call) | `c-context-inject-pretool.sh` | Compact CORE reminder via `hookSpecificOutput.additionalContext` (JSON) |
+| **C₁** | PreToolUse:Bash (every Bash call) | `c-pretool-guard-blockers.sh` | **Hard deny** — `exit 2`, tool call refused, stderr explains reason |
+| **C₂** | PreToolUse:Bash (every Bash call) | `c-pretool-guard-warning.sh` | **Advisory** — `exit 0` + stderr note, command proceeds |
+
+Commit-time defence: `1_workflows/src/hooks/pre-commit` blocks any gitignored file from being committed.
+
+### Hard blockers (Tier C₁ — `exit 2`)
+
+| # | Pattern | Reason |
+|---|---------|--------|
+| 1 | `git add -f` / `--force` | Bypasses gitignore — leaks secrets / decrypted keys / `sensitive/` |
+| 2 | `docker compose down -v\|--volumes` | Wipes named volumes (DBs) — irreversible |
+| 3 | `docker volume rm\|prune` | Irreversible per-volume deletion |
+| 4 | `docker system prune --volumes` | Same blast radius as volume prune |
+| 5 | `nix-env -i\|-iA\|--install` | Imperative profile pollution; breaks reproducibility |
+| 6 | `(echo\|printf\|tee) ... >.*\.(secrets\|env)` | **Pillar 7A** — imperative plaintext write to secret file |
+| 7 | `git add` of `.env` / `.key` / `.pem` / `.age` / `*secret*` | **Pillar 7B** — plaintext secret-shape stage. Carve-outs: inside `~/git/vault/`, or `secrets.yaml` containing sops marker (`^sops:` / `ENC[AES256_GCM`) |
+
+### Always-allow (Tier 0 — skip all warnings)
+
+Read-only introspection passes silently:
+- **npm**: `root`, `config`, `prefix`, `ls`, `view`, `info`, `show`, `search`, `help`, `doctor`, `audit`, `outdated`, `fund`, `pack`, `ping`, `whoami`, `token`, `profile`, `access`, `bugs`, `repo`, `--version`, `--help`
+- **nix**: `eval`, `show-derivation`, `path-info`, `log`, `why-depends`, `store`, `hash`, `doctor`, `registry`; `flake show/check/info/metadata`; `profile list`
+- **docker**: `ps`, `images`, `logs`, `inspect`, `top`, `stats`, `diff`, `port`, `version`, `info`, `events`, `history`, `search`; `network/volume ls/inspect`
+- **pip**: `list`, `show`, `freeze`, `check`, `config`, `--version`, `--help`
+
+### Warnings (Tier C₂ — advisory, command still runs)
+
+**Build-pipeline bypass** → use `build.sh`
+- `npm install` / `ci` / `run` / `start` / `test`, `npx`, `yarn`, `pnpm`
+- raw `nix build` / `nix run`, `nixos-rebuild`, `home-manager switch` / `build`
+- `apt install`, `brew install`, `pip install`, `conda install`
+- `docker compose up` / `down`, `docker exec`
+- `rsync --delete`
+
+**Shell antipatterns**
+- `which` → use `command -v`
+- `cd <dir> && git mv <dir>/...` → use `git -C /abs/path mv …`
+- `cd <dir> && rm -rf` → use absolute paths (kills shell if CWD removed)
+
+**SSH imperatives** — never mutate VMs by hand
+- `ssh vm '... echo/sed/tee/cat/printf ... >>?'` (write-redirect)
+- `ssh vm '... sysctl -w'`
+- `ssh vm '... docker exec'`
+- `ssh vm '... > .secrets|.env'` (remote secret-file write — **Pillar 7A**)
+
+**Secrets (Pillar 7)** — complements blockers #6 / #7
+- `sops -d` / `--decrypt` (manual decrypt outside the engine)
+- `sops -d -i` (in-place decrypt — leaves plaintext on disk, primes accidental `git add`)
+- `docker run/exec -e KEY=<long literal>` (inline credential leaks via `ps` + history)
+- `curl -H "Authorization: Bearer <literal>"` (literal token in transcript)
+- `export FOO=<long literal>` (hardcoded credential in env)
+- `cat` / `less` / `bat` / `head` / `tail` of `.secrets` / `.env` / `.key` / `.pem` / `.age`
+
+### Quick-reference forbidden patterns
 
 | NEVER | ALWAYS |
 |-------|--------|
@@ -431,12 +568,11 @@ This ensures consistent context loading and access to CLAUDE.md instructions.
 | `docker compose up` on VM | `build.sh compose` |
 | `which cmd` | `command -v cmd` |
 | Edit `dist/` files | Edit `src/` + `build.sh build` |
-| Edit `~/.claude/CLAUDE.md` | Edit source in `~/git/unix/` flakes |
+| Edit `~/.claude/CLAUDE.md` | Edit source in `~/git/unix/{ba_flakes_desktop,bb_flakes_termux}/.../CLAUDE.md.tpl` |
 | `cd dir && git mv dir/...` | `git -C /abs/path mv ...` (absolute paths) |
-| **`git add -f` / `git add --force`** | **plain `git add` — NEVER bypass gitignore. `-f` force-stages secrets, decrypted keys, sensitive/ — gitignore exists for a reason.** |
-
-Enforced by: `claude-memory.sh` (SessionStart), `declarative-guard.sh` (per-prompt), `pretool-guard.sh` (pre-tool-use warn).
-Commit-time defence: `1_workflows/src/hooks/pre-commit` **blocks** any gitignored file from being committed.
+| **`git add -f` / `git add --force`** | **plain `git add` — NEVER bypass gitignore.** |
+| **Hardcoded secret in source** | **`src/secrets.yaml` + sops + `build.sh secrets` (Pillar 7A)** |
+| **`git add` of `.env` / `.key` / `.pem` / `.age` / `*secret*` / plaintext `secrets.yaml`** | **Encrypt first; raw key material lives only in `~/git/vault` (Pillar 7B)** |
 
 ## E.2 Dependency Verification (CRITICAL)
 
@@ -457,24 +593,51 @@ rpm -qR <package>           # RPM-based
 
 **NEVER remove a feature because dependencies are missing - FIX THE DEPENDENCIES.**
 
+## E.3 Operational Gotchas
+
+> Hard-won lessons. Surfaced from auto-memory so each new session inherits them — don't re-discover.
+
+### Secrets pipeline
+- **`escape_dollars: true`** in `build.json` for any service whose `.secrets` values contain `$` (Argon2 / PBKDF2 hashes, user passwords). Without it, docker-compose `env_file` interprets `$` as variable refs and silently mangles values. Engine doubles `$` → `$$`; compose unwraps back.
+- **Use `awk`, never `sed`**, when substituting secret values that contain `$`. `sed` interprets `$` in replacement strings as backreferences and silently corrupts hashes. Pattern: `awk -v pat="..." -v rep="$val" '{ ...index()... }'`.
+- **Authelia 4.38+ OIDC `client_secret`** must be a proper password digest (`$pbkdf2-sha512$…`), not a plain hex hash. NEVER pin `authelia:latest` — pin `4.39.x` or specific.
+- **PBKDF2 (Authelia)**: `docker run --rm authelia/authelia:4.39.15 authelia crypto hash generate pbkdf2 --password 'SECRET'`.
+- **Argon2 (Vaultwarden)**: `vaultwarden hash` requires a real TTY. Workaround: `nix-shell -p libargon2 openssl --run 'echo -n "PASS" | argon2 "$(openssl rand -base64 16)" -id -m 16 -t 3 -p 4 -l 32 -e'`.
+- **SOPS key precedence**: container entrypoints must prefer mounted RO `keys.txt` over an env-var write — otherwise CI jobs fail with "Read-only file system".
+
+### Docker / VMs
+- **Never run manual `docker compose` on E2 Micro VMs** (1GB) — concurrent compose ops freeze the kernel. Use `build.sh ship` (sequential).
+- **Never run `nix eval` / `home-manager switch` on 1GB VMs** — they OOM. HM uses Docker image delivery (GHCR push → VM pulls + activates).
+- **Slow VMs are collect-only** — no `docker cp`, YARA, `exec`, `tar`, or agents at scan time. Treat as read-only data stores.
+- **Caddy fallback uses raw WireGuard IPs** (cloud-data uses `.app` names with wildcard → self; the fallback file is plain IPs). Don't "fix" the apparent inconsistency — it's intentional.
+- **Caddy wormhole returns HTTP 200** on missing routes (global fallback HTML). Always inspect the response *body*, not status code, on `*.diegonmarcos.com` health checks.
+
+### Shell / git
+- **CWD deleted by `git mv` / `rm -rf`** kills the shell — Bash silently exits 1 on every command. Recovery: `Write` tool or `mkdir -p <deleted-path>` to restore CWD as a string reference. Then use absolute paths.
+- **`echo "$VAR" | while read`** runs the loop in a subshell — variables don't propagate. Use `mapfile` + `for` instead.
+- **`local`** only works inside functions, not loop bodies.
+- **Submodules are read-only from parent** — never stage / commit submodule pins or edits from the parent repo. If dirty: `cd submodule && git nuke` (fetch + reset --hard origin + clean -fdx).
+- **Always edit the source clone**, not the submodule path: edit `~/git/tools/` (not `~/git/cloud/tools/`); edit `~/git/I_cloud-data/` (not `~/git/cloud/I_cloud-data/`).
+- **`cp` is interactive on this system** (alias). Use `command cp -f` to bypass.
+
+### NixOS / home-manager / Plasma
+- **plasma-manager `configFile` escapes `]` `[`** in section names → broken `\x5d\x5b` headers. Use `kwriteconfig6` in `home.activation` for hierarchical KDE INI groups.
+- **PHP-FPM multiple instances**: each needs its own main config with `[global]` + separate `pid`. Pool files in `pool.d/` are for a single FPM loading multiple pools.
+- **Two host-network php-fpm services collide on :9000**. Use unix socket via `zzz-*.conf` override.
+- **Debian Bookworm**: PHP 8.2 native (`php8.2-fpm`); `php8.2-maxminddb` not in repos — install via PECL.
+
+### Workflows / data-driven
+- **Dagu `command: >-` (folded scalar)** is exec'd directly without a shell — `$VAR` becomes a literal `${VAR}`. Always use `command: |` for shell expansion.
+- **No `fetch('foo.json')` in front projects** — read `globalThis.PORTAL_DATA[key]` from `data-<key>.json.js`. CORS-safe + works under `file://`.
+- **Search ALL sections** when querying JSON data — never cherry-pick keys.
+
 ---
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION F: OTHERS (Quick Reference)
 # ══════════════════════════════════════════════════════════════════════════════
 
-## F.1 Primary Paths
-
-| Area | Path |
-|------|------|
-| Git Root | `/home/diego/git` |
-| Front-end | `/home/diego/git/front` |
-| Cloud Backend | `/home/diego/git/cloud` |
-| Unix/NixOS | `/home/diego/git/unix` |
-| Security Vault | `/home/diego/git/vault` |
-| Tools | `/home/diego/git/tools` |
-
-## F.1.1 Repo directory trees (auto-generated, dirs only, depth 4)
+## F.1 Repo directory trees (auto-generated, dirs only, depth 4)
 
 <!-- INJECT:repo_trees -->
 (repo trees not available at build time — generated by gen-claude-md.sh from `tree -d -L 4` on each repo)
@@ -485,21 +648,30 @@ rpm -qR <package>           # RPM-based
 - **Main**: diegonmarcos.com (Cloudflare DNS)
 - **GitHub Pages**: diegonmarcos.github.io
 
-## F.3 Important Notes for Claude
+## F.3 Behavioral rules for Claude
 
-1. **Read specs first**: Before modifying any project, read the relevant spec files
-2. **Follow code practices**: TypeScript strict mode, Svelte 5 runes, Vue 3 composition API
-3. **Build system**: Use `build.sh` scripts, not manual npm commands
-4. **Sensitive data**: vault contains credentials - never expose or commit
-5. **Analytics**: All web projects must include Matomo tracking
-6. **Ports**: Dev servers have assigned ports (8000-8022) - don't conflict
-7. **cloud-data**: Source of truth for cloud infrastructure (auto-injected into this file)
+> Conventions reinforced across sessions. Code-derivable rules live in the relevant section; this list captures meta-rules about *how to operate*.
+
+1. **"Explain" / "how does it work" / "what is" are READ-ONLY.** Describe; do not edit, refactor, or "improve" while explaining. Opinions ≠ orders.
+2. **No unnecessary deploys.** Never `ship` a service that isn't explicitly in scope — causes container conflicts and downtime.
+3. **Profile ≠ fallback.** Deployment profiles (`CLOUD_PROFILE=<name> build.sh profile-ship`) are a generic topology system. Never frame as DR / fallback / "backup VM".
+4. **Read specs first.** Before modifying any project, read its `README.md` / `1.ops/` spec / `build.json`.
+5. **`cloud-data` is the source of truth** for cloud infrastructure (auto-injected into B.1 / B.3).
+6. **Search ALL keys** when querying JSON data — never cherry-pick a section.
+7. **After source edits → `build.sh build`** automatically. Never `dev` / `serve` unless the user explicitly asks.
 
 ---
 
 # ████████████████████████████████████████████████████████████████████████████
 #                           SKILLS & MCPs
 # ████████████████████████████████████████████████████████████████████████████
+
+> **READ vs EXEC split** — three MCPs, three roles:
+> - **`code-graph-context`** (stdio) — *READ* layer: infra knowledge graph, semantic code search, docs
+> - **`diego-personal-data`** (stdio) — *READ* layer (local): vault, identity, finance, media
+> - **`cloud-infra`** (stdio + HTTP) — *EXEC* layer: Chef (SSH/Docker/build) + Waiter (C3 API health/control)
+>
+> Companion: `c3-services-api` (REST + OpenAPI consolidation) and `c3-services-mcp` (MCP tools) are dual-hub — `shared/` must be independent, not symlinked.
 
 ## MCP: code-graph-context (stdio, knowledge graph + infra)
 

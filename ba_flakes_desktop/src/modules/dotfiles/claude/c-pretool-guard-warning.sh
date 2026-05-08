@@ -166,6 +166,49 @@ if echo "$CMD" | grep -qE 'ssh\s+\S+\s+.*\bdocker\s+exec'; then
     warn "docker exec on remote VMs is forbidden" "docker logs via SSH for read-only inspection"
 fi
 
+# ── 7: SECRETS — advisory layer (block tier covers git add + imperative writes) ──
+
+# Manual sops decrypt (any form) bypasses the engine
+if echo "$CMD" | grep -qE '(^|\s|;|&&|\|)\s*sops\s+(-d|--decrypt)\b'; then
+    warn "manual sops decrypt bypasses the engine" "build.sh secrets"
+fi
+
+# In-place sops decrypt leaves secrets.yaml PLAINTEXT in working tree
+if echo "$CMD" | grep -qE '\bsops\s+(-d|--decrypt)\s+(\S+\s+)*-i\b|\bsops\s+-d\s+-i\b|\bsops\s+-i\s+-d\b'; then
+    warn "sops -d -i leaves secrets.yaml plaintext on disk — easy accidental git add" \
+         "decrypt to stdout (sops -d file | …) or use build.sh secrets"
+fi
+
+# SSH write-redirect into a VM secret file
+if echo "$CMD" | grep -qE 'ssh\s+\S+.*\.(secrets|env)\b.*>'; then
+    warn "SSH write-redirect into a VM secret file bypasses sops" \
+         "src/secrets.yaml on host + build.sh ship"
+fi
+
+# docker -e with literal long credential value
+if echo "$CMD" | grep -qE 'docker\s+(run|exec)\s+.*-e\s+[A-Z_]+=[A-Za-z0-9+/=._-]{16,}'; then
+    warn "docker -e with literal credential value — leaks via shell history + ps" \
+         "--env-file dist/.secrets (or compose env_file:)"
+fi
+
+# curl with literal Bearer/Basic/long auth header
+if echo "$CMD" | grep -qE 'curl\s+.*-H\s+["'\''](Authorization|X-API-Key|X-Auth-Token):\s*(Bearer\s+)?[A-Za-z0-9+/=._-]{16,}'; then
+    warn "curl with literal token in Authorization header — leaks via history + transcript" \
+         'use $TOKEN sourced from dist/.secrets'
+fi
+
+# export FOO=<long literal> looks like a hardcoded credential
+if echo "$CMD" | grep -qE '(^|\s|;|&&)\s*export\s+[A-Z][A-Z0-9_]*=[A-Za-z0-9+/=._-]{20,}'; then
+    warn "export with long literal value looks like a hardcoded credential" \
+         "source dist/.secrets instead"
+fi
+
+# cat / less / bat on a known secret file leaks to transcript
+if echo "$CMD" | grep -qE '(^|\s|;|&&|\|)\s*(cat|less|bat|head|tail)\s+[^|;]*(\.secrets\b|/\.env\b|\.key\b|\.pem\b|\.age\b)'; then
+    warn "printing secret file to terminal leaks credentials into transcript/cache" \
+         'sops --extract for one key, or pipe into a process: source dist/.secrets'
+fi
+
 # ════════════════════════════════════════════════════════════════════════════
 # DEFAULT: ALLOW — command passed all advisory checks
 # ════════════════════════════════════════════════════════════════════════════
