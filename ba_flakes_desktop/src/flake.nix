@@ -154,6 +154,7 @@
         ./modules/rust-cargo-deps.nix
         ./modules/cloud.nix
         ./modules/cloud-network-wg-dns.nix
+        ./modules/cloud-network-wg-public.nix
         ./modules/wireguard-wstunnel.nix
         ./modules/front.nix
       ];
