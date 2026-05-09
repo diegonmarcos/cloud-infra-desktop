@@ -37751,3 +37751,113 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-05-09 18:55:45] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-05-09 18:55:46] PERF: start switch
 [2026-05-09 18:55:46] INFO: Staging dirty files for flake evaluation...
+[2026-05-09 18:55:46] PERF: git stage = 156ms
+[2026-05-09 18:55:46] PERF: clean stale hm-backups = 296ms
+[2026-05-09 18:55:46] INFO: Applying Home Manager configuration...
+[2026-05-09 18:55:46] INFO: home-manager backup extension: hm-backup-20260509-185546
+copying path '/nix/store/0yj36irhwn225ywy1saz0gf5wr2ciz50-source' from 'https://cache.nixos.org'...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+copying path '/nix/store/kn3m407mn5p4dyjb96z12daanqjaqmzc-source' from 'https://cache.nixos.org'...
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 5 derivations will be built:
+  /nix/store/4yqxxz1v0jk71pdmp8d7vbwc1q3ynifp-ff_native-messaging-hosts.drv
+  /nix/store/aghv70pbv2a6gi72w1g3qcy5iqil6n7k-hm_qutebrowserconfig.py.drv
+  /nix/store/5gzksljcvf8rdz6h891h3dbkc0jvd14x-home-manager-files.drv
+  /nix/store/byrfn4dwl9g4n90y2b3zvrzbav428kj3-activation-script.drv
+  /nix/store/j72n70wwayz1v66qcayp3jas86fjpm44-home-manager-generation.drv
+these 5 paths will be fetched (0.68 MiB download, 9.98 MiB unpacked):
+  /nix/store/plpc13r351l9bn13c03yvzd4q9kr5rcy-file-5.45
+  /nix/store/zszv0wwyyb5pqfibp9avrmgs4lfphkmn-gnu-config-2024-01-01
+  /nix/store/0xx06whymh7q41z839xvign6pblmb1x0-gnumake-4.4.1
+  /nix/store/4mmdi8a6znw6qkf2gayg0iqig708pc3b-stdenv-linux
+  /nix/store/64683f927q2mhyrwn0z34zysjq0j2gqh-update-autotools-gnu-config-scripts-hook
+copying path '/nix/store/zszv0wwyyb5pqfibp9avrmgs4lfphkmn-gnu-config-2024-01-01' from 'https://cache.nixos.org'...
+copying path '/nix/store/plpc13r351l9bn13c03yvzd4q9kr5rcy-file-5.45' from 'https://cache.nixos.org'...
+copying path '/nix/store/0xx06whymh7q41z839xvign6pblmb1x0-gnumake-4.4.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/64683f927q2mhyrwn0z34zysjq0j2gqh-update-autotools-gnu-config-scripts-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/4mmdi8a6znw6qkf2gayg0iqig708pc3b-stdenv-linux' from 'https://cache.nixos.org'...
+building '/nix/store/4yqxxz1v0jk71pdmp8d7vbwc1q3ynifp-ff_native-messaging-hosts.drv'...
+building '/nix/store/aghv70pbv2a6gi72w1g3qcy5iqil6n7k-hm_qutebrowserconfig.py.drv'...
+building '/nix/store/byrfn4dwl9g4n90y2b3zvrzbav428kj3-activation-script.drv'...
+building '/nix/store/5gzksljcvf8rdz6h891h3dbkc0jvd14x-home-manager-files.drv'...
+building '/nix/store/j72n70wwayz1v66qcayp3jas86fjpm44-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 387
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+/home/diego/.claude/gen-claude-md.sh: line 72: awk: command not found
+[gen-claude-md] WARNING: generation failed, template used as fallback
+Activating globalTsx
+
+changed 5 packages in 2s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.138 is up to date
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.86TzJ7eGjr/generation/activate: line 823: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating installWg0TcpConf
+[wireguard-wstunnel] rendered /home/diego/.config/wireguard/wg0-tcp.conf (Endpoint=127.0.0.1:51821)
+[wireguard-wstunnel] NetworkManager profile 'wg0-tcp' already present — skipping import
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-05-09 18:58:11] PERF: home-manager switch = 2m 25s
+[2026-05-09 18:58:11] PERF: TOTAL switch = 2m 25s
+[2026-05-09 18:58:11] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-05-09 18:58:11] ========== Build script finished ==========
+[2026-05-09 19:10:07] ========== Build script started ==========
+[2026-05-09 19:10:07] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-05-09 19:10:07] PERF: start switch
+[2026-05-09 19:10:07] INFO: Staging dirty files for flake evaluation...
