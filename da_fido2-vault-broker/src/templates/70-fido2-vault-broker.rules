@@ -1,15 +1,19 @@
-# udev rule for fido2-vault-broker
+# udev rules for fido2-vault-broker.
 #
-# Grant non-root users in `uhid` group read/write on /dev/uhid so the
-# daemon can register a virtual FIDO2 authenticator without sudo.
+# Two devices the daemon needs:
+#   1. /dev/uhid  — virtual FIDO2 HID device (registered by the daemon).
+#   2. /dev/tpmrm0 — TPM2 resource manager (used to seal/unseal the master
+#      vault password under PCR-bound policy when `--features tpm` is on).
 #
-# Installed by `build.sh deploy` into /etc/udev/rules.d/.
-# After install: `sudo udevadm control --reload && sudo udevadm trigger`
-# Operator must also be in the `uhid` group:
-#   sudo groupadd -f uhid
-#   sudo usermod -aG uhid $USER && newgrp uhid
+# tpm2-tss does NOT ship its own udev rules and NixOS `security.tpm2.enable`
+# only creates the `tss` group without granting group access — without this
+# rule, /dev/tpmrm0 stays root-only and the daemon falls back to the mock
+# AES-GCM seal backend (PoC-only). With this rule + group membership, the
+# real TPM2 path activates.
 #
-# /dev/tpmrm0 ownership is handled separately by tpm2-tss's own rules
-# (group `tss`); add yourself there too to enable `--features tpm`.
+# This file is packaged into the derivation by flake.nix postInstall and
+# installed automatically by `services.udev.packages = [ cfg.package ]`.
 
-KERNEL=="uhid", GROUP="uhid", MODE="0660", TAG+="uaccess"
+KERNEL=="uhid",   GROUP="uhid", MODE="0660", TAG+="uaccess"
+KERNEL=="tpm0",   GROUP="tss",  MODE="0660"
+KERNEL=="tpmrm0", GROUP="tss",  MODE="0660"
