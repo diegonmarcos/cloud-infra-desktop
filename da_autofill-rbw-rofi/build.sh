@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# da_browser-rbw-rofi — build engine
+# da_autofill-rbw-rofi — build engine
 #
 # Usage:
 #   ./build.sh build      # cargo build --release inside nix dev shell

@@ -49,7 +49,7 @@ fn default_totp_clip_secs() -> u64 {
     20
 }
 fn default_slow_env() -> String {
-    "DA_BROWSER_RBW_ROFI_SLOW".into()
+    "DA_AUTOFILL_RBW_ROFI_SLOW".into()
 }
 fn default_slow_delay() -> u64 {
     8
@@ -80,7 +80,7 @@ impl Config {
     /// back to a list of well-known install locations.
     pub fn load() -> Result<Self> {
         let path = Self::locate()
-            .context("could not locate build.json (set DA_BROWSER_RBW_ROFI_CONFIG to override)")?;
+            .context("could not locate build.json (set DA_AUTOFILL_RBW_ROFI_CONFIG to override)")?;
         Self::load_from(&path)
     }
 
@@ -93,7 +93,7 @@ impl Config {
     }
 
     fn locate() -> Result<PathBuf> {
-        if let Ok(p) = std::env::var("DA_BROWSER_RBW_ROFI_CONFIG") {
+        if let Ok(p) = std::env::var("DA_AUTOFILL_RBW_ROFI_CONFIG") {
             return Ok(PathBuf::from(p));
         }
         // Walk up from CWD looking for build.json
@@ -117,15 +117,15 @@ impl Config {
                 cur = dir.parent();
             }
         }
-        // Common install location: $XDG_CONFIG_HOME/da_browser-rbw-rofi/build.json
+        // Common install location: $XDG_CONFIG_HOME/da_autofill-rbw-rofi/build.json
         if let Some(cfg_dir) = std::env::var_os("XDG_CONFIG_HOME") {
-            let p = PathBuf::from(cfg_dir).join("da_browser-rbw-rofi/build.json");
+            let p = PathBuf::from(cfg_dir).join("da_autofill-rbw-rofi/build.json");
             if p.exists() {
                 return Ok(p);
             }
         }
         if let Some(home) = std::env::var_os("HOME") {
-            let p = PathBuf::from(home).join(".config/da_browser-rbw-rofi/build.json");
+            let p = PathBuf::from(home).join(".config/da_autofill-rbw-rofi/build.json");
             if p.exists() {
                 return Ok(p);
             }

@@ -13,7 +13,7 @@
 //! Inter-key delay
 //! ---------------
 //! If the env var named by `TyperOpts::slow_env_var` (default
-//! `DA_BROWSER_RBW_ROFI_SLOW`) is set to `"1"`, an inter-key delay flag is
+//! `DA_AUTOFILL_RBW_ROFI_SLOW`) is set to `"1"`, an inter-key delay flag is
 //! added (`-d <ms>` for `wtype`, `--delay <ms>` for `xdotool`). Both name
 //! and ms come from `build.json` via `TyperOpts`.
 //!
@@ -38,7 +38,7 @@ use crate::env::Display;
 #[derive(Debug, Clone)]
 pub struct TyperOpts {
     /// Env var name that, when set to "1", enables slow typing. Default in
-    /// build.json: `DA_BROWSER_RBW_ROFI_SLOW`.
+    /// build.json: `DA_AUTOFILL_RBW_ROFI_SLOW`.
     pub slow_env_var: String,
     /// Inter-key delay in ms when slow typing is on.
     pub slow_delay_ms: u64,
@@ -152,7 +152,7 @@ mod tests {
     /// slow mode just `remove_var` it before running.
     fn opts() -> TyperOpts {
         TyperOpts {
-            slow_env_var: "DA_BROWSER_RBW_ROFI_SLOW".into(),
+            slow_env_var: "DA_AUTOFILL_RBW_ROFI_SLOW".into(),
             slow_delay_ms: 5,
         }
     }
