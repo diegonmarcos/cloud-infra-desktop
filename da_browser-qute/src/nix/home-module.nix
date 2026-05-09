@@ -26,12 +26,15 @@ let
   keyBindings     = builtins.fromJSON (builtins.readFile "${configsDir}/qute-keybindings.json");
   quickmarks      = builtins.fromJSON (builtins.readFile "${configsDir}/qute-bookmarks.json");
 
-  # Strip "_description" / "_comment*" keys recursively before passing to
-  # qutebrowser — they are docs in the JSON, not real settings.
+  # Strip ANY leading-underscore key recursively before passing to
+  # qutebrowser — by convention every doc/annotation field in our JSON
+  # configs starts with "_" (e.g. _description, _comment, _method_options,
+  # _flake_modules_dir_note). qutebrowser would otherwise reject them as
+  # unknown settings.
   stripDocs = v:
     if builtins.isAttrs v then
       lib.mapAttrs (_: stripDocs) (lib.filterAttrs
-        (n: _: ! (lib.hasPrefix "_description" n || lib.hasPrefix "_comment" n))
+        (n: _: ! (lib.hasPrefix "_" n))
         v)
     else if builtins.isList v then map stripDocs v
     else v;
