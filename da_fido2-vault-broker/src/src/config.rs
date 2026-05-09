@@ -35,6 +35,14 @@ pub struct Config {
     #[serde(default = "default_sealed_path")]
     pub sealed_path: PathBuf,
 
+    /// TPM-sealed master password blob path —
+    /// default `$XDG_DATA_HOME/fido2-vault-broker/master.tpm-sealed`.
+    /// Created by `build.sh seal-master`. When this file exists the daemon
+    /// unseals it via `tpm_seal::unseal_from_path` and the operator never
+    /// has to set `FVB_MASTER_PASSWORD` in the environment.
+    #[serde(default = "default_master_blob_path")]
+    pub master_blob_path: PathBuf,
+
     /// `/dev/uhid` path. Override only for tests.
     #[serde(default = "default_uhid_path")]
     pub uhid_path: PathBuf,
@@ -54,6 +62,14 @@ fn default_sealed_path() -> PathBuf {
     }
 }
 
+fn default_master_blob_path() -> PathBuf {
+    if let Some(dirs) = ProjectDirs::from(XDG_QUALIFIER, XDG_ORGANIZATION, XDG_APPLICATION) {
+        dirs.data_dir().join("master.tpm-sealed")
+    } else {
+        PathBuf::from("/tmp/fido2-vault-broker-master.tpm-sealed")
+    }
+}
+
 fn default_uhid_path() -> PathBuf {
     PathBuf::from("/dev/uhid")
 }
@@ -64,6 +80,7 @@ impl Default for Config {
             vault_endpoint: default_endpoint(),
             vault_email: String::new(),
             sealed_path: default_sealed_path(),
+            master_blob_path: default_master_blob_path(),
             uhid_path: default_uhid_path(),
         }
     }

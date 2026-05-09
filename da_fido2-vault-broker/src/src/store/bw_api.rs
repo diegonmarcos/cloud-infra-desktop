@@ -34,11 +34,12 @@
 #![allow(clippy::too_many_lines)]
 
 use crate::error::{BrokerError, Result};
+use async_trait::async_trait;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine as _;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::sync::Arc;
 use zeroize::{Zeroize, Zeroizing};
 
 // ─── Constants ─────────────────────────────────────────────────────────
@@ -87,11 +88,169 @@ pub struct PasskeyCipher {
     pub discoverable: bool,
 }
 
+/// HTTP transport abstraction. Production uses [`ReqwestTransport`] (which
+/// wraps a real `reqwest::Client`); tests can substitute a recording mock so
+/// they never hit a real Vaultwarden. The trait surface is intentionally
+/// minimal: just the verbs we actually use.
+#[async_trait]
+pub trait HttpTransport: Send + Sync {
+    /// `POST <url>` with `application/json` body.
+    async fn post_json(&self, url: &str, body: serde_json::Value) -> Result<HttpReply>;
+    /// `POST <url>` with `application/x-www-form-urlencoded` body.
+    async fn post_form(&self, url: &str, form: &[(&str, &str)]) -> Result<HttpReply>;
+    /// `GET <url>` with optional `Authorization: Bearer <token>`.
+    async fn get_bearer(&self, url: &str, bearer: Option<&str>) -> Result<HttpReply>;
+    /// `POST <url>` with JSON body and `Authorization: Bearer <token>`.
+    async fn post_json_bearer(
+        &self,
+        url: &str,
+        body: serde_json::Value,
+        bearer: &str,
+    ) -> Result<HttpReply>;
+    /// `PUT <url>` with JSON body and `Authorization: Bearer <token>`.
+    async fn put_json_bearer(
+        &self,
+        url: &str,
+        body: serde_json::Value,
+        bearer: &str,
+    ) -> Result<HttpReply>;
+}
+
+/// Generic HTTP response: status + body text.
+#[derive(Debug, Clone)]
+pub struct HttpReply {
+    pub status: u16,
+    pub body: String,
+}
+
+impl HttpReply {
+    pub fn is_success(&self) -> bool {
+        (200..300).contains(&self.status)
+    }
+}
+
+/// `reqwest`-backed implementation of [`HttpTransport`].
+pub struct ReqwestTransport {
+    http: reqwest::Client,
+}
+
+impl ReqwestTransport {
+    pub fn new() -> Self {
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(HTTP_TIMEOUT_SECS))
+            .build()
+            .expect("reqwest client builder cannot fail with these options");
+        Self { http }
+    }
+}
+
+impl Default for ReqwestTransport {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl HttpTransport for ReqwestTransport {
+    async fn post_json(&self, url: &str, body: serde_json::Value) -> Result<HttpReply> {
+        let resp = self
+            .http
+            .post(url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| BrokerError::VaultHttp(format!("POST {url}: {e}")))?;
+        let status = resp.status().as_u16();
+        let body = resp
+            .text()
+            .await
+            .map_err(|e| BrokerError::VaultHttp(format!("read body {url}: {e}")))?;
+        Ok(HttpReply { status, body })
+    }
+
+    async fn post_form(&self, url: &str, form: &[(&str, &str)]) -> Result<HttpReply> {
+        let resp = self
+            .http
+            .post(url)
+            .form(form)
+            .send()
+            .await
+            .map_err(|e| BrokerError::VaultHttp(format!("POST(form) {url}: {e}")))?;
+        let status = resp.status().as_u16();
+        let body = resp
+            .text()
+            .await
+            .map_err(|e| BrokerError::VaultHttp(format!("read body {url}: {e}")))?;
+        Ok(HttpReply { status, body })
+    }
+
+    async fn get_bearer(&self, url: &str, bearer: Option<&str>) -> Result<HttpReply> {
+        let mut req = self.http.get(url);
+        if let Some(t) = bearer {
+            req = req.bearer_auth(t);
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| BrokerError::VaultHttp(format!("GET {url}: {e}")))?;
+        let status = resp.status().as_u16();
+        let body = resp
+            .text()
+            .await
+            .map_err(|e| BrokerError::VaultHttp(format!("read body {url}: {e}")))?;
+        Ok(HttpReply { status, body })
+    }
+
+    async fn post_json_bearer(
+        &self,
+        url: &str,
+        body: serde_json::Value,
+        bearer: &str,
+    ) -> Result<HttpReply> {
+        let resp = self
+            .http
+            .post(url)
+            .bearer_auth(bearer)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| BrokerError::VaultHttp(format!("POST(bearer) {url}: {e}")))?;
+        let status = resp.status().as_u16();
+        let body = resp
+            .text()
+            .await
+            .map_err(|e| BrokerError::VaultHttp(format!("read body {url}: {e}")))?;
+        Ok(HttpReply { status, body })
+    }
+
+    async fn put_json_bearer(
+        &self,
+        url: &str,
+        body: serde_json::Value,
+        bearer: &str,
+    ) -> Result<HttpReply> {
+        let resp = self
+            .http
+            .put(url)
+            .bearer_auth(bearer)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| BrokerError::VaultHttp(format!("PUT(bearer) {url}: {e}")))?;
+        let status = resp.status().as_u16();
+        let body = resp
+            .text()
+            .await
+            .map_err(|e| BrokerError::VaultHttp(format!("read body {url}: {e}")))?;
+        Ok(HttpReply { status, body })
+    }
+}
+
 /// Bitwarden-API client.
 pub struct BwClient {
     endpoint: String,
     email: String,
-    http: reqwest::Client,
+    http: Arc<dyn HttpTransport>,
 
     // Populated by `login()`.
     access_token: Option<SecretString>,
@@ -101,12 +260,15 @@ pub struct BwClient {
 }
 
 impl BwClient {
-    /// Build a client. Does not perform any network I/O.
+    /// Build a client backed by the production `reqwest` transport. Does not
+    /// perform any network I/O.
     pub fn new(endpoint: &str, email: &str) -> Self {
-        let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(HTTP_TIMEOUT_SECS))
-            .build()
-            .expect("reqwest client builder cannot fail with these options");
+        Self::with_transport(endpoint, email, Arc::new(ReqwestTransport::new()))
+    }
+
+    /// Build a client with a caller-supplied transport (used by tests to
+    /// substitute a recording mock).
+    pub fn with_transport(endpoint: &str, email: &str, http: Arc<dyn HttpTransport>) -> Self {
         Self {
             endpoint: endpoint.trim_end_matches('/').to_string(),
             email: email.to_lowercase(),
@@ -115,6 +277,16 @@ impl BwClient {
             refresh_token: None,
             user_key: None,
         }
+    }
+
+    /// Test-only helper: stuff a synthetic auth + key state into the client
+    /// without going through `login()`. The 64-byte `user_key` MUST be
+    /// `STRETCHED_KEY_LEN` bytes (enc[32] || mac[32]).
+    #[cfg(test)]
+    pub(crate) fn inject_session(&mut self, access_token: &str, user_key64: Vec<u8>) {
+        assert_eq!(user_key64.len(), STRETCHED_KEY_LEN);
+        self.access_token = Some(SecretString::new(access_token.into()));
+        self.user_key = Some(SecretBytes::new(user_key64));
     }
 
     /// Authenticate against the vault and unwrap the user key.
@@ -158,30 +330,22 @@ impl BwClient {
             .to_string();
 
         let url = format!("{}/identity/connect/token", self.endpoint);
-        let mut form: HashMap<&str, &str> = HashMap::new();
-        form.insert("grant_type", "refresh_token");
-        form.insert("refresh_token", &refresh);
-        form.insert("client_id", CLIENT_ID);
+        let form: Vec<(&str, &str)> = vec![
+            ("grant_type", "refresh_token"),
+            ("refresh_token", &refresh),
+            ("client_id", CLIENT_ID),
+        ];
 
-        let resp = self
-            .http
-            .post(&url)
-            .form(&form)
-            .send()
-            .await
-            .map_err(|e| BrokerError::VaultHttp(format!("connect/token (refresh): {e}")))?;
-        let status = resp.status();
-        let body = resp
-            .text()
-            .await
-            .map_err(|e| BrokerError::VaultHttp(format!("read refresh body: {e}")))?;
-        if !status.is_success() {
+        let reply = self.http.post_form(&url, &form).await?;
+        if !reply.is_success() {
             return Err(BrokerError::VaultAuth(format!(
-                "connect/token refresh failed: HTTP {status}: {body}"
+                "connect/token refresh failed: HTTP {}: {}",
+                reply.status, reply.body
             )));
         }
-        let parsed: RefreshResponse = serde_json::from_str(&body)
-            .map_err(|e| BrokerError::VaultDecode(format!("refresh response: {e}: {body}")))?;
+        let parsed: RefreshResponse = serde_json::from_str(&reply.body).map_err(|e| {
+            BrokerError::VaultDecode(format!("refresh response: {e}: {}", reply.body))
+        })?;
         self.access_token = Some(SecretString::new(parsed.access_token));
         if let Some(rt) = parsed.refresh_token {
             self.refresh_token = Some(SecretString::new(rt));
@@ -205,24 +369,14 @@ impl BwClient {
             .to_vec();
 
         let url = format!("{}/api/sync", self.endpoint);
-        let resp = self
-            .http
-            .get(&url)
-            .bearer_auth(&token)
-            .send()
-            .await
-            .map_err(|e| BrokerError::VaultHttp(format!("GET /api/sync: {e}")))?;
-        let status = resp.status();
-        let body = resp
-            .text()
-            .await
-            .map_err(|e| BrokerError::VaultHttp(format!("read sync body: {e}")))?;
-        if !status.is_success() {
+        let reply = self.http.get_bearer(&url, Some(&token)).await?;
+        if !reply.is_success() {
             return Err(BrokerError::Vault(format!(
-                "sync failed: HTTP {status}: {body}"
+                "sync failed: HTTP {}: {}",
+                reply.status, reply.body
             )));
         }
-        let sync: SyncResponse = serde_json::from_str(&body)
+        let sync: SyncResponse = serde_json::from_str(&reply.body)
             .map_err(|e| BrokerError::VaultDecode(format!("sync response: {e}")))?;
 
         let mut out = Vec::new();
@@ -278,29 +432,194 @@ impl BwClient {
         }
     }
 
+    /// Push a freshly-registered passkey into Vaultwarden so it survives
+    /// daemon restart. Posts to `/api/ciphers` with a Login-typed cipher
+    /// (`type=1`) carrying a single `fido2Credentials` entry. Every
+    /// user-visible field is encrypted under the user key as a
+    /// CipherString-2; binary fields (`credentialId`, `userHandle`,
+    /// `keyValue`) are base64url-encoded first per Vaultwarden's wire shape.
+    /// Returns the cipher ID assigned by the server.
+    pub async fn create_passkey_cipher(&mut self, cred: &PasskeyCipher) -> Result<String> {
+        let token = self
+            .access_token
+            .as_ref()
+            .ok_or_else(|| BrokerError::VaultAuth("not logged in".into()))?
+            .expose_secret()
+            .to_string();
+        let user_key = self
+            .user_key
+            .as_ref()
+            .ok_or_else(|| BrokerError::VaultAuth("user key missing".into()))?
+            .as_slice()
+            .to_vec();
+
+        // Bitwarden serialises credentialId / userHandle / keyValue as
+        // base64-url-no-pad strings *inside* the CipherString plaintext.
+        use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+        let cred_id_b64 = URL_SAFE_NO_PAD.encode(&cred.credential_id);
+        let user_handle_b64 = URL_SAFE_NO_PAD.encode(&cred.user_handle);
+        let key_value_b64 = URL_SAFE_NO_PAD.encode(cred.private_key_pkcs8.as_slice());
+
+        // Encrypt every field under the user key (we don't issue a
+        // per-cipher key — server will accept this for new ciphers).
+        let enc = |s: &str| encrypt_text(s, &user_key);
+        let name_enc = enc(cred.user_name.as_deref().unwrap_or("Passkey"))?;
+        let cred_id_enc = enc(&cred_id_b64)?;
+        let user_handle_enc = enc(&user_handle_b64)?;
+        let key_value_enc = enc(&key_value_b64)?;
+        let key_type_enc = enc("public-key")?;
+        let key_alg_enc = enc(&cred.key_algorithm)?;
+        let key_curve_enc = enc(&cred.key_curve)?;
+        let rp_id_enc = enc(&cred.rp_id)?;
+        let counter_enc = enc(&cred.counter.to_string())?;
+        let discoverable_enc = enc(if cred.discoverable { "true" } else { "false" })?;
+        let user_name_enc_opt = match cred.user_name.as_deref() {
+            Some(s) if !s.is_empty() => Some(enc(s)?),
+            _ => None,
+        };
+        let user_display_name_enc_opt = match cred.user_display_name.as_deref() {
+            Some(s) if !s.is_empty() => Some(enc(s)?),
+            _ => None,
+        };
+        let rp_name_enc_opt = match cred.rp_name.as_deref() {
+            Some(s) if !s.is_empty() => Some(enc(s)?),
+            _ => None,
+        };
+
+        let mut fido2_entry = serde_json::Map::new();
+        fido2_entry.insert(
+            "credentialId".into(),
+            serde_json::Value::String(cred_id_enc),
+        );
+        fido2_entry.insert("keyType".into(), serde_json::Value::String(key_type_enc));
+        fido2_entry.insert(
+            "keyAlgorithm".into(),
+            serde_json::Value::String(key_alg_enc),
+        );
+        fido2_entry.insert("keyCurve".into(), serde_json::Value::String(key_curve_enc));
+        fido2_entry.insert("keyValue".into(), serde_json::Value::String(key_value_enc));
+        fido2_entry.insert("rpId".into(), serde_json::Value::String(rp_id_enc));
+        fido2_entry.insert(
+            "userHandle".into(),
+            serde_json::Value::String(user_handle_enc),
+        );
+        fido2_entry.insert("counter".into(), serde_json::Value::String(counter_enc));
+        fido2_entry.insert(
+            "discoverable".into(),
+            serde_json::Value::String(discoverable_enc),
+        );
+        if let Some(v) = user_name_enc_opt {
+            fido2_entry.insert("userName".into(), serde_json::Value::String(v));
+        }
+        if let Some(v) = user_display_name_enc_opt {
+            fido2_entry.insert("userDisplayName".into(), serde_json::Value::String(v));
+        }
+        if let Some(v) = rp_name_enc_opt {
+            fido2_entry.insert("rpName".into(), serde_json::Value::String(v));
+        }
+        // Bitwarden expects an ISO-8601 creationDate string, plain (not encrypted).
+        fido2_entry.insert(
+            "creationDate".into(),
+            serde_json::Value::String(rfc3339_now()),
+        );
+
+        let body = serde_json::json!({
+            "type": 1u8,                       // CipherType.Login
+            "name": name_enc,
+            "notes": serde_json::Value::Null,
+            "favorite": false,
+            "reprompt": 0u8,
+            "login": {
+                "username": serde_json::Value::Null,
+                "password": serde_json::Value::Null,
+                "totp": serde_json::Value::Null,
+                "uris": serde_json::Value::Array(vec![]),
+                "fido2Credentials": [serde_json::Value::Object(fido2_entry)],
+            },
+        });
+
+        let url = format!("{}/api/ciphers", self.endpoint);
+        let reply = self.http.post_json_bearer(&url, body, &token).await?;
+        if !reply.is_success() {
+            return Err(BrokerError::Vault(format!(
+                "create cipher failed: HTTP {}: {}",
+                reply.status, reply.body
+            )));
+        }
+        let parsed: CipherIdResponse = serde_json::from_str(&reply.body)
+            .map_err(|e| BrokerError::VaultDecode(format!("create cipher response: {e}")))?;
+        Ok(parsed.id)
+    }
+
+    /// Bump the signature counter on an existing passkey cipher. Vaultwarden
+    /// stores the counter inside the encrypted `fido2Credentials[0].counter`
+    /// field; clone-detection per WebAuthn requires it to monotonically
+    /// increase. We GET the current cipher, replace just the `counter` field
+    /// (re-encrypted under the user key), then PUT it back. Other fields are
+    /// passed through untouched so we don't need to decrypt them.
+    pub async fn update_passkey_counter(
+        &mut self,
+        cipher_id: &str,
+        new_counter: u32,
+    ) -> Result<()> {
+        let token = self
+            .access_token
+            .as_ref()
+            .ok_or_else(|| BrokerError::VaultAuth("not logged in".into()))?
+            .expose_secret()
+            .to_string();
+        let user_key = self
+            .user_key
+            .as_ref()
+            .ok_or_else(|| BrokerError::VaultAuth("user key missing".into()))?
+            .as_slice()
+            .to_vec();
+
+        // Fetch the existing cipher.
+        let url = format!("{}/api/ciphers/{}", self.endpoint, cipher_id);
+        let reply = self.http.get_bearer(&url, Some(&token)).await?;
+        if !reply.is_success() {
+            return Err(BrokerError::Vault(format!(
+                "GET cipher {cipher_id} failed: HTTP {}: {}",
+                reply.status, reply.body
+            )));
+        }
+        let mut existing: serde_json::Value = serde_json::from_str(&reply.body)
+            .map_err(|e| BrokerError::VaultDecode(format!("get cipher response: {e}")))?;
+
+        // Replace the encrypted counter in fido2Credentials[0]. Server
+        // returns either { "login": {...}, ... } at the top level (Vaultwarden
+        // PascalCase) or wrapped — accept both.
+        let new_counter_enc = encrypt_text(&new_counter.to_string(), &user_key)?;
+        if !patch_first_passkey_counter(&mut existing, &new_counter_enc) {
+            return Err(BrokerError::Vault(format!(
+                "cipher {cipher_id} has no fido2Credentials to bump"
+            )));
+        }
+
+        let reply = self.http.put_json_bearer(&url, existing, &token).await?;
+        if !reply.is_success() {
+            return Err(BrokerError::Vault(format!(
+                "PUT cipher {cipher_id} failed: HTTP {}: {}",
+                reply.status, reply.body
+            )));
+        }
+        Ok(())
+    }
+
     // ─── Private helpers ───────────────────────────────────────────────
 
     async fn prelogin(&self) -> Result<PreloginResponse> {
         let url = format!("{}/identity/accounts/prelogin", self.endpoint);
         let body = serde_json::json!({ "email": self.email });
-        let resp = self
-            .http
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| BrokerError::VaultHttp(format!("prelogin: {e}")))?;
-        let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| BrokerError::VaultHttp(format!("read prelogin body: {e}")))?;
-        if !status.is_success() {
+        let reply = self.http.post_json(&url, body).await?;
+        if !reply.is_success() {
             return Err(BrokerError::VaultAuth(format!(
-                "prelogin failed: HTTP {status}: {text}"
+                "prelogin failed: HTTP {}: {}",
+                reply.status, reply.body
             )));
         }
-        parse_prelogin(&text)
+        parse_prelogin(&reply.body)
     }
 
     async fn connect_token(&self, master_pw_hash: &str) -> Result<TokenResponse> {
@@ -308,34 +627,25 @@ impl BwClient {
         let device_id = uuid::Uuid::new_v4().to_string();
         let device_type = DEVICE_TYPE.to_string();
 
-        let mut form: HashMap<&str, &str> = HashMap::new();
-        form.insert("grant_type", "password");
-        form.insert("username", &self.email);
-        form.insert("password", master_pw_hash);
-        form.insert("scope", "api offline_access");
-        form.insert("client_id", CLIENT_ID);
-        form.insert("deviceType", &device_type);
-        form.insert("deviceIdentifier", &device_id);
-        form.insert("deviceName", "fido2-vault-broker");
+        let form: Vec<(&str, &str)> = vec![
+            ("grant_type", "password"),
+            ("username", &self.email),
+            ("password", master_pw_hash),
+            ("scope", "api offline_access"),
+            ("client_id", CLIENT_ID),
+            ("deviceType", &device_type),
+            ("deviceIdentifier", &device_id),
+            ("deviceName", "fido2-vault-broker"),
+        ];
 
-        let resp = self
-            .http
-            .post(&url)
-            .form(&form)
-            .send()
-            .await
-            .map_err(|e| BrokerError::VaultHttp(format!("connect/token: {e}")))?;
-        let status = resp.status();
-        let body = resp
-            .text()
-            .await
-            .map_err(|e| BrokerError::VaultHttp(format!("read token body: {e}")))?;
-        if !status.is_success() {
+        let reply = self.http.post_form(&url, &form).await?;
+        if !reply.is_success() {
             return Err(BrokerError::VaultAuth(format!(
-                "connect/token failed: HTTP {status}: {body}"
+                "connect/token failed: HTTP {}: {}",
+                reply.status, reply.body
             )));
         }
-        let parsed: TokenResponse = serde_json::from_str(&body)
+        let parsed: TokenResponse = serde_json::from_str(&reply.body)
             .map_err(|e| BrokerError::VaultDecode(format!("token response: {e}")))?;
         Ok(parsed)
     }
@@ -380,6 +690,93 @@ struct RefreshResponse {
     access_token: String,
     #[serde(default)]
     refresh_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CipherIdResponse {
+    #[serde(rename = "id", alias = "Id")]
+    id: String,
+}
+
+/// Walk a (Vaultwarden or upstream-Bitwarden) cipher JSON object and overwrite
+/// the encrypted `counter` field on the first FIDO2 credential entry. Tolerates
+/// the two case styles Vaultwarden alternates between (camelCase + PascalCase),
+/// and tolerates the `login` object being at the top level.
+/// Returns `true` if a counter field was rewritten.
+fn patch_first_passkey_counter(root: &mut serde_json::Value, new_counter_enc: &str) -> bool {
+    let obj = match root.as_object_mut() {
+        Some(o) => o,
+        None => return false,
+    };
+    // Pick whichever case the server emitted, then borrow-mutably exactly once.
+    let login_key = if obj.contains_key("login") {
+        "login"
+    } else if obj.contains_key("Login") {
+        "Login"
+    } else {
+        return false;
+    };
+    let login_obj = match obj.get_mut(login_key).and_then(|v| v.as_object_mut()) {
+        Some(o) => o,
+        None => return false,
+    };
+    let creds_key = if login_obj.contains_key("fido2Credentials") {
+        "fido2Credentials"
+    } else if login_obj.contains_key("Fido2Credentials") {
+        "Fido2Credentials"
+    } else {
+        return false;
+    };
+    let arr = match login_obj.get_mut(creds_key).and_then(|v| v.as_array_mut()) {
+        Some(a) => a,
+        None => return false,
+    };
+    let first = match arr.get_mut(0).and_then(|v| v.as_object_mut()) {
+        Some(o) => o,
+        None => return false,
+    };
+    // Drop both casings if present, then insert the camelCase form (matches
+    // what /api/ciphers ingests). Vaultwarden re-emits whichever style the
+    // server prefers on the next sync — both decrypt cleanly.
+    first.remove("Counter");
+    first.insert(
+        "counter".into(),
+        serde_json::Value::String(new_counter_enc.to_string()),
+    );
+    true
+}
+
+/// RFC-3339 / ISO-8601 timestamp (UTC, second precision). Used for the
+/// `creationDate` field on freshly-minted passkey ciphers. We avoid pulling
+/// in `chrono` for one timestamp.
+fn rfc3339_now() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    format_unix_secs_as_rfc3339(secs)
+}
+
+/// Format a UNIX timestamp (seconds) as `YYYY-MM-DDTHH:MM:SSZ`. Pure
+/// arithmetic — no external deps, valid 1970..=9999.
+fn format_unix_secs_as_rfc3339(mut secs: i64) -> String {
+    let mut days = secs / 86_400;
+    secs -= days * 86_400;
+    let hour = (secs / 3_600) as u32;
+    let min = ((secs % 3_600) / 60) as u32;
+    let sec = (secs % 60) as u32;
+    // Civil-from-days (Howard Hinnant's algorithm).
+    days += 719_468;
+    let era = days.div_euclid(146_097);
+    let doe = days - era * 146_097; // [0, 146097)
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;
+    let y = (if m <= 2 { y + 1 } else { y }) as i32;
+    format!("{y:04}-{m:02}-{d:02}T{hour:02}:{min:02}:{sec:02}Z")
 }
 
 #[derive(Debug, Deserialize)]
@@ -619,6 +1016,50 @@ pub(crate) fn decrypt_enc_string(s: &str, key64: &[u8]) -> Result<Vec<u8>> {
 fn decrypt_to_string(s: &str, key64: &[u8]) -> Result<String> {
     let raw = decrypt_enc_string(s, key64)?;
     String::from_utf8(raw).map_err(|e| BrokerError::VaultDecode(format!("non-utf8 plaintext: {e}")))
+}
+
+/// Encrypt `plaintext` under a 64-byte stretched key (32 enc + 32 mac) and
+/// produce a Bitwarden CipherString of type 2 (`AesCbc256_HmacSha256_B64`),
+/// which is the only symmetric EncString flavour Vaultwarden ingests for
+/// per-field cipher data. The IV is freshly random per call (16 bytes).
+pub(crate) fn encrypt_string(plaintext: &[u8], key64: &[u8]) -> Result<String> {
+    if key64.len() != STRETCHED_KEY_LEN {
+        return Err(BrokerError::VaultCrypto(format!(
+            "stretched key length {} (want {STRETCHED_KEY_LEN})",
+            key64.len()
+        )));
+    }
+    let (enc_key, mac_key) = key64.split_at(32);
+
+    let mut iv = [0u8; AES_IV_LEN];
+    use rand::RngCore;
+    rand::rngs::OsRng.fill_bytes(&mut iv);
+
+    use cbc::cipher::block_padding::Pkcs7;
+    use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+    type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;
+    let ct = Aes256CbcEnc::new_from_slices(enc_key, &iv)
+        .map_err(|e| BrokerError::VaultCrypto(format!("aes init: {e}")))?
+        .encrypt_padded_vec_mut::<Pkcs7>(plaintext);
+
+    use hmac::{Hmac, Mac};
+    let mut hm = <Hmac<sha2::Sha256> as Mac>::new_from_slice(mac_key)
+        .map_err(|e| BrokerError::VaultCrypto(format!("hmac init: {e}")))?;
+    hm.update(&iv);
+    hm.update(&ct);
+    let mac = hm.finalize().into_bytes();
+
+    Ok(format!(
+        "2.{}|{}|{}",
+        B64.encode(iv),
+        B64.encode(&ct),
+        B64.encode(mac)
+    ))
+}
+
+/// Convenience: encrypt a UTF-8 string field under the user/cipher key.
+fn encrypt_text(plain: &str, key64: &[u8]) -> Result<String> {
+    encrypt_string(plain.as_bytes(), key64)
 }
 
 fn decrypt_optional_string(opt: Option<&str>, key64: &[u8]) -> Result<Option<String>> {
@@ -910,6 +1351,293 @@ mod tests {
         assert_eq!(c.email, "user@example.com");
         assert!(c.access_token.is_none());
         assert!(c.user_key.is_none());
+    }
+
+    // ─── encrypt/decrypt round-trip + cipher push/update mock tests ────
+
+    #[test]
+    fn encrypt_string_round_trips_with_decrypt() {
+        // Random key + plaintext; encrypt then decrypt must give back the same bytes.
+        let mut key64 = [0u8; 64];
+        for (i, b) in key64.iter_mut().enumerate() {
+            *b = (i as u8).wrapping_mul(31).wrapping_add(7);
+        }
+        let plain = b"counter=42 user=alice@example.test";
+        let enc = encrypt_string(plain, &key64).unwrap();
+        assert!(enc.starts_with("2."), "must be CipherString type 2");
+        assert_eq!(enc.split('|').count(), 3);
+        let dec = decrypt_enc_string(&enc, &key64).unwrap();
+        assert_eq!(dec.as_slice(), plain);
+    }
+
+    #[test]
+    fn encrypt_string_uses_fresh_iv() {
+        // Same plaintext twice must produce different ciphertexts (random IV).
+        let key64 = [9u8; 64];
+        let a = encrypt_string(b"same", &key64).unwrap();
+        let b = encrypt_string(b"same", &key64).unwrap();
+        assert_ne!(a, b, "two encrypts of the same plaintext must differ");
+    }
+
+    #[test]
+    fn rfc3339_format_is_well_formed() {
+        // Epoch.
+        let s = format_unix_secs_as_rfc3339(0);
+        assert_eq!(s, "1970-01-01T00:00:00Z");
+        // Y2K boundary check.
+        let s = format_unix_secs_as_rfc3339(946_684_800);
+        assert_eq!(s, "2000-01-01T00:00:00Z");
+    }
+
+    #[test]
+    fn patch_counter_walks_both_cases() {
+        let mut v: serde_json::Value = serde_json::json!({
+            "id": "abc",
+            "Login": {
+                "Fido2Credentials": [
+                    {"Counter": "old", "RpId": "x"}
+                ]
+            }
+        });
+        assert!(patch_first_passkey_counter(&mut v, "NEW"));
+        let new_val = v
+            .pointer("/Login/Fido2Credentials/0/counter")
+            .and_then(|x| x.as_str())
+            .unwrap();
+        assert_eq!(new_val, "NEW");
+        // PascalCase Counter must have been removed.
+        assert!(v.pointer("/Login/Fido2Credentials/0/Counter").is_none());
+    }
+
+    // ─── Mock transport for offline create/update tests ────────────────
+
+    /// One recorded HTTP exchange.
+    #[derive(Debug, Clone)]
+    struct Recorded {
+        method: &'static str,
+        url: String,
+        body: Option<serde_json::Value>,
+    }
+
+    /// Mock transport that returns canned replies in FIFO order and records
+    /// every call. Tests use this in place of `ReqwestTransport` so they
+    /// never touch a real Vaultwarden.
+    struct MockTransport {
+        replies: tokio::sync::Mutex<std::collections::VecDeque<HttpReply>>,
+        recorded: tokio::sync::Mutex<Vec<Recorded>>,
+    }
+
+    impl MockTransport {
+        fn new(replies: Vec<HttpReply>) -> Self {
+            Self {
+                replies: tokio::sync::Mutex::new(replies.into_iter().collect()),
+                recorded: tokio::sync::Mutex::new(Vec::new()),
+            }
+        }
+        async fn pop(&self) -> HttpReply {
+            self.replies
+                .lock()
+                .await
+                .pop_front()
+                .expect("MockTransport: no canned reply available")
+        }
+        async fn snapshot(&self) -> Vec<Recorded> {
+            self.recorded.lock().await.clone()
+        }
+    }
+
+    #[async_trait]
+    impl HttpTransport for MockTransport {
+        async fn post_json(&self, url: &str, body: serde_json::Value) -> Result<HttpReply> {
+            self.recorded.lock().await.push(Recorded {
+                method: "POST",
+                url: url.into(),
+                body: Some(body),
+            });
+            Ok(self.pop().await)
+        }
+        async fn post_form(&self, url: &str, _form: &[(&str, &str)]) -> Result<HttpReply> {
+            self.recorded.lock().await.push(Recorded {
+                method: "POST_FORM",
+                url: url.into(),
+                body: None,
+            });
+            Ok(self.pop().await)
+        }
+        async fn get_bearer(&self, url: &str, _bearer: Option<&str>) -> Result<HttpReply> {
+            self.recorded.lock().await.push(Recorded {
+                method: "GET",
+                url: url.into(),
+                body: None,
+            });
+            Ok(self.pop().await)
+        }
+        async fn post_json_bearer(
+            &self,
+            url: &str,
+            body: serde_json::Value,
+            _bearer: &str,
+        ) -> Result<HttpReply> {
+            self.recorded.lock().await.push(Recorded {
+                method: "POST_BEARER",
+                url: url.into(),
+                body: Some(body),
+            });
+            Ok(self.pop().await)
+        }
+        async fn put_json_bearer(
+            &self,
+            url: &str,
+            body: serde_json::Value,
+            _bearer: &str,
+        ) -> Result<HttpReply> {
+            self.recorded.lock().await.push(Recorded {
+                method: "PUT_BEARER",
+                url: url.into(),
+                body: Some(body),
+            });
+            Ok(self.pop().await)
+        }
+    }
+
+    fn synthetic_passkey_cipher() -> PasskeyCipher {
+        PasskeyCipher {
+            credential_id: vec![0x11; 16],
+            rp_id: "example.test".into(),
+            rp_name: Some("Example Test".into()),
+            user_handle: vec![0x22; 8],
+            user_name: Some("alice".into()),
+            user_display_name: Some("Alice".into()),
+            key_algorithm: "ECDSA".into(),
+            key_curve: "P-256".into(),
+            private_key_pkcs8: Zeroizing::new(vec![0x33; 138]),
+            counter: 0,
+            discoverable: true,
+        }
+    }
+
+    #[tokio::test]
+    async fn create_passkey_cipher_posts_encrypted_payload() {
+        let mock = Arc::new(MockTransport::new(vec![HttpReply {
+            status: 200,
+            body: r#"{"id":"new-cipher-uuid-1234"}"#.into(),
+        }]));
+        let mut bw = BwClient::with_transport(
+            "https://vault.example.test/",
+            "alice@example.test",
+            mock.clone(),
+        );
+        bw.inject_session("test-access-token", vec![0xCDu8; 64]);
+
+        let cipher = synthetic_passkey_cipher();
+        let id = bw.create_passkey_cipher(&cipher).await.expect("create ok");
+        assert_eq!(id, "new-cipher-uuid-1234");
+
+        let snap = mock.snapshot().await;
+        assert_eq!(snap.len(), 1);
+        assert_eq!(snap[0].method, "POST_BEARER");
+        assert_eq!(snap[0].url, "https://vault.example.test/api/ciphers");
+        let body = snap[0].body.as_ref().expect("body");
+
+        // type=1 (Login).
+        assert_eq!(body.get("type").and_then(|v| v.as_u64()), Some(1));
+        // Encrypted name field is a CipherString-2.
+        let name = body.get("name").and_then(|v| v.as_str()).unwrap();
+        assert!(name.starts_with("2."));
+        // fido2Credentials present, encrypted.
+        let fc = body
+            .pointer("/login/fido2Credentials/0")
+            .and_then(|v| v.as_object())
+            .unwrap();
+        for k in [
+            "credentialId",
+            "keyType",
+            "keyAlgorithm",
+            "keyCurve",
+            "keyValue",
+            "rpId",
+            "userHandle",
+            "counter",
+            "discoverable",
+        ] {
+            let s = fc.get(k).and_then(|v| v.as_str()).unwrap();
+            assert!(s.starts_with("2."), "{k} must be encrypted");
+        }
+        // creationDate is plain (server expects ISO-8601 string, not encrypted).
+        let cd = fc.get("creationDate").and_then(|v| v.as_str()).unwrap();
+        assert!(cd.ends_with('Z'));
+    }
+
+    #[tokio::test]
+    async fn update_passkey_counter_get_then_put_with_bumped_field() {
+        // First reply = current cipher GET; second reply = PUT 200 OK.
+        let existing = serde_json::json!({
+            "id": "cipher-id-x",
+            "type": 1,
+            "name": "2.AAAA|BBBB|CCCC",
+            "login": {
+                "fido2Credentials": [
+                    {
+                        "credentialId": "2.AAAA|BBBB|CCCC",
+                        "counter": "2.OLDOLD|OLDOLD|OLDOLD",
+                        "rpId": "2.AAAA|BBBB|CCCC"
+                    }
+                ]
+            }
+        });
+        let mock = Arc::new(MockTransport::new(vec![
+            HttpReply {
+                status: 200,
+                body: existing.to_string(),
+            },
+            HttpReply {
+                status: 200,
+                body: "{}".into(),
+            },
+        ]));
+        let mut bw = BwClient::with_transport(
+            "https://vault.example.test",
+            "alice@example.test",
+            mock.clone(),
+        );
+        bw.inject_session("tok", vec![0xEEu8; 64]);
+
+        bw.update_passkey_counter("cipher-id-x", 7)
+            .await
+            .expect("update ok");
+
+        let snap = mock.snapshot().await;
+        assert_eq!(snap.len(), 2);
+        assert_eq!(snap[0].method, "GET");
+        assert_eq!(
+            snap[0].url,
+            "https://vault.example.test/api/ciphers/cipher-id-x"
+        );
+        assert_eq!(snap[1].method, "PUT_BEARER");
+        let put_body = snap[1].body.as_ref().expect("PUT body");
+        let bumped = put_body
+            .pointer("/login/fido2Credentials/0/counter")
+            .and_then(|v| v.as_str())
+            .unwrap();
+        // Must be a fresh CipherString-2 distinct from the old one.
+        assert!(bumped.starts_with("2."));
+        assert_ne!(bumped, "2.OLDOLD|OLDOLD|OLDOLD");
+    }
+
+    #[tokio::test]
+    async fn update_passkey_counter_propagates_get_failure() {
+        let mock = Arc::new(MockTransport::new(vec![HttpReply {
+            status: 404,
+            body: r#"{"error":"not found"}"#.into(),
+        }]));
+        let mut bw =
+            BwClient::with_transport("https://vault.example.test", "alice@example.test", mock);
+        bw.inject_session("tok", vec![0u8; 64]);
+        let err = bw
+            .update_passkey_counter("missing", 1)
+            .await
+            .expect_err("must fail");
+        assert!(matches!(err, BrokerError::Vault(_)), "got {err:?}");
     }
 
     /// Manual integration test against a real Vaultwarden — opt-in only.
