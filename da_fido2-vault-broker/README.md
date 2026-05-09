@@ -1,153 +1,125 @@
 # fido2-vault-broker
 
-A Linux user-session daemon that mirrors a Bitwarden-API-compatible vault
-(Vaultwarden, upstream Bitwarden) into a TPM2-sealed local cache and
-exposes the cached passkeys as a virtual FIDO2/CTAP2 USB-HID device via
-`/dev/uhid`. Per-machine, browser-agnostic; once running, **any** browser
-on the host can use the host's passkeys without a per-browser extension.
-
-## Status
-
-- **Phase B.1 + B.2 — complete in this repo.**
-  - Workspace compiles, clippy is clean, `cargo test` passes.
-  - TPM seal/unseal proof-of-concept works on **any** Linux box thanks
-    to the default mock backend (AES-256-GCM with a key derived from
-    `/etc/machine-id` via HKDF-SHA256).
-  - Public seal/unseal API and on-disk format are nailed down — the real
-    `tss-esapi` backend (PCR-bound to 0+7+8) plugs into the same shape.
-- **Phases B.3 - B.7 — stubbed.** CTAP2 dispatch, `/dev/uhid` virtual
-  device, and Bitwarden REST client all return `Ctap2NotImplemented` /
-  `UhidNotImplemented` / `Vault("not yet implemented")` for now.
-
-Multi-week phase plan: `~/.claude/plans/da_browser-fido2-rbw-stack.md`.
-
-## Build
-
-Everything goes through `build.sh`, which is driven by `build.json` —
-no path or name is hardcoded in the script.
-
-```sh
-./build.sh build      # cargo build --release in nix dev shell -> dist/
-./build.sh test       # cargo test
-./build.sh check      # fmt --check + clippy -D warnings + cargo check
-./build.sh fmt        # cargo fmt
-./build.sh clean      # rm dist/ + target/
-./build.sh nix        # nix build (reproducible flake-based build)
-./build.sh install    # install binary + user systemd unit
-./build.sh enable     # systemctl --user enable --now
-```
-
-## Demo (works on any Linux box, no TPM required)
-
-```sh
-echo "secret-$(date +%s)" > /tmp/p
-./dist/fido2-vault-broker seal --in /tmp/p --out /tmp/s
-./dist/fido2-vault-broker unseal --in /tmp/s | diff - /tmp/p   # must be empty
-./dist/fido2-vault-broker version
-```
-
-## TPM-real demo (host with TPM2 chip)
-
-```sh
-cargo build --release --features tpm
-```
-
-This is **expected to fail at runtime** (and the seal/unseal calls are
-literally `todo!()`) until the `tss-esapi` PCR-bound Create/Load/Unseal
-flow lands in Phase B.2-hw. The feature gate exists today so that the
-hardware path can be filled in without disturbing the mock build.
-
-## Architecture
+Linux daemon that exposes a virtual FIDO2/CTAP2 USB authenticator on
+`/dev/uhid`, backed by a Bitwarden-API vault (Vaultwarden). Replaces a
+hardware key + a per-browser Bitwarden extension when the only thing you
+actually need from the extension is WebAuthn signing.
 
 ```
- ┌────────────────────────┐
- │  Vaultwarden / Bitwarden│      (HTTPS, master-key login,
- │       (upstream API)    │       /api/sync, passkey ciphers)
- └───────────┬────────────┘
-             │  Phase B.5 — bw_api.rs
-             ▼
- ┌────────────────────────┐
- │  fido2-vault-broker     │
- │  (user systemd service) │
- │                         │
- │  ┌───────────────────┐  │      Phase B.2 — tpm_seal.rs
- │  │ TPM-sealed cache  │◀─┼──── seal (PCR 0,7,8) at rest;
- │  │  ~/.local/share/  │  │      unsealed into RAM at start.
- │  │  …/sealed.bin     │  │
- │  └───────────────────┘  │
- │           │             │
- │           ▼             │      Phase B.3 — ctap2.rs
- │   CTAP2 dispatcher      │      authenticatorMakeCredential,
- │   (CBOR over HID frames)│      authenticatorGetAssertion, …
- │           │             │
- └───────────┼─────────────┘
-             │  Phase B.4 — uhid_dev.rs
-             ▼
- ┌────────────────────────┐
- │      /dev/uhid          │      virtual USB-HID FIDO device
- │    (group: uhid)        │      vendor 0xF1D0, usage 0xF1D0
- └───────────┬────────────┘
-             ▼
- ┌────────────────────────┐
- │  any browser on the host │     Chromium/Firefox/Brave see a real
- │  (no extension needed)   │     FIDO2 authenticator on the bus.
- └────────────────────────┘
+  ┌──────────┐    HID over /dev/uhid      ┌──────────────┐
+  │ Browser  │ ◀───────────────────────▶  │ this daemon  │
+  └──────────┘   CTAPHID frames + CBOR    └──────┬───────┘
+                                                 │ Bitwarden REST + crypto
+                                                 ▼
+                                          ┌──────────────┐
+                                          │ Vaultwarden  │
+                                          └──────────────┘
 ```
 
-## Configure
+## What's where
 
-The operator sets the vault endpoint and account identifier in a
-**user-local** TOML file. **No defaults are committed in this repo** —
-`build.json`'s `vault.default_endpoint` is intentionally empty.
+| | Where | Why |
+|---|---|---|
+| **Code, flake, build engine, templates** | `~/git/unix/da_fido2-vault-broker/` (public repo) | declarative + reproducible |
+| **Real `config.toml`, sealed master, sealed cipher cache** | `~/git/vault/fido/` (private repo) | secrets live in vault, never in `~/.config/` directly |
+| **Symlinks `~/.config/...` → `vault/fido/...`** | created by `build.sh deploy` | XDG paths point at the vault |
 
-```toml
-# ~/.config/fido2-vault-broker/config.toml
-vault_endpoint = "https://vault.example.invalid"
-vault_email    = "you@example.invalid"
-# sealed_path  = "~/.local/share/fido2-vault-broker/sealed.bin"  # default
-# uhid_path    = "/dev/uhid"                                     # default
+You **never** edit `~/.config/fido2-vault-broker/` by hand. You edit
+`vault/fido/`; `build.sh deploy` projects it.
+
+## Operator path (one shot)
+
+```bash
+cd ~/git/unix/da_fido2-vault-broker
+./build.sh build              # cargo --release inside nix dev shell
+./build.sh init-vault         # scaffold vault/fido/ from src/templates/
+$EDITOR ~/git/vault/fido/config.toml   # set vault_endpoint + vault_email
+./build.sh seal-master        # prompts for password, TPM-seals to vault/fido/master.tpm-sealed
+./build.sh deploy             # symlinks vault/fido/* into XDG + udev rule
+sudo usermod -aG uhid,tss $USER && newgrp uhid    # one-time group add
+./build.sh install            # binary + systemd user unit
+./build.sh enable             # systemctl --user enable --now
+journalctl --user -u fido2-vault-broker -f        # watch
 ```
 
-## Repository layout
+`./build.sh ship` runs `build → install → deploy → enable` in one go
+(after `init-vault` + `seal-master` + groups).
 
+## Browser smoke test
+
+1. Open <https://webauthn.io>.
+2. Pick a username, click *Register*.
+3. Browser asks the OS for an authenticator → finds the virtual FIDO2 on
+   `/dev/uhid` → daemon pops a `notify-send` confirm dialog.
+4. Click *Confirm* → browser receives attestation → site shows green.
+5. Reload, *Authenticate*, same flow → green again.
+
+If step 3 doesn't trigger: check `journalctl --user -u fido2-vault-broker`
+for "starting /dev/uhid server". If absent, you're not in the `uhid`
+group or udev didn't reload — re-run `./build.sh deploy`.
+
+## Status (2026-05-09)
+
+| Phase | What | State |
+|---|---|---|
+| B.1 | scaffold + Config | done |
+| B.2 | mock TPM seal/unseal | done |
+| B.2-hw | real TPM2 seal/unseal (PCR 0+7+8) | done (`--features tpm`) |
+| B.3 | Bitwarden REST client (PBKDF2/Argon2id, AES-CBC+HMAC) | done |
+| B.4 | CTAP2 Authenticator (P-256 + AAGUID + InMemoryKeyStore) | done |
+| B.5 | uhid HID server (CTAPHID frames, channels, fragmentation) | done |
+| B.6 | DesktopUpProvider (notify-send confirm/cancel) | done |
+| B.7 | daemon integration + TPM-unseal master | done |
+| B.8 | passkey writeback to Vaultwarden | in progress |
+
+After B.8 lands: registrations survive restart. Today they live in memory
+only — restart the daemon, reuse a session passkey, and it's gone.
+
+## Tests
+
+```bash
+./build.sh test               # 43+ tests, default + --features fido2
+./build.sh check              # fmt + clippy -D warnings + check
 ```
-da_fido2-vault-broker/
-├── build.json           # source of truth — names, paths, deps
-├── build.sh             # node-driven engine
-├── README.md
-└── src/
-    ├── Cargo.toml
-    ├── Cargo.lock
-    ├── flake.nix        # nixpkgs-unstable dev shell + buildRustPackage
-    ├── systemd/
-    │   └── fido2-vault-broker.service
-    └── src/
-        ├── main.rs      # clap CLI: run | seal | unseal | version
-        ├── lib.rs
-        ├── error.rs     # BrokerError enum
-        ├── config.rs    # XDG TOML loader (no defaults committed)
-        ├── ctap2.rs     # Phase B.3 stub
-        ├── uhid_dev.rs  # Phase B.4 stub
-        └── store/
-            ├── mod.rs
-            ├── tpm_seal.rs   # Phase B.2 — mock + tpm-feature backend
-            └── bw_api.rs     # Phase B.5 stub
-```
 
-## On-disk sealed-blob format (v1, little-endian)
+The `--features tpm` test set adds 3 hardware tests; they skip cleanly
+when `/dev/tpmrm0` is absent or the user isn't in the `tss` group.
 
-```
-u32 version           = 1
-u32 pcr_bitmask       (mock: 0; real: bit i set => PCR i is bound)
-u32 public_blob_len ; [public_blob bytes]
-u32 private_blob_len; [private_blob bytes]
-```
+## Files
 
-The mock backend stores the AES-GCM nonce in `public_blob` and the
-ciphertext+tag in `private_blob`. The real TPM2 backend stores the
-TPM2B_PUBLIC and TPM2B_PRIVATE wire blobs respectively. Both backends
-share `seal_to_path` / `unseal_from_path`.
+| Path | Role |
+|---|---|
+| `build.json` | Single source of truth — binary name, features, deploy paths, symlink table, udev rule |
+| `build.sh` | Engine — every command consumes `build.json`; never hardcodes |
+| `src/Cargo.toml`, `src/flake.nix` | Rust + nix dev shell (linux-headers, glibc.dev, libclang) |
+| `src/src/main.rs` | Entrypoint: `run` (daemon), `seal --in - --out`, `unseal`, `version` |
+| `src/src/config.rs` | XDG config + sealed/master blob path defaults |
+| `src/src/store/bw_api.rs` | Bitwarden REST client, EncString crypto |
+| `src/src/store/tpm_seal.rs` | Mock + real TPM2 backend (tss-esapi, PCR-bound) |
+| `src/src/ctap2.rs` | Authenticator, KeyStore trait, AAGUID, P-256 sign |
+| `src/src/uhid_dev.rs` | CTAPHID server over /dev/uhid (channels, frames) |
+| `src/src/up_prompt.rs` | notify-send confirm/cancel UP provider |
+| `src/templates/config.toml.example` | Operator template, copied into vault by `init-vault` |
+| `src/templates/70-fido2-vault-broker.rules` | udev rule template, installed by `deploy` |
+| `src/systemd/fido2-vault-broker.service` | User unit, `Type=notify`, `MemoryMax=64M` |
 
-## License
+## Security notes
 
-MIT.
+- **Master password**: TPM2-sealed at rest in `vault/fido/master.tpm-sealed`,
+  PCR-bound (0+7+8) under `--features tpm`. Mock backend (default) uses
+  HKDF-SHA256 over `/etc/machine-id` — **PoC only, not production**.
+- **Vault CipherString crypto**: AES-256-CBC + HMAC-SHA256 (Bitwarden type 2),
+  symmetric key derived via PBKDF2 (or Argon2id) + HKDF-stretch.
+- **Plaintext lifetime**: master never reaches a process env or the shell
+  history — `seal-master` reads stdin with `stty -echo` and pipes directly
+  to the binary; the binary holds it in `Zeroizing<Vec<u8>>` then drops.
+- **AAGUID**: deterministic, derived from `SHA-256(machine-id || vault_email)`
+  → 16 bytes (UUID-v4 shape). Stable across reinstalls of the same machine.
+
+## Why it's safer than a hardware key
+
+Hardware keys are stolen physical objects — drop your laptop bag, lose your
+passkeys. This daemon's secrets are PCR-bound to the boot chain: a different
+kernel, a different bootloader, a different TPM, and unseal fails. Restoring
+from a vault export brings the *passkeys* back; rebinding to a new TPM
+needs a fresh `seal-master` + re-registration on each site.

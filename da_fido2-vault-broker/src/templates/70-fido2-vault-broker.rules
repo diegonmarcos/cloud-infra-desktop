@@ -1,0 +1,15 @@
+# udev rule for fido2-vault-broker
+#
+# Grant non-root users in `uhid` group read/write on /dev/uhid so the
+# daemon can register a virtual FIDO2 authenticator without sudo.
+#
+# Installed by `build.sh deploy` into /etc/udev/rules.d/.
+# After install: `sudo udevadm control --reload && sudo udevadm trigger`
+# Operator must also be in the `uhid` group:
+#   sudo groupadd -f uhid
+#   sudo usermod -aG uhid $USER && newgrp uhid
+#
+# /dev/tpmrm0 ownership is handled separately by tpm2-tss's own rules
+# (group `tss`); add yourself there too to enable `--features tpm`.
+
+KERNEL=="uhid", GROUP="uhid", MODE="0660", TAG+="uaccess"

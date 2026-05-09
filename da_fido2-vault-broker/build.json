@@ -32,6 +32,34 @@
     "tpm_device": "/dev/tpmrm0",
     "udev_groups": ["uhid", "tss"]
   },
+  "deploy": {
+    "_comment": "Public templates live in unix/. Real values live in vault/fido/. Operator never edits ~/.config/ directly — `build.sh deploy` symlinks vault/fido/ into XDG paths so a vault rebuild is the only source of truth.",
+    "vault_root_env": "VAULT_ROOT",
+    "vault_root_default": "~/git/vault",
+    "vault_subdir": "fido",
+    "templates": [
+      { "src": "src/templates/config.toml.example",         "dst_in_vault": "config.toml",         "mode": "0600", "overwrite": false },
+      { "src": "src/templates/70-fido2-vault-broker.rules", "dst_in_vault": "70-fido2-vault-broker.rules", "mode": "0644", "overwrite": false }
+    ],
+    "symlinks": [
+      { "from_in_vault": "config.toml",         "to": "~/.config/fido2-vault-broker/config.toml" },
+      { "from_in_vault": "master.tpm-sealed",   "to": "~/.local/share/fido2-vault-broker/master.tpm-sealed" },
+      { "from_in_vault": "sealed",              "to": "~/.local/share/fido2-vault-broker/sealed", "is_directory": true }
+    ],
+    "udev_rule": {
+      "from_in_vault": "70-fido2-vault-broker.rules",
+      "to": "/etc/udev/rules.d/70-fido2-vault-broker.rules",
+      "needs_sudo": true
+    },
+    "vault_directories": [
+      { "path": "sealed", "mode": "0700" }
+    ],
+    "master_seal": {
+      "_comment": "build.sh seal-master reads this prompt config: stdin is read non-echo, the value is fed to `fido2-vault-broker seal --in - --out vault/fido/master.tpm-sealed`. No plaintext file ever exists on disk.",
+      "blob_in_vault": "master.tpm-sealed",
+      "binary_subcommand": "seal"
+    }
+  },
   "vault": {
     "backend": "bitwarden_api",
     "default_endpoint": "",

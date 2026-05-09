@@ -6,4 +6,5 @@
 //! - `bw_api` — Bitwarden REST client (stubbed; Phase B.5).
 
 pub mod bw_api;
+pub mod bw_keystore;
 pub mod tpm_seal;

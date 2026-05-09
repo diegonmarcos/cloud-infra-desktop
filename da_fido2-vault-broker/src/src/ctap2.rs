@@ -86,11 +86,39 @@ pub struct KeyStoreError(pub String);
 /// Implemented by `store::bw_api::BwClient` (or a thin wrapper) so the
 /// vault is the source of truth — credentials get pushed back to
 /// Vaultwarden out-of-band by the storage layer.
+///
+/// The synchronous methods serve the hot read/write path (in-memory cache).
+/// The two async `persist_*` methods are the optional write-through hooks
+/// that mirror state into the vault. Default impls are no-ops, so an
+/// in-memory-only keystore (tests, bootstrap) is unaffected; the real
+/// `BwBackedKeyStore` overrides them to push to Vaultwarden.
+#[async_trait]
 pub trait KeyStore {
     fn lookup_credential(&self, rp_id: &str, credential_id: &[u8]) -> Option<&PasskeyCredential>;
     fn list_credentials(&self, rp_id: &str) -> Vec<&PasskeyCredential>;
     fn store_new_credential(&mut self, cred: PasskeyCredential) -> Result<(), KeyStoreError>;
     fn increment_counter(&mut self, credential_id: &[u8]) -> Result<u32, KeyStoreError>;
+
+    /// Push a freshly-registered credential to durable storage. Default: no-op.
+    /// Implementations should NOT block the registration ceremony: the caller
+    /// logs a warning on `Err` and proceeds with the in-memory copy.
+    async fn persist_new_credential(
+        &mut self,
+        _cred: &PasskeyCredential,
+    ) -> Result<(), KeyStoreError> {
+        Ok(())
+    }
+
+    /// Push a counter bump to durable storage so clone-detection survives
+    /// a daemon restart. Default: no-op. Same non-blocking contract as
+    /// [`persist_new_credential`].
+    async fn persist_counter_bump(
+        &mut self,
+        _credential_id: &[u8],
+        _new_counter: u32,
+    ) -> Result<(), KeyStoreError> {
+        Ok(())
+    }
 }
 
 /// Hardware/UI prompt for "tap to confirm" — implemented by the uhid layer
@@ -468,7 +496,7 @@ impl Authenticator {
         let mut credential_id = vec![0u8; 32];
         OsRng.fill_bytes(&mut credential_id);
 
-        // 5. Persist.
+        // 5. Persist (in-memory + best-effort write-through to the vault).
         let cred = PasskeyCredential {
             credential_id: credential_id.clone(),
             rp_id: req.rp_id.clone(),
@@ -478,9 +506,22 @@ impl Authenticator {
             key_pkcs8: pkcs8,
             counter: 0,
         };
+        // Clone for the durable-storage hook BEFORE we move `cred` into the
+        // sync keystore, since `store_new_credential` consumes the value.
+        let cred_for_persist = cred.clone();
         self.keystore
             .store_new_credential(cred)
             .map_err(|e| BrokerError::Ctap2KeyStore(e.0))?;
+        // Best-effort vault sync. A failure here does NOT fail the WebAuthn
+        // ceremony — the in-memory credential is still usable for this
+        // session, and the operator can retry persistence out-of-band.
+        if let Err(e) = self
+            .keystore
+            .persist_new_credential(&cred_for_persist)
+            .await
+        {
+            tracing::warn!(error = %e.0, rp_id = %req.rp_id, "persist_new_credential failed; in-memory only");
+        }
 
         // 6. Attested credential data + authData.
         let cose_pub = cose_encode_p256_pubkey(&verifying_key)?;
@@ -540,6 +581,18 @@ impl Authenticator {
             .keystore
             .increment_counter(&credential_id)
             .map_err(|e| BrokerError::Ctap2KeyStore(e.0))?;
+        // Best-effort vault sync of the bumped counter. Same non-blocking
+        // contract as `persist_new_credential` — clone-detection survives
+        // the next daemon restart but a transient vault failure does NOT
+        // fail this assertion (the relying party still gets a valid
+        // signature with the new counter; only durable persistence lags).
+        if let Err(e) = self
+            .keystore
+            .persist_counter_bump(&credential_id, new_counter)
+            .await
+        {
+            tracing::warn!(error = %e.0, rp_id = %req.rp_id, "persist_counter_bump failed; will retry on next bump");
+        }
 
         // Re-borrow to read the credential we just bumped.
         let cred = self
@@ -871,6 +924,7 @@ impl InMemoryKeyStore {
     }
 }
 
+#[async_trait]
 impl KeyStore for InMemoryKeyStore {
     fn lookup_credential(&self, rp_id: &str, credential_id: &[u8]) -> Option<&PasskeyCredential> {
         self.creds.get(&(rp_id.to_string(), credential_id.to_vec()))
