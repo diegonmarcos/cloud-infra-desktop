@@ -9,14 +9,18 @@
       "enabled": true,
       "method": "both",
       "_method_options": "auto | adblock | hosts | both",
-      "adblock_lists": [
-        "https://easylist.to/easylist/easylist.txt",
-        "https://easylist.to/easylist/easyprivacy.txt",
-        "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt"
-      ],
-      "hosts_lists": [
-        "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
-      ]
+      "adblock": {
+        "lists": [
+          "https://easylist.to/easylist/easylist.txt",
+          "https://easylist.to/easylist/easyprivacy.txt",
+          "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt"
+        ]
+      },
+      "hosts": {
+        "lists": [
+          "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+        ]
+      }
     },
     "javascript": {
       "enabled": true,
@@ -28,12 +32,16 @@
     },
     "autoplay": false,
     "geolocation": false,
-    "notifications_enabled": "ask",
+    "notifications": {
+      "enabled": "ask"
+    },
     "default_encoding": "utf-8"
   },
   "downloads": {
-    "location_directory": "~/Downloads",
-    "location_prompt": false,
+    "location": {
+      "directory": "~/Downloads",
+      "prompt": false
+    },
     "remove_finished": 5000
   },
   "tabs": {

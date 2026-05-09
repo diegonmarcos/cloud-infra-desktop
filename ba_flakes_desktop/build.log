@@ -36796,3 +36796,958 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-05-08 14:32:06] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-05-08 14:32:06] PERF: start switch
 [2026-05-08 14:32:06] INFO: Staging dirty files for flake evaluation...
+[2026-05-08 14:32:07] PERF: git stage = 811ms
+[2026-05-08 14:32:08] PERF: clean stale hm-backups = 883ms
+[2026-05-08 14:32:08] INFO: Applying Home Manager configuration...
+[2026-05-08 14:32:08] INFO: home-manager backup extension: hm-backup-20260508-143208
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 11 derivations will be built:
+  /nix/store/3z0lkhrcfbkpg92bqjscw24wsbgky6gm-atop-2.11.1-fish-completions.drv
+  /nix/store/5mfyxmw4lziiqhwjkrwbq4qpcr7pf5xv-home-manager-path.drv
+  /nix/store/5c8a8f8anby4hkns2klfzmyhplwk7q2n-activation-script.drv
+  /nix/store/5yh5z95xn5nqgin21dyqcjqy2bsmb7xr-glances-4.2.0-fish-completions.drv
+  /nix/store/981rrvm1s00iwas3707lh2di6h02s5r8-diego-fish-completions.drv
+  /nix/store/i2lrizaa9fqhc6rzqlk006vsxb8xkg68-man-paths.drv
+  /nix/store/izfhyfnvkdsr0bq4kzkw6nzxanm9k4zc-man-cache.drv
+  /nix/store/fzq61dywf58inh9c9agh38clmz6nxrmf-hm_.manpath.drv
+  /nix/store/hxnwamgi24ydvh84jiwfpfb6fps362fk-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/mfxq9ibrywcwpix1va220j83rqzh9ajp-home-manager-files.drv
+  /nix/store/ma08av50f08d4kcr1a23wpva01zbdm49-home-manager-generation.drv
+these 18 paths will be fetched (3.22 MiB download, 18.33 MiB unpacked):
+  /nix/store/1d7a50p3039xpvvvghpjp4l6klp3nmdn-atop-2.11.1
+  /nix/store/r104rz3j54wb3yq0k59mf1p9jmw3lm0n-glances-4.2.0
+  /nix/store/0b8zdjpqis1n12qw19nivvfl3l62qqvs-hddtemp-0.3-beta15
+  /nix/store/vjqfw43rxy131adwryhnbkqwm2s9ifrj-python3.12-fastapi-0.115.3
+  /nix/store/l7npwl7wpa7nn2dw5x49j8i4k9zhh799-python3.12-fastapi-cli-0.0.5
+  /nix/store/bwk7hdxx9czjiyzsq17p9pz6ryba7i9n-python3.12-httptools-0.6.1
+  /nix/store/pygrlv0jnh6dldzsjill6smax5vp04ym-python3.12-netifaces-0.11.0
+  /nix/store/8w5qli5jbvx9yxdah7x2iv7p3h491wq0-python3.12-ply-3.11
+  /nix/store/qjfr5kjkvn3mrh4c7b032zlfp1yyh5q3-python3.12-pysmi-1.5.4
+  /nix/store/i90bky91c57mslkgrdv6yca8n5sj672c-python3.12-pysnmp-6.2.6
+  /nix/store/wmsz30hydlk9s3fbgwlg40y1amc7df59-python3.12-pysnmpcrypto-0.0.4
+  /nix/store/3m0jdpw2ppa730lip4bkjaw4yky8c9h4-python3.12-python-dotenv-1.0.1
+  /nix/store/wlzx88r2c5w8prbvwi92k58ag98za4lx-python3.12-shellingham-1.5.4
+  /nix/store/pg6bbpax5gv1lsqdf48ihfkk290z21ck-python3.12-starlette-0.40.0
+  /nix/store/app2dirpdqlfmps9mprl6lnmw9rwqkh8-python3.12-typer-0.12.5
+  /nix/store/a7wqb0db16ck2difr1sfh8cfwxzmy6bi-python3.12-uvicorn-0.32.0
+  /nix/store/znyn7lp60ailv21g984gxwxqg14a80ny-python3.12-uvloop-0.21.0
+  /nix/store/f4crycjacngszp8f5pc8inmskqql6day-python3.12-watchfiles-0.22.0
+copying path '/nix/store/1d7a50p3039xpvvvghpjp4l6klp3nmdn-atop-2.11.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/bwk7hdxx9czjiyzsq17p9pz6ryba7i9n-python3.12-httptools-0.6.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/pygrlv0jnh6dldzsjill6smax5vp04ym-python3.12-netifaces-0.11.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/0b8zdjpqis1n12qw19nivvfl3l62qqvs-hddtemp-0.3-beta15' from 'https://cache.nixos.org'...
+copying path '/nix/store/8w5qli5jbvx9yxdah7x2iv7p3h491wq0-python3.12-ply-3.11' from 'https://cache.nixos.org'...
+copying path '/nix/store/f4crycjacngszp8f5pc8inmskqql6day-python3.12-watchfiles-0.22.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/wlzx88r2c5w8prbvwi92k58ag98za4lx-python3.12-shellingham-1.5.4' from 'https://cache.nixos.org'...
+copying path '/nix/store/znyn7lp60ailv21g984gxwxqg14a80ny-python3.12-uvloop-0.21.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/pg6bbpax5gv1lsqdf48ihfkk290z21ck-python3.12-starlette-0.40.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/3m0jdpw2ppa730lip4bkjaw4yky8c9h4-python3.12-python-dotenv-1.0.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/wmsz30hydlk9s3fbgwlg40y1amc7df59-python3.12-pysnmpcrypto-0.0.4' from 'https://cache.nixos.org'...
+copying path '/nix/store/a7wqb0db16ck2difr1sfh8cfwxzmy6bi-python3.12-uvicorn-0.32.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/qjfr5kjkvn3mrh4c7b032zlfp1yyh5q3-python3.12-pysmi-1.5.4' from 'https://cache.nixos.org'...
+copying path '/nix/store/app2dirpdqlfmps9mprl6lnmw9rwqkh8-python3.12-typer-0.12.5' from 'https://cache.nixos.org'...
+building '/nix/store/3z0lkhrcfbkpg92bqjscw24wsbgky6gm-atop-2.11.1-fish-completions.drv'...
+copying path '/nix/store/l7npwl7wpa7nn2dw5x49j8i4k9zhh799-python3.12-fastapi-cli-0.0.5' from 'https://cache.nixos.org'...
+copying path '/nix/store/i90bky91c57mslkgrdv6yca8n5sj672c-python3.12-pysnmp-6.2.6' from 'https://cache.nixos.org'...
+copying path '/nix/store/vjqfw43rxy131adwryhnbkqwm2s9ifrj-python3.12-fastapi-0.115.3' from 'https://cache.nixos.org'...
+copying path '/nix/store/r104rz3j54wb3yq0k59mf1p9jmw3lm0n-glances-4.2.0' from 'https://cache.nixos.org'...
+building '/nix/store/5yh5z95xn5nqgin21dyqcjqy2bsmb7xr-glances-4.2.0-fish-completions.drv'...
+building '/nix/store/5mfyxmw4lziiqhwjkrwbq4qpcr7pf5xv-home-manager-path.drv'...
+building '/nix/store/i2lrizaa9fqhc6rzqlk006vsxb8xkg68-man-paths.drv'...
+building '/nix/store/981rrvm1s00iwas3707lh2di6h02s5r8-diego-fish-completions.drv'...
+building '/nix/store/izfhyfnvkdsr0bq4kzkw6nzxanm9k4zc-man-cache.drv'...
+building '/nix/store/5c8a8f8anby4hkns2klfzmyhplwk7q2n-activation-script.drv'...
+building '/nix/store/hxnwamgi24ydvh84jiwfpfb6fps362fk-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/fzq61dywf58inh9c9agh38clmz6nxrmf-hm_.manpath.drv'...
+building '/nix/store/mfxq9ibrywcwpix1va220j83rqzh9ajp-home-manager-files.drv'...
+building '/nix/store/ma08av50f08d4kcr1a23wpva01zbdm49-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 382
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 7s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+/home/diego/.claude/gen-claude-md.sh: line 72: awk: command not found
+[gen-claude-md] WARNING: generation failed, template used as fallback
+Activating globalTsx
+
+changed 5 packages in 4s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.133 is up to date
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.OP6LTPgiOs/generation/activate: line 820: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating installWg0TcpConf
+[wireguard-wstunnel] rendered /home/diego/.config/wireguard/wg0-tcp.conf (Endpoint=127.0.0.1:51821)
+Activating lockScreenWallpaper
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating powerDevilSuspend
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating sops-nix
+Activating sshSocketsDir
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-05-08 14:39:06] PERF: home-manager switch = 6m 57s
+[2026-05-08 14:39:06] PERF: TOTAL switch = 7m 0s
+[2026-05-08 14:39:06] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-05-08 14:39:06] ========== Build script finished ==========
+[2026-05-08 17:05:11] ========== Build script started ==========
+[2026-05-08 17:05:11] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-05-08 17:05:11] PERF: start switch
+[2026-05-08 17:05:12] INFO: Staging dirty files for flake evaluation...
+[2026-05-08 17:05:13] PERF: git stage = 911ms
+[2026-05-08 17:05:14] PERF: clean stale hm-backups = 1.2s
+[2026-05-08 17:05:14] INFO: Applying Home Manager configuration...
+[2026-05-08 17:05:14] INFO: home-manager backup extension: hm-backup-20260508-170514
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 4 derivations will be built:
+  /nix/store/v4n62xs061fh8xqnr4nq6vckjsfklapj-wstunnel-client-start.drv
+  /nix/store/hxz80w6vw2dk4l8k2ahxqkvj15yd4700-wstunnel-client.service.drv
+  /nix/store/bfl1ad14dq69smdhcyxijs2g4sib1pxp-home-manager-files.drv
+  /nix/store/35c3bjvchx7nbvz983mv2vd6b2hvrynz-home-manager-generation.drv
+building '/nix/store/v4n62xs061fh8xqnr4nq6vckjsfklapj-wstunnel-client-start.drv'...
+building '/nix/store/hxz80w6vw2dk4l8k2ahxqkvj15yd4700-wstunnel-client.service.drv'...
+building '/nix/store/bfl1ad14dq69smdhcyxijs2g4sib1pxp-home-manager-files.drv'...
+building '/nix/store/35c3bjvchx7nbvz983mv2vd6b2hvrynz-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 383
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 7s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+/home/diego/.claude/gen-claude-md.sh: line 72: awk: command not found
+[gen-claude-md] WARNING: generation failed, template used as fallback
+Activating globalTsx
+
+changed 5 packages in 6s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.133 is up to date
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.91Ly6vf7Md/generation/activate: line 820: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating installWg0TcpConf
+[wireguard-wstunnel] rendered /home/diego/.config/wireguard/wg0-tcp.conf (Endpoint=127.0.0.1:51821)
+Activating lockScreenWallpaper
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating powerDevilSuspend
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating sops-nix
+Activating sshSocketsDir
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-05-08 17:08:55] PERF: home-manager switch = 3m 40s
+[2026-05-08 17:08:55] PERF: TOTAL switch = 3m 43s
+[2026-05-08 17:08:55] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-05-08 17:08:55] ========== Build script finished ==========
+[2026-05-08 17:22:30] ========== Build script started ==========
+[2026-05-08 17:22:30] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-05-08 17:22:30] PERF: start switch
+[2026-05-08 17:22:30] INFO: Staging dirty files for flake evaluation...
+[2026-05-08 17:22:31] PERF: git stage = 681ms
+[2026-05-08 17:22:31] PERF: clean stale hm-backups = 720ms
+[2026-05-08 17:22:31] INFO: Applying Home Manager configuration...
+[2026-05-08 17:22:31] INFO: home-manager backup extension: hm-backup-20260508-172231
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 2 derivations will be built:
+  /nix/store/q92f9i4ylwfwrrh05yn7cqkx0vq41krn-activation-script.drv
+  /nix/store/1045wqn3qlpnkimhgc51i2743hmc0d0s-home-manager-generation.drv
+building '/nix/store/q92f9i4ylwfwrrh05yn7cqkx0vq41krn-activation-script.drv'...
+building '/nix/store/1045wqn3qlpnkimhgc51i2743hmc0d0s-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 384
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 6s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+/home/diego/.claude/gen-claude-md.sh: line 72: awk: command not found
+[gen-claude-md] WARNING: generation failed, template used as fallback
+Activating globalTsx
+
+changed 5 packages in 4s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.133 is up to date
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.YYIwYKGUcl/generation/activate: line 820: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating installWg0TcpConf
+[wireguard-wstunnel] rendered /home/diego/.config/wireguard/wg0-tcp.conf (Endpoint=127.0.0.1:51821)
+[wireguard-wstunnel] NM import needs root — run once manually:
+    sudo nmcli connection import type wireguard file /home/diego/.config/wireguard/wg0-tcp.conf
+    sudo nmcli connection modify wg0-tcp connection.autoconnect no
+Activating lockScreenWallpaper
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating powerDevilSuspend
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating sops-nix
+Activating sshSocketsDir
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-05-08 17:24:41] PERF: home-manager switch = 2m 10s
+[2026-05-08 17:24:41] PERF: TOTAL switch = 2m 11s
+[2026-05-08 17:24:41] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-05-08 17:24:41] ========== Build script finished ==========
+[2026-05-09 13:18:45] ========== Build script started ==========
+[2026-05-09 13:18:45] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-05-09 13:18:45] PERF: start switch
+[2026-05-09 13:18:45] INFO: Staging dirty files for flake evaluation...
+[2026-05-09 13:18:46] PERF: git stage = 134ms
+[2026-05-09 13:18:46] PERF: clean stale hm-backups = 312ms
+[2026-05-09 13:18:46] INFO: Applying Home Manager configuration...
+[2026-05-09 13:18:46] INFO: home-manager backup extension: hm-backup-20260509-131846
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 184 derivations will be built:
+  /nix/store/0f28rcdi4cf8pn4aqs3jnhfx3irzlgay-cmake-3.30.5-fish-completions.drv
+  /nix/store/0p5hf24vfbmmm7bqfkps349gkv86g65p-feh-3.10.3-fish-completions.drv
+  /nix/store/0r0slmxqbffydc4kn06jsb36mg7riaq2-terraform-1.9.8-fish-completions.drv
+  /nix/store/0w2l1dpngv352lzmfc8jgqpyhvjggarq-nix-zsh-completions-0.5.1-fish-completions.drv
+  /nix/store/108k34mxgrvpii4xf8lij57lcmpyhq49-krita-5.2.9-fish-completions.drv
+  /nix/store/10x8qzx91gprpxvrzhxbdika99w2gmnd-home-manager-fish-completions.drv
+  /nix/store/13c4xl5lglvb9fs0k59fkjs9csgbw7kj-python3.12-numpy-1.26.4-fish-completions.drv
+  /nix/store/15ac0q1ac6j8d4mw1ma17605njzsd0gg-krfb-24.08.3-fish-completions.drv
+  /nix/store/17rvipaqgwpwgvlsiyd15lxr56c6zz1j-bitwarden-desktop-2025.2.0-fish-completions.drv
+  /nix/store/19cjm619dwwrpzhn5fdrdlic2baj31lv-xxd-tinyxxd-1.3.7-fish-completions.drv
+  /nix/store/1flxqdyvkl7sxfbc6yq79ky776b7als4-firefox-140.0.1-fish-completions.drv
+  /nix/store/1givmcdq284kp4rg7fvfc81k865fkfv9-partitionmanager-24.08.3-fish-completions.drv
+  /nix/store/1knppwwyh786nl95v75r3iy8njsyyk9a-gwenview-23.08.5-fish-completions.drv
+  /nix/store/1r7xw0v4c8y11njbx6ggq5i2fpdacwh3-grafana-11.3.7+security-01-fish-completions.drv
+  /nix/store/1wbml6yby156lza8a4cr0fad6fps0dav-youki-0.4.1-fish-completions.drv
+  /nix/store/21fjwfbr5xajjmvff0mj0l66wayq8j9k-tealdeer-1.7.0-fish-completions.drv
+  /nix/store/232igi2dbx0vn4m2dpwcrv2xb109y3q3-password-store-1.7.4-fish-completions.drv
+  /nix/store/269vh2602zhnl4jzcv2iz9cj4akyh3cv-btop-1.4.0-fish-completions.drv
+  /nix/store/98p9a058i4h7mqv99v1gshi9k5cdw7b7-dummy-fc-dir1.drv
+  /nix/store/2hp833ikrdp0rqb3fyb0wmv9cibphc61-dummy-fc-dir1-fish-completions.drv
+  /nix/store/2j7c9dbps98zdd5bvqnlwbh2nhblzl6m-vlc-3.0.21-fish-completions.drv
+  /nix/store/2j9l8qyg2y2ixz32jlzk8kyc0p796iwm-wrangler-3.80.1-fish-completions.drv
+  /nix/store/2jvrrn5hzrd21qjvjywwjfc7rdr4ix3f-dnscrypt-proxy-2.1.5-fish-completions.drv
+  /nix/store/38y7s2gvlacwq743bm42ymv238yzxaby-cargo-edit-0.13.0-fish-completions.drv
+  /nix/store/3i6p9dgyv3gd7wckjrw819bhm7sa0spy-kubectx-0.9.5-fish-completions.drv
+  /nix/store/1nz3ajwaczwd76y7d7fr6v899aq142pq-dummy-xdg-mime-dirs1.drv
+  /nix/store/3ws0cipcd4hsi4ml098ikzjqxmn1kxqi-dummy-xdg-mime-dirs1-fish-completions.drv
+  /nix/store/42cayivlas8jg6kdlq7w9x54rmvcw9jj-yq-go-4.44.3-fish-completions.drv
+  /nix/store/46vq9czqd2hdnz65cd4360ynwqjv9z2s-diff-so-fancy-1.4.4-fish-completions.drv
+  /nix/store/4bnzlnv0sqff8bp1f5samm7gx79c06df-llvm-18.1.8-fish-completions.drv
+  /nix/store/4k98k9rykvwndqf1awnnx6qdkhf08vl5-kcolorchooser-24.08.3-fish-completions.drv
+  /nix/store/4m91kxn4xmfw8h2bcl86y6s93lyqqn53-wireguard-tools-1.0.20210914-fish-completions.drv
+  /nix/store/4mhxdrfzk2f245lfk78whh96phj8aqwj-awscli2-2.19.0-fish-completions.drv
+  /nix/store/4np26d1bzhd7r0nbhl4a2vcrw8g9rad0-libreoffice-24.2.7.2-wrapped-fish-completions.drv
+  /nix/store/4xfla8k7p0p0bhdl55w51f229p9zi8lz-gopls-0.16.2-fish-completions.drv
+  /nix/store/5fb1dqdmbnsyjb1m1j4f6wxcpkv1znab-ninja-1.12.1-fish-completions.drv
+  /nix/store/5i08qj331iqz7agw0y4adzqxzhsfswgs-python3.12-pyarrow-18.0.0-fish-completions.drv
+  /nix/store/5rjg8skfr1k56hzi6xap2wkn26j9jikk-gemini-cli-0.38.1-fish-completions.drv
+  /nix/store/6a3ay4sv29qn6s6dbxdpxw84z8abc5cc-dive-0.12.0-fish-completions.drv
+  /nix/store/6dhrfhq1zxh26imml1nypsg11bfsjqz9-go-1.23.8-fish-completions.drv
+  /nix/store/6wj24i86cbpsan13jq83jc6nd6k8bac0-claude-malloc-fish-completions.drv
+  /nix/store/7fskcg1agh2wlfgnmcgxp61fa5zj0yqh-dolphin-24.08.3-fish-completions.drv
+  /nix/store/7hkv68j410lcfs36rj0dmp5fh0rvzy36-obsidian-1.7.6-fish-completions.drv
+  /nix/store/s5fi9ihnknx6kmckzym7af9v3zik8ick-dummy-xdg-mime-dirs2.drv
+  /nix/store/7v4ns250rvlbvpjszx3dzdpj11953k2a-dummy-xdg-mime-dirs2-fish-completions.drv
+  /nix/store/8axklsgrnlm4xhq1g9g3w6m5l1g2ihrb-pipx-1.7.1-fish-completions.drv
+  /nix/store/8js4skrrslq4vyzy8rys1644qip73k39-oci-cli-3.14.0-fish-completions.drv
+  /nix/store/8xbrdk9n2f68fx5pw9caz6bxmmm5w4bc-gopass-1.15.14-fish-completions.drv
+  /nix/store/8ybqx8z9prq550rfbd4hrvh8cjqhdjia-multitail-7.1.5-fish-completions.drv
+  /nix/store/90j5qggy8vnklblgczcrzgcxr3fymq9m-python3.12-torch-2.5.1-fish-completions.drv
+  /nix/store/96r6r71p8l19fy2sy9g5naa7dg5w3s52-kmousetool-24.08.3-fish-completions.drv
+  /nix/store/9jyzd0czbby1dbijdzgf3aqpk38bxpyv-obs-studio-30.2.3-fish-completions.drv
+  /nix/store/9ki424g964nwjrva7sbr6i4dq1xh84ps-httpie-3.2.4-fish-completions.drv
+  /nix/store/9pf9n4hgaapnv80qngbgxgr5mwj8xh82-wget-1.25.0-fish-completions.drv
+  /nix/store/9sfmcagv69q0k66iwf4m325rismgsjb9-redis-7.2.7-fish-completions.drv
+  /nix/store/a11wjby2vcv3c1lk69mcydfwx01j531w-python3.12-virtualenv-20.26.6-fish-completions.drv
+  /nix/store/a473n5jr6b5m8jx3gb5j4kn4vibgqb7p-breeze-6.2.5-fish-completions.drv
+  /nix/store/a6q5sv6s1ca9znjyaacl6bikldvp9mfl-connect-fish-completions.drv
+  /nix/store/a8lw25xwln9j7wv1b73fqi1kyjwqc9nb-krdc-24.08.3-fish-completions.drv
+  /nix/store/azw9rdi94rw68m5gm7npjgm0rscpvgsg-jq-1.7.1-fish-completions.drv
+  /nix/store/bgmpxqc92dkkh8r9k6iz4vxcvjrx9yhw-python3.12-notebook-7.2.2-fish-completions.drv
+  /nix/store/bhv0fbznpsd1gv478hvapjyl8yikqq6n-yarn-1.22.22-fish-completions.drv
+  /nix/store/bip0a7h5s1skil95j55h4i72s3cp633g-mediainfo-24.06-fish-completions.drv
+  /nix/store/bjflwvj4w18kpq3dv4kzqnpn8l0c474j-hexyl-0.15.0-fish-completions.drv
+  /nix/store/bpnw7p5d62gp0hw6iijn5m4bnf79v9gs-unrar-7.0.9-fish-completions.drv
+  /nix/store/brvggy7bai64mfzw55ars5b7dxs5bxgh-clang-tools-18.1.8-fish-completions.drv
+  /nix/store/c3d6mv5n1r3xih7lx6vwa7lkdlp68hls-stern-1.31.0-fish-completions.drv
+  /nix/store/c5rvwpc7j12yvsbq893a5633gqms5v87-r-tidyr-1.3.1-fish-completions.drv
+  /nix/store/c68wmqjpzsj7273wa4bbkjix6xa9bkpc-python3.12-jupyterlab-4.2.5-fish-completions.drv
+  /nix/store/chcgg9hrjk9wpi23saphdmazi91y58dh-python3.12-dask-2024.10.0-fish-completions.drv
+  /nix/store/cjsly2jac48api399l05rxb6vkmbbn9m-direnv-2.35.0-fish-completions.drv
+  /nix/store/cpgj0svf0mn9p72w7c4jf2049xyim13c-goose-1.28.0-fish-completions.drv
+  /nix/store/cwzzapz7a3gr10f9q13zyl0ipdwfv4zk-joplin-desktop-3.0.15-fish-completions.drv
+  /nix/store/cz0n604hhw929id4is4065pkzp8xizv0-rust-analyzer-2026-04-06-fish-completions.drv
+  /nix/store/cz39y6i9af175as4b1h4kv5ar2il3n54-glow-2.0.0-fish-completions.drv
+  /nix/store/dilcsnicj8cl0i922rvcdmhz7bsaq0kx-pnpm-9.15.9-fish-completions.drv
+  /nix/store/diwgl754h6snq93ghqzablvcbvgzpm0z-rclone-1.68.2-fish-completions.drv
+  /nix/store/dvmhk3igshkcscrb0m43hdp98a8rzw16-claude-rescue-fish-completions.drv
+  /nix/store/f7z468gv7n4mdnkr60nsm6gv3pb12alr-docker-buildx-0.18.0-fish-completions.drv
+  /nix/store/f9cx73x7w2gd5q9v35w9x781spaymb5l-kcharselect-24.08.3-fish-completions.drv
+  /nix/store/fma3w0q8jgh55grc1w4wfm8sgz5s3vwl-kcalc-24.08.3-fish-completions.drv
+  /nix/store/fp8lnjdlga37fazinx5s8l7lwnmvpap3-python3.12-bokeh-3.6.0-fish-completions.drv
+  /nix/store/fp9z4zrf6ws42a1b4yq2n4hrsh546lbv-delta-0.18.2-fish-completions.drv
+  /nix/store/g24cb79chzgcj92av02dcsnx34mfnwjb-zettlr-3.2.0-fish-completions.drv
+  /nix/store/gcb12yf7ixs8rm2ys0rnjcijrz5gmwdl-gitlab-runner-17.2.0-fish-completions.drv
+  /nix/store/ggrdf3fp489zg8gq8s0mmbk36d3hr7g6-certbot-2.11.0-fish-completions.drv
+  /nix/store/ggsbwsgr05fhln3bx55pzgc75qzk8r21-sops-3.9.4-fish-completions.drv
+  /nix/store/ghwn6qgxkkav3b1zf0qrzr68qxdx6ha9-zsh-5.9-fish-completions.drv
+  /nix/store/ghwpdb51wkzsp17c1q6gz0j3v860g76y-wstunnel-10.1.6-fish-completions.drv
+  /nix/store/gj8z4g8q09jb6m6cr3s977r5sxfd3x12-python3.12-ipython-8.29.0-fish-completions.drv
+  /nix/store/gnys9n69kj3k6mi9jjvcr7lzvwnj399l-curl-fish-completions.drv
+  /nix/store/h12rcq8siwrcnhwm8yh9xyazgk3s6605-docker-compose-2.30.3-fish-completions.drv
+  /nix/store/h18rs5lx54vb5d5r3m3y6dalgk61k4gx-mesh-fish-completions.drv
+  /nix/store/hg8pg3r6fy0jcybg94j32f4vk50pxk75-aspell-dict-en-2020.12.07-0-fish-completions.drv
+  /nix/store/hhfyc5lvhi318mmqfhsk8rwh3pcchczf-browsh-1.8.2-fish-completions.drv
+  /nix/store/hmp3ha6qgdcbjvj92qsy48jgngzdb449-claude-termux-fish-completions.drv
+  /nix/store/i055wv70mv0j7r3gpf2047lrdxl2f78z-plantuml-1.2024.7-fish-completions.drv
+  /nix/store/igdwfbwv0n8khkbl0j6d0x4gn7w4vs55-flarectl-0.108.0-fish-completions.drv
+  /nix/store/is4m3qvzjdi2aywm64qxzbwgamy6ijy0-starship-1.22.1-fish-completions.drv
+  /nix/store/j2jh9x50hckd8kfq4zs04hysgzngwrks-doxygen-1.10.0-fish-completions.drv
+  /nix/store/j2jw5drfzlhkcjrvjrp0a314yrr1bzdm-dart-sass-1.80.5-fish-completions.drv
+  /nix/store/j65q7qbxbg86sw40g0x9g7gjzma4jjd8-nerdfonts-3.2.1-fish-completions.drv
+  /nix/store/jcrplkqbk0wy3i8ymwf03l4zs5c7zr3z-python3.12-scikit-learn-1.5.2-fish-completions.drv
+  /nix/store/jhzpvklii6055gxa04g9ikdsqa875zg5-delve-1.23.1-fish-completions.drv
+  /nix/store/k38h0ppysy6ni2ngr35pc62yp1v449nd-audacity-3.7.0-fish-completions.drv
+  /nix/store/l0k91nyn1pzw5vbb352xnl4fbqn663kx-breeze-icons-6.8.0-fish-completions.drv
+  /nix/store/l8xi8w9g7gqfd3430yyyp4iayz2r4d18-cargo-watch-8.5.3-fish-completions.drv
+  /nix/store/ll2di3c7sgyim7srkh0d82qld7ygm56b-docker-27.5.1-fish-completions.drv
+  /nix/store/lr09zyi9h0rv7aqg1ajym10bpy2zald8-wget-fish-completions.drv
+  /nix/store/lrfakrp305p6pri3bjdvdna0j2d6b6q9-k9s-0.32.7-fish-completions.drv
+  /nix/store/lz2v0x2ap8m7pyn38yj2f9xfjjjhp657-mycli-1.27.2-fish-completions.drv
+  /nix/store/lzq418bm908q5bqgc1gkawnxa5dla2fp-kdialog-23.08.5-fish-completions.drv
+  /nix/store/m8ks75mfsl94xvfgq6zqgizpl426l4hh-skanlite-24.08.3-fish-completions.drv
+  /nix/store/mi4pkmiq8fipw861z8n8r7ppcr7kxzza-sqlite-3.46.1-fish-completions.drv
+  /nix/store/mj28wvip20ffm082clxpy3ygkxvhpkhf-sync-fish-completions.drv
+  /nix/store/mmm0i4sc2iwvs5m1pw7kpa92iw50v91x-clippy-1.94.0-fish-completions.drv
+  /nix/store/n044z0l7745dlbff1yi16y0lz1hkz8s1-qutebrowser-3.4.0-fish-completions.drv
+  /nix/store/n5fx3d2zkla1m7jz32s0fpnj31346j83-kubernetes-helm-3.16.3-fish-completions.drv
+  /nix/store/n6bhpilmqbwgwkcv3s6vyh0sdmfq3pav-pikchr-0-unstable-2024-02-12-fish-completions.drv
+  /nix/store/n7bav80g5n4686w504jy5zrndblvacdn-esbuild-0.24.0-fish-completions.drv
+  /nix/store/ndwdlcypygq66a9iyic8c3x60r3wa67m-taskwarrior-2.6.2-fish-completions.drv
+  /nix/store/ng92jqwywmgwivsmq1892aljwphav1bb-kfind-24.08.3-fish-completions.drv
+  /nix/store/p10lwqpkcgdphy8h0iw85scd3ndlkgv2-binwalk-2.4.3-fish-completions.drv
+  /nix/store/p1c0c760jb61g2q4ssi9l6z6ridqmjc9-rustfmt-1.94.0-fish-completions.drv
+  /nix/store/p2w03d3zzssgi3vka8jfcjjy656aah5l-azure-cli-2.65.0-fish-completions.drv
+  /nix/store/p95dja5rkzpai7grrr06snc3bk1bmm7w-python3.12-matplotlib-3.9.2-fish-completions.drv
+  /nix/store/pcxcy5xchba6i7vmfvhp6lsj58jl0gmx-cloudflared-2024.10.0-fish-completions.drv
+  /nix/store/pgndm1vxrvgchgq2v2ckrlm2wgrxicsb-breeze-gtk-6.2.5-fish-completions.drv
+  /nix/store/pqf7cdim9rxjycx8g0czq0dkss8kbx4l-litecli-1.12.3-fish-completions.drv
+  /nix/store/py2kmhvrfnbvcdxjfmvq1g8pk9kapydd-r-dplyr-1.1.4-fish-completions.drv
+  /nix/store/pydyi0yl99dlyigh8ia8r541q5swwsdq-python3.12-pandas-2.2.3-fish-completions.drv
+  /nix/store/pyfm2kfkbarb65shsfy2mjnd4g7rbc70-cliphist-0.6.1-fish-completions.drv
+  /nix/store/q1mmbri1yk3lfd10hn55c11h7ndgql7q-orphan-reaper-fish-completions.drv
+  /nix/store/q2i01zhwfmaiws0ywzdx6c6wjq98gwn7-python3.12-scipy-1.14.1-fish-completions.drv
+  /nix/store/q3sdxvxlv3fsds0zh3s2mj1yvzdhwiqg-r-ggplot2-3.5.1-fish-completions.drv
+  /nix/store/q7h5nz407rwzqmakrli33rlda8g53fhx-lldb-18.1.8-fish-completions.drv
+  /nix/store/q7ras1pb855d1f4mqnipppi8gz11zvz6-elisa-24.08.3-fish-completions.drv
+  /nix/store/qgv63rd59ag125ycbl1bv57agv261fqy-act-0.2.68-fish-completions.drv
+  /nix/store/qiqyrg0r32vigm5jkr5bkmv1xhz36fgy-python3.12-pydantic-2.9.2-fish-completions.drv
+  /nix/store/qkdsagak39z3ws97qxwvs2xjf48aj7sg-typescript-5.6.3-fish-completions.drv
+  /nix/store/qmrkj5210mddgqkspli8z8316qz44av0-google-cloud-sdk-494.0.0-fish-completions.drv
+  /nix/store/qw3m5iydafc1piz7fr6jj2n612990zf8-coreutils-9.5-fish-completions.drv
+  /nix/store/r8ahnaj25b9b3aslrk356ahhfja8aaxz-atuin-18.3.0-fish-completions.drv
+  /nix/store/rpq6grqzg7aawy2xy5marqli0r3zpik1-bind-9.18.33-fish-completions.drv
+  /nix/store/rxvcqnn9bfx190k0m6fzgyylsimdpj0f-mdcat-2.6.1-fish-completions.drv
+  /nix/store/shn9vsl528hz0zv66djm1f9mp5510jld-prometheus-2.55.0-fish-completions.drv
+  /nix/store/skh93s6mgvca3lvzi9v30wi723hmaryx-python3.12-requests-2.32.3-fish-completions.drv
+  /nix/store/v26d1yfgrlf6drk4n45ac2zhs42pv1pf-drawio-24.7.17-fish-completions.drv
+  /nix/store/vddbgynj8fhz2ywv0n619i1wcf18bn51-waydroid.desktop-fish-completions.drv
+  /nix/store/z7kcimxwkmhy54qa0ddm1a9sa54ppfwd-dummy-fc-dir2.drv
+  /nix/store/vg8ijzc34cfa5vm9vwhrvqbr4wwzb021-dummy-fc-dir2-fish-completions.drv
+  /nix/store/vm2c59vx9s8b7jvgxx5vp0xsvg1h5vdf-aspell-dict-es-1.11-2-fish-completions.drv
+  /nix/store/vzf7dvl8p8xz8jzx0zyj9fipir64b082-peek-1.5.1-fish-completions.drv
+  /nix/store/wppdk4zncldm7qw7vpimynk9dfzdfxyf-python3.12-polars-1.12.0-fish-completions.drv
+  /nix/store/wshp4qa7ka8vhr389sjw9didassjn29z-filelight-24.08.3-fish-completions.drv
+  /nix/store/wyi1z5lh9c544n93sm75plg5klam0rrl-ksystemlog-24.08.3-fish-completions.drv
+  /nix/store/wywpsycjqfhxj8jsly498ybaq10bxggg-dolphin-plugins-24.08.3-fish-completions.drv
+  /nix/store/wz6i73diz7pw8dxfp7k4f4nfclisxnfl-cargo-audit-0.21.0-fish-completions.drv
+  /nix/store/x21yfaxwsfqrvf90bwz2k4dnq89jb60m-python3.12-plotly-5.24.1-fish-completions.drv
+  /nix/store/xdl8lamyg68j9l24ag9y5y1srjx7b0xv-python3.12-beautifulsoup4-4.12.3-fish-completions.drv
+  /nix/store/xkqz753y6lj895wn4pikycxjs3nnxl1l-python3.12-httpx-0.27.2-fish-completions.drv
+  /nix/store/y1b85mafmgv0qpclm2hj0p61pa9354gb-yazi-0.3.3-fish-completions.drv
+  /nix/store/y6k3x0q1skd7v9n59fjywbh911nyvxvd-python3.12-seaborn-0.13.2-fish-completions.drv
+  /nix/store/y82f54rs0zw7skcl2bbnnd7vfm93ifjj-hm-session-vars.sh-fish-completions.drv
+  /nix/store/y849rvf3q3b2mhq4mlg32cp5lr2wiqin-python3.12-torchvision-0.20.1-fish-completions.drv
+  /nix/store/y98c00ab7cbp0kl8z18dyd9rpxw07k9r-vit-2.3.2-fish-completions.drv
+  /nix/store/yddmslczqrci4xpxk3s37f8bhgkbivkd-python3.12-sympy-1.13.3-fish-completions.drv
+  /nix/store/ywxzy6xam3gdnwrn3qga7ilb51d182z0-pgcli-4.1.0-fish-completions.drv
+  /nix/store/zfs566zci67w58s91m6lmj58d5kcsmx3-uv-0.4.30-fish-completions.drv
+  /nix/store/zp68kk523b6sjhjrandydkpfbax2jagr-eza-0.20.24-fish-completions.drv
+  /nix/store/zvjd4711fz7xrwnk9d1mj3a5032y56bq-octocode-0.12.2-fish-completions.drv
+  /nix/store/0x0h60j2126a1m2cw0adm1np1z65f687-diego-fish-completions.drv
+  /nix/store/j164hwi73pw3b6r6fna450rmkd6njnzh-builder.pl.drv
+  /nix/store/9zsqg3ljyi1fhwa5sbcz68qcgk8jpkci-home-manager-path.drv
+  /nix/store/mawsn4b1f1s6k7rp1czvpy80ffy1j8b2-hm_qutebrowserconfig.py.drv
+  /nix/store/7fy4fnck86yl8smsq807q9wpyifkcwpm-activation-script.drv
+  /nix/store/4yqxxz1v0jk71pdmp8d7vbwc1q3ynifp-ff_native-messaging-hosts.drv
+  /nix/store/8gl388r1p7kyg00354s643gyrwg0ps5a-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/agpax65sypp529w475ca2v7l3s7cdzzd-man-paths.drv
+  /nix/store/5m7y659hg8hy4jryk6wbbfhj9nyi305b-man-cache.drv
+  /nix/store/9yl4v2qby4hwjsa3pvgzmw0wgdan0gbf-hm_.manpath.drv
+  /nix/store/i7r2n1qvcw1nag36ixpwar9mgcm7w4li-hm_qutebrowserquickmarks.drv
+  /nix/store/ffiq8yrfidylj6cklvaq36fg2f5xgazx-home-manager-files.drv
+  /nix/store/44kqv58lcz4swf9l9rkiny8fwaz66pqk-home-manager-generation.drv
+these 21 paths will be fetched (12.69 MiB download, 79.36 MiB unpacked):
+  /nix/store/plpc13r351l9bn13c03yvzd4q9kr5rcy-file-5.45
+  /nix/store/zszv0wwyyb5pqfibp9avrmgs4lfphkmn-gnu-config-2024-01-01
+  /nix/store/0xx06whymh7q41z839xvign6pblmb1x0-gnumake-4.4.1
+  /nix/store/g2nv79v76z2qvgvngwahv0lglb3h663p-python3-3.12.8-env
+  /nix/store/gfwr2b9kb86a4rq3wky2jg3kqwr4349d-python3.12-adblock-0.6.0
+  /nix/store/9l27lv98ifp4hys981i0slyc9hs2569i-python3.12-construct-2.10.70
+  /nix/store/9lzwanjajcrp88l87g1yffd7mf7hb0x4-python3.12-lxml-html-clean-0.3.1
+  /nix/store/pmcdp2r349s9y1bcvzkvzhblll59bmmq-python3.12-pykeepass-4.1.0.post1
+  /nix/store/6kwn3wwa5cfbvn7shg1qigraqlr67m1q-python3.12-pyqt6-6.8.0
+  /nix/store/n0h9dqxpb3qcsbbmjlhggjdavl7b25l1-python3.12-pyqt6-6.8.0-dev
+  /nix/store/6rwvl1jbwdn7q8xmk59p6h2xz7ch9sa6-python3.12-pyqt6-sip-13.8.0
+  /nix/store/m7hc34sn2caq0jfwbmqdyp7m55kaddz6-python3.12-pyqt6-webengine-6.8.0
+  /nix/store/wvszwy5v3xf8yj32siawi4zwr5km6sss-python3.12-pyqt6-webengine-6.8.0-dev
+  /nix/store/hdjdi41dl2rr8b7affzl2f7d43lf7hqp-python3.12-readability-lxml-0.8.1
+  /nix/store/a59dy0qm7vnss9qm0gfzgdbz2i7m59sc-python3.12-stem-1.8.3-unstable-2024-02-13
+  /nix/store/5dsdnhrjzfaq4ixyx1s511rn2k241q07-qutebrowser-3.4.0
+  /nix/store/0zyi17008m7aj74w6lr1skachnqjyzrx-source
+  /nix/store/4mmdi8a6znw6qkf2gayg0iqig708pc3b-stdenv-linux
+  /nix/store/j7fs0issycvpg0gxgaz73sz2w7ax9pqg-tinyxxd-1.3.7
+  /nix/store/64683f927q2mhyrwn0z34zysjq0j2gqh-update-autotools-gnu-config-scripts-hook
+  /nix/store/2ijxynarg69zrrmlg9jjczdjxh38f0av-xxd-tinyxxd-1.3.7
+copying path '/nix/store/zszv0wwyyb5pqfibp9avrmgs4lfphkmn-gnu-config-2024-01-01' from 'https://cache.nixos.org'...
+copying path '/nix/store/0zyi17008m7aj74w6lr1skachnqjyzrx-source' from 'https://cache.nixos.org'...
+copying path '/nix/store/plpc13r351l9bn13c03yvzd4q9kr5rcy-file-5.45' from 'https://cache.nixos.org'...
+copying path '/nix/store/0xx06whymh7q41z839xvign6pblmb1x0-gnumake-4.4.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/g2nv79v76z2qvgvngwahv0lglb3h663p-python3-3.12.8-env' from 'https://cache.nixos.org'...
+copying path '/nix/store/gfwr2b9kb86a4rq3wky2jg3kqwr4349d-python3.12-adblock-0.6.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/9l27lv98ifp4hys981i0slyc9hs2569i-python3.12-construct-2.10.70' from 'https://cache.nixos.org'...
+copying path '/nix/store/9lzwanjajcrp88l87g1yffd7mf7hb0x4-python3.12-lxml-html-clean-0.3.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/6kwn3wwa5cfbvn7shg1qigraqlr67m1q-python3.12-pyqt6-6.8.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/6rwvl1jbwdn7q8xmk59p6h2xz7ch9sa6-python3.12-pyqt6-sip-13.8.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/a59dy0qm7vnss9qm0gfzgdbz2i7m59sc-python3.12-stem-1.8.3-unstable-2024-02-13' from 'https://cache.nixos.org'...
+copying path '/nix/store/j7fs0issycvpg0gxgaz73sz2w7ax9pqg-tinyxxd-1.3.7' from 'https://cache.nixos.org'...
+copying path '/nix/store/m7hc34sn2caq0jfwbmqdyp7m55kaddz6-python3.12-pyqt6-webengine-6.8.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/64683f927q2mhyrwn0z34zysjq0j2gqh-update-autotools-gnu-config-scripts-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/2ijxynarg69zrrmlg9jjczdjxh38f0av-xxd-tinyxxd-1.3.7' from 'https://cache.nixos.org'...
+copying path '/nix/store/hdjdi41dl2rr8b7affzl2f7d43lf7hqp-python3.12-readability-lxml-0.8.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/4mmdi8a6znw6qkf2gayg0iqig708pc3b-stdenv-linux' from 'https://cache.nixos.org'...
+building '/nix/store/qgv63rd59ag125ycbl1bv57agv261fqy-act-0.2.68-fish-completions.drv'...
+building '/nix/store/hg8pg3r6fy0jcybg94j32f4vk50pxk75-aspell-dict-en-2020.12.07-0-fish-completions.drv'...
+building '/nix/store/vm2c59vx9s8b7jvgxx5vp0xsvg1h5vdf-aspell-dict-es-1.11-2-fish-completions.drv'...
+building '/nix/store/r8ahnaj25b9b3aslrk356ahhfja8aaxz-atuin-18.3.0-fish-completions.drv'...
+building '/nix/store/k38h0ppysy6ni2ngr35pc62yp1v449nd-audacity-3.7.0-fish-completions.drv'...
+building '/nix/store/4mhxdrfzk2f245lfk78whh96phj8aqwj-awscli2-2.19.0-fish-completions.drv'...
+building '/nix/store/p2w03d3zzssgi3vka8jfcjjy656aah5l-azure-cli-2.65.0-fish-completions.drv'...
+building '/nix/store/rpq6grqzg7aawy2xy5marqli0r3zpik1-bind-9.18.33-fish-completions.drv'...
+copying path '/nix/store/pmcdp2r349s9y1bcvzkvzhblll59bmmq-python3.12-pykeepass-4.1.0.post1' from 'https://cache.nixos.org'...
+copying path '/nix/store/n0h9dqxpb3qcsbbmjlhggjdavl7b25l1-python3.12-pyqt6-6.8.0-dev' from 'https://cache.nixos.org'...
+building '/nix/store/p10lwqpkcgdphy8h0iw85scd3ndlkgv2-binwalk-2.4.3-fish-completions.drv'...
+building '/nix/store/17rvipaqgwpwgvlsiyd15lxr56c6zz1j-bitwarden-desktop-2025.2.0-fish-completions.drv'...
+building '/nix/store/a473n5jr6b5m8jx3gb5j4kn4vibgqb7p-breeze-6.2.5-fish-completions.drv'...
+building '/nix/store/pgndm1vxrvgchgq2v2ckrlm2wgrxicsb-breeze-gtk-6.2.5-fish-completions.drv'...
+building '/nix/store/l0k91nyn1pzw5vbb352xnl4fbqn663kx-breeze-icons-6.8.0-fish-completions.drv'...
+building '/nix/store/hhfyc5lvhi318mmqfhsk8rwh3pcchczf-browsh-1.8.2-fish-completions.drv'...
+building '/nix/store/269vh2602zhnl4jzcv2iz9cj4akyh3cv-btop-1.4.0-fish-completions.drv'...
+copying path '/nix/store/wvszwy5v3xf8yj32siawi4zwr5km6sss-python3.12-pyqt6-webengine-6.8.0-dev' from 'https://cache.nixos.org'...
+building '/nix/store/j164hwi73pw3b6r6fna450rmkd6njnzh-builder.pl.drv'...
+building '/nix/store/wz6i73diz7pw8dxfp7k4f4nfclisxnfl-cargo-audit-0.21.0-fish-completions.drv'...
+building '/nix/store/38y7s2gvlacwq743bm42ymv238yzxaby-cargo-edit-0.13.0-fish-completions.drv'...
+building '/nix/store/l8xi8w9g7gqfd3430yyyp4iayz2r4d18-cargo-watch-8.5.3-fish-completions.drv'...
+building '/nix/store/ggrdf3fp489zg8gq8s0mmbk36d3hr7g6-certbot-2.11.0-fish-completions.drv'...
+building '/nix/store/brvggy7bai64mfzw55ars5b7dxs5bxgh-clang-tools-18.1.8-fish-completions.drv'...
+building '/nix/store/6wj24i86cbpsan13jq83jc6nd6k8bac0-claude-malloc-fish-completions.drv'...
+copying path '/nix/store/5dsdnhrjzfaq4ixyx1s511rn2k241q07-qutebrowser-3.4.0' from 'https://cache.nixos.org'...
+building '/nix/store/dvmhk3igshkcscrb0m43hdp98a8rzw16-claude-rescue-fish-completions.drv'...
+building '/nix/store/hmp3ha6qgdcbjvj92qsy48jgngzdb449-claude-termux-fish-completions.drv'...
+building '/nix/store/pyfm2kfkbarb65shsfy2mjnd4g7rbc70-cliphist-0.6.1-fish-completions.drv'...
+building '/nix/store/mmm0i4sc2iwvs5m1pw7kpa92iw50v91x-clippy-1.94.0-fish-completions.drv'...
+building '/nix/store/pcxcy5xchba6i7vmfvhp6lsj58jl0gmx-cloudflared-2024.10.0-fish-completions.drv'...
+building '/nix/store/0f28rcdi4cf8pn4aqs3jnhfx3irzlgay-cmake-3.30.5-fish-completions.drv'...
+building '/nix/store/a6q5sv6s1ca9znjyaacl6bikldvp9mfl-connect-fish-completions.drv'...
+building '/nix/store/qw3m5iydafc1piz7fr6jj2n612990zf8-coreutils-9.5-fish-completions.drv'...
+building '/nix/store/gnys9n69kj3k6mi9jjvcr7lzvwnj399l-curl-fish-completions.drv'...
+building '/nix/store/j2jw5drfzlhkcjrvjrp0a314yrr1bzdm-dart-sass-1.80.5-fish-completions.drv'...
+building '/nix/store/fp9z4zrf6ws42a1b4yq2n4hrsh546lbv-delta-0.18.2-fish-completions.drv'...
+building '/nix/store/jhzpvklii6055gxa04g9ikdsqa875zg5-delve-1.23.1-fish-completions.drv'...
+building '/nix/store/46vq9czqd2hdnz65cd4360ynwqjv9z2s-diff-so-fancy-1.4.4-fish-completions.drv'...
+building '/nix/store/cjsly2jac48api399l05rxb6vkmbbn9m-direnv-2.35.0-fish-completions.drv'...
+building '/nix/store/6a3ay4sv29qn6s6dbxdpxw84z8abc5cc-dive-0.12.0-fish-completions.drv'...
+building '/nix/store/2jvrrn5hzrd21qjvjywwjfc7rdr4ix3f-dnscrypt-proxy-2.1.5-fish-completions.drv'...
+building '/nix/store/ll2di3c7sgyim7srkh0d82qld7ygm56b-docker-27.5.1-fish-completions.drv'...
+building '/nix/store/f7z468gv7n4mdnkr60nsm6gv3pb12alr-docker-buildx-0.18.0-fish-completions.drv'...
+building '/nix/store/h12rcq8siwrcnhwm8yh9xyazgk3s6605-docker-compose-2.30.3-fish-completions.drv'...
+building '/nix/store/7fskcg1agh2wlfgnmcgxp61fa5zj0yqh-dolphin-24.08.3-fish-completions.drv'...
+building '/nix/store/wywpsycjqfhxj8jsly498ybaq10bxggg-dolphin-plugins-24.08.3-fish-completions.drv'...
+building '/nix/store/j2jh9x50hckd8kfq4zs04hysgzngwrks-doxygen-1.10.0-fish-completions.drv'...
+building '/nix/store/v26d1yfgrlf6drk4n45ac2zhs42pv1pf-drawio-24.7.17-fish-completions.drv'...
+building '/nix/store/98p9a058i4h7mqv99v1gshi9k5cdw7b7-dummy-fc-dir1.drv'...
+building '/nix/store/z7kcimxwkmhy54qa0ddm1a9sa54ppfwd-dummy-fc-dir2.drv'...
+building '/nix/store/1nz3ajwaczwd76y7d7fr6v899aq142pq-dummy-xdg-mime-dirs1.drv'...
+building '/nix/store/s5fi9ihnknx6kmckzym7af9v3zik8ick-dummy-xdg-mime-dirs2.drv'...
+building '/nix/store/q7ras1pb855d1f4mqnipppi8gz11zvz6-elisa-24.08.3-fish-completions.drv'...
+building '/nix/store/n7bav80g5n4686w504jy5zrndblvacdn-esbuild-0.24.0-fish-completions.drv'...
+building '/nix/store/zp68kk523b6sjhjrandydkpfbax2jagr-eza-0.20.24-fish-completions.drv'...
+building '/nix/store/0p5hf24vfbmmm7bqfkps349gkv86g65p-feh-3.10.3-fish-completions.drv'...
+building '/nix/store/4yqxxz1v0jk71pdmp8d7vbwc1q3ynifp-ff_native-messaging-hosts.drv'...
+building '/nix/store/wshp4qa7ka8vhr389sjw9didassjn29z-filelight-24.08.3-fish-completions.drv'...
+building '/nix/store/1flxqdyvkl7sxfbc6yq79ky776b7als4-firefox-140.0.1-fish-completions.drv'...
+building '/nix/store/igdwfbwv0n8khkbl0j6d0x4gn7w4vs55-flarectl-0.108.0-fish-completions.drv'...
+building '/nix/store/2hp833ikrdp0rqb3fyb0wmv9cibphc61-dummy-fc-dir1-fish-completions.drv'...
+building '/nix/store/vg8ijzc34cfa5vm9vwhrvqbr4wwzb021-dummy-fc-dir2-fish-completions.drv'...
+building '/nix/store/3ws0cipcd4hsi4ml098ikzjqxmn1kxqi-dummy-xdg-mime-dirs1-fish-completions.drv'...
+building '/nix/store/7v4ns250rvlbvpjszx3dzdpj11953k2a-dummy-xdg-mime-dirs2-fish-completions.drv'...
+building '/nix/store/5rjg8skfr1k56hzi6xap2wkn26j9jikk-gemini-cli-0.38.1-fish-completions.drv'...
+building '/nix/store/gcb12yf7ixs8rm2ys0rnjcijrz5gmwdl-gitlab-runner-17.2.0-fish-completions.drv'...
+building '/nix/store/cz39y6i9af175as4b1h4kv5ar2il3n54-glow-2.0.0-fish-completions.drv'...
+building '/nix/store/6dhrfhq1zxh26imml1nypsg11bfsjqz9-go-1.23.8-fish-completions.drv'...
+building '/nix/store/qmrkj5210mddgqkspli8z8316qz44av0-google-cloud-sdk-494.0.0-fish-completions.drv'...
+building '/nix/store/cpgj0svf0mn9p72w7c4jf2049xyim13c-goose-1.28.0-fish-completions.drv'...
+building '/nix/store/8xbrdk9n2f68fx5pw9caz6bxmmm5w4bc-gopass-1.15.14-fish-completions.drv'...
+building '/nix/store/4xfla8k7p0p0bhdl55w51f229p9zi8lz-gopls-0.16.2-fish-completions.drv'...
+building '/nix/store/1r7xw0v4c8y11njbx6ggq5i2fpdacwh3-grafana-11.3.7+security-01-fish-completions.drv'...
+building '/nix/store/1knppwwyh786nl95v75r3iy8njsyyk9a-gwenview-23.08.5-fish-completions.drv'...
+building '/nix/store/bjflwvj4w18kpq3dv4kzqnpn8l0c474j-hexyl-0.15.0-fish-completions.drv'...
+building '/nix/store/y82f54rs0zw7skcl2bbnnd7vfm93ifjj-hm-session-vars.sh-fish-completions.drv'...
+building '/nix/store/mawsn4b1f1s6k7rp1czvpy80ffy1j8b2-hm_qutebrowserconfig.py.drv'...
+building '/nix/store/i7r2n1qvcw1nag36ixpwar9mgcm7w4li-hm_qutebrowserquickmarks.drv'...
+building '/nix/store/10x8qzx91gprpxvrzhxbdika99w2gmnd-home-manager-fish-completions.drv'...
+building '/nix/store/9zsqg3ljyi1fhwa5sbcz68qcgk8jpkci-home-manager-path.drv'...
+building '/nix/store/9ki424g964nwjrva7sbr6i4dq1xh84ps-httpie-3.2.4-fish-completions.drv'...
+building '/nix/store/cwzzapz7a3gr10f9q13zyl0ipdwfv4zk-joplin-desktop-3.0.15-fish-completions.drv'...
+building '/nix/store/azw9rdi94rw68m5gm7npjgm0rscpvgsg-jq-1.7.1-fish-completions.drv'...
+building '/nix/store/lrfakrp305p6pri3bjdvdna0j2d6b6q9-k9s-0.32.7-fish-completions.drv'...
+building '/nix/store/fma3w0q8jgh55grc1w4wfm8sgz5s3vwl-kcalc-24.08.3-fish-completions.drv'...
+building '/nix/store/f9cx73x7w2gd5q9v35w9x781spaymb5l-kcharselect-24.08.3-fish-completions.drv'...
+building '/nix/store/4k98k9rykvwndqf1awnnx6qdkhf08vl5-kcolorchooser-24.08.3-fish-completions.drv'...
+building '/nix/store/lzq418bm908q5bqgc1gkawnxa5dla2fp-kdialog-23.08.5-fish-completions.drv'...
+building '/nix/store/ng92jqwywmgwivsmq1892aljwphav1bb-kfind-24.08.3-fish-completions.drv'...
+building '/nix/store/96r6r71p8l19fy2sy9g5naa7dg5w3s52-kmousetool-24.08.3-fish-completions.drv'...
+building '/nix/store/a8lw25xwln9j7wv1b73fqi1kyjwqc9nb-krdc-24.08.3-fish-completions.drv'...
+building '/nix/store/15ac0q1ac6j8d4mw1ma17605njzsd0gg-krfb-24.08.3-fish-completions.drv'...
+building '/nix/store/108k34mxgrvpii4xf8lij57lcmpyhq49-krita-5.2.9-fish-completions.drv'...
+building '/nix/store/wyi1z5lh9c544n93sm75plg5klam0rrl-ksystemlog-24.08.3-fish-completions.drv'...
+building '/nix/store/3i6p9dgyv3gd7wckjrw819bhm7sa0spy-kubectx-0.9.5-fish-completions.drv'...
+building '/nix/store/n5fx3d2zkla1m7jz32s0fpnj31346j83-kubernetes-helm-3.16.3-fish-completions.drv'...
+building '/nix/store/4np26d1bzhd7r0nbhl4a2vcrw8g9rad0-libreoffice-24.2.7.2-wrapped-fish-completions.drv'...
+building '/nix/store/pqf7cdim9rxjycx8g0czq0dkss8kbx4l-litecli-1.12.3-fish-completions.drv'...
+building '/nix/store/q7h5nz407rwzqmakrli33rlda8g53fhx-lldb-18.1.8-fish-completions.drv'...
+building '/nix/store/4bnzlnv0sqff8bp1f5samm7gx79c06df-llvm-18.1.8-fish-completions.drv'...
+building '/nix/store/agpax65sypp529w475ca2v7l3s7cdzzd-man-paths.drv'...
+building '/nix/store/rxvcqnn9bfx190k0m6fzgyylsimdpj0f-mdcat-2.6.1-fish-completions.drv'...
+building '/nix/store/bip0a7h5s1skil95j55h4i72s3cp633g-mediainfo-24.06-fish-completions.drv'...
+building '/nix/store/h18rs5lx54vb5d5r3m3y6dalgk61k4gx-mesh-fish-completions.drv'...
+building '/nix/store/8ybqx8z9prq550rfbd4hrvh8cjqhdjia-multitail-7.1.5-fish-completions.drv'...
+building '/nix/store/lz2v0x2ap8m7pyn38yj2f9xfjjjhp657-mycli-1.27.2-fish-completions.drv'...
+building '/nix/store/7fy4fnck86yl8smsq807q9wpyifkcwpm-activation-script.drv'...
+building '/nix/store/8gl388r1p7kyg00354s643gyrwg0ps5a-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/j65q7qbxbg86sw40g0x9g7gjzma4jjd8-nerdfonts-3.2.1-fish-completions.drv'...
+building '/nix/store/5fb1dqdmbnsyjb1m1j4f6wxcpkv1znab-ninja-1.12.1-fish-completions.drv'...
+building '/nix/store/0w2l1dpngv352lzmfc8jgqpyhvjggarq-nix-zsh-completions-0.5.1-fish-completions.drv'...
+building '/nix/store/9jyzd0czbby1dbijdzgf3aqpk38bxpyv-obs-studio-30.2.3-fish-completions.drv'...
+building '/nix/store/7hkv68j410lcfs36rj0dmp5fh0rvzy36-obsidian-1.7.6-fish-completions.drv'...
+building '/nix/store/8js4skrrslq4vyzy8rys1644qip73k39-oci-cli-3.14.0-fish-completions.drv'...
+building '/nix/store/zvjd4711fz7xrwnk9d1mj3a5032y56bq-octocode-0.12.2-fish-completions.drv'...
+building '/nix/store/q1mmbri1yk3lfd10hn55c11h7ndgql7q-orphan-reaper-fish-completions.drv'...
+building '/nix/store/1givmcdq284kp4rg7fvfc81k865fkfv9-partitionmanager-24.08.3-fish-completions.drv'...
+building '/nix/store/232igi2dbx0vn4m2dpwcrv2xb109y3q3-password-store-1.7.4-fish-completions.drv'...
+building '/nix/store/vzf7dvl8p8xz8jzx0zyj9fipir64b082-peek-1.5.1-fish-completions.drv'...
+building '/nix/store/5m7y659hg8hy4jryk6wbbfhj9nyi305b-man-cache.drv'...
+building '/nix/store/ywxzy6xam3gdnwrn3qga7ilb51d182z0-pgcli-4.1.0-fish-completions.drv'...
+building '/nix/store/n6bhpilmqbwgwkcv3s6vyh0sdmfq3pav-pikchr-0-unstable-2024-02-12-fish-completions.drv'...
+building '/nix/store/8axklsgrnlm4xhq1g9g3w6m5l1g2ihrb-pipx-1.7.1-fish-completions.drv'...
+building '/nix/store/i055wv70mv0j7r3gpf2047lrdxl2f78z-plantuml-1.2024.7-fish-completions.drv'...
+building '/nix/store/dilcsnicj8cl0i922rvcdmhz7bsaq0kx-pnpm-9.15.9-fish-completions.drv'...
+building '/nix/store/shn9vsl528hz0zv66djm1f9mp5510jld-prometheus-2.55.0-fish-completions.drv'...
+building '/nix/store/xdl8lamyg68j9l24ag9y5y1srjx7b0xv-python3.12-beautifulsoup4-4.12.3-fish-completions.drv'...
+building '/nix/store/fp8lnjdlga37fazinx5s8l7lwnmvpap3-python3.12-bokeh-3.6.0-fish-completions.drv'...
+building '/nix/store/chcgg9hrjk9wpi23saphdmazi91y58dh-python3.12-dask-2024.10.0-fish-completions.drv'...
+building '/nix/store/xkqz753y6lj895wn4pikycxjs3nnxl1l-python3.12-httpx-0.27.2-fish-completions.drv'...
+building '/nix/store/gj8z4g8q09jb6m6cr3s977r5sxfd3x12-python3.12-ipython-8.29.0-fish-completions.drv'...
+building '/nix/store/c68wmqjpzsj7273wa4bbkjix6xa9bkpc-python3.12-jupyterlab-4.2.5-fish-completions.drv'...
+building '/nix/store/p95dja5rkzpai7grrr06snc3bk1bmm7w-python3.12-matplotlib-3.9.2-fish-completions.drv'...
+building '/nix/store/bgmpxqc92dkkh8r9k6iz4vxcvjrx9yhw-python3.12-notebook-7.2.2-fish-completions.drv'...
+building '/nix/store/13c4xl5lglvb9fs0k59fkjs9csgbw7kj-python3.12-numpy-1.26.4-fish-completions.drv'...
+building '/nix/store/pydyi0yl99dlyigh8ia8r541q5swwsdq-python3.12-pandas-2.2.3-fish-completions.drv'...
+building '/nix/store/x21yfaxwsfqrvf90bwz2k4dnq89jb60m-python3.12-plotly-5.24.1-fish-completions.drv'...
+building '/nix/store/wppdk4zncldm7qw7vpimynk9dfzdfxyf-python3.12-polars-1.12.0-fish-completions.drv'...
+building '/nix/store/5i08qj331iqz7agw0y4adzqxzhsfswgs-python3.12-pyarrow-18.0.0-fish-completions.drv'...
+building '/nix/store/qiqyrg0r32vigm5jkr5bkmv1xhz36fgy-python3.12-pydantic-2.9.2-fish-completions.drv'...
+building '/nix/store/skh93s6mgvca3lvzi9v30wi723hmaryx-python3.12-requests-2.32.3-fish-completions.drv'...
+building '/nix/store/jcrplkqbk0wy3i8ymwf03l4zs5c7zr3z-python3.12-scikit-learn-1.5.2-fish-completions.drv'...
+building '/nix/store/q2i01zhwfmaiws0ywzdx6c6wjq98gwn7-python3.12-scipy-1.14.1-fish-completions.drv'...
+building '/nix/store/y6k3x0q1skd7v9n59fjywbh911nyvxvd-python3.12-seaborn-0.13.2-fish-completions.drv'...
+building '/nix/store/yddmslczqrci4xpxk3s37f8bhgkbivkd-python3.12-sympy-1.13.3-fish-completions.drv'...
+building '/nix/store/90j5qggy8vnklblgczcrzgcxr3fymq9m-python3.12-torch-2.5.1-fish-completions.drv'...
+building '/nix/store/y849rvf3q3b2mhq4mlg32cp5lr2wiqin-python3.12-torchvision-0.20.1-fish-completions.drv'...
+building '/nix/store/a11wjby2vcv3c1lk69mcydfwx01j531w-python3.12-virtualenv-20.26.6-fish-completions.drv'...
+building '/nix/store/n044z0l7745dlbff1yi16y0lz1hkz8s1-qutebrowser-3.4.0-fish-completions.drv'...
+building '/nix/store/py2kmhvrfnbvcdxjfmvq1g8pk9kapydd-r-dplyr-1.1.4-fish-completions.drv'...
+building '/nix/store/q3sdxvxlv3fsds0zh3s2mj1yvzdhwiqg-r-ggplot2-3.5.1-fish-completions.drv'...
+building '/nix/store/c5rvwpc7j12yvsbq893a5633gqms5v87-r-tidyr-1.3.1-fish-completions.drv'...
+building '/nix/store/diwgl754h6snq93ghqzablvcbvgzpm0z-rclone-1.68.2-fish-completions.drv'...
+building '/nix/store/9sfmcagv69q0k66iwf4m325rismgsjb9-redis-7.2.7-fish-completions.drv'...
+building '/nix/store/cz0n604hhw929id4is4065pkzp8xizv0-rust-analyzer-2026-04-06-fish-completions.drv'...
+building '/nix/store/p1c0c760jb61g2q4ssi9l6z6ridqmjc9-rustfmt-1.94.0-fish-completions.drv'...
+building '/nix/store/m8ks75mfsl94xvfgq6zqgizpl426l4hh-skanlite-24.08.3-fish-completions.drv'...
+building '/nix/store/ggsbwsgr05fhln3bx55pzgc75qzk8r21-sops-3.9.4-fish-completions.drv'...
+building '/nix/store/mi4pkmiq8fipw861z8n8r7ppcr7kxzza-sqlite-3.46.1-fish-completions.drv'...
+building '/nix/store/is4m3qvzjdi2aywm64qxzbwgamy6ijy0-starship-1.22.1-fish-completions.drv'...
+building '/nix/store/c3d6mv5n1r3xih7lx6vwa7lkdlp68hls-stern-1.31.0-fish-completions.drv'...
+building '/nix/store/mj28wvip20ffm082clxpy3ygkxvhpkhf-sync-fish-completions.drv'...
+building '/nix/store/ndwdlcypygq66a9iyic8c3x60r3wa67m-taskwarrior-2.6.2-fish-completions.drv'...
+building '/nix/store/21fjwfbr5xajjmvff0mj0l66wayq8j9k-tealdeer-1.7.0-fish-completions.drv'...
+building '/nix/store/0r0slmxqbffydc4kn06jsb36mg7riaq2-terraform-1.9.8-fish-completions.drv'...
+building '/nix/store/qkdsagak39z3ws97qxwvs2xjf48aj7sg-typescript-5.6.3-fish-completions.drv'...
+building '/nix/store/bpnw7p5d62gp0hw6iijn5m4bnf79v9gs-unrar-7.0.9-fish-completions.drv'...
+building '/nix/store/zfs566zci67w58s91m6lmj58d5kcsmx3-uv-0.4.30-fish-completions.drv'...
+building '/nix/store/y98c00ab7cbp0kl8z18dyd9rpxw07k9r-vit-2.3.2-fish-completions.drv'...
+building '/nix/store/2j7c9dbps98zdd5bvqnlwbh2nhblzl6m-vlc-3.0.21-fish-completions.drv'...
+building '/nix/store/vddbgynj8fhz2ywv0n619i1wcf18bn51-waydroid.desktop-fish-completions.drv'...
+building '/nix/store/9pf9n4hgaapnv80qngbgxgr5mwj8xh82-wget-1.25.0-fish-completions.drv'...
+building '/nix/store/lr09zyi9h0rv7aqg1ajym10bpy2zald8-wget-fish-completions.drv'...
+building '/nix/store/4m91kxn4xmfw8h2bcl86y6s93lyqqn53-wireguard-tools-1.0.20210914-fish-completions.drv'...
+building '/nix/store/2j9l8qyg2y2ixz32jlzk8kyc0p796iwm-wrangler-3.80.1-fish-completions.drv'...
+building '/nix/store/ghwpdb51wkzsp17c1q6gz0j3v860g76y-wstunnel-10.1.6-fish-completions.drv'...
+building '/nix/store/19cjm619dwwrpzhn5fdrdlic2baj31lv-xxd-tinyxxd-1.3.7-fish-completions.drv'...
+building '/nix/store/bhv0fbznpsd1gv478hvapjyl8yikqq6n-yarn-1.22.22-fish-completions.drv'...
+building '/nix/store/y1b85mafmgv0qpclm2hj0p61pa9354gb-yazi-0.3.3-fish-completions.drv'...
+building '/nix/store/1wbml6yby156lza8a4cr0fad6fps0dav-youki-0.4.1-fish-completions.drv'...
+building '/nix/store/42cayivlas8jg6kdlq7w9x54rmvcw9jj-yq-go-4.44.3-fish-completions.drv'...
+building '/nix/store/g24cb79chzgcj92av02dcsnx34mfnwjb-zettlr-3.2.0-fish-completions.drv'...
+building '/nix/store/ghwn6qgxkkav3b1zf0qrzr68qxdx6ha9-zsh-5.9-fish-completions.drv'...
+building '/nix/store/0x0h60j2126a1m2cw0adm1np1z65f687-diego-fish-completions.drv'...
+building '/nix/store/9yl4v2qby4hwjsa3pvgzmw0wgdan0gbf-hm_.manpath.drv'...
+building '/nix/store/ffiq8yrfidylj6cklvaq36fg2f5xgazx-home-manager-files.drv'...
+building '/nix/store/44kqv58lcz4swf9l9rkiny8fwaz66pqk-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 385
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+/home/diego/.claude/gen-claude-md.sh: line 72: awk: command not found
+[gen-claude-md] WARNING: generation failed, template used as fallback
+Activating globalTsx
+
+changed 5 packages in 1s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.133 → 2.1.138 (linux-x64)
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.UnDJKEaAa7/generation/activate: line 823: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating installWg0TcpConf
+[wireguard-wstunnel] rendered /home/diego/.config/wireguard/wg0-tcp.conf (Endpoint=127.0.0.1:51821)
+[wireguard-wstunnel] NetworkManager profile 'wg0-tcp' already present — skipping import
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-05-09 13:21:56] PERF: home-manager switch = 3m 10s
+[2026-05-09 13:21:56] PERF: TOTAL switch = 3m 10s
+[2026-05-09 13:21:56] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-05-09 13:21:56] ========== Build script finished ==========
+[2026-05-09 13:22:47] ========== Build script started ==========
+[2026-05-09 13:22:47] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-05-09 13:22:47] PERF: start switch
+[2026-05-09 13:22:47] INFO: Staging dirty files for flake evaluation...
+[2026-05-09 13:22:47] PERF: git stage = 152ms
+[2026-05-09 13:22:47] PERF: clean stale hm-backups = 294ms
+[2026-05-09 13:22:47] INFO: Applying Home Manager configuration...
+[2026-05-09 13:22:47] INFO: home-manager backup extension: hm-backup-20260509-132247
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 4 derivations will be built:
+  /nix/store/mql89c71vppj9gbxvxdncpcamzpzsrs6-hm_qutebrowserconfig.py.drv
+  /nix/store/118s28xzgp7sas1czi85qc8qkkwsixfm-activation-script.drv
+  /nix/store/64swpz0qg6w6h4mbs0najpircay3fqg4-home-manager-files.drv
+  /nix/store/8jcs8l1dgh8bl8792drc3lw379mbnj8z-home-manager-generation.drv
+building '/nix/store/mql89c71vppj9gbxvxdncpcamzpzsrs6-hm_qutebrowserconfig.py.drv'...
+building '/nix/store/118s28xzgp7sas1czi85qc8qkkwsixfm-activation-script.drv'...
+building '/nix/store/64swpz0qg6w6h4mbs0najpircay3fqg4-home-manager-files.drv'...
+building '/nix/store/8jcs8l1dgh8bl8792drc3lw379mbnj8z-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 386
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+/home/diego/.claude/gen-claude-md.sh: line 72: awk: command not found
+[gen-claude-md] WARNING: generation failed, template used as fallback
+Activating globalTsx
+
+changed 5 packages in 604ms
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.138 is up to date
+Activating installLayer2Identity
+cp: cannot remove '/etc/systemd/system/kernel.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/os-essentials.slice': Read-only file system
+cp: cannot remove '/etc/systemd/system/workload.slice': Read-only file system
+mkdir: cannot create directory ‘/etc/systemd/system/user-1000.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-1000.slice.d/limits.conf': No such file or directory
+mkdir: cannot create directory ‘/etc/systemd/system/user-0.slice.d’: Read-only file system
+cp: cannot create regular file '/etc/systemd/system/user-0.slice.d/limits.conf': No such file or directory
+/tmp/home-manager-build.pk5vYT3q8s/generation/activate: line 823: awk: command not found
+sudo: systemctl: command not found
+[layer2-identity] user-1000.slice CPU=600% MemHigh=5833M MemMax=6611M
+[layer2-identity] user-0.slice CPU=720% MemHigh=6611M MemMax=7389M
+[layer2-identity] system slices: kernel=0 (no cap) | os-essentials=0 (760%) | workload=0 (600%)
+Activating installResourceBouncer
+cp: cannot remove '/etc/systemd/system/earlyoom.service': Read-only file system
+sudo: systemctl: command not found
+[resource-bouncer] deployed: mem=128MB-reserve docker-cap=7266MB
+Activating installWatchdogDropbear
+cp: cannot create regular file '/etc/systemd/system/disk-swap.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.service': Read-only file system
+cp: cannot create regular file '/etc/systemd/system/disk-swap-maintenance.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.service': Read-only file system
+cp: cannot remove '/etc/systemd/system/disk-watchdog.timer': Read-only file system
+cp: cannot remove '/etc/systemd/system/rescue-ssh.service': Read-only file system
+sudo: systemctl: command not found
+[watchdog-dropbear] deployed: disk-swap=3889MB(+24h-maint) rescue-ssh=port2200
+Activating installWg0TcpConf
+[wireguard-wstunnel] rendered /home/diego/.config/wireguard/wg0-tcp.conf (Endpoint=127.0.0.1:51821)
+[wireguard-wstunnel] NetworkManager profile 'wg0-tcp' already present — skipping import
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-05-09 13:23:16] PERF: home-manager switch = 28.3s
+[2026-05-09 13:23:16] PERF: TOTAL switch = 28.8s
+[2026-05-09 13:23:16] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-05-09 13:23:16] ========== Build script finished ==========
+[2026-05-09 18:55:45] ========== Build script started ==========
+[2026-05-09 18:55:45] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-05-09 18:55:46] PERF: start switch
+[2026-05-09 18:55:46] INFO: Staging dirty files for flake evaluation...

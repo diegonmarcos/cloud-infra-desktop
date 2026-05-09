@@ -158,7 +158,7 @@ SSH aliases: `ssh oci-mail`, `ssh oci-analytics`, `ssh oci-apps`, `ssh gcp-t4`, 
 | google-workspace-mcp | mcp.diegonmarcos.com | oci-apps | app |
 | grist | sheets.diegonmarcos.com | oci-apps | app |
 | hedgedoc | doc.diegonmarcos.com | oci-apps | app |
-| openobserve | grafana.diegonmarcos.com | oci-apps | tools |
+| openobserve | analytics.diegonmarcos.com/openobserve | oci-apps | tools |
 | mail-mcp | mcp.diegonmarcos.com | oci-apps | app |
 | matomo | analytics.diegonmarcos.com | oci-apps | tools |
 | mattermost-bots | chat.diegonmarcos.com | oci-apps | app |
@@ -328,7 +328,7 @@ var _mtm = window._mtm = window._mtm || [];
 _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
 (function() {
   var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
-  g.async=true; g.src='https://analytics.diegonmarcos.com/js/container_odwLIyPV.js';
+  g.async=true; g.src='https://analytics.diegonmarcos.com/matomo/js/container_odwLIyPV.js';
   s.parentNode.insertBefore(g,s);
 })();
 </script>
