@@ -1,12 +1,12 @@
 [package]
-name = "da-browser-rbw-rofi"
+name = "da-autofill-rbw-rofi"
 version = "0.1.0"
 edition = "2021"
-description = "Hotkey-driven Bitwarden/Vaultwarden autofill via rbw + rofi/wofi + wtype/xdotool."
+description = "System-wide hotkey password autofill via rbw + rofi/wofi + wtype/xdotool."
 license = "MIT OR Apache-2.0"
 
 [[bin]]
-name = "da_browser-rbw-rofi"
+name = "da_autofill-rbw-rofi"
 path = "src/main.rs"
 
 [dependencies]

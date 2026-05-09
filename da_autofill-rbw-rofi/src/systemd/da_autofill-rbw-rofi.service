@@ -1,11 +1,11 @@
 [Unit]
-Description=Bitwarden/Vaultwarden hotkey autofill (rbw + rofi/wofi + wtype/xdotool)
+Description=System-wide hotkey password autofill (rbw + rofi/wofi + wtype/xdotool)
 After=graphical-session.target
 PartOf=graphical-session.target
 
 [Service]
 Type=oneshot
-ExecStart=%h/.local/bin/da_browser-rbw-rofi
+ExecStart=%h/.local/bin/da_autofill-rbw-rofi
 # RUST_LOG=info by default; override with `systemctl --user edit ...`
 Environment=RUST_LOG=info
 # Hard memory cap — typing flow allocates very little

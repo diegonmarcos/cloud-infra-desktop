@@ -275,7 +275,7 @@ fn schedule_clipboard_clear(display: Display, secs: u64) -> Result<()> {
 /// is silently ignored — nothing else in the pipeline depends on it.
 async fn notify_user(notifier: &str, msg: &str) {
     let _ = Command::new(notifier)
-        .arg("da_browser-rbw-rofi")
+        .arg("da_autofill-rbw-rofi")
         .arg(msg)
         .stdin(Stdio::null())
         .stdout(Stdio::null())

@@ -1,5 +1,5 @@
 {
-  description = "da_browser-rbw-rofi — hotkey-driven Bitwarden/Vaultwarden autofill";
+  description = "da_autofill-rbw-rofi — system-wide hotkey password autofill (browsers + any window) backed by rbw";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -17,7 +17,7 @@
         # advertised so a `nix run` shell has them on PATH.
         runtimeDeps = with pkgs; [
           rbw
-          rofi-wayland # provides `rofi`; wofi alternate
+          rofi # rofi-wayland was merged into rofi in nixpkgs (2025)
           wofi
           wtype
           xdotool
@@ -27,7 +27,7 @@
         ];
 
         crate = pkgs.rustPlatform.buildRustPackage {
-          pname = "da_browser-rbw-rofi";
+          pname = "da_autofill-rbw-rofi";
           version = "0.1.0";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
@@ -39,19 +39,19 @@
           doCheck = true;
 
           meta = with pkgs.lib; {
-            description = "Hotkey-driven Bitwarden/Vaultwarden autofill via rbw + rofi/wofi + wtype/xdotool";
+            description = "System-wide hotkey password autofill via rbw + rofi/wofi + wtype/xdotool";
             license = with licenses; [ mit asl20 ];
             platforms = platforms.linux;
-            mainProgram = "da_browser-rbw-rofi";
+            mainProgram = "da_autofill-rbw-rofi";
           };
         };
       in
       {
         packages.default = crate;
-        packages.${"da_browser-rbw-rofi"} = crate;
+        packages.${"da_autofill-rbw-rofi"} = crate;
 
         devShells.default = pkgs.mkShell {
-          name = "da_browser-rbw-rofi-dev";
+          name = "da_autofill-rbw-rofi-dev";
           packages = rustToolchain ++ runtimeDeps ++ (with pkgs; [
             pkg-config
             nodejs # build.sh helper uses node for JSON parsing
@@ -61,7 +61,7 @@
 
         apps.default = {
           type = "app";
-          program = "${crate}/bin/da_browser-rbw-rofi";
+          program = "${crate}/bin/da_autofill-rbw-rofi";
         };
       });
 }
