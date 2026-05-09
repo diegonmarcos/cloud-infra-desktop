@@ -9,6 +9,14 @@ let
   wgPrimary  = "${wgData.hub.host}:${toString wgData.hub.primary.port}";
   wgFallback = "${wgData.hub.host}:${toString wgData.hub.fallback.port}";
 
+  # ── WireGuard PUBLIC endpoint declarations (zany-popping plan Phase 1) ─────
+  # Second WG interface — wg-public (10.1.0.0/24 on udp/51821, hub = oci-analytics).
+  # Mirrors cloud/config.json#native.wireguard_public. Distinct subnet + port
+  # from wg0; allows the laptop to reach public-trust services without exposing
+  # private wg0 surface. Edit the JSON, not the .nix.
+  wgPublicData    = builtins.fromJSON (builtins.readFile ./wireguard-public-endpoints.json);
+  wgPublicPrimary = "${wgPublicData.hub.host}:${toString wgPublicData.hub.primary.port}";
+
   # Helper: switch the running wg0 endpoint between primary and fallback
   # without rebuilding NixOS. Reads the JSON above so ports are never
   # hardcoded inside the script.
@@ -65,7 +73,7 @@ in {
       # below — anyone on the local LAN (hostel WiFi etc) cannot reach sshd.
       # See also: configuration_system-protection.nix for rescue dropbear (2200).
       allowedTCPPorts = [];
-      trustedInterfaces = [ "wg0" ];  # Allow all traffic on WireGuard mesh
+      trustedInterfaces = [ "wg0" "wg-public" ];  # Allow all traffic on WireGuard meshes (wg0 + wg-public)
     };
   };
 
@@ -99,6 +107,28 @@ in {
     ];
   };
   systemd.services."wireguard-${wgData.client.interface}".wantedBy = lib.mkForce [];
+
+  # ── WireGuard PUBLIC mesh (zany-popping plan Phase 1) ──────────────────────
+  # Second interface (wg-public, 10.1.0.0/24 on udp/51821) sitting in parallel
+  # to wg0. Hub = oci-analytics — reaches the public-trust mesh members
+  # (gcp-proxy, oci-mail, oci-apps) for services that should not require wg0.
+  # On-demand (NOT auto-started) — bring up with
+  #   sudo systemctl start wireguard-wg-public
+  # Privatekey is symlinked from vault by the home-manager flake module
+  # ba_flakes_desktop/src/modules/cloud-network-wg-public.nix.
+  networking.wireguard.interfaces.${wgPublicData.client.interface} = {
+    ips = [ "${wgPublicData.client.wg_ip}/24" ];
+    privateKeyFile = "/home/diego/.config/wireguard/privatekey-public";
+    peers = [
+      {
+        publicKey = wgPublicData.hub.wg_public_key;
+        endpoint = wgPublicPrimary;
+        allowedIPs = [ wgPublicData.subnet ];
+        persistentKeepalive = wgPublicData.persistent_keepalive;
+      }
+    ];
+  };
+  systemd.services."wireguard-${wgPublicData.client.interface}".wantedBy = lib.mkForce [];
 
   # Runtime endpoint switcher: `wg-fallback {status|primary|fallback}`
   environment.systemPackages = [ wg-fallback ];

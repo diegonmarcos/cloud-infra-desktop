@@ -34,5 +34,27 @@ in
     source = config.lib.file.mkOutOfStoreSymlink "${vaultBase}/termux/config-fallback";
   };
 
-  home.sessionVariables.WIREGUARD_IP = "10.0.0.9";
+  # ── WireGuard PUBLIC mesh client (zany-popping plan Phase 1) ──────────────
+  # Termux phone joins the wg-public mesh (10.1.0.0/24, hub = oci-analytics) as
+  # a client peer in addition to wg0. Bring up with:
+  #   wg-quick up wg-public
+  # Vault key dir: vault/A0_keys/providers/wireguard/termux-public/
+  # Source-of-truth peer table: ~/git/cloud/2_configs/dist/build-flakes_termux.json
+  #                             .wireguard_public.{peers,clients.termux}
+  home.file.".config/wireguard/privatekey-public" = {
+    source = config.lib.file.mkOutOfStoreSymlink "${vaultBase}/termux-public/privatekey";
+  };
+
+  home.file.".config/wireguard/publickey-public" = {
+    source = config.lib.file.mkOutOfStoreSymlink "${vaultBase}/termux-public/publickey";
+  };
+
+  home.file.".config/wireguard/wg-public.conf" = lib.mkIf (builtins.pathExists "${vaultBase}/termux-public/config") {
+    source = config.lib.file.mkOutOfStoreSymlink "${vaultBase}/termux-public/config";
+  };
+
+  home.sessionVariables = {
+    WIREGUARD_IP = "10.0.0.9";
+    WIREGUARD_PUBLIC_IP = "10.1.0.9";
+  };
 }

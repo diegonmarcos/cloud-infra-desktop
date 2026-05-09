@@ -1,0 +1,20 @@
+{
+  "_doc": "WireGuard PUBLIC mesh endpoint declarations for the Surface Pro NixOS host. Mirrors the schema of wireguard-endpoints.json, but for the wg-public interface (10.1.0.0/24 mesh on udp/51821, hub = oci-analytics). Source of truth lives in cloud/config.json#native.wireguard_public + the per-VM publickeys in vault/A0_keys/providers/wireguard/<vm>-public/. Replicated verbatim here because Nix pure-eval flakes cannot read paths outside their own source root. Regenerate by running `bash ~/git/cloud/2_configs/build.sh all` then copying the relevant slice of dist/_cloud-data-consolidated.json. Phase 1 of the wg-public client extension (zany-popping plan) — Surface + Termux added as client peers in addition to wg0.",
+  "client": {
+    "name": "surface",
+    "wg_ip": "10.1.0.5",
+    "interface": "wg-public"
+  },
+  "hub": {
+    "name": "oci-analytics",
+    "host": "129.151.228.66",
+    "wg_ip": "10.1.0.1",
+    "wg_public_key": "Bnyf83VpvGY4BjcjQEXgutNEzx9OXMltHIcKNh7cKkc=",
+    "primary": {
+      "port": 51821,
+      "proto": "udp"
+    }
+  },
+  "subnet": "10.1.0.0/24",
+  "persistent_keepalive": 25
+}
