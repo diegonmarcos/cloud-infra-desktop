@@ -150,12 +150,25 @@ case "$cmd" in
     blob_name="$(get deploy.master_seal.blob_in_vault)"
     [ -n "$blob_name" ] || die "build.json: deploy.master_seal.blob_in_vault missing"
     blob_path="$VAULT_DIR/$blob_name"
-    log "Sealing master password into $blob_path (no plaintext on disk; stdin only)"
-    printf 'master password (no echo): ' >&2
-    stty -echo
-    IFS= read -r master
-    stty echo
-    printf '\n' >&2
+    log "Sealing master password into $blob_path (no plaintext on disk)"
+
+    # Two paths:
+    #   * Interactive (stdin is a tty)  — prompt + no-echo read.
+    #   * Non-interactive (stdin piped) — slurp stdin verbatim, no prompt.
+    # Both feed the binary's `seal --in -` so plaintext only ever lives in
+    # this process's memory + the binary's Zeroizing buffer.
+    if [ -t 0 ]; then
+      printf 'master password (no echo): ' >&2
+      stty -echo
+      IFS= read -r master
+      stty echo
+      printf '\n' >&2
+    else
+      log "stdin is a pipe — reading master password non-interactively"
+      # `read -r` returns 1 on EOF without newline; tolerate that since
+      # operators piping `printf 'pw'` (no trailing \n) is the common path.
+      IFS= read -r master || true
+    fi
     [ -n "$master" ] || die "empty master password rejected"
     printf '%s' "$master" | "$DIST/$BINARY_NAME" "$(get deploy.master_seal.binary_subcommand)" --in - --out "$blob_path"
     unset master

@@ -54,7 +54,10 @@ in
       };
 
       Service = {
-        Type = "notify";
+        # Type=simple: daemon does NOT call sd_notify(READY=1).  Adding the
+        # sd-notify wiring is tracked but out of scope for B.7+B.8.  Until
+        # then, simple is the honest match for a long-running tokio future.
+        Type = "simple";
         ExecStart = "${cfg.package}/bin/fido2-vault-broker run";
         Restart = "on-failure";
         RestartSec = 5;
