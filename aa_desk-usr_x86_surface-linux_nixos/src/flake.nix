@@ -14,10 +14,19 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Self-contained NixOS module shipped from the daemon repo.
+    # Wires up boot.kernelModules += "uhid", services.udev.packages,
+    # users.users.<user>.extraGroups += ["uhid" "tss"], and security.tpm2.
+    # Source: ~/git/unix/da_fido2-vault-broker/src/
+    fido2-vault-broker = {
+      url = "path:../../da_fido2-vault-broker/src";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+    };
+
     # NOTE: home-manager is NOT here - it's managed separately in cb_user_diego_nix
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, fido2-vault-broker, ... }:
   let
     system = "x86_64-linux";
 
@@ -40,6 +49,12 @@
 
         # Hardware-specific
         ./modules/hardware.nix
+
+        # FIDO2 vault broker — self-contained NixOS module from the daemon repo.
+        # Brings: boot.kernelModules += "uhid", /dev/uhid udev rule, `uhid` +
+        # `tss` group membership for diego, security.tpm2 for /dev/tpmrm0.
+        fido2-vault-broker.nixosModules.default
+        ./modules/configuration_fido2-vault-broker.nix
       ];
     };
 
