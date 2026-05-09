@@ -541,8 +541,14 @@ impl UhidServer {
                     }
                 }
                 OutputEvent::Stop | OutputEvent::Close => {
-                    tracing::info!("uhid: device stopped/closed");
-                    return Ok(());
+                    // UHID_STOP / UHID_CLOSE: kernel signalling that the
+                    // last reader (browser hidraw fd) closed, OR the kernel
+                    // is asking us to pause output reports temporarily.
+                    // Neither means our authenticator should exit — the
+                    // browser will reconnect and trigger UHID_OPEN/UHID_START
+                    // next time it polls. Log and keep the read loop alive.
+                    tracing::debug!("uhid: device stop/close event — pausing, daemon continues");
+                    continue;
                 }
                 _ => {} // Start, Open, GetReport, SetReport — ignore for now
             }

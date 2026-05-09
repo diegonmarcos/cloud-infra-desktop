@@ -4,7 +4,8 @@ After=graphical-session.target
 # ConditionPathExists=/dev/uhid    # Enable in Phase B.4 when uhid wired up
 
 [Service]
-Type=notify
+# Type=simple: daemon does not call sd_notify(READY=1).
+Type=simple
 ExecStart=%h/.local/bin/fido2-vault-broker run
 Restart=on-failure
 RestartSec=5
