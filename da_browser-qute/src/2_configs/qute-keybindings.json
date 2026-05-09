@@ -1,0 +1,15 @@
+{
+  "_description": "qutebrowser keybindings. Mode → key → command. Maps to home-manager's programs.qutebrowser.keyBindings.<mode> attrset.",
+  "normal": {
+    "<Ctrl-Shift-p>": "spawn --userscript /home/diego/.local/bin/da_autofill-rbw-rofi pick",
+    "<Ctrl-Shift-u>": "spawn --userscript /home/diego/.local/bin/da_autofill-rbw-rofi user",
+    "<Ctrl-Shift-l>": "spawn --userscript /home/diego/.local/bin/da_autofill-rbw-rofi pass",
+    "<Ctrl-Shift-o>": "spawn --userscript /home/diego/.local/bin/da_autofill-rbw-rofi totp",
+    "_comment_autofill": "Hotkeys to fire the system autofill daemon directly from a qutebrowser focus context. Browser is just a 'focused window' to the daemon — these hotkeys are the explicit, in-browser ergonomic path on top of the global system hotkey.",
+    ",v": "open https://vault.diegonmarcos.com",
+    ",a": "open https://auth.diegonmarcos.com",
+    ",g": "open https://git.diegonmarcos.com"
+  },
+  "insert": {},
+  "command": {}
+}
