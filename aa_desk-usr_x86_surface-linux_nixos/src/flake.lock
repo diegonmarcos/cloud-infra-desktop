@@ -9,7 +9,7 @@
       },
       "locked": {
         "lastModified": 1,
-        "narHash": "sha256-K0frf1fBLDr7aQlqzmMerJyFDGddVzmmVb4oSZQJNwk=",
+        "narHash": "sha256-rNwQJ9lcfcty+dCXrfiY4L6jmjiJP7qwt3xaDFzu6xM=",
         "path": "../../da_fido2-vault-broker/src",
         "type": "path"
       },
