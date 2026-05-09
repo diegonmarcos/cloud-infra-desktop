@@ -1,0 +1,19 @@
+{
+  "_description": "qutebrowser quickmarks (key → URL). Loaded into ~/.config/qutebrowser/quickmarks via home-manager's programs.qutebrowser.quickmarks.",
+  "vault":     "https://vault.diegonmarcos.com",
+  "authelia":  "https://auth.diegonmarcos.com",
+  "gitea":     "https://git.diegonmarcos.com",
+  "ide":       "https://ide.diegonmarcos.com",
+  "logs":      "https://logs.diegonmarcos.com",
+  "workflows": "https://workflows.diegonmarcos.com",
+  "mail":      "https://webmail.diegonmarcos.com",
+  "files":     "https://files.diegonmarcos.com",
+  "matomo":    "https://analytics.diegonmarcos.com/matomo",
+  "umami":     "https://analytics.diegonmarcos.com",
+  "openobserve": "https://analytics.diegonmarcos.com/openobserve",
+  "hedgedoc":  "https://doc.diegonmarcos.com",
+  "etherpad":  "https://pad.diegonmarcos.com",
+  "grist":     "https://sheets.diegonmarcos.com",
+  "photoprism": "https://photos.diegonmarcos.com",
+  "dbgate":    "https://db.diegonmarcos.com"
+}

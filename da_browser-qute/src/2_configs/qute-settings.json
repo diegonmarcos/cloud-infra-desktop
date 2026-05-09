@@ -1,0 +1,67 @@
+{
+  "_description": "qutebrowser declarative settings, projected into home-manager's programs.qutebrowser.settings attrset.",
+  "url": {
+    "default_page": "about:blank",
+    "start_pages": ["about:blank"]
+  },
+  "content": {
+    "blocking": {
+      "enabled": true,
+      "method": "both",
+      "_method_options": "auto | adblock | hosts | both",
+      "adblock_lists": [
+        "https://easylist.to/easylist/easylist.txt",
+        "https://easylist.to/easylist/easyprivacy.txt",
+        "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt"
+      ],
+      "hosts_lists": [
+        "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+      ]
+    },
+    "javascript": {
+      "enabled": true,
+      "clipboard": "access-paste"
+    },
+    "cookies": {
+      "accept": "no-3rdparty",
+      "store": true
+    },
+    "autoplay": false,
+    "geolocation": false,
+    "notifications_enabled": "ask",
+    "default_encoding": "utf-8"
+  },
+  "downloads": {
+    "location_directory": "~/Downloads",
+    "location_prompt": false,
+    "remove_finished": 5000
+  },
+  "tabs": {
+    "position": "top",
+    "show": "multiple",
+    "tabs_are_windows": false,
+    "background": true,
+    "select_on_remove": "next"
+  },
+  "fonts": {
+    "default_family": "Iosevka",
+    "default_size": "10pt"
+  },
+  "colors": {
+    "_description": "Dark theme tuned to the rest of the stack (KDE Plasma Breeze Dark)."
+  },
+  "statusbar": {
+    "show": "always",
+    "position": "bottom"
+  },
+  "input": {
+    "insert_mode": {
+      "auto_load": false,
+      "auto_leave": true
+    }
+  },
+  "completion": {
+    "shrink": true,
+    "use_best_match": true
+  }
+}

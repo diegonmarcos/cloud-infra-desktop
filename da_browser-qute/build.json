@@ -1,0 +1,38 @@
+{
+  "project": {
+    "name": "da_browser-qute",
+    "version": "0.1.0",
+    "description": "qutebrowser-based daily-driver browser with daemon-side integrations: FIDO2 passkeys via da_fido2-vault-broker, password autofill via da_autofill-rbw-rofi. Pure-config (no fork) — qutebrowser ships from nixpkgs; this project owns home-manager wiring + JSON-driven settings."
+  },
+  "paths": {
+    "src": "src",
+    "configs": "src/2_configs",
+    "home_module": "src/nix/home-module.nix",
+    "log": "build.log"
+  },
+  "browser": {
+    "engine": "QtWebEngine",
+    "package": "qutebrowser",
+    "binary_name": "qutebrowser",
+    "config_dir": "~/.config/qutebrowser",
+    "data_dir": "~/.local/share/qutebrowser",
+    "comment": "Upstream qutebrowser is configured via Python config.py OR via NixOS home-manager `programs.qutebrowser`. This project uses the home-manager path so the SoT is JSON + Nix, not imperative Python."
+  },
+  "data_sources": {
+    "settings": "src/2_configs/qute-settings.json",
+    "search_engines": "src/2_configs/qute-search-engines.json",
+    "keybindings": "src/2_configs/qute-keybindings.json",
+    "bookmarks": "src/2_configs/qute-bookmarks.json",
+    "comment": "All four JSON files are read by the home-manager module at evaluation time and projected into qutebrowser's declarative options. Edit JSON, rebuild home-manager, browser picks up the new state."
+  },
+  "integrations": {
+    "fido2_vault_broker": {
+      "comment": "WebAuthn over /dev/hidraw — qutebrowser/Chromium auto-discovers the virtual FIDO2 device when the daemon is running. No extra config needed.",
+      "enabled": true
+    },
+    "autofill_rbw_rofi": {
+      "comment": "Password autofill via global hotkey is OS-level (handled by da_autofill-rbw-rofi). qutebrowser sees the typed keystrokes like any other window.",
+      "enabled": true
+    }
+  }
+}
