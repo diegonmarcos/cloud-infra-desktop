@@ -159,13 +159,43 @@
 
     "swap_hibernate": {
       "type": "object",
-      "required": ["swapfile", "resume_device", "resume_offset"],
+      "required": ["swapfile", "resume_device", "swapfile_fs_type", "swapfile_size_gib", "kernel_params_template"],
       "properties": {
         "_description": { "type": "string" },
-        "swapfile": { "type": "string" },
-        "resume_device": { "type": "string" },
-        "resume_offset": { "type": "integer", "minimum": 0 },
-        "kernel_params": { "type": "array", "items": { "type": "string" } }
+        "isolation_invariant": { "type": "string" },
+        "swapfile": {
+          "type": "string",
+          "_invariant": "MUST NOT start with /mnt/shared/, /nix/, /home/, or any other pool subvol mount point. Renderer fails the build if it does. See incident 2026-05-15."
+        },
+        "swapfile_size_gib": { "type": "integer", "minimum": 4 },
+        "swapfile_fs_type": { "type": "string", "enum": ["ext4", "xfs"] },
+        "resume_device": {
+          "type": "string",
+          "_invariant": "MUST NOT equal /dev/mapper/pool or any other pool device. Use /dev/disk/by-label/... or /dev/disk/by-uuid/... so it resolves regardless of mount state."
+        },
+        "resume_offset": { "type": ["integer", "null"], "minimum": 0 },
+        "_resume_offset_note": { "type": "string" },
+        "kernel_params": { "type": "array", "items": { "type": "string" } },
+        "_kernel_params_note": { "type": "string" },
+        "kernel_params_template": { "type": "array", "items": { "type": "string" } },
+        "hibernate_invalidation": {
+          "type": "object",
+          "required": ["enabled", "method"],
+          "properties": {
+            "_description": { "type": "string" },
+            "enabled": { "type": "boolean" },
+            "trigger_specialisations": { "type": "array", "items": { "type": "string" } },
+            "trigger_external_mounts": { "type": "boolean" },
+            "method": { "type": "string" },
+            "_method_note": { "type": "string" }
+          }
+        },
+        "_pool_witness": {
+          "type": "object",
+          "properties": {
+            "_description": { "type": "string" }
+          }
+        }
       }
     }
   },

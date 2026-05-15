@@ -408,10 +408,30 @@
   "boot_kernel_modules": ["kvm-intel"],
 
   "swap_hibernate": {
-    "_description": "Swapfile + hibernation resume. Phase 1: swap_hibernate.nix adapter sets boot.resumeDevice, swapDevices, and contributes resume= kernel params (replacing what was in hardware_filesystems.nix). resume_offset is the FIRST PHYSICAL BLOCK of the btrfs swapfile in 4-KiB units, as reported by `btrfs inspect-internal map-swapfile -r <swapfile>`. This value DRIFTS whenever the swapfile is recreated, resized, or btrfs balance moves its extents — most recently 2026-05-03 21:26 (recreated, drifted 4954822 → 11884032), which broke hibernation 2026-05-05/06 with `Call to Hibernate failed: Specified resume device is missing or is not an active swap device`. The companion self-healing service (configuration_swapfile_resume_check.nix) auto-corrects /sys/power/resume_offset at boot and ntfys when this JSON drifts so the next switch+reboot fixes the cmdline side.",
-    "swapfile": "/mnt/shared/.swapfile",
-    "resume_device": "/dev/mapper/pool",
-    "resume_offset": 11884032,
-    "kernel_params": ["resume=/dev/mapper/pool", "resume_offset=11884032"]
+    "_description": "Swap + hibernation resume target. POST-INCIDENT (2026-05-15): moved OFF the btrfs pool. Root cause of the 2026-05-15 pool destruction was a btrfs swapfile whose CoW-relocatable extents overlapped live metadata chunks — the hibernate write went to the swapfile's current extent locations (legal), which had drifted onto chunk 73's metadata mirrors at physical 39.1/39.5 GB, bytewise clobbering them (DUP mirrors with divergent bytes — impossible for btrfs to produce, conclusive). The new design eliminates the failure mode at the root: swapfile lives on the ext4 Shared-Lib partition (p5, fixed extents, no CoW), AND the resume target is independent of the pool device. Pool failure cannot break hibernate; hibernate cannot break the pool.",
+    "isolation_invariant": "resume_device MUST NOT be on the same physical device or filesystem as any subvol that holds live OS state. The ext4 partition holding the swapfile MUST be mounted on every NixOS boot before sleep.target. Enforced by swap_hibernate.nix (nix assertion), configuration_pre-hibernate-warning.nix (preflight ExecStartPre), and configuration_swapfile_resume_check.nix (hard refuse on drift).",
+    "swapfile": "/mnt/shared-lib/.swapfile",
+    "swapfile_size_gib": 12,
+    "swapfile_fs_type": "ext4",
+    "resume_device": "/dev/disk/by-label/Shared-Lib",
+    "resume_offset": null,
+    "_resume_offset_note": "Populated by `aa_bootloader/build.sh deploy --target nixos` at deploy time via `filefrag -v -b4096 <swapfile>` after mkswap. ext4 swapfiles have FIXED extents — this value is stable until the swapfile is explicitly recreated. No self-healer for the WRITE side; the check service now ENFORCES the invariant and refuses to hibernate on drift.",
+    "kernel_params_template": [
+      "resume=/dev/disk/by-label/Shared-Lib",
+      "resume_offset=@RESUME_OFFSET@"
+    ],
+    "kernel_params": [],
+    "_kernel_params_note": "Empty until deploy populates resume_offset. The renderer in build.sh substitutes @RESUME_OFFSET@ at deploy. swap_hibernate.nix asserts at build time that kernel_params is non-empty if the swap is configured to be present.",
+    "hibernate_invalidation": {
+      "_description": "Any boot path that mounts the pool from a context that might modify it MUST first invalidate any pending hibernate image on the swap device. The kernel only resumes if a valid `S1SUSPEND` signature sits at the swap header — overwrite that signature with `SWAPSPACE2` (clean swap) and the kernel falls through to cold boot. Idempotent and cheap (one 4-KiB write or one mkswap call).",
+      "enabled": true,
+      "trigger_specialisations": ["rescue-current-gen", "rescue-native-install"],
+      "trigger_external_mounts": true,
+      "method": "mkswap -L Shared-Lib /dev/disk/by-label/Shared-Lib",
+      "_method_note": "mkswap on the existing swap partition rewrites the header in place without changing UUID/label — equivalent to clearing any hibernate signature."
+    },
+    "_pool_witness": {
+      "_description": "Detects out-of-band pool mounts. configuration_pool_witness.nix writes a fresh nonce to @shared/.pool-witness/id on every clean mount in NixOS, mirrors it to /run/pool-witness/current-mount.id, and persists the last clean value at /var/lib/pool-witness/last-clean-mount.id. If the on-disk nonce at next NixOS mount differs from the recorded last-clean value, something else touched the pool — preflight refuses to hibernate so we don't write an image whose RAM-state-of-the-pool will be inconsistent with the disk."
+    }
   }
 }
