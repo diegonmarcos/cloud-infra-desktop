@@ -70,6 +70,8 @@
     ./configuration_power.nix
     ./configuration_pre-hibernate-warning.nix
     ./configuration_swapfile_resume_check.nix
+    ./configuration_pool_witness.nix              # POST-2026-05-15: nonce-based detection of out-of-band pool mounts
+    ./configuration_rescue_invalidate_hibernate.nix  # POST-2026-05-15: rewrite swap header on rescue boots so no stale resume
     ./configuration_tmp.nix
     ./configuration_packages.nix
     ./configuration_persistence.nix

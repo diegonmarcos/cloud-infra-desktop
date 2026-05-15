@@ -1,36 +1,36 @@
-# Swapfile resume-offset drift detector + self-healer.
+# Swapfile resume-offset invariant gate (POST-INCIDENT 2026-05-15).
 #
-# WHY THIS EXISTS
-# ───────────────
-# Hibernation on a btrfs swapfile needs three things to agree:
-#   1. /proc/cmdline `resume=<dev>` matches the FS the swapfile lives on
-#   2. /proc/cmdline `resume_offset=<N>` matches the swapfile's first physical
-#      block (4-KiB units), as reported by:
-#        btrfs inspect-internal map-swapfile -r <swapfile>
-#   3. The swapfile is registered in /proc/swaps
-#
-# When btrfs balance/dedup runs, or the swapfile is recreated/resized, (2)
-# drifts. systemd-logind's hibernate path then refuses with:
+# WHY THIS EXISTS — historical context
+# ────────────────────────────────────
+# Original purpose: a btrfs swapfile's first physical block (4-KiB units, as
+# reported by `btrfs inspect-internal map-swapfile -r`) drifts whenever btrfs
+# balance/dedup runs or the swapfile is recreated/resized. systemd-logind's
+# hibernate path then refuses with:
 #   "Call to Hibernate failed: Specified resume device is missing or is not
 #    an active swap device"
-# — and even though the battery-watchdog correctly fires `systemctl hibernate`,
-# nothing happens. This is exactly what killed the laptop on 2026-05-06 at 01:22:
-# the watchdog tripped 22 times between 01:00–01:21, every attempt rejected,
-# and the firmware power-cut at 0%.
+# This module used to silently SELF-HEAL by writing the actual offset to
+# /sys/power/resume_offset and logging a warning that cmdline was stale.
 #
-# This module:
-#   - Runs at boot after swap.target, before sleep.target
-#   - Computes the canonical offset via `btrfs inspect-internal map-swapfile -r`
-#   - Compares to /sys/power/resume_offset (which kernel set from cmdline)
-#   - If mismatch: writes the correct value to /sys/power/resume_offset so
-#     ENTERING hibernation works for the current session, and logs a loud
-#     WARNING that the cmdline still has the stale value so RESUME (next
-#     boot's image-recovery) won't find the image — user must run the
-#     bootloader engine + switch + reboot to fully fix.
+# WHY THAT WAS WRONG — the 2026-05-15 incident
+# ────────────────────────────────────────────
+# Self-healing the /sys side made HIBERNATE ENTRY work, but the write target
+# (the swapfile's current extents on btrfs) could overlap live metadata chunks
+# because btrfs is free to place a NOCOW file anywhere in any data chunk. When
+# hibernate fired, the compressed RAM image landed bytewise on top of chunk 73's
+# DUP-mirrored metadata at physical 39.1/39.5 GB — two random-looking blobs
+# (DUP mirrors should be identical; foreign overwrite proven by mirror divergence).
+# Pool was unrecoverable. See incident_2026-05-15_pool_hibernate_corruption.md.
 #
-# The bootloader-engine SoT is `~/git/unix/aa_bootloader/src/boot.json`
-# (`swap_hibernate.resume_offset`). Update + redeploy + switch + reboot is
-# the canonical way to drift-correct.
+# WHAT THIS MODULE DOES NOW
+# ─────────────────────────
+# - The swapfile MUST live on an ext4 (or xfs) filesystem; mounting on btrfs is
+#   refused.
+# - The cmdline, /sys, and the swapfile's actual first physical extent MUST
+#   agree. Any drift → mask systemd-hibernate.service this boot. No more silent
+#   self-heal. Force user to redeploy boot.json + switch + reboot.
+# - The bootloader-engine SoT is `~/git/unix/aa_bootloader/src/boot.json`
+#   (`swap_hibernate.resume_offset`). Re-run `build.sh deploy --target nixos`
+#   to repopulate from a fresh `filefrag -v -b4096 <swapfile>`.
 { config, pkgs, lib, ... }:
 
 let
@@ -50,53 +50,61 @@ in
       Slice          = "os-essentials.slice";
       OOMScoreAdjust = -900;
     };
-    path = with pkgs; [ btrfs-progs coreutils util-linux systemd ];
+    path = with pkgs; [ e2fsprogs coreutils util-linux systemd ];
     script = ''
       set -u
       SWAP="${swapfile}"
       DECLARED=${declared}
 
+      mask_hibernate() {
+        local reason="$1"
+        ${pkgs.util-linux}/bin/logger -t swapfile-resume-offset -p user.crit \
+          "REFUSED hibernate this boot: $reason"
+        ${pkgs.systemd}/bin/systemctl mask --runtime systemd-hibernate.service \
+                                                       systemd-hybrid-sleep.service \
+                                                       hibernate.target \
+                                                       hybrid-sleep.target 2>/dev/null || true
+        exit 1
+      }
+
       if [ ! -r "$SWAP" ]; then
-        echo "[swapfile-resume-offset] $SWAP not readable — skipping"
-        exit 0
+        mask_hibernate "swapfile $SWAP not readable"
       fi
 
-      # Authoritative offset for resume_offset= kernel param.
-      ACTUAL=$(${pkgs.btrfs-progs}/bin/btrfs inspect-internal map-swapfile -r "$SWAP" 2>/dev/null || echo "")
+      # 1. The swapfile MUST live on ext4/xfs, NOT btrfs (incident 2026-05-15).
+      SWAPFS=$(${pkgs.util-linux}/bin/findmnt -no FSTYPE -T "$SWAP" 2>/dev/null || echo unknown)
+      case "$SWAPFS" in
+        ext4|xfs) ;;
+        btrfs)    mask_hibernate "swapfile is on btrfs ($SWAPFS) — see 2026-05-15 incident" ;;
+        *)        mask_hibernate "swapfile is on unknown fs ($SWAPFS)" ;;
+      esac
+
+      # 2. Compute the swapfile's actual first physical block (4-KiB units).
+      # filefrag -v -b4096 reports the first extent's physical_offset in 4-KiB units.
+      ACTUAL=$(${pkgs.e2fsprogs}/bin/filefrag -v -b4096 "$SWAP" 2>/dev/null \
+               | ${pkgs.gawk}/bin/awk '/^   0:/{print $4; exit}' | tr -d '.')
       if [ -z "$ACTUAL" ]; then
-        echo "[swapfile-resume-offset] map-swapfile failed — leaving /sys/power/resume_offset as-is"
-        exit 0
+        mask_hibernate "filefrag could not determine first physical block of $SWAP"
       fi
 
       KERNEL=$(cat /sys/power/resume_offset 2>/dev/null || echo "?")
       CMDLINE=$(grep -o 'resume_offset=[0-9]*' /proc/cmdline | cut -d= -f2 || echo "?")
 
-      echo "[swapfile-resume-offset] swapfile=$SWAP declared=$DECLARED kernel=/sys=$KERNEL cmdline=$CMDLINE actual=$ACTUAL"
+      echo "[swapfile-resume-offset] swapfile=$SWAP fs=$SWAPFS declared=$DECLARED kernel=/sys=$KERNEL cmdline=$CMDLINE actual=$ACTUAL"
 
-      if [ "$ACTUAL" = "$KERNEL" ]; then
-        echo "[swapfile-resume-offset] ok — kernel runtime matches actual"
-        # Still warn if cmdline (used at resume time) differs.
-        if [ "$ACTUAL" != "$CMDLINE" ]; then
-          ${pkgs.util-linux}/bin/logger -t swapfile-resume-offset -p user.warning \
-            "cmdline resume_offset=$CMDLINE differs from actual=$ACTUAL — RESUME (post-hibernate boot) will fail. Run: cd ~/git/unix/aa_bootloader && YES=1 ./build.sh deploy --target nixos && cd ../aa_nixos-surface_host && ./build.sh switch && reboot"
-        fi
-        exit 0
+      # 3. All three values MUST agree. No silent self-heal — drift means we
+      #    don't know where hibernate will write OR where resume will read.
+      if [ "$ACTUAL" != "$KERNEL" ]; then
+        mask_hibernate "DRIFT (kernel-side): /sys/power/resume_offset=$KERNEL but swapfile actual=$ACTUAL"
+      fi
+      if [ "$ACTUAL" != "$CMDLINE" ]; then
+        mask_hibernate "DRIFT (cmdline-side): cmdline resume_offset=$CMDLINE but swapfile actual=$ACTUAL — redeploy bootloader: cd ~/git/unix/aa_bootloader && ./build.sh deploy --target nixos && cd ../aa_desk-usr_x86_surface-linux_nixos && ./build.sh switch && reboot"
+      fi
+      if [ "$ACTUAL" != "$DECLARED" ]; then
+        mask_hibernate "DRIFT (SoT-side): boot.json declared=$DECLARED but swapfile actual=$ACTUAL — redeploy bootloader to capture the new offset"
       fi
 
-      # Self-heal: ENTERING hibernation needs /sys/power/resume_offset to match
-      # the swapfile, otherwise systemd-logind refuses. We can fix that here
-      # without a reboot.
-      echo "[swapfile-resume-offset] DRIFT detected: kernel=$KERNEL actual=$ACTUAL — writing $ACTUAL to /sys/power/resume_offset"
-      if echo "$ACTUAL" > /sys/power/resume_offset 2>/dev/null; then
-        ${pkgs.util-linux}/bin/logger -t swapfile-resume-offset -p user.warning \
-          "Auto-corrected /sys/power/resume_offset $KERNEL→$ACTUAL. Hibernation ENTRY now works for this boot. Cmdline still has $CMDLINE — RESUME after hibernate will fail until: cd ~/git/unix/aa_bootloader && YES=1 ./build.sh deploy --target nixos && cd ../aa_nixos-surface_host && ./build.sh switch && reboot"
-        echo "[swapfile-resume-offset] /sys/power/resume_offset is now $(cat /sys/power/resume_offset)"
-      else
-        ${pkgs.util-linux}/bin/logger -t swapfile-resume-offset -p user.err \
-          "Failed to write $ACTUAL to /sys/power/resume_offset (errno=$?) — hibernation will fail at ENTRY"
-        echo "[swapfile-resume-offset] WRITE FAILED — hibernation will fail until reboot+switch"
-        exit 1
-      fi
+      echo "[swapfile-resume-offset] all invariants satisfied — hibernate enabled this boot"
     '';
   };
 }

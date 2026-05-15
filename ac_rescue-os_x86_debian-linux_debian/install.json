@@ -20,8 +20,9 @@
     }
   },
   "apt": {
-    "core": ["systemd-sysv", "linux-image-amd64", "firmware-linux-free", "firmware-linux-nonfree", "firmware-iwlwifi", "firmware-misc-nonfree", "intel-microcode"],
-    "shells": ["bash", "fish", "bash-completion"],
+    "_linux_surface_repo": "added in chroot-setup.sh before kernel install: https://pkg.surfacelinux.com/debian",
+    "core": ["systemd-sysv", "linux-image-surface", "linux-headers-surface", "iptsd", "libwacom-surface", "firmware-linux-free", "firmware-linux-nonfree", "firmware-iwlwifi", "firmware-misc-nonfree", "intel-microcode"],
+    "shells": ["bash", "fish", "bash-completion", "console-setup", "keyboard-configuration"],
     "editors": ["vim", "nano"],
     "network": ["network-manager", "network-manager-openvpn", "systemd-resolved", "iproute2", "iputils-ping", "dnsutils", "openssh-client", "openssh-server", "wpasupplicant", "iw", "rfkill", "ca-certificates", "curl", "wget"],
     "graphics_x11": ["xserver-xorg-core", "xserver-xorg-input-libinput", "xserver-xorg-input-evdev", "xserver-xorg-video-fbdev", "xserver-xorg-video-intel", "xinit", "i3", "i3status", "dmenu", "xterm"],

@@ -67,6 +67,34 @@ if [ ! -d "$DIST_NIXOS" ]; then
     exit 1
 fi
 
+# ── Resume offset renderer (POST-INCIDENT 2026-05-15) ────────────────────
+# boot.json carries kernel_params_template with @RESUME_OFFSET@ placeholder.
+# Compute the actual offset via filefrag against the deployed swapfile and
+# substitute. Skips silently when the swapfile doesn't exist yet (e.g. first
+# install before mkswap) — the swap_hibernate.nix consumer's assertion will
+# fail at evaluation time if kernel_params is empty.
+SRC_JSON="$ROOT_DIR/src/boot.json"
+DIST_JSON="$DIST_NIXOS/boot.json"
+SWAPFILE=$(jq -r '.swap_hibernate.swapfile // empty' "$SRC_JSON")
+TEMPLATE=$(jq -r '.swap_hibernate.kernel_params_template // [] | join(" ")' "$SRC_JSON")
+if [ -n "$SWAPFILE" ] && [ -e "$SWAPFILE" ]; then
+    OFFSET=$(filefrag -v -b4096 "$SWAPFILE" 2>/dev/null \
+             | awk '/^   0:/{print $4; exit}' | tr -d '.')
+    if [ -n "$OFFSET" ]; then
+        log "Resume offset (filefrag): $OFFSET (swapfile=$SWAPFILE)"
+        jq --argjson o "$OFFSET" '
+            .swap_hibernate.resume_offset = $o
+            | .swap_hibernate.kernel_params =
+                (.swap_hibernate.kernel_params_template
+                 | map(gsub("@RESUME_OFFSET@"; ($o|tostring))))
+        ' "$DIST_JSON" > "$DIST_JSON.tmp" && mv "$DIST_JSON.tmp" "$DIST_JSON"
+    else
+        warn "filefrag could not determine offset for $SWAPFILE — kernel_params will be empty"
+    fi
+else
+    warn "swapfile $SWAPFILE not present — skipping resume_offset render (first-install / pre-mkswap)"
+fi
+
 # ── Plan ──────────────────────────────────────────────────────────────────
 
 header "Deploy → NixOS flake"
