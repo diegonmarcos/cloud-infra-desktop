@@ -27,20 +27,22 @@ usage() {
     echo "Usage: ./install.sh [command]"
     echo ""
     echo "Commands:"
-    echo "  surface   Verify/install linux-surface drivers"
-    echo "  scan      Check packages, output install_check.md"
-    echo "  install   Install base packages and configure"
-    echo "  kali      Install Kali security tools"
-    echo "  desktop   Start Openbox desktop (startx)"
-    echo "  sway      Start Sway (Wayland)"
-    echo "  help      Show this help message"
+    echo "  surface    Verify/install linux-surface drivers"
+    echo "  scan       Check packages, output install_check.md"
+    echo "  install    Install base packages and configure"
+    echo "  kali       Install Kali security tools"
+    echo "  webserver  Deploy http-dev (Markdown + Eruda file server)"
+    echo "  desktop    Start Openbox desktop (startx)"
+    echo "  sway       Start Sway (Wayland)"
+    echo "  help       Show this help message"
     echo ""
     echo "Recommended order:"
-    echo "  1. ./install.sh surface   # Verify Surface drivers"
-    echo "  2. ./install.sh scan      # Check what's missing"
-    echo "  3. ./install.sh install   # Install base packages"
-    echo "  4. ./install.sh kali      # Install security tools"
-    echo "  5. ./install.sh desktop   # Start GUI"
+    echo "  1. ./install.sh surface    # Verify Surface drivers"
+    echo "  2. ./install.sh scan       # Check what's missing"
+    echo "  3. ./install.sh install    # Install base packages"
+    echo "  4. ./install.sh kali       # Install security tools"
+    echo "  5. ./install.sh webserver  # Deploy http-dev file server"
+    echo "  6. ./install.sh desktop    # Start GUI"
     echo ""
     echo "Config: $CONFIG"
     echo ""
@@ -351,6 +353,110 @@ cmd_kali() {
 }
 
 ###################
+# WEBSERVER COMMAND
+###################
+
+cmd_webserver() {
+    log_head "Deploying http-dev (Markdown + Eruda file server)"
+
+    DOTFILES="$SCRIPT_DIR/dotfiles"
+
+    # Deploy server + libs
+    mkdir -p ~/.local/bin ~/.local/lib/httpd
+    cp "$DOTFILES/web-server-md-eruda.mjs" ~/.local/bin/
+    cp "$DOTFILES/httpd-lib/marked.min.js"           ~/.local/lib/httpd/
+    cp "$DOTFILES/httpd-lib/github-markdown-dark.css" ~/.local/lib/httpd/
+    cp "$DOTFILES/httpd-lib/browse.html"              ~/.local/lib/httpd/
+    chmod +x ~/.local/bin/web-server-md-eruda.mjs
+    log_ok "Server assets deployed to ~/.local/bin + ~/.local/lib/httpd"
+
+    # Deploy http-dev wrapper
+    cat > ~/.local/bin/http-dev <<'WRAPPER'
+#!/bin/sh
+# http-dev — POSIX wrapper for web-server-md-eruda.mjs
+# Usage: http-dev [start|stop|status|restart] [port] [dir]
+
+PORT="${2:-8000}"
+DIR="${3:-$HOME}"
+PID_FILE="$HOME/.cache/web-server-md-eruda.pid"
+SERVER="$HOME/.local/bin/web-server-md-eruda.mjs"
+
+is_running() {
+  [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null
+}
+
+do_start() {
+  if is_running; then
+    pid=$(cat "$PID_FILE")
+    echo "already running (PID $pid) on http://127.0.0.1:$PORT"
+    return 0
+  fi
+  mkdir -p "$(dirname "$PID_FILE")"
+  node "$SERVER" "$PORT" "$DIR" >/dev/null 2>&1 &
+  pid=$!
+  echo "$pid" > "$PID_FILE"
+  echo "started (PID $pid) on http://127.0.0.1:$PORT"
+}
+
+do_stop() {
+  if is_running; then
+    pid=$(cat "$PID_FILE")
+    kill "$pid" 2>/dev/null
+    rm -f "$PID_FILE"
+    echo "stopped (was PID $pid)"
+  else
+    rm -f "$PID_FILE"
+    echo "not running"
+  fi
+}
+
+do_status() {
+  if is_running; then
+    pid=$(cat "$PID_FILE")
+    echo "running (PID $pid) on http://127.0.0.1:$PORT"
+  else
+    rm -f "$PID_FILE"
+    echo "not running"
+  fi
+}
+
+case "${1:-start}" in
+  start)   do_start ;;
+  stop)    do_stop ;;
+  status)  do_status ;;
+  restart) do_stop; do_start ;;
+  *)       echo "Usage: http-dev {start|stop|status|restart} [port] [dir]"; exit 1 ;;
+esac
+WRAPPER
+    chmod +x ~/.local/bin/http-dev
+    log_ok "http-dev wrapper deployed to ~/.local/bin/http-dev"
+
+    # Systemd user service
+    mkdir -p ~/.config/systemd/user
+    cat > ~/.config/systemd/user/http-dev.service <<EOF
+[Unit]
+Description=http-dev — Node.js file server (Markdown + Eruda)
+
+[Service]
+ExecStart=$(which node) %h/.local/bin/web-server-md-eruda.mjs 8000 %h
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+    systemctl --user daemon-reload
+    systemctl --user enable --now http-dev.service
+    log_ok "http-dev systemd user service enabled and started"
+
+    echo ""
+    log_info "Access at: http://127.0.0.1:8000"
+    log_info "Control:   http-dev start|stop|status|restart [port] [dir]"
+
+    echo "- $(date '+%Y-%m-%d %H:%M'): http-dev webserver deployed" >> "$LOGFILE"
+}
+
+###################
 # DESKTOP COMMANDS
 ###################
 
@@ -372,11 +478,12 @@ cmd_sway() {
 ###################
 
 case "${1:-help}" in
-    surface)  cmd_surface ;;
-    scan)     cmd_scan ;;
-    install)  cmd_install ;;
-    kali)     cmd_kali ;;
-    desktop)  cmd_desktop ;;
-    sway)     cmd_sway ;;
-    help|*)   usage ;;
+    surface)    cmd_surface ;;
+    scan)       cmd_scan ;;
+    install)    cmd_install ;;
+    kali)       cmd_kali ;;
+    webserver)  cmd_webserver ;;
+    desktop)    cmd_desktop ;;
+    sway)       cmd_sway ;;
+    help|*)     usage ;;
 esac
