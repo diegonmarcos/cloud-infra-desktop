@@ -21,20 +21,33 @@
 # This adds zero runtime overhead beyond a 16-byte write at mount/unmount.
 { config, pkgs, lib, ... }:
 {
+  # Ensure the on-pool witness directory exists (tmpfiles runs at boot).
+  # /run/pool-witness and /var/lib/pool-witness are managed declaratively
+  # by RuntimeDirectory= and StateDirectory= on the service units.
+  systemd.tmpfiles.rules = [
+    "d /mnt/shared/.pool-witness 0700 root root -"
+  ];
+
   systemd.services."pool-witness-stamp-on-mount" = {
     description = "Stamp a fresh nonce on the pool to detect out-of-band mounts";
     wantedBy    = [ "local-fs.target" ];
     after       = [ "mnt-shared.mount" "local-fs.target" ];
     before      = [ "systemd-hibernate.service" "sleep.target" ];
     serviceConfig = {
-      Type           = "oneshot";
-      RemainAfterExit = true;
-      Slice          = "os-essentials.slice";
+      Type             = "oneshot";
+      RemainAfterExit  = true;
+      Slice            = "os-essentials.slice";
+      # Auto-managed by systemd: /run/pool-witness (cleaned on reboot),
+      # /var/lib/pool-witness (persistent across reboots — also persisted
+      # via @nixos subvol since the install runs with rootfs on tmpfs).
+      RuntimeDirectory = "pool-witness";
+      RuntimeDirectoryMode = "0700";
+      StateDirectory   = "pool-witness";
+      StateDirectoryMode = "0700";
     };
     path = with pkgs; [ coreutils util-linux ];
     script = ''
       set -eu
-      mkdir -p /mnt/shared/.pool-witness /run/pool-witness /var/lib/pool-witness
 
       # Boot-time check: previous nonce on disk must match what we last wrote
       # at clean shutdown. If mismatched, something else mounted the pool —
@@ -63,9 +76,14 @@
     wantedBy    = [ "shutdown.target" ];
     before      = [ "umount.target" "shutdown.target" ];
     serviceConfig = {
-      Type           = "oneshot";
-      RemainAfterExit = true;
+      Type                = "oneshot";
+      RemainAfterExit     = true;
       DefaultDependencies = false;
+      # StateDirectory already declared on the stamp service; reuse it here.
+      # Required so /var/lib/pool-witness exists if this fires before the
+      # stamp service ran (defensive — shouldn't happen in normal flow).
+      StateDirectory      = "pool-witness";
+      StateDirectoryMode  = "0700";
     };
     path = with pkgs; [ coreutils ];
     script = ''
