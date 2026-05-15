@@ -65,6 +65,7 @@
   },
   "mounts": {
     "luks_pool": {
+      "_warning_2026-05-15": "Kali is the rescue unit and DOES need pool access for actual rescue work. UNLIKE rescue-os-debian (where we removed this entry), Kali keeps it. BUT: any time Kali mounts the pool, it MUST first invalidate any pending NixOS hibernate image on the swap target (mkswap -L Shared-Lib-swap /dev/disk/by-label/Shared-Lib), otherwise a subsequent NixOS boot will resume from a stale image after Kali modified pool state. See incident_2026-05-15_pool_hibernate_corruption.md.",
       "device": "UUID=3c75c6db-4d7c-4570-81f1-02d168781aac",
       "luks_name": "pool",
       "mountpoint": "/mnt/pool",
@@ -77,6 +78,22 @@
       "fstype": "ext4",
       "options": "defaults,noauto"
     }
+  },
+
+  "swap": {
+    "_description": "Native Kali swap on p7 root. Added 2026-05-15 after OOM-killed nixos-install + konsole during pool reinstall (Kali had ZERO swap, ran out of RAM on a 4 GiB+ nix build). 2 GiB is sized for rescue OS workloads — Kali isn't a daily driver, just enough headroom for big builds + browser. Separate from the NixOS hibernate target at /mnt/shared-lib/.swapfile so Kali's swap pages never overwrite a pending NixOS hibernate image.",
+    "swapfile": "/swapfile",
+    "size_gib": 2,
+    "label": "kali-swap",
+    "priority": 50,
+    "fstab_entry": "/swapfile none swap defaults 0 0",
+    "create_commands": [
+      "sudo fallocate -l 2G /swapfile",
+      "sudo chmod 0600 /swapfile",
+      "sudo mkswap -L kali-swap /swapfile",
+      "sudo swapon -p 50 /swapfile",
+      "echo '/swapfile none swap defaults 0 0' | sudo tee -a /etc/fstab"
+    ]
   },
   "webserver": {
     "name": "http-dev",
