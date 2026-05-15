@@ -18,6 +18,20 @@
       "url": "https://pkg.surfacelinux.com/debian",
       "key_url": "https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc",
       "key_file": "/etc/apt/trusted.gpg.d/linux-surface.gpg"
+    },
+    "github-cli": {
+      "name": "github-cli",
+      "url": "https://cli.github.com/packages",
+      "key_url": "https://cli.github.com/packages/githubcli-archive-keyring.gpg",
+      "key_file": "/usr/share/keyrings/githubcli-archive-keyring.gpg",
+      "sources_file": "/etc/apt/sources.list.d/github-cli.list"
+    },
+    "brave": {
+      "name": "brave-browser",
+      "url": "https://brave-browser-apt-release.s3.brave.com/",
+      "key_url": "https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg",
+      "key_file": "/usr/share/keyrings/brave-browser-archive-keyring.gpg",
+      "sources_file": "/etc/apt/sources.list.d/brave-browser-release.list"
     }
   },
   "apt": {
@@ -28,11 +42,11 @@
     "network": ["network-manager", "wpasupplicant", "openssh-server", "curl", "wget", "git", "iwd"],
     "graphics": ["xorg", "openbox", "xterm", "mesa-utils", "fonts-dejavu", "fonts-liberation"],
     "wayland": ["sway", "foot", "wofi", "wl-clipboard"],
-    "browsers": ["lynx", "firefox-esr"],
+    "browsers": ["lynx", "firefox-esr", "brave-browser"],
     "monitors": ["btop", "htop"],
     "dev": ["nodejs", "npm", "python3", "python3-pip", "python3-venv"],
     "utils": ["sudo", "grub-efi-amd64", "efibootmgr", "dosfstools", "e2fsprogs", "cryptsetup", "btrfs-progs"],
-    "cli_tools": ["ripgrep", "fd-find", "fzf", "jq", "tmux", "neofetch", "eza", "bat", "zoxide"],
+    "cli_tools": ["ripgrep", "fd-find", "fzf", "jq", "tmux", "neofetch", "eza", "bat", "zoxide", "gh", "gocryptfs"],
     "gui_apps": ["pcmanfm", "lxappearance"],
     "kali_core": ["kali-linux-core"],
     "kali_tools": ["nmap", "netcat-openbsd", "tcpdump", "wireshark", "aircrack-ng", "john", "hashcat", "hydra", "sqlmap", "metasploit-framework", "burpsuite"]
@@ -41,7 +55,13 @@
     "global": ["@anthropic-ai/claude-code"]
   },
   "services": {
-    "enable": ["NetworkManager", "ssh", "iptsd"]
+    "enable": ["NetworkManager", "ssh", "iptsd", "bluetooth", "nix-daemon"]
+  },
+  "nix": {
+    "installer": "https://install.determinate.systems/nix",
+    "mode": "multi-user",
+    "daemon": "nix-daemon.service",
+    "note": "Determinate Systems installer — survives upgrades, uninstall via /nix/nix-installer uninstall"
   },
   "mounts": {
     "luks_pool": {
