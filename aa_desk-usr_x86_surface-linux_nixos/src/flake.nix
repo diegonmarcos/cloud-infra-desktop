@@ -1,6 +1,19 @@
 {
   description = "NixOS Surface Pro 8 - System Only (no home-manager)";
 
+  # Add the linux-surface community cachix as an extra substituter so the
+  # linux-surface kernel (used via hardware.microsoft-surface.kernelVersion in
+  # modules/hardware_surface.nix) can be FETCHED instead of built locally.
+  # Added 2026-05-15 after the pool-incident reinstall — a fresh install spent
+  # ~30 min compiling linux-6.15.9 because cache.nixos.org does not pre-build
+  # the linux-surface variant.
+  nixConfig = {
+    extra-substituters = [ "https://linux-surface.cachix.org" ];
+    extra-trusted-public-keys = [
+      "linux-surface.cachix.org-1:f+M1d2Zq+TfvrcL3vrAJL3Pc4U5GbU+s5SCV5fAR4ow="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
 

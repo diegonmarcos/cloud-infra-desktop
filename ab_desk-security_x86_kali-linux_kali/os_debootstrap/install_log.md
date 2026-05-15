@@ -18,3 +18,4 @@
 - Installed: Determinate Nix 3.20.0 (wraps Nix 2.34.6), multi-user daemon mode
 - `nix-daemon.service` active + enabled
 - Uninstall: `/nix/nix-installer uninstall`
+- 2026-05-15 19:09: http-dev webserver deployed
