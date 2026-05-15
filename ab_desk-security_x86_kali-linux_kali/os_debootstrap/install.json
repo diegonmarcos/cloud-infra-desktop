@@ -78,11 +78,24 @@
       "options": "defaults,noauto"
     }
   },
+  "webserver": {
+    "name": "http-dev",
+    "description": "Node.js file server with Markdown rendering + Eruda DevTools — mirrors ba_flakes_desktop web-server-md-eruda.nix",
+    "port": 8000,
+    "assets": [
+      "dotfiles/web-server-md-eruda.mjs -> ~/.local/bin/",
+      "dotfiles/httpd-lib/ -> ~/.local/lib/httpd/"
+    ],
+    "wrapper": "~/.local/bin/http-dev",
+    "service": "~/.config/systemd/user/http-dev.service",
+    "deploy": "./install.sh webserver"
+  },
   "install_order": [
     "1. Boot Kali with linux-surface kernel",
     "2. Run ./install.sh surface (verify drivers)",
     "3. Run ./install.sh scan (check what's missing)",
     "4. Run ./install.sh install (install all)",
-    "5. Run ./install.sh kali (install security tools)"
+    "5. Run ./install.sh kali (install security tools)",
+    "6. Run ./install.sh webserver (deploy http-dev file server)"
   ]
 }
