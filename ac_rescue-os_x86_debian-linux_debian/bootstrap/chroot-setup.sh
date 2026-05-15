@@ -40,15 +40,25 @@ cat > /etc/hosts << 'EOF'
 127.0.1.1   rescue-os-debian.localdomain rescue-os-debian
 EOF
 
-section "Installing kernel + firmware"
+section "Adding linux-surface apt repo"
+apt-get install -y --no-install-recommends curl gnupg
+curl -fsSL https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc | \
+    gpg --dearmor -o /etc/apt/trusted.gpg.d/linux-surface.gpg
+echo "deb [arch=amd64] https://pkg.surfacelinux.com/debian release main" \
+    > /etc/apt/sources.list.d/linux-surface.list
+apt-get update -qq
+
+section "Installing kernel + firmware (Surface)"
 apt-get install -y --no-install-recommends \
-    linux-image-amd64 \
+    linux-image-surface linux-headers-surface \
+    iptsd libwacom-surface \
     firmware-linux-free firmware-linux-nonfree firmware-iwlwifi firmware-misc-nonfree \
     intel-microcode \
     initramfs-tools
 
 section "Installing base CLI"
 apt-get install -y --no-install-recommends \
+    console-setup keyboard-configuration \
     bash bash-completion fish \
     vim nano less \
     man-db manpages \
