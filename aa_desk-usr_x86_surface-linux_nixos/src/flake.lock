@@ -8,15 +8,14 @@
         ]
       },
       "locked": {
-        "lastModified": 1,
-        "narHash": "sha256-OsfzSVPLLoNWBJnseRgftB94MCpro7AmOR/AfCMr8DY=",
         "path": "../../da_fido2-vault-broker/src",
         "type": "path"
       },
       "original": {
         "path": "../../da_fido2-vault-broker/src",
         "type": "path"
-      }
+      },
+      "parent": []
     },
     "flake-utils": {
       "inputs": {

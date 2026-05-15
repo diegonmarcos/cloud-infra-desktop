@@ -48,15 +48,8 @@
     "enable": ["NetworkManager", "ssh", "systemd-resolved"],
     "note_systemd_networkd": "Ships as part of the 'systemd' apt package in trixie — no separate install. NetworkManager owns interfaces by default; systemd-networkd is masked. To switch: systemctl unmask systemd-networkd && systemctl enable --now systemd-networkd && systemctl disable --now NetworkManager"
   },
+  "_pool_removal_2026-05-15": "Declarative mount of the NixOS LUKS pool from rescue-os-debian was REMOVED on 2026-05-15. Hosting the pool's crypttab/fstab here (even with noauto) made it one cryptsetup-open + mount away from out-of-band modification — the exact attack surface that contributed to the 2026-05-15 pool corruption (an out-of-band mount between hibernate-save and hibernate-resume can produce ghost commits the resumed kernel writes over). If you ever genuinely need to mount the pool from this rescue OS for forensics, do it as a one-shot manual cryptsetup-open + mount-ro — NEVER auto/persistent. See: incident_2026-05-15_pool_hibernate_corruption.md",
   "mounts": {
-    "luks_pool": {
-      "device": "UUID=3c75c6db-4d7c-4570-81f1-02d168781aac",
-      "luks_name": "pool",
-      "mapper": "/dev/mapper/pool",
-      "mountpoint": "/mnt/pool",
-      "fstype": "btrfs",
-      "options": "defaults,noauto,compress=zstd"
-    },
     "shared_lib": {
       "device": "UUID=7e3626ac-ce13-4adc-84e2-1a843d7e2793",
       "mountpoint": "/mnt/shared-lib",
