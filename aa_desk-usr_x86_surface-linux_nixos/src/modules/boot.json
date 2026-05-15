@@ -2,9 +2,8 @@
   "$schema": "./boot.schema.json",
   "_description": "Single SoT for the Surface Pro 8 bootloader: UEFI/NVRAM, GRUB install + UI + menu, kernel cmdline (hibernate slice), initrd, LUKS, swap. Phase 1 captures current behavior; Phase 3 yields full grub.cfg authority from NixOS to this SoT.",
   "version": 1,
-
   "engine": {
-    "_description": "Engine policy — replaces the scattered env-var flags (YES, DRY_RUN, NO_NVRAM, DEFAULT_BOOT, SKIP_KERNELS, SKIP_GRUB_BIN, REBUILD_ACTION, FLAKE_MODULES_DIR) that previously controlled per-install-script behaviour. Each install-*.sh reads its slice from here. Env vars STILL override (for ad-hoc surgical runs and CI), but JSON is canonical. Setting interactive=false makes the engine declarative-by-default — no Proceed?[y/N] prompt, the JSON IS the decision.",
+    "_description": "Engine policy \u2014 replaces the scattered env-var flags (YES, DRY_RUN, NO_NVRAM, DEFAULT_BOOT, SKIP_KERNELS, SKIP_GRUB_BIN, REBUILD_ACTION, FLAKE_MODULES_DIR) that previously controlled per-install-script behaviour. Each install-*.sh reads its slice from here. Env vars STILL override (for ad-hoc surgical runs and CI), but JSON is canonical. Setting interactive=false makes the engine declarative-by-default \u2014 no Proceed?[y/N] prompt, the JSON IS the decision.",
     "interactive": false,
     "dry_run": false,
     "refind_install": {
@@ -18,13 +17,12 @@
       "include_binaries": true
     },
     "nixos_install": {
-      "_description": "Knobs for engine/install-nixos.sh. trigger_rebuild = none|boot|switch|test|dry-build (if not 'none', engine runs nixos-rebuild after dropping modules into the host flake — but the recommended pattern is to leave this 'none' and let the host flake's build.sh switch own that step). flake_modules_dir is the destination for adapter modules; relative paths resolve against aa_bootloader/ root.",
+      "_description": "Knobs for engine/install-nixos.sh. trigger_rebuild = none|boot|switch|test|dry-build (if not 'none', engine runs nixos-rebuild after dropping modules into the host flake \u2014 but the recommended pattern is to leave this 'none' and let the host flake's build.sh switch own that step). flake_modules_dir is the destination for adapter modules; relative paths resolve against aa_bootloader/ root.",
       "trigger_rebuild": "none",
       "flake_modules_dir": "../aa_desk-usr_x86_surface-linux_nixos/src/modules",
-      "_flake_modules_dir_note": "Host flake was renamed from aa_nixos-surface_host → aa_desk-usr_x86_surface-linux_nixos as part of the unix/ directory taxonomy refactor. Engine resolves relative paths against ROOT_DIR (= aa_bootloader/)."
+      "_flake_modules_dir_note": "Host flake was renamed from aa_nixos-surface_host \u2192 aa_desk-usr_x86_surface-linux_nixos as part of the unix/ directory taxonomy refactor. Engine resolves relative paths against ROOT_DIR (= aa_bootloader/)."
     }
   },
-
   "uefi": {
     "_description": "UEFI partition / NVRAM concerns",
     "esp": {
@@ -39,7 +37,7 @@
     },
     "nvram": {
       "_description": "aa_bootloader owns NVRAM. deploy-grub.sh runs nvram/apply.sh which idempotently ensures these entries exist via efibootmgr.",
-      "_ownership_note": "GRUB EFI binary lives at /EFI/bootloader/grubx64.efi — neutral install dir, no distro owns it (2026-05-07 migration from /EFI/NixOS-boot-efi/). UEFI firmware doesn't care about dirname semantics; this name reflects that aa_bootloader is the SoT and the binary is overwritten on every `build.sh deploy-grub`. No distro's apt/pacman/grub-install can collide with this path.",
+      "_ownership_note": "GRUB EFI binary lives at /EFI/bootloader/grubx64.efi \u2014 neutral install dir, no distro owns it (2026-05-07 migration from /EFI/NixOS-boot-efi/). UEFI firmware doesn't care about dirname semantics; this name reflects that aa_bootloader is the SoT and the binary is overwritten on every `build.sh deploy-grub`. No distro's apt/pacman/grub-install can collide with this path.",
       "manage": true,
       "entries": [
         {
@@ -52,75 +50,134 @@
           "path": "\\EFI\\Microsoft\\Boot\\bootmgfw.efi"
         }
       ],
-      "remove_stale": ["NixOS-boot-efi"],
-      "_remove_stale_note": "On deploy-nvram, efibootmgr removes any NVRAM entries with these labels. NixOS-boot-efi is the legacy name we used before 2026-05-07 — this purges the stale boot variable so firmware doesn't hold a dangling reference after the install dir was renamed."
+      "remove_stale": [
+        "NixOS-boot-efi"
+      ],
+      "_remove_stale_note": "On deploy-nvram, efibootmgr removes any NVRAM entries with these labels. NixOS-boot-efi is the legacy name we used before 2026-05-07 \u2014 this purges the stale boot variable so firmware doesn't hold a dangling reference after the install dir was renamed."
     }
   },
-
   "refind": {
-    "_description": "rEFInd boot manager — primary bootloader as of Phase 4. Lives on ESP at /boot/efi/EFI/refind/. Auto-detects most OSes via EFI binary discovery; manual_stanzas overrides anything that needs hand-curated cmdlines/initrds.",
+    "_description": "rEFInd boot manager \u2014 primary bootloader as of Phase 4. Lives on ESP at /boot/efi/EFI/refind/. Auto-detects most OSes via EFI binary discovery; manual_stanzas overrides anything that needs hand-curated cmdlines/initrds.",
     "version": "0.14.2",
     "install": {
       "esp_dir": "/EFI/refind",
       "nvram_label": "rEFInd",
-      "include_drivers": ["btrfs_x64", "ext4_x64"],
-      "_drivers_note": "iso9660_x64 dropped — not used by any menu entry. ntfs/hfs unneeded.",
+      "include_drivers": [
+        "btrfs_x64",
+        "ext4_x64"
+      ],
+      "_drivers_note": "iso9660_x64 dropped \u2014 not used by any menu entry. ntfs/hfs unneeded.",
       "include_icons": true,
       "theme": {
-        "_description": "rEFInd theme. Vendored at src/loaders/refind/vendored/themes/<name>/. The renderer (a) copies that dir to dist/.../refind/themes/<name>/ and (b) generates a theme.conf into the same dir overriding any upstream defaults — so paths/sizes/variant are always data-driven from this block. Producers also reference $ICON_PATH (computed below) to emit per-stanza icon paths.",
+        "_description": "rEFInd theme. Vendored at src/loaders/refind/vendored/themes/<name>/. The renderer (a) copies that dir to dist/.../refind/themes/<name>/ and (b) generates a theme.conf into the same dir overriding any upstream defaults \u2014 so paths/sizes/variant are always data-driven from this block. Producers also reference $ICON_PATH (computed below) to emit per-stanza icon paths.",
         "enabled": true,
         "name": "catppuccin",
         "vendored_path": "loaders/refind/vendored/themes/catppuccin",
         "theme_conf": "theme.conf",
-        "_layout_note": "Two layouts supported by the renderer: (1) regular-style — theme.icon_set + theme.variant + theme.font; renderer derives icons_dir = themes/<name>/icons/<icon_set>/ and picks bg/selection PNGs from variant. (2) explicit-path — theme.{icons_path, banner_path, selection_big_path, selection_small_path, font_path, big_icon_size, small_icon_size}; renderer emits each path verbatim. Explicit fields win when present. Use (2) for themes with arbitrary directory layouts (Catppuccin uses assets/<flavor>/icons/).",
+        "_layout_note": "Two layouts supported by the renderer: (1) regular-style \u2014 theme.icon_set + theme.variant + theme.font; renderer derives icons_dir = themes/<name>/icons/<icon_set>/ and picks bg/selection PNGs from variant. (2) explicit-path \u2014 theme.{icons_path, banner_path, selection_big_path, selection_small_path, font_path, big_icon_size, small_icon_size}; renderer emits each path verbatim. Explicit fields win when present. Use (2) for themes with arbitrary directory layouts (Catppuccin uses assets/<flavor>/icons/).",
         "flavor": "mocha",
-        "_flavor_note": "Catppuccin pastel-on-dark palette. Options: latte (light), frappe (medium dark), macchiato (cooler dark), mocha (deepest dark — best contrast on Surface OLED-class panel). To switch flavor: set this + the four *_path fields below to assets/<flavor>/.",
+        "_flavor_note": "Catppuccin pastel-on-dark palette. Options: latte (light), frappe (medium dark), macchiato (cooler dark), mocha (deepest dark \u2014 best contrast on Surface OLED-class panel). To switch flavor: set this + the four *_path fields below to assets/<flavor>/.",
         "icons_path": "themes/catppuccin/assets/mocha/icons",
         "big_icon_size": 256,
         "small_icon_size": 64,
         "_icon_size_note": "Catppuccin ships 256x256 OS icons + 64x64 tool icons. The renderer emits these as big_icon_size/small_icon_size in theme.conf.",
         "banner_path": "themes/catppuccin/assets/mocha/background.png",
-        "_banner_note": "Catppuccin background.png is a 1x1 solid-color tile scaled fillscreen — no graphical clutter, just the flavor's base color (#1e1e2e for mocha).",
+        "_banner_note": "Catppuccin background.png is a 1x1 solid-color tile scaled fillscreen \u2014 no graphical clutter, just the flavor's base color (#1e1e2e for mocha).",
         "selection_big_path": "themes/catppuccin/assets/mocha/selection_big.png",
         "selection_small_path": "themes/catppuccin/assets/mocha/selection_small.png",
         "font_path": "",
         "_font_note": "Empty = use rEFInd's bundled default ASCII font. Catppuccin ships no font atlas. To use a custom font, point this at e.g. themes/<name>/fonts/<file>.png. (regular-style themes can instead set theme.font = '<basename>' and the renderer composes themes/<name>/fonts/<basename>.png.)",
         "show_label": true,
-        "_show_label_note": "Whether boot-entry labels appear under the SELECTED icon. rEFInd's graphical UI shows the label of the currently-selected entry only — that's an engine-level constraint, not a theme/setting. true keeps labels visible on selection; false adds 'label' to hideui (no labels at all).",
+        "_show_label_note": "Whether boot-entry labels appear under the SELECTED icon. rEFInd's graphical UI shows the label of the currently-selected entry only \u2014 that's an engine-level constraint, not a theme/setting. true keeps labels visible on selection; false adds 'label' to hideui (no labels at all).",
         "variant": "dark",
-        "_variant_note": "Cosmetic field describing whether the flavor reads as light or dark. With explicit-path mode the variant string isn't used to pick filenames (Catppuccin doesn't have light/dark variants per flavor — each flavor IS one variant)."
+        "_variant_note": "Cosmetic field describing whether the flavor reads as light or dark. With explicit-path mode the variant string isn't used to pick filenames (Catppuccin doesn't have light/dark variants per flavor \u2014 each flavor IS one variant)."
       }
     },
     "ui": {
       "timeout": 5,
       "default_selection": "NixOS",
-      "use_graphics_for": ["linux", "windows"],
+      "use_graphics_for": [
+        "linux",
+        "windows"
+      ],
       "resolution": "max",
       "banner": "",
-      "showtools": ["shell", "memtest", "gdisk", "reboot", "shutdown", "firmware"]
+      "showtools": [
+        "shell",
+        "memtest",
+        "gdisk",
+        "reboot",
+        "shutdown",
+        "firmware"
+      ]
     },
     "scan": {
       "_description": "Mode B: manual-only. The menu is exactly what aa_bootloader generates from boot.json. No autodetect surprises.",
-      "scanfor": ["manual"],
-      "dont_scan_dirs": ["EFI/Boot", "EFI/GRUB", "EFI/ubuntu", "EFI/nixos"],
+      "scanfor": [
+        "manual"
+      ],
+      "dont_scan_dirs": [
+        "EFI/Boot",
+        "EFI/GRUB",
+        "EFI/ubuntu",
+        "EFI/nixos"
+      ],
       "dont_scan_volumes": []
     },
     "manual_stanzas": {
       "_description": "Ordered top-level entries shown in rEFInd. Each item picks a 'producer' (built-in renderer) and overrides the display label. NixOS data comes from /nix/var/nix/profiles; OS data comes from grub.menu.* via the 'from' field.",
-      "_integration_note": "integration declares per-OS coupling — adapter = files dropped INTO the OS so it yields bootloader control to us (NixOS gets nixos_yield.nix + kernel staging); passive = we read the OS's kernels at their existing path, OS unaware (Kali, Debian: apt manages /vmlinuz, we just point at it); chainload = we hand control to the OS's own EFI binary with no integration (Windows, Ventoy, refind_self).",
+      "_integration_note": "integration declares per-OS coupling \u2014 adapter = files dropped INTO the OS so it yields bootloader control to us (NixOS gets nixos_yield.nix + kernel staging); passive = we read the OS's kernels at their existing path, OS unaware (Kali, Debian: apt manages /vmlinuz, we just point at it); chainload = we hand control to the OS's own EFI binary with no integration (Windows, Ventoy, refind_self).",
       "order": [
-        { "producer": "nixos_primary",   "label": "NixOS - Primary",            "integration": "adapter" },
-        { "producer": "efi_chainload",   "from": "kali",   "label": "Kali - Lab",          "integration": "chainload" },
-        { "producer": "efi_chainload",   "from": "debian", "label": "Debian Rescue OS",    "integration": "chainload" },
-        { "producer": "usb_chainload",   "from": "ventoy", "label": "USB Ventoy",          "integration": "chainload" },
-        { "producer": "nixos_rescue",    "label": "NixOS - Rescue",             "integration": "adapter" },
-        { "producer": "nixos_rollback",  "label": "NixOS - All Configurations", "max": 5,  "integration": "adapter" },
-        { "producer": "efi_chainload",   "from": "grub_fallback", "label": "GRUB (fallback)", "integration": "chainload", "_note": "Chainloads the co-installed GRUB at /EFI/bootloader/grubx64.efi as a fallback boot menu" },
-        { "producer": "refind_self",     "label": "Reload rEFInd",              "integration": "chainload", "_label_note": "ASCII-only — rEFInd's bundled PNG glyph atlas (source-code-pro-extralight-32.png, 1824x32px = 96 ASCII printable glyphs U+0020-U+007E) does not contain U+2014 EM DASH. Using a bare hyphen renders correctly across every theme; em dashes show as '??'. If a future theme ships a Unicode-extended atlas, this constraint can be relaxed centrally via the renderer." }
+        {
+          "producer": "nixos_primary",
+          "label": "NixOS - Primary",
+          "integration": "adapter"
+        },
+        {
+          "producer": "efi_chainload",
+          "from": "kali",
+          "label": "Kali - Lab",
+          "integration": "chainload"
+        },
+        {
+          "producer": "efi_chainload",
+          "from": "debian",
+          "label": "Debian Rescue OS",
+          "integration": "chainload"
+        },
+        {
+          "producer": "usb_chainload",
+          "from": "ventoy",
+          "label": "USB Ventoy",
+          "integration": "chainload"
+        },
+        {
+          "producer": "nixos_rescue",
+          "label": "NixOS - Rescue",
+          "integration": "adapter"
+        },
+        {
+          "producer": "nixos_rollback",
+          "label": "NixOS - All Configurations",
+          "max": 5,
+          "integration": "adapter"
+        },
+        {
+          "producer": "efi_chainload",
+          "from": "grub_fallback",
+          "label": "GRUB (fallback)",
+          "integration": "chainload",
+          "_note": "Chainloads the co-installed GRUB at /EFI/bootloader/grubx64.efi as a fallback boot menu"
+        },
+        {
+          "producer": "refind_self",
+          "label": "Reload rEFInd",
+          "integration": "chainload",
+          "_label_note": "ASCII-only \u2014 rEFInd's bundled PNG glyph atlas (source-code-pro-extralight-32.png, 1824x32px = 96 ASCII printable glyphs U+0020-U+007E) does not contain U+2014 EM DASH. Using a bare hyphen renders correctly across every theme; em dashes show as '??'. If a future theme ships a Unicode-extended atlas, this constraint can be relaxed centrally via the renderer."
+        }
       ]
     }
   },
-
   "grub": {
     "_description": "GRUB install settings + UI + menu entries. Kept for fallback during Phase 4 rEFInd transition. Once rEFInd is verified, this block can be deleted.",
     "install": {
@@ -141,15 +198,34 @@
       "color_highlight": "black/white"
     },
     "modules": [
-      "part_gpt", "fat", "ext2", "btrfs",
-      "luks2", "cryptodisk", "gcry_rijndael", "gcry_sha256",
-      "chain", "search", "search_fs_uuid", "search_label",
-      "configfile", "normal", "linux", "echo",
-      "all_video", "efi_gop", "efi_uga",
-      "gfxterm", "font", "png"
+      "part_gpt",
+      "fat",
+      "ext2",
+      "btrfs",
+      "luks2",
+      "cryptodisk",
+      "gcry_rijndael",
+      "gcry_sha256",
+      "chain",
+      "search",
+      "search_fs_uuid",
+      "search_label",
+      "configfile",
+      "normal",
+      "linux",
+      "echo",
+      "all_video",
+      "efi_gop",
+      "efi_uga",
+      "gfxterm",
+      "font",
+      "png"
     ],
-    "_linux_order_note": "Order in which non-NixOS Linux distros render in grub.cfg. Each entry MUST be a key in grub.menu.* with kernel/initrd/root_uuid set. The renderer's emit_linux_partition is fully generic — adding a distro is a 2-line edit (new grub.menu.<key> object + append to linux_order), no engine change.",
-    "linux_order": ["kali", "debian"],
+    "_linux_order_note": "Order in which non-NixOS Linux distros render in grub.cfg. Each entry MUST be a key in grub.menu.* with kernel/initrd/root_uuid set. The renderer's emit_linux_partition is fully generic \u2014 adding a distro is a 2-line edit (new grub.menu.<key> object + append to linux_order), no engine change.",
+    "linux_order": [
+      "kali",
+      "debian"
+    ],
     "menu": {
       "nixos": {
         "_description": "NixOS entries. Phase 1: NixOS auto-generates them. Phase 3: aa_bootloader walks /nix/var/nix/profiles/system-*-link.",
@@ -159,7 +235,10 @@
           "auto_walk_profiles": true,
           "max": 5
         },
-        "specialisations": ["rescue", "safe-graphics"]
+        "specialisations": [
+          "rescue",
+          "safe-graphics"
+        ]
       },
       "debian": {
         "enabled": true,
@@ -172,8 +251,8 @@
         "options": "rw quiet",
         "efi_uuid": "2CE0-6722",
         "efi_path": "/EFI/bootloader/grubx64.efi",
-        "_efi_note": "rEFInd chainloads the co-installed GRUB at /EFI/bootloader/grubx64.efi (owned by aa_bootloader). debian-installer never dropped a /EFI/debian/ on the ESP — confirmed 2026-05-07. Once GRUB takes over, its richer ext4 driver follows Debian's /vmlinuz and /initrd.img symlinks correctly, where rEFInd's ext4_x64.efi cannot. The kernel/initrd/options fields above are consumed by render-grub-cfg.sh to add this menuentry to the same GRUB binary that's chainloaded here — closing the loop.",
-        "_note": "Replaces Arch on p6 (2026-05-03). Debian trixie minimal CLI rescue OS with Node + Claude Code + Firefox-for-OAuth. Kernel paths use Debian's auto-updating /vmlinuz and /initrd.img symlinks at the FS root — kernel upgrades via apt are picked up automatically. rEFInd reads p6 directly via ext4 driver (volume label = 'rescue-os-debian'); ESP is too small (100 MB) to host every distro's initrd.",
+        "_efi_note": "rEFInd chainloads the co-installed GRUB at /EFI/bootloader/grubx64.efi (owned by aa_bootloader). debian-installer never dropped a /EFI/debian/ on the ESP \u2014 confirmed 2026-05-07. Once GRUB takes over, its richer ext4 driver follows Debian's /vmlinuz and /initrd.img symlinks correctly, where rEFInd's ext4_x64.efi cannot. The kernel/initrd/options fields above are consumed by render-grub-cfg.sh to add this menuentry to the same GRUB binary that's chainloaded here \u2014 closing the loop.",
+        "_note": "Replaces Arch on p6 (2026-05-03). Debian trixie minimal CLI rescue OS with Node + Claude Code + Firefox-for-OAuth. Kernel paths use Debian's auto-updating /vmlinuz and /initrd.img symlinks at the FS root \u2014 kernel upgrades via apt are picked up automatically. rEFInd reads p6 directly via ext4 driver (volume label = 'rescue-os-debian'); ESP is too small (100 MB) to host every distro's initrd.",
         "recovery": {
           "enabled": false
         }
@@ -188,7 +267,7 @@
         "options": "ro quiet splash",
         "efi_uuid": "2CE0-6722",
         "efi_path": "/EFI/bootloader/grubx64.efi",
-        "_efi_note": "rEFInd chainloads the co-installed GRUB at /EFI/bootloader/grubx64.efi (owned by aa_bootloader). The Kali installer never dropped a /EFI/kali/ on the ESP — confirmed 2026-05-07. The previous 'Invalid Loader File!' came from the linux_partition producer pointing rEFInd's ext4_x64.efi at /vmlinuz, which it cannot follow as a relative symlink. Once GRUB takes over, its richer ext4 driver resolves the symlink. The kernel/initrd/options fields above are consumed by render-grub-cfg.sh to add this menuentry to the same GRUB binary that's chainloaded here.",
+        "_efi_note": "rEFInd chainloads the co-installed GRUB at /EFI/bootloader/grubx64.efi (owned by aa_bootloader). The Kali installer never dropped a /EFI/kali/ on the ESP \u2014 confirmed 2026-05-07. The previous 'Invalid Loader File!' came from the linux_partition producer pointing rEFInd's ext4_x64.efi at /vmlinuz, which it cannot follow as a relative symlink. Once GRUB takes over, its richer ext4 driver resolves the symlink. The kernel/initrd/options fields above are consumed by render-grub-cfg.sh to add this menuentry to the same GRUB binary that's chainloaded here.",
         "recovery": {
           "enabled": true,
           "modes": [
@@ -240,7 +319,7 @@
         "class": "settings"
       },
       "grub_fallback": {
-        "_description": "rEFInd-side shortcut that chainloads the co-installed GRUB EFI binary (efi_install_dir = /EFI/bootloader). Reachable from rEFInd via the efi_chainload producer. Purely a rEFInd convenience entry — not consumed by the GRUB renderer (would be circular).",
+        "_description": "rEFInd-side shortcut that chainloads the co-installed GRUB EFI binary (efi_install_dir = /EFI/bootloader). Reachable from rEFInd via the efi_chainload producer. Purely a rEFInd convenience entry \u2014 not consumed by the GRUB renderer (would be circular).",
         "enabled": true,
         "label": "GRUB (fallback)",
         "type": "chainloader",
@@ -250,38 +329,72 @@
       }
     }
   },
-
   "kernel": {
     "_description": "Hibernate-related kernel cmdline. Other params (mem_sleep_default, splash, psi, audit, loglevel) come from configuration_power.nix and nixos-hardware in Phase 1. Phase 3 may consolidate.",
     "default_params_managed_here": [],
     "specialisations": {
       "rescue": {
         "_description": "Rescue strips hibernation cmdline so a fresh boot is forced. Phase 1: configuration_rescue.nix uses lib.mkForce; this JSON captures intent. Phase 3: kernel_params.nix consumes this.",
-        "params_strip": ["resume=*", "resume_offset=*", "splash"],
-        "params_add": ["noresume"],
+        "params_strip": [
+          "resume=*",
+          "resume_offset=*",
+          "splash"
+        ],
+        "params_add": [
+          "noresume"
+        ],
         "swap_disabled": true,
         "resume_device_disabled": true
       },
       "safe-graphics": {
         "_description": "GNOME-on-X11 fallback. configuration_fallback.nix owns the desktop overrides; this JSON only describes cmdline diff.",
-        "params_strip": ["splash"],
+        "params_strip": [
+          "splash"
+        ],
         "params_add": []
       }
     }
   },
-
   "initrd": {
     "available_modules": [
-      "xhci_pci", "thunderbolt", "nvme", "usb_storage", "sd_mod", "uas",
-      "btrfs", "vfat", "fat", "nls_cp437", "nls_iso8859-1", "nls_utf8"
+      "xhci_pci",
+      "thunderbolt",
+      "nvme",
+      "usb_storage",
+      "sd_mod",
+      "uas",
+      "btrfs",
+      "vfat",
+      "fat",
+      "nls_cp437",
+      "nls_iso8859-1",
+      "nls_utf8"
     ],
     "early_modules": [
-      "dm-snapshot", "vfat", "fat", "nls_cp437", "nls_iso8859-1", "nls_utf8",
-      "intel_lpss", "intel_lpss_pci", "8250_dw", "pinctrl_tigerlake", "xhci_pci",
-      "surface_aggregator", "surface_aggregator_registry", "surface_aggregator_hub",
-      "surface_hid_core", "surface_hid", "hid_multitouch", "hid_generic", "i2c_hid", "i2c_hid_acpi"
+      "dm-snapshot",
+      "vfat",
+      "fat",
+      "nls_cp437",
+      "nls_iso8859-1",
+      "nls_utf8",
+      "intel_lpss",
+      "intel_lpss_pci",
+      "8250_dw",
+      "pinctrl_tigerlake",
+      "xhci_pci",
+      "surface_aggregator",
+      "surface_aggregator_registry",
+      "surface_aggregator_hub",
+      "surface_hid_core",
+      "surface_hid",
+      "hid_multitouch",
+      "hid_generic",
+      "i2c_hid",
+      "i2c_hid_acpi"
     ],
-    "supported_filesystems": ["vfat"],
+    "supported_filesystems": [
+      "vfat"
+    ],
     "include_default_modules": true,
     "luks": {
       "device_name": "pool",
@@ -297,19 +410,50 @@
       },
       "fallback_password": true,
       "surface_keyboard_modules": [
-        "surface_aggregator", "surface_aggregator_registry", "surface_aggregator_hub",
-        "surface_hid_core", "surface_hid", "hid_multitouch", "hid_generic"
+        "surface_aggregator",
+        "surface_aggregator_registry",
+        "surface_aggregator_hub",
+        "surface_hid_core",
+        "surface_hid",
+        "hid_multitouch",
+        "hid_generic"
       ]
     }
   },
-
-  "boot_kernel_modules": ["kvm-intel"],
-
+  "boot_kernel_modules": [
+    "kvm-intel"
+  ],
   "swap_hibernate": {
-    "_description": "Swapfile + hibernation resume. Phase 1: swap_hibernate.nix adapter sets boot.resumeDevice, swapDevices, and contributes resume= kernel params (replacing what was in hardware_filesystems.nix). resume_offset is the FIRST PHYSICAL BLOCK of the btrfs swapfile in 4-KiB units, as reported by `btrfs inspect-internal map-swapfile -r <swapfile>`. This value DRIFTS whenever the swapfile is recreated, resized, or btrfs balance moves its extents — most recently 2026-05-03 21:26 (recreated, drifted 4954822 → 11884032), which broke hibernation 2026-05-05/06 with `Call to Hibernate failed: Specified resume device is missing or is not an active swap device`. The companion self-healing service (configuration_swapfile_resume_check.nix) auto-corrects /sys/power/resume_offset at boot and ntfys when this JSON drifts so the next switch+reboot fixes the cmdline side.",
-    "swapfile": "/mnt/shared/.swapfile",
-    "resume_device": "/dev/mapper/pool",
-    "resume_offset": 11884032,
-    "kernel_params": ["resume=/dev/mapper/pool", "resume_offset=11884032"]
+    "_description": "Swap + hibernation resume target. POST-INCIDENT (2026-05-15): moved OFF the btrfs pool. Root cause of the 2026-05-15 pool destruction was a btrfs swapfile whose CoW-relocatable extents overlapped live metadata chunks \u2014 the hibernate write went to the swapfile's current extent locations (legal), which had drifted onto chunk 73's metadata mirrors at physical 39.1/39.5 GB, bytewise clobbering them (DUP mirrors with divergent bytes \u2014 impossible for btrfs to produce, conclusive). The new design eliminates the failure mode at the root: swapfile lives on the ext4 Shared-Lib partition (p5, fixed extents, no CoW), AND the resume target is independent of the pool device. Pool failure cannot break hibernate; hibernate cannot break the pool.",
+    "isolation_invariant": "resume_device MUST NOT be on the same physical device or filesystem as any subvol that holds live OS state. The ext4 partition holding the swapfile MUST be mounted on every NixOS boot before sleep.target. Enforced by swap_hibernate.nix (nix assertion), configuration_pre-hibernate-warning.nix (preflight ExecStartPre), and configuration_swapfile_resume_check.nix (hard refuse on drift).",
+    "swapfile": "/mnt/shared-lib/.swapfile",
+    "swapfile_size_gib": 12,
+    "swapfile_fs_type": "ext4",
+    "resume_device": "/dev/disk/by-label/Shared-Lib",
+    "resume_offset": 27146240,
+    "_resume_offset_note": "Populated by `aa_bootloader/build.sh deploy --target nixos` at deploy time via `filefrag -v -b4096 <swapfile>` after mkswap. ext4 swapfiles have FIXED extents \u2014 this value is stable until the swapfile is explicitly recreated. No self-healer for the WRITE side; the check service now ENFORCES the invariant and refuses to hibernate on drift.",
+    "kernel_params_template": [
+      "resume=/dev/disk/by-label/Shared-Lib",
+      "resume_offset=@RESUME_OFFSET@"
+    ],
+    "kernel_params": [
+      "resume=/dev/disk/by-label/Shared-Lib",
+      "resume_offset=27146240"
+    ],
+    "_kernel_params_note": "Empty until deploy populates resume_offset. The renderer in build.sh substitutes @RESUME_OFFSET@ at deploy. swap_hibernate.nix asserts at build time that kernel_params is non-empty if the swap is configured to be present.",
+    "hibernate_invalidation": {
+      "_description": "Any boot path that mounts the pool from a context that might modify it MUST first invalidate any pending hibernate image on the swap device. The kernel only resumes if a valid `S1SUSPEND` signature sits at the swap header \u2014 overwrite that signature with `SWAPSPACE2` (clean swap) and the kernel falls through to cold boot. Idempotent and cheap (one 4-KiB write or one mkswap call).",
+      "enabled": true,
+      "trigger_specialisations": [
+        "rescue-current-gen",
+        "rescue-native-install"
+      ],
+      "trigger_external_mounts": true,
+      "method": "mkswap -L Shared-Lib /dev/disk/by-label/Shared-Lib",
+      "_method_note": "mkswap on the existing swap partition rewrites the header in place without changing UUID/label \u2014 equivalent to clearing any hibernate signature."
+    },
+    "_pool_witness": {
+      "_description": "Detects out-of-band pool mounts. configuration_pool_witness.nix writes a fresh nonce to @shared/.pool-witness/id on every clean mount in NixOS, mirrors it to /run/pool-witness/current-mount.id, and persists the last clean value at /var/lib/pool-witness/last-clean-mount.id. If the on-disk nonce at next NixOS mount differs from the recorded last-clean value, something else touched the pool \u2014 preflight refuses to hibernate so we don't write an image whose RAM-state-of-the-pool will be inconsistent with the disk."
+    }
   }
 }
