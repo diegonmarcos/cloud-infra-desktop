@@ -1,0 +1,227 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║                                                                  ║
+# ║   Hand-written (engine inject-header.sh missing from 9337d52).   ║
+# ║   Source-of-truth + this generated file are kept in sync         ║
+# ║   manually until the engine is fixed.                            ║
+# ║                                                                  ║
+# ║   Source : 1_workflows/src/cicd/ship-boot-cache.yml              ║
+# ║                                                                  ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+name: "Ship → /boot kernel cache (GHCR public)"
+
+# POST-INCIDENT 2026-05-15. Third backup layer for the linux-surface kernel
+# after the @nixos wipe destroyed the only locally-cached binary, forcing a
+# ~26h rebuild on Surface Pro 8.
+#
+# Backup layers (in order checked at install time):
+#   1. /nix/store        (lost on @nixos wipe — the failure mode we're fixing)
+#   2. /boot/.nix-kernel-closure (off-pool ext4 substituter, set by
+#                                  configuration_kernel_preservation.nix)
+#   3. ghcr.io/<owner>/unix-boot-cache:latest  (off-machine — this workflow)
+#
+# TWO TAGS PUBLISHED PER RUN (user spec 2026-05-16: "both kernels"):
+#   - :nix-linux-<version>  — our Nix-format closure (consumed by NixOS
+#                              installs via `nix copy --from`)
+#   - :deb-linux-surface-<version> — the upstream linux-surface .deb
+#                              passed through verbatim (consumed by
+#                              rescue-os-debian / any Debian system)
+
+on:
+  workflow_dispatch:
+    inputs:
+      make_public:
+        description: "Set GHCR package visibility to public"
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths:
+      - "aa_desk-usr_x86_surface-linux_nixos/src/flake.nix"
+      - "aa_desk-usr_x86_surface-linux_nixos/src/flake.lock"
+      - "aa_desk-usr_x86_surface-linux_nixos/src/modules/hardware_surface.nix"
+      - "aa_desk-usr_x86_surface-linux_nixos/src/modules/hardware_bootloader_boot.nix"
+      - "aa_desk-usr_x86_surface-linux_nixos/src/modules/boot.json"
+      - "aa_bootloader/src/boot.json"
+      - ".github/workflows/ship-boot-cache.yml"
+      - "1_workflows/src/cicd/ship-boot-cache.yml"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  ship-nix-cache:
+    name: "Build + push Nix-format kernel closure"
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Free disk (~30 GB on runner)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: false
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Nix (Determinate)
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+            extra-substituters = https://linux-surface.cachix.org https://nixos-surface.cachix.org
+            extra-trusted-public-keys = linux-surface.cachix.org-1:f+M1d2Zq+TfvrcL3vrAJL3Pc4U5GbU+s5SCV5fAR4ow=
+
+      - name: Resolve kernel version + hash
+        id: meta
+        working-directory: aa_desk-usr_x86_surface-linux_nixos/src
+        run: |
+          set -euo pipefail
+          KVER=$(nix eval --raw .#nixosConfigurations.surface.config.boot.kernelPackages.kernel.version)
+          KOUT=$(nix eval --raw .#nixosConfigurations.surface.config.boot.kernelPackages.kernel.outPath)
+          KHASH=$(echo "$KOUT" | sed 's|/nix/store/||' | cut -d- -f1)
+          IMAGE=ghcr.io/${{ github.repository_owner }}/unix-boot-cache
+          echo "kver=${KVER}"        >> "$GITHUB_OUTPUT"
+          echo "khash=${KHASH}"      >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}"      >> "$GITHUB_OUTPUT"
+          echo "tag_nix=nix-linux-${KVER}"        >> "$GITHUB_OUTPUT"
+          echo "tag_latest=latest"                >> "$GITHUB_OUTPUT"
+
+      - name: Build kernel + initrd derivations
+        working-directory: aa_desk-usr_x86_surface-linux_nixos/src
+        run: |
+          set -euo pipefail
+          nix build --print-out-paths --no-link \
+            .#nixosConfigurations.surface.config.boot.kernelPackages.kernel
+          nix build --print-out-paths --no-link \
+            .#nixosConfigurations.surface.config.system.build.initialRamdisk
+
+      - name: Stage Nix binary cache (kernel + initrd closures, zstd)
+        id: stage_nix
+        working-directory: aa_desk-usr_x86_surface-linux_nixos/src
+        run: |
+          set -euo pipefail
+          STAGE=${{ runner.temp }}/boot-cache
+          mkdir -p "$STAGE"
+          nix copy --no-check-sigs --to "file://$STAGE?compression=zstd" \
+            .#nixosConfigurations.surface.config.boot.kernelPackages.kernel
+          nix copy --no-check-sigs --to "file://$STAGE?compression=zstd" \
+            .#nixosConfigurations.surface.config.system.build.initialRamdisk
+          du -sh "$STAGE"
+          echo "stage=$STAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Build + push OCI image (Nix-format)
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          TAG_NIX: ${{ steps.meta.outputs.tag_nix }}
+          TAG_LATEST: ${{ steps.meta.outputs.tag_latest }}
+          STAGE: ${{ steps.stage_nix.outputs.stage }}
+          KHASH: ${{ steps.meta.outputs.khash }}
+          KVER: ${{ steps.meta.outputs.kver }}
+        run: |
+          set -euo pipefail
+          ctr=$(buildah from scratch)
+          buildah copy "$ctr" "$STAGE" "/boot-cache"
+          buildah config \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.description=NixOS-format binary cache: linux-surface ${KVER} kernel+initrd closure. Recover via: nix copy --no-check-sigs --from file://.../boot-cache --to local?root=/mnt/nixos&store=/nix/store --all" \
+            --label "kernel.version=${KVER}" \
+            --label "kernel.hash=${KHASH}" \
+            "$ctr"
+          buildah commit --rm "$ctr" "${IMAGE}:${TAG_NIX}"
+          buildah tag "${IMAGE}:${TAG_NIX}" "${IMAGE}:${TAG_LATEST}"
+          buildah login --username "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}" ghcr.io
+          for t in "${TAG_NIX}" "${TAG_LATEST}"; do
+            buildah push --format=oci "${IMAGE}:${t}" "docker://${IMAGE}:${t}"
+          done
+
+  ship-deb-passthrough:
+    name: "Pass-through upstream linux-surface .deb"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch latest linux-surface .deb metadata from upstream
+        id: deb
+        run: |
+          set -euo pipefail
+          # Use apt resolver against the upstream repo to find latest version.
+          curl -fsSL https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc \
+            | sudo gpg --dearmor -o /etc/apt/keyrings/surface.gpg
+          echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/surface.gpg] https://pkg.surfacelinux.com/debian release main' \
+            | sudo tee /etc/apt/sources.list.d/linux-surface.list
+          sudo apt-get update -qq
+          KVER=$(apt-cache madison linux-image-surface | head -1 | awk '{print $3}')
+          echo "kver=${KVER}" >> "$GITHUB_OUTPUT"
+          # Download the actual .deb files (kernel + headers).
+          mkdir -p ${{ runner.temp }}/debs
+          cd ${{ runner.temp }}/debs
+          apt-get download linux-image-surface linux-headers-surface 2>&1 || true
+          # apt-get download may complain about deps; use direct URL fetch as fallback.
+          for pkg in linux-image-surface linux-headers-surface ; do
+            if ! ls ${pkg}_*.deb >/dev/null 2>&1; then
+              URL=$(apt-cache show $pkg | grep -m1 ^Filename: | awk '{print $2}')
+              [ -n "$URL" ] && curl -fsSLO "https://pkg.surfacelinux.com/debian/${URL}"
+            fi
+          done
+          ls -la
+          IMAGE=ghcr.io/${{ github.repository_owner }}/unix-boot-cache
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "tag_deb=deb-linux-surface-${KVER}" >> "$GITHUB_OUTPUT"
+          echo "tag_deb_latest=deb-latest" >> "$GITHUB_OUTPUT"
+          echo "stage=${{ runner.temp }}/debs" >> "$GITHUB_OUTPUT"
+
+      - name: Build + push OCI image (Debian .deb pass-through)
+        env:
+          IMAGE: ${{ steps.deb.outputs.image }}
+          TAG_DEB: ${{ steps.deb.outputs.tag_deb }}
+          TAG_DEB_LATEST: ${{ steps.deb.outputs.tag_deb_latest }}
+          STAGE: ${{ steps.deb.outputs.stage }}
+          KVER: ${{ steps.deb.outputs.kver }}
+        run: |
+          set -euo pipefail
+          ctr=$(buildah from scratch)
+          buildah copy "$ctr" "$STAGE" "/deb-cache"
+          buildah config \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.description=Upstream linux-surface ${KVER} Debian packages (linux-image-surface + linux-headers-surface) passed through verbatim. Install via: dpkg -i /deb-cache/*.deb (on Debian/Kali). For NixOS use the :nix-linux-* tag instead." \
+            --label "kernel.version=${KVER}" \
+            "$ctr"
+          buildah commit --rm "$ctr" "${IMAGE}:${TAG_DEB}"
+          buildah tag "${IMAGE}:${TAG_DEB}" "${IMAGE}:${TAG_DEB_LATEST}"
+          buildah login --username "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}" ghcr.io
+          for t in "${TAG_DEB}" "${TAG_DEB_LATEST}"; do
+            buildah push --format=oci "${IMAGE}:${t}" "docker://${IMAGE}:${t}"
+          done
+
+  make-public:
+    name: "Set GHCR package visibility to public"
+    needs: [ship-nix-cache, ship-deb-passthrough]
+    runs-on: ubuntu-latest
+    if: ${{ inputs.make_public != false }}
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PKG="unix-boot-cache"
+          OWNER="${{ github.repository_owner }}"
+          for endpoint in \
+              "/user/packages/container/${PKG}/visibility" \
+              "/orgs/${OWNER}/packages/container/${PKG}/visibility"; do
+            echo "→ trying ${endpoint}"
+            if gh api -X PATCH "${endpoint}" -f visibility=public 2>/tmp/err; then
+              echo "::notice::Package ${PKG} is now public via ${endpoint}"
+              exit 0
+            else
+              cat /tmp/err
+            fi
+          done
+          echo "::warning::Could not set visibility via GITHUB_TOKEN — set manually"

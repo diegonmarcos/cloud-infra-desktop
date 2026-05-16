@@ -1,0 +1,232 @@
+name: "Ship → /boot cache (GHCR public)"
+
+# Builds the linux-surface kernel + initrd from
+# aa_desk-usr_x86_surface-linux_nixos/src/ (#nixosConfigurations.surface),
+# stages a minimal /boot equivalent (kernel + initrd + a nix binary-cache
+# directory holding the full closures), tarballs it, wraps in an OCI image,
+# pushes to ghcr.io/<owner>/unix-boot-cache:{latest,linux-<version>}, then
+# flips the package to PUBLIC visibility.
+#
+# POST-INCIDENT 2026-05-15 — third backup layer for the kernel:
+#   1. /nix/store           (live, lost on @nixos wipe)
+#   2. /boot/.nix-kernel-closure  (local off-pool, set by
+#                              configuration_kernel_preservation.nix)
+#   3. ghcr.io/.../unix-boot-cache:latest  (off-machine, this workflow)
+#
+# Reproducer for "we wiped @nixos again":
+#   docker pull ghcr.io/<owner>/unix-boot-cache:latest
+#   mkdir -p /tmp/oci && cd /tmp/oci
+#   docker save ghcr.io/<owner>/unix-boot-cache:latest -o image.tar
+#   tar xf image.tar
+#   # Each layer is a tar.gz; extract the one with /boot-cache/ content
+#   for l in */layer.tar; do tar xf "$l" -C /tmp/extracted; done
+#   nix copy --no-check-sigs --from file:///tmp/extracted/boot-cache \
+#            --to "local?root=/mnt/nixos&store=/nix/store" --all
+#
+# Disk note: nixos-hardware's linux-surface kernel build takes ~30–45 min
+# on ubuntu-latest runners (4 vCPU / 16 GB). cache.nixos.org has no prebuilt
+# binary for this exact derivation. We free disk first to avoid ENOSPC.
+
+on:
+  workflow_dispatch:
+    inputs:
+      make_public:
+        description: "Set GHCR package visibility to public"
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths:
+      - "aa_desk-usr_x86_surface-linux_nixos/src/flake.nix"
+      - "aa_desk-usr_x86_surface-linux_nixos/src/flake.lock"
+      - "aa_desk-usr_x86_surface-linux_nixos/src/modules/hardware_surface.nix"
+      - "aa_desk-usr_x86_surface-linux_nixos/src/modules/hardware_bootloader_boot.nix"
+      - "aa_desk-usr_x86_surface-linux_nixos/src/modules/boot.json"
+      - "aa_desk-usr_x86_surface-linux_nixos/src/modules/swap_hibernate.nix"
+      - "aa_bootloader/src/boot.json"
+      - "1_workflows/src/cicd/ship-boot-cache.yml"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Free disk space (~30 GB)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: false
+
+      - uses: actions/checkout@v4
+        with:
+          # We need da_fido2-vault-broker as a sibling (path: input) — clone
+          # at full depth so any flake-input path: refs resolve.
+          fetch-depth: 0
+
+      - name: Install Nix (Determinate)
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+            extra-substituters = https://linux-surface.cachix.org
+            extra-trusted-public-keys = linux-surface.cachix.org-1:f+M1d2Zq+TfvrcL3vrAJL3Pc4U5GbU+s5SCV5fAR4ow=
+
+      - name: Resolve kernel + system metadata
+        id: meta
+        working-directory: aa_desk-usr_x86_surface-linux_nixos/src
+        run: |
+          set -euo pipefail
+          KVER=$(nix eval --raw \
+            .#nixosConfigurations.surface.config.boot.kernelPackages.kernel.version)
+          KHASH=$(nix eval --raw \
+            .#nixosConfigurations.surface.config.boot.kernelPackages.kernel.outPath \
+            | sed 's|/nix/store/||' | cut -d- -f1)
+          IMAGE=ghcr.io/${{ github.repository_owner }}/unix-boot-cache
+          TAG_LATEST=latest
+          TAG_KVER=linux-${KVER}
+          TAG_SHA=${{ github.sha }}-linux-${KVER}
+          echo "kver=${KVER}"        >> "$GITHUB_OUTPUT"
+          echo "khash=${KHASH}"      >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}"      >> "$GITHUB_OUTPUT"
+          echo "tag_latest=${TAG_LATEST}" >> "$GITHUB_OUTPUT"
+          echo "tag_kver=${TAG_KVER}"     >> "$GITHUB_OUTPUT"
+          echo "tag_sha=${TAG_SHA}"       >> "$GITHUB_OUTPUT"
+          {
+            echo "## /boot cache build"
+            echo
+            echo "- **kernel**: linux-surface \`${KVER}\` (\`${KHASH}\`)"
+            echo "- **image**: \`${IMAGE}\`"
+            echo "- **tags**: \`${TAG_LATEST}\`, \`${TAG_KVER}\`, \`${TAG_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build kernel + initrd derivations
+        working-directory: aa_desk-usr_x86_surface-linux_nixos/src
+        run: |
+          set -euo pipefail
+          # Build separately so failures are easy to bisect in the runner log.
+          nix build --print-out-paths --no-link \
+            .#nixosConfigurations.surface.config.boot.kernelPackages.kernel
+          nix build --print-out-paths --no-link \
+            .#nixosConfigurations.surface.config.system.build.initialRamdisk
+
+      - name: Stage a nix binary cache with full closures
+        id: stage
+        working-directory: aa_desk-usr_x86_surface-linux_nixos/src
+        run: |
+          set -euo pipefail
+          STAGE=${{ runner.temp }}/boot-cache
+          mkdir -p "$STAGE"
+
+          # Bake the full transitive closures of kernel + initrd into a
+          # standard Nix binary cache (narinfo + nar.zst). nix copy is
+          # incremental + signature-free here.
+          nix copy --no-check-sigs --to "file://$STAGE?compression=zstd" \
+            .#nixosConfigurations.surface.config.boot.kernelPackages.kernel
+          nix copy --no-check-sigs --to "file://$STAGE?compression=zstd" \
+            .#nixosConfigurations.surface.config.system.build.initialRamdisk
+
+          # Also drop the raw bzImage + initrd at known names so a rescuer
+          # who only has tar (no nix) can still recover.
+          KSTORE=$(nix eval --raw \
+            .#nixosConfigurations.surface.config.boot.kernelPackages.kernel.outPath)
+          ISTORE=$(nix eval --raw \
+            .#nixosConfigurations.surface.config.system.build.initialRamdisk.outPath)
+          install -m 0644 "$KSTORE/bzImage"   "$STAGE/bzImage"
+          # NixOS's initrd outputs the initrd file under that path's root.
+          if [ -f "$ISTORE/initrd" ]; then
+            install -m 0644 "$ISTORE/initrd" "$STAGE/initrd"
+          elif [ -f "$ISTORE/initrd.img" ]; then
+            install -m 0644 "$ISTORE/initrd.img" "$STAGE/initrd"
+          fi
+          # Manifest for human inspection.
+          {
+            echo "kernel_version=${{ steps.meta.outputs.kver }}"
+            echo "kernel_hash=${{ steps.meta.outputs.khash }}"
+            echo "git_sha=${{ github.sha }}"
+            echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "image=${{ steps.meta.outputs.image }}"
+          } > "$STAGE/MANIFEST"
+          ls -la "$STAGE"
+          du -sh "$STAGE"
+          echo "stage=$STAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Build OCI image (single-layer, tarball = boot-cache/)
+        id: oci
+        run: |
+          set -euo pipefail
+          STAGE="${{ steps.stage.outputs.stage }}"
+          OCI_DIR="${{ runner.temp }}/oci-dir"
+          # buildah from scratch, COPY the staging dir as /boot-cache/, label.
+          ctr=$(buildah from scratch)
+          buildah copy "$ctr" "$STAGE" "/boot-cache"
+          buildah config \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.description=NixOS Surface Pro 8 /boot binary-cache: linux-surface ${{ steps.meta.outputs.kver }} kernel+initrd closure. Recovery: extract /boot-cache, then \`nix copy --no-check-sigs --from file://.../boot-cache --to local?root=/mnt/nixos&store=/nix/store --all\`." \
+            --label "org.opencontainers.image.version=${{ steps.meta.outputs.kver }}" \
+            --label "kernel.hash=${{ steps.meta.outputs.khash }}" \
+            "$ctr"
+          buildah commit --rm "$ctr" "${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag_sha }}"
+          # Also tag :latest and :linux-<version>
+          buildah tag "${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag_sha }}" \
+                      "${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag_latest }}"
+          buildah tag "${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag_sha }}" \
+                      "${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag_kver }}"
+          buildah images
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push all tags to GHCR
+        run: |
+          set -euo pipefail
+          for t in \
+              "${{ steps.meta.outputs.tag_sha }}" \
+              "${{ steps.meta.outputs.tag_kver }}" \
+              "${{ steps.meta.outputs.tag_latest }}"; do
+            echo "→ pushing ${{ steps.meta.outputs.image }}:${t}"
+            buildah push --creds="${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+                         --format=oci \
+                         "${{ steps.meta.outputs.image }}:${t}" \
+                         "docker://${{ steps.meta.outputs.image }}:${t}"
+          done
+
+      - name: Make GHCR package public
+        if: ${{ inputs.make_public != false }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PKG="unix-boot-cache"
+          OWNER="${{ github.repository_owner }}"
+          for endpoint in \
+              "/user/packages/container/${PKG}/visibility" \
+              "/orgs/${OWNER}/packages/container/${PKG}/visibility"; do
+            echo "→ trying ${endpoint}"
+            if gh api -X PATCH "${endpoint}" -f visibility=public 2>/tmp/err; then
+              echo "::notice::Package ${PKG} is now public via ${endpoint}"
+              exit 0
+            else
+              cat /tmp/err
+            fi
+          done
+          echo "::warning::Could not set visibility via GITHUB_TOKEN — set manually:"
+          echo "::warning::  gh api -X PATCH /user/packages/container/${PKG}/visibility -f visibility=public"
+
+      - name: Verify anonymous pull works
+        if: ${{ success() }}
+        run: |
+          docker logout ghcr.io || true
+          docker pull "${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag_latest }}" \
+            && echo "::notice::Anonymous pull succeeded — image is public"
