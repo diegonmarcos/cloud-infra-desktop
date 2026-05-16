@@ -171,6 +171,21 @@ Run `kernel-closure-prune` or grow /boot (Phase 2)."
 
 in
 {
+  # ── /boot/.nix-kernel-closure as a PERMANENT Nix substituter ─────────────
+  # This is the "kernel-specific nix-store" pattern (per user spec
+  # 2026-05-16): make the on-/boot binary cache a first-class Nix
+  # substituter so EVERY nix build / nixos-rebuild / fresh install
+  # transparently consults /boot before building anything. No manual
+  # `kernel-closure-restore` needed in the normal case — Nix finds the
+  # kernel there automatically.
+  #
+  # Priority 5 = checked BEFORE cache.nixos.org (default priority 40).
+  # Trusted = bypass signature checks (we write with --no-check-sigs).
+  nix.settings = {
+    extra-substituters = [ "file:///boot/.nix-kernel-closure?priority=5" ];
+    extra-trusted-substituters = [ "file:///boot/.nix-kernel-closure" ];
+  };
+
   # Ensure cache dir exists with right perms at boot.
   systemd.tmpfiles.rules = [
     "d /boot/.nix-kernel-closure 0755 root root -"
