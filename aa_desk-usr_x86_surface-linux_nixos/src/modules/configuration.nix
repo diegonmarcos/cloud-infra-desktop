@@ -74,6 +74,7 @@
     ./configuration_rescue_invalidate_hibernate.nix  # POST-2026-05-15: rewrite swap header on rescue boots so no stale resume
     ./configuration_kernel_preservation.nix       # POST-2026-05-15: mirror kernel+initrd nix-store closure to /boot so a pool wipe never destroys the prebuilt kernel
     ./configuration_activation_verify.nix         # POST-2026-05-16: loud post-activation invariant checks (users in shadow, swap not on btrfs, critical paths exist) so silent failures don't slip through
+    ./configuration_btrfs_subvols_autocreate.nix  # POST-2026-05-16: walk config.fileSystems for declared btrfs subvols, auto-create any missing on /mnt/btrfs-root (fixes @shared/journal-not-created → no persistent journal class of bug)
     ./configuration_tmp.nix
     ./configuration_packages.nix
     ./configuration_persistence.nix
