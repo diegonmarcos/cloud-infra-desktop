@@ -2,7 +2,36 @@
 # Kali Linux Surface - Setup Script
 # Usage: ./install.sh [scan|install|surface|kali|desktop|help]
 
-set -e
+set -Eeuo pipefail
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VERBOSE ERROR HANDLING — POST-INCIDENT 2026-05-16
+# Reason: install.sh previously had `set -e` only. Errors aborted but produced
+# no context (no command, no line, no exit code) — so silent failures during
+# install were possible. After the 2026-05-15 incident, where a `mount: command
+# not found` warning during nixos-install activation passed unnoticed and led
+# to a broken first-boot login, we standardise on LOUD failure across every
+# install script. This trap fires on ANY non-zero exit and prints a 4-line
+# banner with the failing command, line, exit code, and caller chain.
+# ─────────────────────────────────────────────────────────────────────────────
+_err_banner() {
+    local exit_code=$?
+    local line=${1:-?}
+    local cmd=${2:-?}
+    local chain
+    chain="$(for ((i=0; i<${#FUNCNAME[@]}; i++)); do printf '%s:' "${FUNCNAME[$i]:-MAIN}"; done | sed 's/:$//')"
+    printf '\n\033[0;31m╔══════════════════════════════════════════════════════════════════╗\n'
+    printf       '║  install.sh — FAILED                                             ║\n'
+    printf       '╚══════════════════════════════════════════════════════════════════╝\033[0m\n'
+    printf '  exit code : %d\n' "$exit_code"
+    printf '  line      : %s\n' "$line"
+    printf '  command   : %s\n' "$cmd"
+    printf '  call chain: %s\n' "$chain"
+    printf '  log       : %s\n' "$LOGFILE"
+    echo "- $(date '+%Y-%m-%d %H:%M:%S'): FAILED at line $line (exit=$exit_code): $cmd" >> "$LOGFILE" 2>/dev/null || true
+    exit "$exit_code"
+}
+trap '_err_banner "$LINENO" "$BASH_COMMAND"' ERR
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG="$SCRIPT_DIR/install.json"
@@ -32,6 +61,7 @@ usage() {
     echo "  install    Install base packages and configure"
     echo "  kali       Install Kali security tools"
     echo "  webserver  Deploy http-dev (Markdown + Eruda file server)"
+    echo "  fstab      Sync /etc/fstab + /etc/crypttab + swapfile from install.json"
     echo "  desktop    Start Openbox desktop (startx)"
     echo "  sway       Start Sway (Wayland)"
     echo "  help       Show this help message"
@@ -474,6 +504,128 @@ cmd_sway() {
 }
 
 ###################
+# FSTAB / MOUNTS / SWAP — DECLARATIVE SYNC FROM install.json
+###################
+#
+# Reads .mounts.* and .swap from install.json (the source of truth) and
+# regenerates /etc/fstab + /etc/crypttab + swapfile to match. Idempotent.
+# Backs up the previous files with timestamp before any write.
+#
+# After the 2026-05-15 incident the Kali fstab still had `/mnt/kubuntu` even
+# though install.json was updated to `/mnt/shared-lib` — because nothing
+# applied the declarative state. This function closes that gap.
+#
+# Verbose: every action is logged. Any error trips the top-level ERR trap.
+
+cmd_fstab() {
+    log_head "Sync /etc/fstab + /etc/crypttab from install.json"
+    check_jq
+    check_config
+
+    local ts
+    ts="$(date +%Y%m%d-%H%M%S)"
+    local new_fstab=/tmp/install-fstab.new.$$
+    local new_crypt=/tmp/install-crypttab.new.$$
+
+    # ── fstab ─────────────────────────────────────────────────────────────
+    # Always preserve the ROOT (/) entry — that's the system's own fstab
+    # line, never managed by install.json.
+    log_info "Preserving root entry from current /etc/fstab"
+    if [ -f /etc/fstab ]; then
+        grep -E '\s/(\s)' /etc/fstab > "$new_fstab" || true
+    fi
+
+    # Append every entry from install.json mounts.*
+    jq -r '
+      .mounts | to_entries[] |
+      "\(.value.device)\t\(.value.mountpoint)\t\(.value.fstype)\t\(.value.options)\t0\t0"
+    ' "$CONFIG" >> "$new_fstab"
+
+    # Append swap (separate top-level key)
+    local swap_entry
+    swap_entry="$(jq -r '.swap.fstab_entry // empty' "$CONFIG")"
+    if [ -n "$swap_entry" ]; then
+        log_info "Appending swap entry"
+        echo "$swap_entry" >> "$new_fstab"
+    fi
+
+    log_info "New /etc/fstab content:"
+    sed 's/^/  /' "$new_fstab"
+
+    if [ -f /etc/fstab ] && ! cmp -s "$new_fstab" /etc/fstab; then
+        $SUDO cp /etc/fstab "/etc/fstab.bak.$ts"
+        log_ok "Backed up old /etc/fstab → /etc/fstab.bak.$ts"
+        $SUDO cp "$new_fstab" /etc/fstab
+        log_ok "Wrote new /etc/fstab"
+    elif [ ! -f /etc/fstab ]; then
+        $SUDO cp "$new_fstab" /etc/fstab
+        log_ok "Wrote /etc/fstab (no prior file)"
+    else
+        log_ok "/etc/fstab already in sync — no change"
+    fi
+    rm -f "$new_fstab"
+
+    # ── crypttab ──────────────────────────────────────────────────────────
+    # One crypttab line per mount with .luks_name set.
+    jq -r '
+      .mounts | to_entries[] | select(.value.luks_name != null) |
+      "\(.value.luks_name)\t\(.value.device)\tnone\tluks,noauto"
+    ' "$CONFIG" > "$new_crypt"
+
+    if [ -s "$new_crypt" ]; then
+        log_info "New /etc/crypttab content:"
+        sed 's/^/  /' "$new_crypt"
+        if [ -f /etc/crypttab ] && ! cmp -s "$new_crypt" /etc/crypttab; then
+            $SUDO cp /etc/crypttab "/etc/crypttab.bak.$ts"
+            log_ok "Backed up old /etc/crypttab → /etc/crypttab.bak.$ts"
+            $SUDO cp "$new_crypt" /etc/crypttab
+            log_ok "Wrote new /etc/crypttab"
+        elif [ ! -f /etc/crypttab ]; then
+            $SUDO cp "$new_crypt" /etc/crypttab
+            log_ok "Wrote /etc/crypttab (no prior file)"
+        else
+            log_ok "/etc/crypttab already in sync — no change"
+        fi
+    else
+        log_info "No LUKS mounts declared → /etc/crypttab not touched"
+    fi
+    rm -f "$new_crypt"
+
+    # ── swap file (only if declared and missing) ──────────────────────────
+    local swap_file swap_size swap_label
+    swap_file="$(jq -r '.swap.swapfile // empty' "$CONFIG")"
+    swap_size="$(jq -r '.swap.size_gib // empty' "$CONFIG")"
+    swap_label="$(jq -r '.swap.label // empty' "$CONFIG")"
+    if [ -n "$swap_file" ] && [ ! -f "$swap_file" ]; then
+        log_info "Swap file $swap_file missing — creating ${swap_size}G with label '$swap_label'"
+        $SUDO fallocate -l "${swap_size}G" "$swap_file"
+        $SUDO chmod 0600 "$swap_file"
+        $SUDO mkswap -L "$swap_label" "$swap_file"
+        log_ok "Swap file created"
+    elif [ -n "$swap_file" ]; then
+        log_ok "Swap file $swap_file already exists"
+    fi
+
+    # ── reload systemd + activate ─────────────────────────────────────────
+    $SUDO systemctl daemon-reload 2>&1 | sed 's/^/  /'
+    log_ok "systemd daemon-reload done"
+
+    # Try to mount every fstab entry that's not currently mounted (noauto OK).
+    log_info "Verifying mountability (noauto entries skipped — they don't auto-mount)"
+    jq -r '.mounts[] | select((.options // "") | contains("noauto") | not) | .mountpoint' "$CONFIG" | while read -r mp; do
+        if mountpoint -q "$mp"; then
+            log_ok "  $mp already mounted"
+        else
+            log_info "  mounting $mp"
+            $SUDO mount "$mp" 2>&1 | sed 's/^/    /' || log_info "  $mp mount returned non-zero (may be noauto or LUKS-locked)"
+        fi
+    done
+
+    echo "- $(date '+%Y-%m-%d %H:%M'): fstab/crypttab/swap synced from install.json" >> "$LOGFILE"
+    log_ok "cmd_fstab: complete"
+}
+
+###################
 # MAIN
 ###################
 
@@ -485,5 +637,6 @@ case "${1:-help}" in
     webserver)  cmd_webserver ;;
     desktop)    cmd_desktop ;;
     sway)       cmd_sway ;;
+    fstab)      cmd_fstab ;;
     help|*)     usage ;;
 esac
