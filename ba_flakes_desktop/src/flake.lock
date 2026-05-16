@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "cloud-repo": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1778947719,
+        "narHash": "sha256-54MJxIC4A/NTIemA7RWh8+mkzbLSTyGw1eY2l7XeVug=",
+        "owner": "diegonmarcos",
+        "repo": "cloud",
+        "rev": "270f60d9d311ac0b810583c6916089e1010c5160",
+        "type": "github"
+      },
+      "original": {
+        "owner": "diegonmarcos",
+        "repo": "cloud",
+        "type": "github"
+      }
+    },
     "flake-parts": {
       "inputs": {
         "nixpkgs-lib": [
@@ -134,12 +150,14 @@
     },
     "root": {
       "inputs": {
+        "cloud-repo": "cloud-repo",
         "home-manager": "home-manager",
         "nixpkgs": "nixpkgs",
         "nixpkgs-unstable": "nixpkgs-unstable",
         "nur": "nur",
         "plasma-manager": "plasma-manager",
-        "sops-nix": "sops-nix"
+        "sops-nix": "sops-nix",
+        "unix-repo": "unix-repo"
       }
     },
     "sops-nix": {
@@ -159,6 +177,22 @@
       "original": {
         "owner": "Mic92",
         "repo": "sops-nix",
+        "type": "github"
+      }
+    },
+    "unix-repo": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1778942432,
+        "narHash": "sha256-jqtMfNF4XAag3eJFAVhnNrkfnPZMczU9MRyYugdyeFs=",
+        "owner": "diegonmarcos",
+        "repo": "unix",
+        "rev": "3353feb749b8015f431deea68c3edf5d0b4b2454",
+        "type": "github"
+      },
+      "original": {
+        "owner": "diegonmarcos",
+        "repo": "unix",
         "type": "github"
       }
     }

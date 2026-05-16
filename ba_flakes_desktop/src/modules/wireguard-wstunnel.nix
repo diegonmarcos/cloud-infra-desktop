@@ -29,12 +29,16 @@
 # module can be removed independently — the existing wireguard.nix / wg0
 # direct-UDP path is untouched.
 
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, inputs, ... }:
 
 let
   # ── Data sources (declarative cross-references, no inlined values) ──────
+  # Sourced from the `cloud-repo` flake input (pinned github fetch of
+  # diegonmarcos/cloud) — always fetchable in fresh clones / CI / sandboxed
+  # evals. Local hacking? Override at build time:
+  #   --override-input cloud-repo path:/home/$USER/git/cloud
   wsTunnelBuildJson =
-    let path = ../../../../cloud/a_solutions/bb-net_wireguard-mesh-ws-tunnel/build.json;
+    let path = "${inputs.cloud-repo}/a_solutions/bb-net_wireguard-mesh-ws-tunnel/build.json";
     in if builtins.pathExists path
        then builtins.fromJSON (builtins.readFile path)
        else null;

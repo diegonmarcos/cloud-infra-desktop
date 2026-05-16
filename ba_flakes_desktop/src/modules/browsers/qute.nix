@@ -10,16 +10,19 @@
 # The home-manager module shipped from that repo reads the JSON at flake
 # evaluation and projects it into `programs.qutebrowser`.
 #
-# We import the daemon's home-manager module via its relative path inside
-# the unix/ monorepo — no flake input needed since both projects live here.
+# We import the daemon's home-manager module via the `unix-repo` flake input
+# (declared in flake.nix, pinned to a github commit of diegonmarcos/unix).
+# Using a flake input — not a relative `..` traversal — keeps the import
+# portable across all flake ref styles and avoids escaping the flake source
+# dir at eval time.
 #
 # Imported by: modules/profiles/<your-productivity-profile>.nix
 #              (registered as "browsers/qute" in modules/leaves.json).
 
-{ ... }:
+{ inputs, ... }:
 
 {
-  imports = [ ../../../../da_browser-qute/src/nix/home-module.nix ];
+  imports = [ "${inputs.unix-repo}/da_browser-qute/src/nix/home-module.nix" ];
 
   programs.da_browser-qute = {
     enable = true;
