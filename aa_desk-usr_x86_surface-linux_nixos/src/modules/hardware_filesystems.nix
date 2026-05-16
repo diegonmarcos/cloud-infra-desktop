@@ -98,7 +98,7 @@
   fileSystems."/mnt/shared-lib" = {
     device = "/dev/disk/by-uuid/7e3626ac-ce13-4adc-84e2-1a843d7e2793";
     fsType = "ext4";
-    options = [ "rw" "noatime" "nofail" ];
+    options = [ "rw" "noatime" "nofail" "x-systemd.device-timeout=5s" ];
   };
 
   # NOTE: swapDevices, boot.resumeDevice, and the hibernate-related
