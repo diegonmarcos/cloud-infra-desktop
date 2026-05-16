@@ -60,6 +60,11 @@ terraform.tfvars
 libs/**
 libs/*
 libs/
+## EXCEPTION: 1_workflows/src/libs/ is engine source code, NOT build artifacts.
+## Same convention as the cloud repo. Added 2026-05-16 after the engine broke
+## because inject-header.sh was ignored despite being referenced by build.sh.
+!1_workflows/src/libs/
+!1_workflows/src/libs/**
 ## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/
