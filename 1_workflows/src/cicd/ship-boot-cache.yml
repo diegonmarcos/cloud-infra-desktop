@@ -10,12 +10,18 @@ name: "Ship → /boot kernel cache (GHCR public)"
 #                                  configuration_kernel_preservation.nix)
 #   3. ghcr.io/<owner>/unix-boot-cache:latest  (off-machine — this workflow)
 #
-# TWO TAGS PUBLISHED PER RUN (user spec 2026-05-16: "both kernels"):
-#   - :nix-linux-<version>  — our Nix-format closure (consumed by NixOS
-#                              installs via `nix copy --from`)
-#   - :deb-linux-surface-<version> — the upstream linux-surface .deb
-#                              passed through verbatim (consumed by
-#                              rescue-os-debian / any Debian system)
+# FOUR ARTIFACT FAMILIES PUBLISHED PER RUN (user spec 2026-05-16):
+#   - :nix-linux-<version>           — our Nix-format closure (NixOS via
+#                                       `nix copy --from`)
+#   - :deb-linux-surface-<version>   — upstream linux-surface .deb pass-through
+#                                       (Debian/Kali/Ubuntu/Mint via
+#                                       `dpkg -i /deb-cache/*.deb`)
+#   - :arch-linux-surface-<version>  — upstream Arch .pkg.tar.zst pass-through
+#                                       (Arch/Manjaro/EndeavourOS via
+#                                       `pacman -U /arch-cache/*.pkg.tar.zst`)
+#   - :fedora-linux-surface-<version> — upstream Fedora RPM pass-through
+#                                       (Fedora/RHEL/Rocky/Alma via
+#                                       `rpm -i /fedora-cache/*.rpm`)
 #
 # Disk note: linux-surface kernel build takes ~30-45 min on ubuntu-latest
 # (4 vCPU / 16 GB). cache.nixos.org has no prebuilt binary for this exact
@@ -188,9 +194,133 @@ jobs:
             buildah push --format=oci "${IMAGE}:${t}" "docker://${IMAGE}:${t}"
           done
 
+  ship-arch-passthrough:
+    name: "Pass-through upstream linux-surface Arch package"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch latest linux-surface .pkg.tar.zst + .sig from upstream
+        id: arch
+        run: |
+          set -euo pipefail
+          BASE=https://pkg.surfacelinux.com/arch
+          STAGE=${{ runner.temp }}/arch
+          mkdir -p "$STAGE"
+          # Parse the directory listing for the latest linux-surface kernel package.
+          # Files are served with .blob suffix (upstream cache convention).
+          LISTING=$(curl -fsSL "$BASE/")
+          KPKG=$(echo "$LISTING" | grep -oE 'linux-surface-[0-9][^"]*-x86_64\.pkg\.tar\.zst\.blob' | sort -V | tail -1)
+          HPKG=$(echo "$LISTING" | grep -oE 'linux-surface-headers-[0-9][^"]*-x86_64\.pkg\.tar\.zst\.blob' | sort -V | tail -1)
+          MOK=$(echo "$LISTING" | grep -oE 'linux-surface-secureboot-mok-[^"]*\.pkg\.tar\.zst\.blob' | sort -V | tail -1)
+          DB=linux-surface.db
+          KVER=$(echo "$KPKG" | sed -E 's/^linux-surface-([0-9][^-]*-[0-9]+)-.*/\1/')
+          for f in "$KPKG" "$KPKG.sig" "$HPKG" "$HPKG.sig" "$MOK" "$MOK.sig" "$DB" "$DB.sig"; do
+            curl -fsSL "$BASE/$f" -o "$STAGE/$f"
+          done
+          # Rename .blob → .pkg.tar.zst (upstream's serving cache adds .blob,
+          # but pacman expects bare .pkg.tar.zst).
+          for f in "$STAGE"/*.pkg.tar.zst.blob; do
+            mv "$f" "${f%.blob}"
+            test -f "${f%.blob}.sig" && true || true
+          done
+          for f in "$STAGE"/*.blob.sig; do
+            test -e "$f" && mv "$f" "${f%.blob.sig}.sig" || true
+          done
+          ls -la "$STAGE"
+          IMAGE=ghcr.io/${{ github.repository_owner }}/unix-boot-cache
+          echo "kver=${KVER}"      >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}"    >> "$GITHUB_OUTPUT"
+          echo "tag_arch=arch-linux-surface-${KVER}" >> "$GITHUB_OUTPUT"
+          echo "tag_arch_latest=arch-latest"          >> "$GITHUB_OUTPUT"
+          echo "stage=${STAGE}"    >> "$GITHUB_OUTPUT"
+
+      - name: Build + push OCI image (Arch .pkg.tar.zst pass-through)
+        env:
+          IMAGE: ${{ steps.arch.outputs.image }}
+          TAG_ARCH: ${{ steps.arch.outputs.tag_arch }}
+          TAG_ARCH_LATEST: ${{ steps.arch.outputs.tag_arch_latest }}
+          STAGE: ${{ steps.arch.outputs.stage }}
+          KVER: ${{ steps.arch.outputs.kver }}
+        run: |
+          set -euo pipefail
+          ctr=$(buildah from scratch)
+          buildah copy "$ctr" "$STAGE" "/arch-cache"
+          buildah config \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.description=Upstream linux-surface ${KVER} Arch packages (kernel + headers + secureboot-mok + repo db) passed through verbatim from pkg.surfacelinux.com/arch/. Install via: pacman -U /arch-cache/*.pkg.tar.zst (on Arch/Manjaro/EndeavourOS)." \
+            --label "kernel.version=${KVER}" \
+            "$ctr"
+          buildah commit --rm "$ctr" "${IMAGE}:${TAG_ARCH}"
+          buildah tag "${IMAGE}:${TAG_ARCH}" "${IMAGE}:${TAG_ARCH_LATEST}"
+          buildah login --username "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}" ghcr.io
+          for t in "${TAG_ARCH}" "${TAG_ARCH_LATEST}"; do
+            buildah push --format=oci "${IMAGE}:${t}" "docker://${IMAGE}:${t}"
+          done
+
+  ship-fedora-passthrough:
+    name: "Pass-through upstream linux-surface Fedora RPM"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch latest linux-surface RPMs from upstream Fedora repo
+        id: fedora
+        run: |
+          set -euo pipefail
+          BASE=https://pkg.surfacelinux.com/fedora
+          STAGE=${{ runner.temp }}/fedora
+          mkdir -p "$STAGE"
+          # Pick the highest-numbered Fedora release directory available.
+          ROOT_LISTING=$(curl -fsSL "$BASE/")
+          FREL=$(echo "$ROOT_LISTING" | grep -oE 'href="f[0-9]+/"' | grep -oE 'f[0-9]+' | sort -V | tail -1)
+          echo "Using Fedora release dir: $FREL"
+          REL_LISTING=$(curl -fsSL "$BASE/$FREL/x86_64/")
+          # Pull all kernel-surface-* RPMs (kernel + headers + modules etc.).
+          KVER=""
+          for rpm in $(echo "$REL_LISTING" | grep -oE 'kernel-surface[^"]*\.rpm' | sort -u); do
+            curl -fsSL "$BASE/$FREL/x86_64/$rpm" -o "$STAGE/$rpm"
+            # Extract version from the first main kernel-surface package.
+            if [ -z "$KVER" ] && echo "$rpm" | grep -qE '^kernel-surface-[0-9]'; then
+              KVER=$(echo "$rpm" | sed -E 's/^kernel-surface-([0-9][^-]*-[0-9]+).*/\1/')
+            fi
+          done
+          ls -la "$STAGE"
+          IMAGE=ghcr.io/${{ github.repository_owner }}/unix-boot-cache
+          echo "kver=${KVER}"      >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}"    >> "$GITHUB_OUTPUT"
+          echo "tag_fed=fedora-linux-surface-${KVER}"   >> "$GITHUB_OUTPUT"
+          echo "tag_fed_latest=fedora-latest"            >> "$GITHUB_OUTPUT"
+          echo "stage=${STAGE}"    >> "$GITHUB_OUTPUT"
+
+      - name: Build + push OCI image (Fedora RPM pass-through)
+        env:
+          IMAGE: ${{ steps.fedora.outputs.image }}
+          TAG_FED: ${{ steps.fedora.outputs.tag_fed }}
+          TAG_FED_LATEST: ${{ steps.fedora.outputs.tag_fed_latest }}
+          STAGE: ${{ steps.fedora.outputs.stage }}
+          KVER: ${{ steps.fedora.outputs.kver }}
+        run: |
+          set -euo pipefail
+          ctr=$(buildah from scratch)
+          buildah copy "$ctr" "$STAGE" "/fedora-cache"
+          buildah config \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.description=Upstream linux-surface ${KVER} Fedora RPMs passed through verbatim from pkg.surfacelinux.com/fedora/. Install via: rpm -i /fedora-cache/*.rpm (on Fedora/RHEL/Rocky/Alma)." \
+            --label "kernel.version=${KVER}" \
+            "$ctr"
+          buildah commit --rm "$ctr" "${IMAGE}:${TAG_FED}"
+          buildah tag "${IMAGE}:${TAG_FED}" "${IMAGE}:${TAG_FED_LATEST}"
+          buildah login --username "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}" ghcr.io
+          for t in "${TAG_FED}" "${TAG_FED_LATEST}"; do
+            buildah push --format=oci "${IMAGE}:${t}" "docker://${IMAGE}:${t}"
+          done
+
   make-public:
     name: "Set GHCR package visibility to public"
-    needs: [ship-nix-cache, ship-deb-passthrough]
+    needs: [ship-nix-cache, ship-deb-passthrough, ship-arch-passthrough, ship-fedora-passthrough]
     runs-on: ubuntu-latest
     if: ${{ inputs.make_public != false }}
     steps:
