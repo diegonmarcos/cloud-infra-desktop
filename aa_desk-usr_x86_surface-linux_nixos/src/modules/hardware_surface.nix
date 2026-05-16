@@ -3,10 +3,34 @@
 
 {
   # ═══════════════════════════════════════════════════════════════════════════
-  # LINUX-SURFACE KERNEL
+  # LINUX-SURFACE KERNEL  ← ⚠ THIS IS THE ONLY LINE THAT TRIGGERS A REBUILD
   # ═══════════════════════════════════════════════════════════════════════════
   # CRITICAL: Surface Pro 8 Type Cover keyboard requires linux-surface kernel
-  # The mainline kernel lacks surface_aggregator_hub module needed for SAM
+  # (mainline kernel lacks surface_aggregator_hub module needed for SAM).
+  #
+  # WHAT THIS COSTS — read before touching:
+  # The one line below (`kernelVersion = "stable"`) switches NixOS from the
+  # default `linuxPackages` (PREBUILT, cache.nixos.org has the binary) to
+  # `linuxPackages_surface` (linux-surface fork — NO public Nix binary cache
+  # has our derivation hash). Result: every first install on a fresh @nixos
+  # subvol rebuilds the kernel locally from source (~26 hours on this CPU,
+  # documented in incident_2026-05-15_pool_hibernate_corruption.md).
+  #
+  # NOTHING ELSE IN OUR FLAKE REBUILDS THE KERNEL. Everything we set under
+  # boot.kernelModules, boot.initrd.{available,early}Modules, kernelParams,
+  # kernel.sysctl, etc. — those are RUNTIME directives, NOT compile-time.
+  # They reference modules ALREADY shipped in linuxPackages_surface. The
+  # binary doesn't care what we configure in those.
+  #
+  # SHORTCUTS THAT EXIST (verified 2026-05-16):
+  #   - Debian/Kali users get the SAME upstream kernel as a PREBUILT .deb at
+  #     pkg.surfacelinux.com — no compile. That's why Kali on this hardware
+  #     boots in seconds with a working Type Cover.
+  #   - To make NixOS use that prebuilt: would need to wrap the .deb as a
+  #     Nix kernel package (real engineering, deferred).
+  #   - To make subsequent NixOS rebuilds skip the build: ship-boot-cache
+  #     workflow publishes our locally-built kernel to ghcr.io; future
+  #     installs pull instead of compile (in flight).
 
   hardware.microsoft-surface = {
     # Use stable linux-surface kernel (latest patched release)
