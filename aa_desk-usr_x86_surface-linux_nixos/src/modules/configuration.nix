@@ -68,13 +68,25 @@
     ./configuration_system-protection-storage.nix
     ./configuration_system-protection-battery.nix
     ./configuration_power.nix
-    ./configuration_pre-hibernate-warning.nix
-    ./configuration_swapfile_resume_check.nix
-    ./configuration_pool_witness.nix              # POST-2026-05-15: nonce-based detection of out-of-band pool mounts
-    ./configuration_rescue_invalidate_hibernate.nix  # POST-2026-05-15: rewrite swap header on rescue boots so no stale resume
+    # ─── POST-2026-05-16 SIMPLIFICATION ───────────────────────────────────
+    # The following hibernate-safety modules were stripped per user request
+    # "should we stop using our hibernation solution that seems like too messy
+    # and use the native hibernation module from the OS". They were
+    # defending against a btrfs-swapfile bug (CoW-relocatable extents)
+    # that no longer applies now that swap lives on ext4 (fixed extents,
+    # drift impossible by design):
+    #   - configuration_pre-hibernate-warning.nix   (UX countdown + preflight)
+    #   - configuration_swapfile_resume_check.nix   (drift detector — N/A on ext4)
+    #   - configuration_pool_witness.nix            (out-of-band mount detector)
+    #   - configuration_rescue_invalidate_hibernate.nix (rescue header wipe)
+    # swap_hibernate.nix stays — it declares swapDevices + resume_device,
+    # which IS the native hibernation pattern (just data-driven from boot.json).
+    # Files left in tree as dead code for git-history reference; import them
+    # back if any of those defenses become needed again.
     ./configuration_kernel_preservation.nix       # POST-2026-05-15: mirror kernel+initrd nix-store closure to /boot so a pool wipe never destroys the prebuilt kernel
     ./configuration_activation_verify.nix         # POST-2026-05-16: loud post-activation invariant checks (users in shadow, swap not on btrfs, critical paths exist) so silent failures don't slip through
     ./configuration_btrfs_subvols_autocreate.nix  # POST-2026-05-16: walk config.fileSystems for declared btrfs subvols, auto-create any missing on /mnt/btrfs-root (fixes @shared/journal-not-created → no persistent journal class of bug)
+    ./configuration_p5_diagnostic.nix             # POST-2026-05-16: forensic instrumentation for repeating p5 corruption (boot/shutdown fsck check + superblock+groups-945-947 sha256 snapshots + iostat capture + dmesg trace). All output → /var/log/p5-diag/ and journalctl -t p5-diagnostic
     ./configuration_tmp.nix
     ./configuration_packages.nix
     ./configuration_persistence.nix
