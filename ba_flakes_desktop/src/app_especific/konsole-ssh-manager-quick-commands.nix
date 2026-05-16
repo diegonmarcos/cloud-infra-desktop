@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, inputs, ... }:
 
 # Konsole SSH Manager + Quick Commands plugin configuration
 # SSH Manager: connection bookmarks (opens new tab)
@@ -16,9 +16,10 @@ let
   ];
 
   # ── Non-VM SSH peers (mobile/edge) ──────────────────────────────────────
-  # Termux: WG IP + SSH port sourced from termux flake build.json.
+  # Termux: WG IP + SSH port sourced from termux flake build.json via the
+  # `unix-repo` flake input (pinned github fetch of the unix monorepo).
   # 8022 is broken on this device (EADDRINUSE invisible to /proc), use 8023.
-  termuxBuildJson = builtins.fromJSON (builtins.readFile ../../../bb_flakes_termux/build.json);
+  termuxBuildJson = builtins.fromJSON (builtins.readFile "${inputs.unix-repo}/bb_flakes_termux/build.json");
   termuxWgIp = termuxBuildJson.defaults.wg_ip or "10.0.0.9";
   termuxSshPort = termuxBuildJson.defaults.ssh_port or 8023;
   extraSshHosts = [

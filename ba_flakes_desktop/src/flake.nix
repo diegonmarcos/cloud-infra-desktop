@@ -24,9 +24,39 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.home-manager.follows = "home-manager";
     };
+
+    # ── Cross-repo / sibling-monorepo data sources ───────────────────────────
+    # These were previously imported via relative `../../../../` paths that
+    # escape the flake source dir. That breaks under any flake ref style that
+    # copies the source into /nix/store (which is all of them — `path:`,
+    # `git+file:` with the inner dir, sandboxed evals, etc.) because `..`
+    # resolves outside the store path.
+    #
+    # The declarative answer is github URLs, pinned in flake.lock. Local
+    # hacking workflow: `nix flake lock --update-input <name>` after pushing
+    # to the monorepo, OR `--override-input <name> path:/abs/path` for an
+    # in-flight uncommitted edit.
+    #
+    # All three are `flake = false` — they're plain data trees, not flakes.
+
+    # Sibling subdirs of the diegonmarcos/unix monorepo. `?dir=` only steers
+    # flake.nix discovery; with `flake = false` it's a no-op, so importing
+    # modules reach into the fetched tree via `"${inputs.unix-repo}/subdir/file"`.
+    # Both qute-broker and termux-flake share the same fetch — same repo,
+    # different paths inside it — and the lockfile dedupes the github fetch.
+    unix-repo = {
+      url = "github:diegonmarcos/unix";
+      flake = false;
+    };
+
+    # cloud repo — different repo entirely.
+    cloud-repo = {
+      url = "github:diegonmarcos/cloud";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nur, sops-nix, plasma-manager, ... }@inputs:
+  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nur, sops-nix, plasma-manager, unix-repo, cloud-repo, ... }@inputs:
     let
       system = "x86_64-linux";
 
