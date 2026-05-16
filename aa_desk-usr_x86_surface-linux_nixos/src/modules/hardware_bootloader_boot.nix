@@ -1,6 +1,20 @@
 # Boot Configuration: initrd, LUKS unlock, kernel modules
 # GENERATED FROM aa_bootloader/src/boot.json
 # DO NOT EDIT BY HAND — re-generate via: aa_bootloader/build.sh deploy --target nixos
+#
+# IMPORTANT: NONE OF WHAT THIS MODULE SETS REBUILDS THE KERNEL.
+# ─────────────────────────────────────────────────────────────
+# `availableKernelModules`, `kernelModules`, `supportedFilesystems`,
+# `luks.devices.*`, `kernelModules` (top-level) are all CONSUMERS of the
+# kernel package — they tell the initrd which prebuilt .ko files to
+# include / load, and they tell the running kernel which modules to load
+# at boot. They DO NOT add new modules to the kernel source tree, do not
+# change kernel CONFIG_*, do not modify any patch set.
+#
+# The kernel itself is selected in hardware_surface.nix
+# (`hardware.microsoft-surface.kernelVersion = "stable"`). That's the only
+# line in this flake that decides whether a kernel build runs. See that
+# file's comment block for the cost rationale.
 { config, lib, pkgs, ... }:
 
 let
