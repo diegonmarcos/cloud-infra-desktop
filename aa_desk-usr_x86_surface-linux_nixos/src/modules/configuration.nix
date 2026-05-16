@@ -87,6 +87,7 @@
     ./configuration_activation_verify.nix         # POST-2026-05-16: loud post-activation invariant checks (users in shadow, swap not on btrfs, critical paths exist) so silent failures don't slip through
     ./configuration_btrfs_subvols_autocreate.nix  # POST-2026-05-16: walk config.fileSystems for declared btrfs subvols, auto-create any missing on /mnt/btrfs-root (fixes @shared/journal-not-created → no persistent journal class of bug)
     ./configuration_p5_diagnostic.nix             # POST-2026-05-16: forensic instrumentation for repeating p5 corruption (boot/shutdown fsck check + superblock+groups-945-947 sha256 snapshots + iostat capture + dmesg trace). All output → /var/log/p5-diag/ and journalctl -t p5-diagnostic
+    ./configuration_home_ownership_repair.nix     # POST-2026-05-16: defensive chown of fragile $HOME paths (.claude/.config/.local/.ssh) on every activation — fixes class-of-bug where install/chroot flows leak root-owned files into /home/$user that then break standalone home-manager apply
     ./configuration_tmp.nix
     ./configuration_packages.nix
     ./configuration_persistence.nix
