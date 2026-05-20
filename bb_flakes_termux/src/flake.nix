@@ -486,6 +486,10 @@
             # --- HOME MANAGER CONFIG ---
             home-manager.config = { pkgs, lib, ... }: {
               _module.args.nodejs = pkgsNew.nodejs_22;
+              # wstunnel 7.x (Rust) lives in pkgsUnstable. The old wstunnel 0.5.x
+              # in pinned nixos-24.05 is Haskell and pulls connection-0.3.1 which
+              # is marked broken upstream — blocking every home-manager switch.
+              _module.args.wstunnel = pkgsUnstable.wstunnel;
               imports = [
                 ./modules/common.nix
                 ./modules/packages.nix

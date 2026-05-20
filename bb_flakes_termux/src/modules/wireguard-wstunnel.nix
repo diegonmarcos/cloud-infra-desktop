@@ -27,7 +27,7 @@
 # Decommission: identical to desktop — remove this module + the
 # `wg-tcp` helper and the wg0-tcp.conf in ~/.config/wireguard/.
 
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, wstunnel, ... }:
 
 let
   # ── Data sources (declarative cross-references, no inlined values) ──────
@@ -48,13 +48,13 @@ let
   pidFile     = "${config.home.homeDirectory}/.config/wireguard/.wstunnel.pid";
   logFile     = "${config.home.homeDirectory}/.config/wireguard/.wstunnel.log";
   wgTcpConf   = "${config.home.homeDirectory}/.config/wireguard/wg0-tcp.conf";
-  wstunnelBin = "${pkgs.wstunnel}/bin/wstunnel";
+  # wstunnel comes via _module.args (flake.nix → pkgsUnstable.wstunnel, Rust 7.x).
+  # The pinned nixos-24.05 'pkgs.wstunnel' is Haskell 0.5.x and pulls a broken dep.
+  wstunnelBin = "${wstunnel}/bin/wstunnel";
 in
 {
   # ── Package: wstunnel binary (Rust, ~10 MB RSS when active) ────────────
-  home.packages = with pkgs; [
-    wstunnel
-  ];
+  home.packages = [ wstunnel ];
 
   # ── wg0-tcp.conf (WG client config pointing at the local loopback) ─────
   # Identical render rule as desktop — only the Endpoint line is rewritten.
