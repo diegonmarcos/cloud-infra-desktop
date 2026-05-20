@@ -190,14 +190,17 @@ jobs:
           IMAGE='${{ steps.meta.outputs.image }}:latest'
           echo "Smoke-testing $IMAGE …"
           docker pull "$IMAGE"
-          # Catches the regression that motivated this workflow: b0b897e
-          # added wrangler to docker-deps.sh on 2026-05-07 but `latest`
-          # never got re-pushed → CF Worker deploy stayed broken for 13
-          # days. From now on, missing-wrangler aborts the SHIP, not the
-          # consumer.
+          # The image's ENTRYPOINT (/opt/cloud-builder/entrypoint.sh) does
+          # a docker-in-docker bootstrap that requires /var/run/docker.sock
+          # — when invoked under a GHA runner without DinD it aborts with
+          # "docker daemon unreachable". For a binary-presence probe we
+          # don't need the entrypoint at all; --entrypoint sh skips it and
+          # runs our command directly. Same purpose as the consumer's
+          # actual mount pattern, which also bypasses the entrypoint by
+          # naming the command explicitly.
           MISSING=""
           for bin in wrangler terraform jq sops age npm node curl; do
-            docker run --rm "$IMAGE" sh -c "command -v $bin >/dev/null 2>&1" \
+            docker run --rm --entrypoint sh "$IMAGE" -c "command -v $bin >/dev/null 2>&1" \
               || MISSING="$MISSING $bin"
           done
           if [ -n "$MISSING" ]; then
