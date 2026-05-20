@@ -139,12 +139,24 @@ jobs:
           echo "Platforms:  $PLATFORMS"
           echo "Short SHA:  $SHORT_SHA"
 
-      - name: Regenerate dist/ (build.sh build — pure-shell, no docker)
+      - name: Sanity-check dist/ is present + non-empty
         run: |
-          # `build.sh build` copies src/ into dist/ and generates compose
-          # — it does NOT touch Docker. Safe to run on the GHA runner
-          # before buildx hands the context over to BuildKit.
-          ( cd cb_containers-builders && bash build.sh build )
+          # dist/ is COMMITTED to git in this repo (cb_containers-builders/dist/
+          # is tracked — Dockerfiles, docker-deps.sh, docker/, compose YAML,
+          # all there). We do NOT run `build.sh build` on the GHA runner
+          # because that regenerator needs cloud/config.json (`step_build`
+          # at line 100 in build.sh walks SCRIPT_DIR/../../cloud/config.json
+          # etc.) which only exists in a developer's checkout with both repos
+          # side by side — not on a stock GHA runner. The contract is:
+          # whoever pushes a change to docker-deps.sh / Dockerfile / src
+          # runs `build.sh build` locally + commits the regenerated dist/
+          # before pushing. Buildx then operates on that committed snapshot.
+          REQ="cb_containers-builders/dist"
+          [ -d "$REQ" ] || { echo "::error::$REQ missing — was build.sh build run locally before push?"; exit 1; }
+          for f in docker-deps.sh Dockerfile.apt Dockerfile.x-deb-nixhm docker/entrypoint.sh; do
+            [ -f "$REQ/$f" ] || { echo "::error::$REQ/$f missing — run build.sh build + commit dist/"; exit 1; }
+          done
+          echo "dist/ OK ($(ls "$REQ" | wc -l) entries)"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
