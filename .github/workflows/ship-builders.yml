@@ -10,46 +10,36 @@
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-name: "Ship → Builder images"
+name: "Ship → Builder images (amd64 on GHA — arm64 stays on laptop until self-hosted oci-apps runner exists)"
 
-# Canonical multi-arch build pipeline for cloud-builder-x-* images.
+# Multi-arch build pipeline for cloud-builder-x-* images.
 #
-# Background: these images are the runtime sandbox that EVERY downstream
-# Ship → {gen-configs, terraform, home-manager, …} workflow in the cloud
-# repo uses (mounted as the cloud-builder container). They carry nix,
-# terraform, wrangler, rustup, sops, age, jq, gh, and the npm globals
-# declared in cloud/config.json:.deps.docker_npm. When `latest` is stale,
-# ensure_wrangler / ensure_terraform abort downstream pipelines with
-# "image is stale, rebuild via cb_containers-builders" — exactly the
-# path we're closing here.
+# Architecture mandate (NO QEMU, EVER):
+#   - amd64 → GHA ubuntu-latest (native) OR oci-analytics (native)
+#   - arm64 → oci-apps (native via SSH from cloud-data-runners.json)
 #
-# SoT: the image source (Dockerfile, docker-deps.sh, build.json) lives in
-# this repo at cb_containers-builders/. Rebuilding belongs in the unix
-# repo by ownership — the cloud repo only CONSUMES the image.
+# This workflow handles ONLY the amd64 leg, on a GHA ubuntu-latest runner
+# (native x86_64, no emulation). The arm64 leg is intentionally out of
+# scope here — it requires either:
+#   a) Composite actions for fetch-vault + WG-up + SSH-to-oci-apps in the
+#      unix repo (mirror of cloud/.github/actions/fetch-vault/), then a
+#      `_build_push_arch` invocation. Future work.
+#   b) Registering oci-apps as a self-hosted GHA runner labeled `arm64`,
+#      then runs-on: [self-hosted, arm64]. Future work.
+# Until then, arm64 rebuild stays on the developer laptop via
+# `cb_containers-builders/build.sh ship cloud-builder-x-deb-nixhm`
+# (which uses cloud-data-runners.json to SSH to oci-apps natively).
 #
-# Engine vs. workflow: the local engine for these images is
-# `cb_containers-builders/build.sh ship`. It uses cloud-data-runners.json
-# to switch between local docker and ssh-to-oci-apps for arm64. That path
-# is for a developer laptop. On GHA we can't reach oci-apps without WG +
-# age key, so this workflow uses buildx + QEMU natively. Same Dockerfile,
-# same docker-deps.sh, same resulting image — only the build host
-# differs.
+# The amd64 image alone is enough to unblock GHA-driven consumer
+# workflows (cloud:Ship → terraform / gen-configs / home-manager all run
+# on ubuntu-latest = amd64). arm64 consumers (Ship → oci-apps shipping
+# c3-infra-api etc.) currently use the previous `latest` digest until a
+# fresh arm64 leg lands.
 #
-# Trigger choices:
-#   workflow_dispatch  → manual rebuild (the intentional path: image
-#                        rebuild ties to docker-deps.sh / config.json
-#                        / Dockerfile changes, all of which are
-#                        deliberate acts, not incidental edits).
-#   push (paths)       → auto-rebuild on changes to the image source
-#                        files. Catches the regression that prompted
-#                        this workflow (b0b897e on 2026-05-07 added
-#                        wrangler to docker-deps.sh but `latest` was
-#                        never re-pushed — silent staleness for 13d).
-#
-# Output: pushes to ghcr.io with three tags per variant:
-#   ghcr.io/diegonmarcos/<variant>:latest
-#   ghcr.io/diegonmarcos/<variant>:<short-sha>
-# Both tags reference a multi-arch manifest list (amd64 + arm64).
+# Tags pushed:
+#   ghcr.io/diegonmarcos/<variant>:latest        — amd64 only for now
+#   ghcr.io/diegonmarcos/<variant>:<short-sha>   — amd64 only for now
+# When the arm64 leg lands, both tags become multi-arch manifest lists.
 
 on:
   workflow_dispatch:
@@ -63,10 +53,6 @@ on:
           - cloud-builder-x-deb-nixhm
           - cloud-builder-x-deb-apt
           - all
-      platforms:
-        description: "Platforms (override; default = build.json[variant].platform)"
-        required: false
-        default: ""
   push:
     branches: [main]
     paths:
@@ -102,10 +88,8 @@ jobs:
           [ -f "$BJ" ] || { echo "::error::$BJ not found"; exit 1; }
           INPUT='${{ github.event.inputs.variant }}'
           if [ -z "$INPUT" ] || [ "$INPUT" = "all" ]; then
-            # push event OR explicit 'all' → all variants
             VARIANTS=$(jq -c '[.images | keys[]]' "$BJ")
           else
-            # explicit single variant
             jq -e --arg v "$INPUT" '.images[$v]' "$BJ" >/dev/null \
               || { echo "::error::Variant '$INPUT' not in $BJ"; exit 1; }
             VARIANTS=$(jq -c -n --arg v "$INPUT" '[$v]')
@@ -113,11 +97,11 @@ jobs:
           echo "variants=$VARIANTS" >> "$GITHUB_OUTPUT"
           echo "Resolved variants: $VARIANTS"
 
-  build:
-    name: "Build + push ${{ matrix.variant }}"
+  build-amd64:
+    name: "Build amd64 ${{ matrix.variant }}"
     needs: matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -134,47 +118,25 @@ jobs:
           VARIANT='${{ matrix.variant }}'
           IMAGE=$(jq -r --arg v "$VARIANT" '.images[$v].ghcr' "$BJ")
           DOCKERFILE_REL=$(jq -r --arg v "$VARIANT" '.images[$v].dockerfile' "$BJ")
-          PLATFORMS_DECL=$(jq -r --arg v "$VARIANT" '.images[$v].platform' "$BJ")
-          PLATFORMS='${{ github.event.inputs.platforms }}'
-          [ -n "$PLATFORMS" ] || PLATFORMS="$PLATFORMS_DECL"
           SHORT_SHA=$(git rev-parse --short HEAD)
           {
             echo "image=$IMAGE"
             echo "dockerfile=cb_containers-builders/$DOCKERFILE_REL"
             echo "context=cb_containers-builders/dist"
-            echo "platforms=$PLATFORMS"
             echo "short_sha=$SHORT_SHA"
           } >> "$GITHUB_OUTPUT"
           echo "Image:      $IMAGE"
           echo "Dockerfile: cb_containers-builders/$DOCKERFILE_REL"
           echo "Context:    cb_containers-builders/dist"
-          echo "Platforms:  $PLATFORMS"
           echo "Short SHA:  $SHORT_SHA"
 
-      - name: Sanity-check dist/ is present + non-empty
+      - name: Sanity-check dist/ present
         run: |
-          # dist/ is COMMITTED to git in this repo (cb_containers-builders/dist/
-          # is tracked — Dockerfiles, docker-deps.sh, docker/, compose YAML,
-          # all there). We do NOT run `build.sh build` on the GHA runner
-          # because that regenerator needs cloud/config.json (`step_build`
-          # at line 100 in build.sh walks SCRIPT_DIR/../../cloud/config.json
-          # etc.) which only exists in a developer's checkout with both repos
-          # side by side — not on a stock GHA runner. The contract is:
-          # whoever pushes a change to docker-deps.sh / Dockerfile / src
-          # runs `build.sh build` locally + commits the regenerated dist/
-          # before pushing. Buildx then operates on that committed snapshot.
           REQ="cb_containers-builders/dist"
-          [ -d "$REQ" ] || { echo "::error::$REQ missing — was build.sh build run locally before push?"; exit 1; }
+          [ -d "$REQ" ] || { echo "::error::$REQ missing — run cb_containers-builders/build.sh build + commit dist/"; exit 1; }
           for f in docker-deps.sh Dockerfile.apt Dockerfile.x-deb-nixhm docker/entrypoint.sh; do
             [ -f "$REQ/$f" ] || { echo "::error::$REQ/$f missing — run build.sh build + commit dist/"; exit 1; }
           done
-          echo "dist/ OK ($(ls "$REQ" | wc -l) entries)"
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -183,33 +145,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build + push multi-arch (latest + short-sha)
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ steps.meta.outputs.context }}
-          file: ${{ steps.meta.outputs.dockerfile }}
-          platforms: ${{ steps.meta.outputs.platforms }}
-          push: true
-          tags: |
-            ${{ steps.meta.outputs.image }}:latest
-            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.short_sha }}
-          provenance: false
-          cache-from: type=gha,scope=${{ matrix.variant }}
-          cache-to:   type=gha,scope=${{ matrix.variant }},mode=max
+      - name: Build amd64 natively + push
+        # No buildx, no QEMU. Plain native docker build on the amd64 GHA
+        # runner. Tags both :latest and :<short-sha>. When the arm64 leg
+        # eventually lands (via SSH to oci-apps), both tags become manifest
+        # lists; for now they reference the amd64 manifest directly.
+        run: |
+          IMAGE='${{ steps.meta.outputs.image }}'
+          SHA='${{ steps.meta.outputs.short_sha }}'
+          DOCKERFILE='${{ steps.meta.outputs.dockerfile }}'
+          CONTEXT='${{ steps.meta.outputs.context }}'
+          DOCKER_BUILDKIT=1 docker build \
+            --network=host \
+            -t "$IMAGE:latest" \
+            -t "$IMAGE:$SHA" \
+            -f "$DOCKERFILE" \
+            "$CONTEXT"
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:$SHA"
 
       - name: Smoke-test image — verify baked binaries on PATH
         run: |
           IMAGE='${{ steps.meta.outputs.image }}:latest'
-          echo "Smoke-testing $IMAGE …"
-          docker pull "$IMAGE"
-          # The image's ENTRYPOINT (/opt/cloud-builder/entrypoint.sh) does
-          # a docker-in-docker bootstrap that requires /var/run/docker.sock
-          # — when invoked under a GHA runner without DinD it aborts with
-          # "docker daemon unreachable". For a binary-presence probe we
-          # don't need the entrypoint at all; --entrypoint sh skips it and
-          # runs our command directly. Same purpose as the consumer's
-          # actual mount pattern, which also bypasses the entrypoint by
-          # naming the command explicitly.
           MISSING=""
           for bin in wrangler terraform jq sops age npm node curl; do
             docker run --rm --entrypoint sh "$IMAGE" -c "command -v $bin >/dev/null 2>&1" \
@@ -220,4 +177,13 @@ jobs:
             echo "::error::Check cb_containers-builders/dist/docker-deps.sh and src/Dockerfile.*"
             exit 1
           fi
-          echo "All required binaries present in $IMAGE."
+          # Verify node major version satisfies docker_npm engine constraints.
+          NODE_MAJOR=$(docker run --rm --entrypoint sh "$IMAGE" -c "node -e 'console.log(process.versions.node.split(\".\")[0])'")
+          if [ "$NODE_MAJOR" -lt 22 ]; then
+            echo "::error::node major=$NODE_MAJOR in $IMAGE; wrangler@4.x requires >=22"
+            exit 1
+          fi
+          # Wrangler-specific runtime check (b0b897e regression: installed but unrunnable).
+          docker run --rm --entrypoint sh "$IMAGE" -c "wrangler --version >/dev/null 2>&1" \
+            || { echo "::error::wrangler refuses to run in $IMAGE — likely node version mismatch"; exit 1; }
+          echo "Smoke-test OK: amd64, node $NODE_MAJOR, all required binaries."
