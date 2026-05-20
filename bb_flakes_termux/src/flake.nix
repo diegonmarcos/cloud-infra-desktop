@@ -162,7 +162,18 @@
                 echo "    connect logs | jq .mesh — mesh JSON data"
                 echo ""
               '')
-              inetutils
+              # inetutils → telnet, ftp, rsh, rlogin, hostname, dnsdomainname, etc.
+              # Demoted with lowPrio so iputils wins the ping/ping6/traceroute6 file
+              # collisions. inetutils' ping uses SOCK_RAW + setuid() (bionic libc
+              # has no setuid impl → "Function not implemented" on Termux).
+              (lib.lowPrio inetutils)
+              # iputils → ping (SOCK_DGRAM via IPPROTO_ICMP, no raw sockets, no
+              # setuid), ping6, tracepath, traceroute6, arping, clockdiff. The
+              # SOCK_DGRAM path works on Termux/Android as long as the user's
+              # gid is in /proc/sys/net/ipv4/ping_group_range (Android default
+              # range is wide-open). This is the same kernel path Android system
+              # apps use for ping.
+              iputils
               termux-am
 
               # getconf — POSIX sysconf utility needed by wrangler (Cloudflare Workers CLI)
