@@ -26,7 +26,11 @@ let
       );
     in extract sysDeps ++ extract buildDeps ++ extract optDeps;
 
-  nodejs = pkgs.nodejs_20;
+  # Node is data-driven from cloud/config.json:.deps.system.node.nix
+  # (same SoT as every other package). The hardcoded `pkgs.nodejs_20` that
+  # lived here silently bricked wrangler@4.88.0 (requires node>=22) on
+  # 4ca09e2 — wrangler installed but refused to run.
+  nodejs = resolvePkg (sysDeps.node.nix or "nodejs_22");
 
 in {
   home.username = "root";
