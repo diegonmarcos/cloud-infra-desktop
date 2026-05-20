@@ -1,32 +1,196 @@
-name: "Ship → Builder images (manual, local)"
+name: "Ship → Builder images"
 
-# The CI build pipeline for cloud-builder-x-deb-nixhm lives in the cloud repo
-# at .github/workflows/ship-ci-image.yml — it has the SSH/WG secrets needed
-# to delegate arm64 builds to oci-apps (no QEMU).
+# Canonical multi-arch build pipeline for cloud-builder-x-* images.
 #
-# This workflow is kept only for ad-hoc manual runs from the unix repo. It
-# will fail the arm64 step without WG/OCI secrets, which is intentional —
-# the declarative path is the cloud repo workflow.
+# Background: these images are the runtime sandbox that EVERY downstream
+# Ship → {gen-configs, terraform, home-manager, …} workflow in the cloud
+# repo uses (mounted as the cloud-builder container). They carry nix,
+# terraform, wrangler, rustup, sops, age, jq, gh, and the npm globals
+# declared in cloud/config.json:.deps.docker_npm. When `latest` is stale,
+# ensure_wrangler / ensure_terraform abort downstream pipelines with
+# "image is stale, rebuild via cb_containers-builders" — exactly the
+# path we're closing here.
+#
+# SoT: the image source (Dockerfile, docker-deps.sh, build.json) lives in
+# this repo at cb_containers-builders/. Rebuilding belongs in the unix
+# repo by ownership — the cloud repo only CONSUMES the image.
+#
+# Engine vs. workflow: the local engine for these images is
+# `cb_containers-builders/build.sh ship`. It uses cloud-data-runners.json
+# to switch between local docker and ssh-to-oci-apps for arm64. That path
+# is for a developer laptop. On GHA we can't reach oci-apps without WG +
+# age key, so this workflow uses buildx + QEMU natively. Same Dockerfile,
+# same docker-deps.sh, same resulting image — only the build host
+# differs.
+#
+# Trigger choices:
+#   workflow_dispatch  → manual rebuild (the intentional path: image
+#                        rebuild ties to docker-deps.sh / config.json
+#                        / Dockerfile changes, all of which are
+#                        deliberate acts, not incidental edits).
+#   push (paths)       → auto-rebuild on changes to the image source
+#                        files. Catches the regression that prompted
+#                        this workflow (b0b897e on 2026-05-07 added
+#                        wrangler to docker-deps.sh but `latest` was
+#                        never re-pushed — silent staleness for 13d).
+#
+# Output: pushes to ghcr.io with three tags per variant:
+#   ghcr.io/diegonmarcos/<variant>:latest
+#   ghcr.io/diegonmarcos/<variant>:<short-sha>
+# Both tags reference a multi-arch manifest list (amd64 + arm64).
 
 on:
   workflow_dispatch:
     inputs:
       variant:
-        description: "Image variant (cloud-builder-x-deb-nixhm, cloud-builder-x-deb-apt, all)"
+        description: "Image variant"
         required: false
+        type: choice
         default: "cloud-builder-x-deb-nixhm"
+        options:
+          - cloud-builder-x-deb-nixhm
+          - cloud-builder-x-deb-apt
+          - all
+      platforms:
+        description: "Platforms (override; default = build.json[variant].platform)"
+        required: false
+        default: ""
+  push:
+    branches: [main]
+    paths:
+      - "cb_containers-builders/build.json"
+      - "cb_containers-builders/src/**"
+      - "cb_containers-builders/dist/docker-deps.sh"
+      - "cb_containers-builders/dist/Dockerfile.*"
+      - "1_workflows/src/cicd/ship-builders.yml"
 
 permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: ship-builders-${{ github.event.inputs.variant || 'auto' }}
+  cancel-in-progress: false
+
 jobs:
-  notice:
+  matrix:
+    name: "Resolve variants"
     runs-on: ubuntu-latest
+    outputs:
+      variants: ${{ steps.resolve.outputs.variants }}
     steps:
-      - name: Redirect to cloud workflow
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Resolve variant list from build.json
+        id: resolve
         run: |
-          echo "::warning::This workflow is a stub. The canonical build pipeline"
-          echo "::warning::lives in diegonmarcos/cloud at .github/workflows/ship-ci-image.yml"
-          echo "::warning::Trigger it with: gh workflow run ship-ci-image.yml --repo diegonmarcos/cloud"
-          exit 1
+          BJ="cb_containers-builders/build.json"
+          [ -f "$BJ" ] || { echo "::error::$BJ not found"; exit 1; }
+          INPUT='${{ github.event.inputs.variant }}'
+          if [ -z "$INPUT" ] || [ "$INPUT" = "all" ]; then
+            # push event OR explicit 'all' → all variants
+            VARIANTS=$(jq -c '[.images | keys[]]' "$BJ")
+          else
+            # explicit single variant
+            jq -e --arg v "$INPUT" '.images[$v]' "$BJ" >/dev/null \
+              || { echo "::error::Variant '$INPUT' not in $BJ"; exit 1; }
+            VARIANTS=$(jq -c -n --arg v "$INPUT" '[$v]')
+          fi
+          echo "variants=$VARIANTS" >> "$GITHUB_OUTPUT"
+          echo "Resolved variants: $VARIANTS"
+
+  build:
+    name: "Build + push ${{ matrix.variant }}"
+    needs: matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJson(needs.matrix.outputs.variants) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Resolve image metadata from build.json
+        id: meta
+        run: |
+          BJ="cb_containers-builders/build.json"
+          VARIANT='${{ matrix.variant }}'
+          IMAGE=$(jq -r --arg v "$VARIANT" '.images[$v].ghcr' "$BJ")
+          DOCKERFILE_REL=$(jq -r --arg v "$VARIANT" '.images[$v].dockerfile' "$BJ")
+          PLATFORMS_DECL=$(jq -r --arg v "$VARIANT" '.images[$v].platform' "$BJ")
+          PLATFORMS='${{ github.event.inputs.platforms }}'
+          [ -n "$PLATFORMS" ] || PLATFORMS="$PLATFORMS_DECL"
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          {
+            echo "image=$IMAGE"
+            echo "dockerfile=cb_containers-builders/$DOCKERFILE_REL"
+            echo "context=cb_containers-builders/dist"
+            echo "platforms=$PLATFORMS"
+            echo "short_sha=$SHORT_SHA"
+          } >> "$GITHUB_OUTPUT"
+          echo "Image:      $IMAGE"
+          echo "Dockerfile: cb_containers-builders/$DOCKERFILE_REL"
+          echo "Context:    cb_containers-builders/dist"
+          echo "Platforms:  $PLATFORMS"
+          echo "Short SHA:  $SHORT_SHA"
+
+      - name: Regenerate dist/ (build.sh build — pure-shell, no docker)
+        run: |
+          # `build.sh build` copies src/ into dist/ and generates compose
+          # — it does NOT touch Docker. Safe to run on the GHA runner
+          # before buildx hands the context over to BuildKit.
+          ( cd cb_containers-builders && bash build.sh build )
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build + push multi-arch (latest + short-sha)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ steps.meta.outputs.context }}
+          file: ${{ steps.meta.outputs.dockerfile }}
+          platforms: ${{ steps.meta.outputs.platforms }}
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.short_sha }}
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.variant }}
+          cache-to:   type=gha,scope=${{ matrix.variant }},mode=max
+
+      - name: Smoke-test image — verify baked binaries on PATH
+        run: |
+          IMAGE='${{ steps.meta.outputs.image }}:latest'
+          echo "Smoke-testing $IMAGE …"
+          docker pull "$IMAGE"
+          # Catches the regression that motivated this workflow: b0b897e
+          # added wrangler to docker-deps.sh on 2026-05-07 but `latest`
+          # never got re-pushed → CF Worker deploy stayed broken for 13
+          # days. From now on, missing-wrangler aborts the SHIP, not the
+          # consumer.
+          MISSING=""
+          for bin in wrangler terraform jq sops age npm node curl; do
+            docker run --rm "$IMAGE" sh -c "command -v $bin >/dev/null 2>&1" \
+              || MISSING="$MISSING $bin"
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error::Required binaries missing from $IMAGE:$MISSING"
+            echo "::error::Check cb_containers-builders/dist/docker-deps.sh and src/Dockerfile.*"
+            exit 1
+          fi
+          echo "All required binaries present in $IMAGE."
