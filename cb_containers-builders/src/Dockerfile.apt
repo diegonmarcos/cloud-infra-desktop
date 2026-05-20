@@ -56,7 +56,7 @@ RUN mkdir -p /root/.node_modules && cd /root/.node_modules \
 
 # ── Self-documenting ─────────────────────────────────────────────
 RUN mkdir -p /opt/cloud-builder
-COPY Dockerfile.x86-apt /opt/cloud-builder/Dockerfile
+COPY Dockerfile.apt /opt/cloud-builder/Dockerfile
 COPY docker/entrypoint.sh /opt/cloud-builder/entrypoint.sh
 COPY docker/docker-up.sh /opt/cloud-builder/docker-up.sh
 RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh
