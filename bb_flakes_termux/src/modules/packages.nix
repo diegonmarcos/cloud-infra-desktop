@@ -14,6 +14,10 @@
     (callPackage ../pkgs/goose.nix {})
     dnsutils         # dig, nslookup — DNS health checks in MCP tools
     netcat-openbsd  # nc — WireGuard peer probing
+    mtr              # TCP/UDP/ICMP traceroute — used by ~/triage.sh
+    nmap             # TCP-connect port scanner (1-20005) — used by ~/triage.sh
+    tcpdump          # packet capture — operator network debugging
+    whois            # ASN / org lookups — used by ~/triage.sh WHOIS section
     ncurses          # clear, tput
     util-linux       # column, colrm, colcrt — table/column formatting
     git-filter-repo  # git history rewriting (purge secrets from commits)
