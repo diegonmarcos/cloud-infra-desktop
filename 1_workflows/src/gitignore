@@ -53,6 +53,12 @@ libs/
 ## because inject-header.sh was ignored despite being referenced by build.sh.
 !1_workflows/src/libs/
 !1_workflows/src/libs/**
+## EXCEPTION: ea_superapp/libs/ is the gradle multi-module source tree
+## (libs:core, libs:mail, libs:cal, …). Each is its own Android library
+## with build.gradle + src/. NOT build artifacts. Added 2026-05-29 when
+## the scaffold landed and these files silently disappeared on git add.
+!ea_superapp/libs/
+!ea_superapp/libs/**
 ## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/
