@@ -17,6 +17,8 @@
 # ║   shell       enter Nix devShell (gradle + sdk + jdk)             ║
 # ║   ship        build + side-load via adb (USB-connected device)    ║
 # ║   oras-push   push APK as OCI artifact → ghcr (release.ghcr block)║
+# ║   oras-pull   pull APK from ghcr → dist/  [tag=latest]            ║
+# ║   phone-install pull + copy to Android shared storage Download     ║
 # ║   gh-release  attach APK to GitHub Release (release.gh_release)   ║
 # ║                                                                  ║
 # ║ NEVER bypass this script for build operations.                    ║
@@ -133,6 +135,76 @@ step_oras_push() {
   done <<< "$tags"
 }
 
+step_oras_pull() {
+  # Pull APK from GHCR via curl + OCI HTTP API (no oras binary needed).
+  # Public packages: anonymous bearer token from ghcr.io/token works.
+  # All registry/namespace/image come from build.json::release.ghcr.
+  # Optional 2nd arg: tag (default from release.phone_install.default_tag).
+  local registry namespace image tag
+  registry="$(_release_var '.release.ghcr.registry')"
+  namespace="$(_release_var '.release.ghcr.namespace')"
+  image="$(_release_var '.release.ghcr.image')"
+  tag="${2:-$(_release_var '.release.phone_install.default_tag')}"
+  tag="${tag:-latest}"
+
+  local repo="$namespace/$image"
+  local token manifest digest size asset_title
+  log "oras-pull: $registry/$repo:$tag (via OCI HTTP API)"
+
+  token="$(curl -sf "https://$registry/token?service=$registry&scope=repository:$repo:pull" | jq -r .token)"
+  [ -n "$token" ] && [ "$token" != "null" ] || { errlog "no bearer token"; exit 1; }
+
+  mkdir -p "$DIST_DIR"
+  manifest="$(curl -sfL \
+    -H "Authorization: Bearer $token" \
+    -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+    "https://$registry/v2/$repo/manifests/$tag")"
+  digest="$(jq -r '.layers[0].digest' <<<"$manifest")"
+  size="$(jq -r '.layers[0].size' <<<"$manifest")"
+  asset_title="$(jq -r '.layers[0].annotations["org.opencontainers.image.title"] // "superapp.apk"' <<<"$manifest")"
+  [ -n "$digest" ] && [ "$digest" != "null" ] || { errlog "manifest has no layers"; exit 1; }
+
+  local out="$DIST_DIR/$asset_title"
+  log "  pulling $digest ($size bytes) → $out"
+  curl -sfL -H "Authorization: Bearer $token" \
+    "https://$registry/v2/$repo/blobs/$digest" -o "$out"
+
+  # Verify digest matches what the manifest claimed.
+  local got_sha
+  got_sha="$(sha256sum "$out" | cut -d' ' -f1)"
+  if [ "sha256:$got_sha" != "$digest" ]; then
+    errlog "digest mismatch — got sha256:$got_sha, expected $digest"
+    exit 1
+  fi
+  log "  ✓ $out (sha256:$got_sha)"
+}
+
+step_phone_install() {
+  # Pull APK + copy to a target dir an Android file manager can see.
+  # target_dir from build.json::release.phone_install; override via PHONE_TARGET env.
+  step_oras_pull "$@"
+
+  local target_dir asset_name src
+  target_dir="${PHONE_TARGET:-$(_release_var '.release.phone_install.target_dir')}"
+  # Expand ~ manually — jq returns the literal "~/...".
+  target_dir="${target_dir/#\~/$HOME}"
+  asset_name="$(_release_var '.release.phone_install.asset_name')"
+
+  src="$(ls -1t "$DIST_DIR"/*.apk 2>/dev/null | head -1)"
+  [ -f "$src" ] || { errlog "no APK in $DIST_DIR — oras-pull failed silently"; exit 1; }
+
+  if [ ! -d "$target_dir" ]; then
+    errlog "phone-install: $target_dir does not exist"
+    errlog "  Termux: run 'termux-setup-storage' on the phone and accept the prompt"
+    errlog "  Other:  set PHONE_TARGET=/path/to/dir env var"
+    exit 1
+  fi
+
+  cp "$src" "$target_dir/$asset_name"
+  log "✓ $target_dir/$asset_name"
+  log "  Open Files app → Download → tap APK → install"
+}
+
 step_gh_release() {
   local enabled draft prerelease notes asset_tmpl asset
   enabled="$(_release_var '.release.gh_release.enabled')"
@@ -169,8 +241,10 @@ case "$CMD" in
   clean)      step_clean ;;
   shell)      step_shell ;;
   ship)       step_ship ;;
-  oras-push)  step_oras_push ;;
-  gh-release) step_gh_release ;;
+  oras-push)    step_oras_push ;;
+  oras-pull)    step_oras_pull "$@" ;;
+  phone-install) step_phone_install "$@" ;;
+  gh-release)   step_gh_release ;;
   help|*)
     sed -n '2,/^set -euo/p' "$0" | sed 's/^# *//; /^set/d; /^$/d'
     ;;
