@@ -67,5 +67,31 @@
   "deploy": {
     "host": "local",
     "note": "APK produced in dist/. Side-loadable via adb or shared via Filebrowser."
+  },
+  "release": {
+    "_doc": "Data-driven publish targets for the APK. build.sh oras-push + build.sh gh-release read this block; the GHA workflow (1_workflows/src/cicd/ship-superapp.yml) invokes those engine commands — no hardcoded registry/tag strings in the workflow.",
+    "artifact": {
+      "_doc": "Path under dist/ to publish. release variant when signed key available, debug otherwise. APK filename = name + version_name + variant suffix.",
+      "debug":   "superapp-debug.apk",
+      "release": "superapp-release.apk"
+    },
+    "ghcr": {
+      "_doc": "ORAS push as an OCI artifact (not a container — APK is a blob). One :latest tag plus per-commit sha + per-version tags.",
+      "enabled": true,
+      "registry": "ghcr.io",
+      "namespace": "diegonmarcos",
+      "image": "superapp",
+      "media_type": "application/vnd.android.package-archive",
+      "tags": ["latest", "sha-{sha}", "v{version_name}"]
+    },
+    "gh_release": {
+      "_doc": "GitHub Release attachment. Only fires on tag push matching the pattern, never on main pushes.",
+      "enabled": true,
+      "tag_pattern": "ea_superapp-v*",
+      "asset_name": "superapp-{version_name}.apk",
+      "draft": false,
+      "prerelease": true,
+      "generate_release_notes": true
+    }
   }
 }

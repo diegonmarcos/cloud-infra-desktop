@@ -44,6 +44,9 @@
             adb-sync
             android-tools     # adb, fastboot
             jq                # build.sh reads build.json
+            oras              # OCI artifact push to ghcr (release.ghcr)
+            gh                # GitHub Release attachment (release.gh_release)
+            git               # for `git rev-parse --short` in build.sh
           ];
 
           ANDROID_HOME = "${androidSdk}/libexec/android-sdk";
