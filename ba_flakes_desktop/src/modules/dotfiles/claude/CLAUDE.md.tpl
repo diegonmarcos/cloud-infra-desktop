@@ -79,7 +79,7 @@ Five git repos under `~/git/`. Same engine interface (`build.sh` + `build.json`)
 - `2_configs/src/engines/` — derive scripts emit `cloud-data-*.json` (topology / caddy / dns / home-manager) consumed by all flakes
 - **External-consumers registry** — `external-consumers.json` + `deriveExternalConsumers` emits `build-{flakes_desktop,flakes_termux,builders,secrets}.json` from a single consolidated source (unix + cloud-data both consume)
 - **Port-enforcement shared lib** — Nix lib auto-injects port env vars from each service's `build.json`; flakes never hardcode ports
-- Edge: Cloudflare → Caddy (gcp-proxy) → WireGuard mesh → service VM. Auth: Authelia 2FA / OIDC bearer tokens
+- Edge: Cloudflare → **oci-analytics** (Caddy public edge `:443` = HTTP reverse_proxy + L4 SNI mux) → WireGuard mesh → target VM. `gcp-proxy` is **WG-only** (private hub, no public listener). Auth: Authelia 2FA / OIDC bearer tokens
 
 **Ops**
 - `build.sh ship` = build + secrets + deploy + compose (full pipeline)
@@ -214,7 +214,21 @@ Five git repos under `~/git/`. Same engine interface (`build.sh` + `build.json`)
 
 ## B.2 Networking
 
-Traffic flow: **Cloudflare -> Caddy (gcp-proxy) -> WireGuard -> target VM**. Auth: Authelia 2FA (browser) or Bearer token via introspect-proxy (CLI/API).
+Traffic flow: **Cloudflare → oci-analytics (Caddy public edge `:443`) → WireGuard mesh → target VM**. `gcp-proxy` is fully **WG-only** (private hub, no public listener).
+
+**DNS is wildcard.** Hickory (internal) and Cloudflare (public) both resolve `*.diegonmarcos.com` to the public edge — there are NO per-subdomain A records. Adding a route does NOT require a DNS change.
+
+**Caddy is the single source of truth for ALL routes** — HTTP reverse_proxy AND L4 SNI mux on `:443`, declared per-service in `proxy.primary` / `proxy.primary.l4_ports[]` / `proxy.well_known[]`. Aggregated by `2_configs/src/engines/cloud-data-config-derive.ts` into `build-caddy.json` → consumed by `bb-sec_caddy/src/caddyfile.nix`. Auth: Authelia 2FA (browser) or Bearer token via introspect-proxy (CLI/API).
+
+**Mail clients connect on `:443` (NOT 993/465)** — Caddy L4 demuxes by SNI:
+
+| Hostname | Port | Protocol | Upstream |
+|---|---|---|---|
+| `imap.diegonmarcos.com` | 443 | IMAPS (SNI) | Maddy `oci-mail:993` via WG |
+| `smtps.diegonmarcos.com` | 443 | SMTPS (SNI) | Maddy `oci-mail:465` via WG |
+| `mail.diegonmarcos.com` | 443 | HTTPS (Maddy admin + `/maddy` `/stalwart` hubs) | oci-mail via WG |
+| `jmap.diegonmarcos.com` | 443 | HTTPS (Stalwart JMAP) | `oci-mail:2443` via WG |
+| `:25` (public) | 25 | SMTP MX | currently CF Worker bridge → Maddy via WG |
 
 <!-- INJECT:ssh_aliases -->
 SSH aliases: (generated from cloud-data at activation time).
