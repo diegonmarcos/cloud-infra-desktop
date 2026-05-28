@@ -92,6 +92,12 @@
       "draft": false,
       "prerelease": true,
       "generate_release_notes": true
+    },
+    "phone_install": {
+      "_doc": "Targets for build.sh phone-install. Pulls APK from GHCR via curl+OCI HTTP API (no oras dep — works on aarch64 Termux without a Nix shell) and copies to a target dir an Android file manager can see. Override target_dir per environment via PHONE_TARGET env var; default suits Termux/nix-on-droid where ~/storage symlinks to /storage/emulated/0/.",
+      "default_tag": "latest",
+      "target_dir": "~/storage/Download",
+      "asset_name": "superapp-debug.apk"
     }
   }
 }
