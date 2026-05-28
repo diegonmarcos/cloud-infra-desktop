@@ -1,0 +1,28 @@
+// Settings — gradle module graph.
+// Source of truth = build.json::modules. Keep in sync.
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "superapp"
+
+include ":app"
+include ":libs:core"
+include ":libs:mail"
+include ":libs:cal"
+include ":libs:feed"
+include ":libs:net"
+include ":libs:ops"
+include ":libs:vault"
