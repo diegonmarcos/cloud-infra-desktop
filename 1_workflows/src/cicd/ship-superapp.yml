@@ -46,12 +46,12 @@ on:
         default: false
   push:
     branches: [main]
+    tags:
+      - "ea_superapp-v*"
     paths:
       - "ea_superapp/**"
       - "1_workflows/src/cicd/ship-superapp.yml"
-  push:
-    tags:
-      - "ea_superapp-v*"
+      - ".github/workflows/ship-superapp.yml"
 
 permissions:
   contents: write   # for gh release create + tag push reads
