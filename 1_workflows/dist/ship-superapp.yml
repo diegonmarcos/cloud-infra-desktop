@@ -95,8 +95,13 @@ jobs:
         with:
           packages: "platforms;android-34 platforms;android-26 build-tools;34.0.0 platform-tools"
 
-      - name: Set up Gradle (cached)
+      - name: Set up Gradle 8.7 (cached)
         uses: gradle/actions/setup-gradle@v3
+        with:
+          # Pin to build.json::toolchain.gradle — Kotlin Android plugin 1.9.24
+          # is not compatible with Gradle 9.x's strict Configuration Cache
+          # (build event listener provider unsupported).
+          gradle-version: "8.7"
 
       - name: Install ORAS + gh CLI + jq
         run: |

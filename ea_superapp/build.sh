@@ -42,17 +42,9 @@ in_nix() {
   fi
 }
 
-ensure_wrapper() {
-  if [ ! -f "$SCRIPT_DIR/gradlew" ]; then
-    log "gradle wrapper missing — generating via 'gradle wrapper'"
-    in_nix gradle wrapper --gradle-version "$(jq -r .toolchain.gradle "$SCRIPT_DIR/build.json")"
-  fi
-}
-
 step_build() {
   log "Build: superapp (debug APK)"
-  ensure_wrapper
-  in_nix ./gradlew :app:assembleDebug
+  in_nix gradle :app:assembleDebug
   mkdir -p "$DIST_DIR"
   cp "$SCRIPT_DIR/app/build/outputs/apk/debug/app-debug.apk" "$DIST_DIR/superapp-debug.apk"
   log "→ $DIST_DIR/superapp-debug.apk"
@@ -60,8 +52,7 @@ step_build() {
 
 step_release() {
   log "Build: superapp (release APK)"
-  ensure_wrapper
-  in_nix ./gradlew :app:assembleRelease
+  in_nix gradle :app:assembleRelease
   mkdir -p "$DIST_DIR"
   cp "$SCRIPT_DIR/app/build/outputs/apk/release/app-release.apk" "$DIST_DIR/superapp-release.apk" 2>/dev/null \
     || cp "$SCRIPT_DIR/app/build/outputs/apk/release/app-release-unsigned.apk" "$DIST_DIR/superapp-release-unsigned.apk"
@@ -71,14 +62,14 @@ step_release() {
 step_dev() {
   log "Dev: launching on connected device (adb)"
   command -v adb >/dev/null || in_nix adb devices
-  in_nix ./gradlew :app:installDebug
+  in_nix gradle :app:installDebug
   in_nix adb shell am start -n "com.diegonmarcos.superapp/.MainActivity"
 }
 
-step_test()       { log "Test: JVM unit tests"; ensure_wrapper; in_nix ./gradlew test; }
-step_instrument() { log "Test: instrumented (needs device)"; ensure_wrapper; in_nix ./gradlew connectedAndroidTest; }
-step_lint()       { log "Lint"; ensure_wrapper; in_nix ./gradlew lint; }
-step_clean()      { log "Clean"; ensure_wrapper; in_nix ./gradlew clean; rm -rf "$DIST_DIR"; }
+step_test()       { log "Test: JVM unit tests"; in_nix gradle test; }
+step_instrument() { log "Test: instrumented (needs device)"; in_nix gradle connectedAndroidTest; }
+step_lint()       { log "Lint"; in_nix gradle lint; }
+step_clean()      { log "Clean"; in_nix gradle clean; rm -rf "$DIST_DIR"; }
 step_shell()      { log "Entering Nix devShell"; exec nix develop "$SCRIPT_DIR"; }
 
 step_ship() {
