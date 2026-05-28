@@ -113,6 +113,12 @@ step_oras_push() {
     errlog "oras-push: no APK found in $DIST_DIR — run build/release first"; exit 1
   fi
 
+  # ORAS rejects absolute file paths (artifact name = path → leaks host
+  # filesystem). Push from the artifact's dir using only the basename.
+  local artifact_dir artifact_name
+  artifact_dir="$(dirname "$artifact")"
+  artifact_name="$(basename "$artifact")"
+
   # Iterate templated tags from build.json (data-driven, NO hardcoded list).
   local tags
   tags="$(in_nix jq -r '.release.ghcr.tags[]' "$SCRIPT_DIR/build.json")"
@@ -121,9 +127,9 @@ step_oras_push() {
     local tag ref
     tag="$(_resolve_template "$tmpl")"
     ref="$registry/$namespace/$image:$tag"
-    log "oras push $ref ← $artifact"
-    in_nix oras push "$ref" "$artifact:$media_type" \
-      --artifact-type "$media_type"
+    log "oras push $ref ← $artifact_name"
+    ( cd "$artifact_dir" && in_nix oras push "$ref" "$artifact_name:$media_type" \
+        --artifact-type "$media_type" )
   done <<< "$tags"
 }
 
