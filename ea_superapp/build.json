@@ -1,0 +1,71 @@
+{
+  "name": "superapp",
+  "description": "Diego's Android superapp — modularized monolith. Single APK, gradle multi-module: app/ (launcher shell) + libs/{core,mail,cal,feed,net,ops,vault}/ (independent feature modules). FairEmail-derived mail with JMAP, CalDAV/Radicale calendar, RSS, WireGuard tunnel, cloud ops dashboard, vault. Build via Nix devShell (gradle + AGP + Android SDK), one APK out.",
+  "category": "android",
+  "build": {
+    "type": "gradle",
+    "entry": "build.sh"
+  },
+  "android": {
+    "application_id": "com.diegonmarcos.superapp",
+    "compile_sdk": 34,
+    "min_sdk": 26,
+    "target_sdk": 34,
+    "version_code": 1,
+    "version_name": "0.1.0-dev"
+  },
+  "toolchain": {
+    "_doc": "Pinned for reproducibility — all derived in flake.nix. Bump here, rebuild devShell.",
+    "agp": "8.5.2",
+    "gradle": "8.7",
+    "kotlin": "1.9.24",
+    "jdk": "17"
+  },
+  "modules": {
+    "_doc": "Single source of truth for the Gradle module graph. settings.gradle iterates this list. Adding a new feature module = one entry here + mkdir + minimal build.gradle.",
+    "app": {
+      "type": "application",
+      "depends_on": ["libs:core", "libs:mail", "libs:cal", "libs:feed", "libs:net", "libs:ops", "libs:vault"],
+      "comment": "Launcher / shell. Hosts navigation to each feature module."
+    },
+    "libs:core": {
+      "type": "library",
+      "depends_on": [],
+      "comment": "Shared models, DB, theming, prefs, auth. No domain logic."
+    },
+    "libs:mail": {
+      "type": "library",
+      "depends_on": ["libs:core"],
+      "comment": "Mail — FairEmail-derived, JMAP-extended. Source upstream: github.com/M66B/FairEmail (GPLv3). Tracking clone lives at ../ea_mail-fairmail/."
+    },
+    "libs:cal": {
+      "type": "library",
+      "depends_on": ["libs:core"],
+      "comment": "Calendar/contacts — CalDAV/CardDAV against Radicale (cal.diegonmarcos.com)."
+    },
+    "libs:feed": {
+      "type": "library",
+      "depends_on": ["libs:core"],
+      "comment": "RSS reader + ntfy notifications integration."
+    },
+    "libs:net": {
+      "type": "library",
+      "depends_on": ["libs:core"],
+      "comment": "WireGuard tunnel control. Upstream: github.com/WireGuard/wireguard-android (Apache-2.0)."
+    },
+    "libs:ops": {
+      "type": "library",
+      "depends_on": ["libs:core"],
+      "comment": "Cloud ops dashboard — c3-api, health checks, dagu trigger, container control."
+    },
+    "libs:vault": {
+      "type": "library",
+      "depends_on": ["libs:core"],
+      "comment": "Passwords + TOTP. Could integrate with Vaultwarden (vault.diegonmarcos.com)."
+    }
+  },
+  "deploy": {
+    "host": "local",
+    "note": "APK produced in dist/. Side-loadable via adb or shared via Filebrowser."
+  }
+}
