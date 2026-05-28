@@ -16,6 +16,8 @@
 # ║   clean       gradle clean + rm -rf dist/                         ║
 # ║   shell       enter Nix devShell (gradle + sdk + jdk)             ║
 # ║   ship        build + side-load via adb (USB-connected device)    ║
+# ║   oras-push   push APK as OCI artifact → ghcr (release.ghcr block)║
+# ║   gh-release  attach APK to GitHub Release (release.gh_release)   ║
 # ║                                                                  ║
 # ║ NEVER bypass this script for build operations.                    ║
 # ╚══════════════════════════════════════════════════════════════════╝
@@ -85,6 +87,81 @@ step_ship() {
   in_nix adb install -r "$DIST_DIR/superapp-debug.apk"
 }
 
+# ── data-driven release helpers ────────────────────────────────────────
+# All registry / tag / asset config lives in build.json::release. Nothing
+# hardcoded here — pure interpolation. {sha} and {version_name} are the
+# only template variables.
+_release_var() {
+  in_nix jq -r "$1 // empty" "$SCRIPT_DIR/build.json"
+}
+
+_resolve_template() {
+  # Expand {sha} → GITHUB_SHA[:8] (or git rev-parse --short=8), {version_name} → build.json
+  local tmpl="$1"
+  local sha="${GITHUB_SHA:-$(in_nix git -C "$SCRIPT_DIR" rev-parse --short=8 HEAD 2>/dev/null || echo unknown)}"
+  local ver="$(_release_var '.android.version_name')"
+  echo "${tmpl//\{sha\}/${sha:0:8}}" | sed "s|{version_name}|$ver|g"
+}
+
+step_oras_push() {
+  local enabled registry namespace image media_type artifact
+  enabled="$(_release_var '.release.ghcr.enabled')"
+  [ "$enabled" = "true" ] || { log "oras-push: release.ghcr.enabled=false — skip"; return 0; }
+
+  registry="$(_release_var '.release.ghcr.registry')"
+  namespace="$(_release_var '.release.ghcr.namespace')"
+  image="$(_release_var '.release.ghcr.image')"
+  media_type="$(_release_var '.release.ghcr.media_type')"
+
+  # Prefer release apk if it exists, else debug.
+  if   [ -f "$DIST_DIR/$(_release_var '.release.artifact.release')" ]; then
+    artifact="$DIST_DIR/$(_release_var '.release.artifact.release')"
+  elif [ -f "$DIST_DIR/$(_release_var '.release.artifact.debug')" ]; then
+    artifact="$DIST_DIR/$(_release_var '.release.artifact.debug')"
+  else
+    errlog "oras-push: no APK found in $DIST_DIR — run build/release first"; exit 1
+  fi
+
+  # Iterate templated tags from build.json (data-driven, NO hardcoded list).
+  local tags
+  tags="$(in_nix jq -r '.release.ghcr.tags[]' "$SCRIPT_DIR/build.json")"
+  while IFS= read -r tmpl; do
+    [ -z "$tmpl" ] && continue
+    local tag ref
+    tag="$(_resolve_template "$tmpl")"
+    ref="$registry/$namespace/$image:$tag"
+    log "oras push $ref ← $artifact"
+    in_nix oras push "$ref" "$artifact:$media_type" \
+      --artifact-type "$media_type"
+  done <<< "$tags"
+}
+
+step_gh_release() {
+  local enabled draft prerelease notes asset_tmpl asset
+  enabled="$(_release_var '.release.gh_release.enabled')"
+  [ "$enabled" = "true" ] || { log "gh-release: enabled=false — skip"; return 0; }
+
+  [ -n "${GITHUB_REF_NAME:-}" ] || { errlog "gh-release: GITHUB_REF_NAME unset — must run from a tag context"; exit 1; }
+
+  draft="$(_release_var '.release.gh_release.draft')"
+  prerelease="$(_release_var '.release.gh_release.prerelease')"
+  notes="$(_release_var '.release.gh_release.generate_release_notes')"
+  asset_tmpl="$(_release_var '.release.gh_release.asset_name')"
+  asset="$(_resolve_template "$asset_tmpl")"
+
+  # Stage asset with the requested filename.
+  cp "$DIST_DIR/$(_release_var '.release.artifact.release')" "$DIST_DIR/$asset" 2>/dev/null \
+    || cp "$DIST_DIR/$(_release_var '.release.artifact.debug')" "$DIST_DIR/$asset"
+
+  local flags=("$GITHUB_REF_NAME" "$DIST_DIR/$asset" --title "$GITHUB_REF_NAME")
+  [ "$draft" = "true" ]      && flags+=(--draft)
+  [ "$prerelease" = "true" ] && flags+=(--prerelease)
+  [ "$notes" = "true" ]      && flags+=(--generate-notes)
+
+  log "gh release create $GITHUB_REF_NAME ← $asset"
+  in_nix gh release create "${flags[@]}"
+}
+
 case "$CMD" in
   build)      step_build ;;
   release)    step_release ;;
@@ -95,6 +172,8 @@ case "$CMD" in
   clean)      step_clean ;;
   shell)      step_shell ;;
   ship)       step_ship ;;
+  oras-push)  step_oras_push ;;
+  gh-release) step_gh_release ;;
   help|*)
     sed -n '2,/^set -euo/p' "$0" | sed 's/^# *//; /^set/d; /^$/d'
     ;;
