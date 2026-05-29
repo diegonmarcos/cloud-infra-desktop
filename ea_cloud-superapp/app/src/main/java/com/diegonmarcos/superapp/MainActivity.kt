@@ -110,6 +110,10 @@ class MainActivity : AppCompatActivity() {
             // WG children → switch to WG section (drawer-only section).
             R.id.drawer_wg_tunnels, R.id.drawer_wg_import ->
                 switchToSection("wg", getString(R.string.section_wg))
+            // C3 children → switch to C3 / ops section (drawer-only).
+            R.id.drawer_c3_reports, R.id.drawer_c3_stack,
+            R.id.drawer_c3_health,  R.id.drawer_c3_workflows ->
+                switchToSection("c3", getString(R.string.section_c3))
             else -> Toast.makeText(this, "drawer → ${item.title}", Toast.LENGTH_SHORT).show()
         }
         return true

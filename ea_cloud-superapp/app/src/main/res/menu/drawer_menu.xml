@@ -60,6 +60,17 @@
         </item>
     </group>
 
+    <group android:id="@+id/drawer_group_c3" android:checkableBehavior="single">
+        <item android:title="@string/section_c3" android:icon="@drawable/ic_settings">
+            <menu>
+                <item android:id="@+id/drawer_c3_reports"   android:title="@string/drawer_c3_reports" />
+                <item android:id="@+id/drawer_c3_stack"     android:title="@string/drawer_c3_stack" />
+                <item android:id="@+id/drawer_c3_health"    android:title="@string/drawer_c3_health" />
+                <item android:id="@+id/drawer_c3_workflows" android:title="@string/drawer_c3_workflows" />
+            </menu>
+        </item>
+    </group>
+
     <!-- App-level actions (not section-specific). -->
     <group android:id="@+id/drawer_group_app">
         <item android:id="@+id/drawer_check_updates"

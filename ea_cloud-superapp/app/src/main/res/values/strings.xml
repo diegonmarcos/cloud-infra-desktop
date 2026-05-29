@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Diego Superapp</string>
-    <string name="welcome">Hello Diego — superapp shell is live.</string>
-    <string name="welcome_template">Hello Diego — %1$s\nversionCode %2$d</string>
+    <string name="app_name">Cloud SuperApp</string>
+    <string name="welcome">Cloud SuperApp shell is live.</string>
+    <string name="welcome_template">Cloud SuperApp — %1$s\nversionCode %2$d</string>
     <string name="check_updates">Check for updates</string>
     <string name="check_updates_started">Checking GHCR for a newer APK…</string>
 
@@ -13,6 +13,7 @@
     <string name="section_cal">Calendar</string>
     <string name="section_vault">Vault</string>
     <string name="section_wg">WG</string>
+    <string name="section_c3">C3</string>
 
     <!-- Drawer 2nd-level placeholders (per build.json::ui.sections.drawer_default_children) -->
     <string name="drawer_mail_all">All inboxes</string>
@@ -28,6 +29,10 @@
     <string name="drawer_vault_gen">Generator</string>
     <string name="drawer_wg_tunnels">Tunnels</string>
     <string name="drawer_wg_import">+ Import</string>
+    <string name="drawer_c3_reports">Reports</string>
+    <string name="drawer_c3_stack">Stack</string>
+    <string name="drawer_c3_health">Health</string>
+    <string name="drawer_c3_workflows">Workflows</string>
 
     <!-- Per-page top toolbar -->
     <string name="action_search">Search</string>

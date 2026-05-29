@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║ Diego Superapp — Universal Build Dispatcher                      ║
+# ║ Cloud SuperApp — Universal Build Dispatcher                      ║
 # ║                                                                  ║
 # ║ Modularized monolith Android app. Single APK, gradle multi-module. ║
 # ║ All toolchain (AGP, gradle, kotlin, JDK, android-sdk) comes from   ║

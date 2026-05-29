@@ -1,7 +1,7 @@
-name: "Ship → Superapp APK (build + push to GHCR via ORAS + attach to GH Release)"
+name: "Ship → Cloud SuperApp APK (build + push to GHCR via ORAS + attach to GH Release)"
 
-# Builds the diego superapp APK from ea_superapp/ and publishes via two
-# channels — both data-driven by ea_superapp/build.json::release:
+# Builds the Cloud SuperApp APK from ea_cloud-superapp/ and publishes via two
+# channels — both data-driven by ea_cloud-superapp/build.json::release:
 #
 #   1. ORAS push as OCI artifact      → ghcr.io/<ns>/<image>:<tags>
 #      Always runs on main pushes (release.ghcr.tags expanded from build.json).
@@ -11,17 +11,17 @@ name: "Ship → Superapp APK (build + push to GHCR via ORAS + attach to GH Relea
 #
 #   2. GH Release attachment           → APK on a tagged release
 #      Only fires on tag push matching release.gh_release.tag_pattern
-#      (default: ea_superapp-v*). Lets phone-side install pick up "latest
-#      version" via the gh-release JSON API or a fixed deep link.
+#      (default: ea_cloud-superapp-v*). Lets phone-side install pick up
+#      "latest version" via the gh-release JSON API or a fixed deep link.
 #
-# All registry, tag, asset-name strings live in ea_superapp/build.json —
+# All registry, tag, asset-name strings live in ea_cloud-superapp/build.json —
 # this workflow never hardcodes any of that. The only "knob" here is which
 # build.sh subcommand to invoke; engine reads build.json for the rest.
 #
 # Triggers:
-#   - push to main on paths under ea_superapp/  → build + oras push :latest + :sha
-#   - push tag `ea_superapp-v*`                  → build + oras push :latest + :sha + :version + gh release
-#   - workflow_dispatch                          → manual, same as main push
+#   - push main on paths under ea_cloud-superapp/  → build + oras push :latest + :sha
+#   - push tag `ea_cloud-superapp-v*`              → build + oras push :latest + :sha + :version + gh release
+#   - workflow_dispatch                            → manual, same as main push
 
 on:
   workflow_dispatch:
@@ -47,18 +47,18 @@ on:
   push:
     branches: [main]
     tags:
-      - "ea_superapp-v*"
+      - "ea_cloud-superapp-v*"
     paths:
-      - "ea_superapp/**"
-      - "1_workflows/src/cicd/ship-superapp.yml"
-      - ".github/workflows/ship-superapp.yml"
+      - "ea_cloud-superapp/**"
+      - "1_workflows/src/cicd/ship-cloud-superapp.yml"
+      - ".github/workflows/ship-cloud-superapp.yml"
 
 permissions:
   contents: write   # for gh release create + tag push reads
   packages: write   # for ghcr push (oras)
 
 env:
-  WORK_DIR: ea_superapp
+  WORK_DIR: ea_cloud-superapp
 
 jobs:
   build_and_publish:
@@ -105,7 +105,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.WORK_DIR }}/app/keystores/debug.keystore
-          key: superapp-debug-keystore-v1
+          key: cloud-superapp-debug-keystore-v1
       - name: Generate debug keystore (first run only)
         if: steps.keystore-cache.outputs.cache-hit != 'true'
         working-directory: ${{ env.WORK_DIR }}
@@ -115,7 +115,7 @@ jobs:
             -storepass android -keypass android -alias androiddebugkey \
             -dname "CN=Diego Superapp Debug,O=diegonmarcos,C=US" \
             -keyalg RSA -keysize 2048 -validity 10950
-          echo "Generated new keystore — cached as superapp-debug-keystore-v1"
+          echo "Generated new keystore — cached as cloud-superapp-debug-keystore-v1"
 
       - name: Install ORAS + gh CLI + jq
         run: |
@@ -160,7 +160,7 @@ jobs:
       - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: superapp-${{ steps.variant.outputs.variant }}-${{ github.sha }}
+          name: Cloud-SuperApp-${{ steps.variant.outputs.variant }}-${{ github.sha }}
           path: ${{ env.WORK_DIR }}/dist/*.apk
           if-no-files-found: error
           retention-days: 30
@@ -182,7 +182,7 @@ jobs:
 
       # ── GH Release on tag push (engine reads build.json::release.gh_release) ──
       - name: Create GitHub Release
-        if: ${{ startsWith(github.ref, 'refs/tags/ea_superapp-v') || (github.event_name == 'workflow_dispatch' && inputs.create_release) }}
+        if: ${{ startsWith(github.ref, 'refs/tags/ea_cloud-superapp-v') || (github.event_name == 'workflow_dispatch' && inputs.create_release) }}
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
