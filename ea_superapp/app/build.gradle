@@ -36,6 +36,7 @@ android {
 
 dependencies {
     implementation project(':libs:core')
+    implementation project(':libs:updater')
     implementation project(':libs:mail')
     implementation project(':libs:cal')
     implementation project(':libs:feed')
