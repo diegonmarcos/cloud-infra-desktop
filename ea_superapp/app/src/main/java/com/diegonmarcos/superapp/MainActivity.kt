@@ -1,6 +1,7 @@
 package com.diegonmarcos.superapp
 
 import android.os.Bundle
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
@@ -10,6 +11,14 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Show the build's git short-sha + versionCode — proves at a glance
+        // that an update actually swapped the APK (versions differ visibly).
+        findViewById<TextView>(R.id.welcome_text).text = getString(
+            R.string.welcome_template,
+            BuildConfig.VERSION_NAME,
+            BuildConfig.VERSION_CODE,
+        )
 
         // Periodic check (idempotent). Knobs from build.json::release.auto_update.
         Updater.start(applicationContext)
