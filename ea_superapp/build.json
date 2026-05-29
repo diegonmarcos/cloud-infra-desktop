@@ -12,7 +12,7 @@
     "min_sdk": 26,
     "target_sdk": 34,
     "version_code": 1,
-    "version_name": "0.1.0-dev"
+    "version_name": "0.1.1-dev"
   },
   "toolchain": {
     "_doc": "Pinned for reproducibility — all derived in flake.nix. Bump here, rebuild devShell.",
