@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Diego Superapp</string>
     <string name="welcome">Hello Diego — superapp shell is live.</string>
+    <string name="welcome_template">Hello Diego — %1$s\nversionCode %2$d</string>
     <string name="check_updates">Check for updates</string>
     <string name="check_updates_started">Checking GHCR for a newer APK…</string>
 </resources>
