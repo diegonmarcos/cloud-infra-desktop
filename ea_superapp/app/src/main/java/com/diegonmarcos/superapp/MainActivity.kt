@@ -78,19 +78,25 @@ class MainActivity : AppCompatActivity() {
             R.id.nav_chat  -> "chat"  to R.string.section_chat
             R.id.nav_cal   -> "cal"   to R.string.section_cal
             R.id.nav_vault -> "vault" to R.string.section_vault
-            R.id.nav_wg    -> "wg"    to R.string.section_wg
+            // WG (build.json::ui.sections.wg.bottom_nav=false) is drawer-only —
+            // BottomNavigationView caps at 5 items. Reachable via the drawer's
+            // WG group children (handleDrawerItem swaps the fragment).
             else -> {
                 Trace.w(TAG, "unknown bottom-nav item ${item.itemId}")
                 return false
             }
         }
-        val label = getString(labelRes)
-        Trace.d(TAG, "swapping fragment to id=$id label=$label")
+        switchToSection(id, getString(labelRes))
+        return true
+    }
+
+    /** Single entry point — both bottom-nav and drawer can swap section. */
+    private fun switchToSection(id: String, label: String) {
+        Trace.d(TAG, "switchToSection id=$id label=$label")
         supportActionBar?.title = label
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, SectionFragment.forSection(id, label))
             .commit()
-        return true
     }
 
     private fun handleDrawerItem(item: MenuItem): Boolean {
@@ -101,6 +107,9 @@ class MainActivity : AppCompatActivity() {
                 Updater.checkNow(applicationContext)
                 Toast.makeText(this, R.string.check_updates_started, Toast.LENGTH_SHORT).show()
             }
+            // WG children → switch to WG section (drawer-only section).
+            R.id.drawer_wg_tunnels, R.id.drawer_wg_import ->
+                switchToSection("wg", getString(R.string.section_wg))
             else -> Toast.makeText(this, "drawer → ${item.title}", Toast.LENGTH_SHORT).show()
         }
         return true
