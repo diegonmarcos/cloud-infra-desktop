@@ -71,6 +71,15 @@ libs/
 ## the scaffold landed and these files silently disappeared on git add.
 !ea_superapp/libs/
 !ea_superapp/libs/**
+## Upstream tracking clones (workspace-only — never vendored).
+## Pattern: ea_<domain>-<project>/ holds a shallow clone of the upstream
+## FOSS app we're cherry-picking into ea_superapp/libs/<domain>/.
+## Today: ea_mail-fairmail (FairEmail, GPLv3), ea_cal-davx5 (DAVx5, GPLv3),
+## ea_feed-feeder (Feeder, GPLv3), ea_net-wireguard (wireguard-android,
+## Apache-2.0), ea_vault-keepassdx (KeePassDX, GPLv3). Each is refreshed
+## with `git -C ea_<x>-<y> pull` independently. The single `-` in the
+## directory name discriminates against `ea_superapp/` (no dash).
+ea_*-*/
 ## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/

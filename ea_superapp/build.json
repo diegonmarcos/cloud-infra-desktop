@@ -21,17 +21,32 @@
     "kotlin": "1.9.24",
     "jdk": "17"
   },
+  "upstreams": {
+    "_doc": "Workspace tracking clones of upstream FOSS apps. Each lives at ../ea_<domain>-<project>/ (gitignored, see 1_workflows/src/gitignore ea_*-*/ rule). Refresh with `git -C ../ea_<x>-<y> pull`. Code is cherry-picked into libs/<domain>/ — NEVER built as a gradle subproject directly (they're top-level apps, not libraries).",
+    "mail":  { "tracker": "ea_mail-fairmail",   "repo": "https://github.com/M66B/FairEmail.git",             "license": "GPL-3.0",    "feeds_into": "libs:mail",  "primary_lang": "Java" },
+    "cal":   { "tracker": "ea_cal-davx5",       "repo": "https://github.com/bitfireAT/davx5-ose.git",        "license": "GPL-3.0",    "feeds_into": "libs:cal",   "primary_lang": "Kotlin" },
+    "feed":  { "tracker": "ea_feed-feeder",     "repo": "https://github.com/spacecowboy/Feeder.git",         "license": "GPL-3.0",    "feeds_into": "libs:feed",  "primary_lang": "Kotlin" },
+    "net":   { "tracker": "ea_net-wireguard",   "repo": "https://github.com/WireGuard/wireguard-android.git","license": "Apache-2.0", "feeds_into": "libs:net",   "primary_lang": "Kotlin+C" },
+    "vault": { "tracker": "ea_vault-keepassdx", "repo": "https://github.com/Kunzisoft/KeePassDX.git",        "license": "GPL-3.0",    "feeds_into": "libs:vault", "primary_lang": "Kotlin" },
+    "ops":   { "tracker": null, "repo": null, "license": null, "feeds_into": "libs:ops", "_doc_no_upstream": "ops is a thin c3-api dashboard — no FOSS upstream to fork. Will be original code." },
+    "core":  { "tracker": null, "repo": null, "license": null, "feeds_into": "libs:core", "_doc_no_upstream": "core is shared infra (DB, theming, prefs, the updater) — original code." }
+  },
   "modules": {
     "_doc": "Single source of truth for the Gradle module graph. settings.gradle iterates this list. Adding a new feature module = one entry here + mkdir + minimal build.gradle.",
     "app": {
       "type": "application",
-      "depends_on": ["libs:core", "libs:mail", "libs:cal", "libs:feed", "libs:net", "libs:ops", "libs:vault"],
+      "depends_on": ["libs:core", "libs:updater", "libs:mail", "libs:cal", "libs:feed", "libs:net", "libs:ops", "libs:vault"],
       "comment": "Launcher / shell. Hosts navigation to each feature module."
     },
     "libs:core": {
       "type": "library",
       "depends_on": [],
       "comment": "Shared models, DB, theming, prefs, auth. No domain logic."
+    },
+    "libs:updater": {
+      "type": "library",
+      "depends_on": ["libs:core"],
+      "comment": "In-app auto-updater. Periodic WorkManager check against ghcr.io via OCI HTTP API (same flow build.sh phone-install uses). If remote sha256 differs from current PackageInfo's, prompts user via PackageInstaller. All knobs in release.auto_update — no hardcoded URLs."
     },
     "libs:mail": {
       "type": "library",
@@ -98,6 +113,17 @@
       "default_tag": "latest",
       "target_dir": "~/storage/Download",
       "asset_name": "superapp-debug.apk"
+    },
+    "auto_update": {
+      "_doc": "In-app updater config — read at gradle eval time into BuildConfig, then used by libs:updater at runtime. Same registry/namespace/image as release.ghcr (the engine asserts consistency at build time).",
+      "enabled": true,
+      "tag": "latest",
+      "interval_hours": 6,
+      "_doc_interval": "WorkManager periodic minimum is 15 min. 6h matches typical update cadence + spares battery / data.",
+      "require_unmetered_network": false,
+      "require_charging": false,
+      "_doc_install": "Behavior when an update is available: 'prompt' uses PackageInstaller with a foreground notification — user must accept install per Android security model. 'silent' requires the system updater privilege which only F-Droid Privileged Extension can grant.",
+      "install_mode": "prompt"
     }
   }
 }
