@@ -31,6 +31,7 @@ class SectionFragment : Fragment(R.layout.fragment_section_placeholder) {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        Trace.d("SectionFragment", "onViewCreated section=$sectionId label=$sectionLabel")
         view.findViewById<TextView>(R.id.section_title).text = sectionLabel
         view.findViewById<TextView>(R.id.section_subtitle).text =
             "Placeholder for libs:$sectionId — real UI lands when the module grows code."
