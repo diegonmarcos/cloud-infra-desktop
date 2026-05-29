@@ -35,7 +35,7 @@
     "_doc": "Single source of truth for the Gradle module graph. settings.gradle iterates this list. Adding a new feature module = one entry here + mkdir + minimal build.gradle.",
     "app": {
       "type": "application",
-      "depends_on": ["libs:core", "libs:updater", "libs:mail", "libs:cal", "libs:feed", "libs:net", "libs:ops", "libs:vault"],
+      "depends_on": ["libs:core", "libs:updater", "libs:mail", "libs:cal", "libs:feed", "libs:net", "libs:ops", "libs:vault", "libs:chat"],
       "comment": "Launcher / shell. Hosts navigation to each feature module."
     },
     "libs:core": {
@@ -77,7 +77,24 @@
       "type": "library",
       "depends_on": ["libs:core"],
       "comment": "Passwords + TOTP. Could integrate with Vaultwarden (vault.diegonmarcos.com)."
+    },
+    "libs:chat": {
+      "type": "library",
+      "depends_on": ["libs:core"],
+      "comment": "Chat / messaging. Likely integrates with mattermost-bots (chat.diegonmarcos.com) — could fork Mattermost-Mobile / SimpleX / Conversations later."
     }
+  },
+  "ui": {
+    "_doc": "Navigation taxonomy — data-driven source for MainActivity's BottomNavigationView (bottom buttons), DrawerLayout (left-side collapsable 2-level menu), and per-section Toolbar menus. Adding a new section = one entry here + one drawable + one fragment placeholder.",
+    "sections": [
+      { "id": "mail",  "label": "Mail",     "icon": "ic_mail",     "module": "libs:mail",  "supports_accounts": true,  "drawer_default_children": ["All inboxes", "+ Add account"] },
+      { "id": "feed",  "label": "RSS",      "icon": "ic_rss",      "module": "libs:feed",  "supports_accounts": true,  "drawer_default_children": ["All feeds",   "+ Subscribe"]     },
+      { "id": "chat",  "label": "Chat",     "icon": "ic_chat",     "module": "libs:chat",  "supports_accounts": true,  "drawer_default_children": ["All servers", "+ Add server"]    },
+      { "id": "cal",   "label": "Calendar", "icon": "ic_calendar", "module": "libs:cal",   "supports_accounts": true,  "drawer_default_children": ["All calendars", "+ Add CalDAV"]   },
+      { "id": "vault", "label": "Vault",    "icon": "ic_vault",    "module": "libs:vault", "supports_accounts": false, "drawer_default_children": ["Passwords", "TOTP", "Generator"] },
+      { "id": "wg",    "label": "WG",       "icon": "ic_wg",       "module": "libs:net",   "supports_accounts": false, "drawer_default_children": ["Tunnels", "+ Import"]            }
+    ],
+    "default_section": "mail"
   },
   "deploy": {
     "host": "local",
