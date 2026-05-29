@@ -91,6 +91,32 @@ jobs:
           # (build event listener provider unsupported).
           gradle-version: "8.7"
 
+      # ── Stable debug keystore (cached forever) ──────────────────────
+      # Android refuses to install an APK as an update of a previously-
+      # installed APK signed by a different key. Each fresh GHA runner
+      # auto-generates ~/.android/debug.keystore with a fresh RSA key →
+      # every CI build had a different signature → in-app updater would
+      # download the new APK but PackageInstaller would silently reject
+      # the install. Cache the keystore so it survives across runs.
+      # Cache key is fixed → first run generates, all subsequent runs
+      # restore from cache → consistent signature → updates work.
+      - name: Restore signing keystore from cache
+        id: keystore-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.WORK_DIR }}/app/keystores/debug.keystore
+          key: superapp-debug-keystore-v1
+      - name: Generate debug keystore (first run only)
+        if: steps.keystore-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ env.WORK_DIR }}
+        run: |
+          mkdir -p app/keystores
+          keytool -genkeypair -keystore app/keystores/debug.keystore \
+            -storepass android -keypass android -alias androiddebugkey \
+            -dname "CN=Diego Superapp Debug,O=diegonmarcos,C=US" \
+            -keyalg RSA -keysize 2048 -validity 10950
+          echo "Generated new keystore — cached as superapp-debug-keystore-v1"
+
       - name: Install ORAS + gh CLI + jq
         run: |
           sudo apt-get update -y
