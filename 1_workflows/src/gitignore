@@ -53,21 +53,27 @@ libs/
 ## because inject-header.sh was ignored despite being referenced by build.sh.
 !1_workflows/src/libs/
 !1_workflows/src/libs/**
-## EXCEPTION: ea_superapp/libs/ is the gradle multi-module source tree
+## EXCEPTION: ea_cloud-superapp/libs/ is the gradle multi-module source tree
 ## (libs:core, libs:mail, libs:cal, …). Each is its own Android library
 ## with build.gradle + src/. NOT build artifacts. Added 2026-05-29 when
-## the scaffold landed and these files silently disappeared on git add.
-!ea_superapp/libs/
-!ea_superapp/libs/**
+## the scaffold landed and these files silently disappeared on git add;
+## renamed from ea_superapp → ea_cloud-superapp 2026-05-30.
+!ea_cloud-superapp/libs/
+!ea_cloud-superapp/libs/**
 ## Upstream tracking clones (workspace-only — never vendored).
 ## Pattern: ea_<domain>-<project>/ holds a shallow clone of the upstream
-## FOSS app we're cherry-picking into ea_superapp/libs/<domain>/.
+## FOSS app we're cherry-picking into ea_cloud-superapp/libs/<domain>/.
 ## Today: ea_mail-fairmail (FairEmail, GPLv3), ea_cal-davx5 (DAVx5, GPLv3),
 ## ea_feed-feeder (Feeder, GPLv3), ea_net-wireguard (wireguard-android,
 ## Apache-2.0), ea_vault-keepassdx (KeePassDX, GPLv3). Each is refreshed
-## with `git -C ea_<x>-<y> pull` independently. The single `-` in the
-## directory name discriminates against `ea_superapp/` (no dash).
+## with `git -C ea_<x>-<y> pull` independently.
 ea_*-*/
+## EXCEPTION: ea_cloud-superapp/ itself owns a `-` in its directory name
+## (renamed from ea_superapp 2026-05-30 to match the Cloud SuperApp brand).
+## Whitelist the whole subtree — the rule above is for shallow upstream
+## clones (FairEmail, DAVx5, …), NOT for our owned modules.
+!ea_cloud-superapp/
+!ea_cloud-superapp/**
 ## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/

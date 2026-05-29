@@ -1,6 +1,6 @@
 {
-  "name": "superapp",
-  "description": "Diego's Android superapp — modularized monolith. Single APK, gradle multi-module: app/ (launcher shell) + libs/{core,mail,cal,feed,net,ops,vault}/ (independent feature modules). FairEmail-derived mail with JMAP, CalDAV/Radicale calendar, RSS, WireGuard tunnel, cloud ops dashboard, vault. Build via Nix devShell (gradle + AGP + Android SDK), one APK out.",
+  "name": "cloud-superapp",
+  "description": "Diego's Cloud SuperApp — modularized monolith Android app. Single APK, gradle multi-module: app/ (launcher shell) + libs/{core,mail,cal,feed,net,ops,vault,chat}/ (independent feature modules). FairEmail-derived mail with JMAP, CalDAV/Radicale calendar, RSS, WireGuard tunnel, cloud ops dashboard, vault. Build via Nix devShell (gradle + AGP + Android SDK), one APK out.",
   "category": "android",
   "build": {
     "type": "gradle",
@@ -93,7 +93,8 @@
       { "id": "chat",  "label": "Chat",     "icon": "ic_chat",     "module": "libs:chat",  "supports_accounts": true,  "bottom_nav": true,  "drawer_default_children": ["All servers", "+ Add server"]    },
       { "id": "cal",   "label": "Calendar", "icon": "ic_calendar", "module": "libs:cal",   "supports_accounts": true,  "bottom_nav": true,  "drawer_default_children": ["All calendars", "+ Add CalDAV"]   },
       { "id": "vault", "label": "Vault",    "icon": "ic_vault",    "module": "libs:vault", "supports_accounts": false, "bottom_nav": true,  "drawer_default_children": ["Passwords", "TOTP", "Generator"] },
-      { "id": "wg",    "label": "WG",       "icon": "ic_wg",       "module": "libs:net",   "supports_accounts": false, "bottom_nav": false, "drawer_default_children": ["Tunnels", "+ Import"]            }
+      { "id": "wg",    "label": "WG",       "icon": "ic_wg",       "module": "libs:net",   "supports_accounts": false, "bottom_nav": false, "drawer_default_children": ["Tunnels", "+ Import"]            },
+      { "id": "c3",    "label": "C3",       "icon": "ic_settings", "module": "libs:ops",   "supports_accounts": false, "bottom_nav": false, "drawer_default_children": ["Reports", "Stack", "Health", "Workflows"] }
     ],
     "default_section": "mail"
   },
@@ -102,26 +103,26 @@
     "note": "APK produced in dist/. Side-loadable via adb or shared via Filebrowser."
   },
   "release": {
-    "_doc": "Data-driven publish targets for the APK. build.sh oras-push + build.sh gh-release read this block; the GHA workflow (1_workflows/src/cicd/ship-superapp.yml) invokes those engine commands — no hardcoded registry/tag strings in the workflow.",
+    "_doc": "Data-driven publish targets for the APK. build.sh oras-push + build.sh gh-release read this block; the GHA workflow (1_workflows/src/cicd/ship-cloud-superapp.yml) invokes those engine commands — no hardcoded registry/tag strings in the workflow.",
     "artifact": {
-      "_doc": "Path under dist/ to publish. release variant when signed key available, debug otherwise. APK filename = name + version_name + variant suffix.",
-      "debug":   "superapp-debug.apk",
-      "release": "superapp-release.apk"
+      "_doc": "Path under dist/ to publish. release variant when signed key available, debug otherwise.",
+      "debug":   "Cloud-SuperApp-debug.apk",
+      "release": "Cloud-SuperApp-release.apk"
     },
     "ghcr": {
-      "_doc": "ORAS push as an OCI artifact (not a container — APK is a blob). One :latest tag plus per-commit sha + per-version tags.",
+      "_doc": "ORAS push as an OCI artifact (not a container — APK is a blob). One :latest tag plus per-commit sha + per-version tags. Image renamed from `superapp` to `cloud-superapp` — old package becomes orphan.",
       "enabled": true,
       "registry": "ghcr.io",
       "namespace": "diegonmarcos",
-      "image": "superapp",
+      "image": "cloud-superapp",
       "media_type": "application/vnd.android.package-archive",
       "tags": ["latest", "sha-{sha}", "v{version_name}"]
     },
     "gh_release": {
       "_doc": "GitHub Release attachment. Only fires on tag push matching the pattern, never on main pushes.",
       "enabled": true,
-      "tag_pattern": "ea_superapp-v*",
-      "asset_name": "superapp-{version_name}.apk",
+      "tag_pattern": "ea_cloud-superapp-v*",
+      "asset_name": "Cloud-SuperApp-{version_name}.apk",
       "draft": false,
       "prerelease": true,
       "generate_release_notes": true
@@ -130,7 +131,7 @@
       "_doc": "Targets for build.sh phone-install. Pulls APK from GHCR via curl+OCI HTTP API (no oras dep — works on aarch64 Termux without a Nix shell) and copies to a target dir an Android file manager can see. Override target_dir per environment via PHONE_TARGET env var; default suits Termux/nix-on-droid where ~/storage symlinks to /storage/emulated/0/.",
       "default_tag": "latest",
       "target_dir": "~/storage/Download",
-      "asset_name": "superapp-debug.apk"
+      "asset_name": "Cloud-SuperApp-debug.apk"
     },
     "auto_update": {
       "_doc": "In-app updater config — read at gradle eval time into BuildConfig, then used by libs:updater at runtime. Same registry/namespace/image as release.ghcr (the engine asserts consistency at build time).",
