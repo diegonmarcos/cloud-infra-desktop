@@ -33,6 +33,24 @@ android {
 
     buildFeatures { buildConfig = true }
 
+    // Stable signing — required for the in-app updater to install update APKs.
+    // The keystore is generated once in CI (cached forever via GHA) and lives at
+    // app/keystores/debug.keystore. If it's missing locally (developer machine
+    // without the cache), fall back to Android's framework default keystore so
+    // local builds still work — they just won't be installable as updates to
+    // CI-signed APKs (and vice versa).
+    signingConfigs {
+        debug {
+            def projectKeystore = file('keystores/debug.keystore')
+            if (projectKeystore.exists()) {
+                storeFile     projectKeystore
+                storePassword 'android'
+                keyAlias      'androiddebugkey'
+                keyPassword   'android'
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix '.debug'
