@@ -117,7 +117,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.WORK_DIR }}/app/keystores/debug.keystore
-          key: cloud-superapp-debug-keystore-v1
+          # Bumped to v2 with a proper Spanish dname so the installer dialog
+          # shows "Diego Marcos / Cloud SuperApp / diegonmarcos.com" instead
+          # of "Desconocido". Cache-key bump forces a fresh keystore gen on
+          # this run; future runs reuse it. One-time uninstall+reinstall
+          # required on-device because the signing key changes.
+          key: cloud-superapp-keystore-v2
       - name: Generate debug keystore (first run only)
         if: steps.keystore-cache.outputs.cache-hit != 'true'
         working-directory: ${{ env.WORK_DIR }}
@@ -125,9 +130,9 @@ jobs:
           mkdir -p app/keystores
           keytool -genkeypair -keystore app/keystores/debug.keystore \
             -storepass android -keypass android -alias androiddebugkey \
-            -dname "CN=Diego Superapp Debug,O=diegonmarcos,C=US" \
+            -dname "CN=Diego Marcos, OU=Cloud SuperApp, O=diegonmarcos.com, L=Madrid, ST=Madrid, C=ES" \
             -keyalg RSA -keysize 2048 -validity 10950
-          echo "Generated new keystore — cached as cloud-superapp-debug-keystore-v1"
+          echo "Generated new keystore — cached as cloud-superapp-keystore-v2"
 
       - name: Install ORAS + gh CLI + jq
         run: |
