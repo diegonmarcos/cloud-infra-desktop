@@ -1,7 +1,10 @@
 package com.diegonmarcos.superapp
 
+import android.content.ContentValues
 import android.content.Context
 import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
 import java.io.File
 import java.io.PrintWriter
@@ -31,8 +34,6 @@ object CrashLogger {
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
                 val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-                val file = File(crashDir, "crash-$timestamp.txt")
-
                 val sw = StringWriter()
                 PrintWriter(sw).use { pw ->
                     pw.println("=== Diego Superapp crash ===")
@@ -45,12 +46,54 @@ object CrashLogger {
                     pw.println()
                     throwable.printStackTrace(pw)
                 }
-                file.writeText(sw.toString())
-                Log.e(TAG, "wrote ${file.absolutePath}")
+                val payload = sw.toString()
+
+                // (1) app's external files dir — survives across runs, app-readable.
+                val privateFile = File(crashDir, "crash-$timestamp.txt")
+                privateFile.writeText(payload)
+                Log.e(TAG, "wrote ${privateFile.absolutePath}")
+
+                // (2) Public Download/superapp-logs/ via MediaStore — Termux + any
+                // file manager can read /sdcard/Download/superapp-logs/. No
+                // permission needed on Android 10+ (scoped storage).
+                writeToPublicDownloads(context, "crash-$timestamp.txt", payload)
+
+                // (3) Also dump a snapshot of the live Trace file alongside the
+                // crash — the last N log lines are usually what diagnose the
+                // failure mode (the crash file just has the throw site).
+                val traceFile = File(File(context.getExternalFilesDir(null), "trace"), "trace.log")
+                if (traceFile.exists()) {
+                    writeToPublicDownloads(context, "trace-$timestamp.log", traceFile.readText())
+                }
             } catch (saveError: Throwable) {
                 Log.e(TAG, "failed to save crash", saveError)
             }
             previous?.uncaughtException(thread, throwable)
+        }
+    }
+
+    /** Insert a text file into Downloads/superapp-logs/ via MediaStore. */
+    internal fun writeToPublicDownloads(context: Context, fileName: String, body: String) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                    put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+                    put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/superapp-logs")
+                }
+                val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: return
+                context.contentResolver.openOutputStream(uri)?.use { it.write(body.toByteArray()) }
+                Log.i(TAG, "wrote Download/superapp-logs/$fileName via MediaStore ($uri)")
+            } else {
+                // Legacy fallback (Android 9 and below).
+                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "superapp-logs")
+                dir.mkdirs()
+                File(dir, fileName).writeText(body)
+                Log.i(TAG, "wrote legacy ${dir}/$fileName")
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "MediaStore write failed", t)
         }
     }
 }
