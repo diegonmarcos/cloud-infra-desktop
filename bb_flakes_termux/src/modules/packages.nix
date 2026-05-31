@@ -12,10 +12,14 @@
     tree
     (callPackage ../pkgs/octocode.nix {})
     (callPackage ../pkgs/goose.nix {})
-    # Termux:API CLI helpers — termux-vibrate, termux-toast, termux-clipboard,
-    # termux-battery-status, etc. The matching Termux:API APK must be installed
-    # separately (user has it from F-Droid).
-    (callPackage ../pkgs/termux-api.nix {})
+    # Termux:API CLI helpers (termux-vibrate, termux-toast, …) are NOT
+    # wired here — the upstream C bridge (termux-api.c) includes
+    # <sys/endian.h>, a bionic-only header that the nix-on-droid build
+    # env doesn't expose, so the derivation fails compile. The Termux:API
+    # APK alone is useless without this CLI half. Fix path: patch the
+    # derivation to substitute <endian.h> + remap htobe→hton names, OR
+    # build with a bionic sysroot. Pending — for now haptics work
+    # happens through Cloud SuperApp's in-process VibrationEffect API.
     dnsutils         # dig, nslookup — DNS health checks in MCP tools
     netcat-openbsd  # nc — WireGuard peer probing
     mtr              # TCP/UDP/ICMP traceroute — used by ~/triage.sh
