@@ -12,6 +12,10 @@
     tree
     (callPackage ../pkgs/octocode.nix {})
     (callPackage ../pkgs/goose.nix {})
+    # Termux:API CLI helpers — termux-vibrate, termux-toast, termux-clipboard,
+    # termux-battery-status, etc. The matching Termux:API APK must be installed
+    # separately (user has it from F-Droid).
+    (callPackage ../pkgs/termux-api.nix {})
     dnsutils         # dig, nslookup — DNS health checks in MCP tools
     netcat-openbsd  # nc — WireGuard peer probing
     mtr              # TCP/UDP/ICMP traceroute — used by ~/triage.sh
