@@ -5,6 +5,7 @@
     nmap
     netcat-openbsd
     mtr
+    whois            # ASN / org lookups — used by ~/triage.sh WHOIS section
     tcpdump
     wireshark-cli
     tshark
