@@ -99132,3 +99132,105 @@ sshd started (PID 27331) on :8024
 [2026-05-31 16:13:09] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-05-31 16:13:09] PERF: start switch
 [2026-05-31 16:13:13] INFO: Staging dirty files for flake evaluation...
+[2026-05-31 16:13:17] PERF: git stage = 7.8s
+[2026-05-31 16:13:18] PERF: clean backups = 280ms
+[2026-05-31 16:13:18] PERF: profile guard = 141ms
+[2026-05-31 16:13:19] PERF: clear stale files = 223ms
+[2026-05-31 16:13:19] INFO: Applying nix-on-droid configuration (verbose=1)...
+Building activation package...
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 14 derivations will be built:
+  /nix/store/jj862jc26pbs75r1i8lh6swv95h0xjp5-source.drv
+  /nix/store/b8xd01g0pf1n1hjgck0nd1lq2bwwkdv5-termux-api-0.59.0.drv
+  /nix/store/cka9hn750fklfmhwymgmjxxyxlpqc4d7-home-manager-path.drv
+  /nix/store/p8vrwzr0pv2qfi0nzj23mlwzchm5lzw9-man-paths.drv
+  /nix/store/lqzh0cfm5l280v8mm47b9q0is8i7asn8-man-cache.drv
+  /nix/store/f1xrjz1whhj2mzd8c9c52pmnzgnqj2xq-hm_.manpath.drv
+  /nix/store/5arvahbdbikw08hhbwbj5m9zzx91c263-termux-api-0.59.0-fish-completions.drv
+  /nix/store/g013f39gxdxkcavh8qap41h7qjds0y3k-tcpdump-4.99.5-fish-completions.drv
+  /nix/store/x7mwgfqhjsvscrpin2zvsa7yma5n5c6x-nix-on-droid-fish-completions.drv
+  /nix/store/nssjxh12i1jnv2794mv8gqwahsyv0f8v-home-manager-files.drv
+  /nix/store/3n2lk3qjamcyagv7yqj4s80f83wki89g-home-manager-generation.drv
+  /nix/store/dr2gqfh9djn508syw5fnyg76gaddsgfv-nix-on-droid-path.drv
+  /nix/store/hib0rz9y5asa3vnkvs4mqmf47zamyvzw-activation-script.drv
+  /nix/store/wqnr6m5g2inn7q8jdadqi25bn5haha3i-nix-on-droid-generation.drv
+these 4 paths will be fetched (11.70 MiB download, 51.74 MiB unpacked):
+  /nix/store/lzb3vm2yqf25x88rl6rpr56dc6ck842q-cmake-3.29.2
+  /nix/store/zbppll9b3gbiiw48x8qrb133sl7cn882-curl-8.7.1
+  /nix/store/jx6wfng8nj9nh2wgqbrxv757i9isycjn-rhash-1.4.4
+  /nix/store/8r8zddkklfi51hcrj72ak6rvadrj6sk1-tcpdump-4.99.5
+copying path '/nix/store/8r8zddkklfi51hcrj72ak6rvadrj6sk1-tcpdump-4.99.5' from 'https://cache.nixos.org'...
+copying path '/nix/store/zbppll9b3gbiiw48x8qrb133sl7cn882-curl-8.7.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/jx6wfng8nj9nh2wgqbrxv757i9isycjn-rhash-1.4.4' from 'https://cache.nixos.org'...
+building '/nix/store/jj862jc26pbs75r1i8lh6swv95h0xjp5-source.drv'...
+copying path '/nix/store/lzb3vm2yqf25x88rl6rpr56dc6ck842q-cmake-3.29.2' from 'https://cache.nixos.org'...
+building '/nix/store/g013f39gxdxkcavh8qap41h7qjds0y3k-tcpdump-4.99.5-fish-completions.drv'...
+building '/nix/store/b8xd01g0pf1n1hjgck0nd1lq2bwwkdv5-termux-api-0.59.0.drv'...
+error: builder for '/nix/store/b8xd01g0pf1n1hjgck0nd1lq2bwwkdv5-termux-api-0.59.0.drv' failed with exit code 2;
+       last 10 log lines:
+       > /data/data/com.termux.nix/files/home/tmp/claude/nix-build-termux-api-0.59.0.drv-0/source/termux-api.c:11:10: fatal error: sys/endian.h: No such file or directory
+       >    11 | #include <sys/endian.h>
+       >       |          ^~~~~~~~~~~~~~
+       > compilation terminated.
+       > make[2]: *** [CMakeFiles/termux-api.dir/build.make:76: CMakeFiles/termux-api.dir/termux-api.c.o] Error 1
+       > make[1]: *** [CMakeFiles/Makefile2:87: CMakeFiles/termux-api.dir/all] Error 2
+       > make[1]: *** Waiting for unfinished jobs....
+       > make[2]: *** [CMakeFiles/termux-api-static.dir/build.make:76: CMakeFiles/termux-api-static.dir/termux-api.c.o] Error 1
+       > make[1]: *** [CMakeFiles/Makefile2:113: CMakeFiles/termux-api-static.dir/all] Error 2
+       > make: *** [Makefile:136: all] Error 2
+       For full logs, run 'nix log /nix/store/b8xd01g0pf1n1hjgck0nd1lq2bwwkdv5-termux-api-0.59.0.drv'.
+error: 1 dependencies of derivation '/nix/store/cka9hn750fklfmhwymgmjxxyxlpqc4d7-home-manager-path.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/p8vrwzr0pv2qfi0nzj23mlwzchm5lzw9-man-paths.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/dr2gqfh9djn508syw5fnyg76gaddsgfv-nix-on-droid-path.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/5arvahbdbikw08hhbwbj5m9zzx91c263-termux-api-0.59.0-fish-completions.drv' failed to build
+error: 1 dependencies of derivation '/nix/store/wqnr6m5g2inn7q8jdadqi25bn5haha3i-nix-on-droid-generation.drv' failed to build
+[2026-05-31 16:14:31] PERF: nix-on-droid switch = 1m 12s
+[2026-05-31 16:14:32] PERF: TOTAL switch = 1m 22s
+[2026-05-31 16:14:32] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-05-31 16:14:32] SUCCESS: verify: all 8 critical commands present
+[2026-05-31 16:14:32] PERF: post-switch verify = 354ms
+[2026-05-31 16:14:32] PERF: TOTAL  = 29670554m 32s
+[2026-05-31 16:14:33] INFO: sshd-guarantee: (1/2) trying flake wrapper restart...
+sshd stopped (was PID 27793)
+sshd started (PID 30836) on :8024
+[2026-05-31 16:14:35] WARN: sshd-guarantee: process up but port :8022 not detected — verify manually
+[2026-05-31 16:14:35] PERF: sshd guarantee = 2.7s
+[2026-05-31 16:14:35] PERF: TOTAL  = 29670554m 35s
+[2026-05-31 16:14:38] ========== Build script finished ==========
+[2026-06-02 20:06:31] ========== Build script started ==========
+[2026-06-02 20:06:31] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-06-02 20:06:31] PERF: start switch
+[2026-06-02 20:06:36] INFO: Staging dirty files for flake evaluation...
+[2026-06-02 20:06:40] PERF: git stage = 7.7s
+[2026-06-02 20:06:40] PERF: clean backups = 206ms
+[2026-06-02 20:06:40] PERF: profile guard = 142ms
+[2026-06-02 20:06:41] PERF: clear stale files = 256ms
+[2026-06-02 20:06:41] INFO: Applying nix-on-droid configuration (verbose=1)...
+Building activation package...
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 10 derivations will be built:
+  /nix/store/2ylszpyl9jfd0nrdal2c4851039x67n2-home-manager-path.drv
+  /nix/store/80pk2mmw1n6jjwp0pymyjc2sim6m7627-nix-on-droid-fish-completions.drv
+  /nix/store/j67j429ilpb4f6gp9shnlvkbpr75amzf-man-paths.drv
+  /nix/store/b86ww4mn89ir8f9zr4am6d9dj7yzzlq0-man-cache.drv
+  /nix/store/9i72k11yh9c92scw2201r26bcn93rl8x-hm_.manpath.drv
+  /nix/store/yg15bxp8nrakffjihg2aqn8rbgggxfrz-home-manager-files.drv
+  /nix/store/nj06gq6j4ir61s3cjwk05qcz4hrw4kfv-home-manager-generation.drv
+  /nix/store/rb4gpzr4ws63zzipi13z26hnngfhqvxr-nix-on-droid-path.drv
+  /nix/store/nnzx2dwfng32k6vfa2k96vcjyji6v549-activation-script.drv
+  /nix/store/cw6jpqms4qj7gv44wnz1iajp3b6h4fwg-nix-on-droid-generation.drv
+building '/nix/store/rb4gpzr4ws63zzipi13z26hnngfhqvxr-nix-on-droid-path.drv'...
+building '/nix/store/2ylszpyl9jfd0nrdal2c4851039x67n2-home-manager-path.drv'...
+building '/nix/store/j67j429ilpb4f6gp9shnlvkbpr75amzf-man-paths.drv'...
+building '/nix/store/80pk2mmw1n6jjwp0pymyjc2sim6m7627-nix-on-droid-fish-completions.drv'...
+building '/nix/store/b86ww4mn89ir8f9zr4am6d9dj7yzzlq0-man-cache.drv'...
+building '/nix/store/9i72k11yh9c92scw2201r26bcn93rl8x-hm_.manpath.drv'...
+building '/nix/store/yg15bxp8nrakffjihg2aqn8rbgggxfrz-home-manager-files.drv'...
+building '/nix/store/nj06gq6j4ir61s3cjwk05qcz4hrw4kfv-home-manager-generation.drv'...
+building '/nix/store/nnzx2dwfng32k6vfa2k96vcjyji6v549-activation-script.drv'...
+building '/nix/store/cw6jpqms4qj7gv44wnz1iajp3b6h4fwg-nix-on-droid-generation.drv'...
+Executing activation script...
+[2026-06-02 20:11:57] ========== Build script started ==========
+[2026-06-02 20:11:58] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-06-02 20:11:58] PERF: start switch
+[2026-06-02 20:12:02] INFO: Staging dirty files for flake evaluation...
