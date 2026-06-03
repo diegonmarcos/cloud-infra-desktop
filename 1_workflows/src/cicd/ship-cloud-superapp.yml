@@ -185,12 +185,18 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: ./build.sh oras-push
 
-      # ── GH Release on tag push (engine reads build.json::release.gh_release) ──
-      - name: Create GitHub Release
-        if: ${{ startsWith(github.ref, 'refs/tags/ea_cloud-superapp-v') || (github.event_name == 'workflow_dispatch' && inputs.create_release) }}
+      # ── GitHub Release (engine reads build.json::release.gh_release) ──
+      # Always runs — the engine publishes a rolling release tagged
+      # `latest` (so /releases/latest/download/Cloud-SuperApp.apk is
+      # a stable URL the linktree footer points at). On a tag push it
+      # ALSO creates the immutable per-tag release in the same step
+      # (GITHUB_REF_NAME is only forwarded under that condition).
+      - name: Publish to GitHub Releases
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.create_release }}
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ startsWith(github.ref, 'refs/tags/ea_cloud-superapp-v') && github.ref_name || '' }}
         run: ./build.sh gh-release
