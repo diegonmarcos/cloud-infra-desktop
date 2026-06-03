@@ -199,10 +199,15 @@ jobs:
 
       # ── GitHub Release (engine reads build.json::release.gh_release) ──
       # Always runs — the engine publishes a rolling release tagged
-      # `latest` (so /releases/latest/download/Cloud-SuperApp.apk is
-      # a stable URL the linktree footer points at). On a tag push it
-      # ALSO creates the immutable per-tag release in the same step
-      # (GITHUB_REF_NAME is only forwarded under that condition).
+      # `latest` (so /releases/latest/download/Cloud-SuperApp.apk is a
+      # stable URL the linktree footer points at). The engine ALSO
+      # creates the immutable per-tag release when it detects a tag
+      # push (GITHUB_REF starts with refs/tags/). Don't try to clear
+      # GITHUB_REF_NAME with an empty string here — GitHub Actions
+      # re-injects the runner's default for that variable even when a
+      # step's env: block sets it to '', which would falsely trigger
+      # the per-tag branch on every main push and create a stray
+      # "main"-tagged release.
       - name: Publish to GitHub Releases
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.create_release }}
         working-directory: ${{ env.WORK_DIR }}
@@ -210,5 +215,5 @@ jobs:
           BYPASS_NIX: "1"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ github.sha }}
-          GITHUB_REF_NAME: ${{ startsWith(github.ref, 'refs/tags/ea_cloud-superapp-v') && github.ref_name || '' }}
+          GITHUB_REF: ${{ github.ref }}
         run: ./build.sh gh-release
