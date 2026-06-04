@@ -178,6 +178,19 @@
     executable = true;
   };
   home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;
+
+  # claude-api skill — pinned from anthropics/skills repo. Symlinks the whole
+  # directory (SKILL.md + per-language assets) so updates are a single
+  # rev/hash bump. https://github.com/anthropics/skills
+  home.file.".claude/skills/claude-api".source =
+    let anthropicSkills = pkgs.fetchFromGitHub {
+      owner = "anthropics";
+      repo  = "skills";
+      rev   = "da20c92503b2e8ff1cf28ca81a0df4673debdbf7";
+      sha256 = "08b3g2y0dx02bg5ypi8yvsd10dc19j9zm811hqq50aymbq8ny9h6";
+    };
+    in "${anthropicSkills}/skills/claude-api";
+
   home.file.".rgignore".source = ./dotfiles/claude/rgignore;
 
   # Goose AI CLI configuration (cloud-ai-cli alias)

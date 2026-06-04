@@ -492,6 +492,12 @@
               # Pulls the published native arm64-musl binary from npm registry
               # as a content-addressed source.
               (pkgs.callPackage ./pkgs/claude-code {})
+
+              # 10. ANT — official Anthropic CLI for the Claude Developer
+              # Platform (Managed Agents, Messages, Files, ...). Released
+              # 2026-04-08. Pre-built linux/arm64 Go binary from GitHub
+              # releases, fetched as a content-addressed source.
+              (pkgs.callPackage ./pkgs/ant {})
             ];
 
             # --- HOME MANAGER CONFIG ---
@@ -595,6 +601,19 @@
               };
               home.file.".claude/settings.json".source = ../src/modules/dotfiles/claude/settings.json;
               home.file.".claude/skills/frontend-design.md".source = ../src/modules/dotfiles/claude/skills/frontend-design.md;
+
+              # claude-api skill — pinned from anthropics/skills repo. Symlinks
+              # the whole directory (SKILL.md + per-language assets) so updates
+              # are a single rev/hash bump. https://github.com/anthropics/skills
+              home.file.".claude/skills/claude-api".source =
+                let anthropicSkills = pkgs.fetchFromGitHub {
+                  owner = "anthropics";
+                  repo  = "skills";
+                  rev   = "da20c92503b2e8ff1cf28ca81a0df4673debdbf7";
+                  sha256 = "08b3g2y0dx02bg5ypi8yvsd10dc19j9zm811hqq50aymbq8ny9h6";
+                };
+                in "${anthropicSkills}/skills/claude-api";
+
               home.file.".rgignore".source = ../src/modules/dotfiles/claude/rgignore;
 
               # Gemini CLI configuration + MCP server config

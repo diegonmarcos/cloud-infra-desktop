@@ -60,6 +60,7 @@
   "data-science": [
     "ai/gemini",
     "ai/claude",
+    "ai/ant",
     "data-science/python-numerics",
     "data-science/python-ml",
     "data-science/jupyter",

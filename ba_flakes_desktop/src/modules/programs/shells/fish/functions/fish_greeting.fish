@@ -192,12 +192,14 @@ set_color magenta; echo -n "    dtk              "; set_color normal; echo "Dieg
 # Dev
 set -l _claude_ver (claude --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
 set -l _goose_ver (goose --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
+set -l _ant_ver (command -q ant && ant --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
 set_color cyan; echo "  Dev:"
 set_color normal
 set_color green; echo -n "    claude           "; set_color normal; echo "Native Anthropic binary (v$_claude_ver)"
 set_color green; echo -n "    claude-termux    "; set_color normal; echo "Android-safe (io_uring fix + 1GB cap)"
 set_color green; echo -n "    claude-malloc    "; set_color normal; echo "Max memory (2GB) + TMPDIR isolation"
 set_color green; echo -n "    claude-rescue    "; set_color normal; echo "Fallback chain: podman → npx → nix → node"
+set_color green; echo -n "    ant              "; set_color normal; echo "Anthropic Claude Platform CLI (v$_ant_ver) · Messages, Managed Agents, Files"
 set_color green; echo -n "    ai-cli           "; set_color normal; echo -n "Goose AI (v$_goose_ver) "; set_color --dim; echo "default: Haiku 4.5 · ai-cli -h for models"; set_color normal
 set_color green; echo -n "    code             "; set_color normal; echo "VS Code Server (local/lan/stop)"
 # Cloud
