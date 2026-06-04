@@ -81,7 +81,20 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: "platforms;android-34 platforms;android-26 build-tools;34.0.0 platform-tools"
+          # Pre-install CMake + NDK that libs:net needs. Without these,
+          # AGP tries to install them lazily during parallel per-ABI
+          # configureCMake tasks → the two installers race on the same
+          # zip download and one occasionally gets a corrupt archive
+          # ("Error on ZipFile unknown archive"), failing the build.
+          # Versions must match libs/net/build.gradle::{ndkVersion,
+          # externalNativeBuild.cmake} and ea_cloud-superapp/flake.nix.
+          packages: |
+            platforms;android-34
+            platforms;android-26
+            build-tools;34.0.0
+            platform-tools
+            cmake;3.22.1
+            ndk;26.1.10909125
 
       - name: Set up Gradle 8.7 (cached)
         uses: gradle/actions/setup-gradle@v3
