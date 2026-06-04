@@ -153,6 +153,22 @@ do_deploy() {
 
     # Sync submodules: ensure all entries in .gitmodules are registered + cloned
     if [ -f "$REPO_ROOT/.gitmodules" ]; then
+        # Build the declared-paths set from .gitmodules first so we can
+        # detect + purge stale gitlinks (mode 160000 in the index that
+        # don't correspond to any current declaration — typically left
+        # over from a submodule path rename like front-data → III_front-data).
+        declared_paths=$(git -C "$REPO_ROOT" config --file .gitmodules --get-regexp 'submodule\..*\.path' 2>/dev/null \
+            | awk '{print $2}' | sort -u)
+        # Scan the index for every gitlink; remove any whose path isn't
+        # declared. Use `git rm --cached` so the on-disk dir (if any)
+        # stays for separate cleanup by the user.
+        git -C "$REPO_ROOT" ls-files --stage 2>/dev/null \
+            | awk '$1 == "160000" {print $4}' | while read -r idx_path; do
+            if ! echo "$declared_paths" | grep -qx "$idx_path"; then
+                log "submodule purge: removing stale gitlink '$idx_path' (not declared in .gitmodules)"
+                git -C "$REPO_ROOT" rm --cached "$idx_path" 2>&1 | while IFS= read -r line; do log "  $line"; done
+            fi
+        done
         # Read declared submodules from .gitmodules
         git -C "$REPO_ROOT" config --file .gitmodules --get-regexp 'submodule\..*\.path' 2>/dev/null | while read -r key path; do
             name=$(echo "$key" | sed 's/^submodule\.\(.*\)\.path$/\1/')
@@ -166,6 +182,29 @@ do_deploy() {
                 git -C "$REPO_ROOT" submodule add --force --name "$name" "$url" "$path" 2>&1 | while IFS= read -r line; do
                     log "  $line"
                 done
+            fi
+        done
+        # Recover broken gitdirs: when a submodule's path/.git file points
+        # at a missing .git/modules/<name>/ cache (e.g. an alias collision
+        # from a stale rename), `submodule update --init` silently skips
+        # it. Detect + force-reinit so the cache is rebuilt declaratively.
+        git -C "$REPO_ROOT" config --file .gitmodules --get-regexp 'submodule\..*\.path' 2>/dev/null | while read -r key path; do
+            name=$(echo "$key" | sed 's/^submodule\.\(.*\)\.path$/\1/')
+            gitdir_pointer="$REPO_ROOT/$path/.git"
+            [ -e "$gitdir_pointer" ] || continue
+            # If it's a regular file (worktree pointer), resolve it.
+            if [ -f "$gitdir_pointer" ]; then
+                target=$(sed -n 's/^gitdir: //p' "$gitdir_pointer" | head -1)
+                # Resolve relative path against parent of pointer.
+                case "$target" in
+                    /*) abs_target="$target" ;;
+                    *)  abs_target="$REPO_ROOT/$path/$target" ;;
+                esac
+                if [ ! -d "$abs_target" ]; then
+                    log "submodule '$name' has broken gitdir ($target) — reinitialising"
+                    git -C "$REPO_ROOT" submodule deinit -f "$path" 2>&1 | while IFS= read -r line; do log "  deinit: $line"; done
+                    git -C "$REPO_ROOT" submodule update --init --force "$path" 2>&1 | while IFS= read -r line; do log "  reinit: $line"; done
+                fi
             fi
         done
         # Sync URLs + update all
