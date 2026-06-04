@@ -153,6 +153,12 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          # app/build.gradle shells out to `gh run list` at gradle config
+          # phase to bake recent CI run durations into BuildConfig
+          # (Configs → About → Stack: "Build avg time" + "Build last").
+          # Without this token gh runs unauthenticated → returns empty,
+          # the fields fall back to -1, the UI shows "—".
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           chmod +x build.sh
           if [ "${{ steps.variant.outputs.variant }}" = "release" ]; then
