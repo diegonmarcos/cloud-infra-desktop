@@ -673,6 +673,7 @@ rpm -qR <package>           # RPM-based
 5. **`cloud-data` is the source of truth** for cloud infrastructure (auto-injected into B.1 / B.3).
 6. **Search ALL keys** when querying JSON data — never cherry-pick a section.
 7. **After source edits → `build.sh build`** automatically. Never `dev` / `serve` unless the user explicitly asks.
+8. **Ask, don't assume.** If intent, architecture, or requirements are unclear, ASK before writing a line. No silent guesses about scope, placement, or wiring — clarify first, code second.
 
 ---
 
