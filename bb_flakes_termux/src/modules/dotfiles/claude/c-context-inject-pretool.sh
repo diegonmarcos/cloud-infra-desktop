@@ -48,6 +48,7 @@ read -r -d '' CONTEXT <<'PRINCIPLES' || true
 6. FOUND HARDCODED INLINED DATA → MOVE IT TO JSON. Never extend a hardcoded list.
 7A. SECRETS = SOPS. src/secrets.yaml encrypted; dist/.secrets gitignored. Never inline credentials.
 7B. NEVER git add .env/.key/.pem/.age/*secret*/dist/.secrets. secrets.yaml needs sops marker. Vault is the only carve-out.
+8. ASK, DON'T ASSUME — clarify unclear intent/architecture/requirements before any tool call. No silent guesses.
 PRINCIPLES
 
 # Emit JSON with hookSpecificOutput.additionalContext so the model receives
