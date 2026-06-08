@@ -100,15 +100,20 @@ jobs:
           # ("Error on ZipFile unknown archive"), failing the build.
           # Versions must match libs/net/build.gradle::{ndkVersion,
           # externalNativeBuild.cmake} and ea_cloud-superapp/flake.nix.
-          packages: "platforms;android-34 platforms;android-26 build-tools;34.0.0 platform-tools cmake;3.22.1 ndk;26.1.10909125"
+          # platforms;android-35 + build-tools;35.0.0 added for AGP 8.7.3 /
+          # compileSdk 35 — required by androidx.health.connect:connect-client
+          # 1.1.0-alpha10. android-34 / build-tools 34.0.0 kept for NDK-side
+          # builds that still target it.
+          packages: "platforms;android-35 platforms;android-34 platforms;android-26 build-tools;35.0.0 build-tools;34.0.0 platform-tools cmake;3.22.1 ndk;26.1.10909125"
 
-      - name: Set up Gradle 8.7 (cached)
+      - name: Set up Gradle 8.10.2 (cached)
         uses: gradle/actions/setup-gradle@v3
         with:
           # Pin to build.json::toolchain.gradle — Kotlin Android plugin 1.9.24
           # is not compatible with Gradle 9.x's strict Configuration Cache
-          # (build event listener provider unsupported).
-          gradle-version: "8.7"
+          # (build event listener provider unsupported). 8.10.2 = first
+          # stable Gradle that satisfies AGP 8.7.3's Gradle 8.9+ floor.
+          gradle-version: "8.10.2"
 
       # ── Stable debug keystore (cached forever) ──────────────────────
       # Android refuses to install an APK as an update of a previously-
