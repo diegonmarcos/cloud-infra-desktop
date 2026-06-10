@@ -71,6 +71,12 @@ const MASTER_KEY_LEN: usize = 32;
 /// One decrypted passkey credential, ready for the CTAP2 layer to surface.
 #[derive(Debug, Clone)]
 pub struct PasskeyCipher {
+    /// Server-assigned cipher row ID this passkey was synced from, when known.
+    /// Populated by [`BwClient::sync`] so the daemon can pre-seed the
+    /// credential_id → cipher_id index and address the right row on a later
+    /// counter bump. `None` for freshly-minted (not-yet-pushed) credentials —
+    /// the server assigns the ID on `create_passkey_cipher`.
+    pub cipher_id: Option<String>,
     /// Raw credential ID bytes (typically 16-byte UUID, sometimes longer).
     pub credential_id: Vec<u8>,
     pub rp_id: String,
@@ -412,7 +418,7 @@ impl BwClient {
             let working_key: &[u8] = cipher_key_bytes.as_deref().unwrap_or(&user_key);
 
             for fc in creds {
-                match build_passkey_cipher(fc, working_key) {
+                match build_passkey_cipher(fc, working_key, cipher.id.as_deref()) {
                     Ok(p) => out.push(p),
                     Err(e) => {
                         tracing::warn!(error = %e, "skipping passkey credential that failed to decrypt");
@@ -787,6 +793,8 @@ struct SyncResponse {
 
 #[derive(Debug, Deserialize)]
 struct Cipher {
+    #[serde(default, rename = "id", alias = "Id")]
+    id: Option<String>,
     #[serde(rename = "type", alias = "Type")]
     cipher_type: u32,
     #[serde(default, rename = "key", alias = "Key")]
@@ -1069,7 +1077,11 @@ fn decrypt_optional_string(opt: Option<&str>, key64: &[u8]) -> Result<Option<Str
     }
 }
 
-fn build_passkey_cipher(fc: &Fido2Credential, key64: &[u8]) -> Result<PasskeyCipher> {
+fn build_passkey_cipher(
+    fc: &Fido2Credential,
+    key64: &[u8],
+    cipher_id: Option<&str>,
+) -> Result<PasskeyCipher> {
     let credential_id_str = fc
         .credential_id
         .as_deref()
@@ -1124,6 +1136,7 @@ fn build_passkey_cipher(fc: &Fido2Credential, key64: &[u8]) -> Result<PasskeyCip
     let rp_name = decrypt_optional_string(fc.rp_name.as_deref(), key64)?;
 
     Ok(PasskeyCipher {
+        cipher_id: cipher_id.map(str::to_string),
         credential_id,
         rp_id,
         rp_name,
@@ -1502,6 +1515,7 @@ mod tests {
 
     fn synthetic_passkey_cipher() -> PasskeyCipher {
         PasskeyCipher {
+            cipher_id: None,
             credential_id: vec![0x11; 16],
             rp_id: "example.test".into(),
             rp_name: Some("Example Test".into()),
@@ -1638,6 +1652,71 @@ mod tests {
             .await
             .expect_err("must fail");
         assert!(matches!(err, BrokerError::Vault(_)), "got {err:?}");
+    }
+
+    #[tokio::test]
+    async fn sync_carries_cipher_id_on_passkeys() {
+        // A passkey synced from the vault must carry its server cipher_id so
+        // the daemon can pre-seed the counter-bump index. Build an encrypted
+        // /api/sync fixture under a known user key, then assert sync() both
+        // decrypts the fields AND threads the cipher's `id` through.
+        use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+        let key64 = [0x5Au8; 64];
+        let enc = |s: &str| encrypt_string(s.as_bytes(), &key64).unwrap();
+
+        let cred_id_raw = vec![0x11u8; 16];
+        let user_handle_raw = vec![0x22u8; 8];
+        let pkcs8_raw = vec![0x33u8; 138];
+
+        let sync_json = serde_json::json!({
+            "ciphers": [{
+                "id": "server-cipher-77",
+                "type": 1,
+                "login": {
+                    "fido2Credentials": [{
+                        "credentialId": enc(&URL_SAFE_NO_PAD.encode(&cred_id_raw)),
+                        "keyType": enc("public-key"),
+                        "keyAlgorithm": enc("ECDSA"),
+                        "keyCurve": enc("P-256"),
+                        "keyValue": enc(&URL_SAFE_NO_PAD.encode(&pkcs8_raw)),
+                        "rpId": enc("example.test"),
+                        "userHandle": enc(&URL_SAFE_NO_PAD.encode(&user_handle_raw)),
+                        "counter": enc("5"),
+                        "discoverable": enc("true"),
+                    }]
+                }
+            }]
+        });
+
+        let mock = Arc::new(MockTransport::new(vec![HttpReply {
+            status: 200,
+            body: sync_json.to_string(),
+        }]));
+        let mut bw = BwClient::with_transport(
+            "https://vault.example.test",
+            "alice@example.test",
+            mock.clone(),
+        );
+        bw.inject_session("tok", key64.to_vec());
+
+        let out = bw.sync().await.expect("sync ok");
+        assert_eq!(out.len(), 1, "exactly one passkey cipher decoded");
+        assert_eq!(
+            out[0].cipher_id.as_deref(),
+            Some("server-cipher-77"),
+            "server cipher_id must be threaded onto the decoded passkey"
+        );
+        assert_eq!(out[0].credential_id, cred_id_raw);
+        assert_eq!(out[0].user_handle, user_handle_raw);
+        assert_eq!(out[0].private_key_pkcs8.as_slice(), pkcs8_raw.as_slice());
+        assert_eq!(out[0].counter, 5);
+        assert!(out[0].discoverable);
+
+        // GET /api/sync was the one and only call.
+        let snap = mock.snapshot().await;
+        assert_eq!(snap.len(), 1);
+        assert_eq!(snap[0].method, "GET");
+        assert_eq!(snap[0].url, "https://vault.example.test/api/sync");
     }
 
     /// Manual integration test against a real Vaultwarden — opt-in only.

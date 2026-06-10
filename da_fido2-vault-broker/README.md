@@ -70,10 +70,12 @@ group or udev didn't reload — re-run `./build.sh deploy`.
 | B.5 | uhid HID server (CTAPHID frames, channels, fragmentation) | done |
 | B.6 | DesktopUpProvider (notify-send confirm/cancel) | done |
 | B.7 | daemon integration + TPM-unseal master | done |
-| B.8 | passkey writeback to Vaultwarden | in progress |
+| B.8 | passkey writeback to Vaultwarden | done |
 
-After B.8 lands: registrations survive restart. Today they live in memory
-only — restart the daemon, reuse a session passkey, and it's gone.
+B.8 has landed: registrations are pushed to Vaultwarden on `makeCredential`
+and survive a daemon restart, and signature-counter bumps persist for both
+session-registered and vault-synced passkeys (bootstrap pre-seeds the
+credential_id → cipher_id index from each synced cipher's server ID).
 
 ## Tests
 

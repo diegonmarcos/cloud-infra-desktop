@@ -123,6 +123,9 @@ impl KeyStore for BwBackedKeyStore {
         // today, so default them; users who want richer metadata can edit
         // the cipher in the Bitwarden UI after the first registration.
         let pc = PasskeyCipher {
+            // Brand-new credential — the server assigns the cipher_id on
+            // create; we record it from the response below, not from here.
+            cipher_id: None,
             credential_id: cred.credential_id.clone(),
             rp_id: cred.rp_id.clone(),
             rp_name: None,
