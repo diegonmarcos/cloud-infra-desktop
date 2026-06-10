@@ -1,8 +1,13 @@
 # Cloud Network: WireGuard mesh + Hickory DNS configuration
 # Sets up WG peer config and DNS resolution for .app private names
 #
-# WG interface is created by NixOS host (aa_nixos-surface_host/configuration_network.nix)
-# This module adds DNS routing so .app names resolve via Hickory (10.0.0.1)
+# WG interface is declared by the NixOS host
+# (aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_network.nix),
+# whose `networking.wireguard.interfaces.wg0.privateKeyFile` expects:
+#   /home/diego/.config/wireguard/privatekey   (this file → vault)
+# This module (a) symlinks that private key from the vault, declaratively,
+# mirroring cloud-network-wg-public.nix for the wg-public mesh, and
+# (b) adds DNS routing so .app names resolve via Hickory (10.0.0.1).
 #
 # Source of truth: ~/git/cloud/2_configs/dist/build-flakes_desktop.json (.wireguard slice)
 # Emitted by 2_configs/src/engines/cloud-data-config-derive.ts via external-consumers.json.
@@ -14,7 +19,17 @@ let
   wgInterface = "wg0";
   # Domains that should resolve via Hickory (private .app names)
   wgDomains = [ "~app" ];
+  # Vault key material — same base as cloud-network-wg-public.nix.
+  vaultBase = "${config.home.homeDirectory}/git/vault/A0_keys/providers/wireguard";
 in {
+  # ── wg0 private key ────────────────────────────────────────
+  # Consumed by the NixOS host's networking.wireguard.interfaces.wg0.
+  # Out-of-store symlink so the live vault file is read at runtime (the key
+  # never enters the Nix store). Public key 9nL3Ub… = this machine (10.0.0.5).
+  home.file.".config/wireguard/privatekey" = {
+    source = config.lib.file.mkOutOfStoreSymlink "${vaultBase}/ssh_asymmetric/privatekey";
+  };
+
   # ── systemd-resolved split DNS ─────────────────────────────
   # When wg0 is up, route .app queries to Hickory DNS (10.0.0.1)
   # Other queries (google.com etc) still go through system DNS (8.8.8.8)
