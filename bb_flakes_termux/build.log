@@ -112470,3 +112470,31 @@ deleting '/nix/store/pk6cah2z7xkwmydlcv69rli6n0iq71jn-source'
 [2026-06-10 23:27:44] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-06-10 23:27:44] PERF: start switch
 [2026-06-10 23:27:47] INFO: Staging dirty files for flake evaluation...
+[2026-06-10 23:27:50] PERF: git stage = 5.4s
+[2026-06-10 23:27:50] PERF: clean backups = 133ms
+[2026-06-10 23:27:50] PERF: profile guard = 126ms
+[2026-06-10 23:27:51] PERF: clear stale files = 153ms
+[2026-06-10 23:27:51] INFO: Applying nix-on-droid configuration (verbose=1)...
+Building activation package...
+copying path '/nix/store/lv9bmgm6v1wc3fiz00v29gi4rk13ja6l-source' from 'https://cache.nixos.org'...
+copying path '/nix/store/anvdcc2arw7kqrvwnidvhw6ypkkvws68-source' from 'https://cache.nixos.org'...
+error: changing modification time of '/nix/store/anvdcc2arw7kqrvwnidvhw6ypkkvws68-source/pkgs/by-name/ni/nixbit': No such file or directory
+error:
+       … while calling the 'derivationStrict' builtin
+
+         at /builtin/derivation.nix:9:12: (source not available)
+
+       … while evaluating derivation 'nix-on-droid-generation'
+         whose name attribute is located at /nix/store/lv9bmgm6v1wc3fiz00v29gi4rk13ja6l-source/pkgs/stdenv/generic/make-derivation.nix:333:7
+
+       … while evaluating attribute 'buildCommand' of derivation 'nix-on-droid-generation'
+
+         at /nix/store/lv9bmgm6v1wc3fiz00v29gi4rk13ja6l-source/pkgs/build-support/trivial-builders/default.nix:68:16: (source not available)
+
+       (stack trace truncated; use '--show-trace' to show the full trace)
+
+       error: executing SQLite query 'select info, path, immutable, timestamp from Cache where input = '{"rev":"4c1018dae018162ec878d42fec712642d214fdfa","type":"git-tarball"}'': disk I/O error, disk I/O error (in '/data/data/com.termux.nix/files/home/.cache/nix/fetcher-cache-v1.sqlite')
+[2026-06-10 23:58:31] ========== Build script started ==========
+[2026-06-10 23:58:31] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-06-10 23:58:31] PERF: start switch
+[2026-06-10 23:58:35] INFO: Staging dirty files for flake evaluation...
