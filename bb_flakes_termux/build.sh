@@ -482,12 +482,22 @@ cmd_clean() {
     log_info "Trimming home-manager generations (keep last 3)..."
     nix-env --delete-generations +3 2>&1 || true
 
-    # 3. Trim nix-on-droid profile generations (keep last 3)
-    perf_step "trim nod generations"
+    # 3. Trim nix-on-droid per-user sub-profile generations (keep last 3)
+    perf_step "trim nod sub generations"
     _profile="/nix/var/nix/profiles/per-user/nix-on-droid/profile"
     if [ -e "$_profile" ]; then
-        log_info "Trimming nix-on-droid profile generations (keep last 3)..."
+        log_info "Trimming nix-on-droid per-user sub-profile generations (keep last 3)..."
         nix-env --profile "$_profile" --delete-generations +3 2>&1 || true
+    fi
+
+    # 3b. Trim top-level nix-on-droid profile generations (keep last 3)
+    # Each `nix-on-droid switch` adds a generation here; on long-lived devices
+    # this is the dominant store-pinning GC root (hundreds of full closures).
+    perf_step "trim nod top generations"
+    _profile_top="/nix/var/nix/profiles/nix-on-droid"
+    if [ -e "$_profile_top" ]; then
+        log_info "Trimming top-level nix-on-droid profile generations (keep last 3)..."
+        nix-env --profile "$_profile_top" --delete-generations +3 2>&1 || true
     fi
 
     # 4. Garbage collect unreferenced store paths

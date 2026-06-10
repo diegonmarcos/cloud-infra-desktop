@@ -21,7 +21,7 @@
 , autoPatchelfHook
 , glibc
 , gcc-unwrapped
-, version ? "2.1.123"
+, version ? "2.1.170"
 }:
 
 let
@@ -32,7 +32,7 @@ let
   sources = {
     "aarch64-linux" = {
       pkg = "claude-code-linux-arm64";
-      hash = "sha256-WIXjh2hgJNrrDLEe74R/njYhdlrldwMAdwjFopN8lxA=";
+      hash = "sha256-np1UdJEhAz6o/1mJNPYVfqjmUWjK+/nN7IVjb4g5wU4=";
     };
   };
 
