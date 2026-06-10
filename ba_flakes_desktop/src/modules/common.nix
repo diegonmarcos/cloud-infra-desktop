@@ -285,7 +285,11 @@
 
   # MCP secrets: decrypt secrets.yaml → awk subst ''${VAR} → ~/.mcp.json
   # Mimics Docker env_file + init.sh pattern using awk index() (literal, no regex)
+  # Subshell wrap: `exit 0` early-returns (missing files, decrypt failure)
+  # must stay local to this block. Bare `exit 0` in HM activations terminates
+  # the entire activation script, silently skipping every later activation.
   home.activation.mcpSecrets = lib.hm.dag.entryAfter ["linkGeneration"] ''
+    (
     SOPS="${pkgs.sops}/bin/sops"
     TPL="$HOME/.claude/mcp.json.tpl"
     SECRETS_YAML="$HOME/.claude/secrets.yaml"
@@ -340,11 +344,15 @@
 
     chmod 600 "$OUT"
     echo "[mcp-secrets] ~/.mcp.json templated ($(echo $VARS | wc -w) vars substituted)"
+    ) || echo "[mcp-secrets] subshell exited non-zero; HM chain continues"
   '';
 
   # Gemini CLI: decrypt secrets.yaml → awk subst ''${VAR} → ~/.gemini/settings.json
   # Same pattern as Claude's mcpSecrets, but outputs to Gemini's settings.json
+  # Subshell wrap: same rationale as mcpSecrets above — `exit 0` from inside
+  # the body must NOT propagate to the parent HM activation script.
   home.activation.geminiMcpSecrets = lib.hm.dag.entryAfter ["linkGeneration"] ''
+    (
     SOPS="${pkgs.sops}/bin/sops"
     TPL="$HOME/.gemini/settings.json.tpl"
     SECRETS_YAML="$HOME/.claude/secrets.yaml"
@@ -394,12 +402,16 @@
 
     chmod 600 "$OUT"
     echo "[gemini-mcp] ~/.gemini/settings.json templated ($(echo $VARS | wc -w) vars substituted)"
+    ) || echo "[gemini-mcp] subshell exited non-zero; HM chain continues"
   '';
 
   # Generate CLAUDE.md from template + cloud-data (dynamic VM/service tables)
   home.activation.genClaudeMd = lib.hm.dag.entryAfter ["linkGeneration"] ''
     GEN="$HOME/.claude/gen-claude-md.sh"
     if [ -x "$GEN" ]; then
+      # gen-claude-md.sh uses awk + find + sort + date — HM activations have
+      # only a minimal PATH, so binaries must be put on PATH explicitly.
+      PATH="${pkgs.gawk}/bin:${pkgs.findutils}/bin:${pkgs.coreutils}/bin:$PATH" \
       NODE_BIN="${pkgs.nodejs_20}/bin/node" \
         $DRY_RUN_CMD "$GEN" \
           "$HOME/.claude/CLAUDE.md.tpl" \

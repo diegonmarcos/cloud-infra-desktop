@@ -116,7 +116,12 @@ in
   # activation succeeds when the user has passwordless sudo for nmcli (the
   # standard NixOS surface-plasma profile). If sudo prompts, the import is
   # skipped with a one-line hint — the wg-tcp helper still works.
+  # Subshell wrap: `exit 0` short-circuits (missing wg0.conf, no nmcli,
+  # already-imported profile) must not kill the HM activation chain. Without
+  # this, every activation alphabetically after `installW*` (mcpSecrets,
+  # mcpNodeModulesSymlinks, lockScreenWallpaper, …) is silently skipped.
   home.activation.installWg0TcpConf = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    (
     set -eu
     mkdir -p "$(dirname '${wgTcpConf}')"
 
@@ -163,6 +168,7 @@ in
       echo "    sudo nmcli connection import type wireguard file ${wgTcpConf}"
       echo "    sudo nmcli connection modify wg0-tcp connection.autoconnect no"
     fi
+    ) || echo "[wireguard-wstunnel] subshell exited non-zero; HM chain continues"
   '';
 
   # ── Helper script: toggle direct ↔ tunnel mode in one command ──────────
