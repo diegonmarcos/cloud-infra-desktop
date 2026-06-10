@@ -20,9 +20,9 @@
 //!
 //! * Newly-registered passkeys are persisted to Vaultwarden via
 //!   `BwBackedKeyStore` (Phase B.8) and survive a daemon restart. Counter
-//!   bumps on credentials originally synced FROM the vault still need a
-//!   pre-seeded cipher_id index — that follow-up is tracked in the keystore
-//!   adapter docs.
+//!   bumps on credentials synced FROM the vault also persist: bootstrap
+//!   pre-seeds the credential_id → cipher_id index from each synced cipher's
+//!   server ID, so `persist_counter_bump` can address the right row.
 //! * `--features fido2` is required to build the daemon path; without it,
 //!   `run` exits 0 immediately with a "not built with fido2 feature" log.
 //! * End-to-end browser test loop has not been validated in CI; manual
@@ -227,6 +227,22 @@ async fn run_daemon() -> Result<()> {
     //       a duplicate row server-side. ──
     let mut keystore = BwBackedKeyStore::new(bw_arc.clone());
     for c in ciphers {
+        // Pre-seed the credential_id → cipher_id index BEFORE `c` is consumed
+        // by `cipher_to_credential`. Without this, a counter bump on a passkey
+        // synced from the vault (i.e. every passkey after a restart) would fail
+        // `persist_counter_bump` with "no cipher_id recorded" — the index is
+        // how the write-through hook addresses the right server row.
+        match c.cipher_id.clone() {
+            Some(cipher_id) => {
+                keystore.record_existing_cipher_id(c.credential_id.clone(), cipher_id);
+            }
+            None => {
+                tracing::warn!(
+                    rp_id = %c.rp_id,
+                    "synced passkey has no server cipher_id; counter bumps will not persist for it"
+                );
+            }
+        }
         let cred = cipher_to_credential(c);
         if let Err(e) = keystore.inner_mut().store_new_credential(cred) {
             tracing::warn!(error = ?e, "failed to load credential into keystore — skipping");
