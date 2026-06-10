@@ -86,12 +86,6 @@ ea_*-*/
 ## clones (FairEmail, DAVx5, …), NOT for our owned modules.
 !ea_cloud-superapp/
 !ea_cloud-superapp/**
-## EXCEPTION: ea_upstreams-sources/ is the documented inventory of every
-## upstream we cherry-pick from — URLs, pinned commits, re-clone recipes.
-## No upstream source lives in here, only reference READMEs. The actual
-## clones stay gitignored via the pattern above.
-!ea_upstreams-sources/
-!ea_upstreams-sources/**
 ## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/
