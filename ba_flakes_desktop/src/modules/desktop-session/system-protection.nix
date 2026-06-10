@@ -1,29 +1,24 @@
 # System Protection — Desktop (Surface Pro 8)
 #
-# NixOS-native protection (sysctl, zram, earlyoom) lives in the NixOS HOST flake:
-#   unix/aa_nixos-surface_host/src/modules/configuration_system-protection.nix
+# System-level cgroup slices, sysctl, earlyoom, dropbear rescue, swap, and
+# disk-watchdog are owned ENTIRELY by the NixOS host flake (declarative):
+#   aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_system-protection*.nix
 #
-# Home-manager handles:
-#   - User-level guardrails (PATH wrapper scripts)
-#   - Cgroup slice hierarchy (layer2-identity: kernel/os-essentials/workload slices)
-#   - Resource bouncer (memory reserves, docker caps)
-#   - Watchdog + Dropbear rescue SSH
+# Home-manager keeps only what is genuinely user-level:
+#   - guardrails       : ~/.local/bin/ command wrappers (no /etc/, no sudo)
+#   - desktop-session  : KDE Plasma 6 user-timer watchdog + user systemd drop-ins
+#   - orphan-reaper    : ~/.local/bin/ engine + ~/.config/ whitelist
+#
+# Removed 2026-06-10 (duplicated by NixOS host; broke on every switch with
+# "Read-only file system" against /etc/systemd/system/):
+#   - system-protection-layer2-identity.nix    → systemd.slices.* in host
+#   - system-protection-resource-bouncer.nix   → services.earlyoom + sysctl in host
+#   - system-protection-watchdog-dropbear.nix  → systemd.services.{disk-*,rescue-ssh}
 { config, pkgs, lib, ... }:
 
 {
-  _module.args = {
-    ramMB = 7778;       # Surface Pro 8: 8GB
-    cpus = 8;           # 4 cores × 2 threads
-    userName = "diego";
-    userId = 1000;
-    rescuePort = 2200;  # Dropbear rescue SSH port
-  };
-
   imports = [
     ./system-protection-guardrails.nix
-    ./system-protection-layer2-identity.nix
-    ./system-protection-resource-bouncer.nix
-    ./system-protection-watchdog-dropbear.nix
     ./system-protection-desktop-session.nix
     ./system-protection-orphan-reaper.nix
   ];
