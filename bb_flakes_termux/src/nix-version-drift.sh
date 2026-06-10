@@ -228,12 +228,15 @@ collect_custom_derivations() {
     add_result "claude-code" "desktop" "${cc_current:-?}" "${cc_latest:-?}" "gcs-binary" "$cc_desktop_file" "" "$cc_hash"
   fi >> "$tmpdir/results"
 
-  # claude-code (termux) — direct GCS binary
-  if [[ "$PLATFORM" == "termux" ]]; then
-    local cc_termux_current cc_termux_latest
-    cc_termux_current=$(get_local_claude_version)
+  # claude-code (termux) — nix derivation pulls claude-code-linux-arm64 from npm registry,
+  # autoPatchelfHook links it against Nix glibc. Source of truth: pkgs/claude-code/default.nix.
+  local cc_termux_file="$FLAKE_TERMUX/pkgs/claude-code/default.nix"
+  if [[ "$PLATFORM" == "termux" ]] && [[ -f "$cc_termux_file" ]]; then
+    local cc_termux_current cc_termux_latest cc_termux_hash
+    cc_termux_current=$(get_nix_version "$cc_termux_file")
     cc_termux_latest=$(get_latest_npm "@anthropic-ai/claude-code")
-    add_result "claude-code" "termux" "${cc_termux_current:-?}" "${cc_termux_latest:-?}" "gcs-binary" "$HOME/.local/bin/claude" "" "n/a"
+    cc_termux_hash=$(get_nix_hash "$cc_termux_file")
+    add_result "claude-code" "termux" "${cc_termux_current:-?}" "${cc_termux_latest:-?}" "npm-tarball" "$cc_termux_file" "" "$cc_termux_hash"
   fi >> "$tmpdir/results"
 
   # gemini-cli (desktop) — npm tarball
