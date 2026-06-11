@@ -40,6 +40,18 @@ Forks own their sync engines and local DBs; the hub never copies data — it
 proxies queries to the per-fork exporter providers and UNIONs them. Only body
 *previews* cross the boundary; full content is reached via `openInApp` deep links.
 
+### Delivery: one download, embedded-installer (owner decision 2026-06-11)
+
+The three forks are **separate APKs** (separate DBs, independent upstream sync)
+but ship as **ONE download**: `build.sh bundle-forks` embeds each published fork
+APK into `hub/src/main/assets/forks/<domain>.apk`, so the single Cloud-Comms hub
+APK physically carries them. On first launch the hub installs them via
+PackageInstaller (`BundledForkInstaller`) — Android's no-root model shows one
+confirmation per fork, once. After setup you see **one icon** (the forks are
+launcher-icon-less) with the wrapper top bar. The embedded copies are gitignored
+build artifacts (seeded at build time, never committed); the `FleetUpdater` keeps
+each fork current from GHCR afterwards.
+
 ## Build
 
 ```bash

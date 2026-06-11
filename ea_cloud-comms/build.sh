@@ -18,6 +18,7 @@
 # ║   shell            enter Nix devShell                            ║
 # ║   ship             build + side-load hub via adb                 ║
 # ║   verify-contract  validate contract/comms-ipc-v1.json vs schema  ║
+# ║   bundle-forks     embed published fork APKs into hub assets/      ║
 # ║   materialize-fork <key>  clone upstream@pin → tracker + patches  ║
 # ║   build-fork <key>        gradle build inside a materialized fork ║
 # ║   oras-push / oras-pull / phone-install   GHCR distribution (hub) ║
@@ -53,9 +54,42 @@ prefer_host() {
 
 _json() { prefer_host jq -r "$1 // empty" "$SCRIPT_DIR/build.json"; }
 
+# ── bundle-forks ───────────────────────────────────────────────────────
+# Embedded-installer model: seed hub/src/main/assets/forks/<domain>.apk with
+# each fork's PUBLISHED GHCR apk so the single hub APK carries the forks inside
+# it and installs them on first launch (BundledForkInstaller). Data-driven from
+# build.json::forks. A fork that's blocked or whose image isn't published yet
+# (404) is skipped — the bundle is best-effort and NEVER fails the build (forks
+# ship independently; the hub bundles whatever exists at build time). The .apk
+# assets are gitignored — populated at build time, never committed.
+step_bundle_forks() {
+  local assets="$SCRIPT_DIR/hub/src/main/assets/forks"
+  mkdir -p "$assets"
+  rm -f "$assets"/*.apk
+  local key image blocked tag
+  tag="$(_json '.release.auto_update.tag')"; tag="${tag:-latest}"
+  while IFS= read -r key; do
+    [ -z "$key" ] && continue
+    image="$(_json ".forks.${key}.image")"
+    blocked="$(_json ".forks.${key}.blocked_on")"
+    if [ -n "$blocked" ] && [ "$blocked" != "null" ]; then
+      log "bundle-forks: $key blocked ($blocked) — skip"; continue
+    fi
+    if _oci_pull_blob "$image" "$tag" "$assets/${key}.apk"; then
+      log "bundle-forks: embedded $key ← $image:$tag ($(wc -c <"$assets/${key}.apk") B)"
+    else
+      rm -f "$assets/${key}.apk"
+      log "bundle-forks: $key not published yet ($image:$tag) — skip"
+    fi
+  done < <(prefer_host jq -r '.forks | to_entries[] | select(.key|startswith("_")|not) | .key' "$SCRIPT_DIR/build.json")
+  local n; n="$(ls -1 "$assets"/*.apk 2>/dev/null | wc -l)"
+  log "bundle-forks: $n fork(s) embedded in the hub bundle"
+}
+
 # ── hub build/test ─────────────────────────────────────────────────────
 step_build() {
-  log "Build: cloud-comms hub (debug APK)"
+  step_bundle_forks
+  log "Build: cloud-comms bundle (hub + embedded forks, debug APK)"
   in_nix gradle :hub:assembleDebug
   mkdir -p "$DIST_DIR"
   local out="$DIST_DIR/$(_json '.release.artifact.debug')"
@@ -64,7 +98,8 @@ step_build() {
 }
 
 step_release() {
-  log "Build: cloud-comms hub (release APK)"
+  step_bundle_forks
+  log "Build: cloud-comms bundle (hub + embedded forks, release APK)"
   in_nix gradle :hub:assembleRelease
   mkdir -p "$DIST_DIR"
   local out="$DIST_DIR/$(_json '.release.artifact.release')"
@@ -205,6 +240,29 @@ step_build_fork() {
 # ── GHCR distribution (hub APK) ─────────────────────────────────────────
 # Same OCI HTTP flow as ea_cloud-superapp; the hub's in-app updater drives the
 # on-device fleet. Registry/tags are data-driven from build.json::release.ghcr.
+
+# Pull an APK blob from GHCR by <image>:<tag> into <outfile>. Returns non-zero on
+# 404 / any error so callers (bundle-forks) can skip gracefully. Shared OCI HTTP
+# flow; registry/namespace from build.json::release.ghcr.
+_oci_pull_blob() {
+  local image="$1" tag="$2" out="$3"
+  local registry namespace repo token manifest digest
+  registry="$(_json '.release.ghcr.registry')"
+  namespace="$(_json '.release.ghcr.namespace')"
+  repo="$namespace/$image"
+  token="$(curl -sf "https://$registry/token?service=$registry&scope=repository:$repo:pull" 2>/dev/null | jq -r .token 2>/dev/null)" || return 1
+  [ -n "$token" ] && [ "$token" != "null" ] || return 1
+  manifest="$(curl -sfL -H "Authorization: Bearer $token" \
+    -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+    "https://$registry/v2/$repo/manifests/$tag" 2>/dev/null)" || return 1
+  digest="$(jq -r '.layers[0].digest' <<<"$manifest" 2>/dev/null)"
+  [ -n "$digest" ] && [ "$digest" != "null" ] || return 1
+  curl -sfL -H "Authorization: Bearer $token" \
+    "https://$registry/v2/$repo/blobs/$digest" -o "$out" 2>/dev/null || return 1
+  [ -s "$out" ] || return 1
+  return 0
+}
+
 _resolve_template() {
   local tmpl="$1"
   local sha="${GITHUB_SHA:-$(prefer_host git -C "$SCRIPT_DIR" rev-parse --short=8 HEAD 2>/dev/null || echo unknown)}"
@@ -332,6 +390,7 @@ case "$CMD" in
   shell)            step_shell ;;
   ship)             step_ship ;;
   verify-contract)  step_verify_contract ;;
+  bundle-forks)     step_bundle_forks ;;
   materialize-fork) step_materialize_fork "$@" ;;
   build-fork)       step_build_fork "$@" ;;
   oras-push)        step_oras_push ;;

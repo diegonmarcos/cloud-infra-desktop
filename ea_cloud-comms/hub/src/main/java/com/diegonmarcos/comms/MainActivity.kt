@@ -6,8 +6,10 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.diegonmarcos.comms.updater.BundledForkInstaller
 
 /**
  * The switcher. Renders one tile per fork (data-driven from ForkRegistry, itself
@@ -50,6 +52,24 @@ class MainActivity : AppCompatActivity() {
             content.addView(tileFor(fork))
         }
 
+        // First-run setup: if any fork ships inside this APK but isn't installed
+        // yet, offer a one-tap "install all bundled apps" (each still prompts
+        // once — Android no-root security). Hidden once everything is installed
+        // or when nothing is bundled (forks not published yet).
+        val pendingBundled = ForkRegistry.forks.count {
+            it.blockedOn == null && !it.isInstalled(this) && BundledForkInstaller.hasBundle(this, it.domain)
+        }
+        if (pendingBundled > 0) {
+            content.addView(Button(this).apply {
+                text = getString(R.string.setup_install_all, pendingBundled)
+                setOnClickListener {
+                    val n = BundledForkInstaller.installMissing(this@MainActivity)
+                    Toast.makeText(this@MainActivity,
+                        getString(R.string.setup_installing_n, n), Toast.LENGTH_SHORT).show()
+                }
+            })
+        }
+
         // Configs → About (build info, IPC contract, fleet status, updater).
         content.addView(TextView(this).apply {
             text = getString(R.string.about_entry)
@@ -88,8 +108,15 @@ class MainActivity : AppCompatActivity() {
         when {
             fork.blockedOn != null ->
                 Toast.makeText(this, getString(R.string.tile_blocked, fork.blockedOn), Toast.LENGTH_LONG).show()
-            !installed ->
-                Toast.makeText(this, getString(R.string.tile_not_installed_long, fork.appId), Toast.LENGTH_LONG).show()
+            !installed -> {
+                // Embedded-installer model: install the fork that ships INSIDE
+                // this APK (no separate download). PackageInstaller prompts once.
+                if (BundledForkInstaller.install(this, fork.domain)) {
+                    Toast.makeText(this, getString(R.string.tile_installing, fork.domain), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, getString(R.string.tile_not_bundled, fork.domain), Toast.LENGTH_LONG).show()
+                }
+            }
             !openFork(fork.appId) ->
                 Toast.makeText(this, getString(R.string.tile_launch_failed), Toast.LENGTH_SHORT).show()
         }
