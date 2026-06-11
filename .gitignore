@@ -115,6 +115,16 @@ ea_cloud-comms/**/*.keystore
 ea_cloud-comms/**/*.jks
 ea_cloud-ide/**/*.keystore
 ea_cloud-ide/**/*.jks
+## Re-ignore build OUTPUTS inside the whitelisted Android projects — the
+## !ea_cloud-*/** whitelists would otherwise make a locally-built APK / dist/
+## tree committable (each APK is ~6-40 MB). Build artifacts are published to
+## GHCR + GH Releases by the ship workflows, never vendored in git.
+ea_cloud-superapp/dist/
+ea_cloud-superapp/**/*.apk
+ea_cloud-comms/dist/
+ea_cloud-comms/**/*.apk
+ea_cloud-ide/dist/
+ea_cloud-ide/**/*.apk
 ## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/
