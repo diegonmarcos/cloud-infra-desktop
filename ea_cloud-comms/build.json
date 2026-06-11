@@ -45,6 +45,7 @@
     "_doc": "Declarative fork registry — THE source of truth for the constellation. Each fork = pinned upstream tag + committed patch series under forks/<key>/patches/. `./build.sh materialize-fork <key>` clones the upstream at the pin into the tracker dir, applies the series, and leaves a buildable project. Upstream bump = edit pinned_tag, re-apply, resolve rejects, commit. NEVER a long-lived divergent clone. order: 'priority' is build/dev sequencing only.",
     "mail": {
       "app_id": "com.diegonmarcos.comms.mail",
+      "image": "cloud-comms-mail",
       "upstream_repo": "https://github.com/M66B/FairEmail.git",
       "tracker_dir": "ea_mail-fairmail",
       "pinned_tag": "",
@@ -58,6 +59,7 @@
     },
     "chat": {
       "app_id": "com.diegonmarcos.comms.chat",
+      "image": "cloud-comms-chat",
       "upstream_repo": "https://github.com/mattermost/mattermost-mobile.git",
       "tracker_dir": "ea_chat-mattermost",
       "pinned_tag": "",
@@ -71,6 +73,7 @@
     },
     "matrix": {
       "app_id": "com.diegonmarcos.comms.matrix",
+      "image": "cloud-comms-matrix",
       "upstream_repo": "https://github.com/element-hq/element-x-android.git",
       "tracker_dir": "ea_chat-element",
       "pinned_tag": "",
@@ -114,6 +117,17 @@
       "default_tag": "latest",
       "target_dir": "~/storage/Download",
       "asset_name": "Cloud-Comms-Hub.apk"
+    },
+    "auto_update": {
+      "_doc": "In-app FLEET updater — read at gradle eval time into BuildConfig, used by the hub's updater package at runtime. SAME data-driven OCI-pull pattern as ea_cloud-superapp/libs:updater, but the hub manages the WHOLE constellation: itself (release.ghcr.image) PLUS each fork (forks.<k>.image). A WorkManager periodic job checks each app's GHCR :tag digest against the installed APK and prompts PackageInstaller on a diff. Forks with no published image yet (404) or blocked_on set are skipped gracefully. registry/namespace are shared with release.ghcr (engine asserts consistency).",
+      "enabled": true,
+      "tag": "latest",
+      "interval_hours": 6,
+      "_doc_interval": "WorkManager periodic minimum is 15 min. 6h matches typical cadence + spares battery/data.",
+      "require_unmetered_network": false,
+      "require_charging": false,
+      "_doc_install": "'prompt' uses PackageInstaller with a user-confirmation dialog (only no-root path). 'silent' needs the system updater privilege (F-Droid Privileged Extension) — not used here.",
+      "install_mode": "prompt"
     }
   }
 }

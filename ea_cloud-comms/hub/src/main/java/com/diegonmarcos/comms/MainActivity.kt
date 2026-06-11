@@ -42,6 +42,15 @@ class MainActivity : AppCompatActivity() {
             root.addView(tileFor(fork))
         }
 
+        // Configs → About (build info, IPC contract, fleet status, updater).
+        root.addView(TextView(this).apply {
+            text = getString(R.string.about_entry)
+            textSize = 15f
+            setPadding(dp(20), dp(20), dp(20), dp(20))
+            isClickable = true
+            setOnClickListener { startActivity(Intent(this@MainActivity, AboutActivity::class.java)) }
+        })
+
         setContentView(root)
     }
 

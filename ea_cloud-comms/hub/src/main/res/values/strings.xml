@@ -8,4 +8,12 @@
     <string name="tile_not_installed_long">%1$s is not installed yet — install it from the Cloud-Comms updater.</string>
     <string name="tile_blocked">Blocked: %1$s</string>
     <string name="tile_launch_failed">Could not launch app</string>
+    <string name="about_entry">⚙ Configs &amp; About</string>
+    <string name="about_title">Configs &amp; About</string>
+    <string name="about_sec_build">Build</string>
+    <string name="about_sec_ipc">IPC contract</string>
+    <string name="about_sec_fleet">Constellation</string>
+    <string name="about_sec_stack">Stack</string>
+    <string name="about_check_updates">Check for updates now</string>
+    <string name="about_update_started">Fleet update check started…</string>
 </resources>
