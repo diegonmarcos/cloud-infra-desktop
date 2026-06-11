@@ -7,6 +7,10 @@
 > 2. SuperApp ↔ IDE link = **AIDL bound service + ContentProvider** gated by signature-level permission (no localhost ports — same Doze/auth reasoning).
 >
 > Whichever constellation (Comms or IDE) is built first establishes the hub/engine pattern; the second one MUST reuse it (see §3 hub-sharing note), not re-invent it.
+>
+> **Owner decision (2026-06-11) — one icon + wrapper chrome** (`contract/ide-ipc-v1.json::navigation`, wired hub-side, CI-green):
+> 3. **One launcher icon = the hub.** Forks ship ICON-LESS (branding patch drops `<category LAUNCHER>` and adds an `<intent-filter>` for `open_fork_action` `com.diegonmarcos.ide.action.OPEN_FORK`, signature-gated). The hub launches them by that action (`ForkLauncher`), never `getLaunchIntentForPackage` (null for icon-less apps). Keeps the constellation's clean per-app DBs while presenting the single-door mental model.
+> 4. **Wrapper chrome.** Because we own every app in the tree, each injects a PERSISTENT consistency top bar (`NavBar`) with up-nav chips to its ancestors in `parent_chain` (Cloud-IDE → Cloud-SuperApp) — data-driven from the contract, baked into BuildConfig. The hub's own bar (→ Cloud-SuperApp) is live; the fork bars are the new **wrapper** fork-patch concern (see `forks/README.md`, patch concern 5).
 
 ---
 
