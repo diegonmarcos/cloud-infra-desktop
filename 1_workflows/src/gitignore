@@ -92,6 +92,17 @@ ea_*-*/
 ## tracker clones, which stay ignored by the ea_*-*/ rule. Added 2026-06-11.
 !ea_cloud-ide/
 !ea_cloud-ide/**
+## Re-ignore signing keystores inside the whitelisted Android projects. The
+## !ea_cloud-*/** whitelists above would otherwise override the *.jks/*.keystore
+## rules (lines ~27-28) and make a locally-generated keystore committable.
+## Keystores are generated in CI (actions/cache) only — never vendored. Added
+## 2026-06-11 (closes the latent gap for superapp + comms + ide alike).
+ea_cloud-superapp/**/*.keystore
+ea_cloud-superapp/**/*.jks
+ea_cloud-comms/**/*.keystore
+ea_cloud-comms/**/*.jks
+ea_cloud-ide/**/*.keystore
+ea_cloud-ide/**/*.jks
 ## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/
