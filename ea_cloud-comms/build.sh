@@ -109,18 +109,21 @@ step_verify_contract() {
   fi
 
   log "verify-contract: build.json::ipc ↔ contract cross-check"
-  local c_auth c_perm c_ver c_svc b_auth b_perm b_ver b_svc
+  local c_auth c_perm c_ver c_svc c_act b_auth b_perm b_ver b_svc b_act
   c_auth="$(prefer_host jq -r '.authority' "$contract")"
   c_perm="$(prefer_host jq -r '.permission' "$contract")"
   c_ver="$(prefer_host jq -r '.version' "$contract")"
   c_svc="$(prefer_host jq -r '.aidl.service_interface' "$contract")"
+  c_act="$(prefer_host jq -r '.launch_action' "$contract")"
   b_auth="$(_json '.ipc.authority')"; b_perm="$(_json '.ipc.permission')"
   b_ver="$(_json '.ipc.version')";    b_svc="$(_json '.ipc.aidl_service')"
+  b_act="$(_json '.ipc.launch_action')"
   local ok=1
   [ "$c_auth" = "$b_auth" ] || { errlog "authority mismatch: contract=$c_auth build.json=$b_auth"; ok=0; }
   [ "$c_perm" = "$b_perm" ] || { errlog "permission mismatch: contract=$c_perm build.json=$b_perm"; ok=0; }
   [ "$c_ver"  = "$b_ver"  ] || { errlog "version mismatch: contract=$c_ver build.json=$b_ver"; ok=0; }
   [ "$c_svc"  = "$b_svc"  ] || { errlog "aidl_service mismatch: contract=$c_svc build.json=$b_svc"; ok=0; }
+  [ "$c_act"  = "$b_act"  ] || { errlog "launch_action mismatch: contract=$c_act build.json=$b_act"; ok=0; }
   [ "$ok" = "1" ] || exit 1
   log "verify-contract: ✓ contract valid + consistent with build.json (v$c_ver)"
 }

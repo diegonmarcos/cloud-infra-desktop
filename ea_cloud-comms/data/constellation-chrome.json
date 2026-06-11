@@ -1,0 +1,22 @@
+{
+  "_doc": "Single source of truth for the constellation 'wrapper chrome' — the permanent top bar every app we own renders so the hierarchy Cloud-SuperApp ▸ Cloud-Comms ▸ {Mail,Mattermost,Element} feels like ONE owned product instead of separate apps. Because we fork+own the three comms apps, their branding patch injects this bar; the hub renders it natively; Cloud-SuperApp is the root. Baked into the hub at build time and consumed by each fork's branding patch.",
+  "chain": [
+    {
+      "label": "Cloud-SuperApp",
+      "package": "com.diegonmarcos.superapp",
+      "_doc": "Root of the chain. Its own launcher icon stays; opened via its launch intent."
+    },
+    {
+      "label": "Cloud-Comms",
+      "package": "com.diegonmarcos.comms",
+      "_doc": "The hub. Keeps its launcher icon (the ONE icon in the one-icon model). Opened via its launch intent."
+    }
+  ],
+  "top_bar": {
+    "_doc": "Rendering contract for the permanent bar. Each app renders a back-button (icon + label) for every `chain` entry that is NOT itself — so the hub shows [Cloud-SuperApp] and each fork shows [Cloud-SuperApp][Cloud-Comms]. Tapping opens that ancestor (launcher intent; ancestors keep their icons). The bar is ALWAYS visible (the forks' branding patch pins it above their own chrome — see forks/*/README.md). An ancestor that isn't installed shows but toasts on tap.",
+    "height_dp": 44,
+    "position": "top",
+    "persistent": true,
+    "back_glyph": "↑"
+  }
+}

@@ -40,14 +40,21 @@ class CommsService : Service() {
 
         override fun openInApp(domain: String, threadId: String) {
             val fork = ForkRegistry.byDomain(domain) ?: return
-            // Launch the owning fork; deep-link extras are added when the fork
-            // exporters declare their VIEW intent contract (Phase 2).
-            val launch = packageManager.getLaunchIntentForPackage(fork.appId) ?: run {
-                Log.w(TAG, "openInApp: ${fork.appId} not installed"); return
-            }
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            launch.putExtra(EXTRA_THREAD_ID, threadId)
-            startActivity(launch)
+            // One-icon model: forks are launcher-icon-less, opened via the
+            // declared signature-gated action with the thread-id deep-link extra.
+            // Falls back to a LAUNCHER intent for a still-iconed dev fork.
+            val byAction = Intent(CommsContract.LAUNCH_ACTION)
+                .setPackage(fork.appId)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(CommsContract.EXTRA_THREAD_ID, threadId)
+            val intent = if (byAction.resolveActivity(packageManager) != null) {
+                byAction
+            } else {
+                packageManager.getLaunchIntentForPackage(fork.appId)
+                    ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    ?.putExtra(CommsContract.EXTRA_THREAD_ID, threadId)
+            } ?: run { Log.w(TAG, "openInApp: ${fork.appId} not installed"); return }
+            startActivity(intent)
         }
 
         override fun forceSync(domain: String) {
@@ -83,6 +90,5 @@ class CommsService : Service() {
 
     companion object {
         private const val TAG = "CommsService"
-        const val EXTRA_THREAD_ID = "com.diegonmarcos.comms.extra.THREAD_ID"
     }
 }

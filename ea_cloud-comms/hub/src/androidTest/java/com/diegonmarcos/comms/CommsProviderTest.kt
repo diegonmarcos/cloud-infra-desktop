@@ -57,5 +57,8 @@ class CommsProviderTest {
         assertTrue(CommsContract.AUTHORITY == BuildConfig.IPC_AUTHORITY)
         assertTrue(CommsContract.PERMISSION == BuildConfig.IPC_PERMISSION)
         assertTrue(CommsContract.VERSION == BuildConfig.IPC_VERSION)
+        // One-icon model: the launch action the hub uses to open icon-less forks.
+        assertTrue(CommsContract.LAUNCH_ACTION == BuildConfig.LAUNCH_ACTION)
+        assertTrue(CommsContract.LAUNCH_ACTION.isNotBlank())
     }
 }

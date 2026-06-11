@@ -5,12 +5,13 @@
   "description": "Validates contract/comms-ipc-v1.json. Run via `./build.sh verify-contract`. Phase-5 conformance tests assert every fork exporter + the hub surface against this same shape.",
   "type": "object",
   "additionalProperties": true,
-  "required": ["version", "authority", "permission", "permission_protection_level", "domains", "tables", "aidl", "states"],
+  "required": ["version", "authority", "permission", "permission_protection_level", "launch_action", "domains", "tables", "aidl", "states"],
   "properties": {
     "version": { "type": "integer", "minimum": 1 },
     "authority": { "type": "string", "pattern": "^[a-z][a-z0-9_.]+$" },
     "permission": { "type": "string", "pattern": "^[a-z][a-z0-9_.]+$" },
     "permission_protection_level": { "type": "string", "enum": ["signature"] },
+    "launch_action": { "type": "string", "pattern": "^[a-z][a-z0-9_.]+$" },
     "domains": {
       "type": "array",
       "minItems": 1,

@@ -22,16 +22,24 @@ class MainActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(32), dp(24), dp(24))
             layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
         }
 
-        root.addView(TextView(this).apply {
+        // Permanent constellation chrome: the hub's parent is Cloud-SuperApp, so
+        // this renders [↑ Cloud-SuperApp]. The forks render the full bar.
+        ConstellationBar.build(this, packageName)?.let { root.addView(it) }
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(24), dp(24), dp(24))
+        }
+
+        content.addView(TextView(this).apply {
             text = getString(R.string.hub_title)
             textSize = 22f
             setPadding(0, 0, 0, dp(4))
         })
-        root.addView(TextView(this).apply {
+        content.addView(TextView(this).apply {
             text = getString(R.string.hub_subtitle, BuildConfig.IPC_VERSION, BuildConfig.GIT_SHORT_SHA)
             textSize = 12f
             alpha = 0.6f
@@ -39,11 +47,11 @@ class MainActivity : AppCompatActivity() {
         })
 
         for (fork in ForkRegistry.forks) {
-            root.addView(tileFor(fork))
+            content.addView(tileFor(fork))
         }
 
         // Configs → About (build info, IPC contract, fleet status, updater).
-        root.addView(TextView(this).apply {
+        content.addView(TextView(this).apply {
             text = getString(R.string.about_entry)
             textSize = 15f
             setPadding(dp(20), dp(20), dp(20), dp(20))
@@ -51,6 +59,7 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { startActivity(Intent(this@MainActivity, AboutActivity::class.java)) }
         })
 
+        root.addView(content)
         setContentView(root)
     }
 
@@ -81,16 +90,30 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, getString(R.string.tile_blocked, fork.blockedOn), Toast.LENGTH_LONG).show()
             !installed ->
                 Toast.makeText(this, getString(R.string.tile_not_installed_long, fork.appId), Toast.LENGTH_LONG).show()
-            else -> {
-                val launch = packageManager.getLaunchIntentForPackage(fork.appId)
-                if (launch != null) {
-                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(launch)
-                } else {
-                    Toast.makeText(this, getString(R.string.tile_launch_failed), Toast.LENGTH_SHORT).show()
-                }
-            }
+            !openFork(fork.appId) ->
+                Toast.makeText(this, getString(R.string.tile_launch_failed), Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /**
+     * Open an installed fork. One-icon model: forks ship without a launcher
+     * icon, so we start them by the declared signature-gated action
+     * (contract::launch_action). Falls back to a LAUNCHER intent for a fork that
+     * still has its own icon during development. Returns false if neither
+     * resolves. Returns true (no-op) for the already-handled branches above.
+     */
+    private fun openFork(appId: String): Boolean {
+        val byAction = Intent(CommsContract.LAUNCH_ACTION)
+            .setPackage(appId)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (byAction.resolveActivity(packageManager) != null) {
+            startActivity(byAction); return true
+        }
+        val byLauncher = packageManager.getLaunchIntentForPackage(appId)
+        if (byLauncher != null) {
+            startActivity(byLauncher.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true
+        }
+        return false
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()

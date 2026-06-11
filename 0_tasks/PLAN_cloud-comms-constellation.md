@@ -5,6 +5,8 @@
 > **Owner decisions** (Diego, 2026-06-11):
 > 1. UI hosting = **Constellation**: 3 minimally-forked upstream APKs + thin Cloud-Comms hub APK (NOT a single merged APK, NOT WebView wrappers).
 > 2. SuperApp ↔ Comms link = **AIDL bound service + ContentProvider** gated by signature-level permission (NOT localhost websockets — Doze kills background servers, ports need their own auth; AIDL/Provider survives the OS lifecycle with zero open ports).
+> 3. **One-icon model**: forks ship WITHOUT a launcher icon — the Cloud-Comms hub is the only home-screen icon. Each fork's branding patch removes the `LAUNCHER` category and adds an exported, signature-gated intent-filter for `contract::launch_action` (`com.diegonmarcos.comms.action.OPEN`); the hub/SuperApp open a fork via `Intent(OPEN).setPackage(<fork id>)` (with optional THREAD_ID extra). Forks are still separate APKs with their own DBs — just invisible in the drawer.
+> 4. **Wrapper chrome**: every fork injects a PERMANENT top bar (`[↑ Cloud-SuperApp][↑ Cloud-Comms]`) so the hierarchy `Cloud-SuperApp ▸ Cloud-Comms ▸ {Mail,Mattermost,Element}` feels like one owned product. Data-driven from `data/constellation-chrome.json`; reference builder = `hub/.../ConstellationBar.kt` (ported into each fork's branding patch, JSON shipped in fork assets).
 
 ---
 
