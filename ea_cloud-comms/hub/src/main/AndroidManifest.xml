@@ -2,10 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Network for the in-app updater (GHCR OCI HTTP API). The hub itself
-         does no sync; the forks own all server traffic. -->
+    <!-- Network for the in-app fleet updater (GHCR OCI HTTP API). The hub
+         itself does no sync; the forks own all server traffic. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Fleet updater: install hub + fork APKs via PackageInstaller (user
+         prompt), and post the download/result notification. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Discover which fork APKs are installed (ForkRegistry.isInstalled +
          getLaunchIntentForPackage). The three fork ids are fixed, so a scoped
@@ -45,6 +49,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Configs → About (build info, IPC contract, fleet status, updater). -->
+        <activity
+            android:name=".AboutActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity" />
+
+        <!-- PackageInstaller status callback for the fleet updater. -->
+        <receiver
+            android:name="com.diegonmarcos.comms.updater.PackageInstallerReceiver"
+            android:exported="false" />
 
         <!-- Unified read surface. Exported but gated by the signature
              permission — SuperApp (same key) can query; anything else can't. -->

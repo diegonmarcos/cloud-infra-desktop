@@ -1,0 +1,90 @@
+package com.diegonmarcos.comms.updater
+
+import android.content.Context
+import android.content.pm.PackageManager
+import android.util.Base64
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.diegonmarcos.comms.BuildConfig
+import org.json.JSONArray
+import java.util.concurrent.TimeUnit
+
+/** One updatable APK in the constellation. Parsed from BuildConfig
+ *  (build.json: hub from release.ghcr + the three forks from forks.*). */
+data class FleetEntry(
+    val label: String,     // hub | mail | chat | matrix
+    val appId: String,
+    val image: String,     // GHCR image name
+    val blocked: Boolean,  // fork blocked_on set → never check
+) {
+    fun isInstalled(ctx: Context): Boolean =
+        try { ctx.packageManager.getPackageInfo(appId, 0); true }
+        catch (e: PackageManager.NameNotFoundException) { false }
+
+    fun installedVersion(ctx: Context): String? =
+        try {
+            @Suppress("DEPRECATION")
+            ctx.packageManager.getPackageInfo(appId, 0).versionName
+        } catch (e: PackageManager.NameNotFoundException) { null }
+}
+
+/**
+ * Public API for the hub's fleet updater. Same shape as ea_cloud-superapp's
+ * Updater (start/cancel/checkNow), but it manages the WHOLE constellation —
+ * itself + every fork — driven entirely by build.json::release.auto_update +
+ * the baked fleet. Call [start] once from App.onCreate.
+ */
+object FleetUpdater {
+    private const val WORK_NAME = "comms-fleet-auto-update"
+    private const val ONE_SHOT_NAME = "comms-fleet-update-now"
+
+    /** The constellation, in priority order (hub first). Data-driven. */
+    val fleet: List<FleetEntry> by lazy { parseFleet() }
+
+    fun start(context: Context) {
+        if (!BuildConfig.AUTO_UPDATE_ENABLED) { cancel(context); return }
+        val constraints = Constraints.Builder().apply {
+            setRequiredNetworkType(if (BuildConfig.AU_REQUIRE_UNMETERED) NetworkType.UNMETERED else NetworkType.CONNECTED)
+            if (BuildConfig.AU_REQUIRE_CHARGING) setRequiresCharging(true)
+        }.build()
+        val request = PeriodicWorkRequestBuilder<UpdateWorker>(
+            BuildConfig.AUTO_UPDATE_INTERVAL_HOURS, TimeUnit.HOURS,
+        ).setConstraints(constraints).build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request,
+        )
+    }
+
+    fun cancel(context: Context) =
+        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME).let { }
+
+    /** One-shot manual check (the About "Check for updates" button). REPLACE so
+        rapid taps cancel the previous run. */
+    fun checkNow(context: Context) {
+        val request = OneTimeWorkRequestBuilder<UpdateWorker>()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            ONE_SHOT_NAME, ExistingWorkPolicy.REPLACE, request,
+        )
+    }
+
+    private fun parseFleet(): List<FleetEntry> {
+        val json = String(Base64.decode(BuildConfig.UPDATE_FLEET_JSON_B64, Base64.DEFAULT))
+        val arr = JSONArray(json)
+        return (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            FleetEntry(
+                label = o.getString("label"),
+                appId = o.getString("app_id"),
+                image = o.getString("image"),
+                blocked = o.optBoolean("blocked", false),
+            )
+        }
+    }
+}
