@@ -1,0 +1,49 @@
+{
+  "$schema": "./comms-ipc-v1.schema.json",
+  "version": 1,
+  "authority": "com.diegonmarcos.comms.provider",
+  "permission": "com.diegonmarcos.comms.permission.IPC",
+  "permission_protection_level": "signature",
+  "domains": ["mail", "chat", "matrix"],
+  "_doc": "The on-device IPC contract between the Cloud-Comms hub and Cloud-SuperApp (and between the hub and each fork exporter). THE source of truth: hub/SuperApp/fork Kotlin constants mirror this file; `./build.sh verify-contract` validates it against comms-ipc-v1.schema.json. Only body PREVIEWS cross the boundary — full content stays in the owning app and is reached via the openInApp AIDL action (deep link). version is breaking: never edit v1 in place, add v2.",
+  "tables": {
+    "_doc": "ContentProvider tables. The hub exposes them under `authority`; each fork exporter exposes the same column shapes under its own authority (com.diegonmarcos.comms.<domain>.provider) and the hub UNIONs them. Every row carries `domain` so a single cursor can interleave mail/chat/matrix. `_ts` columns are epoch-millis longs.",
+    "accounts": {
+      "path": "accounts",
+      "columns": ["domain", "account_id", "display_name", "server", "state", "last_sync_ts"]
+    },
+    "summary": {
+      "path": "summary",
+      "columns": ["domain", "account_id", "unread_count", "total_count", "updated_ts"]
+    },
+    "threads": {
+      "path": "threads",
+      "columns": ["domain", "account_id", "thread_id", "title", "snippet", "unread", "ts"]
+    },
+    "messages": {
+      "path": "messages",
+      "columns": ["domain", "account_id", "thread_id", "message_id", "sender", "body_preview", "ts", "flags"]
+    }
+  },
+  "aidl": {
+    "_doc": "Bound service for actions + push callbacks (the write/live half the read-only ContentProvider can't do). Gated by the same signature permission. Survives Doze (bound service, not a socket). Method/callback signatures here are mirrored exactly in hub/src/main/aidl/.",
+    "service_interface": "com.diegonmarcos.comms.ICommsService",
+    "callback_interface": "com.diegonmarcos.comms.ICommsCallback",
+    "actions": [
+      { "name": "send", "args": ["String domain", "String accountId", "String threadId", "String body"], "returns": "boolean" },
+      { "name": "markRead", "args": ["String domain", "String accountId", "String threadId"], "returns": "boolean" },
+      { "name": "openInApp", "args": ["String domain", "String threadId"], "returns": "void" },
+      { "name": "forceSync", "args": ["String domain"], "returns": "void" },
+      { "name": "registerCallback", "args": ["ICommsCallback cb"], "returns": "void" },
+      { "name": "unregisterCallback", "args": ["ICommsCallback cb"], "returns": "void" }
+    ],
+    "callbacks": [
+      { "name": "onNewMessage", "args": ["String domain", "String threadId"] },
+      { "name": "onSyncStateChanged", "args": ["String domain", "String state"] }
+    ]
+  },
+  "states": {
+    "_doc": "Allowed values for accounts.state / summary sync state / onSyncStateChanged.",
+    "sync": ["idle", "syncing", "error", "offline", "unconfigured"]
+  }
+}

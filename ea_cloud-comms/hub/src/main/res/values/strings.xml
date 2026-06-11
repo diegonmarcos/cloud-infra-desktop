@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Cloud-Comms</string>
+    <string name="hub_title">Cloud-Comms</string>
+    <string name="hub_subtitle">IPC v%1$d · %2$s</string>
+    <string name="tile_open">Tap to open</string>
+    <string name="tile_not_installed">Not installed</string>
+    <string name="tile_not_installed_long">%1$s is not installed yet — install it from the Cloud-Comms updater.</string>
+    <string name="tile_blocked">Blocked: %1$s</string>
+    <string name="tile_launch_failed">Could not launch app</string>
+</resources>
