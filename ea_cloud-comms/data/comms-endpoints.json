@@ -1,0 +1,28 @@
+{
+  "_doc": "Per-domain server endpoints baked into each fork's pre-provisioned account profile + the hub's 'open in app' fallbacks. Data-driven: change a host here, re-materialize the affected fork, get a rebuilt default config. All hosts terminate at the Caddy public edge (:443); mail uses SNI demux on :443 (NOT 993/465) per the public-surface-collapse design. NO secrets here — credentials flow through each fork's own login, never this file.",
+  "mail": {
+    "_doc": "FairEmail fork pre-provisions an account against these. Implicit-TLS on :443 with SNI — Caddy L4 demuxes imap./smtps. to Maddy. JMAP host is Stalwart.",
+    "display_name": "Diego Mail",
+    "imap_host": "imap.diegonmarcos.com",
+    "imap_port": 443,
+    "imap_security": "ssl",
+    "smtp_host": "smtps.diegonmarcos.com",
+    "smtp_port": 443,
+    "smtp_security": "ssl",
+    "jmap_host": "jmap.diegonmarcos.com",
+    "jmap_port": 443,
+    "primary_address": "me@diegonmarcos.com"
+  },
+  "chat": {
+    "_doc": "Mattermost fork locks its server URL to this. Push-proxy URL intentionally omitted until the push decision is made (see forks/chat/build.json::comment).",
+    "display_name": "Diego Chat",
+    "server_url": "https://chat.diegonmarcos.com"
+  },
+  "matrix": {
+    "_doc": "Element X fork default homeserver. UnifiedPush distributor = our ntfy (rss.diegonmarcos.com). Values are placeholders pending the Matrix stack ship — confirm the real homeserver base URL + well-known at materialize time.",
+    "display_name": "Diego Matrix",
+    "homeserver_url": "https://matrix.diegonmarcos.com",
+    "sliding_sync_proxy": "",
+    "unifiedpush_distributor": "rss.diegonmarcos.com"
+  }
+}

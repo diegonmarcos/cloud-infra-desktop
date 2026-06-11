@@ -86,6 +86,15 @@ ea_*-*/
 ## clones (FairEmail, DAVx5, …), NOT for our owned modules.
 !ea_cloud-superapp/
 !ea_cloud-superapp/**
+## EXCEPTION: ea_cloud-comms/ — the Cloud-Comms constellation project
+## (hub APK + declarative fork patch-series for FairEmail/Mattermost/
+## Element X). Owns a `-` so it matches the ea_*-*/ ignore above; whitelist
+## the whole owned subtree exactly like ea_cloud-superapp. The forks
+## themselves are NOT vendored — they materialize at build time into
+## ea_chat-mattermost/ + ea_chat-element/ + the existing ea_mail-fairmail/
+## tracker clones, which stay ignored by the ea_*-*/ rule. Added 2026-06-11.
+!ea_cloud-comms/
+!ea_cloud-comms/**
 ## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/
