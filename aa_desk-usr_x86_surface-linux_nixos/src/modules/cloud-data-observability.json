@@ -51,7 +51,6 @@
     "scope": "system-environment",
     "rules": [
       "kwin_core.debug=true",
-      "kwin_libinput.debug=true",
       "kwin_wayland.debug=true",
       "ksmserver.debug=true",
       "qt.dbus.integration.debug=true",

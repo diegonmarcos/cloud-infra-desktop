@@ -32,6 +32,11 @@
   #     workflow publishes our locally-built kernel to ghcr.io; future
   #     installs pull instead of compile (in flight).
 
+  # ⚠ MINIMUM REQUIRED VERSION: linux-surface >= 6.17.13 — carries the
+  # hid-surface BTN_0 fix that ends the Type Cover click-loss bug (see the
+  # TRACKPAD CLICK WATCHDOG section below). nixos-hardware master packages
+  # 6.18 (longterm) / 6.19 (stable); keep the nixos-hardware input fresh
+  # (`./build.sh update nixos-hardware`).
   hardware.microsoft-surface = {
     # Use stable linux-surface kernel (latest patched release)
     # Options: "stable" (latest) or "longterm" (LTS, default)
@@ -55,17 +60,19 @@
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # PEN STASH PROBE FIX (linux-surface#1845)
+  # PEN STASH PROBE NOISE (linux-surface#1845) — COSMETIC, NOT THE CLICK BUG
   # ═══════════════════════════════════════════════════════════════════════════
-  # Device 01:15:02:02:00 is the "pen stash" slot on Surface Flex Keyboard.
-  # Type Cover lacks this device, so surface_hid probe gets 0-byte descriptor,
-  # returns -EPROTO (error -71), retries for ~2 min, disrupts entire HID stack
-  # causing trackpad click freezes.
-
-  # Option 2 (active): udev rule — prevent surface_hid from binding to pen stash
-  services.udev.extraRules = ''
-    SUBSYSTEM=="surface_aggregator_clients", ATTR{modalias}=="ssam:d01c15t02i02f00", ENV{MODALIAS}="", ATTR{driver_override}="(none)"
-  '';
+  # SSAM device 01:15:02:02:00 is the "pen stash" slot (maintainer-confirmed
+  # in #1845; node ssam_node_hid_kip_penstash in surface_aggregator_registry.c,
+  # hard-coded for all KIP keyboards). The Type Cover has no pen stash, so the
+  # surface_hid probe reads a 0-byte descriptor and fails with -71 (EPROTO)
+  # once per enumeration. Keyboard (iid 1) and touchpad (iid 3) probe
+  # independently — this error does NOT affect them and does NOT cause the
+  # click freezes (see watchdog section below for the real cause).
+  # A udev driver_override rule CANNOT suppress it: the kernel probes the
+  # device before udev processes the add event (verified 2026-06-11 —
+  # driver_override stayed empty while the probe failure still logged).
+  # Upstream fix (probe returning -ENODEV) not merged yet. Ignore the line.
 
   # ═══════════════════════════════════════════════════════════════════════════
   # LIBINPUT QUIRK: Disable touch-jump detection on Surface Type Cover
@@ -100,13 +107,25 @@
   '';
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # TRACKPAD CLICK WATCHDOG
+  # TRACKPAD CLICK WATCHDOG — stopgap for kernels WITHOUT the BTN_0 fix
   # ═══════════════════════════════════════════════════════════════════════════
-  # hid-multitouch driver intermittently stops sending BTN_LEFT events under
-  # system load (while BTN_TOUCH and motion continue). This watchdog monitors
-  # the touchpad via evtest: if it sees touch activity (BTN_TOUCH) but zero
-  # BTN_LEFT for 30s, it reloads the HID stack to recover clicks.
-  systemd.services.surface-trackpad-watchdog = {
+  # ROOT CAUSE (diagnosed 2026-06-11, upstream-confirmed): SAM firmware reports
+  # the Type Cover FN key as phantom mouse button BTN_0 (key 256 — verified
+  # present in the 045E:09AE keyboard's input capabilities on this machine).
+  # BTN_0 gets stuck "pressed" and repeats every ~34 ms, which breaks click /
+  # focus handling on KWin Wayland while cursor motion keeps working.
+  # Upstream: linux-surface#1851 + #1719, fixed by the hid-surface driver
+  # (PR #1870, merged 2025-12-31), shipped as 0016-hid-surface.patch in
+  # linux-surface releases >= 6.17.13-2 and all 6.18.x / 6.19.x.
+  #
+  # Manual recovery on unfixed kernels: toggle the FN key (LED off) — instant,
+  # no module reload needed (per #1719).
+  #
+  # This watchdog blind-resets the HID stack every 5 min to clear the stuck
+  # BTN_0 state. It AUTO-DISABLES when the running kernel is >= 6.17.13
+  # (hid-surface fix present in-kernel), so it vanishes with the kernel bump.
+  systemd.services.surface-trackpad-watchdog = lib.mkIf
+    (lib.versionOlder config.boot.kernelPackages.kernel.version "6.17.13") {
     description = "Surface trackpad click loss watchdog";
     after = [ "graphical.target" ];
     wantedBy = [ "graphical.target" ];

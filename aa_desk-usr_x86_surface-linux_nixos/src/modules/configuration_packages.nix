@@ -3,6 +3,20 @@
 
 {
   # ═══════════════════════════════════════════════════════════════════════════
+  # NIX-LD: run generic dynamically-linked Linux binaries
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Self-updating third-party tools (Claude Code native installer in
+  # ~/.local/share/claude/versions/, similar vendored ELF binaries) link
+  # against glibc and expect /lib64/ld-linux-x86-64.so.2. Without nix-ld that
+  # path is NixOS's stub-ld → "Could not start dynamically linked executable".
+  # nix-ld installs a real loader shim there instead.
+  # Incident 2026-06-11: claude auto-update to 2.1.172 replaced a previously
+  # interpreter-patched binary and locked the CLI out until re-patched.
+  # With nix-ld enabled, future auto-updates run unpatched.
+  # If a tool reports a missing .so, add it to programs.nix-ld.libraries.
+  programs.nix-ld.enable = true;
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # SYSTEM PACKAGES - MINIMAL
   # ═══════════════════════════════════════════════════════════════════════════
 
