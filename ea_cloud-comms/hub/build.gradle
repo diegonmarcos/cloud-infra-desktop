@@ -14,6 +14,7 @@ def repoRoot   = rootDir                       // ea_cloud-comms/
 def buildJson  = new groovy.json.JsonSlurper().parse(file("$repoRoot/build.json"))
 def contract   = new groovy.json.JsonSlurper().parse(file("$repoRoot/contract/comms-ipc-v1.json"))
 def endpoints  = new groovy.json.JsonSlurper().parse(file("$repoRoot/data/comms-endpoints.json"))
+def chrome     = new groovy.json.JsonSlurper().parse(file("$repoRoot/data/constellation-chrome.json"))
 def ghcr       = buildJson.release.ghcr
 def au         = buildJson.release.auto_update
 
@@ -33,12 +34,17 @@ def buildTimestamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss 'UTC'")
 def ipcAuthority  = contract.authority
 def ipcPermission = contract.permission
 def ipcVersion    = (contract.version as Number).intValue()
+def ipcLaunchAction = contract.launch_action
 
 // Fork registry baked as base64-JSON so the switcher + About render from
 // build.json::forks, not a hardcoded list. (Now carries the `image` field too.)
 def forksMap  = buildJson.forks.findAll { k, v -> !k.startsWith('_') }
 def forksB64  = JsonOutput.toJson(forksMap).bytes.encodeBase64().toString()
 def endpointsB64 = JsonOutput.toJson(endpoints).bytes.encodeBase64().toString()
+// Constellation chrome (the permanent wrapper top bar) — single source of
+// truth = data/constellation-chrome.json. The hub renders a back-button for
+// every chain entry that isn't itself; the forks' branding patch does the same.
+def chromeB64 = JsonOutput.toJson(chrome).bytes.encodeBase64().toString()
 
 // ── Update fleet ────────────────────────────────────────────────────────
 // The hub updates the WHOLE constellation: itself + each fork. Composed here
@@ -94,8 +100,10 @@ android {
         buildConfigField "int",    "IPC_VERSION",       "${ipcVersion}"
         buildConfigField "String", "IPC_AUTHORITY",     "\"${ipcAuthority}\""
         buildConfigField "String", "IPC_PERMISSION",    "\"${ipcPermission}\""
+        buildConfigField "String", "LAUNCH_ACTION",     "\"${ipcLaunchAction}\""
         buildConfigField "String", "FORKS_JSON_B64",    "\"${forksB64}\""
         buildConfigField "String", "ENDPOINTS_JSON_B64","\"${endpointsB64}\""
+        buildConfigField "String", "CHROME_JSON_B64",   "\"${chromeB64}\""
         buildConfigField "String", "GIT_SHORT_SHA",     "\"${shortSha}\""
         buildConfigField "String", "BUILD_TIMESTAMP",   "\"${buildTimestamp}\""
 

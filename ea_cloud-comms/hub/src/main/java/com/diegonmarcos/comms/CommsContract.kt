@@ -15,6 +15,13 @@ object CommsContract {
     const val AUTHORITY: String = BuildConfig.IPC_AUTHORITY
     const val PERMISSION: String = BuildConfig.IPC_PERMISSION
 
+    /** Intent action the forks register (icon-less, signature-gated) for the hub
+     *  / SuperApp to open them. One-icon model — see contract::launch_action. */
+    const val LAUNCH_ACTION: String = BuildConfig.LAUNCH_ACTION
+
+    /** Optional extra on LAUNCH_ACTION: deep-link a specific conversation. */
+    const val EXTRA_THREAD_ID: String = "com.diegonmarcos.comms.extra.THREAD_ID"
+
     /** Per-fork exporter authority for domain d, e.g. mail → ...comms.mail.provider. */
     fun forkAuthority(domain: String): String = "com.diegonmarcos.comms.$domain.provider"
 

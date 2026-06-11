@@ -31,7 +31,8 @@
     "contract": "contract/comms-ipc-v1.json",
     "authority": "com.diegonmarcos.comms.provider",
     "permission": "com.diegonmarcos.comms.permission.IPC",
-    "aidl_service": "com.diegonmarcos.comms.ICommsService"
+    "aidl_service": "com.diegonmarcos.comms.ICommsService",
+    "launch_action": "com.diegonmarcos.comms.action.OPEN"
   },
   "modules": {
     "_doc": "Gradle module graph — settings.gradle iterates this (FIRE rule 6: never hardcode the list). Only the hub is an in-tree gradle module; the three forks are SEPARATE gradle projects living in their materialized tracker clones, built via `./build.sh build-fork <name>`, never included here.",

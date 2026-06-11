@@ -4,6 +4,8 @@
   "authority": "com.diegonmarcos.comms.provider",
   "permission": "com.diegonmarcos.comms.permission.IPC",
   "permission_protection_level": "signature",
+  "launch_action": "com.diegonmarcos.comms.action.OPEN",
+  "_doc_launch_action": "One-icon model: the forks ship WITHOUT a launcher icon (their branding patch removes the MAIN/LAUNCHER category), so the Cloud-Comms hub is the only home-screen icon. Each fork instead declares an exported, signature-gated intent-filter for this action on its main activity; the hub (and SuperApp's openInApp) open a fork via Intent(launch_action).setPackage(<fork app id>). The optional thread-id extra (com.diegonmarcos.comms.extra.THREAD_ID) deep-links a conversation.",
   "domains": ["mail", "chat", "matrix"],
   "_doc": "The on-device IPC contract between the Cloud-Comms hub and Cloud-SuperApp (and between the hub and each fork exporter). THE source of truth: hub/SuperApp/fork Kotlin constants mirror this file; `./build.sh verify-contract` validates it against comms-ipc-v1.schema.json. Only body PREVIEWS cross the boundary — full content stays in the owning app and is reached via the openInApp AIDL action (deep link). version is breaking: never edit v1 in place, add v2.",
   "tables": {
