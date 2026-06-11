@@ -1,6 +1,8 @@
 package com.diegonmarcos.comms
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.diegonmarcos.comms.updater.BundledForkInstaller
 import com.diegonmarcos.comms.updater.FleetUpdater
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -44,5 +46,17 @@ class FleetUpdaterTest {
         assertTrue("auto-update enabled", BuildConfig.AUTO_UPDATE_ENABLED)
         assertTrue("interval > 0", BuildConfig.AUTO_UPDATE_INTERVAL_HOURS > 0)
         assertEquals("tag", "latest", BuildConfig.AUTO_UPDATE_TAG)
+    }
+
+    @Test
+    fun bundledForkAssetsEnumerateSafely() {
+        // The assets/forks dir exists (README keeps it present); .apk bundling
+        // happens at build time. With no fork published, the list is empty —
+        // the enumeration must not crash and installMissing must be a no-op.
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        val domains = BundledForkInstaller.bundledDomains(ctx)
+        for (d in domains) assertTrue("bundled domain known", FleetUpdater.fleet.any { it.label == d })
+        // Any bundled domain must be a real fork (never 'hub').
+        assertTrue("hub is never bundled", !domains.contains("hub"))
     }
 }
