@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press launcher icon → these shortcuts. Each carries a
+     shortcut_action extra; MainActivity dispatches via the same target grammar
+     Cloud-SuperApp uses (action:<name>). The `update` shortcut makes the fleet
+     updater an independent launcher icon, mirroring superapp. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <shortcut
+        android:shortcutId="update"
+        android:enabled="true"
+        android:icon="@drawable/ic_refresh"
+        android:shortcutShortLabel="@string/shortcut_update_short"
+        android:shortcutLongLabel="@string/shortcut_update_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.diegonmarcos.comms"
+            android:targetClass="com.diegonmarcos.comms.MainActivity">
+            <extra android:name="shortcut_action" android:value="action:check_updates" />
+        </intent>
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="about"
+        android:enabled="true"
+        android:icon="@drawable/ic_about"
+        android:shortcutShortLabel="@string/shortcut_about_short"
+        android:shortcutLongLabel="@string/shortcut_about_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.diegonmarcos.comms"
+            android:targetClass="com.diegonmarcos.comms.MainActivity">
+            <extra android:name="shortcut_action" android:value="action:open_about" />
+        </intent>
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+
+</shortcuts>

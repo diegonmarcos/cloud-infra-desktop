@@ -53,10 +53,13 @@ object ConstellationBar {
         return out
     }
 
-    /** Build the bar for [selfPackage]; null if there are no other apps. */
+    /** Build the bar for [selfPackage]. Renders the FULL constellation —
+     *  Cloud-SuperApp | Cloud-Comms • Mail | Mattermost | Element — with the
+     *  current app highlighted (the user always sees where they are; the other
+     *  entries navigate). Null only if the constellation is empty. */
     fun build(ctx: Context, selfPackage: String): View? {
-        val others = nodes().filter { it.pkg != selfPackage }
-        if (others.isEmpty()) return null
+        val all = nodes()
+        if (all.isEmpty()) return null
         val chrome = JSONObject(String(Base64.decode(BuildConfig.CHROME_JSON_B64, Base64.DEFAULT)))
         val bar = chrome.getJSONObject("top_bar")
         val glyph = bar.optString("back_glyph", "↑")
@@ -69,15 +72,27 @@ object ConstellationBar {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(4), 0, dp(4), 0)
         }
-        for (n in others) {
-            // Ancestors get the back-glyph; sibling comms apps get a dot.
-            val prefix = if (n.isFork) "•" else glyph
+        for (n in all) {
+            val isSelf = n.pkg == selfPackage
+            // Ancestors get the back-glyph; comms apps get a dot; the current
+            // app gets no prefix — it's highlighted instead.
+            val prefix = when {
+                isSelf -> ""
+                n.isFork -> "• "
+                else -> "$glyph "
+            }
             row.addView(TextView(ctx).apply {
-                text = "$prefix ${n.label}"
+                text = "$prefix${n.label}"
                 textSize = 13f
                 setPadding(dp(12), dp(8), dp(12), dp(8))
-                isClickable = true
-                setOnClickListener { open(ctx, n) }
+                if (isSelf) {
+                    // Current app: bold + underline-style accent, not a button.
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setBackgroundColor(Color.parseColor("#337C3AED"))
+                } else {
+                    isClickable = true
+                    setOnClickListener { open(ctx, n) }
+                }
             })
         }
         return HorizontalScrollView(ctx).apply {
