@@ -112498,3 +112498,30 @@ error:
 [2026-06-10 23:58:31] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-06-10 23:58:31] PERF: start switch
 [2026-06-10 23:58:35] INFO: Staging dirty files for flake evaluation...
+[2026-06-10 23:58:38] PERF: git stage = 6.9s
+[2026-06-10 23:58:39] PERF: clean backups = 226ms
+[2026-06-10 23:58:39] PERF: profile guard = 155ms
+[2026-06-10 23:58:39] PERF: clear stale files = 193ms
+[2026-06-10 23:58:39] INFO: Applying nix-on-droid configuration (verbose=1)...
+Building activation package...
+copying path '/nix/store/anvdcc2arw7kqrvwnidvhw6ypkkvws68-source' from 'https://cache.nixos.org'...
+error: opening directory '/nix/store/anvdcc2arw7kqrvwnidvhw6ypkkvws68-source/pkgs/by-name/pi/pixel-code': No such file or directory
+error:
+       … while calling the 'derivationStrict' builtin
+
+         at /builtin/derivation.nix:9:12: (source not available)
+
+       … while evaluating derivation 'nix-on-droid-generation'
+         whose name attribute is located at /nix/store/lv9bmgm6v1wc3fiz00v29gi4rk13ja6l-source/pkgs/stdenv/generic/make-derivation.nix:333:7
+
+       … while evaluating attribute 'buildCommand' of derivation 'nix-on-droid-generation'
+
+         at /nix/store/lv9bmgm6v1wc3fiz00v29gi4rk13ja6l-source/pkgs/build-support/trivial-builders/default.nix:68:16: (source not available)
+
+       (stack trace truncated; use '--show-trace' to show the full trace)
+
+       error: creating directory '/data': Function not implemented
+[2026-06-11 00:09:16] ========== Build script started ==========
+[2026-06-11 00:09:16] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-06-11 00:09:17] PERF: start switch
+[2026-06-11 00:09:20] INFO: Staging dirty files for flake evaluation...
