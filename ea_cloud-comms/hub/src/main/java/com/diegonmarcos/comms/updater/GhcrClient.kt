@@ -1,5 +1,6 @@
 package com.diegonmarcos.comms.updater
 
+import com.diegonmarcos.comms.BuildConfig
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
