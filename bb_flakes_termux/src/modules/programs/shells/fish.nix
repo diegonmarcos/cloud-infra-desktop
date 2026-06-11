@@ -84,7 +84,7 @@
       # AI CLIs — see interactiveShellInit for ai-cli function
 
       # Welcome screen
-      welcome = "_show_welcome";
+      welcome = "fish_greeting";
     };
 
     functions = {
