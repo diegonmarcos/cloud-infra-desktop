@@ -1,11 +1,11 @@
 {
   "_description": "qutebrowser keybindings. Mode → key → command. Maps to home-manager's programs.qutebrowser.keyBindings.<mode> attrset.",
   "normal": {
-    "<Ctrl-Shift-p>": "spawn --userscript /home/diego/.local/bin/da_autofill-rbw-rofi pick",
-    "<Ctrl-Shift-u>": "spawn --userscript /home/diego/.local/bin/da_autofill-rbw-rofi user",
-    "<Ctrl-Shift-l>": "spawn --userscript /home/diego/.local/bin/da_autofill-rbw-rofi pass",
-    "<Ctrl-Shift-o>": "spawn --userscript /home/diego/.local/bin/da_autofill-rbw-rofi totp",
-    "_comment_autofill": "Hotkeys to fire the system autofill daemon directly from a qutebrowser focus context. Browser is just a 'focused window' to the daemon — these hotkeys are the explicit, in-browser ergonomic path on top of the global system hotkey.",
+    "<Ctrl-Shift-p>": "spawn --detach /home/diego/.local/bin/da_autofill-rbw-rofi pick",
+    "<Ctrl-Shift-u>": "spawn --detach /home/diego/.local/bin/da_autofill-rbw-rofi user",
+    "<Ctrl-Shift-l>": "spawn --detach /home/diego/.local/bin/da_autofill-rbw-rofi pass",
+    "<Ctrl-Shift-o>": "spawn --detach /home/diego/.local/bin/da_autofill-rbw-rofi totp",
+    "_comment_autofill": "Hotkeys to fire the system autofill daemon directly from a qutebrowser focus context. Browser is just a 'focused window' to the daemon — these hotkeys are the explicit, in-browser ergonomic path on top of the global system hotkey. The trailing arg (pick|user|pass|totp) is the binary's action selector: 'pick' shows the interactive action picker, the others dispatch that action directly and skip the picker. Use 'spawn --detach' (NOT --userscript): the target is a standalone GUI helper, not a qutebrowser userscript that talks back over $QUTE_FIFO.",
     ",v": "open https://vault.diegonmarcos.com",
     ",a": "open https://auth.diegonmarcos.com",
     ",g": "open https://git.diegonmarcos.com"

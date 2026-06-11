@@ -43,34 +43,44 @@ da_browser-qute/
 
 ## Operator path
 
-In your home flake (`~/git/unix/c{a,b}_*nix*` or wherever home-manager lives):
+This is already wired into the live desktop flake. `ba_flakes_desktop`
+declares the monorepo as a non-flake input and imports this module from it:
 
 ```nix
-{
-  inputs.da_browser-qute.url = "path:../../da_browser-qute/src";
+# ba_flakes_desktop/src/flake.nix
+inputs.unix-repo = { url = "github:diegonmarcos/unix"; flake = false; };
+```
 
-  outputs = { self, nixpkgs, home-manager, da_browser-qute, ... }: {
-    homeConfigurations.diego = home-manager.lib.homeManagerConfiguration {
-      modules = [
-        da_browser-qute.homeManagerModules.default
-        ({...}: {
-          programs.da_browser-qute = {
-            enable = true;
-            defaultBrowser = true;     # xdg.mime → qutebrowser
-          };
-        })
-      ];
-    };
+```nix
+# ba_flakes_desktop/src/modules/browsers/qute.nix
+{ inputs, ... }:
+{
+  imports = [ "${inputs.unix-repo}/da_browser-qute/src/nix/home-module.nix" ];
+  programs.da_browser-qute = {
+    enable = true;
+    defaultBrowser = false;   # flip to true to own http(s) via xdg.mime
   };
 }
 ```
 
-Then:
+The `browsers/qute` leaf is listed in the `productivity` profile
+(`ba_flakes_desktop/src/modules/leaves.json`), so it ships with the full
+preset. Apply:
 
 ```bash
-~/git/unix/cb_user_diego_nix/build.sh switch    # or wherever home-manager is
-qutebrowser                                     # daily-driver running
+~/git/unix/ba_flakes_desktop/build.sh switch surface-plasma   # apply
+qutebrowser                                                   # daily-driver
 ```
+
+Because the import resolves through the `unix-repo` github input (pinned in
+`flake.lock`), edits to `src/2_configs/*.json` only land after you push the
+monorepo and bump the pin — `nix flake lock --update-input unix-repo` (or
+`build.sh update`), then `switch`. For an uncommitted local test, build with
+`--override-input unix-repo path:/home/diego/git/unix`.
+
+For a standalone home flake (no monorepo), the generic path still works:
+`inputs.da_browser-qute.url = "path:../../da_browser-qute/src"` then import
+`da_browser-qute.homeManagerModules.default`.
 
 ## Editing the config
 
@@ -92,9 +102,15 @@ $EDITOR ~/git/unix/da_browser-qute/src/2_configs/qute-search-engines.json
 
 - ✅ Scaffold + JSON SoT
 - ✅ home-manager module (reads JSON, projects to `programs.qutebrowser`)
-- ⏳ Wire into the actual home-manager flake (`cb_user_diego_nix` or equivalent) — not done yet
-- ⏳ Theme / colors block (currently empty placeholder in qute-settings.json)
-- ⏳ Userscript dir for advanced integrations (e.g. fire `da_fido2-vault-broker` admin commands from the browser)
+- ✅ Wired into the live desktop flake — `ba_flakes_desktop/src/modules/browsers/qute.nix`
+  imports this module via the `unix-repo` flake input and enables it; the
+  `browsers/qute` leaf is in the `productivity` profile (`modules/leaves.json`).
+  Apply with `ba_flakes_desktop/build.sh switch surface-plasma`.
+- ✅ Theme / colors block — Breeze-Dark palette in `qute-settings.json::colors`
+  (statusbar + tabs + `webpage.preferred_color_scheme = dark`)
+- ✅ Autofill keybindings fire the daemon with a real action selector
+  (`pick`/`user`/`pass`/`totp`) via `spawn --detach`
+- ⏳ Userscript dir for advanced integrations (e.g. fire `da_fido2-vault-broker` admin commands from the browser) — optional/future
 
 ## Why not fork qutebrowser
 
