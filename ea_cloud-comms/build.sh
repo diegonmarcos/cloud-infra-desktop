@@ -82,8 +82,12 @@ step_bundle_forks() {
       log "bundle-forks: $key not published yet ($image:$tag) — skip"
     fi
   done < <(prefer_host jq -r '.forks | to_entries[] | select(.key|startswith("_")|not) | .key' "$SCRIPT_DIR/build.json")
-  local n; n="$(ls -1 "$assets"/*.apk 2>/dev/null | wc -l)"
-  log "bundle-forks: $n fork(s) embedded in the hub bundle"
+  # Count embedded apks glob-safely — `ls *.apk | wc -l` trips set -o pipefail
+  # when the glob matches nothing (empty bundle = the normal pre-fork state).
+  shopt -s nullglob
+  local apks=("$assets"/*.apk)
+  shopt -u nullglob
+  log "bundle-forks: ${#apks[@]} fork(s) embedded in the hub bundle"
 }
 
 # ── hub build/test ─────────────────────────────────────────────────────

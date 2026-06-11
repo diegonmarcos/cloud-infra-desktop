@@ -15,7 +15,9 @@
     "version_code": 1,
     "version_name": "0.1.0-dev",
     "_doc_abi_filters": "Hub is pure-JVM (no native libs) so ABI filtering is irrelevant to it; kept for schema parity with ea_cloud-superapp. The forks declare their own abi_filters.",
-    "abi_filters": ["arm64-v8a"]
+    "abi_filters": [
+      "arm64-v8a"
+    ]
   },
   "toolchain": {
     "_doc": "Pinned for reproducibility — all derived in flake.nix. Mirrors ea_cloud-superapp's pins so the two Android projects share one toolchain story. Node is added for the Mattermost React-Native fork's Metro/JS build.",
@@ -46,6 +48,7 @@
     "_doc": "Declarative fork registry — THE source of truth for the constellation. Each fork = pinned upstream tag + committed patch series under forks/<key>/patches/. `./build.sh materialize-fork <key>` clones the upstream at the pin into the tracker dir, applies the series, and leaves a buildable project. Upstream bump = edit pinned_tag, re-apply, resolve rejects, commit. NEVER a long-lived divergent clone. order: 'priority' is build/dev sequencing only.",
     "mail": {
       "app_id": "com.diegonmarcos.comms.mail",
+      "label": "Mail",
       "image": "cloud-comms-mail",
       "upstream_repo": "https://github.com/M66B/FairEmail.git",
       "tracker_dir": "ea_mail-fairmail",
@@ -60,6 +63,7 @@
     },
     "chat": {
       "app_id": "com.diegonmarcos.comms.chat",
+      "label": "Mattermost",
       "image": "cloud-comms-chat",
       "upstream_repo": "https://github.com/mattermost/mattermost-mobile.git",
       "tracker_dir": "ea_chat-mattermost",
@@ -74,6 +78,7 @@
     },
     "matrix": {
       "app_id": "com.diegonmarcos.comms.matrix",
+      "label": "Element",
       "image": "cloud-comms-matrix",
       "upstream_repo": "https://github.com/element-hq/element-x-android.git",
       "tracker_dir": "ea_chat-element",
@@ -101,7 +106,11 @@
       "namespace": "diegonmarcos",
       "image": "cloud-comms-hub",
       "media_type": "application/vnd.android.package-archive",
-      "tags": ["latest", "sha-{sha}", "v{version_name}"]
+      "tags": [
+        "latest",
+        "sha-{sha}",
+        "v{version_name}"
+      ]
     },
     "gh_release": {
       "_doc": "GitHub Release attachment. rolling_tag is canonical: one release (default `latest`) the ship workflow overwrites on every main push, so /releases/latest/download/Cloud-Comms-Hub.apk is a stable URL. tag_pattern stays for immutable per-tag releases under a tag push (rolling release publishes alongside).",
