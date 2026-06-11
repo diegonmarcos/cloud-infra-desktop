@@ -37,7 +37,10 @@ let
           if ! sudo wg show "$IFACE" >/dev/null 2>&1; then
             echo "[wg-fallback] $IFACE is DOWN"; exit 0
           fi
-          CUR=$(sudo wg show "$IFACE" endpoints | awk '/'"$HUB_PUBKEY"'/{print $2}')
+          # Field-equality match (NOT regex): the WG pubkey contains '/' and '+'
+          # which break an awk /regex/ delimiter. `wg show endpoints` emits
+          # "<pubkey>\t<endpoint>" so match $1 literally.
+          CUR=$(sudo wg show "$IFACE" endpoints | awk -v k="$HUB_PUBKEY" '$1==k{print $2}')
           echo "[wg-fallback] $IFACE endpoint: ''${CUR:-unknown}"
           echo "[wg-fallback] primary  = $HUB_HOST:$PRIMARY_PORT"
           echo "[wg-fallback] fallback = $HUB_HOST:$FALLBACK_PORT (udp/443 -> udp/$PRIMARY_PORT NAT on hub)"
