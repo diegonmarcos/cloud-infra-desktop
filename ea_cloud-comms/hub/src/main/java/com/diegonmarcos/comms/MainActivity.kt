@@ -10,6 +10,7 @@ import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.diegonmarcos.comms.updater.BundledForkInstaller
+import com.diegonmarcos.comms.updater.FleetUpdater
 
 /**
  * The switcher. Renders one tile per fork (data-driven from ForkRegistry, itself
@@ -81,6 +82,36 @@ class MainActivity : AppCompatActivity() {
 
         root.addView(content)
         setContentView(root)
+
+        // Launcher-shortcut dispatch (mirrors Cloud-SuperApp's grammar).
+        handleShortcutIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleShortcutIntent(intent)
+    }
+
+    /**
+     * Dispatch a launcher-shortcut intent carrying a `shortcut_action` extra,
+     * using the same target grammar Cloud-SuperApp uses (action:<name>). The
+     * `update` shortcut is an independent launcher icon: it kicks off the fleet
+     * updater and opens About so the user sees live progress.
+     */
+    private fun handleShortcutIntent(intent: Intent?) {
+        val action = intent?.getStringExtra(AboutActivity.EXTRA_SHORTCUT_ACTION) ?: return
+        // Consume so a config-change / re-entry doesn't re-fire it.
+        intent.removeExtra(AboutActivity.EXTRA_SHORTCUT_ACTION)
+        when (action) {
+            "action:check_updates" -> {
+                FleetUpdater.checkNow(this)
+                startActivity(Intent(this, AboutActivity::class.java))
+            }
+            "action:open_about" -> {
+                startActivity(Intent(this, AboutActivity::class.java))
+            }
+        }
     }
 
     private fun tileFor(fork: Fork): TextView {
