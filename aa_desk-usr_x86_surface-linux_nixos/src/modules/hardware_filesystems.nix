@@ -3,6 +3,16 @@
 
 {
   # ═══════════════════════════════════════════════════════════════════════════
+  # NIXPKGS OVERRIDE: btrfs initrd modules (kernel >= 6.19 compat)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # nixpkgs 24.11's btrfs module requests "blake2b_generic", a module FILE
+  # name that kernel 6.19 renamed — initrd build fails (allowMissing=false).
+  # We swap in a vendored copy using stable crypto algorithm aliases.
+  # Full rationale + removal condition: ./nixpkgs-overrides/btrfs.nix
+  disabledModules = [ "tasks/filesystems/btrfs.nix" ];
+  imports = [ ./nixpkgs-overrides/btrfs.nix ];
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # FILESYSTEM MOUNTS - IMPERMANENCE
   # ═══════════════════════════════════════════════════════════════════════════
 
