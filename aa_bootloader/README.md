@@ -46,11 +46,13 @@ aa_bootloader/
 
 ```bash
 ./build.sh generate                # src/ → dist/  (no live changes)
-./build.sh validate                # boot.json schema + lint
+./build.sh validate                # boot.json schema + lint + rendered stanza-icon guard
 ./build.sh plan                    # show would-change diff
-./build.sh deploy --target nixos   # copy dist/adapters/nixos/* into host flake
-./build.sh deploy --target refind  # write rEFInd to /boot/efi/EFI/refind/
-./build.sh deploy --target grub    # write GRUB chainload (Phase 3)
+./build.sh deploy-nixos            # copy dist/adapters/nixos/* into host flake
+./build.sh deploy-refind           # write rEFInd to /boot/efi/EFI/refind/ (run as root)
+./build.sh deploy-grub             # write GRUB chainload
+./build.sh deploy-nvram            # apply efibootmgr NVRAM entries
+./build.sh deploy-all              # everything above
 ./build.sh status                  # dist/ freshness + last deploy times
 ./build.sh snapshot                # capture live state into snapshots/
 ```

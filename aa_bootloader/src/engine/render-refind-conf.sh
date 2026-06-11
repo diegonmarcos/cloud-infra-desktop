@@ -93,6 +93,24 @@ else
     ICON_PATH="/EFI/refind/icons"
 fi
 
+# ── Stanza-icon path (volume-root absolute) ───────────────────────────────
+# rEFInd resolves the two icon contexts DIFFERENTLY (refind/config.c):
+#   - global `icons_dir` / `banner`: relative to the rEFInd binary's dir
+#   - manual-stanza `icon`: egLoadIcon(CurrentVolume->RootDir, path) —
+#     resolved from the VOLUME ROOT (= ESP root, since our stanzas declare
+#     `icon` before `volume` and CurrentVolume starts as SelfVolume).
+# A refind-dir-relative theme path ("themes/<name>/...") therefore NEVER
+# resolves for stanza icons → rEFInd silently falls back to its built-in
+# generic icons. That was the "first-row icons broken, tool row fine" bug
+# (root-caused 2026-06-11; the 2026-05-16 icon-size theory in boot.json's
+# _icon_size_note was wrong — sizes never mattered, the paths never hit).
+# Stanza icons get the ESP-root-absolute prefix from refind.install.esp_dir.
+ESP_DIR=$(jq -r '.refind.install.esp_dir // "/EFI/refind"' "$BOOT_JSON")
+case "$ICON_PATH" in
+    /*) STANZA_ICON_PATH="$ICON_PATH" ;;
+    *)  STANZA_ICON_PATH="${ESP_DIR}/${ICON_PATH}" ;;
+esac
+
 # /nix/store/<HASH>-<NAME>/<file>  →  <HASH>-<NAME>-<file> (matches /boot/kernels)
 nix_to_boot_name() {
     target="$1"; name=${target#/nix/store/}
@@ -105,7 +123,7 @@ nix_to_boot_name() {
 
 emit_nixos_one() {
     label="$1"; init_path="$2"; kernel_store="$3"; initrd_store="$4"; params="$5"
-    icon="${6:-${ICON_PATH}/os_nixos.png}"
+    icon="${6:-${STANZA_ICON_PATH}/os_nixos.png}"
     kboot=$(nix_to_boot_name "$kernel_store")
     iboot=$(nix_to_boot_name "$initrd_store")
     cat <<EOF
@@ -129,7 +147,7 @@ producer_nixos_primary() {
     initrd=$(readlink "$sys/initrd" 2>/dev/null) || return 0
     params=$(cat "$sys/kernel-params" 2>/dev/null || echo "")
     icon=""
-    [ -n "$icon_override" ] && icon="${ICON_PATH}/${icon_override}.png"
+    [ -n "$icon_override" ] && icon="${STANZA_ICON_PATH}/${icon_override}.png"
     emit_nixos_one "$label" "$sys/init" "$kernel" "$initrd" "$params" "$icon"
 }
 
@@ -165,15 +183,15 @@ producer_nixos_specialisation() {
     initrd=$(readlink "$spec/initrd" 2>/dev/null) || return 0
     params=$(cat "$spec/kernel-params" 2>/dev/null || echo "")
     icon=""
-    [ -n "$icon_override" ] && icon="${ICON_PATH}/${icon_override}.png"
+    [ -n "$icon_override" ] && icon="${STANZA_ICON_PATH}/${icon_override}.png"
     emit_nixos_one "$label" "$spec/init" "$kernel" "$initrd" "$params" "$icon"
 }
 
 producer_nixos_rollback() {
     label="$1"; max="${2:-5}"; icon_override="$3"
     [ -d "$NIX_PROFILES" ] || { warn "  $label: /nix not mounted, skipping"; return 0; }
-    rb_icon="${ICON_PATH}/os_nixos.png"
-    [ -n "$icon_override" ] && rb_icon="${ICON_PATH}/${icon_override}.png"
+    rb_icon="${STANZA_ICON_PATH}/os_nixos.png"
+    [ -n "$icon_override" ] && rb_icon="${STANZA_ICON_PATH}/${icon_override}.png"
 
     # rEFInd has no top-level submenu construct. We emit a HEADER menuentry
     # named "$label" that itself loads the current default (so pressing Enter
@@ -259,7 +277,7 @@ producer_linux_partition() {
     icon="${icon_override:-os_$from}"
     cat <<EOF
 menuentry "$label" {
-    icon ${ICON_PATH}/${icon}.png
+    icon ${STANZA_ICON_PATH}/${icon}.png
     volume "$uuid"
     loader $kernel
     initrd $initrd
@@ -280,7 +298,7 @@ producer_usb_chainload() {
     [ -n "$uuid" ] || { warn "  $label: usb entry has no efi_uuid"; return 0; }
     cat <<EOF
 menuentry "$label" {
-    icon ${ICON_PATH}/${icon}.png
+    icon ${STANZA_ICON_PATH}/${icon}.png
     volume "$uuid"
     loader $path
 }
@@ -297,7 +315,7 @@ producer_windows_chainload() {
     icon="${icon_override:-os_win}"
     cat <<EOF
 menuentry "$label" {
-    icon ${ICON_PATH}/${icon}.png
+    icon ${STANZA_ICON_PATH}/${icon}.png
     volume "$uuid"
     loader $path
 }
@@ -330,7 +348,7 @@ producer_efi_chainload() {
     [ -n "$path" ] || { warn "  $label: grub.menu.$from missing efi_path"; return 0; }
     cat <<EOF
 menuentry "$label" {
-    icon ${ICON_PATH}/${icon}.png
+    icon ${STANZA_ICON_PATH}/${icon}.png
     volume "$uuid"
     loader $path
 }
@@ -343,7 +361,7 @@ producer_refind_self() {
     icon="${icon_override:-os_refind}"
     cat <<EOF
 menuentry "$label" {
-    icon ${ICON_PATH}/${icon}.png
+    icon ${STANZA_ICON_PATH}/${icon}.png
     volume "$ESP_UUID"
     loader /EFI/refind/refind_x64.efi
 }

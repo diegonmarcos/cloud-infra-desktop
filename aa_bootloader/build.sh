@@ -191,6 +191,40 @@ cmd_validate() {
             fi
         fi
     done
+    # ── Rendered stanza-icon guard (regression test, 2026-06-11) ────────────
+    # rEFInd resolves manual-stanza `icon` paths from the VOLUME ROOT
+    # (refind/config.c: egLoadIcon(CurrentVolume->RootDir, ...)), unlike
+    # icons_dir/banner which are rEFInd-dir-relative. Relative stanza paths
+    # never resolve → silent fallback to generic icons ("first row broken,
+    # tool row fine"). Guard: every rendered stanza icon must be absolute
+    # AND exist in the dist ESP tree.
+    DIST_REFIND_CONF="$SCRIPT_DIR/dist/boot/efi/EFI/refind/refind.conf"
+    if [ -f "$DIST_REFIND_CONF" ]; then
+        log "Checking rendered stanza icon paths (volume-root + existence)..."
+        icon_fail=0
+        for p in $(awk '$1=="icon" {print $2}' "$DIST_REFIND_CONF"); do
+            case "$p" in
+                /*)
+                    if [ ! -f "$SCRIPT_DIR/dist/boot/efi$p" ]; then
+                        error "  stanza icon missing in dist ESP tree: $p"
+                        icon_fail=1
+                    fi
+                    ;;
+                *)
+                    error "  stanza icon not volume-root absolute: $p"
+                    icon_fail=1
+                    ;;
+            esac
+        done
+        if [ "$icon_fail" -ne 0 ]; then
+            error "stanza icon check FAILED — rEFInd would show fallback icons"
+            return 1
+        fi
+        log "  stanza icons: all absolute + present in dist ✓"
+    else
+        warn "dist refind.conf not rendered yet — run generate first for the icon guard"
+    fi
+
     log "validate: done"
 }
 
