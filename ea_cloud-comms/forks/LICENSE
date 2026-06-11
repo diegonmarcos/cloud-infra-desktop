@@ -1,0 +1,18 @@
+Inherited copyleft — NOT under the repository's PolyForm Noncommercial license.
+
+The patch series in this directory are derivative works of their respective
+upstream apps and are licensed under those upstreams' licenses. The fork APKs
+built from them (after `build.sh materialize-fork <x>`) ship under the same:
+
+  forks/mail/    SPDX: GPL-3.0-or-later   FairEmail        https://github.com/M66B/FairEmail
+  forks/chat/    SPDX: Apache-2.0         Mattermost mobile https://github.com/mattermost/mattermost-mobile
+  forks/matrix/  SPDX: AGPL-3.0-or-later  Element X Android https://github.com/element-hq/element-x-android
+
+Full license texts:
+  GPL-3.0  : https://www.gnu.org/licenses/gpl-3.0.txt
+  AGPL-3.0 : https://www.gnu.org/licenses/agpl-3.0.txt
+  Apache-2.0: https://www.apache.org/licenses/LICENSE-2.0.txt
+
+These licenses permit commercial use under their own terms and forbid adding
+further restrictions (such as "noncommercial"); the repository's root LICENSE
+therefore does NOT apply to anything under this directory.
