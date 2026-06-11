@@ -734,7 +734,12 @@
               home.activation.genClaudeMd = lib.hm.dag.entryAfter ["linkGeneration"] ''
                 GEN="$HOME/.claude/gen-claude-md.sh"
                 if [ -x "$GEN" ]; then
+                  # The activation PATH is minimal and lacks gawk — gen-claude-md.sh
+                  # uses awk (ANSI strip + repo trees) under `set -euo pipefail`, so a
+                  # missing awk aborts generation and freezes CLAUDE.md. Pin the script's
+                  # toolchain explicitly for a reproducible activation.
                   NODE_BIN="${pkgs.nodejs_22}/bin/node" \
+                  PATH="${lib.makeBinPath [ pkgs.gawk pkgs.coreutils pkgs.findutils pkgs.gnused ]}:$PATH" \
                     $DRY_RUN_CMD "$GEN" \
                       "$HOME/.claude/CLAUDE.md.tpl" \
                       "$HOME/.claude/CLAUDE.md" \
