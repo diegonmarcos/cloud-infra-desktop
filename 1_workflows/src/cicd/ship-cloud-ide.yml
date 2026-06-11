@@ -1,0 +1,181 @@
+name: "Ship → Cloud-IDE Hub APK (build + push to GHCR via ORAS + attach to GH Release)"
+
+# Builds the Cloud-IDE HUB APK from ea_cloud-ide/ and publishes via two channels
+# — both data-driven by ea_cloud-ide/build.json::release:
+#
+#   1. ORAS push as OCI artifact  → ghcr.io/<ns>/cloud-ide-hub:<tags>
+#      (release.ghcr.tags expanded from build.json; APK published as an OCI blob).
+#   2. GH Release attachment       → rolling `latest` release on every main push,
+#      plus an immutable per-tag release on `ea_cloud-ide-v*` tag pushes.
+#
+# Same pattern as ship-cloud-comms.yml / ship-cloud-superapp.yml. The only "knob"
+# here is which build.sh subcommand runs; the engine reads ea_cloud-ide/build.json
+# for everything else (registry, tags, asset names). The hub is pure-JVM (no
+# native libs), so like the comms workflow this needs NO NDK / CMake SDK packages.
+#
+# The three FORKS (Acode / Amaze File Manager / Amaze File Utilities) ship via
+# their own build-fork flow, not this workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "Build variant"
+        required: false
+        type: choice
+        default: "debug"
+        options:
+          - debug
+          - release
+      push_oras:
+        description: "Push APK to GHCR via ORAS"
+        required: false
+        type: boolean
+        default: true
+      create_release:
+        description: "Create GitHub Release (needs tag context)"
+        required: false
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    tags:
+      - "ea_cloud-ide-v*"
+    paths:
+      - "ea_cloud-ide/**"
+      - "1_workflows/src/cicd/ship-cloud-ide.yml"
+      - ".github/workflows/ship-cloud-ide.yml"
+
+permissions:
+  contents: write   # for gh release create
+  packages: write   # for ghcr push (oras)
+
+env:
+  WORK_DIR: ea_cloud-ide
+
+jobs:
+  build_and_publish:
+    name: "Build hub APK + Push (ubuntu-latest, native amd64)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so build.sh can `git rev-parse`
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # Hub is pure-JVM (no NDK/CMake). compileSdk 35 needs platforms 35 +
+          # build-tools 35.0.0 (AGP 8.7.3); 34/26 kept for parity with the
+          # toolchain pins in ea_cloud-ide/flake.nix.
+          packages: "platforms;android-35 platforms;android-34 platforms;android-26 build-tools;35.0.0 build-tools;34.0.0 platform-tools"
+
+      - name: Set up Gradle 8.10.2 (cached)
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          # Pin to build.json::toolchain.gradle — first stable Gradle that
+          # satisfies AGP 8.7.3's 8.9+ floor; Kotlin 1.9.24 is incompatible
+          # with Gradle 9.x's strict configuration cache.
+          gradle-version: "8.10.2"
+
+      # ── Stable signing keystore (cached forever) ────────────────────
+      # The WHOLE constellation (hub + 3 forks + Cloud-SuperApp + Cloud-Comms)
+      # must share ONE signature: the IPC permission is protectionLevel=signature.
+      # Android also refuses to install an APK as an update of one signed by a
+      # different key, so the in-app updater needs a stable signature too. Cache
+      # the keystore so every CI build is signed identically. Matches
+      # hub/build.gradle's signingConfigs.debug (keystores/ide.keystore, idekey).
+      - name: Restore signing keystore from cache
+        id: keystore-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.WORK_DIR }}/hub/keystores/ide.keystore
+          key: cloud-ide-keystore-v1
+      - name: Generate keystore (first run only)
+        if: steps.keystore-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ env.WORK_DIR }}
+        run: |
+          mkdir -p hub/keystores
+          keytool -genkeypair -keystore hub/keystores/ide.keystore \
+            -storepass android -keypass android -alias idekey \
+            -dname "CN=Diego Marcos, OU=Cloud-IDE, O=diegonmarcos.com, L=Madrid, ST=Madrid, C=ES" \
+            -keyalg RSA -keysize 2048 -validity 10950
+          echo "Generated new keystore — cached as cloud-ide-keystore-v1"
+
+      - name: Install ORAS + gh CLI + jq
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+          command -v gh
+          curl -fsSL https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz \
+            | sudo tar -C /usr/local/bin -xzf - oras
+          oras version
+
+      - name: Determine variant
+        id: variant
+        run: |
+          if   [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "variant=${{ inputs.variant }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "variant=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "variant=debug" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Build via build.sh (engine) ─────────────────────────────────
+      # BYPASS_NIX=1 because GHA already provides JDK + SDK + Gradle.
+      - name: Build hub APK (engine)
+        working-directory: ${{ env.WORK_DIR }}
+        env:
+          BYPASS_NIX: "1"
+        run: |
+          chmod +x build.sh
+          if [ "${{ steps.variant.outputs.variant }}" = "release" ]; then
+            ./build.sh release
+          else
+            ./build.sh build
+          fi
+          ls -la dist/
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cloud-IDE-Hub-${{ steps.variant.outputs.variant }}-${{ github.sha }}
+          path: ${{ env.WORK_DIR }}/dist/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # ── ORAS push to GHCR (engine reads build.json::release.ghcr) ──
+      - name: Login to GHCR
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.push_oras }}
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Push APK to GHCR via ORAS
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.push_oras }}
+        working-directory: ${{ env.WORK_DIR }}
+        env:
+          BYPASS_NIX: "1"
+          GITHUB_SHA: ${{ github.sha }}
+        run: ./build.sh oras-push
+
+      # ── GitHub Release (engine reads build.json::release.gh_release) ──
+      - name: Publish to GitHub Releases
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.create_release }}
+        working-directory: ${{ env.WORK_DIR }}
+        env:
+          BYPASS_NIX: "1"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+        run: ./build.sh gh-release
