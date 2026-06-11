@@ -515,7 +515,6 @@
                 ./modules/node-bins.nix
                 ./modules/web-server-md-eruda.nix
                 ./modules/sshd.nix
-                ./modules/programs/shells/fish-greeting.nix
                 ./modules/wireguard.nix
                 ./modules/wireguard-wstunnel.nix
               ];
@@ -836,7 +835,7 @@
                   bind \ec fzf_cd
 
 
-                  # Greeting is in modules/programs/shells/fish-greeting.nix
+                  # Greeting is fish_greeting in modules/programs/shells/fish/functions/fish_greeting.fish (wired via fish.nix)
                 '';
               };
             };
