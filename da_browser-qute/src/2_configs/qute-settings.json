@@ -56,7 +56,25 @@
     "default_size": "10pt"
   },
   "colors": {
-    "_description": "Dark theme tuned to the rest of the stack (KDE Plasma Breeze Dark)."
+    "_description": "Dark theme tuned to the rest of the stack (KDE Plasma Breeze Dark). Keys map 1:1 to qutebrowser's colors.* settings; the projection flattens them to c.colors.<path>.",
+    "webpage": {
+      "preferred_color_scheme": "dark"
+    },
+    "statusbar": {
+      "normal": { "bg": "#1b1e20", "fg": "#eff0f1" },
+      "command": { "bg": "#1b1e20", "fg": "#eff0f1" },
+      "insert": { "bg": "#27ae60", "fg": "#ffffff" },
+      "url": { "fg": "#eff0f1", "success": { "https": { "fg": "#27ae60" } } }
+    },
+    "tabs": {
+      "bar": { "bg": "#31363b" },
+      "odd": { "bg": "#31363b", "fg": "#eff0f1" },
+      "even": { "bg": "#2a2e32", "fg": "#eff0f1" },
+      "selected": {
+        "odd": { "bg": "#3daee9", "fg": "#ffffff" },
+        "even": { "bg": "#3daee9", "fg": "#ffffff" }
+      }
+    }
   },
   "statusbar": {
     "show": "always",

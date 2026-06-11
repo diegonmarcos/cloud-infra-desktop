@@ -108,38 +108,75 @@ async fn main() -> Result<()> {
     let chosen = &entries[chosen_idx];
     tracing::debug!(name = %chosen.name, "entry chosen");
 
-    // 6. Action picker. The action list and default come from build.json.
+    // 6. Action selection. The action list and default come from build.json.
     let actions: &[String] = &cfg.runtime.actions;
     if actions.is_empty() {
         anyhow::bail!("build.json runtime.actions is empty");
     }
-    // Default action comes first so the user can hit Enter on the first
-    // line for the common case.
-    let default_action = &cfg.runtime.default_action;
-    let mut ordered: Vec<String> = Vec::with_capacity(actions.len());
-    if let Some(d) = actions.iter().find(|a| *a == default_action) {
-        ordered.push(d.clone());
-    }
-    for a in actions {
-        if a != default_action {
-            ordered.push(a.clone());
+
+    // An optional first positional arg lets a caller (e.g. a qutebrowser
+    // keybinding) force a specific action and skip the interactive action
+    // picker. No arg (or "pick") keeps the interactive flow.
+    let requested = std::env::args().nth(1);
+    let forced = resolve_requested_action(requested.as_deref(), actions)?;
+
+    let action: String = match forced {
+        Some(a) => {
+            tracing::debug!(action = %a, "action forced via CLI arg (skipping action picker)");
+            a
         }
-    }
-    let action_picker = PickerCmd::from_argv(dc.picker.clone());
-    let action_idx = match pick(&action_picker, &ordered, "Action").await? {
-        Some(i) => i,
         None => {
-            tracing::debug!("action pick cancelled");
-            return Ok(());
+            // Default action comes first so the user can hit Enter on the
+            // first line for the common case.
+            let default_action = &cfg.runtime.default_action;
+            let mut ordered: Vec<String> = Vec::with_capacity(actions.len());
+            if let Some(d) = actions.iter().find(|a| *a == default_action) {
+                ordered.push(d.clone());
+            }
+            for a in actions {
+                if a != default_action {
+                    ordered.push(a.clone());
+                }
+            }
+            let action_picker = PickerCmd::from_argv(dc.picker.clone());
+            match pick(&action_picker, &ordered, "Action").await? {
+                Some(i) => ordered[i].clone(),
+                None => {
+                    tracing::debug!("action pick cancelled");
+                    return Ok(());
+                }
+            }
         }
     };
-    let action = &ordered[action_idx];
     tracing::info!(action = %action, name = %chosen.name, "dispatching");
 
     // 7. Dispatch
-    dispatch(action, chosen, &v, disp, &dc, &cfg, &typer_opts).await?;
+    dispatch(&action, chosen, &v, disp, &dc, &cfg, &typer_opts).await?;
 
     Ok(())
+}
+
+/// Resolve the optional CLI action argument (the first positional arg).
+///
+/// This is what lets a qutebrowser keybinding (or any caller) target a
+/// specific action without going through the second, interactive picker:
+///
+///   * `None` or `Some("pick")` → `Ok(None)` — show the interactive action
+///     picker (the default `systemctl start` behaviour, unchanged).
+///   * `Some(a)` where `a` is one of build.json `runtime.actions`
+///     → `Ok(Some(a))` — dispatch that action directly.
+///   * anything else → `Err` — unknown action, surfaced to the caller.
+///
+/// `pick` is a reserved meta-action meaning "ask me"; it is intentionally
+/// NOT a member of `runtime.actions`.
+fn resolve_requested_action(requested: Option<&str>, actions: &[String]) -> Result<Option<String>> {
+    match requested {
+        None | Some("pick") => Ok(None),
+        Some(a) if actions.iter().any(|x| x == a) => Ok(Some(a.to_string())),
+        Some(a) => {
+            anyhow::bail!("unknown action {a:?} — valid: pick, {}", actions.join(", "))
+        }
+    }
 }
 
 async fn dispatch(
@@ -304,4 +341,56 @@ fn install_signal_handlers() {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_actions() -> Vec<String> {
+        ["user", "pass", "totp", "user_tab_pass"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn no_arg_is_interactive() {
+        // The default `systemctl start` path passes no arg → action picker.
+        assert_eq!(
+            resolve_requested_action(None, &sample_actions()).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn pick_meta_action_is_interactive() {
+        // The qutebrowser <Ctrl-Shift-p> binding passes "pick".
+        assert_eq!(
+            resolve_requested_action(Some("pick"), &sample_actions()).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn known_action_is_forced() {
+        // <Ctrl-Shift-{u,l,o}> pass user / pass / totp → skip the picker.
+        for a in ["user", "pass", "totp", "user_tab_pass"] {
+            assert_eq!(
+                resolve_requested_action(Some(a), &sample_actions()).unwrap(),
+                Some(a.to_string()),
+                "action {a:?} should be forced"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_action_errors() {
+        let err = resolve_requested_action(Some("rm-rf"), &sample_actions()).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("unknown action"), "got: {msg}");
+        // Error lists the valid choices so the operator can self-correct.
+        assert!(msg.contains("pick"), "got: {msg}");
+        assert!(msg.contains("user_tab_pass"), "got: {msg}");
+    }
 }
