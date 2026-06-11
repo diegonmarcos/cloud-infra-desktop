@@ -36,7 +36,11 @@ fi
 # Render fish greeting (strip ANSI escape codes for markdown)
 FISH_GREETING=""
 if command -v fish >/dev/null 2>&1; then
-  FISH_GREETING=$(fish -c '_show_welcome' 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' || true)
+  # Canonical fish greeting function name is `fish_greeting` (not `_show_welcome`,
+  # which only exists as a bash/zsh function). awk strip removes BOTH CSI/SGR
+  # sequences (ESC[…m) and charset-select sequences (ESC(B) — the latter is what
+  # littered earlier renders with stray `(B` markers.
+  FISH_GREETING=$(fish -c 'fish_greeting' 2>/dev/null | awk '{ gsub(/\033\[[0-9;]*[a-zA-Z]/,""); gsub(/\033[()][AB0-2]/,""); print }' || true)
 fi
 if [ -z "$FISH_GREETING" ]; then
   FISH_GREETING="(fish greeting not available — fish not installed or greeting failed)"
