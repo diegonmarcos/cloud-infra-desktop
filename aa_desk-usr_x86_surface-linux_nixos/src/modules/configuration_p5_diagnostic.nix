@@ -120,7 +120,7 @@ in
       for g in 945 946 947; do
         offset=$(( g * 32768 * 4096 ))
         h=$(dd if=${p5RawDevice} bs=4096 count=32 skip=$((g * 32768)) 2>/dev/null | sha256sum | awk '{print $1}')
-        echo "group_${g}_first_128KiB $h" >> $SNAP
+        echo "group_''${g}_first_128KiB $h" >> $SNAP
       done
 
       # Backup superblock (group 32 or wherever ext4 puts them)
@@ -187,7 +187,7 @@ in
       echo "superblock(0..4KiB) $sb" > $SNAP
       for g in 945 946 947; do
         h=$(dd if=${p5RawDevice} bs=4096 count=32 skip=$((g * 32768)) 2>/dev/null | sha256sum | awk '{print $1}')
-        echo "group_${g}_first_128KiB $h" >> $SNAP
+        echo "group_''${g}_first_128KiB $h" >> $SNAP
       done
       bsb=$(dd if=${p5RawDevice} bs=4096 count=1 skip=$((32 * 32768)) 2>/dev/null | sha256sum | awk '{print $1}')
       echo "backup_superblock_g32 $bsb" >> $SNAP

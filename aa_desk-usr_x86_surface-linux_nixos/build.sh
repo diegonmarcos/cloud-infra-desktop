@@ -90,8 +90,9 @@
 #   dry-run       Build + diff without applying (nixos-rebuild dry-activate)
 #                 On non-NixOS: runs nix flake check (evaluation only)
 #
-#   update        Update flake.lock with latest nixpkgs
-#                 Runs: nix flake update
+#   update        Update flake.lock — all inputs, or only the named ones
+#                 Usage: update [input...]   (e.g. update nixos-hardware)
+#                 Runs: nix flake update [input...] --flake src/
 #
 #   show          Show available flake outputs
 #                 Runs: nix flake show
@@ -1109,8 +1110,13 @@ check_config() { dry_run; }
 
 update_flake() {
     header "Updating Flake Inputs"
-    log "Updating nixpkgs and nixos-generators..."
-    nix flake update "$FLAKE_PATH"
+    if [ $# -gt 0 ]; then
+        log "Updating inputs: $*"
+        nix flake update "$@" --flake "$FLAKE_PATH"
+    else
+        log "Updating all flake inputs..."
+        nix flake update --flake "$FLAKE_PATH"
+    fi
     log "Update complete"
 }
 
@@ -1412,7 +1418,7 @@ if [ $# -gt 0 ]; then
             dry_run
             ;;
         u|update)
-            update_flake
+            update_flake "${@:2}"
             ;;
         o|show|outputs)
             show_outputs
@@ -1450,7 +1456,7 @@ if [ $# -gt 0 ]; then
             printf "\n"
             printf "${BOLD}Utilities:${NC}\n"
             printf "  c | check | dry-run       Build + diff without applying (safe)\n"
-            printf "  u | update                Update flake inputs\n"
+            printf "  u | update [input...]     Update flake inputs (all, or named only)\n"
             printf "  o | show                  Show available outputs\n"
             printf "  d | diff                  Diff with current system\n"
             printf "  h | help                  Show this help\n"
