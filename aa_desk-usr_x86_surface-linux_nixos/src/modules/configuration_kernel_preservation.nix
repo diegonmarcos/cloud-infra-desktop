@@ -113,7 +113,6 @@ let
     text = ''
       CACHE=${lib.escapeShellArg cache}
       MIN_FREE_MIB=${toString minFreeMiB}
-      MAX_GEN=${toString maxGenerations}
 
       mkdir -p "$CACHE"
 
@@ -121,9 +120,11 @@ let
       FREE_MIB=$(${pkgs.coreutils}/bin/df -BM --output=avail /boot \
                   | tail -1 | tr -d 'M ')
       if [ "$FREE_MIB" -lt "$MIN_FREE_MIB" ]; then
+        # NOTE: no backticks in this message — inside double quotes they are
+        # command substitution and would EXECUTE kernel-closure-prune.
         ${pkgs.util-linux}/bin/logger -t kernel-closure-backup -p user.crit \
           "REFUSED: /boot free=$FREE_MIB MiB < min=$MIN_FREE_MIB MiB. \
-Run `kernel-closure-prune` or grow /boot (Phase 2)."
+Run 'kernel-closure-prune' or grow /boot (Phase 2)."
         exit 1
       fi
 
@@ -156,10 +157,13 @@ Run `kernel-closure-prune` or grow /boot (Phase 2)."
       for family in linux initrd-linux; do
         # shellcheck disable=SC2012
         old=$(${pkgs.coreutils}/bin/ls -t1 "$CACHE"/*.narinfo 2>/dev/null \
-              | ${pkgs.findutils}/bin/xargs -r ${pkgs.coreutils}/bin/grep -l "StorePath:.*-$family-" \
+              | ${pkgs.findutils}/bin/xargs -r ${pkgs.gnugrep}/bin/grep -l "StorePath:.*-$family-" \
               | ${pkgs.coreutils}/bin/tail -n +"$((MAX_GEN + 1))" || true)
+        # Word-split on purpose: $old is a newline list of narinfo paths
+        # under $CACHE (no spaces — nix store hashes).
+        # shellcheck disable=SC2086
         for nf in $old; do
-          nar=$(${pkgs.coreutils}/bin/cat "$nf" | ${pkgs.gnugrep}/bin/grep '^URL:' | ${pkgs.coreutils}/bin/cut -d' ' -f2)
+          nar=$(${pkgs.gnugrep}/bin/grep '^URL:' "$nf" | ${pkgs.coreutils}/bin/cut -d' ' -f2)
           ${pkgs.coreutils}/bin/rm -f -- "$nf" "$CACHE/$nar"
           echo "[prune] dropped $nf and $CACHE/$nar"
         done
