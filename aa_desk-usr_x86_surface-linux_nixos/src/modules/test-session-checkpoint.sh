@@ -37,7 +37,10 @@ INTERVAL_MIN=$(jq -r '.checkpoint.interval_minutes' "$JSON")
 SNAP_BASE="$(jq -r '.checkpoint.btrfs_root' "$JSON")/$(jq -r '.checkpoint.snapshot_dir' "$JSON")"
 NEWEST=$(ls -1 "$SNAP_BASE" 2>/dev/null | sort | tail -1)
 if [ -n "$NEWEST" ]; then
-  AGE_S=$(( $(date +%s) - $(date -d "$(echo "$NEWEST" | tr 'T' ' ' | sed 's/-\([0-9][0-9]\)-\([0-9][0-9]\)Z/:\1:\2 UTC/')" +%s) ))
+  # Name format: 2026-06-12T15-34-58Z[-tag] — strip the origin tag
+  # (periodic/shutdown), then unmangle into a `date -d` parseable form.
+  NEWEST_TS=$(echo "$NEWEST" | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z')
+  AGE_S=$(( $(date +%s) - $(date -d "$(echo "$NEWEST_TS" | tr 'T' ' ' | sed 's/-\([0-9][0-9]\)-\([0-9][0-9]\)Z/:\1:\2 UTC/')" +%s) ))
   MAX_S=$(( INTERVAL_MIN * 60 * 2 ))
   if [ "$AGE_S" -le "$MAX_S" ]; then
     ok "checkpoint_fresh (newest is ${AGE_S}s old, max ${MAX_S}s)"
