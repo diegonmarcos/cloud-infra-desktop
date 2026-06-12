@@ -143,6 +143,7 @@ if [ "$LIVE" = "1" ]; then
     exit 1
   fi
   MARKER="hibernate-test-$(date +%s)"
+  TS_BEFORE=$(date -Is)
   logger -t test-hibernation "$MARKER: entering hibernation NOW (test)"
   echo ">>> Hibernating in 5 seconds — press the POWER BUTTON to wake. <<<"
   sleep 5
@@ -178,10 +179,17 @@ if [ "$LIVE" = "1" ]; then
     else
       fail "T11 btrfs pool reports $BTRFS_ERR device errors after resume"
     fi
-    if dmesg | grep -iE "EXT4-fs error|BTRFS error" | grep -v "test-hibernation" >/dev/null; then
-      fail "T12 filesystem errors in dmesg after resume"
+    # Scope to the hibernate/resume window only — full-boot dmesg may carry
+    # pre-existing noise (2026-06-12: waydroid 'not a valid subvolume' mount
+    # errors from hours before the test produced a false positive). That
+    # mount-misconfig string is also excluded: it has its own CRIT alarm in
+    # btrfs_subvols_autocreate and is not a corruption signal.
+    if journalctl -k --since "$TS_BEFORE" --no-pager 2>/dev/null \
+         | grep -iE "EXT4-fs error|BTRFS error" \
+         | grep -v "is not a valid subvolume" >/dev/null; then
+      fail "T12 filesystem errors logged during hibernate/resume window"
     else
-      ok "T12 no EXT4/BTRFS errors in dmesg after resume"
+      ok "T12 no EXT4/BTRFS errors during hibernate/resume window"
     fi
   fi
 fi
