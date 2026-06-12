@@ -18,7 +18,7 @@
 # (cb_user_diego_nix or wherever home-manager is configured). This file
 # only owns the system-level integration.
 
-{ pkgs, ... }:
+{ pkgs, pkgsUnstable, ... }:
 
 {
   programs.fido2-vault-broker = {
@@ -26,6 +26,9 @@
     user = "diego";
     enableTpm = true;
     # Shared derivation with the subflake's packages.default (single SoT).
-    package = pkgs.callPackage ../../../da_fido2-vault-broker/src/nix/package.nix { };
+    # Built with pkgsUnstable: the broker's Cargo.lock pins base64ct 1.8.3
+    # (edition 2024), which stable 24.11's cargo < 1.85 cannot parse —
+    # 2026-06-12 switch failure. Unstable's rustPlatform handles it.
+    package = pkgsUnstable.callPackage ../../../da_fido2-vault-broker/src/nix/package.nix { };
   };
 }
