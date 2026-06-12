@@ -28,25 +28,29 @@ class MainActivity : AppCompatActivity() {
             layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
         }
 
-        // Permanent constellation chrome: the hub's parent is Cloud-SuperApp, so
-        // this renders [↑ Cloud-SuperApp]. The forks render the full bar.
+        // Permanent constellation chrome — the full five-entry bar with the
+        // current app highlighted. The forks render the same bar.
         ConstellationBar.build(this, packageName)?.let { root.addView(it) }
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(24), dp(24), dp(24))
+            setPadding(dp(20), dp(20), dp(20), dp(28))
         }
 
+        // Header — same palette as the About page (superapp's DevControl):
+        // #E9D8FD bold headline + #99FFFFFF caption.
         content.addView(TextView(this).apply {
             text = getString(R.string.hub_title)
-            textSize = 22f
-            setPadding(0, 0, 0, dp(4))
+            textSize = 24f
+            setTextColor(0xFFE9D8FD.toInt())
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(0, dp(4), 0, dp(2))
         })
         content.addView(TextView(this).apply {
             text = getString(R.string.hub_subtitle, BuildConfig.IPC_VERSION, BuildConfig.GIT_SHORT_SHA)
             textSize = 12f
-            alpha = 0.6f
-            setPadding(0, 0, 0, dp(24))
+            setTextColor(0x99FFFFFF.toInt())
+            setPadding(0, 0, 0, dp(20))
         })
 
         for (fork in ForkRegistry.forks) {
@@ -71,16 +75,24 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
-        // Configs → About (build info, IPC contract, fleet status, updater).
+        // Configs → About (build info, IPC contract, fleet status, updater) —
+        // same card language as the fork tiles.
         content.addView(TextView(this).apply {
             text = getString(R.string.about_entry)
-            textSize = 15f
-            setPadding(dp(20), dp(20), dp(20), dp(20))
+            textSize = 14f
+            setTextColor(0xFFB794F4.toInt())
+            background = cardBg()
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8) }
             isClickable = true
             setOnClickListener { startActivity(Intent(this@MainActivity, AboutActivity::class.java)) }
         })
 
-        root.addView(content)
+        // Scroll container so small screens never clip the tile list.
+        root.addView(android.widget.ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            addView(content)
+        })
         setContentView(root)
 
         // Launcher-shortcut dispatch (mirrors Cloud-SuperApp's grammar).
@@ -114,25 +126,60 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun tileFor(fork: Fork): TextView {
+    /** Rounded card tile for one fork — same dark-purple visual language as the
+     *  About page: #1A1A22 card, state dot (green=installed · purple=installable
+     *  · grey=blocked), bold white name, accent status caption. */
+    private fun tileFor(fork: Fork): android.view.View {
         val installed = fork.isInstalled(this)
+        val ready = installed && fork.blockedOn == null
         val status = when {
             fork.blockedOn != null -> getString(R.string.tile_blocked, fork.blockedOn)
             installed -> getString(R.string.tile_open)
             else -> getString(R.string.tile_not_installed)
         }
-        return TextView(this).apply {
-            text = "${fork.domain.replaceFirstChar { it.uppercase() }}\n$status"
-            textSize = 16f
+        val dotColor = when {
+            fork.blockedOn != null -> 0xFF555566.toInt()
+            installed -> 0xFF34D399.toInt()
+            else -> 0xFF7C3AED.toInt()
+        }
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(20), dp(20), dp(20), dp(20))
+            background = cardBg()
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(10) }
             isClickable = true
-            alpha = if (installed && fork.blockedOn == null) 1f else 0.5f
-            (layoutParams ?: LinearLayout.LayoutParams(MATCH, WRAP)).also {
-                layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(12) }
-            }
+            alpha = if (ready) 1f else 0.75f
             setOnClickListener { onTileTapped(fork, installed) }
         }
+        card.addView(android.view.View(this).apply {
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(dotColor)
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(10), dp(10)).apply { rightMargin = dp(14) }
+        })
+        card.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(TextView(this@MainActivity).apply {
+                text = fork.label
+                textSize = 16f
+                setTextColor(0xFFFFFFFF.toInt())
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+            addView(TextView(this@MainActivity).apply {
+                text = status
+                textSize = 12f
+                setTextColor(if (ready) 0xFFB794F4.toInt() else 0x99FFFFFF.toInt())
+            })
+        })
+        return card
+    }
+
+    /** Shared rounded-card background — one visual language across the hub. */
+    private fun cardBg() = android.graphics.drawable.GradientDrawable().apply {
+        cornerRadius = dp(14).toFloat()
+        setColor(0xFF1A1A22.toInt())
     }
 
     private fun onTileTapped(fork: Fork, installed: Boolean) {

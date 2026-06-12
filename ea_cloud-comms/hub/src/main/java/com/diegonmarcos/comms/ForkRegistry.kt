@@ -13,6 +13,7 @@ import org.json.JSONObject
  */
 data class Fork(
     val domain: String,
+    val label: String,
     val appId: String,
     val trackerDir: String,
     val license: String,
@@ -40,6 +41,7 @@ object ForkRegistry {
             val o = root.getJSONObject(domain)
             Fork(
                 domain = domain,
+                label = o.optString("label").ifEmpty { domain.replaceFirstChar { c -> c.uppercase() } },
                 appId = o.optString("app_id"),
                 trackerDir = o.optString("tracker_dir"),
                 license = o.optString("license"),
