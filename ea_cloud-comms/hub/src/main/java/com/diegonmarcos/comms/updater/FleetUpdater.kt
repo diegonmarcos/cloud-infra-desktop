@@ -17,20 +17,32 @@ import java.util.concurrent.TimeUnit
 /** One updatable APK in the constellation. Parsed from BuildConfig
  *  (build.json: hub from release.ghcr + the three forks from forks.*). */
 data class FleetEntry(
-    val label: String,     // hub | mail | chat | matrix
-    val appId: String,
+    val label: String,     // hub | mail | chat | matrix | dialer
+    val appId: String,     // OUR id (the patched fork's applicationId)
+    val altId: String?,    // the STOCK upstream APK's real package (until the
+                           // patched fork replaces it) — installed-detection
+                           // and launching accept either id
     val image: String,     // GHCR image name
     val blocked: Boolean,  // fork blocked_on set → never check
 ) {
-    fun isInstalled(ctx: Context): Boolean =
-        try { ctx.packageManager.getPackageInfo(appId, 0); true }
-        catch (e: PackageManager.NameNotFoundException) { false }
+    /** Whichever of the two ids is actually on the device, or null. */
+    fun installedId(ctx: Context): String? {
+        for (id in listOfNotNull(appId, altId)) {
+            try { ctx.packageManager.getPackageInfo(id, 0); return id }
+            catch (e: PackageManager.NameNotFoundException) { /* next */ }
+        }
+        return null
+    }
 
-    fun installedVersion(ctx: Context): String? =
-        try {
+    fun isInstalled(ctx: Context): Boolean = installedId(ctx) != null
+
+    fun installedVersion(ctx: Context): String? {
+        val id = installedId(ctx) ?: return null
+        return try {
             @Suppress("DEPRECATION")
-            ctx.packageManager.getPackageInfo(appId, 0).versionName
+            ctx.packageManager.getPackageInfo(id, 0).versionName
         } catch (e: PackageManager.NameNotFoundException) { null }
+    }
 }
 
 /**
@@ -82,6 +94,7 @@ object FleetUpdater {
             FleetEntry(
                 label = o.getString("label"),
                 appId = o.getString("app_id"),
+                altId = o.optString("alt_id").takeIf { it.isNotEmpty() },
                 image = o.getString("image"),
                 blocked = o.optBoolean("blocked", false),
             )

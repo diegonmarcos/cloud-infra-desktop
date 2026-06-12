@@ -33,22 +33,24 @@ import org.json.JSONObject
  */
 object ConstellationBar {
 
-    data class Node(val label: String, val pkg: String, val isFork: Boolean)
+    data class Node(val label: String, val pkg: String, val altPkg: String?, val isFork: Boolean)
 
-    /** Full constellation, ancestors first then comms apps. */
+    /** Full constellation, ancestors first then comms apps. altPkg = the stock
+     *  upstream APK's real package, accepted until the patched fork ships. */
     fun nodes(): List<Node> {
         val out = ArrayList<Node>()
         val chrome = JSONObject(String(Base64.decode(BuildConfig.CHROME_JSON_B64, Base64.DEFAULT)))
         val chain = chrome.getJSONArray("chain")
         for (i in 0 until chain.length()) {
             val o = chain.getJSONObject(i)
-            out += Node(o.getString("label"), o.getString("package"), isFork = false)
+            out += Node(o.getString("label"), o.getString("package"), null, isFork = false)
         }
         val forks = JSONObject(String(Base64.decode(BuildConfig.FORKS_JSON_B64, Base64.DEFAULT)))
         for (domain in forks.keys()) {
             val f = forks.getJSONObject(domain)
             val label = f.optString("label").ifEmpty { domain.replaceFirstChar { it.uppercase() } }
-            out += Node(label, f.getString("app_id"), isFork = true)
+            val alt = f.optJSONObject("upstream_apk")?.optString("package")?.takeIf { it.isNotEmpty() }
+            out += Node(label, f.getString("app_id"), alt, isFork = true)
         }
         return out
     }
@@ -114,11 +116,12 @@ object ConstellationBar {
                 ctx.startActivity(byAction); return
             }
         }
-        val launch = ctx.packageManager.getLaunchIntentForPackage(n.pkg)
-        if (launch != null) {
-            ctx.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } else {
-            Toast.makeText(ctx, "${n.label} is not installed", Toast.LENGTH_SHORT).show()
+        for (id in listOfNotNull(n.pkg, n.altPkg)) {
+            val launch = ctx.packageManager.getLaunchIntentForPackage(id)
+            if (launch != null) {
+                ctx.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return
+            }
         }
+        Toast.makeText(ctx, "${n.label} is not installed", Toast.LENGTH_SHORT).show()
     }
 }

@@ -15,18 +15,24 @@ data class Fork(
     val domain: String,
     val label: String,
     val appId: String,
+    /** Real package of the STOCK upstream APK bundled until the patched fork
+     *  (which carries [appId]) replaces it — detection/launch accept either. */
+    val altId: String?,
     val trackerDir: String,
     val license: String,
     val runtime: String,
     val priority: Int,
     val blockedOn: String?,
 ) {
-    fun isInstalled(ctx: Context): Boolean =
-        try {
-            ctx.packageManager.getPackageInfo(appId, 0); true
-        } catch (e: PackageManager.NameNotFoundException) {
-            false
+    fun installedId(ctx: Context): String? {
+        for (id in listOfNotNull(appId, altId)) {
+            try { ctx.packageManager.getPackageInfo(id, 0); return id }
+            catch (e: PackageManager.NameNotFoundException) { /* next */ }
         }
+        return null
+    }
+
+    fun isInstalled(ctx: Context): Boolean = installedId(ctx) != null
 }
 
 object ForkRegistry {
@@ -43,6 +49,7 @@ object ForkRegistry {
                 domain = domain,
                 label = o.optString("label").ifEmpty { domain.replaceFirstChar { c -> c.uppercase() } },
                 appId = o.optString("app_id"),
+                altId = o.optJSONObject("upstream_apk")?.optString("package")?.takeIf { it.isNotEmpty() },
                 trackerDir = o.optString("tracker_dir"),
                 license = o.optString("license"),
                 runtime = o.optString("runtime"),

@@ -25,7 +25,11 @@ internal class UpdateInstaller(private val context: Context) {
     fun createAndWrite(apk: File, targetPackage: String): Int {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
-            setAppPackageName(targetPackage)
+            // NO setAppPackageName: it is only a hint, and forcing OUR fork id
+            // onto a STOCK upstream APK (real package com.mattermost.rnbeta /
+            // org.fossify.phone) made the platform reject the session with
+            // INSTALL_FAILED_INVALID_APK "inconsistent with …". The installer
+            // reads the true package from the APK itself.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
             }

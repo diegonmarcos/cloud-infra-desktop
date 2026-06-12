@@ -30,6 +30,12 @@
         <package android:name="com.diegonmarcos.comms.chat" />
         <package android:name="com.diegonmarcos.comms.matrix" />
         <package android:name="com.diegonmarcos.comms.dialer" />
+        <!-- Stock upstream package ids (forks.<k>.upstream_apk.package) — the
+             bundled upstream APKs install under THESE until our patched forks
+             replace them; without visibility, installed-detection fails. -->
+        <package android:name="com.mattermost.rnbeta" />
+        <package android:name="io.element.android.x" />
+        <package android:name="org.fossify.phone" />
     </queries>
 
     <!-- ── The IPC gate ──────────────────────────────────────────────────
