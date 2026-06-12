@@ -50,6 +50,16 @@
     # Main NixOS configuration for Surface Pro 8
     nixosConfigurations.surface = nixpkgs.lib.nixosSystem {
       inherit system;
+      # pkgsUnstable: for packages whose toolchain outgrew 24.11 — e.g.
+      # fido2-vault-broker's cargo deps need edition-2024 (cargo ≥ 1.85, not
+      # in stable 24.11). Scoped per-package via specialArgs, never a global
+      # overlay (see the KDE Connect Qt-mismatch note above for why).
+      specialArgs = {
+        pkgsUnstable = import nixpkgs-unstable {
+          inherit system;
+          config.allowUnfree = true;
+        };
+      };
       modules = [
         # Surface Pro hardware support (linux-surface kernel, firmware)
         nixos-hardware.nixosModules.microsoft-surface-pro-intel
