@@ -6,6 +6,11 @@
          itself does no sync; the forks own all server traffic. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Configs → About → Wi-Fi section (WifiManager RSSI / link speed /
+         frequency rows — same section Cloud-SuperApp's About shows). SSID
+         additionally needs ACCESS_FINE_LOCATION on Android 10+, which the hub
+         deliberately does NOT declare — that row degrades to a hint instead. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Fleet updater: install hub + fork APKs via PackageInstaller (user
          prompt), and post the download/result notification. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

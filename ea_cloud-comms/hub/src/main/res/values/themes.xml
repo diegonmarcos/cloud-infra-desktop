@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Material 3 DayNight. The hub is a thin switcher, so the stock theme is
-         all it needs — the rich theming lives inside each fork. -->
-    <style name="Theme.CloudComms" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorSurface</item>
+    <!-- Forced-dark Material 3 with the constellation's purple accent — the
+         SAME palette Cloud-SuperApp's About/DevControl pages use
+         (#7C3AED accent, #E9D8FD headlines, #B794F4 values). The About port
+         draws light-on-dark text, so the theme MUST be dark in both system
+         modes; DayNight would render white-on-white in light mode. -->
+    <style name="Theme.CloudComms" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">#7C3AED</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#B794F4</item>
+        <item name="android:windowBackground">#0F0F13</item>
+        <item name="android:statusBarColor" tools:targetApi="l">#0F0F13</item>
+        <item name="android:navigationBarColor" tools:targetApi="l">#0F0F13</item>
     </style>
 </resources>
