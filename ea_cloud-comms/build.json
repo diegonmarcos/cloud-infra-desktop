@@ -130,7 +130,14 @@
         "signing": "keystore_properties"
       },
       "patches": [],
-      "comment": "Fossify Phone = the 'Dialer' entry under Cloud-SuperApp Suite/Cloud#Communications. Same constellation patches as the others when forked: branding (com.diegonmarcos.comms.dialer), icon-less + OPEN action, constellation top bar. No exporter (a dialer exposes no comms tables); the hub fleet/bundle/updater handle it purely via this registry entry.",
+      "call_screening": {
+        "_doc": "OWNER DIRECTIVE (default config): the CallScreeningService patch (ROLE_CALL_SCREENING) MUST default to 'contacts_only' — any incoming call whose number is NOT in the device contacts is silently rejected (disallowed, no ring, no missed-call notification); numbers that resolve to a saved contact ring normally. This is the FIRST-RUN DEFAULT baked into the patch's default SharedPreference; the user can change it in-app once the screening settings UI lands. The patch reads this block as its contract — keep code default == default_mode here.",
+        "default_mode": "contacts_only",
+        "modes": ["contacts_only", "allow_all", "block_known_spam"],
+        "reject_action": "disallow_silently",
+        "rationale": "Spam/robocall defence by default — unknown numbers can't ring the phone unless the caller is a saved contact."
+      },
+      "comment": "Fossify Phone = the 'Dialer' entry under Cloud-SuperApp Suite/Cloud#Communications. Same constellation patches as the others when forked: branding (com.diegonmarcos.comms.dialer), icon-less + OPEN action, constellation top bar. PLUS a CallScreeningService patch defaulting to contacts-only (see call_screening above). No exporter (a dialer exposes no comms tables); the hub fleet/bundle/updater handle it purely via this registry entry.",
       "upstream_apk": {
         "_doc": "Pinned UPSTREAM RELEASE APK — bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true → the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs — unsigned can't install; our key also makes it IPC-compatible).",
         "url": "https://github.com/FossifyOrg/Phone/releases/download/1.11.1/phone-22-foss-release.apk",
