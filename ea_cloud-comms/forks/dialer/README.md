@@ -32,6 +32,17 @@ Registry entry + pin landed. Next steps for the dev agent:
      (manifest: `android.permission.BIND_SCREENING_SERVICE` service +
      `RoleManager.createRequestRoleIntent(ROLE_CALL_SCREENING)` in onboarding)
      so spam filtering defaults to our fork too.
+     - **DEFAULT POLICY = contacts-only (owner directive).** The
+       `CallScreeningService` MUST default to `contacts_only`: in
+       `onScreenCall(Call.Details)`, look up the incoming `handle` number in the
+       device contacts (ContactsContract `PhoneLookup`); if there is NO match,
+       respond with `CallResponse.Builder().setDisallowCall(true)
+       .setRejectCall(true).setSkipNotification(true)` (silent reject, no missed
+       call). Saved contacts ring normally. The first-run default lives in a
+       SharedPreference seeded to `contacts_only` and the in-app settings let the
+       user switch to `allow_all` / `block_known_spam`. Contract is
+       `build.json::forks.dialer.call_screening` — keep the code default ==
+       `default_mode` there. Needs `READ_CONTACTS` (request in onboarding).
 3. First CI build via `workflow_dispatch` (fork=dialer) — `build.gradle_task`
    (`assembleFossRelease`) and `apk_glob` in build.json are a best-guess against
    Fossify's flavor setup; the CI run is the tester, adjust on first red.
