@@ -1,0 +1,55 @@
+{
+  "_comment": "Session checkpoint policy — guarantees a SESSION FILE ON DISK AT ALL TIMES (user requirement 2026-06-12: 'WE MUST HAVE A SESSION FILE IN DISK'). Two complementary layers: (1) the hibernate image in the swapfile carries the full RAM session, but only exists from hibernate events and is consumed on resume; (2) THIS — periodic read-only btrfs snapshots of the home subvolume. Apps persist their own session state into home continuously (browser sessionstore, editor autosaves, KDE config, tmux), so a home snapshot IS a recoverable session checkpoint that survives shutdown, crash, and firmware power-cut. CoW snapshots cost ~0 bytes until files diverge. Consumed by configuration_session-checkpoint.nix.",
+  "version": 1,
+  "enabled": true,
+
+  "checkpoint": {
+    "_comment": "btrfs_root must be the mounted pool top-level. source_subvol is snapshotted READ-ONLY into snapshot_dir/<UTC-timestamp>. Nested subvolumes (e.g. container storage inside home) are automatically excluded by btrfs — desirable, they are not session state. interval_minutes drives the systemd timer; retention_count is a simple newest-N prune (24 × 15 min = 6 h sliding window).",
+    "btrfs_root": "/mnt/btrfs-root",
+    "source_subvol": "@home-diego",
+    "snapshot_dir": "@snapshots/home-diego",
+    "interval_minutes": 15,
+    "retention_count": 24
+  },
+
+  "restore": {
+    "_comment": "How to use a checkpoint. Single file: plain copy out of the snapshot path (read-only, browsable like a normal directory). Full home rollback: boot a rescue entry, `mv @home-diego @home-diego.broken && btrfs subvolume snapshot /mnt/btrfs-root/@snapshots/home-diego/<ts> /mnt/btrfs-root/@home-diego` (writable snapshot-of-snapshot), reboot.",
+    "browse_path": "/mnt/btrfs-root/@snapshots/home-diego/"
+  },
+
+  "testers": {
+    "_comment": "Run via test-session-checkpoint.sh (same data-driven runner pattern as test-hibernation.sh).",
+    "checks": [
+      {
+        "id": "checkpoint_timer_active",
+        "description": "session-checkpoint.timer is active",
+        "command": "systemctl is-active session-checkpoint.timer",
+        "expect": "active"
+      },
+      {
+        "id": "checkpoint_service_result",
+        "description": "last session-checkpoint run succeeded",
+        "command": "systemctl show -p Result --value session-checkpoint.service",
+        "expect": "success"
+      },
+      {
+        "id": "checkpoint_exists",
+        "description": "at least one checkpoint snapshot exists on disk",
+        "command": "ls -1 /mnt/btrfs-root/@snapshots/home-diego/ | wc -l",
+        "expect_regex": "^[1-9][0-9]*$"
+      },
+      {
+        "id": "checkpoint_is_readonly",
+        "description": "newest checkpoint is a read-only btrfs snapshot (immutable session file)",
+        "command": "btrfs property get \"/mnt/btrfs-root/@snapshots/home-diego/$(ls -1 /mnt/btrfs-root/@snapshots/home-diego/ | sort | tail -1)\" ro",
+        "expect": "ro=true"
+      },
+      {
+        "id": "checkpoint_idle_io_class",
+        "description": "checkpoint service runs idle IO class — can never trash the interactive session",
+        "command": "systemctl show -p IOSchedulingClass --value session-checkpoint.service",
+        "expect": "idle"
+      }
+    ]
+  }
+}
