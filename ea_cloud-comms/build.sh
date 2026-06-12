@@ -67,19 +67,43 @@ step_bundle_forks() {
   local assets="$SCRIPT_DIR/hub/src/main/assets/forks"
   mkdir -p "$assets"
   rm -f "$assets"/*.apk
-  local key image blocked tag
+  local key image blocked tag up_url up_sha up_resign
   tag="$(_json '.release.auto_update.tag')"; tag="${tag:-latest}"
   while IFS= read -r key; do
     [ -z "$key" ] && continue
     image="$(_json ".forks.${key}.image")"
     blocked="$(_json ".forks.${key}.blocked_on")"
-    if [ -n "$blocked" ] && [ "$blocked" != "null" ]; then
-      log "bundle-forks: $key blocked ($blocked) — skip"; continue
-    fi
-    if _oci_pull_blob "$image" "$tag" "$assets/${key}.apk"; then
+    up_url="$(_json ".forks.${key}.upstream_apk.url")"
+    up_sha="$(_json ".forks.${key}.upstream_apk.sha256")"
+    up_resign="$(_json ".forks.${key}.upstream_apk.resign")"
+
+    # 1st choice: OUR fork image from GHCR (patched + constellation-signed).
+    # blocked_on gates the FORK BUILD, not the bundle — a blocked fork can
+    # still ship its pinned upstream release APK below.
+    if { [ -z "$blocked" ] || [ "$blocked" = "null" ]; } \
+       && _oci_pull_blob "$image" "$tag" "$assets/${key}.apk"; then
       log "bundle-forks: embedded $key ← $image:$tag ($(wc -c <"$assets/${key}.apk") B)"
+      continue
+    fi
+    rm -f "$assets/${key}.apk"
+
+    # 2nd choice: the pinned, sha256-verified UPSTREAM release APK (owner
+    # directive 2026-06-12: ALL apps ship inside the hub NOW; patched forks
+    # replace these as their CI lands). resign=true re-signs with the
+    # constellation key (Mattermost publishes unsigned APKs).
+    if [ -n "$up_url" ]; then
+      if _fetch_upstream_apk "$key" "$up_url" "$up_sha" "$up_resign" "$assets/${key}.apk"; then
+        log "bundle-forks: embedded $key ← upstream release ($(wc -c <"$assets/${key}.apk") B)"
+      else
+        rm -f "$assets/${key}.apk"
+        log "bundle-forks: $key upstream fetch/sign failed — skip"
+      fi
+      continue
+    fi
+
+    if [ -n "$blocked" ] && [ "$blocked" != "null" ]; then
+      log "bundle-forks: $key blocked ($blocked), no upstream_apk — skip"
     else
-      rm -f "$assets/${key}.apk"
       log "bundle-forks: $key not published yet ($image:$tag) — skip"
     fi
   done < <(prefer_host jq -r '.forks | to_entries[] | select(.key|startswith("_")|not) | .key' "$SCRIPT_DIR/build.json")
@@ -330,6 +354,40 @@ _oci_pull_blob() {
   curl -sfL -H "Authorization: Bearer $token" \
     "https://$registry/v2/$repo/blobs/$digest" -o "$out" 2>/dev/null || return 1
   [ -s "$out" ] || return 1
+  return 0
+}
+
+# Fetch a pinned upstream release APK: curl + sha256 verify (+ optional
+# constellation re-sign for upstreams that publish unsigned APKs). Tools:
+# zipalign/apksigner from $ANDROID_HOME/build-tools (present in the hub CI via
+# setup-android; locally requires the devShell). Returns non-zero on any
+# mismatch/missing-tool so the caller skips gracefully — never embeds an
+# unverified or unsigned APK.
+_fetch_upstream_apk() {
+  local key="$1" url="$2" sha="$3" resign="$4" out="$5"
+  local tmp="${out}.dl"
+  curl -sfL --retry 3 -o "$tmp" "$url" || { errlog "upstream[$key]: download failed"; rm -f "$tmp"; return 1; }
+  local got; got="$(sha256sum "$tmp" | cut -d' ' -f1)"
+  if [ "$got" != "$sha" ]; then
+    errlog "upstream[$key]: sha256 mismatch (got $got, pinned $sha)"; rm -f "$tmp"; return 1
+  fi
+  if [ "$resign" = "true" ]; then
+    local bt zipalign apksigner ks
+    bt="$(ls -d "${ANDROID_HOME:-/nonexistent}"/build-tools/* 2>/dev/null | sort -V | tail -1)"
+    zipalign="$bt/zipalign"; apksigner="$bt/apksigner"
+    ks="${COMMS_KEYSTORE:-$SCRIPT_DIR/hub/keystores/comms.keystore}"
+    if [ ! -x "$zipalign" ] || [ ! -x "$apksigner" ] || [ ! -f "$ks" ]; then
+      errlog "upstream[$key]: resign needed but zipalign/apksigner/keystore missing (bt=$bt ks=$ks)"
+      rm -f "$tmp"; return 1
+    fi
+    "$zipalign" -f 4 "$tmp" "${tmp}.aligned" || { rm -f "$tmp" "${tmp}.aligned"; return 1; }
+    "$apksigner" sign --ks "$ks" --ks-pass pass:android \
+      --ks-key-alias commskey --key-pass pass:android \
+      --out "$out" "${tmp}.aligned" || { rm -f "$tmp" "${tmp}.aligned"; return 1; }
+    rm -f "$tmp" "${tmp}.aligned" "${out}.idsig"
+  else
+    mv "$tmp" "$out"
+  fi
   return 0
 }
 

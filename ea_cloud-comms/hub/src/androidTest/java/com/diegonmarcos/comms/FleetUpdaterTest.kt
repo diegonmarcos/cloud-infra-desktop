@@ -53,7 +53,7 @@ class FleetUpdaterTest {
     fun bundledForkAssetsEnumerateSafely() {
         // The assets/forks dir exists (README keeps it present); .apk bundling
         // happens at build time. With no fork published, the list is empty —
-        // the enumeration must not crash and installMissing must be a no-op.
+        // the enumeration must not crash and a Transaction fetch finds nothing.
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
         val domains = BundledForkInstaller.bundledDomains(ctx)
         for (d in domains) assertTrue("bundled domain known", FleetUpdater.fleet.any { it.label == d })

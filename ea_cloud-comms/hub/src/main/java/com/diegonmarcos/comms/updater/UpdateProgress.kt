@@ -1,18 +1,19 @@
 package com.diegonmarcos.comms.updater
 
 /**
- * Process-wide observable state for the fleet updater. The check/download/install
- * pipeline writes states here as it advances; the About screen observes via
- * [setListener]. `target` is the fleet label currently being processed (hub /
- * mail / chat / matrix). Plain singleton + callback — no Coroutines/LiveData dep.
+ * Process-wide observable state for the fleet updater — kept as a THIN ADAPTER
+ * fed by [Transaction] (the richer per-package state lives in [TxState]). The
+ * About screen's single-bar renderer observes via [setListener]. `target` is
+ * the fleet label currently being processed (hub / mail / chat / matrix).
+ * Plain singleton + callback — no Coroutines/LiveData dep.
  */
 object UpdateProgress {
 
     sealed class State {
         object Idle : State()
-        /** [step]/[steps] locate the app inside an all-or-nothing flow run
-         *  (SetupFlow / UpdateWorker); 0/0 = standalone action. The overlay
-         *  renders a per-app bar AND a total bar from them. */
+        /** [step]/[steps] locate the app inside a transaction run
+         *  (Transaction / UpdateWorker); 0/0 = standalone action. About's
+         *  Updates section renders a per-app bar from them. */
         data class Checking(val target: String, val step: Int = 0, val steps: Int = 0) : State()
         data class Downloading(
             val target: String, val percent: Int, val bytes: Long, val total: Long,

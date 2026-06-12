@@ -80,7 +80,13 @@
       "priority": 2,
       "blocked_on": null,
       "patches": [],
-      "comment": "Mattermost mobile (React Native). Server: chat.diegonmarcos.com on oci-apps. Exporter is a NATIVE Kotlin module reading WatermelonDB; RN side left untouched. OPEN DECISION before building: push notifications (self-host mattermost-push-proxy as a new cloud service vs sync-on-open + ntfy) — needs owner sign-off."
+      "comment": "Mattermost mobile (React Native). Server: chat.diegonmarcos.com on oci-apps. Exporter is a NATIVE Kotlin module reading WatermelonDB; RN side left untouched. OPEN DECISION before building: push notifications (self-host mattermost-push-proxy as a new cloud service vs sync-on-open + ntfy) — needs owner sign-off.",
+      "upstream_apk": {
+        "_doc": "Pinned UPSTREAM RELEASE APK — bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true → the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs — unsigned can't install; our key also makes it IPC-compatible).",
+        "url": "https://github.com/mattermost/mattermost-mobile/releases/download/v2.40.0/Mattermost-unsigned.apk",
+        "sha256": "5166a7c996b52cd2f689bb98eb9fed9a32d340b4026dca00e1f919c36316c86d",
+        "resign": true
+      }
     },
     "matrix": {
       "app_id": "com.diegonmarcos.comms.matrix",
@@ -95,11 +101,17 @@
       "priority": 3,
       "blocked_on": "matrix-chat-bridge-stack-ship",
       "patches": [],
-      "comment": "Element X Android (Kotlin + Rust matrix-sdk FFI). BLOCKED until the continuwuity + mautrix-whatsapp + element stack ships (cloud repo, merged 2026-06-10, not deployed). Exporter reads via the Rust-SDK Kotlin BINDINGS, never raw store files. Push via UnifiedPush with our ntfy (rss.diegonmarcos.com) as distributor — Element X supports it natively."
+      "comment": "Element X Android (Kotlin + Rust matrix-sdk FFI). BLOCKED until the continuwuity + mautrix-whatsapp + element stack ships (cloud repo, merged 2026-06-10, not deployed). Exporter reads via the Rust-SDK Kotlin BINDINGS, never raw store files. Push via UnifiedPush with our ntfy (rss.diegonmarcos.com) as distributor — Element X supports it natively.",
+      "upstream_apk": {
+        "_doc": "Pinned UPSTREAM RELEASE APK — bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true → the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs — unsigned can't install; our key also makes it IPC-compatible). NOTE: blocked_on gates OUR fork build (homeserver work), not stock-client bundling — Element X is a generic Matrix client.",
+        "url": "https://github.com/element-hq/element-x-android/releases/download/v26.06.2/app-fdroid-arm64-v8a-release-signed.apk",
+        "sha256": "ce146609b5021ca487ab448ed84f3ad73d67c3177cabaae22898328f0a8142a4",
+        "resign": false
+      }
     },
     "dialer": {
       "app_id": "com.diegonmarcos.comms.dialer",
-      "label": "Phone",
+      "label": "Fossy",
       "image": "cloud-comms-dialer",
       "upstream_repo": "https://github.com/FossifyOrg/Phone.git",
       "tracker_dir": "ea_upstreams-sources/dialer-fossify",
@@ -116,7 +128,13 @@
         "signing": "keystore_properties"
       },
       "patches": [],
-      "comment": "Fossify Phone = the 'Dialer' entry under Cloud-SuperApp Suite/Cloud#Communications. Same constellation patches as the others when forked: branding (com.diegonmarcos.comms.dialer), icon-less + OPEN action, constellation top bar. No exporter (a dialer exposes no comms tables); the hub fleet/bundle/updater handle it purely via this registry entry."
+      "comment": "Fossify Phone = the 'Dialer' entry under Cloud-SuperApp Suite/Cloud#Communications. Same constellation patches as the others when forked: branding (com.diegonmarcos.comms.dialer), icon-less + OPEN action, constellation top bar. No exporter (a dialer exposes no comms tables); the hub fleet/bundle/updater handle it purely via this registry entry.",
+      "upstream_apk": {
+        "_doc": "Pinned UPSTREAM RELEASE APK — bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true → the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs — unsigned can't install; our key also makes it IPC-compatible).",
+        "url": "https://github.com/FossifyOrg/Phone/releases/download/1.11.1/phone-22-foss-release.apk",
+        "sha256": "d1ad08467034e5138a6e68f03b6e150f0bb010dfcbf490ff3d2bd4822b755728",
+        "resign": false
+      }
     }
   },
   "release": {

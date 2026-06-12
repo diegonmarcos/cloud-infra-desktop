@@ -10,12 +10,20 @@ import android.content.pm.PackageInstaller
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
+import com.diegonmarcos.comms.R
 
 /**
- * Receives PackageInstaller status callbacks. Forwards the system confirmation
- * Activity on STATUS_PENDING_USER_ACTION; surfaces SUCCESS / FAILURE_* as a
- * Toast + notification so a silent reject (e.g. a signature mismatch — which in
- * the constellation means an APK wasn't signed with the shared key) is visible.
+ * Receives PackageInstaller status callbacks and feeds them into the
+ * transaction state machine:
+ *
+ *  - STATUS_PENDING_USER_ACTION → the confirm Intent is forwarded through
+ *    [InstallGate] (current foreground activity, or a notification fallback —
+ *    starting it straight from a receiver is restricted and was silently
+ *    dropped). The waiting [Transaction] is told so it shows "confirm".
+ *  - STATUS_SUCCESS / FAILURE_* → delivered to [InstallBus] so the running
+ *    transaction advances on the REAL result instead of blind polling. An
+ *    orphan result (no transaction waiting) still surfaces as toast +
+ *    notification so silent rejects stay visible.
  */
 class PackageInstallerReceiver : BroadcastReceiver() {
     private val tag = "Updater/Receiver"
@@ -24,16 +32,28 @@ class PackageInstallerReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -999)
+        val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)
         val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: ""
-        Log.i(tag, "status=$status msg=$message")
+        Log.i(tag, "session=$sessionId status=$status msg=$message")
 
+        if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+            @Suppress("DEPRECATION")
+            val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
+            confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            // Tell the transaction (item → WAITING_CONFIRM), then hand the
+            // dialog to the foreground activity / notification fallback.
+            InstallBus.deliver(sessionId, status, message)
+            InstallGate.launch(context, confirm,
+                context.getString(R.string.notif_confirm_title),
+                context.getString(R.string.notif_confirm_text))
+            return
+        }
+
+        val consumed = InstallBus.deliver(sessionId, status, message)
+        if (consumed) return   // transaction renders the result itself
+
+        // Orphan result — no flow waiting; keep it visible like before.
         when (status) {
-            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                @Suppress("DEPRECATION")
-                val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
-                confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(confirm)
-            }
             PackageInstaller.STATUS_SUCCESS ->
                 surface(context, "Update installed ✓", "A Cloud-Comms app was installed successfully.")
             else -> {

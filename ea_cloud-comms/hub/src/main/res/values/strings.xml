@@ -24,6 +24,27 @@
     <string name="overlay_failed">Update failed: %1$s</string>
     <string name="overlay_step">App %1$d of %2$d</string>
     <string name="overlay_total">Total progress</string>
+
+    <!-- Package-manager transaction overlay (one row per package). -->
+    <string name="overlay_title_setup">Setting up Cloud-Comms</string>
+    <string name="overlay_title_updating">Updating</string>
+    <string name="pkg_queued">⏳ queued</string>
+    <string name="pkg_fetching">▼ %1$d%% downloading</string>
+    <string name="pkg_verifying">⧗ verifying</string>
+    <string name="pkg_confirm">👆 confirm install</string>
+    <string name="pkg_installing">⚙ %1$d%% installing</string>
+    <string name="pkg_done">✓ done</string>
+    <string name="pkg_skipped">⊘ skipped — %1$s</string>
+    <string name="pkg_failed">✗ failed — %1$s</string>
+
+    <!-- "Install unknown apps" special-access preflight. -->
+    <string name="perm_install_title">Allow installing apps from Cloud-Comms</string>
+    <string name="perm_install_button">Allow</string>
+    <string name="perm_install_notif_text">Cloud-Comms needs the “Install unknown apps” permission to install the constellation apps.</string>
+
+    <!-- Install-confirm forwarded via notification when no activity is resumed. -->
+    <string name="notif_confirm_title">Confirm Cloud-Comms install</string>
+    <string name="notif_confirm_text">Tap to approve the pending app install.</string>
     <string name="about_title">Configs &amp; About</string>
     <string name="about_sec_build">Build</string>
     <string name="about_sec_ipc">IPC contract</string>

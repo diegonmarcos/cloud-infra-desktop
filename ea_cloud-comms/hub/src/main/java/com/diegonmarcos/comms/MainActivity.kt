@@ -1,16 +1,19 @@
 package com.diegonmarcos.comms
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.diegonmarcos.comms.updater.BundledForkInstaller
 import com.diegonmarcos.comms.updater.FleetUpdater
+import com.diegonmarcos.comms.updater.InstallGate
+import com.diegonmarcos.comms.updater.Transaction
+import com.diegonmarcos.comms.updater.TxState
 
 /**
  * The switcher. Renders one tile per fork (data-driven from ForkRegistry, itself
@@ -57,27 +60,14 @@ class MainActivity : AppCompatActivity() {
             content.addView(tileFor(fork))
         }
 
-        // All-or-nothing setup (owner spec): ONE flow stages every missing
-        // child APK (bundle-extract or GHCR download with sizes/percent), then
-        // installs them step by step — per-app AND total progress on the
-        // overlay. The button re-runs it manually; first launch auto-triggers.
-        if (com.diegonmarcos.comms.updater.SetupFlow.needed(this)) {
-            content.addView(Button(this).apply {
-                text = getString(R.string.setup_install_all,
-                    com.diegonmarcos.comms.updater.SetupFlow.pending(this@MainActivity).size)
-                setOnClickListener {
-                    com.diegonmarcos.comms.updater.SetupFlow.start(this@MainActivity)
-                }
-            })
-        }
-
-        // Configs row — TWO separate entries like Cloud-SuperApp: Update and
-        // About, side by side, same card language as the fork tiles.
+        // Configs row — TWO entries like Cloud-SuperApp: Update (the ONE
+        // package-manager entry point — installs missing forks AND applies
+        // updates in a single Transaction) and About.
         content.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8) }
             addView(configCard(getString(R.string.config_update_entry)) {
-                FleetUpdater.checkNow(this@MainActivity)
+                Transaction.start(this@MainActivity)
             }.apply { (layoutParams as LinearLayout.LayoutParams).rightMargin = dp(10) })
             addView(configCard(getString(R.string.config_about_entry)) {
                 startActivity(Intent(this@MainActivity, AboutActivity::class.java))
@@ -90,37 +80,38 @@ class MainActivity : AppCompatActivity() {
             addView(content)
         })
 
-        // Fullscreen update overlay (superapp's UpdateOverlayFragment pattern):
-        // a dark scrim with title + progress + detail, shown whenever the fleet
-        // updater is doing anything — so download AND installation progress are
-        // visible like every other app's updater, wherever you are in the hub.
+        // Fullscreen package-manager transaction view: a dark scrim with one
+        // row per package (label + status glyph + per-row progress) and a
+        // total bar — visible whenever a Transaction runs, so download AND
+        // installation progress are both always on screen.
         val frame = android.widget.FrameLayout(this)
         frame.addView(root)
-        overlay = buildUpdateOverlay()
+        overlay = buildTransactionOverlay()
         frame.addView(overlay)
         setContentView(frame)
 
         // Launcher-shortcut dispatch (mirrors Cloud-SuperApp's grammar).
         handleShortcutIntent(intent)
 
-        // First launch (and any launch with missing children): auto-trigger the
-        // all-or-nothing setup — downloading/extracting then installing EVERY
-        // child APK in one flow, exactly like the Update path (owner spec).
-        if (com.diegonmarcos.comms.updater.SetupFlow.needed(this)) {
-            root.post { com.diegonmarcos.comms.updater.SetupFlow.start(this) }
+        // First launch (and any launch with missing children): auto-trigger
+        // the SAME Transaction the Update card runs — fetch everything, then
+        // install everything, per-package + total progress on the overlay.
+        if (Transaction.setupNeeded(this)) {
+            root.post { Transaction.start(this) }
         }
     }
 
-    // ── Update overlay (port of superapp's UpdateOverlayFragment) ──────────
+    // ── Transaction overlay (package-manager transaction view) ─────────────
     private lateinit var overlay: android.widget.FrameLayout
     private lateinit var ovTitle: TextView
-    private lateinit var ovStep: TextView
-    private lateinit var ovDetail: TextView
-    private lateinit var ovBar: android.widget.ProgressBar
-    private lateinit var ovTotalBar: android.widget.ProgressBar
+    private lateinit var ovRows: LinearLayout
     private lateinit var ovTotalLabel: TextView
+    private lateinit var ovTotalBar: android.widget.ProgressBar
+    private lateinit var ovPermText: TextView
+    private lateinit var ovPermButton: TextView
+    private lateinit var ovDismiss: TextView
 
-    private fun buildUpdateOverlay(): android.widget.FrameLayout {
+    private fun buildTransactionOverlay(): android.widget.FrameLayout {
         val scrim = android.widget.FrameLayout(this).apply {
             setBackgroundColor(0xE6000000.toInt())
             isClickable = true; isFocusable = true
@@ -139,115 +130,135 @@ class MainActivity : AppCompatActivity() {
             textSize = 20f
             gravity = Gravity.CENTER
         }
-        ovBar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            isIndeterminate = true; max = 100
+        // One row per package, rebuilt from each Snapshot.
+        ovRows = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply {
                 topMargin = dp(16); bottomMargin = dp(8)
             }
         }
-        ovStep = TextView(this).apply {
-            setTextColor(0xFFB794F4.toInt())
-            textSize = 13f
-            gravity = Gravity.CENTER
-        }
-        ovDetail = TextView(this).apply {
-            setTextColor(0x99FFFFFF.toInt())
-            textSize = 13f
-            gravity = Gravity.CENTER
-        }
         ovTotalLabel = TextView(this).apply {
+            text = getString(R.string.overlay_total)
             setTextColor(0x99FFFFFF.toInt())
             textSize = 12f
             gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(18) }
+            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(12) }
         }
         ovTotalBar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             isIndeterminate = false; max = 100
             layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(4) }
         }
-        val dismiss = TextView(this).apply {
+        ovPermText = TextView(this).apply {
+            text = getString(R.string.perm_install_title)
+            setTextColor(0xFFB794F4.toInt())
+            textSize = 13f
+            gravity = Gravity.CENTER
+            visibility = android.view.View.GONE
+            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(16) }
+        }
+        ovPermButton = TextView(this).apply {
+            text = getString(R.string.perm_install_button)
+            setTextColor(0xFFFFFFFF.toInt())
+            setBackgroundColor(0xFF7C3AED.toInt())
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(10), dp(24), dp(10))
+            visibility = android.view.View.GONE
+            layoutParams = LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(8) }
+            isClickable = true
+            setOnClickListener {
+                startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName")))
+            }
+        }
+        ovDismiss = TextView(this).apply {
             text = getString(R.string.overlay_dismiss)
             setTextColor(0xFFFFFFFF.toInt())
             setBackgroundColor(0xFF7C3AED.toInt())
             gravity = Gravity.CENTER
             setPadding(dp(24), dp(10), dp(24), dp(10))
+            visibility = android.view.View.GONE
             layoutParams = LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(20) }
             isClickable = true
-            setOnClickListener { com.diegonmarcos.comms.updater.UpdateProgress.reset() }
+            setOnClickListener {
+                TxState.reset()
+                com.diegonmarcos.comms.updater.UpdateProgress.reset()
+            }
         }
-        column.addView(ovTitle); column.addView(ovStep); column.addView(ovBar); column.addView(ovDetail)
-        column.addView(ovTotalLabel); column.addView(ovTotalBar); column.addView(dismiss)
+        column.addView(ovTitle); column.addView(ovRows)
+        column.addView(ovTotalLabel); column.addView(ovTotalBar)
+        column.addView(ovPermText); column.addView(ovPermButton)
+        column.addView(ovDismiss)
         scrim.addView(column)
         return scrim
     }
 
-    /** Per-app + total progress for all-or-nothing flow states. */
-    private fun renderFlowStep(step: Int, steps: Int, perAppPercent: Int) {
-        if (steps > 0) {
-            ovStep.text = getString(R.string.overlay_step, step, steps)
-            ovTotalLabel.text = getString(R.string.overlay_total)
-            ovTotalBar.visibility = android.view.View.VISIBLE
-            ovTotalLabel.visibility = android.view.View.VISIBLE
-            ovTotalBar.progress = (((step - 1) * 100) + perAppPercent.coerceIn(0, 100)) / steps
-        } else {
-            ovStep.text = ""
-            ovTotalBar.visibility = android.view.View.GONE
-            ovTotalLabel.visibility = android.view.View.GONE
-        }
-    }
-
     override fun onResume() {
         super.onResume()
-        com.diegonmarcos.comms.updater.UpdateProgress.setListener { s ->
-            runOnUiThread { renderOverlay(s) }
-        }
+        // Foreground gate: PackageInstaller confirm dialogs + the unknown-
+        // sources settings screen are forwarded through THIS activity.
+        InstallGate.register(this)
+        TxState.setListener { s -> runOnUiThread { renderSnapshot(s) } }
     }
 
     override fun onPause() {
         super.onPause()
-        com.diegonmarcos.comms.updater.UpdateProgress.setListener(null)
+        TxState.setListener(null)
+        InstallGate.unregister(this)
     }
 
-    private fun renderOverlay(s: com.diegonmarcos.comms.updater.UpdateProgress.State) {
+    private fun renderSnapshot(s: TxState.Snapshot?) {
         if (!::overlay.isInitialized) return
-        when (s) {
-            is com.diegonmarcos.comms.updater.UpdateProgress.State.Idle -> overlay.visibility = android.view.View.GONE
-            is com.diegonmarcos.comms.updater.UpdateProgress.State.Checking -> {
-                overlay.visibility = android.view.View.VISIBLE
-                ovBar.isIndeterminate = true
-                ovTitle.text = getString(R.string.overlay_checking, s.target)
-                ovDetail.text = ""
-                renderFlowStep(s.step, s.steps, 0)
-            }
-            is com.diegonmarcos.comms.updater.UpdateProgress.State.Downloading -> {
-                overlay.visibility = android.view.View.VISIBLE
-                ovBar.isIndeterminate = false; ovBar.progress = s.percent
-                ovTitle.text = getString(R.string.overlay_downloading, s.target, s.percent)
-                ovDetail.text = "${s.bytes / 1024} KiB / ${if (s.total > 0) "${s.total / 1024} KiB" else "?"}"
-                renderFlowStep(s.step, s.steps, s.percent)
-            }
-            is com.diegonmarcos.comms.updater.UpdateProgress.State.Installing -> {
-                overlay.visibility = android.view.View.VISIBLE
-                ovBar.isIndeterminate = true
-                ovTitle.text = getString(R.string.overlay_installing, s.target)
-                ovDetail.text = getString(R.string.overlay_installing_hint)
-                renderFlowStep(s.step, s.steps, 50)
-            }
-            is com.diegonmarcos.comms.updater.UpdateProgress.State.UpToDate -> {
-                ovTitle.text = getString(R.string.overlay_up_to_date, s.checked)
-                ovBar.isIndeterminate = false; ovBar.progress = 100
-                ovDetail.text = ""
-                overlay.postDelayed({ if (com.diegonmarcos.comms.updater.UpdateProgress.state is
-                    com.diegonmarcos.comms.updater.UpdateProgress.State.UpToDate)
-                    overlay.visibility = android.view.View.GONE }, 1500)
-            }
-            is com.diegonmarcos.comms.updater.UpdateProgress.State.Failed -> {
-                overlay.visibility = android.view.View.VISIBLE
-                ovBar.isIndeterminate = false
-                ovTitle.text = getString(R.string.overlay_failed, s.target)
-                ovDetail.text = s.message
-            }
+        if (s == null) { overlay.visibility = android.view.View.GONE; return }
+        overlay.visibility = android.view.View.VISIBLE
+        ovTitle.text = getString(
+            if (s.setup) R.string.overlay_title_setup else R.string.overlay_title_updating)
+
+        ovRows.removeAllViews()
+        for (item in s.items) {
+            ovRows.addView(TextView(this).apply {
+                typeface = android.graphics.Typeface.MONOSPACE
+                textSize = 13f
+                setTextColor(rowColor(item.phase))
+                text = String.format("%-8s %s", item.label, phaseText(item.phase))
+                setPadding(0, dp(2), 0, dp(2))
+            })
         }
+
+        ovTotalBar.progress = s.totalPercent
+        val needsPerm = s.needsInstallPermission
+        ovPermText.visibility = if (needsPerm) android.view.View.VISIBLE else android.view.View.GONE
+        ovPermButton.visibility = if (needsPerm) android.view.View.VISIBLE else android.view.View.GONE
+        ovDismiss.visibility = if (s.finished) android.view.View.VISIBLE else android.view.View.GONE
+
+        // Clean finish (nothing failed) auto-hides like the old UpToDate state
+        // — a background sweep that found everything current never nags.
+        if (s.finished && !s.anyFailed) {
+            overlay.postDelayed({
+                val cur = TxState.snapshot
+                if (cur != null && cur.finished && !cur.anyFailed) TxState.reset()
+            }, 1500)
+        }
+    }
+
+    /** Per-row mini progress: glyph + percent, one line per package. */
+    private fun phaseText(p: TxState.Phase): String = when (p) {
+        is TxState.Phase.Queued         -> getString(R.string.pkg_queued)
+        is TxState.Phase.Fetching       -> getString(R.string.pkg_fetching, p.percent)
+        is TxState.Phase.Verifying      -> getString(R.string.pkg_verifying)
+        is TxState.Phase.WaitingConfirm -> getString(R.string.pkg_confirm)
+        is TxState.Phase.Installing     -> getString(R.string.pkg_installing, p.percent)
+        is TxState.Phase.Done           -> getString(R.string.pkg_done)
+        is TxState.Phase.Skipped        -> getString(R.string.pkg_skipped, p.reason)
+        is TxState.Phase.Failed         -> getString(R.string.pkg_failed, p.message)
+    }
+
+    /** Accent for in-flight rows, caption tint for settled ones, white for
+     *  failures — same dark-purple palette as the rest of the hub. */
+    private fun rowColor(p: TxState.Phase): Int = when (p) {
+        is TxState.Phase.Fetching, is TxState.Phase.Verifying,
+        is TxState.Phase.WaitingConfirm, is TxState.Phase.Installing -> 0xFFB794F4.toInt()
+        is TxState.Phase.Failed -> 0xFFFFFFFF.toInt()
+        else -> 0x99FFFFFF.toInt()
     }
 
     /** Half-width config card (Update / About) — weight=1 each across the row. */
@@ -352,10 +363,10 @@ class MainActivity : AppCompatActivity() {
             fork.blockedOn != null ->
                 Toast.makeText(this, getString(R.string.tile_blocked, fork.blockedOn), Toast.LENGTH_LONG).show()
             !installed -> {
-                // All-or-nothing (owner spec): a tap on ANY missing fork runs
-                // the whole setup flow — stage everything, then install
-                // everything, with per-app + total progress on the overlay.
-                com.diegonmarcos.comms.updater.SetupFlow.start(this)
+                // A tap on ANY missing fork runs the same package-manager
+                // Transaction: fetch everything, then install everything,
+                // per-package + total progress on the overlay.
+                Transaction.start(this)
             }
             !openFork(fork.appId) ->
                 Toast.makeText(this, getString(R.string.tile_launch_failed), Toast.LENGTH_SHORT).show()

@@ -9,13 +9,10 @@ import java.io.File
  *
  * The single Cloud-Comms hub APK physically carries each fork APK inside it
  * (assets/forks/<domain>.apk, seeded at build time by `build.sh bundle-forks`).
- * On first launch — or when the user taps an uninstalled fork tile — the hub
- * copies the bundled APK out of assets and installs it via PackageInstaller
- * (UpdateInstaller). No network needed for first setup; the FleetUpdater then
- * keeps each fork current from GHCR.
- *
- * Android's no-root security model still shows one install-confirmation dialog
- * per fork; this just removes the need to find/download three separate files.
+ * This is the asset-extraction helper used by [Transaction]'s FETCH phase —
+ * a bundled fork needs no network for first setup; the periodic transaction
+ * then keeps each fork current from GHCR. Bundled APKs are trusted (they
+ * shipped inside our signed APK), so the VERIFY phase skips them.
  */
 object BundledForkInstaller {
     private const val TAG = "Updater/Bundle"
@@ -31,34 +28,17 @@ object BundledForkInstaller {
     fun hasBundle(ctx: Context, domain: String): Boolean =
         bundledDomains(ctx).contains(domain)
 
-    /**
-     * Install the bundled fork for [domain]. Copies the asset to cacheDir and
-     * hands it to PackageInstaller (user confirms). Returns false if there's no
-     * bundled APK for that domain or the fork's app id is unknown.
-     */
-    fun install(ctx: Context, domain: String): Boolean {
-        val appId = FleetUpdater.fleet.firstOrNull { it.label == domain }?.appId ?: return false
+    /** Copy the bundled APK for [domain] out of assets into [out]. Returns
+     *  false when this build carries no bundle for that domain. */
+    fun extractTo(ctx: Context, domain: String, out: File): Boolean {
         if (!hasBundle(ctx, domain)) {
-            Log.i(TAG, "$domain: no bundled APK (not published/bundled yet)"); return false
+            Log.i(TAG, "$domain: no bundled APK (not published/bundled yet)")
+            return false
         }
-        val out = File(ctx.cacheDir, "bundled-$domain.apk")
         ctx.assets.open("$ASSET_DIR/$domain.apk").use { input ->
             out.outputStream().use { input.copyTo(it) }
         }
-        Log.i(TAG, "$domain: installing bundled APK → $appId")
-        UpdateInstaller(ctx).install(out, appId)
+        Log.i(TAG, "$domain: extracted bundled APK → ${out.name} (${out.length()} bytes)")
         return true
-    }
-
-    /** First-run convenience: install every bundled fork that isn't already
-        installed and isn't blocked. Returns how many installs were kicked off. */
-    fun installMissing(ctx: Context): Int {
-        var started = 0
-        for (entry in FleetUpdater.fleet) {
-            if (entry.label == "hub" || entry.blocked) continue
-            if (entry.isInstalled(ctx)) continue
-            if (install(ctx, entry.label)) started++
-        }
-        return started
     }
 }
