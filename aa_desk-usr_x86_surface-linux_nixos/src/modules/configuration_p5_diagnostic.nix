@@ -105,7 +105,7 @@ in
       Type           = "oneshot";
       RemainAfterExit = true;
     };
-    path = with pkgs; [ coreutils util-linux ];
+    path = with pkgs; [ coreutils util-linux gawk ];
     script = ''
       TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
       SNAP=${diagDir}/snap-boot-$TS.sha
@@ -182,7 +182,7 @@ in
       Type           = "oneshot";
       RemainAfterExit = true;
     };
-    path = with pkgs; [ coreutils util-linux ];
+    path = with pkgs; [ coreutils util-linux gawk ];
     script = ''
       TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
       SNAP=${diagDir}/snap-shutdown-$TS.sha
