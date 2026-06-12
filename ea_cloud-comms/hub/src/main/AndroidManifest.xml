@@ -15,6 +15,11 @@
          prompt), and post the download/result notification. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Configs → About → Permissions: "Battery No Optimization" action button
+         (ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS one-tap dialog) — same
+         whitelist flow Cloud-SuperApp's About exposes, so the periodic fleet
+         updater keeps running under Doze. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Discover which fork APKs are installed (ForkRegistry.isInstalled +
          getLaunchIntentForPackage). One <package> per build.json::forks entry

@@ -5,6 +5,10 @@ plugins {
 
 import groovy.json.JsonOutput
 
+// Wall-clock anchor for the About → Stack "Gradle config phase" row — same
+// proxy ea_cloud-superapp bakes (is the build getting slower over time?).
+def gradleScriptStartMs = System.currentTimeMillis()
+
 // ── Data-driven config bake ─────────────────────────────────────────────
 // Everything the hub needs at runtime is read from the repo's source-of-truth
 // JSON at config time and baked into BuildConfig — no parallel hardcoded list
@@ -57,6 +61,14 @@ forksMap.each { k, v ->
 }
 def fleetB64 = JsonOutput.toJson(fleet).bytes.encodeBase64().toString()
 
+// ── About → Permissions catalog ─────────────────────────────────────────
+// Same bake ea_cloud-superapp/app/build.gradle does: AboutActivity's
+// Permissions section reads UI_PERMISSIONS_RUNTIME_B64 to render its row
+// list — single source of truth = build.json::ui.permissions.runtime[]
+// (copied from the superapp catalog for row-for-row About parity).
+def uiPermissionsRuntimeJson = JsonOutput.toJson(buildJson.ui?.permissions?.runtime ?: [])
+def uiPermissionsRuntimeB64  = uiPermissionsRuntimeJson.bytes.encodeBase64().toString()
+
 // ── About stack-scan (lite) ─────────────────────────────────────────────
 // Same idea as ea_cloud-superapp's About → Stack: compute "what's in this
 // project" at config time so the About screen ships no static manifest to
@@ -85,6 +97,22 @@ repoRoot.eachFileRecurse { f ->
     depPattern.matcher(text).each { m -> stackDeps.add(m[2]) }
 }
 def stackFrameworksB64 = JsonOutput.toJson(stackDeps.toList()).bytes.encodeBase64().toString()
+
+// ── About → Stack folder tree ───────────────────────────────────────────
+// Depth-2 directory tree of ea_cloud-comms/, computed at gradle config time
+// (superapp renders the same monospace block from its UI_STACK_FOLDER_TREE_B64).
+// Build artefact dirs are skipped so the tree is reproducible across machines.
+def treeSkip = ["build", ".gradle", "dist", ".git"]
+def treeLines = ["ea_cloud-comms/"]
+repoRoot.listFiles()?.sort { it.name }?.each { d1 ->
+    if (!d1.isDirectory() || treeSkip.contains(d1.name)) return
+    treeLines << "  ${d1.name}/"
+    d1.listFiles()?.sort { it.name }?.each { d2 ->
+        if (!d2.isDirectory() || treeSkip.contains(d2.name)) return
+        treeLines << "    ${d2.name}/"
+    }
+}
+def stackTreeB64 = treeLines.join("\n").bytes.encodeBase64().toString()
 
 // Build-time history (same as ea_cloud-superapp's About → Stack): pull the
 // wall-clock duration of the last N successful ship runs so About can show
@@ -148,9 +176,14 @@ android {
         // ── About → Stack ──
         buildConfigField "String", "STACK_LANGUAGES_JSON_B64",  "\"${stackLanguagesB64}\""
         buildConfigField "String", "STACK_FRAMEWORKS_JSON_B64", "\"${stackFrameworksB64}\""
+        buildConfigField "String", "STACK_FOLDER_TREE_B64",     "\"${stackTreeB64}\""
         buildConfigField "long",   "STACK_BUILD_AVG_SECS",      "${buildAvgSecs}L"
         buildConfigField "long",   "STACK_BUILD_LAST_SECS",     "${buildLastSecs}L"
         buildConfigField "int",    "STACK_BUILD_SAMPLE",        "${buildSampleSize}"
+        buildConfigField "long",   "STACK_GRADLE_CONFIG_MS",    "${System.currentTimeMillis() - gradleScriptStartMs}L"
+
+        // ── About → Permissions (build.json::ui.permissions.runtime) ──
+        buildConfigField "String", "UI_PERMISSIONS_RUNTIME_B64", "\"${uiPermissionsRuntimeB64}\""
 
         manifestPlaceholders = [ ipcPermission: ipcPermission, ipcAuthority: ipcAuthority ]
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'

@@ -13,6 +13,15 @@
     <string name="setup_install_all">Set up Cloud-Comms — install %1$d bundled app(s)</string>
     <string name="setup_installing_n">Installing %1$d app(s)…</string>
     <string name="about_entry">⚙ Configs &amp; About</string>
+    <string name="config_update_entry">🔄 Update</string>
+    <string name="config_about_entry">ℹ️ About</string>
+    <string name="overlay_dismiss">Dismiss</string>
+    <string name="overlay_checking">Checking %1$s…</string>
+    <string name="overlay_downloading">Downloading %1$s — %2$d%%</string>
+    <string name="overlay_installing">Installing %1$s…</string>
+    <string name="overlay_installing_hint">Confirm the system install dialog if prompted.</string>
+    <string name="overlay_up_to_date">Up to date — %1$d app(s) checked ✓</string>
+    <string name="overlay_failed">Update failed: %1$s</string>
     <string name="about_title">Configs &amp; About</string>
     <string name="about_sec_build">Build</string>
     <string name="about_sec_ipc">IPC contract</string>

@@ -166,5 +166,64 @@
       "_doc_install": "'prompt' uses PackageInstaller with a user-confirmation dialog (only no-root path). 'silent' needs the system updater privilege (F-Droid Privileged Extension) — not used here.",
       "install_mode": "prompt"
     }
+  },
+  "ui": {
+    "_doc": "About-page data — same shape as ea_cloud-superapp/build.json::ui. permissions.runtime is COPIED from the superapp catalog so the hub's About → Permissions renders the IDENTICAL row list (superapp parity); perms the hub manifest doesn't declare render live as denied/not-requested.",
+    "permissions": {
+      "runtime": [
+        {
+          "label": "Camera",
+          "perm": "android.permission.CAMERA"
+        },
+        {
+          "label": "Microphone",
+          "perm": "android.permission.RECORD_AUDIO"
+        },
+        {
+          "label": "Notifications",
+          "perm": "android.permission.POST_NOTIFICATIONS"
+        },
+        {
+          "label": "Location (fine)",
+          "perm": "android.permission.ACCESS_FINE_LOCATION"
+        },
+        {
+          "label": "Location (coarse)",
+          "perm": "android.permission.ACCESS_COARSE_LOCATION"
+        },
+        {
+          "label": "Nearby Devices",
+          "perm": "android.permission.BLUETOOTH_SCAN"
+        },
+        {
+          "label": "Bluetooth Connect",
+          "perm": "android.permission.BLUETOOTH_CONNECT"
+        },
+        {
+          "label": "Contacts",
+          "perm": "android.permission.READ_CONTACTS"
+        },
+        {
+          "label": "Music and Audio",
+          "perm": "android.permission.READ_MEDIA_AUDIO"
+        },
+        {
+          "label": "Photos and Videos (img)",
+          "perm": "android.permission.READ_MEDIA_IMAGES"
+        },
+        {
+          "label": "Photos and Videos (vid)",
+          "perm": "android.permission.READ_MEDIA_VIDEO"
+        },
+        {
+          "label": "SMS",
+          "perm": "android.permission.READ_SMS"
+        },
+        {
+          "label": "Phone",
+          "perm": "android.permission.READ_PHONE_STATE"
+        }
+      ]
+    }
   }
 }

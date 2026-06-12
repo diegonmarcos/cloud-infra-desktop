@@ -56,6 +56,17 @@ class AboutActivity : AppCompatActivity() {
             recreate()
         }
 
+    /** Bulk request — wired to the "Request All Permissions" button (same
+     *  flow as superapp's allPermsLauncher). */
+    private val allPermsLauncher =
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            val granted = result.count { it.value }
+            val denied  = result.size - granted
+            Toast.makeText(this,
+                "Permissions: $granted granted, $denied denied", Toast.LENGTH_SHORT).show()
+            recreate()
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         title = getString(R.string.about_title)
@@ -73,8 +84,8 @@ class AboutActivity : AppCompatActivity() {
 
         column.addView(title(ctx, getString(R.string.about_heading)))
 
-        // ── About ──────────────────────────────────────────────────────
-        section(ctx, column, "About") {
+        // ── App (superapp section #1 — same name, same rows) ───────────
+        section(ctx, column, "App") {
             row(ctx, it, "Name",         BuildConfig.APPLICATION_ID)
             row(ctx, it, "Version",      BuildConfig.VERSION_NAME)
             row(ctx, it, "Version code", BuildConfig.VERSION_CODE.toString())
@@ -84,8 +95,9 @@ class AboutActivity : AppCompatActivity() {
             row(ctx, it, "Debuggable",   BuildConfig.DEBUG.toString())
         }
 
-        // ── Updater / GHCR ─────────────────────────────────────────────
-        section(ctx, column, "Updater") {
+        // ── Release / GHCR (superapp section #2; the hub's fleet-updater
+        //    coords carry extra rows on top of superapp's six) ───────────
+        section(ctx, column, "Release / GHCR") {
             row(ctx, it, "Registry",  BuildConfig.GHCR_REGISTRY)
             row(ctx, it, "Namespace", BuildConfig.GHCR_NAMESPACE)
             row(ctx, it, "Image",     BuildConfig.GHCR_IMAGE)
@@ -150,6 +162,9 @@ class AboutActivity : AppCompatActivity() {
             row(ctx, it, "Cache dir",  cacheDir.absolutePath)
             row(ctx, it, "Data root",  dataDir.absolutePath)
             row(ctx, it, "External",   getExternalFilesDir(null)?.absolutePath ?: "—")
+            // Trace log — superapp's TraceLogger path; the hub writes no trace
+            // file (yet) so File.length() degrades to 0 B until one exists.
+            row(ctx, it, "Trace log",  sizeStr(File(getExternalFilesDir(null), "trace/trace.log").length()))
             it.addView(small(ctx, "Breakdown — same buckets Android system settings shows:"))
             row(ctx, it, "Aplicación", sizeStr(apkBytes))
             row(ctx, it, "Datos",      sizeStr(dataBytes))
@@ -157,67 +172,56 @@ class AboutActivity : AppCompatActivity() {
             row(ctx, it, "Total",      sizeStr(totalBytes))
         }
 
-        // ── IPC contract ───────────────────────────────────────────────
-        section(ctx, column, "IPC contract") {
-            row(ctx, it, "Contract",   "v${BuildConfig.IPC_VERSION}")
-            row(ctx, it, "Authority",  BuildConfig.IPC_AUTHORITY)
-            row(ctx, it, "Permission", BuildConfig.IPC_PERMISSION)
-            row(ctx, it, "Open action", BuildConfig.LAUNCH_ACTION)
-            it.addView(small(ctx, "Signature-gated — all constellation APKs share one signing key."))
-        }
-
-        // ── Constellation ──────────────────────────────────────────────
-        section(ctx, column, "Constellation") {
-            val forks = runCatching {
-                JSONObject(String(Base64.decode(BuildConfig.FORKS_JSON_B64, Base64.DEFAULT)))
-            }.getOrDefault(JSONObject())
-            for (e in FleetUpdater.fleet) {
-                val installed = e.installedVersion(ctx)
-                val state = when {
-                    e.blocked -> "blocked"
-                    installed != null -> "v$installed"
-                    BundledForkInstaller.hasBundle(ctx, e.label) -> "bundled · tap to install"
-                    else -> "not bundled yet"
-                }
-                val name = if (e.label == "hub") "Cloud-Comms (hub)"
-                           else forks.optJSONObject(e.label)?.optString("label")?.ifBlank { null } ?: e.label
-                row(ctx, it, name, state)
-                if (e.label == "hub") {
-                    row(ctx, it, "  image", e.image)
-                } else forks.optJSONObject(e.label)?.let { f ->
-                    val pin = f.optString("pinned_tag").ifBlank { "—" }
-                    row(ctx, it, "  license/runtime",
-                        "${f.optString("license").ifBlank { "—" }} · ${f.optString("runtime").ifBlank { "—" }} · pin $pin")
-                    row(ctx, it, "  bundled?",
-                        if (BundledForkInstaller.hasBundle(ctx, e.label)) "yes" else "no")
-                }
-                row(ctx, it, "  app id", e.appId)
-            }
-        }
-
-        // ── Permissions ────────────────────────────────────────────────
+        // ── Permissions (superapp section #6 — full port) ──────────────
         section(ctx, column, "Permissions") {
-            it.addView(small(ctx, "Manifest permissions — States: ✓ Granted · ✗ Denied. Normal/signature perms are auto-granted at install; runtime perms (notifications on API 33+) need a prompt."))
-            // The hub's ACTUAL manifest permissions (see AndroidManifest.xml).
-            val perms = listOf(
-                "INTERNET"                to "android.permission.INTERNET",
-                "Network state"           to "android.permission.ACCESS_NETWORK_STATE",
-                "Wi-Fi state"             to "android.permission.ACCESS_WIFI_STATE",
-                "Install packages"        to "android.permission.REQUEST_INSTALL_PACKAGES",
-                "Post notifications"      to "android.permission.POST_NOTIFICATIONS",
-                "IPC (signature)"         to BuildConfig.IPC_PERMISSION,
-            )
+            // Runtime perms — data-driven from build.json::ui.permissions.runtime[]
+            // (baked as UI_PERMISSIONS_RUNTIME_B64, copied from the superapp
+            // catalog). States are read live; perms the hub's manifest doesn't
+            // declare can never be granted, so they stay at ✗/◯.
+            val perms = parseRuntimePermissions()
+            it.addView(small(ctx, "Runtime perms — States: ✓ Granted · ⏳ Ask each time · ✗ Denied (don't ask) · ◯ Not requested. Catalog mirrors Cloud-SuperApp's build.json::ui.permissions.runtime; the hub manifest declares only Notifications, so undeclared perms always read denied/not-requested."))
             for ((label, perm) in perms) {
                 row(ctx, it, label, permissionState(perm))
             }
-            if (android.os.Build.VERSION.SDK_INT >= 33) {
-                it.addView(actionButton(ctx, "Request notifications") {
-                    notifPermLauncher.launch("android.permission.POST_NOTIFICATIONS")
-                })
-            } else {
-                it.addView(small(ctx, "Pre-API 33 — notifications are granted by default."))
+
+            // ── Special access — single-flag toggles handled by separate
+            //    system surfaces (not in the runtime perms flow). Each is
+            //    a synchronous check against a system service.
+            it.addView(small(ctx, "Special access — system-toggles outside the runtime perms flow:"))
+            row(ctx, it, "Battery Optimization",  specialAccessBattery())
+            row(ctx, it, "Install unknown apps",  specialAccessInstallUnknown())
+            row(ctx, it, "Notifications enabled", specialAccessNotificationsEnabled())
+            row(ctx, it, "Default launcher",      specialAccessLauncher())
+            row(ctx, it, "Usage stats",           specialAccessUsageStats())
+            row(ctx, it, "Notif. listener",       specialAccessNotifListener())
+            row(ctx, it, "Manage all files",      specialAccessManageStorage())
+            row(ctx, it, "Dumpsys (DUMP)",        specialAccessDump())
+
+            // Superapp rows whose backing component (ScreenLocker device-admin /
+            // accessibility service, Health Connect gateway) does not exist in
+            // the hub — rendered, never omitted.
+            it.addView(small(ctx, "Module-bound rows — backing component lives in Cloud-SuperApp, not the hub:"))
+            row(ctx, it, "Lock-screen accessibility (preferred)", "— (no component in hub)")
+            row(ctx, it, "Device admin (lock — fallback)",        "— (no component in hub)")
+            row(ctx, it, "HC perms granted",                      "— (no component in hub)")
+
+            // ── System auto-granted — perms declared in the manifest that
+            //    Android grants at install time without a user prompt
+            //    (PROTECTION_NORMAL + same-signature perms, e.g. the IPC gate).
+            it.addView(small(ctx, "System auto-granted — protection-NORMAL perms granted at install, no user prompt. This is what the app can already do without ever asking."))
+            for ((label, status) in collectAutoGrantedPerms()) {
+                row(ctx, it, label, status)
             }
-            it.addView(actionButton(ctx, "Open System App Settings") { openAppSettings() })
+
+            // ── Action buttons (superapp's actionButtonRow layout) ──
+            it.addView(actionButtonRow(ctx,
+                "Request Notifications"   to { requestNotificationsPermission() },
+                "Request All Permissions" to { requestAllPermissions(perms.map { p -> p.second }.toTypedArray()) },
+            ))
+            it.addView(actionButtonRow(ctx,
+                "Open System App Settings" to { openAppSettings() },
+                "Battery No Optimization"  to { requestIgnoreBatteryOptimizations() },
+            ))
         }
 
         // ── Battery & Usage (ported from superapp's About) ─────────────
@@ -272,8 +276,19 @@ class AboutActivity : AppCompatActivity() {
             it.addView(small(ctx, "Screen-time rows need PACKAGE_USAGE_STATS (Usage Access) — not declared by the hub."))
             // Since-last-charge analytics (%/h rate, ETA, live drain W,
             // battery temp / cycle count via the session anchor) are computed
-            // by superapp's BatterySessionStats module — not available here.
-            it.addView(small(ctx, "Since-last-charge analytics (%/h rate, ETA, live drain W) live in superapp's BatterySessionStats — not available in the hub. Battery (deep) below carries the full BatteryManager surface."))
+            // by superapp's BatterySessionStats module — the rows still render
+            // (superapp parity), degraded to "—".
+            it.addView(small(ctx, "Since-last-charge analytics live in superapp's BatterySessionStats module — not present in the hub; rows degrade to —. Battery (deep) below carries the live BatteryManager surface (temp / cycle count)."))
+            row(ctx, it, "Since last charge",      "—")
+            row(ctx, it, "% battery/h consumed",   "—")
+            row(ctx, it, "Battery drain (live)",   "—")
+            row(ctx, it, "Estimated battery last", "—")
+            row(ctx, it, "ETA battery drained",    "—")
+            row(ctx, it, "Battery temp",           "—")
+            row(ctx, it, "Cycle count",            "—")
+            row(ctx, it, "Power source",           "—")
+            row(ctx, it, "Unplug anchor src",      "—")
+            row(ctx, it, "Plug anchor src",        "—")
             it.addView(small(ctx, "Battery-stats internals (mAh per-component, wakelocks, wakeups) are system-only."))
         }
 
@@ -411,6 +426,37 @@ class AboutActivity : AppCompatActivity() {
             it.addView(small(ctx, "PSS = process-attributable RSS after sharing. JVM heap is the growable section of the Dalvik PSS bucket. CPU avg % is utime+stime / wall-time × 100 — 1-thread (100% = one core saturated) or per-core (100% = ALL cores saturated). Sustained > 50% with the screen off may indicate a background work leak. Storage = data partition (where the app + caches live). Swap is typically zRAM on Android — counts AGAINST physical RAM but appears as virtual."))
         }
 
+        // ── VPN / WireGuard / Mesh (superapp section #9) ───────────────
+        // The hub embeds no WireGuard backend — the tunnel/peer rows degrade
+        // to "—". What IS readable from any app is the system-side VPN state
+        // (TRANSPORT_VPN on any network) + tun/wg interface names, so those
+        // rows stay live.
+        section(ctx, column, "VPN / WireGuard / Mesh") {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            val vpnActive = if (cm == null) false else runCatching {
+                @Suppress("DEPRECATION")
+                cm.allNetworks.any { n ->
+                    cm.getNetworkCapabilities(n)
+                        ?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
+                }
+            }.getOrDefault(false)
+            val vpnIfaces = runCatching {
+                java.net.NetworkInterface.getNetworkInterfaces().toList()
+                    .map { ni -> ni.name }
+                    .filter { n -> n.startsWith("tun") || n.startsWith("wg") || n.startsWith("ppp") }
+            }.getOrDefault(emptyList())
+            row(ctx, it, "VPN active (system)", vpnActive.toString())
+            row(ctx, it, "VPN ifaces", if (vpnIfaces.isEmpty()) "—" else vpnIfaces.joinToString(", "))
+            it.addView(small(ctx, "WireGuard module lives in Cloud-SuperApp — tunnel / peer rows degrade to —."))
+            row(ctx, it, "Tunnel name",      "—")
+            row(ctx, it, "State",            "—")
+            row(ctx, it, "Backend",          "—")
+            row(ctx, it, "Always-on",        "—")
+            row(ctx, it, "Lockdown",         "—")
+            row(ctx, it, "Configured peers", "—")
+            it.addView(small(ctx, "Per-peer full data + live reachability ping (mesh IP over the tunnel) — needs the superapp WireGuard backend; no peers renderable in the hub."))
+        }
+
         // ── Battery (deep) ─────────────────────────────────────────────
         section(ctx, column, "Battery (deep)") {
             // Direct read from sticky battery intent + BatteryManager
@@ -546,6 +592,56 @@ class AboutActivity : AppCompatActivity() {
                     row(ctx, it, "Hidden SSID", info.hiddenSSID.toString())
                 }
             }
+        }
+
+        // ── Sections (from build.json) (superapp section #13) ──────────
+        // Superapp renders its UI-section catalog (build.json::ui.sections);
+        // the hub's equivalent catalog is build.json::modules + the forks
+        // registry (FORKS_JSON_B64) — same row style, fully data-driven.
+        section(ctx, column, "Sections (from build.json)") {
+            it.addView(small(ctx, "Hub equivalent of superapp's UI-section catalog: build.json::modules + the forks registry."))
+            val forks = runCatching {
+                JSONObject(String(Base64.decode(BuildConfig.FORKS_JSON_B64, Base64.DEFAULT)))
+            }.getOrDefault(JSONObject())
+            val forkKeys = forks.keys().asSequence().toList().sorted()
+            row(ctx, it, "Total", (1 + forkKeys.size).toString())
+            row(ctx, it, "hub (module)", BuildConfig.APPLICATION_ID)
+            for (k in forkKeys) {
+                val f = forks.optJSONObject(k) ?: continue
+                val label = f.optString("label").ifBlank { k }
+                row(ctx, it, "$label (fork)", f.optString("app_id").ifBlank { "—" })
+            }
+            // Superapp-only catalog rows — no UI-section model in the hub.
+            it.addView(small(ctx, "Superapp-only catalog rows (ui.sections model) — not present in the hub:"))
+            row(ctx, it, "Bottom-nav",      "—")
+            row(ctx, it, "Aggregators",     "—")
+            row(ctx, it, "Default mode",    "—")
+            row(ctx, it, "Default section", "—")
+        }
+
+        // ── Dev control HTTP (superapp section #14) ────────────────────
+        section(ctx, column, "Dev control HTTP") {
+            it.addView(small(ctx, "Dev-control HTTP server is a Cloud-SuperApp module — not present in the hub."))
+            row(ctx, it, "Endpoint",   "—")
+            row(ctx, it, "Status",     "—")
+            row(ctx, it, "Bound to",   "—")
+            row(ctx, it, "Bind scope", "—")
+            row(ctx, it, "Token",      "—")
+        }
+
+        // ── Curl shortcuts (superapp section #15) ──────────────────────
+        section(ctx, column, "Curl shortcuts") {
+            it.addView(small(ctx, "Dev-control HTTP server is a Cloud-SuperApp module — not present in the hub; the shortcut rows degrade to —."))
+            row(ctx, it, "Docs",    "—")
+            row(ctx, it, "Logcat",  "—")
+            row(ctx, it, "Trace",   "—")
+            row(ctx, it, "Crashes", "—")
+            row(ctx, it, "Info",    "—")
+            row(ctx, it, "State",   "—")
+            row(ctx, it, "Haptic",  "—")
+            row(ctx, it, "Update",  "—")
+            row(ctx, it, "Restart", "—")
+            row(ctx, it, "Tracker", "—")
         }
 
         // ── SoC / CPU ──────────────────────────────────────────────────
@@ -832,11 +928,41 @@ class AboutActivity : AppCompatActivity() {
                 row(ctx, it, head, ver)
             }
 
+            // Internal modules + APK splits — superapp's "what's in here" block.
+            it.addView(small(ctx, "Internal modules (build.json::modules — the hub is the only in-tree gradle module) + APK splits:"))
+            @Suppress("DEPRECATION")
+            val ai = packageManager.getPackageInfo(packageName, 0).applicationInfo
+            val baseApk = ai?.sourceDir?.let { p -> File(p) }
+            row(ctx, it, "Base APK",
+                if (baseApk != null) "${baseApk.name} · ${sizeStr(baseApk.length())}" else "—")
+            ai?.splitSourceDirs?.forEach { s ->
+                row(ctx, it, "Split", File(s).name + " · " + sizeStr(File(s).length()))
+            }
+
             it.addView(small(ctx, "Build metrics (from GitHub Actions history):"))
             row(ctx, it, "Build avg time", fmtSecs(BuildConfig.STACK_BUILD_AVG_SECS) +
                 if (BuildConfig.STACK_BUILD_SAMPLE > 0) " (n=${BuildConfig.STACK_BUILD_SAMPLE})" else "")
             row(ctx, it, "Build last",     fmtSecs(BuildConfig.STACK_BUILD_LAST_SECS))
+            row(ctx, it, "Gradle config phase", "%d ms".format(BuildConfig.STACK_GRADLE_CONFIG_MS))
             row(ctx, it, "Build SHA",      BuildConfig.GIT_SHORT_SHA)
+
+            // Folder tree — depth 2 of ea_cloud-comms/, baked at gradle config
+            // time (STACK_FOLDER_TREE_B64) and rendered monospace, same as
+            // superapp's UI_STACK_FOLDER_TREE_B64 block.
+            it.addView(small(ctx, "Folder tree (depth 2, ea_cloud-comms/):"))
+            val treeStr = runCatching {
+                String(Base64.decode(BuildConfig.STACK_FOLDER_TREE_B64, Base64.DEFAULT))
+            }.getOrDefault("—")
+            infoBuf.append("\n```\n").append(treeStr).append("\n```\n")
+            it.addView(TextView(ctx).apply {
+                text = treeStr
+                setTextColor(0xFFE9D8FD.toInt())
+                typeface = Typeface.MONOSPACE
+                setTextAppearance(android.R.style.TextAppearance_Material_Caption)
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                setBackgroundColor(0x33000000)
+                setTextIsSelectable(true)
+            })
         }
 
         // ── Locale & time ──────────────────────────────────────────────
@@ -862,6 +988,47 @@ class AboutActivity : AppCompatActivity() {
             val bootWall = System.currentTimeMillis() - android.os.SystemClock.elapsedRealtime()
             row(ctx, it, "Booted",   fmtMillis(bootWall))
             row(ctx, it, "System uptime", fmtDuration(android.os.SystemClock.elapsedRealtime()))
+        }
+
+        // ════ Hub-specific sections — appended AFTER the full superapp
+        //      catalog (App … Locale & time), before Copy All Infos. ════
+
+        // ── IPC contract ───────────────────────────────────────────────
+        section(ctx, column, "IPC contract") {
+            row(ctx, it, "Contract",   "v${BuildConfig.IPC_VERSION}")
+            row(ctx, it, "Authority",  BuildConfig.IPC_AUTHORITY)
+            row(ctx, it, "Permission", BuildConfig.IPC_PERMISSION)
+            row(ctx, it, "Open action", BuildConfig.LAUNCH_ACTION)
+            it.addView(small(ctx, "Signature-gated — all constellation APKs share one signing key."))
+        }
+
+        // ── Constellation ──────────────────────────────────────────────
+        section(ctx, column, "Constellation") {
+            val forks = runCatching {
+                JSONObject(String(Base64.decode(BuildConfig.FORKS_JSON_B64, Base64.DEFAULT)))
+            }.getOrDefault(JSONObject())
+            for (e in FleetUpdater.fleet) {
+                val installed = e.installedVersion(ctx)
+                val state = when {
+                    e.blocked -> "blocked"
+                    installed != null -> "v$installed"
+                    BundledForkInstaller.hasBundle(ctx, e.label) -> "bundled · tap to install"
+                    else -> "not bundled yet"
+                }
+                val name = if (e.label == "hub") "Cloud-Comms (hub)"
+                           else forks.optJSONObject(e.label)?.optString("label")?.ifBlank { null } ?: e.label
+                row(ctx, it, name, state)
+                if (e.label == "hub") {
+                    row(ctx, it, "  image", e.image)
+                } else forks.optJSONObject(e.label)?.let { f ->
+                    val pin = f.optString("pinned_tag").ifBlank { "—" }
+                    row(ctx, it, "  license/runtime",
+                        "${f.optString("license").ifBlank { "—" }} · ${f.optString("runtime").ifBlank { "—" }} · pin $pin")
+                    row(ctx, it, "  bundled?",
+                        if (BundledForkInstaller.hasBundle(ctx, e.label)) "yes" else "no")
+                }
+                row(ctx, it, "  app id", e.appId)
+            }
         }
 
         // ── Updates ────────────────────────────────────────────────────
@@ -1020,10 +1187,238 @@ class AboutActivity : AppCompatActivity() {
         clip?.setPrimaryClip(ClipData.newPlainText("about", v))
     }
 
+    // ── Permissions helpers (ported from DevControlFragment) ───────────
+
+    /**
+     * Resolve the user-facing state for a single permission. Beyond the
+     * GRANTED/DENIED binary that `checkSelfPermission` returns, Android
+     * distinguishes — at the UX level — between:
+     *   • ⏳ Ask each time      (denied, but `shouldShowRationale=true`)
+     *   • ✗ Denied (don't ask) (denied, no rationale, asked before)
+     *   • ◯ Not requested      (denied, no rationale, never asked)
+     * Disambiguation uses the perm-ask tracker prefs (superapp's
+     * PermAskTracker equivalent) since Android exposes no API to tell
+     * "never asked" apart from "permanently denied".
+     * shouldShowRequestPermissionRationale works on an Activity directly.
+     */
     private fun permissionState(perm: String): String {
         val granted = androidx.core.content.ContextCompat.checkSelfPermission(this, perm) ==
             PackageManager.PERMISSION_GRANTED
-        return if (granted) "✓ Granted" else "✗ Denied"
+        if (granted) return "✓ Granted"
+        val rationale = runCatching { shouldShowRequestPermissionRationale(perm) }
+            .getOrDefault(false)
+        if (rationale) return "⏳ Ask each time"
+        return if (hasBeenRequested(perm)) "✗ Denied (don't ask)" else "◯ Not requested"
+    }
+
+    /** SharedPreferences-backed ask tracker — superapp's PermAskTracker,
+     *  inlined (the hub takes no superapp dependency). */
+    private fun permAskPrefs() =
+        getSharedPreferences("perm_ask_tracker", Context.MODE_PRIVATE)
+
+    private fun hasBeenRequested(perm: String): Boolean =
+        permAskPrefs().getBoolean(perm, false)
+
+    private fun markAsked(perms: List<String>) {
+        val e = permAskPrefs().edit()
+        for (p in perms) e.putBoolean(p, true)
+        e.apply()
+    }
+
+    /** Data-driven runtime perm list — decodes UI_PERMISSIONS_RUNTIME_B64
+     *  baked from build.json::ui.permissions.runtime[] (same array shape +
+     *  bake as superapp's parseRuntimePermissions). */
+    private fun parseRuntimePermissions(): List<Pair<String, String>> {
+        val raw = runCatching {
+            String(Base64.decode(BuildConfig.UI_PERMISSIONS_RUNTIME_B64, Base64.DEFAULT))
+        }.getOrDefault("[]")
+        val arr = runCatching { JSONArray(raw) }.getOrDefault(JSONArray())
+        val out = mutableListOf<Pair<String, String>>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val label = o.optString("label")
+            val perm  = o.optString("perm")
+            if (label.isBlank() || perm.isBlank()) continue
+            out.add(label to perm)
+        }
+        return out
+    }
+
+    private fun requestNotificationsPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            // Track that we asked so the "Denied (don't ask)" vs "Not
+            // requested" disambiguation works on future renders.
+            markAsked(listOf("android.permission.POST_NOTIFICATIONS"))
+            notifPermLauncher.launch("android.permission.POST_NOTIFICATIONS")
+        } else {
+            Toast.makeText(this,
+                "Pre-API 33 — notifications granted by default", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun requestAllPermissions(perms: Array<String>) {
+        markAsked(perms.toList())
+        allPermsLauncher.launch(perms)
+    }
+
+    /** One-tap Doze-whitelist dialog (REQUEST_IGNORE_BATTERY_OPTIMIZATIONS is
+     *  declared in the manifest); falls back to the system optimization list
+     *  picker when the scoped intent isn't resolved. */
+    private fun requestIgnoreBatteryOptimizations() {
+        val pm = getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        if (pm?.isIgnoringBatteryOptimizations(packageName) == true) {
+            Toast.makeText(this, "Already whitelisted — no Doze restriction", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val primary = android.content.Intent(
+            android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            android.net.Uri.fromParts("package", packageName, null),
+        )
+        if (primary.resolveActivity(packageManager) != null) {
+            runCatching { startActivity(primary) }
+            return
+        }
+        runCatching {
+            startActivity(android.content.Intent(
+                android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        }
+    }
+
+    // ── Special access — single-flag toggles outside the runtime perms flow.
+    private fun specialAccessBattery(): String = try {
+        val pm = getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        val ok = pm?.isIgnoringBatteryOptimizations(packageName) == true
+        if (ok) "✓ Whitelisted (no Doze)" else "◯ Subject to Doze"
+    } catch (_: Throwable) { "—" }
+
+    /** Install unknown apps — the fleet updater's PackageInstaller path. */
+    private fun specialAccessInstallUnknown(): String = try {
+        if (packageManager.canRequestPackageInstalls()) "✓ Allowed" else "◯ Not allowed"
+    } catch (_: Throwable) { "—" }
+
+    /** App-level notifications master toggle (NotificationManagerCompat). */
+    private fun specialAccessNotificationsEnabled(): String = try {
+        if (androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled())
+            "✓ Enabled" else "◯ Disabled"
+    } catch (_: Throwable) { "—" }
+
+    private fun specialAccessLauncher(): String = try {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            val rm = getSystemService(android.app.role.RoleManager::class.java)
+            val held = rm?.isRoleHeld(android.app.role.RoleManager.ROLE_HOME) == true
+            if (held) "✓ Default home/launcher" else "◯ Not default"
+        } else "— (pre-API 29)"
+    } catch (_: Throwable) { "—" }
+
+    private fun specialAccessUsageStats(): String = try {
+        val aom = getSystemService(android.app.AppOpsManager::class.java)
+        val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            aom?.unsafeCheckOpNoThrow(
+                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(), packageName,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            aom?.checkOpNoThrow(
+                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(), packageName,
+            )
+        }
+        when (mode) {
+            android.app.AppOpsManager.MODE_ALLOWED -> "✓ Allowed"
+            null                                   -> "—"
+            else                                   -> "◯ Not allowed"
+        }
+    } catch (_: Throwable) { "—" }
+
+    private fun specialAccessNotifListener(): String = try {
+        val flat = android.provider.Settings.Secure.getString(
+            contentResolver, "enabled_notification_listeners",
+        ).orEmpty()
+        if (flat.split(":").any { it.startsWith("$packageName/") }) "✓ Allowed"
+        else "◯ Not allowed"
+    } catch (_: Throwable) { "—" }
+
+    private fun specialAccessManageStorage(): String = try {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            if (android.os.Environment.isExternalStorageManager()) "✓ Allowed (R+)"
+            else "◯ Not allowed (R+)"
+        } else "— (pre-API 30 — uses storage perms)"
+    } catch (_: Throwable) { "—" }
+
+    /** DUMP — signature|privileged perm; only grantable via adb pm grant. */
+    private fun specialAccessDump(): String =
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, "android.permission.DUMP") ==
+            PackageManager.PERMISSION_GRANTED)
+            "✓ Granted (adb)"
+        else "◯ Not granted — needs one-time adb pm grant"
+
+    /** Walk PackageManager's full requested-perm list and surface the ones
+     *  the system auto-granted at install (PROTECTION_NORMAL, or signature
+     *  perms held because we sign with the declaring key — e.g. the IPC
+     *  gate). Runtime (dangerous) perms are skipped here — the data-driven
+     *  Runtime block above owns them. Ported from DevControlFragment. */
+    private fun collectAutoGrantedPerms(): List<Pair<String, String>> {
+        try {
+            val pm = packageManager
+            @Suppress("DEPRECATION")
+            val info = pm.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
+            val requested = info.requestedPermissions ?: return emptyList()
+            val flags = info.requestedPermissionsFlags ?: IntArray(requested.size)
+            val out = mutableListOf<Pair<String, String>>()
+            for ((i, perm) in requested.withIndex()) {
+                val grantedAtInstall = (flags.getOrNull(i) ?: 0) and
+                    android.content.pm.PackageInfo.REQUESTED_PERMISSION_GRANTED != 0
+                if (!grantedAtInstall) continue
+                val info2 = runCatching { pm.getPermissionInfo(perm, 0) }.getOrNull()
+                val level = info2?.protectionLevel ?: -1
+                val base = level and android.content.pm.PermissionInfo.PROTECTION_MASK_BASE
+                if (base == android.content.pm.PermissionInfo.PROTECTION_DANGEROUS) continue
+                val label = perm.removePrefix("android.permission.").take(36)
+                val tag = when (base) {
+                    android.content.pm.PermissionInfo.PROTECTION_NORMAL    -> "NORMAL"
+                    android.content.pm.PermissionInfo.PROTECTION_SIGNATURE -> "SIGNATURE"
+                    else                                                   -> "?"
+                }
+                out.add(label to "✓ auto · $tag")
+            }
+            return out
+        } catch (_: Throwable) {
+            return emptyList()
+        }
+    }
+
+    /** Horizontal row of equal-width action buttons — superapp's
+     *  actionButtonRow (weight=1 chips, 4dp gaps, wrap-friendly). */
+    private fun actionButtonRow(ctx: Context, vararg buttons: Pair<String, () -> Unit>): View {
+        val rowView = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) }
+        }
+        val gap = dp(4)
+        for ((idx, pair) in buttons.withIndex()) {
+            val (label, onClick) = pair
+            val btn = TextView(ctx).apply {
+                text = label
+                setTextColor(0xFFFFFFFF.toInt())
+                setBackgroundColor(0xFF7C3AED.toInt())
+                gravity = android.view.Gravity.CENTER
+                textSize = 12f
+                setPadding(dp(8), dp(10), dp(8), dp(10))
+                maxLines = 3
+                minHeight = dp(64)
+                val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                if (idx > 0) lp.leftMargin = gap
+                layoutParams = lp
+                isClickable = true; isFocusable = true
+                setOnClickListener { onClick() }
+            }
+            rowView.addView(btn)
+        }
+        return rowView
     }
 
     private fun openAppSettings() {

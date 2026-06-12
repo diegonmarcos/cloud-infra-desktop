@@ -75,17 +75,17 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
-        // Configs → About (build info, IPC contract, fleet status, updater) —
-        // same card language as the fork tiles.
-        content.addView(TextView(this).apply {
-            text = getString(R.string.about_entry)
-            textSize = 14f
-            setTextColor(0xFFB794F4.toInt())
-            background = cardBg()
-            setPadding(dp(18), dp(16), dp(18), dp(16))
+        // Configs row — TWO separate entries like Cloud-SuperApp: Update and
+        // About, side by side, same card language as the fork tiles.
+        content.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(8) }
-            isClickable = true
-            setOnClickListener { startActivity(Intent(this@MainActivity, AboutActivity::class.java)) }
+            addView(configCard(getString(R.string.config_update_entry)) {
+                FleetUpdater.checkNow(this@MainActivity)
+            }.apply { (layoutParams as LinearLayout.LayoutParams).rightMargin = dp(10) })
+            addView(configCard(getString(R.string.config_about_entry)) {
+                startActivity(Intent(this@MainActivity, AboutActivity::class.java))
+            })
         })
 
         // Scroll container so small screens never clip the tile list.
@@ -93,11 +93,136 @@ class MainActivity : AppCompatActivity() {
             isVerticalScrollBarEnabled = false
             addView(content)
         })
-        setContentView(root)
+
+        // Fullscreen update overlay (superapp's UpdateOverlayFragment pattern):
+        // a dark scrim with title + progress + detail, shown whenever the fleet
+        // updater is doing anything — so download AND installation progress are
+        // visible like every other app's updater, wherever you are in the hub.
+        val frame = android.widget.FrameLayout(this)
+        frame.addView(root)
+        overlay = buildUpdateOverlay()
+        frame.addView(overlay)
+        setContentView(frame)
 
         // Launcher-shortcut dispatch (mirrors Cloud-SuperApp's grammar).
         handleShortcutIntent(intent)
     }
+
+    // ── Update overlay (port of superapp's UpdateOverlayFragment) ──────────
+    private lateinit var overlay: android.widget.FrameLayout
+    private lateinit var ovTitle: TextView
+    private lateinit var ovDetail: TextView
+    private lateinit var ovBar: android.widget.ProgressBar
+
+    private fun buildUpdateOverlay(): android.widget.FrameLayout {
+        val scrim = android.widget.FrameLayout(this).apply {
+            setBackgroundColor(0xE6000000.toInt())
+            isClickable = true; isFocusable = true
+            visibility = android.view.View.GONE
+            layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
+        }
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            val pad = dp(24); setPadding(pad, pad, pad, pad)
+            layoutParams = android.widget.FrameLayout.LayoutParams(MATCH, MATCH)
+        }
+        ovTitle = TextView(this).apply {
+            setTextColor(0xFFE9D8FD.toInt())
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            textSize = 20f
+            gravity = Gravity.CENTER
+        }
+        ovBar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            isIndeterminate = true; max = 100
+            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply {
+                topMargin = dp(16); bottomMargin = dp(8)
+            }
+        }
+        ovDetail = TextView(this).apply {
+            setTextColor(0x99FFFFFF.toInt())
+            textSize = 13f
+            gravity = Gravity.CENTER
+        }
+        val dismiss = TextView(this).apply {
+            text = getString(R.string.overlay_dismiss)
+            setTextColor(0xFFFFFFFF.toInt())
+            setBackgroundColor(0xFF7C3AED.toInt())
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(10), dp(24), dp(10))
+            layoutParams = LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(20) }
+            isClickable = true
+            setOnClickListener { com.diegonmarcos.comms.updater.UpdateProgress.reset() }
+        }
+        column.addView(ovTitle); column.addView(ovBar); column.addView(ovDetail); column.addView(dismiss)
+        scrim.addView(column)
+        return scrim
+    }
+
+    override fun onResume() {
+        super.onResume()
+        com.diegonmarcos.comms.updater.UpdateProgress.setListener { s ->
+            runOnUiThread { renderOverlay(s) }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        com.diegonmarcos.comms.updater.UpdateProgress.setListener(null)
+    }
+
+    private fun renderOverlay(s: com.diegonmarcos.comms.updater.UpdateProgress.State) {
+        if (!::overlay.isInitialized) return
+        when (s) {
+            is com.diegonmarcos.comms.updater.UpdateProgress.State.Idle -> overlay.visibility = android.view.View.GONE
+            is com.diegonmarcos.comms.updater.UpdateProgress.State.Checking -> {
+                overlay.visibility = android.view.View.VISIBLE
+                ovBar.isIndeterminate = true
+                ovTitle.text = getString(R.string.overlay_checking, s.target)
+                ovDetail.text = ""
+            }
+            is com.diegonmarcos.comms.updater.UpdateProgress.State.Downloading -> {
+                overlay.visibility = android.view.View.VISIBLE
+                ovBar.isIndeterminate = false; ovBar.progress = s.percent
+                ovTitle.text = getString(R.string.overlay_downloading, s.target, s.percent)
+                ovDetail.text = "${s.bytes / 1024} KiB / ${if (s.total > 0) "${s.total / 1024} KiB" else "?"}"
+            }
+            is com.diegonmarcos.comms.updater.UpdateProgress.State.Installing -> {
+                overlay.visibility = android.view.View.VISIBLE
+                ovBar.isIndeterminate = true
+                ovTitle.text = getString(R.string.overlay_installing, s.target)
+                ovDetail.text = getString(R.string.overlay_installing_hint)
+            }
+            is com.diegonmarcos.comms.updater.UpdateProgress.State.UpToDate -> {
+                ovTitle.text = getString(R.string.overlay_up_to_date, s.checked)
+                ovBar.isIndeterminate = false; ovBar.progress = 100
+                ovDetail.text = ""
+                overlay.postDelayed({ if (com.diegonmarcos.comms.updater.UpdateProgress.state is
+                    com.diegonmarcos.comms.updater.UpdateProgress.State.UpToDate)
+                    overlay.visibility = android.view.View.GONE }, 1500)
+            }
+            is com.diegonmarcos.comms.updater.UpdateProgress.State.Failed -> {
+                overlay.visibility = android.view.View.VISIBLE
+                ovBar.isIndeterminate = false
+                ovTitle.text = getString(R.string.overlay_failed, s.target)
+                ovDetail.text = s.message
+            }
+        }
+    }
+
+    /** Half-width config card (Update / About) — weight=1 each across the row. */
+    private fun configCard(label: String, onClick: () -> Unit): TextView =
+        TextView(this).apply {
+            text = label
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(0xFFB794F4.toInt())
+            background = cardBg()
+            setPadding(dp(12), dp(16), dp(12), dp(16))
+            layoutParams = LinearLayout.LayoutParams(0, WRAP, 1f)
+            isClickable = true
+            setOnClickListener { onClick() }
+        }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
