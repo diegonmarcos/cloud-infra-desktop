@@ -10,9 +10,15 @@ object UpdateProgress {
 
     sealed class State {
         object Idle : State()
-        data class Checking(val target: String) : State()
-        data class Downloading(val target: String, val percent: Int, val bytes: Long, val total: Long) : State()
-        data class Installing(val target: String) : State()
+        /** [step]/[steps] locate the app inside an all-or-nothing flow run
+         *  (SetupFlow / UpdateWorker); 0/0 = standalone action. The overlay
+         *  renders a per-app bar AND a total bar from them. */
+        data class Checking(val target: String, val step: Int = 0, val steps: Int = 0) : State()
+        data class Downloading(
+            val target: String, val percent: Int, val bytes: Long, val total: Long,
+            val step: Int = 0, val steps: Int = 0,
+        ) : State()
+        data class Installing(val target: String, val step: Int = 0, val steps: Int = 0) : State()
         data class UpToDate(val checked: Int) : State()
         data class Failed(val target: String, val message: String) : State()
     }

@@ -22,6 +22,8 @@
     <string name="overlay_installing_hint">Confirm the system install dialog if prompted.</string>
     <string name="overlay_up_to_date">Up to date — %1$d app(s) checked ✓</string>
     <string name="overlay_failed">Update failed: %1$s</string>
+    <string name="overlay_step">App %1$d of %2$d</string>
+    <string name="overlay_total">Total progress</string>
     <string name="about_title">Configs &amp; About</string>
     <string name="about_sec_build">Build</string>
     <string name="about_sec_ipc">IPC contract</string>

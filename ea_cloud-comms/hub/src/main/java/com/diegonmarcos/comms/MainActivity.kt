@@ -57,20 +57,16 @@ class MainActivity : AppCompatActivity() {
             content.addView(tileFor(fork))
         }
 
-        // First-run setup: if any fork ships inside this APK but isn't installed
-        // yet, offer a one-tap "install all bundled apps" (each still prompts
-        // once — Android no-root security). Hidden once everything is installed
-        // or when nothing is bundled (forks not published yet).
-        val pendingBundled = ForkRegistry.forks.count {
-            it.blockedOn == null && !it.isInstalled(this) && BundledForkInstaller.hasBundle(this, it.domain)
-        }
-        if (pendingBundled > 0) {
+        // All-or-nothing setup (owner spec): ONE flow stages every missing
+        // child APK (bundle-extract or GHCR download with sizes/percent), then
+        // installs them step by step — per-app AND total progress on the
+        // overlay. The button re-runs it manually; first launch auto-triggers.
+        if (com.diegonmarcos.comms.updater.SetupFlow.needed(this)) {
             content.addView(Button(this).apply {
-                text = getString(R.string.setup_install_all, pendingBundled)
+                text = getString(R.string.setup_install_all,
+                    com.diegonmarcos.comms.updater.SetupFlow.pending(this@MainActivity).size)
                 setOnClickListener {
-                    val n = BundledForkInstaller.installMissing(this@MainActivity)
-                    Toast.makeText(this@MainActivity,
-                        getString(R.string.setup_installing_n, n), Toast.LENGTH_SHORT).show()
+                    com.diegonmarcos.comms.updater.SetupFlow.start(this@MainActivity)
                 }
             })
         }
@@ -106,13 +102,23 @@ class MainActivity : AppCompatActivity() {
 
         // Launcher-shortcut dispatch (mirrors Cloud-SuperApp's grammar).
         handleShortcutIntent(intent)
+
+        // First launch (and any launch with missing children): auto-trigger the
+        // all-or-nothing setup — downloading/extracting then installing EVERY
+        // child APK in one flow, exactly like the Update path (owner spec).
+        if (com.diegonmarcos.comms.updater.SetupFlow.needed(this)) {
+            root.post { com.diegonmarcos.comms.updater.SetupFlow.start(this) }
+        }
     }
 
     // ── Update overlay (port of superapp's UpdateOverlayFragment) ──────────
     private lateinit var overlay: android.widget.FrameLayout
     private lateinit var ovTitle: TextView
+    private lateinit var ovStep: TextView
     private lateinit var ovDetail: TextView
     private lateinit var ovBar: android.widget.ProgressBar
+    private lateinit var ovTotalBar: android.widget.ProgressBar
+    private lateinit var ovTotalLabel: TextView
 
     private fun buildUpdateOverlay(): android.widget.FrameLayout {
         val scrim = android.widget.FrameLayout(this).apply {
@@ -139,10 +145,25 @@ class MainActivity : AppCompatActivity() {
                 topMargin = dp(16); bottomMargin = dp(8)
             }
         }
+        ovStep = TextView(this).apply {
+            setTextColor(0xFFB794F4.toInt())
+            textSize = 13f
+            gravity = Gravity.CENTER
+        }
         ovDetail = TextView(this).apply {
             setTextColor(0x99FFFFFF.toInt())
             textSize = 13f
             gravity = Gravity.CENTER
+        }
+        ovTotalLabel = TextView(this).apply {
+            setTextColor(0x99FFFFFF.toInt())
+            textSize = 12f
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(18) }
+        }
+        ovTotalBar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            isIndeterminate = false; max = 100
+            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(4) }
         }
         val dismiss = TextView(this).apply {
             text = getString(R.string.overlay_dismiss)
@@ -154,9 +175,25 @@ class MainActivity : AppCompatActivity() {
             isClickable = true
             setOnClickListener { com.diegonmarcos.comms.updater.UpdateProgress.reset() }
         }
-        column.addView(ovTitle); column.addView(ovBar); column.addView(ovDetail); column.addView(dismiss)
+        column.addView(ovTitle); column.addView(ovStep); column.addView(ovBar); column.addView(ovDetail)
+        column.addView(ovTotalLabel); column.addView(ovTotalBar); column.addView(dismiss)
         scrim.addView(column)
         return scrim
+    }
+
+    /** Per-app + total progress for all-or-nothing flow states. */
+    private fun renderFlowStep(step: Int, steps: Int, perAppPercent: Int) {
+        if (steps > 0) {
+            ovStep.text = getString(R.string.overlay_step, step, steps)
+            ovTotalLabel.text = getString(R.string.overlay_total)
+            ovTotalBar.visibility = android.view.View.VISIBLE
+            ovTotalLabel.visibility = android.view.View.VISIBLE
+            ovTotalBar.progress = (((step - 1) * 100) + perAppPercent.coerceIn(0, 100)) / steps
+        } else {
+            ovStep.text = ""
+            ovTotalBar.visibility = android.view.View.GONE
+            ovTotalLabel.visibility = android.view.View.GONE
+        }
     }
 
     override fun onResume() {
@@ -180,18 +217,21 @@ class MainActivity : AppCompatActivity() {
                 ovBar.isIndeterminate = true
                 ovTitle.text = getString(R.string.overlay_checking, s.target)
                 ovDetail.text = ""
+                renderFlowStep(s.step, s.steps, 0)
             }
             is com.diegonmarcos.comms.updater.UpdateProgress.State.Downloading -> {
                 overlay.visibility = android.view.View.VISIBLE
                 ovBar.isIndeterminate = false; ovBar.progress = s.percent
                 ovTitle.text = getString(R.string.overlay_downloading, s.target, s.percent)
                 ovDetail.text = "${s.bytes / 1024} KiB / ${if (s.total > 0) "${s.total / 1024} KiB" else "?"}"
+                renderFlowStep(s.step, s.steps, s.percent)
             }
             is com.diegonmarcos.comms.updater.UpdateProgress.State.Installing -> {
                 overlay.visibility = android.view.View.VISIBLE
                 ovBar.isIndeterminate = true
                 ovTitle.text = getString(R.string.overlay_installing, s.target)
                 ovDetail.text = getString(R.string.overlay_installing_hint)
+                renderFlowStep(s.step, s.steps, 50)
             }
             is com.diegonmarcos.comms.updater.UpdateProgress.State.UpToDate -> {
                 ovTitle.text = getString(R.string.overlay_up_to_date, s.checked)
@@ -312,13 +352,10 @@ class MainActivity : AppCompatActivity() {
             fork.blockedOn != null ->
                 Toast.makeText(this, getString(R.string.tile_blocked, fork.blockedOn), Toast.LENGTH_LONG).show()
             !installed -> {
-                // Embedded-installer model: install the fork that ships INSIDE
-                // this APK (no separate download). PackageInstaller prompts once.
-                if (BundledForkInstaller.install(this, fork.domain)) {
-                    Toast.makeText(this, getString(R.string.tile_installing, fork.domain), Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, getString(R.string.tile_not_bundled, fork.domain), Toast.LENGTH_LONG).show()
-                }
+                // All-or-nothing (owner spec): a tap on ANY missing fork runs
+                // the whole setup flow — stage everything, then install
+                // everything, with per-app + total progress on the overlay.
+                com.diegonmarcos.comms.updater.SetupFlow.start(this)
             }
             !openFork(fork.appId) ->
                 Toast.makeText(this, getString(R.string.tile_launch_failed), Toast.LENGTH_SHORT).show()

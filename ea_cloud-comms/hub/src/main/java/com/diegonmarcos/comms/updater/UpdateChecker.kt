@@ -26,9 +26,9 @@ internal class UpdateChecker(private val context: Context) {
         val isFreshInstall: Boolean,   // fork not yet installed → install, not update
     )
 
-    fun check(entry: FleetEntry): Update? {
+    fun check(entry: FleetEntry, step: Int = 0, steps: Int = 0): Update? {
         if (entry.blocked) { Log.i(tag, "${entry.label}: blocked — skip"); return null }
-        UpdateProgress.update(UpdateProgress.State.Checking(entry.label))
+        UpdateProgress.update(UpdateProgress.State.Checking(entry.label, step, steps))
         val client = GhcrClient(entry.image)
         val layer = try {
             client.manifest(BuildConfig.AUTO_UPDATE_TAG, client.token())
@@ -50,7 +50,7 @@ internal class UpdateChecker(private val context: Context) {
         client.blob(layer.digest, client.token(), target) { bytes, total ->
             val known = if (total > 0) total else layer.size
             val pct = if (known > 0) ((bytes * 100) / known).toInt().coerceIn(0, 100) else 0
-            UpdateProgress.update(UpdateProgress.State.Downloading(entry.label, pct, bytes, known))
+            UpdateProgress.update(UpdateProgress.State.Downloading(entry.label, pct, bytes, known, step, steps))
         }
         val downloadedSha = "sha256:" + sha256(target)
         if (downloadedSha != layer.digest) {

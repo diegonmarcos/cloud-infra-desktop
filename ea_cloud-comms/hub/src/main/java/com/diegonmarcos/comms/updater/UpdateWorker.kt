@@ -24,12 +24,14 @@ class UpdateWorker(appContext: Context, params: WorkerParameters) :
         val installer = UpdateInstaller(applicationContext)
         var checked = 0
         var anyFailed = false
-        for (entry in FleetUpdater.fleet) {
+        val steps = FleetUpdater.fleet.size
+        for ((i, entry) in FleetUpdater.fleet.withIndex()) {
+            val step = i + 1
             try {
-                val update = checker.check(entry)
+                val update = checker.check(entry, step, steps)
                 if (update == null) { checked++; continue }   // up to date / blocked / not published
                 Log.i(TAG, "${entry.label}: installing ${update.downloadedTo.name}")
-                UpdateProgress.update(UpdateProgress.State.Installing(entry.label))
+                UpdateProgress.update(UpdateProgress.State.Installing(entry.label, step, steps))
                 installer.install(update.downloadedTo, entry.appId)
                 checked++
             } catch (t: Throwable) {
