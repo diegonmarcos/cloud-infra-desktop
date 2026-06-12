@@ -59,7 +59,19 @@ let
   pollSec  = watch.poll_seconds or 60;
   stateDir = watch.state_dir or "/var/lib/battery-watchdog";
   histN    = watch.history_polls or 10;
-  action   = policy.action_at_critical or "hibernate";
+
+  # Hard guard (same pattern as configuration_power.nix): refuse any verb
+  # banned by cloud-data-power.json actions.never (sleep/suspend — Surface
+  # S3 is broken). Applies to the primary action AND the fallback.
+  banned = (builtins.fromJSON (builtins.readFile ./cloud-data-power.json)).actions.never or [];
+  guard = name: v:
+    if builtins.elem v banned
+    then throw "configuration_system-protection-battery: ${name}=${v} is in actions.never (Surface S3 is broken)"
+    else v;
+
+  action   = guard "policy.action_at_critical" (policy.action_at_critical or "hibernate");
+  fallback = guard "policy.action_at_critical_fallback" (policy.action_at_critical_fallback or "poweroff");
+  maxFails = policy.max_action_failures or 2;
 
   vCap     = voters.bat_capacity     or { enabled = false; };
   vEnergy  = voters.bat_energy_ratio or { enabled = false; };
@@ -227,12 +239,43 @@ in
       ''}
 
       # ───── act ─────
+      # Escalation (2026-06-12 incident): if the critical action itself
+      # FAILS — e.g. `systemctl hibernate` → "Not enough suitable swap
+      # space" because the swapfile's filesystem was destroyed — retrying
+      # every poll just rides the battery down to a firmware power-cut.
+      # Count consecutive failed critical actions; after max_action_failures
+      # escalate to the fallback verb (clean shutdown beats power-cut).
+      # Counter resets on any non-critical poll and on any successful action.
+      failsFile="$state/action_failures"
       if [ -n "$voters_critical" ]; then
+        fails=$(cat "$failsFile" 2>/dev/null || echo 0)
+        case "$fails" in (*[!0-9]*|"") fails=0 ;; esac
+
+        if [ "$fails" -ge ${toString maxFails} ]; then
+          ${pkgs.util-linux}/bin/logger -t battery-watchdog -p user.crit \
+            "CRITICAL voters=[''${voters_critical# }] — ${action} FAILED $fails consecutive times → ESCALATING to ${fallback}"
+          echo "[battery-watchdog] ${action} failed $fails times → ESCALATING to ${fallback}"
+          exec ${pkgs.systemd}/bin/systemctl ${fallback}
+        fi
+
         ${pkgs.util-linux}/bin/logger -t battery-watchdog \
-          "CRITICAL voters=[''${voters_critical# }] cap=$cap stat=$stat enow=$enow vnow=$vnow alarm=$alarm ${acDev}=$online → ${action}"
+          "CRITICAL voters=[''${voters_critical# }] cap=$cap stat=$stat enow=$enow vnow=$vnow alarm=$alarm ${acDev}=$online → ${action} (attempt $((fails + 1))/${toString maxFails})"
         echo "[battery-watchdog] CRITICAL voters=[''${voters_critical# }] → ${action}"
-        exec ${pkgs.systemd}/bin/systemctl ${action}
+
+        if ${pkgs.systemd}/bin/systemctl ${action}; then
+          # Action succeeded (we are back from hibernate/resume) — reset.
+          rm -f "$failsFile"
+          exit 0
+        else
+          echo $((fails + 1)) > "$failsFile"
+          ${pkgs.util-linux}/bin/logger -t battery-watchdog -p user.crit \
+            "${action} FAILED (attempt $((fails + 1))/${toString maxFails}) — will escalate to ${fallback} once the limit is reached"
+          exit 1
+        fi
       fi
+
+      # Not critical → clear the failure streak.
+      rm -f "$failsFile" 2>/dev/null || true
 
       if [ -n "$voters_low" ]; then
         ${pkgs.util-linux}/bin/logger -t battery-watchdog \

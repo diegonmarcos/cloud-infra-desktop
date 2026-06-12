@@ -77,9 +77,17 @@ SRC_JSON="$ROOT_DIR/src/boot.json"
 DIST_JSON="$DIST_NIXOS/boot.json"
 SWAPFILE=$(jq -r '.swap_hibernate.swapfile // empty' "$SRC_JSON")
 TEMPLATE=$(jq -r '.swap_hibernate.kernel_params_template // [] | join(" ")' "$SRC_JSON")
-if [ -n "$SWAPFILE" ] && [ -e "$SWAPFILE" ]; then
+if [ -n "$SWAPFILE" ] && sudo test -e "$SWAPFILE"; then
+    # The swapfile is root:root 0600 — filefrag has to open it, so an
+    # unprivileged engine run needs sudo. Try plain first (root/CI runs),
+    # then sudo. (2026-06-12: the unprivileged path silently produced an
+    # empty offset and the engine shipped kernel_params=[].)
     OFFSET=$(filefrag -v -b4096 "$SWAPFILE" 2>/dev/null \
              | awk '/^   0:/{print $4; exit}' | tr -d '.')
+    if [ -z "$OFFSET" ]; then
+        OFFSET=$(sudo filefrag -v -b4096 "$SWAPFILE" 2>/dev/null \
+                 | awk '/^   0:/{print $4; exit}' | tr -d '.')
+    fi
     if [ -n "$OFFSET" ]; then
         log "Resume offset (filefrag): $OFFSET (swapfile=$SWAPFILE)"
         jq --argjson o "$OFFSET" '
@@ -89,7 +97,12 @@ if [ -n "$SWAPFILE" ] && [ -e "$SWAPFILE" ]; then
                  | map(gsub("@RESUME_OFFSET@"; ($o|tostring))))
         ' "$DIST_JSON" > "$DIST_JSON.tmp" && mv "$DIST_JSON.tmp" "$DIST_JSON"
     else
-        warn "filefrag could not determine offset for $SWAPFILE — kernel_params will be empty"
+        # HARD FAIL — the swapfile exists but its first extent can't be
+        # located. Shipping empty kernel_params would disable hibernation
+        # (swap_hibernate.nix asserts at eval) or, worse, let the resume
+        # target drift. Never degrade silently (2026-06-12 incident).
+        error "filefrag could not determine offset for existing swapfile $SWAPFILE — refusing to ship empty kernel_params"
+        exit 1
     fi
 else
     warn "swapfile $SWAPFILE not present — skipping resume_offset render (first-install / pre-mkswap)"

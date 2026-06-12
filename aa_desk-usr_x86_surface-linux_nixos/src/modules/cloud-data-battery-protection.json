@@ -56,10 +56,12 @@
   },
 
   "policy": {
-    "_comment": "Voters are OR-ed (vote_logic=any). action_at_critical is a systemctl verb. Allowed: hibernate, suspend-then-hibernate, hybrid-sleep, suspend, poweroff. Default `hibernate` requires `resume=` on kernel cmdline and a swap area ≥ /sys/power/image_size on a non-zram backing device.",
+    "_comment": "Voters are OR-ed (vote_logic=any). action_at_critical is a systemctl verb. Allowed: hibernate, suspend-then-hibernate, hybrid-sleep, poweroff (suspend verbs are banned by cloud-data-power.json actions.never — Surface S3 is broken). Default `hibernate` requires `resume=` on kernel cmdline and a swap area ≥ /sys/power/image_size on a non-zram backing device.",
     "vote_logic": "any",
-    "action_at_critical": "hibernate"
-  },
+    "action_at_critical": "hibernate",
+    "action_at_critical_fallback": "poweroff",
+    "max_action_failures": 2,
+    "_fallback_comment": "2026-06-12 incident: the swapfile was unreachable (p5 superblock destroyed), every `systemctl hibernate` failed with 'Not enough suitable swap space', and the watchdog just retried each poll until the battery hit physical 0% and the firmware power-cut. With this policy the watchdog counts consecutive FAILED critical actions (state file action_failures); after max_action_failures it escalates to action_at_critical_fallback. poweroff loses the RAM session but is a clean filesystem shutdown — strictly better than a firmware power-cut. The counter resets on any poll that is not critical and on any successful action."
 
   "testers": {
     "_comment": "One invariant per voter input + infra invariants. Wire into reports-logs or a dedicated CI job.",
@@ -147,6 +149,18 @@
         "description": "logind reports hibernate is permitted",
         "command": "systemctl show -p CanHibernate --value",
         "expect": "yes"
+      },
+      {
+        "id": "resume_devno_registered",
+        "description": "Kernel has a resume device registered (/sys/power/resume != 0:0) — without it hibernate entry fails even with healthy swap (2026-06-12: device appeared after boot, devno never registered, CanHibernate=na)",
+        "command": "cat /sys/power/resume",
+        "expect_regex": "^(?!0:0$)[0-9]+:[0-9]+$"
+      },
+      {
+        "id": "disk_swap_active",
+        "description": "The non-zram swapfile is active swap (2026-06-12: only zram was active — zram cannot back hibernation)",
+        "command": "awk 'NR>1 && $1!~/zram/ {c++} END{print c+0}' /proc/swaps",
+        "expect_regex": "^[1-9]$"
       },
       {
         "id": "swap_size_ge_image_size",
