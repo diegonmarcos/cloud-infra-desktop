@@ -88,8 +88,10 @@ ea_*-*/
 ## Amaze File Manager / Amaze File Utilities. Owns a `-` so it matches the
 ## ea_*-*/ ignore above; whitelist the whole owned subtree exactly like
 ## ea_cloud-comms. The forks themselves are NOT vendored — they materialize at
-## build time into ea_editor-acode/ + ea_files-amaze/ + ea_files-amaze-utils/
-## tracker clones, which stay ignored by the ea_*-*/ rule. Added 2026-06-11.
+## build time into ea_upstreams-sources/{editor-acode,files-amaze,
+## files-amaze-utils}/ tracker clones (the same inventory dir the superapp
+## upstreams live in), content ignored by the ea_*-*/ rule. Added 2026-06-11;
+## trackers moved into ea_upstreams-sources/ 2026-06-12.
 !ea_cloud-ide/
 !ea_cloud-ide/**
 ## Re-ignore signing keystores inside the whitelisted Android projects. The
