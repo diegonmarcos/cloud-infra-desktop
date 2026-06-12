@@ -37861,3 +37861,83 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-05-09 19:10:07] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-05-09 19:10:07] PERF: start switch
 [2026-05-09 19:10:07] INFO: Staging dirty files for flake evaluation...
+[2026-06-11 13:42:12] ========== Build script started ==========
+[2026-06-11 13:42:12] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-11 13:42:13] PERF: start switch
+[2026-06-11 13:42:13] INFO: Staging dirty files for flake evaluation...
+[2026-06-11 13:42:14] PERF: git stage = 740ms
+[2026-06-11 13:42:15] PERF: clean stale hm-backups = 832ms
+[2026-06-11 13:42:15] INFO: Applying Home Manager configuration...
+[2026-06-11 13:42:15] INFO: home-manager backup extension: hm-backup-20260611-134215
+unpacking 'github:nix-community/home-manager/d5f1f641b289553927b3801580598d200a501863?narHash=sha256-ypL9WAZfmJr5V70jEVzqGjjQzF0uCkz%2BAFQF7n9NmNc%3D' into the Git cache...
+unpacking 'github:nix-community/NUR/ac8ce1206965fa8b5fc57ef3526c5fb3584ff720?narHash=sha256-n0uTDvXGRPXi2oHxnb/Cfm87biebQ1i5hYlbQBoflRA%3D' into the Git cache...
+unpacking 'github:hercules-ci/flake-parts/205b12d8b7cd4802fbcb8e8ef6a0f1408781a4f9?narHash=sha256-4pDvzqnegAfRkPwO3wmwBhVi/Sye1mzps0zHWYnP88c%3D' into the Git cache...
+copying path '/nix/store/0yj36irhwn225ywy1saz0gf5wr2ciz50-source' from 'https://cache.nixos.org'...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+unpacking 'github:Mic92/sops-nix/c5eebd4eb2e3372fe12a8d70a248a6ee9dd02eff?narHash=sha256-wFcr32ZqspCxk4%2BFvIxIL0AZktRs6DuF8oOsLt59YBU%3D' into the Git cache...
+unpacking 'github:nix-community/plasma-manager/51816be33a1ff0d4b22427de83222d5bfa96d30e?narHash=sha256-d5Q1GmQ%2BsW1Bt8cgDE0vOihzLaswsm8cSdg8124EqXE%3D' into the Git cache...
+unpacking 'github:diegonmarcos/unix/3353feb749b8015f431deea68c3edf5d0b4b2454?narHash=sha256-jqtMfNF4XAag3eJFAVhnNrkfnPZMczU9MRyYugdyeFs%3D' into the Git cache...
+[2026-06-11 13:46:40] ========== Build script started ==========
+[2026-06-11 13:46:40] ========== Building (no activate) /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-11 13:46:41] PERF: start build
+[2026-06-11 13:46:41] INFO: Staging dirty files for flake evaluation...
+[2026-06-11 13:46:43] PERF: git stage = 1.8s
+[2026-06-11 13:46:43] INFO: Building Home Manager activation package (no switch)...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+copying path '/nix/store/kn3m407mn5p4dyjb96z12daanqjaqmzc-source' from 'https://cache.nixos.org'...
+copying path '/nix/store/kn3m407mn5p4dyjb96z12daanqjaqmzc-source' from 'https://cache.nixos.org'...
+error:
+       … while evaluating a branch condition
+         at /nix/store/lc5bxq4vsgpjjc7i9phdm8s0bxjz0drm-source/lib/lists.nix:142:18:
+          141|       len = length list;
+          142|       fold' = n: if n == len then nul else op (elemAt list n) (fold' (n + 1));
+             |                  ^
+          143|     in
+
+       … while calling the 'length' builtin
+         at /nix/store/lc5bxq4vsgpjjc7i9phdm8s0bxjz0drm-source/lib/lists.nix:141:13:
+          140|     let
+          141|       len = length list;
+             |             ^
+          142|       fold' = n: if n == len then nul else op (elemAt list n) (fold' (n + 1));
+
+       … while evaluating the option `home.file':
+
+       … while evaluating definitions from `/nix/store/dimhhb7nhymgd9f35ajdzf6xkij6rsh8-source/modules/misc/xdg.nix':
+
+       … while evaluating the option `xdg.configFile':
+
+       … while evaluating definitions from `/nix/store/dimhhb7nhymgd9f35ajdzf6xkij6rsh8-source/modules/misc/gtk.nix':
+
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+       error: writing to file: Broken pipe
+[2026-06-11 13:53:31] ERROR: Build failed with exit code 1
+[2026-06-11 13:53:31] INFO: Check /home/diego/git/unix/ba_flakes_desktop/build.log for details
+[2026-06-11 13:53:33] PERF: home-manager build = 6m 49s
+[2026-06-11 13:53:33] PERF: TOTAL build = 6m 51s
+[2026-06-11 13:59:49] ========== Build script started ==========
+[2026-06-11 13:59:49] ========== Building (no activate) /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-11 13:59:50] PERF: start build
+[2026-06-11 13:59:51] INFO: Staging dirty files for flake evaluation...
+[2026-06-11 13:59:53] PERF: git stage = 2.5s
+[2026-06-11 13:59:53] INFO: Building Home Manager activation package (no switch)...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+error: interrupted by the user
+[2026-06-11 14:06:25] ERROR: Build failed with exit code 1
+[2026-06-11 14:06:25] INFO: Check /home/diego/git/unix/ba_flakes_desktop/build.log for details
+[2026-06-11 14:06:25] PERF: home-manager build = 6m 31s
+[2026-06-11 14:06:25] PERF: TOTAL build = 6m 35s
+[2026-06-12 12:59:10] ========== Build script started ==========
+[2026-06-12 12:59:10] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-12 12:59:10] PERF: start switch
+[2026-06-12 12:59:10] INFO: Staging dirty files for flake evaluation...
+[2026-06-12 12:59:10] PERF: git stage = 111ms
+[2026-06-12 12:59:11] PERF: clean stale hm-backups = 978ms
+[2026-06-12 12:59:11] INFO: Applying Home Manager configuration...
+[2026-06-12 12:59:11] INFO: home-manager backup extension: hm-backup-20260612-125911
+[2026-06-12 13:04:27] PERF: home-manager switch = 5m 15s
+[2026-06-12 13:04:27] PERF: TOTAL switch = 5m 16s
+[2026-06-12 13:04:27] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-06-12 13:04:27] ========== Build script finished ==========
