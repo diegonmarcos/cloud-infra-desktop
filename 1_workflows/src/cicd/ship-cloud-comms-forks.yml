@@ -35,6 +35,7 @@ on:
     paths:
       - "ea_cloud-comms/forks/**"
       - "ea_cloud-comms/build.json"
+      - "ea_cloud-comms/build.sh"   # the engine IS the fork pipeline
       - "1_workflows/src/cicd/ship-cloud-comms-forks.yml"
       - ".github/workflows/ship-cloud-comms-forks.yml"
 
