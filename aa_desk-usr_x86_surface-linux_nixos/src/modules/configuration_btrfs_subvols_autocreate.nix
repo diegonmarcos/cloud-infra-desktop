@@ -70,6 +70,31 @@ in
         SUBVOL_PATH=/mnt/btrfs-root/${m.subvol}
         if ${pkgs.btrfs-progs}/bin/btrfs subvolume show "$SUBVOL_PATH" >/dev/null 2>&1; then
           : # already exists, silent
+        elif [ -d "$SUBVOL_PATH" ]; then
+          # Path exists as a PLAIN DIRECTORY, not a subvolume (2026-06-12:
+          # @home-diego/waydroid — data accumulated in the dir while the
+          # declared subvol mount kept failing). `btrfs subvolume create`
+          # cannot replace it, and activation must NEVER move user data
+          # implicitly. Empty dir → safe swap; dir with data → loud CRIT,
+          # manual migration required.
+          if [ -z "$(${pkgs.coreutils}/bin/ls -A "$SUBVOL_PATH")" ]; then
+            missing=$((missing+1))
+            echo "[btrfs-subvols] ${m.subvol} exists as EMPTY plain dir — replacing with subvol"
+            if ${pkgs.coreutils}/bin/rmdir "$SUBVOL_PATH" \
+               && ${pkgs.btrfs-progs}/bin/btrfs subvolume create "$SUBVOL_PATH"; then
+              created=$((created+1))
+              ${pkgs.util-linux}/bin/logger -t btrfs-subvols-autocreate -p user.warning \
+                "replaced empty plain dir with subvol ${m.subvol} for mount ${m.mount} — reboot required"
+            else
+              echo "[btrfs-subvols] ERROR: failed to replace plain dir ${m.subvol}"
+              ${pkgs.util-linux}/bin/logger -t btrfs-subvols-autocreate -p user.err \
+                "failed to replace empty plain dir ${m.subvol} for ${m.mount}"
+            fi
+          else
+            echo "[btrfs-subvols] SKIP ${m.subvol}: plain dir WITH DATA — manual migration required (mount ${m.mount} will keep failing)"
+            ${pkgs.util-linux}/bin/logger -t btrfs-subvols-autocreate -p user.crit \
+              "${m.subvol} is a plain dir with data — mount ${m.mount} keeps failing. Migrate: create ${m.subvol}.new subvol, move data in, swap names — or drop the dedicated-subvol declaration."
+          fi
         else
           missing=$((missing+1))
           echo "[btrfs-subvols] CREATING ${m.subvol} (for ${m.mount})"

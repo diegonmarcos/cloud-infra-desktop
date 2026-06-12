@@ -62,11 +62,20 @@ in {
 
     text = ''
       # Any repair is a signal that some upstream code wrote to user home
-      # as root — silence the script's exit code so a missing path or
-      # transient race doesn't block the rest of activation.
-      set +e
-      ${lib.concatMapStrings mkUserBlock managedUsers}
-      exit 0
+      # as root — tolerate missing paths / transient races without blocking
+      # the rest of activation.
+      #
+      # ⚠ SUBSHELL, NOT `exit` (2026-06-12 incident): activation snippets are
+      # concatenated into ONE activate script. A bare `exit 0` here ended the
+      # WHOLE script early — skipping every later snippet (tmpBtrfsSubvols,
+      # udevd, var, zzz-verify) AND the final `ln -sfn ... /run/current-system`,
+      # so the system ran the new units while current-system still pointed at
+      # the previous generation. The subshell also contains `set +e` so it
+      # can't leak into later snippets.
+      (
+        set +e
+        ${lib.concatMapStrings mkUserBlock managedUsers}
+      ) || true
     '';
   };
 }

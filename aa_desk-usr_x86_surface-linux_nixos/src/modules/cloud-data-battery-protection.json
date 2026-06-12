@@ -147,8 +147,8 @@
       },
       {
         "id": "loginctl_can_hibernate",
-        "description": "logind reports hibernate is permitted",
-        "command": "systemctl show -p CanHibernate --value",
+        "description": "logind reports hibernate is permitted (CanHibernate is a logind D-Bus property, NOT a systemctl-show property — `systemctl show -p CanHibernate` silently prints nothing)",
+        "command": "busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanHibernate | awk '{gsub(/\"/,\"\"); print $2}'",
         "expect": "yes"
       },
       {
