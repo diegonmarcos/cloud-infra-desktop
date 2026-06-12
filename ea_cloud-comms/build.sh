@@ -20,7 +20,8 @@
 # ║   verify-contract  validate contract/comms-ipc-v1.json vs schema  ║
 # ║   bundle-forks     embed published fork APKs into hub assets/      ║
 # ║   materialize-fork <key>  clone upstream@pin → tracker + patches  ║
-# ║   build-fork <key>        gradle build inside a materialized fork ║
+# ║   build-fork <key>        fork's own gradlew + constellation sign ║
+# ║   publish-fork <key>      oras push fork APK → ghcr fork image    ║
 # ║   oras-push / oras-pull / phone-install   GHCR distribution (hub) ║
 # ║   gh-release       publish hub APK to a rolling GitHub Release    ║
 # ║                                                                  ║
@@ -223,22 +224,77 @@ step_materialize_fork() {
 }
 
 # ── build-fork <key> ───────────────────────────────────────────────────
-# Build a materialized fork's APK. Delegates to the fork's OWN build system
-# (native gradle for mail/matrix; RN's gradle+metro for chat). Output is
-# copied into dist/ alongside the hub APK.
+# Build a materialized fork's APK with the fork's OWN gradle wrapper (each
+# upstream pins its own Gradle/AGP — never our devShell gradle). Everything is
+# data-driven from build.json::forks.<key>.build:
+#   gradle_task — the exact variant task (e.g. assembleGithubRelease)
+#   apk_glob    — where the output APK lands inside the tracker
+#   signing     — 'keystore_properties' writes keystore.properties at the fork
+#                 root from the constellation keystore so the upstream's own
+#                 signingConfigs.release picks it up (no signing patch needed).
+# Keystore resolution: $COMMS_KEYSTORE env override, else the hub's CI-cached
+# hub/keystores/comms.keystore. All five constellation APKs MUST share it
+# (signature IPC + updater install chain).
 step_build_fork() {
   local key="${2:-}"
   [ -n "$key" ] || { errlog "usage: build.sh build-fork <mail|chat|matrix>"; exit 1; }
-  local tracker dest
+  local tracker dest task apk_glob signing
   tracker="$(_json ".forks.${key}.tracker_dir")"
+  task="$(_json ".forks.${key}.build.gradle_task")"
+  apk_glob="$(_json ".forks.${key}.build.apk_glob")"
+  signing="$(_json ".forks.${key}.build.signing")"
   dest="$SCRIPT_DIR/../$tracker"
   [ -d "$dest/.git" ] || { errlog "fork '$key' not materialized — run: ./build.sh materialize-fork $key"; exit 1; }
-  log "build-fork[$key]: delegating to $tracker's own gradle build"
-  ( cd "$dest" && in_nix gradle assembleRelease )
+  [ -n "$task" ] || { errlog "fork '$key' has no build.gradle_task in build.json"; exit 1; }
+
+  if [ "$signing" = "keystore_properties" ]; then
+    local ks="${COMMS_KEYSTORE:-$SCRIPT_DIR/hub/keystores/comms.keystore}"
+    if [ -f "$ks" ]; then
+      # Upstream signingConfigs.release reads rootProject keystore.properties.
+      # Credentials match the CI-cached debug-grade constellation keystore
+      # (NOT production secrets — personal-infra signing, same as the hub).
+      printf 'storeFile=%s\nstorePassword=android\nkeyAlias=commskey\nkeyPassword=android\n' \
+        "$ks" > "$dest/keystore.properties"
+      log "build-fork[$key]: keystore.properties → constellation keystore"
+    else
+      log "build-fork[$key]: no comms keystore at $ks — upstream will build unsigned/debug-signed"
+    fi
+  fi
+
+  log "build-fork[$key]: $tracker ./gradlew $task (upstream-pinned toolchain)"
+  ( cd "$dest" && chmod +x gradlew && ./gradlew --no-daemon "$task" )
+
   mkdir -p "$DIST_DIR"
-  local apk
-  apk="$(prefer_host find "$dest" -path '*/outputs/apk/*release*.apk' -print -quit 2>/dev/null || true)"
-  [ -n "$apk" ] && cp "$apk" "$DIST_DIR/cloud-comms-${key}.apk" && log "→ $DIST_DIR/cloud-comms-${key}.apk"
+  shopt -s nullglob
+  local apks=("$dest"/$apk_glob)
+  shopt -u nullglob
+  [ "${#apks[@]}" -ge 1 ] || { errlog "build-fork[$key]: no APK matched $apk_glob"; exit 1; }
+  cp "${apks[0]}" "$DIST_DIR/cloud-comms-${key}.apk"
+  log "→ $DIST_DIR/cloud-comms-${key}.apk ($(wc -c <"$DIST_DIR/cloud-comms-${key}.apk") B)"
+}
+
+# ── publish-fork <key> ─────────────────────────────────────────────────
+# Push a built fork APK to GHCR as an OCI artifact (image from
+# build.json::forks.<key>.image; registry/namespace shared with release.ghcr).
+# Tags: latest + sha-{sha}. The hub's bundle-forks + FleetUpdater consume this.
+step_publish_fork() {
+  local key="${2:-}"
+  [ -n "$key" ] || { errlog "usage: build.sh publish-fork <mail|chat|matrix>"; exit 1; }
+  local image registry namespace media_type artifact sha
+  image="$(_json ".forks.${key}.image")"
+  registry="$(_json '.release.ghcr.registry')"
+  namespace="$(_json '.release.ghcr.namespace')"
+  media_type="$(_json '.release.ghcr.media_type')"
+  artifact="$DIST_DIR/cloud-comms-${key}.apk"
+  [ -f "$artifact" ] || { errlog "publish-fork[$key]: $artifact missing — run build-fork first"; exit 1; }
+  sha="${GITHUB_SHA:-$(prefer_host git -C "$SCRIPT_DIR" rev-parse --short=8 HEAD 2>/dev/null || echo unknown)}"
+  local tag ref
+  for tag in latest "sha-${sha:0:8}"; do
+    ref="$registry/$namespace/$image:$tag"
+    log "publish-fork[$key]: oras push $ref"
+    ( cd "$DIST_DIR" && in_nix oras push "$ref" "cloud-comms-${key}.apk:$media_type" \
+        --artifact-type "$media_type" )
+  done
 }
 
 # ── GHCR distribution (hub APK) ─────────────────────────────────────────
@@ -397,6 +453,7 @@ case "$CMD" in
   bundle-forks)     step_bundle_forks ;;
   materialize-fork) step_materialize_fork "$@" ;;
   build-fork)       step_build_fork "$@" ;;
+  publish-fork)     step_publish_fork "$@" ;;
   oras-push)        step_oras_push ;;
   oras-pull)        step_oras_pull "$@" ;;
   phone-install)    step_phone_install "$@" ;;
