@@ -57,7 +57,13 @@ def chromeB64 = JsonOutput.toJson(chrome).bytes.encodeBase64().toString()
 def fleet = []
 fleet << [label: 'hub', app_id: buildJson.android.application_id, image: ghcr.image, blocked: false]
 forksMap.each { k, v ->
-    fleet << [label: k, app_id: v.app_id, image: v.image, blocked: (v.blocked_on != null && v.blocked_on != 'null')]
+    // alt_id = the REAL package inside the stock upstream APK (forks.<k>.
+    // upstream_apk.package). Until the patched fork (which carries app_id)
+    // replaces it, installed-detection and launching must accept EITHER id —
+    // forcing app_id caused INSTALL_FAILED_INVALID_APK "inconsistent with
+    // com.mattermost.rnbeta / org.fossify.phone".
+    fleet << [label: k, app_id: v.app_id, alt_id: (v.upstream_apk?.package ?: ''),
+              image: v.image, blocked: (v.blocked_on != null && v.blocked_on != 'null')]
 }
 def fleetB64 = JsonOutput.toJson(fleet).bytes.encodeBase64().toString()
 

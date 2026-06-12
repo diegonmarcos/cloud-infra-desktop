@@ -368,7 +368,7 @@ class MainActivity : AppCompatActivity() {
                 // per-package + total progress on the overlay.
                 Transaction.start(this)
             }
-            !openFork(fork.appId) ->
+            !openFork(fork) ->
                 Toast.makeText(this, getString(R.string.tile_launch_failed), Toast.LENGTH_SHORT).show()
         }
     }
@@ -380,16 +380,21 @@ class MainActivity : AppCompatActivity() {
      * still has its own icon during development. Returns false if neither
      * resolves. Returns true (no-op) for the already-handled branches above.
      */
-    private fun openFork(appId: String): Boolean {
+    private fun openFork(fork: Fork): Boolean {
+        // Our patched fork: icon-less, opened via the constellation action.
         val byAction = Intent(CommsContract.LAUNCH_ACTION)
-            .setPackage(appId)
+            .setPackage(fork.appId)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (byAction.resolveActivity(packageManager) != null) {
             startActivity(byAction); return true
         }
-        val byLauncher = packageManager.getLaunchIntentForPackage(appId)
-        if (byLauncher != null) {
-            startActivity(byLauncher.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true
+        // Launcher fallback — covers a dev fork that still has its icon AND the
+        // STOCK upstream APK (altId) bundled until the patched fork ships.
+        for (id in listOfNotNull(fork.appId, fork.altId)) {
+            val byLauncher = packageManager.getLaunchIntentForPackage(id)
+            if (byLauncher != null) {
+                startActivity(byLauncher.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true
+            }
         }
         return false
     }
