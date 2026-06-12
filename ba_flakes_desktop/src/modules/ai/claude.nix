@@ -6,6 +6,28 @@
 { config, pkgs, lib, ... }:
 {
   home.packages = with pkgs; [
+    # ── `claude` loader-shim wrapper (survives auto-updates) ────────────────
+    # The native installer's auto-updater replaces
+    # ~/.local/share/claude/versions/<ver> with unpatched glibc-linked ELFs
+    # and SELF-REPAIRS patched binaries (checksum heal) — so the old
+    # patchelf-at-activation approach loses every race (3 breakages
+    # 2026-06-10..12). Instead: exec the PRISTINE binary through the nix
+    # glibc loader. No file mutation → nothing for the updater to repair,
+    # works for every future version. ~/.nix-profile/bin precedes
+    # ~/.local/bin in PATH, so this wrapper wins resolution.
+    # Once programs.nix-ld is live system-wide (host flake,
+    # configuration_packages.nix) the shim is redundant but harmless.
+    # Tester: `command -v claude` → ~/.nix-profile/bin/claude AND
+    # `claude --version` succeeds right after a fresh auto-update.
+    (pkgs.writeShellScriptBin "claude" ''
+      REAL="$HOME/.local/bin/claude"
+      if [ ! -e "$REAL" ]; then
+        REAL=$(ls -t "$HOME"/.local/share/claude/versions/* 2>/dev/null | head -1)
+      fi
+      [ -n "$REAL" ] || { echo "claude binary not found — run claude-rescue" >&2; exit 127; }
+      exec ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 "$REAL" "$@"
+    '')
+
     (pkgs.writeShellScriptBin "claude-termux" ''
       export NODE_OPTIONS="--no-node-snapshot --max-old-space-size=1024"
       exec claude "$@"
