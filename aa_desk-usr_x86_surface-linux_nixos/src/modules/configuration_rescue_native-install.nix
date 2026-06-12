@@ -29,6 +29,20 @@
   specialisation.rescue-native-install.configuration = {
 
     # ─────────────────────────────────────────────────────────────────
+    # Hibernate-image invalidation + swap policy
+    # ─────────────────────────────────────────────────────────────────
+    # Invalidate any pending hibernate image (safe swapfile-header rewrite,
+    # gated on noresume) so the next default boot can't resume stale RAM
+    # state on top of whatever this rescue session modified.
+    # boot.json: swap_hibernate.hibernate_invalidation.trigger_specialisations
+    imports = [ ./configuration_rescue_invalidate_hibernate.nix ];
+
+    # boot.json: kernel.specialisations.rescue-native-install.swap_disabled.
+    # No disk swap in rescue — the swapfile stays untouched except for the
+    # explicit invalidation above. (zram swap is unaffected.)
+    swapDevices = lib.mkForce [ ];
+
+    # ─────────────────────────────────────────────────────────────────
     # Shell + login
     # ─────────────────────────────────────────────────────────────────
     # Force bash for root (NEVER fish/zsh in rescue — they may be the
@@ -61,15 +75,20 @@
     # ─────────────────────────────────────────────────────────────────
     # Sleep / hibernate handling
     # ─────────────────────────────────────────────────────────────────
-    # Strip resume= and resume_offset= so rescue ALWAYS does a fresh
-    # boot, never an interrupted-hibernate resume that could re-enter
-    # a hibernate loop. Same as rescue-current-gen.
+    # Strip resume= and resume_offset= and add noresume so rescue ALWAYS
+    # does a fresh boot, never an interrupted-hibernate resume that could
+    # re-enter a hibernate loop. Same as rescue-current-gen. `noresume` is
+    # also the ConditionKernelCommandLine gate for
+    # rescue-invalidate-hibernate.service (it can never fire on a
+    # resume-capable boot).
     boot.kernelParams = lib.mkForce [
+      "noresume"
       "mem_sleep_default=deep"
       "psi=1"
       "loglevel=4"
       "audit=1"
     ];
+    boot.resumeDevice = lib.mkForce "";
 
     # ─────────────────────────────────────────────────────────────────
     # Network — keep NetworkManager so nmtui + WiFi work in the

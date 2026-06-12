@@ -28,6 +28,17 @@
   # - Recovery tools included
 
   specialisation.rescue-current-gen.configuration = {
+    # Invalidate any pending hibernate image (safe swapfile-header rewrite,
+    # gated on noresume) so the next default boot can't resume stale RAM
+    # state on top of whatever this rescue session modified.
+    # boot.json: swap_hibernate.hibernate_invalidation.trigger_specialisations
+    imports = [ ./configuration_rescue_invalidate_hibernate.nix ];
+
+    # boot.json: kernel.specialisations.rescue-current-gen.swap_disabled.
+    # No disk swap in rescue — the swapfile stays untouched except for the
+    # explicit invalidation above. (zram swap is unaffected.)
+    swapDevices = lib.mkForce [ ];
+
     # Disable ALL graphical services
     services.displayManager.sddm.enable = lib.mkForce false;
     services.xserver.enable = lib.mkForce false;
@@ -119,8 +130,12 @@
     boot.plymouth.enable = lib.mkForce false;
 
     # CRITICAL: Do NOT resume from hibernation in rescue mode!
-    # Remove resume= and resume_offset= so we get a fresh boot.
-    # This allows escaping hibernate loops and fixing broken configs.
-    boot.kernelParams = lib.mkForce [ "mem_sleep_default=deep" "psi=1" "loglevel=4" "audit=1" ];
+    # Remove resume= and resume_offset= and add noresume so we get a fresh
+    # boot. This allows escaping hibernate loops and fixing broken configs.
+    # `noresume` is also the ConditionKernelCommandLine gate that allows
+    # rescue-invalidate-hibernate.service to act (defense-in-depth: the
+    # invalidator can never fire on a resume-capable boot).
+    boot.kernelParams = lib.mkForce [ "noresume" "mem_sleep_default=deep" "psi=1" "loglevel=4" "audit=1" ];
+    boot.resumeDevice = lib.mkForce "";
   };
 }

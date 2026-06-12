@@ -614,8 +614,10 @@
         "rescue-native-install"
       ],
       "trigger_external_mounts": true,
-      "method": "mkswap -L Shared-Lib /dev/disk/by-label/Shared-Lib",
-      "_method_note": "mkswap on the existing swap partition rewrites the header in place without changing UUID/label \u2014 equivalent to clearing any hibernate signature."
+      "target": "swapfile",
+      "method": "mkswap /mnt/shared-lib/.swapfile",
+      "_method_note": "The resume target is a SWAPFILE inside the ext4 Shared-Lib filesystem \u2014 the swap header (and any S1SUSPEND hibernate signature) lives in the FIRST PAGE OF THE FILE, not of the partition. Invalidation = mkswap on the FILE PATH, through the mounted filesystem. ext4 extents are fixed, so this rewrites the header in place without moving the file \u2014 resume_offset stays valid. NEVER run mkswap/dd against the partition or /dev/disk/by-label/Shared-Lib: that device IS the ext4 filesystem; writing its first 4 KiB destroys the primary superblock (2026-06-12 incident \u2014 the previous declared method did exactly this, killed the fslabel, made /mnt/shared-lib unmountable, left only zram swap, and the battery watchdog's hibernate calls failed with 'Not enough suitable swap space' until the machine drained dead; recovered via fsck.ext4 -b 32768).",
+      "_scope_note": "Runs ONLY in the rescue specialisations listed in trigger_specialisations (their cmdline carries `noresume`), guarded by ConditionKernelCommandLine=noresume as defense-in-depth. It must NEVER run on a normal boot \u2014 a normal boot resumes via resume=/resume_offset= and the kernel itself consumes the signature."
     },
     "_pool_witness": {
       "_description": "Detects out-of-band pool mounts. configuration_pool_witness.nix writes a fresh nonce to @shared/.pool-witness/id on every clean mount in NixOS, mirrors it to /run/pool-witness/current-mount.id, and persists the last clean value at /var/lib/pool-witness/last-clean-mount.id. If the on-disk nonce at next NixOS mount differs from the recorded last-clean value, something else touched the pool \u2014 preflight refuses to hibernate so we don't write an image whose RAM-state-of-the-pool will be inconsistent with the disk."

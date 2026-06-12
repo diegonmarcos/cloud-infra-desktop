@@ -37,6 +37,7 @@ let
   bootCfg   = builtins.fromJSON (builtins.readFile ./boot.json);
   swapfile  = bootCfg.swap_hibernate.swapfile;
   declared  = toString bootCfg.swap_hibernate.resume_offset;
+  resumeDev = bootCfg.swap_hibernate.resume_device;
 in
 {
   systemd.services."swapfile-resume-offset-check" = {
@@ -55,6 +56,7 @@ in
       set -u
       SWAP="${swapfile}"
       DECLARED=${declared}
+      RESUME_DEV=${lib.escapeShellArg resumeDev}
 
       mask_hibernate() {
         local reason="$1"
@@ -102,6 +104,39 @@ in
       fi
       if [ "$ACTUAL" != "$DECLARED" ]; then
         mask_hibernate "DRIFT (SoT-side): boot.json declared=$DECLARED but swapfile actual=$ACTUAL — redeploy bootloader to capture the new offset"
+      fi
+
+      # 4. The declared resume_device MUST be the device backing the
+      #    swapfile's filesystem. If they diverge, hibernate would write the
+      #    image through the swapfile while resume reads resume= — i.e. two
+      #    different devices: the 2026-05-15 corruption class. Hard refuse.
+      RESOLVED=$(${pkgs.coreutils}/bin/readlink -f "$RESUME_DEV" 2>/dev/null || echo "")
+      BACKING=$(${pkgs.util-linux}/bin/findmnt -no SOURCE -T "$SWAP" 2>/dev/null || echo "")
+      if [ -z "$RESOLVED" ] || [ ! -b "$RESOLVED" ]; then
+        mask_hibernate "resume_device $RESUME_DEV does not resolve to a block device"
+      fi
+      if [ "$RESOLVED" != "$BACKING" ]; then
+        mask_hibernate "resume_device $RESUME_DEV → $RESOLVED but swapfile is backed by $BACKING — image and resume would target different devices"
+      fi
+
+      # 5. Register the resume device with the kernel if boot-time resolution
+      #    failed. The kernel only honors resume= if the device exists when
+      #    it parses the cmdline; if the partition appeared late (2026-06-12:
+      #    fslabel was destroyed, initrd gave up waiting), /sys/power/resume
+      #    stays 0:0 and systemd/logind reports CanHibernate=na — the battery
+      #    watchdog's hibernate calls then fail while the battery drains.
+      #    Writing the devno here is NOT the banned offset self-heal: steps
+      #    1-4 above already proved cmdline == /sys == actual extent AND the
+      #    device identity — this only completes the registration the kernel
+      #    would have done itself had the device been present at boot.
+      KRESUME=$(cat /sys/power/resume 2>/dev/null || echo "?")
+      DEVNO=$(${pkgs.coreutils}/bin/stat -c '%Hr:%Lr' "$RESOLVED" 2>/dev/null || echo "?")
+      if [ "$KRESUME" = "0:0" ]; then
+        echo "$DEVNO" > /sys/power/resume
+        ${pkgs.util-linux}/bin/logger -t swapfile-resume-offset -p user.warning \
+          "/sys/power/resume was 0:0 (resume device not present at boot) — registered $DEVNO ($RESOLVED) after invariant checks passed"
+      elif [ "$KRESUME" != "$DEVNO" ]; then
+        mask_hibernate "/sys/power/resume=$KRESUME does not match resume_device $RESOLVED ($DEVNO)"
       fi
 
       echo "[swapfile-resume-offset] all invariants satisfied — hibernate enabled this boot"
