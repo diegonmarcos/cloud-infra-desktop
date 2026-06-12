@@ -46,9 +46,9 @@
       },
       {
         "id": "checkpoint_idle_io_class",
-        "description": "checkpoint service runs idle IO class — can never trash the interactive session",
+        "description": "checkpoint service runs idle IO class — can never trash the interactive session (systemd reports the class numerically: 3 = idle)",
         "command": "systemctl show -p IOSchedulingClass --value session-checkpoint.service",
-        "expect": "idle"
+        "expect_regex": "^(3|idle)$"
       }
     ]
   }

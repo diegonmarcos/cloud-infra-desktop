@@ -212,6 +212,14 @@
           "integration": "adapter"
         },
         {
+          "producer": "nixos_specialisation",
+          "from": "fresh-desktop",
+          "label": "NixOS - Fresh Desktop",
+          "icon": "func_reset",
+          "integration": "adapter",
+          "_note": "Full Plasma desktop with `noresume` + safe hibernate-image invalidation. The everyday 'ignore my saved session, start clean' choice — Primary auto-resumes a hibernate image when one exists; this entry never does. Added 2026-06-12."
+        },
+        {
           "producer": "efi_chainload",
           "from": "kali",
           "label": "Kali - Lab",
@@ -360,6 +368,7 @@
           "max": 5
         },
         "specialisations": [
+          "fresh-desktop",
           "rescue-current-gen",
           "rescue-native-install",
           "safe-graphics"
@@ -517,6 +526,18 @@
           "splash"
         ],
         "params_add": []
+      },
+      "fresh-desktop": {
+        "_description": "Fresh Desktop — full Plasma session that deliberately ignores any saved hibernate image (`noresume`) and safely invalidates it (swapfile-header rewrite via configuration_rescue_invalidate_hibernate.nix, never the partition — 2026-06-12 incident). The boot-menu counterpart to Primary's auto-resume: Primary = continue session from disk, Fresh Desktop = start clean. configuration_fresh_desktop.nix uses lib.mkForce; this JSON captures intent.",
+        "params_strip": [
+          "resume=*",
+          "resume_offset=*"
+        ],
+        "params_add": [
+          "noresume"
+        ],
+        "swap_disabled": true,
+        "resume_device_disabled": true
       }
     }
   },

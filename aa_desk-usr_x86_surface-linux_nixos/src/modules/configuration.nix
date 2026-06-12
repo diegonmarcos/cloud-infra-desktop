@@ -107,6 +107,7 @@
     ./configuration_services.nix
     ./configuration_rescue.nix
     ./configuration_rescue_native-install.nix
+    ./configuration_fresh_desktop.nix             # 2026-06-12: "NixOS - Fresh Desktop" rEFInd entry — full Plasma with noresume + safe hibernate-image invalidation; the boot-menu counterpart to Primary's auto-resume (boot.json kernel.specialisations.fresh-desktop)
     ./configuration_fallback.nix
     ./configuration_session_isolation.nix
     ./configuration_observability.nix
