@@ -12,6 +12,16 @@
     "retention_count": 24
   },
 
+  "shutdown_checkpoint": {
+    "_comment": "REBOOT/SHUTDOWN MUST ALWAYS SAVE A SNAPSHOT IN DISK (user requirement 2026-06-12, hard). In addition to the periodic timer, a final btrfs checkpoint is written on the way down — every reboot and every shutdown, before filesystems unmount. Apps flush their session stores (browser tabs, editor state, KDE session) when the session ends, so this snapshot captures the freshest possible file-state of the session being closed.",
+    "enabled": true
+  },
+
+  "reboot_with_session": {
+    "_comment": "`sudo reboot-with-session` — the RAM-session counterpart for restarts: writes the FULL hibernate image to the swapfile, then REBOOTS (kernel disk-mode 'reboot') instead of powering off. At the rEFInd menu that follows: NixOS - Primary (default) resumes the saved session; NixOS - Fresh Desktop starts clean and discards it. Implemented via a runtime /run/systemd/sleep.conf.d drop-in (HibernateMode=reboot) that exists only for this invocation — /run is tmpfs, so a completed reboot wipes it and the battery-watchdog's critical hibernate keeps normal power-off semantics. Use plain Restart or Fresh Desktop when booting a NEW kernel is the point (resuming the image returns to the old one by design).",
+    "enabled": true
+  },
+
   "restore": {
     "_comment": "How to use a checkpoint. Single file: plain copy out of the snapshot path (read-only, browsable like a normal directory). Full home rollback: boot a rescue entry, `mv @home-diego @home-diego.broken && btrfs subvolume snapshot /mnt/btrfs-root/@snapshots/home-diego/<ts> /mnt/btrfs-root/@home-diego` (writable snapshot-of-snapshot), reboot.",
     "browse_path": "/mnt/btrfs-root/@snapshots/home-diego/"
@@ -43,6 +53,18 @@
         "description": "newest checkpoint is a read-only btrfs snapshot (immutable session file)",
         "command": "btrfs property get \"/mnt/btrfs-root/@snapshots/home-diego/$(ls -1 /mnt/btrfs-root/@snapshots/home-diego/ | sort | tail -1)\" ro",
         "expect": "ro=true"
+      },
+      {
+        "id": "shutdown_checkpoint_loaded",
+        "description": "session-checkpoint-shutdown is wired into shutdown.target — every reboot/shutdown writes a final snapshot (full proof appears in the journal of the NEXT boot as a '-shutdown' suffixed checkpoint)",
+        "command": "systemctl show -p LoadState --value session-checkpoint-shutdown.service",
+        "expect": "loaded"
+      },
+      {
+        "id": "reboot_with_session_on_path",
+        "description": "reboot-with-session command is installed (RAM-session snapshot + reboot)",
+        "command": "command -v reboot-with-session >/dev/null && echo ok",
+        "expect": "ok"
       },
       {
         "id": "checkpoint_idle_io_class",
