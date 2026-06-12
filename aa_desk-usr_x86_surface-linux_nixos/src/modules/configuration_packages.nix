@@ -23,6 +23,12 @@
   environment.systemPackages = with pkgs; [
     # ─── Waydroid launcher ─────────────────────────────────────────────────
     (writeShellScriptBin "waydroid-launch" ''
+      # Ensure ARM translation (libhoudini) is installed before the session
+      # starts — it edits the overlay the session mounts. Guarded + idempotent:
+      # a no-op once libhoudini.so exists (see configuration_containers.nix).
+      # Runs first because the install stops/restarts the container itself.
+      sudo systemctl start waydroid-arm-bootstrap || \
+        echo "waydroid-arm-bootstrap failed (run 'sudo waydroid init' if not yet initialised)"
       # Start container if not running
       if ! systemctl is-active --quiet waydroid-container; then
         sudo systemctl start waydroid-container

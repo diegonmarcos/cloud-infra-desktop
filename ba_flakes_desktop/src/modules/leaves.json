@@ -42,7 +42,8 @@
     "containers-cloud/cloud-clis",
     "containers-cloud/observability",
     "containers-cloud/ci-cd",
-    "containers-cloud/secrets"
+    "containers-cloud/secrets",
+    "containers-cloud/waydroid"
   ],
 
   "security-network": [

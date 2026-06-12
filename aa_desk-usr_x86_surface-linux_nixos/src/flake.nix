@@ -27,6 +27,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # NUR — for ataraxiasjel.waydroid-script, the reproducibly-packaged
+    # casualsnek waydroid_script (libhoudini ARM translation). Surface Pro 8 is
+    # x86_64; the cloud-superapp APK is arm64-v8a only, so Waydroid needs an ARM
+    # bridge to run it. See modules/configuration_containers.nix.
+    nur.url = "github:nix-community/NUR";
+
     # NOTE: fido2-vault-broker is NOT a flake input — nix 2.24 cannot lock
     # or re-fetch relative-path flake inputs inside a git flake (every
     # `nix flake update`/eval died on it, 2026-06-11/12). Its NixOS module
@@ -39,7 +45,7 @@
     # NOTE: home-manager is NOT here - it's managed separately in cb_user_diego_nix
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, nur, ... }:
   let
     system = "x86_64-linux";
 
@@ -59,6 +65,9 @@
           inherit system;
           config.allowUnfree = true;
         };
+        # NUR repo holding waydroid-script (libhoudini ARM translation).
+        # Scoped per-module via specialArgs, never a global overlay.
+        nurpkgs = nur.legacyPackages.${system}.repos.ataraxiasjel;
       };
       modules = [
         # Surface Pro hardware support (linux-surface kernel, firmware)
