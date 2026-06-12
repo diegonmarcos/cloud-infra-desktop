@@ -44,22 +44,9 @@
             ];
           };
 
-          packages.default = pkgs.rustPlatform.buildRustPackage {
-            pname = "fido2-vault-broker";
-            version = "0.1.0";
-            src = ./.;
-            cargoLock.lockFile = ./Cargo.lock;
-            nativeBuildInputs = [ pkgs.pkg-config ];
-            buildInputs = with pkgs; [ openssl tpm2-tss ];
-            doCheck = true;
-
-            # Ship the udev rule alongside the binary so consumers using
-            # `services.udev.packages = [ self.packages.x86_64-linux.default ]`
-            # pick it up declaratively without touching extraRules.
-            postInstall = ''
-              install -Dm0644 ${./templates/70-fido2-vault-broker.rules} $out/lib/udev/rules.d/70-fido2-vault-broker.rules
-            '';
-          };
+          # Single source of truth: ./nix/package.nix (also imported by
+          # path from the surface host flake — see header comment there).
+          packages.default = pkgs.callPackage ./nix/package.nix { };
         });
     in
       perSystem // {
