@@ -59,35 +59,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 21
+      # No setup-android / no sdkmanager: platforms;android-37 is not resolvable
+      # via sdkmanager on the runner (runs 27413583240 + 27418273251), and
+      # FairEmail's OWN CI (.github/workflows/android.yml in the upstream clone)
+      # provisions NOTHING — just JDK 17 + ./gradlew. AGP 9 auto-installs the
+      # compile platform from the runner's preinstalled, license-accepted SDK.
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"   # AGP 9.x floor is 17; 21 is the supported sweet spot
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          # Only platform-tools here — platforms;android-37 is NOT in
-          # sdkmanager's stable channel (run 27413583240: "Failed to find
-          # package"), it ships via the beta/preview channels. Installed in the
-          # next step with an explicit --channel walk.
-          packages: "platform-tools"
-
-      - name: Install platform android-37 (preview channels)
-        run: |
-          set -e
-          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          command -v "$SDKMANAGER" >/dev/null || SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)"
-          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-          # compileSdk 37 (FairEmail 1.2321): walk channels stable→beta→canary
-          # until the platform resolves; fail loudly if none has it.
-          for ch in 0 1 2 3; do
-            if "$SDKMANAGER" --channel=$ch "platforms;android-37"; then
-              echo "platforms;android-37 installed from channel $ch"; exit 0
-            fi
-          done
-          echo "::error::platforms;android-37 unavailable in any sdkmanager channel"; exit 1
+          java-version: "17"   # exactly what upstream FairEmail CI uses
+          cache: gradle
 
       # Same cached constellation keystore as ship-cloud-comms.yml — one key
       # across hub + forks + SuperApp (signature IPC + updater chain).
