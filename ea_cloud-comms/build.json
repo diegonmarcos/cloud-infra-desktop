@@ -105,7 +105,7 @@
       "upstream_apk": {
         "_doc": "Pinned UPSTREAM RELEASE APK — bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true → the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs — unsigned can't install; our key also makes it IPC-compatible). NOTE: blocked_on gates OUR fork build (homeserver work), not stock-client bundling — Element X is a generic Matrix client.",
         "url": "https://github.com/element-hq/element-x-android/releases/download/v26.06.2/app-fdroid-arm64-v8a-release-signed.apk",
-        "sha256": "ce146609b5021ca487ab448ed84f3ad73d67c3177cabaae22898328f0a8142a4",
+        "sha256": "aeac575edf780f3d89fa966ac4528b0035609537ba7d3c396c1be875424a186e",
         "resign": false
       }
     },
