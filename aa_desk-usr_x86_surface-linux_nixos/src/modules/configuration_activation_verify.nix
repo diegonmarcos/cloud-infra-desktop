@@ -85,7 +85,7 @@ let
       # ── REPORT ──────────────────────────────────────────────────────────
       if [ ''${#problems[@]} -eq 0 ]; then
         ${pkgs.util-linux}/bin/logger -t nixos-activation-verify -p user.info \
-          "all ''${#requiredHumanUsers[@]} human users present, all ''${#requiredPaths[@]} critical paths exist, swap not on btrfs"
+          "all ${toString (builtins.length requiredHumanUsers)} human users present, all ${toString (builtins.length requiredPaths)} critical paths exist, swap not on btrfs"
         exit 0
       fi
 
