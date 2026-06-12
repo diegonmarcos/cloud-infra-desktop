@@ -171,10 +171,16 @@ in
     description = "Snapshot p5 superblock + groups 945-947 BEFORE umount";
     wantedBy    = [ "shutdown.target" ];
     before      = [ "umount.target" "shutdown.target" ];
+    # DefaultDependencies is a [Unit] key — in serviceConfig ([Service])
+    # systemd ignores it with "Unknown key" and the implicit deps produce
+    # sysinit.target/local-fs.target ordering cycles (seen on every boot of
+    # the old generation).
+    unitConfig = {
+      DefaultDependencies = false;
+    };
     serviceConfig = {
       Type           = "oneshot";
       RemainAfterExit = true;
-      DefaultDependencies = false;
     };
     path = with pkgs; [ coreutils util-linux ];
     script = ''

@@ -68,21 +68,33 @@
     ./configuration_system-protection-storage.nix
     ./configuration_system-protection-battery.nix
     ./configuration_power.nix
-    # ─── POST-2026-05-16 SIMPLIFICATION ───────────────────────────────────
-    # The following hibernate-safety modules were stripped per user request
-    # "should we stop using our hibernation solution that seems like too messy
-    # and use the native hibernation module from the OS". They were
-    # defending against a btrfs-swapfile bug (CoW-relocatable extents)
-    # that no longer applies now that swap lives on ext4 (fixed extents,
-    # drift impossible by design):
-    #   - configuration_pre-hibernate-warning.nix   (UX countdown + preflight)
-    #   - configuration_swapfile_resume_check.nix   (drift detector — N/A on ext4)
+    # ─── POST-2026-05-16 SIMPLIFICATION, PARTIALLY REVERTED 2026-06-12 ────
+    # The hibernate-safety modules were stripped 2026-05-16 per user request
+    # ("use the native hibernation module from the OS"). But the stripped
+    # config was never deployed: the machine kept running the 2026-05-16
+    # generation, whose rescue-invalidate-hibernate unit dd-zeroed the ext4
+    # superblock of p5 (it targeted the resume PARTITION instead of the
+    # swapfile) — which silently removed all hibernate-capable swap. On
+    # 2026-06-12 the battery hit critical, every hibernate call failed with
+    # "Not enough suitable swap space", and the machine drained dead.
+    # Post-incident decision ("make it well done"): the WRITE-SAFETY gates
+    # come back; only the UX/consistency extras stay out.
+    #
+    # IN (hibernate write-safety):
+    #   - configuration_swapfile_resume_check.nix — triple-agreement gate
+    #     (cmdline == /sys == actual swapfile extent) + resume-device-is-
+    #     backing-device assertion + late-device /sys/power/resume
+    #     registration. Masks hibernate on ANY drift so the image can never
+    #     be written to / read from an unexpected location (2026-05-15 class).
+    #   - configuration_rescue_invalidate_hibernate.nix — REWRITTEN: safe
+    #     swapfile-header rewrite (never touches the partition), gated on
+    #     ConditionKernelCommandLine=noresume, imported ONLY by the rescue
+    #     specialisations (configuration_rescue*.nix), not here.
+    #
+    # OUT (left as dead code in tree):
+    #   - configuration_pre-hibernate-warning.nix   (UX countdown)
     #   - configuration_pool_witness.nix            (out-of-band mount detector)
-    #   - configuration_rescue_invalidate_hibernate.nix (rescue header wipe)
-    # swap_hibernate.nix stays — it declares swapDevices + resume_device,
-    # which IS the native hibernation pattern (just data-driven from boot.json).
-    # Files left in tree as dead code for git-history reference; import them
-    # back if any of those defenses become needed again.
+    ./configuration_swapfile_resume_check.nix
     ./configuration_kernel_preservation.nix       # POST-2026-05-15: mirror kernel+initrd nix-store closure to /boot so a pool wipe never destroys the prebuilt kernel
     ./configuration_activation_verify.nix         # POST-2026-05-16: loud post-activation invariant checks (users in shadow, swap not on btrfs, critical paths exist) so silent failures don't slip through
     ./configuration_btrfs_subvols_autocreate.nix  # POST-2026-05-16: walk config.fileSystems for declared btrfs subvols, auto-create any missing on /mnt/btrfs-root (fixes @shared/journal-not-created → no persistent journal class of bug)
