@@ -221,7 +221,13 @@ step_materialize_fork() {
     local p
     for p in "${patches[@]}"; do
       log "  git am $(basename "$p")"
-      prefer_host git -C "$dest" am "$p"
+      # Explicit ident: CI runners have no git identity (run 27418737089
+      # "empty ident name"); the applied commits are reproducible-engine
+      # output, not authored work.
+      prefer_host git -C "$dest" \
+        -c user.name="cloud-comms-engine" \
+        -c user.email="engine@diegonmarcos.com" \
+        am "$p"
     done
   fi
   log "materialize-fork[$key]: ✓ $tracker ready (build with: ./build.sh build-fork $key)"
