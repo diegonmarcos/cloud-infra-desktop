@@ -198,6 +198,10 @@ step_materialize_fork() {
 
   if [ ! -d "$dest/.git" ]; then
     log "materialize-fork[$key]: cloning $repo → $tracker (tag $tag)"
+    # tracker_dir may be nested (ea_upstreams-sources/<name> — the canonical
+    # upstream home since 2026-06-12); the parent is gitignored workspace and
+    # won't exist on a fresh CI checkout.
+    mkdir -p "$(dirname "$dest")"
     prefer_host git clone --filter=blob:none "$repo" "$dest"
   fi
   log "materialize-fork[$key]: reset to pinned tag $tag"

@@ -18,13 +18,14 @@ import org.junit.runner.RunWith
 class FleetUpdaterTest {
 
     @Test
-    fun fleetHasHubPlusThreeForks() {
+    fun fleetHasHubPlusAllForks() {
         val fleet = FleetUpdater.fleet
-        assertEquals("fleet size (hub + 3 forks)", 4, fleet.size)
+        assertEquals("fleet size (hub + 4 forks)", 5, fleet.size)
         assertEquals("hub is first", "hub", fleet[0].label)
         assertTrue("hub app id", fleet[0].appId == BuildConfig.APPLICATION_ID)
         val labels = fleet.map { it.label }.toSet()
-        assertTrue("has mail/chat/matrix", labels.containsAll(setOf("mail", "chat", "matrix")))
+        assertTrue("has mail/chat/matrix/dialer",
+            labels.containsAll(setOf("mail", "chat", "matrix", "dialer")))
     }
 
     @Test

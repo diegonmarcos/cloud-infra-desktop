@@ -17,12 +17,14 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Discover which fork APKs are installed (ForkRegistry.isInstalled +
-         getLaunchIntentForPackage). The three fork ids are fixed, so a scoped
-         <queries> is enough — no QUERY_ALL_PACKAGES needed. -->
+         getLaunchIntentForPackage). One <package> per build.json::forks entry
+         (manifest can't read JSON — keep in sync with the registry); scoped
+         queries, no QUERY_ALL_PACKAGES needed. -->
     <queries>
         <package android:name="com.diegonmarcos.comms.mail" />
         <package android:name="com.diegonmarcos.comms.chat" />
         <package android:name="com.diegonmarcos.comms.matrix" />
+        <package android:name="com.diegonmarcos.comms.dialer" />
     </queries>
 
     <!-- ── The IPC gate ──────────────────────────────────────────────────
