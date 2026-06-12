@@ -49,6 +49,11 @@ run_json_checks() {
     regex=$(jq -r ".testers.checks[$i].expect_regex // empty" "$json")
     cmp=$(jq -r ".testers.checks[$i].expect_compare // empty" "$json")
     out=$(bash -c "$cmd" 2>/dev/null || true)
+    # Checks marked "(run as user)" read $HOME config files — under sudo,
+    # $HOME is /root and they come back empty. Retry as the invoking user.
+    if [ -z "$out" ] && [ -n "${SUDO_USER:-}" ]; then
+      out=$(sudo -u "$SUDO_USER" -H bash -c "$cmd" 2>/dev/null || true)
+    fi
     if [ -n "$expect" ]; then
       if [ "$out" = "$expect" ]; then ok "$id"; else fail "$id (got '$out', want '$expect')"; fi
     elif [ -n "$regex" ]; then
@@ -114,7 +119,8 @@ else
 fi
 
 # T6 — watchdog has the escalation policy baked in.
-WD_SCRIPT=$(systemctl cat battery-watchdog.service 2>/dev/null | awk -F= '/^ExecStart=/{print $2; exit}')
+# (trim: systemctl cat emits a trailing space after the ExecStart path)
+WD_SCRIPT=$(systemctl cat battery-watchdog.service 2>/dev/null | awk -F= '/^ExecStart=/{gsub(/[[:space:]]+$/,"",$2); print $2; exit}')
 if [ -n "$WD_SCRIPT" ] && grep -q "action_failures" "$WD_SCRIPT" 2>/dev/null; then
   ok "T6 battery-watchdog carries failure-escalation logic"
 else

@@ -311,11 +311,14 @@ FLAKE_PATH="$SCRIPT_DIR/src"
 LOG_DIR="$SCRIPT_DIR/logs"
 LOG_FILE="$LOG_DIR/build-$(date +%Y%m%d-%H%M%S).log"
 
-# CPU limits — 6 cores max to avoid earlyoom kills on 8GB Surface
-# --cores: threads per derivation build, --max-jobs: parallel derivations
-# 6 cores * 2 jobs = 12 max threads (leaves 2 cores for desktop + earlyoom)
-MAX_CORES=6
-MAX_JOBS=2
+# CPU limits — keep the desktop responsive on the 8-core/8GB Surface.
+# --cores: threads per derivation build, --max-jobs: parallel derivations.
+# The old 6×2=12-thread setting OVERSUBSCRIBED the 8 cores by 4 and IO-trashed
+# interactive sessions (2026-06-12). 4×1 = 4 threads max, half the machine
+# stays interactive; nix-daemon additionally runs idle CPU/IO sched class
+# (configuration_nix.nix) so builds always yield under contention.
+MAX_CORES=4
+MAX_JOBS=1
 NIX_BUILD_FLAGS="--max-jobs $MAX_JOBS --cores $MAX_CORES -L --extra-experimental-features nix-command --extra-experimental-features flakes"
 
 # ═══════════════════════════════════════════════════════════════════════════
