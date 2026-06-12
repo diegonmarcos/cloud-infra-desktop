@@ -62,6 +62,7 @@
     "action_at_critical_fallback": "poweroff",
     "max_action_failures": 2,
     "_fallback_comment": "2026-06-12 incident: the swapfile was unreachable (p5 superblock destroyed), every `systemctl hibernate` failed with 'Not enough suitable swap space', and the watchdog just retried each poll until the battery hit physical 0% and the firmware power-cut. With this policy the watchdog counts consecutive FAILED critical actions (state file action_failures); after max_action_failures it escalates to action_at_critical_fallback. poweroff loses the RAM session but is a clean filesystem shutdown — strictly better than a firmware power-cut. The counter resets on any poll that is not critical and on any successful action."
+  },
 
   "testers": {
     "_comment": "One invariant per voter input + infra invariants. Wire into reports-logs or a dedicated CI job.",
