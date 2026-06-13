@@ -56,9 +56,12 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 0, 0, dp(20))
         })
 
-        for (fork in ForkRegistry.forks) {
-            content.addView(tileFor(fork))
-        }
+        // Tiles live in their own container so they can be REBUILT whenever
+        // install state changes (transaction finish, returning to the app) —
+        // fixes "installed but the hub still shows not installed" staleness.
+        tilesBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(tilesBox)
+        refreshTiles()
 
         // Configs row — TWO entries like Cloud-SuperApp: Update (the ONE
         // package-manager entry point — installs missing forks AND applies
@@ -197,8 +200,28 @@ class MainActivity : AppCompatActivity() {
         // Foreground gate: PackageInstaller confirm dialogs + the unknown-
         // sources settings screen are forwarded through THIS activity.
         InstallGate.register(this)
-        TxState.setListener { s -> runOnUiThread { renderSnapshot(s) } }
+        TxState.setListener { s ->
+            runOnUiThread {
+                renderSnapshot(s)
+                // Installed-state may have just changed — rebuild the tiles so
+                // a finished install is recognized immediately, not on restart.
+                if (s?.finished == true) refreshTiles()
+            }
+        }
+        // Coming back from another app / settings — re-resolve install state.
+        refreshTiles()
     }
+
+    /** Rebuild the fork tile list from live PackageManager state. */
+    private fun refreshTiles() {
+        if (!::tilesBox.isInitialized) return
+        tilesBox.removeAllViews()
+        for (fork in ForkRegistry.forks) {
+            tilesBox.addView(tileFor(fork))
+        }
+    }
+
+    private lateinit var tilesBox: LinearLayout
 
     override fun onPause() {
         super.onPause()
@@ -247,6 +270,7 @@ class MainActivity : AppCompatActivity() {
         is TxState.Phase.Verifying      -> getString(R.string.pkg_verifying)
         is TxState.Phase.WaitingConfirm -> getString(R.string.pkg_confirm)
         is TxState.Phase.Installing     -> getString(R.string.pkg_installing, p.percent)
+        is TxState.Phase.Finishing      -> getString(R.string.pkg_finishing, p.seconds)
         is TxState.Phase.Done           -> getString(R.string.pkg_done)
         is TxState.Phase.Skipped        -> getString(R.string.pkg_skipped, p.reason)
         is TxState.Phase.Failed         -> getString(R.string.pkg_failed, p.message)
@@ -256,7 +280,8 @@ class MainActivity : AppCompatActivity() {
      *  failures — same dark-purple palette as the rest of the hub. */
     private fun rowColor(p: TxState.Phase): Int = when (p) {
         is TxState.Phase.Fetching, is TxState.Phase.Verifying,
-        is TxState.Phase.WaitingConfirm, is TxState.Phase.Installing -> 0xFFB794F4.toInt()
+        is TxState.Phase.WaitingConfirm, is TxState.Phase.Installing,
+        is TxState.Phase.Finishing -> 0xFFB794F4.toInt()
         is TxState.Phase.Failed -> 0xFFFFFFFF.toInt()
         else -> 0x99FFFFFF.toInt()
     }

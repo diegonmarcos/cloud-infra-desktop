@@ -76,6 +76,18 @@ step_bundle_forks() {
     up_url="$(_json ".forks.${key}.upstream_apk.url")"
     up_sha="$(_json ".forks.${key}.upstream_apk.sha256")"
     up_resign="$(_json ".forks.${key}.upstream_apk.resign")"
+    # Per-ABI upstream variant (COMMS_BUNDLE_ABI, default arm64-v8a — the
+    # device target). x86_64 builds the Waydroid-debuggable bundle.
+    local bundle_abi="${COMMS_BUNDLE_ABI:-arm64-v8a}"
+    if [ "$bundle_abi" != "arm64-v8a" ]; then
+      local v_url v_sha
+      v_url="$(_json ".forks.${key}.upstream_apk.abi_variants[\"$bundle_abi\"].url")"
+      v_sha="$(_json ".forks.${key}.upstream_apk.abi_variants[\"$bundle_abi\"].sha256")"
+      if [ -n "$v_url" ]; then
+        up_url="$v_url"; up_sha="$v_sha"
+        log "bundle-forks: $key using $bundle_abi upstream variant"
+      fi
+    fi
 
     # 1st choice: OUR fork image from GHCR (patched + constellation-signed).
     # blocked_on gates the FORK BUILD, not the bundle — a blocked fork can
