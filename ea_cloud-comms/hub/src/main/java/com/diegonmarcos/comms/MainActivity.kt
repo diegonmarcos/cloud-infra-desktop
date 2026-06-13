@@ -331,16 +331,19 @@ class MainActivity : AppCompatActivity() {
      *  About page: #1A1A22 card, state dot (green=installed · purple=installable
      *  · grey=blocked), bold white name, accent status caption. */
     private fun tileFor(fork: Fork): android.view.View {
+        // INSTALLED wins first: if the app is on the device (ours OR the stock
+        // package via altId), it shows "open" — never "blocked"/"not installed".
+        // blocked_on only matters when the app is NOT already present.
         val installed = fork.isInstalled(this)
-        val ready = installed && fork.blockedOn == null
+        val ready = installed || fork.blockedOn == null   // actionable: open or install
         val status = when {
-            fork.blockedOn != null -> getString(R.string.tile_blocked, fork.blockedOn)
             installed -> getString(R.string.tile_open)
+            fork.blockedOn != null -> getString(R.string.tile_blocked, fork.blockedOn)
             else -> getString(R.string.tile_not_installed)
         }
         val dotColor = when {
-            fork.blockedOn != null -> 0xFF555566.toInt()
             installed -> 0xFF34D399.toInt()
+            fork.blockedOn != null -> 0xFF555566.toInt()
             else -> 0xFF7C3AED.toInt()
         }
         val card = LinearLayout(this).apply {
@@ -385,16 +388,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun onTileTapped(fork: Fork, installed: Boolean) {
         when {
+            // Installed (ours or the stock package) → open it. Detection wins
+            // over blocked: an app on the device is always usable.
+            installed -> if (!openFork(fork))
+                Toast.makeText(this, getString(R.string.tile_launch_failed), Toast.LENGTH_SHORT).show()
             fork.blockedOn != null ->
                 Toast.makeText(this, getString(R.string.tile_blocked, fork.blockedOn), Toast.LENGTH_LONG).show()
-            !installed -> {
-                // A tap on ANY missing fork runs the same package-manager
-                // Transaction: fetch everything, then install everything,
-                // per-package + total progress on the overlay.
+            else -> {
+                // Not installed, not blocked → run the package-manager
+                // Transaction: fetch everything, then install everything.
                 Transaction.start(this)
             }
-            !openFork(fork) ->
-                Toast.makeText(this, getString(R.string.tile_launch_failed), Toast.LENGTH_SHORT).show()
         }
     }
 
