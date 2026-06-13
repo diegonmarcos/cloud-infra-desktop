@@ -1,32 +1,41 @@
 # containers-cloud/android-emulator.nix
 #
-# Declarative Android emulator as a first-class DESKTOP APP on the Surface.
+# Declarative, DATA-DRIVEN Android emulator desktop app for the Surface.
 #
-# - x86_64 google_apis system image (Android 34), KVM-accelerated (diego is in
-#   the `kvm` group via the host's configuration_security.nix; /dev/kvm is
-#   world-rw) → near-native speed, genuinely usable as a daily app.
-# - The emulator binary + system image come from nix (the SDK closure), so
-#   NOTHING is downloaded at runtime — `build.sh switch` realises it once.
-# - The AVD itself is runtime state (~/.android/avd), so it can't be pure-nix;
-#   it's created idempotently on activation (and again by the launcher as a
-#   fallback) — the established "declarative wrapper around a stateful dir"
-#   pattern (cf. the host's waydroid-arm-bootstrap).
-# - Shows up in the app menu via an xdg desktop entry ("Android Emulator").
+# One app-menu entry ("Android Emulator") that PROMPTS (kdialog) for one of 4
+# profiles — {phone,tablet} × {light,full} — then boots an x86_64 KVM emulator
+# with that profile's hardware and PROVISIONS it: installs the cloud-superapp
+# x86_64 APK, sets it as the device HOME launcher, turns on Android system dark
+# mode, and pre-seeds the SuperApp's own launcher theme.
 #
-# This is the GENERAL desktop emulator. The superapp's own arm64 test rig
-# (ea_cloud-superapp `build.sh emulator`, devShells.emulator) is separate.
+# All config lives in ./android-emulator.json (single source of truth):
+#   - profiles are GENERATED = forms × tiers (no hardcoded list)
+#   - hardware = raw config.ini keys, merged common→tier→form and written into
+#     each AVD's config.ini idempotently on `build.sh switch`
+#   - provisioning[] drives the idempotent post-boot adb steps
+#
+# Two phases:
+#   Phase 1 (build-time, declarative): activation creates the 4 AVDs + merges
+#           their config.ini from the JSON. Same JSON → same AVDs every switch.
+#   Phase 2 (runtime, idempotent):     the launcher boots the chosen profile and
+#           runs the provisioner (no-op once already applied).
+#
+# Prebuilt Google emulator + system image come from nix (autoPatchelf'd); KVM
+# accel works because diego ∈ kvm group (host configuration_security.nix).
+# Separate from the superapp's own arm64 test rig (ea_cloud-superapp emulator).
 { config, pkgs, lib, ... }:
 
 let
-  # Google's Android SDK is unfree → re-import nixpkgs with the licence
-  # accepted (scoped to this module; never a global config change).
+  cfg = builtins.fromJSON (builtins.readFile ./android-emulator.json);
+
+  # Google's Android SDK is unfree → re-import nixpkgs with the licence accepted
+  # (scoped to this module; never a global config change).
   androidPkgs = import pkgs.path {
     inherit (pkgs.stdenv.hostPlatform) system;
     config = { allowUnfree = true; android_sdk.accept_license = true; };
   };
-
   comp = androidPkgs.androidenv.composeAndroidPackages {
-    toolsVersion         = "26.1.1";   # provides avdmanager
+    toolsVersion         = "26.1.1";   # avdmanager
     platformToolsVersion = "35.0.2";   # adb
     buildToolsVersions   = [ "34.0.0" ];
     platformVersions     = [ "34" ];
@@ -39,42 +48,112 @@ let
   sdk     = comp.androidsdk;
   sdkRoot = "${sdk}/libexec/android-sdk";
   jdk     = pkgs.jdk17;
+  kdialog = pkgs.kdePackages.kdialog;
 
-  # ── AVD parameters (the declarative config for this emulator) ──────────────
-  avdName  = "surface-x86_64";
-  sysImage = "system-images;android-34;google_apis;x86_64";
-  device   = "pixel_6";
-  gpuMode  = "auto";   # let the emulator pick host-GL vs swiftshader
+  cap = s: (lib.toUpper (builtins.substring 0 1 s)) + (builtins.substring 1 (builtins.stringLength s) s);
 
-  # avoids the broken-`grep` ambient PATH — match the AVD name with awk.
-  avdExists = ''"${sdk}/bin/avdmanager" list avd 2>/dev/null | ${pkgs.gawk}/bin/awk -v n="${avdName}" 'index($0,"Name: "n){f=1} END{exit f?0:1}' '';
+  # profiles = forms × tiers, each carrying its merged hardware (common → tier →
+  # form; form's screen keys win) and a human label.
+  profiles = lib.concatMap (fname:
+    map (tname:
+      let
+        fhw = cfg.forms.${fname};
+        thw = cfg.tiers.${tname};
+      in {
+        id    = "${fname}-${tname}";
+        avd   = "superapp-${fname}-${tname}";
+        label = "${cap fname} · ${cap tname}";
+        hw    = cfg.common_hw // thw // fhw;
+      }
+    ) (lib.attrNames cfg.tiers)
+  ) (lib.attrNames cfg.forms);
 
+  # "key=value key=value …" for a profile's hardware (values are space-free).
+  hwPairs = p: lib.concatStringsSep " " (lib.mapAttrsToList (k: v: "${k}=${v}") p.hw);
+
+  # kdialog --menu tag/description pairs, e.g.  phone-full "Phone · Full (6144M/6c)"
+  menuArgs = lib.concatStringsSep " " (map (p:
+    ''${p.id} "${p.label} (${p.hw."hw.ramSize"}/${p.hw."hw.cpu.ncore"}c)"'') profiles);
+
+  prov = cfg.provisioning;
+
+  # Per-app install block (idempotent). $HOME inside the JSON apk path expands
+  # at runtime.
+  installApps = lib.concatMapStringsSep "\n" (a: ''
+    if ! "$ADB" shell pm list packages 2>/dev/null | ${pkgs.gawk}/bin/awk -v p="${a.pkg}" 'index($0,p){f=1} END{exit f?0:1}'; then
+      APK="${a.apk}"
+      if [ -f "$APK" ]; then
+        echo "[provision] installing ${a.pkg}…"; "$ADB" install -r "$APK" || true
+      else
+        kdialog --error "APK not found:\n$APK\n\nBuild it once:\n  cd ~/git/unix/ea_cloud-superapp && SUPERAPP_VARIANT=x86_64 ./build.sh build" 2>/dev/null || true
+      fi
+    fi
+  '') prov.apps;
+
+  # ── Launcher: profile chooser → boot → wait → provision ─────────────────────
   emulatorApp = pkgs.writeShellScriptBin "android-emulator" ''
     set -u
     export ANDROID_SDK_ROOT="${sdkRoot}"
     export ANDROID_HOME="${sdkRoot}"
     export ANDROID_AVD_HOME="$HOME/.android/avd"
     export JAVA_HOME="${jdk}/lib/openjdk"
-    export PATH="${jdk}/bin:${sdk}/bin:$PATH"
-    mkdir -p "$ANDROID_AVD_HOME"
-    if ! ${avdExists}; then
-      echo "[android-emulator] first run — creating AVD ${avdName} (${sysImage})…"
-      printf 'no\n' | "${sdk}/bin/avdmanager" create avd -n "${avdName}" -k "${sysImage}" --device "${device}" --force
+    export PATH="${jdk}/bin:${sdk}/bin:${kdialog}/bin:$PATH"
+    ADB="${sdk}/bin/adb"
+    EMU="${sdk}/bin/emulator"
+
+    # 1. profile chooser
+    sel="$(kdialog --title "Android Emulator" --menu "Choose a profile to boot:" ${menuArgs})" || exit 0
+    avd="superapp-$sel"
+    if [ ! -d "$ANDROID_AVD_HOME/$avd.avd" ]; then
+      kdialog --error "AVD '$avd' not found. Run:\n  cd ~/git/unix/ba_flakes_desktop && ./build.sh switch surface" 2>/dev/null || true
+      exit 1
     fi
-    exec "${sdk}/bin/emulator" -avd "${avdName}" -gpu ${gpuMode} "$@"
+
+    # 2. boot the chosen profile (host GPU + KVM). Backgrounded; its window opens.
+    echo "[android-emulator] booting $avd…"
+    "$EMU" -avd "$avd" -gpu host -no-boot-anim >/dev/null 2>&1 &
+
+    # 3. wait for full boot
+    "$ADB" wait-for-device
+    for _ in $(seq 1 150); do
+      [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break
+      sleep 2
+    done
+
+    # 4. provision (idempotent) ─────────────────────────────────────────────
+    ${installApps}
+
+    ${lib.optionalString prov.system_dark ''
+    "$ADB" shell cmd uimode night yes >/dev/null 2>&1 || true
+    ''}
+
+    # set the SuperApp as the device HOME launcher
+    "$ADB" shell cmd package set-home-activity "${prov.home_launcher}" >/dev/null 2>&1 || true
+
+    # pre-seed the SuperApp's own launcher theme (debug APK → run-as can write
+    # its shared_prefs). Then force-stop so it re-reads on next start.
+    PKG="${prov.superapp_pkg}"
+    if "$ADB" shell pm list packages 2>/dev/null | ${pkgs.gawk}/bin/awk -v p="$PKG" 'index($0,p){f=1} END{exit f?0:1}'; then
+      "$ADB" shell run-as "$PKG" mkdir -p shared_prefs >/dev/null 2>&1 || true
+      printf '%s' '<?xml version='"'"'1.0'"'"' encoding='"'"'utf-8'"'"' standalone='"'"'yes'"'"' ?>
+<map><string name="theme">${prov.superapp_launcher_theme}</string></map>
+' | "$ADB" shell run-as "$PKG" sh -c 'cat > shared_prefs/launcher_theme_prefs.xml' >/dev/null 2>&1 || true
+      "$ADB" shell am force-stop "$PKG" >/dev/null 2>&1 || true
+    fi
+
+    # land on the (SuperApp) home screen
+    "$ADB" shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
+    echo "[android-emulator] $avd ready."
   '';
 in
 {
-  # Only the launcher goes on PATH. The SDK + JDK are pulled into the closure
-  # via the launcher's absolute store-path references (so they're retained and
-  # runnable) but are NOT added to the profile — that avoids bin collisions
-  # with the existing JDK 21 (bin/jar) and android-tools (adb) from other
-  # modules. adb/avdmanager/emulator are reachable through the launcher.
+  # Only the launcher goes on PATH; SDK/JDK/kdialog are retained via the
+  # wrapper's store-path refs (off-profile → no bin collisions with JDK 21 etc.).
   home.packages = [ emulatorApp ];
 
-  # Pre-create the AVD on switch so the app is READY without a first manual
-  # launch. Idempotent; never breaks activation (subshell + || true).
-  home.activation.androidEmulatorAvd = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+  # Phase 1 — create the 4 AVDs + write their config.ini from the JSON, on every
+  # switch. Idempotent; subshell + || true so it never breaks activation.
+  home.activation.androidEmulatorProfiles = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     (
       export ANDROID_SDK_ROOT="${sdkRoot}"
       export ANDROID_HOME="${sdkRoot}"
@@ -82,26 +161,47 @@ in
       export JAVA_HOME="${jdk}/lib/openjdk"
       export PATH="${jdk}/bin:${sdk}/bin:$PATH"
       mkdir -p "$ANDROID_AVD_HOME"
-      if ! ${avdExists}; then
-        echo "[android-emulator] creating AVD ${avdName} (${sysImage}) — one-time"
-        printf 'no\n' | "${sdk}/bin/avdmanager" create avd -n "${avdName}" -k "${sysImage}" --device "${device}" --force
-      fi
-    ) || echo "[android-emulator] AVD pre-create skipped/failed; the launcher will create it on first run"
+
+      avd_exists() { "${sdk}/bin/avdmanager" list avd 2>/dev/null | ${pkgs.gawk}/bin/awk -v n="$1" 'index($0,"Name: "n){f=1} END{exit f?0:1}'; }
+
+      # set-or-replace declared keys in an AVD config.ini, preserving everything
+      # else (image.sysdir.1, device hash, etc.). Idempotent.
+      merge_ini() {
+        local f="$1"; shift
+        [ -f "$f" ] || return 0
+        local tmp; tmp="$(mktemp)"
+        ${pkgs.gawk}/bin/awk -v assigns="$*" '
+          BEGIN { n=split(assigns,a," "); for(i=1;i<=n;i++){ e=index(a[i],"="); ov[substr(a[i],1,e-1)]=substr(a[i],e+1); } }
+          { key=$0; sub(/ *=.*/,"",key);
+            if(key in ov){ print key " = " ov[key]; seen[key]=1 } else print }
+          END { for(k in ov) if(!(k in seen)) print k " = " ov[k] }
+        ' "$f" > "$tmp" && mv "$tmp" "$f"
+      }
+
+      ensure_profile() {
+        local avd="$1"; shift
+        if ! avd_exists "$avd"; then
+          echo "[android-emulator] creating AVD $avd (${cfg.image})"
+          printf 'no\n' | "${sdk}/bin/avdmanager" create avd -n "$avd" -k "${cfg.image}" --force || return 0
+        fi
+        merge_ini "$ANDROID_AVD_HOME/$avd.avd/config.ini" "$@"
+      }
+
+      ${lib.concatMapStringsSep "\n      " (p: ''ensure_profile ${p.avd} ${hwPairs p}'') profiles}
+
+      # retire the old single-profile AVD (superseded by the 4 profiles)
+      rm -rf "$ANDROID_AVD_HOME/surface-x86_64.avd" "$ANDROID_AVD_HOME/surface-x86_64.ini" 2>/dev/null || true
+    ) || echo "[android-emulator] profile pre-create skipped/failed; run ./build.sh switch from a working state"
   '';
 
-  # Install the launcher entry into ~/.local/share/applications (XDG_DATA_HOME),
-  # NOT the nix profile. KDE live-watches XDG_DATA_HOME/applications (KDirWatch)
-  # and auto-rebuilds its ksycoca cache, so the app shows up in Kickoff/KRunner
-  # within seconds of `build.sh switch` — no relogin, no manual kbuildsycoca.
-  # (home-manager's xdg.desktopEntries lands in the profile share dir, which is
-  # in XDG_DATA_DIRS but only scanned on a full rebuild / at login → it would
-  # NOT appear mid-session, which is exactly what bit us here.)
+  # Single app-menu entry → ~/.local/share/applications (KDE-live-watched, the
+  # fix from a07e1dde). Exec is the chooser launcher.
   xdg.dataFile."applications/android-emulator.desktop".text = ''
     [Desktop Entry]
     Type=Application
     Name=Android Emulator
-    GenericName=Android x86_64 (KVM)
-    Comment=Declarative x86_64 Android emulator (Android 14, KVM-accelerated)
+    GenericName=Android x86_64 (KVM) — profile chooser
+    Comment=Boot a predefined Android profile (phone/tablet · light/full) with the Cloud SuperApp as launcher
     Exec=${emulatorApp}/bin/android-emulator
     Icon=phone
     Terminal=false
