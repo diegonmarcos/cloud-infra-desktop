@@ -57,6 +57,16 @@ require_session() {
   session_running || die "Waydroid session is not RUNNING. Start it in your Wayland session: 'waydroid session start' (or your launcher), then re-run."
 }
 
+# Container ops (`shell`, `app install`) require root on most setups. Detect rather
+# than hardcode: if `waydroid shell` works unprivileged use it, else elevate.
+WDSH=( waydroid )
+detect_priv() {
+  if waydroid shell -- true >/dev/null 2>&1; then WDSH=( waydroid )
+  else WDSH=( sudo waydroid ); fi
+}
+# `--` stops waydroid's own argparse so flags (-c, -n, -p, --brief) reach the Android shell.
+wd_shell() { "${WDSH[@]}" shell -- "$@"; }
+
 # ── lock: resolve pinned versions + hashes from F-Droid ─────────────────────
 cmd_lock() {
   local api repo
@@ -169,14 +179,16 @@ cmd_check() {
 
 # ── install: waydroid app install every built APK ───────────────────────────
 cmd_install() {
-  require_session
+  require_session; detect_priv
   local n; n="$(node -e "process.stdout.write(String(require('$CONFIG').apps.length))")"
   local i pkg
   for ((i=0;i<n;i++)); do
     pkg="$(node -e "process.stdout.write(require('$CONFIG').apps[$i].package)")"
     [ -f "$APK_DIR/$pkg.apk" ] || { warn "skip $pkg (no APK; run build)"; continue; }
     log "installing $pkg…"
-    waydroid app install "$APK_DIR/$pkg.apk" || warn "install reported an error for $pkg (may already be installed)"
+    "${WDSH[@]}" app install "$APK_DIR/$pkg.apk" || warn "install reported an error for $pkg (may already be installed)"
+    # verify it actually landed (waydroid app install can exit 0 without installing)
+    if wd_shell pm path "$pkg" >/dev/null 2>&1; then log "  ✓ $pkg present"; else warn "  ✗ $pkg NOT present after install"; fi
   done
   log "install pass complete"
 }
@@ -185,14 +197,14 @@ cmd_install() {
 resolve_component() {
   # data-driven: ask the framework for the package's LAUNCHER activity
   local pkg="$1" out
-  out="$(waydroid shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$pkg" 2>/dev/null || true)"
+  out="$(wd_shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$pkg" 2>/dev/null || true)"
   out="${out//$'\r'/}"
   # last non-empty line is "<pkg>/<activity>"
   printf '%s' "$out" | awk 'NF{l=$0} END{print l}'
 }
 
 cmd_dock() {
-  require_session
+  require_session; detect_priv
   local db; db="$(wd_db)"
   local container item_type flags
   container="$(get waydroid.hotseat_container)"
@@ -248,12 +260,12 @@ cmd_dock() {
 
   # apply with launcher stopped (avoid WAL races), then relaunch
   log "stopping launcher, applying, relaunching…"
-  waydroid shell am force-stop "$(get waydroid.launcher_package)" 2>/dev/null || true
+  wd_shell am force-stop "$(get waydroid.launcher_package)" 2>/dev/null || true
   sudo sqlite3 "$db" < "$sqlfile" || { warn "sqlite apply failed — restoring backup"; sudo cp -f "$bak" "$db"; die "dock aborted, backup restored"; }
   # checkpoint any WAL so the running launcher sees it
   sudo sqlite3 "$db" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
-  waydroid shell am start -n "$(get waydroid.launcher_package)/.uioverrides.QuickstepLauncher" >/dev/null 2>&1 \
-    || waydroid shell monkey -p "$(get waydroid.launcher_package)" 1 >/dev/null 2>&1 || true
+  wd_shell am start -n "$(get waydroid.launcher_package)/.uioverrides.QuickstepLauncher" >/dev/null 2>&1 \
+    || wd_shell monkey -p "$(get waydroid.launcher_package)" 1 >/dev/null 2>&1 || true
 
   # verify
   local got; got="$(sudo sqlite3 "$db" "SELECT count(*) FROM favorites WHERE container=$container;")"
@@ -263,10 +275,11 @@ cmd_dock() {
 }
 
 cmd_undock() {
+  detect_priv
   local db bak; db="$(wd_db)"
   bak="$(ls -t "$BACKUP_DIR"/launcher.db.*.bak 2>/dev/null | head -1 || true)"
   [ -n "$bak" ] || die "no backup found in $BACKUP_DIR"
-  waydroid shell am force-stop "$(get waydroid.launcher_package)" 2>/dev/null || true
+  wd_shell am force-stop "$(get waydroid.launcher_package)" 2>/dev/null || true
   sudo cp -f "$bak" "$db"
   sudo sqlite3 "$db" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
   log "restored $db from $bak"
