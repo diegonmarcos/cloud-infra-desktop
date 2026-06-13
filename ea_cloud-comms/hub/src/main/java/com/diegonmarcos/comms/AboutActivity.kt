@@ -192,9 +192,20 @@ class AboutActivity : AppCompatActivity() {
             row(ctx, it, "Install unknown apps",  specialAccessInstallUnknown())
             row(ctx, it, "Notifications enabled", specialAccessNotificationsEnabled())
             row(ctx, it, "Default launcher",      specialAccessLauncher())
+            // ── Single-holder RoleManager roles (Default phone app, Caller ID
+            //    & spam / call screening) — data-driven from
+            //    build.json::ui.permissions.roles[] (UI_PERMISSIONS_ROLES_B64).
+            //    The holder is the Cloud-Comms dialer fork, NOT this hub; we can
+            //    only DISPLAY the live holder + deep-link to the picker ("Set
+            //    Default Apps" button below). ✓ when the holder is one of the
+            //    role's expected_holders.
+            for (r in parsePermissionRoles()) {
+                row(ctx, it, r.label, specialAccessRole(r.role, r.expectedHolders))
+            }
             row(ctx, it, "Usage stats",           specialAccessUsageStats())
             row(ctx, it, "Notif. listener",       specialAccessNotifListener())
             row(ctx, it, "Manage all files",      specialAccessManageStorage())
+            row(ctx, it, "Display over apps",     specialAccessOverlay())
             row(ctx, it, "Dumpsys (DUMP)",        specialAccessDump())
 
             // Superapp rows whose backing component (ScreenLocker device-admin /
@@ -213,15 +224,44 @@ class AboutActivity : AppCompatActivity() {
                 row(ctx, it, label, status)
             }
 
-            // ── Action buttons (superapp's actionButtonRow layout) ──
-            it.addView(actionButtonRow(ctx,
-                "Request Notifications"   to { requestNotificationsPermission() },
-                "Request All Permissions" to { requestAllPermissions(perms.map { p -> p.second }.toTypedArray()) },
+            // ── GRANT — one-tap system dialog. The existing Notifications +
+            //    bulk-request buttons keep their behaviour; rendered as weighted
+            //    permButtons so they sit in the same grid as the rest.
+            it.addView(small(ctx, "Grant — one-tap system dialog:"))
+            it.addView(permButtonRow(ctx,
+                permButton(ctx, "Request Notifications", grantedNotifWrite()) { requestNotificationsPermission() },
+                permButton(ctx, "Request All Permissions", null) {
+                    requestAllPermissions(perms.map { p -> p.second }.toTypedArray())
+                },
             ))
-            it.addView(actionButtonRow(ctx,
-                "Open System App Settings" to { openAppSettings() },
-                "Battery No Optimization"  to { requestIgnoreBatteryOptimizations() },
+            // ── Default Phone / Caller ID & spam — single-holder roles whose
+            //    holder is the Cloud-Comms dialer fork (the Fossy dialer fork),
+            //    NOT this hub. The hub can't grant another app a role, so jump to
+            //    the system Default-Apps picker where the user selects the fork
+            //    as Phone app + Caller ID & spam app.
+            it.addView(small(ctx, "Set defaults — pick the Fossy dialer fork as Phone app + Caller ID & spam app:"))
+            it.addView(permButtonRow(ctx,
+                permButton(ctx, "Set Default Apps (Phone · Spam)", null) { openDefaultAppsSettings() },
             ))
+            // ── SET — open the menu and toggle manually (these can't be granted
+            //    by a one-tap dialog; each is a Settings jump). "Set
+            //    Display-over-apps" gates the cross-app overlay surface.
+            it.addView(small(ctx, "Set — open the menu and toggle manually:"))
+            it.addView(permButtonRow(ctx,
+                permButton(ctx, "Set Display-over-apps", grantedOverlay()) { openOverlaySettings() },
+                permButton(ctx, "Set Usage Access", grantedUsageAccess()) { openUsageAccessSettings() },
+                permButton(ctx, "Set Notif. (read)", grantedNotifRead()) { openNotificationListenerSettings() },
+            ))
+            it.addView(permButtonRow(ctx,
+                permButton(ctx, "Set Files Access", grantedFiles()) { openManageAllFilesSettings() },
+                permButton(ctx, "Set Battery No-Optim", grantedBatteryOptim()) { openBatteryOptimizationSettings() },
+                permButton(ctx, "Set App Settings", null) { openAppSettings() },
+            ))
+            // ── Copy the full status block (matches what's rendered above).
+            it.addView(actionButton(ctx, "Copy All Perms Status") {
+                copy(ctx, buildAllPermsStatus())
+                Toast.makeText(ctx, "Copied full permission status", Toast.LENGTH_SHORT).show()
+            })
         }
 
         // ── Battery & Usage (ported from superapp's About) ─────────────
@@ -1385,6 +1425,307 @@ class AboutActivity : AppCompatActivity() {
             return out
         } catch (_: Throwable) {
             return emptyList()
+        }
+    }
+
+    // ── Single-holder RoleManager roles (Default phone app / Caller ID &
+    //    spam) — data-driven from build.json::ui.permissions.roles[] via
+    //    UI_PERMISSIONS_ROLES_B64. See specialAccessRole() for why the holder
+    //    is read (not granted) here. Ported from DevControlFragment.
+    private data class RoleSpec(val label: String, val role: String, val expectedHolders: List<String>)
+
+    private fun parsePermissionRoles(): List<RoleSpec> {
+        val raw = runCatching {
+            String(Base64.decode(BuildConfig.UI_PERMISSIONS_ROLES_B64, Base64.DEFAULT))
+        }.getOrDefault("[]")
+        val arr = runCatching { JSONArray(raw) }.getOrDefault(JSONArray())
+        val out = mutableListOf<RoleSpec>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val label = o.optString("label")
+            val role  = o.optString("role")
+            if (label.isBlank() || role.isBlank()) continue
+            val holdersArr = o.optJSONArray("expected_holders")
+            val holders = mutableListOf<String>()
+            if (holdersArr != null) for (j in 0 until holdersArr.length()) {
+                val h = holdersArr.optString(j)
+                if (h.isNotBlank()) holders.add(h)
+            }
+            out.add(RoleSpec(label, role, holders))
+        }
+        return out
+    }
+
+    /** Live holder state for a single-holder RoleManager role. The hub is NOT
+     *  the holder (the Cloud-Comms dialer fork is) and it can't grant another
+     *  app a role, so this only DISPLAYS the current holder:
+     *    • DIALER — read publicly via TelecomManager.getDefaultDialerPackage()
+     *      (no permission). ✓ when the holder ∈ expected_holders.
+     *    • CALL_SCREENING / others — Android exposes no public holder getter
+     *      (getRoleHolders needs the signature MANAGE_ROLE_HOLDERS perm). We
+     *      try it optimistically and fall back to the Default-Apps picker hint
+     *      on SecurityException. */
+    private fun specialAccessRole(role: String, expected: List<String>): String = try {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) "— (pre-API 29)"
+        else {
+            val rm = getSystemService(android.app.role.RoleManager::class.java)
+            when {
+                rm?.isRoleAvailable(role) != true -> "— (unsupported)"
+                role == android.app.role.RoleManager.ROLE_DIALER -> {
+                    val tm = getSystemService(android.telecom.TelecomManager::class.java)
+                    val holder = runCatching { tm?.defaultDialerPackage }.getOrNull()
+                    when {
+                        holder.isNullOrBlank()    -> "◯ none — set in Default apps"
+                        expected.contains(holder) -> "✓ $holder"
+                        else                      -> "✗ $holder — not Cloud-Comms"
+                    }
+                }
+                else -> {
+                    // getRoleHolders needs the signature MANAGE_ROLE_HOLDERS
+                    // perm; catch the SecurityException and degrade to a hint.
+                    val holders = runCatching { rm.getRoleHolders(role) }.getOrNull()
+                    val holder = holders?.firstOrNull()
+                    when {
+                        holders == null            -> "— (set in Default apps)"
+                        holder.isNullOrBlank()     -> "◯ none — set in Default apps"
+                        expected.contains(holder)  -> "✓ $holder"
+                        else                       -> "✗ $holder — not Cloud-Comms"
+                    }
+                }
+            }
+        }
+    } catch (_: Throwable) { "—" }
+
+    /** SYSTEM_ALERT_WINDOW — "Display over other apps". The hub only deep-links
+     *  to the toggle (it draws no overlay itself); the row reflects the live
+     *  Settings.canDrawOverlays state. Special-access, not runtime. */
+    private fun specialAccessOverlay(): String = try {
+        if (android.provider.Settings.canDrawOverlays(this)) "✓ Allowed" else "◯ Not allowed"
+    } catch (_: Throwable) { "—" }
+
+    // ── granted predicates for the gray-out colouring on permButtons ───
+    private fun grantedNotifWrite(): Boolean =
+        if (android.os.Build.VERSION.SDK_INT >= 33)
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                this, "android.permission.POST_NOTIFICATIONS") ==
+                PackageManager.PERMISSION_GRANTED
+        else true
+
+    private fun grantedNotifRead(): Boolean = runCatching {
+        androidx.core.app.NotificationManagerCompat
+            .getEnabledListenerPackages(this).contains(packageName)
+    }.getOrDefault(false)
+
+    private fun grantedFiles(): Boolean =
+        if (android.os.Build.VERSION.SDK_INT >= 30)
+            android.os.Environment.isExternalStorageManager()
+        else true
+
+    private fun grantedBatteryOptim(): Boolean = runCatching {
+        (getSystemService(Context.POWER_SERVICE) as android.os.PowerManager)
+            .isIgnoringBatteryOptimizations(packageName)
+    }.getOrDefault(false)
+
+    private fun grantedOverlay(): Boolean = runCatching {
+        android.provider.Settings.canDrawOverlays(this)
+    }.getOrDefault(false)
+
+    private fun grantedUsageAccess(): Boolean = runCatching {
+        val aom = getSystemService(android.app.AppOpsManager::class.java)
+        val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            aom?.unsafeCheckOpNoThrow(
+                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(), packageName,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            aom?.checkOpNoThrow(
+                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(), packageName,
+            )
+        }
+        mode == android.app.AppOpsManager.MODE_ALLOWED
+    }.getOrDefault(false)
+
+    /** Full plain-text dump of every permission status — for the
+     *  "Copy All Perms Status" button. Reuses the same status helpers the
+     *  rows render, so the copy matches the screen exactly. */
+    private fun buildAllPermsStatus(): String = buildString {
+        appendLine("Cloud-Comms hub — permission status")
+        appendLine("pkg: $packageName")
+        appendLine()
+        appendLine("== Runtime ==")
+        for ((label, perm) in parseRuntimePermissions()) appendLine("$label: ${permissionState(perm)}")
+        appendLine()
+        appendLine("== Special access ==")
+        appendLine("Battery Optimization: ${specialAccessBattery()}")
+        appendLine("Install unknown apps: ${specialAccessInstallUnknown()}")
+        appendLine("Notifications enabled: ${specialAccessNotificationsEnabled()}")
+        appendLine("Default launcher: ${specialAccessLauncher()}")
+        for (r in parsePermissionRoles()) appendLine("${r.label}: ${specialAccessRole(r.role, r.expectedHolders)}")
+        appendLine("Usage stats: ${specialAccessUsageStats()}")
+        appendLine("Notif. listener: ${specialAccessNotifListener()}")
+        appendLine("Manage all files: ${specialAccessManageStorage()}")
+        appendLine("Display over apps: ${specialAccessOverlay()}")
+        appendLine("Dumpsys (DUMP): ${specialAccessDump()}")
+        appendLine()
+        appendLine("== Auto-granted (NORMAL) ==")
+        for ((label, status) in collectAutoGrantedPerms()) appendLine("$label: $status")
+    }
+
+    /** A single weighted perm button. `granted`:
+     *   true  → dark/gray + ✓ prefix (already done — nothing to do)
+     *   false → purple + ✗ prefix (action needed)
+     *   null  → purple (a plain action with no grant state, e.g. bulk).
+     *  Ported from DevControlFragment.permButton. */
+    private fun permButton(ctx: Context, label: String, granted: Boolean?, onClick: () -> Unit): TextView =
+        TextView(ctx).apply {
+            gravity = android.view.Gravity.CENTER
+            textSize = 12f
+            setPadding(dp(8), dp(10), dp(8), dp(10))
+            maxLines = 3
+            minHeight = dp(64)
+            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            layoutParams = lp
+            isClickable = true; isFocusable = true
+            text = when (granted) {
+                true  -> "✓ $label"
+                false -> "✗ $label"
+                null  -> label
+            }
+            setTextColor(if (granted == true) 0xFF9CA3AF.toInt() else 0xFFFFFFFF.toInt())
+            setBackgroundColor(if (granted == true) 0xFF2A2A33.toInt() else 0xFF7C3AED.toInt())
+            setOnClickListener { onClick() }
+        }
+
+    /** Lay out perm buttons in a weighted horizontal row (4dp gaps).
+     *  Ported from DevControlFragment.permButtonRow. */
+    private fun permButtonRow(ctx: Context, vararg btns: View): View {
+        val rowView = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) }
+        }
+        for ((i, b) in btns.withIndex()) {
+            (b.layoutParams as? LinearLayout.LayoutParams)?.leftMargin = if (i > 0) dp(4) else 0
+            rowView.addView(b)
+        }
+        return rowView
+    }
+
+    // ── Settings deep-link openers (ported VERBATIM from DevControlFragment;
+    //    requireContext() → this, requireContext().packageManager → packageManager).
+
+    private fun openUsageAccessSettings() {
+        runCatching {
+            startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        }
+    }
+
+    /** Open Settings → "Display over other apps" scoped to this app. Falls back
+     *  to the global list, then this app's details screen. */
+    private fun openOverlaySettings() {
+        val scoped = android.content.Intent(
+            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            android.net.Uri.fromParts("package", packageName, null),
+        )
+        if (scoped.resolveActivity(packageManager) != null) {
+            runCatching { startActivity(scoped) }
+            return
+        }
+        val list = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+        if (list.resolveActivity(packageManager) != null) {
+            runCatching { startActivity(list) }
+            return
+        }
+        runCatching {
+            startActivity(android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", packageName, null),
+            ))
+        }
+    }
+
+    /** Jump to the system "Default apps" picker (Phone app · Caller ID & spam
+     *  app live here) so the user can select the Cloud-Comms dialer fork. The
+     *  hub can't set another app's role programmatically, so the picker is the
+     *  only honest path. Falls back to top-level Settings. */
+    private fun openDefaultAppsSettings() {
+        val primary = android.content.Intent(
+            android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS,
+        )
+        if (primary.resolveActivity(packageManager) != null) {
+            runCatching { startActivity(primary) }
+            return
+        }
+        runCatching {
+            startActivity(android.content.Intent(android.provider.Settings.ACTION_SETTINGS))
+        }
+    }
+
+    /** Jump to the battery-optimization picker (system list), fallback to app
+     *  details. */
+    private fun openBatteryOptimizationSettings() {
+        val primary = android.content.Intent(
+            android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
+        )
+        if (primary.resolveActivity(packageManager) != null) {
+            runCatching { startActivity(primary) }
+            return
+        }
+        runCatching {
+            startActivity(android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", packageName, null),
+            ))
+        }
+    }
+
+    /** Open Settings → Special access → All files access → this app (API 30+),
+     *  scoped; fallback to the global list, then app details. */
+    private fun openManageAllFilesSettings() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            val primary = android.content.Intent(
+                android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                android.net.Uri.fromParts("package", packageName, null),
+            )
+            if (primary.resolveActivity(packageManager) != null) {
+                runCatching { startActivity(primary) }
+                return
+            }
+            val list = android.content.Intent(
+                android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION,
+            )
+            if (list.resolveActivity(packageManager) != null) {
+                runCatching { startActivity(list) }
+                return
+            }
+        }
+        runCatching {
+            startActivity(android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", packageName, null),
+            ))
+        }
+    }
+
+    /** Open Settings → Special access → Notification access, fallback to app
+     *  details. */
+    private fun openNotificationListenerSettings() {
+        val primary = android.content.Intent(
+            android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS,
+        )
+        if (primary.resolveActivity(packageManager) != null) {
+            runCatching { startActivity(primary) }
+            return
+        }
+        runCatching {
+            startActivity(android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", packageName, null),
+            ))
         }
     }
 

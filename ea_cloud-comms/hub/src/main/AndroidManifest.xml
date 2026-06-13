@@ -20,6 +20,14 @@
          whitelist flow Cloud-SuperApp's About exposes, so the periodic fleet
          updater keeps running under Doze. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Configs → About → Permissions: "Usage stats" status row + "Set Usage
+         Access" button. Declaring PACKAGE_USAGE_STATS (a signature|privileged
+         appop-backed perm) is what lets the hub appear in Settings → Special
+         access → Usage access so the user can toggle it; the appop check
+         (OPSTR_GET_USAGE_STATS) then reflects the live grant. Same row
+         Cloud-SuperApp's About exposes. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
 
     <!-- Discover which fork APKs are installed (ForkRegistry.isInstalled +
          getLaunchIntentForPackage). One <package> per build.json::forks entry

@@ -140,7 +140,11 @@
       "call_screening": {
         "_doc": "OWNER DIRECTIVE (default config): the CallScreeningService patch (ROLE_CALL_SCREENING) MUST default to 'contacts_only' — any incoming call whose number is NOT in the device contacts is silently rejected (disallowed, no ring, no missed-call notification); numbers that resolve to a saved contact ring normally. This is the FIRST-RUN DEFAULT baked into the patch's default SharedPreference; the user can change it in-app once the screening settings UI lands. The patch reads this block as its contract — keep code default == default_mode here.",
         "default_mode": "contacts_only",
-        "modes": ["contacts_only", "allow_all", "block_known_spam"],
+        "modes": [
+          "contacts_only",
+          "allow_all",
+          "block_known_spam"
+        ],
         "reject_action": "disallow_silently",
         "rationale": "Spam/robocall defence by default — unknown numbers can't ring the phone unless the caller is a saved contact."
       },
@@ -259,7 +263,26 @@
           "label": "Phone",
           "perm": "android.permission.READ_PHONE_STATE"
         }
-      ]
+      ],
+      "roles": [
+        {
+          "label": "Default phone app",
+          "role": "android.app.role.ROLE_DIALER",
+          "expected_holders": [
+            "com.diegonmarcos.comms.dialer",
+            "org.fossify.phone"
+          ]
+        },
+        {
+          "label": "Caller ID & spam",
+          "role": "android.app.role.ROLE_CALL_SCREENING",
+          "expected_holders": [
+            "com.diegonmarcos.comms.dialer",
+            "org.fossify.phone"
+          ]
+        }
+      ],
+      "_doc_roles": "Single-holder RoleManager roles surfaced in About>Permissions. The hub can't grant another app a role — the 'Set Default Apps (Phone · Spam)' button deep-links the system Default-Apps picker where the user selects the Fossy dialer fork. expected_holders = our patched id OR the stock bundled id (✓ when the live holder matches)."
     }
   }
 }

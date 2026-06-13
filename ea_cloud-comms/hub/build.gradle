@@ -85,6 +85,11 @@ def fleetB64 = JsonOutput.toJson(fleet).bytes.encodeBase64().toString()
 // (copied from the superapp catalog for row-for-row About parity).
 def uiPermissionsRuntimeJson = JsonOutput.toJson(buildJson.ui?.permissions?.runtime ?: [])
 def uiPermissionsRuntimeB64  = uiPermissionsRuntimeJson.bytes.encodeBase64().toString()
+// Single-holder RoleManager roles (Default phone app / Caller ID & spam) — the
+// About>Permissions section renders a status row per role + the "Set Default
+// Apps (Phone · Spam)" button. Source of truth = build.json::ui.permissions.roles.
+def uiPermissionsRolesJson = JsonOutput.toJson(buildJson.ui?.permissions?.roles ?: [])
+def uiPermissionsRolesB64  = uiPermissionsRolesJson.bytes.encodeBase64().toString()
 
 // ── About stack-scan (lite) ─────────────────────────────────────────────
 // Same idea as ea_cloud-superapp's About → Stack: compute "what's in this
@@ -201,6 +206,7 @@ android {
 
         // ── About → Permissions (build.json::ui.permissions.runtime) ──
         buildConfigField "String", "UI_PERMISSIONS_RUNTIME_B64", "\"${uiPermissionsRuntimeB64}\""
+        buildConfigField "String", "UI_PERMISSIONS_ROLES_B64", "\"${uiPermissionsRolesB64}\""
 
         manifestPlaceholders = [ ipcPermission: ipcPermission, ipcAuthority: ipcAuthority ]
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
