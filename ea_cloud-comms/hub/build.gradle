@@ -64,9 +64,17 @@ forksMap.each { k, v ->
     // until the patched fork (which carries app_id) replaces it, installed-
     // detection and launching accept EITHER id (forcing app_id caused
     // INSTALL_FAILED_INVALID_APK "inconsistent with com.mattermost.rnbeta").
+    //
+    // RUNTIME blocked ≠ fork-build blocked. `blocked_on` gates building OUR
+    // patched fork (homeserver work for Matrix), NOT installing the bundled
+    // stock client. If forks.<k>.upstream_apk exists, the stock APK is bundled
+    // + installable → the installer/tiles must NOT show it blocked. So runtime
+    // blocked = blocked_on set AND no obtainable upstream APK.
+    def forkBlocked = (v.blocked_on != null && v.blocked_on != 'null')
+    def hasUpstream = (v.upstream_apk?.url != null)
     fleet << [label: k, name: (v.label ?: k), app_id: v.app_id,
               alt_id: (v.upstream_apk?.package ?: ''),
-              image: v.image, blocked: (v.blocked_on != null && v.blocked_on != 'null')]
+              image: v.image, blocked: (forkBlocked && !hasUpstream)]
 }
 def fleetB64 = JsonOutput.toJson(fleet).bytes.encodeBase64().toString()
 

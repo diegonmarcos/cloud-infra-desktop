@@ -484,7 +484,7 @@ object Transaction {
     private fun statusLabel(status: Int): String = when (status) {
         PackageInstaller.STATUS_FAILURE_ABORTED      -> "ABORTED (user cancelled)"
         PackageInstaller.STATUS_FAILURE_BLOCKED      -> "BLOCKED"
-        PackageInstaller.STATUS_FAILURE_CONFLICT     -> "CONFLICT (signature/applicationId mismatch)"
+        PackageInstaller.STATUS_FAILURE_CONFLICT     -> "already installed from another source — uninstall the existing copy, then retry"
         PackageInstaller.STATUS_FAILURE_INCOMPATIBLE -> "INCOMPATIBLE"
         PackageInstaller.STATUS_FAILURE_INVALID      -> "INVALID"
         PackageInstaller.STATUS_FAILURE_STORAGE      -> "STORAGE"

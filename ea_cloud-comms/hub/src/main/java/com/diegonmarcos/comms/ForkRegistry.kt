@@ -54,7 +54,13 @@ object ForkRegistry {
                 license = o.optString("license"),
                 runtime = o.optString("runtime"),
                 priority = o.optInt("priority", 99),
-                blockedOn = o.optString("blocked_on").takeIf { it.isNotEmpty() && it != "null" },
+                // RUNTIME blocked ≠ fork-build blocked: blocked_on gates building
+                // OUR patched fork, not installing the bundled stock client. If
+                // an upstream_apk is bundled (installable), the tile is NOT
+                // blocked. Matches the fleet's blocked computation in build.gradle.
+                blockedOn = o.optString("blocked_on")
+                    .takeIf { it.isNotEmpty() && it != "null" }
+                    ?.takeIf { o.optJSONObject("upstream_apk")?.optString("url").isNullOrEmpty() },
             )
         }.sortedBy { it.priority }.toList()
     }
