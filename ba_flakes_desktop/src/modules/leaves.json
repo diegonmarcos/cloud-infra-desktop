@@ -43,7 +43,8 @@
     "containers-cloud/observability",
     "containers-cloud/ci-cd",
     "containers-cloud/secrets",
-    "containers-cloud/waydroid"
+    "containers-cloud/waydroid",
+    "containers-cloud/android-emulator"
   ],
 
   "security-network": [
