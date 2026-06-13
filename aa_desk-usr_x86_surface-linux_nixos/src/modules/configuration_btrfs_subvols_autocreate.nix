@@ -109,6 +109,24 @@ in
               "failed to create ${m.subvol} for ${m.mount}"
           fi
         fi
+
+        # Ensure user-home subvols are owned by the home's user, not root.
+        # `btrfs subvolume create` runs as root, so a freshly-created subvol
+        # mounted into /home/<user>/ lands root-owned and the user (e.g.
+        # waydroid running as diego) hits EACCES on its data dir. Inherit
+        # owner+mode from the mountpoint's PARENT dir — generic (no hardcoded
+        # user), idempotent, scoped to /home/* so system subvols are untouched.
+        # Runs whether the subvol was just created OR already existed, so it
+        # also repairs subvols created root-owned by an earlier activation.
+        case "${m.mount}" in
+          /home/*)
+            OWN_PARENT="$(${pkgs.coreutils}/bin/dirname "${m.mount}")"
+            if [ -d "$OWN_PARENT" ] && [ -e "$SUBVOL_PATH" ]; then
+              ${pkgs.coreutils}/bin/chown --reference="$OWN_PARENT" "$SUBVOL_PATH" 2>/dev/null || true
+              ${pkgs.coreutils}/bin/chmod --reference="$OWN_PARENT" "$SUBVOL_PATH" 2>/dev/null || true
+            fi
+            ;;
+        esac
       '') toCreate}
       if [ "$created" -gt 0 ]; then
         echo "[btrfs-subvols] $created subvol(s) created — REBOOT to mount them properly."
