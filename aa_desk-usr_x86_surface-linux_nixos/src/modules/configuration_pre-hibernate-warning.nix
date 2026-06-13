@@ -32,7 +32,9 @@ let
   };
 
   enabled  = warn.enabled or false;
-  delayMin = warn.delay_minutes or 0;
+  # delay_seconds is the canonical knob (owner wants a 30s gate, not minutes).
+  # Back-compat: fall back to delay_minutes*60 if only the old field exists.
+  delaySec = warn.delay_seconds or ((warn.delay_minutes or 0) * 60);
   cancel   = warn.cancel_command or "sudo systemctl stop systemd-hibernate.service";
   ch       = warn.channels or {};
 
@@ -147,9 +149,9 @@ let
     name = "hibernate-prewarn";
     runtimeInputs = with pkgs; [ coreutils util-linux libnotify gawk ];
     text = ''
-      DELAY_MIN=${toString delayMin}
+      DELAY_SEC=${toString delaySec}
       CANCEL_CMD=${lib.escapeShellArg cancel}
-      MSG="System will HIBERNATE in $DELAY_MIN minute(s). Cancel: $CANCEL_CMD"
+      MSG="System will HIBERNATE in $DELAY_SEC second(s). To CANCEL run: $CANCEL_CMD"
 
       ${lib.optionalString chJournal ''
         echo "[hibernate-prewarn] $MSG"
@@ -157,6 +159,7 @@ let
       ''}
 
       ${lib.optionalString chWall ''
+        # Broadcast to every terminal (tty + pty) with the inline cancel command.
         echo "$MSG" | ${pkgs.util-linux}/bin/wall -n || true
       ''}
 
@@ -171,13 +174,13 @@ let
           ${pkgs.util-linux}/bin/runuser -u "$user" -- env \
             DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" XDG_RUNTIME_DIR="$udir" \
             ${pkgs.libnotify}/bin/notify-send \
-              -u critical -t $((DELAY_MIN * 60 * 1000)) -a "Power" \
-              "Hibernation in $DELAY_MIN minute(s)" "$MSG" || true
+              -u critical -t $((DELAY_SEC * 1000)) -a "Power" \
+              "Hibernation in $DELAY_SEC second(s)" "$MSG" || true
         done
       ''}
 
-      if [ "$DELAY_MIN" -gt 0 ]; then
-        ${pkgs.coreutils}/bin/sleep $((DELAY_MIN * 60))
+      if [ "$DELAY_SEC" -gt 0 ]; then
+        ${pkgs.coreutils}/bin/sleep "$DELAY_SEC"
       fi
     '';
   };
@@ -190,7 +193,7 @@ in
     serviceConfig.ExecStartPre =
       [ "${hibernatePreflight}/bin/hibernate-preflight" ]
       ++ lib.optional enabled "${prewarn}/bin/hibernate-prewarn";
-    serviceConfig.TimeoutStartSec = toString ((delayMin * 60) + 600);
+    serviceConfig.TimeoutStartSec = toString (delaySec + 600);
   };
 
   environment.systemPackages = [

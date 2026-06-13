@@ -159,10 +159,19 @@ in
       tail -n ${toString histN} "$hist" > "$hist.tmp" && mv "$hist.tmp" "$hist"
 
       # ───── update last_charging anchor ─────
-      # Reset the "minutes off AC" counter only on a positive AC indicator that
-      # cannot be faked by stuck SAM data alone:
-      #   (status=Charging) OR (status=Full AND ac_online=1)
-      if [ "$stat" = "Charging" ] || { [ "$stat" = "Full" ] && [ "$online_n" = "1" ]; }; then
+      # Reset the "minutes off AC" counter whenever the AC adapter is
+      # PHYSICALLY present (ADP1/online=1), independent of the battery's
+      # charging status. ADP1 is a SEPARATE sysfs node from the BAT1 SAM
+      # state, so it stays honest even when the battery gauge freezes.
+      #
+      # 2026-06-13 INCIDENT: the old condition (status=Charging OR
+      # status=Full+online) NEVER matched a fully-charged plugged-in
+      # Surface — at 100% on AC the status reads "Not charging", not "Full".
+      # So the anchor went stale for the whole time the machine sat plugged
+      # in, and the instant AC was unplugged `elapsed = now - stale_anchor`
+      # blew past max_minutes_off_ac → adp_offline_time hibernated at 100%.
+      # Resetting on online_n=1 makes "unplug now" start a fresh clock.
+      if [ "$online_n" = "1" ] || [ "$stat" = "Charging" ]; then
         echo "$ts" > "$lastChg"
       fi
       [ -r "$lastChg" ] || echo "$ts" > "$lastChg"
@@ -212,8 +221,15 @@ in
       ''}
 
       # voter: adp_offline_time
+      # CAPACITY-GATED (2026-06-13): only acts as a fail-safe when the battery
+      # ALSO reads at/below require_capacity_below. A pure wall-clock timer
+      # is capacity-blind and hibernated at 100% the instant AC dropped; the
+      # gate guarantees this can never fire on a healthy charge. (Residual
+      # gap: a SAM frozen HIGH while truly draining is no longer caught here —
+      # an accepted trade per the owner's "hibernate at low battery ONLY".)
       ${lib.optionalString (vAdpTime.enabled or false) ''
-        if [ "$online_n" = "0" ]; then
+        capfloor=${toString (vAdpTime.require_capacity_below or 100)}
+        if [ "$online_n" = "0" ] && [ "$cap_n" -ge 0 ] && [ "$cap_n" -le "$capfloor" ]; then
           last=$(cat "$lastChg" 2>/dev/null || echo "$ts")
           elapsed=$(( ts - last ))
           maxsec=$(( ${toString (vAdpTime.max_minutes_off_ac or 240)} * 60 ))
@@ -224,10 +240,15 @@ in
       ''}
 
       # voter: stuck_sam
+      # CAPACITY-GATED (2026-06-13): a frozen gauge at 100% on battery used to
+      # satisfy "values static + on-battery" and hibernate at full charge.
+      # Now it only fires when capacity ALSO reads at/below require_capacity_below,
+      # so a healthy static charge can never trip it.
       ${lib.optionalString (vStuck.enabled or false) ''
         minN=${toString (vStuck.min_static_polls or 5)}
+        capfloor=${toString (vStuck.require_capacity_below or 100)}
         n=$(wc -l < "$hist")
-        if [ "$n" -ge "$minN" ]; then
+        if [ "$n" -ge "$minN" ] && [ "$cap_n" -ge 0 ] && [ "$cap_n" -le "$capfloor" ]; then
           # static = {cap, enow, vnow} unchanged across last minN polls
           uniq=$(tail -n "$minN" "$hist" | awk '{print $2,$4,$5}' | sort -u | wc -l)
           # at least one on-battery indicator in window
