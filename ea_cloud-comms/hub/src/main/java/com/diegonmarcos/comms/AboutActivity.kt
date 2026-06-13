@@ -1481,9 +1481,12 @@ class AboutActivity : AppCompatActivity() {
                     }
                 }
                 else -> {
-                    // getRoleHolders needs the signature MANAGE_ROLE_HOLDERS
-                    // perm; catch the SecurityException and degrade to a hint.
-                    val holders = runCatching { rm.getRoleHolders(role) }.getOrNull()
+                    // No PUBLIC API reads another app's role holder
+                    // (RoleManager.getRoleHolders is @SystemApi — needs the
+                    // signature MANAGE_ROLE_HOLDERS perm, unresolved in the SDK),
+                    // so the holder stays null → the row deep-links the user to
+                    // the Default-Apps picker. `expected` kept for the contract.
+                    val holders: List<String>? = null
                     val holder = holders?.firstOrNull()
                     when {
                         holders == null            -> "— (set in Default apps)"
