@@ -154,7 +154,7 @@ let
 
   prewarn = pkgs.writeShellApplication {
     name = "hibernate-prewarn";
-    runtimeInputs = with pkgs; [ coreutils util-linux libnotify gawk kdePackages.kdialog ];
+    runtimeInputs = with pkgs; [ coreutils util-linux libnotify gawk yad ];
     text = ''
       DELAY_SEC=${toString delaySec}
       CANCEL_CMD=${lib.escapeShellArg cancel}
@@ -186,15 +186,26 @@ let
         done
       ''}
 
-      # ───── centered modal countdown WITH a Cancel button ─────
-      # notify-send (above) is only a corner toast; this is the centered,
-      # attention-grabbing dialog the owner asked for. It also serves as the
-      # countdown wait: kdialog --warningcontinuecancel blocks until the user
-      # acts or `timeout` kills it at DELAY_SEC.
-      #   Continue/"Hibernate now" → 0  → proceed immediately
-      #   Cancel                   → 1  → abort hibernation (ExecStartPre fails)
-      #   no action (timed out)    → 124 → proceed (the 30s elapsed)
-      #   could not display        → fast non-zero → fall through to plain sleep
+      # ───── centered DARK modal with a live countdown + copyable cancel CLI ─────
+      # notify-send (above) is only a corner toast; this yad dialog is the
+      # centered, dark-themed, attention-grabbing popup the owner asked for:
+      #   • --timeout + --timeout-indicator = a visible shrinking countdown bar
+      #   • GTK_THEME=Adwaita:dark           = dark mode
+      #   • <tt>…</tt> + --selectable-labels = the cancel command in monospace,
+      #                                        selectable to copy & paste
+      # It also serves as the countdown wait. yad exit codes:
+      #   "Hibernate now" → 0  → proceed immediately
+      #   "Cancel"        → 1  → abort hibernation (ExecStartPre exits 1)
+      #   timed out       → 70 → proceed (the countdown elapsed)
+      #   could not display → fast non-zero → fall through to plain sleep
+      GUI_TEXT="<span size=\"xx-large\" weight=\"bold\">⚠  Hibernation</span>
+
+The session is about to be saved to disk and the machine powered off.
+
+<b>To cancel from a terminal, copy &amp; paste:</b>
+<tt><big>$CANCEL_CMD</big></tt>
+
+<i>…or press “Cancel (stay awake)” below.</i>"
       DID_WAIT=0
       ${lib.optionalString chDialogCenter ''
         for udir in /run/user/*; do
@@ -208,15 +219,24 @@ let
           wl=$(${pkgs.coreutils}/bin/basename "$(${pkgs.coreutils}/bin/ls "$udir"/wayland-[0-9] 2>/dev/null | ${pkgs.coreutils}/bin/head -1)" 2>/dev/null || echo wayland-0)
           start=$(${pkgs.coreutils}/bin/date +%s)
           set +e
+          # Hard backstop timeout (DELAY+5) in case yad itself hangs; yad's own
+          # --timeout drives the visible countdown and exits 70 when it lapses.
           ${pkgs.util-linux}/bin/runuser -u "$user" -- env \
             DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" \
             XDG_RUNTIME_DIR="$udir" \
             WAYLAND_DISPLAY="''${wl:-wayland-0}" \
-            QT_QPA_PLATFORM="wayland;xcb" \
-            ${pkgs.coreutils}/bin/timeout "$DELAY_SEC" \
-            ${pkgs.kdePackages.kdialog}/bin/kdialog \
-              --title "Hibernation in $DELAY_SEC seconds" \
-              --warningcontinuecancel "$MSG"
+            GDK_BACKEND="wayland,x11" \
+            GTK_THEME="Adwaita:dark" \
+            GTK_APPLICATION_PREFER_DARK_THEME=1 \
+            ${pkgs.coreutils}/bin/timeout $((DELAY_SEC + 5)) \
+            ${pkgs.yad}/bin/yad \
+              --title="Hibernation" \
+              --window-icon=battery-caution --image=battery-caution \
+              --text="$GUI_TEXT" --text-align=center --selectable-labels \
+              --timeout="$DELAY_SEC" --timeout-indicator=bottom \
+              --center --on-top --width=560 --borders=20 \
+              --button="Cancel (stay awake)!process-stop:1" \
+              --button="Hibernate now!system-suspend-hibernate:0"
           rc=$?
           set -e
           elapsed=$(( $(${pkgs.coreutils}/bin/date +%s) - start ))
@@ -226,8 +246,8 @@ let
             exit 1
           fi
           # Count this as the countdown wait only if the dialog really ran
-          # (timed out, or the user pressed a button) rather than failing to display.
-          if [ "$elapsed" -ge 2 ] || [ "$rc" = "0" ]; then DID_WAIT=1; fi
+          # (timed out=70, or a button=0) rather than failing to display.
+          if [ "$elapsed" -ge 2 ] || [ "$rc" = "0" ] || [ "$rc" = "70" ]; then DID_WAIT=1; fi
           break
         done
       ''}
