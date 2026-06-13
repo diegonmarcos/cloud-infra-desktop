@@ -166,6 +166,26 @@ cmd_install() {
   log "to validate/run now:  ./build.sh enable"
 }
 
+# ── bootprops: override Waydroid framework props applied at container start ──
+# Roots the real fix: the framework reads waydroid.stub_sensors_hal at boot, so we
+# must set it to 0 in waydroid_base.prop BEFORE the container starts.
+cmd_bootprops() {
+  local f; f="$(expand_tilde "$(get waydroid.base_prop_path)")"
+  mkdir -p "$(dirname "$f")"; [ -f "$f" ] || : > "$f"
+  node -e "
+    const fs=require('fs'); const f='$f';
+    const props=require('$CONFIG').waydroid.boot_props||{};
+    let lines=fs.readFileSync(f,'utf8').split('\n');
+    for(const [k,v] of Object.entries(props)){
+      lines=lines.filter(l=>l.trim()!==''&&l.split('=')[0].trim()!==k);
+      lines.push(k+'='+v);
+    }
+    fs.writeFileSync(f, lines.filter(l=>l.trim()!=='').join('\n')+'\n');
+  "
+  log "boot props set in $f:"; node -e "Object.entries(require('$CONFIG').waydroid.boot_props).forEach(([k,v])=>console.log('    '+k+'='+v))"
+  warn "boot props apply on the NEXT container start — restart the session to take effect."
+}
+
 # ── enable: run the HAL as a transient root system service + take over ──────
 # NixOS-correct runtime (no /etc writes). Order: stop stub -> register -> restart framework.
 cmd_enable() {
@@ -174,6 +194,7 @@ cmd_enable() {
   [ -f "$CONF" ] || cmd_conf
   local unit dev; dev="$(get binder.device)"
   unit="$(get runtime.unit_name)"; unit="${unit%.service}"
+  cmd_bootprops          # ensure framework boots with stub disabled (applies next container start)
   cmd_stopstub
   log "starting transient root service '$unit' (systemd-run)…"
   sudo systemctl reset-failed "$unit.service" 2>/dev/null || true
@@ -213,6 +234,7 @@ case "${1:-build}" in
   calibrate) shift; cmd_calibrate "${1:-20}" ;;
   run) cmd_run ;;
   stopstub) cmd_stopstub ;;
+  bootprops) cmd_bootprops ;;
   takeover) cmd_takeover ;;
   install) cmd_install ;;
   enable) cmd_enable ;;
