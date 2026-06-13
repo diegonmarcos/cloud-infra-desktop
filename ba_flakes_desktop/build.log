@@ -37941,3 +37941,155 @@ error: interrupted by the user
 [2026-06-12 13:04:27] PERF: TOTAL switch = 5m 16s
 [2026-06-12 13:04:27] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-06-12 13:04:27] ========== Build script finished ==========
+[2026-06-13 13:26:41] ========== Build script started ==========
+[2026-06-13 13:26:41] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-06-13 13:26:41] PERF: start switch
+[2026-06-13 13:26:41] INFO: Staging dirty files for flake evaluation...
+[2026-06-13 13:26:41] PERF: git stage = 126ms
+[2026-06-13 13:26:42] PERF: clean stale hm-backups = 333ms
+[2026-06-13 13:26:42] INFO: Applying Home Manager configuration...
+[2026-06-13 13:26:42] INFO: home-manager backup extension: hm-backup-20260613-132642
+copying path '/nix/store/0yj36irhwn225ywy1saz0gf5wr2ciz50-source' from 'https://cache.nixos.org'...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+copying path '/nix/store/kn3m407mn5p4dyjb96z12daanqjaqmzc-source' from 'https://cache.nixos.org'...
+[2026-06-13 14:01:30] ERROR: Configuration failed with exit code 1
+[2026-06-13 14:01:30] INFO: Check /home/diego/git/unix/ba_flakes_desktop/build.log for details
+[2026-06-13 14:01:30] PERF: home-manager switch = 34m 48s
+[2026-06-13 14:01:30] PERF: TOTAL switch = 34m 48s
+[2026-06-13 14:04:10] ========== Build script started ==========
+[2026-06-13 14:04:10] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-06-13 14:04:10] PERF: start switch
+[2026-06-13 14:04:10] INFO: Staging dirty files for flake evaluation...
+[2026-06-13 14:04:10] PERF: git stage = 163ms
+[2026-06-13 14:04:10] PERF: clean stale hm-backups = 336ms
+[2026-06-13 14:04:10] INFO: Applying Home Manager configuration...
+[2026-06-13 14:04:10] INFO: home-manager backup extension: hm-backup-20260613-140410
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 9 derivations will be built:
+  /nix/store/l2944m4jqwfsiqz8s9dvjm6yrd56spha-man-paths.drv
+  /nix/store/2vvpkwyxsl12qarjkqi72wk4hccijvic-man-cache.drv
+  /nix/store/6qv4j79kdfm88bvgikcgj14r1icibh6m-diego-fish-completions.drv
+  /nix/store/dd8p6vlab3m5kai93g6z1da8yq70cyvp-hm_.manpath.drv
+  /nix/store/jl8bpdbwbwswig5cqh89n4435832mhpx-home-manager-path.drv
+  /nix/store/sac4ndiwy8plwnf0i7y9gxmxjsd7x2p5-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/f2f05wlicw8637fzrdrwyy4kajj7ccxa-home-manager-files.drv
+  /nix/store/n2c59gx7gbjs1lspby24iy17q53bqimd-activation-script.drv
+  /nix/store/qb11rn7xq0kz4v22aqwmc6gw488y0nhm-home-manager-generation.drv
+building '/nix/store/jl8bpdbwbwswig5cqh89n4435832mhpx-home-manager-path.drv'...
+building '/nix/store/6qv4j79kdfm88bvgikcgj14r1icibh6m-diego-fish-completions.drv'...
+building '/nix/store/n2c59gx7gbjs1lspby24iy17q53bqimd-activation-script.drv'...
+building '/nix/store/sac4ndiwy8plwnf0i7y9gxmxjsd7x2p5-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/l2944m4jqwfsiqz8s9dvjm6yrd56spha-man-paths.drv'...
+building '/nix/store/2vvpkwyxsl12qarjkqi72wk4hccijvic-man-cache.drv'...
+building '/nix/store/dd8p6vlab3m5kai93g6z1da8yq70cyvp-hm_.manpath.drv'...
+building '/nix/store/f2f05wlicw8637fzrdrwyy4kajj7ccxa-home-manager-files.drv'...
+building '/nix/store/qb11rn7xq0kz4v22aqwmc6gw488y0nhm-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkLinkTargets
+Activating writeBoundary
+Activating androidEmulatorAvd
+[android-emulator] creating AVD surface-x86_64 (system-images;android-34;google_apis;x86_64) — one-time
+Loading local repository...                                                     [=========                              ] 25% Loading local repository...       [=========                              ] 25% Fetch remote repository...        [=======================================] 100% Fetch remote repository...       
+Auto-selecting single ABI x86_64
+Activating checkFilesChanged
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 8
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 2s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (4 VMs, 41 services, date=2026-06-13)
+Activating globalTsx
+
+changed 3 packages in 12s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.177 is up to date
+Activating installWg0TcpConf
+[wireguard-wstunnel] /home/diego/.config/wireguard/wg0.conf not found — skipping wg0-tcp.conf render
+Activating lockScreenWallpaper
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating powerDevilSuspend
+Activating reloadSystemd
+Starting units: sops-nix.service, waydroid-superapp-install.timer
+Activating sops-nix
+Activating sshSocketsDir
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-06-13 14:07:47] PERF: home-manager switch = 3m 37s
+[2026-06-13 14:07:47] PERF: TOTAL switch = 3m 37s
+[2026-06-13 14:07:47] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface
+[2026-06-13 14:07:47] ========== Build script finished ==========
+[2026-06-13 14:31:36] ========== Build script started ==========
+[2026-06-13 14:31:36] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-06-13 14:31:36] PERF: start switch
+[2026-06-13 14:31:36] INFO: Staging dirty files for flake evaluation...
+[2026-06-13 14:31:36] PERF: git stage = 105ms
+[2026-06-13 14:31:36] PERF: clean stale hm-backups = 343ms
+[2026-06-13 14:31:36] INFO: Applying Home Manager configuration...
+[2026-06-13 14:31:36] INFO: home-manager backup extension: hm-backup-20260613-143136
+[2026-06-13 14:47:45] PERF: home-manager switch = 16m 8s
+[2026-06-13 14:47:45] PERF: TOTAL switch = 16m 9s
+[2026-06-13 14:47:45] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface
+[2026-06-13 14:47:45] ========== Build script finished ==========
+[2026-06-13 16:08:04] ========== Build script started ==========
+[2026-06-13 16:08:04] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-06-13 16:08:04] PERF: start switch
+[2026-06-13 16:08:05] INFO: Staging dirty files for flake evaluation...
+[2026-06-13 16:08:05] PERF: git stage = 122ms
+[2026-06-13 16:08:05] PERF: clean stale hm-backups = 338ms
+[2026-06-13 16:08:05] INFO: Applying Home Manager configuration...
+[2026-06-13 16:08:05] INFO: home-manager backup extension: hm-backup-20260613-160805
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 11 derivations will be built:
+  /nix/store/rh1qfp3cpiy54vgpydi6x38g0dwggr97-home-manager-path.drv
+  /nix/store/04xrily6rj0a3kb5mzy0kr1cyz9hm1br-activation-script.drv
+  /nix/store/0lzz11dnq9rz5ly2rgd74q8a64z6nxhx-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/gq8mdrbj1kpr70a5m9ljqvz4l5vbfing-android-emulator-fish-completions.drv
+  /nix/store/34ihzj9hv71siwvrclrdybna2bzmicrv-diego-fish-completions.drv
+  /nix/store/3qi7rwy8ifk73ik0raiwzzbprgvhgh5x-man-paths.drv
+  /nix/store/lisi1cs2rwkgs1mrs7zxnyr6icc2vzw8-man-cache.drv
+  /nix/store/3rr10m0i4mj9234kx0a18vsz4025hn52-hm_.manpath.drv
+  /nix/store/m97i78rck75w9ps9ans1bpxkr65b75a6-hm_applicationsandroidemulator.desktop.drv
+  /nix/store/qafp92z6d88gb8frwd6ww8drywfi70zs-home-manager-files.drv
+  /nix/store/7j66kvkkjjg7m1y6xqyc3dla9vphdmg0-home-manager-generation.drv
+building '/nix/store/rh1qfp3cpiy54vgpydi6x38g0dwggr97-home-manager-path.drv'...
+building '/nix/store/gq8mdrbj1kpr70a5m9ljqvz4l5vbfing-android-emulator-fish-completions.drv'...
+building '/nix/store/04xrily6rj0a3kb5mzy0kr1cyz9hm1br-activation-script.drv'...
+building '/nix/store/34ihzj9hv71siwvrclrdybna2bzmicrv-diego-fish-completions.drv'...
+[2026-06-13 16:11:21] PERF: home-manager switch = 3m 15s
+[2026-06-13 16:11:21] PERF: TOTAL switch = 3m 16s
+[2026-06-13 16:11:21] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface
+[2026-06-13 16:11:21] ========== Build script finished ==========
+[2026-06-13 19:03:11] ========== Build script started ==========
+[2026-06-13 19:03:11] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-13 19:03:12] PERF: start switch
+[2026-06-13 19:03:12] INFO: Staging dirty files for flake evaluation...

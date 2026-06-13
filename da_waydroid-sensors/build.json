@@ -1,0 +1,55 @@
+{
+  "project": {
+    "name": "waydroid-sensors",
+    "version": "0.1.0",
+    "description": "Host-side Android sensors HAL for Waydroid, fed by the Surface's Linux IIO accelerometer, so the Android container sees a real accelerometer and auto-rotate works. Reuses the upstream Waydroid gbinder/HIDL @1.0 ISensors layer (droidian/waydroid-sensors, GPL-3.0) verbatim and replaces only the data source with a direct /sys/bus/iio reader (src/code/SensorFW.cpp). Fully data-driven: IIO device name, poll rate and the mount matrix live here; the engine renders them into a KEY=VALUE conf the daemon reads at runtime — no values baked into the binary."
+  },
+  "paths": {
+    "src": "src",
+    "code": "src/code",
+    "flake": "src",
+    "dist": "dist",
+    "binary": "waydroid-sensord",
+    "conf": "dist/waydroid-sensors.conf",
+    "gbinder_conf": "dist/gbinder.conf",
+    "systemd_unit_tpl": "src/systemd/waydroid-sensors.service.tpl"
+  },
+  "binder": {
+    "_doc": "Waydroid's container hwservicemanager lives on this root-only node (/dev/binderfs/anbox-hwbinder, 250,6). service.cpp takes the device as argv[1]. CRITICAL: the system gbinder.d config only maps /dev/hwbinder, NOT /dev/anbox-hwbinder, so libgbinder has no protocol for it and add_service silently no-ops. We therefore generate our own gbinder.conf mapping this device to `protocol` and point the daemon at it via GBINDER_CONFIG_FILE.",
+    "device": "/dev/hwbinder",
+    "protocol": "hidl",
+    "iface": "android.hardware.sensors@1.0::ISensors",
+    "name": "default"
+  },
+  "iio": {
+    "_doc": "Accelerometer source. The daemon discovers the device by `name` under /sys/bus/iio/devices at runtime (device numbers are not stable across boots) and reads in_accel_scale itself. raw*scale -> m/s^2.",
+    "name": "accel_3d",
+    "poll_interval_ms": 200,
+    "mount": {
+      "_doc": "Maps each Android axis to a raw IIO channel + sign (device mount matrix). Android frame: +X = screen right, +Y = screen top, +Z = out of screen; the axis pointing UP reads +9.81. SP8 values are resolved empirically via `build.sh calibrate` and committed here.",
+      "x": { "src": "x", "sign": 1 },
+      "y": { "src": "y", "sign": 1 },
+      "z": { "src": "z", "sign": 1 }
+    }
+  },
+  "waydroid": {
+    "data_roots": [
+      "/home/diego/.local/share/waydroid/data",
+      "/var/lib/waydroid/data"
+    ],
+    "stub_prop": "waydroid.stub_sensors_hal",
+    "stub_service": "vendor.sensors-hal-1-0",
+    "stub_process": "android.hardware.sensors@1.0-service.waydroid",
+    "framework_restart": "stop; sleep 1; start",
+    "sensorservice_match": "android.hardware.sensors@1.0",
+    "_doc_stub": "Waydroid boots an in-container STUB @1.0 ISensors (init service stub_service, process stub_process) that owns the HIDL name while stub_prop=1 and returns an empty list. Takeover order MUST be: stop the stub, (re)register our host daemon on the now-free name, then restart the Android framework (framework_restart) so sensorservice re-queries hwservicemanager and binds ours."
+  },
+  "runtime": {
+    "_doc": "The daemon must run as ROOT — the binder node /dev/binderfs/anbox-hwbinder is crw------- (root only) — so it is a SYSTEM service, not a user unit. Proper declarative home is a NixOS systemd.services entry in the Surface host flake (follow-up); build.sh install mirrors it imperatively for now (sudo).",
+    "system_unit": true,
+    "unit_name": "waydroid-sensors.service",
+    "unit_install_path": "/etc/systemd/system/waydroid-sensors.service",
+    "binary_install_path": "/usr/local/bin/waydroid-sensord",
+    "conf_install_path": "/etc/waydroid-sensors/waydroid-sensors.conf"
+  }
+}
