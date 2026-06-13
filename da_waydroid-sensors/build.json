@@ -37,6 +37,11 @@
       "/home/diego/.local/share/waydroid/data",
       "/var/lib/waydroid/data"
     ],
+    "_doc_bootprops": "Waydroid patched the Android framework (services.jar) to read waydroid.stub_sensors_hal AT BOOT: when 1 (the /vendor/waydroid.prop default), SensorService reports no sensors no matter what HAL is registered. We override it to 0 via Waydroid's waydroid_base.prop (applied at container start) so the framework loads sensors from our HAL. A runtime setprop is too late — only a boot-time override works.",
+    "base_prop_path": "~/.local/share/waydroid/waydroid_base.prop",
+    "boot_props": {
+      "waydroid.stub_sensors_hal": "0"
+    },
     "stub_prop": "waydroid.stub_sensors_hal",
     "stub_service": "vendor.sensors-hal-1-0",
     "stub_process": "android.hardware.sensors@1.0-service.waydroid",
