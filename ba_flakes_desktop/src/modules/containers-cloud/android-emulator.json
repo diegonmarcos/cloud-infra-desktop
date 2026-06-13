@@ -1,0 +1,33 @@
+{
+  "_doc": "Single source of truth for the declarative Android Emulator desktop app (containers-cloud/android-emulator.nix). Profiles are GENERATED as forms × tiers (phone/tablet × light/full) — never a hardcoded list. `common_hw`/`tiers`/`forms` values are raw AVD config.ini keys, merged (common → tier → form; form wins) into each AVD's config.ini idempotently on `build.sh switch`. `provisioning` drives the idempotent post-boot adb steps run by the launcher.",
+
+  "image": "system-images;android-34;google_apis;x86_64",
+
+  "common_hw": {
+    "hw.gpu.enabled": "yes",
+    "hw.gpu.mode": "host",
+    "hw.keyboard": "yes",
+    "showDeviceFrame": "no"
+  },
+
+  "tiers": {
+    "light": { "hw.ramSize": "2048M", "hw.cpu.ncore": "4", "vm.heapSize": "256M" },
+    "full":  { "hw.ramSize": "6144M", "hw.cpu.ncore": "6", "vm.heapSize": "512M" }
+  },
+
+  "forms": {
+    "phone":  { "hw.lcd.width": "1080", "hw.lcd.height": "2400", "hw.lcd.density": "420", "hw.initialOrientation": "portrait" },
+    "tablet": { "hw.lcd.width": "2560", "hw.lcd.height": "1600", "hw.lcd.density": "320", "hw.initialOrientation": "landscape" }
+  },
+
+  "provisioning": {
+    "_doc": "Idempotent post-boot steps applied via adb each launch. system_dark → `cmd uimode night yes`. home_launcher set via `cmd package set-home-activity`. superapp_launcher_theme pre-seeds launcher_theme_prefs.xml (key `theme`) via `adb run-as` (debug APK). apps[] installed if the package is absent; apk path may use $HOME.",
+    "system_dark": true,
+    "home_launcher": "com.diegonmarcos.superapp/.MainActivity",
+    "superapp_pkg": "com.diegonmarcos.superapp",
+    "superapp_launcher_theme": "cloud_minimalist_black",
+    "apps": [
+      { "pkg": "com.diegonmarcos.superapp", "apk": "$HOME/git/unix/ea_cloud-superapp/dist/Cloud-SuperApp-x86_64.apk" }
+    ]
+  }
+}
