@@ -32,7 +32,8 @@
     <string name="pkg_fetching">▼ %1$d%% downloading</string>
     <string name="pkg_verifying">⧗ verifying</string>
     <string name="pkg_confirm">👆 confirm install</string>
-    <string name="pkg_installing">⚙ %1$d%% installing</string>
+    <string name="pkg_installing">⚙ %1$d%% installing (staging)</string>
+    <string name="pkg_finishing">⚙ finishing — system verifying &amp; optimizing… %1$ds</string>
     <string name="pkg_done">✓ done</string>
     <string name="pkg_skipped">⊘ skipped — %1$s</string>
     <string name="pkg_failed">✗ failed — %1$s</string>

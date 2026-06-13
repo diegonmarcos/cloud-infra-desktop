@@ -37,6 +37,14 @@ on:
         required: false
         type: boolean
         default: false
+      bundle_abi:
+        description: "Child-APK ABI to bundle (x86_64 = Waydroid debug build, artifact-only)"
+        required: false
+        type: choice
+        default: "arm64-v8a"
+        options:
+          - arm64-v8a
+          - x86_64
   push:
     branches: [main]
     tags:
@@ -133,10 +141,14 @@ jobs:
 
       # ── Build via build.sh (engine) ─────────────────────────────────
       # BYPASS_NIX=1 because GHA already provides JDK + SDK + Gradle.
+      # COMMS_BUNDLE_ABI selects which per-ABI upstream child APKs bundle-forks
+      # embeds (default arm64-v8a = phones; x86_64 = Waydroid). The hub APK
+      # itself is pure-JVM/ABI-agnostic — only the bundled children differ.
       - name: Build hub APK (engine)
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          COMMS_BUNDLE_ABI: ${{ inputs.bundle_abi || 'arm64-v8a' }}
         run: |
           chmod +x build.sh
           if [ "${{ steps.variant.outputs.variant }}" = "release" ]; then
@@ -149,7 +161,7 @@ jobs:
       - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Cloud-Comms-Hub-${{ steps.variant.outputs.variant }}-${{ github.sha }}
+          name: Cloud-Comms-Hub-${{ inputs.bundle_abi || 'arm64-v8a' }}-${{ steps.variant.outputs.variant }}-${{ github.sha }}
           path: ${{ env.WORK_DIR }}/dist/*.apk
           if-no-files-found: error
           retention-days: 30

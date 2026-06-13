@@ -38,6 +38,11 @@ object TxState {
         object Verifying : Phase()
         object WaitingConfirm : Phase()
         data class Installing(val percent: Int) : Phase()
+        /** APK fully staged; the SYSTEM is verifying/parsing/optimizing — the
+         *  platform emits NO progress for this stretch (the classic "stuck at
+         *  90%"), so we render a live elapsed-seconds ticker instead of a
+         *  frozen determinate bar. */
+        data class Finishing(val seconds: Int) : Phase()
         object Done : Phase()
         data class Skipped(val reason: String) : Phase()
         data class Failed(val message: String) : Phase()
@@ -148,7 +153,10 @@ object Transaction {
     // ── plan + run ──────────────────────────────────────────────────────
 
     private suspend fun execute(ctx: Context): Boolean {
-        val targets = PackageCatalog.resolve(ctx).filter { it.status !is PkgStatus.Blocked }
+        // ALL fleet entries become rows — including the hub and blocked forks —
+        // so the user always sees the full constellation (hub + 4 = 5 rows),
+        // not a filtered subset. Blocked items render as a skipped row in fetch.
+        val targets = PackageCatalog.resolve(ctx)
         val items = targets.map { Item(it) }
         synchronized(lock) {
             curItems = items
@@ -175,26 +183,62 @@ object Transaction {
             val step = idx + 1
             val missing = item.pkg.status is PkgStatus.Missing
             try {
-                if (missing && BundledForkInstaller.hasBundle(ctx, e.label)) {
-                    // Bundled asset — trusted, it shipped inside our signed APK.
-                    setPhase(item, TxState.Phase.Fetching(0, 0L, -1L))
-                    UpdateProgress.update(UpdateProgress.State.Checking(e.label, step, steps))
-                    val out = File(ctx.cacheDir, "tx-${e.label}.apk")
-                    BundledForkInstaller.extractTo(ctx, e.label, out)
-                    item.staged = out
-                    setPhase(item, TxState.Phase.Fetching(100, out.length(), out.length()))
+                // Blocked fork (e.g. Matrix until its stack ships): a visible
+                // row, not a vanished one. Skipped, never processed.
+                if (item.pkg.status is PkgStatus.Blocked) {
+                    setPhase(item, TxState.Phase.Skipped("blocked"))
                     return@forEachIndexed
+                }
+
+                // Bundled asset (shipped inside our signed APK, trusted): the
+                // PRIMARY source for the forks. If the fork isn't installed,
+                // stage it from the bundle — no network, always works offline.
+                // Already installed → it's done (the bundle has no version
+                // channel; GHCR is the only update path, handled below for
+                // forks that publish an image).
+                if (BundledForkInstaller.hasBundle(ctx, e.label)) {
+                    if (!missing) {
+                        // Installed AND we have a GHCR image → still let the
+                        // network path below check for a newer build; otherwise
+                        // it's up to date.
+                        if (e.image.isBlank()) { setPhase(item, TxState.Phase.Done); return@forEachIndexed }
+                    } else {
+                        setPhase(item, TxState.Phase.Fetching(0, 0L, -1L))
+                        UpdateProgress.update(UpdateProgress.State.Checking(e.label, step, steps))
+                        val out = File(ctx.cacheDir, "tx-${e.label}.apk")
+                        BundledForkInstaller.extractTo(ctx, e.label, out)
+                        item.staged = out
+                        setPhase(item, TxState.Phase.Fetching(100, out.length(), out.length()))
+                        return@forEachIndexed
+                    }
                 }
 
                 setPhase(item, TxState.Phase.Fetching(0, 0L, -1L))
                 UpdateProgress.update(UpdateProgress.State.Checking(e.label, step, steps))
                 val client = GhcrClient(e.image)
+                // ABI-aware tag resolution (owner spec: the updater must know
+                // the system it runs on): try "<tag>-<deviceAbi>" first (per-ABI
+                // artifacts, e.g. arm64 phone vs x86_64 Waydroid), then the
+                // plain universal tag. Convention: publish-fork pushes
+                // :latest for universal APKs, :latest-<abi> for ABI builds.
                 val layer = try {
-                    client.manifest(BuildConfig.AUTO_UPDATE_TAG, client.token())
+                    val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
+                    try {
+                        client.manifest("${BuildConfig.AUTO_UPDATE_TAG}-$abi", client.token())
+                    } catch (abiMiss: IOException) {
+                        client.manifest(BuildConfig.AUTO_UPDATE_TAG, client.token())
+                    }
                 } catch (io: IOException) {
-                    // 404 / unreachable → not published yet. Skipped, not fatal.
-                    Log.i(TAG, "${e.label}: not obtainable (${io.message}) — skipped")
-                    setPhase(item, TxState.Phase.Skipped("not published"))
+                    // No GHCR image (404 / unreachable). Status-aware so the row
+                    // never lies: already-installed → up to date (Done); not
+                    // installed and not bundled → genuinely unavailable yet.
+                    if (!missing) {
+                        Log.i(TAG, "${e.label}: installed, no update channel — up to date")
+                        setPhase(item, TxState.Phase.Done)
+                    } else {
+                        Log.i(TAG, "${e.label}: not obtainable (${io.message})")
+                        setPhase(item, TxState.Phase.Skipped("not available yet"))
+                    }
                     return@forEachIndexed
                 }
 
@@ -294,8 +338,18 @@ object Transaction {
             override fun onProgressChanged(sessionId: Int, progress: Float) {
                 val item = sessionItems[sessionId] ?: return
                 if (item.phase.isTerminal()) return
-                val pct = (progress * 100).toInt().coerceIn(0, 100)
-                setPhase(item, TxState.Phase.Installing(pct))
+                // Platform semantics: session progress ≤ ~0.9 is APK STAGING
+                // (us writing bytes — fast/local); the final stretch (system
+                // verify/parse/dexopt) emits nothing. Map staging to a full
+                // 0–100 bar, then hand over to the Finishing ticker instead of
+                // freezing at 90%.
+                if (progress < 0.89f) {
+                    val pct = (progress / 0.9f * 100).toInt().coerceIn(0, 100)
+                    setPhase(item, TxState.Phase.Installing(pct))
+                } else if (item.phase !is TxState.Phase.Finishing
+                           && item.phase !is TxState.Phase.WaitingConfirm) {
+                    setPhase(item, TxState.Phase.Finishing(0))
+                }
             }
             override fun onFinished(sessionId: Int, success: Boolean) {
                 // Backup signal — InstallBus.deliver is idempotent per session.
@@ -337,9 +391,25 @@ object Transaction {
                 }
                 try {
                     writer.commit(sessionId)
-                    val r = withTimeoutOrNull(INSTALL_TIMEOUT_MS) { result.await() }
+                    // Await the real result with a 3s liveness ticker: during
+                    // the platform's silent verify/optimize stretch the row
+                    // shows "finishing… (Xs)" counting up — visibly alive, never
+                    // a frozen bar. WaitingConfirm is never overwritten.
+                    var r: Pair<Int, String>? = null
+                    val startedAt = android.os.SystemClock.elapsedRealtime()
+                    while (true) {
+                        r = withTimeoutOrNull(3_000L) { result.await() }
+                        if (r != null) break
+                        val elapsed = android.os.SystemClock.elapsedRealtime() - startedAt
+                        if (elapsed >= INSTALL_TIMEOUT_MS) break
+                        val ph = item.phase
+                        if (ph is TxState.Phase.Installing || ph is TxState.Phase.Finishing) {
+                            setPhase(item, TxState.Phase.Finishing((elapsed / 1000).toInt()))
+                        }
+                    }
+                    val res = r
                     when {
-                        r == null -> {
+                        res == null -> {
                             // Timeout fallback: a fresh install that landed
                             // anyway still counts.
                             val landed = item.pkg.status is PkgStatus.Missing && e.isInstalled(ctx)
@@ -347,11 +417,11 @@ object Transaction {
                                 if (landed) TxState.Phase.Done
                                 else TxState.Phase.Failed("no installer result within ${INSTALL_TIMEOUT_MS / 1000}s"))
                         }
-                        r.first == PackageInstaller.STATUS_SUCCESS ->
+                        res.first == PackageInstaller.STATUS_SUCCESS ->
                             setPhase(item, TxState.Phase.Done)
                         else ->
                             setPhase(item, TxState.Phase.Failed(
-                                statusLabel(r.first) + (if (r.second.isNotBlank()) " — ${r.second}" else "")))
+                                statusLabel(res.first) + (if (res.second.isNotBlank()) " — ${res.second}" else "")))
                     }
                 } finally {
                     InstallBus.unregister(sessionId)
@@ -379,13 +449,14 @@ object Transaction {
         is TxState.Phase.Fetching -> p.percent / 2
         is TxState.Phase.Verifying -> 55
         is TxState.Phase.WaitingConfirm -> 60
-        is TxState.Phase.Installing -> 60 + (p.percent * 40 / 100)
+        is TxState.Phase.Installing -> 60 + (p.percent * 35 / 100)
+        is TxState.Phase.Finishing -> 95
         is TxState.Phase.Done, is TxState.Phase.Skipped, is TxState.Phase.Failed -> 100
     }
 
     private fun publish(finished: Boolean) {
         val snap = synchronized(lock) {
-            val states = curItems.map { TxState.ItemState(it.pkg.entry.label, it.phase) }
+            val states = curItems.map { TxState.ItemState(it.pkg.entry.displayName, it.phase) }
             val total = if (states.isEmpty()) 100
                 else states.sumOf { itemPercent(it.phase) } / states.size
             TxState.Snapshot(states, total, finished, curSetup, curNeedsPerm)

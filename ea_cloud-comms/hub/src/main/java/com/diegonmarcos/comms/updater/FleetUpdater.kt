@@ -17,7 +17,10 @@ import java.util.concurrent.TimeUnit
 /** One updatable APK in the constellation. Parsed from BuildConfig
  *  (build.json: hub from release.ghcr + the three forks from forks.*). */
 data class FleetEntry(
-    val label: String,     // hub | mail | chat | matrix | dialer
+    val label: String,        // fleet KEY (hub|mail|chat|matrix|dialer) — used
+                              // for asset names + logs, never shown to the user
+    val displayName: String,  // user-facing name from build.json::forks.<k>.label
+                              // ("Mail (FairEmail)", "Chat (Mattermost)", …)
     val appId: String,     // OUR id (the patched fork's applicationId)
     val altId: String?,    // the STOCK upstream APK's real package (until the
                            // patched fork replaces it) — installed-detection
@@ -93,6 +96,7 @@ object FleetUpdater {
             val o = arr.getJSONObject(i)
             FleetEntry(
                 label = o.getString("label"),
+                displayName = o.optString("name").ifEmpty { o.getString("label") },
                 appId = o.getString("app_id"),
                 altId = o.optString("alt_id").takeIf { it.isNotEmpty() },
                 image = o.getString("image"),
