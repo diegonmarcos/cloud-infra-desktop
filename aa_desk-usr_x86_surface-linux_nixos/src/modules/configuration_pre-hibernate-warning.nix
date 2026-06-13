@@ -38,9 +38,10 @@ let
   cancel   = warn.cancel_command or "sudo systemctl stop systemd-hibernate.service";
   ch       = warn.channels or {};
 
-  chJournal    = ch.journal or false;
-  chWall       = ch.wall or false;
-  chNotifySend = ch.notify_send or false;
+  chJournal     = ch.journal or false;
+  chWall        = ch.wall or false;
+  chNotifySend  = ch.notify_send or false;
+  chDialogCenter = ch.dialog_center or false;
 
   # SoT for swap/resume invariants (cross-checked at hibernate time)
   bootCfg      = builtins.fromJSON (builtins.readFile ./boot.json);
@@ -92,12 +93,18 @@ let
         || die "resume device $RESUME does not resolve"
       [ -b "$RESOLVED" ] || die "resume device $RESUME ($RESOLVED) is not a block device"
 
-      # 3. swsusp signature on the swap header is SWAPSPACE2 (no stale image).
-      HEADER=$(${pkgs.coreutils}/bin/dd if="$RESOLVED" bs=4096 count=1 2>/dev/null \
-               | ${pkgs.coreutils}/bin/tail -c 16)
-      case "$HEADER" in
-        *SWAPSPACE2*) ;;
-        *) die "stale hibernate signature on $RESOLVED — refusing to overwrite. Run: sudo swapoff $SWAP && sudo mkswap $SWAP && sudo swapon $SWAP" ;;
+      # 3. swsusp signature in the SWAP HEADER is SWAPSPACE2 (no stale image).
+      #    The swap header lives in the FIRST PAGE OF THE SWAPFILE — the 10-byte
+      #    magic sits at offset (pagesize-10)=4086. It is NOT at offset 0 of the
+      #    backing device: that is the ext4 superblock. Reading $RESOLVED here
+      #    was the 2026-06-13 regression that refused EVERY hibernation (same
+      #    device-vs-swapfile confusion class as the 2026-06-12 p5 incident).
+      #    SWAPSPACE2 = clean swap, no pending image. S1SUSPEND = image present.
+      SIG=$(${pkgs.coreutils}/bin/dd if="$SWAP" bs=1 skip=4086 count=10 2>/dev/null)
+      case "$SIG" in
+        SWAPSPACE2) ;;
+        S1SUSPEND*) die "stale hibernate signature (S1SUSPEND) in $SWAP — refusing to overwrite. Run: sudo swapoff $SWAP && sudo mkswap $SWAP && sudo swapon $SWAP" ;;
+        *)          die "no valid swap signature in $SWAP header (got '$SIG') — run: sudo mkswap $SWAP" ;;
       esac
 
       # 4. Pool-witness check: if the pool was mounted by something other than
@@ -147,7 +154,7 @@ let
 
   prewarn = pkgs.writeShellApplication {
     name = "hibernate-prewarn";
-    runtimeInputs = with pkgs; [ coreutils util-linux libnotify gawk ];
+    runtimeInputs = with pkgs; [ coreutils util-linux libnotify gawk kdePackages.kdialog ];
     text = ''
       DELAY_SEC=${toString delaySec}
       CANCEL_CMD=${lib.escapeShellArg cancel}
@@ -179,7 +186,55 @@ let
         done
       ''}
 
-      if [ "$DELAY_SEC" -gt 0 ]; then
+      # ───── centered modal countdown WITH a Cancel button ─────
+      # notify-send (above) is only a corner toast; this is the centered,
+      # attention-grabbing dialog the owner asked for. It also serves as the
+      # countdown wait: kdialog --warningcontinuecancel blocks until the user
+      # acts or `timeout` kills it at DELAY_SEC.
+      #   Continue/"Hibernate now" → 0  → proceed immediately
+      #   Cancel                   → 1  → abort hibernation (ExecStartPre fails)
+      #   no action (timed out)    → 124 → proceed (the 30s elapsed)
+      #   could not display        → fast non-zero → fall through to plain sleep
+      DID_WAIT=0
+      ${lib.optionalString chDialogCenter ''
+        for udir in /run/user/*; do
+          [ -d "$udir" ] || continue
+          uid=$(${pkgs.coreutils}/bin/basename "$udir")
+          user=$(${pkgs.gawk}/bin/awk -F: -v u="$uid" '$3==u{print $1; exit}' /etc/passwd) || continue
+          [ -n "$user" ] || continue
+          bus="$udir/bus"
+          [ -S "$bus" ] || continue
+          # Discover the Wayland socket for this session (KDE Plasma 6 = wayland-0).
+          wl=$(${pkgs.coreutils}/bin/basename "$(${pkgs.coreutils}/bin/ls "$udir"/wayland-[0-9] 2>/dev/null | ${pkgs.coreutils}/bin/head -1)" 2>/dev/null || echo wayland-0)
+          start=$(${pkgs.coreutils}/bin/date +%s)
+          set +e
+          ${pkgs.util-linux}/bin/runuser -u "$user" -- env \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" \
+            XDG_RUNTIME_DIR="$udir" \
+            WAYLAND_DISPLAY="''${wl:-wayland-0}" \
+            QT_QPA_PLATFORM="wayland;xcb" \
+            ${pkgs.coreutils}/bin/timeout "$DELAY_SEC" \
+            ${pkgs.kdePackages.kdialog}/bin/kdialog \
+              --title "Hibernation in $DELAY_SEC seconds" \
+              --warningcontinuecancel "$MSG"
+          rc=$?
+          set -e
+          elapsed=$(( $(${pkgs.coreutils}/bin/date +%s) - start ))
+          if [ "$rc" = "1" ]; then
+            ${pkgs.util-linux}/bin/logger -t hibernate-prewarn -p daemon.warning \
+              "user $user CANCELLED hibernation via centered dialog"
+            exit 1
+          fi
+          # Count this as the countdown wait only if the dialog really ran
+          # (timed out, or the user pressed a button) rather than failing to display.
+          if [ "$elapsed" -ge 2 ] || [ "$rc" = "0" ]; then DID_WAIT=1; fi
+          break
+        done
+      ''}
+
+      # Fallback wait when no centered dialog ran (headless / display unavailable
+      # / dialog_center off) — the toast + terminal broadcast still gave notice.
+      if [ "$DID_WAIT" = "0" ] && [ "$DELAY_SEC" -gt 0 ]; then
         ${pkgs.coreutils}/bin/sleep "$DELAY_SEC"
       fi
     '';
