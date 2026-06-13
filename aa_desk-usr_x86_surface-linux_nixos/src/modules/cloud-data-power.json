@@ -37,9 +37,11 @@
     "delay_seconds": 30,
     "cancel_command": "sudo hibernate-cancel",
     "channels": {
-      "journal":     true,
-      "wall":        true,
-      "notify_send": true
+      "_comment": "journal = log; wall = broadcast to every terminal (carries the inline cancel command); notify_send = KDE corner toast (fallback); dialog_center = CENTERED kdialog modal with a Cancel button — the primary cancel UI, also serves as the countdown wait.",
+      "journal":       true,
+      "wall":          true,
+      "notify_send":   true,
+      "dialog_center": true
     }
   },
 
