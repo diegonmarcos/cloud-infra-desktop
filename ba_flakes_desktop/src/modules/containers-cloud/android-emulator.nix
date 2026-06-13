@@ -89,14 +89,22 @@ in
     ) || echo "[android-emulator] AVD pre-create skipped/failed; the launcher will create it on first run"
   '';
 
-  xdg.desktopEntries.android-emulator = {
-    name        = "Android Emulator";
-    genericName = "Android x86_64 (KVM)";
-    comment     = "Declarative x86_64 Android emulator (Android 34, KVM-accelerated)";
-    exec        = "${emulatorApp}/bin/android-emulator";
-    icon        = "phone";
-    terminal    = false;
-    type        = "Application";
-    categories  = [ "Development" "Emulator" ];
-  };
+  # Install the launcher entry into ~/.local/share/applications (XDG_DATA_HOME),
+  # NOT the nix profile. KDE live-watches XDG_DATA_HOME/applications (KDirWatch)
+  # and auto-rebuilds its ksycoca cache, so the app shows up in Kickoff/KRunner
+  # within seconds of `build.sh switch` — no relogin, no manual kbuildsycoca.
+  # (home-manager's xdg.desktopEntries lands in the profile share dir, which is
+  # in XDG_DATA_DIRS but only scanned on a full rebuild / at login → it would
+  # NOT appear mid-session, which is exactly what bit us here.)
+  xdg.dataFile."applications/android-emulator.desktop".text = ''
+    [Desktop Entry]
+    Type=Application
+    Name=Android Emulator
+    GenericName=Android x86_64 (KVM)
+    Comment=Declarative x86_64 Android emulator (Android 14, KVM-accelerated)
+    Exec=${emulatorApp}/bin/android-emulator
+    Icon=phone
+    Terminal=false
+    Categories=Development;Emulator;
+  '';
 }
