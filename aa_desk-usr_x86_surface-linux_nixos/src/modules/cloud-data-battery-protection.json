@@ -16,17 +16,17 @@
     "_comment": "Each voter independently verdicts {ok, low, critical}. Disabled voters are skipped at evaluation time (no fallback). Designed for OR-vote: ANY critical → action.",
 
     "bat_capacity": {
-      "_comment": "Original v1 check. Kernel-derived integer 0..100. Trusts SAM. Fast path; also drives low-warning logging. NOTE: this voter alone failed on 2026-04-30 — kept for early triggering on healthy SAM but no longer the only line of defense.",
+      "_comment": "Original v1 check. Kernel-derived integer 0..100. Trusts SAM. PRIMARY trigger: hibernate at critical_pct (owner requirement 2026-06-13: hibernation happens at 15% ONLY; above that the energy plan only locks/screensaves on idle). low_pct drives the advisory low-battery notification, no action.",
       "enabled": true,
-      "critical_pct": 5,
-      "low_pct": 15,
+      "critical_pct": 15,
+      "low_pct": 25,
       "require_status": "Discharging"
     },
 
     "bat_energy_ratio": {
-      "_comment": "Computes ratio from raw energy_now / energy_full µWh. Catches off-by-rounding cases the integer capacity field misses. Same SAM root as capacity, so freezes together — useful only against integer-rounding edge cases, not against full SAM freeze.",
+      "_comment": "Computes ratio from raw energy_now / energy_full µWh. Catches off-by-rounding cases the integer capacity field misses. Same SAM root as capacity, so freezes together — useful only against integer-rounding edge cases, not against full SAM freeze. Critical matches bat_capacity (15%).",
       "enabled": true,
-      "critical_pct": 5,
+      "critical_pct": 15,
       "require_status": "Discharging"
     },
 
@@ -43,15 +43,17 @@
     },
 
     "adp_offline_time": {
-      "_comment": "Wall-clock fail-safe. ADP1/online=0 (or status=Discharging) for ≥ max_minutes_off_ac since the last observation of {Charging} or {Full + AC online}. Defeats stuck capacity/voltage as long as ADP1 is honest. Trigger window must be tuned to the laptop's battery life on full charge — set below worst-case runtime so it cannot be raced by a real depletion.",
+      "_comment": "Wall-clock fail-safe, CAPACITY-GATED. Fires only when AC has been offline ≥ max_minutes_off_ac AND capacity ≤ require_capacity_below. 2026-06-13 INCIDENT: ungated, this hibernated at 100% the instant AC was unplugged — the last_charging anchor had gone stale because a full plugged-in Surface reports status='Not charging' (anchor-reset bug, fixed in the .nix to reset on ADP1/online=1). The capacity gate is the second guard: a healthy charge can never trip a wall-clock timer. require_capacity_below must be ≥ bat_capacity.critical_pct so this only ever acts as a backstop near the real critical level.",
       "enabled": true,
-      "max_minutes_off_ac": 240
+      "max_minutes_off_ac": 240,
+      "require_capacity_below": 20
     },
 
     "stuck_sam": {
-      "_comment": "Catches yesterday's exact failure mode. Triggers when the last min_static_polls samples show {capacity, energy_now, voltage_now} all unchanged AND we observed at least one on-battery indicator (status=Discharging or ac_online=0) within the window. min_static_polls × poll_seconds = grace period before declaring SAM wedged. Conservative: requires both staticness AND an on-battery hint to avoid false positives on a quiescent fully-charged plugged-in machine.",
+      "_comment": "SAM-freeze detector, CAPACITY-GATED. Triggers when the last min_static_polls samples show {capacity, energy_now, voltage_now} all unchanged AND an on-battery indicator was seen AND capacity ≤ require_capacity_below. The capacity gate (2026-06-13) stops a quiescent FULL battery on a brief unplug from reading as 'stuck + on-battery' and hibernating at 100%. Residual: a gauge frozen HIGH while truly draining is no longer caught — accepted per owner's 'hibernate at low battery ONLY'.",
       "enabled": true,
-      "min_static_polls": 5
+      "min_static_polls": 5,
+      "require_capacity_below": 20
     }
   },
 
@@ -168,6 +170,24 @@
         "description": "Disk swap (non-zram) ≥ /sys/power/image_size budget",
         "command": "awk 'NR>1 && $1!~/zram/ {sum+=$3} END{print sum*1024}' /proc/swaps; cat /sys/power/image_size",
         "expect_compare": "first_ge_second"
+      },
+      {
+        "id": "watchdog_critical_at_15",
+        "description": "deployed battery-watchdog hibernates bat_capacity at 15% (owner 2026-06-13: hibernate at 15% ONLY)",
+        "command": "grep -c 'le 15 ]' $(systemctl cat battery-watchdog.service | grep -oE '/nix/store/[^ ]*battery-watchdog-start[^ ]*' | head -1)",
+        "expect_regex": "^[1-9][0-9]*$"
+      },
+      {
+        "id": "watchdog_adp_capacity_gated",
+        "description": "REGRESSION GUARD (hibernate-at-100% 2026-06-13): adp_offline_time + stuck_sam are capacity-gated in the deployed watchdog, so a wall-clock/stuck voter can never fire on a healthy charge",
+        "command": "grep -c 'capfloor' $(systemctl cat battery-watchdog.service | grep -oE '/nix/store/[^ ]*battery-watchdog-start[^ ]*' | head -1)",
+        "expect_regex": "^[2-9]$"
+      },
+      {
+        "id": "watchdog_anchor_resets_on_ac_online",
+        "description": "REGRESSION GUARD: last_charging anchor resets on ADP1/online=1 (not only Charging/Full), so unplugging a full battery starts a fresh off-AC clock instead of an instant stale-anchor trip",
+        "command": "grep -c 'online_n. = .1.' $(systemctl cat battery-watchdog.service | grep -oE '/nix/store/[^ ]*battery-watchdog-start[^ ]*' | head -1)",
+        "expect_regex": "^[1-9][0-9]*$"
       }
     ]
   },

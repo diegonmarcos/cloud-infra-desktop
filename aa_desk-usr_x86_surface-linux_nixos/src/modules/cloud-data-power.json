@@ -4,10 +4,10 @@
   "enabled": true,
 
   "thresholds": {
-    "_comment": "Battery percentage thresholds shared by upowerd, PowerDevil notifications, and the watchdog's bat_capacity/bat_energy_ratio voters. critical_pct is where every healthy-SAM path tries to hibernate; the watchdog plus its 5 SAM-independent voters (stuck_sam, voltage_under_min, firmware_alarm, adp_offline_time, bat_energy_ratio) are the true safety net when SAM lies.",
-    "warn_pct": 25,
-    "low_pct": 15,
-    "critical_pct": 5
+    "_comment": "Battery percentage thresholds shared by upowerd + PowerDevil. critical_pct = where the healthy-SAM path (UPower CriticalPowerAction) hibernates; it MUST match the watchdog's bat_capacity.critical_pct so every layer agrees. Owner requirement 2026-06-13: hibernation at 15% ONLY — above that the energy plan only locks/screensaves on idle (idle_minutes), no capacity-based action until 15%. warn/low are advisory notifications above critical.",
+    "warn_pct": 30,
+    "low_pct": 20,
+    "critical_pct": 15
   },
 
   "idle_minutes": {
@@ -31,11 +31,11 @@
   },
 
   "pre_hibernate_warning": {
-    "_comment": "Universal pre-hibernate countdown. Injects an ExecStartPre on systemd-hibernate.service so EVERY hibernation path (battery-watchdog, UPower critical, KDE Plasma idle, manual `systemctl hibernate`) is delayed by `delay_minutes` and announces itself first via journal + wall + notify-send. Cancel with: `sudo systemctl stop systemd-hibernate.service`. Set delay_minutes=0 to disable the warning entirely (immediate hibernate). channels.* gate which announcement vectors are used.",
-    "_status_note": "DISABLED 2026-06-12 to match reality: configuration_pre-hibernate-warning.nix was removed from configuration.nix imports in the post-2026-05-16 simplification (UX-only module; the write-safety gates came back, this did not). Its tester checks were removed from testers.checks for the same reason. Re-import the module AND restore the checks together if re-enabling.",
-    "enabled": false,
-    "delay_minutes": 5,
-    "cancel_command": "sudo systemctl stop systemd-hibernate.service",
+    "_comment": "Universal pre-hibernate countdown + cancel gate. Injects an ExecStartPre on systemd-hibernate.service so EVERY hibernation path (battery-watchdog, UPower critical, KDE Plasma idle, manual `systemctl hibernate`) is delayed by `delay_seconds` and announces itself first via journal + wall (terminal broadcast, carries the inline cancel command) + notify-send (desktop). NO hibernation is immediate. Set delay_seconds=0 to disable the countdown (the invariant preflight gate still runs). channels.* gate which announcement vectors are used.",
+    "_status_note": "RE-ENABLED 2026-06-13 (owner requirement: ANY hibernation trigger must first pop up a 30s cancellable warning, on desktop AND in the terminal). Re-imported in configuration.nix; testers restored below.",
+    "enabled": true,
+    "delay_seconds": 30,
+    "cancel_command": "sudo hibernate-cancel",
     "channels": {
       "journal":     true,
       "wall":        true,
@@ -57,7 +57,7 @@
   "consumers": [
     "aa_nixos-surface_host/src/modules/configuration_security.nix (services.logind.lidSwitch family)",
     "aa_nixos-surface_host/src/modules/configuration_power.nix (UPower.conf + logind HandlePowerKey + kernelParams)",
-    "aa_nixos-surface_host/src/modules/configuration_pre-hibernate-warning.nix (NOT IMPORTED since 2026-05-16 simplification — see pre_hibernate_warning._status_note)",
+    "aa_nixos-surface_host/src/modules/configuration_pre-hibernate-warning.nix (ExecStartPre on systemd-hibernate.service — 30s cancellable warning gate, all hibernation paths — pre_hibernate_warning.*)",
     "ba_flakes_desktop/src/modules/desktop/plasma.nix (PowerDevil [BatteryManagement] + [*][SuspendAndShutdown] + HandleButtonEvents + kscreenlockerrc lock idle)"
   ],
 
@@ -92,13 +92,13 @@
         "id": "upower_critical_pct",
         "description": "/etc/UPower/UPower.conf PercentageCritical matches thresholds.critical_pct",
         "command": "awk -F= '/^PercentageCritical=/ {gsub(/[ \\t]/,\"\",$2); print $2}' /etc/UPower/UPower.conf",
-        "expect": "5"
+        "expect": "15"
       },
       {
         "id": "upower_low_pct",
         "description": "/etc/UPower/UPower.conf PercentageLow matches thresholds.low_pct",
         "command": "awk -F= '/^PercentageLow=/ {gsub(/[ \\t]/,\"\",$2); print $2}' /etc/UPower/UPower.conf",
-        "expect": "15"
+        "expect": "20"
       },
       {
         "id": "upower_critical_action",
@@ -116,13 +116,13 @@
         "id": "powerdevil_battery_critical_level",
         "description": "PowerDevil BatteryCriticalLevel matches thresholds.critical_pct (run as user)",
         "command": "awk -F= '/^BatteryCriticalLevel=/ {gsub(/[ \\t]/,\"\",$2); print $2}' $HOME/.config/powerdevilrc",
-        "expect": "5"
+        "expect": "15"
       },
       {
         "id": "powerdevil_battery_low_level",
         "description": "PowerDevil BatteryLowLevel matches thresholds.low_pct (run as user)",
         "command": "awk -F= '/^BatteryLowLevel=/ {gsub(/[ \\t]/,\"\",$2); print $2}' $HOME/.config/powerdevilrc",
-        "expect": "15"
+        "expect": "20"
       },
       {
         "id": "powerdevil_battery_idle_hibernate",
@@ -141,6 +141,24 @@
         "description": "kscreenlockerrc Daemon.Timeout (minutes) matches idle_minutes.battery.lock (run as user)",
         "command": "awk '/^\\[Daemon\\]/{f=1;next} /^\\[/{f=0} f && /^Timeout=/ {gsub(/.*=/,\"\"); gsub(/[ \\t]/,\"\"); print; exit}' $HOME/.config/kscreenlockerrc",
         "expect": "15"
+      },
+      {
+        "id": "pre_hibernate_warning_execstartpre_set",
+        "description": "systemd-hibernate.service has an ExecStartPre pointing at hibernate-prewarn — proves the universal 30s warning gate is wired on EVERY hibernation path",
+        "command": "systemctl cat systemd-hibernate.service | grep -c 'ExecStartPre=.*hibernate-prewarn'",
+        "expect_regex": "^[1-9][0-9]*$"
+      },
+      {
+        "id": "pre_hibernate_warning_delay_matches",
+        "description": "the prewarn wrapper bakes in delay_seconds from pre_hibernate_warning.delay_seconds (no immediate hibernation)",
+        "command": "grep -hoE 'DELAY_SEC=[0-9]+' $(systemctl cat systemd-hibernate.service | grep -oE '/nix/store/[^ ]*hibernate-prewarn[^ ]*' | head -1)",
+        "expect": "DELAY_SEC=30"
+      },
+      {
+        "id": "pre_hibernate_warning_cancel_in_path",
+        "description": "hibernate-cancel command is installed so the inline terminal cancel instruction works",
+        "command": "command -v hibernate-cancel >/dev/null && echo ok",
+        "expect": "ok"
       }
     ]
   },

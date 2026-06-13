@@ -4,10 +4,10 @@
   "enabled": true,
 
   "thresholds": {
-    "_comment": "Battery percentage thresholds shared by upowerd, PowerDevil notifications, and the watchdog's bat_capacity/bat_energy_ratio voters. critical_pct is where every healthy-SAM path tries to hibernate; the watchdog plus its 5 SAM-independent voters (stuck_sam, voltage_under_min, firmware_alarm, adp_offline_time, bat_energy_ratio) are the true safety net when SAM lies.",
-    "warn_pct": 25,
-    "low_pct": 15,
-    "critical_pct": 5
+    "_comment": "Battery percentage thresholds shared by upowerd + PowerDevil. critical_pct = where the healthy-SAM path hibernates; MUST match the host replica + watchdog bat_capacity.critical_pct. Owner requirement 2026-06-13: hibernation at 15% ONLY; above that, idle only locks/screensaves. REPLICA — keep in sync with aa_desk-usr_x86_surface-linux_nixos/src/modules/cloud-data-power.json (Nix pure-eval flakes can't read across source roots).",
+    "warn_pct": 30,
+    "low_pct": 20,
+    "critical_pct": 15
   },
 
   "idle_minutes": {
@@ -78,13 +78,13 @@
         "id": "upower_critical_pct",
         "description": "/etc/UPower/UPower.conf PercentageCritical matches thresholds.critical_pct",
         "command": "awk -F= '/^PercentageCritical=/ {gsub(/[ \\t]/,\"\",$2); print $2}' /etc/UPower/UPower.conf",
-        "expect": "5"
+        "expect": "15"
       },
       {
         "id": "upower_low_pct",
         "description": "/etc/UPower/UPower.conf PercentageLow matches thresholds.low_pct",
         "command": "awk -F= '/^PercentageLow=/ {gsub(/[ \\t]/,\"\",$2); print $2}' /etc/UPower/UPower.conf",
-        "expect": "15"
+        "expect": "20"
       },
       {
         "id": "upower_critical_action",
@@ -102,13 +102,13 @@
         "id": "powerdevil_battery_critical_level",
         "description": "PowerDevil BatteryCriticalLevel matches thresholds.critical_pct (run as user)",
         "command": "awk -F= '/^BatteryCriticalLevel=/ {gsub(/[ \\t]/,\"\",$2); print $2}' $HOME/.config/powerdevilrc",
-        "expect": "5"
+        "expect": "15"
       },
       {
         "id": "powerdevil_battery_low_level",
         "description": "PowerDevil BatteryLowLevel matches thresholds.low_pct (run as user)",
         "command": "awk -F= '/^BatteryLowLevel=/ {gsub(/[ \\t]/,\"\",$2); print $2}' $HOME/.config/powerdevilrc",
-        "expect": "15"
+        "expect": "20"
       },
       {
         "id": "powerdevil_battery_idle_hibernate",

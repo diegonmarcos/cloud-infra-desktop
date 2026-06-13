@@ -91,10 +91,17 @@
     #     ConditionKernelCommandLine=noresume, imported ONLY by the rescue
     #     specialisations (configuration_rescue*.nix), not here.
     #
+    # IN again (2026-06-13, owner requirement — no immediate hibernation):
+    #   - configuration_pre-hibernate-warning.nix — universal ExecStartPre on
+    #     systemd-hibernate.service: EVERY hibernation path (watchdog, UPower,
+    #     idle, manual) is delayed 30s and announced on desktop (notify-send)
+    #     AND terminal (wall, with the inline cancel command) before it runs.
+    #     Also still carries the invariant preflight gate.
+    #
     # OUT (left as dead code in tree):
-    #   - configuration_pre-hibernate-warning.nix   (UX countdown)
     #   - configuration_pool_witness.nix            (out-of-band mount detector)
     ./configuration_swapfile_resume_check.nix
+    ./configuration_pre-hibernate-warning.nix     # 2026-06-13: 30s cancellable warning gate on every hibernation path (desktop + terminal); knobs in cloud-data-power.json pre_hibernate_warning
     ./configuration_session-checkpoint.nix        # 2026-06-12: periodic read-only btrfs snapshot of @home-diego — a session file on disk AT ALL TIMES (complements the event-driven hibernate image); policy in cloud-data-session-checkpoint.json
     ./configuration_kernel_preservation.nix       # POST-2026-05-15: mirror kernel+initrd nix-store closure to /boot so a pool wipe never destroys the prebuilt kernel
     ./configuration_activation_verify.nix         # POST-2026-05-16: loud post-activation invariant checks (users in shadow, swap not on btrfs, critical paths exist) so silent failures don't slip through
