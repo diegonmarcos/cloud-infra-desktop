@@ -205,7 +205,7 @@ The session is about to be saved to disk and the machine powered off.
 <b>To cancel from a terminal, copy &amp; paste:</b>
 <tt><big>$CANCEL_CMD</big></tt>
 
-<i>…or press “Cancel (stay awake)” below.</i>"
+<i>...or press 'Cancel (stay awake)' below.</i>"
       DID_WAIT=0
       ${lib.optionalString chDialogCenter ''
         for udir in /run/user/*; do
