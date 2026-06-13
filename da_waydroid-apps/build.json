@@ -1,0 +1,113 @@
+{
+  "project": {
+    "name": "waydroid-apps",
+    "version": "0.1.0",
+    "description": "Declarative, data-driven provisioning of a curated Android app set into the local Waydroid (LineageOS) container, plus seeding of the launcher hotseat ('bottom bar'). Apps are pinned in src/apps.lock.json (F-Droid suggestedVersionCode + nix-prefetched sha256), fetched reproducibly by src/flake.nix, installed with `waydroid app install`, and arranged in the dock from each app's `dock_order`. NOTHING is hardcoded in the engine: package list, dock order, F-Droid endpoints, Waydroid data roots and the launcher DB are all read from this file or discovered at runtime (the engine introspects the live `favorites` schema before writing — the DB filename is grid-dependent, e.g. launcher_6_by_5.db, so it is globbed, never assumed)."
+  },
+  "paths": {
+    "src": "src",
+    "dist": "dist",
+    "apk_dir": "dist/apks",
+    "lockfile": "src/apps.lock.json",
+    "flake": "src",
+    "backup_dir": "dist/backups"
+  },
+  "fdroid": {
+    "api_url": "https://f-droid.org/api/v1/packages",
+    "repo_url": "https://f-droid.org/repo"
+  },
+  "waydroid": {
+    "_doc": "Host-side facts. data_roots is a candidate list; the engine picks the first that exists (multi-machine reproducible). launcher_package is the LineageOS Launcher3. launcher_db_glob is grid-dependent (launcher_<cols>_by_<rows>.db) so it MUST be globbed under the launcher's databases/ dir, never hardcoded. hotseat_container=-101 and item_type_application=0 are AOSP Launcher3 constants.",
+    "data_roots": [
+      "/home/diego/.local/share/waydroid/data",
+      "/var/lib/waydroid/data"
+    ],
+    "launcher_package": "com.android.launcher3",
+    "launcher_db_glob": "data/com.android.launcher3/databases/launcher_*.db",
+    "hotseat_container": -101,
+    "item_type_application": 0,
+    "launch_flags": "0x10200000"
+  },
+  "dock": {
+    "_doc": "The hotseat has a fixed slot count derived from the launcher grid (6 on a 6_by_5 grid). Apps with a non-null dock_order are placed left-to-right by ascending dock_order (slot = dock_order - 1). Apps with dock_order=null are installed but live only in the app drawer. To re-arrange the bottom bar, edit dock_order values here and re-run `build.sh dock` — no code changes.",
+    "max_slots_autodetect": true
+  },
+  "apps": [
+    {
+      "package": "com.diegonmarcos.superapp",
+      "label": "Cloud-SuperApp",
+      "group": "core",
+      "dock_order": 1,
+      "source": {
+        "type": "local",
+        "build_project": "../ea_cloud-superapp",
+        "build_variant_env": "SUPERAPP_VARIANT",
+        "build_variant": "x86_64",
+        "apk_glob": "dist/*x86_64*.apk"
+      }
+    },
+    {
+      "package": "com.foxdebug.acode",
+      "label": "Acode",
+      "group": "ide",
+      "dock_order": 2,
+      "source": { "type": "fdroid" }
+    },
+    {
+      "package": "com.amaze.filemanager",
+      "label": "Amaze",
+      "group": "ide",
+      "dock_order": 3,
+      "source": { "type": "fdroid" }
+    },
+    {
+      "package": "eu.faircode.email",
+      "label": "FairMail",
+      "group": "comms",
+      "dock_order": 4,
+      "source": { "type": "fdroid" }
+    },
+    {
+      "package": "com.mattermost.rnbeta",
+      "label": "Mattermost",
+      "group": "comms",
+      "dock_order": 5,
+      "source": { "type": "fdroid" }
+    },
+    {
+      "package": "im.vector.app",
+      "label": "Element",
+      "group": "comms",
+      "dock_order": 6,
+      "source": { "type": "fdroid" }
+    },
+    {
+      "package": "com.termux.nix",
+      "label": "Nix-on-Droid",
+      "group": "ide",
+      "dock_order": null,
+      "source": { "type": "fdroid" }
+    },
+    {
+      "package": "org.fossify.phone",
+      "label": "Fossify Phone",
+      "group": "comms",
+      "dock_order": null,
+      "source": { "type": "fdroid" }
+    },
+    {
+      "package": "org.fossify.contacts",
+      "label": "Fossify Contacts",
+      "group": "comms",
+      "dock_order": null,
+      "source": { "type": "fdroid" }
+    },
+    {
+      "package": "org.fossify.messages",
+      "label": "Fossify Messages",
+      "group": "comms",
+      "dock_order": null,
+      "source": { "type": "fdroid" }
+    }
+  ]
+}
