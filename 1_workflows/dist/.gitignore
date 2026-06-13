@@ -117,6 +117,12 @@ ea_cloud-comms/**/*.keystore
 ea_cloud-comms/**/*.jks
 ea_cloud-ide/**/*.keystore
 ea_cloud-ide/**/*.jks
+## Re-ignore Gradle build outputs inside the whitelisted ea_cloud-ide/ tree
+## (the !ea_cloud-ide/** whitelist would otherwise track build/.gradle dirs).
+## Added 2026-06-13.
+ea_cloud-ide/.gradle/
+ea_cloud-ide/build/
+ea_cloud-ide/**/build/
 ## Re-ignore build OUTPUTS inside the whitelisted Android projects — the
 ## !ea_cloud-*/** whitelists would otherwise make a locally-built APK / dist/
 ## tree committable (each APK is ~6-40 MB). Build artifacts are published to
