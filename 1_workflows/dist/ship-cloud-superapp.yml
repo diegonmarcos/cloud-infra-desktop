@@ -74,9 +74,16 @@ env:
 
 jobs:
   build_and_publish:
-    name: "Build APK + Push (ubuntu-latest, native amd64)"
+    name: "Build APK + Push (${{ matrix.abi }})"
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      # One job per ABI variant (build.json::release.variants[].id). arm64 is
+      # the canonical phone build; x86_64 is for Waydroid / desktop emulators.
+      # fail-fast: false so an x86_64 hiccup never blocks the arm64 release.
+      fail-fast: false
+      matrix:
+        abi: [arm64, x86_64]
 
     steps:
       - name: Checkout
@@ -177,6 +184,9 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          # SUPERAPP_VARIANT selects the ABI variant (build.json::release
+          # .variants[].id) → engine overrides ABI filter + artifact name.
+          SUPERAPP_VARIANT: ${{ matrix.abi }}
           # app/build.gradle shells out to `gh run list` at gradle config
           # phase to bake recent CI run durations into BuildConfig
           # (Configs → About → Stack: "Build avg time" + "Build last").
@@ -195,7 +205,7 @@ jobs:
       - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Cloud-SuperApp-${{ steps.variant.outputs.variant }}-${{ github.sha }}
+          name: Cloud-SuperApp-${{ matrix.abi }}-${{ steps.variant.outputs.variant }}-${{ github.sha }}
           path: ${{ env.WORK_DIR }}/dist/*.apk
           if-no-files-found: error
           retention-days: 30
@@ -212,6 +222,7 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          SUPERAPP_VARIANT: ${{ matrix.abi }}
           GITHUB_SHA: ${{ github.sha }}
         run: ./build.sh oras-push
 
@@ -231,6 +242,7 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          SUPERAPP_VARIANT: ${{ matrix.abi }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF: ${{ github.ref }}
