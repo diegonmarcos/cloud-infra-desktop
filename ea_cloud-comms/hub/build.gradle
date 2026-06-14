@@ -223,12 +223,18 @@ android {
     // key. Keystore generated once in CI (cached) at hub/keystores/comms.keystore.
     signingConfigs {
         debug {
-            def ks = file('keystores/comms.keystore')
+            // Shared Cloud-constellation key from vault (build.sh exports
+            // ANDROID_KEYSTORE_*; CI via vault checkout + SOPS_AGE_KEY). Same
+            // key across all constellation apps so the fleet updater can install
+            // updates. Falls back to the legacy comms keystore for local dev.
+            def envStore = System.getenv("ANDROID_KEYSTORE_FILE")
+            def legacy   = file('keystores/comms.keystore')
+            def ks = (envStore != null && !envStore.isEmpty() && file(envStore).exists()) ? file(envStore) : legacy
             if (ks.exists()) {
                 storeFile     ks
-                storePassword 'android'
-                keyAlias      'commskey'
-                keyPassword   'android'
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: 'android'
+                keyAlias      System.getenv("ANDROID_KEY_ALIAS")         ?: 'commskey'
+                keyPassword   System.getenv("ANDROID_KEY_PASSWORD")      ?: 'android'
             }
         }
     }
@@ -236,11 +242,13 @@ android {
     buildTypes {
         debug {
             debuggable true
+            signingConfig signingConfigs.debug
         }
         release {
             debuggable true
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug
         }
     }
 
