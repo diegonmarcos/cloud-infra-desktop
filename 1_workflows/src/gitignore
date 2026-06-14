@@ -94,6 +94,13 @@ ea_*-*/
 ## trackers moved into ea_upstreams-sources/ 2026-06-12.
 !ea_cloud-ide/
 !ea_cloud-ide/**
+## EXCEPTION: ea_cloud-nav/ — dedicated maps/navigation/tracker app. libs:maps
+## (MapLibre renderer + GPS tracker + Timeline + MyTrips) was lifted OUT of
+## ea_cloud-superapp into its own modularized-monolith APK. Owns a `-` so it
+## matches the ea_*-*/ ignore above; whitelist the whole owned subtree exactly
+## like ea_cloud-superapp / ea_cloud-comms / ea_cloud-ide. Added 2026-06-14.
+!ea_cloud-nav/
+!ea_cloud-nav/**
 ## Re-ignore signing keystores inside the whitelisted Android projects. The
 ## !ea_cloud-*/** whitelists above would otherwise override the *.jks/*.keystore
 ## rules (lines ~27-28) and make a locally-generated keystore committable.
@@ -105,12 +112,17 @@ ea_cloud-comms/**/*.keystore
 ea_cloud-comms/**/*.jks
 ea_cloud-ide/**/*.keystore
 ea_cloud-ide/**/*.jks
+ea_cloud-nav/**/*.keystore
+ea_cloud-nav/**/*.jks
 ## Re-ignore Gradle build outputs inside the whitelisted ea_cloud-ide/ tree
 ## (the !ea_cloud-ide/** whitelist would otherwise track build/.gradle dirs).
 ## Added 2026-06-13.
 ea_cloud-ide/.gradle/
 ea_cloud-ide/build/
 ea_cloud-ide/**/build/
+ea_cloud-nav/.gradle/
+ea_cloud-nav/build/
+ea_cloud-nav/**/build/
 ## Re-ignore build OUTPUTS inside the whitelisted Android projects — the
 ## !ea_cloud-*/** whitelists would otherwise make a locally-built APK / dist/
 ## tree committable (each APK is ~6-40 MB). Build artifacts are published to
@@ -121,6 +133,8 @@ ea_cloud-comms/dist/
 ea_cloud-comms/**/*.apk
 ea_cloud-ide/dist/
 ea_cloud-ide/**/*.apk
+ea_cloud-nav/dist/
+ea_cloud-nav/**/*.apk
 ## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/
