@@ -46,8 +46,21 @@ let
           bad=$(${pkgs.findutils}/bin/find "$target" ! -user ${u.name} -print 2>/dev/null | head -n 5)
           if [ -n "$bad" ]; then
             echo "[home-ownership-repair] ${u.name}: wrong-owner files under $target — repairing"
-            echo "$bad" | while read -r f; do echo "  $f"; done
-            ${pkgs.coreutils}/bin/chown -R ${u.name}:${u.group} "$target"
+            # Journald (tag: home-ownership-repair) so a recurring root-write
+            # leak is greppable post-boot: journalctl -t home-ownership-repair
+            ${pkgs.util-linux}/bin/logger -t home-ownership-repair -p user.warning \
+              "${u.name}: root-owned files leaked under $target — repairing via chown -R ${u.name}:${u.group}"
+            echo "$bad" | while read -r f; do
+              echo "  $f"
+              ${pkgs.util-linux}/bin/logger -t home-ownership-repair -p user.warning "  offending path: $f"
+            done
+            if ${pkgs.coreutils}/bin/chown -R ${u.name}:${u.group} "$target"; then
+              ${pkgs.util-linux}/bin/logger -t home-ownership-repair -p user.info \
+                "${u.name}: ownership repaired on $target"
+            else
+              ${pkgs.util-linux}/bin/logger -t home-ownership-repair -p user.err \
+                "${u.name}: chown FAILED on $target — home-manager apply may still break"
+            fi
           fi
         fi
       done
