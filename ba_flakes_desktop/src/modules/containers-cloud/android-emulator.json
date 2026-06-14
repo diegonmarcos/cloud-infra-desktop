@@ -1,15 +1,14 @@
 {
   "_doc": "Single source of truth for the declarative Android Emulator desktop app (containers-cloud/android-emulator.nix). Profiles are GENERATED as forms × tiers (phone/tablet × light/full) — never a hardcoded list. `common_hw`/`tiers`/`forms` values are raw AVD config.ini keys, merged (common → tier → form; form wins) into each AVD's config.ini idempotently on `build.sh switch`. `provisioning` drives the idempotent post-boot adb steps run by the launcher.",
 
-  "_doc_arches": "Profiles are GENERATED = forms × arches × tiers → 8: {Phone,Tablet}×{x86,arm}×{full,light}. x86 runs KVM-accelerated (fast — games/dev); arm runs the CPU in software (QEMU TCG, no KVM → faithful ARM test of arm64 APKs, but slower). Each arch carries its own system image + abi.type written into the AVD.",
+  "_doc_arches": "Profiles are GENERATED = forms × arches × tiers → 8: {Phone,Tablet}×{x86,arm}×{full,light}. x86 runs KVM-accelerated (fast — games/dev); arm runs the CPU in software (QEMU TCG, no KVM → faithful ARM test of arm64 APKs, but slower). Each arch carries its own system image, abi.type (→ AVD config.ini AND the install-time APK variant Cloud-SuperApp-<abi>.apk), and gpu_mode. gpu_mode is per-arch because hardware-GLES paths differ: x86 → `angle_indirect` (ANGLE translates guest GLES → Vulkan → real Intel Xe hardware; this is the actual GPU acceleration, NOT a software fallback — the host Vulkan ICD is wired via VK_ICD_FILENAMES in the launcher); arm → `swiftshader_indirect` (a TCG-emulated arm64 guest can't reliably drive host-GL translation, so faithful software GLES is the correct choice — arm profiles are for ABI/behaviour correctness, not frame rate). Change a value here → fast `switch` (system images are nix-store-cached; no re-download).",
   "arches": {
-    "x86": { "image": "system-images;android-34;google_apis;x86_64",   "abi": "x86_64",    "label": "x86" },
-    "arm": { "image": "system-images;android-34;google_apis;arm64-v8a", "abi": "arm64-v8a", "label": "arm" }
+    "x86": { "image": "system-images;android-34;google_apis;x86_64",   "abi": "x86_64",    "label": "x86", "gpu_mode": "angle_indirect" },
+    "arm": { "image": "system-images;android-34;google_apis;arm64-v8a", "abi": "arm64-v8a", "label": "arm", "gpu_mode": "swiftshader_indirect" }
   },
 
   "common_hw": {
     "hw.gpu.enabled": "yes",
-    "hw.gpu.mode": "host",
     "hw.keyboard": "yes",
     "showDeviceFrame": "no"
   },
@@ -25,7 +24,7 @@
   },
 
   "provisioning": {
-    "_doc": "Idempotent post-boot steps applied via adb each launch. system_dark → `cmd uimode night yes`. home_launcher set via `cmd package set-home-activity`. superapp_launcher_theme pre-seeds launcher_theme_prefs.xml (key `theme`) via `adb run-as` (debug APK). apps[] installed if the package is absent; apk path may use $HOME.",
+    "_doc": "Idempotent post-boot steps applied via adb each launch. system_dark → `cmd uimode night yes`. home_launcher set via `cmd package set-home-activity`. superapp_launcher_theme pre-seeds launcher_theme_prefs.xml (key `theme`) via `adb run-as` (debug APK). apps[] installed if the package is absent; apk path may use $HOME and the `{abi}` token, which the launcher replaces with the booted profile's ABI (x86_64 / arm64-v8a) so each arch installs its matching native APK — a wrong-ABI install would defeat the 'real ARM test' goal. Build both once: `cd ~/git/unix/ea_cloud-superapp && SUPERAPP_VARIANT=x86_64 ./build.sh build && SUPERAPP_VARIANT=arm64-v8a ./build.sh build`.",
     "system_dark": true,
     "settings": [
       { "ns": "global", "key": "window_animation_scale", "value": "0" },
@@ -36,7 +35,7 @@
     "superapp_pkg": "com.diegonmarcos.superapp",
     "superapp_launcher_theme": "cloud_minimalist_black",
     "apps": [
-      { "pkg": "com.diegonmarcos.superapp", "apk": "$HOME/git/unix/ea_cloud-superapp/dist/Cloud-SuperApp-x86_64.apk" }
+      { "pkg": "com.diegonmarcos.superapp", "apk": "$HOME/git/unix/ea_cloud-superapp/dist/Cloud-SuperApp-{abi}.apk" }
     ]
   }
 }
