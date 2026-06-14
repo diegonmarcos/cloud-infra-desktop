@@ -116,6 +116,19 @@ cmd_run() {
   GBINDER_CONFIG_FILE="$GBINDER_CONF" WAYDROID_SENSORS_CONF="$CONF" exec "$DIST/$BINARY_NAME" "$dev"
 }
 
+# ── wait_boot: block until the framework is fully up (boot-safety gate) ─────
+# The HAL must NOT be present during SensorService init or it deadlocks the boot.
+wait_boot() {
+  detect_priv
+  local prop to t=0; prop="$(get waydroid.boot_gate_prop)"; to="$(get waydroid.boot_gate_timeout_s)"
+  log "boot-gate: waiting for $prop=1 (up to ${to}s) before starting the HAL…"
+  while [ "$t" -lt "$to" ]; do
+    [ "$(wd_shell getprop "$prop" 2>/dev/null | tr -d '\r')" = "1" ] && { log "boot-gate: framework up."; return 0; }
+    sleep 3; t=$((t+3))
+  done
+  die "boot-gate: framework not up within ${to}s ($prop != 1) — refusing to start the HAL (would risk hanging boot)"
+}
+
 # ── stopstub: kill the in-container stub HAL so the HIDL name is free ───────
 cmd_stopstub() {
   session_running || die "Waydroid session is not RUNNING"
@@ -157,7 +170,8 @@ cmd_install() {
     const fs=require('fs');let t=fs.readFileSync('$UNIT_TPL','utf8');
     const r={'@BINARY@':'$DIST/$BINARY_NAME','@CONF@':'$CONF','@DEVICE@':'$dev','@WAYDROID@':'$wbin',
              '@STUBPROP@':'$(get waydroid.stub_prop)','@STUBSVC@':'$(get waydroid.stub_service)',
-             '@STUBPROC@':'$(get waydroid.stub_process)','@FWRESTART@':'$(get waydroid.framework_restart)'};
+             '@STUBPROC@':'$(get waydroid.stub_process)','@FWRESTART@':'$(get waydroid.framework_restart)',
+             '@BOOTGATE@':'$(get waydroid.boot_gate_prop)','@BOOTTIMEOUT@':'$(get waydroid.boot_gate_timeout_s)'};
     for(const k in r) t=t.split(k).join(r[k]);
     fs.writeFileSync('$rendered',t);
   "
@@ -194,6 +208,7 @@ cmd_enable() {
   [ -f "$CONF" ] || cmd_conf
   local unit dev; dev="$(get binder.device)"
   unit="$(get runtime.unit_name)"; unit="${unit%.service}"
+  wait_boot              # boot-safety: never register the HAL during SensorService init
   cmd_bootprops          # ensure framework boots with stub disabled (applies next container start)
   cmd_stopstub
   log "starting transient root service '$unit' (systemd-run)…"

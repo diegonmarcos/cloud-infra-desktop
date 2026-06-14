@@ -148,13 +148,21 @@ void SensorFW::RegisterSensors(sensor_event_cb_t cb, void* userdata) {
 
 void SensorFW::pollOnce() {
     if (!mCb) return;
-    if (!mEnabled[ID_ACCELEROMETER]) return;
-    double ax, ay, az;
-    if (!readAccelRaw(&ax, &ay, &az)) return;
-    mAccelX = (int) lround(ax * 100.0);   // centi-m/s^2 (Sensors.cpp /100)
-    mAccelY = (int) lround(ay * 100.0);
-    mAccelZ = (int) lround(az * 100.0);
-    mAccelTs = (uint64_t) g_get_monotonic_time() * 1000ULL;  // ns, strictly increasing
+    // Only sample IIO + publish a fresh reading while the accelerometer is enabled.
+    if (mEnabled[ID_ACCELEROMETER]) {
+        double ax, ay, az;
+        if (readAccelRaw(&ax, &ay, &az)) {
+            mAccelX = (int) lround(ax * 100.0);   // centi-m/s^2 (Sensors.cpp /100)
+            mAccelY = (int) lround(ay * 100.0);
+            mAccelZ = (int) lround(az * 100.0);
+            mAccelTs = (uint64_t) g_get_monotonic_time() * 1000ULL;  // ns, strictly increasing
+        }
+    }
+    // ALWAYS wake the consumer's poll() loop, even when no sensor is enabled. The upstream
+    // callback only enqueues an event when GetAccelerometerEvent() returns 0 (enabled), but
+    // it always quits the waiting g_main_loop — so poll() returns within mPollMs instead of
+    // blocking forever. This is what stops SensorService's init-time poll() (issued before
+    // any activate()) from deadlocking system_server and freezing Waydroid on boot.
     mCb(mUserdata, ID_ACCELEROMETER);
 }
 
@@ -175,7 +183,9 @@ int SensorFW::DisableSensorEvents(int id) {
 }
 
 int SensorFW::GetAccelerometerEvent(uint64_t* ts, int* x, int* y, int* z) {
-    if (!mAvailable[ID_ACCELEROMETER]) return -1;
+    // Gate on enabled (not just available): the timer wakes poll() every interval even
+    // when disabled, so returning -1 here keeps those wakeups event-free (no spurious data).
+    if (!mAvailable[ID_ACCELEROMETER] || !mEnabled[ID_ACCELEROMETER]) return -1;
     *ts = mAccelTs; *x = mAccelX; *y = mAccelY; *z = mAccelZ;
     return 0;
 }
