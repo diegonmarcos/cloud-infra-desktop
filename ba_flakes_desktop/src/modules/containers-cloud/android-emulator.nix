@@ -2,27 +2,32 @@
 #
 # Declarative, DATA-DRIVEN Android emulator desktop app for the Surface.
 #
-# One app-menu entry ("Android Emulator") that PROMPTS (kdialog) for one of 4
-# profiles — {phone,tablet} × {light,full} — then boots an x86_64 KVM emulator
-# with that profile's hardware and PROVISIONS it: installs the cloud-superapp
-# x86_64 APK, sets it as the device HOME launcher, turns on Android system dark
-# mode, and pre-seeds the SuperApp's own launcher theme.
+# One app-menu entry ("Android Emulator") that PROMPTS (kdialog) for one of 8
+# profiles — {phone,tablet} × {x86,arm} × {light,full} — then boots an emulator
+# with that profile's hardware and PROVISIONS it: installs the matching-ABI
+# cloud-superapp APK, sets it as the device HOME launcher, turns on Android
+# system dark mode, and pre-seeds the SuperApp's own launcher theme.
+#
+# x86 profiles = KVM-accelerated CPU + REAL Intel-Xe GPU (ANGLE→Vulkan) for game
+# design/dev; arm profiles = TCG software CPU + software GLES for faithful
+# arm64-v8a ABI/behaviour testing of the apps.
 #
 # All config lives in ./android-emulator.json (single source of truth):
-#   - profiles are GENERATED = forms × tiers (no hardcoded list)
+#   - profiles are GENERATED = forms × arches × tiers (no hardcoded list)
 #   - hardware = raw config.ini keys, merged common→tier→form and written into
 #     each AVD's config.ini idempotently on `build.sh switch`
 #   - provisioning[] drives the idempotent post-boot adb steps
 #
 # Two phases:
-#   Phase 1 (build-time, declarative): activation creates the 4 AVDs + merges
+#   Phase 1 (build-time, declarative): activation creates the 8 AVDs + merges
 #           their config.ini from the JSON. Same JSON → same AVDs every switch.
 #   Phase 2 (runtime, idempotent):     the launcher boots the chosen profile and
 #           runs the provisioner (no-op once already applied).
 #
-# Prebuilt Google emulator + system image come from nix (autoPatchelf'd); KVM
-# accel works because diego ∈ kvm group (host configuration_security.nix).
-# Separate from the superapp's own arm64 test rig (ea_cloud-superapp emulator).
+# Prebuilt Google emulator + both system images come from nix (autoPatchelf'd);
+# x86 KVM accel works because diego ∈ kvm group (host configuration_security.nix).
+# Once the images are nix-store-cached, changing any JSON value (tiers/forms/
+# arches/gpu/provisioning) is a FAST switch — no image re-download.
 { config, pkgs, lib, ... }:
 
 let
@@ -69,7 +74,9 @@ let
           avd   = "superapp-${fname}-${aname}-${tname}";
           label = "${cap fname}_${arch.label}_${tname}";
           image = arch.image;
-          hw    = cfg.common_hw // thw // fhw // { "abi.type" = arch.abi; };
+          abi   = arch.abi;
+          gpu   = arch.gpu_mode;          # per-arch GPU mode (see android-emulator.json)
+          hw    = cfg.common_hw // thw // fhw // { "abi.type" = arch.abi; "hw.gpu.mode" = arch.gpu_mode; };
         }
       ) (lib.attrNames cfg.tiers)
     ) (lib.attrNames cfg.arches)
@@ -78,27 +85,34 @@ let
   # "key=value key=value …" for a profile's hardware (values are space-free).
   hwPairs = p: lib.concatStringsSep " " (lib.mapAttrsToList (k: v: "${k}=${v}") p.hw);
 
-  # kdialog --menu tag/description pairs, e.g.  phone-full "Phone · Full (6144M/6c)"
+  # kdialog --menu tag/description pairs, e.g.  phone-x86-full "Phone_x86_full (6144M/6c)"
   menuArgs = lib.concatStringsSep " " (map (p:
     ''${p.id} "${p.label} (${p.hw."hw.ramSize"}/${p.hw."hw.cpu.ncore"}c)"'') profiles);
 
+  # case body mapping the chosen profile id → its GPU mode + ABI (data-driven;
+  # x86 → angle_indirect = hardware GLES via Intel Vulkan, arm → swiftshader_indirect).
+  profCase = lib.concatMapStringsSep "\n      " (p:
+    ''${p.id}) gpu="${p.gpu}"; abi="${p.abi}" ;;'') profiles;
+
   prov = cfg.provisioning;
 
-  # Per-app install block (idempotent). $HOME inside the JSON apk path expands
-  # at runtime.
+  # Per-app install block (idempotent). $HOME inside the JSON apk path expands at
+  # runtime; the `{abi}` token is replaced with the booted profile's ABI ($abi,
+  # set by the launcher) so an arm profile installs the arm64 APK and x86 the
+  # x86_64 one — a wrong-ABI install would defeat the faithful-ARM-test goal.
   installApps = lib.concatMapStringsSep "\n" (a: ''
     if ! "$ADB" shell pm list packages 2>/dev/null | ${pkgs.gawk}/bin/awk -v p="${a.pkg}" 'index($0,p){f=1} END{exit f?0:1}'; then
-      APK="${a.apk}"
+      APK="${a.apk}"; APK="''${APK//'{abi}'/$abi}"
       if [ -f "$APK" ]; then
-        echo "[provision] installing ${a.pkg}…"; "$ADB" install -r "$APK" || true
+        echo "[provision] installing ${a.pkg} ($abi)…"; "$ADB" install -r "$APK" || true
       else
-        kdialog --error "APK not found:\n$APK\n\nBuild it once:\n  cd ~/git/unix/ea_cloud-superapp && SUPERAPP_VARIANT=x86_64 ./build.sh build" 2>/dev/null || true
+        kdialog --error "APK not found:\n$APK\n\nBuild it once:\n  cd ~/git/unix/ea_cloud-superapp && SUPERAPP_VARIANT=$abi ./build.sh build" 2>/dev/null || true
       fi
     fi
   '') prov.apps;
 
-  # System settings (data-driven) — e.g. disable animations so the software-GLES
-  # renderer (SwiftShader on this host) isn't drowning in animation frames.
+  # System settings (data-driven) — e.g. disable window/transition animations.
+  # Harmless on hardware (x86) and a real help on the software-GLES arm guests.
   applySettings = lib.optionalString (prov ? settings) (lib.concatMapStringsSep "\n" (s:
     ''"$ADB" shell settings put ${s.ns} ${s.key} ${s.value} >/dev/null 2>&1 || true'') prov.settings);
 
@@ -133,13 +147,21 @@ let
       exit 1
     fi
 
-    # 2. boot the chosen profile. GPU mode is data-driven from the JSON
-    #    (common_hw."hw.gpu.mode"): swiftshader_indirect = software GL, the
-    #    reliable choice on NixOS where the emulator's bundled Vulkan/host-GL
-    #    can't load (`-gpu host` silently fails to open a window). CPU stays
-    #    KVM-accelerated. Backgrounded; its window opens.
-    echo "[android-emulator] booting $avd (gpu=${cfg.common_hw."hw.gpu.mode"})…"
-    "$EMU" -avd "$avd" -gpu ${cfg.common_hw."hw.gpu.mode"} -no-boot-anim >/dev/null 2>&1 &
+    # resolve the chosen profile's GPU mode + ABI (data-driven, per-arch)
+    gpu="swiftshader_indirect"; abi="x86_64"
+    case "$sel" in
+      ${profCase}
+    esac
+
+    # 2. boot the chosen profile. GPU mode is per-arch (JSON arches[].gpu_mode):
+    #    x86 → angle_indirect — ANGLE translates guest GLES → Vulkan → REAL Intel
+    #    Xe hardware (the host Vulkan ICD is wired via VK_ICD_FILENAMES above; this
+    #    is true GPU acceleration, fit for game design — NOT a software fallback);
+    #    arm → swiftshader_indirect — a TCG-emulated arm64 guest can't drive host
+    #    GL translation, so faithful software GLES is correct. CPU: x86 = KVM,
+    #    arm = software (TCG). Backgrounded; its window opens.
+    echo "[android-emulator] booting $avd (abi=$abi gpu=$gpu)…"
+    "$EMU" -avd "$avd" -gpu "$gpu" -no-boot-anim >/dev/null 2>&1 &
 
     # 3. wait for full boot
     "$ADB" wait-for-device
@@ -162,11 +184,11 @@ let
     # set the SuperApp as the device HOME launcher
     "$ADB" shell cmd package set-home-activity "${prov.home_launcher}" >/dev/null 2>&1 || true
 
-    # pre-seed the SuperApp's own launcher theme to the lightweight one (no 3D /
-    # animations — critical for software rendering). Written via base64 to avoid
-    # the quoting/stdin-through-adb breakage that made the plain `cat > file`
-    # write silently produce no file. run-as works (debug APK). force-stop so the
-    # app re-reads the pref on next launch.
+    # pre-seed the SuperApp's own launcher theme (data-driven; the dark
+    # cloud_minimalist_black). Written via base64 to avoid the quoting/
+    # stdin-through-adb breakage that made the plain `cat > file` write silently
+    # produce no file. run-as works (debug APK). force-stop so the app re-reads
+    # the pref on next launch.
     PKG="${prov.superapp_pkg}"
     if "$ADB" shell pm list packages 2>/dev/null | ${pkgs.gawk}/bin/awk -v p="$PKG" 'index($0,p){f=1} END{exit f?0:1}'; then
       THEME_B64="$(printf '%s' '<?xml version="1.0" encoding="utf-8" standalone="yes" ?><map><string name="theme">${prov.superapp_launcher_theme}</string></map>' | base64 -w0)"
