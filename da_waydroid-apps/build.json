@@ -1,8 +1,8 @@
 {
   "project": {
     "name": "waydroid-apps",
-    "version": "0.1.0",
-    "description": "Declarative, data-driven provisioning of a curated Android app set into the local Waydroid (LineageOS) container, plus seeding of the launcher hotseat ('bottom bar'). Apps are pinned in src/apps.lock.json (F-Droid suggestedVersionCode + nix-prefetched sha256), fetched reproducibly by src/flake.nix, installed with `waydroid app install`, and arranged in the dock from each app's `dock_order`. NOTHING is hardcoded in the engine: package list, dock order, F-Droid endpoints, Waydroid data roots and the launcher DB are all read from this file or discovered at runtime (the engine introspects the live `favorites` schema before writing — the DB filename is grid-dependent, e.g. launcher_6_by_5.db, so it is globbed, never assumed)."
+    "version": "0.2.0",
+    "description": "Declarative, data-driven provisioning of a curated Android app set into the local Waydroid (LineageOS) container, plus a fully data-driven launcher layout (hotseat 'bottom bar' + home-screen workspace + folders) and theme (dark mode + generated dark wallpaper). Apps are pinned in src/apps.lock.json (F-Droid suggestedVersionCode + nix-prefetched sha256), fetched reproducibly by src/flake.nix, installed with `waydroid app install`. The launcher layout is rendered from the `launcher` block below into Launcher3's `favorites` DB by the engine (folders=itemType 2, hotseat=container -101, workspace=container -100). NOTHING is hardcoded in the engine: app list, layout, folders, theme, F-Droid endpoints, Waydroid data roots and the launcher DB are all read from this file or discovered at runtime (the DB filename is grid-dependent, e.g. launcher_6_by_5.db, so it is globbed)."
   },
   "paths": {
     "src": "src",
@@ -10,104 +10,91 @@
     "apk_dir": "dist/apks",
     "lockfile": "src/apps.lock.json",
     "flake": "src",
-    "backup_dir": "dist/backups"
+    "backup_dir": "dist/backups",
+    "wallpaper": "dist/wallpaper.png"
   },
   "fdroid": {
     "api_url": "https://f-droid.org/api/v1/packages",
     "repo_url": "https://f-droid.org/repo"
   },
   "waydroid": {
-    "_doc": "Host-side facts. data_roots is a candidate list; the engine picks the first that exists (multi-machine reproducible). launcher_package is the LineageOS Launcher3. launcher_db_glob is grid-dependent (launcher_<cols>_by_<rows>.db) so it MUST be globbed under the launcher's databases/ dir, never hardcoded. hotseat_container=-101 and item_type_application=0 are AOSP Launcher3 constants.",
+    "_doc": "Host-side facts. data_roots is a candidate list; the engine picks the first that exists. launcher_db_glob is grid-dependent (launcher_<cols>_by_<rows>.db) so it MUST be globbed. Containers/itemTypes are AOSP Launcher3 constants. media_subdir is where the container's /sdcard lives on the host (used to stage the wallpaper).",
     "data_roots": [
       "/home/diego/.local/share/waydroid/data",
       "/var/lib/waydroid/data"
     ],
     "launcher_package": "com.android.launcher3",
     "launcher_db_glob": "data/com.android.launcher3/databases/launcher_*.db",
+    "media_subdir": "media/0",
     "hotseat_container": -101,
+    "workspace_container": -100,
     "item_type_application": 0,
+    "item_type_folder": 2,
     "launch_flags": "0x10200000"
   },
-  "dock": {
-    "_doc": "The hotseat has a fixed slot count derived from the launcher grid (6 on a 6_by_5 grid). Apps with a non-null dock_order are placed left-to-right by ascending dock_order (slot = dock_order - 1). Apps with dock_order=null are installed but live only in the app drawer. To re-arrange the bottom bar, edit dock_order values here and re-run `build.sh dock` — no code changes.",
-    "max_slots_autodetect": true
-  },
-  "apps": [
-    {
-      "package": "com.diegonmarcos.superapp",
-      "label": "Cloud-SuperApp",
-      "group": "core",
-      "dock_order": 1,
-      "source": {
-        "type": "local",
-        "build_project": "../ea_cloud-superapp",
-        "build_variant_env": "SUPERAPP_VARIANT",
-        "build_variant": "x86_64",
-        "apk_glob": "dist/*x86_64*.apk"
+  "launcher": {
+    "_doc": "Data-driven Launcher3 layout. `folders` are reusable group definitions (members = package ids). `hotseat` is the bottom bar, left→right (ref = a package id or 'folder:<id>'). `workspace` is the home screen: screen 0, each cell placed at (cellX,cellY) on a 6-column grid; ref = package id or 'folder:<id>'. A folder ref placed in both hotseat and workspace yields two independent folder instances with the same title+members. Re-arrange by editing here + `build.sh layout` — no code changes.",
+    "grid_columns": 6,
+    "folders": {
+      "cloud_ide": {
+        "title": "Cloud IDE",
+        "members": ["com.foxdebug.acode", "com.amaze.filemanager"]
+      },
+      "cloud_comms": {
+        "title": "Cloud Comms",
+        "members": [
+          "im.vector.app",
+          "com.mattermost.rnbeta",
+          "eu.faircode.email",
+          "org.fossify.phone",
+          "org.fossify.contacts",
+          "org.fossify.messages"
+        ]
       }
     },
-    {
-      "package": "com.foxdebug.acode",
-      "label": "Acode",
-      "group": "ide",
-      "dock_order": 2,
-      "source": { "type": "fdroid" }
-    },
-    {
-      "package": "com.amaze.filemanager",
-      "label": "Amaze",
-      "group": "ide",
-      "dock_order": 3,
-      "source": { "type": "fdroid" }
-    },
-    {
-      "package": "eu.faircode.email",
-      "label": "FairMail",
-      "group": "comms",
-      "dock_order": 4,
-      "source": { "type": "fdroid" }
-    },
-    {
-      "package": "com.mattermost.rnbeta",
-      "label": "Mattermost",
-      "group": "comms",
-      "dock_order": 5,
-      "source": { "type": "fdroid" }
-    },
-    {
-      "package": "im.vector.app",
-      "label": "Element",
-      "group": "comms",
-      "dock_order": 6,
-      "source": { "type": "fdroid" }
-    },
-    {
-      "package": "com.termux.nix",
-      "label": "Nix-on-Droid",
-      "group": "ide",
-      "dock_order": null,
-      "source": { "type": "fdroid" }
-    },
-    {
-      "package": "org.fossify.phone",
-      "label": "Fossify Phone",
-      "group": "comms",
-      "dock_order": null,
-      "source": { "type": "fdroid" }
-    },
-    {
-      "package": "org.fossify.contacts",
-      "label": "Fossify Contacts",
-      "group": "comms",
-      "dock_order": null,
-      "source": { "type": "fdroid" }
-    },
-    {
-      "package": "org.fossify.messages",
-      "label": "Fossify Messages",
-      "group": "comms",
-      "dock_order": null,
-      "source": { "type": "fdroid" }
+    "hotseat": [
+      "com.diegonmarcos.superapp",
+      "folder:cloud_ide",
+      "folder:cloud_comms"
+    ],
+    "workspace": {
+      "screen": 0,
+      "cells": [
+        { "ref": "com.diegonmarcos.superapp", "cellX": 0, "cellY": 0 },
+
+        { "ref": "folder:cloud_ide",          "cellX": 0, "cellY": 1 },
+        { "ref": "com.foxdebug.acode",        "cellX": 1, "cellY": 1 },
+        { "ref": "com.amaze.filemanager",     "cellX": 2, "cellY": 1 },
+
+        { "ref": "folder:cloud_comms",        "cellX": 0, "cellY": 2 },
+        { "ref": "im.vector.app",             "cellX": 1, "cellY": 2 },
+        { "ref": "com.mattermost.rnbeta",     "cellX": 2, "cellY": 2 },
+        { "ref": "eu.faircode.email",         "cellX": 3, "cellY": 2 },
+        { "ref": "org.fossify.messages",      "cellX": 4, "cellY": 2 }
+      ]
     }
+  },
+  "theme": {
+    "_doc": "dark_mode toggles Android night UI (cmd uimode night). wallpaper is generated by build.sh (ImageMagick from the flake devShell) as a dark vertical gradient and set via `cmd wallpaper`. Colors/size are data-driven.",
+    "dark_mode": true,
+    "wallpaper": {
+      "generate": true,
+      "size": "1280x800",
+      "gradient_from": "#0a0e14",
+      "gradient_to": "#000000"
+    }
+  },
+  "apps": [
+    { "package": "com.diegonmarcos.superapp", "label": "Cloud-SuperApp", "group": "core",
+      "source": { "type": "local", "build_project": "../ea_cloud-superapp", "build_variant_env": "SUPERAPP_VARIANT", "build_variant": "x86_64", "apk_glob": "dist/*x86_64*.apk" } },
+    { "package": "com.foxdebug.acode",     "label": "Acode",            "group": "ide",   "source": { "type": "fdroid" } },
+    { "package": "com.amaze.filemanager",  "label": "Amaze",            "group": "ide",   "source": { "type": "fdroid" } },
+    { "package": "eu.faircode.email",      "label": "FairMail",         "group": "comms", "source": { "type": "fdroid" } },
+    { "package": "com.mattermost.rnbeta",  "label": "Mattermost",       "group": "comms", "source": { "type": "fdroid" } },
+    { "package": "im.vector.app",          "label": "Element",          "group": "comms", "source": { "type": "fdroid" } },
+    { "package": "com.termux.nix",         "label": "Nix-on-Droid",     "group": "ide",   "source": { "type": "fdroid" } },
+    { "package": "org.fossify.phone",      "label": "Fossify Phone",    "group": "comms", "source": { "type": "fdroid" } },
+    { "package": "org.fossify.contacts",   "label": "Fossify Contacts", "group": "comms", "source": { "type": "fdroid" } },
+    { "package": "org.fossify.messages",   "label": "Fossify Messages", "group": "comms", "source": { "type": "fdroid" } }
   ]
 }

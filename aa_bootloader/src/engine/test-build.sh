@@ -28,7 +28,10 @@ DIST="$ROOT_DIR/dist"
 ESP="$DIST/boot/efi"
 REFIND_CONF="$ESP/EFI/refind/refind.conf"
 THEME_NAME=$(jq -r '.refind.install.theme.name // ""' "$BOOT_JSON")
-THEME_CONF="$ESP/EFI/refind/themes/$THEME_NAME/theme.conf"
+# Data-driven: theme conf filename from boot.json (same default as the renderer).
+# Hardcoding "theme.conf" false-FAILs when boot.json declares e.g. "mocha.conf".
+THEME_CONF_NAME=$(jq -r '.refind.install.theme.theme_conf // "theme.conf"' "$BOOT_JSON")
+THEME_CONF="$ESP/EFI/refind/themes/$THEME_NAME/$THEME_CONF_NAME"
 GRUB_CFG="$DIST/boot/grub/grub.cfg"
 
 PASS=0

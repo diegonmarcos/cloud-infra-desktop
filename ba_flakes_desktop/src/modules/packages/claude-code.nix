@@ -6,7 +6,7 @@
 { lib, stdenv, fetchurl, patchelf, glibc }:
 
 let
-  version = "2.1.177";
+  version = "2.1.170";
   bucket = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases";
 in
 stdenv.mkDerivation {
@@ -17,7 +17,7 @@ stdenv.mkDerivation {
     url = "${bucket}/${version}/linux-x64/claude";
     # To get hash: nix-prefetch-url --type sha256 <url>
     # then nix hash to-sri --type sha256 <hash>
-    hash = "sha256-/0F1NjSyDIae9qMqIIY1IbM9QYasDWpJN5q0ikg5Xuc=";
+    hash = "";
   };
 
   nativeBuildInputs = [ patchelf ];
