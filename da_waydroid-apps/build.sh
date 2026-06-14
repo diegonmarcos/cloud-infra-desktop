@@ -193,7 +193,17 @@ cmd_install() {
     [ -f "$APK_DIR/$pkg.apk" ] || { warn "skip $pkg (no APK; run build)"; continue; }
     log "installing $pkg…"
     sudo cp -f "$APK_DIR/$pkg.apk" "$host_tmp/$pkg.apk"
-    wd_shell pm install -r -d "$ctmp/$pkg.apk" >/dev/null 2>&1 || warn "pm install reported an error for $pkg"
+    local out; out="$(wd_shell pm install -r -d "$ctmp/$pkg.apk" 2>&1)"; out="${out//$'\r'/}"
+    if [[ "$out" != *Success* ]]; then
+      # Signing-key change (e.g. debug→release): pm install -r can't replace it →
+      # uninstall the old signature, then install fresh. (Loses that app's data.)
+      if [[ "$out" == *"signatures do not match"* || "$out" == *UPDATE_INCOMPATIBLE* ]]; then
+        warn "  $pkg signing key changed → uninstall + reinstall"
+        wd_shell pm uninstall "$pkg" >/dev/null 2>&1 || true
+        out="$(wd_shell pm install -d "$ctmp/$pkg.apk" 2>&1)"; out="${out//$'\r'/}"
+      fi
+      [[ "$out" == *Success* ]] || warn "  pm install issue for $pkg: ${out##*$'\n'}"
+    fi
     sudo rm -f "$host_tmp/$pkg.apk"
     # verify it actually landed
     if wd_shell pm path "$pkg" >/dev/null 2>&1; then log "  ✓ $pkg present"; else warn "  ✗ $pkg NOT present after install"; fi
