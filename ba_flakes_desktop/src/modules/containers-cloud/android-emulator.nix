@@ -109,9 +109,13 @@ let
       exit 1
     fi
 
-    # 2. boot the chosen profile (host GPU + KVM). Backgrounded; its window opens.
-    echo "[android-emulator] booting $avd…"
-    "$EMU" -avd "$avd" -gpu host -no-boot-anim >/dev/null 2>&1 &
+    # 2. boot the chosen profile. GPU mode is data-driven from the JSON
+    #    (common_hw."hw.gpu.mode"): swiftshader_indirect = software GL, the
+    #    reliable choice on NixOS where the emulator's bundled Vulkan/host-GL
+    #    can't load (`-gpu host` silently fails to open a window). CPU stays
+    #    KVM-accelerated. Backgrounded; its window opens.
+    echo "[android-emulator] booting $avd (gpu=${cfg.common_hw."hw.gpu.mode"})…"
+    "$EMU" -avd "$avd" -gpu ${cfg.common_hw."hw.gpu.mode"} -no-boot-anim >/dev/null 2>&1 &
 
     # 3. wait for full boot
     "$ADB" wait-for-device

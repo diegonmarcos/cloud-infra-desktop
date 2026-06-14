@@ -5,7 +5,7 @@
 
   "common_hw": {
     "hw.gpu.enabled": "yes",
-    "hw.gpu.mode": "host",
+    "hw.gpu.mode": "swiftshader_indirect",
     "hw.keyboard": "yes",
     "showDeviceFrame": "no"
   },
