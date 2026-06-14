@@ -9,7 +9,9 @@
     "source_subvol": "@home-diego",
     "snapshot_dir": "@snapshots/home-diego",
     "interval_minutes": 15,
-    "retention_count": 24
+    "retention_count": 24,
+    "_notify_comment": "When true, each PERIODIC checkpoint pops a desktop notification (notify-send, follows the KDE dark theme) confirming the local snapshot was saved. Shutdown checkpoints never notify (session is ending). Set false for silent operation.",
+    "notify": true
   },
 
   "shutdown_checkpoint": {
