@@ -179,17 +179,23 @@ cmd_check() {
   log "check OK"
 }
 
-# ── install: waydroid app install every built APK ───────────────────────────
+# ── install: stage APK into the container + `pm install` (robust) ───────────
+# `waydroid app install` silently no-ops for some APKs (esp. larger ones), so we
+# push the APK into the container's tmp and use pm install -r -d directly.
 cmd_install() {
   require_session; detect_priv
+  local ctmp host_tmp; ctmp="$(get waydroid.container_tmp)"; host_tmp="$(wd_data_root)/local/tmp"
+  sudo mkdir -p "$host_tmp"
   local n; n="$(node -e "process.stdout.write(String(require('$CONFIG').apps.length))")"
   local i pkg
   for ((i=0;i<n;i++)); do
     pkg="$(node -e "process.stdout.write(require('$CONFIG').apps[$i].package)")"
     [ -f "$APK_DIR/$pkg.apk" ] || { warn "skip $pkg (no APK; run build)"; continue; }
     log "installing $pkg…"
-    "${WDSH[@]}" app install "$APK_DIR/$pkg.apk" || warn "install reported an error for $pkg (may already be installed)"
-    # verify it actually landed (waydroid app install can exit 0 without installing)
+    sudo cp -f "$APK_DIR/$pkg.apk" "$host_tmp/$pkg.apk"
+    wd_shell pm install -r -d "$ctmp/$pkg.apk" >/dev/null 2>&1 || warn "pm install reported an error for $pkg"
+    sudo rm -f "$host_tmp/$pkg.apk"
+    # verify it actually landed
     if wd_shell pm path "$pkg" >/dev/null 2>&1; then log "  ✓ $pkg present"; else warn "  ✗ $pkg NOT present after install"; fi
   done
   log "install pass complete"

@@ -26,6 +26,8 @@
     "launcher_package": "com.android.launcher3",
     "launcher_db_glob": "data/com.android.launcher3/databases/launcher_*.db",
     "media_subdir": "media/0",
+    "_doc_install": "`waydroid app install` is unreliable (silently no-ops, esp. for larger APKs — Organic Maps 72MB failed). The engine installs robustly by staging the APK into the container's tmp (container_tmp ↔ host <data_root>/local/tmp) and running `pm install -r -d`.",
+    "container_tmp": "/data/local/tmp",
     "hotseat_container": -101,
     "workspace_container": -100,
     "item_type_application": 0,
@@ -50,12 +52,24 @@
           "org.fossify.contacts",
           "org.fossify.messages"
         ]
+      },
+      "cloud_nav": {
+        "title": "Cloud Nav",
+        "members": [
+          "app.organicmaps",
+          "net.osmand.plus"
+        ]
+      },
+      "stores": {
+        "title": "Stores",
+        "members": [
+          "org.fdroid.fdroid",
+          "com.aurora.store"
+        ]
       }
     },
     "hotseat": [
-      "com.diegonmarcos.superapp",
-      "folder:cloud_ide",
-      "folder:cloud_comms"
+      "com.diegonmarcos.superapp"
     ],
     "workspace": {
       "screen": 0,
@@ -70,7 +84,16 @@
         { "ref": "im.vector.app",             "cellX": 1, "cellY": 2 },
         { "ref": "com.mattermost.rnbeta",     "cellX": 2, "cellY": 2 },
         { "ref": "eu.faircode.email",         "cellX": 3, "cellY": 2 },
-        { "ref": "org.fossify.messages",      "cellX": 4, "cellY": 2 }
+        { "ref": "org.fossify.messages",      "cellX": 4, "cellY": 2 },
+
+        { "ref": "folder:cloud_nav",          "cellX": 0, "cellY": 3 },
+        { "ref": "app.organicmaps",           "cellX": 1, "cellY": 3 },
+        { "ref": "net.osmand.plus",           "cellX": 2, "cellY": 3 },
+
+        { "ref": "folder:stores",             "cellX": 0, "cellY": 4 },
+        { "ref": "org.fdroid.fdroid",         "cellX": 1, "cellY": 4 },
+        { "ref": "com.aurora.store",          "cellX": 2, "cellY": 4 },
+        { "ref": "com.brave.browser",         "cellX": 3, "cellY": 4 }
       ]
     }
   },
@@ -95,6 +118,11 @@
     { "package": "com.termux.nix",         "label": "Nix-on-Droid",     "group": "ide",   "source": { "type": "fdroid" } },
     { "package": "org.fossify.phone",      "label": "Fossify Phone",    "group": "comms", "source": { "type": "fdroid" } },
     { "package": "org.fossify.contacts",   "label": "Fossify Contacts", "group": "comms", "source": { "type": "fdroid" } },
-    { "package": "org.fossify.messages",   "label": "Fossify Messages", "group": "comms", "source": { "type": "fdroid" } }
+    { "package": "org.fossify.messages",   "label": "Fossify Messages", "group": "comms", "source": { "type": "fdroid" } },
+    { "package": "app.organicmaps",        "label": "Organic Maps",     "group": "nav",   "source": { "type": "fdroid" } },
+    { "package": "net.osmand.plus",        "label": "OsmAnd~",          "group": "nav",   "source": { "type": "fdroid" } },
+    { "package": "org.fdroid.fdroid",      "label": "F-Droid",          "group": "store", "source": { "type": "fdroid" } },
+    { "package": "com.aurora.store",       "label": "Aurora Store",     "group": "store", "source": { "type": "fdroid" } },
+    { "package": "com.brave.browser",      "label": "Brave",            "group": "web",   "source": { "type": "github", "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk" } }
   ]
 }
