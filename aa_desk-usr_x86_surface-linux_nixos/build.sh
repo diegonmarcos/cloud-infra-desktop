@@ -1053,8 +1053,13 @@ deploy_existing() {
     INIT_PATH="$NEW_SYSTEM/init"
     log "New init path: $INIT_PATH"
     if [ -x ../aa_bootloader/build.sh ]; then
-        (cd ../aa_bootloader && YES=1 ./build.sh generate && YES=1 ./build.sh deploy --target refind) \
-            || warn "aa_bootloader render/deploy reported errors — verify rEFInd manually"
+        # Current engine subcommands are deploy-all/deploy-refind/verify-boot;
+        # the old 'generate' + 'deploy --target refind' names no longer exist
+        # (this fresh-install path had been silently warning). NOTE: this
+        # targets the RUNNING system's live ESP, matching the prior behavior —
+        # a true cross-disk install to $MOUNT_ROOT is a separate, unhandled case.
+        (cd ../aa_bootloader && sudo bash ./build.sh deploy-all && sudo bash ./build.sh verify-boot) \
+            || warn "aa_bootloader deploy/verify reported errors — verify rEFInd manually before reboot"
     else
         warn "aa_bootloader/build.sh not found at expected relative path — skipping bootloader regen"
     fi
@@ -1158,6 +1163,32 @@ sync_cloud_data() {
 # ═══════════════════════════════════════════════════════════════════════════
 # LIVE SYSTEM REBUILD
 # ═══════════════════════════════════════════════════════════════════════════
+# Regenerate + verify the boot menu against the just-activated generation.
+# NixOS yields bootloader management to aa_bootloader/; a rebuild that does NOT
+# refresh the menu leaves rEFInd pointing at an older generation — which the
+# post-switch GC then deletes, producing "initrd NOT FOUND / efi_stub failed"
+# at boot (2026-06-14 Fresh Desktop incident). Non-fatal by design: it must
+# never abort an already-successful rebuild, but it warns loudly if the menu
+# could not be made reboot-safe.
+regen_bootloader() {
+    if [ ! -x ../aa_bootloader/build.sh ]; then
+        warn "aa_bootloader/build.sh not found — boot menu NOT refreshed."
+        warn "Run before reboot:  cd ../aa_bootloader && sudo ./build.sh deploy-all && sudo ./build.sh verify-boot"
+        return 0
+    fi
+    log "Refreshing boot menu against the new generation (aa_bootloader deploy-all)..."
+    if ( cd ../aa_bootloader && sudo bash ./build.sh deploy-all ); then
+        if ( cd ../aa_bootloader && sudo bash ./build.sh verify-boot ); then
+            log "Boot menu refreshed + verified — SAFE TO REBOOT."
+        else
+            warn "Boot menu refreshed but verify-boot is NOT green — inspect before rebooting."
+        fi
+    else
+        warn "aa_bootloader deploy-all errored — boot menu may be stale."
+        warn "Fix before reboot:  cd ../aa_bootloader && sudo ./build.sh deploy-all && sudo ./build.sh verify-boot"
+    fi
+}
+
 # Rebuild the running NixOS system using nixos-rebuild switch
 
 switch_system() {
@@ -1184,6 +1215,11 @@ switch_system() {
         nix-env --delete-generations +3 2>&1 || true
         sudo nix-collect-garbage 2>&1 || true
         log "GC complete"
+
+        # Refresh the boot menu AFTER GC so it lists exactly the surviving
+        # generations (no dangling rollback entries) and points Primary +
+        # every specialisation at the just-activated generation.
+        regen_bootloader
 
         printf "\n"
         printf "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}\n"
@@ -1215,6 +1251,9 @@ boot_system() {
     _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)" && printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG" && sudo env "GIT_CONFIG_GLOBAL=$_BUILDSH_BOOTSTRAP_GITCONFIG" "GIT_CONFIG_SYSTEM=$_BUILDSH_BOOTSTRAP_GITCONFIG" BUILDSH_GUARDRAIL=1 nixos-rebuild boot --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
 
     if [ $? -eq 0 ]; then
+        # `nixos-rebuild boot` sets the next-boot generation — the menu MUST
+        # be refreshed to point at it, or reboot lands on the old/broken entry.
+        regen_bootloader
         log "Build complete! Reboot to activate new configuration."
     else
         error "Build failed!"
