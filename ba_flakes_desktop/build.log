@@ -38832,3 +38832,7 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-06-14 18:27:44] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface ==========
 [2026-06-14 18:27:45] PERF: start switch
 [2026-06-14 18:27:49] INFO: Staging dirty files for flake evaluation...
+[2026-06-14 19:40:02] ========== Build script started ==========
+[2026-06-14 19:40:02] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface ==========
+[2026-06-14 19:40:02] PERF: start switch
+[2026-06-14 19:40:02] INFO: Staging dirty files for flake evaluation...
