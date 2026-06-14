@@ -1,7 +1,11 @@
 {
   "_doc": "Single source of truth for the declarative Android Emulator desktop app (containers-cloud/android-emulator.nix). Profiles are GENERATED as forms × tiers (phone/tablet × light/full) — never a hardcoded list. `common_hw`/`tiers`/`forms` values are raw AVD config.ini keys, merged (common → tier → form; form wins) into each AVD's config.ini idempotently on `build.sh switch`. `provisioning` drives the idempotent post-boot adb steps run by the launcher.",
 
-  "image": "system-images;android-34;google_apis;x86_64",
+  "_doc_arches": "Profiles are GENERATED = forms × arches × tiers → 8: {Phone,Tablet}×{x86,arm}×{full,light}. x86 runs KVM-accelerated (fast — games/dev); arm runs the CPU in software (QEMU TCG, no KVM → faithful ARM test of arm64 APKs, but slower). Each arch carries its own system image + abi.type written into the AVD.",
+  "arches": {
+    "x86": { "image": "system-images;android-34;google_apis;x86_64",   "abi": "x86_64",    "label": "x86" },
+    "arm": { "image": "system-images;android-34;google_apis;arm64-v8a", "abi": "arm64-v8a", "label": "arm" }
+  },
 
   "common_hw": {
     "hw.gpu.enabled": "yes",
@@ -15,10 +19,9 @@
     "full":  { "hw.ramSize": "6144M", "hw.cpu.ncore": "6", "vm.heapSize": "512M" }
   },
 
-  "_doc_resolution": "Resolutions are deliberately modest because the Android emulator on this NixOS+Intel host renders guest OpenGL-ES via SwiftShader (SOFTWARE) — hardware GL won't engage for GLES, so per-frame cost scales with pixel count. 2560x1600 = 4.1M px → ~5s/frame (unusable); these sizes keep SwiftShader smooth. Bump them back up if/when hardware GLES works on this host.",
   "forms": {
-    "phone":  { "hw.lcd.width": "720",  "hw.lcd.height": "1280", "hw.lcd.density": "320", "hw.initialOrientation": "portrait" },
-    "tablet": { "hw.lcd.width": "1280", "hw.lcd.height": "800",  "hw.lcd.density": "213", "hw.initialOrientation": "landscape" }
+    "phone":  { "hw.lcd.width": "1080", "hw.lcd.height": "2400", "hw.lcd.density": "420", "hw.initialOrientation": "portrait" },
+    "tablet": { "hw.lcd.width": "2560", "hw.lcd.height": "1600", "hw.lcd.density": "320", "hw.initialOrientation": "landscape" }
   },
 
   "provisioning": {

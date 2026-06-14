@@ -42,7 +42,9 @@ let
     includeEmulator      = true;
     includeSystemImages  = true;
     systemImageTypes     = [ "google_apis" ];
-    abiVersions          = [ "x86_64" ];
+    # Both arches: x86_64 (KVM-fast, games/dev) + arm64-v8a (faithful ARM test,
+    # CPU software-emulated). Each pulls its Android-34 google_apis image.
+    abiVersions          = [ "x86_64" "arm64-v8a" ];
     includeNDK           = false;
   };
   sdk     = comp.androidsdk;
@@ -52,20 +54,25 @@ let
 
   cap = s: (lib.toUpper (builtins.substring 0 1 s)) + (builtins.substring 1 (builtins.stringLength s) s);
 
-  # profiles = forms × tiers, each carrying its merged hardware (common → tier →
-  # form; form's screen keys win) and a human label.
+  # profiles = forms × arches × tiers → 8: {Phone,Tablet}×{x86,arm}×{full,light}.
+  # Each carries its merged hardware (common → tier → form; form's screen keys
+  # win) + the arch's abi.type, its system image, and a "Phone_x86_full" label.
   profiles = lib.concatMap (fname:
-    map (tname:
-      let
-        fhw = cfg.forms.${fname};
-        thw = cfg.tiers.${tname};
-      in {
-        id    = "${fname}-${tname}";
-        avd   = "superapp-${fname}-${tname}";
-        label = "${cap fname} · ${cap tname}";
-        hw    = cfg.common_hw // thw // fhw;
-      }
-    ) (lib.attrNames cfg.tiers)
+    lib.concatMap (aname:
+      map (tname:
+        let
+          fhw  = cfg.forms.${fname};
+          thw  = cfg.tiers.${tname};
+          arch = cfg.arches.${aname};
+        in {
+          id    = "${fname}-${aname}-${tname}";
+          avd   = "superapp-${fname}-${aname}-${tname}";
+          label = "${cap fname}_${arch.label}_${tname}";
+          image = arch.image;
+          hw    = cfg.common_hw // thw // fhw // { "abi.type" = arch.abi; };
+        }
+      ) (lib.attrNames cfg.tiers)
+    ) (lib.attrNames cfg.arches)
   ) (lib.attrNames cfg.forms);
 
   # "key=value key=value …" for a profile's hardware (values are space-free).
@@ -205,18 +212,20 @@ in
       }
 
       ensure_profile() {
-        local avd="$1"; shift
+        local avd="$1" image="$2"; shift 2
         if ! avd_exists "$avd"; then
-          echo "[android-emulator] creating AVD $avd (${cfg.image})"
-          printf 'no\n' | "${sdk}/bin/avdmanager" create avd -n "$avd" -k "${cfg.image}" --force || return 0
+          echo "[android-emulator] creating AVD $avd ($image)"
+          printf 'no\n' | "${sdk}/bin/avdmanager" create avd -n "$avd" -k "$image" --force || return 0
         fi
         merge_ini "$ANDROID_AVD_HOME/$avd.avd/config.ini" "$@"
       }
 
-      ${lib.concatMapStringsSep "\n      " (p: ''ensure_profile ${p.avd} ${hwPairs p}'') profiles}
+      ${lib.concatMapStringsSep "\n      " (p: ''ensure_profile ${p.avd} "${p.image}" ${hwPairs p}'') profiles}
 
-      # retire the old single-profile AVD (superseded by the 4 profiles)
-      rm -rf "$ANDROID_AVD_HOME/surface-x86_64.avd" "$ANDROID_AVD_HOME/surface-x86_64.ini" 2>/dev/null || true
+      # retire superseded AVDs (old single-profile + the pre-arch 4-profile names)
+      for _old in surface-x86_64 superapp-phone-light superapp-phone-full superapp-tablet-light superapp-tablet-full; do
+        rm -rf "$ANDROID_AVD_HOME/$_old.avd" "$ANDROID_AVD_HOME/$_old.ini" 2>/dev/null || true
+      done
     ) || echo "[android-emulator] profile pre-create skipped/failed; run ./build.sh switch from a working state"
   '';
 
