@@ -81,11 +81,15 @@ done
 THEME_ENABLED=$(jq -r '.refind.install.theme.enabled // false' "$BOOT_JSON")
 if [ "$THEME_ENABLED" = "true" ]; then
     THEME_NAME=$(jq -r '.refind.install.theme.name' "$BOOT_JSON")
+    # Data-driven: the included theme conf filename is .refind.install.theme.theme_conf
+    # (same default as render-refind-conf.sh). Hardcoding "theme.conf" here produced
+    # a false FAIL when boot.json declares "mocha.conf" (the real, deployed file).
+    THEME_CONF_NAME=$(jq -r '.refind.install.theme.theme_conf // "theme.conf"' "$BOOT_JSON")
     sudo -n test -d "$REFIND/themes/$THEME_NAME" \
         && ok "theme dir themes/$THEME_NAME/ present" \
         || bad "theme dir themes/$THEME_NAME/ MISSING"
-    THEME_CONF="$REFIND/themes/$THEME_NAME/theme.conf"
-    sudo -n test -f "$THEME_CONF" && ok "theme.conf present" || bad "theme.conf missing"
+    THEME_CONF="$REFIND/themes/$THEME_NAME/$THEME_CONF_NAME"
+    sudo -n test -f "$THEME_CONF" && ok "$THEME_CONF_NAME present" || bad "$THEME_CONF_NAME missing"
     # Verify every path the deployed theme.conf references resolves
     if sudo -n test -f "$THEME_CONF"; then
         sudo -n awk '/^(icons_dir|banner|selection_big|selection_small|font) /{print $1, $2}' "$THEME_CONF" |

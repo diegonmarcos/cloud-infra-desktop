@@ -90,6 +90,11 @@ let
     fi
   '') prov.apps;
 
+  # System settings (data-driven) — e.g. disable animations so the software-GLES
+  # renderer (SwiftShader on this host) isn't drowning in animation frames.
+  applySettings = lib.optionalString (prov ? settings) (lib.concatMapStringsSep "\n" (s:
+    ''"$ADB" shell settings put ${s.ns} ${s.key} ${s.value} >/dev/null 2>&1 || true'') prov.settings);
+
   # ── Launcher: profile chooser → boot → wait → provision ─────────────────────
   emulatorApp = pkgs.writeShellScriptBin "android-emulator" ''
     set -u
@@ -143,17 +148,22 @@ let
     "$ADB" shell cmd uimode night yes >/dev/null 2>&1 || true
     ''}
 
+    # data-driven system settings (e.g. disable animations → far less work for
+    # the software-GLES renderer on this host).
+    ${applySettings}
+
     # set the SuperApp as the device HOME launcher
     "$ADB" shell cmd package set-home-activity "${prov.home_launcher}" >/dev/null 2>&1 || true
 
-    # pre-seed the SuperApp's own launcher theme (debug APK → run-as can write
-    # its shared_prefs). Then force-stop so it re-reads on next start.
+    # pre-seed the SuperApp's own launcher theme to the lightweight one (no 3D /
+    # animations — critical for software rendering). Written via base64 to avoid
+    # the quoting/stdin-through-adb breakage that made the plain `cat > file`
+    # write silently produce no file. run-as works (debug APK). force-stop so the
+    # app re-reads the pref on next launch.
     PKG="${prov.superapp_pkg}"
     if "$ADB" shell pm list packages 2>/dev/null | ${pkgs.gawk}/bin/awk -v p="$PKG" 'index($0,p){f=1} END{exit f?0:1}'; then
-      "$ADB" shell run-as "$PKG" mkdir -p shared_prefs >/dev/null 2>&1 || true
-      printf '%s' '<?xml version='"'"'1.0'"'"' encoding='"'"'utf-8'"'"' standalone='"'"'yes'"'"' ?>
-<map><string name="theme">${prov.superapp_launcher_theme}</string></map>
-' | "$ADB" shell run-as "$PKG" sh -c 'cat > shared_prefs/launcher_theme_prefs.xml' >/dev/null 2>&1 || true
+      THEME_B64="$(printf '%s' '<?xml version="1.0" encoding="utf-8" standalone="yes" ?><map><string name="theme">${prov.superapp_launcher_theme}</string></map>' | base64 -w0)"
+      "$ADB" shell "run-as $PKG sh -c 'mkdir -p shared_prefs; echo $THEME_B64 | base64 -d > shared_prefs/launcher_theme_prefs.xml'" >/dev/null 2>&1 || true
       "$ADB" shell am force-stop "$PKG" >/dev/null 2>&1 || true
     fi
 

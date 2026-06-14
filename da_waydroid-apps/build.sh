@@ -11,7 +11,8 @@
 #   ./build.sh build     # nix build the pinned APK set -> dist/apks/ (+ copy local-built apps)
 #   ./build.sh check     # verify lockfile <-> build.json, and that every APK is present
 #   ./build.sh install   # waydroid app install every APK (requires a RUNNING session)
-#   ./build.sh dock      # seed the launcher hotseat from dock_order (requires RUNNING session)
+#   ./build.sh layout    # render folders+hotseat+workspace into Launcher3 DB (needs session)
+#   ./build.sh theme     # dark mode + generated dark wallpaper (needs session)
 #   ./build.sh undock    # restore the most recent launcher.db backup
 #   ./build.sh status    # show session + what's installed + current hotseat
 #   ./build.sh ship      # lock(if missing) + build + install + dock
@@ -26,6 +27,7 @@ DIST="$ROOT/$(node -e "process.stdout.write(require('$CONFIG').paths.dist)")"
 APK_DIR="$ROOT/$(node -e "process.stdout.write(require('$CONFIG').paths.apk_dir)")"
 LOCKFILE="$ROOT/$(node -e "process.stdout.write(require('$CONFIG').paths.lockfile)")"
 BACKUP_DIR="$ROOT/$(node -e "process.stdout.write(require('$CONFIG').paths.backup_dir)")"
+WALLPAPER="$ROOT/$(node -e "process.stdout.write(require('$CONFIG').paths.wallpaper)")"
 
 c_g='\033[0;32m'; c_y='\033[0;33m'; c_r='\033[0;31m'; c_0='\033[0m'
 log()  { printf "${c_g}[waydroid-apps]${c_0} %s\n" "$*"; }
@@ -193,50 +195,43 @@ cmd_install() {
   log "install pass complete"
 }
 
-# ── dock: seed the launcher hotseat from dock_order (schema-introspecting) ───
+# ── layout: render the data-driven launcher layout (folders+hotseat+workspace) ──
 resolve_component() {
   # data-driven: ask the framework for the package's LAUNCHER activity
   local pkg="$1" out
   out="$(wd_shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$pkg" 2>/dev/null || true)"
   out="${out//$'\r'/}"
-  # last non-empty line is "<pkg>/<activity>"
-  printf '%s' "$out" | awk 'NF{l=$0} END{print l}'
+  printf '%s' "$out" | awk 'NF{l=$0} END{print l}'   # last non-empty line = "<pkg>/<activity>"
 }
 
-cmd_dock() {
+cmd_layout() {
   require_session; detect_priv
   local db; db="$(wd_db)"
-  local container item_type flags
-  container="$(get waydroid.hotseat_container)"
-  item_type="$(get waydroid.item_type_application)"
-  flags="$(get waydroid.launch_flags)"
   log "launcher DB: $db"
 
-  # detect hotseat slot count from the live grid (current max screen+1, min 4)
-  local slots
-  slots="$(sudo sqlite3 "$db" "SELECT max(screen)+1 FROM favorites WHERE container=$container;" 2>/dev/null || echo 0)"
-  [ -n "$slots" ] && [ "$slots" -ge 1 ] 2>/dev/null || slots=6
-  log "hotseat slots detected: $slots"
+  # unique package set referenced anywhere in launcher{} (folders + hotseat + workspace)
+  local pkgs; pkgs="$(node -e "
+    const l=require('$CONFIG').launcher; const s=new Set();
+    Object.values(l.folders).forEach(f=>f.members.forEach(m=>s.add(m)));
+    l.hotseat.forEach(r=>{ if(!String(r).startsWith('folder:')) s.add(r); });
+    l.workspace.cells.forEach(c=>{ if(!String(c.ref).startsWith('folder:')) s.add(c.ref); });
+    console.log([...s].join('\n'));
+  ")"
 
-  # build ordered (dock_order, package, label) list, resolve components live
-  local rows_json="[]"
-  local n; n="$(node -e "process.stdout.write(String(require('$CONFIG').apps.length))")"
-  local i
-  declare -a ORDER PKGS LABELS COMPS
-  for ((i=0;i<n;i++)); do
-    local d; d="$(node -e "const a=require('$CONFIG').apps[$i];process.stdout.write(a.dock_order===null||a.dock_order===undefined?'':String(a.dock_order))")"
-    [ -n "$d" ] || continue
-    local pkg label comp
-    pkg="$(node -e "process.stdout.write(require('$CONFIG').apps[$i].package)")"
-    label="$(node -e "process.stdout.write(require('$CONFIG').apps[$i].label)")"
+  # resolve each package's launcher component live -> COMPONENTS_J map
+  local compfile="$DIST/.components.tsv"; : > "$compfile"
+  local pkg comp
+  while read -r pkg; do
+    [ -n "$pkg" ] || continue
     comp="$(resolve_component "$pkg")"
-    if [ -z "$comp" ] || [[ "$comp" != "$pkg/"* && "$comp" != *"/"* ]]; then
-      warn "could not resolve launcher activity for $pkg — is it installed? skipping in dock."
-      continue
-    fi
-    ORDER+=("$d"); PKGS+=("$pkg"); LABELS+=("$label"); COMPS+=("$comp")
-  done
-  [ "${#PKGS[@]}" -gt 0 ] || die "no installable dock apps resolved — run install first"
+    if [ -z "$comp" ] || [[ "$comp" != *"/"* ]]; then warn "unresolved (installed?): $pkg"; continue; fi
+    printf '%s\t%s\n' "$pkg" "$comp" >> "$compfile"
+  done <<< "$pkgs"
+  local COMPONENTS_J; COMPONENTS_J="$(node -e "
+    const fs=require('fs');const m={};
+    for(const l of fs.readFileSync('$compfile','utf8').split('\n')){ if(!l.trim())continue; const [p,c]=l.split('\t'); m[p]=c; }
+    process.stdout.write(JSON.stringify(m));
+  ")"
 
   # backup
   mkdir -p "$BACKUP_DIR"
@@ -245,33 +240,65 @@ cmd_dock() {
   sudo cp -f "$db" "$bak"; sudo chown "$USER" "$bak" 2>/dev/null || true
   log "backed up launcher.db -> $bak"
 
-  # generate SQL with proper escaping via node
-  local sqlfile="$DIST/dock.sql"
-  ORDER_J="$(printf '%s\n' "${ORDER[@]}" | node -e 'let a=require("fs").readFileSync(0,"utf8").trim().split("\n");process.stdout.write(JSON.stringify(a))')"
-  PKGS_J="$(printf '%s\n' "${PKGS[@]}" | node -e 'let a=require("fs").readFileSync(0,"utf8").trim().split("\n");process.stdout.write(JSON.stringify(a))')"
-  LABELS_J="$(printf '%s\n' "${LABELS[@]}" | node -e 'let a=require("fs").readFileSync(0,"utf8").trim().split("\n");process.stdout.write(JSON.stringify(a))')"
-  COMPS_J="$(printf '%s\n' "${COMPS[@]}" | node -e 'let a=require("fs").readFileSync(0,"utf8").trim().split("\n");process.stdout.write(JSON.stringify(a))')"
+  # generate the full layout SQL from build.json launcher{}
+  local sqlfile="$DIST/layout.sql"
+  FOLDERS_J="$(node -e "process.stdout.write(JSON.stringify(require('$CONFIG').launcher.folders))")" \
+  HOTSEAT_J="$(node -e "process.stdout.write(JSON.stringify(require('$CONFIG').launcher.hotseat))")" \
+  WORKSPACE_J="$(node -e "process.stdout.write(JSON.stringify(require('$CONFIG').launcher.workspace))")" \
+  COMPONENTS_J="$COMPONENTS_J" \
+  HOTSEAT_CONTAINER="$(get waydroid.hotseat_container)" \
+  WORKSPACE_CONTAINER="$(get waydroid.workspace_container)" \
+  FLAGS="$(get waydroid.launch_flags)" \
+  ITEM_APP="$(get waydroid.item_type_application)" \
+  ITEM_FOLDER="$(get waydroid.item_type_folder)" \
+  node "$SRC/lib/gen-layout-sql.js" > "$sqlfile"
+  log "generated $sqlfile ($(grep -c '^INSERT' "$sqlfile") rows)"
 
-  CONTAINER="$container" ITEM_TYPE="$item_type" FLAGS="$flags" SLOTS="$slots" \
-  ORDER_J="$ORDER_J" PKGS_J="$PKGS_J" LABELS_J="$LABELS_J" COMPS_J="$COMPS_J" \
-  node "$SRC/lib/gen-dock-sql.js" > "$sqlfile"
-
-  log "generated $sqlfile:"; sed 's/^/    /' "$sqlfile"
-
-  # apply with launcher stopped (avoid WAL races), then relaunch
-  log "stopping launcher, applying, relaunching…"
+  # apply with launcher stopped, then relaunch
+  log "stopping launcher, applying layout, relaunching…"
   wd_shell am force-stop "$(get waydroid.launcher_package)" 2>/dev/null || true
-  sudo sqlite3 "$db" < "$sqlfile" || { warn "sqlite apply failed — restoring backup"; sudo cp -f "$bak" "$db"; die "dock aborted, backup restored"; }
-  # checkpoint any WAL so the running launcher sees it
+  sudo sqlite3 "$db" < "$sqlfile" || { warn "sqlite apply failed — restoring backup"; sudo cp -f "$bak" "$db"; die "layout aborted, backup restored"; }
   sudo sqlite3 "$db" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
-  wd_shell am start -n "$(get waydroid.launcher_package)/.uioverrides.QuickstepLauncher" >/dev/null 2>&1 \
-    || wd_shell monkey -p "$(get waydroid.launcher_package)" 1 >/dev/null 2>&1 || true
+  wd_shell monkey -p "$(get waydroid.launcher_package)" 1 >/dev/null 2>&1 || true
 
   # verify
-  local got; got="$(sudo sqlite3 "$db" "SELECT count(*) FROM favorites WHERE container=$container;")"
-  log "hotseat now has $got entries:"
-  sudo sqlite3 -header -column "$db" "SELECT screen,title FROM favorites WHERE container=$container ORDER BY screen;" | sed 's/^/    /'
-  log "dock seeded. (Backup: $bak — restore with: ./build.sh undock)"
+  log "hotseat:"
+  sudo sqlite3 -column "$db" "SELECT screen,title,itemType FROM favorites WHERE container=$(get waydroid.hotseat_container) ORDER BY screen;" | sed 's/^/    /'
+  log "home screen (workspace):"
+  sudo sqlite3 -column "$db" "SELECT cellY,cellX,title,itemType FROM favorites WHERE container=$(get waydroid.workspace_container) ORDER BY cellY,cellX;" | sed 's/^/    /'
+  log "layout applied. (Backup: $bak — restore with: ./build.sh undock)"
+}
+
+# ── theme: dark mode + generated dark wallpaper (data-driven) ───────────────
+cmd_wallpaper() {
+  local size from to; size="$(get theme.wallpaper.size)"; from="$(get theme.wallpaper.gradient_from)"; to="$(get theme.wallpaper.gradient_to)"
+  mkdir -p "$(dirname "$WALLPAPER")"
+  log "generating dark wallpaper ($size, $from→$to) via imagemagick…"
+  # reproducible: imagemagick pulled from nixpkgs on demand (no host dependency)
+  nix shell nixpkgs#imagemagick -c magick -size "$size" "gradient:$from-$to" "$WALLPAPER" \
+    || die "wallpaper generation failed (imagemagick)"
+  log "wrote $WALLPAPER"
+}
+
+cmd_theme() {
+  require_session; detect_priv
+  # 1) dark mode (Android night UI) — data-driven toggle
+  if [ "$(get theme.dark_mode)" = "true" ]; then
+    log "enabling dark mode (night UI)…"
+    wd_shell cmd uimode night yes >/dev/null 2>&1 || true
+    wd_shell settings put secure ui_night_mode 2 >/dev/null 2>&1 || true
+  fi
+  # 2) wallpaper — generate + stage into the container's /sdcard + set
+  if [ "$(get theme.wallpaper.generate)" = "true" ]; then
+    [ -f "$WALLPAPER" ] || cmd_wallpaper
+    local media; media="$(wd_data_root)/$(get waydroid.media_subdir)"
+    sudo mkdir -p "$media"
+    sudo cp -f "$WALLPAPER" "$media/waydroid-wallpaper.png"
+    log "setting wallpaper via cmd wallpaper…"
+    wd_shell cmd wallpaper set-image /sdcard/waydroid-wallpaper.png >/dev/null 2>&1 \
+      || warn "cmd wallpaper set-image failed — check 'wd_shell cmd wallpaper' subcommands on this image"
+    log "wallpaper set (/sdcard/waydroid-wallpaper.png)"
+  fi
 }
 
 cmd_undock() {
@@ -288,16 +315,18 @@ cmd_undock() {
 cmd_status() {
   printf "Session: "; waydroid status 2>/dev/null | grep -E 'Session:|Container:' || echo "unknown"
   echo "--- declared apps (build.json) ---"
-  node -e "require('$CONFIG').apps.forEach(a=>console.log('  '+(a.dock_order??'-')+'  ['+a.group+']  '+a.package+'  ('+a.label+')'))"
+  node -e "require('$CONFIG').apps.forEach(a=>console.log('  ['+a.group+']  '+a.package+'  ('+a.label+')'))"
   echo "--- built APKs (dist/apks) ---"; ls "$APK_DIR" 2>/dev/null | sed 's/^/  /' || echo "  (none — run build)"
   if session_running; then
-    echo "--- live hotseat ---"
     local db; db="$(wd_db)"
-    sudo sqlite3 -column "$db" "SELECT screen,title FROM favorites WHERE container=$(get waydroid.hotseat_container) ORDER BY screen;" 2>/dev/null | sed 's/^/  /'
+    echo "--- live hotseat ---"
+    sudo sqlite3 -column "$db" "SELECT screen,title,itemType FROM favorites WHERE container=$(get waydroid.hotseat_container) ORDER BY screen;" 2>/dev/null | sed 's/^/  /'
+    echo "--- live workspace ---"
+    sudo sqlite3 -column "$db" "SELECT cellY,cellX,title,itemType FROM favorites WHERE container=$(get waydroid.workspace_container) ORDER BY cellY,cellX;" 2>/dev/null | sed 's/^/  /'
   fi
 }
 
-cmd_ship() { [ -f "$LOCKFILE" ] || cmd_lock; cmd_build; cmd_install; cmd_dock; }
+cmd_ship() { [ -f "$LOCKFILE" ] || cmd_lock; cmd_build; cmd_install; cmd_layout; cmd_theme; }
 cmd_clean() { rm -rf "$DIST"; log "cleaned dist/"; }
 
 case "${1:-build}" in
@@ -306,10 +335,12 @@ case "${1:-build}" in
   nix) cmd_nix ;;
   check) cmd_check ;;
   install) cmd_install ;;
-  dock) cmd_dock ;;
+  layout) cmd_layout ;;
+  theme) cmd_theme ;;
+  wallpaper) cmd_wallpaper ;;
   undock) cmd_undock ;;
   status) cmd_status ;;
   ship) cmd_ship ;;
   clean) cmd_clean ;;
-  *) die "unknown command '$1' (lock|build|nix|check|install|dock|undock|status|ship|clean)" ;;
+  *) die "unknown command '$1' (lock|build|nix|check|install|layout|theme|wallpaper|undock|status|ship|clean)" ;;
 esac
