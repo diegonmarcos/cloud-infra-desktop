@@ -19,9 +19,9 @@
     {
       "package": "eu.faircode.email",
       "source": "fdroid",
-      "versionCode": 2320,
-      "url": "https://f-droid.org/repo/eu.faircode.email_2320.apk",
-      "sha256": "sha256-B51SZGNgeSRnAwdwGmeyW0qSKoDKFrEDrfoyKmzGX18="
+      "versionCode": 2321,
+      "url": "https://f-droid.org/repo/eu.faircode.email_2321.apk",
+      "sha256": "sha256-Wg/QRcwdXelddlGwUAWyCgd+YINgqm77agTpBSab5Fw="
     },
     {
       "package": "com.mattermost.rnbeta",
@@ -64,6 +64,40 @@
       "versionCode": 20,
       "url": "https://f-droid.org/repo/org.fossify.messages_20.apk",
       "sha256": "sha256-nUCEiPJADUL48lomY8bX56Hn7FuadV3iNIawSkbrZvM="
+    },
+    {
+      "package": "app.organicmaps",
+      "source": "fdroid",
+      "versionCode": 26052711,
+      "url": "https://f-droid.org/repo/app.organicmaps_26052711.apk",
+      "sha256": "sha256-JS4uWvQkdXCRF9oz+0b7ll3Q9TI90wQtVjMjRpAn2+Y="
+    },
+    {
+      "package": "net.osmand.plus",
+      "source": "fdroid",
+      "versionCode": 521303,
+      "url": "https://f-droid.org/repo/net.osmand.plus_521303.apk",
+      "sha256": "sha256-qAk1ckl0NtiHMYGsj2ENCMT086Yh/itEf8i9lpIGTEs="
+    },
+    {
+      "package": "org.fdroid.fdroid",
+      "source": "fdroid",
+      "versionCode": 1023052,
+      "url": "https://f-droid.org/repo/org.fdroid.fdroid_1023052.apk",
+      "sha256": "sha256-mF9RgdSLtrr9VAg6BIs5EnHgqyg4WIHMQSlPsBoiJ2I="
+    },
+    {
+      "package": "com.aurora.store",
+      "source": "fdroid",
+      "versionCode": 75,
+      "url": "https://f-droid.org/repo/com.aurora.store_75.apk",
+      "sha256": "sha256-xM4N8Luw6Cvk5L19ij4ADwjgRFcYfVYP4so65SlBv0k="
+    },
+    {
+      "package": "com.brave.browser",
+      "source": "github",
+      "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk",
+      "sha256": "sha256-RUomqMwL2t3scKG4ZgLzJj2IzZzZ9dSoahO67Jc+SKI="
     }
   ]
 }
