@@ -37,6 +37,7 @@ let
   snapDir   = cp.snapshot_dir;
   interval  = cp.interval_minutes;
   retention = cp.retention_count;
+  notifyOnSave = cp.notify or false;
 
   shutdownCheckpoint = (cfg.shutdown_checkpoint or {}).enabled or false;
   rebootWithSessionEnabled = (cfg.reboot_with_session or {}).enabled or false;
@@ -71,6 +72,30 @@ let
     sync
     logger -t session-checkpoint -p user.info \
       "${tag} session checkpoint written: $DEST_DIR/$TS"
+
+    # Desktop notification confirming the local snapshot was saved. PERIODIC
+    # only — at shutdown the session is tearing down, no bus to notify. Runs
+    # as the logged-in user (runuser + their DBus/XDG_RUNTIME_DIR), so it
+    # follows the KDE dark theme. Gated by checkpoint.notify in the JSON SoT.
+    ${lib.optionalString notifyOnSave ''
+      if [ "${tag}" != "shutdown" ]; then
+        KEPT=$(${pkgs.coreutils}/bin/ls -1 "$DEST_DIR" | ${pkgs.coreutils}/bin/wc -l)
+        for udir in /run/user/*; do
+          [ -d "$udir" ] || continue
+          uid=$(${pkgs.coreutils}/bin/basename "$udir")
+          user=$(${pkgs.gawk}/bin/awk -F: -v u="$uid" '$3==u{print $1; exit}' /etc/passwd) || continue
+          [ -n "$user" ] || continue
+          bus="$udir/bus"
+          [ -S "$bus" ] || continue
+          ${pkgs.util-linux}/bin/runuser -u "$user" -- env \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" XDG_RUNTIME_DIR="$udir" \
+            ${pkgs.libnotify}/bin/notify-send -a "Session" -i document-save-symbolic -t 4000 \
+              "Session snapshot saved" "Local btrfs checkpoint written to disk:
+$DEST_DIR/$TS
+($KEPT kept, newest-${toString retention} retained)" || true
+        done
+      fi
+    ''}
 
     # Prune: keep the newest $KEEP (timestamp names sort chronologically).
     ls -1 "$DEST_DIR" | sort | head -n -"$KEEP" | while read -r old; do
