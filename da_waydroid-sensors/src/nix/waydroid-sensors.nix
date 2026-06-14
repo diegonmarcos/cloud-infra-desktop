@@ -26,6 +26,10 @@ in {
     stubProp = lib.mkOption { type = lib.types.str; default = "waydroid.stub_sensors_hal"; };
     stubService = lib.mkOption { type = lib.types.str; default = "vendor.sensors-hal-1-0"; };
     stubProcess = lib.mkOption { type = lib.types.str; default = "android.hardware.sensors@1.0-service.waydroid"; };
+    bootGateProp = lib.mkOption { type = lib.types.str; default = "sys.boot_completed";
+      description = "Wait for this Android prop = 1 before starting the HAL (boot-safety gate)."; };
+    bootGateTimeout = lib.mkOption { type = lib.types.int; default = 90;
+      description = "Max seconds to wait for the boot-gate prop before failing."; };
     waydroidPackage = lib.mkOption { type = lib.types.package; default = pkgs.waydroid; };
   };
 
@@ -38,10 +42,17 @@ in {
       environment.WAYDROID_SENSORS_CONF = toString cfg.confFile;
       serviceConfig = {
         Type = "simple";
-        # Belt-and-suspenders: stop any stub instance before we register.
-        ExecStartPre = "-${cfg.waydroidPackage}/bin/waydroid shell -- sh -c "
-          + "'setprop ${cfg.stubProp} 0; setprop ctl.stop ${cfg.stubService}; "
-          + "killall -9 ${cfg.stubProcess} 2>/dev/null; true'";
+        ExecStartPre = [
+          # 0) BOOT-SAFETY GATE: wait until the framework is fully up. The HAL must NOT be
+          #    present while SensorService initialises or it deadlocks the boot.
+          ("${pkgs.bash}/bin/sh -c 'for i in $(seq 1 ${toString cfg.bootGateTimeout}); do "
+            + "[ \"$(${cfg.waydroidPackage}/bin/waydroid shell -- getprop ${cfg.bootGateProp} 2>/dev/null | tr -d \"\\r\")\" = \"1\" ] "
+            + "&& exit 0; sleep 1; done; echo boot-gate timeout >&2; exit 1'")
+          # 1) stop any stub instance before we register (free the HIDL name).
+          ("-${cfg.waydroidPackage}/bin/waydroid shell -- sh -c "
+            + "'setprop ${cfg.stubProp} 0; setprop ctl.stop ${cfg.stubService}; "
+            + "killall -9 ${cfg.stubProcess} 2>/dev/null; true'")
+        ];
         ExecStart = "${cfg.package}/bin/waydroid-sensord ${cfg.binderDevice}";
         Restart = "on-failure";
         RestartSec = 2;

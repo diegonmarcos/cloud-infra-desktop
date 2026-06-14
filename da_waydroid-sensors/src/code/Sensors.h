@@ -59,6 +59,10 @@ struct Sensors {
 
 private:
     static constexpr int32_t kPollMaxBufferSize = 128;
+    // poll() must never block forever: if no events arrive within this bound it returns
+    // empty. Without it, SensorService's init-time poll() (before any sensor is activated)
+    // deadlocks system_server and Waydroid hangs on boot. See SensorFW/IIO source.
+    static constexpr int32_t kPollTimeoutMs = 1000;
     SensorDevice *mSensorDevice;
 };
 
