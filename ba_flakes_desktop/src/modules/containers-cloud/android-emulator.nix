@@ -98,6 +98,18 @@ let
     export ANDROID_AVD_HOME="$HOME/.android/avd"
     export JAVA_HOME="${jdk}/lib/openjdk"
     export PATH="${jdk}/bin:${sdk}/bin:${kdialog}/bin:$PATH"
+    # NixOS host-GPU acceleration: the emulator's bundled GL/Vulkan can't find
+    # the system driver on its own, so -gpu host/auto fell back to slow software
+    # GL (felt like "thrashing"). Point it at the NixOS runtime driver dir + host
+    # Vulkan ICDs so `auto` uses real Intel hardware accel; it still falls back to
+    # software if unavailable, so the window always opens. Data-driven: discovers
+    # whatever ICDs the host declares (no hardcoded GPU vendor).
+    export LD_LIBRARY_PATH="/run/opengl-driver/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    VK_ICD_FILENAMES=""
+    for _icd in /run/opengl-driver/share/vulkan/icd.d/*.json; do
+      [ -e "$_icd" ] && VK_ICD_FILENAMES="$VK_ICD_FILENAMES''${VK_ICD_FILENAMES:+:}$_icd"
+    done
+    export VK_ICD_FILENAMES
     ADB="${sdk}/bin/adb"
     EMU="${sdk}/bin/emulator"
 
