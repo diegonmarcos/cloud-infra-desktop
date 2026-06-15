@@ -65,12 +65,27 @@ in
         mv "$PROP_FILE.tmp" "$PROP_FILE"
       done
 
-      # Wait for a session's binder node, then hand off to the daemon. When the
-      # session stops the node vanishes, the daemon exits, and Restart=always
-      # brings us back here to wait again.
-      while [ ! -e "$DEV" ]; do sleep 2; done
-      echo "[waydroid-sensors] $DEV present — starting HAL ($BIN)"
-      exec env WAYDROID_SENSORS_CONF="$CONF" "$BIN" "$DEV"
+      # Supervise the daemon FRESH per container session. The upstream daemon
+      # survives a service-manager death and tries to RECONNECT, but that
+      # reconnect does NOT re-register ISensors on a NEW container's
+      # hwservicemanager (verified: a daemon that persisted across a session
+      # restart shows ISensors declared-but-not-served). So instead of exec'ing
+      # the daemon once, we loop: start it when /dev/hwbinder appears, and kill it
+      # when the node vanishes (session/container stop), so the NEXT session gets a
+      # freshly-registering daemon that SensorService can bind at boot.
+      cleanup() { [ -n "''${hal:-}" ] && kill "$hal" 2>/dev/null; }
+      trap 'cleanup; exit 0' TERM INT
+      while :; do
+        while [ ! -e "$DEV" ]; do sleep 2; done
+        echo "[waydroid-sensors] $DEV present — starting HAL ($BIN)"
+        env WAYDROID_SENSORS_CONF="$CONF" "$BIN" "$DEV" &
+        hal=$!
+        while [ -e "$DEV" ] && kill -0 "$hal" 2>/dev/null; do sleep 2; done
+        echo "[waydroid-sensors] $DEV gone or HAL exited — recycling for next session"
+        kill "$hal" 2>/dev/null || true
+        wait "$hal" 2>/dev/null || true
+        hal=
+      done
     '';
   };
 
