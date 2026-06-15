@@ -1,13 +1,21 @@
-# NixOS module — permanent declarative home for the Waydroid IIO sensors HAL.
-# Import into the Surface host flake and set `services.waydroid-sensors.enable = true`.
-# This replaces the imperative `build.sh install`/`enable` (which only exist because
-# /etc is read-only on NixOS): the daemon runs as a root systemd service ordered after
-# the Waydroid container.
+# NixOS module — OPTIONAL root-service runner for the Waydroid IIO sensors HAL.
+# Import into the Surface host flake and set `services.waydroid-sensors.enable = true`
+# ONLY if you want the daemon run as a root systemd service ordered after the Waydroid
+# container.
 #
-# NOTE: the boot-time prop override (waydroid.stub_sensors_hal=0) lives in the user's
-# ~/.local/share/waydroid/waydroid_base.prop and is written by `build.sh bootprops`
-# (it is per-user Waydroid data, not system config). The framework reads it at container
-# start; without it SensorService reports no sensors regardless of this service.
+# CURRENTLY UNUSED on the surface host: the daemon is run by the home-manager USER
+# service (ba_flakes_desktop/src/modules/containers-cloud/waydroid-sensors.nix) from the
+# pre-built dist/ artifact, and the SYSTEM side only puts `waydroid-sensord` on PATH via
+# configuration_waydroid-sensors.nix. Do not enable both (double daemon on /dev/hwbinder).
+#
+# IMPORTANT — how the stub is actually disabled (verified from waydroid 1.4.3 source):
+# `tools/helpers/images.py:make_prop` (run by the ROOT waydroid-container service) does
+# `if which("waydroid-sensord") is None: props.append("waydroid.stub_sensors_hal=1")`.
+# So the stub is gated PURELY by whether `waydroid-sensord` is on the system PATH — NOT
+# by any waydroid_base.prop. waydroid IGNORES ~/.local/share/waydroid/waydroid_base.prop
+# (it reads /var/lib/waydroid/waydroid_base.prop), and neither `waydroid prop set` nor
+# `waydroid upgrade -o` make the stub flip. The fix is environment.systemPackages, not a
+# prop. The runtime stub-stop ExecStartPre below is now redundant but harmless.
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.waydroid-sensors;
