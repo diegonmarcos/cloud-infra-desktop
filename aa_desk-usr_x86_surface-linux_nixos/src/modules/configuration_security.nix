@@ -35,6 +35,15 @@ in
     shell = pkgs.fish;
     # Home is a dedicated btrfs subvolume - fully persistent
     home = "/home/diego";
+    # Authorized SSH keys (2026-06-15): required now that sshd is key-only
+    # (configuration_network.nix PasswordAuthentication=false). These are
+    # diego's own public keys; the S21/termux phone uses the SAME keypair
+    # (vault A0_keys/providers/ssh-s21 — identical bodies), so this also
+    # authorizes phone→desktop over wg0. Pubkeys are public — safe to commit.
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILHv4vbpBAxwo4C6pLR1r4qbfxDFc2GlOZn2DFNQA7HM diego@diego-surfacepro8"
+      "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC+R13feNM+RTKKxi4eUIHOxAdbQiG23G1OyGWEZtk6K43+/D9nq6ddkC0MapckgekPFChqu1rw/voiD/+A+U85iqTZlb3FYv6uDGkADY2t/qsRXmpJ3hBXcEoXLhqvzpsZ44nuTHCpfjsNdPLATnZx5SnVqx5I67WMSszCwJaqaYW/zpuZxx1yM3iIgtyIHVWk4DHGSkXa/kXmOgN3dVQxSMEIMVUJiQJ5vl1SmQHsAq/8M6O6X0YSVE/nZjxMUhGxf1mv9I5iw/u4PYP1/T23i/VthIVSlciRp0lX80abNblRoIkvvXLeMm7gA8h3T00L5ehTMpGdEVlfHa1gQrhlgjXjQS6pOR6U9BAidBD94sRYLUJ44R3bfX0m6QVvuqPLu6N/TmsDdXNLuMlJ90sUkopR/FWd0aC01/nAKu8CdKd0Vgusibl/NTjMFOx1My3Pw+ma5SZPC6is+n53F+vkGlwFM1+gEdNJjxPBcbkUgM27IlGc+lUiWtKCVJ9VJYM= diego@diego-surfacepro8"
+    ];
   };
 
   users.users.guest = {
