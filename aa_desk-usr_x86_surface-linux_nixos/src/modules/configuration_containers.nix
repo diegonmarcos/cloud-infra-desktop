@@ -19,6 +19,28 @@
 
   virtualisation.waydroid.enable = true;
 
+  # ── Waydroid networking fix for nftables-only kernels (6.19+) ──────────────
+  # waydroid-1.4.3's waydroid-net.sh hardcodes LXC_USE_NFT="false" → it prefers
+  # the LEGACY iptables binary, which needs the `ip_tables` kernel module. The
+  # linux-surface 6.19.8 kernel is nftables-only (no legacy ip_tables module), so
+  # `waydroid session start` aborts at `waydroid-net.sh start` (RuntimeError) and
+  # Waydroid won't boot. The script already has a full nftables path (start_nftables)
+  # gated on LXC_USE_NFT="true" + `nft` on PATH — neither of which the package ships.
+  # Patch its bundled net.sh to take that path. PROVEN: with both changes net.sh
+  # brings waydroid0 (192.168.240.1/24) up on this kernel. Drop this override if a
+  # future waydroid release auto-detects nftables.
+  nixpkgs.overlays = [
+    (final: prev: {
+      waydroid = prev.waydroid.overrideAttrs (old: {
+        postFixup = (old.postFixup or "") + ''
+          substituteInPlace "$out/lib/waydroid/data/scripts/.waydroid-net.sh-wrapped" \
+            --replace 'LXC_USE_NFT="false"' 'LXC_USE_NFT="true"
+          export PATH="${final.nftables}/bin:$PATH"'
+        '';
+      });
+    })
+  ];
+
   systemd.services.waydroid-container = {
     # Don't auto-start - only run when manually started
     wantedBy = lib.mkForce [];
