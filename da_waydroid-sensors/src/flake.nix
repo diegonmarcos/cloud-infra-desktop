@@ -11,18 +11,10 @@
       packages = forAll (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          waydroid-sensord = pkgs.stdenv.mkDerivation {
-            pname = "waydroid-sensord";
-            version = "0.1.0";
-            src = ./code;
-            nativeBuildInputs = [ pkgs.cmake pkgs.pkg-config ];
-            buildInputs = [ pkgs.glib pkgs.libglibutil pkgs.libgbinder ];
-            meta = {
-              description = "IIO-backed Android sensors HAL for Waydroid";
-              license = pkgs.lib.licenses.gpl3Only;
-              platforms = systems;
-            };
-          };
+          # Single source of truth: the same callPackage-able derivation the
+          # surface host flake path-imports into environment.systemPackages
+          # (see ./nix/package.nix for why the binary must be on PATH).
+          waydroid-sensord = pkgs.callPackage ./nix/package.nix { };
         in {
           inherit waydroid-sensord;
           default = waydroid-sensord;

@@ -88,6 +88,11 @@
         # `tss` group membership for diego, security.tpm2 for /dev/tpmrm0.
         ../../da_fido2-vault-broker/src/nix/module.nix
         ./modules/configuration_fido2-vault-broker.nix
+
+        # Waydroid sensors HAL — puts `waydroid-sensord` on the system PATH so
+        # waydroid's root container service stops forcing the empty stub
+        # sensors HAL (which() probe). Daemon itself runs via home-manager.
+        ./modules/configuration_waydroid-sensors.nix
       ];
     };
 
