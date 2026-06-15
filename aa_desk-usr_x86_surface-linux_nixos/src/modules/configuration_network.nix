@@ -206,8 +206,16 @@ in {
     # Don't auto-open port 22 globally; rely on `trustedInterfaces = ["wg0"]`
     # in networking.firewall above so SSH is wg0-only (LAN cannot reach it).
     openFirewall = false;
+    # wg0-ONLY at the SOCKET level (2026-06-15, owner: "SSH only on wg0, no
+    # public"). Binding to the wg0 IP means sshd never even listens on the LAN,
+    # public, or wg-public — defense-in-depth on top of the firewall. Data-driven
+    # from wireguard-endpoints.json. sshd is ordered After wireguard-wg0.service
+    # (below) so the address exists before it binds. If wg0 is down, sshd refuses
+    # to start (remote SSH unavailable; local console always works) — intended.
+    listenAddresses = [ { addr = wgData.client.wg_ip; port = 22; } ];
     settings = {
-      PasswordAuthentication = true;
+      PasswordAuthentication = false;   # key-only (was true). Owner: no password SSH.
+      KbdInteractiveAuthentication = false;
       PermitRootLogin = lib.mkDefault "no";  # ISO installer overrides to "yes"
       # Lynis SSH-7408 hardening — even though SSH is wg0-only, defense-in-depth
       # against a compromised wg0 peer or laptop boot in untrusted env.
@@ -222,6 +230,15 @@ in {
     };
     # Let NixOS generate ephemeral keys to /etc/ssh (tmpfs)
     # Remove hostKeys to use default ephemeral behavior
+  };
+
+  # sshd binds the wg0 address (listenAddresses above) — it MUST start after the
+  # wg0 interface exists or the bind fails at boot. Order it after the wireguard
+  # tunnel unit (2026-06-15). The interface unit is "active (exited)" once the
+  # address is configured.
+  systemd.services.sshd = {
+    after = [ "wireguard-wg0.service" ];
+    wants = [ "wireguard-wg0.service" ];
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
