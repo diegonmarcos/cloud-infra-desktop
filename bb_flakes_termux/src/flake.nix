@@ -51,6 +51,24 @@
             system.stateVersion = "24.05";
             environment.etcBackupExtension = ".bak";
 
+            # ── WG-ONLY resolution pin for mcp.diegonmarcos.com ──────────────
+            # This box is a wg0 mesh member. MCP services are WG-ONLY (Caddy
+            # fail-closed wg_only default → remote_ip 10.0.0.0/24, else 403).
+            # The CF/Hickory wildcard publishes BOTH the public edge
+            # (oci-analytics 129.151.228.66) and the wg0 hub (10.0.0.1); this
+            # box's resolver is public DNS and Hickory (10.0.0.1:53) is
+            # unreachable, so without a pin the MCP client lands on the public
+            # edge and is correctly 403'd. nsswitch is files-before-dns, so this
+            # /etc/hosts entry forces mcp.* onto the wg0 Caddy hub — it NEVER
+            # resolves to the public IP. All six HTTP MCP servers share this one
+            # host (mcp.diegonmarcos.com/{c3-infra-mcp,c3-services-mcp,mail-mcp,
+            # mattermost-mcp,g-workspace,g-personal}), so one pin fixes them all.
+            environment.etc."hosts".text = lib.mkForce ''
+              127.0.0.1 localhost
+              ::1 localhost
+              10.0.0.1 mcp.diegonmarcos.com
+            '';
+
             nix.extraOptions = ''
               experimental-features = nix-command flakes
               # Phone has 7GB RAM. max-jobs=2 × cores=4 = up to 8 parallel
