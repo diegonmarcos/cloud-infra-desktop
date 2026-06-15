@@ -72,10 +72,17 @@ cmd_build() {
   mkdir -p "$DIST"
   log "nix build (reproducible flake)…"
   local out
-  out="$(nix build "path:$SRC#waydroid-sensord" --no-link --print-out-paths)"
+  # --out-link registers a persistent indirect GC root for the build output.
+  # The binary is copied OUT of the store into dist/, but it is dynamically
+  # linked and its RUNPATH points back at store paths (glib/libgbinder/...).
+  # Without a GC root, nix-collect-garbage reaps that closure and the copied
+  # binary dies at load time ("libgio-2.0.so.0: cannot open shared object file").
+  # The gcroot keeps the whole closure alive. (dist/ is gitignored, so the
+  # machine-specific symlink never gets committed.)
+  out="$(nix build "path:$SRC#waydroid-sensord" --out-link "$DIST/.gcroot-sensord" --print-out-paths)"
   command cp -f "$out/bin/$BINARY_NAME" "$DIST/$BINARY_NAME"
   chmod +w "$DIST/$BINARY_NAME"
-  log "built $DIST/$BINARY_NAME"
+  log "built $DIST/$BINARY_NAME (closure pinned via $DIST/.gcroot-sensord)"
   cmd_conf
 }
 
