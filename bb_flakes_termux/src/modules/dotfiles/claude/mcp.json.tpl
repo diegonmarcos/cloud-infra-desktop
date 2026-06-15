@@ -3,7 +3,7 @@
     "unix": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/unix/bc_unix-mcp-api/src/index.ts"],
+      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/tools/6-unix-mcp-api/src/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules"
       }
@@ -26,7 +26,7 @@
     "cloud-infra-local": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/mcp/index.ts"],
+      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/code/mcp/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
         "GIT_BASE": "/data/data/com.termux.nix/files/home/git"
@@ -35,7 +35,7 @@
     "cloud-cgc-mcp": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts"],
+      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/code/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
         "CONFIG_PATH": "/data/data/com.termux.nix/files/home/git/cloud/config.json"

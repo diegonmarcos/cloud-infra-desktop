@@ -26,7 +26,7 @@
     "cloud-infra-local": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/mcp/index.ts"],
+      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/code/mcp/index.ts"],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
         "GIT_BASE": "/home/diego/git"
@@ -42,7 +42,7 @@
     "cloud-cgc-mcp-local": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts"],
+      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/code/index.ts"],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
         "CONFIG_PATH": "/home/diego/git/cloud/config.json"
