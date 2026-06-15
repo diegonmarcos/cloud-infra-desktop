@@ -313,6 +313,11 @@ cmd_theme() {
     wd_shell cmd uimode night yes >/dev/null 2>&1 || true
     wd_shell settings put secure ui_night_mode 2 >/dev/null 2>&1 || true
   fi
+  # 1b) auto-rotate — follow the accelerometer HAL (da_waydroid-sensors)
+  if [ "$(get theme.auto_rotate)" = "true" ]; then
+    log "enabling auto-rotate (accelerometer_rotation=1)…"
+    wd_shell settings put system accelerometer_rotation 1 >/dev/null 2>&1 || true
+  fi
   # 2) wallpaper — generate + stage into the container's /sdcard + set
   if [ "$(get theme.wallpaper.generate)" = "true" ]; then
     [ -f "$WALLPAPER" ] || cmd_wallpaper
