@@ -112752,3 +112752,10 @@ sshd started (PID 21677) on :8024
 [2026-06-15 20:01:41] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-06-15 20:01:41] PERF: start switch
 [2026-06-15 20:01:47] INFO: Staging dirty files for flake evaluation...
+[2026-06-15 20:01:52] PERF: git stage = 9.8s
+[2026-06-15 20:01:52] PERF: clean backups = 263ms
+[2026-06-15 20:01:53] PERF: profile guard = 171ms
+[2026-06-15 20:29:49] ========== Build script started ==========
+[2026-06-15 20:29:50] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-06-15 20:29:50] PERF: start switch
+[2026-06-15 20:29:55] INFO: Staging dirty files for flake evaluation...
