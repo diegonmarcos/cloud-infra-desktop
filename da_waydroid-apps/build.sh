@@ -222,10 +222,6 @@ resolve_component() {
 
 cmd_layout() {
   require_session; detect_priv
-  warn "KNOWN-FRAGILE: seeding launcher.db via host sqlite corrupts Launcher3's own"
-  warn "/data on this Waydroid (it can no longer create databases/app_icons.db →"
-  warn "crash loop). NOT in ship/auto-provision. Manual escape-hatch only; recover a"
-  warn "broken launcher with: waydroid session stop && (reset /data) && session start."
   local db; db="$(wd_db)"
   log "launcher DB: $db"
 
@@ -274,11 +270,20 @@ cmd_layout() {
   node "$SRC/lib/gen-layout-sql.js" > "$sqlfile"
   log "generated $sqlfile ($(grep -c '^INSERT' "$sqlfile") rows)"
 
-  # apply with launcher stopped, then relaunch
-  log "stopping launcher, applying layout, relaunching…"
+  # apply with launcher stopped, then relaunch.
+  # CRITICAL: sqlite3 runs as root, so the db + its -wal/-shm sidecars become
+  # root-owned. Launcher3 (its own app uid) then can't open them and crash-loops
+  # ("SQLiteCantOpenDatabaseException: ... databases doesn't exist"). We capture
+  # the db's Android owner BEFORE writing and restore it AFTER, and drop the
+  # stale WAL/SHM so Launcher3 recreates them as itself. This is what makes
+  # launcher.db seeding safe (previously it permanently broke the launcher).
+  local dbowner; dbowner="$(sudo stat -c '%u:%g' "$db")"
+  log "stopping launcher, applying layout (restoring db owner $dbowner), relaunching…"
   wd_shell am force-stop "$(get waydroid.launcher_package)" 2>/dev/null || true
-  sudo sqlite3 "$db" < "$sqlfile" || { warn "sqlite apply failed — restoring backup"; sudo cp -f "$bak" "$db"; die "layout aborted, backup restored"; }
+  sudo sqlite3 "$db" < "$sqlfile" || { warn "sqlite apply failed — restoring backup"; sudo cp -f "$bak" "$db"; sudo chown "$dbowner" "$db"; die "layout aborted, backup restored"; }
   sudo sqlite3 "$db" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
+  sudo rm -f "$db-wal" "$db-shm"
+  sudo chown "$dbowner" "$db"
   wd_shell monkey -p "$(get waydroid.launcher_package)" 1 >/dev/null 2>&1 || true
 
   # verify
@@ -346,11 +351,12 @@ cmd_status() {
   fi
 }
 
-# NOTE: `layout` is intentionally NOT in ship/auto-provision. Seeding launcher.db
-# via host sqlite corrupts Launcher3's own /data (it can no longer create its
-# databases/app_icons.db → crash loop). Launcher3 uses its default home; apps live
-# in the drawer. `layout` is kept as a manual escape-hatch only (see its warning).
-cmd_ship() { [ -f "$LOCKFILE" ] || cmd_lock; cmd_build; cmd_install; cmd_theme; }
+# `layout` seeds the Launcher3 home screen (dock + folders + workspace) from
+# build.json. It is now SAFE in ship/auto-provision: cmd_layout restores the
+# launcher db's Android owner after the root sqlite write, so Launcher3 no longer
+# crash-loops (it used to be left root-owned → SQLiteCantOpenDatabaseException).
+# Order: install (apps must exist for component resolution) → layout → theme.
+cmd_ship() { [ -f "$LOCKFILE" ] || cmd_lock; cmd_build; cmd_install; cmd_layout; cmd_theme; }
 cmd_clean() { rm -rf "$DIST"; log "cleaned dist/"; }
 
 case "${1:-build}" in
