@@ -1,5 +1,5 @@
 # System packages, shells, flatpak
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, pkgsUnstable, ... }:
 
 {
   # ═══════════════════════════════════════════════════════════════════════════
@@ -74,6 +74,16 @@
     # maliit-framework
     onboard              # Full-featured: arrows, Fn keys, mouse buttons, word prediction
     kdePackages.qtvirtualkeyboard  # Qt virtual keyboard for SDDM login screen
+
+    # ─── Camera (KDE-native) ──────────────────────────────────────────────────
+    # Kamoso — KDE's webcam app (2026-06-15, requested). From pkgsUnstable:
+    # kdePackages.kamoso is meta.broken=true in nixpkgs 24.11 (build fails),
+    # broken=false in unstable. Same pkgsUnstable escape hatch as the fido2
+    # broker; a standalone app carries its own Qt closure so it won't clash
+    # with Plasma 6.2.5's Qt. CAVEAT: Kamoso is GStreamer-based, not libcamera,
+    # so on this IPU6 hardware it may not enumerate the cameras (GNOME Snapshot
+    # works because it's libcamera-native). Added as requested.
+    pkgsUnstable.kdePackages.kamoso
 
     # ─── Wallpapers ───────────────────────────────────────────────────────────
     kdePackages.plasma-workspace-wallpapers
