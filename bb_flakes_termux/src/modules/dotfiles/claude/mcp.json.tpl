@@ -33,12 +33,21 @@
       }
     },
     "cloud-cgc-mcp": {
+      "type": "http",
+      "url": "https://mcp.diegonmarcos.com/cloud-cgc-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
+    },
+    "cloud-cgc-mcp-local": {
       "type": "stdio",
       "command": "tsx",
       "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/code/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
-        "CONFIG_PATH": "/data/data/com.termux.nix/files/home/git/cloud/config.json"
+        "CONFIG_PATH": "/data/data/com.termux.nix/files/home/git/cloud/config.json",
+        "GIT_ROOT": "/data/data/com.termux.nix/files/home/git",
+        "OCTOCODE_BIN": "/data/data/com.termux.nix/files/home/.nix-profile/bin/octocode"
       }
     },
     "diego-personal-data": {
