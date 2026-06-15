@@ -222,6 +222,10 @@ resolve_component() {
 
 cmd_layout() {
   require_session; detect_priv
+  warn "KNOWN-FRAGILE: seeding launcher.db via host sqlite corrupts Launcher3's own"
+  warn "/data on this Waydroid (it can no longer create databases/app_icons.db →"
+  warn "crash loop). NOT in ship/auto-provision. Manual escape-hatch only; recover a"
+  warn "broken launcher with: waydroid session stop && (reset /data) && session start."
   local db; db="$(wd_db)"
   log "launcher DB: $db"
 
@@ -342,7 +346,11 @@ cmd_status() {
   fi
 }
 
-cmd_ship() { [ -f "$LOCKFILE" ] || cmd_lock; cmd_build; cmd_install; cmd_layout; cmd_theme; }
+# NOTE: `layout` is intentionally NOT in ship/auto-provision. Seeding launcher.db
+# via host sqlite corrupts Launcher3's own /data (it can no longer create its
+# databases/app_icons.db → crash loop). Launcher3 uses its default home; apps live
+# in the drawer. `layout` is kept as a manual escape-hatch only (see its warning).
+cmd_ship() { [ -f "$LOCKFILE" ] || cmd_lock; cmd_build; cmd_install; cmd_theme; }
 cmd_clean() { rm -rf "$DIST"; log "cleaned dist/"; }
 
 case "${1:-build}" in

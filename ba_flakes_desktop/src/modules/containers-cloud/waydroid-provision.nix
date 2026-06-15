@@ -2,8 +2,8 @@
 #
 # DECLARATIVE self-healing of the Waydroid app/layout/theme provisioning.
 #
-# Why this exists: da_waydroid-apps applies its state (install APKs, seed the
-# launcher dock/folders, dark mode + wallpaper) by mutating the RUNNING Waydroid
+# Why this exists: da_waydroid-apps applies its state (install APKs, dark mode +
+# wallpaper) by mutating the RUNNING Waydroid
 # container — that state lives in Waydroid's /data, which is NOT declarative and
 # is lost on any /data reset or corruption (keystore/package-db corruption has
 # wiped it repeatedly). The engine is the source of truth; this service makes the
@@ -58,14 +58,16 @@ in
 
       echo "[waydroid-provision] fresh/empty /data detected — re-provisioning from build.json…"
       "$APPS_DIR/build.sh" install
-      "$APPS_DIR/build.sh" layout
+      # NOTE: `layout` (launcher.db seeding) is intentionally NOT run — seeding via
+      # host sqlite corrupts Launcher3's own /data and crash-loops it. Launcher3 uses
+      # its default home; apps live in the app drawer.
       "$APPS_DIR/build.sh" theme
-      echo "[waydroid-provision] done (apps + dock/folders + dark mode + wallpaper restored)."
+      echo "[waydroid-provision] done (apps installed + dark mode + wallpaper restored)."
     '';
   };
 
   systemd.user.services.waydroid-provision = {
-    Unit.Description = "Self-healing Waydroid provisioning (apps + layout + theme) from da_waydroid-apps";
+    Unit.Description = "Self-healing Waydroid provisioning (apps + theme) from da_waydroid-apps";
     Service = {
       Type = "oneshot";
       ExecStart = "%h/.local/bin/waydroid-provision";
