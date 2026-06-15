@@ -58,6 +58,19 @@ in
       DECLARED=${declared}
       RESUME_DEV=${lib.escapeShellArg resumeDev}
 
+      # Fresh-Desktop / rescue boots deliberately disable hibernation (noresume
+      # on cmdline, swapDevices=[], resumeDevice=""). The resume-offset
+      # invariants don't apply there, so SKIP cleanly instead of failing the
+      # unit — 2026-06-15: this exited 1 by design in fresh-desktop, leaving a
+      # failed unit + noise. grep-free cmdline test (coreutils only).
+      case " $(${pkgs.coreutils}/bin/cat /proc/cmdline) " in
+        *" noresume "*)
+          echo "[swapfile-resume-offset] noresume on cmdline — hibernation disabled this boot; skipping resume-offset checks"
+          ${pkgs.util-linux}/bin/logger -t swapfile-resume-offset -p user.info \
+            "noresume boot (fresh-desktop/rescue) — resume-offset checks skipped"
+          exit 0 ;;
+      esac
+
       mask_hibernate() {
         local reason="$1"
         ${pkgs.util-linux}/bin/logger -t swapfile-resume-offset -p user.crit \

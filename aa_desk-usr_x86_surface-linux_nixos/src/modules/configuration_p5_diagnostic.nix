@@ -63,6 +63,17 @@ in
     description = "Run fsck.ext4 -n on Shared-Lib BEFORE local-fs.target (corruption forensics)";
     wantedBy    = [ "local-fs.target" ];
     before      = [ "local-fs.target" "mnt-shared\\x2dlib.mount" ];
+    # CRITICAL (2026-06-15): a service ordered Before=local-fs.target MUST set
+    # DefaultDependencies=false. Without it, the implicit After=basic.target
+    # (which is After=local-fs.target) forms an ordering cycle:
+    #   local-fs.target → p5-fsck-preboot → basic.target → local-fs.target
+    # systemd breaks cycles by DELETING jobs non-deterministically; on the
+    # 2026-06-15 fresh-desktop boot it dropped NetworkManager's start job
+    # (and broke audit.service), so NM never auto-started. DefaultDependencies
+    # in [Unit] only — same class as the p5-snapshot-shutdown fix (2026-06-12).
+    # The script already self-guards on device presence, so running early
+    # (before the device settles) is safe — it just skips.
+    unitConfig.DefaultDependencies = false;
     serviceConfig = {
       Type           = "oneshot";
       RemainAfterExit = true;
