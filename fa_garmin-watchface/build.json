@@ -14,10 +14,11 @@
   },
 
   "toolchain": {
-    "_doc": "Pinned for reproducibility — all materialised by flake.nix. The Connect IQ SDK is fetched + pinned by the connect-iq-sdk-manager lockfile (faces are device-scoped via each manifest.xml). Bump here, update flake.lock + the sdk-manager lockfile, rebuild devShell.",
-    "ciq_sdk": "7.4.3",
+    "_doc": "Pinned for reproducibility. The Connect IQ SDK is downloaded + pinned by connect-iq-sdk-manager (provided by flake.nix); `build.sh sdk` runs the documented flow: agreement accept -> login -> sdk set -> device download. SDK download requires a Garmin login (GARMIN_USERNAME/GARMIN_PASSWORD — vault locally, GHA secrets in CI).",
+    "ciq_sdk": "^7.4.3",
     "jdk": "17",
-    "_doc_sdk_source": "SDK is NOT in nixpkgs (proprietary). flake.nix packages it declaratively: connect-iq-sdk-manager-cli (pinned) downloads the SDK + per-device files into a fixed-output derivation keyed by the committed sdk-manager lockfile -> reproducible, no Docker, no imperative install."
+    "_doc_agreement_hash": "Garmin CONNECT IQ SDK License acceptance hash, required for non-interactive (CI) acceptance. Obtain ONCE on any machine with the CLI: `connect-iq-sdk-manager agreement view` prints the agreement + its hash; paste it here. Empty => `build.sh sdk` falls back to interactive `agreement accept` (local only). Data-driven so CI never hardcodes it.",
+    "agreement_hash": ""
   },
 
   "devices": {

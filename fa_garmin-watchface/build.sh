@@ -9,6 +9,7 @@
 # ║                                                                  ║
 # ║ Commands ( [design] defaults to build.json::build.default_design ):║
 # ║   gen        [design]  design.json → DesignConfig.mc + launcher   ║
+# ║   sdk        [design]  provision Connect IQ SDK (Garmin login)    ║
 # ║   build      [design]  gen + monkeyc → dist/<design>/<design>.prg  ║
 # ║   package    [design]  gen + monkeyc → dist/<design>/<design>.iq   ║
 # ║                        (store-uploadable, all products)           ║
@@ -52,6 +53,35 @@ jqr() { command -v jq >/dev/null 2>&1 || die "jq not found (provided by the devS
 
 bj()  { jqr -r "$1" "$BUILD_JSON"; }                       # read build.json
 dj()  { jqr -r "$2" "$FACES_DIR/$1/design.json"; }         # read a design's design.json
+
+# ── Connect IQ SDK provisioning (real connect-iq-sdk-manager flow) ──
+# The proprietary SDK is downloaded behind a Garmin login. Flow per the CLI
+# docs: agreement accept → login → sdk set → device download. Login creds come
+# from GARMIN_USERNAME/GARMIN_PASSWORD (vault locally, GHA secrets in CI); when
+# unset the CLI falls back to interactive OAuth (desktop only). The session +
+# SDK are cached by the CLI, so this is idempotent across runs.
+ciq() { in_nix connect-iq-sdk-manager "$@"; }
+
+ensure_sdk() {
+  local design="$1"
+  local ver hash
+  ver="$(bj '.toolchain.ciq_sdk')"
+  hash="$(bj '.toolchain.agreement_hash')"
+
+  if [ -n "$hash" ] && [ "$hash" != "null" ]; then
+    ciq agreement accept --acceptance-hash="$hash"
+  else
+    log "sdk: build.json toolchain.agreement_hash empty — interactive accept (local only)"
+    ciq agreement accept
+  fi
+  ciq login
+  ciq sdk set "$ver"
+  # Per-design device defs (driven by that design's manifest products).
+  ciq device download --manifest="$FACES_DIR/$design/manifest.xml"
+}
+
+# Absolute path to the active SDK's bin/ (monkeyc, connectiq, monkeydo, …).
+ciq_bin() { ciq sdk current-path --bin; }
 
 # ── Design resolution ──────────────────────────────────────────────
 resolve_design() {
@@ -104,21 +134,25 @@ step_secrets() { _resolve_signing >/dev/null; log "secrets: dist/$(bj '.signing.
 _compile() {
   local design="$1" mode="$2"            # mode: prg | iq
   step_gen "$design"
+  ensure_sdk "$design"
   local key; key="$(_resolve_signing)"
+  local mc; mc="$(ciq_bin)/monkeyc"
   local out="$DIST_DIR/$design"; mkdir -p "$out"
   local jungle="$FACES_DIR/$design/monkey.jungle"
 
   if [ "$mode" = "iq" ]; then
     local art="$out/$design.iq"
     log "package: monkeyc -e → $art"
-    in_nix monkeyc -e -o "$art" -f "$jungle" -y "$key" -w -r
+    in_nix "$mc" -e -o "$art" -f "$jungle" -y "$key" -w -r
   else
     local device; device="$(bj '.devices.sim_default')"
     local art="$out/$design.prg"
     log "build: monkeyc -d $device → $art"
-    in_nix monkeyc -o "$art" -f "$jungle" -y "$key" -d "$device" -w -r
+    in_nix "$mc" -o "$art" -f "$jungle" -y "$key" -d "$device" -w -r
   fi
 }
+
+step_sdk() { local d; d="$(resolve_design "${1:-}")"; ensure_sdk "$d"; log "sdk: ready ($(ciq_bin))"; }
 
 step_build()   { local d; d="$(resolve_design "${1:-}")"; _compile "$d" prg; }
 step_package() { local d; d="$(resolve_design "${1:-}")"; _compile "$d" iq; }
@@ -126,9 +160,9 @@ step_package() { local d; d="$(resolve_design "${1:-}")"; _compile "$d" iq; }
 step_sim() {
   local design; design="$(resolve_design "${1:-}")"
   step_build "$design"
-  local device; device="$(bj '.devices.sim_default')"
+  local device bin; device="$(bj '.devices.sim_default')"; bin="$(ciq_bin)"
   log "sim: launching connectiq simulator ($device)"
-  in_nix sh -c "connectiq & sleep 4; monkeydo '$DIST_DIR/$design/$design.prg' '$device'"
+  in_nix sh -c "'$bin/connectiq' & sleep 4; '$bin/monkeydo' '$DIST_DIR/$design/$design.prg' '$device'"
 }
 
 # ── Release plumbing (data-driven from build.json::release) ─────────
@@ -220,6 +254,7 @@ usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; }
 CMD="${1:-help}"; shift || true
 case "$CMD" in
   gen)        step_gen        "${1:-}" ;;
+  sdk)        step_sdk        "${1:-}" ;;
   build)      step_build      "${1:-}" ;;
   package)    step_package    "${1:-}" ;;
   sim)        step_sim        "${1:-}" ;;
