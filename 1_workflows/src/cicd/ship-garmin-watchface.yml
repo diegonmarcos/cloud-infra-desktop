@@ -89,7 +89,7 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/lindell/connect-iq-sdk-manager-cli/master/install.sh \
             | sh -s -- -b "$HOME/.local/bin" v0.8.4
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/connect-iq-sdk-manager" --version
+          "$HOME/.local/bin/connect-iq-sdk-manager" version
 
       # ── Stable developer signing key (cached → constant signature) ──
       # Mirrors ea_cloud-superapp's cached debug keystore: a fresh RSA key
