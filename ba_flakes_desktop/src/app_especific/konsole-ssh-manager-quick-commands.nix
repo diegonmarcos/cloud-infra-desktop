@@ -242,14 +242,14 @@ let
   ) vms + lib.concatMapStrings (h:
     (mkSshHostEntry { host = h.alias; hostname = h.ip; user = h.user; port = h.port; })
   ) extraSshHosts
-  # Direct shell into the claude-openai-bridge container on oci-apps (WG-only).
+  # Direct shell into the kg-bridge container on oci-apps (WG-only).
   # `ssh claude_oci-apps` → drops straight into Claude Code inside the container,
   # sharing the volume-persisted login the octocode GraphRAG bridge uses.
   + (mkSshHostEntry {
       host = "claude_oci-apps";
       hostname = ociApps.ip;
       user = ociApps.user;
-      remoteCommand = "docker exec -it claude-openai-bridge claude";
+      remoteCommand = "docker exec -it kg-bridge claude";
     })
   + ''
     Host github.com

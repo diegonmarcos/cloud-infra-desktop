@@ -112759,3 +112759,306 @@ sshd started (PID 21677) on :8024
 [2026-06-15 20:29:50] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-06-15 20:29:50] PERF: start switch
 [2026-06-15 20:29:55] INFO: Staging dirty files for flake evaluation...
+[2026-06-15 20:29:59] PERF: git stage = 8.5s
+[2026-06-15 20:30:00] PERF: clean backups = 286ms
+[2026-06-15 20:30:00] PERF: profile guard = 163ms
+[2026-06-15 20:30:00] PERF: clear stale files = 245ms
+[2026-06-15 20:30:01] INFO: Applying nix-on-droid configuration (verbose=1)...
+Building activation package...
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 4 derivations will be built:
+  /nix/store/sz8871137k0f1138k5ywrpkkrg4ph807-etc-resolv.conf.drv
+  /nix/store/xp4x25wmq7ypm36diclnnsr5b3xr19ma-etc.drv
+  /nix/store/b9knn0dfpnflfk54a30s7x94f6d5azwa-activation-script.drv
+  /nix/store/5n0hqlpp0cj0643d8435mw5pzr2z8fs5-nix-on-droid-generation.drv
+building '/nix/store/sz8871137k0f1138k5ywrpkkrg4ph807-etc-resolv.conf.drv'...
+building '/nix/store/xp4x25wmq7ypm36diclnnsr5b3xr19ma-etc.drv'...
+building '/nix/store/b9knn0dfpnflfk54a30s7x94f6d5azwa-activation-script.drv'...
+building '/nix/store/5n0hqlpp0cj0643d8435mw5pzr2z8fs5-nix-on-droid-generation.drv'...
+Executing activation script...
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+No change so reusing latest profile generation 210
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (4 VMs, 41 services, date=2026-06-15)
+Activating globalTsx
+
+changed 3 packages in 11s
+Activating globalWrangler
+[node-bins] Installing wrangler@4.100.0
+npm warn using --force Recommended protections disabled.
+
+changed 35 packages in 29s
+Activating gooseConfig
+Activating initHomeGit
+Activating removeImperativePackages
+Activating installPackages
+Activating installWg0TcpConf
+[wireguard-wstunnel] /data/data/com.termux.nix/files/home/.config/wireguard/wg0.conf not found — skipping wg0-tcp.conf render
+Activating linkNixBinsToTermux
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /data/data/com.termux.nix/files/home/git/cloud/2_configs/dist/build-flakes_termux.json
+Activating mergeFrontDeps
+[node-npm-deps-front] 88 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 109 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@asamuzakjp/css-color@5.1.11',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@asamuzakjp/generational-cache@1.0.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@eslint/config-array@0.23.5',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@eslint/config-helpers@0.5.5',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@eslint/core@1.2.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@eslint/object-schema@3.0.5',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@eslint/plugin-kit@0.7.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@exodus/bytes@1.15.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@sveltejs/vite-plugin-svelte@7.0.0',
+npm warn EBADENGINE   required: { node: '^20.19 || ^22.12 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'eslint-visitor-keys@5.0.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@vitejs/plugin-vue@6.0.5',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'data-urls@7.0.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'whatwg-url@16.0.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'eslint@10.2.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'eslint-scope@9.1.2',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'eslint-visitor-keys@5.0.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'espree@11.2.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'html-encoding-sniffer@6.0.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'unplugin@3.0.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'jsdom@28.1.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'whatwg-url@16.0.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'rolldown@1.0.0-rc.17',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'unplugin@3.0.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'vite@8.0.10',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+
+up to date in 49s
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-06-15 20:34:48] PERF: nix-on-droid switch = 4m 47s
+[2026-06-15 20:34:48] PERF: TOTAL switch = 4m 58s
+[2026-06-15 20:34:48] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-06-15 20:34:49] SUCCESS: verify: all 8 critical commands present
+[2026-06-15 20:34:49] PERF: post-switch verify = 296ms
+[2026-06-15 20:34:49] PERF: TOTAL  = 29692414m 49s
+[2026-06-15 20:34:49] INFO: sshd-guarantee: (1/2) trying flake wrapper restart...
+sshd not running
+sshd started (PID 11344) on :8024
+[2026-06-15 20:34:52] WARN: sshd-guarantee: process up but port :8022 not detected — verify manually
+[2026-06-15 20:34:52] PERF: sshd guarantee = 2.8s
+[2026-06-15 20:34:52] PERF: TOTAL  = 29692414m 52s
+[2026-06-15 20:34:57] ========== Build script finished ==========
+[2026-06-16 20:15:12] ========== Build script started ==========
+[2026-06-16 20:15:12] ========== Build script finished ==========
+[2026-06-16 20:15:58] ========== Build script started ==========
+[2026-06-16 20:15:59] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-06-16 20:15:59] PERF: start switch
+[2026-06-16 20:16:07] INFO: Staging dirty files for flake evaluation...
+[2026-06-16 20:16:11] PERF: git stage = 11.0s
+[2026-06-16 20:16:12] PERF: clean backups = 299ms
+[2026-06-16 20:16:12] PERF: profile guard = 232ms
+[2026-06-16 20:16:13] PERF: clear stale files = 239ms
+[2026-06-16 20:16:13] INFO: Applying nix-on-droid configuration (verbose=0)...
+Building activation package...
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 23 derivations will be built:
+  /nix/store/45l2hmy3wg7bp5wdyg45v0zc2z9q420c-home-manager-path.drv
+  /nix/store/y822vn7bvz5bh7ki2y7d91a4x1z5jwvk-man-paths.drv
+  /nix/store/6pd0rfmc40b81pd8kb66w6j5d1m88y0q-man-cache.drv
+  /nix/store/4fkcjj7v0rhghldzydbg02855573pmcj-hm_.manpath.drv
+  /nix/store/gsjq8b449pr69labbfk17nm7j5nlypmn-nix-on-droid-path.drv
+  /nix/store/5nx4rjqf3wwkvvvscsc60wiw924cv1yl-dummy-xdg-mime-dirs1-fish-completions.drv
+  /nix/store/8vw17iwxhch061y784lnr2csg6ja7gnk-zsh-5.9-fish-completions.drv
+  /nix/store/9cxnqvqqc9jsln5c4i48gsjzwffvpfr0-multitail-7.1.2-fish-completions.drv
+  /nix/store/9s2y3w99g8ccn11v8fnx4w1swzbrxlcw-nix-zsh-completions-0.5.1-fish-completions.drv
+  /nix/store/ig3l07hiys20579c6xc4m66p1zvmikmc-dummy-xdg-mime-dirs2-fish-completions.drv
+  /nix/store/ih20f8xw5i6bpwv3idkzgxxni5bnx7yc-starship-1.19.0-fish-completions.drv
+  /nix/store/jn1cj2zmzjzmhy08n670n25byxpyskp1-cliphist-0.5.0-fish-completions.drv
+  /nix/store/k6lrjg9am4vmimphqxqf341ppz2p16df-goose-1.28.0-fish-completions.drv
+  /nix/store/qfb96wf8p4vz7xdjayi8d3k30ail4n98-hm-session-vars.sh-fish-completions.drv
+  /nix/store/v5fz3k22mzzsl7blrvijzp2p4pkm97lk-busybox-1.36.1-fish-completions.drv
+  /nix/store/w1g2fh5v11ycp4a9p7gdlhjdv3viygd8-mdbook-0.4.37-fish-completions.drv
+  /nix/store/wdyf3cvgxidrjc6wiwpvms29hxxvsssb-android-tools-35.0.1-fish-completions.drv
+  /nix/store/yqw2j8x43rqby7ps3j84b3qnd5smvd6j-octocode-0.12.2-fish-completions.drv
+  /nix/store/gaadbk75kzy9bsysyrv38qh5zxvm8a6s-nix-on-droid-fish-completions.drv
+  /nix/store/a2y42acipg7x4s34j33gqp8jll7pa991-home-manager-files.drv
+  /nix/store/l1j1xnih5smwlllddvdbiijzzkq2cy1y-home-manager-generation.drv
+  /nix/store/50k0mwbq76rj6khvx777nqphk2g06lav-activation-script.drv
+  /nix/store/jlsafgqk4y9ia7y3y5xjcjag46vpq2mp-nix-on-droid-generation.drv
+these 4 paths will be fetched (2.82 MiB download, 18.22 MiB unpacked):
+  /nix/store/r4r1m4gyq4yalv7zrcxy8dx8zc3v833n-android-tools-35.0.1
+  /nix/store/rlhrdzfabdf8xbnxqjpzx5a871syhs4x-desktop-file-utils-0.27
+  /nix/store/4lxjfrasjq515qvjcric9cz80k355bfs-python3-3.11.10-env
+  /nix/store/pfdd2ljbmwxs03r1s3ac6sj6hz1sq92g-python3.11-protobuf-4.24.4
+copying path '/nix/store/pfdd2ljbmwxs03r1s3ac6sj6hz1sq92g-python3.11-protobuf-4.24.4' from 'https://cache.nixos.org'...
+copying path '/nix/store/rlhrdzfabdf8xbnxqjpzx5a871syhs4x-desktop-file-utils-0.27' from 'https://cache.nixos.org'...
+building '/nix/store/v5fz3k22mzzsl7blrvijzp2p4pkm97lk-busybox-1.36.1-fish-completions.drv'...
+copying path '/nix/store/4lxjfrasjq515qvjcric9cz80k355bfs-python3-3.11.10-env' from 'https://cache.nixos.org'...
+copying path '/nix/store/r4r1m4gyq4yalv7zrcxy8dx8zc3v833n-android-tools-35.0.1' from 'https://cache.nixos.org'...
+building '/nix/store/jn1cj2zmzjzmhy08n670n25byxpyskp1-cliphist-0.5.0-fish-completions.drv'...
+building '/nix/store/wdyf3cvgxidrjc6wiwpvms29hxxvsssb-android-tools-35.0.1-fish-completions.drv'...
+building '/nix/store/5nx4rjqf3wwkvvvscsc60wiw924cv1yl-dummy-xdg-mime-dirs1-fish-completions.drv'...
+building '/nix/store/ig3l07hiys20579c6xc4m66p1zvmikmc-dummy-xdg-mime-dirs2-fish-completions.drv'...
+building '/nix/store/k6lrjg9am4vmimphqxqf341ppz2p16df-goose-1.28.0-fish-completions.drv'...
+building '/nix/store/qfb96wf8p4vz7xdjayi8d3k30ail4n98-hm-session-vars.sh-fish-completions.drv'...
+building '/nix/store/45l2hmy3wg7bp5wdyg45v0zc2z9q420c-home-manager-path.drv'...
+building '/nix/store/y822vn7bvz5bh7ki2y7d91a4x1z5jwvk-man-paths.drv'...
+building '/nix/store/w1g2fh5v11ycp4a9p7gdlhjdv3viygd8-mdbook-0.4.37-fish-completions.drv'...
+building '/nix/store/6pd0rfmc40b81pd8kb66w6j5d1m88y0q-man-cache.drv'...
+building '/nix/store/9cxnqvqqc9jsln5c4i48gsjzwffvpfr0-multitail-7.1.2-fish-completions.drv'...
+building '/nix/store/4fkcjj7v0rhghldzydbg02855573pmcj-hm_.manpath.drv'...
+building '/nix/store/gsjq8b449pr69labbfk17nm7j5nlypmn-nix-on-droid-path.drv'...
+/data/data/com.termux.nix/files/home/.nix-profile/bin/nix-on-droid: line 26: 31693 Bus error               nix "${command}" "${extraArgs[@]}"
+[2026-06-16 20:28:08] ========== Build script started ==========
+[2026-06-16 20:28:08] === Building /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src (no apply) ===
+[2026-06-16 20:28:14] INFO: Staging dirty files for flake evaluation...
+[2026-06-16 20:28:20] INFO: Building activation package...
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 10 derivations will be built:
+  /nix/store/gsjq8b449pr69labbfk17nm7j5nlypmn-nix-on-droid-path.drv
+  /nix/store/8vw17iwxhch061y784lnr2csg6ja7gnk-zsh-5.9-fish-completions.drv
+  /nix/store/9s2y3w99g8ccn11v8fnx4w1swzbrxlcw-nix-zsh-completions-0.5.1-fish-completions.drv
+  /nix/store/ih20f8xw5i6bpwv3idkzgxxni5bnx7yc-starship-1.19.0-fish-completions.drv
+  /nix/store/yqw2j8x43rqby7ps3j84b3qnd5smvd6j-octocode-0.12.2-fish-completions.drv
+  /nix/store/gaadbk75kzy9bsysyrv38qh5zxvm8a6s-nix-on-droid-fish-completions.drv
+  /nix/store/a2y42acipg7x4s34j33gqp8jll7pa991-home-manager-files.drv
+  /nix/store/l1j1xnih5smwlllddvdbiijzzkq2cy1y-home-manager-generation.drv
+  /nix/store/50k0mwbq76rj6khvx777nqphk2g06lav-activation-script.drv
+  /nix/store/jlsafgqk4y9ia7y3y5xjcjag46vpq2mp-nix-on-droid-generation.drv
+building '/nix/store/gsjq8b449pr69labbfk17nm7j5nlypmn-nix-on-droid-path.drv'...
+building '/nix/store/9s2y3w99g8ccn11v8fnx4w1swzbrxlcw-nix-zsh-completions-0.5.1-fish-completions.drv'...
+building '/nix/store/yqw2j8x43rqby7ps3j84b3qnd5smvd6j-octocode-0.12.2-fish-completions.drv'...
+building '/nix/store/ih20f8xw5i6bpwv3idkzgxxni5bnx7yc-starship-1.19.0-fish-completions.drv'...
+building '/nix/store/8vw17iwxhch061y784lnr2csg6ja7gnk-zsh-5.9-fish-completions.drv'...
+building '/nix/store/gaadbk75kzy9bsysyrv38qh5zxvm8a6s-nix-on-droid-fish-completions.drv'...
+building '/nix/store/a2y42acipg7x4s34j33gqp8jll7pa991-home-manager-files.drv'...
+building '/nix/store/l1j1xnih5smwlllddvdbiijzzkq2cy1y-home-manager-generation.drv'...
+building '/nix/store/50k0mwbq76rj6khvx777nqphk2g06lav-activation-script.drv'...
+building '/nix/store/jlsafgqk4y9ia7y3y5xjcjag46vpq2mp-nix-on-droid-generation.drv'...
+[2026-06-16 20:32:58] SUCCESS: Build succeeded (not applied — use 'switch' to apply)
+[2026-06-16 20:32:58] ========== Build script finished ==========
+[2026-06-16 20:33:34] ========== Build script started ==========
+[2026-06-16 20:33:34] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-06-16 20:33:34] PERF: start switch
+[2026-06-16 20:33:40] INFO: Staging dirty files for flake evaluation...
