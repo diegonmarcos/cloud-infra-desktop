@@ -93,20 +93,14 @@ jobs:
         with:
           go-version: "stable"
 
-      # ── Connect IQ SDK (pinned via build.json::toolchain.ciq_sdk) ──
-      # connect-iq-sdk-manager downloads + extracts the SDK reproducibly.
-      # monkeyc/connectiq land under $CIQ_SDK_ROOT/bin. A Garmin agreement
-      # token (one-time, non-secret) is passed for headless acceptance.
-      - name: Install Connect IQ SDK
-        env:
-          CIQ_SDK_ROOT: ${{ github.workspace }}/${{ env.WORK_DIR }}/.ciq-sdk
+      # ── connect-iq-sdk-manager CLI (just the tool) ─────────────────
+      # The CLI is the ONLY thing CI installs here; build.sh::ensure_sdk drives
+      # the actual SDK provisioning (agreement accept → login → sdk set → device
+      # download) so the flow stays in the universal engine, not the workflow.
+      - name: Install connect-iq-sdk-manager CLI
         run: |
           go install github.com/lindell/connect-iq-sdk-manager-cli@latest
-          export PATH="$(go env GOPATH)/bin:$PATH"
-          SDK_VER="$(jq -r '.toolchain.ciq_sdk' "$WORK_DIR/build.json")"
-          connect-iq-sdk-manager sdk download \
-            --version "$SDK_VER" --output "$CIQ_SDK_ROOT" --agree
-          echo "$CIQ_SDK_ROOT/bin" >> "$GITHUB_PATH"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # ── Stable developer signing key (cached → constant signature) ──
       # Mirrors ea_cloud-superapp's cached debug keystore: a fresh RSA key
@@ -134,10 +128,15 @@ jobs:
             | sudo tar -C /usr/local/bin -xzf - oras
           oras version
 
+      # build.sh::ensure_sdk runs the Garmin agreement-accept (hash from
+      # build.json::toolchain.agreement_hash) + login (creds below) + sdk set +
+      # per-design device download, then monkeyc. Creds are GHA secrets.
       - name: Build .prg (engine)
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          GARMIN_USERNAME: ${{ secrets.GARMIN_USERNAME }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
         run: |
           chmod +x build.sh
           ./build.sh build "${{ matrix.design }}"

@@ -51,19 +51,17 @@
         devShells.default = pkgs.mkShell {
           packages = tools;
 
-          # Materialise the SDK (idempotent, lockfile-pinned) and put its bin/
-          # on PATH so `monkeyc`, `connectiq`, `monkeydo` resolve. The SDK lives
-          # under ./.ciq-sdk (gitignored). Skipped when BYPASS_NIX=1 (CI provides
-          # its own SDK via the official action).
+          # The flake provides the TOOLS (CLI + jdk + helpers); `build.sh sdk`
+          # drives the actual SDK provisioning (agreement accept → login → sdk
+          # set → device download) so the flow stays data-driven from build.json
+          # and the Garmin login isn't buried in an eval-time hook. If the SDK is
+          # already provisioned, surface its bin/ on PATH for convenience.
           shellHook = ''
-            export CIQ_SDK_ROOT="$PWD/.ciq-sdk"
-            if [ ! -x "$CIQ_SDK_ROOT/bin/monkeyc" ]; then
-              echo "[flake] Connect IQ SDK not materialised — fetching (pinned)…"
-              connect-iq-sdk-manager sdk download --output "$CIQ_SDK_ROOT" || {
-                echo "[flake] SDK download failed — see README (one-time Garmin login may be needed)." >&2
-              }
+            if command -v connect-iq-sdk-manager >/dev/null 2>&1; then
+              _ciqbin="$(connect-iq-sdk-manager sdk current-path --bin 2>/dev/null || true)"
+              [ -n "$_ciqbin" ] && [ -d "$_ciqbin" ] && export PATH="$_ciqbin:$PATH"
             fi
-            export PATH="$CIQ_SDK_ROOT/bin:$PATH"
+            echo "[flake] devShell ready. Run \`./build.sh sdk\` once to provision the Connect IQ SDK (Garmin login)."
           '';
         };
 

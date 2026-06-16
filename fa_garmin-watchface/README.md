@@ -70,6 +70,20 @@ designs from `build.json`, builds each `.prg` on `ubuntu-latest` (x86, `BYPASS_N
 pushes to GHCR via ORAS, and attaches to a rolling `latest` GitHub release. Same flow,
 data-driven, as `ea_cloud-superapp`.
 
+The SDK download is gated behind a Garmin login, so CI needs **two prerequisites**
+(one-time):
+
+1. **GHA repo secrets** `GARMIN_USERNAME` + `GARMIN_PASSWORD` (the SDK manager's
+   `login` step). ⚠️ The Garmin account must **not** have 2FA/MFA — headless SSO
+   login can't answer an MFA challenge.
+2. **`build.json::toolchain.agreement_hash`** — run `connect-iq-sdk-manager agreement
+   view` once on any machine, copy the printed acceptance hash, paste it in. CI uses
+   it for non-interactive `agreement accept`.
+
+The workflow only installs the CLI + supplies the creds; `build.sh::ensure_sdk` runs
+the full `agreement accept → login → sdk set → device download` flow (the universal
+engine owns the build, not the workflow).
+
 ## Signing
 
 One stable RSA developer key signs every design (constant signature across
