@@ -68,15 +68,23 @@ ensure_sdk() {
   ver="$(bj '.toolchain.ciq_sdk')"
   hash="$(bj '.toolchain.agreement_hash')"
 
+  # 1. Accept the SDK agreement — PUBLIC + non-interactive (the CLI fetches the
+  #    current agreement and stores its hash). An optional pinned hash in
+  #    build.json is validated against the current one; empty = accept current.
   if [ -n "$hash" ] && [ "$hash" != "null" ]; then
     ciq agreement accept --acceptance-hash="$hash"
   else
-    log "sdk: build.json toolchain.agreement_hash empty — interactive accept (local only)"
     ciq agreement accept
   fi
-  ciq login
+  # 2. Download + select the SDK — PUBLIC, no login (developer.garmin.com CDN).
+  #    After this, monkeyc/connectiq/monkeydo exist under `sdk current-path`.
   ciq sdk set "$ver"
-  # Per-design device defs (driven by that design's manifest products).
+  # 3. Garmin login — required ONLY for the authenticated device-definition
+  #    download below. Creds via GARMIN_USERNAME/GARMIN_PASSWORD (vault locally,
+  #    GHA secrets in CI); interactive OAuth fallback on a desktop with no env.
+  ciq login
+  # 4. Per-design device definitions (AUTHENTICATED endpoint — needs step 3).
+  #    monkeyc cannot compile for fenix8pro47mm without these.
   ciq device download --manifest="$FACES_DIR/$design/manifest.xml"
 }
 

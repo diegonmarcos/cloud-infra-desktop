@@ -17,7 +17,7 @@
     "_doc": "Pinned for reproducibility. The Connect IQ SDK is downloaded + pinned by connect-iq-sdk-manager (provided by flake.nix); `build.sh sdk` runs the documented flow: agreement accept -> login -> sdk set -> device download. SDK download requires a Garmin login (GARMIN_USERNAME/GARMIN_PASSWORD — vault locally, GHA secrets in CI).",
     "ciq_sdk": "^7.4.3",
     "jdk": "17",
-    "_doc_agreement_hash": "Garmin CONNECT IQ SDK License acceptance hash, required for non-interactive (CI) acceptance. Obtain ONCE on any machine with the CLI: `connect-iq-sdk-manager agreement view` prints the agreement + its hash; paste it here. Empty => `build.sh sdk` falls back to interactive `agreement accept` (local only). Data-driven so CI never hardcodes it.",
+    "_doc_agreement_hash": "OPTIONAL pin for the Garmin CONNECT IQ SDK License. The CLI's `agreement accept` is PUBLIC + non-interactive even when empty (it fetches the current agreement and accepts it), so this is NOT required for CI. If set, the engine passes --acceptance-hash and the CLI errors if it no longer matches the live agreement (a tripwire for agreement changes). Obtain via `connect-iq-sdk-manager agreement view`.",
     "agreement_hash": ""
   },
 
