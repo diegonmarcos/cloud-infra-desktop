@@ -76,19 +76,20 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Go (for connect-iq-sdk-manager)
-        uses: actions/setup-go@v5
-        with:
-          go-version: "stable"
-
       # ── connect-iq-sdk-manager CLI (just the tool) ─────────────────
       # The CLI is the ONLY thing CI installs here; build.sh::ensure_sdk drives
-      # the actual SDK provisioning (agreement accept → login → sdk set → device
+      # the actual SDK provisioning (agreement accept → sdk set → login → device
       # download) so the flow stays in the universal engine, not the workflow.
+      # Use the official install.sh: it names the binary `connect-iq-sdk-manager`
+      # (the canonical name build.sh + flake call). `go install` would instead
+      # name it `connect-iq-sdk-manager-cli` (module last element) → not found.
+      # Pinned to a release tag for reproducibility.
       - name: Install connect-iq-sdk-manager CLI
         run: |
-          go install github.com/lindell/connect-iq-sdk-manager-cli@latest
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          curl -fsSL https://raw.githubusercontent.com/lindell/connect-iq-sdk-manager-cli/master/install.sh \
+            | sh -s -- -b "$HOME/.local/bin" v0.8.4
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/connect-iq-sdk-manager" --version
 
       # ── Stable developer signing key (cached → constant signature) ──
       # Mirrors ea_cloud-superapp's cached debug keystore: a fresh RSA key
