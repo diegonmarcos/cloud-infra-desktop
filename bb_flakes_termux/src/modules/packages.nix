@@ -31,10 +31,12 @@
     git-filter-repo  # git history rewriting (purge secrets from commits)
     rsync            # build.sh deploy — sync dist/ to VMs
     cliphist         # clipboard history (wl-paste --watch cliphist store)
-    android-tools    # adb/fastboot — Wireless-Debugging-over-loopback into Android
-                     #   (rish needs /system/bin/app_process, absent in this proot;
-                     #    adb is a pure TCP client to adbd, so it works from nix-on-droid).
-                     #   Used to read /sys/class/power_supply + dumpsys for charge debug.
+    # android-tools  # adb/fastboot — DISABLED. Only useful from PLAIN Termux
+                     #   (com.termux), NOT this nix-on-droid proot: adb pairing
+                     #   reaches the device but our charger/USB-PD debug path moved
+                     #   into Cloud-SuperApp's own shell-domain server (libs:
+                     #   shizuku-adb-debug-tools, /api/adb/*), so adb here is moot.
+                     #   Re-enable (uncomment) only if you need adb from stock Termux.
     # wrangler: installed from pkgsNew (24.11) in flake.nix environment.packages
     #           nixpkgs 24.05 has 3.34 which lacks [observability] support (needs 3.60+)
   ];
