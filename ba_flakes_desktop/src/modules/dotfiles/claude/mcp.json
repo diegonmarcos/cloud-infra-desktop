@@ -37,7 +37,7 @@
     "diego-personal-data": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
+      "args": ["/home/diego/git/cloud/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts"],
       "env": {
         "VAULT_PATH": "/home/diego/git/vault",
         "CONFIG_PATH": "/home/diego/git/cloud/config.json"
