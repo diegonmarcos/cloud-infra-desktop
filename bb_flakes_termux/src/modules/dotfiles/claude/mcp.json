@@ -28,7 +28,7 @@
     "diego-personal-data": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
+      "args": ["/data/data/com.termux.nix/files/home/git/cloud/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
         "VAULT_PATH": "/data/data/com.termux.nix/files/home/git/vault",

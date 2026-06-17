@@ -53,7 +53,7 @@
     "diego-personal-data": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
+      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/cloud/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
         "VAULT_PATH": "/data/data/com.termux.nix/files/home/git/vault",
