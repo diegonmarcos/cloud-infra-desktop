@@ -186,6 +186,8 @@ cmd_install() {
   require_session; detect_priv
   local ctmp host_tmp; ctmp="$(get waydroid.container_tmp)"; host_tmp="$(wd_data_root)/local/tmp"
   sudo mkdir -p "$host_tmp"
+  # Data-driven: -g auto-grants all declared runtime permissions at install (no prompts).
+  local grantflag=""; [ "$(get waydroid.grant_all_permissions)" = "true" ] && grantflag="-g"
   local n; n="$(node -e "process.stdout.write(String(require('$CONFIG').apps.length))")"
   local i pkg
   for ((i=0;i<n;i++)); do
@@ -193,14 +195,15 @@ cmd_install() {
     [ -f "$APK_DIR/$pkg.apk" ] || { warn "skip $pkg (no APK; run build)"; continue; }
     log "installing $pkg…"
     sudo cp -f "$APK_DIR/$pkg.apk" "$host_tmp/$pkg.apk"
-    local out; out="$(wd_shell pm install -r -d "$ctmp/$pkg.apk" 2>&1)"; out="${out//$'\r'/}"
+    local out; out="$(wd_shell pm install -r -d $grantflag "$ctmp/$pkg.apk" 2>&1)"; out="${out//$'\r'/}"
     if [[ "$out" != *Success* ]]; then
-      # Signing-key change (e.g. debug→release): pm install -r can't replace it →
-      # uninstall the old signature, then install fresh. (Loses that app's data.)
-      if [[ "$out" == *"signatures do not match"* || "$out" == *UPDATE_INCOMPATIBLE* ]]; then
+      # Signing-key change (e.g. debug→release, or the shared constellation key): pm
+      # install -r can't replace a different signature → uninstall the old one, then
+      # install fresh. (Loses that app's data.) Covers all signature-mismatch verdicts.
+      if [[ "$out" == *"signatures do not match"* || "$out" == *UPDATE_INCOMPATIBLE* || "$out" == *INCONSISTENT_CERTIFICATES* || "$out" == *"signature"* ]]; then
         warn "  $pkg signing key changed → uninstall + reinstall"
         wd_shell pm uninstall "$pkg" >/dev/null 2>&1 || true
-        out="$(wd_shell pm install -d "$ctmp/$pkg.apk" 2>&1)"; out="${out//$'\r'/}"
+        out="$(wd_shell pm install -d $grantflag "$ctmp/$pkg.apk" 2>&1)"; out="${out//$'\r'/}"
       fi
       [[ "$out" == *Success* ]] || warn "  pm install issue for $pkg: ${out##*$'\n'}"
     fi
