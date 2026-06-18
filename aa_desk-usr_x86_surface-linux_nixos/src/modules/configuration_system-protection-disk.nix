@@ -37,6 +37,16 @@ let
 
   # Build the watchdog script from declared thresholds + actions.
   mkWatchdogScript = let
+    # Emergency (stop-the-bleeding) tier — global, above every per-mount critical.
+    emergency        = cfg.emergency or {};
+    emergencyActions = emergency.actions or [];
+    # Disabled (no actions) → threshold 101 can never fire, so the chain falls
+    # straight through to critical/warn. Enabled → fires at emergency.pct (95).
+    emergencyPct     = if emergencyActions == [] then 101 else (emergency.pct or 95);
+    killSlices       = emergency.kill_slices or [];
+    freezeSlices     = emergency.freeze_slices or [];
+    ntfyTopic        = cfg.actions.alert_ntfy.topic or "diegonmarcos-infra";
+    ntfyPriority     = emergency.ntfy_priority or "urgent";
     mountChecks = lib.concatMapStringsSep "\n" (m: ''
       # Watch ${m.mount}
       if ! ${pkgs.util-linux}/bin/findmnt -n "${m.mount}" >/dev/null 2>&1; then
@@ -47,7 +57,10 @@ let
           echo "[disk-watchdog] ${m.mount}: unreadable usage ('$USAGE') — skipped"
         else
           echo "[disk-watchdog] ${m.mount}: ''${USAGE}%"
-          if [ "$USAGE" -ge "${toString m.critical_pct}" ]; then
+          if [ "$USAGE" -ge "${toString emergencyPct}" ]; then
+            echo "[disk-watchdog] EMERGENCY ${m.mount} ''${USAGE}% >= ${toString emergencyPct}% — stop-the-bleeding"
+            ${lib.concatMapStringsSep "\n            " (a: "run_action ${a} ${m.mount} \"$USAGE\"") emergencyActions}
+          elif [ "$USAGE" -ge "${toString m.critical_pct}" ]; then
             echo "[disk-watchdog] CRITICAL ${m.mount} ''${USAGE}% >= ${toString m.critical_pct}%"
             ${lib.concatMapStringsSep "\n            " (a: "run_action ${a} ${m.mount} \"$USAGE\"") m.actions_on_critical}
           elif [ "$USAGE" -ge "${toString m.warn_pct}" ]; then
@@ -59,6 +72,8 @@ let
     '') (cfg.watches.mounts or []);
   in ''
     set -u
+    KILL_SLICES="${lib.concatStringsSep " " killSlices}"
+    FREEZE_SLICES="${lib.concatStringsSep " " freezeSlices}"
     run_action() {
       local action="$1" mount="''${2:-?}" pct="''${3:-?}"
       case "$action" in
@@ -82,6 +97,36 @@ let
           command -v docker >/dev/null 2>&1 && docker volume prune -f 2>/dev/null || true ;;
         nix_gc_14d)
           ${pkgs.nix}/bin/nix-collect-garbage --delete-older-than 14d 2>/dev/null || true ;;
+        emergency_signal)
+          # The unmissable "disk is full → stopping writes for cleanup" signal:
+          # verbose journal (journalctl -t disk-emergency) + wall to every TTY + urgent ntfy.
+          msg="DISK EMERGENCY: $mount at $pct% (>= ${toString emergencyPct}%). Stop-the-bleeding: SIGTERM non-system slices [$KILL_SLICES]; FREEZE [$FREEZE_SLICES] so survivor writes HALT during reclaim; os-essentials (ssh/wg/session/watchdog) preserved. Trace: journalctl -t disk-emergency -b"
+          ${pkgs.util-linux}/bin/logger -t disk-emergency -p user.alert "$msg"
+          echo "$msg"
+          ${pkgs.util-linux}/bin/wall "disk-emergency: $mount $pct% full — non-system apps are being stopped to reclaim space. SAVE YOUR WORK." 2>/dev/null || true
+          ${pkgs.curl}/bin/curl -sS -H "Title: DISK EMERGENCY $mount $pct%" -H "Priority: ${ntfyPriority}" -H "Tags: rotating_light" \
+            -d "$msg" https://ntfy.sh/${ntfyTopic} 2>/dev/null || true ;;
+        kill_nonsystem)
+          # SIGTERM every process in the non-system background slices — stops the
+          # bleeders writing. os-essentials.slice is never in this list.
+          for s in $KILL_SLICES; do
+            ${pkgs.systemd}/bin/systemctl kill --kill-whom=all -s SIGTERM "$s" 2>/dev/null \
+              && ${pkgs.util-linux}/bin/logger -t disk-emergency -p user.warning "SIGTERM -> $s (kill non-system writers)" || true
+          done ;;
+        freeze_nonsystem)
+          # cgroup-v2 freeze — survivor writes halt INSTANTLY (paused, reversible,
+          # no data loss) while the reclaim actions run.
+          for s in $FREEZE_SLICES; do
+            ${pkgs.systemd}/bin/systemctl freeze "$s" 2>/dev/null \
+              && ${pkgs.util-linux}/bin/logger -t disk-emergency -p user.warning "FROZE $s -> its writes are halted for cleanup" || true
+          done ;;
+        thaw_nonsystem)
+          # Always the LAST emergency action, so a transient spike never strands a
+          # slice frozen.
+          for s in $FREEZE_SLICES; do
+            ${pkgs.systemd}/bin/systemctl thaw "$s" 2>/dev/null \
+              && ${pkgs.util-linux}/bin/logger -t disk-emergency -p user.info "THAWED $s -> reclaim complete, resumed" || true
+          done ;;
         *) echo "[disk-watchdog] unknown action: $action" ;;
       esac
     }
