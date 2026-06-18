@@ -104,7 +104,7 @@
     "wallpaper": {
       "generate": true,
       "size": "1280x800",
-      "gradient_from": "#0a0e14",
+      "gradient_from": "#000000",
       "gradient_to": "#000000"
     }
   },
