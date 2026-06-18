@@ -4,12 +4,12 @@
   "enabled": true,
 
   "checkpoint": {
-    "_comment": "btrfs_root must be the mounted pool top-level. source_subvol is snapshotted READ-ONLY into snapshot_dir/<UTC-timestamp>. Nested subvolumes (e.g. container storage inside home) are automatically excluded by btrfs — desirable, they are not session state. interval_minutes drives the systemd timer; retention_count is a simple newest-N prune (24 × 15 min = 6 h sliding window).",
+    "_comment": "btrfs_root must be the mounted pool top-level. source_subvol is snapshotted READ-ONLY into snapshot_dir/<UTC-timestamp>. Nested subvolumes (e.g. container storage inside home) are automatically excluded by btrfs — desirable, they are not session state. interval_minutes drives the systemd timer; retention_count is a simple newest-N prune. retention_count=1 keeps ONLY the most recent checkpoint (no accumulating history): CoW makes a single snapshot ~0 bytes, but every RETAINED older snapshot pins the OLD copy of any extent later changed/deleted in @home-diego — so a multi-snapshot window silently holds days of churn (deleted caches, build output) and fills the pool. Pruning to 1 each run keeps a session-file-on-disk while never accumulating divergence. Raise only if point-in-time rollback history is worth the disk.",
     "btrfs_root": "/mnt/btrfs-root",
     "source_subvol": "@home-diego",
     "snapshot_dir": "@snapshots/home-diego",
     "interval_minutes": 15,
-    "retention_count": 24,
+    "retention_count": 1,
     "_notify_comment": "When true, each PERIODIC checkpoint pops a desktop notification (notify-send, follows the KDE dark theme) confirming the local snapshot was saved. Shutdown checkpoints never notify (session is ending). Set false for silent operation.",
     "notify": true
   },
