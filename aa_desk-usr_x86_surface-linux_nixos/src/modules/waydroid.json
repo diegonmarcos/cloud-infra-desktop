@@ -1,0 +1,8 @@
+{
+  "_doc": "Host-side Waydroid resource policy (consumed by configuration_containers.nix). The Android workload runs in the LXC container cgroup (top-level lxc.pivot tree), NOT under waydroid-container.service's cgroup — so a systemd CPUQuota/AllowedCPUs on the service does NOT constrain it. The cap must be an LXC cgroup2 directive injected into the generated config (config_base). We use cpu.max (bandwidth) rather than cpuset.cpus (pinning): cpu.max cannot fail container start (no cpuset parent-delegation dependency), and per-period throttling frees ALL cores when the quota is spent, so the desktop is never starved for a whole period.",
+  "cgroup": {
+    "_doc": "cpu.max = '<quota_us> <period_us>'. quota = cpu_max_cores * cpu_period_us. The SP8 has 8 logical CPUs; capping at 7 leaves >=1 core of headroom so a runaway Android workload can never peg all 8 and freeze the machine.",
+    "cpu_max_cores": 7,
+    "cpu_period_us": 100000
+  }
+}

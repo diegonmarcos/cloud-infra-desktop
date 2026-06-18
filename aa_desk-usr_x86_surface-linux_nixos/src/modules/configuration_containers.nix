@@ -4,6 +4,14 @@
 # This file owns everything else: Podman, libvirtd, Waydroid.
 { config, pkgs, lib, nurpkgs, ... }:
 
+let
+  # Data-driven Waydroid resource policy (src/modules/waydroid.json).
+  waydroidCfg  = builtins.fromJSON (builtins.readFile ./waydroid.json);
+  wdCg         = waydroidCfg.cgroup;
+  # cgroup2 cpu.max = "<quota_us> <period_us>"; quota = cores * period.
+  cpuMaxQuota  = wdCg.cpu_max_cores * wdCg.cpu_period_us;
+  cpuMaxLine   = "lxc.cgroup2.cpu.max = ${toString cpuMaxQuota} ${toString wdCg.cpu_period_us}";
+in
 {
   # ═══════════════════════════════════════════════════════════════════════════
   # WAYDROID (Android Container)
@@ -36,6 +44,13 @@
           substituteInPlace "$out/lib/waydroid/data/scripts/.waydroid-net.sh-wrapped" \
             --replace 'LXC_USE_NFT="false"' 'LXC_USE_NFT="true"
           export PATH="${final.nftables}/bin:$PATH"'
+
+          # CPU cap: bound the Android LXC container's CPU bandwidth (cgroup2
+          # cpu.max) so a runaway workload can never peg ALL logical CPUs and
+          # freeze the host. Value is data-driven (waydroid.json). config_base is
+          # cat'd verbatim into the generated LXC config on every session start
+          # (tools/helpers/lxc.py), so the cap survives waydroid regeneration.
+          echo '${cpuMaxLine}' >> "$out/lib/waydroid/data/configs/config_base"
         '';
       });
     })
