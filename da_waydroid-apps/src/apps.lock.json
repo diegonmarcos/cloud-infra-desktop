@@ -19,9 +19,9 @@
     {
       "package": "eu.faircode.email",
       "source": "fdroid",
-      "versionCode": 2321,
-      "url": "https://f-droid.org/repo/eu.faircode.email_2321.apk",
-      "sha256": "sha256-Wg/QRcwdXelddlGwUAWyCgd+YINgqm77agTpBSab5Fw="
+      "versionCode": 2322,
+      "url": "https://f-droid.org/repo/eu.faircode.email_2322.apk",
+      "sha256": "sha256-xj0ltsX4L6EzkwjYJE8BS7CsMi3PphJl8QBT/CGla2s="
     },
     {
       "package": "com.mattermost.rnbeta",
@@ -98,6 +98,111 @@
       "source": "github",
       "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk",
       "sha256": "sha256-RUomqMwL2t3scKG4ZgLzJj2IzZzZ9dSoahO67Jc+SKI="
+    },
+    {
+      "package": "io.element.android.x",
+      "source": "fdroid",
+      "versionCode": 202606024,
+      "url": "https://f-droid.org/repo/io.element.android.x_202606024.apk",
+      "sha256": "sha256-orYm7AZ+z7GZpRKe9BnblFOIo8+WbkFcp5i831BPGhY="
+    },
+    {
+      "package": "com.fsck.k9",
+      "source": "fdroid",
+      "versionCode": 39038,
+      "url": "https://f-droid.org/repo/com.fsck.k9_39038.apk",
+      "sha256": "sha256-EKgcKjYIaNHCarN8YiU2Wx7gJ1erj5D6yzd1YL7PulU="
+    },
+    {
+      "package": "rs.ltt.android",
+      "source": "fdroid",
+      "versionCode": 19,
+      "url": "https://f-droid.org/repo/rs.ltt.android_19.apk",
+      "sha256": "sha256-nJBg8+JocxR/YlGwyDJRWMADGZobC3ELUBSyaTcCbns="
+    },
+    {
+      "package": "io.heckel.ntfy",
+      "source": "fdroid",
+      "versionCode": 60,
+      "url": "https://f-droid.org/repo/io.heckel.ntfy_60.apk",
+      "sha256": "sha256-Y3xMxbt2vRzgdr06UETM/aMT7t7KCnmows9Gg3oMAwA="
+    },
+    {
+      "package": "com.ghostsq.commander",
+      "source": "fdroid",
+      "versionCode": 479,
+      "url": "https://f-droid.org/repo/com.ghostsq.commander_479.apk",
+      "sha256": "sha256-foBggYT0Y9CDcyiZiYO+sweZ0T3i1bKNyo92l43IoFw="
+    },
+    {
+      "package": "org.kde.kdeconnect_tp",
+      "source": "fdroid",
+      "versionCode": 13509,
+      "url": "https://f-droid.org/repo/org.kde.kdeconnect_tp_13509.apk",
+      "sha256": "sha256-kIxE6pq/pktBtjVOBogi6jAvuHttUtTvzwAUM8oVIZ4="
+    },
+    {
+      "package": "com.termux",
+      "source": "fdroid",
+      "versionCode": 1002,
+      "url": "https://f-droid.org/repo/com.termux_1002.apk",
+      "sha256": "sha256-5iZaV+tco2OAhIjjsBlVlYvtk7wMig0oGEmzY7EQJ+w="
+    },
+    {
+      "package": "com.termux.api",
+      "source": "fdroid",
+      "versionCode": 1002,
+      "url": "https://f-droid.org/repo/com.termux.api_1002.apk",
+      "sha256": "sha256-RJfbv4GQbfUuWe04elIj0iWqDeOsqBfMVXpiHk2t2kQ="
+    },
+    {
+      "package": "com.viscouspot.gitsync",
+      "source": "fdroid",
+      "versionCode": 18603,
+      "url": "https://f-droid.org/repo/com.viscouspot.gitsync_18603.apk",
+      "sha256": "sha256-rz8cuE3JBCqf8WjAsN+2p6cjHjQKI2cnl3aoL4P8Nmg="
+    },
+    {
+      "package": "com.adeeteya.markdown_editor",
+      "source": "fdroid",
+      "versionCode": 9,
+      "url": "https://f-droid.org/repo/com.adeeteya.markdown_editor_9.apk",
+      "sha256": "sha256-9yce0jp90/uo4f6cIchcl6z2mKur2lU4iVtqxDcdPQo="
+    },
+    {
+      "package": "me.zhanghai.android.files",
+      "source": "fdroid",
+      "versionCode": 39,
+      "url": "https://f-droid.org/repo/me.zhanghai.android.files_39.apk",
+      "sha256": "sha256-68UTi29xPw9ztUZ6GopKw8z8sughNTcmZbaBGolHZB8="
+    },
+    {
+      "package": "eu.faircode.netguard",
+      "source": "fdroid",
+      "versionCode": 2026052101,
+      "url": "https://f-droid.org/repo/eu.faircode.netguard_2026052101.apk",
+      "sha256": "sha256-GHW9hGFn+4MkEt20Eroea/qfi0PbPaG05UguK2MxPhw="
+    },
+    {
+      "package": "ch.protonvpn.android",
+      "source": "fdroid",
+      "versionCode": 605187500,
+      "url": "https://f-droid.org/repo/ch.protonvpn.android_605187500.apk",
+      "sha256": "sha256-vgwqaThEHU2qq1h4pW2bR4nXv568bq2Ig8TogwdlgwI="
+    },
+    {
+      "package": "me.biplobsd.rsm",
+      "source": "fdroid",
+      "versionCode": 24,
+      "url": "https://f-droid.org/repo/me.biplobsd.rsm_24.apk",
+      "sha256": "sha256-mdaylcuyr1wLCcJF/m3I6N7vZ9j3OwXBCWIqQ7CFYmk="
+    },
+    {
+      "package": "com.rama.mako",
+      "source": "fdroid",
+      "versionCode": 42,
+      "url": "https://f-droid.org/repo/com.rama.mako_42.apk",
+      "sha256": "sha256-rJ3PMo0NVN3jo591e7YcMr95PiIbdy3s6povlhZLycQ="
     }
   ]
 }

@@ -30,7 +30,7 @@
     "systemsettings": { "exec": "systemsettings", "match_class": "systemsettings",  "arg_mode": "none", "launch_prefix": ["dbus-run-session", "--"] },
     "obsidian":       { "exec": "obsidian",       "match_class": "obsidian",        "arg_mode": "none" },
     "kate":           { "exec": "kate",           "match_class": "org.kde.kate",    "arg_mode": "none" },
-    "waydroid":       { "exec": "waydroid",       "match_class": "waydroid",        "arg_mode": "none", "fixed_args": ["show-full-ui"] }
+    "waydroid":       { "exec": "waydroid-launch", "match_class": "waydroid",        "arg_mode": "none", "_doc": "waydroid-launch = the correct wrapper: ARM bootstrap (libhoudini) → start container → start session → show-full-ui. Raw 'waydroid show-full-ui' skips that and fails with 'Failed to get service waydroidplatform'." }
   },
 
   "desktops": [

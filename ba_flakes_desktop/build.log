@@ -40371,3 +40371,91 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-06-18 16:08:29] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-06-18 16:08:29] PERF: start switch
 [2026-06-18 16:08:29] INFO: Staging dirty files for flake evaluation...
+[2026-06-18 16:08:29] PERF: git stage = 130ms
+[2026-06-18 16:08:30] PERF: clean stale hm-backups = 254ms
+[2026-06-18 16:08:30] INFO: Applying Home Manager configuration...
+[2026-06-18 16:08:30] INFO: home-manager backup extension: hm-backup-20260618-160830
+copying path '/nix/store/0yj36irhwn225ywy1saz0gf5wr2ciz50-source' from 'https://cache.nixos.org'...
+warning: error: unable to download 'https://cache.nixos.org/nar/1aznsipx0bz7awm3wfl21gf00zbw1k1srjlpc1jkpg2kb18hyqv0.nar.xz': HTTP error 200 (curl error: Failure when receiving data from the peer); retrying from offset 27653026 in 269 ms
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+copying path '/nix/store/kn3m407mn5p4dyjb96z12daanqjaqmzc-source' from 'https://cache.nixos.org'...
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 6 derivations will be built:
+  /nix/store/4yqxxz1v0jk71pdmp8d7vbwc1q3ynifp-ff_native-messaging-hosts.drv
+  /nix/store/5h0jchj6qv7mr9w8hqirkf0wwa179yjz-waydroid-sensors-watchdog.service.drv
+  /nix/store/i68sn9ndy4xg2h2iw7iszb6bdmpk8ds9-hm_.localbinwaydroidsensorswatchdog.drv
+  /nix/store/sj32f3m758x7832yk5f3bz1vqvwd0s8c-home-manager-files.drv
+  /nix/store/yxr2w0rrjqa1gzdapzcqwaglsa4pys9h-activation-script.drv
+  /nix/store/jnk3anch7y1wxshrmh00py5fzrh8drg0-home-manager-generation.drv
+this path will be fetched (0.02 MiB download, 0.06 MiB unpacked):
+  /nix/store/4mmdi8a6znw6qkf2gayg0iqig708pc3b-stdenv-linux
+copying path '/nix/store/4mmdi8a6znw6qkf2gayg0iqig708pc3b-stdenv-linux' from 'https://cache.nixos.org'...
+building '/nix/store/yxr2w0rrjqa1gzdapzcqwaglsa4pys9h-activation-script.drv'...
+building '/nix/store/4yqxxz1v0jk71pdmp8d7vbwc1q3ynifp-ff_native-messaging-hosts.drv'...
+building '/nix/store/i68sn9ndy4xg2h2iw7iszb6bdmpk8ds9-hm_.localbinwaydroidsensorswatchdog.drv'...
+building '/nix/store/5h0jchj6qv7mr9w8hqirkf0wwa179yjz-waydroid-sensors-watchdog.service.drv'...
+building '/nix/store/sj32f3m758x7832yk5f3bz1vqvwd0s8c-home-manager-files.drv'...
+building '/nix/store/jnk3anch7y1wxshrmh00py5fzrh8drg0-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkLinkTargets
+Activating writeBoundary
+Activating androidEmulatorProfiles
+Activating checkFilesChanged
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 20
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 4s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (4 VMs, 41 services, date=2026-06-18)
+Activating globalTsx
+
+changed 3 packages in 5s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.181 is up to date
+Activating installWg0TcpConf
+[wireguard-wstunnel] /home/diego/.config/wireguard/wg0.conf not found — skipping wg0-tcp.conf render
+Activating lockScreenWallpaper
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating powerDevilSuspend
+Activating reloadSystemd
+Starting units: sops-nix.service, waydroid-sensors-watchdog.service
+Activating sops-nix
+Activating sshSocketsDir
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-06-18 16:15:11] PERF: home-manager switch = 6m 40s
+[2026-06-18 16:15:11] PERF: TOTAL switch = 6m 41s
+[2026-06-18 16:15:11] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-06-18 16:15:11] ========== Build script finished ==========
+[2026-06-18 18:48:52] ========== Build script started ==========
+[2026-06-18 18:48:52] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-18 18:48:52] PERF: start switch
+[2026-06-18 18:48:52] INFO: Staging dirty files for flake evaluation...

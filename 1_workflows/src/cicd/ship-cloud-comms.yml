@@ -52,7 +52,8 @@ on:
     paths:
       - "ea_cloud-comms/**"
       - "1_workflows/src/cicd/ship-cloud-comms.yml"
-      - ".github/workflows/ship-cloud-comms.yml"
+      # Generated .github/workflows/*.yml intentionally NOT watched (regenerated
+      # by 1_workflows/build.sh → would self-trigger rebuilds on unrelated commits).
 
 permissions:
   contents: write   # for gh release create
@@ -102,6 +103,41 @@ jobs:
       # so the in-app updater needs a stable signature too. Cache the keystore
       # so every CI build is signed identically. Matches hub/build.gradle's
       # signingConfigs.debug (keystores/comms.keystore, alias commskey).
+      # ── Shared constellation signing key (vault) ────────────────────
+      # With BOTH VAULT_TOKEN + SOPS_AGE_KEY repo secrets set, fetch the SHARED
+      # key from the private vault repo so this APK signs with the SAME key as
+      # every constellation app (cross-app in-app updater never hits a signature
+      # mismatch). Without the secrets every step no-ops → cached legacy keystore.
+      - name: Detect vault signing availability
+        id: vaultsign
+        env:
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          if [ -n "$VAULT_TOKEN" ] && [ -n "$SOPS_AGE_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Checkout vault (shared signing key)
+        if: steps.vaultsign.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: diegonmarcos/vault
+          token: ${{ secrets.VAULT_TOKEN }}
+          path: vault-repo
+          persist-credentials: false
+      - name: Install sops + import age key
+        if: steps.vaultsign.outputs.enabled == 'true'
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 -o /tmp/sops
+          sudo install -m 0755 /tmp/sops /usr/local/bin/sops
+          mkdir -p ~/.config/sops/age
+          printf '%s\n' "$SOPS_AGE_KEY" > ~/.config/sops/age/keys.txt
+          chmod 600 ~/.config/sops/age/keys.txt
+
       - name: Restore signing keystore from cache
         id: keystore-cache
         uses: actions/cache@v4
@@ -148,6 +184,9 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          # Points build.sh::_resolve_signing at the checked-out vault (shared
+          # key). Harmless when disabled (dir absent → legacy keystore).
+          VAULT_DIR: ${{ github.workspace }}/vault-repo
           COMMS_BUNDLE_ABI: ${{ inputs.bundle_abi || 'arm64-v8a' }}
         run: |
           chmod +x build.sh

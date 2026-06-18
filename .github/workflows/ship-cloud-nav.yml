@@ -57,7 +57,10 @@ on:
     paths:
       - "ea_cloud-nav/**"
       - "1_workflows/src/cicd/ship-cloud-nav.yml"
-      - ".github/workflows/ship-cloud-nav.yml"
+      # NOTE: the generated .github/workflows/ship-cloud-nav.yml is deliberately
+      # NOT watched — it's regenerated (with all sibling workflows) by
+      # 1_workflows/build.sh, so watching it self-triggered a rebuild on every
+      # unrelated commit that ran the generator → spurious cross-app updates.
 
 permissions:
   contents: write   # for gh release create + tag push reads
@@ -102,9 +105,46 @@ jobs:
         with:
           gradle-version: "8.10.2"
 
+      # ── Shared constellation signing key (vault) ────────────────────
+      # With BOTH VAULT_TOKEN + SOPS_AGE_KEY repo secrets set, fetch the SHARED
+      # key from the private vault repo so this APK signs with the SAME key as
+      # every constellation app + local builds (so the cross-app in-app updater
+      # never hits a signature mismatch). Without the secrets every step below
+      # no-ops → falls back to the cached legacy keystore (non-breaking).
+      - name: Detect vault signing availability
+        id: vaultsign
+        env:
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          if [ -n "$VAULT_TOKEN" ] && [ -n "$SOPS_AGE_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Checkout vault (shared signing key)
+        if: steps.vaultsign.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: diegonmarcos/vault
+          token: ${{ secrets.VAULT_TOKEN }}
+          path: vault-repo
+          persist-credentials: false
+      - name: Install sops + import age key
+        if: steps.vaultsign.outputs.enabled == 'true'
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 -o /tmp/sops
+          sudo install -m 0755 /tmp/sops /usr/local/bin/sops
+          mkdir -p ~/.config/sops/age
+          printf '%s\n' "$SOPS_AGE_KEY" > ~/.config/sops/age/keys.txt
+          chmod 600 ~/.config/sops/age/keys.txt
+
       # ── Stable debug keystore (cached forever) ──────────────────────
-      # Consistent signature across CI runs so PackageInstaller accepts
-      # updates of a previously-installed Cloud Nav APK.
+      # Legacy fallback signature (used when vault signing is unavailable).
+      # Consistent across CI runs so PackageInstaller accepts updates of a
+      # previously-installed Cloud Nav APK signed with this same cached key.
       - name: Restore signing keystore from cache
         id: keystore-cache
         uses: actions/cache@v4
@@ -147,6 +187,10 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          # Points build.sh::_resolve_signing at the checked-out vault (shared
+          # signing key). Harmless when vault signing is disabled (dir absent →
+          # falls back to the cached legacy keystore).
+          VAULT_DIR: ${{ github.workspace }}/vault-repo
           # CLOUDNAV_VARIANT selects the ABI variant (build.json::release
           # .variants[].id) → engine overrides ABI filter + artifact name.
           CLOUDNAV_VARIANT: ${{ matrix.abi }}
