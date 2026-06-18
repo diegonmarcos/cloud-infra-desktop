@@ -90,17 +90,62 @@ build_konsole(){ # $1=desktop $2=cell $3=di $4=wi $5=exec $6..=konsole_flags
     sleep 0.25
   done
   [ "$ok" = 1 ] || { log "WARN: konsole (pid $pid) DBus window never appeared in ${TIMEOUT}s — skipping titles"; printf 'pid\t%s\t%s\t%s\n' "$pid" "$desk" "$cell" >>"$POSMAP"; return 0; }
-  # add the remaining tabs (window starts with 1)
-  for ti in $(seq 2 "$ntabs"); do
-    timeout 3 "$QDBUS" "$ksvc" /Windows/1 org.kde.konsole.Window.newSession "" "$WORKDIR" >/dev/null 2>&1 || true
-  done
-  # apply sticky tab titles (setTabTitleFormat ctx 0 = local; a literal w/o %-codes is immune to fish)
-  idx=0
-  for sid in $(timeout 3 "$QDBUS" "$ksvc" /Windows/1 org.kde.konsole.Window.sessionList 2>/dev/null); do
-    title="$(jq -r ".desktops[$di].windows[$wi].tabs[$idx].title // \"-\"" "$JSON")"
+  # ── Build each tab (+ optional per-tab pane splits), then set sticky titles ──
+  local KW="$ksvc" WN=/Windows/1
+  # leaf view ids = numbers left after stripping the (N) splitter ids
+  vleaves(){ timeout 3 "$QDBUS" "$KW" "$WN" org.kde.konsole.Window.viewHierarchy 2>/dev/null | tr '\n' ' ' | command sed -E 's/\([0-9]+\)//g' | command grep -oE '[0-9]+' | sort; }
+  slist(){ timeout 3 "$QDBUS" "$KW" "$WN" org.kde.konsole.Window.sessionList 2>/dev/null | sort; }
+  onlyin_b(){ comm -13 <(printf '%s\n' $1 | sort -u) <(printf '%s\n' $2 | sort -u); }  # items in $2 not $1
+
+  local nsplit si pane dir hsplit lBefore sBefore newleaf rootView rootSession tabSessions cmd cbin
+  for ti in $(seq 0 $((ntabs-1))); do
+    # establish this tab's root view + its session(s)
+    if [ "$ti" = 0 ]; then
+      rootView="$(vleaves | head -1)"
+      tabSessions="$(slist | head -1)"
+    else
+      lBefore="$(vleaves)"; sBefore="$(slist)"
+      timeout 3 "$QDBUS" "$KW" "$WN" org.kde.konsole.Window.newSession "" "$WORKDIR" >/dev/null 2>&1 || true
+      sleep 0.3
+      rootView="$(onlyin_b "$lBefore" "$(vleaves)" | tail -1)"
+      tabSessions="$(onlyin_b "$sBefore" "$(slist)")"
+    fi
+    rootSession="$(printf '%s\n' $tabSessions | command grep -E '^[0-9]+$' | head -1)"
+    timeout 3 "$QDBUS" "$KW" "$WN" org.kde.konsole.Window.setCurrentView "$rootView" >/dev/null 2>&1 || true
+    # apply declared splits — pane field is a LOCAL index (0=tab root, then creation order)
+    nsplit="$(jq -r "(.desktops[$di].windows[$wi].tabs[$ti].splits // []) | length" "$JSON")"
+    local -a viewmap=( "$rootView" )
+    for si in $(seq 0 $((nsplit-1))); do
+      [ "$nsplit" -eq 0 ] && break
+      pane="$(jq -r ".desktops[$di].windows[$wi].tabs[$ti].splits[$si].pane // 0" "$JSON")"
+      dir="$(jq -r ".desktops[$di].windows[$wi].tabs[$ti].splits[$si].dir // \"tb\"" "$JSON")"
+      [ "$dir" = lr ] && hsplit=true || hsplit=false
+      lBefore="$(vleaves)"; sBefore="$(slist)"
+      timeout 3 "$QDBUS" "$KW" "$WN" org.kde.konsole.Window.createSplit "${viewmap[$pane]:-$rootView}" "$hsplit" >/dev/null 2>&1 || true
+      sleep 0.3
+      newleaf="$(onlyin_b "$lBefore" "$(vleaves)" | tail -1)"
+      viewmap+=( "$newleaf" )
+      tabSessions="$tabSessions $(onlyin_b "$sBefore" "$(slist)")"
+    done
+    # sticky title on EVERY session in this tab (split panes included → label stays put)
+    title="$(jq -r ".desktops[$di].windows[$wi].tabs[$ti].title // \"-\"" "$JSON")"
     [ "$title" = "null" ] && title="-"
-    timeout 3 "$QDBUS" "$ksvc" "/Sessions/$sid" org.kde.konsole.Session.setTabTitleFormat 0 "$title" >/dev/null 2>&1 || true
-    idx=$((idx+1))
+    for sid in $tabSessions; do
+      timeout 3 "$QDBUS" "$KW" "/Sessions/$sid" org.kde.konsole.Session.setTabTitleFormat 0 "$title" >/dev/null 2>&1 || true
+    done
+    [ "$nsplit" -gt 0 ] && log "  konsole tab '$title': applied $nsplit split(s)"
+    # optional per-tab command — run in the tab's root pane; FALLBACK: if the
+    # command's binary isn't on PATH, leave the tab as a plain shell (no break).
+    cmd="$(jq -r ".desktops[$di].windows[$wi].tabs[$ti].command // empty" "$JSON")"
+    if [ -n "$cmd" ]; then
+      cbin="${cmd%% *}"
+      if command -v "$cbin" >/dev/null 2>&1; then
+        timeout 3 "$QDBUS" "$KW" "/Sessions/$rootSession" org.kde.konsole.Session.runCommand "$cmd" >/dev/null 2>&1 || true
+        log "  konsole tab '$title': ran '$cmd'"
+      else
+        log "  konsole tab '$title': command '$cbin' NOT FOUND — left as shell (fallback)"
+      fi
+    fi
   done
   log "konsole pid=$pid desk=$desk cell=$cell tabs=$ntabs ✓"
   printf 'pid\t%s\t%s\t%s\n' "$pid" "$desk" "$cell" >>"$POSMAP"

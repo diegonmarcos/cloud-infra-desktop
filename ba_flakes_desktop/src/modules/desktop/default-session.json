@@ -43,8 +43,11 @@
           "cell": "left",
           "app": "konsole",
           "instance": "pane-left",
-          "_comment": "9 plain shells, all titled '-'",
+          "_comment": "first 3 tabs auto-run (fish/yazi/plain), then 9 plain shells titled '-'. command runs in the tab's root pane; missing binary falls back to a plain shell.",
           "tabs": [
+            { "title": "fish", "command": "fish" },
+            { "title": "yazi", "command": "yazi" },
+            { "title": "_",    "command": "" },
             { "title": "-", "command": "" },
             { "title": "-", "command": "" },
             { "title": "-", "command": "" },
@@ -62,7 +65,14 @@
           "instance": "pane-right",
           "_comment": "5 monitoring tabs. command:'' opens a titled shell that runs nothing. FILL IN the command per tab to auto-run a monitor (e.g. host_sys-perf → 'btop'). TODO(diego): provide the 5 commands.",
           "tabs": [
-            { "title": "host_sys-perf",          "command": "" },
+            { "title": "host_sys-perf",          "command": "",
+              "_splits_doc": "pane = LOCAL index within this tab (0 = the tab itself, then 1,2,3… in creation order); dir = lr (left/right) | tb (top/bottom). Step 0 splits the tab left/right (pane 1 = the LEFT child after focus stays on root=right); steps 1-3 stack pane 1 top/bottom → 4-pane stack on the LEFT, single pane on the RIGHT.",
+              "splits": [
+                { "pane": 0, "dir": "lr" },
+                { "pane": 1, "dir": "tb" },
+                { "pane": 2, "dir": "tb" },
+                { "pane": 3, "dir": "tb" }
+              ] },
             { "title": "host_journalctl",        "command": "" },
             { "title": "cloud-vms-sys",          "command": "" },
             { "title": "cloud-vms-journalctl",   "command": "" },
