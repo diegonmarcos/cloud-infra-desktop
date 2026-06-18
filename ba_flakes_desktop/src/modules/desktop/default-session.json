@@ -1,0 +1,99 @@
+{
+  "_comment": "DECLARATIVE default 4-desktop login layout — single source of truth. Captured live from the running KWin/Konsole session on 2026-06-18 (screen 2304x1536, panel 44px → usable 1492px; every split is at the exact half x=1152). Consumed by default-session.nix → default-session-launcher.sh (the engine) + generated Konsole --tabs-from-file files + kwinrulesrc. Edit THIS file to change the layout, never the launcher. Geometry is stored as logical cells (left|right|full); the launcher computes pixels from the LIVE screen geometry at runtime so the layout is resolution-independent and reproducible on any machine.",
+
+  "screen_reference": {
+    "width": 2304,
+    "height": 1536,
+    "usable_height": 1492,
+    "panel_height": 44,
+    "split_x": 1152
+  },
+
+  "fallback": {
+    "_comment": "Guarantees a crashing/hanging app can NEVER hold the login. The launcher runs as a systemd --user oneshot AFTER graphical-session.target (login is already complete before it starts), each app is spawned detached, and each launch is wrapped in `timeout`. A failed/timed-out launch is logged (and ntfy'd) and the launcher moves on to the next app.",
+    "per_app_launch_timeout_sec": 25,
+    "service_timeout_sec": 120,
+    "detached_spawn": true,
+    "never_block_login": true,
+    "on_failure": "log_and_continue",
+    "notify_ntfy": false
+  },
+
+  "_apps_doc": "App registry — the launcher is GENERIC and reads everything here. To add/change an app you edit ONLY this block + reference it from a desktop window by its key. type=konsole gets the tab/title builder (matched for positioning by PID). For every other app: exec=binary, match_class=KWin resourceClass used to find its window for positioning (case-insensitive), fixed_args=always-passed args, arg_mode=how the window's per-instance value is appended: path→args[0], url→url, none→nothing.",
+  "apps": {
+    "konsole":        { "type": "konsole", "exec": "konsole", "konsole_flags": ["--separate", "--nofork"] },
+    "dolphin":        { "exec": "dolphin",        "match_class": "org.kde.dolphin", "arg_mode": "path", "fixed_args": ["--new-window"] },
+    "brave":          { "exec": "brave",          "match_class": "brave-browser",   "arg_mode": "url",  "fixed_args": ["--new-window"] },
+    "systemsettings": { "exec": "systemsettings", "match_class": "systemsettings",  "arg_mode": "none" },
+    "obsidian":       { "exec": "obsidian",       "match_class": "obsidian",        "arg_mode": "none" },
+    "kate":           { "exec": "kate",           "match_class": "org.kde.kate",    "arg_mode": "none" },
+    "waydroid":       { "exec": "waydroid",       "match_class": "waydroid",        "arg_mode": "none", "fixed_args": ["show-full-ui"] }
+  },
+
+  "desktops": [
+    {
+      "id": 1,
+      "name": "Desktop 1",
+      "split": "horizontal",
+      "windows": [
+        {
+          "cell": "left",
+          "app": "konsole",
+          "instance": "pane-left",
+          "_comment": "9 plain shells, all titled '-'",
+          "tabs": [
+            { "title": "-", "command": "" },
+            { "title": "-", "command": "" },
+            { "title": "-", "command": "" },
+            { "title": "-", "command": "" },
+            { "title": "-", "command": "" },
+            { "title": "-", "command": "" },
+            { "title": "-", "command": "" },
+            { "title": "-", "command": "" },
+            { "title": "-", "command": "" }
+          ]
+        },
+        {
+          "cell": "right",
+          "app": "konsole",
+          "instance": "pane-right",
+          "_comment": "5 monitoring tabs. command:'' opens a titled shell that runs nothing. FILL IN the command per tab to auto-run a monitor (e.g. host_sys-perf → 'btop'). TODO(diego): provide the 5 commands.",
+          "tabs": [
+            { "title": "host_sys-perf",          "command": "" },
+            { "title": "host_journalctl",        "command": "" },
+            { "title": "cloud-vms-sys",          "command": "" },
+            { "title": "cloud-vms-journalctl",   "command": "" },
+            { "title": "cloud-vms-dockerstats",  "command": "" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Desktop 2",
+      "split": "horizontal",
+      "windows": [
+        { "cell": "left",  "app": "dolphin", "args": ["/home/diego/git/unix"] },
+        { "cell": "right", "app": "brave",   "url": "http://localhost:8000" }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Desktop 3",
+      "split": "horizontal",
+      "windows": [
+        { "cell": "left",  "app": "systemsettings" },
+        { "cell": "left",  "app": "obsidian" },
+        { "cell": "right", "app": "kate" }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Desktop 4",
+      "split": "full",
+      "windows": [
+        { "cell": "full", "app": "waydroid" }
+      ]
+    }
+  ]
+}

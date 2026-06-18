@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+# ============================================================================
+# default-session-launcher.sh — DECLARATIVE default 4-desktop login layout.
+# ============================================================================
+# Reads default-session.json (the DATA / single source of truth) and launches,
+# titles, pins-to-desktop and tiles every window described there.
+#
+# "NEVER HOLDS THE LOGIN" GUARANTEE (data: .fallback in the JSON):
+#   * Invoked by a Plasma autostart .desktop — i.e. AFTER the session is up,
+#     so it is structurally incapable of blocking the compositor/login.
+#   * Every app is spawned DETACHED (setsid, fire-and-forget).
+#   * Every wait is BOUNDED (`timeout` / capped poll loops).
+#   * Any failure is LOGGED and SKIPPED — the script always exits 0 so it can
+#     never mark the graphical session as failed.
+#
+# This file is the ENGINE. Never hardcode layout here — edit default-session.json.
+#
+# CLI (for testing):
+#   --dry-run         print the launch plan, touch nothing
+#   --desktop=N       only act on desktop N (scratch-test one desktop)
+#   --no-position     launch + title tabs but skip KWin positioning
+# ============================================================================
+set -u
+
+# PATH safety net — Plasma autostart may invoke us with a thin PATH (same reason
+# build.sh prepends these). The tools we need (konsole, qdbus, jq, dolphin, kate,
+# brave, waydroid) live across system + nix-profile.
+export PATH="/run/current-system/sw/bin:$HOME/.nix-profile/bin:/run/wrappers/bin:/etc/profiles/per-user/$USER/bin:$PATH"
+
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+JSON="${DEFAULT_SESSION_JSON:-$SELF_DIR/default-session.json}"
+LOG="${XDG_STATE_HOME:-$HOME/.local/state}/default-session.log"
+
+DRY=0; ONLY_DESKTOP=""; DO_POSITION=1
+for a in "$@"; do case "$a" in
+  --dry-run)     DRY=1 ;;
+  --desktop=*)   ONLY_DESKTOP="${a#*=}" ;;
+  --no-position) DO_POSITION=0 ;;
+esac; done
+
+mkdir -p "$(dirname "$LOG")"
+log(){ printf '%s [default-session] %s\n' "$(date -u +%FT%TZ)" "$*" | tee -a "$LOG" >&2; }
+
+# ── Tooling (never abort the session if something is missing) ──────────────
+JQ="$(command -v jq || true)"
+QDBUS="$(command -v qdbus6 || command -v qdbus || true)"
+[ -n "$JQ" ]    || { log "FATAL: jq not found — aborting (exit 0)";    exit 0; }
+[ -r "$JSON" ]  || { log "FATAL: cannot read $JSON — aborting (exit 0)"; exit 0; }
+[ -n "$QDBUS" ] || { log "WARN: qdbus not found — will launch without KWin positioning"; DO_POSITION=0; }
+
+q(){ jq -r "$1" "$JSON"; }
+TIMEOUT="$(q '.fallback.per_app_launch_timeout_sec // 25')"
+WORKDIR="$HOME"
+POSMAP="$(mktemp -t default-session-pos.XXXXXX)"
+trap 'rm -f "$POSMAP" "$POSMAP.js" 2>/dev/null' EXIT
+
+# ── KWin helpers ───────────────────────────────────────────────────────────
+kwin_eval(){ # $1 = path to .js — load, run, stop (best-effort, bounded)
+  local id
+  id="$(timeout 10 "$QDBUS" org.kde.KWin /Scripting \
+        org.kde.kwin.Scripting.loadScript "$1" "ds_${$}_${RANDOM}" 2>/dev/null)" || return 1
+  timeout 10 "$QDBUS" org.kde.KWin /Scripting org.kde.kwin.Scripting.start >/dev/null 2>&1
+  sleep 0.6
+  timeout 10 "$QDBUS" org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script.stop >/dev/null 2>&1
+  return 0
+}
+
+spawn(){ # spawn detached, echo pid. $@ = argv
+  setsid "$@" >/dev/null 2>&1 &
+  echo "$!"
+}
+
+# ── Konsole window builder (tabs + sticky titles via DBus) ──────────────────
+build_konsole(){ # $1=desktop $2=cell $3=di $4=wi $5=exec $6..=konsole_flags
+  local desk="$1" cell="$2" di="$3" wi="$4" kexec="$5"; shift 5
+  local kflags=("$@") pid ksvc ntabs ti sid idx title
+  ntabs="$(jq -r ".desktops[$di].windows[$wi].tabs | length" "$JSON")"
+  pid="$(spawn "$kexec" "${kflags[@]}" --workdir "$WORKDIR")"
+  ksvc="org.kde.konsole-$pid"
+  # wait (bounded) for the new konsole's DBus window to appear
+  local ok=0 t
+  for t in $(seq 1 $((TIMEOUT*4))); do
+    # crash-early fallback: if the konsole process died, stop waiting immediately
+    if ! kill -0 "$pid" 2>/dev/null; then
+      log "WARN: konsole (pid $pid) exited during startup — skipping (fallback: continue)"; return 0
+    fi
+    timeout 3 "$QDBUS" "$ksvc" /Windows/1 org.kde.konsole.Window.sessionList >/dev/null 2>&1 && { ok=1; break; }
+    sleep 0.25
+  done
+  [ "$ok" = 1 ] || { log "WARN: konsole (pid $pid) DBus window never appeared in ${TIMEOUT}s — skipping titles"; printf 'pid\t%s\t%s\t%s\n' "$pid" "$desk" "$cell" >>"$POSMAP"; return 0; }
+  # add the remaining tabs (window starts with 1)
+  for ti in $(seq 2 "$ntabs"); do
+    timeout 3 "$QDBUS" "$ksvc" /Windows/1 org.kde.konsole.Window.newSession "" "$WORKDIR" >/dev/null 2>&1 || true
+  done
+  # apply sticky tab titles (setTabTitleFormat ctx 0 = local; a literal w/o %-codes is immune to fish)
+  idx=0
+  for sid in $(timeout 3 "$QDBUS" "$ksvc" /Windows/1 org.kde.konsole.Window.sessionList 2>/dev/null); do
+    title="$(jq -r ".desktops[$di].windows[$wi].tabs[$idx].title // \"-\"" "$JSON")"
+    [ "$title" = "null" ] && title="-"
+    timeout 3 "$QDBUS" "$ksvc" "/Sessions/$sid" org.kde.konsole.Session.setTabTitleFormat 0 "$title" >/dev/null 2>&1 || true
+    idx=$((idx+1))
+  done
+  log "konsole pid=$pid desk=$desk cell=$cell tabs=$ntabs ✓"
+  printf 'pid\t%s\t%s\t%s\n' "$pid" "$desk" "$cell" >>"$POSMAP"
+}
+
+# ── Generic GUI app (matched for positioning by window class) ───────────────
+launch_app(){ # $1=desktop $2=cell $3=class-key $4..=argv
+  local desk="$1" cell="$2" cls="$3"; shift 3
+  spawn "$@" >/dev/null
+  log "launched ${1##*/} desk=$desk cell=$cell (match class=$cls)"
+  printf 'class\t%s\t%s\t%s\n' "$cls" "$desk" "$cell" >>"$POSMAP"
+}
+
+# ── Main: walk the JSON ─────────────────────────────────────────────────────
+ndesk="$(jq '.desktops | length' "$JSON")"
+log "start (json=$JSON, dry=$DRY, only=${ONLY_DESKTOP:-all}, timeout=${TIMEOUT}s)"
+for di in $(seq 0 $((ndesk-1))); do
+  desk="$(jq -r ".desktops[$di].id" "$JSON")"
+  [ -n "$ONLY_DESKTOP" ] && [ "$ONLY_DESKTOP" != "$desk" ] && continue
+  nwin="$(jq ".desktops[$di].windows | length" "$JSON")"
+  for wi in $(seq 0 $((nwin-1))); do
+    app="$(jq -r ".desktops[$di].windows[$wi].app" "$JSON")"
+    cell="$(jq -r ".desktops[$di].windows[$wi].cell // \"full\"" "$JSON")"
+    if [ "$DRY" = 1 ]; then
+      log "PLAN desk=$desk cell=$cell app=$app"
+      continue
+    fi
+    # ── Generic, registry-driven dispatch (everything comes from .apps[$app]) ─
+    if [ "$(jq -r --arg a "$app" 'has("apps") and (.apps|has($a))' "$JSON")" != "true" ]; then
+      log "WARN: app '$app' not in .apps registry — skipped"; continue
+    fi
+    ax(){ jq -r --arg a "$app" ".apps[\$a].$1 // empty" "$JSON"; }   # registry field
+    atype="$(ax type)"; aexec="$(ax exec)"; aclass="$(ax match_class)"; amode="$(ax arg_mode)"
+    [ -n "$aexec" ] || aexec="$app"
+
+    # FALLBACK: app binary not installed → log and skip (never blocks the session)
+    if ! command -v "$aexec" >/dev/null 2>&1; then
+      log "SKIP desk=$desk cell=$cell app=$app — exec '$aexec' NOT FOUND on PATH (fallback: continue)"
+      continue
+    fi
+
+    if [ "$atype" = konsole ]; then
+      # konsole flags from registry (default --separate --nofork)
+      mapfile -t kflags < <(jq -r --arg a "$app" '.apps[$a].konsole_flags[]? // empty' "$JSON")
+      [ "${#kflags[@]}" -gt 0 ] || kflags=(--separate --nofork)
+      build_konsole "$desk" "$cell" "$di" "$wi" "$aexec" "${kflags[@]}"
+      continue
+    fi
+
+    # build argv: exec + fixed_args + per-instance value (path|url|none)
+    argv=("$aexec")
+    mapfile -t fixed < <(jq -r --arg a "$app" '.apps[$a].fixed_args[]? // empty' "$JSON")
+    [ "${#fixed[@]}" -gt 0 ] && argv+=("${fixed[@]}")
+    case "$amode" in
+      path) v="$(jq -r ".desktops[$di].windows[$wi].args[0] // empty" "$JSON")"; [ -n "$v" ] && argv+=("$v") ;;
+      url)  v="$(jq -r ".desktops[$di].windows[$wi].url // empty"     "$JSON")"; [ -n "$v" ] && argv+=("$v") ;;
+    esac
+    launch_app "$desk" "$cell" "${aclass:-$app}" "${argv[@]}"
+  done
+done
+
+[ "$DRY" = 1 ] && { log "dry-run complete"; exit 0; }
+
+# ── Position everything (idempotent; 3 bounded passes to catch slow windows) ─
+if [ "$DO_POSITION" = 1 ] && [ -s "$POSMAP" ]; then
+  {
+    echo 'var byPid={},byClass={};'
+    while IFS=$'\t' read -r kind val desk cell; do
+      if [ "$kind" = pid ]; then
+        printf 'byPid["%s"]={d:%s,cell:"%s"};\n' "$val" "$desk" "$cell"
+      else
+        printf 'byClass["%s"]={d:%s,cell:"%s"};\n' "$(echo "$val" | tr 'A-Z' 'a-z')" "$desk" "$cell"
+      fi
+    done <"$POSMAP"
+    cat <<'JS'
+function deskObj(n){var ds=workspace.desktops;for(var i=0;i<ds.length;i++){if(ds[i].x11DesktopNumber===n)return ds[i];}return null;}
+function area(w){var a;try{a=workspace.clientArea(KWin.MaximizeArea,w);}catch(e){a=null;}
+  if(!a||!a.width){var s=workspace.virtualScreenSize;a={x:0,y:0,width:s.width,height:s.height};}return a;}
+// IMPORTANT: read-modify-write the real frameGeometry QRect. Assigning a plain
+// {x,y,width,height} object makes KWin honor size but RE-CENTER position; mutating
+// the actual QRect and assigning it back makes x/y stick. (Qt.rect is unavailable.)
+function place(w,cell){var a=area(w);var hw=Math.floor(a.width/2);var g=w.frameGeometry;
+  if(cell==="left"){g.x=a.x;g.y=a.y;g.width=hw;g.height=a.height;}
+  else if(cell==="right"){g.x=a.x+a.width-hw;g.y=a.y;g.width=hw;g.height=a.height;}
+  else{g.x=a.x;g.y=a.y;g.width=a.width;g.height=a.height;}
+  w.frameGeometry=g;}
+var ws=workspace.windowList?workspace.windowList():workspace.clientList();
+for(var i=0;i<ws.length;i++){var w=ws[i];if(!w.normalWindow)continue;
+  var t=byPid[""+w.pid]||byClass[(""+w.resourceClass).toLowerCase()];if(!t)continue;
+  var d=deskObj(t.d);if(d){try{w.desktops=[d];}catch(e){try{w.desktop=t.d;}catch(e2){}}}
+  try{place(w,t.cell);}catch(e){}
+}
+JS
+  } >"$POSMAP.js"
+  log "positioning ($(grep -c . "$POSMAP") windows) ..."
+  for pass in 1 2 3; do kwin_eval "$POSMAP.js"; sleep 1.2; done
+  log "positioning done"
+fi
+
+log "complete"
+exit 0
