@@ -9,7 +9,10 @@
     enableFishIntegration = true;
 
     settings = {
-      command_timeout = 500;
+      # Android/Termux git is slow on large repos (the home dir is a git repo
+      # with many untracked files) — the 500ms default makes starship abort
+      # `git status` and emit a timeout warning. Raise to 2000ms to let it finish.
+      command_timeout = 2000;
 
       format = lib.concatStrings [
         "$time"
