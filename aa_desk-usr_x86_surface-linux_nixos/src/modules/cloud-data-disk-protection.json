@@ -78,8 +78,12 @@
       "R! /var/log/account             - - -    -    -",
       "d /mnt/shared/coredump          0755 root systemd-coredump -",
       "e /mnt/shared/coredump          - - -    14d  -",
-      "L+ /var/lib/systemd/coredump    - - -    -    /mnt/shared/coredump"
-    ]
+      "L+ /var/lib/systemd/coredump    - - -    -    /mnt/shared/coredump",
+      "d /mnt/shared-lib/android       0755 diego users -",
+      "d /mnt/shared-lib/android/sdk   0755 diego users -",
+      "d /mnt/shared-lib/android/avd   0755 diego users -"
+    ],
+    "_comment_android": "The last three rules PROVISION (not clean) a diego-owned Android storage root on /mnt/shared-lib (p5, ~83G free). /mnt/shared-lib is root-owned ext4, so the home-manager android-emulator module (user-tier) cannot create it — the NixOS host does, here. The emulator's heavy ~8.3G system images live there instead of the 80G nix pool; consumed by ba_flakes_desktop/src/modules/containers-cloud/android-emulator.{json,nix}."
   },
 
   "tmp_mounts": {

@@ -7,6 +7,12 @@
     "arm": { "image": "system-images;android-34;google_apis;arm64-v8a", "abi": "arm64-v8a", "label": "arm", "gpu_mode": "swiftshader_indirect" }
   },
 
+  "storage": {
+    "_doc": "The heavy ~8.3G of system images + the AVDs live on the shared-lib drive (p5/ext4, ~83G free), NOT the 80G nix pool. nix still provides the emulator + platform/cmdline-tools (autoPatchelf'd, run natively on NixOS; nix-ld covers any downloaded binary); includeSystemImages=false in the .nix keeps the images out of /nix. At activation the module composes a p5 SDK (sdk_root) by symlinking the nix components into it, then runs `sdkmanager --sdk_root=<sdk_root>` to install the arches[].image system images there (idempotent — skips present packages, accepts licenses; network only on first run / new image). avdmanager creates the AVDs in avd_home; the nix emulator resolves their image.sysdir against ANDROID_SDK_ROOT=sdk_root → p5. TRADE-OFF (Principle 3): images download at first online switch instead of being nix-offline-cached — accepted for this local dev tool (apps build in GHA). The diego-owned p5 dirs are provisioned by a systemd-tmpfiles rule in the NixOS host (cloud-data-disk-protection.json) because /mnt/shared-lib is root-owned.",
+    "sdk_root": "/mnt/shared-lib/android/sdk",
+    "avd_home": "/mnt/shared-lib/android/avd"
+  },
+
   "common_hw": {
     "hw.gpu.enabled": "yes",
     "hw.keyboard": "yes",
@@ -36,6 +42,15 @@
     "superapp_launcher_theme": "cloud_minimalist_black",
     "apps": [
       { "pkg": "com.diegonmarcos.superapp", "apk": "$HOME/git/unix/ea_cloud-superapp/dist/Cloud-SuperApp-{abi}.apk" }
+    ]
+  },
+
+  "testers": {
+    "_doc": "Invariants proving the system images moved OFF the nix pool ONTO p5. Run after `ba_flakes_desktop/build.sh switch` (the first run must be online to download the images).",
+    "checks": [
+      { "id": "no_system_image_in_nix_store", "description": "the ~8.3G android system images are NOT in the nix store anymore", "command": "find /nix/store -maxdepth 1 -name '*android-sdk-system-image*' | wc -l", "expect": "0" },
+      { "id": "system_images_on_p5", "description": "system images live under the p5 sdk_root", "command": "ls -d /mnt/shared-lib/android/sdk/system-images/android-34/google_apis/* 2>/dev/null | wc -l", "expect_regex": "^[1-9]" },
+      { "id": "avds_on_p5", "description": "AVDs live under the p5 avd_home, not ~/.android/avd", "command": "ls /mnt/shared-lib/android/avd/*.avd 2>/dev/null | wc -l", "expect_regex": "^[1-9]" }
     ]
   }
 }
