@@ -63,7 +63,8 @@ on:
     paths:
       - "ea_cloud-superapp/**"
       - "1_workflows/src/cicd/ship-cloud-superapp.yml"
-      - ".github/workflows/ship-cloud-superapp.yml"
+      # Generated .github/workflows/*.yml intentionally NOT watched (regenerated
+      # by 1_workflows/build.sh → would self-trigger rebuilds on unrelated commits).
 
 permissions:
   contents: write   # for gh release create + tag push reads
