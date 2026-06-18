@@ -26,8 +26,9 @@
     "launcher_package": "com.android.launcher3",
     "launcher_db_glob": "data/com.android.launcher3/databases/launcher_*.db",
     "media_subdir": "media/0",
-    "_doc_install": "`waydroid app install` is unreliable (silently no-ops, esp. for larger APKs — Organic Maps 72MB failed). The engine installs robustly by staging the APK into the container's tmp (container_tmp ↔ host <data_root>/local/tmp) and running `pm install -r -d`.",
+    "_doc_install": "`waydroid app install` is unreliable (silently no-ops, esp. for larger APKs — Organic Maps 72MB failed). The engine installs robustly by staging the APK into the container's tmp (container_tmp ↔ host <data_root>/local/tmp) and running `pm install -r -d`. grant_all_permissions adds `-g` so every declared runtime (dangerous) permission is auto-granted at install — no per-app permission prompts.",
     "container_tmp": "/data/local/tmp",
+    "grant_all_permissions": true,
     "hotseat_container": -101,
     "workspace_container": -100,
     "item_type_application": 0,
@@ -40,11 +41,12 @@
     "folders": {
       "cloud_ide": {
         "title": "Cloud IDE",
-        "members": ["com.foxdebug.acode", "com.amaze.filemanager"]
+        "members": ["com.diegonmarcos.ide", "com.foxdebug.acode", "com.amaze.filemanager"]
       },
       "cloud_comms": {
         "title": "Cloud Comms",
         "members": [
+          "com.diegonmarcos.comms",
           "im.vector.app",
           "com.mattermost.rnbeta",
           "eu.faircode.email",
@@ -56,6 +58,7 @@
       "cloud_nav": {
         "title": "Cloud Nav",
         "members": [
+          "com.diegonmarcos.cloudnav",
           "app.organicmaps",
           "net.osmand.plus"
         ]
@@ -76,19 +79,22 @@
       "cells": [
         { "ref": "com.diegonmarcos.superapp", "cellX": 0, "cellY": 0 },
 
-        { "ref": "folder:cloud_ide",          "cellX": 0, "cellY": 1 },
-        { "ref": "com.foxdebug.acode",        "cellX": 1, "cellY": 1 },
-        { "ref": "com.amaze.filemanager",     "cellX": 2, "cellY": 1 },
+        { "ref": "com.diegonmarcos.ide",      "cellX": 0, "cellY": 1 },
+        { "ref": "folder:cloud_ide",          "cellX": 1, "cellY": 1 },
+        { "ref": "com.foxdebug.acode",        "cellX": 2, "cellY": 1 },
+        { "ref": "com.amaze.filemanager",     "cellX": 3, "cellY": 1 },
 
-        { "ref": "folder:cloud_comms",        "cellX": 0, "cellY": 2 },
-        { "ref": "im.vector.app",             "cellX": 1, "cellY": 2 },
-        { "ref": "com.mattermost.rnbeta",     "cellX": 2, "cellY": 2 },
-        { "ref": "eu.faircode.email",         "cellX": 3, "cellY": 2 },
-        { "ref": "org.fossify.messages",      "cellX": 4, "cellY": 2 },
+        { "ref": "com.diegonmarcos.comms",    "cellX": 0, "cellY": 2 },
+        { "ref": "folder:cloud_comms",        "cellX": 1, "cellY": 2 },
+        { "ref": "im.vector.app",             "cellX": 2, "cellY": 2 },
+        { "ref": "com.mattermost.rnbeta",     "cellX": 3, "cellY": 2 },
+        { "ref": "eu.faircode.email",         "cellX": 4, "cellY": 2 },
+        { "ref": "org.fossify.messages",      "cellX": 5, "cellY": 2 },
 
-        { "ref": "folder:cloud_nav",          "cellX": 0, "cellY": 3 },
-        { "ref": "app.organicmaps",           "cellX": 1, "cellY": 3 },
-        { "ref": "net.osmand.plus",           "cellX": 2, "cellY": 3 },
+        { "ref": "com.diegonmarcos.cloudnav", "cellX": 0, "cellY": 3 },
+        { "ref": "folder:cloud_nav",          "cellX": 1, "cellY": 3 },
+        { "ref": "app.organicmaps",           "cellX": 2, "cellY": 3 },
+        { "ref": "net.osmand.plus",           "cellX": 3, "cellY": 3 },
 
         { "ref": "folder:stores",             "cellX": 0, "cellY": 4 },
         { "ref": "org.fdroid.fdroid",         "cellX": 1, "cellY": 4 },
@@ -111,6 +117,12 @@
   "apps": [
     { "package": "com.diegonmarcos.superapp", "label": "Cloud-SuperApp", "group": "core",
       "source": { "type": "local", "build_project": "../ea_cloud-superapp", "build_variant_env": "SUPERAPP_VARIANT", "build_variant": "x86_64", "apk_glob": "dist/*x86_64*.apk" } },
+    { "package": "com.diegonmarcos.cloudnav", "label": "Cloud-Nav", "group": "core",
+      "source": { "type": "local", "build_project": "../ea_cloud-nav", "apk_glob": "dist/Cloud-Nav.apk" } },
+    { "package": "com.diegonmarcos.comms", "label": "Cloud-Comms", "group": "core",
+      "source": { "type": "local", "build_project": "../ea_cloud-comms", "apk_glob": "dist/Cloud-Comms-Hub.apk" } },
+    { "package": "com.diegonmarcos.ide", "label": "Cloud-IDE", "group": "core",
+      "source": { "type": "local", "build_project": "../ea_cloud-ide", "apk_glob": "dist/Cloud-IDE-Hub.apk" } },
     { "package": "com.foxdebug.acode",     "label": "Acode",            "group": "ide",   "source": { "type": "fdroid" } },
     { "package": "com.amaze.filemanager",  "label": "Amaze",            "group": "ide",   "source": { "type": "fdroid" } },
     { "package": "eu.faircode.email",      "label": "FairMail",         "group": "comms", "source": { "type": "fdroid" } },
