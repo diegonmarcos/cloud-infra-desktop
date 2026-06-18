@@ -115,6 +115,11 @@ struct SensorFW {
     /* Called by the GLib timeout to sample IIO and notify Sensors via the cb. */
     void pollOnce();
 
+    /* Upper bound (ms) for Sensors::poll()'s blocking wait — data-driven from the
+     * conf (POLL_WAIT_MS). Sensors.cpp reads this so an absent/idle sensor source
+     * can never deadlock SensorService init (Waydroid boot hang). */
+    int GetPollWaitMs() const { return mPollWaitMs; }
+
 private:
     bool loadConfig();          // parse KEY=VALUE conf (env WAYDROID_SENSORS_CONF)
     bool resolveAccelDevice();  // find /sys/bus/iio device by name, read scale
@@ -132,6 +137,7 @@ private:
     std::string mAccelPath;     // resolved /sys/bus/iio/devices/iio:deviceN
     double mAccelScale = 1.0;   // raw * scale -> m/s^2
     int    mPollMs = 200;
+    int    mPollWaitMs = 3000;  // poll() blocking-wait ceiling (conf POLL_WAIT_MS)
     AxisMap mMap[3] = { {0,+1}, {1,+1}, {2,+1} };  // x,y,z passthrough by default
     int    mAccelX = 0, mAccelY = 0, mAccelZ = 0;  // centi-m/s^2
     uint64_t mAccelTs = 0;

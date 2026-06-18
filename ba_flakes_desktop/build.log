@@ -39515,3 +39515,120 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-06-15 16:24:55] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-06-15 16:24:55] PERF: start switch
 [2026-06-15 16:24:55] INFO: Staging dirty files for flake evaluation...
+[2026-06-15 16:24:55] PERF: git stage = 105ms
+[2026-06-15 16:24:55] PERF: clean stale hm-backups = 354ms
+[2026-06-15 16:24:55] INFO: Applying Home Manager configuration...
+[2026-06-15 16:24:55] INFO: home-manager backup extension: hm-backup-20260615-162455
+copying path '/nix/store/0yj36irhwn225ywy1saz0gf5wr2ciz50-source' from 'https://cache.nixos.org'...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+copying path '/nix/store/kn3m407mn5p4dyjb96z12daanqjaqmzc-source' from 'https://cache.nixos.org'...
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 9 derivations will be built:
+  /nix/store/8j4rs035drfxmrznyvpc5052fppgp6ln-activation-script.drv
+  /nix/store/4yqxxz1v0jk71pdmp8d7vbwc1q3ynifp-ff_native-messaging-hosts.drv
+  /nix/store/ckx84w5r7rxyz8grxh6gh29w61cfz1sf-waydroid-provision.timer.drv
+  /nix/store/fd192zrkqszyzy8ffdpi9rb9dpf31k4x-hm_.localbinwaydroidprovision.drv
+  /nix/store/makig09sc9s2zmyl4vc2hsfdi7svmi0f-hm_.localbinwaydroidsensorsrun.drv
+  /nix/store/rv6907zayfmd3jbhwgbb6609kyyld6l3-waydroid-provision.service.drv
+  /nix/store/z27c43ql2lpbid8y82z1gym6ic6ldlcw-waydroid-sensors.service.drv
+  /nix/store/as9k3a9k1brgwb1s0li9pfzzgwl057j2-home-manager-files.drv
+  /nix/store/127pfg9cbdwbvwb9rw1r30hrjbabpncx-home-manager-generation.drv
+these 5 paths will be fetched (0.68 MiB download, 9.98 MiB unpacked):
+  /nix/store/plpc13r351l9bn13c03yvzd4q9kr5rcy-file-5.45
+  /nix/store/zszv0wwyyb5pqfibp9avrmgs4lfphkmn-gnu-config-2024-01-01
+  /nix/store/0xx06whymh7q41z839xvign6pblmb1x0-gnumake-4.4.1
+  /nix/store/4mmdi8a6znw6qkf2gayg0iqig708pc3b-stdenv-linux
+  /nix/store/64683f927q2mhyrwn0z34zysjq0j2gqh-update-autotools-gnu-config-scripts-hook
+copying path '/nix/store/zszv0wwyyb5pqfibp9avrmgs4lfphkmn-gnu-config-2024-01-01' from 'https://cache.nixos.org'...
+copying path '/nix/store/plpc13r351l9bn13c03yvzd4q9kr5rcy-file-5.45' from 'https://cache.nixos.org'...
+copying path '/nix/store/0xx06whymh7q41z839xvign6pblmb1x0-gnumake-4.4.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/64683f927q2mhyrwn0z34zysjq0j2gqh-update-autotools-gnu-config-scripts-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/4mmdi8a6znw6qkf2gayg0iqig708pc3b-stdenv-linux' from 'https://cache.nixos.org'...
+building '/nix/store/8j4rs035drfxmrznyvpc5052fppgp6ln-activation-script.drv'...
+building '/nix/store/4yqxxz1v0jk71pdmp8d7vbwc1q3ynifp-ff_native-messaging-hosts.drv'...
+building '/nix/store/fd192zrkqszyzy8ffdpi9rb9dpf31k4x-hm_.localbinwaydroidprovision.drv'...
+building '/nix/store/makig09sc9s2zmyl4vc2hsfdi7svmi0f-hm_.localbinwaydroidsensorsrun.drv'...
+building '/nix/store/rv6907zayfmd3jbhwgbb6609kyyld6l3-waydroid-provision.service.drv'...
+building '/nix/store/ckx84w5r7rxyz8grxh6gh29w61cfz1sf-waydroid-provision.timer.drv'...
+building '/nix/store/z27c43ql2lpbid8y82z1gym6ic6ldlcw-waydroid-sensors.service.drv'...
+building '/nix/store/as9k3a9k1brgwb1s0li9pfzzgwl057j2-home-manager-files.drv'...
+building '/nix/store/127pfg9cbdwbvwb9rw1r30hrjbabpncx-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkLinkTargets
+Existing file '/home/diego/.gtkrc-2.0' is in the way of '/nix/store/zm3znxkxh97l87nil6j2f8fg4h6zq0hn-home-manager-files/.gtkrc-2.0', will be moved to '/home/diego/.gtkrc-2.0.hm-backup-20260615-162455'
+Activating writeBoundary
+Activating androidEmulatorProfiles
+Activating checkFilesChanged
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating profile generation 16
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (4 VMs, 41 services, date=2026-06-15)
+Activating globalTsx
+
+changed 3 packages in 1s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.177 is up to date
+Activating installWg0TcpConf
+[wireguard-wstunnel] /home/diego/.config/wireguard/wg0.conf not found — skipping wg0-tcp.conf render
+Activating lockScreenWallpaper
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating powerDevilSuspend
+Activating reloadSystemd
+The user systemd session is degraded:
+  UNIT                                                         LOAD   ACTIVE SUB    DESCRIPTION
+● app-org.gnome.Evolution\x2dalarm\x2dnotify@autostart.service loaded failed failed Events and Tasks Reminders
+● systembus-notify.service                                     loaded failed failed system bus notification daemon
+● xdg-desktop-portal-gtk.service                               loaded failed failed Portal service (GTK/GNOME implementation)
+
+Legend: LOAD   → Reflects whether the unit definition was properly loaded.
+        ACTIVE → The high-level unit activation state, i.e. generalization of SUB.
+        SUB    → The low-level unit activation state, values depend on unit type.
+
+3 loaded units listed.
+Attempting to reload services anyway...
+The service manager is degraded.
+Failed services: app-org.gnome.Evolution\x2dalarm\x2dnotify@autostart.service, systembus-notify.service, xdg-desktop-portal-gtk.service
+Attempting to continue anyway...
+Starting units: sops-nix.service, waydroid-provision.timer, waydroid-sensors.service
+Activating sops-nix
+Activating sshSocketsDir
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-06-15 16:26:55] PERF: home-manager switch = 1m 59s
+[2026-06-15 16:26:55] PERF: TOTAL switch = 1m 59s
+[2026-06-15 16:26:55] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-06-15 16:26:55] ========== Build script finished ==========
+[2026-06-15 19:11:24] ========== Build script started ==========
+[2026-06-15 19:11:24] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-15 19:11:24] PERF: start switch
+[2026-06-15 19:11:24] INFO: Staging dirty files for flake evaluation...

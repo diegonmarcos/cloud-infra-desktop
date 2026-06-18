@@ -18,6 +18,8 @@
 
 #include "Sensors.h"
 
+#include <cstdlib>   // getenv, atol (bounded hwservicemanager wait)
+
 using waydroid::sensors::implementation::Sensors;
 
 #define RET_OK          (0)
@@ -109,7 +111,9 @@ app_async_resp(
     GBinderWriter writer;
 
     std::vector<sensors_event_t> event_vec = resp->service->poll(resp->maxCount, &err);
-    sensors_event_t *event = &event_vec[0];
+    /* .data() not &vec[0]: poll() now returns an EMPTY batch on its bounded-wait timeout
+     * (the boot-safety path), and &vec[0] on an empty vector is undefined behaviour. */
+    sensors_event_t *event = event_vec.data();
     int event_len = event_vec.size();
 
     gbinder_local_reply_init_writer(resp->reply, &writer);
@@ -117,7 +121,7 @@ app_async_resp(
     gbinder_writer_append_hidl_vec(&writer, (void *)event, event_len, sizeof(sensors_event_t));
 
     std::vector<sensor_t> sensors_vec;
-    sensor_t *sensors = &sensors_vec[0];
+    sensor_t *sensors = sensors_vec.data();
     int sensors_len = sensors_vec.size();
     gbinder_writer_append_hidl_vec(&writer, (void *)sensors, sensors_len, sizeof(sensor_t));
 
@@ -439,11 +443,29 @@ int main(int argc, char* argv[])
     app.service = new Sensors();
 
     app.sm = gbinder_servicemanager_new2(device, "hidl", "hidl");
-    if (gbinder_servicemanager_wait(app.sm, -1)) {
+
+    /* BOOT-SAFETY: bound the wait for the container's hwservicemanager. An
+     * infinite wait (-1) means a daemon started while the container is slow or
+     * absent hangs forever; with stub_sensors_hal=0 that hangs the Android boot
+     * (SensorService init blocks on a HAL that never registers). On timeout we
+     * exit non-zero so the supervisor (HM run-script) falls back to the stub
+     * HAL. Timeout is data-driven (build.json timeouts.sm_wait_ms → env). */
+    long sm_timeout_ms = 30000;
+    const char* sm_tmo_env = getenv("WAYDROID_SENSORS_SM_TIMEOUT_MS");
+    if (sm_tmo_env && *sm_tmo_env) {
+        long v = atol(sm_tmo_env);
+        if (v > 0) sm_timeout_ms = v;
+    }
+    if (gbinder_servicemanager_wait(app.sm, (int) sm_timeout_ms)) {
         app.obj = gbinder_servicemanager_new_local_object
             (app.sm, DEFAULT_IFACE, app_reply, &app);
         app_run(&app);
         gbinder_local_object_unref(app.obj);
+        gbinder_servicemanager_unref(app.sm);
+    } else {
+        GERR("hwservicemanager not present within %ld ms — exiting so the "
+             "supervisor can fall back to the stub sensors HAL", sm_timeout_ms);
+        app.ret = RET_NOTFOUND;
         gbinder_servicemanager_unref(app.sm);
     }
     return app.ret;

@@ -53,17 +53,59 @@ in
         sleep 3600; exit 0
       fi
 
+      # ── Bounded timeouts + boot-fallback policy (data-driven, build.json) ──
+      # A flaky/absent HAL must NEVER hang the Android boot. These bound every
+      # wait and define the graceful degradation to the stub HAL.
+      SM_TMO_MS="$(jq -r '.timeouts.sm_wait_ms // 30000' "$BJ")"
+      WATCHDOG_S="$(jq -r '.timeouts.boot_watchdog_s // 120' "$BJ")"
+      FW_SETTLE_S="$(jq -r '.timeouts.framework_restart_settle_s // 5' "$BJ")"
+      BOOT_GATE="$(jq -r '.waydroid.boot_gate_prop // "sys.boot_completed"' "$BJ")"
+      STUB_PROP="$(jq -r '.waydroid.stub_prop // "waydroid.stub_sensors_hal"' "$BJ")"
+      FW_RESTART="$(jq -r '.waydroid.framework_restart // "stop; sleep 1; start"' "$BJ")"
+
       # Boot-prop override (data-driven): the framework reads these AT container
-      # boot. Setting stub_sensors_hal=0 makes SensorService load our HAL instead
-      # of the empty stub. Written before the session boots (this runs at login).
+      # boot. stub_sensors_hal=0 makes SensorService load our HAL instead of the
+      # empty stub. Written here (login, before any session boots) so each fresh
+      # container starts OPTIMISTIC — trying the real accelerometer HAL.
       PROP_FILE="$HOME/.local/share/waydroid/waydroid_base.prop"
-      mkdir -p "$(dirname "$PROP_FILE")"; touch "$PROP_FILE"
-      jq -r '.waydroid.boot_props // {} | to_entries[] | "\(.key)=\(.value)"' "$BJ" | while IFS= read -r kv; do
-        key="''${kv%%=*}"
-        grep -v "^''${key}=" "$PROP_FILE" > "$PROP_FILE.tmp" 2>/dev/null || true
-        printf '%s\n' "$kv" >> "$PROP_FILE.tmp"
+      set_baseprop() {  # set_baseprop KEY VALUE — idempotent line replace
+        mkdir -p "$(dirname "$PROP_FILE")"; touch "$PROP_FILE"
+        grep -v "^$1=" "$PROP_FILE" > "$PROP_FILE.tmp" 2>/dev/null || true
+        printf '%s=%s\n' "$1" "$2" >> "$PROP_FILE.tmp"
         mv "$PROP_FILE.tmp" "$PROP_FILE"
+      }
+      jq -r '.waydroid.boot_props // {} | to_entries[] | "\(.key)=\(.value)"' "$BJ" | while IFS= read -r kv; do
+        set_baseprop "''${kv%%=*}" "''${kv#*=}"
       done
+
+      # Is Android fully booted in the live container?
+      boot_done() { [ "$(waydroid shell -- getprop "$BOOT_GATE" 2>/dev/null | tr -d '\r')" = "1" ]; }
+
+      # FALLBACK: if the framework hasn't reached boot_completed within
+      # WATCHDOG_S, the real HAL path is wedged. Switch the live container to the
+      # in-container STUB sensors HAL (stub_prop=1) and restart the framework so
+      # Android boots WITHOUT our HAL — stable, just no auto-rotate. base.prop is
+      # left at the optimistic stub=0, so the NEXT container boot retries the real
+      # HAL automatically (degradation is per-session, not sticky).
+      fallback_to_stub() {
+        echo "[waydroid-sensors] FALLBACK: '$BOOT_GATE' != 1 within ''${WATCHDOG_S}s — switching to STUB sensors HAL (auto-rotate OFF, Android stable). Next session retries the real HAL." >&2
+        waydroid shell -- setprop "$STUB_PROP" 1 2>/dev/null || true
+        waydroid shell -- sh -c "$FW_RESTART" 2>/dev/null || true
+        sleep "$FW_SETTLE_S"
+      }
+
+      # Boot watchdog (per session): give the real-HAL boot WATCHDOG_S to reach
+      # the gate; otherwise fall back to the stub. Exits early if the session
+      # vanishes (nothing left to watch).
+      boot_watchdog() {
+        local waited=0
+        while [ "$waited" -lt "$WATCHDOG_S" ]; do
+          [ -e "$DEV" ] || return 0
+          boot_done && { echo "[waydroid-sensors] boot gate reached ($BOOT_GATE=1) — real sensors HAL OK"; return 0; }
+          sleep 3; waited=$((waited+3))
+        done
+        [ -e "$DEV" ] && fallback_to_stub
+      }
 
       # Supervise the daemon FRESH per container session. The upstream daemon
       # survives a service-manager death and tries to RECONNECT, but that
@@ -72,19 +114,21 @@ in
       # restart shows ISensors declared-but-not-served). So instead of exec'ing
       # the daemon once, we loop: start it when /dev/hwbinder appears, and kill it
       # when the node vanishes (session/container stop), so the NEXT session gets a
-      # freshly-registering daemon that SensorService can bind at boot.
-      cleanup() { [ -n "''${hal:-}" ] && kill "$hal" 2>/dev/null; }
+      # freshly-registering daemon that SensorService can bind at boot. The HAL
+      # now exits on a bounded hwservicemanager wait (WAYDROID_SENSORS_SM_TIMEOUT_MS),
+      # and the watchdog guarantees the boot completes one way or another.
+      cleanup() { [ -n "''${hal:-}" ] && kill "$hal" 2>/dev/null; [ -n "''${wd:-}" ] && kill "$wd" 2>/dev/null; }
       trap 'cleanup; exit 0' TERM INT
       while :; do
         while [ ! -e "$DEV" ]; do sleep 2; done
-        echo "[waydroid-sensors] $DEV present — starting HAL ($BIN)"
-        env WAYDROID_SENSORS_CONF="$CONF" "$BIN" "$DEV" &
+        echo "[waydroid-sensors] $DEV present — starting HAL ($BIN, sm_timeout=''${SM_TMO_MS}ms)"
+        env WAYDROID_SENSORS_CONF="$CONF" WAYDROID_SENSORS_SM_TIMEOUT_MS="$SM_TMO_MS" "$BIN" "$DEV" &
         hal=$!
+        boot_watchdog & wd=$!
         while [ -e "$DEV" ] && kill -0 "$hal" 2>/dev/null; do sleep 2; done
         echo "[waydroid-sensors] $DEV gone or HAL exited — recycling for next session"
-        kill "$hal" 2>/dev/null || true
-        wait "$hal" 2>/dev/null || true
-        hal=
+        kill "$hal" 2>/dev/null || true; wait "$hal" 2>/dev/null || true; hal=
+        kill "$wd" 2>/dev/null || true; wait "$wd" 2>/dev/null || true; wd=
       done
     '';
   };

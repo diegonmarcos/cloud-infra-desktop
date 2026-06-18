@@ -280,6 +280,11 @@ Sensors::Sensors()
     mSensorDevice->mSensorFWDevice = new SensorFW();
     mSensorDevice->mSensorFWDevice->RegisterSensors(sensor_event_cb, mSensorDevice);
 
+    /* Bound poll()'s blocking wait (data-driven; falls back to the default if the conf
+     * is missing/invalid). Without this, an absent/idle IIO source hangs Android boot. */
+    int pw = mSensorDevice->mSensorFWDevice->GetPollWaitMs();
+    mSensorDevice->pollWaitMs = (pw > 0) ? pw : kDefaultPollWaitMs;
+
     pthread_mutex_init(&mSensorDevice->lock, NULL);
     mSensorDevice->loop = g_main_loop_new(NULL, TRUE);
 }
@@ -623,6 +628,17 @@ int Sensors::activate(
     return RESULT_OK;
 }
 
+/* One-shot timeout that bounds Sensors::poll()'s blocking wait. Runs on the daemon's
+ * main context, flags the device and quits the nested poll loop so poll() returns an
+ * empty batch instead of blocking SensorService init forever (Waydroid boot hang). */
+static gboolean poll_timeout_cb(gpointer userdata) {
+    SensorDevice* dev = (SensorDevice*) userdata;
+    dev->poll_timed_out = true;
+    if (dev->waiting_for_data)
+        g_main_loop_quit(dev->loop);
+    return G_SOURCE_REMOVE;
+}
+
 std::vector<sensors_event_t> Sensors::poll(int32_t maxCount, int *err_out) {
     std::vector<sensors_event_t> out;
     int err = 0;
@@ -633,9 +649,18 @@ std::vector<sensors_event_t> Sensors::poll(int32_t maxCount, int *err_out) {
         int bufferSize = maxCount <= kPollMaxBufferSize ? maxCount : kPollMaxBufferSize;
 
         if (!mSensorDevice->pendingSensors) {
+            // Bound the wait: on timeout we fall through with no pending events and
+            // return an empty batch ("plain"/degraded usage) rather than deadlocking
+            // system_server's SensorService init and freezing Waydroid on boot.
             mSensorDevice->waiting_for_data = true;
+            mSensorDevice->poll_timed_out = false;
+            guint tmo_id = g_timeout_add(mSensorDevice->pollWaitMs,
+                                         poll_timeout_cb, mSensorDevice);
             g_main_loop_run(mSensorDevice->loop);
             mSensorDevice->waiting_for_data = false;
+            // Woken by a real sensor event (not the timer): cancel the pending timer.
+            if (!mSensorDevice->poll_timed_out)
+                g_source_remove(tmo_id);
         }
         out.resize(bufferSize);
 

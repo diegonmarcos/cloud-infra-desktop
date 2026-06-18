@@ -32,6 +32,13 @@
       "z": { "src": "z", "sign": 1 }
     }
   },
+  "timeouts": {
+    "_doc": "Bounded waits so a flaky HAL can NEVER hang the Android boot. sm_wait_ms bounds the daemon's wait for the container hwservicemanager (service.cpp; was an infinite -1 → boot deadlock when the daemon couldn't register before SensorService init). poll_wait_ms bounds Sensors::poll()'s wait for a sensor event: SensorService issues a blocking poll() during its own init (before any sensor is activated, and even when the IIO accelerometer is absent so no wake-timer is armed) — an unbounded wait there deadlocks system_server and freezes Waydroid on the boot animation forever. On timeout poll() returns an empty event batch (plain/degraded usage: Android boots with no sensor data) instead of hanging. Rendered into the daemon conf (POLL_WAIT_MS) by build.sh. boot_watchdog_s bounds how long the supervisor (HM run-script) waits for boot_gate_prop=1 before it FALLS BACK to the stub HAL (sets stub_prop=1 + restarts the framework) so Waydroid always boots — auto-rotate is simply disabled in that degraded state. framework_restart_settle_s is the pause after a framework restart before re-checking the boot gate.",
+    "sm_wait_ms": 30000,
+    "poll_wait_ms": 3000,
+    "boot_watchdog_s": 120,
+    "framework_restart_settle_s": 5
+  },
   "waydroid": {
     "data_roots": [
       "/home/diego/.local/share/waydroid/data",
