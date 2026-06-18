@@ -60,8 +60,10 @@ function place(ref, container, screen, cellX, cellY) {
 
 // hotseat (bottom bar): left→right, screen=slot, cellX=slot
 hotseat.forEach((ref, slot) => place(ref, HC, slot, slot, 0));
-// workspace (home screen)
-for (const c of workspace.cells) place(c.ref, WC, workspace.screen, c.cellX, c.cellY);
+// workspace (home screens): each cell may override `screen` (0 = first page,
+// 1 = second page, …); default to workspace.screen. This is what puts the phone
+// apps on a separate home page from the constellation apps.
+for (const c of workspace.cells) place(c.ref, WC, (c.screen ?? workspace.screen), c.cellX, c.cellY);
 
 out.push("COMMIT;");
 process.stdout.write(out.join("\n") + "\n");

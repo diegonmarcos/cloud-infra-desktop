@@ -69,7 +69,17 @@
           "org.fdroid.fdroid",
           "com.aurora.store"
         ]
-      }
+      },
+
+      "_doc_phone": "SCREEN 1 (phone apps) folders. Titles come from ea_cloud-superapp/build.json::ui.phone_folders (single source of truth for the 31-category scheme used by the SuperApp's runtime PhoneAppClassifier); members here are the F-Droid-installable subset of the phone backup, classified by that same keyword algorithm. Proprietary apps (~274) are NOT installable from a reproducible source — install via Aurora Store inside Waydroid; they then auto-appear classified in the SuperApp's own drawer. Re-derive these member lists if phone_folders changes.",
+      "phone_comm":     { "title": ".b0_Communication", "members": ["im.vector.app", "io.element.android.x", "com.fsck.k9", "rs.ltt.android", "com.mattermost.rnbeta", "io.heckel.ntfy"] },
+      "phone_systools": { "title": "_SysTools",         "members": ["org.fdroid.fdroid", "com.ghostsq.commander", "org.kde.kdeconnect_tp", "com.termux.nix", "com.termux", "com.termux.api"] },
+      "phone_ide":      { "title": ".a4_IDE|Code",       "members": ["com.viscouspot.gitsync"] },
+      "phone_notes":    { "title": ".a2_Pages|Notes",    "members": ["com.adeeteya.markdown_editor"] },
+      "phone_utility":  { "title": "-Utilities",         "members": ["me.zhanghai.android.files"] },
+      "phone_security": { "title": "_Security",          "members": ["eu.faircode.netguard", "ch.protonvpn.android"] },
+      "phone_sysinfo":  { "title": "_Sys_Info",          "members": ["me.biplobsd.rsm"] },
+      "phone_misc":     { "title": "No Categorie",       "members": ["com.rama.mako", "org.fossify.phone"] }
     },
     "hotseat": [
       "com.diegonmarcos.superapp"
@@ -99,7 +109,16 @@
         { "ref": "folder:stores",             "cellX": 0, "cellY": 4 },
         { "ref": "org.fdroid.fdroid",         "cellX": 1, "cellY": 4 },
         { "ref": "com.aurora.store",          "cellX": 2, "cellY": 4 },
-        { "ref": "com.brave.browser",         "cellX": 3, "cellY": 4 }
+        { "ref": "com.brave.browser",         "cellX": 3, "cellY": 4 },
+
+        { "ref": "folder:phone_comm",     "screen": 1, "cellX": 0, "cellY": 0 },
+        { "ref": "folder:phone_systools", "screen": 1, "cellX": 1, "cellY": 0 },
+        { "ref": "folder:phone_security", "screen": 1, "cellX": 2, "cellY": 0 },
+        { "ref": "folder:phone_ide",      "screen": 1, "cellX": 3, "cellY": 0 },
+        { "ref": "folder:phone_notes",    "screen": 1, "cellX": 4, "cellY": 0 },
+        { "ref": "folder:phone_utility",  "screen": 1, "cellX": 5, "cellY": 0 },
+        { "ref": "folder:phone_sysinfo",  "screen": 1, "cellX": 0, "cellY": 1 },
+        { "ref": "folder:phone_misc",     "screen": 1, "cellX": 1, "cellY": 1 }
       ]
     }
   },
@@ -136,6 +155,22 @@
     { "package": "net.osmand.plus",        "label": "OsmAnd~",          "group": "nav",   "source": { "type": "fdroid" } },
     { "package": "org.fdroid.fdroid",      "label": "F-Droid",          "group": "store", "source": { "type": "fdroid" } },
     { "package": "com.aurora.store",       "label": "Aurora Store",     "group": "store", "source": { "type": "fdroid" } },
-    { "package": "com.brave.browser",      "label": "Brave",            "group": "web",   "source": { "type": "github", "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk" } }
+    { "package": "com.brave.browser",      "label": "Brave",            "group": "web",   "source": { "type": "github", "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk" } },
+
+    { "package": "io.element.android.x",     "label": "Element X",        "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "com.fsck.k9",              "label": "K-9 Mail",         "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "rs.ltt.android",           "label": "Ltt.rs",           "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "io.heckel.ntfy",           "label": "ntfy",             "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "com.ghostsq.commander",    "label": "Ghost Commander",  "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "org.kde.kdeconnect_tp",    "label": "KDE Connect",      "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "com.termux",               "label": "Termux",           "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "com.termux.api",           "label": "Termux:API",       "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "com.viscouspot.gitsync",   "label": "Git Sync",         "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "com.adeeteya.markdown_editor", "label": "Markdown Editor", "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "me.zhanghai.android.files","label": "Material Files",   "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "eu.faircode.netguard",     "label": "NetGuard",         "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "ch.protonvpn.android",     "label": "Proton VPN",       "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "me.biplobsd.rsm",          "label": "Resmush",          "group": "phone", "source": { "type": "fdroid" } },
+    { "package": "com.rama.mako",            "label": "Mako",             "group": "phone", "source": { "type": "fdroid" } }
   ]
 }
