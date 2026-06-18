@@ -44,7 +44,6 @@
     "containers-cloud/ci-cd",
     "containers-cloud/secrets",
     "containers-cloud/waydroid",
-    "containers-cloud/waydroid-sensors",
     "containers-cloud/waydroid-provision",
     "containers-cloud/android-emulator"
   ],
