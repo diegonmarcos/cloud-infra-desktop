@@ -6,5 +6,6 @@
     just             # command runner
     watchexec        # watch files and execute commands
     act              # run GitHub Actions locally
+    android-tools    # adb + fastboot — on-device diagnostics (USB-PD/charging, dumpsys)
   ];
 }
