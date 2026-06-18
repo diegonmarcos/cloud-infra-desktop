@@ -95,6 +95,15 @@ case "$argv" in
 esac
 rm -f "$rec" "$recout" "$pjson"
 
+echo "── 9. konsole splits: structure is valid (pane int, dir lr|tb, refs in range) ──"
+bad="$(jq -r '
+  [ .desktops[].windows[]? | select(.app=="konsole") | .tabs[]? | (.splits // []) as $s
+    | range(0; ($s|length)) as $i
+    | $s[$i] | select((.pane|type)!="number" or (.dir as $d | ($d=="lr" or $d=="tb")|not) or (.pane > $i))
+  ] | length' "$JSON")"
+[ "$bad" = 0 ] && ok "all split steps well-formed (dir lr|tb, pane references an already-created pane)" \
+                || no "$bad malformed split step(s)"
+
 echo
 echo "════════ $PASS passed, $FAIL failed ════════"
 [ "$FAIL" = 0 ]
