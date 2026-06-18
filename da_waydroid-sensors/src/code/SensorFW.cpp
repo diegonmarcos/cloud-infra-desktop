@@ -56,16 +56,20 @@ SensorFW::~SensorFW() {
 }
 
 bool SensorFW::loadConfig() {
-    const char* conf = getenv("WAYDROID_SENSORS_CONF");
-    if (!conf || !*conf) {
-        g_message("waydroid-sensors: WAYDROID_SENSORS_CONF unset — using defaults");
-        return false;
-    }
+    // WAYDROID_SENSORS_CONF wins (set by build.sh for dist/ testing). When unset —
+    // e.g. when waydroid-container launches the system-PATH daemon with NO environment
+    // — fall back to the conventional install path so the daemon stays data-driven.
+    // This path MUST match build.json runtime.conf_install_path (rendered there via
+    // environment.etc by the host flake). Missing file → harmless built-in defaults.
+    const char* env = getenv("WAYDROID_SENSORS_CONF");
+    const char* conf = (env && *env) ? env
+                                     : "/etc/waydroid-sensors/waydroid-sensors.conf";
     gchar* buf = nullptr; gsize len = 0;
     if (!g_file_get_contents(conf, &buf, &len, nullptr)) {
-        g_warning("waydroid-sensors: cannot read conf %s — using defaults", conf);
+        g_message("waydroid-sensors: no readable conf at %s — using built-in defaults", conf);
         return false;
     }
+    g_message("waydroid-sensors: loaded conf %s", conf);
     gchar** lines = g_strsplit(buf, "\n", -1);
     g_free(buf);
     for (int i = 0; lines[i]; i++) {
