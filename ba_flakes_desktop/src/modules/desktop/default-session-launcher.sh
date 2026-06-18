@@ -50,6 +50,8 @@ QDBUS="$(command -v qdbus6 || command -v qdbus || true)"
 
 q(){ jq -r "$1" "$JSON"; }
 TIMEOUT="$(q '.fallback.per_app_launch_timeout_sec // 25')"
+POS_PASSES="$(q '.fallback.position_passes // 10')"
+POS_INTERVAL="$(q '.fallback.position_interval_sec // 1.5')"
 WORKDIR="$HOME"
 POSMAP="$(mktemp -t default-session-pos.XXXXXX)"
 trap 'rm -f "$POSMAP" "$POSMAP.js" 2>/dev/null' EXIT
@@ -105,10 +107,10 @@ build_konsole(){ # $1=desktop $2=cell $3=di $4=wi $5=exec $6..=konsole_flags
 }
 
 # ── Generic GUI app (matched for positioning by window class) ───────────────
-launch_app(){ # $1=desktop $2=cell $3=class-key $4..=argv
-  local desk="$1" cell="$2" cls="$3"; shift 3
+launch_app(){ # $1=desktop $2=cell $3=class-key $4=app-name $5..=argv
+  local desk="$1" cell="$2" cls="$3" name="$4"; shift 4
   spawn "$@" >/dev/null
-  log "launched ${1##*/} desk=$desk cell=$cell (match class=$cls)"
+  log "launched $name desk=$desk cell=$cell (match class=$cls)"
   printf 'class\t%s\t%s\t%s\n' "$cls" "$desk" "$cell" >>"$POSMAP"
 }
 
@@ -134,10 +136,18 @@ for di in $(seq 0 $((ndesk-1))); do
     atype="$(ax type)"; aexec="$(ax exec)"; aclass="$(ax match_class)"; amode="$(ax arg_mode)"
     [ -n "$aexec" ] || aexec="$app"
 
-    # FALLBACK: app binary not installed → log and skip (never blocks the session)
+    # optional launch_prefix (e.g. ["dbus-run-session","--"] to force a NEW instance
+    # of a KDBusService single-instance app like systemsettings)
+    mapfile -t prefix < <(jq -r --arg a "$app" '.apps[$a].launch_prefix[]? // empty' "$JSON")
+
+    # FALLBACK: app binary (or its launch_prefix tool) not installed → log + skip
     if ! command -v "$aexec" >/dev/null 2>&1; then
       log "SKIP desk=$desk cell=$cell app=$app — exec '$aexec' NOT FOUND on PATH (fallback: continue)"
       continue
+    fi
+    if [ "${#prefix[@]}" -gt 0 ] && ! command -v "${prefix[0]}" >/dev/null 2>&1; then
+      log "WARN desk=$desk cell=$cell app=$app — launch_prefix '${prefix[0]}' NOT FOUND; launching without it"
+      prefix=()
     fi
 
     if [ "$atype" = konsole ]; then
@@ -148,15 +158,28 @@ for di in $(seq 0 $((ndesk-1))); do
       continue
     fi
 
-    # build argv: exec + fixed_args + per-instance value (path|url|none)
-    argv=("$aexec")
+    # build argv: [launch_prefix...] exec + fixed_args + per-instance value (path|url|none)
+    argv=()
+    [ "${#prefix[@]}" -gt 0 ] && argv+=("${prefix[@]}")
+    argv+=("$aexec")
     mapfile -t fixed < <(jq -r --arg a "$app" '.apps[$a].fixed_args[]? // empty' "$JSON")
     [ "${#fixed[@]}" -gt 0 ] && argv+=("${fixed[@]}")
     case "$amode" in
       path) v="$(jq -r ".desktops[$di].windows[$wi].args[0] // empty" "$JSON")"; [ -n "$v" ] && argv+=("$v") ;;
       url)  v="$(jq -r ".desktops[$di].windows[$wi].url // empty"     "$JSON")"; [ -n "$v" ] && argv+=("$v") ;;
+      paths)
+        # multi-tab: append every path that EXISTS as a dir; skip+log missing ones
+        # (per-folder fallback — a non-existent folder never breaks the launch).
+        added=0
+        while IFS= read -r p; do
+          [ -z "$p" ] && continue
+          if [ -d "$p" ]; then argv+=("$p"); added=$((added+1))
+          else log "  ↳ $app: skip missing folder '$p' (fallback)"; fi
+        done < <(jq -r ".desktops[$di].windows[$wi].args[]? // empty" "$JSON")
+        [ "$added" = 0 ] && log "  ↳ $app: no declared folder exists — opening default window"
+        ;;
     esac
-    launch_app "$desk" "$cell" "${aclass:-$app}" "${argv[@]}"
+    launch_app "$desk" "$cell" "${aclass:-$app}" "$app" "${argv[@]}"
   done
 done
 
@@ -193,8 +216,8 @@ for(var i=0;i<ws.length;i++){var w=ws[i];if(!w.normalWindow)continue;
 }
 JS
   } >"$POSMAP.js"
-  log "positioning ($(grep -c . "$POSMAP") windows) ..."
-  for pass in 1 2 3; do kwin_eval "$POSMAP.js"; sleep 1.2; done
+  log "positioning ($(grep -c . "$POSMAP") windows, ${POS_PASSES} passes @ ${POS_INTERVAL}s — catches slow-mapping windows) ..."
+  for pass in $(seq 1 "$POS_PASSES"); do kwin_eval "$POSMAP.js"; sleep "$POS_INTERVAL"; done
   log "positioning done"
 fi
 
