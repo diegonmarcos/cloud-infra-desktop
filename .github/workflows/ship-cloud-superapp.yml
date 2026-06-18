@@ -122,45 +122,7 @@ jobs:
           # stable Gradle that satisfies AGP 8.7.3's Gradle 8.9+ floor.
           gradle-version: "8.10.2"
 
-      # ── Shared constellation signing key (vault) ────────────────────
-      # When the repo has BOTH the VAULT_TOKEN + SOPS_AGE_KEY secrets, fetch
-      # the SHARED key from the private vault repo so this APK is signed with
-      # the SAME key as every other constellation app + local builds — the
-      # in-app updater then never rejects an install on a signature mismatch.
-      # build.sh::_resolve_signing reads $VAULT_DIR + sops-decrypts the
-      # passwords. Without the secrets these steps no-op and the legacy cached
-      # keystore below is used (fully non-breaking).
-      - name: Detect vault signing availability
-        id: vaultsign
-        env:
-          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: |
-          if [ -n "$VAULT_TOKEN" ] && [ -n "$SOPS_AGE_KEY" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false (VAULT_TOKEN/SOPS_AGE_KEY not set → legacy keystore)"
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Checkout vault (shared signing key)
-        if: steps.vaultsign.outputs.enabled == 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: diegonmarcos/vault
-          token: ${{ secrets.VAULT_TOKEN }}
-          path: vault-repo
-          persist-credentials: false
-      - name: Import SOPS age key
-        if: steps.vaultsign.outputs.enabled == 'true'
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: |
-          mkdir -p ~/.config/sops/age
-          printf '%s\n' "$SOPS_AGE_KEY" > ~/.config/sops/age/keys.txt
-          chmod 600 ~/.config/sops/age/keys.txt
-
       # ── Stable debug keystore (cached forever) ──────────────────────
-      # FALLBACK only — used when the vault key above is unavailable.
       # Android refuses to install an APK as an update of a previously-
       # installed APK signed by a different key. Each fresh GHA runner
       # auto-generates ~/.android/debug.keystore with a fresh RSA key →
@@ -222,10 +184,6 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
-          # Shared signing key: when the vault was checked out above, point
-          # build.sh::_resolve_signing at it; empty otherwise → it falls back
-          # to the legacy keystore. SOPS reads ~/.config/sops/age/keys.txt.
-          VAULT_DIR: ${{ steps.vaultsign.outputs.enabled == 'true' && format('{0}/vault-repo', github.workspace) || '' }}
           # SUPERAPP_VARIANT selects the ABI variant (build.json::release
           # .variants[].id) → engine overrides ABI filter + artifact name.
           SUPERAPP_VARIANT: ${{ matrix.abi }}
