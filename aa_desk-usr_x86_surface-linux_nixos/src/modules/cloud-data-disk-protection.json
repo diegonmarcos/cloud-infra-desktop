@@ -3,6 +3,16 @@
   "version": 1,
   "enabled": true,
 
+  "emergency": {
+    "_comment": "HARD stop-the-bleeding tier, ABOVE every per-mount critical. When ANY watched mount hits `pct`, the watchdog runs `actions` IN ORDER: (1) emergency_signal — VERBOSE journal explanation (journalctl -t disk-emergency), urgent ntfy, and a wall broadcast to every terminal, so the cause is unmissable; (2) kill_nonsystem — SIGTERM every process in `kill_slices` (the non-system background tier) to stop the bleeders writing; (3) freeze_nonsystem — cgroup-v2 FREEZE of `freeze_slices` so any survivor's writes HALT instantly (paused, not killed — no data loss) while we clean; (4) the reclaim actions; (5) thaw_nonsystem — un-freeze. `protected_slices` (os-essentials = ssh/wg/session/the watchdog itself) is NEVER killed or frozen, so the box stays reachable. Defaults are conservative — they target workload.slice (background), not the live desktop session; widen freeze_slices/kill_slices here (data-driven, no code change) for more aggression.",
+    "pct": 95,
+    "kill_slices":      ["workload.slice"],
+    "freeze_slices":    ["workload.slice"],
+    "protected_slices": ["os-essentials.slice"],
+    "ntfy_priority": "urgent",
+    "actions": ["emergency_signal", "kill_nonsystem", "freeze_nonsystem", "purge_tmp_worktrees", "purge_tmp_dotfiles", "purge_audit_old", "nix_gc_14d", "docker_prune_images", "thaw_nonsystem"]
+  },
+
   "watches": {
     "_comment": "Per-mount threshold-triggered actions. `critical_pct` fires the action list. Actions defined in `actions` map below.",
     "mounts": [
@@ -197,6 +207,26 @@
       "description": "nix-collect-garbage --delete-older-than 14d",
       "safe_mode": true,
       "script": "nix-collect-garbage --delete-older-than 14d"
+    },
+    "emergency_signal": {
+      "type": "signal",
+      "description": "VERBOSE journal (logger -t disk-emergency -p user.alert) + urgent ntfy + wall broadcast — explains which mount is full, the %, and exactly what the watchdog is about to do. The unmissable 'disk is full, writes are being stopped for cleanup' signal.",
+      "safe_mode": true
+    },
+    "kill_nonsystem": {
+      "type": "slice_kill",
+      "description": "SIGTERM every process in emergency.kill_slices (non-system background tier). Stops the bleeders writing. os-essentials.slice is never targeted.",
+      "safe_mode": false
+    },
+    "freeze_nonsystem": {
+      "type": "slice_freeze",
+      "description": "cgroup-v2 freeze of emergency.freeze_slices — survivors' writes halt instantly (paused, reversible, no data loss) while reclaim runs.",
+      "safe_mode": true
+    },
+    "thaw_nonsystem": {
+      "type": "slice_thaw",
+      "description": "Un-freeze emergency.freeze_slices after reclaim. Always runs last so a transient spike never leaves the slice frozen.",
+      "safe_mode": true
     }
   },
 
@@ -292,6 +322,30 @@
         "description": "/ watch's critical action list includes purge_audit_old",
         "command": "jq -r '.watches.mounts[] | select(.mount==\"/\") | .actions_on_critical[]' /etc/cloud-data/disk-protection.json | grep -c purge_audit_old || true",
         "expect": "1"
+      },
+      {
+        "id": "emergency_threshold_is_95",
+        "description": "emergency tier fires at 95%",
+        "command": "jq -r '.emergency.pct' /etc/cloud-data/disk-protection.json",
+        "expect": "95"
+      },
+      {
+        "id": "emergency_protects_os_essentials",
+        "description": "os-essentials.slice (ssh/wg/session/watchdog) is NEVER killed or frozen",
+        "command": "jq -r '.emergency.protected_slices[]' /etc/cloud-data/disk-protection.json | grep -c 'os-essentials.slice'",
+        "expect": "1"
+      },
+      {
+        "id": "emergency_signal_then_thaw_ordering",
+        "description": "emergency action list starts with the signal and ends with the thaw (so a spike never leaves a slice frozen)",
+        "command": "jq -r '.emergency.actions[0] + \"|\" + .emergency.actions[-1]' /etc/cloud-data/disk-protection.json",
+        "expect": "emergency_signal|thaw_nonsystem"
+      },
+      {
+        "id": "emergency_freeze_excludes_protected",
+        "description": "no protected slice is also a freeze/kill target (never freeze ssh/session)",
+        "command": "jq -r '[.emergency.freeze_slices[], .emergency.kill_slices[]] - .emergency.protected_slices == [.emergency.freeze_slices[], .emergency.kill_slices[]]' /etc/cloud-data/disk-protection.json",
+        "expect": "true"
       }
     ]
   },
