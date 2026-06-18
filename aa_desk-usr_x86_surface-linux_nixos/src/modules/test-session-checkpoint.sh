@@ -51,6 +51,18 @@ else
   fail "checkpoint_fresh (no checkpoint found at $SNAP_BASE)"
 fi
 
+# Retention: the newest-N prune must hold the on-disk count at retention_count.
+# Proves the prune actually runs — the 2026-06-18 disk-fill was retention_count=24
+# silently pinning days of churn (deleted caches/build output) and filling the
+# pool. Data-driven: reads the SoT, no hardcoded N.
+RETENTION=$(jq -r '.checkpoint.retention_count' "$JSON")
+SNAP_COUNT=$(ls -1 "$SNAP_BASE" 2>/dev/null | wc -l)
+if [ "$SNAP_COUNT" -le "$RETENTION" ]; then
+  ok "checkpoint_retention_enforced ($SNAP_COUNT on disk, retention $RETENTION)"
+else
+  fail "checkpoint_retention_enforced ($SNAP_COUNT on disk exceeds retention $RETENTION — prune not running)"
+fi
+
 echo
 echo "═══ RESULT: $PASS passed, $FAIL failed ═══"
 [ $FAIL -gt 0 ] && { printf 'FAILED: %s\n' "${FAILED_TESTS[@]}"; exit 1; }
