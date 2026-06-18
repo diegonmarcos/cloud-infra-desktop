@@ -61,18 +61,11 @@
     "security-net/firewall"
   ],
 
+  "_comment_data-science": "Heavy data-science leaves (python-numerics/ml, jupyter, stats-r, scientific, scraping, databases-cli, api-clients) REMOVED 2026-06-18 to reclaim ~GB of pool — they pulled scipy/sklearn/R/jupyter closures the desktop didn't need (data work runs in cloud/CI). The AI CLIs stay: they are the daily driver, not the ds stack. The profile key is retained (referenced by flake.nix toolsets + build.json) and now carries only the AI CLIs; rename in lockstep across all three if ever desired.",
   "data-science": [
     "ai/gemini",
     "ai/claude",
-    "ai/ant",
-    "data-science/python-numerics",
-    "data-science/python-ml",
-    "data-science/jupyter",
-    "data-science/databases-cli",
-    "data-science/stats-r",
-    "data-science/scientific",
-    "data-science/scraping",
-    "data-science/api-clients"
+    "ai/ant"
   ],
 
   "productivity": [
