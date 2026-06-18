@@ -231,7 +231,8 @@ cmd_layout() {
   # unique package set referenced anywhere in launcher{} (folders + hotseat + workspace)
   local pkgs; pkgs="$(node -e "
     const l=require('$CONFIG').launcher; const s=new Set();
-    Object.values(l.folders).forEach(f=>f.members.forEach(m=>s.add(m)));
+    // skip '_'-prefixed doc keys (data-driven _doc convention) + any non-folder value
+    Object.entries(l.folders).forEach(([k,f])=>{ if(k.startsWith('_')||!f||!Array.isArray(f.members)) return; f.members.forEach(m=>s.add(m)); });
     l.hotseat.forEach(r=>{ if(!String(r).startsWith('folder:')) s.add(r); });
     l.workspace.cells.forEach(c=>{ if(!String(c.ref).startsWith('folder:')) s.add(c.ref); });
     console.log([...s].join('\n'));
