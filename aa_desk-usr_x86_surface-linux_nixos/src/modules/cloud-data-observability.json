@@ -14,12 +14,12 @@
       "-b 8192",
       "-f 1",
 
-      "-a always,exit -F arch=b64 -S kill   -F a1!=0 -F auid>=1000 -F auid!=4294967295 -k user-signals",
-      "-a always,exit -F arch=b64 -S tkill  -F a1!=0 -F auid>=1000 -F auid!=4294967295 -k user-signals",
-      "-a always,exit -F arch=b64 -S tgkill -F a2!=0 -F auid>=1000 -F auid!=4294967295 -k user-signals",
-
       "-a always,exit -F arch=b64 -S kill   -F a1=9  -k forced-kill",
       "-a always,exit -F arch=b64 -S kill   -F a1=15 -k forced-kill",
+      "-a always,exit -F arch=b64 -S tkill  -F a1=9  -k forced-kill",
+      "-a always,exit -F arch=b64 -S tkill  -F a1=15 -k forced-kill",
+      "-a always,exit -F arch=b64 -S tgkill -F a2=9  -k forced-kill",
+      "-a always,exit -F arch=b64 -S tgkill -F a2=15 -k forced-kill",
 
       "-w /run/user/1000/systemd/user-units -p wa -k systemd-user-units",
       "-w /run/user/1000/bus                -p rwa -k user-dbus",
@@ -50,8 +50,8 @@
   "qt_logging": {
     "scope": "system-environment",
     "rules": [
-      "kwin_core.debug=true",
-      "kwin_wayland.debug=true",
+      "kwin_core.debug=false",
+      "kwin_wayland.debug=false",
       "ksmserver.debug=true",
       "qt.dbus.integration.debug=true",
       "kf.dbusaddons.debug=true",

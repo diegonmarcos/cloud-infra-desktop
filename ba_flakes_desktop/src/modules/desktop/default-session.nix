@@ -24,6 +24,10 @@
 let
   shareDir = ".local/share/default-session";
   launcher = "${config.home.homeDirectory}/${shareDir}/default-session-launcher.sh";
+  # home.file deploys launcher + json as SEPARATE /nix/store symlinks, so the
+  # launcher's readlink-based SELF_DIR can't find the json beside it. Pass the
+  # deployed json path explicitly via the env override the launcher honours.
+  jsonPath = "${config.home.homeDirectory}/${shareDir}/default-session.json";
 in
 {
   # ── Deploy the engine + data (source-of-truth files, read at runtime) ──────
@@ -48,7 +52,7 @@ in
     Type=Application
     Name=Default Session Layout
     Comment=Restore Diego's default 4-desktop window arrangement (data: default-session.json)
-    Exec=${launcher}
+    Exec=sh -c "DEFAULT_SESSION_JSON=${jsonPath} exec ${launcher}"
     X-KDE-autostart-condition=ksmserver
     X-KDE-autostart-phase=2
     OnlyShowIn=KDE;

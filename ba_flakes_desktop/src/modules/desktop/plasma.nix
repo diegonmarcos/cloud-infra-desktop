@@ -34,7 +34,8 @@ in
 {
   imports = [
     ../../app_especific/konsole-ssh-manager-quick-commands.nix
-    ./session-restore.nix  # Plasma's native session save/restore (declarative)
+    ./session-restore.nix    # Plasma's native session save/restore (inert; loginMode moved out)
+    ./default-session.nix    # DECLARATIVE default 4-desktop login layout (data: default-session.json)
   ];
 
   # Fix system tray visibility after home-manager switch

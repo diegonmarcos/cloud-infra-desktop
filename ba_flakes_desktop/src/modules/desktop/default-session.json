@@ -16,15 +16,18 @@
     "detached_spawn": true,
     "never_block_login": true,
     "on_failure": "log_and_continue",
-    "notify_ntfy": false
+    "notify_ntfy": false,
+    "_position_doc": "Positioning re-asserts (desktop + tile) idempotently across several passes so SLOW-to-map windows (e.g. systemsettings under dbus-run-session, electron apps) still get placed. passes × interval should exceed the slowest window's map time.",
+    "position_passes": 10,
+    "position_interval_sec": 1.5
   },
 
   "_apps_doc": "App registry — the launcher is GENERIC and reads everything here. To add/change an app you edit ONLY this block + reference it from a desktop window by its key. type=konsole gets the tab/title builder (matched for positioning by PID). For every other app: exec=binary, match_class=KWin resourceClass used to find its window for positioning (case-insensitive), fixed_args=always-passed args, arg_mode=how the window's per-instance value is appended: path→args[0], url→url, none→nothing.",
   "apps": {
     "konsole":        { "type": "konsole", "exec": "konsole", "konsole_flags": ["--separate", "--nofork"] },
-    "dolphin":        { "exec": "dolphin",        "match_class": "org.kde.dolphin", "arg_mode": "path", "fixed_args": ["--new-window"] },
+    "dolphin":        { "exec": "dolphin",        "match_class": "org.kde.dolphin", "arg_mode": "paths", "fixed_args": ["--new-window"] },
     "brave":          { "exec": "brave",          "match_class": "brave-browser",   "arg_mode": "url",  "fixed_args": ["--new-window"] },
-    "systemsettings": { "exec": "systemsettings", "match_class": "systemsettings",  "arg_mode": "none" },
+    "systemsettings": { "exec": "systemsettings", "match_class": "systemsettings",  "arg_mode": "none", "launch_prefix": ["dbus-run-session", "--"] },
     "obsidian":       { "exec": "obsidian",       "match_class": "obsidian",        "arg_mode": "none" },
     "kate":           { "exec": "kate",           "match_class": "org.kde.kate",    "arg_mode": "none" },
     "waydroid":       { "exec": "waydroid",       "match_class": "waydroid",        "arg_mode": "none", "fixed_args": ["show-full-ui"] }
@@ -73,7 +76,7 @@
       "name": "Desktop 2",
       "split": "horizontal",
       "windows": [
-        { "cell": "left",  "app": "dolphin", "args": ["/home/diego/git/unix"] },
+        { "cell": "left",  "app": "dolphin", "args": ["/home/diego", "/home/diego/git/unix", "/home/diego/git/cloud", "/home/diego/git/front", "/home/diego/Downloads", "/mnt"] },
         { "cell": "right", "app": "brave",   "url": "http://localhost:8000" }
       ]
     },

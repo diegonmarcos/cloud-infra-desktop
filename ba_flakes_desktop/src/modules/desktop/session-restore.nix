@@ -42,15 +42,11 @@ let
   snapshotExists = builtins.pathExists (snapshotDir + "/captured");
 in
 {
-  # plasma-manager's configFile interface writes ~/.config/<file>:
-  # https://nix-community.github.io/plasma-manager/options.xhtml
-  programs.plasma.configFile.ksmserverrc.General = {
-    loginMode = if snapshotExists then "restoreSavedSession" else "restorePreviousSession";
-    # When Stage B is reached, sessionName points at our captured snapshot.
-    # For now (Stage A), it's unused since loginMode=restorePreviousSession.
-  } // lib.optionalAttrs snapshotExists {
-    sessionName = "diego-default";
-  };
+  # NOTE: ksmserverrc.General.loginMode is now owned by ./default-session.nix
+  # (set to "emptySession" — the explicit data-driven launcher repopulates the
+  # 4 desktops instead of Plasma's native restore). Defining loginMode here too
+  # would be a plasma-manager double-definition error. The snapshot-deploy
+  # mechanism below is retained but inert (no snapshot captured).
 
   # Stage B: deploy the snapshot files into ~/.config/session/ via home.file.
   # Only fires once session-snapshot/captured exists (a marker file the
