@@ -322,16 +322,16 @@ cmd_theme() {
     log "enabling auto-rotate (accelerometer_rotation=1)…"
     wd_shell settings put system accelerometer_rotation 1 >/dev/null 2>&1 || true
   fi
-  # 2) wallpaper — generate + stage into the container's /sdcard + set
-  if [ "$(get theme.wallpaper.generate)" = "true" ]; then
-    [ -f "$WALLPAPER" ] || cmd_wallpaper
-    local media; media="$(wd_data_root)/$(get waydroid.media_subdir)"
-    sudo mkdir -p "$media"
-    sudo cp -f "$WALLPAPER" "$media/waydroid-wallpaper.png"
-    log "setting wallpaper via cmd wallpaper…"
-    wd_shell cmd wallpaper set-image /sdcard/waydroid-wallpaper.png >/dev/null 2>&1 \
-      || warn "cmd wallpaper set-image failed — check 'wd_shell cmd wallpaper' subcommands on this image"
-    log "wallpaper set (/sdcard/waydroid-wallpaper.png)"
+  # 2) wallpaper dim — AOSP 13's `cmd wallpaper` has NO set-image subcommand (only
+  #    dim controls), so we can't push a generated image from the host. To get the
+  #    requested solid-black background we dim the wallpaper to theme.wallpaper.dim
+  #    (1.0 = fully black). Data-driven; works on this image (verified subcommands).
+  local dim; dim="$(get theme.wallpaper.dim)"
+  if [ -n "$dim" ]; then
+    log "setting wallpaper dim to $dim (1.0 = solid black)…"
+    wd_shell cmd wallpaper set-dim-amount "$dim" >/dev/null 2>&1 \
+      || warn "cmd wallpaper set-dim-amount failed"
+    log "wallpaper dim set to $dim"
   fi
 }
 
