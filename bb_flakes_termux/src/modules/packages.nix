@@ -31,6 +31,8 @@
     git-filter-repo  # git history rewriting (purge secrets from commits)
     rsync            # build.sh deploy — sync dist/ to VMs
     cliphist         # clipboard history (wl-paste --watch cliphist store)
+    rbw              # Rust Bitwarden CLI — `rbw get <name>` to pipe secrets (e.g. into `gh secret set`)
+    pinentry-curses  # TUI pinentry for rbw master-password unlock (no GUI/X on nix-on-droid)
     # android-tools  # adb/fastboot — DISABLED. Only useful from PLAIN Termux
                      #   (com.termux), NOT this nix-on-droid proot: adb pairing
                      #   reaches the device but our charger/USB-PD debug path moved
