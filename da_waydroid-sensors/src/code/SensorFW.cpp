@@ -78,6 +78,7 @@ bool SensorFW::loadConfig() {
         const char* val = g_strstrip(eq + 1);
         if      (!strcmp(key, "IIO_NAME"))         mIioName = val;
         else if (!strcmp(key, "POLL_INTERVAL_MS")) mPollMs  = atoi(val);
+        else if (!strcmp(key, "POLL_WAIT_MS"))     mPollWaitMs = atoi(val);
         else if (!strcmp(key, "AXIS_X_SRC"))       mMap[0].src  = axis_src(val);
         else if (!strcmp(key, "AXIS_X_SIGN"))      mMap[0].sign = atoi(val) < 0 ? -1 : 1;
         else if (!strcmp(key, "AXIS_Y_SRC"))       mMap[1].src  = axis_src(val);
@@ -87,6 +88,7 @@ bool SensorFW::loadConfig() {
     }
     g_strfreev(lines);
     if (mPollMs < 20) mPollMs = 20;
+    if (mPollWaitMs < 100) mPollWaitMs = 100;  // floor: never spin SensorService init too tightly
     for (int i = 0; i < 3; i++) if (mMap[i].src < 0) mMap[i].src = i;
     return true;
 }

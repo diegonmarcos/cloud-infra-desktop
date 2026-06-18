@@ -46,6 +46,8 @@ typedef struct SensorDevice {
     pthread_mutex_t lock;
     GMainLoop* loop;
     bool waiting_for_data;
+    int pollWaitMs;          // upper bound for poll()'s blocking wait (conf POLL_WAIT_MS)
+    bool poll_timed_out;     // set by the poll timeout source; distinguishes timeout vs. data wakeup
 } SensorDevice;
 
 struct Sensors {
@@ -59,10 +61,12 @@ struct Sensors {
 
 private:
     static constexpr int32_t kPollMaxBufferSize = 128;
-    // poll() must never block forever: if no events arrive within this bound it returns
-    // empty. Without it, SensorService's init-time poll() (before any sensor is activated)
-    // deadlocks system_server and Waydroid hangs on boot. See SensorFW/IIO source.
-    static constexpr int32_t kPollTimeoutMs = 1000;
+    // poll() must never block forever: if no events arrive within SensorDevice.pollWaitMs
+    // (data-driven from conf POLL_WAIT_MS) it returns empty. Without it, SensorService's
+    // init-time poll() (before any sensor is activated, and when no IIO accelerometer is
+    // present so no wake-timer is armed) deadlocks system_server and Waydroid hangs on boot.
+    // This default applies only if the conf value is missing/invalid. See SensorFW/IIO source.
+    static constexpr int32_t kDefaultPollWaitMs = 3000;
     SensorDevice *mSensorDevice;
 };
 

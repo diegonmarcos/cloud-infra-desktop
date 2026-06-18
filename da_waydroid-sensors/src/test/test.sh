@@ -31,7 +31,7 @@ echo "== T3: conf renders with all daemon keys =="
 ( cd "$ROOT" && ./build.sh conf >/dev/null 2>&1 ) || true
 if [ -f "$CONF" ] && node -e "
   const t=require('fs').readFileSync('$CONF','utf8');
-  for(const k of ['IIO_NAME','POLL_INTERVAL_MS','AXIS_X_SRC','AXIS_X_SIGN','AXIS_Y_SRC','AXIS_Z_SIGN'])
+  for(const k of ['IIO_NAME','POLL_INTERVAL_MS','POLL_WAIT_MS','AXIS_X_SRC','AXIS_X_SIGN','AXIS_Y_SRC','AXIS_Z_SIGN'])
     if(!new RegExp('^'+k+'=','m').test(t)) throw 'missing '+k;
 "; then ok "conf render"; else no "conf render"; fi
 
@@ -63,6 +63,23 @@ if waydroid status 2>/dev/null | grep -q 'Session:.*RUNNING'; then
   elif printf '%s' "$dump" | grep -qi 'No Sensors'; then no "still 'No Sensors' (daemon not bound — run enable/takeover)"
   else echo "  (inconclusive — sensorservice output unexpected)"; fi
 else echo "  (skip — no live Waydroid session)"; fi
+
+echo "== T8: boot-safety — poll() bounded by data-driven POLL_WAIT_MS (no forever-loop) =="
+# Guards the regression that hung Android boot: SensorService issues a blocking poll()
+# during init; an unbounded wait there deadlocks system_server. The bound + empty-batch
+# fallback must stay wired across build.json, SensorFW, Sensors and service.cpp.
+if node -e "
+    const t=require('$CONFIG').timeouts||{};
+    if(!Number.isInteger(t.poll_wait_ms)) throw 'timeouts.poll_wait_ms missing/not int';
+    if(!(t.poll_wait_ms>0&&t.poll_wait_ms<=10000)) throw 'poll_wait_ms out of (0,10000]: '+t.poll_wait_ms;
+  " \
+  && grep -q 'POLL_WAIT_MS' "$ROOT/src/code/SensorFW.cpp" \
+  && grep -q 'GetPollWaitMs' "$ROOT/src/code/Sensors.cpp" \
+  && grep -Eq 'g_timeout_add\(.*pollWaitMs' "$ROOT/src/code/Sensors.cpp" \
+  && grep -q 'poll_timeout_cb' "$ROOT/src/code/Sensors.cpp" \
+  && ! grep -Eq '&event_vec\[0\]|&sensors_vec\[0\]' "$ROOT/src/code/service.cpp"
+then ok "poll() bounded + empty-batch fallback wired end-to-end"
+else no "poll() boot-safety wiring missing (forever-loop regression risk)"; fi
 
 echo
 echo "Total: $pass passed, $fail failed"
