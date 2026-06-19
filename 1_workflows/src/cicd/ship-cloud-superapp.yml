@@ -89,27 +89,25 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          # Pre-install CMake + NDK that libs:net needs. Without these,
-          # AGP tries to install them lazily during parallel per-ABI
-          # configureCMake tasks → the two installers race on the same
-          # zip download and one occasionally gets a corrupt archive
-          # ("Error on ZipFile unknown archive"), failing the build.
-          # Versions must match libs/net/build.gradle::{ndkVersion,
-          # externalNativeBuild.cmake} and ea_cloud-superapp/flake.nix.
-          # platforms;android-35 + build-tools;35.0.0 added for AGP 8.7.3 /
-          # compileSdk 35 — required by androidx.health.connect:connect-client
-          # 1.1.0-alpha10. android-34 / build-tools 34.0.0 kept for NDK-side
-          # builds that still target it.
-          packages: "platforms;android-35 platforms;android-34 platforms;android-26 build-tools;35.0.0 build-tools;34.0.0 platform-tools cmake;3.22.1 ndk;26.1.10909125"
+          # Pre-install the two native toolchains the build needs, so AGP
+          # never races to install them lazily during parallel per-ABI native
+          # tasks (corrupt-zip flake). Versions MUST match each module's
+          # build.gradle + ea_cloud-superapp/{build.json::toolchain,flake.nix}:
+          #   • cmake;3.22.1 + ndk;26.1.10909125 — libs:net (libwg-go.so).
+          #   • ndk;28.0.13004108              — libs:keyboard (HeliBoard
+          #     libjni_latinime.so, ndk-build).
+          # platforms;android-36 + build-tools;36.0.0 added for the HeliBoard
+          # bump (AGP 8.13.2 / Kotlin 2.3.20 / compileSdk 36). 35/34/26 kept for
+          # the rest of the modules + NDK-side builds that still target them.
+          packages: "platforms;android-36 platforms;android-35 platforms;android-34 platforms;android-26 build-tools;36.0.0 build-tools;35.0.0 build-tools;34.0.0 platform-tools cmake;3.22.1 ndk;28.0.13004108 ndk;26.1.10909125"
 
-      - name: Set up Gradle 8.10.2 (cached)
+      - name: Set up Gradle 8.14 (cached)
         uses: gradle/actions/setup-gradle@v3
         with:
-          # Pin to build.json::toolchain.gradle — Kotlin Android plugin 1.9.24
-          # is not compatible with Gradle 9.x's strict Configuration Cache
-          # (build event listener provider unsupported). 8.10.2 = first
-          # stable Gradle that satisfies AGP 8.7.3's Gradle 8.9+ floor.
-          gradle-version: "8.10.2"
+          # Pin to build.json::toolchain.gradle. Bumped 8.10.2 -> 8.14 for the
+          # HeliBoard toolchain (AGP 8.13.2 needs Gradle 8.13+; Kotlin 2.3.20
+          # Compose-compiler plugin). Mirrors HeliBoard main's wrapper.
+          gradle-version: "8.14"
 
       # ── Stable debug keystore (cached forever) ──────────────────────
       # Android refuses to install an APK as an update of a previously-
