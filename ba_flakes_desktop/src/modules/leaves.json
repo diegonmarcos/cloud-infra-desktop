@@ -16,37 +16,22 @@
     "infra-tools/wrangler"
   ],
 
+  "_comment_split-2026-06-19": "dev-languages/build-debug/containers-cloud were SPLIT for the dev/user store split (Design B): the heavy dev leaves moved to the `dev-space` group (built into the p5 chroot store, reached via `dev`). dev-languages keeps only node+python (kept at login); build-debug keeps only git-extras; containers-cloud keeps the docker/podman CLI + waydroid runtime + secrets. The rust toolchain (rust-cargo-deps.nix userModule) also moved to dev (removed from flake.nix userModules). Plan: 0_tasks/PLAN_dev-store-split.md.",
   "dev-languages": [
-    "languages/rust",
-    "languages/go",
     "languages/node",
-    "languages/python",
-    "languages/c-cpp",
-    "languages/java",
-    "languages/ruby"
+    "languages/python"
   ],
 
   "build-debug": [
-    "build-tools/build-systems",
-    "build-tools/debug",
-    "build-tools/analysis",
-    "build-tools/docs-diagrams",
-    "build-tools/dev-utils",
     "core/git-extras"
   ],
 
   "containers-cloud": [
     "containers-cloud/containers",
-    "containers-cloud/kubernetes",
-    "containers-cloud/iac",
-    "containers-cloud/cloud-clis",
-    "containers-cloud/observability",
-    "containers-cloud/ci-cd",
     "containers-cloud/secrets",
     "containers-cloud/waydroid",
     "containers-cloud/waydroid-sensors-watchdog",
-    "containers-cloud/waydroid-provision",
-    "containers-cloud/android-emulator"
+    "containers-cloud/waydroid-provision"
   ],
 
   "security-network": [
@@ -93,5 +78,25 @@
     "media-graphics/photo-mgmt",
     "media-graphics/media-info",
     "media-graphics/design"
+  ],
+
+  "_comment_dev-space": "DEV USERSPACE (Design B, 2026-06-18). NOT in any toolset/preset — harvested by flake.nix `devProfile` (a buildEnv) and realised into the p5 chroot store (bc_flakes_dev-store engine), reachable only inside the `dev` bwrap shell. The SAME leaf .nix files are REMOVED from the pool groups (dev-languages/build-debug/containers-cloud below) so the pool keeps only userspace tools. Boundary: dev = compilers/runtimes (minus node/python, kept at login) + all build-tools + cloud-CLIs (k8s/iac/cloud-clis/ci-cd/observability) + android-emulator. Userspace keeps node/python, docker-CLI, waydroid, secrets. Plan: 0_tasks/PLAN_dev-store-split.md.",
+  "dev-space": [
+    "languages/rust",
+    "languages/go",
+    "languages/c-cpp",
+    "languages/java",
+    "languages/ruby",
+    "build-tools/build-systems",
+    "build-tools/debug",
+    "build-tools/analysis",
+    "build-tools/docs-diagrams",
+    "build-tools/dev-utils",
+    "containers-cloud/kubernetes",
+    "containers-cloud/iac",
+    "containers-cloud/cloud-clis",
+    "containers-cloud/ci-cd",
+    "containers-cloud/observability",
+    "containers-cloud/android-emulator"
   ]
 }

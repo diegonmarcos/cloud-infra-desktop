@@ -114,6 +114,37 @@
         desktop-gnome  = ./modules/desktop/gnome.nix;
       };
 
+      # devProfile — DEV USERSPACE buildEnv (Design B). Harvests home.packages from
+      # the `dev-space` leaf group (leaves.json) by evaluating those SAME leaf
+      # modules through the standalone HM lib with THIS flake's pkgs (overlays:
+      # unstable/customPkgs/nur) + inputs — one definition, shared with the pool
+      # (DRY). bc_flakes_dev-store/build.sh realises this into the p5 chroot store
+      # (never the pool); it is NEVER added to a host profile — reached only inside
+      # the `dev` bwrap shell. See 0_tasks/PLAN_dev-store-split.md.
+      devProfile = pkgs.buildEnv {
+        name = "dev-profile";
+        paths = (home-manager.lib.homeManagerConfiguration {
+          inherit pkgs;
+          extraSpecialArgs = { inherit inputs; };
+          modules = [
+            profiles.dev-space
+            # The rust toolchain (rustc/cargo/subcommands) is a userModule, not a
+            # leaf — pull it into dev too (it moves OUT of userModules in the pool
+            # flip). node-npm-deps stays in userspace (node kept at login).
+            ./modules/rust-cargo-deps.nix
+            { home = { username = "diego"; homeDirectory = "/home/diego"; stateVersion = "24.11"; }; }
+          ];
+        }).config.home.packages ++ (with pkgs; [
+          # SELF-COMPLETE shell base: inside the `dev` bwrap shell /nix/store IS the
+          # p5 store, so the userspace bash/coreutils (pool paths) are masked — the
+          # dev profile must carry its own or `dev` has no usable shell.
+          bashInteractive coreutils-full gnugrep gnused gawk findutils which less
+          gnutar gzip git openssh cacert starship
+        ]);
+        pathsToLink = [ "/bin" "/share" "/lib" "/libexec" "/etc" ];
+        ignoreCollisions = true;
+      };
+
       # Helper to enable profiles by name
       enableProfiles = profileNames:
         builtins.map (name: profiles.${name}) profileNames;
@@ -181,7 +212,9 @@
         ./modules/ssh-stale-socket-cleaner.nix
         ./modules/curl-wget-wrapper.nix
         ./modules/node-npm-deps.nix
-        ./modules/rust-cargo-deps.nix
+        # rust-cargo-deps moved to the dev profile (devProfile) — rust is a dev
+        # tool, reached via `dev`; no longer on the pool/login PATH.
+        ./modules/programs/dev-shell.nix   # the `dev` bwrap launcher + bubblewrap (always-on)
         ./modules/cloud.nix
         ./modules/cloud-network-wg-dns.nix
         ./modules/cloud-network-wg-public.nix
@@ -293,6 +326,10 @@
       # Container Image (Nix-built OCI image)
       # ============================================================
       packages.${system} = {
+        # Dev userspace buildEnv — built into the p5 chroot store (not the pool)
+        # by bc_flakes_dev-store/build.sh; entered via the `dev` bwrap shell.
+        devProfile = devProfile;
+
         # Main container image
         container = pkgs.dockerTools.buildImage {
           name = "diego-dev";
