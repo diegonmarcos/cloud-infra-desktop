@@ -55,6 +55,14 @@
         "critical_pct": 90,
         "actions_on_warn":     ["alert_ntfy"],
         "actions_on_critical": ["alert_ntfy", "nix_gc_14d"]
+      },
+      {
+        "mount": "/mnt/shared-lib",
+        "description": "p5 ext4 — Docker data-root + the dev-store chroot Nix store (~25G dev toolchain off the pool)",
+        "warn_pct": 80,
+        "critical_pct": 90,
+        "actions_on_warn":     ["alert_ntfy"],
+        "actions_on_critical": ["alert_ntfy", "dev_store_gc"]
       }
     ]
   },
@@ -79,11 +87,9 @@
       "d /mnt/shared/coredump          0755 root systemd-coredump -",
       "e /mnt/shared/coredump          - - -    14d  -",
       "L+ /var/lib/systemd/coredump    - - -    -    /mnt/shared/coredump",
-      "d /mnt/shared-lib/android       0755 diego users -",
-      "d /mnt/shared-lib/android/sdk   0755 diego users -",
-      "d /mnt/shared-lib/android/avd   0755 diego users -"
+      "d /mnt/shared-lib/dev-store      0755 diego users -"
     ],
-    "_comment_android": "The last three rules PROVISION (not clean) a diego-owned Android storage root on /mnt/shared-lib (p5, ~83G free). /mnt/shared-lib is root-owned ext4, so the home-manager android-emulator module (user-tier) cannot create it — the NixOS host does, here. The emulator's heavy ~8.3G system images live there instead of the 80G nix pool; consumed by ba_flakes_desktop/src/modules/containers-cloud/android-emulator.{json,nix}."
+    "_comment_dev-store": "The last rule PROVISIONS (not cleans) a diego-owned DEV-STORE root on /mnt/shared-lib (p5, ~83G free) — a chroot Nix store (storeDir=/nix/store) holding the heavy dev toolchain (~25G) OFF the 80G pool. /mnt/shared-lib is root-owned ext4 so the user-tier home-manager cannot create it; the NixOS host does, here. Populated by bc_flakes_dev-store/build.sh, entered via the `dev` bwrap shell. Supersedes the 2026-06-18 android-only dirs — android-emulator is now a normal dev leaf inside this store. Plan: 0_tasks/PLAN_dev-store-split.md."
   },
 
   "tmp_mounts": {
@@ -211,6 +217,12 @@
       "description": "nix-collect-garbage --delete-older-than 14d",
       "safe_mode": true,
       "script": "nix-collect-garbage --delete-older-than 14d"
+    },
+    "dev_store_gc": {
+      "type": "exec",
+      "description": "GC the p5 dev-store chroot Nix store (keeps the current profile gcroot)",
+      "safe_mode": true,
+      "script": "nix store gc --store 'local?root=/mnt/shared-lib/dev-store&store=/nix/store'"
     },
     "emergency_signal": {
       "type": "signal",

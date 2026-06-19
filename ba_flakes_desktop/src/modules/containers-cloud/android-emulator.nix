@@ -45,13 +45,7 @@ let
     buildToolsVersions   = [ "34.0.0" ];
     platformVersions     = [ "34" ];
     includeEmulator      = true;
-    # System images are NO LONGER baked into the nix store — they were the ~8.3G
-    # that filled the 80G pool (2026-06-18). They now live on /mnt/shared-lib
-    # (p5, ~83G free), installed there by sdkmanager at activation (see `storage`
-    # + the p5 setup in the activation script below). nix still provides the
-    # emulator + platform/cmdline-tools (autoPatchelf'd → run natively); nix-ld
-    # covers any downloaded binary. Trade-off: images download once, online.
-    includeSystemImages  = false;
+    includeSystemImages  = true;
     systemImageTypes     = [ "google_apis" ];
     # Both arches: x86_64 (KVM-fast, games/dev) + arm64-v8a (faithful ARM test,
     # CPU software-emulated). Each pulls its Android-34 google_apis image.
@@ -62,15 +56,6 @@ let
   sdkRoot = "${sdk}/libexec/android-sdk";
   jdk     = pkgs.jdk17;
   kdialog = pkgs.kdePackages.kdialog;
-
-  # Heavy SDK data (system images + AVDs) lives on p5, not the nix pool.
-  # p5Sdk is the diego-owned dir provisioned by the NixOS host tmpfiles rule.
-  storage = cfg.storage;
-  p5Sdk   = storage.sdk_root;
-  p5Avd   = storage.avd_home;
-  # System-image package ids are derived from the (data-driven) arches — no
-  # second hardcoded list (DRY).
-  imageIdsStr = lib.concatStringsSep " " (lib.unique (lib.mapAttrsToList (_: a: a.image) cfg.arches));
 
   cap = s: (lib.toUpper (builtins.substring 0 1 s)) + (builtins.substring 1 (builtins.stringLength s) s);
 
@@ -134,13 +119,9 @@ let
   # ── Launcher: profile chooser → boot → wait → provision ─────────────────────
   emulatorApp = pkgs.writeShellScriptBin "android-emulator" ''
     set -u
-    # SDK_ROOT = the p5 composite SDK (nix components symlinked in by the
-    # activation + the bulky system images on p5); AVDs also on p5. The
-    # emulator/adb binaries are still nix (${sdk}/bin); the emulator resolves the
-    # AVD's image.sysdir against ANDROID_SDK_ROOT → the p5 image.
-    export ANDROID_SDK_ROOT="${p5Sdk}"
-    export ANDROID_HOME="${p5Sdk}"
-    export ANDROID_AVD_HOME="${p5Avd}"
+    export ANDROID_SDK_ROOT="${sdkRoot}"
+    export ANDROID_HOME="${sdkRoot}"
+    export ANDROID_AVD_HOME="$HOME/.android/avd"
     export JAVA_HOME="${jdk}/lib/openjdk"
     export PATH="${jdk}/bin:${sdk}/bin:${kdialog}/bin:$PATH"
     # NixOS host-GPU acceleration: the emulator's bundled GL/Vulkan can't find
@@ -229,41 +210,12 @@ in
   # switch. Idempotent; subshell + || true so it never breaks activation.
   home.activation.androidEmulatorProfiles = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     (
-      # ── p5 storage gate ─────────────────────────────────────────────────
-      # Heavy SDK data lives on /mnt/shared-lib (p5). If the diego-owned dir
-      # isn't there yet (NixOS host tmpfiles rule not applied, or pool
-      # unmounted), skip gracefully — NEVER break activation.
-      if [ ! -d "${p5Sdk}" ] || [ ! -w "${p5Sdk}" ]; then
-        echo "[android-emulator] ${p5Sdk} not writable — apply the NixOS host (tmpfiles) first, then re-switch. Skipping AVD setup."
-        exit 0
-      fi
-      export ANDROID_SDK_ROOT="${p5Sdk}"
-      export ANDROID_HOME="${p5Sdk}"
-      export ANDROID_AVD_HOME="${p5Avd}"
+      export ANDROID_SDK_ROOT="${sdkRoot}"
+      export ANDROID_HOME="${sdkRoot}"
+      export ANDROID_AVD_HOME="$HOME/.android/avd"
       export JAVA_HOME="${jdk}/lib/openjdk"
       export PATH="${jdk}/bin:${sdk}/bin:$PATH"
       mkdir -p "$ANDROID_AVD_HOME"
-
-      # Compose the p5 SDK: symlink the nix-provided components (read-only,
-      # autoPatchelf'd) into the writable p5 root so avdmanager/emulator see a
-      # complete SDK, while the bulky system-images live on p5 (writable).
-      for _c in emulator platform-tools cmdline-tools tools licenses platforms build-tools; do
-        [ -e "${sdkRoot}/$_c" ] && ln -sfn "${sdkRoot}/$_c" "${p5Sdk}/$_c"
-      done
-
-      # Install the declared system images onto p5 (idempotent — sdkmanager skips
-      # already-present packages; network only on first run / a new image).
-      _need=0
-      for _img in ${imageIdsStr}; do
-        _rel=$(printf '%s' "$_img" | ${pkgs.gnused}/bin/sed 's/^system-images;//; s/;/\//g')
-        [ -d "${p5Sdk}/system-images/$_rel" ] || _need=1
-      done
-      if [ "$_need" = "1" ]; then
-        echo "[android-emulator] installing system images onto p5 (one-time, needs network)…"
-        yes | "${sdk}/bin/sdkmanager" --sdk_root="${p5Sdk}" --licenses >/dev/null 2>&1 || true
-        "${sdk}/bin/sdkmanager" --sdk_root="${p5Sdk}" ${imageIdsStr} 2>&1 | tail -3 \
-          || echo "[android-emulator] sdkmanager failed (offline?) — AVDs will be created on the next online switch."
-      fi
 
       avd_exists() { "${sdk}/bin/avdmanager" list avd 2>/dev/null | ${pkgs.gawk}/bin/awk -v n="$1" 'index($0,"Name: "n){f=1} END{exit f?0:1}'; }
 

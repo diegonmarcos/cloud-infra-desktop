@@ -203,6 +203,181 @@
       "versionCode": 42,
       "url": "https://f-droid.org/repo/com.rama.mako_42.apk",
       "sha256": "sha256-rJ3PMo0NVN3jo591e7YcMr95PiIbdy3s6povlhZLycQ="
+    },
+    {
+      "package": "com.beemdevelopment.aegis",
+      "source": "fdroid",
+      "versionCode": 81,
+      "url": "https://f-droid.org/repo/com.beemdevelopment.aegis_81.apk",
+      "sha256": "sha256-q2M9McwPpJ464po7gWp/y+BAM6Mif0K9MM+G/NO+QVk="
+    },
+    {
+      "package": "com.kgurgul.cpuinfo",
+      "source": "fdroid",
+      "versionCode": 60601,
+      "url": "https://f-droid.org/repo/com.kgurgul.cpuinfo_60601.apk",
+      "sha256": "sha256-VMxVlbmgfoySuZSWQnlM8lA7vkLXcRoKssbWCX6gw+M="
+    },
+    {
+      "package": "com.dp.logcatapp",
+      "source": "fdroid",
+      "versionCode": 48,
+      "url": "https://f-droid.org/repo/com.dp.logcatapp_48.apk",
+      "sha256": "sha256-GM+SwGzjWNMNRzYNV5dVUYpQXAyANBPxG/QfCKVnlvo="
+    },
+    {
+      "package": "org.connectbot",
+      "source": "fdroid",
+      "versionCode": 11009000,
+      "url": "https://f-droid.org/repo/org.connectbot_11009000.apk",
+      "sha256": "sha256-GR5pkKTblbBLbT2YkG4GKBhypZYxM6+1tG5NMkc2dC8="
+    },
+    {
+      "package": "net.gsantner.markor",
+      "source": "fdroid",
+      "versionCode": 163,
+      "url": "https://f-droid.org/repo/net.gsantner.markor_163.apk",
+      "sha256": "sha256-P58mDcPjKhKBy4gD7qb5Ju74l1efaKXTX5IlI5dLhLk="
+    },
+    {
+      "package": "it.niedermann.owncloud.notes",
+      "source": "fdroid",
+      "versionCode": 340000090,
+      "url": "https://f-droid.org/repo/it.niedermann.owncloud.notes_340000090.apk",
+      "sha256": "sha256-wq6IvGHitdUK1+BREBcSwd5bGeb5lBA3IB0JMvpTluA="
+    },
+    {
+      "package": "org.tasks",
+      "source": "fdroid",
+      "versionCode": 150702,
+      "url": "https://f-droid.org/repo/org.tasks_150702.apk",
+      "sha256": "sha256-rhnYcZkyaSsQI2pO9uHnT34acDKOyhOpBRVs/S8I7Lg="
+    },
+    {
+      "package": "ws.xsoh.etar",
+      "source": "fdroid",
+      "versionCode": 56,
+      "url": "https://f-droid.org/repo/ws.xsoh.etar_56.apk",
+      "sha256": "sha256-p/m8hrsBEVaCxS/Qs2Mjn7Xk1jmw+evr1d4gMq3hOuw="
+    },
+    {
+      "package": "org.fossify.gallery",
+      "source": "fdroid",
+      "versionCode": 28,
+      "url": "https://f-droid.org/repo/org.fossify.gallery_28.apk",
+      "sha256": "sha256-rn5plZnoH3DiuCYmux36iD/gls2Tg4cTPhI8EW5WQdk="
+    },
+    {
+      "package": "org.documentfoundation.libreoffice",
+      "source": "fdroid",
+      "versionCode": 119,
+      "url": "https://f-droid.org/repo/org.documentfoundation.libreoffice_119.apk",
+      "sha256": "sha256-RASqZ6bbNqDWY80uXcZM+k7IQ960Ngqoa33RlGV02m0="
+    },
+    {
+      "package": "org.solovyev.android.calculator",
+      "source": "fdroid",
+      "versionCode": 161,
+      "url": "https://f-droid.org/repo/org.solovyev.android.calculator_161.apk",
+      "sha256": "sha256-sRrIgoBhFvbAYo+rZ79eR68WLd4pPoJbX9DjB9KB/AA="
+    },
+    {
+      "package": "org.schabi.newpipe",
+      "source": "fdroid",
+      "versionCode": 1013,
+      "url": "https://f-droid.org/repo/org.schabi.newpipe_1013.apk",
+      "sha256": "sha256-iKHJnKSDlK9DGyQ3l4MWWGCqqz9/RczpymuKfSE5pNY="
+    },
+    {
+      "package": "org.videolan.vlc",
+      "source": "fdroid",
+      "versionCode": 13070108,
+      "url": "https://f-droid.org/repo/org.videolan.vlc_13070108.apk",
+      "sha256": "sha256-SpFE+t/YYGzFwOnbiS/SSEa3su/rFjDbU3eVXRYSsRk="
+    },
+    {
+      "package": "org.jellyfin.mobile",
+      "source": "fdroid",
+      "versionCode": 2060499,
+      "url": "https://f-droid.org/repo/org.jellyfin.mobile_2060499.apk",
+      "sha256": "sha256-69TuG92VToG1kRPmgAnprjy18Mtmbx5LGGLmk28K37s="
+    },
+    {
+      "package": "com.ichi2.anki",
+      "source": "fdroid",
+      "versionCode": 22400300,
+      "url": "https://f-droid.org/repo/com.ichi2.anki_22400300.apk",
+      "sha256": "sha256-OmQdSiaa79BhBOifV4gPC5cj+jgNh4hdkJx2JJ5vCBs="
+    },
+    {
+      "package": "org.wikipedia",
+      "source": "fdroid",
+      "versionCode": 50595,
+      "url": "https://f-droid.org/repo/org.wikipedia_50595.apk",
+      "sha256": "sha256-zpekt1+EACrDM4ppRGoZjWIqx23ZTQWrDsxDx/T8iNc="
+    },
+    {
+      "package": "de.danoeh.antennapod",
+      "source": "fdroid",
+      "versionCode": 3110495,
+      "url": "https://f-droid.org/repo/de.danoeh.antennapod_3110495.apk",
+      "sha256": "sha256-j67kWflS5i5cEr4YYgkRsBwVtfoO5ndo3PiuHhposJw="
+    },
+    {
+      "package": "org.y20k.transistor",
+      "source": "fdroid",
+      "versionCode": 113,
+      "url": "https://f-droid.org/repo/org.y20k.transistor_113.apk",
+      "sha256": "sha256-jYXUbn7sPBcRqGXTXhNs/zO2+B2jPp2aLVNVj0xtwFA="
+    },
+    {
+      "package": "code.name.monkey.retromusic",
+      "source": "fdroid",
+      "versionCode": 10660,
+      "url": "https://f-droid.org/repo/code.name.monkey.retromusic_10660.apk",
+      "sha256": "sha256-wYmOH873POtLYOAYVhZ0rTfHH2HQUQIO0Fw/4gl0P4k="
+    },
+    {
+      "package": "com.shatteredpixel.shatteredpixeldungeon",
+      "source": "fdroid",
+      "versionCode": 896,
+      "url": "https://f-droid.org/repo/com.shatteredpixel.shatteredpixeldungeon_896.apk",
+      "sha256": "sha256-vpAUBygKWzsoGWngaPcl7V1Syc2ae1UBPeaEh61BnsQ="
+    },
+    {
+      "package": "org.secuso.privacyfriendly2048",
+      "source": "fdroid",
+      "versionCode": 100,
+      "url": "https://f-droid.org/repo/org.secuso.privacyfriendly2048_100.apk",
+      "sha256": "sha256-AseZ09WCZp2vKs+SAJPGjSkz9gqpN7ty+iqAVVcjP+g="
+    },
+    {
+      "package": "org.joinmastodon.android",
+      "source": "fdroid",
+      "versionCode": 182,
+      "url": "https://f-droid.org/repo/org.joinmastodon.android_182.apk",
+      "sha256": "sha256-kWQznZIxXkuBAe4semupyDzUS+9zsN3wyIxmPToABRg="
+    },
+    {
+      "package": "com.github.libretube",
+      "source": "fdroid",
+      "versionCode": 70,
+      "url": "https://f-droid.org/repo/com.github.libretube_70.apk",
+      "sha256": "sha256-gIeKj8KqIuyTg/UXaw9TdhFtBJEbtyy/YGwNjuKkyUc="
+    },
+    {
+      "package": "org.mozilla.fennec_fdroid",
+      "source": "fdroid",
+      "versionCode": 1510320,
+      "url": "https://f-droid.org/repo/org.mozilla.fennec_fdroid_1510320.apk",
+      "sha256": "sha256-g52r/zfiZBMH6JuNmBCOZpJ4fC2L73+P+dHumMCYcPo="
+    },
+    {
+      "package": "nodomain.freeyourgadget.gadgetbridge",
+      "source": "fdroid",
+      "versionCode": 248,
+      "url": "https://f-droid.org/repo/nodomain.freeyourgadget.gadgetbridge_248.apk",
+      "sha256": "sha256-jMdO0UV+KwKFxU6syN5L1JQ78aphDgwwjTGVgxuP55M="
     }
   ]
 }

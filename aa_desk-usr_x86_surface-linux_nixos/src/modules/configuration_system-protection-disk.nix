@@ -97,6 +97,11 @@ let
           command -v docker >/dev/null 2>&1 && docker volume prune -f 2>/dev/null || true ;;
         nix_gc_14d)
           ${pkgs.nix}/bin/nix-collect-garbage --delete-older-than 14d 2>/dev/null || true ;;
+        dev_store_gc)
+          # GC the p5 dev-store chroot store (storeDir=/nix/store, root on p5). The
+          # bc_flakes_dev-store profile gcroot pins the current toolchain.
+          ${pkgs.nix}/bin/nix store gc --extra-experimental-features nix-command \
+            --store 'local?root=/mnt/shared-lib/dev-store&store=/nix/store' 2>/dev/null || true ;;
         emergency_signal)
           # The unmissable "disk is full → stopping writes for cleanup" signal:
           # verbose journal (journalctl -t disk-emergency) + wall to every TTY + urgent ntfy.
