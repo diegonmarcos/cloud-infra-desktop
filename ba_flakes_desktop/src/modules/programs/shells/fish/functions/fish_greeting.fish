@@ -196,6 +196,8 @@ set -l _ant_ver (command -q ant && ant --version 2>/dev/null | string match -r '
 set_color cyan; echo "  Dev:"
 set_color normal
 set_color green; echo -n "    claude           "; set_color normal; echo "Native Anthropic binary (v$_claude_ver)"
+set_color green; echo -n "    claude-superset  "; set_color normal; echo -n "claude via Headroom proxy "; set_color --dim; echo "(token compression over WG · falls back to direct)"; set_color normal
+set_color green; echo -n "    claude-superset-tui  "; set_color normal; echo -n "helper TUI "; set_color --dim; echo "(live savings · health · dashboard · launch) · tray applet autostarts"; set_color normal
 set_color green; echo -n "    claude-termux    "; set_color normal; echo "Android-safe (io_uring fix + 1GB cap)"
 set_color green; echo -n "    claude-malloc    "; set_color normal; echo "Max memory (2GB) + TMPDIR isolation"
 set_color green; echo -n "    claude-rescue    "; set_color normal; echo "Fallback chain: podman → npx → nix → node"
