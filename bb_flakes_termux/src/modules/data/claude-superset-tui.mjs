@@ -47,10 +47,12 @@ async function header() {
   const s = await stats();
   console.log(`${C.b}${C.cy}  claude-api-superset · helper${C.r}`);
   console.log(`  ${C.dim}WG-only · token compression via Headroom${C.r}\n`);
-  console.log(`  proxy   ${EP.proxy.padEnd(24)} ${ok(p)}   ${C.dim}(ANTHROPIC_BASE_URL target)${C.r}`);
-  console.log(`  api     ${EP.api.padEnd(24)} ${ok(a)}   ${C.dim}(OpenAI /v1)${C.r}`);
-  console.log(`  ollama  ${EP.ollama.padEnd(24)} ${ok(o)}   ${C.dim}(/api)${C.r}`);
-  console.log(`  compress${EP.compress.padEnd(24)} ${ok(c)}   ${C.dim}(dashboard/stats)${C.r}`);
+  const row = (label, url, up, note) =>
+    console.log(`  ${label.padEnd(9)}${url.padEnd(24)} ${ok(up)}   ${C.dim}(${note})${C.r}`);
+  row("proxy", EP.proxy, p, "ANTHROPIC_BASE_URL target");
+  row("api", EP.api, a, "OpenAI /v1");
+  row("ollama", EP.ollama, o, "/api");
+  row("compress", EP.compress, c, "dashboard/stats");
   if (s) {
     const ratio = s.lifetime_ratio != null ? (s.lifetime_ratio * 100).toFixed(1) : "0.0";
     console.log(`\n  ${C.y}savings${C.r}  ${C.b}${fmt(s.tokens_saved)}${C.r} tokens removed  ` +
