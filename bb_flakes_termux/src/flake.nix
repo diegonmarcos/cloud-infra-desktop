@@ -30,6 +30,10 @@
       buildJson = builtins.fromJSON (builtins.readFile ../build.json);
       dtkNode = buildJson.defaults.dtk_node or "unset";
 
+      # claude-api-superset endpoints (WG-only). Data-driven, not inlined in the
+      # wrapper script — see modules/data/claude-superset.json.
+      claudeSuperset = builtins.fromJSON (builtins.readFile ./modules/data/claude-superset.json);
+
       # Build termux-am from nix-on-droid source (provides `am` for Android intents)
       termux-am = (import nixpkgs { system = "aarch64-linux"; }).callPackage
         "${nix-on-droid}/pkgs/android-integration/termux-am.nix" {};
@@ -276,6 +280,36 @@
                 fi
                 echo "[claude-malloc] native exec failed — trying rescue chain..." >&2
                 exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
+              '')
+
+              # claude-superset: route claude through the claude-api-superset
+              # Headroom proxy (token compression) over WireGuard, then hand off to
+              # claude-malloc (keeps the Android isolation/supervision). Transparent
+              # proxy (compress → forward to Anthropic with the client's own creds),
+              # so interactive multi-turn / tool use is preserved. Health-checks the
+              # proxy and falls back to direct Anthropic when it's unreachable.
+              # Endpoint is data-driven (modules/data/claude-superset.json), override
+              # via CLAUDE_SUPERSET_URL.
+              (writeShellScriptBin "claude-superset" ''
+                set -u
+                URL="''${CLAUDE_SUPERSET_URL:-${claudeSuperset.proxy}}"
+                if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
+                  export ANTHROPIC_BASE_URL="$URL"
+                  echo "[claude-superset] via superset proxy → $URL (Headroom compression ON)" >&2
+                else
+                  echo "[claude-superset] proxy unreachable ($URL) — direct to Anthropic, no compression" >&2
+                fi
+                exec claude-malloc "$@"
+              '')
+
+              # claude-superset-tui: terminal helper/dashboard (live Headroom
+              # savings, health, launch). Endpoints injected from the same
+              # data-driven JSON; CAS_LAUNCH chains claude-malloc on the phone.
+              (writeShellScriptBin "claude-superset-tui" ''
+                export CAS_PROXY="${claudeSuperset.proxy}" CAS_API="${claudeSuperset.api}"
+                export CAS_OLLAMA="${claudeSuperset.ollama}" CAS_DASHBOARD="${claudeSuperset.dashboard}"
+                export CAS_COMPRESS="''${CAS_DASHBOARD%/dashboard}" CAS_LAUNCH="claude-malloc"
+                exec ${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-tui.mjs} "$@"
               '')
 
               # claude-rescue: delegates to tools/5-infos/claude-rescue/
