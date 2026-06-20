@@ -50,7 +50,8 @@
   "data-science": [
     "ai/gemini",
     "ai/claude",
-    "ai/ant"
+    "ai/ant",
+    "ai/claude-superset"
   ],
 
   "productivity": [
