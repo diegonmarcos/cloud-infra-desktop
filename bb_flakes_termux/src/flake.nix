@@ -228,11 +228,10 @@
 
                 _bin="$HOME/.nix-profile/bin/claude"
                 if [ -x "$_bin" ]; then
-                  # Same supervision as claude-malloc (setpriv --pdeathsig +
-                  # tini -s, synchronous foreground). See claude-malloc for the
-                  # full rationale.
-                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM \
-                    ${pkgs.tini}/bin/tini -s -- "$_bin" "$@"
+                  # Same supervision as claude-malloc: setpriv --pdeathsig,
+                  # synchronous foreground, NO tini (see claude-malloc for why
+                  # tini is unusable under proot).
+                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM -- "$_bin" "$@"
                   _rc=$?
                   # exit codes 0–125 are user-meaningful. 126/127 = exec
                   # failure (interpreter/permission). 137/139 = SIGKILL/SEGV.
@@ -261,17 +260,27 @@
                 if [ -x "$_bin" ]; then
                   # Process supervision (countermeasure to lmkd / parent-shell exits):
                   #   setpriv --pdeathsig TERM : if THIS wrapper dies (any signal
-                  #                              except SIGKILL), kernel SIGTERMs
-                  #                              tini → tini cleans up claude tree.
-                  #   tini -s                  : subreaper + zombie reaper. Signals
-                  #                              from the terminal pgroup reach claude
-                  #                              naturally (no -g, no &, no trap),
-                  #                              so the interactive TUI keeps the
-                  #                              controlling terminal — Ctrl-C, etc.
+                  #                              except SIGKILL), the kernel SIGTERMs
+                  #                              claude directly. Claude runs in the
+                  #                              foreground terminal pgroup (no -g, no
+                  #                              &, no trap), so the interactive TUI
+                  #                              keeps the controlling terminal —
+                  #                              Ctrl-C, job control, etc.
+                  #
+                  # tini is DELIBERATELY NOT USED here. nix-on-droid runs the whole
+                  # rootfs under proot, whose ptrace/seccomp layer returns ENOSYS for
+                  # tini's reaper waitpid(-1, WNOHANG). tini treats any wait errno
+                  # other than ECHILD as fatal, so it aborts with
+                  #   [FATAL tini] Error while waiting for pids: 'Function not implemented'
+                  # and takes claude down with it (the crash this fix resolves).
+                  # proot is already the subreaper, so zombie reaping is handled;
+                  # stray claude/node/MCP children that outlive a hard kill are mopped
+                  # up by the claude-orphan-sweep call above (PPID=1 + session-group
+                  # kill) at the next launch.
+                  #
                   # SIGKILL on this wrapper is uncatchable (Android lmkd hard kill);
-                  # the orphan-sweep call above mops up survivors at next launch.
-                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM \
-                    ${pkgs.tini}/bin/tini -s -- "$_bin" "$@"
+                  # the orphan-sweep likewise covers those survivors.
+                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM -- "$_bin" "$@"
                   _rc=$?
                   case "$_rc" in
                     126|127|137|139) ;;   # exec/signal failure → rescue
