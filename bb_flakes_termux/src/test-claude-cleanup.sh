@@ -57,6 +57,21 @@ env_can_orphan_to_pid1() {
   return "$found"
 }
 
+# Precondition for the end-to-end sweep test. CRITICAL SAFETY: the test invokes
+# the REAL deployed claude-orphan-sweep. A session-based (field $6) sweep does
+# `kill -- -<session>`, which would take down the whole LOGIN SESSION (fish +
+# every claude). So we ONLY run the end-to-end if (a) the env can orphan to
+# PID 1 AND (b) the deployed sweep is the corrected process-group ($5) version.
+# Otherwise SKIP — never fire a login-killing sweep from a test.
+sweep_e2e_precond() {
+  env_can_orphan_to_pid1 || return 1
+  if ! { grep -qF 'print $5' "$CS" && ! grep -qF 'print $6' "$CS"; }; then
+    SKIP_REASON="deployed sweeper still session-based (\$6) — run build.sh switch to deploy the pgrp (\$5) fix before this can run safely"
+    return 1
+  fi
+  return 0
+}
+
 # ── Locate the deployed wrappers ────────────────────────────────────────
 CM=$(command -v claude-malloc 2>/dev/null) || { echo "claude-malloc not on PATH"; exit 1; }
 CT=$(command -v claude-termux 2>/dev/null) || { echo "claude-termux not on PATH"; exit 1; }
@@ -66,7 +81,7 @@ CS=$(command -v claude-orphan-sweep 2>/dev/null) || { echo "claude-orphan-sweep 
 # Supervision is setpriv --pdeathsig only. tini is DELIBERATELY absent: under
 # proot its reaper waitpid(-1) gets ENOSYS and aborts with
 # "Error while waiting for pids: 'Function not implemented'", killing claude.
-# Whole-tree teardown is delegated to claude-orphan-sweep (PPID=1 + session
+# Whole-tree teardown is delegated to claude-orphan-sweep (PPID=1 + process
 # group kill). NB: a `tini` substring may legitimately appear in the sweeper's
 # kill-list, so we assert against the actual `bin/tini` invocation, not the word.
 run "claude-malloc does NOT invoke tini"  bash -c '! grep -qE "bin/tini" "$1"' _ "$CM"
@@ -80,9 +95,46 @@ run "claude-termux runs claude in fg"     bash -c '! grep -E "setpriv.*&\\s*\$" 
 
 run "sweeper bash syntax OK"             bash -n "$CS"
 
+# Sweeper must tear down by PROCESS GROUP (stat field 5 / pgrp), NOT session
+# (field 6). fish job control puts the claude subtree in its own pgroup while
+# it stays in the shared login session, so `kill -- -<session>` both misses
+# claude and would hit the login group. Regression guard for that exact bug.
+run "sweeper kills by pgrp (\$5) not session (\$6)" \
+  bash -c 'grep -qF "print \$5" "$1" && ! grep -qF "print \$6" "$1"' _ "$CS"
+
 # ── Sweeper is safe / idempotent when there are no orphans ──────────────
 test_sweeper_idempotent() { "$CS" >/dev/null 2>&1; }
 run "sweeper safe when no orphans" test_sweeper_idempotent
+
+# ── MECHANISM TEST: pgrp-kill reaps a non-session-leader subtree ─────────
+# Proves the primitive the fix relies on: a process-group leader that is NOT a
+# session leader (pgid != sid, exactly the claude topology) is fully reaped by
+# `kill -- -<pgid>`. No PID-1 orphaning needed, so this always runs.
+test_pgrp_kill_reaps_subtree() {
+  local out
+  out=$(
+    set -m   # job control ON → backgrounded job gets its own process group
+    bash -c 'sleep 91 & sleep 91 & wait' &
+    job=$!
+    sleep 1
+    s=$(cat "/proc/$job/stat" 2>/dev/null); r=${s#*) }; set -- $r
+    pgid=$3; sid=$4
+    members() { local tgt=$1 n=0 q ss rr; for q in /proc/[0-9]*; do
+      ss=$(cat "$q/stat" 2>/dev/null) || continue; rr=${ss#*) }; set -- $rr
+      [ "$3" = "$tgt" ] 2>/dev/null && n=$((n + 1)); done; echo "$n"; }
+    before=$(members "$pgid")
+    distinct=no; [ "$pgid" != "$sid" ] && distinct=yes
+    kill -- -"$pgid" 2>/dev/null
+    sleep 1
+    after=$(members "$pgid")
+    kill -- -"$pgid" 2>/dev/null   # cleanup
+    echo "$distinct $before $after"
+  )
+  set -- $out
+  # realistic topology (pgid != sid), subtree present (>=3), fully reaped (0)
+  [ "${1:-}" = "yes" ] && [ "${2:-0}" -ge 3 ] && [ "${3:-1}" = "0" ]
+}
+run "pgrp-kill reaps non-session-leader subtree" test_pgrp_kill_reaps_subtree
 
 # ── /proc helper: count processes whose cmdline contains a marker ────────
 # pgrep is unreliable on Termux/proot (blocks /proc/uptime), so scan /proc.
@@ -135,26 +187,29 @@ EOF
 run "pdeathsig reaps direct child on outer SIGTERM" test_pdeathsig_kills_direct_child
 
 # ── INTEGRATION TEST 2: orphan-sweep tears down an orphaned session ──────
-# Whole-tree teardown is the sweeper's job (it replaces tini's subtree reaping).
-# It targets PPID=1 processes whose comm matches claude*/tini and kills their
-# whole SESSION GROUP (`kill -- -SID`). We build a leader with comm="claude" by
-# execing bash through a symlink named "claude", spawning two REAL `sleep`
-# children (renaming a coreutils multicall binary breaks its argv0 dispatch, so
-# children are identified by SESSION id — exactly what the group-kill targets),
-# and orphan it via `setsid --fork`. The fresh session isolates the group kill
-# to this tree only — never the live claude session.
+# End-to-end: the REAL deployed claude-orphan-sweep tears down a genuinely
+# orphaned (PPID==1) claude subtree. We reproduce the live topology exactly:
+# a comm="claude" leader (bash exec'd through a symlink named "claude") in its
+# OWN process group but the SHARED login session (pgid != sid — via `set -m`
+# job control), spawning two REAL `sleep` children (renaming a coreutils
+# multicall binary breaks its argv0 dispatch). A launcher that backgrounds the
+# job then exits leaves the leader at PPID==1 while preserving its pgroup —
+# so the sweep must match comm + PPID==1 and `kill -- -<pgrp>` the subtree. The
+# distinct pgroup confines the kill to this tree; the login session is untouched.
+#
+# This is the case the field-6→field-5 fix exists for: a session-leader leader
+# (pgid==sid) would pass even the buggy sweeper, so we deliberately force
+# pgid != sid here.
 #
 # GATED by env_can_orphan_to_pid1: while a subreaper ancestor exists (e.g. the
 # current session was launched by the OLD `tini -s` wrapper, which intercepts
-# orphans before PID 1), no process can reach PPID==1, so the sweeper's
-# precondition is unsatisfiable and the test SKIPs rather than failing. It runs
-# for real once claude is relaunched under the tini-free wrapper.
+# orphans before PID 1), nothing can reach PPID==1, so the precondition is
+# unsatisfiable and this SKIPs. It runs for real once claude is relaunched
+# under the tini-free wrapper.
 test_sweeper_kills_orphaned_session() {
   local tmp; tmp=$(mktemp -d) || return 1
-  local setsid bash_bin
-  setsid=$(command -v setsid 2>/dev/null)
-  bash_bin=$(command -v bash 2>/dev/null)
-  { [ -x "$setsid" ] && [ -x "$bash_bin" ]; } || { rm -rf "$tmp"; return 1; }
+  local bash_bin; bash_bin=$(command -v bash 2>/dev/null)
+  [ -x "$bash_bin" ] || { rm -rf "$tmp"; return 1; }
 
   ln -s "$bash_bin" "$tmp/claude" || { rm -rf "$tmp"; return 1; }
   cat > "$tmp/leader.sh" <<'EOF'
@@ -163,39 +218,43 @@ sleep 999 &
 wait
 EOF
 
-  "$setsid" --fork "$tmp/claude" "$tmp/leader.sh" </dev/null >/dev/null 2>&1 &
+  # Launcher: job control ON so the leader gets its own pgroup; background it,
+  # disown, and exit → leader reparents to PID 1 (pgroup preserved).
+  "$bash_bin" -c 'set -m; "'"$tmp"'/claude" "'"$tmp"'/leader.sh" </dev/null >/dev/null 2>&1 & disown' \
+    </dev/null >/dev/null 2>&1
   sleep 2
 
-  # Locate the leader (comm=claude, cmdline references our tmp). As a setsid
-  # session leader its SID == its own PID; children inherit that session.
-  local p leader=""
+  # Locate the orphaned leader: comm=claude, PPID==1, cmdline references our tmp.
+  local p leader="" pgid=""
   for p in /proc/[0-9]*; do
     [ "$(cat "$p/comm" 2>/dev/null)" = "claude" ] || continue
+    [ "$(awk '/^PPid:/{print $2}' "$p/status" 2>/dev/null)" = "1" ] || continue
     tr '\0' ' ' < "$p/cmdline" 2>/dev/null | grep -q "$tmp" || continue
-    leader=${p##*/}; break
+    leader=${p##*/}
+    # field 5 of stat = pgrp (strip "(comm)" first for safety)
+    local s r; s=$(cat "$p/stat" 2>/dev/null); r=${s#*) }; set -- $r; pgid=$3
+    break
   done
-  [ -n "$leader" ] || { rm -rf "$tmp"; return 1; }
+  [ -n "$leader" ] && [ -n "$pgid" ] || { kill -- -"${pgid:-$$}" 2>/dev/null; rm -rf "$tmp"; return 1; }
 
-  # /proc/<pid>/stat field 6 = session id (comm here has no spaces → safe).
-  count_session() { local n=0 q; for q in /proc/[0-9]*; do
-    [ "$(awk '{print $6}' "$q/stat" 2>/dev/null)" = "$1" ] && n=$((n + 1)); done; echo "$n"; }
+  # Count members of the leader's PROCESS GROUP (what the sweep must reap).
+  count_pgrp() { local tgt=$1 n=0 q s r; for q in /proc/[0-9]*; do
+    s=$(cat "$q/stat" 2>/dev/null) || continue; r=${s#*) }; set -- $r
+    [ "$3" = "$tgt" ] 2>/dev/null && n=$((n + 1)); done; echo "$n"; }
 
-  local before; before=$(count_session "$leader")
-  if [ "$before" -lt 1 ]; then
-    kill -- -"$leader" 2>/dev/null || true
-    rm -rf "$tmp"; return 1
-  fi
+  local before; before=$(count_pgrp "$pgid")
+  [ "$before" -ge 1 ] || { kill -- -"$pgid" 2>/dev/null; rm -rf "$tmp"; return 1; }
 
   "$CS" >/dev/null 2>&1 || true   # run the real claude-orphan-sweep
   sleep 3
 
-  local after; after=$(count_session "$leader")
-  kill -- -"$leader" 2>/dev/null || true   # cleanup if the sweep didn't
+  local after; after=$(count_pgrp "$pgid")
+  kill -- -"$pgid" 2>/dev/null || true   # cleanup if the sweep didn't
   rm -rf "$tmp"
   [ "$after" = "0" ]
 }
-run_or_skip "orphan-sweep tears down orphaned claude session" \
-  env_can_orphan_to_pid1 test_sweeper_kills_orphaned_session
+run_or_skip "orphan-sweep tears down orphaned claude subtree" \
+  sweep_e2e_precond test_sweeper_kills_orphaned_session
 
 echo
 echo "Result: $pass passed, $fail failed, $skip skipped"

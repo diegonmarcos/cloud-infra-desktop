@@ -334,13 +334,24 @@
               # accumulate). Targets PPID=1 ONLY — active sessions parented by
               # a fish/bash are never touched. Called automatically at the
               # start of each claude-malloc / claude-termux launch.
+              #
+              # Teardown is by PROCESS GROUP, not session. fish's job control
+              # puts each claude-malloc launch in its own process group (pgid =
+              # claude-malloc's pid), and claude + its node/MCP children inherit
+              # it — but they stay in the *login session* (sid = the fish/proot
+              # session, shared by everything). So `kill -- -<session>` would
+              # both MISS the claude subtree and signal the login session group.
+              # We read field 5 (pgrp) of /proc/<pid>/stat and `kill -- -<pgrp>`,
+              # which surgically takes down claude + all its children and nothing
+              # else. (awk on $5 is safe here: it only runs after the comm has
+              # already matched the space-free names below.)
               (writeShellScriptBin "claude-orphan-sweep" ''
                 set -u
                 swept=0
                 _kill() {
-                  local sig=$1 pid=$2 sid=$3
-                  if [ -n "$sid" ] && [ "$sid" -gt 1 ] 2>/dev/null; then
-                    kill -"$sig" -- -"$sid" 2>/dev/null || true
+                  local sig=$1 pid=$2 pgid=$3
+                  if [ -n "$pgid" ] && [ "$pgid" -gt 1 ] 2>/dev/null; then
+                    kill -"$sig" -- -"$pgid" 2>/dev/null || true
                   else
                     kill -"$sig" "$pid" 2>/dev/null || true
                   fi
@@ -353,8 +364,8 @@
                   comm=$(cat "$proc/comm" 2>/dev/null) || continue
                   case "$comm" in
                     claude|claude-malloc|claude-termux|tini)
-                      sid=$(${pkgs.gawk}/bin/awk '{print $6}' "$proc/stat" 2>/dev/null)
-                      _kill TERM "$pid" "$sid"
+                      pgid=$(${pkgs.gawk}/bin/awk '{print $5}' "$proc/stat" 2>/dev/null)
+                      _kill TERM "$pid" "$pgid"
                       swept=$((swept+1))
                       ;;
                   esac
@@ -369,8 +380,8 @@
                     comm=$(cat "$proc/comm" 2>/dev/null) || continue
                     case "$comm" in
                       claude|claude-malloc|claude-termux|tini)
-                        sid=$(${pkgs.gawk}/bin/awk '{print $6}' "$proc/stat" 2>/dev/null)
-                        _kill KILL "$pid" "$sid"
+                        pgid=$(${pkgs.gawk}/bin/awk '{print $5}' "$proc/stat" 2>/dev/null)
+                        _kill KILL "$pid" "$pgid"
                         ;;
                     esac
                   done
