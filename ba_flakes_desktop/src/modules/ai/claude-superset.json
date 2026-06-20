@@ -1,0 +1,7 @@
+{
+  "_comment": "Endpoints for the claude-api-superset (oci-apps, WG-only). Source of truth: cloud/2_configs/dist/build-claude-api-superset.json (ip 10.0.0.6, ports proxy/app/ollama/headroom). Reachable from this host over the WireGuard mesh.",
+  "proxy": "http://10.0.0.6:8789",
+  "api": "http://10.0.0.6:3117",
+  "ollama": "http://10.0.0.6:11436",
+  "dashboard": "http://10.0.0.6:8788/dashboard"
+}

@@ -30,6 +30,10 @@
       buildJson = builtins.fromJSON (builtins.readFile ../build.json);
       dtkNode = buildJson.defaults.dtk_node or "unset";
 
+      # claude-api-superset endpoints (WG-only). Data-driven, not inlined in the
+      # wrapper script — see modules/data/claude-superset.json.
+      claudeSuperset = builtins.fromJSON (builtins.readFile ./modules/data/claude-superset.json);
+
       # Build termux-am from nix-on-droid source (provides `am` for Android intents)
       termux-am = (import nixpkgs { system = "aarch64-linux"; }).callPackage
         "${nix-on-droid}/pkgs/android-integration/termux-am.nix" {};
@@ -224,11 +228,10 @@
 
                 _bin="$HOME/.nix-profile/bin/claude"
                 if [ -x "$_bin" ]; then
-                  # Same supervision as claude-malloc (setpriv --pdeathsig +
-                  # tini -s, synchronous foreground). See claude-malloc for the
-                  # full rationale.
-                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM \
-                    ${pkgs.tini}/bin/tini -s -- "$_bin" "$@"
+                  # Same supervision as claude-malloc: setpriv --pdeathsig,
+                  # synchronous foreground, NO tini (see claude-malloc for why
+                  # tini is unusable under proot).
+                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM -- "$_bin" "$@"
                   _rc=$?
                   # exit codes 0–125 are user-meaningful. 126/127 = exec
                   # failure (interpreter/permission). 137/139 = SIGKILL/SEGV.
@@ -257,17 +260,27 @@
                 if [ -x "$_bin" ]; then
                   # Process supervision (countermeasure to lmkd / parent-shell exits):
                   #   setpriv --pdeathsig TERM : if THIS wrapper dies (any signal
-                  #                              except SIGKILL), kernel SIGTERMs
-                  #                              tini → tini cleans up claude tree.
-                  #   tini -s                  : subreaper + zombie reaper. Signals
-                  #                              from the terminal pgroup reach claude
-                  #                              naturally (no -g, no &, no trap),
-                  #                              so the interactive TUI keeps the
-                  #                              controlling terminal — Ctrl-C, etc.
+                  #                              except SIGKILL), the kernel SIGTERMs
+                  #                              claude directly. Claude runs in the
+                  #                              foreground terminal pgroup (no -g, no
+                  #                              &, no trap), so the interactive TUI
+                  #                              keeps the controlling terminal —
+                  #                              Ctrl-C, job control, etc.
+                  #
+                  # tini is DELIBERATELY NOT USED here. nix-on-droid runs the whole
+                  # rootfs under proot, whose ptrace/seccomp layer returns ENOSYS for
+                  # tini's reaper waitpid(-1, WNOHANG). tini treats any wait errno
+                  # other than ECHILD as fatal, so it aborts with
+                  #   [FATAL tini] Error while waiting for pids: 'Function not implemented'
+                  # and takes claude down with it (the crash this fix resolves).
+                  # proot is already the subreaper, so zombie reaping is handled;
+                  # stray claude/node/MCP children that outlive a hard kill are mopped
+                  # up by the claude-orphan-sweep call above (PPID=1 + session-group
+                  # kill) at the next launch.
+                  #
                   # SIGKILL on this wrapper is uncatchable (Android lmkd hard kill);
-                  # the orphan-sweep call above mops up survivors at next launch.
-                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM \
-                    ${pkgs.tini}/bin/tini -s -- "$_bin" "$@"
+                  # the orphan-sweep likewise covers those survivors.
+                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM -- "$_bin" "$@"
                   _rc=$?
                   case "$_rc" in
                     126|127|137|139) ;;   # exec/signal failure → rescue
@@ -276,6 +289,36 @@
                 fi
                 echo "[claude-malloc] native exec failed — trying rescue chain..." >&2
                 exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
+              '')
+
+              # claude-superset: route claude through the claude-api-superset
+              # Headroom proxy (token compression) over WireGuard, then hand off to
+              # claude-malloc (keeps the Android isolation/supervision). Transparent
+              # proxy (compress → forward to Anthropic with the client's own creds),
+              # so interactive multi-turn / tool use is preserved. Health-checks the
+              # proxy and falls back to direct Anthropic when it's unreachable.
+              # Endpoint is data-driven (modules/data/claude-superset.json), override
+              # via CLAUDE_SUPERSET_URL.
+              (writeShellScriptBin "claude-superset" ''
+                set -u
+                URL="''${CLAUDE_SUPERSET_URL:-${claudeSuperset.proxy}}"
+                if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
+                  export ANTHROPIC_BASE_URL="$URL"
+                  echo "[claude-superset] via superset proxy → $URL (Headroom compression ON)" >&2
+                else
+                  echo "[claude-superset] proxy unreachable ($URL) — direct to Anthropic, no compression" >&2
+                fi
+                exec claude-malloc "$@"
+              '')
+
+              # claude-superset-tui: terminal helper/dashboard (live Headroom
+              # savings, health, launch). Endpoints injected from the same
+              # data-driven JSON; CAS_LAUNCH chains claude-malloc on the phone.
+              (writeShellScriptBin "claude-superset-tui" ''
+                export CAS_PROXY="${claudeSuperset.proxy}" CAS_API="${claudeSuperset.api}"
+                export CAS_OLLAMA="${claudeSuperset.ollama}" CAS_DASHBOARD="${claudeSuperset.dashboard}"
+                export CAS_COMPRESS="''${CAS_DASHBOARD%/dashboard}" CAS_LAUNCH="claude-malloc"
+                exec ${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-tui.mjs} "$@"
               '')
 
               # claude-rescue: delegates to tools/5-infos/claude-rescue/
@@ -291,13 +334,24 @@
               # accumulate). Targets PPID=1 ONLY — active sessions parented by
               # a fish/bash are never touched. Called automatically at the
               # start of each claude-malloc / claude-termux launch.
+              #
+              # Teardown is by PROCESS GROUP, not session. fish's job control
+              # puts each claude-malloc launch in its own process group (pgid =
+              # claude-malloc's pid), and claude + its node/MCP children inherit
+              # it — but they stay in the *login session* (sid = the fish/proot
+              # session, shared by everything). So `kill -- -<session>` would
+              # both MISS the claude subtree and signal the login session group.
+              # We read field 5 (pgrp) of /proc/<pid>/stat and `kill -- -<pgrp>`,
+              # which surgically takes down claude + all its children and nothing
+              # else. (awk on $5 is safe here: it only runs after the comm has
+              # already matched the space-free names below.)
               (writeShellScriptBin "claude-orphan-sweep" ''
                 set -u
                 swept=0
                 _kill() {
-                  local sig=$1 pid=$2 sid=$3
-                  if [ -n "$sid" ] && [ "$sid" -gt 1 ] 2>/dev/null; then
-                    kill -"$sig" -- -"$sid" 2>/dev/null || true
+                  local sig=$1 pid=$2 pgid=$3
+                  if [ -n "$pgid" ] && [ "$pgid" -gt 1 ] 2>/dev/null; then
+                    kill -"$sig" -- -"$pgid" 2>/dev/null || true
                   else
                     kill -"$sig" "$pid" 2>/dev/null || true
                   fi
@@ -310,8 +364,8 @@
                   comm=$(cat "$proc/comm" 2>/dev/null) || continue
                   case "$comm" in
                     claude|claude-malloc|claude-termux|tini)
-                      sid=$(${pkgs.gawk}/bin/awk '{print $6}' "$proc/stat" 2>/dev/null)
-                      _kill TERM "$pid" "$sid"
+                      pgid=$(${pkgs.gawk}/bin/awk '{print $5}' "$proc/stat" 2>/dev/null)
+                      _kill TERM "$pid" "$pgid"
                       swept=$((swept+1))
                       ;;
                   esac
@@ -326,8 +380,8 @@
                     comm=$(cat "$proc/comm" 2>/dev/null) || continue
                     case "$comm" in
                       claude|claude-malloc|claude-termux|tini)
-                        sid=$(${pkgs.gawk}/bin/awk '{print $6}' "$proc/stat" 2>/dev/null)
-                        _kill KILL "$pid" "$sid"
+                        pgid=$(${pkgs.gawk}/bin/awk '{print $5}' "$proc/stat" 2>/dev/null)
+                        _kill KILL "$pid" "$pgid"
                         ;;
                     esac
                   done
