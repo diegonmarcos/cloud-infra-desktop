@@ -191,6 +191,22 @@
     };
     in "${anthropicSkills}/skills/claude-api";
 
+  # ponytail — "lazy senior dev" skill (vendored, owned copy from
+  # DietrichGebert/ponytail @ 6da37bf, MIT). Wired declaratively, NOT via the
+  # plugin marketplace (settings-only local-marketplace activation is not
+  # guaranteed by Claude Code docs):
+  #   - the self-contained dir keeps hooks/ beside skills/ so the hook JS resolves
+  #     its relative requires and reads ../skills/ponytail/SKILL.md;
+  #   - each SKILL.md is also exposed under .claude/skills/ to auto-load as /ponytail*.
+  # SessionStart + UserPromptSubmit activation hooks are registered in settings.json.
+  home.file.".claude/ponytail".source = ./dotfiles/claude/ponytail;
+  home.file.".claude/skills/ponytail".source = ./dotfiles/claude/ponytail/skills/ponytail;
+  home.file.".claude/skills/ponytail-review".source = ./dotfiles/claude/ponytail/skills/ponytail-review;
+  home.file.".claude/skills/ponytail-audit".source = ./dotfiles/claude/ponytail/skills/ponytail-audit;
+  home.file.".claude/skills/ponytail-debt".source = ./dotfiles/claude/ponytail/skills/ponytail-debt;
+  home.file.".claude/skills/ponytail-gain".source = ./dotfiles/claude/ponytail/skills/ponytail-gain;
+  home.file.".claude/skills/ponytail-help".source = ./dotfiles/claude/ponytail/skills/ponytail-help;
+
   home.file.".rgignore".source = ./dotfiles/claude/rgignore;
 
   # Goose AI CLI configuration (cloud-ai-cli alias)

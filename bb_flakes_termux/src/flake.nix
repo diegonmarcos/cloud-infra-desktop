@@ -680,6 +680,20 @@
                 };
                 in "${anthropicSkills}/skills/claude-api";
 
+              # ponytail — "lazy senior dev" skill (vendored, owned copy from
+              # DietrichGebert/ponytail @ 6da37bf, MIT). Wired declaratively, NOT via
+              # the plugin marketplace: self-contained dir keeps hooks/ beside skills/
+              # (relative requires + ../skills/ponytail/SKILL.md), and each SKILL.md is
+              # exposed under .claude/skills/ to auto-load as /ponytail*. Activation
+              # hooks (SessionStart + UserPromptSubmit) live in settings.json.
+              home.file.".claude/ponytail".source = ../src/modules/dotfiles/claude/ponytail;
+              home.file.".claude/skills/ponytail".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail;
+              home.file.".claude/skills/ponytail-review".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail-review;
+              home.file.".claude/skills/ponytail-audit".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail-audit;
+              home.file.".claude/skills/ponytail-debt".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail-debt;
+              home.file.".claude/skills/ponytail-gain".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail-gain;
+              home.file.".claude/skills/ponytail-help".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail-help;
+
               home.file.".rgignore".source = ../src/modules/dotfiles/claude/rgignore;
 
               # Gemini CLI configuration + MCP server config
