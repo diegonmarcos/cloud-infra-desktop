@@ -114074,3 +114074,432 @@ npm error A complete log of this run can be found in: /data/data/com.termux.nix/
 [2026-06-19 19:02:18] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-06-19 19:02:19] PERF: start switch
 [2026-06-19 19:02:25] INFO: Staging dirty files for flake evaluation...
+[2026-06-23 14:22:44] ========== Build script started ==========
+[2026-06-23 14:22:44] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-06-23 14:22:45] PERF: start switch
+[2026-06-23 14:22:50] INFO: Staging dirty files for flake evaluation...
+[2026-06-23 14:22:55] PERF: git stage = 9.4s
+[2026-06-23 14:22:56] PERF: clean backups = 283ms
+[2026-06-23 14:22:56] PERF: profile guard = 175ms
+[2026-06-23 14:22:57] PERF: clear stale files = 234ms
+[2026-06-23 14:22:57] INFO: Applying nix-on-droid configuration (verbose=1)...
+Building activation package...
+copying path '/nix/store/lv9bmgm6v1wc3fiz00v29gi4rk13ja6l-source' from 'https://cache.nixos.org'...
+copying path '/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source' from 'https://cache.nixos.org'...
+copying path '/nix/store/lc5bxq4vsgpjjc7i9phdm8s0bxjz0drm-source' from 'https://cache.nixos.org'...
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+copying path '/nix/store/ygyc1iyirw876jc33azrprdxndahlf7b-gnu-config-2024-01-01' from 'https://cache.nixos.org'...
+copying path '/nix/store/dicphss7yhkhzs787j4i5aaih9xqfhvc-ed-1.20.2' from 'https://cache.nixos.org'...
+copying path '/nix/store/d9qhv93vw1bdbazzy3q3jkqimwr9awnr-file-5.45' from 'https://cache.nixos.org'...
+copying path '/nix/store/0qz7ix00ils7bin56wbkrvi39xlamp87-gnumake-4.4.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/xrvj227nwj97ll3znxizx2jlvr46xgwr-patchelf-0.15.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/b4zjyxv2l5g9ldny96jaq60xhgmgwh8g-update-autotools-gnu-config-scripts-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/qbqvlw7dhfgl1f916l90p3lp7vf3k9pg-patch-2.7.6' from 'https://cache.nixos.org'...
+copying path '/nix/store/yy4c67mnsfrjr7p1i3rd1x7scdjhjjzi-stdenv-linux' from 'https://cache.nixos.org'...
+building '/nix/store/zspq58g2v5196d987xxm4jniq5fkavr9-ids.nix.drv'...
+these 30 derivations will be built:
+  /nix/store/0n97fvi5573a6ycqpkzkmi4m2ix4rskj-pinentry-curses-1.2.1-fish-completions.drv
+  /nix/store/2hzq3rh947rgppc506jwjpxnr95wzh06-rbw-1.12.1-fish-completions.drv
+  /nix/store/cz6mlpjnr08mnsimncplhdmq32m7201q-dummy-xdg-mime-dirs1.drv
+  /nix/store/5nx4rjqf3wwkvvvscsc60wiw924cv1yl-dummy-xdg-mime-dirs1-fish-completions.drv
+  /nix/store/89hdyyzmwr2s3c6c9f2fzajxyld1fwqq-activation-script.drv
+  /nix/store/8vw17iwxhch061y784lnr2csg6ja7gnk-zsh-5.9-fish-completions.drv
+  /nix/store/9cxnqvqqc9jsln5c4i48gsjzwffvpfr0-multitail-7.1.2-fish-completions.drv
+  /nix/store/9s2y3w99g8ccn11v8fnx4w1swzbrxlcw-nix-zsh-completions-0.5.1-fish-completions.drv
+  /nix/store/xgqscwzzyccdaqgflpm6ljphr7j88n8k-dummy-xdg-mime-dirs2.drv
+  /nix/store/ig3l07hiys20579c6xc4m66p1zvmikmc-dummy-xdg-mime-dirs2-fish-completions.drv
+  /nix/store/ih20f8xw5i6bpwv3idkzgxxni5bnx7yc-starship-1.19.0-fish-completions.drv
+  /nix/store/jn1cj2zmzjzmhy08n670n25byxpyskp1-cliphist-0.5.0-fish-completions.drv
+  /nix/store/k6lrjg9am4vmimphqxqf341ppz2p16df-goose-1.28.0-fish-completions.drv
+  /nix/store/nih9zm72wvavy8wf0fvj1hfb2ygx1gir-wstunnel-10.5.5-fish-completions.drv
+  /nix/store/qfb96wf8p4vz7xdjayi8d3k30ail4n98-hm-session-vars.sh-fish-completions.drv
+  /nix/store/v5fz3k22mzzsl7blrvijzp2p4pkm97lk-busybox-1.36.1-fish-completions.drv
+  /nix/store/w1g2fh5v11ycp4a9p7gdlhjdv3viygd8-mdbook-0.4.37-fish-completions.drv
+  /nix/store/yqw2j8x43rqby7ps3j84b3qnd5smvd6j-octocode-0.12.2-fish-completions.drv
+  /nix/store/b10ynm4kkjwnlzakdwqdiw7dx1a5if7q-nix-on-droid-fish-completions.drv
+  /nix/store/lchycjz1axaw58f97da9mcciqqck7gc7-builder.pl.drv
+  /nix/store/z6mirv190zsrc6c5nn31scgl3338sd3r-man-paths.drv
+  /nix/store/w5bfn3x6j64bgpfzaf7m82i7ylmyffc9-man-cache.drv
+  /nix/store/dajsq9rf6krnkrndfq2fjncdp8rm82ri-hm_.manpath.drv
+  /nix/store/ykj3hcazg2vi0pl77hvfqry74m8yyrfl-hm_.localbinwgtcp.drv
+  /nix/store/a9zh14k9kbi9yi4hqchi7pdc0j9xfz0z-home-manager-files.drv
+  /nix/store/i5pp1gpgap2fxv6cn60q8ai6nvr8f6ci-nix-on-droid-path.drv
+  /nix/store/w6r9i1j3r7a5xiz1g5sj61vr32i9s34b-home-manager-path.drv
+  /nix/store/x8v2jl5j7zjigd4ncqy45dc7bgyw3axa-home-manager-generation.drv
+  /nix/store/d7a0xi7j9l4yi9b6p9rgli9k9aibfb1l-activation-script.drv
+  /nix/store/cybj68zbaibv3a5qyyyb9dl8lnyfi3pv-nix-on-droid-generation.drv
+these 37 paths will be fetched (480.01 MiB download, 2225.11 MiB unpacked):
+  /nix/store/zm75q602pac1pp3yv2za4zf9wj36dd76-bash-5.3p9
+  /nix/store/rprpkkhvvf36qgpxhdjb7nmq26ayhf3f-bash-interactive-5.3p9
+  /nix/store/hkcb6zd2kfb44nmk627a0j7x84apdjdz-brotli-1.2.0-lib
+  /nix/store/f8rxcxfwk1qhazprqnfji401x08xp9dr-cargo-1.95.0
+  /nix/store/q963vxg8bv57za84ni0ckayn6hzdgcn3-cargo-bootstrap-1.95.0
+  /nix/store/c6mpfdagkmgq8z7j0l07p2xadr5kvrd1-curl-8.20.0
+  /nix/store/rlhrdzfabdf8xbnxqjpzx5a871syhs4x-desktop-file-utils-0.27
+  /nix/store/7a3zsvzzm9ki2r3w2cl0mx12zjicinkj-gcc-15.2.0-lib
+  /nix/store/l5ypyhyv1df633ldrdj8fyhnxaqqw6s7-gcc-15.2.0-libgcc
+  /nix/store/1bdzriipn18184zpwh2lfdabk2gqcgxn-glibc-2.42-61
+  /nix/store/5gf7jvhvncp4c0lxjws5cyz33s3fdghj-keyutils-1.6.3-lib
+  /nix/store/anhl6igxcr0jiqsvz29xwc98l6q887yl-krb5-1.22.1-lib
+  /nix/store/c8agvk09xi1z86vb0kb1f3lkcwdymsca-libffi-3.5.2
+  /nix/store/f04zlspmsqzyv15kcxbn6mx4wb71a0jm-libidn2-2.3.8
+  /nix/store/9qqi89f8xis6g5kq1ixq9qqc0kqlhcbg-libpsl-0.21.5
+  /nix/store/z7gx8wqa55whi1iby7p89xb36lq3sk93-libssh2-1.11.1
+  /nix/store/xag03kgklavhhq66qnac59pqxpxvjqga-libunistring-1.4.2
+  /nix/store/a6j2ndbm3h0izg8fm6xh94xc5pfa6dgg-libxml2-2.15.2
+  /nix/store/rhd19c4hy4w9rq3w8hda8fv8w2rbahij-llvm-21.1.8-lib
+  /nix/store/zv5av35v4pab24rvqxdgg0nqx0zfypyn-lndir-1.0.5
+  /nix/store/j6c6n720jqyyiavcldg0bpf5p870ba6l-ncurses-6.6
+  /nix/store/i9mb5kwy4xf0pbnvch4zwalrf60w2jc6-nghttp2-1.69.0-lib
+  /nix/store/i8ykl6jr2x9x3bqv2m8l6gn6i2246lyr-nghttp3-1.15.0
+  /nix/store/n2ca5dhzl6jdx41kb31zyzl8xlnzkbmd-ngtcp2-1.22.1
+  /nix/store/bl7rmhhsy7vjb9qm3jfwgqpv3cn7wfb1-openssl-3.6.2
+  /nix/store/7xbqnd2w7n50gasb9v9fiiqpvk793ayn-publicsuffix-list-0-unstable-2026-03-26
+  /nix/store/4xbhv02nk7b3g7k5baxfblqrx00cdam7-readline-8.3p3
+  /nix/store/2b2ljjfwzw2m74brm8s0q12v2nbqzp5r-rustc-1.95.0
+  /nix/store/zj7p6swh5812ry09rs9rjwy2xax5h6km-rustc-1.95.0-man
+  /nix/store/40brdlm8bfy6wc1qs2w9705i7c6y3c8k-rustc-bootstrap-1.95.0
+  /nix/store/8rjjny9rk8b8bzxbrd7gxkk52wb32cj3-rustc-bootstrap-wrapper-1.95.0
+  /nix/store/nh052ln9q9r24p3rb6zxiqqjy4anxa56-rustc-wrapper-1.95.0
+  /nix/store/p3azdhlb0nk5kz1wqc22v7srwsb37m24-rustc-wrapper-1.95.0-man
+  /nix/store/v2i3hbd98an6nrgnhpxmm251pm6yr9wx-wstunnel-10.5.5
+  /nix/store/xzs7w65n77a94hmpwkfsnwqkj2k5akn4-xgcc-15.2.0-libgcc
+  /nix/store/zy2b11c58p52qi6ca6ashdl3qhfmipxg-zlib-1.3.2
+  /nix/store/g3vxv9qmkd89xw1ya9ii9gpps78z4q2m-zstd-1.5.7
+copying path '/nix/store/zj7p6swh5812ry09rs9rjwy2xax5h6km-rustc-1.95.0-man' from 'https://cache.nixos.org'...
+copying path '/nix/store/l5ypyhyv1df633ldrdj8fyhnxaqqw6s7-gcc-15.2.0-libgcc' from 'https://cache.nixos.org'...
+copying path '/nix/store/xzs7w65n77a94hmpwkfsnwqkj2k5akn4-xgcc-15.2.0-libgcc' from 'https://cache.nixos.org'...
+building '/nix/store/lchycjz1axaw58f97da9mcciqqck7gc7-builder.pl.drv'...
+copying path '/nix/store/xag03kgklavhhq66qnac59pqxpxvjqga-libunistring-1.4.2' from 'https://cache.nixos.org'...
+copying path '/nix/store/7xbqnd2w7n50gasb9v9fiiqpvk793ayn-publicsuffix-list-0-unstable-2026-03-26' from 'https://cache.nixos.org'...
+copying path '/nix/store/zv5av35v4pab24rvqxdgg0nqx0zfypyn-lndir-1.0.5' from 'https://cache.nixos.org'...
+copying path '/nix/store/rlhrdzfabdf8xbnxqjpzx5a871syhs4x-desktop-file-utils-0.27' from 'https://cache.nixos.org'...
+copying path '/nix/store/p3azdhlb0nk5kz1wqc22v7srwsb37m24-rustc-wrapper-1.95.0-man' from 'https://cache.nixos.org'...
+copying path '/nix/store/f04zlspmsqzyv15kcxbn6mx4wb71a0jm-libidn2-2.3.8' from 'https://cache.nixos.org'...
+copying path '/nix/store/1bdzriipn18184zpwh2lfdabk2gqcgxn-glibc-2.42-61' from 'https://cache.nixos.org'...
+building '/nix/store/89hdyyzmwr2s3c6c9f2fzajxyld1fwqq-activation-script.drv'...
+building '/nix/store/v5fz3k22mzzsl7blrvijzp2p4pkm97lk-busybox-1.36.1-fish-completions.drv'...
+building '/nix/store/jn1cj2zmzjzmhy08n670n25byxpyskp1-cliphist-0.5.0-fish-completions.drv'...
+copying path '/nix/store/zm75q602pac1pp3yv2za4zf9wj36dd76-bash-5.3p9' from 'https://cache.nixos.org'...
+copying path '/nix/store/hkcb6zd2kfb44nmk627a0j7x84apdjdz-brotli-1.2.0-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/7a3zsvzzm9ki2r3w2cl0mx12zjicinkj-gcc-15.2.0-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/c8agvk09xi1z86vb0kb1f3lkcwdymsca-libffi-3.5.2' from 'https://cache.nixos.org'...
+copying path '/nix/store/5gf7jvhvncp4c0lxjws5cyz33s3fdghj-keyutils-1.6.3-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/9qqi89f8xis6g5kq1ixq9qqc0kqlhcbg-libpsl-0.21.5' from 'https://cache.nixos.org'...
+copying path '/nix/store/a6j2ndbm3h0izg8fm6xh94xc5pfa6dgg-libxml2-2.15.2' from 'https://cache.nixos.org'...
+copying path '/nix/store/j6c6n720jqyyiavcldg0bpf5p870ba6l-ncurses-6.6' from 'https://cache.nixos.org'...
+copying path '/nix/store/i9mb5kwy4xf0pbnvch4zwalrf60w2jc6-nghttp2-1.69.0-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/i8ykl6jr2x9x3bqv2m8l6gn6i2246lyr-nghttp3-1.15.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/bl7rmhhsy7vjb9qm3jfwgqpv3cn7wfb1-openssl-3.6.2' from 'https://cache.nixos.org'...
+copying path '/nix/store/zy2b11c58p52qi6ca6ashdl3qhfmipxg-zlib-1.3.2' from 'https://cache.nixos.org'...
+building '/nix/store/cz6mlpjnr08mnsimncplhdmq32m7201q-dummy-xdg-mime-dirs1.drv'...
+building '/nix/store/xgqscwzzyccdaqgflpm6ljphr7j88n8k-dummy-xdg-mime-dirs2.drv'...
+building '/nix/store/5nx4rjqf3wwkvvvscsc60wiw924cv1yl-dummy-xdg-mime-dirs1-fish-completions.drv'...
+building '/nix/store/ig3l07hiys20579c6xc4m66p1zvmikmc-dummy-xdg-mime-dirs2-fish-completions.drv'...
+building '/nix/store/k6lrjg9am4vmimphqxqf341ppz2p16df-goose-1.28.0-fish-completions.drv'...
+building '/nix/store/qfb96wf8p4vz7xdjayi8d3k30ail4n98-hm-session-vars.sh-fish-completions.drv'...
+building '/nix/store/w1g2fh5v11ycp4a9p7gdlhjdv3viygd8-mdbook-0.4.37-fish-completions.drv'...
+copying path '/nix/store/4xbhv02nk7b3g7k5baxfblqrx00cdam7-readline-8.3p3' from 'https://cache.nixos.org'...
+building '/nix/store/9cxnqvqqc9jsln5c4i48gsjzwffvpfr0-multitail-7.1.2-fish-completions.drv'...
+building '/nix/store/9s2y3w99g8ccn11v8fnx4w1swzbrxlcw-nix-zsh-completions-0.5.1-fish-completions.drv'...
+building '/nix/store/yqw2j8x43rqby7ps3j84b3qnd5smvd6j-octocode-0.12.2-fish-completions.drv'...
+building '/nix/store/0n97fvi5573a6ycqpkzkmi4m2ix4rskj-pinentry-curses-1.2.1-fish-completions.drv'...
+copying path '/nix/store/g3vxv9qmkd89xw1ya9ii9gpps78z4q2m-zstd-1.5.7' from 'https://cache.nixos.org'...
+copying path '/nix/store/rhd19c4hy4w9rq3w8hda8fv8w2rbahij-llvm-21.1.8-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/v2i3hbd98an6nrgnhpxmm251pm6yr9wx-wstunnel-10.5.5' from 'https://cache.nixos.org'...
+building '/nix/store/2hzq3rh947rgppc506jwjpxnr95wzh06-rbw-1.12.1-fish-completions.drv'...
+copying path '/nix/store/anhl6igxcr0jiqsvz29xwc98l6q887yl-krb5-1.22.1-lib' from 'https://cache.nixos.org'...
+copying path '/nix/store/z7gx8wqa55whi1iby7p89xb36lq3sk93-libssh2-1.11.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/n2ca5dhzl6jdx41kb31zyzl8xlnzkbmd-ngtcp2-1.22.1' from 'https://cache.nixos.org'...
+copying path '/nix/store/rprpkkhvvf36qgpxhdjb7nmq26ayhf3f-bash-interactive-5.3p9' from 'https://cache.nixos.org'...
+building '/nix/store/ih20f8xw5i6bpwv3idkzgxxni5bnx7yc-starship-1.19.0-fish-completions.drv'...
+building '/nix/store/8vw17iwxhch061y784lnr2csg6ja7gnk-zsh-5.9-fish-completions.drv'...
+copying path '/nix/store/c6mpfdagkmgq8z7j0l07p2xadr5kvrd1-curl-8.20.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/40brdlm8bfy6wc1qs2w9705i7c6y3c8k-rustc-bootstrap-1.95.0' from 'https://cache.nixos.org'...
+building '/nix/store/ykj3hcazg2vi0pl77hvfqry74m8yyrfl-hm_.localbinwgtcp.drv'...
+building '/nix/store/w6r9i1j3r7a5xiz1g5sj61vr32i9s34b-home-manager-path.drv'...
+building '/nix/store/z6mirv190zsrc6c5nn31scgl3338sd3r-man-paths.drv'...
+copying path '/nix/store/8rjjny9rk8b8bzxbrd7gxkk52wb32cj3-rustc-bootstrap-wrapper-1.95.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/q963vxg8bv57za84ni0ckayn6hzdgcn3-cargo-bootstrap-1.95.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/2b2ljjfwzw2m74brm8s0q12v2nbqzp5r-rustc-1.95.0' from 'https://cache.nixos.org'...
+/data/data/com.termux.nix/files/home/.nix-profile/bin/nix-on-droid: line 26: 14731 Bus error               nix "${command}" "${extraArgs[@]}"
+[2026-06-23 15:57:33] ========== Build script started ==========
+[2026-06-23 15:57:33] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-06-23 15:57:33] PERF: start switch
+[2026-06-23 15:57:39] INFO: Staging dirty files for flake evaluation...
+[2026-06-23 15:57:44] PERF: git stage = 9.7s
+[2026-06-23 15:57:44] PERF: clean backups = 130ms
+[2026-06-23 15:57:44] PERF: profile guard = 102ms
+[2026-06-23 15:57:45] PERF: clear stale files = 186ms
+[2026-06-23 15:57:45] INFO: Applying nix-on-droid configuration (verbose=1)...
+Building activation package...
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+these 10 derivations will be built:
+  /nix/store/nih9zm72wvavy8wf0fvj1hfb2ygx1gir-wstunnel-10.5.5-fish-completions.drv
+  /nix/store/b10ynm4kkjwnlzakdwqdiw7dx1a5if7q-nix-on-droid-fish-completions.drv
+  /nix/store/z6mirv190zsrc6c5nn31scgl3338sd3r-man-paths.drv
+  /nix/store/w5bfn3x6j64bgpfzaf7m82i7ylmyffc9-man-cache.drv
+  /nix/store/dajsq9rf6krnkrndfq2fjncdp8rm82ri-hm_.manpath.drv
+  /nix/store/a9zh14k9kbi9yi4hqchi7pdc0j9xfz0z-home-manager-files.drv
+  /nix/store/i5pp1gpgap2fxv6cn60q8ai6nvr8f6ci-nix-on-droid-path.drv
+  /nix/store/x8v2jl5j7zjigd4ncqy45dc7bgyw3axa-home-manager-generation.drv
+  /nix/store/d7a0xi7j9l4yi9b6p9rgli9k9aibfb1l-activation-script.drv
+  /nix/store/cybj68zbaibv3a5qyyyb9dl8lnyfi3pv-nix-on-droid-generation.drv
+these 3 paths will be fetched (211.49 MiB download, 1042.69 MiB unpacked):
+  /nix/store/f8rxcxfwk1qhazprqnfji401x08xp9dr-cargo-1.95.0
+  /nix/store/2b2ljjfwzw2m74brm8s0q12v2nbqzp5r-rustc-1.95.0
+  /nix/store/nh052ln9q9r24p3rb6zxiqqjy4anxa56-rustc-wrapper-1.95.0
+copying path '/nix/store/2b2ljjfwzw2m74brm8s0q12v2nbqzp5r-rustc-1.95.0' from 'https://cache.nixos.org'...
+building '/nix/store/z6mirv190zsrc6c5nn31scgl3338sd3r-man-paths.drv'...
+building '/nix/store/nih9zm72wvavy8wf0fvj1hfb2ygx1gir-wstunnel-10.5.5-fish-completions.drv'...
+building '/nix/store/w5bfn3x6j64bgpfzaf7m82i7ylmyffc9-man-cache.drv'...
+copying path '/nix/store/nh052ln9q9r24p3rb6zxiqqjy4anxa56-rustc-wrapper-1.95.0' from 'https://cache.nixos.org'...
+copying path '/nix/store/f8rxcxfwk1qhazprqnfji401x08xp9dr-cargo-1.95.0' from 'https://cache.nixos.org'...
+building '/nix/store/b10ynm4kkjwnlzakdwqdiw7dx1a5if7q-nix-on-droid-fish-completions.drv'...
+building '/nix/store/dajsq9rf6krnkrndfq2fjncdp8rm82ri-hm_.manpath.drv'...
+building '/nix/store/i5pp1gpgap2fxv6cn60q8ai6nvr8f6ci-nix-on-droid-path.drv'...
+building '/nix/store/a9zh14k9kbi9yi4hqchi7pdc0j9xfz0z-home-manager-files.drv'...
+building '/nix/store/x8v2jl5j7zjigd4ncqy45dc7bgyw3axa-home-manager-generation.drv'...
+building '/nix/store/d7a0xi7j9l4yi9b6p9rgli9k9aibfb1l-activation-script.drv'...
+building '/nix/store/cybj68zbaibv3a5qyyyb9dl8lnyfi3pv-nix-on-droid-generation.drv'...
+Executing activation script...
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+building '/nix/store/16f392qggs9q6yrkvi9sw8c6fhvhqrin-user-environment.drv'...
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+removed empty /data/data/com.termux.nix/files/home/.termux
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Creating profile generation 216
+Creating home file links in /data/data/com.termux.nix/files/home
+[2026-06-23 16:14:31] ========== Build script started ==========
+[2026-06-23 16:14:31] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-06-23 16:14:31] PERF: start switch
+[2026-06-23 16:14:37] INFO: Staging dirty files for flake evaluation...
+[2026-06-23 16:14:42] PERF: git stage = 10.0s
+[2026-06-23 16:14:42] PERF: clean backups = 191ms
+[2026-06-23 16:14:43] PERF: profile guard = 142ms
+[2026-06-23 16:14:43] PERF: clear stale files = 242ms
+[2026-06-23 16:14:43] INFO: Applying nix-on-droid configuration (verbose=1)...
+Building activation package...
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Executing activation script...
+trace: warning: lib.mdDoc will be removed from nixpkgs in 24.11. Option descriptions are now in Markdown by default; you can remove any remaining uses of lib.mdDoc.
+Activating linkBinSh
+Activating linkUsrBinEnv
+Activating setPriorityHomeManagerPath
+Activating installLogin
+Activating installLoginInner
+Activating installPackages
+replacing old 'nix-on-droid-path'
+installing 'nix-on-droid-path'
+Activating installProotStatic
+Activating setUpEtc
+Activating unlinkColors
+Activating unlinkFont
+Activating homeManager
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating createUnisonTarget
+Activating createUsrLib
+Activating writeBoundary
+Activating linkGeneration
+Cleaning up orphan links from /data/data/com.termux.nix/files/home
+Path '/data/data/com.termux.nix/files/home/.config/wireguard/privatekey' does not link into a Home Manager generation. Skipping delete.
+Path '/data/data/com.termux.nix/files/home/.config/wireguard/privatekey-public' does not link into a Home Manager generation. Skipping delete.
+Path '/data/data/com.termux.nix/files/home/.config/wireguard/publickey' does not link into a Home Manager generation. Skipping delete.
+Path '/data/data/com.termux.nix/files/home/.config/wireguard/publickey-public' does not link into a Home Manager generation. Skipping delete.
+Path '/data/data/com.termux.nix/files/home/.config/wireguard/wg0-fallback.conf' does not link into a Home Manager generation. Skipping delete.
+Path '/data/data/com.termux.nix/files/home/.config/wireguard/wg0.conf' does not link into a Home Manager generation. Skipping delete.
+No change so reusing latest profile generation 216
+Creating home file links in /data/data/com.termux.nix/files/home
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (4 VMs, 43 services, date=2026-06-23)
+Activating globalTsx
+
+changed 3 packages in 9s
+Activating globalWrangler
+[node-bins] Installing wrangler@4.103.0
+npm warn using --force Recommended protections disabled.
+
+changed 35 packages in 23s
+Activating gooseConfig
+Activating initHomeGit
+Activating removeImperativePackages
+Activating installPackages
+Activating installWg0TcpConf
+[wireguard-wstunnel] /data/data/com.termux.nix/files/home/.config/wireguard/wg0.conf not found — skipping wg0-tcp.conf render
+Activating linkNixBinsToTermux
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /data/data/com.termux.nix/files/home/git/cloud/2_configs/dist/build-flakes_termux.json
+Activating mergeFrontDeps
+[node-npm-deps-front] 88 front deps extracted
+Activating sharedNodeModules
+[node-npm-deps] package.json: 109 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@asamuzakjp/css-color@5.1.11',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@asamuzakjp/generational-cache@1.0.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@eslint/config-array@0.23.5',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@eslint/config-helpers@0.5.5',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@eslint/core@1.2.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@eslint/object-schema@3.0.5',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@eslint/plugin-kit@0.7.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@exodus/bytes@1.15.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@sveltejs/vite-plugin-svelte@7.0.0',
+npm warn EBADENGINE   required: { node: '^20.19 || ^22.12 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'eslint-visitor-keys@5.0.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@vitejs/plugin-vue@6.0.5',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'data-urls@7.0.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'whatwg-url@16.0.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'eslint@10.2.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'eslint-scope@9.1.2',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'eslint-visitor-keys@5.0.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'espree@11.2.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'html-encoding-sniffer@6.0.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'unplugin@3.0.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'jsdom@28.1.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'whatwg-url@16.0.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'rolldown@1.0.0-rc.17',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'unplugin@3.0.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'vite@8.0.10',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v22.10.0', npm: '10.9.0' }
+npm warn EBADENGINE }
+
+up to date in 44s
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating reloadSystemd
+User systemd daemon not running. Skipping reload.
+Activating linkProfile
+[2026-06-23 16:19:37] PERF: nix-on-droid switch = 4m 53s
+[2026-06-23 16:19:37] PERF: TOTAL switch = 5m 5s
+[2026-06-23 16:19:37] SUCCESS: Configuration applied: /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src
+[2026-06-23 16:19:38] SUCCESS: verify: all 8 critical commands present
+[2026-06-23 16:19:38] PERF: post-switch verify = 244ms
+[2026-06-23 16:19:38] PERF: TOTAL  = 29703679m 38s
+[2026-06-23 16:19:38] INFO: sshd-guarantee: (1/2) trying flake wrapper restart...
+sshd stopped (was PID 6321)
+sshd started (PID 16477) on :8024
+[2026-06-23 16:19:41] WARN: sshd-guarantee: process up but port :8022 not detected — verify manually
+[2026-06-23 16:19:41] PERF: sshd guarantee = 2.6s
+[2026-06-23 16:19:41] PERF: TOTAL  = 29703679m 41s
+[2026-06-23 16:19:45] ========== Build script finished ==========
+[2026-06-23 16:44:46] ========== Build script started ==========
+[2026-06-23 16:44:46] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-06-23 16:44:46] PERF: start switch
+[2026-06-23 16:44:51] INFO: Staging dirty files for flake evaluation...
