@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://diegonmarcos.com/cloud-comms/import-configs.schema.json",
+  "title": "Cloud Mail (Fairmail) — Import Configs",
+  "description": "Single-file provisioning contract consumed by the mail fork's 'Import Configs' action. One JSON provisions IMAP/SMTP accounts, JMAP accounts, and RSS feed channels in one shot. SECRET-SAFE: this file carries NO passwords or tokens — credentials are entered at import time (or obtained via OAuth/bearer). Never commit a populated file containing secrets.",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Contract version. Bump on breaking shape changes."
+    },
+    "_credentials": {
+      "type": "string",
+      "description": "Documentation marker: credentials are prompted at import time and never stored in this file (Pillar 7)."
+    },
+    "imap_smtp": {
+      "type": "array",
+      "description": "Classic IMAP-receive + SMTP-send accounts. Maps to a FairEmail EntityAccount(protocol=IMAP) + EntityIdentity.",
+      "items": {
+        "type": "object",
+        "required": ["display_name", "primary_address", "user", "imap_host", "imap_port", "smtp_host", "smtp_port"],
+        "additionalProperties": false,
+        "properties": {
+          "uuid": { "type": "string", "description": "Stable id for idempotent re-import (dedupe key)." },
+          "display_name": { "type": "string" },
+          "primary_address": { "type": "string", "format": "email" },
+          "user": { "type": "string", "description": "Login username (often == primary_address)." },
+          "imap_host": { "type": "string" },
+          "imap_port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "imap_security": { "type": "string", "enum": ["ssl", "starttls", "none"], "default": "ssl" },
+          "smtp_host": { "type": "string" },
+          "smtp_port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "smtp_security": { "type": "string", "enum": ["ssl", "starttls", "none"], "default": "ssl" },
+          "synchronize": { "type": "boolean", "default": true },
+          "primary": { "type": "boolean", "default": false }
+        }
+      }
+    },
+    "jmap": {
+      "type": "array",
+      "description": "JMAP accounts (RFC 8620/8621) against a JMAP session endpoint. Maps to a FairEmail EntityAccount(protocol=JMAP) added by the JMAP-transport patches.",
+      "items": {
+        "type": "object",
+        "required": ["display_name", "primary_address", "user", "jmap_host", "jmap_port"],
+        "additionalProperties": false,
+        "properties": {
+          "uuid": { "type": "string", "description": "Stable id for idempotent re-import." },
+          "display_name": { "type": "string" },
+          "primary_address": { "type": "string", "format": "email" },
+          "user": { "type": "string" },
+          "jmap_host": { "type": "string", "description": "JMAP session host (TLS). Caddy L4 demuxes jmap. to Stalwart." },
+          "jmap_port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 443 },
+          "jmap_security": { "type": "string", "enum": ["ssl", "starttls", "none"], "default": "ssl" },
+          "auth": { "type": "string", "enum": ["password", "bearer"], "default": "password", "description": "Credential kind prompted at import time." },
+          "synchronize": { "type": "boolean", "default": true },
+          "primary": { "type": "boolean", "default": false }
+        }
+      }
+    },
+    "rss": {
+      "type": "array",
+      "description": "RSS/Atom feed channels. Each maps to a local feed folder under the synthetic RSS account; items render as messages (RSS-reader patches).",
+      "items": {
+        "type": "object",
+        "required": ["title", "url"],
+        "additionalProperties": false,
+        "properties": {
+          "uuid": { "type": "string", "description": "Stable id for idempotent re-import." },
+          "title": { "type": "string", "description": "Display name of the feed (folder name)." },
+          "url": { "type": "string", "format": "uri", "description": "RSS 2.0 or Atom feed URL." },
+          "folder": { "type": "string", "description": "Optional folder name override (defaults to title)." },
+          "poll_interval_hours": { "type": "integer", "minimum": 1, "default": 6, "description": "Periodic fetch cadence; the RSS worker uses the max of all feeds." }
+        }
+      }
+    }
+  }
+}

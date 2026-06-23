@@ -1,0 +1,43 @@
+{
+  "$schema": "./import-configs.schema.json",
+  "version": 1,
+  "_credentials": "Passwords/tokens are prompted at import time and never stored here (Pillar 7).",
+  "imap_smtp": [
+    {
+      "uuid": "cloud-mail-imap-me",
+      "display_name": "Diego Mail (IMAP)",
+      "primary_address": "me@diegonmarcos.com",
+      "user": "me@diegonmarcos.com",
+      "imap_host": "imap.diegonmarcos.com",
+      "imap_port": 443,
+      "imap_security": "ssl",
+      "smtp_host": "smtps.diegonmarcos.com",
+      "smtp_port": 443,
+      "smtp_security": "ssl",
+      "synchronize": true,
+      "primary": true
+    }
+  ],
+  "jmap": [
+    {
+      "uuid": "cloud-mail-jmap-me",
+      "display_name": "Diego Mail (JMAP)",
+      "primary_address": "me@diegonmarcos.com",
+      "user": "me@diegonmarcos.com",
+      "jmap_host": "jmap.diegonmarcos.com",
+      "jmap_port": 443,
+      "jmap_security": "ssl",
+      "auth": "password",
+      "synchronize": true,
+      "primary": false
+    }
+  ],
+  "rss": [
+    {
+      "uuid": "feed-cloud-status",
+      "title": "Cloud Status",
+      "url": "https://rss.diegonmarcos.com/cloud-status.xml",
+      "poll_interval_hours": 6
+    }
+  ]
+}

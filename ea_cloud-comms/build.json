@@ -53,7 +53,7 @@
     "_doc": "Declarative fork registry — THE source of truth for the constellation. Each fork = pinned upstream tag + committed patch series under forks/<key>/patches/. `./build.sh materialize-fork <key>` clones the upstream at the pin into the tracker dir, applies the series, and leaves a buildable project. Upstream bump = edit pinned_tag, re-apply, resolve rejects, commit. NEVER a long-lived divergent clone. order: 'priority' is build/dev sequencing only.",
     "mail": {
       "app_id": "com.diegonmarcos.comms.mail",
-      "label": "Mail (FairEmail)",
+      "label": "Cloud Mail (Fairmail)",
       "image": "cloud-comms-mail",
       "upstream_repo": "https://github.com/M66B/FairEmail.git",
       "tracker_dir": "ea_upstreams-sources/mail-fairmail",
