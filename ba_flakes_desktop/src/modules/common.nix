@@ -152,6 +152,16 @@
     source = ./dotfiles/claude/statusline-command.sh;
     executable = true;
   };
+  # Plugin/MCP status for the statusline + claude-superset banner (data-driven).
+  home.file.".claude/claude-plugins.json".source = ./dotfiles/claude/claude-plugins.json;
+  home.file.".claude/claude-plugins-status.sh" = {
+    source = ./dotfiles/claude/claude-plugins-status.sh;
+    executable = true;
+  };
+  home.file.".claude/claude-mcp-status.sh" = {
+    source = ./dotfiles/claude/claude-mcp-status.sh;
+    executable = true;
+  };
   # Tier-based Claude Code hooks (renamed 2026-05-07 from claude-memory /
   # declarative-guard / pretool-guard for clearer event-tier mapping).
   #   a-* → SessionStart       (one-shot context injection)
