@@ -19,6 +19,9 @@ let
     else
       echo "[claude-superset] proxy unreachable ($URL) — direct to Anthropic, no compression" >&2
     fi
+    # Plugin status line (data-driven; mirrors the statusline PL[...] segment).
+    pl=$(${pkgs.bash}/bin/bash "$HOME/.claude/claude-plugins-status.sh" --format plain 2>/dev/null)
+    [ -n "$pl" ] && echo "[claude-superset] plugins: $pl" >&2
     exec claude "$@"
   '';
 

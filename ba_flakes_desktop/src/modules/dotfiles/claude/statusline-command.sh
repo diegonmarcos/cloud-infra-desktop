@@ -80,6 +80,11 @@ mcp_configured=0
 [ -f "${cwd}/.mcp.json" ] && { n=$(jq '.mcpServers // {} | keys | length' "${cwd}/.mcp.json" 2>/dev/null); [ -n "$n" ] && mcp_configured=$((mcp_configured + n)); }
 [ "$mcp_configured" -gt 0 ] && mcp_color="32" || mcp_color="90"
 
+# Per-MCP online/offline icons (lazy 15-min cache) + plugin status PL[...].
+# Both helpers emit literal \033 escapes; the final `printf %b` renders them.
+mcp_seg=$(bash "$HOME/.claude/claude-mcp-status.sh" "$cwd" 2>/dev/null)
+plugins_seg=$(bash "$HOME/.claude/claude-plugins-status.sh" --format ansi 2>/dev/null)
+
 # Timestamp, user, dir
 timestamp=$(date +"%Y-%m-%d %H:%M:%S")
 user_host="$(whoami)@$(hostname -s)"
@@ -187,7 +192,8 @@ OUT+=" \033[90m${timestamp}\033[0m"
 OUT+=" \033[37m|\033[0m"
 OUT+=" \033[35m${model_name}\033[0m"
 OUT+=" \033[90m${session_short}\033[0m"
-OUT+=" \033[${mcp_color}mMCP:${mcp_configured}\033[0m"
+if [ -n "$mcp_seg" ]; then OUT+=" ${mcp_seg}"; else OUT+=" \033[${mcp_color}mMCP:${mcp_configured}\033[0m"; fi
+[ -n "$plugins_seg" ] && OUT+=" ${plugins_seg}"
 OUT+=" \033[37m|\033[0m"
 OUT+=" \033[36m${user_host}\033[0m"
 OUT+=" \033[34m$(basename "$cwd")\033[0m"

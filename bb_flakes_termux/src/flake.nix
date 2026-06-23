@@ -308,6 +308,9 @@
                 else
                   echo "[claude-superset] proxy unreachable ($URL) — direct to Anthropic, no compression" >&2
                 fi
+                # Plugin status line (data-driven; mirrors the statusline PL[...] segment).
+                pl=$(${pkgs.bash}/bin/bash "$HOME/.claude/claude-plugins-status.sh" --format plain 2>/dev/null)
+                [ -n "$pl" ] && echo "[claude-superset] plugins: $pl" >&2
                 exec claude-malloc "$@"
               '')
 
@@ -640,6 +643,16 @@
               home.file.".claude/secrets.yaml".source = ../src/modules/dotfiles/claude/secrets.yaml;
               home.file.".claude/statusline-command.sh" = {
                 source = ../src/modules/dotfiles/claude/statusline-command.sh;
+                executable = true;
+              };
+              # Plugin/MCP status for the statusline + claude-superset banner (data-driven).
+              home.file.".claude/claude-plugins.json".source = ../src/modules/dotfiles/claude/claude-plugins.json;
+              home.file.".claude/claude-plugins-status.sh" = {
+                source = ../src/modules/dotfiles/claude/claude-plugins-status.sh;
+                executable = true;
+              };
+              home.file.".claude/claude-mcp-status.sh" = {
+                source = ../src/modules/dotfiles/claude/claude-mcp-status.sh;
                 executable = true;
               };
               # Tier-based Claude Code hooks (renamed 2026-05-07).
