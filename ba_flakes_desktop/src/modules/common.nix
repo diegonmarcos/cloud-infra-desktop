@@ -147,6 +147,13 @@
     executable = true;
   };
   home.file.".claude/mcp.json.tpl".source = ./dotfiles/claude/mcp.json.tpl;
+  # Universal launcher for local stdio MCP servers — self-creates the
+  # node_modules symlink(s) ESM bare-import resolution requires (NODE_PATH is
+  # ignored by the ESM loader). See the script header for the full rationale.
+  home.file.".claude/mcp-local-launch.sh" = {
+    source = ./dotfiles/claude/mcp-local-launch.sh;
+    executable = true;
+  };
   home.file.".claude/secrets.yaml".source = ./dotfiles/claude/secrets.yaml;
   home.file.".claude/statusline-command.sh" = {
     source = ./dotfiles/claude/statusline-command.sh;
