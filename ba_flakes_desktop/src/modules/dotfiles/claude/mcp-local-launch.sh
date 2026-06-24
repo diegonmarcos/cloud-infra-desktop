@@ -10,7 +10,8 @@
 #   symlink physically beside the source.
 #
 #   Additionally, several cloud/ services share one physical `shared/` lib tree
-#   via a symlink into another service (e.g. user-ai_kg-mcp/src/code/shared ->
+#   via a symlink into another service (e.g.
+#   user-ai_cloud-cgc-mcp/src/code/shared ->
 #   infra-api_c3-infra-api/src/code/shared). Node resolves modules from the
 #   *realpath* of the imported file, so the dir that physically owns `shared/`
 #   ALSO needs a `node_modules` symlink, not just the server's own dir.
