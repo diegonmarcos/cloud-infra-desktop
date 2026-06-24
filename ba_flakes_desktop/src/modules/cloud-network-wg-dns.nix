@@ -25,9 +25,13 @@ in {
   # ── wg0 private key ────────────────────────────────────────
   # Consumed by the NixOS host's networking.wireguard.interfaces.wg0.
   # Out-of-store symlink so the live vault file is read at runtime (the key
-  # never enters the Nix store). Public key 9nL3Ub… = this machine (10.0.0.5).
+  # never enters the Nix store). Vault dir `surface/` (per-host layout) holds
+  # this machine's wg0 key; its public key ii4FHx… (10.0.0.5) is what every
+  # hub's cloud-data lists as the `surface` peer. The old `ssh_asymmetric/`
+  # path was removed when the vault moved to per-host dirs (dangling symlink
+  # → wireguard-wg0.service failed with `fopen: No such file or directory`).
   home.file.".config/wireguard/privatekey" = {
-    source = config.lib.file.mkOutOfStoreSymlink "${vaultBase}/ssh_asymmetric/privatekey";
+    source = config.lib.file.mkOutOfStoreSymlink "${vaultBase}/surface/privatekey";
   };
 
   # ── systemd-resolved split DNS ─────────────────────────────
