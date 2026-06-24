@@ -150,38 +150,64 @@ git_branch=""; git_commit=""; git_status_icons=""; git_stash=""
 #     fi
 # fi
 
-# === TEMPORARILY DISABLED: Async system metrics (lines 2-3 of statusline) ===
-# _async="/tmp/statusline_async_$$"
-# mkdir -p "$_async"
-# mem_info=$(free | grep Mem)
-# mem_total=$(echo "$mem_info" | awk '{print $2}')
-# mem_used=$(echo "$mem_info" | awk '{print $3}')
-# mem_percent=$(awk "BEGIN {printf \"%.0f\", ($mem_used/$mem_total)*100}")
-# if [ -d "/data/data/com.termux.nix" ]; then
-#     disk_percent=$(df /data | tail -n 1 | awk '{print $5}' | sed 's/%//')
-# else
-#     disk_percent=$(df / | tail -n 1 | awk '{print $5}' | sed 's/%//')
-# fi
-# IP_CMD=""
-# for p in /sbin/ip /usr/sbin/ip /bin/ip $HOME/.nix-profile/bin/ip /run/current-system/sw/bin/ip; do
-#     [ -x "$p" ] && IP_CMD="$p" && break
-# done
-# (cpu=...; echo "${cpu:-0}" > "$_async/cpu") &
-# (vp="N/A"; ...; echo "$vp" > "$_async/vram") &
-# (ms="down"; ...; echo "$ms $mc $mi" > "$_async/mesh") &
-# (pip=""; ...; echo "$pip" > "$_async/pip") &
-# (pub=$(curl ...); echo "$pub" > "$_async/pub") &
-# wait
-# cpu_percent=$(cat "$_async/cpu" 2>/dev/null)
-# vram_percent=$(cat "$_async/vram" 2>/dev/null)
-# read mesh_status mesh_color mesh_ip < "$_async/mesh" 2>/dev/null
-# private_ip=$(cat "$_async/pip" 2>/dev/null)
-# public_ip=$(cat "$_async/pub" 2>/dev/null)
-# rm -rf "$_async"
-# mem_color=$(get_color "$mem_percent")
-# cpu_color=$(get_color "$cpu_percent")
-# disk_color=$(get_color "$disk_percent")
-# vram_color=$(get_color "$vram_percent")
+# === Async system metrics — all slow commands run in parallel ===
+_async="/tmp/statusline_async_$$"
+mkdir -p "$_async"
+
+# RAM + Disk (instant)
+mem_info=$(free | grep Mem)
+mem_total=$(echo "$mem_info" | awk '{print $2}')
+mem_used=$(echo "$mem_info" | awk '{print $3}')
+mem_percent=$(awk "BEGIN {printf \"%.0f\", ($mem_used/$mem_total)*100}")
+
+if [ -d "/data/data/com.termux.nix" ]; then
+    disk_percent=$(df /data | tail -n 1 | awk '{print $5}' | sed 's/%//')
+else
+    disk_percent=$(df / | tail -n 1 | awk '{print $5}' | sed 's/%//')
+fi
+
+# Find ip command once
+IP_CMD=""
+for p in /sbin/ip /usr/sbin/ip /bin/ip $HOME/.nix-profile/bin/ip /run/current-system/sw/bin/ip; do
+    [ -x "$p" ] && IP_CMD="$p" && break
+done
+
+# --- Background: CPU (100ms) ---
+(
+    cpu=$(awk '{u=$2+$4; t=$2+$4+$5; if (NR==1){u1=u; t1=t;} else printf "%.0f", (($2+$4-u1) * 100 / (t-t1))}' <(grep 'cpu ' /proc/stat) <(sleep 0.1; grep 'cpu ' /proc/stat))
+    echo "${cpu:-0}" > "$_async/cpu"
+) &
+
+# === Expensive probes — STUBBED (mirrors termux statusline) ===
+# Reason this is the desktop default: the mesh-status + public-IP curls fired
+# on EVERY status render (external network calls per refresh), and VRAM via
+# nvidia-smi is wasted on the Surface's Intel iGPU. The private-IP probe forks
+# `ip route get` + reads /proc/net/fib_trie every render despite barely
+# changing. Static stubs preserve the rendering contract; vars below are read
+# by the render block unchanged. To make any of these live, replace the
+# matching stub with its probe (restore from git history).
+echo "N/A" > "$_async/vram"
+echo "off 90 —" > "$_async/mesh"
+echo "—" > "$_async/pip"
+echo "—" > "$_async/pub"
+
+# Wait for the only remaining background job (CPU sample, bounded by sleep 0.1)
+wait 2>/dev/null
+
+# Read async results
+cpu_percent=$(cat "$_async/cpu" 2>/dev/null); [ -z "$cpu_percent" ] && cpu_percent=0
+vram_percent=$(cat "$_async/vram" 2>/dev/null); [ -z "$vram_percent" ] && vram_percent="N/A"
+read mesh_status mesh_color mesh_ip < "$_async/mesh" 2>/dev/null
+[ -z "$mesh_status" ] && mesh_status="down" && mesh_color="31"
+private_ip=$(cat "$_async/pip" 2>/dev/null); [ -z "$private_ip" ] && private_ip="none"
+public_ip=$(cat "$_async/pub" 2>/dev/null); [ -z "$public_ip" ] && public_ip="..."
+rm -rf "$_async"
+
+# Colors
+mem_color=$(get_color "$mem_percent")
+cpu_color=$(get_color "$cpu_percent")
+disk_color=$(get_color "$disk_percent")
+vram_color=$(get_color "$vram_percent")
 
 # === BUILD OUTPUT ===
 OUT=""
@@ -206,32 +232,34 @@ if [ -n "$git_branch" ]; then
 fi
 OUT+=" \033[37m|\033[0m\n"
 
-# TEMPORARILY DISABLED: LINE 2 (system metrics) and LINE 3 (context/cost)
-# OUT+="\033[37m|\033[0m"
-# OUT+=" \033[${mem_color}mRAM:${mem_percent}%\033[0m"
-# OUT+=" \033[${cpu_color}mCPU:${cpu_percent}%\033[0m"
-# OUT+=" \033[${disk_color}mDisk:${disk_percent}%\033[0m"
-# OUT+=" \033[${vram_color}mVRAM:${vram_percent}%\033[0m"
-# OUT+=" \033[37m|\033[0m"
-# OUT+=" \033[${mesh_color}mMesh:${mesh_status}\033[0m"
-# OUT+=" \033[36mM:${mesh_ip}\033[0m"
-# OUT+=" \033[36mP:${private_ip}\033[0m"
-# OUT+=" \033[36mPub:${public_ip}\033[0m"
-# OUT+=" \033[37m|\033[0m\n"
-#
-# ctx_fmt=$(fmt_tok "$current_ctx")
-# in_fmt=$(fmt_tok "${ctx_input:-0}")
-# out_fmt=$(fmt_tok "${ctx_output:-0}")
-# OUT+="\033[37m|\033[0m"
-# OUT+=" \033[90m${last_reset_ts}\033[0m"
-# if [ "$exceeds_200k" = "true" ]; then
-#     OUT+=" \033[31mCTX:${ctx_fmt}/200K(⚠)\033[0m"
-# else
-#     OUT+=" \033[${ctx_color}mCTX:${ctx_fmt}/200K(${ctx_percent}%)\033[0m"
-# fi
-# OUT+=" \033[36mIn:${in_fmt}\033[0m"
-# OUT+=" \033[36mOut:${out_fmt}\033[0m"
-# OUT+=" \033[${cost_color}m\$${session_cost}\033[0m"
-# OUT+=" \033[37m|\033[0m\n"
+# LINE 2: | RAM CPU Disk VRAM | Mesh M:ip P:ip Pub:ip |
+OUT+="\033[37m|\033[0m"
+OUT+=" \033[${mem_color}mRAM:${mem_percent}%\033[0m"
+OUT+=" \033[${cpu_color}mCPU:${cpu_percent}%\033[0m"
+OUT+=" \033[${disk_color}mDisk:${disk_percent}%\033[0m"
+OUT+=" \033[${vram_color}mVRAM:${vram_percent}%\033[0m"
+OUT+=" \033[37m|\033[0m"
+OUT+=" \033[${mesh_color}mMesh:${mesh_status}\033[0m"
+OUT+=" \033[36mM:${mesh_ip}\033[0m"
+OUT+=" \033[36mP:${private_ip}\033[0m"
+OUT+=" \033[36mPub:${public_ip}\033[0m"
+OUT+=" \033[37m|\033[0m\n"
+
+# LINE 3: | last_reset CTX:used/200K(%) In:tok Out:tok $cost |
+ctx_fmt=$(fmt_tok "$current_ctx")
+in_fmt=$(fmt_tok "${ctx_input:-0}")
+out_fmt=$(fmt_tok "${ctx_output:-0}")
+OUT+="\033[37m|\033[0m"
+OUT+=" \033[90m${last_reset_ts}\033[0m"
+if [ "$exceeds_200k" = "true" ]; then
+    OUT+=" \033[31mCTX:${ctx_fmt}/200K(⚠)\033[0m"
+else
+    OUT+=" \033[${ctx_color}mCTX:${ctx_fmt}/200K(${ctx_percent}%)\033[0m"
+fi
+OUT+=" \033[36mIn:${in_fmt}\033[0m"
+OUT+=" \033[36mOut:${out_fmt}\033[0m"
+cost_fmt=$(LC_NUMERIC=C awk "BEGIN {printf \"%.2f\", ${session_cost:-0}}")
+OUT+=" \033[${cost_color}m\$${cost_fmt}\033[0m"
+OUT+=" \033[37m|\033[0m\n"
 
 printf "%b" "$OUT"
