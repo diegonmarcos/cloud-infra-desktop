@@ -41686,3 +41686,51 @@ warning: updating lock file '/home/diego/git/unix/ba_flakes_desktop/src/flake.lo
 [2026-06-24 15:54:40] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-06-24 15:54:40] PERF: start switch
 [2026-06-24 15:54:40] INFO: Staging dirty files for flake evaluation...
+[2026-06-24 15:54:40] PERF: git stage = 515ms
+[2026-06-24 15:54:41] PERF: clean stale hm-backups = 203ms
+[2026-06-24 15:54:41] INFO: Applying Home Manager configuration...
+[2026-06-24 15:54:41] INFO: home-manager backup extension: hm-backup-20260624-155441
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+trace: warning: The option `services.gpg-agent.pinentryPackage' defined in `/nix/store/aia24an518qj1ks87sxcc3zj9w844vk3-source/ba_flakes_desktop/src/modules/security-net/secrets.nix' has been renamed to `services.gpg-agent.pinentry.package'.
+error:
+       … while calling the 'derivationStrict' builtin
+         at <nix/derivation-internal.nix>:37:12:
+           36|
+           37|   strict = derivationStrict drvAttrs;
+             |            ^
+           38|
+
+       … while evaluating derivation 'home-manager-generation'
+         whose name attribute is located at /nix/store/3p306srz83h9z9v0ma9xcxb8y8cdxkxj-source/pkgs/stdenv/generic/make-derivation.nix:480:13
+
+       … while evaluating attribute 'buildCommand' of derivation 'home-manager-generation'
+         at /nix/store/3p306srz83h9z9v0ma9xcxb8y8cdxkxj-source/pkgs/build-support/trivial-builders/default.nix:80:17:
+           79|         enableParallelBuilding = true;
+           80|         inherit buildCommand name;
+             |                 ^
+           81|         passAsFile = [ "buildCommand" ] ++ (derivationArgs.passAsFile or [ ]);
+
+       … while evaluating the option `home.activation.installPackages.data':
+
+       … while evaluating definitions from `/nix/store/y3s3hn0rcpkidimi3nrfw7icwl8fc6ay-source/modules/home-environment.nix':
+
+       … while evaluating the option `home.packages':
+
+       … while evaluating definitions from `/nix/store/aia24an518qj1ks87sxcc3zj9w844vk3-source/ba_flakes_desktop/src/modules/media-graphics/viewers.nix':
+
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+       error: The top-level gwenview alias has been removed.
+
+       Please explicitly use kdePackages.gwenview for the latest Qt 6-based version,
+       or libsForQt5.gwenview for the deprecated Qt 5 version.
+
+       Note that Qt 5 versions of most KDE software will be removed in NixOS 25.11.
+[2026-06-24 15:55:00] ERROR: Configuration failed with exit code 1
+[2026-06-24 15:55:00] INFO: Check /home/diego/git/unix/ba_flakes_desktop/build.log for details
+[2026-06-24 15:55:00] PERF: home-manager switch = 19.2s
+[2026-06-24 15:55:00] PERF: TOTAL switch = 19.9s
+[2026-06-24 15:58:29] ========== Build script started ==========
+[2026-06-24 15:58:29] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-24 15:58:29] PERF: start switch
+[2026-06-24 15:58:29] INFO: Staging dirty files for flake evaluation...
