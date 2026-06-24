@@ -1,5 +1,5 @@
 # ai/claude-superset.nix — `claude-superset`: route the local Claude Code CLI
-# through the claude-api-superset Headroom proxy (token compression) over
+# through the claude-superset-api Headroom proxy (token compression) over
 # WireGuard, with a health-check fallback to direct Anthropic when the proxy is
 # unreachable. Endpoints are data-driven from ./claude-superset.json (no inlined
 # hosts/ports). The proxy is transparent (compress → forward to Anthropic with
@@ -30,8 +30,14 @@ let
   claude-superset-tui = pkgs.writeShellScriptBin "claude-superset-tui" ''
     export CAS_PROXY="${ep.proxy}" CAS_API="${ep.api}" CAS_OLLAMA="${ep.ollama}"
     export CAS_DASHBOARD="${ep.dashboard}" CAS_LAUNCH="claude"
-    # CAS_COMPRESS wants the host root (dashboard URL minus /dashboard) for /stats.
     export CAS_COMPRESS="''${CAS_DASHBOARD%/dashboard}"
+    export CAS_ANTHROPIC="${ep.anthropic}"
+    export CAS_MCP_C3_INFRA="${ep.mcps.c3_infra}"
+    export CAS_MCP_C3_SVC="${ep.mcps.c3_svc}"
+    export CAS_MCP_MATTERMOST="${ep.mcps.mattermost}"
+    export CAS_MCP_MAIL="${ep.mcps.mail}"
+    export CAS_MCP_GWS="${ep.mcps.gws}"
+    export CAS_MCP_GP="${ep.mcps.gp}"
     exec ${pkgs.nodejs}/bin/node ${./claude-superset-tui.mjs} "$@"
   '';
 
