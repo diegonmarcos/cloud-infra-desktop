@@ -6,6 +6,6 @@
     mpv
     vlc
     obs-studio
-    kdenlive
+    kdePackages.kdenlive    # 25.05: top-level alias removed, use kdePackages
   ];
 }

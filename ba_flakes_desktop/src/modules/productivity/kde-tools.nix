@@ -19,6 +19,6 @@
     kdePackages.krfb             # Remote desktop server (VNC)
     kdePackages.skanlite         # Scanner app
     zenity                       # GTK dialog helper (used by scripts)
-    kdialog                      # KDE dialog helper (used by scripts)
+    kdePackages.kdialog          # KDE dialog helper (used by scripts); 25.05: top-level alias removed
   ];
 }
