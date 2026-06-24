@@ -53,4 +53,21 @@ if [ -L "$DIR/shared" ]; then
   link_node_modules "$(dirname "$(readlink -f "$DIR/shared")")"
 fi
 
+# cloud-cgc-mcp only: keep the LOCAL octocode DB tracking the GHCR upstream
+# (single source of truth, identical to oci-apps). Guarded to ≤ once/24h,
+# non-fatal, and a no-op until the producer (ship-cgc-db) has seeded GHCR.
+# Blocks briefly so the DB is consistent before the server opens it.
+case "$ENTRY" in
+  */user-ai_cloud-cgc-mcp/*)
+    _pull="$HOME/git/cloud/1_workflows/src/scripts/cloud-cgc-db-pull.sh"
+    _stamp="$HOME/.cache/cgc-db-pull.stamp"
+    if [ -f "$_pull" ] && command -v docker >/dev/null 2>&1; then
+      if [ ! -f "$_stamp" ] || [ -n "$(find "$_stamp" -mtime +1 2>/dev/null)" ]; then
+        mkdir -p "$(dirname "$_stamp")"
+        sh "$_pull" >/dev/null 2>&1 && : > "$_stamp" || true
+      fi
+    fi
+    ;;
+esac
+
 exec npx tsx "$ENTRY" "$@"
