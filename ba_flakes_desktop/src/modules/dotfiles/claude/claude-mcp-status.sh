@@ -81,10 +81,12 @@ if [ "$need" = true ] && command -v claude >/dev/null 2>&1; then
     # `&` lets us return instantly. The detached child writes the cache + frees
     # the lock when done; a child that dies anyway leaves a lock the LOCK_TTL
     # reclaim above clears on the next render.
+    # Invoke through `bash` — $0 is a non-executable source path / read-only
+    # nix-store symlink, so exec'ing it directly (bare setsid "$0") fails.
     if command -v setsid >/dev/null 2>&1; then
-      setsid "$0" --refresh </dev/null >/dev/null 2>&1 &
+      setsid bash "$0" --refresh </dev/null >/dev/null 2>&1 &
     else
-      "$0" --refresh </dev/null >/dev/null 2>&1 &   # fallback: attached (may be reaped)
+      bash "$0" --refresh </dev/null >/dev/null 2>&1 &   # fallback: attached (may be reaped)
     fi
   fi
 fi
