@@ -111,6 +111,12 @@
     options = [ "rw" "noatime" "nofail" "x-systemd.device-timeout=5s" ];
   };
 
+  # Ensure diego owns the git clone directory on shared-lib (ext4 fs is root-owned;
+  # tmpfiles runs after mount and sets ownership declaratively).
+  systemd.tmpfiles.rules = [
+    "d /mnt/shared-lib/git 0755 diego users - -"
+  ];
+
   # NOTE: swapDevices, boot.resumeDevice, and the hibernate-related
   # boot.kernelParams (resume=, resume_offset=) moved to ./swap_hibernate.nix
   # which reads aa_bootloader/src/boot.json as the SoT.
