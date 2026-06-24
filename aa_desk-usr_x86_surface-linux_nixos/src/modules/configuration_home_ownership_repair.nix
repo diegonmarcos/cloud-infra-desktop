@@ -23,6 +23,23 @@
 # This is a defense-in-depth layer, not a substitute for fixing the root
 # writers — but any install.sh / chroot recovery flow that goes through
 # `nixos-rebuild switch` afterwards will self-heal at activation time.
+#
+# ⚠ NESTED-MOUNT HAZARD (2026-06-24 incident — Waydroid keystore corruption)
+# -------------------------------------------------------------------------
+# The original repair ran `chown -R diego:users ~/.local` whenever it found a
+# single non-diego file under `.local`. But `~/.local/share/waydroid` is a
+# NESTED btrfs subvol mount holding Android `/data`, whose files are owned by
+# LEGITIMATE foreign uids (Android keystore=1017, audioserver=1041, system=1000…
+# — no idmap, so Android uid == host uid). The recursive chown flattened ALL of
+# them to diego(1000) on EVERY rebuild, so keystore2 (uid 1017) could no longer
+# open /data/misc/keystore/*.sqlite → SQLITE_CANTOPEN(14) → keystore2 abort →
+# system_server crash-loop → the Waydroid home screen looked "reset" after every
+# single nixos-rebuild.
+#
+# FIX: `find -xdev` so detection AND repair stay on the home subvol and never
+# descend into a nested mount, and chown the offending paths INDIVIDUALLY
+# (never `-R`, which would cross the mount). Generic: protects any present or
+# future nested mount under a fragile tree, no path hardcoding needed.
 
 { config, lib, pkgs, ... }:
 
@@ -43,20 +60,26 @@ let
       for path in ${lib.concatStringsSep " " fragilePaths}; do
         target=/home/${u.name}/$path
         if [ -e "$target" ]; then
-          bad=$(${pkgs.findutils}/bin/find "$target" ! -user ${u.name} -print 2>/dev/null | head -n 5)
-          if [ -n "$bad" ]; then
-            echo "[home-ownership-repair] ${u.name}: wrong-owner files under $target — repairing"
+          # -xdev: NEVER cross a mount boundary. A nested subvol mount under a
+          # fragile tree (e.g. ~/.local/share/waydroid = Android /data) carries
+          # legitimate foreign uids and MUST NOT be chowned — see the
+          # NESTED-MOUNT HAZARD note at the top of this file.
+          if ${pkgs.findutils}/bin/find "$target" -xdev ! -user ${u.name} -print -quit 2>/dev/null | ${pkgs.gnugrep}/bin/grep -q .; then
+            echo "[home-ownership-repair] ${u.name}: wrong-owner files under $target — repairing (xdev-scoped)"
             # Journald (tag: home-ownership-repair) so a recurring root-write
             # leak is greppable post-boot: journalctl -t home-ownership-repair
             ${pkgs.util-linux}/bin/logger -t home-ownership-repair -p user.warning \
-              "${u.name}: root-owned files leaked under $target — repairing via chown -R ${u.name}:${u.group}"
-            echo "$bad" | while read -r f; do
+              "${u.name}: foreign-owned files leaked under $target — repairing per-file chown to ${u.name}:${u.group} (xdev; nested subvol mounts excluded)"
+            ${pkgs.findutils}/bin/find "$target" -xdev ! -user ${u.name} -print 2>/dev/null | ${pkgs.coreutils}/bin/head -n 5 | while read -r f; do
               echo "  $f"
               ${pkgs.util-linux}/bin/logger -t home-ownership-repair -p user.warning "  offending path: $f"
             done
-            if ${pkgs.coreutils}/bin/chown -R ${u.name}:${u.group} "$target"; then
+            # Chown the offending paths INDIVIDUALLY (never `-R`, which would
+            # descend into a nested mount). -print0|xargs -0 handles odd names.
+            if ${pkgs.findutils}/bin/find "$target" -xdev ! -user ${u.name} -print0 2>/dev/null \
+                 | ${pkgs.findutils}/bin/xargs -0 -r ${pkgs.coreutils}/bin/chown ${u.name}:${u.group}; then
               ${pkgs.util-linux}/bin/logger -t home-ownership-repair -p user.info \
-                "${u.name}: ownership repaired on $target"
+                "${u.name}: ownership repaired on $target (nested mounts untouched)"
             else
               ${pkgs.util-linux}/bin/logger -t home-ownership-repair -p user.err \
                 "${u.name}: chown FAILED on $target — home-manager apply may still break"
