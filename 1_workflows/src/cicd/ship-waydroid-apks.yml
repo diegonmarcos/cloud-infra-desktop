@@ -1,0 +1,112 @@
+name: "Ship → Waydroid APK set (GHA-prebuilt → rolling GitHub Release)"
+
+# Builds the pinned F-Droid/GitHub APK set (da_waydroid-apps/src#apks) in CI and
+# publishes it as ONE tarball on a rolling GitHub Release, so the Surface never
+# has to fetch ~54 APKs from F-Droid locally. `da_waydroid-apps/build.sh build`
+# downloads this asset (verifying the bundled manifest.json == its lockfile) and
+# only nix-builds as a fallback (or when WAYDROID_APKS_LOCAL=1).
+#
+# Fully data-driven: the rolling tag / asset name / title come from
+# da_waydroid-apps/build.json::release; the APK set itself is the pinned
+# src/apps.lock.json (so any relock -> a fresh asset on the next push).
+#
+# NOTE: layout/theme/install are NOT in CI — they require the live Waydroid
+# session on the device. Only the heavy, pure, reproducible APK fetch is here.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "da_waydroid-apps/src/apps.lock.json"
+      - "da_waydroid-apps/src/flake.nix"
+      - "da_waydroid-apps/src/flake.lock"
+      - "da_waydroid-apps/build.json"
+      - "1_workflows/src/cicd/ship-waydroid-apks.yml"
+      - ".github/workflows/ship-waydroid-apks.yml"
+
+permissions:
+  contents: write   # gh release create/upload
+
+env:
+  WORK_DIR: da_waydroid-apps
+
+jobs:
+  build-and-release:
+    name: "Build #apks + publish rolling release"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk (~30 GB on runner)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: false
+
+      - name: Install Nix (Determinate)
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Read release metadata (data-driven from build.json)
+        id: meta
+        working-directory: ${{ env.WORK_DIR }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y && sudo apt-get install -y jq
+          TAG=$(jq -r '.release.tag' build.json)
+          ASSET=$(jq -r '.release.asset' build.json)
+          TITLE=$(jq -r '.release.title' build.json)
+          [ -n "$TAG" ] && [ "$TAG" != "null" ] || { echo "::error::no release.tag in build.json"; exit 1; }
+          echo "tag=$TAG"     >> "$GITHUB_OUTPUT"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+
+      - name: Build the pinned APK set
+        id: build
+        working-directory: ${{ env.WORK_DIR }}/src
+        run: |
+          set -euo pipefail
+          OUT=$(nix build "path:.#apks" --no-link --print-out-paths)
+          echo "out=$OUT" >> "$GITHUB_OUTPUT"
+          echo "count=$(ls "$OUT/apks" | wc -l)" >> "$GITHUB_OUTPUT"
+          ls -la "$OUT/apks" | head
+
+      - name: Package tarball (apks/ + manifest.json)
+        id: pkg
+        env:
+          OUT: ${{ steps.build.outputs.out }}
+          ASSET: ${{ steps.meta.outputs.asset }}
+        run: |
+          set -euo pipefail
+          STAGE="${{ runner.temp }}/wd-apks"
+          mkdir -p "$STAGE/apks"
+          cp -f "$OUT/apks/"*.apk "$STAGE/apks/"
+          cp -f "$OUT/manifest.json" "$STAGE/manifest.json"
+          tar -C "$STAGE" -czf "${{ runner.temp }}/$ASSET" apks manifest.json
+          echo "path=${{ runner.temp }}/$ASSET" >> "$GITHUB_OUTPUT"
+          ls -lh "${{ runner.temp }}/$ASSET"
+
+      - name: Publish rolling release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          TITLE: ${{ steps.meta.outputs.title }}
+          ASSET_PATH: ${{ steps.pkg.outputs.path }}
+          COUNT: ${{ steps.build.outputs.count }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --title "$TITLE" \
+                 --notes "Prebuilt Waydroid APK set ($COUNT APKs), rebuilt on each lockfile change. Consumed by da_waydroid-apps/build.sh build." \
+                 --latest=false
+          gh release upload "$TAG" "$ASSET_PATH" --clobber
+          echo "Published $COUNT-APK set to release '$TAG'."
