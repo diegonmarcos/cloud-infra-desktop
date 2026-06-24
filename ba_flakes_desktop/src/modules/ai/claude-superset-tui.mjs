@@ -143,7 +143,7 @@ async function main() {
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
   process.stdin.on("keypress", async (_str, key) => {
     const k = key?.name;
-    if (k === "q" || (key?.ctrl && key?.name === "c")) { rl.close(); process.exit(0); }
+    if (k === "q" || (key?.ctrl && key?.name === "c")) { if (process.stdin.isTTY) process.stdin.setRawMode(false); rl.close(); process.exit(0); }
     if (k === "h" || k === "s") return header();
     if (k === "d") { open(EP.dashboard); return header(); }
     if (k === "l") {
