@@ -3,13 +3,6 @@
   "generated_for": "waydroid-apps",
   "apps": [
     {
-      "package": "com.foxdebug.acode",
-      "source": "fdroid",
-      "versionCode": 1000,
-      "url": "https://f-droid.org/repo/com.foxdebug.acode_1000.apk",
-      "sha256": "sha256-jL4b3pO3vP3T6PetJWju8GZH2SCQe2y5a84TaEswlCI="
-    },
-    {
       "package": "com.amaze.filemanager",
       "source": "fdroid",
       "versionCode": 124,
@@ -378,6 +371,13 @@
       "versionCode": 248,
       "url": "https://f-droid.org/repo/nodomain.freeyourgadget.gadgetbridge_248.apk",
       "sha256": "sha256-jMdO0UV+KwKFxU6syN5L1JQ78aphDgwwjTGVgxuP55M="
+    },
+    {
+      "package": "com.foxdebug.acode",
+      "source": "fdroid",
+      "versionCode": 1001,
+      "url": "https://f-droid.org/repo/com.foxdebug.acode_1001.apk",
+      "sha256": "sha256-A6qhR64TOk2AftyLSLI/L5Zt4AAMi2SUMu4CBfWb2gw="
     }
   ]
 }
