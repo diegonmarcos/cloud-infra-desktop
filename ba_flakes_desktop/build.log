@@ -48255,3 +48255,198 @@ evaluation warning: taskwarrior was replaced by taskwarrior3, which requires man
 [2026-06-24 16:57:01] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-06-24 16:57:01] PERF: start switch
 [2026-06-24 16:57:01] INFO: Staging dirty files for flake evaluation...
+[2026-06-24 16:57:02] PERF: git stage = 292ms
+[2026-06-24 16:57:02] PERF: clean stale hm-backups = 445ms
+[2026-06-24 16:57:02] INFO: Applying Home Manager configuration...
+[2026-06-24 16:57:02] INFO: home-manager backup extension: hm-backup-20260624-165702
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+trace: warning: The option `services.gpg-agent.pinentryPackage' defined in `/nix/store/hjqb5v29ra9rmhdsqm05db6nm25kl4jm-source/ba_flakes_desktop/src/modules/security-net/secrets.nix' has been renamed to `services.gpg-agent.pinentry.package'.
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+evaluation warning: `programs.zsh.initExtra` is deprecated, use `programs.zsh.initContent` instead.
+
+                    Example: programs.zsh.initContent = "your content here";
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 9 derivations will be built:
+  /nix/store/75i1ggmgcn117phpqhr0xzxh84caiixl-diego-fish-completions.drv
+  /nix/store/iqr3pc3650r45cn23ak5axs3a0p2impq-man-paths.drv
+  /nix/store/v25c4zn6pwzc2xl29pk55vh47dclphfc-home-manager-path.drv
+  /nix/store/pajn1c4hz14d6aak6v5xisylzw40nfir-activation-script.drv
+  /nix/store/ra2hy09sq3bxwxzfix6adv67if4zpsac-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/s3ray7rgsiphn1fm4kamba66jscrvska-man-cache.drv
+  /nix/store/v6ipbdynk0597lq06hfpmr5fdyf7j1fy-hm_.manpath.drv
+  /nix/store/pq645m1k80d6bnf1iy8abqzqyyq7gcax-home-manager-files.drv
+  /nix/store/kd6v26k14r9cmy47sdgk23cciwws3ydf-home-manager-generation.drv
+building '/nix/store/v25c4zn6pwzc2xl29pk55vh47dclphfc-home-manager-path.drv'...
+building '/nix/store/75i1ggmgcn117phpqhr0xzxh84caiixl-diego-fish-completions.drv'...
+building '/nix/store/pajn1c4hz14d6aak6v5xisylzw40nfir-activation-script.drv'...
+building '/nix/store/ra2hy09sq3bxwxzfix6adv67if4zpsac-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/iqr3pc3650r45cn23ak5axs3a0p2impq-man-paths.drv'...
+building '/nix/store/s3ray7rgsiphn1fm4kamba66jscrvska-man-cache.drv'...
+evaluation warning: `programs.zsh.initExtra` is deprecated, use `programs.zsh.initContent` instead.
+
+                    Example: programs.zsh.initContent = "your content here";
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 11 derivations will be built:
+  /nix/store/pyakwqa19cp2ghfin2yvlj6zkflfnc5d-claude-superset-tui.drv
+  /nix/store/6z1v67pfgq6hk32vagdv9v166kcmnpn7-claude-superset-tui-fish-completions.drv
+  /nix/store/0sf9if32fwvnr7ci57lzzpd67wsz4rf7-diego-fish-completions.drv
+  /nix/store/8z25nhca2cfafq0pvqzj6cyjanh6bjyq-man-paths.drv
+  /nix/store/161v3inza569fmv2bk9g573dayhb4v13-man-cache.drv
+  /nix/store/49icgbxyr1vn419vs5x6va2fyzjq83xy-hm_.manpath.drv
+  /nix/store/w7zi1lg1dkwjavc30qlx9sqginqri97a-home-manager-path.drv
+  /nix/store/bd1vkkhy1lw4nxbyp04ihjf3qx0bslad-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/hwxi93hmg3p7jcxn901m0fkiirxqa7jz-activation-script.drv
+  /nix/store/nhznj8z9797i1x3r37v8lngy0ldg5a9i-home-manager-files.drv
+  /nix/store/gvvbj5b6rwyna1l8jw757n2iq6fh29z6-home-manager-generation.drv
+building '/nix/store/pyakwqa19cp2ghfin2yvlj6zkflfnc5d-claude-superset-tui.drv'...
+building '/nix/store/6z1v67pfgq6hk32vagdv9v166kcmnpn7-claude-superset-tui-fish-completions.drv'...
+building '/nix/store/w7zi1lg1dkwjavc30qlx9sqginqri97a-home-manager-path.drv'...
+building '/nix/store/0sf9if32fwvnr7ci57lzzpd67wsz4rf7-diego-fish-completions.drv'...
+building '/nix/store/v6ipbdynk0597lq06hfpmr5fdyf7j1fy-hm_.manpath.drv'...
+building '/nix/store/pq645m1k80d6bnf1iy8abqzqyyq7gcax-home-manager-files.drv'...
+building '/nix/store/hwxi93hmg3p7jcxn901m0fkiirxqa7jz-activation-script.drv'...
+building '/nix/store/bd1vkkhy1lw4nxbyp04ihjf3qx0bslad-hm_fontconfigconf.d10hmfonts.conf.drv'...
+building '/nix/store/8z25nhca2cfafq0pvqzj6cyjanh6bjyq-man-paths.drv'...
+building '/nix/store/kd6v26k14r9cmy47sdgk23cciwws3ydf-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/home/diego/.gtkrc-2.0' is in the way of '/nix/store/z42a73ia7axrmvnnrqsb2d9j4zzncarw-home-manager-files/.gtkrc-2.0', will be moved to '/home/diego/.gtkrc-2.0.hm-backup-20260624-165629'
+Activating writeBoundary
+Creating new profile generation
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 5s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+building '/nix/store/161v3inza569fmv2bk9g573dayhb4v13-man-cache.drv'...
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (4 VMs, 43 services, date=2026-06-24)
+Activating globalTsx
+
+changed 3 packages in 23s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.187 is up to date
+Activating installWg0TcpConf
+[wireguard-wstunnel] /home/diego/.config/wireguard/wg0.conf not found — skipping wg0-tcp.conf render
+Activating lockScreenWallpaper
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating powerDevilSuspend
+Activating reloadSystemd
+The user systemd session is degraded:
+  UNIT                                                         LOAD   ACTIVE SUB    DESCRIPTION
+● app-org.gnome.Evolution\x2dalarm\x2dnotify@autostart.service loaded failed failed Events and Tasks Reminders
+● systembus-notify.service                                     loaded failed failed system bus notification daemon
+
+Legend: LOAD   → Reflects whether the unit definition was properly loaded.
+        ACTIVE → The high-level unit activation state, i.e. generalization of SUB.
+        SUB    → The low-level unit activation state, values depend on unit type.
+
+2 loaded units listed.
+Attempting to reload services anyway...
+The service manager is degraded.
+Failed services: app-org.gnome.Evolution\x2dalarm\x2dnotify@autostart.service, systembus-notify.service
+Attempting to continue anyway...
+Stopping units: claude-superset-tray.service, cliphist.service, http-dev.service, wg-dns-config.service
+Starting units: claude-superset-tray.service, cliphist.service, http-dev.service, sops-nix.service, wg-dns-config.service
+Activating sops-nix
+Activating sshSocketsDir
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+building '/nix/store/49icgbxyr1vn419vs5x6va2fyzjq83xy-hm_.manpath.drv'...
+building '/nix/store/nhznj8z9797i1x3r37v8lngy0ldg5a9i-home-manager-files.drv'...
+trace: warning: The option `services.gpg-agent.pinentryPackage' defined in `/nix/store/474h9zr9y9jmmb3gzbng3gwhqiy0d94w-source/ba_flakes_desktop/src/modules/security-net/secrets.nix' has been renamed to `services.gpg-agent.pinentry.package'.
+building '/nix/store/gvvbj5b6rwyna1l8jw757n2iq6fh29z6-home-manager-generation.drv'...
+[2026-06-24 17:04:10] PERF: home-manager switch = 7m 41s
+[2026-06-24 17:04:10] PERF: TOTAL switch = 7m 41s
+[2026-06-24 17:04:10] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-06-24 17:04:10] ========== Build script finished ==========
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Creating new profile generation
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating home file links in /home/diego
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 5s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (4 VMs, 43 services, date=2026-06-24)
+Activating globalTsx
+
+changed 3 packages in 3s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.187 is up to date
+Activating installWg0TcpConf
+[wireguard-wstunnel] /home/diego/.config/wireguard/wg0.conf not found — skipping wg0-tcp.conf render
+Activating lockScreenWallpaper
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating powerDevilSuspend
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating sops-nix
+Activating sshSocketsDir
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+trace: warning: The option `services.gpg-agent.pinentryPackage' defined in `/nix/store/9s8wmgw1lp4sppy90ma4617gzi7sslr1-source/ba_flakes_desktop/src/modules/security-net/secrets.nix' has been renamed to `services.gpg-agent.pinentry.package'.
+[2026-06-24 17:05:13] PERF: home-manager switch = 8m 11s
+[2026-06-24 17:05:13] PERF: TOTAL switch = 8m 11s
+[2026-06-24 17:05:13] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-06-24 17:05:13] ========== Build script finished ==========
+[2026-06-24 17:24:12] ========== Build script started ==========
+[2026-06-24 17:24:12] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-24 17:24:12] PERF: start switch
+[2026-06-24 17:24:12] INFO: Staging dirty files for flake evaluation...
