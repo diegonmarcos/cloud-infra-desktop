@@ -20,6 +20,32 @@ LOCK_TTL=120                                        # a refresh can't outlive ti
 CACHE="${TMPDIR:-/tmp}/claude-mcp-status.cache"    # "name<TAB>on|off" per line
 LOCK="${TMPDIR:-/tmp}/claude-mcp-status.refresh.lock"
 
+# --- Hidden mode: the detached refresher (`$0 --refresh`) -------------------
+# `claude mcp list` health-checks every server and takes ~15s. It MUST run
+# detached (setsid, below) — an attached background child is reaped together
+# with the statusline's process group the instant the render returns, killing
+# the probe mid-flight and leaving a 0-byte cache. This mode blocks on the
+# probe, writes the cache atomically, then frees the lock.
+if [ "${1:-}" = "--refresh" ]; then
+  run="claude mcp list"
+  command -v timeout >/dev/null 2>&1 && run="timeout 60 $run"
+  tmp="$CACHE.$$"
+  $run 2>/dev/null | while IFS= read -r line; do
+    case "$line" in
+      *:*)
+        name=${line%%:*}; name=$(printf '%s' "$name" | tr -d '[:space:]')
+        [ -z "$name" ] && continue
+        case "$line" in
+          *"✓"*|*"✔"*|*[Cc]onnected*) printf '%s\t%s\n' "$name" "on" ;;
+          *)                          printf '%s\t%s\n' "$name" "off" ;;
+        esac ;;
+    esac
+  done > "$tmp" 2>/dev/null
+  [ -s "$tmp" ] && mv -f "$tmp" "$CACHE" || rm -f "$tmp"
+  rmdir "$LOCK" 2>/dev/null
+  exit 0
+fi
+
 cwd="${1:-$PWD}"
 command -v jq >/dev/null 2>&1 || exit 0
 
@@ -50,24 +76,16 @@ if [ "$need" = true ] && command -v claude >/dev/null 2>&1; then
   fi
   # mkdir is atomic → exactly one refresher at a time (no stampede).
   if mkdir "$LOCK" 2>/dev/null; then
-    (
-      run="claude mcp list"
-      command -v timeout >/dev/null 2>&1 && run="timeout 60 $run"
-      tmp="$CACHE.$$"
-      $run 2>/dev/null | while IFS= read -r line; do
-        case "$line" in
-          *:*)
-            name=${line%%:*}; name=$(printf '%s' "$name" | tr -d '[:space:]')
-            [ -z "$name" ] && continue
-            case "$line" in
-              *"✓"*|*[Cc]onnected*) printf '%s\t%s\n' "$name" "on" ;;
-              *)                    printf '%s\t%s\n' "$name" "off" ;;
-            esac ;;
-        esac
-      done > "$tmp" 2>/dev/null
-      [ -s "$tmp" ] && mv -f "$tmp" "$CACHE" || rm -f "$tmp"
-      rmdir "$LOCK" 2>/dev/null
-    ) >/dev/null 2>&1 &
+    # Detach into a new session so the ~15s probe survives this render's exit.
+    # `setsid` (no -f, portable) execs the refresher into its own session/pgrp;
+    # `&` lets us return instantly. The detached child writes the cache + frees
+    # the lock when done; a child that dies anyway leaves a lock the LOCK_TTL
+    # reclaim above clears on the next render.
+    if command -v setsid >/dev/null 2>&1; then
+      setsid "$0" --refresh </dev/null >/dev/null 2>&1 &
+    else
+      "$0" --refresh </dev/null >/dev/null 2>&1 &   # fallback: attached (may be reaped)
+    fi
   fi
 fi
 
