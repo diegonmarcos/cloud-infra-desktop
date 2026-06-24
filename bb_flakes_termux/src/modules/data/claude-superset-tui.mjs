@@ -8,8 +8,9 @@
 // Universal: identical on desktop and termux. Shows live Headroom savings,
 // health-checks every face (superset + MCPs + direct fallback), opens the
 // dashboard, and launches `claude` routed through the proxy (graceful fallback).
+// CAS_PLUGINS_SCRIPT — path to claude-plugins-status.sh (injected by Nix wrapper).
 import readline from "node:readline";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const EP = {
   proxy:     process.env.CAS_PROXY     || "http://10.0.0.6:8789",
@@ -28,6 +29,15 @@ const EP = {
   },
 };
 const LAUNCH = process.env.CAS_LAUNCH || "claude";
+const PLUGINS_SCRIPT = process.env.CAS_PLUGINS_SCRIPT || `${process.env.HOME}/.claude/claude-plugins-status.sh`;
+
+function pluginStatus() {
+  try {
+    const r = spawnSync("bash", [PLUGINS_SCRIPT, "--format", "plain"],
+      { encoding: "utf8", timeout: 1000 });
+    return r.status === 0 ? (r.stdout || "").trim() : "";
+  } catch { return ""; }
+}
 
 const C = { r: "\x1b[0m", b: "\x1b[1m", dim: "\x1b[2m", g: "\x1b[32m", y: "\x1b[33m", red: "\x1b[31m", cy: "\x1b[36m" };
 const ok = (b) => (b ? `${C.g}● up${C.r}` : `${C.red}○ down${C.r}`);
@@ -74,8 +84,20 @@ async function header() {
   const sep = (title) =>
     console.log(`\n  ${C.dim}── ${title} ${"─".repeat(Math.max(0, 46 - title.length))}${C.r}`);
 
+  const plugins = pluginStatus();
+
   console.log(`${C.b}${C.cy}  claude-superset-api · helper${C.r}`);
   console.log(`  ${C.dim}WG-only · token compression via Headroom${C.r}`);
+
+  if (plugins) {
+    sep("plugins");
+    plugins.split(/\s+/).filter(Boolean).forEach(p => {
+      const [label, val] = p.split(":");
+      const on = val !== "off";
+      const badge = on ? `${C.g}● ${val || "on"}${C.r}` : `${C.dim}○ off${C.r}`;
+      console.log(`  ${(label || "").padEnd(11)}${" ".repeat(27)} ${badge}`);
+    });
+  }
 
   sep("superset");
   row("proxy",    EP.proxy,    p, "ANTHROPIC_BASE_URL · Headroom");
