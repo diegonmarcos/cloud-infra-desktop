@@ -2,6 +2,8 @@
 { config, pkgs, lib, ... }:
 {
   home.packages = with pkgs; [
-    (nerdfonts.override { fonts = [ "JetBrainsMono" "FiraCode" ]; })
+    # 25.05: nerdfonts split into the nerd-fonts.* namespace (per-font packages)
+    nerd-fonts.jetbrains-mono
+    nerd-fonts.fira-code
   ];
 }
