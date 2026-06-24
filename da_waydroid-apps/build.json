@@ -435,12 +435,10 @@
       "package": "com.diegonmarcos.superapp",
       "label": "Cloud-SuperApp",
       "group": "core",
+      "_doc": "Provisioning ONLY fetches the already-published x86 APK (signed with the canonical per-app CI key); it must NEVER build it locally or in GHA. A local gradle build here signs with the wrong (vault) key and Android then rejects the in-app updater's canonical-key updates. Re-run `build.sh lock <pkg>` to refresh the pin when the upstream release bumps.",
       "source": {
-        "type": "local",
-        "build_project": "../ea_cloud-superapp",
-        "build_variant_env": "SUPERAPP_VARIANT",
-        "build_variant": "x86_64",
-        "apk_glob": "dist/*x86_64*.apk"
+        "type": "github",
+        "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-SuperApp-x86_64.apk"
       }
     },
     {
@@ -448,9 +446,8 @@
       "label": "Cloud-Nav",
       "group": "core",
       "source": {
-        "type": "local",
-        "build_project": "../ea_cloud-nav",
-        "apk_glob": "dist/Cloud-Nav.apk"
+        "type": "github",
+        "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-Nav-x86_64.apk"
       }
     },
     {
@@ -458,9 +455,8 @@
       "label": "Cloud-Comms",
       "group": "core",
       "source": {
-        "type": "local",
-        "build_project": "../ea_cloud-comms",
-        "apk_glob": "dist/Cloud-Comms-Hub.apk"
+        "type": "github",
+        "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-Comms-Hub.apk"
       }
     },
     {
@@ -468,9 +464,8 @@
       "label": "Cloud-IDE",
       "group": "core",
       "source": {
-        "type": "local",
-        "build_project": "../ea_cloud-ide",
-        "apk_glob": "dist/Cloud-IDE-Hub.apk"
+        "type": "github",
+        "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-IDE-Hub.apk"
       }
     },
     {
