@@ -76,6 +76,18 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$HOME\"/.claude/hooks/c-posttool-graph-nudge.sh",
+            "timeout": 3
+          }
+        ]
+      }
     ]
   }
 }

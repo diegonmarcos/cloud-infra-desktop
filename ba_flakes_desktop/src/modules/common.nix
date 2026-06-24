@@ -194,6 +194,11 @@
     source = ./dotfiles/claude/c-pretool-guard-warning.sh;
     executable = true;
   };
+  #   c-posttool-* → PostToolUse  (soft nudge: read-without-graph, FIRE rule 6)
+  home.file.".claude/hooks/c-posttool-graph-nudge.sh" = {
+    source = ./dotfiles/claude/c-posttool-graph-nudge.sh;
+    executable = true;
+  };
   home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;
 
   # claude-api skill — pinned from anthropics/skills repo. Symlinks the whole
