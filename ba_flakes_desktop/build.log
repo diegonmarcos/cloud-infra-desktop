@@ -48174,3 +48174,73 @@ error: 1 dependencies of derivation '/nix/store/ns482ydvwj0r2191gp5db8l6pyij3dxk
 [2026-06-24 16:53:04] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-06-24 16:53:04] PERF: start switch
 [2026-06-24 16:53:04] INFO: Staging dirty files for flake evaluation...
+[2026-06-24 16:53:04] PERF: git stage = 203ms
+[2026-06-24 16:53:04] PERF: clean stale hm-backups = 308ms
+[2026-06-24 16:53:04] INFO: Applying Home Manager configuration...
+[2026-06-24 16:53:04] INFO: home-manager backup extension: hm-backup-20260624-165304
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+trace: warning: The option `services.gpg-agent.pinentryPackage' defined in `/nix/store/mybixgcgsgccwl7s60grvbrsp7s9l58b-source/ba_flakes_desktop/src/modules/security-net/secrets.nix' has been renamed to `services.gpg-agent.pinentry.package'.
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+evaluation warning: `programs.zsh.initExtra` is deprecated, use `programs.zsh.initContent` instead.
+
+                    Example: programs.zsh.initContent = "your content here";
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 9 derivations will be built:
+  /nix/store/1ljji0al2bb9a2isi0v9skhlik16xzr1-home-manager-path.drv
+  /nix/store/4p312msxdgv8cvmal2vpsg2dgflfqczz-man-paths.drv
+  /nix/store/4j34r9rbx06c0fss2v12cagih8w73c51-man-cache.drv
+  /nix/store/95hc3i1n103wbz4dckmkpr819dm2r6w4-hm_.manpath.drv
+  /nix/store/gqxfiwnnd5car7dihsb7s891d8kvg5ci-diego-fish-completions.drv
+  /nix/store/xpkyc3p5p072bl05kh7lkkl7xan1fm3l-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/247k5xf1axvz550cq9k93q1720wmgayk-home-manager-files.drv
+  /nix/store/vzr3hkj88nkj8c59gqhcnfj9hdivcchw-activation-script.drv
+  /nix/store/pi0wzcj5gfwxfl8sxl8hm0l620acizkh-home-manager-generation.drv
+building '/nix/store/1ljji0al2bb9a2isi0v9skhlik16xzr1-home-manager-path.drv'...
+error: builder for '/nix/store/1ljji0al2bb9a2isi0v9skhlik16xzr1-home-manager-path.drv' failed with exit code 25;
+       last 1 log lines:
+       > error: collision between `/nix/store/n0h1fiz42ar6l8bs5n14m35mwvl6zyw1-wrangler-4.17.0/lib/node_modules/typescript/lib/cs/diagnosticMessages.generated.json' and `/nix/store/chpacyfj0sx2nn0d8qn1zkhr35cwxyf8-typescript-5.8.2/lib/node_modules/typescript/lib/cs/diagnosticMessages.generated.json'
+       For full logs, run 'nix log /nix/store/1ljji0al2bb9a2isi0v9skhlik16xzr1-home-manager-path.drv'.
+error: 1 dependencies of derivation '/nix/store/pi0wzcj5gfwxfl8sxl8hm0l620acizkh-home-manager-generation.drv' failed to build
+[2026-06-24 16:53:50] ERROR: Configuration failed with exit code 1
+[2026-06-24 16:53:50] INFO: Check /home/diego/git/unix/ba_flakes_desktop/build.log for details
+[2026-06-24 16:53:50] PERF: home-manager switch = 45.4s
+[2026-06-24 16:53:50] PERF: TOTAL switch = 46.0s
+[2026-06-24 16:54:35] ========== Build script started ==========
+[2026-06-24 16:54:35] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-24 16:54:35] PERF: start switch
+[2026-06-24 16:54:36] INFO: Staging dirty files for flake evaluation...
+[2026-06-24 16:54:36] PERF: git stage = 192ms
+[2026-06-24 16:54:37] PERF: clean stale hm-backups = 1.2s
+[2026-06-24 16:54:37] INFO: Applying Home Manager configuration...
+[2026-06-24 16:54:37] INFO: home-manager backup extension: hm-backup-20260624-165437
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+trace: warning: The option `services.gpg-agent.pinentryPackage' defined in `/nix/store/vkpl2gjb49hkbkjrrk34rcpc9gfjds5a-source/ba_flakes_desktop/src/modules/security-net/secrets.nix' has been renamed to `services.gpg-agent.pinentry.package'.
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+evaluation warning: `programs.zsh.initExtra` is deprecated, use `programs.zsh.initContent` instead.
+
+                    Example: programs.zsh.initContent = "your content here";
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+these 9 derivations will be built:
+  /nix/store/1ljji0al2bb9a2isi0v9skhlik16xzr1-home-manager-path.drv
+  /nix/store/4p312msxdgv8cvmal2vpsg2dgflfqczz-man-paths.drv
+  /nix/store/4j34r9rbx06c0fss2v12cagih8w73c51-man-cache.drv
+  /nix/store/95hc3i1n103wbz4dckmkpr819dm2r6w4-hm_.manpath.drv
+  /nix/store/gqxfiwnnd5car7dihsb7s891d8kvg5ci-diego-fish-completions.drv
+  /nix/store/xpkyc3p5p072bl05kh7lkkl7xan1fm3l-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/247k5xf1axvz550cq9k93q1720wmgayk-home-manager-files.drv
+  /nix/store/vzr3hkj88nkj8c59gqhcnfj9hdivcchw-activation-script.drv
+  /nix/store/pi0wzcj5gfwxfl8sxl8hm0l620acizkh-home-manager-generation.drv
+building '/nix/store/1ljji0al2bb9a2isi0v9skhlik16xzr1-home-manager-path.drv'...
+error: builder for '/nix/store/1ljji0al2bb9a2isi0v9skhlik16xzr1-home-manager-path.drv' failed with exit code 25;
+       last 1 log lines:
+       > error: collision between `/nix/store/n0h1fiz42ar6l8bs5n14m35mwvl6zyw1-wrangler-4.17.0/lib/node_modules/typescript/lib/cs/diagnosticMessages.generated.json' and `/nix/store/chpacyfj0sx2nn0d8qn1zkhr35cwxyf8-typescript-5.8.2/lib/node_modules/typescript/lib/cs/diagnosticMessages.generated.json'
+       For full logs, run 'nix log /nix/store/1ljji0al2bb9a2isi0v9skhlik16xzr1-home-manager-path.drv'.
+error: 1 dependencies of derivation '/nix/store/pi0wzcj5gfwxfl8sxl8hm0l620acizkh-home-manager-generation.drv' failed to build
+[2026-06-24 16:56:12] ERROR: Configuration failed with exit code 1
+[2026-06-24 16:56:12] INFO: Check /home/diego/git/unix/ba_flakes_desktop/build.log for details
+[2026-06-24 16:56:12] PERF: home-manager switch = 1m 35s
+[2026-06-24 16:56:12] PERF: TOTAL switch = 1m 36s
+[2026-06-24 16:56:29] ========== Build script started ==========
+[2026-06-24 16:56:29] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-24 16:56:29] PERF: start switch
+[2026-06-24 16:56:29] INFO: Staging dirty files for flake evaluation...

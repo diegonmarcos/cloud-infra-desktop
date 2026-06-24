@@ -12,7 +12,7 @@
     nodePackages.pnpm
     nodePackages.npm
     nodePackages.yarn
-    nodePackages.typescript  # tsc
+    (lib.hiPrio nodePackages.typescript)  # tsc — win over typescript bundled inside wrangler (infra-tools/wrangler.nix) in the merged profile
     esbuild                  # JS/TS bundler
     dart-sass                # SCSS compiler (sass CLI)
   ];
