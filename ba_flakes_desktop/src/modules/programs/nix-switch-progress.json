@@ -1,0 +1,9 @@
+{
+  "_doc": "Config for `nix-switch-progress` — the dark-mode progress window shown during `build.sh switch` on a graphical session (programs/nix-switch-progress.nix). Plasma-native (kdialog → inherits the active KDE dark theme automatically). Driven by parsing `nix build --log-format internal-json` activity events (builds + substitutions, done/expected) into a real %. No labels/icons hardcoded in the .nix/.mjs — all here (data-driven). Over SSH/TTY or with kdialog absent the wrapper passes the command through unchanged (no window). Plan: user asked 2026-06-20.",
+  "title": "Nix Switch Progress",
+  "initial_label": "Evaluating flake…",
+  "max": 100,
+  "icon": "nix-snowflake",
+  "notify_on_finish": true,
+  "cap_pct_until_done": 99
+}
