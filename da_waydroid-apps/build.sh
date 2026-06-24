@@ -69,6 +69,18 @@ detect_priv() {
 # `--` stops waydroid's own argparse so flags (-c, -n, -p, --brief) reach the Android shell.
 wd_shell() { "${WDSH[@]}" shell -- "$@"; }
 
+# The sqlite3 CLI is NOT on the host PATH (NixOS ships it only via a package),
+# and `sudo` sanitizes PATH anyway — so a bare `sudo sqlite3` dies with
+# "command not found". Resolve it REPRODUCIBLY from nixpkgs (same pattern as
+# cmd_wallpaper's imagemagick) and hand sudo the absolute store path. Callers
+# capture it once into a local (e.g. `SQ="$(wd_sqlite3)"`) then `sudo "$SQ" …`.
+wd_sqlite3() {
+  local b
+  b="$(nix build --no-link --print-out-paths nixpkgs#sqlite-interactive 2>/dev/null | head -1)/bin/sqlite3"
+  [ -x "$b" ] || die "could not resolve sqlite3 via nixpkgs#sqlite-interactive"
+  printf '%s' "$b"
+}
+
 # ── lock: resolve pinned versions + hashes from F-Droid ─────────────────────
 cmd_lock() {
   local api repo
@@ -226,6 +238,7 @@ resolve_component() {
 cmd_layout() {
   require_session; detect_priv
   local db; db="$(wd_db)"
+  local SQ; SQ="$(wd_sqlite3)"
   log "launcher DB: $db"
 
   # unique package set referenced anywhere in launcher{} (folders + hotseat + workspace)
@@ -284,17 +297,17 @@ cmd_layout() {
   local dbowner; dbowner="$(sudo stat -c '%u:%g' "$db")"
   log "stopping launcher, applying layout (restoring db owner $dbowner), relaunching…"
   wd_shell am force-stop "$(get waydroid.launcher_package)" 2>/dev/null || true
-  sudo sqlite3 "$db" < "$sqlfile" || { warn "sqlite apply failed — restoring backup"; sudo cp -f "$bak" "$db"; sudo chown "$dbowner" "$db"; die "layout aborted, backup restored"; }
-  sudo sqlite3 "$db" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
+  sudo "$SQ" "$db" < "$sqlfile" || { warn "sqlite apply failed — restoring backup"; sudo cp -f "$bak" "$db"; sudo chown "$dbowner" "$db"; die "layout aborted, backup restored"; }
+  sudo "$SQ" "$db" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
   sudo rm -f "$db-wal" "$db-shm"
   sudo chown "$dbowner" "$db"
   wd_shell monkey -p "$(get waydroid.launcher_package)" 1 >/dev/null 2>&1 || true
 
   # verify
   log "hotseat:"
-  sudo sqlite3 -column "$db" "SELECT screen,title,itemType FROM favorites WHERE container=$(get waydroid.hotseat_container) ORDER BY screen;" | sed 's/^/    /'
+  sudo "$SQ" -column "$db" "SELECT screen,title,itemType FROM favorites WHERE container=$(get waydroid.hotseat_container) ORDER BY screen;" | sed 's/^/    /'
   log "home screen (workspace):"
-  sudo sqlite3 -column "$db" "SELECT cellY,cellX,title,itemType FROM favorites WHERE container=$(get waydroid.workspace_container) ORDER BY cellY,cellX;" | sed 's/^/    /'
+  sudo "$SQ" -column "$db" "SELECT cellY,cellX,title,itemType FROM favorites WHERE container=$(get waydroid.workspace_container) ORDER BY cellY,cellX;" | sed 's/^/    /'
   log "layout applied. (Backup: $bak — restore with: ./build.sh undock)"
 }
 
@@ -338,11 +351,12 @@ cmd_theme() {
 cmd_undock() {
   detect_priv
   local db bak; db="$(wd_db)"
+  local SQ; SQ="$(wd_sqlite3)"
   bak="$(ls -t "$BACKUP_DIR"/launcher.db.*.bak 2>/dev/null | head -1 || true)"
   [ -n "$bak" ] || die "no backup found in $BACKUP_DIR"
   wd_shell am force-stop "$(get waydroid.launcher_package)" 2>/dev/null || true
   sudo cp -f "$bak" "$db"
-  sudo sqlite3 "$db" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
+  sudo "$SQ" "$db" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
   log "restored $db from $bak"
 }
 
@@ -353,10 +367,11 @@ cmd_status() {
   echo "--- built APKs (dist/apks) ---"; ls "$APK_DIR" 2>/dev/null | sed 's/^/  /' || echo "  (none — run build)"
   if session_running; then
     local db; db="$(wd_db)"
+    local SQ; SQ="$(wd_sqlite3)"
     echo "--- live hotseat ---"
-    sudo sqlite3 -column "$db" "SELECT screen,title,itemType FROM favorites WHERE container=$(get waydroid.hotseat_container) ORDER BY screen;" 2>/dev/null | sed 's/^/  /'
+    sudo "$SQ" -column "$db" "SELECT screen,title,itemType FROM favorites WHERE container=$(get waydroid.hotseat_container) ORDER BY screen;" 2>/dev/null | sed 's/^/  /'
     echo "--- live workspace ---"
-    sudo sqlite3 -column "$db" "SELECT cellY,cellX,title,itemType FROM favorites WHERE container=$(get waydroid.workspace_container) ORDER BY cellY,cellX;" 2>/dev/null | sed 's/^/  /'
+    sudo "$SQ" -column "$db" "SELECT cellY,cellX,title,itemType FROM favorites WHERE container=$(get waydroid.workspace_container) ORDER BY cellY,cellX;" 2>/dev/null | sed 's/^/  /'
   fi
 }
 
