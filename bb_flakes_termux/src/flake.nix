@@ -291,7 +291,7 @@
                 exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
               '')
 
-              # claude-superset: route claude through the claude-api-superset
+              # claude-superset: route claude through claude-superset-api
               # Headroom proxy (token compression) over WireGuard, then hand off to
               # claude-malloc (keeps the Android isolation/supervision). Transparent
               # proxy (compress → forward to Anthropic with the client's own creds),
@@ -321,6 +321,13 @@
                 export CAS_PROXY="${claudeSuperset.proxy}" CAS_API="${claudeSuperset.api}"
                 export CAS_OLLAMA="${claudeSuperset.ollama}" CAS_DASHBOARD="${claudeSuperset.dashboard}"
                 export CAS_COMPRESS="''${CAS_DASHBOARD%/dashboard}" CAS_LAUNCH="claude-malloc"
+                export CAS_ANTHROPIC="${claudeSuperset.anthropic}"
+                export CAS_MCP_C3_INFRA="${claudeSuperset.mcps.c3_infra}"
+                export CAS_MCP_C3_SVC="${claudeSuperset.mcps.c3_svc}"
+                export CAS_MCP_MATTERMOST="${claudeSuperset.mcps.mattermost}"
+                export CAS_MCP_MAIL="${claudeSuperset.mcps.mail}"
+                export CAS_MCP_GWS="${claudeSuperset.mcps.gws}"
+                export CAS_MCP_GP="${claudeSuperset.mcps.gp}"
                 exec ${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-tui.mjs} "$@"
               '')
 

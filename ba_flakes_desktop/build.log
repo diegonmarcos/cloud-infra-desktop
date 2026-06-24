@@ -48244,3 +48244,14 @@ error: 1 dependencies of derivation '/nix/store/pi0wzcj5gfwxfl8sxl8hm0l620acizkh
 [2026-06-24 16:56:29] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-06-24 16:56:29] PERF: start switch
 [2026-06-24 16:56:29] INFO: Staging dirty files for flake evaluation...
+[2026-06-24 16:56:29] PERF: git stage = 192ms
+[2026-06-24 16:56:29] PERF: clean stale hm-backups = 246ms
+[2026-06-24 16:56:29] INFO: Applying Home Manager configuration...
+[2026-06-24 16:56:29] INFO: home-manager backup extension: hm-backup-20260624-165629
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+trace: warning: The option `services.gpg-agent.pinentryPackage' defined in `/nix/store/c9r26n301avwsv44y7bb657ffq2284rm-source/ba_flakes_desktop/src/modules/security-net/secrets.nix' has been renamed to `services.gpg-agent.pinentry.package'.
+evaluation warning: taskwarrior was replaced by taskwarrior3, which requires manual transition from taskwarrior 2.6, read upstream's docs: https://taskwarrior.org/docs/upgrade-3/
+[2026-06-24 16:57:01] ========== Build script started ==========
+[2026-06-24 16:57:01] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-24 16:57:01] PERF: start switch
+[2026-06-24 16:57:01] INFO: Staging dirty files for flake evaluation...

@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-// claude-superset-tui — terminal helper/dashboard for the claude-api-superset.
+// claude-superset-tui — terminal helper/dashboard for claude-superset-api.
 // No npm deps (node:readline + global fetch). Endpoints come from the env
-// (CAS_PROXY / CAS_API / CAS_OLLAMA / CAS_COMPRESS / CAS_DASHBOARD), injected by
-// the Nix wrapper from the data-driven claude-superset.json — nothing hardcoded.
+// (CAS_PROXY / CAS_API / CAS_OLLAMA / CAS_COMPRESS / CAS_DASHBOARD /
+//  CAS_MCP_* / CAS_ANTHROPIC), injected by the Nix wrapper from the
+// data-driven claude-superset.json — nothing hardcoded.
 //
-// Universal: identical on desktop and termux. Lets you see live Headroom savings,
-// health-check every face, open the dashboard, and launch `claude` routed through
-// the superset proxy (with graceful fallback to direct Anthropic).
+// Universal: identical on desktop and termux. Shows live Headroom savings,
+// health-checks every face (superset + MCPs + direct fallback), opens the
+// dashboard, and launches `claude` routed through the proxy (graceful fallback).
 import readline from "node:readline";
 import { spawn } from "node:child_process";
 
@@ -16,21 +17,32 @@ const EP = {
   ollama:    process.env.CAS_OLLAMA    || "http://10.0.0.6:11436",
   compress:  process.env.CAS_COMPRESS  || "http://10.0.0.6:8788",
   dashboard: process.env.CAS_DASHBOARD || "http://10.0.0.6:8788/dashboard",
+  anthropic: process.env.CAS_ANTHROPIC || "https://api.anthropic.com",
+  mcps: {
+    c3_infra:   process.env.CAS_MCP_C3_INFRA   || "http://10.0.0.6:3100",
+    c3_svc:     process.env.CAS_MCP_C3_SVC     || "http://10.0.0.6:3101",
+    mattermost: process.env.CAS_MCP_MATTERMOST || "http://10.0.0.6:3102",
+    mail:       process.env.CAS_MCP_MAIL       || "http://10.0.0.6:3103",
+    gws:        process.env.CAS_MCP_GWS        || "http://10.0.0.6:3104",
+    gp:         process.env.CAS_MCP_GP         || "http://10.0.0.6:3106",
+  },
 };
-const LAUNCH = process.env.CAS_LAUNCH || "claude"; // claude-malloc on termux
+const LAUNCH = process.env.CAS_LAUNCH || "claude";
 
 const C = { r: "\x1b[0m", b: "\x1b[1m", dim: "\x1b[2m", g: "\x1b[32m", y: "\x1b[33m", red: "\x1b[31m", cy: "\x1b[36m" };
 const ok = (b) => (b ? `${C.g}● up${C.r}` : `${C.red}○ down${C.r}`);
 const fmt = (n) => Number(n || 0).toLocaleString();
 
-async function probe(url, path = "/readyz") {
+// probe: r.ok=true only for 2xx; anyStatus=true for any HTTP response (reachability check)
+async function probe(url, path = "/readyz", anyStatus = false) {
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 2500);
     const r = await fetch(`${url.replace(/\/$/, "")}${path}`, { signal: c.signal }).finally(() => clearTimeout(t));
-    return r.ok;
+    return anyStatus ? true : r.ok;
   } catch { return false; }
 }
+
 async function stats() {
   try {
     const r = await fetch(`${EP.compress.replace(/\/$/, "")}/stats`, { signal: AbortSignal.timeout(2500) });
@@ -41,18 +53,47 @@ async function stats() {
 
 async function header() {
   console.clear();
-  const [p, a, o, c] = await Promise.all([
-    probe(EP.proxy), probe(EP.api, "/health"), probe(EP.ollama, "/api/version"), probe(EP.compress),
+  // all probes fire in parallel — 2.5 s timeout each
+  const [p, a, o, c, ci, csvc, mmcp, ml, gw, gpers, direct] = await Promise.all([
+    probe(EP.proxy),
+    probe(EP.api,             "/health"),
+    probe(EP.ollama,          "/api/version"),
+    probe(EP.compress),
+    probe(EP.mcps.c3_infra,   "/health"),
+    probe(EP.mcps.c3_svc,     "/health"),
+    probe(EP.mcps.mattermost, "/health"),
+    probe(EP.mcps.mail,       "/health"),
+    probe(EP.mcps.gws,        "/health"),
+    probe(EP.mcps.gp,         "/health"),
+    probe(EP.anthropic,       "/v1/models", true),  // any HTTP = reachable
   ]);
   const s = await stats();
-  console.log(`${C.b}${C.cy}  claude-api-superset · helper${C.r}`);
-  console.log(`  ${C.dim}WG-only · token compression via Headroom${C.r}\n`);
+
   const row = (label, url, up, note) =>
-    console.log(`  ${label.padEnd(9)}${url.padEnd(24)} ${ok(up)}   ${C.dim}(${note})${C.r}`);
-  row("proxy", EP.proxy, p, "ANTHROPIC_BASE_URL target");
-  row("api", EP.api, a, "OpenAI /v1");
-  row("ollama", EP.ollama, o, "/api");
-  row("compress", EP.compress, c, "dashboard/stats");
+    console.log(`  ${label.padEnd(11)}${url.padEnd(27)} ${ok(up)}   ${C.dim}(${note})${C.r}`);
+  const sep = (title) =>
+    console.log(`\n  ${C.dim}── ${title} ${"─".repeat(Math.max(0, 46 - title.length))}${C.r}`);
+
+  console.log(`${C.b}${C.cy}  claude-superset-api · helper${C.r}`);
+  console.log(`  ${C.dim}WG-only · token compression via Headroom${C.r}`);
+
+  sep("superset");
+  row("proxy",    EP.proxy,    p, "ANTHROPIC_BASE_URL · Headroom");
+  row("api",      EP.api,      a, "OpenAI /v1");
+  row("ollama",   EP.ollama,   o, "/api");
+  row("compress", EP.compress, c, "compress/stats");
+
+  sep("MCPs (WG-direct)");
+  row("c3-infra",   EP.mcps.c3_infra,   ci,    "infra tools");
+  row("c3-svc",     EP.mcps.c3_svc,     csvc,  "services tools");
+  row("mattermost", EP.mcps.mattermost, mmcp,  "chat MCP");
+  row("mail",       EP.mcps.mail,       ml,    "email MCP");
+  row("gws",        EP.mcps.gws,        gw,    "Google Workspace");
+  row("gp",         EP.mcps.gp,         gpers, "Google Personal");
+
+  sep("fallback");
+  row("direct", EP.anthropic, direct, "Anthropic API (no proxy)");
+
   if (s) {
     const ratio = s.lifetime_ratio != null ? (s.lifetime_ratio * 100).toFixed(1) : "0.0";
     console.log(`\n  ${C.y}savings${C.r}  ${C.b}${fmt(s.tokens_saved)}${C.r} tokens removed  ` +
@@ -86,7 +127,6 @@ async function main() {
     if (k === "l") {
       if (process.stdin.isTTY) process.stdin.setRawMode(false);
       rl.close(); console.clear();
-      // Hand off to the routing wrapper, which sets ANTHROPIC_BASE_URL + falls back.
       const child = spawn("claude-superset", [], { stdio: "inherit" });
       child.on("exit", (c) => process.exit(c ?? 0));
       child.on("error", () => { console.log("claude-superset not found"); process.exit(1); });
