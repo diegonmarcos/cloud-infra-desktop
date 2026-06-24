@@ -111,9 +111,11 @@
     options = [ "rw" "noatime" "nofail" "x-systemd.device-timeout=5s" ];
   };
 
-  # Ensure diego owns the git clone directory on shared-lib (ext4 fs is root-owned;
-  # tmpfiles runs after mount and sets ownership declaratively).
+  # shared-lib (p5, ext4) is a user-data partition — give diego full ownership
+  # of the mount root so new top-level dirs (git, src-code, etc.) need no sudo.
+  # docker/ stays root-owned on disk; tmpfiles only adjusts the dirs listed here.
   systemd.tmpfiles.rules = [
+    "d /mnt/shared-lib     0755 diego users - -"
     "d /mnt/shared-lib/git 0755 diego users - -"
   ];
 
