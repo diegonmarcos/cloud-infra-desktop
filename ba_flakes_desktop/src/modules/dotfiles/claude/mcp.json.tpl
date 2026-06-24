@@ -25,8 +25,8 @@
     },
     "cloud-infra-local": {
       "type": "stdio",
-      "command": "tsx",
-      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/code/mcp/index.ts"],
+      "command": "/home/diego/.claude/mcp-local-launch.sh",
+      "args": ["/home/diego/git/cloud/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/index.ts"],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
         "GIT_BASE": "/home/diego/git"
@@ -51,7 +51,7 @@
     },
     "diego-personal-data": {
       "type": "stdio",
-      "command": "tsx",
+      "command": "/home/diego/.claude/mcp-local-launch.sh",
       "args": ["/home/diego/git/cloud/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts"],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
