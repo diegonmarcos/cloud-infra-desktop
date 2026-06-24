@@ -299,8 +299,24 @@
               # proxy and falls back to direct Anthropic when it's unreachable.
               # Endpoint is data-driven (modules/data/claude-superset.json), override
               # via CLAUDE_SUPERSET_URL.
+              # --help / -h: interactive status dashboard (probes all faces, MCPs,
+              # plugins including Ponytail, and the direct Anthropic fallback).
               (writeShellScriptBin "claude-superset" ''
                 set -u
+                if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ]; then
+                  export CAS_PROXY="${claudeSuperset.proxy}" CAS_API="${claudeSuperset.api}"
+                  export CAS_OLLAMA="${claudeSuperset.ollama}" CAS_DASHBOARD="${claudeSuperset.dashboard}"
+                  export CAS_COMPRESS="''${CAS_DASHBOARD%/dashboard}" CAS_LAUNCH="claude-malloc"
+                  export CAS_ANTHROPIC="${claudeSuperset.anthropic}"
+                  export CAS_MCP_C3_INFRA="${claudeSuperset.mcps.c3_infra}"
+                  export CAS_MCP_C3_SVC="${claudeSuperset.mcps.c3_svc}"
+                  export CAS_MCP_MATTERMOST="${claudeSuperset.mcps.mattermost}"
+                  export CAS_MCP_MAIL="${claudeSuperset.mcps.mail}"
+                  export CAS_MCP_GWS="${claudeSuperset.mcps.gws}"
+                  export CAS_MCP_GP="${claudeSuperset.mcps.gp}"
+                  export CAS_PLUGINS_SCRIPT="$HOME/.claude/claude-plugins-status.sh"
+                  exec ${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-tui.mjs}
+                fi
                 URL="''${CLAUDE_SUPERSET_URL:-${claudeSuperset.proxy}}"
                 if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
                   export ANTHROPIC_BASE_URL="$URL"
@@ -312,23 +328,6 @@
                 pl=$(${pkgs.bash}/bin/bash "$HOME/.claude/claude-plugins-status.sh" --format plain 2>/dev/null)
                 [ -n "$pl" ] && echo "[claude-superset] plugins: $pl" >&2
                 exec claude-malloc "$@"
-              '')
-
-              # claude-superset-tui: terminal helper/dashboard (live Headroom
-              # savings, health, launch). Endpoints injected from the same
-              # data-driven JSON; CAS_LAUNCH chains claude-malloc on the phone.
-              (writeShellScriptBin "claude-superset-tui" ''
-                export CAS_PROXY="${claudeSuperset.proxy}" CAS_API="${claudeSuperset.api}"
-                export CAS_OLLAMA="${claudeSuperset.ollama}" CAS_DASHBOARD="${claudeSuperset.dashboard}"
-                export CAS_COMPRESS="''${CAS_DASHBOARD%/dashboard}" CAS_LAUNCH="claude-malloc"
-                export CAS_ANTHROPIC="${claudeSuperset.anthropic}"
-                export CAS_MCP_C3_INFRA="${claudeSuperset.mcps.c3_infra}"
-                export CAS_MCP_C3_SVC="${claudeSuperset.mcps.c3_svc}"
-                export CAS_MCP_MATTERMOST="${claudeSuperset.mcps.mattermost}"
-                export CAS_MCP_MAIL="${claudeSuperset.mcps.mail}"
-                export CAS_MCP_GWS="${claudeSuperset.mcps.gws}"
-                export CAS_MCP_GP="${claudeSuperset.mcps.gp}"
-                exec ${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-tui.mjs} "$@"
               '')
 
               # claude-rescue: delegates to tools/5-infos/claude-rescue/

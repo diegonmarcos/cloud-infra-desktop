@@ -5,13 +5,31 @@
 # hosts/ports). The proxy is transparent (compress → forward to Anthropic with
 # the client's own creds), so interactive multi-turn / tool use is preserved.
 #
-# Desktop analog of termux's `claude-malloc` launch wrapper — here we wrap plain
-# `claude` (the desktop has no Android isolation wrapper to chain).
+# `claude-superset --help` opens an interactive status dashboard (probes all
+# faces, MCPs, plugins including Ponytail, and the direct Anthropic fallback).
+# The dashboard logic lives in ./claude-superset-tui.mjs — not exposed as a
+# separate binary.
 { config, pkgs, lib, ... }:
 let
   ep = builtins.fromJSON (builtins.readFile ./claude-superset.json);
   claude-superset = pkgs.writeShellScriptBin "claude-superset" ''
     set -u
+    # --help / -h: interactive status dashboard — probes every face, all MCPs,
+    # plugins (Headroom + Ponytail), and direct Anthropic fallback.
+    if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ]; then
+      export CAS_PROXY="${ep.proxy}" CAS_API="${ep.api}" CAS_OLLAMA="${ep.ollama}"
+      export CAS_DASHBOARD="${ep.dashboard}" CAS_LAUNCH="claude"
+      export CAS_COMPRESS="''${CAS_DASHBOARD%/dashboard}"
+      export CAS_ANTHROPIC="${ep.anthropic}"
+      export CAS_MCP_C3_INFRA="${ep.mcps.c3_infra}"
+      export CAS_MCP_C3_SVC="${ep.mcps.c3_svc}"
+      export CAS_MCP_MATTERMOST="${ep.mcps.mattermost}"
+      export CAS_MCP_MAIL="${ep.mcps.mail}"
+      export CAS_MCP_GWS="${ep.mcps.gws}"
+      export CAS_MCP_GP="${ep.mcps.gp}"
+      export CAS_PLUGINS_SCRIPT="$HOME/.claude/claude-plugins-status.sh"
+      exec ${pkgs.nodejs}/bin/node ${./claude-superset-tui.mjs}
+    fi
     URL="''${CLAUDE_SUPERSET_URL:-${ep.proxy}}"
     if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
       export ANTHROPIC_BASE_URL="$URL"
@@ -25,25 +43,9 @@ let
     exec claude "$@"
   '';
 
-  # TUI helper/dashboard — endpoints injected from the same JSON (data-driven),
-  # CAS_LAUNCH=claude (desktop has no Android isolation wrapper to chain).
-  claude-superset-tui = pkgs.writeShellScriptBin "claude-superset-tui" ''
-    export CAS_PROXY="${ep.proxy}" CAS_API="${ep.api}" CAS_OLLAMA="${ep.ollama}"
-    export CAS_DASHBOARD="${ep.dashboard}" CAS_LAUNCH="claude"
-    export CAS_COMPRESS="''${CAS_DASHBOARD%/dashboard}"
-    export CAS_ANTHROPIC="${ep.anthropic}"
-    export CAS_MCP_C3_INFRA="${ep.mcps.c3_infra}"
-    export CAS_MCP_C3_SVC="${ep.mcps.c3_svc}"
-    export CAS_MCP_MATTERMOST="${ep.mcps.mattermost}"
-    export CAS_MCP_MAIL="${ep.mcps.mail}"
-    export CAS_MCP_GWS="${ep.mcps.gws}"
-    export CAS_MCP_GP="${ep.mcps.gp}"
-    exec ${pkgs.nodejs}/bin/node ${./claude-superset-tui.mjs} "$@"
-  '';
-
   # Desktop tray (KDE Plasma 6 / SNI via yad) — live savings in the tooltip,
-  # menu to open the dashboard or launch the TUI. Desktop-only (no tray on
-  # termux). Autostarted by the systemd user service below.
+  # menu to open the dashboard or launch claude via the proxy. Desktop-only.
+  # Autostarted by the systemd user service below.
   claude-superset-tray = pkgs.writeShellScriptBin "claude-superset-tray" ''
     set -u
     DASH="${ep.dashboard}"
@@ -58,10 +60,10 @@ let
     }
     refresh | ${pkgs.yad}/bin/yad --notification --listen \
       --image=utilities-terminal --text="claude-superset" \
-      --menu="Dashboard!${pkgs.xdg-utils}/bin/xdg-open $DASH|Helper!${pkgs.kdePackages.konsole}/bin/konsole -e claude-superset-tui|Quit!quit"
+      --menu="Dashboard!${pkgs.xdg-utils}/bin/xdg-open $DASH|Status!${pkgs.kdePackages.konsole}/bin/konsole -e claude-superset --help|Quit!quit"
   '';
 in {
-  home.packages = [ claude-superset claude-superset-tui claude-superset-tray ];
+  home.packages = [ claude-superset claude-superset-tray ];
 
   # Autostart the tray with the graphical session (manual-recovery friendly:
   # Restart is intentionally NOT set — matches the fleet no-auto-restart rule).
