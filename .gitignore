@@ -165,4 +165,3 @@ vmlinuz
 a_nixos_host/result
 ## Obsidian
 .obsidian/workspace-mobile.json
-*.cwd_restore

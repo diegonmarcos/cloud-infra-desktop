@@ -16,6 +16,7 @@
 set -u
 
 TTL=900                                            # 15 min
+LOCK_TTL=120                                        # a refresh can't outlive timeout 60 + overhead
 CACHE="${TMPDIR:-/tmp}/claude-mcp-status.cache"    # "name<TAB>on|off" per line
 LOCK="${TMPDIR:-/tmp}/claude-mcp-status.refresh.lock"
 
@@ -40,6 +41,13 @@ else
   [ $((now - mtime)) -ge "$TTL" ] && need=true
 fi
 if [ "$need" = true ] && command -v claude >/dev/null 2>&1; then
+  # Reclaim a dead lock: a refresher that died before rmdir (statusline reaps the
+  # backgrounded subshell, timeout kills it, session exits) would otherwise wedge
+  # the lock forever and freeze the cache. A live refresh can't outlive LOCK_TTL.
+  if [ -d "$LOCK" ]; then
+    lmtime=$(stat -c %Y "$LOCK" 2>/dev/null || echo 0)
+    [ $(( $(date +%s 2>/dev/null || echo 0) - lmtime )) -ge "$LOCK_TTL" ] && rmdir "$LOCK" 2>/dev/null
+  fi
   # mkdir is atomic → exactly one refresher at a time (no stampede).
   if mkdir "$LOCK" 2>/dev/null; then
     (
