@@ -42,13 +42,16 @@ deny() {
 # ════════════════════════════════════════════════════════════════════════════
 
 # ── Secret-leak vector: git add -f / --force bypasses gitignore ──
-if echo "$CMD" | grep -qE '(^|\s|;|&&|\|)\s*git\s+(-[Cc]\s+\S+\s+)?add\s+(-f\b|--force\b)'; then
+# Order-independent: -f / --force / short-cluster-with-f anywhere after `add`
+# until the next command separator (catches `git add x -f`, `git add -A -f`, `-Af`).
+if echo "$CMD" | grep -qE '(^|[;&|])\s*git\s+(-[Cc]\s+\S+\s+)?add\b[^;&|]*\s(-[A-Za-z]*f\b|--force\b)'; then
     deny "git add -f/--force bypasses gitignore — can stage decrypted secrets, private keys, sensitive/" \
          "plain 'git add <path>'; if gitignore blocks a file, FIX gitignore — never force"
 fi
 
 # ── Volume wipe: docker compose down -v / --volumes ──
-if echo "$CMD" | grep -qiE 'docker(-compose|\s+compose)\s+down\s+.*(-v\b|--volumes\b)'; then
+# Allow global flags between compose↔down and down↔-v (`compose -f x.yml down -v`).
+if echo "$CMD" | grep -qiE 'docker(-compose|\s+compose)\b[^;&|]*\sdown\b[^;&|]*\s(-v\b|--volumes\b)'; then
     deny "docker compose down -v wipes ALL named volumes (databases, state) — irreversible" \
          "docker compose down (without -v) or build.sh compose"
 fi
