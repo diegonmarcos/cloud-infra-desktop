@@ -150,18 +150,45 @@ cmd_lock() {
   log "Lockfile written: $LOCKFILE"
 }
 
-# ── build: fetch pinned APKs via nix + copy local-built APKs ────────────────
+# Try the GHA-prebuilt APK set (rolling GitHub Release) instead of fetching ~54
+# APKs from F-Droid locally. Data-driven (build.json release{}). Reproducible:
+# the tarball bundles manifest.json (a verbatim copy of the lockfile it was
+# built from) — we only accept it if that equals our local lockfile, so a stale
+# release can never sneak in. Returns 0 if it populated $APK_DIR, 1 to fall back.
+try_apks_from_release() {
+  [ "${WAYDROID_APKS_LOCAL:-0}" = "1" ] && return 1
+  [ "$(get release.consume)" = "true" ] || return 1
+  local tag asset; tag="$(get release.tag)"; asset="$(get release.asset)"
+  [ -n "$tag" ] && [ -n "$asset" ] || return 1
+  command -v gh >/dev/null 2>&1 || { warn "release.consume set but gh not found — building locally"; return 1; }
+  local t; t="$(mktemp -d)"
+  log "fetching prebuilt APK set from release '$tag'…"
+  if ! gh release download "$tag" -p "$asset" -D "$t" >/dev/null 2>&1; then
+    warn "release '$tag' asset '$asset' unavailable — building locally"; rm -rf "$t"; return 1
+  fi
+  tar -C "$t" -xzf "$t/$asset" 2>/dev/null || { warn "cannot extract '$asset' — building locally"; rm -rf "$t"; return 1; }
+  if ! node -e "const fs=require('fs');const A=JSON.stringify(JSON.parse(fs.readFileSync('$t/manifest.json')).apps);const B=JSON.stringify(JSON.parse(fs.readFileSync('$LOCKFILE')).apps);process.exit(A===B?0:1)" 2>/dev/null; then
+    warn "release manifest != local lockfile (stale) — building locally"; rm -rf "$t"; return 1
+  fi
+  cp -f "$t/apks/"*.apk "$APK_DIR"/ 2>/dev/null || { rm -rf "$t"; return 1; }
+  log "Pulled $(ls "$APK_DIR" | wc -l) prebuilt APK(s) from release '$tag' (no local nix build)"
+  rm -rf "$t"; return 0
+}
+
+# ── build: fetch pinned APKs (prebuilt release, else nix) + copy local APKs ──
 cmd_build() {
   [ -f "$LOCKFILE" ] || { warn "no lockfile; running lock first"; cmd_lock; }
   rm -rf "$APK_DIR"; mkdir -p "$APK_DIR"
-  log "nix build of pinned APK set…"
   mkdir -p "$DIST"
-  # path: flake (src/ is a subdir of the unix git repo) — includes not-yet-committed
-  # files; reproducibility is guaranteed by the pinned hashes in src/apps.lock.json.
-  nix build "path:$SRC#apks" --no-link --print-out-paths > "$DIST/.apks.out"
-  local out; out="$(cat "$DIST/.apks.out")"
-  cp -f "$out"/apks/*.apk "$APK_DIR"/
-  log "Fetched $(ls "$APK_DIR" | wc -l) pinned APK(s) into dist/apks/"
+  if ! try_apks_from_release; then
+    log "nix build of pinned APK set…"
+    # path: flake (src/ is a subdir of the unix git repo) — includes not-yet-committed
+    # files; reproducibility is guaranteed by the pinned hashes in src/apps.lock.json.
+    nix build "path:$SRC#apks" --no-link --print-out-paths > "$DIST/.apks.out"
+    local out; out="$(cat "$DIST/.apks.out")"
+    cp -f "$out"/apks/*.apk "$APK_DIR"/
+    log "Fetched $(ls "$APK_DIR" | wc -l) pinned APK(s) into dist/apks/"
+  fi
 
   # local-source apps (e.g. cloud-superapp x86_64)
   local n; n="$(node -e "process.stdout.write(String(require('$CONFIG').apps.length))")"
