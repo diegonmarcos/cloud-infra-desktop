@@ -240,8 +240,11 @@ if [ -n "$mcp_seg" ]; then OUT+=" ${mcp_seg}"; else OUT+=" \033[${mcp_color}mMCP
 # PL / HK cells — only when their helper produced output (self-omitting)
 [ -n "$plugins_seg" ] && OUT+=" \033[37m|\033[0m ${plugins_seg}"
 [ -n "$hooks_seg" ] && OUT+=" \033[37m|\033[0m ${hooks_seg}"
-# user@host cell
-OUT+=" \033[37m|\033[0m"
+OUT+=" \033[37m|\033[0m\n"
+
+# LINE 2: | user@OS | folder@branch | RAM CPU Disk VRAM | Mesh ●wg0:ip ●wg-public:ip |
+# user@host + folder@branch moved here from LINE 1 (2026-06-25).
+OUT+="\033[37m|\033[0m"
 OUT+=" \033[36m${user_host}\033[0m"
 # folder@branch cell (collapse repo/folder when folder == repo root, or no repo)
 OUT+=" \033[37m|\033[0m"
@@ -252,10 +255,7 @@ else
     OUT+=" \033[34m${folder}\033[0m"
 fi
 [ -n "$git_branch" ] && OUT+=" \033[90m@\033[0m \033[33m${git_branch}\033[0m"
-OUT+=" \033[37m|\033[0m\n"
-
-# LINE 2: | RAM CPU Disk VRAM | Mesh ●wg0:ip ●wg-public:ip |
-OUT+="\033[37m|\033[0m"
+OUT+=" \033[37m|\033[0m"
 OUT+=" \033[${mem_color}mRAM:${mem_percent}%\033[0m"
 OUT+=" \033[${cpu_color}mCPU:${cpu_percent}%\033[0m"
 OUT+=" \033[${disk_color}mDisk:${disk_percent}%\033[0m"
