@@ -81,7 +81,8 @@
         "0008-comms-JMAP-batch-2-fixup-thread-host-into-_connect-c.patch",
         "0009-comms-JMAP-account-config-UI-setup-menu-entry-dialog.patch",
         "0010-comms-RSS-feed-config-UI-setup-menu-entry-dialog-win.patch",
-        "0011-comms-fix-JMAP-account-created-crash-skip-sync-safe-.patch"
+        "0011-comms-fix-JMAP-account-created-crash-skip-sync-safe-.patch",
+        "0012-comms-self-updater-CommsUpdateWorker-checks-GHCR-eve.patch"
       ],
       "_patches_doc": "Informational manifest of the applied series (lexical order). The build engine's source of truth is the glob of forks/mail/patches/*.patch in build.sh::step_materialize_fork — this array mirrors that dir for human/review visibility and MUST be kept in sync when patches are added.",
       "comment": "FairEmail. Reuses the EXISTING ea_mail-fairmail tracker clone already used by ea_cloud-superapp's cherry-pick — materialize-fork checks out the pin, never trusts the tracker HEAD. Server: Maddy + Stalwart on oci-mail (imap./smtps. via SNI on :443, jmap.). Do this fork first: pure Java, no RN/Rust, mail server is live."
