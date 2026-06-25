@@ -9,6 +9,12 @@ eval "$(echo "$input" | jq -r '
     @sh "exceeds_200k=\(.exceeds_200k_tokens // false)",
     @sh "ctx_input=\(.context_window.total_input_tokens // 0)",
     @sh "ctx_output=\(.context_window.total_output_tokens // 0)",
+    @sh "ctx_window=\(.context_window.context_window_size // 200000)",
+    @sh "ctx_used_pct=\(.context_window.used_percentage // -1)",
+    @sh "cu_new=\(.context_window.current_usage.input_tokens // 0)",
+    @sh "cu_cwrite=\(.context_window.current_usage.cache_creation_input_tokens // 0)",
+    @sh "cu_cread=\(.context_window.current_usage.cache_read_input_tokens // 0)",
+    @sh "cu_out=\(.context_window.current_usage.output_tokens // 0)",
     @sh "session_cost=\(.cost.total_cost_usd // 0)",
     @sh "session_id=\(.session_id // empty)"
 ')"
@@ -21,14 +27,19 @@ session_short="${session_id:0:8}"
 model_name=$(echo "$model_id" | sed -E 's/^claude-//; s/-([0-9]{8})$//')
 [ -z "$model_name" ] && model_name="unknown"
 
-# Context window (200K) — use ctx_input as current context size
-ctx_window_size=200000
+# Context window — size is model-dependent (200K, or 1M extended-context).
+# current_ctx = total input in the live window (new + cache-write + cache-read).
+ctx_window_size=${ctx_window:-200000}
 current_ctx=${ctx_input:-0}
-if [ "$current_ctx" -gt 0 ] && [ "$ctx_window_size" -gt 0 ]; then
+# Prefer Claude Code's pre-computed used_percentage; else derive from window size.
+if [ -n "$ctx_used_pct" ] && [ "$ctx_used_pct" != "-1" ]; then
+    ctx_percent=${ctx_used_pct%.*}
+elif [ "$current_ctx" -gt 0 ] && [ "$ctx_window_size" -gt 0 ]; then
     ctx_percent=$((current_ctx * 100 / ctx_window_size))
 else
     ctx_percent=0
 fi
+case "$ctx_percent" in ""|*[!0-9]*) ctx_percent=0;; esac
 
 # Context color
 if [ "$exceeds_200k" = "true" ] || [ "$ctx_percent" -ge 95 ]; then
@@ -227,20 +238,35 @@ OUT+=" \033[36mP:${private_ip}\033[0m"
 OUT+=" \033[36mPub:${public_ip}\033[0m"
 OUT+=" \033[37m|\033[0m\n"
 
-# LINE 3: | last_reset CTX:used/200K(%) In:tok Out:tok $cost |
+# LINE 3: | last_reset CTX:used/<win>(%) ⚡cache% In:new +cache Out Σtotal $cost |
+# Token breakdown is the LIVE context window (context_window.current_usage),
+# straight from stdin — spawn-free. $ is cumulative session (cost.total_cost_usd).
+win_fmt=$(fmt_tok "$ctx_window_size")
 ctx_fmt=$(fmt_tok "$current_ctx")
-in_fmt=$(fmt_tok "${ctx_input:-0}")
-out_fmt=$(fmt_tok "${ctx_output:-0}")
+new_fmt=$(fmt_tok "${cu_new:-0}")
+cache_tok=$(( ${cu_cread:-0} + ${cu_cwrite:-0} ))   # cache read + write
+cache_fmt=$(fmt_tok "$cache_tok")
+out_fmt=$(fmt_tok "${cu_out:-0}")
+sum_tok=$(( ${cu_new:-0} + cache_tok + ${cu_out:-0} ))
+sum_fmt=$(fmt_tok "$sum_tok")
+# cache hit rate = cache_read / total_input (input side only)
+total_in=$(( ${cu_new:-0} + cache_tok ))
+if [ "$total_in" -gt 0 ]; then cache_hit=$(( ${cu_cread:-0} * 100 / total_in )); else cache_hit=0; fi
+if [ "$cache_hit" -ge 80 ]; then cache_color="32"; elif [ "$cache_hit" -ge 40 ]; then cache_color="33"; else cache_color="90"; fi
+
 OUT+="\033[37m|\033[0m"
 OUT+=" \033[90m${last_reset_ts}\033[0m"
-if [ "$exceeds_200k" = "true" ]; then
-    OUT+=" \033[31mCTX:${ctx_fmt}/200K(⚠)\033[0m"
+if [ "$exceeds_200k" = "true" ] && [ "$ctx_window_size" -le 200000 ]; then
+    OUT+=" \033[31mCTX:${ctx_fmt}/${win_fmt}(⚠)\033[0m"
 else
-    OUT+=" \033[${ctx_color}mCTX:${ctx_fmt}/200K(${ctx_percent}%)\033[0m"
+    OUT+=" \033[${ctx_color}mCTX:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
 fi
-OUT+=" \033[36mIn:${in_fmt}\033[0m"
+OUT+=" \033[${cache_color}m⚡${cache_hit}%\033[0m"
+OUT+=" \033[36mIn:${new_fmt}\033[0m"
+OUT+=" \033[34m+cache:${cache_fmt}\033[0m"
 OUT+=" \033[36mOut:${out_fmt}\033[0m"
-cost_fmt=$(LC_NUMERIC=C awk "BEGIN {printf \"%.2f\", ${session_cost:-0}}")
+OUT+=" \033[90mΣ${sum_fmt}\033[0m"
+cost_fmt=$(LC_NUMERIC=C awk "BEGIN {c=${session_cost:-0}; printf (c>=1?\"%.2f\":\"%.4f\"), c}")
 OUT+=" \033[${cost_color}m\$${cost_fmt}\033[0m"
 OUT+=" \033[37m|\033[0m\n"
 
