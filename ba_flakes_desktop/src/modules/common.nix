@@ -169,6 +169,10 @@
     source = ./dotfiles/claude/claude-mcp-status.sh;
     executable = true;
   };
+  home.file.".claude/claude-hooks-status.sh" = {
+    source = ./dotfiles/claude/claude-hooks-status.sh;
+    executable = true;
+  };
   # Data-driven Claude Code hooks (refactored 2026-06-25 from the a-/b-/c- split).
   # ONE engine + ONE registry (hooks-rules.json) drives every tier:
   #   inject <tier> → SessionStart / UserPromptSubmit / PreToolUse context
