@@ -321,6 +321,19 @@ MAX_CORES=4
 MAX_JOBS=1
 NIX_BUILD_FLAGS="--max-jobs $MAX_JOBS --cores $MAX_CORES -L --extra-experimental-features nix-command --extra-experimental-features flakes"
 
+# ── Declarative resource caps for the rebuild (2026-06-25) ──────────────────
+# Run nixos-rebuild inside a transient systemd scope so the eval/activation
+# CLIENT can never freeze the desktop. (The nix-daemon BUILD is separately
+# capped by configuration_system-protection.nix: MemorySwapMax + IOWeight=20.)
+# CPU ≤ half the machine; soft mem limit forces reclaim before swap; ≤1G disk-
+# swap spill so swap-out I/O can't thrash the disk; lowest disk-I/O weight.
+# Degrades gracefully if systemd-run is absent (e.g. non-systemd installer).
+if command -v systemd-run >/dev/null 2>&1; then
+  REBUILD_SCOPE="systemd-run --scope --quiet --collect --property=CPUQuota=400% --property=MemoryHigh=4G --property=MemorySwapMax=1G --property=IOWeight=20 --property=Nice=10"
+else
+  REBUILD_SCOPE=""
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════
 # LOGGING SETUP
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1102,7 +1115,7 @@ dry_run() {
     log "Building NixOS config (dry-activate — no switch)..."
     log "CPU limits: $MAX_CORES cores, $MAX_JOBS parallel jobs"
 
-    _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)" && printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG" && sudo env "GIT_CONFIG_GLOBAL=$_BUILDSH_BOOTSTRAP_GITCONFIG" "GIT_CONFIG_SYSTEM=$_BUILDSH_BOOTSTRAP_GITCONFIG" BUILDSH_GUARDRAIL=1 nixos-rebuild dry-activate --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
+    _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)" && printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG" && sudo env "GIT_CONFIG_GLOBAL=$_BUILDSH_BOOTSTRAP_GITCONFIG" "GIT_CONFIG_SYSTEM=$_BUILDSH_BOOTSTRAP_GITCONFIG" BUILDSH_GUARDRAIL=1 $REBUILD_SCOPE nixos-rebuild dry-activate --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
 
     if [ $? -eq 0 ]; then
         log "Dry run complete — no changes applied"
@@ -1206,7 +1219,7 @@ switch_system() {
     log "CPU limits: $MAX_CORES cores, $MAX_JOBS parallel jobs"
     log "This will switch to the new configuration immediately."
 
-    _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)" && printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG" && sudo env "GIT_CONFIG_GLOBAL=$_BUILDSH_BOOTSTRAP_GITCONFIG" "GIT_CONFIG_SYSTEM=$_BUILDSH_BOOTSTRAP_GITCONFIG" BUILDSH_GUARDRAIL=1 nixos-rebuild switch --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
+    _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)" && printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG" && sudo env "GIT_CONFIG_GLOBAL=$_BUILDSH_BOOTSTRAP_GITCONFIG" "GIT_CONFIG_SYSTEM=$_BUILDSH_BOOTSTRAP_GITCONFIG" BUILDSH_GUARDRAIL=1 $REBUILD_SCOPE nixos-rebuild switch --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
 
     if [ $? -eq 0 ]; then
         # Trim to last 3 generations and GC
@@ -1248,7 +1261,7 @@ boot_system() {
     log "Building NixOS config (will activate on next boot)..."
     log "CPU limits: $MAX_CORES cores, $MAX_JOBS parallel jobs"
 
-    _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)" && printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG" && sudo env "GIT_CONFIG_GLOBAL=$_BUILDSH_BOOTSTRAP_GITCONFIG" "GIT_CONFIG_SYSTEM=$_BUILDSH_BOOTSTRAP_GITCONFIG" BUILDSH_GUARDRAIL=1 nixos-rebuild boot --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
+    _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)" && printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG" && sudo env "GIT_CONFIG_GLOBAL=$_BUILDSH_BOOTSTRAP_GITCONFIG" "GIT_CONFIG_SYSTEM=$_BUILDSH_BOOTSTRAP_GITCONFIG" BUILDSH_GUARDRAIL=1 $REBUILD_SCOPE nixos-rebuild boot --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
 
     if [ $? -eq 0 ]; then
         # `nixos-rebuild boot` sets the next-boot generation — the menu MUST
@@ -1273,7 +1286,7 @@ test_system() {
     log "Building and activating temporarily (reverts on reboot)..."
     log "CPU limits: $MAX_CORES cores, $MAX_JOBS parallel jobs"
 
-    _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)" && printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG" && sudo env "GIT_CONFIG_GLOBAL=$_BUILDSH_BOOTSTRAP_GITCONFIG" "GIT_CONFIG_SYSTEM=$_BUILDSH_BOOTSTRAP_GITCONFIG" BUILDSH_GUARDRAIL=1 nixos-rebuild test --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
+    _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)" && printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG" && sudo env "GIT_CONFIG_GLOBAL=$_BUILDSH_BOOTSTRAP_GITCONFIG" "GIT_CONFIG_SYSTEM=$_BUILDSH_BOOTSTRAP_GITCONFIG" BUILDSH_GUARDRAIL=1 $REBUILD_SCOPE nixos-rebuild test --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
 
     if [ $? -eq 0 ]; then
         log "Test activation complete!"
