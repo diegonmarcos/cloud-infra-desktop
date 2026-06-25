@@ -73,9 +73,17 @@ in {
     partOf = [ "graphical-session.target" ];
     after = [ "graphical-session.target" ];
     serviceConfig = {
+      # Wait for Plasma's StatusNotifierWatcher to register on D-Bus before yad
+      ExecStartPre = "${pkgs.coreutils}/bin/sleep 5";
       ExecStart = "${nixos-systray}/bin/nixos-systray";
+      Environment = [
+        "WAYLAND_DISPLAY=wayland-0"
+        "XDG_RUNTIME_DIR=/run/user/1000"
+        "XDG_CURRENT_DESKTOP=KDE"
+        "NO_AT_BRIDGE=1"
+      ];
       Restart = "on-failure";
-      RestartSec = 5;
+      RestartSec = 10;
     };
   };
 }

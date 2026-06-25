@@ -49726,3 +49726,14 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-06-25 19:28:52] ========== Building (no activate) /home/diego/git/unix/ba_flakes_desktop/src#diego@desktop ==========
 [2026-06-25 19:28:52] PERF: start build
 [2026-06-25 19:28:52] INFO: Staging dirty files for flake evaluation...
+[2026-06-25 19:28:53] PERF: git stage = 118ms
+[2026-06-25 19:28:53] INFO: Building Home Manager activation package (no switch)...
+error: flake 'git+file:///home/diego/git/unix?dir=ba_flakes_desktop/src&shallow=1' does not provide attribute 'packages.x86_64-linux.homeConfigurations."diego@desktop".activationPackage', 'legacyPackages.x86_64-linux.homeConfigurations."diego@desktop".activationPackage' or 'homeConfigurations."diego@desktop".activationPackage'
+[2026-06-25 19:28:56] ERROR: Build failed with exit code 1
+[2026-06-25 19:28:56] INFO: Check /home/diego/git/unix/ba_flakes_desktop/build.log for details
+[2026-06-25 19:28:56] PERF: home-manager build = 3.8s
+[2026-06-25 19:28:56] PERF: TOTAL build = 3.9s
+[2026-06-25 23:04:39] ========== Build script started ==========
+[2026-06-25 23:04:39] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-25 23:04:39] PERF: start switch
+[2026-06-25 23:04:39] INFO: Staging dirty files for flake evaluation...
