@@ -8,9 +8,10 @@
 # non-blocking, lock-guarded background refresh is fired and the stale value is
 # used for the current render.
 #
-# Output (ansi): MCP[●●○●…]  — one dot per CONFIGURED server, stable sorted
-# order. ● green = connected, ○ grey = offline/pending/unknown. Emits nothing if
-# no servers are configured; the statusline falls back to the plain count.
+# Output (ansi): MCP[●◐○…]  — one dot per CONFIGURED server, stable sorted
+# order. ● green = connected, ◐ yellow = pending approval (configured + usable in
+# session, just not approved for a fresh probe), ○ grey = offline/unknown. Emits
+# nothing if no servers are configured; the statusline falls back to the count.
 #
 # Arg 1 (optional): project cwd, to also read its ./.mcp.json. Defaults to $PWD.
 set -u
@@ -37,6 +38,7 @@ if [ "${1:-}" = "--refresh" ]; then
         [ -z "$name" ] && continue
         case "$line" in
           *"✓"*|*"✔"*|*[Cc]onnected*) printf '%s\t%s\n' "$name" "on" ;;
+          *[Pp]ending*)               printf '%s\t%s\n' "$name" "pending" ;;
           *)                          printf '%s\t%s\n' "$name" "off" ;;
         esac ;;
     esac
@@ -97,7 +99,11 @@ while IFS= read -r s; do
   [ -z "$s" ] && continue
   state="off"
   [ -f "$CACHE" ] && { c=$(awk -F'\t' -v n="$s" '$1==n {print $2; exit}' "$CACHE" 2>/dev/null); [ -n "$c" ] && state="$c"; }
-  if [ "$state" = "on" ]; then out="$out\033[32m●\033[0m"; else out="$out\033[90m○\033[0m"; fi
+  case "$state" in
+    on)      out="$out\033[32m●\033[0m" ;;   # green
+    pending) out="$out\033[33m◐\033[0m" ;;   # yellow
+    *)       out="$out\033[90m○\033[0m" ;;   # grey
+  esac
 done <<EOF
 $servers
 EOF
