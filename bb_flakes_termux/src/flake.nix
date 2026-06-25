@@ -665,6 +665,8 @@
                 source = ../src/modules/dotfiles/claude/claude-hooks-status.sh;
                 executable = true;
               };
+              home.file.".claude/claude-pricing.json".source =
+                ../src/modules/dotfiles/claude/claude-pricing.json;
               # Tier-based Claude Code hooks (renamed 2026-05-07).
               #   a-* → SessionStart, b-* → UserPromptSubmit,
               #   c-* → PreToolUse(Bash), split into blockers + warnings.
