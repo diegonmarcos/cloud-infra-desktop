@@ -11,8 +11,13 @@ echo "Setting up workspace..."
 # ── Desktop 1: Terminal + Editor ─────────────────────────────────────────────
 kstart --desktop 1 konsole &
 
-# ── Desktop 2: Browser ───────────────────────────────────────────────────────
+# ── Desktop 2: Browsers ──────────────────────────────────────────────────────
 kstart --desktop 2 brave &
+kstart --desktop 2 qutebrowser \
+  "localhost:8000" \
+  "https://cloud.diegonmarcos.com" \
+  "https://proxy.diegonmarcos.com" \
+  "https://claude.ai/new#settings/usage" &
 
 # ── Desktop 3: Files + Waydroid ──────────────────────────────────────────────
 kstart --desktop 3 dolphin &
