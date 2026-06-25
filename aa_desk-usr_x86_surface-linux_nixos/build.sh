@@ -329,7 +329,7 @@ NIX_BUILD_FLAGS="--max-jobs $MAX_JOBS --cores $MAX_CORES -L --extra-experimental
 # swap spill so swap-out I/O can't thrash the disk; lowest disk-I/O weight.
 # Degrades gracefully if systemd-run is absent (e.g. non-systemd installer).
 if command -v systemd-run >/dev/null 2>&1; then
-  REBUILD_SCOPE="systemd-run --scope --quiet --collect --property=CPUQuota=400% --property=MemoryHigh=4G --property=MemorySwapMax=1G --property=IOWeight=20 --property=Nice=10"
+  REBUILD_SCOPE="systemd-run --scope --quiet --collect --property=CPUQuota=400% --property=MemoryHigh=4G --property=MemorySwapMax=1G --property=IOWeight=20"
 else
   REBUILD_SCOPE=""
 fi

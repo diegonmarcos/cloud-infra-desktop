@@ -7,6 +7,7 @@ sudo via ksshaskpass (so build.sh's `sudo nixos-rebuild` works without a TTY).""
 import os
 import re
 import json
+import time
 import shutil
 import subprocess
 
@@ -72,6 +73,7 @@ def apply_dark(app):
         "padding:6px 16px;}QPushButton:hover{background:#3b4045;}"
         "QPushButton:disabled{color:#787c80;}"
         "QLabel#hdr{font-size:15px;font-weight:bold;}"
+        "QLabel#tlabel{color:#9aa0a6;font-size:12px;}"
         "QMenu{background:#232629;border:1px solid #31363b;padding:4px;}"
         "QMenu::item{padding:6px 26px;border-radius:5px;}"
         "QMenu::item:selected{background:%s;color:#000;}"
@@ -106,6 +108,16 @@ class RunWindow(QDialog):
         self.bar = QProgressBar()
         self.bar.setRange(0, 0)  # indeterminate until we parse [n/m built]
         v.addWidget(self.bar)
+        self.tlabel = QLabel("")
+        self.tlabel.setObjectName("tlabel")
+        v.addWidget(self.tlabel)
+        # Time tracking: elapsed + a linear-extrapolation ETA from [n/m built].
+        self._t0 = None
+        self._done = 0
+        self._total = 0
+        self.ttimer = QTimer(self)
+        self.ttimer.setInterval(1000)
+        self.ttimer.timeout.connect(self.tick)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setMaximumBlockCount(8000)
@@ -153,6 +165,9 @@ class RunWindow(QDialog):
             env.insert("SUDO_ASKPASS", ASKPASS)
         self.proc.setProcessEnvironment(env)
         self.status.setText("Running: %s" % self.command)
+        self._t0 = time.monotonic()
+        self.ttimer.start()
+        self.tick()
         self.proc.start("bash", ["-lc", self.command])
 
     def on_output(self):
@@ -166,11 +181,33 @@ class RunWindow(QDialog):
                     self.bar.setRange(0, total)
                     self.bar.setValue(done)
                     self.status.setText("Building %d / %d…" % (done, total))
+                    self._done, self._total = done, total
+
+    @staticmethod
+    def _fmt(secs):
+        secs = int(max(0, secs))
+        return "%d:%02d:%02d" % (secs // 3600, (secs % 3600) // 60, secs % 60) \
+            if secs >= 3600 else "%d:%02d" % (secs // 60, secs % 60)
+
+    def tick(self):
+        if self._t0 is None:
+            return
+        elapsed = time.monotonic() - self._t0
+        if self._total and self._done:
+            eta = elapsed / self._done * (self._total - self._done)
+            self.tlabel.setText("Elapsed %s · ~%s remaining  (%d/%d built)"
+                                % (self._fmt(elapsed), self._fmt(eta),
+                                   self._done, self._total))
+        else:
+            self.tlabel.setText("Elapsed %s · estimating…" % self._fmt(elapsed))
 
     def on_finished(self, code, _status):
         self.finish_ui(code)
 
     def finish_ui(self, code):
+        self.ttimer.stop()
+        if self._t0 is not None:
+            self.tlabel.setText("Total time %s" % self._fmt(time.monotonic() - self._t0))
         self.bar.setRange(0, 1)
         self.bar.setValue(1)
         ok = code == 0
