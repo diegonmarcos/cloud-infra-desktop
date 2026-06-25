@@ -328,11 +328,14 @@ NIX_BUILD_FLAGS="--max-jobs $MAX_JOBS --cores $MAX_CORES -L --extra-experimental
 # CPU ≤ half the machine; soft mem limit forces reclaim before swap; ≤1G disk-
 # swap spill so swap-out I/O can't thrash the disk; lowest disk-I/O weight.
 # Degrades gracefully if systemd-run is absent (e.g. non-systemd installer).
-if command -v systemd-run >/dev/null 2>&1; then
-  REBUILD_SCOPE="systemd-run --scope --quiet --collect --property=CPUQuota=400% --property=MemoryHigh=4G --property=MemorySwapMax=1G --property=IOWeight=20"
-else
-  REBUILD_SCOPE=""
-fi
+# Resource caps for the rebuild live on nix-daemon itself (configuration_system-
+# protection.nix: MemoryMax/MemorySwapMax/IOWeight + user-1000 MemoryMin). That
+# caps the actual BUILD (the swap-death culprit) AND survives any caller context.
+# A `systemd-run --scope` wrapper here was tried and REMOVED 2026-06-25: a scope
+# launched from a detached process (background task or the GUI's QProcess) gets
+# SIGTERM'd when its session is reaped, killing the switch ("Terminated"). The
+# nix-daemon cgroup cap is the correct, context-independent protection.
+REBUILD_SCOPE=""
 
 # ═══════════════════════════════════════════════════════════════════════════
 # LOGGING SETUP
