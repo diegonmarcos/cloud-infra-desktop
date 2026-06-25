@@ -31,6 +31,8 @@
       "/var/lib/waydroid/data"
     ],
     "launcher_package": "com.android.launcher3",
+    "home_package": "com.android.launcher3",
+    "_doc_home": "Default HOME app. Stays launcher3 for now so the data-driven folder/workspace layout (cmd_layout writes launcher3's favorites DB) keeps working. PHASE 2 (after the launcher3 design is locked): flip to 'com.diegonmarcos.superapp' + run `build.sh home` to make Cloud-SuperApp the home launcher.",
     "launcher_db_glob": "data/com.android.launcher3/databases/launcher_*.db",
     "media_subdir": "media/0",
     "_doc_install": "`waydroid app install` is unreliable (silently no-ops, esp. for larger APKs — Organic Maps 72MB failed). The engine installs robustly by staging the APK into the container's tmp (container_tmp ↔ host <data_root>/local/tmp) and running `pm install -r -d`. grant_all_permissions adds `-g` so every declared runtime (dangerous) permission is auto-granted at install — no per-app permission prompts.",
@@ -436,6 +438,8 @@
       "label": "Cloud-SuperApp",
       "group": "core",
       "_doc": "Provisioning ONLY fetches the already-published x86 APK (signed with the canonical per-app CI key); it must NEVER build it locally or in GHA. A local gradle build here signs with the wrong (vault) key and Android then rejects the in-app updater's canonical-key updates. Re-run `build.sh lock <pkg>` to refresh the pin when the upstream release bumps.",
+      "appops": ["REQUEST_INSTALL_PACKAGES"],
+      "_doc_appops": "Special app-ops to allow at install (separate from the -g runtime perms). REQUEST_INSTALL_PACKAGES lets Cloud-SuperApp sideload/install other APKs itself (it's the constellation hub/installer). Granted via `cmd appops set <pkg> <op> allow` by cmd_install.",
       "source": {
         "type": "github",
         "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-SuperApp-x86_64.apk"
