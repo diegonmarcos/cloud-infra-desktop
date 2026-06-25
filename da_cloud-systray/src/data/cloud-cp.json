@@ -1,0 +1,83 @@
+{
+  "tray_icon":     "network-vpn",
+  "tray_tooltip":  "Cloud & Infra",
+  "flake_system":  "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos",
+  "flake_desktop": "/home/diego/git/unix/ba_flakes_desktop",
+  "flake_cloud":   "/home/diego/git/cloud",
+  "sections": [
+    {
+      "name": "Network",
+      "items": [
+        { "label": "WireGuard Status",    "type": "shell",  "icon": "network-vpn",        "arg": "sudo wg show all" },
+        { "label": "Mesh Peers",          "type": "shell",  "icon": "network-wired",      "arg": "sudo wg show all peers latest-handshakes" },
+        { "label": "DNS Status",          "type": "shell",  "icon": "network-server",     "arg": "resolvectl status" },
+        { "label": "Firewall Rules",      "type": "shell",  "icon": "security-high",      "arg": "sudo iptables -L -n --line-numbers 2>/dev/null || sudo nft list ruleset" },
+        { "label": "Network Interfaces",  "type": "shell",  "icon": "network-wired",      "arg": "ip a && ip r" },
+        { "label": "Ping Mesh (all VMs)", "type": "shell",  "icon": "network-workgroup",  "arg": "for ip in 10.0.0.1 10.0.0.3 10.0.0.4 10.0.0.6; do printf '%-12s ' $ip; ping -c1 -W1 $ip >/dev/null 2>&1 && echo OK || echo FAIL; done" }
+      ]
+    },
+    {
+      "name": "Flakes — System",
+      "items": [
+        { "label": "Dry Run  (system)",   "type": "build-system",  "icon": "system-search",           "arg": "dry-run"   },
+        { "label": "Switch   (system)",   "type": "build-system",  "icon": "system-upgrade",           "arg": "switch"    },
+        { "label": "Boot     (system)",   "type": "build-system",  "icon": "system-reboot",            "arg": "boot"      },
+        { "label": "Test     (system)",   "type": "build-system",  "icon": "system-run",               "arg": "test"      },
+        { "label": "Update   (system)",   "type": "build-system",  "icon": "system-software-update",   "arg": "update"    },
+        { "label": "Diff     (system)",   "type": "build-system",  "icon": "text-x-changelog",         "arg": "diff"      },
+        { "label": "List Gens (system)",  "type": "build-system",  "icon": "view-list-text",           "arg": "list-gens" },
+        { "label": "GC       (system)",   "type": "build-system",  "icon": "user-trash",               "arg": "gc"        },
+        { "label": "Build Log (system)",  "type": "log-system",    "icon": "text-x-log",               "arg": ""          }
+      ]
+    },
+    {
+      "name": "Flakes — Desktop",
+      "items": [
+        { "label": "Dry Run  (desktop)",  "type": "build-desktop", "icon": "system-search",           "arg": "dry-run"  },
+        { "label": "Switch   (desktop)",  "type": "build-desktop", "icon": "system-upgrade",           "arg": "switch"   },
+        { "label": "Update   (desktop)",  "type": "build-desktop", "icon": "system-software-update",   "arg": "update"   },
+        { "label": "Diff     (desktop)",  "type": "build-desktop", "icon": "text-x-changelog",         "arg": "diff"     },
+        { "label": "Build Log (desktop)", "type": "log-desktop",   "icon": "text-x-log",               "arg": ""         }
+      ]
+    },
+    {
+      "name": "KDE",
+      "items": [
+        { "label": "KDE Connect Devices",  "type": "shell", "icon": "kdeconnect",             "arg": "kdeconnect-cli --list-devices --verbose 2>/dev/null || echo 'kdeconnect-cli not found'" },
+        { "label": "Available Devices",    "type": "shell", "icon": "network-bluetooth",      "arg": "kdeconnect-cli --list-available 2>/dev/null || echo 'kdeconnect-cli not found'" },
+        { "label": "System Resources",     "type": "shell", "icon": "utilities-system-monitor","arg": "free -h && echo && df -h / /nix" },
+        { "label": "Failed Services",      "type": "shell", "icon": "dialog-warning",         "arg": "systemctl --failed --no-pager" },
+        { "label": "KDE Connect Settings", "type": "xdg",   "icon": "preferences-system",     "arg": "kcmshell6 kcm_kdeconnect" }
+      ]
+    },
+    {
+      "name": "Cloud — VMs",
+      "items": [
+        { "label": "SSH: gcp-proxy",     "type": "shell", "icon": "network-server", "arg": "ssh gcp-proxy    'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'" },
+        { "label": "SSH: oci-apps",      "type": "shell", "icon": "network-server", "arg": "ssh oci-apps     'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'" },
+        { "label": "SSH: oci-analytics", "type": "shell", "icon": "network-server", "arg": "ssh oci-analytics 'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'" },
+        { "label": "SSH: oci-mail",      "type": "shell", "icon": "network-server", "arg": "ssh oci-mail     'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'" }
+      ]
+    },
+    {
+      "name": "Cloud — Services",
+      "items": [
+        { "label": "Health: Public API",  "type": "shell", "icon": "network-workgroup",   "arg": "curl -sf 'https://api.diegonmarcos.com/pub/health' | python3 -m json.tool || echo FAIL" },
+        { "label": "Health: Infra API",   "type": "shell", "icon": "network-workgroup",   "arg": "curl -sf 'https://api.diegonmarcos.com/c3-infra-api/health' | python3 -m json.tool || echo FAIL" },
+        { "label": "All Caddy Routes",    "type": "shell", "icon": "document-preview",    "arg": "curl -sf 'https://api.diegonmarcos.com/pub/routes' | python3 -m json.tool 2>/dev/null | head -60 || echo FAIL" },
+        { "label": "Open Cloud Portal",   "type": "xdg",   "icon": "internet-web-browser","arg": "https://diegonmarcos.github.io/a-Portals/cloud/" },
+        { "label": "Open Dagu Workflows", "type": "xdg",   "icon": "view-calendar-timeline","arg": "https://workflows.diegonmarcos.com" }
+      ]
+    },
+    {
+      "name": "Config / About",
+      "items": [
+        { "label": "System Info",       "type": "shell", "icon": "help-about",          "arg": "fastfetch 2>/dev/null || neofetch 2>/dev/null || uname -a" },
+        { "label": "Journal (errors)",  "type": "shell", "icon": "dialog-error",        "arg": "journalctl -p err..emerg -n 50 --no-pager" },
+        { "label": "Journal (boot)",    "type": "shell", "icon": "text-x-log",          "arg": "journalctl -b --no-pager | tail -100" },
+        { "label": "Open Unix Repo",    "type": "xdg",   "icon": "folder-development",  "arg": "{FLAKE_SYSTEM}" },
+        { "label": "Open Cloud Repo",   "type": "xdg",   "icon": "folder-development",  "arg": "{FLAKE_CLOUD}" }
+      ]
+    }
+  ]
+}
