@@ -5,6 +5,12 @@
     "cpu_max_cores": 7,
     "cpu_period_us": 100000
   },
+  "launcher": {
+    "_doc": "Bulletproof `waydroid-launch` behavior (configuration_waydroid-launcher.nix). Works from a shell OR a desktop click. Detects+resets the stale half-state (Session RUNNING but no live container — the bug where shortcuts silently do nothing), guarantees a Wayland display env, then watches the boot: if Android (system_server) doesn't come up within boot_timeout_s (e.g. a wedged gralloc/display), it RECYCLES the container up to max_recycles times before giving up. The keystore self-heal runs first via waydroid-data-heal.service (ordered Before the container).",
+    "boot_timeout_s": 75,
+    "poll_interval_s": 5,
+    "max_recycles": 2
+  },
   "data_heal": {
     "_doc": "SELF-HEAL for the mutable Waydroid /data (the non-deterministic part of the container — the image is RO/immutable, /data is a rw btrfs subvol that drifts). configuration_waydroid-data-heal.nix runs a oneshot BEFORE each waydroid-container.service start that asserts these ownership invariants. Android runs with NO uid-shift here, so Android uid == host uid. recursive=true detects a wrong owner ANYWHERE under the path (the keystore bug had a correct 1017 dir but 1000-owned *.sqlite files inside) and chowns the whole subtree. Best-effort: failures are logged (journalctl -t waydroid-data-heal), never block the container.",
     "data_roots": [
