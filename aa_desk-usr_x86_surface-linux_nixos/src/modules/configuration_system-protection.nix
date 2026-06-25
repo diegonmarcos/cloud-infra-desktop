@@ -64,6 +64,11 @@ let
   machineMemMax = "${toString (ramMB * 75 / 100)}M";  # 6144M
   nixMemMax = "${toString (ramMB * 75 / 100)}M";      # 6144M
   nixMemHigh = "${toString (ramMB * 65 / 100)}M";     # 5324M
+  # Anti-freeze (2026-06-25): reserve RAM for the desktop so a build can never
+  # evict the live session to disk swap (the freeze), and cap how much a build
+  # may spill to DISK swap so its swap-out I/O can't thrash the disk.
+  userMemMin = "${toString (ramMB * 38 / 100)}M";     # 3113M reserved for the user session
+  nixMemSwapMax = "2048M";                            # build may spill at most 2G to swap
 in
 {
   # ═══════════════════════════════════════════════════════════════════════════
@@ -162,7 +167,8 @@ in
       CPUQuota = userCpuQuota;
       MemoryHigh = userMemHigh;
       MemoryMax = userMemMax;
-      IOWeight = 100;
+      MemoryMin = userMemMin;   # reserved RAM — never reclaimed for a build (anti-freeze)
+      IOWeight = 500;           # desktop I/O strongly preempts background/build I/O
     };
   };
 
@@ -211,9 +217,10 @@ in
     Slice = "workload.slice";
     MemoryMax = nixMemMax;
     MemoryHigh = nixMemHigh;
+    MemorySwapMax = nixMemSwapMax;  # bound disk-swap spill so swap-out I/O can't freeze the desktop
     CPUQuota = nixDaemonCpuQuota;
     OOMScoreAdjust = 250;
-    IOWeight = 50;
+    IOWeight = 20;                  # lowest — builds yield disk I/O to everything else
     Nice = 10;
   };
 
