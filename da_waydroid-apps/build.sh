@@ -268,6 +268,14 @@ cmd_install() {
     sudo rm -f "$host_tmp/$pkg.apk"
     # verify it actually landed
     if wd_shell pm path "$pkg" >/dev/null 2>&1; then log "  ✓ $pkg present"; else warn "  ✗ $pkg NOT present after install"; fi
+    # Data-driven special app-ops (separate from -g runtime perms). e.g.
+    # REQUEST_INSTALL_PACKAGES so Cloud-SuperApp can sideload other APKs.
+    local nops; nops="$(node -e "process.stdout.write(String((require('$CONFIG').apps[$i].appops||[]).length))")"
+    local j op
+    for ((j=0;j<nops;j++)); do
+      op="$(node -e "process.stdout.write(require('$CONFIG').apps[$i].appops[$j])")"
+      if wd_shell appops set "$pkg" "$op" allow >/dev/null 2>&1; then log "  appop $op = allow"; else warn "  appop $op failed for $pkg"; fi
+    done
   done
   log "install pass complete"
 }
