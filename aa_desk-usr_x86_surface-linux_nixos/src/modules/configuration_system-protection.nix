@@ -98,15 +98,18 @@ in
   # ═══════════════════════════════════════════════════════════════════════════
   services.earlyoom = {
     enable = true;
-    freeMemThreshold = 10;
-    freeSwapThreshold = 10;
-    freeMemKillThreshold = 5;
-    freeSwapKillThreshold = 5;
+    # 5/3% thresholds (was 10/5): nix-daemon now has MemorySwapMax as the
+    # real anti-freeze guard — earlyoom only fires at genuine crisis.
+    freeMemThreshold = 5;
+    freeSwapThreshold = 5;
+    freeMemKillThreshold = 3;
+    freeSwapKillThreshold = 3;
     enableNotifications = true;
     reportInterval = 0;
     extraArgs = [
-      "--prefer" "^(brave|firefox|chromium|electron|nix-daemon|nix-build|nix)$"
-      "--avoid" "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus)$"
+      # nix-daemon removed from prefer: cgroup MemorySwapMax protects the machine.
+      "--prefer" "^(brave|firefox|chromium|electron)$"
+      "--avoid" "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus|nix)$"
     ];
   };
 
