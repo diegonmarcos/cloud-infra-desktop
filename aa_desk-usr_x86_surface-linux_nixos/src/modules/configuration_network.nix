@@ -95,64 +95,101 @@ in {
     resolv_conf_options="timeout:1 attempts:2"
   '';
 
-  # WireGuard mesh VPN (on-demand, not auto-start)
-  # Hub host/port read from ./wireguard-endpoints.json (data-driven).
-  # Default endpoint is the primary port. Switch to fallback at runtime with
-  # `wg-fallback fallback` (no NixOS rebuild needed).
-  networking.wireguard.interfaces.${wgData.client.interface} = {
-    ips = [ "${wgData.client.wg_ip}/24" ];
-    privateKeyFile = "/home/diego/.config/wireguard/privatekey";
-    # DNS tier 1: Hickory (added when WG up, removed when WG down)
-    postSetup = ''
-      # Register Hickory (mesh DNS) as tier-1 ONLY if it's actually reachable.
-      # A dead 10.0.0.1 as the first nameserver stalls all resolution while the
-      # mesh/gcp-proxy is down (the resolv_conf_options above cap the penalty;
-      # this avoids it entirely). TCP-probe :53 with a 1s deadline.
-      if ${pkgs.netcat-openbsd}/bin/nc -z -w1 ${wgData.hub.wg_ip} 53 2>/dev/null; then
-        ${pkgs.openresolv}/bin/resolvconf -a ${wgData.client.interface} <<EOF
-      nameserver ${wgData.hub.wg_ip}
-      EOF
-      else
-        echo "[wg0 postSetup] Hickory ${wgData.hub.wg_ip}:53 unreachable — keeping public DNS baseline (mesh down)" >&2
-      fi
-    '';
-    postShutdown = ''
-      ${pkgs.openresolv}/bin/resolvconf -d ${wgData.client.interface}
-    '';
-    peers = [
-      {
-        publicKey = wgData.hub.wg_public_key;
-        endpoint = wgPrimary;          # fallback = "${wgFallback}" (use `wg-fallback fallback`)
-        allowedIPs = [ wgData.subnet ];
-        persistentKeepalive = wgData.persistent_keepalive;
-      }
-    ];
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WireGuard meshes — NetworkManager-managed (visible + toggleable in plasma-nm)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # wg0 (private mesh, hub gcp-proxy) + wg-public (public mesh, hub oci-analytics)
+  # are declared as NetworkManager profiles so they show up in the KDE network
+  # applet. Endpoint/IP/subnet data is read from ./wireguard-endpoints.json and
+  # ./wireguard-public-endpoints.json (data-driven — edit the JSON, not this).
+  #
+  # Private keys NEVER touch the world-readable nix store: the profiles carry
+  # $WG0_PRIVATE_KEY / $WGPUB_PRIVATE_KEY placeholders that NM's envsubst step
+  # resolves from /run/nm-wg-secrets.env (root-only, tmpfs), generated at boot by
+  # nm-wg-secrets.service below from the vault-deployed keys.
+  #
+  # `interface-name` pins the kernel devices to "wg0"/"wg-public" so the firewall
+  # `trustedInterfaces` rule above keeps matching. autoconnect = both tunnels
+  # come up on every network (also gives wg0 Hickory 10.0.0.1 as DNS, bypassing
+  # captive/ISP networks that block outbound :53).
+  networking.networkmanager.ensureProfiles = {
+    environmentFiles = [ "/run/nm-wg-secrets.env" ];
+    profiles = {
+      "wg0" = {
+        connection = {
+          id = "wg0";
+          type = "wireguard";
+          interface-name = wgData.client.interface;
+          autoconnect = "true";
+        };
+        wireguard.private-key = "$WG0_PRIVATE_KEY";
+        "wireguard-peer.${wgData.hub.wg_public_key}" = {
+          endpoint = wgPrimary;
+          allowed-ips = wgData.subnet;
+          persistent-keepalive = toString wgData.persistent_keepalive;
+        };
+        ipv4 = {
+          method = "manual";
+          address1 = "${wgData.client.wg_ip}/24";
+          dns = wgData.hub.wg_ip;        # Hickory mesh DNS (tier-1 when wg0 up)
+          dns-priority = "-10";
+          dns-search = "";
+          never-default = "true";        # only route the mesh subnet, not all traffic
+        };
+        ipv6.method = "ignore";
+      };
+      "wg-public" = {
+        connection = {
+          id = "wg-public";
+          type = "wireguard";
+          interface-name = wgPublicData.client.interface;
+          autoconnect = "true";
+        };
+        wireguard.private-key = "$WGPUB_PRIVATE_KEY";
+        "wireguard-peer.${wgPublicData.hub.wg_public_key}" = {
+          endpoint = wgPublicPrimary;
+          allowed-ips = wgPublicData.subnet;
+          persistent-keepalive = toString wgPublicData.persistent_keepalive;
+        };
+        ipv4 = {
+          method = "manual";
+          address1 = "${wgPublicData.client.wg_ip}/24";
+          dns-search = "";
+          never-default = "true";
+        };
+        ipv6.method = "ignore";
+      };
+    };
   };
-  systemd.services."wireguard-${wgData.client.interface}".wantedBy = lib.mkForce [];
 
-  # ── WireGuard PUBLIC mesh (zany-popping plan Phase 1) ──────────────────────
-  # Second interface (wg-public, 10.1.0.0/24 on udp/51821) sitting in parallel
-  # to wg0. Hub = oci-analytics — reaches the public-trust mesh members
-  # (gcp-proxy, oci-mail, oci-apps) for services that should not require wg0.
-  # On-demand (NOT auto-started) — bring up with
-  #   sudo systemctl start wireguard-wg-public
-  # Privatekey is symlinked from vault by the home-manager flake module
-  # ba_flakes_desktop/src/modules/cloud-network-wg-public.nix.
-  networking.wireguard.interfaces.${wgPublicData.client.interface} = {
-    ips = [ "${wgPublicData.client.wg_ip}/24" ];
-    privateKeyFile = "/home/diego/.config/wireguard/privatekey-public";
-    peers = [
-      {
-        publicKey = wgPublicData.hub.wg_public_key;
-        endpoint = wgPublicPrimary;
-        allowedIPs = [ wgPublicData.subnet ];
-        persistentKeepalive = wgPublicData.persistent_keepalive;
-      }
-    ];
+  # Materialise the root-only env file with the WG private keys for NM's envsubst.
+  # Reads the home-manager-deployed keys at ~/.config/wireguard/ (symlinks into
+  # the vault). Ordered BEFORE NM applies the declarative profiles.
+  systemd.services.nm-wg-secrets = {
+    description = "Generate NetworkManager WireGuard private-key env file";
+    wantedBy = [ "NetworkManager-ensure-profiles.service" ];
+    before = [ "NetworkManager-ensure-profiles.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      UMask = "0177";
+    };
+    path = [ pkgs.coreutils ];
+    script = ''
+      OUT=/run/nm-wg-secrets.env
+      : > "$OUT"
+      chmod 0600 "$OUT"
+      WG0_KEY=/home/diego/.config/wireguard/privatekey
+      WGPUB_KEY=/home/diego/.config/wireguard/privatekey-public
+      [ -r "$WG0_KEY" ]   && printf 'WG0_PRIVATE_KEY=%s\n'   "$(tr -d '\n\r' < "$WG0_KEY")"   >> "$OUT"
+      [ -r "$WGPUB_KEY" ] && printf 'WGPUB_PRIVATE_KEY=%s\n' "$(tr -d '\n\r' < "$WGPUB_KEY")" >> "$OUT"
+    '';
   };
-  systemd.services."wireguard-${wgPublicData.client.interface}".wantedBy = lib.mkForce [];
 
   # Runtime endpoint switcher: `wg-fallback {status|primary|fallback}`
+  # NOTE: with NM-managed wg0, a `wg set` endpoint tweak survives only until NM
+  # reactivates the profile; for a permanent fallback port, edit the profile +
+  # rebuild. The `status` subcommand still works as-is for quick inspection.
   environment.systemPackages = [ wg-fallback ];
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -251,13 +288,14 @@ in {
     # Remove hostKeys to use default ephemeral behavior
   };
 
-  # sshd binds the wg0 address (listenAddresses above) — it MUST start after the
-  # wg0 interface exists or the bind fails at boot. Order it after the wireguard
-  # tunnel unit (2026-06-15). The interface unit is "active (exited)" once the
-  # address is configured.
+  # sshd binds the wg0 address (listenAddresses above) — it MUST start after wg0
+  # exists or the bind fails at boot. wg0 is now NetworkManager-managed (autoconnect),
+  # so order sshd after NM has finished bringing up its autoconnect profiles
+  # (2026-06-25, replaces the old `wireguard-wg0.service` ordering). If wg0 can't
+  # come up (no network at boot), sshd won't bind — intended; local console works.
   systemd.services.sshd = {
-    after = [ "wireguard-wg0.service" ];
-    wants = [ "wireguard-wg0.service" ];
+    after = [ "NetworkManager-wait-online.service" ];
+    wants = [ "NetworkManager-wait-online.service" ];
   };
 
   # ═══════════════════════════════════════════════════════════════════════════

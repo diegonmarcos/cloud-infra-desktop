@@ -196,7 +196,33 @@
     executable = true;
   };
   home.file.".claude/hooks/HOOKS.md".source = ./dotfiles/claude/HOOKS.md;
-  home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;
+  # settings.json: deployed WRITABLE (not a read-only store symlink) so the
+  # runtime `/effort` command can persist effortLevel. Nix owns the baseline
+  # (hooks, statusline, env, plugins) and refreshes it every switch; effortLevel
+  # is NOT nix-managed — it's a runtime decision, preserved across rebuilds.
+  # Same writable-runtime-file pattern as ~/.mcp.json and ~/.gemini/settings.json.
+  home.activation.claudeSettings = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    (
+    JQ="${pkgs.jq}/bin/jq"
+    SRC="${./dotfiles/claude/settings.json}"
+    DST="$HOME/.claude/settings.json"
+    ${pkgs.coreutils}/bin/mkdir -p "$HOME/.claude"
+    # Preserve a runtime-owned effortLevel (set via /effort) across rebuilds.
+    EFFORT=""
+    if [ -f "$DST" ] && [ ! -L "$DST" ]; then
+      EFFORT=$("$JQ" -r '.effortLevel // empty' "$DST" 2>/dev/null) || true
+    fi
+    # Drop any stale read-only store symlink left by the old home.file mechanism.
+    [ -L "$DST" ] && ${pkgs.coreutils}/bin/rm -f "$DST"
+    if [ -n "$EFFORT" ]; then
+      "$JQ" --arg e "$EFFORT" '. + {effortLevel: $e}' "$SRC" > "$DST"
+    else
+      "$JQ" '.' "$SRC" > "$DST"
+    fi
+    ${pkgs.coreutils}/bin/chmod 0644 "$DST"
+    echo "[claude-settings] ~/.claude/settings.json written (writable; effortLevel=''${EFFORT:-runtime-default})"
+    ) || echo "[claude-settings] subshell failed; HM chain continues"
+  '';
 
   # claude-api skill — pinned from anthropics/skills repo. Symlinks the whole
   # directory (SKILL.md + per-language assets) so updates are a single
