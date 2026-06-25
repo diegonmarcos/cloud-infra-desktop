@@ -1,115 +1,50 @@
-# NixOS desktop control panel — a system-tray icon (yad) with a data-driven menu
-# of NixOS operations, each opening a DARK, full-verbose konsole window.
-#
-#   nixos-switch-gui [switch|boot|test|dry-run|update|…]  -> one op in a held,
-#                                                            dark konsole window.
-#   nixos-cp                                              -> the tray icon + menu
-#                                                            (auto-started in the
-#                                                            graphical session).
-#   nixos-cp --run-index N                                -> run menu item N.
-#
-# Menu is data-driven (nixos-cp.json) — add/reorder entries there, no script
-# edit. konsole gives a real TTY so `sudo nixos-rebuild` can prompt in-window.
+# NixOS Control Panel — a Qt6 (PySide6) system-tray app with a dark UI to
+# rebuild & manage the host: grouped submenus (data-driven from
+# /etc/nixos-cp.json), real dark Qt progress windows with a live log + parsed
+# progress bar, GUI sudo via ksshaskpass (so build.sh's `sudo nixos-rebuild`
+# works without a TTY). Auto-starts in the graphical session and stays in the
+# tray. App source: ./nixos_cp.py ; menu: ./nixos-cp.json.
 { config, lib, pkgs, ... }:
 
 let
   flakeDir = "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos";
-  konsole = "/run/current-system/sw/bin/konsole";   # system-installed (Plasma)
-  menuJson = ./nixos-cp.json;
 
-  # JS helper kept OUT of the shell/nix strings (uses only "double quotes" so it
-  # never collides with Nix's '' string terminator). modes: menu | field | tray.
-  menuHelper = pkgs.writeText "nixos-cp-menu.js" ''
-    const c = require(process.argv[2]);
-    const mode = process.argv[3];
-    if (mode === "menu") {
-      const out = c.items.map((it, i) =>
-        it.type === "sep"
-          ? (it.label || "-") + "!!"
-          : it.label + "!nixos-cp --run-index " + i + "!" + (it.icon || ""));
-      process.stdout.write(out.join("|"));
-    } else if (mode === "field") {
-      const it = c.items[parseInt(process.argv[4], 10)] || {};
-      process.stdout.write(String(it[process.argv[5]] || ""));
-    } else if (mode === "tray") {
-      process.stdout.write(String(c[process.argv[4]] || ""));
-    }
+  pyEnv = pkgs.python3.withPackages (ps: [ ps.pyside6 ]);
+
+  nixos-cp = pkgs.writeShellScriptBin "nixos-cp" ''
+    # /run/wrappers/bin first so `sudo` resolves to the setuid wrapper (needed
+    # for the GUI `sudo -A -v` pre-auth). current-system gives konsole/xdg-open.
+    export PATH="/run/wrappers/bin:/run/current-system/sw/bin:$PATH"
+    export SUDO_ASKPASS="${pkgs.ksshaskpass}/bin/ksshaskpass"
+    export NIXOS_CP_CONF="/etc/nixos-cp.json"
+    export NIXOS_CP_FLAKE="${flakeDir}"
+    # Prefer Wayland, fall back to XWayland.
+    export QT_QPA_PLATFORM="''${QT_QPA_PLATFORM:-wayland;xcb}"
+    exec ${pyEnv}/bin/python3 ${./nixos_cp.py} "$@"
   '';
 
-  # ── one NixOS op in a dark, held, verbose konsole ─────────────────────────
-  nixos-switch-gui = pkgs.writeShellApplication {
-    name = "nixos-switch-gui";
-    runtimeInputs = [ pkgs.coreutils ];
-    text = ''
-      CMD="''${1:-switch}"
-      exec ${konsole} --hold --separate \
-        -p ColorScheme=Breeze \
-        -p TerminalColumns=150 -p TerminalRows=48 \
-        --title "NixOS rebuild — $CMD" \
-        -e ${pkgs.bash}/bin/bash -lc \
-          "cd '${flakeDir}' && PATH=/run/wrappers/bin:\$PATH ./build.sh '$CMD'; printf '\n========== finished (exit %s) — close this window ==========\n' \"\$?\""
-    '';
-  };
-
-  # ── tray icon + menu (yad), dispatches menu items by index ────────────────
-  nixos-cp = pkgs.writeShellApplication {
-    name = "nixos-cp";
-    runtimeInputs = [ pkgs.yad pkgs.nodejs_22 pkgs.coreutils pkgs.xdg-utils nixos-switch-gui ];
-    text = ''
-      CONF=${menuJson}
-      H=${menuHelper}
-      FLAKE='${flakeDir}'
-
-      if [ "''${1:-}" = "--run-index" ]; then
-        idx="''${2:?index}"
-        type="$(node "$H" "$CONF" field "$idx" type)"
-        arg="$(node "$H" "$CONF" field "$idx" arg)"
-        arg="''${arg//\{FLAKE\}/$FLAKE}"
-        case "$type" in
-          build) exec nixos-switch-gui "$arg" ;;
-          shell) exec ${konsole} --hold --separate -p ColorScheme=Breeze --title "NixOS" -e ${pkgs.bash}/bin/bash -lc "$arg; printf '\n=== done (exit %s) — close ===\n' \"\$?\"" ;;
-          log)   exec ${konsole} --hold --separate -p ColorScheme=Breeze --title "NixOS build log" -e ${pkgs.bash}/bin/bash -lc "f=\$(ls -t '$FLAKE'/logs/build-*.log 2>/dev/null | head -1); if [ -n \"\$f\" ]; then tail -n 400 -f \"\$f\"; else echo 'no build logs yet'; fi" ;;
-          open)  exec xdg-open "$arg" ;;
-          *) echo "unknown action type: $type" >&2; exit 1 ;;
-        esac
-      fi
-
-      icon="$(node "$H" "$CONF" tray tray_icon)"
-      tip="$(node "$H" "$CONF" tray tray_tooltip)"
-      menu="$(node "$H" "$CONF" menu)"
-      exec yad --notification \
-        --image="$icon" \
-        --text="$tip" \
-        --menu="$menu" \
-        --command="true"
-    '';
-  };
-
-  rebuildItem = pkgs.makeDesktopItem {
-    name = "nixos-switch-gui";
-    desktopName = "NixOS Rebuild";
-    comment = "Rebuild & switch (verbose, dark window)";
-    exec = "${nixos-switch-gui}/bin/nixos-switch-gui switch";
-    icon = "nix-snowflake";
-    categories = [ "System" ];
-    terminal = false;
-  };
   cpItem = pkgs.makeDesktopItem {
     name = "nixos-cp";
     desktopName = "NixOS Control Panel";
-    comment = "NixOS tray: switch, dry-run, update, logs, settings…";
+    comment = "Rebuild & manage NixOS — switch, dry-run, update, logs, settings";
     exec = "${nixos-cp}/bin/nixos-cp";
     icon = "nix-snowflake";
     categories = [ "System" ];
     terminal = false;
+    startupNotify = false;
   };
 
 in {
-  environment.systemPackages = [ nixos-switch-gui nixos-cp rebuildItem cpItem ];
+  environment.systemPackages = [ nixos-cp cpItem pkgs.ksshaskpass ];
 
-  # Tray icon auto-starts in the graphical session and respawns if it dies.
+  # Menu definition lives in /etc so the app reads it at runtime (edit the flake
+  # JSON -> rebuild -> menu updates). Data-driven.
+  environment.etc."nixos-cp.json".source = ./nixos-cp.json;
+
+  # Tray auto-starts in the graphical session; respawns if it dies. Single-
+  # instance lock in the app prevents a second tray icon.
   systemd.user.services.nixos-cp-tray = {
-    description = "NixOS control-panel tray icon";
+    description = "NixOS Control Panel tray icon";
     wantedBy = [ "graphical-session.target" ];
     partOf = [ "graphical-session.target" ];
     after = [ "graphical-session.target" ];
