@@ -25,6 +25,10 @@ eval "$(echo "$input" | jq -r '
 [ -z "$session_id" ] && session_id=$(basename "$(dirname "$transcript_path")" 2>/dev/null)
 session_short="${session_id:0:8}"
 
+# Custom session name capped to 13 display chars (ellipsis when longer)
+session_name_disp="$session_name"
+[ "${#session_name_disp}" -gt 13 ] && session_name_disp="${session_name:0:12}…"
+
 # Model name (strip claude- prefix and date suffix)
 model_name=$(echo "$model_id" | sed -E 's/^claude-//; s/-([0-9]{8})$//')
 [ -z "$model_name" ] && model_name="unknown"
@@ -232,7 +236,7 @@ OUT+=" \033[35m${model_name}\033[0m"
 # session id @ name  (name omitted when no /rename or --name set)
 OUT+=" \033[37m|\033[0m"
 OUT+=" \033[90m${session_short}\033[0m"
-[ -n "$session_name" ] && OUT+=" \033[90m@\033[0m \033[37m${session_name}\033[0m"
+[ -n "$session_name" ] && OUT+=" \033[90m@\033[0m \033[37m${session_name_disp}\033[0m"
 # MCP cell (fallback to count if the probe emitted nothing)
 OUT+=" \033[37m|\033[0m"
 if [ -n "$mcp_seg" ]; then OUT+=" ${mcp_seg}"; else OUT+=" \033[${mcp_color}mMCP:${mcp_configured}\033[0m"; fi
