@@ -109,6 +109,7 @@
     ./configuration_p5_diagnostic.nix             # POST-2026-05-16: forensic instrumentation for repeating p5 corruption (boot/shutdown fsck check + superblock+groups-945-947 sha256 snapshots + iostat capture + dmesg trace). All output → /var/log/p5-diag/ and journalctl -t p5-diagnostic
     ./configuration_home_ownership_repair.nix     # POST-2026-05-16: defensive chown of fragile $HOME paths (.claude/.config/.local/.ssh) on every activation — fixes class-of-bug where install/chroot flows leak root-owned files into /home/$user that then break standalone home-manager apply
     ./configuration_waydroid-data-heal.nix        # POST-2026-06-24: self-heal Waydroid mutable /data ownership invariants (keystore -> AID_KEYSTORE 1017) before EACH container start; data-driven from waydroid.json::data_heal — stops the keystore-corruption forever-load from ever recurring
+    ./configuration_waydroid-launcher.nix         # POST-2026-06-25: bulletproof `waydroid-launch` (stale-session reset + Wayland-env discovery + boot watchdog/recycle + NOPASSWD desktop launch) — fixes "shortcut does nothing" + shell-start wedge; data-driven from waydroid.json::launcher
     ./configuration_tmp.nix
     ./configuration_packages.nix
     ./configuration_persistence.nix

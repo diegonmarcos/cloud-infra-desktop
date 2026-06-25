@@ -22,26 +22,9 @@
 
   environment.systemPackages = with pkgs; [
     # ─── Waydroid launcher ─────────────────────────────────────────────────
-    (writeShellScriptBin "waydroid-launch" ''
-      # Ensure ARM translation (libhoudini) is installed before the session
-      # starts — it edits the overlay the session mounts. Guarded + idempotent:
-      # a no-op once libhoudini.so exists (see configuration_containers.nix).
-      # Runs first because the install stops/restarts the container itself.
-      sudo systemctl start waydroid-arm-bootstrap || \
-        echo "waydroid-arm-bootstrap failed (run 'sudo waydroid init' if not yet initialised)"
-      # Start container if not running
-      if ! systemctl is-active --quiet waydroid-container; then
-        sudo systemctl start waydroid-container
-        sleep 2
-      fi
-      # Start session if not running
-      if ! waydroid status 2>/dev/null | grep -q "Session.*RUNNING"; then
-        waydroid session start &
-        sleep 3
-      fi
-      # Show UI
-      waydroid show-full-ui
-    '')
+    # MOVED 2026-06-25 to configuration_waydroid-launcher.nix — the bulletproof
+    # `waydroid-launch` (Wayland-env discovery, stale-state reset, boot watchdog
+    # + recycle, NOPASSWD root ops, desktop entry). Data-driven: waydroid.json.
 
     # ─── Absolute Minimum CLI (system-level only) ───────────────────────────
     # vim, git, curl, wget, nodejs → managed by home-manager profiles
