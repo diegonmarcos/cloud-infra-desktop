@@ -1,0 +1,21 @@
+{
+  "_doc": "Data-driven menu for the NixOS control-panel tray (nixos-cp, built by configuration_nixos-switch-gui.nix). Each item is one tray-menu entry. type: 'build' runs `build.sh <arg>` in a verbose dark konsole (held open); 'shell' runs an arbitrary command in a held konsole; 'log' tails the newest build log; 'open' xdg-opens a path. {FLAKE} is substituted with the host flake dir at build time. Add/reorder items here — no script edit needed.",
+  "tray_icon": "nix-snowflake",
+  "tray_tooltip": "NixOS — rebuild & manage",
+  "default_action": "build:switch",
+  "items": [
+    { "label": "Switch  (rebuild & apply now)", "icon": "system-software-update", "type": "build", "arg": "switch" },
+    { "label": "Boot  (apply at next boot)",     "icon": "system-reboot",          "type": "build", "arg": "boot" },
+    { "label": "Test  (apply, no bootloader)",   "icon": "system-run",             "type": "build", "arg": "test" },
+    { "label": "Dry-run  (build + diff, no apply)", "icon": "document-preview",    "type": "build", "arg": "dry-run" },
+    { "label": "Update flake + switch",          "icon": "view-refresh",           "type": "build", "arg": "update" },
+    { "label": "—",                              "icon": "",                       "type": "sep",   "arg": "" },
+    { "label": "List generations",               "icon": "view-list-details",      "type": "shell", "arg": "/run/wrappers/bin/sudo nix-env -p /nix/var/nix/profiles/system --list-generations" },
+    { "label": "Diff: current → built",          "icon": "document-edit-decrypt-verify", "type": "shell", "arg": "cd {FLAKE} && PATH=/run/wrappers/bin:$PATH ./build.sh diff" },
+    { "label": "Garbage-collect (old gens)",     "icon": "edit-delete",            "type": "shell", "arg": "/run/wrappers/bin/sudo nix-collect-garbage -d" },
+    { "label": "—",                              "icon": "",                       "type": "sep",   "arg": "" },
+    { "label": "View latest build log",          "icon": "text-x-log",             "type": "log",   "arg": "" },
+    { "label": "Edit settings (modules)",        "icon": "settings-configure",     "type": "open",  "arg": "{FLAKE}/src/modules" },
+    { "label": "Open flake directory",           "icon": "folder",                 "type": "open",  "arg": "{FLAKE}" }
+  ]
+}
