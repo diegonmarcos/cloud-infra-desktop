@@ -16,7 +16,9 @@ eval "$(echo "$input" | jq -r '
     @sh "cu_cread=\(.context_window.current_usage.cache_read_input_tokens // 0)",
     @sh "cu_out=\(.context_window.current_usage.output_tokens // 0)",
     @sh "session_cost=\(.cost.total_cost_usd // 0)",
-    @sh "session_id=\(.session_id // empty)"
+    @sh "session_id=\(.session_id // empty)",
+    @sh "effort_level=\(.effort.level // empty)",
+    @sh "session_name=\(.session_name // empty)"
 ')"
 
 # Fallback session ID from transcript path
@@ -103,8 +105,7 @@ mcp_seg=$(bash "$HOME/.claude/claude-mcp-status.sh" "$cwd" 2>/dev/null)
 plugins_seg=$(bash "$HOME/.claude/claude-plugins-status.sh" --format ansi 2>/dev/null)
 hooks_seg=$(bash "$HOME/.claude/claude-hooks-status.sh" --format ansi 2>/dev/null)
 
-# Timestamp, user, dir
-timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+# user@host (date removed from LINE 1 per 2026-06-25 layout change)
 user_host="$(whoami)@$(hostname -s)"
 
 # Format token count (K/M)
@@ -223,19 +224,27 @@ vram_color=$(get_color "$vram_percent")
 # === BUILD OUTPUT ===
 OUT=""
 
-# LINE 1: | date | model session mcp | host dir branch |
+# LINE 1: | model@effort | session@name | MCP | PL | HK | user@OS | folder@branch |
+# Date dropped 2026-06-25; every segment is now its own │-delimited cell.
 OUT+="\033[37m|\033[0m"
-OUT+=" \033[90m${timestamp}\033[0m"
-OUT+=" \033[37m|\033[0m"
+# model @ effort  (effort omitted when the model doesn't support the param)
 OUT+=" \033[35m${model_name}\033[0m"
+[ -n "$effort_level" ] && OUT+=" \033[90m@\033[0m \033[36m${effort_level}\033[0m"
+# session id @ name  (name omitted when no /rename or --name set)
+OUT+=" \033[37m|\033[0m"
 OUT+=" \033[90m${session_short}\033[0m"
+[ -n "$session_name" ] && OUT+=" \033[90m@\033[0m \033[37m${session_name}\033[0m"
+# MCP cell (fallback to count if the probe emitted nothing)
+OUT+=" \033[37m|\033[0m"
 if [ -n "$mcp_seg" ]; then OUT+=" ${mcp_seg}"; else OUT+=" \033[${mcp_color}mMCP:${mcp_configured}\033[0m"; fi
-[ -n "$plugins_seg" ] && OUT+=" ${plugins_seg}"
-[ -n "$hooks_seg" ] && OUT+=" ${hooks_seg}"
+# PL / HK cells — only when their helper produced output (self-omitting)
+[ -n "$plugins_seg" ] && OUT+=" \033[37m|\033[0m ${plugins_seg}"
+[ -n "$hooks_seg" ] && OUT+=" \033[37m|\033[0m ${hooks_seg}"
+# user@host cell
 OUT+=" \033[37m|\033[0m"
 OUT+=" \033[36m${user_host}\033[0m"
+# folder@branch cell (collapse repo/folder when folder == repo root, or no repo)
 OUT+=" \033[37m|\033[0m"
-# repo/folder (collapse to just folder when it equals the repo root, or no repo)
 folder=$(basename "$cwd")
 if [ -n "$git_repo" ] && [ "$git_repo" != "$folder" ]; then
     OUT+=" \033[34m${git_repo}/${folder}\033[0m"
