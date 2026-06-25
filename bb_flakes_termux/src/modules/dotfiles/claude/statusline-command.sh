@@ -107,42 +107,29 @@ get_color() {
     else echo "32"; fi
 }
 
-# === Git info — DISABLED 2026-04-28 ===
-# Git ops were costing 6+ CPU cores on large monorepos (~/git/cloud, ~/git/unix
-# with rust target/, node_modules/). 9 git invocations per render: branch,
-# rev-parse HEAD x2, diff-index x2, ls-files --others, rev-parse @{upstream},
-# rev-list --count x2, stash list. Vars stay declared empty so downstream
-# rendering at the status line below skips the git block entirely.
-git_branch=""; git_commit=""; git_status_icons=""; git_stash=""
-# if cd "$cwd" 2>/dev/null && git rev-parse --git-dir > /dev/null 2>&1; then
-#     git_cache="/tmp/statusline_git_$(echo "$cwd" | md5sum | cut -c1-8).cache"
-#     git_cache_age=$(( $(date +%s) - $(stat -c %Y "$git_cache" 2>/dev/null || echo 0) ))
-#
-#     if [ -f "$git_cache" ] && [ "$git_cache_age" -lt 10 ]; then
-#         IFS='|' read git_branch git_commit git_status_icons git_stash < "$git_cache" 2>/dev/null
-#     else
-#         branch=$(git -c core.useBuiltinFSMonitor=false -c core.useReplaceRefs=false branch --show-current 2>/dev/null)
-#         [ -n "$branch" ] && git_branch="$branch" || git_branch=$(git -c core.useBuiltinFSMonitor=false rev-parse --short HEAD 2>/dev/null)
-#         git_commit=$(git -c core.useBuiltinFSMonitor=false rev-parse --short HEAD 2>/dev/null)
-#
-#         git -c core.useBuiltinFSMonitor=false -c core.useReplaceRefs=false diff-index --quiet HEAD -- 2>/dev/null || git_status_icons+="*"
-#         git -c core.useBuiltinFSMonitor=false diff-index --quiet --cached HEAD -- 2>/dev/null || git_status_icons+="+"
-#         [ -n "$(git -c core.useBuiltinFSMonitor=false ls-files --others --exclude-standard 2>/dev/null | head -1)" ] && git_status_icons+="?"
-#
-#         upstream=$(git -c core.useBuiltinFSMonitor=false rev-parse --abbrev-ref @{upstream} 2>/dev/null)
-#         if [ -n "$upstream" ]; then
-#             ahead=$(git -c core.useBuiltinFSMonitor=false rev-list --count @{upstream}..HEAD 2>/dev/null)
-#             behind=$(git -c core.useBuiltinFSMonitor=false rev-list --count HEAD..@{upstream} 2>/dev/null)
-#             [ "$ahead" -gt 0 ] && git_status_icons+="↑${ahead}"
-#             [ "$behind" -gt 0 ] && git_status_icons+="↓${behind}"
-#         fi
-#
-#         stash_count=$(git -c core.useBuiltinFSMonitor=false stash list 2>/dev/null | wc -l)
-#         [ "$stash_count" -gt 0 ] && git_stash="≡${stash_count}"
-#
-#         echo "${git_branch}|${git_commit}|${git_status_icons}|${git_stash}" > "$git_cache"
-#     fi
-# fi
+# === Git info — repo name + branch for LINE 1 (cheap: ONE `git rev-parse`) ===
+# Re-enabled 2026-06-25 for the "repo/folder @ branch" display. The 2026-04-28
+# disable was about a 9-fork block — esp. `ls-files --others` walking rust
+# target/ (~100k files) ×parallel sessions = ~9% of a core 24/7. This does ONE
+# rev-parse (branch + toplevel, no tree walk, no status), cached 10s per cwd →
+# negligible. To restore dirty/ahead/behind/stash icons, swap in the
+# `git status -b --porcelain=v1` one-forker (see git history).
+git_repo=""; git_branch=""
+if command -v git >/dev/null 2>&1; then
+    git_cache="/tmp/statusline_git_$(printf '%s' "$cwd" | md5sum | cut -c1-8).cache"
+    git_cache_age=$(( $(date +%s) - $(stat -c %Y "$git_cache" 2>/dev/null || echo 0) ))
+    if [ -f "$git_cache" ] && [ "$git_cache_age" -lt 10 ]; then
+        IFS='|' read -r git_repo git_branch < "$git_cache" 2>/dev/null
+    else
+        # one fork: line 1 = branch (or "HEAD" when detached), line 2 = repo root
+        git_info=$(git -C "$cwd" rev-parse --abbrev-ref HEAD --show-toplevel 2>/dev/null)
+        if [ -n "$git_info" ]; then
+            git_branch=$(printf '%s\n' "$git_info" | sed -n 1p)
+            git_repo=$(basename "$(printf '%s\n' "$git_info" | sed -n 2p)")
+        fi
+        printf '%s|%s\n' "$git_repo" "$git_branch" > "$git_cache"
+    fi
+fi
 
 # === Async system metrics — all slow commands run in parallel ===
 _async="/tmp/statusline_async_$$"
@@ -216,14 +203,15 @@ if [ -n "$mcp_seg" ]; then OUT+=" ${mcp_seg}"; else OUT+=" \033[${mcp_color}mMCP
 [ -n "$hooks_seg" ] && OUT+=" ${hooks_seg}"
 OUT+=" \033[37m|\033[0m"
 OUT+=" \033[36m${user_host}\033[0m"
-OUT+=" \033[34m$(basename "$cwd")\033[0m"
-
-if [ -n "$git_branch" ]; then
-    OUT+=" \033[33m${git_branch}\033[0m"
-    [ -n "$git_commit" ] && OUT+="\033[33m@${git_commit}\033[0m"
-    [ -n "$git_status_icons" ] && OUT+="\033[31m${git_status_icons}\033[0m"
-    [ -n "$git_stash" ] && OUT+=" \033[35m${git_stash}\033[0m"
+OUT+=" \033[37m|\033[0m"
+# repo/folder (collapse to just folder when it equals the repo root, or no repo)
+folder=$(basename "$cwd")
+if [ -n "$git_repo" ] && [ "$git_repo" != "$folder" ]; then
+    OUT+=" \033[34m${git_repo}/${folder}\033[0m"
+else
+    OUT+=" \033[34m${folder}\033[0m"
 fi
+[ -n "$git_branch" ] && OUT+=" \033[90m@\033[0m \033[33m${git_branch}\033[0m"
 OUT+=" \033[37m|\033[0m\n"
 
 # LINE 2: | RAM CPU Disk VRAM | Mesh M:ip P:ip Pub:ip |
