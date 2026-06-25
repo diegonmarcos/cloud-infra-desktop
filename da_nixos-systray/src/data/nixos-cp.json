@@ -1,0 +1,33 @@
+{
+  "_doc": "Data-driven menu for nixos-systray. Sections→items dispatched via nixos-systray --run-index N. Types: build=build.sh <arg> in dark konsole; shell=bash -lc <arg>; log=tail newest build log; open=xdg-open. {FLAKE} expanded at runtime to .flake value.",
+  "flake":        "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos",
+  "tray_icon":    "nix-snowflake",
+  "tray_tooltip": "NixOS Control Panel",
+  "sections": [
+    { "title": "Rebuild", "icon": "system-software-update", "items": [
+      { "label": "Switch — rebuild & apply now",     "icon": "system-software-update",       "type": "build", "arg": "switch"   },
+      { "label": "Boot — apply at next boot",        "icon": "system-reboot",                 "type": "build", "arg": "boot"     },
+      { "label": "Test — apply, no bootloader",      "icon": "system-run",                    "type": "build", "arg": "test"     },
+      { "label": "Dry-run — build + diff only",      "icon": "document-preview",              "type": "build", "arg": "dry-run"  }
+    ]},
+    { "title": "Update", "icon": "view-refresh", "items": [
+      { "label": "Update flake inputs + switch",     "icon": "view-refresh",                  "type": "build", "arg": "update"   }
+    ]},
+    { "title": "Maintenance", "icon": "applications-system", "items": [
+      { "label": "List system generations",          "icon": "view-list-details",             "type": "shell", "arg": "/run/wrappers/bin/sudo nix-env -p /nix/var/nix/profiles/system --list-generations" },
+      { "label": "Diff: current → built",            "icon": "document-edit-decrypt-verify",  "type": "shell", "arg": "cd {FLAKE} && PATH=/run/wrappers/bin:$PATH ./build.sh diff" },
+      { "label": "Garbage-collect old gens",         "icon": "edit-delete",                   "type": "shell", "arg": "/run/wrappers/bin/sudo nix-collect-garbage -d" },
+      { "label": "Optimise nix store (dedupe)",      "icon": "server-database",               "type": "shell", "arg": "/run/wrappers/bin/sudo nix-store --optimise" }
+    ]},
+    { "title": "Inspect", "icon": "document-preview", "items": [
+      { "label": "View latest build log (live)",     "icon": "text-x-changelog",              "type": "log",   "arg": "" },
+      { "label": "Edit settings (modules)",          "icon": "settings-configure",            "type": "open",  "arg": "{FLAKE}/src/modules" },
+      { "label": "Open flake directory",             "icon": "folder",                        "type": "open",  "arg": "{FLAKE}" }
+    ]},
+    { "title": "Session", "icon": "user-desktop", "items": [
+      { "label": "Setup Workspace (all desktops)",   "icon": "user-desktop",                  "type": "shell", "arg": "[ -x '{FLAKE}/src/modules/workspace-setup.sh' ] && '{FLAKE}/src/modules/workspace-setup.sh' || echo 'Edit {FLAKE}/src/modules/workspace-setup.sh to configure your desktop layout.'" },
+      { "label": "Lock Screen",                      "icon": "system-lock-screen",            "type": "shell", "arg": "loginctl lock-session" },
+      { "label": "Restart Plasma Shell",             "icon": "system-reboot",                 "type": "shell", "arg": "kquitapp6 plasmashell; sleep 1; kstart plasmashell" }
+    ]}
+  ]
+}
