@@ -169,36 +169,27 @@
     source = ./dotfiles/claude/claude-mcp-status.sh;
     executable = true;
   };
-  # Tier-based Claude Code hooks (renamed 2026-05-07 from claude-memory /
-  # declarative-guard / pretool-guard for clearer event-tier mapping).
-  #   a-* → SessionStart       (one-shot context injection)
-  #   b-* → UserPromptSubmit   (per-prompt context injection)
-  #   c-* → PreToolUse(Bash)   (split into blockers + warnings)
-  home.file.".claude/hooks/a-context-inject-memory.sh" = {
-    source = ./dotfiles/claude/a-context-inject-memory.sh;
+  # Data-driven Claude Code hooks (refactored 2026-06-25 from the a-/b-/c- split).
+  # ONE engine + ONE registry (hooks-rules.json) drives every tier:
+  #   inject <tier> → SessionStart / UserPromptSubmit / PreToolUse context
+  #   guard         → PreToolUse(Bash) allow/deny/warn (fail-closed)
+  #   nudge         → PostToolUse soft graph nudge
+  # Docs (HOOKS.md) + tests (test-hooks.sh) are generated/driven from the registry.
+  home.file.".claude/hooks/hook-engine.sh" = {
+    source = ./dotfiles/claude/hook-engine.sh;
     executable = true;
   };
-  home.file.".claude/hooks/b-context-inject-prompt.sh" = {
-    source = ./dotfiles/claude/b-context-inject-prompt.sh;
+  home.file.".claude/hooks/hooks-rules.json".source = ./dotfiles/claude/hooks-rules.json;
+  home.file.".claude/hooks/hooks-fragments".source = ./dotfiles/claude/hooks-fragments;
+  home.file.".claude/hooks/gen-hooks-doc.sh" = {
+    source = ./dotfiles/claude/gen-hooks-doc.sh;
     executable = true;
   };
-  home.file.".claude/hooks/c-context-inject-pretool.sh" = {
-    source = ./dotfiles/claude/c-context-inject-pretool.sh;
+  home.file.".claude/hooks/test-hooks.sh" = {
+    source = ./dotfiles/claude/test-hooks.sh;
     executable = true;
   };
-  home.file.".claude/hooks/c-pretool-guard-blockers.sh" = {
-    source = ./dotfiles/claude/c-pretool-guard-blockers.sh;
-    executable = true;
-  };
-  home.file.".claude/hooks/c-pretool-guard-warning.sh" = {
-    source = ./dotfiles/claude/c-pretool-guard-warning.sh;
-    executable = true;
-  };
-  #   c-posttool-* → PostToolUse  (soft nudge: read-without-graph, FIRE rule 6)
-  home.file.".claude/hooks/c-posttool-graph-nudge.sh" = {
-    source = ./dotfiles/claude/c-posttool-graph-nudge.sh;
-    executable = true;
-  };
+  home.file.".claude/hooks/HOOKS.md".source = ./dotfiles/claude/HOOKS.md;
   home.file.".claude/settings.json".source = ./dotfiles/claude/settings.json;
 
   # claude-api skill — pinned from anthropics/skills repo. Symlinks the whole

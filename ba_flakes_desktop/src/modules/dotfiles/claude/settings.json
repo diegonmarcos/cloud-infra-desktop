@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/a-context-inject-memory.sh",
+            "command": "\"$HOME\"/.claude/hooks/hook-engine.sh inject SessionStart",
             "timeout": 5
           },
           {
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/b-context-inject-prompt.sh",
+            "command": "\"$HOME\"/.claude/hooks/hook-engine.sh inject UserPromptSubmit",
             "timeout": 3
           },
           {
@@ -61,17 +61,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/c-context-inject-pretool.sh",
+            "command": "\"$HOME\"/.claude/hooks/hook-engine.sh inject PreToolUse",
             "timeout": 3
           },
           {
             "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/c-pretool-guard-blockers.sh",
-            "timeout": 3
-          },
-          {
-            "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/c-pretool-guard-warning.sh",
+            "command": "\"$HOME\"/.claude/hooks/hook-engine.sh guard",
             "timeout": 5
           }
         ]
@@ -83,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/c-posttool-graph-nudge.sh",
+            "command": "\"$HOME\"/.claude/hooks/hook-engine.sh nudge",
             "timeout": 3
           }
         ]
