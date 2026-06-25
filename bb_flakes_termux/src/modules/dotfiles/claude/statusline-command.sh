@@ -54,10 +54,12 @@ fi
 ctx_state_file="/tmp/statusline_ctx_state_$(echo "$transcript_path" | md5sum | cut -c1-8).dat"
 ctx_reset_file="/tmp/statusline_ctx_reset_$(echo "$transcript_path" | md5sum | cut -c1-8).dat"
 
-prev_ctx=0; prev_exceeds="false"
-[ -f "$ctx_state_file" ] && read prev_ctx prev_exceeds < "$ctx_state_file" 2>/dev/null
+now_epoch=$(date +%s)
+prev_ctx=0; prev_exceeds="false"; prev_epoch=$now_epoch
+[ -f "$ctx_state_file" ] && read prev_ctx prev_exceeds prev_epoch < "$ctx_state_file" 2>/dev/null
 [ -z "$prev_ctx" ] && prev_ctx=0
 [ -z "$prev_exceeds" ] && prev_exceeds="false"
+[ -z "$prev_epoch" ] && prev_epoch=$now_epoch
 
 ctx_reset_detected="false"
 if [ "$prev_ctx" -gt 50000 ] && [ "$current_ctx" -gt 0 ]; then
@@ -66,7 +68,11 @@ fi
 [ "$prev_exceeds" = "true" ] && [ "$exceeds_200k" = "false" ] && ctx_reset_detected="true"
 
 [ "$ctx_reset_detected" = "true" ] && echo "$(date -Iseconds) $prev_ctx $current_ctx" >> "$ctx_reset_file"
-echo "$current_ctx $exceeds_200k" > "$ctx_state_file"
+# "last cache hit" = last render where the context changed (= last API response).
+# Idle re-renders keep the same epoch, so the minutes-since grows while you sit.
+if [ "$current_ctx" != "$prev_ctx" ]; then last_epoch=$now_epoch; else last_epoch=$prev_epoch; fi
+mins_since=$(( (now_epoch - last_epoch) / 60 ))
+echo "$current_ctx $exceeds_200k $last_epoch" > "$ctx_state_file"
 
 last_reset_ts="never"
 if [ -f "$ctx_reset_file" ]; then
@@ -178,9 +184,25 @@ done
 # Static stubs preserve the rendering contract; vars below are read by the
 # render block unchanged. To re-enable, restore from git history.
 echo "N/A" > "$_async/vram"
-echo "off 90 —" > "$_async/mesh"
-echo "—" > "$_async/pip"
-echo "—" > "$_async/pub"
+# --- Background: WireGuard mesh probe (re-enabled 2026-06-25) ---
+# Root-free, NO network: per WG interface, just admin-up state + address via `ip`
+# (handshakes need root). The 2026-04 disable was about EXTERNAL public-IP / mesh
+# curls firing per render — those stay gone. Interfaces are DATA-DRIVEN from
+# `wg show interfaces`, so wg0 + wg-public (and any future wg iface) are covered.
+(
+    seg=""
+    if command -v wg >/dev/null 2>&1; then
+        for wif in $(wg show interfaces 2>/dev/null); do
+            if ${IP_CMD:-ip} -o link show "$wif" 2>/dev/null | grep -qE "[<,]UP[,>]"; then
+                wip=$(${IP_CMD:-ip} -4 -o addr show "$wif" 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+                seg="$seg ${wif}:up:${wip:-?}"
+            else
+                seg="$seg ${wif}:down"
+            fi
+        done
+    fi
+    echo "${seg# }" > "$_async/mesh"
+) &
 
 # Wait for the only remaining background job (CPU sample, bounded by sleep 0.1)
 wait 2>/dev/null
@@ -188,10 +210,7 @@ wait 2>/dev/null
 # Read async results
 cpu_percent=$(cat "$_async/cpu" 2>/dev/null); [ -z "$cpu_percent" ] && cpu_percent=0
 vram_percent=$(cat "$_async/vram" 2>/dev/null); [ -z "$vram_percent" ] && vram_percent="N/A"
-read mesh_status mesh_color mesh_ip < "$_async/mesh" 2>/dev/null
-[ -z "$mesh_status" ] && mesh_status="down" && mesh_color="31"
-private_ip=$(cat "$_async/pip" 2>/dev/null); [ -z "$private_ip" ] && private_ip="none"
-public_ip=$(cat "$_async/pub" 2>/dev/null); [ -z "$public_ip" ] && public_ip="..."
+mesh_seg=$(cat "$_async/mesh" 2>/dev/null)   # "wg0:up:10.0.0.5 wg-public:up:10.1.0.5"
 rm -rf "$_async"
 
 # Colors
@@ -232,42 +251,79 @@ OUT+=" \033[${cpu_color}mCPU:${cpu_percent}%\033[0m"
 OUT+=" \033[${disk_color}mDisk:${disk_percent}%\033[0m"
 OUT+=" \033[${vram_color}mVRAM:${vram_percent}%\033[0m"
 OUT+=" \033[37m|\033[0m"
-OUT+=" \033[${mesh_color}mMesh:${mesh_status}\033[0m"
-OUT+=" \033[36mM:${mesh_ip}\033[0m"
-OUT+=" \033[36mP:${private_ip}\033[0m"
-OUT+=" \033[36mPub:${public_ip}\033[0m"
+OUT+=" \033[1;37mMesh\033[0m"
+if [ -n "$mesh_seg" ]; then
+    for tok in $mesh_seg; do
+        wif=${tok%%:*}; rest=${tok#*:}
+        if [ "${rest%%:*}" = "up" ]; then
+            OUT+=" \033[32m●\033[0m\033[36m${wif}:${rest#up:}\033[0m"
+        else
+            OUT+=" \033[31m○${wif}\033[0m"
+        fi
+    done
+else
+    OUT+=" \033[90m—\033[0m"
+fi
 OUT+=" \033[37m|\033[0m\n"
 
-# LINE 3: | last_reset CTX:used/<win>(%) ⚡cache% In:new +cache Out Σtotal $cost |
-# Token breakdown is the LIVE context window (context_window.current_usage),
-# straight from stdin — spawn-free. $ is cumulative session (cost.total_cost_usd).
-win_fmt=$(fmt_tok "$ctx_window_size")
-ctx_fmt=$(fmt_tok "$current_ctx")
+# LINE 3 — ONE line, three blocks separated by │ (per spec):
+#   <datetime> │ Tok In Cache Out Σ │ $ In Out Cache Σ │ Ctx:used/win(%) Cache:hit% <idle>m
+# Tokens = LIVE context window (context_window.current_usage) from stdin (spawn-free).
+# $ = THIS turn = tokens/1e6 × per-MTok price from claude-pricing.json (data-driven).
+PRICING="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/claude-pricing.json"
+p_in=15; p_out=75; p_cr=1.50; p_cw=18.75            # fallback (Opus) if JSON/jq absent
+if command -v jq >/dev/null 2>&1 && [ -f "$PRICING" ]; then
+    read p_in p_out p_cr p_cw < <(jq -r --arg m "$model_id" '
+        . as $root
+        | (($root.models | to_entries
+            | map(select(.key as $k | ($m | startswith($k))))
+            | sort_by(.key | length) | last | .value) // $root.default)
+        | "\(.input) \(.output) \(.cache_read) \(.cache_write)"' "$PRICING" 2>/dev/null)
+    [ -z "$p_in" ] && { p_in=15; p_out=75; p_cr=1.50; p_cw=18.75; }
+fi
+
+# token counts (live window)
 new_fmt=$(fmt_tok "${cu_new:-0}")
-cache_tok=$(( ${cu_cread:-0} + ${cu_cwrite:-0} ))   # cache read + write
+cache_tok=$(( ${cu_cread:-0} + ${cu_cwrite:-0} ))
 cache_fmt=$(fmt_tok "$cache_tok")
 out_fmt=$(fmt_tok "${cu_out:-0}")
 sum_tok=$(( ${cu_new:-0} + cache_tok + ${cu_out:-0} ))
 sum_fmt=$(fmt_tok "$sum_tok")
-# cache hit rate = cache_read / total_input (input side only)
+win_fmt=$(fmt_tok "$ctx_window_size")
+ctx_fmt=$(fmt_tok "$current_ctx")
+
+# per-category $ for THIS turn
+read d_in d_out d_cache d_tot < <(LC_NUMERIC=C awk \
+    -v n="${cu_new:-0}" -v o="${cu_out:-0}" -v cr="${cu_cread:-0}" -v cw="${cu_cwrite:-0}" \
+    -v pi="$p_in" -v po="$p_out" -v pcr="$p_cr" -v pcw="$p_cw" \
+    'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dc=cr/1e6*pcr+cw/1e6*pcw; printf "%.2f %.2f %.2f %.2f", di, dou, dc, di+dou+dc}')
+
+# cache hit rate + colors
 total_in=$(( ${cu_new:-0} + cache_tok ))
 if [ "$total_in" -gt 0 ]; then cache_hit=$(( ${cu_cread:-0} * 100 / total_in )); else cache_hit=0; fi
 if [ "$cache_hit" -ge 80 ]; then cache_color="32"; elif [ "$cache_hit" -ge 40 ]; then cache_color="33"; else cache_color="90"; fi
+if [ "$exceeds_200k" = "true" ] && [ "$ctx_window_size" -le 200000 ]; then pct_color="31"
+elif [ "$ctx_percent" -ge 90 ]; then pct_color="31"; elif [ "$ctx_percent" -ge 50 ]; then pct_color="33"; else pct_color="32"; fi
 
 OUT+="\033[37m|\033[0m"
 OUT+=" \033[90m${last_reset_ts}\033[0m"
-if [ "$exceeds_200k" = "true" ] && [ "$ctx_window_size" -le 200000 ]; then
-    OUT+=" \033[31mCTX:${ctx_fmt}/${win_fmt}(⚠)\033[0m"
-else
-    OUT+=" \033[${ctx_color}mCTX:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
-fi
-OUT+=" \033[${cache_color}m⚡${cache_hit}%\033[0m"
+# Tokens block
+OUT+=" \033[37m│\033[0m \033[1;37mTok\033[0m"
 OUT+=" \033[36mIn:${new_fmt}\033[0m"
-OUT+=" \033[34m+cache:${cache_fmt}\033[0m"
+OUT+=" \033[34mCache:${cache_fmt}\033[0m"
 OUT+=" \033[36mOut:${out_fmt}\033[0m"
 OUT+=" \033[90mΣ${sum_fmt}\033[0m"
-cost_fmt=$(LC_NUMERIC=C awk "BEGIN {c=${session_cost:-0}; printf (c>=1?\"%.2f\":\"%.4f\"), c}")
-OUT+=" \033[${cost_color}m\$${cost_fmt}\033[0m"
+# $ block  (order per spec: In, Out, Cache, Total)
+OUT+=" \033[37m│\033[0m \033[1;32m\$\033[0m"
+OUT+=" \033[32mIn:${d_in}\033[0m"
+OUT+=" \033[32mOut:${d_out}\033[0m"
+OUT+=" \033[32mCache:${d_cache}\033[0m"
+OUT+=" \033[${cost_color}mΣ${d_tot}\033[0m"
+# Ctx / cache block
+OUT+=" \033[37m│\033[0m"
+OUT+=" \033[${pct_color}mCtx:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
+OUT+=" \033[${cache_color}mCache:${cache_hit}%\033[0m"
+OUT+=" \033[90m${mins_since}m\033[0m"
 OUT+=" \033[37m|\033[0m\n"
 
 printf "%b" "$OUT"
