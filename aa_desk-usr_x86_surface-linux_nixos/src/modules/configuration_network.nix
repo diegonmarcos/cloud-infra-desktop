@@ -81,8 +81,19 @@ in {
   };
 
   # DNS: tier 2 baseline — Cloudflare + Google (always present)
-  # Tier 1 (Hickory) added dynamically by WG postSetup via resolvconf
+  # Tier 1 (Hickory) added dynamically by WG postSetup via resolvconf — but ONLY
+  # when it's actually reachable (see the guarded postSetup below).
   networking.nameservers = [ "1.1.1.1" "1.0.0.1" "8.8.8.8" ];
+
+  # Resilient resolver (PERMANENT FIX 2026-06-25): a dead tier-1 nameserver (e.g.
+  # Hickory 10.0.0.1 when the mesh/gcp-proxy is down) as the FIRST entry stalls
+  # EVERY lookup at glibc's default 5s timeout — which broke nixos-rebuild
+  # narinfo fetches ("couldn't resolve host"), Waydroid container DNS, and
+  # nix-on-droid. 1s timeout + a single re-cycle makes a dead server fail over
+  # to the working baseline almost instantly.
+  networking.resolvconf.extraConfig = ''
+    resolv_conf_options="timeout:1 attempts:2"
+  '';
 
   # WireGuard mesh VPN (on-demand, not auto-start)
   # Hub host/port read from ./wireguard-endpoints.json (data-driven).
@@ -93,9 +104,17 @@ in {
     privateKeyFile = "/home/diego/.config/wireguard/privatekey";
     # DNS tier 1: Hickory (added when WG up, removed when WG down)
     postSetup = ''
-      ${pkgs.openresolv}/bin/resolvconf -a ${wgData.client.interface} <<EOF
+      # Register Hickory (mesh DNS) as tier-1 ONLY if it's actually reachable.
+      # A dead 10.0.0.1 as the first nameserver stalls all resolution while the
+      # mesh/gcp-proxy is down (the resolv_conf_options above cap the penalty;
+      # this avoids it entirely). TCP-probe :53 with a 1s deadline.
+      if ${pkgs.netcat-openbsd}/bin/nc -z -w1 ${wgData.hub.wg_ip} 53 2>/dev/null; then
+        ${pkgs.openresolv}/bin/resolvconf -a ${wgData.client.interface} <<EOF
       nameserver ${wgData.hub.wg_ip}
       EOF
+      else
+        echo "[wg0 postSetup] Hickory ${wgData.hub.wg_ip}:53 unreachable — keeping public DNS baseline (mesh down)" >&2
+      fi
     '';
     postShutdown = ''
       ${pkgs.openresolv}/bin/resolvconf -d ${wgData.client.interface}
