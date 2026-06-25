@@ -66,6 +66,20 @@ ${dispatch}
         *) echo "bad index" >&2; exit 1 ;;
       esac
     fi
+    # yad --notification uses GTK/AppIndicator which requires X11 (XWayland on Wayland)
+    _rt="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    if [ -z "''${DISPLAY:-}" ]; then
+      for _n in 0 1 2; do
+        [ -S "/tmp/.X11-unix/X''${_n}" ] && export DISPLAY=":''${_n}" && break
+      done
+    fi
+    if [ -z "''${XAUTHORITY:-}" ]; then
+      for _f in "''$_rt"/xauth_*; do
+        [ -f "''$_f" ] && export XAUTHORITY="''$_f" && break
+      done
+    fi
+    export GDK_BACKEND=x11
+    export NO_AT_BRIDGE=1
     exec ${pkgs.yad}/bin/yad --notification \
       --image="${wd.tray_icon or "network-vpn"}" \
       --text="${wd.tray_tooltip or "Cloud & Infra"}" \
@@ -93,9 +107,17 @@ in {
     partOf = [ "graphical-session.target" ];
     after = [ "graphical-session.target" ];
     serviceConfig = {
+      ExecStartPre = "${pkgs.coreutils}/bin/sleep 5";
       ExecStart = "${cloud-systray}/bin/cloud-systray";
+      Environment = [
+        "DISPLAY=:0"
+        "GDK_BACKEND=x11"
+        "XDG_RUNTIME_DIR=/run/user/1000"
+        "XDG_CURRENT_DESKTOP=KDE"
+        "NO_AT_BRIDGE=1"
+      ];
       Restart = "on-failure";
-      RestartSec = 5;
+      RestartSec = 10;
     };
   };
 }
