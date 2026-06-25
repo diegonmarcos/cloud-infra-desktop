@@ -1,18 +1,16 @@
-# NixOS Control Panel — a system-tray menu (yad) + dark verbose progress windows
-# (konsole). Both tools are PREBUILT in the binary cache, so this adds no
-# source compile (the earlier PySide6 version pulled Qt/pyside6 6.11 which is NOT
-# cached → compiled from source → OOM'd the 8GB machine; removed 2026-06-25).
+# NixOS Control Panel — system-tray icon (yad) + dark verbose progress windows
+# (konsole). Both tools are PREBUILT in the binary cache — no source compile.
 #
 #   nixos-switch-gui <cmd>  -> run `build.sh <cmd>` in a held, dark, verbose
-#                             konsole (real TTY so sudo can prompt in-window).
-#   nixos-cp                -> the tray icon + menu (auto-starts in the session).
+#                              konsole (real TTY so sudo can prompt in-window).
+#   nixos-systray           -> the tray icon + menu (auto-starts in session).
 #
 # Menu is data-driven (nixos-cp.json) and baked into the dispatch at build time.
 { config, lib, pkgs, ... }:
 
 let
   flakeDir = "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos";
-  konsole  = "/run/current-system/sw/bin/konsole";   # system-installed (Plasma)
+  konsole  = "/run/current-system/sw/bin/konsole";
   wd       = builtins.fromJSON (builtins.readFile ./nixos-cp.json);
   items    = lib.concatMap (s: s.items) wd.sections;
   subst    = s: lib.replaceStrings [ "{FLAKE}" ] [ flakeDir ] s;
@@ -37,11 +35,11 @@ let
   dispatch = lib.concatStringsSep "\n"
     (lib.imap0 (i: it: "      ${toString i}) ${mkAction it} ;;") items);
 
-  # yad menu string: "label!nixos-cp --run-index N!icon|..."
+  # yad menu string: "label!nixos-systray --run-index N!icon|..."
   menuStr = lib.concatStringsSep "|"
-    (lib.imap0 (i: it: "${it.label}!nixos-cp --run-index ${toString i}!${it.icon or ""}") items);
+    (lib.imap0 (i: it: "${it.label}!nixos-systray --run-index ${toString i}!${it.icon or ""}") items);
 
-  nixos-cp = pkgs.writeShellScriptBin "nixos-cp" ''
+  nixos-systray = pkgs.writeShellScriptBin "nixos-systray" ''
     if [ "''${1:-}" = "--run-index" ]; then
       case "''${2:-}" in
 ${dispatch}
@@ -56,10 +54,10 @@ ${dispatch}
   '';
 
   cpItem = pkgs.makeDesktopItem {
-    name = "nixos-cp";
+    name = "nixos-systray";
     desktopName = "NixOS Control Panel";
     comment = "Rebuild & manage NixOS — switch, dry-run, update, logs, settings";
-    exec = "${nixos-cp}/bin/nixos-cp";
+    exec = "${nixos-systray}/bin/nixos-systray";
     icon = "nix-snowflake";
     categories = [ "System" ];
     terminal = false;
@@ -67,15 +65,15 @@ ${dispatch}
   };
 
 in {
-  environment.systemPackages = [ nixos-switch-gui nixos-cp cpItem pkgs.yad ];
+  environment.systemPackages = [ nixos-switch-gui nixos-systray cpItem pkgs.yad ];
 
-  systemd.user.services.nixos-cp-tray = {
+  systemd.user.services.nixos-systray = {
     description = "NixOS Control Panel tray icon";
     wantedBy = [ "graphical-session.target" ];
     partOf = [ "graphical-session.target" ];
     after = [ "graphical-session.target" ];
     serviceConfig = {
-      ExecStart = "${nixos-cp}/bin/nixos-cp";
+      ExecStart = "${nixos-systray}/bin/nixos-systray";
       Restart = "on-failure";
       RestartSec = 5;
     };
