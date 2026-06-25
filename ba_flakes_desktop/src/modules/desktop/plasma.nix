@@ -43,7 +43,10 @@ in
   home.activation.fixSystemTray = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
     APPLETS_FILE="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
     if [ -f "$APPLETS_FILE" ]; then
-      ALL_ITEMS="org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.clipboard,org.kde.plasma.devicenotifier,org.kde.plasma.notifications,org.kde.kdeconnect,org.kde.kscreen,org.kde.plasma.keyboardlayout,org.kde.plasma.keyboardindicator,org.kde.plasma.cameraindicator,org.kde.plasma.manage-inputmethod,org.kde.plasma.mediacontroller"
+      # nixos-cp = the NixOS Control Panel tray app (QSystemTrayIcon, stable
+      # desktopFileName 'nixos-cp' -> StatusNotifierItem Id 'nixos-cp'). Listing
+      # it in shownItems forces it ALWAYS visible in the tray (not the overflow).
+      ALL_ITEMS="org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.clipboard,org.kde.plasma.devicenotifier,org.kde.plasma.notifications,org.kde.kdeconnect,org.kde.kscreen,org.kde.plasma.keyboardlayout,org.kde.plasma.keyboardindicator,org.kde.plasma.cameraindicator,org.kde.plasma.manage-inputmethod,org.kde.plasma.mediacontroller,nixos-cp"
 
       # Find the PRIVATE systemtray containment ID (plugin=org.kde.plasma.private.systemtray)
       TRAY_ID=$(${pkgs.gawk}/bin/awk '
