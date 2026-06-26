@@ -25,7 +25,7 @@
       { "label": "Open flake directory",             "icon": "folder",                        "type": "open",  "arg": "{FLAKE}" }
     ]},
     { "title": "Session", "icon": "user-desktop", "items": [
-      { "label": "Setup Workspace (all desktops)",   "icon": "user-desktop",                  "type": "shell", "arg": "[ -x '{FLAKE}/src/modules/workspace-setup.sh' ] && '{FLAKE}/src/modules/workspace-setup.sh' || echo 'Edit {FLAKE}/src/modules/workspace-setup.sh to configure your desktop layout.'" },
+      { "label": "Setup Workspace (4 virtual desktops)", "icon": "user-desktop",               "type": "shell", "arg": "kwriteconfig6 --file kwinrc --group Desktops --key Number 4 --key Rows 1 && qdbus6 org.kde.KWin /KWin reconfigureX 2>/dev/null; notify-send 'NixOS' '4 virtual desktops configured'" },
       { "label": "Lock Screen",                      "icon": "system-lock-screen",            "type": "shell", "arg": "loginctl lock-session" },
       { "label": "Restart Plasma Shell",             "icon": "system-reboot",                 "type": "shell", "arg": "kquitapp6 plasmashell; sleep 1; kstart plasmashell" }
     ]}

@@ -85,8 +85,14 @@ if [ "${1:-}" = "--run-index" ]; then
   _run_action "${2:-0}"; exit
 fi
 
-tray_icon="$(   "$JQ" -r '.tray_icon    // "network-vpn"'    "$DATA")"
-tray_tooltip="$("$JQ" -r '.tray_tooltip // "Cloud & Infra"'  "$DATA")"
+tray_icon="$(  "$JQ" -r '.tray_icon    // "network-vpn"'   "$DATA")"
+tray_title="$( "$JQ" -r '.tray_tooltip // "Cloud & Infra"' "$DATA")"
+
+# Rich hover tooltip: title + current system gen + last system build timestamp
+_gen=$(readlink /nix/var/nix/profiles/system 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)
+_log=$(ls -t "${FLAKE_SYSTEM}/logs/"*.log 2>/dev/null | head -1 || true)
+_last=$([ -f "$_log" ] && stat -c '%y' "$_log" | cut -d. -f1 || echo "no builds yet")
+tray_tooltip="${tray_title} | Sys Gen ${_gen:-?} | Last: ${_last}"
 
 menuStr="$("$JQ" -r --arg self "$0" \
   '[ [.sections[].items[]] | to_entries[] |
@@ -98,4 +104,4 @@ exec "$YAD" --notification \
   --image="$tray_icon" \
   --text="$tray_tooltip" \
   --menu="$menuStr" \
-  --command="true"
+  --command="${0%/*}/cloud-cp-window"
