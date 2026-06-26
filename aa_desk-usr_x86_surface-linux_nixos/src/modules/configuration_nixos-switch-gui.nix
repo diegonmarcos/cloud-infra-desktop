@@ -10,8 +10,8 @@
 { config, lib, pkgs, ... }:
 
 let
-  nixos-systray-pkg = pkgs.callPackage ../../../../da_nixos-systray/src/nix/package.nix {
-    src      = ../../../../da_nixos-systray;
+  nixos-systray-pkg = pkgs.callPackage ../../../da_nixos-systray/src/nix/package.nix {
+    src      = ../../../da_nixos-systray;
     kdialog  = pkgs.kdePackages.kdialog;
     qdbus    = pkgs.kdePackages.qttools;
   };

@@ -10,8 +10,8 @@
 { config, lib, pkgs, ... }:
 
 let
-  cloud-systray-pkg = pkgs.callPackage ../../../../da_cloud-systray/src/nix/package.nix {
-    src = ../../../../da_cloud-systray;
+  cloud-systray-pkg = pkgs.callPackage ../../../da_cloud-systray/src/nix/package.nix {
+    src = ../../../da_cloud-systray;
   };
 in {
   environment.systemPackages = [ cloud-systray-pkg ];
