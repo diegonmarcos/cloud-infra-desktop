@@ -292,7 +292,12 @@ object Transaction {
     // ── Phase COMMIT ────────────────────────────────────────────────────
 
     private suspend fun commitAll(ctx: Context, items: List<Item>) {
+        // Hub must be LAST: installing the hub APK sends STATUS_SUCCESS then
+        // Android kills this process immediately. All fork APKs must commit
+        // before that happens, or they silently never install (user has to tap
+        // "Check for updates" a second time to pick up fork updates).
         val toInstall = items.filter { it.staged != null }
+            .sortedBy { if (it.pkg.entry.label == "hub") 1 else 0 }
         if (toInstall.isEmpty()) return
 
         // PREFLIGHT (root cause 3): without the "Install unknown apps" special
