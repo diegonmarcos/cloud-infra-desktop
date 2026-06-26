@@ -70,27 +70,6 @@
         "apk_glob": "app/build/outputs/apk/github/release/*.apk",
         "signing": "keystore_properties"
       },
-      "patches": [
-        "0001-comms-branding-one-icon-model-applicationId-no-LAUNC.patch",
-        "0002-comms-rename-app-to-Cloud-Mail-Fairmail.patch",
-        "0003-comms-add-TYPE_JMAP-TYPE_RSS-account-protocol-consta.patch",
-        "0004-comms-native-RSS-Atom-feed-reader-feed-folders-perio.patch",
-        "0005-comms-Import-Configs-single-JSON-provisioner-imap-sm.patch",
-        "0006-comms-JMAP-batch-1-jmap-client-dep-protocol-wiring-J.patch",
-        "0007-comms-JMAP-batch-2-wire-JmapService-into-EmailServic.patch",
-        "0008-comms-JMAP-batch-2-fixup-thread-host-into-_connect-c.patch",
-        "0009-comms-JMAP-account-config-UI-setup-menu-entry-dialog.patch",
-        "0010-comms-RSS-feed-config-UI-setup-menu-entry-dialog-win.patch",
-        "0011-comms-fix-JMAP-account-created-crash-skip-sync-safe-.patch",
-        "0012-comms-self-updater-CommsUpdateWorker-checks-GHCR-eve.patch",
-        "0013-comms-About-tab-in-Configs-FragmentOptions-version-c.patch",
-        "0014-comms-fix-JMAP-config-crash-handle-TYPE_JMAP-RSS-in-.patch",
-        "0015-comms-full-screen-FragmentJmapAccount-fix-missing-fo.patch",
-        "0016-comms-fix-check-for-updates-loop-inline-download-ins.patch",
-        "0017-comms-full-screen-FragmentJmapAccount-exact-mirror-of.patch",
-        "0018-comms-fix-FragmentJmapAccount-compile-errors.patch"
-      ],
-      "_patches_doc": "Informational manifest of the applied series (lexical order). The build engine's source of truth is the glob of forks/mail/patches/*.patch in build.sh::step_materialize_fork \u2014 this array mirrors that dir for human/review visibility and MUST be kept in sync when patches are added.",
       "comment": "FairEmail. Reuses the EXISTING ea_mail-fairmail tracker clone already used by ea_cloud-superapp's cherry-pick \u2014 materialize-fork checks out the pin, never trusts the tracker HEAD. Server: Maddy + Stalwart on oci-mail (imap./smtps. via SNI on :443, jmap.). Do this fork first: pure Java, no RN/Rust, mail server is live."
     },
     "chat": {
@@ -105,7 +84,6 @@
       "runtime": "react-native",
       "priority": 2,
       "blocked_on": null,
-      "patches": [],
       "comment": "Mattermost mobile (React Native). Server: chat.diegonmarcos.com on oci-apps. Exporter is a NATIVE Kotlin module reading WatermelonDB; RN side left untouched. OPEN DECISION before building: push notifications (self-host mattermost-push-proxy as a new cloud service vs sync-on-open + ntfy) \u2014 needs owner sign-off.",
       "upstream_apk": {
         "_doc": "Pinned UPSTREAM RELEASE APK \u2014 bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true \u2192 the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs \u2014 unsigned can't install; our key also makes it IPC-compatible).",
@@ -127,7 +105,6 @@
       "runtime": "native",
       "priority": 3,
       "blocked_on": "matrix-chat-bridge-stack-ship",
-      "patches": [],
       "comment": "Element X Android (Kotlin + Rust matrix-sdk FFI). BLOCKED until the continuwuity + mautrix-whatsapp + element stack ships (cloud repo, merged 2026-06-10, not deployed). Exporter reads via the Rust-SDK Kotlin BINDINGS, never raw store files. Push via UnifiedPush with our ntfy (rss.diegonmarcos.com) as distributor \u2014 Element X supports it natively.",
       "upstream_apk": {
         "_doc": "Pinned UPSTREAM RELEASE APK \u2014 bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true \u2192 the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs \u2014 unsigned can't install; our key also makes it IPC-compatible). NOTE: blocked_on gates OUR fork build (homeserver work), not stock-client bundling \u2014 Element X is a generic Matrix client.",
@@ -162,7 +139,6 @@
         "apk_glob": "app/build/outputs/apk/foss/release/*.apk",
         "signing": "keystore_properties"
       },
-      "patches": [],
       "call_screening": {
         "_doc": "OWNER DIRECTIVE (default config): the CallScreeningService patch (ROLE_CALL_SCREENING) MUST default to 'contacts_only' \u2014 any incoming call whose number is NOT in the device contacts is silently rejected (disallowed, no ring, no missed-call notification); numbers that resolve to a saved contact ring normally. This is the FIRST-RUN DEFAULT baked into the patch's default SharedPreference; the user can change it in-app once the screening settings UI lands. The patch reads this block as its contract \u2014 keep code default == default_mode here.",
         "default_mode": "contacts_only",
