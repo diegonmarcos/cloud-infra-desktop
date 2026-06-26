@@ -33,6 +33,7 @@ stdenvNoCC.mkDerivation {
 
     install -Dm755 src/scripts/tray.sh       $out/bin/nixos-systray
     install -Dm755 src/scripts/switch-gui.sh $out/bin/nixos-switch-gui
+    install -Dm755 src/scripts/cp-window.sh  $out/bin/nixos-cp-window
     install -Dm644 src/data/nixos-cp.json    $out/share/nixos-systray/nixos-cp.json
     install -Dm644 src/assets/nixos-systray.svg \
       $out/share/icons/hicolor/scalable/apps/nixos-systray.svg
@@ -56,6 +57,12 @@ stdenvNoCC.mkDerivation {
       --replace '@BASH@'    '${bash}/bin/bash'         \
       --replace '@KDIALOG@' '${kdialog}/bin/kdialog'   \
       --replace '@QDBUS@'   '${qdbus}/bin/qdbus6'
+
+    substituteInPlace $out/bin/nixos-cp-window \
+      --replace '@DATA@'    "$out/share/nixos-systray/nixos-cp.json" \
+      --replace '@JQ@'      '${jq}/bin/jq'            \
+      --replace '@YAD@'     '${yad}/bin/yad'           \
+      --replace '@BASH@'    '${bash}/bin/bash'
 
     runHook postInstall
   '';
