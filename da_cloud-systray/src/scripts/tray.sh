@@ -29,6 +29,7 @@ fi
 if [ -z "${XAUTHORITY:-}" ]; then
   for _f in "${_rt}"/xauth_*; do [ -f "${_f}" ] && export XAUTHORITY="${_f}" && break; done
 fi
+unset WAYLAND_DISPLAY 2>/dev/null || true
 export GDK_BACKEND=x11 NO_AT_BRIDGE=1
 
 _expand() {

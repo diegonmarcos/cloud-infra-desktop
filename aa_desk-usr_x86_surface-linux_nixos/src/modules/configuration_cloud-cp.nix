@@ -9,7 +9,9 @@
 { config, lib, pkgs, ... }:
 
 let
-  cloud-systray-pkg = pkgs.callPackage ../../../../da_cloud-systray/src/nix/package.nix {};
+  cloud-systray-pkg = pkgs.callPackage ../../../../da_cloud-systray/src/nix/package.nix {
+    src = ../../../../da_cloud-systray;
+  };
 in {
   environment.systemPackages = [ cloud-systray-pkg ];
 
@@ -19,8 +21,9 @@ in {
     partOf      = [ "graphical-session.target" ];
     after       = [ "graphical-session.target" ];
     serviceConfig = {
-      ExecStartPre = "${pkgs.coreutils}/bin/sleep 5";
-      ExecStart    = "${cloud-systray-pkg}/bin/cloud-systray";
+      ExecStartPre       = "${pkgs.coreutils}/bin/sleep 5";
+      ExecStart          = "${cloud-systray-pkg}/bin/cloud-systray";
+      UnsetEnvironment   = [ "WAYLAND_DISPLAY" ];
       Environment  = [
         "DISPLAY=:0"
         "GDK_BACKEND=x11"

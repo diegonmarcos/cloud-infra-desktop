@@ -7,7 +7,7 @@
 # WHY plain callPackage instead of a flake input: nix 2.24 cannot lock/re-fetch
 # relative-path flake inputs inside a git flake. Same workaround as
 # da_fido2-vault-broker. Revisit when nix >= 2.26.
-{ stdenvNoCC, jq, yad, bash, konsole, xdg-utils, makeDesktopItem, lib }:
+{ stdenvNoCC, src, jq, yad, bash, konsole, xdg-utils, makeDesktopItem, lib }:
 
 let
   desktopItem = makeDesktopItem {
@@ -24,7 +24,7 @@ in
 stdenvNoCC.mkDerivation {
   pname   = "nixos-systray";
   version = "1.0.0";
-  src     = ../..;   # da_nixos-systray root
+  inherit src;   # passed from callPackage — avoids pure eval path restriction
 
   dontConfigure = true;
   dontBuild     = true;
