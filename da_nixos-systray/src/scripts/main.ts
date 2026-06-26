@@ -4,7 +4,7 @@
  * All paths injected via env vars set by Nix makeWrapper.
  */
 import { app, Tray, BrowserWindow, Menu, ipcMain } from 'electron'
-import { spawn, ChildProcess, execFileSync } from 'child_process'
+import { spawn, ChildProcess } from 'child_process'
 import * as path from 'path'
 import * as fs   from 'fs'
 
