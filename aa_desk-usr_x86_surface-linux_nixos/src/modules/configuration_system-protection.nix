@@ -342,14 +342,16 @@ in
 
   # ═══════════════════════════════════════════════════════════════════════════
   # SWAP CAP DROP-IN: user-1000.slice MemorySwapMax
-  # NixOS sliceConfig whitelist silently drops MemorySwapMax, so we inject it
-  # as a drop-in file. This caps user process swap spill to 4GB, preventing
-  # the disk-thrash freeze pattern.
+  # NixOS sliceConfig silently drops MemorySwapMax (not in its allowed-set).
+  # environment.etc can't reach the systemd unit pipeline either.
+  # systemd.packages IS scanned for lib/systemd/system/*.d/ drop-ins — use it.
   # ═══════════════════════════════════════════════════════════════════════════
-  environment.etc."systemd/system/user-1000.slice.d/50-swap-cap.conf".text = ''
-    [Slice]
-    MemorySwapMax=${userMemSwapMax}
-  '';
+  systemd.packages = [
+    (pkgs.writeTextDir "lib/systemd/system/user-1000.slice.d/50-swap-cap.conf" ''
+      [Slice]
+      MemorySwapMax=${userMemSwapMax}
+    '')
+  ];
 
   # ═══════════════════════════════════════════════════════════════════════════
   # PACKAGES + FIREWALL
