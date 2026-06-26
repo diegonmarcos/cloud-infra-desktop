@@ -38,10 +38,8 @@ _run_action() {
 
   case "$type" in
     build)
-      exec "$KONSOLE" --hold --separate \
-        -p ColorScheme=Breeze -p TerminalColumns=150 -p TerminalRows=48 \
-        --title "NixOS — ${arg}" \
-        -e "$BASH" -lc "cd '${FLAKE}' && PATH=/run/wrappers/bin:\$PATH ./build.sh '${arg}'; printf '\n=== finished (exit %s) — close ===\n' \"\$?\""
+      # Delegate to switch-gui (kdialog progress window), in same bin/ dir
+      exec "${0%/*}/nixos-switch-gui" "${arg}"
       ;;
     shell)
       exec "$KONSOLE" --hold --separate -p ColorScheme=Breeze \
