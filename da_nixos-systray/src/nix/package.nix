@@ -6,7 +6,9 @@
 #
 # WHY plain callPackage instead of a flake input: nix 2.24 cannot lock/re-fetch
 # relative-path flake inputs inside a git flake. Revisit when nix >= 2.26.
-{ stdenvNoCC, src, jq, yad, bash, konsole, xdg-utils, kdialog, qdbus, makeDesktopItem, lib }:
+{ stdenv, src, bash, konsole, xdg-utils, kdialog, qdbus,
+  electron, nodejs, typescript, nodePackages,
+  makeWrapper, makeDesktopItem, lib }:
 
 let
   desktopItem = makeDesktopItem {
@@ -20,53 +22,64 @@ let
     startupNotify = false;
   };
 in
-stdenvNoCC.mkDerivation {
+stdenv.mkDerivation {
   pname   = "nixos-systray";
   version = "1.0.0";
-  inherit src;   # passed from callPackage — avoids pure eval path restriction
+  inherit src;
 
-  dontConfigure = true;
-  dontBuild     = true;
+  nativeBuildInputs = [ nodejs typescript makeWrapper ];
+
+  buildPhase = ''
+    cd src/scripts
+
+    # Provide @types/node so tsc resolves Node.js built-ins
+    mkdir -p node_modules/@types
+    ln -s ${nodePackages."@types/node"}/lib/node_modules/@types/node \
+          node_modules/@types/node
+
+    tsc
+    cd ../..
+  '';
 
   installPhase = ''
     runHook preInstall
 
-    install -Dm755 src/scripts/tray.sh       $out/bin/nixos-systray
-    install -Dm755 src/scripts/switch-gui.sh $out/bin/nixos-switch-gui
-    install -Dm755 src/scripts/cp-window.sh  $out/bin/nixos-cp-window
+    # Compiled JS + HTML panel
+    install -Dm644 src/scripts/dist/main.js  $out/lib/nixos-systray/main.js
+    install -Dm644 src/scripts/panel.html    $out/lib/nixos-systray/panel.html
+
+    # Data + assets
     install -Dm644 src/data/nixos-cp.json    $out/share/nixos-systray/nixos-cp.json
     install -Dm644 src/assets/nixos-systray.svg \
       $out/share/icons/hicolor/scalable/apps/nixos-systray.svg
+
+    # switch-gui.sh (kdialog progress window, separate binary)
+    install -Dm755 src/scripts/switch-gui.sh $out/bin/nixos-switch-gui
+    substituteInPlace $out/bin/nixos-switch-gui \
+      --replace '@DATA@'    "$out/share/nixos-systray/nixos-cp.json" \
+      --replace '@BASH@'    '${bash}/bin/bash'         \
+      --replace '@KDIALOG@' '${kdialog}/bin/kdialog'   \
+      --replace '@QDBUS@'   '${qdbus}/bin/qdbus6'
 
     # Desktop item
     mkdir -p $out/share/applications
     cp ${desktopItem}/share/applications/nixos-systray.desktop $out/share/applications/
 
-    # Bake nix store paths into scripts
-    substituteInPlace $out/bin/nixos-systray \
-      --replace '@DATA@'    "$out/share/nixos-systray/nixos-cp.json" \
-      --replace '@JQ@'      '${jq}/bin/jq'          \
-      --replace '@YAD@'     '${yad}/bin/yad'         \
-      --replace '@BASH@'    '${bash}/bin/bash'       \
-      --replace '@KONSOLE@' '${konsole}/bin/konsole' \
-      --replace '@XDG@'     '${xdg-utils}/bin/xdg-open'
-
-    substituteInPlace $out/bin/nixos-switch-gui \
-      --replace '@DATA@'    "$out/share/nixos-systray/nixos-cp.json" \
-      --replace '@JQ@'      '${jq}/bin/jq'            \
-      --replace '@BASH@'    '${bash}/bin/bash'         \
-      --replace '@KDIALOG@' '${kdialog}/bin/kdialog'   \
-      --replace '@QDBUS@'   '${qdbus}/bin/qdbus6'
-
-    substituteInPlace $out/bin/nixos-cp-window \
-      --replace '@DATA@'    "$out/share/nixos-systray/nixos-cp.json" \
-      --replace '@JQ@'      '${jq}/bin/jq'            \
-      --replace '@YAD@'     '${yad}/bin/yad'           \
-      --replace '@BASH@'    '${bash}/bin/bash'
+    # Main binary: electron wrapper with all paths as env vars
+    makeWrapper ${electron}/bin/electron $out/bin/nixos-systray \
+      --add-flags "$out/lib/nixos-systray/main.js" \
+      --set SYSTRAY_DATA       "$out/share/nixos-systray/nixos-cp.json" \
+      --set SYSTRAY_ICON       "$out/share/icons/hicolor/scalable/apps/nixos-systray.svg" \
+      --set SYSTRAY_SWITCH_GUI "$out/bin/nixos-switch-gui" \
+      --set SYSTRAY_BASH       "${bash}/bin/bash" \
+      --set SYSTRAY_KONSOLE    "${konsole}/bin/konsole" \
+      --set SYSTRAY_XDG        "${xdg-utils}/bin/xdg-open" \
+      --set-default ELECTRON_OZONE_PLATFORM_HINT "auto"
+    # SYSTRAY_FLAKE is set by the systemd unit (points to the live flake checkout)
 
     runHook postInstall
   '';
 
-  meta.description = "NixOS Control Panel system tray and switch GUI";
+  meta.description = "NixOS Control Panel system tray (Electron, native SNI)";
   meta.mainProgram  = "nixos-systray";
 }
