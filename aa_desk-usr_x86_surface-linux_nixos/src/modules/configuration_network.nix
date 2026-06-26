@@ -83,7 +83,13 @@ in {
   # DNS: tier 2 baseline — Cloudflare + Google (always present)
   # Tier 1 (Hickory) added dynamically by WG postSetup via resolvconf — but ONLY
   # when it's actually reachable (see the guarded postSetup below).
-  networking.nameservers = [ "1.1.1.1" "1.0.0.1" "8.8.8.8" ];
+  # Base/fallback resolver = the LOCAL encrypted proxy (dnscrypt-proxy2 below) on
+  # 127.0.0.1:53, which forwards to Cloudflare/Google over DoH/DoT (:443/:853).
+  # This survives networks that block plain outbound :53 (e.g. wificasa) and is
+  # private. Hickory (10.0.0.1) is still added first by the wg0 NM profile
+  # (dns-priority 50) for internal names when wg0 is up; when wg0/Hickory is down,
+  # resolution falls through to 127.0.0.1 → encrypted public DNS.
+  networking.nameservers = [ "127.0.0.1" ];
 
   # Resilient resolver (PERMANENT FIX 2026-06-25): a dead tier-1 nameserver (e.g.
   # Hickory 10.0.0.1 when the mesh/gcp-proxy is down) as the FIRST entry stalls
@@ -94,6 +100,33 @@ in {
   networking.resolvconf.extraConfig = ''
     resolv_conf_options="timeout:1 attempts:2"
   '';
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Encrypted DNS — local dnscrypt-proxy2 on 127.0.0.1:53 (DoH/DoT over :443/:853)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # The system fallback resolver (networking.nameservers above) points here. It
+  # tunnels DNS over HTTPS to Cloudflare/Google, so it works on networks that
+  # block plain outbound :53 (wificasa) and keeps queries private. Caches results
+  # and load-balances across the chosen resolvers. The public-resolvers source
+  # list is provided by the module's upstreamDefaults and cached in
+  # /var/lib/dnscrypt-proxy (fetched once over HTTPS).
+  services.dnscrypt-proxy2 = {
+    enable = true;
+    settings = {
+      listen_addresses = [ "127.0.0.1:53" ];
+      ipv6_servers = true;
+      require_dnssec = true;
+      # Prefer DoH/DoT public resolvers (encrypted). Cloudflare + Google + Quad9.
+      server_names = [ "cloudflare" "google" "quad9-dnscrypt-ip4-filter-pri" ];
+      cache = true;
+      # Bootstrap (resolve the resolver-list source host on first run / list refresh).
+      # Plain :53 here is only used to fetch the HTTPS source list when possible;
+      # actual queries go out encrypted over :443/:853.
+      bootstrap_resolvers = [ "1.1.1.1:53" "9.9.9.9:53" ];
+      ignore_system_dns = true;
+      netprobe_timeout = 0;   # don't block startup waiting for connectivity
+    };
+  };
 
   # ═══════════════════════════════════════════════════════════════════════════
   # WireGuard meshes — NetworkManager-managed (visible + toggleable in plasma-nm)
@@ -131,8 +164,12 @@ in {
         ipv4 = {
           method = "manual";
           address1 = "${wgData.client.wg_ip}/24";
-          dns = wgData.hub.wg_ip;        # Hickory mesh DNS (tier-1 when wg0 up)
-          dns-priority = "-10";
+          dns = wgData.hub.wg_ip;        # Hickory mesh DNS (preferred when wg0 up)
+          # POSITIVE priority: Hickory is tried first (lower number = higher prio,
+          # < wifi's default 100) for internal/*.internal names, but does NOT
+          # exclude the wifi's DHCP / public resolvers. A NEGATIVE value here would
+          # make NM drop ALL other DNS, breaking fallback when Hickory is down.
+          dns-priority = "50";
           dns-search = "";
           never-default = "true";        # only route the mesh subnet, not all traffic
         };
