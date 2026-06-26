@@ -47,6 +47,9 @@ ctx=$(( inject + nudge ))   # passive context tiers folded into one ⊕ bucket
 if [ "$fmt" = plain ]; then
   printf 'Hooks:%s deny:%s warn:%s allow:%s ctx:%s' "$total" "$deny" "$warn" "$allow" "$ctx"
 else
-  printf 'HK[%s \033[31m⛔%s\033[0m \033[33m⚠%s\033[0m \033[32m✓%s\033[0m \033[90m⊕%s\033[0m]' \
-    "$total" "$deny" "$warn" "$allow" "$ctx"
+  # All counts green by default; red is reserved as an alert — only the deny
+  # bucket turns red, and only when it actually carries blockers (deny>0).
+  if [ "${deny:-0}" -gt 0 ]; then deny_color=31; else deny_color=32; fi
+  printf 'HK[\033[32m%s\033[0m \033[%dm⛔%s\033[0m \033[32m⚠%s\033[0m \033[32m✓%s\033[0m \033[32m⊕%s\033[0m]' \
+    "$total" "$deny_color" "$deny" "$warn" "$allow" "$ctx"
 fi
