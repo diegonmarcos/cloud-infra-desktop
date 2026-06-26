@@ -630,17 +630,8 @@ in
     };
   };
 
-  # ─────────────────────────────────────────────────────────────────
-  # Disable xembedsniproxy - causes mouse click freeze on Surface
-  # ─────────────────────────────────────────────────────────────────
-  # xembedsniproxy handles legacy X11 system tray icons but has a bug
-  # that blocks mouse button events intermittently on Wayland/Surface.
-  # Modern apps use StatusNotifierItem and don't need this.
-  systemd.user.services.plasma-xembedsniproxy = {
-    Unit.Description = "Disabled - causes mouse click freeze";
-    Service.ExecStart = "${pkgs.coreutils}/bin/true";
-    Install.WantedBy = lib.mkForce [];
-  };
+  # xembedsniproxy: re-enabled (kernel ≥6.17.13 fixes the Surface BTN_0 stuck-key
+  # bug that caused mouse click freezes under XEmbed — we're on 6.19.8+).
 
   # ─────────────────────────────────────────────────────────────────
   # GTK Apps in Plasma
