@@ -20,6 +20,7 @@ declare module 'electron' {
     loadFile(path: string): void
     show(): void
     hide(): void
+    focus(): void
     isVisible(): boolean
     on(event: string, cb: (...a: any[]) => void): this
     webContents: { send(channel: string, ...args: any[]): void }
