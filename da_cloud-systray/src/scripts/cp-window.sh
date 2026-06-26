@@ -23,6 +23,7 @@ if [ -z "${XAUTHORITY:-}" ]; then
 fi
 unset WAYLAND_DISPLAY 2>/dev/null || true
 export GDK_BACKEND=x11 NO_AT_BRIDGE=1
+export XDG_SESSION_TYPE=x11
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${_rt}/bus}"
 
 # cloud-systray in same bin/ handles action dispatch via --run-index N
