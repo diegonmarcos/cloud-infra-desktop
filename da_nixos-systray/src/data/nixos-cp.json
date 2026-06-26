@@ -1,7 +1,7 @@
 {
   "_doc": "Data-driven menu for nixos-systray. Sections→items dispatched via nixos-systray --run-index N. Types: build=build.sh <arg> in dark konsole; shell=bash -lc <arg>; log=tail newest build log; open=xdg-open. {FLAKE} expanded at runtime to .flake value.",
   "flake":        "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos",
-  "tray_icon":    "nix-snowflake",
+  "tray_icon":    "nixos-systray",
   "tray_tooltip": "NixOS Control Panel",
   "sections": [
     { "title": "Rebuild", "icon": "system-software-update", "items": [

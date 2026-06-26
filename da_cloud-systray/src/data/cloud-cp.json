@@ -1,5 +1,5 @@
 {
-  "tray_icon":     "network-vpn",
+  "tray_icon":     "cloud-systray",
   "tray_tooltip":  "Cloud & Infra",
   "flake_system":  "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos",
   "flake_desktop": "/home/diego/git/unix/ba_flakes_desktop",
