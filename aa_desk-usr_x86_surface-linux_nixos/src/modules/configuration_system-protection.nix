@@ -171,8 +171,7 @@ in
       CPUQuota = userCpuQuota;
       MemoryHigh = userMemHigh;
       MemoryMax = userMemMax;
-      MemoryMin = userMemMin;      # reserved RAM — never reclaimed for a build (anti-freeze)
-      MemorySwapMax = userMemSwapMax; # cap swap spill — unbounded swap → disk thrash → freeze
+      MemoryMin = userMemMin;   # reserved RAM — never reclaimed for a build (anti-freeze)
       IOWeight = 500;           # desktop I/O strongly preempts background/build I/O
     };
   };
@@ -340,6 +339,17 @@ in
       fi
     '';
   };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SWAP CAP DROP-IN: user-1000.slice MemorySwapMax
+  # NixOS sliceConfig whitelist silently drops MemorySwapMax, so we inject it
+  # as a drop-in file. This caps user process swap spill to 4GB, preventing
+  # the disk-thrash freeze pattern.
+  # ═══════════════════════════════════════════════════════════════════════════
+  environment.etc."systemd/system/user-1000.slice.d/50-swap-cap.conf".text = ''
+    [Slice]
+    MemorySwapMax=${userMemSwapMax}
+  '';
 
   # ═══════════════════════════════════════════════════════════════════════════
   # PACKAGES + FIREWALL
