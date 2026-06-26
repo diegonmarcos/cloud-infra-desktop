@@ -32,7 +32,7 @@
 # │   └── nix-daemon        │ 700%/87% │ 5324M    │ 6144M        │
 # │ machine.slice           │ 700%/87% │ —        │ 6144M        │
 # ├─────────────────────────┼──────────┼──────────┼──────────────┤
-# │ user-1000 (diego)       │ 600%/75% │ 6144M    │ 6963M        │
+# │ user-1000 (diego)       │ 600%/75% │ 6144M    │ 6963M  4096M │
 # │ user-0 (root)           │ 720%/90% │ 6963M    │ 7782M        │
 # ├─────────────────────────┼──────────┼──────────┼──────────────┤
 # │ sshd                    │ FIFO p1  │ 50M min  │ connectivity │
@@ -69,6 +69,7 @@ let
   # may spill to DISK swap so its swap-out I/O can't thrash the disk.
   userMemMin = "${toString (ramMB * 38 / 100)}M";     # 3113M reserved for the user session
   nixMemSwapMax = "2048M";                            # build may spill at most 2G to swap
+  userMemSwapMax = "4096M";                           # user session: cap swap spill to prevent disk thrash → freeze
 in
 {
   # ═══════════════════════════════════════════════════════════════════════════
@@ -170,7 +171,8 @@ in
       CPUQuota = userCpuQuota;
       MemoryHigh = userMemHigh;
       MemoryMax = userMemMax;
-      MemoryMin = userMemMin;   # reserved RAM — never reclaimed for a build (anti-freeze)
+      MemoryMin = userMemMin;      # reserved RAM — never reclaimed for a build (anti-freeze)
+      MemorySwapMax = userMemSwapMax; # cap swap spill — unbounded swap → disk thrash → freeze
       IOWeight = 500;           # desktop I/O strongly preempts background/build I/O
     };
   };
