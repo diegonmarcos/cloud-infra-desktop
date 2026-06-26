@@ -11,8 +11,12 @@ name: "Ship → Cloud-Comms fork APKs (materialize + build + publish to GHCR)"
 # keystore the hub uses — signature-IPC + the updater install chain require one
 # key across all five APKs.
 #
-# On success, dispatches ship-cloud-comms.yml so the hub immediately re-bundles
-# with the fresh fork inside (the self-contained APK).
+# On success, the fork APK lands on GHCR only. The hub is NOT re-bundled
+# automatically — that was the original design, but it caused sha(bundle)==
+# sha(GHCR) so the in-app fleet updater never detected fork updates for
+# existing installs. Now fork CI → GHCR only; existing hubs detect the sha
+# mismatch and pull the update directly from GHCR. Hub re-bundle is manual
+# (workflow_dispatch on ship-cloud-comms.yml).
 #
 # Today only `mail` builds on push (chat awaits the push-notification decision;
 # matrix is blocked on the Matrix stack ship). workflow_dispatch can request
@@ -43,7 +47,6 @@ on:
 permissions:
   contents: read
   packages: write   # ghcr push (oras)
-  actions: write    # dispatch the hub re-bundle workflow
 
 env:
   WORK_DIR: ea_cloud-comms
@@ -134,12 +137,4 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: ./build.sh publish-fork "$FORK"
 
-      # The whole point: the hub re-bundles immediately so the published
-      # Cloud-Comms-Hub.apk becomes self-contained with this fork inside.
-      # create_release=true is REQUIRED — without it the dispatched run skips
-      # the gh-release upload and the /releases/latest link keeps serving the
-      # old bundle (caught 2026-06-12: GHCR had the 28MB bundle, release 6.3MB).
-      - name: Dispatch hub re-bundle (ship-cloud-comms.yml)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run ship-cloud-comms.yml --ref main -f push_oras=true -f create_release=true
+      # Hub re-bundle deliberately NOT dispatched here. See top-of-file comment.
