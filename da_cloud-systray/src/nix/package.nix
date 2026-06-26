@@ -31,7 +31,8 @@ stdenvNoCC.mkDerivation {
   installPhase = ''
     runHook preInstall
 
-    install -Dm755 src/scripts/tray.sh    $out/bin/cloud-systray
+    install -Dm755 src/scripts/tray.sh     $out/bin/cloud-systray
+    install -Dm755 src/scripts/cp-window.sh $out/bin/cloud-cp-window
     install -Dm644 src/data/cloud-cp.json $out/share/cloud-systray/cloud-cp.json
     install -Dm644 src/assets/cloud-systray.svg \
       $out/share/icons/hicolor/scalable/apps/cloud-systray.svg
@@ -48,6 +49,12 @@ stdenvNoCC.mkDerivation {
       --replace '@BASH@'    '${bash}/bin/bash'        \
       --replace '@KONSOLE@' '${konsole}/bin/konsole'  \
       --replace '@XDG@'     '${xdg-utils}/bin/xdg-open'
+
+    substituteInPlace $out/bin/cloud-cp-window \
+      --replace '@DATA@'    "$out/share/cloud-systray/cloud-cp.json" \
+      --replace '@JQ@'      '${jq}/bin/jq'            \
+      --replace '@YAD@'     '${yad}/bin/yad'           \
+      --replace '@BASH@'    '${bash}/bin/bash'
 
     runHook postInstall
   '';

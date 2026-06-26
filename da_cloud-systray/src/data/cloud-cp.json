@@ -6,7 +6,7 @@
   "flake_cloud":   "/home/diego/git/cloud",
   "sections": [
     {
-      "name": "Network",
+      "title": "Network",
       "items": [
         { "label": "WireGuard Status",    "type": "shell",  "icon": "network-vpn",        "arg": "sudo wg show all" },
         { "label": "Mesh Peers",          "type": "shell",  "icon": "network-wired",      "arg": "sudo wg show all peers latest-handshakes" },
@@ -17,7 +17,7 @@
       ]
     },
     {
-      "name": "Flakes — System",
+      "title": "Flakes — System",
       "items": [
         { "label": "Dry Run  (system)",   "type": "build-system",  "icon": "system-search",           "arg": "dry-run"   },
         { "label": "Switch   (system)",   "type": "build-system",  "icon": "system-upgrade",           "arg": "switch"    },
@@ -25,13 +25,13 @@
         { "label": "Test     (system)",   "type": "build-system",  "icon": "system-run",               "arg": "test"      },
         { "label": "Update   (system)",   "type": "build-system",  "icon": "system-software-update",   "arg": "update"    },
         { "label": "Diff     (system)",   "type": "build-system",  "icon": "text-x-changelog",         "arg": "diff"      },
-        { "label": "List Gens (system)",  "type": "build-system",  "icon": "view-list-text",           "arg": "list-gens" },
-        { "label": "GC       (system)",   "type": "build-system",  "icon": "user-trash",               "arg": "gc"        },
+        { "label": "List Gens (system)",  "type": "shell",         "icon": "view-list-text",           "arg": "/run/wrappers/bin/sudo nix-env -p /nix/var/nix/profiles/system --list-generations" },
+        { "label": "GC       (system)",   "type": "shell",         "icon": "user-trash",               "arg": "/run/wrappers/bin/sudo nix-collect-garbage -d" },
         { "label": "Build Log (system)",  "type": "log-system",    "icon": "text-x-log",               "arg": ""          }
       ]
     },
     {
-      "name": "Flakes — Desktop",
+      "title": "Flakes — Desktop",
       "items": [
         { "label": "Dry Run  (desktop)",  "type": "build-desktop", "icon": "system-search",           "arg": "dry-run"  },
         { "label": "Switch   (desktop)",  "type": "build-desktop", "icon": "system-upgrade",           "arg": "switch"   },
@@ -41,7 +41,7 @@
       ]
     },
     {
-      "name": "KDE",
+      "title": "KDE",
       "items": [
         { "label": "KDE Connect Devices",  "type": "shell", "icon": "kdeconnect",             "arg": "kdeconnect-cli --list-devices --verbose 2>/dev/null || echo 'kdeconnect-cli not found'" },
         { "label": "Available Devices",    "type": "shell", "icon": "network-bluetooth",      "arg": "kdeconnect-cli --list-available 2>/dev/null || echo 'kdeconnect-cli not found'" },
@@ -51,7 +51,7 @@
       ]
     },
     {
-      "name": "Cloud — VMs",
+      "title": "Cloud — VMs",
       "items": [
         { "label": "SSH: gcp-proxy",     "type": "shell", "icon": "network-server", "arg": "ssh gcp-proxy    'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'" },
         { "label": "SSH: oci-apps",      "type": "shell", "icon": "network-server", "arg": "ssh oci-apps     'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'" },
@@ -60,7 +60,7 @@
       ]
     },
     {
-      "name": "Cloud — Services",
+      "title": "Cloud — Services",
       "items": [
         { "label": "Health: Public API",  "type": "shell", "icon": "network-workgroup",   "arg": "curl -sf 'https://api.diegonmarcos.com/pub/health' | python3 -m json.tool || echo FAIL" },
         { "label": "Health: Infra API",   "type": "shell", "icon": "network-workgroup",   "arg": "curl -sf 'https://api.diegonmarcos.com/c3-infra-api/health' | python3 -m json.tool || echo FAIL" },
@@ -70,7 +70,7 @@
       ]
     },
     {
-      "name": "Config / About",
+      "title": "Config / About",
       "items": [
         { "label": "System Info",       "type": "shell", "icon": "help-about",          "arg": "fastfetch 2>/dev/null || neofetch 2>/dev/null || uname -a" },
         { "label": "Journal (errors)",  "type": "shell", "icon": "dialog-error",        "arg": "journalctl -p err..emerg -n 50 --no-pager" },
