@@ -9,7 +9,9 @@
 { config, lib, pkgs, ... }:
 
 let
-  nixos-systray-pkg = pkgs.callPackage ../../../../da_nixos-systray/src/nix/package.nix {};
+  nixos-systray-pkg = pkgs.callPackage ../../../../da_nixos-systray/src/nix/package.nix {
+    src = ../../../../da_nixos-systray;
+  };
 in {
   environment.systemPackages = [ nixos-systray-pkg ];
 
@@ -20,8 +22,9 @@ in {
     after       = [ "graphical-session.target" ];
     serviceConfig = {
       # Wait for Plasma's StatusNotifierWatcher to register on D-Bus
-      ExecStartPre = "${pkgs.coreutils}/bin/sleep 5";
-      ExecStart    = "${nixos-systray-pkg}/bin/nixos-systray";
+      ExecStartPre       = "${pkgs.coreutils}/bin/sleep 5";
+      ExecStart          = "${nixos-systray-pkg}/bin/nixos-systray";
+      UnsetEnvironment   = [ "WAYLAND_DISPLAY" ];
       Environment  = [
         "DISPLAY=:0"
         "GDK_BACKEND=x11"
