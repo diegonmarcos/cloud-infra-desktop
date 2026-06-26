@@ -62,7 +62,19 @@ on:
     tags:
       - "ea_cloud-comms-v*"
     paths:
-      - "ea_cloud-comms/**"
+      # Hub app code and shared config — but NOT ea_cloud-comms/forks/**:
+      # fork patches go through ship-cloud-comms-forks.yml → GHCR only.
+      # Keeping forks/** out of this trigger is what makes the in-app fleet
+      # updater's sha comparison actually detect fork updates (if the hub
+      # re-bundled on every fork push, sha(bundle)==sha(GHCR) always and
+      # existing installs would never see an "update available" prompt).
+      - "ea_cloud-comms/hub/**"
+      - "ea_cloud-comms/build.json"
+      - "ea_cloud-comms/build.sh"
+      - "ea_cloud-comms/contract/**"
+      - "ea_cloud-comms/*.gradle"
+      - "ea_cloud-comms/gradle/**"
+      - "ea_cloud-comms/settings.gradle"
       - "1_workflows/src/cicd/ship-cloud-comms.yml"
       # Generated .github/workflows/*.yml intentionally NOT watched (regenerated
       # by 1_workflows/build.sh → would self-trigger rebuilds on unrelated commits).
