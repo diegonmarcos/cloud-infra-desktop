@@ -19,16 +19,18 @@ XDG="@XDG@"
 # Flake path is the only per-user value; lives in nixos-cp.json .flake
 FLAKE="$("$JQ" -r '.flake' "$DATA")"
 
-# yad --notification needs X11/GTK (XWayland) even on a Wayland session
+# yad --notification uses Wayland + StatusNotifier (SNI) under KDE Plasma 6.
+# KDE Plasma 6 Wayland has NO XEmbed tray manager (_NET_SYSTEM_TRAY_S0 absent),
+# so forcing GDK_BACKEND=x11 silently discards icons. Use native Wayland/SNI.
 _rt="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-if [ -z "${DISPLAY:-}" ]; then
-  for _n in 0 1 2; do [ -S "/tmp/.X11-unix/X${_n}" ] && export DISPLAY=":${_n}" && break; done
+export XDG_RUNTIME_DIR="$_rt"
+if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+  for _s in "$_rt"/wayland-[0-9]*; do
+    [ -S "$_s" ] && export WAYLAND_DISPLAY="$(basename "$_s")" && break
+  done
 fi
-if [ -z "${XAUTHORITY:-}" ]; then
-  for _f in "${_rt}"/xauth_*; do [ -f "${_f}" ] && export XAUTHORITY="${_f}" && break; done
-fi
-unset WAYLAND_DISPLAY 2>/dev/null || true
-export GDK_BACKEND=x11 NO_AT_BRIDGE=1
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${_rt}/bus}"
+export NO_AT_BRIDGE=1
 
 _run_action() {
   local idx="$1" type arg
