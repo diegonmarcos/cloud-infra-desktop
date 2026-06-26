@@ -67,7 +67,13 @@ if [ "${1:-}" = "--run-index" ]; then
 fi
 
 tray_icon="$(   "$JQ" -r '.tray_icon    // "nix-snowflake"' "$DATA")"
-tray_tooltip="$("$JQ" -r '.tray_tooltip // "NixOS"'         "$DATA")"
+tray_title="$(  "$JQ" -r '.tray_tooltip // "NixOS"'         "$DATA")"
+
+# Rich hover tooltip: title + current generation + last build timestamp
+_gen=$(readlink /nix/var/nix/profiles/system 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)
+_log=$(ls -t "${FLAKE}/logs/"*.log 2>/dev/null | head -1 || true)
+_last=$([ -f "$_log" ] && stat -c '%y' "$_log" | cut -d. -f1 || echo "no builds yet")
+tray_tooltip="${tray_title} | Gen ${_gen:-?} | Last: ${_last}"
 
 # Build yad menu string (label!command!icon|...) entirely in jq — no awk/paste
 menuStr="$("$JQ" -r --arg self "$0" \
@@ -80,4 +86,4 @@ exec "$YAD" --notification \
   --image="$tray_icon" \
   --text="$tray_tooltip" \
   --menu="$menuStr" \
-  --command="true"
+  --command="${0%/*}/nixos-cp-window"
