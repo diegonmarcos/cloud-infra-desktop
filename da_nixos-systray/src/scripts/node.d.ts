@@ -29,6 +29,7 @@ declare module 'child_process' {
     stderr: { on(event: 'data', cb: (d: Buffer) => void): void } | null
     on(event: 'close', cb: (code: number | null) => void): this
     kill(signal?: string): boolean
+    unref(): void
   }
   export interface SpawnOptions {
     detached?: boolean
