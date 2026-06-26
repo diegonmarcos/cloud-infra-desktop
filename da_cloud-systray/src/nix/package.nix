@@ -7,7 +7,7 @@
 # WHY plain callPackage instead of a flake input: nix 2.24 cannot lock/re-fetch
 # relative-path flake inputs inside a git flake. Revisit when nix >= 2.26.
 { stdenv, src, bash, konsole, xdg-utils,
-  electron, nodejs, typescript, nodePackages,
+  electron, nodejs, typescript,
   makeWrapper, makeDesktopItem, lib }:
 
 let
@@ -31,11 +31,6 @@ stdenv.mkDerivation {
 
   buildPhase = ''
     cd src/scripts
-
-    # Provide @types/node so tsc resolves Node.js built-ins
-    mkdir -p node_modules/@types
-    ln -s ${nodePackages."@types/node"}/lib/node_modules/@types/node \
-          node_modules/@types/node
 
     tsc
     cd ../..
