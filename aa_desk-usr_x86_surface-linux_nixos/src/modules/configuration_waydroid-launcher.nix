@@ -24,7 +24,7 @@ let
 
   waydroid-launch = pkgs.writeShellApplication {
     name = "waydroid-launch";
-    runtimeInputs = [ pkgs.coreutils pkgs.gnugrep ];
+    runtimeInputs = [ pkgs.coreutils pkgs.gnugrep pkgs.libnotify ];
     text = ''
       set -u
       WAYDROID=${waydroidBin}
@@ -37,6 +37,7 @@ let
 
       log(){ printf '[waydroid-launch] %s\n' "$*"; }
       rootctl(){ "$SUDO" -n "$@"; }   # NOPASSWD-backed; -n => never blocks on a prompt
+      notify(){ notify-send -i waydroid -a "Waydroid" -t 8000 "Waydroid" "$1" 2>/dev/null || true; }
 
       # 1. Wayland env (a shell often lacks it)
       : "''${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"; export XDG_RUNTIME_DIR
@@ -66,14 +67,23 @@ let
 
       # 3. up-front stale/wedged-state reset (the "shortcut does nothing" bug)
       if session_running && ! container_running; then
-        log "stale session with no container — resetting"; reset_clean
+        log "stale session with no container — resetting"
+        notify "Resetting Android state… (~30 s)"
+        reset_clean
       fi
 
       # 4. ensure the container is up (pulls in waydroid-data-heal Before it)
-      container_running || { rootctl "$SYSTEMCTL" start waydroid-container.service >/dev/null 2>&1 || true; sleep 2; }
+      if ! container_running; then
+        notify "Starting Android container… (~30–60 s)"
+        rootctl "$SYSTEMCTL" start waydroid-container.service >/dev/null 2>&1 || true
+        sleep 2
+      fi
 
-      # 5. start the session if needed
-      session_running || { "$WAYDROID" session start >/dev/null 2>&1 & sleep 3; }
+      # 5. start the session if needed + announce to user only on cold boot
+      if ! session_running; then
+        android_up || notify "Booting Android… please wait (~30–60 s)"
+        "$WAYDROID" session start >/dev/null 2>&1 & sleep 3
+      fi
 
       # 6. boot watchdog + recycle fallback
       recycles=0
@@ -86,9 +96,11 @@ let
         recycles=$((recycles + 1))
         if [ "$recycles" -gt "$MAX_RECYCLES" ]; then
           log "Android did not boot after $MAX_RECYCLES recycles — the display/GPU (gralloc) is wedged. Log out/in of the desktop or reboot to reset the graphics state, then relaunch."
+          notify-send -i waydroid -a "Waydroid" -u critical "Waydroid — GPU wedged" "Android failed to boot. Log out/in or reboot, then try again." 2>/dev/null || true
           exec "$WAYDROID" show-full-ui   # last-ditch surface
         fi
         log "boot timeout (''${BOOT_TIMEOUT}s) — recycle ''${recycles}/''${MAX_RECYCLES}"
+        notify "Android boot timed out — recycling (''${recycles}/''${MAX_RECYCLES})…"
         reset_clean
         "$WAYDROID" session start >/dev/null 2>&1 & sleep 3
       done
