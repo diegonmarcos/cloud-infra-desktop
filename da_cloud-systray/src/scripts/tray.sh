@@ -21,18 +21,19 @@ FLAKE_SYSTEM="$( "$JQ" -r '.flake_system'  "$DATA")"
 FLAKE_DESKTOP="$("$JQ" -r '.flake_desktop' "$DATA")"
 FLAKE_CLOUD="$(  "$JQ" -r '.flake_cloud'   "$DATA")"
 
-# yad --notification uses Wayland + StatusNotifier (SNI) under KDE Plasma 6.
-# KDE Plasma 6 Wayland has NO XEmbed tray manager (_NET_SYSTEM_TRAY_S0 absent),
-# so forcing GDK_BACKEND=x11 silently discards icons. Use native Wayland/SNI.
+# yad --notification is a GTK app and requires an X11 display (XWayland under
+# KDE Plasma 6 Wayland). The systemd unit does NOT pre-set DISPLAY or XAUTHORITY,
+# so we discover both here. DBUS_SESSION_BUS_ADDRESS is pre-set by the unit.
 _rt="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export XDG_RUNTIME_DIR="$_rt"
-if [ -z "${WAYLAND_DISPLAY:-}" ]; then
-  for _s in "$_rt"/wayland-[0-9]*; do
-    [ -S "$_s" ] && export WAYLAND_DISPLAY="$(basename "$_s")" && break
-  done
+if [ -z "${DISPLAY:-}" ]; then
+  for _n in 0 1 2; do [ -S "/tmp/.X11-unix/X${_n}" ] && export DISPLAY=":${_n}" && break; done
 fi
-export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${_rt}/bus}"
-export NO_AT_BRIDGE=1
+if [ -z "${XAUTHORITY:-}" ]; then
+  for _f in "${_rt}"/xauth_*; do [ -f "$_f" ] && export XAUTHORITY="$_f" && break; done
+fi
+unset WAYLAND_DISPLAY 2>/dev/null || true
+export GDK_BACKEND=x11 NO_AT_BRIDGE=1
 
 _expand() {
   local s="$1"
