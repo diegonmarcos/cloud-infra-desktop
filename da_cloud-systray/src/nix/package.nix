@@ -6,7 +6,9 @@
 #
 # WHY plain callPackage instead of a flake input: nix 2.24 cannot lock/re-fetch
 # relative-path flake inputs inside a git flake. Revisit when nix >= 2.26.
-{ stdenvNoCC, src, jq, yad, bash, konsole, xdg-utils, makeDesktopItem, lib }:
+{ stdenv, src, bash, konsole, xdg-utils,
+  electron, nodejs, typescript, nodePackages,
+  makeWrapper, makeDesktopItem, lib }:
 
 let
   desktopItem = makeDesktopItem {
@@ -20,20 +22,34 @@ let
     startupNotify = false;
   };
 in
-stdenvNoCC.mkDerivation {
+stdenv.mkDerivation {
   pname   = "cloud-systray";
   version = "1.0.0";
-  inherit src;   # passed from callPackage — avoids pure eval path restriction
+  inherit src;
 
-  dontConfigure = true;
-  dontBuild     = true;
+  nativeBuildInputs = [ nodejs typescript makeWrapper ];
+
+  buildPhase = ''
+    cd src/scripts
+
+    # Provide @types/node so tsc resolves Node.js built-ins
+    mkdir -p node_modules/@types
+    ln -s ${nodePackages."@types/node"}/lib/node_modules/@types/node \
+          node_modules/@types/node
+
+    tsc
+    cd ../..
+  '';
 
   installPhase = ''
     runHook preInstall
 
-    install -Dm755 src/scripts/tray.sh     $out/bin/cloud-systray
-    install -Dm755 src/scripts/cp-window.sh $out/bin/cloud-cp-window
-    install -Dm644 src/data/cloud-cp.json $out/share/cloud-systray/cloud-cp.json
+    # Compiled JS + HTML panel
+    install -Dm644 src/scripts/dist/main.js  $out/lib/cloud-systray/main.js
+    install -Dm644 src/scripts/panel.html    $out/lib/cloud-systray/panel.html
+
+    # Data + assets
+    install -Dm644 src/data/cloud-cp.json    $out/share/cloud-systray/cloud-cp.json
     install -Dm644 src/assets/cloud-systray.svg \
       $out/share/icons/hicolor/scalable/apps/cloud-systray.svg
 
@@ -41,24 +57,20 @@ stdenvNoCC.mkDerivation {
     mkdir -p $out/share/applications
     cp ${desktopItem}/share/applications/cloud-systray.desktop $out/share/applications/
 
-    # Bake nix store paths into script
-    substituteInPlace $out/bin/cloud-systray \
-      --replace '@DATA@'    "$out/share/cloud-systray/cloud-cp.json" \
-      --replace '@JQ@'      '${jq}/bin/jq'          \
-      --replace '@YAD@'     '${yad}/bin/yad'         \
-      --replace '@BASH@'    '${bash}/bin/bash'        \
-      --replace '@KONSOLE@' '${konsole}/bin/konsole'  \
-      --replace '@XDG@'     '${xdg-utils}/bin/xdg-open'
-
-    substituteInPlace $out/bin/cloud-cp-window \
-      --replace '@DATA@'    "$out/share/cloud-systray/cloud-cp.json" \
-      --replace '@JQ@'      '${jq}/bin/jq'            \
-      --replace '@YAD@'     '${yad}/bin/yad'           \
-      --replace '@BASH@'    '${bash}/bin/bash'
+    # Main binary: electron wrapper with all paths as env vars
+    makeWrapper ${electron}/bin/electron $out/bin/cloud-systray \
+      --add-flags "$out/lib/cloud-systray/main.js" \
+      --set SYSTRAY_DATA          "$out/share/cloud-systray/cloud-cp.json" \
+      --set SYSTRAY_ICON          "$out/share/icons/hicolor/scalable/apps/cloud-systray.svg" \
+      --set SYSTRAY_BASH          "${bash}/bin/bash" \
+      --set SYSTRAY_KONSOLE       "${konsole}/bin/konsole" \
+      --set SYSTRAY_XDG           "${xdg-utils}/bin/xdg-open" \
+      --set-default ELECTRON_OZONE_PLATFORM_HINT "auto"
+    # SYSTRAY_FLAKE_SYSTEM / _DESKTOP / _CLOUD set by the systemd unit
 
     runHook postInstall
   '';
 
-  meta.description = "Cloud & Infra Control Panel system tray";
+  meta.description = "Cloud & Infra Control Panel system tray (Electron, native SNI)";
   meta.mainProgram  = "cloud-systray";
 }

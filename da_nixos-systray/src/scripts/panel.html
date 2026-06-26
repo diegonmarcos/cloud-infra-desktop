@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NixOS Control Panel</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  display: flex; flex-direction: column; height: 100vh;
+  font-family: system-ui, sans-serif; font-size: 13px;
+  background: #1a1a2e; color: #e0e0e0;
+}
+#main { display: flex; flex: 1; overflow: hidden; gap: 4px; padding: 4px; }
+
+/* ── left tree ── */
+#tree-panel { display: flex; flex-direction: column; width: 280px; min-width: 200px; }
+#tree { flex: 1; overflow-y: auto; background: #16213e; border-radius: 4px; }
+.section-header {
+  padding: 6px 10px; font-weight: bold; color: #7b7fff;
+  background: #1a1a3e; cursor: default; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.item {
+  padding: 5px 10px 5px 22px; cursor: pointer; border-left: 2px solid transparent;
+}
+.item:hover   { background: #0f3460; }
+.item.active  { background: #0f3460; border-left-color: #7b7fff; }
+#run-btn {
+  margin-top: 4px; padding: 7px; background: #0f3460; border: 1px solid #7b7fff;
+  color: #e0e0e0; cursor: pointer; border-radius: 4px; font-size: 13px;
+}
+#run-btn:hover { background: #1a4a8a; }
+
+/* ── right output ── */
+#out-panel { display: flex; flex-direction: column; flex: 1; }
+#output {
+  flex: 1; overflow-y: auto; font-family: monospace; font-size: 12px;
+  background: #0d0d0d; color: #d4d4d4; padding: 8px; border-radius: 4px;
+  white-space: pre-wrap; word-break: break-all;
+}
+#bar {
+  display: flex; align-items: center; gap: 6px; margin-top: 4px;
+}
+#status { flex: 1; color: #888; font-size: 11px; }
+.btn {
+  padding: 4px 10px; background: #16213e; border: 1px solid #333;
+  color: #ccc; cursor: pointer; border-radius: 3px; font-size: 12px;
+}
+.btn:hover { background: #0f3460; }
+</style>
+</head>
+<body>
+<div id="main">
+  <div id="tree-panel">
+    <div id="tree"></div>
+    <button id="run-btn">▶  Run</button>
+  </div>
+  <div id="out-panel">
+    <div id="output">Select a command on the left, then press Run or double-click.</div>
+    <div id="bar">
+      <span id="status">Ready</span>
+      <button class="btn" id="clr-btn">Clear</button>
+      <button class="btn" id="kill-btn">Kill</button>
+    </div>
+  </div>
+</div>
+<script>
+const { ipcRenderer } = require('electron')
+
+let selectedIdx = null
+
+// ── request data ──
+ipcRenderer.send('get-data')
+ipcRenderer.on('data', (_e, data) => buildTree(data))
+
+function buildTree(data) {
+  const tree = document.getElementById('tree')
+  tree.innerHTML = ''
+  let flatIdx = 0
+  for (const sec of data.sections) {
+    const hdr = document.createElement('div')
+    hdr.className = 'section-header'
+    hdr.textContent = sec.title
+    tree.appendChild(hdr)
+    for (const item of sec.items) {
+      const idx = flatIdx++
+      const el  = document.createElement('div')
+      el.className   = 'item'
+      el.textContent = item.label
+      el.dataset.idx = idx
+      el.addEventListener('click',    () => select(idx, el))
+      el.addEventListener('dblclick', () => { select(idx, el); run() })
+      tree.appendChild(el)
+    }
+  }
+}
+
+function select(idx, el) {
+  document.querySelectorAll('.item.active').forEach(e => e.classList.remove('active'))
+  el.classList.add('active')
+  selectedIdx = idx
+}
+
+function run() {
+  if (selectedIdx === null) return
+  ipcRenderer.send('run-cmd', selectedIdx)
+  document.getElementById('status').textContent = 'Running…'
+}
+
+document.getElementById('run-btn').addEventListener('click', run)
+document.getElementById('clr-btn').addEventListener('click', () => {
+  document.getElementById('output').textContent = ''
+})
+document.getElementById('kill-btn').addEventListener('click', () => {
+  ipcRenderer.send('kill-cmd')
+  document.getElementById('status').textContent = 'Killed'
+})
+
+// ── streaming output ──
+ipcRenderer.on('output', (_e, text) => {
+  const el = document.getElementById('output')
+  el.textContent += text
+  el.scrollTop = el.scrollHeight
+})
+ipcRenderer.on('done', (_e, code) => {
+  document.getElementById('status').textContent = `Done (exit ${code})`
+})
+</script>
+</body>
+</html>

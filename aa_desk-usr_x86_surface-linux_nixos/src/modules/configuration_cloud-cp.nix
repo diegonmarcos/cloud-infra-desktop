@@ -1,7 +1,7 @@
 # cloud-systray — thin NixOS system module.
 #
 # Package source: da_cloud-systray/src/nix/package.nix (callPackage)
-# Script:         da_cloud-systray/src/scripts/tray.sh
+# Script:         da_cloud-systray/src/scripts/main.ts (compiled to main.js)
 # Menu data:      da_cloud-systray/src/data/cloud-cp.json
 # Assets:         da_cloud-systray/src/assets/
 #
@@ -22,18 +22,19 @@ in {
     partOf      = [ "graphical-session.target" ];
     after       = [ "graphical-session.target" ];
     serviceConfig = {
-      # Wait until XWayland has created the X11 socket (up to 60s)
-      ExecStartPre = "${pkgs.bash}/bin/bash -c 'for i in $(seq 60); do [ -S /tmp/.X11-unix/X0 ] && exit 0; sleep 1; done; exit 1'";
+      # Wait until the Wayland compositor socket appears (Electron uses Wayland via
+      # ELECTRON_OZONE_PLATFORM_HINT=auto; no XWayland needed).
+      ExecStartPre = "${pkgs.bash}/bin/bash -c 'for i in $(seq 60); do [ -S \"/run/user/1000/wayland-0\" ] || [ -S \"/run/user/1000/wayland-1\" ] && exit 0; sleep 1; done; exit 1'";
       ExecStart    = "${cloud-systray-pkg}/bin/cloud-systray";
-      # Only provide what the script cannot discover itself.
-      # DISPLAY, XAUTHORITY, WAYLAND_DISPLAY, GDK_BACKEND are all handled
-      # by the script's own discovery block — do NOT override them here or
-      # XAUTHORITY will be skipped and X will reject the connection.
       Environment  = [
         "XDG_RUNTIME_DIR=/run/user/1000"
         "XDG_CURRENT_DESKTOP=KDE"
         "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
         "NO_AT_BRIDGE=1"
+        # Flake paths for log discovery and build commands
+        "SYSTRAY_FLAKE_SYSTEM=/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos"
+        "SYSTRAY_FLAKE_DESKTOP=/home/diego/git/unix/ba_flakes_desktop"
+        "SYSTRAY_FLAKE_CLOUD=/home/diego/git/cloud"
       ];
       Restart    = "on-failure";
       RestartSec = 10;
