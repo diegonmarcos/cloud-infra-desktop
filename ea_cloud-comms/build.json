@@ -1,13 +1,13 @@
 {
   "name": "cloud-comms",
-  "description": "Cloud-Comms — constellation of three minimally-forked upstream comms apps (FairEmail / Mattermost mobile / Element X) plus a thin original hub APK. The hub switches between the forks and brokers their data to Cloud-SuperApp over signature-gated AIDL + ContentProvider IPC. Forks are declarative: pinned upstream tag + committed patch series, materialized into gitignored tracker clones at build time. Built via Nix devShell (gradle + AGP + Android SDK + node for the React-Native fork).",
+  "description": "Cloud-Comms \u2014 constellation of three minimally-forked upstream comms apps (FairEmail / Mattermost mobile / Element X) plus a thin original hub APK. The hub switches between the forks and brokers their data to Cloud-SuperApp over signature-gated AIDL + ContentProvider IPC. Forks are declarative: pinned upstream tag + committed patch series, materialized into gitignored tracker clones at build time. Built via Nix devShell (gradle + AGP + Android SDK + node for the React-Native fork).",
   "category": "android",
   "build": {
     "type": "gradle",
     "entry": "build.sh"
   },
   "android": {
-    "_doc": "Hub-only application coordinates. The forks carry their OWN applicationId / version (declared per fork in forks/<x>/build.json) — they are separate APKs.",
+    "_doc": "Hub-only application coordinates. The forks carry their OWN applicationId / version (declared per fork in forks/<x>/build.json) \u2014 they are separate APKs.",
     "application_id": "com.diegonmarcos.comms",
     "compile_sdk": 35,
     "min_sdk": 26,
@@ -20,13 +20,13 @@
     ]
   },
   "signing": {
-    "_doc": "Stable SHARED Cloud-constellation signing key — the same key signs SuperApp / Cloud-Nav / Cloud-Comms / Cloud-IDE so cross-app installs + the in-app updater never hit a signature mismatch. The keystore (raw credential) + passwords live ONLY in vault; only these non-secret path refs are here. build.sh::_resolve_signing resolves $VAULT_DIR (default ~/git/vault) + sops-decrypts vault_secrets, exporting ANDROID_KEYSTORE_FILE / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD which the gradle signingConfig reads. CI does the same via a vault checkout + the SOPS_AGE_KEY secret. Without the vault key (pure-local dev) gradle falls back to the legacy debug keystore. Paths relative to the vault repo root.",
-    "_disabled_2026_06_24": "vault/shared-key signing DISABLED — it signed OU=Cloud Constellation (wrong key c0f94b17), poisoned GHCR and broke installs on every device. Empty vault_keystore => _resolve_signing returns early => legacy per-app keystore (the canonical published key). Do NOT restore without a deliberate full re-key + one-time reinstall on every device.",
+    "_doc": "Stable SHARED Cloud-constellation signing key \u2014 the same key signs SuperApp / Cloud-Nav / Cloud-Comms / Cloud-IDE so cross-app installs + the in-app updater never hit a signature mismatch. The keystore (raw credential) + passwords live ONLY in vault; only these non-secret path refs are here. build.sh::_resolve_signing resolves $VAULT_DIR (default ~/git/vault) + sops-decrypts vault_secrets, exporting ANDROID_KEYSTORE_FILE / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD which the gradle signingConfig reads. CI does the same via a vault checkout + the SOPS_AGE_KEY secret. Without the vault key (pure-local dev) gradle falls back to the legacy debug keystore. Paths relative to the vault repo root.",
+    "_disabled_2026_06_24": "vault/shared-key signing DISABLED \u2014 it signed OU=Cloud Constellation (wrong key c0f94b17), poisoned GHCR and broke installs on every device. Empty vault_keystore => _resolve_signing returns early => legacy per-app keystore (the canonical published key). Do NOT restore without a deliberate full re-key + one-time reinstall on every device.",
     "vault_keystore": "",
     "vault_secrets": ""
   },
   "toolchain": {
-    "_doc": "Pinned for reproducibility — all derived in flake.nix. Mirrors ea_cloud-superapp's pins so the two Android projects share one toolchain story. Node is added for the Mattermost React-Native fork's Metro/JS build.",
+    "_doc": "Pinned for reproducibility \u2014 all derived in flake.nix. Mirrors ea_cloud-superapp's pins so the two Android projects share one toolchain story. Node is added for the Mattermost React-Native fork's Metro/JS build.",
     "agp": "8.7.3",
     "gradle": "8.10.2",
     "kotlin": "1.9.24",
@@ -34,7 +34,7 @@
     "node": "20"
   },
   "ipc": {
-    "_doc": "Single source of truth for the on-device IPC surface. Kotlin constants in hub + SuperApp + every fork exporter MUST mirror this; contract/comms-ipc-v1.json carries the full table/aidl shapes and is validated by `./build.sh verify-contract`. Bumping `version` is a breaking change — add a comms-ipc-v2.json, never edit v1 in place.",
+    "_doc": "Single source of truth for the on-device IPC surface. Kotlin constants in hub + SuperApp + every fork exporter MUST mirror this; contract/comms-ipc-v1.json carries the full table/aidl shapes and is validated by `./build.sh verify-contract`. Bumping `version` is a breaking change \u2014 add a comms-ipc-v2.json, never edit v1 in place.",
     "version": 1,
     "contract": "contract/comms-ipc-v1.json",
     "authority": "com.diegonmarcos.comms.provider",
@@ -43,7 +43,7 @@
     "launch_action": "com.diegonmarcos.comms.action.OPEN"
   },
   "modules": {
-    "_doc": "Gradle module graph — settings.gradle iterates this (FIRE rule 6: never hardcode the list). Only the hub is an in-tree gradle module; the three forks are SEPARATE gradle projects living in their materialized tracker clones, built via `./build.sh build-fork <name>`, never included here.",
+    "_doc": "Gradle module graph \u2014 settings.gradle iterates this (FIRE rule 6: never hardcode the list). Only the hub is an in-tree gradle module; the three forks are SEPARATE gradle projects living in their materialized tracker clones, built via `./build.sh build-fork <name>`, never included here.",
     "hub": {
       "type": "application",
       "depends_on": [],
@@ -51,7 +51,7 @@
     }
   },
   "forks": {
-    "_doc": "Declarative fork registry — THE source of truth for the constellation. Each fork = pinned upstream tag + committed patch series under forks/<key>/patches/. `./build.sh materialize-fork <key>` clones the upstream at the pin into the tracker dir, applies the series, and leaves a buildable project. Upstream bump = edit pinned_tag, re-apply, resolve rejects, commit. NEVER a long-lived divergent clone. order: 'priority' is build/dev sequencing only.",
+    "_doc": "Declarative fork registry \u2014 THE source of truth for the constellation. Each fork = pinned upstream tag + committed patch series under forks/<key>/patches/. `./build.sh materialize-fork <key>` clones the upstream at the pin into the tracker dir, applies the series, and leaves a buildable project. Upstream bump = edit pinned_tag, re-apply, resolve rejects, commit. NEVER a long-lived divergent clone. order: 'priority' is build/dev sequencing only.",
     "mail": {
       "app_id": "com.diegonmarcos.comms.mail",
       "label": "Cloud Mail (Fairmail)",
@@ -65,7 +65,7 @@
       "priority": 1,
       "blocked_on": null,
       "build": {
-        "_doc": "How build-fork builds this fork: gradle task run via the fork's OWN wrapper (FairEmail pins Gradle 9.4.1 / AGP 9.2.1 — never our devShell gradle), glob of the output APK, and signing='keystore_properties' meaning the engine writes keystore.properties at the fork root from the comms keystore (FairEmail's signingConfigs.release reads it natively — zero signing patch).",
+        "_doc": "How build-fork builds this fork: gradle task run via the fork's OWN wrapper (FairEmail pins Gradle 9.4.1 / AGP 9.2.1 \u2014 never our devShell gradle), glob of the output APK, and signing='keystore_properties' meaning the engine writes keystore.properties at the fork root from the comms keystore (FairEmail's signingConfigs.release reads it natively \u2014 zero signing patch).",
         "gradle_task": "assembleGithubRelease",
         "apk_glob": "app/build/outputs/apk/github/release/*.apk",
         "signing": "keystore_properties"
@@ -82,10 +82,11 @@
         "0009-comms-JMAP-account-config-UI-setup-menu-entry-dialog.patch",
         "0010-comms-RSS-feed-config-UI-setup-menu-entry-dialog-win.patch",
         "0011-comms-fix-JMAP-account-created-crash-skip-sync-safe-.patch",
-        "0012-comms-self-updater-CommsUpdateWorker-checks-GHCR-eve.patch"
+        "0012-comms-self-updater-CommsUpdateWorker-checks-GHCR-eve.patch",
+        "0013-comms-About-tab-in-Configs-FragmentOptions-version-c.patch"
       ],
-      "_patches_doc": "Informational manifest of the applied series (lexical order). The build engine's source of truth is the glob of forks/mail/patches/*.patch in build.sh::step_materialize_fork — this array mirrors that dir for human/review visibility and MUST be kept in sync when patches are added.",
-      "comment": "FairEmail. Reuses the EXISTING ea_mail-fairmail tracker clone already used by ea_cloud-superapp's cherry-pick — materialize-fork checks out the pin, never trusts the tracker HEAD. Server: Maddy + Stalwart on oci-mail (imap./smtps. via SNI on :443, jmap.). Do this fork first: pure Java, no RN/Rust, mail server is live."
+      "_patches_doc": "Informational manifest of the applied series (lexical order). The build engine's source of truth is the glob of forks/mail/patches/*.patch in build.sh::step_materialize_fork \u2014 this array mirrors that dir for human/review visibility and MUST be kept in sync when patches are added.",
+      "comment": "FairEmail. Reuses the EXISTING ea_mail-fairmail tracker clone already used by ea_cloud-superapp's cherry-pick \u2014 materialize-fork checks out the pin, never trusts the tracker HEAD. Server: Maddy + Stalwart on oci-mail (imap./smtps. via SNI on :443, jmap.). Do this fork first: pure Java, no RN/Rust, mail server is live."
     },
     "chat": {
       "app_id": "com.diegonmarcos.comms.chat",
@@ -100,9 +101,9 @@
       "priority": 2,
       "blocked_on": null,
       "patches": [],
-      "comment": "Mattermost mobile (React Native). Server: chat.diegonmarcos.com on oci-apps. Exporter is a NATIVE Kotlin module reading WatermelonDB; RN side left untouched. OPEN DECISION before building: push notifications (self-host mattermost-push-proxy as a new cloud service vs sync-on-open + ntfy) — needs owner sign-off.",
+      "comment": "Mattermost mobile (React Native). Server: chat.diegonmarcos.com on oci-apps. Exporter is a NATIVE Kotlin module reading WatermelonDB; RN side left untouched. OPEN DECISION before building: push notifications (self-host mattermost-push-proxy as a new cloud service vs sync-on-open + ntfy) \u2014 needs owner sign-off.",
       "upstream_apk": {
-        "_doc": "Pinned UPSTREAM RELEASE APK — bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true → the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs — unsigned can't install; our key also makes it IPC-compatible).",
+        "_doc": "Pinned UPSTREAM RELEASE APK \u2014 bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true \u2192 the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs \u2014 unsigned can't install; our key also makes it IPC-compatible).",
         "url": "https://github.com/mattermost/mattermost-mobile/releases/download/v2.40.0/Mattermost-unsigned.apk",
         "sha256": "5166a7c996b52cd2f689bb98eb9fed9a32d340b4026dca00e1f919c36316c86d",
         "resign": true,
@@ -122,9 +123,9 @@
       "priority": 3,
       "blocked_on": "matrix-chat-bridge-stack-ship",
       "patches": [],
-      "comment": "Element X Android (Kotlin + Rust matrix-sdk FFI). BLOCKED until the continuwuity + mautrix-whatsapp + element stack ships (cloud repo, merged 2026-06-10, not deployed). Exporter reads via the Rust-SDK Kotlin BINDINGS, never raw store files. Push via UnifiedPush with our ntfy (rss.diegonmarcos.com) as distributor — Element X supports it natively.",
+      "comment": "Element X Android (Kotlin + Rust matrix-sdk FFI). BLOCKED until the continuwuity + mautrix-whatsapp + element stack ships (cloud repo, merged 2026-06-10, not deployed). Exporter reads via the Rust-SDK Kotlin BINDINGS, never raw store files. Push via UnifiedPush with our ntfy (rss.diegonmarcos.com) as distributor \u2014 Element X supports it natively.",
       "upstream_apk": {
-        "_doc": "Pinned UPSTREAM RELEASE APK — bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true → the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs — unsigned can't install; our key also makes it IPC-compatible). NOTE: blocked_on gates OUR fork build (homeserver work), not stock-client bundling — Element X is a generic Matrix client.",
+        "_doc": "Pinned UPSTREAM RELEASE APK \u2014 bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true \u2192 the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs \u2014 unsigned can't install; our key also makes it IPC-compatible). NOTE: blocked_on gates OUR fork build (homeserver work), not stock-client bundling \u2014 Element X is a generic Matrix client.",
         "url": "https://github.com/element-hq/element-x-android/releases/download/v26.06.2/app-fdroid-arm64-v8a-release-signed.apk",
         "sha256": "aeac575edf780f3d89fa966ac4528b0035609537ba7d3c396c1be875424a186e",
         "resign": false,
@@ -151,14 +152,14 @@
       "priority": 4,
       "blocked_on": null,
       "build": {
-        "_doc": "Fossify Phone (the maintained Simple Dialer fork). gradle_task/apk_glob are the foss flavor best-guess — the fork CI build (workflow_dispatch fork=dialer) is the tester; adjust here on first red run. No comms-server endpoint: it is the device Dialer, linked from Cloud-SuperApp Suite>Communications.",
+        "_doc": "Fossify Phone (the maintained Simple Dialer fork). gradle_task/apk_glob are the foss flavor best-guess \u2014 the fork CI build (workflow_dispatch fork=dialer) is the tester; adjust here on first red run. No comms-server endpoint: it is the device Dialer, linked from Cloud-SuperApp Suite>Communications.",
         "gradle_task": "assembleFossRelease",
         "apk_glob": "app/build/outputs/apk/foss/release/*.apk",
         "signing": "keystore_properties"
       },
       "patches": [],
       "call_screening": {
-        "_doc": "OWNER DIRECTIVE (default config): the CallScreeningService patch (ROLE_CALL_SCREENING) MUST default to 'contacts_only' — any incoming call whose number is NOT in the device contacts is silently rejected (disallowed, no ring, no missed-call notification); numbers that resolve to a saved contact ring normally. This is the FIRST-RUN DEFAULT baked into the patch's default SharedPreference; the user can change it in-app once the screening settings UI lands. The patch reads this block as its contract — keep code default == default_mode here.",
+        "_doc": "OWNER DIRECTIVE (default config): the CallScreeningService patch (ROLE_CALL_SCREENING) MUST default to 'contacts_only' \u2014 any incoming call whose number is NOT in the device contacts is silently rejected (disallowed, no ring, no missed-call notification); numbers that resolve to a saved contact ring normally. This is the FIRST-RUN DEFAULT baked into the patch's default SharedPreference; the user can change it in-app once the screening settings UI lands. The patch reads this block as its contract \u2014 keep code default == default_mode here.",
         "default_mode": "contacts_only",
         "modes": [
           "contacts_only",
@@ -166,11 +167,11 @@
           "block_known_spam"
         ],
         "reject_action": "disallow_silently",
-        "rationale": "Spam/robocall defence by default — unknown numbers can't ring the phone unless the caller is a saved contact."
+        "rationale": "Spam/robocall defence by default \u2014 unknown numbers can't ring the phone unless the caller is a saved contact."
       },
       "comment": "Fossify Phone = the 'Dialer' entry under Cloud-SuperApp Suite/Cloud#Communications. Same constellation patches as the others when forked: branding (com.diegonmarcos.comms.dialer), icon-less + OPEN action, constellation top bar. PLUS a CallScreeningService patch defaulting to contacts-only (see call_screening above). No exporter (a dialer exposes no comms tables); the hub fleet/bundle/updater handle it purely via this registry entry.",
       "upstream_apk": {
-        "_doc": "Pinned UPSTREAM RELEASE APK — bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true → the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs — unsigned can't install; our key also makes it IPC-compatible).",
+        "_doc": "Pinned UPSTREAM RELEASE APK \u2014 bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true \u2192 the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs \u2014 unsigned can't install; our key also makes it IPC-compatible).",
         "url": "https://github.com/FossifyOrg/Phone/releases/download/1.11.1/phone-22-foss-release.apk",
         "sha256": "d1ad08467034e5138a6e68f03b6e150f0bb010dfcbf490ff3d2bd4822b755728",
         "resign": false,
@@ -179,9 +180,9 @@
     }
   },
   "release": {
-    "_doc": "Per-APK distribution for the HUB — SAME data-driven pattern as ea_cloud-superapp/build.json::release. build.sh oras-push + gh-release read this block; the GHA workflow (1_workflows/src/cicd/ship-cloud-comms.yml) only invokes those engine commands, no hardcoded registry/tag strings. The three forks publish their own OCI artifacts under their own build systems. {sha} → git short sha, {version_name} → android.version_name.",
+    "_doc": "Per-APK distribution for the HUB \u2014 SAME data-driven pattern as ea_cloud-superapp/build.json::release. build.sh oras-push + gh-release read this block; the GHA workflow (1_workflows/src/cicd/ship-cloud-comms.yml) only invokes those engine commands, no hardcoded registry/tag strings. The three forks publish their own OCI artifacts under their own build systems. {sha} \u2192 git short sha, {version_name} \u2192 android.version_name.",
     "artifact": {
-      "_doc": "Path under dist/ to publish. `debug` is the daily-driver build (no ProGuard, real stacktraces, debug keystore) — THE hub app, not a side-by-side variant. asset_name matches `debug` so the engine skips a redundant copy.",
+      "_doc": "Path under dist/ to publish. `debug` is the daily-driver build (no ProGuard, real stacktraces, debug keystore) \u2014 THE hub app, not a side-by-side variant. asset_name matches `debug` so the engine skips a redundant copy.",
       "debug": "Cloud-Comms-Hub.apk",
       "release": "Cloud-Comms-Hub-release.apk"
     },
@@ -209,26 +210,26 @@
       "generate_release_notes": false
     },
     "phone_install": {
-      "_doc": "Targets for build.sh phone-install — pulls the hub APK from GHCR via curl+OCI HTTP API (no oras dep; works on aarch64 Termux without a Nix shell) and copies it where an Android file manager can see it. Override per-env via PHONE_TARGET.",
+      "_doc": "Targets for build.sh phone-install \u2014 pulls the hub APK from GHCR via curl+OCI HTTP API (no oras dep; works on aarch64 Termux without a Nix shell) and copies it where an Android file manager can see it. Override per-env via PHONE_TARGET.",
       "default_tag": "latest",
       "target_dir": "~/storage/Download",
       "asset_name": "Cloud-Comms-Hub.apk"
     },
     "auto_update": {
-      "_doc": "In-app FLEET updater — read at gradle eval time into BuildConfig, used by the hub's updater package at runtime. SAME data-driven OCI-pull pattern as ea_cloud-superapp/libs:updater, but the hub manages the WHOLE constellation: itself (release.ghcr.image) PLUS each fork (forks.<k>.image). A WorkManager periodic job checks each app's GHCR :tag digest against the installed APK and prompts PackageInstaller on a diff. Forks with no published image yet (404) or blocked_on set are skipped gracefully. registry/namespace are shared with release.ghcr (engine asserts consistency).",
+      "_doc": "In-app FLEET updater \u2014 read at gradle eval time into BuildConfig, used by the hub's updater package at runtime. SAME data-driven OCI-pull pattern as ea_cloud-superapp/libs:updater, but the hub manages the WHOLE constellation: itself (release.ghcr.image) PLUS each fork (forks.<k>.image). A WorkManager periodic job checks each app's GHCR :tag digest against the installed APK and prompts PackageInstaller on a diff. Forks with no published image yet (404) or blocked_on set are skipped gracefully. registry/namespace are shared with release.ghcr (engine asserts consistency).",
       "enabled": true,
       "tag": "latest",
       "interval_hours": 6,
       "_doc_interval": "WorkManager periodic minimum is 15 min. 6h matches typical cadence + spares battery/data.",
       "require_unmetered_network": false,
       "require_charging": false,
-      "_doc_install": "'prompt' uses PackageInstaller with a user-confirmation dialog (only no-root path). 'silent' needs the system updater privilege (F-Droid Privileged Extension) — not used here.",
+      "_doc_install": "'prompt' uses PackageInstaller with a user-confirmation dialog (only no-root path). 'silent' needs the system updater privilege (F-Droid Privileged Extension) \u2014 not used here.",
       "install_mode": "prompt",
       "_doc_abi_tags": "Runtime ABI awareness: the in-app updater tries GHCR tag '<tag>-<deviceAbi>' (e.g. latest-x86_64 on Waydroid) before falling back to the universal '<tag>'. publish-fork pushes :latest for universal APKs and :latest-<abi> for ABI-specific builds."
     }
   },
   "ui": {
-    "_doc": "About-page data — same shape as ea_cloud-superapp/build.json::ui. permissions.runtime is COPIED from the superapp catalog so the hub's About → Permissions renders the IDENTICAL row list (superapp parity); perms the hub manifest doesn't declare render live as denied/not-requested.",
+    "_doc": "About-page data \u2014 same shape as ea_cloud-superapp/build.json::ui. permissions.runtime is COPIED from the superapp catalog so the hub's About \u2192 Permissions renders the IDENTICAL row list (superapp parity); perms the hub manifest doesn't declare render live as denied/not-requested.",
     "permissions": {
       "runtime": [
         {
@@ -302,7 +303,7 @@
           ]
         }
       ],
-      "_doc_roles": "Single-holder RoleManager roles surfaced in About>Permissions. The hub can't grant another app a role — the 'Set Default Apps (Phone · Spam)' button deep-links the system Default-Apps picker where the user selects the Fossy dialer fork. expected_holders = our patched id OR the stock bundled id (✓ when the live holder matches)."
+      "_doc_roles": "Single-holder RoleManager roles surfaced in About>Permissions. The hub can't grant another app a role \u2014 the 'Set Default Apps (Phone \u00b7 Spam)' button deep-links the system Default-Apps picker where the user selects the Fossy dialer fork. expected_holders = our patched id OR the stock bundled id (\u2713 when the live holder matches)."
     }
   }
 }
