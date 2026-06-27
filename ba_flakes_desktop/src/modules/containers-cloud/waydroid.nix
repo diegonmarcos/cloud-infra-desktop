@@ -100,12 +100,8 @@ in
     };
   };
 
-  systemd.user.timers.waydroid-superapp-install = {
-    Unit.Description = "Poll for a Waydroid session and install cloud-superapp once";
-    Timer = {
-      OnBootSec = "2min";
-      OnUnitActiveSec = "2min";
-    };
-    Install.WantedBy = [ "timers.target" ];
-  };
+  # NO persistent poll timer — Waydroid is an ON-DEMAND container. The
+  # superapp-install oneshot above stays available and is invoked directly by
+  # `superapp-launch` (which already calls it after bringing a session up); it
+  # must NOT perpetually poll every 2min in the background.
 }

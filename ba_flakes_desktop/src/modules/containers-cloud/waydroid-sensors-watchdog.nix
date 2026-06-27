@@ -83,6 +83,10 @@ in
       Restart = "always";
       RestartSec = 10;
     };
-    Install.WantedBy = [ "default.target" ];
+    # NO Install.WantedBy — Waydroid is an ON-DEMAND container (up/down via
+    # `waydroid-launch`), never a persistent systemd service. This watchdog is
+    # started by the launcher when a session comes up and stopped when it goes
+    # down; it must NOT auto-start at login (it was the 185×-restart churner
+    # polling every 3s with no session). Start manually/by launcher if needed.
   };
 }
