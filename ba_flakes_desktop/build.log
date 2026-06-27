@@ -50332,3 +50332,117 @@ error:
 [2026-06-27 13:58:01] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-06-27 13:58:01] PERF: start switch
 [2026-06-27 13:58:01] INFO: Staging dirty files for flake evaluation...
+[2026-06-27 13:58:01] PERF: git stage = 113ms
+[2026-06-27 13:58:01] PERF: clean stale hm-backups = 75ms
+[2026-06-27 13:58:01] INFO: Applying Home Manager configuration...
+[2026-06-27 13:58:01] INFO: home-manager backup extension: hm-backup-20260627-135801
+unpacking 'github:nix-community/home-manager/44831a7eaba4360fb81f2acc5ea6de5fde90aaa3?narHash=sha256-WHkdBlw6oyxXIra/vQPYLtqY%2B3G8dUVZM8bEXk0t8x4%3D' into the Git cache...
+copying path '/nix/store/3p306srz83h9z9v0ma9xcxb8y8cdxkxj-source' from 'https://cache.nixos.org'...
+unpacking 'github:nix-community/NUR/85d69ac90208aa6cd332a0115fda8e5bd5b5dfff?narHash=sha256-R/Bf38YjMkmy5HVOY6vUUPqR2ttx7wgxM99nnDUUQa4%3D' into the Git cache...
+copying path '/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source' from 'https://cache.nixos.org'...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+unpacking 'github:Mic92/sops-nix/56b24064fdcaedca53553b1a6d607fd23b613a24?narHash=sha256-478kKQBvK6SYTOdN2h9jhKJv94nbXRbFMfuL1WshErg%3D' into the Git cache...
+unpacking 'github:nix-community/plasma-manager/a524a6160e6df89f7673ba293cf7d78b559eb1a5?narHash=sha256-b7Mp7P%2Bq2Md5AGt4rjHfMcBykzMumFTen10ST%2B%2BAuTU%3D' into the Git cache...
+unpacking 'github:diegonmarcos/unix/766a016596017b8fad443df86e37724d7f960cb5?narHash=sha256-zYmTb9Q4D7Pre28PNfZD9Fb4vVH9Jk7/gFgn4jU9Qd8%3D' into the Git cache...
+copying path '/nix/store/q7ccfkxsypz1959w57yj4wisxv5rbk0z-source' from 'https://cache.nixos.org'...
+unpacking 'github:diegonmarcos/cloud/48d93d639f6fc9b6d09bc74111782360c398318e?narHash=sha256-DBU0/pXWVN/k%2BlMm0t1yKuOmrw/Fo3T92xysMGI1OuE%3D' into the Git cache...
+these 4 derivations will be built:
+  /nix/store/0n7dsm5pvv4w5i6f45pcdarrdcw9r3y8-activation-script.drv
+  /nix/store/byrfpcyfbqn4bl9z693l9ldm6mlwjrpm-user-dbus-services.drv
+  /nix/store/89kq720kfqhbr4izl9637hvq1pczv3sh-home-manager-files.drv
+  /nix/store/l3h85ln1v49b8b5f4vvmi7xqzx5zfdcx-home-manager-generation.drv
+these 5 paths will be fetched (0.40 MiB download, 8.50 MiB unpacked):
+  /nix/store/4zpfjm2r6chc8b10c1xa1d6asy100sqv-file-5.45
+  /nix/store/rwyj9q50lxgg2krci51hr7afiql2p8km-gnu-config-2024-01-01
+  /nix/store/hqd6vbajkgl0zsnfdk3v3in8nszh1qfl-lndir-1.0.5
+  /nix/store/9v92708qmblip01dc60vnilzbcii5zad-stdenv-linux
+  /nix/store/f244pq7qm9ga22jpa4l0vca2ys4q7wh7-update-autotools-gnu-config-scripts-hook
+copying path '/nix/store/rwyj9q50lxgg2krci51hr7afiql2p8km-gnu-config-2024-01-01' from 'https://cache.nixos.org'...
+copying path '/nix/store/4zpfjm2r6chc8b10c1xa1d6asy100sqv-file-5.45' from 'https://cache.nixos.org'...
+copying path '/nix/store/hqd6vbajkgl0zsnfdk3v3in8nszh1qfl-lndir-1.0.5' from 'https://cache.nixos.org'...
+copying path '/nix/store/f244pq7qm9ga22jpa4l0vca2ys4q7wh7-update-autotools-gnu-config-scripts-hook' from 'https://cache.nixos.org'...
+copying path '/nix/store/9v92708qmblip01dc60vnilzbcii5zad-stdenv-linux' from 'https://cache.nixos.org'...
+building '/nix/store/0n7dsm5pvv4w5i6f45pcdarrdcw9r3y8-activation-script.drv'...
+building '/nix/store/byrfpcyfbqn4bl9z693l9ldm6mlwjrpm-user-dbus-services.drv'...
+building '/nix/store/89kq720kfqhbr4izl9637hvq1pczv3sh-home-manager-files.drv'...
+building '/nix/store/l3h85ln1v49b8b5f4vvmi7xqzx5zfdcx-home-manager-generation.drv'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Existing file '/home/diego/.gtkrc-2.0' is in the way of '/nix/store/k7jmfrch4pv2gvsyll7cc33ppy05lv9r-home-manager-files/.gtkrc-2.0', will be moved to '/home/diego/.gtkrc-2.0.hm-backup-20260627-135801'
+Activating writeBoundary
+Creating new profile generation
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating home file links in /home/diego
+Activating claudeSettings
+[claude-settings] ~/.claude/settings.json written (writable; effortLevel=low)
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (4 VMs, 42 services, date=2026-06-27)
+Activating globalTsx
+
+changed 3 packages in 1s
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.195 is up to date
+Activating installWg0TcpConf
+[wireguard-wstunnel] /home/diego/.config/wireguard/wg0.conf not found — skipping wg0-tcp.conf render
+Activating lockScreenWallpaper
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating powerDevilSuspend
+Activating reloadSystemd
+The user systemd session is degraded:
+  UNIT                                                         LOAD   ACTIVE SUB    DESCRIPTION
+● app-org.gnome.Evolution\x2dalarm\x2dnotify@autostart.service loaded failed failed Events and Tasks Reminders
+● systembus-notify.service                                     loaded failed failed system bus notification daemon
+● xdg-desktop-portal-gtk.service                               loaded failed failed Portal service (GTK/GNOME implementation)
+
+Legend: LOAD   → Reflects whether the unit definition was properly loaded.
+        ACTIVE → The high-level unit activation state, i.e. generalization of SUB.
+        SUB    → The low-level unit activation state, values depend on unit type.
+
+3 loaded units listed.
+Attempting to reload services anyway...
+The service manager is degraded.
+Failed services: xdg-desktop-portal-gtk.service, systembus-notify.service, app-org.gnome.Evolution\x2dalarm\x2dnotify@autostart.service
+Attempting to continue anyway...
+Starting units: sops-nix.service
+Activating sops-nix
+Activating sshSocketsDir
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-06-27 14:00:00] PERF: home-manager switch = 1m 59s
+[2026-06-27 14:00:00] PERF: TOTAL switch = 1m 59s
+[2026-06-27 14:00:00] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-06-27 14:00:00] ========== Build script finished ==========
+[2026-06-27 14:04:08] ========== Build script started ==========
+[2026-06-27 14:04:08] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-27 14:04:08] PERF: start switch
+[2026-06-27 14:04:08] INFO: Staging dirty files for flake evaluation...
