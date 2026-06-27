@@ -335,13 +335,26 @@ _rebuild_exec() {
     local mode="$2"  # switch | boot | test | dry-activate
     local result_link="/tmp/nixos-rebuild-result-$$"
 
-    log "Phase 1: nix build as $(id -un) — capped by user-1000.slice (not root)…"
+    # systemd-run --scope caps the nix build CLIENT in a transient cgroup with
+    # MemorySwapMax=0 — no disk swap = OOM kill instead of I/O thrash freeze.
+    # Takes effect NOW on every invocation (no switch needed for this guard).
+    # The nix-DAEMON is capped via configuration_system-protection.nix (switch).
+    log "Phase 1: nix build as $(id -un) — hard-capped scope (MemoryMax=3G, MemorySwapMax=0)…"
     GIT_CONFIG_GLOBAL="$gitconf" GIT_CONFIG_SYSTEM="$gitconf" BUILDSH_GUARDRAIL=1 \
-        nix build \
-            "$FLAKE_PATH#nixosConfigurations.surface.config.system.build.toplevel" \
-            --out-link "$result_link" \
-            --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" -L \
-            --extra-experimental-features "nix-command flakes" || return 1
+        systemd-run --user --scope \
+            --unit="nix-build-$$" \
+            --property=MemoryMax=3G \
+            --property=MemoryHigh=2G \
+            --property=MemorySwapMax=0 \
+            --property=CPUQuota=200% \
+            --property=CPUWeight=10 \
+            --property=IOWeight=10 \
+            -- \
+            nix build \
+                "$FLAKE_PATH#nixosConfigurations.surface.config.system.build.toplevel" \
+                --out-link "$result_link" \
+                --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" -L \
+                --extra-experimental-features "nix-command flakes" || return 1
 
     log "Phase 2: activate as root (fast — no nix eval)…"
     sudo nix-env -p /nix/var/nix/profiles/system --set "$result_link"

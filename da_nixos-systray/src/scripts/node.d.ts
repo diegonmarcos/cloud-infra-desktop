@@ -7,6 +7,8 @@ declare const process: {
   env: Record<string, string | undefined>
   argv: string[]
   exit(code?: number): never
+  on(event: 'uncaughtException', cb: (err: Error) => void): void
+  on(event: 'unhandledRejection', cb: (reason: unknown) => void): void
 }
 
 declare module 'fs' {

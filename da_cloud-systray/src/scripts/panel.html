@@ -4,123 +4,319 @@
 <meta charset="UTF-8">
 <title>Cloud &amp; Infra Control Panel</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg:        #0e1a1a;
+  --bg2:       #131f1f;
+  --bg3:       #1a2e2e;
+  --border:    #253240;
+  --accent:    #5eead4;
+  --accent2:   #67e8f9;
+  --green:     #a6e3a1;
+  --red:       #f38ba8;
+  --yellow:    #f9e2af;
+  --text:      #cdd6f4;
+  --muted:     #6c7086;
+  --muted2:    #45475a;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+
 body {
   display: flex; flex-direction: column; height: 100vh;
-  font-family: system-ui, sans-serif; font-size: 13px;
-  background: #1a1a2e; color: #e0e0e0;
+  font-family: 'Inter', system-ui, sans-serif; font-size: 13px;
+  background: var(--bg); color: var(--text);
+  background: linear-gradient(135deg, #0e1a1a 0%, #0d1a2a 50%, #0e1a1a 100%);
+  background-size: 200% 200%;
+  animation: bgshift 12s ease infinite;
 }
-#main { display: flex; flex: 1; overflow: hidden; gap: 4px; padding: 4px; }
 
-/* ── left tree ── */
-#tree-panel { display: flex; flex-direction: column; width: 280px; min-width: 200px; }
-#tree { flex: 1; overflow-y: auto; background: #16213e; border-radius: 4px; }
-.section-header {
-  padding: 6px 10px; font-weight: bold; color: #5eead4;
-  background: #1a2a3e; cursor: default; font-size: 11px; text-transform: uppercase;
-  letter-spacing: .06em;
+@keyframes bgshift {
+  0%,100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
 }
-.item {
-  padding: 5px 10px 5px 22px; cursor: pointer; border-left: 2px solid transparent;
-}
-.item:hover  { background: #0f3460; }
-.item.active { background: #0f3460; border-left-color: #5eead4; }
-#run-btn {
-  margin-top: 4px; padding: 7px; background: #0f3460; border: 1px solid #5eead4;
-  color: #e0e0e0; cursor: pointer; border-radius: 4px; font-size: 13px;
-}
-#run-btn:hover { background: #1a4a5a; }
 
-/* ── right output ── */
-#out-panel { display: flex; flex-direction: column; flex: 1; }
-#output {
-  flex: 1; overflow-y: auto; font-family: monospace; font-size: 12px;
-  background: #0d0d0d; color: #d4d4d4; padding: 8px; border-radius: 4px;
-  white-space: pre-wrap; word-break: break-all;
+/* ═══════════════════ TAB BAR ═══════════════════ */
+#tabbar {
+  display: flex; align-items: stretch;
+  background: rgba(13,26,26,.9); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; position: relative; z-index: 10;
 }
-#bar { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
-#status { flex: 1; color: #888; font-size: 11px; }
-.btn {
-  padding: 4px 10px; background: #16213e; border: 1px solid #333;
-  color: #ccc; cursor: pointer; border-radius: 3px; font-size: 12px;
+#tabbar::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: .4;
 }
-.btn:hover { background: #0f3460; }
+.tab {
+  padding: 10px 20px; cursor: pointer; font-size: 12px; font-weight: 600;
+  color: var(--muted); border-bottom: 2px solid transparent;
+  transition: color .2s, border-color .2s; user-select: none; letter-spacing: .02em;
+}
+.tab:hover  { color: #bac2de; }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+#hdr-right { margin-left: auto; display: flex; align-items: center; gap: 6px; padding-right: 10px; }
+.hbtn {
+  padding: 4px 11px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600;
+  border: 1px solid var(--border); background: var(--bg3); color: var(--muted);
+  transition: all .15s;
+}
+.hbtn:hover   { background: var(--border); color: var(--text); }
+.hbtn.danger  { border-color: var(--red); color: var(--red); }
+.hbtn.danger:hover { background: rgba(243,139,168,.12); }
+
+/* ═══════════════════ PAGES ═══════════════════ */
+#pages { flex: 1; overflow: hidden; position: relative; }
+.page  { display: none; position: absolute; inset: 0; }
+.page.active { display: flex; }
+
+/* — left nav — */
+#nav {
+  width: 220px; flex-shrink: 0; overflow-y: auto; display: flex; flex-direction: column;
+  background: rgba(13,26,26,.7); backdrop-filter: blur(8px);
+  border-right: 1px solid var(--border);
+}
+#nav::-webkit-scrollbar { width: 4px; }
+#nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.sec-hdr {
+  padding: 12px 12px 5px; font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted2); user-select: none;
+}
+.cmd-btn {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 12px 8px 16px; cursor: pointer;
+  border-left: 3px solid transparent; font-size: 12px; color: #bac2de;
+  transition: background .12s, color .12s, border-color .12s; position: relative;
+}
+.cmd-btn:hover  { background: rgba(94,234,212,.08); color: var(--text); border-left-color: var(--muted2); }
+.cmd-btn.active { background: rgba(94,234,212,.14); color: var(--accent); border-left-color: var(--accent); }
+.cmd-btn.active::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--accent); box-shadow: 0 0 10px var(--accent);
+}
+.cmd-icon { font-size: 13px; width: 18px; text-align: center; flex-shrink: 0; opacity: .85; }
+
+/* — terminal — */
+#term-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+#term-titlebar {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+  background: rgba(13,26,26,.8); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.dot.r { background: #f38ba8; box-shadow: 0 0 6px #f38ba8; }
+.dot.y { background: #f9e2af; box-shadow: 0 0 6px #f9e2af; }
+.dot.g { background: #a6e3a1; box-shadow: 0 0 6px #a6e3a1; }
+#term-title {
+  flex: 1; text-align: center; font-size: 11px; color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+#terminal {
+  flex: 1; overflow-y: auto;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6;
+  background: #080d0d; color: var(--text); padding: 12px 14px;
+  white-space: pre-wrap; word-break: break-all; position: relative;
+}
+#terminal::after {
+  content: ''; pointer-events: none; position: absolute; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.04) 2px, rgba(0,0,0,.04) 4px);
+}
+#terminal::-webkit-scrollbar { width: 5px; }
+#terminal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+#cursor {
+  display: inline-block; width: 7px; height: 13px; background: var(--accent);
+  vertical-align: text-bottom; animation: blink 1s step-end infinite;
+  box-shadow: 0 0 8px var(--accent);
+}
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+#statusbar {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  padding: 4px 12px; background: rgba(13,26,26,.9); border-top: 1px solid var(--border);
+  font-size: 10px; color: var(--muted);
+}
+#status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted2); transition: background .3s, box-shadow .3s; }
+#status-dot.run { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); animation: pulse .8s ease infinite; }
+#status-dot.ok  { background: var(--green);  box-shadow: 0 0 8px var(--green); }
+#status-dot.err { background: var(--red);    box-shadow: 0 0 8px var(--red); }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+#status-text { flex: 1; }
+.badge { padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; display: none; }
+.badge.ok  { background: rgba(166,227,161,.15); color: var(--green); border: 1px solid rgba(166,227,161,.3); display: inline; }
+.badge.err { background: rgba(243,139,168,.15); color: var(--red);   border: 1px solid rgba(243,139,168,.3); display: inline; }
+
+/* configs */
+#configs-page { flex-direction: column; overflow-y: auto; padding: 20px; gap: 14px; background: rgba(13,26,26,.5); }
+.card { background: rgba(13,26,26,.8); border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.3); }
+.card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 10px; }
+.cfg-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(37,50,64,.5); font-size: 11px; }
+.cfg-row:last-child { border-bottom: none; }
+.cfg-key { color: var(--muted); width: 110px; flex-shrink: 0; }
+.cfg-val { color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 10.5px; word-break: break-all; }
+
+/* about */
+#about-page { flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 30px; background: rgba(13,26,26,.5); }
+#about-glow { font-size: 60px; line-height: 1; filter: drop-shadow(0 0 20px #5eead4) drop-shadow(0 0 40px #67e8f9); animation: floatY 3s ease-in-out infinite; }
+@keyframes floatY { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+#about-name { font-size: 20px; font-weight: 700; color: var(--text); }
+#about-sub { font-size: 11px; font-weight: 600; letter-spacing: .05em; background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.about-card { background: rgba(13,26,26,.8); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; width: 100%; max-width: 400px; box-shadow: 0 4px 24px rgba(0,0,0,.3); }
+.about-row { display: flex; padding: 6px 0; font-size: 12px; border-bottom: 1px solid rgba(37,50,64,.5); }
+.about-row:last-child { border-bottom: none; }
+.about-key { color: var(--muted); width: 100px; flex-shrink: 0; }
+.about-val { color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
 </style>
 </head>
 <body>
-<div id="main">
-  <div id="tree-panel">
-    <div id="tree"></div>
-    <button id="run-btn">▶  Run</button>
-  </div>
-  <div id="out-panel">
-    <div id="output">Select a command on the left, then press Run or double-click.</div>
-    <div id="bar">
-      <span id="status">Ready</span>
-      <button class="btn" id="clr-btn">Clear</button>
-      <button class="btn" id="kill-btn">Kill</button>
-    </div>
+
+<div id="tabbar">
+  <div class="tab active" data-page="home-page">Home</div>
+  <div class="tab" data-page="configs-page">Configs</div>
+  <div class="tab" data-page="about-page">About</div>
+  <div id="hdr-right">
+    <button class="hbtn" id="clr-btn">Clear</button>
+    <button class="hbtn danger" id="kill-btn">Kill</button>
   </div>
 </div>
+
+<div id="pages">
+
+  <div class="page active" id="home-page">
+    <div id="nav"></div>
+    <div id="term-wrap">
+      <div id="term-titlebar">
+        <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+        <span id="term-title">Cloud Infra · terminal</span>
+      </div>
+      <div id="terminal">☁  Cloud &amp; Infra Control Panel ready.
+   Click a command on the left to run it.
+
+<span id="cursor"></span></div>
+      <div id="statusbar">
+        <div id="status-dot"></div>
+        <span id="status-text">Ready</span>
+        <span class="badge" id="exit-badge"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="page" id="configs-page">
+    <div class="card">
+      <div class="card-title">Paths</div>
+      <div class="cfg-row"><span class="cfg-key">Flake System</span><span class="cfg-val" id="cfg-fsys"></span></div>
+      <div class="cfg-row"><span class="cfg-key">Flake Desktop</span><span class="cfg-val" id="cfg-fdesk"></span></div>
+      <div class="cfg-row"><span class="cfg-key">Flake Cloud</span><span class="cfg-val" id="cfg-fcld"></span></div>
+      <div class="cfg-row"><span class="cfg-key">Data</span><span class="cfg-val" id="cfg-data"></span></div>
+      <div class="cfg-row"><span class="cfg-key">Icon</span><span class="cfg-val" id="cfg-icon"></span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Runtime</div>
+      <div class="cfg-row"><span class="cfg-key">Electron</span><span class="cfg-val" id="cfg-electron"></span></div>
+      <div class="cfg-row"><span class="cfg-key">Node.js</span><span class="cfg-val" id="cfg-node"></span></div>
+      <div class="cfg-row"><span class="cfg-key">Platform</span><span class="cfg-val" id="cfg-platform"></span></div>
+    </div>
+  </div>
+
+  <div class="page" id="about-page">
+    <div id="about-glow">☁️</div>
+    <div id="about-name">Cloud &amp; Infra Control Panel</div>
+    <div id="about-sub">NATIVE SNI · ELECTRON · WAYLAND</div>
+    <div class="about-card">
+      <div class="about-row"><span class="about-key">Hostname</span><span class="about-val" id="ab-host">—</span></div>
+      <div class="about-row"><span class="about-key">Kernel</span><span class="about-val" id="ab-kern">—</span></div>
+      <div class="about-row"><span class="about-key">Arch</span><span class="about-val" id="ab-arch">—</span></div>
+    </div>
+  </div>
+
+</div>
+
 <script>
 const { ipcRenderer } = require('electron')
+const os = require('os')
 
+const ICONS = { 'build-system':'⚙', 'build-desktop':'🖥', 'build-cloud':'☁', shell:'❯', 'log-system':'≡', 'log-desktop':'≡', open:'⎋', xdg:'⎋' }
 let selectedIdx = null
 
-ipcRenderer.send('get-data')
-ipcRenderer.on('data', (_e, data) => buildTree(data))
+document.querySelectorAll('.tab[data-page]').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab[data-page]').forEach(t => t.classList.remove('active'))
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
+    tab.classList.add('active')
+    document.getElementById(tab.dataset.page).classList.add('active')
+  })
+})
 
-function buildTree(data) {
-  const tree = document.getElementById('tree')
-  tree.innerHTML = ''
+ipcRenderer.send('get-data')
+ipcRenderer.on('data', (_e, data) => { buildNav(data); fillConfigs(); fillAbout() })
+
+function buildNav(data) {
+  const nav = document.getElementById('nav')
+  nav.innerHTML = ''
   let flatIdx = 0
   for (const sec of data.sections) {
     const hdr = document.createElement('div')
-    hdr.className = 'section-header'
-    hdr.textContent = sec.title
-    tree.appendChild(hdr)
+    hdr.className = 'sec-hdr'; hdr.textContent = sec.title
+    nav.appendChild(hdr)
     for (const item of sec.items) {
       const idx = flatIdx++
-      const el  = document.createElement('div')
-      el.className   = 'item'
-      el.textContent = item.label
-      el.dataset.idx = idx
-      el.addEventListener('click',    () => select(idx, el))
-      el.addEventListener('dblclick', () => { select(idx, el); run() })
-      tree.appendChild(el)
+      const btn = document.createElement('div')
+      btn.className = 'cmd-btn'; btn.dataset.idx = idx
+      btn.innerHTML = `<span class="cmd-icon">${ICONS[item.type]??'▸'}</span><span>${item.label}</span>`
+      btn.addEventListener('click', () => { select(idx, btn, item); run() })
+      nav.appendChild(btn)
     }
   }
 }
 
-function select(idx, el) {
-  document.querySelectorAll('.item.active').forEach(e => e.classList.remove('active'))
+function select(idx, el, item) {
+  document.querySelectorAll('.cmd-btn.active').forEach(e => e.classList.remove('active'))
   el.classList.add('active')
   selectedIdx = idx
+  document.getElementById('term-title').textContent = `Cloud · ${item.label}`
+  setStatus('run', 'Running…'); clearBadge()
+  const t = document.getElementById('terminal'); t.innerHTML = ''
+  const cur = document.createElement('span'); cur.id = 'cursor'; t.appendChild(cur)
 }
 
-function run() {
-  if (selectedIdx === null) return
-  ipcRenderer.send('run-cmd', selectedIdx)
-  document.getElementById('status').textContent = 'Running…'
-}
+function run() { if (selectedIdx === null) return; ipcRenderer.send('run-cmd', selectedIdx) }
+function setStatus(cls, txt) { const d = document.getElementById('status-dot'); d.className=''; d.classList.add(cls); document.getElementById('status-text').textContent = txt }
+function clearBadge() { const b = document.getElementById('exit-badge'); b.className='badge'; b.style.display='none' }
 
-document.getElementById('run-btn').addEventListener('click', run)
 document.getElementById('clr-btn').addEventListener('click', () => {
-  document.getElementById('output').textContent = ''
+  const t = document.getElementById('terminal'); t.innerHTML = ''
+  const cur = document.createElement('span'); cur.id = 'cursor'; t.appendChild(cur)
 })
-document.getElementById('kill-btn').addEventListener('click', () => {
-  ipcRenderer.send('kill-cmd')
-  document.getElementById('status').textContent = 'Killed'
-})
+document.getElementById('kill-btn').addEventListener('click', () => { ipcRenderer.send('kill-cmd'); setStatus('err','Killed') })
 
 ipcRenderer.on('output', (_e, text) => {
-  const el = document.getElementById('output')
-  el.textContent += text
-  el.scrollTop = el.scrollHeight
+  const t = document.getElementById('terminal'); const cur = document.getElementById('cursor')
+  if (cur) t.insertBefore(document.createTextNode(text), cur)
+  else t.appendChild(document.createTextNode(text))
+  t.scrollTop = t.scrollHeight
 })
 ipcRenderer.on('done', (_e, code) => {
-  document.getElementById('status').textContent = `Done (exit ${code})`
+  const b = document.getElementById('exit-badge')
+  b.textContent = code===0 ? '✓ done' : `✗ exit ${code}`
+  b.className = 'badge '+(code===0?'ok':'err'); b.style.display='inline'
+  setStatus(code===0?'ok':'err', code===0?'Completed':'Failed')
 })
+
+function fillConfigs() {
+  const s = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v||'—' }
+  s('cfg-fsys',   process.env.SYSTRAY_FLAKE_SYSTEM)
+  s('cfg-fdesk',  process.env.SYSTRAY_FLAKE_DESKTOP)
+  s('cfg-fcld',   process.env.SYSTRAY_FLAKE_CLOUD)
+  s('cfg-data',   process.env.SYSTRAY_DATA)
+  s('cfg-icon',   process.env.SYSTRAY_ICON)
+  s('cfg-electron', process.versions.electron)
+  s('cfg-node',   process.versions.node)
+  s('cfg-platform', `${process.platform}/${process.arch}`)
+}
+function fillAbout() {
+  const s = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v||'—' }
+  s('ab-host', os.hostname()); s('ab-kern', os.release()); s('ab-arch', os.arch())
+}
 </script>
 </body>
 </html>

@@ -7,7 +7,7 @@
 # WHY plain callPackage instead of a flake input: nix 2.24 cannot lock/re-fetch
 # relative-path flake inputs inside a git flake. Revisit when nix >= 2.26.
 { stdenv, src, bash, konsole, xdg-utils,
-  electron, nodejs, typescript,
+  electron, nodejs, typescript, librsvg,
   makeWrapper, makeDesktopItem, lib }:
 
 let
@@ -15,7 +15,7 @@ let
     name         = "cloud-systray";
     desktopName  = "Cloud & Infra Control Panel";
     comment      = "Monitor VMs, services, mesh, and flake builds";
-    exec         = "cloud-systray";
+    exec         = "cloud-systray --show";
     icon         = "cloud-systray";
     categories   = [ "System" "Network" ];
     terminal     = false;
@@ -27,7 +27,7 @@ stdenv.mkDerivation {
   version = "1.0.0";
   inherit src;
 
-  nativeBuildInputs = [ nodejs typescript makeWrapper ];
+  nativeBuildInputs = [ nodejs typescript makeWrapper librsvg ];
 
   buildPhase = ''
     cd src/scripts
@@ -45,6 +45,10 @@ stdenv.mkDerivation {
 
     # Data + assets
     install -Dm644 src/data/cloud-cp.json    $out/share/cloud-systray/cloud-cp.json
+    # SVG → PNG: Electron Tray on Linux only supports raster formats
+    mkdir -p $out/share/icons/hicolor/128x128/apps $out/share/icons/hicolor/scalable/apps
+    rsvg-convert -w 128 -h 128 src/assets/cloud-systray.svg \
+      -o $out/share/icons/hicolor/128x128/apps/cloud-systray.png
     install -Dm644 src/assets/cloud-systray.svg \
       $out/share/icons/hicolor/scalable/apps/cloud-systray.svg
 
@@ -56,7 +60,7 @@ stdenv.mkDerivation {
     makeWrapper ${electron}/bin/electron $out/bin/cloud-systray \
       --add-flags "$out/lib/cloud-systray/main.js" \
       --set SYSTRAY_DATA          "$out/share/cloud-systray/cloud-cp.json" \
-      --set SYSTRAY_ICON          "$out/share/icons/hicolor/scalable/apps/cloud-systray.svg" \
+      --set SYSTRAY_ICON          "$out/share/icons/hicolor/128x128/apps/cloud-systray.png" \
       --set SYSTRAY_BASH          "${bash}/bin/bash" \
       --set SYSTRAY_KONSOLE       "${konsole}/bin/konsole" \
       --set SYSTRAY_XDG           "${xdg-utils}/bin/xdg-open" \
