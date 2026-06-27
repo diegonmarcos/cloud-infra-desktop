@@ -59,6 +59,17 @@ ConditionEnvironment=XDG_CURRENT_DESKTOP=GNOME
 EOF
     '') allGnomeServices}
 
+    # baloo_file (KDE indexer) must never compete with nix builds or interactive I/O.
+    # idle CPU + idle I/O = yields to every other process — it only runs in dead time.
+    mkdir -p $out/lib/systemd/user/baloo_file.service.d
+    cat > $out/lib/systemd/user/baloo_file.service.d/50-idle-scheduling.conf << 'EOF'
+[Service]
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+EOF
+
     # systembus-notify races D-Bus during nixos-switch activation → "Permission denied" at spawn.
     # Wait for graphical-session.target and allow more restarts to survive the window.
     mkdir -p $out/lib/systemd/user/systembus-notify.service.d
