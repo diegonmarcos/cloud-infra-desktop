@@ -1,8 +1,8 @@
-# Containers: Podman, libvirt
+# Containers: Podman, libvirt, Waydroid
 #
 # Docker daemon configuration is in docker-daemon.nix and its sub-modules.
-# Waydroid removed from systemd — it is a user-launched app, not a system service.
-# Run manually: waydroid session start && waydroid show-full-ui
+# Waydroid: unit exists for on-demand launch (via waydroid-launch desktop entry)
+# but does NOT auto-start at boot (wantedBy forced empty).
 { config, pkgs, lib, nurpkgs, ... }:
 {
   # ═══════════════════════════════════════════════════════════════════════════
@@ -25,4 +25,13 @@
       graphroot = "/mnt/shared/data/containers/podman";
     };
   };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WAYDROID — on-demand only, NOT a boot service
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Enable = true so the unit file exists (waydroid-launch script calls
+  # `systemctl start/stop waydroid-container`). Force wantedBy empty so it
+  # never auto-starts at boot. The launcher desktop entry handles lifecycle.
+  virtualisation.waydroid.enable = true;
+  systemd.services.waydroid-container.wantedBy = lib.mkForce [];
 }
