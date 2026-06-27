@@ -1,3 +1,15 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║                                                                  ║
+# ║   GENERATED FILE — DO NOT EDIT                                   ║
+# ║                                                                  ║
+# ║   Source : 1_workflows/src/cicd/ship-cloud-comms-forks.yml
+# ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
+# ║   Rebuild: ./1_workflows/build.sh
+# ║                                                                  ║
+# ║   Manual edits will be overwritten on next build.                ║
+# ║                                                                  ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
 name: "Ship → Cloud-Comms fork APKs (materialize + build + publish to GHCR)"
 
 # Builds a Cloud-Comms FORK (upstream clone @ pinned tag + committed patch
