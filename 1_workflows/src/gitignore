@@ -155,5 +155,7 @@ a_nixos_host/result
 aa_desk-usr_x86_surface-linux_nixos/dist-ci/
 ## Termux remote-build closure (GHA arm64-built nix-on-droid tarball — artifact only, never vendored)
 bb_flakes_termux/dist-ci/
+## Desktop home-manager remote-build closure (GHA x86-built tarball — artifact only, never vendored)
+ba_flakes_desktop/dist-ci/
 ## Obsidian
 .obsidian/workspace-mobile.json
