@@ -243,7 +243,7 @@ object Transaction {
                 }
 
                 if (!missing) {
-                    val installedSha = installedApkSha256(ctx, e.appId)
+                    val installedSha = installedApkSha256(ctx, e.installedId(ctx) ?: e.appId)
                     if (installedSha != null && "sha256:$installedSha" == layer.digest) {
                         Log.i(TAG, "${e.label}: up to date")
                         setPhase(item, TxState.Phase.Done)

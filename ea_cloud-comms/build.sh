@@ -342,7 +342,7 @@ step_build_fork() {
   fi
 
   log "build-fork[$key]: $tracker ./gradlew $task (upstream-pinned toolchain)"
-  ( cd "$dest" && chmod +x gradlew && ./gradlew --no-daemon "$task" )
+  ( cd "$dest" && chmod +x gradlew && in_nix ./gradlew --no-daemon "$task" )
 
   mkdir -p "$DIST_DIR"
   shopt -s nullglob
