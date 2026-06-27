@@ -30,9 +30,9 @@
 # │ connectivity.slice      │ weight   │ 200M min │ 200M min     │
 # │ workload.slice          │ 600%/75% │ —        │ —            │
 # │   └── nix-daemon        │ 700%/87% │ 5324M    │ 6144M        │
-# │ machine.slice           │ 700%/87% │ —        │ 6144M        │
+# │ machine.slice           │ 400%/50% │ 2375M    │ 3031M  1024M │
 # ├─────────────────────────┼──────────┼──────────┼──────────────┤
-# │ user-1000 (diego)       │ 600%/75% │ 6144M    │ 6963M  4096M │
+# │ user-1000 (diego)       │ 600%/75% │ 3112M    │ 4751M  2048M │
 # │ user-0 (root)           │ 720%/90% │ 6963M    │ 7782M        │
 # ├─────────────────────────┼──────────┼──────────┼──────────────┤
 # │ sshd                    │ FIFO p1  │ 50M min  │ connectivity │
@@ -53,23 +53,30 @@ let
   osEssentialsCpuQuota = "${toString (cpus * 95)}%";  # 760%
   userCpuQuota = "${toString (cpus * 75)}%";          # 600%
   rootCpuQuota = "${toString (cpus * 90)}%";          # 720%
-  machineCpuQuota = "${toString (cpus * 700 / 8)}%";   # 700% (7/8 cores)
-  nixDaemonCpuQuota = "${toString (cpus * 700 / 8)}%"; # 700% (7/8 cores)
+  machineCpuQuota = "${toString (cpus * 50)}%";         # 400% (50% = 4/8 cores — fixes formula bug: was cpus*700/8=700%)
+  machineCpuWeight = 50;                                # Docker loses to user desktop under CPU contention
+  nixDaemonCpuQuota = "${toString (cpus * 700 / 8)}%"; # 700% (bounded by parent workload.slice = 600%)
 
   # ── Memory budgets ─────────────────────────────────────────────────────
-  userMemMax = "${toString (ramMB * 85 / 100)}M";     # 6963M
-  userMemHigh = "${toString (ramMB * 75 / 100)}M";    # 6144M
+  # BUG FIX (2026-06-27): user(85%)+machine(75%)=160% of RAM was the crash.
+  # Both slices would simultaneously demand more than physical RAM → disk swap
+  # thrash → CPU freeze. Fix: total MemoryMax fits in RAM; MemoryHigh gaps
+  # give the kernel time to reclaim before the hard kill; swap caps prevent
+  # disk I/O thrash on all slices.
+  userMemMax = "${toString (ramMB * 58 / 100)}M";     # 4751M (was 85%=6963M)
+  userMemHigh = "${toString (ramMB * 38 / 100)}M";    # 3112M (was 75%=6144M — now 1.6GB gap before hard kill)
   rootMemMax = "${toString (ramMB * 95 / 100)}M";     # 7782M
   rootMemHigh = "${toString (ramMB * 85 / 100)}M";    # 6963M
-  machineMemMax = "${toString (ramMB * 75 / 100)}M";  # 6144M
+  machineMemMax = "${toString (ramMB * 37 / 100)}M";  # 3031M (was 75%=6144M — Docker can't eat 75% of RAM)
+  machineMemHigh = "${toString (ramMB * 29 / 100)}M"; # 2375M (was absent — adds early reclaim trigger)
+  machineMemSwapMax = "1024M";                         # (was absent — Docker disk swap was unlimited → thrash)
   nixMemMax = "${toString (ramMB * 75 / 100)}M";      # 6144M
   nixMemHigh = "${toString (ramMB * 65 / 100)}M";     # 5324M
-  # Anti-freeze (2026-06-25): reserve RAM for the desktop so a build can never
-  # evict the live session to disk swap (the freeze), and cap how much a build
-  # may spill to DISK swap so its swap-out I/O can't thrash the disk.
-  userMemMin = "${toString (ramMB * 38 / 100)}M";     # 3113M reserved for the user session
-  nixMemSwapMax = "2048M";                            # build may spill at most 2G to swap
-  userMemSwapMax = "4096M";                           # user session: cap swap spill to prevent disk thrash → freeze
+  # userMemMin: reduced from 38%=3113M. MemoryHigh+lower MemoryMax are the real
+  # anti-freeze guards; the high MemoryMin was pinning 3GB unnecessarily.
+  userMemMin = "${toString (ramMB * 12 / 100)}M";     # 983M (was 38%=3113M)
+  nixMemSwapMax = "2048M";                            # build may spill at most 2G to disk swap
+  userMemSwapMax = "2048M";                           # user disk swap cap (was 4096M)
 in
 {
   # ═══════════════════════════════════════════════════════════════════════════
@@ -191,11 +198,20 @@ in
   # DESKTOP TIER: machine.slice (containers)
   # ═══════════════════════════════════════════════════════════════════════════
 
+  # user.slice — top-level user slice beats Docker/containers under CPU contention
+  systemd.slices."user" = {
+    sliceConfig = {
+      CPUWeight = 200;  # user sessions (KDE + apps) 4× priority over Docker at root level
+    };
+  };
+
   systemd.slices."machine" = {
     description = "Container workloads — Docker/Podman";
     sliceConfig = {
       MemoryMax = machineMemMax;
+      MemoryHigh = machineMemHigh;
       CPUQuota = machineCpuQuota;
+      CPUWeight = machineCpuWeight;
     };
   };
 
@@ -350,6 +366,11 @@ in
     (pkgs.writeTextDir "lib/systemd/system/user-1000.slice.d/50-swap-cap.conf" ''
       [Slice]
       MemorySwapMax=${userMemSwapMax}
+    '')
+    # machine.slice MemorySwapMax — same workaround: NixOS sliceConfig drops it.
+    (pkgs.writeTextDir "lib/systemd/system/machine.slice.d/50-swap-cap.conf" ''
+      [Slice]
+      MemorySwapMax=${machineMemSwapMax}
     '')
   ];
 
