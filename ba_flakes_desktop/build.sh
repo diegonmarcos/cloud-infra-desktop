@@ -820,8 +820,9 @@ cmd_pull() {
     [ -f "$_art/activation.name" ] || { log_error "missing $_art/activation.name"; return 1; }
     _sys="/nix/store/$(cat "$_art/activation.name")"
 
+    _sudo="/run/wrappers/bin/sudo"; [ -x "$_sudo" ] || _sudo="sudo"
     log_info "Importing closure into the store (no build)..."
-    zstd -d -c "$_tb" | sudo nix-store --import >/dev/null || { log_error "import failed"; return 1; }
+    zstd -d -c "$_tb" | $_sudo nix-store --import >/dev/null || { log_error "import failed"; return 1; }
     [ -d "$_sys" ] || { log_error "imported path $_sys missing after import"; return 1; }
 
     # home-manager activationPackages expose the activator at ./activate. Run it
