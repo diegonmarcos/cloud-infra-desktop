@@ -1,0 +1,50 @@
+name: "Ship → Desktop NixOS closure (build remotely, never freeze the laptop)"
+
+# WHY: the Surface (8 GB) cannot run `nixos-rebuild` locally — the eval+build
+# over-commits RAM and thrashes into a freeze (14 incidents, 2026-06-27). This
+# builds the system closure on a GHA runner instead and ships it as an artifact;
+# the laptop only IMPORTS + activates it (Phase 2, no eval) via `build.sh pull`.
+#
+# ALL logic lives in aa_desk-usr_x86_surface-linux_nixos/build.sh (verb: ci-build).
+# This YAML only: free disk → install nix → call build.sh → upload the tarball.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "aa_desk-usr_x86_surface-linux_nixos/src/**"
+      - "aa_desk-usr_x86_surface-linux_nixos/build.sh"
+      - "1_workflows/src/cicd/ship-desktop.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ship-desktop
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build + export system closure
+        run: ./aa_desk-usr_x86_surface-linux_nixos/build.sh ci-build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nixos-surface-closure
+          path: aa_desk-usr_x86_surface-linux_nixos/dist-ci/
+          retention-days: 7
+          compression-level: 0
