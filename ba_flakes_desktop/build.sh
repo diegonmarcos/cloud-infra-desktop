@@ -770,6 +770,70 @@ clear_log() {
 }
 
 # ============================================================================
+# REMOTE BUILD (GHA x86) + LOCAL ACTIVATE — never run the freeze-prone eval locally
+# ============================================================================
+# The full Plasma home-manager config is a heavy eval (KDE) that over-commits
+# RAM on the 8GB Surface and can thrash into a freeze. So the eval+build runs on
+# a GHA x86 runner (`ci-build`), and the laptop only IMPORTS the prebuilt closure
+# and runs its activate script (`pull`) — no eval, cannot freeze. Secrets are
+# decrypted at activation on the device, so the GHA build needs none.
+
+# ci-build — run on a GHA ubuntu-latest (x86) runner. Build the home-manager
+# activationPackage and export its closure as a zstd tarball into dist-ci/.
+cmd_ci_build() {
+    log_header "CI: build + export home-manager closure"
+    check_nix || return 1
+    _host="${1:-surface-plasma}"; _user="${2:-diego}"
+    _attr="homeConfigurations.\"${_user}@${_host}\".activationPackage"
+    _out="$SCRIPT_DIR/dist-ci"
+    rm -rf "$_out"; mkdir -p "$_out"
+
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        log_info "Freeing GHA runner disk..."
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                    /opt/hostedtoolcache/CodeQL /usr/local/share/boost 2>/dev/null || true
+    fi
+
+    log_info "Building $_attr (accept-flake-config → cached substitutes)..."
+    nix build "$SRC_DIR#$_attr" --impure --accept-flake-config \
+        --out-link "$_out/result" --extra-experimental-features "nix-command flakes" \
+        || { log_error "ci build failed"; return 1; }
+
+    _sys=$(readlink -f "$_out/result")
+    basename "$_sys" > "$_out/activation.name"
+    echo "$_sys" > "$_out/activation.path"
+    log_info "Exporting closure -> zstd tarball..."
+    nix-store --export $(nix-store -qR "$_sys") | zstd -T0 -15 > "$_out/hm-closure.nar.zst"
+    rm -f "$_out/result"
+    log_success "Done: $(du -h "$_out/hm-closure.nar.zst" | cut -f1) -> $_out/"
+}
+
+# pull [artifact-dir] — run on the Surface. Import a GHA-built home-manager
+# closure and run its activate script. NO eval, NO build -> cannot freeze.
+# Default dir dist-ci/ (e.g. after: gh run download -n nixos-desktop-hm-closure -D dist-ci).
+cmd_pull() {
+    log_header "Activate prebuilt home-manager closure (no eval — cannot freeze)"
+    check_nix || return 1
+    _art="${1:-$SCRIPT_DIR/dist-ci}"
+    _tb="$_art/hm-closure.nar.zst"
+    [ -f "$_tb" ] || { log_error "no closure tarball at $_tb (fetch: gh run download -n nixos-desktop-hm-closure -D '$_art')"; return 1; }
+    [ -f "$_art/activation.name" ] || { log_error "missing $_art/activation.name"; return 1; }
+    _sys="/nix/store/$(cat "$_art/activation.name")"
+
+    log_info "Importing closure into the store (no build)..."
+    zstd -d -c "$_tb" | sudo nix-store --import >/dev/null || { log_error "import failed"; return 1; }
+    [ -d "$_sys" ] || { log_error "imported path $_sys missing after import"; return 1; }
+
+    # home-manager activationPackages expose the activator at ./activate. Run it
+    # as the USER (it writes ~/.config etc) — NOT under sudo.
+    _act="$_sys/activate"
+    [ -x "$_act" ] || { log_error "no activate script in $_sys"; return 1; }
+    log_info "Activating ($_act)..."
+    "$_act"
+    log_success "Activated prebuilt home-manager generation (no eval)."
+}
+
+# ============================================================================
 # TUI MENU
 # ============================================================================
 
@@ -946,6 +1010,8 @@ ${YELLOW}NIX COMMANDS:${NC}
     install                 Install Nix package manager
     switch [profile]        Apply Home Manager config (default: surface-plasma — full)
     build [profile]         Dry build — evaluate flake without activating (verify-only)
+    ci-build [profile]      [GHA x86] Build + export the closure tarball -> dist-ci/
+    pull [dir]              Import a GHA-built closure + activate (NO eval — never freezes)
     update                  Update flake inputs
     show                    Show flake outputs
     develop                 Enter nix develop shell
@@ -1027,6 +1093,12 @@ main() {
             ;;
         build)
             nix_build "${1:-surface-plasma}" "${2:-diego}"
+            ;;
+        ci-build)
+            cmd_ci_build "${1:-surface-plasma}" "${2:-diego}"
+            ;;
+        pull|switch-remote)
+            cmd_pull "$1"
             ;;
         update)
             nix_update
