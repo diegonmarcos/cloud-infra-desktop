@@ -374,6 +374,25 @@ _rebuild_exec() {
     #   scheduler (IOWeight/IOSchedulingClass are ExecContext properties, unsupported
     #   on --scope transient units; ionice ioprio_set() works unconditionally).
     # IOWeight=10 = cgroup I/O weight for CFQ/BFQ fallback schedulers.
+    # Force the freeze-proof caps onto the RUNNING system before building.
+    # 'nixos-rebuild switch' reloads unit files but does NOT re-apply resource
+    # control to the already-running nix-daemon → its caps drift (the live daemon
+    # sat at 6G RAM / 4G swap and froze the box 10×). This re-caps it NOW, every
+    # build, no reboot. Data-driven from cloud-data-system-protection.json.
+    if command -v jq >/dev/null 2>&1; then
+        _spjson="$FLAKE_PATH/modules/cloud-data-system-protection.json"
+        if [ -f "$_spjson" ]; then
+            log "Live-cap nix-daemon: MemoryMax=$(jq -r .nix_daemon.MemoryMax "$_spjson") MemorySwapMax=$(jq -r .nix_daemon.MemorySwapMax "$_spjson") (no swap → OOM-kill a build, never freeze)…"
+            sudo systemctl set-property --runtime nix-daemon.service \
+                MemoryHigh="$(jq -r .nix_daemon.MemoryHigh "$_spjson")" \
+                MemoryMax="$(jq -r .nix_daemon.MemoryMax "$_spjson")" \
+                MemorySwapMax="$(jq -r .nix_daemon.MemorySwapMax "$_spjson")" 2>/dev/null || true
+            sudo systemctl set-property --runtime user-1000.slice \
+                MemoryMin="$(jq -r .gui_session.MemoryMin "$_spjson")" \
+                MemorySwapMax="$(jq -r .gui_session.MemorySwapMax "$_spjson")" 2>/dev/null || true
+        fi
+    fi
+
     log "Phase 1: nix build as $(id -un) — hard-capped scope (MemoryMax=3G, MemorySwapMax=0)…"
     GIT_CONFIG_GLOBAL="$gitconf" GIT_CONFIG_SYSTEM="$gitconf" BUILDSH_GUARDRAIL=1 \
         systemd-run --user --scope \
