@@ -23,8 +23,12 @@ name: "Ship → Cloud-Comms fork APKs (materialize + build + publish to GHCR)"
 # keystore the hub uses — signature-IPC + the updater install chain require one
 # key across all five APKs.
 #
-# On success, dispatches ship-cloud-comms.yml so the hub immediately re-bundles
-# with the fresh fork inside (the self-contained APK).
+# On success, the fork APK lands on GHCR only. The hub is NOT re-bundled
+# automatically — that was the original design, but it caused sha(bundle)==
+# sha(GHCR) so the in-app fleet updater never detected fork updates for
+# existing installs. Now fork CI → GHCR only; existing hubs detect the sha
+# mismatch and pull the update directly from GHCR. Hub re-bundle is manual
+# (workflow_dispatch on ship-cloud-comms.yml).
 #
 # Today only `mail` builds on push (chat awaits the push-notification decision;
 # matrix is blocked on the Matrix stack ship). workflow_dispatch can request
@@ -42,6 +46,7 @@ on:
           - mail
           - chat
           - matrix
+          - dialer
   push:
     branches: [main]
     paths:
@@ -55,17 +60,45 @@ on:
 permissions:
   contents: read
   packages: write   # ghcr push (oras)
-  actions: write    # dispatch the hub re-bundle workflow
 
 env:
   WORK_DIR: ea_cloud-comms
-  FORK: ${{ inputs.fork || 'mail' }}
 
 jobs:
+  detect-forks:
+    name: "Detect which forks to build"
+    runs-on: ubuntu-latest
+    outputs:
+      forks: ${{ steps.detect.outputs.forks }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            FORK="${{ inputs.fork || 'mail' }}"
+            echo "forks=[\"$FORK\"]" >> $GITHUB_OUTPUT
+          else
+            changed=$(git diff --name-only HEAD~1 HEAD -- ea_cloud-comms/forks/ \
+              | sed 's|ea_cloud-comms/forks/||;s|/.*||' | sort -u \
+              | jq -R . | jq -sc .)
+            if [ -z "$changed" ] || [ "$changed" = "[]" ]; then
+              changed='["mail"]'
+            fi
+            echo "forks=$changed" >> $GITHUB_OUTPUT
+          fi
+
   build_and_publish_fork:
-    name: "Materialize + build + publish fork"
+    name: "Materialize + build + publish fork (${{ matrix.fork }})"
+    needs: detect-forks
+    strategy:
+      matrix:
+        fork: ${{ fromJson(needs.detect-forks.outputs.forks) }}
     runs-on: ubuntu-latest
     timeout-minutes: 60   # FairEmail is a ~3500-file build
+    env:
+      FORK: ${{ matrix.fork }}
 
     steps:
       - name: Checkout
@@ -85,30 +118,31 @@ jobs:
           java-version: "17"   # exactly what upstream FairEmail CI uses
           cache: gradle
 
-      # Same cached constellation keystore as ship-cloud-comms.yml — one key
-      # across hub + forks + SuperApp (signature IPC + updater chain).
-      - name: Restore constellation keystore from cache
-        id: keystore-cache
-        uses: actions/cache@v4
+      # ── ONE shared Cloud-constellation signing key (vault) ──────────────
+      # Same key + mechanism as ship-cloud-comms.yml: EVERY Android app (hub +
+      # all forks + Nav / IDE / SuperApp) signs with the single vault key
+      # (release.jks, OU=Cloud Constellation). The raw keystore + sops-encrypted
+      # passwords live ONLY in the private vault repo. build.sh::_resolve_signing
+      # reads $VAULT_DIR + sops-decrypts (SOPS_AGE_KEY) and exports
+      # ANDROID_KEYSTORE_* which the fork's gradle signingConfig reads. NO
+      # fallback: if the key is unavailable build.sh exits 1 (desired).
+      - name: Checkout vault (shared Android signing key)
+        uses: actions/checkout@v4
         with:
-          path: ${{ env.WORK_DIR }}/hub/keystores/comms.keystore
-          key: cloud-comms-keystore-v1
-      - name: Generate keystore (first run only)
-        if: steps.keystore-cache.outputs.cache-hit != 'true'
-        working-directory: ${{ env.WORK_DIR }}
-        run: |
-          mkdir -p hub/keystores
-          keytool -genkeypair -keystore hub/keystores/comms.keystore \
-            -storepass android -keypass android -alias commskey \
-            -dname "CN=Diego Marcos, OU=Cloud-Comms, O=diegonmarcos.com, L=Madrid, ST=Madrid, C=ES" \
-            -keyalg RSA -keysize 2048 -validity 10950
+          repository: diegonmarcos/vault
+          token: ${{ secrets.ANDROID_SIGNING_VAULT_TOKEN }}
+          path: .vault
 
-      - name: Install ORAS + jq
+      - name: Install ORAS + sops + jq
         run: |
           sudo apt-get update -y && sudo apt-get install -y jq
           curl -fsSL https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz \
             | sudo tar -C /usr/local/bin -xzf - oras
           oras version
+          curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 \
+            | sudo tee /usr/local/bin/sops >/dev/null
+          sudo chmod +x /usr/local/bin/sops
+          sops --version
 
       - name: Materialize fork (clone @ pin + patch series)
         working-directory: ${{ env.WORK_DIR }}
@@ -122,6 +156,9 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          # Shared Cloud-constellation signing key (vault checkout above).
+          VAULT_DIR: ${{ github.workspace }}/.vault
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
           ./build.sh build-fork "$FORK"
           ls -la dist/
@@ -129,8 +166,8 @@ jobs:
       - name: Upload fork APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cloud-comms-${{ env.FORK }}-${{ github.sha }}
-          path: ${{ env.WORK_DIR }}/dist/cloud-comms-${{ env.FORK }}.apk
+          name: cloud-comms-${{ matrix.fork }}-${{ github.sha }}
+          path: ${{ env.WORK_DIR }}/dist/cloud-comms-${{ matrix.fork }}.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -146,12 +183,4 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: ./build.sh publish-fork "$FORK"
 
-      # The whole point: the hub re-bundles immediately so the published
-      # Cloud-Comms-Hub.apk becomes self-contained with this fork inside.
-      # create_release=true is REQUIRED — without it the dispatched run skips
-      # the gh-release upload and the /releases/latest link keeps serving the
-      # old bundle (caught 2026-06-12: GHCR had the 28MB bundle, release 6.3MB).
-      - name: Dispatch hub re-bundle (ship-cloud-comms.yml)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run ship-cloud-comms.yml --ref main -f push_oras=true -f create_release=true
+      # Hub re-bundle deliberately NOT dispatched here. See top-of-file comment.

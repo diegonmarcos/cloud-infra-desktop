@@ -1,0 +1,51 @@
+name: "Ship → Termux nix-on-droid closure (build on arm64, never OOM the phone)"
+
+# WHY: the phone (7 GB, nix-on-droid under proot) OOM-thrashes on a local
+# `nix-on-droid switch` — the eval+build over-commits RAM (twin of the Surface
+# freeze). Build the aarch64 closure on a GitHub arm64 runner instead; the phone
+# only IMPORTS + activates it (no eval) via `build.sh pull`.
+#
+# ALL logic lives in bb_flakes_termux/build.sh (verb: ci-build). This YAML only:
+# install nix → call build.sh → upload the tarball. Target is aarch64, so it
+# runs on a NATIVE arm64 runner (no QEMU — matches the repo's arch mandate).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "bb_flakes_termux/src/**"
+      - "bb_flakes_termux/build.sh"
+      - "1_workflows/src/cicd/ship_nix-flakes_termux.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ship-termux
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build + export nix-on-droid closure
+        run: ./bb_flakes_termux/build.sh ci-build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nixos-termux-closure
+          path: bb_flakes_termux/dist-ci/
+          retention-days: 7
+          compression-level: 0

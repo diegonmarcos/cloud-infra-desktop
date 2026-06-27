@@ -44,12 +44,12 @@ do_build() {
     rm -rf "$DIST_DIR"
     mkdir -p "$DIST_DIR" "$DIST_DIR/scripts" "$DIST_DIR/hooks" "$DIST_DIR/test"
 
-    # Static workflows (src/cicd/*.yml → dist/)
-    for f in "$SRC_DIR"/cicd/*.yml; do
+    # Static workflows (src/cicd/*.yml + *.yaml → dist/)
+    for f in "$SRC_DIR"/cicd/*.yml "$SRC_DIR"/cicd/*.yaml; do
         [ -f "$f" ] || continue
         inject_header "$f" "$DIST_DIR/$(basename "$f")"
     done
-    log "Built $(ls "$DIST_DIR"/*.yml 2>/dev/null | wc -l) workflow(s)"
+    log "Built $(ls "$DIST_DIR"/*.yml "$DIST_DIR"/*.yaml 2>/dev/null | wc -l) workflow(s)"
 
     # Scripts (src/scripts/ → dist/scripts/)
     if [ -d "$SRC_DIR/scripts" ]; then
@@ -109,11 +109,11 @@ do_deploy() {
     mkdir -p "$TARGET_DIR" "$SCRIPTS_TARGET" "$HOOKS_TARGET"
 
     # Workflows
-    for f in "$DIST_DIR"/*.yml; do
+    for f in "$DIST_DIR"/*.yml "$DIST_DIR"/*.yaml; do
         [ -f "$f" ] || continue
         cp "$f" "$TARGET_DIR/"
     done
-    log "Deployed $(ls "$DIST_DIR"/*.yml 2>/dev/null | wc -l) workflow(s) → .github/workflows/"
+    log "Deployed $(ls "$DIST_DIR"/*.yml "$DIST_DIR"/*.yaml 2>/dev/null | wc -l) workflow(s) → .github/workflows/"
 
     # Scripts
     if [ -d "$DIST_DIR/scripts" ]; then
