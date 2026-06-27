@@ -374,23 +374,52 @@ _rebuild_exec() {
     #   scheduler (IOWeight/IOSchedulingClass are ExecContext properties, unsupported
     #   on --scope transient units; ionice ioprio_set() works unconditionally).
     # IOWeight=10 = cgroup I/O weight for CFQ/BFQ fallback schedulers.
-    # Force the freeze-proof caps onto the RUNNING system before building.
-    # 'nixos-rebuild switch' reloads unit files but does NOT re-apply resource
-    # control to the already-running nix-daemon → its caps drift (the live daemon
-    # sat at 6G RAM / 4G swap and froze the box 10×). This re-caps it NOW, every
-    # build, no reboot. Data-driven from cloud-data-system-protection.json.
-    if command -v jq >/dev/null 2>&1; then
-        _spjson="$FLAKE_PATH/modules/cloud-data-system-protection.json"
-        if [ -f "$_spjson" ]; then
-            log "Live-cap nix-daemon: MemoryMax=$(jq -r .nix_daemon.MemoryMax "$_spjson") MemorySwapMax=$(jq -r .nix_daemon.MemorySwapMax "$_spjson") (no swap → OOM-kill a build, never freeze)…"
-            sudo systemctl set-property --runtime nix-daemon.service \
-                MemoryHigh="$(jq -r .nix_daemon.MemoryHigh "$_spjson")" \
-                MemoryMax="$(jq -r .nix_daemon.MemoryMax "$_spjson")" \
-                MemorySwapMax="$(jq -r .nix_daemon.MemorySwapMax "$_spjson")" 2>/dev/null || true
-            sudo systemctl set-property --runtime user-1000.slice \
-                MemoryMin="$(jq -r .gui_session.MemoryMin "$_spjson")" \
-                MemorySwapMax="$(jq -r .gui_session.MemorySwapMax "$_spjson")" 2>/dev/null || true
+    # ── REINFORCE the freeze-proof caps onto the RUNNING system before building ──────
+    # WHY this must run every build (evidence, 2026-06-27): (1) nixos-rebuild switch
+    # reloads unit files but does NOT re-apply resource control to the already-running
+    # nix-daemon; (2) nix-daemon idle-restarts, dropping --runtime props; (3) the freeze
+    # forensics showed the REAL cause was sustained 65% memory-pressure with NO killer
+    # firing (oomd had no pressure limit, earlyoom was swap-gated). So before any build we
+    # assert BOTH layers and VERIFY they stuck — and REFUSE to build if we can't, because
+    # building unprotected is exactly what froze the box 13×. Data-driven from JSON.
+    _spjson="$FLAKE_PATH/modules/cloud-data-system-protection.json"
+    _sudo="/run/wrappers/bin/sudo"; [ -x "$_sudo" ] || _sudo="sudo"
+    if command -v jq >/dev/null 2>&1 && [ -f "$_spjson" ]; then
+        _nd_high=$(jq -r .nix_daemon.MemoryHigh "$_spjson")
+        _nd_max=$(jq -r .nix_daemon.MemoryMax "$_spjson")
+        _nd_swap=$(jq -r .nix_daemon.MemorySwapMax "$_spjson")
+        _oomd_lim=$(jq -r .oomd.pressure_limit "$_spjson")
+        _gui_min=$(jq -r .gui_session.MemoryMin "$_spjson")
+        _gui_swap=$(jq -r .gui_session.MemorySwapMax "$_spjson")
+
+        log "Reinforce: nix-daemon MemoryMax=$_nd_max MemorySwapMax=$_nd_swap (no swap → OOM-kills a build, never swap-thrash)…"
+        $_sudo systemctl set-property --runtime nix-daemon.service \
+            MemoryHigh="$_nd_high" MemoryMax="$_nd_max" MemorySwapMax="$_nd_swap" \
+            || warn "set-property nix-daemon failed (sudo/polkit?)"
+
+        log "Reinforce: systemd-oomd PSI-kill ($_oomd_lim) on user.slice + system.slice (kills the worst hog on sustained memory pressure)…"
+        $_sudo systemctl set-property --runtime user.slice \
+            ManagedOOMMemoryPressure=kill ManagedOOMMemoryPressureLimit="$_oomd_lim" \
+            || warn "set-property user.slice oomd limit failed"
+        $_sudo systemctl set-property --runtime system.slice \
+            ManagedOOMMemoryPressure=kill ManagedOOMMemoryPressureLimit="$_oomd_lim" \
+            || warn "set-property system.slice oomd limit failed"
+        $_sudo systemctl set-property --runtime user-1000.slice \
+            MemoryMin="$_gui_min" MemorySwapMax="$_gui_swap" \
+            || warn "set-property user-1000.slice failed"
+
+        # FAIL-SAFE: verify the daemon truly cannot swap. If not, refuse to build —
+        # better a failed build than a 14th freeze.
+        _live_swap=$(systemctl show nix-daemon.service -p MemorySwapMax --value 2>/dev/null)
+        if [ "$_live_swap" != "0" ]; then
+            error "nix-daemon MemorySwapMax='$_live_swap' (need 0) — REFUSING to build unprotected."
+            error "Make 'systemctl set-property nix-daemon.service MemorySwapMax=0' work, then retry."
+            return 1
         fi
+        log "Verified: nix-daemon swap=0 + oomd PSI-kill live → this build cannot freeze the desktop."
+    else
+        warn "jq or $_spjson missing — cannot reinforce caps; REFUSING to build unprotected."
+        return 1
     fi
 
     log "Phase 1: nix build as $(id -un) — hard-capped scope (MemoryMax=3G, MemorySwapMax=0)…"
