@@ -15,7 +15,7 @@ on:
     paths:
       - "aa_desk-usr_x86_surface-linux_nixos/src/**"
       - "aa_desk-usr_x86_surface-linux_nixos/build.sh"
-      - "1_workflows/src/cicd/ship_nix-flakes_desktop.yaml"
+      - "1_workflows/src/cicd/ship_nix-flakes_desktop_nixos.yaml"
 
 permissions:
   contents: read

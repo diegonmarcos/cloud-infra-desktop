@@ -2,7 +2,7 @@
 # ║                                                                  ║
 # ║   GENERATED FILE — DO NOT EDIT                                   ║
 # ║                                                                  ║
-# ║   Source : 1_workflows/src/cicd/ship_nix-flakes_desktop-hm.yaml
+# ║   Source : 1_workflows/src/cicd/ship_nix-flakes_desktop_nixos.yaml
 # ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
 # ║   Rebuild: ./1_workflows/build.sh
 # ║                                                                  ║
@@ -10,31 +10,30 @@
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-name: "Ship → Desktop home-manager closure (build remotely, never freeze the laptop)"
+name: "Ship → Desktop NixOS closure (build remotely, never freeze the laptop)"
 
-# WHY: the full Plasma home-manager config is a heavy KDE eval that over-commits
-# RAM on the 8GB Surface and can thrash into a freeze (same axis as the NixOS
-# system freeze). Build it on a GHA x86 runner; the laptop only IMPORTS +
-# activates the prebuilt closure (no eval) via `build.sh pull`.
+# WHY: the Surface (8 GB) cannot run `nixos-rebuild` locally — the eval+build
+# over-commits RAM and thrashes into a freeze (14 incidents, 2026-06-27). This
+# builds the system closure on a GHA runner instead and ships it as an artifact;
+# the laptop only IMPORTS + activates it (Phase 2, no eval) via `build.sh pull`.
 #
-# ALL logic in ba_flakes_desktop/build.sh (verb: ci-build). Thin YAML.
-# x86_64 home config -> native x86 runner (no QEMU). Secrets are decrypted at
-# activation on the device, so the build needs none.
+# ALL logic lives in aa_desk-usr_x86_surface-linux_nixos/build.sh (verb: ci-build).
+# This YAML only: free disk → install nix → call build.sh → upload the tarball.
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - "ba_flakes_desktop/src/**"
-      - "ba_flakes_desktop/build.sh"
-      - "1_workflows/src/cicd/ship_nix-flakes_desktop-hm.yaml"
+      - "aa_desk-usr_x86_surface-linux_nixos/src/**"
+      - "aa_desk-usr_x86_surface-linux_nixos/build.sh"
+      - "1_workflows/src/cicd/ship_nix-flakes_desktop_nixos.yaml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: ship-desktop-hm
+  group: ship-desktop
   cancel-in-progress: true
 
 jobs:
@@ -52,12 +51,12 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
-      - name: Build + export home-manager closure
-        run: ./ba_flakes_desktop/build.sh ci-build
+      - name: Build + export system closure
+        run: ./aa_desk-usr_x86_surface-linux_nixos/build.sh ci-build
 
       - uses: actions/upload-artifact@v4
         with:
-          name: nixos-desktop-hm-closure
-          path: ba_flakes_desktop/dist-ci/
+          name: nixos-surface-closure
+          path: aa_desk-usr_x86_surface-linux_nixos/dist-ci/
           retention-days: 7
           compression-level: 0

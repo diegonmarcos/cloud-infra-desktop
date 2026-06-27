@@ -16,7 +16,7 @@ on:
     paths:
       - "ba_flakes_desktop/src/**"
       - "ba_flakes_desktop/build.sh"
-      - "1_workflows/src/cicd/ship_nix-flakes_desktop-hm.yaml"
+      - "1_workflows/src/cicd/ship_nix-flakes_desktop_hm.yaml"
 
 permissions:
   contents: read
