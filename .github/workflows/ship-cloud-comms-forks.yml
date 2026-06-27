@@ -1,15 +1,3 @@
-# ╔══════════════════════════════════════════════════════════════════╗
-# ║                                                                  ║
-# ║   GENERATED FILE — DO NOT EDIT                                   ║
-# ║                                                                  ║
-# ║   Source : 1_workflows/src/cicd/ship-cloud-comms-forks.yml
-# ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
-# ║   Rebuild: ./1_workflows/build.sh
-# ║                                                                  ║
-# ║   Manual edits will be overwritten on next build.                ║
-# ║                                                                  ║
-# ╚══════════════════════════════════════════════════════════════════╝
-
 name: "Ship → Cloud-Comms fork APKs (materialize + build + publish to GHCR)"
 
 # Builds a Cloud-Comms FORK (upstream clone @ pinned tag + committed patch
@@ -118,23 +106,15 @@ jobs:
           java-version: "17"   # exactly what upstream FairEmail CI uses
           cache: gradle
 
-      # Same cached constellation keystore as ship-cloud-comms.yml — one key
-      # across hub + forks + SuperApp (signature IPC + updater chain).
-      - name: Restore constellation keystore from cache
-        id: keystore-cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.WORK_DIR }}/hub/keystores/comms.keystore
-          key: cloud-comms-keystore-v1
-      - name: Generate keystore (first run only)
-        if: steps.keystore-cache.outputs.cache-hit != 'true'
-        working-directory: ${{ env.WORK_DIR }}
+      # Same constellation keystore as ship-cloud-comms.yml — decoded from the
+      # CLOUD_COMMS_KEYSTORE_B64 GitHub secret. NEVER use actions/cache for
+      # signing keys: 7-day TTL eviction generates a new random key on miss,
+      # which breaks all installed apps (STATUS_FAILURE_CONFLICT).
+      - name: Restore constellation keystore from secret
         run: |
-          mkdir -p hub/keystores
-          keytool -genkeypair -keystore hub/keystores/comms.keystore \
-            -storepass android -keypass android -alias commskey \
-            -dname "CN=Diego Marcos, OU=Cloud-Comms, O=diegonmarcos.com, L=Madrid, ST=Madrid, C=ES" \
-            -keyalg RSA -keysize 2048 -validity 10950
+          mkdir -p "${{ env.WORK_DIR }}/hub/keystores"
+          printf '%s' "${{ secrets.CLOUD_COMMS_KEYSTORE_B64 }}" \
+            | base64 -d > "${{ env.WORK_DIR }}/hub/keystores/comms.keystore"
 
       - name: Install ORAS + jq
         run: |
