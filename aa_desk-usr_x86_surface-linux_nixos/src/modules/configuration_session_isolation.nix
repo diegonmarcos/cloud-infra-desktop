@@ -58,6 +58,19 @@ let
 ConditionEnvironment=XDG_CURRENT_DESKTOP=GNOME
 EOF
     '') allGnomeServices}
+
+    # systembus-notify races D-Bus during nixos-switch activation → "Permission denied" at spawn.
+    # Wait for graphical-session.target and allow more restarts to survive the window.
+    mkdir -p $out/lib/systemd/user/systembus-notify.service.d
+    cat > $out/lib/systemd/user/systembus-notify.service.d/50-wait-session.conf << 'EOF'
+[Unit]
+After=graphical-session.target
+
+[Service]
+RestartSec=3
+StartLimitBurst=15
+StartLimitIntervalSec=90
+EOF
   '';
 
 in {
@@ -81,8 +94,8 @@ in {
       xdg-desktop-portal-gtk
     ];
     config = {
-      common.default = [ "gtk" ];
-      KDE.default = [ "kde" "gtk" ];
+      common.default = [ "kde" ];       # primary DE is KDE; GTK portal segfaults on non-GNOME (1.15.1)
+      KDE.default = [ "kde" ];          # KDE portal handles everything — GTK portal not needed and segfaults
       GNOME.default = [ "gnome" "gtk" ];
     };
   };
