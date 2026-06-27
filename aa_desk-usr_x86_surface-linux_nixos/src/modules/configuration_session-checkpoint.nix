@@ -40,6 +40,7 @@ let
   notifyOnSave = cp.notify or false;
 
   shutdownCheckpoint = (cfg.shutdown_checkpoint or {}).enabled or false;
+  hibernateCheckpoint = (cfg.hibernate_checkpoint or {}).enabled or false;
   rebootWithSessionEnabled = (cfg.reboot_with_session or {}).enabled or false;
 
   # Shared checkpoint body — used by the periodic timer service AND the
@@ -178,6 +179,30 @@ in
     };
     path = with pkgs; [ btrfs-progs coreutils util-linux ];
     script = mkCheckpointScript "shutdown";
+  };
+
+  # HIBERNATE MUST ALSO SAVE A BTRFS SNAPSHOT (2026-06-27). Hibernate does not
+  # pass through shutdown.target, so session-checkpoint-shutdown never fires on
+  # a hibernate trigger. This unit is ordered Before=systemd-hibernate.service
+  # (the single funnel every hibernate path goes through: manual `systemctl
+  # hibernate`, the battery-watchdog critical hibernate, and reboot-with-session
+  # which calls `systemctl hibernate`), so a fresh file snapshot lands just
+  # before the RAM image is written. TimeoutStartSec bounds it: a stuck snapshot
+  # can NEVER block a battery-critical hibernate (the snapshot is CoW + idle-IO,
+  # normally sub-second; the bound is pure safety).
+  systemd.services."session-checkpoint-hibernate" = lib.mkIf (enabled && hibernateCheckpoint) {
+    description = "Pre-hibernate session checkpoint — btrfs snapshot of ${srcSubvol} before the RAM image is written";
+    wantedBy = [ "systemd-hibernate.service" ];
+    before   = [ "systemd-hibernate.service" ];
+    serviceConfig = {
+      Type            = "oneshot";
+      RemainAfterExit = false;
+      TimeoutStartSec = "30s";
+      Nice                = 19;
+      IOSchedulingClass   = "idle";
+    };
+    path = with pkgs; [ btrfs-progs coreutils util-linux ];
+    script = mkCheckpointScript "hibernate";
   };
 
   environment.systemPackages = lib.mkIf (enabled && rebootWithSessionEnabled) [

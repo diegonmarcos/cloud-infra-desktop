@@ -11,6 +11,8 @@
 
   "fallback": {
     "_comment": "Guarantees a crashing/hanging app can NEVER hold the login. The launcher runs as a systemd --user oneshot AFTER graphical-session.target (login is already complete before it starts), each app is spawned detached, and each launch is wrapped in `timeout`. A failed/timed-out launch is logged (and ntfy'd) and the launcher moves on to the next app.",
+    "_run_on_doc": "WHICH boot type gets the fixed default layout. 'fresh_only' (default): impose this layout ONLY on a FRESH boot — detected by `noresume` on the kernel cmdline, which the rEFInd 'NixOS - Fresh Desktop' entry carries. On a RESTORE boot (rEFInd 'NixOS - Primary', cmdline has resume=) the launcher skips: a real restore resumes the RAM image (no new login happens at all), and the rare cold-fall-through is left to KDE rather than clobbered with the fixed layout. 'always': impose the layout on every login regardless of boot type (the old behaviour).",
+    "run_on": "fresh_only",
     "per_app_launch_timeout_sec": 25,
     "service_timeout_sec": 120,
     "detached_spawn": true,
@@ -26,7 +28,7 @@
   "apps": {
     "konsole":        { "type": "konsole", "exec": "konsole", "konsole_flags": ["--separate", "--nofork"] },
     "dolphin":        { "exec": "dolphin",        "match_class": "org.kde.dolphin", "arg_mode": "paths", "fixed_args": ["--new-window"] },
-    "brave":          { "exec": "brave",          "match_class": "brave-browser",   "arg_mode": "url",  "fixed_args": ["--new-window"] },
+    "qutebrowser":    { "exec": "qutebrowser",    "match_class": "qutebrowser",     "arg_mode": "url" },
     "systemsettings": { "exec": "systemsettings", "match_class": "systemsettings",  "arg_mode": "none", "launch_prefix": ["dbus-run-session", "--"] },
     "obsidian":       { "exec": "obsidian",       "match_class": "obsidian",        "arg_mode": "none" },
     "kate":           { "exec": "kate",           "match_class": "org.kde.kate",    "arg_mode": "none" },
@@ -86,8 +88,8 @@
       "name": "Desktop 2",
       "split": "horizontal",
       "windows": [
-        { "cell": "left",  "app": "dolphin", "args": ["/home/diego", "/home/diego/git/unix", "/home/diego/git/cloud", "/home/diego/git/front", "/home/diego/Downloads", "/mnt"] },
-        { "cell": "right", "app": "brave",   "url": "http://localhost:8000" }
+        { "cell": "left",  "app": "dolphin",     "args": ["/home/diego", "/home/diego/git/unix", "/home/diego/git/cloud", "/home/diego/git/front", "/home/diego/Downloads", "/mnt"] },
+        { "cell": "right", "app": "qutebrowser", "url": "http://localhost:8000" }
       ]
     },
     {

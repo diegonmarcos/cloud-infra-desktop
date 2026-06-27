@@ -49,6 +49,31 @@ QDBUS="$(command -v qdbus6 || command -v qdbus || true)"
 [ -n "$QDBUS" ] || { log "WARN: qdbus not found — will launch without KWin positioning"; DO_POSITION=0; }
 
 q(){ jq -r "$1" "$JSON"; }
+
+# ── Boot-type gate (data: .fallback.run_on) ────────────────────────────────
+# "fresh_only" → impose the fixed layout ONLY on a FRESH boot. The signal is
+# `noresume` on the kernel cmdline: rEFInd "NixOS - Fresh Desktop" carries it;
+# "NixOS - Primary" (restore) carries resume= instead. On the restore path a
+# successful hibernate resume brings the session back with NO new login (so
+# this launcher never even runs), and a cold-fall-through is left to KDE rather
+# than overwritten with the default layout. "always" = old behaviour.
+RUN_ON="$(q '.fallback.run_on // "always"')"
+if [ "$RUN_ON" = "fresh_only" ]; then
+  if [ -r /proc/cmdline ]; then
+    if grep -qw noresume /proc/cmdline; then
+      log "fresh boot (noresume on cmdline) — applying default 4-desktop layout"
+    else
+      log "restore boot (no noresume on cmdline) — leaving the session to resume/KDE; skipping default layout (run_on=fresh_only)"
+      exit 0
+    fi
+  else
+    # cmdline unreadable (should never happen in a real session — it is
+    # world-readable). Fail SAFE toward applying the layout: an empty desktop on
+    # a genuine fresh login is more disruptive than an extra layout pass.
+    log "cmdline unreadable — cannot detect boot type; applying default layout (fail-safe)"
+  fi
+fi
+
 TIMEOUT="$(q '.fallback.per_app_launch_timeout_sec // 25')"
 POS_PASSES="$(q '.fallback.position_passes // 10')"
 POS_INTERVAL="$(q '.fallback.position_interval_sec // 1.5')"
