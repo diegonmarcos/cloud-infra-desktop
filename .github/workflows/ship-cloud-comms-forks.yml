@@ -46,6 +46,7 @@ on:
           - mail
           - chat
           - matrix
+          - dialer
   push:
     branches: [main]
     paths:
@@ -62,13 +63,42 @@ permissions:
 
 env:
   WORK_DIR: ea_cloud-comms
-  FORK: ${{ inputs.fork || 'mail' }}
 
 jobs:
+  detect-forks:
+    name: "Detect which forks to build"
+    runs-on: ubuntu-latest
+    outputs:
+      forks: ${{ steps.detect.outputs.forks }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            FORK="${{ inputs.fork || 'mail' }}"
+            echo "forks=[\"$FORK\"]" >> $GITHUB_OUTPUT
+          else
+            changed=$(git diff --name-only HEAD~1 HEAD -- ea_cloud-comms/forks/ \
+              | sed 's|ea_cloud-comms/forks/||;s|/.*||' | sort -u \
+              | jq -R . | jq -sc .)
+            if [ -z "$changed" ] || [ "$changed" = "[]" ]; then
+              changed='["mail"]'
+            fi
+            echo "forks=$changed" >> $GITHUB_OUTPUT
+          fi
+
   build_and_publish_fork:
-    name: "Materialize + build + publish fork"
+    name: "Materialize + build + publish fork (${{ matrix.fork }})"
+    needs: detect-forks
+    strategy:
+      matrix:
+        fork: ${{ fromJson(needs.detect-forks.outputs.forks) }}
     runs-on: ubuntu-latest
     timeout-minutes: 60   # FairEmail is a ~3500-file build
+    env:
+      FORK: ${{ matrix.fork }}
 
     steps:
       - name: Checkout
@@ -132,8 +162,8 @@ jobs:
       - name: Upload fork APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cloud-comms-${{ env.FORK }}-${{ github.sha }}
-          path: ${{ env.WORK_DIR }}/dist/cloud-comms-${{ env.FORK }}.apk
+          name: cloud-comms-${{ matrix.fork }}-${{ github.sha }}
+          path: ${{ env.WORK_DIR }}/dist/cloud-comms-${{ matrix.fork }}.apk
           if-no-files-found: error
           retention-days: 30
 
