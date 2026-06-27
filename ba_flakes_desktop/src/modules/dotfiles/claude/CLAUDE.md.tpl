@@ -1,4 +1,3 @@
-# Diego's Master Context for Claude Agents
 
 ```
   ─────────────────────
@@ -31,30 +30,6 @@
 <!-- /INJECT -->
 
 ---
-
-## Table of Contents
-
-### OVERVIEW
-- [Repository Map — Philosophy · Stack · Ops](#repository-map--philosophy--stack--ops)
-
-### STACK
-- [A. UNIX (NixOS & System Configuration)](#section-a-unix-nixos--system-configuration)
-- [B. CLOUD INFRASTRUCTURE](#section-b-cloud-infrastructure)
-- [C. SECURITY & CREDENTIALS](#section-c-security--credentials)
-- [D. FRONT-END DEVELOPMENT](#section-d-front-end-development)
-- [E. OPS & BUILD SYSTEM](#section-e-ops--build-system)
-- [F. OTHERS (Quick Reference)](#section-f-others-quick-reference)
-
-### SKILLS & MCPs
-- [Skills](#skills)
-- [MCP: cloud-infra](#mcp-cloud-infra)
-- [APIs](#apis)
-
----
-
-# ████████████████████████████████████████████████████████████████████████████
-#               REPOSITORY MAP — Philosophy · Stack · Ops
-# ████████████████████████████████████████████████████████████████████████████
 
 Five git repos under `~/git/`. Same engine interface (`build.sh` + `build.json`) — different role.
 
@@ -149,15 +124,7 @@ Five git repos under `~/git/`. Same engine interface (`build.sh` + `build.json`)
 
 ---
 
-# ████████████████████████████████████████████████████████████████████████████
-#                                 STACK
-# ████████████████████████████████████████████████████████████████████████████
-
 ---
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SECTION A: UNIX (NixOS & System Configuration)
-# ══════════════════════════════════════════════════════════════════════════════
 
 > **Full documentation**: See `~/git/unix/README.md`
 
@@ -189,10 +156,6 @@ Five git repos under `~/git/`. Same engine interface (`build.sh` + `build.json`)
 - **Bootloader**: NixOS yields all bootloader management to `aa_bootloader/` (rEFInd primary, GRUB secondary). Run `aa_bootloader/build.sh deploy` after any flake change that affects boot.
 
 ---
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SECTION B: CLOUD INFRASTRUCTURE
-# ══════════════════════════════════════════════════════════════════════════════
 
 > **Full documentation**: See `~/git/cloud/README.md`. Paths / role overview in **Repo Map → CLOUD**.
 
@@ -237,10 +200,8 @@ SSH aliases: (generated from cloud-data at activation time).
 ## B.4 Bearer Token Auth (CLI Access)
 
 ```bash
-# Get token (interactive, opens browser for 2FA)
 python ~/git/vault/A0_keys/providers/authelia/oauth/get_token.py
 
-# Use token
 TOKEN=$(jq -r .access_token ~/git/vault/A0_keys/providers/authelia/oauth/authelia_tokens.json)
 curl -H "Authorization: Bearer $TOKEN" https://<service>.diegonmarcos.com/...
 ```
@@ -248,10 +209,6 @@ curl -H "Authorization: Bearer $TOKEN" https://<service>.diegonmarcos.com/...
 > Matomo hybrid toggle, IP change management, security stack details: See `~/git/cloud/README.md`
 
 ---
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SECTION C: SECURITY & CREDENTIALS
-# ══════════════════════════════════════════════════════════════════════════════
 
 ## C.1 Vault Repository
 
@@ -300,24 +257,16 @@ curl -H "Authorization: Bearer $TOKEN" https://<service>.diegonmarcos.com/...
 ## C.4 CLI Authentication
 
 ```bash
-# GitHub CLI
 gh auth status
 
-# Oracle Cloud CLI
 oci session authenticate
 
-# Google Cloud CLI
 gcloud auth login
 
-# Authelia bearer token (for Caddy-protected services)
 python ~/git/vault/A0_keys/providers/authelia/oauth/get_token.py
 ```
 
 ---
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SECTION D: FRONT-END DEVELOPMENT
-# ══════════════════════════════════════════════════════════════════════════════
 
 > **Full documentation**: See `~/git/front/README.md` and `~/git/front/1.ops/` for specs
 
@@ -395,10 +344,6 @@ _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
 ```
 
 ---
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SECTION E: OPS & BUILD SYSTEM
-# ══════════════════════════════════════════════════════════════════════════════
 
 ## ⚠️ CRITICAL: NIX WAY — ALWAYS FLAKES IN THE REPO ⚠️
 
@@ -494,25 +439,6 @@ This ensures consistent context loading and access to CLAUDE.md instructions.
 
 Commit-time: `1_workflows/src/hooks/pre-commit` blocks gitignored files from staging.
 
-## E.2 Dependency Verification (CRITICAL)
-
-**ALWAYS check and install ALL dependencies before declaring a feature complete.**
-
-1. **Research dependencies FIRST** - Check official docs, package info
-2. **Check runtime dependencies** - Not just build deps
-3. **Test ALL features** - Don't just check "it launches"
-4. **Verify helper scripts work** - TEST THEM
-5. **Document dependencies** - Add comments explaining WHY
-
-```bash
-# Check package dependencies
-pacman -Qi <package>        # Arch/NixOS
-apt depends <package>       # Debian
-rpm -qR <package>           # RPM-based
-```
-
-**NEVER remove a feature because dependencies are missing - FIX THE DEPENDENCIES.**
-
 ## E.3 Operational Gotchas
 
 > Hard-won lessons. Surfaced from auto-memory so each new session inherits them — don't re-discover.
@@ -553,10 +479,6 @@ rpm -qR <package>           # RPM-based
 
 ---
 
-# ══════════════════════════════════════════════════════════════════════════════
-# SECTION F: OTHERS (Quick Reference)
-# ══════════════════════════════════════════════════════════════════════════════
-
 ## F.1 Repo directory trees
 
 Use MCP `knowledge_inventory_list_directory` (or `find ~/git/<repo> -maxdepth 4 -type d`) — trees omitted here to keep CLAUDE.md under the 40k-char context limit.
@@ -568,22 +490,16 @@ Use MCP `knowledge_inventory_list_directory` (or `find ~/git/<repo> -maxdepth 4 
 
 ## F.3 Behavioral rules for Claude
 
-> Conventions reinforced across sessions. Code-derivable rules live in the relevant section; this list captures meta-rules about *how to operate*.
-
-1. **"Explain" / "how does it work" / "what is" are READ-ONLY.** Describe; do not edit, refactor, or "improve" while explaining. Opinions ≠ orders.
-2. **No unnecessary deploys.** Never `ship` a service that isn't explicitly in scope — causes container conflicts and downtime.
-3. **Profile ≠ fallback.** Deployment profiles (`CLOUD_PROFILE=<name> build.sh profile-ship`) are a generic topology system. Never frame as DR / fallback / "backup VM".
-4. **Read specs first.** Before modifying any project, read its `README.md` / `1.ops/` spec / `build.json`.
-5. **`cloud-data` is the source of truth** for cloud infrastructure (auto-injected into B.1 / B.3).
-6. **Search ALL keys** when querying JSON data — never cherry-pick a section.
-7. **After source edits → `build.sh build`** automatically. Never `dev` / `serve` unless the user explicitly asks.
-8. **Ask, don't assume.** If intent, architecture, or requirements are unclear, ASK before writing a line. No silent guesses about scope, placement, or wiring — clarify first, code second.
+1. **"Explain" / "how does it work" / "what is" are READ-ONLY.** Describe; do not edit while explaining. Opinions ≠ orders.
+2. **No unnecessary deploys.** Never `ship` a service not explicitly in scope.
+3. **Profile ≠ fallback.** `CLOUD_PROFILE=<name> build.sh profile-ship` is generic topology, never DR/fallback.
+4. **Read specs first.** `README.md` / `1.ops/` spec / `build.json` before any edit.
+5. **`cloud-data` is the source of truth** for infra (auto-injected into B.1/B.3).
+6. **Search ALL keys** when querying JSON — never cherry-pick a section.
+7. **After source edits → `build.sh build`** automatically. Never `dev`/`serve` unless asked.
+8. **Ask, don't assume.** Clarify intent/architecture before writing any code.
 
 ---
-
-# ████████████████████████████████████████████████████████████████████████████
-#                           SKILLS & MCPs
-# ████████████████████████████████████████████████████████████████████████████
 
 > **READ vs EXEC split** — three MCPs, three roles:
 > - **`code-graph-context`** (stdio) — *READ* layer: infra knowledge graph, semantic code search, docs
@@ -680,25 +596,6 @@ Use MCP `knowledge_inventory_list_directory` (or `find ~/git/<repo> -maxdepth 4 
 **70 Tools** · **9 Resources** (`cloud://config`, `cloud://ssh-config`, `cloud://services-overview`, `cloud://readme`, `cloud://front-projects`, `cloud://c3-api-endpoints`, `cloud://service-apis`, `cloud://services/{name}`, `cloud://vms/{vm_id}`) · **4 Prompts** (`cloud-architect`, `frontend-developer`, `debug-ops`, `crawlee-scraping`)
 
 **Runtime**: `npx tsx` (primary) or Podman/Docker container (fallback)
-
-### Tool Modules
-
-```
-src/mcp/tools/
-├── infra.ts              # 4 tools — VM/service config introspection
-├── repo.ts               # 3 tools — cross-repo file read/search
-├── build.ts              # 2 tools — nix build pipeline
-├── ssh-tools.ts          # 2 tools — SSH exec, VM health check
-├── docker.ts             # 4 tools — container ops via SSH
-├── native-ops.ts         # 4 tools — build_ship, docker build, secrets, backup
-├── health.ts             # 11 tools — health dashboard, profiling, API discovery
-├── control.ts            # 8 tools — VM/container/service lifecycle
-├── discovery.ts          # 1 tool  — generic service API proxy
-├── cloud.ts              # 7 tools — OCI + GCP cloud operations
-├── c3.ts                 # 14 tools — topology, tests, files, tiered health
-├── crawlee.ts            # 7 tools — Crawlee Cloud scraping
-└── front.ts              # 5 tools — front-end monorepo ops
-```
 
 ## APIs
 
