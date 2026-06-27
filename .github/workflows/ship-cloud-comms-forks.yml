@@ -106,22 +106,31 @@ jobs:
           java-version: "17"   # exactly what upstream FairEmail CI uses
           cache: gradle
 
-      # Same constellation keystore as ship-cloud-comms.yml — decoded from the
-      # CLOUD_COMMS_KEYSTORE_B64 GitHub secret. NEVER use actions/cache for
-      # signing keys: 7-day TTL eviction generates a new random key on miss,
-      # which breaks all installed apps (STATUS_FAILURE_CONFLICT).
-      - name: Restore constellation keystore from secret
-        run: |
-          mkdir -p "${{ env.WORK_DIR }}/hub/keystores"
-          printf '%s' "${{ secrets.CLOUD_COMMS_KEYSTORE_B64 }}" \
-            | base64 -d > "${{ env.WORK_DIR }}/hub/keystores/comms.keystore"
+      # ── ONE shared Cloud-constellation signing key (vault) ──────────────
+      # Same key + mechanism as ship-cloud-comms.yml: EVERY Android app (hub +
+      # all forks + Nav / IDE / SuperApp) signs with the single vault key
+      # (release.jks, OU=Cloud Constellation). The raw keystore + sops-encrypted
+      # passwords live ONLY in the private vault repo. build.sh::_resolve_signing
+      # reads $VAULT_DIR + sops-decrypts (SOPS_AGE_KEY) and exports
+      # ANDROID_KEYSTORE_* which the fork's gradle signingConfig reads. NO
+      # fallback: if the key is unavailable build.sh exits 1 (desired).
+      - name: Checkout vault (shared Android signing key)
+        uses: actions/checkout@v4
+        with:
+          repository: diegonmarcos/vault
+          token: ${{ secrets.ANDROID_SIGNING_VAULT_TOKEN }}
+          path: .vault
 
-      - name: Install ORAS + jq
+      - name: Install ORAS + sops + jq
         run: |
           sudo apt-get update -y && sudo apt-get install -y jq
           curl -fsSL https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz \
             | sudo tar -C /usr/local/bin -xzf - oras
           oras version
+          curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 \
+            | sudo tee /usr/local/bin/sops >/dev/null
+          sudo chmod +x /usr/local/bin/sops
+          sops --version
 
       - name: Materialize fork (clone @ pin + patch series)
         working-directory: ${{ env.WORK_DIR }}
@@ -135,6 +144,9 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          # Shared Cloud-constellation signing key (vault checkout above).
+          VAULT_DIR: ${{ github.workspace }}/.vault
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
           ./build.sh build-fork "$FORK"
           ls -la dist/

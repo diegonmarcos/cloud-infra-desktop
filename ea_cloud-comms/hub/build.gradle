@@ -220,22 +220,21 @@ android {
     // Stable signing — the WHOLE constellation (hub + 3 forks + SuperApp) must
     // share ONE key: the IPC permission is protectionLevel=signature, and the
     // fleet updater can only install an update over an app signed with the same
-    // key. Keystore generated once in CI (cached) at hub/keystores/comms.keystore.
+    // key. The ONE shared key lives in the vault (release.jks + signing.secrets.yaml);
+    // build.sh::_resolve_signing exports ANDROID_KEYSTORE_* (CI via vault checkout
+    // + SOPS_AGE_KEY). THERE IS NO FALLBACK — no legacy keystore, no genkeypair.
     signingConfigs {
         debug {
-            // Shared Cloud-constellation key from vault (build.sh exports
-            // ANDROID_KEYSTORE_*; CI via vault checkout + SOPS_AGE_KEY). Same
-            // key across all constellation apps so the fleet updater can install
-            // updates. Falls back to the legacy comms keystore for local dev.
+            // Resolve ONLY from the env exported by build.sh::_resolve_signing.
+            // Empty/missing → FAIL LOUD; never silently debug-sign or generate a key.
             def envStore = System.getenv("ANDROID_KEYSTORE_FILE")
-            def legacy   = file('keystores/comms.keystore')
-            def ks = (envStore != null && !envStore.isEmpty() && file(envStore).exists()) ? file(envStore) : legacy
-            if (ks.exists()) {
-                storeFile     ks
-                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: 'android'
-                keyAlias      System.getenv("ANDROID_KEY_ALIAS")         ?: 'commskey'
-                keyPassword   System.getenv("ANDROID_KEY_PASSWORD")      ?: 'android'
+            if (envStore == null || envStore.isEmpty() || !file(envStore).exists()) {
+                throw new GradleException("ONE shared constellation key required; run via build.sh / set ANDROID_KEYSTORE_FILE; no fallback")
             }
+            storeFile     file(envStore)
+            storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias      System.getenv("ANDROID_KEY_ALIAS")
+            keyPassword   System.getenv("ANDROID_KEY_PASSWORD") ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
         }
     }
 
