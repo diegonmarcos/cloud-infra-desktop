@@ -106,21 +106,23 @@ in
   # ═══════════════════════════════════════════════════════════════════════════
   # EARLYOOM: last resort OOM killer (RR scheduler)
   # ═══════════════════════════════════════════════════════════════════════════
+  # earlyoom — deep backstop beneath systemd-oomd. Data-driven (sysprot.earlyoom).
+  # EVIDENCE FIX (2026-06-27): the frozen system's live earlyoom (-s 5,3) only fired
+  # when free-swap <= 5%, which NEVER happens with 20G swap → it never fired at all.
+  # free_swap=100 removes that gate so earlyoom fires on LOW MEMORY alone. `nix` is
+  # also no longer in --avoid (was the other reason a runaway build was never killed).
   services.earlyoom = {
     enable = true;
-    # 5/3% thresholds (was 10/5): nix-daemon now has MemorySwapMax as the
-    # real anti-freeze guard — earlyoom only fires at genuine crisis.
-    freeMemThreshold = 5;
-    freeSwapThreshold = 5;
-    freeMemKillThreshold = 3;
-    freeSwapKillThreshold = 3;
+    freeMemThreshold = sysprot.earlyoom.free_mem;
+    freeSwapThreshold = sysprot.earlyoom.free_swap;          # 100 = swap-gate removed → fire on mem alone
+    freeMemKillThreshold = sysprot.earlyoom.free_mem_kill;
+    freeSwapKillThreshold = sysprot.earlyoom.free_swap_kill; # 100 = swap-gate removed
     enableNotifications = true;
     reportInterval = 0;
     extraArgs = [
-      # nix-daemon removed from prefer: cgroup MemorySwapMax protects the machine.
       "--prefer" "^(brave|firefox|chromium|electron)$"
       "--avoid" "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus)$"
-    # nix deliberately REMOVED from --avoid — earlyoom must be able to kill runaway nix-daemon
+    # nix deliberately NOT in --avoid — earlyoom must be able to kill a runaway nix build
     ];
   };
 
@@ -164,7 +166,19 @@ in
     enableRootSlice = true;
     enableSystemSlice = true;
     enableUserSlices = true;
+    extraConfig = {
+      DefaultMemoryPressureDurationSec = sysprot.oomd.duration;
+      SwapUsedLimit = sysprot.oomd.SwapUsedLimit;
+    };
   };
+
+  # CRITICAL OVERRIDE: enable*Slice above sets ManagedOOMMemoryPressure=kill but with
+  # an 80% default limit — ABOVE the 65% memory-pressure stall the freezes actually hit,
+  # so it would never fire. Override the limit on every oomd-managed slice to the
+  # evidence-based value (sysprot.oomd.pressure_limit = 50%). PSI is swap-independent,
+  # so the 20G swap can no longer mask the stall.
+  systemd.slices."-".sliceConfig.ManagedOOMMemoryPressureLimit = sysprot.oomd.pressure_limit;
+  systemd.slices."system".sliceConfig.ManagedOOMMemoryPressureLimit = sysprot.oomd.pressure_limit;
 
   # ═══════════════════════════════════════════════════════════════════════════
   # FREEZE-GUARD: layer 3 — active PSI killer in the untouchable island
@@ -296,10 +310,13 @@ in
   # DESKTOP TIER: machine.slice (containers)
   # ═══════════════════════════════════════════════════════════════════════════
 
-  # user.slice — top-level user slice beats Docker/containers under CPU contention
+  # user.slice — top-level user slice beats Docker/containers under CPU contention.
+  # Also carries the oomd PSI-kill limit override (the desktop session is where the
+  # observed 65% memory-pressure freeze lived — oomd kills the worst app at 50%).
   systemd.slices."user" = {
     sliceConfig = {
       CPUWeight = 200;  # user sessions (KDE + apps) 4× priority over Docker at root level
+      ManagedOOMMemoryPressureLimit = sysprot.oomd.pressure_limit;  # override oomd's 80% default → 50%
     };
   };
 

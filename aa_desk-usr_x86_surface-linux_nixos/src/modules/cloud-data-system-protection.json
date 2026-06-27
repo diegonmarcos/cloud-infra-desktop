@@ -35,11 +35,19 @@
   },
 
   "oomd": {
-    "_comment": "systemd-oomd — PSI-aware proactive killer (kills before the kernel OOM does). enableUserSlices/SystemSlice/RootSlice set ManagedOOMMemoryPressure=kill on the standard slices. DefaultMemoryPressureLimit = % sustained memory pressure that triggers a kill; SwapUsedLimit = % of swap (zram) used that triggers a swap-based kill (very effective with swappiness=150).",
+    "_comment": "systemd-oomd — PSI-aware proactive killer, THE evidence-based fix. The 2026-06-27 forensics (psi-recorder) showed the freezes were user.slice memory.pressure full-avg10 sustained at 62-68% for MINUTES with memory.events oom_kill=0 — the kernel throttled at MemoryHigh and swapped into 20G of swap forever while NOTHING ever killed. enable*Slice turns oomd on for -.slice/system.slice/user.slice, but its built-in default limit is 80% — ABOVE the 65% freeze, so it would never fire. pressure_limit OVERRIDES that to a value below the observed stall so oomd kills the worst cgroup BEFORE the machine locks. PSI is swap-independent, so 20G of swap cannot mask it. duration = sustained-seconds before the kill.",
     "enable": true,
-    "DefaultMemoryPressureLimit": "60%",
-    "DefaultMemoryPressureDurationSec": "10s",
+    "pressure_limit": "50%",
+    "duration": "15s",
     "SwapUsedLimit": "90%"
+  },
+
+  "earlyoom": {
+    "_comment": "earlyoom — deep backstop beneath oomd. Two bugs made it useless on the frozen system (confirmed from live /proc cmdline): (1) it listed 'nix' in --avoid so it would never kill a runaway build; the module source already drops nix. (2) it only fires when free mem <= mem_pct AND free swap <= swap_pct — and with 20G of swap, swap-free never reaches 5%, so it NEVER fired. free_swap/free_swap_kill=100 removes the swap gate entirely → earlyoom fires on memory alone as a last resort if oomd somehow misses.",
+    "free_mem": 5,
+    "free_mem_kill": 3,
+    "free_swap": 100,
+    "free_swap_kill": 100
   },
 
   "sysctl": {
