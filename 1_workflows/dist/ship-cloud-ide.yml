@@ -100,37 +100,23 @@ jobs:
           # with Gradle 9.x's strict configuration cache.
           gradle-version: "8.10.2"
 
-      # ── Stable signing keystore (cached forever) ────────────────────
-      # The WHOLE constellation (hub + 3 forks + Cloud-SuperApp + Cloud-Comms)
-      # must share ONE signature: the IPC permission is protectionLevel=signature.
-      # Android also refuses to install an APK as an update of one signed by a
-      # different key, so the in-app updater needs a stable signature too. Cache
-      # the keystore so every CI build is signed identically. Matches
-      # hub/build.gradle's signingConfigs.debug (keystores/ide.keystore, idekey).
-      # ── Signing key: ALWAYS the cached per-app keystore (above) ─────────
-      # The shared-vault-key path was REMOVED 2026-06-24 (it published the wrong
-      # OU=Cloud Constellation key whenever the vault secrets existed, poisoning
-      # GHCR + breaking installs). Cloud-IDE signs only with its own cached
-      # keystore (OU=Cloud-IDE). Do NOT re-introduce a vault/shared-key path.
-
-      - name: Restore signing keystore from cache
-        id: keystore-cache
-        uses: actions/cache@v4
+      # ── ONE shared Cloud-constellation signing key (vault) ──────────────
+      # The WHOLE constellation (hub + 3 forks + Cloud-SuperApp + Cloud-Comms +
+      # Cloud-Nav) must share ONE signature: the IPC permission is
+      # protectionLevel=signature, and the in-app updater rejects updates signed
+      # by a different key. The raw keystore + its sops-encrypted passwords live
+      # ONLY in the private vault repo (A0_keys/providers/android/release.jks +
+      # signing.secrets.yaml). build.sh::_resolve_signing reads $VAULT_DIR +
+      # sops-decrypts (SOPS_AGE_KEY) and exports ANDROID_KEYSTORE_* for gradle.
+      # NO fallback: if the key is unavailable build.sh exits 1 (desired).
+      - name: Checkout vault (shared Android signing key)
+        uses: actions/checkout@v4
         with:
-          path: ${{ env.WORK_DIR }}/hub/keystores/ide.keystore
-          key: cloud-ide-keystore-v1
-      - name: Generate keystore (first run only)
-        if: steps.keystore-cache.outputs.cache-hit != 'true'
-        working-directory: ${{ env.WORK_DIR }}
-        run: |
-          mkdir -p hub/keystores
-          keytool -genkeypair -keystore hub/keystores/ide.keystore \
-            -storepass android -keypass android -alias idekey \
-            -dname "CN=Diego Marcos, OU=Cloud-IDE, O=diegonmarcos.com, L=Madrid, ST=Madrid, C=ES" \
-            -keyalg RSA -keysize 2048 -validity 10950
-          echo "Generated new keystore — cached as cloud-ide-keystore-v1"
+          repository: diegonmarcos/vault
+          token: ${{ secrets.ANDROID_SIGNING_VAULT_TOKEN }}
+          path: .vault
 
-      - name: Install ORAS + gh CLI + jq
+      - name: Install ORAS + sops + gh CLI + jq
         run: |
           sudo apt-get update -y
           sudo apt-get install -y jq
@@ -138,6 +124,10 @@ jobs:
           curl -fsSL https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz \
             | sudo tar -C /usr/local/bin -xzf - oras
           oras version
+          curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 \
+            | sudo tee /usr/local/bin/sops >/dev/null
+          sudo chmod +x /usr/local/bin/sops
+          sops --version
 
       - name: Determine variant
         id: variant
@@ -156,6 +146,9 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          # Shared Cloud-constellation signing key (vault checkout above).
+          VAULT_DIR: ${{ github.workspace }}/.vault
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
           chmod +x build.sh
           if [ "${{ steps.variant.outputs.variant }}" = "release" ]; then

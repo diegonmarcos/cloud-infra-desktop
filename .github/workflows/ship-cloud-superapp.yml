@@ -121,47 +121,24 @@ jobs:
           # Compose-compiler plugin). Mirrors HeliBoard main's wrapper.
           gradle-version: "8.14"
 
-      # ── Stable debug keystore (cached forever) ──────────────────────
-      # Android refuses to install an APK as an update of a previously-
-      # installed APK signed by a different key. Each fresh GHA runner
-      # auto-generates ~/.android/debug.keystore with a fresh RSA key →
-      # every CI build had a different signature → in-app updater would
-      # download the new APK but PackageInstaller would silently reject
-      # the install. Cache the keystore so it survives across runs.
-      # Cache key is fixed → first run generates, all subsequent runs
-      # restore from cache → consistent signature → updates work.
-      # ── Signing key: ALWAYS the cached per-app keystore (above) ─────────
-      # The shared-vault-key path was REMOVED 2026-06-24. It let the wrong key
-      # (vault `cloud-constellation`, OU=Cloud Constellation) be published the
-      # instant the ANDROID_SIGNING_VAULT_TOKEN + SOPS_AGE_KEY secrets existed,
-      # which poisoned GHCR `:latest` and broke installs on every device (the
-      # in-app updater rejects an update signed by a different key). Each app
-      # signs with its OWN stable cached keystore (OU=Cloud SuperApp here) and
-      # NOTHING may change that. Do NOT re-introduce a vault/shared-key path.
-
-      - name: Restore signing keystore from cache
-        id: keystore-cache
-        uses: actions/cache@v4
+      # ── ONE shared Cloud-constellation signing key (vault) ──────────────
+      # ALL constellation apps (Cloud-Comms hub+forks, Cloud-Nav, Cloud-IDE,
+      # Cloud-SuperApp) sign with the SAME key so cross-app signature-IPC + the
+      # in-app fleet updater never hit a signature mismatch. The raw keystore +
+      # its sops-encrypted passwords live ONLY in the private vault repo:
+      #   A0_keys/providers/android/release.jks (OU=Cloud Constellation)
+      #   A0_keys/providers/android/signing.secrets.yaml
+      # build.sh::_resolve_signing reads $VAULT_DIR + sops-decrypts (SOPS_AGE_KEY)
+      # and exports ANDROID_KEYSTORE_* which the gradle signingConfig reads.
+      # NO fallback: if the key is unavailable build.sh exits 1 (desired).
+      - name: Checkout vault (shared Android signing key)
+        uses: actions/checkout@v4
         with:
-          path: ${{ env.WORK_DIR }}/app/keystores/debug.keystore
-          # Bumped to v2 with a proper Spanish dname so the installer dialog
-          # shows "Diego Marcos / Cloud SuperApp / diegonmarcos.com" instead
-          # of "Desconocido". Cache-key bump forces a fresh keystore gen on
-          # this run; future runs reuse it. One-time uninstall+reinstall
-          # required on-device because the signing key changes.
-          key: cloud-superapp-keystore-v2
-      - name: Generate debug keystore (first run only)
-        if: steps.keystore-cache.outputs.cache-hit != 'true'
-        working-directory: ${{ env.WORK_DIR }}
-        run: |
-          mkdir -p app/keystores
-          keytool -genkeypair -keystore app/keystores/debug.keystore \
-            -storepass android -keypass android -alias androiddebugkey \
-            -dname "CN=Diego Marcos, OU=Cloud SuperApp, O=diegonmarcos.com, L=Madrid, ST=Madrid, C=ES" \
-            -keyalg RSA -keysize 2048 -validity 10950
-          echo "Generated new keystore — cached as cloud-superapp-keystore-v2"
+          repository: diegonmarcos/vault
+          token: ${{ secrets.ANDROID_SIGNING_VAULT_TOKEN }}
+          path: .vault
 
-      - name: Install ORAS + gh CLI + jq
+      - name: Install ORAS + sops + gh CLI + jq
         run: |
           sudo apt-get update -y
           sudo apt-get install -y jq
@@ -171,6 +148,11 @@ jobs:
           curl -fsSL https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz \
             | sudo tar -C /usr/local/bin -xzf - oras
           oras version
+          # sops — build.sh::_resolve_signing needs it to decrypt the shared key.
+          curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 \
+            | sudo tee /usr/local/bin/sops >/dev/null
+          sudo chmod +x /usr/local/bin/sops
+          sops --version
 
       - name: Determine variant
         id: variant
@@ -192,6 +174,9 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          # Shared Cloud-constellation signing key (vault checkout above).
+          VAULT_DIR: ${{ github.workspace }}/.vault
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
           # SUPERAPP_VARIANT selects the ABI variant (build.json::release
           # .variants[].id) → engine overrides ABI filter + artifact name.
           SUPERAPP_VARIANT: ${{ matrix.abi }}
