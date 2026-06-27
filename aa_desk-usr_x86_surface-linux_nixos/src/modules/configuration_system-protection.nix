@@ -48,6 +48,11 @@ let
   ramMB = 8192;   # 8GB RAM
   rescuePort = 2200;
 
+  # ── Data-driven freeze-proof policy ────────────────────────────────────
+  # Single source of truth, ALSO read by build.sh (_apply_daemon_caps) so the
+  # caps are enforced both at boot (here) and live before every build (engine).
+  sysprot = builtins.fromJSON (builtins.readFile ./cloud-data-system-protection.json);
+
   # ── Slice budgets (scaled by core count) ───────────────────────────────
   workloadCpuQuota = "${toString (cpus * 75)}%";     # 600%
   osEssentialsCpuQuota = "${toString (cpus * 95)}%";  # 760%
@@ -82,13 +87,10 @@ in
   # ═══════════════════════════════════════════════════════════════════════════
   # KERNEL SYSCTL
   # ═══════════════════════════════════════════════════════════════════════════
-  boot.kernel.sysctl = {
-    "vm.min_free_kbytes" = 262144;         # 256MB kernel reserve
-    "vm.swappiness" = 150;                 # zram: prefer compressed swap
-    "vm.dirty_ratio" = 10;
-    "vm.dirty_background_ratio" = 5;
-    "vm.watermark_scale_factor" = 500;
-  };
+  # Data-driven (cloud-data-system-protection.json → sysprot.sysctl): lower dirty
+  # ratios flush writeback in small batches (no NVMe iowait burst), vfs_cache_pressure<100
+  # keeps metadata cached, swappiness 150 prefers zram over the disk swapfile.
+  boot.kernel.sysctl = sysprot.sysctl;
 
   # ═══════════════════════════════════════════════════════════════════════════
   # ZRAM: compressed swap in RAM (NixOS-only — HM can't write /etc/systemd/)
@@ -123,13 +125,105 @@ in
   };
 
   systemd.services.earlyoom.serviceConfig = {
+    Slice = "connectivity.slice";          # the untouchable island
     CPUSchedulingPolicy = "rr";
     CPUSchedulingPriority = 1;
-    IOSchedulingClass = "best-effort";
+    IOSchedulingClass = "realtime";        # always gets the NVMe queue
     IOSchedulingPriority = 0;
-    OOMScoreAdjust = lib.mkForce (-999);
+    OOMScoreAdjust = lib.mkForce (-1000);  # never killed
     OOMPolicy = "continue";
+    MemoryMin = sysprot.reservation.memory_min;
     Nice = -20;
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # IDENTITY TIER: root-watchdog (dedicated user, untouchable)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # The user asked for identity-level separation above plain root. root-watchdog
+  # is a dedicated SYSTEM user that owns the freeze-guard killer. It holds ONLY
+  # the caps it needs (kill any process; read any /proc) — not full root — yet
+  # sits in the untouchable island so it can ALWAYS act.
+  # (root-sys-essentials is realized as the connectivity.slice ISLAND, not a
+  # Linux user: dbus/NetworkManager/sddm/logind are hardwired to their own
+  # identities and break if reassigned — the slice gives them the protection.)
+  users.groups.root-watchdog = { };
+  users.users.root-watchdog = {
+    isSystemUser = true;
+    group = "root-watchdog";
+    description = "Freeze-guard watchdog identity — untouchable tier (kills runaways, never killed)";
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SYSTEMD-OOMD: PSI-aware proactive killer (layer 2, atop earlyoom)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Kills on sustained PSI memory pressure + high swap (zram) usage BEFORE the
+  # kernel OOM does. enable*Slice sets ManagedOOMMemoryPressure=kill on the
+  # standard slices (defaults: pressure 60% / swap 90%).
+  systemd.oomd = {
+    enable = sysprot.oomd.enable;
+    enableRootSlice = true;
+    enableSystemSlice = true;
+    enableUserSlices = true;
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FREEZE-GUARD: layer 3 — active PSI killer in the untouchable island
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Runs as root-watchdog (CAP_KILL only). Every interval it reads
+  # /proc/pressure/{memory,io}; if 'full avg10' (% of last 10s ALL tasks stalled)
+  # exceeds the limit, it SIGKILLs the biggest hog (preferring compilers/browsers,
+  # never an essential). RT CPU + realtime IO + OOMScoreAdjust=-1000 + reserved
+  # RAM = it can always run, even when everything else is starved.
+  systemd.services."freeze-guard" = lib.mkIf sysprot.watchdog.enabled {
+    description = "Freeze-guard — PSI watchdog, kills runaways before the desktop locks up";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "sysinit.target" ];
+    path = with pkgs; [ coreutils procps gnugrep gawk ];
+    serviceConfig = {
+      User = "root-watchdog";
+      Group = "root-watchdog";
+      AmbientCapabilities = [ "CAP_KILL" "CAP_DAC_READ_SEARCH" ];
+      CapabilityBoundingSet = [ "CAP_KILL" "CAP_DAC_READ_SEARCH" ];
+      Slice = "connectivity.slice";
+      Type = "simple";
+      Restart = "always";
+      RestartSec = 2;
+      CPUSchedulingPolicy = "fifo";
+      CPUSchedulingPriority = 1;
+      IOSchedulingClass = "realtime";
+      IOSchedulingPriority = 0;
+      OOMScoreAdjust = -1000;
+      MemoryMin = sysprot.reservation.memory_min;
+      Nice = -20;
+    };
+    script = ''
+      MEM_LIMIT=${toString sysprot.watchdog.mem_pressure_full_avg10}
+      IO_LIMIT=${toString sysprot.watchdog.io_pressure_full_avg10}
+      INTERVAL=${toString sysprot.watchdog.interval_sec}
+      PREFER="${lib.concatStringsSep "|" sysprot.watchdog.prefer_kill}"
+      AVOID="${sysprot.watchdog.avoid_kill}"
+
+      psi_full_avg10() {
+        awk '/^full/ { for (i=1;i<=NF;i++) if ($i ~ /^avg10=/) { sub(/avg10=/,"",$i); print $i } }' "/proc/pressure/$1" 2>/dev/null
+      }
+
+      echo "[freeze-guard] online as $(id -un); trigger memPSI>$MEM_LIMIT or ioPSI>$IO_LIMIT (full avg10)"
+      while :; do
+        mem=$(psi_full_avg10 memory); mem=''${mem:-0}
+        io=$(psi_full_avg10 io);      io=''${io:-0}
+        if awk "BEGIN { exit !($mem+0 > $MEM_LIMIT || $io+0 > $IO_LIMIT) }"; then
+          line=$(ps -eo pid=,rss=,comm= --sort=-rss | grep -E -- "$PREFER" | grep -E -v -- "$AVOID" | head -n1)
+          [ -z "$line" ] && line=$(ps -eo pid=,rss=,comm= --sort=-rss | grep -E -v -- "$AVOID" | head -n1)
+          set -- $line
+          pid="$1"; rss="$2"; name="$3"
+          if [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null; then
+            echo "[freeze-guard] FREEZE-RISK memPSI=$mem ioPSI=$io → SIGKILL pid=$pid rss=''${rss}kB ($name)"
+            kill -9 "$pid" 2>/dev/null || true
+          fi
+        fi
+        sleep "$INTERVAL"
+      done
+    '';
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -149,14 +243,17 @@ in
     };
   };
 
-  # connectivity.slice — sub-slice of os-essentials for SSH/VPN
+  # connectivity.slice — THE UNTOUCHABLE ISLAND (root-sys-essentials tier).
+  # Hosts the killers (freeze-guard, earlyoom) + the mesh (sshd, rescue-ssh).
+  # Guaranteed RAM (MemoryMin/Low), top CPU weight, top IO weight — so it can
+  # ALWAYS run and ALWAYS kill whatever overwhelms the rest of the box.
   systemd.slices."connectivity" = {
-    description = "Protected connectivity — SSH, Dropbear";
+    description = "UNTOUCHABLE island — killers (freeze-guard, earlyoom) + mesh (SSH, Dropbear)";
     sliceConfig = {
-      MemoryMin = "200M";
-      MemoryLow = "200M";
-      CPUWeight = 10000;
-      IOWeight = 1000;
+      MemoryMin = sysprot.reservation.memory_min;
+      MemoryLow = sysprot.reservation.memory_min;
+      CPUWeight = sysprot.reservation.cpu_weight;
+      IOWeight = sysprot.reservation.io_weight;
     };
   };
 
@@ -179,7 +276,7 @@ in
       CPUQuota = userCpuQuota;
       MemoryHigh = userMemHigh;
       MemoryMax = userMemMax;
-      MemoryMin = userMemMin;   # reserved RAM — never reclaimed for a build (anti-freeze)
+      MemoryMin = sysprot.gui_session.MemoryMin;   # reserved RAM — never reclaimed for a build (anti-freeze)
       IOWeight = 500;           # desktop I/O strongly preempts background/build I/O
     };
   };
@@ -233,13 +330,16 @@ in
     Nice = -20;
   };
 
-  # nix-daemon — workload.slice, capped
+  # nix-daemon — workload.slice, capped (THE build worker; cc1plus/rustc are its
+  # cgroup children, so this caps the whole build subtree). Values from JSON;
+  # build.sh re-applies them LIVE before every build (switch alone doesn't re-cap
+  # the already-running daemon → the drift that froze the box 10×).
   systemd.services.nix-daemon.serviceConfig = {
     Slice = "workload.slice";
-    MemoryMax = nixMemMax;
-    MemoryHigh = nixMemHigh;
-    MemorySwapMax = nixMemSwapMax;  # bound disk-swap spill so swap-out I/O can't freeze the desktop
-    CPUQuota = nixDaemonCpuQuota;
+    MemoryMax = sysprot.nix_daemon.MemoryMax;
+    MemoryHigh = sysprot.nix_daemon.MemoryHigh;
+    MemorySwapMax = sysprot.nix_daemon.MemorySwapMax;  # "0" = NO swap → OOM-kill a build job instead of disk-thrash freeze
+    CPUQuota = sysprot.nix_daemon.CPUQuota;
     OOMScoreAdjust = 250;
     IOWeight = 20;                  # lowest — builds yield disk I/O to everything else
     Nice = 10;

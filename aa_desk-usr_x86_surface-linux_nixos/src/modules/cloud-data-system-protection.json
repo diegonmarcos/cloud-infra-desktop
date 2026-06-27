@@ -1,0 +1,120 @@
+{
+  "_comment": "Freeze-proof system-protection policy — single source of truth, consumed by BOTH configuration_system-protection.nix (builtins.fromJSON, boot-time enforcement) AND build.sh (_apply_daemon_caps, live enforcement before every nix build). Hardware: Surface Pro 8, 8 logical CPUs, 8GB RAM, NVMe (none scheduler), zram swap + disk hibernate swapfile. The machine froze 10x because nix builds (running inside nix-daemon, NOT the client) ballooned RAM and thrashed pages to the disk swapfile. The fix layers: (1) nix-daemon hard-capped with MemorySwapMax=0 so a runaway build OOM-kills a compile job instead of swap-thrashing; (2) the GUI session gets guaranteed unreclaimable RAM; (3) an UNTOUCHABLE ISLAND (reserved RAM + realtime CPU + realtime IO) hosts the killers (freeze-guard + earlyoom) and the mesh (sshd/rescue) so they can ALWAYS act even when everything else is starved; (4) systemd-oomd (PSI) + earlyoom (threshold) + freeze-guard (PSI active killer) = triple-layer defense.",
+  "version": 1,
+
+  "nix_daemon": {
+    "_comment": "Hard caps on nix-daemon.service — the ACTUAL build worker (cc1plus/rustc/ld run as its cgroup children). MemorySwapMax=0 = the build subtree can NEVER swap (not zram, not the disk swapfile) → the kernel OOM-kills one compile job instead of thrashing the disk → the desktop never freezes. cgroup v2 memory.max on the parent caps the whole subtree. Applied LIVE before every build by build.sh because 'nixos-rebuild switch' reloads unit files but does NOT re-apply resource control to the already-running daemon (this drift left the live daemon at 6G/4G-swap and caused the freezes).",
+    "MemoryHigh": "2500M",
+    "MemoryMax": "3500M",
+    "MemorySwapMax": "0",
+    "CPUQuota": "200%"
+  },
+
+  "gui_session": {
+    "_comment": "user-1000.slice (the KDE Plasma desktop). MemoryMin = RAM the kernel is FORBIDDEN to reclaim, so the compositor (kwin/plasmashell) stays responsive under build pressure. MemorySwapMax=0 = desktop pages never thrash to the disk swapfile.",
+    "MemoryMin": "1G",
+    "MemorySwapMax": "0"
+  },
+
+  "reservation": {
+    "_comment": "THE UNTOUCHABLE ISLAND (user requirement: 'watchdog+mesh MUST HAVE ownership of a never-touched area of disk+memory+cpu to ALWAYS kill whatever overwhelms the system'). Hosts: freeze-guard, earlyoom, sshd, rescue-ssh (connectivity.slice). MemoryMin = guaranteed unreclaimable RAM. CPU = SCHED_FIFO realtime priority preempts ALL normal processes even at 100% load. IO = realtime ioprio class always gets the NVMe queue. OOMScoreAdjust=-1000 = NEVER killed. So the killers + remote rescue can always run, no matter what.",
+    "memory_min": "256M",
+    "cpu_weight": 10000,
+    "io_weight": 1000
+  },
+
+  "watchdog": {
+    "_comment": "freeze-guard: an ACTIVE PSI killer running in the untouchable island. Every interval_sec it reads /proc/pressure/{memory,io} 'full avg10' (= % of the last 10s in which ALL tasks were stalled). If either exceeds its limit, it SIGKILLs the highest-RSS process matching prefer_kill (browsers/compilers), else the highest-RSS process not matching avoid_kill. This is the backstop layer beneath the cgroup caps + systemd-oomd. Tunable here; baked into the service script at build time (reproducible).",
+    "enabled": true,
+    "interval_sec": 2,
+    "mem_pressure_full_avg10": 40.0,
+    "io_pressure_full_avg10": 55.0,
+    "prefer_kill": ["cc1plus", "cc1", "rustc", "ld", "lto1", "ghc", "node", "electron", "brave", "firefox", "chromium"],
+    "avoid_kill": "kwin|plasmashell|kwin_wayland|sddm|Xwayland|pipewire|wireplumber|systemd|dbus|dbus-broker|dropbear|sshd|freeze-guard|earlyoom|systemd-oomd|polkit|NetworkManager|wpa_supplicant",
+    "notify": true
+  },
+
+  "oomd": {
+    "_comment": "systemd-oomd — PSI-aware proactive killer (kills before the kernel OOM does). enableUserSlices/SystemSlice/RootSlice set ManagedOOMMemoryPressure=kill on the standard slices. DefaultMemoryPressureLimit = % sustained memory pressure that triggers a kill; SwapUsedLimit = % of swap (zram) used that triggers a swap-based kill (very effective with swappiness=150).",
+    "enable": true,
+    "DefaultMemoryPressureLimit": "60%",
+    "DefaultMemoryPressureDurationSec": "10s",
+    "SwapUsedLimit": "90%"
+  },
+
+  "sysctl": {
+    "_comment": "Writeback + reclaim tuning. Lower dirty ratios flush dirty pages earlier and in smaller batches → no giant NVMe writeback burst that spikes iowait. vfs_cache_pressure<100 keeps dentry/inode cache longer → less metadata IO. min_free_kbytes/watermark keep a kernel reserve so allocation never stalls hard. swappiness 150 = prefer compressed zram over disk (zram is RAM-backed).",
+    "vm.min_free_kbytes": 262144,
+    "vm.swappiness": 150,
+    "vm.dirty_ratio": 5,
+    "vm.dirty_background_ratio": 2,
+    "vm.vfs_cache_pressure": 50,
+    "vm.watermark_scale_factor": 500
+  },
+
+  "testers": {
+    "_comment": "Run via the same data-driven runner pattern as test-session-checkpoint.sh. Each check proves one guarantee of the freeze-proof contract.",
+    "checks": [
+      {
+        "id": "nix_daemon_no_swap",
+        "description": "nix-daemon cannot swap (build OOM-kills instead of thrashing the disk)",
+        "command": "systemctl show nix-daemon.service -p MemorySwapMax --value",
+        "expect_regex": "^0$"
+      },
+      {
+        "id": "nix_daemon_mem_capped",
+        "description": "nix-daemon MemoryMax is the declared hard cap (not the 6G drift value)",
+        "command": "systemctl show nix-daemon.service -p MemoryMax --value",
+        "expect_regex": "^3670016000$"
+      },
+      {
+        "id": "gui_mem_reserved",
+        "description": "user-1000.slice has guaranteed unreclaimable RAM (MemoryMin) so the desktop never freezes",
+        "command": "systemctl show user-1000.slice -p MemoryMin --value",
+        "expect_regex": "^(1073741824|10737418240?)$"
+      },
+      {
+        "id": "gui_no_swap",
+        "description": "user-1000.slice desktop pages never thrash to disk",
+        "command": "systemctl show user-1000.slice -p MemorySwapMax --value",
+        "expect_regex": "^0$"
+      },
+      {
+        "id": "freeze_guard_active",
+        "description": "the freeze-guard active PSI killer is running",
+        "command": "systemctl is-active freeze-guard.service",
+        "expect": "active"
+      },
+      {
+        "id": "freeze_guard_unkillable",
+        "description": "freeze-guard is in the untouchable island — can never be OOM-killed",
+        "command": "systemctl show freeze-guard.service -p OOMScoreAdjust --value",
+        "expect_regex": "^-1000$"
+      },
+      {
+        "id": "freeze_guard_in_island",
+        "description": "freeze-guard runs in the reserved connectivity.slice island",
+        "command": "systemctl show freeze-guard.service -p Slice --value",
+        "expect": "connectivity.slice"
+      },
+      {
+        "id": "oomd_active",
+        "description": "systemd-oomd PSI killer is running",
+        "command": "systemctl is-active systemd-oomd.service",
+        "expect": "active"
+      },
+      {
+        "id": "earlyoom_in_island",
+        "description": "earlyoom killer is in the untouchable island",
+        "command": "systemctl show earlyoom.service -p Slice --value",
+        "expect": "connectivity.slice"
+      },
+      {
+        "id": "island_mem_reserved",
+        "description": "the untouchable island has guaranteed RAM for the killers + mesh",
+        "command": "systemctl show connectivity.slice -p MemoryMin --value",
+        "expect_regex": "^[1-9][0-9]+$"
+      }
+    ]
+  }
+}
