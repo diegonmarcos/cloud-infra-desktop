@@ -90,14 +90,24 @@ let
       while :; do
         waited=0
         while [ "$waited" -lt "$BOOT_TIMEOUT" ]; do
-          if android_up; then log "Android up — opening UI"; exec "$WAYDROID" show-full-ui; fi
+          if android_up; then
+            log "Android up — opening UI"
+            "$WAYDROID" show-full-ui
+            log "UI closed — stopping container"
+            "$WAYDROID" session stop >/dev/null 2>&1 || true
+            rootctl "$SYSTEMCTL" stop waydroid-container.service >/dev/null 2>&1 || true
+            exit 0
+          fi
           sleep "$POLL"; waited=$((waited + POLL))
         done
         recycles=$((recycles + 1))
         if [ "$recycles" -gt "$MAX_RECYCLES" ]; then
           log "Android did not boot after $MAX_RECYCLES recycles — the display/GPU (gralloc) is wedged. Log out/in of the desktop or reboot to reset the graphics state, then relaunch."
           notify-send -i waydroid -a "Waydroid" -u critical "Waydroid — GPU wedged" "Android failed to boot. Log out/in or reboot, then try again." 2>/dev/null || true
-          exec "$WAYDROID" show-full-ui   # last-ditch surface
+          "$WAYDROID" show-full-ui   # last-ditch surface
+          "$WAYDROID" session stop >/dev/null 2>&1 || true
+          rootctl "$SYSTEMCTL" stop waydroid-container.service >/dev/null 2>&1 || true
+          exit 1
         fi
         log "boot timeout (''${BOOT_TIMEOUT}s) — recycle ''${recycles}/''${MAX_RECYCLES}"
         notify "Android boot timed out — recycling (''${recycles}/''${MAX_RECYCLES})…"
