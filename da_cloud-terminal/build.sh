@@ -60,7 +60,9 @@ export CT_NODE="\${CT_NODE:-$NODE}"
 export CT_PTY_SERVER="\${CT_PTY_SERVER:-$SRC/scripts/pty-server.js}"
 export CT_SHELL="\${CT_SHELL:-$(command -v fish 2>/dev/null || echo bash)}"
 export ELECTRON_OZONE_PLATFORM_HINT="\${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
-exec "$ELECTRON" "$SRC/scripts/dist/main.js" "\$@"
+# --class sets the Wayland app_id / X11 WM_CLASS → deterministic KWin resourceClass
+# so default-session-launcher.sh can position this window.
+exec "$ELECTRON" "$SRC/scripts/dist/main.js" --class="cloud-terminal-$name" "\$@"
 LAUNCHER
     chmod +x "$launcher"
     echo "   → $launcher"
@@ -68,8 +70,20 @@ LAUNCHER
   echo "done."
 }
 
+install_bins() {
+  build
+  local bindir="$HOME/.local/bin"
+  mkdir -p "$bindir"
+  for l in "$DIST/bin/"cloud-terminal-*; do
+    ln -sf "$l" "$bindir/$(basename "$l")"
+    echo "   linked → $bindir/$(basename "$l")"
+  done
+  echo "installed to $bindir (on PATH)."
+}
+
 case "$CMD" in
   build) build ;;
+  install) install_bins ;;
   launch)
     build
     p="${2:-nix-flakes}"

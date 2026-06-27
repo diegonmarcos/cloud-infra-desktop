@@ -32,7 +32,8 @@
     "systemsettings": { "exec": "systemsettings", "match_class": "systemsettings",  "arg_mode": "none", "launch_prefix": ["dbus-run-session", "--"] },
     "obsidian":       { "exec": "obsidian",       "match_class": "obsidian",        "arg_mode": "none" },
     "kate":           { "exec": "kate",           "match_class": "org.kde.kate",    "arg_mode": "none" },
-    "waydroid":       { "exec": "waydroid-launch", "match_class": "waydroid",        "arg_mode": "none", "_doc": "waydroid-launch = the correct wrapper: ARM bootstrap (libhoudini) → start container → start session → show-full-ui. Raw 'waydroid show-full-ui' skips that and fails with 'Failed to get service waydroidplatform'." }
+    "waydroid":       { "exec": "waydroid-launch", "match_class": "waydroid",        "arg_mode": "none", "_doc": "waydroid-launch = the correct wrapper: ARM bootstrap (libhoudini) → start container → start session → show-full-ui. Raw 'waydroid show-full-ui' skips that and fails with 'Failed to get service waydroidplatform'." },
+    "cloud-terminal": { "exec": "cloud-terminal-nix-flakes", "match_class": "cloud-terminal-nix-flakes", "arg_mode": "none", "fixed_args": ["--show"], "_doc": "Cloud Terminal (Electron, da_cloud-terminal). Launcher on PATH via `build.sh install` → ~/.local/bin. --class sets the Wayland app_id = resourceClass used for positioning." }
   },
 
   "desktops": [
@@ -63,23 +64,9 @@
         },
         {
           "cell": "right",
-          "app": "konsole",
-          "instance": "pane-right",
-          "_comment": "5 monitoring tabs. command:'' opens a titled shell that runs nothing. FILL IN the command per tab to auto-run a monitor (e.g. host_sys-perf → 'btop'). TODO(diego): provide the 5 commands.",
-          "tabs": [
-            { "title": "host_sys-perf",          "command": "",
-              "_splits_doc": "pane = LOCAL index within this tab (0 = the tab itself, then 1,2,3… in creation order); dir = lr (left/right) | tb (top/bottom). Step 0 splits the tab left/right (pane 1 = the LEFT child after focus stays on root=right); steps 1-3 stack pane 1 top/bottom → 4-pane stack on the LEFT, single pane on the RIGHT.",
-              "splits": [
-                { "pane": 0, "dir": "lr" },
-                { "pane": 1, "dir": "tb" },
-                { "pane": 2, "dir": "tb" },
-                { "pane": 3, "dir": "tb" }
-              ] },
-            { "title": "host_journalctl",        "command": "" },
-            { "title": "cloud-vms-sys",          "command": "" },
-            { "title": "cloud-vms-journalctl",   "command": "" },
-            { "title": "cloud-vms-dockerstats",  "command": "" }
-          ]
+          "app": "cloud-terminal",
+          "instance": "main",
+          "_comment": "Cloud Terminal (Electron) — replaces the old konsole-right monitoring pane. Its own multi-tab PTY + profiles (Nix Flakes / Cloud / Tools-DTK) cover the monitoring the konsole tabs were a TODO for."
         }
       ]
     },
