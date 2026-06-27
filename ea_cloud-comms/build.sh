@@ -135,28 +135,45 @@ step_bundle_forks() {
 # / age key isn't available. CI sets VAULT_DIR + SOPS_AGE_KEY.
 _resolve_signing() {
   local ks_rel sec_rel vault ks store_pw key_pw alias_
+  # CI delivery (two-secret): if the workflow already populated a valid keystore
+  # env from the ANDROID_KEYSTORE_B64 + creds GitHub secrets, trust it as-is —
+  # still the ONE shared constellation key, just delivered via CI secret instead
+  # of a vault checkout. Requires a real on-disk keystore + alias, so this is NOT
+  # a fallback to a random/legacy key.
+  if [ -n "${ANDROID_KEYSTORE_FILE:-}" ] && [ -f "${ANDROID_KEYSTORE_FILE}" ] && [ -n "${ANDROID_KEY_ALIAS:-}" ]; then
+    log "signing: using pre-set ANDROID_KEYSTORE_* (CI secret delivery)"
+    return 0
+  fi
   ks_rel="$(_json '.signing.vault_keystore')"
   sec_rel="$(_json '.signing.vault_secrets')"
-  [ -n "$ks_rel" ] || return 0
+  if [ -z "$ks_rel" ] || [ -z "$sec_rel" ]; then
+    errlog "FATAL signing: .signing.vault_keystore/.vault_secrets are empty in build.json."
+    errlog "  ALL constellation apps MUST sign with the ONE shared key:"
+    errlog "    vault/A0_keys/providers/android/release.jks (OU=Cloud Constellation)"
+    errlog "  Set both paths in build.json::signing. Refusing to build with any other key."
+    exit 1
+  fi
   vault="${VAULT_DIR:-$HOME/git/vault}"
   ks="$vault/$ks_rel"
   if [ ! -f "$ks" ]; then
-    errlog "signing: shared keystore not at $ks — using legacy keystore (local/CI signatures will differ)"
-    return 0
+    errlog "FATAL signing: the ONE shared constellation keystore is missing at $ks"
+    errlog "  Check out the vault repo (set VAULT_DIR if elsewhere). NO random/legacy fallback key is allowed."
+    exit 1
   fi
-  command -v sops >/dev/null 2>&1 || { errlog "signing: sops not on PATH — using legacy keystore"; return 0; }
+  command -v sops >/dev/null 2>&1 || { errlog "FATAL signing: sops not on PATH; cannot decrypt the shared key. Refusing to build."; exit 1; }
   store_pw="$(sops -d --extract '["keystore_password"]' "$vault/$sec_rel" 2>/dev/null || true)"
-  key_pw="$(sops   -d --extract '["key_password"]'      "$vault/$sec_rel" 2>/dev/null || true)"
-  alias_="$(sops   -d --extract '["key_alias"]'         "$vault/$sec_rel" 2>/dev/null || true)"
+  key_pw="$(sops -d --extract '["key_password"]' "$vault/$sec_rel" 2>/dev/null || true)"
+  alias_="$(sops -d --extract '["key_alias"]' "$vault/$sec_rel" 2>/dev/null || true)"
   if [ -z "$store_pw" ] || [ -z "$alias_" ]; then
-    errlog "signing: cannot decrypt $sec_rel (need SOPS_AGE_KEY[_FILE]) — using legacy keystore"
-    return 0
+    errlog "FATAL signing: cannot decrypt $sec_rel (need SOPS_AGE_KEY / SOPS_AGE_KEY_FILE)."
+    errlog "  The ONE shared constellation key must be used — refusing to fall back to any other key."
+    exit 1
   fi
   export ANDROID_KEYSTORE_FILE="$ks"
   export ANDROID_KEYSTORE_PASSWORD="$store_pw"
   export ANDROID_KEY_PASSWORD="$key_pw"
   export ANDROID_KEY_ALIAS="$alias_"
-  log "signing: shared constellation key (alias $alias_) from vault"
+  log "signing: ONE shared constellation key (alias $alias_) from vault/$ks_rel"
 }
 
 # ── hub build/test ─────────────────────────────────────────────────────
@@ -310,11 +327,12 @@ step_materialize_fork() {
 #   gradle_task — the exact variant task (e.g. assembleGithubRelease)
 #   apk_glob    — where the output APK lands inside the tracker
 #   signing     — 'keystore_properties' writes keystore.properties at the fork
-#                 root from the constellation keystore so the upstream's own
-#                 signingConfigs.release picks it up (no signing patch needed).
-# Keystore resolution: $COMMS_KEYSTORE env override, else the hub's CI-cached
-# hub/keystores/comms.keystore. All five constellation APKs MUST share it
-# (signature IPC + updater install chain).
+#                 root from the ONE shared constellation key so the upstream's
+#                 own signingConfigs.release picks it up (no signing patch needed).
+# Keystore resolution: _resolve_signing exports the vault key env
+# (ANDROID_KEYSTORE_*) from vault/A0_keys/providers/android/release.jks — the
+# SAME key every constellation APK signs with (signature IPC + updater install
+# chain). NO legacy/random fallback: _resolve_signing fails loud if absent.
 step_build_fork() {
   local key="${2:-}"
   [ -n "$key" ] || { errlog "usage: build.sh build-fork <mail|chat|matrix>"; exit 1; }
@@ -328,17 +346,15 @@ step_build_fork() {
   [ -n "$task" ] || { errlog "fork '$key' has no build.gradle_task in build.json"; exit 1; }
 
   if [ "$signing" = "keystore_properties" ]; then
-    local ks="${COMMS_KEYSTORE:-$SCRIPT_DIR/hub/keystores/comms.keystore}"
-    if [ -f "$ks" ]; then
-      # Upstream signingConfigs.release reads rootProject keystore.properties.
-      # Credentials match the CI-cached debug-grade constellation keystore
-      # (NOT production secrets — personal-infra signing, same as the hub).
-      printf 'storeFile=%s\nstorePassword=android\nkeyAlias=commskey\nkeyPassword=android\n' \
-        "$ks" > "$dest/keystore.properties"
-      log "build-fork[$key]: keystore.properties → constellation keystore"
-    else
-      log "build-fork[$key]: no comms keystore at $ks — upstream will build unsigned/debug-signed"
-    fi
+    # Resolve the ONE shared constellation key (fails loud if unavailable —
+    # no legacy/random fallback). Upstream signingConfigs.release reads
+    # rootProject keystore.properties; we write it from the resolved env.
+    _resolve_signing
+    printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+      "$ANDROID_KEYSTORE_FILE" "$ANDROID_KEYSTORE_PASSWORD" \
+      "$ANDROID_KEY_ALIAS" "${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}" \
+      > "$dest/keystore.properties"
+    log "build-fork[$key]: keystore.properties → ONE shared constellation key"
   fi
 
   log "build-fork[$key]: $tracker ./gradlew $task (upstream-pinned toolchain)"
@@ -419,16 +435,19 @@ _fetch_upstream_apk() {
   fi
   if [ "$resign" = "true" ]; then
     local bt zipalign apksigner ks
+    # Resign with the ONE shared constellation key (fails loud if unavailable —
+    # no legacy/random fallback). _resolve_signing exports ANDROID_KEYSTORE_*.
+    _resolve_signing
     bt="$(ls -d "${ANDROID_HOME:-/nonexistent}"/build-tools/* 2>/dev/null | sort -V | tail -1)"
     zipalign="$bt/zipalign"; apksigner="$bt/apksigner"
-    ks="${COMMS_KEYSTORE:-$SCRIPT_DIR/hub/keystores/comms.keystore}"
+    ks="$ANDROID_KEYSTORE_FILE"
     if [ ! -x "$zipalign" ] || [ ! -x "$apksigner" ] || [ ! -f "$ks" ]; then
       errlog "upstream[$key]: resign needed but zipalign/apksigner/keystore missing (bt=$bt ks=$ks)"
       rm -f "$tmp"; return 1
     fi
     "$zipalign" -f 4 "$tmp" "${tmp}.aligned" || { rm -f "$tmp" "${tmp}.aligned"; return 1; }
-    "$apksigner" sign --ks "$ks" --ks-pass pass:android \
-      --ks-key-alias commskey --key-pass pass:android \
+    "$apksigner" sign --ks "$ks" --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+      --ks-key-alias "$ANDROID_KEY_ALIAS" --key-pass "pass:${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}" \
       --out "$out" "${tmp}.aligned" || { rm -f "$tmp" "${tmp}.aligned"; return 1; }
     rm -f "$tmp" "${tmp}.aligned" "${out}.idsig"
   else

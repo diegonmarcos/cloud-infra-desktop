@@ -108,22 +108,24 @@ jobs:
           # with Gradle 9.x's strict configuration cache.
           gradle-version: "8.10.2"
 
-      # ── Stable signing keystore (GitHub secret) ─────────────────────
-      # The WHOLE constellation (hub + forks) must share ONE signature:
-      # protectionLevel=signature IPC + the in-app updater install chain both
-      # require it. Key lives in CLOUD_COMMS_KEYSTORE_B64 (GitHub secret) —
-      # decoded once per run. NEVER use actions/cache for signing keys: cache
-      # eviction (7-day TTL) causes a new random key on miss, which breaks every
-      # installed app forever (STATUS_FAILURE_CONFLICT on the next update).
-      # One-time setup: see ea_cloud-comms/README.md § "Signing key bootstrap".
+      # ── ONE shared Cloud-constellation signing key (vault) ──────────────
+      # EVERY Android app (SuperApp / Nav / Comms + forks / IDE) signs with the
+      # single vault key (release.jks, OU=Cloud Constellation). protectionLevel=
+      # signature IPC + the in-app updater install chain require one identical
+      # signature across all APKs. The raw keystore + its sops-encrypted
+      # passwords live ONLY in the private vault repo
+      # (A0_keys/providers/android/release.jks + signing.secrets.yaml).
+      # build.sh::_resolve_signing reads $VAULT_DIR + sops-decrypts (SOPS_AGE_KEY)
+      # and exports ANDROID_KEYSTORE_* for the gradle signingConfig. NO fallback:
+      # if the key is unavailable build.sh exits 1 (desired).
+      - name: Checkout vault (shared Android signing key)
+        uses: actions/checkout@v4
+        with:
+          repository: diegonmarcos/vault
+          token: ${{ secrets.ANDROID_SIGNING_VAULT_TOKEN }}
+          path: .vault
 
-      - name: Restore constellation keystore from secret
-        run: |
-          mkdir -p "${{ env.WORK_DIR }}/hub/keystores"
-          printf '%s' "${{ secrets.CLOUD_COMMS_KEYSTORE_B64 }}" \
-            | base64 -d > "${{ env.WORK_DIR }}/hub/keystores/comms.keystore"
-
-      - name: Install ORAS + gh CLI + jq
+      - name: Install ORAS + sops + gh CLI + jq
         run: |
           sudo apt-get update -y
           sudo apt-get install -y jq
@@ -131,6 +133,10 @@ jobs:
           curl -fsSL https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz \
             | sudo tar -C /usr/local/bin -xzf - oras
           oras version
+          curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 \
+            | sudo tee /usr/local/bin/sops >/dev/null
+          sudo chmod +x /usr/local/bin/sops
+          sops --version
 
       - name: Determine variant
         id: variant
@@ -152,6 +158,9 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          # Shared Cloud-constellation signing key (vault checkout above).
+          VAULT_DIR: ${{ github.workspace }}/.vault
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
           COMMS_BUNDLE_ABI: ${{ inputs.bundle_abi || 'arm64-v8a' }}
         run: |
           chmod +x build.sh
