@@ -50297,3 +50297,38 @@ error:
 [2026-06-27 13:55:25] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-06-27 13:55:25] PERF: start switch
 [2026-06-27 13:55:25] INFO: Staging dirty files for flake evaluation...
+[2026-06-27 13:55:25] PERF: git stage = 170ms
+[2026-06-27 13:55:26] PERF: clean stale hm-backups = 81ms
+[2026-06-27 13:55:26] INFO: Applying Home Manager configuration...
+[2026-06-27 13:55:26] INFO: home-manager backup extension: hm-backup-20260627-135526
+unpacking 'github:nix-community/home-manager/44831a7eaba4360fb81f2acc5ea6de5fde90aaa3?narHash=sha256-WHkdBlw6oyxXIra/vQPYLtqY%2B3G8dUVZM8bEXk0t8x4%3D' into the Git cache...
+error:
+       … in the condition of the assert statement
+         at «nix-internal»/call-flake.nix:79:7:
+           78|     if node.flake or true then
+           79|       assert builtins.isFunction flake.outputs;
+             |       ^
+           80|       result
+
+       … while calling the 'isFunction' builtin
+         at «nix-internal»/call-flake.nix:79:14:
+           78|     if node.flake or true then
+           79|       assert builtins.isFunction flake.outputs;
+             |              ^
+           80|       result
+
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+       error: Failed to open archive (Source threw exception: error: unable to download 'https://github.com/nix-community/home-manager/archive/44831a7eaba4360fb81f2acc5ea6de5fde90aaa3.tar.gz': HTTP error 400
+
+              response body:
+
+              400: Invalid request)
+[2026-06-27 13:55:28] ERROR: Configuration failed with exit code 1
+[2026-06-27 13:55:28] INFO: Check /home/diego/git/unix/ba_flakes_desktop/build.log for details
+[2026-06-27 13:55:28] PERF: home-manager switch = 2.2s
+[2026-06-27 13:55:28] PERF: TOTAL switch = 2.6s
+[2026-06-27 13:58:01] ========== Build script started ==========
+[2026-06-27 13:58:01] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-06-27 13:58:01] PERF: start switch
+[2026-06-27 13:58:01] INFO: Staging dirty files for flake evaluation...

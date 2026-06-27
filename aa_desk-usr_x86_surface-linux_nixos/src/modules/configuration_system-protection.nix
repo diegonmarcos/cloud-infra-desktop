@@ -70,13 +70,13 @@ let
   machineMemMax = "${toString (ramMB * 37 / 100)}M";  # 3031M (was 75%=6144M — Docker can't eat 75% of RAM)
   machineMemHigh = "${toString (ramMB * 29 / 100)}M"; # 2375M (was absent — adds early reclaim trigger)
   machineMemSwapMax = "1024M";                         # (was absent — Docker disk swap was unlimited → thrash)
-  nixMemMax = "${toString (ramMB * 75 / 100)}M";      # 6144M
-  nixMemHigh = "${toString (ramMB * 65 / 100)}M";     # 5324M
+  nixMemMax = "${toString (ramMB * 25 / 100)}M";      # 2048M — OOM-kill before disk thrash (was 75%=6144M)
+  nixMemHigh = "${toString (ramMB * 20 / 100)}M";     # 1638M — reclaim early (was 65%=5324M)
   # userMemMin: reduced from 38%=3113M. MemoryHigh+lower MemoryMax are the real
   # anti-freeze guards; the high MemoryMin was pinning 3GB unnecessarily.
   userMemMin = "${toString (ramMB * 12 / 100)}M";     # 983M (was 38%=3113M)
-  nixMemSwapMax = "2048M";                            # build may spill at most 2G to disk swap
-  userMemSwapMax = "2048M";                           # user disk swap cap (was 4096M)
+  nixMemSwapMax = "0";                                # NO disk swap — OOM-kill instead of I/O thrash freeze (was 2048M = THE BUG)
+  userMemSwapMax = "0";                               # user-1000 no disk swap either — same root cause
 in
 {
   # ═══════════════════════════════════════════════════════════════════════════
@@ -117,7 +117,8 @@ in
     extraArgs = [
       # nix-daemon removed from prefer: cgroup MemorySwapMax protects the machine.
       "--prefer" "^(brave|firefox|chromium|electron)$"
-      "--avoid" "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus|nix)$"
+      "--avoid" "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus)$"
+    # nix deliberately REMOVED from --avoid — earlyoom must be able to kill runaway nix-daemon
     ];
   };
 
