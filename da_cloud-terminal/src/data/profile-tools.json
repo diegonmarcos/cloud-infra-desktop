@@ -1,0 +1,147 @@
+{
+  "name":         "tools",
+  "display_name": "Tools (DTK)",
+  "logo":         "🛠️",
+  "tray_tooltip": "Tools — Diego ToolKit",
+  "flake": "/home/diego/git/tools",
+  "flakes": {
+    "system":  "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos",
+    "desktop": "/home/diego/git/unix/ba_flakes_desktop",
+    "cloud":   "/home/diego/git/cloud"
+  },
+  "theme": {
+    "accent":  "#fbbf24",
+    "accent2": "#f59e0b",
+    "bg":      "#1a160e"
+  },
+  "sections": [
+    {
+      "title": "1) cmds-local",
+      "items": [
+        { "label": "10  aliases",         "type": "shell", "arg": "sh {FLAKE}/dtk.sh 10" },
+        { "label": "11  webhooks",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 11" },
+        { "label": "12  commands",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 12" }
+      ]
+    },
+    {
+      "title": "2) cmds-cloud — quick",
+      "items": [
+        { "label": "20  quick-cmds",      "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20" },
+        { "label": "20a gcp-proxy",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20a" },
+        { "label": "20b oci-mail",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20b" },
+        { "label": "20c oci-analy",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20c" },
+        { "label": "20d oci-apps",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20d" },
+        { "label": "20e gcp-t4",          "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20e" },
+        { "label": "20f orchestrate",     "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20f" },
+        { "label": "20g local",           "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20g" },
+        { "label": "20h desktop",         "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20h" },
+        { "label": "20i vps-cloud",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20i" },
+        { "label": "20j gh-actions",      "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20j" },
+        { "label": "20k gh-repos",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20k" },
+        { "label": "20l gh-registry",     "type": "shell", "arg": "sh {FLAKE}/dtk.sh 20l" }
+      ]
+    },
+    {
+      "title": "2) cmds-cloud — ssh",
+      "items": [
+        { "label": "21  ssh",             "type": "shell", "arg": "sh {FLAKE}/dtk.sh 21" },
+        { "label": "21a gcp-proxy",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh 21a" },
+        { "label": "21b oci-mail",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 21b" },
+        { "label": "21c oci-analy",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh 21c" },
+        { "label": "21d oci-apps",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 21d" },
+        { "label": "21e gcp-t4",          "type": "shell", "arg": "sh {FLAKE}/dtk.sh 21e" },
+        { "label": "21f github",          "type": "shell", "arg": "sh {FLAKE}/dtk.sh 21f" }
+      ]
+    },
+    {
+      "title": "2) cmds-cloud — mode",
+      "items": [
+        { "label": "22  mode",            "type": "shell", "arg": "sh {FLAKE}/dtk.sh 22" },
+        { "label": "22a ssh",             "type": "shell", "arg": "sh {FLAKE}/dtk.sh 22a" },
+        { "label": "22b dropbear",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 22b" },
+        { "label": "22c serial",          "type": "shell", "arg": "sh {FLAKE}/dtk.sh 22c" },
+        { "label": "22d status",          "type": "shell", "arg": "sh {FLAKE}/dtk.sh 22d" }
+      ]
+    },
+    {
+      "title": "3) dashboards — local",
+      "items": [
+        { "label": "30  monitors",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 30" },
+        { "label": "30a btop",            "type": "shell", "arg": "sh {FLAKE}/dtk.sh 30a" },
+        { "label": "30b iotop",           "type": "shell", "arg": "sh {FLAKE}/dtk.sh 30b" },
+        { "label": "30c top-batch",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh 30c" },
+        { "label": "31  sysstat",         "type": "shell", "arg": "sh {FLAKE}/dtk.sh 31" },
+        { "label": "31a iostat",          "type": "shell", "arg": "sh {FLAKE}/dtk.sh 31a" },
+        { "label": "31b mpstat",          "type": "shell", "arg": "sh {FLAKE}/dtk.sh 31b" },
+        { "label": "31c pidstat",         "type": "shell", "arg": "sh {FLAKE}/dtk.sh 31c" },
+        { "label": "31d sar",             "type": "shell", "arg": "sh {FLAKE}/dtk.sh 31d" },
+        { "label": "31e vmstat",          "type": "shell", "arg": "sh {FLAKE}/dtk.sh 31e" },
+        { "label": "32  journal-dash",    "type": "shell", "arg": "sh {FLAKE}/dtk.sh 32" },
+        { "label": "32a transport",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh 32a" },
+        { "label": "32b priority",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 32b" },
+        { "label": "32c unit",            "type": "shell", "arg": "sh {FLAKE}/dtk.sh 32c" },
+        { "label": "32d watch-n35",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh 32d" },
+        { "label": "33  connect",         "type": "shell", "arg": "sh {FLAKE}/dtk.sh 33" }
+      ]
+    },
+    {
+      "title": "3) dashboards — remote",
+      "items": [
+        { "label": "34  monitors",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 34" },
+        { "label": "34a btop-dash",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh 34a" },
+        { "label": "34b journal-dash",    "type": "shell", "arg": "sh {FLAKE}/dtk.sh 34b" },
+        { "label": "34c docker-stats",    "type": "shell", "arg": "sh {FLAKE}/dtk.sh 34c" }
+      ]
+    },
+    {
+      "title": "4) setups",
+      "items": [
+        { "label": "40  containers",      "type": "shell", "arg": "sh {FLAKE}/dtk.sh 40" },
+        { "label": "40a nix {c|g|t}",     "type": "shell", "arg": "sh {FLAKE}/dtk.sh 40a" },
+        { "label": "40b apt {c|g|t}",     "type": "shell", "arg": "sh {FLAKE}/dtk.sh 40b" },
+        { "label": "41  nixos",           "type": "shell", "arg": "sh {FLAKE}/dtk.sh 41" },
+        { "label": "41a hm {c|g|t}",      "type": "shell", "arg": "sh {FLAKE}/dtk.sh 41a" },
+        { "label": "42  shell",           "type": "shell", "arg": "sh {FLAKE}/dtk.sh 42" },
+        { "label": "42a fish+tools",      "type": "shell", "arg": "sh {FLAKE}/dtk.sh 42a" },
+        { "label": "42b fish",            "type": "shell", "arg": "sh {FLAKE}/dtk.sh 42b" },
+        { "label": "42c konsole-cfg",     "type": "shell", "arg": "sh {FLAKE}/dtk.sh 42c" },
+        { "label": "43  git",             "type": "shell", "arg": "sh {FLAKE}/dtk.sh 43" },
+        { "label": "43a gcl-https",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh 43a" },
+        { "label": "43b gcl-ssh",         "type": "shell", "arg": "sh {FLAKE}/dtk.sh 43b" },
+        { "label": "44  sys",             "type": "shell", "arg": "sh {FLAKE}/dtk.sh 44" },
+        { "label": "44a sudoers",         "type": "shell", "arg": "sh {FLAKE}/dtk.sh 44a" },
+        { "label": "45  llms",            "type": "shell", "arg": "sh {FLAKE}/dtk.sh 45" },
+        { "label": "45a goose",           "type": "shell", "arg": "sh {FLAKE}/dtk.sh 45a" },
+        { "label": "45b claude/gemini",   "type": "shell", "arg": "sh {FLAKE}/dtk.sh 45b" },
+        { "label": "45c malloc-termux",   "type": "shell", "arg": "sh {FLAKE}/dtk.sh 45c" },
+        { "label": "46  vault",           "type": "shell", "arg": "sh {FLAKE}/dtk.sh 46" },
+        { "label": "46a vault-build",     "type": "shell", "arg": "sh {FLAKE}/dtk.sh 46a" },
+        { "label": "46b env-vars-export", "type": "shell", "arg": "sh {FLAKE}/dtk.sh 46b" }
+      ]
+    },
+    {
+      "title": "5) infos",
+      "items": [
+        { "label": "50  help",            "type": "shell", "arg": "sh {FLAKE}/dtk.sh 50" },
+        { "label": "51  infos",           "type": "shell", "arg": "sh {FLAKE}/dtk.sh 51" },
+        { "label": "51a sys-info",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 51a" },
+        { "label": "51b sys-net-res",     "type": "shell", "arg": "sh {FLAKE}/dtk.sh 51b" },
+        { "label": "51c sys-paths",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh 51c" },
+        { "label": "51d sys-envs",        "type": "shell", "arg": "sh {FLAKE}/dtk.sh 51d" },
+        { "label": "51e tools-table",     "type": "shell", "arg": "sh {FLAKE}/dtk.sh 51e" },
+        { "label": "51f tools-help",      "type": "shell", "arg": "sh {FLAKE}/dtk.sh 51f" },
+        { "label": "51g sys-mounts",      "type": "shell", "arg": "sh {FLAKE}/dtk.sh 51g" },
+        { "label": "52  deps",            "type": "shell", "arg": "sh {FLAKE}/dtk.sh 52" },
+        { "label": "52a deps-drift",      "type": "shell", "arg": "sh {FLAKE}/dtk.sh 52a" },
+        { "label": "52b deps-solver",     "type": "shell", "arg": "sh {FLAKE}/dtk.sh 52b" }
+      ]
+    },
+    {
+      "title": "DTK",
+      "items": [
+        { "label": "Open DTK Menu",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh" },
+        { "label": "Open Tools Repo",     "type": "xdg",   "arg": "{FLAKE}" }
+      ]
+    }
+  ]
+}
