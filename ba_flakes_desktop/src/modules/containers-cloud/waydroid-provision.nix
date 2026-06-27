@@ -75,12 +75,8 @@ in
     };
   };
 
-  systemd.user.timers.waydroid-provision = {
-    Unit.Description = "Poll for a Waydroid session and re-provision if /data was reset";
-    Timer = {
-      OnBootSec = "3min";
-      OnUnitActiveSec = "3min";
-    };
-    Install.WantedBy = [ "timers.target" ];
-  };
+  # NO persistent poll timer — Waydroid is an ON-DEMAND container. The provision
+  # oneshot above stays available and is invoked by the launcher / superapp-launch
+  # after a session is up; it must NOT perpetually poll every 3min in the
+  # background (that was persistent autostart, which this host forbids).
 }
