@@ -105,9 +105,11 @@ mcp_configured=0
 
 # Per-MCP online/offline icons (lazy 15-min cache) + plugin status PL[...].
 # Both helpers emit literal \033 escapes; the final `printf %b` renders them.
-mcp_seg=$(bash "$HOME/.claude/claude-mcp-status.sh" "$cwd" 2>/dev/null)
-plugins_seg=$(bash "$HOME/.claude/claude-plugins-status.sh" --format ansi 2>/dev/null)
-hooks_seg=$(bash "$HOME/.claude/claude-hooks-status.sh" --format ansi 2>/dev/null)
+# ponytail: heavy sub-shell probes stubbed; restore when perf allows
+#mcp_seg=$(bash "$HOME/.claude/claude-mcp-status.sh" "$cwd" 2>/dev/null)
+#plugins_seg=$(bash "$HOME/.claude/claude-plugins-status.sh" --format ansi 2>/dev/null)
+#hooks_seg=$(bash "$HOME/.claude/claude-hooks-status.sh" --format ansi 2>/dev/null)
+mcp_seg=""; plugins_seg=""; hooks_seg=""
 
 # user@host (date removed from LINE 1 per 2026-06-25 layout change)
 user_host="$(whoami)@$(hostname -s)"
