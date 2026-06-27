@@ -370,8 +370,10 @@ _rebuild_exec() {
 
     # ── Phase 1: nix build in hard-capped transient scope ────────────────────
     # MemorySwapMax=0 = OOM-kill instead of I/O thrash freeze.
-    # IOSchedulingClass=idle = block-layer idle (effective on NVMe 'none' scheduler).
-    # IOWeight=10 = belt+suspenders for CFQ/BFQ fallback schedulers.
+    # ionice -c 3 = idle I/O class at the process level — effective on NVMe 'none'
+    #   scheduler (IOWeight/IOSchedulingClass are ExecContext properties, unsupported
+    #   on --scope transient units; ionice ioprio_set() works unconditionally).
+    # IOWeight=10 = cgroup I/O weight for CFQ/BFQ fallback schedulers.
     log "Phase 1: nix build as $(id -un) — hard-capped scope (MemoryMax=3G, MemorySwapMax=0)…"
     GIT_CONFIG_GLOBAL="$gitconf" GIT_CONFIG_SYSTEM="$gitconf" BUILDSH_GUARDRAIL=1 \
         systemd-run --user --scope \
@@ -381,10 +383,9 @@ _rebuild_exec() {
             --property=MemorySwapMax=0 \
             --property=CPUQuota=200% \
             --property=CPUWeight=10 \
-            --property=IOSchedulingClass=idle \
-            --property=IOSchedulingPriority=7 \
             --property=IOWeight=10 \
             -- \
+            ionice -c 3 \
             nix build \
                 "$FLAKE_PATH#nixosConfigurations.surface.config.system.build.toplevel" \
                 --out-link "$result_link" \
