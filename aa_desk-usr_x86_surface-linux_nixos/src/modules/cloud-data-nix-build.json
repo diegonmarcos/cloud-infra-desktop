@@ -1,0 +1,34 @@
+{
+  "_comment": "Nix build engine policy — consumed by aa_desk-usr_x86_surface-linux_nixos/build.sh. All tuning that governs how _rebuild_exec() behaves lives here, not hardcoded in the script.",
+  "version": 1,
+
+  "phase1_scope": {
+    "_comment": "systemd-run --user --scope properties applied to the nix build client (Phase 1). MemorySwapMax=0 = OOM-kill instead of disk-I/O thrash freeze. IOSchedulingClass=idle = block-layer idling that works on NVMe (IOWeight=10 is also set but has no effect on the 'none' NVMe scheduler — left as belt+suspenders for CFQ/BFQ fallback).",
+    "MemoryMax": "3G",
+    "MemoryHigh": "2G",
+    "MemorySwapMax": "0",
+    "CPUQuota": "200%",
+    "CPUWeight": "10",
+    "IOSchedulingClass": "idle",
+    "IOSchedulingPriority": "7",
+    "IOWeight": "10"
+  },
+
+  "suspend_during_build": {
+    "_comment": "User systemd services to stop before Phase 1 (nix build) and restart after, regardless of build outcome. These are background indexers/daemons that compete for I/O and CPU during builds. Only --user units should be listed here; system-level units are managed by the nix-daemon cgroup caps in configuration_system-protection.nix. Services not loaded/running are silently skipped — no errors.",
+    "services": [
+      {
+        "unit": "baloo_file.service",
+        "reason": "KDE file indexer — continuous inotify + I/O; competes directly with nix store writes"
+      },
+      {
+        "unit": "tracker-miner-fs-3.service",
+        "reason": "GNOME file tracker — same pattern as baloo; only present in GNOME sessions but harmless to attempt under Plasma"
+      },
+      {
+        "unit": "tracker-extract-3.service",
+        "reason": "GNOME tracker metadata extractor — CPU-heavy during indexing bursts"
+      }
+    ]
+  }
+}

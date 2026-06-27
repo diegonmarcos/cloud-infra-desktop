@@ -330,15 +330,48 @@ NIX_BUILD_FLAGS="--max-jobs $MAX_JOBS --cores $MAX_CORES -L --extra-experimental
 #   The heavy nix evaluation + store build happens here. No root needed.
 # Phase 2 — only profile-set + switch-to-configuration run as root (fast,
 #   no nix evaluation → can never eat all RAM).
+#
+# Service suspend/resume policy is declared in cloud-data-nix-build.json
+# (suspend_during_build.services). Services not found/running are skipped silently.
 _rebuild_exec() {
     local gitconf="$1"
     local mode="$2"  # switch | boot | test | dry-activate
     local result_link="/tmp/nixos-rebuild-result-$$"
+    local nix_build_json="$FLAKE_PATH/modules/cloud-data-nix-build.json"
 
-    # systemd-run --scope caps the nix build CLIENT in a transient cgroup with
-    # MemorySwapMax=0 — no disk swap = OOM kill instead of I/O thrash freeze.
-    # Takes effect NOW on every invocation (no switch needed for this guard).
-    # The nix-DAEMON is capped via configuration_system-protection.nix (switch).
+    # ── Read suspend list from data file ──────────────────────────────────────
+    local -a suspend_units=()
+    if command -v jq >/dev/null 2>&1 && [ -f "$nix_build_json" ]; then
+        mapfile -t suspend_units < <(jq -r '.suspend_during_build.services[].unit' "$nix_build_json" 2>/dev/null)
+    fi
+
+    # ── Suspend competing services before Phase 1 ─────────────────────────────
+    local -a stopped_units=()
+    if [ ${#suspend_units[@]} -gt 0 ]; then
+        log "Suspending ${#suspend_units[@]} competing service(s) for the duration of Phase 1…"
+        for unit in "${suspend_units[@]}"; do
+            if systemctl --user is-active --quiet "$unit" 2>/dev/null; then
+                systemctl --user stop "$unit" 2>/dev/null && stopped_units+=("$unit") \
+                    && log "  stopped: $unit"
+            fi
+        done
+    fi
+
+    # Resume ALL stopped units on exit (success, failure, or interrupt)
+    _resume_suspended() {
+        if [ ${#stopped_units[@]} -gt 0 ]; then
+            log "Resuming suspended service(s)…"
+            for unit in "${stopped_units[@]}"; do
+                systemctl --user start "$unit" 2>/dev/null && log "  started: $unit"
+            done
+        fi
+    }
+    trap _resume_suspended RETURN INT TERM
+
+    # ── Phase 1: nix build in hard-capped transient scope ────────────────────
+    # MemorySwapMax=0 = OOM-kill instead of I/O thrash freeze.
+    # IOSchedulingClass=idle = block-layer idle (effective on NVMe 'none' scheduler).
+    # IOWeight=10 = belt+suspenders for CFQ/BFQ fallback schedulers.
     log "Phase 1: nix build as $(id -un) — hard-capped scope (MemoryMax=3G, MemorySwapMax=0)…"
     GIT_CONFIG_GLOBAL="$gitconf" GIT_CONFIG_SYSTEM="$gitconf" BUILDSH_GUARDRAIL=1 \
         systemd-run --user --scope \
@@ -348,6 +381,8 @@ _rebuild_exec() {
             --property=MemorySwapMax=0 \
             --property=CPUQuota=200% \
             --property=CPUWeight=10 \
+            --property=IOSchedulingClass=idle \
+            --property=IOSchedulingPriority=7 \
             --property=IOWeight=10 \
             -- \
             nix build \
@@ -356,6 +391,7 @@ _rebuild_exec() {
                 --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" -L \
                 --extra-experimental-features "nix-command flakes" || return 1
 
+    # ── Phase 2: activate as root (fast — no nix eval) ───────────────────────
     log "Phase 2: activate as root (fast — no nix eval)…"
     sudo nix-env -p /nix/var/nix/profiles/system --set "$result_link"
     sudo "$result_link/bin/switch-to-configuration" "$mode"
