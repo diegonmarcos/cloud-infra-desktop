@@ -163,5 +163,7 @@ vmlinuz
 *.img
 ## Nix build artifacts
 a_nixos_host/result
+## Desktop remote-build closure (GHA-built system tarball ~7GB — artifact only, never vendored)
+aa_desk-usr_x86_surface-linux_nixos/dist-ci/
 ## Obsidian
 .obsidian/workspace-mobile.json

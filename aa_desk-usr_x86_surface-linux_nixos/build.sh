@@ -1422,6 +1422,67 @@ test_system() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
+# REMOTE BUILD (GHA) + LOCAL ACTIVATE — never run the freeze-prone eval locally
+# ═══════════════════════════════════════════════════════════════════════════
+# The 8GB Surface cannot run `nixos-rebuild` without thrashing into a freeze
+# (the eval over-commits RAM). So the eval+build happens on a GHA runner
+# (`ci-build`), and the laptop only IMPORTS the prebuilt closure and activates
+# it (`pull` = Phase 2 only, no eval) — which can never freeze.
+
+# ci-build — run on a GHA ubuntu runner. Build the system toplevel, export its
+# full closure as a zstd tarball into dist-ci/ for upload as a workflow artifact.
+ci_build() {
+    header "CI: build + export desktop system closure"
+    local out="$SCRIPT_DIR/dist-ci"
+    rm -rf "$out"; mkdir -p "$out"
+
+    # Free GHA-runner disk — a 17G closure + 7G export won't fit in the default
+    # ~21G root. Only touch the runner's preinstalled bloat, never a real system.
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        log "Freeing GHA runner disk…"
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                    /opt/hostedtoolcache/CodeQL /usr/local/share/boost 2>/dev/null || true
+    fi
+
+    log "Building toplevel (accept-flake-config → linux-surface kernel is substituted, not rebuilt)…"
+    nix build "$FLAKE_PATH#nixosConfigurations.surface.config.system.build.toplevel" \
+        --out-link "$out/result" -L --accept-flake-config \
+        --extra-experimental-features "nix-command flakes" || { error "ci build failed"; return 1; }
+
+    local sys; sys=$(readlink -f "$out/result")
+    basename "$sys" > "$out/toplevel.name"
+    echo "$sys" > "$out/toplevel.path"
+
+    log "Exporting closure → zstd tarball…"
+    nix-store --export $(nix-store -qR "$sys") | zstd -T0 -15 > "$out/system-closure.nar.zst"
+    rm -f "$out/result"
+    log "Done: $(du -h "$out/system-closure.nar.zst" | cut -f1) → $out/"
+}
+
+# pull [artifact-dir] — run on the Surface. Import a GHA-built closure tarball
+# and activate it. NO nix eval, NO build → physically cannot freeze the machine.
+# Default artifact-dir is dist-ci/ (e.g. after `gh run download -n nixos-surface-closure -D dist-ci`).
+pull_remote() {
+    header "Activate prebuilt closure (no eval — cannot freeze)"
+    local art="${1:-$SCRIPT_DIR/dist-ci}"
+    local tb="$art/system-closure.nar.zst"
+    [ -f "$tb" ] || { error "no closure tarball at $tb (fetch it first: gh run download -n nixos-surface-closure -D '$art')"; return 1; }
+    [ -f "$art/toplevel.name" ] || { error "missing $art/toplevel.name"; return 1; }
+    local sys="/nix/store/$(cat "$art/toplevel.name")"
+
+    log "Importing closure into the store (no build)…"
+    zstd -d -c "$tb" | sudo nix-store --import >/dev/null || { error "import failed"; return 1; }
+    [ -d "$sys" ] || { error "imported store path $sys not present after import"; return 1; }
+
+    log "Phase 2: activate as root (fast — no eval)…"
+    sudo nix-env -p /nix/var/nix/profiles/system --set "$sys" || return 1
+    sudo "$sys/bin/switch-to-configuration" switch
+    local rc=$?
+    [ $rc -eq 0 ] && regen_bootloader
+    return $rc
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
 # MAIN TUI
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -1555,6 +1616,12 @@ if [ $# -gt 0 ]; then
         t|test)
             test_system
             ;;
+        ci-build)
+            ci_build
+            ;;
+        pull|switch-remote)
+            pull_remote "$2"
+            ;;
         build)
             case "$2" in
                 raw)    build_raw ;;
@@ -1619,6 +1686,8 @@ if [ $# -gt 0 ]; then
             printf "  s | switch                Rebuild and switch to new config NOW\n"
             printf "  b | boot                  Build config, activate on next boot\n"
             printf "  t | test                  Test config (reverts on reboot)\n"
+            printf "  ci-build                  [GHA] Build + export system closure tarball → dist-ci/\n"
+            printf "  pull [dir]                Import a GHA-built closure + activate (NO eval — never freezes)\n"
             printf "\n"
             printf "${BOLD}Build Images:${NC}\n"
             printf "  1 | raw   | build raw     Build raw EFI disk image\n"
