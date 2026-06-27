@@ -344,8 +344,8 @@ _rebuild_exec() {
             --extra-experimental-features "nix-command flakes" || return 1
 
     log "Phase 2: activate as root (fast — no nix eval)…"
-    nix-env -p /nix/var/nix/profiles/system --set "$result_link"
-    "$result_link/bin/switch-to-configuration" "$mode"
+    sudo nix-env -p /nix/var/nix/profiles/system --set "$result_link"
+    sudo "$result_link/bin/switch-to-configuration" "$mode"
     local rc=$?
     rm -f "$result_link"
     return $rc
