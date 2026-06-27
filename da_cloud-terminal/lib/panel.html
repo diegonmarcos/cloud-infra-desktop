@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cloud Terminal</title>
+<link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css">
+<style>
+  :root {
+    --accent:  #7b7fff;
+    --accent2: #a78bfa;
+    --bg:      #0e0f1a;
+    --fg:      #e2e8f0;
+    --sidebar: #13141f;
+    --item-bg: #1a1b2e;
+    --sep:     #2a2b3d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--fg);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── Tab bar (profile switcher) ── */
+  #tabbar {
+    display: flex; align-items: center; gap: 4px;
+    padding: 6px 10px 0;
+    background: var(--sidebar);
+    border-bottom: 1px solid var(--sep);
+    flex-shrink: 0; overflow-x: auto;
+  }
+  #tabbar .profile-pill {
+    padding: 5px 14px; border-radius: 6px 6px 0 0; cursor: pointer;
+    font-size: 12px; color: #888; background: transparent; border: none;
+    white-space: nowrap; transition: color .15s, background .15s;
+  }
+  #tabbar .profile-pill:hover  { color: var(--fg); background: var(--item-bg); }
+  #tabbar .profile-pill.active { color: var(--accent); background: var(--bg); border-bottom: 2px solid var(--accent); }
+
+  /* ── Header ── */
+  #header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; background: var(--bg);
+    border-bottom: 1px solid var(--sep); flex-shrink: 0;
+  }
+  #header .logo  { font-size: 18px; }
+  #header .name  { font-weight: 600; color: var(--accent); }
+  #header .host  { color: #6b7280; font-size: 11px; }
+  #header .spacer { flex: 1; }
+  #header button {
+    padding: 4px 12px; background: var(--item-bg); color: var(--fg);
+    border: 1px solid var(--sep); border-radius: 4px; cursor: pointer;
+    font-family: inherit; font-size: 11px;
+  }
+  #header button:hover     { border-color: var(--accent); color: var(--accent); }
+  #header #kill-btn:hover  { border-color: #f87171; color: #f87171; }
+
+  /* ── Body ── */
+  #body { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 230px; background: var(--sidebar);
+    border-right: 1px solid var(--sep); overflow-y: auto; flex-shrink: 0;
+  }
+  #sidebar::-webkit-scrollbar { width: 4px; }
+  #sidebar::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 2px; }
+  .section-title {
+    padding: 10px 12px 4px; font-size: 10px; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--accent2); opacity: .85;
+  }
+  .cmd-item {
+    display: block; text-align: left; padding: 7px 14px; background: none;
+    border: none; color: var(--fg); cursor: pointer; font-family: inherit;
+    font-size: 12px; border-radius: 4px; margin: 1px 4px;
+    width: calc(100% - 8px); transition: background .1s, color .1s;
+  }
+  .cmd-item:hover  { background: var(--item-bg); color: var(--accent); }
+  .cmd-item:active { background: var(--sep); }
+  .sep-line { height: 1px; background: var(--sep); margin: 4px 10px; }
+
+  /* ── Terminal ── */
+  /* ── Terminal area + tabs ── */
+  #terminal-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #termtabs {
+    display: flex; align-items: center; gap: 2px;
+    padding: 4px 6px 0; background: var(--sidebar);
+    border-bottom: 1px solid var(--sep); flex-shrink: 0; overflow-x: auto;
+  }
+  .term-tab {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 5px 5px 0 0; cursor: pointer;
+    font-size: 11px; color: #888; background: transparent; border: none;
+    white-space: nowrap;
+  }
+  .term-tab:hover  { background: var(--item-bg); color: var(--fg); }
+  .term-tab.active { background: var(--bg); color: var(--accent); border-bottom: 2px solid var(--accent); }
+  .term-tab .close { opacity: .5; font-size: 12px; }
+  .term-tab .close:hover { opacity: 1; color: #f87171; }
+  #newtab {
+    padding: 4px 10px; border: none; background: transparent; color: var(--accent2);
+    font-size: 15px; cursor: pointer; border-radius: 5px;
+  }
+  #newtab:hover { background: var(--item-bg); }
+  #terms { position: relative; flex: 1; overflow: hidden; }
+  .term-pane { position: absolute; inset: 0; padding: 6px 8px; display: none; }
+  .term-pane.active { display: block; }
+  .xterm { height: 100%; }
+
+  /* ── Right-click context menu ── */
+  #ctxmenu {
+    position: fixed; z-index: 1000; display: none;
+    min-width: 160px; padding: 4px;
+    background: var(--sidebar); border: 1px solid var(--sep);
+    border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+  }
+  #ctxmenu .ctx-item {
+    display: flex; justify-content: space-between; gap: 18px;
+    padding: 6px 12px; border-radius: 4px; cursor: pointer;
+    font-size: 12px; color: var(--fg); white-space: nowrap;
+  }
+  #ctxmenu .ctx-item:hover { background: var(--item-bg); color: var(--accent); }
+  #ctxmenu .ctx-item .key  { color: #6b7280; font-size: 11px; }
+  #ctxmenu .ctx-sep { height: 1px; background: var(--sep); margin: 4px 6px; }
+</style>
+</head>
+<body>
+
+<div id="tabbar"></div>
+
+<div id="header">
+  <span class="logo"  id="hdr-logo"></span>
+  <span class="name"  id="hdr-name"></span>
+  <span class="host"  id="hdr-host"></span>
+  <span class="spacer"></span>
+  <button id="kill-btn"  title="Send Ctrl-C">■ Kill</button>
+  <button id="clear-btn" title="Clear terminal">Clear</button>
+</div>
+
+<div id="body">
+  <div id="sidebar"></div>
+  <div id="terminal-area">
+    <div id="termtabs"><button id="newtab" title="New terminal tab">+</button></div>
+    <div id="terms"></div>
+  </div>
+</div>
+
+<div id="ctxmenu">
+  <div class="ctx-item" data-act="copy">Copy        <span class="key">Ctrl+Shift+C</span></div>
+  <div class="ctx-item" data-act="paste">Paste      <span class="key">Ctrl+Shift+V</span></div>
+  <div class="ctx-item" data-act="selall">Select All</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" data-act="clear">Clear</div>
+  <div class="ctx-item" data-act="newtab">New Tab    <span class="key">+</span></div>
+</div>
+
+<script>
+const { ipcRenderer, clipboard } = require('electron')
+const os = require('os')
+const { Terminal } = require('@xterm/xterm')
+const { FitAddon } = require('@xterm/addon-fit')
+
+let allProfiles = []
+let active = null                 // active profile object
+let curTheme = {}                 // last applied theme (for new tabs)
+
+// ── Terminal tabs (multi-session) ──
+const tabs = new Map()            // id → { term, fit, pane, btn, title }
+let tabSeq = 0
+let activeTab = null
+
+function termTheme(theme) {
+  return { background: theme.bg || '#0e0f1a', foreground: '#e2e8f0', cursor: theme.accent || '#7b7fff' }
+}
+
+function newTab() {
+  const id = ++tabSeq
+  const pane = document.createElement('div')
+  pane.className = 'term-pane'
+  document.getElementById('terms').appendChild(pane)
+
+  const term = new Terminal({
+    fontFamily: "'JetBrains Mono','Fira Code',monospace",
+    fontSize: 13, cursorBlink: true, scrollback: 10000,
+    theme: termTheme(curTheme),
+  })
+  const fit = new FitAddon()
+  term.loadAddon(fit)
+  term.open(pane)
+
+  // copy/paste: Ctrl+Shift+C copies selection, Ctrl+Shift+V pastes
+  term.attachCustomKeyEventHandler(e => {
+    if (e.type !== 'keydown') return true
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyC') {
+      const sel = term.getSelection(); if (sel) clipboard.writeText(sel); return false
+    }
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyV') {
+      ipcRenderer.send('pty-input', { id, d: clipboard.readText() }); return false
+    }
+    return true
+  })
+  term.onData(d => ipcRenderer.send('pty-input', { id, d }))
+
+  // right-click context menu
+  pane.addEventListener('contextmenu', e => { e.preventDefault(); showCtxMenu(e.clientX, e.clientY, id) })
+
+  const btn = document.createElement('button')
+  btn.className = 'term-tab'
+  const label = document.createElement('span'); label.textContent = 'shell ' + id
+  const close = document.createElement('span'); close.className = 'close'; close.textContent = '×'
+  close.onclick = ev => { ev.stopPropagation(); closeTab(id) }
+  btn.append(label, close)
+  btn.onclick = () => activateTab(id)
+  document.getElementById('termtabs').insertBefore(btn, document.getElementById('newtab'))
+
+  tabs.set(id, { term, fit, pane, btn, title: label })
+  ipcRenderer.send('pty-start', { id, cols: term.cols || 80, rows: term.rows || 24 })
+  activateTab(id)
+  return id
+}
+
+function activateTab(id) {
+  activeTab = id
+  for (const [tid, t] of tabs) {
+    const on = tid === id
+    t.pane.classList.toggle('active', on)
+    t.btn.classList.toggle('active', on)
+  }
+  const t = tabs.get(id)
+  if (t) { t.fit.fit(); ipcRenderer.send('pty-resize', { id, cols: t.term.cols, rows: t.term.rows }); t.term.focus() }
+}
+
+function closeTab(id) {
+  const t = tabs.get(id)
+  if (!t) return
+  ipcRenderer.send('pty-kill', { id })
+  t.term.dispose(); t.pane.remove(); t.btn.remove()
+  tabs.delete(id)
+  if (activeTab === id) {
+    const next = tabs.keys().next().value
+    if (next != null) activateTab(next); else newTab()
+  }
+}
+
+ipcRenderer.on('pty-data', (_e, id, d) => { const t = tabs.get(id); if (t) t.term.write(d) })
+ipcRenderer.on('pty-exit', (_e, id)   => { const t = tabs.get(id); if (t) t.term.write('\r\n\x1b[33m[shell exited]\x1b[0m\r\n') })
+
+function doFit() { const t = tabs.get(activeTab); if (t) { t.fit.fit(); ipcRenderer.send('pty-resize', { id: activeTab, cols: t.term.cols, rows: t.term.rows }) } }
+window.addEventListener('resize', doFit)
+
+// ── theme (CSS vars + all xterm tabs) ──
+function applyTheme(theme) {
+  curTheme = theme || {}
+  const r = document.documentElement.style
+  if (theme.accent)  r.setProperty('--accent',  theme.accent)
+  if (theme.accent2) r.setProperty('--accent2', theme.accent2)
+  if (theme.bg)      r.setProperty('--bg',      theme.bg)
+  for (const t of tabs.values()) t.term.options.theme = termTheme(theme)
+}
+
+// ── sidebar (data-driven) — runs command in the ACTIVE tab ──
+function buildSidebar(profile) {
+  const sb = document.getElementById('sidebar')
+  sb.innerHTML = ''
+  for (const section of (profile.sections || [])) {
+    const t = document.createElement('div')
+    t.className = 'section-title'; t.textContent = section.title
+    sb.appendChild(t)
+    for (const item of (section.items || [])) {
+      const btn = document.createElement('button')
+      btn.className = 'cmd-item'; btn.textContent = item.label
+      btn.onclick = () => {
+        ipcRenderer.send('run-item', { ...item, profile: profile.name, ptyId: activeTab })
+        const t = tabs.get(activeTab); if (t) t.term.focus()
+      }
+      sb.appendChild(btn)
+    }
+    const sep = document.createElement('div')
+    sep.className = 'sep-line'; sb.appendChild(sep)
+  }
+}
+
+// ── profile pills ──
+function buildProfileTabs() {
+  const bar = document.getElementById('tabbar')
+  bar.innerHTML = ''
+  for (const p of allProfiles) {
+    const btn = document.createElement('button')
+    btn.className = 'profile-pill' + (p.name === active.name ? ' active' : '')
+    btn.textContent = (p.logo ? p.logo + ' ' : '') + p.display_name
+    btn.onclick = () => { if (p.name !== active.name) showProfile(p) }
+    bar.appendChild(btn)
+  }
+}
+
+// ── switch profile IN-WINDOW ──
+function showProfile(p) {
+  active = p
+  applyTheme(p.theme || {})
+  buildProfileTabs()
+  buildSidebar(p)
+  document.getElementById('hdr-logo').textContent = p.logo || ''
+  document.getElementById('hdr-name').textContent = p.display_name || ''
+  document.title = 'Cloud Terminal — ' + (p.display_name || '')
+}
+
+ipcRenderer.on('init', (_e, data) => {
+  allProfiles = data.profiles || [data]
+  document.getElementById('hdr-host').textContent = '@ ' + os.hostname()
+  showProfile(allProfiles.find(p => p.name === data.name) || data)
+  newTab()                       // first terminal tab
+  setTimeout(doFit, 60)
+})
+
+// ── right-click context menu ──
+const ctx = document.getElementById('ctxmenu')
+let ctxTab = null
+function showCtxMenu(x, y, id) {
+  ctxTab = id
+  ctx.style.display = 'block'
+  // clamp to viewport
+  const w = ctx.offsetWidth, h = ctx.offsetHeight
+  ctx.style.left = Math.min(x, window.innerWidth  - w - 4) + 'px'
+  ctx.style.top  = Math.min(y, window.innerHeight - h - 4) + 'px'
+}
+function hideCtxMenu() { ctx.style.display = 'none' }
+window.addEventListener('click', hideCtxMenu)
+window.addEventListener('blur', hideCtxMenu)
+ctx.addEventListener('click', e => {
+  const it = e.target.closest('.ctx-item'); if (!it) return
+  const t = tabs.get(ctxTab); if (!t) return
+  switch (it.dataset.act) {
+    case 'copy':   { const s = t.term.getSelection(); if (s) clipboard.writeText(s); break }
+    case 'paste':  ipcRenderer.send('pty-input', { id: ctxTab, d: clipboard.readText() }); break
+    case 'selall': t.term.selectAll(); break
+    case 'clear':  t.term.clear(); break
+    case 'newtab': newTab(); break
+  }
+  hideCtxMenu(); t.term.focus()
+})
+
+// ── new-tab button + header buttons ──
+document.getElementById('newtab').onclick   = () => newTab()
+document.getElementById('clear-btn').onclick = () => { const t = tabs.get(activeTab); if (t) { t.term.clear(); t.term.focus() } }
+document.getElementById('kill-btn').onclick  = () => { ipcRenderer.send('pty-input', { id: activeTab, d: '\x03' }) }
+</script>
+</body>
+</html>
