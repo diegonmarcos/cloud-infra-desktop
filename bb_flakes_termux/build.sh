@@ -566,6 +566,71 @@ cmd_status() {
 }
 
 # ============================================================================
+# REMOTE BUILD (GHA arm64) + LOCAL ACTIVATE — never OOM the phone with an eval
+# ============================================================================
+# The phone (7GB, proot) OOM-thrashes on a local `nix-on-droid switch`. So the
+# aarch64 eval+build runs on a GitHub arm64 runner (`ci-build`), and the phone
+# only IMPORTS the prebuilt closure + runs its activate script (`pull`) — no
+# eval, no compile → cannot OOM.
+
+# ci-build — run on a GHA ubuntu-24.04-arm runner. Build the nix-on-droid
+# activationPackage and export its closure as a zstd tarball into dist-ci/.
+cmd_ci_build() {
+    log_header "CI: build + export nix-on-droid closure (aarch64)"
+    check_nix || return 1
+    _out="$SCRIPT_DIR/dist-ci"
+    rm -rf "$_out"; mkdir -p "$_out"
+
+    # Free GHA-runner disk — the closure + export won't fit in the default root.
+    # Only touch the runner's preinstalled bloat, never a real system.
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        log_info "Freeing GHA runner disk..."
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                    /opt/hostedtoolcache/CodeQL /usr/local/share/boost 2>/dev/null || true
+    fi
+
+    _nix="nix"; [ -x "$HOME/.nix-profile/bin/nix" ] && _nix="$HOME/.nix-profile/bin/nix"
+    log_info "Building activationPackage (accept-flake-config → cached substitutes)..."
+    "$_nix" build "$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" \
+        --impure --accept-flake-config --out-link "$_out/result" \
+        --extra-experimental-features "nix-command flakes" $NIX_VERBOSE_FLAGS \
+        || { log_error "ci build failed"; return 1; }
+
+    _sys=$(readlink -f "$_out/result")
+    basename "$_sys" > "$_out/activation.name"
+    echo "$_sys" > "$_out/activation.path"
+    log_info "Exporting closure -> zstd tarball..."
+    nix-store --export $(nix-store -qR "$_sys") | zstd -T0 -15 > "$_out/nixondroid-closure.nar.zst"
+    rm -f "$_out/result"
+    log_success "Done: $(du -h "$_out/nixondroid-closure.nar.zst" | cut -f1) -> $_out/"
+}
+
+# pull [artifact-dir] — run on the phone. Import a GHA-built closure and run its
+# activate script. NO eval, NO build -> cannot OOM. Default dir is dist-ci/
+# (e.g. after: gh run download -n nixos-termux-closure -D dist-ci).
+cmd_pull() {
+    log_header "Activate prebuilt closure (no eval — cannot OOM the phone)"
+    check_nix || return 1
+    _art="${1:-$SCRIPT_DIR/dist-ci}"
+    _tb="$_art/nixondroid-closure.nar.zst"
+    [ -f "$_tb" ] || { log_error "no closure tarball at $_tb (fetch: gh run download -n nixos-termux-closure -D '$_art')"; return 1; }
+    [ -f "$_art/activation.name" ] || { log_error "missing $_art/activation.name"; return 1; }
+    _sys="/nix/store/$(cat "$_art/activation.name")"
+
+    log_info "Importing closure into the store (no build)..."
+    zstd -d -c "$_tb" | nix-store --import >/dev/null || { log_error "import failed"; return 1; }
+    [ -d "$_sys" ] || { log_error "imported path $_sys missing after import"; return 1; }
+
+    # nix-on-droid activationPackages expose the activator at ./activate
+    # (older layouts at ./bin/activate) — prefer whichever exists.
+    _act="$_sys/activate"; [ -x "$_act" ] || _act="$_sys/bin/activate"
+    [ -x "$_act" ] || { log_error "no activate script in $_sys"; return 1; }
+    log_info "Activating ($_act)..."
+    "$_act"
+    log_success "Activated prebuilt generation (no eval)."
+}
+
+# ============================================================================
 # TUI MENU
 # ============================================================================
 
@@ -625,6 +690,8 @@ ${YELLOW}USAGE:${NC}
 ${YELLOW}COMMANDS:${NC}
     switch      Apply home-manager config (default)
     build       Build without applying (validate only)
+    ci-build    [GHA arm64] Build + export the closure tarball -> dist-ci/
+    pull [dir]  Import a GHA-built closure + activate (NO eval — never OOMs)
     dry-run     Show what would be built (fast, no build)
     plan        Alias for dry-run
     tui         Launch interactive TUI menu
@@ -657,6 +724,8 @@ case "${1:-switch}" in
     -h|--help|help) show_help ;;
     switch)  cmd_switch ;;
     build)   cmd_build ;;
+    ci-build) cmd_ci_build ;;
+    pull|switch-remote) cmd_pull "$2" ;;
     dry-run|plan) cmd_dry_run ;;
     tui)     run_tui ;;
     update)  cmd_update ;;
