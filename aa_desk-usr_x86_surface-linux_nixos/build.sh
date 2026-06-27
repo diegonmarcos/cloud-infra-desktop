@@ -325,42 +325,30 @@ MAX_CORES=4
 MAX_JOBS=1
 NIX_BUILD_FLAGS="--max-jobs $MAX_JOBS --cores $MAX_CORES -L --extra-experimental-features nix-command --extra-experimental-features flakes"
 
-# ── Hard resource caps for nixos-rebuild + all its children (2026-06-27) ──────
-# Wraps nixos-rebuild in a transient systemd SERVICE (--system, not --scope).
-# A service is owned by PID 1, never SIGTERM'd by session death — this is exactly
-# the problem that made --scope unusable (2026-06-25 incident: QProcess reap).
-# --wait makes the call synchronous; --pty forwards I/O to the terminal when
-# there is one ([ -t 1 ]), falls back to journal-only for headless/GUI callers.
-# --collect auto-removes the transient unit after it exits.
-# Caps applied (8-core/8GB Surface):
-#   CPUQuota=400%        → 4 of 8 cores hard ceiling, desktop always gets half
-#   IOWeight=10          → near-idle disk I/O class; yields to everything
-#   MemoryHigh=5324M     → 65% RAM soft limit; kernel reclaims before swap
-#   MemoryMax=6144M      → 75% RAM hard limit; OOM-kills rebuild before freeze
-#   MemorySwapMax=2048M  → 2G disk-swap ceiling; prevents disk-thrash freeze
-# Falls back to plain sudo if systemd-run is absent (non-systemd installer env).
+# ── Two-phase rebuild: nix eval as Diego (user), activation as root ──────────
+# Phase 1 — `nix build` runs as Diego (uid 1000), capped by user-1000.slice.
+#   The heavy nix evaluation + store build happens here. No root needed.
+# Phase 2 — only profile-set + switch-to-configuration run as root (fast,
+#   no nix evaluation → can never eat all RAM).
 _rebuild_exec() {
-    local gitconf="$1"; shift
-    if command -v systemd-run >/dev/null 2>&1; then
-        local srun_opts=(
-            --system --wait --collect
-            "--unit=nixos-rebuild-$$"
-            --slice=workload.slice
-            --property=CPUQuota=400%
-            --property=IOWeight=10
-            --property=MemoryHigh=5324M
-            --property=MemoryMax=6144M
-            --property=MemorySwapMax=2048M
-            "--setenv=GIT_CONFIG_GLOBAL=$gitconf"
-            "--setenv=GIT_CONFIG_SYSTEM=$gitconf"
-            --setenv=BUILDSH_GUARDRAIL=1
-        )
-        [ -t 1 ] && srun_opts+=(--pty)
-        sudo systemd-run "${srun_opts[@]}" -- nixos-rebuild "$@"
-    else
-        sudo env "GIT_CONFIG_GLOBAL=$gitconf" "GIT_CONFIG_SYSTEM=$gitconf" \
-            BUILDSH_GUARDRAIL=1 nixos-rebuild "$@"
-    fi
+    local gitconf="$1"
+    local mode="$2"  # switch | boot | test | dry-activate
+    local result_link="/tmp/nixos-rebuild-result-$$"
+
+    log "Phase 1: nix build as $(id -un) — capped by user-1000.slice (not root)…"
+    GIT_CONFIG_GLOBAL="$gitconf" GIT_CONFIG_SYSTEM="$gitconf" BUILDSH_GUARDRAIL=1 \
+        nix build \
+            "$FLAKE_PATH#nixosConfigurations.surface.config.system.build.toplevel" \
+            --out-link "$result_link" \
+            --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" -L \
+            --extra-experimental-features "nix-command flakes" || return 1
+
+    log "Phase 2: activate as root (fast — no nix eval)…"
+    nix-env -p /nix/var/nix/profiles/system --set "$result_link"
+    "$result_link/bin/switch-to-configuration" "$mode"
+    local rc=$?
+    rm -f "$result_link"
+    return $rc
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1144,7 +1132,9 @@ dry_run() {
     log "Building NixOS config (dry-activate — no switch)..."
     log "CPU limits: $MAX_CORES cores, $MAX_JOBS parallel jobs"
 
-    _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)" && printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG" && sudo env "GIT_CONFIG_GLOBAL=$_BUILDSH_BOOTSTRAP_GITCONFIG" "GIT_CONFIG_SYSTEM=$_BUILDSH_BOOTSTRAP_GITCONFIG" BUILDSH_GUARDRAIL=1 $REBUILD_SCOPE nixos-rebuild dry-activate --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
+    _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)"
+    printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG"
+    _rebuild_exec "$_BUILDSH_BOOTSTRAP_GITCONFIG" dry-activate 2>&1
 
     if [ $? -eq 0 ]; then
         log "Dry run complete — no changes applied"
@@ -1250,7 +1240,7 @@ switch_system() {
 
     _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)"
     printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG"
-    _rebuild_exec "$_BUILDSH_BOOTSTRAP_GITCONFIG" switch --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
+    _rebuild_exec "$_BUILDSH_BOOTSTRAP_GITCONFIG" switch 2>&1
 
     if [ $? -eq 0 ]; then
         # Trim to last 3 generations and GC
@@ -1294,7 +1284,7 @@ boot_system() {
 
     _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)"
     printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG"
-    _rebuild_exec "$_BUILDSH_BOOTSTRAP_GITCONFIG" boot --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
+    _rebuild_exec "$_BUILDSH_BOOTSTRAP_GITCONFIG" boot 2>&1
 
     if [ $? -eq 0 ]; then
         # `nixos-rebuild boot` sets the next-boot generation — the menu MUST
@@ -1321,7 +1311,7 @@ test_system() {
 
     _BUILDSH_BOOTSTRAP_GITCONFIG="$(mktemp /tmp/buildsh-gitconfig.XXXXXX)"
     printf '[safe]\n\tdirectory = *\n' > "$_BUILDSH_BOOTSTRAP_GITCONFIG"
-    _rebuild_exec "$_BUILDSH_BOOTSTRAP_GITCONFIG" test --flake "$FLAKE_PATH#surface" --max-jobs "$MAX_JOBS" --cores "$MAX_CORES" 2>&1
+    _rebuild_exec "$_BUILDSH_BOOTSTRAP_GITCONFIG" test 2>&1
 
     if [ $? -eq 0 ]; then
         log "Test activation complete!"
