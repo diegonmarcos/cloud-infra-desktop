@@ -188,14 +188,6 @@ Five git repos under `~/git/`. Same engine interface (`build.sh` + `build.json`)
 - **Docker/Podman**: Data stored at `/mnt/shared-lib/docker` (p5, former Kubuntu partition repurposed 2026-05-04)
 - **Bootloader**: NixOS yields all bootloader management to `aa_bootloader/` (rEFInd primary, GRUB secondary). Run `aa_bootloader/build.sh deploy` after any flake change that affects boot.
 
-## A.4 Terminal Welcome (rendered fish greeting)
-
-```
-<!-- INJECT:fish_greeting -->
-(fish greeting not available at build time)
-<!-- /INJECT -->
-```
-
 ---
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -410,27 +402,7 @@ _mtm.push({'mtm.startTime': (new Date().getTime()), 'event': 'mtm.Start'});
 
 ## ⚠️ CRITICAL: NIX WAY — ALWAYS FLAKES IN THE REPO ⚠️
 
-```
-╔══════════════════════════════════════════════════════════════════╗
-║                                                                  ║
-║   NEVER use system-level flakes. Flakes live IN the repository.  ║
-║                                                                  ║
-║   Every project uses build.sh (engine) + build.json (config)     ║
-║   at project root.                                               ║
-║                                                                  ║
-║   build.sh is the ONLY build interface. ALWAYS use it.           ║
-║                                                                  ║
-║   NEVER run nix build/switch/etc. directly — use the repo's      ║
-║   build.sh.                                                      ║
-║                                                                  ║
-║   NEVER edit deployed/output files directly (e.g. ~/.claude/,    ║
-║   dist/, ~/). ALWAYS find and edit the SOURCE in the git repo    ║
-║   flake. This file (CLAUDE.md) is deployed output — its source:  ║
-║     ~/git/unix/ba_flakes_desktop/src/modules/dotfiles/claude/    ║
-║     ~/git/unix/bb_flakes_termux/src/modules/dotfiles/claude/     ║
-║                                                                  ║
-╚══════════════════════════════════════════════════════════════════╝
-```
+> **NEVER** use system-level flakes. Flakes live IN the repo. Every project uses `build.sh` (engine) + `build.json` (config). `build.sh` is the ONLY build interface — never run `nix build/switch` directly. NEVER edit deployed output (`~/.claude/`, `dist/`, `~/`) — always edit source in git. This `CLAUDE.md` is deployed output; its source: `~/git/unix/ba_flakes_desktop/src/modules/dotfiles/claude/CLAUDE.md.tpl`
 
 ### GitHub Actions CI/CD (cloud/ repo)
 
@@ -510,83 +482,17 @@ This ensures consistent context loading and access to CLAUDE.md instructions.
 
 ## E.1.2 Guard-Rails (hooks)
 
-> Source: `~/git/unix/{ba_flakes_desktop,bb_flakes_termux}/src/modules/dotfiles/claude/`. Wired via `settings.json`. Deployed by home-manager to `~/.claude/hooks/`.
+> Source: `~/git/unix/{ba_flakes_desktop,bb_flakes_termux}/src/modules/dotfiles/claude/` · deployed to `~/.claude/hooks/` via home-manager. Full rule text is **auto-injected by hooks every session/prompt** — this is the summary only.
 
-### Hook lifecycle
+| Tier | Event | Script | Effect |
+|------|-------|--------|--------|
+| **A** | SessionStart (1×) | `a-context-inject-memory.sh` | Full CORE PRINCIPLES + checklist + forbidden patterns |
+| **B** | UserPromptSubmit | `b-context-inject-prompt.sh` | CORE + FIRE rules + Stack Philosophy + dead-shell recovery |
+| **C₀** | PreToolUse:Bash | `c-context-inject-pretool.sh` | Compact CORE reminder via `additionalContext` JSON |
+| **C₁** | PreToolUse:Bash | `c-pretool-guard-blockers.sh` | **Hard deny** (`exit 2`): `git add -f`, `docker volume rm/prune`, `nix-env -i`, plaintext `>.secrets/.env`, `git add *.key/*.pem/*.age/*secret*` (vault carve-out + sops marker exempt) |
+| **C₂** | PreToolUse:Bash | `c-pretool-guard-warning.sh` | Advisory (`exit 0`): build-bypass cmds (`npm i`, `nix build`, `docker compose up` direct), `which`, SSH write-imperatives, `sops -d` outside engine, inline secrets in env/curl |
 
-| Tier | Event | Script | Role |
-|------|-------|--------|------|
-| **A** | SessionStart (1×/session) | `a-context-inject-memory.sh` | Inject full CORE PRINCIPLES + checklist + forbidden patterns into session context |
-| **B** | UserPromptSubmit (every prompt) | `b-context-inject-prompt.sh` | Re-inject CORE + FIRE rules + Stack Philosophy + dead-shell recovery |
-| **C₀** | PreToolUse:Bash (every Bash call) | `c-context-inject-pretool.sh` | Compact CORE reminder via `hookSpecificOutput.additionalContext` (JSON) |
-| **C₁** | PreToolUse:Bash (every Bash call) | `c-pretool-guard-blockers.sh` | **Hard deny** — `exit 2`, tool call refused, stderr explains reason |
-| **C₂** | PreToolUse:Bash (every Bash call) | `c-pretool-guard-warning.sh` | **Advisory** — `exit 0` + stderr note, command proceeds |
-
-Commit-time defence: `1_workflows/src/hooks/pre-commit` blocks any gitignored file from being committed.
-
-### Hard blockers (Tier C₁ — `exit 2`)
-
-| # | Pattern | Reason |
-|---|---------|--------|
-| 1 | `git add -f` / `--force` | Bypasses gitignore — leaks secrets / decrypted keys / `sensitive/` |
-| 2 | `docker compose down -v\|--volumes` | Wipes named volumes (DBs) — irreversible |
-| 3 | `docker volume rm\|prune` | Irreversible per-volume deletion |
-| 4 | `docker system prune --volumes` | Same blast radius as volume prune |
-| 5 | `nix-env -i\|-iA\|--install` | Imperative profile pollution; breaks reproducibility |
-| 6 | `(echo\|printf\|tee) ... >.*\.(secrets\|env)` | **Pillar 7A** — imperative plaintext write to secret file |
-| 7 | `git add` of `.env` / `.key` / `.pem` / `.age` / `*secret*` | **Pillar 7B** — plaintext secret-shape stage. Carve-outs: inside `~/git/vault/`, or `secrets.yaml` containing sops marker (`^sops:` / `ENC[AES256_GCM`) |
-
-### Always-allow (Tier 0 — skip all warnings)
-
-Read-only introspection passes silently:
-- **npm**: `root`, `config`, `prefix`, `ls`, `view`, `info`, `show`, `search`, `help`, `doctor`, `audit`, `outdated`, `fund`, `pack`, `ping`, `whoami`, `token`, `profile`, `access`, `bugs`, `repo`, `--version`, `--help`
-- **nix**: `eval`, `show-derivation`, `path-info`, `log`, `why-depends`, `store`, `hash`, `doctor`, `registry`; `flake show/check/info/metadata`; `profile list`
-- **docker**: `ps`, `images`, `logs`, `inspect`, `top`, `stats`, `diff`, `port`, `version`, `info`, `events`, `history`, `search`; `network/volume ls/inspect`
-- **pip**: `list`, `show`, `freeze`, `check`, `config`, `--version`, `--help`
-
-### Warnings (Tier C₂ — advisory, command still runs)
-
-**Build-pipeline bypass** → use `build.sh`
-- `npm install` / `ci` / `run` / `start` / `test`, `npx`, `yarn`, `pnpm`
-- raw `nix build` / `nix run`, `nixos-rebuild`, `home-manager switch` / `build`
-- `apt install`, `brew install`, `pip install`, `conda install`
-- `docker compose up` / `down`, `docker exec`
-- `rsync --delete`
-
-**Shell antipatterns**
-- `which` → use `command -v`
-- `cd <dir> && git mv <dir>/...` → use `git -C /abs/path mv …`
-- `cd <dir> && rm -rf` → use absolute paths (kills shell if CWD removed)
-
-**SSH imperatives** — never mutate VMs by hand
-- `ssh vm '... echo/sed/tee/cat/printf ... >>?'` (write-redirect)
-- `ssh vm '... sysctl -w'`
-- `ssh vm '... docker exec'`
-- `ssh vm '... > .secrets|.env'` (remote secret-file write — **Pillar 7A**)
-
-**Secrets (Pillar 7)** — complements blockers #6 / #7
-- `sops -d` / `--decrypt` (manual decrypt outside the engine)
-- `sops -d -i` (in-place decrypt — leaves plaintext on disk, primes accidental `git add`)
-- `docker run/exec -e KEY=<long literal>` (inline credential leaks via `ps` + history)
-- `curl -H "Authorization: Bearer <literal>"` (literal token in transcript)
-- `export FOO=<long literal>` (hardcoded credential in env)
-- `cat` / `less` / `bat` / `head` / `tail` of `.secrets` / `.env` / `.key` / `.pem` / `.age`
-
-### Quick-reference forbidden patterns
-
-| NEVER | ALWAYS |
-|-------|--------|
-| `ssh vm 'echo > .secrets'` | `src/secrets.yaml` + sops + `build.sh ship` |
-| `nix-env -i pkg` | Add to flake + rebuild |
-| `sed` on VM `/etc/` files | Edit nix source + deploy |
-| `docker compose up` on VM | `build.sh compose` |
-| `which cmd` | `command -v cmd` |
-| Edit `dist/` files | Edit `src/` + `build.sh build` |
-| Edit `~/.claude/CLAUDE.md` | Edit source in `~/git/unix/{ba_flakes_desktop,bb_flakes_termux}/.../CLAUDE.md.tpl` |
-| `cd dir && git mv dir/...` | `git -C /abs/path mv ...` (absolute paths) |
-| **`git add -f` / `git add --force`** | **plain `git add` — NEVER bypass gitignore.** |
-| **Hardcoded secret in source** | **`src/secrets.yaml` + sops + `build.sh secrets` (Pillar 7A)** |
-| **`git add` of `.env` / `.key` / `.pem` / `.age` / `*secret*` / plaintext `secrets.yaml`** | **Encrypt first; raw key material lives only in `~/git/vault` (Pillar 7B)** |
+Commit-time: `1_workflows/src/hooks/pre-commit` blocks gitignored files from staging.
 
 ## E.2 Dependency Verification (CRITICAL)
 
@@ -651,11 +557,9 @@ rpm -qR <package>           # RPM-based
 # SECTION F: OTHERS (Quick Reference)
 # ══════════════════════════════════════════════════════════════════════════════
 
-## F.1 Repo directory trees (auto-generated, dirs only, depth 4)
+## F.1 Repo directory trees
 
-<!-- INJECT:repo_trees -->
-(repo trees not available at build time — generated by gen-claude-md.sh from `tree -d -L 4` on each repo)
-<!-- /INJECT -->
+Use MCP `knowledge_inventory_list_directory` (or `find ~/git/<repo> -maxdepth 4 -type d`) — trees omitted here to keep CLAUDE.md under the 40k-char context limit.
 
 ## F.2 Domains
 

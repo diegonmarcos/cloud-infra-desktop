@@ -89,17 +89,23 @@ in {
   # private. Hickory (10.0.0.1) is still added first by the wg0 NM profile
   # (dns-priority 50) for internal names when wg0 is up; when wg0/Hickory is down,
   # resolution falls through to 127.0.0.1 → encrypted public DNS.
-  networking.nameservers = [ "127.0.0.1" ];
-
-  # Resilient resolver (PERMANENT FIX 2026-06-25): a dead tier-1 nameserver (e.g.
-  # Hickory 10.0.0.1 when the mesh/gcp-proxy is down) as the FIRST entry stalls
-  # EVERY lookup at glibc's default 5s timeout — which broke nixos-rebuild
-  # narinfo fetches ("couldn't resolve host"), Waydroid container DNS, and
-  # nix-on-droid. 1s timeout + a single re-cycle makes a dead server fail over
-  # to the working baseline almost instantly.
-  networking.resolvconf.extraConfig = ''
-    resolv_conf_options="timeout:1 attempts:2"
-  '';
+  # systemd-resolved: the DNS backend that actually honours NM per-interface
+  # dns-priority. With the old resolvconf backend, NM's dns-priority=50 on wg0
+  # never propagated to /etc/resolv.conf (networking.nameservers="127.0.0.1"
+  # owned it statically). systemd-resolved stub on 127.0.0.53 is the system
+  # resolver; /etc/resolv.conf → symlink → 127.0.0.53.
+  services.resolved = {
+    enable = true;
+    dnssec = "false";      # dnscrypt-proxy2 handles DNSSEC upstream
+    # Global DNS = dnscrypt-proxy2 (encrypted DoH/DoT to Cloudflare/Google).
+    # wg0's Hickory (10.0.0.1) is registered by NM per-interface and is used
+    # ONLY for ~diegonmarcos.com routing domain (see wg0 profile below).
+    fallbackDns = [ "1.1.1.1" "9.9.9.9" ];  # bare fallback if dnscrypt-proxy2 down
+    extraConfig = ''
+      DNS=127.0.0.1
+    '';
+  };
+  networking.networkmanager.dns = "systemd-resolved";
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Encrypted DNS — local dnscrypt-proxy2 on 127.0.0.1:53 (DoH/DoT over :443/:853)
@@ -164,13 +170,14 @@ in {
         ipv4 = {
           method = "manual";
           address1 = "${wgData.client.wg_ip}/24";
-          dns = wgData.hub.wg_ip;        # Hickory mesh DNS (preferred when wg0 up)
-          # POSITIVE priority: Hickory is tried first (lower number = higher prio,
-          # < wifi's default 100) for internal/*.internal names, but does NOT
-          # exclude the wifi's DHCP / public resolvers. A NEGATIVE value here would
-          # make NM drop ALL other DNS, breaking fallback when Hickory is down.
+          dns = wgData.hub.wg_ip;        # Hickory mesh DNS for diegonmarcos.com
           dns-priority = "50";
-          dns-search = "";
+          # ~diegonmarcos.com = routing domain: systemd-resolved routes ONLY
+          # *.diegonmarcos.com queries to Hickory (10.0.0.1). All other queries
+          # continue to use the global DNS (127.0.0.1 = dnscrypt-proxy2).
+          # Without this, dns-priority=50 would make Hickory the global primary
+          # resolver (before dnscrypt-proxy2), but Hickory only knows diegonmarcos.com.
+          dns-search = "~diegonmarcos.com";
           never-default = "true";        # only route the mesh subnet, not all traffic
         };
         ipv6.method = "ignore";

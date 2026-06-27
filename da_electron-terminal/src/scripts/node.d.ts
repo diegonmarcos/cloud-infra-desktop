@@ -1,12 +1,17 @@
 // Minimal Node.js type stubs — covers exactly what main.ts uses.
-// Avoids needing @types/node from npm/nixpkgs.
-
 declare const __dirname: string
+declare class Buffer {
+  toString(enc?: string): string
+  static from(data: any, enc?: string): Buffer
+}
 declare const __filename: string
 declare const process: {
   env: Record<string, string | undefined>
   argv: string[]
   exit(code?: number): never
+  platform: string
+  arch: string
+  versions: Record<string, string>
   on(event: 'uncaughtException', cb: (err: Error) => void): void
   on(event: 'unhandledRejection', cb: (reason: unknown) => void): void
 }
@@ -39,4 +44,10 @@ declare module 'child_process' {
     cwd?: string
   }
   export function spawn(cmd: string, args?: string[], opts?: SpawnOptions): ChildProcess
+}
+
+declare module 'os' {
+  export function hostname(): string
+  export function release(): string
+  export function arch(): string
 }

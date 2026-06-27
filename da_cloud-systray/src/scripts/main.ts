@@ -8,6 +8,16 @@ import { spawn, ChildProcess } from 'child_process'
 import * as path from 'path'
 import * as fs   from 'fs'
 
+// Route ALL uncaught errors to stderr → systemd journal instead of native dialog
+process.on('uncaughtException', (err) => {
+  console.error('[cloud-systray] UNCAUGHT:', err.stack ?? err.message)
+  process.exit(1)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('[cloud-systray] UNHANDLED REJECTION:', reason)
+  process.exit(1)
+})
+
 // ── env vars baked in by Nix makeWrapper ──────────────────────────────────────
 const DATA           = process.env.SYSTRAY_DATA!
 const BASH           = process.env.SYSTRAY_BASH!
@@ -147,10 +157,12 @@ app.on('ready', () => {
   const data  = loadData()
   const items = flatItems(data)
 
+  const showOnStart = process.argv.includes('--show')
+
   const win = new BrowserWindow({
-    width: 960, height: 580,
+    width: 1000, height: 620,
     title: 'Cloud & Infra Control Panel',
-    show: false,
+    show: showOnStart,
     webPreferences: { nodeIntegration: true, contextIsolation: false },
   })
   win.loadFile(path.join(__dirname, 'panel.html'))

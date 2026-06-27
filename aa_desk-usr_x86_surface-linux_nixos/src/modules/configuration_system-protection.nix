@@ -29,7 +29,7 @@
 # │ os-essentials.slice     │ 760%/95% │ —        │ —            │
 # │ connectivity.slice      │ weight   │ 200M min │ 200M min     │
 # │ workload.slice          │ 600%/75% │ —        │ —            │
-# │   └── nix-daemon        │ 700%/87% │ 5324M    │ 6144M        │
+# │   └── nix-daemon        │ 200%     │ 1638M    │ 2048M  0swap │
 # │ machine.slice           │ 400%/50% │ 2375M    │ 3031M  1024M │
 # ├─────────────────────────┼──────────┼──────────┼──────────────┤
 # │ user-1000 (diego)       │ 600%/75% │ 3112M    │ 4751M  2048M │
@@ -55,7 +55,7 @@ let
   rootCpuQuota = "${toString (cpus * 90)}%";          # 720%
   machineCpuQuota = "${toString (cpus * 50)}%";         # 400% (50% = 4/8 cores — fixes formula bug: was cpus*700/8=700%)
   machineCpuWeight = 50;                                # Docker loses to user desktop under CPU contention
-  nixDaemonCpuQuota = "${toString (cpus * 700 / 8)}%"; # 700% (bounded by parent workload.slice = 600%)
+  nixDaemonCpuQuota = "200%"; # 2 cores — nix eval is mostly single-threaded; bounded by parent workload.slice
 
   # ── Memory budgets ─────────────────────────────────────────────────────
   # BUG FIX (2026-06-27): user(85%)+machine(75%)=160% of RAM was the crash.

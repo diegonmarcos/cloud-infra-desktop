@@ -8,6 +8,16 @@ import { spawn, ChildProcess } from 'child_process'
 import * as path from 'path'
 import * as fs   from 'fs'
 
+// Route ALL uncaught errors to stderr → systemd journal instead of native dialog
+process.on('uncaughtException', (err) => {
+  console.error('[nixos-systray] UNCAUGHT:', err.stack ?? err.message)
+  process.exit(1)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('[nixos-systray] UNHANDLED REJECTION:', reason)
+  process.exit(1)
+})
+
 // ── env vars baked in by Nix makeWrapper ──────────────────────────────────────
 const DATA       = process.env.SYSTRAY_DATA!
 const BASH       = process.env.SYSTRAY_BASH!
@@ -129,11 +139,14 @@ app.on('ready', () => {
   const data  = loadData()
   const items = flatItems(data)
 
-  // ── panel window (hidden until left-click) ──
+  // --show flag: launched from desktop shortcut → open window immediately
+  const showOnStart = process.argv.includes('--show')
+
+  // ── panel window ──
   const win = new BrowserWindow({
-    width: 960, height: 580,
+    width: 1000, height: 620,
     title: 'NixOS Control Panel',
-    show: false,
+    show: showOnStart,
     webPreferences: { nodeIntegration: true, contextIsolation: false },
   })
   win.loadFile(path.join(__dirname, 'panel.html'))

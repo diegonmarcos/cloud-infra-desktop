@@ -7,7 +7,7 @@
 # WHY plain callPackage instead of a flake input: nix 2.24 cannot lock/re-fetch
 # relative-path flake inputs inside a git flake. Revisit when nix >= 2.26.
 { stdenv, src, bash, konsole, xdg-utils, kdialog, qdbus,
-  electron, nodejs, typescript,
+  electron, nodejs, typescript, librsvg,
   makeWrapper, makeDesktopItem, lib }:
 
 let
@@ -15,7 +15,7 @@ let
     name         = "nixos-systray";
     desktopName  = "NixOS Control Panel";
     comment      = "Rebuild & manage NixOS — switch, dry-run, update, logs, settings";
-    exec         = "nixos-systray";
+    exec         = "nixos-systray --show";
     icon         = "nixos-systray";
     categories   = [ "System" ];
     terminal     = false;
@@ -27,7 +27,7 @@ stdenv.mkDerivation {
   version = "1.0.0";
   inherit src;
 
-  nativeBuildInputs = [ nodejs typescript makeWrapper ];
+  nativeBuildInputs = [ nodejs typescript makeWrapper librsvg ];
 
   buildPhase = ''
     cd src/scripts
@@ -45,6 +45,10 @@ stdenv.mkDerivation {
 
     # Data + assets
     install -Dm644 src/data/nixos-cp.json    $out/share/nixos-systray/nixos-cp.json
+    # SVG → PNG: Electron Tray on Linux only supports raster formats
+    mkdir -p $out/share/icons/hicolor/128x128/apps $out/share/icons/hicolor/scalable/apps
+    rsvg-convert -w 128 -h 128 src/assets/nixos-systray.svg \
+      -o $out/share/icons/hicolor/128x128/apps/nixos-systray.png
     install -Dm644 src/assets/nixos-systray.svg \
       $out/share/icons/hicolor/scalable/apps/nixos-systray.svg
 
@@ -64,7 +68,7 @@ stdenv.mkDerivation {
     makeWrapper ${electron}/bin/electron $out/bin/nixos-systray \
       --add-flags "$out/lib/nixos-systray/main.js" \
       --set SYSTRAY_DATA       "$out/share/nixos-systray/nixos-cp.json" \
-      --set SYSTRAY_ICON       "$out/share/icons/hicolor/scalable/apps/nixos-systray.svg" \
+      --set SYSTRAY_ICON       "$out/share/icons/hicolor/128x128/apps/nixos-systray.png" \
       --set SYSTRAY_SWITCH_GUI "$out/bin/nixos-switch-gui" \
       --set SYSTRAY_BASH       "${bash}/bin/bash" \
       --set SYSTRAY_KONSOLE    "${konsole}/bin/konsole" \

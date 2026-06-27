@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'">
+<title>Electron Terminal</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root { --bg:#0e0f1a; --accent:#7b7fff; --accent2:#a78bfa; --sw:220px; }
+body {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  background: var(--bg); color: #e2e8f0;
+  height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+}
+#header {
+  display: flex; align-items: center; padding: 6px 12px; gap: 8px;
+  background: rgba(0,0,0,0.45); border-bottom: 1px solid rgba(255,255,255,0.07);
+  flex-shrink: 0;
+}
+#logo  { font-size: 17px; }
+#title { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .06em; }
+#profiles { margin-left: auto; display: flex; gap: 5px; }
+.pill {
+  font-size: 10px; padding: 2px 8px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.13); background: transparent;
+  color: #64748b; cursor: pointer; transition: all .12s; line-height: 1.5;
+}
+.pill:hover { border-color: var(--accent); color: var(--accent); }
+.pill.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
+#main { display: flex; flex: 1; overflow: hidden; }
+#sidebar {
+  width: var(--sw); flex-shrink: 0; overflow-y: auto; overflow-x: hidden;
+  background: rgba(0,0,0,0.18); border-right: 1px solid rgba(255,255,255,0.05);
+  padding: 6px 0;
+}
+.sec-hdr {
+  font-size: 9px; font-weight: 700; letter-spacing: .1em; color: #374151;
+  text-transform: uppercase; padding: 10px 12px 3px;
+}
+.nav-item {
+  font-size: 11px; padding: 5px 10px 5px 12px; cursor: pointer;
+  color: #94a3b8; border-left: 2px solid transparent;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: color .1s, border-color .1s, background .1s;
+}
+.nav-item:hover  { color: #e2e8f0; background: rgba(255,255,255,0.04); border-left-color: var(--accent2); }
+.nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(255,255,255,0.03); }
+#out-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+#out-hdr  {
+  font-size: 10px; color: #374151; padding: 5px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04); flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px; min-height: 27px;
+}
+#cmd-lbl { color: var(--accent2); }
+#output {
+  flex: 1; overflow-y: auto; padding: 12px;
+  font-size: 11.5px; line-height: 1.6; color: #cbd5e1;
+  white-space: pre-wrap; word-break: break-all;
+}
+#output:empty::after { content: 'Click a command →'; color: #1e293b; }
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="header">
+  <span id="logo"></span>
+  <span id="title">Terminal</span>
+  <div id="profiles"></div>
+</div>
+<div id="main">
+  <div id="sidebar"></div>
+  <div id="out-wrap">
+    <div id="out-hdr"><span id="cmd-lbl"></span></div>
+    <div id="output"></div>
+  </div>
+</div>
+<script>
+const { ipcRenderer } = require('electron');
+
+ipcRenderer.on('init', (_e, { profile, profiles }) => {
+  const r = document.documentElement;
+  r.style.setProperty('--bg',      profile.theme.bg);
+  r.style.setProperty('--accent',  profile.theme.accent);
+  r.style.setProperty('--accent2', profile.theme.accent2);
+  document.body.style.background = profile.theme.bg;
+
+  document.getElementById('logo').textContent  = profile.logo;
+  document.getElementById('title').textContent = profile.display_name;
+  document.title = profile.display_name;
+
+  // Profile switcher pills
+  const pillsEl = document.getElementById('profiles');
+  profiles.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'pill' + (p.name === profile.name ? ' active' : '');
+    btn.textContent = p.logo + ' ' + p.display_name;
+    btn.onclick = () => ipcRenderer.send('switch-profile', p.name);
+    pillsEl.appendChild(btn);
+  });
+
+  // Sidebar nav
+  const sidebar = document.getElementById('sidebar');
+  profile.sections.forEach(section => {
+    const hdr = document.createElement('div');
+    hdr.className = 'sec-hdr';
+    hdr.textContent = section.title;
+    sidebar.appendChild(hdr);
+    section.items.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'nav-item';
+      el.textContent = item.label;
+      el.title = item.type + (item.arg ? ': ' + item.arg : '');
+      el.onclick = () => {
+        document.querySelectorAll('.nav-item.active').forEach(n => n.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('cmd-lbl').textContent = '▶ ' + item.label;
+        document.getElementById('output').textContent = '';
+        ipcRenderer.send('dispatch', { type: item.type, arg: item.arg || '', label: item.label });
+      };
+      sidebar.appendChild(el);
+    });
+  });
+});
+
+ipcRenderer.on('output', (_e, text) => {
+  const out = document.getElementById('output');
+  out.textContent += text;
+  out.scrollTop = out.scrollHeight;
+});
+
+ipcRenderer.on('done', (_e, code) => {
+  document.querySelectorAll('.nav-item.active').forEach(n => n.classList.remove('active'));
+  const out = document.getElementById('output');
+  out.textContent += '\n\n─── exit ' + code + ' ───';
+  out.scrollTop = out.scrollHeight;
+});
+</script>
+</body>
+</html>
