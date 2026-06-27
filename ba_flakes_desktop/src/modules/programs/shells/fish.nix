@@ -70,7 +70,13 @@
 
       # Session (Plasma 6)
       logout = "killall -9 -u $USER; qdbus org.kde.Shutdown /Shutdown logout";
-      reboot = "qdbus org.kde.Shutdown /Shutdown logoutAndReboot";
+      # `reboot` keeps the session: write the hibernate image, then reboot
+      # (kernel disk-mode 'reboot' via reboot-with-session). At the rEFInd menu:
+      # NixOS - Primary resumes the session; NixOS - Fresh Desktop boots clean
+      # (use Fresh Desktop to apply a kernel/system update). `reboot-fresh` is
+      # the old plain graceful reboot (no session image) if you want it directly.
+      reboot = "sudo reboot-with-session";
+      reboot-fresh = "qdbus org.kde.Shutdown /Shutdown logoutAndReboot";
       poweroff = "qdbus org.kde.Shutdown /Shutdown logoutAndShutdown";
 
       # Browser dev
