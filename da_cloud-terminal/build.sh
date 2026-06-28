@@ -33,6 +33,9 @@ build() {
   echo "→ installing deps (xterm + node-pty)..."
   ( cd "$ROOT" && npm install --no-audit --no-fund --silent )
 
+  echo "→ generating Tools profile from DTK registry..."
+  bash "$SRC/scripts/gen-tools-profile.sh"
+
   echo "→ compiling TypeScript..."
   ( cd "$SRC/scripts" && "$TSC" )
   echo "   compiled → $SRC/scripts/dist/main.js"

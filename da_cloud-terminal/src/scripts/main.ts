@@ -36,6 +36,10 @@ try {
 // ── Per-profile single-instance domain ───────────────────────────────────────
 // Each profile is its own tray daemon. Distinct userData → distinct instance lock,
 // so the same main.js can run once per profile, but never twice for one profile.
+// Distinct app identity per profile → distinct StatusNotifierItem id, so KDE
+// renders one tray icon PER profile instead of collapsing them into one.
+app.setName('cloud-terminal-' + profile.name)
+try { (app as any).setAppUserModelId?.('com.diegonmarcos.cloud-terminal.' + profile.name) } catch (_) {}
 app.setPath('userData', join(app.getPath('appData'), 'cloud-terminal-' + profile.name))
 if (!app.requestSingleInstanceLock()) {
   // another instance of THIS profile is already running — it will show itself

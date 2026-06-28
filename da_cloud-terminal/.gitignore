@@ -2,3 +2,4 @@ node_modules/
 dist/
 src/assets/*.png
 src/scripts/dist/
+src/data/profile-tools.json
