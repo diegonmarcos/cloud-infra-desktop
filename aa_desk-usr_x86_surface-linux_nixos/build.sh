@@ -1431,6 +1431,44 @@ test_system() {
 
 # ci-build — run on a GHA ubuntu runner. Build the system toplevel, export its
 # full closure as a zstd tarball into dist-ci/ for upload as a workflow artifact.
+# restore_boot_cache <dist-ci-dir> — pull the prebuilt linux-surface kernel+initrd
+# closure from the GHCR boot-cache and import it into the local /nix/store BEFORE
+# `nix build`, so the closure build finds the kernel present instead of compiling
+# it from source (~2h > the 120m GHA wall — the reason every prior desktop_nixos
+# run was cancelled). Producer: 1_workflows/src/cicd/ship-boot-cache.yml publishes
+# ghcr.io/<owner>/unix-boot-cache:latest as a `nix copy` file-store under /boot-cache.
+# Non-fatal: any failure just falls back to compiling.
+restore_boot_cache() {
+    local tmp="$1/.boot-cache"
+    local owner="${GHCR_OWNER:-diegonmarcos}"
+    local img="ghcr.io/${owner}/unix-boot-cache:latest"
+    command -v docker >/dev/null 2>&1 || { warn "docker absent — skipping boot-cache restore (kernel will compile)"; return 0; }
+    if [ -n "${GHCR_TOKEN:-}" ]; then
+        printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "${GHCR_USER:-x}" --password-stdin >/dev/null 2>&1 \
+            || warn "ghcr login failed — trying anonymous pull"
+    fi
+    log "Restoring linux-surface kernel from $img …"
+    if ! docker pull -q "$img" >/dev/null 2>&1; then
+        warn "boot-cache pull failed ($img) — kernel will be compiled from source"
+        return 0
+    fi
+    rm -rf "$tmp"; mkdir -p "$tmp"
+    local cid; cid=$(docker create "$img" 2>/dev/null) || { warn "docker create failed — will compile"; return 0; }
+    docker export "$cid" | tar -x -C "$tmp" 2>/dev/null || true
+    docker rm -f "$cid" >/dev/null 2>&1 || true
+    if [ -d "$tmp/boot-cache" ]; then
+        if nix copy --no-check-sigs --from "file://$tmp/boot-cache" --all \
+               --extra-experimental-features "nix-command flakes" 2>&1 | tail -2; then
+            log "boot-cache restored → linux-surface kernel now in /nix/store (no compile)"
+        else
+            warn "nix copy from boot-cache failed — kernel will compile"
+        fi
+    else
+        warn "boot-cache payload missing in image — kernel will compile"
+    fi
+    rm -rf "$tmp"
+}
+
 ci_build() {
     header "CI: build + export desktop system closure"
     local out="$SCRIPT_DIR/dist-ci"
@@ -1444,7 +1482,10 @@ ci_build() {
                     /opt/hostedtoolcache/CodeQL /usr/local/share/boost 2>/dev/null || true
     fi
 
-    log "Building toplevel (accept-flake-config → linux-surface kernel is substituted, not rebuilt)…"
+    # Seed the store with the prebuilt kernel so the build below doesn't compile it.
+    restore_boot_cache "$out"
+
+    log "Building toplevel (linux-surface kernel restored from boot-cache → not rebuilt)…"
     nix build "$FLAKE_PATH#nixosConfigurations.surface.config.system.build.toplevel" \
         --out-link "$out/result" -L --accept-flake-config \
         --extra-experimental-features "nix-command flakes" || { error "ci build failed"; return 1; }
