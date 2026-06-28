@@ -5,6 +5,7 @@ declare module 'electron' {
     quit(): void
     setQuitOnLastWindowClose(v: boolean): void
     requestSingleInstanceLock(): boolean
+    setName(name: string): void
     setPath(name: string, path: string): void
     getPath(name: string): string
     dock?: { hide(): void }

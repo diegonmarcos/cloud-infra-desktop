@@ -66,10 +66,19 @@
   /* ── Sidebar ── */
   #sidebar {
     width: 230px; background: var(--sidebar);
-    border-right: 1px solid var(--sep); overflow-y: auto; flex-shrink: 0;
+    border-right: 1px solid var(--sep); flex-shrink: 0;
+    display: flex; flex-direction: column; overflow: hidden;
   }
-  #sidebar::-webkit-scrollbar { width: 4px; }
-  #sidebar::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 2px; }
+  #sidebar-search {
+    margin: 8px; padding: 6px 9px; flex-shrink: 0;
+    background: var(--item-bg); color: var(--fg);
+    border: 1px solid var(--sep); border-radius: 5px;
+    font-family: inherit; font-size: 12px; outline: none;
+  }
+  #sidebar-search:focus { border-color: var(--accent); }
+  #sidebar-list { flex: 1; overflow-y: auto; }
+  #sidebar-list::-webkit-scrollbar { width: 4px; }
+  #sidebar-list::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 2px; }
   .section-title {
     padding: 10px 12px 4px; font-size: 10px; text-transform: uppercase;
     letter-spacing: .08em; color: var(--accent2); opacity: .85;
@@ -143,7 +152,10 @@
 </div>
 
 <div id="body">
-  <div id="sidebar"></div>
+  <div id="sidebar">
+    <input id="sidebar-search" type="text" placeholder="🔍  search commands…" autocomplete="off" spellcheck="false">
+    <div id="sidebar-list"></div>
+  </div>
   <div id="terminal-area">
     <div id="termtabs"><button id="newtab" title="New terminal tab">+</button></div>
     <div id="terms"></div>
@@ -265,23 +277,43 @@ function applyTheme(theme) {
 
 // ── sidebar (data-driven) — runs command in the ACTIVE tab ──
 function buildSidebar(profile) {
-  const sb = document.getElementById('sidebar')
+  const sb = document.getElementById('sidebar-list')
   sb.innerHTML = ''
   for (const section of (profile.sections || [])) {
+    const grp = document.createElement('div')
+    grp.className = 'cmd-group'
     const t = document.createElement('div')
     t.className = 'section-title'; t.textContent = section.title
-    sb.appendChild(t)
+    grp.appendChild(t)
     for (const item of (section.items || [])) {
       const btn = document.createElement('button')
       btn.className = 'cmd-item'; btn.textContent = item.label
+      // searchable text: label + arg (so 'btop', 'ssh', shortcode, id all match)
+      btn.dataset.search = ((item.label || '') + ' ' + (item.arg || '')).toLowerCase()
       btn.onclick = () => {
         ipcRenderer.send('run-item', { ...item, profile: profile.name, ptyId: activeTab })
         const t = tabs.get(activeTab); if (t) t.term.focus()
       }
-      sb.appendChild(btn)
+      grp.appendChild(btn)
     }
     const sep = document.createElement('div')
-    sep.className = 'sep-line'; sb.appendChild(sep)
+    sep.className = 'sep-line'; grp.appendChild(sep)
+    sb.appendChild(grp)
+  }
+  filterSidebar(document.getElementById('sidebar-search').value)
+}
+
+// ── live filter: hide non-matching items + empty groups ──
+function filterSidebar(q) {
+  q = (q || '').trim().toLowerCase()
+  for (const grp of document.querySelectorAll('#sidebar-list .cmd-group')) {
+    let shown = 0
+    for (const btn of grp.querySelectorAll('.cmd-item')) {
+      const hit = !q || btn.dataset.search.indexOf(q) !== -1
+      btn.style.display = hit ? '' : 'none'
+      if (hit) shown++
+    }
+    grp.style.display = shown ? '' : 'none'   // hide section title+sep when empty
   }
 }
 
@@ -348,6 +380,11 @@ ctx.addEventListener('click', e => {
 document.getElementById('newtab').onclick   = () => newTab()
 document.getElementById('clear-btn').onclick = () => { const t = tabs.get(activeTab); if (t) { t.term.clear(); t.term.focus() } }
 document.getElementById('kill-btn').onclick  = () => { ipcRenderer.send('pty-input', { id: activeTab, d: '\x03' }) }
+
+// ── sidebar command search ──
+const _search = document.getElementById('sidebar-search')
+_search.addEventListener('input', () => filterSidebar(_search.value))
+_search.addEventListener('keydown', e => { if (e.key === 'Escape') { _search.value = ''; filterSidebar('') } })
 </script>
 </body>
 </html>
