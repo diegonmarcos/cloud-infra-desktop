@@ -35,6 +35,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # tools repo provides registry.json → the Tools profile is generated from it.
+      - uses: actions/checkout@v4
+        with:
+          repository: diegonmarcos/tools
+          path: _tools
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -49,6 +55,8 @@ jobs:
           oras version
 
       - name: Package payload (build.sh package)
+        env:
+          CT_TOOLS_DIR: ${{ github.workspace }}/_tools
         run: ./build.sh package
 
       - name: Login to GHCR
