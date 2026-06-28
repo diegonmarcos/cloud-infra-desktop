@@ -7,10 +7,17 @@ No exceptions, no per-app keys, no random fallback — ever.
 
 | | |
 |---|---|
-| **Keystore** | `vault/A0_keys/providers/android/release.jks` (PKCS12) |
+| **Keystore** | `vault/A0_keys/providers/android/release.jks` (PKCS12, RSA-4096) |
 | **Passwords** | `vault/A0_keys/providers/android/signing.secrets.yaml` (sops/age) — keys: `keystore_password`, `key_password`, `key_alias` |
-| **Subject** | `OU=Cloud Constellation, CN=Diego Marcos` |
-| **SHA-256** | `C0:F9:4B:17:97:51:AB:6D:09:D5:FE:24:CD:6A:86:56:21:91:F0:0D:31:A0:07:56:AB:FA:8A:06:F9:83:49:9A` |
+| **Alias** | `cloud-constellation` |
+| **Subject** | `CN=Diego Coelho Marcos, OU=Cloud SuperApp, O=diegonmarcos.com, L=Berlin, ST=Berlin, C=DE` |
+| **SAN** | `email:me@diegonmarcos.com`, `URI:https://linktree.diegonmarcos.com` |
+| **SHA-256** | `50:7E:56:A3:5B:0E:0D:7E:0A:CE:55:16:F4:94:96:E6:2F:ED:A7:21:ED:6C:17:6D:DF:B3:34:12:9C:EE:18:99` |
+| **Validity** | until 2056 (30y) |
+
+> SuperApp is the top of the constellation hierarchy, so the shared key carries
+> `OU=Cloud SuperApp`. Prior keys (`C0:F9:4B:17` OU=Cloud Constellation,
+> `CB:02:83:34` OU=Cloud SuperApp, `34:AC:80` OU=Cloud-Comms) are **retired**.
 
 The raw keystore + passwords live **only in the private `vault` repo**. Public
 repos reference the vault *paths* (in each app's `build.json::signing`), never the
