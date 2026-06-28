@@ -40,7 +40,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 210   # linux-surface kernel compiles from source on a 2-core runner (~140m); boot-cache hit will later cut this — see ship-boot-cache attr-match follow-up
     steps:
       - uses: actions/checkout@v4
         with:
