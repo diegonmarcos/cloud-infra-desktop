@@ -80,11 +80,55 @@ cmd_status() {
 
 cmd_ship() { cmd_link; cmd_status; }
 
+# ci-build — run on a GHA x86 runner. Build devProfile into the RUNNER store and
+# export its full closure as a zstd tarball artifact. The 8GB Surface can't eval
+# the heavy toolchain locally without thrashing (same freeze axis as desktop_nixos
+# / _hm) — so the eval+realise happens on GHA; the laptop only imports (cmd_pull).
+cmd_ci_build() {
+  local out="$SCRIPT_DIR/dist-ci"
+  rm -rf "$out"; mkdir -p "$out"
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    echo "[dev-store] freeing GHA runner disk…"
+    sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                /opt/hostedtoolcache/CodeQL /usr/local/share/boost 2>/dev/null || true
+  fi
+  echo "[dev-store] building $FLAKE_REF on runner (cache.nixos.org substitutes)…"
+  nix build "${NIXFLAGS[@]}" --accept-flake-config "$FLAKE_REF" --out-link "$out/result" -L \
+    || die "ci build failed"
+  local sys; sys="$(readlink -f "$out/result")"
+  basename "$sys" > "$out/devprofile.name"
+  echo "[dev-store] exporting closure → zstd tarball…"
+  nix-store --export $(nix-store -qR "$sys") | zstd -T0 -15 > "$out/devstore-closure.nar.zst"
+  rm -f "$out/result"
+  echo "[dev-store] done: $(du -h "$out/devstore-closure.nar.zst" | cut -f1) → $out/"
+}
+
+# pull [artifact-dir] — run on the Surface. Import the GHA-built devProfile closure
+# DIRECTLY into the p5 CHROOT store (--store STORE_URI → bytes land on p5, the <7G
+# pool is never touched) and register the gcroot the `dev` launcher reads. NO eval,
+# NO build → cannot freeze. Default artifact-dir is dist-ci/ (after gh run download).
+cmd_pull() {
+  preflight
+  local art="${1:-$SCRIPT_DIR/dist-ci}"
+  local tb="$art/devstore-closure.nar.zst"
+  [ -f "$tb" ] || die "no closure tarball at $tb (fetch first: gh run download -n nixos-dev-store-closure -D '$art')"
+  [ -f "$art/devprofile.name" ] || die "missing $art/devprofile.name"
+  local sys="/nix/store/$(cat "$art/devprofile.name")"
+  echo "[dev-store] importing closure into p5 chroot store ($STORE_URI) — no build…"
+  zstd -d -c "$tb" | nix-store --import --store "$STORE_URI" >/dev/null || die "import failed"
+  echo "[dev-store] registering p5 gcroot $GCROOT (no eval)…"
+  nix-store "${NIXFLAGS[@]}" --store "$STORE_URI" --realise "$sys" --add-root "$GCROOT" --indirect >/dev/null \
+    || die "gcroot registration failed"
+  cmd_status
+}
+
 case "${1:-status}" in
-  build)  cmd_build ;;
-  link)   cmd_link ;;
-  ship)   cmd_ship ;;
-  gc)     cmd_gc ;;
-  status) cmd_status ;;
-  *) echo "usage: $0 {build|link|ship|gc|status}"; exit 2 ;;
+  build)            cmd_build ;;
+  link)             cmd_link ;;
+  ship)             cmd_ship ;;
+  ci-build|ci_build) cmd_ci_build ;;
+  pull)             cmd_pull "${2:-}" ;;
+  gc)               cmd_gc ;;
+  status)           cmd_status ;;
+  *) echo "usage: $0 {build|link|ship|ci-build|pull|gc|status}"; exit 2 ;;
 esac
