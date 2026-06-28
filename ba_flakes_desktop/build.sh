@@ -829,8 +829,29 @@ cmd_pull() {
     # as the USER (it writes ~/.config etc) — NOT under sudo.
     _act="$_sys/activate"
     [ -x "$_act" ] || { log_error "no activate script in $_sys"; return 1; }
+
+    # Auto-medicine: the prebuilt activate has no `-b backup` (that's a switch-time
+    # flag), so it aborts when a regular file is "in the way of" an HM symlink
+    # (e.g. ~/.gtkrc-2.0). Same idiom as the termux engine: on that failure, back
+    # up the in-the-way files (flake always wins) and retry once. Idempotent —
+    # only triggers on this exact message.
     log_info "Activating ($_act)..."
-    "$_act"
+    _alog=$(mktemp)
+    if "$_act" >"$_alog" 2>&1; then _rc=0; else _rc=$?; fi
+    cat "$_alog"
+    if [ "$_rc" -ne 0 ] && grep -q "is in the way of" "$_alog"; then
+        log_warn "home-manager file conflict — backing up in-the-way files and retrying"
+        _ts=$(date +%Y%m%d-%H%M%S)
+        grep "is in the way of" "$_alog" | sed -n "s/.*Existing file '\([^']*\)' is in the way.*/\1/p" | while IFS= read -r _p; do
+            if [ -e "$_p" ] && [ ! -L "$_p" ]; then
+                mv -f "$_p" "${_p}.hm-backup-${_ts}" && log_info "  backed up: $_p -> ${_p}.hm-backup-${_ts}"
+            fi
+        done
+        if "$_act" >"$_alog" 2>&1; then _rc=0; else _rc=$?; fi
+        cat "$_alog"
+    fi
+    rm -f "$_alog"
+    [ "$_rc" -eq 0 ] || { log_error "home-manager activation failed (rc=$_rc)"; return 1; }
     log_success "Activated prebuilt home-manager generation (no eval)."
 }
 
@@ -1099,7 +1120,7 @@ main() {
             cmd_ci_build "${1:-surface-plasma}" "${2:-diego}"
             ;;
         pull|switch-remote)
-            cmd_pull "$1"
+            cmd_pull "${1:-}"
             ;;
         update)
             nix_update
