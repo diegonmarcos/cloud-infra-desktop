@@ -1452,10 +1452,15 @@ restore_boot_cache() {
         warn "boot-cache pull failed ($img) — kernel will be compiled from source"
         return 0
     fi
-    rm -rf "$tmp"; mkdir -p "$tmp"
-    local cid; cid=$(docker create "$img" 2>/dev/null) || { warn "docker create failed — will compile"; return 0; }
-    docker export "$cid" | tar -x -C "$tmp" 2>/dev/null || true
-    docker rm -f "$cid" >/dev/null 2>&1 || true
+    rm -rf "$tmp"; mkdir -p "$tmp/unpacked"
+    # The image is FROM scratch with no CMD, so `docker create`/`export` errors
+    # ("no command specified"). Use `docker save` (image tarball) and extract its
+    # layer blobs — the /boot-cache COPY lands at $tmp/boot-cache. jq-free: try to
+    # untar every blob; the config JSON fails harmlessly, the layer tar wins.
+    docker save "$img" -o "$tmp/img.tar" 2>/dev/null || { warn "docker save failed — will compile"; return 0; }
+    tar -xf "$tmp/img.tar" -C "$tmp/unpacked" 2>/dev/null || { warn "image untar failed — will compile"; return 0; }
+    find "$tmp/unpacked" -type f | while read -r blob; do tar -xf "$blob" -C "$tmp" 2>/dev/null || true; done
+    rm -rf "$tmp/unpacked" "$tmp/img.tar"
     if [ -d "$tmp/boot-cache" ]; then
         if nix copy --no-check-sigs --from "file://$tmp/boot-cache" --all \
                --extra-experimental-features "nix-command flakes" 2>&1 | tail -2; then
