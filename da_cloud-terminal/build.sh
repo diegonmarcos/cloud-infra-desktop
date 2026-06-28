@@ -58,7 +58,9 @@ LAUNCHER
   done
 }
 
-build() {
+# compile: payload bits only — deps + Tools profile + tsc + icons. NO electron,
+# NO launchers (those are device-only, emitted where electron resolves). CI-safe.
+compile() {
   echo "→ installing deps (xterm + node-pty + typescript)..."
   ( cd "$ROOT" && npm install --no-audit --no-fund --silent )
   # tsc: prefer the project-local one (from npm ci) so CI needs no global install.
@@ -77,14 +79,20 @@ build() {
     name="$(basename "$svg" .svg)"
     "$MAGICK" -background none "$svg" -resize 128x128 -define png:color-type=6 "PNG32:$SRC/assets/$name.png" 2>/dev/null
   done
+}
+
+# build: local dev — compile + emit launchers (needs electron on this machine).
+build() {
+  compile
   echo "→ emitting launchers (local electron)..."
   emit_launchers "$ROOT" "$DIST/bin"
   echo "done."
 }
 
 # ── package: stage payload (from build.json) → tar.zst + version  [CI] ────────
+# Uses compile (no electron/launchers) — CI ships payload only.
 package() {
-  build
+  compile
   local rdir="$DIST/release" pdir="$DIST/release/payload"
   rm -rf "$rdir"; mkdir -p "$pdir"
   local ver; ver="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo dev)"
