@@ -137,6 +137,14 @@
       ]
     },
     {
+      "title": "Maintenance",
+      "items": [
+        { "label": "Mem Reclaim (dry-run)", "type": "shell", "arg": "bash {FLAKE_DESKTOP}/src/modules/desktop-session/mem-reclaim.sh --dry-run" },
+        { "label": "Mem Reclaim (kill)",    "type": "shell", "arg": "bash {FLAKE_DESKTOP}/src/modules/desktop-session/mem-reclaim.sh" },
+        { "label": "Mem Reclaim (restore)", "type": "shell", "arg": "bash {FLAKE_DESKTOP}/src/modules/desktop-session/mem-reclaim.sh restore" }
+      ]
+    },
+    {
       "title": "DTK",
       "items": [
         { "label": "Open DTK Menu",       "type": "shell", "arg": "sh {FLAKE}/dtk.sh" },
