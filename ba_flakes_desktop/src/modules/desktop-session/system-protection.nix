@@ -21,5 +21,6 @@
     ./system-protection-guardrails.nix
     ./system-protection-desktop-session.nix
     ./system-protection-orphan-reaper.nix
+    ./mem-reclaim.nix
   ];
 }
