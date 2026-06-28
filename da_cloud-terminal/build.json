@@ -1,0 +1,34 @@
+{
+  "name": "cloud-terminal",
+  "description": "Electron terminal with registry-driven profiles (Nix Flakes / Cloud / Tools-DTK), real PTY (xterm + node-pty), per-profile systray.",
+  "release": {
+    "_comment": "Single source of truth for publish + pull. CI ships the runnable PAYLOAD (no launchers — those are generated on the device so the local electron/node paths resolve). Consumed from the GH Release rolling tag; mirrored to GHCR via ORAS.",
+    "ghcr": {
+      "registry": "ghcr.io",
+      "namespace": "diegonmarcos",
+      "image": "cloud-terminal",
+      "media_type": "application/gzip",
+      "tags": ["latest", "sha-{sha}"]
+    },
+    "gh_release": {
+      "repo": "diegonmarcos/unix",
+      "rolling_tag": "latest",
+      "asset": "cloud-terminal.tar.zst",
+      "version_asset": "cloud-terminal.version"
+    },
+    "payload": [
+      "src/scripts/dist/main.js",
+      "src/scripts/pty-server.js",
+      "src/scripts/switch-gui.sh",
+      "lib/panel.html",
+      "src/assets/*.png",
+      "src/data/profile-*.json",
+      "node_modules"
+    ],
+    "install": {
+      "share_dir": ".local/share/cloud-terminal",
+      "bin_dir": ".local/bin",
+      "profiles": ["nix-flakes", "cloud", "tools"]
+    }
+  }
+}
