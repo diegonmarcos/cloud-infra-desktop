@@ -4,18 +4,11 @@
 # Controls session list order and hides unwanted sessions.
 # Default: Plasma (Wayland)
 #
-# Visible (in order): Plasma, GNOME, Android, Chrome Kiosk, Tor Kiosk, Openbox
+# Visible (in order): Plasma, GNOME, Chrome Kiosk, Tor Kiosk, Openbox
 
 { config, pkgs, lib, ... }:
 
 let
-  # Script for Android session (enables waydroid service)
-  androidSessionScript = pkgs.writeShellScript "android-session" ''
-    sudo ${pkgs.coreutils}/bin/touch /run/waydroid-enabled
-    trap 'sudo ${pkgs.coreutils}/bin/rm -f /run/waydroid-enabled' EXIT
-    ${pkgs.cage}/bin/cage -- ${pkgs.waydroid}/bin/waydroid show-full-ui
-  '';
-
   # Paths for Exec= lines
   plasmaExec = "${pkgs.kdePackages.plasma-workspace}/bin/startplasma-wayland";
 
@@ -52,7 +45,6 @@ let
       "01-plasma"
       "01b-plasma-fresh"
       "02-gnome"
-      "03-android"
       "04-chrome-kiosk"
       "05-tor-kiosk"
       "06-openbox"
@@ -97,16 +89,6 @@ Name=GNOME
 Comment=GNOME Desktop (Wayland)
 Exec=${gnomeExec}
 DesktopNames=GNOME
-EOF
-
-    # ─── 3. Android (Waydroid in Cage) ─────────────────────────────────────
-    cat > $out/share/wayland-sessions/03-android.desktop << EOF
-[Desktop Entry]
-Type=Application
-Name=Android
-Comment=Android via Waydroid
-Exec=${androidSessionScript}
-DesktopNames=Android
 EOF
 
     # ─── 4. Chrome Kiosk ───────────────────────────────────────────────────
