@@ -257,10 +257,16 @@ in
 
       echo "[freeze-guard] online as $(id -un); trigger cpuPSI(some)>$CPU_LIMIT | memPSI(full)>$MEM_LIMIT | ioPSI(full)>$IO_LIMIT | procCPU>=$PROC_CPU% | procRSS>=''${PROC_RSS}kB; max $MAX_KILLS kills/tick"
       while :; do
-        hog_kill
         cpu=$(psi_avg10 cpu some);    cpu=''${cpu:-0}
         mem=$(psi_avg10 memory full); mem=''${mem:-0}
         io=$(psi_avg10 io full);      io=''${io:-0}
+
+        # Only hunt single-process hogs when the box is ACTUALLY stalling (any PSI
+        # over its limit). Under light load a busy core is fine — never kill on CPU%
+        # alone. This keeps freeze-guard calm until a real stall appears.
+        if awk "BEGIN { exit !($cpu+0 > $CPU_LIMIT || $mem+0 > $MEM_LIMIT || $io+0 > $IO_LIMIT) }"; then
+          hog_kill
+        fi
 
         killed=""; n=0
         while [ "$n" -lt "$MAX_KILLS" ] && \
