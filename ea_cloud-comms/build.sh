@@ -357,8 +357,19 @@ step_build_fork() {
     log "build-fork[$key]: keystore.properties → ONE shared constellation key"
   fi
 
-  log "build-fork[$key]: $tracker ./gradlew $task (upstream-pinned toolchain)"
-  ( cd "$dest" && chmod +x gradlew && in_nix ./gradlew --no-daemon "$task" )
+  # Data-driven gradle -P properties from build.json::forks.<key>.build.gradle_props
+  # (object key→value). The fork's build.gradle(.kts) reads these via
+  # project.findProperty(...) — e.g. APPLICATION_ID (unique package id) + the
+  # self-contained updater's GHCR/auto-update BuildConfig fields. NEVER hardcode
+  # these here — a new key in build.json flows through with no engine change.
+  local -a gprops=()
+  while IFS=$'\t' read -r gp_key gp_val; do
+    [ -n "$gp_key" ] || continue
+    gprops+=("-P${gp_key}=${gp_val}")
+  done < <(prefer_host jq -r ".forks.${key}.build.gradle_props // {} | to_entries[] | select(.key | startswith(\"_\") | not) | \"\(.key)\t\(.value)\"" "$SCRIPT_DIR/build.json")
+
+  log "build-fork[$key]: $tracker ./gradlew $task ${gprops[*]:-(no -P props)} (upstream-pinned toolchain)"
+  ( cd "$dest" && chmod +x gradlew && in_nix ./gradlew --no-daemon "$task" "${gprops[@]}" )
 
   mkdir -p "$DIST_DIR"
   shopt -s nullglob
