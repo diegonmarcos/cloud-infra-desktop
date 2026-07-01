@@ -19,10 +19,8 @@ kstart --desktop 2 qutebrowser \
   "https://proxy.diegonmarcos.com" \
   "https://claude.ai/new#settings/usage" &
 
-# ── Desktop 3: Files + Waydroid ──────────────────────────────────────────────
+# ── Desktop 3: Files ──────────────────────────────────────────────────────────
 kstart --desktop 3 dolphin &
-sleep 2
-WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000 waydroid show-full-ui &
 
 # ── Desktop 4: Communication ─────────────────────────────────────────────────
 # kstart --desktop 4 thunderbird &

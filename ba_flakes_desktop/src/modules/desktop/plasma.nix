@@ -653,17 +653,7 @@ in
     };
   };
 
-  # ─────────────────────────────────────────────────────────────────
-  # Custom Desktop Entries
-  # ─────────────────────────────────────────────────────────────────
-  xdg.desktopEntries.waydroid = {
-    name = "Waydroid";
-    comment = "Android in a container";
-    exec = "waydroid-launch";
-    icon = "waydroid";
-    terminal = false;
-    categories = [ "System" "Emulator" ];
-  };
+  # Custom Desktop Entries — waydroid entry REMOVED 2026-07-01 (waydroid disabled).
 
   # ─────────────────────────────────────────────────────────────────
   # ─────────────────────────────────────────────────────────────────
