@@ -1,171 +1,101 @@
 #!/usr/bin/env bash
-# da_cloud-terminal build/publish/pull — data-driven from build.json (.release).
-#
-#   build.sh build         compile + icons + gen Tools profile + emit launchers (local)
-#   build.sh install       build, then symlink launchers into ~/.local/bin
-#   build.sh launch <p>    build, then launch profile <p> --show
-#   build.sh launch-all    build, then launch every profile tray
-#   build.sh package       build → stage payload → dist/release/cloud-terminal.tar.zst (+version)   [CI]
-#   build.sh oras-push     push the tarball to ghcr.io/<ns>/<image>:<tags>                          [CI]
-#   build.sh gh-release    upload tarball + version to the rolling GH Release                       [CI]
-#   build.sh pull          device: version-guarded download from the GH Release, extract, emit launchers
-#
-# CI ships only the PAYLOAD (no launchers); launchers are emitted on the machine
-# that will run them so the local electron/node nix-store paths always resolve.
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ Cloud Terminal — Tauri (Rust) build dispatcher                    ║
+# ║                                                                    ║
+# ║ Port of the Electron app to Tauri. Toolchain (rust/cargo/          ║
+# ║ cargo-tauri/webkitgtk/node/magick) ALL comes from flake.nix —      ║
+# ║ never assume the host has them. Every build call goes through      ║
+# ║ `nix develop` (in_nix), same law as the ea_cloud-* Android apps.   ║
+# ║                                                                    ║
+# ║   build.sh vendor    copy xterm assets node_modules → frontend/    ║
+# ║   build.sh icons     generate src-tauri/icons from src/assets      ║
+# ║   build.sh build     vendor + icons + cargo tauri build (release)  ║
+# ║   build.sh dev       cargo tauri dev (hot-reload)                  ║
+# ║   build.sh check     cargo check (fast compile validation)         ║
+# ║   build.sh run <p>   run the built binary for profile <p>          ║
+# ║   build.sh shell     enter the Nix devShell                       ║
+# ║   build.sh clean     rm target/ dist/ frontend/vendor              ║
+# ║                                                                    ║
+# ║ TODO(release): ship/oras-push/gh-release/pull for the Tauri        ║
+# ║   artifact (binary/AppImage) — artifact model differs from the      ║
+# ║   old electron tar.zst payload; port once `build` is verified.      ║
+# ║                                                                    ║
+# ║ NEVER bypass this script for build operations.                     ║
+# ╚══════════════════════════════════════════════════════════════════╝
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 SRC="$ROOT/src"
+TAURI="$ROOT/src-tauri"
+FRONTEND="$ROOT/frontend"
 DIST="$ROOT/dist"
 CMD="${1:-build}"
-JQ="$(command -v jq || true)"
-BJSON="$ROOT/build.json"
 
-rel() { [ -n "$JQ" ] || { echo "ERROR: jq required"; exit 1; }; "$JQ" -r "$1 // empty" "$BJSON"; }
+log()    { printf "[%s] %s\n" "$(date '+%H:%M:%S')" "$1"; }
+errlog() { printf "\033[0;31m[%s] ERROR: %s\033[0m\n" "$(date '+%H:%M:%S')" "$1" >&2; }
 
-NODE_BIN="$(command -v node || true)"
-FISH_BIN="$(command -v fish 2>/dev/null || echo bash)"
+# Nix-wrapped invocation — reproducible toolchain from flake.nix.
+in_nix() {
+  if [ "${BYPASS_NIX:-0}" = "1" ]; then
+    "$@"
+  else
+    command -v nix >/dev/null 2>&1 || { errlog "nix not on PATH; install nix or set BYPASS_NIX=1"; exit 1; }
+    nix develop "$ROOT" --command "$@"
+  fi
+}
 
-resolve_electron() { ls /nix/store/*electron-3[0-9]*/bin/electron 2>/dev/null | sort -V | tail -1 || command -v electron 2>/dev/null || true; }
+# ── vendor: copy xterm runtime assets into frontend/vendor (no bundler) ──
+# The renderer loads these via <script>/<link>, so no node require + no build
+# step for the webview. node_modules populated by `npm install` in the shell.
+vendor() {
+  log "vendoring xterm assets → frontend/vendor"
+  in_nix npm --prefix "$ROOT" install --no-audit --no-fund --silent \
+    @xterm/xterm@^6.0.0 @xterm/addon-fit@^0.11.0
+  local nm="$ROOT/node_modules"
+  mkdir -p "$FRONTEND/vendor"
+  cp "$nm/@xterm/xterm/lib/xterm.js"            "$FRONTEND/vendor/xterm.js"
+  cp "$nm/@xterm/xterm/css/xterm.css"           "$FRONTEND/vendor/xterm.css"
+  cp "$nm/@xterm/addon-fit/lib/addon-fit.js"    "$FRONTEND/vendor/addon-fit.js"
+  log "  → frontend/vendor/{xterm.js,xterm.css,addon-fit.js}"
+}
 
-# ── emit_launchers <app_dir> <bin_dir> ───────────────────────────────────────
-# Generate one launcher per profile JSON, pointing at <app_dir>, resolving the
-# LOCAL electron + node at emit time. Used by build (app_dir=ROOT) and pull
-# (app_dir=installed share dir).
-emit_launchers() {
-  local app="$1" bindir="$2" el; el="$(resolve_electron)"
-  [ -z "$el" ]       && { echo "ERROR: electron not found in /nix/store or PATH"; exit 1; }
-  [ -z "$NODE_BIN" ] && { echo "ERROR: node not found"; exit 1; }
-  mkdir -p "$bindir"
-  local json name launcher
-  for json in "$app/src/data/"profile-*.json; do
-    name="$(basename "$json" .json | sed 's/^profile-//')"
-    launcher="$bindir/cloud-terminal-$name"
-    cat > "$launcher" <<LAUNCHER
-#!/usr/bin/env bash
-export CT_PROFILE="$name"
-export CT_PROFILES_DIR="$app/src/data"
-export CT_ICON="$app/src/assets/$name.png"
-export CT_PANEL="$app/lib/panel.html"
-export CT_BIN_DIR="$bindir"
-export CT_NODE="\${CT_NODE:-$NODE_BIN}"
-export CT_PTY_SERVER="\${CT_PTY_SERVER:-$app/src/scripts/pty-server.js}"
-export CT_SHELL="\${CT_SHELL:-$FISH_BIN}"
-export ELECTRON_OZONE_PLATFORM_HINT="\${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
-exec "$el" "$app/src/scripts/dist/main.js" --class="cloud-terminal-$name" "\$@"
-LAUNCHER
-    chmod +x "$launcher"
-    echo "   → $launcher"
+# ── icons: tauri.conf.json expects icons/{32x32,128x128,icon}.png ──
+# Generated from the primary profile SVG so we keep ONE source of truth.
+icons() {
+  log "generating tauri icons from src/assets"
+  local svg; svg="$(ls "$SRC/assets/"*.svg 2>/dev/null | head -1)"
+  [ -z "$svg" ] && { errlog "no SVG in src/assets to build icons from"; exit 1; }
+  mkdir -p "$TAURI/icons"
+  in_nix magick -background none "$svg" -resize 32x32   -define png:color-type=6 "PNG32:$TAURI/icons/32x32.png"
+  in_nix magick -background none "$svg" -resize 128x128 -define png:color-type=6 "PNG32:$TAURI/icons/128x128.png"
+  in_nix magick -background none "$svg" -resize 512x512 -define png:color-type=6 "PNG32:$TAURI/icons/icon.png"
+  # Per-profile tray PNGs the app loads at runtime (CT_ASSETS_DIR).
+  local s name
+  for s in "$SRC/assets/"*.svg; do
+    name="$(basename "$s" .svg)"
+    in_nix magick -background none "$s" -resize 128x128 -define png:color-type=6 "PNG32:$SRC/assets/$name.png"
   done
 }
 
-# compile: payload bits only — deps + Tools profile + tsc + icons. NO electron,
-# NO launchers (those are device-only, emitted where electron resolves). CI-safe.
-compile() {
-  echo "→ installing deps (xterm + node-pty + typescript)..."
-  ( cd "$ROOT" && npm install --no-audit --no-fund --silent )
-  # tsc: prefer the project-local one (from npm ci) so CI needs no global install.
-  local TSC MAGICK; TSC="$ROOT/node_modules/.bin/tsc"; [ -x "$TSC" ] || TSC="$(command -v tsc || true)"
-  [ -z "$TSC" ] && { echo "ERROR: tsc not found (add typescript devDep or install tsc)"; exit 1; }
-  # ImageMagick 7 = `magick`; IM6 (ubuntu) = `convert`. Both take the same args here.
-  MAGICK="$(command -v magick || command -v convert || true)"
-  [ -z "$MAGICK" ] && { echo "ERROR: magick/convert not found"; exit 1; }
-  echo "→ generating Tools profile from DTK registry..."
-  bash "$SRC/scripts/gen-tools-profile.sh"
-  echo "→ compiling TypeScript..."
-  ( cd "$SRC/scripts" && "$TSC" )
-  echo "→ converting icons ($MAGICK)..."
-  local svg name
-  for svg in "$SRC/assets/"*.svg; do
-    name="$(basename "$svg" .svg)"
-    "$MAGICK" -background none "$svg" -resize 128x128 -define png:color-type=6 "PNG32:$SRC/assets/$name.png" 2>/dev/null
-  done
-}
-
-# build: local dev — compile + emit launchers (needs electron on this machine).
 build() {
-  compile
-  echo "→ emitting launchers (local electron)..."
-  emit_launchers "$ROOT" "$DIST/bin"
-  echo "done."
-}
-
-# ── package: stage payload (from build.json) → tar.zst + version  [CI] ────────
-# Uses compile (no electron/launchers) — CI ships payload only.
-package() {
-  compile
-  local rdir="$DIST/release" pdir="$DIST/release/payload"
-  rm -rf "$rdir"; mkdir -p "$pdir"
-  local ver; ver="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo dev)"
-  echo "→ staging payload (version $ver)..."
-  local pat
-  rel '.release.payload[]' | while IFS= read -r pat; do
-    ( cd "$ROOT" && for m in $pat; do
-        [ -e "$m" ] || continue
-        tar -cf - "$m" | tar -C "$pdir" -xf -
-      done )
-    echo "   + $pat"
-  done
-  printf '%s\n' "$ver" > "$pdir/cloud-terminal.version"
-  local asset; asset="$DIST/release/$(rel '.release.gh_release.asset')"
-  ( cd "$pdir" && tar -cf - . | zstd -T0 -19 -q -o "$asset" )
-  cp "$pdir/cloud-terminal.version" "$DIST/release/$(rel '.release.gh_release.version_asset')"
-  echo "→ packaged: $asset ($(du -h "$asset" | cut -f1)) version=$ver"
-}
-
-oras_push() {
-  local reg ns img mt; reg="$(rel '.release.ghcr.registry')"; ns="$(rel '.release.ghcr.namespace')"
-  img="$(rel '.release.ghcr.image')"; mt="$(rel '.release.ghcr.media_type')"
-  local ver; ver="$(cat "$DIST/release/payload/cloud-terminal.version")"
-  local asset; asset="$(rel '.release.gh_release.asset')"
-  ( cd "$DIST/release"
-    rel '.release.ghcr.tags[]' | sed "s/{sha}/$ver/" | while IFS= read -r tag; do
-      echo "→ oras push $reg/$ns/$img:$tag"
-      oras push "$reg/$ns/$img:$tag" "$asset:$mt" --annotation "org.opencontainers.image.revision=$ver"
-    done )
-}
-
-gh_release() {
-  local tag asset vasset; tag="$(rel '.release.gh_release.rolling_tag')"
-  asset="$DIST/release/$(rel '.release.gh_release.asset')"
-  vasset="$DIST/release/$(rel '.release.gh_release.version_asset')"
-  gh release create "$tag" --title "$tag" --target "${GITHUB_SHA:-main}" --notes "rolling cloud-terminal build" --latest 2>/dev/null || true
-  gh release upload "$tag" "$asset" "$vasset" --clobber
-  echo "→ uploaded to GH release '$tag'"
-}
-
-# ── pull: device-side, version-guarded install from the GH Release ────────────
-pull() {
-  local repo tag asset vasset share bindir
-  repo="$(rel '.release.gh_release.repo')"; tag="$(rel '.release.gh_release.rolling_tag')"
-  asset="$(rel '.release.gh_release.asset')"; vasset="$(rel '.release.gh_release.version_asset')"
-  share="$HOME/$(rel '.release.install.share_dir')"; bindir="$HOME/$(rel '.release.install.bin_dir')"
-  local base="https://github.com/$repo/releases/download/$tag"
-  local marker="$share/.installed"
-  echo "→ checking latest cloud-terminal version..."
-  local latest; latest="$(curl -fsSL "$base/$vasset" 2>/dev/null || echo "")"
-  [ -z "$latest" ] && { echo "   no published version (asset missing) — skipping"; return 0; }
-  local cur=""; [ -f "$marker" ] && cur="$(cat "$marker")"
-  if [ "$latest" = "$cur" ]; then echo "   up-to-date ($cur)"; return 0; fi
-  echo "→ pulling $latest (was '${cur:-none}')..."
-  local tmp; tmp="$(mktemp -d)"
-  curl -fsSL "$base/$asset" -o "$tmp/$asset" || { echo "   download failed"; rm -rf "$tmp"; return 1; }
-  rm -rf "$share"; mkdir -p "$share"
-  zstd -dc "$tmp/$asset" | tar -C "$share" -xf -
-  rm -rf "$tmp"
-  echo "→ emitting launchers → $bindir"
-  emit_launchers "$share" "$bindir"
-  printf '%s\n' "$latest" > "$marker"
-  echo "→ installed cloud-terminal $latest"
+  vendor
+  icons
+  log "cargo tauri build (release)"
+  ( cd "$TAURI" && in_nix cargo tauri build )
+  mkdir -p "$DIST"
+  cp "$TAURI/target/release/cloud-terminal" "$DIST/cloud-terminal" 2>/dev/null || true
+  log "→ binary: $TAURI/target/release/cloud-terminal"
+  log "→ bundles: $TAURI/target/release/bundle/"
 }
 
 case "$CMD" in
-  build)       build ;;
-  install)     build; emit_launchers "$ROOT" "$HOME/.local/bin" ;;
-  package)     package ;;
-  oras-push)   oras_push ;;
-  gh-release)  gh_release ;;
-  pull)        pull ;;
-  launch)      build; "$DIST/bin/cloud-terminal-${2:-nix-flakes}" --show & ;;
-  launch-all)  build; for l in "$DIST/bin/"cloud-terminal-*; do "$l" & done ;;
-  *) echo "unknown command: $CMD"; exit 1 ;;
+  vendor) vendor ;;
+  icons)  icons ;;
+  build)  build ;;
+  dev)    vendor; ( cd "$TAURI" && in_nix cargo tauri dev ) ;;
+  check)  vendor; ( cd "$TAURI" && in_nix cargo check ) ;;
+  run)    CT_APP_DIR="$SRC" CT_ASSETS_DIR="$SRC/assets" CT_PROFILES_DIR="$SRC/data" \
+            CT_PROFILE="${2:-nix-flakes}" "$TAURI/target/release/cloud-terminal" --show ;;
+  shell)  exec nix develop "$ROOT" ;;
+  clean)  rm -rf "$TAURI/target" "$DIST" "$FRONTEND/vendor" "$ROOT/node_modules"; log "cleaned" ;;
+  *)      errlog "unknown command: $CMD"; exit 1 ;;
 esac

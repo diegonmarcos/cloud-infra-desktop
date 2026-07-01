@@ -1,0 +1,27 @@
+[package]
+name = "cloud-terminal"
+version = "1.0.0"
+edition = "2021"
+description = "Registry-driven multi-profile terminal + tray (Tauri/Rust port of the Electron app)"
+default-run = "cloud-terminal"
+
+[[bin]]
+name = "cloud-terminal"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+portable-pty = "0.8"
+
+# Smaller, faster release binary (this is a desktop tray app, not a lib).
+[profile.release]
+strip = true
+lto = true
+opt-level = "s"
+codegen-units = 1
+panic = "abort"

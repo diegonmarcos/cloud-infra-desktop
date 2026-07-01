@@ -216,6 +216,8 @@ in
       CPU_LIMIT=${toString sysprot.watchdog.cpu_pressure_some_avg10}
       MAX_KILLS=${toString sysprot.watchdog.max_kills_per_tick}
       INTERVAL=${toString sysprot.watchdog.interval_sec}
+      PROC_CPU=${toString sysprot.watchdog.proc_cpu_pct}
+      PROC_RSS=${toString sysprot.watchdog.proc_rss_kb}
       PREFER="${lib.concatStringsSep "|" sysprot.watchdog.prefer_kill}"
       AVOID="${sysprot.watchdog.avoid_kill}"
 
@@ -237,8 +239,25 @@ in
         echo "$line"
       }
 
-      echo "[freeze-guard] online as $(id -un); trigger cpuPSI(some)>$CPU_LIMIT | memPSI(full)>$MEM_LIMIT | ioPSI(full)>$IO_LIMIT; max $MAX_KILLS kills/tick"
+      # Per-process hog killer: SIGKILL any single non-avoid process over PROC_CPU
+      # %cpu or PROC_RSS kB. Catches a lone runaway (gradle/rustc/java/ld pinning
+      # one core) that never raises system PSI enough to trip the PSI guards.
+      hog_kill() {
+        ps -eo pid=,comm=,pcpu=,rss= --sort=-pcpu 2>/dev/null | head -n15 | \
+        while read -r pid comm cpu rss; do
+          echo "$comm" | grep -E -q -- "$AVOID" && continue
+          cpu=''${cpu%.*}
+          if [ "''${cpu:-0}" -ge "$PROC_CPU" ] || [ "''${rss:-0}" -ge "$PROC_RSS" ]; then
+            [ "$pid" -gt 1 ] 2>/dev/null || continue
+            echo "[freeze-guard] HOG → SIGKILL pid=$pid ($comm) cpu=''${cpu}% rss=''${rss}kB"
+            kill -9 "$pid" 2>/dev/null || true
+          fi
+        done
+      }
+
+      echo "[freeze-guard] online as $(id -un); trigger cpuPSI(some)>$CPU_LIMIT | memPSI(full)>$MEM_LIMIT | ioPSI(full)>$IO_LIMIT | procCPU>=$PROC_CPU% | procRSS>=''${PROC_RSS}kB; max $MAX_KILLS kills/tick"
       while :; do
+        hog_kill
         cpu=$(psi_avg10 cpu some);    cpu=''${cpu:-0}
         mem=$(psi_avg10 memory full); mem=''${mem:-0}
         io=$(psi_avg10 io full);      io=''${io:-0}
