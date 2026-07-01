@@ -29,7 +29,7 @@
           cargo
           cargo-tauri
           pkg-config
-          wrapGAppsHook
+          wrapGAppsHook3
           nodejs_22 # only to `npm install` the xterm vendor assets
           imagemagick
           jq
