@@ -27,11 +27,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # NUR — for ataraxiasjel.waydroid-script, the reproducibly-packaged
-    # casualsnek waydroid_script (libhoudini ARM translation). Surface Pro 8 is
-    # x86_64; the cloud-superapp APK is arm64-v8a only, so Waydroid needs an ARM
-    # bridge to run it. See modules/configuration_containers.nix.
-    nur.url = "github:nix-community/NUR";
+    # NUR input (ataraxiasjel.waydroid-script / libhoudini) REMOVED 2026-07-01 — waydroid disabled entirely.
 
     # NOTE: fido2-vault-broker is NOT a flake input — nix 2.24 cannot lock
     # or re-fetch relative-path flake inputs inside a git flake (every
@@ -45,7 +41,7 @@
     # NOTE: home-manager is NOT here - it's managed separately in cb_user_diego_nix
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, nur, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, ... }:
   let
     system = "x86_64-linux";
 
@@ -65,9 +61,6 @@
           inherit system;
           config.allowUnfree = true;
         };
-        # NUR repo holding waydroid-script (libhoudini ARM translation).
-        # Scoped per-module via specialArgs, never a global overlay.
-        nurpkgs = nur.legacyPackages.${system}.repos.ataraxiasjel;
       };
       modules = [
         # Surface Pro hardware support (linux-surface kernel, firmware)
@@ -89,10 +82,7 @@
         ../../da_fido2-vault-broker/src/nix/module.nix
         ./modules/configuration_fido2-vault-broker.nix
 
-        # Waydroid sensors HAL — puts `waydroid-sensord` on the system PATH so
-        # waydroid's root container service stops forcing the empty stub
-        # sensors HAL (which() probe). Daemon itself runs via home-manager.
-        ./modules/configuration_waydroid-sensors.nix
+        # Waydroid sensors HAL UNWIRED 2026-07-01 — waydroid disabled entirely.
       ];
     };
 

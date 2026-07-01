@@ -855,6 +855,30 @@ cmd_pull() {
     log_success "Activated prebuilt home-manager generation (no eval)."
 }
 
+# switch runner (DEFAULT) — one-shot: fetch the latest GHA-built home-manager
+# closure artifact and activate it locally. No local eval → cannot freeze the
+# 8GB Surface. Assumes the ship workflow already ran for your pushed HEAD (GHA
+# builds on push), so `switch local` is the escape hatch to eval on-device.
+# Artifact name overridable via HM_CLOSURE_ARTIFACT; workflow (hint only) via
+# HM_SHIP_WORKFLOW.
+cmd_switch_runner() {
+    log_header "switch (runner): fetch GHA-built closure + activate (no local eval)"
+    _host="${1:-surface-plasma}"; _user="${2:-diego}"
+    command -v gh >/dev/null 2>&1 || { log_error "gh CLI not found — install it, or use: ./build.sh switch local"; return 1; }
+    _artname="${HM_CLOSURE_ARTIFACT:-nixos-desktop-hm-closure}"
+    _wf="${HM_SHIP_WORKFLOW:-ship_nix-flakes_desktop_nixos.yaml}"
+    _art="$SCRIPT_DIR/dist-ci"
+    rm -rf "$_art"; mkdir -p "$_art"
+    log_info "Downloading latest '$_artname' artifact from GitHub Actions..."
+    if ! gh run download -n "$_artname" -D "$_art" 2>/dev/null; then
+        log_error "no '$_artname' artifact on GitHub yet."
+        log_error "GHA builds on push — commit+push your changes first (or: gh workflow run $_wf),"
+        log_error "then re-run:  ./build.sh switch      (on-device eval instead: ./build.sh switch local)"
+        return 1
+    fi
+    cmd_pull "$_art"
+}
+
 # ============================================================================
 # TUI MENU
 # ============================================================================
@@ -1030,7 +1054,9 @@ ${YELLOW}USAGE:${NC}
 
 ${YELLOW}NIX COMMANDS:${NC}
     install                 Install Nix package manager
-    switch [profile]        Apply Home Manager config (default: surface-plasma — full)
+    switch [runner|local]   Apply Home Manager config. DEFAULT=runner: fetch the
+                            latest GHA-built closure + activate (no local eval, cannot freeze).
+                            'switch local [host] [user]' = eval+build+activate on-device (heavy).
     build [profile]         Dry build — evaluate flake without activating (verify-only)
     ci-build [profile]      [GHA x86] Build + export the closure tarball -> dist-ci/
     pull [dir]              Import a GHA-built closure + activate (NO eval — never freezes)
@@ -1068,7 +1094,8 @@ ${YELLOW}HOSTS:${NC}
     minimal                 Base development
 
 ${YELLOW}EXAMPLES:${NC}
-    ./build.sh switch surface       # Apply surface config
+    ./build.sh switch               # Runner: activate latest GHA-built closure (default)
+    ./build.sh switch local         # On-device eval+build+activate (heavy, may thrash 8GB)
     ./build.sh container-build      # Build full image
     ./build.sh compose-up           # Start with compose
     ./build.sh distrobox-create     # Create distrobox
@@ -1111,7 +1138,13 @@ main() {
             nix_install
             ;;
         switch)
-            nix_switch "${1:-surface-plasma}" "${2:-diego}"
+            # DEFAULT = runner (GHA-built closure + activate; no freeze-prone local eval).
+            # `switch local [host] [user]` = eval+build+activate on-device.
+            case "${1:-runner}" in
+                local)  shift; nix_switch "${1:-surface-plasma}" "${2:-diego}" ;;
+                runner) shift; cmd_switch_runner "${1:-surface-plasma}" "${2:-diego}" ;;
+                *)      cmd_switch_runner "${1:-surface-plasma}" "${2:-diego}" ;;  # `switch <host>` → runner
+            esac
             ;;
         build)
             nix_build "${1:-surface-plasma}" "${2:-diego}"

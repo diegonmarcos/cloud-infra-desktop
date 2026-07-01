@@ -237,6 +237,12 @@ for di in $(seq 0 $((ndesk-1))); do
     case "$amode" in
       path) v="$(jq -r ".desktops[$di].windows[$wi].args[0] // empty" "$JSON")"; [ -n "$v" ] && argv+=("$v") ;;
       url)  v="$(jq -r ".desktops[$di].windows[$wi].url // empty"     "$JSON")"; [ -n "$v" ] && argv+=("$v") ;;
+      urls)
+        # multi-tab browser: append every URL in .urls[] as a positional arg
+        # (qutebrowser/brave/etc open one tab per URL). No existence check — URLs
+        # are remote; an unreachable one just yields an error tab, never breaks launch.
+        while IFS= read -r u; do [ -n "$u" ] && argv+=("$u"); done \
+          < <(jq -r ".desktops[$di].windows[$wi].urls[]? // empty" "$JSON") ;;
       paths)
         # multi-tab: append every path that EXISTS as a dir; skip+log missing ones
         # (per-folder fallback — a non-existent folder never breaks the launch).

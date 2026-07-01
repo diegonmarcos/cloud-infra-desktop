@@ -1,6 +1,12 @@
 {
   "_description": "qutebrowser quickmarks (key → URL). Loaded into ~/.config/qutebrowser/quickmarks via home-manager's programs.qutebrowser.quickmarks.",
   "vault":     "https://vault.diegonmarcos.com",
+  "dev":       "http://localhost:8000",
+  "proxy":     "https://proxy.diegonmarcos.com",
+  "cloud":     "https://cloud.diegonmarcos.com",
+  "linktree":  "https://linktree.diegonmarcos.com",
+  "gemini":    "https://gemini.google.com",
+  "claude":    "https://claude.ai/new#settings/usage",
   "authelia":  "https://auth.diegonmarcos.com",
   "gitea":     "https://git.diegonmarcos.com",
   "ide":       "https://ide.diegonmarcos.com",

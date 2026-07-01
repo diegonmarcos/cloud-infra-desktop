@@ -28,10 +28,7 @@
 
   "containers-cloud": [
     "containers-cloud/containers",
-    "containers-cloud/secrets",
-    "containers-cloud/waydroid",
-    "containers-cloud/waydroid-sensors-watchdog",
-    "containers-cloud/waydroid-provision"
+    "containers-cloud/secrets"
   ],
 
   "security-network": [

@@ -68,26 +68,9 @@
     options = [ "umask=0077" ];
   };
 
-  # Waydroid base image (shared between users) - nofail for boot resilience
-  fileSystems."/var/lib/waydroid" = {
-    device = "/dev/mapper/pool";
-    fsType = "btrfs";
-    options = [ "subvol=@shared/waydroid-base" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
-  };
-
-  # Waydroid per-user data - diego - nofail for boot resilience
-  fileSystems."/home/diego/.local/share/waydroid" = {
-    device = "/dev/mapper/pool";
-    fsType = "btrfs";
-    options = [ "subvol=@home-diego/waydroid" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
-  };
-
-  # Waydroid per-user data - guest - nofail for boot resilience
-  fileSystems."/home/guest/.local/share/waydroid" = {
-    device = "/dev/mapper/pool";
-    fsType = "btrfs";
-    options = [ "subvol=@home-guest/waydroid" "compress=zstd" "noatime" "nofail" "x-systemd.device-timeout=10s" ];
-  };
+  # Waydroid btrfs mounts REMOVED 2026-07-01 — waydroid disabled. The on-disk
+  # subvols (@shared/waydroid-base, @home-diego/waydroid, @home-guest/waydroid)
+  # are left intact for manual reclaim; they are simply no longer mounted.
 
   # Persistent journal - survives tmpfs root wipes (logs available across reboots)
   fileSystems."/var/log/journal" = {
