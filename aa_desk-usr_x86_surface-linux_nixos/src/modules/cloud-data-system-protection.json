@@ -30,6 +30,8 @@
     "mem_pressure_full_avg10": 40.0,
     "io_pressure_full_avg10": 55.0,
     "cpu_pressure_some_avg10": 80.0,
+    "proc_cpu_pct": 85,
+    "proc_rss_kb": 2000000,
     "max_kills_per_tick": 4,
     "prefer_kill": ["cc1plus", "cc1", "rustc", "ld", "lto1", "ghc", "node", "electron", "brave", "firefox", "chromium"],
     "avoid_kill": "kwin|plasmashell|kwin_wayland|sddm|Xwayland|pipewire|wireplumber|systemd|dbus|dbus-broker|dropbear|sshd|freeze-guard|earlyoom|systemd-oomd|polkit|NetworkManager|wpa_supplicant",
