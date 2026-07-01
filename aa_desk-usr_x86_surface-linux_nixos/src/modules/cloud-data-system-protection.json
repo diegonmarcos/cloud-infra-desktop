@@ -24,11 +24,13 @@
   },
 
   "watchdog": {
-    "_comment": "freeze-guard: an ACTIVE PSI killer running in the untouchable island. Every interval_sec it reads /proc/pressure/{memory,io} 'full avg10' (= % of the last 10s in which ALL tasks were stalled). If either exceeds its limit, it SIGKILLs the highest-RSS process matching prefer_kill (browsers/compilers), else the highest-RSS process not matching avoid_kill. This is the backstop layer beneath the cgroup caps + systemd-oomd. Tunable here; baked into the service script at build time (reproducible).",
+    "_comment": "freeze-guard: an ACTIVE PSI killer running in the untouchable island. GENERAL-PURPOSE — every interval_sec it reads /proc/pressure/{cpu,memory,io}. mem/io use 'full avg10' (% of last 10s ALL tasks stalled); cpu uses 'some avg10' (% of last 10s SOME task stalled — full-cpu rarely fires since a pure spin doesn't stall every task). If any signal exceeds its limit it SIGKILLs the top offender and re-checks, walking down the rank up to max_kills_per_tick times until pressure drops. Victim ranking is pressure-aware: CPU breach ranks by %cpu, mem/io breach ranks by RSS. prefer_kill (compilers/browsers) is tried first, then any process not matching avoid_kill. Backstop beneath the cgroup caps + systemd-oomd. Tunable here; baked into the service script at build time (reproducible). Every action is echoed to the journal (unit stdout).",
     "enabled": true,
     "interval_sec": 2,
     "mem_pressure_full_avg10": 40.0,
     "io_pressure_full_avg10": 55.0,
+    "cpu_pressure_some_avg10": 80.0,
+    "max_kills_per_tick": 4,
     "prefer_kill": ["cc1plus", "cc1", "rustc", "ld", "lto1", "ghc", "node", "electron", "brave", "firefox", "chromium"],
     "avoid_kill": "kwin|plasmashell|kwin_wayland|sddm|Xwayland|pipewire|wireplumber|systemd|dbus|dbus-broker|dropbear|sshd|freeze-guard|earlyoom|systemd-oomd|polkit|NetworkManager|wpa_supplicant",
     "notify": true
@@ -92,6 +94,12 @@
         "description": "the freeze-guard active PSI killer is running",
         "command": "systemctl is-active freeze-guard.service",
         "expect": "active"
+      },
+      {
+        "id": "freeze_guard_cpu_dimension",
+        "description": "freeze-guard is general-purpose — its deployed script reacts to CPU pressure, not just mem/io",
+        "command": "systemctl cat freeze-guard.service",
+        "expect_regex": "cpuPSI"
       },
       {
         "id": "freeze_guard_unkillable",

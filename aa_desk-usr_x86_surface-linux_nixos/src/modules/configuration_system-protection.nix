@@ -213,28 +213,53 @@ in
     script = ''
       MEM_LIMIT=${toString sysprot.watchdog.mem_pressure_full_avg10}
       IO_LIMIT=${toString sysprot.watchdog.io_pressure_full_avg10}
+      CPU_LIMIT=${toString sysprot.watchdog.cpu_pressure_some_avg10}
+      MAX_KILLS=${toString sysprot.watchdog.max_kills_per_tick}
       INTERVAL=${toString sysprot.watchdog.interval_sec}
       PREFER="${lib.concatStringsSep "|" sysprot.watchdog.prefer_kill}"
       AVOID="${sysprot.watchdog.avoid_kill}"
 
-      psi_full_avg10() {
-        awk '/^full/ { for (i=1;i<=NF;i++) if ($i ~ /^avg10=/) { sub(/avg10=/,"",$i); print $i } }' "/proc/pressure/$1" 2>/dev/null
+      # $2 = "full" (mem/io: all tasks stalled) or "some" (cpu: any task stalled).
+      psi_avg10() {
+        awk -v k="$2" '$1 == k { for (i=1;i<=NF;i++) if ($i ~ /^avg10=/) { sub(/avg10=/,"",$i); print $i } }' "/proc/pressure/$1" 2>/dev/null
       }
 
-      echo "[freeze-guard] online as $(id -un); trigger memPSI>$MEM_LIMIT or ioPSI>$IO_LIMIT (full avg10)"
+      # Pick the top offender by $1 sort key (rss or pcpu), skipping already-killed
+      # pids ($2 = space-separated exclusion list). prefer_kill first, then any
+      # non-avoid_kill process. Prints "pid metric comm".
+      pick_victim() {
+        local key="$1" skip="$2" excl=""
+        [ -n "$skip" ] && excl="^($(echo "$skip" | tr ' ' '|')) "
+        local cmd="ps -eo pid=,$key=,comm= --sort=-$key"
+        local line
+        line=$($cmd | grep -E -- "$PREFER" | grep -E -v -- "$AVOID" | { [ -n "$excl" ] && grep -E -v -- "$excl" || cat; } | head -n1)
+        [ -z "$line" ] && line=$($cmd | grep -E -v -- "$AVOID" | { [ -n "$excl" ] && grep -E -v -- "$excl" || cat; } | head -n1)
+        echo "$line"
+      }
+
+      echo "[freeze-guard] online as $(id -un); trigger cpuPSI(some)>$CPU_LIMIT | memPSI(full)>$MEM_LIMIT | ioPSI(full)>$IO_LIMIT; max $MAX_KILLS kills/tick"
       while :; do
-        mem=$(psi_full_avg10 memory); mem=''${mem:-0}
-        io=$(psi_full_avg10 io);      io=''${io:-0}
-        if awk "BEGIN { exit !($mem+0 > $MEM_LIMIT || $io+0 > $IO_LIMIT) }"; then
-          line=$(ps -eo pid=,rss=,comm= --sort=-rss | grep -E -- "$PREFER" | grep -E -v -- "$AVOID" | head -n1)
-          [ -z "$line" ] && line=$(ps -eo pid=,rss=,comm= --sort=-rss | grep -E -v -- "$AVOID" | head -n1)
-          set -- $line
-          pid="$1"; rss="$2"; name="$3"
-          if [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null; then
-            echo "[freeze-guard] FREEZE-RISK memPSI=$mem ioPSI=$io → SIGKILL pid=$pid rss=''${rss}kB ($name)"
-            kill -9 "$pid" 2>/dev/null || true
-          fi
-        fi
+        cpu=$(psi_avg10 cpu some);    cpu=''${cpu:-0}
+        mem=$(psi_avg10 memory full); mem=''${mem:-0}
+        io=$(psi_avg10 io full);      io=''${io:-0}
+
+        killed=""; n=0
+        while [ "$n" -lt "$MAX_KILLS" ] && \
+              awk "BEGIN { exit !($cpu+0 > $CPU_LIMIT || $mem+0 > $MEM_LIMIT || $io+0 > $IO_LIMIT) }"; do
+          # Rank by %cpu when CPU is the breaching signal, else by RSS.
+          if awk "BEGIN { exit !($cpu+0 > $CPU_LIMIT) }"; then key="pcpu"; else key="rss"; fi
+          set -- $(pick_victim "$key" "$killed")
+          pid="$1"; metric="$2"; name="$3"
+          [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null || break
+          echo "[freeze-guard] FREEZE-RISK cpuPSI=$cpu memPSI=$mem ioPSI=$io → SIGKILL pid=$pid rank-by=$key metric=$metric ($name)"
+          kill -9 "$pid" 2>/dev/null || true
+          killed="$killed $pid"; n=$((n + 1))
+          sleep 0.3   # let PSI reflect the kill before re-reading
+          cpu=$(psi_avg10 cpu some);    cpu=''${cpu:-0}
+          mem=$(psi_avg10 memory full); mem=''${mem:-0}
+          io=$(psi_avg10 io full);      io=''${io:-0}
+        done
+        [ "$n" -ge "$MAX_KILLS" ] && echo "[freeze-guard] hit max_kills_per_tick=$MAX_KILLS (cpuPSI=$cpu memPSI=$mem ioPSI=$io) — backing off one interval"
         sleep "$INTERVAL"
       done
     '';
