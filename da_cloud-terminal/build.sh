@@ -30,6 +30,14 @@ FRONTEND="$ROOT/frontend"
 DIST="$ROOT/dist"
 CMD="${1:-build}"
 
+# Cap compile parallelism — the GTK/WebKit-sys crates + linker peak hard on
+# RAM; the default (one job per core) OOM-kills ld (exit 137) on 8–16 GB
+# laptops. Override with CARGO_BUILD_JOBS=<n> for beefier machines / CI.
+export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
+# Drop debuginfo on the dev/check profile — debug=2 (default) is the single
+# biggest rustc peak-memory driver; we don't debug the GTK-sys deps.
+export CARGO_PROFILE_DEV_DEBUG="${CARGO_PROFILE_DEV_DEBUG:-0}"
+
 log()    { printf "[%s] %s\n" "$(date '+%H:%M:%S')" "$1"; }
 errlog() { printf "\033[0;31m[%s] ERROR: %s\033[0m\n" "$(date '+%H:%M:%S')" "$1" >&2; }
 
