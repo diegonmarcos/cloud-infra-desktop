@@ -136,7 +136,19 @@
         "_doc": "Fossify Phone (the maintained Simple Dialer fork). gradle_task/apk_glob are the foss flavor best-guess \u2014 the fork CI build (workflow_dispatch fork=dialer) is the tester; adjust here on first red run. No comms-server endpoint: it is the device Dialer, linked from Cloud-SuperApp Suite>Communications.",
         "gradle_task": "assembleFossRelease",
         "apk_glob": "app/build/outputs/apk/foss/release/*.apk",
-        "signing": "keystore_properties"
+        "signing": "keystore_properties",
+        "gradle_props": {
+          "_doc": "Data-driven gradle -P props consumed by the fork's build.gradle.kts via project.findProperty(). APPLICATION_ID gives the dialer its OWN unique package (matches .app_id) so it never collides with the stock org.fossify.phone identity — required to hold the default-Phone-app (ROLE_DIALER) role. The AUTO_UPDATE_*/GHCR_* fields feed the self-contained in-app updater's BuildConfig. The namespace (R/BuildConfig package) stays org.fossify.phone — only the installed applicationId changes.",
+          "APPLICATION_ID": "com.diegonmarcos.comms.dialer",
+          "GHCR_REGISTRY": "ghcr.io",
+          "GHCR_NAMESPACE": "diegonmarcos",
+          "GHCR_IMAGE": "cloud-comms-dialer",
+          "AUTO_UPDATE_TAG": "latest",
+          "AUTO_UPDATE_ENABLED": "true",
+          "AU_REQUIRE_UNMETERED": "true",
+          "AU_REQUIRE_CHARGING": "false",
+          "AUTO_UPDATE_INTERVAL_HOURS": "24"
+        }
       },
       "call_screening": {
         "_doc": "OWNER DIRECTIVE (default config): the CallScreeningService patch (ROLE_CALL_SCREENING) MUST default to 'contacts_only' \u2014 any incoming call whose number is NOT in the device contacts is silently rejected (disallowed, no ring, no missed-call notification); numbers that resolve to a saved contact ring normally. This is the FIRST-RUN DEFAULT baked into the patch's default SharedPreference; the user can change it in-app once the screening settings UI lands. The patch reads this block as its contract \u2014 keep code default == default_mode here.",
