@@ -251,6 +251,7 @@ set_color yellow; echo -n "    gcl              "; set_color normal; echo "git c
 # Others
 set_color cyan; echo "  Others:"
 set_color normal
+set_color yellow; echo -n "    cloud-terminal   "; set_color normal; echo "Multi-profile terminal + tray — Nix/Cloud/DTK (Tauri)"
 set_color yellow; echo -n "    dtk              "; set_color normal; echo "Tools TUI menu (~/git/tools/dtk.sh)"
 set_color yellow; echo -n "    hhelp            "; set_color normal; echo "Parse flake configs (config/tools/alias)"
 set_color yellow; echo -n "    fish-e           "; set_color normal; echo "Web terminal + mobile keys (ttyd on WireGuard)"
