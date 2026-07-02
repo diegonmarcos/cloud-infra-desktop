@@ -60,21 +60,35 @@ struct AppState {
     nets: Mutex<sysinfo::Networks>,
 }
 
-// ── System monitor snapshot (btop-graphs + glances-layout dashboard) ──
+// ── System monitor snapshot (btop-graphs + glances-data dashboard) ────
+// Rich enough to drive a btop+glances clone: CPU (aggregate+per-core+model+
+// freq), load, mem breakdown (used/avail/cached/free/swap), temps, disks,
+// per-iface net rates, and a full process table (pid/user/cpu%/mem%/status/
+// command) reported both top-by-CPU and top-by-MEM, plus process counts.
 #[tauri::command]
 fn sys_stats(state: tauri::State<AppState>) -> Value {
+    use std::cmp::Ordering::Equal;
     let mut sys = state.sys.lock().unwrap();
     sys.refresh_all(); // cpu usage + memory + processes (delta vs previous poll)
 
-    let cores: Vec<f32> = sys.cpus().iter().map(|c| c.cpu_usage()).collect();
+    let cpus = sys.cpus();
+    let cores: Vec<f32> = cpus.iter().map(|c| c.cpu_usage()).collect();
+    let cpu_name = cpus.first().map(|c| c.brand().trim().to_string()).unwrap_or_default();
+    let cpu_freq = cpus.first().map(|c| c.frequency()).unwrap_or(0); // MHz
     let la = sysinfo::System::load_average();
+
+    // Users: resolve uid → name for the process table (glances shows user).
+    let users = sysinfo::Users::new_with_refreshed_list();
 
     let mut nets = state.nets.lock().unwrap();
     nets.refresh();
     let net: Vec<Value> = nets
         .iter()
         .filter(|(n, _)| *n != "lo")
-        .map(|(n, d)| serde_json::json!({ "name": n, "rx": d.received(), "tx": d.transmitted() }))
+        .map(|(n, d)| serde_json::json!({
+            "name": n, "rx": d.received(), "tx": d.transmitted(),
+            "rx_total": d.total_received(), "tx_total": d.total_transmitted(),
+        }))
         .collect();
 
     let disks = sysinfo::Disks::new_with_refreshed_list();
@@ -83,36 +97,84 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
         .map(|d| serde_json::json!({
             "name": d.name().to_string_lossy(),
             "mount": d.mount_point().to_string_lossy(),
+            "fs": d.file_system().to_string_lossy(),
             "total": d.total_space(),
             "avail": d.available_space(),
         }))
         .collect();
 
-    let mut procs: Vec<(f32, u64, u32, String)> = sys
-        .processes()
+    // Temperatures (btop's temp readouts): CPU package, cores, drives, etc.
+    let comps = sysinfo::Components::new_with_refreshed_list();
+    let temps: Vec<Value> = comps
         .iter()
-        .map(|(pid, p)| (p.cpu_usage(), p.memory(), pid.as_u32(), p.name().to_string_lossy().into_owned()))
-        .collect();
-    procs.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-    let top: Vec<Value> = procs
-        .iter()
-        .take(14)
-        .map(|(cpu, mem, pid, name)| serde_json::json!({ "cpu": cpu, "mem": mem, "pid": pid, "name": name }))
+        .map(|c| serde_json::json!({
+            "label": c.label(),
+            "temp": c.temperature(),
+            "high": c.max(),
+            "crit": c.critical(),
+        }))
         .collect();
 
+    // Full process rows, then sort twice (by cpu, by mem) for the two glances
+    // panels. total_mem drives MEM%.
+    let total_mem = sys.total_memory().max(1);
+    let mut running = 0u32;
+    struct P { cpu: f32, mem: u64, pid: u32, user: String, status: String, name: String }
+    let mut rows: Vec<P> = sys
+        .processes()
+        .iter()
+        .map(|(pid, p)| {
+            let st = p.status().to_string();
+            if st == "Run" || st == "Runnable" { running += 1; }
+            let user = p
+                .user_id()
+                .and_then(|uid| users.get_user_by_id(uid))
+                .map(|u| u.name().to_string())
+                .unwrap_or_default();
+            // command line if available, else the short name
+            let cmd = p.cmd();
+            let name = if cmd.is_empty() {
+                p.name().to_string_lossy().into_owned()
+            } else {
+                cmd.iter().map(|s| s.to_string_lossy().into_owned()).collect::<Vec<String>>().join(" ")
+            };
+            P { cpu: p.cpu_usage(), mem: p.memory(), pid: pid.as_u32(), user, status: st, name }
+        })
+        .collect();
+    let nproc = rows.len();
+    let row_json = |p: &P| serde_json::json!({
+        "cpu": p.cpu, "mem": p.mem, "memp": (p.mem as f64 / total_mem as f64) * 100.0,
+        "pid": p.pid, "user": p.user, "status": p.status, "name": p.name,
+    });
+    rows.sort_by(|a, b| b.cpu.partial_cmp(&a.cpu).unwrap_or(Equal));
+    let by_cpu: Vec<Value> = rows.iter().take(20).map(row_json).collect();
+    rows.sort_by(|a, b| b.mem.cmp(&a.mem));
+    let by_mem: Vec<Value> = rows.iter().take(20).map(row_json).collect();
+
     serde_json::json!({
+        "host": sysinfo::System::host_name().unwrap_or_default(),
+        "os": sysinfo::System::long_os_version().unwrap_or_default(),
+        "kernel": sysinfo::System::kernel_version().unwrap_or_default(),
+        "uptime": sysinfo::System::uptime(),
         "cpu": sys.global_cpu_usage(),
+        "cpu_name": cpu_name,
+        "cpu_freq": cpu_freq,
         "ncpu": cores.len(),
+        "pcpu": sys.physical_core_count().unwrap_or(0),
         "cores": cores,
         "load": [la.one, la.five, la.fifteen],
         "mem": {
             "total": sys.total_memory(), "used": sys.used_memory(),
-            "avail": sys.available_memory(),
+            "avail": sys.available_memory(), "free": sys.free_memory(),
             "swap_total": sys.total_swap(), "swap_used": sys.used_swap(),
         },
         "net": net,
         "disks": disk,
-        "procs": top,
+        "temps": temps,
+        "nproc": nproc,
+        "running": running,
+        "procs": by_cpu,
+        "procs_mem": by_mem,
     })
 }
 
