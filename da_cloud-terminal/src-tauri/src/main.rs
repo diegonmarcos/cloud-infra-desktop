@@ -425,8 +425,13 @@ fn build_and_show(app: &AppHandle) {
         let menu = menu.separator().text("quit", "Quit").build().unwrap();
 
         let icon_path = format!("{assets_dir}/{name}.png");
-        let mut tray = TrayIconBuilder::new()
-            .tooltip(nonempty(prof["tray_tooltip"].as_str(), s(&prof, "display_name")))
+        // Unique id per profile + set BOTH title and tooltip: the
+        // libayatana-appindicator backend ignores tooltips, but KDE's SNI shows
+        // the item title on hover — so each tray gets its own profile name.
+        let tip = nonempty(prof["tray_tooltip"].as_str(), s(&prof, "display_name"));
+        let mut tray = TrayIconBuilder::with_id(name.clone())
+            .title(tip.clone())
+            .tooltip(tip)
             .menu(&menu);
         if let Ok(img) = tauri::image::Image::from_path(&icon_path) {
             tray = tray.icon(img);
