@@ -1,0 +1,915 @@
+{
+  "project": {
+    "name": "redroid-apps",
+    "version": "0.3.0",
+    "description": "Declarative, data-driven provisioning of a curated Android app set into the local Redroid (redroid/redroid Docker) container, plus a fully data-driven launcher layout (hotseat 'bottom bar' + home-screen workspace + folders) and theme (dark mode + solid-black wallpaper). Apps are pinned in src/apps.lock.json (F-Droid suggestedVersionCode + nix-prefetched sha256), fetched reproducibly by src/flake.nix, installed with `adb install`. The launcher layout is rendered from the `launcher` block below into Launcher3's `favorites` DB by the engine (folders=itemType 2, hotseat=container -101, workspace=container -100). NOTHING is hardcoded in the engine: app list, layout, folders, theme, F-Droid endpoints, the Redroid container knobs (image, data volume, adb address) and the launcher DB are all read from this file or discovered at runtime (the DB filename is grid-dependent, e.g. launcher_6_by_5.db, so it is globbed). Replaces the decommissioned Waydroid stack: no host Wayland session, no LXC, no binder-HAL sensors — Redroid is a headless container viewed via scrcpy over ADB."
+  },
+  "release": {
+    "_doc": "GHA builds src#apks and publishes the APK set as one tarball on this rolling GitHub Release (workflow: 1_workflows/src/cicd/ship-redroid-apks.yml). When consume=true, `build.sh build` downloads it (verifying the bundled manifest.json == src/apps.lock.json) instead of fetching ~54 APKs from F-Droid locally; nix build is the fallback. Force a local build with REDROID_APKS_LOCAL=1.",
+    "tag": "redroid-apks-latest",
+    "asset": "redroid-apks.tar.gz",
+    "title": "Redroid APK set (GHA-prebuilt)",
+    "consume": true
+  },
+  "paths": {
+    "src": "src",
+    "dist": "dist",
+    "apk_dir": "dist/apks",
+    "lockfile": "src/apps.lock.json",
+    "flake": "src",
+    "backup_dir": "dist/backups",
+    "wallpaper": "dist/wallpaper.png"
+  },
+  "fdroid": {
+    "api_url": "https://f-droid.org/api/v1/packages",
+    "repo_url": "https://f-droid.org/repo"
+  },
+  "redroid": {
+    "_doc": "Redroid container knobs + AOSP Launcher3 constants. The engine runs a single rootful docker container (`image`, `container_name`) reachable over ADB at `adb_addr`; `data_volume` is the HOST path bind-mounted to the container's /data (the engine reads/writes the launcher DB there directly, like waydroid's data_root). launcher_db_glob is grid-dependent (launcher_<cols>_by_<rows>.db) so it MUST be globbed. Containers/itemTypes/launch_flags are AOSP Launcher3 constants (unchanged from AOSP, runtime-generic). cpu_cores caps the container (docker --cpus), leaving ≥1 core headroom on the 8-CPU SP8. NOTE: the container is on-demand only — never wantedBy multi-user (Waydroid's ghost-process class of bug).",
+    "image": "redroid/redroid:13.0.0-latest",
+    "container_name": "redroid",
+    "adb_addr": "127.0.0.1:5555",
+    "adb_port": 5555,
+    "data_volume": "/mnt/shared-lib/redroid/data",
+    "gpu_mode": "guest",
+    "cpu_cores": 7,
+    "width": 1280,
+    "height": 800,
+    "dpi": 213,
+    "fps": 60,
+    "boot_gate_prop": "sys.boot_completed",
+    "launcher_package": "com.android.launcher3",
+    "home_package": "com.android.launcher3",
+    "_doc_home": "Default HOME app. Stays launcher3 for now so the data-driven folder/workspace layout (cmd_layout writes launcher3's favorites DB) keeps working. PHASE 2 (after the launcher3 design is locked): flip to 'com.diegonmarcos.superapp' + run `build.sh home` to make Cloud-SuperApp the home launcher.",
+    "launcher_db_glob": "data/com.android.launcher3/databases/launcher_*.db",
+    "_doc_install": "Apps install via `adb install -r -d` (over adb_addr). grant_all_permissions adds `-g` so every declared runtime (dangerous) permission is auto-granted at install — no per-app permission prompts.",
+    "grant_all_permissions": true,
+    "hotseat_container": -101,
+    "workspace_container": -100,
+    "item_type_application": 0,
+    "item_type_folder": 2,
+    "launch_flags": "0x10200000"
+  },
+  "launcher": {
+    "_doc": "Data-driven Launcher3 layout. `folders` are reusable group definitions (members = package ids). `hotseat` is the bottom bar, left→right (ref = a package id or 'folder:<id>'). `workspace` is the home screen: screen 0, each cell placed at (cellX,cellY) on a 6-column grid; ref = package id or 'folder:<id>'. A folder ref placed in both hotseat and workspace yields two independent folder instances with the same title+members. Re-arrange by editing here + `build.sh layout` — no code changes.",
+    "grid_columns": 6,
+    "folders": {
+      "cloud_ide": {
+        "title": "Cloud IDE",
+        "members": [
+          "com.diegonmarcos.ide",
+          "com.foxdebug.acode",
+          "com.amaze.filemanager"
+        ]
+      },
+      "cloud_comms": {
+        "title": "Cloud Comms",
+        "members": [
+          "com.diegonmarcos.comms",
+          "im.vector.app",
+          "com.mattermost.rnbeta",
+          "eu.faircode.email",
+          "org.fossify.phone",
+          "org.fossify.contacts",
+          "org.fossify.messages"
+        ]
+      },
+      "cloud_nav": {
+        "title": "Cloud Nav",
+        "members": [
+          "com.diegonmarcos.cloudnav",
+          "app.organicmaps",
+          "net.osmand.plus"
+        ]
+      },
+      "stores": {
+        "title": "Stores",
+        "members": [
+          "org.fdroid.fdroid",
+          "com.aurora.store"
+        ]
+      },
+      "_doc_phone": "SCREEN 1 (phone apps) folders. Titles come from ea_cloud-superapp/build.json::ui.phone_folders (single source of truth for the 31-category scheme used by the SuperApp's runtime PhoneAppClassifier); members here are the F-Droid-installable subset of the phone backup, classified by that same keyword algorithm. Proprietary apps (~274) are NOT installable from a reproducible source — install via Aurora Store inside Waydroid; they then auto-appear classified in the SuperApp's own drawer. Re-derive these member lists if phone_folders changes.",
+      "phone_comm": {
+        "title": ".b0_Communication",
+        "members": [
+          "im.vector.app",
+          "io.element.android.x",
+          "com.fsck.k9",
+          "rs.ltt.android",
+          "com.mattermost.rnbeta",
+          "io.heckel.ntfy"
+        ]
+      },
+      "phone_systools": {
+        "title": "_SysTools",
+        "members": [
+          "org.fdroid.fdroid",
+          "com.ghostsq.commander",
+          "org.kde.kdeconnect_tp",
+          "com.termux.nix",
+          "com.termux",
+          "com.termux.api"
+        ]
+      },
+      "phone_security": {
+        "title": "_Security",
+        "members": [
+          "eu.faircode.netguard",
+          "ch.protonvpn.android",
+          "com.beemdevelopment.aegis"
+        ]
+      },
+      "phone_sysinfo": {
+        "title": "_Sys_Info",
+        "members": [
+          "me.biplobsd.rsm",
+          "com.kgurgul.cpuinfo",
+          "com.dp.logcatapp"
+        ]
+      },
+      "phone_ide": {
+        "title": ".a4_IDE|Code",
+        "members": [
+          "com.viscouspot.gitsync",
+          "org.connectbot"
+        ]
+      },
+      "phone_notes": {
+        "title": ".a2_Pages|Notes",
+        "members": [
+          "com.adeeteya.markdown_editor",
+          "net.gsantner.markor",
+          "it.niedermann.owncloud.notes"
+        ]
+      },
+      "phone_todo": {
+        "title": ".a3_Todo|Calendar",
+        "members": [
+          "org.tasks",
+          "ws.xsoh.etar"
+        ]
+      },
+      "phone_dbphotos": {
+        "title": ".a1_DataBase|Photos",
+        "members": [
+          "org.fossify.gallery",
+          "org.documentfoundation.libreoffice"
+        ]
+      },
+      "phone_math": {
+        "title": ".a4_Math&Time",
+        "members": [
+          "org.solovyev.android.calculator"
+        ]
+      },
+      "phone_media": {
+        "title": ".b1_Media",
+        "members": [
+          "org.schabi.newpipe",
+          "org.videolan.vlc",
+          "org.jellyfin.mobile"
+        ]
+      },
+      "phone_learning": {
+        "title": ".b2_Learning",
+        "members": [
+          "com.ichi2.anki",
+          "org.wikipedia"
+        ]
+      },
+      "phone_audio": {
+        "title": ">Audio",
+        "members": [
+          "de.danoeh.antennapod",
+          "org.y20k.transistor",
+          "code.name.monkey.retromusic"
+        ]
+      },
+      "phone_games": {
+        "title": ">Games",
+        "members": [
+          "com.shatteredpixel.shatteredpixeldungeon",
+          "org.secuso.privacyfriendly2048"
+        ]
+      },
+      "phone_socfeed": {
+        "title": ">Social.Feed",
+        "members": [
+          "org.joinmastodon.android",
+          "com.github.libretube"
+        ]
+      },
+      "phone_utility": {
+        "title": "-Utilities",
+        "members": [
+          "me.zhanghai.android.files",
+          "org.mozilla.fennec_fdroid"
+        ]
+      },
+      "phone_health": {
+        "title": "-Health",
+        "members": [
+          "nodomain.freeyourgadget.gadgetbridge"
+        ]
+      },
+      "phone_misc": {
+        "title": "No Categorie",
+        "members": [
+          "com.rama.mako",
+          "org.fossify.phone"
+        ]
+      }
+    },
+    "hotseat": [
+      "com.diegonmarcos.superapp"
+    ],
+    "workspace": {
+      "screen": 0,
+      "cells": [
+        {
+          "ref": "com.diegonmarcos.superapp",
+          "cellX": 0,
+          "cellY": 0
+        },
+        {
+          "ref": "com.diegonmarcos.ide",
+          "cellX": 0,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:cloud_ide",
+          "cellX": 1,
+          "cellY": 1
+        },
+        {
+          "ref": "com.foxdebug.acode",
+          "cellX": 2,
+          "cellY": 1
+        },
+        {
+          "ref": "com.amaze.filemanager",
+          "cellX": 3,
+          "cellY": 1
+        },
+        {
+          "ref": "com.diegonmarcos.comms",
+          "cellX": 0,
+          "cellY": 2
+        },
+        {
+          "ref": "folder:cloud_comms",
+          "cellX": 1,
+          "cellY": 2
+        },
+        {
+          "ref": "im.vector.app",
+          "cellX": 2,
+          "cellY": 2
+        },
+        {
+          "ref": "com.mattermost.rnbeta",
+          "cellX": 3,
+          "cellY": 2
+        },
+        {
+          "ref": "eu.faircode.email",
+          "cellX": 4,
+          "cellY": 2
+        },
+        {
+          "ref": "org.fossify.messages",
+          "cellX": 5,
+          "cellY": 2
+        },
+        {
+          "ref": "com.diegonmarcos.cloudnav",
+          "cellX": 0,
+          "cellY": 3
+        },
+        {
+          "ref": "folder:cloud_nav",
+          "cellX": 1,
+          "cellY": 3
+        },
+        {
+          "ref": "app.organicmaps",
+          "cellX": 2,
+          "cellY": 3
+        },
+        {
+          "ref": "net.osmand.plus",
+          "cellX": 3,
+          "cellY": 3
+        },
+        {
+          "ref": "folder:stores",
+          "cellX": 0,
+          "cellY": 4
+        },
+        {
+          "ref": "org.fdroid.fdroid",
+          "cellX": 1,
+          "cellY": 4
+        },
+        {
+          "ref": "com.aurora.store",
+          "cellX": 2,
+          "cellY": 4
+        },
+        {
+          "ref": "com.brave.browser",
+          "cellX": 3,
+          "cellY": 4
+        },
+        {
+          "ref": "folder:phone_comm",
+          "screen": 1,
+          "cellX": 0,
+          "cellY": 0
+        },
+        {
+          "ref": "folder:phone_systools",
+          "screen": 1,
+          "cellX": 1,
+          "cellY": 0
+        },
+        {
+          "ref": "folder:phone_security",
+          "screen": 1,
+          "cellX": 2,
+          "cellY": 0
+        },
+        {
+          "ref": "folder:phone_sysinfo",
+          "screen": 1,
+          "cellX": 3,
+          "cellY": 0
+        },
+        {
+          "ref": "folder:phone_ide",
+          "screen": 1,
+          "cellX": 4,
+          "cellY": 0
+        },
+        {
+          "ref": "folder:phone_notes",
+          "screen": 1,
+          "cellX": 5,
+          "cellY": 0
+        },
+        {
+          "ref": "folder:phone_todo",
+          "screen": 1,
+          "cellX": 0,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:phone_dbphotos",
+          "screen": 1,
+          "cellX": 1,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:phone_math",
+          "screen": 1,
+          "cellX": 2,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:phone_media",
+          "screen": 1,
+          "cellX": 3,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:phone_learning",
+          "screen": 1,
+          "cellX": 4,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:phone_audio",
+          "screen": 1,
+          "cellX": 5,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:phone_games",
+          "screen": 1,
+          "cellX": 0,
+          "cellY": 2
+        },
+        {
+          "ref": "folder:phone_socfeed",
+          "screen": 1,
+          "cellX": 1,
+          "cellY": 2
+        },
+        {
+          "ref": "folder:phone_utility",
+          "screen": 1,
+          "cellX": 2,
+          "cellY": 2
+        },
+        {
+          "ref": "folder:phone_health",
+          "screen": 1,
+          "cellX": 3,
+          "cellY": 2
+        },
+        {
+          "ref": "folder:phone_misc",
+          "screen": 1,
+          "cellX": 4,
+          "cellY": 2
+        }
+      ]
+    }
+  },
+  "theme": {
+    "_doc": "dark_mode toggles Android night UI (cmd uimode night). AOSP 13's `cmd wallpaper` has NO set-image subcommand (only dim controls), so a generated image can't be pushed — instead we set wallpaper.dim (1.0 = fully black) via `cmd wallpaper set-dim-amount`, which reliably yields the requested solid-black background. auto_rotate is false: Redroid is a headless container with no accelerometer (the old da_waydroid-sensors HAL was dropped), so rotation is fixed by the container's configured resolution.",
+    "dark_mode": true,
+    "auto_rotate": false,
+    "wallpaper": {
+      "dim": 1,
+      "size": "1280x800",
+      "gradient_from": "#000000",
+      "gradient_to": "#000000"
+    }
+  },
+  "apps": [
+    {
+      "package": "com.diegonmarcos.superapp",
+      "label": "Cloud-SuperApp",
+      "group": "core",
+      "_doc": "Provisioning ONLY fetches the already-published x86 APK (signed with the canonical per-app CI key); it must NEVER build it locally or in GHA. A local gradle build here signs with the wrong (vault) key and Android then rejects the in-app updater's canonical-key updates. Re-run `build.sh lock <pkg>` to refresh the pin when the upstream release bumps.",
+      "appops": ["REQUEST_INSTALL_PACKAGES"],
+      "_doc_appops": "Special app-ops to allow at install (separate from the -g runtime perms). REQUEST_INSTALL_PACKAGES lets Cloud-SuperApp sideload/install other APKs itself (it's the constellation hub/installer). Granted via `cmd appops set <pkg> <op> allow` by cmd_install.",
+      "source": {
+        "type": "github",
+        "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-SuperApp-x86_64.apk"
+      }
+    },
+    {
+      "package": "com.diegonmarcos.cloudnav",
+      "label": "Cloud-Nav",
+      "group": "core",
+      "source": {
+        "type": "github",
+        "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-Nav-x86_64.apk"
+      }
+    },
+    {
+      "package": "com.diegonmarcos.comms",
+      "label": "Cloud-Comms",
+      "group": "core",
+      "source": {
+        "type": "github",
+        "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-Comms-Hub.apk"
+      }
+    },
+    {
+      "package": "com.diegonmarcos.ide",
+      "label": "Cloud-IDE",
+      "group": "core",
+      "source": {
+        "type": "github",
+        "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-IDE-Hub.apk"
+      }
+    },
+    {
+      "package": "com.foxdebug.acode",
+      "label": "Acode",
+      "group": "ide",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.amaze.filemanager",
+      "label": "Amaze",
+      "group": "ide",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "eu.faircode.email",
+      "label": "FairMail",
+      "group": "comms",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.mattermost.rnbeta",
+      "label": "Mattermost",
+      "group": "comms",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "im.vector.app",
+      "label": "Element",
+      "group": "comms",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.termux.nix",
+      "label": "Nix-on-Droid",
+      "group": "ide",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.fossify.phone",
+      "label": "Fossify Phone",
+      "group": "comms",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.fossify.contacts",
+      "label": "Fossify Contacts",
+      "group": "comms",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.fossify.messages",
+      "label": "Fossify Messages",
+      "group": "comms",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "app.organicmaps",
+      "label": "Organic Maps",
+      "group": "nav",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "net.osmand.plus",
+      "label": "OsmAnd~",
+      "group": "nav",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.fdroid.fdroid",
+      "label": "F-Droid",
+      "group": "store",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.aurora.store",
+      "label": "Aurora Store",
+      "group": "store",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.brave.browser",
+      "label": "Brave",
+      "group": "web",
+      "source": {
+        "type": "github",
+        "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk"
+      }
+    },
+    {
+      "package": "io.element.android.x",
+      "label": "Element X",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.fsck.k9",
+      "label": "K-9 Mail",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "rs.ltt.android",
+      "label": "Ltt.rs",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "io.heckel.ntfy",
+      "label": "ntfy",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.ghostsq.commander",
+      "label": "Ghost Commander",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.kde.kdeconnect_tp",
+      "label": "KDE Connect",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.termux",
+      "label": "Termux",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.termux.api",
+      "label": "Termux:API",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.viscouspot.gitsync",
+      "label": "Git Sync",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.adeeteya.markdown_editor",
+      "label": "Markdown Editor",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "me.zhanghai.android.files",
+      "label": "Material Files",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "eu.faircode.netguard",
+      "label": "NetGuard",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "ch.protonvpn.android",
+      "label": "Proton VPN",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "me.biplobsd.rsm",
+      "label": "Resmush",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.rama.mako",
+      "label": "Mako",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.beemdevelopment.aegis",
+      "label": "aegis",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.kgurgul.cpuinfo",
+      "label": "cpuinfo",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.dp.logcatapp",
+      "label": "logcatapp",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.connectbot",
+      "label": "connectbot",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "net.gsantner.markor",
+      "label": "markor",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "it.niedermann.owncloud.notes",
+      "label": "notes",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.tasks",
+      "label": "tasks",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "ws.xsoh.etar",
+      "label": "etar",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.fossify.gallery",
+      "label": "gallery",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.documentfoundation.libreoffice",
+      "label": "libreoffice",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.solovyev.android.calculator",
+      "label": "calculator",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.schabi.newpipe",
+      "label": "newpipe",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.videolan.vlc",
+      "label": "vlc",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.jellyfin.mobile",
+      "label": "mobile",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.ichi2.anki",
+      "label": "anki",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.wikipedia",
+      "label": "wikipedia",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "de.danoeh.antennapod",
+      "label": "antennapod",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.y20k.transistor",
+      "label": "transistor",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "code.name.monkey.retromusic",
+      "label": "retromusic",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.shatteredpixel.shatteredpixeldungeon",
+      "label": "shatteredpixeldungeon",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.secuso.privacyfriendly2048",
+      "label": "privacyfriendly2048",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.joinmastodon.android",
+      "label": "android",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.github.libretube",
+      "label": "libretube",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "org.mozilla.fennec_fdroid",
+      "label": "fennec_fdroid",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    },
+    {
+      "package": "nodomain.freeyourgadget.gadgetbridge",
+      "label": "gadgetbridge",
+      "group": "phone",
+      "source": {
+        "type": "fdroid"
+      }
+    }
+  ]
+}
