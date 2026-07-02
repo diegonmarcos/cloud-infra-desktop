@@ -489,78 +489,89 @@ cmd_status() {
 cmd_bake() {
   command -v docker >/dev/null 2>&1 || die "docker not found"
   [ -f "$LOCKFILE" ] || cmd_lock
-  local base img cname bdir ctx gate
-  base="$(get image.base)"; img="$(get image.name):$(get image.tag)"
-  cname="redroid-bake"; bdir="$DIST/bakedata"; ctx="$DIST/context"; gate="$(get redroid.boot_gate_prop)"
-  log "BAKE $img  (data-snapshot from base $base)"
-  docker rm -f "$cname" >/dev/null 2>&1 || true
-  sudo rm -rf "$bdir" "$ctx" 2>/dev/null || true; mkdir -p "$bdir" "$ctx"
+  # SYSTEM-APP BAKE — no Android boot (GitHub-hosted runners have no binder, so redroid
+  # cannot boot in CI). Apps go into /system/app; the Launcher3 layout is pre-rendered to
+  # SQL here (component activities extracted statically via aapt) and applied on first boot
+  # by the baked seed. Fully baked, works on any runner.
+  local base img ctx sysd rc
+  base="$(get image.base)"; img="$(get image.name):$(get image.tag)"; ctx="$DIST/context"; sysd="$ctx/system"
+  log "BAKE $img  (system-app bake from base $base — no Android boot)"
+  rm -rf "$ctx"; mkdir -p "$sysd/app" "$sysd/etc/redroid-cloud" "$sysd/etc/init"
 
-  # 1) boot base redroid with a fresh /data we can snapshot
-  log "booting base redroid ($cname)…"
-  docker run -d --name "$cname" --privileged \
-    --cpus "$(cpu_cap)" \
-    -v "$bdir:/data" -p "$(get redroid.adb_port):5555" \
-    "$base" \
-    androidboot.redroid_width="$(get redroid.width)" \
-    androidboot.redroid_height="$(get redroid.height)" \
-    androidboot.redroid_dpi="$(get redroid.dpi)" \
-    androidboot.redroid_fps="$(get redroid.fps)" \
-    androidboot.redroid_gpu_mode="$(get redroid.gpu_mode)" \
-    androidboot.selinux="$(get redroid.selinux)" >/dev/null
-  adb_connect
-  local i ok=0
-  for ((i=0;i<120;i++)); do adb_connect; [ "$(rd_shell getprop "$gate" 2>/dev/null | tr -d '\r')" = "1" ] && { ok=1; break; }; sleep 3; done
-  [ "$ok" = 1 ] || { docker logs "$cname" 2>&1 | tail -20; docker rm -f "$cname" >/dev/null 2>&1; die "bake: base redroid did not boot"; }
-  log "base booted; provisioning (install → layout → theme)…"
+  # 1) fetch the pinned APK set (reproducible; nix / prebuilt release)
+  cmd_build
 
-  # 2) provision INTO the bake container (the ONLY place install/layout/theme run)
-  cmd_build; cmd_install; cmd_layout; cmd_theme
+  # 2) place each APK as a system app + extract its launcher activity statically (aapt)
+  local aapt; aapt="$(nix build --no-link --print-out-paths nixpkgs#aapt 2>/dev/null | head -1)/bin/aapt"
+  [ -x "$aapt" ] || die "aapt not found via nixpkgs#aapt"
+  local compfile="$DIST/.components.tsv"; : > "$compfile"
+  local n i pkg apk act baked=0
+  n="$(node -e "process.stdout.write(String(require('$CONFIG').apps.length))")"
+  for ((i=0;i<n;i++)); do
+    pkg="$(node -e "process.stdout.write(require('$CONFIG').apps[$i].package)")"
+    apk="$APK_DIR/$pkg.apk"; [ -f "$apk" ] || { warn "no APK for $pkg — skipping"; continue; }
+    mkdir -p "$sysd/app/$pkg"; cp -f "$apk" "$sysd/app/$pkg/$pkg.apk"; baked=$((baked+1))
+    act="$("$aapt" dump badging "$apk" 2>/dev/null | sed -n "s/^launchable-activity: name='\([^']*\)'.*/\1/p" | head -1)"
+    [ -n "$act" ] && printf '%s\t%s/%s\n' "$pkg" "$pkg" "$act" >> "$compfile"
+  done
+  log "system apps: $baked/$n baked into /system/app; components resolved: $(wc -l < "$compfile")"
 
-  # 3) quiesce + snapshot /data (numeric owner so Android uids survive the round-trip)
-  rd_shell sync 2>/dev/null || true
-  docker stop "$cname" >/dev/null 2>&1 || true
-  log "snapshotting /data → context/data.tar…"
-  sudo tar --numeric-owner -p -C "$bdir" -cf "$ctx/data.tar" . || die "snapshot tar failed"
-  sudo chown "$USER" "$ctx/data.tar" 2>/dev/null || true
-  docker rm -f "$cname" >/dev/null 2>&1 || true
+  # 3) render the Launcher3 favorites SQL from build.json + the static component map
+  local COMPONENTS_J; COMPONENTS_J="$(node -e "
+    const fs=require('fs');const m={};
+    for(const l of fs.readFileSync('$compfile','utf8').split('\n')){ if(!l.trim())continue; const [p,c]=l.split('\t'); m[p]=c; }
+    process.stdout.write(JSON.stringify(m));
+  ")"
+  FOLDERS_J="$(node -e "process.stdout.write(JSON.stringify(require('$CONFIG').launcher.folders))")" \
+  HOTSEAT_J="$(node -e "process.stdout.write(JSON.stringify(require('$CONFIG').launcher.hotseat))")" \
+  WORKSPACE_J="$(node -e "process.stdout.write(JSON.stringify(require('$CONFIG').launcher.workspace))")" \
+  COMPONENTS_J="$COMPONENTS_J" \
+  HOTSEAT_CONTAINER="$(get redroid.hotseat_container)" WORKSPACE_CONTAINER="$(get redroid.workspace_container)" \
+  FLAGS="$(get redroid.launch_flags)" ITEM_APP="$(get redroid.item_type_application)" ITEM_FOLDER="$(get redroid.item_type_folder)" \
+  node "$SRC/lib/gen-layout-sql.js" > "$sysd/etc/redroid-cloud/layout.sql"
+  log "layout.sql: $(grep -c '^INSERT' "$sysd/etc/redroid-cloud/layout.sql") rows"
 
-  # 4) assemble context + build the custom image
-  cp -f "$SRC/Dockerfile" "$SRC/seed/redroid-cloud-seed.sh" "$SRC/seed/redroid-cloud-seed.rc" "$ctx/"
-  log "docker build $img (data.tar $(du -h "$ctx/data.tar" | cut -f1))…"
+  # 4) baked theme flags + first-boot seed + init service
+  {
+    printf 'DARK=%s\n'          "$([ "$(get theme.dark_mode)"  = true ] && echo 1 || echo 0)"
+    printf 'AUTOROTATE=%s\n'    "$([ "$(get theme.auto_rotate)" = true ] && echo 1 || echo 0)"
+    printf 'WALLPAPER_DIM=%s\n' "$(get theme.wallpaper.dim)"
+  } > "$sysd/etc/redroid-cloud/theme.sh"
+  cp -f "$SRC/seed/redroid-cloud-seed.sh" "$sysd/etc/redroid-cloud/seed.sh"
+  cp -f "$SRC/seed/redroid-cloud-seed.rc" "$sysd/etc/init/redroid-cloud-seed.rc"
+  cp -f "$SRC/Dockerfile" "$ctx/Dockerfile"
+
+  # 5) build the image (no boot)
+  log "docker build $img …"
   docker build --build-arg BASE="$base" -t "$img" "$ctx" || die "docker build failed"
-  sudo rm -rf "$bdir" 2>/dev/null || true
   log "baked: $img"
 }
 cmd_push() { local img; img="$(get image.name):$(get image.tag)"; log "pushing $img…"; docker push "$img" || die "push failed"; log "pushed $img"; }
 
-# verify: TESTER for the baked image. Runs it FRESH (empty /data → the baked first-boot
-# seed must populate it), then asserts every declared app is installed AND the Launcher3
-# hotseat+workspace are populated — i.e. the container really is fully provisioned with
-# ZERO runtime install. Non-zero exit if anything is missing. Used as the CI gate before push.
+# verify: STATIC tester (no boot — works on any runner). Exports the built image's
+# filesystem and asserts every declared app is baked at /system/app/<pkg>/<pkg>.apk, plus
+# the baked layout.sql + first-boot init service are present. Proves the image ships fully
+# baked; the runtime behaviour (apps install at boot, seed applies layout) is exercised
+# on a binder host via `./build.sh up` (e.g. the SP8), which CI can't do (no binder).
 cmd_verify() {
-  log "VERIFY: booting baked image fresh + asserting baked provisioning…"
-  cmd_down >/dev/null 2>&1 || true; docker rm -f "$(container_name)" >/dev/null 2>&1 || true
-  sudo rm -rf "$(rd_data_root)" 2>/dev/null || true   # force fresh /data so the seed runs
-  cmd_up
-  require_up
-  local n miss=0 pkg present=0
+  local img; img="$(get image.name):$(get image.tag)"
+  log "VERIFY (static): $img ships every app + layout + seed…"
+  docker image inspect "$img" >/dev/null 2>&1 || die "image $img not built — run: ./build.sh bake"
+  local tmp cid; tmp="$(mktemp -d)"
+  cid="$(docker create "$img")" || die "cannot create container from $img"
+  docker export "$cid" | tar -tf - 2>/dev/null > "$tmp/files.txt"
+  docker rm "$cid" >/dev/null 2>&1
+  local n i pkg miss=0 present=0
   n="$(node -e "process.stdout.write(String(require('$CONFIG').apps.length))")"
-  local i
   for ((i=0;i<n;i++)); do
     pkg="$(node -e "process.stdout.write(require('$CONFIG').apps[$i].package)")"
-    if rd_shell pm path "$pkg" >/dev/null 2>&1; then present=$((present+1)); else warn "  MISSING baked app: $pkg"; miss=$((miss+1)); fi
+    if grep -q "system/app/$pkg/$pkg.apk" "$tmp/files.txt"; then present=$((present+1)); else warn "  MISSING baked app: $pkg"; miss=$((miss+1)); fi
   done
-  log "baked apps present: $present/$n"
-  local db h w; db="$(rd_db 2>/dev/null || true)"
-  if [ -n "$db" ]; then
-    local SQ; SQ="$(rd_sqlite3)"
-    h="$(sudo "$SQ" "$db" "SELECT count(*) FROM favorites WHERE container=$(get redroid.hotseat_container);" 2>/dev/null)"
-    w="$(sudo "$SQ" "$db" "SELECT count(*) FROM favorites WHERE container=$(get redroid.workspace_container);" 2>/dev/null)"
-    log "baked layout: hotseat=$h workspace=$w"
-  else warn "  launcher DB not found (layout not baked?)"; miss=$((miss+1)); fi
-  cmd_down >/dev/null 2>&1 || true
-  [ "$miss" -eq 0 ] && { log "VERIFY OK — image is fully baked."; return 0; } || die "VERIFY FAILED — $miss issue(s); image is NOT fully baked"
+  log "baked system apps: $present/$n"
+  grep -q "system/etc/redroid-cloud/layout.sql" "$tmp/files.txt" || { warn "  MISSING baked layout.sql"; miss=$((miss+1)); }
+  grep -q "system/etc/init/redroid-cloud-seed.rc" "$tmp/files.txt" || { warn "  MISSING first-boot seed service"; miss=$((miss+1)); }
+  rm -rf "$tmp"
+  [ "$miss" -eq 0 ] && { log "VERIFY OK — apps + layout + seed baked into the image."; return 0; } || die "VERIFY FAILED — $miss issue(s)"
 }
 
 # ship = bake + verify + push (CI). Local runtime is just `up` (pull + run the baked image).
