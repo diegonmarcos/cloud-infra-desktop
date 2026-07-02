@@ -1,38 +1,31 @@
-# cloud-terminal.nix — pull + install the Cloud Terminal (da_cloud-terminal) from
-# its rolling GitHub Release instead of building it locally.
+# cloud-terminal.nix — install the Cloud Terminal (da_cloud-terminal, Tauri/Rust)
+# `cloud-terminal` launcher on PATH.
 #
-# The CI workflow (ship-cloud-terminal.yml) publishes a payload tarball to the
-# `latest` GH Release (+ GHCR). On home-manager activation we run
-# `da_cloud-terminal/build.sh pull`, which is VERSION-GUARDED: it compares the
-# published version to the installed marker and only downloads + reinstalls on
-# change, emitting the per-profile launchers into ~/.local/bin (electron/node
-# resolved locally). It NEVER blocks activation (bounded by `timeout`, `|| true`).
-#
-# Runtime deps the launcher + pull need: electron (the GUI runtime, resolved from
-# the nix store by build.sh), nodejs (the PTY helper), zstd + curl + jq (pull).
+# On home-manager activation we run `da_cloud-terminal/build.sh install`, which
+# writes a single `~/.local/bin/cloud-terminal` launcher (opens the Tauri app,
+# all profile trays via CT_MULTI, through `build.sh run`) and removes the stale
+# per-profile ELECTRON launchers the Tauri app replaced. Cheap + idempotent;
+# never blocks activation (`|| true`). The Tauri binary + its runtime libs are
+# resolved by `build.sh run` (fetch the CI build / nix-develop for webkit+glibc)
+# — no electron, no node, no bundled Chromium.
 { config, lib, pkgs, ... }:
 let
   repoDir = "${config.home.homeDirectory}/git/unix/da_cloud-terminal";
 in
 {
-  home.packages = with pkgs; [ electron nodejs zstd curl jq fish ];
+  # No electron/nodejs — the Tauri app is self-contained (native webview + PTY).
+  home.packages = with pkgs; [ zstd curl jq ];
 
-  # `cloud-terminal` launches the default-profile panel. home.shellAliases is
-  # applied by home-manager to ALL enabled shells (bash + zsh + fish), so this
-  # one line covers every shell. Targets the default-profile launcher emitted
-  # into ~/.local/bin (on PATH); nix-flakes is the default profile.
-  home.shellAliases."cloud-terminal" = "cloud-terminal-nix-flakes";
+  # NOTE: no shellAlias — the `cloud-terminal` launcher lives on PATH
+  # (~/.local/bin, emitted by `build.sh install`). An alias here would shadow it.
 
-  # Version-guarded pull on every activation. Cheap no-op when already current.
-  home.activation.cloudTerminalPull =
+  home.activation.cloudTerminalInstall =
     lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       if [ -x "${repoDir}/build.sh" ]; then
-        export PATH="${lib.makeBinPath [ pkgs.coreutils pkgs.curl pkgs.zstd pkgs.jq pkgs.gnutar pkgs.nodejs pkgs.electron pkgs.bash ]}:$PATH"
-        $DRY_RUN_CMD ${pkgs.coreutils}/bin/timeout 120 \
-          ${pkgs.bash}/bin/bash "${repoDir}/build.sh" pull || \
-          echo "cloud-terminal: pull skipped/failed (non-fatal)"
+        $DRY_RUN_CMD ${pkgs.bash}/bin/bash "${repoDir}/build.sh" install || \
+          echo "cloud-terminal: install skipped/failed (non-fatal)"
       else
-        echo "cloud-terminal: ${repoDir}/build.sh absent — skipping pull"
+        echo "cloud-terminal: ${repoDir}/build.sh absent — skipping install"
       fi
     '';
 }
