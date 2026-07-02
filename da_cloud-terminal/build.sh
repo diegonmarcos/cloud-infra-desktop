@@ -99,8 +99,8 @@ case "$CMD" in
   vendor) vendor ;;
   icons)  icons ;;
   build)  build ;;
-  dev)    vendor; ( cd "$TAURI" && in_nix cargo tauri dev ) ;;
-  check)  vendor; ( cd "$TAURI" && in_nix cargo check ) ;;
+  dev)    vendor; icons; ( cd "$TAURI" && in_nix cargo tauri dev ) ;;
+  check)  vendor; icons; ( cd "$TAURI" && in_nix cargo check ) ;;
   run)    CT_APP_DIR="$SRC" CT_ASSETS_DIR="$SRC/assets" CT_PROFILES_DIR="$SRC/data" \
             CT_PROFILE="${2:-nix-flakes}" "$TAURI/target/release/cloud-terminal" --show ;;
   shell)  exec nix develop "$ROOT" ;;
