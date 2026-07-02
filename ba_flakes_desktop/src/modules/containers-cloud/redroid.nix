@@ -30,13 +30,16 @@ in {
     '';
   };
 
-  # KDE application menu entry.
+  # KDE application menu entry. Exec uses an absolute path — desktop-entry Exec does NOT
+  # expand `%h` (that's an invalid field code and fails desktop-file-validate); ~/.local/bin
+  # is also not guaranteed on the launcher's PATH. Single main category (System) — listing
+  # two main categories (System;Utility) trips the validator's duplicate-menu hint.
   xdg.desktopEntries.redroid = {
     name = "Redroid";
     comment = "Android (Redroid container) — mirror + control via scrcpy";
-    exec = "%h/.local/bin/redroid up";
+    exec = "${config.home.homeDirectory}/.local/bin/redroid up";
     terminal = true;
     icon = "smartphone";
-    categories = [ "System" "Utility" ];
+    categories = [ "System" ];
   };
 }
