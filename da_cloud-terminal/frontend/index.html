@@ -235,8 +235,8 @@ function closeTab(id) {
   }
 }
 
-listen('pty-data', e => { const [id, d] = e.payload; const t = tabs.get(id); if (t) t.term.write(d) })
-listen('pty-exit', e => { const id = e.payload; const t = tabs.get(id); if (t) t.term.write('\r\n\x1b[33m[shell exited]\x1b[0m\r\n') })
+// pty-data / pty-exit listeners are registered per-window in init() once we
+// know this window's label (events are named "pty-data:<label>").
 
 function doFit() { const t = tabs.get(activeTab); if (t) { t.fit.fit(); invoke('pty_resize', { id: activeTab, cols: t.term.cols, rows: t.term.rows }) } }
 window.addEventListener('resize', doFit)
@@ -308,16 +308,18 @@ function showProfile(p) {
   document.title = 'Cloud Terminal — ' + (p.display_name || '')
 }
 
-// Tray menu command items are handed here by the Rust backend.
-listen('tray-run', e => {
-  const item = e.payload
-  runItem({ ...item, ptyId: activeTab })
-})
-
 // ── boot ──
 async function init() {
   const data = await invoke('get_init')
   allProfiles = data.profiles || [data]
+  const label = data.name                       // this window's fixed profile
+  // Per-window event channels (see Rust reader) — must be registered before
+  // the first pty_start so no output is missed.
+  await Promise.all([
+    listen('pty-data:' + label, e => { const [id, d] = e.payload; const t = tabs.get(id); if (t) t.term.write(d) }),
+    listen('pty-exit:' + label, e => { const id = e.payload; const t = tabs.get(id); if (t) t.term.write('\r\n\x1b[33m[shell exited]\x1b[0m\r\n') }),
+    listen('tray-run:' + label, e => runItem({ ...e.payload, ptyId: activeTab })),
+  ])
   document.getElementById('hdr-host').textContent = '@ ' + (data.host || '')
   showProfile(allProfiles.find(p => p.name === data.name) || data)
   newTab()
