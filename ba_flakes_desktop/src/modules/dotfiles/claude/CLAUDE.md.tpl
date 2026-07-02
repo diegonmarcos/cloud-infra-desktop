@@ -498,6 +498,7 @@ Use MCP `knowledge_inventory_list_directory` (or `find ~/git/<repo> -maxdepth 4 
 6. **Search ALL keys** when querying JSON — never cherry-pick a section.
 7. **After source edits → `build.sh build`** automatically. Never `dev`/`serve` unless asked.
 8. **Ask, don't assume.** Clarify intent/architecture before writing any code.
+9. **BRANCHES ARE FORBIDDEN.** Work ONLY on `main` — NEVER `git checkout -b`, `git switch -c`, `git branch <new>`, or `git worktree add`. Edit → commit → push to `main` directly (GHA deploys on push). No branches, no PRs. (Hard-denied by the `git-branch-create` guardrail hook.)
 
 ---
 
