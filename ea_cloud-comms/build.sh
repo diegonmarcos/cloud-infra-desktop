@@ -24,6 +24,7 @@
 # ║   publish-fork <key>      oras push fork APK → ghcr fork image    ║
 # ║   oras-push / oras-pull / phone-install   GHCR distribution (hub) ║
 # ║   gh-release       publish hub APK to a rolling GitHub Release    ║
+# ║   gh-release-fork <key>   fork APK → same rolling GitHub Release   ║
 # ║                                                                  ║
 # ║ NEVER bypass this script for build operations.                    ║
 # ╚══════════════════════════════════════════════════════════════════╝
@@ -617,6 +618,28 @@ step_gh_release() {
   fi
 }
 
+# ── GitHub Release for a FORK APK ───────────────────────────────────────
+# AUTOMATIC for every fork — no per-fork config. Uploads the built
+# dist/cloud-comms-<key>.apk under its own name to the SAME rolling release
+# the hub uses (release.gh_release.rolling_tag) with --clobber, so the
+# release page mirrors GHCR for the whole constellation.
+step_gh_release_fork() {
+  local key="${2:-}"
+  [ -n "$key" ] || { errlog "usage: build.sh gh-release-fork <mail|chat|matrix|dialer>"; exit 1; }
+  local rolling_tag src
+  rolling_tag="$(_json '.release.gh_release.rolling_tag')"
+  [ -n "$rolling_tag" ] && [ "$rolling_tag" != "null" ] || { errlog "gh-release-fork[$key]: release.gh_release.rolling_tag unset"; exit 1; }
+  src="$DIST_DIR/cloud-comms-${key}.apk"
+  [ -f "$src" ] || { errlog "gh-release-fork[$key]: $src missing — run build-fork first"; exit 1; }
+  if ! in_nix gh release view "$rolling_tag" >/dev/null 2>&1; then
+    in_nix gh release create "$rolling_tag" --title "$rolling_tag" \
+      --target "${GITHUB_SHA:-main}" \
+      --notes "Rolling release — overwritten on every main push." --latest
+  fi
+  log "gh-release-fork[$key]: upload cloud-comms-${key}.apk → $rolling_tag"
+  in_nix gh release upload "$rolling_tag" "$src" --clobber
+}
+
 case "$CMD" in
   build)            step_build ;;
   release)          step_release ;;
@@ -636,6 +659,7 @@ case "$CMD" in
   oras-pull)        step_oras_pull "$@" ;;
   phone-install)    step_phone_install "$@" ;;
   gh-release)       step_gh_release ;;
+  gh-release-fork)  step_gh_release_fork "$@" ;;
   help|*)
     sed -n '2,/^set -euo/p' "$0" | sed 's/^# *//; /^set/d; /^$/d'
     ;;
