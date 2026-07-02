@@ -54,6 +54,66 @@ struct AppState {
     ptys: Arc<PtyManager>,
     xdg: String,
     shell: String,
+    // System-monitor sources: persisted so CPU% and net rates are deltas
+    // between polls (the DTK-profile dashboard invokes sys_stats on a timer).
+    sys: Mutex<sysinfo::System>,
+    nets: Mutex<sysinfo::Networks>,
+}
+
+// ── System monitor snapshot (btop-graphs + glances-layout dashboard) ──
+#[tauri::command]
+fn sys_stats(state: tauri::State<AppState>) -> Value {
+    let mut sys = state.sys.lock().unwrap();
+    sys.refresh_all(); // cpu usage + memory + processes (delta vs previous poll)
+
+    let cores: Vec<f32> = sys.cpus().iter().map(|c| c.cpu_usage()).collect();
+    let la = sysinfo::System::load_average();
+
+    let mut nets = state.nets.lock().unwrap();
+    nets.refresh();
+    let net: Vec<Value> = nets
+        .iter()
+        .filter(|(n, _)| *n != "lo")
+        .map(|(n, d)| serde_json::json!({ "name": n, "rx": d.received(), "tx": d.transmitted() }))
+        .collect();
+
+    let disks = sysinfo::Disks::new_with_refreshed_list();
+    let disk: Vec<Value> = disks
+        .iter()
+        .map(|d| serde_json::json!({
+            "name": d.name().to_string_lossy(),
+            "mount": d.mount_point().to_string_lossy(),
+            "total": d.total_space(),
+            "avail": d.available_space(),
+        }))
+        .collect();
+
+    let mut procs: Vec<(f32, u64, u32, String)> = sys
+        .processes()
+        .iter()
+        .map(|(pid, p)| (p.cpu_usage(), p.memory(), pid.as_u32(), p.name().to_string_lossy().into_owned()))
+        .collect();
+    procs.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    let top: Vec<Value> = procs
+        .iter()
+        .take(14)
+        .map(|(cpu, mem, pid, name)| serde_json::json!({ "cpu": cpu, "mem": mem, "pid": pid, "name": name }))
+        .collect();
+
+    serde_json::json!({
+        "cpu": sys.global_cpu_usage(),
+        "ncpu": cores.len(),
+        "cores": cores,
+        "load": [la.one, la.five, la.fifteen],
+        "mem": {
+            "total": sys.total_memory(), "used": sys.used_memory(),
+            "avail": sys.available_memory(),
+            "swap_total": sys.total_swap(), "swap_used": sys.used_swap(),
+        },
+        "net": net,
+        "disks": disk,
+        "procs": top,
+    })
 }
 
 fn prof_by_name<'a>(profiles: &'a [Value], name: &str) -> Option<&'a Value> {
@@ -491,12 +551,14 @@ fn main() {
         ptys: Arc::new(PtyManager::default()),
         xdg: env_or("CT_XDG", "xdg-open"),
         shell: env_or("CT_SHELL", "fish"),
+        sys: Mutex::new(sysinfo::System::new_all()),
+        nets: Mutex::new(sysinfo::Networks::new_with_refreshed_list()),
     };
 
     tauri::Builder::default()
         .manage(state)
         .invoke_handler(tauri::generate_handler![
-            pty_start, pty_input, pty_resize, pty_kill, run_item, get_init
+            pty_start, pty_input, pty_resize, pty_kill, run_item, get_init, sys_stats
         ])
         .setup(|app| {
             build_and_show(&app.handle().clone());
