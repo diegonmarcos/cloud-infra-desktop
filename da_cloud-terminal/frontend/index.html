@@ -266,6 +266,9 @@ function makePane(tabId) {
     return true
   })
   term.onData(d => invoke('pty_input', { id, d }))
+  // Rename the tab to the shell's title (fish sets it to the running command /
+  // cwd via the OSC title escape). Reflects the last command run in the tab.
+  term.onTitleChange(t => { if (t) setTabTitle(tabId, t) })
   // focus-follows-click; capture so it fires before xterm handles it
   leaf.addEventListener('mousedown', () => focusPane(id), true)
   leaf.addEventListener('contextmenu', e => { e.preventDefault(); focusPane(id); showCtxMenu(e.clientX, e.clientY) })
@@ -465,6 +468,11 @@ function attachDivider(div, dir) {
 }
 
 // ── Tabs ──
+function setTabTitle(tabId, title) {
+  const t = tabs.get(tabId); if (!t) return
+  title = String(title).trim(); if (!title) return
+  t.title.textContent = title.length > 22 ? title.slice(0, 21) + '…' : title
+}
 function newTab() {
   const tabId = ++tabSeq
   const root = document.createElement('div')
