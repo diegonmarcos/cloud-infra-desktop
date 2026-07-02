@@ -25,8 +25,10 @@
     "repo_url": "https://f-droid.org/repo"
   },
   "redroid": {
-    "_doc": "Redroid container knobs + AOSP Launcher3 constants. The engine runs a single rootful docker container (`image`, `container_name`) reachable over ADB at `adb_addr`; `data_volume` is the HOST path bind-mounted to the container's /data (the engine reads/writes the launcher DB there directly, like waydroid's data_root). launcher_db_glob is grid-dependent (launcher_<cols>_by_<rows>.db) so it MUST be globbed. Containers/itemTypes/launch_flags are AOSP Launcher3 constants (unchanged from AOSP, runtime-generic). cpu_cores caps the container (docker --cpus), leaving ≥1 core headroom on the 8-CPU SP8. NOTE: the container is on-demand only — never wantedBy multi-user (Waydroid's ghost-process class of bug).",
-    "image": "redroid/redroid:13.0.0-latest",
+    "_doc": "Redroid container knobs + AOSP Launcher3 constants. `image` is the BAKED GHCR image (apps + Launcher3 layout + theme baked into the image in CI — NOT runtime-installed); `build.sh up` = docker pull + docker run, ready like Waydroid, zero runtime install. `base_image` is the upstream redroid the bake builds FROM. `data_volume` is the HOST path bind-mounted to /data; the first-boot init seed (from the baked image) populates it once. During `bake` (CI only) the engine reads/writes the launcher DB there directly. launcher_db_glob is grid-dependent (launcher_<cols>_by_<rows>.db) so it MUST be globbed. Containers/itemTypes/launch_flags are AOSP Launcher3 constants. cpu_cores caps the container (docker --cpus). selinux=permissive lets the first-boot seed extract + restorecon /data. On-demand only — never auto-started (Waydroid's ghost-process bug).",
+    "image": "ghcr.io/diegonmarcos/redroid-cloud:13",
+    "base_image": "redroid/redroid:13.0.0-latest",
+    "selinux": "permissive",
     "container_name": "redroid",
     "adb_addr": "127.0.0.1:5555",
     "adb_port": 5555,
@@ -49,6 +51,14 @@
     "item_type_application": 0,
     "item_type_folder": 2,
     "launch_flags": "0x10200000"
+  },
+  "image": {
+    "_doc": "GHCR delivery of the BAKED redroid-cloud image (data-snapshot bake). CI (ship-redroid-image.yml) runs `build.sh bake` which boots base redroid, installs the app set + renders layout + theme, snapshots /data, and docker-builds src/Dockerfile shipping that snapshot + the first-boot seed; then pushes here. Matches the stack's 'every service is a GHCR image' rule.",
+    "name": "ghcr.io/diegonmarcos/redroid-cloud",
+    "tag": "13",
+    "base": "redroid/redroid:13.0.0-latest",
+    "dockerfile": "src/Dockerfile",
+    "platforms": "linux/amd64"
   },
   "launcher": {
     "_doc": "Data-driven Launcher3 layout. `folders` are reusable group definitions (members = package ids). `hotseat` is the bottom bar, left→right (ref = a package id or 'folder:<id>'). `workspace` is the home screen: screen 0, each cell placed at (cellX,cellY) on a 6-column grid; ref = package id or 'folder:<id>'. A folder ref placed in both hotseat and workspace yields two independent folder instances with the same title+members. Re-arrange by editing here + `build.sh layout` — no code changes.",
