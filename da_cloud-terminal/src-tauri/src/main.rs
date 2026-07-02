@@ -219,9 +219,15 @@ fn pty_start(id: i64, cols: u16, rows: u16, window: tauri::WebviewWindow, state:
         .unwrap()
         .insert(key.clone(), PtySession { writer, master: pair.master });
 
-    // Reader thread → emit bytes to the originating window.
+    // Reader thread → emit bytes to the originating window. Events are named
+    // per-window ("pty-data:<label>") and emitted GLOBALLY: emit_to()'s target
+    // matching proved unreliable (the window's listener never fired → blank
+    // terminal), and a unique name also prevents tab-id collisions across the
+    // multi-profile windows.
     let app = window.app_handle().clone();
     let win_label = window.label().to_string();
+    let ev_data = format!("pty-data:{win_label}");
+    let ev_exit = format!("pty-exit:{win_label}");
     let ptys = state.ptys.clone();
     std::thread::spawn(move || {
         let mut buf = [0u8; 8192];
@@ -230,13 +236,13 @@ fn pty_start(id: i64, cols: u16, rows: u16, window: tauri::WebviewWindow, state:
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
                     let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                    let _ = app.emit_to(&win_label, "pty-data", (id, data));
+                    let _ = app.emit(&ev_data, (id, data));
                 }
             }
         }
         // Shell exited → notify + drop session.
         let _ = child.wait();
-        let _ = app.emit_to(&win_label, "pty-exit", id);
+        let _ = app.emit(&ev_exit, id);
         ptys.sessions.lock().unwrap().remove(&pk(&win_label, id));
     });
 }
@@ -442,7 +448,7 @@ fn on_menu(app: &AppHandle, id: &str) {
                     if let Value::Object(ref mut m) = payload {
                         m.insert("profile".into(), Value::String(pname.into()));
                     }
-                    let _ = w.emit("tray-run", payload);
+                    let _ = w.emit(&format!("tray-run:{pname}"), payload);
                 }
             }
         }
