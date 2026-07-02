@@ -125,8 +125,17 @@ case "$CMD" in
     bin="$TAURI/target/release/cloud-terminal"
     [ -x "$bin" ] || bin="$DIST/ci/cloud-terminal"
     [ -x "$bin" ] || { errlog "no binary — run 'build.sh build' or 'build.sh fetch' first"; exit 1; }
-    log "launching $bin (profile ${2:-nix-flakes}, multi-tray)"
-    in_nix env \
+    # Resolve ONLY the runtime lib path (glibc + webkit) from the flake, then
+    # launch the binary in the USER's environment. Launching under
+    # `nix develop --command` replaced PATH with the dev-shell's — the PTY
+    # shells inherited it and lost every user tool. Capture LD_LIBRARY_PATH,
+    # keep the user's PATH. (The nix develop call also realizes the exact
+    # glibc the binary's interpreter points at, so the raw exec resolves.)
+    log "resolving runtime libs from flake…"
+    ldp="$(in_nix sh -c 'printf %s "$LD_LIBRARY_PATH"')"
+    [ -z "$ldp" ] && { errlog "could not resolve LD_LIBRARY_PATH from flake"; exit 1; }
+    log "launching $bin (profile ${2:-nix-flakes}, multi-tray) in user env"
+    env LD_LIBRARY_PATH="$ldp" \
       CT_APP_DIR="$SRC" CT_ASSETS_DIR="$SRC/assets" CT_PROFILES_DIR="$SRC/data" \
       CT_PROFILE="${2:-nix-flakes}" CT_MULTI=1 CT_SHELL=fish \
       WEBKIT_DISABLE_COMPOSITING_MODE=1 GDK_BACKEND=wayland,x11 \
