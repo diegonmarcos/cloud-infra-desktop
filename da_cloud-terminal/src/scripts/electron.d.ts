@@ -26,6 +26,7 @@ declare module 'electron' {
   export class BrowserWindow {
     constructor(opts: Record<string, any>)
     loadFile(path: string): void
+    setTitle(title: string): void
     show(): void
     hide(): void
     focus(): void
