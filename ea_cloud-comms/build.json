@@ -109,7 +109,7 @@
         "_doc": "Pinned UPSTREAM RELEASE APK \u2014 bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true \u2192 the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs \u2014 unsigned can't install; our key also makes it IPC-compatible). NOTE: blocked_on gates OUR fork build (homeserver work), not stock-client bundling \u2014 Element X is a generic Matrix client.",
         "url": "https://github.com/element-hq/element-x-android/releases/download/v26.06.2/app-fdroid-arm64-v8a-release-signed.apk",
         "sha256": "aeac575edf780f3d89fa966ac4528b0035609537ba7d3c396c1be875424a186e",
-        "resign": false,
+        "resign": true,
         "package": "io.element.android.x",
         "abi_variants": {
           "_doc": "Per-ABI upstream assets. bundle-forks picks abi_variants[$COMMS_BUNDLE_ABI] when set (default arm64-v8a uses the top-level url/sha256). x86_64 = Waydroid debug builds.",
@@ -166,7 +166,7 @@
         "_doc": "Pinned UPSTREAM RELEASE APK \u2014 bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true \u2192 the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs \u2014 unsigned can't install; our key also makes it IPC-compatible).",
         "url": "https://github.com/FossifyOrg/Phone/releases/download/1.11.1/phone-22-foss-release.apk",
         "sha256": "d1ad08467034e5138a6e68f03b6e150f0bb010dfcbf490ff3d2bd4822b755728",
-        "resign": false,
+        "resign": true,
         "package": "org.fossify.phone"
       }
     }
