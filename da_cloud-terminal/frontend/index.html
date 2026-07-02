@@ -313,15 +313,17 @@ async function init() {
   const data = await invoke('get_init')
   allProfiles = data.profiles || [data]
   const label = data.name                       // this window's fixed profile
-  // Per-window event channels (see Rust reader) — must be registered before
-  // the first pty_start so no output is missed.
-  await Promise.all([
-    listen('pty-data:' + label, e => { const [id, d] = e.payload; const t = tabs.get(id); if (t) t.term.write(d) }),
-    listen('pty-exit:' + label, e => { const id = e.payload; const t = tabs.get(id); if (t) t.term.write('\r\n\x1b[33m[shell exited]\x1b[0m\r\n') }),
-    listen('tray-run:' + label, e => runItem({ ...e.payload, ptyId: activeTab })),
-  ])
   document.getElementById('hdr-host').textContent = '@ ' + (data.host || '')
   showProfile(allProfiles.find(p => p.name === data.name) || data)
+  // Register per-window event channels (see Rust reader), THEN open the first
+  // tab. Wrapped so a listener failure can never abort building the UI.
+  try {
+    await Promise.all([
+      listen('pty-data:' + label, e => { const [id, d] = e.payload; const t = tabs.get(id); if (t) t.term.write(d) }),
+      listen('pty-exit:' + label, e => { const id = e.payload; const t = tabs.get(id); if (t) t.term.write('\r\n\x1b[33m[shell exited]\x1b[0m\r\n') }),
+      listen('tray-run:' + label, e => runItem({ ...e.payload, ptyId: activeTab })),
+    ])
+  } catch (err) { console.error('event listen failed:', err) }
   newTab()
   setTimeout(doFit, 60)
 }
