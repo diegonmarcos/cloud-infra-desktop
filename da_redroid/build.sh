@@ -53,7 +53,20 @@ rd_sqlite3() { tool sqlite-interactive sqlite3; }
 rd_adb()     { command -v adb >/dev/null 2>&1 && { command -v adb; return; }; tool android-tools adb; }
 
 ADB=""
-adb_addr() { get redroid.adb_addr; }
+# adb endpoint. Connect straight to the container's bridge IP, NOT the published
+# 127.0.0.1:<port> — docker's userland-proxy mangles the adb wire protocol, so
+# adbd accepts the transport then immediately marks it "offline" (adbd logs
+# "host-N: already offline") and the device never leaves the offline state.
+# Talking to the container IP directly (proven: 127.0.0.1 → offline, container IP
+# → device) sidesteps the proxy entirely. IP is resolved LIVE from the running
+# container (reproducible, no hardcoded subnet); the adbd port is the port of the
+# configured redroid.adb_addr. Falls back to the static addr before the container
+# exists (early connect attempts) so nothing breaks pre-`up`.
+adb_port_internal() { get redroid.adb_addr | awk -F: '{ print $NF }'; }
+adb_addr() {
+  local ip; ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(container_name)" 2>/dev/null)"
+  if [ -n "$ip" ]; then printf '%s:%s' "$ip" "$(adb_port_internal)"; else get redroid.adb_addr; fi
+}
 adb_() { [ -n "$ADB" ] || ADB="$(rd_adb)"; "$ADB" -s "$(adb_addr)" "$@"; }
 adb_connect() { [ -n "$ADB" ] || ADB="$(rd_adb)"; "$ADB" connect "$(adb_addr)" >/dev/null 2>&1 || true; }
 rd_shell() { adb_ shell "$@"; }
