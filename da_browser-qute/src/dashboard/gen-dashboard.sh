@@ -70,3 +70,12 @@ mkdir -p "$(dirname "$OUT")"
 # Inject via awk (safe with URLs/JSON; no sed backref hazards).
 awk -v json="$DATA" '{ gsub(/__BOOKMARKS_JSON__/, json); print }' "$TEMPLATE" > "$OUT"
 echo "gen-dashboard: wrote $OUT ($(jq -r '[.folders[].links|length]|add' <<<"$DATA") links across $(jq -r '.folders|length' <<<"$DATA") folders)"
+
+# Also emit qutebrowser's native bookmarks file (one "url  Folder/name" per line)
+# from the SAME fully-resolved link set — so the built-in Bookmarks page carries
+# the identical list to the dashboard (curated + cloud), not just the flat
+# quickmarks the pure-eval home-module can produce. Deployed by home-module.nix.
+BOOKMARKS_URLS="${BOOKMARKS_URLS:-$HERE/../../dist/qute-bookmarks-urls}"
+jq -r '.folders | to_entries[] as $f | $f.value.links | to_entries[]
+       | "\(.value)  \($f.key)/\(.key)"' <<<"$DATA" > "$BOOKMARKS_URLS"
+echo "gen-dashboard: wrote $BOOKMARKS_URLS ($(wc -l < "$BOOKMARKS_URLS") bookmarks)"
