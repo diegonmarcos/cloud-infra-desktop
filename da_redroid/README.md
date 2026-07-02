@@ -22,23 +22,33 @@ Nothing is hardcoded in the engine:
   geometry, gpu mode, and AOSP Launcher3 constants.
 - `fdroid` — F-Droid API/repo endpoints.
 
-## Engine (`build.sh`)
+## Delivery: BAKED GHCR image (not runtime install)
+The app set + Launcher3 layout + theme are **baked into the image in CI** (data-snapshot),
+matching this stack's "every service is a GHCR image" rule. CI (`ship-redroid-image.yml`)
+boots base redroid once, installs the 58 apps + renders the layout + applies the theme,
+snapshots `/data`, and `docker build`s `src/Dockerfile` shipping that snapshot + a first-boot
+seed (`src/seed/`). Runtime is just **pull + run** — the container starts fully provisioned
+like Waydroid, with **zero runtime install** ("activation mode" is gone).
+
+## Engine (`build.sh`) — default `up`
 ```
-./build.sh lock       # pin F-Droid versionCodes + sha256 -> src/apps.lock.json
-./build.sh build      # fetch pinned APK set -> dist/apks/ (prebuilt GH release, else nix)
-./build.sh check      # verify lockfile <-> build.json + APK presence
-./build.sh up         # docker run/start the container (data-driven args) + wait for boot
+# RUNTIME (local, on-demand):
+./build.sh up         # docker pull + run the BAKED image (seed fills /data once) + wait boot
 ./build.sh down       # docker stop
-./build.sh install    # adb install every APK (-g grants runtime perms)
-./build.sh layout     # render folders+hotseat+workspace into Launcher3 DB
-./build.sh theme      # dark mode + solid-black wallpaper
-./build.sh provision  # install + layout + theme (idempotent)
-./build.sh scrcpy     # mirror + control the display
-./build.sh home       # flip HOME launcher to the SuperApp (Phase 2)
-./build.sh ship       # lock(if missing) + build + up + provision
-./build.sh status | undock | clean
+./build.sh scrcpy     # mirror + control the display over ADB
+./build.sh status     # container + baked image + hotseat/workspace
+
+# IMAGE BUILD (CI — heavy; never the 8GB laptop):
+./build.sh bake       # boot base + install+layout+theme + snapshot /data + docker build
+./build.sh verify     # boot the baked image fresh → assert 58 apps + layout present (TESTER)
+./build.sh push       # push to GHCR
+./build.sh ship       # bake + verify + push
+
+# bake-internal (run against the transient bake container; not for runtime):
+lock | build | check | install | layout | theme | wallpaper | provision | home | undock | clean
 ```
 
 ## Test
-`bash src/test/test.sh` — pure tests (schema, ref resolution, grid, lockfile, layout-SQL render)
-run anywhere; live tests (T6/T7) run when the `redroid` container is up.
+- `bash src/test/test.sh` — pure tests (schema, ref resolution, grid, lockfile, layout-SQL render), run anywhere.
+- `./build.sh verify` — end-to-end: boots the baked image fresh and asserts every app + the
+  Launcher3 layout are present (the CI gate before push).

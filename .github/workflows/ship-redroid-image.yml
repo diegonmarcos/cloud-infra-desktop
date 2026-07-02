@@ -1,0 +1,60 @@
+name: "Ship → Redroid baked image (apps + layout + theme baked into GHCR image)"
+
+# Builds the redroid-cloud image with the Cloud app set + Launcher3 layout + theme BAKED
+# IN (data-snapshot): boots base redroid on the runner, installs the 58 apps + renders the
+# layout + applies theme, snapshots /data, docker-builds da_redroid/src/Dockerfile shipping
+# that snapshot + the first-boot seed, and pushes to GHCR. Runtime = `build.sh up` (pull+run,
+# no install). Heavy — runs in CI, never on the 8GB laptop.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "da_redroid/build.json"
+      - "da_redroid/src/**"
+      - "da_redroid/build.sh"
+      - ".github/workflows/ship-redroid-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space (the /data snapshot + image are large)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
+      - name: Install Nix (for the reproducible F-Droid/GitHub APK fetch)
+        uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Ensure Android binder is available for redroid
+        run: |
+          sudo modprobe binder_linux devices=binder,hwbinder,vndbinder 2>/dev/null || true
+          # binderfs (built into modern Ubuntu kernels) — redroid mounts it under --privileged.
+          grep -q binder /proc/filesystems && echo "binder present" || echo "::warning::binder not in /proc/filesystems — redroid boot may fail"
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Bake the redroid-cloud image (boot + provision + snapshot + docker build)
+        working-directory: da_redroid
+        run: ./build.sh bake
+
+      - name: Verify the baked image (fresh boot → 58 apps + layout present)
+        working-directory: da_redroid
+        run: ./build.sh verify
+
+      - name: Push to GHCR
+        working-directory: da_redroid
+        run: ./build.sh push

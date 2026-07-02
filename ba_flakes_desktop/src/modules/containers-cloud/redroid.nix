@@ -20,12 +20,13 @@ in {
       set -euo pipefail
       ENGINE="${engine}"
       [ -x "$ENGINE" ] || { echo "redroid engine not found at $ENGINE (clone ~/git/unix)"; exit 1; }
+      # The image is BAKED (apps + layout + theme already inside it), so runtime is just
+      # pull+run+mirror — NO provision/install step. First `up` pulls the GHCR image.
       case "''${1:-up}" in
-        up|"")     "$ENGINE" up && "$ENGINE" provision && exec "$ENGINE" scrcpy ;;
-        mirror)    exec "$ENGINE" scrcpy ;;
-        down)      exec "$ENGINE" down ;;
-        provision) exec "$ENGINE" provision ;;
-        *)         exec "$ENGINE" "$@" ;;
+        up|"")   "$ENGINE" up && exec "$ENGINE" scrcpy ;;
+        mirror)  exec "$ENGINE" scrcpy ;;
+        down)    exec "$ENGINE" down ;;
+        *)       exec "$ENGINE" "$@" ;;
       esac
     '';
   };

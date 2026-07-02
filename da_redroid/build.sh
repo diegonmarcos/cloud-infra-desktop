@@ -1,32 +1,27 @@
 #!/usr/bin/env bash
-# redroid-apps — declarative Android app provisioning for the local Redroid container.
+# redroid-cloud — Redroid delivered as a BAKED GHCR image (Waydroid replacement).
 #
-# Everything is data-driven from build.json. The engine NEVER hardcodes the package
-# list, the dock order, F-Droid endpoints, the container image/args, or the launcher
-# DB schema — packages/order come from build.json, hashes from src/apps.lock.json, the
-# container knobs from build.json::redroid, and the launcher favorites schema is
-# introspected live before any write.
+# The app set + Launcher3 layout + theme are BAKED INTO THE IMAGE in CI (data-snapshot):
+# `bake` boots base redroid once, installs the 58 apps + renders the layout + applies the
+# theme, snapshots /data, and docker-builds an image that ships that snapshot + a first-boot
+# seed. Runtime is just `up` = docker pull + docker run — the container starts FULLY
+# PROVISIONED like Waydroid, with ZERO runtime install ("activation mode" is gone).
+# Everything data-driven from build.json (apps, layout, theme, image ref); nothing hardcoded.
 #
-# Redroid replaces the decommissioned Waydroid: a single rootful docker container
-# (redroid/redroid) reached over ADB, viewed with scrcpy. No host Wayland session,
-# no LXC, no binder-HAL sensors. On-demand only (up/down) — never auto-started.
+# RUNTIME (local, on-demand — never auto-started):
+#   ./build.sh up        # docker pull + run the baked image (image's seed fills /data once)
+#   ./build.sh down      # docker stop
+#   ./build.sh scrcpy    # mirror/control the display over ADB
+#   ./build.sh status    # container + baked-image + hotseat/workspace
 #
-# Pipeline:
-#   ./build.sh lock      # resolve F-Droid suggestedVersionCode + nix-prefetch sha256 -> src/apps.lock.json
-#   ./build.sh build     # fetch the pinned APK set -> dist/apks/ (prebuilt release, else nix)
-#   ./build.sh check     # verify lockfile <-> build.json, and that every APK is present
-#   ./build.sh up        # docker run/start the redroid container (data-driven args) + wait for boot
-#   ./build.sh down      # docker stop the redroid container
-#   ./build.sh install   # adb install every APK (container must be up)
-#   ./build.sh layout    # render folders+hotseat+workspace into Launcher3 DB (container up)
-#   ./build.sh theme     # dark mode + solid-black wallpaper (container up)
-#   ./build.sh provision # install + layout + theme (idempotent post-boot steps)
-#   ./build.sh scrcpy    # mirror the container display over ADB (view/control)
-#   ./build.sh undock    # restore the most recent launcher.db backup
-#   ./build.sh status    # show container + what's installed + current hotseat
-#   ./build.sh ship      # lock(if missing) + build + up + provision
-#   ./build.sh clean     # rm dist/
-#   (default = build)
+# IMAGE BUILD (CI — heavy; runs on a GHA runner, never the 8GB laptop):
+#   ./build.sh bake      # boot base + install+layout+theme + snapshot /data + docker build
+#   ./build.sh push      # push the baked image to GHCR
+#   ./build.sh ship      # bake + push
+#
+# bake-internal (run against the transient bake container; NOT for runtime):
+#   lock | build | check | install | layout | theme | wallpaper | provision | home | undock | clean
+#   (default = up)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -97,20 +92,29 @@ cmd_up() {
     log "starting existing container '$(container_name)'…"
     docker start "$(container_name)" >/dev/null
   else
-    log "creating redroid container '$(container_name)' (image $(get redroid.image))…"
-    # Data-driven docker run: privileged (binder needs it), persistent /data volume,
-    # adb port, cpu cap. androidboot.* args carry the display geometry + gpu mode.
+    # Run the BAKED GHCR image (apps + layout + theme already inside it). Pull if absent.
+    # First boot: the image's post-fs-data seed populates the empty /data volume ONCE, so
+    # the container comes up FULLY PROVISIONED — no runtime install.
+    local img; img="$(get redroid.image)"
+    if ! docker image inspect "$img" >/dev/null 2>&1; then
+      log "pulling baked image $img …"
+      docker pull "$img" || die "docker pull $img failed — is it built? (GHA ship-redroid-image.yml → GHCR). Build locally with: ./build.sh bake"
+    fi
+    log "creating redroid container '$(container_name)' from baked image $img…"
+    # Data-driven docker run: privileged (binder), persistent /data volume, adb port, cpu cap.
+    # selinux permissive lets the baked first-boot seed extract + restorecon /data.
     docker run -d --name "$(container_name)" \
       --privileged \
       --cpus "$(get redroid.cpu_cores)" \
       -v "$data:/data" \
       -p "$(get redroid.adb_port):5555" \
-      "$(get redroid.image)" \
+      "$img" \
       androidboot.redroid_width="$(get redroid.width)" \
       androidboot.redroid_height="$(get redroid.height)" \
       androidboot.redroid_dpi="$(get redroid.dpi)" \
       androidboot.redroid_fps="$(get redroid.fps)" \
-      androidboot.redroid_gpu_mode="$(get redroid.gpu_mode)" >/dev/null
+      androidboot.redroid_gpu_mode="$(get redroid.gpu_mode)" \
+      androidboot.selinux="$(get redroid.selinux)" >/dev/null
   fi
   adb_connect
   log "waiting for Android to boot ($(get redroid.boot_gate_prop))…"
@@ -470,29 +474,118 @@ cmd_status() {
   fi
 }
 
-# Order: up (container must be booted) → install (apps must exist for component
-# resolution) → layout → theme. cmd_layout restores the launcher db's Android owner
-# after the root sqlite write, so Launcher3 does not crash-loop.
-cmd_ship() { [ -f "$LOCKFILE" ] || cmd_lock; cmd_build; cmd_up; cmd_provision; }
-cmd_clean() { rm -rf "$DIST"; log "cleaned dist/"; }
+# ── bake: build the BAKED GHCR image (data-snapshot) — CI-side, heavy ────────
+# Boots BASE redroid on a fresh /data, installs the app set + renders the layout +
+# theme (the internal install/layout/theme steps — these run ONCE, in CI, never at
+# runtime), snapshots /data, and docker-builds src/Dockerfile shipping that snapshot +
+# the first-boot seed. Result: a self-contained image that starts fully provisioned.
+cmd_bake() {
+  command -v docker >/dev/null 2>&1 || die "docker not found"
+  [ -f "$LOCKFILE" ] || cmd_lock
+  local base img cname bdir ctx gate
+  base="$(get image.base)"; img="$(get image.name):$(get image.tag)"
+  cname="redroid-bake"; bdir="$DIST/bakedata"; ctx="$DIST/context"; gate="$(get redroid.boot_gate_prop)"
+  log "BAKE $img  (data-snapshot from base $base)"
+  docker rm -f "$cname" >/dev/null 2>&1 || true
+  sudo rm -rf "$bdir" "$ctx" 2>/dev/null || true; mkdir -p "$bdir" "$ctx"
 
-case "${1:-build}" in
+  # 1) boot base redroid with a fresh /data we can snapshot
+  log "booting base redroid ($cname)…"
+  docker run -d --name "$cname" --privileged \
+    --cpus "$(get redroid.cpu_cores)" \
+    -v "$bdir:/data" -p "$(get redroid.adb_port):5555" \
+    "$base" \
+    androidboot.redroid_width="$(get redroid.width)" \
+    androidboot.redroid_height="$(get redroid.height)" \
+    androidboot.redroid_dpi="$(get redroid.dpi)" \
+    androidboot.redroid_fps="$(get redroid.fps)" \
+    androidboot.redroid_gpu_mode="$(get redroid.gpu_mode)" \
+    androidboot.selinux="$(get redroid.selinux)" >/dev/null
+  adb_connect
+  local i ok=0
+  for ((i=0;i<120;i++)); do adb_connect; [ "$(rd_shell getprop "$gate" 2>/dev/null | tr -d '\r')" = "1" ] && { ok=1; break; }; sleep 3; done
+  [ "$ok" = 1 ] || { docker logs "$cname" 2>&1 | tail -20; docker rm -f "$cname" >/dev/null 2>&1; die "bake: base redroid did not boot"; }
+  log "base booted; provisioning (install → layout → theme)…"
+
+  # 2) provision INTO the bake container (the ONLY place install/layout/theme run)
+  cmd_build; cmd_install; cmd_layout; cmd_theme
+
+  # 3) quiesce + snapshot /data (numeric owner so Android uids survive the round-trip)
+  rd_shell sync 2>/dev/null || true
+  docker stop "$cname" >/dev/null 2>&1 || true
+  log "snapshotting /data → context/data.tar…"
+  sudo tar --numeric-owner -p -C "$bdir" -cf "$ctx/data.tar" . || die "snapshot tar failed"
+  sudo chown "$USER" "$ctx/data.tar" 2>/dev/null || true
+  docker rm -f "$cname" >/dev/null 2>&1 || true
+
+  # 4) assemble context + build the custom image
+  cp -f "$SRC/Dockerfile" "$SRC/seed/redroid-cloud-seed.sh" "$SRC/seed/redroid-cloud-seed.rc" "$ctx/"
+  log "docker build $img (data.tar $(du -h "$ctx/data.tar" | cut -f1))…"
+  docker build --build-arg BASE="$base" -t "$img" "$ctx" || die "docker build failed"
+  sudo rm -rf "$bdir" 2>/dev/null || true
+  log "baked: $img"
+}
+cmd_push() { local img; img="$(get image.name):$(get image.tag)"; log "pushing $img…"; docker push "$img" || die "push failed"; log "pushed $img"; }
+
+# verify: TESTER for the baked image. Runs it FRESH (empty /data → the baked first-boot
+# seed must populate it), then asserts every declared app is installed AND the Launcher3
+# hotseat+workspace are populated — i.e. the container really is fully provisioned with
+# ZERO runtime install. Non-zero exit if anything is missing. Used as the CI gate before push.
+cmd_verify() {
+  log "VERIFY: booting baked image fresh + asserting baked provisioning…"
+  cmd_down >/dev/null 2>&1 || true; docker rm -f "$(container_name)" >/dev/null 2>&1 || true
+  sudo rm -rf "$(rd_data_root)" 2>/dev/null || true   # force fresh /data so the seed runs
+  cmd_up
+  require_up
+  local n miss=0 pkg present=0
+  n="$(node -e "process.stdout.write(String(require('$CONFIG').apps.length))")"
+  local i
+  for ((i=0;i<n;i++)); do
+    pkg="$(node -e "process.stdout.write(require('$CONFIG').apps[$i].package)")"
+    if rd_shell pm path "$pkg" >/dev/null 2>&1; then present=$((present+1)); else warn "  MISSING baked app: $pkg"; miss=$((miss+1)); fi
+  done
+  log "baked apps present: $present/$n"
+  local db h w; db="$(rd_db 2>/dev/null || true)"
+  if [ -n "$db" ]; then
+    local SQ; SQ="$(rd_sqlite3)"
+    h="$(sudo "$SQ" "$db" "SELECT count(*) FROM favorites WHERE container=$(get redroid.hotseat_container);" 2>/dev/null)"
+    w="$(sudo "$SQ" "$db" "SELECT count(*) FROM favorites WHERE container=$(get redroid.workspace_container);" 2>/dev/null)"
+    log "baked layout: hotseat=$h workspace=$w"
+  else warn "  launcher DB not found (layout not baked?)"; miss=$((miss+1)); fi
+  cmd_down >/dev/null 2>&1 || true
+  [ "$miss" -eq 0 ] && { log "VERIFY OK — image is fully baked."; return 0; } || die "VERIFY FAILED — $miss issue(s); image is NOT fully baked"
+}
+
+# ship = bake + verify + push (CI). Local runtime is just `up` (pull + run the baked image).
+cmd_ship() { cmd_bake; cmd_verify; cmd_push; }
+cmd_clean() { sudo rm -rf "$DIST" 2>/dev/null || rm -rf "$DIST"; log "cleaned dist/"; }
+
+case "${1:-up}" in
+  # runtime (local): pull + run the baked image — no install, ever.
+  up) cmd_up ;;
+  down) cmd_down ;;
+  scrcpy) shift; cmd_scrcpy "$@" ;;
+  status) cmd_status ;;
+  # image build (CI): produce + verify + push the baked GHCR image.
+  bake) cmd_bake ;;
+  verify) cmd_verify ;;
+  push) cmd_push ;;
+  ship) cmd_ship ;;
+  # bake-internal steps (run against a booted container during bake; not for runtime).
   lock) shift; cmd_lock "$@" ;;
   build) cmd_build ;;
   nix) cmd_nix ;;
   check) cmd_check ;;
-  up) cmd_up ;;
-  down) cmd_down ;;
   install) cmd_install ;;
   layout) cmd_layout ;;
   theme) cmd_theme ;;
   wallpaper) cmd_wallpaper ;;
   provision) cmd_provision ;;
-  scrcpy) shift; cmd_scrcpy "$@" ;;
   home) cmd_home ;;
   undock) cmd_undock ;;
-  status) cmd_status ;;
-  ship) cmd_ship ;;
   clean) cmd_clean ;;
-  *) die "unknown command '$1' (lock|build|nix|check|up|down|install|layout|theme|wallpaper|provision|scrcpy|home|undock|status|ship|clean)" ;;
+  *) die "unknown command '$1'
+  runtime: up | down | scrcpy | status
+  image:   bake | push | ship        (CI: build+push the baked GHCR image)
+  bake-internal: lock|build|check|install|layout|theme|wallpaper|provision|home|undock|clean" ;;
 esac
