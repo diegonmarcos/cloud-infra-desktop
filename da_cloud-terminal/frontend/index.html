@@ -220,6 +220,11 @@ function makePane(tabId) {
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyE') { splitActive('row'); return false }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') { splitActive('col'); return false }
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyW') { closePane(activePane); return false }
+    // Font zoom for THIS pane: Ctrl+= / Ctrl++ in, Ctrl+- out, Ctrl+0 reset.
+    if (e.ctrlKey && !e.shiftKey && (e.code === 'Equal' || e.code === 'NumpadAdd'))      { setFont(id, +1); return false }
+    if (e.ctrlKey &&  e.shiftKey &&  e.code === 'Equal')                                 { setFont(id, +1); return false }
+    if (e.ctrlKey && (e.code === 'Minus' || e.code === 'NumpadSubtract'))                { setFont(id, -1); return false }
+    if (e.ctrlKey && (e.code === 'Digit0' || e.code === 'Numpad0'))                      { setFont(id,  0); return false }
     return true
   })
   term.onData(d => invoke('pty_input', { id, d }))
@@ -362,6 +367,16 @@ function fitPane(id) {
 }
 function fitTab(tabId) { for (const [id, p] of panes) if (p.tabId === tabId) fitPane(id) }
 function doFit() { if (activeTab != null) fitTab(activeTab) }
+
+// Per-pane font zoom. delta +1/-1 steps; 0 resets to the default 13. Re-fit so
+// cols/rows (and the PTY size) track the new glyph size.
+function setFont(id, delta) {
+  const p = panes.get(id); if (!p) return
+  const cur = p.term.options.fontSize || 13
+  const next = delta === 0 ? 13 : Math.max(6, Math.min(40, cur + delta))
+  p.term.options.fontSize = next
+  fitPane(id)
+}
 window.addEventListener('resize', doFit)
 
 function applyTheme(theme) {
