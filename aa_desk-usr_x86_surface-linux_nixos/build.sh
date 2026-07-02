@@ -422,16 +422,20 @@ _rebuild_exec() {
         return 1
     fi
 
-    log "Phase 1: nix build as $(id -un) — hard-capped scope (MemoryMax=3G, MemorySwapMax=0)…"
+    # Scope caps are data-driven from cloud-data-nix-build.json phase1_scope
+    # (was hardcoded here and had drifted from the JSON — engine bug fixed 2026-07-02).
+    local _p1_props=()
+    local _p1_key
+    for _p1_key in MemoryMax MemoryHigh MemorySwapMax CPUQuota CPUWeight IOWeight; do
+        local _p1_val
+        _p1_val=$(jq -r ".phase1_scope.${_p1_key} // empty" "$nix_build_json")
+        [ -n "$_p1_val" ] && _p1_props+=("--property=${_p1_key}=${_p1_val}")
+    done
+    log "Phase 1: nix build as $(id -un) — hard-capped scope (${_p1_props[*]#--property=})…"
     GIT_CONFIG_GLOBAL="$gitconf" GIT_CONFIG_SYSTEM="$gitconf" BUILDSH_GUARDRAIL=1 \
         systemd-run --user --scope \
             --unit="nix-build-$$" \
-            --property=MemoryMax=3G \
-            --property=MemoryHigh=2G \
-            --property=MemorySwapMax=0 \
-            --property=CPUQuota=200% \
-            --property=CPUWeight=10 \
-            --property=IOWeight=10 \
+            "${_p1_props[@]}" \
             -- \
             ionice -c 3 \
             nix build \
