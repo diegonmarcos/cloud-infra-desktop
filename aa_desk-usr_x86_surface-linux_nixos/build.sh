@@ -426,11 +426,17 @@ _rebuild_exec() {
     # (was hardcoded here and had drifted from the JSON — engine bug fixed 2026-07-02).
     local _p1_props=()
     local _p1_key
-    # OOMScoreAdjust=1000: the build scope shares user-1000.slice with the whole
+    # OOMScoreAdjust: the build scope shares user-1000.slice with the whole
     # desktop (systemd-run --user cannot escape it). On a slice-level MemoryMax
     # OOM the kernel must pick the eval (restartable), never claude/konsole —
     # 2026-07-02 19:30 a slice OOM SIGKILLed claude instead of the build.
-    for _p1_key in MemoryMax MemoryHigh MemorySwapMax CPUQuota CPUWeight IOWeight OOMScoreAdjust; do
+    # systemd-run --scope rejects OOMScoreAdjust (exec property, scopes don't
+    # fork) → translate the JSON key to a `choom -n` wrapper instead.
+    local _p1_choom=()
+    local _p1_oomadj
+    _p1_oomadj=$(jq -r '.phase1_scope.OOMScoreAdjust // empty' "$nix_build_json")
+    [ -n "$_p1_oomadj" ] && _p1_choom=(choom -n "$_p1_oomadj" --)
+    for _p1_key in MemoryMax MemoryHigh MemorySwapMax CPUQuota CPUWeight IOWeight; do
         local _p1_val
         _p1_val=$(jq -r ".phase1_scope.${_p1_key} // empty" "$nix_build_json")
         [ -n "$_p1_val" ] && _p1_props+=("--property=${_p1_key}=${_p1_val}")
@@ -441,6 +447,7 @@ _rebuild_exec() {
             --unit="nix-build-$$" \
             "${_p1_props[@]}" \
             -- \
+            "${_p1_choom[@]}" \
             ionice -c 3 \
             nix build \
                 "$FLAKE_PATH#nixosConfigurations.surface.config.system.build.toplevel" \
