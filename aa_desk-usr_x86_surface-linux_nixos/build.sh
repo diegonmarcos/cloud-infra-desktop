@@ -339,20 +339,31 @@ _rebuild_exec() {
     local result_link="/tmp/nixos-rebuild-result-$$"
     local nix_build_json="$FLAKE_PATH/modules/cloud-data-nix-build.json"
 
-    # ── Read suspend list from data file ──────────────────────────────────────
-    local -a suspend_units=()
+    # ── Read suspend lists from data file ─────────────────────────────────────
+    local -a suspend_units=() suspend_sys_units=()
     if command -v jq >/dev/null 2>&1 && [ -f "$nix_build_json" ]; then
         mapfile -t suspend_units < <(jq -r '.suspend_during_build.services[].unit' "$nix_build_json" 2>/dev/null)
+        mapfile -t suspend_sys_units < <(jq -r '.suspend_during_build.system_services[]?.unit' "$nix_build_json" 2>/dev/null)
     fi
 
     # ── Suspend competing services before Phase 1 ─────────────────────────────
-    local -a stopped_units=()
+    local -a stopped_units=() stopped_sys_units=()
     if [ ${#suspend_units[@]} -gt 0 ]; then
         log "Suspending ${#suspend_units[@]} competing service(s) for the duration of Phase 1…"
         for unit in "${suspend_units[@]}"; do
             if systemctl --user is-active --quiet "$unit" 2>/dev/null; then
                 systemctl --user stop "$unit" 2>/dev/null && stopped_units+=("$unit") \
                     && log "  stopped: $unit"
+            fi
+        done
+    fi
+    if [ ${#suspend_sys_units[@]} -gt 0 ]; then
+        local _sudo_s="/run/wrappers/bin/sudo"; [ -x "$_sudo_s" ] || _sudo_s="sudo"
+        log "Suspending ${#suspend_sys_units[@]} SYSTEM service(s) for the duration of Phase 1…"
+        for unit in "${suspend_sys_units[@]}"; do
+            if systemctl is-active --quiet "$unit" 2>/dev/null; then
+                $_sudo_s systemctl stop "$unit" 2>/dev/null && stopped_sys_units+=("$unit") \
+                    && log "  stopped (system): $unit"
             fi
         done
     fi
@@ -363,6 +374,13 @@ _rebuild_exec() {
             log "Resuming suspended service(s)…"
             for unit in "${stopped_units[@]}"; do
                 systemctl --user start "$unit" 2>/dev/null && log "  started: $unit"
+            done
+        fi
+        if [ ${#stopped_sys_units[@]} -gt 0 ]; then
+            local _sudo_r="/run/wrappers/bin/sudo"; [ -x "$_sudo_r" ] || _sudo_r="sudo"
+            log "Resuming suspended SYSTEM service(s)…"
+            for unit in "${stopped_sys_units[@]}"; do
+                $_sudo_r systemctl start "$unit" 2>/dev/null && log "  started (system): $unit"
             done
         fi
     }
