@@ -1502,8 +1502,11 @@ restore_boot_cache() {
     find "$tmp/unpacked" -type f | while read -r blob; do tar -xf "$blob" -C "$tmp" 2>/dev/null || true; done
     rm -rf "$tmp/unpacked" "$tmp/img.tar"
     if [ -d "$tmp/boot-cache" ]; then
-        if nix copy --no-check-sigs --from "file://$tmp/boot-cache" --all \
-               --extra-experimental-features "nix-command flakes" 2>&1 | tail -2; then
+        # `| tail` would mask nix copy's exit code (the if would test tail, always
+        # 0) — 2026-07-02 this hid import results entirely. Test PIPESTATUS[0].
+        nix copy --no-check-sigs --from "file://$tmp/boot-cache" --all \
+            --extra-experimental-features "nix-command flakes" 2>&1 | tail -2
+        if [ "${PIPESTATUS[0]}" = "0" ]; then
             log "boot-cache restored → linux-surface kernel now in /nix/store (no compile)"
         else
             warn "nix copy from boot-cache failed — kernel will compile"
