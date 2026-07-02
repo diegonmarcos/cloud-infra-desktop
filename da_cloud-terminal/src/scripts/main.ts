@@ -9,17 +9,20 @@ process.on('unhandledRejection', (reason) => console.error('[ct] rejection:', re
 // ── Env config ───────────────────────────────────────────────────────────────
 const profileName = process.env.CT_PROFILE      || 'nix-flakes'
 const profilesDir = process.env.CT_PROFILES_DIR || join(__dirname, '..', '..', 'data')
+const assetsDir   = process.env.CT_ASSETS_DIR   || join(__dirname, '..', '..', 'assets')
 const panelPath   = process.env.CT_PANEL        || join(__dirname, '..', '..', '..', 'lib', 'panel.html')
-const iconPath    = process.env.CT_ICON         || join(__dirname, '..', '..', 'assets', profileName + '.png')
 const binDir      = process.env.CT_BIN_DIR      || ''
 const XDG         = process.env.CT_XDG          || 'xdg-open'
+// CT_MULTI=1 → one process draws a tray icon for EVERY profile (memory-saving
+// consolidation). Unset → legacy single-profile-per-process behaviour.
+const multi       = !!process.env.CT_MULTI
 // PTY helper: runs under SYSTEM node (ABI-safe for the prebuilt node-pty).
 const NODE        = process.env.CT_NODE         || 'node'
 const ptyServer   = process.env.CT_PTY_SERVER   || join(__dirname, 'pty-server.js')
 
 // ── Load all profiles from profilesDir ──────────────────────────────────────
 let profiles: any[] = []
-let profile:  any   = null
+let profile:  any   = null    // the "primary" profile (single-mode selection)
 
 try {
   const files = readdirSync(profilesDir)
@@ -33,19 +36,31 @@ try {
   process.exit(1)
 }
 
-// ── Per-profile single-instance domain ───────────────────────────────────────
-// Each profile is its own tray daemon. Distinct userData → distinct instance lock,
-// so the same main.js can run once per profile, but never twice for one profile.
-// Distinct app identity per profile → distinct StatusNotifierItem id, so KDE
-// renders one tray icon PER profile instead of collapsing them into one.
-app.setName('cloud-terminal-' + profile.name)
-try { (app as any).setAppUserModelId?.('com.diegonmarcos.cloud-terminal.' + profile.name) } catch (_) {}
-app.setPath('userData', join(app.getPath('appData'), 'cloud-terminal-' + profile.name))
+// Profiles this process is responsible for: all of them in multi mode, else one.
+const ownProfiles: any[] = multi ? profiles : [profile]
+
+// Per-profile icon path (multi mode has no single CT_ICON — resolve per profile).
+function iconFor(prof: any): string {
+  if (!multi && process.env.CT_ICON) return process.env.CT_ICON
+  return join(assetsDir, prof.name + '.png')
+}
+
+// ── App identity / single-instance ───────────────────────────────────────────
+// multi: one identity for the whole app (one process, many trays).
+// single: distinct identity per profile so KDE renders one icon PER process.
+if (multi) {
+  app.setName('cloud-terminal')
+  try { (app as any).setAppUserModelId?.('com.diegonmarcos.cloud-terminal') } catch (_) {}
+  app.setPath('userData', join(app.getPath('appData'), 'cloud-terminal'))
+} else {
+  app.setName('cloud-terminal-' + profile.name)
+  try { (app as any).setAppUserModelId?.('com.diegonmarcos.cloud-terminal.' + profile.name) } catch (_) {}
+  app.setPath('userData', join(app.getPath('appData'), 'cloud-terminal-' + profile.name))
+}
 if (!app.requestSingleInstanceLock()) {
-  // another instance of THIS profile is already running — it will show itself
   app.quit()
 } else {
-  app.on('second-instance', () => showWin())
+  app.on('second-instance', () => { const w = firstWin(); if (w) { w.show(); w.focus() } })
   main()
 }
 
@@ -62,106 +77,129 @@ function profByName(name?: string): any {
   return profiles.find(p => p.name === name) || profile
 }
 
+// ── App state (per-profile windows + trays) ──────────────────────────────────
+const wins:  Map<string, InstanceType<typeof BrowserWindow>> = new Map()
+const trays: InstanceType<typeof Tray>[] = []
 
-// ── App ──────────────────────────────────────────────────────────────────────
-let win:  InstanceType<typeof BrowserWindow> | null = null
-let tray: InstanceType<typeof Tray>          | null = null
+function firstWin(): InstanceType<typeof BrowserWindow> | null {
+  for (const w of wins.values()) return w
+  return null
+}
+function winFor(prof: any): InstanceType<typeof BrowserWindow> | null {
+  return wins.get(prof.name) ?? null
+}
 
 function main() {
   app.on('window-all-closed', () => { /* managed by tray — never quit on window close */ })
 
   app.on('ready', () => {
-    // Tray — nativeImage required on Linux; bare string path silently fails
-    const icon = nativeImage.createFromPath(existsSync(iconPath) ? iconPath : '')
-    tray = new Tray(icon)
-    tray.setToolTip(profile.tray_tooltip || profile.display_name)
-    tray.setContextMenu(buildTrayMenu())
-    tray.on('click', () => toggleWin())
+    for (const prof of ownProfiles) {
+      // Tray — nativeImage required on Linux; bare string path silently fails
+      const ip = iconFor(prof)
+      const icon = nativeImage.createFromPath(existsSync(ip) ? ip : '')
+      const tray = new Tray(icon)
+      tray.setToolTip(prof.tray_tooltip || prof.display_name)
+      tray.setContextMenu(buildTrayMenu(prof))
+      tray.on('click', () => toggleWin(prof))
+      trays.push(tray)
 
-    win = new BrowserWindow({
-      width: 1040, height: 660, show: false, frame: true,
-      backgroundColor: profile.theme?.bg || '#0e0f1a',
-      webPreferences: { nodeIntegration: true, contextIsolation: false },
-    })
-    win.loadFile(panelPath)
-    win.webContents.on('did-finish-load', () => {
-      win!.webContents.send('init', { ...profile, profiles })
-    })
-    win.on('close', (e: any) => { e.preventDefault(); win!.hide() })
+      const win = new BrowserWindow({
+        width: 1040, height: 660, show: false, frame: true,
+        title: prof.display_name || prof.name,
+        backgroundColor: prof.theme?.bg || '#0e0f1a',
+        webPreferences: { nodeIntegration: true, contextIsolation: false },
+      })
+      win.loadFile(panelPath)
+      // Pin the taskbar/hover label to THIS profile — without this every window
+      // shows the generic app name (or the panel's <title>) instead of "Cloud & Infra" etc.
+      win.setTitle(prof.display_name || prof.name)
+      win.on('page-title-updated', (e: any) => { e.preventDefault() })
+      win.webContents.on('did-finish-load', () => {
+        win.webContents.send('init', { ...prof, profiles })
+      })
+      win.on('close', (e: any) => { e.preventDefault(); win.hide() })
+      wins.set(prof.name, win)
+    }
 
-    if (process.argv.includes('--show')) showWin()
+    if (process.argv.includes('--show')) { const w = winFor(profile) ?? firstWin(); if (w) { w.show(); w.focus() } }
   })
 }
 
 // ── Tray right-click menu = the profile's command shortcuts (data-driven) ─────
-function buildTrayMenu() {
+function buildTrayMenu(prof: any) {
   const tpl: any[] = [
-    { label: (profile.logo || '') + '  ' + profile.display_name, enabled: false },
+    { label: (prof.logo || '') + '  ' + prof.display_name, enabled: false },
     { type: 'separator' },
-    { label: 'Open Panel', click: () => showWin() },
+    { label: 'Open Panel', click: () => showWin(prof) },
     { type: 'separator' },
   ]
-  for (const section of (profile.sections || [])) {
+  for (const section of (prof.sections || [])) {
     const items = (section.items || []).map((it: any) => ({
       label: it.label,
-      click: () => dispatch(it),
+      click: () => dispatch(it, prof),
     }))
     tpl.push({ label: section.title, submenu: items })
   }
-  tpl.push({ type: 'separator' })
-  for (const p of profiles.filter(p => p.name !== profile.name)) {
-    tpl.push({ label: 'Switch → ' + (p.logo ? p.logo + ' ' : '') + p.display_name, click: () => launchProfile(p.name) })
+  // In single mode, offer "Switch → other profile" (launches another process).
+  // In multi mode every profile already has its own tray, so no switch entries.
+  if (!multi) {
+    tpl.push({ type: 'separator' })
+    for (const p of profiles.filter(p => p.name !== prof.name)) {
+      tpl.push({ label: 'Switch → ' + (p.logo ? p.logo + ' ' : '') + p.display_name, click: () => launchProfile(p.name) })
+    }
   }
   tpl.push({ type: 'separator' }, { label: 'Quit', click: () => app.quit() })
   return Menu.buildFromTemplate(tpl)
 }
 
-function showWin()   { win?.show(); win?.focus() }
-function toggleWin() { win?.isVisible() ? win.hide() : showWin() }
+function showWin(prof: any)   { const w = winFor(prof); w?.show(); w?.focus() }
+function toggleWin(prof: any) { const w = winFor(prof); if (!w) return; w.isVisible() ? w.hide() : (w.show(), w.focus()) }
 
 // ── PTY broker (multi-session: one helper process per terminal tab) ──────────
-// Each tab has a numeric id (assigned by the renderer). The system-node helper
-// is ABI-safe for the prebuilt node-pty. Output/exit events carry the id.
-const ptys = new Map<number, ReturnType<typeof spawn>>()
-const ptyBufs = new Map<number, string>()
+// Keyed by "<webContents.id>:<tabId>" so multiple windows never collide. Output
+// is routed back to the ORIGINATING webContents, not a global window.
+const ptys    = new Map<string, ReturnType<typeof spawn>>()
+const ptyBufs = new Map<string, string>()
+function pk(senderId: number, id: number): string { return senderId + ':' + id }
 
-function ptyStart(id: number, cols: number, rows: number) {
-  if (ptys.has(id)) return
+function ptyStart(sender: any, id: number, cols: number, rows: number) {
+  const k = pk(sender.id, id)
+  if (ptys.has(k)) return
   const p = spawn(NODE, [ptyServer], {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, CT_COLS: String(cols || 80), CT_ROWS: String(rows || 24), CT_CWD: process.env.HOME || '/' },
   })
-  ptys.set(id, p)
-  ptyBufs.set(id, '')
-  p.stdout?.on('data', (d: Buffer) => win?.webContents.send('pty-data', id, d.toString()))
+  ptys.set(k, p)
+  ptyBufs.set(k, '')
+  p.stdout?.on('data', (d: Buffer) => { if (!sender.isDestroyed()) sender.send('pty-data', id, d.toString()) })
   p.stderr?.on('data', (d: Buffer) => {       // control channel (exit)
-    let buf = (ptyBufs.get(id) || '') + d.toString()
+    let buf = (ptyBufs.get(k) || '') + d.toString()
     let nl
     while ((nl = buf.indexOf('\n')) >= 0) {
       const line = buf.slice(0, nl); buf = buf.slice(nl + 1)
-      if (line) win?.webContents.send('pty-exit', id, line)
+      if (line && !sender.isDestroyed()) sender.send('pty-exit', id, line)
     }
-    ptyBufs.set(id, buf)
+    ptyBufs.set(k, buf)
   })
-  p.on('close', () => { ptys.delete(id); ptyBufs.delete(id) })
+  p.on('close', () => { ptys.delete(k); ptyBufs.delete(k) })
 }
 
-function ptySend(id: number, msg: any) {
-  const p = ptys.get(id)
+function ptySend(sender: any, id: number, msg: any) {
+  const p = ptys.get(pk(sender.id, id))
   if (p && p.stdin) (p.stdin as any).write(JSON.stringify(msg) + '\n')
 }
 
-function ptyKill(id: number) {
-  const p = ptys.get(id)
-  if (p) { try { p.kill() } catch (_) {} ptys.delete(id); ptyBufs.delete(id) }
+function ptyKill(sender: any, id: number) {
+  const k = pk(sender.id, id)
+  const p = ptys.get(k)
+  if (p) { try { p.kill() } catch (_) {} ptys.delete(k); ptyBufs.delete(k) }
 }
 
 // ── Central dispatch (used by both panel clicks and tray menu) ───────────────
-// `prof` = the profile the item belongs to (the active in-window profile, which
-// may differ from the launched tray profile after an in-window tab switch).
-// Everything except xdg/open is TYPED INTO THE INTERACTIVE SHELL so it runs
-// inside our terminal (btop, ssh, dtk menus, builds — all real & interactive).
-function dispatch(item: { type: string; arg: string; label?: string; profile?: string; ptyId?: number }, prof: any = profile) {
+// `prof` = the profile the item belongs to. `sender` = originating webContents
+// when invoked from the panel (carries the tab's PTY); null from a tray menu.
+function dispatch(item: { type: string; arg: string; label?: string; profile?: string; ptyId?: number },
+                  prof: any = profile, sender?: any) {
   const a = resolve(item.arg || '', prof)
 
   if (item.type === 'xdg' || item.type === 'open') {     // GUI apps → external (correct)
@@ -184,30 +222,31 @@ function dispatch(item: { type: string; arg: string; label?: string; profile?: s
     line = `ls -t ${shq(logDir)}/logs/*.log 2>/dev/null | head -1 | xargs -r tail -f`
   }
   // shell / term / build / log → type the command into the selected tab's PTY
-  showWin()
+  showWin(prof)
   const id = item.ptyId
-  if (id == null) return
-  ptySend(id, { type: 'data', d: line + '\r' })
+  if (id == null || !sender) return
+  ptySend(sender, id, { type: 'data', d: line + '\r' })
 }
 
 function shq(s: string): string { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
 
-ipcMain.on('run-item', (_e, item: any) => dispatch(item, profByName(item.profile)))
-ipcMain.on('pty-start',  (_e, a: { id: number; cols: number; rows: number }) => ptyStart(a.id, a.cols, a.rows))
-ipcMain.on('pty-input',  (_e, a: { id: number; d: string })                  => ptySend(a.id, { type: 'data', d: a.d }))
-ipcMain.on('pty-resize', (_e, a: { id: number; cols: number; rows: number }) => ptySend(a.id, { type: 'resize', cols: a.cols, rows: a.rows }))
-ipcMain.on('pty-kill',   (_e, a: { id: number })                             => ptyKill(a.id))
+ipcMain.on('run-item', (e, item: any) => dispatch(item, profByName(item.profile), e.sender))
+ipcMain.on('pty-start',  (e, a: { id: number; cols: number; rows: number }) => ptyStart(e.sender, a.id, a.cols, a.rows))
+ipcMain.on('pty-input',  (e, a: { id: number; d: string })                  => ptySend(e.sender, a.id, { type: 'data', d: a.d }))
+ipcMain.on('pty-resize', (e, a: { id: number; cols: number; rows: number }) => ptySend(e.sender, a.id, { type: 'resize', cols: a.cols, rows: a.rows }))
+ipcMain.on('pty-kill',   (e, a: { id: number })                             => ptyKill(e.sender, a.id))
 
-ipcMain.on('switch-profile', (_e, name: string) => launchProfile(name))
+ipcMain.on('switch-profile', (_e, name: string) => {
+  if (multi) { const p = profByName(name); showWin(p) }   // just focus that tray's window
+  else launchProfile(name)
+})
 
-// Fixed: spawn the sibling launcher by absolute path (CT_BIN_DIR). Bare name was
-// never on PATH → silent ENOENT → switch did nothing.
+// Single-mode only: spawn the sibling launcher by absolute path (CT_BIN_DIR).
 function launchProfile(name: string) {
   const bin = binDir ? join(binDir, 'cloud-terminal-' + name) : ''
   if (bin && existsSync(bin)) {
     spawn(bin, ['--show'], { detached: true, stdio: 'ignore' }).unref()
   } else {
-    // fallback: re-exec this same main.js under a different profile
     spawn(process.execPath, [join(__dirname, 'main.js'), '--show'],
       { detached: true, stdio: 'ignore', env: { ...process.env, CT_PROFILE: name, CT_ICON: '' } }).unref()
   }
