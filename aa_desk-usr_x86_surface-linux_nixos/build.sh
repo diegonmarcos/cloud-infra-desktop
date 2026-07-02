@@ -426,7 +426,11 @@ _rebuild_exec() {
     # (was hardcoded here and had drifted from the JSON — engine bug fixed 2026-07-02).
     local _p1_props=()
     local _p1_key
-    for _p1_key in MemoryMax MemoryHigh MemorySwapMax CPUQuota CPUWeight IOWeight; do
+    # OOMScoreAdjust=1000: the build scope shares user-1000.slice with the whole
+    # desktop (systemd-run --user cannot escape it). On a slice-level MemoryMax
+    # OOM the kernel must pick the eval (restartable), never claude/konsole —
+    # 2026-07-02 19:30 a slice OOM SIGKILLed claude instead of the build.
+    for _p1_key in MemoryMax MemoryHigh MemorySwapMax CPUQuota CPUWeight IOWeight OOMScoreAdjust; do
         local _p1_val
         _p1_val=$(jq -r ".phase1_scope.${_p1_key} // empty" "$nix_build_json")
         [ -n "$_p1_val" ] && _p1_props+=("--property=${_p1_key}=${_p1_val}")

@@ -7,6 +7,7 @@
     "MemoryMax": "4G",
     "MemoryHigh": "3G",
     "MemorySwapMax": "0",
+    "OOMScoreAdjust": "1000",
     "CPUQuota": "200%",
     "CPUWeight": "10",
     "IOSchedulingClass": "idle",
