@@ -44,8 +44,18 @@ case "$cmd" in
     [ "$rc" -eq 0 ] || die "JSON validation failed"
     ;;
 
+  dashboard)
+    # Regenerate the committed start-page dashboard (dist/dashboard.html) from the
+    # bookmark folder SoT + cloud-data (build-flakes_desktop.json). The cloud folders
+    # (source:"cloud:*") resolve here — without this step the committed dashboard goes
+    # stale and the cloud service URLs (*.diegonmarcos.com + api/app) go missing.
+    log "regenerating dashboard (bookmarks + cloud-data services)"
+    bash "$SRC/dashboard/gen-dashboard.sh"
+    ;;
+
   check)
     "$0" lint-json
+    "$0" dashboard
     log "evaluating flake (--no-build)"
     cd "$SRC"
     nix flake check --no-build --no-write-lock-file 2>&1 | tail -10
