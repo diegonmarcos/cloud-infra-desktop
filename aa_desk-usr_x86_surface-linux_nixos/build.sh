@@ -1588,6 +1588,12 @@ main() {
 
         case "$choice_norm" in
             s|switch|rebuild)
+                # Interactive menu mirrors the CLI default: pull (GHA closure, no eval)
+                pull_remote ""
+                printf "\nPress Enter to continue..."
+                read -r _
+                ;;
+            switch-local|local)
                 switch_system
                 printf "\nPress Enter to continue..."
                 read -r _
@@ -1694,7 +1700,19 @@ if [ $# -gt 0 ]; then
 
     case "$cli_cmd" in
         s|switch|rebuild)
-            switch_system
+            # switch {pull|local} — pull is the DEFAULT: this 8GB machine must
+            # not eval locally (GHA builds the closure; here we import+activate).
+            # 2026-07-02: six local-eval attempts OOM-froze the desktop; the
+            # designed flow was always GHA build → build.sh pull.
+            case "${2:-pull}" in
+                pull)  pull_remote "$3" ;;
+                local) switch_system ;;
+                *)
+                    error "Unknown switch mode: $2"
+                    printf "Usage: %s switch [pull|local]   (default: pull — GHA closure import, no local eval)\n" "$0"
+                    exit 1
+                    ;;
+            esac
             ;;
         b|boot)
             boot_system
@@ -1769,7 +1787,8 @@ if [ $# -gt 0 ]; then
             printf "Usage: %s [command]\n" "$0"
             printf "       %s            (interactive menu)\n\n" "$0"
             printf "${BOLD}Live System (NixOS only):${NC}\n"
-            printf "  s | switch                Rebuild and switch to new config NOW\n"
+            printf "  s | switch [pull|local]   Switch to new config (DEFAULT pull: import GHA closure, no eval;\n"
+            printf "                            local: full eval on this machine — pressures 8GB RAM)\n"
             printf "  b | boot                  Build config, activate on next boot\n"
             printf "  t | test                  Test config (reverts on reboot)\n"
             printf "  ci-build                  [GHA] Build + export system closure tarball → dist-ci/\n"
