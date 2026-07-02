@@ -21,6 +21,10 @@ def endpoints  = new groovy.json.JsonSlurper().parse(file("$repoRoot/data/comms-
 def chrome     = new groovy.json.JsonSlurper().parse(file("$repoRoot/data/constellation-chrome.json"))
 def ghcr       = buildJson.release.ghcr
 def au         = buildJson.release.auto_update
+// Diagnostics cloud sink (DiagnosticsPush → OpenObserve/Loki). Data-driven from
+// build.json::diagnostics; empty url = cloud push disabled (download still works).
+def logSinkUrl    = (buildJson.diagnostics?.log_sink_url    ?: '')
+def logSinkStream = (buildJson.diagnostics?.log_sink_stream ?: 'cloud-comms-hub')
 
 def runNumber  = (System.getenv('GITHUB_RUN_NUMBER') ?: '0').toInteger()
 def codeBase   = (buildJson.android.version_code as Number).intValue()
@@ -180,6 +184,8 @@ android {
         buildConfigField "String", "ENDPOINTS_JSON_B64","\"${endpointsB64}\""
         buildConfigField "String", "CHROME_JSON_B64",   "\"${chromeB64}\""
         buildConfigField "String", "GIT_SHORT_SHA",     "\"${shortSha}\""
+        buildConfigField "String", "LOG_SINK_URL",      "\"${logSinkUrl}\""
+        buildConfigField "String", "LOG_SINK_STREAM",   "\"${logSinkStream}\""
         buildConfigField "String", "BUILD_TIMESTAMP",   "\"${buildTimestamp}\""
 
         // ── In-app fleet updater (build.json::release.ghcr + auto_update) ──
