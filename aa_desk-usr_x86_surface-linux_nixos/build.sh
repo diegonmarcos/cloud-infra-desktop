@@ -390,6 +390,8 @@ _rebuild_exec() {
         _nd_swap=$(jq -r .nix_daemon.MemorySwapMax "$_spjson")
         _oomd_lim=$(jq -r .oomd.pressure_limit "$_spjson")
         _gui_min=$(jq -r .gui_session.MemoryMin "$_spjson")
+        _gui_high=$(jq -r .gui_session.MemoryHigh "$_spjson")
+        _gui_max=$(jq -r .gui_session.MemoryMax "$_spjson")
         _gui_swap=$(jq -r .gui_session.MemorySwapMax "$_spjson")
 
         log "Reinforce: nix-daemon MemoryMax=$_nd_max MemorySwapMax=$_nd_swap (no swap → OOM-kills a build, never swap-thrash)…"
@@ -404,8 +406,13 @@ _rebuild_exec() {
         $_sudo systemctl set-property --runtime system.slice \
             ManagedOOMMemoryPressure=kill ManagedOOMMemoryPressureLimit="$_oomd_lim" \
             || warn "set-property system.slice oomd limit failed"
+        # MemoryHigh/Max reinforced live too: the declared (relaxed) limits must
+        # be active BEFORE Phase 1 — otherwise the stale tight limits OOM-kill
+        # the very build that would install the new ones (chicken-and-egg,
+        # observed 3× on 2026-07-02, casualties included the claude session).
         $_sudo systemctl set-property --runtime user-1000.slice \
-            MemoryMin="$_gui_min" MemorySwapMax="$_gui_swap" \
+            MemoryMin="$_gui_min" MemoryHigh="$_gui_high" MemoryMax="$_gui_max" \
+            MemorySwapMax="$_gui_swap" \
             || warn "set-property user-1000.slice failed"
 
         # FAIL-SAFE: verify the daemon truly cannot swap. If not, refuse to build —
