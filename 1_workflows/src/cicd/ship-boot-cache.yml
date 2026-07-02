@@ -208,25 +208,27 @@ jobs:
           BASE=https://pkg.surfacelinux.com/arch
           STAGE=${{ runner.temp }}/arch
           mkdir -p "$STAGE"
-          # Parse the directory listing for the latest linux-surface kernel package.
-          # Files are served with .blob suffix (upstream cache convention).
-          LISTING=$(curl -fsSL "$BASE/")
-          KPKG=$(echo "$LISTING" | grep -oE 'linux-surface-[0-9][^"]*-x86_64\.pkg\.tar\.zst\.blob' | sort -V | tail -1)
-          HPKG=$(echo "$LISTING" | grep -oE 'linux-surface-headers-[0-9][^"]*-x86_64\.pkg\.tar\.zst\.blob' | sort -V | tail -1)
-          MOK=$(echo "$LISTING" | grep -oE 'linux-surface-secureboot-mok-[^"]*\.pkg\.tar\.zst\.blob' | sort -V | tail -1)
-          DB=linux-surface.db
+          # LISTING-DRIVEN (2026-07-02 fix): download exactly the hrefs upstream
+          # advertises — never construct filenames. The old code appended ".sig"
+          # to the ".blob" name, but upstream serves sigs WITHOUT the .blob
+          # suffix (…pkg.tar.zst.sig), so every run 404'd for 3 weeks. Only a
+          # missing KERNEL package is fatal; any other absent file is skipped.
+          LISTING=$(curl -fsSL "$BASE/" | grep -oE 'href="[^"?/][^"]*"' | sed -E 's/^href="(.*)"$/\1/')
+          KPKG=$(echo "$LISTING" | grep -E '^linux-surface-[0-9].*-x86_64\.pkg\.tar\.zst(\.blob)?$' | sort -V | tail -1)
+          [ -n "$KPKG" ] || { echo "::error::no linux-surface kernel package in upstream listing"; exit 1; }
           KVER=$(echo "$KPKG" | sed -E 's/^linux-surface-([0-9][^-]*-[0-9]+)-.*/\1/')
-          for f in "$KPKG" "$KPKG.sig" "$HPKG" "$HPKG.sig" "$MOK" "$MOK.sig" "$DB" "$DB.sig"; do
-            curl -fsSL "$BASE/$f" -o "$STAGE/$f"
+          WANT=$(echo "$LISTING" | grep -E '^(linux-surface(-headers|-secureboot-mok)?-[0-9].*\.pkg\.tar\.zst(\.blob)?(\.sig)?|linux-surface\.db(\.sig)?)$')
+          echo "$WANT" | while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            curl -fsSL "$BASE/$f" -o "$STAGE/$f" \
+              || echo "::warning::skipping absent upstream file: $f"
           done
-          # Rename .blob → .pkg.tar.zst (upstream's serving cache adds .blob,
-          # but pacman expects bare .pkg.tar.zst).
-          for f in "$STAGE"/*.pkg.tar.zst.blob; do
-            mv "$f" "${f%.blob}"
-            test -f "${f%.blob}.sig" && true || true
+          # Strip the .blob serving suffix (pacman expects bare .pkg.tar.zst).
+          for f in "$STAGE"/*.blob; do
+            [ -e "$f" ] && mv "$f" "${f%.blob}" || true
           done
           for f in "$STAGE"/*.blob.sig; do
-            test -e "$f" && mv "$f" "${f%.blob.sig}.sig" || true
+            [ -e "$f" ] && mv "$f" "${f%.blob.sig}.sig" || true
           done
           ls -la "$STAGE"
           IMAGE=ghcr.io/${{ github.repository_owner }}/unix-boot-cache
@@ -277,15 +279,19 @@ jobs:
           ROOT_LISTING=$(curl -fsSL "$BASE/")
           FREL=$(echo "$ROOT_LISTING" | grep -oE 'href="f[0-9]+/"' | grep -oE 'f[0-9]+' | sort -V | tail -1)
           echo "Using Fedora release dir: $FREL"
-          REL_LISTING=$(curl -fsSL "$BASE/$FREL/x86_64/")
-          # Pull all kernel-surface-* RPMs (kernel + headers + modules etc.).
-          KVER=""
-          for rpm in $(echo "$REL_LISTING" | grep -oE 'kernel-surface[^"]*\.rpm' | sort -u); do
-            curl -fsSL "$BASE/$FREL/x86_64/$rpm" -o "$STAGE/$rpm"
-            # Extract version from the first main kernel-surface package.
-            if [ -z "$KVER" ] && echo "$rpm" | grep -qE '^kernel-surface-[0-9]'; then
-              KVER=$(echo "$rpm" | sed -E 's/^kernel-surface-([0-9][^-]*-[0-9]+).*/\1/')
-            fi
+          # LISTING-DRIVEN (2026-07-02 fix): RPMs live directly under $FREL/
+          # (the old x86_64/ subdir 404s) and are served with a .rpm.blob
+          # suffix. Download only the LATEST kernel version's files, strip
+          # the .blob suffix locally.
+          REL_LISTING=$(curl -fsSL "$BASE/$FREL/" | grep -oE 'href="[^"?/][^"]*"' | sed -E 's/^href="(.*)"$/\1/')
+          KVER=$(echo "$REL_LISTING" | grep -E '^kernel-surface-[0-9]' | sed -E 's/^kernel-surface-([0-9][^-]*-[0-9]+)\..*/\1/' | sort -V | tail -1)
+          [ -n "$KVER" ] || { echo "::error::no kernel-surface RPM in $BASE/$FREL/ listing"; exit 1; }
+          echo "$REL_LISTING" | grep -E "^kernel-surface[a-z-]*-${KVER}\..*\.rpm(\.blob)?$" | while IFS= read -r rpm; do
+            curl -fsSL "$BASE/$FREL/$rpm" -o "$STAGE/$rpm" \
+              || echo "::warning::skipping absent upstream file: $rpm"
+          done
+          for f in "$STAGE"/*.blob; do
+            [ -e "$f" ] && mv "$f" "${f%.blob}" || true
           done
           ls -la "$STAGE"
           IMAGE=ghcr.io/${{ github.repository_owner }}/unix-boot-cache
