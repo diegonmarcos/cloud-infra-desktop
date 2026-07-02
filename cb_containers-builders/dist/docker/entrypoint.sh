@@ -229,24 +229,55 @@ echo "[setup] Syncing all repos via git nuke..."
 for repo in cloud cloud-data unix front tools; do
   dir="$GIT_ROOT/$repo"
   [ -d "$dir/.git" ] || continue
+  _synced=0
   if git -C "$dir" config --get alias.nuke >/dev/null 2>&1; then
     if (cd "$dir" && git nuke --quiet 2>/dev/null); then
       echo "[setup] Synced $repo (via git nuke)"
+      _synced=1
     else
-      echo "[setup] git nuke failed for $repo (non-fatal)"
+      # nuke can die on broken submodule state WITHOUT moving HEAD —
+      # 2026-07-02: baked cloud repo stuck at Jun-14, every ship skipped
+      # all services as "unchanged" (false-green). Fall through to the
+      # legacy path instead of leaving the repo stale.
+      echo "[setup] git nuke failed for $repo — falling back to fetch+reset"
     fi
-  else
-    # Fallback: legacy path for repos without the 1_workflows framework
-    git -C "$dir" fetch origin main 2>/dev/null \
-      && git -C "$dir" reset --hard origin/main 2>/dev/null \
-      && git -C "$dir" submodule update --init --recursive 2>/dev/null \
-      && echo "[setup] Synced $repo (legacy fetch+reset)" \
-      || echo "[setup] Sync failed for $repo (non-fatal)"
+  fi
+  if [ "$_synced" -eq 0 ]; then
+    # fetch+reset moves HEAD even when submodule checkout is broken;
+    # submodule update is best-effort and must never mask a moved HEAD.
+    # No 2>/dev/null on fetch/reset — sync errors must be visible.
+    if git -C "$dir" fetch origin main \
+       && git -C "$dir" reset --hard origin/main; then
+      git -C "$dir" submodule update --init --recursive 2>/dev/null \
+        || echo "[setup] WARN: submodule update failed for $repo (continuing)"
+      echo "[setup] Synced $repo (legacy fetch+reset)"
+    else
+      echo "[setup] Sync failed for $repo (non-fatal)"
+    fi
   fi
 done
 
 WORKSPACE="$GIT_ROOT/cloud"
 cd "$WORKSPACE"
+
+# ── Fail-loud staleness gate ──────────────────────────────────────
+# Shipping from a stale payload repo produces false-green runs: every
+# service reports "skipped (unchanged)" because stale dir names never
+# match CHANGED_DIRS (proven 2026-07-02, run 28603693386). The payload
+# repo MUST be at origin/main, and when GHA provides the triggering
+# commit (GITHUB_SHA) it must exist in the synced history. Anything
+# else aborts the run — a no-op ship reported as success is worse
+# than a failed one.
+_HEAD=$(git rev-parse HEAD 2>/dev/null || echo unknown)
+_ORIGIN_MAIN=$(git rev-parse origin/main 2>/dev/null || echo unavailable)
+if [ "$_HEAD" != "$_ORIGIN_MAIN" ]; then
+  echo "[setup] FATAL: cloud repo HEAD ($_HEAD) != origin/main ($_ORIGIN_MAIN) — stale workspace, aborting"
+  exit 1
+fi
+if [ -n "${GITHUB_SHA:-}" ] && ! git cat-file -e "${GITHUB_SHA}^{commit}" 2>/dev/null; then
+  echo "[setup] FATAL: triggering commit $GITHUB_SHA not present in synced cloud repo — aborting"
+  exit 1
+fi
 echo "[setup] Ready: $(pwd) @ $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
 # ── 7b. Docker daemon health-check ────────────────────────────────
