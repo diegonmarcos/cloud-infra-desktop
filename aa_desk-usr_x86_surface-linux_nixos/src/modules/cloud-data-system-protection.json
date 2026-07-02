@@ -28,7 +28,7 @@
     "enabled": true,
     "interval_sec": 2,
     "mem_pressure_full_avg10": 40.0,
-    "io_pressure_full_avg10": 55.0,
+    "io_pressure_full_avg10": 30.0,
     "cpu_pressure_some_avg10": 80.0,
     "max_kills_per_tick": 4,
     "prefer_kill": ["cc1plus", "cc1", "rustc", "ld", "lto1", "ghc", "node", "electron", "brave", "firefox", "chromium"],
