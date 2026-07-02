@@ -37,7 +37,7 @@
   #tabbar .profile-pill:hover  { color: var(--fg); background: var(--item-bg); }
   #tabbar .profile-pill.active { color: var(--accent); background: var(--bg); border-bottom: 2px solid var(--accent); }
   #header {
-    display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+    display: flex; align-items: center; gap: 8px; padding: 8px 14px;
     background: var(--bg); border-bottom: 1px solid var(--sep); flex-shrink: 0;
   }
   #header .logo  { font-size: 18px; }
@@ -45,7 +45,7 @@
   #header .host  { color: #6b7280; font-size: 11px; }
   #header .spacer { flex: 1; }
   #header button {
-    padding: 4px 12px; background: var(--item-bg); color: var(--fg);
+    padding: 4px 10px; background: var(--item-bg); color: var(--fg);
     border: 1px solid var(--sep); border-radius: 4px; cursor: pointer;
     font-family: inherit; font-size: 11px;
   }
@@ -98,12 +98,27 @@
     font-size: 15px; cursor: pointer; border-radius: 5px;
   }
   #newtab:hover { background: var(--item-bg); }
+
+  /* ── Split panes (KDE-style) ─────────────────────────────────────── */
   #terms { position: relative; flex: 1; overflow: hidden; }
-  .term-pane { position: absolute; inset: 0; padding: 6px 8px; display: none; }
-  .term-pane.active { display: block; }
-  .xterm { height: 100%; }
+  .tab-root { position: absolute; inset: 0; display: none; }
+  .tab-root.active { display: flex; }
+  .split { display: flex; flex: 1 1 0; min-width: 0; min-height: 0; }
+  .split.row { flex-direction: row; }
+  .split.col { flex-direction: column; }
+  .leaf {
+    flex: 1 1 0; min-width: 48px; min-height: 40px; position: relative;
+    padding: 4px 6px; overflow: hidden; border: 1px solid transparent;
+  }
+  .leaf.focused { border-color: var(--accent); }
+  .leaf > .xterm { width: 100%; height: 100%; }
+  .divider { flex: 0 0 6px; background: var(--sep); }
+  .split.row > .divider { cursor: col-resize; }
+  .split.col > .divider { cursor: row-resize; }
+  .divider:hover { background: var(--accent); }
+
   #ctxmenu {
-    position: fixed; z-index: 1000; display: none; min-width: 160px; padding: 4px;
+    position: fixed; z-index: 1000; display: none; min-width: 170px; padding: 4px;
     background: var(--sidebar); border: 1px solid var(--sep); border-radius: 6px;
     box-shadow: 0 6px 20px rgba(0,0,0,.5);
   }
@@ -124,6 +139,9 @@
   <span class="name"  id="hdr-name"></span>
   <span class="host"  id="hdr-host"></span>
   <span class="spacer"></span>
+  <button id="split-h" title="Split left/right (Ctrl+Shift+E)">Split ↔</button>
+  <button id="split-v" title="Split top/bottom (Ctrl+Shift+D)">Split ↕</button>
+  <button id="closepane-btn" title="Close pane (Ctrl+Shift+W)">✕ Pane</button>
   <button id="kill-btn"  title="Send Ctrl-C">■ Kill</button>
   <button id="clear-btn" title="Clear terminal">Clear</button>
 </div>
@@ -138,21 +156,24 @@
   </div>
 </div>
 <div id="ctxmenu">
-  <div class="ctx-item" data-act="copy">Copy        <span class="key">Ctrl+Shift+C</span></div>
-  <div class="ctx-item" data-act="paste">Paste      <span class="key">Ctrl+Shift+V</span></div>
+  <div class="ctx-item" data-act="copy">Copy         <span class="key">Ctrl+Shift+C</span></div>
+  <div class="ctx-item" data-act="paste">Paste       <span class="key">Ctrl+Shift+V</span></div>
   <div class="ctx-item" data-act="selall">Select All</div>
   <div class="ctx-sep"></div>
+  <div class="ctx-item" data-act="split-h">Split Left/Right <span class="key">Ctrl+Shift+E</span></div>
+  <div class="ctx-item" data-act="split-v">Split Top/Bottom <span class="key">Ctrl+Shift+D</span></div>
+  <div class="ctx-item" data-act="closepane">Close Pane   <span class="key">Ctrl+Shift+W</span></div>
+  <div class="ctx-sep"></div>
   <div class="ctx-item" data-act="clear">Clear</div>
-  <div class="ctx-item" data-act="newtab">New Tab    <span class="key">+</span></div>
+  <div class="ctx-item" data-act="newtab">New Tab      <span class="key">+</span></div>
 </div>
 
 <script>
-// ── Tauri IPC (replaces Electron ipcRenderer + node require) ──
+// ── Tauri IPC ──
 const invoke = window.__TAURI__.core.invoke
 const listen = window.__TAURI__.event.listen
 const Terminal = window.Terminal
 const FitAddon = window.FitAddon.FitAddon
-// clipboard: system webview exposes navigator.clipboard (async).
 const clip = {
   write: (t) => { try { navigator.clipboard.writeText(t) } catch (_) {} },
   read:  ()  => navigator.clipboard.readText().catch(() => ''),
@@ -162,19 +183,27 @@ let allProfiles = []
 let active = null
 let curTheme = {}
 
-const tabs = new Map()   // id → { term, fit, pane, btn, title }
-let tabSeq = 0
+// ── Model ──
+// panes: ptyId → { term, fit, leaf(DOM), tabId }.  Each leaf is one PTY.
+// tabs:  tabId → { root(DOM), btn, title }.  A tab holds a binary split tree
+//        of .leaf / .split.row / .split.col nodes (KDE-style splits).
+const panes = new Map()
+const tabs  = new Map()
+let paneSeq = 0
+let tabSeq  = 0
 let activeTab = null
+let activePane = null
 
 function termTheme(theme) {
   return { background: theme.bg || '#0e0f1a', foreground: '#e2e8f0', cursor: theme.accent || '#7b7fff' }
 }
 
-function newTab() {
-  const id = ++tabSeq
-  const pane = document.createElement('div')
-  pane.className = 'term-pane'
-  document.getElementById('terms').appendChild(pane)
+// ── Pane (leaf = one terminal + PTY) ──
+function makePane(tabId) {
+  const id = ++paneSeq
+  const leaf = document.createElement('div')
+  leaf.className = 'leaf'
+  leaf.dataset.pane = String(id)
 
   const term = new Terminal({
     fontFamily: "'JetBrains Mono','Fira Code',monospace",
@@ -182,52 +211,142 @@ function newTab() {
   })
   const fit = new FitAddon()
   term.loadAddon(fit)
-  term.open(pane)
+  term.open(leaf)
 
   term.attachCustomKeyEventHandler(e => {
     if (e.type !== 'keydown') return true
-    if (e.ctrlKey && e.shiftKey && e.code === 'KeyC') {
-      const sel = term.getSelection(); if (sel) clip.write(sel); return false
-    }
-    if (e.ctrlKey && e.shiftKey && e.code === 'KeyV') {
-      clip.read().then(t => { if (t) invoke('pty_input', { id, d: t }) }); return false
-    }
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyC') { const s = term.getSelection(); if (s) clip.write(s); return false }
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyV') { clip.read().then(t => { if (t) invoke('pty_input', { id, d: t }) }); return false }
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyE') { splitActive('row'); return false }
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') { splitActive('col'); return false }
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyW') { closePane(activePane); return false }
     return true
   })
   term.onData(d => invoke('pty_input', { id, d }))
-  pane.addEventListener('contextmenu', e => { e.preventDefault(); showCtxMenu(e.clientX, e.clientY, id) })
+  // focus-follows-click; capture so it fires before xterm handles it
+  leaf.addEventListener('mousedown', () => focusPane(id), true)
+  leaf.addEventListener('contextmenu', e => { e.preventDefault(); focusPane(id); showCtxMenu(e.clientX, e.clientY) })
+
+  panes.set(id, { term, fit, leaf, tabId })
+  invoke('pty_start', { id, cols: term.cols || 80, rows: term.rows || 24 })
+  return { id, leaf }
+}
+
+function paneIdOf(leaf) { return parseInt(leaf.dataset.pane, 10) }
+
+function focusPane(id) {
+  const p = panes.get(id)
+  if (!p) return
+  activePane = id
+  for (const q of panes.values()) q.leaf.classList.toggle('focused', q === p)
+  p.term.focus()
+}
+
+// ── Split the ACTIVE pane: dir 'row' = left/right, 'col' = top/bottom ──
+function splitActive(dir) {
+  const p = panes.get(activePane)
+  if (!p) return
+  const leaf = p.leaf
+  const parent = leaf.parentElement
+  const split = document.createElement('div')
+  split.className = 'split ' + dir
+  const div = document.createElement('div')
+  div.className = 'divider'
+  parent.replaceChild(split, leaf)          // put the split where the leaf was
+  const made = makePane(p.tabId)
+  split.append(leaf, div, made.leaf)         // [old, divider, new]
+  attachDivider(div, dir)
+  fitTab(p.tabId)
+  focusPane(made.id)
+}
+
+// ── Close a pane; collapse its parent split; close tab if it was the last ──
+function closePane(id) {
+  const p = panes.get(id)
+  if (!p) return
+  invoke('pty_kill', { id })
+  try { p.term.dispose() } catch (_) {}
+  const leaf = p.leaf, parent = leaf.parentElement
+  panes.delete(id)
+  if (parent && parent.classList.contains('split')) {
+    // sibling (the other non-divider child) takes the split's place
+    const sib = [...parent.children].find(c => c !== leaf && !c.classList.contains('divider'))
+    parent.parentElement.replaceChild(sib, parent)
+    fitTab(p.tabId)
+    // focus any surviving pane in this tab
+    for (const [qid, q] of panes) if (q.tabId === p.tabId) { focusPane(qid); break }
+  } else {
+    closeTab(p.tabId)                          // leaf was the tab's whole content
+  }
+}
+
+// ── Divider drag → resize the two adjacent nodes ──
+function attachDivider(div, dir) {
+  div.addEventListener('mousedown', e => {
+    e.preventDefault()
+    const prev = div.previousElementSibling, next = div.nextElementSibling
+    const horiz = dir === 'row'
+    const start = horiz ? e.clientX : e.clientY
+    const ps = horiz ? prev.offsetWidth : prev.offsetHeight
+    const ns = horiz ? next.offsetWidth : next.offsetHeight
+    const move = ev => {
+      const delta = (horiz ? ev.clientX : ev.clientY) - start
+      const np = Math.max(48, ps + delta), nn = Math.max(48, ns - delta)
+      prev.style.flex = '0 0 ' + np + 'px'
+      next.style.flex = '0 0 ' + nn + 'px'
+    }
+    const up = () => {
+      document.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseup', up)
+      if (activeTab != null) fitTab(activeTab)
+    }
+    document.addEventListener('mousemove', move)
+    document.addEventListener('mouseup', up)
+  })
+}
+
+// ── Tabs ──
+function newTab() {
+  const tabId = ++tabSeq
+  const root = document.createElement('div')
+  root.className = 'tab-root'
+  root.dataset.tab = String(tabId)
+  document.getElementById('terms').appendChild(root)
 
   const btn = document.createElement('button')
   btn.className = 'term-tab'
-  const label = document.createElement('span'); label.textContent = 'shell ' + id
+  const label = document.createElement('span'); label.textContent = 'shell ' + tabId
   const close = document.createElement('span'); close.className = 'close'; close.textContent = '×'
-  close.onclick = ev => { ev.stopPropagation(); closeTab(id) }
+  close.onclick = ev => { ev.stopPropagation(); closeTab(tabId) }
   btn.append(label, close)
-  btn.onclick = () => activateTab(id)
+  btn.onclick = () => activateTab(tabId)
   document.getElementById('termtabs').insertBefore(btn, document.getElementById('newtab'))
 
-  tabs.set(id, { term, fit, pane, btn, title: label })
-  invoke('pty_start', { id, cols: term.cols || 80, rows: term.rows || 24 })
-  activateTab(id)
-  return id
+  tabs.set(tabId, { root, btn, title: label })
+  const made = makePane(tabId)
+  root.appendChild(made.leaf)
+  activateTab(tabId)
+  focusPane(made.id)
+  return tabId
 }
 
 function activateTab(id) {
   activeTab = id
   for (const [tid, t] of tabs) {
     const on = tid === id
-    t.pane.classList.toggle('active', on)
+    t.root.classList.toggle('active', on)
     t.btn.classList.toggle('active', on)
   }
-  const t = tabs.get(id)
-  if (t) { t.fit.fit(); invoke('pty_resize', { id, cols: t.term.cols, rows: t.term.rows }); t.term.focus() }
+  fitTab(id)
+  // focus a pane belonging to this tab
+  for (const [pid, p] of panes) if (p.tabId === id) { focusPane(pid); break }
 }
 
 function closeTab(id) {
   const t = tabs.get(id)
   if (!t) return
-  invoke('pty_kill', { id })
-  t.term.dispose(); t.pane.remove(); t.btn.remove()
+  for (const [pid, p] of [...panes]) if (p.tabId === id) { invoke('pty_kill', { id: pid }); try { p.term.dispose() } catch (_) {} panes.delete(pid) }
+  t.root.remove(); t.btn.remove()
   tabs.delete(id)
   if (activeTab === id) {
     const next = tabs.keys().next().value
@@ -235,10 +354,14 @@ function closeTab(id) {
   }
 }
 
-// pty-data / pty-exit listeners are registered per-window in init() once we
-// know this window's label (events are named "pty-data:<label>").
-
-function doFit() { const t = tabs.get(activeTab); if (t) { t.fit.fit(); invoke('pty_resize', { id: activeTab, cols: t.term.cols, rows: t.term.rows }) } }
+// ── Fit ── (only the visible/active tab has non-zero sized leaves)
+function fitPane(id) {
+  const p = panes.get(id); if (!p) return
+  try { p.fit.fit() } catch (_) {}
+  invoke('pty_resize', { id, cols: p.term.cols, rows: p.term.rows })
+}
+function fitTab(tabId) { for (const [id, p] of panes) if (p.tabId === tabId) fitPane(id) }
+function doFit() { if (activeTab != null) fitTab(activeTab) }
 window.addEventListener('resize', doFit)
 
 function applyTheme(theme) {
@@ -247,10 +370,11 @@ function applyTheme(theme) {
   if (theme.accent)  r.setProperty('--accent',  theme.accent)
   if (theme.accent2) r.setProperty('--accent2', theme.accent2)
   if (theme.bg)      r.setProperty('--bg',      theme.bg)
-  for (const t of tabs.values()) t.term.options.theme = termTheme(theme)
+  for (const p of panes.values()) p.term.options.theme = termTheme(theme)
 }
 
 function runItem(item) { invoke('run_item', { item }) }
+function focusActivePaneTerm() { const p = panes.get(activePane); if (p) p.term.focus() }
 
 function buildSidebar(profile) {
   const sb = document.getElementById('sidebar-list')
@@ -263,10 +387,7 @@ function buildSidebar(profile) {
       const btn = document.createElement('button')
       btn.className = 'cmd-item'; btn.textContent = item.label
       btn.dataset.search = ((item.label || '') + ' ' + (item.arg || '')).toLowerCase()
-      btn.onclick = () => {
-        runItem({ ...item, profile: profile.name, ptyId: activeTab })
-        const tt = tabs.get(activeTab); if (tt) tt.term.focus()
-      }
+      btn.onclick = () => { runItem({ ...item, profile: profile.name, ptyId: activePane }); focusActivePaneTerm() }
       grp.appendChild(btn)
     }
     const sep = document.createElement('div'); sep.className = 'sep-line'; grp.appendChild(sep)
@@ -312,16 +433,14 @@ function showProfile(p) {
 async function init() {
   const data = await invoke('get_init')
   allProfiles = data.profiles || [data]
-  const label = data.name                       // this window's fixed profile
+  const label = data.name
   document.getElementById('hdr-host').textContent = '@ ' + (data.host || '')
   showProfile(allProfiles.find(p => p.name === data.name) || data)
-  // Register per-window event channels (see Rust reader), THEN open the first
-  // tab. Wrapped so a listener failure can never abort building the UI.
   try {
     await Promise.all([
-      listen('pty-data:' + label, e => { const [id, d] = e.payload; const t = tabs.get(id); if (t) t.term.write(d) }),
-      listen('pty-exit:' + label, e => { const id = e.payload; const t = tabs.get(id); if (t) t.term.write('\r\n\x1b[33m[shell exited]\x1b[0m\r\n') }),
-      listen('tray-run:' + label, e => runItem({ ...e.payload, ptyId: activeTab })),
+      listen('pty-data:' + label, e => { const [id, d] = e.payload; const p = panes.get(id); if (p) p.term.write(d) }),
+      listen('pty-exit:' + label, e => { const id = e.payload; const p = panes.get(id); if (p) p.term.write('\r\n\x1b[33m[shell exited]\x1b[0m\r\n') }),
+      listen('tray-run:' + label, e => runItem({ ...e.payload, ptyId: activePane })),
     ])
   } catch (err) { console.error('event listen failed:', err) }
   newTab()
@@ -330,9 +449,7 @@ async function init() {
 
 // ── context menu ──
 const ctx = document.getElementById('ctxmenu')
-let ctxTab = null
-function showCtxMenu(x, y, id) {
-  ctxTab = id
+function showCtxMenu(x, y) {
   ctx.style.display = 'block'
   const w = ctx.offsetWidth, h = ctx.offsetHeight
   ctx.style.left = Math.min(x, window.innerWidth  - w - 4) + 'px'
@@ -343,20 +460,26 @@ window.addEventListener('click', hideCtxMenu)
 window.addEventListener('blur', hideCtxMenu)
 ctx.addEventListener('click', e => {
   const it = e.target.closest('.ctx-item'); if (!it) return
-  const t = tabs.get(ctxTab); if (!t) return
+  const p = panes.get(activePane)
   switch (it.dataset.act) {
-    case 'copy':   { const s = t.term.getSelection(); if (s) clip.write(s); break }
-    case 'paste':  clip.read().then(x => { if (x) invoke('pty_input', { id: ctxTab, d: x }) }); break
-    case 'selall': t.term.selectAll(); break
-    case 'clear':  t.term.clear(); break
-    case 'newtab': newTab(); break
+    case 'copy':      { if (p) { const s = p.term.getSelection(); if (s) clip.write(s) } break }
+    case 'paste':     clip.read().then(x => { if (x && activePane != null) invoke('pty_input', { id: activePane, d: x }) }); break
+    case 'selall':    if (p) p.term.selectAll(); break
+    case 'split-h':   splitActive('row'); break
+    case 'split-v':   splitActive('col'); break
+    case 'closepane': closePane(activePane); break
+    case 'clear':     if (p) p.term.clear(); break
+    case 'newtab':    newTab(); break
   }
-  hideCtxMenu(); t.term.focus()
+  hideCtxMenu(); focusActivePaneTerm()
 })
 
-document.getElementById('newtab').onclick    = () => newTab()
-document.getElementById('clear-btn').onclick = () => { const t = tabs.get(activeTab); if (t) { t.term.clear(); t.term.focus() } }
-document.getElementById('kill-btn').onclick  = () => { invoke('pty_input', { id: activeTab, d: '\x03' }) }
+document.getElementById('newtab').onclick       = () => newTab()
+document.getElementById('split-h').onclick      = () => splitActive('row')
+document.getElementById('split-v').onclick      = () => splitActive('col')
+document.getElementById('closepane-btn').onclick = () => closePane(activePane)
+document.getElementById('clear-btn').onclick    = () => { const p = panes.get(activePane); if (p) { p.term.clear(); p.term.focus() } }
+document.getElementById('kill-btn').onclick     = () => { if (activePane != null) invoke('pty_input', { id: activePane, d: '\x03' }) }
 
 const _search = document.getElementById('sidebar-search')
 _search.addEventListener('input', () => filterSidebar(_search.value))
