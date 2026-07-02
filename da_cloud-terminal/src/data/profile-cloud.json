@@ -1,76 +1,189 @@
 {
-  "name":         "cloud",
+  "name": "cloud",
+  "order": 1,
   "display_name": "Cloud & Infra",
-  "logo":         "☁️",
+  "logo": "☁️",
   "tray_tooltip": "Cloud & Infra",
   "flake": "/home/diego/git/cloud",
   "flakes": {
-    "system":  "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos",
+    "system": "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos",
     "desktop": "/home/diego/git/unix/ba_flakes_desktop",
-    "cloud":   "/home/diego/git/cloud"
+    "cloud": "/home/diego/git/cloud"
   },
   "theme": {
-    "accent":  "#5eead4",
+    "accent": "#5eead4",
     "accent2": "#67e8f9",
-    "bg":      "#0e1a1a"
+    "bg": "#0e1a1a"
   },
   "sections": [
     {
       "title": "Network",
       "items": [
-        { "label": "WireGuard Status",    "type": "shell", "arg": "sudo wg show all" },
-        { "label": "Mesh Peers",          "type": "shell", "arg": "sudo wg show all peers latest-handshakes" },
-        { "label": "DNS Status",          "type": "shell", "arg": "resolvectl status" },
-        { "label": "Network Interfaces",  "type": "shell", "arg": "ip a && ip r" },
-        { "label": "Ping Mesh (all VMs)", "type": "shell", "arg": "for ip in 10.0.0.1 10.0.0.3 10.0.0.4 10.0.0.6; do printf '%-12s ' $ip; ping -c1 -W1 $ip >/dev/null 2>&1 && echo OK || echo FAIL; done" }
+        {
+          "label": "WireGuard Status",
+          "type": "shell",
+          "arg": "sudo wg show all"
+        },
+        {
+          "label": "Mesh Peers",
+          "type": "shell",
+          "arg": "sudo wg show all peers latest-handshakes"
+        },
+        {
+          "label": "DNS Status",
+          "type": "shell",
+          "arg": "resolvectl status"
+        },
+        {
+          "label": "Network Interfaces",
+          "type": "shell",
+          "arg": "ip a && ip r"
+        },
+        {
+          "label": "Ping Mesh (all VMs)",
+          "type": "shell",
+          "arg": "for ip in 10.0.0.1 10.0.0.3 10.0.0.4 10.0.0.6; do printf '%-12s ' $ip; ping -c1 -W1 $ip >/dev/null 2>&1 && echo OK || echo FAIL; done"
+        }
       ]
     },
     {
       "title": "Flakes — System",
       "items": [
-        { "label": "Switch   (system)", "type": "build-system", "arg": "switch"  },
-        { "label": "Dry Run  (system)", "type": "build-system", "arg": "dry-run" },
-        { "label": "Update   (system)", "type": "build-system", "arg": "update"  },
-        { "label": "Diff     (system)", "type": "build-system", "arg": "diff"    },
-        { "label": "Build Log(system)", "type": "log-system",   "arg": ""        }
+        {
+          "label": "Switch   (system)",
+          "type": "build-system",
+          "arg": "switch"
+        },
+        {
+          "label": "Dry Run  (system)",
+          "type": "build-system",
+          "arg": "dry-run"
+        },
+        {
+          "label": "Update   (system)",
+          "type": "build-system",
+          "arg": "update"
+        },
+        {
+          "label": "Diff     (system)",
+          "type": "build-system",
+          "arg": "diff"
+        },
+        {
+          "label": "Build Log(system)",
+          "type": "log-system",
+          "arg": ""
+        }
       ]
     },
     {
       "title": "Flakes — Desktop",
       "items": [
-        { "label": "Switch   (desktop)", "type": "build-desktop", "arg": "switch"  },
-        { "label": "Dry Run  (desktop)", "type": "build-desktop", "arg": "dry-run" },
-        { "label": "Update   (desktop)", "type": "build-desktop", "arg": "update"  },
-        { "label": "Diff     (desktop)", "type": "build-desktop", "arg": "diff"    },
-        { "label": "Build Log(desktop)", "type": "log-desktop",   "arg": ""        }
+        {
+          "label": "Switch   (desktop)",
+          "type": "build-desktop",
+          "arg": "switch"
+        },
+        {
+          "label": "Dry Run  (desktop)",
+          "type": "build-desktop",
+          "arg": "dry-run"
+        },
+        {
+          "label": "Update   (desktop)",
+          "type": "build-desktop",
+          "arg": "update"
+        },
+        {
+          "label": "Diff     (desktop)",
+          "type": "build-desktop",
+          "arg": "diff"
+        },
+        {
+          "label": "Build Log(desktop)",
+          "type": "log-desktop",
+          "arg": ""
+        }
       ]
     },
     {
       "title": "Cloud — VMs",
       "items": [
-        { "label": "SSH: gcp-proxy",      "type": "shell", "arg": "ssh gcp-proxy     'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'" },
-        { "label": "SSH: oci-apps",       "type": "shell", "arg": "ssh oci-apps      'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'" },
-        { "label": "SSH: oci-analytics",  "type": "shell", "arg": "ssh oci-analytics 'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'" },
-        { "label": "SSH: oci-mail",       "type": "shell", "arg": "ssh oci-mail      'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'" }
+        {
+          "label": "SSH: gcp-proxy",
+          "type": "shell",
+          "arg": "ssh gcp-proxy     'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'"
+        },
+        {
+          "label": "SSH: oci-apps",
+          "type": "shell",
+          "arg": "ssh oci-apps      'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'"
+        },
+        {
+          "label": "SSH: oci-analytics",
+          "type": "shell",
+          "arg": "ssh oci-analytics 'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'"
+        },
+        {
+          "label": "SSH: oci-mail",
+          "type": "shell",
+          "arg": "ssh oci-mail      'uptime && echo && df -h / && echo && docker ps --format \"table {{.Names}}\\t{{.Status}}\"'"
+        }
       ]
     },
     {
       "title": "Cloud — Services",
       "items": [
-        { "label": "Health: Public API",  "type": "shell", "arg": "curl -sf 'https://api.diegonmarcos.com/pub/health' | python3 -m json.tool || echo FAIL" },
-        { "label": "Health: Infra API",   "type": "shell", "arg": "curl -sf 'https://api.diegonmarcos.com/c3-infra-api/health' | python3 -m json.tool || echo FAIL" },
-        { "label": "All Caddy Routes",    "type": "shell", "arg": "curl -sf 'https://api.diegonmarcos.com/pub/routes' | python3 -m json.tool 2>/dev/null | head -60 || echo FAIL" },
-        { "label": "Open Cloud Portal",   "type": "xdg",   "arg": "https://diegonmarcos.github.io/a-Portals/cloud/" },
-        { "label": "Open Dagu Workflows", "type": "xdg",   "arg": "https://workflows.diegonmarcos.com" }
+        {
+          "label": "Health: Public API",
+          "type": "shell",
+          "arg": "curl -sf 'https://api.diegonmarcos.com/pub/health' | python3 -m json.tool || echo FAIL"
+        },
+        {
+          "label": "Health: Infra API",
+          "type": "shell",
+          "arg": "curl -sf 'https://api.diegonmarcos.com/c3-infra-api/health' | python3 -m json.tool || echo FAIL"
+        },
+        {
+          "label": "All Caddy Routes",
+          "type": "shell",
+          "arg": "curl -sf 'https://api.diegonmarcos.com/pub/routes' | python3 -m json.tool 2>/dev/null | head -60 || echo FAIL"
+        },
+        {
+          "label": "Open Cloud Portal",
+          "type": "xdg",
+          "arg": "https://diegonmarcos.github.io/a-Portals/cloud/"
+        },
+        {
+          "label": "Open Dagu Workflows",
+          "type": "xdg",
+          "arg": "https://workflows.diegonmarcos.com"
+        }
       ]
     },
     {
       "title": "System",
       "items": [
-        { "label": "System Info",      "type": "shell", "arg": "fastfetch 2>/dev/null || uname -a" },
-        { "label": "Journal (errors)", "type": "shell", "arg": "journalctl -p err..emerg -n 50 --no-pager" },
-        { "label": "Open Unix Repo",   "type": "xdg",   "arg": "{FLAKE_SYSTEM}" },
-        { "label": "Open Cloud Repo",  "type": "xdg",   "arg": "{FLAKE_CLOUD}"  }
+        {
+          "label": "System Info",
+          "type": "shell",
+          "arg": "fastfetch 2>/dev/null || uname -a"
+        },
+        {
+          "label": "Journal (errors)",
+          "type": "shell",
+          "arg": "journalctl -p err..emerg -n 50 --no-pager"
+        },
+        {
+          "label": "Open Unix Repo",
+          "type": "xdg",
+          "arg": "{FLAKE_SYSTEM}"
+        },
+        {
+          "label": "Open Cloud Repo",
+          "type": "xdg",
+          "arg": "{FLAKE_CLOUD}"
+        }
       ]
     }
   ]

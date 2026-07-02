@@ -530,11 +530,19 @@ fn load_profiles(dir: &str) -> Vec<Value> {
         })
         .collect();
     files.sort();
-    files
+    let mut profiles: Vec<Value> = files
         .iter()
         .filter_map(|p| std::fs::read_to_string(p).ok())
         .filter_map(|s| serde_json::from_str::<Value>(&s).ok())
-        .collect()
+        .collect();
+    // Order pills + trays by the profile's `order` field (data-driven); entries
+    // without one sort last, then by filename. Lets Home sit leftmost.
+    profiles.sort_by(|a, b| {
+        let oa = a.get("order").and_then(|v| v.as_i64()).unwrap_or(i64::MAX);
+        let ob = b.get("order").and_then(|v| v.as_i64()).unwrap_or(i64::MAX);
+        oa.cmp(&ob)
+    });
+    profiles
 }
 
 fn main() {
