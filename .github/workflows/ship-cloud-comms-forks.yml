@@ -58,7 +58,7 @@ on:
       # by 1_workflows/build.sh → would self-trigger rebuilds on unrelated commits).
 
 permissions:
-  contents: read
+  contents: write   # gh release upload (fork APK → rolling `latest`)
   packages: write   # ghcr push (oras)
 
 env:
@@ -192,5 +192,15 @@ jobs:
           BYPASS_NIX: "1"
           GITHUB_SHA: ${{ github.sha }}
         run: ./build.sh publish-fork "$FORK"
+
+      # Mirror the APK onto the rolling `latest` GitHub Release (same channel
+      # as the hub) so the public releases catalog shows the whole constellation.
+      - name: Publish fork APK to GitHub Release
+        working-directory: ${{ env.WORK_DIR }}
+        env:
+          BYPASS_NIX: "1"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: ./build.sh gh-release-fork "$FORK"
 
       # Hub re-bundle deliberately NOT dispatched here. See top-of-file comment.
