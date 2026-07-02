@@ -117,6 +117,44 @@
   .split.col > .divider { cursor: row-resize; }
   .divider:hover { background: var(--accent); }
 
+  /* ── System monitor dashboard (btop graphs + glances layout) ─────── */
+  .leaf.monitor { padding: 0; overflow: auto; }
+  .mon { padding: 8px; height: 100%; }
+  .mon-grid {
+    display: grid; gap: 8px; height: 100%;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1.3fr 1fr auto;
+    grid-template-areas: "cpu mem" "net disk" "proc proc";
+  }
+  .panel {
+    background: var(--sidebar); border: 1px solid var(--sep); border-radius: 6px;
+    padding: 6px 8px; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden;
+  }
+  .panel.cpu { grid-area: cpu; } .panel.mem { grid-area: mem; }
+  .panel.net { grid-area: net; } .panel.disk { grid-area: disk; } .panel.proc { grid-area: proc; }
+  .panel .ph {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--accent2); margin-bottom: 4px; flex-shrink: 0; display: flex; justify-content: space-between;
+  }
+  .panel .ph .sub { color: #6b7280; text-transform: none; letter-spacing: 0; }
+  .panel canvas.g { width: 100%; flex: 1 1 0; min-height: 30px; }
+  .cores { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 3px; margin-top: 4px; flex-shrink: 0; }
+  .core { height: 12px; background: var(--item-bg); border-radius: 2px; position: relative; overflow: hidden; font-size: 8px; }
+  .core > i { position: absolute; inset: 0 auto 0 0; background: var(--accent); opacity: .8; }
+  .core > span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--fg); }
+  .bars { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; flex-shrink: 0; }
+  .bar { font-size: 10px; }
+  .bar .lbl { display: flex; justify-content: space-between; color: #9aa4b2; }
+  .bar .track { height: 8px; background: var(--item-bg); border-radius: 3px; overflow: hidden; margin-top: 1px; }
+  .bar .track > i { display: block; height: 100%; background: var(--accent); }
+  .bar.warn .track > i { background: #f0b400; } .bar.crit .track > i { background: #f87171; }
+  .ptbl { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .ptbl th { text-align: left; color: #6b7280; font-weight: 500; padding: 2px 6px; position: sticky; top: 0; background: var(--sidebar); }
+  .ptbl td { padding: 1px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ptbl td.n { color: var(--fg); max-width: 340px; }
+  .ptbl td.num { color: var(--accent2); font-variant-numeric: tabular-nums; }
+  .panel.proc { overflow: auto; }
+
   #ctxmenu {
     position: fixed; z-index: 1000; display: none; min-width: 170px; padding: 4px;
     background: var(--sidebar); border: 1px solid var(--sep); border-radius: 6px;
@@ -151,7 +189,7 @@
     <div id="sidebar-list"></div>
   </div>
   <div id="terminal-area">
-    <div id="termtabs"><button id="newtab" title="New terminal tab">+</button></div>
+    <div id="termtabs"><button id="newmon" title="System Monitor">📊</button><button id="newtab" title="New terminal tab">+</button></div>
     <div id="terms"></div>
   </div>
 </div>
@@ -232,9 +270,125 @@ function makePane(tabId) {
   leaf.addEventListener('mousedown', () => focusPane(id), true)
   leaf.addEventListener('contextmenu', e => { e.preventDefault(); focusPane(id); showCtxMenu(e.clientX, e.clientY) })
 
-  panes.set(id, { term, fit, leaf, tabId })
+  panes.set(id, { term, fit, leaf, tabId, kind: 'term' })
   invoke('pty_start', { id, cols: term.cols || 80, rows: term.rows || 24 })
   return { id, leaf }
+}
+
+// ── System-monitor pane (dashboard, no PTY): btop graphs + glances panels ──
+const MON_HIST = 120
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B'
+  const u = ['K', 'M', 'G', 'T']; let i = -1
+  do { n /= 1024; i++ } while (n >= 1024 && i < u.length - 1)
+  return n.toFixed(n < 10 ? 1 : 0) + ' ' + u[i] + 'B'
+}
+function drawGraph(cv, data, color, maxHint) {
+  const dpr = window.devicePixelRatio || 1
+  const w = cv.clientWidth, h = cv.clientHeight
+  if (w < 2 || h < 2) return
+  cv.width = w * dpr; cv.height = h * dpr
+  const g = cv.getContext('2d'); g.scale(dpr, dpr)
+  g.clearRect(0, 0, w, h)
+  const max = Math.max(maxHint || 1, ...data, 1e-6)
+  const n = data.length; if (n < 2) return
+  const dx = w / (MON_HIST - 1)
+  const y = v => h - (v / max) * h
+  const x0 = w - (n - 1) * dx
+  g.beginPath(); g.moveTo(x0, h)
+  for (let i = 0; i < n; i++) g.lineTo(x0 + i * dx, y(data[i]))
+  g.lineTo(x0 + (n - 1) * dx, h); g.closePath()
+  const grad = g.createLinearGradient(0, 0, 0, h)
+  grad.addColorStop(0, color + '99'); grad.addColorStop(1, color + '11')
+  g.fillStyle = grad; g.fill()
+  g.beginPath()
+  for (let i = 0; i < n; i++) { const px = x0 + i * dx, py = y(data[i]); i ? g.lineTo(px, py) : g.moveTo(px, py) }
+  g.strokeStyle = color; g.lineWidth = 1.5; g.stroke()
+}
+function bar(lbl, val, max, right) {
+  const pct = max > 0 ? Math.min(100, (val / max) * 100) : 0
+  const cls = pct > 90 ? 'crit' : pct > 70 ? 'warn' : ''
+  return `<div class="bar ${cls}"><div class="lbl"><span>${lbl}</span><span>${right}</span></div><div class="track"><i style="width:${pct}%"></i></div></div>`
+}
+function accentColor() { return (getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#7b7fff').trim() }
+
+function makeMonitor(tabId) {
+  const id = ++paneSeq
+  const leaf = document.createElement('div')
+  leaf.className = 'leaf monitor'; leaf.dataset.pane = String(id)
+  leaf.innerHTML = `
+    <div class="mon"><div class="mon-grid">
+      <div class="panel cpu"><div class="ph"><span>CPU</span><span class="sub" id="m-load-${id}"></span></div>
+        <canvas class="g" id="m-cpu-${id}"></canvas><div class="cores" id="m-cores-${id}"></div></div>
+      <div class="panel mem"><div class="ph"><span>MEMORY</span><span class="sub" id="m-memt-${id}"></span></div>
+        <canvas class="g" id="m-mem-${id}"></canvas><div class="bars" id="m-membars-${id}"></div></div>
+      <div class="panel net"><div class="ph"><span>NETWORK ▼▲</span><span class="sub" id="m-nett-${id}"></span></div>
+        <canvas class="g" id="m-net-${id}"></canvas></div>
+      <div class="panel disk"><div class="ph"><span>DISKS</span></div><div class="bars" id="m-disk-${id}"></div></div>
+      <div class="panel proc"><div class="ph"><span>PROCESSES · top CPU</span></div>
+        <table class="ptbl"><thead><tr><th>CPU%</th><th>MEM</th><th>PID</th><th>NAME</th></tr></thead>
+        <tbody id="m-proc-${id}"></tbody></table></div>
+    </div></div>`
+  const hist = { cpu: [], mem: [], net: [] }
+  const $ = s => leaf.querySelector(s)
+  const push = (a, v) => { a.push(v); if (a.length > MON_HIST) a.shift() }
+
+  const poll = async () => {
+    let s; try { s = await invoke('sys_stats') } catch (_) { return }
+    if (!leaf.isConnected) return
+    const col = accentColor()
+    // CPU
+    push(hist.cpu, s.cpu)
+    drawGraph($('#m-cpu-' + id), hist.cpu, col, 100)
+    $('#m-load-' + id).textContent = 'load ' + (s.load || []).map(x => x.toFixed(2)).join(' ') + '  ·  ' + s.cpu.toFixed(0) + '%'
+    $('#m-cores-' + id).innerHTML = (s.cores || []).map((c, i) =>
+      `<div class="core"><i style="width:${Math.min(100, c)}%"></i><span>${i}:${c.toFixed(0)}</span></div>`).join('')
+    // MEM
+    const m = s.mem, mp = m.total ? (m.used / m.total) * 100 : 0
+    push(hist.mem, mp)
+    drawGraph($('#m-mem-' + id), hist.mem, col, 100)
+    $('#m-memt-' + id).textContent = fmtBytes(m.used) + ' / ' + fmtBytes(m.total)
+    let mb = bar('RAM', m.used, m.total, mp.toFixed(0) + '%')
+    if (m.swap_total) mb += bar('Swap', m.swap_used, m.swap_total, fmtBytes(m.swap_used))
+    $('#m-membars-' + id).innerHTML = mb
+    // NET (sum ifaces; bytes since last ~1s poll = bytes/s)
+    let rx = 0, tx = 0; for (const nf of (s.net || [])) { rx += nf.rx; tx += nf.tx }
+    push(hist.net, rx + tx)
+    drawGraph($('#m-net-' + id), hist.net, col, 1)
+    $('#m-nett-' + id).textContent = '▼ ' + fmtBytes(rx) + '/s  ▲ ' + fmtBytes(tx) + '/s'
+    // DISKS
+    $('#m-disk-' + id).innerHTML = (s.disks || []).map(d => {
+      const used = d.total - d.avail
+      return bar(d.mount, used, d.total, fmtBytes(used) + '/' + fmtBytes(d.total))
+    }).join('')
+    // PROCS
+    $('#m-proc-' + id).innerHTML = (s.procs || []).map(p =>
+      `<tr><td class="num">${p.cpu.toFixed(1)}</td><td class="num">${fmtBytes(p.mem)}</td><td class="num">${p.pid}</td><td class="n">${p.name}</td></tr>`).join('')
+  }
+  const timer = setInterval(poll, 1000)
+  poll()
+  leaf.addEventListener('mousedown', () => focusPane(id), true)
+  panes.set(id, { leaf, tabId, kind: 'monitor', stop: () => clearInterval(timer) })
+  return { id, leaf }
+}
+
+function newMonitorTab() {
+  const tabId = ++tabSeq
+  const root = document.createElement('div')
+  root.className = 'tab-root'; root.dataset.tab = String(tabId)
+  document.getElementById('terms').appendChild(root)
+  const btn = document.createElement('button')
+  btn.className = 'term-tab'
+  const label = document.createElement('span'); label.textContent = '📊 monitor'
+  const close = document.createElement('span'); close.className = 'close'; close.textContent = '×'
+  close.onclick = ev => { ev.stopPropagation(); closeTab(tabId) }
+  btn.append(label, close); btn.onclick = () => activateTab(tabId)
+  document.getElementById('termtabs').insertBefore(btn, document.getElementById('newmon'))
+  tabs.set(tabId, { root, btn, title: label })
+  const made = makeMonitor(tabId)
+  root.appendChild(made.leaf)
+  activateTab(tabId); focusPane(made.id)
+  return tabId
 }
 
 function paneIdOf(leaf) { return parseInt(leaf.dataset.pane, 10) }
@@ -244,7 +398,7 @@ function focusPane(id) {
   if (!p) return
   activePane = id
   for (const q of panes.values()) q.leaf.classList.toggle('focused', q === p)
-  p.term.focus()
+  if (p.kind === 'term') p.term.focus()
 }
 
 // ── Split the ACTIVE pane: dir 'row' = left/right, 'col' = top/bottom ──
@@ -269,8 +423,8 @@ function splitActive(dir) {
 function closePane(id) {
   const p = panes.get(id)
   if (!p) return
-  invoke('pty_kill', { id })
-  try { p.term.dispose() } catch (_) {}
+  if (p.kind === 'monitor') { try { p.stop() } catch (_) {} }
+  else { invoke('pty_kill', { id }); try { p.term.dispose() } catch (_) {} }
   const leaf = p.leaf, parent = leaf.parentElement
   panes.delete(id)
   if (parent && parent.classList.contains('split')) {
@@ -361,7 +515,7 @@ function closeTab(id) {
 
 // ── Fit ── (only the visible/active tab has non-zero sized leaves)
 function fitPane(id) {
-  const p = panes.get(id); if (!p) return
+  const p = panes.get(id); if (!p || p.kind !== 'term') return
   try { p.fit.fit() } catch (_) {}
   invoke('pty_resize', { id, cols: p.term.cols, rows: p.term.rows })
 }
@@ -385,11 +539,11 @@ function applyTheme(theme) {
   if (theme.accent)  r.setProperty('--accent',  theme.accent)
   if (theme.accent2) r.setProperty('--accent2', theme.accent2)
   if (theme.bg)      r.setProperty('--bg',      theme.bg)
-  for (const p of panes.values()) p.term.options.theme = termTheme(theme)
+  for (const p of panes.values()) if (p.kind === 'term') p.term.options.theme = termTheme(theme)
 }
 
 function runItem(item) { invoke('run_item', { item }) }
-function focusActivePaneTerm() { const p = panes.get(activePane); if (p) p.term.focus() }
+function focusActivePaneTerm() { const p = panes.get(activePane); if (p && p.kind === 'term') p.term.focus() }
 
 function buildSidebar(profile) {
   const sb = document.getElementById('sidebar-list')
@@ -458,7 +612,9 @@ async function init() {
       listen('tray-run:' + label, e => runItem({ ...e.payload, ptyId: activePane })),
     ])
   } catch (err) { console.error('event listen failed:', err) }
-  newTab()
+  // DTK profile opens the System Monitor as its default tab (+ a shell tab).
+  if (label === 'tools') { const mt = newMonitorTab(); newTab(); activateTab(mt) }
+  else newTab()
   setTimeout(doFit, 60)
 }
 
@@ -476,24 +632,26 @@ window.addEventListener('blur', hideCtxMenu)
 ctx.addEventListener('click', e => {
   const it = e.target.closest('.ctx-item'); if (!it) return
   const p = panes.get(activePane)
+  const isTerm = p && p.kind === 'term'
   switch (it.dataset.act) {
-    case 'copy':      { if (p) { const s = p.term.getSelection(); if (s) clip.write(s) } break }
-    case 'paste':     clip.read().then(x => { if (x && activePane != null) invoke('pty_input', { id: activePane, d: x }) }); break
-    case 'selall':    if (p) p.term.selectAll(); break
+    case 'copy':      { if (isTerm) { const s = p.term.getSelection(); if (s) clip.write(s) } break }
+    case 'paste':     if (isTerm) clip.read().then(x => { if (x) invoke('pty_input', { id: activePane, d: x }) }); break
+    case 'selall':    if (isTerm) p.term.selectAll(); break
     case 'split-h':   splitActive('row'); break
     case 'split-v':   splitActive('col'); break
     case 'closepane': closePane(activePane); break
-    case 'clear':     if (p) p.term.clear(); break
+    case 'clear':     if (isTerm) p.term.clear(); break
     case 'newtab':    newTab(); break
   }
   hideCtxMenu(); focusActivePaneTerm()
 })
 
-document.getElementById('newtab').onclick       = () => newTab()
+document.getElementById('newtab').onclick        = () => newTab()
+document.getElementById('newmon').onclick        = () => newMonitorTab()
 document.getElementById('split-h').onclick      = () => splitActive('row')
 document.getElementById('split-v').onclick      = () => splitActive('col')
 document.getElementById('closepane-btn').onclick = () => closePane(activePane)
-document.getElementById('clear-btn').onclick    = () => { const p = panes.get(activePane); if (p) { p.term.clear(); p.term.focus() } }
+document.getElementById('clear-btn').onclick    = () => { const p = panes.get(activePane); if (p && p.kind === 'term') { p.term.clear(); p.term.focus() } }
 document.getElementById('kill-btn').onclick     = () => { if (activePane != null) invoke('pty_input', { id: activePane, d: '\x03' }) }
 
 const _search = document.getElementById('sidebar-search')
