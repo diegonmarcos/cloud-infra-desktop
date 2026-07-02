@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<!--
+  qutebrowser start-page dashboard — TEMPLATE.
+  Generator (gen-dashboard.sh) replaces {
+  "folders": {
+    "Cloud-dnm": {
+      "_desc": "Public Caddy edge — *.diegonmarcos.com (Authelia 2FA)",
+      "links": {
+        "analytics": "https://analytics.diegonmarcos.com",
+        "api": "https://api.diegonmarcos.com",
+        "auth": "https://auth.diegonmarcos.com",
+        "c3-infra-api": "https://api.diegonmarcos.com/c3-infra-api",
+        "c3-infra-mcp": "https://mcp.diegonmarcos.com/c3-infra-mcp",
+        "c3-services-api": "https://api.diegonmarcos.com/c3-services-api",
+        "c3a": "https://api.diegonmarcos.com/c3a",
+        "cal": "https://cal.diegonmarcos.com",
+        "chat": "https://chat.diegonmarcos.com",
+        "contacts": "https://contacts.diegonmarcos.com",
+        "crowdsec": "https://crowdsec.diegonmarcos.com",
+        "db": "https://db.diegonmarcos.com",
+        "dns": "https://dns.internal",
+        "doc": "https://doc.diegonmarcos.com",
+        "files": "https://files.diegonmarcos.com",
+        "fin-api": "https://api.diegonmarcos.com/fin-api",
+        "git": "https://git.diegonmarcos.com",
+        "ide": "https://ide.diegonmarcos.com",
+        "jmap": "https://jmap.diegonmarcos.com",
+        "mail": "https://mail.diegonmarcos.com",
+        "mail-puller": "https://mail-puller.diegonmarcos.com",
+        "matomo": "https://analytics.diegonmarcos.com/matomo",
+        "matrix": "https://matrix.diegonmarcos.com",
+        "mcp": "https://mcp.diegonmarcos.com",
+        "mesh": "https://mesh.diegonmarcos.com",
+        "messenger": "https://messenger.diegonmarcos.com",
+        "openobserve": "https://analytics.diegonmarcos.com/openobserve",
+        "paca": "https://paca.diegonmarcos.com",
+        "pad": "https://pad.diegonmarcos.com",
+        "photos": "https://photos.diegonmarcos.com",
+        "proxy": "https://proxy.diegonmarcos.com",
+        "pub": "https://api.diegonmarcos.com/pub",
+        "rss": "https://rss.diegonmarcos.com",
+        "sheets": "https://sheets.diegonmarcos.com",
+        "vault": "https://vault.diegonmarcos.com",
+        "vpn": "https://vpn.diegonmarcos.com",
+        "webmail": "https://webmail.diegonmarcos.com",
+        "workflows": "https://workflows.diegonmarcos.com"
+      }
+    },
+    "Cloud-priv": {
+      "_desc": "Internal WG mesh — *.app",
+      "links": {
+        "authelia": "https://authelia.app",
+        "c3-analytics-api": "https://c3-analytics-api.app",
+        "c3-infra-api": "https://c3-infra-api.app",
+        "c3-infra-mcp": "https://c3-infra-mcp.app",
+        "c3-public-api": "https://c3-public-api.app",
+        "c3-services-api": "https://c3-services-api.app",
+        "c3-services-mcp": "https://c3-services-mcp.app",
+        "c3-spec": "https://c3-spec.app",
+        "caddy": "https://caddy.app",
+        "caddy-public": "https://caddy-public.app",
+        "calendar": "https://calendar.app",
+        "claude-superset-api": "https://claude-superset-api.app",
+        "cloud-cgc-mcp": "https://cloud-cgc-mcp.app",
+        "code-server": "https://code-server.app",
+        "contacts": "https://contacts.app",
+        "crawlee": "https://crawlee.app",
+        "crowdsec": "https://crowdsec.app",
+        "cypht": "https://cypht.app",
+        "dagu": "https://dagu.app",
+        "dbgate": "https://dbgate.app",
+        "etherpad": "https://etherpad.app",
+        "filebrowser": "https://filebrowser.app",
+        "fin-api": "https://fin-api.app",
+        "g-personal-mcp": "https://g-personal-mcp.app",
+        "g-workspace-mcp": "https://g-workspace-mcp.app",
+        "gitea": "https://gitea.app",
+        "grist": "https://grist.app",
+        "hedgedoc": "https://hedgedoc.app",
+        "hickory-dns": "https://hickory-dns.app",
+        "introspect-proxy": "https://introspect-proxy.app",
+        "maddy": "https://maddy.app",
+        "mail-mcp": "https://mail-mcp.app",
+        "mail-puller": "https://mail-puller.app",
+        "matomo": "https://matomo.app",
+        "matrix-continuwuity": "https://matrix-continuwuity.app",
+        "matrix-element": "https://matrix-element.app",
+        "matrix-mautrix-whatsapp": "https://matrix-mautrix-whatsapp.app",
+        "mattermost": "https://mattermost.app",
+        "mattermost-mcp": "https://mattermost-mcp.app",
+        "news-gdelt": "https://news-gdelt.app",
+        "ntfy": "https://ntfy.app",
+        "ollama": "https://ollama.app",
+        "ollama-arm": "https://ollama-arm.app",
+        "openobserve": "https://openobserve.app",
+        "paca": "https://paca.app",
+        "photoprism": "https://photoprism.app",
+        "redis": "https://redis.app",
+        "rig-agentic-sonn-14bq8": "https://rig-agentic-sonn-14bq8.app",
+        "session-memory": "https://session-memory.app",
+        "snappymail": "https://snappymail.app",
+        "stalwart": "https://stalwart.app",
+        "umami": "https://umami.app",
+        "vaultwarden": "https://vaultwarden.app",
+        "wireguard-mesh": "https://wireguard-mesh.app",
+        "wireguard-mesh-ws-tunnel": "https://wireguard-mesh-ws-tunnel.app"
+      }
+    },
+    "Services": {
+      "_desc": "External SaaS",
+      "links": {
+        "claude-usage": "https://claude.ai/new#settings/usage",
+        "gemini": "https://gemini.google.com",
+        "github": "https://github.com/diegonmarcos"
+      }
+    },
+    "Local": {
+      "_desc": "Dev server · repos · filesystem",
+      "links": {
+        "bookmarks": "file:///home/diego/.config/qutebrowser/dashboard.html",
+        "dev": "http://localhost:8000",
+        "home": "file:///home/diego",
+        "mnt": "file:///mnt",
+        "cloud": "file:///home/diego/git/cloud",
+        "unix": "file:///home/diego/git/unix",
+        "front": "file:///home/diego/git/front",
+        "vault": "file:///home/diego/git/vault",
+        "tools": "file:///home/diego/git/tools"
+      }
+    }
+  }
+} with the merged folder JSON.
+  Two views (persisted in localStorage):
+    • Icons — ANDROID LAUNCHER: home screen of folder icons (squircle w/ 2x2 preview);
+              tap a folder to open it and reveal the app icons inside.
+    • List  — traditional folder/file tree.
+  Keys: v = toggle view · / = search · Esc = close folder / clear · qutebrowser hints on every link.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>◆ bookmarks</title>
+<style>
+  :root{
+    --fg:#eef2f8; --muted:#aab6c8; --hi:#fff;
+    --dnm:#3b82f6; --priv:#a855f7; --svc:#f59e0b; --local:#10b981;
+    --sq:28%;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    color:var(--fg);
+    font:14px/1.45 'JetBrains Mono','SFMono-Regular',ui-monospace,Menlo,Consolas,monospace;
+    -webkit-font-smoothing:antialiased;
+    /* Android-style vibrant wallpaper */
+    background:
+      radial-gradient(900px 900px at 12% 8%, #4338ca55, transparent 55%),
+      radial-gradient(1000px 800px at 92% 12%, #9333ea4d, transparent 55%),
+      radial-gradient(900px 900px at 70% 100%, #0ea5e94d, transparent 55%),
+      linear-gradient(160deg,#0b1020,#0a0d17 60%,#0b1020);
+    min-height:100vh; overflow-x:hidden;
+  }
+  /* status/top bar */
+  header{display:flex;align-items:center;gap:16px;padding:22px clamp(18px,5vw,60px) 10px}
+  .brand{font-size:17px;font-weight:700;letter-spacing:.5px;color:#fff;text-shadow:0 1px 8px #0008}
+  .brand b{background:linear-gradient(90deg,var(--dnm),var(--priv),var(--svc),var(--local));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .clock{color:#dfe7f2;font-variant-numeric:tabular-nums;text-shadow:0 1px 6px #0007}
+  .spacer{flex:1}
+  .search input{background:#ffffff1a;border:1px solid #ffffff26;color:#fff;padding:8px 14px;
+    border-radius:22px;width:210px;outline:none;font:inherit;backdrop-filter:blur(8px)}
+  .search input::placeholder{color:#ffffff99}
+  .search input:focus{border-color:#ffffff66;background:#ffffff26}
+  .toggle{display:flex;background:#ffffff1a;border:1px solid #ffffff26;border-radius:22px;overflow:hidden;backdrop-filter:blur(8px)}
+  .toggle button{background:none;border:0;color:#ffffffb0;font:inherit;padding:8px 15px;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .toggle button.on{background:#ffffff2e;color:#fff}
+  .toggle svg{width:15px;height:15px}
+  .gear{background:#ffffff1a;border:1px solid #ffffff26;border-radius:50%;width:38px;height:38px;
+    display:grid;place-items:center;color:#ffffffcc;cursor:pointer;backdrop-filter:blur(8px);transition:transform .3s,color .15s}
+  .gear:hover{color:#fff;transform:rotate(60deg)} .gear svg{width:18px;height:18px}
+  /* config panel */
+  .tabs{display:flex;gap:8px;margin-bottom:18px}
+  .tabs button{background:#ffffff12;border:1px solid #ffffff20;color:#ffffffb0;font:inherit;
+    padding:7px 16px;border-radius:20px;cursor:pointer}
+  .tabs button.on{background:var(--dnm);border-color:transparent;color:#fff}
+  .cfg-body{min-height:120px}
+  .hrun{background:var(--local);border:0;color:#04120b;font:inherit;font-weight:700;padding:9px 18px;
+    border-radius:20px;cursor:pointer;margin-bottom:16px}
+  .hrun:disabled{opacity:.5;cursor:default}
+  .hgrp{margin:14px 0 6px;color:#fff;font-weight:600;display:flex;gap:10px;align-items:center}
+  .hgrp .dot{width:9px;height:9px;border-radius:50%;background:var(--a)}
+  .hgrp .tally{margin-left:auto;font-size:12px;color:var(--muted)}
+  .hrow{display:flex;align-items:center;gap:10px;padding:5px 10px;border-radius:7px;font-size:13px}
+  .hrow:hover{background:#ffffff08}
+  .hrow .st{width:16px;text-align:center} .st.ok{color:#34d399}.st.bad{color:#f87171}.st.na{color:#7c8aa0}.st.run{color:#fbbf24}
+  .hrow .hn{color:#e7edf6;min-width:150px} .hrow .hms{color:var(--muted);font-size:11px;margin-left:auto}
+  .about{color:#cdd7e6;line-height:1.7} .about h3{color:#fff;margin:0 0 8px}
+  .about code{background:#ffffff14;padding:1px 6px;border-radius:5px;font-size:12px}
+  .about .stat{display:inline-block;background:#ffffff10;border:1px solid #ffffff1c;border-radius:10px;
+    padding:8px 14px;margin:4px 8px 4px 0}
+  .about .stat b{color:#fff;font-size:18px;display:block}
+
+  /* accents by folder */
+  [data-k="Cloud-dnm"]{--a:var(--dnm)} [data-k="Cloud-priv"]{--a:var(--priv)}
+  [data-k="Services"]{--a:var(--svc)} [data-k="Local"]{--a:var(--local)}
+  [data-k]{--a:#64748b}
+
+  /* ─────────── ICONS = ANDROID HOME SCREEN ─────────── */
+  #home{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));
+    gap:34px 12px;justify-items:center;align-content:start;
+    max-width:760px;margin:6vh auto 0;padding:0 20px 90px}
+  .folder-ico{display:flex;flex-direction:column;align-items:center;gap:12px;cursor:pointer;
+    border:0;background:none;color:#fff;font:inherit;width:104px;transition:transform .13s}
+  .folder-ico:hover,.folder-ico:focus-visible{transform:translateY(-4px);outline:none}
+  .fbox{width:84px;height:84px;border-radius:24px;padding:11px;
+    display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:6px;
+    background:#ffffff1f;backdrop-filter:blur(14px);
+    border:1px solid #ffffff2e;box-shadow:0 10px 30px #0007, inset 0 1px 0 #ffffff33;position:relative}
+  .fbox::after{content:'';position:absolute;inset:0;border-radius:24px;
+    background:radial-gradient(circle at 50% 0,var(--a),transparent 70%);opacity:.28}
+  .mini{width:100%;height:100%;border-radius:8px;background:#0006;display:grid;place-items:center;
+    overflow:hidden;font-size:11px;font-weight:700;color:#fff}
+  .mini img{width:100%;height:100%;object-fit:cover}
+  .folder-ico .cap{font-size:13px;color:#fff;text-shadow:0 1px 6px #0009;max-width:104px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .folder-ico .cnt{font-size:11px;color:#ffffffcc;background:#0004;padding:0 7px;border-radius:10px}
+
+  /* open folder overlay (Android folder expand) */
+  #scrim{position:fixed;inset:0;background:#05070ccc;backdrop-filter:blur(6px);
+    display:none;align-items:center;justify-content:center;z-index:20;padding:24px}
+  #scrim.on{display:flex;animation:fade .18s ease}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .sheet{width:min(680px,94vw);max-height:82vh;overflow:auto;border-radius:30px;
+    background:#141a26e6;border:1px solid #ffffff24;box-shadow:0 30px 80px #000a;
+    padding:26px 26px 30px;animation:pop .2s cubic-bezier(.2,.9,.3,1.2)}
+  @keyframes pop{from{transform:scale(.9);opacity:.4}to{transform:scale(1);opacity:1}}
+  .sheet h2{display:flex;align-items:center;gap:11px;font-size:19px;color:#fff;margin-bottom:20px}
+  .sheet h2 .dot{width:12px;height:12px;border-radius:50%;background:var(--a);box-shadow:0 0 14px var(--a)}
+  .sheet h2 .x{margin-left:auto;background:#ffffff14;border:0;color:#fff;width:32px;height:32px;
+    border-radius:50%;cursor:pointer;font-size:16px}
+  .appgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:20px 8px}
+  .app{display:flex;flex-direction:column;align-items:center;gap:9px;text-decoration:none;color:#fff;
+    border-radius:16px;padding:6px 2px;transition:transform .1s,background .1s}
+  .app:hover{transform:translateY(-3px);background:#ffffff0f}
+  .app:focus-visible{outline:2px solid var(--a);outline-offset:3px}
+  .icn{width:58px;height:58px;border-radius:var(--sq);display:grid;place-items:center;overflow:hidden;
+    font-size:24px;font-weight:800;color:#fff;position:relative;
+    background:linear-gradient(150deg,var(--a),#0000),#1b2433;
+    box-shadow:0 8px 20px #0007, inset 0 1px 0 #ffffff2b}
+  .icn img{width:100%;height:100%;object-fit:cover}
+  .app .lbl{font-size:12px;color:#eaf0f8;max-width:82px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .empty{color:var(--muted);font-style:italic;padding:8px}
+
+  /* ─────────── LIST view ─────────── */
+  #list{display:none;max-width:900px;margin:14px auto 80px;padding:0 clamp(18px,5vw,40px)}
+  body.list-mode #home{display:none}
+  body.list-mode #list{display:block}
+  .folder{margin-bottom:22px;border:1px solid #ffffff14;border-radius:14px;background:#0d131f80;overflow:hidden}
+  .fhead{display:flex;align-items:center;gap:11px;padding:13px 16px;cursor:pointer;user-select:none}
+  .fhead .dot{width:10px;height:10px;border-radius:50%;background:var(--a);box-shadow:0 0 10px var(--a)}
+  .fhead .fname{font-weight:600;color:#fff}.fhead .cnt{color:var(--muted);font-size:12px}
+  .fhead .fdesc{margin-left:auto;color:var(--muted);font-size:12px}
+  .fhead .caret{color:var(--a);transition:transform .18s}
+  .folder.collapsed .caret{transform:rotate(-90deg)} .folder.collapsed .rows{display:none}
+  .rows{border-top:1px solid #ffffff10}
+  .row{display:flex;align-items:center;gap:12px;padding:9px 18px;text-decoration:none;color:var(--fg)}
+  .row:hover{background:#ffffff0c} .row:focus-visible{outline:2px solid var(--a);outline-offset:-2px}
+  .row .fi{width:20px;height:20px;border-radius:6px;flex:none;display:grid;place-items:center;overflow:hidden;
+    font-size:10px;font-weight:700;color:#fff;background:var(--a)}
+  .row .fi img{width:100%;height:100%;object-fit:cover}
+  .row .rn{color:#fff;min-width:130px} .row .ru{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hidden{display:none!important}
+  footer{position:fixed;bottom:12px;left:0;right:0;text-align:center;color:#ffffff88;font-size:11px;text-shadow:0 1px 4px #0008}
+  kbd{background:#ffffff1f;border:1px solid #ffffff30;border-radius:5px;padding:1px 6px;font:inherit;font-size:11px;color:#fff}
+</style>
+</head>
+<body class="icons-mode">
+  <header>
+    <div class="brand">◆ <b>bookmarks</b></div>
+    <div class="clock" id="clock"></div>
+    <div class="spacer"></div>
+    <label class="search"><input id="q" type="text" placeholder="search…" autocomplete="off" spellcheck="false"></label>
+    <div class="toggle" id="toggle">
+      <button data-view="icons" title="Icons (v)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Icons</button>
+      <button data-view="list" title="List (v)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>List</button>
+    </div>
+    <button class="gear" id="gear" title="Config"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+  </header>
+
+  <div id="home"></div>
+  <div id="list"></div>
+
+  <div id="scrim"><div class="sheet" id="sheet"></div></div>
+  <footer><kbd>v</kbd> view · <kbd>/</kbd> search · <kbd>Esc</kbd> close · qutebrowser <kbd>f</kbd> to follow</footer>
+
+<script>
+const DATA = {
+  "folders": {
+    "Cloud-dnm": {
+      "_desc": "Public Caddy edge — *.diegonmarcos.com (Authelia 2FA)",
+      "links": {
+        "analytics": "https://analytics.diegonmarcos.com",
+        "api": "https://api.diegonmarcos.com",
+        "auth": "https://auth.diegonmarcos.com",
+        "c3-infra-api": "https://api.diegonmarcos.com/c3-infra-api",
+        "c3-infra-mcp": "https://mcp.diegonmarcos.com/c3-infra-mcp",
+        "c3-services-api": "https://api.diegonmarcos.com/c3-services-api",
+        "c3a": "https://api.diegonmarcos.com/c3a",
+        "cal": "https://cal.diegonmarcos.com",
+        "chat": "https://chat.diegonmarcos.com",
+        "contacts": "https://contacts.diegonmarcos.com",
+        "crowdsec": "https://crowdsec.diegonmarcos.com",
+        "db": "https://db.diegonmarcos.com",
+        "dns": "https://dns.internal",
+        "doc": "https://doc.diegonmarcos.com",
+        "files": "https://files.diegonmarcos.com",
+        "fin-api": "https://api.diegonmarcos.com/fin-api",
+        "git": "https://git.diegonmarcos.com",
+        "ide": "https://ide.diegonmarcos.com",
+        "jmap": "https://jmap.diegonmarcos.com",
+        "mail": "https://mail.diegonmarcos.com",
+        "mail-puller": "https://mail-puller.diegonmarcos.com",
+        "matomo": "https://analytics.diegonmarcos.com/matomo",
+        "matrix": "https://matrix.diegonmarcos.com",
+        "mcp": "https://mcp.diegonmarcos.com",
+        "mesh": "https://mesh.diegonmarcos.com",
+        "messenger": "https://messenger.diegonmarcos.com",
+        "openobserve": "https://analytics.diegonmarcos.com/openobserve",
+        "paca": "https://paca.diegonmarcos.com",
+        "pad": "https://pad.diegonmarcos.com",
+        "photos": "https://photos.diegonmarcos.com",
+        "proxy": "https://proxy.diegonmarcos.com",
+        "pub": "https://api.diegonmarcos.com/pub",
+        "rss": "https://rss.diegonmarcos.com",
+        "sheets": "https://sheets.diegonmarcos.com",
+        "vault": "https://vault.diegonmarcos.com",
+        "vpn": "https://vpn.diegonmarcos.com",
+        "webmail": "https://webmail.diegonmarcos.com",
+        "workflows": "https://workflows.diegonmarcos.com"
+      }
+    },
+    "Cloud-priv": {
+      "_desc": "Internal WG mesh — *.app",
+      "links": {
+        "authelia": "https://authelia.app",
+        "c3-analytics-api": "https://c3-analytics-api.app",
+        "c3-infra-api": "https://c3-infra-api.app",
+        "c3-infra-mcp": "https://c3-infra-mcp.app",
+        "c3-public-api": "https://c3-public-api.app",
+        "c3-services-api": "https://c3-services-api.app",
+        "c3-services-mcp": "https://c3-services-mcp.app",
+        "c3-spec": "https://c3-spec.app",
+        "caddy": "https://caddy.app",
+        "caddy-public": "https://caddy-public.app",
+        "calendar": "https://calendar.app",
+        "claude-superset-api": "https://claude-superset-api.app",
+        "cloud-cgc-mcp": "https://cloud-cgc-mcp.app",
+        "code-server": "https://code-server.app",
+        "contacts": "https://contacts.app",
+        "crawlee": "https://crawlee.app",
+        "crowdsec": "https://crowdsec.app",
+        "cypht": "https://cypht.app",
+        "dagu": "https://dagu.app",
+        "dbgate": "https://dbgate.app",
+        "etherpad": "https://etherpad.app",
+        "filebrowser": "https://filebrowser.app",
+        "fin-api": "https://fin-api.app",
+        "g-personal-mcp": "https://g-personal-mcp.app",
+        "g-workspace-mcp": "https://g-workspace-mcp.app",
+        "gitea": "https://gitea.app",
+        "grist": "https://grist.app",
+        "hedgedoc": "https://hedgedoc.app",
+        "hickory-dns": "https://hickory-dns.app",
+        "introspect-proxy": "https://introspect-proxy.app",
+        "maddy": "https://maddy.app",
+        "mail-mcp": "https://mail-mcp.app",
+        "mail-puller": "https://mail-puller.app",
+        "matomo": "https://matomo.app",
+        "matrix-continuwuity": "https://matrix-continuwuity.app",
+        "matrix-element": "https://matrix-element.app",
+        "matrix-mautrix-whatsapp": "https://matrix-mautrix-whatsapp.app",
+        "mattermost": "https://mattermost.app",
+        "mattermost-mcp": "https://mattermost-mcp.app",
+        "news-gdelt": "https://news-gdelt.app",
+        "ntfy": "https://ntfy.app",
+        "ollama": "https://ollama.app",
+        "ollama-arm": "https://ollama-arm.app",
+        "openobserve": "https://openobserve.app",
+        "paca": "https://paca.app",
+        "photoprism": "https://photoprism.app",
+        "redis": "https://redis.app",
+        "rig-agentic-sonn-14bq8": "https://rig-agentic-sonn-14bq8.app",
+        "session-memory": "https://session-memory.app",
+        "snappymail": "https://snappymail.app",
+        "stalwart": "https://stalwart.app",
+        "umami": "https://umami.app",
+        "vaultwarden": "https://vaultwarden.app",
+        "wireguard-mesh": "https://wireguard-mesh.app",
+        "wireguard-mesh-ws-tunnel": "https://wireguard-mesh-ws-tunnel.app"
+      }
+    },
+    "Services": {
+      "_desc": "External SaaS",
+      "links": {
+        "claude-usage": "https://claude.ai/new#settings/usage",
+        "gemini": "https://gemini.google.com",
+        "github": "https://github.com/diegonmarcos"
+      }
+    },
+    "Local": {
+      "_desc": "Dev server · repos · filesystem",
+      "links": {
+        "bookmarks": "file:///home/diego/.config/qutebrowser/dashboard.html",
+        "dev": "http://localhost:8000",
+        "home": "file:///home/diego",
+        "mnt": "file:///mnt",
+        "cloud": "file:///home/diego/git/cloud",
+        "unix": "file:///home/diego/git/unix",
+        "front": "file:///home/diego/git/front",
+        "vault": "file:///home/diego/git/vault",
+        "tools": "file:///home/diego/git/tools"
+      }
+    }
+  }
+};
+const FOLDERS = Object.entries(DATA.folders||{}).map(([k,v])=>({key:k,desc:(v._desc||''),links:v.links||{}}));
+
+const host = u => { try{ return new URL(u).hostname||'localhost'; }catch(e){ return 'localhost'; } };
+const fav  = u => `https://icons.duckduckgo.com/ip3/${host(u)}.ico`;
+const L    = n => (n.replace(/[^a-z0-9]/ig,'')[0]||'◆').toUpperCase();
+// icon <img> with letter fallback
+const icon = (name,url,cls)=>`<span class="${cls}" data-l="${L(name)}"><img src="${fav(url)}" alt="" loading="lazy" onerror="this.remove();this.parentNode.textContent=this.parentNode.dataset.l"></span>`;
+
+/* ---------- Android home: folder icons ---------- */
+function renderHome(){
+  const home=document.getElementById('home'); home.innerHTML='';
+  FOLDERS.forEach((f,i)=>{
+    const names=Object.keys(f.links);
+    const preview=names.slice(0,4).map(n=>`<span class="mini" data-l="${L(n)}"><img src="${fav(f.links[n])}" alt="" onerror="this.remove();this.parentNode.textContent=this.parentNode.dataset.l"></span>`).join('')
+                 || '<span class="mini">·</span>';
+    const b=document.createElement('button');
+    b.className='folder-ico'; b.dataset.k=f.key; b.dataset.i=i;
+    b.innerHTML=`<span class="fbox">${preview}</span><span class="cap">${f.key}</span><span class="cnt">${names.length}</span>`;
+    b.addEventListener('click',()=>openFolder(i));
+    home.appendChild(b);
+  });
+}
+
+/* ---------- open a folder (Android expand) ---------- */
+let openIdx=-1;
+function openFolder(i){
+  openIdx=i; const f=FOLDERS[i];
+  const names=Object.keys(f.links);
+  const sheet=document.getElementById('sheet');
+  sheet.dataset.k=f.key;
+  sheet.style.setProperty('--a',getComputedStyle(document.querySelector(`.folder-ico[data-i="${i}"]`)).getPropertyValue('--a'));
+  sheet.innerHTML=`<h2><span class="dot"></span>${f.key}
+      <span style="font-size:12px;color:var(--muted);font-weight:400">${f.desc}</span>
+      <button class="x" title="close (Esc)">✕</button></h2>
+    <div class="appgrid">`+
+    (names.length?names.map(n=>
+      `<a class="app" href="${f.links[n]}" target="_blank" rel="noopener" data-name="${n.toLowerCase()}">${icon(n,f.links[n],'icn')}<span class="lbl">${n}</span></a>`).join('')
+      :`<div class="empty">— empty —</div>`)+`</div>`;
+  sheet.querySelector('.x').addEventListener('click',closeFolder);
+  document.getElementById('scrim').classList.add('on');
+}
+function closeFolder(){ document.getElementById('scrim').classList.remove('on'); openIdx=-1; }
+document.getElementById('scrim').addEventListener('click',e=>{ if(e.target.id==='scrim') closeFolder(); });
+
+/* ---------- Config: Health + About ---------- */
+function openConfig(tab){
+  const sheet=document.getElementById('sheet');
+  sheet.dataset.k=''; sheet.style.setProperty('--a','var(--dnm)');
+  sheet.innerHTML=`<h2><span class="dot"></span>Config
+      <button class="x" title="close (Esc)">✕</button></h2>
+    <div class="tabs"><button data-t="health">Health</button><button data-t="about">About</button></div>
+    <div class="cfg-body" id="cfgbody"></div>`;
+  sheet.querySelector('.x').addEventListener('click',closeFolder);
+  sheet.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>showCfgTab(b.dataset.t)));
+  document.getElementById('scrim').classList.add('on');
+  showCfgTab(tab||'health');
+}
+function showCfgTab(t){
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  const body=document.getElementById('cfgbody');
+  if(t==='about'){
+    const nf=FOLDERS.length, nl=FOLDERS.reduce((a,f)=>a+Object.keys(f.links).length,0);
+    body.innerHTML=`<div class="about">
+      <h3>◆ bookmarks — cloud dashboard</h3>
+      <p>A declarative, data-driven start page for <b>qutebrowser</b>. Cloud folders are
+      generated from <code>cloud-data → build-flakes_desktop.json</code> (every service's
+      <code>proxy.primary</code> route); Services &amp; Local are curated in
+      <code>qute-bookmarks.json</code>. Rendered by <code>gen-dashboard.sh</code>.</p>
+      <p style="margin:14px 0">
+        <span class="stat"><b>${nf}</b>folders</span>
+        <span class="stat"><b>${nl}</b>links</span>
+        ${FOLDERS.map(f=>`<span class="stat" data-k="${f.key}"><b>${Object.keys(f.links).length}</b>${f.key}</span>`).join('')}
+      </p>
+      <p><b>Views:</b> Icons (Android launcher) · List (tree) — toggle <kbd>v</kbd>.
+         <b>Search</b> <kbd>/</kbd>. Links open in a new tab.</p>
+      <p style="color:var(--muted);font-size:12px">Owner: Diego Nepomuceno Marcos ·
+         source: <code>da_browser-qute/src/dashboard</code></p>
+    </div>`;
+  } else {
+    body.innerHTML=`<button class="hrun" id="hrun">▶ Run health check</button>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:6px">
+        Browser reachability probe (no-cors fetch, 8s timeout). <code>*.app</code> need the WG mesh up;
+        <code>file://</code> paths are local (n/a).</p>
+      <div id="hres"></div>`;
+    document.getElementById('hrun').addEventListener('click',runHealth);
+  }
+}
+async function ping(url){
+  if(!/^https?:/i.test(url)) return {s:'na',ms:0};
+  const t0=performance.now(), c=new AbortController(), to=setTimeout(()=>c.abort(),8000);
+  try{ await fetch(url,{mode:'no-cors',cache:'no-store',signal:c.signal}); clearTimeout(to);
+       return {s:'ok',ms:Math.round(performance.now()-t0)}; }
+  catch(e){ clearTimeout(to); return {s:'bad',ms:Math.round(performance.now()-t0)}; }
+}
+async function runHealth(){
+  const btn=document.getElementById('hrun'); btn.disabled=true; btn.textContent='… probing';
+  const res=document.getElementById('hres'); res.innerHTML='';
+  for(const f of FOLDERS){
+    const names=Object.keys(f.links); if(!names.length) continue;
+    const grp=document.createElement('div'); grp.dataset.k=f.key;
+    grp.innerHTML=`<div class="hgrp" data-k="${f.key}"><span class="dot"></span>${f.key}<span class="tally">…</span></div>`+
+      names.map(n=>`<div class="hrow" id="h-${f.key}-${n}"><span class="st run" >◔</span><span class="hn">${n}</span><span class="hms">${f.links[n]}</span></div>`).join('');
+    res.appendChild(grp);
+    let ok=0,bad=0,na=0;
+    // small concurrency pool
+    const q=names.slice();
+    async function worker(){ while(q.length){ const n=q.shift();
+      const r=await ping(f.links[n]); const row=document.getElementById(`h-${f.key}-${n}`);
+      const st=row.querySelector('.st'); const ms=row.querySelector('.hms');
+      st.className='st '+(r.s==='ok'?'ok':r.s==='na'?'na':'bad');
+      st.textContent=r.s==='ok'?'✓':r.s==='na'?'—':'✗';
+      if(r.s!=='na') ms.textContent=`${r.ms}ms · ${f.links[n]}`;
+      r.s==='ok'?ok++:r.s==='na'?na++:bad++;
+    }}
+    await Promise.all([worker(),worker(),worker(),worker(),worker(),worker()]);
+    grp.querySelector('.tally').textContent=`${ok} up · ${bad} down${na?` · ${na} n/a`:''}`;
+  }
+  btn.disabled=false; btn.textContent='▶ Re-run';
+}
+document.getElementById('gear').addEventListener('click',()=>openConfig('health'));
+
+/* ---------- List view ---------- */
+function renderList(){
+  const list=document.getElementById('list'); list.innerHTML='';
+  FOLDERS.forEach(f=>{
+    const names=Object.keys(f.links);
+    const sec=document.createElement('section'); sec.className='folder'; sec.dataset.k=f.key;
+    sec.innerHTML=`<div class="fhead"><span class="caret">▾</span><span class="dot"></span>
+        <span class="fname">${f.key}</span><span class="cnt">${names.length}</span><span class="fdesc">${f.desc}</span></div>
+      <div class="rows">`+
+      (names.length?names.map(n=>
+        `<a class="row" href="${f.links[n]}" target="_blank" rel="noopener" data-name="${n.toLowerCase()}" data-url="${f.links[n].toLowerCase()}">
+          ${icon(n,f.links[n],'fi')}<span class="rn">${n}</span><span class="ru">${f.links[n]}</span></a>`).join('')
+        :`<div class="empty">— empty —</div>`)+`</div>`;
+    sec.querySelector('.fhead').addEventListener('click',()=>sec.classList.toggle('collapsed'));
+    list.appendChild(sec);
+  });
+}
+
+function setView(v){
+  document.body.className=v+'-mode';
+  document.querySelectorAll('#toggle button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
+  try{ localStorage.setItem('bm-view',v); }catch(e){}
+  if(v!=='icons') closeFolder();
+}
+
+/* search: on home filters folders that contain a match & auto-opens; in list filters rows */
+function filter(t){
+  t=t.trim().toLowerCase();
+  if(document.body.classList.contains('list-mode')){
+    document.querySelectorAll('#list .folder').forEach(f=>{
+      let any=false;
+      f.querySelectorAll('[data-name]').forEach(el=>{
+        const hit=!t||el.dataset.name.includes(t)||(el.dataset.url||'').includes(t);
+        el.classList.toggle('hidden',!hit); if(hit)any=true;
+      });
+      f.classList.toggle('hidden',!!t&&!any);
+    });
+  }else{
+    document.querySelectorAll('#home .folder-ico').forEach(b=>{
+      const f=FOLDERS[+b.dataset.i];
+      const hit=!t||Object.keys(f.links).some(n=>n.toLowerCase().includes(t)||f.links[n].toLowerCase().includes(t));
+      b.classList.toggle('hidden',!hit);
+    });
+  }
+}
+
+renderHome(); renderList();
+setView((()=>{try{return localStorage.getItem('bm-view')||'icons';}catch(e){return 'icons';}})());
+document.getElementById('toggle').addEventListener('click',e=>{const b=e.target.closest('button'); if(b)setView(b.dataset.view);});
+const q=document.getElementById('q');
+q.addEventListener('input',()=>filter(q.value));
+document.addEventListener('keydown',e=>{
+  if(e.target===q){ if(e.key==='Escape'){q.value='';filter('');q.blur();} return; }
+  if(e.key==='/'){ e.preventDefault(); q.focus(); }
+  else if(e.key==='v'){ setView(document.body.classList.contains('icons-mode')?'list':'icons'); }
+  else if(e.key==='Escape'){ closeFolder(); }
+});
+const clk=document.getElementById('clock');
+const tick=()=>{const d=new Date();clk.textContent=d.toTimeString().slice(0,5);};
+tick(); setInterval(tick,10000);
+</script>
+</body>
+</html>
