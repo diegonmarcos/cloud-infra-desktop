@@ -1,10 +1,12 @@
 name: "Ship → Redroid baked image (apps + layout + theme baked into GHCR image)"
 
-# Builds the redroid-cloud image with the Cloud app set + Launcher3 layout + theme BAKED
-# IN (data-snapshot): boots base redroid on the runner, installs the 58 apps + renders the
-# layout + applies theme, snapshots /data, docker-builds da_redroid/src/Dockerfile shipping
-# that snapshot + the first-boot seed, and pushes to GHCR. Runtime = `build.sh up` (pull+run,
-# no install). Heavy — runs in CI, never on the 8GB laptop.
+# Builds the redroid-cloud image with the Cloud app set BAKED IN as system apps + the baked
+# Launcher3 layout/theme (system-app bake — NO Android boot, since GitHub-hosted runners have
+# no binder and cannot boot redroid). `build.sh bake` fetches the APK set, lays them into
+# /system/app, extracts launcher activities statically (aapt), pre-renders the layout SQL, and
+# docker-builds da_redroid/src/Dockerfile; `verify` statically asserts every app+layout is in
+# the image; then push to GHCR. Runtime = `build.sh up` (pull+run); apps install at boot and
+# the seed applies layout+theme on first boot.
 
 on:
   push:
@@ -31,18 +33,12 @@ jobs:
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL || true
           df -h /
 
-      - name: Install Nix (for the reproducible F-Droid/GitHub APK fetch)
+      - name: Install Nix (for the reproducible F-Droid/GitHub APK fetch + aapt)
         uses: cachix/install-nix-action@v27
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
             accept-flake-config = true
-
-      - name: Ensure Android binder is available for redroid
-        run: |
-          sudo modprobe binder_linux devices=binder,hwbinder,vndbinder 2>/dev/null || true
-          # binderfs (built into modern Ubuntu kernels) — redroid mounts it under --privileged.
-          grep -q binder /proc/filesystems && echo "binder present" || echo "::warning::binder not in /proc/filesystems — redroid boot may fail"
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin

@@ -1,20 +1,40 @@
 #!/system/bin/sh
-# redroid-cloud first-boot /data seed. Runs from an Android init service at
-# `post-fs-data` (i.e. AFTER /data is mounted and /system tools are available —
-# the correct, non-fragile timing, unlike wrapping the container entrypoint).
-#
-# If /data has not been seeded yet (no marker), extract the baked snapshot — the
-# EXACT /data produced in CI by `build.sh bake` (redroid booted once + the 58 apps
-# installed + Launcher3 layout rendered + theme applied). This makes the container
-# start FULLY PROVISIONED like Waydroid, with ZERO runtime install.
+# redroid-cloud first-boot configurator. The 58 apps are BAKED as system apps in
+# /system/app (installed by Android at boot — no runtime install). This script only
+# applies the BAKED home-screen layout + theme ONCE, from data shipped inside the image
+# (/system/etc/redroid-cloud/), using tools that ship in AOSP (sqlite3, toybox, cmd,
+# settings). No adb, no network, no external install — pure in-image self-configuration.
+# Triggered by an init service on sys.boot_completed=1 (Launcher3 is up, its DB exists).
 set -u
-MARKER=/data/.redroid-cloud-seeded
-SNAP=/system/etc/redroid-cloud/data.tar
-[ -e "$MARKER" ] && exit 0
-[ -f "$SNAP" ] || { log -t redroid-cloud "no baked snapshot at $SNAP"; exit 0; }
-log -t redroid-cloud "seeding baked /data from $SNAP…"
-# toybox tar (in /system/bin) preserves perms; restore SELinux contexts after.
-/system/bin/tar -x -p -f "$SNAP" -C /data 2>/dev/null || { log -t redroid-cloud "tar extract failed"; exit 1; }
-/system/bin/restorecon -R /data 2>/dev/null || true
-: > "$MARKER"
-log -t redroid-cloud "seed complete."
+BASE=/system/etc/redroid-cloud
+MARK=/data/.redroid-cloud-configured
+[ -e "$MARK" ] && exit 0
+log -t redroid-cloud "first-boot configure: layout + theme…"
+
+# ── theme (data-driven from the baked theme.sh: DARK, AUTOROTATE, WALLPAPER_DIM) ──
+[ -f "$BASE/theme.sh" ] && . "$BASE/theme.sh"
+if [ "${DARK:-0}" = "1" ]; then cmd uimode night yes >/dev/null 2>&1; settings put secure ui_night_mode 2 >/dev/null 2>&1; fi
+[ "${AUTOROTATE:-0}" = "1" ] && settings put system accelerometer_rotation 1 >/dev/null 2>&1
+[ -n "${WALLPAPER_DIM:-}" ] && cmd wallpaper set-dim-amount "$WALLPAPER_DIM" >/dev/null 2>&1
+
+# ── layout: apply the baked Launcher3 favorites SQL (rendered at bake time) ──
+LP=com.android.launcher3
+DB="$(ls /data/data/$LP/databases/launcher*.db 2>/dev/null | head -n1)"
+if [ -n "$DB" ] && [ -f "$BASE/layout.sql" ]; then
+  OWN="$(stat -c '%u:%g' "$DB" 2>/dev/null)"
+  am force-stop "$LP" >/dev/null 2>&1
+  if sqlite3 "$DB" < "$BASE/layout.sql" 2>/dev/null; then
+    # sqlite3 ran as root → restore Launcher3's uid + drop stale WAL so it doesn't crash-loop.
+    [ -n "$OWN" ] && chown "$OWN" "$DB" 2>/dev/null
+    rm -f "$DB-wal" "$DB-shm" 2>/dev/null
+    monkey -p "$LP" 1 >/dev/null 2>&1
+    log -t redroid-cloud "layout applied."
+  else
+    log -t redroid-cloud "layout sqlite apply failed"
+  fi
+else
+  log -t redroid-cloud "launcher DB not ready or no baked layout.sql (DB=$DB)"
+fi
+
+: > "$MARK"
+log -t redroid-cloud "configure complete."

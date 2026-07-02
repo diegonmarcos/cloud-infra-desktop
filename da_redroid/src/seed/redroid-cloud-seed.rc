@@ -1,14 +1,13 @@
-# Android init service that seeds the baked /data on first boot.
-# Placed at /system/etc/init/ so init auto-imports it. Triggers at post-fs-data —
-# the point where /data is mounted but before zygote/system_server start, so the
-# apps + Launcher3 layout are already present the first time the framework comes up.
+# Android init service: applies the baked layout + theme ONCE, after the framework is up.
+# Placed at /system/etc/init/ (auto-imported). Triggers on sys.boot_completed=1 — Launcher3
+# has started and created its favorites DB, so the baked layout SQL can be applied to it.
 service redroid_cloud_seed /system/bin/sh /system/etc/redroid-cloud/seed.sh
-    class core
+    class late_start
     user root
-    group root
+    group root system
     seclabel u:r:magisk:s0
     oneshot
     disabled
 
-on post-fs-data
+on property:sys.boot_completed=1
     start redroid_cloud_seed

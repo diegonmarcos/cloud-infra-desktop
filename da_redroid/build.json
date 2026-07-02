@@ -53,7 +53,7 @@
     "launch_flags": "0x10200000"
   },
   "image": {
-    "_doc": "GHCR delivery of the BAKED redroid-cloud image (data-snapshot bake). CI (ship-redroid-image.yml) runs `build.sh bake` which boots base redroid, installs the app set + renders layout + theme, snapshots /data, and docker-builds src/Dockerfile shipping that snapshot + the first-boot seed; then pushes here. Matches the stack's 'every service is a GHCR image' rule.",
+    "_doc": "GHCR delivery of the BAKED redroid-cloud image (SYSTEM-APP bake — no Android boot, so it builds on any runner; GitHub-hosted runners have no binder and cannot boot redroid). CI (ship-redroid-image.yml) runs `build.sh bake`: fetch the APK set, lay them into /system/app, extract launcher activities statically via aapt, pre-render the Launcher3 layout SQL, docker-build src/Dockerfile; then verify (static, no boot) + push here. Runtime `up` pulls+runs; apps install at boot, the seed applies layout+theme on first boot. Matches the stack's 'every service is a GHCR image' rule.",
     "name": "ghcr.io/diegonmarcos/redroid-cloud",
     "tag": "13",
     "base": "redroid/redroid:13.0.0-latest",

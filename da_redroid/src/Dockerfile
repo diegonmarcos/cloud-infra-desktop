@@ -1,21 +1,21 @@
-# redroid-cloud — custom redroid image with the app set + Launcher3 layout + theme
-# BAKED IN (not runtime-installed). Built by `build.sh bake` in CI: base redroid is
-# booted once, the 58 apps are installed + the home-screen layout rendered + theme
-# applied, then /data is snapshotted into data.tar and shipped here. A first-boot init
-# service (post-fs-data) seeds that snapshot into the container's /data, so the image
-# starts FULLY PROVISIONED like Waydroid with ZERO runtime install. Pushed to GHCR;
-# local `build.sh up` = docker pull + docker run.
+# redroid-cloud — custom redroid image with the Cloud app set BAKED IN as SYSTEM APPS,
+# plus the baked Launcher3 layout + theme applied by a first-boot init service. Built by
+# `build.sh bake` WITHOUT booting Android (system-app bake) — so it works on any CI runner
+# (GitHub-hosted runners have no binder and cannot boot redroid). Runtime = docker pull +
+# run; Android installs the /system/app apps at boot and the seed applies layout+theme once.
 #
-# Build context (dist/) is prepared by build.sh bake: data.tar + the two seed files.
+# The build context (dist/context/) is assembled by build.sh bake:
+#   system/app/<pkg>/<pkg>.apk              — the 58 apps as system apps
+#   system/etc/redroid-cloud/seed.sh        — first-boot layout+theme configurator
+#   system/etc/redroid-cloud/layout.sql     — pre-rendered Launcher3 favorites (baked)
+#   system/etc/redroid-cloud/theme.sh       — baked theme flags (dark/rotate/wallpaper dim)
+#   system/etc/init/redroid-cloud-seed.rc   — init service (on sys.boot_completed)
 ARG BASE=redroid/redroid:13.0.0-latest
 FROM ${BASE}
 
-# Baked /data snapshot (the exact provisioned Android /data from CI).
-COPY data.tar /system/etc/redroid-cloud/data.tar
-# First-boot seed script + init service (auto-imported from /system/etc/init/).
-COPY redroid-cloud-seed.sh /system/etc/redroid-cloud/seed.sh
-COPY redroid-cloud-seed.rc /system/etc/init/redroid-cloud-seed.rc
+# Overlay the assembled /system tree (apps + seed + layout + init service) onto the image.
+COPY system /system
 
 LABEL org.opencontainers.image.title="redroid-cloud" \
-      org.opencontainers.image.description="redroid with the Cloud app set + Launcher3 layout + theme baked in (data-snapshot)." \
+      org.opencontainers.image.description="redroid with the Cloud app set baked as system apps + baked Launcher3 layout/theme." \
       org.opencontainers.image.source="https://github.com/diegonmarcos/unix"
