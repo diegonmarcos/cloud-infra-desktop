@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -50,3 +50,19 @@ jobs:
             da_cloud-terminal/src-tauri/target/release/cloud-terminal
             da_cloud-terminal/src-tauri/target/release/bundle/**
           if-no-files-found: warn
+
+      # Publish the binary + .deb to a rolling GitHub Release so it's installable
+      # off the release page (not just workflow artifacts). Overwrites each push.
+      - name: Publish rolling GitHub Release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create cloud-terminal-latest \
+            --title "Cloud Terminal (rolling)" \
+            --notes "Latest Tauri build — main@${GITHUB_SHA:0:8}. Install the .deb, or fetch via da_cloud-terminal/build.sh fetch/run." \
+            --target "$GITHUB_SHA" 2>/dev/null || true
+          gh release upload cloud-terminal-latest \
+            src-tauri/target/release/cloud-terminal \
+            src-tauri/target/release/bundle/deb/*.deb \
+            --clobber
