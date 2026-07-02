@@ -68,8 +68,15 @@ let
   # thrash → CPU freeze. Fix: total MemoryMax fits in RAM; MemoryHigh gaps
   # give the kernel time to reclaim before the hard kill; swap caps prevent
   # disk I/O thrash on all slices.
-  userMemMax = "${toString (ramMB * 58 / 100)}M";     # 4751M (was 85%=6963M)
-  userMemHigh = "${toString (ramMB * 38 / 100)}M";    # 3112M (was 75%=6144M — now 1.6GB gap before hard kill)
+  # BUG FIX (2026-07-02): userMemHigh=38%=3112M was BELOW the real desktop
+  # working set (3× claude + qutebrowser + Plasma ≈ 3.5G). With MemorySwapMax=0
+  # the slice sat pinned at memory.high (2.15M throttle events/boot) and the
+  # kernel could only reclaim FILE-backed pages — evicting running executables
+  # that immediately faulted back in through kcryptd/btrfs → sustained IO PSI
+  # (full avg300=17), load 14, frozen desktop. Raise High above the working
+  # set and allow a bounded swap valve (goes to zram prio 100, not disk).
+  userMemMax = "${toString (ramMB * 70 / 100)}M";     # 5734M (was 58%=4751M)
+  userMemHigh = "${toString (ramMB * 55 / 100)}M";    # 4505M (was 38%=3112M — below working set = reclaim thrash)
   rootMemMax = "${toString (ramMB * 95 / 100)}M";     # 7782M
   rootMemHigh = "${toString (ramMB * 85 / 100)}M";    # 6963M
   machineMemMax = "${toString (ramMB * 37 / 100)}M";  # 3031M (was 75%=6144M — Docker can't eat 75% of RAM)
@@ -81,7 +88,10 @@ let
   # anti-freeze guards; the high MemoryMin was pinning 3GB unnecessarily.
   userMemMin = "${toString (ramMB * 12 / 100)}M";     # 983M (was 38%=3113M)
   nixMemSwapMax = "0";                                # NO disk swap — OOM-kill instead of I/O thrash freeze (was 2048M = THE BUG)
-  userMemSwapMax = "0";                               # user-1000 no disk swap either — same root cause
+  # userMemSwapMax=0 also blocked ZRAM (per-cgroup swap cap can't distinguish
+  # zram from disk), defeating the swappiness=150 zram-first design and leaving
+  # the desktop with no pressure valve. 2048M lands on zram (prio 100 vs disk -1).
+  userMemSwapMax = "2048M";                           # bounded valve → zram (was 0 = file-page thrash, 2026-07-02)
 in
 {
   # ═══════════════════════════════════════════════════════════════════════════
