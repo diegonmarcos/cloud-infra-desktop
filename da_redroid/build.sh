@@ -501,9 +501,11 @@ cmd_bake() {
   # 1) fetch the pinned APK set (reproducible; nix / prebuilt release)
   cmd_build
 
-  # 2) place each APK as a system app + extract its launcher activity statically (aapt)
-  local aapt; aapt="$(nix build --no-link --print-out-paths nixpkgs#aapt 2>/dev/null | head -1)/bin/aapt"
-  [ -x "$aapt" ] || die "aapt not found via nixpkgs#aapt"
+  # 2) place each APK as a system app + extract its launcher activity statically.
+  # nixpkgs#aapt ships aapt2 (not legacy aapt); `aapt2 dump badging` emits the same
+  # `launchable-activity: name='…'` line, so component extraction is identical.
+  local aapt; aapt="$(nix build --no-link --print-out-paths nixpkgs#aapt 2>/dev/null | head -1)/bin/aapt2"
+  [ -x "$aapt" ] || die "aapt2 not found via nixpkgs#aapt"
   local compfile="$DIST/.components.tsv"; : > "$compfile"
   local n i pkg apk act baked=0
   n="$(node -e "process.stdout.write(String(require('$CONFIG').apps.length))")"
