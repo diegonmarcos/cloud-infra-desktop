@@ -17,6 +17,12 @@ in
 {
   home.packages = with pkgs; [ electron nodejs zstd curl jq fish ];
 
+  # `cloud-terminal` launches the default-profile panel. home.shellAliases is
+  # applied by home-manager to ALL enabled shells (bash + zsh + fish), so this
+  # one line covers every shell. Targets the default-profile launcher emitted
+  # into ~/.local/bin (on PATH); nix-flakes is the default profile.
+  home.shellAliases."cloud-terminal" = "cloud-terminal-nix-flakes";
+
   # Version-guarded pull on every activation. Cheap no-op when already current.
   home.activation.cloudTerminalPull =
     lib.hm.dag.entryAfter [ "writeBoundary" ] ''
