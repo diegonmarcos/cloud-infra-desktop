@@ -75,8 +75,12 @@ let
   # that immediately faulted back in through kcryptd/btrfs → sustained IO PSI
   # (full avg300=17), load 14, frozen desktop. Raise High above the working
   # set and allow a bounded swap valve (goes to zram prio 100, not disk).
-  userMemMax = "${toString (ramMB * 70 / 100)}M";     # 5734M (was 58%=4751M)
-  userMemHigh = "${toString (ramMB * 55 / 100)}M";    # 4505M (was 38%=3112M — below working set = reclaim thrash)
+  # Single source of truth: gui_session in cloud-data-system-protection.json
+  # (build.sh reinforces the same values live before every Phase 1 build —
+  # required because the old tight limits otherwise OOM-kill the very build
+  # that would relax them: chicken-and-egg observed 3× on 2026-07-02).
+  userMemMax = sysprot.gui_session.MemoryMax;         # 5734M ≈ 70% (was 58%=4751M)
+  userMemHigh = sysprot.gui_session.MemoryHigh;       # 4505M ≈ 55% (was 38%=3112M — below working set = reclaim thrash)
   rootMemMax = "${toString (ramMB * 95 / 100)}M";     # 7782M
   rootMemHigh = "${toString (ramMB * 85 / 100)}M";    # 6963M
   machineMemMax = "${toString (ramMB * 37 / 100)}M";  # 3031M (was 75%=6144M — Docker can't eat 75% of RAM)

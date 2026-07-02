@@ -13,6 +13,8 @@
   "gui_session": {
     "_comment": "user-1000.slice (the KDE Plasma desktop). MemoryMin = RAM the kernel is FORBIDDEN to reclaim, so the compositor (kwin/plasmashell) stays responsive under build pressure. 2026-07-02 FIX: MemorySwapMax=0 also blocked ZRAM (cgroup swap caps can't distinguish zram from disk) — with MemoryHigh below the real working set the kernel could only evict file-backed pages (running executables), which faulted straight back through kcryptd/btrfs = the freeze. Bounded 2G swap valve lands on zram (prio 100) not the disk swapfile (prio -1).",
     "MemoryMin": "1G",
+    "MemoryHigh": "4505M",
+    "MemoryMax": "5734M",
     "MemorySwapMax": "2048M"
   },
 
