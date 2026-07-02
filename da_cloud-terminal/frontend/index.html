@@ -556,7 +556,10 @@ function buildSidebar(profile) {
       const btn = document.createElement('button')
       btn.className = 'cmd-item'; btn.textContent = item.label
       btn.dataset.search = ((item.label || '') + ' ' + (item.arg || '')).toLowerCase()
-      btn.onclick = () => { runItem({ ...item, profile: profile.name, ptyId: activePane }); focusActivePaneTerm() }
+      btn.onclick = () => {
+        if (item.type === 'monitor') { newMonitorTab(); return }   // open our dashboard, don't type a command
+        runItem({ ...item, profile: profile.name, ptyId: activePane }); focusActivePaneTerm()
+      }
       grp.appendChild(btn)
     }
     const sep = document.createElement('div'); sep.className = 'sep-line'; grp.appendChild(sep)
@@ -612,10 +615,29 @@ async function init() {
       listen('tray-run:' + label, e => runItem({ ...e.payload, ptyId: activePane })),
     ])
   } catch (err) { console.error('event listen failed:', err) }
-  // DTK profile opens the System Monitor as its default tab (+ a shell tab).
-  if (label === 'tools') { const mt = newMonitorTab(); newTab(); activateTab(mt) }
+  // Data-driven default tabs (profile.default_tabs): shell / monitor / command.
+  // Falls back to: tools → monitor+shell, everything else → one shell.
+  const dts = Array.isArray(data.default_tabs) ? data.default_tabs : null
+  if (dts && dts.length) {
+    let firstTab = null
+    for (const t of dts) {
+      let tid
+      if (t.type === 'monitor') { tid = newMonitorTab() }
+      else { tid = newTab(); if (t.type === 'command' && t.cmd) autoRun(t.cmd) }
+      if (firstTab == null) firstTab = tid
+    }
+    if (firstTab != null) activateTab(firstTab)
+  } else if (label === 'tools') { const mt = newMonitorTab(); newTab(); activateTab(mt) }
   else newTab()
   setTimeout(doFit, 60)
+}
+
+// Type a command into the JUST-created tab's shell (for default "command"
+// tabs). activePane is that tab's pane (newTab focuses it). Small delay so the
+// login shell has drawn its prompt before we feed the line.
+function autoRun(cmd) {
+  const id = activePane
+  setTimeout(() => { const p = panes.get(id); if (p && p.kind === 'term') invoke('pty_input', { id, d: cmd + '\r' }) }, 700)
 }
 
 // ── context menu ──

@@ -1,0 +1,26 @@
+{
+  "name":         "home",
+  "display_name": "Home",
+  "logo":         "🏠",
+  "tray_tooltip": "Home — greeting · sys-performance · connect",
+  "theme": {
+    "accent":  "#7b7fff",
+    "accent2": "#a78bfa",
+    "bg":      "#0e0f1a"
+  },
+  "default_tabs": [
+    { "type": "shell",   "title": "greeting" },
+    { "type": "monitor", "title": "sys-performance" },
+    { "type": "command", "title": "connect", "cmd": "sh ~/git/tools/dtk.sh connect" }
+  ],
+  "sections": [
+    {
+      "title": "Home",
+      "items": [
+        { "label": "🐟  Fish Greeting",      "type": "shell",   "arg": "_show_welcome" },
+        { "label": "📊  System Performance", "type": "monitor", "arg": "" },
+        { "label": "🔗  Connect Dashboard",  "type": "shell",   "arg": "sh ~/git/tools/dtk.sh connect" }
+      ]
+    }
+  ]
+}
