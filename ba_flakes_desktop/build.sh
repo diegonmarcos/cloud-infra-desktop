@@ -866,14 +866,23 @@ cmd_switch_runner() {
     _host="${1:-surface-plasma}"; _user="${2:-diego}"
     command -v gh >/dev/null 2>&1 || { log_error "gh CLI not found — install it, or use: ./build.sh switch local"; return 1; }
     _artname="${HM_CLOSURE_ARTIFACT:-nixos-desktop-hm-closure}"
-    _wf="${HM_SHIP_WORKFLOW:-ship_nix-flakes_desktop_nixos.yaml}"
+    _wf="${HM_SHIP_WORKFLOW:-ship_nix-flakes_desktop_hm.yaml}"
     _art="$SCRIPT_DIR/dist-ci"
     rm -rf "$_art"; mkdir -p "$_art"
-    log_info "Downloading latest '$_artname' artifact from GitHub Actions..."
-    if ! gh run download -n "$_artname" -D "$_art" 2>/dev/null; then
-        log_error "no '$_artname' artifact on GitHub yet."
-        log_error "GHA builds on push — commit+push your changes first (or: gh workflow run $_wf),"
+    # Resolve the latest SUCCESSFUL run of the HM ship workflow and pull its
+    # artifact by run-id — `gh run download -n <name>` with NO run-id only checks
+    # the single most-recent run, which may be a newer/failed one lacking the artifact.
+    log_info "Resolving latest successful '$_wf' run..."
+    _runid="$(gh run list --workflow "$_wf" --status success --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null)"
+    if [ -z "$_runid" ]; then
+        log_error "no successful '$_wf' run found on GitHub."
+        log_error "GHA builds on push — commit+push first (or: gh workflow run $_wf),"
         log_error "then re-run:  ./build.sh switch      (on-device eval instead: ./build.sh switch local)"
+        return 1
+    fi
+    log_info "Downloading '$_artname' from run $_runid..."
+    if ! gh run download "$_runid" -n "$_artname" -D "$_art" 2>/dev/null; then
+        log_error "download failed — artifact '$_artname' missing/expired on run $_runid."
         return 1
     fi
     cmd_pull "$_art"
@@ -1142,7 +1151,7 @@ main() {
             # `switch local [host] [user]` = eval+build+activate on-device.
             case "${1:-runner}" in
                 local)  shift; nix_switch "${1:-surface-plasma}" "${2:-diego}" ;;
-                runner) shift; cmd_switch_runner "${1:-surface-plasma}" "${2:-diego}" ;;
+                runner) [ $# -gt 0 ] && shift || :; cmd_switch_runner "${1:-surface-plasma}" "${2:-diego}" ;;
                 *)      cmd_switch_runner "${1:-surface-plasma}" "${2:-diego}" ;;  # `switch <host>` → runner
             esac
             ;;

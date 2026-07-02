@@ -20,7 +20,9 @@ in {
 
   systemd.user.services.nixos-systray = {
     description = "NixOS Control Panel tray icon";
-    wantedBy    = [ "graphical-session.target" ];
+    # NO autostart — electron tray must not be launched by systemd at login.
+    # Start manually if wanted: `systemctl --user start nixos-systray`.
+    wantedBy    = [ ];
     partOf      = [ "graphical-session.target" ];
     after       = [ "graphical-session.target" ];
     serviceConfig = {

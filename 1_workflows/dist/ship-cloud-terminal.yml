@@ -11,10 +11,13 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 name: ship-cloud-terminal
-# Build da_cloud-terminal and publish the runnable payload to the rolling GH
-# Release `latest` (+ GHCR via ORAS). The desktop home-manager flake pulls the
-# release asset and emits launchers locally. Payload only — no launchers/electron
-# in CI (electron resolves on the device). See da_cloud-terminal/build.json .release.
+# Compile-verify + build the Tauri (Rust) cloud-terminal. Toolchain comes from
+# the project flake (rust + cargo-tauri + webkitgtk); CI just needs nix. The
+# GitHub runner has the RAM the local Surface Pro's watchdog denies, so this is
+# where the Rust actually gets compiled. Uploads the binary + deb/appimage
+# bundles as artifacts.
+# TODO(release): oras-push / gh-release once build.sh grows the Tauri release
+# pipeline (artifact model differs from the old electron tar.zst payload).
 on:
   push:
     branches: [main]
@@ -23,11 +26,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
-  ship:
+  build:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -35,37 +37,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # tools repo provides registry.json → the Tools profile is generated from it.
-      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
         with:
-          repository: diegonmarcos/tools
-          path: _tools
+          extra_nix_config: |
+            experimental-features = nix-command flakes
 
-      - uses: actions/setup-node@v4
+      # Compile-verify first (fast-fail on type errors), then the full release
+      # build (binary + deb/appimage). Runner has ~16 GB, so let cargo use all
+      # cores instead of the low-RAM default.
+      - name: Compile-verify (build.sh check)
+        env:
+          CARGO_BUILD_JOBS: "4"
+        run: ./build.sh check
+
+      - name: Build release bundle (build.sh build)
+        env:
+          CARGO_BUILD_JOBS: "4"
+        run: ./build.sh build
+
+      - uses: actions/upload-artifact@v4
         with:
-          node-version: '22'
-
-      - name: Install build deps (imagemagick, zstd, jq, oras)
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq imagemagick zstd jq
-          ORAS_VERSION=1.2.0
-          curl -fsSL "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz" \
-            | sudo tar -xz -C /usr/local/bin oras
-          oras version
-
-      - name: Package payload (build.sh package)
-        env:
-          CT_TOOLS_DIR: ${{ github.workspace }}/_tools
-        run: ./build.sh package
-
-      - name: Login to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Push payload to GHCR (ORAS)
-        run: ./build.sh oras-push
-
-      - name: Publish to GitHub Release (rolling latest)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./build.sh gh-release
+          name: cloud-terminal-bundle
+          path: |
+            da_cloud-terminal/src-tauri/target/release/cloud-terminal
+            da_cloud-terminal/src-tauri/target/release/bundle/**
+          if-no-files-found: warn

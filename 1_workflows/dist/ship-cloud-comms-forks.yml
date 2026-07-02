@@ -73,16 +73,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0   # full history so the push's `before` SHA is present
       - id: detect
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             FORK="${{ inputs.fork || 'mail' }}"
             echo "forks=[\"$FORK\"]" >> $GITHUB_OUTPUT
           else
-            changed=$(git diff --name-only HEAD~1 HEAD -- ea_cloud-comms/forks/ \
+            # Diff the WHOLE push range (before..after), NOT just HEAD~1..HEAD.
+            # BUG FIXED: a multi-commit push where the forks/ patch commit is a
+            # PARENT (engine commit as HEAD) hid the change → HEAD~1..HEAD showed
+            # only build.sh/build.json → detect fell back to `mail` and the fork
+            # patches (e.g. dialer 0005-0007) were never built/published. Using
+            # the full range catches every fork touched anywhere in the push.
+            BEFORE="${{ github.event.before }}"
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+              BEFORE="${{ github.sha }}~1"
+            fi
+            changed=$(git diff --name-only "$BEFORE" "${{ github.sha }}" -- ea_cloud-comms/forks/ \
               | sed 's|ea_cloud-comms/forks/||;s|/.*||' | sort -u \
-              | jq -R . | jq -sc .)
+              | jq -R . | jq -sc 'map(select(length>0))')
             if [ -z "$changed" ] || [ "$changed" = "[]" ]; then
               changed='["mail"]'
             fi

@@ -50590,3 +50590,86 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-06-27 14:10:23] PERF: TOTAL switch = 37.2s
 [2026-06-27 14:10:23] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
 [2026-06-27 14:10:23] ========== Build script finished ==========
+[2026-06-27 23:59:20] ========== Build script started ==========
+[2026-06-28 00:03:34] ========== Build script started ==========
+[2026-06-28 00:03:34] ========== Activate prebuilt home-manager closure (no eval — cannot freeze) ==========
+[2026-06-28 00:03:34] INFO: Importing closure into the store (no build)...
+[2026-06-28 09:25:11] ========== Build script started ==========
+[2026-06-28 09:25:11] ========== Activate prebuilt home-manager closure (no eval — cannot freeze) ==========
+[2026-06-28 09:25:11] INFO: Importing closure into the store (no build)...
+[2026-06-28 09:29:53] ========== Build script started ==========
+[2026-06-28 09:29:53] ========== Activate prebuilt home-manager closure (no eval — cannot freeze) ==========
+[2026-06-28 09:29:53] INFO: Importing closure into the store (no build)...
+[2026-06-28 09:30:35] INFO: Activating (/nix/store/4wcglzyg2g13sdcwivms9qhazka408xq-home-manager-generation/activate)...
+[2026-06-28 09:34:16] ========== Build script started ==========
+[2026-06-28 09:34:16] ========== Activate prebuilt home-manager closure (no eval — cannot freeze) ==========
+[2026-06-28 09:34:16] INFO: Importing closure into the store (no build)...
+[2026-06-28 11:08:04] ========== Build script started ==========
+[2026-06-28 11:08:04] ========== Activate prebuilt home-manager closure (no eval — cannot freeze) ==========
+[2026-06-28 11:08:04] INFO: Importing closure into the store (no build)...
+[2026-06-28 11:08:45] INFO: Activating (/nix/store/4wcglzyg2g13sdcwivms9qhazka408xq-home-manager-generation/activate)...
+[2026-06-28 11:08:46] WARN: home-manager file conflict — backing up in-the-way files and retrying
+[2026-06-28 11:08:46] INFO:   backed up: /home/diego/.gtkrc-2.0 -> /home/diego/.gtkrc-2.0.hm-backup-20260628-110846
+[2026-06-28 11:08:52] SUCCESS: Activated prebuilt home-manager generation (no eval).
+[2026-06-28 11:08:52] ========== Build script finished ==========
+[2026-07-01 13:43:51] ========== Build script started ==========
+[2026-07-01 11:54:40] ========== Build script started ==========
+[2026-07-01 11:54:40] ========== switch (runner): fetch GHA-built closure + activate (no local eval) ==========
+[2026-07-01 11:54:40] INFO: Downloading latest 'nixos-desktop-hm-closure' artifact from GitHub Actions...
+[2026-07-01 14:06:39] ========== Build script started ==========
+[2026-07-01 14:06:39] ========== switch (runner): fetch GHA-built closure + activate (no local eval) ==========
+[2026-07-01 14:06:39] INFO: Downloading latest 'nixos-desktop-hm-closure' artifact from GitHub Actions...
+[2026-07-01 14:07:36] ========== Build script started ==========
+[2026-07-01 14:07:36] ========== switch (runner): fetch GHA-built closure + activate (no local eval) ==========
+[2026-07-01 14:07:36] INFO: Downloading latest 'nixos-desktop-hm-closure' artifact from GitHub Actions...
+[2026-07-01 14:24:00] ========== Build script started ==========
+[2026-07-01 14:24:00] ========== switch (runner): fetch GHA-built closure + activate (no local eval) ==========
+[2026-07-01 14:24:00] INFO: Downloading latest 'nixos-desktop-hm-closure' artifact from GitHub Actions...
+[2026-07-01 14:50:57] ========== Build script started ==========
+[2026-07-01 14:50:57] ========== switch (runner): fetch GHA-built closure + activate (no local eval) ==========
+[2026-07-01 14:50:57] INFO: Downloading latest 'nixos-desktop-hm-closure' artifact from GitHub Actions...
+[2026-07-01 15:00:28] ERROR: no 'nixos-desktop-hm-closure' artifact on GitHub yet.
+[2026-07-01 15:00:28] ERROR: GHA builds on push — commit+push your changes first (or: gh workflow run ship_nix-flakes_desktop_nixos.yaml),
+[2026-07-01 15:00:28] ERROR: then re-run:  ./build.sh switch      (on-device eval instead: ./build.sh switch local)
+[2026-07-01 15:00:58] ========== Build script started ==========
+[2026-07-01 15:00:58] ========== Activate prebuilt home-manager closure (no eval — cannot freeze) ==========
+[2026-07-01 15:00:58] INFO: Importing closure into the store (no build)...
+[2026-07-01 15:01:04] ERROR: import failed
+[2026-07-01 15:01:38] ========== Build script started ==========
+[2026-07-01 15:01:38] ========== Activate prebuilt home-manager closure (no eval — cannot freeze) ==========
+[2026-07-01 15:01:38] INFO: Importing closure into the store (no build)...
+[2026-07-01 15:01:46] ERROR: import failed
+[2026-07-01 15:06:04] ========== Build script started ==========
+[2026-07-01 15:06:04] ========== switch (runner): fetch GHA-built closure + activate (no local eval) ==========
+[2026-07-01 15:06:04] INFO: Downloading latest 'nixos-desktop-hm-closure' artifact from GitHub Actions...
+[2026-07-01 15:22:12] ERROR: no 'nixos-desktop-hm-closure' artifact on GitHub yet.
+[2026-07-01 15:22:12] ERROR: GHA builds on push — commit+push your changes first (or: gh workflow run ship_nix-flakes_desktop_nixos.yaml),
+[2026-07-01 15:22:12] ERROR: then re-run:  ./build.sh switch      (on-device eval instead: ./build.sh switch local)
+[2026-07-01 15:29:06] ========== Build script started ==========
+[2026-07-01 15:29:06] ========== switch (runner): fetch GHA-built closure + activate (no local eval) ==========
+[2026-07-01 15:29:07] INFO: Resolving latest successful 'ship_nix-flakes_desktop_hm.yaml' run...
+[2026-07-01 15:29:08] INFO: Downloading 'nixos-desktop-hm-closure' from run 28515159548...
+[2026-07-01 15:44:20] ========== Build script started ==========
+[2026-07-01 15:44:20] ========== Activate prebuilt home-manager closure (no eval — cannot freeze) ==========
+[2026-07-01 15:44:20] INFO: Importing closure into the store (no build)...
+[2026-07-01 15:44:25] ERROR: import failed
+[2026-07-01 15:50:05] ========== Activate prebuilt home-manager closure (no eval — cannot freeze) ==========
+[2026-07-01 15:50:05] INFO: Importing closure into the store (no build)...
+[2026-07-01 15:50:54] INFO: Activating (/nix/store/747yb1gs4fjxnzclbrp5l0hn9gvh7rjb-home-manager-generation/activate)...
+[2026-07-01 15:50:54] WARN: home-manager file conflict — backing up in-the-way files and retrying
+[2026-07-01 15:50:55] INFO:   backed up: /home/diego/.gtkrc-2.0 -> /home/diego/.gtkrc-2.0.hm-backup-20260701-155054
+[2026-07-01 15:51:00] SUCCESS: Activated prebuilt home-manager generation (no eval).
+[2026-07-01 15:51:00] ========== Build script finished ==========
+[2026-07-01 16:45:34] ========== Build script started ==========
+[2026-07-01 16:45:34] ========== switch (runner): fetch GHA-built closure + activate (no local eval) ==========
+[2026-07-01 16:45:34] INFO: Resolving latest successful 'ship_nix-flakes_desktop_hm.yaml' run...
+[2026-07-01 16:45:35] INFO: Downloading 'nixos-desktop-hm-closure' from run 28515159548...
+[2026-07-01 17:00:11] ========== Activate prebuilt home-manager closure (no eval — cannot freeze) ==========
+[2026-07-01 17:00:12] INFO: Importing closure into the store (no build)...
+[2026-07-01 17:00:22] ERROR: import failed
+[2026-07-02 09:56:57] ========== Build script started ==========
+[2026-07-02 09:56:57] ========== Activate prebuilt home-manager closure (no eval — cannot freeze) ==========
+[2026-07-02 09:56:57] INFO: Importing closure into the store (no build)...
+[2026-07-02 09:58:13] INFO: Activating (/nix/store/747yb1gs4fjxnzclbrp5l0hn9gvh7rjb-home-manager-generation/activate)...
+[2026-07-02 09:58:23] SUCCESS: Activated prebuilt home-manager generation (no eval).
+[2026-07-02 09:58:23] ========== Build script finished ==========

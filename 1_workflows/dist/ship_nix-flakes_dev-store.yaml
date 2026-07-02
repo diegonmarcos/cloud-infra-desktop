@@ -2,7 +2,7 @@
 # ║                                                                  ║
 # ║   GENERATED FILE — DO NOT EDIT                                   ║
 # ║                                                                  ║
-# ║   Source : 1_workflows/src/cicd/ship_nix-flakes_desktop_nixos.yaml
+# ║   Source : 1_workflows/src/cicd/ship_nix-flakes_dev-store.yaml
 # ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
 # ║   Rebuild: ./1_workflows/build.sh
 # ║                                                                  ║
@@ -10,37 +10,38 @@
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-name: "Ship → Desktop NixOS closure (build remotely, never freeze the laptop)"
+name: "Ship → Dev-store closure (build remotely, never freeze the laptop)"
 
-# WHY: the Surface (8 GB) cannot run `nixos-rebuild` locally — the eval+build
-# over-commits RAM and thrashes into a freeze (14 incidents, 2026-06-27). This
-# builds the system closure on a GHA runner instead and ships it as an artifact;
-# the laptop only IMPORTS + activates it (Phase 2, no eval) via `build.sh pull`.
+# WHY: bc_flakes_dev-store realises devProfile — the heavy dev toolchain
+# (~25G closure) — into the p5 CHROOT store. Building it locally means a big
+# nix eval + realise on the 8GB Surface = the same freeze axis as the NixOS /
+# home-manager builds. Build it on a GHA x86 runner; the laptop only IMPORTS
+# the prebuilt closure into the p5 chroot store (no eval) via `build.sh pull`.
 #
-# ALL logic lives in aa_desk-usr_x86_surface-linux_nixos/build.sh (verb: ci-build).
-# This YAML only: free disk → install nix → call build.sh → upload the tarball.
+# ALL logic in bc_flakes_dev-store/build.sh (verb: ci-build). Thin YAML.
+# devProfile is an attr of the DESKTOP flake, so source there triggers too.
+# x86_64 toolchain -> native x86 runner (no QEMU). No secrets needed.
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - "aa_desk-usr_x86_surface-linux_nixos/src/**"
-      - "aa_desk-usr_x86_surface-linux_nixos/build.sh"
-      - "1_workflows/src/cicd/ship_nix-flakes_desktop_nixos.yaml"
+      - "bc_flakes_dev-store/**"
+      - "ba_flakes_desktop/src/**"
+      - "1_workflows/src/cicd/ship_nix-flakes_dev-store.yaml"
 
 permissions:
   contents: read
-  packages: read   # pull ghcr.io/<owner>/unix-boot-cache (prebuilt linux-surface kernel)
 
 concurrency:
-  group: ship-desktop
+  group: ship-dev-store
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 210   # linux-surface kernel compiles from source on a 2-core runner (~140m); boot-cache hit will later cut this — see ship-boot-cache attr-match follow-up
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,16 +53,12 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
-      - name: Build + export system closure
-        env:
-          GHCR_OWNER: ${{ github.repository_owner }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./aa_desk-usr_x86_surface-linux_nixos/build.sh ci-build
+      - name: Build + export dev-store closure
+        run: ./bc_flakes_dev-store/build.sh ci-build
 
       - uses: actions/upload-artifact@v4
         with:
-          name: nixos-surface-closure
-          path: aa_desk-usr_x86_surface-linux_nixos/dist-ci/
+          name: nixos-dev-store-closure
+          path: bc_flakes_dev-store/dist-ci/
           retention-days: 7
           compression-level: 0

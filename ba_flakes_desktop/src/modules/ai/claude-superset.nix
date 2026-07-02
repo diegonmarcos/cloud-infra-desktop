@@ -165,6 +165,8 @@ in {
     Service = {
       ExecStart = "${claude-superset-tray}/bin/claude-superset-tray";
     };
-    Install.WantedBy = [ "graphical-session.target" ];
+    # NO autostart — electron tray must not be launched by systemd at login.
+    # Start manually if wanted: `systemctl --user start claude-superset-tray`.
+    Install.WantedBy = [ ];
   };
 }
