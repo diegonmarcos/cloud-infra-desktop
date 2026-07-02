@@ -3,10 +3,10 @@
   "version": 1,
 
   "phase1_scope": {
-    "_comment": "systemd-run --user --scope properties applied to the nix build client (Phase 1). MemorySwapMax=0 = OOM-kill instead of disk-I/O thrash freeze. IOSchedulingClass=idle = block-layer idling that works on NVMe (IOWeight=10 is also set but has no effect on the 'none' NVMe scheduler — left as belt+suspenders for CFQ/BFQ fallback).",
+    "_comment": "systemd-run --user --scope properties applied to the nix build client (Phase 1). 2026-07-02: MemorySwapMax 0->2G — the system eval peaks past 4G RSS and was OOM-killed 5x with swap=0; the bounded valve lands on zram (prio 100, compressed RAM), NOT the disk swapfile (prio -1), so the anti-disk-thrash guarantee holds. OOMScoreAdjust=1000 (applied via choom) = on a user-slice OOM the kernel sacrifices the eval, never claude. IOSchedulingClass=idle = block-layer idling that works on NVMe (IOWeight=10 is also set but has no effect on the 'none' NVMe scheduler — left as belt+suspenders for CFQ/BFQ fallback).",
     "MemoryMax": "4G",
     "MemoryHigh": "3G",
-    "MemorySwapMax": "0",
+    "MemorySwapMax": "2G",
     "OOMScoreAdjust": "1000",
     "CPUQuota": "200%",
     "CPUWeight": "10",
