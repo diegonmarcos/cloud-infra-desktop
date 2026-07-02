@@ -183,11 +183,11 @@
     "unix-repo": {
       "flake": false,
       "locked": {
-        "lastModified": 1782261340,
-        "narHash": "sha256-zYmTb9Q4D7Pre28PNfZD9Fb4vVH9Jk7/gFgn4jU9Qd8=",
+        "lastModified": 1782979841,
+        "narHash": "sha256-OuKtSqK40iZcoQjDbJQv/Vsw1ABq63Sl7xl5zEDSj6M=",
         "owner": "diegonmarcos",
         "repo": "unix",
-        "rev": "766a016596017b8fad443df86e37724d7f960cb5",
+        "rev": "ac0d8e9d8a1baedf4d1d0623441c11f2672f61e1",
         "type": "github"
       },
       "original": {
