@@ -33,9 +33,19 @@ git config --global --add safe.directory "*"
 
 REPO="https://github.com/${GITHUB_REPOSITORY:?}.git"
 if [ -d /workspace/.git ]; then
-  echo "[1/6] Using existing /workspace"
+  echo "[1/6] Refreshing existing /workspace (fetch + reset --hard)"
   cd /workspace
-  git pull --ff-only 2>/dev/null || true
+  # `git pull --ff-only || true` fails silently on a stale shallow clone,
+  # leaving pre-rename dir names that never match CHANGED_DIRS → every
+  # service skips as "unchanged" (false-green). Hard-reset instead, and
+  # reclone if even that fails — never ship from a stale workspace.
+  if ! (git fetch --depth 2 origin main && git reset --hard origin/main); then
+    echo "[1/6] Refresh failed — recloning"
+    cd /
+    rm -rf /workspace
+    git clone --depth 2 --recurse-submodules "$REPO" /workspace
+    cd /workspace
+  fi
 else
   echo "[1/6] Cloning $REPO"
   git clone --depth 2 --recurse-submodules "$REPO" /workspace
@@ -266,7 +276,14 @@ ship_one() {
 SHIP_CMDS=$(mktemp)
 while IFS='|' read -r dir name; do
   [ -n "$FILTER" ] && [ "$dir" != "$FILTER" ] && [ "$name" != "$FILTER" ] && continue
-  if [ -n "$CHANGED_DIRS" ] && ! echo "$CHANGED_DIRS" | grep -q "$dir"; then
+  # Exact token match — a substring grep can false-match similarly named
+  # dirs (same rationale as cloud-ship-orchestrate-vm.sh).
+  _changed=1
+  if [ -n "$CHANGED_DIRS" ]; then
+    _changed=0
+    case " $CHANGED_DIRS " in *" $dir "*) _changed=1 ;; esac
+  fi
+  if [ "$_changed" -eq 0 ]; then
     echo "SKIP $name (unchanged)"
     echo "skip" > "$RESULTS_DIR/${name}.status"
     echo "0" > "$RESULTS_DIR/${name}.dur"
