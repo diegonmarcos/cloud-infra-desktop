@@ -180,6 +180,11 @@ fn pty_start(id: i64, cols: u16, rows: u16, window: tauri::WebviewWindow, state:
         cmd.env("PATH", format!("{wrappers}:{base_path}"));
     }
     cmd.env("TERM", "xterm-256color");
+    // The app may be launched with a nix LD_LIBRARY_PATH (webkit/glibc) so its
+    // own webview resolves; the PTY inherits our env, so clear it here —
+    // otherwise tools run in a tab load nix libs off that path and can break
+    // against the system glibc. Interactive shells never need it.
+    cmd.env("LD_LIBRARY_PATH", "");
     if let Ok(home) = std::env::var("HOME") {
         cmd.cwd(home);
     }
