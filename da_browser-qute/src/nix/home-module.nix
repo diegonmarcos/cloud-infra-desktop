@@ -36,6 +36,13 @@ let
       acc // (lib.mapAttrs' (n: url: lib.nameValuePair "${f.name}/${n}" url) f.links)
     ) {} curatedFolders;
 
+  # "New Default Window" — a qutebrowser command that opens a fresh window with
+  # the default arrangement (data-driven from qute-default-window.json): first
+  # url → new window (open -w), the rest → tabs (open -t). Chained with ` ;; `.
+  dwTabs = (builtins.fromJSON (builtins.readFile "${configsDir}/qute-default-window.json")).tabs or [];
+  defaultWindowCmd = lib.concatStringsSep " ;; "
+    (lib.imap0 (i: url: (if i == 0 then "open -w " else "open -t ") + url) dwTabs);
+
   # Strip ANY leading-underscore key recursively before passing to
   # qutebrowser — by convention every doc/annotation field in our JSON
   # configs starts with "_" (e.g. _description, _comment, _method_options,
@@ -80,9 +87,16 @@ in
     programs.qutebrowser = {
       enable = true;
       package = cfg.package;
-      settings = lib.recursiveUpdate cleanSettings cfg.extraSettings;
+      # aliases: register `default-window` (New Default Window). recursiveUpdate
+      # so an operator's extraSettings still wins.
+      settings = lib.recursiveUpdate
+        (lib.recursiveUpdate cleanSettings { aliases."default-window" = defaultWindowCmd; })
+        cfg.extraSettings;
       searchEngines = cleanSearchEngines;
-      keyBindings = cleanKeyBindings;
+      # Ctrl-Shift-N → New Default Window (merged on top of the JSON binds).
+      keyBindings = lib.recursiveUpdate cleanKeyBindings {
+        normal."<Ctrl-Shift-n>" = "default-window";
+      };
       quickmarks = flatQuickmarks;
     };
 
