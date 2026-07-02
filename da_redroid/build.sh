@@ -499,7 +499,7 @@ cmd_bake() {
   # 1) boot base redroid with a fresh /data we can snapshot
   log "booting base redroid ($cname)…"
   docker run -d --name "$cname" --privileged \
-    --cpus "$(get redroid.cpu_cores)" \
+    --cpus "$(cpu_cap)" \
     -v "$bdir:/data" -p "$(get redroid.adb_port):5555" \
     "$base" \
     androidboot.redroid_width="$(get redroid.width)" \
