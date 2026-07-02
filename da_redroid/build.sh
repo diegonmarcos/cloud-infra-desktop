@@ -58,6 +58,13 @@ adb_() { [ -n "$ADB" ] || ADB="$(rd_adb)"; "$ADB" -s "$(adb_addr)" "$@"; }
 adb_connect() { [ -n "$ADB" ] || ADB="$(rd_adb)"; "$ADB" connect "$(adb_addr)" >/dev/null 2>&1 || true; }
 rd_shell() { adb_ shell "$@"; }
 
+# --cpus for docker run: the configured policy (redroid.cpu_cores) CLAMPED to the CPUs
+# actually available on this host — so the SP8 gets 7 but a 4-vCPU CI runner gets 4
+# (docker rejects --cpus > nproc). Data-driven cap, no hardcoded per-host value.
+cpu_cap() {
+  local want avail; want="$(get redroid.cpu_cores)"; avail="$(nproc 2>/dev/null || echo 4)"
+  [ "$want" -le "$avail" ] 2>/dev/null && printf '%s' "$want" || printf '%s' "$avail"
+}
 container_name() { get redroid.container_name; }
 container_running() { docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$(container_name)"; }
 container_exists()  { docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$(container_name)"; }
@@ -105,7 +112,7 @@ cmd_up() {
     # selinux permissive lets the baked first-boot seed extract + restorecon /data.
     docker run -d --name "$(container_name)" \
       --privileged \
-      --cpus "$(get redroid.cpu_cores)" \
+      --cpus "$(cpu_cap)" \
       -v "$data:/data" \
       -p "$(get redroid.adb_port):5555" \
       "$img" \
