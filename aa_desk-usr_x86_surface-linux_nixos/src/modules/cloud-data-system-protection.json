@@ -24,14 +24,12 @@
   },
 
   "watchdog": {
-    "_comment": "freeze-guard: an ACTIVE PSI killer running in the untouchable island. GENERAL-PURPOSE — every interval_sec it reads /proc/pressure/{cpu,memory,io}. mem/io use 'full avg10' (% of last 10s ALL tasks stalled); cpu uses 'some avg10' (% of last 10s SOME task stalled — full-cpu rarely fires since a pure spin doesn't stall every task). If any signal exceeds its limit it SIGKILLs the top offender and re-checks, walking down the rank up to max_kills_per_tick times until pressure drops. Victim ranking is pressure-aware: CPU breach ranks by %cpu, mem/io breach ranks by RSS. prefer_kill (compilers/browsers) is tried first, then any process not matching avoid_kill. Backstop beneath the cgroup caps + systemd-oomd. Tunable here; baked into the service script at build time (reproducible). Every action is echoed to the journal (unit stdout).",
+    "_comment": "freeze-guard: an ACTIVE PSI killer running in the untouchable island. PSI IS THE ONLY KILL METRIC (no absolute CPU%/RSS/mem% triggers — those cause false kills at PSI=0). Every interval_sec it reads /proc/pressure/{cpu,memory,io}: mem/io use 'full avg10' (% of last 10s ALL tasks stalled); cpu uses 'some avg10' (a pure spin stalls some tasks, rarely all). ONLY when a signal exceeds its limit does it act — killing the top offender and re-checking, walking down the rank up to max_kills_per_tick times until pressure drops. Victim RANKING (not trigger) is pressure-aware: CPU breach ranks by %cpu, mem/io breach by RSS; prefer_kill (compilers/browsers) first, then any non-avoid_kill process. Kills are GRACEFUL SIGTERM for node/claude (so Claude Code prints its resume hint), SIGKILL for everything else. Backstop beneath cgroup caps + systemd-oomd. Baked into the service script at build time (reproducible); every action echoed to the journal.",
     "enabled": true,
     "interval_sec": 2,
     "mem_pressure_full_avg10": 40.0,
     "io_pressure_full_avg10": 55.0,
     "cpu_pressure_some_avg10": 80.0,
-    "proc_cpu_pct": 85,
-    "proc_rss_kb": 2000000,
     "max_kills_per_tick": 4,
     "prefer_kill": ["cc1plus", "cc1", "rustc", "ld", "lto1", "ghc", "node", "electron", "brave", "firefox", "chromium"],
     "avoid_kill": "kwin|plasmashell|kwin_wayland|sddm|Xwayland|pipewire|wireplumber|systemd|dbus|dbus-broker|dropbear|sshd|freeze-guard|earlyoom|systemd-oomd|polkit|NetworkManager|wpa_supplicant",
