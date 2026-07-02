@@ -10,36 +10,29 @@
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-name: "Ship → Builder images (amd64 on GHA — arm64 stays on laptop until self-hosted oci-apps runner exists)"
+name: "Ship → Builder images (TWO NATIVE RUNNERS: amd64 on GHA, arm64 on oci-apps self-hosted → multi-arch :latest)"
 
 # Multi-arch build pipeline for cloud-builder-x-* images.
 #
-# Architecture mandate (NO QEMU, EVER):
-#   - amd64 → GHA ubuntu-latest (native) OR oci-analytics (native)
-#   - arm64 → oci-apps (native via SSH from cloud-data-runners.json)
+# Architecture mandate (NO QEMU, EVER — and NEVER a single-arch :latest):
+#   - amd64 → GHA ubuntu-latest (native)            → pushes :amd64 + :<sha>-amd64
+#   - arm64 → oci-apps self-hosted runner (native)  → pushes :arm64 + :<sha>-arm64
+#   - manifest job merges both → :latest + :<sha> multi-arch manifest lists
 #
-# This workflow handles ONLY the amd64 leg, on a GHA ubuntu-latest runner
-# (native x86_64, no emulation). The arm64 leg is intentionally out of
-# scope here — it requires either:
-#   a) Composite actions for fetch-vault + WG-up + SSH-to-oci-apps in the
-#      unix repo (mirror of cloud/.github/actions/fetch-vault/), then a
-#      `_build_push_arch` invocation. Future work.
-#   b) Registering oci-apps as a self-hosted GHA runner labeled `arm64`,
-#      then runs-on: [self-hosted, arm64]. Future work.
-# Until then, arm64 rebuild stays on the developer laptop via
-# `cb_containers-builders/build.sh ship cloud-builder-x-deb-nixhm`
-# (which uses cloud-data-runners.json to SSH to oci-apps natively).
+# The arm64 runner is `oci-apps-arm64-unix` (infra-bld_gha-runner service in
+# the cloud repo — registrations[] in its build.json, one per repo since
+# personal accounts have no org-level runners).
 #
-# The amd64 image alone is enough to unblock GHA-driven consumer
-# workflows (cloud:Ship → terraform / gen-configs / home-manager all run
-# on ubuntu-latest = amd64). arm64 consumers (Ship → oci-apps shipping
-# c3-infra-api etc.) currently use the previous `latest` digest until a
-# fresh arm64 leg lands.
+# INCIDENT 2026-07-02: a previous version pushed an amd64-only :latest,
+# overwriting the multi-arch manifest — every arm64 consumer (the oci-apps
+# builder container, all arm service builds) hit `exec format error` and
+# the fleet's arm builds died. :latest is now written ONLY by the manifest
+# job, from both arch tags, and verified to contain both platforms.
 #
 # Tags pushed:
-#   ghcr.io/diegonmarcos/<variant>:latest        — amd64 only for now
-#   ghcr.io/diegonmarcos/<variant>:<short-sha>   — amd64 only for now
-# When the arm64 leg lands, both tags become multi-arch manifest lists.
+#   ghcr.io/diegonmarcos/<variant>:amd64 / :arm64      — per-arch legs
+#   ghcr.io/diegonmarcos/<variant>:<short-sha>-<arch>  — pinned per-arch
+#   ghcr.io/diegonmarcos/<variant>:latest / :<sha>     — multi-arch manifests
 
 on:
   workflow_dispatch:
@@ -162,11 +155,11 @@ jobs:
           DOCKER_BUILDKIT=1 docker build \
             --network=host \
             -t "$IMAGE:amd64" \
-            -t "$IMAGE:$SHA" \
+            -t "$IMAGE:$SHA-amd64" \
             -f "$DOCKERFILE" \
             "$CONTEXT"
           docker push "$IMAGE:amd64"
-          docker push "$IMAGE:$SHA"
+          docker push "$IMAGE:$SHA-amd64"
 
       - name: Smoke-test image — verify baked binaries on PATH
         run: |
@@ -191,3 +184,116 @@ jobs:
           docker run --rm --entrypoint sh "$IMAGE" -c "wrangler --version >/dev/null 2>&1" \
             || { echo "::error::wrangler refuses to run in $IMAGE — likely node version mismatch"; exit 1; }
           echo "Smoke-test OK: amd64, node $NODE_MAJOR, all required binaries."
+
+  build-arm64:
+    name: "Build arm64 ${{ matrix.variant }} (self-hosted oci-apps)"
+    needs: matrix
+    runs-on: [self-hosted, arm64]
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJson(needs.matrix.outputs.variants) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Resolve image metadata from build.json
+        id: meta
+        run: |
+          BJ="cb_containers-builders/build.json"
+          VARIANT='${{ matrix.variant }}'
+          IMAGE=$(jq -r --arg v "$VARIANT" '.images[$v].ghcr' "$BJ")
+          DOCKERFILE_REL=$(jq -r --arg v "$VARIANT" '.images[$v].dockerfile' "$BJ")
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          {
+            echo "image=$IMAGE"
+            echo "dockerfile=cb_containers-builders/$DOCKERFILE_REL"
+            echo "context=cb_containers-builders/dist"
+            echo "short_sha=$SHORT_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build arm64 natively + push
+        # Native docker build on the oci-apps A1 (aarch64) runner — the
+        # runner container mounts /var/run/docker.sock, so builds land on
+        # the host daemon. NO QEMU. Pushes :arm64 and :<sha>-arm64 only;
+        # :latest is written exclusively by the manifest job below.
+        run: |
+          IMAGE='${{ steps.meta.outputs.image }}'
+          SHA='${{ steps.meta.outputs.short_sha }}'
+          DOCKERFILE='${{ steps.meta.outputs.dockerfile }}'
+          CONTEXT='${{ steps.meta.outputs.context }}'
+          DOCKER_BUILDKIT=1 docker build \
+            --network=host \
+            -t "$IMAGE:arm64" \
+            -t "$IMAGE:$SHA-arm64" \
+            -f "$DOCKERFILE" \
+            "$CONTEXT"
+          docker push "$IMAGE:arm64"
+          docker push "$IMAGE:$SHA-arm64"
+
+      - name: Smoke-test image — verify baked binaries on PATH
+        run: |
+          IMAGE='${{ steps.meta.outputs.image }}:arm64'
+          MISSING=""
+          for bin in wrangler terraform jq sops age npm node curl; do
+            docker run --rm --entrypoint sh "$IMAGE" -c "command -v $bin >/dev/null 2>&1" \
+              || MISSING="$MISSING $bin"
+          done
+          [ -z "$MISSING" ] || { echo "::error::Required binaries missing from $IMAGE:$MISSING"; exit 1; }
+          echo "Smoke-test OK: arm64, all required binaries."
+
+  manifest:
+    name: "Publish multi-arch :latest ${{ matrix.variant }}"
+    needs: [matrix, build-amd64, build-arm64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJson(needs.matrix.outputs.variants) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Resolve image metadata
+        id: meta
+        run: |
+          BJ="cb_containers-builders/build.json"
+          IMAGE=$(jq -r --arg v '${{ matrix.variant }}' '.images[$v].ghcr' "$BJ")
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create + verify multi-arch manifests
+        # TESTER built in: after creating :latest, inspect it and FAIL unless
+        # BOTH linux/amd64 and linux/arm64 are present — a single-arch
+        # :latest can never be published again.
+        run: |
+          IMAGE='${{ steps.meta.outputs.image }}'
+          SHA='${{ steps.meta.outputs.short_sha }}'
+          docker buildx imagetools create \
+            -t "$IMAGE:latest" -t "$IMAGE:$SHA" \
+            "$IMAGE:amd64" "$IMAGE:arm64"
+          PLATFORMS=$(docker buildx imagetools inspect "$IMAGE:latest" --raw \
+            | jq -r '[.manifests[].platform | "\(.os)/\(.architecture)"] | sort | join(",")')
+          echo "platforms in :latest → $PLATFORMS"
+          case "$PLATFORMS" in
+            *linux/amd64*linux/arm64*|*linux/arm64*linux/amd64*) echo "multi-arch OK" ;;
+            *) echo "::error::$IMAGE:latest is not multi-arch ($PLATFORMS)"; exit 1 ;;
+          esac
