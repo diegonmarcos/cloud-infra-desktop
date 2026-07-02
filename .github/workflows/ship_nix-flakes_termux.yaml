@@ -51,12 +51,6 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
             accept-flake-config = true
-            # nix-on-droid's bundled proot-termux-static is served ONLY from
-            # its cachix (no buildable derivation on CI) — without this
-            # substituter the eval dies: "path '/nix/store/...-proot-termux-
-            # static-...' does not exist and cannot be created" (run 28606894770).
-            extra-substituters = https://nix-on-droid.cachix.org
-            extra-trusted-public-keys = nix-on-droid.cachix.org-1:56snoMJTXmDRC1Ei24CmKoUqvHJ9XCp+nidK7qkMQrU=
 
       - name: Build + export nix-on-droid closure
         run: ./bb_flakes_termux/build.sh ci-build

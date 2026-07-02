@@ -18,7 +18,11 @@ in {
 
   systemd.user.services.cloud-systray = {
     description = "Cloud & Infra Control Panel tray icon";
-    wantedBy    = [ "graphical-session.target" ];
+    # NO autostart — electron tray must not be launched by systemd at login
+    # (it fought the freeze-guard watchdog and ate RAM). Start manually if wanted:
+    # `systemctl --user start cloud-systray`. Service stays defined, just not wired
+    # into graphical-session.target.
+    wantedBy    = [ ];
     partOf      = [ "graphical-session.target" ];
     after       = [ "graphical-session.target" ];
     serviceConfig = {
