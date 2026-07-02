@@ -11,9 +11,9 @@
   },
 
   "gui_session": {
-    "_comment": "user-1000.slice (the KDE Plasma desktop). MemoryMin = RAM the kernel is FORBIDDEN to reclaim, so the compositor (kwin/plasmashell) stays responsive under build pressure. MemorySwapMax=0 = desktop pages never thrash to the disk swapfile.",
+    "_comment": "user-1000.slice (the KDE Plasma desktop). MemoryMin = RAM the kernel is FORBIDDEN to reclaim, so the compositor (kwin/plasmashell) stays responsive under build pressure. 2026-07-02 FIX: MemorySwapMax=0 also blocked ZRAM (cgroup swap caps can't distinguish zram from disk) — with MemoryHigh below the real working set the kernel could only evict file-backed pages (running executables), which faulted straight back through kcryptd/btrfs = the freeze. Bounded 2G swap valve lands on zram (prio 100) not the disk swapfile (prio -1).",
     "MemoryMin": "1G",
-    "MemorySwapMax": "0"
+    "MemorySwapMax": "2048M"
   },
 
   "reservation": {
@@ -84,10 +84,16 @@
         "expect_regex": "^(1073741824|10737418240?)$"
       },
       {
-        "id": "gui_no_swap",
-        "description": "user-1000.slice desktop pages never thrash to disk",
+        "id": "gui_swap_valve",
+        "description": "user-1000.slice has a bounded 2G swap valve (zram-first) — not 0 (file-page thrash) and not unlimited (disk thrash)",
         "command": "systemctl show user-1000.slice -p MemorySwapMax --value",
-        "expect_regex": "^0$"
+        "expect_regex": "^2147483648$"
+      },
+      {
+        "id": "gui_mem_high_above_working_set",
+        "description": "user-1000.slice MemoryHigh is at least 4G — above the measured desktop working set (~3.5G), so no permanent memory.high reclaim throttle",
+        "command": "systemctl show user-1000.slice -p MemoryHigh --value",
+        "expect_regex": "^([4-9][0-9]{9}|[1-9][0-9]{10,})$"
       },
       {
         "id": "freeze_guard_active",
