@@ -32,7 +32,8 @@
     "systemsettings": { "exec": "systemsettings", "match_class": "systemsettings",  "arg_mode": "none", "launch_prefix": ["dbus-run-session", "--"] },
     "obsidian":       { "exec": "obsidian",       "match_class": "obsidian",        "arg_mode": "none" },
     "kate":           { "exec": "kate",           "match_class": "org.kde.kate",    "arg_mode": "none" },
-    "cloud-terminal":{ "exec": "cloud-terminal-nix-flakes", "match_class": "cloud-terminal-nix-flakes", "arg_mode": "none", "fixed_args": ["--show"], "_doc": "Cloud Terminal (Electron, da_cloud-terminal). Launcher on PATH via `build.sh install` → ~/.local/bin. --class sets the Wayland app_id = resourceClass used for positioning." }
+    "cloud-terminal":{ "exec": "cloud-terminal-nix-flakes", "match_class": "cloud-terminal-nix-flakes", "arg_mode": "none", "fixed_args": ["--show"], "_doc": "Cloud Terminal (Electron, da_cloud-terminal). Launcher on PATH via `build.sh install` → ~/.local/bin. --class sets the Wayland app_id = resourceClass used for positioning." },
+    "redroid":       { "exec": "redroid", "match_class": "scrcpy", "arg_mode": "none", "_doc": "Redroid Android (da_redroid). The `redroid` launcher (HM containers-cloud/redroid.nix, ~/.local/bin) runs `redroid up` = docker pull+run the BAKED redroid-cloud GHCR image (apps + layout + theme baked in), then scrcpy to mirror it. match_class=scrcpy is the mirror window's Wayland app_id used for positioning. NOTE: first-ever login after a fresh pull may exceed the per-app launch timeout while the multi-GB image downloads — fallback logs+continues (never blocks login); the window lands on Desktop 3 on subsequent logins once the image is cached." }
   },
 
   "desktops": [
@@ -90,7 +91,8 @@
       "windows": [
         { "cell": "left",  "app": "systemsettings" },
         { "cell": "left",  "app": "obsidian" },
-        { "cell": "right", "app": "kate" }
+        { "cell": "right", "app": "kate" },
+        { "cell": "right", "app": "redroid", "_comment": "Redroid Android mirror (scrcpy) autostarts on Desktop 3 — brings up the baked redroid-cloud image on login." }
       ]
     }
   ]
