@@ -21,9 +21,13 @@ permissions:
   contents: read
   packages: read   # pull ghcr.io/<owner>/unix-boot-cache (prebuilt linux-surface kernel)
 
+# cancel-in-progress:false (2026-07-02): with :true, every push (incl.
+# auto-sync) cancelled the in-flight closure build — 6+ runs died tonight,
+# one at 2h13m, and NO closure ever landed. Long builds must complete;
+# a newer push simply queues (GitHub keeps only the newest pending run).
 concurrency:
   group: ship-desktop
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
