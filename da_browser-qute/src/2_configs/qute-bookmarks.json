@@ -1,25 +1,39 @@
 {
-  "_description": "qutebrowser quickmarks (key → URL). Loaded into ~/.config/qutebrowser/quickmarks via home-manager's programs.qutebrowser.quickmarks.",
-  "vault":     "https://vault.diegonmarcos.com",
-  "dev":       "http://localhost:8000",
-  "proxy":     "https://proxy.diegonmarcos.com",
-  "cloud":     "https://cloud.diegonmarcos.com",
-  "linktree":  "https://linktree.diegonmarcos.com",
-  "gemini":    "https://gemini.google.com",
-  "claude":    "https://claude.ai/new#settings/usage",
-  "authelia":  "https://auth.diegonmarcos.com",
-  "gitea":     "https://git.diegonmarcos.com",
-  "ide":       "https://ide.diegonmarcos.com",
-  "logs":      "https://logs.diegonmarcos.com",
-  "workflows": "https://workflows.diegonmarcos.com",
-  "mail":      "https://webmail.diegonmarcos.com",
-  "files":     "https://files.diegonmarcos.com",
-  "matomo":    "https://analytics.diegonmarcos.com/matomo",
-  "umami":     "https://analytics.diegonmarcos.com",
-  "openobserve": "https://analytics.diegonmarcos.com/openobserve",
-  "hedgedoc":  "https://doc.diegonmarcos.com",
-  "etherpad":  "https://pad.diegonmarcos.com",
-  "grist":     "https://sheets.diegonmarcos.com",
-  "photoprism": "https://photos.diegonmarcos.com",
-  "dbgate":    "https://db.diegonmarcos.com"
+  "_description": "qutebrowser bookmarks — FOLDER source of truth for the dashboard start page (List + Icons views) AND flattened `Folder/name` quickmarks. Cloud folders are DATA-DRIVEN: the generator (src/dashboard/gen-dashboard.sh) derives them from cloud-data's build-flakes_desktop.json (each service's proxy.primary.wg_only splits public vs WG-only; .domain / .dns give the URL). Services + Local are hand-curated here. Edit this file or the cloud service build.jsons; never edit the generated dashboard.html. Folder order = array order.",
+  "folders": [
+    {
+      "name": "Cloud-dnm",
+      "desc": "Public Caddy edge — *.diegonmarcos.com (Authelia 2FA)",
+      "source": "cloud:public"
+    },
+    {
+      "name": "Cloud-priv",
+      "desc": "Internal WG mesh — *.app",
+      "source": "cloud:app"
+    },
+    {
+      "name": "Services",
+      "desc": "External SaaS",
+      "links": {
+        "claude-usage": "https://claude.ai/new#settings/usage",
+        "gemini":       "https://gemini.google.com",
+        "github":       "https://github.com/diegonmarcos"
+      }
+    },
+    {
+      "name": "Local",
+      "desc": "Dev server · repos · filesystem",
+      "links": {
+        "bookmarks": "file:///home/diego/.config/qutebrowser/dashboard.html",
+        "dev":       "http://localhost:8000",
+        "home":      "file:///home/diego",
+        "mnt":       "file:///mnt",
+        "cloud":     "file:///home/diego/git/cloud",
+        "unix":      "file:///home/diego/git/unix",
+        "front":     "file:///home/diego/git/front",
+        "vault":     "file:///home/diego/git/vault",
+        "tools":     "file:///home/diego/git/tools"
+      }
+    }
+  ]
 }

@@ -24,7 +24,17 @@ let
   settings        = builtins.fromJSON (builtins.readFile "${configsDir}/qute-settings.json");
   searchEngines   = builtins.fromJSON (builtins.readFile "${configsDir}/qute-search-engines.json");
   keyBindings     = builtins.fromJSON (builtins.readFile "${configsDir}/qute-keybindings.json");
-  quickmarks      = builtins.fromJSON (builtins.readFile "${configsDir}/qute-bookmarks.json");
+
+  # qute-bookmarks.json is the FOLDER SoT for the dashboard (see src/dashboard).
+  # For qutebrowser's flat quickmarks we flatten the CURATED folders (those with
+  # inline "links") into "Folder/name" keys — pure-eval-safe. The cloud folders
+  # (source:"cloud:*") are resolved at generate-time by gen-dashboard.sh from
+  # cloud-data, so they live only in the dashboard, not in quickmarks.
+  bookmarks       = builtins.fromJSON (builtins.readFile "${configsDir}/qute-bookmarks.json");
+  curatedFolders  = builtins.filter (f: f ? links) (bookmarks.folders or []);
+  flatQuickmarks  = lib.foldl' (acc: f:
+      acc // (lib.mapAttrs' (n: url: lib.nameValuePair "${f.name}/${n}" url) f.links)
+    ) {} curatedFolders;
 
   # Strip ANY leading-underscore key recursively before passing to
   # qutebrowser — by convention every doc/annotation field in our JSON
@@ -42,7 +52,6 @@ let
   cleanSettings      = stripDocs settings;
   cleanSearchEngines = stripDocs searchEngines;
   cleanKeyBindings   = stripDocs keyBindings;
-  cleanQuickmarks    = stripDocs quickmarks;
 in
 {
   options.programs.da_browser-qute = {
@@ -74,8 +83,13 @@ in
       settings = lib.recursiveUpdate cleanSettings cfg.extraSettings;
       searchEngines = cleanSearchEngines;
       keyBindings = cleanKeyBindings;
-      quickmarks = cleanQuickmarks;
+      quickmarks = flatQuickmarks;
     };
+
+    # Bookmark dashboard start page — generated (gen-dashboard.sh) into dist/,
+    # committed, installed here. qute-settings.json points url.start_pages +
+    # url.default_page at this file.
+    xdg.configFile."qutebrowser/dashboard.html".source = ../../dist/dashboard.html;
 
     xdg.mimeApps = lib.mkIf cfg.defaultBrowser {
       enable = true;
