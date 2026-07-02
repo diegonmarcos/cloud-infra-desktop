@@ -239,9 +239,19 @@ in
         echo "$line"
       }
 
-      # Per-process hog killer: SIGKILL any single non-avoid process over PROC_CPU
-      # %cpu or PROC_RSS kB. Catches a lone runaway (gradle/rustc/java/ld pinning
-      # one core) that never raises system PSI enough to trip the PSI guards.
+      # Signal picker: graceful SIGTERM for node/claude so Claude Code can print
+      # its "claude --resume" hint on the way out; hard SIGKILL for everything
+      # else. NOT a whitelist — node/claude still gets killed, just cleanly.
+      do_kill() {
+        case "$2" in
+          node|claude) kill -TERM "$1" 2>/dev/null || true; echo TERM ;;
+          *)           kill -9    "$1" 2>/dev/null || true; echo KILL ;;
+        esac
+      }
+
+      # Per-process hog killer: any single non-avoid process over PROC_CPU %cpu or
+      # PROC_RSS kB. Catches a lone runaway (gradle/rustc/java/ld pinning one core)
+      # that never raises system PSI enough to trip the PSI guards.
       hog_kill() {
         ps -eo pid=,comm=,pcpu=,rss= --sort=-pcpu 2>/dev/null | head -n15 | \
         while read -r pid comm cpu rss; do
@@ -249,8 +259,8 @@ in
           cpu=''${cpu%.*}
           if [ "''${cpu:-0}" -ge "$PROC_CPU" ] || [ "''${rss:-0}" -ge "$PROC_RSS" ]; then
             [ "$pid" -gt 1 ] 2>/dev/null || continue
-            echo "[freeze-guard] HOG → SIGKILL pid=$pid ($comm) cpu=''${cpu}% rss=''${rss}kB"
-            kill -9 "$pid" 2>/dev/null || true
+            sig=$(do_kill "$pid" "$comm")
+            echo "[freeze-guard] HOG → SIG$sig pid=$pid ($comm) cpu=''${cpu}% rss=''${rss}kB"
           fi
         done
       }
@@ -276,8 +286,8 @@ in
           set -- $(pick_victim "$key" "$killed")
           pid="$1"; metric="$2"; name="$3"
           [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null || break
-          echo "[freeze-guard] FREEZE-RISK cpuPSI=$cpu memPSI=$mem ioPSI=$io → SIGKILL pid=$pid rank-by=$key metric=$metric ($name)"
-          kill -9 "$pid" 2>/dev/null || true
+          sig=$(do_kill "$pid" "$name")
+          echo "[freeze-guard] FREEZE-RISK cpuPSI=$cpu memPSI=$mem ioPSI=$io → SIG$sig pid=$pid rank-by=$key metric=$metric ($name)"
           killed="$killed $pid"; n=$((n + 1))
           sleep 0.3   # let PSI reflect the kill before re-reading
           cpu=$(psi_avg10 cpu some);    cpu=''${cpu:-0}
