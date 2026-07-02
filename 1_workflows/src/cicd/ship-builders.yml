@@ -135,9 +135,13 @@ jobs:
 
       - name: Build amd64 natively + push
         # No buildx, no QEMU. Plain native docker build on the amd64 GHA
-        # runner. Tags both :latest and :<short-sha>. When the arm64 leg
-        # eventually lands (via SSH to oci-apps), both tags become manifest
-        # lists; for now they reference the amd64 manifest directly.
+        # runner. Pushes :amd64 and :<short-sha> ONLY.
+        # INCIDENT 2026-07-02: this step used to also push :latest — an
+        # amd64-only manifest overwriting the multi-arch list — so every
+        # arm64 consumer (oci-apps builder, arm service builds) got
+        # `exec format error` on next pull and the fleet's arm builds died.
+        # :latest is owned EXCLUSIVELY by the laptop's multi-arch ship
+        # (cb_containers-builders/build.sh ship — buildx amd64+arm64).
         run: |
           IMAGE='${{ steps.meta.outputs.image }}'
           SHA='${{ steps.meta.outputs.short_sha }}'
@@ -145,16 +149,16 @@ jobs:
           CONTEXT='${{ steps.meta.outputs.context }}'
           DOCKER_BUILDKIT=1 docker build \
             --network=host \
-            -t "$IMAGE:latest" \
+            -t "$IMAGE:amd64" \
             -t "$IMAGE:$SHA" \
             -f "$DOCKERFILE" \
             "$CONTEXT"
-          docker push "$IMAGE:latest"
+          docker push "$IMAGE:amd64"
           docker push "$IMAGE:$SHA"
 
       - name: Smoke-test image — verify baked binaries on PATH
         run: |
-          IMAGE='${{ steps.meta.outputs.image }}:latest'
+          IMAGE='${{ steps.meta.outputs.image }}:amd64'
           MISSING=""
           for bin in wrangler terraform jq sops age npm node curl; do
             docker run --rm --entrypoint sh "$IMAGE" -c "command -v $bin >/dev/null 2>&1" \
