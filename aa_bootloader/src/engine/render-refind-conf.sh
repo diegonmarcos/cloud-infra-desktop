@@ -275,13 +275,19 @@ producer_linux_partition() {
     initrd=$(jq -r ".grub.menu.$from.initrd" "$BOOT_JSON")
     opts=$(jq -r ".grub.menu.$from.options" "$BOOT_JSON")
     icon="${icon_override:-os_$from}"
+    # root= kernel param. Default root=UUID=<root_uuid>; an entry may override via
+    # grub.menu.<from>.root_param (e.g. Android-x86/BlissOS: "/dev/ram0" — the ramdisk root;
+    # the real rootfs comes from SRC= in options). rEFInd's ext4 driver reads the kernel/initrd
+    # FILES directly off `volume`, so a real (non-symlink) path like /blissos/kernel boots
+    # natively — no GRUB chainload needed (unlike Debian/Kali whose /vmlinuz is a symlink).
+    rp=$(jq -r ".grub.menu.$from.root_param // empty" "$BOOT_JSON"); [ -n "$rp" ] || rp="UUID=$uuid"
     cat <<EOF
 menuentry "$label" {
     icon ${STANZA_ICON_PATH}/${icon}.png
     volume "$uuid"
     loader $kernel
     initrd $initrd
-    options "root=UUID=$uuid $opts"
+    options "root=$rp $opts"
 }
 
 EOF

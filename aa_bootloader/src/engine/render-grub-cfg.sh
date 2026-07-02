@@ -135,13 +135,18 @@ emit_linux_partition() {
     K=$(jq -r ".grub.menu.$key.kernel" "$BOOT_JSON")
     I=$(jq -r ".grub.menu.$key.initrd" "$BOOT_JSON")
     O=$(jq -r ".grub.menu.$key.options" "$BOOT_JSON")
+    # root= kernel param. Default root=UUID=<root_uuid> (normal distros); an entry may
+    # override via grub.menu.<key>.root_param (e.g. Android-x86/BlissOS: "/dev/ram0", the
+    # ramdisk root — the real rootfs comes from SRC= in options, not the ext4 UUID). GRUB's
+    # own `search --set=root` still points at $U so the kernel/initrd FILES are read from p5.
+    RP=$(jq -r ".grub.menu.$key.root_param // empty" "$BOOT_JSON"); [ -n "$RP" ] || RP="UUID=$U"
     RECOVERY_LABEL=$(jq -r ".grub.menu.$key.recovery.label // \"$L Recovery Mode\"" "$BOOT_JSON")
     cat <<EOF
 menuentry "$L" --class $key --class gnu-linux --class gnu --class os {
   insmod part_gpt
   insmod ext2
   search --no-floppy --fs-uuid --set=root $U
-  linux $K root=UUID=$U $O
+  linux $K root=$RP $O
   initrd $I
 }
 
@@ -158,7 +163,7 @@ EOF
     insmod part_gpt
     insmod ext2
     search --no-floppy --fs-uuid --set=root $U
-    linux $MK root=UUID=$U $MO
+    linux $MK root=$RP $MO
     initrd $MI
   }
 EOF2
