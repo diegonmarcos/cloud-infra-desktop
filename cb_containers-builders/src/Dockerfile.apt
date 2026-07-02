@@ -31,17 +31,23 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Docker CLI ───────────────────────────────────────────────────
+# MULTI-ARCH (2026-07-02): arch was hardcoded amd64 — the arm64 leg of
+# ship-builders got exit 100 (no packages for arch). dpkg decides now.
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list \
     && apt-get update -qq \
     && apt-get install -y -qq --no-install-recommends docker-ce-cli docker-compose-plugin \
     && rm -rf /var/lib/apt/lists/*
 
 # ── sops + age ───────────────────────────────────────────────────
-RUN curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 -o /usr/local/bin/sops \
+# Arch-dynamic: the old amd64-only URLs silently installed x86 binaries on
+# arm64 (masked by the || SKIP) — sops/age would then exec-format-error.
+RUN ARCH=$(dpkg --print-architecture) \
+    && curl -fsSL "https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.${ARCH}" -o /usr/local/bin/sops \
     && chmod +x /usr/local/bin/sops \
     || echo "[SKIP] sops install failed"
-RUN curl -fsSL https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz | tar xz -C /tmp \
+RUN ARCH=$(dpkg --print-architecture) \
+    && curl -fsSL "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-${ARCH}.tar.gz" | tar xz -C /tmp \
     && mv /tmp/age/age /tmp/age/age-keygen /usr/local/bin/ && rm -rf /tmp/age \
     || echo "[SKIP] age install failed"
 
@@ -55,7 +61,7 @@ RUN bash /tmp/docker-deps.sh && rm /tmp/docker-deps.sh
 
 # ── gh CLI ───────────────────────────────────────────────────────
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
     && apt-get update -qq && apt-get install -y -qq gh \
     && rm -rf /var/lib/apt/lists/* \
     || echo "[SKIP] gh install failed"
