@@ -75,24 +75,30 @@
       "name": "Desktop 2",
       "split": "horizontal",
       "windows": [
-        { "cell": "left",  "app": "dolphin",     "args": ["/home/diego", "/home/diego/git/unix", "/home/diego/git/cloud", "/home/diego/git/front", "/home/diego/Downloads", "/mnt"] },
-        { "cell": "right", "app": "qutebrowser", "_comment": "Default arrangement — keep in sync with da_browser-qute qute-default-window.json (the 'New Default Window' command). tab0 = the bookmark dashboard.", "urls": [
-          "file:///home/diego/.config/qutebrowser/dashboard.html",
-          "http://localhost:8000",
-          "https://gemini.google.com",
-          "https://claude.ai/new#settings/usage"
-        ] }
+        { "cell": "left",  "app": "kate" },
+        { "cell": "right", "app": "obsidian" }
       ]
     },
     {
       "id": 3,
       "name": "Desktop 3",
+      "split": "full",
+      "windows": [
+        { "cell": "full", "app": "redroid", "_comment": "Full-screen Redroid Android GUI (scrcpy mirroring the baked redroid-cloud image). Autostarts on login; occupies the whole usable area of Desktop 3." }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Desktop 4",
       "split": "horizontal",
       "windows": [
-        { "cell": "left",  "app": "systemsettings" },
-        { "cell": "left",  "app": "obsidian" },
-        { "cell": "right", "app": "kate" },
-        { "cell": "right", "app": "redroid", "_comment": "Redroid Android mirror (scrcpy) autostarts on Desktop 3 — brings up the baked redroid-cloud image on login." }
+        { "cell": "left",  "app": "dolphin",     "args": ["/home/diego", "/home/diego/git/unix", "/home/diego/git/cloud", "/home/diego/git/front", "/home/diego/Downloads", "/mnt"] },
+        { "cell": "right", "app": "qutebrowser", "_comment": "Default arrangement — keep in sync with da_browser-qute qute-default-window.json (the 'New Default Window' command). tab0 = the bookmark dashboard (homepage).", "urls": [
+          "file:///home/diego/.config/qutebrowser/dashboard.html",
+          "http://localhost:8000",
+          "https://gemini.google.com",
+          "https://claude.ai/new#settings/usage"
+        ] }
       ]
     }
   ]
