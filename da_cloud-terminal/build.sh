@@ -12,7 +12,8 @@
 # ║   build.sh build     vendor + icons + cargo tauri build (release)  ║
 # ║   build.sh dev       cargo tauri dev (hot-reload)                  ║
 # ║   build.sh check     cargo check (fast compile validation)         ║
-# ║   build.sh run <p>   run the built binary for profile <p>          ║
+# ║   build.sh fetch [id] download CI-built binary (latest green) → ci ║
+# ║   build.sh run <p>   launch local/fetched binary via nix develop   ║
 # ║   build.sh shell     enter the Nix devShell                       ║
 # ║   build.sh clean     rm target/ dist/ frontend/vendor              ║
 # ║                                                                    ║
@@ -101,8 +102,36 @@ case "$CMD" in
   build)  build ;;
   dev)    vendor; icons; ( cd "$TAURI" && in_nix cargo tauri dev ) ;;
   check)  vendor; icons; ( cd "$TAURI" && in_nix cargo check ) ;;
-  run)    CT_APP_DIR="$SRC" CT_ASSETS_DIR="$SRC/assets" CT_PROFILES_DIR="$SRC/data" \
-            CT_PROFILE="${2:-nix-flakes}" "$TAURI/target/release/cloud-terminal" --show ;;
+  fetch)
+    # Pull the CI-built binary from the latest successful ship-cloud-terminal
+    # run — lets a RAM-constrained box (whose watchdog kills a local compile)
+    # still run the app. gh is the host tool (not in the flake).
+    command -v gh >/dev/null || { errlog "gh CLI required for fetch"; exit 1; }
+    rid="${2:-$(gh run list --workflow=ship-cloud-terminal.yml --limit 20 \
+      --json databaseId,conclusion 2>/dev/null | jq -r 'map(select(.conclusion=="success"))[0].databaseId')}"
+    [ -z "$rid" ] && { errlog "no successful CI run found"; exit 1; }
+    log "fetching cloud-terminal-bundle from run $rid → dist/ci"
+    rm -rf "$DIST/ci"; mkdir -p "$DIST/ci"
+    gh run download "$rid" -n cloud-terminal-bundle -D "$DIST/ci"
+    chmod +x "$DIST/ci/cloud-terminal" 2>/dev/null || true
+    log "→ $DIST/ci/cloud-terminal"
+    ;;
+  run)
+    # Launch through `nix develop` so the flake realizes the exact glibc +
+    # WebKit closure the binary links against and sets LD_LIBRARY_PATH — a raw
+    # exec fails (foreign store paths get GC'd; webkit not on the loader path).
+    # Prefer a local release build; fall back to the fetched CI binary.
+    icons
+    bin="$TAURI/target/release/cloud-terminal"
+    [ -x "$bin" ] || bin="$DIST/ci/cloud-terminal"
+    [ -x "$bin" ] || { errlog "no binary — run 'build.sh build' or 'build.sh fetch' first"; exit 1; }
+    log "launching $bin (profile ${2:-nix-flakes}, multi-tray)"
+    in_nix env \
+      CT_APP_DIR="$SRC" CT_ASSETS_DIR="$SRC/assets" CT_PROFILES_DIR="$SRC/data" \
+      CT_PROFILE="${2:-nix-flakes}" CT_MULTI=1 CT_SHELL=fish \
+      WEBKIT_DISABLE_COMPOSITING_MODE=1 GDK_BACKEND=wayland,x11 \
+      "$bin" --show
+    ;;
   shell)  exec nix develop "$ROOT" ;;
   clean)  rm -rf "$TAURI/target" "$DIST" "$FRONTEND/vendor" "$ROOT/node_modules"; log "cleaned" ;;
   *)      errlog "unknown command: $CMD"; exit 1 ;;
