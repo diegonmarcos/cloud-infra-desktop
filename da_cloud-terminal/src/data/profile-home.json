@@ -1,5 +1,6 @@
 {
   "name":         "home",
+  "order":        0,
   "display_name": "Home",
   "logo":         "🏠",
   "tray_tooltip": "Home — greeting · sys-performance · connect",
