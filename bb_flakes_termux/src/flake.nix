@@ -55,16 +55,19 @@
             system.stateVersion = "24.05";
             environment.etcBackupExtension = ".bak";
 
-            # proot resolver must match the wgP-wg0-termux WireGuard DNS
-            # (10.0.0.1 Hickory wg0, 10.1.0.1 Hickory wg-public, 1.1.1.1
-            # fallback). nix-on-droid's default resolv.conf is 1.1.1.1/8.8.8.8
+            # proot resolver must match the vault termux WireGuard profile DNS
+            # (10.0.0.1 Hickory wg0, 1.1.1.1 fallback — see
+            # vault/A0_keys/providers/wireguard/termux{,-public}/config).
+            # nix-on-droid's default resolv.conf is 1.1.1.1/8.8.8.8
             # — that bypasses Hickory, so *.diegonmarcos.com resolves to the
             # PUBLIC edge instead of the wg IP and WG-only services (MCP, etc.)
-            # 403. Hickory-first = wg-IP resolution; the tunnel's own DNS list
-            # is the source of truth, mirrored here for proot processes.
+            # 403. Hickory-first = wg-IP resolution.
+            # NOTE: 10.1.0.1 removed 2026-07-02 — NO DNS service exists on the
+            # wg-public hub (oci-analytics has no :53 listener and none is
+            # declared); a dead resolver in the list only adds per-lookup
+            # timeouts (broke mail-client resolution on Android).
             environment.etc."resolv.conf".text = lib.mkForce ''
               nameserver 10.0.0.1
-              nameserver 10.1.0.1
               nameserver 1.1.1.1
             '';
 
