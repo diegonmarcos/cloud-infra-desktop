@@ -254,10 +254,15 @@ in
       # Signal picker: graceful SIGTERM for node/claude so Claude Code can print
       # its "claude --resume" hint on the way out; hard SIGKILL for everything
       # else. NOT a whitelist — node/claude still gets killed, just cleanly.
+      # Match on the FULL CMDLINE, not comm: claude runs via the glibc loader
+      # (comm=ld-linux-x86-64), so a comm match misses it — 2026-07-02 claude
+      # was SIGKILLed 4x with no resume hint because of exactly that.
       do_kill() {
-        case "$2" in
-          node|claude) kill -TERM "$1" 2>/dev/null || true; echo TERM ;;
-          *)           kill -9    "$1" 2>/dev/null || true; echo KILL ;;
+        local cmdline
+        cmdline=$(tr '\0' ' ' < "/proc/$1/cmdline" 2>/dev/null || echo "$2")
+        case "$cmdline" in
+          *claude*|*node*) kill -TERM "$1" 2>/dev/null || true; echo TERM ;;
+          *)               kill -9    "$1" 2>/dev/null || true; echo KILL ;;
         esac
       }
 

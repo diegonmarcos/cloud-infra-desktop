@@ -30,6 +30,12 @@
         "unit": "tracker-extract-3.service",
         "reason": "GNOME tracker metadata extractor — CPU-heavy during indexing bursts"
       }
+    ],
+    "system_services": [
+      {
+        "unit": "freeze-guard.service",
+        "reason": "2026-07-02: a STALE deployed freeze-guard generation carried an absolute-metric HOG killer that SIGKILLed every nix eval (cpu 30-50%, rss 2-3G), deadlocking the very switch that fixes it. Suspended only for Phase 1; slice caps + earlyoom still protect; resumed unconditionally after."
+      }
     ]
   }
 }
