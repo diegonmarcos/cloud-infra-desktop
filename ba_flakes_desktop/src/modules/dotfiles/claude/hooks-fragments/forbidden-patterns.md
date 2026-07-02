@@ -11,3 +11,4 @@
 | Edit `~/.claude/CLAUDE.md` | Edit source in `~/git/unix/` flakes |
 | `cd dir && git mv dir/...` | `git -C /abs/path mv ...` (absolute paths) |
 | `git add -f` / `git add --force` | plain `git add` — NEVER bypass gitignore. `-f` force-stages secrets, decrypted keys, sensitive/ — gitignore exists for a reason. |
+| `git checkout -b` / `git switch -c` / `git branch <new>` / `git worktree add` | **BRANCHES ARE FORBIDDEN** — work ONLY on `main`. Edit → commit → push directly; GHA deploys on push. No branches, no PRs. |
