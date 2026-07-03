@@ -1626,9 +1626,9 @@ function makeAGI(tabId) {
 
     // ── by model ──
     const models = (d.by_model || []).slice().sort((a, b) => b.usage.cost - a.usage.cost)
-    const maxCost = Math.max(1e-6, ...models.map(m => m.usage.cost))
+    const maxModelCost = Math.max(1e-6, ...models.map(m => m.usage.cost))
     $('#a-models-' + id).innerHTML = models.map(m => {
-      const col = modelColor(m.model), pct = m.usage.cost / maxCost * 100
+      const col = modelColor(m.model), pct = m.usage.cost / maxModelCost * 100
       return `<div class="agi-model-row"><span class="mn">${esc(m.model)}</span>` +
         `<span class="track"><i style="width:${pct.toFixed(1)}%;background:${col};color:${col}"></i></span>` +
         `<span class="cost">${usd(m.usage.cost)}</span></div>`
