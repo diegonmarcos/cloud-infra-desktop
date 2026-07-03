@@ -348,6 +348,28 @@
     white-space: pre-wrap; word-break: break-word; user-select: text; color: #cbd5e1; line-height: 1.4; }
   .cloud-logfeed::-webkit-scrollbar { width: 7px; } .cloud-logfeed::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
 
+  /* ══ Data Sync Center ══════════════════════════════════════════════ */
+  .leaf.datasync { padding: 0; overflow: hidden; background:
+    radial-gradient(1200px 600px at 20% -10%, #15172b 0%, var(--bg) 60%); }
+  .ds { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 11px; overflow-y: auto; }
+  .ds-top { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .ds-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px; }
+  .ds-grid .panel { min-height: 118px; }
+  .ds-list { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; flex: 1 1 0; min-height: 0; }
+  .ds-repo { display: grid; grid-template-columns: 60px 1fr auto; gap: 6px; align-items: center; font-size: 10px; }
+  .ds-repo .rn { color: var(--accent2); font-weight: 600; }
+  .ds-repo .rl { color: #8b93a7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ds-repo .rb { display: flex; gap: 3px; }
+  .ds-badge { font-size: 9px; padding: 0 5px; border-radius: 6px; border: 1px solid var(--sep); color: #9aa4b2; white-space: nowrap; }
+  .ds-badge.dirty { color: #fbbf24; border-color: #fbbf24; } .ds-badge.ahead { color: #4ade80; border-color: #4ade80; } .ds-badge.behind { color: #f87171; border-color: #f87171; } .ds-badge.clean { color: #4ade80; }
+  .ds-kv { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; }
+  .ds-kv .k { color: #9aa4b2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-kv .v { color: #cbd5e1; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .ds-kv .t { color: #7dd3fc; font-size: 9px; }
+  .ds-peer { display: flex; align-items: center; gap: 8px; font-size: 10px; }
+  .ds-peer .dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 6px currentColor; flex-shrink: 0; }
+  .ds-peer .ph { color: #e2e8f0; font-weight: 600; } .ds-peer .pk { color: #6b7280; font-size: 9px; } .ds-peer .pi { color: #6b7280; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ds-empty { color: #6b7280; font-size: 10px; }
+
   #ctxmenu {
     position: fixed; z-index: 1000; display: none; min-width: 170px; padding: 4px;
     background: var(--sidebar); border: 1px solid var(--sep); border-radius: 6px;
@@ -1139,6 +1161,111 @@ function makeCloud(tabId) {
   return { id, leaf }
 }
 
+// ══ Data Sync Center (no PTY) — data topology, sync, peers, stats ════
+function makeDataSync(tabId) {
+  const id = ++paneSeq
+  const leaf = document.createElement('div')
+  leaf.className = 'leaf datasync'; leaf.dataset.pane = String(id)
+  const P = (t, hdr, body) => `<div class="panel ${t}"><div class="ph"><span>${hdr}</span></div>${body}</div>`
+  leaf.innerHTML = `
+    <div class="ds">
+      <div class="ds-top"><span style="font-weight:700;color:var(--accent);letter-spacing:.08em">DATA SYNC CENTER</span>
+        <span style="flex:1"></span><span class="jrn-count" id="d-note-${id}"></span>
+        <button class="cpbtn" id="d-refresh-${id}">↻ refresh</button></div>
+      <div class="jrn-stats" id="d-stats-${id}"></div>
+      <div class="ds-grid">
+        ${P('', 'LOCAL · MOUNTS', '<div class="bars" id="d-mounts-' + id + '"></div>')}
+        ${P('', 'DOCKER VOLUMES', '<div class="ds-list" id="d-vols-' + id + '"></div>')}
+        ${P('', 'GIT REPOS', '<div class="ds-list" id="d-git-' + id + '"></div>')}
+        ${P('', 'RCLONE · CLOUD REMOTES', '<div class="ds-list" id="d-remotes-' + id + '"></div>')}
+        ${P('', 'S3 · ORACLE OBJECT STORAGE', '<div class="ds-list" id="d-s3-' + id + '"></div>')}
+        ${P('', 'GHCR · CONTAINER IMAGES', '<div class="ds-list" id="d-ghcr-' + id + '"></div>')}
+        ${P('', 'RELEASES', '<div class="ds-list" id="d-rel-' + id + '"></div>')}
+        ${P('', 'SYNC PEERS', '<div class="ds-list" id="d-peers-' + id + '"></div>')}
+        ${P('', 'FUSE · USB', '<div class="ds-list" id="d-fuseusb-' + id + '"></div>')}
+        ${P('', 'SYNC RULES · RCLONE', '<div class="ds-list" id="d-rules-' + id + '"></div>')}
+      </div>
+    </div>`
+  const $ = s => leaf.querySelector(s)
+  const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+  const empty = m => `<div class="ds-empty">${m}</div>`
+  const kv = (k, v, t) => `<div class="ds-kv"><span class="k">${esc(k)}${t ? ' <span class="t">' + esc(t) + '</span>' : ''}</span><span class="v">${esc(v)}</span></div>`
+
+  function renderLocal(d) {
+    // stat tiles
+    let tUsed = 0, tSize = 0
+    for (const m of (d.mounts || [])) { tUsed += +m.used || 0; tSize += +m.size || 0 }
+    const dirtyRepos = (d.repos || []).filter(r => r.dirty > 0).length
+    $('#d-stats-' + id).innerHTML = [
+      ['disk used', fmtBytes(tUsed), ''], ['disk total', fmtBytes(tSize), ''],
+      ['mounts', (d.mounts || []).length, ''], ['volumes', (d.volumes || []).length, ''],
+      ['git dirty', dirtyRepos + '/' + (d.repos || []).length, dirtyRepos ? 'warn' : ''],
+      ['remotes', (d.remotes || []).length, ''], ['peers', (d.peers || []).length, 'info'],
+    ].map(([l, n, c]) => `<div class="jstat ${c}"><span class="n">${n}</span><span class="l">${l}</span></div>`).join('')
+    // mounts as gradient bars
+    $('#d-mounts-' + id).innerHTML = (d.mounts || []).map(m => {
+      const pct = parseFloat(String(m.usep)) || (m.size ? (+m.used / +m.size * 100) : 0)
+      return bar(m.target + '  ' + m.fstype, pct, fmtBytes(+m.used || 0) + ' / ' + fmtBytes(+m.size || 0) + '  ' + pct.toFixed(0) + '%')
+    }).join('') || empty('no mounts')
+    // volumes
+    $('#d-vols-' + id).innerHTML = (d.volumes || []).map(v => kv(v.Name || v.name || '?', v.Driver || v.driver || '', (v.Scope || ''))).join('') || empty('no docker volumes')
+    // git
+    $('#d-git-' + id).innerHTML = (d.repos || []).map(r => {
+      const b = []
+      if (r.dirty) b.push(`<span class="ds-badge dirty">±${r.dirty}</span>`); else b.push(`<span class="ds-badge clean">clean</span>`)
+      if (r.ahead) b.push(`<span class="ds-badge ahead">↑${r.ahead}</span>`)
+      if (r.behind) b.push(`<span class="ds-badge behind">↓${r.behind}</span>`)
+      return `<div class="ds-repo"><span class="rn">${esc(r.name)}</span><span class="rl" title="${esc(r.last)}">${esc(r.branch)} · ${esc(r.last)}</span><span class="rb">${b.join('')}</span></div>`
+    }).join('') || empty('no repos')
+    // rclone remotes + S3 split
+    const s3t = d.s3_types || ['s3', 'oracleobjectstorage']
+    $('#d-remotes-' + id).innerHTML = (d.remotes || []).map(r => kv(r.name, '', r.type)).join('') || empty('no rclone remotes')
+    const s3 = (d.remotes || []).filter(r => s3t.indexOf(r.type) !== -1)
+    $('#d-s3-' + id).innerHTML = s3.map(r => kv(r.name, '', r.type)).join('') || empty('no S3 / OCI object storage remote configured')
+    // fuse + usb
+    const fu = (d.fuse || []).map(f => kv(f.target, f.fstype, 'fuse')).join('') +
+      (d.usb || []).map(u => kv((u.name || '') + (u.label ? ' · ' + u.label : ''), fmtBytes(+u.size || 0), 'usb ' + (u.mountpoint || 'unmounted'))).join('')
+    $('#d-fuseusb-' + id).innerHTML = fu || empty('no fuse / usb')
+    // rules
+    $('#d-rules-' + id).innerHTML = (d.rclone_rules || []).map(r => kv(r.name, r.src || '', r.note || '')).join('') || empty('no sync rules configured')
+    // peers (reachability filled async)
+    peers = d.peers || []
+    $('#d-peers-' + id).innerHTML = peers.map((p, i) =>
+      `<div class="ds-peer" id="d-peer-${id}-${i}"><span class="dot" style="color:#6b7280;background:#6b7280"></span><span class="ph">${esc(p.name)}</span><span class="pk">${esc(p.kind)}</span><span class="pi">…</span></div>`).join('') || empty('no peers')
+  }
+  let peers = []
+  async function probePeers() {
+    await Promise.all(peers.map(async (p, i) => {
+      const r = await invoke('peer_ping', { host: p.host || p.name, local: p.kind === 'local' }).catch(() => ({ up: false, info: 'error' }))
+      const el = $('#d-peer-' + id + '-' + i); if (!el) return
+      const col = r.up ? '#4ade80' : '#f87171'
+      el.querySelector('.dot').style.color = el.querySelector('.dot').style.background = col
+      el.querySelector('.pi').textContent = r.info || (r.up ? 'up' : 'down')
+    }))
+  }
+  async function loadGh() {
+    $('#d-ghcr-' + id).innerHTML = empty('loading…'); $('#d-rel-' + id).innerHTML = empty('loading…')
+    const g = await invoke('data_gh').catch(() => null)
+    if (!leaf.isConnected || !g) { $('#d-ghcr-' + id).innerHTML = empty('unavailable'); $('#d-rel-' + id).innerHTML = empty('unavailable'); return }
+    $('#d-ghcr-' + id).innerHTML = (g.ghcr || []).map(p => kv(p.name, 'v×' + (p.versions || 0), p.visibility)).join('') || empty('no GHCR packages (needs read:packages)')
+    $('#d-rel-' + id).innerHTML = (g.releases || []).map(rr =>
+      (rr.releases || []).slice(0, 2).map(rel => kv((rr.repo || '').split('/').pop() + ' ' + (rel.tagName || ''), rel.isLatest ? 'latest' : '', '')).join('')).join('') || empty('no releases')
+  }
+  async function load() {
+    $('#d-refresh-' + id).textContent = '… loading'
+    const d = await invoke('data_sync').catch(() => null)
+    if (!leaf.isConnected) return
+    if (d) { renderLocal(d); probePeers() }
+    $('#d-refresh-' + id).textContent = '↻ refresh'
+    loadGh()
+  }
+  $('#d-refresh-' + id).addEventListener('click', load)
+  load()
+  leaf.addEventListener('mousedown', () => focusPane(id), true)
+  panes.set(id, { leaf, tabId, kind: 'datasync', stop: () => {} })
+  return { id, leaf }
+}
+
 // Generic special-pane tab (no PTY): monitor / journal / cloud dashboards.
 function newSpecialTab(makeFn, labelText) {
   const tabId = ++tabSeq
@@ -1161,6 +1288,7 @@ function newSpecialTab(makeFn, labelText) {
 function newMonitorTab() { return newSpecialTab(makeMonitor, '📊 monitor') }
 function newJournalTab() { return newSpecialTab(makeJournal, '📜 journal') }
 function newCloudTab() { return newSpecialTab(makeCloud, '☁ cloud') }
+function newDataSyncTab() { return newSpecialTab(makeDataSync, '🔄 data-sync') }
 
 function paneIdOf(leaf) { return parseInt(leaf.dataset.pane, 10) }
 
@@ -1321,6 +1449,27 @@ function applyTheme(theme) {
 function runItem(item) { invoke('run_item', { item }) }
 function focusActivePaneTerm() { const p = panes.get(activePane); if (p && p.kind === 'term') p.term.focus() }
 
+// ── command history (Last 5 / Most Used) — persisted in localStorage ──
+function historyLoad() { try { return JSON.parse(localStorage.getItem('ct-history') || '[]') } catch (_) { return [] } }
+function historySave(h) { try { localStorage.setItem('ct-history', JSON.stringify(h.slice(0, 200))) } catch (_) {} }
+function recordHistory(item) {
+  if (!item || !item.label) return
+  const h = historyLoad(), e = h.find(x => x.key === item.label), now = Date.now()
+  if (e) { e.count++; e.last = now } else h.push({ key: item.label, label: item.label, type: item.type, arg: item.arg || '', cmd: item.cmd || '', count: 1, last: now })
+  historySave(h)
+}
+function historyItems(kind) {
+  const h = historyLoad()
+  return (kind === 'most' ? h.slice().sort((a, b) => b.count - a.count) : h.slice().sort((a, b) => b.last - a.last)).slice(0, 5)
+}
+// dispatch a sidebar/history item (dashboards open a pane; others run a command)
+function openItem(item, profileName) {
+  recordHistory(item)
+  const dash = { monitor: newMonitorTab, journal: newJournalTab, cloud: newCloudTab, datasync: newDataSyncTab }[item.type]
+  if (dash) { dash() } else { runItem({ ...item, profile: profileName, ptyId: activePane }); focusActivePaneTerm() }
+  if ((active.sections || []).some(s => s.dynamic)) buildSidebar(active)   // refresh Last/Most
+}
+
 function buildSidebar(profile) {
   const sb = document.getElementById('sidebar-list')
   sb.innerHTML = ''
@@ -1328,16 +1477,16 @@ function buildSidebar(profile) {
     const grp = document.createElement('div'); grp.className = 'cmd-group'
     const t = document.createElement('div'); t.className = 'section-title'; t.textContent = section.title
     grp.appendChild(t)
-    for (const item of (section.items || [])) {
+    const items = section.dynamic ? historyItems(section.dynamic) : (section.items || [])
+    if (section.dynamic && !items.length) {
+      const e = document.createElement('div'); e.className = 'cmd-item'; e.style.color = '#4b5563'; e.style.cursor = 'default'
+      e.textContent = '— none yet —'; grp.appendChild(e)
+    }
+    for (const item of items) {
       const btn = document.createElement('button')
       btn.className = 'cmd-item'; btn.textContent = item.label
       btn.dataset.search = ((item.label || '') + ' ' + (item.arg || '')).toLowerCase()
-      btn.onclick = () => {
-        if (item.type === 'monitor') { newMonitorTab(); return }   // open our dashboard, don't type a command
-        if (item.type === 'journal') { newJournalTab(); return }
-        if (item.type === 'cloud') { newCloudTab(); return }
-        runItem({ ...item, profile: profile.name, ptyId: activePane }); focusActivePaneTerm()
-      }
+      btn.onclick = () => openItem(item, profile.name)
       grp.appendChild(btn)
     }
     const sep = document.createElement('div'); sep.className = 'sep-line'; grp.appendChild(sep)
@@ -1397,16 +1546,19 @@ async function init() {
   // Falls back to: tools → monitor+shell, everything else → one shell.
   const dts = Array.isArray(data.default_tabs) ? data.default_tabs : null
   if (dts && dts.length) {
-    let firstTab = null
+    let firstTab = null, wantActive = null
     for (const t of dts) {
       let tid
       if (t.type === 'monitor') { tid = newMonitorTab() }
       else if (t.type === 'journal') { tid = newJournalTab() }
       else if (t.type === 'cloud') { tid = newCloudTab() }
+      else if (t.type === 'datasync') { tid = newDataSyncTab() }
       else { tid = newTab(); if (t.type === 'command' && t.cmd) autoRun(t.cmd) }
       if (firstTab == null) firstTab = tid
+      if (t.active) wantActive = tid              // data-driven default-focused tab
     }
-    if (firstTab != null) activateTab(firstTab)
+    const open = wantActive != null ? wantActive : firstTab
+    if (open != null) activateTab(open)
   } else if (label === 'tools') { const mt = newMonitorTab(); newTab(); activateTab(mt) }
   else newTab()
   setTimeout(doFit, 60)

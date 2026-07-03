@@ -1,0 +1,19 @@
+{
+  "_comment": "Data Sync Center config. Data-driven peers + git repos + rclone sync rules. The dashboard also auto-discovers live: mounts (findmnt), docker volumes, rclone remotes (config dump), fuse + usb (lsblk), GHCR + releases (gh). peers.kind: local = this machine; ssh = reachable via SSH alias.",
+  "version": 1,
+  "git_root": "git",
+  "git_repos": ["cloud", "unix", "front", "vault", "tools"],
+  "gh_repos": ["diegonmarcos/cloud", "diegonmarcos/unix", "diegonmarcos/front", "diegonmarcos/tools"],
+  "peers": [
+    { "name": "desktop",       "kind": "local", "host": "",              "note": "Surface Pro 8 — this machine" },
+    { "name": "termux",        "kind": "ssh",   "host": "termux",        "note": "nix-on-droid phone" },
+    { "name": "gcp-proxy",     "kind": "ssh",   "host": "gcp-proxy",     "note": "GCloud proxy/control" },
+    { "name": "oci-apps",      "kind": "ssh",   "host": "oci-apps",      "note": "Oracle A1 apps" },
+    { "name": "oci-analytics", "kind": "ssh",   "host": "oci-analytics", "note": "Oracle E2 analytics" },
+    { "name": "oci-mail",      "kind": "ssh",   "host": "oci-mail",      "note": "Oracle E2 mail" }
+  ],
+  "rclone_rules": [
+    { "name": "Gdrive backup", "src": "Gdrive_me:", "note": "Google Drive remote" }
+  ],
+  "s3_remote_types": ["s3", "oracleobjectstorage"]
+}
