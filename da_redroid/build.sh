@@ -554,17 +554,28 @@ cmd_bake() {
   # `launchable-activity: name='…'` line, so component extraction is identical.
   local aapt; aapt="$(nix build --no-link --print-out-paths nixpkgs#aapt 2>/dev/null | head -1)/bin/aapt2"
   [ -x "$aapt" ] || die "aapt2 not found via nixpkgs#aapt"
+  local unzip; unzip="$(nix build --no-link --print-out-paths nixpkgs#unzip 2>/dev/null | head -1)/bin/unzip"
+  [ -x "$unzip" ] || die "unzip not found via nixpkgs#unzip"
+  local abi; abi="$(get redroid.abi)"; [ -n "$abi" ] || abi="x86_64"
   local compfile="$DIST/.components.tsv"; : > "$compfile"
-  local n i pkg apk act baked=0
+  local n i pkg apk act baked=0 libapps=0
   n="$(node -e "process.stdout.write(String(require('$CONFIG').apps.length))")"
   for ((i=0;i<n;i++)); do
     pkg="$(node -e "process.stdout.write(require('$CONFIG').apps[$i].package)")"
     apk="$APK_DIR/$pkg.apk"; [ -f "$apk" ] || { warn "no APK for $pkg — skipping"; continue; }
     mkdir -p "$sysd/app/$pkg"; cp -f "$apk" "$sysd/app/$pkg/$pkg.apk"; baked=$((baked+1))
+    # Extract bundled native libs → /system/app/<pkg>/lib/<abi>/. System apps do NOT get
+    # PackageManager's native-lib extraction, so a bare APK with extractNativeLibs=true leaves
+    # its .so files compressed-inside-APK and unreachable → dlopen fails → the app crashes on
+    # launch (e.g. Brave: libchrome.so / libdatastore_shared_counter.so). Flatten (-j) into lib/<abi>.
+    if "$unzip" -l "$apk" 2>/dev/null | grep -q "lib/$abi/.*\.so"; then
+      mkdir -p "$sysd/app/$pkg/lib/$abi"
+      "$unzip" -o -j "$apk" "lib/$abi/*.so" -d "$sysd/app/$pkg/lib/$abi" >/dev/null 2>&1 && libapps=$((libapps+1))
+    fi
     act="$("$aapt" dump badging "$apk" 2>/dev/null | sed -n "s/^launchable-activity: name='\([^']*\)'.*/\1/p" | head -1)"
     [ -n "$act" ] && printf '%s\t%s/%s\n' "$pkg" "$pkg" "$act" >> "$compfile"
   done
-  log "system apps: $baked/$n baked into /system/app; components resolved: $(wc -l < "$compfile")"
+  log "system apps: $baked/$n baked into /system/app ($libapps with extracted native libs); components resolved: $(wc -l < "$compfile")"
 
   # 3) render the Launcher3 favorites SQL from build.json + the static component map
   local COMPONENTS_J; COMPONENTS_J="$(node -e "
@@ -621,13 +632,20 @@ cmd_verify() {
   cid="$(docker create "$img")" || die "cannot create container from $img"
   docker export "$cid" | tar -tf - 2>/dev/null > "$tmp/files.txt"
   docker rm "$cid" >/dev/null 2>&1
-  local n i pkg miss=0 present=0
+  local n i pkg miss=0 present=0 libok=0
+  local abi; abi="$(get redroid.abi)"; [ -n "$abi" ] || abi="x86_64"
+  local unzip; unzip="$(nix build --no-link --print-out-paths nixpkgs#unzip 2>/dev/null | head -1)/bin/unzip"
   n="$(node -e "process.stdout.write(String(require('$CONFIG').apps.length))")"
   for ((i=0;i<n;i++)); do
     pkg="$(node -e "process.stdout.write(require('$CONFIG').apps[$i].package)")"
     if grep -q "system/app/$pkg/$pkg.apk" "$tmp/files.txt"; then present=$((present+1)); else warn "  MISSING baked app: $pkg"; miss=$((miss+1)); fi
+    # If the APK bundles native libs, the image MUST carry them extracted at lib/<abi>/,
+    # else the app crashes on dlopen (the Brave libdatastore_shared_counter.so / libchrome.so bug).
+    if [ -x "$unzip" ] && [ -f "$APK_DIR/$pkg.apk" ] && "$unzip" -l "$APK_DIR/$pkg.apk" 2>/dev/null | grep -q "lib/$abi/.*\.so"; then
+      if grep -q "system/app/$pkg/lib/$abi/" "$tmp/files.txt"; then libok=$((libok+1)); else warn "  MISSING extracted native libs: $pkg (lib/$abi)"; miss=$((miss+1)); fi
+    fi
   done
-  log "baked system apps: $present/$n"
+  log "baked system apps: $present/$n ($libok with native libs extracted)"
   grep -q "system/etc/redroid-cloud/layout.sql" "$tmp/files.txt" || { warn "  MISSING baked layout.sql"; miss=$((miss+1)); }
   grep -q "system/etc/init/redroid-cloud-seed.rc" "$tmp/files.txt" || { warn "  MISSING first-boot seed service"; miss=$((miss+1)); }
   rm -rf "$tmp"

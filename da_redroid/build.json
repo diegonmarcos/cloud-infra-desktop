@@ -34,6 +34,8 @@
     "adb_port": 5555,
     "data_volume": "/mnt/shared-lib/redroid/data",
     "dns": ["1.1.1.1", "9.9.9.9"],
+    "abi": "x86_64",
+    "_doc_abi": "Device ABI. The bake extracts each app's bundled lib/<abi>/*.so into /system/app/<pkg>/lib/<abi>/ — system apps don't get PackageManager's native-lib extraction, so a bare APK with extractNativeLibs=true leaves libchrome.so / libdatastore_shared_counter.so unreachable and the app crashes on dlopen.",
     "gpu_mode": "host",
     "cpu_cores": 7,
     "width": 2304,
