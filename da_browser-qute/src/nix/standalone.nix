@@ -57,7 +57,10 @@ let
     text = ''
       #!/usr/bin/env bash
       set -euo pipefail
-      here="$(cd "$(dirname "''${BASH_SOURCE[0]}")" && pwd)"
+      # readlink -f resolves the ~/.local/bin symlink to its real
+      # location — a plain dirname/BASH_SOURCE[0] would resolve to the
+      # SYMLINK's directory (~/.local/bin), not where config.py actually is.
+      here="$(cd "$(dirname "$(readlink -f "''${BASH_SOURCE[0]}")")" && pwd)"
       basedir="''${QUTE_STANDALONE_BASEDIR:-$HOME/.local/share/qutebrowser-standalone}"
       mkdir -p "$basedir/config/bookmarks"
       cp -f "$here/config.py"          "$basedir/config/config.py"
