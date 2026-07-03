@@ -1217,10 +1217,12 @@ fn agi_usage() -> Value {
         }
     }
 
-    // by_day: last 30 days, sorted ascending.
+    // by_day: EVERY day with recorded usage (no cap — matches the "show ALL
+    // history" sessions list; a fixed day-count cap silently truncated to
+    // whatever the last 30 *populated* days were, which could be months
+    // shorter than the real history on sparse-usage stretches).
     let mut days: Vec<(String, UsageTotals)> = by_day.into_iter().collect();
     days.sort_by(|a, b| a.0.cmp(&b.0));
-    if days.len() > 30 { let n = days.len(); days.drain(0..n - 30); }
 
     // by_5h: last 80 buckets (~16.6 days), sorted ascending, labeled by bucket start.
     let mut buckets: Vec<(i64, UsageTotals)> = by_5h.into_iter().collect();
