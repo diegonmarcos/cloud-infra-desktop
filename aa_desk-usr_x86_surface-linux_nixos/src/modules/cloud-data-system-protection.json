@@ -52,8 +52,8 @@
     "free_mem_kill": 3,
     "free_swap": 100,
     "free_swap_kill": 100,
-    "prefer": "^(brave|firefox|chromium|electron|android|com\\.android|redroid)",
-    "avoid": "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus|ld-linux)"
+    "prefer": "(brave|firefox|chromium|electron|android|com\\.android|redroid)",
+    "avoid": "(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus|ld-linux)"
   },
 
   "sysctl": {
