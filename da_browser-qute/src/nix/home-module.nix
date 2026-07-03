@@ -87,15 +87,15 @@ in
     programs.qutebrowser = {
       enable = true;
       package = cfg.package;
-      # aliases: register `default-window` (New Default Window). recursiveUpdate
+      # aliases: register `default_window` (New Default Window). recursiveUpdate
       # so an operator's extraSettings still wins.
       settings = lib.recursiveUpdate
-        (lib.recursiveUpdate cleanSettings { aliases."default-window" = defaultWindowCmd; })
+        (lib.recursiveUpdate cleanSettings { aliases.default_window = defaultWindowCmd; })
         cfg.extraSettings;
       searchEngines = cleanSearchEngines;
       # Ctrl-Shift-N → New Default Window (merged on top of the JSON binds).
       keyBindings = lib.recursiveUpdate cleanKeyBindings {
-        normal."<Ctrl-Shift-n>" = "default-window";
+        normal."<Ctrl-Shift-n>" = "default_window";
       };
       quickmarks = flatQuickmarks;
     };
