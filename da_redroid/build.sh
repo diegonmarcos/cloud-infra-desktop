@@ -140,6 +140,8 @@ _ensure_booted() {
       < <(node -e "const c=require('./build.json');(c.redroid.dns||[]).forEach(x=>console.log(x))")
     # Data-driven docker run: privileged (binder), persistent /data volume, adb port, cpu cap.
     # selinux permissive lets the baked first-boot seed extract + restorecon /data.
+    local memfd_flags=()
+    [ "$(get redroid.use_memfd)" = "true" ] && memfd_flags=(androidboot.use_memfd=1)
     docker run -d --name "$(container_name)" \
       --privileged \
       --cpus "$(cpu_cap)" \
@@ -152,7 +154,8 @@ _ensure_booted() {
       androidboot.redroid_dpi="$(get redroid.dpi)" \
       androidboot.redroid_fps="$(get redroid.fps)" \
       androidboot.redroid_gpu_mode="$(get redroid.gpu_mode)" \
-      androidboot.selinux="$(get redroid.selinux)" >/dev/null
+      androidboot.selinux="$(get redroid.selinux)" \
+      "${memfd_flags[@]}" >/dev/null
   fi
   adb_connect
   log "waiting for Android to boot ($(get redroid.boot_gate_prop))…"
