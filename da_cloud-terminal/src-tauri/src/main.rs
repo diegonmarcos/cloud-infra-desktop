@@ -246,14 +246,18 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
         }))
         .collect();
 
-    // Full process rows, then sort twice (by cpu, by mem) for the two glances
-    // panels. total_mem drives MEM%.
+    // Process table. total_mem drives MEM%. We report three pre-sorted views
+    // (by CPU / MEM / IO) each with: short name + full command, io rate, run
+    // time, ppid and an ancestry chain (name of each parent up to init) — the
+    // glances hierarchy column (User ▸ parent ▸ … or User ▸ zombie).
     let total_mem = sys.total_memory().max(1);
     let mut running = 0u32;
-    // Aggregate disk I/O rate across all processes (bytes since last refresh ≈
-    // bytes/s at a 1s poll) — glances' DISK I/O read/write.
     let (mut dio_r, mut dio_w) = (0u64, 0u64);
-    struct P { cpu: f32, mem: u64, pid: u32, user: String, status: String, time: u64, name: String }
+    // pid → (short name, parent pid) for ancestry walking.
+    let pmap: HashMap<u32, (String, Option<u32>)> = sys.processes().iter()
+        .map(|(pid, p)| (pid.as_u32(), (p.name().to_string_lossy().into_owned(), p.parent().map(|pp| pp.as_u32()))))
+        .collect();
+    struct P { cpu: f32, mem: u64, io: u64, pid: u32, ppid: u32, user: String, status: String, time: u64, name: String, cmd: String, anc: Vec<String> }
     let mut rows: Vec<P> = sys
         .processes()
         .iter()
@@ -267,25 +271,41 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
                 .and_then(|uid| users.get_user_by_id(uid))
                 .map(|u| u.name().to_string())
                 .unwrap_or_default();
-            // command line if available, else the short name
-            let cmd = p.cmd();
-            let name = if cmd.is_empty() {
-                p.name().to_string_lossy().into_owned()
-            } else {
-                cmd.iter().map(|s| s.to_string_lossy().into_owned()).collect::<Vec<String>>().join(" ")
+            let name = p.name().to_string_lossy().into_owned();
+            let cmd = {
+                let c = p.cmd();
+                if c.is_empty() { name.clone() }
+                else { c.iter().map(|s| s.to_string_lossy().into_owned()).collect::<Vec<String>>().join(" ") }
             };
-            P { cpu: p.cpu_usage(), mem: p.memory(), pid: pid.as_u32(), user, status: st, time: p.run_time(), name }
+            // ancestry chain root→parent (skip self), capped at 4 hops.
+            let ppid = p.parent().map(|pp| pp.as_u32()).unwrap_or(0);
+            let mut anc = Vec::new();
+            let mut cur = p.parent().map(|pp| pp.as_u32());
+            let mut guard = 0;
+            while let Some(cp) = cur { if cp == 0 || guard >= 6 { break }
+                if let Some((nm, par)) = pmap.get(&cp) { anc.push(nm.clone()); cur = *par; } else { break }
+                guard += 1;
+            }
+            anc.reverse();
+            P { cpu: p.cpu_usage(), mem: p.memory(), io: du.read_bytes + du.written_bytes,
+                pid: pid.as_u32(), ppid, user, status: st, time: p.run_time(), name, cmd, anc }
         })
         .collect();
     let nproc = rows.len();
     let row_json = |p: &P| serde_json::json!({
-        "cpu": p.cpu, "mem": p.mem, "memp": (p.mem as f64 / total_mem as f64) * 100.0,
-        "pid": p.pid, "user": p.user, "status": p.status, "time": p.time, "name": p.name,
+        "cpu": p.cpu, "mem": p.mem, "memp": (p.mem as f64 / total_mem as f64) * 100.0, "io": p.io,
+        "pid": p.pid, "ppid": p.ppid, "user": p.user, "status": p.status, "time": p.time,
+        "name": p.name, "cmd": p.cmd, "anc": p.anc,
     });
     rows.sort_by(|a, b| b.cpu.partial_cmp(&a.cpu).unwrap_or(Equal));
-    let by_cpu: Vec<Value> = rows.iter().take(20).map(row_json).collect();
+    let by_cpu: Vec<Value> = rows.iter().take(30).map(row_json).collect();
     rows.sort_by(|a, b| b.mem.cmp(&a.mem));
-    let by_mem: Vec<Value> = rows.iter().take(20).map(row_json).collect();
+    let by_mem: Vec<Value> = rows.iter().take(30).map(row_json).collect();
+    rows.sort_by(|a, b| b.io.cmp(&a.io));
+    let by_io: Vec<Value> = rows.iter().take(30).map(row_json).collect();
+    // Every process (compact) for the parent/child TREE view — frontend links
+    // children to parents by ppid.
+    let all_procs: Vec<Value> = rows.iter().map(row_json).collect();
 
     serde_json::json!({
         "host": sysinfo::System::host_name().unwrap_or_default(),
@@ -320,6 +340,8 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
         "running": running,
         "procs": by_cpu,
         "procs_mem": by_mem,
+        "procs_io": by_io,
+        "procs_all": all_procs,
     })
 }
 
@@ -536,6 +558,19 @@ fn pty_resize(id: i64, cols: u16, rows: u16, window: tauri::WebviewWindow, state
 #[tauri::command]
 fn pty_kill(id: i64, window: tauri::WebviewWindow, state: tauri::State<AppState>) {
     state.ptys.sessions.lock().unwrap().remove(&pk(window.label(), id));
+}
+
+// Kill a process from the monitor's process table. force=false → SIGTERM
+// (graceful), force=true → SIGKILL. Shells out to `kill` (no libc dep).
+#[tauri::command]
+fn proc_kill(pid: u32, force: bool) -> Result<(), String> {
+    let sig = if force { "-KILL" } else { "-TERM" };
+    std::process::Command::new("kill")
+        .arg(sig)
+        .arg(pid.to_string())
+        .status()
+        .map_err(|e| e.to_string())
+        .and_then(|s| if s.success() { Ok(()) } else { Err(format!("kill exited {s}")) })
 }
 
 // ── init payload for the renderer (mirrors the Electron 'init' send) ──
@@ -791,7 +826,7 @@ fn main() {
         }))
         .manage(state)
         .invoke_handler(tauri::generate_handler![
-            pty_start, pty_input, pty_resize, pty_kill, run_item, get_init, sys_stats
+            pty_start, pty_input, pty_resize, pty_kill, proc_kill, run_item, get_init, sys_stats
         ])
         .setup(|app| {
             build_and_show(&app.handle().clone());
