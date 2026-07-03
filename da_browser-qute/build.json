@@ -25,6 +25,17 @@
     "bookmarks": "src/2_configs/qute-bookmarks.json",
     "comment": "All four JSON files are read by the home-manager module at evaluation time and projected into qutebrowser's declarative options. Edit JSON, rebuild home-manager, browser picks up the new state."
   },
+  "release": {
+    "comment": "Standalone qutebrowser config bundle (config.py + quickmarks + bookmarks/urls + dashboard.html + --basedir launcher), independent of the ~6GB 37-module desktop home-manager closure. Built by `build.sh release` (nix build .#standalone), published by `build.sh gh-release` (rolling tag, --clobber on every push). Installed locally via `build.sh install-standalone`.",
+    "gh_release": {
+      "enabled": true,
+      "rolling_tag": "qute-standalone-latest",
+      "draft": false,
+      "prerelease": false,
+      "generate_release_notes": false,
+      "asset_name": "qutebrowser-standalone.tar.gz"
+    }
+  },
   "integrations": {
     "fido2_vault_broker": {
       "comment": "WebAuthn over /dev/hidraw — qutebrowser/Chromium auto-discovers the virtual FIDO2 device when the daemon is running. No extra config needed.",

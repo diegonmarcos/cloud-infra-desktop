@@ -1,0 +1,48 @@
+name: "Ship → qutebrowser standalone config release (decoupled from desktop HM closure)"
+
+# WHY: pulling the FULL ~6GB 37-module desktop home-manager closure just to
+# update qutebrowser's config repeatedly failed on the 8GB Surface under
+# disk/RAM contention from parallel sessions. This bundle is JUST the 4
+# generated qutebrowser config files + a --basedir launcher (a few hundred
+# KB) — reuses home-manager's real programs.qutebrowser renderer via
+# nix/standalone.nix (home-module.nix is the single source, no duplication).
+#
+# ALL logic in da_browser-qute/build.sh (verbs: release, gh-release). Thin YAML.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "da_browser-qute/src/**"
+      - "da_browser-qute/build.sh"
+      - "da_browser-qute/build.json"
+      - "1_workflows/src/cicd/ship_qutebrowser_standalone.yaml"
+
+permissions:
+  contents: write   # gh release create/upload
+
+concurrency:
+  group: ship-qutebrowser-standalone
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build standalone bundle
+        run: ./da_browser-qute/build.sh release
+
+      - name: Publish to rolling GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./da_browser-qute/build.sh gh-release
