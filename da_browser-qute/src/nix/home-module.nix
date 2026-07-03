@@ -87,11 +87,14 @@ in
     programs.qutebrowser = {
       enable = true;
       package = cfg.package;
-      # aliases: register `default_window` (New Default Window). recursiveUpdate
-      # so an operator's extraSettings still wins.
-      settings = lib.recursiveUpdate
-        (lib.recursiveUpdate cleanSettings { aliases.default_window = defaultWindowCmd; })
-        cfg.extraSettings;
+      settings = lib.recursiveUpdate cleanSettings cfg.extraSettings;
+      # `default_window` alias (New Default Window). MUST go through the dedicated
+      # `aliases` option — it serializes via formatDictLine to
+      #   c.aliases['default_window'] = "..."
+      # which is valid Python AND the correct qutebrowser API (aliases is a Dict
+      # setting). Putting it in `settings` serialized it attribute-style
+      # (c.aliases.default-window = ...) — invalid Python (hyphen) and wrong API.
+      aliases = { default_window = defaultWindowCmd; };
       searchEngines = cleanSearchEngines;
       # Ctrl-Shift-N → New Default Window (merged on top of the JSON binds).
       keyBindings = lib.recursiveUpdate cleanKeyBindings {
