@@ -150,10 +150,22 @@ case "$CMD" in
       log "tray icons stale/missing — regenerating (one-time, build shell)"
       icons
     fi
-    bin="$TAURI/target/release/cloud-terminal"
-    [ -x "$bin" ] || bin="$DIST/ci/cloud-terminal"
+    # Pick whichever binary is actually NEWER — a local release build and a
+    # fetched CI build can both exist, and blindly preferring one (the old
+    # behavior always preferred local) silently launches stale code whenever
+    # the other was rebuilt more recently. This bit a real session: a local
+    # build from hours earlier kept shadowing every subsequent CI fetch.
+    local_bin="$TAURI/target/release/cloud-terminal"
+    ci_bin="$DIST/ci/cloud-terminal"
+    bin=""
+    if [ -x "$local_bin" ] && [ -x "$ci_bin" ]; then
+      if [ "$local_bin" -nt "$ci_bin" ]; then bin="$local_bin"; log "using LOCAL build (newer than fetched CI binary)"
+      else bin="$ci_bin"; log "using FETCHED CI build (newer than local build)"; fi
+    elif [ -x "$local_bin" ]; then bin="$local_bin"
+    elif [ -x "$ci_bin" ]; then bin="$ci_bin"
+    fi
     # Auto-fetch the CI binary if none present (first run on a fresh machine).
-    [ -x "$bin" ] || { log "no binary — fetching latest CI build…"; "$ROOT/build.sh" fetch && bin="$DIST/ci/cloud-terminal"; }
+    [ -x "$bin" ] || { log "no binary — fetching latest CI build…"; "$ROOT/build.sh" fetch && bin="$ci_bin"; }
     [ -x "$bin" ] || { errlog "no binary — 'build.sh build' or 'build.sh fetch' first"; exit 1; }
     # Resolve the runtime lib path (glibc + webkit) — CACHED, so a normal
     # launch is just resolve-cache + exec, like any other app. Every previous
