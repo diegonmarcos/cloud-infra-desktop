@@ -374,7 +374,8 @@
   .ctbl td.st-run { color: #4ade80; } .ctbl td.st-exit { color: #f87171; } .ctbl td.st-other { color: #fbbf24; }
   .ctbl tr.sel td { background: rgba(123,127,255,.14); }
   .ctbl tr.catrow td { background: rgba(123,127,255,.10); color: var(--accent2); font-size: 9px;
-    text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding: 3px 7px; position: sticky; top: 0; }
+    text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding: 3px 7px; position: sticky; top: 0; cursor: pointer; }
+  .ctbl tr.catrow.sel-vm td { background: rgba(123,127,255,.28); color: #e2e8f0; }
   .ctbl td.nm { color: #cbd5e1; cursor: pointer; } .ctbl td.im { color: #7dd3fc; }
   .cloud-logfeed { flex: 1 1 0; min-height: 0; overflow: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px;
     background: rgba(12,13,22,.6); border: 1px solid var(--sep); border-radius: 8px; padding: 5px 9px;
@@ -1237,6 +1238,8 @@ function makeCloud(tabId) {
           <tbody id="c-cont-${id}"></tbody></table></div></div>
       <div class="panel cloud-logs"><div class="ph"><span id="c-loghdr-${id}">LOG CENTER</span>
         <span class="proc-tools">
+          <span class="ptbl-tabs" id="c-logsrc-${id}"><button data-v="system" class="on">SYSTEM</button><button data-v="container">CONTAINER</button></span>
+          <select class="jrn-search" id="c-logcont-${id}" style="max-width:150px" title="Pick a container (CONTAINER mode)"><option value="">— pick container —</option></select>
           <input class="jrn-search" id="c-logq-${id}" placeholder="🔍  filter log lines…" autocomplete="off" spellcheck="false">
           <span class="ptbl-tabs" id="c-tail-${id}"><button data-v="100">100</button><button data-v="200" class="on">200</button><button data-v="500">500</button></span>
           <button class="cpbtn" id="c-logref-${id}" title="Reload logs">↻</button>
@@ -1244,7 +1247,7 @@ function makeCloud(tabId) {
         </span></div>
         <div class="cloud-logfeed" id="c-logfeed-${id}">select a VM or container…</div></div>
     </div>`
-  let targets = [], vms = {}, selVm = null, selCont = null, tail = 200, logq = '', logRaw = '', viewMode = 'vm', catMap = []
+  let targets = [], vms = {}, selVm = null, selCont = null, tail = 200, logq = '', logRaw = '', viewMode = 'vm', catMap = [], logSrc = 'system'
   const $ = s => leaf.querySelector(s)
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   const contStat = (vm, name) => ((vms[vm] || {}).stats || {})[name] || {}
@@ -1292,9 +1295,23 @@ function makeCloud(tabId) {
       if (rest.length) html += `<tr class="catrow"><td colspan="7">Other · ${rest.length}</td></tr>` + rest.map(x => rowHtml(x.c, x.vm)).join('')
       tb.innerHTML = html || '<tr><td colspan="7" style="color:#6b7280">no containers (probe first)</td></tr>'
     } else {
-      const v = vms[selVm]
-      $('#c-conthdr-' + id).textContent = 'CONTAINERS · ' + (selVm || '—') + (v ? ' · ' + (v.n_running || 0) + '/' + (v.n_containers || 0) : '')
-      tb.innerHTML = ((v && v.containers) || []).map(c => rowHtml(c, selVm)).join('') || '<tr><td colspan="7" style="color:#6b7280">no containers (select a reachable VM)</td></tr>'
+      // BY VM: every VM gets its own grouped table section (same catrow
+      // pattern as BY SERVICE) — not just the currently-selected one.
+      let total = 0
+      let html = ''
+      for (const t of targets) {
+        const v = vms[t.alias]
+        const rows = (v && v.containers) || []
+        total += rows.length
+        const sel = t.alias === selVm ? ' sel-vm' : ''
+        const status = v ? (v.reachable ? (v.n_running || 0) + '/' + (v.n_containers || 0) + ' running' : (v.error || 'unreachable')) : 'not probed'
+        rows.sort((a, b) => (a.Names || '').localeCompare(b.Names || ''))
+        html += `<tr class="catrow${sel}" data-vmhdr="${esc(t.alias)}"><td colspan="7">${esc(t.alias)} · ${esc(status)}</td></tr>` +
+          (rows.length ? rows.map(c => rowHtml(c, t.alias)).join('')
+            : `<tr><td colspan="7" style="color:#6b7280;padding-left:14px">no containers</td></tr>`)
+      }
+      $('#c-conthdr-' + id).textContent = 'CONTAINERS · by VM · ' + total
+      tb.innerHTML = html || '<tr><td colspan="7" style="color:#6b7280">no VMs configured</td></tr>'
     }
   }
   function renderLogs() {
@@ -1302,17 +1319,34 @@ function makeCloud(tabId) {
     const f = logq ? lines.filter(l => l.toLowerCase().indexOf(logq) !== -1) : lines
     $('#c-logfeed-' + id).innerHTML = esc(f.join('\n')) || '(no output)'
   }
+  // Container picker for the SYSTEM/CONTAINER log-source filter — repopulated
+  // whenever the selected VM's container list changes (probe/select).
+  function populateLogContainerPicker() {
+    const sel = $('#c-logcont-' + id); if (!sel) return
+    const list = ((vms[selVm] || {}).containers || []).map(c => c.Names).filter(Boolean)
+    const cur = sel.value
+    sel.innerHTML = '<option value="">— pick container —</option>' + list.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')
+    if (list.includes(cur)) sel.value = cur
+    else if (list.includes(selCont)) sel.value = selCont
+  }
   async function loadLogs() {
     if (!selVm) return
-    $('#c-loghdr-' + id).textContent = 'LOG CENTER · ' + selVm + (selCont ? ' · ' + selCont : ' · journal')
+    // logSrc drives WHAT we fetch: 'system' → VM journal (container=null);
+    // 'container' → the picked container's docker logs.
+    const container = logSrc === 'container' ? (selCont || null) : null
+    $('#c-loghdr-' + id).textContent = 'LOG CENTER · ' + selVm + (container ? ' · ' + container : ' · system journal')
+    if (logSrc === 'container' && !container) {
+      $('#c-logfeed-' + id).textContent = 'pick a container above, or click one in the CONTAINERS table…'
+      return
+    }
     $('#c-logfeed-' + id).textContent = 'loading…'
-    try { logRaw = await invoke('cloud_logs', { alias: selVm, container: selCont, tail }) }
+    try { logRaw = await invoke('cloud_logs', { alias: selVm, container, tail }) }
     catch (e) { logRaw = 'error: ' + e }
     if (!leaf.isConnected) return
     renderLogs()
     $('#c-logfeed-' + id).scrollTop = $('#c-logfeed-' + id).scrollHeight
   }
-  function selectVm(alias) { selVm = alias; selCont = null; renderVms(); renderConts(); loadLogs() }
+  function selectVm(alias) { selVm = alias; selCont = null; renderVms(); renderConts(); populateLogContainerPicker(); loadLogs() }
   async function probe() {
     $('#c-refresh-' + id).textContent = '… probing'
     await Promise.all(targets.map(async t => {
@@ -1324,12 +1358,14 @@ function makeCloud(tabId) {
       v.ping = ping
       v.stats = {}; for (const s of ((stats && stats.stats) || [])) v.stats[s.Name] = s
       vms[t.alias] = v
-      if (leaf.isConnected) { renderVms(); if (viewMode === 'service') renderConts() }
+      // BOTH view modes now show every VM's containers (grouped), so refresh
+      // regardless of which one is active.
+      if (leaf.isConnected) { renderVms(); renderConts(); if (t.alias === selVm) populateLogContainerPicker() }
     }))
     if (!leaf.isConnected) return
     $('#c-refresh-' + id).textContent = '↻ probe'
     if (!selVm) { const first = targets.find(t => (vms[t.alias] || {}).reachable) || targets[0]; if (first) selectVm(first.alias) }
-    else renderConts()
+    else { renderConts(); populateLogContainerPicker() }
   }
   async function init() {
     const data = await invoke('cloud_targets').catch(() => null)
@@ -1339,10 +1375,14 @@ function makeCloud(tabId) {
     renderVms(); probe()
   }
 
+  const syncLogSrcButtons = () => { for (const x of $('#c-logsrc-' + id).children) x.classList.toggle('on', x.dataset.v === logSrc) }
   $('#c-vms-' + id).addEventListener('click', e => { const c = e.target.closest('.vmcard'); if (c) selectVm(c.dataset.vm) })
   $('#c-cont-' + id).addEventListener('click', e => {
+    const hdr = e.target.closest('tr[data-vmhdr]')
+    if (hdr) { selVm = hdr.dataset.vmhdr; selCont = null; logSrc = 'system'; syncLogSrcButtons(); renderConts(); populateLogContainerPicker(); loadLogs(); return }
     const r = e.target.closest('tr[data-cont]'); if (!r) return
     selCont = r.dataset.cont || null; if (r.dataset.vm) selVm = r.dataset.vm   // service view: follow the row's VM
+    logSrc = 'container'; syncLogSrcButtons(); populateLogContainerPicker()
     renderConts(); loadLogs()
   })
   $('#c-view-' + id).addEventListener('click', e => {
@@ -1350,6 +1390,13 @@ function makeCloud(tabId) {
     viewMode = b.dataset.v; for (const x of $('#c-view-' + id).children) x.classList.toggle('on', x === b); renderConts()
   })
   $('#c-refresh-' + id).addEventListener('click', probe)
+  $('#c-logsrc-' + id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return
+    logSrc = b.dataset.v; syncLogSrcButtons()
+    if (logSrc === 'container') populateLogContainerPicker()
+    loadLogs()
+  })
+  $('#c-logcont-' + id).addEventListener('change', e => { selCont = e.target.value || null; loadLogs() })
   $('#c-logref-' + id).addEventListener('click', loadLogs)
   $('#c-logq-' + id).addEventListener('input', e => { logq = e.target.value.trim().toLowerCase(); renderLogs() })
   $('#c-tail-' + id).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; tail = +b.dataset.v; for (const x of $('#c-tail-' + id).children) x.classList.toggle('on', x === b); loadLogs() })
