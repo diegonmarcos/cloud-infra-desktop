@@ -43,6 +43,19 @@ let
   defaultWindowCmd = lib.concatStringsSep " ;; "
     (lib.imap0 (i: url: (if i == 0 then "open -w " else "open -t ") + url) dwTabs);
 
+  # "Open Saved Tabs" — reuses the SAME list as the fresh-session/default-window
+  # arrangement (qute-default-window.json is the single SoT for "what opens on
+  # a fresh session"), but opens every url as a tab in the CURRENT window
+  # (no forced new window) — distinct from default_window's Ctrl-Shift-N
+  # new-window behavior. On-demand command to recover the saved tab set into
+  # whatever window is already focused.
+  openSavedTabsCmd = lib.concatStringsSep " ;; " (map (url: "open -t " + url) dwTabs);
+
+  # Vaultwarden integration config (build.json::integrations.vaultwarden_bitwarden_cli).
+  # build.json lives at the project root, two levels up from src/nix/.
+  buildJson = builtins.fromJSON (builtins.readFile ../../build.json);
+  vwCfg = buildJson.integrations.vaultwarden_bitwarden_cli or { enabled = false; };
+
   # Strip ANY leading-underscore key recursively before passing to
   # qutebrowser — by convention every doc/annotation field in our JSON
   # configs starts with "_" (e.g. _description, _comment, _method_options,
@@ -94,14 +107,34 @@ in
       # which is valid Python AND the correct qutebrowser API (aliases is a Dict
       # setting). Putting it in `settings` serialized it attribute-style
       # (c.aliases.default-window = ...) — invalid Python (hyphen) and wrong API.
-      aliases = { default_window = defaultWindowCmd; };
-      searchEngines = cleanSearchEngines;
-      # Ctrl-Shift-N → New Default Window (merged on top of the JSON binds).
-      keyBindings = lib.recursiveUpdate cleanKeyBindings {
-        normal."<Ctrl-Shift-n>" = "default_window";
+      aliases = {
+        default_window = defaultWindowCmd;
+        open_saved_tabs = openSavedTabsCmd;
       };
+      searchEngines = cleanSearchEngines;
+      # Ctrl-Shift-N → New Default Window; Ctrl-Shift-T → Open Saved Tabs
+      # (same list, opened as tabs in the current window instead of a new
+      # one); Ctrl-Shift-B → Vaultwarden autofill (qute-bitwarden userscript,
+      # ships bundled with qutebrowser — see build.json::integrations).
+      keyBindings = lib.recursiveUpdate cleanKeyBindings ({
+        normal."<Ctrl-Shift-n>" = "default_window";
+        normal."<Ctrl-Shift-t>" = "open_saved_tabs";
+      } // lib.optionalAttrs (vwCfg.enabled or false) {
+        normal."<Ctrl-Shift-b>" = "spawn --userscript qute-bitwarden --totp";
+      });
       quickmarks = flatQuickmarks;
     };
+
+    home.packages = lib.optionals (vwCfg.enabled or false) [ pkgs.bitwarden-cli pkgs.keyutils ];
+
+    # `bw config server <url>` is idempotent and carries no secret — safe to
+    # run declaratively on every activation. The actual `bw login` (needs the
+    # master password) is a ONE-TIME MANUAL step; it cannot be automated
+    # here without storing a credential outside sops, which we don't do.
+    home.activation.bwVaultwardenServer = lib.mkIf (vwCfg.enabled or false)
+      (lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        ${pkgs.bitwarden-cli}/bin/bw config server ${lib.escapeShellArg vwCfg.server_url} >/dev/null 2>&1 || true
+      '');
 
     # Bookmark dashboard start page — generated (gen-dashboard.sh) into dist/,
     # committed, installed here. qute-settings.json points url.start_pages +
