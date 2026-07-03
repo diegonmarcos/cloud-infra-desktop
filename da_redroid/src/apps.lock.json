@@ -402,6 +402,12 @@
       "source": "github",
       "url": "https://github.com/fork-maintainers/iceraven-browser/releases/download/iceraven-2.45.0/iceraven-2.45.0-browser-x86_64-forkRelease.apk",
       "sha256": "sha256-zVphwXLGadl39EyqVjVZeNzkon4qLQS9BHqsHZWi8H4="
+    },
+    {
+      "package": "com.brave.browser",
+      "source": "github",
+      "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk",
+      "sha256": "sha256-RUomqMwL2t3scKG4ZgLzJj2IzZzZ9dSoahO67Jc+SKI="
     }
   ]
 }

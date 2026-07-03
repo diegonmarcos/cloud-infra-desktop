@@ -39,6 +39,8 @@
     ],
     "abi": "x86_64",
     "_doc_abi": "Device ABI. The bake extracts each app's bundled lib/<abi>/*.so into /system/app/<pkg>/lib/<abi>/ — system apps don't get PackageManager's native-lib extraction, so a bare APK with extractNativeLibs=true leaves libchrome.so / libdatastore_shared_counter.so unreachable and the app crashes on dlopen.",
+    "use_memfd": true,
+    "_doc_use_memfd": "androidboot.use_memfd=1 boot property. This host's mainline kernel (6.19.8) has no /dev/ashmem (removed from mainline Linux since 5.18); libcutils falls back to memfd, but without this property Chromium (Brave) calls an ashmem-only ioctl on the memfd fd and gets ENOTTY, self-exiting on launch. Verified working: redroid 13.0.0's getprop shows ro.boot.use_memfd=1 / sys.use_memfd=1 when set. Needed for full x86 APK compatibility (any Chromium/WebView-based app hits this, not just Brave).",
     "gpu_mode": "host",
     "cpu_cores": 7,
     "width": 2304,
@@ -931,6 +933,16 @@
       "group": "phone",
       "source": {
         "type": "fdroid"
+      }
+    },
+    {
+      "package": "com.brave.browser",
+      "label": "Brave",
+      "group": "web",
+      "_doc": "Re-added to test androidboot.use_memfd=1 (redroid.use_memfd) against the ORIGINAL crash: Brave self-exits(0) on launch because Chromium calls an ashmem-only ioctl on the memfd fallback fd this ashmem-less host provides. Testing whether use_memfd changes libcutils has_memfd_support() detection enough for Chromium to skip that ioctl path. If it works, both Brave and Iceraven ship; if not, Brave stays declared but known-broken and Iceraven remains the working browser.",
+      "source": {
+        "type": "github",
+        "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk"
       }
     }
   ]
