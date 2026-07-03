@@ -46,5 +46,13 @@ in {
     terminal = true;
     icon = "smartphone";
     categories = [ "System" ];
+    # KDE's taskbar matches a running window to a PINNED launcher by comparing the
+    # window's WM_CLASS to the desktop file's class (defaults to the desktop file id,
+    # "redroid", if unset). The window that actually opens is scrcpy's own window
+    # (WM_CLASS=scrcpy — same value default-session.json's match_class uses for kwin
+    # positioning), not "redroid". Without this, the mismatch means "Pin to Task Manager"
+    # never associates with the running app — the launched window shows as a separate,
+    # unpinned entry instead of lighting up the pin.
+    settings.StartupWMClass = "scrcpy";
   };
 }
