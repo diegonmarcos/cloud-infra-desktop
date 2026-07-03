@@ -11,7 +11,11 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 set -uo pipefail  # no -e: grep exit codes are handled by || true
 
-STAGED=$(git diff --cached --name-only)
+# --diff-filter=ACMR excludes Deleted (and Type-changed/Unmerged) paths —
+# a path being REMOVED from the tree can never leak a secret going forward,
+# and blocking deletion would make an accidentally-committed secret
+# impossible to clean up. Only additions/modifications/renames need scanning.
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
 [ -z "$STAGED" ] && exit 0
 
 BLOCKED=""

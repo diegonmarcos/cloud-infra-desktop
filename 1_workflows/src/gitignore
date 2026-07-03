@@ -123,6 +123,14 @@ ea_cloud-ide/**/build/
 ea_cloud-nav/.gradle/
 ea_cloud-nav/build/
 ea_cloud-nav/**/build/
+## Re-ignore Gradle/Kotlin daemon caches inside the whitelisted ea_cloud-superapp/
+## tree — same class of gap as the .gradle/build re-ignores above. Missing this
+## let a local `./gradlew` run's Go-module dependency cache (.cache/gopath/...,
+## from gvisor via some transitive Gradle plugin) and Kotlin compiler session
+## files (.kotlin/sessions/...) get git-added and pushed as a ~3M-line commit
+## (264c09f2, 2026-07-03). These are machine-local build caches, never vendored.
+ea_cloud-superapp/.cache/
+ea_cloud-superapp/.kotlin/
 ## Re-ignore build OUTPUTS inside the whitelisted Android projects — the
 ## !ea_cloud-*/** whitelists would otherwise make a locally-built APK / dist/
 ## tree committable (each APK is ~6-40 MB). Build artifacts are published to
