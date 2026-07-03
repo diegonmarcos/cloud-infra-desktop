@@ -186,9 +186,30 @@ case "$CMD" in
     if [ "$stale" = "0" ]; then
       ldp="$(cat "$ldpcache")"
     else
-      log "resolving runtime libs from flake (one-time; cached after this)…"
       mkdir -p "$DIST"
-      ldp="$(in_nix_rt sh -c 'printf %s "$LD_LIBRARY_PATH"')"
+      # FAST path: `runtimeLibPath` is a plain evaluated string (pkgs.lib.
+      # makeLibraryPath), not a devShell — `nix eval --raw` resolves it with
+      # no shell spawn AND no stdenv/-dev-output pull (mkShell always wires in
+      # every package's `.dev` output for pkg-config, which is what made even
+      # the "lean" devShell slow: gcc/binutils/patchelf/webkitgtk-dev/gtk+3-dev
+      # etc., none of which are needed just to set one env var).
+      log "resolving runtime libs (fast path: nix eval, no dev outputs)…"
+      ldp="$(nix eval --raw "$ROOT#runtimeLibPath" --accept-flake-config \
+        --extra-experimental-features "nix-command flakes" 2>/dev/null)"
+      # Verify every resolved path actually exists on disk — nix eval doesn't
+      # realize anything, so a bare machine (or post-GC store) can eval a
+      # path that was never built/fetched.
+      ok=1
+      if [ -n "$ldp" ]; then
+        IFS=':' read -ra _parts <<< "$ldp"
+        for p in "${_parts[@]}"; do [ -d "$p" ] || { ok=0; break; }; done
+      else
+        ok=0
+      fi
+      if [ "$ok" = "0" ]; then
+        log "fast path missed (store incomplete) — falling back to full realize (one-time)…"
+        ldp="$(in_nix_rt sh -c 'printf %s "$LD_LIBRARY_PATH"')"
+      fi
       [ -n "$ldp" ] && printf '%s' "$ldp" > "$ldpcache"
     fi
     [ -z "$ldp" ] && { errlog "could not resolve LD_LIBRARY_PATH from flake"; exit 1; }
