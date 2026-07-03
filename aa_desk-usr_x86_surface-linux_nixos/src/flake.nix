@@ -45,6 +45,10 @@
   let
     system = "x86_64-linux";
 
+    # Plain nixpkgs (not nixosSystem's internal one) — needed at the flake's
+    # top level for packages.${system}.system-cache-image (dockerTools).
+    pkgs = import nixpkgs { inherit system; };
+
     # NOTE: KDE Connect unstable overlay removed - caused Qt version mismatch
     # (unstable kdeconnect 25.12.1 needs Qt 6.10, but Plasma 6.2.5 uses Qt 6.8)
     # Clipboard sync is handled by kdeconnect-clipboard-sync systemd service instead
@@ -139,6 +143,27 @@
           ./modules/configuration.nix
         ];
         format = "vm";
+      };
+
+      # ── system-cache-image: LAYERED image of the NixOS system closure ──
+      # One layer per store path (dockerTools.buildLayeredImage) → `docker
+      # pull` skips unchanged layers, so `build.sh pull` fetches only the
+      # store paths that actually changed (incremental) instead of
+      # re-downloading the whole multi-GB nar every time. Pushed to GHCR by
+      # the CI export step (GHCR_PUSH=1); consumed by `pull_remote` (the
+      # nar.zst path is kept as the fallback). Mirrors
+      # ba_flakes_desktop/src/flake.nix's hm-cache-image exactly. NOT run
+      # as a container — the desktop extracts + registers the layers into
+      # the real host /nix/store.
+      system-cache-image = pkgs.dockerTools.buildLayeredImage {
+        name = "unix-system-cache";
+        tag = "latest";
+        maxLayers = 120;
+        contents = [ self.nixosConfigurations.surface.config.system.build.toplevel ];
+        config.Labels = {
+          "org.opencontainers.image.description" = "Desktop NixOS system closure as layered store paths (incremental GHCR cache).";
+          "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
+        };
       };
     };
   };
