@@ -89,7 +89,58 @@ case "$cmd" in
     "$0" print-config | tail -50
     ;;
 
+  release)
+    # Build the standalone config bundle (nix/standalone.nix) — independent
+    # of the desktop's 37-module home-manager closure. Tarball -> dist/.
+    "$0" dashboard
+    log "nix build .#standalone"
+    cd "$SRC"
+    nix build .#standalone --no-write-lock-file -o "$ROOT/.result-standalone"
+    mkdir -p "$ROOT/dist"
+    asset="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.gh_release.asset_name)")"
+    tar -C "$ROOT/.result-standalone" -czf "$ROOT/dist/$asset" .
+    log "→ $ROOT/dist/$asset ($(du -h "$ROOT/dist/$asset" | cut -f1))"
+    ;;
+
+  gh-release)
+    # Publish dist/<asset_name> to a rolling GitHub Release tag (--clobber on
+    # every push) — same idiom as ea_cloud-nav/ea_cloud-comms step_gh_release.
+    enabled="$(node -e "const c=require('$CONFIG'); process.stdout.write(String(c.release.gh_release.enabled))")"
+    [ "$enabled" = "true" ] || { log "gh-release: enabled=false — skip"; exit 0; }
+    tag="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.gh_release.rolling_tag)")"
+    asset="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.gh_release.asset_name)")"
+    dst="$ROOT/dist/$asset"
+    [ -f "$dst" ] || die "gh-release: $dst missing — run './build.sh release' first"
+    log "gh-release: rolling tag=$tag ← $asset"
+    if ! gh release view "$tag" >/dev/null 2>&1; then
+      gh release create "$tag" --title "$tag" --target "${GITHUB_SHA:-main}" \
+        --notes "Rolling qutebrowser standalone config release — overwritten on every push touching da_browser-qute/." --latest
+    fi
+    gh release upload "$tag" "$dst" --clobber
+    gh release edit "$tag" --latest >/dev/null 2>&1 || true
+    log "✓ published"
+    ;;
+
+  install-standalone)
+    # Pull the latest release + install to ~/.local/opt + symlink launcher.
+    # Never touches ~/.config/qutebrowser (the HM-managed one) — runs
+    # isolated via --basedir.
+    tag="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.gh_release.rolling_tag)")"
+    asset="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.gh_release.asset_name)")"
+    tmp="$(mktemp -d)"
+    log "install-standalone: gh release download $tag -p $asset"
+    gh release download "$tag" -p "$asset" -D "$tmp" --clobber
+    target="$HOME/.local/opt/qutebrowser-standalone"
+    rm -rf "$target"; mkdir -p "$target"
+    tar -xzf "$tmp/$asset" -C "$target"
+    rm -rf "$tmp"
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$target/qutebrowser-standalone" "$HOME/.local/bin/qutebrowser-standalone"
+    log "✓ installed → $target"
+    log "  run: qutebrowser-standalone   (PATH must include ~/.local/bin)"
+    ;;
+
   *)
-    die "Unknown command: $cmd  (use: lint-json | check | print-config | diff)"
+    die "Unknown command: $cmd  (use: lint-json | check | print-config | diff | release | gh-release | install-standalone)"
     ;;
 esac
