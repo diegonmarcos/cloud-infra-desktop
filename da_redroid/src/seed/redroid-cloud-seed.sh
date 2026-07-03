@@ -36,5 +36,35 @@ else
   log -t redroid-cloud "launcher DB not ready or no baked layout.sql (DB=$DB)"
 fi
 
+# ── home search bar: remove the Google/QuickSearchBox widget (data-driven REMOVE_QSB) ──
+# Launcher3 draws the top "Google" search bar only when a search-widget provider is
+# enabled; disabling the provider removes the bar (no favorites row to delete).
+if [ "${REMOVE_QSB:-0}" = "1" ]; then
+  pm disable-user --user 0 com.android.quicksearchbox >/dev/null 2>&1
+  log -t redroid-cloud "QSB search widget disabled."
+fi
+
+# ── location: enabled by default (data-driven LOCATION) ──
+if [ "${LOCATION:-0}" = "1" ]; then
+  cmd location set-location-enabled true >/dev/null 2>&1
+  settings put secure location_mode 3 >/dev/null 2>&1
+  settings put secure location_providers_allowed +gps,+network >/dev/null 2>&1
+  log -t redroid-cloud "location services enabled (high accuracy)."
+fi
+
+# ── permissions: grant EVERY requested dangerous permission to EVERY baked app ──
+# System apps in /system/app are not adb-installed, so `adb install -g` never granted
+# their runtime perms. Loop the baked apps.list and pm-grant each app's requested
+# dangerous permissions (pm grant no-ops on normal/undeclared perms). Data-driven GRANT_ALL.
+if [ "${GRANT_ALL:-0}" = "1" ] && [ -f "$BASE/apps.list" ]; then
+  while IFS= read -r pkg; do
+    [ -n "$pkg" ] || continue
+    for perm in $(dumpsys package "$pkg" 2>/dev/null | grep -oE 'android\.permission\.[A-Z_]+' | sort -u); do
+      pm grant "$pkg" "$perm" >/dev/null 2>&1
+    done
+  done < "$BASE/apps.list"
+  log -t redroid-cloud "runtime permissions granted for all baked apps."
+fi
+
 : > "$MARK"
 log -t redroid-cloud "configure complete."

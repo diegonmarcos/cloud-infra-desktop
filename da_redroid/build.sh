@@ -581,12 +581,22 @@ cmd_bake() {
   node "$SRC/lib/gen-layout-sql.js" > "$sysd/etc/redroid-cloud/layout.sql"
   log "layout.sql: $(grep -c '^INSERT' "$sysd/etc/redroid-cloud/layout.sql") rows"
 
-  # 4) baked theme flags + first-boot seed + init service
+  # 4) baked seed env flags (theme + home-experience) + apps.list + seed + init service.
+  #    theme.sh is sourced by the first-boot seed; every knob is data-driven from build.json.
   {
     printf 'DARK=%s\n'          "$([ "$(get theme.dark_mode)"  = true ] && echo 1 || echo 0)"
     printf 'AUTOROTATE=%s\n'    "$([ "$(get theme.auto_rotate)" = true ] && echo 1 || echo 0)"
     printf 'WALLPAPER_DIM=%s\n' "$(get theme.wallpaper.dim)"
+    printf 'REMOVE_QSB=%s\n'    "$([ "$(get redroid.remove_qsb)"           = true ] && echo 1 || echo 0)"
+    printf 'LOCATION=%s\n'      "$([ "$(get redroid.location_enabled)"      = true ] && echo 1 || echo 0)"
+    printf 'GRANT_ALL=%s\n'     "$([ "$(get redroid.grant_all_permissions)" = true ] && echo 1 || echo 0)"
   } > "$sysd/etc/redroid-cloud/theme.sh"
+  # apps.list — the baked package ids, one per line. The seed loops it to grant every
+  # requested dangerous permission per app (system apps in /system/app are NOT adb-installed,
+  # so `adb install -g` never runs for them — the seed is where "all permissions" happens).
+  node -e 'const a=require("'"$CONFIG"'").apps||[]; a.forEach(x=>{const p=(typeof x==="string")?x:(x.package||x.pkg||x.id); if(p)console.log(p)})' \
+    > "$sysd/etc/redroid-cloud/apps.list"
+  log "apps.list: $(wc -l < "$sysd/etc/redroid-cloud/apps.list") packages"
   cp -f "$SRC/seed/redroid-cloud-seed.sh" "$sysd/etc/redroid-cloud/seed.sh"
   cp -f "$SRC/seed/redroid-cloud-seed.rc" "$sysd/etc/init/redroid-cloud-seed.rc"
   cp -f "$SRC/Dockerfile" "$ctx/Dockerfile"
