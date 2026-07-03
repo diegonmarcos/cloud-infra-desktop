@@ -3,11 +3,11 @@
     "cloud-repo": {
       "flake": false,
       "locked": {
-        "lastModified": 1783071004,
-        "narHash": "sha256-xhaQCw+VP9LSdRcRAb6jo+9/aVVQMlBOQFUVvJUB2vc=",
+        "lastModified": 1783077945,
+        "narHash": "sha256-wZxYeh5KJJnlxCrqxVUZkxZfuReaoldniqeLwOFJdBA=",
         "owner": "diegonmarcos",
         "repo": "cloud",
-        "rev": "8d907dc545e9711dbc26e2e05189992659900272",
+        "rev": "0d5e7d9d54b8e99359fa691688365beec001ead8",
         "type": "github"
       },
       "original": {
@@ -112,11 +112,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1783071834,
-        "narHash": "sha256-sxhdokc+QkrNp0t2VGRFf2G18E0gs2vVcVVJoCZBa9g=",
+        "lastModified": 1783074755,
+        "narHash": "sha256-uIM4Y01oNf4scwwfI31aPx2MFFRBKve5+790VwbC4B8=",
         "owner": "nix-community",
         "repo": "NUR",
-        "rev": "64b0f0aa763113ff2bf19e30692700386b2f0a6e",
+        "rev": "cac396262b183157a45b6738a6044ed27ac0a093",
         "type": "github"
       },
       "original": {
@@ -183,11 +183,11 @@
     "unix-repo": {
       "flake": false,
       "locked": {
-        "lastModified": 1783072173,
-        "narHash": "sha256-GD/ot1kTRUWpioUbUzQ/t/6zCqqZ8YuZ48/MtcC2TTQ=",
+        "lastModified": 1783078595,
+        "narHash": "sha256-gmyqMoFtqsEbVVvmJo9iauKz6kCOXeB2W6mxBTCbcow=",
         "owner": "diegonmarcos",
         "repo": "unix",
-        "rev": "90c7355264e0f7cad4febe629ff532309f845309",
+        "rev": "399d1752e165506d2eec2ac28aefba732bed66b2",
         "type": "github"
       },
       "original": {
