@@ -134,7 +134,11 @@ in
     enableNotifications = true;
     reportInterval = 0;
     extraArgs = [
-      "--prefer" "^(brave|firefox|chromium|electron)$"
+      # android/redroid (2026-07-03): Redroid guest processes (uid 10xxx,
+      # android.process.*, com.android.*) are the desktop's biggest RSS pool;
+      # without preferring them, earlyoom's oom_score ranking kept picking
+      # claude sessions as the victim at the 5% floor.
+      "--prefer" "^(brave|firefox|chromium|electron|android|com\\.android|redroid)"
       "--avoid" "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus)$"
     # nix deliberately NOT in --avoid — earlyoom must be able to kill a runaway nix build
     ];
