@@ -1216,7 +1216,8 @@ fn agi_usage() -> Value {
     buckets.sort_by_key(|b| b.0);
     if buckets.len() > 80 { let n = buckets.len(); buckets.drain(0..n - 80); }
 
-    // sessions: most recent 30, by last-active desc.
+    // sessions: EVERY session ever recorded on disk (no cap — real, full
+    // history), sorted by last-active desc.
     let mut sess_vec: Vec<(String, Sess)> = sessions.into_iter().collect();
     sess_vec.sort_by(|a, b| b.1.last.cmp(&a.1.last));
     let current = sess_vec.first();
@@ -1225,7 +1226,6 @@ fn agi_usage() -> Value {
         "started": epoch_to_iso_minute(s.first), "last_active": epoch_to_iso_minute(s.last),
         "duration_min": (s.last - s.first) / 60, "usage": s.t.json(),
     })).unwrap_or(Value::Null);
-    sess_vec.truncate(30);
 
     serde_json::json!({
         "total": total.json(),
