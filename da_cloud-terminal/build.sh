@@ -194,7 +194,12 @@ case "$CMD" in
       # the "lean" devShell slow: gcc/binutils/patchelf/webkitgtk-dev/gtk+3-dev
       # etc., none of which are needed just to set one env var).
       log "resolving runtime libs (fast path: nix eval, no dev outputs)…"
-      ldp="$(nix eval --raw "$ROOT#runtimeLibPath" --accept-flake-config \
+      # flake-utils.eachDefaultSystem nests every output per-system
+      # (runtimeLibPath.<system> = "..."), so the attr path needs the actual
+      # system — resolve it dynamically rather than assuming x86_64-linux.
+      _sys="$(nix eval --impure --raw --expr 'builtins.currentSystem' \
+        --extra-experimental-features "nix-command flakes" 2>/dev/null)"
+      ldp="$(nix eval --raw "$ROOT#runtimeLibPath.$_sys" --accept-flake-config \
         --extra-experimental-features "nix-command flakes" 2>/dev/null)"
       # Verify every resolved path actually exists on disk — nix eval doesn't
       # realize anything, so a bare machine (or post-GC store) can eval a
