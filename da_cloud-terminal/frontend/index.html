@@ -268,6 +268,10 @@
   .cpbtn { font: inherit; font-size: 9px; padding: 2px 9px; border-radius: 5px; cursor: pointer;
     background: var(--item-bg); color: #9aa4b2; border: 1px solid var(--sep); }
   .cpbtn:hover { color: var(--accent); border-color: var(--accent); }
+  .mbtn { font: inherit; font-size: 9px; padding: 2px 9px; border-radius: 5px; cursor: pointer;
+    background: var(--item-bg); color: #9aa4b2; border: 1px solid var(--sep); white-space: nowrap; }
+  .mbtn:hover { color: #fbbf24; border-color: #fbbf24; }
+  .mbtn.arm { color: #f87171; border-color: #f87171; font-weight: 600; }
   .proc-tbl td.n { cursor: pointer; }
   .proc-tbl td.hier { color: #8b93a7; font-size: 10px; max-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .proc-tbl td.n .tw { color: #4b5563; }         /* tree branch glyphs */
@@ -535,7 +539,11 @@ function makeMonitor(tabId) {
             <canvas class="g" id="m-cpu-${id}"></canvas>
             <div class="gauge-wrap"><canvas id="m-cpugauge-${id}"></canvas><span class="glbl" id="m-cpuload-${id}"></span></div>
           </div></div>
-        <div class="panel mem"><div class="ph"><span>MEMORY</span><span class="sub" id="m-memsub-${id}"></span></div>
+        <div class="panel mem"><div class="ph"><span>MEMORY</span>
+            <span style="margin-left:auto;display:flex;gap:8px;align-items:baseline">
+              <span class="sub" id="m-memsub-${id}"></span>
+              <button class="mbtn" id="m-clean-${id}" title="Free RAM via mem-reclaim: kills non-essential apps, spares this terminal + the KDE session">🧹 clean</button>
+            </span></div>
           <div class="mem-body">
             <div class="seg" id="m-seg-${id}"></div>
             <div class="seg-legend" id="m-seglegend-${id}"></div>
@@ -586,6 +594,7 @@ function makeMonitor(tabId) {
           <span class="proc-tools">
             <span class="ptbl-tabs" id="m-sort-${id}"><button data-s="cpu" class="on">CPU</button><button data-s="mem">MEM</button><button data-s="io">IO</button></span>
             <span class="ptbl-tabs" id="m-view-${id}"><button data-v="flat" class="on">FLAT</button><button data-v="tree">TREE</button></span>
+            <button class="cpbtn" id="m-zombie-${id}" title="Reap zombie processes (SIGCHLD their parents)">🧟 reap</button>
             <button class="cpbtn" id="m-copy-${id}" title="Copy visible table (TSV)">⎘ copy</button>
           </span></div>
         <div class="ptbl-wrap"><table class="ptbl proc-tbl">
@@ -718,6 +727,24 @@ function makeMonitor(tabId) {
     const pid = +row.dataset.pid
     expanded.has(pid) ? expanded.delete(pid) : expanded.add(pid)
     renderProcs()
+  })
+  // memory panic button — two-click confirm (it kills non-essential apps)
+  {
+    const b = $('#m-clean-' + id); let arm = false, t
+    b.addEventListener('click', () => {
+      if (!arm) { arm = true; b.textContent = '⚠ confirm'; b.classList.add('arm'); t = setTimeout(() => { arm = false; b.textContent = '🧹 clean'; b.classList.remove('arm') }, 3000); return }
+      clearTimeout(t); arm = false; b.classList.remove('arm'); b.textContent = '… cleaning'
+      invoke('mem_reclaim', { dry: false })
+        .then(() => { b.textContent = '✓ freed'; setTimeout(() => b.textContent = '🧹 clean', 2500) })
+        .catch(() => { b.textContent = '✗ failed'; setTimeout(() => b.textContent = '🧹 clean', 2500) })
+    })
+  }
+  // zombie reaper — SIGCHLD the parents of any state-Z processes
+  $('#m-zombie-' + id).addEventListener('click', () => {
+    const b = $('#m-zombie-' + id); b.textContent = '…'
+    invoke('zombie_reap')
+      .then(r => { const n = (r && r.zombies) || 0; b.textContent = n ? `🧟 ${n} reaped` : '🧟 none'; setTimeout(() => b.textContent = '🧟 reap', 2500) })
+      .catch(() => { b.textContent = '✗'; setTimeout(() => b.textContent = '🧟 reap', 2000) })
   })
 
   const poll = async () => {
