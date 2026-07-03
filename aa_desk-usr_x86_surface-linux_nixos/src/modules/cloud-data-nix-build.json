@@ -15,6 +15,15 @@
     "IOWeight": "10"
   },
 
+  "pull_scope": {
+    "_comment": "systemd-run --scope (system, root) properties for the pull-path closure import (nix-store --import). 2026-07-03: an uncapped import was kernel-OOM-killed at <600M available RAM. Bounded memory + 2G zram valve = the import survives peaks by spilling to compressed RAM instead of dying.",
+    "MemoryMax": "3G",
+    "MemoryHigh": "2G",
+    "MemorySwapMax": "2G",
+    "CPUWeight": "20",
+    "IOWeight": "50"
+  },
+
   "suspend_during_build": {
     "_comment": "User systemd services to stop before Phase 1 (nix build) and restart after, regardless of build outcome. These are background indexers/daemons that compete for I/O and CPU during builds. Only --user units should be listed here; system-level units are managed by the nix-daemon cgroup caps in configuration_system-protection.nix. Services not loaded/running are silently skipped — no errors.",
     "services": [
