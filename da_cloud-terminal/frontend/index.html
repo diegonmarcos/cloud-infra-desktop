@@ -471,14 +471,22 @@ let curTheme = {}
 
 // ── Model ──
 // panes: ptyId → { term, fit, leaf(DOM), tabId }.  Each leaf is one PTY.
-// tabs:  tabId → { root(DOM), btn, title }.  A tab holds a binary split tree
-//        of .leaf / .split.row / .split.col nodes (KDE-style splits).
+// tabs:  tabId → { root(DOM), btn, title, profile, type, cmd }. A tab holds a
+//        binary split tree of .leaf / .split.row / .split.col nodes
+//        (KDE-style splits). `profile` scopes the tab to ONE profile pill —
+//        all profile pills share this window's DOM, so tabs are shown/hidden
+//        by profile rather than living in separate documents.
 const panes = new Map()
 const tabs  = new Map()
 let paneSeq = 0
 let tabSeq  = 0
 let activeTab = null
 let activePane = null
+const profileActiveTab = {}     // profile name -> last-active tabId (restored on pill switch)
+const initializedProfiles = new Set()
+let sessionData = {}            // loaded once at boot: { [profile]: { tabs:[{type,title,cmd,arg}], active } }
+let sessionReady = false        // don't save() until the initial load+restore finished
+let saveTimer = null
 
 function termTheme(theme) {
   return { background: theme.bg || '#0e0f1a', foreground: '#e2e8f0', cursor: theme.accent || '#7b7fff' }
@@ -1434,7 +1442,8 @@ function makeDataSync(tabId) {
 }
 
 // Generic special-pane tab (no PTY): monitor / journal / cloud dashboards.
-function newSpecialTab(makeFn, labelText) {
+function newSpecialTab(makeFn, labelText, type, profile) {
+  profile = profile || active.name
   const tabId = ++tabSeq
   const root = document.createElement('div')
   root.className = 'tab-root'; root.dataset.tab = String(tabId)
@@ -1446,16 +1455,17 @@ function newSpecialTab(makeFn, labelText) {
   close.onclick = ev => { ev.stopPropagation(); closeTab(tabId) }
   btn.append(label, close); btn.onclick = () => activateTab(tabId)
   document.getElementById('termtabs').insertBefore(btn, document.getElementById('newmon'))
-  tabs.set(tabId, { root, btn, title: label })
+  tabs.set(tabId, { root, btn, title: label, profile, type, cmd: '' })
   const made = makeFn(tabId)
   root.appendChild(made.leaf)
   activateTab(tabId); focusPane(made.id)
+  saveSession()
   return tabId
 }
-function newMonitorTab() { return newSpecialTab(makeMonitor, '📊 monitor') }
-function newJournalTab() { return newSpecialTab(makeJournal, '📜 journal') }
-function newCloudTab() { return newSpecialTab(makeCloud, '☁ cloud') }
-function newDataSyncTab() { return newSpecialTab(makeDataSync, '🔄 data-sync') }
+function newMonitorTab(profile) { return newSpecialTab(makeMonitor, '📊 monitor', 'monitor', profile) }
+function newJournalTab(profile) { return newSpecialTab(makeJournal, '📜 journal', 'journal', profile) }
+function newCloudTab(profile) { return newSpecialTab(makeCloud, '☁ cloud', 'cloud', profile) }
+function newDataSyncTab(profile) { return newSpecialTab(makeDataSync, '🔄 data-sync', 'datasync', profile) }
 
 function paneIdOf(leaf) { return parseInt(leaf.dataset.pane, 10) }
 
@@ -1536,7 +1546,8 @@ function setTabTitle(tabId, title) {
   title = String(title).trim(); if (!title) return
   t.title.textContent = title.length > 22 ? title.slice(0, 21) + '…' : title
 }
-function newTab() {
+function newTab(profile, titleOverride) {
+  profile = profile || active.name
   const tabId = ++tabSeq
   const root = document.createElement('div')
   root.className = 'tab-root'
@@ -1545,43 +1556,118 @@ function newTab() {
 
   const btn = document.createElement('button')
   btn.className = 'term-tab'
-  const label = document.createElement('span'); label.textContent = 'shell ' + tabId
+  const label = document.createElement('span'); label.textContent = titleOverride || ('shell ' + tabId)
   const close = document.createElement('span'); close.className = 'close'; close.textContent = '×'
   close.onclick = ev => { ev.stopPropagation(); closeTab(tabId) }
   btn.append(label, close)
   btn.onclick = () => activateTab(tabId)
   document.getElementById('termtabs').insertBefore(btn, document.getElementById('newtab'))
 
-  tabs.set(tabId, { root, btn, title: label })
+  tabs.set(tabId, { root, btn, title: label, profile, type: 'shell', cmd: '' })
   const made = makePane(tabId)
   root.appendChild(made.leaf)
   activateTab(tabId)
   focusPane(made.id)
+  saveSession()
   return tabId
 }
 
+// Show only the tabs belonging to `id`'s profile; skip cross-profile ones.
 function activateTab(id) {
+  const t = tabs.get(id); if (!t) return
   activeTab = id
-  for (const [tid, t] of tabs) {
+  profileActiveTab[t.profile] = id
+  for (const [tid, tt] of tabs) {
     const on = tid === id
-    t.root.classList.toggle('active', on)
-    t.btn.classList.toggle('active', on)
+    tt.root.classList.toggle('active', on)
+    tt.btn.classList.toggle('active', on)
   }
   fitTab(id)
-  // focus a pane belonging to this tab
   for (const [pid, p] of panes) if (p.tabId === id) { focusPane(pid); break }
+  saveSession()
 }
 
 function closeTab(id) {
   const t = tabs.get(id)
   if (!t) return
+  const profile = t.profile
   for (const [pid, p] of [...panes]) if (p.tabId === id) { if (p.stop) { try { p.stop() } catch (_) {} } else { invoke('pty_kill', { id: pid }); try { p.term.dispose() } catch (_) {} } panes.delete(pid) }
   t.root.remove(); t.btn.remove()
   tabs.delete(id)
   if (activeTab === id) {
-    const next = tabs.keys().next().value
-    if (next != null) activateTab(next); else newTab()
+    // fall back to another tab OF THE SAME PROFILE — never borrow a tab from
+    // a different profile pill.
+    const next = [...tabs.entries()].find(([, tt]) => tt.profile === profile)
+    if (next) activateTab(next[0]); else newTab(profile)
   }
+  saveSession()
+}
+
+// ── Per-profile tab visibility (all pills share this window's DOM) ───────
+// Hide every tab button/root not belonging to `name`; show the rest. Lazily
+// builds that profile's tabs (from the saved session, else its data-driven
+// default_tabs) the first time its pill is visited.
+function switchProfileTabs(name) {
+  for (const [, t] of tabs) {
+    const on = t.profile === name
+    t.btn.style.display = on ? '' : 'none'   // .tab-root's own .active class (CSS) hides the pane
+    if (!on) t.root.classList.remove('active')
+  }
+  if (!initializedProfiles.has(name)) {
+    initializedProfiles.add(name)
+    restoreOrDefaultTabs(name)
+    return
+  }
+  const want = profileActiveTab[name]
+  const mine = [...tabs.entries()].filter(([, t]) => t.profile === name)
+  if (want != null && tabs.has(want)) activateTab(want)
+  else if (mine.length) activateTab(mine[0][0])
+  else restoreOrDefaultTabs(name)   // profile had all its tabs closed — reseed defaults
+  setTimeout(doFit, 30)
+}
+
+// Build a profile's tab set from the saved session if present, else its
+// profile.default_tabs (same shapes init() already understood).
+function restoreOrDefaultTabs(name) {
+  const prof = allProfiles.find(p => p.name === name)
+  const saved = sessionData[name]
+  const spec = (saved && Array.isArray(saved.tabs) && saved.tabs.length) ? saved.tabs
+    : (Array.isArray(prof && prof.default_tabs) ? prof.default_tabs : [{ type: 'shell', title: 'shell' }])
+  let firstTab = null, wantActive = null
+  const activeIdx = saved && typeof saved.active === 'number' ? saved.active : null
+  spec.forEach((t, i) => {
+    let tid
+    if (t.type === 'monitor') tid = newMonitorTab(name)
+    else if (t.type === 'journal') tid = newJournalTab(name)
+    else if (t.type === 'cloud') tid = newCloudTab(name)
+    else if (t.type === 'datasync') tid = newDataSyncTab(name)
+    else { tid = newTab(name, t.title); if (t.cmd) autoRun(t.cmd) }
+    if (t.cmd) { const tt = tabs.get(tid); if (tt) tt.cmd = t.cmd }
+    if (firstTab == null) firstTab = tid
+    if (t.active || i === activeIdx) wantActive = tid
+  })
+  activateTab(wantActive != null ? wantActive : firstTab)
+}
+
+// ── Session persistence (~/.cloud-terminal/session.json) ─────────────────
+// Debounced: any tab open/close/switch schedules a save ~500ms later so a
+// burst of activity (opening several default tabs) writes once, not per-tab.
+function saveSession() {
+  if (!sessionReady) return
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    const out = {}
+    for (const p of allProfiles) {
+      const mine = [...tabs.entries()].filter(([, t]) => t.profile === p.name)
+      if (!mine.length) continue
+      const activeIdx = mine.findIndex(([tid]) => tid === profileActiveTab[p.name])
+      out[p.name] = {
+        active: activeIdx >= 0 ? activeIdx : 0,
+        tabs: mine.map(([, t]) => ({ type: t.type, title: t.title.textContent, cmd: t.cmd || '' })),
+      }
+    }
+    invoke('session_save', { data: out }).catch(() => {})
+  }, 500)
 }
 
 // ── Fit ── (only the visible/active tab has non-zero sized leaves)
@@ -1686,6 +1772,9 @@ function buildProfileTabs() {
   }
 }
 
+// Switching a pill only changes theme/sidebar/header — tab VISIBILITY is
+// handled by switchProfileTabs (all pills share this one window's DOM, so
+// each profile's tabs must be shown/hidden, not rebuilt).
 function showProfile(p) {
   active = p
   applyTheme(p.theme || {})
@@ -1693,6 +1782,7 @@ function showProfile(p) {
   document.getElementById('hdr-logo').textContent = p.logo || ''
   document.getElementById('hdr-name').textContent = p.display_name || ''
   document.title = 'Cloud Terminal — ' + (p.display_name || '')
+  switchProfileTabs(p.name)
 }
 
 // ── boot ──
@@ -1701,7 +1791,8 @@ async function init() {
   allProfiles = data.profiles || [data]
   const label = data.name
   document.getElementById('hdr-host').textContent = '@ ' + (data.host || '')
-  showProfile(allProfiles.find(p => p.name === data.name) || data)
+  sessionData = await invoke('session_load').catch(() => null) || {}
+  showProfile(allProfiles.find(p => p.name === data.name) || data)  // builds this profile's tabs via switchProfileTabs
   try {
     await Promise.all([
       listen('pty-data:' + label, e => { const [id, d] = e.payload; const p = panes.get(id); if (p) p.term.write(d) }),
@@ -1709,25 +1800,7 @@ async function init() {
       listen('tray-run:' + label, e => runItem({ ...e.payload, ptyId: activePane })),
     ])
   } catch (err) { console.error('event listen failed:', err) }
-  // Data-driven default tabs (profile.default_tabs): shell / monitor / command.
-  // Falls back to: tools → monitor+shell, everything else → one shell.
-  const dts = Array.isArray(data.default_tabs) ? data.default_tabs : null
-  if (dts && dts.length) {
-    let firstTab = null, wantActive = null
-    for (const t of dts) {
-      let tid
-      if (t.type === 'monitor') { tid = newMonitorTab() }
-      else if (t.type === 'journal') { tid = newJournalTab() }
-      else if (t.type === 'cloud') { tid = newCloudTab() }
-      else if (t.type === 'datasync') { tid = newDataSyncTab() }
-      else { tid = newTab(); if (t.type === 'command' && t.cmd) autoRun(t.cmd) }
-      if (firstTab == null) firstTab = tid
-      if (t.active) wantActive = tid              // data-driven default-focused tab
-    }
-    const open = wantActive != null ? wantActive : firstTab
-    if (open != null) activateTab(open)
-  } else if (label === 'tools') { const mt = newMonitorTab(); newTab(); activateTab(mt) }
-  else newTab()
+  sessionReady = true
   setTimeout(doFit, 60)
 }
 

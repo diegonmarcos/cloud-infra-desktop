@@ -1048,6 +1048,26 @@ fn peer_ping(host: String, local: bool) -> Value {
     }
 }
 
+// ── Session persistence (~/.cloud-terminal/session.json) ────────────
+// Per-profile tab lists (type/title/cmd — NOT PTY state) so the app reopens
+// with the same tabs per profile. Written on every tab open/close/switch
+// (debounced client-side), read once at boot.
+fn session_path() -> String {
+    format!("{}/.cloud-terminal/session.json", env_or("HOME", "/tmp"))
+}
+#[tauri::command]
+fn session_save(data: Value) -> Result<(), String> {
+    let p = session_path();
+    if let Some(dir) = std::path::Path::new(&p).parent() { std::fs::create_dir_all(dir).map_err(|e| e.to_string())?; }
+    std::fs::write(&p, serde_json::to_string(&data).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+}
+#[tauri::command]
+fn session_load() -> Value {
+    std::fs::read_to_string(session_path()).ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or(Value::Null)
+}
+
 // ── init payload for the renderer (mirrors the Electron 'init' send) ──
 #[tauri::command]
 fn get_init(window: tauri::WebviewWindow, state: tauri::State<AppState>) -> Value {
@@ -1304,6 +1324,7 @@ fn main() {
             pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap,
             psi_clean, psi_clean_all, journal_feed,
             cloud_targets, cloud_vm, cloud_stats, cloud_logs, cloud_ping, data_sync, data_gh, peer_ping,
+            session_save, session_load,
             run_item, get_init, sys_stats
         ])
         .setup(|app| {
