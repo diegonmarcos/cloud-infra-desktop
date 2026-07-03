@@ -33,7 +33,10 @@
     "adb_addr": "127.0.0.1:5555",
     "adb_port": 5555,
     "data_volume": "/mnt/shared-lib/redroid/data",
-    "dns": ["1.1.1.1", "9.9.9.9"],
+    "dns": [
+      "1.1.1.1",
+      "9.9.9.9"
+    ],
     "abi": "x86_64",
     "_doc_abi": "Device ABI. The bake extracts each app's bundled lib/<abi>/*.so into /system/app/<pkg>/lib/<abi>/ — system apps don't get PackageManager's native-lib extraction, so a bare APK with extractNativeLibs=true leaves libchrome.so / libdatastore_shared_counter.so unreachable and the app crashes on dlopen.",
     "gpu_mode": "host",
@@ -334,7 +337,7 @@
           "cellY": 4
         },
         {
-          "ref": "com.brave.browser",
+          "ref": "org.mozilla.fennec_fdroid",
           "cellX": 3,
           "cellY": 4
         },
@@ -460,7 +463,9 @@
       "label": "Cloud-SuperApp",
       "group": "core",
       "_doc": "Provisioning ONLY fetches the already-published x86 APK (signed with the canonical per-app CI key); it must NEVER build it locally or in GHA. A local gradle build here signs with the wrong (vault) key and Android then rejects the in-app updater's canonical-key updates. Re-run `build.sh lock <pkg>` to refresh the pin when the upstream release bumps.",
-      "appops": ["REQUEST_INSTALL_PACKAGES"],
+      "appops": [
+        "REQUEST_INSTALL_PACKAGES"
+      ],
       "_doc_appops": "Special app-ops to allow at install (separate from the -g runtime perms). REQUEST_INSTALL_PACKAGES lets Cloud-SuperApp sideload/install other APKs itself (it's the constellation hub/installer). Granted via `cmd appops set <pkg> <op> allow` by cmd_install.",
       "source": {
         "type": "github",
@@ -599,12 +604,12 @@
       }
     },
     {
-      "package": "com.brave.browser",
-      "label": "Brave",
+      "package": "org.mozilla.fennec_fdroid",
+      "label": "Firefox",
       "group": "web",
+      "_doc": "Replaces Brave (com.brave.browser). Brave (Chromium engine) exits(0) itself on launch — this redroid host has no /dev/ashmem (mainline kernel 6.19.8; ashmem was removed from mainline Linux in 5.18) and Chromium calls an ashmem-only ioctl (ASHMEM_GET_PROT_MASK) on the memfd fallback fd that libcutils substitutes, which fails ENOTTY. Firefox/Fennec uses GeckoView, not Chromium, and does not hit this code path.",
       "source": {
-        "type": "github",
-        "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk"
+        "type": "fdroid"
       }
     },
     {
