@@ -32,6 +32,7 @@ on:
 
 permissions:
   contents: read
+  packages: write        # push the incremental layered HM cache image to GHCR
 
 concurrency:
   group: ship-desktop-hm
@@ -52,7 +53,11 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
-      - name: Build + export home-manager closure
+      - name: Build + export home-manager closure (+ push incremental GHCR cache)
+        env:
+          GHCR_PUSH: "1"                       # build.sh also builds+pushes the layered cache image
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HM_CACHE_IMAGE: ghcr.io/${{ github.repository_owner }}/unix-hm-cache
         run: ./ba_flakes_desktop/build.sh ci-build
 
       - uses: actions/upload-artifact@v4

@@ -330,6 +330,24 @@
         # by bc_flakes_dev-store/build.sh; entered via the `dev` bwrap shell.
         devProfile = devProfile;
 
+        # ── hm-cache-image: LAYERED image of the desktop HM activation closure ──
+        # One layer per store path (dockerTools.buildLayeredImage) → `docker pull`
+        # skips unchanged layers, so `build.sh switch` fetches only the store
+        # paths that actually changed (incremental) instead of re-downloading the
+        # whole 6 GB nar. Pushed to GHCR by `ci-build`; consumed by `switch`
+        # (nar.zst kept as the fallback). NOT run as a container — the desktop
+        # extracts + registers its /nix/store layers into the host store.
+        hm-cache-image = pkgs.dockerTools.buildLayeredImage {
+          name = "unix-hm-cache";
+          tag = "latest";
+          maxLayers = 120;
+          contents = [ self.homeConfigurations."diego@surface-plasma".activationPackage ];
+          config.Labels = {
+            "org.opencontainers.image.description" = "Desktop home-manager activation closure as layered store paths (incremental GHCR cache).";
+            "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
+          };
+        };
+
         # Main container image
         container = pkgs.dockerTools.buildImage {
           name = "diego-dev";

@@ -806,6 +806,31 @@ cmd_ci_build() {
     nix-store --export $(nix-store -qR "$_sys") | zstd -T0 -15 > "$_out/hm-closure.nar.zst"
     rm -f "$_out/result"
     log_success "Done: $(du -h "$_out/hm-closure.nar.zst" | cut -f1) -> $_out/"
+
+    # ── Stage 1: layered GHCR cache (INCREMENTAL delivery) ──────────────────
+    # Additive + NON-FATAL: the nar.zst above stays the active mechanism until
+    # `switch` learns to consume this. Build a layered image of the SAME
+    # activation closure (one layer per store path) and skopeo-copy it to GHCR —
+    # skopeo skips blobs already present in the registry, so only changed layers
+    # upload. Guarded by GHCR_PUSH=1 (set by the ship workflow, which holds
+    # packages:write + GITHUB_TOKEN). A failure here never fails the closure export.
+    if [ "${GHCR_PUSH:-0}" = "1" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
+        _img="${HM_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-hm-cache}"
+        log_info "building + pushing layered HM cache image -> ${_img}:latest (incremental)"
+        if nix build "$SRC_DIR#packages.x86_64-linux.hm-cache-image" \
+             --impure --accept-flake-config --out-link "$_out/hm-cache-image" \
+             --extra-experimental-features "nix-command flakes"; then
+            nix run --extra-experimental-features "nix-command flakes" nixpkgs#skopeo -- \
+                copy --dest-creds "x:${GITHUB_TOKEN}" \
+                "docker-archive:$(readlink -f "$_out/hm-cache-image")" \
+                "docker://${_img}:latest" \
+                && log_success "pushed layered HM cache -> ${_img}:latest" \
+                || log_warn "skopeo push failed (non-fatal — nar.zst artifact still delivered)"
+        else
+            log_warn "hm-cache-image build failed (non-fatal — nar.zst still delivered)"
+        fi
+        rm -f "$_out/hm-cache-image"
+    fi
 }
 
 # pull [artifact-dir] — run on the Surface. Import a GHA-built home-manager
@@ -869,20 +894,58 @@ cmd_switch_runner() {
     _wf="${HM_SHIP_WORKFLOW:-ship_nix-flakes_desktop_hm.yaml}"
     _art="$SCRIPT_DIR/dist-ci"
     rm -rf "$_art"; mkdir -p "$_art"
-    # Resolve the latest SUCCESSFUL run of the HM ship workflow and pull its
-    # artifact by run-id — `gh run download -n <name>` with NO run-id only checks
-    # the single most-recent run, which may be a newer/failed one lacking the artifact.
-    log_info "Resolving latest successful '$_wf' run..."
-    _runid="$(gh run list --workflow "$_wf" --status success --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null)"
-    if [ -z "$_runid" ]; then
+    # Resolve SUCCESSFUL runs of the HM ship workflow and pull the artifact by
+    # run-id — `gh run download -n <name>` with NO run-id only checks the single
+    # most-recent run, which may be a newer/failed one lacking the artifact.
+    # GHA expires artifacts (retention window), so the LATEST successful run may
+    # have no artifact even while an older successful run still does — walk the
+    # recent successful runs newest-first until one downloads.
+    log_info "Resolving recent successful '$_wf' runs..."
+    _runids="$(gh run list --workflow "$_wf" --status success --limit 10 --json databaseId --jq '.[].databaseId' 2>/dev/null)"
+    if [ -z "$_runids" ]; then
         log_error "no successful '$_wf' run found on GitHub."
         log_error "GHA builds on push — commit+push first (or: gh workflow run $_wf),"
         log_error "then re-run:  ./build.sh switch      (on-device eval instead: ./build.sh switch local)"
         return 1
     fi
-    log_info "Downloading '$_artname' from run $_runid..."
-    if ! gh run download "$_runid" -n "$_artname" -D "$_art" 2>/dev/null; then
-        log_error "download failed — artifact '$_artname' missing/expired on run $_runid."
+    # Walk successful runs newest-first. Distinguish a genuinely EXPIRED artifact
+    # (fall through to an older run) from a LOCAL failure — no space or OOM kill —
+    # which every run would hit identically, so we fail fast with the real cause
+    # instead of thrashing 6 GB downloads into a full disk (root cause of the
+    # "missing/expired" mislabel). The closure zip is ~6 GB and gh unzips it in
+    # place, so we require ~2.2× its size free before attempting.
+    _runid=""
+    for _rid in $_runids; do
+        # Query this run's artifact metadata: expired flag + compressed size.
+        _meta="$(gh api "repos/{owner}/{repo}/actions/runs/$_rid/artifacts" \
+            --jq ".artifacts[] | select(.name==\"$_artname\") | \"\(.expired) \(.size_in_bytes)\"" 2>/dev/null | head -1)"
+        if [ -z "$_meta" ]; then
+            log_warn "run $_rid has no '$_artname' artifact — trying older run..."; continue
+        fi
+        _expired="${_meta%% *}"; _size="${_meta##* }"
+        if [ "$_expired" = "true" ]; then
+            log_warn "artifact on run $_rid is expired — trying older run..."; continue
+        fi
+        # Disk precheck (KB): need ~2.2× compressed size (zip + in-place unzip).
+        _need_kb=$(( _size / 1024 * 22 / 10 ))
+        _free_kb="$(df -Pk "$SCRIPT_DIR" | awk 'END{print $4}')"
+        if [ "$_free_kb" -lt "$_need_kb" ]; then
+            log_error "not enough disk for the closure: need ~$(( _need_kb/1024/1024 ))G free, have $(( _free_kb/1024/1024 ))G on $(df -Ph "$SCRIPT_DIR" | awk 'END{print $6}')."
+            log_error "free space (nix-collect-garbage -d / docker system prune / clear caches) then retry — older runs are the same size, not retrying."
+            return 1
+        fi
+        log_info "Downloading '$_artname' (~$(( _size/1024/1024 ))MB) from run $_rid..."
+        rm -rf "$_art"; mkdir -p "$_art"
+        if gh run download "$_rid" -n "$_artname" -D "$_art" 2>/dev/null; then
+            _runid="$_rid"; break
+        fi
+        log_error "download failed for run $_rid despite live artifact + adequate disk —"
+        log_error "likely network drop or an OOM/freeze-guard kill (low RAM). Not retrying older runs (same failure)."
+        return 1
+    done
+    if [ -z "$_runid" ]; then
+        log_error "no live '$_artname' artifact in the last 10 successful runs (all expired/missing)."
+        log_error "re-run the build:  gh workflow run $_wf   then retry  ./build.sh switch"
         return 1
     fi
     cmd_pull "$_art"
