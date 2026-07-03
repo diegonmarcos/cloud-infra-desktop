@@ -20,4 +20,18 @@
     ip6tables = false;
     ip-forward = false;
   };
+
+  # Docker makes no NAT rules (above), so containers on the default docker0 bridge
+  # have NO outbound internet. NixOS firewall is the single owner of NAT, so it
+  # provides the masquerade here — outbound only (no inbound port publishing, so
+  # the "containers bind localhost" posture is preserved). This is what gives the
+  # redroid Android container (da_redroid, on docker0) WAN access.
+  # externalInterface is the Wi-Fi NIC (primary WAN on this laptop); NAT applies
+  # when routing out via it. internalInterfaces = docker0 covers every container
+  # on the default bridge.
+  networking.nat = {
+    enable = true;
+    externalInterface = "wlp0s20f3";
+    internalInterfaces = [ "docker0" ];
+  };
 }
