@@ -228,7 +228,8 @@
   .ptbl td { padding: 2px 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ptbl tbody tr:nth-child(odd) td { background: rgba(255,255,255,.015); }
   .ptbl tbody tr:hover td { background: rgba(123,127,255,.10); }
-  .ptbl td.n { color: #cbd5e1; max-width: 0; width: 99%; }
+  .ptbl td.n { color: #cbd5e1; max-width: 240px; }
+  .ptbl td.hier { max-width: 0; width: 99%; }
   .ptbl td.u { color: #7dd3fc; } .ptbl td.st { color: #6b7280; }
   .ptbl td.num { color: #cbd5e1; font-variant-numeric: tabular-nums; }
   .ptbl td.hot { color: #f87171; font-weight: 700; text-shadow: 0 0 6px rgba(248,113,113,.5); }
@@ -782,7 +783,7 @@ function makeMonitor(tabId) {
           <button data-k="all" class="all" title="Diagnose the worst PSI and kill exactly that culprit">⚡ Clean All</button>
         </div>
         <div class="ptbl-wrap"><table class="ptbl proc-tbl">
-          <thead><tr><th class="num">PID</th><th>USER</th><th class="num">CPU%</th><th class="num">MEM%</th><th class="num" title="Pressure of the process's cgroup (worst of cpu/io/mem)">PSI</th><th class="num">IO</th><th class="num">TIME+</th><th>NAME</th><th id="m-hierh-${id}">LINEAGE</th></tr></thead>
+          <thead><tr><th class="num">PID</th><th>USER</th><th class="num">CPU%</th><th class="num">MEM%</th><th class="num">IO</th><th class="num" title="Pressure of the process's cgroup (worst of cpu/io/mem)">PSI</th><th class="num">TIME+</th><th>NAME</th><th id="m-hierh-${id}">LINEAGE</th></tr></thead>
           <tbody id="m-proc-${id}"></tbody></table></div></div>
     </div>`
   const hist = { cpu: [], mem: [], rx: [], tx: [] }
@@ -808,8 +809,9 @@ function makeMonitor(tabId) {
     let h = `<tr class="prow${open ? ' open' : ''}" data-pid="${p.pid}">` +
       `<td class="num">${p.pid}</td><td class="u">${esc((p.user || '').slice(0, 9))}</td>` +
       `<td class="num ${cc}">${p.cpu.toFixed(1)}</td><td class="num">${(p.memp || 0).toFixed(1)}</td>` +
+      `<td class="num">${p.io ? fmtRate(p.io) : '·'}</td>` +
       psiCell +
-      `<td class="num">${p.io ? fmtRate(p.io) : '·'}</td><td class="num st">${fmtTimeplus(p.time)}</td>` +
+      `<td class="num st">${fmtTimeplus(p.time)}</td>` +
       `<td class="n">${tw ? '<span class="tw">' + tw + '</span>' : ''}${open ? '▾ ' : '▸ '}${esc(p.name)}</td>` +
       `<td class="hier">${hier}</td></tr>`
     if (open) {
@@ -891,9 +893,9 @@ function makeMonitor(tabId) {
   $('#m-copy-' + id).addEventListener('click', () => {
     const s = lastS; if (!s) return
     const list = viewMode === 'tree' ? s.procs_all : (sortBy === 'mem' ? s.procs_mem : sortBy === 'io' ? s.procs_io : s.procs)
-    const head = ['PID', 'PPID', 'USER', 'CPU%', 'MEM%', 'PSI%', 'THR', 'IO/s', 'TIME+', 'STATUS', 'NAME', 'LINEAGE', 'COMMAND'].join('\t')
+    const head = ['PID', 'PPID', 'USER', 'CPU%', 'MEM%', 'IO/s', 'PSI%', 'THR', 'TIME+', 'STATUS', 'NAME', 'LINEAGE', 'COMMAND'].join('\t')
     const rows = (list || []).map(p => [p.pid, p.ppid, p.user, p.cpu.toFixed(1), (p.memp || 0).toFixed(1),
-      psiMax(p).toFixed(1), p.threads || 0, fmtRate(p.io || 0), fmtTimeplus(p.time), p.status, p.name, (p.anc || []).join('/'), p.cmd || p.name].join('\t'))
+      fmtRate(p.io || 0), psiMax(p).toFixed(1), p.threads || 0, fmtTimeplus(p.time), p.status, p.name, (p.anc || []).join('/'), p.cmd || p.name].join('\t'))
     clip.write([head, ...rows].join('\n'))
     const btn = $('#m-copy-' + id); const t = btn.textContent; btn.textContent = '✓ copied'; setTimeout(() => btn.textContent = t, 1200)
   })
@@ -931,11 +933,22 @@ function makeMonitor(tabId) {
         .catch(() => { b.textContent = '✗ failed'; setTimeout(() => b.textContent = '🧹 clean', 2500) })
     })
   }
-  // zombie reaper — SIGCHLD the parents of any state-Z processes
+  // zombie reaper — SIGCHLD the parents of any state-Z processes. A zombie
+  // can't be killed (it's already dead, just an unreaped table entry) — the
+  // only lever we have is nudging its PARENT to call wait(). That fails
+  // outright for a root-owned parent (EPERM, no permission to signal it as
+  // an unprivileged user) and isn't guaranteed even for same-uid parents
+  // (SIGCHLD isn't queued — if the parent already dropped/ignored it,
+  // resending changes nothing). Report the real outcome, not a fake success.
   $('#m-zombie-' + id).addEventListener('click', () => {
     const b = $('#m-zombie-' + id); b.textContent = '…'
     invoke('zombie_reap')
-      .then(r => { const n = (r && r.zombies) || 0; b.textContent = n ? `🧟 ${n} reaped` : '🧟 none'; setTimeout(() => b.textContent = '🧟 reap', 2500) })
+      .then(r => {
+        const n = (r && r.zombies) || 0, nudged = (r && r.parents_nudged) || 0, denied = (r && r.parents_denied) || []
+        b.title = denied.length ? `${denied.length} parent PID(s) refused signal (not owned by you): ${denied.join(', ')}` : ''
+        b.textContent = !n ? '🧟 none' : denied.length ? `🧟 ${n} zombies, ${denied.length} blocked` : `🧟 ${n} nudged`
+        setTimeout(() => { b.textContent = '🧟 reap'; b.title = '' }, 3500)
+      })
       .catch(() => { b.textContent = '✗'; setTimeout(() => b.textContent = '🧟 reap', 2000) })
   })
 
