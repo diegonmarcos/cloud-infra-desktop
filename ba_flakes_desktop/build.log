@@ -51719,3 +51719,77 @@ error:
 [2026-07-03 22:34:10] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-07-03 22:34:11] PERF: start switch
 [2026-07-03 22:34:11] INFO: Staging dirty files for flake evaluation...
+[2026-07-03 22:34:13] PERF: git stage = 2.5s
+[2026-07-03 22:34:13] PERF: clean stale hm-backups = 326ms
+[2026-07-03 22:34:13] INFO: Applying Home Manager configuration...
+[2026-07-03 22:34:13] INFO: home-manager backup extension: hm-backup-20260703-223413
+copying path '/nix/store/w8w3fia26p35xays42lixahnzigsl8dv-source' from 'https://cache.nixos.org'...
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+copying path '/nix/store/fafnljsz5sckb1vzpns5dc2l6z4xkakm-source' from 'https://cache.nixos.org'...
+Starting Home Manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+No change so reusing latest profile generation
+Activating createGpgHomedir
+Activating linkGeneration
+Cleaning up orphan links from /home/diego
+Creating home file links in /home/diego
+Activating claudeSettings
+[claude-settings] ~/.claude/settings.json written (writable; effortLevel=low)
+Activating mergeCloudDeps
+[node-npm-deps-cloud] 9 cloud deps from /home/diego/git/cloud/2_configs/dist/build-flakes_desktop.json
+Activating mergeFrontDeps
+[node-npm-deps-front] No front-deps.json found
+Activating sharedNodeModules
+[node-npm-deps] package.json: 105 total packages
+[node-npm-deps] npm install: ~/.node_modules/
+
+up to date in 1s
+Activating cloudDeps
+[cloud.nix] Skipped — using shared ~/.node_modules/
+Activating cloudTerminalInstall
+[22:35:40] → /home/diego/.local/bin/cloud-terminal (opens the Tauri terminal)
+[22:35:40] removed stale electron launchers: cloud-terminal-{cloud,nix-flakes,tools}
+Activating configure-plasma
+Activating createXdgUserDirectories
+Activating removeImperativePackages
+[hm] Removing imperative nix profile package: home-manager-path
+Activating installPackages
+Activating dconfSettings
+Activating fixBatteryPercentage
+Activating fixSystemTray
+Activating frontDeps
+[front.nix] Skipped — using shared ~/.node_modules/
+Activating geminiMcpSecrets
+[gemini-mcp] ~/.gemini/settings.json templated (1 vars substituted)
+Activating genClaudeMd
+[gen-claude-md] Generated CLAUDE.md (4 VMs, 41 services, date=2026-07-03)
+Activating globalTsx
+
+changed 3 packages in 580ms
+Activating gooseConfig
+Activating initHomeGit
+Activating installClaudeCode
+[claude-code] 2.1.200 is up to date
+Activating installWg0TcpConf
+[wireguard-wstunnel] /home/diego/.config/wireguard/wg0.conf not found — skipping wg0-tcp.conf render
+Activating lockScreenWallpaper
+Activating mcpNodeModulesSymlinks
+Activating mcpSecrets
+[mcp-secrets] ~/.mcp.json templated (1 vars substituted)
+Activating onFilesChange
+Activating powerDevilSuspend
+Activating reloadSystemd
+Starting units: sops-nix.service
+Activating sops-nix
+Activating sshSocketsDir
+warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' does not exist, ignoring
+[2026-07-03 22:35:55] PERF: home-manager switch = 1m 41s
+[2026-07-03 22:35:55] PERF: TOTAL switch = 1m 44s
+[2026-07-03 22:35:55] SUCCESS: Configuration applied: /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma
+[2026-07-03 22:35:55] ========== Build script finished ==========
+[2026-07-03 23:31:38] ========== Build script started ==========
+[2026-07-03 23:31:38] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-07-03 23:31:39] PERF: start switch
+[2026-07-03 23:31:39] INFO: Staging dirty files for flake evaluation...

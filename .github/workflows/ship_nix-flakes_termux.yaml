@@ -32,6 +32,7 @@ on:
 
 permissions:
   contents: read
+  packages: write   # push the incremental layered termux cache image to GHCR
 
 concurrency:
   group: ship-termux
@@ -52,7 +53,11 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
-      - name: Build + export nix-on-droid closure
+      - name: Build + export nix-on-droid closure (+ push incremental GHCR cache)
+        env:
+          GHCR_PUSH: "1"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TERMUX_CACHE_IMAGE: ghcr.io/${{ github.repository_owner }}/unix-termux-cache
         run: ./bb_flakes_termux/build.sh ci-build
 
       - uses: actions/upload-artifact@v4

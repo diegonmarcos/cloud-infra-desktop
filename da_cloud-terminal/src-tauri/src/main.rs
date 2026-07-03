@@ -707,10 +707,21 @@ fn zombie_reap() -> Result<Value, String> {
         let ppid: u32 = it.next().and_then(|x| x.parse().ok()).unwrap_or(0);
         if state == "Z" { zombies += 1; if ppid > 1 { parents.insert(ppid); } }
     }
+    // A SIGCHLD nudge only helps if (a) we're allowed to signal the parent
+    // (same uid, or root) and (b) the parent actually calls wait() in
+    // response — some parents (root-owned daemons, or ones that already
+    // dropped/ignored the pending SIGCHLD) will never reap no matter how
+    // many times we signal them. Report real per-parent outcomes instead of
+    // unconditionally claiming success — a discarded bool here previously
+    // made "parents_nudged" a lie whenever a signal hit EPERM.
+    let mut nudged = 0usize;
+    let mut denied: Vec<u32> = Vec::new();
     for pp in &parents {
-        send_signal(*pp, SIGCHLD);
+        if send_signal(*pp, SIGCHLD) { nudged += 1; } else { denied.push(*pp); }
     }
-    Ok(serde_json::json!({ "zombies": zombies, "parents_nudged": parents.len() }))
+    Ok(serde_json::json!({
+        "zombies": zombies, "parents_nudged": nudged, "parents_denied": denied,
+    }))
 }
 
 // ── PSI-targeted reclaim: kill the top resource hog until pressure drops ──
