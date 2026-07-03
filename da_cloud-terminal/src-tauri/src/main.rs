@@ -329,6 +329,11 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
     let mut rows: Vec<P> = sys
         .processes()
         .iter()
+        // Drop threads (JIT workers etc.): sysinfo lists each thread as a task
+        // with its own TID, the thread's comm as name ("JITWorker"), and the
+        // parent process's RSS — cluttering the list with dozens of identical
+        // rows. Only real processes (thread group leaders) belong here.
+        .filter(|(_, p)| p.thread_kind().is_none())
         .map(|(pid, p)| {
             let st = p.status().to_string();
             if st == "Run" || st == "Runnable" { running += 1; }
@@ -692,9 +697,95 @@ fn zombie_reap() -> Result<Value, String> {
         if state == "Z" { zombies += 1; if ppid > 1 { parents.insert(ppid); } }
     }
     for pp in &parents {
-        let _ = std::process::Command::new("kill").arg("-CHLD").arg(pp.to_string()).status();
+        let _ = sys_cmd("kill").arg("-CHLD").arg(pp.to_string()).status();
     }
     Ok(serde_json::json!({ "zombies": zombies, "parents_nudged": parents.len() }))
+}
+
+// ── PSI-targeted reclaim: kill the top resource hog until pressure drops ──
+// The kernel's avg10 lags ~10s, so we measure INSTANTANEOUS PSI from the growth
+// of the 'some' stall counter over a short window — it reacts the moment the
+// hog dies.
+fn read_psi_total(kind: &str) -> u64 {
+    std::fs::read_to_string(format!("/proc/pressure/{kind}")).ok()
+        .and_then(|t| t.lines().find(|l| l.starts_with("some")).map(|s| s.to_string()))
+        .and_then(|l| l.split_whitespace().find_map(|kv| kv.strip_prefix("total=").and_then(|v| v.parse::<u64>().ok())))
+        .unwrap_or(0)
+}
+fn instant_psi(kind: &str) -> f64 {
+    let t0 = read_psi_total(kind);
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    let t1 = read_psi_total(kind);
+    t1.saturating_sub(t0) as f64 / 400_000.0 * 100.0 // Δµs / 400ms window → % stalled
+}
+fn cgroup_of(pid: u32) -> String {
+    std::fs::read_to_string(format!("/proc/{pid}/cgroup")).ok()
+        .and_then(|c| c.lines().find_map(|l| l.strip_prefix("0::")).map(|s| s.trim().to_string()))
+        .unwrap_or_default()
+}
+// Loop: kill the top consumer of `k` (cpu|io|memory) among USER app.slice
+// processes (spares the KDE session + this terminal/Claude scope) until
+// instantaneous PSI ≤ target%, capped at 8 kills. SIGTERM (graceful) only.
+fn psi_reclaim(sysm: &Mutex<sysinfo::System>, k: &str, target: f64) -> Vec<Value> {
+    let my_cg = cgroup_of(std::process::id());
+    let my_pid = std::process::id();
+    let mut killed: Vec<Value> = Vec::new();
+    let mut done: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    for _ in 0..8 {
+        if instant_psi(k) <= target { break; }
+        let pick = {
+            let mut sys = sysm.lock().unwrap();
+            sys.refresh_all();
+            let mut best: Option<(u32, f64, String)> = None;
+            for (pid, p) in sys.processes() {
+                let pidn = pid.as_u32();
+                if pidn == my_pid || done.contains(&pidn) { continue; }
+                let cg = cgroup_of(pidn);
+                if !cg.contains("/app.slice/") || cg == my_cg { continue; } // user apps only, spare our scope
+                let metric = match k {
+                    "cpu" => p.cpu_usage() as f64,
+                    "memory" => p.memory() as f64,
+                    _ => { let d = p.disk_usage(); (d.read_bytes + d.written_bytes) as f64 }
+                };
+                if metric <= 0.0 { continue; }
+                if best.as_ref().map_or(true, |b| metric > b.1) {
+                    best = Some((pidn, metric, p.name().to_string_lossy().into_owned()));
+                }
+            }
+            best
+        };
+        match pick {
+            Some((pid, metric, name)) => {
+                let _ = sys_cmd("kill").arg("-TERM").arg(pid.to_string()).status();
+                done.insert(pid);
+                killed.push(serde_json::json!({ "pid": pid, "name": name, "metric": metric }));
+                std::thread::sleep(std::time::Duration::from_millis(250));
+            }
+            None => break,
+        }
+    }
+    killed
+}
+
+// One button per resource: reclaim until that resource's PSI ≤ target (default 1%).
+#[tauri::command]
+fn psi_clean(kind: String, target: Option<f64>, state: tauri::State<AppState>) -> Value {
+    let k = match kind.as_str() { "mem" | "memory" => "memory", "io" => "io", _ => "cpu" };
+    let tgt = target.unwrap_or(1.0);
+    let killed = psi_reclaim(&state.sys, k, tgt);
+    serde_json::json!({ "kind": k, "target": tgt, "killed": killed, "final_psi": instant_psi(k) })
+}
+
+// Clean All: diagnose which resource has the worst instantaneous pressure, then
+// reclaim exactly that one.
+#[tauri::command]
+fn psi_clean_all(state: tauri::State<AppState>) -> Value {
+    let cpu = instant_psi("cpu");
+    let io = instant_psi("io");
+    let mem = instant_psi("memory");
+    let worst = if mem >= cpu && mem >= io { "memory" } else if cpu >= io { "cpu" } else { "io" };
+    let killed = psi_reclaim(&state.sys, worst, 1.0);
+    serde_json::json!({ "diagnosed": worst, "psi": { "cpu": cpu, "io": io, "memory": mem }, "killed": killed, "final_psi": instant_psi(worst) })
 }
 
 // Journal feed: merge system + user journals (last `n` each) as structured
@@ -1210,7 +1301,8 @@ fn main() {
         }))
         .manage(state)
         .invoke_handler(tauri::generate_handler![
-            pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap, journal_feed,
+            pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap,
+            psi_clean, psi_clean_all, journal_feed,
             cloud_targets, cloud_vm, cloud_stats, cloud_logs, cloud_ping, data_sync, data_gh, peer_ping,
             run_item, get_init, sys_stats
         ])

@@ -6,5 +6,26 @@
     { "alias": "oci-apps",      "wg": "10.0.0.6", "label": "Oracle A1 — Apps (4 OCPU / 24 GB)",  "pub": "https://git.diegonmarcos.com" },
     { "alias": "oci-analytics", "wg": "10.0.0.4", "label": "Oracle E2 — Analytics + Workflows",  "pub": "https://analytics.diegonmarcos.com" },
     { "alias": "oci-mail",      "wg": "10.0.0.3", "label": "Oracle E2 — Mail Server",            "pub": "https://mail.diegonmarcos.com" }
+  ],
+
+  "_categories_comment": "BY-SERVICE grouping for the container view. Array order = display order; a container is placed in the FIRST category whose `match` substrings appear in its name (case-insensitive). Unmatched → 'Other'. Edit freely — this is the source of truth for the taxonomy.",
+  "service_categories": [
+    { "group": "Infra", "cat": "Security",      "match": ["authelia", "crowdsec", "introspect", "fail2ban", "c3-infra", "sec-"] },
+    { "group": "Infra", "cat": "Networks",      "match": ["caddy", "wireguard", "mesh", "hickory", "dns", "proxy", "tunnel", "vpn"] },
+    { "group": "Infra", "cat": "Observability", "match": ["matomo", "umami", "openobserve", "grafana", "c3-analytics", "c3-public", "c3-services", "obs", "metrics"] },
+    { "group": "Infra", "cat": "Databases",     "match": ["postgres", "mysql", "mariadb", "redis", "mongo", "dbgate", "_db", "-db", "database"] },
+    { "group": "Infra", "cat": "Data Apps",     "match": ["grist", "nocodb", "sheets"] },
+    { "group": "Infra", "cat": "APIs",          "match": ["-api", "_api", "crawlee", "http-to-smtp", "rust-api"] },
+    { "group": "Infra", "cat": "MCPs",          "match": ["-mcp", "_mcp", "mcp"] },
+    { "group": "Infra", "cat": "Runners",       "match": ["dagu", "workflow", "runner"] },
+    { "group": "Infra", "cat": "Pilots",        "match": ["pilot", "nixhm"] },
+    { "group": "User",  "cat": "Communications","match": ["mattermost", "matrix", "continuwuity", "element", "maddy", "stalwart", "cypht", "snappymail", "mail-puller", "chat", "messenger", "ntfy", "webmail"] },
+    { "group": "User",  "cat": "Productivity",  "match": ["etherpad", "hedgedoc", "radicale", "calendar", "contacts", "code-server", "paca", "pad", "doc", "kanban"] },
+    { "group": "User",  "cat": "Media",         "match": ["photoprism", "photo", "jellyfin", "media", "music"] },
+    { "group": "User",  "cat": "Finance",       "match": ["fincept", "finance", "wallet", "ledger"] },
+    { "group": "User",  "cat": "AGI",           "match": ["ollama", "rig", "agi", "llm", "gpt", "agent"] },
+    { "group": "User",  "cat": "News",          "match": ["rss", "news", "feed"] },
+    { "group": "User",  "cat": "Vault",         "match": ["vaultwarden", "vault", "bitwarden"] },
+    { "group": "User",  "cat": "Storage",       "match": ["filebrowser", "files", "syncthing", "gitea", "storage", "nextcloud", "restic"] }
   ]
 }
