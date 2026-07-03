@@ -182,6 +182,19 @@ case "$CMD" in
       for f in "$ROOT/flake.nix" "$ROOT/flake.lock"; do
         [ "$f" -nt "$ldpcache" ] && stale=1
       done
+      # A GC (or a daemon-crash cleanup, or `nix store gc` run for any other
+      # reason) can remove a store path the cache still references even
+      # though flake.nix/flake.lock never changed — this silently broke
+      # every launch with NO error surfaced (stdout/stderr only go to
+      # dist/run.log, which nothing was watching): the binary died instantly
+      # with "error while loading shared libraries", no window ever opened.
+      # Re-verify every cached path still exists before trusting the cache.
+      if [ "$stale" = "0" ]; then
+        IFS=':' read -ra _cached_parts <<< "$(cat "$ldpcache")"
+        for p in "${_cached_parts[@]}"; do
+          [ -d "$p" ] || { stale=1; log "cached runtime lib path vanished (GC'd?) — re-resolving: $p"; break; }
+        done
+      fi
     fi
     if [ "$stale" = "0" ]; then
       ldp="$(cat "$ldpcache")"
@@ -230,8 +243,19 @@ case "$CMD" in
       CT_PROFILE="${2:-home}" CT_MULTI=1 CT_SHELL=fish \
       WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=wayland,x11 \
       "$bin" --show >"$runlog" 2>&1 < /dev/null &
+    launched_pid=$!
     disown
-    log "detached (pid $!) — terminal is free"
+    # A dynamic-linker failure (e.g. a GC'd runtime lib) kills the process in
+    # milliseconds with zero visible symptom otherwise — the shell returns
+    # "success" immediately (setsid backgrounded it) and the failure sits
+    # silently in run.log. Give it a beat, then check it's actually alive.
+    sleep 0.3
+    if ! kill -0 "$launched_pid" 2>/dev/null; then
+      errlog "launch failed immediately — see $runlog:"
+      cat "$runlog" >&2
+      exit 1
+    fi
+    log "detached (pid $launched_pid) — terminal is free"
     ;;
   install)
     # Put a single `cloud-terminal` launcher on PATH that opens the Tauri app
