@@ -754,13 +754,24 @@ function makeMonitor(tabId) {
     drawGauge($('#m-ramg-' + id), mp, 'RAM')
     drawGauge($('#m-swapg-' + id), m.swap_total ? m.swap_used / m.swap_total * 100 : 0, 'SWAP')
     const kv = (k, v, hi) => `<span class="k">${k}</span><span class="v${hi ? ' hi' : ''}">${v}</span>`
+    const zr = s.zram || []
+    let zkv = ''
+    if (zr.length) {
+      const zOrig = zr.reduce((a, z) => a + (z.orig || 0), 0)
+      const zUsed = zr.reduce((a, z) => a + (z.used || 0), 0)          // RAM actually consumed
+      const zRatio = zUsed ? zOrig / zUsed : (zr[0].ratio || 0)
+      zkv = `<span class="sec">ZRAM (compressed swap in RAM)</span>` +
+        kv('stored', fmtBytes(zOrig), 1) + kv('in RAM', fmtBytes(zUsed)) +
+        kv('ratio', '×' + zRatio.toFixed(2)) + kv('saved', fmtBytes(Math.max(0, zOrig - zUsed)))
+    }
     $('#m-memkv-' + id).innerHTML =
       `<span class="sec">RAM</span>` +
       kv('total', fmtBytes(total), 1) + kv('used', fmtBytes(used)) + kv('available', fmtBytes(m.avail || 0)) +
       kv('cached', fmtBytes(cached)) + kv('buffers', fmtBytes(buffers)) + kv('free', fmtBytes(free)) +
       `<span class="sec">SWAP</span>` +
       kv('total', fmtBytes(m.swap_total || 0), 1) + kv('used', fmtBytes(m.swap_used || 0)) +
-      kv('free', fmtBytes((m.swap_total || 0) - (m.swap_used || 0)))
+      kv('free', fmtBytes((m.swap_total || 0) - (m.swap_used || 0))) +
+      zkv
 
     // ── PSI panel: cpu/io/memory × some/full ──
     const psi = s.psi || {}
