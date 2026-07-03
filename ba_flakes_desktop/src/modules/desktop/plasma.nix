@@ -37,6 +37,7 @@ in
     ./session-restore.nix    # Plasma's native session save/restore (inert; loginMode moved out)
     ./default-session.nix    # DECLARATIVE default 4-desktop login layout (data: default-session.json)
     ./cloud-terminal.nix     # pull Cloud Terminal from its GH Release (version-guarded)
+    ./bottom-panel.nix       # DECLARATIVE bottom panel (data: bottom-panel.json)
   ];
 
   # Fix system tray visibility after home-manager switch
@@ -234,7 +235,7 @@ in
       virtualDesktops = {
         number = 4;
         rows = 1;
-        names = [ "Desktop 1" "Desktop 2" "Desktop 3" "Desktop 4" ];
+        names = [ "Desk1" "Desk2" "Desk3" "Desk4" ];
       };
 
       # Night Light always on (2200K warm)
@@ -258,17 +259,13 @@ in
     # ─────────────────────────────────────────────────────────────────
 
     # ─────────────────────────────────────────────────────────────────
-    # Panel Configuration - DISABLED (User-managed)
+    # Panel Configuration — NOW DECLARATIVE (./bottom-panel.nix)
     # ─────────────────────────────────────────────────────────────────
-    # IMPORTANT: panels section is DISABLED because it recreates panels
-    # on every home-manager switch, which:
-    #   1. Assigns new containment IDs each time
-    #   2. Loses manually added widgets
-    #   3. Breaks configFile entries that reference old IDs
-    #
-    # Panel layout is now managed manually via KDE System Settings.
-    # Your panel configuration persists in:
-    #   ~/.config/plasma-org.kde.plasma.desktop-appletsrc
+    # The bottom panel is defined declaratively in ./bottom-panel.nix
+    # (data: ./bottom-panel.json). plasma-manager recreates it on every
+    # switch — the JSON is the source of truth, not the live appletsrc.
+    # The old "user-managed / manual" note below is retained for context;
+    # the ID-churn caveat is accepted as the declarative tradeoff.
     #
     # ═══════════════════════════════════════════════════════════════
     # CURRENT PANEL LAYOUT (Updated: 2026-02-01)

@@ -19,6 +19,29 @@ in
   # NOTE: no shellAlias — the `cloud-terminal` launcher lives on PATH
   # (~/.local/bin, emitted by `build.sh install`). An alias here would shadow it.
 
+  # ── Project launcher icon (replaces the fallback "W" tile) ──────────
+  # A project-connected SVG (cloud + terminal prompt in the #7b7fff accent),
+  # installed into the hicolor theme so both the menu launcher and the task
+  # manager resolve it by name.
+  home.file.".local/share/icons/hicolor/scalable/apps/cloud-terminal.svg".source = ./cloud-terminal.svg;
+
+  # ── Persistent, declarative desktop entry (the menu-bar shortcut) ───
+  # Exec points at the on-PATH launcher (build.sh run). StartupWMClass matches
+  # the Tauri app id so KDE groups the running window under THIS icon (not the
+  # generic fallback). Opens the Home profile (multi-tray) by default.
+  xdg.desktopEntries."cloud-terminal" = {
+    name = "Cloud Terminal";
+    genericName = "Terminal + Cloud Control";
+    comment = "Registry-driven multi-profile terminal, system + cloud dashboards";
+    exec = "${config.home.homeDirectory}/.local/bin/cloud-terminal";
+    icon = "cloud-terminal";
+    terminal = false;
+    type = "Application";
+    startupNotify = true;
+    categories = [ "System" "TerminalEmulator" "Utility" ];
+    settings.StartupWMClass = "com.diegonmarcos.cloud-terminal";
+  };
+
   home.activation.cloudTerminalInstall =
     lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       if [ -x "${repoDir}/build.sh" ]; then
