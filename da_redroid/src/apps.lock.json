@@ -374,10 +374,16 @@
       "sha256": "sha256-A6qhR64TOk2AftyLSLI/L5Zt4AAMi2SUMu4CBfWb2gw="
     },
     {
+      "package": "com.brave.browser",
+      "source": "github",
+      "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk",
+      "sha256": "sha256-RUomqMwL2t3scKG4ZgLzJj2IzZzZ9dSoahO67Jc+SKI="
+    },
+    {
       "package": "com.diegonmarcos.superapp",
       "source": "github",
       "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-SuperApp-x86_64.apk",
-      "sha256": "sha256-qrHbosslBxPeL+NDdnl2MfKRR1xcT/lkMR4DLXvlmTI="
+      "sha256": "sha256-Nha8IfvarkML/wxj4Z+n5uwtbfgXaeJnkgX9lo+S/j0="
     },
     {
       "package": "com.diegonmarcos.cloudnav",
@@ -389,19 +395,13 @@
       "package": "com.diegonmarcos.comms",
       "source": "github",
       "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-Comms-Hub.apk",
-      "sha256": "sha256-XBonY1iOr4R418MO1BxxZ4yeS4wz5Ngx1Oorb3QozYQ="
+      "sha256": "sha256-3G7jgp4pHxqpmLnoOXE5RRwGy2mNSEfVo9HtvxeO1Yc="
     },
     {
       "package": "com.diegonmarcos.ide",
       "source": "github",
       "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-IDE-Hub.apk",
       "sha256": "sha256-d2tAOwMeLDtKSvmhy1bTdbbFcgpJmptBl7uYt8Shk+E="
-    },
-    {
-      "package": "com.brave.browser",
-      "source": "github",
-      "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk",
-      "sha256": "sha256-RUomqMwL2t3scKG4ZgLzJj2IzZzZ9dSoahO67Jc+SKI="
     }
   ]
 }
