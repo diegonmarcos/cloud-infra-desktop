@@ -46,5 +46,17 @@
             export WEBKIT_DISABLE_COMPOSITING_MODE=1
           '';
         };
+
+        # LEAN runtime shell for `build.sh run` — ONLY the runtime libs the
+        # prebuilt binary links (webkit/gtk/soup/glib/appindicator), NO build
+        # toolchain (rust, cargo-tauri, node, imagemagick). `run` uses this to
+        # resolve LD_LIBRARY_PATH, so launching a fetched binary no longer
+        # realizes the whole dev closure (the "thousands of compile steps").
+        devShells.runtime = pkgs.mkShell {
+          inherit buildInputs;
+          shellHook = ''
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath buildInputs}:$LD_LIBRARY_PATH"
+          '';
+        };
       });
 }
