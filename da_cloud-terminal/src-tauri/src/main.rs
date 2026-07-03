@@ -30,6 +30,35 @@ fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_string())
 }
 
+// The app itself is launched with a nix WebKit LD_LIBRARY_PATH so its webview
+// resolves. ANY system tool we spawn (journalctl, ssh, docker, findmnt, git,
+// curl, kill, …) must NOT inherit it — otherwise it loads nix glibc/webkit libs
+// off that path and fails silently (empty output). Clear it for every spawn.
+fn sys_cmd(prog: &str) -> std::process::Command {
+    let mut c = std::process::Command::new(prog);
+    c.env("LD_LIBRARY_PATH", "");
+    c
+}
+
+// SSH with a PERSISTENT connection mux (ControlMaster): the first call opens a
+// master socket, subsequent calls (probe / docker stats / logs) reuse it —
+// no repeated TCP+crypto handshake over the WireGuard mesh. ControlPersist
+// keeps the master alive between refreshes.
+fn ssh_cmd(alias: &str) -> std::process::Command {
+    let cm = format!("{}/.ssh/cm-%C", env_or("HOME", "/tmp"));
+    let mut c = sys_cmd("ssh");
+    c.args([
+        "-o", "BatchMode=yes",
+        "-o", "ConnectTimeout=7",
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "ControlMaster=auto",
+        "-o", &format!("ControlPath={cm}"),
+        "-o", "ControlPersist=180s",
+        alias,
+    ]);
+    c
+}
+
 // ── PTY broker ───────────────────────────────────────────────────────
 // One session per (window_label, tab_id). Holds the writer + master so we
 // can send keystrokes / resize / kill. The reader runs on its own thread
@@ -450,7 +479,7 @@ fn run_item(item: RunItem, window: tauri::WebviewWindow, state: tauri::State<App
 
     // GUI apps → external (xdg-open), detached.
     if item.r#type == "xdg" || item.r#type == "open" {
-        let _ = std::process::Command::new(&state.xdg).arg(&a).spawn();
+        let _ = sys_cmd(&state.xdg).arg(&a).spawn();
         return;
     }
 
@@ -620,7 +649,7 @@ fn pty_kill(id: i64, window: tauri::WebviewWindow, state: tauri::State<AppState>
 #[tauri::command]
 fn proc_kill(pid: u32, force: bool) -> Result<(), String> {
     let sig = if force { "-KILL" } else { "-TERM" };
-    std::process::Command::new("kill")
+    sys_cmd("kill")
         .arg(sig)
         .arg(pid.to_string())
         .status()
@@ -637,7 +666,7 @@ fn mem_reclaim(dry: bool) -> Result<String, String> {
         .map(|h| format!("{h}/.local/bin/mem-reclaim"))
         .filter(|p| std::path::Path::new(p).exists())
         .unwrap_or_else(|| "mem-reclaim".to_string());
-    let mut cmd = std::process::Command::new(&bin);
+    let mut cmd = sys_cmd(&bin);
     if dry { cmd.arg("--dry-run"); }
     let out = cmd.output().map_err(|e| format!("{bin}: {e}"))?;
     let mut s = String::from_utf8_lossy(&out.stdout).into_owned();
@@ -686,7 +715,7 @@ fn journal_feed(n: Option<u32>) -> Result<Value, String> {
     };
     let mut rows: Vec<Value> = Vec::new();
     for (src, user) in [("system", false), ("user", true)] {
-        let mut cmd = std::process::Command::new("journalctl");
+        let mut cmd = sys_cmd("journalctl");
         cmd.arg("--no-pager").arg("-o").arg("json").arg("-n").arg(&n);
         if user { cmd.arg("--user"); }
         let out = match cmd.output() { Ok(o) => o, Err(_) => continue };
@@ -733,9 +762,7 @@ fn cloud_vm(alias: String) -> Value {
     let remote = "printf 'UPTIME\\t%s\\n' \"$(uptime -p 2>/dev/null || uptime)\"; \
                   printf 'DISK\\t%s\\n' \"$(df -P / 2>/dev/null | awk 'NR==2{print $5\" \"$4\" \"$2}')\"; \
                   echo '---PS---'; docker ps -a --format '{{json .}}' 2>/dev/null";
-    let out = std::process::Command::new("ssh")
-        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=7", "-o", "StrictHostKeyChecking=accept-new", &alias, remote])
-        .output();
+    let out = ssh_cmd(&alias).arg(remote).output();
     let out = match out {
         Ok(o) => o,
         Err(e) => return serde_json::json!({ "alias": alias, "reachable": false, "error": e.to_string() }),
@@ -768,6 +795,21 @@ fn cloud_vm(alias: String) -> Value {
     })
 }
 
+// Live per-container resource stats via `docker stats` over the SSH mux.
+// Refresh-triggered only (the frontend calls this on the refresh button), so
+// no streaming; --no-stream takes one sample. Reuses the ControlMaster socket.
+#[tauri::command]
+fn cloud_stats(alias: String) -> Value {
+    let out = ssh_cmd(&alias).arg("docker stats --no-stream --format '{{json .}}' 2>/dev/null").output();
+    let mut stats: Vec<Value> = Vec::new();
+    if let Ok(o) = out {
+        for line in String::from_utf8_lossy(&o.stdout).lines() {
+            if let Ok(v) = serde_json::from_str::<Value>(line) { stats.push(v); }
+        }
+    }
+    serde_json::json!({ "alias": alias, "stats": stats })
+}
+
 // Tail a container's logs (or the VM journal when container is empty) over SSH.
 #[tauri::command]
 fn cloud_logs(alias: String, container: Option<String>, tail: Option<u32>) -> Result<String, String> {
@@ -776,9 +818,7 @@ fn cloud_logs(alias: String, container: Option<String>, tail: Option<u32>) -> Re
         Some(c) if !c.is_empty() => format!("docker logs --timestamps --tail {n} {} 2>&1", shq(c)),
         _ => format!("journalctl --no-pager -n {n} 2>&1 || sudo journalctl --no-pager -n {n} 2>&1"),
     };
-    let out = std::process::Command::new("ssh")
-        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=7", &alias, &remote])
-        .output().map_err(|e| e.to_string())?;
+    let out = ssh_cmd(&alias).arg(&remote).output().map_err(|e| e.to_string())?;
     let mut s = String::from_utf8_lossy(&out.stdout).into_owned();
     if s.is_empty() { s = String::from_utf8_lossy(&out.stderr).into_owned(); }
     Ok(s)
@@ -788,7 +828,7 @@ fn cloud_logs(alias: String, container: Option<String>, tail: Option<u32>) -> Re
 // the Caddy wormhole-200 fallback doesn't read as a false 'up'.
 #[tauri::command]
 fn cloud_ping(url: String) -> Value {
-    let out = std::process::Command::new("curl")
+    let out = sys_cmd("curl")
         .args(["-sS", "-o", "/dev/null", "-m", "8", "-w", "%{http_code} %{time_total}", &url])
         .output();
     match out {
@@ -805,7 +845,7 @@ fn cloud_ping(url: String) -> Value {
 
 // ══ Data Sync Center — local data topology + peers + releases ═══════
 fn sh_out(prog: &str, args: &[&str]) -> String {
-    std::process::Command::new(prog).args(args).output()
+    sys_cmd(prog).args(args).output()
         .map(|o| String::from_utf8_lossy(&o.stdout).into_owned()).unwrap_or_default()
 }
 fn data_cfg() -> Value {
@@ -824,6 +864,10 @@ fn data_sync() -> Value {
     let real = ["btrfs", "ext4", "ext3", "vfat", "xfs", "zfs", "ntfs", "ntfs3", "exfat"];
     let mnt_json: Value = serde_json::from_str(&sh_out("findmnt", &["-J", "-l", "-b", "-o", "TARGET,SOURCE,FSTYPE,SIZE,USED,AVAIL,USE%"])).unwrap_or(Value::Null);
     let (mut mounts, mut fuse) = (Vec::new(), Vec::new());
+    // btrfs subvolumes share one pool device (source "/dev/mapper/pool[/@sub]"),
+    // so every subvol reports the SAME size/used/% — dedupe by the base device
+    // (strip the "[…]" subvol suffix) so each PHYSICAL filesystem shows once.
+    let mut seen_dev = std::collections::HashSet::new();
     if let Some(fs) = mnt_json["filesystems"].as_array() {
         for m in fs {
             let ft = m["fstype"].as_str().unwrap_or("");
@@ -832,7 +876,11 @@ fn data_sync() -> Value {
                 "size": m["size"], "used": m["used"], "avail": m["avail"], "usep": m["use%"],
             });
             if ft.starts_with("fuse") { fuse.push(row); }
-            else if real.contains(&ft) { mounts.push(row); }
+            else if real.contains(&ft) {
+                let src = m["source"].as_str().unwrap_or("");
+                let base = src.split('[').next().unwrap_or(src).to_string();
+                if seen_dev.insert(base) { mounts.push(row); }
+            }
         }
     }
     // Docker volumes
@@ -898,9 +946,7 @@ fn data_gh() -> Value {
 #[tauri::command]
 fn peer_ping(host: String, local: bool) -> Value {
     if local { return serde_json::json!({ "host": host, "up": true, "info": "this machine" }); }
-    let out = std::process::Command::new("ssh")
-        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=6", &host, "echo up; uptime -p 2>/dev/null"])
-        .output();
+    let out = ssh_cmd(&host).arg("echo up; uptime -p 2>/dev/null").output();
     match out {
         Ok(o) if o.status.success() => {
             let s = String::from_utf8_lossy(&o.stdout);
@@ -1165,7 +1211,7 @@ fn main() {
         .manage(state)
         .invoke_handler(tauri::generate_handler![
             pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap, journal_feed,
-            cloud_targets, cloud_vm, cloud_logs, cloud_ping, data_sync, data_gh, peer_ping,
+            cloud_targets, cloud_vm, cloud_stats, cloud_logs, cloud_ping, data_sync, data_gh, peer_ping,
             run_item, get_init, sys_stats
         ])
         .setup(|app| {
