@@ -33,6 +33,7 @@
     "adb_addr": "127.0.0.1:5555",
     "adb_port": 5555,
     "data_volume": "/mnt/shared-lib/redroid/data",
+    "dns": ["1.1.1.1", "9.9.9.9"],
     "gpu_mode": "host",
     "cpu_cores": 7,
     "width": 2304,

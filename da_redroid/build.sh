@@ -130,6 +130,14 @@ _ensure_booted() {
       docker pull "$img" || die "docker pull $img failed — is it built? (GHA ship-redroid-image.yml → GHCR). Build locally with: ./build.sh bake"
     fi
     log "creating redroid container '$(container_name)' from baked image $img…"
+    # Data-driven DNS: docker's default resolv.conf points at the host stub
+    # (127.0.0.53), unreachable from the container's netns, so Android gets no DNS.
+    # Pass explicit public resolvers (redroid.dns[]) — Android's init copies these
+    # from the container resolv.conf into net.dnsN. Works once docker0 has NAT
+    # (networking.nat in docker-daemon-firewall.nix).
+    local dns_flags=(); local _d
+    while IFS= read -r _d; do [ -n "$_d" ] && dns_flags+=(--dns "$_d"); done \
+      < <(node -e "const c=require('./build.json');(c.redroid.dns||[]).forEach(x=>console.log(x))")
     # Data-driven docker run: privileged (binder), persistent /data volume, adb port, cpu cap.
     # selinux permissive lets the baked first-boot seed extract + restorecon /data.
     docker run -d --name "$(container_name)" \
@@ -137,6 +145,7 @@ _ensure_booted() {
       --cpus "$(cpu_cap)" \
       -v "$data:/data" \
       -p "$(get redroid.adb_port):5555" \
+      "${dns_flags[@]}" \
       "$img" \
       androidboot.redroid_width="$(get redroid.width)" \
       androidboot.redroid_height="$(get redroid.height)" \
