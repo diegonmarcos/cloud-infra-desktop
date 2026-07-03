@@ -353,13 +353,6 @@
       "sha256": "sha256-gIeKj8KqIuyTg/UXaw9TdhFtBJEbtyy/YGwNjuKkyUc="
     },
     {
-      "package": "org.mozilla.fennec_fdroid",
-      "source": "fdroid",
-      "versionCode": 1510320,
-      "url": "https://f-droid.org/repo/org.mozilla.fennec_fdroid_1510320.apk",
-      "sha256": "sha256-g52r/zfiZBMH6JuNmBCOZpJ4fC2L73+P+dHumMCYcPo="
-    },
-    {
       "package": "nodomain.freeyourgadget.gadgetbridge",
       "source": "fdroid",
       "versionCode": 248,
@@ -372,12 +365,6 @@
       "versionCode": 1001,
       "url": "https://f-droid.org/repo/com.foxdebug.acode_1001.apk",
       "sha256": "sha256-A6qhR64TOk2AftyLSLI/L5Zt4AAMi2SUMu4CBfWb2gw="
-    },
-    {
-      "package": "com.brave.browser",
-      "source": "github",
-      "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk",
-      "sha256": "sha256-RUomqMwL2t3scKG4ZgLzJj2IzZzZ9dSoahO67Jc+SKI="
     },
     {
       "package": "com.diegonmarcos.superapp",
@@ -402,6 +389,13 @@
       "source": "github",
       "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-IDE-Hub.apk",
       "sha256": "sha256-d2tAOwMeLDtKSvmhy1bTdbbFcgpJmptBl7uYt8Shk+E="
+    },
+    {
+      "package": "org.mozilla.fennec_fdroid",
+      "source": "fdroid",
+      "versionCode": 1520020,
+      "url": "https://f-droid.org/repo/org.mozilla.fennec_fdroid_1520020.apk",
+      "sha256": "sha256-Ma9StdFVjZqhK6tjPJoSrkfFjFbxhNCdsFRniEmZd/M="
     }
   ]
 }
