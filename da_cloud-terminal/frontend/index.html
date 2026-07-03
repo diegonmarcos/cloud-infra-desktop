@@ -221,18 +221,17 @@
     background: var(--item-bg); color: #9aa4b2; border: 1px solid var(--sep); }
   .ptbl-tabs button.on { color: var(--bg); background: var(--accent); border-color: var(--accent); font-weight: 700; }
 
-  /* per-core rows: label · horizontal gradient bar · % · freq · sparkline */
+  /* per-core VERTICAL bars (btop equalizer): fill rises from the bottom */
   .panel.cores-panel { min-height: 150px; }
-  .cores { flex: 1 1 0; min-height: 0; display: grid; gap: 3px 12px;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); align-content: start; overflow-y: auto; }
-  .cores::-webkit-scrollbar { width: 5px; } .cores::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
-  .core-row { display: grid; grid-template-columns: 30px 1fr 34px 42px 40px; align-items: center; gap: 5px; font-size: 9px; }
-  .core-row .cl { color: #6b7280; }
-  .core-row .ctrack { height: 8px; background: var(--item-bg); border-radius: 4px; overflow: hidden; border: 1px solid var(--sep); }
-  .core-row .ctrack > i { display: block; height: 100%; border-radius: 4px; box-shadow: 0 0 6px currentColor; }
-  .core-row .cpct { text-align: right; color: #cbd5e1; font-variant-numeric: tabular-nums; }
-  .core-row .cfreq { text-align: right; color: #6b7280; font-variant-numeric: tabular-nums; }
-  .core-row canvas { width: 40px; height: 12px; display: block; }
+  .cores { flex: 1 1 0; min-height: 0; display: flex; align-items: stretch; gap: 4px;
+    overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }
+  .cores::-webkit-scrollbar { height: 5px; } .cores::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
+  .vcore { flex: 1 1 0; min-width: 16px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .vcore .vpct { font-size: 8px; color: #cbd5e1; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .vcore .vtrack { flex: 1 1 0; width: 100%; min-height: 20px; background: var(--item-bg); border: 1px solid var(--sep);
+    border-radius: 3px; overflow: hidden; display: flex; align-items: flex-end; }
+  .vcore .vtrack > i { display: block; width: 100%; border-radius: 0 0 2px 2px; box-shadow: 0 0 8px currentColor; transition: height .3s ease; }
+  .vcore .vlbl { font-size: 8px; color: #6b7280; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
   /* key/value data blocks (memory full breakdown, battery) */
   .kv { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; font-size: 10px; align-content: start; overflow-y: auto; flex: 1 1 0; min-height: 0; }
@@ -719,24 +718,19 @@ function makeMonitor(tabId) {
     $('#m-cpusub-' + id).textContent = `${(s.cpu_name || '').slice(0, 40)} · ${s.pcpu || s.ncpu}c/${s.ncpu}t · ${ghz} · PSI ${(psiC.avg10 || 0).toFixed(1)}%`
     $('#m-cpuload-' + id).textContent = 'load ' + (s.load || []).map(x => x.toFixed(2)).join(' ')
 
-    // ── CPU cores: horizontal bar + freq + sparkline per core ──
+    // ── CPU cores: vertical bars (fill rises from bottom) ──
     const cores = s.cores || [], freqs = s.cores_freq || []
     if ($('#m-cores-' + id).childElementCount !== cores.length) {
       $('#m-cores-' + id).innerHTML = cores.map((_, i) =>
-        `<div class="core-row"><span class="cl">C${i}</span>` +
-        `<span class="ctrack"><i id="m-cbar-${id}-${i}"></i></span>` +
-        `<span class="cpct" id="m-cp-${id}-${i}"></span><span class="cfreq" id="m-cf-${id}-${i}"></span>` +
-        `<canvas id="m-cc-${id}-${i}"></canvas></div>`).join('')
+        `<div class="vcore" id="m-cv-${id}-${i}"><span class="vpct" id="m-cp-${id}-${i}"></span>` +
+        `<div class="vtrack"><i id="m-cbar-${id}-${i}"></i></div><span class="vlbl">${i}</span></div>`).join('')
     }
     $('#m-coresub-' + id).textContent = cores.length + ' threads'
     cores.forEach((c, i) => {
-      if (!coreHist[i]) coreHist[i] = []
-      push(coreHist[i], c)
       const col = heat(c / 100)
-      const ib = $('#m-cbar-' + id + '-' + i); if (ib) { ib.style.width = Math.min(100, c) + '%'; ib.style.background = col; ib.style.color = col }
-      $('#m-cp-' + id + '-' + i).textContent = c.toFixed(0) + '%'
-      $('#m-cf-' + id + '-' + i).textContent = freqs[i] ? (freqs[i] / 1000).toFixed(1) + 'G' : ''
-      drawSpark($('#m-cc-' + id + '-' + i), coreHist[i])
+      const ib = $('#m-cbar-' + id + '-' + i); if (ib) { ib.style.height = Math.min(100, c) + '%'; ib.style.background = col; ib.style.color = col }
+      $('#m-cp-' + id + '-' + i).textContent = c.toFixed(0)
+      const cell = $('#m-cv-' + id + '-' + i); if (cell) cell.title = `CPU${i} · ${c.toFixed(0)}%` + (freqs[i] ? ` · ${(freqs[i] / 1000).toFixed(2)} GHz` : '')
     })
 
     // ── MEM: segment + gauges + full breakdown ──
