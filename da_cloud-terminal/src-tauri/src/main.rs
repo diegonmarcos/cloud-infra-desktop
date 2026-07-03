@@ -40,6 +40,19 @@ fn sys_cmd(prog: &str) -> std::process::Command {
     c
 }
 
+// Send a signal directly via the libc kill(2) syscall — NOT `Command::new
+// ("kill")`. On this box (and likely others) `kill` is ONLY a shell builtin
+// with no standalone executable on PATH, so every previous Command::new
+// ("kill") spawn (proc_kill, zombie_reap, psi_reclaim) silently failed all
+// session: Command needs a real file to exec, it can't invoke a builtin.
+// linking libc directly removes the PATH dependency entirely — this is a
+// stable, always-available syscall, no new crate needed.
+unsafe extern "C" { fn kill(pid: i32, sig: i32) -> i32; }
+const SIGTERM: i32 = 15;
+const SIGKILL: i32 = 9;
+const SIGCHLD: i32 = 17;
+fn send_signal(pid: u32, sig: i32) -> bool { unsafe { kill(pid as i32, sig) == 0 } }
+
 // SSH with a PERSISTENT connection mux (ControlMaster): the first call opens a
 // master socket, subsequent calls (probe / docker stats / logs) reuse it —
 // no repeated TCP+crypto handshake over the WireGuard mesh. ControlPersist
@@ -379,12 +392,15 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
         "pid": p.pid, "ppid": p.ppid, "user": p.user, "status": p.status, "time": p.time, "start": p.start,
         "name": p.name, "cmd": p.cmd, "exe": p.exe, "cwd": p.cwd, "anc": p.anc,
     });
+    // NO cap: root/kernel processes (kworkers, systemd, …) sit near 0% CPU/MEM
+    // and a top-N-by-metric cutoff silently excludes them from the FLAT sort
+    // views entirely — the table already scrolls, so send every process.
     rows.sort_by(|a, b| b.cpu.partial_cmp(&a.cpu).unwrap_or(Equal));
-    let mut by_cpu: Vec<Value> = rows.iter().take(30).map(row_json).collect();
+    let mut by_cpu: Vec<Value> = rows.iter().map(row_json).collect();
     rows.sort_by(|a, b| b.mem.cmp(&a.mem));
-    let mut by_mem: Vec<Value> = rows.iter().take(30).map(row_json).collect();
+    let mut by_mem: Vec<Value> = rows.iter().map(row_json).collect();
     rows.sort_by(|a, b| b.io.cmp(&a.io));
-    let mut by_io: Vec<Value> = rows.iter().take(30).map(row_json).collect();
+    let mut by_io: Vec<Value> = rows.iter().map(row_json).collect();
     // Every process (compact) for the parent/child TREE view — frontend links
     // children to parents by ppid.
     let mut all_procs: Vec<Value> = rows.iter().map(row_json).collect();
@@ -650,16 +666,11 @@ fn pty_kill(id: i64, window: tauri::WebviewWindow, state: tauri::State<AppState>
 }
 
 // Kill a process from the monitor's process table. force=false → SIGTERM
-// (graceful), force=true → SIGKILL. Shells out to `kill` (no libc dep).
+// (graceful), force=true → SIGKILL. Direct libc kill(2) — see send_signal.
 #[tauri::command]
 fn proc_kill(pid: u32, force: bool) -> Result<(), String> {
-    let sig = if force { "-KILL" } else { "-TERM" };
-    sys_cmd("kill")
-        .arg(sig)
-        .arg(pid.to_string())
-        .status()
-        .map_err(|e| e.to_string())
-        .and_then(|s| if s.success() { Ok(()) } else { Err(format!("kill exited {s}")) })
+    if send_signal(pid, if force { SIGKILL } else { SIGTERM }) { Ok(()) }
+    else { Err(std::io::Error::last_os_error().to_string()) }
 }
 
 // Memory panic button — runs the existing data-driven `mem-reclaim` engine
@@ -697,7 +708,7 @@ fn zombie_reap() -> Result<Value, String> {
         if state == "Z" { zombies += 1; if ppid > 1 { parents.insert(ppid); } }
     }
     for pp in &parents {
-        let _ = sys_cmd("kill").arg("-CHLD").arg(pp.to_string()).status();
+        send_signal(*pp, SIGCHLD);
     }
     Ok(serde_json::json!({ "zombies": zombies, "parents_nudged": parents.len() }))
 }
@@ -756,7 +767,7 @@ fn psi_reclaim(sysm: &Mutex<sysinfo::System>, k: &str, target: f64) -> Vec<Value
         };
         match pick {
             Some((pid, metric, name)) => {
-                let _ = sys_cmd("kill").arg("-TERM").arg(pid.to_string()).status();
+                send_signal(pid, SIGTERM);
                 done.insert(pid);
                 killed.push(serde_json::json!({ "pid": pid, "name": name, "metric": metric }));
                 std::thread::sleep(std::time::Duration::from_millis(250));
