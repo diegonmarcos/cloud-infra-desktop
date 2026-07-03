@@ -1560,7 +1560,22 @@ pull_remote() {
     local sys="/nix/store/$(cat "$art/toplevel.name")"
 
     log "Importing closure into the store (no build)…"
-    zstd -d -c "$tb" | sudo nix-store --import >/dev/null || { error "import failed"; return 1; }
+    # Import runs inside a capped transient scope, data-driven from
+    # cloud-data-nix-build.json pull_scope. 2026-07-03: an uncapped import
+    # (root context) was kernel-OOM-killed while the desktop sat at <600M
+    # available — the same protection pattern as phase1: bounded memory +
+    # zram swap valve absorbs the decompress/registration peak instead of
+    # dying or thrashing.
+    local _pull_props=()
+    local _pl_key _pl_val
+    local _pull_json="$FLAKE_PATH/modules/cloud-data-nix-build.json"
+    for _pl_key in MemoryMax MemoryHigh MemorySwapMax CPUWeight IOWeight; do
+        _pl_val=$(jq -r ".pull_scope.${_pl_key} // empty" "$_pull_json" 2>/dev/null)
+        [ -n "$_pl_val" ] && _pull_props+=("--property=${_pl_key}=${_pl_val}")
+    done
+    zstd -d -c "$tb" | sudo systemd-run --scope --unit="nix-pull-$$" --quiet \
+        "${_pull_props[@]}" -- nix-store --import >/dev/null \
+        || { error "import failed"; return 1; }
     [ -d "$sys" ] || { error "imported store path $sys not present after import"; return 1; }
 
     log "Phase 2: activate as root (fast — no eval)…"
