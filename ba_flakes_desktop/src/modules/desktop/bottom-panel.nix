@@ -21,7 +21,7 @@ let
   # plasma-manager requires a `color` (R,G,B string) on every systemMonitor sensor.
   palette = [ "123,127,255" "167,139,250" "34,211,238" "74,222,128" "251,191,36" "232,121,249" "248,113,113" "125,211,252" ];
   # Per-core CPU barchart (0..7; cores that don't exist are simply absent).
-  coreSensors = map (n: { name = "cpu/cpu${toString n}/usage"; color = builtins.elemAt palette n; }) (lib.range 0 7);
+  coreSensors = map (n: { name = "cpu/cpu${toString n}/usage"; color = builtins.elemAt palette n; label = "C${toString n}"; }) (lib.range 0 7);
   mon = title: style: sensors: { systemMonitor = { inherit title sensors; displayStyle = style; }; };
 in
 {
@@ -37,15 +37,15 @@ in
         { name = "org.kde.plasma.icontasks"; config.General.launchers = launchers; }
         "org.kde.plasma.panelspacer"
 
-        # ── System monitors (KSystemStats sensors; each sensor needs a color) ──
-        (mon "CPU%"     "org.kde.ksysguard.textonly"  [ { name = "cpu/all/usage"; color = "123,127,255"; } ])            # cpu usage %
-        (mon "Cores"    "org.kde.ksysguard.barchart"  coreSensors)                                                        # per-core vertical bars
-        (mon "Mem%"     "org.kde.ksysguard.textonly"  [ { name = "memory/physical/usedPercent"; color = "167,139,250"; } ]) # mem usage %
-        (mon "Disk"     "org.kde.ksysguard.linechart" [ { name = "disk/all/usedPercent"; color = "34,211,238"; } ])       # disk usage graphic
-        (mon "DiskBars" "org.kde.ksysguard.barchart"  [ { name = "disk/all/usedPercent"; color = "34,211,238"; } ])       # disk horizontal bars
-        (mon "Disk%"    "org.kde.ksysguard.textonly"  [ { name = "disk/all/usedPercent"; color = "34,211,238"; } ])       # disk usage %
-        (mon "Net"      "org.kde.ksysguard.linechart" [ { name = "network/all/download"; color = "34,211,238"; }
-                                                        { name = "network/all/upload";   color = "232,121,249"; } ])       # network graphic
+        # ── System monitors (KSystemStats sensors; each needs color + label) ──
+        (mon "CPU%"     "org.kde.ksysguard.textonly"  [ { name = "cpu/all/usage"; color = "123,127,255"; label = "CPU"; } ])            # cpu usage %
+        (mon "Cores"    "org.kde.ksysguard.barchart"  coreSensors)                                                                      # per-core vertical bars
+        (mon "Mem%"     "org.kde.ksysguard.textonly"  [ { name = "memory/physical/usedPercent"; color = "167,139,250"; label = "Mem"; } ]) # mem usage %
+        (mon "Disk"     "org.kde.ksysguard.linechart" [ { name = "disk/all/usedPercent"; color = "34,211,238"; label = "Disk"; } ])     # disk usage graphic
+        (mon "DiskBars" "org.kde.ksysguard.barchart"  [ { name = "disk/all/usedPercent"; color = "34,211,238"; label = "Disk"; } ])     # disk horizontal bars
+        (mon "Disk%"    "org.kde.ksysguard.textonly"  [ { name = "disk/all/usedPercent"; color = "34,211,238"; label = "Disk"; } ])     # disk usage %
+        (mon "Net"      "org.kde.ksysguard.linechart" [ { name = "network/all/download"; color = "34,211,238";  label = "↓"; }
+                                                        { name = "network/all/upload";   color = "232,121,249"; label = "↑"; } ])        # network graphic
 
         "org.kde.plasma.marginsseparator"
         { name = "org.kde.plasma.systemtray"; }
