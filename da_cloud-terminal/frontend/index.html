@@ -1549,6 +1549,17 @@ function makeAGI(tabId) {
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   const modelColor = m => { let h = 0; for (const c of m) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h},65%,60%)` }
   const usd = n => '$' + (n || 0).toFixed(2)
+  // Every number shown here MUST carry a decimal or thousands separator — never
+  // a bare unformatted integer. Tokens scale 1000-based (decimal), matching the
+  // statusline's own fmt_tok(), NOT fmtBytes' 1024-based byte scaling.
+  const fmtTok = n => {
+    n = n || 0
+    if (n < 1000) return n.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    const u = ['K', 'M', 'B', 'T']; let i = -1
+    do { n /= 1000; i++ } while (n >= 1000 && i < u.length - 1)
+    return n.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + u[i]
+  }
+  const fmtNum = n => (n || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
   async function load() {
     $('#a-refresh-' + id).textContent = '… scanning'
@@ -1566,17 +1577,17 @@ function makeAGI(tabId) {
         `<span><b>${esc(c.project)}</b></span><span><span class="k">model</span> <span class="v">${esc(c.model)}</span></span>` +
         `<span><span class="k">session</span> <span class="v">${esc((c.id || '').slice(0, 8))}</span></span>` +
         `<span><span class="k">started</span> <span class="v">${esc(c.started)}</span></span>` +
-        `<span><span class="k">duration</span> <span class="v">${c.duration_min}m</span></span>` +
-        `<span><span class="k">tokens</span> <span class="v">${fmtBytes(u.input + u.output).replace('B', '')}</span></span>` +
+        `<span><span class="k">duration</span> <span class="v">${fmtNum(c.duration_min)}m</span></span>` +
+        `<span><span class="k">tokens</span> <span class="v">${fmtTok(u.input + u.output)}</span></span>` +
         `<span><span class="k">cost</span> <span class="v" style="color:#fbbf24">${usd(u.cost)}</span></span>`
     } else { $('#a-cur-' + id).innerHTML = '<span style="color:#6b7280">no active session detected</span>' }
 
     // ── stat tiles ──
     const t = d.total
     $('#a-stats-' + id).innerHTML = [
-      ['total cost', usd(t.cost), ''], ['messages', t.messages, ''],
-      ['input tok', fmtBytes(t.input).replace('B', ''), ''], ['output tok', fmtBytes(t.output).replace('B', ''), ''],
-      ['cache read', fmtBytes(t.cache_read).replace('B', ''), 'info'], ['cache write', fmtBytes(t.cache_write).replace('B', ''), 'warn'],
+      ['total cost', usd(t.cost), ''], ['messages', fmtNum(t.messages), ''],
+      ['input tok', fmtTok(t.input), ''], ['output tok', fmtTok(t.output), ''],
+      ['cache read', fmtTok(t.cache_read), 'info'], ['cache write', fmtTok(t.cache_write), 'warn'],
     ].map(([l, n, cls]) => `<div class="jstat ${cls}"><span class="n">${n}</span><span class="l">${l}</span></div>`).join('')
 
     // ── 5h cycles graph (tokens) + day-by-day graph (cost) ──
@@ -1606,18 +1617,18 @@ function makeAGI(tabId) {
     $('#a-est-' + id).innerHTML =
       kv('avg $/day (all-time)', usd(avgDay)) + kv('avg $/day (last 7d)', usd(recent7)) +
       kv('avg $/5h cycle', usd(avg5h)) + kv('projected $/30d', usd(recent7 * 30)) +
-      kv('cache hit-adjacent', fmtBytes(t.cache_read).replace('B', '') + ' read') +
-      kv('sessions tracked', (d.sessions || []).length)
+      kv('cache read (all-time)', fmtTok(t.cache_read)) +
+      kv('sessions tracked', fmtNum((d.sessions || []).length))
 
-    // ── sessions table ──
+    // ── sessions table — FULL history, every session ever recorded ──
     const sess = d.sessions || []
-    $('#a-sesssub-' + id).textContent = sess.length + ' most recent'
+    $('#a-sesssub-' + id).textContent = fmtNum(sess.length) + ' total (full history)'
     $('#a-sess-' + id).innerHTML = sess.map(s => {
       const u = s.usage
       return `<tr><td>${esc((s.id || '').slice(0, 8))}</td><td class="proj">${esc(s.project)}</td><td class="model">${esc(s.model)}</td>` +
-        `<td>${esc(s.started)}</td><td>${esc(s.last_active)}</td><td class="num">${s.duration_min}m</td>` +
-        `<td class="num">${fmtBytes(u.input).replace('B', '')}</td><td class="num">${fmtBytes(u.output).replace('B', '')}</td>` +
-        `<td class="num">${fmtBytes(u.cache_read + u.cache_write).replace('B', '')}</td><td class="num cost">${usd(u.cost)}</td></tr>`
+        `<td>${esc(s.started)}</td><td>${esc(s.last_active)}</td><td class="num">${fmtNum(s.duration_min)}m</td>` +
+        `<td class="num">${fmtTok(u.input)}</td><td class="num">${fmtTok(u.output)}</td>` +
+        `<td class="num">${fmtTok(u.cache_read + u.cache_write)}</td><td class="num cost">${usd(u.cost)}</td></tr>`
     }).join('') || '<tr><td colspan="10" style="color:#6b7280">no sessions found</td></tr>'
   }
   $('#a-refresh-' + id).addEventListener('click', load)
