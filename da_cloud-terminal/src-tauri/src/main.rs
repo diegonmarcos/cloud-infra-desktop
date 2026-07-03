@@ -73,9 +73,25 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
 
     let cpus = sys.cpus();
     let cores: Vec<f32> = cpus.iter().map(|c| c.cpu_usage()).collect();
+    let cores_freq: Vec<u64> = cpus.iter().map(|c| c.frequency()).collect(); // per-core MHz
     let cpu_name = cpus.first().map(|c| c.brand().trim().to_string()).unwrap_or_default();
     let cpu_freq = cpus.first().map(|c| c.frequency()).unwrap_or(0); // MHz
     let la = sysinfo::System::load_average();
+
+    // Precise Buffers/Cached from /proc/meminfo (sysinfo folds these into
+    // "available"); glances shows them explicitly. kB → bytes.
+    let (mut buffers, mut cached) = (0u64, 0u64);
+    if let Ok(mi) = std::fs::read_to_string("/proc/meminfo") {
+        for line in mi.lines() {
+            let mut it = line.split_whitespace();
+            let (key, val) = (it.next().unwrap_or(""), it.next().and_then(|v| v.parse::<u64>().ok()).unwrap_or(0));
+            match key {
+                "Buffers:" => buffers = val * 1024,
+                "Cached:" | "SReclaimable:" => cached += val * 1024,
+                _ => {}
+            }
+        }
+    }
 
     // Users: resolve uid → name for the process table (glances shows user).
     let users = sysinfo::Users::new_with_refreshed_list();
@@ -119,13 +135,18 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
     // panels. total_mem drives MEM%.
     let total_mem = sys.total_memory().max(1);
     let mut running = 0u32;
-    struct P { cpu: f32, mem: u64, pid: u32, user: String, status: String, name: String }
+    // Aggregate disk I/O rate across all processes (bytes since last refresh ≈
+    // bytes/s at a 1s poll) — glances' DISK I/O read/write.
+    let (mut dio_r, mut dio_w) = (0u64, 0u64);
+    struct P { cpu: f32, mem: u64, pid: u32, user: String, status: String, time: u64, name: String }
     let mut rows: Vec<P> = sys
         .processes()
         .iter()
         .map(|(pid, p)| {
             let st = p.status().to_string();
             if st == "Run" || st == "Runnable" { running += 1; }
+            let du = p.disk_usage();
+            dio_r += du.read_bytes; dio_w += du.written_bytes;
             let user = p
                 .user_id()
                 .and_then(|uid| users.get_user_by_id(uid))
@@ -138,13 +159,13 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
             } else {
                 cmd.iter().map(|s| s.to_string_lossy().into_owned()).collect::<Vec<String>>().join(" ")
             };
-            P { cpu: p.cpu_usage(), mem: p.memory(), pid: pid.as_u32(), user, status: st, name }
+            P { cpu: p.cpu_usage(), mem: p.memory(), pid: pid.as_u32(), user, status: st, time: p.run_time(), name }
         })
         .collect();
     let nproc = rows.len();
     let row_json = |p: &P| serde_json::json!({
         "cpu": p.cpu, "mem": p.mem, "memp": (p.mem as f64 / total_mem as f64) * 100.0,
-        "pid": p.pid, "user": p.user, "status": p.status, "name": p.name,
+        "pid": p.pid, "user": p.user, "status": p.status, "time": p.time, "name": p.name,
     });
     rows.sort_by(|a, b| b.cpu.partial_cmp(&a.cpu).unwrap_or(Equal));
     let by_cpu: Vec<Value> = rows.iter().take(20).map(row_json).collect();
@@ -162,12 +183,15 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
         "ncpu": cores.len(),
         "pcpu": sys.physical_core_count().unwrap_or(0),
         "cores": cores,
+        "cores_freq": cores_freq,
         "load": [la.one, la.five, la.fifteen],
         "mem": {
             "total": sys.total_memory(), "used": sys.used_memory(),
             "avail": sys.available_memory(), "free": sys.free_memory(),
+            "buffers": buffers, "cached": cached,
             "swap_total": sys.total_swap(), "swap_used": sys.used_swap(),
         },
+        "diskio": { "read": dio_r, "write": dio_w },
         "net": net,
         "disks": disk,
         "temps": temps,
