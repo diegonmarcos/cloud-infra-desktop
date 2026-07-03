@@ -171,12 +171,12 @@
   .cpsi-row .some { font-size: 8px; color: #9aa4b2; font-variant-numeric: tabular-nums; }
   .swapst { font-size: 8px; margin-top: 3px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--sep); text-align: center; }
   .swapst.ok { color: #4ade80; } .swapst.warn { color: #fbbf24; } .swapst.crit { color: #f87171; border-color: #f87171; }
-  .cpu-psi > div:first-child { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
-  .psi-clean { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; flex-shrink: 0; margin-top: 5px; }
-  .psi-clean button { font: inherit; font-size: 8px; padding: 2px 3px; border-radius: 4px; cursor: pointer;
+  /* PSI-clean bar under the Processes toolbar */
+  .psi-clean { display: flex; gap: 6px; flex-shrink: 0; padding: 4px 8px 2px; flex-wrap: wrap; }
+  .psi-clean button { font: inherit; font-size: 9px; padding: 3px 9px; border-radius: 5px; cursor: pointer;
     background: var(--item-bg); color: #9aa4b2; border: 1px solid var(--sep); white-space: nowrap; }
   .psi-clean button:hover { color: #f87171; border-color: #f87171; }
-  .psi-clean button.all { grid-column: 1 / 3; color: var(--accent2); }
+  .psi-clean button.all { margin-left: auto; color: var(--accent2); }
   .psi-clean button.all:hover { color: #fbbf24; border-color: #fbbf24; }
   .psi-clean button.busy { color: #fbbf24; border-color: #fbbf24; }
   .gauge-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
@@ -322,6 +322,18 @@
   .jrn-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--item-bg);
     border: 1px solid var(--sep); flex-shrink: 0; }
   .jrn-bar > i { height: 100%; }
+  .jrn-intel { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 8px; flex-shrink: 0; }
+  .jrn-intel .ip { background: rgba(19,20,31,.72); border: 1px solid var(--sep); border-radius: 8px; padding: 6px 9px; min-width: 0; }
+  .jrn-intel .ih { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); margin-bottom: 5px; }
+  .jrn-intel .ibars, .jrn-intel .ilist { display: flex; flex-direction: column; gap: 3px; }
+  .ibar { display: grid; grid-template-columns: 58px 1fr 26px; gap: 6px; align-items: center; font-size: 9px; }
+  .ibar .iu { color: #9aa4b2; text-transform: capitalize; }
+  .ibar .itrack { height: 7px; background: var(--item-bg); border-radius: 4px; overflow: hidden; }
+  .ibar .itrack > i { display: block; height: 100%; border-radius: 4px; box-shadow: 0 0 5px currentColor; }
+  .ibar .in { text-align: right; color: #cbd5e1; font-variant-numeric: tabular-nums; }
+  .il { display: flex; justify-content: space-between; gap: 8px; font-size: 9px; }
+  .il .iu { color: #9aa4b2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .il .in { color: #cbd5e1; font-variant-numeric: tabular-nums; flex-shrink: 0; }
   .jrn-tools { display: flex; gap: 6px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
   .jrn-search { flex: 1 1 160px; min-width: 120px; padding: 4px 9px; background: var(--item-bg); color: var(--fg);
     border: 1px solid var(--sep); border-radius: 5px; font-family: inherit; font-size: 11px; outline: none; }
@@ -341,8 +353,10 @@
   /* ══ Cloud Control Center ══════════════════════════════════════════ */
   .leaf.cloud { padding: 0; overflow: hidden; background:
     radial-gradient(1200px 600px at 20% -10%, #15172b 0%, var(--bg) 60%); }
-  .cloud { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 11px; overflow-y: auto; }
-  .cloud-vms { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; flex-shrink: 0; }
+  .cloud { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 11px; overflow: hidden; }
+  /* screen split: VM cards 25% · containers 50% · log center 25% (flex-grow 1:2:1) */
+  .cloud-vms { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px;
+    flex: 1 1 0; min-height: 0; overflow-y: auto; align-content: start; }
   .vmcard { background: rgba(19,20,31,.72); border: 1px solid var(--sep); border-radius: 8px; padding: 8px 11px;
     cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: border-color .15s; }
   .vmcard:hover { border-color: var(--accent2); }
@@ -355,8 +369,8 @@
   .vmcard .meta { display: flex; gap: 12px; color: #9aa4b2; font-size: 10px; flex-wrap: wrap; margin-top: 2px; }
   .vmcard .meta b { color: #cbd5e1; font-variant-numeric: tabular-nums; }
   .vmcard .pill { font-size: 9px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--sep); }
-  .cloud-cont { min-height: 130px; flex-shrink: 0; }
-  .cloud-logs { min-height: 240px; flex: 1 1 0; }
+  .cloud-cont { flex: 2 1 0; min-height: 0; }
+  .cloud-logs { flex: 1 1 0; min-height: 0; }
   .ctbl td.st-run { color: #4ade80; } .ctbl td.st-exit { color: #f87171; } .ctbl td.st-other { color: #fbbf24; }
   .ctbl tr.sel td { background: rgba(123,127,255,.14); }
   .ctbl tr.catrow td { background: rgba(123,127,255,.10); color: var(--accent2); font-size: 9px;
@@ -633,15 +647,7 @@ function makeMonitor(tabId) {
       <div class="mon-row top">
         <div class="panel cpu"><div class="ph"><span>CPU</span><span class="sub" id="m-cpusub-${id}"></span></div>
           <div class="cpu-body">
-            <div class="cpu-psi">
-              <div id="m-cpupsi-${id}"></div>
-              <div class="psi-clean" id="m-psiclean-${id}">
-                <button data-k="cpu" title="Kill the top CPU hog (user apps only) until CPU PSI ≤ 1%">🧹 CPU</button>
-                <button data-k="io"  title="Kill the top IO hog until IO PSI ≤ 1%">🧹 IO</button>
-                <button data-k="mem" title="Kill the top MEM hog until MEM PSI ≤ 1%">🧹 MEM</button>
-                <button data-k="all" class="all" title="Diagnose the worst PSI and kill exactly that culprit">⚡ ALL</button>
-              </div>
-            </div>
+            <div class="cpu-psi" id="m-cpupsi-${id}"></div>
             <canvas class="g" id="m-cpu-${id}"></canvas>
             <div class="gauge-wrap"><canvas id="m-cpugauge-${id}"></canvas><span class="glbl" id="m-cpuload-${id}"></span><span class="swapst" id="m-swapst-${id}"></span></div>
           </div></div>
@@ -703,6 +709,12 @@ function makeMonitor(tabId) {
             <button class="cpbtn" id="m-zombie-${id}" title="Reap zombie processes (SIGCHLD their parents)">🧟 reap</button>
             <button class="cpbtn" id="m-copy-${id}" title="Copy visible table (TSV)">⎘ copy</button>
           </span></div>
+        <div class="psi-clean" id="m-psiclean-${id}">
+          <button data-k="cpu" title="Kill the top CPU hog (user apps only) until CPU PSI ≤ 1%">🧹 Clean CPU-starving</button>
+          <button data-k="mem" title="Kill the top MEM hog until MEM PSI ≤ 1%">🧹 Clean MEM-starving</button>
+          <button data-k="io"  title="Kill the top IO hog until IO PSI ≤ 1%">🧹 Clean IO-starving</button>
+          <button data-k="all" class="all" title="Diagnose the worst PSI and kill exactly that culprit">⚡ Clean All</button>
+        </div>
         <div class="ptbl-wrap"><table class="ptbl proc-tbl">
           <thead><tr><th class="num">PID</th><th>USER</th><th class="num">CPU%</th><th class="num">MEM%</th><th class="num" title="Pressure of the process's cgroup (worst of cpu/io/mem)">PSI</th><th class="num">IO</th><th class="num">TIME+</th><th>NAME</th><th id="m-hierh-${id}">HIERARCHY</th></tr></thead>
           <tbody id="m-proc-${id}"></tbody></table></div></div>
@@ -1064,6 +1076,21 @@ function makeMonitor(tabId) {
 // ══ Journal Logs dashboard (no PTY) — stats on top, live feed below ══
 const JPRIO = ['emerg', 'alert', 'crit', 'err', 'warn', 'notice', 'info', 'debug']
 function jColor(p) { return p <= 3 ? '#f87171' : p === 4 ? '#fbbf24' : p === 5 ? '#22d3ee' : p === 6 ? '#9aa4b2' : '#5b6270' }
+// classify a log entry by where it comes from (security / ssh / kernel / service / session)
+const JCATS = ['security', 'ssh', 'kernel', 'service', 'session']
+function jcat(r) {
+  const u = (r.unit || '').toLowerCase()
+  if (/sshd|ssh@|ssh\.service|openssh/.test(u)) return 'ssh'
+  if (/sudo|polkit|audit|pam|login|logind|fail2ban|crowdsec|apparmor|firewall|nftables|auth/.test(u)) return 'security'
+  if (/kernel/.test(u)) return 'kernel'
+  if (r.src === 'user') return 'session'
+  return 'service'
+}
+function jcatColor(c) { return { security: '#f87171', ssh: '#fb923c', kernel: '#a78bfa', service: '#22d3ee', session: '#7dd3fc' }[c] || '#9aa4b2' }
+function jIntelBar(label, val, max, color) {
+  const pct = max > 0 ? val / max * 100 : 0
+  return `<div class="ibar"><span class="iu">${label}</span><span class="itrack"><i style="width:${pct.toFixed(0)}%;background:${color}"></i></span><span class="in">${val}</span></div>`
+}
 function makeJournal(tabId) {
   const id = ++paneSeq
   const leaf = document.createElement('div')
@@ -1072,6 +1099,12 @@ function makeJournal(tabId) {
     <div class="jrn">
       <div class="jrn-stats" id="j-stats-${id}"></div>
       <div class="jrn-bar" id="j-bar-${id}" title="log entries by priority"></div>
+      <div class="jrn-intel">
+        <div class="ip"><div class="ih">BY SOURCE · SECURITY / SSH / KERNEL</div><div class="ibars" id="j-cat-${id}"></div></div>
+        <div class="ip"><div class="ih">BY IMPORTANCE · PRIORITY</div><div class="ibars" id="j-prio2-${id}"></div></div>
+        <div class="ip"><div class="ih">TOP UNITS · VOLUME</div><div class="ilist" id="j-topu-${id}"></div></div>
+        <div class="ip"><div class="ih">TOP ERROR SOURCES</div><div class="ilist" id="j-toperr-${id}"></div></div>
+      </div>
       <div class="jrn-tools">
         <span class="ptbl-tabs" id="j-scope-${id}"><button data-v="all" class="on">ALL</button><button data-v="system">SYSTEM</button><button data-v="user">USER</button></span>
         <span class="ptbl-tabs" id="j-prio-${id}"><button data-v="all" class="on">ALL</button><button data-v="3">ERR</button><button data-v="4">WARN</button><button data-v="6">INFO</button></span>
@@ -1097,6 +1130,23 @@ function makeJournal(tabId) {
     $('#j-stats-' + id).innerHTML = [['total', rows.length, ''], ['errors', err, 'err'], ['warnings', warn, 'warn'], ['info+', info, 'info'], ['system', sys, ''], ['user', usr, '']]
       .map(([l, n, c]) => `<div class="jstat ${c}"><span class="n">${n}</span><span class="l">${l}</span></div>`).join('')
     $('#j-bar-' + id).innerHTML = hist.map((c, p) => c ? `<i style="width:${(c / rows.length * 100).toFixed(2)}%;background:${jColor(p)}" title="${JPRIO[p]}: ${c}"></i>` : '').join('')
+
+    // ── intelligence: where alerts come from, importance, noisiest + errors ──
+    const cats = {}, units = {}, errUnits = {}
+    for (const r of rows) {
+      const c = jcat(r); cats[c] = (cats[c] || 0) + 1
+      units[r.unit] = (units[r.unit] || 0) + 1
+      if (r.prio <= 3) errUnits[r.unit] = (errUnits[r.unit] || 0) + 1
+    }
+    const maxCat = Math.max(1, ...JCATS.map(c => cats[c] || 0))
+    $('#j-cat-' + id).innerHTML = JCATS.map(c => jIntelBar(c, cats[c] || 0, maxCat, jcatColor(c))).join('')
+    const maxPr = Math.max(1, ...hist)
+    $('#j-prio2-' + id).innerHTML = hist.map((c, p) => c ? jIntelBar(JPRIO[p], c, maxPr, jColor(p)) : '').join('')
+    const topU = Object.entries(units).sort((a, b) => b[1] - a[1]).slice(0, 7)
+    $('#j-topu-' + id).innerHTML = topU.map(([u, n]) => `<div class="il"><span class="iu" title="${esc(u)}">${esc(u)}</span><span class="in">${n}</span></div>`).join('') || '<div class="ds-empty">—</div>'
+    const topE = Object.entries(errUnits).sort((a, b) => b[1] - a[1]).slice(0, 7)
+    $('#j-toperr-' + id).innerHTML = topE.map(([u, n]) => `<div class="il"><span class="iu" title="${esc(u)}">${esc(u)}</span><span class="in" style="color:#f87171">${n}</span></div>`).join('') || '<div class="ds-empty" style="color:#4ade80">no errors 🎉</div>'
+
     const f = rows.filter(passes).slice(0, 800)
     $('#j-count-' + id).textContent = f.length + ' / ' + rows.length
     $('#j-feed-' + id).innerHTML = f.map(r =>
