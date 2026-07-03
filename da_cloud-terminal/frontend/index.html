@@ -160,8 +160,17 @@
   .panel .ph .sub { color: #6b7280; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 10px; }
   .panel canvas.g { width: 100%; flex: 1 1 0; min-height: 30px; display: block; }
 
-  /* CPU panel: graph beside a circular gauge */
-  .cpu-body { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: 1fr 96px; gap: 8px; }
+  /* CPU panel: PSI column · graph · circular gauge */
+  .cpu-body { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: 96px 1fr 96px; gap: 8px; }
+  .cpu-psi { display: flex; flex-direction: column; justify-content: center; gap: 6px; min-width: 0; }
+  .cpsi-row { display: flex; flex-direction: column; gap: 1px; }
+  .cpsi-row .lbl { font-size: 8px; color: #6b7280; text-transform: uppercase; letter-spacing: .08em; }
+  .cpsi-row .full { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.05; }
+  .cpsi-row .track { height: 4px; background: var(--item-bg); border-radius: 2px; overflow: hidden; }
+  .cpsi-row .track > i { display: block; height: 100%; border-radius: 2px; box-shadow: 0 0 5px currentColor; }
+  .cpsi-row .some { font-size: 8px; color: #9aa4b2; font-variant-numeric: tabular-nums; }
+  .swapst { font-size: 8px; margin-top: 3px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--sep); text-align: center; }
+  .swapst.ok { color: #4ade80; } .swapst.warn { color: #fbbf24; } .swapst.crit { color: #f87171; border-color: #f87171; }
   .gauge-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
   .gauge-wrap canvas { width: 92px; height: 92px; }
   .gauge-wrap .glbl { font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: .1em; }
@@ -200,8 +209,8 @@
   .netgraphs .ng .cap .dn { color: #22d3ee; } .netgraphs .ng .cap .up { color: #e879f9; }
   .netgraphs .ng .cap .rate { color: #cbd5e1; font-variant-numeric: tabular-nums; }
 
-  /* process table — glances */
-  .panel.proc { min-height: 230px; }
+  /* process table — glances. flex-grow so it fills the space under it. */
+  .panel.proc { min-height: 230px; flex: 1 0 auto; }
   .ptbl-wrap { flex: 1 1 0; min-height: 0; overflow-y: auto; }
   .ptbl-wrap::-webkit-scrollbar { width: 6px; } .ptbl-wrap::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
   .ptbl { width: 100%; border-collapse: collapse; font-size: 11px; }
@@ -614,8 +623,9 @@ function makeMonitor(tabId) {
       <div class="mon-row top">
         <div class="panel cpu"><div class="ph"><span>CPU</span><span class="sub" id="m-cpusub-${id}"></span></div>
           <div class="cpu-body">
+            <div class="cpu-psi" id="m-cpupsi-${id}"></div>
             <canvas class="g" id="m-cpu-${id}"></canvas>
-            <div class="gauge-wrap"><canvas id="m-cpugauge-${id}"></canvas><span class="glbl" id="m-cpuload-${id}"></span></div>
+            <div class="gauge-wrap"><canvas id="m-cpugauge-${id}"></canvas><span class="glbl" id="m-cpuload-${id}"></span><span class="swapst" id="m-swapst-${id}"></span></div>
           </div></div>
         <div class="panel mem"><div class="ph"><span>MEMORY</span>
             <span style="margin-left:auto;display:flex;gap:8px;align-items:baseline">
@@ -682,6 +692,7 @@ function makeMonitor(tabId) {
   const hist = { cpu: [], mem: [], rx: [], tx: [] }
   const coreHist = []
   const psiHist = { cpu: [], io: [], mem: [] }   // per-resource PSI some-avg10 history
+  let prevSwap = null                            // for swapping-activity detection
   let sortBy = 'cpu', viewMode = 'flat', lastS = null
   const expanded = new Set()            // pids with the detail row open
   const procIndex = new Map()           // pid → row (for detail / copy / kill)
@@ -847,6 +858,32 @@ function makeMonitor(tabId) {
     const ghz = s.cpu_freq ? (s.cpu_freq / 1000).toFixed(2) + 'GHz' : ''
     $('#m-cpusub-' + id).textContent = `${(s.cpu_name || '').slice(0, 40)} · ${s.pcpu || s.ncpu}c/${s.ncpu}t · ${ghz} · PSI ${(psiC.avg10 || 0).toFixed(1)}%`
     $('#m-cpuload-' + id).textContent = 'load ' + (s.load || []).map(x => x.toFixed(2)).join(' ')
+
+    // CPU-box PSI: FULL 10s (big) + SOME 10s (small), bar scaled so 30% = full.
+    // Numbers are the absolute avg10 %. cpu has no "full" → falls back to some.
+    const psiAll = s.psi || {}
+    const cpsi = (k, o) => {
+      o = o || {}
+      const full = (o.full && o.full.avg10 != null) ? o.full.avg10 : ((o.some && o.some.avg10) || 0)
+      const some = (o.some && o.some.avg10) || 0
+      const col = heat(Math.min(1, full / 30))
+      return `<div class="cpsi-row"><div class="lbl">${k}</div>` +
+        `<div class="full" style="color:${col}">${full.toFixed(1)}<span style="font-size:8px;color:#6b7280"> full</span></div>` +
+        `<div class="track"><i style="width:${Math.min(100, full / 30 * 100).toFixed(0)}%;background:${col};color:${col}"></i></div>` +
+        `<div class="some">some ${some.toFixed(1)}%</div></div>`
+    }
+    $('#m-cpupsi-' + id).innerHTML = cpsi('CPU', psiAll.cpu) + cpsi('IO', psiAll.io) + cpsi('MEM', psiAll.memory)
+    // swapping status: swap growing (or high mem pressure) → swapping now.
+    const swU = (s.mem || {}).swap_used || 0, swT = (s.mem || {}).swap_total || 0
+    const memFull = (((psiAll.memory || {}).full || {}).avg10) || 0
+    let swCls = 'ok', swTxt = 'no swap'
+    if (swT) {
+      if ((prevSwap != null && swU > prevSwap + 1048576) || memFull > 5) { swCls = 'crit'; swTxt = '⚠ swapping' }
+      else if (swU > 0) { swCls = 'warn'; swTxt = 'swap ' + fmtBytes(swU) }
+      else { swCls = 'ok'; swTxt = 'swap idle' }
+    }
+    prevSwap = swU
+    const swEl = $('#m-swapst-' + id); if (swEl) { swEl.className = 'swapst ' + swCls; swEl.textContent = swTxt }
 
     // ── CPU cores: vertical bars (fill rises from bottom) ──
     const cores = s.cores || [], freqs = s.cores_freq || []
@@ -1174,7 +1211,7 @@ function makeDataSync(tabId) {
         <button class="cpbtn" id="d-refresh-${id}">↻ refresh</button></div>
       <div class="jrn-stats" id="d-stats-${id}"></div>
       <div class="ds-grid">
-        ${P('', 'LOCAL · MOUNTS', '<div class="bars" id="d-mounts-' + id + '"></div>')}
+        ${P('', 'LOCAL · MOUNTS', '<div class="seg" id="d-mseg-' + id + '"></div><div class="seg-legend" id="d-mleg-' + id + '"></div><div class="bars" id="d-mounts-' + id + '"></div>')}
         ${P('', 'DOCKER VOLUMES', '<div class="ds-list" id="d-vols-' + id + '"></div>')}
         ${P('', 'GIT REPOS', '<div class="ds-list" id="d-git-' + id + '"></div>')}
         ${P('', 'RCLONE · CLOUD REMOTES', '<div class="ds-list" id="d-remotes-' + id + '"></div>')}
@@ -1202,8 +1239,14 @@ function makeDataSync(tabId) {
       ['git dirty', dirtyRepos + '/' + (d.repos || []).length, dirtyRepos ? 'warn' : ''],
       ['remotes', (d.remotes || []).length, ''], ['peers', (d.peers || []).length, 'info'],
     ].map(([l, n, c]) => `<div class="jstat ${c}"><span class="n">${n}</span><span class="l">${l}</span></div>`).join('')
-    // mounts as gradient bars
-    $('#d-mounts-' + id).innerHTML = (d.mounts || []).map(m => {
+    // stacked color segment bar — used space per filesystem (like the MEM box)
+    const mts = d.mounts || []
+    const dpal = ['hsl(0,72%,56%)', 'hsl(190,72%,55%)', 'hsl(45,80%,55%)', 'hsl(280,60%,62%)', 'hsl(150,52%,50%)', 'hsl(20,82%,56%)', 'hsl(320,60%,60%)']
+    const dTotUsed = mts.reduce((a, m) => a + (+m.used || 0), 0) || 1
+    $('#d-mseg-' + id).innerHTML = mts.map((m, i) => `<span style="width:${(+m.used / dTotUsed * 100).toFixed(2)}%;background:${dpal[i % dpal.length]}" title="${esc(m.target)} ${fmtBytes(+m.used || 0)}"></span>`).join('')
+    $('#d-mleg-' + id).innerHTML = mts.map((m, i) => `<span><i style="background:${dpal[i % dpal.length]}"></i>${esc(m.target)} ${fmtBytes(+m.used || 0)}</span>`).join('')
+    // per-mount gradient bars (real per-device usage after dedupe)
+    $('#d-mounts-' + id).innerHTML = mts.map(m => {
       const pct = parseFloat(String(m.usep)) || (m.size ? (+m.used / +m.size * 100) : 0)
       return bar(m.target + '  ' + m.fstype, pct, fmtBytes(+m.used || 0) + ' / ' + fmtBytes(+m.size || 0) + '  ' + pct.toFixed(0) + '%')
     }).join('') || empty('no mounts')
