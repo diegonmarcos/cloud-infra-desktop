@@ -1,0 +1,25 @@
+{
+  "project": {
+    "name": "waydroid-container",
+    "version": "0.1.0",
+    "description": "Waydroid (official LineageOS-based vendor Android image) run headless inside a Docker container, decoupled from the live desktop Wayland session — the ghost-process bug that got the original desktop-session Waydroid decommissioned CANNOT recur, because the container's lifecycle is independent of the desktop session. Renders into a nested headless weston compositor (RDP backend — Debian bookworm's weston 10.0.1 package has NO vnc-backend.so, only rdp-backend.so + headless-backend.so, verified by inspecting the built image) inside the container; the host connects with xfreerdp in a window to see it (same GUI-bound up=boot+attach/down=teardown-on-close pattern as da_redroid, just a different display transport — scrcpy mirrors ADB/SurfaceFlinger, RDP mirrors a Wayland compositor). Exists because Waydroid's vendor image is memfd-based (no real /dev/ashmem needed) since 1.2.1+, so Chromium-based apps that crash under redroid (this host's mainline kernel has no ashmem) should work here — that's the whole point of this project."
+  },
+  "container": {
+    "_doc": "Docker container knobs. image is OUR built image (Debian + waydroid + weston), never a public upstream tag — Waydroid has no official Docker image. base_image is what we build FROM.",
+    "image": "ghcr.io/diegonmarcos/waydroid-container:13",
+    "base_image": "debian:bookworm",
+    "container_name": "waydroid-container",
+    "data_volume": "/mnt/shared-lib/waydroid-container/data",
+    "rdp_port": 5905,
+    "rdp_addr": "127.0.0.1:5905",
+    "_doc_rdp": "weston 10.0.1 (Debian bookworm)'s rdp-backend.so CLI has NO --rdp-user/--rdp-pass flags (verified via `weston --help` inside the built image) — only --rdp4-key or --rdp-tls-cert/--rdp-tls-key for transport encryption, no app-level login. Auth model confirmed empirically at container-boot time; port is bound to 127.0.0.1 only regardless (never exposed beyond the host).",
+    "width": 2304,
+    "height": 1536,
+    "cpu_cores": 7
+  },
+  "waydroid": {
+    "_doc": "waydroid CLI invocation knobs (manual, non-systemd — 'waydroid container start' + 'waydroid session start' are direct commands, no systemctl dependency, confirmed from docs.waydro.id/usage/waydroid-command-line-options).",
+    "android_version": "13",
+    "gpu_mode": "host"
+  }
+}

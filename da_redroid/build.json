@@ -934,16 +934,6 @@
       "source": {
         "type": "fdroid"
       }
-    },
-    {
-      "package": "com.brave.browser",
-      "label": "Brave",
-      "group": "web",
-      "_doc": "Re-added to test androidboot.use_memfd=1 (redroid.use_memfd) against the ORIGINAL crash: Brave self-exits(0) on launch because Chromium calls an ashmem-only ioctl on the memfd fallback fd this ashmem-less host provides. Testing whether use_memfd changes libcutils has_memfd_support() detection enough for Chromium to skip that ioctl path. If it works, both Brave and Iceraven ship; if not, Brave stays declared but known-broken and Iceraven remains the working browser.",
-      "source": {
-        "type": "github",
-        "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk"
-      }
     }
   ]
 }
