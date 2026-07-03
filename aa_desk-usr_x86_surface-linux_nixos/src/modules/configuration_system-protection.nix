@@ -120,13 +120,16 @@ in
   # ═══════════════════════════════════════════════════════════════════════════
   # EARLYOOM: last resort OOM killer (RR scheduler)
   # ═══════════════════════════════════════════════════════════════════════════
-  # earlyoom — deep backstop beneath systemd-oomd. Data-driven (sysprot.earlyoom).
-  # EVIDENCE FIX (2026-06-27): the frozen system's live earlyoom (-s 5,3) only fired
-  # when free-swap <= 5%, which NEVER happens with 20G swap → it never fired at all.
-  # free_swap=100 removes that gate so earlyoom fires on LOW MEMORY alone. `nix` is
-  # also no longer in --avoid (was the other reason a runaway build was never killed).
+  # earlyoom — DISABLED (2026-07-03 user directive: ONLY PSI-based killers, no
+  # absolute-value triggers of any kind). earlyoom has no PSI awareness at all —
+  # it is purely free-mem%/free-swap% — and repeatedly killed plasmashell on
+  # transient MemAvailable dips while /proc/pressure/memory sat near 0 (reclaim
+  # was keeping up fine, no real pressure). systemd-oomd (memory PSI, 50%) and
+  # freeze-guard (mem/io/cpu PSI, 40/30/80) are the sole active killers now —
+  # both genuinely PSI-gated. sysprot.earlyoom.enable is the single source of
+  # truth; kept data-driven so it can be re-enabled without touching this file.
   services.earlyoom = {
-    enable = true;
+    enable = sysprot.earlyoom.enable;
     freeMemThreshold = sysprot.earlyoom.free_mem;
     freeSwapThreshold = sysprot.earlyoom.free_swap;          # 100 = swap-gate removed → fire on mem alone
     freeMemKillThreshold = sysprot.earlyoom.free_mem_kill;
