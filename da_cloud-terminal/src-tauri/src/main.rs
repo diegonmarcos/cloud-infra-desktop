@@ -1068,6 +1068,180 @@ fn session_load() -> Value {
         .unwrap_or(Value::Null)
 }
 
+// ══ AGI dashboard — Claude Code usage analytics ══════════════════════
+// Reads the SAME sources the statusline reads: per-session transcripts
+// (~/.claude/projects/**/*.jsonl, one assistant-message-with-usage row per
+// API call) and ~/.claude/claude-pricing.json (per-model USD/MTok rates,
+// longest-model-id-prefix-wins — identical lookup to statusline-command.sh).
+// Aggregates into totals, per-model, per-day (30d), per-5h-cycle (~16d), and
+// per-session breakdowns, plus the live/current session. Refresh-triggered
+// only (parsing ~200+ JSONL files is not something to do on a timer).
+
+// Howard Hinnant's civil_from_days / days_from_civil — no chrono dependency
+// needed for plain Y-M-D + epoch-second math.
+fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = (y - era * 400) as i64;
+    let mp = (m as i64 + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + d as i64 - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe - 719468
+}
+fn civil_from_days(z: i64) -> (i64, u32, u32) {
+    let z = z + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;
+    (if m <= 2 { y + 1 } else { y }, m, d)
+}
+// "2026-07-03T13:48:41.105Z" → (epoch_secs, "2026-07-03")
+fn parse_iso(ts: &str) -> Option<(i64, String)> {
+    let b = ts.as_bytes();
+    if b.len() < 19 { return None; }
+    let y: i64 = ts.get(0..4)?.parse().ok()?;
+    let mo: u32 = ts.get(5..7)?.parse().ok()?;
+    let d: u32 = ts.get(8..10)?.parse().ok()?;
+    let hh: i64 = ts.get(11..13)?.parse().ok()?;
+    let mm: i64 = ts.get(14..16)?.parse().ok()?;
+    let ss: i64 = ts.get(17..19)?.parse().ok()?;
+    let epoch = days_from_civil(y, mo, d) * 86400 + hh * 3600 + mm * 60 + ss;
+    Some((epoch, ts[0..10].to_string()))
+}
+fn epoch_to_iso_minute(e: i64) -> String {
+    let days = e.div_euclid(86400);
+    let secs = e.rem_euclid(86400);
+    let (y, mo, d) = civil_from_days(days);
+    format!("{y:04}-{mo:02}-{d:02} {:02}:{:02}", secs / 3600, (secs % 3600) / 60)
+}
+
+#[derive(Default, Clone)]
+struct UsageTotals { input: u64, output: u64, cache_read: u64, cache_write: u64, cost: f64, messages: u64 }
+impl UsageTotals {
+    fn add(&mut self, i: u64, o: u64, cr: u64, cw: u64, cost: f64) {
+        self.input += i; self.output += o; self.cache_read += cr; self.cache_write += cw;
+        self.cost += cost; self.messages += 1;
+    }
+    fn json(&self) -> Value {
+        serde_json::json!({ "input": self.input, "output": self.output, "cache_read": self.cache_read,
+            "cache_write": self.cache_write, "cost": (self.cost * 10000.0).round() / 10000.0, "messages": self.messages })
+    }
+}
+
+// Longest-model-id-prefix match against claude-pricing.json's `models` map,
+// else `default` — IDENTICAL lookup to statusline-command.sh so the $ shown
+// here always agrees with the statusline.
+fn pricing_for(pricing: &Value, model: &str) -> (f64, f64, f64, f64) {
+    let get = |v: &Value| (
+        v["input"].as_f64().unwrap_or(15.0), v["output"].as_f64().unwrap_or(75.0),
+        v["cache_read"].as_f64().unwrap_or(1.50), v["cache_write"].as_f64().unwrap_or(18.75),
+    );
+    if let Some(models) = pricing["models"].as_object() {
+        let best = models.iter().filter(|(k, _)| model.starts_with(k.as_str()))
+            .max_by_key(|(k, _)| k.len());
+        if let Some((_, v)) = best { return get(v); }
+    }
+    if pricing["default"].is_object() { get(&pricing["default"]) } else { (15.0, 75.0, 1.50, 18.75) }
+}
+
+fn walk_jsonl(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    for e in rd.flatten() {
+        let p = e.path();
+        if p.is_dir() { walk_jsonl(&p, out); }
+        else if p.extension().map_or(false, |x| x == "jsonl") { out.push(p); }
+    }
+}
+
+#[tauri::command]
+fn agi_usage() -> Value {
+    let home = env_or("HOME", "/tmp");
+    let proj_dir = std::path::PathBuf::from(format!("{home}/.claude/projects"));
+    let pricing: Value = std::fs::read_to_string(format!("{home}/.claude/claude-pricing.json")).ok()
+        .and_then(|s| serde_json::from_str(&s).ok()).unwrap_or(Value::Null);
+
+    let mut files = Vec::new();
+    walk_jsonl(&proj_dir, &mut files);
+    files.sort_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
+
+    let mut total = UsageTotals::default();
+    let mut by_model: std::collections::HashMap<String, UsageTotals> = std::collections::HashMap::new();
+    let mut by_day: std::collections::HashMap<String, UsageTotals> = std::collections::HashMap::new();
+    let mut by_5h: std::collections::HashMap<i64, UsageTotals> = std::collections::HashMap::new();
+    struct Sess { project: String, first: i64, last: i64, model: String, t: UsageTotals }
+    let mut sessions: std::collections::HashMap<String, Sess> = std::collections::HashMap::new();
+
+    for path in &files {
+        let sid = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+        let project = path.parent().and_then(|p| p.file_name()).map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+        let Ok(text) = std::fs::read_to_string(path) else { continue };
+        for line in text.lines() {
+            if !line.contains("\"usage\"") { continue; }
+            let Ok(d) = serde_json::from_str::<Value>(line) else { continue };
+            let msg = &d["message"];
+            let Some(u) = msg.get("usage") else { continue };
+            if msg.get("role").and_then(|r| r.as_str()) != Some("assistant") { continue; }
+            let ts = d["timestamp"].as_str().unwrap_or("");
+            let Some((epoch, day)) = parse_iso(ts) else { continue };
+            let model = msg["model"].as_str().unwrap_or("unknown").to_string();
+            let i = u["input_tokens"].as_u64().unwrap_or(0);
+            let o = u["output_tokens"].as_u64().unwrap_or(0);
+            let cr = u["cache_read_input_tokens"].as_u64().unwrap_or(0);
+            let cw = u["cache_creation_input_tokens"].as_u64().unwrap_or(0);
+            let (pi, po, pcr, pcw) = pricing_for(&pricing, &model);
+            let cost = i as f64 / 1e6 * pi + o as f64 / 1e6 * po + cr as f64 / 1e6 * pcr + cw as f64 / 1e6 * pcw;
+
+            total.add(i, o, cr, cw, cost);
+            by_model.entry(model.clone()).or_default().add(i, o, cr, cw, cost);
+            by_day.entry(day).or_default().add(i, o, cr, cw, cost);
+            by_5h.entry(epoch.div_euclid(5 * 3600)).or_default().add(i, o, cr, cw, cost);
+            let s = sessions.entry(sid.clone()).or_insert_with(|| Sess { project: project.clone(), first: epoch, last: epoch, model: model.clone(), t: UsageTotals::default() });
+            s.last = epoch.max(s.last); s.first = epoch.min(s.first); s.model = model.clone();
+            s.t.add(i, o, cr, cw, cost);
+        }
+    }
+
+    // by_day: last 30 days, sorted ascending.
+    let mut days: Vec<(String, UsageTotals)> = by_day.into_iter().collect();
+    days.sort_by(|a, b| a.0.cmp(&b.0));
+    if days.len() > 30 { let n = days.len(); days.drain(0..n - 30); }
+
+    // by_5h: last 80 buckets (~16.6 days), sorted ascending, labeled by bucket start.
+    let mut buckets: Vec<(i64, UsageTotals)> = by_5h.into_iter().collect();
+    buckets.sort_by_key(|b| b.0);
+    if buckets.len() > 80 { let n = buckets.len(); buckets.drain(0..n - 80); }
+
+    // sessions: most recent 30, by last-active desc.
+    let mut sess_vec: Vec<(String, Sess)> = sessions.into_iter().collect();
+    sess_vec.sort_by(|a, b| b.1.last.cmp(&a.1.last));
+    let current = sess_vec.first();
+    let current_json = current.map(|(id, s)| serde_json::json!({
+        "id": id, "project": s.project, "model": s.model,
+        "started": epoch_to_iso_minute(s.first), "last_active": epoch_to_iso_minute(s.last),
+        "duration_min": (s.last - s.first) / 60, "usage": s.t.json(),
+    })).unwrap_or(Value::Null);
+    sess_vec.truncate(30);
+
+    serde_json::json!({
+        "total": total.json(),
+        "by_model": by_model.iter().map(|(m, t)| serde_json::json!({ "model": m, "usage": t.json() })).collect::<Vec<_>>(),
+        "by_day": days.iter().map(|(d, t)| serde_json::json!({ "date": d, "usage": t.json() })).collect::<Vec<_>>(),
+        "by_5h": buckets.iter().map(|(b, t)| serde_json::json!({ "start": epoch_to_iso_minute(b * 5 * 3600), "usage": t.json() })).collect::<Vec<_>>(),
+        "sessions": sess_vec.iter().map(|(id, s)| serde_json::json!({
+            "id": id, "project": s.project, "model": s.model,
+            "started": epoch_to_iso_minute(s.first), "last_active": epoch_to_iso_minute(s.last),
+            "duration_min": (s.last - s.first) / 60, "usage": s.t.json(),
+        })).collect::<Vec<_>>(),
+        "current": current_json,
+        "file_count": files.len(),
+    })
+}
+
 // ── init payload for the renderer (mirrors the Electron 'init' send) ──
 #[tauri::command]
 fn get_init(window: tauri::WebviewWindow, state: tauri::State<AppState>) -> Value {
@@ -1324,7 +1498,7 @@ fn main() {
             pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap,
             psi_clean, psi_clean_all, journal_feed,
             cloud_targets, cloud_vm, cloud_stats, cloud_logs, cloud_ping, data_sync, data_gh, peer_ping,
-            session_save, session_load,
+            session_save, session_load, agi_usage,
             run_item, get_init, sys_stats
         ])
         .setup(|app| {
