@@ -13,6 +13,7 @@
     { "type": "shell",   "title": "greeting" },
     { "type": "monitor", "title": "sys-performance" },
     { "type": "journal", "title": "journal-logs" },
+    { "type": "cloud",   "title": "cloud-control" },
     { "type": "command", "title": "connect", "cmd": "sh ~/git/tools/dtk.sh connect" }
   ],
   "sections": [
@@ -22,6 +23,7 @@
         { "label": "🐟  Fish Greeting",      "type": "shell",   "arg": "_show_welcome" },
         { "label": "📊  System Performance", "type": "monitor", "arg": "" },
         { "label": "📜  Journal Logs",       "type": "journal", "arg": "" },
+        { "label": "☁️  Cloud Control",       "type": "cloud",   "arg": "" },
         { "label": "🔗  Connect Dashboard",  "type": "shell",   "arg": "sh ~/git/tools/dtk.sh connect" }
       ]
     }

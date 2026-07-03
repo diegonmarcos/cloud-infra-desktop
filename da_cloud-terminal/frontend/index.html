@@ -321,6 +321,33 @@
   .jline .ju { color: var(--accent2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .jline .jm { color: #cbd5e1; white-space: pre-wrap; word-break: break-word; user-select: text; }
 
+  /* ══ Cloud Control Center ══════════════════════════════════════════ */
+  .leaf.cloud { padding: 0; overflow: hidden; background:
+    radial-gradient(1200px 600px at 20% -10%, #15172b 0%, var(--bg) 60%); }
+  .cloud { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 11px; overflow-y: auto; }
+  .cloud-vms { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; flex-shrink: 0; }
+  .vmcard { background: rgba(19,20,31,.72); border: 1px solid var(--sep); border-radius: 8px; padding: 8px 11px;
+    cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: border-color .15s; }
+  .vmcard:hover { border-color: var(--accent2); }
+  .vmcard.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .vmcard .vh { display: flex; align-items: center; gap: 7px; }
+  .vmcard .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 7px currentColor; }
+  .vmcard .al { font-weight: 700; color: #e2e8f0; font-size: 12px; }
+  .vmcard .wg { color: #6b7280; font-size: 9px; margin-left: auto; font-variant-numeric: tabular-nums; }
+  .vmcard .lbl { color: #6b7280; font-size: 9px; }
+  .vmcard .meta { display: flex; gap: 12px; color: #9aa4b2; font-size: 10px; flex-wrap: wrap; margin-top: 2px; }
+  .vmcard .meta b { color: #cbd5e1; font-variant-numeric: tabular-nums; }
+  .vmcard .pill { font-size: 9px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--sep); }
+  .cloud-cont { min-height: 130px; flex-shrink: 0; }
+  .cloud-logs { min-height: 240px; flex: 1 1 0; }
+  .ctbl td.st-run { color: #4ade80; } .ctbl td.st-exit { color: #f87171; } .ctbl td.st-other { color: #fbbf24; }
+  .ctbl tr.sel td { background: rgba(123,127,255,.14); }
+  .ctbl td.nm { color: #cbd5e1; cursor: pointer; } .ctbl td.im { color: #7dd3fc; }
+  .cloud-logfeed { flex: 1 1 0; min-height: 0; overflow: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    background: rgba(12,13,22,.6); border: 1px solid var(--sep); border-radius: 8px; padding: 5px 9px;
+    white-space: pre-wrap; word-break: break-word; user-select: text; color: #cbd5e1; line-height: 1.4; }
+  .cloud-logfeed::-webkit-scrollbar { width: 7px; } .cloud-logfeed::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
+
   #ctxmenu {
     position: fixed; z-index: 1000; display: none; min-width: 170px; padding: 4px;
     background: var(--sidebar); border: 1px solid var(--sep); border-radius: 6px;
@@ -1006,6 +1033,112 @@ function makeJournal(tabId) {
   return { id, leaf }
 }
 
+// ══ Cloud Control Center (no PTY) — VMs, containers, log center ══════
+function makeCloud(tabId) {
+  const id = ++paneSeq
+  const leaf = document.createElement('div')
+  leaf.className = 'leaf cloud'; leaf.dataset.pane = String(id)
+  leaf.innerHTML = `
+    <div class="cloud">
+      <div class="cloud-vms" id="c-vms-${id}"></div>
+      <div class="panel cloud-cont"><div class="ph"><span id="c-conthdr-${id}">CONTAINERS</span>
+        <span class="proc-tools"><button class="cpbtn" id="c-refresh-${id}" title="Re-probe all VMs">↻ probe</button></span></div>
+        <div class="ptbl-wrap"><table class="ptbl ctbl">
+          <thead><tr><th>NAME</th><th>IMAGE</th><th>STATE</th><th>STATUS</th><th>PORTS</th></tr></thead>
+          <tbody id="c-cont-${id}"></tbody></table></div></div>
+      <div class="panel cloud-logs"><div class="ph"><span id="c-loghdr-${id}">LOG CENTER</span>
+        <span class="proc-tools">
+          <input class="jrn-search" id="c-logq-${id}" placeholder="🔍  filter log lines…" autocomplete="off" spellcheck="false">
+          <span class="ptbl-tabs" id="c-tail-${id}"><button data-v="100">100</button><button data-v="200" class="on">200</button><button data-v="500">500</button></span>
+          <button class="cpbtn" id="c-logref-${id}" title="Reload logs">↻</button>
+          <button class="cpbtn" id="c-logcopy-${id}" title="Copy logs">⎘</button>
+        </span></div>
+        <div class="cloud-logfeed" id="c-logfeed-${id}">select a VM or container…</div></div>
+    </div>`
+  let targets = [], vms = {}, selVm = null, selCont = null, tail = 200, logq = '', logRaw = ''
+  const $ = s => leaf.querySelector(s)
+  const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+
+  function renderVms() {
+    $('#c-vms-' + id).innerHTML = targets.map(t => {
+      const v = vms[t.alias] || {}, up = v.reachable
+      const dot = up ? '#4ade80' : v.error ? '#f87171' : '#6b7280'
+      const ping = v.ping
+      const pcol = ping ? (ping.up ? '#4ade80' : '#f87171') : '#6b7280'
+      return `<div class="vmcard ${selVm === t.alias ? 'sel' : ''}" data-vm="${esc(t.alias)}">
+        <div class="vh"><span class="dot" style="color:${dot};background:${dot}"></span><span class="al">${esc(t.alias)}</span><span class="wg">${esc(t.wg || '')}</span></div>
+        <div class="lbl">${esc(t.label || '')}</div>
+        <div class="meta">${up
+          ? `<span>⏱ <b>${esc(v.uptime || '?')}</b></span><span>📦 <b>${v.n_running || 0}</b>/${v.n_containers || 0}</span><span>💾 <b>${v.disk_pct || 0}%</b></span>`
+          : `<span style="color:#f87171">${esc((v.error || 'probing…')).slice(0, 40)}</span>`}
+          ${ping ? `<span class="pill" style="color:${pcol};border-color:${pcol}">edge ${ping.code || '×'} · ${ping.ms || '?'}ms</span>` : ''}</div>
+      </div>`
+    }).join('')
+  }
+  function renderConts() {
+    const v = vms[selVm]
+    $('#c-conthdr-' + id).textContent = 'CONTAINERS' + (selVm ? ' · ' + selVm + ' · ' + (v && v.n_running || 0) + '/' + (v && v.n_containers || 0) : '')
+    const list = (v && v.containers) || []
+    $('#c-cont-' + id).innerHTML = list.map(c => {
+      const st = c.State || '', cls = st === 'running' ? 'st-run' : st === 'exited' ? 'st-exit' : 'st-other'
+      return `<tr class="${selCont === c.Names ? 'sel' : ''}" data-cont="${esc(c.Names || '')}">
+        <td class="nm">${esc(c.Names || '')}</td><td class="im">${esc((c.Image || '').slice(0, 40))}</td>
+        <td class="${cls}">${esc(st)}</td><td>${esc((c.Status || '').slice(0, 32))}</td>
+        <td style="color:#6b7280">${esc((c.Ports || '').slice(0, 40))}</td></tr>`
+    }).join('') || '<tr><td colspan="5" style="color:#6b7280">no containers (select a reachable VM)</td></tr>'
+  }
+  function renderLogs() {
+    const lines = logRaw.split('\n')
+    const f = logq ? lines.filter(l => l.toLowerCase().indexOf(logq) !== -1) : lines
+    $('#c-logfeed-' + id).innerHTML = esc(f.join('\n')) || '(no output)'
+  }
+  async function loadLogs() {
+    if (!selVm) return
+    $('#c-loghdr-' + id).textContent = 'LOG CENTER · ' + selVm + (selCont ? ' · ' + selCont : ' · journal')
+    $('#c-logfeed-' + id).textContent = 'loading…'
+    try { logRaw = await invoke('cloud_logs', { alias: selVm, container: selCont, tail }) }
+    catch (e) { logRaw = 'error: ' + e }
+    if (!leaf.isConnected) return
+    renderLogs()
+    $('#c-logfeed-' + id).scrollTop = $('#c-logfeed-' + id).scrollHeight
+  }
+  function selectVm(alias) { selVm = alias; selCont = null; renderVms(); renderConts(); loadLogs() }
+  async function probe() {
+    $('#c-refresh-' + id).textContent = '… probing'
+    await Promise.all(targets.map(async t => {
+      const [v, ping] = await Promise.all([
+        invoke('cloud_vm', { alias: t.alias }).catch(e => ({ alias: t.alias, reachable: false, error: String(e) })),
+        t.pub ? invoke('cloud_ping', { url: t.pub }).catch(() => null) : Promise.resolve(null),
+      ])
+      v.ping = ping; vms[t.alias] = v
+      if (leaf.isConnected) renderVms()
+    }))
+    if (!leaf.isConnected) return
+    $('#c-refresh-' + id).textContent = '↻ probe'
+    if (!selVm) { const first = targets.find(t => (vms[t.alias] || {}).reachable) || targets[0]; if (first) selectVm(first.alias) }
+    else renderConts()
+  }
+  async function init() {
+    const data = await invoke('cloud_targets').catch(() => null)
+    targets = (data && data.vms) || []
+    if (!leaf.isConnected) return
+    renderVms(); probe()
+  }
+
+  $('#c-vms-' + id).addEventListener('click', e => { const c = e.target.closest('.vmcard'); if (c) selectVm(c.dataset.vm) })
+  $('#c-cont-' + id).addEventListener('click', e => { const r = e.target.closest('tr[data-cont]'); if (!r) return; selCont = r.dataset.cont || null; renderConts(); loadLogs() })
+  $('#c-refresh-' + id).addEventListener('click', probe)
+  $('#c-logref-' + id).addEventListener('click', loadLogs)
+  $('#c-logq-' + id).addEventListener('input', e => { logq = e.target.value.trim().toLowerCase(); renderLogs() })
+  $('#c-tail-' + id).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; tail = +b.dataset.v; for (const x of $('#c-tail-' + id).children) x.classList.toggle('on', x === b); loadLogs() })
+  $('#c-logcopy-' + id).addEventListener('click', () => { clip.write(logRaw); const b = $('#c-logcopy-' + id), t = b.textContent; b.textContent = '✓'; setTimeout(() => b.textContent = t, 1200) })
+
+  init()
+  leaf.addEventListener('mousedown', () => focusPane(id), true)
+  panes.set(id, { leaf, tabId, kind: 'cloud', stop: () => {} })
+  return { id, leaf }
+}
+
 // Generic special-pane tab (no PTY): monitor / journal / cloud dashboards.
 function newSpecialTab(makeFn, labelText) {
   const tabId = ++tabSeq
@@ -1027,6 +1160,7 @@ function newSpecialTab(makeFn, labelText) {
 }
 function newMonitorTab() { return newSpecialTab(makeMonitor, '📊 monitor') }
 function newJournalTab() { return newSpecialTab(makeJournal, '📜 journal') }
+function newCloudTab() { return newSpecialTab(makeCloud, '☁ cloud') }
 
 function paneIdOf(leaf) { return parseInt(leaf.dataset.pane, 10) }
 
@@ -1201,6 +1335,7 @@ function buildSidebar(profile) {
       btn.onclick = () => {
         if (item.type === 'monitor') { newMonitorTab(); return }   // open our dashboard, don't type a command
         if (item.type === 'journal') { newJournalTab(); return }
+        if (item.type === 'cloud') { newCloudTab(); return }
         runItem({ ...item, profile: profile.name, ptyId: activePane }); focusActivePaneTerm()
       }
       grp.appendChild(btn)
@@ -1267,6 +1402,7 @@ async function init() {
       let tid
       if (t.type === 'monitor') { tid = newMonitorTab() }
       else if (t.type === 'journal') { tid = newJournalTab() }
+      else if (t.type === 'cloud') { tid = newCloudTab() }
       else { tid = newTab(); if (t.type === 'command' && t.cmd) autoRun(t.cmd) }
       if (firstTab == null) firstTab = tid
     }

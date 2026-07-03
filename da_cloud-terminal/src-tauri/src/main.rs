@@ -711,6 +711,98 @@ fn journal_feed(n: Option<u32>) -> Result<Value, String> {
     Ok(Value::Array(rows))
 }
 
+// ══ Cloud Control Center — probe VMs + containers over the SSH mesh ══
+fn cloud_targets_path() -> String {
+    let dir = std::env::var("CT_PROFILES_DIR")
+        .unwrap_or_else(|_| format!("{}/data", env_or("CT_APP_DIR", ".")));
+    format!("{dir}/cloud-targets.json")
+}
+
+#[tauri::command]
+fn cloud_targets() -> Value {
+    std::fs::read_to_string(cloud_targets_path()).ok()
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .unwrap_or(Value::Null)
+}
+
+// SSH into one VM (BatchMode, short timeout) and collect uptime + root-fs use +
+// `docker ps` (JSON lines). Read-only + lightweight, safe even on the 1GB E2s.
+#[tauri::command]
+fn cloud_vm(alias: String) -> Value {
+    // One round-trip: uptime, df, then docker ps as JSON lines after a marker.
+    let remote = "printf 'UPTIME\\t%s\\n' \"$(uptime -p 2>/dev/null || uptime)\"; \
+                  printf 'DISK\\t%s\\n' \"$(df -P / 2>/dev/null | awk 'NR==2{print $5\" \"$4\" \"$2}')\"; \
+                  echo '---PS---'; docker ps -a --format '{{json .}}' 2>/dev/null";
+    let out = std::process::Command::new("ssh")
+        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=7", "-o", "StrictHostKeyChecking=accept-new", &alias, remote])
+        .output();
+    let out = match out {
+        Ok(o) => o,
+        Err(e) => return serde_json::json!({ "alias": alias, "reachable": false, "error": e.to_string() }),
+    };
+    if !out.status.success() && out.stdout.is_empty() {
+        let err = String::from_utf8_lossy(&out.stderr).lines().next().unwrap_or("unreachable").to_string();
+        return serde_json::json!({ "alias": alias, "reachable": false, "error": err });
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let (mut uptime, mut disk) = (String::new(), String::new());
+    let mut containers: Vec<Value> = Vec::new();
+    let mut in_ps = false;
+    for line in text.lines() {
+        if line == "---PS---" { in_ps = true; continue; }
+        if !in_ps {
+            if let Some(v) = line.strip_prefix("UPTIME\t") { uptime = v.to_string(); }
+            else if let Some(v) = line.strip_prefix("DISK\t") { disk = v.to_string(); }
+        } else if let Ok(c) = serde_json::from_str::<Value>(line) {
+            containers.push(c);
+        }
+    }
+    // df line = "USE% AVAIL TOTAL" (1K blocks for avail/total).
+    let mut d = disk.split_whitespace();
+    let disk_pct = d.next().unwrap_or("").trim_end_matches('%').parse::<u32>().unwrap_or(0);
+    let running = containers.iter().filter(|c| c["State"].as_str() == Some("running")).count();
+    serde_json::json!({
+        "alias": alias, "reachable": true, "uptime": uptime.trim(),
+        "disk_pct": disk_pct, "disk_raw": disk,
+        "containers": containers, "n_containers": containers.len(), "n_running": running,
+    })
+}
+
+// Tail a container's logs (or the VM journal when container is empty) over SSH.
+#[tauri::command]
+fn cloud_logs(alias: String, container: Option<String>, tail: Option<u32>) -> Result<String, String> {
+    let n = tail.unwrap_or(200).to_string();
+    let remote = match container.as_deref() {
+        Some(c) if !c.is_empty() => format!("docker logs --timestamps --tail {n} {} 2>&1", shq(c)),
+        _ => format!("journalctl --no-pager -n {n} 2>&1 || sudo journalctl --no-pager -n {n} 2>&1"),
+    };
+    let out = std::process::Command::new("ssh")
+        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=7", &alias, &remote])
+        .output().map_err(|e| e.to_string())?;
+    let mut s = String::from_utf8_lossy(&out.stdout).into_owned();
+    if s.is_empty() { s = String::from_utf8_lossy(&out.stderr).into_owned(); }
+    Ok(s)
+}
+
+// Quick public-edge ping (curl). Returns HTTP code + latency; body is read so
+// the Caddy wormhole-200 fallback doesn't read as a false 'up'.
+#[tauri::command]
+fn cloud_ping(url: String) -> Value {
+    let out = std::process::Command::new("curl")
+        .args(["-sS", "-o", "/dev/null", "-m", "8", "-w", "%{http_code} %{time_total}", &url])
+        .output();
+    match out {
+        Ok(o) => {
+            let s = String::from_utf8_lossy(&o.stdout);
+            let mut it = s.split_whitespace();
+            let code = it.next().unwrap_or("0").parse::<u32>().unwrap_or(0);
+            let ms = (it.next().unwrap_or("0").parse::<f64>().unwrap_or(0.0) * 1000.0) as u32;
+            serde_json::json!({ "url": url, "code": code, "ms": ms, "up": code > 0 && code < 500 })
+        }
+        Err(e) => serde_json::json!({ "url": url, "code": 0, "up": false, "error": e.to_string() }),
+    }
+}
+
 // ── init payload for the renderer (mirrors the Electron 'init' send) ──
 #[tauri::command]
 fn get_init(window: tauri::WebviewWindow, state: tauri::State<AppState>) -> Value {
@@ -964,7 +1056,8 @@ fn main() {
         }))
         .manage(state)
         .invoke_handler(tauri::generate_handler![
-            pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap, journal_feed, run_item, get_init, sys_stats
+            pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap, journal_feed,
+            cloud_targets, cloud_vm, cloud_logs, cloud_ping, run_item, get_init, sys_stats
         ])
         .setup(|app| {
             build_and_show(&app.handle().clone());
