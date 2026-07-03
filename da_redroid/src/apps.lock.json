@@ -367,35 +367,35 @@
       "sha256": "sha256-A6qhR64TOk2AftyLSLI/L5Zt4AAMi2SUMu4CBfWb2gw="
     },
     {
-      "package": "com.diegonmarcos.superapp",
-      "source": "github",
-      "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-SuperApp-x86_64.apk",
-      "sha256": "sha256-Nha8IfvarkML/wxj4Z+n5uwtbfgXaeJnkgX9lo+S/j0="
-    },
-    {
-      "package": "com.diegonmarcos.cloudnav",
-      "source": "github",
-      "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-Nav-x86_64.apk",
-      "sha256": "sha256-NUlSK8cfhH/CedLoivkEyR7A4uTcP00ALIZGPQDqSWU="
-    },
-    {
-      "package": "com.diegonmarcos.comms",
-      "source": "github",
-      "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-Comms-Hub.apk",
-      "sha256": "sha256-3G7jgp4pHxqpmLnoOXE5RRwGy2mNSEfVo9HtvxeO1Yc="
-    },
-    {
-      "package": "com.diegonmarcos.ide",
-      "source": "github",
-      "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-IDE-Hub.apk",
-      "sha256": "sha256-d2tAOwMeLDtKSvmhy1bTdbbFcgpJmptBl7uYt8Shk+E="
-    },
-    {
       "package": "org.mozilla.fennec_fdroid",
       "source": "fdroid",
       "versionCode": 1520020,
       "url": "https://f-droid.org/repo/org.mozilla.fennec_fdroid_1520020.apk",
       "sha256": "sha256-Ma9StdFVjZqhK6tjPJoSrkfFjFbxhNCdsFRniEmZd/M="
+    },
+    {
+      "package": "com.diegonmarcos.superapp",
+      "source": "github",
+      "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-SuperApp-x86_64.apk",
+      "sha256": "sha256-XJbFfTljKQzo7vl9YBl2HvnLyFFK+5DXjaOlGWuYR20="
+    },
+    {
+      "package": "com.diegonmarcos.cloudnav",
+      "source": "github",
+      "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-Nav-x86_64.apk",
+      "sha256": "sha256-L807NLfB5vz7d5sQETQiKWJEC4K0Uqp5UI2qUTu3KUg="
+    },
+    {
+      "package": "com.diegonmarcos.comms",
+      "source": "github",
+      "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-Comms-Hub.apk",
+      "sha256": "sha256-56kMzfQS5dCL/OnY9RLhkVAMxZyr4+SHuGq0sIOZ/I0="
+    },
+    {
+      "package": "com.diegonmarcos.ide",
+      "source": "github",
+      "url": "https://github.com/diegonmarcos/unix/releases/download/latest/Cloud-IDE-Hub.apk",
+      "sha256": "sha256-RKEO3V0BfRfW1UdEBpZN+1IWiPV4y7SIX/n7BeeTo6Q="
     }
   ]
 }
