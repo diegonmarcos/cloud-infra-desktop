@@ -44,6 +44,15 @@
     "autofill_rbw_rofi": {
       "comment": "Password autofill via global hotkey is OS-level (handled by da_autofill-rbw-rofi). qutebrowser sees the typed keystrokes like any other window.",
       "enabled": true
+    },
+    "vaultwarden_bitwarden_cli": {
+      "comment": "In-page autofill (Ctrl-Shift-B) via qutebrowser's OFFICIAL, in-tree qute-bitwarden userscript (qutebrowser/misc/userscripts/qute-bitwarden — ships bundled with the qutebrowser package, no vendoring needed). Uses the official `bw` CLI against our self-hosted Vaultwarden server (API-compatible with real Bitwarden). Matches by the vault item's saved URL (bw list items --url <domain>) — no need to rename entries. Session persisted via keyctl (keyutils), auto-locks after runtime.auto_lock_seconds. home.packages gets bitwarden-cli + keyutils; a home.activation step idempotently runs `bw config server <server_url>` (no secrets — the interactive `bw login` step is a ONE-TIME manual step, cannot be automated declaratively since it requires the master password).",
+      "enabled": true,
+      "server_url": "https://vault.diegonmarcos.com",
+      "runtime": {
+        "dmenu_invocation": "rofi -dmenu -i -p Vaultwarden",
+        "auto_lock_seconds": 900
+      }
     }
   }
 }
