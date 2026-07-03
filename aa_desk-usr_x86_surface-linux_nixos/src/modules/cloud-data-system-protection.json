@@ -47,11 +47,13 @@
   },
 
   "earlyoom": {
-    "_comment": "earlyoom — deep backstop beneath oomd. Two bugs made it useless on the frozen system (confirmed from live /proc cmdline): (1) it listed 'nix' in --avoid so it would never kill a runaway build; the module source already drops nix. (2) it only fires when free mem <= mem_pct AND free swap <= swap_pct — and with 20G of swap, swap-free never reaches 5%, so it NEVER fired. free_swap/free_swap_kill=100 removes the swap gate entirely → earlyoom fires on memory alone as a last resort if oomd somehow misses.",
+    "_comment": "earlyoom — deep backstop beneath oomd. Two bugs made it useless on the frozen system (confirmed from live /proc cmdline): (1) it listed 'nix' in --avoid so it would never kill a runaway build; the module source already drops nix. (2) it only fires when free mem <= mem_pct AND free swap <= swap_pct — and with 20G of swap, swap-free never reaches 5%, so it NEVER fired. free_swap/free_swap_kill=100 removes the swap gate entirely → earlyoom fires on memory alone as a last resort if oomd somehow misses. VICTIM ORDER (2026-07-03 user directive: 'claude is the LAST one — kill its children first'): prefer matches the resident hogs (android/redroid guests, browsers); avoid matches ONLY the claude PARENT (comm=ld-linux, the glibc loader) — claude's children (tool shells, node MCP servers, renderers) keep normal scoring and die before it. Not a hard whitelist: avoided processes still die when nothing else remains. nix deliberately NOT in avoid.",
     "free_mem": 5,
     "free_mem_kill": 3,
     "free_swap": 100,
-    "free_swap_kill": 100
+    "free_swap_kill": 100,
+    "prefer": "^(brave|firefox|chromium|electron|android|com\\.android|redroid)",
+    "avoid": "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus|ld-linux)"
   },
 
   "sysctl": {

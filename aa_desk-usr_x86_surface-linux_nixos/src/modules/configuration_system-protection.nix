@@ -133,22 +133,11 @@ in
     freeSwapKillThreshold = sysprot.earlyoom.free_swap_kill; # 100 = swap-gate removed
     enableNotifications = true;
     reportInterval = 0;
+    # Victim policy is DATA-DRIVEN (sysprot.earlyoom.prefer/avoid) — the
+    # rationale and ordering contract live in cloud-data-system-protection.json.
     extraArgs = [
-      # android/redroid (2026-07-03): Redroid guest processes (uid 10xxx,
-      # android.process.*, com.android.*) are the desktop's biggest RSS pool;
-      # without preferring them, earlyoom's oom_score ranking kept picking
-      # claude sessions as the victim at the 5% floor.
-      "--prefer" "^(brave|firefox|chromium|electron|android|com\\.android|redroid)"
-      # ld-linux = claude sessions (glibc-loader comm). USER DIRECTIVE
-      # 2026-07-03: "claude is the LAST one — kill its children first".
-      # --avoid matches ONLY the parent (comm=ld-linux); claude's CHILDREN
-      # (bash/zsh tool shells, node MCP servers, renderers) keep normal
-      # scoring and die before it. Victim order: preferred hogs
-      # (android/redroid/browsers) → any unlisted process incl. claude
-      # children (largest RSS first) → claude parents, dead last. Not a
-      # hard whitelist: avoided processes still die when nothing remains.
-      "--avoid" "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus|ld-linux)"
-    # nix deliberately NOT in --avoid — earlyoom must be able to kill a runaway nix build
+      "--prefer" sysprot.earlyoom.prefer
+      "--avoid" sysprot.earlyoom.avoid
     ];
   };
 
