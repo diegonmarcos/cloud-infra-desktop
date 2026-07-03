@@ -58,5 +58,13 @@
             export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath buildInputs}:$LD_LIBRARY_PATH"
           '';
         };
+
+        # Plain evaluated string (NOT a devShell/derivation) — `nix eval --raw`
+        # returns it in milliseconds, no shellHook, no shell spawn, no build.
+        # `build.sh run` reads this ONCE and caches it to disk; every launch
+        # after that is a straight `exec`, like any other app — no more paying
+        # a `nix develop` (flake realize + shell spawn) tax on every single
+        # launch just to read one env var.
+        runtimeLibPath = pkgs.lib.makeLibraryPath buildInputs;
       });
 }

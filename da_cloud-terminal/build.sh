@@ -155,13 +155,30 @@ case "$CMD" in
     # Auto-fetch the CI binary if none present (first run on a fresh machine).
     [ -x "$bin" ] || { log "no binary — fetching latest CI build…"; "$ROOT/build.sh" fetch && bin="$DIST/ci/cloud-terminal"; }
     [ -x "$bin" ] || { errlog "no binary — 'build.sh build' or 'build.sh fetch' first"; exit 1; }
-    # Resolve ONLY the runtime lib path (glibc + webkit) via the LEAN shell,
-    # then launch the binary in the USER's environment (keep user PATH; the PTY
-    # shells inherit it). The lean shell still realizes the exact glibc the
-    # binary's interpreter points at, so the raw exec resolves — but without
-    # dragging in rust/cargo-tauri/node.
-    log "resolving runtime libs from flake (lean runtime shell)…"
-    ldp="$(in_nix_rt sh -c 'printf %s "$LD_LIBRARY_PATH"')"
+    # Resolve the runtime lib path (glibc + webkit) — CACHED, so a normal
+    # launch is just resolve-cache + exec, like any other app. Every previous
+    # version called `nix develop` on EVERY launch just to read one env var
+    # (flake realize + shellHook + shell spawn — the ~29s "resolving runtime
+    # libs" delay). Now: resolve once via the lean shell (guarantees the
+    # store paths are realized), cache the string to disk, and skip Nix
+    # entirely on every later launch. Cache invalidates when flake.nix/
+    # flake.lock change (a new/updated dependency needs re-resolving).
+    ldpcache="$DIST/.runtime-ldpath"
+    stale=1
+    if [ -f "$ldpcache" ] && [ -s "$ldpcache" ]; then
+      stale=0
+      for f in "$ROOT/flake.nix" "$ROOT/flake.lock"; do
+        [ "$f" -nt "$ldpcache" ] && stale=1
+      done
+    fi
+    if [ "$stale" = "0" ]; then
+      ldp="$(cat "$ldpcache")"
+    else
+      log "resolving runtime libs from flake (one-time; cached after this)…"
+      mkdir -p "$DIST"
+      ldp="$(in_nix_rt sh -c 'printf %s "$LD_LIBRARY_PATH"')"
+      [ -n "$ldp" ] && printf '%s' "$ldp" > "$ldpcache"
+    fi
     [ -z "$ldp" ] && { errlog "could not resolve LD_LIBRARY_PATH from flake"; exit 1; }
     log "launching $bin (profile ${2:-home}, multi-tray) in user env"
     env LD_LIBRARY_PATH="$ldp" \
