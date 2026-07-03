@@ -19,7 +19,7 @@ on:
 
 permissions:
   contents: read
-  packages: read   # pull ghcr.io/<owner>/unix-boot-cache (prebuilt linux-surface kernel)
+  packages: write   # pull ghcr.io/<owner>/unix-boot-cache (kernel) + push the incremental layered system cache image
 
 # cancel-in-progress:false (2026-07-02): with :true, every push (incl.
 # auto-sync) cancelled the in-flight closure build — 6+ runs died tonight,
@@ -44,11 +44,14 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
-      - name: Build + export system closure
+      - name: Build + export system closure (+ push incremental GHCR cache)
         env:
           GHCR_OWNER: ${{ github.repository_owner }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_PUSH: "1"                       # build.sh also builds+pushes the layered cache image
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SYSTEM_CACHE_IMAGE: ghcr.io/${{ github.repository_owner }}/unix-system-cache
         run: ./aa_desk-usr_x86_surface-linux_nixos/build.sh ci-build
 
       - uses: actions/upload-artifact@v4

@@ -833,6 +833,44 @@ cmd_ci_build() {
     fi
 }
 
+# ghcr_pull_layered <image:tag> — try to materialise a layered GHCR closure
+# image's /nix/store paths onto the real local store, skipping any path
+# already present (genuine incremental — unchanged layers are never even
+# pulled by `docker pull`, and unchanged store paths are never re-copied
+# locally either). Returns 1 (silently, caller falls back) on ANY failure:
+# docker missing, image missing, pull failure — additive, never fatal.
+# Populated by `hm-cache-image` (src/flake.nix) + the skopeo push in
+# cmd_ci_build below.
+ghcr_pull_layered() {
+    _img="$1"
+    command -v docker >/dev/null 2>&1 || return 1
+    log_info "Trying layered GHCR pull: $_img ..."
+    docker pull "$_img" >/dev/null 2>&1 || { log_warn "GHCR image unavailable — falling back to nar.zst"; return 1; }
+
+    _tmp="hm-cache-extract-$$"
+    docker create --name "$_tmp" "$_img" >/dev/null 2>&1 || { log_warn "docker create failed — falling back to nar.zst"; return 1; }
+
+    _sudo="/run/wrappers/bin/sudo"; [ -x "$_sudo" ] || _sudo="sudo"
+    _copied=0; _skipped=0
+    # buildLayeredImage roots the closure at /nix/store inside the image —
+    # list it via a throwaway inspect run, then `docker cp` only the
+    # missing store paths (same skip-if-present idiom as the VM's
+    # activate.sh in b_infra/_shared/vm-pilot/src/Dockerfile.transport).
+    for _p in $(docker run --rm "$_img" sh -c 'ls /nix/store' 2>/dev/null); do
+        _host="/nix/store/$_p"
+        if [ -e "$_host" ]; then
+            _skipped=$((_skipped + 1))
+            continue
+        fi
+        if $_sudo sh -c "docker cp '$_tmp:/nix/store/$_p' - 2>/dev/null | tar -x -C /nix/store" 2>/dev/null && [ -e "$_host" ]; then
+            _copied=$((_copied + 1))
+        fi
+    done
+    docker rm "$_tmp" >/dev/null 2>&1 || true
+    log_success "Layered pull: $_copied copied, $_skipped already present"
+    [ "$_copied" -gt 0 ] || [ "$_skipped" -gt 0 ]
+}
+
 # pull [artifact-dir] — run on the Surface. Import a GHA-built home-manager
 # closure and run its activate script. NO eval, NO build -> cannot freeze.
 # Default dir dist-ci/ (e.g. after: gh run download -n nixos-desktop-hm-closure -D dist-ci).
@@ -841,13 +879,27 @@ cmd_pull() {
     check_nix || return 1
     _art="${1:-$SCRIPT_DIR/dist-ci}"
     _tb="$_art/hm-closure.nar.zst"
-    [ -f "$_tb" ] || { log_error "no closure tarball at $_tb (fetch: gh run download -n nixos-desktop-hm-closure -D '$_art')"; return 1; }
-    [ -f "$_art/activation.name" ] || { log_error "missing $_art/activation.name"; return 1; }
-    _sys="/nix/store/$(cat "$_art/activation.name")"
 
-    _sudo="/run/wrappers/bin/sudo"; [ -x "$_sudo" ] || _sudo="sudo"
-    log_info "Importing closure into the store (no build)..."
-    zstd -d -c "$_tb" | $_sudo nix-store --import >/dev/null || { log_error "import failed"; return 1; }
+    _sys=""
+    if [ -f "$_art/activation.name" ]; then
+        _sys="/nix/store/$(cat "$_art/activation.name")"
+    fi
+
+    # ── Try GHCR-layered pull first (incremental) ────────────────────────
+    _img="${HM_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-hm-cache}:latest"
+    if [ -n "$_sys" ] && [ -d "$_sys" ]; then
+        log_info "$_sys already present locally — skipping pull entirely."
+    elif ghcr_pull_layered "$_img" && [ -n "$_sys" ] && [ -d "$_sys" ]; then
+        log_success "Activation closure materialised via layered GHCR pull."
+    else
+        [ -f "$_tb" ] || { log_error "no closure tarball at $_tb (fetch: gh run download -n nixos-desktop-hm-closure -D '$_art')"; return 1; }
+        [ -f "$_art/activation.name" ] || { log_error "missing $_art/activation.name"; return 1; }
+        _sys="/nix/store/$(cat "$_art/activation.name")"
+
+        _sudo="/run/wrappers/bin/sudo"; [ -x "$_sudo" ] || _sudo="sudo"
+        log_info "Importing closure into the store (no build)..."
+        zstd -d -c "$_tb" | $_sudo nix-store --import >/dev/null || { log_error "import failed"; return 1; }
+    fi
     [ -d "$_sys" ] || { log_error "imported path $_sys missing after import"; return 1; }
 
     # home-manager activationPackages expose the activator at ./activate. Run it

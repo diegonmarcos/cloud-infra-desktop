@@ -1546,6 +1546,63 @@ ci_build() {
     nix-store --export $(nix-store -qR "$sys") | zstd -T0 -15 > "$out/system-closure.nar.zst"
     rm -f "$out/result"
     log "Done: $(du -h "$out/system-closure.nar.zst" | cut -f1) → $out/"
+
+    # ── Stage 1: layered GHCR cache (INCREMENTAL delivery) ──────────────────
+    # Additive + NON-FATAL: the nar.zst above stays the active mechanism until
+    # `pull_remote` learns to consume this. Mirrors
+    # ba_flakes_desktop/build.sh's cmd_ci_build exactly (same rationale: one
+    # layer per store path via dockerTools.buildLayeredImage, skopeo skips
+    # blobs already present in the registry). Guarded by GHCR_PUSH=1.
+    if [ "${GHCR_PUSH:-0}" = "1" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
+        local _img="${SYSTEM_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-system-cache}"
+        log "building + pushing layered system cache image → ${_img}:latest (incremental)"
+        if nix build "$FLAKE_PATH#packages.x86_64-linux.system-cache-image" \
+             --accept-flake-config --out-link "$out/system-cache-image" \
+             --extra-experimental-features "nix-command flakes"; then
+            nix run --extra-experimental-features "nix-command flakes" nixpkgs#skopeo -- \
+                copy --dest-creds "x:${GITHUB_TOKEN}" \
+                "docker-archive:$(readlink -f "$out/system-cache-image")" \
+                "docker://${_img}:latest" \
+                && log "pushed layered system cache → ${_img}:latest" \
+                || warn "skopeo push failed (non-fatal — nar.zst artifact still delivered)"
+        else
+            warn "system-cache-image build failed (non-fatal — nar.zst still delivered)"
+        fi
+        rm -f "$out/system-cache-image"
+    fi
+}
+
+# ghcr_pull_layered <image:tag> — materialise a layered GHCR closure image's
+# /nix/store paths onto the real local store, skipping any path already
+# present. Genuine incremental: unchanged layers are never even pulled by
+# `docker pull`, and unchanged store paths are never re-copied locally.
+# Returns 1 on ANY failure (docker missing, image missing, pull failure) —
+# additive, caller falls back to nar.zst. Mirrors
+# ba_flakes_desktop/build.sh's ghcr_pull_layered() exactly.
+ghcr_pull_layered() {
+    local img="$1"
+    command -v docker >/dev/null 2>&1 || return 1
+    log "Trying layered GHCR pull: $img …"
+    docker pull "$img" >/dev/null 2>&1 || { warn "GHCR image unavailable — falling back to nar.zst"; return 1; }
+
+    local tmp="system-cache-extract-$$"
+    docker create --name "$tmp" "$img" >/dev/null 2>&1 || { warn "docker create failed — falling back to nar.zst"; return 1; }
+
+    local _sudo="/run/wrappers/bin/sudo"; [ -x "$_sudo" ] || _sudo="sudo"
+    local copied=0 skipped=0 p host
+    for p in $(docker run --rm "$img" sh -c 'ls /nix/store' 2>/dev/null); do
+        host="/nix/store/$p"
+        if [ -e "$host" ]; then
+            skipped=$((skipped + 1))
+            continue
+        fi
+        if $_sudo sh -c "docker cp '$tmp:/nix/store/$p' - 2>/dev/null | tar -x -C /nix/store" 2>/dev/null && [ -e "$host" ]; then
+            copied=$((copied + 1))
+        fi
+    done
+    docker rm "$tmp" >/dev/null 2>&1 || true
+    log "Layered pull: $copied copied, $skipped already present"
+    [ "$copied" -gt 0 ] || [ "$skipped" -gt 0 ]
 }
 
 # pull [artifact-dir] — run on the Surface. Import a GHA-built closure tarball
@@ -1555,9 +1612,19 @@ pull_remote() {
     header "Activate prebuilt closure (no eval — cannot freeze)"
     local art="${1:-$SCRIPT_DIR/dist-ci}"
     local tb="$art/system-closure.nar.zst"
-    [ -f "$tb" ] || { error "no closure tarball at $tb (fetch it first: gh run download -n nixos-surface-closure -D '$art')"; return 1; }
-    [ -f "$art/toplevel.name" ] || { error "missing $art/toplevel.name"; return 1; }
-    local sys="/nix/store/$(cat "$art/toplevel.name")"
+    local sys=""
+    [ -f "$art/toplevel.name" ] && sys="/nix/store/$(cat "$art/toplevel.name")"
+
+    # ── Try GHCR-layered pull first (incremental) ────────────────────────
+    local _img="${SYSTEM_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-system-cache}:latest"
+    if [ -n "$sys" ] && [ -d "$sys" ]; then
+        log "$sys already present locally — skipping pull entirely."
+    elif ghcr_pull_layered "$_img" && [ -n "$sys" ] && [ -d "$sys" ]; then
+        log "System closure materialised via layered GHCR pull."
+    else
+        [ -f "$tb" ] || { error "no closure tarball at $tb (fetch it first: gh run download -n nixos-surface-closure -D '$art')"; return 1; }
+        [ -f "$art/toplevel.name" ] || { error "missing $art/toplevel.name"; return 1; }
+        sys="/nix/store/$(cat "$art/toplevel.name")"
 
     # Reinforce the declared user-slice limits BEFORE importing — the pull
     # path had no reinforce step (only _rebuild_exec did), so a stale live
@@ -1592,6 +1659,7 @@ pull_remote() {
     zstd -d -c "$tb" | sudo systemd-run --scope --unit="nix-pull-$$" --quiet \
         "${_pull_props[@]}" -- nix-store --import >/dev/null \
         || { error "import failed"; return 1; }
+    fi
     [ -d "$sys" ] || { error "imported store path $sys not present after import"; return 1; }
 
     log "Phase 2: activate as root (fast — no eval)…"

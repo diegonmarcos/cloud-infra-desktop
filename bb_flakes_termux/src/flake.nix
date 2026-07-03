@@ -956,5 +956,24 @@
           })
         ];
       };
+
+      # ── termux-cache-image: LAYERED image of the nix-on-droid closure ──
+      # One layer per store path (dockerTools.buildLayeredImage) → skopeo
+      # (no Docker daemon needed on Android — see build.sh's
+      # ghcr_pull_layered_skopeo) skips unchanged layers, so `build.sh pull`
+      # fetches only the store paths that actually changed instead of
+      # re-downloading the whole multi-GB nar. Pushed to GHCR by the CI
+      # export step (GHCR_PUSH=1); consumed by `cmd_pull` (the nar.zst path
+      # is kept as the fallback). Mirrors ba_flakes_desktop's hm-cache-image.
+      packages.aarch64-linux.termux-cache-image = pkgsNew.dockerTools.buildLayeredImage {
+        name = "unix-termux-cache";
+        tag = "latest";
+        maxLayers = 120;
+        contents = [ self.nixOnDroidConfigurations.default.activationPackage ];
+        config.Labels = {
+          "org.opencontainers.image.description" = "Termux (nix-on-droid) activation closure as layered store paths (incremental GHCR cache).";
+          "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
+        };
+      };
     };
 }

@@ -603,6 +603,60 @@ cmd_ci_build() {
     nix-store --export $(nix-store -qR "$_sys") | zstd -T0 -15 > "$_out/nixondroid-closure.nar.zst"
     rm -f "$_out/result"
     log_success "Done: $(du -h "$_out/nixondroid-closure.nar.zst" | cut -f1) -> $_out/"
+
+    # ── Stage 1: layered GHCR cache (INCREMENTAL delivery) ──────────────────
+    # Additive + NON-FATAL: the nar.zst above stays the active mechanism until
+    # `cmd_pull` learns to consume this. Mirrors ba_flakes_desktop's
+    # cmd_ci_build exactly. Guarded by GHCR_PUSH=1.
+    if [ "${GHCR_PUSH:-0}" = "1" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
+        _img="${TERMUX_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-termux-cache}"
+        log_info "building + pushing layered termux cache image -> ${_img}:latest (incremental)"
+        if "$_nix" build "$SRC_DIR#packages.aarch64-linux.termux-cache-image" \
+             --impure --accept-flake-config --out-link "$_out/termux-cache-image" \
+             --extra-experimental-features "nix-command flakes"; then
+            "$_nix" run --extra-experimental-features "nix-command flakes" nixpkgs#skopeo -- \
+                copy --dest-creds "x:${GITHUB_TOKEN}" \
+                "docker-archive:$(readlink -f "$_out/termux-cache-image")" \
+                "docker://${_img}:latest" \
+                && log_success "pushed layered termux cache -> ${_img}:latest" \
+                || log_warn "skopeo push failed (non-fatal — nar.zst artifact still delivered)"
+        else
+            log_warn "termux-cache-image build failed (non-fatal — nar.zst still delivered)"
+        fi
+        rm -f "$_out/termux-cache-image"
+    fi
+}
+
+# ghcr_pull_layered_skopeo <image:tag> — materialise a layered GHCR closure
+# image's /nix/store paths onto the local store WITHOUT a Docker daemon
+# (Android/Termux has none). skopeo's `dir:` transport just downloads the
+# manifest + blob files to a plain directory — no daemon required, and it
+# already skips blobs it can prove are unchanged. Each blob is a tar rooted
+# at `/` (dockerTools.buildLayeredImage convention: `nix/store/...` with no
+# leading slash), so `tar --skip-old-files` extracting straight onto `/`
+# gives genuine incremental behaviour: paths already on the phone are never
+# rewritten. Returns 1 on ANY failure — additive, caller falls back to
+# nar.zst.
+ghcr_pull_layered_skopeo() {
+    _img="$1"
+    _nix_bin="nix"; [ -x "$HOME/.nix-profile/bin/nix" ] && _nix_bin="$HOME/.nix-profile/bin/nix"
+    command -v "$_nix_bin" >/dev/null 2>&1 || return 1
+    _tmpdir=$(mktemp -d)
+    log_info "Trying layered GHCR pull (skopeo, no daemon): $_img ..."
+    "$_nix_bin" run --extra-experimental-features "nix-command flakes" nixpkgs#skopeo -- \
+        copy "docker://$_img" "dir:$_tmpdir" >/dev/null 2>&1 \
+        || { log_warn "GHCR image unavailable — falling back to nar.zst"; rm -rf "$_tmpdir"; return 1; }
+
+    _extracted=0
+    for _blob in "$_tmpdir"/*; do
+        case "$(basename "$_blob")" in
+            manifest.json|version) continue ;;
+        esac
+        tar -x --skip-old-files -f "$_blob" -C / 2>/dev/null && _extracted=$((_extracted + 1))
+    done
+    rm -rf "$_tmpdir"
+    log_success "Layered pull: $_extracted layer(s) extracted (unchanged store paths skipped)"
+    [ "$_extracted" -gt 0 ]
 }
 
 # pull [artifact-dir] — run on the phone. Import a GHA-built closure and run its
@@ -613,12 +667,23 @@ cmd_pull() {
     check_nix || return 1
     _art="${1:-$SCRIPT_DIR/dist-ci}"
     _tb="$_art/nixondroid-closure.nar.zst"
-    [ -f "$_tb" ] || { log_error "no closure tarball at $_tb (fetch: gh run download -n nixos-termux-closure -D '$_art')"; return 1; }
-    [ -f "$_art/activation.name" ] || { log_error "missing $_art/activation.name"; return 1; }
-    _sys="/nix/store/$(cat "$_art/activation.name")"
+    _sys=""
+    [ -f "$_art/activation.name" ] && _sys="/nix/store/$(cat "$_art/activation.name")"
 
-    log_info "Importing closure into the store (no build)..."
-    zstd -d -c "$_tb" | nix-store --import >/dev/null || { log_error "import failed"; return 1; }
+    # ── Try GHCR-layered pull first (incremental, no Docker daemon) ──────
+    _img="${TERMUX_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-termux-cache}:latest"
+    if [ -n "$_sys" ] && [ -d "$_sys" ]; then
+        log_info "$_sys already present locally — skipping pull entirely."
+    elif ghcr_pull_layered_skopeo "$_img" && [ -n "$_sys" ] && [ -d "$_sys" ]; then
+        log_success "Activation closure materialised via layered GHCR pull."
+    else
+        [ -f "$_tb" ] || { log_error "no closure tarball at $_tb (fetch: gh run download -n nixos-termux-closure -D '$_art')"; return 1; }
+        [ -f "$_art/activation.name" ] || { log_error "missing $_art/activation.name"; return 1; }
+        _sys="/nix/store/$(cat "$_art/activation.name")"
+
+        log_info "Importing closure into the store (no build)..."
+        zstd -d -c "$_tb" | nix-store --import >/dev/null || { log_error "import failed"; return 1; }
+    fi
     [ -d "$_sys" ] || { log_error "imported path $_sys missing after import"; return 1; }
 
     # nix-on-droid activationPackages expose the activator at ./activate
