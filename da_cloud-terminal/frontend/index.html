@@ -1690,7 +1690,8 @@ function makeAGI(tabId) {
 }
 
 // Generic special-pane tab (no PTY): monitor / journal / cloud dashboards.
-function newSpecialTab(makeFn, labelText, type, profile) {
+function newSpecialTab(makeFn, labelText, type, profile, activate) {
+  if (activate == null) activate = true
   profile = profile || active.name
   const tabId = ++tabSeq
   const root = document.createElement('div')
@@ -1703,18 +1704,37 @@ function newSpecialTab(makeFn, labelText, type, profile) {
   close.onclick = ev => { ev.stopPropagation(); closeTab(tabId) }
   btn.append(label, close); btn.onclick = () => activateTab(tabId)
   document.getElementById('termtabs').insertBefore(btn, document.getElementById('newmon'))
-  tabs.set(tabId, { root, btn, title: label, profile, type, cmd: '' })
-  const made = makeFn(tabId)
-  root.appendChild(made.leaf)
-  activateTab(tabId); focusPane(made.id)
+  // LAZY: register the tab (cheap — a button + empty root) but do NOT call
+  // makeFn yet. Each special tab's make* spawns an SSH-mux probe, a journal
+  // read, or a docker query the instant it's built — building all of a
+  // profile's default tabs up front serialized that network work for panes
+  // the user hadn't even looked at yet. ensureTabBuilt() calls makeFn on
+  // first activation instead, so only the tab actually shown pays that cost.
+  // activate=false lets a bulk restore (restoreOrDefaultTabs) register all
+  // of a profile's tabs as buttons without building/activating each one in
+  // turn — only the profile's actual starting tab gets built.
+  tabs.set(tabId, { root, btn, title: label, profile, type, cmd: '', makeFn, built: false })
+  if (activate) activateTab(tabId)
   saveSession()
   return tabId
 }
-function newMonitorTab(profile) { return newSpecialTab(makeMonitor, '📊 monitor', 'monitor', profile) }
-function newJournalTab(profile) { return newSpecialTab(makeJournal, '📜 journal', 'journal', profile) }
-function newCloudTab(profile) { return newSpecialTab(makeCloud, '☁ cloud', 'cloud', profile) }
-function newDataSyncTab(profile) { return newSpecialTab(makeDataSync, '🔄 data-sync', 'datasync', profile) }
-function newAGITab(profile) { return newSpecialTab(makeAGI, '🤖 agi', 'agi', profile) }
+
+// Realize a special tab's pane on first activation (see newSpecialTab). A
+// no-op for already-built tabs and for plain shell tabs (built eagerly since
+// spawning a local pty is cheap, unlike SSH/journal/docker probes).
+function ensureTabBuilt(id) {
+  const t = tabs.get(id)
+  if (!t || t.built || !t.makeFn) return
+  t.built = true
+  const made = t.makeFn(id)
+  t.root.appendChild(made.leaf)
+  focusPane(made.id)
+}
+function newMonitorTab(profile, activate) { return newSpecialTab(makeMonitor, '📊 monitor', 'monitor', profile, activate) }
+function newJournalTab(profile, activate) { return newSpecialTab(makeJournal, '📜 journal', 'journal', profile, activate) }
+function newCloudTab(profile, activate) { return newSpecialTab(makeCloud, '☁ cloud', 'cloud', profile, activate) }
+function newDataSyncTab(profile, activate) { return newSpecialTab(makeDataSync, '🔄 data-sync', 'datasync', profile, activate) }
+function newAGITab(profile, activate) { return newSpecialTab(makeAGI, '🤖 agi', 'agi', profile, activate) }
 
 function paneIdOf(leaf) { return parseInt(leaf.dataset.pane, 10) }
 
@@ -1824,6 +1844,7 @@ function newTab(profile, titleOverride) {
 // Show only the tabs belonging to `id`'s profile; skip cross-profile ones.
 function activateTab(id) {
   const t = tabs.get(id); if (!t) return
+  ensureTabBuilt(id)
   activeTab = id
   profileActiveTab[t.profile] = id
   for (const [tid, tt] of tabs) {
@@ -1886,11 +1907,11 @@ function restoreOrDefaultTabs(name) {
   const activeIdx = saved && typeof saved.active === 'number' ? saved.active : null
   spec.forEach((t, i) => {
     let tid
-    if (t.type === 'monitor') tid = newMonitorTab(name)
-    else if (t.type === 'journal') tid = newJournalTab(name)
-    else if (t.type === 'cloud') tid = newCloudTab(name)
-    else if (t.type === 'datasync') tid = newDataSyncTab(name)
-    else if (t.type === 'agi') tid = newAGITab(name)
+    if (t.type === 'monitor') tid = newMonitorTab(name, false)
+    else if (t.type === 'journal') tid = newJournalTab(name, false)
+    else if (t.type === 'cloud') tid = newCloudTab(name, false)
+    else if (t.type === 'datasync') tid = newDataSyncTab(name, false)
+    else if (t.type === 'agi') tid = newAGITab(name, false)
     else { tid = newTab(name, t.title); if (t.cmd) autoRun(t.cmd) }
     if (t.cmd) { const tt = tabs.get(tid); if (tt) tt.cmd = t.cmd }
     if (firstTab == null) firstTab = tid
