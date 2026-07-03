@@ -218,12 +218,20 @@ case "$CMD" in
       [ -n "$ldp" ] && printf '%s' "$ldp" > "$ldpcache"
     fi
     [ -z "$ldp" ] && { errlog "could not resolve LD_LIBRARY_PATH from flake"; exit 1; }
-    log "launching $bin (profile ${2:-home}, multi-tray) in user env"
-    env LD_LIBRARY_PATH="$ldp" \
+    # setsid detaches into its own session (own process group + no controlling
+    # tty) so the launching shell's Ctrl-C (SIGINT to ITS foreground group)
+    # never reaches this process — a GUI app has no business dying with the
+    # terminal that happened to start it. Backgrounded (&) + disown so the
+    # shell returns immediately instead of blocking until the GUI exits.
+    runlog="$DIST/run.log"
+    log "launching $bin (profile ${2:-home}, multi-tray) in user env — detached, log: $runlog"
+    setsid env LD_LIBRARY_PATH="$ldp" \
       CT_APP_DIR="$SRC" CT_ASSETS_DIR="$SRC/assets" CT_PROFILES_DIR="$SRC/data" \
       CT_PROFILE="${2:-home}" CT_MULTI=1 CT_SHELL=fish \
       WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=wayland,x11 \
-      "$bin" --show
+      "$bin" --show >"$runlog" 2>&1 < /dev/null &
+    disown
+    log "detached (pid $!) — terminal is free"
     ;;
   install)
     # Put a single `cloud-terminal` launcher on PATH that opens the Tauri app
