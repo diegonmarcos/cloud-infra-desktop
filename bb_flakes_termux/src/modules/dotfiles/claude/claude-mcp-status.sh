@@ -93,27 +93,18 @@ if [ "$need" = true ] && command -v claude >/dev/null 2>&1; then
   fi
 fi
 
-# Classify each server local (stdio) vs remote (http/sse) — data-driven from the
-# same .mcp.json files. Local → square glyph, remote → round glyph.
-kinds=""
-for f in "$HOME/.mcp.json" "$cwd/.mcp.json"; do
-  [ -f "$f" ] && kinds="$kinds"$'\n'"$(jq -r '.mcpServers // {} | to_entries[] | "\(.key)\t\(if (.value.url != null or .value.type=="http" or .value.type=="sse") then "remote" else "local" end)"' "$f" 2>/dev/null)"
-done
-
 # --- Render from cache (stale OK); uncached/unknown server → off ---
-# Shape encodes locality (square=local, round=remote); fill encodes state
-# (filled green=on, half yellow=pending, empty grey=off).
+# All servers render as circles (● full = on, ◐ half = pending/disabled,
+# ○ empty = off) — no shape distinction by locality.
 out=""
 while IFS= read -r s; do
   [ -z "$s" ] && continue
   state="off"
   [ -f "$CACHE" ] && { c=$(awk -F'\t' -v n="$s" '$1==n {print $2; exit}' "$CACHE" 2>/dev/null); [ -n "$c" ] && state="$c"; }
-  kind=$(printf '%s\n' "$kinds" | awk -F'\t' -v n="$s" '$1==n {print $2; exit}')
-  if [ "$kind" = local ]; then on="■" pend="◧" off="□"; else on="●" pend="◐" off="○"; fi
   case "$state" in
-    on)      out="$out\033[32m${on}\033[0m" ;;   # green
-    pending) out="$out\033[33m${pend}\033[0m" ;;   # yellow
-    *)       out="$out\033[90m${off}\033[0m" ;;   # grey
+    on)      out="$out\033[32m●\033[0m" ;;   # green, full
+    pending) out="$out\033[33m◐\033[0m" ;;   # yellow, half
+    *)       out="$out\033[90m○\033[0m" ;;   # grey, empty
   esac
 done <<EOF
 $servers
