@@ -1,5 +1,5 @@
 {
-  "_comment": "Freeze-proof system-protection policy — single source of truth, consumed by BOTH configuration_system-protection.nix (builtins.fromJSON, boot-time enforcement) AND build.sh (_apply_daemon_caps, live enforcement before every nix build). Hardware: Surface Pro 8, 8 logical CPUs, 8GB RAM, NVMe (none scheduler), zram swap + disk hibernate swapfile. The machine froze 10x because nix builds (running inside nix-daemon, NOT the client) ballooned RAM and thrashed pages to the disk swapfile. The fix layers: (1) nix-daemon hard-capped with MemorySwapMax=0 so a runaway build OOM-kills a compile job instead of swap-thrashing; (2) the GUI session gets guaranteed unreclaimable RAM; (3) an UNTOUCHABLE ISLAND (reserved RAM + realtime CPU + realtime IO) hosts the killers (freeze-guard + earlyoom) and the mesh (sshd/rescue) so they can ALWAYS act even when everything else is starved; (4) systemd-oomd (PSI) + earlyoom (threshold) + freeze-guard (PSI active killer) = triple-layer defense.",
+  "_comment": "Freeze-proof system-protection policy — single source of truth, consumed by BOTH configuration_system-protection.nix (builtins.fromJSON, boot-time enforcement) AND build.sh (_apply_daemon_caps, live enforcement before every nix build). Hardware: Surface Pro 8, 8 logical CPUs, 8GB RAM, NVMe (none scheduler), zram swap + disk hibernate swapfile. The machine froze 10x because nix builds (running inside nix-daemon, NOT the client) ballooned RAM and thrashed pages to the disk swapfile. The fix layers: (1) nix-daemon hard-capped with MemorySwapMax=0 so a runaway build OOM-kills a compile job instead of swap-thrashing; (2) the GUI session gets guaranteed unreclaimable RAM; (3) an UNTOUCHABLE ISLAND (reserved RAM + realtime CPU + realtime IO) hosts the killers (freeze-guard, plus the now-disabled earlyoom) and the mesh (sshd/rescue) so they can ALWAYS act even when everything else is starved; (4) 2026-07-03 user directive 'ONLY PSI, remove ALL non-PSI triggers' — systemd-oomd (memory PSI) + freeze-guard (mem/io/cpu PSI active killer) are the ONLY two active killers; earlyoom (absolute mem%/swap%, zero PSI awareness) is disabled (sysprot.earlyoom.enable=false), kept data-driven so it can be re-enabled later if ever wanted.",
   "version": 1,
 
   "nix_daemon": {
@@ -47,7 +47,8 @@
   },
 
   "earlyoom": {
-    "_comment": "earlyoom — deep backstop beneath oomd, NOT the PSI layer (earlyoom has no PSI flag at all; it is purely absolute mem%/swap%). systemd-oomd (sysprot.oomd, pressure_limit=50%) is the actual PSI-aware layer and correctly stays silent under real workloads. Two earlier bugs made earlyoom useless on the frozen system (confirmed from live /proc cmdline): (1) it listed 'nix' in --avoid so it would never kill a runaway build; the module source already drops nix. (2) it only fired when free mem <= mem_pct AND free swap <= swap_pct — and with 20G of swap, swap-free never reaches 5%, so it NEVER fired. free_swap/free_swap_kill=100 removes the swap gate entirely → earlyoom fires on memory alone as a last resort if oomd somehow misses. 2026-07-03 EVIDENCE: free_mem=5/free_mem_kill=3 fired on a transient MemAvailable dip (0.5%) during a routine large GHA-artifact download while PSI avg10 stayed ~0 — reclaim was keeping up fine, no real pressure, but earlyoom killed plasmashell anyway because it cannot see PSI. Tightened to 2/1 so earlyoom only fires at genuine exhaustion (last-resort backstop) and defers routine pressure response to oomd's PSI-based kill, matching the intended two-layer design. VICTIM ORDER (2026-07-03 user directive: 'claude is the LAST one — kill its children first'): prefer matches the resident hogs (android/redroid guests, browsers); avoid matches ONLY the claude PARENT (comm=ld-linux, the glibc loader) — claude's children (tool shells, node MCP servers, renderers) keep normal scoring and die before it. Not a hard whitelist: avoided processes still die when nothing else remains. nix deliberately NOT in avoid.",
+    "_comment": "earlyoom — DISABLED 2026-07-03 (user directive: 'remove ALL non-PSI triggers, ONLY PSI'). earlyoom has no PSI flag at all — it is purely absolute free-mem%/free-swap%, and repeatedly killed plasmashell on transient MemAvailable dips while /proc/pressure/memory sat near 0 (reclaim was keeping up fine, no real pressure — first tightened 5/3→2/1 as a partial fix, then fully disabled since ANY absolute threshold can still false-fire at PSI=0). The only two active killers now are systemd-oomd (memory PSI, pressure_limit=50%) and freeze-guard (mem/io/cpu PSI, 40/30/80 full-avg10/full-avg10/some-avg10) — both are genuinely PSI-gated per sysprot.watchdog's own contract ('PSI IS THE ONLY KILL METRIC'). enable=false is the single source of truth (services.earlyoom.enable reads this); flip to true + re-tune thresholds if a non-PSI last-resort backstop is ever wanted again.",
+    "enable": false,
     "free_mem": 2,
     "free_mem_kill": 1,
     "free_swap": 100,
@@ -130,10 +131,10 @@
         "expect": "active"
       },
       {
-        "id": "earlyoom_in_island",
-        "description": "earlyoom killer is in the untouchable island",
-        "command": "systemctl show earlyoom.service -p Slice --value",
-        "expect": "connectivity.slice"
+        "id": "earlyoom_disabled",
+        "description": "earlyoom (non-PSI absolute-value killer) is disabled — only PSI-based killers (oomd, freeze-guard) may act",
+        "command": "systemctl is-active earlyoom.service",
+        "expect_regex": "inactive|failed"
       },
       {
         "id": "island_mem_reserved",
