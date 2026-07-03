@@ -131,6 +131,10 @@ case "$cmd" in
     log "install-standalone: gh release download $tag -p $asset"
     gh release download "$tag" -p "$asset" -D "$tmp" --clobber
     target="$HOME/.local/opt/qutebrowser-standalone"
+    # Extracted files carry the Nix store's read-only mode (444/555) — `rm`
+    # needs write on the CONTAINING dir to unlink, not just the file, so a
+    # prior install's read-only tree blocks a plain `rm -rf`. chmod first.
+    [ -d "$target" ] && chmod -R u+w "$target" 2>/dev/null
     rm -rf "$target"; mkdir -p "$target"
     tar -xzf "$tmp/$asset" -C "$target"
     rm -rf "$tmp"
