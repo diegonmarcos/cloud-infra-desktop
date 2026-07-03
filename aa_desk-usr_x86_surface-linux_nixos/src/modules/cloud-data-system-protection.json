@@ -107,9 +107,9 @@
       },
       {
         "id": "freeze_guard_cpu_dimension",
-        "description": "freeze-guard is general-purpose — its deployed script reacts to CPU pressure, not just mem/io",
-        "command": "systemctl cat freeze-guard.service",
-        "expect_regex": "cpuPSI"
+        "description": "freeze-guard is general-purpose — its deployed script reacts to CPU pressure, not just mem/io (grep the ExecStart store script; the unit text never contains it)",
+        "command": "grep -hE 'cpuPSI|psi_avg10' \"$(systemctl show freeze-guard.service -p ExecStart --value | grep -oE '/nix/store/[^ ]*freeze-guard[^ ;]*' | head -1)\" | head -1",
+        "expect_regex": "cpuPSI|psi_avg10"
       },
       {
         "id": "freeze_guard_unkillable",
