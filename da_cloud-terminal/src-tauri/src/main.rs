@@ -628,6 +628,46 @@ fn proc_kill(pid: u32, force: bool) -> Result<(), String> {
         .and_then(|s| if s.success() { Ok(()) } else { Err(format!("kill exited {s}")) })
 }
 
+// Memory panic button — runs the existing data-driven `mem-reclaim` engine
+// (~/.local/bin/mem-reclaim; cgroup-based, spares the KDE session + this
+// terminal/Claude scope). Returns its stdout/stderr summary. dry=true previews.
+#[tauri::command]
+fn mem_reclaim(dry: bool) -> Result<String, String> {
+    let bin = std::env::var("HOME").ok()
+        .map(|h| format!("{h}/.local/bin/mem-reclaim"))
+        .filter(|p| std::path::Path::new(p).exists())
+        .unwrap_or_else(|| "mem-reclaim".to_string());
+    let mut cmd = std::process::Command::new(&bin);
+    if dry { cmd.arg("--dry-run"); }
+    let out = cmd.output().map_err(|e| format!("{bin}: {e}"))?;
+    let mut s = String::from_utf8_lossy(&out.stdout).into_owned();
+    s.push_str(&String::from_utf8_lossy(&out.stderr));
+    Ok(s)
+}
+
+// Zombie reaper. Zombies are already dead; only their parent can reap them,
+// so we scan /proc for state 'Z', collect the distinct parents, and send each
+// a SIGCHLD to nudge it to wait() (skips init — pid 1 auto-reaps).
+#[tauri::command]
+fn zombie_reap() -> Result<Value, String> {
+    let mut zombies = 0u32;
+    let mut parents: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    for entry in std::fs::read_dir("/proc").map_err(|e| e.to_string())?.flatten() {
+        let pid: u32 = match entry.file_name().to_string_lossy().parse() { Ok(p) => p, Err(_) => continue };
+        let stat = match std::fs::read_to_string(format!("/proc/{pid}/stat")) { Ok(s) => s, Err(_) => continue };
+        // comm (field 2) is parenthesized and may contain spaces → parse after last ')'.
+        let after = match stat.rfind(')') { Some(i) => &stat[i + 1..], None => continue };
+        let mut it = after.split_whitespace();
+        let state = it.next().unwrap_or("");
+        let ppid: u32 = it.next().and_then(|x| x.parse().ok()).unwrap_or(0);
+        if state == "Z" { zombies += 1; if ppid > 1 { parents.insert(ppid); } }
+    }
+    for pp in &parents {
+        let _ = std::process::Command::new("kill").arg("-CHLD").arg(pp.to_string()).status();
+    }
+    Ok(serde_json::json!({ "zombies": zombies, "parents_nudged": parents.len() }))
+}
+
 // ── init payload for the renderer (mirrors the Electron 'init' send) ──
 #[tauri::command]
 fn get_init(window: tauri::WebviewWindow, state: tauri::State<AppState>) -> Value {
@@ -881,7 +921,7 @@ fn main() {
         }))
         .manage(state)
         .invoke_handler(tauri::generate_handler![
-            pty_start, pty_input, pty_resize, pty_kill, proc_kill, run_item, get_init, sys_stats
+            pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap, run_item, get_init, sys_stats
         ])
         .setup(|app| {
             build_and_show(&app.handle().clone());
