@@ -11,11 +11,11 @@
   },
 
   "gui_session": {
-    "_comment": "user-1000.slice (the KDE Plasma desktop). MemoryMin = RAM the kernel is FORBIDDEN to reclaim, so the compositor (kwin/plasmashell) stays responsive under build pressure. 2026-07-02 FIX: MemorySwapMax=0 also blocked ZRAM (cgroup swap caps can't distinguish zram from disk) — with MemoryHigh below the real working set the kernel could only evict file-backed pages (running executables), which faulted straight back through kcryptd/btrfs = the freeze. Bounded 2G swap valve lands on zram (prio 100) not the disk swapfile (prio -1).",
+    "_comment": "user-1000.slice (the KDE Plasma desktop). MemoryMin = RAM the kernel is FORBIDDEN to reclaim, so the compositor (kwin/plasmashell) stays responsive under build pressure. 2026-07-02 FIX: MemorySwapMax=0 also blocked ZRAM (cgroup swap caps can't distinguish zram from disk) — with MemoryHigh below the real working set the kernel could only evict file-backed pages (running executables), which faulted straight back through kcryptd/btrfs = the freeze. 2026-07-03: valve 2G→6G — the 2G valve saturated (Redroid + multi-claude workload), reclaim had nowhere to spill while 17G of zram sat FREE, MemAvailable collapsed to 2% and earlyoom killed sessions/imports at near-zero PSI. 6G still lands zram-first (prio 100 vs disk -1); the disk swapfile is touched only after ~7.6G compressed zram truly fills.",
     "MemoryMin": "1G",
     "MemoryHigh": "4505M",
     "MemoryMax": "5734M",
-    "MemorySwapMax": "2048M"
+    "MemorySwapMax": "6G"
   },
 
   "reservation": {
@@ -89,7 +89,7 @@
         "id": "gui_swap_valve",
         "description": "user-1000.slice has a bounded 2G swap valve (zram-first) — not 0 (file-page thrash) and not unlimited (disk thrash)",
         "command": "systemctl show user-1000.slice -p MemorySwapMax --value",
-        "expect_regex": "^2147483648$"
+        "expect_regex": "^6442450944$"
       },
       {
         "id": "gui_mem_high_above_working_set",

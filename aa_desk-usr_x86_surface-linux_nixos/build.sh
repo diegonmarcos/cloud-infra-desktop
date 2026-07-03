@@ -1559,6 +1559,22 @@ pull_remote() {
     [ -f "$art/toplevel.name" ] || { error "missing $art/toplevel.name"; return 1; }
     local sys="/nix/store/$(cat "$art/toplevel.name")"
 
+    # Reinforce the declared user-slice limits BEFORE importing — the pull
+    # path had no reinforce step (only _rebuild_exec did), so a stale live
+    # swap valve stayed saturated, MemAvailable collapsed and earlyoom
+    # SIGKILLed the import at 2% avail while 17G of zram sat free.
+    local _sp_json="$FLAKE_PATH/modules/cloud-data-system-protection.json"
+    local _sudo_p="/run/wrappers/bin/sudo"; [ -x "$_sudo_p" ] || _sudo_p="sudo"
+    if command -v jq >/dev/null 2>&1 && [ -f "$_sp_json" ]; then
+        $_sudo_p systemctl set-property --runtime user-1000.slice \
+            MemoryMin="$(jq -r .gui_session.MemoryMin "$_sp_json")" \
+            MemoryHigh="$(jq -r .gui_session.MemoryHigh "$_sp_json")" \
+            MemoryMax="$(jq -r .gui_session.MemoryMax "$_sp_json")" \
+            MemorySwapMax="$(jq -r .gui_session.MemorySwapMax "$_sp_json")" \
+            || warn "pull: user-1000.slice reinforce failed"
+        log "Reinforced user-1000.slice from gui_session (swap valve live)"
+    fi
+
     log "Importing closure into the store (no build)…"
     # Import runs inside a capped transient scope, data-driven from
     # cloud-data-nix-build.json pull_scope. 2026-07-03: an uncapped import
