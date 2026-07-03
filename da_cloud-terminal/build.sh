@@ -137,10 +137,10 @@ case "$CMD" in
     log "resolving runtime libs from flake…"
     ldp="$(in_nix sh -c 'printf %s "$LD_LIBRARY_PATH"')"
     [ -z "$ldp" ] && { errlog "could not resolve LD_LIBRARY_PATH from flake"; exit 1; }
-    log "launching $bin (profile ${2:-nix-flakes}, multi-tray) in user env"
+    log "launching $bin (profile ${2:-home}, multi-tray) in user env"
     env LD_LIBRARY_PATH="$ldp" \
       CT_APP_DIR="$SRC" CT_ASSETS_DIR="$SRC/assets" CT_PROFILES_DIR="$SRC/data" \
-      CT_PROFILE="${2:-nix-flakes}" CT_MULTI=1 CT_SHELL=fish \
+      CT_PROFILE="${2:-home}" CT_MULTI=1 CT_SHELL=fish \
       WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=wayland,x11 \
       "$bin" --show
     ;;

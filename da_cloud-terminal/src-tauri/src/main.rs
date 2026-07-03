@@ -803,6 +803,114 @@ fn cloud_ping(url: String) -> Value {
     }
 }
 
+// ══ Data Sync Center — local data topology + peers + releases ═══════
+fn sh_out(prog: &str, args: &[&str]) -> String {
+    std::process::Command::new(prog).args(args).output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned()).unwrap_or_default()
+}
+fn data_cfg() -> Value {
+    let dir = std::env::var("CT_PROFILES_DIR").unwrap_or_else(|_| format!("{}/data", env_or("CT_APP_DIR", ".")));
+    std::fs::read_to_string(format!("{dir}/data-sync.json")).ok()
+        .and_then(|s| serde_json::from_str(&s).ok()).unwrap_or(Value::Null)
+}
+
+// Fast local aggregate: mounts, docker volumes, fuse, usb, rclone remotes, git
+// repo statuses + the data-driven config (peers / rules). No network.
+#[tauri::command]
+fn data_sync() -> Value {
+    let cfg = data_cfg();
+    let home = env_or("HOME", "/home");
+    // Mounts (bytes). Keep real filesystems; split out fuse.* for its own panel.
+    let real = ["btrfs", "ext4", "ext3", "vfat", "xfs", "zfs", "ntfs", "ntfs3", "exfat"];
+    let mnt_json: Value = serde_json::from_str(&sh_out("findmnt", &["-J", "-l", "-b", "-o", "TARGET,SOURCE,FSTYPE,SIZE,USED,AVAIL,USE%"])).unwrap_or(Value::Null);
+    let (mut mounts, mut fuse) = (Vec::new(), Vec::new());
+    if let Some(fs) = mnt_json["filesystems"].as_array() {
+        for m in fs {
+            let ft = m["fstype"].as_str().unwrap_or("");
+            let row = serde_json::json!({
+                "target": m["target"], "source": m["source"], "fstype": ft,
+                "size": m["size"], "used": m["used"], "avail": m["avail"], "usep": m["use%"],
+            });
+            if ft.starts_with("fuse") { fuse.push(row); }
+            else if real.contains(&ft) { mounts.push(row); }
+        }
+    }
+    // Docker volumes
+    let volumes: Vec<Value> = sh_out("docker", &["volume", "ls", "--format", "{{json .}}"])
+        .lines().filter_map(|l| serde_json::from_str::<Value>(l).ok()).collect();
+    // USB / removable
+    let lsblk: Value = serde_json::from_str(&sh_out("lsblk", &["-J", "-b", "-o", "NAME,RM,SIZE,TYPE,MOUNTPOINT,FSTYPE,LABEL"])).unwrap_or(Value::Null);
+    let mut usb = Vec::new();
+    if let Some(bd) = lsblk["blockdevices"].as_array() {
+        for d in bd { if d["rm"].as_bool() == Some(true) || d["rm"].as_i64() == Some(1) { usb.push(d.clone()); } }
+    }
+    // rclone remotes (name → {type})
+    let rclone: Value = serde_json::from_str(&sh_out("rclone", &["config", "dump"])).unwrap_or(Value::Null);
+    let remotes: Vec<Value> = rclone.as_object().map(|o| o.iter().map(|(k, v)|
+        serde_json::json!({ "name": k, "type": v["type"].as_str().unwrap_or("") })).collect()).unwrap_or_default();
+    // Git repos
+    let groot = cfg["git_root"].as_str().unwrap_or("git");
+    let mut repos = Vec::new();
+    if let Some(list) = cfg["git_repos"].as_array() {
+        for r in list.iter().filter_map(|x| x.as_str()) {
+            let dir = format!("{home}/{groot}/{r}");
+            if !std::path::Path::new(&dir).exists() { continue; }
+            let g = |a: &[&str]| { let mut v = vec!["-C", &dir]; v.extend_from_slice(a); sh_out("git", &v).trim().to_string() };
+            let ab = g(&["rev-list", "--left-right", "--count", "@{u}...HEAD"]);
+            let mut abi = ab.split_whitespace();
+            let dirty = sh_out("git", &["-C", &dir, "status", "--porcelain"]).lines().count();
+            repos.push(serde_json::json!({
+                "name": r, "branch": g(&["rev-parse", "--abbrev-ref", "HEAD"]),
+                "behind": abi.next().unwrap_or("0").parse::<u32>().unwrap_or(0),
+                "ahead": abi.next().unwrap_or("0").parse::<u32>().unwrap_or(0),
+                "dirty": dirty, "last": g(&["log", "-1", "--format=%h · %cr · %s"]),
+            }));
+        }
+    }
+    serde_json::json!({
+        "mounts": mounts, "fuse": fuse, "volumes": volumes, "usb": usb,
+        "remotes": remotes, "repos": repos,
+        "peers": cfg["peers"], "rclone_rules": cfg["rclone_rules"],
+        "s3_types": cfg["s3_remote_types"], "gh_repos": cfg["gh_repos"],
+    })
+}
+
+// GHCR container packages + latest GitHub releases (network; called separately
+// so the dashboard renders instantly then fills these in).
+#[tauri::command]
+fn data_gh() -> Value {
+    let ghcr: Value = serde_json::from_str(&sh_out("gh", &["api", "user/packages?package_type=container&per_page=100",
+        "--jq", "[.[]|{name:.name, versions:.version_count, visibility:.visibility, updated:.updated_at}]"])).unwrap_or(Value::Array(vec![]));
+    let mut releases = Vec::new();
+    let cfg = data_cfg();
+    if let Some(repos) = cfg["gh_repos"].as_array() {
+        for r in repos.iter().filter_map(|x| x.as_str()) {
+            let out = sh_out("gh", &["release", "list", "--repo", r, "--limit", "5", "--json", "tagName,name,publishedAt,isLatest"]);
+            if let Ok(v) = serde_json::from_str::<Value>(&out) {
+                if let Some(a) = v.as_array() { if !a.is_empty() { releases.push(serde_json::json!({ "repo": r, "releases": v })); } }
+            }
+        }
+    }
+    serde_json::json!({ "ghcr": ghcr, "releases": releases })
+}
+
+// Peer reachability for the sync-peers panel. local → always up; ssh → probe.
+#[tauri::command]
+fn peer_ping(host: String, local: bool) -> Value {
+    if local { return serde_json::json!({ "host": host, "up": true, "info": "this machine" }); }
+    let out = std::process::Command::new("ssh")
+        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=6", &host, "echo up; uptime -p 2>/dev/null"])
+        .output();
+    match out {
+        Ok(o) if o.status.success() => {
+            let s = String::from_utf8_lossy(&o.stdout);
+            let info = s.lines().nth(1).unwrap_or("").trim().to_string();
+            serde_json::json!({ "host": host, "up": true, "info": info })
+        }
+        _ => serde_json::json!({ "host": host, "up": false, "info": "unreachable" }),
+    }
+}
+
 // ── init payload for the renderer (mirrors the Electron 'init' send) ──
 #[tauri::command]
 fn get_init(window: tauri::WebviewWindow, state: tauri::State<AppState>) -> Value {
@@ -829,7 +937,7 @@ fn get_init(window: tauri::WebviewWindow, state: tauri::State<AppState>) -> Valu
 fn build_and_show(app: &AppHandle) {
     let state = app.state::<AppState>();
     let multi = std::env::var("CT_MULTI").is_ok();
-    let primary = env_or("CT_PROFILE", "nix-flakes");
+    let primary = env_or("CT_PROFILE", "home");
     let assets_dir = env_or(
         "CT_ASSETS_DIR",
         &format!("{}/assets", env_or("CT_APP_DIR", ".")),
@@ -1057,7 +1165,8 @@ fn main() {
         .manage(state)
         .invoke_handler(tauri::generate_handler![
             pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap, journal_feed,
-            cloud_targets, cloud_vm, cloud_logs, cloud_ping, run_item, get_init, sys_stats
+            cloud_targets, cloud_vm, cloud_logs, cloud_ping, data_sync, data_gh, peer_ping,
+            run_item, get_init, sys_stats
         ])
         .setup(|app| {
             build_and_show(&app.handle().clone());
