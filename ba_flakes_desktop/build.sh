@@ -926,8 +926,15 @@ cmd_switch_runner() {
         if [ "$_expired" = "true" ]; then
             log_warn "artifact on run $_rid is expired — trying older run..."; continue
         fi
-        # Disk precheck (KB): need ~2.2× compressed size (zip + in-place unzip).
-        _need_kb=$(( _size / 1024 * 22 / 10 ))
+        # Disk precheck (KB): `gh run download` unzips the artifact so its ONE
+        # extracted file (hm-closure.nar.zst) sits on disk at ~compressed size —
+        # no separate lingering zip. `nix-store --import` streams that file and
+        # writes only the NEW store paths (most of the closure is already
+        # present from prior generations), so the import delta is small.
+        # Observed in practice: disk usage tracks ~1:1 with the growing
+        # .nar.zst file. 1.3× gives headroom for the import delta without the
+        # earlier 2.2× guess (unzip-then-copy) that doesn't match this format.
+        _need_kb=$(( _size / 1024 * 13 / 10 ))
         _free_kb="$(df -Pk "$SCRIPT_DIR" | awk 'END{print $4}')"
         if [ "$_free_kb" -lt "$_need_kb" ]; then
             log_error "not enough disk for the closure: need ~$(( _need_kb/1024/1024 ))G free, have $(( _free_kb/1024/1024 ))G on $(df -Ph "$SCRIPT_DIR" | awk 'END{print $6}')."
