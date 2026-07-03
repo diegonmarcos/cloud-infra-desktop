@@ -1,0 +1,10 @@
+{
+  "_comment": "Cloud Control Center targets. VM list is the data-driven source; containers are discovered live per VM via `docker ps` over the SSH mesh (WireGuard). ssh = the SSH alias (must resolve in ~/.ssh/config), wg = WireGuard IP, pub = a public health URL for a quick edge ping. Mirrors cloud-data B.1; regenerate if the fleet changes.",
+  "version": 1,
+  "vms": [
+    { "alias": "gcp-proxy",     "wg": "10.0.0.1", "label": "GCloud E2 — Proxy + Control",        "pub": "https://proxy.diegonmarcos.com" },
+    { "alias": "oci-apps",      "wg": "10.0.0.6", "label": "Oracle A1 — Apps (4 OCPU / 24 GB)",  "pub": "https://git.diegonmarcos.com" },
+    { "alias": "oci-analytics", "wg": "10.0.0.4", "label": "Oracle E2 — Analytics + Workflows",  "pub": "https://analytics.diegonmarcos.com" },
+    { "alias": "oci-mail",      "wg": "10.0.0.3", "label": "Oracle E2 — Mail Server",            "pub": "https://mail.diegonmarcos.com" }
+  ]
+}
