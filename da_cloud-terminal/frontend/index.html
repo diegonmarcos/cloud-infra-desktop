@@ -767,7 +767,7 @@ function makeMonitor(tabId) {
           <button data-k="all" class="all" title="Diagnose the worst PSI and kill exactly that culprit">⚡ Clean All</button>
         </div>
         <div class="ptbl-wrap"><table class="ptbl proc-tbl">
-          <thead><tr><th class="num">PID</th><th>USER</th><th class="num">CPU%</th><th class="num">MEM%</th><th class="num" title="Pressure of the process's cgroup (worst of cpu/io/mem)">PSI</th><th class="num">IO</th><th class="num">TIME+</th><th>NAME</th><th id="m-hierh-${id}">HIERARCHY</th></tr></thead>
+          <thead><tr><th class="num">PID</th><th>USER</th><th class="num">CPU%</th><th class="num">MEM%</th><th class="num" title="Pressure of the process's cgroup (worst of cpu/io/mem)">PSI</th><th class="num">IO</th><th class="num">TIME+</th><th>NAME</th><th id="m-hierh-${id}">LINEAGE</th></tr></thead>
           <tbody id="m-proc-${id}"></tbody></table></div></div>
     </div>`
   const hist = { cpu: [], mem: [], rx: [], tx: [] }
@@ -839,7 +839,7 @@ function makeMonitor(tabId) {
     for (const p of (s.procs_all || [])) procIndex.set(p.pid, p)
     const hdr = $('#m-hierh-' + id)
     if (viewMode === 'tree') {
-      if (hdr) hdr.textContent = 'HIERARCHY'
+      if (hdr) hdr.textContent = 'LINEAGE'
       $('#m-proc-' + id).innerHTML = renderTree(s.procs_all || [])
     } else {
       let list
