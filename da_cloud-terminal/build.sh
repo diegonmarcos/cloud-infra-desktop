@@ -141,7 +141,7 @@ case "$CMD" in
     env LD_LIBRARY_PATH="$ldp" \
       CT_APP_DIR="$SRC" CT_ASSETS_DIR="$SRC/assets" CT_PROFILES_DIR="$SRC/data" \
       CT_PROFILE="${2:-nix-flakes}" CT_MULTI=1 CT_SHELL=fish \
-      WEBKIT_DISABLE_COMPOSITING_MODE=1 GDK_BACKEND=wayland,x11 \
+      WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=wayland,x11 \
       "$bin" --show
     ;;
   install)
