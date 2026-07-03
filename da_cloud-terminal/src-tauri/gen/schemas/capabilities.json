@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Core permissions for all cloud-terminal profile windows: custom command invoke + the JS event API (listen/emit) the PTY bridge relies on.","local":true,"windows":["*"],"permissions":["core:default","core:event:default","core:window:default","core:webview:default","core:app:default"]}}
