@@ -292,6 +292,35 @@
   .pd .pdbtns button.warn:hover { border-color: #fbbf24; color: #fbbf24; }
   .pd .pdbtns button.crit:hover { border-color: #f87171; color: #f87171; }
 
+  /* ══ Journal Logs dashboard ════════════════════════════════════════ */
+  .leaf.journal { padding: 0; overflow: hidden; background:
+    radial-gradient(1200px 600px at 20% -10%, #15172b 0%, var(--bg) 60%); }
+  .jrn { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 11px; }
+  .jrn-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; flex-shrink: 0; }
+  .jstat { background: rgba(19,20,31,.72); border: 1px solid var(--sep); border-radius: 8px; padding: 7px 10px;
+    display: flex; flex-direction: column; gap: 1px; }
+  .jstat .n { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; color: #e2e8f0; line-height: 1.1; }
+  .jstat .l { font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; }
+  .jstat.err .n { color: #f87171; } .jstat.warn .n { color: #fbbf24; } .jstat.info .n { color: var(--accent2); }
+  .jrn-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--item-bg);
+    border: 1px solid var(--sep); flex-shrink: 0; }
+  .jrn-bar > i { height: 100%; }
+  .jrn-tools { display: flex; gap: 6px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
+  .jrn-search { flex: 1 1 160px; min-width: 120px; padding: 4px 9px; background: var(--item-bg); color: var(--fg);
+    border: 1px solid var(--sep); border-radius: 5px; font-family: inherit; font-size: 11px; outline: none; }
+  .jrn-search:focus { border-color: var(--accent); }
+  .jrn-count { color: #6b7280; font-size: 10px; font-variant-numeric: tabular-nums; }
+  .jrn-feed { flex: 1 1 0; min-height: 0; overflow-y: auto; border: 1px solid var(--sep); border-radius: 8px;
+    background: rgba(12,13,22,.6); }
+  .jrn-feed::-webkit-scrollbar { width: 7px; } .jrn-feed::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
+  .jline { display: grid; grid-template-columns: 78px 52px 160px 1fr; gap: 8px; padding: 1px 8px;
+    border-bottom: 1px solid rgba(255,255,255,.03); }
+  .jline:hover { background: rgba(123,127,255,.08); }
+  .jline .jt { color: #6b7280; font-variant-numeric: tabular-nums; }
+  .jline .jp { font-weight: 600; text-transform: uppercase; font-size: 9px; align-self: center; }
+  .jline .ju { color: var(--accent2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .jline .jm { color: #cbd5e1; white-space: pre-wrap; word-break: break-word; user-select: text; }
+
   #ctxmenu {
     position: fixed; z-index: 1000; display: none; min-width: 170px; padding: 4px;
     background: var(--sidebar); border: 1px solid var(--sep); border-radius: 6px;
@@ -907,24 +936,97 @@ function makeMonitor(tabId) {
   return { id, leaf }
 }
 
-function newMonitorTab() {
+// ══ Journal Logs dashboard (no PTY) — stats on top, live feed below ══
+const JPRIO = ['emerg', 'alert', 'crit', 'err', 'warn', 'notice', 'info', 'debug']
+function jColor(p) { return p <= 3 ? '#f87171' : p === 4 ? '#fbbf24' : p === 5 ? '#22d3ee' : p === 6 ? '#9aa4b2' : '#5b6270' }
+function makeJournal(tabId) {
+  const id = ++paneSeq
+  const leaf = document.createElement('div')
+  leaf.className = 'leaf journal'; leaf.dataset.pane = String(id)
+  leaf.innerHTML = `
+    <div class="jrn">
+      <div class="jrn-stats" id="j-stats-${id}"></div>
+      <div class="jrn-bar" id="j-bar-${id}" title="log entries by priority"></div>
+      <div class="jrn-tools">
+        <span class="ptbl-tabs" id="j-scope-${id}"><button data-v="all" class="on">ALL</button><button data-v="system">SYSTEM</button><button data-v="user">USER</button></span>
+        <span class="ptbl-tabs" id="j-prio-${id}"><button data-v="all" class="on">ALL</button><button data-v="3">ERR</button><button data-v="4">WARN</button><button data-v="6">INFO</button></span>
+        <input class="jrn-search" id="j-search-${id}" placeholder="🔍  filter unit / message…" autocomplete="off" spellcheck="false">
+        <span class="jrn-count" id="j-count-${id}"></span>
+        <button class="cpbtn" id="j-refresh-${id}" title="Reload">↻</button>
+        <button class="cpbtn on" id="j-auto-${id}" title="Auto-refresh (5s)">⏱ auto</button>
+        <button class="cpbtn" id="j-copy-${id}" title="Copy filtered feed">⎘</button>
+      </div>
+      <div class="jrn-feed" id="j-feed-${id}"></div>
+    </div>`
+  let rows = [], scope = 'all', prio = 'all', q = '', auto = true
+  const $ = s => leaf.querySelector(s)
+  const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+  const passes = r => (scope === 'all' || r.src === scope) && (prio === 'all' || r.prio <= +prio) &&
+    (!q || (r.unit + ' ' + r.msg).toLowerCase().indexOf(q) !== -1)
+  const jt = t => { const d = new Date(t); return d.toLocaleTimeString('en-GB') + '.' + String(d.getMilliseconds()).padStart(3, '0') }
+
+  function render() {
+    const tot = rows.length || 1
+    let err = 0, warn = 0, info = 0, sys = 0, usr = 0; const hist = Array(8).fill(0)
+    for (const r of rows) { hist[r.prio] = (hist[r.prio] || 0) + 1; if (r.prio <= 3) err++; else if (r.prio === 4) warn++; else info++; r.src === 'system' ? sys++ : usr++ }
+    $('#j-stats-' + id).innerHTML = [['total', rows.length, ''], ['errors', err, 'err'], ['warnings', warn, 'warn'], ['info+', info, 'info'], ['system', sys, ''], ['user', usr, '']]
+      .map(([l, n, c]) => `<div class="jstat ${c}"><span class="n">${n}</span><span class="l">${l}</span></div>`).join('')
+    $('#j-bar-' + id).innerHTML = hist.map((c, p) => c ? `<i style="width:${(c / rows.length * 100).toFixed(2)}%;background:${jColor(p)}" title="${JPRIO[p]}: ${c}"></i>` : '').join('')
+    const f = rows.filter(passes).slice(0, 800)
+    $('#j-count-' + id).textContent = f.length + ' / ' + rows.length
+    $('#j-feed-' + id).innerHTML = f.map(r =>
+      `<div class="jline"><span class="jt">${jt(r.t)}</span>` +
+      `<span class="jp" style="color:${jColor(r.prio)}">${JPRIO[r.prio] || r.prio}</span>` +
+      `<span class="ju" title="${esc(r.unit)} · ${r.src} · pid ${r.pid}">${esc(r.unit)}</span>` +
+      `<span class="jm">${esc(r.msg)}</span></div>`).join('')
+  }
+  async function load() {
+    try { rows = await invoke('journal_feed', { n: 600 }) } catch (_) { rows = [] }
+    if (!leaf.isConnected) return
+    render()
+  }
+  const segClick = (sel, set) => $(sel).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return
+    set(b.dataset.v); for (const x of $(sel).children) x.classList.toggle('on', x === b); render()
+  })
+  segClick('#j-scope-' + id, v => scope = v)
+  segClick('#j-prio-' + id, v => prio = v)
+  $('#j-search-' + id).addEventListener('input', e => { q = e.target.value.trim().toLowerCase(); render() })
+  $('#j-refresh-' + id).addEventListener('click', load)
+  $('#j-auto-' + id).addEventListener('click', () => { auto = !auto; $('#j-auto-' + id).classList.toggle('on', auto) })
+  $('#j-copy-' + id).addEventListener('click', () => {
+    const f = rows.filter(passes).slice(0, 800)
+    clip.write(f.map(r => `${jt(r.t)} ${JPRIO[r.prio] || r.prio} ${r.src} ${r.unit}: ${r.msg}`).join('\n'))
+    const b = $('#j-copy-' + id), t = b.textContent; b.textContent = '✓'; setTimeout(() => b.textContent = t, 1200)
+  })
+  const timer = setInterval(() => { if (auto) load() }, 5000)
+  load()
+  leaf.addEventListener('mousedown', () => focusPane(id), true)
+  panes.set(id, { leaf, tabId, kind: 'journal', stop: () => clearInterval(timer) })
+  return { id, leaf }
+}
+
+// Generic special-pane tab (no PTY): monitor / journal / cloud dashboards.
+function newSpecialTab(makeFn, labelText) {
   const tabId = ++tabSeq
   const root = document.createElement('div')
   root.className = 'tab-root'; root.dataset.tab = String(tabId)
   document.getElementById('terms').appendChild(root)
   const btn = document.createElement('button')
   btn.className = 'term-tab'
-  const label = document.createElement('span'); label.textContent = '📊 monitor'
+  const label = document.createElement('span'); label.textContent = labelText
   const close = document.createElement('span'); close.className = 'close'; close.textContent = '×'
   close.onclick = ev => { ev.stopPropagation(); closeTab(tabId) }
   btn.append(label, close); btn.onclick = () => activateTab(tabId)
   document.getElementById('termtabs').insertBefore(btn, document.getElementById('newmon'))
   tabs.set(tabId, { root, btn, title: label })
-  const made = makeMonitor(tabId)
+  const made = makeFn(tabId)
   root.appendChild(made.leaf)
   activateTab(tabId); focusPane(made.id)
   return tabId
 }
+function newMonitorTab() { return newSpecialTab(makeMonitor, '📊 monitor') }
+function newJournalTab() { return newSpecialTab(makeJournal, '📜 journal') }
 
 function paneIdOf(leaf) { return parseInt(leaf.dataset.pane, 10) }
 
@@ -958,7 +1060,7 @@ function splitActive(dir) {
 function closePane(id) {
   const p = panes.get(id)
   if (!p) return
-  if (p.kind === 'monitor') { try { p.stop() } catch (_) {} }
+  if (p.stop) { try { p.stop() } catch (_) {} }   // special pane (monitor/journal): clear its timer
   else { invoke('pty_kill', { id }); try { p.term.dispose() } catch (_) {} }
   const leaf = p.leaf, parent = leaf.parentElement
   panes.delete(id)
@@ -1044,7 +1146,7 @@ function activateTab(id) {
 function closeTab(id) {
   const t = tabs.get(id)
   if (!t) return
-  for (const [pid, p] of [...panes]) if (p.tabId === id) { invoke('pty_kill', { id: pid }); try { p.term.dispose() } catch (_) {} panes.delete(pid) }
+  for (const [pid, p] of [...panes]) if (p.tabId === id) { if (p.stop) { try { p.stop() } catch (_) {} } else { invoke('pty_kill', { id: pid }); try { p.term.dispose() } catch (_) {} } panes.delete(pid) }
   t.root.remove(); t.btn.remove()
   tabs.delete(id)
   if (activeTab === id) {
@@ -1098,6 +1200,7 @@ function buildSidebar(profile) {
       btn.dataset.search = ((item.label || '') + ' ' + (item.arg || '')).toLowerCase()
       btn.onclick = () => {
         if (item.type === 'monitor') { newMonitorTab(); return }   // open our dashboard, don't type a command
+        if (item.type === 'journal') { newJournalTab(); return }
         runItem({ ...item, profile: profile.name, ptyId: activePane }); focusActivePaneTerm()
       }
       grp.appendChild(btn)
@@ -1163,6 +1266,7 @@ async function init() {
     for (const t of dts) {
       let tid
       if (t.type === 'monitor') { tid = newMonitorTab() }
+      else if (t.type === 'journal') { tid = newJournalTab() }
       else { tid = newTab(); if (t.type === 'command' && t.cmd) autoRun(t.cmd) }
       if (firstTab == null) firstTab = tid
     }

@@ -12,6 +12,7 @@
   "default_tabs": [
     { "type": "shell",   "title": "greeting" },
     { "type": "monitor", "title": "sys-performance" },
+    { "type": "journal", "title": "journal-logs" },
     { "type": "command", "title": "connect", "cmd": "sh ~/git/tools/dtk.sh connect" }
   ],
   "sections": [
@@ -20,6 +21,7 @@
       "items": [
         { "label": "🐟  Fish Greeting",      "type": "shell",   "arg": "_show_welcome" },
         { "label": "📊  System Performance", "type": "monitor", "arg": "" },
+        { "label": "📜  Journal Logs",       "type": "journal", "arg": "" },
         { "label": "🔗  Connect Dashboard",  "type": "shell",   "arg": "sh ~/git/tools/dtk.sh connect" }
       ]
     }

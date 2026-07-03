@@ -668,6 +668,49 @@ fn zombie_reap() -> Result<Value, String> {
     Ok(serde_json::json!({ "zombies": zombies, "parents_nudged": parents.len() }))
 }
 
+// Journal feed: merge system + user journals (last `n` each) as structured
+// rows tagged by source. All filtering (scope/priority/unit/search) happens
+// client-side over this set, so a filter change needs no re-fetch.
+#[tauri::command]
+fn journal_feed(n: Option<u32>) -> Result<Value, String> {
+    let n = n.unwrap_or(500).to_string();
+    let field = |v: &Value, k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
+    // MESSAGE is usually a string, but binary/multiline logs arrive as a byte array.
+    let message = |v: &Value| -> String {
+        match v.get("MESSAGE") {
+            Some(Value::String(s)) => s.clone(),
+            Some(Value::Array(a)) => String::from_utf8_lossy(
+                &a.iter().filter_map(|x| x.as_u64().map(|b| b as u8)).collect::<Vec<u8>>()).into_owned(),
+            _ => String::new(),
+        }
+    };
+    let mut rows: Vec<Value> = Vec::new();
+    for (src, user) in [("system", false), ("user", true)] {
+        let mut cmd = std::process::Command::new("journalctl");
+        cmd.arg("--no-pager").arg("-o").arg("json").arg("-n").arg(&n);
+        if user { cmd.arg("--user"); }
+        let out = match cmd.output() { Ok(o) => o, Err(_) => continue };
+        for line in String::from_utf8_lossy(&out.stdout).lines() {
+            let v: Value = match serde_json::from_str(line) { Ok(v) => v, Err(_) => continue };
+            let unit = { let s = field(&v, "_SYSTEMD_UNIT"); if s.is_empty() { field(&v, "_SYSTEMD_USER_UNIT") } else { s } };
+            let ident = field(&v, "SYSLOG_IDENTIFIER");
+            let name = if !unit.is_empty() { unit } else if !ident.is_empty() { ident } else { field(&v, "_COMM") };
+            rows.push(serde_json::json!({
+                "src": src,
+                "t": field(&v, "__REALTIME_TIMESTAMP").parse::<u64>().unwrap_or(0) / 1000, // ms
+                "prio": field(&v, "PRIORITY").parse::<u8>().unwrap_or(6),
+                "unit": name,
+                "pid": field(&v, "_PID"),
+                "uid": field(&v, "_UID"),
+                "host": field(&v, "_HOSTNAME"),
+                "msg": message(&v),
+            }));
+        }
+    }
+    rows.sort_by(|a, b| b["t"].as_u64().unwrap_or(0).cmp(&a["t"].as_u64().unwrap_or(0)));
+    Ok(Value::Array(rows))
+}
+
 // ── init payload for the renderer (mirrors the Electron 'init' send) ──
 #[tauri::command]
 fn get_init(window: tauri::WebviewWindow, state: tauri::State<AppState>) -> Value {
@@ -921,7 +964,7 @@ fn main() {
         }))
         .manage(state)
         .invoke_handler(tauri::generate_handler![
-            pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap, run_item, get_init, sys_stats
+            pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap, journal_feed, run_item, get_init, sys_stats
         ])
         .setup(|app| {
             build_and_show(&app.handle().clone());
