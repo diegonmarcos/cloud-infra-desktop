@@ -1,0 +1,16 @@
+{
+  "_comment": "Data-driven bottom panel. `launchers` are freedesktop desktop-ids (resolved as applications:<id>.desktop) pinned in the icon-tasks widget, in order. `pager_names` name the 4 virtual desktops. The system-monitor widget sensor IDs live in bottom-panel.nix (they are fixed KSystemStats identifiers, not project data). PSI (pressure) is intentionally absent — KSystemStats exposes no /proc/pressure sensor; PSI lives in Cloud-Terminal → System Performance.",
+  "height": 46,
+  "pager_names": ["Desk1", "Desk2", "Desk3", "Desk4"],
+  "launchers": [
+    "org.kde.konsole",
+    "cloud-terminal",
+    "org.kde.dolphin",
+    "org.qutebrowser.qutebrowser",
+    "brave-browser",
+    "org.kde.kate",
+    "obsidian",
+    "systemsettings",
+    "redroid"
+  ]
+}
