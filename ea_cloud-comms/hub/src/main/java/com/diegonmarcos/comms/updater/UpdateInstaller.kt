@@ -33,6 +33,15 @@ internal class UpdateInstaller(private val context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // Without an explicit package source, Android 14/15 Enhanced
+                // Confirmation Mode treats the install as an untrusted sideload
+                // and RESTRICTS the installed app — Settings then refuses to
+                // grant it protected roles (e.g. the dialer fork's default-Phone
+                // / call-screening roles) with the "restricted setting" denial.
+                // The hub's GHCR fleet updater IS the constellation's app store.
+                setPackageSource(PackageInstaller.PACKAGE_SOURCE_STORE)
+            }
         }
         val sessionId = installer.createSession(params)
         installer.openSession(sessionId).use { session ->
