@@ -83,8 +83,14 @@ container_running() { docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$(
 container_exists()  { docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$(container_name)"; }
 require_up() {
   container_running || die "redroid container '$(container_name)' is not running. Start it: ./build.sh up"
-  adb_connect
-  adb_ wait-for-device >/dev/null 2>&1 || true
+  # Bounded wait for the adb transport to reach 'device' — NEVER a bare
+  # `adb wait-for-device`, which blocks forever if the connect never lands
+  # (e.g. a stale offline transport) and hangs the whole launch.
+  local n; for n in $(seq 1 30); do
+    [ "$(adb_ get-state 2>/dev/null)" = "device" ] && return 0
+    adb_connect; sleep 1
+  done
+  warn "adb device not online within 30s ($(adb_addr))"
 }
 
 # ── Redroid data volume (host path bind-mounted to container /data) ─────────
@@ -104,7 +110,10 @@ rd_db() {
 }
 
 # ── up/down: manage the redroid container (data-driven docker args) ─────────
-cmd_up() {
+# Backend only: ensure the container exists, is running, and Android has booted.
+# NOT a user-facing launch — cmd_up wraps this and ALWAYS attaches the GUI. There
+# is deliberately no command that leaves this running headless.
+_ensure_booted() {
   command -v docker >/dev/null 2>&1 || die "docker not found (NixOS: virtualisation.docker.enable)"
   if container_running; then log "container '$(container_name)' already running"; adb_connect; return 0; fi
   local data; data="$(rd_data_root)"; sudo mkdir -p "$data"
@@ -144,8 +153,29 @@ cmd_up() {
     [ "$(rd_shell getprop "$gate" 2>/dev/null | tr -d '\r')" = "1" ] && { log "booted."; return 0; }
     sleep 2
   done
-  warn "boot gate '$gate' not 1 within 120s — container is up but Android may still be starting"
+  warn "boot gate '$gate' not 1 within 120s — continuing; the GUI may show a black screen until boot finishes"
 }
+
+# _run_gui — the ONLY way redroid is ever surfaced. Attaches scrcpy in the
+# FOREGROUND and, when the GUI window closes, stops the container. This is what
+# makes "no GUI ⇒ no running redroid" true: the detached `docker run` is only the
+# Android backend for this window, never a standalone headless runtime.
+_run_gui() {
+  require_up   # bounded wait until the container-IP adb transport is 'device' —
+               # scrcpy fails instantly if it launches before the device is online
+  local sc; sc="$(command -v scrcpy 2>/dev/null || tool scrcpy scrcpy)"
+  log "launching scrcpy GUI on $(adb_addr)…"
+  # --no-audio: redroid has no audio HAL, so the audio encoder throws
+  # NAME_NOT_FOUND and spams the log — disable it up front (video-only mirror).
+  "$sc" -s "$(adb_addr)" --no-audio --window-title "Redroid" "$@" || true
+  log "GUI closed — stopping redroid (no GUI ⇒ no running container)…"
+  cmd_down
+}
+
+# up = THE runtime launch. Boot the backend, then ALWAYS attach the GUI. Redroid
+# must NEVER be launched without the GUI, so up blocks on scrcpy and tears the
+# container down on close. `scrcpy` is an alias for the same GUI-bound launch.
+cmd_up() { _ensure_booted; _run_gui "$@"; }
 cmd_down() {
   container_exists || { log "container '$(container_name)' does not exist"; return 0; }
   log "stopping container '$(container_name)'…"; docker stop "$(container_name)" >/dev/null || true
@@ -447,13 +477,9 @@ cmd_theme() {
 # ── provision: the idempotent post-boot steps (install + layout + theme) ────
 cmd_provision() { require_up; cmd_install; cmd_layout; cmd_theme; }
 
-# ── scrcpy: mirror + control the container display over ADB ─────────────────
-cmd_scrcpy() {
-  require_up
-  local sc; sc="$(command -v scrcpy 2>/dev/null || tool scrcpy scrcpy)"
-  log "launching scrcpy on $(adb_addr)…"
-  "$sc" -s "$(adb_addr)" --window-title "Redroid" "$@"
-}
+# ── scrcpy: alias for the GUI-bound launch (boot backend + attach GUI + teardown
+# on close). Same invariant as `up` — redroid is never surfaced without the GUI.
+cmd_scrcpy() { _ensure_booted; _run_gui "$@"; }
 
 # ── home: flip the HOME launcher to the SuperApp (Phase 2) ──────────────────
 cmd_home() {
