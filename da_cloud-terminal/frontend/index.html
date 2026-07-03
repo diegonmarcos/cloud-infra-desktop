@@ -420,6 +420,14 @@
   .agi-g-wrap { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
   .agi-g-wrap canvas { flex: 1 1 0; min-height: 60px; width: 100%; display: block; }
   .agi-g-axis { display: flex; justify-content: space-between; font-size: 8px; color: #6b7280; flex-shrink: 0; margin-top: 2px; }
+  /* dual stacked graph (cost + tokens) with a numeric Y-axis on the left of each */
+  .agi-dual { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
+  .agi-g-row { flex: 1 1 0; min-height: 0; display: flex; gap: 5px; align-items: stretch; }
+  .agi-g-row .lbl { font-size: 9px; color: var(--accent2); text-transform: uppercase; letter-spacing: .05em;
+    writing-mode: vertical-rl; text-orientation: mixed; flex-shrink: 0; width: 10px; text-align: center; }
+  .agi-g-row .yaxis { width: 42px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: space-between;
+    font-size: 8px; color: #6b7280; text-align: right; padding: 2px 2px 2px 0; font-variant-numeric: tabular-nums; }
+  .agi-g-row canvas { flex: 1 1 0; min-height: 0; width: 100%; display: block; }
   .agi-model-row { display: grid; grid-template-columns: 90px 1fr 70px; gap: 8px; align-items: center; font-size: 10px; margin-bottom: 5px; }
   .agi-model-row .mn { color: var(--accent2); font-weight: 600; }
   .agi-model-row .track { height: 9px; background: var(--item-bg); border-radius: 4px; overflow: hidden; border: 1px solid var(--sep); }
@@ -1534,8 +1542,12 @@ function makeAGI(tabId) {
       <div class="agi-grid">
         <div class="panel agi-panel-wide"><div class="ph"><span>5-HOUR CYCLES</span><span class="sub">tokens · ~16 days</span></div>
           <div class="agi-g-wrap"><canvas id="a-g5h-${id}"></canvas><div class="agi-g-axis" id="a-ax5h-${id}"></div></div></div>
-        <div class="panel agi-panel-wide"><div class="ph"><span>DAY BY DAY</span><span class="sub">cost · 30 days</span></div>
-          <div class="agi-g-wrap"><canvas id="a-gday-${id}"></canvas><div class="agi-g-axis" id="a-axday-${id}"></div></div></div>
+        <div class="panel agi-panel-wide"><div class="ph"><span>DAY BY DAY</span><span class="sub">cost + tokens · 30 days</span></div>
+          <div class="agi-dual">
+            <div class="agi-g-row"><span class="lbl">$</span><div class="yaxis" id="a-gday-costy-${id}"></div><canvas id="a-gday-cost-${id}"></canvas></div>
+            <div class="agi-g-row"><span class="lbl">TOK</span><div class="yaxis" id="a-gday-toky-${id}"></div><canvas id="a-gday-tok-${id}"></canvas></div>
+          </div>
+          <div class="agi-g-axis" id="a-axday-${id}"></div></div>
         <div class="panel"><div class="ph"><span>BY MODEL</span></div><div id="a-models-${id}" style="flex:1 1 0;min-height:0;overflow-y:auto"></div></div>
         <div class="panel"><div class="ph"><span>ESTIMATES</span></div><div class="kv" id="a-est-${id}"></div></div>
       </div>
@@ -1594,8 +1606,17 @@ function makeAGI(tabId) {
     const h5 = d.by_5h || []
     drawGraph($('#a-g5h-' + id), h5.map(b => b.usage.input + b.usage.output + b.usage.cache_read + b.usage.cache_write), null, 265)
     $('#a-ax5h-' + id).innerHTML = h5.length ? `<span>${esc(h5[0].start)}</span><span>${esc(h5[h5.length - 1].start)}</span>` : ''
+    // DAY BY DAY: cost + token-volume, each its own graph with a real numeric
+    // Y-axis (max at top, 0 at bottom) — not just an unlabeled sparkline.
     const dd = d.by_day || []
-    drawGraph($('#a-gday-' + id), dd.map(x => x.usage.cost), null, 45)
+    const costSeries = dd.map(x => x.usage.cost)
+    const tokSeries = dd.map(x => x.usage.input + x.usage.output + x.usage.cache_read + x.usage.cache_write)
+    const maxCost = Math.max(1e-6, ...costSeries, 0)
+    const maxTok = Math.max(1, ...tokSeries, 0)
+    drawGraph($('#a-gday-cost-' + id), costSeries, maxCost, 45)
+    drawGraph($('#a-gday-tok-' + id), tokSeries, maxTok, 265)
+    $('#a-gday-costy-' + id).innerHTML = `<span>${usd(maxCost)}</span><span>$0.00</span>`
+    $('#a-gday-toky-' + id).innerHTML = `<span>${fmtTok(maxTok)}</span><span>0.0</span>`
     $('#a-axday-' + id).innerHTML = dd.length ? `<span>${esc(dd[0].date)}</span><span>${esc(dd[dd.length - 1].date)}</span>` : ''
 
     // ── by model ──
