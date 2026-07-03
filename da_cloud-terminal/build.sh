@@ -44,13 +44,34 @@ log()    { printf "[%s] %s\n" "$(date '+%H:%M:%S')" "$1"; }
 errlog() { printf "\033[0;31m[%s] ERROR: %s\033[0m\n" "$(date '+%H:%M:%S')" "$1" >&2; }
 
 # Nix-wrapped invocation — reproducible toolchain from flake.nix.
-in_nix() {
+# _nix_run <installable> <cmd…> : run a command inside a specific devShell.
+#   in_nix    → full build shell   (.#default: rust + cargo-tauri + node + magick)
+#   in_nix_rt → lean runtime shell (.#runtime: only the webkit/gtk runtime libs)
+# `run` uses the lean shell so launching a prebuilt binary does NOT realize the
+# whole build toolchain closure (that was the "thousands of compile steps").
+_nix_run() {
+  local shell="$1"; shift
   if [ "${BYPASS_NIX:-0}" = "1" ]; then
     "$@"
   else
     command -v nix >/dev/null 2>&1 || { errlog "nix not on PATH; install nix or set BYPASS_NIX=1"; exit 1; }
-    nix develop "$ROOT" --command "$@"
+    nix develop "$shell" --command "$@"
   fi
+}
+in_nix()    { _nix_run "$ROOT" "$@"; }
+in_nix_rt() { _nix_run "$ROOT#runtime" "$@"; }
+
+# Do all runtime tray PNGs exist? `run` only needs them PRESENT — regenerating
+# on SVG change is `build`/`install`'s job (both call icons()). This lets `run`
+# stay on the lean runtime shell (magick lives in the heavy build shell).
+icons_current() {
+  local s png
+  for s in "$SRC/assets/"*.svg; do
+    [ -e "$s" ] || return 1
+    png="$SRC/assets/$(basename "$s" .svg).png"
+    [ -f "$png" ] || return 1
+  done
+  return 0
 }
 
 # ── vendor: copy xterm runtime assets into frontend/vendor (no bundler) ──
@@ -118,24 +139,29 @@ case "$CMD" in
     log "→ $DIST/ci/cloud-terminal"
     ;;
   run)
-    # Launch through `nix develop` so the flake realizes the exact glibc +
-    # WebKit closure the binary links against and sets LD_LIBRARY_PATH — a raw
-    # exec fails (foreign store paths get GC'd; webkit not on the loader path).
-    # Prefer a local release build; fall back to the fetched CI binary.
-    icons
+    # Launch a PREBUILT binary — never compiles. Uses the LEAN runtime shell
+    # (.#runtime) to resolve the webkit/glibc LD_LIBRARY_PATH; the heavy build
+    # toolchain (rust/cargo-tauri/node/magick) is NOT realized here.
+    # Tray PNGs are only regenerated when a source SVG changed (magick needs
+    # the build shell) — the common case skips it and stays lean.
+    if icons_current; then
+      log "tray icons up to date — skipping regeneration"
+    else
+      log "tray icons stale/missing — regenerating (one-time, build shell)"
+      icons
+    fi
     bin="$TAURI/target/release/cloud-terminal"
     [ -x "$bin" ] || bin="$DIST/ci/cloud-terminal"
     # Auto-fetch the CI binary if none present (first run on a fresh machine).
     [ -x "$bin" ] || { log "no binary — fetching latest CI build…"; "$ROOT/build.sh" fetch && bin="$DIST/ci/cloud-terminal"; }
     [ -x "$bin" ] || { errlog "no binary — 'build.sh build' or 'build.sh fetch' first"; exit 1; }
-    # Resolve ONLY the runtime lib path (glibc + webkit) from the flake, then
-    # launch the binary in the USER's environment. Launching under
-    # `nix develop --command` replaced PATH with the dev-shell's — the PTY
-    # shells inherited it and lost every user tool. Capture LD_LIBRARY_PATH,
-    # keep the user's PATH. (The nix develop call also realizes the exact
-    # glibc the binary's interpreter points at, so the raw exec resolves.)
-    log "resolving runtime libs from flake…"
-    ldp="$(in_nix sh -c 'printf %s "$LD_LIBRARY_PATH"')"
+    # Resolve ONLY the runtime lib path (glibc + webkit) via the LEAN shell,
+    # then launch the binary in the USER's environment (keep user PATH; the PTY
+    # shells inherit it). The lean shell still realizes the exact glibc the
+    # binary's interpreter points at, so the raw exec resolves — but without
+    # dragging in rust/cargo-tauri/node.
+    log "resolving runtime libs from flake (lean runtime shell)…"
+    ldp="$(in_nix_rt sh -c 'printf %s "$LD_LIBRARY_PATH"')"
     [ -z "$ldp" ] && { errlog "could not resolve LD_LIBRARY_PATH from flake"; exit 1; }
     log "launching $bin (profile ${2:-home}, multi-tray) in user env"
     env LD_LIBRARY_PATH="$ldp" \
