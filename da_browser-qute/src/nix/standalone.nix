@@ -29,10 +29,17 @@ let
   };
 
   cfg = hm.config;
-  configPy    = cfg.xdg.configFile."qutebrowser/config.py".source;
-  quickmarks  = cfg.xdg.configFile."qutebrowser/quickmarks".source;
-  bookmarks   = cfg.xdg.configFile."qutebrowser/bookmarks/urls".source;
-  dashboard   = cfg.xdg.configFile."qutebrowser/dashboard.html".source;
+  # programs.qutebrowser's generated config.py/quickmarks (and our own
+  # xdg.configFile entries — home-manager aliases xdg.configFile into
+  # home.file internally) land in home.file, keyed by the FULL ABSOLUTE
+  # path (verified via `nix eval`: home.file keys are
+  # "${home.homeDirectory}/.config/...", not a relative
+  # ".config/qutebrowser/..." — do not assume, confirm with nix eval).
+  homeDir     = cfg.home.homeDirectory;
+  configPy    = cfg.home.file."${homeDir}/.config/qutebrowser/config.py".source;
+  quickmarks  = cfg.home.file."${homeDir}/.config/qutebrowser/quickmarks".source;
+  bookmarks   = cfg.home.file."${homeDir}/.config/qutebrowser/bookmarks/urls".source;
+  dashboard   = cfg.home.file."${homeDir}/.config/qutebrowser/dashboard.html".source;
 
   launcher = pkgs.writeShellScriptBin "qutebrowser-standalone" ''
     set -euo pipefail
