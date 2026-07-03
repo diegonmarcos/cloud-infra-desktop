@@ -1242,6 +1242,56 @@ fn agi_usage() -> Value {
     })
 }
 
+// Lightweight LIVE poll for the current session banner — reads ONLY the
+// single most-recently-modified transcript (one file, not the full 200+
+// history agi_usage scans), so this is cheap enough to call every few
+// seconds. Same pricing lookup, same shape as agi_usage's "current".
+#[tauri::command]
+fn agi_live() -> Value {
+    let home = env_or("HOME", "/tmp");
+    let proj_dir = std::path::PathBuf::from(format!("{home}/.claude/projects"));
+    let pricing: Value = std::fs::read_to_string(format!("{home}/.claude/claude-pricing.json")).ok()
+        .and_then(|s| serde_json::from_str(&s).ok()).unwrap_or(Value::Null);
+
+    let mut files = Vec::new();
+    walk_jsonl(&proj_dir, &mut files);
+    let newest = files.into_iter().max_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
+    let Some(path) = newest else { return Value::Null };
+
+    let sid = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let project = path.parent().and_then(|p| p.file_name()).map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let Ok(text) = std::fs::read_to_string(&path) else { return Value::Null };
+
+    let mut t = UsageTotals::default();
+    let (mut first, mut last, mut model) = (i64::MAX, 0i64, String::from("unknown"));
+    for line in text.lines() {
+        if !line.contains("\"usage\"") { continue; }
+        let Ok(d) = serde_json::from_str::<Value>(line) else { continue };
+        let msg = &d["message"];
+        let Some(u) = msg.get("usage") else { continue };
+        if msg.get("role").and_then(|r| r.as_str()) != Some("assistant") { continue; }
+        let ts = d["timestamp"].as_str().unwrap_or("");
+        let Some((epoch, _)) = parse_iso(ts) else { continue };
+        model = msg["model"].as_str().unwrap_or("unknown").to_string();
+        let i = u["input_tokens"].as_u64().unwrap_or(0);
+        let o = u["output_tokens"].as_u64().unwrap_or(0);
+        let cr = u["cache_read_input_tokens"].as_u64().unwrap_or(0);
+        let cw = u["cache_creation_input_tokens"].as_u64().unwrap_or(0);
+        let (pi, po, pcr, pcw) = pricing_for(&pricing, &model);
+        let cost = i as f64 / 1e6 * pi + o as f64 / 1e6 * po + cr as f64 / 1e6 * pcr + cw as f64 / 1e6 * pcw;
+        t.add(i, o, cr, cw, cost);
+        first = first.min(epoch); last = last.max(epoch);
+    }
+    if t.messages == 0 { return Value::Null; }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(last);
+
+    serde_json::json!({
+        "id": sid, "project": project, "model": model,
+        "started": epoch_to_iso_minute(first), "last_active": epoch_to_iso_minute(last),
+        "duration_min": (last - first) / 60, "seconds_since_last": (now - last).max(0), "usage": t.json(),
+    })
+}
+
 // ── init payload for the renderer (mirrors the Electron 'init' send) ──
 #[tauri::command]
 fn get_init(window: tauri::WebviewWindow, state: tauri::State<AppState>) -> Value {
@@ -1498,7 +1548,7 @@ fn main() {
             pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap,
             psi_clean, psi_clean_all, journal_feed,
             cloud_targets, cloud_vm, cloud_stats, cloud_logs, cloud_ping, data_sync, data_gh, peer_ping,
-            session_save, session_load, agi_usage,
+            session_save, session_load, agi_usage, agi_live,
             run_item, get_init, sys_stats
         ])
         .setup(|app| {

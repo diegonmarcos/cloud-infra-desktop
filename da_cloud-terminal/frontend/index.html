@@ -414,6 +414,9 @@
   .agi-cur b { color: var(--accent2); font-size: 12px; }
   .agi-cur .k { color: #6b7280; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
   .agi-cur .v { color: #e2e8f0; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .agi-live-dot { width: 9px; height: 9px; border-radius: 50%; background: #6b7280; flex-shrink: 0; }
+  .agi-live-dot.on { background: #4ade80; box-shadow: 0 0 8px #4ade80; animation: agi-pulse 1.6s ease-in-out infinite; }
+  @keyframes agi-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(1.3); } }
   .agi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 8px; }
   .agi-grid .panel { min-height: 190px; }
   .agi-panel-wide { grid-column: 1 / -1; }
@@ -1581,19 +1584,6 @@ function makeAGI(tabId) {
     if (!d) { $('#a-note-' + id).textContent = 'unavailable'; return }
     $('#a-note-' + id).textContent = (d.file_count || 0) + ' session files scanned'
 
-    // ── current/live session ──
-    const c = d.current
-    if (c) {
-      const u = c.usage
-      $('#a-cur-' + id).innerHTML =
-        `<span><b>${esc(c.project)}</b></span><span><span class="k">model</span> <span class="v">${esc(c.model)}</span></span>` +
-        `<span><span class="k">session</span> <span class="v">${esc((c.id || '').slice(0, 8))}</span></span>` +
-        `<span><span class="k">started</span> <span class="v">${esc(c.started)}</span></span>` +
-        `<span><span class="k">duration</span> <span class="v">${fmtNum(c.duration_min)}m</span></span>` +
-        `<span><span class="k">tokens</span> <span class="v">${fmtTok(u.input + u.output)}</span></span>` +
-        `<span><span class="k">cost</span> <span class="v" style="color:#fbbf24">${usd(u.cost)}</span></span>`
-    } else { $('#a-cur-' + id).innerHTML = '<span style="color:#6b7280">no active session detected</span>' }
-
     // ── stat tiles ──
     const t = d.total
     $('#a-stats-' + id).innerHTML = [
@@ -1652,10 +1642,35 @@ function makeAGI(tabId) {
         `<td class="num">${fmtTok(u.cache_read + u.cache_write)}</td><td class="num cost">${usd(u.cost)}</td></tr>`
     }).join('') || '<tr><td colspan="10" style="color:#6b7280">no sessions found</td></tr>'
   }
+
+  // ── LIVE current-session monitor — cheap (one file, not the full 200+
+  // history scan), polled every few seconds so this banner tracks the
+  // session actively running RIGHT NOW without re-scanning everything.
+  const secsAgo = s => s < 60 ? s + 's ago' : s < 3600 ? Math.floor(s / 60) + 'm ago' : Math.floor(s / 3600) + 'h ago'
+  async function pollLive() {
+    const c = await invoke('agi_live').catch(() => null)
+    if (!leaf.isConnected) return
+    if (c) {
+      const u = c.usage
+      const fresh = (c.seconds_since_last || 0) < 30
+      $('#a-cur-' + id).innerHTML =
+        `<span class="agi-live-dot${fresh ? ' on' : ''}"></span>` +
+        `<span><b>${esc(c.project)}</b></span><span><span class="k">model</span> <span class="v">${esc(c.model)}</span></span>` +
+        `<span><span class="k">session</span> <span class="v">${esc((c.id || '').slice(0, 8))}</span></span>` +
+        `<span><span class="k">started</span> <span class="v">${esc(c.started)}</span></span>` +
+        `<span><span class="k">duration</span> <span class="v">${fmtNum(c.duration_min)}m</span></span>` +
+        `<span><span class="k">last msg</span> <span class="v">${secsAgo(c.seconds_since_last || 0)}</span></span>` +
+        `<span><span class="k">tokens</span> <span class="v">${fmtTok(u.input + u.output)}</span></span>` +
+        `<span><span class="k">cost</span> <span class="v" style="color:#fbbf24">${usd(u.cost)}</span></span>`
+    } else { $('#a-cur-' + id).innerHTML = '<span style="color:#6b7280">no active session detected</span>' }
+  }
+
   $('#a-refresh-' + id).addEventListener('click', load)
   load()
+  pollLive()
+  const liveTimer = setInterval(pollLive, 4000)
   leaf.addEventListener('mousedown', () => focusPane(id), true)
-  panes.set(id, { leaf, tabId, kind: 'agi', stop: () => {} })
+  panes.set(id, { leaf, tabId, kind: 'agi', stop: () => clearInterval(liveTimer) })
   return { id, leaf }
 }
 
