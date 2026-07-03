@@ -631,6 +631,19 @@ fn main() {
     };
 
     tauri::Builder::default()
+        // Single-instance guard MUST be the first plugin registered. A second
+        // `cloud-terminal` launch runs this callback in the ALREADY-running
+        // process (then the new process exits) — so instead of a duplicate
+        // 3-tray set, we just reveal the existing windows. If the relaunch
+        // named a profile (argv), prefer showing that one's window.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            let want = argv.iter().rev().find(|a| !a.starts_with('-') && *a != "cloud-terminal").cloned();
+            let target = want.and_then(|n| app.get_webview_window(&n));
+            match target {
+                Some(w) => { let _ = w.show(); let _ = w.set_focus(); }
+                None => for w in app.webview_windows().values() { let _ = w.show(); let _ = w.set_focus(); }
+            }
+        }))
         .manage(state)
         .invoke_handler(tauri::generate_handler![
             pty_start, pty_input, pty_resize, pty_kill, run_item, get_init, sys_stats
