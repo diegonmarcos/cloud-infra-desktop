@@ -264,6 +264,26 @@
   .ntbl td.num { text-align: right; color: #cbd5e1; font-variant-numeric: tabular-nums; }
   .ntbl td.dn { color: #22d3ee; } .ntbl td.up { color: #e879f9; } .ntbl td.err { color: #f87171; }
 
+  /* process toolbar: sort + view-mode toggles + copy */
+  .proc-tools { display: flex; gap: 8px; align-items: center; }
+  .cpbtn { font: inherit; font-size: 9px; padding: 2px 9px; border-radius: 5px; cursor: pointer;
+    background: var(--item-bg); color: #9aa4b2; border: 1px solid var(--sep); }
+  .cpbtn:hover { color: var(--accent); border-color: var(--accent); }
+  .proc-tbl td.n { cursor: pointer; }
+  .proc-tbl td.hier { color: #8b93a7; font-size: 10px; max-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .proc-tbl td.n .tw { color: #4b5563; }         /* tree branch glyphs */
+  .proc-tbl tr.prow.open td { background: rgba(123,127,255,.12); }
+  .pdetail td { padding: 0 !important; }
+  .pd { padding: 7px 12px; background: #0c0d16; border-left: 2px solid var(--accent); display: flex; flex-direction: column; gap: 5px; }
+  .pd .cmd { color: #e2e8f0; font-size: 11px; white-space: pre-wrap; word-break: break-all; user-select: text; }
+  .pd .pdmeta { color: #6b7280; font-size: 10px; }
+  .pd .pdbtns { display: flex; gap: 6px; }
+  .pd .pdbtns button { font: inherit; font-size: 10px; padding: 3px 11px; border-radius: 5px; cursor: pointer;
+    background: var(--item-bg); color: #cbd5e1; border: 1px solid var(--sep); }
+  .pd .pdbtns button:hover { border-color: var(--accent); color: var(--accent); }
+  .pd .pdbtns button.warn:hover { border-color: #fbbf24; color: #fbbf24; }
+  .pd .pdbtns button.crit:hover { border-color: #f87171; color: #f87171; }
+
   #ctxmenu {
     position: fixed; z-index: 1000; display: none; min-width: 170px; padding: 4px;
     background: var(--sidebar); border: 1px solid var(--sep); border-radius: 6px;
@@ -559,22 +579,121 @@ function makeMonitor(tabId) {
           <tbody id="m-niface-${id}"></tbody></table></div>
 
       <div class="panel proc"><div class="ph"><span id="m-prochdr-${id}">PROCESSES</span>
-          <span class="ptbl-tabs"><button data-s="cpu" class="on">CPU</button><button data-s="mem">MEM</button></span></div>
-        <div class="ptbl-wrap"><table class="ptbl">
-          <thead><tr><th class="num">PID</th><th>USER</th><th class="num">CPU%</th><th class="num">MEM%</th><th class="num">TIME+</th><th>COMMAND</th></tr></thead>
+          <span class="proc-tools">
+            <span class="ptbl-tabs" id="m-sort-${id}"><button data-s="cpu" class="on">CPU</button><button data-s="mem">MEM</button><button data-s="io">IO</button></span>
+            <span class="ptbl-tabs" id="m-view-${id}"><button data-v="flat" class="on">FLAT</button><button data-v="tree">TREE</button></span>
+            <button class="cpbtn" id="m-copy-${id}" title="Copy visible table (TSV)">⎘ copy</button>
+          </span></div>
+        <div class="ptbl-wrap"><table class="ptbl proc-tbl">
+          <thead><tr><th class="num">PID</th><th>USER</th><th class="num">CPU%</th><th class="num">MEM%</th><th class="num">IO</th><th class="num">TIME+</th><th>NAME</th><th id="m-hierh-${id}">HIERARCHY</th></tr></thead>
           <tbody id="m-proc-${id}"></tbody></table></div></div>
     </div>`
   const hist = { cpu: [], mem: [], rx: [], tx: [] }
   const coreHist = []
-  let sortBy = 'cpu'
+  let sortBy = 'cpu', viewMode = 'flat', lastS = null
+  const expanded = new Set()            // pids with the detail row open
+  const procIndex = new Map()           // pid → row (for detail / copy / kill)
   const $ = s => leaf.querySelector(s)
   const push = (a, v) => { a.push(v); if (a.length > MON_HIST) a.shift() }
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
 
-  leaf.querySelector('.ptbl-tabs').addEventListener('click', e => {
+  // ── process table: flat (sorted by metric) or parent/child tree ──
+  const zomb = st => /zomb/i.test(st || '')
+  function procRowHtml(p, tw) {
+    const cc = p.cpu > 50 ? 'hot' : p.cpu > 10 ? 'warm' : ''
+    const hier = zomb(p.status) ? '<span style="color:#f87171">zombie</span>' : esc((p.anc || []).join(' ▸ ')) || '—'
+    const open = expanded.has(p.pid)
+    let h = `<tr class="prow${open ? ' open' : ''}" data-pid="${p.pid}">` +
+      `<td class="num">${p.pid}</td><td class="u">${esc((p.user || '').slice(0, 9))}</td>` +
+      `<td class="num ${cc}">${p.cpu.toFixed(1)}</td><td class="num">${(p.memp || 0).toFixed(1)}</td>` +
+      `<td class="num">${p.io ? fmtRate(p.io) : '·'}</td><td class="num st">${fmtTimeplus(p.time)}</td>` +
+      `<td class="n">${tw ? '<span class="tw">' + tw + '</span>' : ''}${open ? '▾ ' : '▸ '}${esc(p.name)}</td>` +
+      `<td class="hier">${hier}</td></tr>`
+    if (open) {
+      h += `<tr class="pdetail"><td colspan="8"><div class="pd">` +
+        `<div class="cmd">${esc(p.cmd || p.name)}</div>` +
+        `<div class="pdmeta">pid ${p.pid} · ppid ${p.ppid} · ${esc(p.status)} · lineage: ${esc((p.anc || []).join(' / ')) || '—'}</div>` +
+        `<div class="pdbtns"><button data-act="copy" data-pid="${p.pid}">⎘ copy info</button>` +
+        `<button data-act="term" data-pid="${p.pid}" class="warn">◼ TERM · soft kill</button>` +
+        `<button data-act="kill" data-pid="${p.pid}" class="crit">✕ KILL · force</button></div></div></td></tr>`
+    }
+    return h
+  }
+  function renderTree(all) {
+    const kids = new Map(), byId = new Map()
+    for (const p of all) byId.set(p.pid, p)
+    for (const p of all) { const k = kids.get(p.ppid) || []; k.push(p); kids.set(p.ppid, k) }
+    // roots = procs whose parent isn't in the set (or pid 1/0)
+    const roots = all.filter(p => !byId.has(p.ppid) || p.ppid === p.pid).sort((a, b) => b.cpu - a.cpu)
+    const out = []; const seen = new Set()
+    const walk = (p, depth) => {
+      if (seen.has(p.pid) || depth > 30) return; seen.add(p.pid)
+      const tw = depth ? '│ '.repeat(depth - 1) + '├ ' : ''
+      out.push(procRowHtml(p, tw))
+      for (const c of (kids.get(p.pid) || []).sort((a, b) => b.cpu - a.cpu)) walk(c, depth + 1)
+    }
+    for (const r of roots) walk(r, 0)
+    return out.join('')
+  }
+  function renderProcs() {
+    const s = lastS; if (!s) return
+    procIndex.clear()
+    for (const p of (s.procs_all || [])) procIndex.set(p.pid, p)
+    const hdr = $('#m-hierh-' + id)
+    if (viewMode === 'tree') {
+      if (hdr) hdr.textContent = 'HIERARCHY'
+      $('#m-proc-' + id).innerHTML = renderTree(s.procs_all || [])
+    } else {
+      const list = sortBy === 'mem' ? s.procs_mem : sortBy === 'io' ? s.procs_io : s.procs
+      for (const p of (list || [])) procIndex.set(p.pid, p)   // ensure top rows indexed
+      $('#m-proc-' + id).innerHTML = (list || []).map(p => procRowHtml(p, '')).join('')
+    }
+    $('#m-prochdr-' + id).textContent = 'PROCESSES · ' + (s.nproc || 0) +
+      (viewMode === 'tree' ? ' · tree' : ' · by ' + sortBy.toUpperCase())
+  }
+
+  // toolbar: sort toggle
+  $('#m-sort-' + id).addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return
-    sortBy = b.dataset.s
-    for (const x of leaf.querySelectorAll('.ptbl-tabs button')) x.classList.toggle('on', x === b)
+    sortBy = b.dataset.s; viewMode = 'flat'
+    for (const x of $('#m-sort-' + id).children) x.classList.toggle('on', x === b)
+    for (const x of $('#m-view-' + id).children) x.classList.toggle('on', x.dataset.v === 'flat')
+    renderProcs()
+  })
+  // toolbar: view-mode toggle (flat metrics vs parent/child tree)
+  $('#m-view-' + id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return
+    viewMode = b.dataset.v
+    for (const x of $('#m-view-' + id).children) x.classList.toggle('on', x === b)
+    renderProcs()
+  })
+  // copy the whole visible table as TSV
+  $('#m-copy-' + id).addEventListener('click', () => {
+    const s = lastS; if (!s) return
+    const list = viewMode === 'tree' ? s.procs_all : (sortBy === 'mem' ? s.procs_mem : sortBy === 'io' ? s.procs_io : s.procs)
+    const head = ['PID', 'PPID', 'USER', 'CPU%', 'MEM%', 'IO/s', 'TIME+', 'STATUS', 'NAME', 'LINEAGE', 'COMMAND'].join('\t')
+    const rows = (list || []).map(p => [p.pid, p.ppid, p.user, p.cpu.toFixed(1), (p.memp || 0).toFixed(1),
+      fmtRate(p.io || 0), fmtTimeplus(p.time), p.status, p.name, (p.anc || []).join('/'), p.cmd || p.name].join('\t'))
+    clip.write([head, ...rows].join('\n'))
+    const btn = $('#m-copy-' + id); const t = btn.textContent; btn.textContent = '✓ copied'; setTimeout(() => btn.textContent = t, 1200)
+  })
+  // row expand + per-process actions (copy / soft-kill / force-kill)
+  $('#m-proc-' + id).addEventListener('click', e => {
+    const act = e.target.closest('.pdbtns button')
+    if (act) {
+      const pid = +act.dataset.pid, p = procIndex.get(pid)
+      if (act.dataset.act === 'copy' && p) {
+        clip.write(`pid=${p.pid} ppid=${p.ppid} user=${p.user} cpu=${p.cpu.toFixed(1)}% mem=${(p.memp || 0).toFixed(1)}% ` +
+          `io=${fmtRate(p.io || 0)} time=${fmtTimeplus(p.time)} status=${p.status}\nlineage: ${(p.anc || []).join(' / ')}\ncmd: ${p.cmd || p.name}`)
+        const t = act.textContent; act.textContent = '✓ copied'; setTimeout(() => act.textContent = t, 1200)
+      } else if (act.dataset.act === 'term') { invoke('proc_kill', { pid, force: false }).catch(() => {}) }
+      else if (act.dataset.act === 'kill') { invoke('proc_kill', { pid, force: true }).catch(() => {}) }
+      return
+    }
+    const row = e.target.closest('.prow'); if (!row) return
+    const pid = +row.dataset.pid
+    expanded.has(pid) ? expanded.delete(pid) : expanded.add(pid)
+    renderProcs()
   })
 
   const poll = async () => {
@@ -715,16 +834,9 @@ function makeMonitor(tabId) {
       return bar(esc(t.label), t.temp / hi * 100, t.temp.toFixed(0) + '°C')
     }).join('') || '<span style="color:#6b7280">no sensors exposed</span>'
 
-    // ── PROCESSES ──
-    const list = (sortBy === 'mem' ? s.procs_mem : s.procs) || []
-    $('#m-prochdr-' + id).textContent = 'PROCESSES · ' + (s.nproc || 0) + ' · sort ' + sortBy.toUpperCase()
-    $('#m-proc-' + id).innerHTML = list.map(p => {
-      const cc = p.cpu > 50 ? 'hot' : p.cpu > 10 ? 'warm' : ''
-      return `<tr><td class="num">${p.pid}</td><td class="u">${esc((p.user || '').slice(0, 8))}</td>` +
-        `<td class="num ${cc}">${p.cpu.toFixed(1)}</td><td class="num">${(p.memp || 0).toFixed(1)}</td>` +
-        `<td class="num st">${fmtTimeplus(p.time)}</td>` +
-        `<td class="n" title="${esc(p.name)}">${esc(p.name)}</td></tr>`
-    }).join('')
+    // ── PROCESSES (flat metric or parent/child tree) ──
+    lastS = s
+    renderProcs()
   }
   const timer = setInterval(poll, 1000)
   poll()
