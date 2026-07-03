@@ -171,6 +171,14 @@
   .cpsi-row .some { font-size: 8px; color: #9aa4b2; font-variant-numeric: tabular-nums; }
   .swapst { font-size: 8px; margin-top: 3px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--sep); text-align: center; }
   .swapst.ok { color: #4ade80; } .swapst.warn { color: #fbbf24; } .swapst.crit { color: #f87171; border-color: #f87171; }
+  .cpu-psi > div:first-child { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+  .psi-clean { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; flex-shrink: 0; margin-top: 5px; }
+  .psi-clean button { font: inherit; font-size: 8px; padding: 2px 3px; border-radius: 4px; cursor: pointer;
+    background: var(--item-bg); color: #9aa4b2; border: 1px solid var(--sep); white-space: nowrap; }
+  .psi-clean button:hover { color: #f87171; border-color: #f87171; }
+  .psi-clean button.all { grid-column: 1 / 3; color: var(--accent2); }
+  .psi-clean button.all:hover { color: #fbbf24; border-color: #fbbf24; }
+  .psi-clean button.busy { color: #fbbf24; border-color: #fbbf24; }
   .gauge-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
   .gauge-wrap canvas { width: 92px; height: 92px; }
   .gauge-wrap .glbl { font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: .1em; }
@@ -351,6 +359,8 @@
   .cloud-logs { min-height: 240px; flex: 1 1 0; }
   .ctbl td.st-run { color: #4ade80; } .ctbl td.st-exit { color: #f87171; } .ctbl td.st-other { color: #fbbf24; }
   .ctbl tr.sel td { background: rgba(123,127,255,.14); }
+  .ctbl tr.catrow td { background: rgba(123,127,255,.10); color: var(--accent2); font-size: 9px;
+    text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding: 3px 7px; position: sticky; top: 0; }
   .ctbl td.nm { color: #cbd5e1; cursor: pointer; } .ctbl td.im { color: #7dd3fc; }
   .cloud-logfeed { flex: 1 1 0; min-height: 0; overflow: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px;
     background: rgba(12,13,22,.6); border: 1px solid var(--sep); border-radius: 8px; padding: 5px 9px;
@@ -623,7 +633,15 @@ function makeMonitor(tabId) {
       <div class="mon-row top">
         <div class="panel cpu"><div class="ph"><span>CPU</span><span class="sub" id="m-cpusub-${id}"></span></div>
           <div class="cpu-body">
-            <div class="cpu-psi" id="m-cpupsi-${id}"></div>
+            <div class="cpu-psi">
+              <div id="m-cpupsi-${id}"></div>
+              <div class="psi-clean" id="m-psiclean-${id}">
+                <button data-k="cpu" title="Kill the top CPU hog (user apps only) until CPU PSI ≤ 1%">🧹 CPU</button>
+                <button data-k="io"  title="Kill the top IO hog until IO PSI ≤ 1%">🧹 IO</button>
+                <button data-k="mem" title="Kill the top MEM hog until MEM PSI ≤ 1%">🧹 MEM</button>
+                <button data-k="all" class="all" title="Diagnose the worst PSI and kill exactly that culprit">⚡ ALL</button>
+              </div>
+            </div>
             <canvas class="g" id="m-cpu-${id}"></canvas>
             <div class="gauge-wrap"><canvas id="m-cpugauge-${id}"></canvas><span class="glbl" id="m-cpuload-${id}"></span><span class="swapst" id="m-swapst-${id}"></span></div>
           </div></div>
@@ -680,7 +698,7 @@ function makeMonitor(tabId) {
 
       <div class="panel proc"><div class="ph"><span id="m-prochdr-${id}">PROCESSES</span>
           <span class="proc-tools">
-            <span class="ptbl-tabs" id="m-sort-${id}"><button data-s="cpu" class="on">CPU</button><button data-s="mem">MEM</button><button data-s="io">IO</button></span>
+            <span class="ptbl-tabs" id="m-sort-${id}"><button data-s="cpu" class="on">CPU</button><button data-s="mem">MEM</button><button data-s="io">IO</button><button data-s="lineage">LINEAGE</button></span>
             <span class="ptbl-tabs" id="m-view-${id}"><button data-v="flat" class="on">FLAT</button><button data-v="tree">TREE</button></span>
             <button class="cpbtn" id="m-zombie-${id}" title="Reap zombie processes (SIGCHLD their parents)">🧟 reap</button>
             <button class="cpbtn" id="m-copy-${id}" title="Copy visible table (TSV)">⎘ copy</button>
@@ -761,8 +779,15 @@ function makeMonitor(tabId) {
       if (hdr) hdr.textContent = 'HIERARCHY'
       $('#m-proc-' + id).innerHTML = renderTree(s.procs_all || [])
     } else {
-      const list = sortBy === 'mem' ? s.procs_mem : sortBy === 'io' ? s.procs_io : s.procs
-      for (const p of (list || [])) procIndex.set(p.pid, p)   // ensure top rows indexed
+      let list
+      if (sortBy === 'lineage') {
+        // sort the full set alphabetically by user ▸ lineage ▸ own name
+        const key = p => ((p.user || '') + '/' + (p.anc || []).join('/') + '/' + (p.name || '')).toLowerCase()
+        list = [...(s.procs_all || [])].sort((a, b) => key(a).localeCompare(key(b))).slice(0, 40)
+      } else {
+        list = sortBy === 'mem' ? s.procs_mem : sortBy === 'io' ? s.procs_io : s.procs
+      }
+      for (const p of (list || [])) procIndex.set(p.pid, p)   // ensure rows indexed
       $('#m-proc-' + id).innerHTML = (list || []).map(p => procRowHtml(p, '')).join('')
     }
     $('#m-prochdr-' + id).textContent = 'PROCESSES · ' + (s.nproc || 0) +
@@ -1015,6 +1040,20 @@ function makeMonitor(tabId) {
     lastS = s
     renderProcs()
   }
+  // PSI-targeted reclaim buttons (CPU box): kill the top hog of a resource
+  // until its PSI ≤ 1% (user apps only; SIGTERM). ALL = diagnose worst first.
+  $('#m-psiclean-' + id).addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b || b.classList.contains('busy')) return
+    const k = b.dataset.k, orig = b.textContent
+    b.classList.add('busy'); b.textContent = '…killing'
+    try {
+      const r = k === 'all' ? await invoke('psi_clean_all') : await invoke('psi_clean', { kind: k, target: 1.0 })
+      const n = (r.killed || []).length
+      b.textContent = k === 'all' ? `⚡ ${r.diagnosed} · ${n}` : (n ? `✓ ${n} killed` : '✓ clear')
+    } catch (_) { b.textContent = '✗ fail' }
+    setTimeout(() => { b.classList.remove('busy'); b.textContent = orig }, 2800)
+  })
+
   const timer = setInterval(poll, 1000)
   poll()
   leaf.addEventListener('mousedown', () => focusPane(id), true)
@@ -1101,9 +1140,11 @@ function makeCloud(tabId) {
     <div class="cloud">
       <div class="cloud-vms" id="c-vms-${id}"></div>
       <div class="panel cloud-cont"><div class="ph"><span id="c-conthdr-${id}">CONTAINERS</span>
-        <span class="proc-tools"><button class="cpbtn" id="c-refresh-${id}" title="Re-probe all VMs">↻ probe</button></span></div>
+        <span class="proc-tools">
+          <span class="ptbl-tabs" id="c-view-${id}"><button data-v="vm" class="on">BY VM</button><button data-v="service">BY SERVICE</button></span>
+          <button class="cpbtn" id="c-refresh-${id}" title="Re-probe all VMs (docker ps + stats over the SSH mux)">↻ probe</button></span></div>
         <div class="ptbl-wrap"><table class="ptbl ctbl">
-          <thead><tr><th>NAME</th><th>IMAGE</th><th>STATE</th><th>STATUS</th><th>PORTS</th></tr></thead>
+          <thead><tr><th>NAME</th><th>VM</th><th>IMAGE</th><th>STATE</th><th class="num">CPU%</th><th class="num">MEM</th><th>PORTS</th></tr></thead>
           <tbody id="c-cont-${id}"></tbody></table></div></div>
       <div class="panel cloud-logs"><div class="ph"><span id="c-loghdr-${id}">LOG CENTER</span>
         <span class="proc-tools">
@@ -1114,9 +1155,18 @@ function makeCloud(tabId) {
         </span></div>
         <div class="cloud-logfeed" id="c-logfeed-${id}">select a VM or container…</div></div>
     </div>`
-  let targets = [], vms = {}, selVm = null, selCont = null, tail = 200, logq = '', logRaw = ''
+  let targets = [], vms = {}, selVm = null, selCont = null, tail = 200, logq = '', logRaw = '', viewMode = 'vm', catMap = []
   const $ = s => leaf.querySelector(s)
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+  const contStat = (vm, name) => ((vms[vm] || {}).stats || {})[name] || {}
+  const rowHtml = (c, vm) => {
+    const st = c.State || '', cls = st === 'running' ? 'st-run' : st === 'exited' ? 'st-exit' : 'st-other', s = contStat(vm, c.Names)
+    return `<tr class="${selCont === c.Names && selVm === vm ? 'sel' : ''}" data-cont="${esc(c.Names || '')}" data-vm="${esc(vm)}">` +
+      `<td class="nm">${esc(c.Names || '')}</td><td class="ip">${esc(vm)}</td>` +
+      `<td class="im">${esc((c.Image || '').slice(0, 28))}</td><td class="${cls}">${esc(st)}</td>` +
+      `<td class="num">${esc(s.CPUPerc || '·')}</td><td class="num">${esc(s.MemPerc || '·')}</td>` +
+      `<td style="color:#6b7280">${esc((c.Ports || '').slice(0, 26))}</td></tr>`
+  }
 
   function renderVms() {
     $('#c-vms-' + id).innerHTML = targets.map(t => {
@@ -1135,16 +1185,28 @@ function makeCloud(tabId) {
     }).join('')
   }
   function renderConts() {
-    const v = vms[selVm]
-    $('#c-conthdr-' + id).textContent = 'CONTAINERS' + (selVm ? ' · ' + selVm + ' · ' + (v && v.n_running || 0) + '/' + (v && v.n_containers || 0) : '')
-    const list = (v && v.containers) || []
-    $('#c-cont-' + id).innerHTML = list.map(c => {
-      const st = c.State || '', cls = st === 'running' ? 'st-run' : st === 'exited' ? 'st-exit' : 'st-other'
-      return `<tr class="${selCont === c.Names ? 'sel' : ''}" data-cont="${esc(c.Names || '')}">
-        <td class="nm">${esc(c.Names || '')}</td><td class="im">${esc((c.Image || '').slice(0, 40))}</td>
-        <td class="${cls}">${esc(st)}</td><td>${esc((c.Status || '').slice(0, 32))}</td>
-        <td style="color:#6b7280">${esc((c.Ports || '').slice(0, 40))}</td></tr>`
-    }).join('') || '<tr><td colspan="5" style="color:#6b7280">no containers (select a reachable VM)</td></tr>'
+    const tb = $('#c-cont-' + id)
+    if (viewMode === 'service') {
+      // aggregate all containers across reachable VMs, group by category
+      const all = []
+      for (const t of targets) { const v = vms[t.alias]; if (v && v.containers) for (const c of v.containers) all.push({ c, vm: t.alias }) }
+      $('#c-conthdr-' + id).textContent = 'CONTAINERS · by service · ' + all.length
+      let html = ''; const used = new Set()
+      for (const m of catMap) {
+        const rows = all.filter(x => !used.has(x.vm + '/' + x.c.Names) && (m.match || []).some(p => (x.c.Names || '').toLowerCase().indexOf(p) !== -1))
+        if (!rows.length) continue
+        rows.forEach(x => used.add(x.vm + '/' + x.c.Names))
+        rows.sort((a, b) => (a.c.Names || '').localeCompare(b.c.Names || ''))
+        html += `<tr class="catrow"><td colspan="7">${esc(m.group)} · ${esc(m.cat)} · ${rows.length}</td></tr>` + rows.map(x => rowHtml(x.c, x.vm)).join('')
+      }
+      const rest = all.filter(x => !used.has(x.vm + '/' + x.c.Names)).sort((a, b) => (a.c.Names || '').localeCompare(b.c.Names || ''))
+      if (rest.length) html += `<tr class="catrow"><td colspan="7">Other · ${rest.length}</td></tr>` + rest.map(x => rowHtml(x.c, x.vm)).join('')
+      tb.innerHTML = html || '<tr><td colspan="7" style="color:#6b7280">no containers (probe first)</td></tr>'
+    } else {
+      const v = vms[selVm]
+      $('#c-conthdr-' + id).textContent = 'CONTAINERS · ' + (selVm || '—') + (v ? ' · ' + (v.n_running || 0) + '/' + (v.n_containers || 0) : '')
+      tb.innerHTML = ((v && v.containers) || []).map(c => rowHtml(c, selVm)).join('') || '<tr><td colspan="7" style="color:#6b7280">no containers (select a reachable VM)</td></tr>'
+    }
   }
   function renderLogs() {
     const lines = logRaw.split('\n')
@@ -1165,12 +1227,15 @@ function makeCloud(tabId) {
   async function probe() {
     $('#c-refresh-' + id).textContent = '… probing'
     await Promise.all(targets.map(async t => {
-      const [v, ping] = await Promise.all([
+      const [v, ping, stats] = await Promise.all([
         invoke('cloud_vm', { alias: t.alias }).catch(e => ({ alias: t.alias, reachable: false, error: String(e) })),
         t.pub ? invoke('cloud_ping', { url: t.pub }).catch(() => null) : Promise.resolve(null),
+        invoke('cloud_stats', { alias: t.alias }).catch(() => null),   // docker stats over the SSH mux
       ])
-      v.ping = ping; vms[t.alias] = v
-      if (leaf.isConnected) renderVms()
+      v.ping = ping
+      v.stats = {}; for (const s of ((stats && stats.stats) || [])) v.stats[s.Name] = s
+      vms[t.alias] = v
+      if (leaf.isConnected) { renderVms(); if (viewMode === 'service') renderConts() }
     }))
     if (!leaf.isConnected) return
     $('#c-refresh-' + id).textContent = '↻ probe'
@@ -1180,12 +1245,21 @@ function makeCloud(tabId) {
   async function init() {
     const data = await invoke('cloud_targets').catch(() => null)
     targets = (data && data.vms) || []
+    catMap = (data && data.service_categories) || []
     if (!leaf.isConnected) return
     renderVms(); probe()
   }
 
   $('#c-vms-' + id).addEventListener('click', e => { const c = e.target.closest('.vmcard'); if (c) selectVm(c.dataset.vm) })
-  $('#c-cont-' + id).addEventListener('click', e => { const r = e.target.closest('tr[data-cont]'); if (!r) return; selCont = r.dataset.cont || null; renderConts(); loadLogs() })
+  $('#c-cont-' + id).addEventListener('click', e => {
+    const r = e.target.closest('tr[data-cont]'); if (!r) return
+    selCont = r.dataset.cont || null; if (r.dataset.vm) selVm = r.dataset.vm   // service view: follow the row's VM
+    renderConts(); loadLogs()
+  })
+  $('#c-view-' + id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return
+    viewMode = b.dataset.v; for (const x of $('#c-view-' + id).children) x.classList.toggle('on', x === b); renderConts()
+  })
   $('#c-refresh-' + id).addEventListener('click', probe)
   $('#c-logref-' + id).addEventListener('click', loadLogs)
   $('#c-logq-' + id).addEventListener('input', e => { logq = e.target.value.trim().toLowerCase(); renderLogs() })
