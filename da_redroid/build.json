@@ -337,7 +337,7 @@
           "cellY": 4
         },
         {
-          "ref": "org.mozilla.fennec_fdroid",
+          "ref": "io.github.forkmaintainers.iceraven",
           "cellX": 3,
           "cellY": 4
         },
@@ -604,12 +604,13 @@
       }
     },
     {
-      "package": "org.mozilla.fennec_fdroid",
-      "label": "Firefox",
+      "package": "io.github.forkmaintainers.iceraven",
+      "label": "Iceraven",
       "group": "web",
-      "_doc": "Replaces Brave (com.brave.browser). Brave (Chromium engine) exits(0) itself on launch — this redroid host has no /dev/ashmem (mainline kernel 6.19.8; ashmem was removed from mainline Linux in 5.18) and Chromium calls an ashmem-only ioctl (ASHMEM_GET_PROT_MASK) on the memfd fallback fd that libcutils substitutes, which fails ENOTTY. Firefox/Fennec uses GeckoView, not Chromium, and does not hit this code path.",
+      "_doc": "Replaces Fennec (org.mozilla.fennec_fdroid) — F-Droid Fennec builds are arm64-v8a ONLY (verified: lib/ dir has no x86_64, its bundled JNA dep libjnidispatch.so is arm64-only, so it UnsatisfiedLinkError-crashes on this x86_64 redroid device). Also replaces Brave (com.brave.browser), which self-exits(0) on launch due to a Chromium ashmem/shared-memory ioctl this host cannot satisfy (see docs on that entry in git history). Iceraven (community Firefox/GeckoView fork) explicitly publishes a per-arch x86_64 GitHub release APK — verified by direct download+unzip: lib/x86_64/libjnidispatch.so present. Pinned to a specific release tag (not a rolling latest tag) to avoid the hash-drift churn the other github-sourced apps hit repeatedly.",
       "source": {
-        "type": "fdroid"
+        "type": "github",
+        "url": "https://github.com/fork-maintainers/iceraven-browser/releases/download/iceraven-2.45.0/iceraven-2.45.0-browser-x86_64-forkRelease.apk"
       }
     },
     {
