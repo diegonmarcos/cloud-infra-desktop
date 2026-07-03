@@ -221,6 +221,49 @@
     background: var(--item-bg); color: #9aa4b2; border: 1px solid var(--sep); }
   .ptbl-tabs button.on { color: var(--bg); background: var(--accent); border-color: var(--accent); font-weight: 700; }
 
+  /* per-core rows: label · horizontal gradient bar · % · freq · sparkline */
+  .panel.cores-panel { min-height: 150px; }
+  .cores { flex: 1 1 0; min-height: 0; display: grid; gap: 3px 12px;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); align-content: start; overflow-y: auto; }
+  .cores::-webkit-scrollbar { width: 5px; } .cores::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
+  .core-row { display: grid; grid-template-columns: 30px 1fr 34px 42px 40px; align-items: center; gap: 5px; font-size: 9px; }
+  .core-row .cl { color: #6b7280; }
+  .core-row .ctrack { height: 8px; background: var(--item-bg); border-radius: 4px; overflow: hidden; border: 1px solid var(--sep); }
+  .core-row .ctrack > i { display: block; height: 100%; border-radius: 4px; box-shadow: 0 0 6px currentColor; }
+  .core-row .cpct { text-align: right; color: #cbd5e1; font-variant-numeric: tabular-nums; }
+  .core-row .cfreq { text-align: right; color: #6b7280; font-variant-numeric: tabular-nums; }
+  .core-row canvas { width: 40px; height: 12px; display: block; }
+
+  /* key/value data blocks (memory full breakdown, battery) */
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; font-size: 10px; align-content: start; overflow-y: auto; flex: 1 1 0; min-height: 0; }
+  .kv .k { color: #6b7280; } .kv .v { color: #cbd5e1; text-align: right; font-variant-numeric: tabular-nums; }
+  .kv .v.hi { color: var(--accent2); } .kv .sec { grid-column: 1/3; color: var(--accent); font-size: 9px;
+    text-transform: uppercase; letter-spacing: .08em; margin-top: 4px; border-bottom: 1px solid var(--sep); padding-bottom: 1px; }
+
+  /* PSI panel: 3 resources × some/full avg10 with heat bars */
+  .psi { display: flex; flex-direction: column; gap: 5px; flex: 1 1 0; min-height: 0; overflow-y: auto; }
+  .psi-row { display: grid; grid-template-columns: 42px 1fr 1fr; gap: 6px; align-items: center; font-size: 9px; }
+  .psi-row .pl { color: var(--accent2); text-transform: uppercase; }
+  .psi-cell .lbl { display: flex; justify-content: space-between; color: #6b7280; }
+  .psi-cell .track { height: 7px; background: var(--item-bg); border-radius: 4px; overflow: hidden; border: 1px solid var(--sep); }
+  .psi-cell .track > i { display: block; height: 100%; border-radius: 4px; box-shadow: 0 0 6px currentColor; }
+
+  /* battery panel */
+  .batt { flex: 1 1 0; min-height: 0; display: flex; gap: 10px; align-items: center; }
+  .batt .bg { flex-shrink: 0; }
+  .batt .bg canvas { width: 84px; height: 84px; }
+  .batt .bi { font-size: 10px; color: #9aa4b2; display: flex; flex-direction: column; gap: 2px; }
+  .batt .bi b { color: #e2e8f0; font-size: 12px; }
+  .batt .bi .flow.in { color: #4ade80; } .batt .bi .flow.out { color: #fbbf24; }
+
+  /* network per-interface table */
+  .ntbl { width: 100%; border-collapse: collapse; font-size: 10px; flex: 1 1 0; min-height: 0; display: block; overflow: auto; }
+  .ntbl th { text-align: left; color: #6b7280; font-weight: 600; padding: 2px 5px; text-transform: uppercase; font-size: 8px; letter-spacing: .05em; }
+  .ntbl td { padding: 1px 5px; white-space: nowrap; }
+  .ntbl td.if { color: var(--accent2); font-weight: 600; } .ntbl td.ip { color: #7dd3fc; }
+  .ntbl td.num { text-align: right; color: #cbd5e1; font-variant-numeric: tabular-nums; }
+  .ntbl td.dn { color: #22d3ee; } .ntbl td.up { color: #e879f9; } .ntbl td.err { color: #f87171; }
+
   #ctxmenu {
     position: fixed; z-index: 1000; display: none; min-width: 170px; padding: 4px;
     background: var(--sidebar); border: 1px solid var(--sep); border-radius: 6px;
@@ -452,6 +495,12 @@ function bar(lbl, pct, right, col) {
     `<div class="track"><i style="width:${pct.toFixed(1)}%;background:${c};color:${c}"></i></div></div>`
 }
 
+function psiBar(label, obj) {           // some/full avg10 heat bar
+  const v = (obj && obj.avg10) || 0
+  return `<div class="psi-cell"><div class="lbl"><span>${label}</span><span>${v.toFixed(1)}%</span></div>` +
+    `<div class="track"><i style="width:${Math.min(100, v)}%;background:${heat(v / 100)};color:${heat(v / 100)}"></i></div></div>`
+}
+
 function makeMonitor(tabId) {
   const id = ++paneSeq
   const leaf = document.createElement('div')
@@ -470,15 +519,27 @@ function makeMonitor(tabId) {
           <div class="mem-body">
             <div class="seg" id="m-seg-${id}"></div>
             <div class="seg-legend" id="m-seglegend-${id}"></div>
-            <div class="mem-gauges">
-              <div class="gauge-wrap"><canvas id="m-ramg-${id}"></canvas></div>
-              <div class="gauge-wrap"><canvas id="m-swapg-${id}"></canvas></div>
+            <div style="display:flex;gap:12px;flex:1 1 0;min-height:0;">
+              <div class="mem-gauges" style="flex:0 0 auto;">
+                <div class="gauge-wrap"><canvas id="m-ramg-${id}"></canvas></div>
+                <div class="gauge-wrap"><canvas id="m-swapg-${id}"></canvas></div>
+              </div>
+              <div class="kv" id="m-memkv-${id}"></div>
             </div>
           </div></div>
       </div>
 
-      <div class="panel cores-panel"><div class="ph"><span>CORES</span><span class="sub" id="m-coresub-${id}"></span></div>
+      <div class="panel cores-panel"><div class="ph"><span>CPU CORES</span><span class="sub" id="m-coresub-${id}"></span></div>
         <div class="cores" id="m-cores-${id}"></div></div>
+
+      <div class="mon-row trip">
+        <div class="panel psi-panel"><div class="ph"><span>PRESSURE · PSI</span><span class="sub">avg10s stalled</span></div>
+          <div class="psi" id="m-psi-${id}"></div></div>
+        <div class="panel swap-panel"><div class="ph"><span>SWAP · ZRAM</span><span class="sub" id="m-swapsub-${id}"></span></div>
+          <div class="kv" id="m-swapkv-${id}"></div></div>
+        <div class="panel batt-panel"><div class="ph"><span>BATTERY</span><span class="sub" id="m-battsub-${id}"></span></div>
+          <div class="batt" id="m-batt-${id}"></div></div>
+      </div>
 
       <div class="mon-row trip">
         <div class="panel net"><div class="ph"><span>NETWORK</span><span class="sub" id="m-netsub-${id}"></span></div>
@@ -492,6 +553,11 @@ function makeMonitor(tabId) {
           <div class="bars" id="m-temp-${id}"></div></div>
       </div>
 
+      <div class="panel net-detail"><div class="ph"><span>INTERFACES</span><span class="sub">mesh · web · dns</span></div>
+        <table class="ntbl"><thead><tr><th>IFACE</th><th>ADDRESS</th><th class="num">▼ RATE</th><th class="num">▲ RATE</th>
+          <th class="num">▼ TOTAL</th><th class="num">▲ TOTAL</th><th class="num">PKTS ▼/▲</th><th class="num">ERR</th></tr></thead>
+          <tbody id="m-niface-${id}"></tbody></table></div>
+
       <div class="panel proc"><div class="ph"><span id="m-prochdr-${id}">PROCESSES</span>
           <span class="ptbl-tabs"><button data-s="cpu" class="on">CPU</button><button data-s="mem">MEM</button></span></div>
         <div class="ptbl-wrap"><table class="ptbl">
@@ -499,7 +565,7 @@ function makeMonitor(tabId) {
           <tbody id="m-proc-${id}"></tbody></table></div></div>
     </div>`
   const hist = { cpu: [], mem: [], rx: [], tx: [] }
-  const coreHist = []                   // per-core % history → sparklines
+  const coreHist = []
   let sortBy = 'cpu'
   const $ = s => leaf.querySelector(s)
   const push = (a, v) => { a.push(v); if (a.length > MON_HIST) a.shift() }
@@ -517,6 +583,7 @@ function makeMonitor(tabId) {
     const clock = new Date().toLocaleTimeString('en-GB')
 
     // ── header ──
+    const psiC = ((s.psi || {}).cpu || {}).some || {}
     $('#m-head-' + id).innerHTML =
       `<span><b>${esc(s.host || '')}</b></span>` +
       `<span><span class="k">os</span> <span class="val">${esc(s.os || '')}</span></span>` +
@@ -525,31 +592,37 @@ function makeMonitor(tabId) {
       `<span><span class="k">tasks</span> <span class="val">${s.running || 0} run · ${s.nproc || 0} total</span></span>` +
       `<span class="clock">${clock}</span>`
 
-    // ── CPU: big glow graph + gauge + per-core sparklines ──
+    // ── CPU + gauge ──
     push(hist.cpu, s.cpu)
     drawGraph($('#m-cpu-' + id), hist.cpu, 100)
     drawGauge($('#m-cpugauge-' + id), s.cpu, 'CPU')
     const ghz = s.cpu_freq ? (s.cpu_freq / 1000).toFixed(2) + 'GHz' : ''
-    $('#m-cpusub-' + id).textContent = `${(s.cpu_name || '').slice(0, 46)} · ${s.pcpu || s.ncpu}c/${s.ncpu}t · ${ghz}`
+    $('#m-cpusub-' + id).textContent = `${(s.cpu_name || '').slice(0, 40)} · ${s.pcpu || s.ncpu}c/${s.ncpu}t · ${ghz} · PSI ${(psiC.avg10 || 0).toFixed(1)}%`
     $('#m-cpuload-' + id).textContent = 'load ' + (s.load || []).map(x => x.toFixed(2)).join(' ')
+
+    // ── CPU cores: horizontal bar + freq + sparkline per core ──
     const cores = s.cores || [], freqs = s.cores_freq || []
     if ($('#m-cores-' + id).childElementCount !== cores.length) {
       $('#m-cores-' + id).innerHTML = cores.map((_, i) =>
-        `<div class="core"><div class="ct"><span>CPU${i}</span><span class="p" id="m-cp-${id}-${i}"></span></div><canvas id="m-cc-${id}-${i}"></canvas></div>`).join('')
+        `<div class="core-row"><span class="cl">C${i}</span>` +
+        `<span class="ctrack"><i id="m-cbar-${id}-${i}"></i></span>` +
+        `<span class="cpct" id="m-cp-${id}-${i}"></span><span class="cfreq" id="m-cf-${id}-${i}"></span>` +
+        `<canvas id="m-cc-${id}-${i}"></canvas></div>`).join('')
     }
     $('#m-coresub-' + id).textContent = cores.length + ' threads'
     cores.forEach((c, i) => {
       if (!coreHist[i]) coreHist[i] = []
       push(coreHist[i], c)
+      const col = heat(c / 100)
+      const ib = $('#m-cbar-' + id + '-' + i); if (ib) { ib.style.width = Math.min(100, c) + '%'; ib.style.background = col; ib.style.color = col }
+      $('#m-cp-' + id + '-' + i).textContent = c.toFixed(0) + '%'
+      $('#m-cf-' + id + '-' + i).textContent = freqs[i] ? (freqs[i] / 1000).toFixed(1) + 'G' : ''
       drawSpark($('#m-cc-' + id + '-' + i), coreHist[i])
-      const f = freqs[i] ? ' · ' + (freqs[i] / 1000).toFixed(1) + 'G' : ''
-      $('#m-cp-' + id + '-' + i).textContent = c.toFixed(0) + '%' + f
     })
 
-    // ── MEM: segment bar + gauges ──
+    // ── MEM: segment + gauges + full breakdown ──
     const m = s.mem, total = m.total || 1
-    const buffers = m.buffers || 0, cached = m.cached || 0
-    const used = Math.max(0, m.used - 0), free = m.free || 0
+    const buffers = m.buffers || 0, cached = m.cached || 0, used = m.used, free = m.free || 0
     const mp = used / total * 100
     push(hist.mem, mp)
     $('#m-memsub-' + id).textContent = fmtBytes(used) + ' / ' + fmtBytes(total)
@@ -561,8 +634,51 @@ function makeMonitor(tabId) {
     $('#m-seglegend-' + id).innerHTML = seg.map(([l, v, c]) => `<span><i style="background:${c}"></i>${l} ${fmtBytes(v)}</span>`).join('')
     drawGauge($('#m-ramg-' + id), mp, 'RAM')
     drawGauge($('#m-swapg-' + id), m.swap_total ? m.swap_used / m.swap_total * 100 : 0, 'SWAP')
+    const kv = (k, v, hi) => `<span class="k">${k}</span><span class="v${hi ? ' hi' : ''}">${v}</span>`
+    $('#m-memkv-' + id).innerHTML =
+      `<span class="sec">RAM</span>` +
+      kv('total', fmtBytes(total), 1) + kv('used', fmtBytes(used)) + kv('available', fmtBytes(m.avail || 0)) +
+      kv('cached', fmtBytes(cached)) + kv('buffers', fmtBytes(buffers)) + kv('free', fmtBytes(free)) +
+      `<span class="sec">SWAP</span>` +
+      kv('total', fmtBytes(m.swap_total || 0), 1) + kv('used', fmtBytes(m.swap_used || 0)) +
+      kv('free', fmtBytes((m.swap_total || 0) - (m.swap_used || 0)))
 
-    // ── NET ──
+    // ── PSI panel: cpu/io/memory × some/full ──
+    const psi = s.psi || {}
+    $('#m-psi-' + id).innerHTML = ['cpu', 'io', 'memory'].map(k => {
+      const r = psi[k] || {}
+      return `<div class="psi-row"><span class="pl">${k}</span>${psiBar('some', r.some)}${psiBar('full', r.full || r.some)}</div>`
+    }).join('')
+
+    // ── SWAP · ZRAM breakdown ──
+    const swaps = s.swaps || [], zram = s.zram || []
+    let sk = ''
+    if (swaps.length) { sk += `<span class="sec">SWAP DEVICES</span>`; for (const w of swaps) sk += kv(esc((w.name || '').split('/').pop()) + ' (' + w.kind + ')', fmtBytes(w.used) + ' / ' + fmtBytes(w.size)) }
+    if (zram.length) { sk += `<span class="sec">ZRAM</span>`; for (const z of zram) sk += kv(esc(z.name) + ' ×' + (z.ratio || 0).toFixed(1), fmtBytes(z.orig) + ' → ' + fmtBytes(z.used), 1) }
+    if (!sk) sk = `<span class="k">no swap / zram</span><span class="v">—</span>`
+    $('#m-swapkv-' + id).innerHTML = sk
+    $('#m-swapsub-' + id).textContent = zram.length ? 'zram ×' + (zram[0].ratio || 0).toFixed(1) : ''
+
+    // ── BATTERY ──
+    const pw = s.power || {}, bats = pw.batteries || []
+    if (bats.length) {
+      const b = bats[0]
+      const charging = b.status === 'Charging', flowCls = charging ? 'in' : 'out'
+      $('#m-batt-' + id).innerHTML =
+        `<div class="bg"><canvas id="m-battg-${id}"></canvas></div>` +
+        `<div class="bi"><b>${b.capacity}% · ${esc(b.status)}</b>` +
+        `<span class="flow ${flowCls}">${charging ? '▲ charging' : '▼ draining'} ${(b.watts || 0).toFixed(1)} W</span>` +
+        `<span>energy ${(b.energy || 0).toFixed(1)} / ${(b.energy_full || 0).toFixed(1)} Wh</span>` +
+        `<span>${b.secs ? (charging ? 'full in ' : 'empty in ') + fmtUptime(b.secs) : ''}</span>` +
+        `<span>AC ${pw.ac ? 'plugged' : 'unplugged'}</span></div>`
+      drawGauge($('#m-battg-' + id), b.capacity, 'BATT')
+      $('#m-battsub-' + id).textContent = pw.ac ? '⚡ AC' : 'on battery'
+    } else {
+      $('#m-batt-' + id).innerHTML = `<div class="bi"><b>${pw.ac ? '⚡ AC power' : 'no battery'}</b><span>desktop / no battery sensor</span></div>`
+      $('#m-battsub-' + id).textContent = ''
+    }
+
+    // ── NET graphs ──
     let rx = 0, tx = 0, rxT = 0, txT = 0
     for (const nf of (s.net || [])) { rx += nf.rx; tx += nf.tx; rxT += nf.rx_total; txT += nf.tx_total }
     push(hist.rx, rx); push(hist.tx, tx)
@@ -573,7 +689,18 @@ function makeMonitor(tabId) {
     $('#m-tx-' + id).textContent = fmtRate(tx)
     $('#m-netsub-' + id).textContent = 'Σ ▼' + fmtBytes(rxT) + ' ▲' + fmtBytes(txT)
 
-    // ── DISKS (filesystems) + I/O rate ──
+    // ── NET per-interface table (mesh/web/dns/wg all shown) ──
+    $('#m-niface-' + id).innerHTML = (s.net || []).map(nf => {
+      const ip = (nf.ips || []).find(x => x.indexOf(':') === -1) || (nf.ips || [])[0] || '—'
+      const err = (nf.rx_err || 0) + (nf.tx_err || 0)
+      return `<tr><td class="if">${esc(nf.name)}</td><td class="ip" title="${esc((nf.ips || []).join(', '))} ${esc(nf.mac || '')}">${esc(ip)}</td>` +
+        `<td class="num dn">${fmtRate(nf.rx)}</td><td class="num up">${fmtRate(nf.tx)}</td>` +
+        `<td class="num">${fmtBytes(nf.rx_total)}</td><td class="num">${fmtBytes(nf.tx_total)}</td>` +
+        `<td class="num">${nf.rx_pkts || 0}/${nf.tx_pkts || 0}</td>` +
+        `<td class="num ${err ? 'err' : ''}">${err}</td></tr>`
+    }).join('') || '<tr><td colspan="8" style="color:#6b7280">no interfaces</td></tr>'
+
+    // ── DISKS + I/O ──
     const io = s.diskio || {}
     $('#m-diosub-' + id).textContent = 'R ' + fmtRate(io.read || 0) + ' · W ' + fmtRate(io.write || 0)
     $('#m-disk-' + id).innerHTML = (s.disks || []).map(d => {
@@ -581,7 +708,7 @@ function makeMonitor(tabId) {
       return bar(d.mount + (d.fs ? ' · ' + d.fs : ''), pc, fmtBytes(u) + '/' + fmtBytes(d.total) + ' ' + pc.toFixed(0) + '%')
     }).join('') || '<span style="color:#6b7280">no filesystems</span>'
 
-    // ── SENSORS (temps) ──
+    // ── SENSORS ──
     const temps = (s.temps || []).filter(t => t.temp > 0)
     $('#m-temp-' + id).innerHTML = temps.map(t => {
       const hi = t.crit || t.high || 100

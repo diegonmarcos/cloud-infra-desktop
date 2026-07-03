@@ -60,6 +60,117 @@ struct AppState {
     nets: Mutex<sysinfo::Networks>,
 }
 
+// ── /proc + /sys readers for glances-grade extras (Linux) ────────────
+// Pressure Stall Information: /proc/pressure/{cpu,io,memory}. Each file has
+// a "some" line (and "full" for io/memory) with avg10/avg60/avg300 = % of
+// time tasks stalled on that resource. System-wide (kernel has no per-core PSI).
+fn read_psi(kind: &str) -> Value {
+    let mut out = serde_json::Map::new();
+    if let Ok(txt) = std::fs::read_to_string(format!("/proc/pressure/{kind}")) {
+        for line in txt.lines() {
+            let mut it = line.split_whitespace();
+            let tag = it.next().unwrap_or("");        // "some" | "full"
+            let mut o = serde_json::Map::new();
+            for kv in it {
+                if let Some((k, v)) = kv.split_once('=') {
+                    if let Ok(f) = v.parse::<f64>() { o.insert(k.to_string(), serde_json::json!(f)); }
+                }
+            }
+            if !tag.is_empty() { out.insert(tag.to_string(), Value::Object(o)); }
+        }
+    }
+    Value::Object(out)
+}
+
+// /proc/swaps: active swap devices (partition / file / zram). Size/Used in KB.
+fn read_swaps() -> Vec<Value> {
+    let mut v = vec![];
+    if let Ok(txt) = std::fs::read_to_string("/proc/swaps") {
+        for line in txt.lines().skip(1) {
+            let f: Vec<&str> = line.split_whitespace().collect();
+            if f.len() >= 5 {
+                v.push(serde_json::json!({
+                    "name": f[0], "kind": f[1],
+                    "size": f[2].parse::<u64>().unwrap_or(0) * 1024,
+                    "used": f[3].parse::<u64>().unwrap_or(0) * 1024,
+                    "prio": f[4],
+                }));
+            }
+        }
+    }
+    v
+}
+
+fn sysfs_str(base: &std::path::Path, f: &str) -> Option<String> {
+    std::fs::read_to_string(base.join(f)).ok().map(|s| s.trim().to_string())
+}
+fn sysfs_num(base: &std::path::Path, f: &str) -> u64 {
+    sysfs_str(base, f).and_then(|s| s.parse().ok()).unwrap_or(0)
+}
+
+// zram compression stats: /sys/block/zram*/{disksize,mm_stat}.
+// mm_stat = orig_data_size compr_data_size mem_used_total ...
+fn read_zram() -> Vec<Value> {
+    let mut v = vec![];
+    if let Ok(rd) = std::fs::read_dir("/sys/block") {
+        for e in rd.flatten() {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if !name.starts_with("zram") { continue; }
+            let base = e.path();
+            let disksize = sysfs_num(&base, "disksize");
+            if disksize == 0 { continue; }
+            let n: Vec<u64> = std::fs::read_to_string(base.join("mm_stat"))
+                .unwrap_or_default().split_whitespace().filter_map(|x| x.parse().ok()).collect();
+            let (orig, compr, used) = (n.first().copied().unwrap_or(0), n.get(1).copied().unwrap_or(0), n.get(2).copied().unwrap_or(0));
+            v.push(serde_json::json!({
+                "name": name, "disksize": disksize, "orig": orig, "compr": compr, "used": used,
+                "ratio": if compr > 0 { orig as f64 / compr as f64 } else { 0.0 },
+            }));
+        }
+    }
+    v
+}
+
+// Battery + AC: /sys/class/power_supply/*. Prefers energy_* (µWh)/power_now
+// (µW); falls back to charge_*(µAh)×voltage. Estimates time-to-empty/full.
+fn read_power() -> Value {
+    let mut batteries = vec![];
+    let mut ac_online = false;
+    if let Ok(rd) = std::fs::read_dir("/sys/class/power_supply") {
+        for e in rd.flatten() {
+            let base = e.path();
+            let typ = sysfs_str(&base, "type").unwrap_or_default();
+            if typ == "Mains" || typ == "USB" {
+                if sysfs_num(&base, "online") == 1 { ac_online = true; }
+                continue;
+            }
+            if typ != "Battery" { continue; }
+            let status = sysfs_str(&base, "status").unwrap_or_default();
+            let capacity = sysfs_num(&base, "capacity");
+            let (mut e_now, mut e_full, mut p_now) =
+                (sysfs_num(&base, "energy_now"), sysfs_num(&base, "energy_full"), sysfs_num(&base, "power_now"));
+            if e_full == 0 {
+                let volt = sysfs_num(&base, "voltage_now").max(1); // µV
+                e_now = sysfs_num(&base, "charge_now") / 1000 * volt / 1_000_000;
+                e_full = sysfs_num(&base, "charge_full") / 1000 * volt / 1_000_000;
+                p_now = sysfs_num(&base, "current_now") / 1000 * volt / 1_000_000;
+            }
+            let hours = if p_now > 0 {
+                if status == "Charging" { e_full.saturating_sub(e_now) as f64 / p_now as f64 }
+                else { e_now as f64 / p_now as f64 }
+            } else { 0.0 };
+            batteries.push(serde_json::json!({
+                "name": e.file_name().to_string_lossy(), "status": status, "capacity": capacity,
+                "watts": p_now as f64 / 1_000_000.0,           // W (draw or charge)
+                "energy": e_now as f64 / 1_000_000.0,          // Wh
+                "energy_full": e_full as f64 / 1_000_000.0,    // Wh
+                "secs": (hours * 3600.0) as u64,
+            }));
+        }
+    }
+    serde_json::json!({ "ac": ac_online, "batteries": batteries })
+}
+
 // ── System monitor snapshot (btop-graphs + glances-data dashboard) ────
 // Rich enough to drive a btop+glances clone: CPU (aggregate+per-core+model+
 // freq), load, mem breakdown (used/avail/cached/free/swap), temps, disks,
@@ -104,6 +215,10 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
         .map(|(n, d)| serde_json::json!({
             "name": n, "rx": d.received(), "tx": d.transmitted(),
             "rx_total": d.total_received(), "tx_total": d.total_transmitted(),
+            "rx_pkts": d.packets_received(), "tx_pkts": d.packets_transmitted(),
+            "rx_err": d.errors_on_received(), "tx_err": d.errors_on_transmitted(),
+            "mac": d.mac_address().to_string(),
+            "ips": d.ip_networks().iter().map(|ip| format!("{}/{}", ip.addr, ip.prefix)).collect::<Vec<_>>(),
         }))
         .collect();
 
@@ -192,6 +307,12 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
             "swap_total": sys.total_swap(), "swap_used": sys.used_swap(),
         },
         "diskio": { "read": dio_r, "write": dio_w },
+        "psi": {
+            "cpu": read_psi("cpu"), "io": read_psi("io"), "memory": read_psi("memory"),
+        },
+        "swaps": read_swaps(),
+        "zram": read_zram(),
+        "power": read_power(),
         "net": net,
         "disks": disk,
         "temps": temps,
