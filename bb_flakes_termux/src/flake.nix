@@ -7,7 +7,12 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     nix-on-droid = {
-      url = "github:nix-community/nix-on-droid/release-24.05";
+      # release-24.05 hasn't moved since 2024-07-07 (effectively abandoned) —
+      # its fixed-output-derivation binary pins (e.g. proot-termux-static)
+      # decayed out of the substituter cache, breaking CI with
+      # "path ... does not exist and cannot be created" (2026-07-03).
+      # master is actively maintained and has current, fetchable pins.
+      url = "github:nix-community/nix-on-droid/master";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
