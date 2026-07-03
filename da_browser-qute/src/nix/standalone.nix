@@ -41,16 +41,32 @@ let
   bookmarks   = cfg.home.file."${homeDir}/.config/qutebrowser/bookmarks/urls".source;
   dashboard   = cfg.home.file."${homeDir}/.config/qutebrowser/dashboard.html".source;
 
-  launcher = pkgs.writeShellScriptBin "qutebrowser-standalone" ''
-    set -euo pipefail
-    basedir="''${QUTE_STANDALONE_BASEDIR:-$HOME/.local/share/qutebrowser-standalone}"
-    mkdir -p "$basedir/config/bookmarks"
-    cp -f "${configPy}"   "$basedir/config/config.py"
-    cp -f "${quickmarks}" "$basedir/config/quickmarks"
-    cp -f "${bookmarks}"  "$basedir/config/bookmarks/urls"
-    cp -f "${dashboard}"  "$basedir/config/dashboard.html"
-    exec ${pkgs.qutebrowser}/bin/qutebrowser --basedir "$basedir" "$@"
-  '';
+  # The launcher must NOT bake in the CI runner's /nix/store paths for
+  # config.py etc. — this bundle is extracted from a tarball on a machine
+  # that never had those exact store paths, so any "${configPy}"-style
+  # interpolation resolves to a path that doesn't exist there (this broke
+  # the first release: cp: cannot stat '/nix/store/...-config.py'). The
+  # launcher instead copies from files SIBLING to itself (resolved via its
+  # own script location at runtime), which the tarball always ships intact.
+  # qutebrowser itself is referenced by PATH — it's already installed via
+  # the desktop's earlier (working) generations, not re-shipped here.
+  launcher = pkgs.writeTextFile {
+    name = "qutebrowser-standalone";
+    executable = true;
+    destination = "/bin/qutebrowser-standalone";
+    text = ''
+      #!/usr/bin/env bash
+      set -euo pipefail
+      here="$(cd "$(dirname "''${BASH_SOURCE[0]}")" && pwd)"
+      basedir="''${QUTE_STANDALONE_BASEDIR:-$HOME/.local/share/qutebrowser-standalone}"
+      mkdir -p "$basedir/config/bookmarks"
+      cp -f "$here/config.py"          "$basedir/config/config.py"
+      cp -f "$here/quickmarks"         "$basedir/config/quickmarks"
+      cp -f "$here/bookmarks/urls"     "$basedir/config/bookmarks/urls"
+      cp -f "$here/dashboard.html"     "$basedir/config/dashboard.html"
+      exec qutebrowser --basedir "$basedir" "$@"
+    '';
+  };
 in
 pkgs.runCommand "qutebrowser-standalone-bundle" {} ''
   mkdir -p $out
