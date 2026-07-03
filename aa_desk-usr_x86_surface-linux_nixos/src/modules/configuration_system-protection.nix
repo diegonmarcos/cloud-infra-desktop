@@ -139,7 +139,12 @@ in
       # without preferring them, earlyoom's oom_score ranking kept picking
       # claude sessions as the victim at the 5% floor.
       "--prefer" "^(brave|firefox|chromium|electron|android|com\\.android|redroid)"
-      "--avoid" "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus)$"
+      # ld-linux = claude sessions (glibc-loader comm). USER DIRECTIVE
+      # 2026-07-03: "claude is the LAST one" — earlyoom must exhaust every
+      # other victim (android/redroid/browsers preferred, then anything
+      # unlisted) before touching a claude session. Not a hard whitelist:
+      # earlyoom still kills avoided processes when nothing else remains.
+      "--avoid" "^(kwin|plasmashell|plasma|sddm|Xwayland|pipewire|wireplumber|systemd|earlyoom|dbus|ld-linux)"
     # nix deliberately NOT in --avoid — earlyoom must be able to kill a runaway nix build
     ];
   };
