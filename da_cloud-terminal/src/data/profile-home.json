@@ -22,7 +22,8 @@
         { "label": "📊  System Performance", "type": "monitor",  "arg": "" },
         { "label": "📜  Journal Logs",       "type": "journal",  "arg": "" },
         { "label": "☁️  Cloud Control",       "type": "cloud",    "arg": "" },
-        { "label": "🔄  Data Sync Center",   "type": "datasync", "arg": "" }
+        { "label": "🔄  Data Sync Center",   "type": "datasync", "arg": "" },
+        { "label": "🤖  AGI · Claude Usage", "type": "agi",      "arg": "" }
       ]
     },
     {

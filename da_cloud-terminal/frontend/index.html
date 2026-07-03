@@ -403,6 +403,37 @@
   .ds-peer .ph { color: #e2e8f0; font-weight: 600; } .ds-peer .pk { color: #6b7280; font-size: 9px; } .ds-peer .pi { color: #6b7280; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ds-empty { color: #6b7280; font-size: 10px; }
 
+  /* ══ AGI dashboard — Claude usage analytics ═══════════════════════ */
+  .leaf.agi { padding: 0; overflow: hidden; background:
+    radial-gradient(1200px 600px at 20% -10%, #1c1530 0%, var(--bg) 60%); }
+  .agi { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 11px; overflow-y: auto; }
+  .agi-top { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .agi-cur { background: rgba(167,139,250,.10); border: 1px solid var(--accent2); border-radius: 8px;
+    padding: 8px 12px; display: flex; gap: 18px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
+  .agi-cur b { color: var(--accent2); font-size: 12px; }
+  .agi-cur .k { color: #6b7280; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+  .agi-cur .v { color: #e2e8f0; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .agi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 8px; }
+  .agi-grid .panel { min-height: 190px; }
+  .agi-panel-wide { grid-column: 1 / -1; }
+  .agi-g-wrap { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+  .agi-g-wrap canvas { flex: 1 1 0; min-height: 60px; width: 100%; display: block; }
+  .agi-g-axis { display: flex; justify-content: space-between; font-size: 8px; color: #6b7280; flex-shrink: 0; margin-top: 2px; }
+  .agi-model-row { display: grid; grid-template-columns: 90px 1fr 70px; gap: 8px; align-items: center; font-size: 10px; margin-bottom: 5px; }
+  .agi-model-row .mn { color: var(--accent2); font-weight: 600; }
+  .agi-model-row .track { height: 9px; background: var(--item-bg); border-radius: 4px; overflow: hidden; border: 1px solid var(--sep); }
+  .agi-model-row .track > i { display: block; height: 100%; border-radius: 4px; box-shadow: 0 0 6px currentColor; }
+  .agi-model-row .cost { text-align: right; color: #cbd5e1; font-variant-numeric: tabular-nums; }
+  .agi-tbl { width: 100%; border-collapse: collapse; font-size: 10px; }
+  .agi-tbl th { text-align: left; color: #6b7280; font-weight: 600; padding: 3px 7px; position: sticky; top: 0;
+    background: #13141f; text-transform: uppercase; font-size: 9px; letter-spacing: .06em; border-bottom: 1px solid var(--sep); }
+  .agi-tbl th.num, .agi-tbl td.num { text-align: right; }
+  .agi-tbl td { padding: 2px 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agi-tbl tbody tr:nth-child(odd) td { background: rgba(255,255,255,.015); }
+  .agi-tbl tbody tr:hover td { background: rgba(167,139,250,.10); }
+  .agi-tbl td.proj { color: #7dd3fc; max-width: 160px; } .agi-tbl td.model { color: var(--accent2); }
+  .agi-tbl td.cost { color: #cbd5e1; font-variant-numeric: tabular-nums; }
+
   #ctxmenu {
     position: fixed; z-index: 1000; display: none; min-width: 170px; padding: 4px;
     background: var(--sidebar); border: 1px solid var(--sep); border-radius: 6px;
@@ -1441,6 +1472,114 @@ function makeDataSync(tabId) {
   return { id, leaf }
 }
 
+// ══ AGI dashboard (no PTY) — Claude Code usage analytics ═════════════
+function makeAGI(tabId) {
+  const id = ++paneSeq
+  const leaf = document.createElement('div')
+  leaf.className = 'leaf agi'; leaf.dataset.pane = String(id)
+  leaf.innerHTML = `
+    <div class="agi">
+      <div class="agi-top"><span style="font-weight:700;color:var(--accent2);letter-spacing:.08em">AGI · CLAUDE USAGE</span>
+        <span style="flex:1"></span><span class="jrn-count" id="a-note-${id}"></span>
+        <button class="cpbtn" id="a-refresh-${id}">↻ refresh</button></div>
+      <div class="agi-cur" id="a-cur-${id}"></div>
+      <div class="jrn-stats" id="a-stats-${id}"></div>
+      <div class="agi-grid">
+        <div class="panel agi-panel-wide"><div class="ph"><span>5-HOUR CYCLES</span><span class="sub">tokens · ~16 days</span></div>
+          <div class="agi-g-wrap"><canvas id="a-g5h-${id}"></canvas><div class="agi-g-axis" id="a-ax5h-${id}"></div></div></div>
+        <div class="panel agi-panel-wide"><div class="ph"><span>DAY BY DAY</span><span class="sub">cost · 30 days</span></div>
+          <div class="agi-g-wrap"><canvas id="a-gday-${id}"></canvas><div class="agi-g-axis" id="a-axday-${id}"></div></div></div>
+        <div class="panel"><div class="ph"><span>BY MODEL</span></div><div id="a-models-${id}" style="flex:1 1 0;min-height:0;overflow-y:auto"></div></div>
+        <div class="panel"><div class="ph"><span>ESTIMATES</span></div><div class="kv" id="a-est-${id}"></div></div>
+      </div>
+      <div class="panel" style="flex:1 1 0;min-height:200px;"><div class="ph"><span>SESSIONS</span><span class="sub" id="a-sesssub-${id}"></span></div>
+        <div class="ptbl-wrap"><table class="agi-tbl">
+          <thead><tr><th>SESSION</th><th>PROJECT</th><th>MODEL</th><th>STARTED</th><th>LAST ACTIVE</th>
+            <th class="num">DUR</th><th class="num">IN</th><th class="num">OUT</th><th class="num">CACHE</th><th class="num">$</th></tr></thead>
+          <tbody id="a-sess-${id}"></tbody></table></div></div>
+    </div>`
+  const $ = s => leaf.querySelector(s)
+  const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+  const modelColor = m => { let h = 0; for (const c of m) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h},65%,60%)` }
+  const usd = n => '$' + (n || 0).toFixed(2)
+
+  async function load() {
+    $('#a-refresh-' + id).textContent = '… scanning'
+    const d = await invoke('agi_usage').catch(() => null)
+    if (!leaf.isConnected) return
+    $('#a-refresh-' + id).textContent = '↻ refresh'
+    if (!d) { $('#a-note-' + id).textContent = 'unavailable'; return }
+    $('#a-note-' + id).textContent = (d.file_count || 0) + ' session files scanned'
+
+    // ── current/live session ──
+    const c = d.current
+    if (c) {
+      const u = c.usage
+      $('#a-cur-' + id).innerHTML =
+        `<span><b>${esc(c.project)}</b></span><span><span class="k">model</span> <span class="v">${esc(c.model)}</span></span>` +
+        `<span><span class="k">session</span> <span class="v">${esc((c.id || '').slice(0, 8))}</span></span>` +
+        `<span><span class="k">started</span> <span class="v">${esc(c.started)}</span></span>` +
+        `<span><span class="k">duration</span> <span class="v">${c.duration_min}m</span></span>` +
+        `<span><span class="k">tokens</span> <span class="v">${fmtBytes(u.input + u.output).replace('B', '')}</span></span>` +
+        `<span><span class="k">cost</span> <span class="v" style="color:#fbbf24">${usd(u.cost)}</span></span>`
+    } else { $('#a-cur-' + id).innerHTML = '<span style="color:#6b7280">no active session detected</span>' }
+
+    // ── stat tiles ──
+    const t = d.total
+    $('#a-stats-' + id).innerHTML = [
+      ['total cost', usd(t.cost), ''], ['messages', t.messages, ''],
+      ['input tok', fmtBytes(t.input).replace('B', ''), ''], ['output tok', fmtBytes(t.output).replace('B', ''), ''],
+      ['cache read', fmtBytes(t.cache_read).replace('B', ''), 'info'], ['cache write', fmtBytes(t.cache_write).replace('B', ''), 'warn'],
+    ].map(([l, n, cls]) => `<div class="jstat ${cls}"><span class="n">${n}</span><span class="l">${l}</span></div>`).join('')
+
+    // ── 5h cycles graph (tokens) + day-by-day graph (cost) ──
+    const h5 = d.by_5h || []
+    drawGraph($('#a-g5h-' + id), h5.map(b => b.usage.input + b.usage.output + b.usage.cache_read + b.usage.cache_write), null, 265)
+    $('#a-ax5h-' + id).innerHTML = h5.length ? `<span>${esc(h5[0].start)}</span><span>${esc(h5[h5.length - 1].start)}</span>` : ''
+    const dd = d.by_day || []
+    drawGraph($('#a-gday-' + id), dd.map(x => x.usage.cost), null, 45)
+    $('#a-axday-' + id).innerHTML = dd.length ? `<span>${esc(dd[0].date)}</span><span>${esc(dd[dd.length - 1].date)}</span>` : ''
+
+    // ── by model ──
+    const models = (d.by_model || []).slice().sort((a, b) => b.usage.cost - a.usage.cost)
+    const maxCost = Math.max(1e-6, ...models.map(m => m.usage.cost))
+    $('#a-models-' + id).innerHTML = models.map(m => {
+      const col = modelColor(m.model), pct = m.usage.cost / maxCost * 100
+      return `<div class="agi-model-row"><span class="mn">${esc(m.model)}</span>` +
+        `<span class="track"><i style="width:${pct.toFixed(1)}%;background:${col};color:${col}"></i></span>` +
+        `<span class="cost">${usd(m.usage.cost)}</span></div>`
+    }).join('') || '<span class="ds-empty">no data</span>'
+
+    // ── estimates: daily/weekly average, projected monthly, per-5h average ──
+    const kv = (k, v) => `<span class="k">${k}</span><span class="v">${v}</span>`
+    const daysCovered = Math.max(1, dd.length)
+    const avgDay = t.cost / daysCovered
+    const recent7 = dd.slice(-7).reduce((a, x) => a + x.usage.cost, 0) / Math.max(1, Math.min(7, dd.length))
+    const avg5h = h5.length ? h5.reduce((a, x) => a + x.usage.cost, 0) / h5.length : 0
+    $('#a-est-' + id).innerHTML =
+      kv('avg $/day (all-time)', usd(avgDay)) + kv('avg $/day (last 7d)', usd(recent7)) +
+      kv('avg $/5h cycle', usd(avg5h)) + kv('projected $/30d', usd(recent7 * 30)) +
+      kv('cache hit-adjacent', fmtBytes(t.cache_read).replace('B', '') + ' read') +
+      kv('sessions tracked', (d.sessions || []).length)
+
+    // ── sessions table ──
+    const sess = d.sessions || []
+    $('#a-sesssub-' + id).textContent = sess.length + ' most recent'
+    $('#a-sess-' + id).innerHTML = sess.map(s => {
+      const u = s.usage
+      return `<tr><td>${esc((s.id || '').slice(0, 8))}</td><td class="proj">${esc(s.project)}</td><td class="model">${esc(s.model)}</td>` +
+        `<td>${esc(s.started)}</td><td>${esc(s.last_active)}</td><td class="num">${s.duration_min}m</td>` +
+        `<td class="num">${fmtBytes(u.input).replace('B', '')}</td><td class="num">${fmtBytes(u.output).replace('B', '')}</td>` +
+        `<td class="num">${fmtBytes(u.cache_read + u.cache_write).replace('B', '')}</td><td class="num cost">${usd(u.cost)}</td></tr>`
+    }).join('') || '<tr><td colspan="10" style="color:#6b7280">no sessions found</td></tr>'
+  }
+  $('#a-refresh-' + id).addEventListener('click', load)
+  load()
+  leaf.addEventListener('mousedown', () => focusPane(id), true)
+  panes.set(id, { leaf, tabId, kind: 'agi', stop: () => {} })
+  return { id, leaf }
+}
+
 // Generic special-pane tab (no PTY): monitor / journal / cloud dashboards.
 function newSpecialTab(makeFn, labelText, type, profile) {
   profile = profile || active.name
@@ -1466,6 +1605,7 @@ function newMonitorTab(profile) { return newSpecialTab(makeMonitor, '📊 monito
 function newJournalTab(profile) { return newSpecialTab(makeJournal, '📜 journal', 'journal', profile) }
 function newCloudTab(profile) { return newSpecialTab(makeCloud, '☁ cloud', 'cloud', profile) }
 function newDataSyncTab(profile) { return newSpecialTab(makeDataSync, '🔄 data-sync', 'datasync', profile) }
+function newAGITab(profile) { return newSpecialTab(makeAGI, '🤖 agi', 'agi', profile) }
 
 function paneIdOf(leaf) { return parseInt(leaf.dataset.pane, 10) }
 
@@ -1641,6 +1781,7 @@ function restoreOrDefaultTabs(name) {
     else if (t.type === 'journal') tid = newJournalTab(name)
     else if (t.type === 'cloud') tid = newCloudTab(name)
     else if (t.type === 'datasync') tid = newDataSyncTab(name)
+    else if (t.type === 'agi') tid = newAGITab(name)
     else { tid = newTab(name, t.title); if (t.cmd) autoRun(t.cmd) }
     if (t.cmd) { const tt = tabs.get(tid); if (tt) tt.cmd = t.cmd }
     if (firstTab == null) firstTab = tid
@@ -1718,7 +1859,7 @@ function historyItems(kind) {
 // dispatch a sidebar/history item (dashboards open a pane; others run a command)
 function openItem(item, profileName) {
   recordHistory(item)
-  const dash = { monitor: newMonitorTab, journal: newJournalTab, cloud: newCloudTab, datasync: newDataSyncTab }[item.type]
+  const dash = { monitor: newMonitorTab, journal: newJournalTab, cloud: newCloudTab, datasync: newDataSyncTab, agi: newAGITab }[item.type]
   if (dash) { dash() } else { runItem({ ...item, profile: profileName, ptyId: activePane }); focusActivePaneTerm() }
   if ((active.sections || []).some(s => s.dynamic)) buildSidebar(active)   // refresh Last/Most
 }
