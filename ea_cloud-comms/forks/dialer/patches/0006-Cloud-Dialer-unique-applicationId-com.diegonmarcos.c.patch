@@ -1,7 +1,7 @@
-From 50a0580f5746a5dbeea99b4d61d8aec4d46cea33 Mon Sep 17 00:00:00 2001
+From c1e7f0891dc90bb94a7bb2da08fce687c599d869 Mon Sep 17 00:00:00 2001
 From: Diego Nepomuceno Marcos <me@diegonmarcos.com>
 Date: Wed, 1 Jul 2026 12:34:16 +0200
-Subject: [PATCH 6/7] Cloud-Dialer: unique applicationId
+Subject: [PATCH 06/12] Cloud-Dialer: unique applicationId
  (com.diegonmarcos.comms.dialer) to hold the default-Phone role
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -38,5 +38,5 @@ index 8b40b103..54022b9e 100644
          targetSdk = project.libs.versions.app.build.targetSDK.get().toInt()
          versionName = project.property("VERSION_NAME").toString()
 -- 
-2.50.1
+2.44.2
 
