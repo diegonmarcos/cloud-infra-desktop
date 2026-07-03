@@ -276,7 +276,12 @@
   .pd { padding: 7px 12px; background: #0c0d16; border-left: 2px solid var(--accent); display: flex; flex-direction: column; gap: 5px; }
   .pd .cmd { color: #e2e8f0; font-size: 11px; white-space: pre-wrap; word-break: break-all; user-select: text; }
   .pd .pdmeta { color: #6b7280; font-size: 10px; }
-  .pd .pdbtns { display: flex; gap: 6px; }
+  .pd .pdrow { font-size: 10px; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
+  .pd .pdrow .k { color: #6b7280; margin-right: 6px; text-transform: uppercase; font-size: 9px; letter-spacing: .05em; }
+  .pd .pdkv { display: grid; grid-template-columns: repeat(3, auto 1fr); gap: 2px 8px; font-size: 10px; }
+  .pd .pdkv .k { color: #6b7280; } .pd .pdkv .v { color: #cbd5e1; font-variant-numeric: tabular-nums; }
+  .pd .pdkv .v.hot { color: #f87171; font-weight: 600; } .pd .pdkv .v.warm { color: #fbbf24; }
+  .pd .pdbtns { display: flex; gap: 6px; margin-top: 2px; }
   .pd .pdbtns button { font: inherit; font-size: 10px; padding: 3px 11px; border-radius: 5px; cursor: pointer;
     background: var(--item-bg); color: #cbd5e1; border: 1px solid var(--sep); }
   .pd .pdbtns button:hover { border-color: var(--accent); color: var(--accent); }
@@ -584,7 +589,7 @@ function makeMonitor(tabId) {
             <button class="cpbtn" id="m-copy-${id}" title="Copy visible table (TSV)">⎘ copy</button>
           </span></div>
         <div class="ptbl-wrap"><table class="ptbl proc-tbl">
-          <thead><tr><th class="num">PID</th><th>USER</th><th class="num">CPU%</th><th class="num">MEM%</th><th class="num">IO</th><th class="num">TIME+</th><th>NAME</th><th id="m-hierh-${id}">HIERARCHY</th></tr></thead>
+          <thead><tr><th class="num">PID</th><th>USER</th><th class="num">CPU%</th><th class="num">MEM%</th><th class="num" title="Pressure of the process's cgroup (worst of cpu/io/mem)">PSI</th><th class="num">IO</th><th class="num">TIME+</th><th>NAME</th><th id="m-hierh-${id}">HIERARCHY</th></tr></thead>
           <tbody id="m-proc-${id}"></tbody></table></div></div>
     </div>`
   const hist = { cpu: [], mem: [], rx: [], tx: [] }
@@ -598,20 +603,34 @@ function makeMonitor(tabId) {
 
   // ── process table: flat (sorted by metric) or parent/child tree ──
   const zomb = st => /zomb/i.test(st || '')
+  function psiMax(p) { const q = p.psi || {}; return Math.max(q.cpu || 0, q.io || 0, q.mem || 0) }
   function procRowHtml(p, tw) {
     const cc = p.cpu > 50 ? 'hot' : p.cpu > 10 ? 'warm' : ''
     const hier = zomb(p.status) ? '<span style="color:#f87171">zombie</span>' : esc((p.anc || []).join(' ▸ ')) || '—'
+    const q = p.psi || {}, pm = psiMax(p), pc = pm > 20 ? 'hot' : pm > 5 ? 'warm' : ''
+    const psiCell = p.psi ? `<td class="num ${pc}" title="cpu ${(q.cpu || 0).toFixed(1)}% · io ${(q.io || 0).toFixed(1)}% · mem ${(q.mem || 0).toFixed(1)}% (cgroup)">${pm.toFixed(1)}</td>` : `<td class="num st">·</td>`
     const open = expanded.has(p.pid)
     let h = `<tr class="prow${open ? ' open' : ''}" data-pid="${p.pid}">` +
       `<td class="num">${p.pid}</td><td class="u">${esc((p.user || '').slice(0, 9))}</td>` +
       `<td class="num ${cc}">${p.cpu.toFixed(1)}</td><td class="num">${(p.memp || 0).toFixed(1)}</td>` +
+      psiCell +
       `<td class="num">${p.io ? fmtRate(p.io) : '·'}</td><td class="num st">${fmtTimeplus(p.time)}</td>` +
       `<td class="n">${tw ? '<span class="tw">' + tw + '</span>' : ''}${open ? '▾ ' : '▸ '}${esc(p.name)}</td>` +
       `<td class="hier">${hier}</td></tr>`
     if (open) {
-      h += `<tr class="pdetail"><td colspan="8"><div class="pd">` +
-        `<div class="cmd">${esc(p.cmd || p.name)}</div>` +
-        `<div class="pdmeta">pid ${p.pid} · ppid ${p.ppid} · ${esc(p.status)} · lineage: ${esc((p.anc || []).join(' / ')) || '—'}</div>` +
+      const kd = (k, v, cls) => `<span class="k">${k}</span><span class="v${cls ? ' ' + cls : ''}">${v}</span>`
+      const started = p.start ? new Date(p.start * 1000).toLocaleString('en-GB') : '—'
+      h += `<tr class="pdetail"><td colspan="9"><div class="pd">` +
+        `<div class="cmd">$ ${esc(p.cmd || p.name)}</div>` +
+        `<div class="pdrow"><span class="k">exe</span>${esc(p.exe || '—')}</div>` +
+        `<div class="pdrow"><span class="k">cwd</span>${esc(p.cwd || '—')}</div>` +
+        `<div class="pdkv">` +
+          kd('ppid', p.ppid) + kd('status', esc(p.status), zomb(p.status) ? 'hot' : '') + kd('threads', p.threads || 0) +
+          kd('cpu', p.cpu.toFixed(1) + '%', cc) + kd('mem', (p.memp || 0).toFixed(1) + '% · ' + fmtBytes(p.mem)) + kd('virt', fmtBytes(p.vms || 0)) +
+          kd('io now', fmtRate(p.io || 0)) + kd('io read', fmtBytes(p.io_rt || 0)) + kd('io write', fmtBytes(p.io_wt || 0)) +
+          kd('psi cpu', (q.cpu || 0).toFixed(1) + '%', q.cpu > 5 ? 'warm' : '') + kd('psi io', (q.io || 0).toFixed(1) + '%', q.io > 5 ? 'warm' : '') + kd('psi mem', (q.mem || 0).toFixed(1) + '%', q.mem > 5 ? 'warm' : '') +
+          kd('started', started) + kd('runtime', fmtTimeplus(p.time)) + kd('lineage', esc((p.anc || []).join(' / ')) || '—') +
+        `</div>` +
         `<div class="pdbtns"><button data-act="copy" data-pid="${p.pid}">⎘ copy info</button>` +
         `<button data-act="term" data-pid="${p.pid}" class="warn">◼ TERM · soft kill</button>` +
         `<button data-act="kill" data-pid="${p.pid}" class="crit">✕ KILL · force</button></div></div></td></tr>`
@@ -670,9 +689,9 @@ function makeMonitor(tabId) {
   $('#m-copy-' + id).addEventListener('click', () => {
     const s = lastS; if (!s) return
     const list = viewMode === 'tree' ? s.procs_all : (sortBy === 'mem' ? s.procs_mem : sortBy === 'io' ? s.procs_io : s.procs)
-    const head = ['PID', 'PPID', 'USER', 'CPU%', 'MEM%', 'IO/s', 'TIME+', 'STATUS', 'NAME', 'LINEAGE', 'COMMAND'].join('\t')
+    const head = ['PID', 'PPID', 'USER', 'CPU%', 'MEM%', 'PSI%', 'THR', 'IO/s', 'TIME+', 'STATUS', 'NAME', 'LINEAGE', 'COMMAND'].join('\t')
     const rows = (list || []).map(p => [p.pid, p.ppid, p.user, p.cpu.toFixed(1), (p.memp || 0).toFixed(1),
-      fmtRate(p.io || 0), fmtTimeplus(p.time), p.status, p.name, (p.anc || []).join('/'), p.cmd || p.name].join('\t'))
+      psiMax(p).toFixed(1), p.threads || 0, fmtRate(p.io || 0), fmtTimeplus(p.time), p.status, p.name, (p.anc || []).join('/'), p.cmd || p.name].join('\t'))
     clip.write([head, ...rows].join('\n'))
     const btn = $('#m-copy-' + id); const t = btn.textContent; btn.textContent = '✓ copied'; setTimeout(() => btn.textContent = t, 1200)
   })
@@ -682,8 +701,13 @@ function makeMonitor(tabId) {
     if (act) {
       const pid = +act.dataset.pid, p = procIndex.get(pid)
       if (act.dataset.act === 'copy' && p) {
-        clip.write(`pid=${p.pid} ppid=${p.ppid} user=${p.user} cpu=${p.cpu.toFixed(1)}% mem=${(p.memp || 0).toFixed(1)}% ` +
-          `io=${fmtRate(p.io || 0)} time=${fmtTimeplus(p.time)} status=${p.status}\nlineage: ${(p.anc || []).join(' / ')}\ncmd: ${p.cmd || p.name}`)
+        const q = p.psi || {}
+        clip.write(`pid=${p.pid} ppid=${p.ppid} user=${p.user} status=${p.status} threads=${p.threads || 0}\n` +
+          `cpu=${p.cpu.toFixed(1)}% mem=${(p.memp || 0).toFixed(1)}% (${fmtBytes(p.mem)}) virt=${fmtBytes(p.vms || 0)}\n` +
+          `io now=${fmtRate(p.io || 0)} read=${fmtBytes(p.io_rt || 0)} write=${fmtBytes(p.io_wt || 0)}\n` +
+          `psi cpu=${(q.cpu || 0).toFixed(1)}% io=${(q.io || 0).toFixed(1)}% mem=${(q.mem || 0).toFixed(1)}%\n` +
+          `started=${p.start ? new Date(p.start * 1000).toLocaleString('en-GB') : '—'} runtime=${fmtTimeplus(p.time)}\n` +
+          `exe: ${p.exe || '—'}\ncwd: ${p.cwd || '—'}\nlineage: ${(p.anc || []).join(' / ')}\ncmd: ${p.cmd || p.name}`)
         const t = act.textContent; act.textContent = '✓ copied'; setTimeout(() => act.textContent = t, 1200)
       } else if (act.dataset.act === 'term') { invoke('proc_kill', { pid, force: false }).catch(() => {}) }
       else if (act.dataset.act === 'kill') { invoke('proc_kill', { pid, force: true }).catch(() => {}) }

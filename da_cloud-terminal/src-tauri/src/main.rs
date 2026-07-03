@@ -171,6 +171,43 @@ fn read_power() -> Value {
     serde_json::json!({ "ac": ac_online, "batteries": batteries })
 }
 
+// Per-process PSI: the kernel only exposes pressure per cgroup, so a process's
+// PSI is the pressure of the cgroup it lives in (its systemd scope/service).
+// Reads /proc/<pid>/cgroup → the v2 path → cpu/io/memory.pressure "some avg10".
+// Cached by cgroup path (many processes share one cgroup) to stay cheap.
+fn proc_cgroup_psi(pid: u32, cache: &mut HashMap<String, Value>) -> Value {
+    let cg = match std::fs::read_to_string(format!("/proc/{pid}/cgroup")) {
+        Ok(c) => c, Err(_) => return Value::Null,
+    };
+    // cgroup v2: a single "0::/system.slice/…" line.
+    let path = cg.lines().find_map(|l| l.strip_prefix("0::")).unwrap_or("").trim().to_string();
+    if path.is_empty() { return Value::Null; }
+    if let Some(v) = cache.get(&path) { return v.clone(); }
+    let base = format!("/sys/fs/cgroup{path}");
+    let some_avg10 = |file: &str| -> f64 {
+        std::fs::read_to_string(format!("{base}/{file}")).ok()
+            .and_then(|t| t.lines().find(|l| l.starts_with("some")).map(|l| l.to_string()))
+            .and_then(|l| l.split_whitespace().find_map(|kv| kv.strip_prefix("avg10=").and_then(|v| v.parse::<f64>().ok())))
+            .unwrap_or(0.0)
+    };
+    let v = serde_json::json!({
+        "cpu": some_avg10("cpu.pressure"),
+        "io":  some_avg10("io.pressure"),
+        "mem": some_avg10("memory.pressure"),
+    });
+    cache.insert(path, v.clone());
+    v
+}
+
+fn enrich_psi(list: &mut [Value], cache: &mut HashMap<String, Value>) {
+    for row in list.iter_mut() {
+        if let Some(pid) = row.get("pid").and_then(|v| v.as_u64()) {
+            let p = proc_cgroup_psi(pid as u32, cache);
+            if let Some(o) = row.as_object_mut() { o.insert("psi".into(), p); }
+        }
+    }
+}
+
 // ── System monitor snapshot (btop-graphs + glances-data dashboard) ────
 // Rich enough to drive a btop+glances clone: CPU (aggregate+per-core+model+
 // freq), load, mem breakdown (used/avail/cached/free/swap), temps, disks,
@@ -257,7 +294,9 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
     let pmap: HashMap<u32, (String, Option<u32>)> = sys.processes().iter()
         .map(|(pid, p)| (pid.as_u32(), (p.name().to_string_lossy().into_owned(), p.parent().map(|pp| pp.as_u32()))))
         .collect();
-    struct P { cpu: f32, mem: u64, io: u64, pid: u32, ppid: u32, user: String, status: String, time: u64, name: String, cmd: String, anc: Vec<String> }
+    struct P { cpu: f32, mem: u64, vms: u64, io: u64, io_rt: u64, io_wt: u64, threads: usize,
+        pid: u32, ppid: u32, user: String, status: String, time: u64, start: u64,
+        name: String, cmd: String, exe: String, cwd: String, anc: Vec<String> }
     let mut rows: Vec<P> = sys
         .processes()
         .iter()
@@ -287,25 +326,41 @@ fn sys_stats(state: tauri::State<AppState>) -> Value {
                 guard += 1;
             }
             anc.reverse();
-            P { cpu: p.cpu_usage(), mem: p.memory(), io: du.read_bytes + du.written_bytes,
-                pid: pid.as_u32(), ppid, user, status: st, time: p.run_time(), name, cmd, anc }
+            P {
+                cpu: p.cpu_usage(), mem: p.memory(), vms: p.virtual_memory(),
+                io: du.read_bytes + du.written_bytes, io_rt: du.total_read_bytes, io_wt: du.total_written_bytes,
+                threads: p.tasks().map(|t| t.len()).unwrap_or(0),
+                pid: pid.as_u32(), ppid, user, status: st, time: p.run_time(), start: p.start_time(),
+                name, cmd,
+                exe: p.exe().map(|e| e.to_string_lossy().into_owned()).unwrap_or_default(),
+                cwd: p.cwd().map(|e| e.to_string_lossy().into_owned()).unwrap_or_default(),
+                anc,
+            }
         })
         .collect();
     let nproc = rows.len();
     let row_json = |p: &P| serde_json::json!({
-        "cpu": p.cpu, "mem": p.mem, "memp": (p.mem as f64 / total_mem as f64) * 100.0, "io": p.io,
-        "pid": p.pid, "ppid": p.ppid, "user": p.user, "status": p.status, "time": p.time,
-        "name": p.name, "cmd": p.cmd, "anc": p.anc,
+        "cpu": p.cpu, "mem": p.mem, "memp": (p.mem as f64 / total_mem as f64) * 100.0,
+        "vms": p.vms, "io": p.io, "io_rt": p.io_rt, "io_wt": p.io_wt, "threads": p.threads,
+        "pid": p.pid, "ppid": p.ppid, "user": p.user, "status": p.status, "time": p.time, "start": p.start,
+        "name": p.name, "cmd": p.cmd, "exe": p.exe, "cwd": p.cwd, "anc": p.anc,
     });
     rows.sort_by(|a, b| b.cpu.partial_cmp(&a.cpu).unwrap_or(Equal));
-    let by_cpu: Vec<Value> = rows.iter().take(30).map(row_json).collect();
+    let mut by_cpu: Vec<Value> = rows.iter().take(30).map(row_json).collect();
     rows.sort_by(|a, b| b.mem.cmp(&a.mem));
-    let by_mem: Vec<Value> = rows.iter().take(30).map(row_json).collect();
+    let mut by_mem: Vec<Value> = rows.iter().take(30).map(row_json).collect();
     rows.sort_by(|a, b| b.io.cmp(&a.io));
-    let by_io: Vec<Value> = rows.iter().take(30).map(row_json).collect();
+    let mut by_io: Vec<Value> = rows.iter().take(30).map(row_json).collect();
     // Every process (compact) for the parent/child TREE view — frontend links
     // children to parents by ppid.
-    let all_procs: Vec<Value> = rows.iter().map(row_json).collect();
+    let mut all_procs: Vec<Value> = rows.iter().map(row_json).collect();
+    // Attach each process's cgroup PSI (cpu/io/mem some-avg10). Cached per
+    // cgroup so shared scopes are read once.
+    let mut psi_cache: HashMap<String, Value> = HashMap::new();
+    enrich_psi(&mut by_cpu, &mut psi_cache);
+    enrich_psi(&mut by_mem, &mut psi_cache);
+    enrich_psi(&mut by_io, &mut psi_cache);
+    enrich_psi(&mut all_procs, &mut psi_cache);
 
     serde_json::json!({
         "host": sysinfo::System::host_name().unwrap_or_default(),
