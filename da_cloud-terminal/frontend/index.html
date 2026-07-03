@@ -117,71 +117,109 @@
   .split.col > .divider { cursor: row-resize; }
   .divider:hover { background: var(--accent); }
 
-  /* ── System monitor (btop graphs + glances data) ─────────────────── */
-  /* btop palette: green→yellow→red gradient meters, cyan/magenta accents,
-     rounded titled boxes with a corner tag. Dense, monospaced, tabular. */
-  .leaf.monitor { padding: 0; overflow: hidden; background: var(--bg); }
-  .mon { padding: 6px; height: 100%; display: flex; flex-direction: column; gap: 6px; font-size: 11px; }
+  /* ══ System monitor — btop-neon + glances-dense ════════════════════ */
+  .leaf.monitor { padding: 0; overflow: hidden; background:
+    radial-gradient(1200px 600px at 20% -10%, #15172b 0%, var(--bg) 60%); }
+  .mon { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px;
+    font-size: 11px; overflow-y: auto; overflow-x: hidden; }
+  .mon::-webkit-scrollbar { width: 6px; } .mon::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
+
+  /* header — glances status line + live clock */
   .mon-head {
-    flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline;
-    padding: 3px 10px; background: var(--sidebar); border: 1px solid var(--sep); border-radius: 6px;
-    color: #9aa4b2; font-size: 11px;
+    flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 5px 18px; align-items: baseline;
+    padding: 6px 14px; border-radius: 8px; color: #9aa4b2; font-size: 11px;
+    background: linear-gradient(90deg, rgba(123,127,255,.10), rgba(167,139,250,.04));
+    border: 1px solid var(--sep);
   }
-  .mon-head b { color: var(--accent); font-weight: 600; }
-  .mon-head .k { color: #6b7280; }
-  .mon-head .val { color: var(--fg); font-variant-numeric: tabular-nums; }
-  .mon-grid {
-    flex: 1 1 0; min-height: 0; display: grid; gap: 6px;
-    grid-template-columns: 1.4fr 1fr;
-    grid-template-rows: 1.5fr 1fr 1.4fr;
-    grid-template-areas: "cpu mem" "cpu net" "proc temp";
-  }
+  .mon-head b { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: .02em; }
+  .mon-head .k { color: #6b7280; } .mon-head .val { color: #e2e8f0; font-variant-numeric: tabular-nums; }
+  .mon-head .clock { margin-left: auto; color: var(--accent2); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .mon-row { display: grid; gap: 8px; flex-shrink: 0; }
+  .mon-row.top  { grid-template-columns: 1.55fr 1fr; min-height: 210px; }
+  .mon-row.trip { grid-template-columns: 1fr 1fr 1fr; min-height: 150px; }
+
+  /* panel with btop bracket corners */
   .panel {
-    background: var(--sidebar); border: 1px solid var(--sep); border-radius: 6px;
-    padding: 4px 8px 6px; display: flex; flex-direction: column;
-    min-width: 0; min-height: 0; overflow: hidden; position: relative;
+    background: rgba(19,20,31,.72); border: 1px solid var(--sep); border-radius: 8px;
+    padding: 8px 10px 10px; display: flex; flex-direction: column;
+    min-width: 0; min-height: 0; position: relative; overflow: hidden;
+    box-shadow: inset 0 0 30px rgba(123,127,255,.04);
   }
-  .panel.cpu { grid-area: cpu; } .panel.mem { grid-area: mem; }
-  .panel.net { grid-area: net; } .panel.proc { grid-area: proc; } .panel.temp { grid-area: temp; }
+  .panel::before, .panel::after {
+    content: ''; position: absolute; width: 12px; height: 12px; pointer-events: none;
+    border: 2px solid var(--accent); opacity: .55;
+  }
+  .panel::before { top: 4px; left: 4px; border-right: 0; border-bottom: 0; border-radius: 5px 0 0 0; }
+  .panel::after  { bottom: 4px; right: 4px; border-left: 0; border-top: 0; border-radius: 0 0 5px 0; }
   .panel .ph {
-    font-size: 10px; text-transform: uppercase; letter-spacing: .09em; font-weight: 600;
-    color: var(--accent); margin-bottom: 3px; flex-shrink: 0;
+    font-size: 10px; text-transform: uppercase; letter-spacing: .12em; font-weight: 700;
+    color: var(--accent); margin-bottom: 5px; flex-shrink: 0;
     display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
   }
   .panel .ph .sub { color: #6b7280; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 10px; }
-  .panel canvas.g { width: 100%; flex: 1 1 0; min-height: 24px; display: block; }
-  /* per-core meter grid — each a mini gradient bar with % */
-  .cores { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 3px; margin-top: 4px; flex-shrink: 0; }
-  .core { height: 13px; background: var(--item-bg); border-radius: 2px; position: relative; overflow: hidden; font-size: 8px; }
-  .core > i { position: absolute; inset: 0 auto 0 0; opacity: .9; }
-  .core > span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #cbd5e1; text-shadow: 0 0 2px #000; }
-  /* horizontal gradient meter bars (mem, swap, disks, temps) */
-  .bars { display: flex; flex-direction: column; gap: 3px; margin-top: 3px; flex-shrink: 0; overflow-y: auto; }
+  .panel canvas.g { width: 100%; flex: 1 1 0; min-height: 30px; display: block; }
+
+  /* CPU panel: graph beside a circular gauge */
+  .cpu-body { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: 1fr 96px; gap: 8px; }
+  .gauge-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .gauge-wrap canvas { width: 92px; height: 92px; }
+  .gauge-wrap .glbl { font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: .1em; }
+
+  /* MEM panel: stacked segment bar + gauges */
+  .mem-body { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+  .seg { height: 20px; border-radius: 5px; overflow: hidden; display: flex; background: var(--item-bg); border: 1px solid var(--sep); }
+  .seg > span { height: 100%; transition: width .3s ease; }
+  .seg-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 10px; color: #9aa4b2; }
+  .seg-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  .mem-gauges { display: flex; gap: 10px; justify-content: space-around; flex: 1 1 0; min-height: 0; align-items: center; }
+
+  /* per-core sparkline grid — each core its OWN mini graph (btop signature) */
+  .panel.cores-panel { min-height: 132px; }
+  .cores { flex: 1 1 0; min-height: 0; display: grid; gap: 5px;
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); grid-auto-rows: 1fr; }
+  .core { background: var(--item-bg); border-radius: 4px; padding: 2px 4px; display: flex; flex-direction: column;
+    min-height: 30px; overflow: hidden; border: 1px solid var(--sep); }
+  .core .ct { display: flex; justify-content: space-between; font-size: 9px; color: #9aa4b2; flex-shrink: 0; }
+  .core .ct .p { font-variant-numeric: tabular-nums; color: #cbd5e1; }
+  .core canvas { width: 100%; flex: 1 1 0; min-height: 10px; display: block; }
+
+  /* gradient meter bars (disks, temps, net ifaces) */
+  .bars { display: flex; flex-direction: column; gap: 4px; flex: 1 1 0; min-height: 0; overflow-y: auto; }
+  .bars::-webkit-scrollbar { width: 5px; } .bars::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
   .bar { font-size: 10px; }
   .bar .lbl { display: flex; justify-content: space-between; gap: 6px; color: #9aa4b2; }
   .bar .lbl .r { color: #cbd5e1; font-variant-numeric: tabular-nums; }
-  .bar .track { height: 9px; background: var(--item-bg); border-radius: 3px; overflow: hidden; margin-top: 1px; }
-  .bar .track > i { display: block; height: 100%; border-radius: 3px; }
-  /* two split net graphs (down/up) stacked in the net panel */
-  .netgraphs { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 3px; }
+  .bar .track { height: 9px; background: var(--item-bg); border-radius: 4px; overflow: hidden; margin-top: 1px; border: 1px solid var(--sep); }
+  .bar .track > i { display: block; height: 100%; border-radius: 4px; box-shadow: 0 0 8px currentColor; }
+
+  /* net panel: split up/down glow graphs + iface table */
+  .netgraphs { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
   .netgraphs .ng { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
-  .netgraphs .ng .cap { font-size: 9px; color: #6b7280; flex-shrink: 0; display: flex; justify-content: space-between; }
-  /* glances-style process table */
-  .panel.proc { overflow: hidden; }
+  .netgraphs .ng .cap { font-size: 9px; flex-shrink: 0; display: flex; justify-content: space-between; }
+  .netgraphs .ng .cap .dn { color: #22d3ee; } .netgraphs .ng .cap .up { color: #e879f9; }
+  .netgraphs .ng .cap .rate { color: #cbd5e1; font-variant-numeric: tabular-nums; }
+
+  /* process table — glances */
+  .panel.proc { min-height: 230px; }
   .ptbl-wrap { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+  .ptbl-wrap::-webkit-scrollbar { width: 6px; } .ptbl-wrap::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
   .ptbl { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .ptbl th { text-align: left; color: #6b7280; font-weight: 500; padding: 2px 6px; position: sticky; top: 0; background: var(--sidebar); z-index: 1; }
+  .ptbl th { text-align: left; color: #6b7280; font-weight: 600; padding: 3px 7px; position: sticky; top: 0;
+    background: #13141f; z-index: 1; text-transform: uppercase; font-size: 9px; letter-spacing: .06em; border-bottom: 1px solid var(--sep); }
   .ptbl th.num, .ptbl td.num { text-align: right; }
-  .ptbl td { padding: 1px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ptbl tr:hover td { background: var(--item-bg); }
+  .ptbl td { padding: 2px 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ptbl tbody tr:nth-child(odd) td { background: rgba(255,255,255,.015); }
+  .ptbl tbody tr:hover td { background: rgba(123,127,255,.10); }
   .ptbl td.n { color: #cbd5e1; max-width: 0; width: 99%; }
-  .ptbl td.u { color: #7dd3fc; }
+  .ptbl td.u { color: #7dd3fc; } .ptbl td.st { color: #6b7280; }
   .ptbl td.num { color: #cbd5e1; font-variant-numeric: tabular-nums; }
-  .ptbl td.hot { color: #f87171; font-weight: 600; } .ptbl td.warm { color: #fbbf24; }
+  .ptbl td.hot { color: #f87171; font-weight: 700; text-shadow: 0 0 6px rgba(248,113,113,.5); }
+  .ptbl td.warm { color: #fbbf24; }
   .ptbl-tabs { display: flex; gap: 4px; }
-  .ptbl-tabs button { font: inherit; font-size: 9px; padding: 1px 7px; border-radius: 4px; cursor: pointer;
+  .ptbl-tabs button { font: inherit; font-size: 9px; padding: 2px 9px; border-radius: 5px; cursor: pointer;
     background: var(--item-bg); color: #9aa4b2; border: 1px solid var(--sep); }
-  .ptbl-tabs button.on { color: var(--accent); border-color: var(--accent); }
+  .ptbl-tabs button.on { color: var(--bg); background: var(--accent); border-color: var(--accent); font-weight: 700; }
 
   #ctxmenu {
     position: fixed; z-index: 1000; display: none; min-width: 170px; padding: 4px;
@@ -306,13 +344,14 @@ function makePane(tabId) {
   return { id, leaf }
 }
 
-// ── System-monitor pane (no PTY): a btop + glances clone ──────────────
-// btop's signature is the value-gradient area graph (green at the base →
-// yellow → red at the peaks) and per-core gradient meters. glances gives the
-// dense data: header line (host/os/kernel/uptime/cpu/load), memory
-// breakdown, per-interface net rates + totals, temps, disks, and a full
-// process table (PID/USER/CPU%/MEM%/CMD) sortable by CPU or MEM.
-const MON_HIST = 180
+// ══ System-monitor pane (no PTY): a btop-neon + glances clone ═════════
+// Visuals: neon-glow area graphs (green base → yellow → red peaks), per-core
+// sparklines (each core its own mini graph), circular gauges for CPU/RAM/Swap,
+// a stacked memory-segment bar. Data (glances-dense): host/os/kernel/uptime +
+// clock, CPU model/freq/load, mem breakdown (used/cached/buffers/free/swap),
+// disk I/O read/write, per-iface net rates + totals, temps, filesystems, and a
+// full process table (PID/USER/CPU%/MEM%/TIME+/CMD) sortable by CPU or MEM.
+const MON_HIST = 200
 function fmtBytes(n) {
   if (n < 1024) return n + ' B'
   const u = ['K', 'M', 'G', 'T', 'P']; let i = -1
@@ -328,49 +367,89 @@ function fmtUptime(sec) {
   const p = x => String(x).padStart(2, '0')
   return (d ? d + 'd ' : '') + p(h) + ':' + p(m)
 }
+function fmtTimeplus(sec) {           // glances TIME+ : Hh:MM:SS
+  sec = Math.floor(sec || 0)
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), ss = sec % 60
+  const p = x => String(x).padStart(2, '0')
+  return (h ? h + ':' : '') + p(m) + ':' + p(ss)
+}
 // green→yellow→red by fraction (0..1). btop meter colouring.
-function heat(p) { p = Math.max(0, Math.min(1, p)); return `hsl(${(130 * (1 - p)).toFixed(0)}deg 68% 55%)` }
-
-// btop-style area graph: fill = vertical green→yellow→red gradient clipped to
-// the trace, bright stroke tinted by the latest value. `hue` optional forces a
-// single-hue graph (net down/up); otherwise the heat gradient.
-function drawGraph(cv, data, maxHint, hue) {
+function heat(p) { p = Math.max(0, Math.min(1, p)); return `hsl(${(130 * (1 - p)).toFixed(0)}deg 70% 55%)` }
+function setCanvas(cv) {
   const dpr = window.devicePixelRatio || 1
   const w = cv.clientWidth, h = cv.clientHeight
-  if (w < 2 || h < 2) return
+  if (w < 2 || h < 2) return null
   cv.width = w * dpr; cv.height = h * dpr
-  const g = cv.getContext('2d'); g.scale(dpr, dpr)
-  g.clearRect(0, 0, w, h)
+  const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, w, h)
+  return { g, w, h }
+}
+// btop area graph with neon glow. hue: single-hue (net); else heat gradient.
+function drawGraph(cv, data, maxHint, hue) {
+  const c = setCanvas(cv); if (!c) return
+  const { g, w, h } = c
   const n = data.length; if (n < 2) return
   const max = Math.max(maxHint || 1, ...data, 1e-6)
   const dx = w / (MON_HIST - 1)
   const y = v => h - (v / max) * h
   const x0 = w - (n - 1) * dx
+  // faint baseline grid
+  g.strokeStyle = 'rgba(255,255,255,.04)'; g.lineWidth = 1
+  for (let q = 1; q < 4; q++) { const yy = h * q / 4; g.beginPath(); g.moveTo(0, yy); g.lineTo(w, yy); g.stroke() }
   g.beginPath(); g.moveTo(x0, h)
   for (let i = 0; i < n; i++) g.lineTo(x0 + i * dx, y(data[i]))
   g.lineTo(x0 + (n - 1) * dx, h); g.closePath()
   const grad = g.createLinearGradient(0, 0, 0, h)
   if (hue != null) {
-    grad.addColorStop(0, `hsla(${hue},80%,60%,.55)`)
-    grad.addColorStop(1, `hsla(${hue},80%,55%,.05)`)
+    grad.addColorStop(0, `hsla(${hue},85%,62%,.6)`); grad.addColorStop(1, `hsla(${hue},85%,55%,.03)`)
   } else {
-    grad.addColorStop(0, 'hsla(0,72%,56%,.55)')
-    grad.addColorStop(.4, 'hsla(45,78%,55%,.38)')
-    grad.addColorStop(.75, 'hsla(130,62%,50%,.20)')
-    grad.addColorStop(1, 'hsla(130,62%,50%,.05)')
+    grad.addColorStop(0, 'hsla(0,75%,58%,.6)'); grad.addColorStop(.38, 'hsla(45,80%,56%,.4)')
+    grad.addColorStop(.72, 'hsla(130,64%,50%,.2)'); grad.addColorStop(1, 'hsla(130,64%,50%,.03)')
   }
   g.fillStyle = grad; g.fill()
+  // glowing stroke
   g.beginPath()
   for (let i = 0; i < n; i++) { const px = x0 + i * dx, py = y(data[i]); i ? g.lineTo(px, py) : g.moveTo(px, py) }
-  g.lineWidth = 1.4
-  g.strokeStyle = hue != null ? `hsl(${hue},85%,62%)` : heat(data[n - 1] / max)
-  g.stroke()
+  const col = hue != null ? `hsl(${hue},90%,64%)` : heat(data[n - 1] / max)
+  g.lineWidth = 1.6; g.strokeStyle = col; g.shadowBlur = 9; g.shadowColor = col; g.stroke(); g.shadowBlur = 0
 }
-// horizontal gradient meter bar; col optional overrides the heat colour.
+// tiny per-core sparkline
+function drawSpark(cv, data) {
+  const c = setCanvas(cv); if (!c) return
+  const { g, w, h } = c
+  const n = data.length; if (n < 2) return
+  const dx = w / (MON_HIST - 1), y = v => h - (v / 100) * h, x0 = w - (n - 1) * dx
+  g.beginPath(); g.moveTo(x0, h)
+  for (let i = 0; i < n; i++) g.lineTo(x0 + i * dx, y(data[i]))
+  g.lineTo(x0 + (n - 1) * dx, h); g.closePath()
+  const col = heat(data[n - 1] / 100)
+  g.fillStyle = col.replace('hsl', 'hsla').replace(')', ',.22)'); g.fill()
+  g.beginPath()
+  for (let i = 0; i < n; i++) { const px = x0 + i * dx, py = y(data[i]); i ? g.lineTo(px, py) : g.moveTo(px, py) }
+  g.lineWidth = 1.2; g.strokeStyle = col; g.stroke()
+}
+// circular gauge: track + value arc (heat) + centered % and label.
+function drawGauge(cv, pct, label) {
+  const c = setCanvas(cv); if (!c) return
+  const { g, w, h } = c
+  const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 7
+  const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25
+  pct = Math.max(0, Math.min(100, pct || 0))
+  g.lineWidth = 7; g.lineCap = 'round'
+  g.strokeStyle = 'rgba(255,255,255,.08)'
+  g.beginPath(); g.arc(cx, cy, r, a0, a1); g.stroke()
+  const col = heat(pct / 100)
+  g.strokeStyle = col; g.shadowBlur = 10; g.shadowColor = col
+  g.beginPath(); g.arc(cx, cy, r, a0, a0 + (a1 - a0) * pct / 100); g.stroke(); g.shadowBlur = 0
+  g.fillStyle = '#e2e8f0'; g.textAlign = 'center'; g.textBaseline = 'middle'
+  g.font = '700 ' + Math.round(r * 0.55) + 'px monospace'
+  g.fillText(Math.round(pct) + '%', cx, cy - 2)
+  if (label) { g.fillStyle = '#6b7280'; g.font = '9px monospace'; g.fillText(label, cx, cy + r * 0.55) }
+}
 function bar(lbl, pct, right, col) {
   pct = Math.max(0, Math.min(100, pct || 0))
+  const c = col || heat(pct / 100)
   return `<div class="bar"><div class="lbl"><span>${lbl}</span><span class="r">${right}</span></div>` +
-    `<div class="track"><i style="width:${pct.toFixed(1)}%;background:${col || heat(pct / 100)}"></i></div></div>`
+    `<div class="track"><i style="width:${pct.toFixed(1)}%;background:${c};color:${c}"></i></div></div>`
 }
 
 function makeMonitor(tabId) {
@@ -380,27 +459,47 @@ function makeMonitor(tabId) {
   leaf.innerHTML = `
     <div class="mon">
       <div class="mon-head" id="m-head-${id}"></div>
-      <div class="mon-grid">
+
+      <div class="mon-row top">
         <div class="panel cpu"><div class="ph"><span>CPU</span><span class="sub" id="m-cpusub-${id}"></span></div>
-          <canvas class="g" id="m-cpu-${id}"></canvas><div class="cores" id="m-cores-${id}"></div></div>
-        <div class="panel mem"><div class="ph"><span>MEM</span><span class="sub" id="m-memsub-${id}"></span></div>
-          <canvas class="g" id="m-mem-${id}"></canvas><div class="bars" id="m-membars-${id}"></div></div>
-        <div class="panel net"><div class="ph"><span>NET</span><span class="sub" id="m-netsub-${id}"></span></div>
-          <div class="netgraphs">
-            <div class="ng"><div class="cap"><span>▼ download</span><span id="m-rx-${id}"></span></div><canvas class="g" id="m-net-rx-${id}"></canvas></div>
-            <div class="ng"><div class="cap"><span>▲ upload</span><span id="m-tx-${id}"></span></div><canvas class="g" id="m-net-tx-${id}"></canvas></div>
+          <div class="cpu-body">
+            <canvas class="g" id="m-cpu-${id}"></canvas>
+            <div class="gauge-wrap"><canvas id="m-cpugauge-${id}"></canvas><span class="glbl" id="m-cpuload-${id}"></span></div>
           </div></div>
-        <div class="panel proc"><div class="ph"><span>PROCESSES</span>
-            <span class="ptbl-tabs"><button data-s="cpu" class="on">CPU</button><button data-s="mem">MEM</button></span></div>
-          <div class="ptbl-wrap"><table class="ptbl">
-            <thead><tr><th class="num">PID</th><th>USER</th><th class="num">CPU%</th><th class="num">MEM%</th><th>COMMAND</th></tr></thead>
-            <tbody id="m-proc-${id}"></tbody></table></div></div>
-        <div class="panel temp"><div class="ph"><span>DISKS · TEMPS</span></div>
-          <div class="bars" id="m-dt-${id}"></div></div>
+        <div class="panel mem"><div class="ph"><span>MEMORY</span><span class="sub" id="m-memsub-${id}"></span></div>
+          <div class="mem-body">
+            <div class="seg" id="m-seg-${id}"></div>
+            <div class="seg-legend" id="m-seglegend-${id}"></div>
+            <div class="mem-gauges">
+              <div class="gauge-wrap"><canvas id="m-ramg-${id}"></canvas></div>
+              <div class="gauge-wrap"><canvas id="m-swapg-${id}"></canvas></div>
+            </div>
+          </div></div>
       </div>
+
+      <div class="panel cores-panel"><div class="ph"><span>CORES</span><span class="sub" id="m-coresub-${id}"></span></div>
+        <div class="cores" id="m-cores-${id}"></div></div>
+
+      <div class="mon-row trip">
+        <div class="panel net"><div class="ph"><span>NETWORK</span><span class="sub" id="m-netsub-${id}"></span></div>
+          <div class="netgraphs">
+            <div class="ng"><div class="cap"><span class="dn">▼ DOWN</span><span class="rate" id="m-rx-${id}"></span></div><canvas class="g" id="m-net-rx-${id}"></canvas></div>
+            <div class="ng"><div class="cap"><span class="up">▲ UP</span><span class="rate" id="m-tx-${id}"></span></div><canvas class="g" id="m-net-tx-${id}"></canvas></div>
+          </div></div>
+        <div class="panel disk"><div class="ph"><span>DISKS</span><span class="sub" id="m-diosub-${id}"></span></div>
+          <div class="bars" id="m-disk-${id}"></div></div>
+        <div class="panel temp"><div class="ph"><span>SENSORS</span></div>
+          <div class="bars" id="m-temp-${id}"></div></div>
+      </div>
+
+      <div class="panel proc"><div class="ph"><span id="m-prochdr-${id}">PROCESSES</span>
+          <span class="ptbl-tabs"><button data-s="cpu" class="on">CPU</button><button data-s="mem">MEM</button></span></div>
+        <div class="ptbl-wrap"><table class="ptbl">
+          <thead><tr><th class="num">PID</th><th>USER</th><th class="num">CPU%</th><th class="num">MEM%</th><th class="num">TIME+</th><th>COMMAND</th></tr></thead>
+          <tbody id="m-proc-${id}"></tbody></table></div></div>
     </div>`
   const hist = { cpu: [], mem: [], rx: [], tx: [] }
-  const prev = {}                       // per-iface last cumulative bytes → rate
+  const coreHist = []                   // per-core % history → sparklines
   let sortBy = 'cpu'
   const $ = s => leaf.querySelector(s)
   const push = (a, v) => { a.push(v); if (a.length > MON_HIST) a.shift() }
@@ -415,67 +514,90 @@ function makeMonitor(tabId) {
   const poll = async () => {
     let s; try { s = await invoke('sys_stats') } catch (_) { return }
     if (!leaf.isConnected) return
+    const clock = new Date().toLocaleTimeString('en-GB')
 
-    // ── header (glances line) ──
+    // ── header ──
     $('#m-head-' + id).innerHTML =
       `<span><b>${esc(s.host || '')}</b></span>` +
       `<span><span class="k">os</span> <span class="val">${esc(s.os || '')}</span></span>` +
       `<span><span class="k">kernel</span> <span class="val">${esc(s.kernel || '')}</span></span>` +
       `<span><span class="k">up</span> <span class="val">${fmtUptime(s.uptime)}</span></span>` +
-      `<span><span class="k">load</span> <span class="val">${(s.load || []).map(x => x.toFixed(2)).join(' ')}</span></span>` +
-      `<span><span class="k">proc</span> <span class="val">${s.running || 0}/${s.nproc || 0}</span></span>`
+      `<span><span class="k">tasks</span> <span class="val">${s.running || 0} run · ${s.nproc || 0} total</span></span>` +
+      `<span class="clock">${clock}</span>`
 
-    // ── CPU ──
+    // ── CPU: big glow graph + gauge + per-core sparklines ──
     push(hist.cpu, s.cpu)
     drawGraph($('#m-cpu-' + id), hist.cpu, 100)
-    const ghz = s.cpu_freq ? (s.cpu_freq / 1000).toFixed(2) + ' GHz' : ''
-    $('#m-cpusub-' + id).textContent =
-      `${(s.cpu_name || '').slice(0, 42)} · ${s.pcpu || s.ncpu}c/${s.ncpu}t ${ghz} · ${s.cpu.toFixed(0)}%`
-    $('#m-cores-' + id).innerHTML = (s.cores || []).map((c, i) =>
-      `<div class="core"><i style="width:${Math.min(100, c)}%;background:${heat(c / 100)}"></i><span>${i}·${c.toFixed(0)}</span></div>`).join('')
+    drawGauge($('#m-cpugauge-' + id), s.cpu, 'CPU')
+    const ghz = s.cpu_freq ? (s.cpu_freq / 1000).toFixed(2) + 'GHz' : ''
+    $('#m-cpusub-' + id).textContent = `${(s.cpu_name || '').slice(0, 46)} · ${s.pcpu || s.ncpu}c/${s.ncpu}t · ${ghz}`
+    $('#m-cpuload-' + id).textContent = 'load ' + (s.load || []).map(x => x.toFixed(2)).join(' ')
+    const cores = s.cores || [], freqs = s.cores_freq || []
+    if ($('#m-cores-' + id).childElementCount !== cores.length) {
+      $('#m-cores-' + id).innerHTML = cores.map((_, i) =>
+        `<div class="core"><div class="ct"><span>CPU${i}</span><span class="p" id="m-cp-${id}-${i}"></span></div><canvas id="m-cc-${id}-${i}"></canvas></div>`).join('')
+    }
+    $('#m-coresub-' + id).textContent = cores.length + ' threads'
+    cores.forEach((c, i) => {
+      if (!coreHist[i]) coreHist[i] = []
+      push(coreHist[i], c)
+      drawSpark($('#m-cc-' + id + '-' + i), coreHist[i])
+      const f = freqs[i] ? ' · ' + (freqs[i] / 1000).toFixed(1) + 'G' : ''
+      $('#m-cp-' + id + '-' + i).textContent = c.toFixed(0) + '%' + f
+    })
 
-    // ── MEM ──
-    const m = s.mem, used = m.used, mp = m.total ? (used / m.total) * 100 : 0
-    const cached = Math.max(0, (m.avail || 0) - (m.free || 0))
+    // ── MEM: segment bar + gauges ──
+    const m = s.mem, total = m.total || 1
+    const buffers = m.buffers || 0, cached = m.cached || 0
+    const used = Math.max(0, m.used - 0), free = m.free || 0
+    const mp = used / total * 100
     push(hist.mem, mp)
-    drawGraph($('#m-mem-' + id), hist.mem, 100)
-    $('#m-memsub-' + id).textContent = fmtBytes(used) + ' / ' + fmtBytes(m.total)
-    let mb = bar('RAM', mp, fmtBytes(used) + '  ' + mp.toFixed(0) + '%')
-    mb += bar('Cache', m.total ? cached / m.total * 100 : 0, fmtBytes(cached), 'hsl(190,70%,55%)')
-    mb += bar('Avail', m.total ? m.avail / m.total * 100 : 0, fmtBytes(m.avail), 'hsl(150,45%,50%)')
-    if (m.swap_total) mb += bar('Swap', m.swap_used / m.swap_total * 100, fmtBytes(m.swap_used) + ' / ' + fmtBytes(m.swap_total))
-    $('#m-membars-' + id).innerHTML = mb
+    $('#m-memsub-' + id).textContent = fmtBytes(used) + ' / ' + fmtBytes(total)
+    const seg = [
+      ['used', used, 'hsl(0,72%,56%)'], ['cache', cached, 'hsl(190,72%,55%)'],
+      ['buffers', buffers, 'hsl(45,80%,55%)'], ['free', Math.max(0, total - used - cached - buffers), 'hsl(150,30%,32%)'],
+    ]
+    $('#m-seg-' + id).innerHTML = seg.map(([, v, c]) => `<span style="width:${(v / total * 100).toFixed(2)}%;background:${c}"></span>`).join('')
+    $('#m-seglegend-' + id).innerHTML = seg.map(([l, v, c]) => `<span><i style="background:${c}"></i>${l} ${fmtBytes(v)}</span>`).join('')
+    drawGauge($('#m-ramg-' + id), mp, 'RAM')
+    drawGauge($('#m-swapg-' + id), m.swap_total ? m.swap_used / m.swap_total * 100 : 0, 'SWAP')
 
-    // ── NET (per-iface cumulative → rate; sum for the two graphs) ──
+    // ── NET ──
     let rx = 0, tx = 0, rxT = 0, txT = 0
     for (const nf of (s.net || [])) { rx += nf.rx; tx += nf.tx; rxT += nf.rx_total; txT += nf.tx_total }
     push(hist.rx, rx); push(hist.tx, tx)
-    const nmax = Math.max(1, ...hist.rx, ...hist.tx)   // shared scale so the two graphs compare
+    const nmax = Math.max(1, ...hist.rx, ...hist.tx)
     drawGraph($('#m-net-rx-' + id), hist.rx, nmax, 190)
-    drawGraph($('#m-net-tx-' + id), hist.tx, nmax, 300)
+    drawGraph($('#m-net-tx-' + id), hist.tx, nmax, 292)
     $('#m-rx-' + id).textContent = fmtRate(rx)
     $('#m-tx-' + id).textContent = fmtRate(tx)
-    $('#m-netsub-' + id).textContent = 'Σ ▼ ' + fmtBytes(rxT) + '  ▲ ' + fmtBytes(txT)
+    $('#m-netsub-' + id).textContent = 'Σ ▼' + fmtBytes(rxT) + ' ▲' + fmtBytes(txT)
+
+    // ── DISKS (filesystems) + I/O rate ──
+    const io = s.diskio || {}
+    $('#m-diosub-' + id).textContent = 'R ' + fmtRate(io.read || 0) + ' · W ' + fmtRate(io.write || 0)
+    $('#m-disk-' + id).innerHTML = (s.disks || []).map(d => {
+      const u = d.total - d.avail, pc = d.total ? u / d.total * 100 : 0
+      return bar(d.mount + (d.fs ? ' · ' + d.fs : ''), pc, fmtBytes(u) + '/' + fmtBytes(d.total) + ' ' + pc.toFixed(0) + '%')
+    }).join('') || '<span style="color:#6b7280">no filesystems</span>'
+
+    // ── SENSORS (temps) ──
+    const temps = (s.temps || []).filter(t => t.temp > 0)
+    $('#m-temp-' + id).innerHTML = temps.map(t => {
+      const hi = t.crit || t.high || 100
+      return bar(esc(t.label), t.temp / hi * 100, t.temp.toFixed(0) + '°C')
+    }).join('') || '<span style="color:#6b7280">no sensors exposed</span>'
 
     // ── PROCESSES ──
     const list = (sortBy === 'mem' ? s.procs_mem : s.procs) || []
+    $('#m-prochdr-' + id).textContent = 'PROCESSES · ' + (s.nproc || 0) + ' · sort ' + sortBy.toUpperCase()
     $('#m-proc-' + id).innerHTML = list.map(p => {
       const cc = p.cpu > 50 ? 'hot' : p.cpu > 10 ? 'warm' : ''
       return `<tr><td class="num">${p.pid}</td><td class="u">${esc((p.user || '').slice(0, 8))}</td>` +
         `<td class="num ${cc}">${p.cpu.toFixed(1)}</td><td class="num">${(p.memp || 0).toFixed(1)}</td>` +
+        `<td class="num st">${fmtTimeplus(p.time)}</td>` +
         `<td class="n" title="${esc(p.name)}">${esc(p.name)}</td></tr>`
     }).join('')
-
-    // ── DISKS · TEMPS ──
-    const disks = (s.disks || []).map(d => {
-      const u = d.total - d.avail, pc = d.total ? u / d.total * 100 : 0
-      return bar('💾 ' + d.mount + (d.fs ? ' (' + d.fs + ')' : ''), pc, fmtBytes(u) + ' / ' + fmtBytes(d.total) + '  ' + pc.toFixed(0) + '%')
-    }).join('')
-    const temps = (s.temps || []).filter(t => t.temp > 0).map(t => {
-      const hi = t.crit || t.high || 100
-      return bar('🌡 ' + esc(t.label), t.temp / hi * 100, t.temp.toFixed(0) + '°C')
-    }).join('')
-    $('#m-dt-' + id).innerHTML = disks + temps
   }
   const timer = setInterval(poll, 1000)
   poll()
