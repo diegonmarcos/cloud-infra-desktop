@@ -11,8 +11,9 @@
 let
   engine = "$HOME/git/unix/da_redroid/build.sh";
 in {
-  # `redroid` — bring the container up (idempotent), provision (idempotent), then mirror.
-  # `redroid down` stops it. Thin wrapper over the engine so there is ONE source of truth.
+  # `redroid` — bring the container up and mirror it (GUI-bound: closing the scrcpy
+  # window stops the container). `redroid down` stops it. Thin wrapper over the engine
+  # so there is ONE source of truth (da_redroid/build.sh).
   home.file.".local/bin/redroid" = {
     executable = true;
     text = ''
@@ -22,11 +23,14 @@ in {
       [ -x "$ENGINE" ] || { echo "redroid engine not found at $ENGINE (clone ~/git/unix)"; exit 1; }
       # The image is BAKED (apps + layout + theme already inside it), so runtime is just
       # pull+run+mirror — NO provision/install step. First `up` pulls the GHCR image.
+      # `up` is GUI-bound in the engine: it boots the backend, attaches scrcpy in
+      # the foreground, and stops the container when the GUI closes (no GUI => no
+      # running redroid). So the wrapper just execs it — NEVER `up && scrcpy`, which
+      # would double-launch scrcpy on a torn-down container.
       case "''${1:-up}" in
-        up|"")   "$ENGINE" up && exec "$ENGINE" scrcpy ;;
-        mirror)  exec "$ENGINE" scrcpy ;;
-        down)    exec "$ENGINE" down ;;
-        *)       exec "$ENGINE" "$@" ;;
+        up|""|mirror)  exec "$ENGINE" up ;;
+        down)          exec "$ENGINE" down ;;
+        *)             exec "$ENGINE" "$@" ;;
       esac
     '';
   };
