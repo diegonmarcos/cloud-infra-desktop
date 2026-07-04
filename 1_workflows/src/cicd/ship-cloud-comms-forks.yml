@@ -150,6 +150,13 @@ jobs:
           chmod +x build.sh
           ./build.sh materialize-fork "$FORK"
 
+      - name: Generate build timestamp (baked into APK BuildConfig for update detection)
+        run: |
+          # ISO-8601 UTC — same format as GitHub releases published_at so they
+          # compare lexicographically. Must be set BEFORE build-fork so the
+          # $ENV:COMMS_BUILD_TIMESTAMP gradle_prop resolves to this value.
+          echo "COMMS_BUILD_TIMESTAMP=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+
       - name: Build fork APK (fork's own gradle wrapper + constellation signing)
         working-directory: ${{ env.WORK_DIR }}
         env:
@@ -157,6 +164,8 @@ jobs:
           # Shared Cloud-constellation signing key (vault checkout above).
           VAULT_DIR: ${{ github.workspace }}/.vault
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+          # Picked up by build.sh step_build_fork via $ENV:COMMS_BUILD_TIMESTAMP
+          COMMS_BUILD_TIMESTAMP: ${{ env.COMMS_BUILD_TIMESTAMP }}
         run: |
           ./build.sh build-fork "$FORK"
           ls -la dist/
@@ -181,17 +190,35 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: ./build.sh publish-fork "$FORK"
 
-      - name: Create GitHub Release (RSS update notification)
+      - name: Publish fork APK to GitHub Releases (rolling latest — update detection)
+        # The in-app updater (CommsUpdateWorker) compares published_at of the
+        # GitHub latest release against BuildConfig.COMMS_BUILD_TIMESTAMP.
+        # This step uploads the APK as a release asset so the download URL is
+        # stable: /releases/latest/download/cloud-comms-<fork>.apk
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload latest \
+            "${{ env.WORK_DIR }}/dist/cloud-comms-${FORK}.apk" \
+            --repo "${{ github.repository }}" \
+            --clobber || \
+          gh release create latest \
+            "${{ env.WORK_DIR }}/dist/cloud-comms-${FORK}.apk" \
+            --repo "${{ github.repository }}" \
+            --title "Cloud Apps — rolling latest" \
+            --notes "Rolling release — assets overwritten on every CI build." \
+            --prerelease
+
+      - name: Create timestamped GitHub Release (RSS feed entry)
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BUILD_DATE="$(date -u '+%Y%m%d.%H%M%S')"
-          TAG="cloud-comms-${FORK}-${BUILD_DATE}"
+          TAG="cloud-comms-${FORK}-$(date -u '+%Y%m%d.%H%M%S')"
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
-            --title "Cloud Mail · ${BUILD_DATE}" \
-            --notes "New build published to ghcr.io/diegonmarcos/cloud-comms-${FORK}:latest — install via Cloud Mail → About → Check for updates." \
-            --latest
+            --title "Cloud Mail · ${{ env.COMMS_BUILD_TIMESTAMP }}" \
+            --notes "Build ${{ env.COMMS_BUILD_TIMESTAMP }} — install via Cloud Mail → About → Check for updates." \
+            --latest=false
 
       # Hub re-bundle deliberately NOT dispatched here. See top-of-file comment.
