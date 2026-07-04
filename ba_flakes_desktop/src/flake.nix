@@ -215,6 +215,7 @@
         # rust-cargo-deps moved to the dev profile (devProfile) — rust is a dev
         # tool, reached via `dev`; no longer on the pool/login PATH.
         ./modules/programs/dev-shell.nix   # the `dev` bwrap launcher + bubblewrap (always-on)
+        ./modules/programs/nix-switch-progress.nix   # KDE progress popup for any nix command build.sh wraps (always-on)
         ./modules/cloud.nix
         ./modules/cloud-network-wg-dns.nix
         ./modules/cloud-network-wg-public.nix

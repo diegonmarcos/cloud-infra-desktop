@@ -326,12 +326,27 @@ nix_switch() {
     HM_BACKUP_EXT="hm-backup-$(date +%Y%m%d-%H%M%S)"
     log_info "home-manager backup extension: $HM_BACKUP_EXT"
 
-    # Capture exit code from the actual command, not tee
+    # KDE progress popup (programs/nix-switch-progress.nix) — transparent when
+    # absent or non-graphical (SSH/CI): falls back to a plain passthrough exec.
+    _nsp=""
+    command -v nix-switch-progress-wrap >/dev/null 2>&1 && _nsp="nix-switch-progress-wrap"
+
+    # Capture exit code from the actual command, not tee. NSP_LOG_FILE lets
+    # the wrapper's own internal tee write $LOG_FILE (avoids double-teeing
+    # when the wrapper is active — see nix-switch-progress.nix).
     _rc_file=$(mktemp)
     if check_home_manager 2>/dev/null; then
-        { home-manager switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+        if [ -n "$_nsp" ]; then
+            { NSP_LOG_FILE="$LOG_FILE" $_nsp home-manager switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref"; echo $? > "$_rc_file"; }
+        else
+            { home-manager switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+        fi
     else
-        { nix run home-manager -- switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+        if [ -n "$_nsp" ]; then
+            { NSP_LOG_FILE="$LOG_FILE" $_nsp nix run home-manager -- switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref"; echo $? > "$_rc_file"; }
+        else
+            { nix run home-manager -- switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+        fi
     fi
     exit_code=$(cat "$_rc_file" 2>/dev/null)
     rm -f "$_rc_file"
