@@ -355,6 +355,8 @@
   .leaf.cloud { padding: 0; overflow: hidden; background:
     radial-gradient(1200px 600px at 20% -10%, #15172b 0%, var(--bg) 60%); }
   .cloud { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 11px; overflow: hidden; }
+  .devctl { padding: 8px; height: 100%; display: flex; flex-direction: column; font-size: 11px; overflow: hidden; }
+  .devctl .panel { flex: 1 1 0; min-height: 0; }
   /* screen split: VM cards 25% · containers 50% · log center 25% (flex-grow 1:2:1) */
   .cloud-vms { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px;
     flex: 1 1 0; min-height: 0; overflow-y: auto; align-content: start; }
@@ -1787,6 +1789,11 @@ function makeAGI(tabId) {
     if (c) {
       const u = c.usage
       const fresh = (c.seconds_since_last || 0) < 30
+      // Full breakdown, not just input+output — on a heavy-caching session
+      // cache_read/cache_write dwarf input+output (often by 10,000x), so
+      // dropping them made the live banner look nearly empty even during
+      // an actively churning session.
+      const total = u.input + u.output + u.cache_read + u.cache_write
       $('#a-cur-' + id).innerHTML =
         `<span class="agi-live-dot${fresh ? ' on' : ''}"></span>` +
         `<span><b>${esc(c.project)}</b></span><span><span class="k">model</span> <span class="v">${esc(c.model)}</span></span>` +
@@ -1794,7 +1801,9 @@ function makeAGI(tabId) {
         `<span><span class="k">started</span> <span class="v">${esc(c.started)}</span></span>` +
         `<span><span class="k">duration</span> <span class="v">${fmtNum(c.duration_min)}m</span></span>` +
         `<span><span class="k">last msg</span> <span class="v">${secsAgo(c.seconds_since_last || 0)}</span></span>` +
-        `<span><span class="k">tokens</span> <span class="v">${fmtTok(u.input + u.output)}</span></span>` +
+        `<span><span class="k">in/out</span> <span class="v">${fmtTok(u.input)} / ${fmtTok(u.output)}</span></span>` +
+        `<span><span class="k">cache r/w</span> <span class="v">${fmtTok(u.cache_read)} / ${fmtTok(u.cache_write)}</span></span>` +
+        `<span><span class="k">total tok</span> <span class="v">${fmtTok(total)}</span></span>` +
         `<span><span class="k">cost</span> <span class="v" style="color:#fbbf24">${usd(u.cost)}</span></span>`
     } else { $('#a-cur-' + id).innerHTML = '<span style="color:#6b7280">no active session detected</span>' }
   }
@@ -2032,6 +2041,7 @@ function restoreOrDefaultTabs(name) {
     else if (t.type === 'cloud') tid = newCloudTab(name, false)
     else if (t.type === 'datasync') tid = newDataSyncTab(name, false)
     else if (t.type === 'agi') tid = newAGITab(name, false)
+    else if (t.type === 'devctl') tid = newDevControlTab(name, false)
     else { tid = newTab(name, t.title); if (t.cmd) autoRun(t.cmd) }
     if (t.cmd) { const tt = tabs.get(tid); if (tt) tt.cmd = t.cmd }
     if (firstTab == null) firstTab = tid
@@ -2109,7 +2119,7 @@ function historyItems(kind) {
 // dispatch a sidebar/history item (dashboards open a pane; others run a command)
 function openItem(item, profileName) {
   recordHistory(item)
-  const dash = { monitor: newMonitorTab, journal: newJournalTab, cloud: newCloudTab, datasync: newDataSyncTab, agi: newAGITab }[item.type]
+  const dash = { monitor: newMonitorTab, journal: newJournalTab, cloud: newCloudTab, datasync: newDataSyncTab, agi: newAGITab, devctl: newDevControlTab }[item.type]
   if (dash) { dash() } else { runItem({ ...item, profile: profileName, ptyId: activePane }); focusActivePaneTerm() }
   if ((active.sections || []).some(s => s.dynamic)) buildSidebar(active)   // refresh Last/Most
 }
