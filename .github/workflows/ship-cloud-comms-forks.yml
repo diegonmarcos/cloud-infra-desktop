@@ -58,7 +58,7 @@ on:
       # by 1_workflows/build.sh → would self-trigger rebuilds on unrelated commits).
 
 permissions:
-  contents: read
+  contents: write   # gh release create (RSS feed entries)
   packages: write   # ghcr push (oras)
 
 env:
@@ -192,5 +192,18 @@ jobs:
           BYPASS_NIX: "1"
           GITHUB_SHA: ${{ github.sha }}
         run: ./build.sh publish-fork "$FORK"
+
+      - name: Create GitHub Release (RSS update notification)
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BUILD_DATE="$(date -u '+%Y%m%d.%H%M%S')"
+          TAG="cloud-comms-${FORK}-${BUILD_DATE}"
+          gh release create "$TAG" \
+            --repo "${{ github.repository }}" \
+            --title "Cloud Mail · ${BUILD_DATE}" \
+            --notes "New build published to ghcr.io/diegonmarcos/cloud-comms-${FORK}:latest — install via Cloud Mail → About → Check for updates." \
+            --latest
 
       # Hub re-bundle deliberately NOT dispatched here. See top-of-file comment.
