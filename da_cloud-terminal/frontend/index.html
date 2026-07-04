@@ -361,6 +361,10 @@
   .stack-chip { font-size: 10px; padding: 3px 8px; border-radius: 10px; background: var(--item-bg); border: 1px solid var(--sep); white-space: nowrap; }
   .stack-chip.ok  { color: #4ade80; border-color: rgba(74,222,128,.35); }
   .stack-chip.bad { color: #f87171; border-color: rgba(248,113,113,.35); }
+  .stack-list-row { display: flex; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--sep); font-size: 10px; }
+  .stack-list-row:last-child { border-bottom: none; }
+  .stack-list-row b { color: var(--accent2); flex: 0 0 150px; }
+  .stack-list-row span { color: #9aa4b2; }
   .devctl .panel { flex: 1 1 0; min-height: 0; }
   /* screen split: VM cards 25% · containers 50% · log center 25% (flex-grow 1:2:1) */
   .cloud-vms { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px;
@@ -752,16 +756,30 @@ function makeStack(tabId) {
         <span style="flex:1"></span>
         <button class="cpbtn" id="s-refresh-${id}">↻ refresh</button></div>
       <div class="jrn-stats" id="s-mach-${id}"></div>
+      <div class="jrn-stats" id="s-mach2-${id}"></div>
       <div class="agi-grid">
-        <div class="panel"><div class="ph"><span>REPO TREE · ~/git/</span></div><div id="s-repos-${id}" class="stack-chips"></div></div>
-        <div class="panel"><div class="ph"><span>TOOLS</span></div><div id="s-tools-${id}" class="stack-chips"></div></div>
+        <div class="panel"><div class="ph"><span>SECURITY</span></div><div id="s-sec-${id}"></div></div>
+        <div class="panel"><div class="ph"><span>NIXOS / HOME-MANAGER</span></div><div id="s-gen-${id}"></div></div>
+        <div class="panel agi-panel-wide"><div class="ph"><span>MULTI-OS LAYOUT</span></div><div id="s-multios-${id}" class="stack-list"></div></div>
+        <div class="panel"><div class="ph"><span>BOOTLOADER</span></div><div id="s-boot-${id}" class="stack-list"></div></div>
+        <div class="panel"><div class="ph"><span>BUILDERS</span></div><div id="s-builders-${id}" class="stack-list"></div></div>
+        <div class="panel agi-panel-wide"><div class="ph"><span>FLAKES / REPOS</span></div>
+          <div class="ptbl-wrap"><table class="ptbl"><thead><tr><th>REPO</th><th>VIS</th><th>ROLE</th><th>PRESENT</th></tr></thead><tbody id="s-flakes-${id}"></tbody></table></div></div>
+        <div class="panel agi-panel-wide"><div class="ph"><span>GIT STATUS</span></div>
+          <div class="ptbl-wrap"><table class="ptbl"><thead><tr><th>REPO</th><th>BRANCH</th><th class="num">DIRTY</th><th>LAST COMMIT</th></tr></thead><tbody id="s-gitst-${id}"></tbody></table></div></div>
+        <div class="panel"><div class="ph"><span>TOOLS · CLI</span></div><div id="s-tools-${id}" class="stack-chips"></div></div>
+        <div class="panel"><div class="ph"><span>TOOLS · GUI</span></div><div id="s-gui-${id}" class="stack-chips"></div></div>
         <div class="panel agi-panel-wide"><div class="ph"><span>ENV VARS</span><span class="sub">presence only — never values</span></div><div id="s-envs-${id}"></div></div>
-        <div class="panel agi-panel-wide"><div class="ph"><span>CLOUD NETWORK</span><span class="sub">static topology — see the Cloud tab for live status</span></div><div id="s-cloud-${id}" class="stack-chips"></div></div>
+        <div class="panel agi-panel-wide"><div class="ph"><span>CLOUD NETWORK · VMs</span><span class="sub">static topology — see the Cloud tab for live status</span></div>
+          <div class="ptbl-wrap"><table class="ptbl"><thead><tr><th>ALIAS</th><th>WG IP</th><th>LABEL</th><th>PUBLIC URL</th></tr></thead><tbody id="s-cloud-${id}"></tbody></table></div></div>
+        <div class="panel agi-panel-wide"><div class="ph"><span>CLOUD NETWORK · SERVICE CATEGORIES</span></div><div id="s-cats-${id}" class="stack-chips"></div></div>
       </div>
     </div>`
   const $ = s => leaf.querySelector(s)
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   const chip = (label, ok, title) => `<span class="stack-chip ${ok ? 'ok' : 'bad'}" ${title ? `title="${esc(title)}"` : ''}>${ok ? '●' : '○'} ${esc(label)}</span>`
+  const listRow = (label, detail) => `<div class="stack-list-row"><b>${esc(label)}</b><span>${esc(detail || '')}</span></div>`
+  const empty = t => `<span class="ds-empty">${esc(t)}</span>`
 
   async function load() {
     $('#s-refresh-' + id).textContent = '… loading'
@@ -772,26 +790,61 @@ function makeStack(tabId) {
 
     const m = d.machine || {}
     const ramGb = (m.mem_kb || 0) / 1024 / 1024
+    const diskUsedGb = (m.disk_used_kb || 0) / 1024 / 1024
+    const diskTotalGb = (m.disk_total_kb || 0) / 1024 / 1024
     const up = m.uptime_secs || 0
     const upStr = up < 3600 ? `${fmtNum(up / 60)}m` : up < 86400 ? `${fmtNum(up / 3600)}h` : `${fmtNum(up / 86400)}d`
     $('#s-mach-' + id).innerHTML = [
       ['host', esc(m.hostname || '?')], ['os', esc(m.os || '?')], ['kernel', esc(m.kernel || '?')], ['arch', esc(m.arch || '?')],
       ['cpu', esc((m.cpu_model || '?').slice(0, 30))], ['cores', fmtNum(m.cores)], ['ram', fmtNum(ramGb) + ' GB'], ['up', upStr],
     ].map(([l, v]) => `<span><span class="k">${l}</span> <span class="v">${v}</span></span>`).join('')
+    const net = d.network || {}
+    $('#s-mach2-' + id).innerHTML = [
+      ['disk', `${fmtNum(diskUsedGb)} / ${fmtNum(diskTotalGb)} GB`], ['load', esc(net.load_avg || m.load_avg || '?')],
+      ['ip (priv)', esc(net.ip_priv || '?')], ['dns', esc((net.dns_servers || []).join(', ') || '?')],
+    ].map(([l, v]) => `<span><span class="k">${l}</span> <span class="v">${v}</span></span>`).join('')
 
-    $('#s-repos-' + id).innerHTML = (d.repos || []).map(r => chip(r.name, r.exists)).join('') || '<span class="ds-empty">none configured</span>'
+    const sec = d.security || {}
+    const secOk = v => v === 'active'
+    $('#s-sec-' + id).innerHTML = ['ssh', 'firewall', 'fail2ban'].map(k => chip(k, secOk(sec[k]), sec[k] || 'n/a')).join('')
 
-    $('#s-tools-' + id).innerHTML = (d.tools || []).map(t => chip(t.name, t.available, t.version || 'not found')).join('') || '<span class="ds-empty">none configured</span>'
+    $('#s-gen-' + id).innerHTML = [
+      ['nixos gen', d.nixos_gen ? '#' + esc(d.nixos_gen) : 'n/a'], ['hm gen', d.hm_gen ? '#' + esc(d.hm_gen) : 'n/a'],
+    ].map(([l, v]) => `<span><span class="k">${l}</span> <span class="v">${v}</span></span>`).join('')
+
+    $('#s-multios-' + id).innerHTML = (d.multi_os || []).map(o => listRow(o.label, o.detail)).join('') || empty('none configured')
+    $('#s-boot-' + id).innerHTML = (d.bootloader || []).map(o => listRow(o.label, o.detail)).join('') || empty('none configured')
+    $('#s-builders-' + id).innerHTML = (d.builders || []).map(o => listRow(o.label, o.detail)).join('') || empty('none configured')
+
+    $('#s-flakes-' + id).innerHTML = (d.flakes || []).map(f => {
+      const present = (d.repos || []).find(r => r.name === f.name)
+      return `<tr><td class="n">${esc(f.name)}</td><td>${esc(f.visibility)}</td><td class="hier">${esc(f.role)}</td>` +
+        `<td>${present && present.exists ? '<span style="color:#4ade80">●</span>' : '<span style="color:#f87171">○</span>'}</td></tr>`
+    }).join('') || `<tr><td colspan="4" style="color:#6b7280">none configured</td></tr>`
+
+    $('#s-gitst-' + id).innerHTML = (d.git_status || []).map(g =>
+      `<tr><td class="n">${esc(g.name)}</td><td>${esc(g.branch || '?')}</td>` +
+      `<td class="num${g.dirty_files ? ' hot' : ''}">${fmtNum(g.dirty_files)}</td><td class="hier">${esc(g.last_commit || '')}</td></tr>`
+    ).join('') || `<tr><td colspan="4" style="color:#6b7280">no repos found</td></tr>`
+
+    $('#s-tools-' + id).innerHTML = (d.tools || []).map(t => chip(t.name, t.available, t.version || 'not found')).join('') || empty('none configured')
+    $('#s-gui-' + id).innerHTML = (d.gui_apps || []).map(t => chip(t.name, t.available, t.available ? 'in PATH' : 'not found')).join('') || empty('none configured')
 
     $('#s-envs-' + id).innerHTML = (d.env_groups || []).map(g =>
       `<div class="ibar"><span class="iu" style="width:70px">${esc(g.label)}</span><span class="stack-chips">` +
       (g.vars || []).map(v => chip(v.name, v.set)).join('') + `</span></div>`
-    ).join('') || '<span class="ds-empty">none configured</span>'
+    ).join('') || empty('none configured')
 
-    const targets = (d.cloud_targets && d.cloud_targets.targets) || []
+    const targets = (d.cloud_targets && d.cloud_targets.vms) || []
     $('#s-cloud-' + id).innerHTML = targets.map(t =>
-      `<span class="stack-chip ok" title="${esc(t.alias || '')}">☁ ${esc(t.alias || t.name || '?')}</span>`
-    ).join('') || '<span class="ds-empty">no VMs configured</span>'
+      `<tr><td class="n">${esc(t.alias || '?')}</td><td>${esc(t.wg || '')}</td><td class="hier">${esc(t.label || '')}</td>` +
+      `<td>${t.pub ? `<span style="color:#7dd3fc">${esc(t.pub)}</span>` : '·'}</td></tr>`
+    ).join('') || `<tr><td colspan="4" style="color:#6b7280">no VMs configured</td></tr>`
+
+    const cats = (d.cloud_targets && d.cloud_targets.service_categories) || []
+    $('#s-cats-' + id).innerHTML = cats.map(c =>
+      `<span class="stack-chip ok" title="${esc((c.match || []).join(', '))}">${esc(c.group)} · ${esc(c.cat)}</span>`
+    ).join('') || empty('none configured')
   }
 
   $('#s-refresh-' + id).addEventListener('click', load)
@@ -1586,7 +1639,8 @@ function makeDataSync(tabId) {
     <div class="ds">
       <div class="ds-top"><span style="font-weight:700;color:var(--accent);letter-spacing:.08em">DATA SYNC CENTER</span>
         <span style="flex:1"></span><span class="jrn-count" id="d-note-${id}"></span>
-        <button class="cpbtn" id="d-refresh-${id}">↻ refresh</button></div>
+        <button class="cpbtn" id="d-refresh-${id}">↻ refresh</button>
+        <button class="cpbtn" id="d-auto-${id}" title="Auto-refresh (10s) — off by default, no dashboard polls in the background">⏱ auto</button></div>
       <div class="jrn-stats" id="d-stats-${id}"></div>
       <div class="ds-grid">
         ${P('', 'LOCAL · MOUNTS', '<div class="seg" id="d-mseg-' + id + '"></div><div class="seg-legend" id="d-mleg-' + id + '"></div><div class="bars" id="d-mounts-' + id + '"></div>')}
@@ -1680,10 +1734,19 @@ function makeDataSync(tabId) {
     $('#d-refresh-' + id).textContent = '↻ refresh'
     loadGh()
   }
+  // Off by default — no dashboard polls in the background just from being
+  // open; auto only ticks while this tab is the one actually visible.
+  let autoDs = false
+  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
   $('#d-refresh-' + id).addEventListener('click', load)
+  $('#d-auto-' + id).addEventListener('click', () => {
+    autoDs = !autoDs
+    $('#d-auto-' + id).classList.toggle('on', autoDs)
+  })
   load()
+  const dsTimer = setInterval(() => { if (autoDs && isActiveTab()) load() }, 10000)
   leaf.addEventListener('mousedown', () => focusPane(id), true)
-  panes.set(id, { leaf, tabId, kind: 'datasync', stop: () => {} })
+  panes.set(id, { leaf, tabId, kind: 'datasync', stop: () => clearInterval(dsTimer) })
   return { id, leaf }
 }
 
@@ -2133,9 +2196,14 @@ function switchProfileTabs(name) {
     restoreOrDefaultTabs(name)
     return
   }
-  const want = profileActiveTab[name]
   const mine = [...tabs.entries()].filter(([, t]) => t.profile === name)
-  if (want != null && tabs.has(want)) activateTab(want)
+  // Stack is the pinned home landing page — clicking back to this profile
+  // always lands there, never "wherever I left off" (that's what
+  // profileActiveTab would otherwise restore).
+  const stackEntry = mine.find(([, t]) => t.type === 'stack')
+  const want = profileActiveTab[name]
+  if (stackEntry) activateTab(stackEntry[0])
+  else if (want != null && tabs.has(want)) activateTab(want)
   else if (mine.length) activateTab(mine[0][0])
   else restoreOrDefaultTabs(name)   // profile had all its tabs closed — reseed defaults
   setTimeout(doFit, 30)
@@ -2148,7 +2216,7 @@ function restoreOrDefaultTabs(name) {
   const saved = sessionData[name]
   const spec = (saved && Array.isArray(saved.tabs) && saved.tabs.length) ? saved.tabs
     : (Array.isArray(prof && prof.default_tabs) ? prof.default_tabs : [{ type: 'shell', title: 'shell' }])
-  let firstTab = null, wantActive = null
+  let firstTab = null, wantActive = null, stackTab = null
   const activeIdx = saved && typeof saved.active === 'number' ? saved.active : null
   spec.forEach((t, i) => {
     let tid
@@ -2162,9 +2230,14 @@ function restoreOrDefaultTabs(name) {
     else { tid = newTab(name, t.title); if (t.cmd) autoRun(t.cmd) }
     if (t.cmd) { const tt = tabs.get(tid); if (tt) tt.cmd = t.cmd }
     if (firstTab == null) firstTab = tid
+    if (t.type === 'stack') stackTab = tid
     if (t.active || i === activeIdx) wantActive = tid
   })
-  activateTab(wantActive != null ? wantActive : firstTab)
+  // Stack is the pinned home landing page — always wins over whatever tab a
+  // restored session happened to be on last, so opening the app (or
+  // clicking back to this profile) always lands there, not "wherever I left
+  // off". Session restore still applies to every OTHER tab's existence/order.
+  activateTab(stackTab != null ? stackTab : (wantActive != null ? wantActive : firstTab))
 }
 
 // ── Session persistence (~/.cloud-terminal/session.json) ─────────────────
