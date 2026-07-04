@@ -882,6 +882,89 @@ fn journal_feed(n: Option<u32>) -> Result<Value, String> {
 }
 
 // ══ Cloud Control Center — probe VMs + containers over the SSH mesh ══
+// ══ STACK dashboard — fully static machine + config + cloud-network info ══
+// Loads once (no timer, no SSH) — the default landing page. Modeled on the
+// fish greeting's info-dense layout, but "config level" per request: which
+// repo dirs actually exist, which env vars are actually set (presence only,
+// NEVER values — these include API keys), and which tools actually resolve
+// + their real version, all driven from src/data/stack-info.json (never
+// hardcoded here — add an entry there, not a new line of Rust).
+fn stack_info_path() -> String {
+    let dir = std::env::var("CT_PROFILES_DIR")
+        .unwrap_or_else(|_| format!("{}/data", env_or("CT_APP_DIR", ".")));
+    format!("{dir}/stack-info.json")
+}
+fn first_line(out: std::io::Result<std::process::Output>) -> Option<String> {
+    out.ok().and_then(|o| {
+        let s = String::from_utf8_lossy(&o.stdout);
+        let s = if s.trim().is_empty() { String::from_utf8_lossy(&o.stderr).into_owned() } else { s.into_owned() };
+        s.lines().next().map(|l| l.trim().to_string())
+    }).filter(|s| !s.is_empty())
+}
+#[tauri::command]
+fn stack_info() -> Value {
+    let home = env_or("HOME", "/tmp");
+    let cfg: Value = std::fs::read_to_string(stack_info_path()).ok()
+        .and_then(|s| serde_json::from_str(&s).ok()).unwrap_or(Value::Null);
+
+    // ── machine ──
+    let hostname = first_line(sys_cmd("hostname").output()).unwrap_or_default();
+    let kernel = first_line(sys_cmd("uname").arg("-r").output()).unwrap_or_default();
+    let arch = first_line(sys_cmd("uname").arg("-m").output()).unwrap_or_default();
+    let os_name = std::fs::read_to_string("/etc/os-release").ok()
+        .and_then(|s| s.lines().find(|l| l.starts_with("PRETTY_NAME=")).map(|l| l.trim_start_matches("PRETTY_NAME=").trim_matches('"').to_string()))
+        .unwrap_or_else(|| "Linux".to_string());
+    let cpu_model = std::fs::read_to_string("/proc/cpuinfo").ok()
+        .and_then(|s| s.lines().find(|l| l.starts_with("model name")).and_then(|l| l.split(':').nth(1)).map(|s| s.trim().to_string()))
+        .unwrap_or_default();
+    let cores = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(0);
+    let mem_kb = std::fs::read_to_string("/proc/meminfo").ok()
+        .and_then(|s| s.lines().find(|l| l.starts_with("MemTotal:")).and_then(|l| l.split_whitespace().nth(1)).and_then(|s| s.parse::<u64>().ok()))
+        .unwrap_or(0);
+    let uptime_secs = std::fs::read_to_string("/proc/uptime").ok()
+        .and_then(|s| s.split_whitespace().next().and_then(|s| s.parse::<f64>().ok()))
+        .unwrap_or(0.0) as u64;
+
+    // ── repo tree presence ──
+    let repos: Vec<Value> = cfg["git_repos"].as_array().cloned().unwrap_or_default().iter()
+        .map(|r| {
+            let name = r.as_str().unwrap_or("");
+            let exists = std::path::Path::new(&format!("{home}/git/{name}")).is_dir();
+            serde_json::json!({ "name": name, "exists": exists })
+        }).collect();
+
+    // ── env var presence (never values) ──
+    let env_groups: Vec<Value> = cfg["env_var_groups"].as_array().cloned().unwrap_or_default().iter()
+        .map(|g| {
+            let label = g["label"].as_str().unwrap_or("");
+            let vars: Vec<Value> = g["vars"].as_array().cloned().unwrap_or_default().iter()
+                .map(|v| { let n = v.as_str().unwrap_or(""); serde_json::json!({ "name": n, "set": std::env::var(n).is_ok() }) })
+                .collect();
+            serde_json::json!({ "label": label, "vars": vars })
+        }).collect();
+
+    // ── tool versions (real --version calls, first line only) ──
+    let tools: Vec<Value> = cfg["tools"].as_array().cloned().unwrap_or_default().iter()
+        .map(|t| {
+            let name = t["name"].as_str().unwrap_or("");
+            let cmd = t["cmd"].as_str().unwrap_or(name);
+            let arg = t["version_arg"].as_str().unwrap_or("--version");
+            let version = first_line(sys_cmd(cmd).arg(arg).output());
+            serde_json::json!({ "name": name, "available": version.is_some(), "version": version })
+        }).collect();
+
+    // ── cloud network topology (static config, no live SSH probing) ──
+    let cloud_targets = cloud_targets();
+
+    serde_json::json!({
+        "machine": {
+            "hostname": hostname, "os": os_name, "kernel": kernel, "arch": arch,
+            "cpu_model": cpu_model, "cores": cores, "mem_kb": mem_kb, "uptime_secs": uptime_secs,
+        },
+        "repos": repos, "env_groups": env_groups, "tools": tools, "cloud_targets": cloud_targets,
+    })
+}
+
 fn cloud_targets_path() -> String {
     let dir = std::env::var("CT_PROFILES_DIR")
         .unwrap_or_else(|_| format!("{}/data", env_or("CT_APP_DIR", ".")));
@@ -1619,7 +1702,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap,
             psi_clean, psi_clean_all, journal_feed,
-            cloud_targets, cloud_vm, cloud_stats, cloud_logs, cloud_ping, data_sync, data_gh, peer_ping,
+            cloud_targets, cloud_vm, cloud_stats, cloud_logs, cloud_ping, data_sync, data_gh, peer_ping, stack_info,
             session_save, session_load, agi_usage, agi_live,
             run_item, get_init, sys_stats
         ])

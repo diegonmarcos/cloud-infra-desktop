@@ -1,0 +1,22 @@
+{
+  "_doc": "Data-driven inventory for the STACK dashboard (config-level, not just high-level): which repo dirs exist, which env vars are set (grouped, presence only — never the values), and which tools resolve + their version. Add entries here, not in main.rs.",
+  "git_repos": ["front", "cloud", "vault", "unix", "tools", "cloud-data", "front-data"],
+  "env_var_groups": [
+    { "label": "Shell",  "vars": ["EDITOR", "VISUAL", "PAGER", "LANG", "LC_ALL", "MANPAGER"] },
+    { "label": "AI/LLM", "vars": ["ANTHROPIC_API_KEY", "OPENAI_BASE_URL", "OPENAI_API_KEY"] },
+    { "label": "Auth",   "vars": ["AUTHELIA_OIDC_CLIENT_ID", "AUTHELIA_TOKEN_URL", "AUTHELIA_OIDC_CREDENTIALS_DIR"] },
+    { "label": "Dev",    "vars": ["CARGO_HOME", "GOPATH", "PIP_CACHE_DIR", "npm_config_cache", "npm_config_prefix"] },
+    { "label": "System", "vars": ["DEVICE", "HM_PROFILE", "GNUPGHOME", "GIT_EDITOR"] }
+  ],
+  "tools": [
+    { "name": "claude",  "cmd": "claude",  "version_arg": "--version" },
+    { "name": "git",     "cmd": "git",     "version_arg": "--version" },
+    { "name": "nix",     "cmd": "nix",     "version_arg": "--version" },
+    { "name": "docker",  "cmd": "docker",  "version_arg": "--version" },
+    { "name": "node",    "cmd": "node",    "version_arg": "--version" },
+    { "name": "cargo",   "cmd": "cargo",   "version_arg": "--version" },
+    { "name": "fish",    "cmd": "fish",    "version_arg": "--version" },
+    { "name": "tmux",    "cmd": "tmux",    "version_arg": "-V" },
+    { "name": "sops",    "cmd": "sops",    "version_arg": "--version" }
+  ]
+}

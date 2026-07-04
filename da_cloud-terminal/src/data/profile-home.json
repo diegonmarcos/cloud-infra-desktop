@@ -10,7 +10,8 @@
     "bg":      "#0e0f1a"
   },
   "default_tabs": [
-    { "type": "monitor",  "title": "sys-performance", "active": true },
+    { "type": "stack",    "title": "stack", "active": true },
+    { "type": "monitor",  "title": "sys-performance" },
     { "type": "journal",  "title": "journal-logs" },
     { "type": "cloud",    "title": "cloud-control" },
     { "type": "datasync", "title": "data-sync" }
@@ -19,6 +20,7 @@
     {
       "title": "Dashboards",
       "items": [
+        { "label": "📦  Stack",              "type": "stack",    "arg": "" },
         { "label": "📊  System Performance", "type": "monitor",  "arg": "" },
         { "label": "📜  Journal Logs",       "type": "journal",  "arg": "" },
         { "label": "☁️  Cloud Control",       "type": "cloud",    "arg": "" },

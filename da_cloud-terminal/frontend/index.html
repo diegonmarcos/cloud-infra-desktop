@@ -356,6 +356,11 @@
     radial-gradient(1200px 600px at 20% -10%, #15172b 0%, var(--bg) 60%); }
   .cloud { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 11px; overflow: hidden; }
   .devctl { padding: 8px; height: 100%; display: flex; flex-direction: column; font-size: 11px; overflow: hidden; }
+  .stack-wrap { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 11px; overflow-y: auto; }
+  .stack-chips { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+  .stack-chip { font-size: 10px; padding: 3px 8px; border-radius: 10px; background: var(--item-bg); border: 1px solid var(--sep); white-space: nowrap; }
+  .stack-chip.ok  { color: #4ade80; border-color: rgba(74,222,128,.35); }
+  .stack-chip.bad { color: #f87171; border-color: rgba(248,113,113,.35); }
   .devctl .panel { flex: 1 1 0; min-height: 0; }
   /* screen split: VM cards 25% · containers 50% · log center 25% (flex-grow 1:2:1) */
   .cloud-vms { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px;
@@ -728,6 +733,72 @@ function bar(lbl, pct, right, col) {
   const c = col || heat(pct / 100)
   return `<div class="bar"><div class="lbl"><span>${lbl}</span><span class="r">${right}</span></div>` +
     `<div class="track"><i style="width:${pct.toFixed(1)}%;background:${c};color:${c}"></i></div></div>`
+}
+
+// ══ STACK dashboard (no PTY) — fully static machine + config + cloud info ══
+// Loads ONCE on open, no timer at all — this is the new default landing
+// page precisely because it must never poll. Config-level per request (not
+// just a high-level description): real repo-tree presence, real env-var
+// presence (never values), real tool --version output, and the cloud
+// network's static topology (no live SSH probing — that's the Cloud tab's
+// job). Modeled on the fish greeting's info-dense layout.
+function makeStack(tabId) {
+  const id = ++paneSeq
+  const leaf = document.createElement('div')
+  leaf.className = 'leaf stack'; leaf.dataset.pane = String(id)
+  leaf.innerHTML = `
+    <div class="stack-wrap">
+      <div class="agi-top"><span style="font-weight:700;color:var(--accent2);letter-spacing:.08em">STACK</span>
+        <span style="flex:1"></span>
+        <button class="cpbtn" id="s-refresh-${id}">↻ refresh</button></div>
+      <div class="jrn-stats" id="s-mach-${id}"></div>
+      <div class="agi-grid">
+        <div class="panel"><div class="ph"><span>REPO TREE · ~/git/</span></div><div id="s-repos-${id}" class="stack-chips"></div></div>
+        <div class="panel"><div class="ph"><span>TOOLS</span></div><div id="s-tools-${id}" class="stack-chips"></div></div>
+        <div class="panel agi-panel-wide"><div class="ph"><span>ENV VARS</span><span class="sub">presence only — never values</span></div><div id="s-envs-${id}"></div></div>
+        <div class="panel agi-panel-wide"><div class="ph"><span>CLOUD NETWORK</span><span class="sub">static topology — see the Cloud tab for live status</span></div><div id="s-cloud-${id}" class="stack-chips"></div></div>
+      </div>
+    </div>`
+  const $ = s => leaf.querySelector(s)
+  const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+  const chip = (label, ok, title) => `<span class="stack-chip ${ok ? 'ok' : 'bad'}" ${title ? `title="${esc(title)}"` : ''}>${ok ? '●' : '○'} ${esc(label)}</span>`
+
+  async function load() {
+    $('#s-refresh-' + id).textContent = '… loading'
+    const d = await invoke('stack_info').catch(() => null)
+    if (!leaf.isConnected) return
+    $('#s-refresh-' + id).textContent = '↻ refresh'
+    if (!d) { $('#s-mach-' + id).textContent = 'unavailable'; return }
+
+    const m = d.machine || {}
+    const ramGb = (m.mem_kb || 0) / 1024 / 1024
+    const up = m.uptime_secs || 0
+    const upStr = up < 3600 ? `${fmtNum(up / 60)}m` : up < 86400 ? `${fmtNum(up / 3600)}h` : `${fmtNum(up / 86400)}d`
+    $('#s-mach-' + id).innerHTML = [
+      ['host', esc(m.hostname || '?')], ['os', esc(m.os || '?')], ['kernel', esc(m.kernel || '?')], ['arch', esc(m.arch || '?')],
+      ['cpu', esc((m.cpu_model || '?').slice(0, 30))], ['cores', fmtNum(m.cores)], ['ram', fmtNum(ramGb) + ' GB'], ['up', upStr],
+    ].map(([l, v]) => `<span><span class="k">${l}</span> <span class="v">${v}</span></span>`).join('')
+
+    $('#s-repos-' + id).innerHTML = (d.repos || []).map(r => chip(r.name, r.exists)).join('') || '<span class="ds-empty">none configured</span>'
+
+    $('#s-tools-' + id).innerHTML = (d.tools || []).map(t => chip(t.name, t.available, t.version || 'not found')).join('') || '<span class="ds-empty">none configured</span>'
+
+    $('#s-envs-' + id).innerHTML = (d.env_groups || []).map(g =>
+      `<div class="ibar"><span class="iu" style="width:70px">${esc(g.label)}</span><span class="stack-chips">` +
+      (g.vars || []).map(v => chip(v.name, v.set)).join('') + `</span></div>`
+    ).join('') || '<span class="ds-empty">none configured</span>'
+
+    const targets = (d.cloud_targets && d.cloud_targets.targets) || []
+    $('#s-cloud-' + id).innerHTML = targets.map(t =>
+      `<span class="stack-chip ok" title="${esc(t.alias || '')}">☁ ${esc(t.alias || t.name || '?')}</span>`
+    ).join('') || '<span class="ds-empty">no VMs configured</span>'
+  }
+
+  $('#s-refresh-' + id).addEventListener('click', load)
+  load()
+  leaf.addEventListener('mousedown', () => focusPane(id), true)
+  panes.set(id, { leaf, tabId, kind: 'stack', stop: () => {} })
+  return { id, leaf }
 }
 
 function makeMonitor(tabId) {
@@ -1318,7 +1389,8 @@ function makeCloud(tabId) {
       <div class="panel cloud-cont"><div class="ph"><span id="c-conthdr-${id}">CONTAINERS</span>
         <span class="proc-tools">
           <span class="ptbl-tabs" id="c-view-${id}"><button data-v="vm" class="on">BY VM</button><button data-v="service">BY SERVICE</button></span>
-          <button class="cpbtn" id="c-refresh-${id}" title="Re-probe all VMs (docker ps + stats over the SSH mux)">↻ probe</button></span></div>
+          <button class="cpbtn" id="c-refresh-${id}" title="Re-probe all VMs (docker ps + stats over the SSH mux)">↻ probe</button>
+          <button class="cpbtn" id="c-auto-${id}" title="Auto re-probe (10s) — off by default, no dashboard polls in the background">⏱ auto</button></span></div>
         <div class="ptbl-wrap"><table class="ptbl ctbl">
           <thead><tr><th>NAME</th><th>VM</th><th>IMAGE</th><th>STATE</th><th class="num">CPU%</th><th class="num">MEM</th><th>PORTS</th></tr></thead>
           <tbody id="c-cont-${id}"></tbody></table></div></div>
@@ -1476,6 +1548,15 @@ function makeCloud(tabId) {
     viewMode = b.dataset.v; for (const x of $('#c-view-' + id).children) x.classList.toggle('on', x === b); renderConts()
   })
   $('#c-refresh-' + id).addEventListener('click', probe)
+  // Off by default — the SSH/docker probe is the exact heavy work that must
+  // never run just from this tab being open; auto only ticks while this tab
+  // is the one actually visible.
+  let autoCloud = false
+  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
+  $('#c-auto-' + id).addEventListener('click', () => {
+    autoCloud = !autoCloud
+    $('#c-auto-' + id).classList.toggle('on', autoCloud)
+  })
   $('#c-logsrc-' + id).addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return
     logSrc = b.dataset.v; syncLogSrcButtons()
@@ -1489,8 +1570,9 @@ function makeCloud(tabId) {
   $('#c-logcopy-' + id).addEventListener('click', () => { clip.write(logRaw); const b = $('#c-logcopy-' + id), t = b.textContent; b.textContent = '✓'; setTimeout(() => b.textContent = t, 1200) })
 
   init()
+  const cloudTimer = setInterval(() => { if (autoCloud && isActiveTab()) probe() }, 10000)
   leaf.addEventListener('mousedown', () => focusPane(id), true)
-  panes.set(id, { leaf, tabId, kind: 'cloud', stop: () => {} })
+  panes.set(id, { leaf, tabId, kind: 'cloud', stop: () => clearInterval(cloudTimer) })
   return { id, leaf }
 }
 
@@ -1697,7 +1779,8 @@ function makeAGI(tabId) {
     <div class="agi">
       <div class="agi-top"><span style="font-weight:700;color:var(--accent2);letter-spacing:.08em">AGI · CLAUDE USAGE</span>
         <span style="flex:1"></span><span class="jrn-count" id="a-note-${id}"></span>
-        <button class="cpbtn" id="a-refresh-${id}">↻ refresh</button></div>
+        <button class="cpbtn" id="a-refresh-${id}">↻ refresh</button>
+        <button class="cpbtn" id="a-auto-${id}" title="Auto-refresh the live session banner (4s) — off by default, no dashboard polls in the background">⏱ auto</button></div>
       <div class="agi-cur" id="a-cur-${id}"></div>
       <div class="jrn-stats" id="a-stats-${id}"></div>
       <div class="agi-grid">
@@ -1830,10 +1913,20 @@ function makeAGI(tabId) {
     } else { $('#a-cur-' + id).innerHTML = '<span style="color:#6b7280">no active session detected</span>' }
   }
 
-  $('#a-refresh-' + id).addEventListener('click', load)
+  // Off by default — the live banner must not poll from just being open.
+  // Manual refresh (both load() and pollLive() — the button covers both the
+  // full aggregate scan AND an immediate live-banner update) always works;
+  // auto only ticks while this tab is the one actually visible.
+  let autoAgi = false
+  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
+  $('#a-refresh-' + id).addEventListener('click', () => { load(); pollLive() })
+  $('#a-auto-' + id).addEventListener('click', () => {
+    autoAgi = !autoAgi
+    $('#a-auto-' + id).classList.toggle('on', autoAgi)
+  })
   load()
   pollLive()
-  const liveTimer = setInterval(pollLive, 4000)
+  const liveTimer = setInterval(() => { if (autoAgi && isActiveTab()) pollLive() }, 4000)
   leaf.addEventListener('mousedown', () => focusPane(id), true)
   panes.set(id, { leaf, tabId, kind: 'agi', stop: () => clearInterval(liveTimer) })
   return { id, leaf }
@@ -1886,6 +1979,7 @@ function newCloudTab(profile, activate) { return newSpecialTab(makeCloud, '☁ c
 function newDataSyncTab(profile, activate) { return newSpecialTab(makeDataSync, '🔄 data-sync', 'datasync', profile, activate) }
 function newAGITab(profile, activate) { return newSpecialTab(makeAGI, '🤖 agi', 'agi', profile, activate) }
 function newDevControlTab(profile, activate) { return newSpecialTab(makeDevControl, '🛠 devctl', 'devctl', profile, activate) }
+function newStackTab(profile, activate) { return newSpecialTab(makeStack, '📦 stack', 'stack', profile, activate) }
 
 function paneIdOf(leaf) { return parseInt(leaf.dataset.pane, 10) }
 
@@ -2064,6 +2158,7 @@ function restoreOrDefaultTabs(name) {
     else if (t.type === 'datasync') tid = newDataSyncTab(name, false)
     else if (t.type === 'agi') tid = newAGITab(name, false)
     else if (t.type === 'devctl') tid = newDevControlTab(name, false)
+    else if (t.type === 'stack') tid = newStackTab(name, false)
     else { tid = newTab(name, t.title); if (t.cmd) autoRun(t.cmd) }
     if (t.cmd) { const tt = tabs.get(tid); if (tt) tt.cmd = t.cmd }
     if (firstTab == null) firstTab = tid
@@ -2141,7 +2236,7 @@ function historyItems(kind) {
 // dispatch a sidebar/history item (dashboards open a pane; others run a command)
 function openItem(item, profileName) {
   recordHistory(item)
-  const dash = { monitor: newMonitorTab, journal: newJournalTab, cloud: newCloudTab, datasync: newDataSyncTab, agi: newAGITab, devctl: newDevControlTab }[item.type]
+  const dash = { monitor: newMonitorTab, journal: newJournalTab, cloud: newCloudTab, datasync: newDataSyncTab, agi: newAGITab, devctl: newDevControlTab, stack: newStackTab }[item.type]
   if (dash) { dash() } else { runItem({ ...item, profile: profileName, ptyId: activePane }); focusActivePaneTerm() }
   if ((active.sections || []).some(s => s.dynamic)) buildSidebar(active)   // refresh Last/Most
 }
