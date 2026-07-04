@@ -51793,3 +51793,14 @@ warning: Nix search path entry '/nix/var/nix/profiles/per-user/root/channels' do
 [2026-07-03 23:31:38] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
 [2026-07-03 23:31:39] PERF: start switch
 [2026-07-03 23:31:39] INFO: Staging dirty files for flake evaluation...
+[2026-07-03 23:31:40] PERF: git stage = 980ms
+[2026-07-03 23:31:42] PERF: clean stale hm-backups = 2.1s
+[2026-07-03 23:31:42] INFO: Applying Home Manager configuration...
+[2026-07-03 23:31:42] INFO: home-manager backup extension: hm-backup-20260703-233142
+copying path '/nix/store/3p306srz83h9z9v0ma9xcxb8y8cdxkxj-source' from 'https://cache.nixos.org'...
+[2026-07-04 09:12:29] ========== Build script started ==========
+[2026-07-04 09:12:29] ========== Build script finished ==========
+[2026-07-04 09:12:53] ========== Build script started ==========
+[2026-07-04 09:12:53] ========== Switching to /home/diego/git/unix/ba_flakes_desktop/src#diego@surface-plasma ==========
+[2026-07-04 09:12:53] PERF: start switch
+[2026-07-04 09:12:53] INFO: Staging dirty files for flake evaluation...

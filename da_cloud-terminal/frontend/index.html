@@ -515,7 +515,29 @@ window.addEventListener('unhandledrejection', e => {
 
 <script>
 // ── Tauri IPC ──
-const invoke = window.__TAURI__.core.invoke
+// DEV CONTROL instrumentation: every invoke() call (SSH probes, docker
+// stats, journal reads, process scans — everything a dashboard does) is
+// timed and recorded into a rolling buffer so the DEV CONTROL tab can show
+// exactly what's slow, how often it's called, and from which pane — instead
+// of guessing which of 5 heavy dashboards is thrashing the UX. Near-zero
+// overhead: one Date.now() before/after and a ring-buffer push, no
+// allocation-heavy tracing.
+const _rawInvoke = window.__TAURI__.core.invoke
+const DEVCTL_MAX = 500
+const devctlLog = []          // ring buffer: {cmd, args, ms, at, ok}
+const devctlListeners = new Set()
+function devctlPush(entry) {
+  devctlLog.push(entry)
+  if (devctlLog.length > DEVCTL_MAX) devctlLog.shift()
+  for (const fn of devctlListeners) { try { fn(entry) } catch (_) {} }
+}
+const invoke = (cmd, args) => {
+  const t0 = Date.now()
+  return _rawInvoke(cmd, args).then(
+    r => { devctlPush({ cmd, args, ms: Date.now() - t0, at: t0, ok: true }); return r },
+    e => { devctlPush({ cmd, args, ms: Date.now() - t0, at: t0, ok: false, err: String(e) }); throw e }
+  )
+}
 const listen = window.__TAURI__.event.listen
 const Terminal = window.Terminal
 const FitAddon = window.FitAddon.FitAddon
@@ -861,9 +883,10 @@ function makeMonitor(tabId) {
     } else {
       let list
       if (sortBy === 'lineage') {
-        // sort the full set alphabetically by user ▸ lineage ▸ own name
+        // sort the FULL set alphabetically by user ▸ lineage ▸ own name — no
+        // cap (the table scrolls; a fixed slice silently hid most processes).
         const key = p => ((p.user || '') + '/' + (p.anc || []).join('/') + '/' + (p.name || '')).toLowerCase()
-        list = [...(s.procs_all || [])].sort((a, b) => key(a).localeCompare(key(b))).slice(0, 40)
+        list = [...(s.procs_all || [])].sort((a, b) => key(a).localeCompare(key(b)))
       } else {
         list = sortBy === 'mem' ? s.procs_mem : sortBy === 'io' ? s.procs_io : s.procs
       }
@@ -1558,6 +1581,89 @@ function makeDataSync(tabId) {
   return { id, leaf }
 }
 
+// ══ DEV CONTROL (no PTY) — invoke() instrumentation, live ═══════════
+// Answers "what's actually trashing the UX": every invoke() call app-wide
+// (SSH probes, docker stats, journal reads, process scans) is timed by the
+// wrapper near the top of this file and pushed into devctlLog. This tab
+// aggregates by command (count/total/avg/max — sorted by TOTAL time, the
+// real culprit ranking) or shows the raw recent-call feed, live via
+// devctlListeners rather than polling.
+function makeDevControl(tabId) {
+  const id = ++paneSeq
+  const leaf = document.createElement('div')
+  leaf.className = 'leaf devctl'; leaf.dataset.pane = String(id)
+  leaf.innerHTML = `
+    <div class="devctl">
+      <div class="panel">
+        <div class="ph"><span id="dc-hdr-${id}">DEV CONTROL · invoke() instrumentation</span>
+          <span class="proc-tools">
+            <span class="ptbl-tabs" id="dc-view-${id}"><button data-v="agg" class="on">BY COMMAND</button><button data-v="recent">RECENT</button></span>
+            <button class="cpbtn" id="dc-pause-${id}" title="Pause live updates">⏸ pause</button>
+            <button class="cpbtn" id="dc-clear-${id}" title="Clear the recorded log">🗑 clear</button>
+          </span>
+        </div>
+        <div class="ptbl-wrap"><table class="ptbl">
+          <thead id="dc-head-${id}"></thead>
+          <tbody id="dc-body-${id}"></tbody>
+        </table></div>
+      </div>
+    </div>`
+  const $ = s => leaf.querySelector(s)
+  const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+  const fmtMs = ms => ms >= 1000 ? (ms / 1000).toFixed(2) + 's' : ms.toFixed(0) + 'ms'
+  const agoStr = at => { const s = Math.max(0, Math.round((Date.now() - at) / 1000)); return s < 60 ? s + 's ago' : Math.round(s / 60) + 'm ago' }
+  let view = 'agg', paused = false
+
+  function renderAgg() {
+    $('#dc-head-' + id).innerHTML = '<tr><th>COMMAND</th><th class="num">CALLS</th><th class="num">TOTAL</th>' +
+      '<th class="num">AVG</th><th class="num">MAX</th><th class="num">ERRORS</th><th class="num">LAST</th></tr>'
+    const agg = new Map()
+    for (const e of devctlLog) {
+      const a = agg.get(e.cmd) || { cmd: e.cmd, calls: 0, total: 0, max: 0, errs: 0, last: 0 }
+      a.calls++; a.total += e.ms; a.max = Math.max(a.max, e.ms); if (!e.ok) a.errs++; a.last = Math.max(a.last, e.at)
+      agg.set(e.cmd, a)
+    }
+    const rows = [...agg.values()].sort((a, b) => b.total - a.total)
+    $('#dc-body-' + id).innerHTML = rows.map(a => {
+      const avg = a.total / a.calls, cc = avg > 800 ? 'hot' : avg > 200 ? 'warm' : ''
+      return `<tr><td class="n">${esc(a.cmd)}</td><td class="num">${a.calls}</td>` +
+        `<td class="num ${cc}">${fmtMs(a.total)}</td><td class="num ${cc}">${fmtMs(avg)}</td>` +
+        `<td class="num">${fmtMs(a.max)}</td><td class="num ${a.errs ? 'hot' : ''}">${a.errs || '·'}</td>` +
+        `<td class="num st">${agoStr(a.last)}</td></tr>`
+    }).join('') || `<tr><td colspan="7" style="color:#6b7280">no invoke() calls recorded yet</td></tr>`
+  }
+  function renderRecent() {
+    $('#dc-head-' + id).innerHTML = '<tr><th class="num">WHEN</th><th>COMMAND</th><th>ARGS</th><th class="num">MS</th><th>OK</th></tr>'
+    const rows = devctlLog.slice().reverse().slice(0, 200)
+    $('#dc-body-' + id).innerHTML = rows.map(e => {
+      const cc = e.ms > 800 ? 'hot' : e.ms > 200 ? 'warm' : ''
+      const args = e.args ? esc(JSON.stringify(e.args)).slice(0, 60) : '·'
+      return `<tr><td class="num st">${agoStr(e.at)}</td><td class="n">${esc(e.cmd)}</td>` +
+        `<td class="hier">${args}</td><td class="num ${cc}">${fmtMs(e.ms)}</td>` +
+        `<td class="${e.ok ? '' : 'hot'}">${e.ok ? '✓' : '✗ ' + esc(e.err || '')}</td></tr>`
+    }).join('') || `<tr><td colspan="5" style="color:#6b7280">no invoke() calls recorded yet</td></tr>`
+  }
+  function render() { view === 'agg' ? renderAgg() : renderRecent() }
+  const onNewEntry = () => { if (!paused && leaf.isConnected) render() }
+  devctlListeners.add(onNewEntry)
+
+  $('#dc-view-' + id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return
+    for (const x of $('#dc-view-' + id).children) x.classList.remove('on')
+    b.classList.add('on'); view = b.dataset.v; render()
+  })
+  $('#dc-pause-' + id).addEventListener('click', () => {
+    paused = !paused
+    $('#dc-pause-' + id).textContent = paused ? '▶ resume' : '⏸ pause'
+  })
+  $('#dc-clear-' + id).addEventListener('click', () => { devctlLog.length = 0; render() })
+
+  render()
+  leaf.addEventListener('mousedown', () => focusPane(id), true)
+  panes.set(id, { leaf, tabId, kind: 'devctl', stop: () => devctlListeners.delete(onNewEntry) })
+  return { id, leaf }
+}
+
 // ══ AGI dashboard (no PTY) — Claude Code usage analytics ═════════════
 function makeAGI(tabId) {
   const id = ++paneSeq
@@ -1748,6 +1854,7 @@ function newJournalTab(profile, activate) { return newSpecialTab(makeJournal, '�
 function newCloudTab(profile, activate) { return newSpecialTab(makeCloud, '☁ cloud', 'cloud', profile, activate) }
 function newDataSyncTab(profile, activate) { return newSpecialTab(makeDataSync, '🔄 data-sync', 'datasync', profile, activate) }
 function newAGITab(profile, activate) { return newSpecialTab(makeAGI, '🤖 agi', 'agi', profile, activate) }
+function newDevControlTab(profile, activate) { return newSpecialTab(makeDevControl, '🛠 devctl', 'devctl', profile, activate) }
 
 function paneIdOf(leaf) { return parseInt(leaf.dataset.pane, 10) }
 
