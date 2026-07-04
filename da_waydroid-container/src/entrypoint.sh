@@ -30,6 +30,14 @@ chmod 0700 "$XDG_RUNTIME_DIR"
 #    exec waydroid app install` (run by the host, not a child of this shell) actually
 #    reach the running session instead of falsely reporting "session is stopped". ──
 mkdir -p /run/dbus
+# On `docker start` of an EXISTING (not freshly-created) container, /run/dbus/pid
+# from a previous, ungracefully-stopped session can survive on the writable layer —
+# dbus-daemon's OWN startup check (via /etc/dbus-1/system.conf's <pidfile>) then
+# refuses to start, seeing an apparently-stale pidfile. Since we're the only thing
+# that ever writes it, any pidfile present at OUR startup is always stale — remove
+# it unconditionally before launching. This is the exact restart path build.sh's
+# `docker start` (existing container) takes, so this recurs every time without it.
+rm -f /run/dbus/pid
 # --print-pid writes to a SEPARATE file of ours ($XDG_RUNTIME_DIR/dbus-*-ours.pid) —
 # NOT /run/dbus/pid, which is dbus-daemon's OWN conventional system-bus pidfile
 # (declared in /etc/dbus-1/system.conf's <pidfile>). Redirecting fd 3 there would
