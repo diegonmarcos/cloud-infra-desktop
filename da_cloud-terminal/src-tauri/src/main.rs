@@ -924,6 +924,34 @@ fn stack_info() -> Value {
     let uptime_secs = std::fs::read_to_string("/proc/uptime").ok()
         .and_then(|s| s.split_whitespace().next().and_then(|s| s.parse::<f64>().ok()))
         .unwrap_or(0.0) as u64;
+    // disk usage of / (df -Pk, POSIX-mode → stable column layout regardless of locale)
+    let (disk_used_kb, disk_total_kb) = sys_cmd("df").args(["-Pk", "/"]).output().ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned()).and_then(|s| {
+            let line = s.lines().nth(1)?;
+            let cols: Vec<&str> = line.split_whitespace().collect();
+            Some((cols.get(2)?.parse::<u64>().ok()?, cols.get(1)?.parse::<u64>().ok()?))
+        }).unwrap_or((0, 0));
+    let load_avg = std::fs::read_to_string("/proc/loadavg").ok()
+        .map(|s| s.split_whitespace().take(3).collect::<Vec<_>>().join(" ")).unwrap_or_default();
+
+    // ── network: private IPs (non-loopback/docker/veth) + DNS servers ──
+    let ip_priv = first_line(sys_cmd("hostname").arg("-I").output())
+        .map(|s| s.split_whitespace().next().unwrap_or("").to_string()).unwrap_or_default();
+    let dns_servers: Vec<String> = std::fs::read_to_string("/etc/resolv.conf").ok()
+        .map(|s| s.lines().filter_map(|l| l.strip_prefix("nameserver ")).map(|s| s.trim().to_string()).collect())
+        .unwrap_or_default();
+
+    // ── security: real systemd unit states (n/a if the unit doesn't exist here) ──
+    let svc_state = |unit: &str| first_line(sys_cmd("systemctl").args(["is-active", unit]).output()).unwrap_or_else(|| "n/a".into());
+    let security = serde_json::json!({
+        "ssh": svc_state("sshd"), "firewall": svc_state("firewalld"), "fail2ban": svc_state("fail2ban"),
+    });
+
+    // ── NixOS + home-manager generation (readlink of the active profile) ──
+    let nixos_gen = first_line(sys_cmd("readlink").arg("/nix/var/nix/profiles/system").output())
+        .and_then(|s| s.rsplit('-').nth(1).map(|s| s.to_string()));
+    let hm_gen = first_line(sys_cmd("readlink").arg(&format!("{home}/.local/state/nix/profiles/home-manager")).output())
+        .and_then(|s| s.rsplit('-').nth(1).map(|s| s.to_string()));
 
     // ── repo tree presence ──
     let repos: Vec<Value> = cfg["git_repos"].as_array().cloned().unwrap_or_default().iter()
@@ -953,6 +981,30 @@ fn stack_info() -> Value {
             serde_json::json!({ "name": name, "available": version.is_some(), "version": version })
         }).collect();
 
+    // ── GUI app presence — PATH lookup ONLY, never spawn (spawning a GUI
+    // app just to check "is it installed" would pop its window). ──
+    let in_path = |cmd: &str| -> bool {
+        std::env::var("PATH").ok().map(|p| p.split(':').any(|d| std::path::Path::new(d).join(cmd).is_file())).unwrap_or(false)
+    };
+    let gui_apps: Vec<Value> = cfg["gui_apps"].as_array().cloned().unwrap_or_default().iter()
+        .map(|g| {
+            let name = g["name"].as_str().unwrap_or("");
+            let cmd = g["cmd"].as_str().unwrap_or(name);
+            serde_json::json!({ "name": name, "available": in_path(cmd) })
+        }).collect();
+
+    // ── per-repo git status (branch, dirty-file count, last commit) ──
+    let git_status: Vec<Value> = repos.iter().filter(|r| r["exists"].as_bool().unwrap_or(false)).map(|r| {
+        let name = r["name"].as_str().unwrap_or("");
+        let dir = format!("{home}/git/{name}");
+        let git = |args: &[&str]| first_line(std::process::Command::new("git").arg("-C").arg(&dir).args(args).output());
+        let branch = git(&["rev-parse", "--abbrev-ref", "HEAD"]).unwrap_or_default();
+        let last_commit = git(&["log", "-1", "--format=%h %s"]).unwrap_or_default();
+        let dirty = std::process::Command::new("git").arg("-C").arg(&dir).args(["status", "--porcelain"]).output().ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).lines().count()).unwrap_or(0);
+        serde_json::json!({ "name": name, "branch": branch, "last_commit": last_commit, "dirty_files": dirty })
+    }).collect();
+
     // ── cloud network topology (static config, no live SSH probing) ──
     let cloud_targets = cloud_targets();
 
@@ -960,8 +1012,15 @@ fn stack_info() -> Value {
         "machine": {
             "hostname": hostname, "os": os_name, "kernel": kernel, "arch": arch,
             "cpu_model": cpu_model, "cores": cores, "mem_kb": mem_kb, "uptime_secs": uptime_secs,
+            "disk_used_kb": disk_used_kb, "disk_total_kb": disk_total_kb, "load_avg": load_avg,
         },
-        "repos": repos, "env_groups": env_groups, "tools": tools, "cloud_targets": cloud_targets,
+        "network": { "ip_priv": ip_priv, "dns_servers": dns_servers },
+        "security": security,
+        "nixos_gen": nixos_gen, "hm_gen": hm_gen,
+        "repos": repos, "git_status": git_status,
+        "env_groups": env_groups, "tools": tools, "gui_apps": gui_apps,
+        "flakes": cfg["flakes"], "multi_os": cfg["multi_os"], "bootloader": cfg["bootloader"], "builders": cfg["builders"],
+        "cloud_targets": cloud_targets,
     })
 }
 

@@ -14,7 +14,9 @@
     { "type": "monitor",  "title": "sys-performance" },
     { "type": "journal",  "title": "journal-logs" },
     { "type": "cloud",    "title": "cloud-control" },
-    { "type": "datasync", "title": "data-sync" }
+    { "type": "datasync", "title": "data-sync" },
+    { "type": "agi",      "title": "agi" },
+    { "type": "devctl",   "title": "devctl" }
   ],
   "sections": [
     {

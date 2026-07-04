@@ -1,6 +1,29 @@
 {
-  "_doc": "Data-driven inventory for the STACK dashboard (config-level, not just high-level): which repo dirs exist, which env vars are set (grouped, presence only — never the values), and which tools resolve + their version. Add entries here, not in main.rs.",
+  "_doc": "Data-driven inventory for the STACK dashboard (config-level, not just high-level): which repo dirs exist, which env vars are set (grouped, presence only — never the values), which tools/GUI apps resolve + their version, and static architecture facts (multi-OS layout, bootloader, builders). Add entries here, not in main.rs.",
   "git_repos": ["front", "cloud", "vault", "unix", "tools", "cloud-data", "front-data"],
+  "flakes": [
+    { "name": "cloud", "visibility": "public",  "role": "Service infra — Nix flakes → Docker Compose, 60+ services on 5 VMs" },
+    { "name": "unix",  "visibility": "public",  "role": "NixOS host + home-manager (desktop, termux, builders, per-VM)" },
+    { "name": "front", "visibility": "public",  "role": "32-project front-end monorepo → GitHub Pages" },
+    { "name": "vault", "visibility": "PRIVATE", "role": "All credentials — sops + age + OAuth + SSH/WG/TOTP" },
+    { "name": "tools", "visibility": "public",  "role": "Cross-repo tooling (consumed as submodule from cloud/unix/front)" }
+  ],
+  "multi_os": [
+    { "label": "NixOS (primary)",        "detail": "Surface Pro 8 · LUKS + USB keyfile · linux-surface kernel · btrfs subvolumes · impermanence (root=tmpfs)" },
+    { "label": "Rescue-OS-Debian (p6)",  "detail": "ext4 rescue partition" },
+    { "label": "Kali Linux (p7)",        "detail": "ext4 security-tooling partition" },
+    { "label": "Windows (webcam-only)",  "detail": "ESP chainload, dedicated to webcam driver support only" },
+    { "label": "Shared-Lib (p5)",        "detail": "ext4 → /mnt/shared-lib, Docker/Podman data-root, shared across boots" },
+    { "label": "Ventoy USB",             "detail": "LUKS keyfile + multi-OS live boot media" }
+  ],
+  "bootloader": [
+    { "label": "rEFInd",  "detail": "Primary boot manager (UEFI) — owns all bootloader management; NixOS yields to it" },
+    { "label": "GRUB",    "detail": "Secondary, chainloaded per-OS as needed" }
+  ],
+  "builders": [
+    { "label": "cloud-builder-x", "detail": "Multi-arch (QEMU) builder image, runs on oci-apps" },
+    { "label": "forge",           "detail": "x86 cache builder, 52GB cache on GHCR" }
+  ],
   "env_var_groups": [
     { "label": "Shell",  "vars": ["EDITOR", "VISUAL", "PAGER", "LANG", "LC_ALL", "MANPAGER"] },
     { "label": "AI/LLM", "vars": ["ANTHROPIC_API_KEY", "OPENAI_BASE_URL", "OPENAI_API_KEY"] },
@@ -17,6 +40,31 @@
     { "name": "cargo",   "cmd": "cargo",   "version_arg": "--version" },
     { "name": "fish",    "cmd": "fish",    "version_arg": "--version" },
     { "name": "tmux",    "cmd": "tmux",    "version_arg": "-V" },
-    { "name": "sops",    "cmd": "sops",    "version_arg": "--version" }
+    { "name": "sops",    "cmd": "sops",    "version_arg": "--version" },
+    { "name": "python3", "cmd": "python3", "version_arg": "--version" },
+    { "name": "go",      "cmd": "go",      "version_arg": "version" },
+    { "name": "rustc",   "cmd": "rustc",   "version_arg": "--version" },
+    { "name": "jq",      "cmd": "jq",      "version_arg": "--version" },
+    { "name": "gh",      "cmd": "gh",      "version_arg": "--version" },
+    { "name": "oci",     "cmd": "oci",     "version_arg": "--version" },
+    { "name": "gcloud",  "cmd": "gcloud",  "version_arg": "--version" },
+    { "name": "terraform","cmd": "terraform","version_arg": "--version" },
+    { "name": "rsync",   "cmd": "rsync",   "version_arg": "--version" },
+    { "name": "ssh",     "cmd": "ssh",     "version_arg": "-V" },
+    { "name": "atuin",   "cmd": "atuin",   "version_arg": "--version" },
+    { "name": "fzf",     "cmd": "fzf",     "version_arg": "--version" },
+    { "name": "yazi",    "cmd": "yazi",    "version_arg": "--version" },
+    { "name": "tldr",    "cmd": "tldr",    "version_arg": "--version" }
+  ],
+  "gui_apps": [
+    { "name": "konsole",     "cmd": "konsole" },
+    { "name": "dolphin",     "cmd": "dolphin" },
+    { "name": "kate",       "cmd": "kate" },
+    { "name": "code",       "cmd": "code" },
+    { "name": "spectacle",  "cmd": "spectacle" },
+    { "name": "kdialog",    "cmd": "kdialog" },
+    { "name": "qdbus",      "cmd": "qdbus" },
+    { "name": "brave",      "cmd": "brave" },
+    { "name": "cloud-terminal", "cmd": "cloud-terminal" }
   ]
 }
