@@ -96,9 +96,23 @@ _run_gui() {
 }
 
 cmd_up() { _run_gui; }
+# down — full stack teardown. Uses the data-driven stop_timeout_seconds (not
+# docker's 10s default) so the entrypoint's ordered SIGTERM trap (waydroid
+# session/container -> weston -> pulseaudio -> dbus) actually completes before
+# docker escalates to SIGKILL, then VERIFIES the container is truly gone rather
+# than firing docker stop and trusting it — "close the container closes every
+# stack" is a guarantee, not a best-effort.
 cmd_down() {
   container_exists || { log "container '$(container_name)' does not exist"; return 0; }
-  log "stopping container '$(container_name)'…"; docker stop "$(container_name)" >/dev/null || true
+  local t; t="$(get container.stop_timeout_seconds)"
+  log "stopping container '$(container_name)' (up to ${t}s for a clean stack teardown)…"
+  docker stop -t "$t" "$(container_name)" >/dev/null || true
+  if container_running; then
+    warn "container still running after ${t}s graceful window — forcing stop"
+    docker kill "$(container_name)" >/dev/null 2>&1 || true
+  fi
+  container_running && die "failed to stop '$(container_name)' — a stack may still be running"
+  log "stopped."
 }
 cmd_status() {
   printf "Container: "; container_running && echo "RUNNING ($(container_name))" || { container_exists && echo "stopped" || echo "not created"; }

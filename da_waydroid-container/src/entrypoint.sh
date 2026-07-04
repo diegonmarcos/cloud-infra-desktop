@@ -30,10 +30,18 @@ chmod 0700 "$XDG_RUNTIME_DIR"
 #    exec waydroid app install` (run by the host, not a child of this shell) actually
 #    reach the running session instead of falsely reporting "session is stopped". ──
 mkdir -p /run/dbus
-dbus-daemon --system --fork
-dbus-daemon --session --fork --address="unix:path=$XDG_RUNTIME_DIR/bus"
+# --print-pid writes to a SEPARATE file of ours ($XDG_RUNTIME_DIR/dbus-*-ours.pid) —
+# NOT /run/dbus/pid, which is dbus-daemon's OWN conventional system-bus pidfile
+# (declared in /etc/dbus-1/system.conf's <pidfile>). Redirecting fd 3 there would
+# pre-create/truncate that file before dbus-daemon's own startup check runs, which
+# then sees an apparently-stale pidfile and refuses to start.
+dbus-daemon --system --fork --print-pid=3 3>"$XDG_RUNTIME_DIR/dbus-system-ours.pid"
+dbus-daemon --session --fork --address="unix:path=$XDG_RUNTIME_DIR/bus" \
+  --print-pid=3 3>"$XDG_RUNTIME_DIR/dbus-session-ours.pid"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
-log "D-Bus system+session up (session bus at $XDG_RUNTIME_DIR/bus)"
+DBUS_SYSTEM_BUS_PID="$(cat "$XDG_RUNTIME_DIR/dbus-system-ours.pid" 2>/dev/null || true)"
+DBUS_SESSION_BUS_PID="$(cat "$XDG_RUNTIME_DIR/dbus-session-ours.pid" 2>/dev/null || true)"
+log "D-Bus system (pid $DBUS_SYSTEM_BUS_PID) + session (pid $DBUS_SESSION_BUS_PID) up, bus at $XDG_RUNTIME_DIR/bus"
 
 # ── 3) PulseAudio — Waydroid's LXC config bind-mounts $XDG_RUNTIME_DIR/pulse/native;
 #    a hard mount failure aborts container start without this running first. ──────
@@ -95,13 +103,29 @@ waydroid session start &
 SESSION_PID=$!
 log "waydroid session start issued (WAYLAND_DISPLAY=$WAYLAND_DISPLAY) — attaching as weston client"
 
-# ── 8) PID 1 duties: stay in foreground, forward SIGTERM to a clean waydroid+weston
-#    shutdown (docker stop sends SIGTERM — without a trap, Android state can corrupt) ──
+# ── 8) PID 1 duties: stay in foreground, forward SIGTERM to a FULL, ORDERED
+#    shutdown of every stack this entrypoint started. "Close the container ⇒ close
+#    every stack" — nothing (weston, pulseaudio, either D-Bus daemon, the waydroid
+#    session/container) may outlive this process. Docker's own PID-namespace
+#    teardown would eventually reap stragglers on SIGKILL, but that skips
+#    `waydroid session/container stop`'s graceful state flush and can corrupt
+#    Android's persistent /data (the exact ghost-process class of bug that got
+#    the original desktop-session Waydroid decommissioned) — so this trap does
+#    the graceful stop itself, in dependency order, before returning control. ──
 term_handler() {
-  log "SIGTERM received — stopping waydroid session/container, then weston…"
+  log "SIGTERM received — full stack teardown…"
   waydroid session stop 2>/dev/null || true
   waydroid container stop 2>/dev/null || true
+  log "  waydroid session+container stopped"
   kill "$WESTON_PID" 2>/dev/null || true
+  wait "$WESTON_PID" 2>/dev/null || true
+  log "  weston stopped"
+  pulseaudio --kill 2>/dev/null || true
+  log "  pulseaudio stopped"
+  [ -n "${DBUS_SESSION_BUS_PID:-}" ] && kill "$DBUS_SESSION_BUS_PID" 2>/dev/null || true
+  log "  dbus session bus stopped"
+  [ -n "${DBUS_SYSTEM_BUS_PID:-}" ] && kill "$DBUS_SYSTEM_BUS_PID" 2>/dev/null || true
+  log "  dbus system bus stopped — teardown complete"
   exit 0
 }
 trap term_handler SIGTERM SIGINT
