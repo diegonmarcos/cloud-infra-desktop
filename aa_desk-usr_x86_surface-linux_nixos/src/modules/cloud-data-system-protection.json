@@ -38,6 +38,12 @@
     "notify": true
   },
 
+  "watchdog_selfcheck": {
+    "_comment": "2026-07-04 freeze incident root cause: freeze-guard.service was manually stopped (sudo systemctl stop) during debugging at 09:03 and never restarted; the desktop froze 3h22m later with cpuPSI(some)=85%/memPSI(full)=44% (both above freeze-guard's own trigger thresholds) with NO killer running. 'nixos-rebuild switch' does NOT re-arm a manually-stopped-but-unchanged enabled unit — switch-to-configuration only starts/restarts units whose definition changed, so the many switches performed after the manual stop never touched freeze-guard.service (its nix definition was unchanged) and left it stopped indefinitely. This timer is the fix: independent of whether a switch ever runs, periodically verify the PSI killer is active and restart it if not — closes the silent-disarm gap for good.",
+    "enabled": true,
+    "interval_sec": 60
+  },
+
   "oomd": {
     "_comment": "systemd-oomd — PSI-aware proactive killer, THE evidence-based fix. The 2026-06-27 forensics (psi-recorder) showed the freezes were user.slice memory.pressure full-avg10 sustained at 62-68% for MINUTES with memory.events oom_kill=0 — the kernel throttled at MemoryHigh and swapped into 20G of swap forever while NOTHING ever killed. enable*Slice turns oomd on for -.slice/system.slice/user.slice, but its built-in default limit is 80% — ABOVE the 65% freeze, so it would never fire. pressure_limit OVERRIDES that to a value below the observed stall so oomd kills the worst cgroup BEFORE the machine locks. PSI is swap-independent, so 20G of swap cannot mask it. duration = sustained-seconds before the kill.",
     "enable": true,
@@ -123,6 +129,12 @@
         "description": "freeze-guard runs in the reserved connectivity.slice island",
         "command": "systemctl show freeze-guard.service -p Slice --value",
         "expect": "connectivity.slice"
+      },
+      {
+        "id": "freeze_guard_selfcheck_armed",
+        "description": "the freeze-guard self-check timer is armed — re-arms the PSI killer within 60s if it's ever manually stopped and left off (2026-07-04 incident: a manual stop at 09:03 survived 3h22m and many nixos-rebuild switches because switch-to-configuration never restarts an unchanged-but-stopped unit)",
+        "command": "systemctl is-active freeze-guard-selfcheck.timer",
+        "expect": "active"
       },
       {
         "id": "oomd_active",
