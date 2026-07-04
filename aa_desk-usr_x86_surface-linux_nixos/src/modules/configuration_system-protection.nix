@@ -304,6 +304,35 @@ in
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # FREEZE-GUARD SELF-CHECK: re-arms the PSI killer if manually stopped
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 2026-07-04 incident: freeze-guard was manually `systemctl stop`ped during
+  # debugging and stayed stopped for 3h22m through many `nixos-rebuild switch`
+  # runs — switch-to-configuration only starts/restarts units whose definition
+  # CHANGED; a manually-stopped-but-unchanged enabled unit is left exactly as
+  # it is. The desktop then froze with PSI well past freeze-guard's own
+  # trigger thresholds (cpuPSI=85%, memPSI=44%) with no killer running at all.
+  # This timer closes that gap independent of whether a switch ever runs.
+  systemd.timers."freeze-guard-selfcheck" = lib.mkIf sysprot.watchdog_selfcheck.enabled {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "30s";
+      OnUnitActiveSec = "${toString sysprot.watchdog_selfcheck.interval_sec}s";
+    };
+  };
+
+  systemd.services."freeze-guard-selfcheck" = lib.mkIf sysprot.watchdog_selfcheck.enabled {
+    serviceConfig.Type = "oneshot";
+    path = with pkgs; [ systemd ];
+    script = ''
+      if ! systemctl is-active --quiet freeze-guard.service; then
+        echo "[freeze-guard-selfcheck] freeze-guard.service is NOT active — re-arming"
+        systemctl start freeze-guard.service
+      fi
+    '';
+  };
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # LOCAL TIER: SYSTEM SLICES (3-tier hierarchy)
   # ═══════════════════════════════════════════════════════════════════════════
 
