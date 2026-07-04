@@ -123,9 +123,13 @@ in {
       _psi_loop &
       PSI_PID=$!
 
-      # ── kdialog % bar (transient — closes automatically; the Konsole
+      # ── kdialog % bars — TWO, transient (close automatically); the Konsole
       #    window below is the persistent, copyable one and is NEVER
-      #    auto-closed on either success or failure). ─────────────────────
+      #    auto-closed on either success or failure). One bar tracks the
+      #    CURRENT STEP's own done/expected ratio (e.g. just this one drv
+      #    build or copy), the other the MACRO % across every activity
+      #    summed together — a single aggregate bar couldn't distinguish
+      #    "this one huge copy is 40% done" from "we're 40% through overall".
       NSP_QDBUS="$(command -v qdbus 2>/dev/null || command -v qdbus6 2>/dev/null || echo qdbus)"
       export NSP_QDBUS
       export NSP_CAP="${toString cfg.cap_pct_until_done}"
@@ -133,9 +137,14 @@ in {
       NSP_SVC="$(awk '{print $1}' <<<"$_ref")"
       NSP_PATH="$(awk '{print $2}' <<<"$_ref")"
       export NSP_SVC NSP_PATH
+      _ref2="$(kdialog --title "${cfg.step_title}" --icon "${cfg.icon}" --progressbar "${cfg.step_initial_label}" ${toString cfg.max} 2>/dev/null)"
+      NSP_SVC2="$(awk '{print $1}' <<<"$_ref2")"
+      NSP_PATH2="$(awk '{print $2}' <<<"$_ref2")"
+      export NSP_SVC2 NSP_PATH2
 
       _close_progressbar() {
         [ -n "$NSP_SVC" ] && "$NSP_QDBUS" "$NSP_SVC" "$NSP_PATH" close >/dev/null 2>&1 || true
+        [ -n "$NSP_SVC2" ] && "$NSP_QDBUS" "$NSP_SVC2" "$NSP_PATH2" close >/dev/null 2>&1 || true
         kill "$PSI_PID" 2>/dev/null || true
       }
       trap _close_progressbar EXIT
