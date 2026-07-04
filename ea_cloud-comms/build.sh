@@ -399,6 +399,11 @@ step_build_fork() {
   local -a gprops=()
   while IFS=$'\t' read -r gp_key gp_val; do
     [ -n "$gp_key" ] || continue
+    # $ENV:VAR_NAME → substitute from environment (dynamic CI values like BUILD_TIMESTAMP)
+    if [[ "$gp_val" == '$ENV:'* ]]; then
+      local env_var="${gp_val#'$ENV:'}"
+      gp_val="${!env_var:-dev}"
+    fi
     gprops+=("-P${gp_key}=${gp_val}")
   done < <(prefer_host jq -r ".forks.${key}.build.gradle_props // {} | to_entries[] | select(.key | startswith(\"_\") | not) | \"\(.key)\t\(.value)\"" "$SCRIPT_DIR/build.json")
 
