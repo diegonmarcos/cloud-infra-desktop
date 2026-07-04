@@ -57,10 +57,21 @@ fn send_signal(pid: u32, sig: i32) -> bool { unsafe { kill(pid as i32, sig) == 0
 // master socket, subsequent calls (probe / docker stats / logs) reuse it —
 // no repeated TCP+crypto handshake over the WireGuard mesh. ControlPersist
 // keeps the master alive between refreshes.
+// A stale ControlMaster socket (left behind by a crashed/killed master, or
+// just a dead peer) makes the NEXT ssh attempt hang while it probes the
+// dead multiplex socket — a hang `ConnectTimeout` does NOT cover, since that
+// option only bounds the initial TCP handshake, not control-socket
+// liveness checks. This one bug alone was responsible for cloud_vm/
+// cloud_stats/cloud_ping averaging ~85s per call in production (found via
+// the new DEV CONTROL instrumentation) instead of the sub-second round trip
+// they should be. Wrapping every ssh invocation in `timeout` is an
+// unconditional safety net: whatever the OS-level mechanism is, the child
+// gets SIGKILLed at 10s no matter what, and a killed master naturally
+// clears the dead socket so the NEXT call gets a clean one.
 fn ssh_cmd(alias: &str) -> std::process::Command {
     let cm = format!("{}/.ssh/cm-%C", env_or("HOME", "/tmp"));
-    let mut c = sys_cmd("ssh");
-    c.args([
+    let mut c = sys_cmd("timeout");
+    c.args(["-s", "KILL", "10", "ssh",
         "-o", "BatchMode=yes",
         "-o", "ConnectTimeout=7",
         "-o", "StrictHostKeyChecking=accept-new",
@@ -973,8 +984,12 @@ fn cloud_logs(alias: String, container: Option<String>, tail: Option<u32>) -> Re
 // the Caddy wormhole-200 fallback doesn't read as a false 'up'.
 #[tauri::command]
 fn cloud_ping(url: String) -> Value {
-    let out = sys_cmd("curl")
-        .args(["-sS", "-o", "/dev/null", "-m", "8", "-w", "%{http_code} %{time_total}", &url])
+    // curl's own `-m 8` doesn't reliably bound the DNS-resolve phase (its
+    // synchronous resolver can't be preempted by --max-time on some builds)
+    // — this showed up in production as ~85s hangs despite the flag. Same
+    // unconditional external-`timeout` backstop as ssh_cmd.
+    let out = sys_cmd("timeout")
+        .args(["-s", "KILL", "10", "curl", "-sS", "-o", "/dev/null", "-m", "8", "-w", "%{http_code} %{time_total}", &url])
         .output();
     match out {
         Ok(o) => {

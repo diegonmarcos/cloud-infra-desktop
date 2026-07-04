@@ -242,7 +242,7 @@ case "$CMD" in
       CT_APP_DIR="$SRC" CT_ASSETS_DIR="$SRC/assets" CT_PROFILES_DIR="$SRC/data" \
       CT_PROFILE="${2:-home}" CT_MULTI=1 CT_SHELL=fish \
       WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=wayland,x11 \
-      "$bin" --show >"$runlog" 2>&1 < /dev/null &
+      "$bin" "${2:-home}" --show >"$runlog" 2>&1 < /dev/null &
     launched_pid=$!
     disown
     # A dynamic-linker failure (e.g. a GC'd runtime lib) kills the process in

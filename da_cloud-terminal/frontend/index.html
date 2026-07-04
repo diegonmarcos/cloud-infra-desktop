@@ -541,6 +541,9 @@ const invoke = (cmd, args) => {
   )
 }
 const listen = window.__TAURI__.event.listen
+// Shared decimal-separator formatter — every number shown anywhere in the
+// app MUST carry a decimal or thousands separator, never a bare integer.
+const fmtNum = n => (n || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 const Terminal = window.Terminal
 const FitAddon = window.FitAddon.FitAddon
 const clip = {
@@ -733,7 +736,12 @@ function makeMonitor(tabId) {
   leaf.className = 'leaf monitor'; leaf.dataset.pane = String(id)
   leaf.innerHTML = `
     <div class="mon">
-      <div class="mon-head" id="m-head-${id}"></div>
+      <div class="mon-head" id="m-head-${id}">
+        <span style="margin-left:auto;display:flex;gap:6px">
+          <button class="mbtn" id="m-refresh-${id}" title="Refresh now">↻ refresh</button>
+          <button class="mbtn" id="m-auto-${id}" title="Auto-refresh (1s) — off by default, no dashboard polls in the background">⏱ auto</button>
+        </span>
+      </div>
 
       <div class="mon-row top">
         <div class="panel cpu"><div class="ph"><span>CPU</span><span class="sub" id="m-cpusub-${id}"></span></div>
@@ -989,7 +997,7 @@ function makeMonitor(tabId) {
       `<span><span class="k">os</span> <span class="val">${esc(s.os || '')}</span></span>` +
       `<span><span class="k">kernel</span> <span class="val">${esc(s.kernel || '')}</span></span>` +
       `<span><span class="k">up</span> <span class="val">${fmtUptime(s.uptime)}</span></span>` +
-      `<span><span class="k">tasks</span> <span class="val">${s.running || 0} run · ${s.nproc || 0} total</span></span>` +
+      `<span><span class="k">tasks</span> <span class="val">${fmtNum(s.running)} run · ${fmtNum(s.nproc)} total</span></span>` +
       `<span class="clock">${clock}</span>`
 
     // ── CPU + gauge ──
@@ -1170,7 +1178,18 @@ function makeMonitor(tabId) {
     setTimeout(() => { b.classList.remove('busy'); b.textContent = orig }, 2800)
   })
 
-  const timer = setInterval(poll, 1000)
+  // Off by default — a dashboard left open in a background tab must not
+  // keep polling every second; the tick also no-ops unless this tab is the
+  // one actually visible, so leaving auto ON and switching away still stops
+  // real work (only resumes once you switch back).
+  let autoMon = false
+  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
+  $('#m-refresh-' + id).addEventListener('click', poll)
+  $('#m-auto-' + id).addEventListener('click', () => {
+    autoMon = !autoMon
+    $('#m-auto-' + id).classList.toggle('on', autoMon)
+  })
+  const timer = setInterval(() => { if (autoMon && isActiveTab()) poll() }, 1000)
   poll()
   leaf.addEventListener('mousedown', () => focusPane(id), true)
   panes.set(id, { leaf, tabId, kind: 'monitor', stop: () => clearInterval(timer) })
@@ -1215,12 +1234,12 @@ function makeJournal(tabId) {
         <input class="jrn-search" id="j-search-${id}" placeholder="🔍  filter unit / message…" autocomplete="off" spellcheck="false">
         <span class="jrn-count" id="j-count-${id}"></span>
         <button class="cpbtn" id="j-refresh-${id}" title="Reload">↻</button>
-        <button class="cpbtn on" id="j-auto-${id}" title="Auto-refresh (5s)">⏱ auto</button>
+        <button class="cpbtn" id="j-auto-${id}" title="Auto-refresh (5s) — off by default, no dashboard polls in the background">⏱ auto</button>
         <button class="cpbtn" id="j-copy-${id}" title="Copy filtered feed">⎘</button>
       </div>
       <div class="jrn-feed" id="j-feed-${id}"></div>
     </div>`
-  let rows = [], scope = 'all', prio = 'all', q = '', auto = true
+  let rows = [], scope = 'all', prio = 'all', q = '', auto = false
   const $ = s => leaf.querySelector(s)
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   const passes = r => (scope === 'all' || r.src === scope) && (prio === 'all' || r.prio <= +prio) &&
@@ -1278,7 +1297,10 @@ function makeJournal(tabId) {
     clip.write(f.map(r => `${jt(r.t)} ${JPRIO[r.prio] || r.prio} ${r.src} ${r.unit}: ${r.msg}`).join('\n'))
     const b = $('#j-copy-' + id), t = b.textContent; b.textContent = '✓'; setTimeout(() => b.textContent = t, 1200)
   })
-  const timer = setInterval(() => { if (auto) load() }, 5000)
+  // Auto-refresh only actually fires while THIS tab is the visible one — a
+  // dashboard left running in a background tab must not keep polling.
+  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
+  const timer = setInterval(() => { if (auto && isActiveTab()) load() }, 5000)
   load()
   leaf.addEventListener('mousedown', () => focusPane(id), true)
   panes.set(id, { leaf, tabId, kind: 'journal', stop: () => clearInterval(timer) })
@@ -1334,7 +1356,7 @@ function makeCloud(tabId) {
         <div class="vh"><span class="dot" style="color:${dot};background:${dot}"></span><span class="al">${esc(t.alias)}</span><span class="wg">${esc(t.wg || '')}</span></div>
         <div class="lbl">${esc(t.label || '')}</div>
         <div class="meta">${up
-          ? `<span>⏱ <b>${esc(v.uptime || '?')}</b></span><span>📦 <b>${v.n_running || 0}</b>/${v.n_containers || 0}</span><span>💾 <b>${v.disk_pct || 0}%</b></span>`
+          ? `<span>⏱ <b>${esc(v.uptime || '?')}</b></span><span>📦 <b>${fmtNum(v.n_running)}</b>/${fmtNum(v.n_containers)}</span><span>💾 <b>${fmtNum(v.disk_pct)}%</b></span>`
           : `<span style="color:#f87171">${esc((v.error || 'probing…')).slice(0, 40)}</span>`}
           ${ping ? `<span class="pill" style="color:${pcol};border-color:${pcol}">edge ${ping.code || '×'} · ${ping.ms || '?'}ms</span>` : ''}</div>
       </div>`
@@ -1368,7 +1390,7 @@ function makeCloud(tabId) {
         const rows = (v && v.containers) || []
         total += rows.length
         const sel = t.alias === selVm ? ' sel-vm' : ''
-        const status = v ? (v.reachable ? (v.n_running || 0) + '/' + (v.n_containers || 0) + ' running' : (v.error || 'unreachable')) : 'not probed'
+        const status = v ? (v.reachable ? fmtNum(v.n_running) + '/' + fmtNum(v.n_containers) + ' running' : (v.error || 'unreachable')) : 'not probed'
         rows.sort((a, b) => (a.Names || '').localeCompare(b.Names || ''))
         html += `<tr class="catrow${sel}" data-vmhdr="${esc(t.alias)}"><td colspan="7">${esc(t.alias)} · ${esc(status)}</td></tr>` +
           (rows.length ? rows.map(c => rowHtml(c, t.alias)).join('')
