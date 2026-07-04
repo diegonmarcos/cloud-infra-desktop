@@ -328,8 +328,11 @@ nix_switch() {
 
     # KDE progress popup (programs/nix-switch-progress.nix) — transparent when
     # absent or non-graphical (SSH/CI): falls back to a plain passthrough exec.
+    # NSP_SRC_DIR/NSP_FLAKE_ATTR feed the wrapper's git-diff + closure-size panel.
     _nsp=""
     command -v nix-switch-progress-wrap >/dev/null 2>&1 && _nsp="nix-switch-progress-wrap"
+    export NSP_SRC_DIR="$SRC_DIR"
+    export NSP_FLAKE_ATTR="$SRC_DIR#homeConfigurations.\"${user}@${host}\".activationPackage"
 
     # Capture exit code from the actual command, not tee. NSP_LOG_FILE lets
     # the wrapper's own internal tee write $LOG_FILE (avoids double-teeing

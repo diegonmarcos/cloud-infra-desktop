@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // nix-switch-progress.mjs — parse nix's `--log-format internal-json` activity
-// stream (on stdin) into a real percentage and drive a kdialog ProgressDialog
-// over D-Bus. Invoked by programs/nix-switch-progress.nix; never run directly.
+// stream (on stdin) into a real percentage, drive a kdialog ProgressDialog
+// over D-Bus, AND print a compact human-readable status line to its own
+// stdout for every update (consumed by the wrapper's companion copyable
+// terminal window — see nix-switch-progress.nix). Invoked by
+// nix-switch-progress.nix; never run directly.
 //
 // nix emits, on stderr, lines containing `@nix {…json…}`. Relevant events:
 //   action:"start"  type:105 (actBuild)      text:"building '/nix/store/…drv'"
@@ -24,6 +27,7 @@ const SVC = process.env.NSP_SVC || "";
 const OBJ = process.env.NSP_PATH || "";
 const QDBUS = process.env.NSP_QDBUS || "qdbus";
 const CAP = Number(process.env.NSP_CAP || "99");
+const START_MS = Number(process.env.NSP_START_MS || Date.now());
 
 const acts = new Map(); // activityId -> [done, expected]
 let lastPct = -1;
@@ -35,10 +39,51 @@ const setValue = (n) => qd("Set", "", "value", String(n));
 const setLabel = (t) => qd("setLabelText", t);
 const wasCancelled = () => /true/.test((qd("wasCancelled").stdout || "").trim());
 
+const fmtDur = (ms) => {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60), r = s % 60;
+  if (m < 60) return `${m}m ${r}s`;
+  const h = Math.floor(m / 60), rm = m % 60;
+  return `${h}h ${rm}m`;
+};
+const fmtBytes = (n) => {
+  if (!n) return "0 B";
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  let i = 0, v = n;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v < 10 && i > 0 ? 2 : 0)} ${units[i]}`;
+};
+
+// Universal 3-phase model, self-detected from the stream (works whether the
+// wrapped command is a full local eval+build+activate `switch local`, or a
+// `pull` that skips straight to a short prep + activate) — NOT bespoke per
+// build.sh subcommand, so no extra wiring is needed there:
+//   Preparing        — before any @nix line arrives (flake eval / fetch)
+//   Building/Copying — while @nix lines stream
+//   Activating       — first non-@nix line AFTER the @nix stream (the real
+//                       command's own plain-text activation-script output)
+let sawNixLine = false, announcedBuild = false, announcedActivate = false;
+
 const rl = createInterface({ input: process.stdin });
 rl.on("line", (line) => {
   const i = line.indexOf("@nix ");
-  if (i < 0) return;
+  if (i < 0) {
+    if (sawNixLine && !announcedActivate) {
+      announcedActivate = true;
+      process.stdout.write("\n\x1b[1;33m▶▶▶ PHASE: Activating\x1b[0m\n");
+      setLabel("Activating…");
+    }
+    if (line.trim()) process.stdout.write(`\x1b[2m${line}\x1b[0m\n`);
+    return;
+  }
+  if (!sawNixLine) {
+    sawNixLine = true;
+    if (!announcedBuild) {
+      announcedBuild = true;
+      process.stdout.write("\x1b[1;33m▶▶▶ PHASE: Building / Copying\x1b[0m\n");
+    }
+  }
   let j;
   try { j = JSON.parse(line.slice(i + 5)); } catch { return; }
 
@@ -58,8 +103,24 @@ rl.on("line", (line) => {
   let done = 0, exp = 0;
   for (const [d, e] of acts.values()) { if (e > 0) { done += d; exp += e; } }
   const pct = exp > 0 ? Math.min(CAP, Math.round((done / exp) * 100)) : 0;
+
+  const now = Date.now();
+  const elapsedMs = now - START_MS;
+  let etaLine = `elapsed ${fmtDur(elapsedMs)}`;
+  if (done > 0 && exp > done) {
+    const remainMs = (elapsedMs / done) * (exp - done);
+    etaLine += `  remaining ~${fmtDur(remainMs)}  total ~${fmtDur(elapsedMs + remainMs)}`;
+  }
+
   if (pct !== lastPct) { setValue(pct); lastPct = pct; }
   if (lastLabel) setLabel(`${lastLabel}   ${done}/${exp || "?"}`);
+
+  // Compact human line for the companion copyable window (bytes when the
+  // activity units look byte-sized — copy/substitute progress is bytes;
+  // build-step counts are opaque units, so only bytes get a size suffix).
+  const sizeSuffix = exp > 1_000_000 ? `  (${fmtBytes(done)}/${fmtBytes(exp)})` : "";
+  process.stdout.write(`[${String(pct).padStart(3)}%] ${lastLabel}  ${done}/${exp || "?"}${sizeSuffix}  ${etaLine}\n`);
+
   if (wasCancelled()) process.exit(130);
 });
 rl.on("close", () => process.exit(0));
