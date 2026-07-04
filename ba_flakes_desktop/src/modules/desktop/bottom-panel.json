@@ -1,6 +1,6 @@
 {
-  "_comment": "Data-driven bottom panel. `launchers` are freedesktop desktop-ids (resolved as applications:<id>.desktop) pinned in the icon-tasks widget, in order. `pager_names` name the 4 virtual desktops. The system-monitor widget sensor IDs live in bottom-panel.nix (they are fixed KSystemStats identifiers, not project data). PSI (pressure) is intentionally absent — KSystemStats exposes no /proc/pressure sensor; PSI lives in Cloud-Terminal → System Performance.",
-  "height": 46,
+  "_comment": "Data-driven bottom panel. `launchers` are freedesktop desktop-ids (resolved as applications:<id>.desktop) pinned in the icon-tasks widget, in order. `pager_names` name the 4 virtual desktops. The system-monitor widget sensor IDs live in bottom-panel.nix (they are fixed KSystemStats identifiers, not project data). PSI (pressure) is intentionally absent — KSystemStats exposes no /proc/pressure sensor; PSI lives in Cloud-Terminal → System Performance. height=64 (was 46, 2026-07-04): KDE bug 489307 — org.kde.plasma.systemmonitor's CompactRepresentation.qml derives its rendered size entirely from the sensor face's own Layout.preferredWidth/Height (read from CompactRepresentation.qml, org.kde.ksysguard.faces), which for chart-style faces (barchart/linechart) scales with panel height on a Horizontal panel; at 46px that computed size rounded to near-zero so those widgets occupied no visible space (textonly faces like CPU% still rendered, since their size floor is looser). Confirmed live via plasma scripting (panels()[0].height=64) before committing.",
+  "height": 64,
   "pager_names": ["Desk1", "Desk2", "Desk3", "Desk4"],
   "launchers": [
     "org.kde.konsole",
