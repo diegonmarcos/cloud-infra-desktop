@@ -100,6 +100,23 @@ struct AppState {
     // between polls (the DTK-profile dashboard invokes sys_stats on a timer).
     sys: Mutex<sysinfo::System>,
     nets: Mutex<sysinfo::Networks>,
+    // Short-TTL cache for SSH-mux round-trips (cloud_vm/cloud_stats). The
+    // Cloud dashboard polls every VM on refresh AND on tab-switch/re-render,
+    // and multiple panes can be open on the same VM at once — without this,
+    // each of those independently re-pays a full SSH round-trip even when
+    // the last one landed a moment ago. A hit just clones the cached Value;
+    // a miss does the real probe and populates it. Freshness matters more
+    // than perfect real-time here, so a few seconds of staleness is fine.
+    probe_cache: Mutex<HashMap<String, (std::time::Instant, Value)>>,
+}
+const PROBE_TTL: std::time::Duration = std::time::Duration::from_secs(3);
+fn cache_get(state: &AppState, key: &str) -> Option<Value> {
+    state.probe_cache.lock().unwrap().get(key)
+        .filter(|(at, _)| at.elapsed() < PROBE_TTL)
+        .map(|(_, v)| v.clone())
+}
+fn cache_put(state: &AppState, key: String, val: Value) {
+    state.probe_cache.lock().unwrap().insert(key, (std::time::Instant::now(), val));
 }
 
 // ── /proc + /sys readers for glances-grade extras (Linux) ────────────
@@ -870,7 +887,15 @@ fn cloud_targets() -> Value {
 // SSH into one VM (BatchMode, short timeout) and collect uptime + root-fs use +
 // `docker ps` (JSON lines). Read-only + lightweight, safe even on the 1GB E2s.
 #[tauri::command]
-fn cloud_vm(alias: String) -> Value {
+fn cloud_vm(alias: String, state: tauri::State<AppState>) -> Value {
+    let key = format!("vm:{alias}");
+    if let Some(v) = cache_get(&state, &key) { return v; }
+    let result = cloud_vm_uncached(&alias);
+    cache_put(&state, key, result.clone());
+    result
+}
+fn cloud_vm_uncached(alias: &str) -> Value {
+    let alias = alias.to_string();
     // One round-trip: uptime, df, then docker ps as JSON lines after a marker.
     let remote = "printf 'UPTIME\\t%s\\n' \"$(uptime -p 2>/dev/null || uptime)\"; \
                   printf 'DISK\\t%s\\n' \"$(df -P / 2>/dev/null | awk 'NR==2{print $5\" \"$4\" \"$2}')\"; \
@@ -912,8 +937,15 @@ fn cloud_vm(alias: String) -> Value {
 // Refresh-triggered only (the frontend calls this on the refresh button), so
 // no streaming; --no-stream takes one sample. Reuses the ControlMaster socket.
 #[tauri::command]
-fn cloud_stats(alias: String) -> Value {
-    let out = ssh_cmd(&alias).arg("docker stats --no-stream --format '{{json .}}' 2>/dev/null").output();
+fn cloud_stats(alias: String, state: tauri::State<AppState>) -> Value {
+    let key = format!("stats:{alias}");
+    if let Some(v) = cache_get(&state, &key) { return v; }
+    let result = cloud_stats_uncached(&alias);
+    cache_put(&state, key, result.clone());
+    result
+}
+fn cloud_stats_uncached(alias: &str) -> Value {
+    let out = ssh_cmd(alias).arg("docker stats --no-stream --format '{{json .}}' 2>/dev/null").output();
     let mut stats: Vec<Value> = Vec::new();
     if let Ok(o) = out {
         for line in String::from_utf8_lossy(&o.stdout).lines() {
@@ -1551,6 +1583,7 @@ fn main() {
         shell: env_or("CT_SHELL", "fish"),
         sys: Mutex::new(sysinfo::System::new_all()),
         nets: Mutex::new(sysinfo::Networks::new_with_refreshed_list()),
+        probe_cache: Mutex::new(HashMap::new()),
     };
 
     tauri::Builder::default()
