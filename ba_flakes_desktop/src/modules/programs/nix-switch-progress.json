@@ -1,7 +1,9 @@
 {
   "_doc": "Config for `nix-switch-progress` — a kdialog % bar plus a companion copyable Konsole window (dark KDE-native) shown for any nix command build.sh wraps (programs/nix-switch-progress.nix). Driven by parsing `nix build --log-format internal-json` activity events into a real %. No labels/icons/colors hardcoded in the .nix/.mjs — all here (data-driven). Over SSH/TTY or with kdialog absent the wrapper passes the command through unchanged (no window). Plan: user asked 2026-06-20, enriched 2026-07-04 (step phases, git/PSI/closure-size panel, persistent window with copy-log-on-failure).",
-  "title": "Nix Switch Progress",
+  "title": "Nix Switch Progress — Overall",
   "initial_label": "Preparing…",
+  "step_title": "Nix Switch Progress — Current Step",
+  "step_initial_label": "Preparing…",
   "max": 100,
   "icon": "nix-snowflake",
   "notify_on_finish": true,

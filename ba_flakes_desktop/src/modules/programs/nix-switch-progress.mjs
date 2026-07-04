@@ -25,19 +25,25 @@ import { createInterface } from "node:readline";
 
 const SVC = process.env.NSP_SVC || "";
 const OBJ = process.env.NSP_PATH || "";
+const SVC2 = process.env.NSP_SVC2 || "";
+const OBJ2 = process.env.NSP_PATH2 || "";
 const QDBUS = process.env.NSP_QDBUS || "qdbus";
 const CAP = Number(process.env.NSP_CAP || "99");
 const START_MS = Number(process.env.NSP_START_MS || Date.now());
 
 const acts = new Map(); // activityId -> [done, expected]
-let lastPct = -1;
+let lastActId = null;   // id of the most recently updated activity — "current step"
+let lastPct = -1;       // macro (aggregate) %, bar 1
+let lastStepPct = -1;   // this-step-only %, bar 2
 let lastLabel = "";
 
-const qd = (...args) =>
-  SVC ? spawnSync(QDBUS, [SVC, OBJ, ...args], { encoding: "utf8" }) : { stdout: "" };
-const setValue = (n) => qd("Set", "", "value", String(n));
-const setLabel = (t) => qd("setLabelText", t);
-const wasCancelled = () => /true/.test((qd("wasCancelled").stdout || "").trim());
+const qd = (svc, obj, ...args) =>
+  svc ? spawnSync(QDBUS, [svc, obj, ...args], { encoding: "utf8" }) : { stdout: "" };
+const setValue = (n) => qd(SVC, OBJ, "Set", "", "value", String(n));
+const setLabel = (t) => qd(SVC, OBJ, "setLabelText", t);
+const setStepValue = (n) => qd(SVC2, OBJ2, "Set", "", "value", String(n));
+const setStepLabel = (t) => qd(SVC2, OBJ2, "setLabelText", t);
+const wasCancelled = () => /true/.test((qd(SVC, OBJ, "wasCancelled").stdout || "").trim());
 
 const fmtDur = (ms) => {
   const s = Math.round(ms / 1000);
@@ -73,6 +79,7 @@ rl.on("line", (line) => {
       announcedActivate = true;
       process.stdout.write("\n\x1b[1;33m▶▶▶ PHASE: Activating\x1b[0m\n");
       setLabel("Activating…");
+      setStepLabel("Activating…"); setStepValue(CAP);
     }
     if (line.trim()) process.stdout.write(`\x1b[2m${line}\x1b[0m\n`);
     return;
@@ -96,6 +103,7 @@ rl.on("line", (line) => {
     }
   } else if (j.action === "result" && j.type === 105 && Array.isArray(j.fields)) {
     acts.set(j.id, [Number(j.fields[0]) || 0, Number(j.fields[1]) || 0]);
+    lastActId = j.id; // whichever activity just reported is "the current step"
   } else {
     return;
   }
@@ -103,6 +111,12 @@ rl.on("line", (line) => {
   let done = 0, exp = 0;
   for (const [d, e] of acts.values()) { if (e > 0) { done += d; exp += e; } }
   const pct = exp > 0 ? Math.min(CAP, Math.round((done / exp) * 100)) : 0;
+
+  // Step %: THIS activity's own ratio, not the aggregate — e.g. "this one
+  // huge copy is 40% done" vs. the macro bar's "40% through everything".
+  const step = lastActId != null ? acts.get(lastActId) : null;
+  const [stepDone, stepExp] = step || [0, 0];
+  const stepPct = stepExp > 0 ? Math.min(CAP, Math.round((stepDone / stepExp) * 100)) : 0;
 
   const now = Date.now();
   const elapsedMs = now - START_MS;
@@ -113,13 +127,15 @@ rl.on("line", (line) => {
   }
 
   if (pct !== lastPct) { setValue(pct); lastPct = pct; }
-  if (lastLabel) setLabel(`${lastLabel}   ${done}/${exp || "?"}`);
+  if (lastLabel) setLabel(`Overall: ${lastLabel}   ${done}/${exp || "?"}`);
+  if (stepPct !== lastStepPct) { setStepValue(stepPct); lastStepPct = stepPct; }
+  if (lastLabel) setStepLabel(`${lastLabel}   ${stepDone}/${stepExp || "?"}`);
 
   // Compact human line for the companion copyable window (bytes when the
   // activity units look byte-sized — copy/substitute progress is bytes;
   // build-step counts are opaque units, so only bytes get a size suffix).
   const sizeSuffix = exp > 1_000_000 ? `  (${fmtBytes(done)}/${fmtBytes(exp)})` : "";
-  process.stdout.write(`[${String(pct).padStart(3)}%] ${lastLabel}  ${done}/${exp || "?"}${sizeSuffix}  ${etaLine}\n`);
+  process.stdout.write(`[step ${String(stepPct).padStart(3)}% · overall ${String(pct).padStart(3)}%] ${lastLabel}  ${done}/${exp || "?"}${sizeSuffix}  ${etaLine}\n`);
 
   if (wasCancelled()) process.exit(130);
 });
