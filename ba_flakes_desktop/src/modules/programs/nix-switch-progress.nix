@@ -1,26 +1,31 @@
 # programs/nix-switch-progress.nix — installs `nix-switch-progress-wrap`, a
-# transparent wrapper around any nix command build.sh runs. Shows:
-#   - a kdialog progress % bar (closes automatically — purely transient)
-#   - a companion Konsole window tailing a live, ANSI-colored, fully
-#     copyable status log: repo clean/dirty check, commit being applied vs
-#     the previously-applied one (+ diffstat), closure size, a live PSI
-#     (/proc/pressure) panel with a spinner, and the real build/activation
-#     output — split into three self-detected phases (Preparing / Building
-#     & Copying / Activating), so `activate` is always its own visible step
-#     regardless of whether build.sh did a full local eval+build or a
-#     `pull` (fetch + activate only).
+# transparent wrapper around any nix command build.sh runs. Shows exactly
+# ONE window: a Konsole tailing a live, ANSI-colored, fully copyable status
+# log — repo clean/dirty check, commit being applied vs the previously
+# applied one (+ diffstat), closure size, a live PSI (/proc/pressure) panel
+# with a spinner, a data-dense two-bar progress line (overall % + current-
+# step %, byte sizes, elapsed/remaining/total ETA — see nix-switch-progress.mjs),
+# and the real build/activation output — split into three self-detected
+# phases (Preparing / Building & Copying / Activating), so `activate` is
+# always its own visible step regardless of whether build.sh did a full
+# local eval+build or a `pull` (fetch + activate only).
 #
-# The Konsole window is NEVER auto-closed — on success it gets a final
-# banner plus a blocking `kdialog` OK dialog; on failure a blocking
-# yes/no dialog offers to copy the whole (de-ANSI'd) log to the clipboard.
-# Both leave the window itself open for the user to scroll/select/copy.
+# The Konsole window is NEVER auto-closed — on success/failure it gets a
+# final banner in the log plus a non-blocking notify-send toast; on failure
+# the full (de-ANSI'd) log is copied to the clipboard automatically. Nothing
+# blocks waiting for user interaction.
 #
-# Was designed (nix-switch-progress.mjs + .json, 2026-06-20) but never
-# wired into home-manager, then enriched 2026-07-04 per direct request.
+# Was designed (nix-switch-progress.mjs + .json, 2026-06-20), enriched
+# 2026-07-04, then collapsed from three windows (2 kdialog progress bars +
+# Konsole) down to this single Konsole window per direct request — the two
+# kdialog bars were data-poor (bare % + one-line label) versus the rich data
+# already flowing through the Konsole log, so the fix was to put ALL progress
+# data (both bars, sizes, ETA) into that one log stream instead of splitting
+# it across three separate windows.
 # Always-on (same pattern as programs/dev-shell.nix). All labels/colors/
 # spinner frames/refresh interval are data-driven from nix-switch-progress.json
 # — nothing hardcoded here or in the .mjs. Passthrough (no window at all)
-# when there's no graphical session or kdialog is missing — must never
+# when there's no graphical session or konsole is missing — must never
 # block a headless/CI/SSH nix invocation.
 { config, pkgs, lib, ... }:
 let
@@ -37,8 +42,8 @@ in {
       set -uo pipefail
 
       # Passthrough (no popup/window) when there's no graphical session or
-      # kdialog is missing — must never block a headless/CI/SSH nix invocation.
-      if { [ -z "''${DISPLAY:-}" ] && [ -z "''${WAYLAND_DISPLAY:-}" ]; } || ! command -v kdialog >/dev/null 2>&1; then
+      # konsole is missing — must never block a headless/CI/SSH nix invocation.
+      if { [ -z "''${DISPLAY:-}" ] && [ -z "''${WAYLAND_DISPLAY:-}" ]; } || ! command -v konsole >/dev/null 2>&1; then
         exec "$@"
       fi
 
@@ -122,32 +127,9 @@ in {
       }
       _psi_loop &
       PSI_PID=$!
-
-      # ── kdialog % bars — TWO, transient (close automatically); the Konsole
-      #    window below is the persistent, copyable one and is NEVER
-      #    auto-closed on either success or failure). One bar tracks the
-      #    CURRENT STEP's own done/expected ratio (e.g. just this one drv
-      #    build or copy), the other the MACRO % across every activity
-      #    summed together — a single aggregate bar couldn't distinguish
-      #    "this one huge copy is 40% done" from "we're 40% through overall".
-      NSP_QDBUS="$(command -v qdbus 2>/dev/null || command -v qdbus6 2>/dev/null || echo qdbus)"
-      export NSP_QDBUS
       export NSP_CAP="${toString cfg.cap_pct_until_done}"
-      _ref="$(kdialog --title "${cfg.title}" --icon "${cfg.icon}" --progressbar "${cfg.initial_label}" ${toString cfg.max} 2>/dev/null)"
-      NSP_SVC="$(awk '{print $1}' <<<"$_ref")"
-      NSP_PATH="$(awk '{print $2}' <<<"$_ref")"
-      export NSP_SVC NSP_PATH
-      _ref2="$(kdialog --title "${cfg.step_title}" --icon "${cfg.icon}" --progressbar "${cfg.step_initial_label}" ${toString cfg.max} 2>/dev/null)"
-      NSP_SVC2="$(awk '{print $1}' <<<"$_ref2")"
-      NSP_PATH2="$(awk '{print $2}' <<<"$_ref2")"
-      export NSP_SVC2 NSP_PATH2
 
-      _close_progressbar() {
-        [ -n "$NSP_SVC" ] && "$NSP_QDBUS" "$NSP_SVC" "$NSP_PATH" close >/dev/null 2>&1 || true
-        [ -n "$NSP_SVC2" ] && "$NSP_QDBUS" "$NSP_SVC2" "$NSP_PATH2" close >/dev/null 2>&1 || true
-        kill "$PSI_PID" 2>/dev/null || true
-      }
-      trap _close_progressbar EXIT
+      trap 'kill "$PSI_PID" 2>/dev/null || true' EXIT
 
       # ── Companion copyable window — plain terminal text selection, never
       #    auto-closed. Geometry/title data-driven from the json config. ──
@@ -157,10 +139,10 @@ in {
       # --log-format internal-json is a common nix arg, forwarded through by
       # both `nix build ...` and `home-manager switch ...` (which wraps nix
       # build internally) — trailing here is safe for either caller shape.
-      # The .mjs drives the kdialog bar AND prints a colorized, phase-aware
-      # human line per update (plus passes through real activation output)
-      # to its own stdout — teed into BOTH the caller's log file (if any)
-      # and our STATUS_FILE for the companion window.
+      # The .mjs prints a colorized, phase-aware, data-dense progress line
+      # per update (both bars, sizes, ETA — plus passes through real
+      # activation output) to its own stdout — teed into BOTH the caller's
+      # log file (if any) and our STATUS_FILE for the one Konsole window.
       set -o pipefail
       export NSP_START_MS="$START_MS"
       if [ -n "''${NSP_LOG_FILE:-}" ]; then
@@ -179,25 +161,21 @@ in {
           printf '%b✓ SWITCH SUCCEEDED%b  (total %ss)\n' "$C_OK" "$C_0" "$_elapsed_s"
         } >> "$STATUS_FILE"
         ${lib.optionalString cfg.notify_on_finish ''
-        command -v notify-send >/dev/null 2>&1 && notify-send -i "${cfg.icon}" "${cfg.title}" "Completed successfully." || true
+        command -v notify-send >/dev/null 2>&1 && notify-send -i "${cfg.icon}" "${cfg.title}" "Completed successfully in ''${_elapsed_s}s." || true
         ''}
-        kdialog --title "${cfg.title}" --msgbox "Switch completed successfully.
-Total: ''${_elapsed_s}s — full log stays open in the companion window." >/dev/null 2>&1
       else
         {
           echo ""
           printf '%b✗ SWITCH FAILED%b (exit %s)\n' "$C_FAIL" "$C_0" "$_rc"
         } >> "$STATUS_FILE"
         ${lib.optionalString cfg.notify_on_finish ''
-        command -v notify-send >/dev/null 2>&1 && notify-send -u critical -i "${cfg.icon}" "${cfg.title}" "Failed (exit $_rc) — check the log." || true
+        command -v notify-send >/dev/null 2>&1 && notify-send -u critical -i "${cfg.icon}" "${cfg.title}" "Failed (exit $_rc) — full log copied to clipboard." || true
         ''}
-        if kdialog --title "${cfg.title}" --warningyesno "Switch failed (exit $_rc). Copy full log to clipboard?"; then
-          _clean="$(sed -r 's/\x1b\[[0-9;]*m//g' "$STATUS_FILE")"
-          if command -v wl-copy >/dev/null 2>&1; then
-            printf '%s' "$_clean" | wl-copy
-          elif command -v xclip >/dev/null 2>&1; then
-            printf '%s' "$_clean" | xclip -selection clipboard
-          fi
+        _clean="$(sed -r 's/\x1b\[[0-9;]*m//g' "$STATUS_FILE")"
+        if command -v wl-copy >/dev/null 2>&1; then
+          printf '%s' "$_clean" | wl-copy
+        elif command -v xclip >/dev/null 2>&1; then
+          printf '%s' "$_clean" | xclip -selection clipboard
         fi
       fi
 

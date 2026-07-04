@@ -155,7 +155,7 @@
   .panel .ph {
     font-size: 10px; text-transform: uppercase; letter-spacing: .12em; font-weight: 700;
     color: var(--accent); margin-bottom: 5px; flex-shrink: 0;
-    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
   }
   .panel .ph .sub { color: #6b7280; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 10px; }
   .panel canvas.g { width: 100%; flex: 1 1 0; min-height: 30px; display: block; }
@@ -754,7 +754,8 @@ function makeStack(tabId) {
     <div class="stack-wrap">
       <div class="agi-top"><span style="font-weight:700;color:var(--accent2);letter-spacing:.08em">STACK</span>
         <span style="flex:1"></span>
-        <button class="cpbtn" id="s-refresh-${id}">↻ refresh</button></div>
+        <button class="cpbtn" id="s-refresh-${id}">↻ refresh</button>
+        <button class="cpbtn" id="s-auto-${id}" title="Auto-refresh (60s) — off by default. Stack is mostly static info (repo tree, tools, config) that rarely changes; use manual refresh after real changes.">⏱ auto</button></div>
       <div class="jrn-stats" id="s-mach-${id}"></div>
       <div class="jrn-stats" id="s-mach2-${id}"></div>
       <div class="agi-grid">
@@ -847,10 +848,17 @@ function makeStack(tabId) {
     ).join('') || empty('none configured')
   }
 
+  let autoStack = false
+  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
   $('#s-refresh-' + id).addEventListener('click', load)
+  $('#s-auto-' + id).addEventListener('click', () => {
+    autoStack = !autoStack
+    $('#s-auto-' + id).classList.toggle('on', autoStack)
+  })
   load()
+  const stackTimer = setInterval(() => { if (autoStack && isActiveTab()) load() }, 60000)
   leaf.addEventListener('mousedown', () => focusPane(id), true)
-  panes.set(id, { leaf, tabId, kind: 'stack', stop: () => {} })
+  panes.set(id, { leaf, tabId, kind: 'stack', stop: () => clearInterval(stackTimer) })
   return { id, leaf }
 }
 
@@ -1767,7 +1775,8 @@ function makeDevControl(tabId) {
         <div class="ph"><span id="dc-hdr-${id}">DEV CONTROL · invoke() instrumentation</span>
           <span class="proc-tools">
             <span class="ptbl-tabs" id="dc-view-${id}"><button data-v="agg" class="on">BY COMMAND</button><button data-v="recent">RECENT</button></span>
-            <button class="cpbtn" id="dc-pause-${id}" title="Pause live updates">⏸ pause</button>
+            <button class="cpbtn" id="dc-refresh-${id}" title="Re-render now">↻ refresh</button>
+            <button class="cpbtn" id="dc-auto-${id}" title="Auto-update on every invoke() call — off by default, only ticks while this tab is visible">⏱ auto</button>
             <button class="cpbtn" id="dc-clear-${id}" title="Clear the recorded log">🗑 clear</button>
           </span>
         </div>
@@ -1781,7 +1790,8 @@ function makeDevControl(tabId) {
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   const fmtMs = ms => ms >= 1000 ? (ms / 1000).toFixed(2) + 's' : ms.toFixed(0) + 'ms'
   const agoStr = at => { const s = Math.max(0, Math.round((Date.now() - at) / 1000)); return s < 60 ? s + 's ago' : Math.round(s / 60) + 'm ago' }
-  let view = 'agg', paused = false
+  let view = 'agg', autoDc = false
+  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
 
   function renderAgg() {
     $('#dc-head-' + id).innerHTML = '<tr><th>COMMAND</th><th class="num">CALLS</th><th class="num">TOTAL</th>' +
@@ -1813,7 +1823,10 @@ function makeDevControl(tabId) {
     }).join('') || `<tr><td colspan="5" style="color:#6b7280">no invoke() calls recorded yet</td></tr>`
   }
   function render() { view === 'agg' ? renderAgg() : renderRecent() }
-  const onNewEntry = () => { if (!paused && leaf.isConnected) render() }
+  // Off by default — even though this is just a DOM re-render (no network
+  // cost), the same convention applies everywhere: no dashboard updates
+  // itself just from being open, and auto only ticks while visible.
+  const onNewEntry = () => { if (autoDc && isActiveTab() && leaf.isConnected) render() }
   devctlListeners.add(onNewEntry)
 
   $('#dc-view-' + id).addEventListener('click', e => {
@@ -1821,9 +1834,10 @@ function makeDevControl(tabId) {
     for (const x of $('#dc-view-' + id).children) x.classList.remove('on')
     b.classList.add('on'); view = b.dataset.v; render()
   })
-  $('#dc-pause-' + id).addEventListener('click', () => {
-    paused = !paused
-    $('#dc-pause-' + id).textContent = paused ? '▶ resume' : '⏸ pause'
+  $('#dc-refresh-' + id).addEventListener('click', render)
+  $('#dc-auto-' + id).addEventListener('click', () => {
+    autoDc = !autoDc
+    $('#dc-auto-' + id).classList.toggle('on', autoDc)
   })
   $('#dc-clear-' + id).addEventListener('click', () => { devctlLog.length = 0; render() })
 

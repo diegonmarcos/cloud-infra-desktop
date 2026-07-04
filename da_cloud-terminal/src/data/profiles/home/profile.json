@@ -1,0 +1,29 @@
+{
+  "name":         "home",
+  "order":        0,
+  "display_name": "Home",
+  "logo":         "🏠",
+  "tray_tooltip": "Home — welcome · quickmarks · history",
+  "theme": {
+    "accent":  "#7b7fff",
+    "accent2": "#a78bfa",
+    "bg":      "#0e0f1a"
+  },
+  "default_tabs": [
+    { "type": "stack", "title": "Welcome", "active": true }
+  ],
+  "sections": [
+    {
+      "title": "Quickmarks",
+      "items": [
+        { "label": "🐟  Fish Greeting",      "type": "shell", "arg": "_show_welcome" },
+        { "label": "🔗  Connect Dashboard",  "type": "shell", "arg": "sh ~/git/tools/dtk.sh connect" },
+        { "label": "🌐  Gitea",              "type": "xdg",   "arg": "https://git.diegonmarcos.com" },
+        { "label": "💬  Chat",               "type": "xdg",   "arg": "https://chat.diegonmarcos.com" },
+        { "label": "📈  Analytics",          "type": "xdg",   "arg": "https://analytics.diegonmarcos.com" }
+      ]
+    },
+    { "title": "Last 5",    "dynamic": "last", "items": [] },
+    { "title": "Most Used", "dynamic": "most", "items": [] }
+  ]
+}

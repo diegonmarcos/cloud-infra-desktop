@@ -1,6 +1,6 @@
 {
   "name": "nix-flakes",
-  "order": 2,
+  "order": 4,
   "display_name": "Nix Flakes",
   "logo": "❄️",
   "tray_tooltip": "Nix Flakes — Control Panel",
