@@ -1,9 +1,9 @@
 {
-  "name":         "home",
-  "order":        0,
-  "display_name": "Home",
-  "logo":         "🏠",
-  "tray_tooltip": "Home — dashboards · quickmarks · history",
+  "name":         "dashboards",
+  "order":        1,
+  "display_name": "Dashboards",
+  "logo":         "📦",
+  "tray_tooltip": "Dashboards — stack · perf · logs · cloud · sync · agi · devctl",
   "theme": {
     "accent":  "#7b7fff",
     "accent2": "#a78bfa",
@@ -29,16 +29,6 @@
         { "label": "🔄  Data Sync Center",   "type": "datasync", "arg": "" },
         { "label": "🤖  AGI · Claude Usage", "type": "agi",      "arg": "" },
         { "label": "🛠  Dev Control",        "type": "devctl",   "arg": "" }
-      ]
-    },
-    {
-      "title": "Quickmarks",
-      "items": [
-        { "label": "🐟  Fish Greeting",      "type": "shell", "arg": "_show_welcome" },
-        { "label": "🔗  Connect Dashboard",  "type": "shell", "arg": "sh ~/git/tools/dtk.sh connect" },
-        { "label": "🌐  Gitea",              "type": "xdg",   "arg": "https://git.diegonmarcos.com" },
-        { "label": "💬  Chat",               "type": "xdg",   "arg": "https://chat.diegonmarcos.com" },
-        { "label": "📈  Analytics",          "type": "xdg",   "arg": "https://analytics.diegonmarcos.com" }
       ]
     },
     { "title": "Last 5",    "dynamic": "last", "items": [] },

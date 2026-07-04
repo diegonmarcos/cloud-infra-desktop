@@ -1,0 +1,488 @@
+{
+  "name": "tools",
+  "display_name": "Tools (DTK)",
+  "logo": "🛠️",
+  "tray_tooltip": "Tools — Diego ToolKit",
+  "flake": "/home/diego/git/tools",
+  "flakes": {
+    "system": "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos",
+    "desktop": "/home/diego/git/unix/ba_flakes_desktop",
+    "cloud": "/home/diego/git/cloud"
+  },
+  "theme": {
+    "accent": "#fbbf24",
+    "accent2": "#f59e0b",
+    "bg": "#1a160e"
+  },
+  "default_tabs": [
+    { "type": "monitor", "title": "sys-performance", "active": true },
+    { "type": "shell",   "title": "shell" }
+  ],
+  "sections": [
+    {
+      "title": "Reference (ref)",
+      "items": [
+        {
+          "label": "aliases  [10]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh ref.aliases"
+        },
+        {
+          "label": "commands  [12]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh ref.commands"
+        },
+        {
+          "label": "tools  [51e]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh ref.tools"
+        },
+        {
+          "label": "tools-help  [51f]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh ref.tools-help"
+        },
+        {
+          "label": "help  [50]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh ref.help"
+        }
+      ]
+    },
+    {
+      "title": "Observe (observe)",
+      "items": [
+        {
+          "label": "btop  [30a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.btop"
+        },
+        {
+          "label": "iotop  [30b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.iotop"
+        },
+        {
+          "label": "top-batch  [30c]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.top-batch"
+        },
+        {
+          "label": "sysstat  [31]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.sysstat"
+        },
+        {
+          "label": "iostat  [31a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.iostat"
+        },
+        {
+          "label": "mpstat  [31b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.mpstat"
+        },
+        {
+          "label": "pidstat  [31c]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.pidstat"
+        },
+        {
+          "label": "sar  [31d]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.sar"
+        },
+        {
+          "label": "vmstat  [31e]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.vmstat"
+        },
+        {
+          "label": "journal  [32]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.journal"
+        },
+        {
+          "label": "journal-transport  [32a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.journal-transport"
+        },
+        {
+          "label": "journal-priority  [32b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.journal-priority"
+        },
+        {
+          "label": "journal-unit  [32c]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.journal-unit"
+        },
+        {
+          "label": "journal-watch  [32d]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.journal-watch"
+        },
+        {
+          "label": "sysinfo  [51a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.sysinfo"
+        },
+        {
+          "label": "net  [51b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.net"
+        },
+        {
+          "label": "paths  [51c]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.paths"
+        },
+        {
+          "label": "envs  [51d]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.envs"
+        },
+        {
+          "label": "mounts  [51g]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.mounts"
+        },
+        {
+          "label": "deps-drift  [52a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.deps-drift"
+        },
+        {
+          "label": "deps-solver  [52b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh observe.deps-solver"
+        }
+      ]
+    },
+    {
+      "title": "Connect (connect)",
+      "items": [
+        {
+          "label": "dashboard  [33]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh connect.dashboard"
+        }
+      ]
+    },
+    {
+      "title": "Fleet (fleet)",
+      "items": [
+        {
+          "label": "quick  [20]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.quick"
+        },
+        {
+          "label": "gcp-proxy  [20a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.gcp-proxy"
+        },
+        {
+          "label": "oci-mail  [20b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.oci-mail"
+        },
+        {
+          "label": "oci-analytics  [20c]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.oci-analytics"
+        },
+        {
+          "label": "oci-apps  [20d]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.oci-apps"
+        },
+        {
+          "label": "gcp-t4  [20e]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.gcp-t4"
+        },
+        {
+          "label": "orchestrate  [20f]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.orchestrate"
+        },
+        {
+          "label": "local  [20g]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.local"
+        },
+        {
+          "label": "desktop  [20h]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.desktop"
+        },
+        {
+          "label": "vps-cloud  [20i]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.vps-cloud"
+        },
+        {
+          "label": "gh-actions  [20j]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.gh-actions"
+        },
+        {
+          "label": "gh-repos  [20k]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.gh-repos"
+        },
+        {
+          "label": "gh-registry  [20l]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.gh-registry"
+        },
+        {
+          "label": "ssh  [21]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.ssh"
+        },
+        {
+          "label": "ssh-gcp-proxy  [21a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.ssh-gcp-proxy"
+        },
+        {
+          "label": "ssh-oci-mail  [21b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.ssh-oci-mail"
+        },
+        {
+          "label": "ssh-oci-analytics  [21c]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.ssh-oci-analytics"
+        },
+        {
+          "label": "ssh-oci-apps  [21d]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.ssh-oci-apps"
+        },
+        {
+          "label": "ssh-gcp-t4  [21e]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.ssh-gcp-t4"
+        },
+        {
+          "label": "ssh-github  [21f]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.ssh-github"
+        },
+        {
+          "label": "mode-ssh  [22a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.mode-ssh"
+        },
+        {
+          "label": "mode-dropbear  [22b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.mode-dropbear"
+        },
+        {
+          "label": "mode-serial  [22c]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.mode-serial"
+        },
+        {
+          "label": "mode-status  [22d]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.mode-status"
+        },
+        {
+          "label": "btop-dash  [34a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.btop-dash"
+        },
+        {
+          "label": "journal-dash  [34b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.journal-dash"
+        },
+        {
+          "label": "docker-stats  [34c]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh fleet.docker-stats"
+        }
+      ]
+    },
+    {
+      "title": "Provision (provision)",
+      "items": [
+        {
+          "label": "containers  [40]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.containers"
+        },
+        {
+          "label": "nix-cli  [40a0]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.nix-cli"
+        },
+        {
+          "label": "nix-gui  [40a1]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.nix-gui"
+        },
+        {
+          "label": "nix-tty  [40a2]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.nix-tty"
+        },
+        {
+          "label": "apt-cli  [40b0]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.apt-cli"
+        },
+        {
+          "label": "apt-gui  [40b1]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.apt-gui"
+        },
+        {
+          "label": "apt-tty  [40b2]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.apt-tty"
+        },
+        {
+          "label": "hm-cli  [41a0]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.hm-cli"
+        },
+        {
+          "label": "hm-gui  [41a1]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.hm-gui"
+        },
+        {
+          "label": "hm-tty  [41a2]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.hm-tty"
+        },
+        {
+          "label": "fish-tools  [42a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.fish-tools"
+        },
+        {
+          "label": "fish  [42b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.fish"
+        },
+        {
+          "label": "konsole-cfg  [42c]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.konsole-cfg"
+        },
+        {
+          "label": "gcl-https  [43a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.gcl-https"
+        },
+        {
+          "label": "gcl-ssh  [43b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.gcl-ssh"
+        },
+        {
+          "label": "sudoers  [44a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.sudoers"
+        },
+        {
+          "label": "goose  [45a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.goose"
+        },
+        {
+          "label": "claude  [45b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.claude"
+        },
+        {
+          "label": "malloc-termux  [45c]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.malloc-termux"
+        },
+        {
+          "label": "vault-build  [46a]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.vault-build"
+        },
+        {
+          "label": "env-export  [46b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh provision.env-export"
+        }
+      ]
+    },
+    {
+      "title": "Recover (recover)",
+      "items": [
+        {
+          "label": "webhooks  [11]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh recover.webhooks"
+        },
+        {
+          "label": "webhooks-watch  [11b]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh recover.webhooks-watch"
+        },
+        {
+          "label": "rescue-sshd  [13]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh recover.rescue-sshd"
+        },
+        {
+          "label": "rebuild-flake  [14]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh recover.rebuild-flake"
+        },
+        {
+          "label": "claude-rescue  [15]",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh recover.claude-rescue"
+        }
+      ]
+    },
+    {
+      "title": "Maintenance",
+      "items": [
+        {
+          "label": "Mem Reclaim (dry-run)",
+          "type": "shell",
+          "arg": "bash {FLAKE_DESKTOP}/src/modules/desktop-session/mem-reclaim.sh --dry-run"
+        },
+        {
+          "label": "Mem Reclaim (kill)",
+          "type": "shell",
+          "arg": "bash {FLAKE_DESKTOP}/src/modules/desktop-session/mem-reclaim.sh"
+        },
+        {
+          "label": "Mem Reclaim (restore)",
+          "type": "shell",
+          "arg": "bash {FLAKE_DESKTOP}/src/modules/desktop-session/mem-reclaim.sh restore"
+        }
+      ]
+    },
+    {
+      "title": "DTK",
+      "items": [
+        {
+          "label": "Open DTK Menu",
+          "type": "shell",
+          "arg": "sh {FLAKE}/dtk.sh"
+        },
+        {
+          "label": "Open Tools Repo",
+          "type": "xdg",
+          "arg": "{FLAKE}"
+        }
+      ]
+    }
+  ]
+}

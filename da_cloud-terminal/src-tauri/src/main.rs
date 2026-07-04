@@ -887,12 +887,15 @@ fn journal_feed(n: Option<u32>) -> Result<Value, String> {
 // fish greeting's info-dense layout, but "config level" per request: which
 // repo dirs actually exist, which env vars are actually set (presence only,
 // NEVER values — these include API keys), and which tools actually resolve
-// + their real version, all driven from src/data/stack-info.json (never
-// hardcoded here — add an entry there, not a new line of Rust).
-fn stack_info_path() -> String {
+// + their real version, all driven from src/data/shared/stack-info.json
+// (never hardcoded here — add an entry there, not a new line of Rust).
+fn shared_data_dir() -> String {
     let dir = std::env::var("CT_PROFILES_DIR")
         .unwrap_or_else(|_| format!("{}/data", env_or("CT_APP_DIR", ".")));
-    format!("{dir}/stack-info.json")
+    format!("{dir}/shared")
+}
+fn stack_info_path() -> String {
+    format!("{}/stack-info.json", shared_data_dir())
 }
 fn first_line(out: std::io::Result<std::process::Output>) -> Option<String> {
     out.ok().and_then(|o| {
@@ -1025,9 +1028,7 @@ fn stack_info() -> Value {
 }
 
 fn cloud_targets_path() -> String {
-    let dir = std::env::var("CT_PROFILES_DIR")
-        .unwrap_or_else(|_| format!("{}/data", env_or("CT_APP_DIR", ".")));
-    format!("{dir}/cloud-targets.json")
+    format!("{}/cloud-targets.json", shared_data_dir())
 }
 
 #[tauri::command]
@@ -1151,8 +1152,7 @@ fn sh_out(prog: &str, args: &[&str]) -> String {
         .map(|o| String::from_utf8_lossy(&o.stdout).into_owned()).unwrap_or_default()
 }
 fn data_cfg() -> Value {
-    let dir = std::env::var("CT_PROFILES_DIR").unwrap_or_else(|_| format!("{}/data", env_or("CT_APP_DIR", ".")));
-    std::fs::read_to_string(format!("{dir}/data-sync.json")).ok()
+    std::fs::read_to_string(format!("{}/data-sync.json", shared_data_dir())).ok()
         .and_then(|s| serde_json::from_str(&s).ok()).unwrap_or(Value::Null)
 }
 
@@ -1528,6 +1528,52 @@ fn get_init(window: tauri::WebviewWindow, state: tauri::State<AppState>) -> Valu
 }
 
 // ── Tray menu (data-driven from profile sections) ────────────────────
+// First free window label for a profile: `name` itself if unused, else
+// `name--2`, `name--3`, … — lets a profile have more than one open window
+// (tray "New Window") while the primary window keeps the plain label the
+// rest of the app (single-instance argv targeting, get_webview_window(name)
+// lookups in on_menu/tray click) already expects.
+fn next_window_label(app: &AppHandle, base: &str) -> String {
+    if app.get_webview_window(base).is_none() {
+        return base.to_string();
+    }
+    let mut n = 2;
+    loop {
+        let label = format!("{base}--{n}");
+        if app.get_webview_window(&label).is_none() {
+            return label;
+        }
+        n += 1;
+    }
+}
+
+// Builds one profile's webview window under the given label (hide-not-close,
+// tray-managed). Shared by build_and_show (the primary per-profile window)
+// and the tray's "New Window" menu action (extra windows for the same
+// profile, distinct labels via next_window_label).
+fn spawn_window(app: &AppHandle, prof: &Value, label: &str) -> Option<tauri::WebviewWindow> {
+    let win = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
+        .title(format!("Cloud Terminal — {}", s(prof, "display_name")))
+        .inner_size(1040.0, 660.0)
+        .visible(false)
+        .build();
+    let win = match win {
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("[ct] window build failed for {label}: {e}");
+            return None;
+        }
+    };
+    let w2 = win.clone();
+    win.on_window_event(move |ev| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = ev {
+            api.prevent_close();
+            let _ = w2.hide();
+        }
+    });
+    Some(win)
+}
+
 fn build_and_show(app: &AppHandle) {
     let state = app.state::<AppState>();
     let multi = std::env::var("CT_MULTI").is_ok();
@@ -1553,34 +1599,14 @@ fn build_and_show(app: &AppHandle) {
         }
 
         // Hidden panel window, label == profile name.
-        let bg = prof["theme"]["bg"].as_str().unwrap_or("#0e0f1a").to_string();
-        let win = WebviewWindowBuilder::new(app, &name, WebviewUrl::App("index.html".into()))
-            .title(format!("Cloud Terminal — {}", s(&prof, "display_name")))
-            .inner_size(1040.0, 660.0)
-            .visible(false)
-            .build();
-        let win = match win {
-            Ok(w) => w,
-            Err(e) => {
-                eprintln!("[ct] window build failed for {name}: {e}");
-                continue;
-            }
-        };
-        // Hide (not quit) on close — tray-managed.
-        {
-            let w2 = win.clone();
-            win.on_window_event(move |ev| {
-                if let tauri::WindowEvent::CloseRequested { api, .. } = ev {
-                    api.prevent_close();
-                    let _ = w2.hide();
-                }
-            });
+        if spawn_window(app, &prof, &name).is_none() {
+            continue;
         }
-        let _ = bg; // reserved: could set window bg once Tauri exposes it
 
         // ── Tray with data-driven menu ──
         let mut menu = MenuBuilder::new(app)
             .text("open", format!("{}  Open Panel", s(&prof, "logo")))
+            .text(format!("newwin:{name}"), "🪟  New Window")
             .separator();
         // Sections → submenus of command items. Item id encodes profile+index
         // so on_menu_event can look the item back up.
@@ -1657,6 +1683,17 @@ fn on_menu(app: &AppHandle, id: &str) {
         }
         return;
     }
+    if let Some(pname) = id.strip_prefix("newwin:") {
+        let state = app.state::<AppState>();
+        if let Some(prof) = prof_by_name(&state.profiles, pname) {
+            let label = next_window_label(app, pname);
+            if let Some(w) = spawn_window(app, &prof, &label) {
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }
+        return;
+    }
     // cmd:<profile>:<si>:<ii>
     let parts: Vec<&str> = id.splitn(4, ':').collect();
     if parts.len() == 4 && parts[0] == "cmd" {
@@ -1694,19 +1731,21 @@ fn on_menu(app: &AppHandle, id: &str) {
     }
 }
 
-// ── Load profiles from CT_PROFILES_DIR ───────────────────────────────
+// ── Load profiles from CT_PROFILES_DIR/profiles/<name>/profile.json ──
+// Each profile lives in its own folder (self-contained — code/data separated
+// per profile so any one of them can be detached into its own repo later).
+// Cross-profile data (stack-info/cloud-targets/data-sync) lives in
+// CT_PROFILES_DIR/shared/ instead — see shared_data_dir().
 fn load_profiles(dir: &str) -> Vec<Value> {
-    let mut files: Vec<_> = std::fs::read_dir(dir)
+    let profiles_root = format!("{dir}/profiles");
+    let mut files: Vec<_> = std::fs::read_dir(&profiles_root)
         .into_iter()
         .flatten()
         .flatten()
         .map(|e| e.path())
-        .filter(|p| {
-            p.file_name()
-                .and_then(|n| n.to_str())
-                .map(|n| n.starts_with("profile-") && n.ends_with(".json"))
-                .unwrap_or(false)
-        })
+        .filter(|p| p.is_dir())
+        .map(|p| p.join("profile.json"))
+        .filter(|p| p.is_file())
         .collect();
     files.sort();
     let mut profiles: Vec<Value> = files

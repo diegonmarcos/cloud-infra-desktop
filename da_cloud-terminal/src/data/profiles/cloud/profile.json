@@ -1,6 +1,6 @@
 {
   "name": "cloud",
-  "order": 1,
+  "order": 3,
   "display_name": "Cloud & Infra",
   "logo": "☁️",
   "tray_tooltip": "Cloud & Infra",

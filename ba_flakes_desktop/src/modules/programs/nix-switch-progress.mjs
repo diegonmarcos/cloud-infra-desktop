@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 // nix-switch-progress.mjs — parse nix's `--log-format internal-json` activity
-// stream (on stdin) into a real percentage, drive a kdialog ProgressDialog
-// over D-Bus, AND print a compact human-readable status line to its own
-// stdout for every update (consumed by the wrapper's companion copyable
-// terminal window — see nix-switch-progress.nix). Invoked by
-// nix-switch-progress.nix; never run directly.
+// stream (on stdin) into a real percentage and print a single, data-dense
+// ASCII progress line (both an overall bar and a current-step bar, byte
+// sizes, elapsed/remaining/total ETA) to its own stdout for every update.
+// Consumed by the wrapper's ONE companion Konsole window — see
+// nix-switch-progress.nix. Invoked by nix-switch-progress.nix; never run
+// directly. No kdialog / D-Bus involved — this is the only progress surface,
+// by design (previously drove two separate kdialog popup windows; merged
+// into this single in-window text line 2026-07-04 per direct request).
 //
 // nix emits, on stderr, lines containing `@nix {…json…}`. Relevant events:
 //   action:"start"  type:105 (actBuild)      text:"building '/nix/store/…drv'"
@@ -14,36 +17,21 @@
 // summing done/expected across activities that declare an expected>0 yields a
 // faithful overall %. The current build's drv name becomes the label.
 //
-// kdialog ProgressDialog is driven with the canonical qdbus idiom:
-//   qdbus <svc> <obj> Set "" value <n>      (set bar position)
-//   qdbus <svc> <obj> setLabelText <text>
-//   qdbus <svc> <obj> wasCancelled          (poll Cancel button)
-// Env: NSP_SVC, NSP_PATH (the "service /object" pair), NSP_QDBUS (qdbus binary),
-//      NSP_CAP (cap % until the command exits, default 99).
-import { spawnSync } from "node:child_process";
+// Env: NSP_CAP (cap % until the command exits, default 99),
+//      NSP_START_MS (epoch ms the wrapped command started).
 import { createInterface } from "node:readline";
 
-const SVC = process.env.NSP_SVC || "";
-const OBJ = process.env.NSP_PATH || "";
-const SVC2 = process.env.NSP_SVC2 || "";
-const OBJ2 = process.env.NSP_PATH2 || "";
-const QDBUS = process.env.NSP_QDBUS || "qdbus";
 const CAP = Number(process.env.NSP_CAP || "99");
 const START_MS = Number(process.env.NSP_START_MS || Date.now());
 
 const acts = new Map(); // activityId -> [done, expected]
 let lastActId = null;   // id of the most recently updated activity — "current step"
-let lastPct = -1;       // macro (aggregate) %, bar 1
-let lastStepPct = -1;   // this-step-only %, bar 2
 let lastLabel = "";
 
-const qd = (svc, obj, ...args) =>
-  svc ? spawnSync(QDBUS, [svc, obj, ...args], { encoding: "utf8" }) : { stdout: "" };
-const setValue = (n) => qd(SVC, OBJ, "Set", "", "value", String(n));
-const setLabel = (t) => qd(SVC, OBJ, "setLabelText", t);
-const setStepValue = (n) => qd(SVC2, OBJ2, "Set", "", "value", String(n));
-const setStepLabel = (t) => qd(SVC2, OBJ2, "setLabelText", t);
-const wasCancelled = () => /true/.test((qd(SVC, OBJ, "wasCancelled").stdout || "").trim());
+const bar = (pct, width = 24) => {
+  const filled = Math.round((width * pct) / 100);
+  return "█".repeat(filled) + "░".repeat(width - filled);
+};
 
 const fmtDur = (ms) => {
   const s = Math.round(ms / 1000);
@@ -77,9 +65,7 @@ rl.on("line", (line) => {
   if (i < 0) {
     if (sawNixLine && !announcedActivate) {
       announcedActivate = true;
-      process.stdout.write("\n\x1b[1;33m▶▶▶ PHASE: Activating\x1b[0m\n");
-      setLabel("Activating…");
-      setStepLabel("Activating…"); setStepValue(CAP);
+      process.stdout.write(`\n\x1b[1;33m▶▶▶ PHASE: Activating   [${bar(CAP)}] ${CAP}%\x1b[0m\n`);
     }
     if (line.trim()) process.stdout.write(`\x1b[2m${line}\x1b[0m\n`);
     return;
@@ -126,17 +112,14 @@ rl.on("line", (line) => {
     etaLine += `  remaining ~${fmtDur(remainMs)}  total ~${fmtDur(elapsedMs + remainMs)}`;
   }
 
-  if (pct !== lastPct) { setValue(pct); lastPct = pct; }
-  if (lastLabel) setLabel(`Overall: ${lastLabel}   ${done}/${exp || "?"}`);
-  if (stepPct !== lastStepPct) { setStepValue(stepPct); lastStepPct = stepPct; }
-  if (lastLabel) setStepLabel(`${lastLabel}   ${stepDone}/${stepExp || "?"}`);
-
-  // Compact human line for the companion copyable window (bytes when the
-  // activity units look byte-sized — copy/substitute progress is bytes;
-  // build-step counts are opaque units, so only bytes get a size suffix).
+  // Single data-dense line — both bars, both size counts, both step and
+  // overall byte totals, and the full ETA breakdown — all in the ONE window.
   const sizeSuffix = exp > 1_000_000 ? `  (${fmtBytes(done)}/${fmtBytes(exp)})` : "";
-  process.stdout.write(`[step ${String(stepPct).padStart(3)}% · overall ${String(pct).padStart(3)}%] ${lastLabel}  ${done}/${exp || "?"}${sizeSuffix}  ${etaLine}\n`);
-
-  if (wasCancelled()) process.exit(130);
+  const stepSizeSuffix = stepExp > 1_000_000 ? `  (${fmtBytes(stepDone)}/${fmtBytes(stepExp)})` : "";
+  process.stdout.write(
+    `overall [${bar(pct)}] ${String(pct).padStart(3)}%  ${done}/${exp || "?"}${sizeSuffix}\n` +
+    `step    [${bar(stepPct)}] ${String(stepPct).padStart(3)}%  ${stepDone}/${stepExp || "?"}${stepSizeSuffix}  ${lastLabel}\n` +
+    `${etaLine}\n`
+  );
 });
 rl.on("close", () => process.exit(0));

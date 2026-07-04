@@ -1,0 +1,26 @@
+{
+  "name":         "agentic",
+  "order":        2,
+  "display_name": "Agentic",
+  "logo":         "🧠",
+  "tray_tooltip": "Agentic — Claude Code / Cursor / Windsurf-style agent workspace",
+  "theme": {
+    "accent":  "#f472b6",
+    "accent2": "#fb923c",
+    "bg":      "#0e0f1a"
+  },
+  "default_tabs": [
+    { "type": "shell", "title": "claude", "active": true, "cmd": "claude" }
+  ],
+  "sections": [
+    {
+      "title": "Quickmarks",
+      "items": [
+        { "label": "🤖  claude",  "type": "shell", "arg": "claude" },
+        { "label": "🐚  shell",   "type": "shell", "arg": "" }
+      ]
+    },
+    { "title": "Last 5",    "dynamic": "last", "items": [] },
+    { "title": "Most Used", "dynamic": "most", "items": [] }
+  ]
+}
