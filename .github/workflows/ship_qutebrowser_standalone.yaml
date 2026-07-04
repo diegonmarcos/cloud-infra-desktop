@@ -19,7 +19,8 @@ name: "Ship → qutebrowser standalone config release (decoupled from desktop HM
 # KB) — reuses home-manager's real programs.qutebrowser renderer via
 # nix/standalone.nix (home-module.nix is the single source, no duplication).
 #
-# ALL logic in da_browser-qute/build.sh (verbs: release, gh-release). Thin YAML.
+# ALL logic in da_browser-qute/build.sh (verbs: release, gh-release,
+# ghcr-push). Thin YAML.
 
 on:
   workflow_dispatch:
@@ -32,7 +33,8 @@ on:
       - "1_workflows/src/cicd/ship_qutebrowser_standalone.yaml"
 
 permissions:
-  contents: write   # gh release create/upload
+  contents: write    # gh release create/upload
+  packages: write    # oras push to ghcr.io
 
 concurrency:
   group: ship-qutebrowser-standalone
@@ -58,3 +60,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./da_browser-qute/build.sh gh-release
+
+      - name: Mirror to GHCR (not a consumption path — release is authoritative)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: nix shell nixpkgs#oras --command ./da_browser-qute/build.sh ghcr-push

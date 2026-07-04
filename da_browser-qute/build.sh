@@ -121,6 +121,41 @@ case "$cmd" in
     log "✓ published"
     ;;
 
+  ghcr-push)
+    # Mirror the standalone bundle to GHCR (oras) — matches the repo's
+    # all-services-as-GHCR-images pattern. NOT a consumption path:
+    # install-standalone / the desktop flake pull from the GitHub Release
+    # only (see release.comment in build.json).
+    enabled="$(node -e "const c=require('$CONFIG'); process.stdout.write(String(c.release.ghcr.enabled))")"
+    [ "$enabled" = "true" ] || { log "ghcr-push: enabled=false — skip"; exit 0; }
+    registry="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.ghcr.registry)")"
+    namespace="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.ghcr.namespace)")"
+    image="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.ghcr.image)")"
+    media_type="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.ghcr.media_type)")"
+    asset="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.gh_release.asset_name)")"
+    dst="$ROOT/dist/$asset"
+    [ -f "$dst" ] || die "ghcr-push: $dst missing — run './build.sh release' first"
+
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+      echo "$GITHUB_TOKEN" | oras login "$registry" -u "${GITHUB_ACTOR:-diegonmarcos}" --password-stdin
+    elif command -v gh >/dev/null 2>&1; then
+      gh auth token | oras login "$registry" -u "$(gh api user --jq .login)" --password-stdin
+    else
+      die "ghcr-push: no GHCR credentials (set GITHUB_TOKEN or install gh CLI)"
+    fi
+
+    rev="${GITHUB_SHA:-$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)}"
+    while IFS= read -r tag; do
+      [ -z "$tag" ] && continue
+      ref="$registry/$namespace/$image:$tag"
+      log "oras push $ref ← $asset (rev ${rev:0:8})"
+      ( cd "$ROOT/dist" && oras push "$ref" "$asset:$media_type" \
+          --artifact-type "$media_type" \
+          --annotation "org.opencontainers.image.revision=$rev" )
+    done < <(node -e "const c=require('$CONFIG'); c.release.ghcr.tags.forEach(t=>console.log(t))")
+    log "✓ pushed to GHCR"
+    ;;
+
   install-standalone)
     # Pull the latest release + install to ~/.local/opt + symlink launcher.
     # Never touches ~/.config/qutebrowser (the HM-managed one) — runs
@@ -145,6 +180,6 @@ case "$cmd" in
     ;;
 
   *)
-    die "Unknown command: $cmd  (use: lint-json | check | print-config | diff | release | gh-release | install-standalone)"
+    die "Unknown command: $cmd  (use: lint-json | check | print-config | diff | release | gh-release | ghcr-push | install-standalone)"
     ;;
 esac

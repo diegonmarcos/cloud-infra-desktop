@@ -26,7 +26,7 @@
     "comment": "All four JSON files are read by the home-manager module at evaluation time and projected into qutebrowser's declarative options. Edit JSON, rebuild home-manager, browser picks up the new state."
   },
   "release": {
-    "comment": "Standalone qutebrowser config bundle (config.py + quickmarks + bookmarks/urls + dashboard.html + --basedir launcher), independent of the ~6GB 37-module desktop home-manager closure. Built by `build.sh release` (nix build .#standalone), published by `build.sh gh-release` (rolling tag, --clobber on every push). Installed locally via `build.sh install-standalone`.",
+    "comment": "Standalone qutebrowser config bundle (config.py + quickmarks + bookmarks/urls + dashboard.html + --basedir launcher), independent of the ~6GB 37-module desktop home-manager closure. Built by `build.sh release` (nix build .#standalone), published to BOTH a GitHub Release (rolling tag, --clobber) and GHCR (oras, matching the repo's all-services-as-GHCR-images pattern) via `build.sh gh-release`/`build.sh ghcr-push`. install-standalone / the desktop flake pull from the GitHub Release ONLY — GHCR is a redundant/discoverable mirror, not a consumption path.",
     "gh_release": {
       "enabled": true,
       "rolling_tag": "qute-standalone-latest",
@@ -34,6 +34,14 @@
       "prerelease": false,
       "generate_release_notes": false,
       "asset_name": "qutebrowser-standalone.tar.gz"
+    },
+    "ghcr": {
+      "enabled": true,
+      "registry": "ghcr.io",
+      "namespace": "diegonmarcos",
+      "image": "qutebrowser-standalone",
+      "media_type": "application/gzip",
+      "tags": ["latest"]
     }
   },
   "integrations": {
