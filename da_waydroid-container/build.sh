@@ -8,8 +8,8 @@
 # 1.2.1+), unlike redroid's stock AOSP image — the target for Chromium-based browsers
 # (Brave) that crash under redroid on this ashmem-less mainline-kernel host.
 #
-#   ./build.sh build   # docker build the image (Debian + waydroid + weston, baked fixes)
-#   ./build.sh up      # run the container + attach xfreerdp GUI (GUI-bound, like da_redroid)
+#   ./build.sh build   # docker build the image (Debian + waydroid + sway + wayvnc, baked fixes)
+#   ./build.sh up      # run the container + attach VNC GUI (GUI-bound, like da_redroid)
 #   ./build.sh down    # stop the container
 #   ./build.sh status  # container + waydroid state
 set -euo pipefail
@@ -26,11 +26,26 @@ die()  { printf "${c_r}[waydroid-container] ERROR:${c_0} %s\n" "$*" >&2; exit 1;
 get() { node -e "const c=require('$CONFIG');const v='$1'.split('.').reduce((o,k)=>o&&o[k],c);process.stdout.write(String(v??''))"; }
 
 tool() { local b; b="$(nix build --no-link --print-out-paths "nixpkgs#$1" 2>/dev/null | head -1)/bin/$2"; [ -x "$b" ] || die "could not resolve $2 via nixpkgs#$1"; printf '%s' "$b"; }
-rd_xfreerdp() { command -v xfreerdp >/dev/null 2>&1 && { command -v xfreerdp; return; }; tool freerdp xfreerdp; }
+rd_vncviewer() { command -v vncviewer >/dev/null 2>&1 && { command -v vncviewer; return; }; tool tigervnc vncviewer; }
 
 container_name() { get container.container_name; }
 container_running() { docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$(container_name)"; }
 container_exists()  { docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$(container_name)"; }
+
+# VNC connect target: the container's OWN bridge IP, NOT the published
+# 127.0.0.1:<port> — docker's userland-proxy mangles the RFB/VNC wire protocol on
+# published ports (confirmed: raw `nc` to 127.0.0.1 never receives the RFB version
+# banner at all, TCP handshake completes but zero protocol bytes arrive; the SAME
+# container IP gets the banner instantly). This is the identical class of bug
+# already documented for da_redroid's adb_addr() (docker-proxy mangles ADB's wire
+# protocol on published ports too) — same fix: resolve the LIVE container IP.
+# Falls back to the static vnc_addr from build.json before the container exists
+# (early connect attempts), so nothing breaks pre-`up`.
+vnc_port_internal() { get container.vnc_port; }
+vnc_addr() {
+  local ip; ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(container_name)" 2>/dev/null)"
+  if [ -n "$ip" ]; then printf '%s:%s' "$ip" "$(vnc_port_internal)"; else get container.vnc_addr; fi
+}
 
 cpu_cap() {
   local want avail; want="$(get container.cpu_cores)"; avail="$(nproc 2>/dev/null || echo 4)"
@@ -55,42 +70,58 @@ _ensure_running() {
   else
     local img; img="$(get container.image)"
     docker image inspect "$img" >/dev/null 2>&1 || die "image $img not built — run: ./build.sh build"
-    local port; port="$(get container.rdp_port)"
+    local port; port="$(get container.vnc_port)"
     log "creating container '$(container_name)' from $img…"
     # --privileged: Waydroid needs to create its own LXC container + binderfs mount
     # inside this Docker container (nested containerization, same as bare-metal Waydroid
     # needing root). --device /dev/dri: GPU passthrough for gpu_mode=host (EGL/DRM render
     # node), matching da_redroid's approach to graphics rather than software rendering.
+    # --memory-reservation: a SOFT limit — under host-wide memory pressure the kernel
+    # prefers reclaiming from cgroups that exceed THEIR OWN reservation first, so
+    # Android's system_server/zygote get priority over other, unreserved processes
+    # instead of being starved (confirmed necessary: lmkd was crash-looping
+    # system_server every ~5s under concurrent host memory pressure).
+    # --cgroupns=host: Waydroid's nested LXC guest needs to create its OWN cgroup
+    # subtree (/sys/fs/cgroup/uid_0, etc.) for hwcomposer/surfaceflinger's process
+    # groups. Docker's default --cgroupns=private (since 20.10, on cgroup v2 hosts)
+    # gives this container its own cgroup NAMESPACE but the nested LXC delegation
+    # into a FURTHER sub-namespace then hits "Read-only file system" deterministically
+    # (confirmed: 2 independent fresh-container boots, same failure every time,
+    # crash-looping surfaceflinger forever) — sharing the host's cgroup namespace
+    # gives genuine top-level write access matching what --privileged implies but
+    # doesn't fully grant under the private cgroupns default.
     docker run -d --name "$(container_name)" \
       --privileged \
+      --cgroupns=host \
       --cpus "$(cpu_cap)" \
+      --memory-reservation "$(get container.memory_reservation)" \
       --device /dev/dri \
       -v "$data:/var/lib/waydroid" \
-      -p "$(get container.rdp_addr):$port" \
-      -e "WAYDROID_RDP_PORT=$port" \
+      -p "$(get container.vnc_addr):$port" \
+      -e "WAYDROID_VNC_PORT=$port" \
       -e "WAYDROID_WIDTH=$(get container.width)" \
       -e "WAYDROID_HEIGHT=$(get container.height)" \
       -e "WAYDROID_GPU_MODE=$(get waydroid.gpu_mode)" \
       "$img" >/dev/null
   fi
-  log "waiting for RDP port $(get container.rdp_addr)…"
-  local addr port host p; addr="$(get container.rdp_addr)"; host="${addr%%:*}"; port="${addr##*:}"
+  log "waiting for VNC (container bridge IP)…"
+  local addr host port; addr="$(vnc_addr)"; host="${addr%%:*}"; port="${addr##*:}"
   for _ in $(seq 1 60); do
-    (exec 3<>"/dev/tcp/$host/$port") 2>/dev/null && { exec 3>&-; log "RDP port open."; return 0; }
+    (exec 3<>"/dev/tcp/$host/$port") 2>/dev/null && { exec 3>&-; log "VNC port open at $addr."; return 0; }
     sleep 2
   done
-  warn "RDP port not reachable within 120s — the GUI may fail to connect; check: docker logs $(container_name)"
+  warn "VNC port not reachable within 120s — the GUI may fail to connect; check: docker logs $(container_name)"
 }
 
-# _run_gui — mirrors da_redroid's GUI-bound invariant: attach xfreerdp in the
+# _run_gui — mirrors da_redroid's GUI-bound invariant: attach vncviewer in the
 # FOREGROUND, and when the window closes, stop the container. "No GUI ⇒ no running
 # waydroid-container" — the detached `docker run` is only the backend for this window.
 _run_gui() {
   _ensure_running
-  local xf; xf="$(rd_xfreerdp)"
-  local addr; addr="$(get container.rdp_addr)"
-  log "launching xfreerdp GUI on $addr…"
-  "$xf" /v:"$addr" /cert:ignore /sec:tls +clipboard -wallpaper /w:"$(get container.width)" /h:"$(get container.height)" || true
+  local vv; vv="$(rd_vncviewer)"
+  local addr; addr="$(vnc_addr)"
+  log "launching vncviewer GUI on $addr…"
+  "$vv" "$addr" || true
   log "GUI closed — stopping waydroid-container (no GUI ⇒ no running container)…"
   cmd_down
 }
@@ -98,7 +129,7 @@ _run_gui() {
 cmd_up() { _run_gui; }
 # down — full stack teardown. Uses the data-driven stop_timeout_seconds (not
 # docker's 10s default) so the entrypoint's ordered SIGTERM trap (waydroid
-# session/container -> weston -> pulseaudio -> dbus) actually completes before
+# session/container -> wayvnc -> sway -> seatd -> pulseaudio -> dbus) actually completes before
 # docker escalates to SIGKILL, then VERIFIES the container is truly gone rather
 # than firing docker stop and trusting it — "close the container closes every
 # stack" is a guarantee, not a best-effort.

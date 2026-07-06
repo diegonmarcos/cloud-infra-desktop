@@ -131,6 +131,9 @@
     background: linear-gradient(90deg, rgba(123,127,255,.10), rgba(167,139,250,.04));
     border: 1px solid var(--sep);
   }
+  /* baseline suits the inline text metrics above, but clips <button> children
+     against .mon-head's own line-height — self-align those back to center. */
+  .mon-head button { align-self: center; }
   .mon-head b { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: .02em; }
   .mon-head .k { color: #6b7280; } .mon-head .val { color: #e2e8f0; font-variant-numeric: tabular-nums; }
   .mon-head .clock { margin-left: auto; color: var(--accent2); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -156,6 +159,7 @@
     font-size: 10px; text-transform: uppercase; letter-spacing: .12em; font-weight: 700;
     color: var(--accent); margin-bottom: 5px; flex-shrink: 0;
     display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    flex-wrap: wrap;
   }
   .panel .ph .sub { color: #6b7280; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 10px; }
   .panel canvas.g { width: 100%; flex: 1 1 0; min-height: 30px; display: block; }
@@ -282,9 +286,30 @@
   .ntbl td.dn { color: #22d3ee; } .ntbl td.up { color: #e879f9; } .ntbl td.err { color: #f87171; }
 
   /* process toolbar: sort + view-mode toggles + copy */
-  .proc-tools { display: flex; gap: 8px; align-items: center; }
+  .proc-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .cpbtn { font: inherit; font-size: 9px; padding: 2px 9px; border-radius: 5px; cursor: pointer;
     background: var(--item-bg); color: #9aa4b2; border: 1px solid var(--sep); }
+
+  /* real toggle-switch control for every "auto-refresh" affordance — a
+     button that only recolors on/off reads as a button, not a toggle. This
+     is an actual track+knob switch (knob slides, track recolors). */
+  .auto-toggle {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    background: none; border: none; padding: 0; font: inherit; color: #9aa4b2;
+  }
+  .auto-toggle .sw {
+    --w: 26px; --h: 13px; width: var(--w); height: var(--h); border-radius: calc(var(--h) / 2);
+    background: var(--item-bg); border: 1px solid var(--sep); position: relative; flex-shrink: 0;
+    transition: background .15s, border-color .15s;
+  }
+  .auto-toggle .sw::after {
+    content: ''; position: absolute; top: 1px; left: 1px;
+    width: calc(var(--h) - 4px); height: calc(var(--h) - 4px); border-radius: 50%;
+    background: #9aa4b2; transition: transform .15s ease, background .15s ease;
+  }
+  .auto-toggle.on { color: var(--accent); }
+  .auto-toggle.on .sw { background: rgba(123,127,255,.3); border-color: var(--accent); }
+  .auto-toggle.on .sw::after { transform: translateX(calc(var(--w) - var(--h))); background: var(--accent); box-shadow: 0 0 6px var(--accent); }
   .cpbtn:hover { color: var(--accent); border-color: var(--accent); }
   .mbtn { font: inherit; font-size: 9px; padding: 2px 9px; border-radius: 5px; cursor: pointer;
     background: var(--item-bg); color: #9aa4b2; border: 1px solid var(--sep); white-space: nowrap; }
@@ -755,7 +780,7 @@ function makeStack(tabId) {
       <div class="agi-top"><span style="font-weight:700;color:var(--accent2);letter-spacing:.08em">STACK</span>
         <span style="flex:1"></span>
         <button class="cpbtn" id="s-refresh-${id}">↻ refresh</button>
-        <button class="cpbtn" id="s-auto-${id}" title="Auto-refresh (60s) — off by default. Stack is mostly static info (repo tree, tools, config) that rarely changes; use manual refresh after real changes.">⏱ auto</button></div>
+        <button class="auto-toggle" id="s-auto-${id}" title="Auto-refresh (60s) — off by default. Stack is mostly static info (repo tree, tools, config) that rarely changes; use manual refresh after real changes."><i class="sw"></i>auto</button></div>
       <div class="jrn-stats" id="s-mach-${id}"></div>
       <div class="jrn-stats" id="s-mach2-${id}"></div>
       <div class="agi-grid">
@@ -871,7 +896,7 @@ function makeMonitor(tabId) {
       <div class="mon-head" id="m-head-${id}">
         <span style="margin-left:auto;display:flex;gap:6px">
           <button class="mbtn" id="m-refresh-${id}" title="Refresh now">↻ refresh</button>
-          <button class="mbtn" id="m-auto-${id}" title="Auto-refresh (1s) — off by default, no dashboard polls in the background">⏱ auto</button>
+          <button class="auto-toggle" id="m-auto-${id}" title="Auto-refresh (1s) — off by default, no dashboard polls in the background"><i class="sw"></i>auto</button>
         </span>
       </div>
 
@@ -1366,7 +1391,7 @@ function makeJournal(tabId) {
         <input class="jrn-search" id="j-search-${id}" placeholder="🔍  filter unit / message…" autocomplete="off" spellcheck="false">
         <span class="jrn-count" id="j-count-${id}"></span>
         <button class="cpbtn" id="j-refresh-${id}" title="Reload">↻</button>
-        <button class="cpbtn" id="j-auto-${id}" title="Auto-refresh (5s) — off by default, no dashboard polls in the background">⏱ auto</button>
+        <button class="auto-toggle" id="j-auto-${id}" title="Auto-refresh (5s) — off by default, no dashboard polls in the background"><i class="sw"></i>auto</button>
         <button class="cpbtn" id="j-copy-${id}" title="Copy filtered feed">⎘</button>
       </div>
       <div class="jrn-feed" id="j-feed-${id}"></div>
@@ -1451,7 +1476,7 @@ function makeCloud(tabId) {
         <span class="proc-tools">
           <span class="ptbl-tabs" id="c-view-${id}"><button data-v="vm" class="on">BY VM</button><button data-v="service">BY SERVICE</button></span>
           <button class="cpbtn" id="c-refresh-${id}" title="Re-probe all VMs (docker ps + stats over the SSH mux)">↻ probe</button>
-          <button class="cpbtn" id="c-auto-${id}" title="Auto re-probe (10s) — off by default, no dashboard polls in the background">⏱ auto</button></span></div>
+          <button class="auto-toggle" id="c-auto-${id}" title="Auto re-probe (10s) — off by default, no dashboard polls in the background"><i class="sw"></i>auto</button></span></div>
         <div class="ptbl-wrap"><table class="ptbl ctbl">
           <thead><tr><th>NAME</th><th>VM</th><th>IMAGE</th><th>STATE</th><th class="num">CPU%</th><th class="num">MEM</th><th>PORTS</th></tr></thead>
           <tbody id="c-cont-${id}"></tbody></table></div></div>
@@ -1490,7 +1515,7 @@ function makeCloud(tabId) {
         <div class="lbl">${esc(t.label || '')}</div>
         <div class="meta">${up
           ? `<span>⏱ <b>${esc(v.uptime || '?')}</b></span><span>📦 <b>${fmtNum(v.n_running)}</b>/${fmtNum(v.n_containers)}</span><span>💾 <b>${fmtNum(v.disk_pct)}%</b></span>`
-          : `<span style="color:#f87171">${esc((v.error || 'probing…')).slice(0, 40)}</span>`}
+          : `<span style="color:#6b7280">${esc((v.error || 'not probed — click ↻ probe')).slice(0, 40)}</span>`}
           ${ping ? `<span class="pill" style="color:${pcol};border-color:${pcol}">edge ${ping.code || '×'} · ${ping.ms || '?'}ms</span>` : ''}</div>
       </div>`
     }).join('')
@@ -1587,11 +1612,17 @@ function makeCloud(tabId) {
     else { renderConts(); populateLogContainerPicker() }
   }
   async function init() {
+    // Only the local static topology (cloud_targets — no network) loads on
+    // open. The SSH/docker probe() is heavy, network-dependent work and
+    // must NEVER run just because this tab was opened — only on explicit
+    // refresh click or when the auto-toggle is on. Was calling probe()
+    // here unconditionally, which froze the tab open on a slow/unreachable
+    // VM; fixed to render the (unprobed) VM list instantly instead.
     const data = await invoke('cloud_targets').catch(() => null)
     targets = (data && data.vms) || []
     catMap = (data && data.service_categories) || []
     if (!leaf.isConnected) return
-    renderVms(); probe()
+    renderVms()
   }
 
   const syncLogSrcButtons = () => { for (const x of $('#c-logsrc-' + id).children) x.classList.toggle('on', x.dataset.v === logSrc) }
@@ -1648,7 +1679,7 @@ function makeDataSync(tabId) {
       <div class="ds-top"><span style="font-weight:700;color:var(--accent);letter-spacing:.08em">DATA SYNC CENTER</span>
         <span style="flex:1"></span><span class="jrn-count" id="d-note-${id}"></span>
         <button class="cpbtn" id="d-refresh-${id}">↻ refresh</button>
-        <button class="cpbtn" id="d-auto-${id}" title="Auto-refresh (10s) — off by default, no dashboard polls in the background">⏱ auto</button></div>
+        <button class="auto-toggle" id="d-auto-${id}" title="Auto-refresh (10s) — off by default, no dashboard polls in the background"><i class="sw"></i>auto</button></div>
       <div class="jrn-stats" id="d-stats-${id}"></div>
       <div class="ds-grid">
         ${P('', 'LOCAL · MOUNTS', '<div class="seg" id="d-mseg-' + id + '"></div><div class="seg-legend" id="d-mleg-' + id + '"></div><div class="bars" id="d-mounts-' + id + '"></div>')}
@@ -1776,7 +1807,7 @@ function makeDevControl(tabId) {
           <span class="proc-tools">
             <span class="ptbl-tabs" id="dc-view-${id}"><button data-v="agg" class="on">BY COMMAND</button><button data-v="recent">RECENT</button></span>
             <button class="cpbtn" id="dc-refresh-${id}" title="Re-render now">↻ refresh</button>
-            <button class="cpbtn" id="dc-auto-${id}" title="Auto-update on every invoke() call — off by default, only ticks while this tab is visible">⏱ auto</button>
+            <button class="auto-toggle" id="dc-auto-${id}" title="Auto-update on every invoke() call — off by default, only ticks while this tab is visible"><i class="sw"></i>auto</button>
             <button class="cpbtn" id="dc-clear-${id}" title="Clear the recorded log">🗑 clear</button>
           </span>
         </div>
@@ -1857,7 +1888,7 @@ function makeAGI(tabId) {
       <div class="agi-top"><span style="font-weight:700;color:var(--accent2);letter-spacing:.08em">AGI · CLAUDE USAGE</span>
         <span style="flex:1"></span><span class="jrn-count" id="a-note-${id}"></span>
         <button class="cpbtn" id="a-refresh-${id}">↻ refresh</button>
-        <button class="cpbtn" id="a-auto-${id}" title="Auto-refresh the live session banner (4s) — off by default, no dashboard polls in the background">⏱ auto</button></div>
+        <button class="auto-toggle" id="a-auto-${id}" title="Auto-refresh the live session banner (4s) — off by default, no dashboard polls in the background"><i class="sw"></i>auto</button></div>
       <div class="agi-cur" id="a-cur-${id}"></div>
       <div class="jrn-stats" id="a-stats-${id}"></div>
       <div class="agi-grid">
@@ -2458,6 +2489,29 @@ _search.addEventListener('input', () => filterSidebar(_search.value))
 _search.addEventListener('keydown', e => { if (e.key === 'Escape') { _search.value = ''; filterSidebar('') } })
 
 window.addEventListener('DOMContentLoaded', init)
+
+// TEMPORARY diagnostic-only — cycles through every dashboard tab in the
+// Dashboards profile and screenshots each one via the debug_shot command, so
+// the button-visibility bug report can be checked visually without OS-level
+// input automation (no xdotool/ydotool on this Wayland session). Removed
+// once confirmed.
+setTimeout(() => {
+  const dashProf = allProfiles.find(p => p.name === 'dashboards')
+  if (dashProf) showProfile(dashProf)
+  const order = ['stack', 'monitor', 'journal', 'cloud', 'datasync', 'agi', 'devctl']
+  let i = 0
+  const step = () => {
+    if (i >= order.length) return
+    const type = order[i]
+    for (const [tid, t] of tabs) { if (t.profile === 'dashboards' && t.type === type) { activateTab(tid); break } }
+    setTimeout(() => {
+      invoke('debug_shot', { path: `/tmp/claude-1000/-home-diego/92c7b349-4d3c-418c-8d4c-5d485e2e3914/scratchpad/ct-dbg-${type}.png` })
+      i++
+      setTimeout(step, 1200)
+    }, 800)
+  }
+  step()
+}, 3000)
 </script>
 </body>
 </html>

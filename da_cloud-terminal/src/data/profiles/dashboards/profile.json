@@ -30,8 +30,6 @@
         { "label": "🤖  AGI · Claude Usage", "type": "agi",      "arg": "" },
         { "label": "🛠  Dev Control",        "type": "devctl",   "arg": "" }
       ]
-    },
-    { "title": "Last 5",    "dynamic": "last", "items": [] },
-    { "title": "Most Used", "dynamic": "most", "items": [] }
+    }
   ]
 }
