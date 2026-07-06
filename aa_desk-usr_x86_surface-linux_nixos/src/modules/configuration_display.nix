@@ -273,4 +273,69 @@ EOF
   environment.pathsToLink = [ "/share/wayland-sessions" "/share/xsessions" ];
 
   # Custom SDDM sessions defined in ./sessions.nix (proper Nix module)
+
+
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # NIX-LD (Dynamic Linker for Unpatched Binaries / Google Antigravity)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  # nix-ld intercepts requests for standard hardcoded interpreter pathways
+  # (like /lib64/ld-linux-x86-64.so.2) from unpatched pre-compiled binaries
+  # and redirects them to the Nix store. This resolves the sandboxed IPC
+  # "Invalid environment block" error encountered in Electron forks like
+  # Google Antigravity when running on NixOS.
+  programs.nix-ld = {
+    enable = true;
+    libraries = with pkgs; [
+      # Core POSIX execution
+      glib
+      glibc
+      zlib
+      icu
+
+      # Hardware Acceleration & 3D Graphics (Resolves ANGLE display initialization)
+      libglvnd            # Vendor-Neutral Architecture (Provides libEGL.so.1)
+      mesa                # Open Source graphics library
+      libdrm              # Direct Rendering Manager interfaces
+
+      # Desktop Integration, Inter-process Communication & Cryptography
+      xdg-utils           # Desktop handshakes (Allows browser redirection)
+      glib-networking     # Network streams & secure tokens
+      gsettings-desktop-schemas
+      udev                # Device state and monitor scaling hooks
+      libsecret           # Secure credential storage mapping
+      libnotify           # System tray notifications
+
+      # XML & Vector Layout engines
+      expat               # Stream-oriented XML parser
+      cairo               # 2D graphics rendering engine
+      pango               # Layout and rendering of international text
+      gdk-pixbuf          # Image loading and pixel-buffer manipulation
+
+      # Font Subsystem Management (Crucial for Electron UI rendering)
+      fontconfig
+      freetype
+
+      # Core Electron / Chromium Windowing requirements
+      nss                 # Network Security Services
+      nspr                # Netscape Portable Runtime
+      atk                 # Accessibility Toolkit
+      at-spi2-core        # Modern IPC Service Provider for Assistive Tech
+      cups                # Common Unix Printing System
+      dbus                # D-Bus session bus communication
+      gtk3                # GTK window rendering
+      alsa-lib            # Sound handler architecture
+      libxkbcommon        # XKB keymap parser engine
+
+      # Native X11 Backend Handlers
+      xorg.libX11
+      xorg.libXcomposite
+      xorg.libXdamage
+      xorg.libXext
+      xorg.libXfixes
+      xorg.libXrandr
+      xorg.libxcb
+    ];
+  };
 }
