@@ -200,10 +200,14 @@ jobs:
         run: |
           BUILD_DATE="$(date -u '+%Y%m%d.%H%M%S')"
           TAG="cloud-comms-${FORK}-${BUILD_DATE}"
+          # APK attached as release asset — the in-app updater (CommsUpdateWorker,
+          # patch 0039+) downloads BuildConfig.COMMS_RELEASE_ASSET_NAME from
+          # /releases/latest. A bare release = "asset not found" in the app.
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
             --title "Cloud Mail · ${BUILD_DATE}" \
             --notes "New build published to ghcr.io/diegonmarcos/cloud-comms-${FORK}:latest — install via Cloud Mail → About → Check for updates." \
-            --latest
+            --latest \
+            "${{ env.WORK_DIR }}/dist/cloud-comms-${FORK}.apk"
 
       # Hub re-bundle deliberately NOT dispatched here. See top-of-file comment.
