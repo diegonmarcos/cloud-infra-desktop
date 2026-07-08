@@ -38,12 +38,12 @@ stage_resources() {
 
 icon() {
   mkdir -p src-tauri/icons
-  if [ ! -f src-tauri/icons/icon.png ]; then
-    log "Generating placeholder icon…"
-    magick -size 256x256 xc:'#232629' -fill '#3daee9' -gravity center \
-      -pointsize 120 -annotate 0 'k' src-tauri/icons/icon.png 2>/dev/null || \
-      : > src-tauri/icons/icon.png
-  fi
+  [ -f src-tauri/icons/icon.png ] && return 0
+  # A valid 1x1 PNG (base64) — tauri-build validates the icon is a real PNG.
+  # ponytail: placeholder; swap for a real 256x256 icon later.
+  printf '%s' \
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' \
+    | base64 -d > src-tauri/icons/icon.png
 }
 
 cmd_build() {
@@ -54,7 +54,9 @@ cmd_build() {
 }
 
 cmd_dev()   { vendor; stage_resources; icon; nix develop -c cargo tauri dev; }
-cmd_check() { nix develop -c cargo check --manifest-path src-tauri/Cargo.toml; }
+# check also stages resources + icon: tauri's build.rs validates the
+# tauri.conf.json `resources`/`icon` globs even under `cargo check`.
+cmd_check() { stage_resources; icon; nix develop -c cargo check --manifest-path src-tauri/Cargo.toml; }
 cmd_clean() { rm -rf src-tauri/target src-tauri/profiles frontend/vendor/*.js frontend/vendor/*.css; }
 
 # Fetch the CI-built binary from the rolling GitHub Release into the store dir.
