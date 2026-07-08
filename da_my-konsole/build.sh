@@ -114,16 +114,21 @@ cmd_fetch() {
 # Resolve + cache the webkit runtime lib path. `nix eval` realizes the closure
 # (slow first time); the cached value makes later reads instant.
 resolve_libpath() {
-  local cache="$STORE/runtime-libpath" libpath=""
+  local cache="$STORE/runtime-libpath" gcroot="$STORE/runtime-gcroot"
+  local sys="$(uname -m)-linux"
+  # If the cached path's webkit lib is gone (fresh machine / GC), re-resolve.
+  local libpath=""
   [ -s "$cache" ] && libpath="$(command cat "$cache")"
-  if [ -z "$libpath" ]; then
-    # runtimeLibPath is per-system (flake-utils eachDefaultSystem) → needs the
-    # system suffix; `.#runtimeLibPath` alone is a set and won't coerce.
-    # Hard-timeout the eval: realizing the webkit closure can take minutes, and
-    # the binary already resolves webkit via its own linkage — never block install.
-    local sys="$(uname -m)-linux"
-    libpath="$(timeout 45 nix eval --raw "$HERE#runtimeLibPath.$sys" 2>/dev/null || true)"
-    [ -n "$libpath" ] && { mkdir -p "$STORE"; printf '%s' "$libpath" > "$cache"; }
+  local first="${libpath%%:*}"
+  if [ -z "$libpath" ] || [ ! -e "$first/libwebkit2gtk-4.1.so.0" ]; then
+    mkdir -p "$STORE"
+    # REALIZE the runtime deps (fetch webkit+gtk from cache — NOT a local build)
+    # and pin a gcroot so they survive `nix-collect-garbage`. `nix eval` alone
+    # returns store paths WITHOUT realizing them → the launcher would point at a
+    # non-existent lib dir. This is the fix for that.
+    nix build --out-link "$gcroot" "$HERE#devShells.$sys.runtime" >/dev/null 2>&1 || true
+    libpath="$(nix eval --raw "$HERE#runtimeLibPath.$sys" 2>/dev/null || true)"
+    [ -n "$libpath" ] && printf '%s' "$libpath" > "$cache"
   fi
   printf '%s' "$libpath"
 }
