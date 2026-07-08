@@ -5,6 +5,10 @@
     "default_page": "file:///home/diego/.config/qutebrowser/dashboard.html",
     "start_pages": ["file:///home/diego/.config/qutebrowser/dashboard.html"]
   },
+  "window": {
+    "_note": "Brand the window/taskbar title 'my-browser (qute)' (display brand; project dir + GHCR image keep the da_browser-qute identity).",
+    "title_format": "{perc}{current_title}{title_sep}my-browser (qute)"
+  },
   "content": {
     "blocking": {
       "enabled": true,
