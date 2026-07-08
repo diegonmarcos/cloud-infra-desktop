@@ -1,0 +1,10 @@
+/* ══ Stack dashboard — machine + cloud config info, static ═════════ */
+.stack-wrap { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 11px; overflow-y: auto; }
+.stack-chips { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+.stack-chip { font-size: 10px; padding: 3px 8px; border-radius: 10px; background: var(--item-bg); border: 1px solid var(--sep); white-space: nowrap; }
+.stack-chip.ok  { color: #4ade80; border-color: rgba(74,222,128,.35); }
+.stack-chip.bad { color: #f87171; border-color: rgba(248,113,113,.35); }
+.stack-list-row { display: flex; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--sep); font-size: 10px; }
+.stack-list-row:last-child { border-bottom: none; }
+.stack-list-row b { color: var(--accent2); flex: 0 0 150px; }
+.stack-list-row span { color: #9aa4b2; }

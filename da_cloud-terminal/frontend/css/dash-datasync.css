@@ -1,0 +1,21 @@
+/* ══ Data Sync Center ══════════════════════════════════════════════ */
+.leaf.datasync { padding: 0; overflow: hidden; background:
+  radial-gradient(1200px 600px at 20% -10%, #15172b 0%, var(--bg) 60%); }
+.ds { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 11px; overflow-y: auto; }
+.ds-top { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ds-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px; }
+.ds-grid .panel { min-height: 118px; }
+.ds-list { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; flex: 1 1 0; min-height: 0; }
+.ds-repo { display: grid; grid-template-columns: 60px 1fr auto; gap: 6px; align-items: center; font-size: 10px; }
+.ds-repo .rn { color: var(--accent2); font-weight: 600; }
+.ds-repo .rl { color: #8b93a7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-repo .rb { display: flex; gap: 3px; }
+.ds-badge { font-size: 9px; padding: 0 5px; border-radius: 6px; border: 1px solid var(--sep); color: #9aa4b2; white-space: nowrap; }
+.ds-badge.dirty { color: #fbbf24; border-color: #fbbf24; } .ds-badge.ahead { color: #4ade80; border-color: #4ade80; } .ds-badge.behind { color: #f87171; border-color: #f87171; } .ds-badge.clean { color: #4ade80; }
+.ds-kv { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; }
+.ds-kv .k { color: #9aa4b2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-kv .v { color: #cbd5e1; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.ds-kv .t { color: #7dd3fc; font-size: 9px; }
+.ds-peer { display: flex; align-items: center; gap: 8px; font-size: 10px; }
+.ds-peer .dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 6px currentColor; flex-shrink: 0; }
+.ds-peer .ph { color: #e2e8f0; font-weight: 600; } .ds-peer .pk { color: #6b7280; font-size: 9px; } .ds-peer .pi { color: #6b7280; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-empty { color: #6b7280; font-size: 10px; }
