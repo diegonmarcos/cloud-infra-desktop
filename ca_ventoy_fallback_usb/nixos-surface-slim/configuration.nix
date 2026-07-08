@@ -184,6 +184,13 @@
     # ─── X utilities ───────────────────────────────────────────────────────────
     xorg.xsetroot       # Background color
     xorg.xinit          # startx
+
+    # ─── Claude Code (npx wrapper) ─────────────────────────────────────────────
+    # Merged into this single list — a NixOS module may define
+    # environment.systemPackages only once (was a duplicate attr below).
+    (writeShellScriptBin "claude" ''
+      exec ${nodejs_22}/bin/npx --yes @anthropic-ai/claude-code "$@"
+    '')
   ];
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -334,13 +341,4 @@
     fi
   '';
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # CLAUDE CODE - npx wrapper
-  # ═══════════════════════════════════════════════════════════════════════════
-
-  environment.systemPackages = lib.mkAfter [
-    (pkgs.writeShellScriptBin "claude" ''
-      exec ${pkgs.nodejs_22}/bin/npx --yes @anthropic-ai/claude-code "$@"
-    '')
-  ];
 }
