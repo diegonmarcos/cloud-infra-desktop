@@ -103,6 +103,9 @@ body { display: flex; flex-direction: column; }
   display: flex; gap: 4px; align-items: center;
   background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 4px;
 }
+/* respect the `hidden` attribute (id selector above would otherwise force flex) —
+   the find bar is NOT persistent; it opens only on the find keybinding. */
+#findbar[hidden] { display: none; }
 #find-input { background: var(--bg); color: var(--fg); border: 1px solid var(--border);
   border-radius: 4px; padding: 3px 6px; outline: none; }
 #findbar button { background: var(--bg2); color: var(--fg); border: 1px solid var(--border);
