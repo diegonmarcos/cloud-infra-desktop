@@ -31,10 +31,19 @@ vendor() {
   log "Vendored: $(command ls frontend/vendor | tr '\n' ' ')"
 }
 
-# Copy data profiles next to the built binary as Tauri resources.
+# Copy data profiles next to the built binary as Tauri resources (bundled).
 stage_resources() {
   mkdir -p src-tauri/profiles
   command cp -rf src/data/profiles/* src-tauri/profiles/ 2>/dev/null || true
+}
+
+# Sync repo profiles → user dir. get_profiles prefers this over the bundled
+# copy, so profile edits apply on the next launch WITHOUT a rebuild.
+sync_profiles() {
+  local dst="$HOME/.local/share/my-konsole/profiles"
+  mkdir -p "$dst"
+  command cp -rf src/data/profiles/* "$dst/" 2>/dev/null || true
+  log "Synced profiles → $dst"
 }
 
 icon() {
@@ -80,6 +89,7 @@ cmd_fetch() {
 
 # Launch the binary (local build > fetched) using ONLY runtime libs.
 cmd_run() {
+  sync_profiles
   local bin="${1:-}"
   if [ -z "$bin" ]; then
     if   [ -x "src-tauri/target/release/$BIN" ]; then bin="src-tauri/target/release/$BIN"
@@ -98,6 +108,7 @@ cmd_run() {
 
 # install — write a ~/.local/bin/my-konsole launcher (→ build.sh run). Idempotent.
 cmd_install() {
+  sync_profiles
   mkdir -p "$HOME/.local/bin"
   local launcher="$HOME/.local/bin/$BIN"
   cat > "$launcher" <<EOF
@@ -116,7 +127,8 @@ case "${1:-build}" in
   run)      shift; cmd_run "${1:-}" ;;
   fetch)    cmd_fetch ;;
   install)  cmd_install ;;
+  profiles) sync_profiles ;;
   clean)    cmd_clean ;;
   vendor)   vendor ;;
-  *)        echo "Usage: $0 [build|dev|check|run|fetch|install|clean|vendor]" ;;
+  *)        echo "Usage: $0 [build|dev|check|run|fetch|install|profiles|clean|vendor]" ;;
 esac

@@ -1,0 +1,36 @@
+{
+  "name": "home",
+  "display_name": "Home",
+  "theme": { "accent": "#3daee9" },
+  "sections": [
+    {
+      "title": "NAVIGATION",
+      "items": [
+        { "label": "Home (~)", "cmd": "cd ~" },
+        { "label": "Git root (~/git)", "cmd": "cd ~/git" },
+        { "label": "List all (ll)", "cmd": "ls -lah" },
+        { "label": "cloud repo", "cmd": "cd ~/git/cloud" },
+        { "label": "unix repo", "cmd": "cd ~/git/unix" },
+        { "label": "front repo", "cmd": "cd ~/git/front" },
+        { "label": "vault repo", "cmd": "cd ~/git/vault" },
+        { "label": "tools repo", "cmd": "cd ~/git/tools" }
+      ]
+    },
+    {
+      "title": "SYSTEM",
+      "items": [
+        { "label": "Disk usage", "cmd": "df -h" },
+        { "label": "Memory", "cmd": "free -h" },
+        { "label": "Processes (btop)", "cmd": "btop" },
+        { "label": "Boot errors", "cmd": "journalctl -b -p err" }
+      ]
+    },
+    {
+      "title": "QUICK",
+      "items": [
+        { "label": "Clear screen", "cmd": "clear" },
+        { "label": "Reload fish", "cmd": "exec fish" }
+      ]
+    }
+  ]
+}

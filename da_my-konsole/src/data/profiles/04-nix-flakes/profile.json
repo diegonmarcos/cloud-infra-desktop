@@ -1,0 +1,66 @@
+{
+  "name": "nix-flakes",
+  "display_name": "Nix Flakes",
+  "theme": { "accent": "#7ebae4" },
+  "sections": [
+    {
+      "title": "NIXOS HOST",
+      "items": [
+        { "label": "switch", "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh switch" },
+        { "label": "boot (next reboot)", "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh boot" },
+        { "label": "test", "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh test" },
+        { "label": "check", "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh check" },
+        { "label": "update", "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh update" },
+        { "label": "diff", "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh diff" }
+      ]
+    },
+    {
+      "title": "DESKTOP HOME-MANAGER",
+      "items": [
+        { "label": "switch", "cmd": "~/git/unix/ba_flakes_desktop/build.sh switch" },
+        { "label": "build", "cmd": "~/git/unix/ba_flakes_desktop/build.sh build" },
+        { "label": "pull (GHCR image)", "cmd": "~/git/unix/ba_flakes_desktop/build.sh pull" }
+      ]
+    },
+    {
+      "title": "TERMUX HOME-MANAGER",
+      "items": [
+        { "label": "build", "cmd": "~/git/unix/bb_flakes_termux/build.sh build" },
+        { "label": "switch", "cmd": "~/git/unix/bb_flakes_termux/build.sh switch" }
+      ]
+    },
+    {
+      "title": "BOOTLOADER",
+      "items": [
+        { "label": "deploy (rEFInd/GRUB)", "cmd": "~/git/unix/aa_bootloader/build.sh deploy" }
+      ]
+    },
+    {
+      "title": "ARTEFACTS",
+      "items": [
+        { "label": "build ISO", "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh build iso" },
+        { "label": "build qcow", "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh build qcow" },
+        { "label": "build vm", "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh build vm" },
+        { "label": "burn USB", "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh burn" }
+      ]
+    },
+    {
+      "title": "CLOUD SERVICE FLAKES",
+      "items": [
+        { "label": "ship (cwd service)", "cmd": "./build.sh ship" },
+        { "label": "build (cwd service)", "cmd": "./build.sh build" },
+        { "label": "all (build+secrets)", "cmd": "./build.sh all" }
+      ]
+    },
+    {
+      "title": "GENERIC NIX",
+      "items": [
+        { "label": "flake update", "cmd": "nix flake update" },
+        { "label": "flake check", "cmd": "nix flake check" },
+        { "label": "dev shell", "cmd": "nix develop" },
+        { "label": "store gc", "cmd": "nix store gc" },
+        { "label": "list generations", "cmd": "nix profile history" }
+      ]
+    }
+  ]
+}
