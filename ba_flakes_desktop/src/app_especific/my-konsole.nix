@@ -1,56 +1,42 @@
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
-# my-konsole: Alacritty as the KDE default terminal (Rust/GPU replacement for Konsole)
+# my-konsole (KDE role) — install our Rust (Tauri v2) Konsole-alternative app
+# from da_my-konsole and register it as a desktop terminal. On HM activation we
+# run `da_my-konsole/build.sh install`, which writes a ~/.local/bin/my-konsole
+# launcher (→ build.sh run: local build > fetched CI binary). Cheap, idempotent,
+# never blocks activation. The KDE *default terminal* is set in modules/desktop/
+# plasma.nix (TerminalApplication/TerminalService).
+#
+# (The bare-TTY/rescue role uses a real terminal emulator instead — a webview
+# app can't run on a raw console — see configuration_my-konsole-tty.nix + the
+# my-konsole rescue ISO.)
 
+let
+  repoDir = "${config.home.homeDirectory}/git/unix/da_my-konsole";
+in
 {
-  programs.alacritty = {
-    enable = true;
-    settings = {
-      window = {
-        dimensions = { columns = 120; lines = 60; };
-        opacity = 1.0;
-      };
-      scrolling.history = 5000;
-      font = {
-        normal.family = "JetBrainsMono Nerd Font";
-        size = 11;
-      };
-      shell.program = "${pkgs.fish}/bin/fish";
-      colors = {
-        primary = {
-          background = "#232629";
-          foreground = "#fcfcfc";
-        };
-        normal = {
-          black = "#232629";
-          red = "#ed1515";
-          green = "#11d116";
-          yellow = "#f67400";
-          blue = "#1d99f3";
-          magenta = "#9b59b6";
-          cyan = "#1abc9c";
-          white = "#fcfcfc";
-        };
-        bright = {
-          black = "#7f8c8d";
-          red = "#c0392b";
-          green = "#1cdc9a";
-          yellow = "#fdbc4b";
-          blue = "#3daee9";
-          magenta = "#8e44ad";
-          cyan = "#16a085";
-          white = "#ffffff";
-        };
-      };
-    };
+  home.packages = with pkgs; [ zstd curl jq ];
+
+  xdg.desktopEntries."my-konsole" = {
+    name = "my-konsole";
+    genericName = "Terminal";
+    comment = "Rust KDE Konsole alternative — tabbed terminal, profiles, command sections";
+    exec = "${config.home.homeDirectory}/.local/bin/my-konsole";
+    icon = "utilities-terminal";
+    terminal = false;
+    type = "Application";
+    startupNotify = true;
+    categories = [ "System" "TerminalEmulator" "Utility" ];
+    settings.StartupWMClass = "com.diegonmarcos.my-konsole";
   };
 
-  xdg.desktopEntries."Alacritty" = {
-    name = "Alacritty";
-    comment = "A fast, cross-platform, OpenGL terminal emulator";
-    exec = "${pkgs.alacritty}/bin/alacritty";
-    icon = "Alacritty";
-    terminal = false;
-    categories = [ "System" "TerminalEmulator" ];
-  };
+  home.activation.myKonsoleInstall =
+    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      if [ -x "${repoDir}/build.sh" ]; then
+        $DRY_RUN_CMD ${pkgs.bash}/bin/bash "${repoDir}/build.sh" install || \
+          echo "my-konsole: install skipped/failed (non-fatal)"
+      else
+        echo "my-konsole: ${repoDir}/build.sh absent — skipping install"
+      fi
+    '';
 }

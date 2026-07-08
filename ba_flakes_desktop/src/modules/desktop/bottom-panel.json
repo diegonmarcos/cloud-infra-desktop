@@ -3,7 +3,7 @@
   "height": 64,
   "pager_names": ["Desk1", "Desk2", "Desk3", "Desk4"],
   "launchers": [
-    "Alacritty",
+    "my-konsole",
     "cloud-terminal",
     "org.kde.dolphin",
     "org.qutebrowser.qutebrowser",
