@@ -7,7 +7,8 @@
       "config": {
         "Appearance": {
           "chartFace": "org.kde.ksysguard.piechart"
-        }
+        },
+        "updateRateLimit": 2000
       }
     },
     {
@@ -30,7 +31,8 @@
           "highPrioritySensorIds": "[\"disk/.*/usedPercent\"]",
           "lowPrioritySensorIds": "[\"disk/all/total\"]",
           "totalSensors": "[\"disk/all/usedPercent\"]"
-        }
+        },
+        "updateRateLimit": 2000
       }
     },
     {
@@ -57,7 +59,8 @@
         },
         "Sensors": {
           "highPrioritySensorIds": "[\"disk/all/read\",\"disk/all/write\",\"cpu/all/usage\"]"
-        }
+        },
+        "updateRateLimit": 2000
       }
     },
     {
@@ -74,7 +77,8 @@
           "highPrioritySensorIds": "[\"cpu/all/usage\"]",
           "lowPrioritySensorIds": "[\"cpu/all/cpuCount\",\"cpu/all/coreCount\"]",
           "totalSensors": "[\"cpu/all/usage\"]"
-        }
+        },
+        "updateRateLimit": 2000
       }
     },
     {
@@ -98,7 +102,8 @@
         "Sensors": {
           "highPrioritySensorIds": "[\"cpu/cpu.*/usage\"]",
           "totalSensors": "[\"cpu/all/usage\"]"
-        }
+        },
+        "updateRateLimit": 2000
       }
     },
     {
@@ -116,7 +121,8 @@
           "highPrioritySensorIds": "[\"memory/physical/applicationPercent\"]",
           "lowPrioritySensorIds": "[]",
           "totalSensors": "[\"memory/physical/applicationPercent\"]"
-        }
+        },
+        "updateRateLimit": 2000
       }
     },
     {
@@ -137,7 +143,8 @@
           "highPrioritySensorIds": "[\"disk/.*/usedPercent\"]",
           "lowPrioritySensorIds": "[\"disk/all/total\"]",
           "totalSensors": "[\"disk/all/usedPercent\"]"
-        }
+        },
+        "updateRateLimit": 2000
       }
     },
     {
@@ -174,7 +181,8 @@
         "Sensors": {
           "highPrioritySensorIds": "[\"pressure/cpu/some10Sec\",\"pressure/cpu/some60Sec\",\"pressure/io/full10Sec\",\"pressure/io/some10Sec\",\"pressure/memory/full10Sec\",\"pressure/memory/some10Sec\"]",
           "totalSensors": "[]"
-        }
+        },
+        "updateRateLimit": 2000
       }
     },
     {
@@ -207,7 +215,8 @@
           "highPrioritySensorIds": "[\"cpu/cpu7/usage\",\"pressure/cpu/some10Sec\",\"pressure/io/some10Sec\",\"pressure/memory/some10Sec\"]",
           "lowPrioritySensorIds": "[\"disk/all/total\"]",
           "totalSensors": "[\"cpu/all/usage\"]"
-        }
+        },
+        "updateRateLimit": 2000
       }
     },
     {
@@ -232,7 +241,8 @@
           "highPrioritySensorIds": "[\"pressure/cpu/some10Sec\",\"pressure/io/full10Sec\",\"pressure/memory/full10Sec\"]",
           "lowPrioritySensorIds": "[]",
           "totalSensors": "[]"
-        }
+        },
+        "updateRateLimit": 2000
       }
     },
     {
@@ -249,7 +259,8 @@
           "highPrioritySensorIds": "[\"cpu/all/usage\"]",
           "lowPrioritySensorIds": "[\"cpu/all/cpuCount\",\"cpu/all/coreCount\"]",
           "totalSensors": "[\"cpu/all/usage\"]"
-        }
+        },
+        "updateRateLimit": 2000
       }
     },
     {
@@ -266,7 +277,8 @@
           "highPrioritySensorIds": "[\"cpu/all/usage\"]",
           "lowPrioritySensorIds": "[\"cpu/all/cpuCount\",\"cpu/all/coreCount\"]",
           "totalSensors": "[\"cpu/all/usage\"]"
-        }
+        },
+        "updateRateLimit": 2000
       }
     }
   ]

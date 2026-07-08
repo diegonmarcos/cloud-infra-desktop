@@ -49,6 +49,11 @@ in
           systemMonitor = {
             title = "System";
             displayStyle = "org.kde.ksysguard.textonly";
+            # 2s sensor rate (default 500ms). Top-level plain key → written at
+            # the [Configuration] ROOT group, where SensorFaceController reads
+            # updateRateLimit (verified against plasma-manager
+            # modules/widgets/lib.nix setWidgetSettings + live CurrentPreset).
+            settings.updateRateLimit = 2000;
             # Single-char labels: 6 sensors + full words truncated the text in
             # the available panel width (confirmed live, 2026-07-04) — single
             # chars render cleanly with no truncation at this panel height.
