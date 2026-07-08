@@ -61,7 +61,14 @@ cmd_build() {
     --build-arg SUNSHINE_DEB_URL="$(get stream.sunshine_deb_url)" \
     --build-arg SUNSHINE_DEB_SHA256="$(get stream.sunshine_deb_sha256)" \
     -t "$img" "$SRC" || die "docker build failed"
-  log "built: $img"
+  # Reclaim the PREVIOUS image generation: every rebuild retags $img and orphans the
+  # prior multi-GB layer stack as dangling. Left alone, an iteration loop fills the
+  # Docker data-root partition — confirmed 2026-07-08: repeated rebuilds drove
+  # /mnt/shared-lib to 99%, tripping the disk-emergency guard whose workload.slice
+  # FREEZE halted the whole desktop (perceived as a total system freeze). Dangling-
+  # only prune: tagged images and volumes are never touched.
+  docker image prune -f >/dev/null 2>&1 || true
+  log "built: $img (previous dangling generation pruned)"
 }
 
 _ensure_running() {
