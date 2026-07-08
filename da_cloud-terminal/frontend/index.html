@@ -295,18 +295,22 @@ registerFrame({
   async refresh(api) { await api.load() },
 })
 
-function makeMonitor(tabId) {
-  const id = ++paneSeq
-  const leaf = document.createElement('div')
-  leaf.className = 'leaf monitor'; leaf.dataset.pane = String(id)
-  leaf.innerHTML = `
+// Monitor's own render() innerHTML-replaces #m-head every tick (host/os/
+// clock line) — any button placed inside that div was silently destroyed
+// (listeners and all) after the first render. The frame contract's toolbar
+// lives outside the render target entirely, which fixes that as a side
+// effect of the conversion, not just a refactor.
+function makeMonitor(tabId) { return buildFrame('monitor', tabId) }
+registerFrame({
+  type: 'monitor',
+  title: '📊 monitor',
+  refreshMs: 1000,
+  autoFirstOpen: true,   // fully local /proc reads — matches prior always-render-on-open
+  make(el, ctx) {
+  const { id, leaf } = ctx
+  el.innerHTML = `
     <div class="mon">
-      <div class="mon-head" id="m-head-${id}">
-        <span style="margin-left:auto;display:flex;gap:6px">
-          <button class="mbtn" id="m-refresh-${id}" title="Refresh now">↻ refresh</button>
-          <button class="auto-toggle" id="m-auto-${id}" title="Auto-refresh (1s) — off by default, no dashboard polls in the background"><i class="sw"></i>auto</button>
-        </span>
-      </div>
+      <div class="mon-head" id="m-head-${id}"></div>
 
       <div class="mon-row top">
         <div class="panel cpu"><div class="ph"><span>CPU</span><span class="sub" id="m-cpusub-${id}"></span></div>
@@ -390,7 +394,7 @@ function makeMonitor(tabId) {
   let sortBy = 'cpu', viewMode = 'flat', lastS = null
   const expanded = new Set()            // pids with the detail row open
   const procIndex = new Map()           // pid → row (for detail / copy / kill)
-  const $ = s => leaf.querySelector(s)
+  const $ = s => el.querySelector(s)
   const push = (a, v) => { a.push(v); if (a.length > MON_HIST) a.shift() }
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
 
@@ -743,23 +747,10 @@ function makeMonitor(tabId) {
     setTimeout(() => { b.classList.remove('busy'); b.textContent = orig }, 2800)
   })
 
-  // Off by default — a dashboard left open in a background tab must not
-  // keep polling every second; the tick also no-ops unless this tab is the
-  // one actually visible, so leaving auto ON and switching away still stops
-  // real work (only resumes once you switch back).
-  let autoMon = false
-  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
-  $('#m-refresh-' + id).addEventListener('click', poll)
-  $('#m-auto-' + id).addEventListener('click', () => {
-    autoMon = !autoMon
-    $('#m-auto-' + id).classList.toggle('on', autoMon)
-  })
-  const timer = setInterval(() => { if (autoMon && isActiveTab()) poll() }, 1000)
-  poll()
-  leaf.addEventListener('mousedown', () => focusPane(id), true)
-  panes.set(id, { leaf, tabId, kind: 'monitor', stop: () => clearInterval(timer) })
-  return { id, leaf }
-}
+  return { poll }
+  },
+  async refresh(api) { await api.poll() },
+})
 
 // ══ Journal Logs dashboard (no PTY) — stats on top, live feed below ══
 const JPRIO = ['emerg', 'alert', 'crit', 'err', 'warn', 'notice', 'info', 'debug']
