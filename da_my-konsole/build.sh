@@ -15,6 +15,7 @@ BIN="my-konsole"
 # Vendor xterm.js browser assets into frontend/vendor (names match index.html).
 vendor() {
   log "Vendoring xterm assets…"
+  mkdir -p frontend/vendor   # git doesn't track the empty dir; recreate on fresh checkout
   local tmp; tmp="$(mktemp -d)"
   ( cd "$tmp"
     npm init -y >/dev/null 2>&1
