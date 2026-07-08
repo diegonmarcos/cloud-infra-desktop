@@ -1,0 +1,10 @@
+{
+  "_doc": "Sunshine app list — a single 'Desktop' entry with no command: Moonlight streaming it gets the raw compositor output (the fullscreen Waydroid UI). Name must match stream.app_name in build.json (build.sh passes it to `moonlight stream`).",
+  "env": {},
+  "apps": [
+    {
+      "name": "Desktop",
+      "image-path": "desktop.png"
+    }
+  ]
+}

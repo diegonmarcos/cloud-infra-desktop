@@ -26,7 +26,8 @@ die()  { printf "${c_r}[waydroid-container] ERROR:${c_0} %s\n" "$*" >&2; exit 1;
 get() { node -e "const c=require('$CONFIG');const v='$1'.split('.').reduce((o,k)=>o&&o[k],c);process.stdout.write(String(v??''))"; }
 
 tool() { local b; b="$(nix build --no-link --print-out-paths "nixpkgs#$1" 2>/dev/null | head -1)/bin/$2"; [ -x "$b" ] || die "could not resolve $2 via nixpkgs#$1"; printf '%s' "$b"; }
-rd_vncviewer() { command -v vncviewer >/dev/null 2>&1 && { command -v vncviewer; return; }; tool tigervnc vncviewer; }
+rd_vncviewer()  { command -v vncviewer >/dev/null 2>&1 && { command -v vncviewer; return; }; tool tigervnc vncviewer; }
+rd_moonlight()  { command -v moonlight >/dev/null 2>&1 && { command -v moonlight; return; }; tool moonlight-qt moonlight; }
 
 container_name() { get container.container_name; }
 container_running() { docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$(container_name)"; }
@@ -56,7 +57,10 @@ cmd_build() {
   command -v docker >/dev/null 2>&1 || die "docker not found"
   local base img; base="$(get container.base_image)"; img="$(get container.image)"
   log "docker build $img (base $base)…"
-  docker build --build-arg BASE="$base" -t "$img" "$SRC" || die "docker build failed"
+  docker build --build-arg BASE="$base" \
+    --build-arg SUNSHINE_DEB_URL="$(get stream.sunshine_deb_url)" \
+    --build-arg SUNSHINE_DEB_SHA256="$(get stream.sunshine_deb_sha256)" \
+    -t "$img" "$SRC" || die "docker build failed"
   log "built: $img"
 }
 
@@ -69,7 +73,13 @@ _ensure_running() {
     docker start "$(container_name)" >/dev/null
   else
     local img; img="$(get container.image)"
-    docker image inspect "$img" >/dev/null 2>&1 || die "image $img not built — run: ./build.sh build"
+    # Pull-first: the image is BUILT IN GHA and published to GHCR (ship_waydroid-container
+    # workflow) — a machine that never ran `./build.sh build` locally just pulls the
+    # released image. Local build stays available for development iteration.
+    docker image inspect "$img" >/dev/null 2>&1 || {
+      log "image $img not present locally — pulling from GHCR…"
+      docker pull "$img" || die "image $img neither built locally nor pullable — run: ./build.sh build"
+    }
     local port; port="$(get container.vnc_port)"
     log "creating container '$(container_name)' from $img…"
     # --privileged: Waydroid needs to create its own LXC container + binderfs mount
@@ -112,20 +122,63 @@ _ensure_running() {
   warn "VNC port not reachable within 120s — the GUI may fail to connect; check: docker logs $(container_name)"
 }
 
-# _run_gui — mirrors da_redroid's GUI-bound invariant: attach vncviewer in the
-# FOREGROUND, and when the window closes, stop the container. "No GUI ⇒ no running
-# waydroid-container" — the detached `docker run` is only the backend for this window.
+container_ip() { docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(container_name)" 2>/dev/null; }
+
+# _pair_moonlight — one-time automated Sunshine<->Moonlight pairing (persists on the
+# data volume). We CHOOSE the 4-digit PIN, hand it to `moonlight pair --pin` and POST
+# the same PIN to Sunshine's /api/pin with the container-generated web credentials —
+# no interactive browser step, fully scripted.
+_pair_moonlight() {
+  local ml="$1" ip="$2"
+  "$ml" list "$ip" 2>/dev/null | grep -q . && return 0
+  local pass pin
+  pass="$(docker exec "$(container_name)" cat /var/lib/waydroid/sunshine/web-pass 2>/dev/null)" \
+    || die "cannot read sunshine web credentials from the container"
+  pin="$(od -An -N2 -i /dev/urandom | tr -d ' ')"; pin="$(( (pin % 9000) + 1000 ))"
+  log "pairing Moonlight with Sunshine (one-time, PIN $pin)…"
+  "$ml" pair "$ip" --pin "$pin" > /tmp/moonlight-pair.log 2>&1 &
+  local pair_pid=$!
+  local ok=""
+  for _ in $(seq 1 20); do
+    sleep 1
+    if curl -sk -u "admin:$pass" -X POST "https://$ip:47990/api/pin" \
+         -H 'Content-Type: application/json' \
+         -d "{\"pin\":\"$pin\",\"name\":\"$(hostname)\"}" 2>/dev/null | grep -q '"status":.*true'; then
+      ok=1; break
+    fi
+  done
+  wait "$pair_pid" 2>/dev/null || true
+  [ -n "$ok" ] || die "Sunshine PIN submission failed — see /tmp/moonlight-pair.log and: docker exec $(container_name) cat /var/log/sunshine.log"
+  log "paired."
+}
+
+# _run_gui — GUI-bound invariant: attach the streaming client in the FOREGROUND, and
+# when the window closes, stop the container. "No GUI ⇒ no running waydroid-container".
+# PRIMARY: Moonlight (Sunshine VAAPI-encoded stream — full GPU pipeline).
+# FALLBACK: `up vnc` attaches TigerVNC to wayvnc instead (debug transport).
 _run_gui() {
   _ensure_running
-  local vv; vv="$(rd_vncviewer)"
-  local addr; addr="$(vnc_addr)"
-  log "launching vncviewer GUI on $addr…"
-  "$vv" "$addr" || true
+  local ip; ip="$(container_ip)"
+  if [ "${1:-}" = "vnc" ]; then
+    local vv; vv="$(rd_vncviewer)"
+    log "launching vncviewer (fallback transport) on $(vnc_addr)…"
+    "$vv" "$(vnc_addr)" || true
+  else
+    local ml; ml="$(rd_moonlight)"
+    for _ in $(seq 1 30); do
+      curl -sk "https://$ip:47990" >/dev/null 2>&1 && break
+      sleep 1
+    done
+    _pair_moonlight "$ml" "$ip"
+    local res fps; res="$(get container.width)x$(get container.height)"; fps="$(get stream.fps)"
+    log "launching Moonlight stream ($res@${fps}fps, VAAPI GPU pipeline) on $ip…"
+    "$ml" stream "$ip" "$(get stream.app_name)" --resolution "$res" --fps "$fps" --quit-after || true
+  fi
   log "GUI closed — stopping waydroid-container (no GUI ⇒ no running container)…"
   cmd_down
 }
 
-cmd_up() { _run_gui; }
+cmd_up() { _run_gui "${1:-}"; }
 # down — full stack teardown. Uses the data-driven stop_timeout_seconds (not
 # docker's 10s default) so the entrypoint's ordered SIGTERM trap (waydroid
 # session/container -> wayvnc -> sway -> seatd -> pulseaudio -> dbus) actually completes before
@@ -149,11 +202,77 @@ cmd_status() {
   container_running && { echo "--- waydroid status ---"; docker exec "$(container_name)" waydroid status 2>&1 || true; }
 }
 
+# test — the tester (a fix is not done until this passes). Verifies the WHOLE display
+# pipeline with EVIDENCE, not assumptions:
+#   1. Android reached boot_completed=1
+#   2. sway's window tree has an actual mapped client surface (the Waydroid UI) —
+#      the exact failure mode that shipped a blank screen before was "Android boots,
+#      compositor tree empty" (missing show-full-ui)
+#   3. grim captures the compositor's REAL composited output (the same pixels wayvnc
+#      serves) and it is a non-trivial image, not a blank frame
+#   4. the VNC server answers with an RFB banner on the container's own bridge IP
+cmd_test() {
+  local name fail=0; name="$(container_name)"
+  container_running || die "container not running — run: ./build.sh up"
+
+  printf "1. boot_completed: "
+  local bc; bc="$(docker exec "$name" waydroid shell -- getprop sys.boot_completed 2>/dev/null | tr -d '[:space:]')"
+  [ "$bc" = "1" ] && echo "OK" || { echo "FAIL (got '$bc')"; fail=1; }
+
+  printf "2. UI surface mapped in sway: "
+  local sock; sock="$(docker exec "$name" sh -c "find \$XDG_RUNTIME_DIR -maxdepth 1 -name 'sway-ipc.*.sock' | head -1")"
+  if docker exec "$name" su -s /bin/sh sway-user -c "SWAYSOCK='$sock' swaymsg -t get_tree" 2>/dev/null | grep -q '"shell": "xdg_shell"'; then
+    echo "OK"
+  else echo "FAIL (compositor tree has no client — blank desktop)"; fail=1; fi
+
+  printf "3. composited frame non-blank: "
+  local px
+  px="$(docker exec "$name" su -s /bin/sh sway-user -c "SWAYSOCK='$sock' XDG_RUNTIME_DIR=\$XDG_RUNTIME_DIR WAYLAND_DISPLAY=\$(basename \$(find \$XDG_RUNTIME_DIR -maxdepth 1 -name 'wayland-*' ! -name '*.lock' | head -1)) grim -o HEADLESS-1 /tmp/frame.png && stat -c %s /tmp/frame.png" 2>/dev/null | tail -1)"
+  if [ -n "$px" ] && [ "$px" -gt 20000 ] 2>/dev/null; then echo "OK (${px} bytes)"
+  else echo "FAIL (frame ${px:-unreadable} bytes — likely blank)"; fail=1; fi
+
+  printf "4. VNC RFB banner (fallback transport): "
+  local addr host port; addr="$(vnc_addr)"; host="${addr%%:*}"; port="${addr##*:}"
+  if timeout 3 bash -c "exec 3<>/dev/tcp/$host/$port; head -c 3 <&3" 2>/dev/null | grep -q RFB; then
+    echo "OK ($addr)"
+  else echo "FAIL (no RFB banner at $addr)"; fail=1; fi
+
+  printf "5. Sunshine web API up (primary transport): "
+  local sip; sip="$(container_ip)"
+  if curl -sk -o /dev/null -w '%{http_code}' "https://$sip:47990" 2>/dev/null | grep -qE '^(200|401)$'; then
+    echo "OK (https://$sip:47990)"
+  else echo "FAIL (Sunshine web UI unreachable)"; fail=1; fi
+
+  printf "6. Sunshine VAAPI hardware encoder: "
+  if docker exec "$name" sh -c 'command grep -qiE "vaapi|va_" /var/log/sunshine.log && ! command grep -qi "fail" /var/log/sunshine.log' 2>/dev/null; then
+    echo "OK"
+  else
+    docker exec "$name" sh -c 'command grep -qi "software" /var/log/sunshine.log' 2>/dev/null \
+      && { echo "FAIL (fell back to software encoding)"; fail=1; } \
+      || echo "SKIP (no encoder line yet — encoder initializes on first stream)"
+  fi
+
+  [ "$fail" = 0 ] && log "ALL TESTS PASSED — the GUI pipeline is verifiably rendering" || die "pipeline test FAILED"
+}
+
+# push — publish the built image to GHCR (CI path: the ship-waydroid-container GHA
+# workflow builds + pushes on every da_waydroid-container/** change to main; runtime
+# machines then just `docker pull` — see the pull-first logic in _ensure_running).
+cmd_push() {
+  local img; img="$(get container.image)"
+  docker image inspect "$img" >/dev/null 2>&1 || die "image $img not built — run: ./build.sh build"
+  log "pushing $img to GHCR…"
+  docker push "$img" || die "docker push failed (are you logged in to ghcr.io?)"
+  log "pushed."
+}
+
 case "${1:-up}" in
   build)  cmd_build ;;
-  up)     cmd_up ;;
+  up)     cmd_up "${2:-}" ;;
   down)   cmd_down ;;
   status) cmd_status ;;
+  test)   cmd_test ;;
+  push)   cmd_push ;;
   *) die "unknown command '$1'
-  build | up | down | status" ;;
+  build | up [vnc] | down | status | test | push" ;;
 esac

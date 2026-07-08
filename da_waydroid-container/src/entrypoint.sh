@@ -70,17 +70,47 @@ SEATD_PID=$!
 for _ in $(seq 1 20); do [ -S /run/seatd.sock ] && break; sleep 0.2; done
 log "seatd up (pid $SEATD_PID): $([ -S /run/seatd.sock ] && echo ready || echo MISSING)"
 
-# ── 5) headless sway (wlroots) — WLR_BACKENDS=headless + WLR_LIBINPUT_NO_DEVICES=1
-#    means no real GPU/input device is ever touched. sway itself REFUSES to start as
-#    root ("Unable to drop root... refusing to start" — a hard check, not tunable via
-#    flag), so it runs as the dedicated `sway-user` (Dockerfile, in the seatd -g video
-#    group). root (waydroid session, later) can still open sway-user's Wayland socket
-#    fine — root bypasses DAC permission checks, only sway's own EUID check cares.
+# ── 5) headless sway (wlroots) — WLR_BACKENDS=headless (no real display/input
+#    device) but with FULL GPU RENDERING: WLR_RENDER_DRM_DEVICE points wlroots'
+#    renderer at the passed-through DRM render node (/dev/dri/renderD*), so sway
+#    composites on the GPU (GLES2) instead of falling back to software (pixman).
+#    Without it the headless backend has no render device and every Android frame
+#    is composited on the CPU — the "nothing smooth" failure mode.
+#
+#    sway itself REFUSES to start as root ("Unable to drop root... refusing to
+#    start" — a hard check, not tunable via flag), so it runs as the dedicated
+#    `sway-user` (Dockerfile, in the seatd -g video group). The render node's group
+#    is whatever gid the HOST device carries into the container (varies per host) —
+#    resolve it live and add sway-user to that gid so the GPU open() succeeds.
+#    root (waydroid session, later) can still open sway-user's Wayland socket fine —
+#    root bypasses DAC permission checks, only sway's own EUID check cares.
 #    XDG_RUNTIME_DIR must be owned by whoever connects to it AS OWNER for wlroots'
-#    own runtime-dir sanity check, so it's chowned to sway-user here. ──────────────
+#    own runtime-dir sanity check, so it's chowned to sway-user here.
+#
+#    The config is rendered from the image's template (@WIDTH@/@HEIGHT@ from
+#    build.json via env) — Debian's default /etc/sway/config is a DESKTOP config
+#    (swaybar stealing 33px of the Android screen, missing wallpaper, Xwayland);
+#    the template sets the headless output to the REAL declared resolution, since
+#    wlroots' headless backend otherwise creates a fixed 1280x720 output. ──────────
+RENDER_NODE="$(find /dev/dri -name 'renderD*' | head -1)"
+if [ -n "$RENDER_NODE" ]; then
+  RENDER_GID="$(stat -c '%g' "$RENDER_NODE")"
+  getent group "$RENDER_GID" >/dev/null || groupadd -g "$RENDER_GID" host-render
+  usermod -aG "$RENDER_GID" sway-user
+  log "GPU render node $RENDER_NODE (gid $RENDER_GID) granted to sway-user"
+else
+  log "WARNING: no /dev/dri render node — sway will fall back to software rendering"
+fi
+sed -e "s/@WIDTH@/${WIDTH}/g" -e "s/@HEIGHT@/${HEIGHT}/g" \
+  /etc/sway-waydroid.conf.tpl > /etc/sway-waydroid.conf
 chown sway-user:sway-user "$XDG_RUNTIME_DIR"
+# WLR_BACKENDS=headless,libinput — libinput INCLUDED so the uinput virtual
+# keyboard/mouse devices Sunshine creates for Moonlight input actually reach the
+# compositor (headless alone ignores all input devices; wayvnc uses wayland virtual-
+# input protocols instead, which need no libinput). WLR_LIBINPUT_NO_DEVICES=1 still
+# required: zero devices exist at startup — Sunshine adds them on client connect.
 su -s /bin/sh sway-user -c \
-  "XDG_RUNTIME_DIR='$XDG_RUNTIME_DIR' WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 exec sway --unsupported-gpu" \
+  "XDG_RUNTIME_DIR='$XDG_RUNTIME_DIR' WLR_BACKENDS=headless,libinput WLR_LIBINPUT_NO_DEVICES=1 ${RENDER_NODE:+WLR_RENDER_DRM_DEVICE='$RENDER_NODE'} exec sway --unsupported-gpu -c /etc/sway-waydroid.conf" \
   > /var/log/sway.log 2>&1 &
 SWAY_PID=$!
 
@@ -118,6 +148,32 @@ for _ in $(seq 1 20); do
 done
 log "wayvnc up (pid $WAYVNC_PID), listening VNC :$VNC_PORT"
 
+# ── 6b) Sunshine — PRIMARY transport: captures the sway output via wlroots
+#    screencopy/dmabuf and VAAPI-hardware-encodes on the render node for the host's
+#    Moonlight client (full GPU pipeline; wayvnc above stays as debug/fallback).
+#    Web credentials are GENERATED once and persisted on the data volume (never in
+#    the image/git); build.sh reads the password file to automate PIN pairing.
+#    Sunshine runs as root: it must create uinput devices for Moonlight input
+#    (/dev/uinput is root-owned), and root can open sway-user's wayland socket. ────
+mkdir -p /var/lib/waydroid/sunshine
+SUNSHINE_PASS_FILE=/var/lib/waydroid/sunshine/web-pass
+if [ ! -f "$SUNSHINE_PASS_FILE" ]; then
+  openssl rand -hex 12 > "$SUNSHINE_PASS_FILE"
+  chmod 0600 "$SUNSHINE_PASS_FILE"
+fi
+sed -e "s|@RENDER_NODE@|${RENDER_NODE:-/dev/dri/renderD128}|g" \
+  /etc/sunshine.conf.tpl > /etc/sunshine.conf
+sunshine /etc/sunshine.conf --creds admin "$(cat "$SUNSHINE_PASS_FILE")" \
+  > /var/log/sunshine-creds.log 2>&1 || log "WARNING: sunshine --creds failed (see /var/log/sunshine-creds.log)"
+sunshine /etc/sunshine.conf > /var/log/sunshine.log 2>&1 &
+SUNSHINE_PID=$!
+for _ in $(seq 1 30); do
+  ss -tln 2>/dev/null | grep -q ":47990 " && break
+  kill -0 "$SUNSHINE_PID" 2>/dev/null || { log "WARNING: sunshine died — see /var/log/sunshine.log (VNC fallback still available)"; break; }
+  sleep 0.5
+done
+log "sunshine: $(ss -tln 2>/dev/null | grep -q ':47990 ' && echo "up (pid $SUNSHINE_PID, web :47990)" || echo 'NOT LISTENING — VNC fallback only')"
+
 # ── 6) Waydroid one-time image fetch (persisted on the /data volume across restarts) ──
 if [ ! -d /var/lib/waydroid/images ]; then
   log "first boot: waydroid init (fetching vendor images — this is slow, once only)…"
@@ -153,6 +209,52 @@ waydroid session start &
 SESSION_PID=$!
 log "waydroid session start issued (WAYLAND_DISPLAY=$WAYLAND_DISPLAY) — attaching as sway client"
 
+# ── 7b) Present the Android UI window. `waydroid session start` alone boots Android
+#    but maps NO surface into the compositor — the UI window only appears when
+#    explicitly requested via `waydroid show-full-ui`. This was THE missing wire:
+#    Android booted and rendered internally (screencap non-black) while sway's
+#    window tree stayed EMPTY (`swaymsg -t get_tree`: zero client nodes), so wayvnc
+#    faithfully served a blank desktop. Wait for the session to be RUNNING, then
+#    request the UI and verify a client surface actually appears in sway's tree —
+#    fail loudly if it never does, never report a blank screen as success. ─────────
+for _ in $(seq 1 120); do
+  waydroid status 2>/dev/null | grep -q "Session:.*RUNNING" && break
+  sleep 1
+done
+waydroid show-full-ui &
+SWAYSOCK_PATH="$(find "$XDG_RUNTIME_DIR" -maxdepth 1 -name 'sway-ipc.*.sock' | head -1)"
+UI_MAPPED=""
+for _ in $(seq 1 120); do
+  if su -s /bin/sh sway-user -c "SWAYSOCK='$SWAYSOCK_PATH' swaymsg -t get_tree" 2>/dev/null \
+      | grep -q '"shell": "xdg_shell"'; then
+    UI_MAPPED=1; break
+  fi
+  sleep 1
+done
+if [ -n "$UI_MAPPED" ]; then
+  log "Waydroid UI surface mapped in sway — GUI is live"
+else
+  log "WARNING: Waydroid UI surface NEVER appeared in sway's tree — VNC will show a blank desktop"
+fi
+
+# ── 7c) Never let the display sleep. This is a headless STREAMED device — Android's
+#    default screen-off timeout blanks the panel after idle, and the compositor then
+#    faithfully serves a black screen to Moonlight/VNC (confirmed live: second boot
+#    from persisted /data captured an all-black frame while every other pipeline
+#    stage was healthy). Idempotent per boot: stay-awake, max timeout, no lockscreen,
+#    and an immediate WAKEUP in case it already blanked. ───────────────────────────
+for _ in $(seq 1 120); do
+  [ "$(waydroid shell -- getprop sys.boot_completed 2>/dev/null | tr -d '[:space:]')" = "1" ] && break
+  sleep 1
+done
+waydroid shell -- sh -c '
+  settings put system screen_off_timeout 2147483647
+  svc power stayon true
+  locksettings set-disabled true
+  input keyevent KEYCODE_WAKEUP
+' 2>/dev/null && log "display keep-awake + lockscreen-off applied" \
+  || log "WARNING: could not apply keep-awake settings (boot_completed never reached?)"
+
 # ── 8) PID 1 duties: stay in foreground, forward SIGTERM to a FULL, ORDERED
 #    shutdown of every stack this entrypoint started. "Close the container ⇒ close
 #    every stack" — nothing (wayvnc, sway, seatd, pulseaudio, either D-Bus daemon,
@@ -167,6 +269,9 @@ term_handler() {
   waydroid session stop 2>/dev/null || true
   waydroid container stop 2>/dev/null || true
   log "  waydroid session+container stopped"
+  kill "${SUNSHINE_PID:-}" 2>/dev/null || true
+  wait "${SUNSHINE_PID:-}" 2>/dev/null || true
+  log "  sunshine stopped"
   kill "$WAYVNC_PID" 2>/dev/null || true
   wait "$WAYVNC_PID" 2>/dev/null || true
   log "  wayvnc stopped"
