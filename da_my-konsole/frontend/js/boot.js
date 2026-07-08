@@ -51,11 +51,13 @@
     filterSearch(document.getElementById("search").value);
   }
 
-  // A command item types its command into the active pane and runs it.
+  // Run a command item in the active pane. Convention: a cmd ending in a
+  // space is PREFILLED (no Enter) so the user can add args; otherwise it runs.
   function runItem(item) {
     const id = MYK.activePane;
     if (!id || !item.cmd) return;
-    invoke("pty_write", { id, data: item.cmd + "\n" });
+    const run = !/\s$/.test(item.cmd);
+    invoke("pty_write", { id, data: run ? item.cmd + "\n" : item.cmd });
     MYK.panes.get(id)?.term.focus();
   }
 
