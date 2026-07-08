@@ -1,4 +1,4 @@
-# NixOS Surface Slim - Ultra-Minimal Recovery Configuration
+# my-konsole - Ultra-Minimal Recovery Configuration
 # Target: ~600-700MB ISO, minimal footprint
 #
 # Features:
@@ -52,7 +52,7 @@
   # ═══════════════════════════════════════════════════════════════════════════
 
   networking = {
-    hostName = "nixos-surface";
+    hostName = "my-konsole";
     networkmanager = {
       enable = true;
       wifi = {
@@ -203,7 +203,7 @@
       function fish_greeting
         echo ""
         echo "╔══════════════════════════════════════╗"
-        echo "║     NixOS Surface Recovery           ║"
+        echo "║     my-konsole Rescue           ║"
         echo "╠══════════════════════════════════════╣"
         echo "║  startx    - Start Openbox GUI       ║"
         echo "║  my-konsole - GPU terminal (no GUI)  ║"

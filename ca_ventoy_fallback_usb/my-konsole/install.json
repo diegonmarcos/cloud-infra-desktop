@@ -1,6 +1,6 @@
 {
   "meta": {
-    "name": "NixOS Surface Slim",
+    "name": "my-konsole",
     "version": "2.0",
     "target": "Surface Pro 8",
     "nixos": "24.11",
@@ -85,7 +85,7 @@
   },
   "build": {
     "command": "./build.sh",
-    "output": "nixos-surface-slim.iso",
+    "output": "my-konsole.iso",
     "uses_cached_kernel": true
   }
 }

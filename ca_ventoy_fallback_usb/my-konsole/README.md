@@ -1,4 +1,4 @@
-# NixOS Surface Slim
+# my-konsole
 
 Minimal NixOS USB recovery system for Surface Pro 8.
 
@@ -35,7 +35,7 @@ Minimal NixOS USB recovery system for Surface Pro 8.
 
 1. Copy ISO to Ventoy USB:
    ```bash
-   cp nixos-surface-slim.iso /path/to/ventoy/
+   cp my-konsole.iso /path/to/ventoy/
    ```
 
 2. Boot from USB, select "NixOS Surface"
@@ -95,7 +95,7 @@ sudo btrfs subvolume list /mnt/pool        # List subvolumes
 ## File Structure
 
 ```
-nixos-surface-slim/
+my-konsole/
 ├── flake.nix           # Nix flake definition
 ├── configuration.nix   # Main system configuration
 ├── iso.nix             # ISO-specific settings

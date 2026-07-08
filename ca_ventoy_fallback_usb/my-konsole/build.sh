@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build NixOS Surface Slim ISO
+# Build my-konsole ISO
 #
 # Usage:
 #   ./build.sh         - Build ISO
@@ -25,7 +25,7 @@ log_head() { printf "\n${CYAN}=== %s ===${NC}\n" "$1"; }
 log_err()  { printf "${RED}[ERROR]${NC} %s\n" "$1"; exit 1; }
 
 build_iso() {
-    log_head "Building NixOS Surface Slim ISO"
+    log_head "Building my-konsole ISO"
 
     # Check nix is available
     if ! command -v nix &>/dev/null; then
@@ -45,12 +45,12 @@ build_iso() {
         log_ok "Size: $ISO_SIZE"
 
         # Copy to current directory
-        cp $ISO_PATH ./nixos-surface-slim.iso
-        log_ok "Copied to: ./nixos-surface-slim.iso"
+        cp $ISO_PATH ./my-konsole.iso
+        log_ok "Copied to: ./my-konsole.iso"
 
         echo ""
         echo "To use with Ventoy:"
-        echo "  cp nixos-surface-slim.iso /path/to/ventoy/usb/"
+        echo "  cp my-konsole.iso /path/to/ventoy/usb/"
     else
         log_err "Build failed - no result link created"
     fi
@@ -94,7 +94,7 @@ check_flake() {
 
 show_info() {
     echo ""
-    echo "NixOS Surface Slim - Ultra-Minimal USB Recovery"
+    echo "my-konsole - Ultra-Minimal USB Recovery"
     echo "================================================"
     echo ""
     echo "Features:"

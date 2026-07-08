@@ -1,5 +1,5 @@
 {
-  description = "NixOS Surface Slim - Ultra-Minimal USB Recovery System";
+  description = "my-konsole - Ultra-Minimal USB Recovery System";
 
   inputs = {
     # 25.05 (not 24.11): 24.11's initrd modules-shrunk step runs modprobe and
@@ -56,7 +56,7 @@
     # ═══════════════════════════════════════════════════════════════════════════
     # NIXOS CONFIGURATION (for nixos-rebuild if needed)
     # ═══════════════════════════════════════════════════════════════════════════
-    nixosConfigurations.surface-slim = nixpkgs.lib.nixosSystem {
+    nixosConfigurations.my-konsole = nixpkgs.lib.nixosSystem {
       inherit system;
       modules = [
         nixos-hardware.nixosModules.microsoft-surface-pro-intel

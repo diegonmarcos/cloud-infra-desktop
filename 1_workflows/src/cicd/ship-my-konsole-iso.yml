@@ -1,16 +1,16 @@
-name: "Ship → Surface Slim rescue ISO (build remotely, cache 25.05 kernel)"
+name: "Ship → my-konsole rescue ISO (build remotely, cache 25.05 kernel)"
 
-# Builds the nixos-surface-slim rescue ISO on a GHA runner so the laptop never
+# Builds the my-konsole rescue ISO on a GHA runner so the laptop never
 # has to compile the linux-surface kernel locally (its freeze-guard/oomd kills
 # heavy builds by design). Two deliverables per run, mirroring ship-boot-cache:
 #
-#   1. ghcr.io/<owner>/unix-slim-boot-cache:{nix-linux-<kver>,latest}
-#      — Nix-format closure of the slim ISO's kernel + initrd (nixpkgs 25.05).
+#   1. ghcr.io/<owner>/unix-my-konsole-boot-cache:{nix-linux-<kver>,latest}
+#      — Nix-format closure of the my-konsole ISO's kernel + initrd (nixpkgs 25.05).
 #        Distinct image from unix-boot-cache (that one is the host's 24.11
 #        kernel; this is the slim flake's 25.05 derivation — different hash).
 #        Lets the laptop `nix copy --from` the kernel instead of recompiling.
 #
-#   2. Workflow artifact `nixos-surface-slim-iso` — the built .iso, downloaded
+#   2. Workflow artifact `my-konsole-iso` — the built .iso, downloaded
 #      on the laptop via `gh run download` to populate the my-konsole rescue
 #      partition (nvme0n1p8, label mykonsole-resc).
 #
@@ -26,10 +26,10 @@ on:
   push:
     branches: [main]
     paths:
-      - "ca_ventoy_fallback_usb/nixos-surface-slim/flake.nix"
-      - "ca_ventoy_fallback_usb/nixos-surface-slim/flake.lock"
-      - "ca_ventoy_fallback_usb/nixos-surface-slim/configuration.nix"
-      - "ca_ventoy_fallback_usb/nixos-surface-slim/iso.nix"
+      - "ca_ventoy_fallback_usb/my-konsole/flake.nix"
+      - "ca_ventoy_fallback_usb/my-konsole/flake.lock"
+      - "ca_ventoy_fallback_usb/my-konsole/configuration.nix"
+      - "ca_ventoy_fallback_usb/my-konsole/iso.nix"
       - "1_workflows/src/cicd/ship-slim-iso.yml"
 
 permissions:
@@ -38,7 +38,7 @@ permissions:
 
 jobs:
   build-slim-iso:
-    name: "Build slim ISO + cache 25.05 kernel closure"
+    name: "Build my-konsole ISO + cache 25.05 kernel closure"
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -67,18 +67,18 @@ jobs:
 
       - name: Resolve kernel version + image meta
         id: meta
-        working-directory: ca_ventoy_fallback_usb/nixos-surface-slim
+        working-directory: ca_ventoy_fallback_usb/my-konsole
         run: |
           set -euo pipefail
-          KVER=$(nix eval --raw .#nixosConfigurations.surface-slim.config.boot.kernelPackages.kernel.version)
-          IMAGE=ghcr.io/${{ github.repository_owner }}/unix-slim-boot-cache
+          KVER=$(nix eval --raw .#nixosConfigurations.my-konsole.config.boot.kernelPackages.kernel.version)
+          IMAGE=ghcr.io/${{ github.repository_owner }}/unix-my-konsole-boot-cache
           echo "kver=${KVER}"                    >> "$GITHUB_OUTPUT"
           echo "image=${IMAGE}"                  >> "$GITHUB_OUTPUT"
           echo "tag_nix=nix-linux-${KVER}"       >> "$GITHUB_OUTPUT"
 
-      - name: Build slim ISO (compiles + caches the 25.05 surface kernel)
+      - name: Build my-konsole ISO (compiles + caches the 25.05 surface kernel)
         id: iso
-        working-directory: ca_ventoy_fallback_usb/nixos-surface-slim
+        working-directory: ca_ventoy_fallback_usb/my-konsole
         run: |
           set -euo pipefail
           nix build .#iso --no-link --print-out-paths | tee /tmp/iso-out
@@ -89,15 +89,15 @@ jobs:
 
       - name: Stage Nix binary cache (kernel + initrd closures, zstd)
         id: stage
-        working-directory: ca_ventoy_fallback_usb/nixos-surface-slim
+        working-directory: ca_ventoy_fallback_usb/my-konsole
         run: |
           set -euo pipefail
-          STAGE=${{ runner.temp }}/slim-boot-cache
+          STAGE=${{ runner.temp }}/my-konsole-boot-cache
           mkdir -p "$STAGE"
           nix copy --no-check-sigs --to "file://$STAGE?compression=zstd" \
-            .#nixosConfigurations.surface-slim.config.boot.kernelPackages.kernel
+            .#nixosConfigurations.my-konsole.config.boot.kernelPackages.kernel
           nix copy --no-check-sigs --to "file://$STAGE?compression=zstd" \
-            .#nixosConfigurations.surface-slim.config.system.build.initialRamdisk
+            .#nixosConfigurations.my-konsole.config.system.build.initialRamdisk
           du -sh "$STAGE"
           echo "stage=$STAGE" >> "$GITHUB_OUTPUT"
 
@@ -113,7 +113,7 @@ jobs:
           buildah copy "$ctr" "$STAGE" "/boot-cache"
           buildah config \
             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
-            --label "org.opencontainers.image.description=NixOS-format binary cache: nixos-surface-slim linux-surface ${KVER} kernel+initrd closure (nixpkgs 25.05). Recover via: nix copy --no-check-sigs --from file://.../boot-cache --to 'local?store=/nix/store' --all" \
+            --label "org.opencontainers.image.description=NixOS-format binary cache: my-konsole linux-surface ${KVER} kernel+initrd closure (nixpkgs 25.05). Recover via: nix copy --no-check-sigs --from file://.../boot-cache --to 'local?store=/nix/store' --all" \
             --label "kernel.version=${KVER}" \
             "$ctr"
           buildah commit --rm "$ctr" "${IMAGE}:${TAG_NIX}"
@@ -126,7 +126,7 @@ jobs:
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nixos-surface-slim-iso
+          name: my-konsole-iso
           path: ${{ steps.iso.outputs.iso }}
           retention-days: 14
           compression-level: 0
