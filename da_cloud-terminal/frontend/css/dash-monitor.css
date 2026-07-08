@@ -1,0 +1,148 @@
+/* ══ System monitor — btop-neon + glances-dense ════════════════════ */
+.leaf.monitor { padding: 0; overflow: hidden; background:
+  radial-gradient(1200px 600px at 20% -10%, #15172b 0%, var(--bg) 60%); }
+.mon { padding: 8px; height: 100%; display: flex; flex-direction: column; gap: 8px;
+  font-size: 11px; overflow-y: auto; overflow-x: hidden; }
+.mon::-webkit-scrollbar { width: 6px; } .mon::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
+
+/* header — glances status line + live clock */
+.mon-head {
+  flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 5px 18px; align-items: baseline;
+  padding: 6px 14px; border-radius: 8px; color: #9aa4b2; font-size: 11px;
+  background: linear-gradient(90deg, rgba(123,127,255,.10), rgba(167,139,250,.04));
+  border: 1px solid var(--sep);
+}
+/* baseline suits the inline text metrics above, but clips <button> children
+   against .mon-head's own line-height — self-align those back to center. */
+.mon-head button { align-self: center; }
+.mon-head b { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: .02em; }
+.mon-head .k { color: #6b7280; } .mon-head .val { color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.mon-head .clock { margin-left: auto; color: var(--accent2); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.mon-row { display: grid; gap: 8px; flex-shrink: 0; }
+.mon-row.top  { grid-template-columns: 1.55fr 1fr; min-height: 210px; }
+.mon-row.trip { grid-template-columns: 1fr 1fr 1fr; min-height: 150px; }
+
+/* CPU panel: PSI column · graph · circular gauge */
+.cpu-body { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: 96px 1fr 96px; gap: 8px; }
+.cpu-psi { display: flex; flex-direction: column; justify-content: center; gap: 6px; min-width: 0; }
+.cpsi-row { display: flex; flex-direction: column; gap: 1px; }
+.cpsi-row .lbl { font-size: 8px; color: #6b7280; text-transform: uppercase; letter-spacing: .08em; }
+.cpsi-row .full { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.cpsi-row .track { height: 4px; background: var(--item-bg); border-radius: 2px; overflow: hidden; }
+.cpsi-row .track > i { display: block; height: 100%; border-radius: 2px; box-shadow: 0 0 5px currentColor; }
+.cpsi-row .some { font-size: 8px; color: #9aa4b2; font-variant-numeric: tabular-nums; }
+.swapst { font-size: 8px; margin-top: 3px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--sep); text-align: center; }
+.swapst.ok { color: #4ade80; } .swapst.warn { color: #fbbf24; } .swapst.crit { color: #f87171; border-color: #f87171; }
+/* PSI-clean bar under the Processes toolbar */
+.psi-clean { display: flex; gap: 6px; flex-shrink: 0; padding: 4px 8px 2px; flex-wrap: wrap; }
+.psi-clean button { font: inherit; font-size: 9px; padding: 3px 9px; border-radius: 5px; cursor: pointer;
+  background: var(--item-bg); color: #9aa4b2; border: 1px solid var(--sep); white-space: nowrap; }
+.psi-clean button:hover { color: #f87171; border-color: #f87171; }
+.psi-clean button.all { margin-left: auto; color: var(--accent2); }
+.psi-clean button.all:hover { color: #fbbf24; border-color: #fbbf24; }
+.psi-clean button.busy { color: #fbbf24; border-color: #fbbf24; }
+.gauge-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.gauge-wrap canvas { width: 92px; height: 92px; }
+.gauge-wrap .glbl { font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: .1em; }
+
+/* MEM panel: stacked segment bar + gauges */
+.mem-body { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.seg { height: 20px; border-radius: 5px; overflow: hidden; display: flex; background: var(--item-bg); border: 1px solid var(--sep); }
+.seg > span { height: 100%; transition: width .3s ease; }
+.seg-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 10px; color: #9aa4b2; }
+.seg-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+.mem-gauges { display: flex; gap: 10px; justify-content: space-around; flex: 1 1 0; min-height: 0; align-items: center; }
+
+/* per-core sparkline grid — each core its OWN mini graph (btop signature) */
+.panel.cores-panel { min-height: 132px; }
+.cores { flex: 1 1 0; min-height: 0; display: grid; gap: 5px;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); grid-auto-rows: 1fr; }
+.core { background: var(--item-bg); border-radius: 4px; padding: 2px 4px; display: flex; flex-direction: column;
+  min-height: 30px; overflow: hidden; border: 1px solid var(--sep); }
+.core .ct { display: flex; justify-content: space-between; font-size: 9px; color: #9aa4b2; flex-shrink: 0; }
+.core .ct .p { font-variant-numeric: tabular-nums; color: #cbd5e1; }
+.core canvas { width: 100%; flex: 1 1 0; min-height: 10px; display: block; }
+
+/* gradient meter bars (disks, temps, net ifaces) */
+.bars { display: flex; flex-direction: column; gap: 4px; flex: 1 1 0; min-height: 0; overflow-y: auto; }
+.bars::-webkit-scrollbar { width: 5px; } .bars::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
+.bar { font-size: 10px; }
+.bar .lbl { display: flex; justify-content: space-between; gap: 6px; color: #9aa4b2; }
+.bar .lbl .r { color: #cbd5e1; font-variant-numeric: tabular-nums; }
+.bar .track { height: 9px; background: var(--item-bg); border-radius: 4px; overflow: hidden; margin-top: 1px; border: 1px solid var(--sep); }
+.bar .track > i { display: block; height: 100%; border-radius: 4px; box-shadow: 0 0 8px currentColor; }
+
+/* net panel: split up/down glow graphs + iface table */
+.netgraphs { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
+.netgraphs .ng { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.netgraphs .ng .cap { font-size: 9px; flex-shrink: 0; display: flex; justify-content: space-between; }
+.netgraphs .ng .cap .dn { color: #22d3ee; } .netgraphs .ng .cap .up { color: #e879f9; }
+.netgraphs .ng .cap .rate { color: #cbd5e1; font-variant-numeric: tabular-nums; }
+
+/* process table — glances. flex-grow so it fills the space under it. */
+.panel.proc { min-height: 230px; flex: 1 0 auto; }
+
+/* per-core VERTICAL bars (btop equalizer): fill rises from the bottom —
+   redefines .panel.cores-panel/.cores from above (source-order override). */
+.panel.cores-panel { min-height: 150px; }
+.cores { flex: 1 1 0; min-height: 0; display: flex; align-items: stretch; gap: 4px;
+  overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }
+.cores::-webkit-scrollbar { height: 5px; } .cores::-webkit-scrollbar-thumb { background: var(--sep); border-radius: 3px; }
+.vcore { flex: 1 1 0; min-width: 16px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.vcore .vpct { font-size: 8px; color: #cbd5e1; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.vcore .vtrack { flex: 1 1 0; width: 100%; min-height: 20px; background: var(--item-bg); border: 1px solid var(--sep);
+  border-radius: 3px; overflow: hidden; display: flex; align-items: flex-end; }
+.vcore .vtrack > i { display: block; width: 100%; border-radius: 0 0 2px 2px; box-shadow: 0 0 8px currentColor; transition: height .3s ease; }
+.vcore .vlbl { font-size: 8px; color: #6b7280; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+
+/* key/value data blocks (memory full breakdown, battery) */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; font-size: 10px; align-content: start; overflow-y: auto; flex: 1 1 0; min-height: 0; }
+.kv .k { color: #6b7280; } .kv .v { color: #cbd5e1; text-align: right; font-variant-numeric: tabular-nums; }
+.kv .v.hi { color: var(--accent2); } .kv .sec { grid-column: 1/3; color: var(--accent); font-size: 9px;
+  text-transform: uppercase; letter-spacing: .08em; margin-top: 4px; border-bottom: 1px solid var(--sep); padding-bottom: 1px; }
+
+/* PSI panel: 3 resources, each a time graph (0–30% ceiling) + avg numbers */
+.psi { display: flex; flex-direction: column; gap: 5px; flex: 1 1 0; min-height: 0; }
+.psi-g { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.psi-gh { display: flex; justify-content: space-between; align-items: baseline; font-size: 9px; flex-shrink: 0; }
+.psi-gh .pl { color: var(--accent2); text-transform: uppercase; letter-spacing: .06em; }
+.psi-avgs { color: #6b7280; font-variant-numeric: tabular-nums; } .psi-avgs b { color: #cbd5e1; }
+.psi-g canvas { flex: 1 1 0; min-height: 14px; width: 100%; display: block; }
+
+/* battery panel */
+.batt { flex: 1 1 0; min-height: 0; display: flex; gap: 10px; align-items: center; }
+.batt .bg { flex-shrink: 0; }
+.batt .bg canvas { width: 84px; height: 84px; }
+.batt .bi { font-size: 10px; color: #9aa4b2; display: flex; flex-direction: column; gap: 2px; }
+.batt .bi b { color: #e2e8f0; font-size: 12px; }
+.batt .bi .flow.in { color: #4ade80; } .batt .bi .flow.out { color: #fbbf24; }
+
+/* network per-interface table */
+.ntbl { width: 100%; border-collapse: collapse; font-size: 10px; flex: 1 1 0; min-height: 0; display: block; overflow: auto; }
+.ntbl th { text-align: left; color: #6b7280; font-weight: 600; padding: 2px 5px; text-transform: uppercase; font-size: 8px; letter-spacing: .05em; }
+.ntbl td { padding: 1px 5px; white-space: nowrap; }
+.ntbl td.if { color: var(--accent2); font-weight: 600; } .ntbl td.ip { color: #7dd3fc; }
+.ntbl td.num { text-align: right; color: #cbd5e1; font-variant-numeric: tabular-nums; }
+.ntbl td.dn { color: #22d3ee; } .ntbl td.up { color: #e879f9; } .ntbl td.err { color: #f87171; }
+
+/* process-row detail drawer (click a row to expand) */
+.proc-tbl td.n { cursor: pointer; }
+.proc-tbl td.hier { color: #8b93a7; font-size: 10px; max-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.proc-tbl td.n .tw { color: #4b5563; }         /* tree branch glyphs */
+.proc-tbl tr.prow.open td { background: rgba(123,127,255,.12); }
+.pdetail td { padding: 0 !important; }
+.pd { padding: 7px 12px; background: #0c0d16; border-left: 2px solid var(--accent); display: flex; flex-direction: column; gap: 5px; }
+.pd .cmd { color: #e2e8f0; font-size: 11px; white-space: pre-wrap; word-break: break-all; user-select: text; }
+.pd .pdmeta { color: #6b7280; font-size: 10px; }
+.pd .pdrow { font-size: 10px; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
+.pd .pdrow .k { color: #6b7280; margin-right: 6px; text-transform: uppercase; font-size: 9px; letter-spacing: .05em; }
+.pd .pdkv { display: grid; grid-template-columns: repeat(3, auto 1fr); gap: 2px 8px; font-size: 10px; }
+.pd .pdkv .k { color: #6b7280; } .pd .pdkv .v { color: #cbd5e1; font-variant-numeric: tabular-nums; }
+.pd .pdkv .v.hot { color: #f87171; font-weight: 600; } .pd .pdkv .v.warm { color: #fbbf24; }
+.pd .pdbtns { display: flex; gap: 6px; margin-top: 2px; }
+.pd .pdbtns button { font: inherit; font-size: 10px; padding: 3px 11px; border-radius: 5px; cursor: pointer;
+  background: var(--item-bg); color: #cbd5e1; border: 1px solid var(--sep); }
+.pd .pdbtns button:hover { border-color: var(--accent); color: var(--accent); }
+.pd .pdbtns button.warn:hover { border-color: #fbbf24; color: #fbbf24; }
+.pd .pdbtns button.crit:hover { border-color: #f87171; color: #f87171; }
