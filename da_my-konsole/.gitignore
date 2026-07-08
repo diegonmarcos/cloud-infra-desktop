@@ -1,0 +1,6 @@
+src-tauri/target/
+frontend/vendor/*.js
+frontend/vendor/*.css
+src-tauri/profiles/
+src-tauri/icons/icon.png
+src-tauri/Cargo.lock

@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# my-konsole engine. All heavy steps run inside `nix develop` (flake.nix), so
+# the host never needs cargo/webkit/node. Rust/Tauri compile is heavy → CI
+# (ship-my-konsole-app.yml) is the normal build path; local `build` is for devs.
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+cd "$HERE"
+
+log()  { printf '\033[0;36m[my-konsole]\033[0m %s\n' "$*"; }
+die()  { printf '\033[0;31m[my-konsole] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
+
+APP_ID="com.diegonmarcos.my-konsole"
+BIN="my-konsole"
+
+# Vendor xterm.js browser assets into frontend/vendor (names match index.html).
+vendor() {
+  log "Vendoring xterm assets…"
+  local tmp; tmp="$(mktemp -d)"
+  ( cd "$tmp"
+    npm init -y >/dev/null 2>&1
+    npm install --no-audit --no-fund --silent \
+      @xterm/xterm@^5 @xterm/addon-fit@^0.10 @xterm/addon-search@^0.15 >/dev/null 2>&1
+  )
+  local nm="$tmp/node_modules"
+  command cp -f "$nm/@xterm/xterm/lib/xterm.js"                 frontend/vendor/xterm.js
+  command cp -f "$nm/@xterm/xterm/css/xterm.css"               frontend/vendor/xterm.css
+  command cp -f "$nm/@xterm/addon-fit/lib/addon-fit.js"        frontend/vendor/xterm-addon-fit.js
+  command cp -f "$nm/@xterm/addon-search/lib/addon-search.js"  frontend/vendor/xterm-addon-search.js
+  rm -rf "$tmp"
+  log "Vendored: $(command ls frontend/vendor | tr '\n' ' ')"
+}
+
+# Copy data profiles next to the built binary as Tauri resources.
+stage_resources() {
+  mkdir -p src-tauri/profiles
+  command cp -rf src/data/profiles/* src-tauri/profiles/ 2>/dev/null || true
+}
+
+icon() {
+  mkdir -p src-tauri/icons
+  if [ ! -f src-tauri/icons/icon.png ]; then
+    log "Generating placeholder icon…"
+    magick -size 256x256 xc:'#232629' -fill '#3daee9' -gravity center \
+      -pointsize 120 -annotate 0 'k' src-tauri/icons/icon.png 2>/dev/null || \
+      : > src-tauri/icons/icon.png
+  fi
+}
+
+cmd_build() {
+  vendor; stage_resources; icon
+  log "cargo tauri build (release)…"
+  nix develop -c cargo tauri build
+  log "Built. Bundle under src-tauri/target/release/bundle/"
+}
+
+cmd_dev()   { vendor; stage_resources; icon; nix develop -c cargo tauri dev; }
+cmd_check() { nix develop -c cargo check --manifest-path src-tauri/Cargo.toml; }
+cmd_clean() { rm -rf src-tauri/target src-tauri/profiles frontend/vendor/*.js frontend/vendor/*.css; }
+
+# Launch a prebuilt binary (fetched by CI/pull) using ONLY runtime libs.
+cmd_run() {
+  local bin="${1:-$HOME/.local/bin/$BIN}"
+  [ -x "$bin" ] || die "no binary at $bin (build or pull first)"
+  local libpath; libpath="$(nix eval --raw "$HERE#runtimeLibPath" 2>/dev/null || true)"
+  LD_LIBRARY_PATH="${libpath}:${LD_LIBRARY_PATH:-}" MYK_SHELL="${MYK_SHELL:-fish}" exec "$bin"
+}
+
+case "${1:-build}" in
+  build)   cmd_build ;;
+  dev)     cmd_dev ;;
+  check)   cmd_check ;;
+  run)     shift; cmd_run "${1:-}" ;;
+  clean)   cmd_clean ;;
+  vendor)  vendor ;;
+  *)       echo "Usage: $0 [build|dev|check|run|clean|vendor]" ;;
+esac
