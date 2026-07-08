@@ -74,8 +74,8 @@ _ensure_running() {
     log "creating container '$(container_name)' from $img…"
     # --privileged: Waydroid needs to create its own LXC container + binderfs mount
     # inside this Docker container (nested containerization, same as bare-metal Waydroid
-    # needing root). --device /dev/dri: GPU passthrough for gpu_mode=host (EGL/DRM render
-    # node), matching da_redroid's approach to graphics rather than software rendering.
+    # needing root). --device /dev/dri: GPU passthrough (EGL/DRM render node), matching
+    # da_redroid's approach to graphics rather than software rendering.
     # --memory-reservation: a SOFT limit — under host-wide memory pressure the kernel
     # prefers reclaiming from cgroups that exceed THEIR OWN reservation first, so
     # Android's system_server/zygote get priority over other, unreserved processes
@@ -101,7 +101,6 @@ _ensure_running() {
       -e "WAYDROID_VNC_PORT=$port" \
       -e "WAYDROID_WIDTH=$(get container.width)" \
       -e "WAYDROID_HEIGHT=$(get container.height)" \
-      -e "WAYDROID_GPU_MODE=$(get waydroid.gpu_mode)" \
       "$img" >/dev/null
   fi
   log "waiting for VNC (container bridge IP)…"
