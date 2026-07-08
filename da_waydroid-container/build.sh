@@ -100,12 +100,21 @@ _ensure_running() {
     # crash-looping surfaceflinger forever) — sharing the host's cgroup namespace
     # gives genuine top-level write access matching what --privileged implies but
     # doesn't fully grant under the private cgroupns default.
+    # -v /run/udev:ro — Moonlight input path: Sunshine injects input by creating
+    # virtual uinput devices; sway's libinput backend discovers devices through
+    # LIBUDEV, and this container runs no udevd — without the host's udev runtime
+    # shared in, the virtual mouse/keyboard/touch devices are created but NEVER
+    # seen by the compositor (confirmed live: /dev/uinput + event nodes present,
+    # sway log zero libinput device lines, no input working in the stream). The
+    # host's udevd processes the uevents; sharing its /run/udev database+monitor
+    # socket read-only is the standard Sunshine-in-docker input wiring.
     docker run -d --name "$(container_name)" \
       --privileged \
       --cgroupns=host \
       --cpus "$(cpu_cap)" \
       --memory-reservation "$(get container.memory_reservation)" \
       --device /dev/dri \
+      -v /run/udev:/run/udev:ro \
       -v "$data:/var/lib/waydroid" \
       -p "$(get container.vnc_addr):$port" \
       -e "WAYDROID_VNC_PORT=$port" \
@@ -251,6 +260,13 @@ cmd_test() {
       && { echo "FAIL (fell back to software encoding)"; fail=1; } \
       || echo "SKIP (no encoder line yet — encoder initializes on first stream)"
   fi
+
+  printf "7. input devices reach the compositor: "
+  if docker exec "$name" sh -c 'command grep -q "CLIENT CONNECTED" /var/log/sunshine.log' 2>/dev/null; then
+    if docker exec "$name" su -s /bin/sh sway-user -c "SWAYSOCK='$sock' swaymsg -t get_inputs" 2>/dev/null | grep -q '"identifier"'; then
+      echo "OK"
+    else echo "FAIL (stream active but sway sees no input devices — mouse/touch dead)"; fail=1; fi
+  else echo "SKIP (no active Moonlight stream — devices are created on connect)"; fi
 
   [ "$fail" = 0 ] && log "ALL TESTS PASSED — the GUI pipeline is verifiably rendering" || die "pipeline test FAILED"
 }
