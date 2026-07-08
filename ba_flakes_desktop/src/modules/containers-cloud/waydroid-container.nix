@@ -4,54 +4,66 @@
 # /dev/ashmem this mainline kernel doesn't have. Waydroid's vendor image is memfd-native
 # since 1.2.1+ and needs no ashmem at all).
 #
-# Display transport (redesigned 2026-07-08 for a FULL GPU pipeline): Sunshine inside the
-# container (VAAPI hardware H.264 encode of the headless sway output on the passed-through
-# Intel render node) + Moonlight on the host (hardware decode) — end-to-end GPU:
-# Android hwcomposer EGL render → sway GLES2 composite → VAAPI encode → Moonlight decode.
-# TigerVNC/wayvnc remains the debug/fallback transport (`waydroid-container up vnc`).
-# The container image itself is BUILT IN GHA and pulled from GHCR (ship-waydroid-container
-# workflow) — `up` on a fresh machine pulls, never builds.
+# Display architecture (redesigned 2026-07-08): DEFAULT mode is NATIVE — the host KDE
+# Wayland socket is bind-mounted into the container and Waydroid's hwcomposer connects
+# to KDE DIRECTLY, so Android appears as a NATIVE Plasma window with ONE cursor, native
+# touch/trackpad and native audio, zero encode latency (exactly bare-metal
+# Waydroid-on-KDE, just Docker-lifecycled). A `stream` mode (headless sway + Sunshine
+# VAAPI → Moonlight) and a `vnc` debug mode remain for headless/remote use
+# (`waydroid up stream` / `waydroid up vnc`).
 #
-# The container, boot sequence, pairing and teardown are all owned by the data-driven
-# engine at ~/git/unix/da_waydroid-container/build.sh (nothing hardcoded here). This HM
-# module provides the user-facing wiring: the ONE-CLICK launcher binary
-# (`~/.local/bin/waydroid-container` — open it and the whole stack comes up: container
-# pull/start, Android boot, Sunshine pairing, Moonlight window), a KDE `.desktop` entry,
-# the client packages on PATH, and the KDE taskbar (icontasks) pin. `up` is GUI-bound:
-# closing the Moonlight window tears down every stack the container started. NO systemd
-# user service, NO autostart, NO watchdog-respawn — that was the original
+# Everything (container, boot, native/stream wiring, teardown) is owned by the
+# data-driven engine at ~/git/unix/da_waydroid-container/build.sh. The image is built
+# in GHA → GHCR (ship-waydroid-container). Baked INTO that image is a self-contained
+# launcher (build.json embedded) that `build.sh install` docker-cp's out to
+# ~/.local/bin/waydroid — so the launch command is a real binary in the user's bin,
+# repo-free. This module: installs that binary (best-effort), provides a KDE launcher
+# that prefers it (repo-engine fallback), the client packages, a dedicated icon, and
+# the taskbar pin. NO systemd service / autostart / respawn — that was the original
 # desktop-session Waydroid's ghost-process class of bug.
 { config, pkgs, lib, ... }:
 let
   engine = "$HOME/git/unix/da_waydroid-container/build.sh";
+  binary = "$HOME/.local/bin/waydroid";
   desktopId = "waydroid-container";
 in {
-  # Clients declared here (not resolved at click-time by the engine's `nix build`
-  # fallback) so the first launch from the KDE menu is instant — and immune to the
-  # nix-daemon being down/GC'd paths (a live failure mode: the engine's runtime
-  # `nix build` fallback died with 'could not resolve vncviewer' when the daemon
-  # socket was frozen). moonlight-qt = primary; tigervnc = fallback transport.
+  # Fallback-transport clients on PATH (native mode needs no client at all; these are
+  # only for `up stream` / `up vnc`). Declared here so a menu launch never stalls on
+  # the engine's runtime `nix build` fallback (a live failure mode when the nix-daemon
+  # socket was frozen). moonlight-qt = stream; tigervnc = vnc.
   home.packages = [ pkgs.moonlight-qt pkgs.tigervnc ];
 
-  # `waydroid-container` — THE one-click binary: opens the full stack (GHCR pull if
-  # needed → container up → Android boot → Sunshine pairing → Moonlight GUI), and
-  # closing the GUI window stops everything. `waydroid-container down` stops it
-  # explicitly; `waydroid-container up vnc` uses the fallback transport. Thin wrapper
-  # over the engine so there is ONE source of truth (da_waydroid-container/build.sh).
+  # KDE launcher dispatcher. Prefers the self-contained installed binary
+  # (~/.local/bin/waydroid, build.json baked in — the portable artifact the user
+  # copies into their bin); falls back to the repo engine so there is never a
+  # bootstrapping gap before `install` has run. Default action is `up` = native window.
   home.file.".local/bin/waydroid-container" = {
     executable = true;
     text = ''
       #!/usr/bin/env bash
       set -euo pipefail
+      BINARY="${binary}"
       ENGINE="${engine}"
-      [ -x "$ENGINE" ] || { echo "waydroid-container engine not found at $ENGINE (clone ~/git/unix)"; exit 1; }
+      if [ -x "$BINARY" ]; then RUN="$BINARY"
+      elif [ -x "$ENGINE" ]; then RUN="$ENGINE"
+      else echo "waydroid launcher not installed and engine not found — run: waydroid-container install (or clone ~/git/unix)"; exit 1; fi
       case "''${1:-up}" in
-        up|"")  shift 2>/dev/null || true; exec "$ENGINE" up "$@" ;;
-        down)   exec "$ENGINE" down ;;
-        *)      exec "$ENGINE" "$@" ;;
+        up|"")  shift 2>/dev/null || true; exec "$RUN" up "$@" ;;
+        *)      exec "$RUN" "$@" ;;
       esac
     '';
   };
+
+  # Install the self-contained binary into ~/.local/bin/waydroid from the GHCR image —
+  # best-effort, non-fatal, and ONLY if the image is already present locally (never
+  # pull during a home-manager switch: that would make activation slow / fail offline).
+  # On a fresh machine the user runs `waydroid-container install` once after the first
+  # image pull; until then the dispatcher above falls back to the repo engine.
+  home.activation.installWaydroidBinary = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if ${pkgs.docker}/bin/docker image inspect ghcr.io/diegonmarcos/waydroid-container:13 >/dev/null 2>&1; then
+      run ${engine} install "$HOME/.local/bin" || true
+    fi
+  '';
 
   # Dedicated launcher icon (Android-robot-in-a-container motif, Waydroid green) —
   # installed into the hicolor theme so the menu entry, taskbar pin and window all
@@ -76,15 +88,14 @@ in {
   # expand `%h`; ~/.local/bin is also not guaranteed on the launcher's PATH.
   xdg.desktopEntries.${desktopId} = {
     name = "Waydroid";
-    comment = "Android (Waydroid-in-Docker) — GPU-streamed via Sunshine/Moonlight";
+    comment = "Android (Waydroid-in-Docker) — native KDE window (GPU, one cursor, native touch)";
     exec = "${config.home.homeDirectory}/.local/bin/waydroid-container up";
     terminal = false;
     icon = desktopId;
     categories = [ "System" ];
-    # KDE's taskbar matches a running window to a pinned launcher by comparing the
-    # window's WM_CLASS to the desktop file's StartupWMClass. In the default NATIVE
-    # display mode the window is Waydroid's own native window (WM_CLASS "Waydroid" —
-    # Android renders directly into KDE via the bind-mounted host Wayland socket).
+    # KDE matches a running window to a pinned launcher by the window's app-id /
+    # WM_CLASS vs the desktop file's StartupWMClass. In the default NATIVE mode the
+    # window is Waydroid's own native Wayland toplevel (app-id "Waydroid").
     settings.StartupWMClass = "Waydroid";
   };
 
