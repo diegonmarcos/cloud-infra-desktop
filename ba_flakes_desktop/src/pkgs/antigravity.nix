@@ -1,26 +1,20 @@
 # antigravity — Google Antigravity Desktop (Agentic IDE), Electron app.
 #
-# No public stable download URL: the electron-updater endpoint
-# (antigravity-hub-auto-updater-*.run.app) serves authenticated manifests only.
-# Source is therefore the official tarball pinned by hash via requireFile —
-# add it to the store once with:
-#   nix-store --add-fixed sha256 ~/Downloads/Antigravity.tar.gz
+# Official tarball from Google's public GCS bucket. Per-version build id in
+# the path (discoverable via the AUR `antigravity` PKGBUILD `_build` on
+# version bumps — the updater endpoint serves authenticated manifests only).
 #
 # Runs inside buildFHSEnv: the binary expects an FHS layout
 # (/lib64/ld-linux-x86-64.so.2 + system GTK/NSS/X11 stack).
-{ lib, stdenv, requireFile, buildFHSEnv, makeDesktopItem, copyDesktopItems }:
+{ lib, stdenv, fetchurl, buildFHSEnv, makeDesktopItem, copyDesktopItems }:
 
 let
   version = "2.2.1";
+  build = "5287492581195776";
 
-  src = requireFile {
-    name = "Antigravity.tar.gz";
-    sha256 = "sha256-prp3BG+SqhziHYoMZ0lUca9MK+EbpiTl2TWCGWmyCYk=";
-    message = ''
-      Antigravity ${version} has no public download URL.
-      Fetch the Linux x64 tarball from https://antigravity.google and run:
-        nix-store --add-fixed sha256 /path/to/Antigravity.tar.gz
-    '';
+  src = fetchurl {
+    url = "https://storage.googleapis.com/antigravity-public/antigravity-hub/${version}-${build}/linux-x64/Antigravity.tar.gz";
+    hash = "sha256-prp3BG+SqhziHYoMZ0lUca9MK+EbpiTl2TWCGWmyCYk=";
   };
 
   unpacked = stdenv.mkDerivation {
