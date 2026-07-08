@@ -4,6 +4,10 @@
   let profiles = [];
   let current = null;
 
+  // Load runtime UI config (theme/font/terminal/keybindings) BEFORE any pane.
+  try { MYK.config = await invoke("get_config"); }
+  catch (e) { console.error("get_config failed", e); MYK.config = {}; }
+
   try {
     const res = await invoke("get_profiles");
     profiles = res.profiles || [];
@@ -47,12 +51,12 @@
     filterSearch(document.getElementById("search").value);
   }
 
-  // A command item types its command into the active terminal and runs it.
+  // A command item types its command into the active pane and runs it.
   function runItem(item) {
-    const id = MYK.active;
+    const id = MYK.activePane;
     if (!id || !item.cmd) return;
     invoke("pty_write", { id, data: item.cmd + "\n" });
-    MYK.terms.get(id)?.term.focus();
+    MYK.panes.get(id)?.term.focus();
   }
 
   // Live search filter over command items
@@ -73,10 +77,10 @@
     if (e.key === "Enter") Find.next();
     if (e.key === "Escape") Find.close();
   });
-  window.addEventListener("resize", () => MYK.fitActive());
+  window.addEventListener("resize", () => { if (Tabs.active) MYK._fitTab(Tabs.active); });
 
-  // First profile + first terminal
+  // First profile + first tab (one pane)
   current = profiles[0];
   buildSections(current);
-  await MYK.newTerm("shell");
+  await Tabs.newTab();
 })();

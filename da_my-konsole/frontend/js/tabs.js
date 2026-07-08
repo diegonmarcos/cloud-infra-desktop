@@ -1,49 +1,79 @@
-// tabs.js — tab strip management. One tab ↔ one MYK terminal id.
+// tabs.js — tab strip. Each tab owns a `.tab-root` in #terms that holds its
+// pane split-tree (term.js). Switching tabs shows/hides roots.
 const Tabs = {
+  tabs: new Map(),  // tabId -> { rootEl, tabEl }
   order: [],
+  active: null,
+  seq: 0,
 
-  newTab() { MYK.newTerm("shell"); },
+  async newTab() {
+    const tabId = "T" + ++this.seq;
+    const rootEl = document.createElement("div");
+    rootEl.className = "tab-root";
+    rootEl.dataset.id = tabId;
+    document.getElementById("terms").appendChild(rootEl);
 
-  add(id, title) {
-    this.order.push(id);
-    const strip = document.getElementById("tabstrip");
-    const el = document.createElement("div");
-    el.className = "tab"; el.dataset.id = id;
-    el.innerHTML = `<span class="tab-title"></span><span class="tab-close">✕</span>`;
-    el.querySelector(".tab-title").textContent = title;
-    el.addEventListener("click", (e) => {
-      if (e.target.classList.contains("tab-close")) { this.close(id); return; }
-      MYK.activate(id); this._paint();
+    const tabEl = document.createElement("div");
+    tabEl.className = "tab"; tabEl.dataset.id = tabId;
+    tabEl.innerHTML = `<span class="tab-title">shell</span><span class="tab-close">✕</span>`;
+    tabEl.addEventListener("click", (e) => {
+      if (e.target.classList.contains("tab-close")) { this.close(tabId); return; }
+      this.activate(tabId);
     });
-    strip.appendChild(el);
-    this._paint();
+    document.getElementById("tabstrip").appendChild(tabEl);
+
+    this.tabs.set(tabId, { rootEl, tabEl });
+    this.order.push(tabId);
+    const paneId = await MYK.makePane(tabId, rootEl);
+    this.activate(tabId);
+    MYK.focusPane(paneId);
+    return tabId;
   },
 
-  setTitle(id, title) {
-    const el = document.querySelector(`.tab[data-id="${id}"] .tab-title`);
-    if (el && title) el.textContent = title;
+  activate(tabId) {
+    if (!this.tabs.has(tabId)) return;
+    this.active = tabId;
+    for (const [tid, t] of this.tabs) {
+      const on = tid === tabId;
+      t.rootEl.classList.toggle("active", on);
+      t.tabEl.classList.toggle("active", on);
+    }
+    const first = this.tabs.get(tabId).rootEl.querySelector(".pane");
+    if (first) MYK.focusPane(first.dataset.id);
   },
 
-  close(id) {
-    MYK.dispose(id);
-    document.querySelector(`.tab[data-id="${id}"]`)?.remove();
-    this.order = this.order.filter((x) => x !== id);
-    if (this.order.length === 0) { MYK.newTerm("shell"); return; }
-    if (MYK.active === id) MYK.activate(this.order[this.order.length - 1]);
-    this._paint();
+  setTitle(tabId, title) {
+    const t = this.tabs.get(tabId);
+    if (t && title) t.tabEl.querySelector(".tab-title").textContent = title;
+  },
+
+  close(tabId) {
+    if (!this.tabs.has(tabId)) return;
+    MYK.disposeTab(tabId);
+    const t = this.tabs.get(tabId);
+    t.rootEl.remove(); t.tabEl.remove();
+    this.tabs.delete(tabId);
+    this.order = this.order.filter((x) => x !== tabId);
+    if (this.order.length === 0) { this.newTab(); return; }
+    if (this.active === tabId) this.activate(this.order[this.order.length - 1]);
   },
 
   next() { this._step(+1); },
   prev() { this._step(-1); },
   _step(d) {
-    const i = this.order.indexOf(MYK.active);
+    const i = this.order.indexOf(this.active);
     if (i < 0) return;
-    const j = (i + d + this.order.length) % this.order.length;
-    MYK.activate(this.order[j]); this._paint();
+    this.activate(this.order[(i + d + this.order.length) % this.order.length]);
   },
 
-  _paint() {
-    for (const el of document.querySelectorAll(".tab"))
-      el.classList.toggle("active", el.dataset.id === MYK.active);
+  // Move the active tab left/right in the strip + order.
+  move(d) {
+    const i = this.order.indexOf(this.active);
+    const j = i + d;
+    if (i < 0 || j < 0 || j >= this.order.length) return;
+    [this.order[i], this.order[j]] = [this.order[j], this.order[i]];
+    const strip = document.getElementById("tabstrip");
+    const els = this.order.map((id) => this.tabs.get(id).tabEl);
+    els.forEach((el) => strip.appendChild(el)); // reorder DOM to match
   },
 };
