@@ -23,8 +23,8 @@
       "alias": "Debian Surface Recovery"
     },
     {
-      "image": "/nixos-surface-slim.iso",
-      "alias": "NixOS Surface Slim"
+      "image": "/my-konsole.iso",
+      "alias": "my-konsole"
     }
   ],
   "menu_tip": [
@@ -33,7 +33,7 @@
       "tip": "Debian 12 + linux-surface (~823MB) - Openbox GUI, Claude Code"
     },
     {
-      "image": "/nixos-surface-slim.iso",
+      "image": "/my-konsole.iso",
       "tip": "NixOS 24.11 + linux-surface (~700MB) - Openbox GUI, Claude Code"
     }
   ],
@@ -43,7 +43,7 @@
       "tip": "@@Press F2 for boot options (toram loads to RAM)@@"
     },
     {
-      "image": "/nixos-surface-slim.iso",
+      "image": "/my-konsole.iso",
       "tip": "@@Press F2 for boot options (copytoram loads to RAM)@@"
     }
   ],

@@ -1,4 +1,4 @@
-# NixOS Surface Slim - ISO-specific configuration
+# my-konsole - ISO-specific configuration
 # For live USB boot via Ventoy
 
 { config, pkgs, lib, modulesPath, ... }:
@@ -14,10 +14,10 @@
 
   isoImage = {
     # Volume label (for GRUB search and Ventoy)
-    volumeID = "NIXOS_SURFACE";
+    volumeID = "MY_KONSOLE";
 
     # Output filename
-    isoName = "nixos-surface-slim.iso";
+    isoName = "my-konsole.iso";
 
     # Maximum compression for smallest size
     squashfsCompression = "zstd -Xcompression-level 19";
@@ -33,7 +33,7 @@
     efiSplashImage = null;
 
     # GRUB menu label
-    appendToMenuLabel = " (Surface Slim)";
+    appendToMenuLabel = " (my-konsole)";
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
