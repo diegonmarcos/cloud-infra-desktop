@@ -18,8 +18,19 @@
   boot.loader.systemd-boot.configurationLimit = 5;
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # NIX SETTINGS
+  # NIX SETTINGS  (canonical block — substituters + trusted-public-keys live HERE)
   # ═══════════════════════════════════════════════════════════════════════════
+  # U2 (PLAN-resource-bouncer.md / PLAN-hardening §1C): the old monolithic
+  # aa_nixos-surface_host/src/configuration.nix had TWO `nix.settings = { … }`
+  # blocks in ONE attribute set, where the second silently shadowed the first's
+  # substituters/trusted-public-keys (the reported data loss). The 77-leaf split
+  # dissolved that: nix.settings is now owned by exactly TWO modules that use
+  # DISJOINT keys, so NixOS module merge is purely ADDITIVE and nothing is lost:
+  #   • configuration_nix.nix (here)               → substituters, trusted-public-keys
+  #   • configuration_kernel_preservation.nix:188  → extra-substituters, extra-trusted-substituters
+  # INVARIANT: keep substituters/trusted-public-keys ONLY in this file. Do NOT
+  # add a second `substituters`/`trusted-public-keys` in any other module — that
+  # would reintroduce the shadow. `extra-*` keys elsewhere are safe (additive).
 
   # Builds must NEVER starve the interactive session (2026-06-12: parallel
   # rebuild storm + kswapd IO-trashed the desktop on this 8-core/8GB machine).

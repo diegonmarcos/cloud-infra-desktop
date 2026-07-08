@@ -2,6 +2,15 @@
   "_comment": "Freeze-proof system-protection policy — single source of truth, consumed by BOTH configuration_system-protection.nix (builtins.fromJSON, boot-time enforcement) AND build.sh (_apply_daemon_caps, live enforcement before every nix build). Hardware: Surface Pro 8, 8 logical CPUs, 8GB RAM, NVMe (none scheduler), zram swap + disk hibernate swapfile. The machine froze 10x because nix builds (running inside nix-daemon, NOT the client) ballooned RAM and thrashed pages to the disk swapfile. The fix layers: (1) nix-daemon hard-capped with MemorySwapMax=0 so a runaway build OOM-kills a compile job instead of swap-thrashing; (2) the GUI session gets guaranteed unreclaimable RAM; (3) an UNTOUCHABLE ISLAND (reserved RAM + realtime CPU + realtime IO) hosts the killers (freeze-guard, plus the now-disabled earlyoom) and the mesh (sshd/rescue) so they can ALWAYS act even when everything else is starved; (4) 2026-07-03 user directive 'ONLY PSI, remove ALL non-PSI triggers' — systemd-oomd (memory PSI) + freeze-guard (mem/io/cpu PSI active killer) are the ONLY two active killers; earlyoom (absolute mem%/swap%, zero PSI awareness) is disabled (sysprot.earlyoom.enable=false), kept data-driven so it can be re-enabled later if ever wanted.",
   "version": 1,
 
+  "specs": {
+    "_comment": "U1 (PLAN-hardening-2026-07-07 §1C): desktop hardware specs, mirroring the vm-pilot schema _cloud-data-consolidated.json[._home_manager.vms.<vm>.specs] (ram_gb, cpu) so configuration_system-protection.nix derives its slice budgets from data instead of the old hardcoded cpus=8/ramMB=8192 let-bindings. The desktop is NOT in the cloud consolidated JSON (it is not a VM); this local desktop data file is its SoT. ram_gb×1024 = ramMB; cpu = logical CPUs (4 cores × 2 threads on the Surface Pro 8).",
+    "ram_gb": 8,
+    "cpu": 8
+  },
+
+  "rescue_port": 2200,
+  "_rescue_port_comment": "U1: Dropbear rescue-SSH port, mirroring vm-pilot's _cloud-data-consolidated.json[._home_manager.vms.<vm>.rescue_port]. Reachable only via wg0 (configuration_network.nix declares wg0 trusted).",
+
   "nix_daemon": {
     "_comment": "Hard caps on nix-daemon.service — the ACTUAL build worker (cc1plus/rustc/ld run as its cgroup children). MemorySwapMax=0 = the build subtree can NEVER swap (not zram, not the disk swapfile) → the kernel OOM-kills one compile job instead of thrashing the disk → the desktop never freezes. cgroup v2 memory.max on the parent caps the whole subtree. Applied LIVE before every build by build.sh because 'nixos-rebuild switch' reloads unit files but does NOT re-apply resource control to the already-running daemon (this drift left the live daemon at 6G/4G-swap and caused the freezes).",
     "MemoryHigh": "2500M",
@@ -153,6 +162,24 @@
         "description": "the untouchable island has guaranteed RAM for the killers + mesh",
         "command": "systemctl show connectivity.slice -p MemoryMin --value",
         "expect_regex": "^[1-9][0-9]+$"
+      },
+      {
+        "id": "rescue_port_data_driven",
+        "description": "U1: rescue-ssh (Dropbear) listens on the port declared in sysprot.rescue_port (2200), proving rescuePort is read from this JSON not the old hardcoded let-binding",
+        "command": "systemctl show rescue-ssh.service -p ExecStart --value | grep -oE -- '-p [0-9]+'",
+        "expect_regex": "-p 2200$"
+      },
+      {
+        "id": "cpu_quota_data_driven",
+        "description": "U1: workload.slice CPUQuota = cpus×75% = 8×75 = 600%, proving cpus is derived from sysprot.specs.cpu (=8) not the old hardcoded cpus=8 let-binding (systemd normalizes 600% → CPUQuotaPerSecUSec=6s over a 1s period)",
+        "command": "systemctl show workload.slice -p CPUQuotaPerSecUSec --value",
+        "expect_regex": "^6s$"
+      },
+      {
+        "id": "ram_derived_root_mem_max",
+        "description": "U1: user-0.slice MemoryMax = ramMB×95% = 8192×0.95 = 7782M ≈ 8.16e9 bytes (systemd rounds to page granularity), proving ramMB is derived from sysprot.specs.ram_gb (=8 → 8192MB) not the old hardcoded ramMB=8192 let-binding. Range check tolerates systemd page-alignment rounding.",
+        "command": "systemctl show user-0.slice -p MemoryMax --value",
+        "expect_regex": "^81603[0-9]{5}$"
       }
     ]
   }

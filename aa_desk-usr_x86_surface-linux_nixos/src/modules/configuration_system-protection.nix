@@ -43,15 +43,20 @@
 { config, pkgs, lib, ... }:
 
 let
-  # ── Hardware specs (Surface Pro 8) ─────────────────────────────────────
-  cpus = 8;       # logical CPUs (4 cores × 2 threads)
-  ramMB = 8192;   # 8GB RAM
-  rescuePort = 2200;
-
   # ── Data-driven freeze-proof policy ────────────────────────────────────
   # Single source of truth, ALSO read by build.sh (_apply_daemon_caps) so the
   # caps are enforced both at boot (here) and live before every build (engine).
   sysprot = builtins.fromJSON (builtins.readFile ./cloud-data-system-protection.json);
+
+  # ── Hardware specs (Surface Pro 8) — DATA-DRIVEN (U1) ──────────────────
+  # Converged onto the vm-pilot schema: cpu/ram_gb/rescue_port now live in
+  # cloud-data-system-protection.json[.specs] / [.rescue_port], mirroring how
+  # vm-pilot reads specs.ram_gb / specs.cpu / rescue_port from
+  # _cloud-data-consolidated.json[._home_manager.vms.<vm>]. The desktop is not a
+  # VM (absent from the cloud consolidated JSON), so its local data file is SoT.
+  cpus = sysprot.specs.cpu;              # logical CPUs (4 cores × 2 threads)
+  ramMB = sysprot.specs.ram_gb * 1024;   # 8GB RAM → 8192 MB
+  rescuePort = sysprot.rescue_port;      # Dropbear rescue port (wg0-only)
 
   # ── Slice budgets (scaled by core count) ───────────────────────────────
   workloadCpuQuota = "${toString (cpus * 75)}%";     # 600%
