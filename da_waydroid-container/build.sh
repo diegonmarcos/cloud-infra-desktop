@@ -179,9 +179,13 @@ _run_gui() {
       sleep 1
     done
     _pair_moonlight "$ml" "$ip"
-    local res fps; res="$(get container.width)x$(get container.height)"; fps="$(get stream.fps)"
-    log "launching Moonlight stream ($res@${fps}fps, VAAPI GPU pipeline) on $ip…"
-    "$ml" stream "$ip" "$(get stream.app_name)" --resolution "$res" --fps "$fps" --quit-after || true
+    local res fps flags; res="$(get container.width)x$(get container.height)"; fps="$(get stream.fps)"
+    # client_flags (build.json): windowed + absolute mouse/touch — a normal parallel
+    # desktop window, NOT Moonlight's game-mode exclusive-fullscreen + captured mouse.
+    flags="$(node -e "console.log(require('$CONFIG').stream.client_flags.join(' '))")"
+    log "launching Moonlight stream ($res@${fps}fps, VAAPI GPU pipeline, windowed) on $ip…"
+    # shellcheck disable=SC2086 — flags is a flat list of CLI switches by design
+    "$ml" stream "$ip" "$(get stream.app_name)" --resolution "$res" --fps "$fps" --quit-after $flags || true
   fi
   log "GUI closed — stopping waydroid-container (no GUI ⇒ no running container)…"
   cmd_down
