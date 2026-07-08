@@ -13,16 +13,16 @@
   # JOURNALD (Survive hard freezes)
   # ═══════════════════════════════════════════════════════════════════════════
 
+  # Storage/sync/seal ONLY. Rate-limiting + MaxLevel* are owned by
+  # cloud-data-disk-protection.json (journald_limits) via
+  # configuration_system-protection-disk.nix — single source of truth. Do NOT
+  # re-add RateLimit*/MaxLevel* here: hardcoding RateLimitBurst=0 (unlimited)
+  # here is what let the 2026-07-08 ~87k-lines/min log storm run unbounded.
   services.journald.storage = "persistent";
   services.journald.extraConfig = ''
     SyncIntervalSec=1s
     Compress=yes
-    MaxLevelStore=debug
-    MaxLevelSyslog=debug
-    MaxLevelKMsg=debug
     MaxLevelConsole=info
-    RateLimitIntervalSec=0
-    RateLimitBurst=0
     Seal=yes
     SplitMode=uid
   '';

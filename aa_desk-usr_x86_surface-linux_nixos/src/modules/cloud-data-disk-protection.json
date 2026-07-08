@@ -4,13 +4,15 @@
   "enabled": true,
 
   "emergency": {
-    "_comment": "HARD stop-the-bleeding tier, ABOVE every per-mount critical. When ANY watched mount hits `pct`, the watchdog runs `actions` IN ORDER: (1) emergency_signal — VERBOSE journal explanation (journalctl -t disk-emergency), urgent ntfy, and a wall broadcast to every terminal, so the cause is unmissable; (2) kill_nonsystem — SIGTERM every process in `kill_slices` (the non-system background tier) to stop the bleeders writing; (3) freeze_nonsystem — cgroup-v2 FREEZE of `freeze_slices` so any survivor's writes HALT instantly (paused, not killed — no data loss) while we clean; (4) the reclaim actions; (5) thaw_nonsystem — un-freeze. `protected_slices` (os-essentials = ssh/wg/session/the watchdog itself) is NEVER killed or frozen, so the box stays reachable. Defaults are conservative — they target workload.slice (background), not the live desktop session; widen freeze_slices/kill_slices here (data-driven, no code change) for more aggression.",
+    "_comment": "HARD stop-the-bleeding tier, ABOVE every per-mount critical. RECLAIM-FIRST ORDER (2026-07-08 incident fix): the 2026-07-08 freeze was this tier firing every 5min, each time SIGTERM+FREEZING workload.slice BEFORE reclaim — but reclaim (docker prune of ~23GB dangling layers) would have freed the space with ZERO disruption. New order runs ALL reclaim first, then `recheck_gate` re-reads usage: if reclaim self-healed the mount (< pct), the freeze/kill/thaw are SKIPPED entirely — the box is never disrupted. Only if reclaim was insufficient does the last-resort freeze (pause writes, reversible) + kill (SIGTERM) run. `cooldown_minutes` prevents re-SIGTERM'ing the same slices every 5min when the disk is genuinely full of non-reclaimable data (that repeated kill was the spawn-storm that killed the session). `protected_slices` (os-essentials = ssh/wg/session/watchdog; connectivity = the untouchable island hosting freeze-guard) is NEVER killed or frozen. Defaults target workload.slice (background docker/nix-daemon), never the live desktop (user-1000.slice). recheck_gate MUST sit AFTER all reclaim and BEFORE freeze/kill; thaw MUST stay last (it always runs, defensively un-freezing even if a prior run stranded a slice).",
     "pct": 95,
+    "cooldown_minutes": 30,
+    "recheck_after_reclaim": true,
     "kill_slices":      ["workload.slice"],
     "freeze_slices":    ["workload.slice"],
-    "protected_slices": ["os-essentials.slice"],
+    "protected_slices": ["os-essentials.slice", "connectivity.slice"],
     "ntfy_priority": "urgent",
-    "actions": ["emergency_signal", "kill_nonsystem", "freeze_nonsystem", "purge_tmp_worktrees", "purge_tmp_dotfiles", "purge_audit_old", "nix_gc_14d", "docker_prune_images", "thaw_nonsystem"]
+    "actions": ["emergency_signal", "purge_tmp_worktrees", "purge_tmp_dotfiles", "purge_audit_old", "docker_prune_images", "docker_prune_volumes_dangling", "nix_gc_14d", "dev_store_gc", "recheck_gate", "freeze_nonsystem", "kill_nonsystem", "thaw_nonsystem"]
   },
 
   "watches": {
@@ -62,7 +64,7 @@
         "warn_pct": 80,
         "critical_pct": 90,
         "actions_on_warn":     ["alert_ntfy"],
-        "actions_on_critical": ["alert_ntfy", "dev_store_gc"]
+        "actions_on_critical": ["alert_ntfy", "docker_prune_images", "docker_prune_volumes_dangling", "dev_store_gc"]
       }
     ]
   },
@@ -120,13 +122,28 @@
   },
 
   "journald_limits": {
-    "_comment": "systemd-journald.conf values — data-driven. Applied via nix module `services.journald.extraConfig`.",
+    "_comment": "systemd-journald.conf values — SINGLE SOURCE OF TRUTH, applied via configuration_system-protection-disk.nix `services.journald.extraConfig`. RATE-LIMITING (2026-07-08 incident fix): the freeze had ~87k journal lines/min from a systembus-notify restart loop + dead-unit polling, because rate-limiting was hardcoded OFF (RateLimitBurst=0) in configuration_persistence.nix. That log storm pegged the CPU and helped collapse the session. RateLimitBurst=10000 per RateLimitIntervalSec=30s caps any single service to ~20k lines/min (vs 87k) — a runaway unit can no longer flood journald/CPU. MaxLevelStore=info drops debug-spam from disk. persistence.nix now owns ONLY storage/sync/seal keys (no rate-limit, no levels) to avoid the previous two-writer collision.",
     "SystemMaxUse":       "500M",
     "SystemKeepFree":     "200M",
     "RuntimeMaxUse":      "100M",
     "MaxRetentionSec":    "14d",
     "MaxFileSec":         "1d",
-    "ForwardToSyslog":    "no"
+    "ForwardToSyslog":    "no",
+    "RateLimitIntervalSec": "30s",
+    "RateLimitBurst":       "10000",
+    "MaxLevelStore":        "info",
+    "MaxLevelSyslog":       "info",
+    "MaxLevelKMsg":         "notice"
+  },
+
+  "journal_flood_guard": {
+    "_comment": "The invisible-failure-mode voter (2026-07-08). That freeze had a ~87k-lines/min journald storm (systembus-notify restart loop + dead-unit polling) that NO PSI voter could see — memory/cpu/io PSI were ~0 at slice level throughout, so freeze-guard never fired. This guard watches the AGGREGATE journal line-rate over a 60s window: if it exceeds `lines_per_min_max`, it finds the single loudest unit and restarts it (breaking a restart/poll loop at the source) + urgent ntfy. Complements the per-unit journald RateLimitBurst cap: that bounds ONE unit's rate; this bounds the aggregate and acts on the offender. Runs isolated in os-essentials.slice (idle IO) — deliberately NOT inside freeze-guard's loop, so a bug here can never take down the PSI killer. `never_restart` protects units whose restart would be harmful or pointless.",
+    "enabled": true,
+    "interval_sec": 60,
+    "lines_per_min_max": 40000,
+    "restart_loudest_unit": true,
+    "ntfy_priority": "urgent",
+    "never_restart": ["systemd-journald", "freeze-guard", "sshd", "dropbear", "journal-flood-guard", "disk-watchdog-v2", "init.scope", "systemd-logind", "dbus", "dbus-broker"]
   },
 
   "docker_retention": {
@@ -241,7 +258,12 @@
     },
     "thaw_nonsystem": {
       "type": "slice_thaw",
-      "description": "Un-freeze emergency.freeze_slices after reclaim. Always runs last so a transient spike never leaves the slice frozen.",
+      "description": "Un-freeze emergency.freeze_slices. ALWAYS runs (ungated) and last, so a transient spike or a prior run interrupted between freeze and thaw never leaves a slice stranded frozen. Thawing an already-thawed slice is a harmless no-op.",
+      "safe_mode": true
+    },
+    "recheck_gate": {
+      "type": "recheck",
+      "description": "Re-read the mount usage AFTER all reclaim actions. If now < emergency.pct, the reclaim SELF-HEALED the disk: set the gate so freeze_nonsystem + kill_nonsystem are SKIPPED (the box is never disrupted), log + default-priority ntfy 'self-healed'. If still >= pct, reclaim was insufficient and the last-resort freeze/kill proceed. Position in the actions list is the contract: everything reclaim BEFORE it, freeze/kill AFTER it.",
       "safe_mode": true
     }
   },
@@ -362,6 +384,54 @@
         "description": "no protected slice is also a freeze/kill target (never freeze ssh/session)",
         "command": "jq -r '[.emergency.freeze_slices[], .emergency.kill_slices[]] - .emergency.protected_slices == [.emergency.freeze_slices[], .emergency.kill_slices[]]' /etc/cloud-data/disk-protection.json",
         "expect": "true"
+      },
+      {
+        "id": "emergency_reclaim_before_punish",
+        "description": "RECLAIM-FIRST invariant: docker_prune_images comes before recheck_gate, which comes before freeze_nonsystem and kill_nonsystem — so reclaim always runs before any freeze/kill and can self-heal without disruption",
+        "command": "jq -r '.emergency.actions as $a | ($a|index(\"docker_prune_images\")) < ($a|index(\"recheck_gate\")) and ($a|index(\"recheck_gate\")) < ($a|index(\"freeze_nonsystem\")) and ($a|index(\"recheck_gate\")) < ($a|index(\"kill_nonsystem\"))' /etc/cloud-data/disk-protection.json",
+        "expect": "true"
+      },
+      {
+        "id": "emergency_thaw_is_last",
+        "description": "thaw_nonsystem is the final action (ungated safety un-freeze)",
+        "command": "jq -r '.emergency.actions[-1]' /etc/cloud-data/disk-protection.json",
+        "expect": "thaw_nonsystem"
+      },
+      {
+        "id": "emergency_cooldown_declared",
+        "description": "cooldown_minutes >= 1 so a full disk cannot re-SIGTERM the same slices every 5min (the spawn-storm)",
+        "command": "jq -r '.emergency.cooldown_minutes >= 1' /etc/cloud-data/disk-protection.json",
+        "expect": "true"
+      },
+      {
+        "id": "emergency_protects_connectivity",
+        "description": "connectivity.slice (freeze-guard's island) is explicitly protected, not safe-by-omission",
+        "command": "jq -r '.emergency.protected_slices | index(\"connectivity.slice\") != null' /etc/cloud-data/disk-protection.json",
+        "expect": "true"
+      },
+      {
+        "id": "journald_ratelimit_active",
+        "description": "journald rate-limiting is ON (RateLimitBurst > 0) — a runaway unit cannot flood journald/CPU as in the 2026-07-08 87k-lines/min storm",
+        "command": "systemctl show systemd-journald -p LogRateLimitBurst --value 2>/dev/null; grep -h '^RateLimitBurst=' /run/systemd/journald.conf.d/*.conf /etc/systemd/journald.conf.d/*.conf /etc/systemd/journald.conf 2>/dev/null | tail -1 | cut -d= -f2",
+        "expect_regex": "^(10000|[1-9][0-9]{3,})$"
+      },
+      {
+        "id": "journald_no_unlimited_ratelimit",
+        "description": "no config sets RateLimitBurst=0 (unlimited) — the persistence.nix footgun is gone",
+        "command": "grep -rh '^RateLimitBurst=0$' /etc/systemd/journald.conf /etc/systemd/journald.conf.d/ /run/systemd/journald.conf.d/ 2>/dev/null | wc -l",
+        "expect": "0"
+      },
+      {
+        "id": "legacy_disk_watchdog_absent",
+        "description": "the hardcoded /-only disk-watchdog (docker prune -af / nix-collect-garbage -d footgun) is removed; only disk-watchdog-v2 remains",
+        "command": "systemctl list-unit-files disk-watchdog.service --no-legend 2>/dev/null | wc -l",
+        "expect": "0"
+      },
+      {
+        "id": "journal_flood_guard_active",
+        "description": "journal-flood-guard timer is active — the PSI-blind log-storm voter is armed",
+        "command": "systemctl is-active journal-flood-guard.timer",
+        "expect": "active"
       }
     ]
   },
