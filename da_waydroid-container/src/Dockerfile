@@ -34,17 +34,44 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #    initializes libseat even in headless mode, so a minimal seat daemon must be running
 #    (env vars alone are NOT sufficient). pulseaudio: Waydroid's LXC config mounts
 #    $XDG_RUNTIME_DIR/pulse/native — hard mount failure without it.
+#    grim: wlroots screenshot tool — used by `build.sh test` to capture what the
+#    compositor ACTUALLY composites (the exact pixels wayvnc serves), so "it renders"
+#    is verified evidence, never an assumption.
 RUN apt-get install -y --no-install-recommends \
       waydroid \
       sway \
       seatd \
       wayvnc \
+      grim \
       dbus \
       pulseaudio \
       iproute2 \
       iptables \
       kmod \
       openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2b) Sunshine — the PRIMARY display transport (VAAPI hardware H.264 encode of the sway
+#     output, streamed to the host's Moonlight client — full GPU pipeline end-to-end).
+#     Debian BOOKWORM builds ended at v2025.122.141614 (2026 releases ship trixie+ only),
+#     so the .deb is pinned by URL + sha256 from build.json via build args (reproducible,
+#     data-driven — never "latest"). intel-media-va-driver-non-free: the full iHD VAAPI
+#     driver build with the encoders enabled (the free build ships decode-only for many
+#     platforms) — requires the non-free component, enabled here for exactly this one
+#     package. wayvnc (above) stays as the debug/fallback transport.
+ARG SUNSHINE_DEB_URL
+ARG SUNSHINE_DEB_SHA256
+#     (the base image declares its sources in deb822 /etc/apt/sources.list.d/debian.sources
+#     with Signed-By — a second plain-text list for the same origin CONFLICTS, so the
+#     non-free components are added to the existing deb822 entry instead)
+RUN sed -i 's/^Components: main$/Components: main contrib non-free non-free-firmware/' \
+      /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends intel-media-va-driver-non-free vainfo \
+    && curl -fSL -o /tmp/sunshine.deb "$SUNSHINE_DEB_URL" \
+    && echo "$SUNSHINE_DEB_SHA256  /tmp/sunshine.deb" | sha256sum -c - \
+    && apt-get install -y --no-install-recommends /tmp/sunshine.deb \
+    && rm -f /tmp/sunshine.deb \
     && rm -rf /var/lib/apt/lists/*
 
 # 3) sway refuses to start as root ("Unable to drop root... refusing to start") — a
@@ -69,6 +96,9 @@ RUN rm -f /usr/sbin/iptables-legacy /usr/sbin/ip6tables-legacy
 RUN sed -i '/-j CHECKSUM --checksum-fill/d' /usr/lib/waydroid/data/scripts/waydroid-net.sh
 
 COPY entrypoint.sh /usr/local/bin/waydroid-container-entrypoint.sh
+COPY sway-waydroid.conf.tpl /etc/sway-waydroid.conf.tpl
+COPY sunshine.conf.tpl /etc/sunshine.conf.tpl
+COPY sunshine-apps.json /etc/sunshine-apps.json
 RUN chmod +x /usr/local/bin/waydroid-container-entrypoint.sh
 
 # XDG_RUNTIME_DIR set here (not just exported inside entrypoint.sh's own shell) so every

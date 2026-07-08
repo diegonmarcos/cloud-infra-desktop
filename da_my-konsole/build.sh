@@ -119,8 +119,10 @@ resolve_libpath() {
   if [ -z "$libpath" ]; then
     # runtimeLibPath is per-system (flake-utils eachDefaultSystem) → needs the
     # system suffix; `.#runtimeLibPath` alone is a set and won't coerce.
+    # Hard-timeout the eval: realizing the webkit closure can take minutes, and
+    # the binary already resolves webkit via its own linkage — never block install.
     local sys="$(uname -m)-linux"
-    libpath="$(nix eval --raw "$HERE#runtimeLibPath.$sys" 2>/dev/null || true)"
+    libpath="$(timeout 45 nix eval --raw "$HERE#runtimeLibPath.$sys" 2>/dev/null || true)"
     [ -n "$libpath" ] && { mkdir -p "$STORE"; printf '%s' "$libpath" > "$cache"; }
   fi
   printf '%s' "$libpath"
