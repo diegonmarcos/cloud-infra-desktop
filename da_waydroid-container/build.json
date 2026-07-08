@@ -22,8 +22,7 @@
     "_doc_stop_timeout": "docker stop's grace period before SIGKILL. The entrypoint's SIGTERM trap does an ORDERED teardown (waydroid session stop -> waydroid container stop -> wayvnc -> sway -> seatd -> pulseaudio -> both dbus daemons) so every stack this container started actually exits cleanly rather than being cut off mid-shutdown by docker's 10s default — a SIGKILL mid-`waydroid container stop` can corrupt Android's persistent /data (the ghost-process class of bug that got the original desktop-session Waydroid decommissioned)."
   },
   "waydroid": {
-    "_doc": "waydroid CLI invocation knobs (manual, non-systemd — 'waydroid container start' + 'waydroid session start' are direct commands, no systemctl dependency, confirmed from docs.waydro.id/usage/waydroid-command-line-options).",
-    "android_version": "13",
-    "gpu_mode": "host"
+    "_doc": "waydroid CLI invocation knobs (manual, non-systemd — 'waydroid container start' + 'waydroid session start' are direct commands, no systemctl dependency, confirmed from docs.waydro.id/usage/waydroid-command-line-options). gpu_mode was removed 2026-07-08: waydroid 1.6.2's waydroid.cfg (vendor_type MAINLINE) has no gpu_mode key at all — the entrypoint's sed patch for it was a confirmed silent no-op (verified live: `cat waydroid.cfg` has no such field). GPU accel is whatever this vendor image defaults to; there is currently no user-facing toggle in this waydroid version.",
+    "android_version": "13"
   }
 }

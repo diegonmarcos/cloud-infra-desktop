@@ -18,7 +18,6 @@ set -euo pipefail
 VNC_PORT="${WAYDROID_VNC_PORT:-5900}"
 WIDTH="${WAYDROID_WIDTH:-1920}"
 HEIGHT="${WAYDROID_HEIGHT:-1080}"
-GPU_MODE="${WAYDROID_GPU_MODE:-host}"
 
 log() { printf '[waydroid-container] %s\n' "$*"; }
 
@@ -94,6 +93,17 @@ for _ in $(seq 1 40); do
 done
 [ -n "$WAYLAND_SOCK" ] || { log "sway never created a wayland socket — see /var/log/sway.log"; cat /var/log/sway.log; exit 1; }
 export WAYLAND_DISPLAY="$WAYLAND_SOCK"
+# wlroots creates the socket 0755 (owner sway-user only has write). Android's vendor
+# hwcomposer service is declared `capabilities SYS_NICE` in its init.rc — Android
+# init's `capabilities` directive is an ALLOW-LIST, not additive, so the process ends
+# up WITHOUT CAP_DAC_OVERRIDE even though it runs as uid 0 (root does not bypass DAC
+# checks without that capability). AF_UNIX connect() requires write permission on the
+# socket inode (man 7 unix) — confirmed via strace: `connect(...,"/run/xdg/wayland-0")
+# = -1 EACCES` while every path/mount/env value was already correct. This is a
+# single-purpose headless container with no other users on the compositor socket, so
+# widening to 0777 is safe and is the actual fix (not a workaround for a misconfigured
+# mount — the mount/bind-mapping was always correct).
+chmod 0777 "$XDG_RUNTIME_DIR/$WAYLAND_SOCK"
 log "sway up (pid $SWAY_PID), wayland socket $WAYLAND_DISPLAY"
 
 # ── 6) wayvnc — exports the headless sway output over VNC. No TLS/auth by default
@@ -112,12 +122,6 @@ log "wayvnc up (pid $WAYVNC_PID), listening VNC :$VNC_PORT"
 if [ ! -d /var/lib/waydroid/images ]; then
   log "first boot: waydroid init (fetching vendor images — this is slow, once only)…"
   waydroid init
-fi
-
-# gpu_mode is data-driven (build.json waydroid.gpu_mode) — patch the cfg after init
-# rather than hardcoding it into the image, since it's a runtime/host capability choice.
-if [ -f /var/lib/waydroid/waydroid.cfg ]; then
-  sed -i "s/^gpu_mode = .*/gpu_mode = ${GPU_MODE}/" /var/lib/waydroid/waydroid.cfg || true
 fi
 
 # Waydroid's OWN default LXC config mounts cgroup READ-ONLY for the guest
