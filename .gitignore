@@ -177,6 +177,8 @@ aa_desk-usr_x86_surface-linux_nixos/dist-ci/
 bb_flakes_termux/dist-ci/
 ## Desktop home-manager remote-build closure (GHA x86-built tarball — artifact only, never vendored)
 ba_flakes_desktop/dist-ci/
+## switch concurrency lockfile (flock target — runtime state, never content)
+ba_flakes_desktop/.switch.lock
 ## Dev-store remote-build closure (GHA x86-built devProfile tarball → p5 chroot store — artifact only)
 bc_flakes_dev-store/dist-ci/
 ## Obsidian
