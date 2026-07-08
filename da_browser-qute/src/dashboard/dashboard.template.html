@@ -73,15 +73,22 @@
     padding:8px 14px;margin:4px 8px 4px 0}
   .about .stat b{color:#fff;font-size:18px;display:block}
 
-  /* accents by folder */
-  [data-k="Cloud-dnm"]{--a:var(--dnm)} [data-k="Cloud-priv"]{--a:var(--priv)}
-  [data-k="Services"]{--a:var(--svc)} [data-k="Local"]{--a:var(--local)}
-  [data-k]{--a:#64748b}
+  /* accents by section */
+  [data-s="Last Sessions"]{--a:#10b981} [data-s="QuickMarks"]{--a:#f59e0b}
+  [data-s="Bookmarks"]{--a:var(--dnm)} [data-s="Cloud"]{--a:var(--priv)}
+  [data-s="Front"]{--a:#ec4899}
+  [data-s]{--a:#64748b} [data-k]{--a:inherit}
+
+  /* section header (Icons home) */
+  .sec{max-width:760px;margin:0 auto;padding:0 20px}
+  .sec-h{display:flex;align-items:baseline;gap:11px;margin:26px 4px 14px}
+  .sec-h .dot{width:9px;height:9px;border-radius:50%;background:var(--a);box-shadow:0 0 10px var(--a);align-self:center}
+  .sec-h .sn{font-size:15px;font-weight:700;color:#fff;text-shadow:0 1px 6px #0008}
+  .sec-h .sd{font-size:12px;color:var(--muted)}
+  .sec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:26px 8px;justify-items:center}
 
   /* ─────────── ICONS = ANDROID HOME SCREEN ─────────── */
-  #home{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));
-    gap:34px 12px;justify-items:center;align-content:start;
-    max-width:760px;margin:6vh auto 0;padding:0 20px 90px}
+  #home{margin:2vh auto 0;padding:0 0 90px}
   .folder-ico{display:flex;flex-direction:column;align-items:center;gap:12px;cursor:pointer;
     border:0;background:none;color:#fff;font:inherit;width:104px;transition:transform .13s}
   .folder-ico:hover,.folder-ico:focus-visible{transform:translateY(-4px);outline:none}
@@ -168,7 +175,15 @@
 
 <script>
 const DATA = __BOOKMARKS_JSON__;
-const FOLDERS = Object.entries(DATA.folders||{}).map(([k,v])=>({key:k,desc:(v._desc||''),links:v.links||{}}));
+// sections[] → { name, desc, recent, links{}, folders:[{name,desc,links{}}] }
+const SECTIONS = (DATA.sections||[]).map(s=>({
+  name:s.name, desc:s.desc||'', recent:!!s.recent,
+  links:s.links||{},
+  folders:(s.folders||[]).map(f=>({name:f.name,desc:f.desc||'',links:f.links||{}}))
+}));
+// Flat folder registry so the open-sheet + health can address a folder by id.
+const FOLDERS=[];
+SECTIONS.forEach((s,si)=>s.folders.forEach((f,fi)=>{ f._id=FOLDERS.length; f._sec=s.name; FOLDERS.push(f); }));
 
 const host = u => { try{ return new URL(u).hostname||'localhost'; }catch(e){ return 'localhost'; } };
 const fav  = u => `https://icons.duckduckgo.com/ip3/${host(u)}.ico`;
@@ -176,18 +191,54 @@ const L    = n => (n.replace(/[^a-z0-9]/ig,'')[0]||'◆').toUpperCase();
 // icon <img> with letter fallback
 const icon = (name,url,cls)=>`<span class="${cls}" data-l="${L(name)}"><img src="${fav(url)}" alt="" loading="lazy" onerror="this.remove();this.parentNode.textContent=this.parentNode.dataset.l"></span>`;
 
-/* ---------- Android home: folder icons ---------- */
+/* ---------- Last Sessions: live recents (localStorage), merged over build-baked ---------- */
+const RECENT_KEY='bm-recent';
+const getRecent=()=>{ try{return JSON.parse(localStorage.getItem(RECENT_KEY))||[];}catch(e){return [];} };
+function pushRecent(name,url){
+  if(!/^https?:/i.test(url)) return;           // only real web pages
+  let r=getRecent().filter(x=>x.url!==url);
+  r.unshift({name:name||host(url),url}); r=r.slice(0,5);
+  try{ localStorage.setItem(RECENT_KEY,JSON.stringify(r)); }catch(e){}
+}
+// resolve a section's links, merging live recents ahead of baked ones for recent sections
+function sectionLinks(s){
+  if(!s.recent) return s.links;
+  const out={}; const seen=new Set();
+  getRecent().concat(Object.entries(s.links).map(([name,url])=>({name,url})))
+    .forEach(({name,url})=>{ if(out[name]||seen.has(url)) return; if(Object.keys(out).length>=5) return; out[name]=url; seen.add(url); });
+  return out;
+}
+// track clicks on any dashboard link
+document.addEventListener('click',e=>{
+  const a=e.target.closest('a[href]'); if(!a) return;
+  pushRecent(a.dataset.name||a.textContent.trim(),a.getAttribute('href'));
+});
+
+/* ---------- Android home: sections of direct-links + folder icons ---------- */
+const appIco=(name,url)=>`<a class="folder-ico" href="${url}" target="_blank" rel="noopener" data-name="${name.toLowerCase()}">
+    <span class="fbox" style="display:grid;place-items:center">${icon(name,url,'mini')}</span>
+    <span class="cap">${name}</span></a>`;
+function folderIco(f){
+  const names=Object.keys(f.links);
+  const preview=names.slice(0,4).map(n=>`<span class="mini" data-l="${L(n)}"><img src="${fav(f.links[n])}" alt="" onerror="this.remove();this.parentNode.textContent=this.parentNode.dataset.l"></span>`).join('')
+               || '<span class="mini">·</span>';
+  const b=document.createElement('button');
+  b.className='folder-ico'; b.dataset.k=f.name; b.dataset.i=f._id;
+  b.innerHTML=`<span class="fbox">${preview}</span><span class="cap">${f.name}</span><span class="cnt">${names.length}</span>`;
+  b.addEventListener('click',()=>openFolder(f._id));
+  return b;
+}
 function renderHome(){
   const home=document.getElementById('home'); home.innerHTML='';
-  FOLDERS.forEach((f,i)=>{
-    const names=Object.keys(f.links);
-    const preview=names.slice(0,4).map(n=>`<span class="mini" data-l="${L(n)}"><img src="${fav(f.links[n])}" alt="" onerror="this.remove();this.parentNode.textContent=this.parentNode.dataset.l"></span>`).join('')
-                 || '<span class="mini">·</span>';
-    const b=document.createElement('button');
-    b.className='folder-ico'; b.dataset.k=f.key; b.dataset.i=i;
-    b.innerHTML=`<span class="fbox">${preview}</span><span class="cap">${f.key}</span><span class="cnt">${names.length}</span>`;
-    b.addEventListener('click',()=>openFolder(i));
-    home.appendChild(b);
+  SECTIONS.forEach(s=>{
+    const sec=document.createElement('div'); sec.className='sec'; sec.dataset.s=s.name;
+    sec.innerHTML=`<div class="sec-h"><span class="dot"></span><span class="sn">${s.name}</span><span class="sd">${s.desc}</span></div>`;
+    const grid=document.createElement('div'); grid.className='sec-grid';
+    const dl=sectionLinks(s), dn=Object.keys(dl);
+    dn.forEach(n=>grid.insertAdjacentHTML('beforeend',appIco(n,dl[n])));
+    s.folders.forEach(f=>grid.appendChild(folderIco(f)));
+    if(!dn.length && !s.folders.length) grid.innerHTML=`<div class="empty">— empty —</div>`;
+    sec.appendChild(grid); home.appendChild(sec);
   });
 }
 
@@ -197,9 +248,9 @@ function openFolder(i){
   openIdx=i; const f=FOLDERS[i];
   const names=Object.keys(f.links);
   const sheet=document.getElementById('sheet');
-  sheet.dataset.k=f.key;
+  sheet.dataset.k=f.name;
   sheet.style.setProperty('--a',getComputedStyle(document.querySelector(`.folder-ico[data-i="${i}"]`)).getPropertyValue('--a'));
-  sheet.innerHTML=`<h2><span class="dot"></span>${f.key}
+  sheet.innerHTML=`<h2><span class="dot"></span>${f.name}
       <span style="font-size:12px;color:var(--muted);font-weight:400">${f.desc}</span>
       <button class="x" title="close (Esc)">✕</button></h2>
     <div class="appgrid">`+
@@ -229,17 +280,19 @@ function showCfgTab(t){
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   const body=document.getElementById('cfgbody');
   if(t==='about'){
-    const nf=FOLDERS.length, nl=FOLDERS.reduce((a,f)=>a+Object.keys(f.links).length,0);
+    const secCount=n=>Object.keys(sectionLinks(n)).length+n.folders.reduce((a,f)=>a+Object.keys(f.links).length,0);
+    const ns=SECTIONS.length, nf=FOLDERS.length, nl=SECTIONS.reduce((a,s)=>a+secCount(s),0);
     body.innerHTML=`<div class="about">
       <h3>◆ bookmarks — cloud dashboard</h3>
       <p>A declarative, data-driven start page for <b>qutebrowser</b>. Cloud folders are
-      generated from <code>cloud-data → build-flakes_desktop.json</code> (every service's
-      <code>proxy.primary</code> route); Services &amp; Local are curated in
-      <code>qute-bookmarks.json</code>. Rendered by <code>gen-dashboard.sh</code>.</p>
+      generated from <code>cloud-data → build-flakes_desktop.json</code>; the Front tree from
+      <code>front-topology.json</code>; Last Sessions from <code>history.sqlite</code> (merged live).
+      Curated links live in <code>qute-bookmarks.json</code>. Rendered by <code>gen-dashboard.sh</code>.</p>
       <p style="margin:14px 0">
+        <span class="stat"><b>${ns}</b>sections</span>
         <span class="stat"><b>${nf}</b>folders</span>
         <span class="stat"><b>${nl}</b>links</span>
-        ${FOLDERS.map(f=>`<span class="stat" data-k="${f.key}"><b>${Object.keys(f.links).length}</b>${f.key}</span>`).join('')}
+        ${SECTIONS.map(s=>`<span class="stat" data-s="${s.name}"><b>${secCount(s)}</b>${s.name}</span>`).join('')}
       </p>
       <p><b>Views:</b> Icons (Android launcher) · List (tree) — toggle <kbd>v</kbd>.
          <b>Search</b> <kbd>/</kbd>. Links open in a new tab.</p>
@@ -265,21 +318,26 @@ async function ping(url){
 async function runHealth(){
   const btn=document.getElementById('hrun'); btn.disabled=true; btn.textContent='… probing';
   const res=document.getElementById('hres'); res.innerHTML='';
-  for(const f of FOLDERS){
-    const names=Object.keys(f.links); if(!names.length) continue;
-    const grp=document.createElement('div'); grp.dataset.k=f.key;
-    grp.innerHTML=`<div class="hgrp" data-k="${f.key}"><span class="dot"></span>${f.key}<span class="tally">…</span></div>`+
-      names.map(n=>`<div class="hrow" id="h-${f.key}-${n}"><span class="st run" >◔</span><span class="hn">${n}</span><span class="hms">${f.links[n]}</span></div>`).join('');
+  // probe groups: each section's direct links, plus every folder (labelled Section/Folder)
+  const groups=[];
+  SECTIONS.forEach(s=>{
+    const dl=sectionLinks(s); if(Object.keys(dl).length) groups.push({label:s.name,sec:s.name,links:dl});
+    s.folders.forEach(f=>{ if(Object.keys(f.links).length) groups.push({label:`${s.name} / ${f.name}`,sec:s.name,links:f.links}); });
+  });
+  for(let gi=0; gi<groups.length; gi++){
+    const g=groups[gi], names=Object.keys(g.links);
+    const grp=document.createElement('div'); grp.dataset.s=g.sec;
+    grp.innerHTML=`<div class="hgrp" data-s="${g.sec}"><span class="dot"></span>${g.label}<span class="tally">…</span></div>`+
+      names.map((n,ri)=>`<div class="hrow" id="h-${gi}-${ri}"><span class="st run">◔</span><span class="hn">${n}</span><span class="hms">${g.links[n]}</span></div>`).join('');
     res.appendChild(grp);
     let ok=0,bad=0,na=0;
-    // small concurrency pool
-    const q=names.slice();
-    async function worker(){ while(q.length){ const n=q.shift();
-      const r=await ping(f.links[n]); const row=document.getElementById(`h-${f.key}-${n}`);
+    const q=names.map((n,ri)=>({n,ri}));
+    async function worker(){ while(q.length){ const {n,ri}=q.shift();
+      const r=await ping(g.links[n]); const row=document.getElementById(`h-${gi}-${ri}`);
       const st=row.querySelector('.st'); const ms=row.querySelector('.hms');
       st.className='st '+(r.s==='ok'?'ok':r.s==='na'?'na':'bad');
       st.textContent=r.s==='ok'?'✓':r.s==='na'?'—':'✗';
-      if(r.s!=='na') ms.textContent=`${r.ms}ms · ${f.links[n]}`;
+      if(r.s!=='na') ms.textContent=`${r.ms}ms · ${g.links[n]}`;
       r.s==='ok'?ok++:r.s==='na'?na++:bad++;
     }}
     await Promise.all([worker(),worker(),worker(),worker(),worker(),worker()]);
@@ -290,20 +348,27 @@ async function runHealth(){
 document.getElementById('gear').addEventListener('click',()=>openConfig('health'));
 
 /* ---------- List view ---------- */
+const rowsHTML=links=>Object.keys(links).map(n=>
+  `<a class="row" href="${links[n]}" target="_blank" rel="noopener" data-name="${n.toLowerCase()}" data-url="${links[n].toLowerCase()}">
+    ${icon(n,links[n],'fi')}<span class="rn">${n}</span><span class="ru">${links[n]}</span></a>`).join('');
+function collapsible(list,name,desc,cnt,inner){
+  const sec=document.createElement('section'); sec.className='folder'; sec.dataset.k=name;
+  sec.innerHTML=`<div class="fhead"><span class="caret">▾</span><span class="dot"></span>
+      <span class="fname">${name}</span><span class="cnt">${cnt}</span><span class="fdesc">${desc}</span></div>
+    <div class="rows">${inner||'<div class="empty">— empty —</div>'}</div>`;
+  sec.querySelector('.fhead').addEventListener('click',()=>sec.classList.toggle('collapsed'));
+  list.appendChild(sec); return sec;
+}
 function renderList(){
   const list=document.getElementById('list'); list.innerHTML='';
-  FOLDERS.forEach(f=>{
-    const names=Object.keys(f.links);
-    const sec=document.createElement('section'); sec.className='folder'; sec.dataset.k=f.key;
-    sec.innerHTML=`<div class="fhead"><span class="caret">▾</span><span class="dot"></span>
-        <span class="fname">${f.key}</span><span class="cnt">${names.length}</span><span class="fdesc">${f.desc}</span></div>
-      <div class="rows">`+
-      (names.length?names.map(n=>
-        `<a class="row" href="${f.links[n]}" target="_blank" rel="noopener" data-name="${n.toLowerCase()}" data-url="${f.links[n].toLowerCase()}">
-          ${icon(n,f.links[n],'fi')}<span class="rn">${n}</span><span class="ru">${f.links[n]}</span></a>`).join('')
-        :`<div class="empty">— empty —</div>`)+`</div>`;
-    sec.querySelector('.fhead').addEventListener('click',()=>sec.classList.toggle('collapsed'));
-    list.appendChild(sec);
+  SECTIONS.forEach(s=>{
+    const wrap=document.createElement('div'); wrap.className='sec'; wrap.dataset.s=s.name;
+    wrap.innerHTML=`<div class="sec-h"><span class="dot"></span><span class="sn">${s.name}</span><span class="sd">${s.desc}</span></div>`;
+    list.appendChild(wrap);
+    const dl=sectionLinks(s), dn=Object.keys(dl);
+    if(dn.length) collapsible(wrap,s.name,s.desc,dn.length,rowsHTML(dl));
+    s.folders.forEach(f=>collapsible(wrap,f.name,f.desc,Object.keys(f.links).length,rowsHTML(f.links)));
+    if(!dn.length && !s.folders.length) collapsible(wrap,s.name,s.desc,0,'');
   });
 }
 
@@ -314,10 +379,11 @@ function setView(v){
   if(v!=='icons') closeFolder();
 }
 
-/* search: on home filters folders that contain a match & auto-opens; in list filters rows */
+/* search: filters icons (direct links + folders) / list rows; hides empty sections */
 function filter(t){
   t=t.trim().toLowerCase();
-  if(document.body.classList.contains('list-mode')){
+  const root=document.body.classList.contains('list-mode')?'#list':'#home';
+  if(root==='#list'){
     document.querySelectorAll('#list .folder').forEach(f=>{
       let any=false;
       f.querySelectorAll('[data-name]').forEach(el=>{
@@ -328,11 +394,19 @@ function filter(t){
     });
   }else{
     document.querySelectorAll('#home .folder-ico').forEach(b=>{
-      const f=FOLDERS[+b.dataset.i];
-      const hit=!t||Object.keys(f.links).some(n=>n.toLowerCase().includes(t)||f.links[n].toLowerCase().includes(t));
+      let hit;
+      if(b.dataset.i!==undefined){ const f=FOLDERS[+b.dataset.i];
+        hit=!t||Object.keys(f.links).some(n=>n.toLowerCase().includes(t)||f.links[n].toLowerCase().includes(t)); }
+      else hit=!t||(b.dataset.name||'').includes(t);
       b.classList.toggle('hidden',!hit);
     });
   }
+  // hide a section whose visible items are all gone
+  document.querySelectorAll(`${root} .sec`).forEach(sec=>{
+    const items=sec.querySelectorAll('.folder-ico, .folder');
+    const anyVisible=[...items].some(el=>!el.classList.contains('hidden'));
+    sec.classList.toggle('hidden',!!t&&!anyVisible);
+  });
 }
 
 renderHome(); renderList();

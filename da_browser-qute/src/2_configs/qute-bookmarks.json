@@ -1,39 +1,50 @@
 {
-  "_description": "qutebrowser bookmarks — FOLDER source of truth for the dashboard start page (List + Icons views) AND flattened `Folder/name` quickmarks. Cloud folders are DATA-DRIVEN: the generator (src/dashboard/gen-dashboard.sh) derives them from cloud-data's build-flakes_desktop.json (each service's proxy.primary.wg_only splits public vs WG-only; .domain / .dns give the URL). Services + Local are hand-curated here. Edit this file or the cloud service build.jsons; never edit the generated dashboard.html. Folder order = array order.",
-  "folders": [
+  "_description": "qutebrowser bookmarks — SECTION source of truth for the dashboard start page (Icons + List views) AND flattened `Folder/name` quickmarks. Model: sections[] → each has direct `links` and/or `folders[]` → each folder has `links`. DATA-DRIVEN sources resolved by gen-dashboard.sh: section source:\"history\" → last 5 from qutebrowser history.sqlite (merged live with localStorage clicks); section source:\"front\" → one folder per front git category (a-/b-/c-) from front-topology.json; folder source:\"cloud:public\"|\"cloud:app\" → services from cloud-data build-flakes_desktop.json (wg_only split). Hand-curated links live inline here. Edit this file (or the cloud/front SoTs); never edit generated dashboard.html. Order = array order.",
+  "sections": [
     {
-      "name": "Cloud-dnm",
-      "desc": "Public Caddy edge — *.diegonmarcos.com (Authelia 2FA)",
-      "source": "cloud:public"
+      "name": "Last Sessions",
+      "desc": "recent history · last 5 (live)",
+      "source": "history"
     },
     {
-      "name": "Cloud-priv",
-      "desc": "Internal WG mesh — *.app",
-      "source": "cloud:app"
-    },
-    {
-      "name": "Services",
-      "desc": "External SaaS",
-      "links": {
-        "claude-usage": "https://claude.ai/new#settings/usage",
-        "gemini":       "https://gemini.google.com",
-        "github":       "https://github.com/diegonmarcos"
-      }
-    },
-    {
-      "name": "Local",
-      "desc": "Dev server · repos · filesystem",
+      "name": "QuickMarks",
+      "desc": "pinned",
       "links": {
         "bookmarks": "file:///home/diego/.config/qutebrowser/dashboard.html",
-        "dev":       "http://localhost:8000",
-        "home":      "file:///home/diego",
-        "mnt":       "file:///mnt",
-        "cloud":     "file:///home/diego/git/cloud",
-        "unix":      "file:///home/diego/git/unix",
-        "front":     "file:///home/diego/git/front",
-        "vault":     "file:///home/diego/git/vault",
-        "tools":     "file:///home/diego/git/tools"
+        "git":       "http://localhost:8000/git",
+        "linktree":  "https://linktree.diegonmarcos.com",
+        "cloud":     "https://cloud.diegonmarcos.com",
+        "proxy":     "https://proxy.diegonmarcos.com"
       }
+    },
+    {
+      "name": "Bookmarks",
+      "desc": "categories",
+      "folders": [
+        { "name": "Dev",      "links": { "github": "https://github.com/diegonmarcos", "mdn": "https://developer.mozilla.org", "stackoverflow": "https://stackoverflow.com", "nixpkgs": "https://search.nixos.org/packages" } },
+        { "name": "AI",       "links": { "claude": "https://claude.ai/new", "claude-usage": "https://claude.ai/new#settings/usage", "gemini": "https://gemini.google.com", "chatgpt": "https://chatgpt.com" } },
+        { "name": "News",     "links": { "hn": "https://news.ycombinator.com", "lobsters": "https://lobste.rs", "reuters": "https://www.reuters.com", "arstechnica": "https://arstechnica.com" } },
+        { "name": "Mail",     "links": { "webmail": "https://webmail.diegonmarcos.com", "gmail": "https://mail.google.com", "proton": "https://mail.proton.me" } },
+        { "name": "Media",    "links": { "youtube": "https://youtube.com", "spotify": "https://open.spotify.com", "photos": "https://photos.diegonmarcos.com" } },
+        { "name": "Social",   "links": { "matrix": "https://messenger.diegonmarcos.com", "mattermost": "https://chat.diegonmarcos.com", "linkedin": "https://www.linkedin.com", "reddit": "https://www.reddit.com" } },
+        { "name": "Docs",     "links": { "hedgedoc": "https://app.diegonmarcos.com/hedgedoc", "etherpad": "https://app.diegonmarcos.com/etherpad", "grist": "https://sheets.diegonmarcos.com" } },
+        { "name": "Finance",  "links": { "fin-api": "https://api.diegonmarcos.com/fin-api" } },
+        { "name": "Shopping", "links": { "amazon": "https://www.amazon.com" } },
+        { "name": "Search",   "links": { "google": "https://www.google.com", "ddg": "https://duckduckgo.com", "wikipedia": "https://www.wikipedia.org" } }
+      ]
+    },
+    {
+      "name": "Cloud",
+      "desc": "self-hosted",
+      "folders": [
+        { "name": "Pub",  "desc": "Public Caddy edge — *.diegonmarcos.com (Authelia 2FA)", "source": "cloud:public" },
+        { "name": "Priv", "desc": "Internal WG mesh — *.app",                              "source": "cloud:app" }
+      ]
+    },
+    {
+      "name": "Front",
+      "desc": "front monorepo · a/b/c tree",
+      "source": "front"
     }
   ]
 }
