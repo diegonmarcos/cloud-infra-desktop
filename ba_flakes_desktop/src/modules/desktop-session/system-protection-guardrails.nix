@@ -1,264 +1,45 @@
-# Guardrails: PATH wrapper scripts in ~/.local/bin/
-# Four-tier command protection:
-#   WHITELIST → read-only / safe subcommands — pass through immediately
-#   BLOCKED   → dangerous flag combos that wipe databases/volumes — hard stop
-#   CONFIRM   → declarative reminder + ask y/N (auto-confirmed by build.sh)
-#   WARNING   → reminder banner, then run
+# Guardrails — RETIRED (dead-code removed 2026-07-08, PLAN-hardening §1C U3)
 #
-# Flow: whitelist? → pass | blocked? → stop | confirm/warning? → prompt | else → pass
+# ── What this module used to be ────────────────────────────────────────────
+# A ~250-line generator that wrote PATH-shadowing wrapper scripts into
+# ~/.local/bin/ for ~30 commands (npm, docker, nix, cargo, …) implementing four
+# tiers: WHITELIST (pass) · BLOCKED (hard-stop destructive flags like
+# `docker compose down -v`) · CONFIRM (y/N prompt) · WARNING (banner).
+# It also prepended ~/.local/bin to PATH via programs.bash.{initExtra,profileExtra}.
 #
-# BUILDSH_GUARDRAIL=1 bypasses all prompts (re-entry + auto-confirm).
-# BLOCKED is never bypassed, not even by build.sh.
-# All wrappers are POSIX sh — no bash required.
-{ config, lib, ... }:
-
-let
-  managed = import ./managed-header.nix { inherit lib; repo = "unix/ba_flakes_desktop"; };
-
-  # ── Tier 0: WHITELIST — read-only subcommands, pass immediately ────
-  # These never modify the system. Needed for Claude Code internals
-  # (npm root -g, npm config get prefix, etc.) and general safe queries.
-  whitelist = [
-    { cmd = "npm"; subcommands = [
-      "root" "config" "prefix" "ls" "list" "ll" "la"
-      "view" "info" "show" "search" "help" "explain"
-      "doctor" "audit" "outdated" "fund" "pack" "ping"
-      "whoami" "token" "profile" "access" "bugs" "repo"
-      "completion" "explore" "-v" "--version" "-h" "--help"
-    ]; }
-    { cmd = "npx"; subcommands = [
-      "-h" "--help" "--version" "-v"
-    ]; }
-    { cmd = "docker"; subcommands = [
-      "ps" "images" "logs" "inspect" "top" "stats" "diff"
-      "port" "version" "info" "events" "history" "search"
-      "network ls" "network inspect" "volume ls" "volume inspect"
-      "-v" "--version" "-h" "--help"
-    ]; }
-    { cmd = "nix"; subcommands = [
-      "eval" "show-derivation" "path-info" "log" "why-depends"
-      "build" "store" "hash" "flake" "registry" "doctor" "profile"
-      "copy" "derivation" "nar" "key" "daemon" "describe-stores"
-      "--version" "--help" "-h"
-    ]; }
-    { cmd = "pip"; subcommands = [
-      "list" "show" "freeze" "check" "config"
-      "--version" "-V" "--help" "-h"
-    ]; }
-    { cmd = "pip3"; subcommands = [
-      "list" "show" "freeze" "check" "config"
-      "--version" "-V" "--help" "-h"
-    ]; }
-  ];
-
-  whitelistFor = cmd: let
-    rules = builtins.filter (r: r.cmd == cmd) whitelist;
-    subs = if rules == [] then [] else (builtins.head rules).subcommands;
-  in subs;
-
-  mkWhitelistCheck = cmd: let
-    subs = whitelistFor cmd;
-    # Match first non-flag argument against each whitelisted subcommand
-    checks = map (sub: ''
-      ${sub}) _log_guardrail "whitelist"; exec ${cmd} "$@" || _die "exec '${cmd}' failed (whitelist)" ;;'') subs;
-  in if subs == [] then "" else ''
-    # Tier 0: WHITELIST — scan past flags to find the subcommand
-    _sub=""
-    for _arg in "$@"; do
-      case "$_arg" in
-        -*) continue ;;
-        *) _sub="$_arg"; break ;;
-      esac
-    done
-    case "$_sub" in
-    ${builtins.concatStringsSep "\n    " checks}
-    esac
-  '';
-
-  # ── Tier 1: BLOCKED — flag patterns that destroy data ──────────────
-  # The COMMAND is fine. The ARGS are the problem.
-  blocked = [
-    { cmd = "docker";         match = "compose down -v";           reason = "'-v' wipes Docker volumes — databases, state, everything persistent"; }
-    { cmd = "docker";         match = "compose down --volumes";    reason = "'--volumes' wipes Docker volumes — databases, state, everything persistent"; }
-    { cmd = "docker";         match = "volume rm";                 reason = "'volume rm' permanently deletes named volumes — databases live there"; }
-    { cmd = "docker";         match = "volume prune";              reason = "'volume prune' deletes ALL unused volumes — may contain databases"; }
-    { cmd = "docker";         match = "system prune -a --volumes"; reason = "'--volumes' with system prune removes everything including databases"; }
-    { cmd = "docker-compose"; match = "down -v";                   reason = "'-v' wipes Docker volumes — databases, state, everything persistent"; }
-    { cmd = "docker-compose"; match = "down --volumes";            reason = "'--volumes' wipes Docker volumes — databases, state, everything persistent"; }
-    { cmd = "rsync";          match = "--delete";                  reason = "'--delete' removes remote files not in source — use build.sh deploy instead"; }
-  ];
-
-  # ── Tier 2: CONFIRM — show declarative reminder + ask y/N ──────────
-  # All commands that were already wrapped (the original 24)
-  confirmCmds = [
-    "npm" "npx" "apt" "apt-get" "pkg" "pip" "pip3" "nix-env"
-    "yarn" "pnpm" "docker" "docker-compose" "nix" "nixos-rebuild"
-    "home-manager" "snap" "flatpak" "pacman" "yay" "paru"
-    "dnf" "yum" "brew" "pipx" "conda" "poetry" "uv"
-  ];
-
-  # ── Tier 3: WARNING — reminder banner, then run ────────────────────
-  # Safe build/dev tools — you need them to work, just a nudge
-  warningCmds = [ "bun" "cargo" "go" ];
-
-  # Commands from blocked rules need wrappers too (so flags get intercepted)
-  blockedCmds = lib.unique (map (r: r.cmd) blocked);
-
-  # All commands that need wrappers
-  allCommands = lib.unique (confirmCmds ++ warningCmds ++ blockedCmds);
-
-  # ── Rule matching helpers ──────────────────────────────────────────
-  blockedRulesFor = cmd: builtins.filter (r: r.cmd == cmd) blocked;
-
-  mkBlockChecks = cmd: let
-    rules = blockedRulesFor cmd;
-    mkCheck = rule: ''
-      if printf " %s " "$ARGS" | grep -qiF -- "${rule.match}"; then
-        printf "\n"
-        printf "\033[1;31m  ╔══════════════════════════════════════════════════════════════╗\033[0m\n"
-        printf "\033[1;31m  ║  ✖ BLOCKED — DESTRUCTIVE OPERATION                          ║\033[0m\n"
-        printf "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m\n"
-        printf "\033[1;31m  ║  The command itself is fine. The flags are the problem:      ║\033[0m\n"
-        printf "\033[1;31m  ║                                                              ║\033[0m\n"
-        printf "\033[1;33m  ║  ${rule.reason}\033[0m\n"
-        printf "\033[1;31m  ║                                                              ║\033[0m\n"
-        printf "\033[0;37m  ║  Ran: ${cmd} %s\033[0m\n" "$ARGS"
-        printf "\033[1;31m  ║                                                              ║\033[0m\n"
-        printf "\033[0;33m  ║  Use build.sh for safe deploy/compose operations.            ║\033[0m\n"
-        printf "\033[1;31m  ╚══════════════════════════════════════════════════════════════╝\033[0m\n"
-        _log_guardrail "blocked"
-        printf "\n"
-        exit 1
-      fi
-    '';
-  in builtins.concatStringsSep "\n" (map mkCheck rules);
-
-  # ── Wrapper generator ──────────────────────────────────────────────
-  mkWrapper = cmd: let
-    isWarning = builtins.elem cmd warningCmds;
-    blockChecks = mkBlockChecks cmd;
-    whitelistCheck = mkWhitelistCheck cmd;
-  in {
-    name = ".local/bin/${cmd}";
-    value = {
-      executable = true;
-      text = managed.inject { source = "_shared/modules/guardrails.nix"; text = (''
-        #!/bin/sh
-        # Error handling — NEVER fail silently
-        _die() { printf "\033[1;31m  [guardrail/${cmd}] ERROR: %s\033[0m\n" "$1" >&2; exit 1; }
-
-        # ── Logging: daily tier-specific logs with caller info ──
-        _log_guardrail() {
-          _tier="$1"
-          _log_dir="$HOME/.local/log/guardrails"
-          mkdir -p "$_log_dir" 2>/dev/null || return 0
-          _date=$(date +%Y-%m-%d)
-          _ts=$(date +%Y-%m-%dT%H:%M:%S%z)
-          _logfile="$_log_dir/guardrails-$_date-$_tier.log"
-          _ppid_cmd=$(ps -o comm= $PPID 2>/dev/null || echo "unknown")
-          _ppid_full=$(cat /proc/$PPID/cmdline 2>/dev/null | tr '\0' ' ' | head -c 200 || echo "N/A")
-          _tty_info="none"
-          if [ -t 0 ] || [ -t 1 ]; then _tty_info=$(tty 2>/dev/null || echo "tty"); fi
-          _ssh_info="local"
-          if [ -n "''${SSH_CLIENT:-}" ]; then _ssh_info="ssh:$(echo "''${SSH_CLIENT}" | cut -d' ' -f1)"; fi
-          _user=$(id -un 2>/dev/null || echo "unknown")
-          printf '%s | %s %s | caller=%s(pid=%s) | cmdline=%s | tty=%s | %s | user=%s\n' \
-            "$_ts" "${cmd}" "$ARGS" "$_ppid_cmd" "$PPID" "$_ppid_full" "$_tty_info" "$_ssh_info" "$_user" \
-            >> "$_logfile" 2>/dev/null || true
-        }
-
-        # Strip ~/.local/bin from PATH so exec hits the real binary (must happen BEFORE any exec)
-        PATH="$(printf "%s" "$PATH" | tr ':' '\n' | grep -v '\.local/bin' | tr '\n' ':')"
-
-        # Bypass: BUILDSH_GUARDRAIL=1 skips all prompts (re-entry guard + auto-confirm)
-        if [ "''${BUILDSH_GUARDRAIL:-}" = "1" ]; then
-          exec ${cmd} "$@" || _die "exec '${cmd}' failed (not found on PATH?)"
-        fi
-
-        # Bypass: desktop session init (SDDM/KWin/Plasma startup) — no human to prompt
-        # Without this, guardrail confirm-tier commands (e.g. flatpak) called by Plasma
-        # during login hit the 5s read timeout → exit 1 → kills the entire Wayland session.
-        if [ -z "''${TERM:-}" ] || [ "''${TERM:-}" = "dumb" ]; then
-          _ppid_name=$(ps -o comm= $PPID 2>/dev/null || true)
-          case "$_ppid_name" in
-            sddm*|startplasma*|kwin*|plasma*|gnome-session*|gdm*|lightdm*)
-              _log_guardrail "desktop-bypass"
-              exec ${cmd} "$@" || _die "exec '${cmd}' failed (desktop session bypass)"
-              ;;
-          esac
-        fi
-
-        export BUILDSH_GUARDRAIL=1
-        # Verify the real binary exists after PATH strip
-        if ! command -v ${cmd} >/dev/null 2>&1; then
-          _die "'${cmd}' not found on PATH after stripping ~/.local/bin. Is it installed?"
-        fi
-        ARGS="$*"
-        ${whitelistCheck}
-        ${blockChecks}
-      '' + (if isWarning then ''
-        printf "\n"
-        printf "\033[0;33m  ╔══════════════════════════════════════════════════════════════╗\033[0m\n"
-        printf "\033[0;33m  ║  ⚠ REMINDER                                                 ║\033[0m\n"
-        printf "\033[0;33m  ╠══════════════════════════════════════════════════════════════╣\033[0m\n"
-        printf "\033[0;33m  ║  build.sh is the preferred interface for builds and deps.    ║\033[0m\n"
-        printf "\033[0;33m  ║  Direct use is fine for quick tasks — just be aware.         ║\033[0m\n"
-        printf "\033[0;33m  ╚══════════════════════════════════════════════════════════════╝\033[0m\n"
-        printf "\n"
-        _log_guardrail "warning"
-        exec ${cmd} "$@" || _die "exec '${cmd}' failed"
-      '' else ''
-        printf "\n"
-        printf "\033[1;31m  ╔══════════════════════════════════════════════════════════════╗\033[0m\n"
-        printf "\033[1;31m  ║  ⚠ CONFIRM — DECLARATIVE ENVIRONMENT                        ║\033[0m\n"
-        printf "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m\n"
-        printf "\033[1;31m  ║  1) DECLARATIVE ONLY                                         ║\033[0m\n"
-        printf "\033[1;31m  ║     THIS IS A FULL DECLARATIVE ENVIRONMENT, NIX-FLAKES WAY  ║\033[0m\n"
-        printf "\033[1;31m  ╠══════════════════════════════════════════════════════════════╣\033[0m\n"
-        printf "\033[1;33m  ║  2) BUILD.SH ALWAYS                                          ║\033[0m\n"
-        printf "\033[1;33m  ║     JS deps  → build.sh deps | Build → build.sh build        ║\033[0m\n"
-        printf "\033[1;33m  ╠══════════════════════════════════════════════════════════════╣\033[0m\n"
-        printf "\033[1;35m  ║  3) NO HARDCODE EASY FIX                                     ║\033[0m\n"
-        printf "\033[1;35m  ║     Always report a bug in the build.sh engine               ║\033[0m\n"
-        printf "\033[1;35m  ╚══════════════════════════════════════════════════════════════╝\033[0m\n"
-        printf "\n"
-        # Non-interactive (no TTY) — explain how to approve via env var
-        if ! [ -e /dev/tty ]; then
-          printf "\033[1;33m  ┌─────────────────────────────────────────────────────────────┐\033[0m\n"
-          printf "\033[1;33m  │  NO TTY — cannot prompt for confirmation.                   │\033[0m\n"
-          printf "\033[1;33m  │                                                             │\033[0m\n"
-          printf "\033[1;37m  │  To approve, re-run with:                                   │\033[0m\n"
-          printf "\033[1;36m  │    BUILDSH_GUARDRAIL=1 ${cmd} %s\033[0m\n" "$ARGS"
-          printf "\033[1;33m  │                                                             │\033[0m\n"
-          printf "\033[0;37m  │  Or use build.sh which auto-approves guardrails.            │\033[0m\n"
-          printf "\033[1;33m  └─────────────────────────────────────────────────────────────┘\033[0m\n"
-          printf "\n"
-          exit 1
-        fi
-        printf "\033[1;37m  Proceed? [y/N] \033[0m"
-        if ! read -t 5 -r REPLY < /dev/tty 2>/dev/null; then
-          printf "\n\033[0;31m  [guardrail] BLOCKED (no TTY or timeout): ${cmd} %s\033[0m\n" "$ARGS" >&2
-          printf "\033[0;33m  Source: ~/git/unix/ba_flakes_desktop/src/modules/system-protection-guardrails.nix\033[0m\n" >&2
-          exit 1
-        fi
-        if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
-          printf "\033[0;31m  Aborted.\033[0m\n"
-          exit 1
-        fi
-        _log_guardrail "confirm"
-        exec ${cmd} "$@" || _die "exec '${cmd}' failed after confirmation"
-      '')); };
-    };
-  };
-
-in
+# ── Why it is DELETED, not re-enabled ──────────────────────────────────────
+# The entire output (`programs.bash.*` + `home.file`) was commented out and
+# labelled "TEMPORARILY DISABLED for login debugging". Investigated for U3:
+#
+#   1. DEAD — the module body has produced NOTHING across the 77-leaf split
+#      refactor; it is imported by desktop-session/system-protection.nix purely
+#      as a no-op. The huge `let` (whitelist/blocked/mkWrapper/…) was never forced.
+#
+#   2. RE-ENABLING IS BROKEN — the split moved this file into desktop-session/
+#      but left `import ./managed-header.nix`; the real file is one level up at
+#      ../managed-header.nix. Uncommenting the body forces `managed` and fails
+#      nix eval with "path does not exist". So it could never be re-enabled as-is.
+#
+#   3. RE-ENABLING IS RISKY — it was disabled precisely because the PATH wrappers
+#      broke login (the CONFIRM tier's `read -t 5` on session-init commands). The
+#      SDDM/Plasma bypass added later was never trusted enough to flip it back on.
+#
+#   4. REDUNDANT — every protection it offered is already enforced upstream and
+#      more reliably: the Claude Code Tier-C₁ Bash hooks hard-deny `git add -f`,
+#      `docker compose down -v|--volumes`, `docker volume rm|prune`, etc. (see
+#      ~/.claude/CLAUDE.md §E.1.2), and the cloud pre-commit hook blocks
+#      gitignored/secret stages. A per-shell PATH wrapper is weaker (bypassed by
+#      absolute paths, non-bash shells, env) and login-fragile.
+#
+#   5. SIBLING PRECEDENT — the VM-side equivalent
+#      cloud/b_infra/_shared/vm-pilot/src/modules/protection/guardrails.nix is
+#      likewise disabled ("POSIX sh bug"). This whole PATH-wrapper approach is
+#      superseded by the hook layer on both desktop and VMs.
+#
+# If a shell-level guardrail is ever wanted again, resurrect from git history
+# (commit 7881b10e and earlier), fix the ../managed-header.nix path, and re-test
+# the login path before enabling — do not just uncomment.
+{ ... }:
 {
-  # TEMPORARILY DISABLED for login debugging — re-enable after test
-  # programs.bash.initExtra = lib.mkBefore ''
-  #   export PATH="$HOME/.local/bin:$PATH"
-  # '';
-  # programs.bash.profileExtra = lib.mkAfter ''
-  #   export PATH="$HOME/.local/bin:$PATH"
-  # '';
-  # home.file = builtins.listToAttrs (map mkWrapper allCommands);
+  # Intentionally empty. See header for the U3 delete-vs-reenable rationale.
 }

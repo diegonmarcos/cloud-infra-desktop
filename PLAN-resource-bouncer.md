@@ -1,5 +1,40 @@
 # Plan: Universal Resource Bouncer — System That NEVER Freezes
 
+> **STATUS 2026-07-08 (PLAN-hardening §1C convergence):** The bouncer is LIVE and
+> has evolved well past this doc — it now lives in the data-driven module
+> `aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_system-protection.nix`
+> + `cloud-data-system-protection.json` (SoT), with slice budgets, PSI killers
+> (systemd-oomd + freeze-guard), zram, disk-watchdog, and swap valves all shipped.
+> This plan's file path (`aa_nixos-surface_host/src/configuration.nix`) is RETIRED.
+>
+> - [x] **§1 Merge two `nix.settings` blocks (U2)** — DONE, structurally, by the
+>   77-leaf module split. The old single-attrset shadow (two `nix.settings` in one
+>   file where the 2nd silently dropped the 1st's substituters) no longer exists:
+>   `nix.settings` is now owned by two modules with DISJOINT keys, merged additively
+>   by NixOS — nothing lost. Verified: `configuration_nix.nix` owns
+>   `substituters`/`trusted-public-keys`; `configuration_kernel_preservation.nix`
+>   owns `extra-substituters`/`extra-trusted-substituters`. An INVARIANT comment
+>   was added to `configuration_nix.nix` so no one re-introduces the shadow. (The
+>   `max-jobs 4→2` tweak was superseded: current SoT is `max-jobs=1, cores=4`.)
+> - [x] **§2d slice budgets** — LIVE + DATA-DRIVEN (kernel/os-essentials/workload/
+>   connectivity-island/user/machine slices in `configuration_system-protection.nix`).
+> - [x] **§2e nix-daemon hard limits** — LIVE + DATA-DRIVEN (`sysprot.nix_daemon`,
+>   `MemorySwapMax=0`; also reinforced live by build.sh before every build).
+> - [x] **§3 disk-watchdog** — LIVE (escalating cleanup timer, richer than the sketch).
+> - [x] **Hardware specs data-driven (U1)** — `cpus`/`ramMB`/`rescue_port` moved into
+>   `cloud-data-system-protection.json[.specs/.rescue_port]`, mirroring the vm-pilot
+>   schema; the module reads them via `builtins.fromJSON`. Testers added
+>   (`test-system-protection.sh` + 3 new `testers.checks`).
+> - [~] **§2c earlyoom** — SUPERSEDED: earlyoom is DISABLED per the 2026-07-03
+>   PSI-only directive (kept data-driven, `sysprot.earlyoom.enable=false`).
+>   Active killers are systemd-oomd (mem PSI) + freeze-guard (mem/io/cpu PSI).
+> - [ ] **Desktop PSI graceful docker-shed (PLAN-hardening §3)** — FOLLOW-UP, not
+>   done. freeze-guard (process-granular PSI killer) + machine.slice caps already
+>   cover desktop container pressure; a VM-style whole-`docker`-stop shedder is
+>   neither trivial (depends on consolidated-JSON tier1_services + ship-recovery
+>   doctrine) nor low-risk on an interactive desktop. Revisit only if machine.slice
+>   caps + freeze-guard prove insufficient in practice.
+
 ## Context
 
 Surface Pro 8, 7.6GB RAM, froze hard during a nix build. The kernel locked up because nothing stopped processes from consuming ALL resources. earlyoom at 5% was a band-aid on one symptom. The real fix: a **universal bouncer** using systemd cgroups v2 that enforces resource budgets on EVERYTHING — CPU, memory, I/O — so the desktop ALWAYS stays responsive regardless of what any process tries to do.
