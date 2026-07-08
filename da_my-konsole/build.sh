@@ -119,10 +119,15 @@ cmd_run() {
   LD_LIBRARY_PATH="${libpath}:${LD_LIBRARY_PATH:-}" MYK_SHELL="${MYK_SHELL:-$SHELL_CMD}" exec "$bin"
 }
 
-# install — write a ~/.local/bin/<bin> launcher (→ build.sh run). Idempotent.
+# install — self-contained desktop integration (launcher + .desktop + icon),
+# all fields from build.json. No home-manager activation needed. Idempotent.
 cmd_install() {
   sync_data
-  mkdir -p "$HOME/.local/bin"
+  local apps="$HOME/.local/share/applications"
+  local icons="$HOME/.local/share/icons/hicolor/scalable/apps"
+  mkdir -p "$HOME/.local/bin" "$apps" "$icons"
+
+  # 1. launcher on PATH
   local launcher="$HOME/.local/bin/$BIN"
   cat > "$launcher" <<EOF
 #!/usr/bin/env bash
@@ -130,7 +135,29 @@ cmd_install() {
 exec "$HERE/build.sh" run
 EOF
   chmod +x "$launcher"
-  log "Installed launcher → $launcher"
+
+  # 2. personalized icon → hicolor scalable (KDE resolves SVG by name)
+  command cp -f "$(cfg '.desktop.icon_svg')" "$icons/$BIN.svg" 2>/dev/null || true
+
+  # 3. .desktop entry (Name/Exec/Icon/WMClass/etc all from build.json)
+  cat > "$apps/$BIN.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=$(cfg '.app.product_name')
+GenericName=$(cfg '.desktop.generic_name')
+Comment=$(cfg '.desktop.comment')
+Exec=$launcher
+Icon=$BIN
+Terminal=false
+StartupNotify=true
+StartupWMClass=$(cfg '.app.wm_class')
+Categories=$(cfg '.desktop.categories')
+EOF
+
+  # 4. refresh caches (best-effort — no failure if the tools are absent)
+  command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$apps" 2>/dev/null || true
+  command -v gtk-update-icon-cache   >/dev/null 2>&1 && gtk-update-icon-cache -qtf "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+  log "Installed launcher + desktop entry + icon (menu/taskbar: $BIN)"
 }
 
 case "${1:-build}" in
