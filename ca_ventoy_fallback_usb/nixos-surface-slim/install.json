@@ -37,7 +37,8 @@
     "network": ["networkmanager", "iwd", "openssh", "curl", "wget", "git"],
     "gui": {
       "window_manager": "openbox",
-      "terminal": "sakura",
+      "terminal": "alacritty (my-konsole; Rust/GPU)",
+      "terminal_tty": "cage -s -- alacritty (GPU terminal on raw TTY, no X11)",
       "file_manager": "pcmanfm",
       "browser": "surf",
       "launcher": "dmenu",
@@ -58,7 +59,7 @@
   },
   "openbox": {
     "shortcuts": {
-      "Super+Return": "sakura (terminal)",
+      "Super+Return": "alacritty (terminal)",
       "Super+E": "pcmanfm (files)",
       "Super+B": "surf (browser)",
       "Super+D": "dmenu_run (launcher)",
@@ -67,14 +68,14 @@
       "Alt+Tab": "switch windows"
     },
     "menu": [
-      {"label": "Terminal", "command": "sakura"},
+      {"label": "Terminal", "command": "alacritty"},
       {"label": "Files", "command": "pcmanfm"},
       {"label": "Browser", "command": "surf https://claude.ai"},
       {"separator": true},
       {"label": "WiFi Settings", "command": "nm-connection-editor"},
-      {"label": "WiFi (nmtui)", "command": "sakura -e nmtui"},
-      {"label": "Claude Code", "command": "sakura -e claude"},
-      {"label": "System Monitor", "command": "sakura -e btop"},
+      {"label": "WiFi (nmtui)", "command": "alacritty -e nmtui"},
+      {"label": "Claude Code", "command": "alacritty -e claude"},
+      {"label": "System Monitor", "command": "alacritty -e btop"},
       {"separator": true},
       {"label": "Recovery submenu", "items": ["Unlock LUKS", "Mount Pool", "Disk Usage"]},
       {"separator": true},
