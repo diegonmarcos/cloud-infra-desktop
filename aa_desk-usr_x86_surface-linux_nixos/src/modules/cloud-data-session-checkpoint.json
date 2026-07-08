@@ -4,12 +4,12 @@
   "enabled": true,
 
   "checkpoint": {
-    "_comment": "btrfs_root must be the mounted pool top-level. source_subvol is snapshotted READ-ONLY into snapshot_dir/<UTC-timestamp>. Nested subvolumes (e.g. container storage inside home) are automatically excluded by btrfs — desirable, they are not session state. interval_minutes drives the periodic systemd timer; retention_count is a simple newest-N prune. CADENCE (2026-06-27): the periodic timer is a slow safety net (every 6h) — the session-relevant moments are covered by EVENT checkpoints instead: shutdown_checkpoint (every reboot/shutdown) and hibernate_checkpoint (every hibernate trigger). No need for a sub-hour periodic timer. retention_count=1 keeps ONLY the most recent checkpoint (no accumulating history): CoW makes a single snapshot ~0 bytes, but every RETAINED older snapshot pins the OLD copy of any extent later changed/deleted in @home-diego — so a multi-snapshot window silently holds days of churn (deleted caches, build output) and fills the pool. Pruning to 1 each run keeps a session-file-on-disk while never accumulating divergence. Raise only if point-in-time rollback history is worth the disk.",
+    "_comment": "btrfs_root must be the mounted pool top-level. source_subvol is snapshotted READ-ONLY into snapshot_dir/<UTC-timestamp>. Nested subvolumes (e.g. container storage inside home) are automatically excluded by btrfs — desirable, they are not session state. interval_minutes drives the periodic systemd timer; retention_count is a simple newest-N prune. CADENCE (2026-06-27): the periodic timer is a slow safety net (every 6h) — the session-relevant moments are covered by EVENT checkpoints instead: shutdown_checkpoint (every reboot/shutdown) and hibernate_checkpoint (every hibernate trigger). No need for a sub-hour periodic timer. retention_count=3 (HARD CAP — user 2026-07-08: 'keep only 3 snapshots, not more'). WHY NOT 1: retention_count=1 lost a real session — a fresh boot's periodic checkpoint (fires 5min after boot) pruned the previous session's snapshot before it could be recovered, so after any crash/reboot you could NEVER roll back the prior session (the recovery boot itself deleted it). Keeping the newest 3 guarantees the previous session survives at least one reboot (its shutdown/periodic checkpoints stay among the newest 3). TRADEOFF: each RETAINED older snapshot pins the OLD copy of any extent later changed/deleted in @home-diego, so 3 snapshots hold a bounded window of churn (deleted caches, build output) — CoW keeps this ~0 until files diverge; 3 is the accepted ceiling. Do NOT raise above 3 without weighing pool pressure.",
     "btrfs_root": "/mnt/btrfs-root",
     "source_subvol": "@home-diego",
     "snapshot_dir": "@snapshots/home-diego",
     "interval_minutes": 360,
-    "retention_count": 1,
+    "retention_count": 3,
     "_notify_comment": "When true, each PERIODIC checkpoint pops a desktop notification (notify-send, follows the KDE dark theme) confirming the local snapshot was saved. Shutdown checkpoints never notify (session is ending). Set false for silent operation.",
     "notify": true
   },
@@ -54,6 +54,12 @@
         "description": "at least one checkpoint snapshot exists on disk",
         "command": "ls -1 /mnt/btrfs-root/@snapshots/home-diego/ | wc -l",
         "expect_regex": "^[1-9][0-9]*$"
+      },
+      {
+        "id": "retention_cap_is_3",
+        "description": "retention is capped at 3 — never more than 3 checkpoints on disk (user hard cap 2026-07-08; prevents the KEEP=1 bug that pruned the previous session on a fresh boot)",
+        "command": "test \"$(ls -1 /mnt/btrfs-root/@snapshots/home-diego/ | wc -l)\" -le 3 && echo ok",
+        "expect": "ok"
       },
       {
         "id": "checkpoint_is_readonly",
