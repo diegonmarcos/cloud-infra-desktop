@@ -812,6 +812,23 @@ cmd_ci_build() {
                     /opt/hostedtoolcache/CodeQL /usr/local/share/boost 2>/dev/null || true
     fi
 
+    # Relock the floating self-inputs to HEAD *in CI* before building. The
+    # committed narHash for `github:diegonmarcos/unix` is computed on the dev
+    # laptop via nix's git backend, but the runner fetches the codeload tarball
+    # — and because the repo carries submodules, the two backends produce
+    # DIFFERENT NAR hashes for the same rev → hard "NAR hash mismatch in input".
+    # These inputs declare no ref (they float to default-branch HEAD), so
+    # relocking here is semantically identical and, crucially, self-consistent:
+    # the same nix that writes the lock also validates the fetch. Devs therefore
+    # never need to hand-commit an (unreproducible) lock bump. CI-only guard so a
+    # local ci-build stays offline-friendly.
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        log_info "Relocking floating self-inputs (unix-repo, cloud-repo) to HEAD..."
+        ( cd "$SRC_DIR" && nix flake update unix-repo cloud-repo \
+            --accept-flake-config --extra-experimental-features "nix-command flakes" ) \
+            || log_warn "self-input relock failed — falling back to committed lock"
+    fi
+
     log_info "Building $_attr (accept-flake-config → cached substitutes)..."
     nix build "$SRC_DIR#$_attr" --impure --accept-flake-config \
         --out-link "$_out/result" --extra-experimental-features "nix-command flakes" \
