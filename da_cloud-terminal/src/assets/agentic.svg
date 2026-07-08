@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="128" height="128">
+  <!-- minimal per-profile accent ring (theme.accent) — differentiates the tray icons, stays dark-mode -->
+  <rect x="0.6" y="0.6" width="22.8" height="22.8" rx="5.5" fill="none" stroke="#f472b6" stroke-width="0.9" opacity="0.85"/>
+  <!-- chip: body + pins, for an agentic/AI workspace -->
+  <rect x="8" y="8" width="8" height="8" rx="1" fill="none" stroke="#dee1e6" stroke-width="1.3"/>
+  <circle cx="12" cy="12" r="1.6" fill="none" stroke="#dee1e6" stroke-width="1.1"/>
+  <path d="M12 4.6v3.2M12 16.2v3.2M4.6 12h3.2M16.2 12h3.2" stroke="#dee1e6" stroke-width="1.2" stroke-linecap="round"/>
+</svg>
