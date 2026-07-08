@@ -1,0 +1,144 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║                                                                  ║
+# ║   GENERATED FILE — DO NOT EDIT                                   ║
+# ║                                                                  ║
+# ║   Source : 1_workflows/src/cicd/ship-slim-iso.yml
+# ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
+# ║   Rebuild: ./1_workflows/build.sh
+# ║                                                                  ║
+# ║   Manual edits will be overwritten on next build.                ║
+# ║                                                                  ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+name: "Ship → Surface Slim rescue ISO (build remotely, cache 25.05 kernel)"
+
+# Builds the nixos-surface-slim rescue ISO on a GHA runner so the laptop never
+# has to compile the linux-surface kernel locally (its freeze-guard/oomd kills
+# heavy builds by design). Two deliverables per run, mirroring ship-boot-cache:
+#
+#   1. ghcr.io/<owner>/unix-slim-boot-cache:{nix-linux-<kver>,latest}
+#      — Nix-format closure of the slim ISO's kernel + initrd (nixpkgs 25.05).
+#        Distinct image from unix-boot-cache (that one is the host's 24.11
+#        kernel; this is the slim flake's 25.05 derivation — different hash).
+#        Lets the laptop `nix copy --from` the kernel instead of recompiling.
+#
+#   2. Workflow artifact `nixos-surface-slim-iso` — the built .iso, downloaded
+#      on the laptop via `gh run download` to populate the my-konsole rescue
+#      partition (nvme0n1p8, label mykonsole-resc).
+#
+# The slim flake keeps the Surface config intact (microsoft-surface-pro-intel
+# module + linux-surface kernel + iptsd) — the runner only lends CPU/RAM, the
+# derivation built is identical to a local build.
+#
+# Kernel compile is ~30-45 min on ubuntu-latest (4 vCPU / 16 GB); free disk
+# first to avoid ENOSPC. cache.nixos.org has no prebuilt linux-surface binary.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "ca_ventoy_fallback_usb/nixos-surface-slim/flake.nix"
+      - "ca_ventoy_fallback_usb/nixos-surface-slim/flake.lock"
+      - "ca_ventoy_fallback_usb/nixos-surface-slim/configuration.nix"
+      - "ca_ventoy_fallback_usb/nixos-surface-slim/iso.nix"
+      - "1_workflows/src/cicd/ship-slim-iso.yml"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-slim-iso:
+    name: "Build slim ISO + cache 25.05 kernel closure"
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Free disk (~30 GB on runner)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: false
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Nix (Determinate)
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+            extra-substituters = https://linux-surface.cachix.org https://nixos-surface.cachix.org
+            extra-trusted-public-keys = linux-surface.cachix.org-1:f+M1d2Zq+TfvrcL3vrAJL3Pc4U5GbU+s5SCV5fAR4ow=
+
+      - name: Resolve kernel version + image meta
+        id: meta
+        working-directory: ca_ventoy_fallback_usb/nixos-surface-slim
+        run: |
+          set -euo pipefail
+          KVER=$(nix eval --raw .#nixosConfigurations.surface-slim.config.boot.kernelPackages.kernel.version)
+          IMAGE=ghcr.io/${{ github.repository_owner }}/unix-slim-boot-cache
+          echo "kver=${KVER}"                    >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}"                  >> "$GITHUB_OUTPUT"
+          echo "tag_nix=nix-linux-${KVER}"       >> "$GITHUB_OUTPUT"
+
+      - name: Build slim ISO (compiles + caches the 25.05 surface kernel)
+        id: iso
+        working-directory: ca_ventoy_fallback_usb/nixos-surface-slim
+        run: |
+          set -euo pipefail
+          nix build .#iso --no-link --print-out-paths | tee /tmp/iso-out
+          ISO_DIR=$(cat /tmp/iso-out)
+          ISO=$(ls "$ISO_DIR"/iso/*.iso | head -1)
+          echo "iso=${ISO}" >> "$GITHUB_OUTPUT"
+          ls -lh "$ISO"
+
+      - name: Stage Nix binary cache (kernel + initrd closures, zstd)
+        id: stage
+        working-directory: ca_ventoy_fallback_usb/nixos-surface-slim
+        run: |
+          set -euo pipefail
+          STAGE=${{ runner.temp }}/slim-boot-cache
+          mkdir -p "$STAGE"
+          nix copy --no-check-sigs --to "file://$STAGE?compression=zstd" \
+            .#nixosConfigurations.surface-slim.config.boot.kernelPackages.kernel
+          nix copy --no-check-sigs --to "file://$STAGE?compression=zstd" \
+            .#nixosConfigurations.surface-slim.config.system.build.initialRamdisk
+          du -sh "$STAGE"
+          echo "stage=$STAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Build + push OCI image (25.05 kernel closure)
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          TAG_NIX: ${{ steps.meta.outputs.tag_nix }}
+          STAGE: ${{ steps.stage.outputs.stage }}
+          KVER: ${{ steps.meta.outputs.kver }}
+        run: |
+          set -euo pipefail
+          ctr=$(buildah from scratch)
+          buildah copy "$ctr" "$STAGE" "/boot-cache"
+          buildah config \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.description=NixOS-format binary cache: nixos-surface-slim linux-surface ${KVER} kernel+initrd closure (nixpkgs 25.05). Recover via: nix copy --no-check-sigs --from file://.../boot-cache --to 'local?store=/nix/store' --all" \
+            --label "kernel.version=${KVER}" \
+            "$ctr"
+          buildah commit --rm "$ctr" "${IMAGE}:${TAG_NIX}"
+          buildah tag "${IMAGE}:${TAG_NIX}" "${IMAGE}:latest"
+          buildah login --username "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}" ghcr.io
+          for t in "${TAG_NIX}" latest; do
+            buildah push --format=oci "${IMAGE}:${t}" "docker://${IMAGE}:${t}"
+          done
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nixos-surface-slim-iso
+          path: ${{ steps.iso.outputs.iso }}
+          retention-days: 14
+          compression-level: 0
