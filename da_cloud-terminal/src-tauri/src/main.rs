@@ -515,19 +515,6 @@ struct RunItem {
     pty_id: Option<i64>,
 }
 
-// TEMPORARY diagnostic-only command — not wired to any UI, removed once the
-// button-visibility bug report is confirmed fixed. Shells to spectacle so we
-// can screenshot the live app window from outside without OS-level input
-// automation (no xdotool/ydotool support on this Wayland/KWin session).
-#[tauri::command]
-fn debug_shot(path: String) -> Result<(), String> {
-    std::process::Command::new("spectacle")
-        .args(["-b", "-n", "-a", "-o", &path])
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
 // ── Central dispatch (mirrors main.ts dispatch()) ─────────────────────
 #[tauri::command]
 fn run_item(item: RunItem, window: tauri::WebviewWindow, state: tauri::State<AppState>) {
@@ -1838,7 +1825,7 @@ fn main() {
             psi_clean, psi_clean_all, journal_feed,
             cloud_targets, cloud_vm, cloud_stats, cloud_logs, cloud_ping, data_sync, data_gh, peer_ping, stack_info,
             session_save, session_load, cache_save, cache_load, agi_usage, agi_live,
-            run_item, get_init, sys_stats, debug_shot
+            run_item, get_init, sys_stats
         ])
         .setup(|app| {
             build_and_show(&app.handle().clone());
