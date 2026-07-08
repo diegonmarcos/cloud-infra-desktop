@@ -105,6 +105,11 @@ function buildFrame(type, tabId) {
   const timer = setInterval(() => { if (auto && isActiveTab()) doRefresh() }, def.refreshMs || 5000)
   const stop = () => { clearInterval(timer); if (def.destroy) try { def.destroy(api) } catch (_) {} }
 
+  // Every dashboard used to wire this itself — clicking anywhere in the
+  // pane marks it "active" (activePane), same as a terminal pane, so
+  // Kill/Clear/Ctrl+Shift+W target the right pane regardless of kind.
+  leaf.addEventListener('mousedown', () => focusPane(id), true)
+
   panes.set(id, { leaf, tabId, kind: 'frame:' + type, stop })
   return { id, leaf }
 }
