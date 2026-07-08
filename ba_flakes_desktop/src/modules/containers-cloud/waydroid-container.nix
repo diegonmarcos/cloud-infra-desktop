@@ -53,6 +53,25 @@ in {
     '';
   };
 
+  # Dedicated launcher icon (Android-robot-in-a-container motif, Waydroid green) —
+  # installed into the hicolor theme so the menu entry, taskbar pin and window all
+  # show a distinct icon instead of the generic "smartphone" stock one.
+  xdg.dataFile."icons/hicolor/scalable/apps/${desktopId}.svg".text = ''
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <rect x="4" y="4" width="56" height="56" rx="12" fill="#1a1a24"/>
+      <path d="M22 20 L16 12" stroke="#a4c639" stroke-width="3" stroke-linecap="round"/>
+      <path d="M42 20 L48 12" stroke="#a4c639" stroke-width="3" stroke-linecap="round"/>
+      <path d="M17 34 a15 15 0 0 1 30 0 z" fill="#a4c639"/>
+      <circle cx="25" cy="27" r="2.2" fill="#1a1a24"/>
+      <circle cx="39" cy="27" r="2.2" fill="#1a1a24"/>
+      <rect x="17" y="37" width="30" height="14" rx="3" fill="#a4c639"/>
+      <path d="M10 44 v6 a4 4 0 0 0 4 4 h6 M54 44 v6 a4 4 0 0 1 -4 4 h-6"
+            fill="none" stroke="#5f7d8c" stroke-width="3" stroke-linecap="round"/>
+      <path d="M10 20 v-6 a4 4 0 0 1 4 -4 h6 M54 20 v-6 a4 4 0 0 0 -4 -4 h-6"
+            fill="none" stroke="#5f7d8c" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+  '';
+
   # KDE application menu entry. Exec uses an absolute path — desktop-entry Exec does NOT
   # expand `%h`; ~/.local/bin is also not guaranteed on the launcher's PATH.
   xdg.desktopEntries.${desktopId} = {
@@ -60,7 +79,7 @@ in {
     comment = "Android (Waydroid-in-Docker) — GPU-streamed via Sunshine/Moonlight";
     exec = "${config.home.homeDirectory}/.local/bin/waydroid-container up";
     terminal = false;
-    icon = "smartphone";
+    icon = desktopId;
     categories = [ "System" ];
     # KDE's taskbar matches a running window to a pinned launcher by comparing the
     # window's WM_CLASS to the desktop file's StartupWMClass. The window that opens is
