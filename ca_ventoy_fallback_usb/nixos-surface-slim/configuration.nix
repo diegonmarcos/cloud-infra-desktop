@@ -167,7 +167,8 @@
     nodejs_22
 
     # ─── Openbox GUI (minimal) ─────────────────────────────────────────────────
-    sakura              # Terminal
+    alacritty           # Terminal (my-konsole — Rust/GPU)
+    cage                # Wayland kiosk compositor — hosts alacritty on raw TTY (no Openbox needed)
     pcmanfm             # File manager
     dmenu               # Launcher (lighter than rofi)
 
@@ -198,6 +199,7 @@
         echo "║     NixOS Surface Recovery           ║"
         echo "╠══════════════════════════════════════╣"
         echo "║  startx    - Start Openbox GUI       ║"
+        echo "║  my-konsole - GPU terminal (no GUI)  ║"
         echo "║  nmtui     - WiFi (terminal)         ║"
         echo "║  claude    - Claude Code CLI         ║"
         echo "║  btop      - System monitor          ║"
@@ -207,6 +209,7 @@
 
       alias ll='ls -lah'
       alias la='ls -a'
+      alias my-konsole='cage -s -- alacritty'
     '';
   };
 
@@ -240,19 +243,19 @@
     <?xml version="1.0" encoding="UTF-8"?>
     <openbox_menu xmlns="http://openbox.org/3.4/menu">
     <menu id="root-menu" label="Menu">
-      <item label="Terminal"><action name="Execute"><command>sakura</command></action></item>
+      <item label="Terminal"><action name="Execute"><command>alacritty</command></action></item>
       <item label="Files"><action name="Execute"><command>pcmanfm</command></action></item>
       <item label="Browser"><action name="Execute"><command>surf https://claude.ai</command></action></item>
       <separator />
       <item label="WiFi Settings"><action name="Execute"><command>nm-connection-editor</command></action></item>
-      <item label="WiFi (nmtui)"><action name="Execute"><command>sakura -e nmtui</command></action></item>
-      <item label="Claude Code"><action name="Execute"><command>sakura -e claude</command></action></item>
-      <item label="System Monitor"><action name="Execute"><command>sakura -e btop</command></action></item>
+      <item label="WiFi (nmtui)"><action name="Execute"><command>alacritty -e nmtui</command></action></item>
+      <item label="Claude Code"><action name="Execute"><command>alacritty -e claude</command></action></item>
+      <item label="System Monitor"><action name="Execute"><command>alacritty -e btop</command></action></item>
       <separator />
       <menu id="recovery" label="Recovery">
-        <item label="Unlock LUKS"><action name="Execute"><command>sakura -e 'sudo cryptsetup open /dev/nvme0n1p4 pool; read'</command></action></item>
-        <item label="Mount Pool"><action name="Execute"><command>sakura -e 'sudo mount /dev/mapper/pool /mnt/pool; read'</command></action></item>
-        <item label="Disk Usage"><action name="Execute"><command>sakura -e 'df -h; read'</command></action></item>
+        <item label="Unlock LUKS"><action name="Execute"><command>alacritty -e sh -c 'sudo cryptsetup open /dev/nvme0n1p4 pool; read'</command></action></item>
+        <item label="Mount Pool"><action name="Execute"><command>alacritty -e sh -c 'sudo mount /dev/mapper/pool /mnt/pool; read'</command></action></item>
+        <item label="Disk Usage"><action name="Execute"><command>alacritty -e sh -c 'df -h; read'</command></action></item>
       </menu>
       <separator />
       <item label="Reboot"><action name="Execute"><command>systemctl reboot</command></action></item>
@@ -271,7 +274,7 @@
     <theme><name>Clearlooks-3.4</name><titleLayout>NLIMC</titleLayout></theme>
     <desktops><number>1</number><names><name>Desktop</name></names></desktops>
     <keyboard>
-      <keybind key="W-Return"><action name="Execute"><command>sakura</command></action></keybind>
+      <keybind key="W-Return"><action name="Execute"><command>alacritty</command></action></keybind>
       <keybind key="W-e"><action name="Execute"><command>pcmanfm</command></action></keybind>
       <keybind key="W-b"><action name="Execute"><command>surf https://claude.ai</command></action></keybind>
       <keybind key="W-d"><action name="Execute"><command>dmenu_run</command></action></keybind>
@@ -300,6 +303,20 @@
   environment.etc."skel/.config/openbox/autostart".text = ''
     # Set background color (Nord dark)
     xsetroot -solid "#2e3440" &
+  '';
+
+  # my-konsole (Alacritty) system-wide default config — ISO has no
+  # home-manager, so this is the XDG fallback every user's alacritty reads.
+  environment.etc."xdg/alacritty/alacritty.toml".text = ''
+    [window]
+    dimensions = { columns = 120, lines = 40 }
+
+    [scrolling]
+    history = 5000
+
+    [font]
+    size = 11.0
+    normal = { family = "monospace" }
   '';
 
   # xinitrc for startx

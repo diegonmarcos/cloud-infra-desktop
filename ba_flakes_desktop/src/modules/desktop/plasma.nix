@@ -223,7 +223,7 @@ in
       plasmashell = {
         "show-on-mouse-pos" = "Meta+V";
       };
-      "org.kde.konsole.desktop"."_launch" = "Meta+Return";
+      "Alacritty.desktop"."_launch" = "Meta+Return";
       "org.kde.dolphin.desktop"."_launch" = "Meta+E";
     };
 
@@ -457,8 +457,8 @@ in
       "kdeglobals"."General" = {
         ColorSchemeHash = "babca25f3a5cf7ece26a85de212ab43d0a141257";
         ColorScheme = "BreezeDark";
-        TerminalApplication = "konsole";
-        TerminalService = "org.kde.konsole.desktop";
+        TerminalApplication = "alacritty";
+        TerminalService = "Alacritty.desktop";
       };
       "kdeglobals"."Icons" = {
         Theme = "breeze-dark";

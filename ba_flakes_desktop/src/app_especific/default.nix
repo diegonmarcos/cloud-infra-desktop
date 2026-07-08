@@ -9,6 +9,7 @@
     ./btop.nix
     ./konsole.nix
     ./konsole-ssh-manager-quick-commands.nix
+    ./my-konsole.nix
     ./rclone.nix
   ];
 }

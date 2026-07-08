@@ -122,5 +122,6 @@
     ./configuration_session_isolation.nix
     ./configuration_observability.nix
     ./configuration_redroid.nix                    # POST-2026-07-02: Redroid (containerized Android) host prereqs — binder module + scrcpy/adb. Replaces the removed Waydroid host glue. Container itself is on-demand via ~/git/unix/da_redroid/build.sh (never auto-started).
+    ./configuration_my-konsole-tty.nix              # my-konsole: Alacritty (Rust GPU terminal) under cage kiosk on tty8, alongside normal getty VTs.
   ];
 }
