@@ -39,9 +39,15 @@ stage_resources() {
 
 icon() {
   mkdir -p src-tauri/icons
+  # Render the personalized icon.svg → PNGs (via imagemagick in the dev shell).
+  if [ -f icon.svg ] && nix develop -c magick -background none icon.svg \
+        -resize 256x256 src-tauri/icons/icon.png 2>/dev/null; then
+    nix develop -c magick -background none icon.svg -resize 128x128 src-tauri/icons/128x128.png 2>/dev/null || true
+    nix develop -c magick -background none icon.svg -resize 32x32   src-tauri/icons/32x32.png   2>/dev/null || true
+    return 0
+  fi
+  # Fallback: a valid 1x1 PNG so tauri-build's icon validation still passes.
   [ -f src-tauri/icons/icon.png ] && return 0
-  # A valid 1x1 PNG (base64) — tauri-build validates the icon is a real PNG.
-  # ponytail: placeholder; swap for a real 256x256 icon later.
   printf '%s' \
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' \
     | base64 -d > src-tauri/icons/icon.png
