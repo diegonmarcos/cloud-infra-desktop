@@ -196,3 +196,22 @@ body {
 #ctxmenu .ctx-item:hover { background: var(--item-bg); color: var(--accent); }
 #ctxmenu .ctx-item .key  { color: #6b7280; font-size: 11px; }
 #ctxmenu .ctx-sep { height: 1px; background: var(--sep); margin: 4px 6px; }
+
+/* ── Frame contract (js/frame.js) — one toolbar/body shell for every
+   converted dashboard, so refresh/auto-toggle are structurally guaranteed
+   visible instead of each dashboard hand-rolling its own header row. ── */
+.leaf[class*="frame-"] {
+  padding: 0; overflow: hidden; display: flex; flex-direction: column; height: 100%;
+  background: radial-gradient(1200px 600px at 20% -10%, #15172b 0%, var(--bg) 60%);
+}
+.frame-toolbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+  padding: 8px; font-size: 11px;
+}
+.frame-title { font-weight: 700; color: var(--accent2); letter-spacing: .08em; text-transform: uppercase; font-size: 10px; }
+.frame-stamp { color: #6b7280; font-size: 10px; font-variant-numeric: tabular-nums; }
+.frame-body { flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 0 8px 8px; display: flex; flex-direction: column; gap: 8px; }
+.frame-error {
+  color: #f87171; background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.35);
+  border-radius: 6px; padding: 6px 10px; font-size: 11px; margin-bottom: 8px;
+}

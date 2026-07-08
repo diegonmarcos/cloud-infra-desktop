@@ -72,6 +72,7 @@ window.addEventListener('unhandledrejection', e => {
 <script src="js/core.js"></script>
 <script src="js/term.js"></script>
 <script src="js/tabs.js"></script>
+<script src="js/frame.js"></script>
 
 <script>
 // ══ System-monitor pane (no PTY): a btop-neon + glances clone ═════════
@@ -791,12 +792,19 @@ function jIntelBar(label, val, max, color) {
   const pct = max > 0 ? val / max * 100 : 0
   return `<div class="ibar"><span class="iu">${label}</span><span class="itrack"><i style="width:${pct.toFixed(0)}%;background:${color}"></i></span><span class="in">${val}</span></div>`
 }
-function makeJournal(tabId) {
-  const id = ++paneSeq
-  const leaf = document.createElement('div')
-  leaf.className = 'leaf journal'; leaf.dataset.pane = String(id)
-  leaf.innerHTML = `
-    <div class="jrn">
+// Reference conversion to the frame contract (js/frame.js) — refresh
+// button + auto-toggle are now injected uniformly by buildFrame(), so this
+// dashboard only owns its OWN filter toolbar (scope/prio/search/copy) and
+// data-fetch/render. See js/frame.js's header comment for the contract.
+function makeJournal(tabId) { return buildFrame('journal', tabId) }
+registerFrame({
+  type: 'journal',
+  title: '📜 journal',
+  refreshMs: 5000,
+  autoFirstOpen: true,   // local journal read (no network) — safe to load on open
+  make(el, ctx) {
+    const { id } = ctx
+    el.innerHTML = `
       <div class="jrn-stats" id="j-stats-${id}"></div>
       <div class="jrn-bar" id="j-bar-${id}" title="log entries by priority"></div>
       <div class="jrn-intel">
@@ -810,79 +818,69 @@ function makeJournal(tabId) {
         <span class="ptbl-tabs" id="j-prio-${id}"><button data-v="all" class="on">ALL</button><button data-v="3">ERR</button><button data-v="4">WARN</button><button data-v="6">INFO</button></span>
         <input class="jrn-search" id="j-search-${id}" placeholder="🔍  filter unit / message…" autocomplete="off" spellcheck="false">
         <span class="jrn-count" id="j-count-${id}"></span>
-        <button class="cpbtn" id="j-refresh-${id}" title="Reload">↻</button>
-        <button class="auto-toggle" id="j-auto-${id}" title="Auto-refresh (5s) — off by default, no dashboard polls in the background"><i class="sw"></i>auto</button>
         <button class="cpbtn" id="j-copy-${id}" title="Copy filtered feed">⎘</button>
       </div>
       <div class="jrn-feed" id="j-feed-${id}"></div>
-    </div>`
-  let rows = [], scope = 'all', prio = 'all', q = '', auto = false
-  const $ = s => leaf.querySelector(s)
-  const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
-  const passes = r => (scope === 'all' || r.src === scope) && (prio === 'all' || r.prio <= +prio) &&
-    (!q || (r.unit + ' ' + r.msg).toLowerCase().indexOf(q) !== -1)
-  const jt = t => { const d = new Date(t); return d.toLocaleTimeString('en-GB') + '.' + String(d.getMilliseconds()).padStart(3, '0') }
+    `
+    let rows = [], scope = 'all', prio = 'all', q = ''
+    const $ = s => el.querySelector(s)
+    const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+    const passes = r => (scope === 'all' || r.src === scope) && (prio === 'all' || r.prio <= +prio) &&
+      (!q || (r.unit + ' ' + r.msg).toLowerCase().indexOf(q) !== -1)
+    const jt = t => { const d = new Date(t); return d.toLocaleTimeString('en-GB') + '.' + String(d.getMilliseconds()).padStart(3, '0') }
 
-  function render() {
-    const tot = rows.length || 1
-    let err = 0, warn = 0, info = 0, sys = 0, usr = 0; const hist = Array(8).fill(0)
-    for (const r of rows) { hist[r.prio] = (hist[r.prio] || 0) + 1; if (r.prio <= 3) err++; else if (r.prio === 4) warn++; else info++; r.src === 'system' ? sys++ : usr++ }
-    $('#j-stats-' + id).innerHTML = [['total', rows.length, ''], ['errors', err, 'err'], ['warnings', warn, 'warn'], ['info+', info, 'info'], ['system', sys, ''], ['user', usr, '']]
-      .map(([l, n, c]) => `<div class="jstat ${c}"><span class="n">${n}</span><span class="l">${l}</span></div>`).join('')
-    $('#j-bar-' + id).innerHTML = hist.map((c, p) => c ? `<i style="width:${(c / rows.length * 100).toFixed(2)}%;background:${jColor(p)}" title="${JPRIO[p]}: ${c}"></i>` : '').join('')
+    function render() {
+      let err = 0, warn = 0, info = 0, sys = 0, usr = 0; const hist = Array(8).fill(0)
+      for (const r of rows) { hist[r.prio] = (hist[r.prio] || 0) + 1; if (r.prio <= 3) err++; else if (r.prio === 4) warn++; else info++; r.src === 'system' ? sys++ : usr++ }
+      $('#j-stats-' + id).innerHTML = [['total', rows.length, ''], ['errors', err, 'err'], ['warnings', warn, 'warn'], ['info+', info, 'info'], ['system', sys, ''], ['user', usr, '']]
+        .map(([l, n, c]) => `<div class="jstat ${c}"><span class="n">${n}</span><span class="l">${l}</span></div>`).join('')
+      $('#j-bar-' + id).innerHTML = hist.map((c, p) => c ? `<i style="width:${(c / rows.length * 100).toFixed(2)}%;background:${jColor(p)}" title="${JPRIO[p]}: ${c}"></i>` : '').join('')
 
-    // ── intelligence: where alerts come from, importance, noisiest + errors ──
-    const cats = {}, units = {}, errUnits = {}
-    for (const r of rows) {
-      const c = jcat(r); cats[c] = (cats[c] || 0) + 1
-      units[r.unit] = (units[r.unit] || 0) + 1
-      if (r.prio <= 3) errUnits[r.unit] = (errUnits[r.unit] || 0) + 1
+      // ── intelligence: where alerts come from, importance, noisiest + errors ──
+      const cats = {}, units = {}, errUnits = {}
+      for (const r of rows) {
+        const c = jcat(r); cats[c] = (cats[c] || 0) + 1
+        units[r.unit] = (units[r.unit] || 0) + 1
+        if (r.prio <= 3) errUnits[r.unit] = (errUnits[r.unit] || 0) + 1
+      }
+      const maxCat = Math.max(1, ...JCATS.map(c => cats[c] || 0))
+      $('#j-cat-' + id).innerHTML = JCATS.map(c => jIntelBar(c, cats[c] || 0, maxCat, jcatColor(c))).join('')
+      const maxPr = Math.max(1, ...hist)
+      $('#j-prio2-' + id).innerHTML = hist.map((c, p) => c ? jIntelBar(JPRIO[p], c, maxPr, jColor(p)) : '').join('')
+      const topU = Object.entries(units).sort((a, b) => b[1] - a[1]).slice(0, 7)
+      $('#j-topu-' + id).innerHTML = topU.map(([u, n]) => `<div class="il"><span class="iu" title="${esc(u)}">${esc(u)}</span><span class="in">${n}</span></div>`).join('') || '<div class="ds-empty">—</div>'
+      const topE = Object.entries(errUnits).sort((a, b) => b[1] - a[1]).slice(0, 7)
+      $('#j-toperr-' + id).innerHTML = topE.map(([u, n]) => `<div class="il"><span class="iu" title="${esc(u)}">${esc(u)}</span><span class="in" style="color:#f87171">${n}</span></div>`).join('') || '<div class="ds-empty" style="color:#4ade80">no errors 🎉</div>'
+
+      const f = rows.filter(passes).slice(0, 800)
+      $('#j-count-' + id).textContent = f.length + ' / ' + rows.length
+      $('#j-feed-' + id).innerHTML = f.map(r =>
+        `<div class="jline"><span class="jt">${jt(r.t)}</span>` +
+        `<span class="jp" style="color:${jColor(r.prio)}">${JPRIO[r.prio] || r.prio}</span>` +
+        `<span class="ju" title="${esc(r.unit)} · ${r.src} · pid ${r.pid}">${esc(r.unit)}</span>` +
+        `<span class="jm">${esc(r.msg)}</span></div>`).join('')
     }
-    const maxCat = Math.max(1, ...JCATS.map(c => cats[c] || 0))
-    $('#j-cat-' + id).innerHTML = JCATS.map(c => jIntelBar(c, cats[c] || 0, maxCat, jcatColor(c))).join('')
-    const maxPr = Math.max(1, ...hist)
-    $('#j-prio2-' + id).innerHTML = hist.map((c, p) => c ? jIntelBar(JPRIO[p], c, maxPr, jColor(p)) : '').join('')
-    const topU = Object.entries(units).sort((a, b) => b[1] - a[1]).slice(0, 7)
-    $('#j-topu-' + id).innerHTML = topU.map(([u, n]) => `<div class="il"><span class="iu" title="${esc(u)}">${esc(u)}</span><span class="in">${n}</span></div>`).join('') || '<div class="ds-empty">—</div>'
-    const topE = Object.entries(errUnits).sort((a, b) => b[1] - a[1]).slice(0, 7)
-    $('#j-toperr-' + id).innerHTML = topE.map(([u, n]) => `<div class="il"><span class="iu" title="${esc(u)}">${esc(u)}</span><span class="in" style="color:#f87171">${n}</span></div>`).join('') || '<div class="ds-empty" style="color:#4ade80">no errors 🎉</div>'
-
-    const f = rows.filter(passes).slice(0, 800)
-    $('#j-count-' + id).textContent = f.length + ' / ' + rows.length
-    $('#j-feed-' + id).innerHTML = f.map(r =>
-      `<div class="jline"><span class="jt">${jt(r.t)}</span>` +
-      `<span class="jp" style="color:${jColor(r.prio)}">${JPRIO[r.prio] || r.prio}</span>` +
-      `<span class="ju" title="${esc(r.unit)} · ${r.src} · pid ${r.pid}">${esc(r.unit)}</span>` +
-      `<span class="jm">${esc(r.msg)}</span></div>`).join('')
-  }
-  async function load() {
+    const segClick = (sel, set) => $(sel).addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return
+      set(b.dataset.v); for (const x of $(sel).children) x.classList.toggle('on', x === b); render()
+    })
+    segClick('#j-scope-' + id, v => scope = v)
+    segClick('#j-prio-' + id, v => prio = v)
+    $('#j-search-' + id).addEventListener('input', e => { q = e.target.value.trim().toLowerCase(); render() })
+    $('#j-copy-' + id).addEventListener('click', () => {
+      const f = rows.filter(passes).slice(0, 800)
+      clip.write(f.map(r => `${jt(r.t)} ${JPRIO[r.prio] || r.prio} ${r.src} ${r.unit}: ${r.msg}`).join('\n'))
+      const b = $('#j-copy-' + id), t = b.textContent; b.textContent = '✓'; setTimeout(() => b.textContent = t, 1200)
+    })
+    return { setRows: r => { rows = r }, render }
+  },
+  async refresh(api) {
+    let rows = []
     try { rows = await invoke('journal_feed', { n: 600 }) } catch (_) { rows = [] }
-    if (!leaf.isConnected) return
-    render()
-  }
-  const segClick = (sel, set) => $(sel).addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b) return
-    set(b.dataset.v); for (const x of $(sel).children) x.classList.toggle('on', x === b); render()
-  })
-  segClick('#j-scope-' + id, v => scope = v)
-  segClick('#j-prio-' + id, v => prio = v)
-  $('#j-search-' + id).addEventListener('input', e => { q = e.target.value.trim().toLowerCase(); render() })
-  $('#j-refresh-' + id).addEventListener('click', load)
-  $('#j-auto-' + id).addEventListener('click', () => { auto = !auto; $('#j-auto-' + id).classList.toggle('on', auto) })
-  $('#j-copy-' + id).addEventListener('click', () => {
-    const f = rows.filter(passes).slice(0, 800)
-    clip.write(f.map(r => `${jt(r.t)} ${JPRIO[r.prio] || r.prio} ${r.src} ${r.unit}: ${r.msg}`).join('\n'))
-    const b = $('#j-copy-' + id), t = b.textContent; b.textContent = '✓'; setTimeout(() => b.textContent = t, 1200)
-  })
-  // Auto-refresh only actually fires while THIS tab is the visible one — a
-  // dashboard left running in a background tab must not keep polling.
-  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
-  const timer = setInterval(() => { if (auto && isActiveTab()) load() }, 5000)
-  load()
-  leaf.addEventListener('mousedown', () => focusPane(id), true)
-  panes.set(id, { leaf, tabId, kind: 'journal', stop: () => clearInterval(timer) })
-  return { id, leaf }
-}
+    api.setRows(rows)
+    api.render()
+  },
+})
 
 // ══ Cloud Control Center (no PTY) — VMs, containers, log center ══════
 function makeCloud(tabId) {

@@ -39,13 +39,11 @@
   # ═══════════════════════════════════════════════════════════════════════════
   # BOOT LOADER
   # ═══════════════════════════════════════════════════════════════════════════
-
-  boot.loader.grub = {
-    enable = true;
-    efiSupport = true;
-    efiInstallAsRemovable = true;
-    memtest86.enable = false;  # Save space
-  };
+  # NOTE: do NOT set boot.loader.grub.enable here. iso-image.nix owns the ISO's
+  # EFI boot (via isoImage.makeEfiBootable above) and pins the *installed
+  # system* bootloader to disabled. Re-enabling grub is both a conflicting
+  # definition and semantically wrong for a live ISO (that option installs a
+  # bootloader onto a target disk).
 
   # ═══════════════════════════════════════════════════════════════════════════
   # LIVE SYSTEM TWEAKS

@@ -41,10 +41,13 @@
         modules = [ ./configuration.nix ];
         format = "vm";
       };
-    };
 
-    # Default package is ISO
-    packages.${system}.default = self.packages.${system}.iso;
+      # Default package is ISO — must live inside this single attrset:
+      # `packages.${system}` uses a dynamic (interpolated) key, and Nix
+      # cannot merge two `packages.${system}...` definitions the way it
+      # merges static-key paths (→ "dynamic attribute already defined").
+      default = self.packages.${system}.iso;
+    };
 
     # ═══════════════════════════════════════════════════════════════════════════
     # NIXOS CONFIGURATION (for nixos-rebuild if needed)
