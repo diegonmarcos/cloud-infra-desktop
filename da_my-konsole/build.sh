@@ -15,6 +15,7 @@ cfg() { jq -r "$1" build.json; }
 
 # ── All engine data sourced from build.json (never hardcoded) ──────────────
 BIN="$(cfg '.app.bin')"
+DASH="${BIN}-dash"          # ratatui TUI-dashboards binary (pure Rust, runs on any TTY)
 SHELL_CMD="$(cfg '.app.shell')"
 RELEASE_TAG="$(cfg '.build.release_tag')"
 REPO="$(cfg '.build.repo')"
@@ -50,7 +51,9 @@ sync_data() {
   mkdir -p "$STORE/profiles"
   command cp -rf src/data/profiles/* "$STORE/profiles/" 2>/dev/null || true
   command cp -f src/data/config.json "$STORE/config.json" 2>/dev/null || true
-  log "Synced profiles + config → $STORE"
+  # shared/*.json feed the ratatui dashboards (e.g. cloud-targets.json)
+  command cp -f src/data/shared/*.json "$STORE/" 2>/dev/null || true
+  log "Synced profiles + config + shared → $STORE"
 }
 
 icon() {
@@ -69,27 +72,42 @@ icon() {
     | base64 -d > src-tauri/icons/icon.png
 }
 
+# The ratatui dashboards binary — pure Rust (no webkit/tauri), so it runs on
+# any TTY. Built as a separate crate under dash/.
+build_dash() {
+  log "cargo build (dashboards, release)…"
+  nix develop -c cargo build --release --manifest-path dash/Cargo.toml
+  log "Built dashboards → dash/target/release/$DASH"
+}
+
 cmd_build() {
   vendor; stage_resources; icon
   log "cargo tauri build (release)…"
   nix develop -c cargo tauri build
+  build_dash
   log "Built. Bundle under src-tauri/target/release/bundle/"
 }
 
 cmd_dev()   { vendor; stage_resources; icon; nix develop -c cargo tauri dev; }
 # check also stages resources + icon: tauri's build.rs validates the
 # tauri.conf.json `resources`/`icon` globs even under `cargo check`.
-cmd_check() { stage_resources; icon; nix develop -c cargo check --manifest-path src-tauri/Cargo.toml; }
+cmd_check() {
+  stage_resources; icon
+  nix develop -c cargo check --manifest-path src-tauri/Cargo.toml
+  nix develop -c cargo check --manifest-path dash/Cargo.toml
+}
 cmd_clean() { rm -rf src-tauri/target src-tauri/profiles src-tauri/config.json frontend/vendor/*.js frontend/vendor/*.css; }
 
 # Fetch the CI-built binary from the rolling GitHub Release into the store dir.
 cmd_fetch() {
   mkdir -p "$STORE"
   command -v gh >/dev/null 2>&1 || die "gh CLI required to fetch the CI binary"
-  log "Fetching $BIN from GH release $RELEASE_TAG ($REPO)…"
+  log "Fetching $BIN + $DASH from GH release $RELEASE_TAG ($REPO)…"
   gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$BIN" --dir "$STORE" --clobber \
     || die "release download failed"
   chmod +x "$STORE/$BIN"
+  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$DASH" --dir "$STORE" --clobber 2>/dev/null \
+    && chmod +x "$STORE/$DASH" || log "(dashboards binary not in release yet — non-fatal)"
   log "Fetched → $STORE/$BIN"
 }
 
@@ -172,10 +190,16 @@ StartupWMClass=$(cfg '.app.wm_class')
 Categories=$(cfg '.desktop.categories')
 EOF
 
-  # 4. refresh caches (best-effort — no failure if the tools are absent)
+  # 4. dashboards binary → ~/.local/bin (pure Rust, self-contained, no wrapper)
+  local dashsrc=""
+  if   [ -x "dash/target/release/$DASH" ]; then dashsrc="dash/target/release/$DASH"
+  elif [ -x "$STORE/$DASH" ];              then dashsrc="$STORE/$DASH"; fi
+  if [ -n "$dashsrc" ]; then command cp -f "$dashsrc" "$HOME/.local/bin/$DASH"; chmod +x "$HOME/.local/bin/$DASH"; fi
+
+  # 5. refresh caches (best-effort — no failure if the tools are absent)
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$apps" 2>/dev/null || true
   command -v gtk-update-icon-cache   >/dev/null 2>&1 && gtk-update-icon-cache -qtf "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
-  log "Installed launcher + desktop entry + icon (menu/taskbar: $BIN)"
+  log "Installed launcher + desktop entry + icon + dashboards ($DASH)"
 }
 
 case "${1:-build}" in
