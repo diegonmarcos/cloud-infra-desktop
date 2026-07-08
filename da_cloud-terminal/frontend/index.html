@@ -677,7 +677,7 @@ registerFrame({
       for (const tag of ['some', 'full']) {
         const avg10 = (r[tag] || {}).avg10 || 0
         const bar = $(`#m-psib-${tag}-${k}-${id}`)
-        if (bar) { const col = heat(1 - Math.min(1, avg10 / PSI_MAX)); bar.style.width = Math.min(100, avg10 / PSI_MAX * 100) + '%'; bar.style.background = col; bar.style.color = col }
+        if (bar) { const col = heat(Math.min(1, avg10 / PSI_MAX)); bar.style.width = Math.min(100, avg10 / PSI_MAX * 100) + '%'; bar.style.background = col; bar.style.color = col }
         const val = $(`#m-psiv-${tag}-${k}-${id}`); if (val) val.textContent = avg10.toFixed(1) + '%'
       }
     }
