@@ -2,6 +2,7 @@
   "_description": "Search engines registered in qutebrowser. The 'default' engine is fired by typing in the URL bar without prefix; others by typing their key as the first word.",
   "DEFAULT": "https://duckduckgo.com/?q={}",
   "ddg": "https://duckduckgo.com/?q={}",
+  "qw":  "https://www.qwant.com/?q={}",
   "g":   "https://www.google.com/search?q={}",
   "yt":  "https://www.youtube.com/results?search_query={}",
   "gh":  "https://github.com/search?q={}",

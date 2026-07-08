@@ -56,6 +56,17 @@ let
   # whatever window is already focused.
   openSavedTabsCmd = lib.concatStringsSep " ;; " (map (url: "open -t " + url) dwTabs);
 
+  # "1 Open Last Session Tabs" — restore the auto-saved session (qutebrowser
+  # saves `_autosave` on quit when content.auto_save.session is true, which
+  # qute-settings.json enables). Distinct from open_saved_tabs (fixed default
+  # set): this reopens whatever was actually open last time.
+  lastSessionCmd = "session-load _autosave";
+
+  # "Config-shortcuts" — deep-link the dashboard's Shortcuts reference tab. The
+  # dashboard JS auto-opens that tab when the URL ends in #shortcuts.
+  dashboardHtml = "file:///home/diego/.config/qutebrowser/dashboard.html";
+  configShortcutsCmd = "open ${dashboardHtml}#shortcuts";
+
   # Vaultwarden integration config (build.json::integrations.vaultwarden_bitwarden_cli).
   # build.json lives at the project root, two levels up from src/nix/.
   buildJson = builtins.fromJSON (builtins.readFile ../../build.json);
@@ -76,7 +87,12 @@ let
 
   cleanSettings      = stripDocs settings;
   cleanSearchEngines = stripDocs searchEngines;
-  cleanKeyBindings   = stripDocs keyBindings;
+  # qute-keybindings.json is now the enriched SoT (key → { cmd, desc, group }).
+  # stripDocs drops the _description / _comment_* keys; project each remaining
+  # binding object down to its bare `cmd` string for programs.qutebrowser.keyBindings.
+  cleanKeyBindings   = lib.mapAttrs
+    (_mode: binds: lib.mapAttrs (_k: v: v.cmd) binds)
+    (stripDocs keyBindings);
 in
 {
   options.programs.da_browser-qute = {
@@ -112,9 +128,13 @@ in
       # which is valid Python AND the correct qutebrowser API (aliases is a Dict
       # setting). Putting it in `settings` serialized it attribute-style
       # (c.aliases.default-window = ...) — invalid Python (hyphen) and wrong API.
+      # Numeric-prefixed aliases sort to the top of the `:` command completion.
       aliases = {
-        default_window = defaultWindowCmd;
-        open_saved_tabs = openSavedTabsCmd;
+        default_window   = defaultWindowCmd;
+        open_saved_tabs  = openSavedTabsCmd;
+        "0-default-tabs"   = defaultWindowCmd;    # "0 Open Default Tabs"
+        "1-last-session"   = lastSessionCmd;      # "1 Open Last Session Tabs"
+        "config-shortcuts" = configShortcutsCmd;  # Shortcuts reference (,s)
       };
       searchEngines = cleanSearchEngines;
       # Ctrl-Shift-N → New Default Window; Ctrl-Shift-T → Open Saved Tabs

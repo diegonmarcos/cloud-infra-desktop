@@ -111,6 +111,7 @@ Item {
                 value: rootItem.sensorText(rootItem.cpuUsageSensor)
                 percent: rootItem.sensorPercent(rootItem.cpuUsageSensor)
                 accentColor: Kirigami.Theme.positiveTextColor
+                previewMode: "bar"  // ponytail: no Canvas in panel — see BarStat
             }
         }
 
@@ -124,6 +125,7 @@ Item {
                 value: rootItem.sensorText(rootItem.memoryUsageSensor)
                 percent: rootItem.sensorPercent(rootItem.memoryUsageSensor)
                 accentColor: Kirigami.Theme.focusColor
+                previewMode: "bar"  // ponytail: no Canvas in panel — see BarStat
             }
         }
 

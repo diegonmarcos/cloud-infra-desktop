@@ -1,9 +1,8 @@
 {
-  "_description": "Default window arrangement — the tab set for the `default-window` command (aka 'New Default Window', bound to Ctrl-Shift-N). The home-module builds a qutebrowser alias from this: the FIRST url opens a new window (open -w), the rest open as tabs (open -t). Keep in sync with the fresh-boot layout (ba_flakes_desktop default-session.json qutebrowser window).",
+  "_description": "Default window arrangement — the tab set for the `default-window`/`0-default-tabs` command (New Default Window, Ctrl-Shift-N). The home-module builds a qutebrowser alias from this: the FIRST url opens a new window (open -w), the rest open as tabs (open -t). Keep in sync with the fresh-boot layout (ba_flakes_desktop default-session.json qutebrowser window). Default set = bookmarks dashboard + local dev server + Qwant.",
   "tabs": [
     "file:///home/diego/.config/qutebrowser/dashboard.html",
     "http://localhost:8000",
-    "https://gemini.google.com",
-    "https://claude.ai/new#settings/usage"
+    "https://www.qwant.com"
   ]
 }

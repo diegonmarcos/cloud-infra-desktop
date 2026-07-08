@@ -122,9 +122,23 @@ DATA="$(jq -n \
     ) }
 ')"
 
+# Keybindings → flat array [{key,cmd,desc,group}] for the dashboard Shortcuts tab.
+# SoT is qute-keybindings.json (same file the home-module projects into qutebrowser);
+# skip _doc keys and any non-object value. Empty [] if the file is absent.
+KEYBINDINGS_JSON="${KEYBINDINGS_JSON:-$HERE/../2_configs/qute-keybindings.json}"
+if [ -r "$KEYBINDINGS_JSON" ]; then
+  KEYBINDINGS="$(jq '[ .normal // {} | to_entries[]
+    | select((.key|startswith("_"))|not) | select(.value|type=="object")
+    | { key: .key, cmd: .value.cmd, desc: (.value.desc // ""), group: (.value.group // "Other") } ]' \
+    "$KEYBINDINGS_JSON")"
+else
+  KEYBINDINGS='[]'
+fi
+
 mkdir -p "$(dirname "$OUT")"
-# Inject via awk (safe with URLs/JSON; no sed backref hazards).
-awk -v json="$DATA" '{ gsub(/__BOOKMARKS_JSON__/, json); print }' "$TEMPLATE" > "$OUT"
+# Inject via awk (safe with URLs/JSON; no sed backref hazards). Two tokens in one pass.
+awk -v bm="$DATA" -v kb="$KEYBINDINGS" \
+  '{ gsub(/__BOOKMARKS_JSON__/, bm); gsub(/__KEYBINDINGS_JSON__/, kb); print }' "$TEMPLATE" > "$OUT"
 nsec=$(jq -r '.sections|length' <<<"$DATA")
 nlink=$(jq -r '[.sections[] | (.links|length) + ([.folders[].links|length]|add // 0)]|add' <<<"$DATA")
 echo "gen-dashboard: wrote $OUT ($nlink links across $nsec sections)"

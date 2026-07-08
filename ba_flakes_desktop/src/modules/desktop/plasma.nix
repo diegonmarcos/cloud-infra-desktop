@@ -38,6 +38,7 @@ in
     ./default-session.nix    # DECLARATIVE default 4-desktop login layout (data: default-session.json)
     ./cloud-terminal.nix     # pull Cloud Terminal from its GH Release (version-guarded)
     ./bottom-panel.nix       # DECLARATIVE bottom panel (data: bottom-panel.json)
+    ./top-panel.nix          # DECLARATIVE top panel  (data: top-panel.json)
   ];
 
   # Fix system tray visibility after home-manager switch
@@ -170,6 +171,16 @@ in
 
   programs.plasma = {
     enable = true;
+
+    # AUTHORITATIVE plasma config. plasma-manager regenerates the full config
+    # (panels incl.) from these nix declarations on every switch, instead of
+    # merging into whatever the live appletsrc happens to hold. This is the
+    # root-cause fix for widget/panel DUPLICATE ACCUMULATION: the old hand-made
+    # top panel + its piled-up monitor applets can no longer survive a switch —
+    # only bottom-panel.nix + top-panel.nix define what exists. Everything the
+    # desktop needs must be declared here (it is: panels, theme, shortcuts,
+    # kwin, configFile). Live-only tweaks not in nix are intentionally dropped.
+    overrideConfig = true;
 
     # ─────────────────────────────────────────────────────────────────
     # Appearance - FULL DARK THEME

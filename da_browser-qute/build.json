@@ -1,8 +1,8 @@
 {
   "project": {
-    "name": "da_browser-qute",
+    "name": "my-browser (qute)",
     "version": "0.1.0",
-    "description": "qutebrowser-based daily-driver browser with daemon-side integrations: FIDO2 passkeys via da_fido2-vault-broker, password autofill via da_autofill-rbw-rofi. Pure-config (no fork) — qutebrowser ships from nixpkgs; this project owns home-manager wiring + JSON-driven settings."
+    "description": "my-browser (qute) — qutebrowser-based daily-driver browser with daemon-side integrations: FIDO2 passkeys via da_fido2-vault-broker, password autofill via da_autofill-rbw-rofi. Pure-config (no fork) — qutebrowser ships from nixpkgs; this project owns home-manager wiring + JSON-driven settings. Dir/image name stays da_browser-qute / qutebrowser-standalone (release-pipeline identity); 'my-browser (qute)' is the display brand only."
   },
   "paths": {
     "src": "src",

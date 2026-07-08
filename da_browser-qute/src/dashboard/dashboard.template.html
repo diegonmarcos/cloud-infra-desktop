@@ -12,7 +12,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>◆ bookmarks</title>
+<title>◆ my-browser (qute)</title>
 <style>
   :root{
     --fg:#eef2f8; --muted:#aab6c8; --hi:#fff;
@@ -72,6 +72,13 @@
   .about .stat{display:inline-block;background:#ffffff10;border:1px solid #ffffff1c;border-radius:10px;
     padding:8px 14px;margin:4px 8px 4px 0}
   .about .stat b{color:#fff;font-size:18px;display:block}
+  /* shortcuts tab */
+  .kbrow{display:flex;align-items:center;gap:12px;padding:6px 10px;border-radius:7px;font-size:13px}
+  .kbrow:hover{background:#ffffff08}
+  .kbk{min-width:150px;display:flex;gap:3px;flex-wrap:wrap}
+  .kbd-desc{color:#e7edf6;flex:1}
+  .kbc{color:var(--muted);font-size:11px;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40%}
+  .kbgrp{margin-bottom:10px}
 
   /* accents by section */
   [data-s="Last Sessions"]{--a:#10b981} [data-s="QuickMarks"]{--a:#f59e0b}
@@ -156,7 +163,7 @@
 </head>
 <body class="icons-mode">
   <header>
-    <div class="brand">◆ <b>bookmarks</b></div>
+    <div class="brand">◆ <b>my-browser</b> <span style="color:var(--muted);font-weight:400;font-size:14px">(qute)</span></div>
     <div class="clock" id="clock"></div>
     <div class="spacer"></div>
     <label class="search"><input id="q" type="text" placeholder="search…" autocomplete="off" spellcheck="false"></label>
@@ -175,6 +182,7 @@
 
 <script>
 const DATA = __BOOKMARKS_JSON__;
+const KEYBINDINGS = __KEYBINDINGS_JSON__;   // [{key,cmd,desc,group}] — SoT: qute-keybindings.json
 // sections[] → { name, desc, recent, links{}, folders:[{name,desc,links{}}] }
 const SECTIONS = (DATA.sections||[]).map(s=>({
   name:s.name, desc:s.desc||'', recent:!!s.recent,
@@ -269,7 +277,7 @@ function openConfig(tab){
   sheet.dataset.k=''; sheet.style.setProperty('--a','var(--dnm)');
   sheet.innerHTML=`<h2><span class="dot"></span>Config
       <button class="x" title="close (Esc)">✕</button></h2>
-    <div class="tabs"><button data-t="health">Health</button><button data-t="about">About</button></div>
+    <div class="tabs"><button data-t="shortcuts">Shortcuts</button><button data-t="health">Health</button><button data-t="about">About</button></div>
     <div class="cfg-body" id="cfgbody"></div>`;
   sheet.querySelector('.x').addEventListener('click',closeFolder);
   sheet.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>showCfgTab(b.dataset.t)));
@@ -279,11 +287,13 @@ function openConfig(tab){
 function showCfgTab(t){
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   const body=document.getElementById('cfgbody');
-  if(t==='about'){
+  if(t==='shortcuts'){
+    renderShortcuts(body);
+  } else if(t==='about'){
     const secCount=n=>Object.keys(sectionLinks(n)).length+n.folders.reduce((a,f)=>a+Object.keys(f.links).length,0);
     const ns=SECTIONS.length, nf=FOLDERS.length, nl=SECTIONS.reduce((a,s)=>a+secCount(s),0);
     body.innerHTML=`<div class="about">
-      <h3>◆ bookmarks — cloud dashboard</h3>
+      <h3>◆ my-browser (qute) — cloud dashboard</h3>
       <p>A declarative, data-driven start page for <b>qutebrowser</b>. Cloud folders are
       generated from <code>cloud-data → build-flakes_desktop.json</code>; the Front tree from
       <code>front-topology.json</code>; Last Sessions from <code>history.sqlite</code> (merged live).
@@ -307,6 +317,28 @@ function showCfgTab(t){
       <div id="hres"></div>`;
     document.getElementById('hrun').addEventListener('click',runHealth);
   }
+}
+/* ---------- Shortcuts reference (data-driven from qute-keybindings.json) ---------- */
+const kbd = k => k.replace(/^<(.+)>$/,'$1').split('-').map(p=>`<kbd>${p}</kbd>`).join('+');
+function renderShortcuts(body){
+  const groups=[...new Set(KEYBINDINGS.map(b=>b.group))];
+  body.innerHTML=`<p style="color:var(--muted);font-size:12px;margin-bottom:10px">
+      Edit these in <code>qute-keybindings.json</code> → home-manager switch. Command palette:
+      <kbd>:</kbd> · leader <kbd>,</kbd> then key.</p>
+    <label class="search" style="display:block;margin-bottom:12px"><input id="kbq" placeholder="filter shortcuts…" autocomplete="off" style="width:100%"></label>
+    <div id="kblist">`+
+    groups.map(g=>`<div class="kbgrp" data-g="${g}"><div class="hgrp"><span class="dot" style="--a:var(--dnm)"></span>${g}</div>`+
+      KEYBINDINGS.filter(b=>b.group===g).map(b=>
+        `<div class="kbrow" data-f="${(b.key+' '+b.desc+' '+b.cmd).toLowerCase()}">
+           <span class="kbk">${kbd(b.key)}</span><span class="kbd-desc">${b.desc}</span><span class="kbc">${b.cmd}</span></div>`).join('')
+      +`</div>`).join('')+`</div>`;
+  const q=body.querySelector('#kbq');
+  q.addEventListener('input',()=>{ const t=q.value.trim().toLowerCase();
+    body.querySelectorAll('.kbrow').forEach(r=>r.classList.toggle('hidden',!!t&&!r.dataset.f.includes(t)));
+    body.querySelectorAll('.kbgrp').forEach(g=>g.classList.toggle('hidden',
+      !!t&&![...g.querySelectorAll('.kbrow')].some(r=>!r.classList.contains('hidden'))));
+  });
+  setTimeout(()=>q.focus(),50);
 }
 async function ping(url){
   if(!/^https?:/i.test(url)) return {s:'na',ms:0};
@@ -423,6 +455,9 @@ document.addEventListener('keydown',e=>{
 const clk=document.getElementById('clock');
 const tick=()=>{const d=new Date();clk.textContent=d.toTimeString().slice(0,5);};
 tick(); setInterval(tick,10000);
+// deep-link: #shortcuts (config-shortcuts command / ,s) opens the Shortcuts tab
+function hashRoute(){ if(location.hash==='#shortcuts') openConfig('shortcuts'); }
+window.addEventListener('hashchange',hashRoute); hashRoute();
 </script>
 </body>
 </html>

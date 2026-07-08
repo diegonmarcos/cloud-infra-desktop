@@ -82,14 +82,19 @@ RowLayout {
             color: Qt.rgba(stat.accentColor.r, stat.accentColor.g, stat.accentColor.b, 0.72)
         }
 
-        Local.Sparkline {
-            visible: stat.previewMode === "sparkline"
+        // ponytail: Loader (not a plain Sparkline) so the software-rasterised
+        // Canvas is never instantiated in "bar" mode — the always-visible panel
+        // tiles use bar mode, keeping plasmashell off the per-frame paint path.
+        Loader {
+            active: stat.previewMode === "sparkline"
             anchors.fill: parent
             anchors.margins: 2
-            sampleValue: stat.percent
-            sampleLimit: 24
-            lineColor: stat.accentColor
-            showFill: true
+            sourceComponent: Local.Sparkline {
+                sampleValue: stat.percent
+                sampleLimit: 24
+                lineColor: stat.accentColor
+                showFill: true
+            }
         }
     }
 
