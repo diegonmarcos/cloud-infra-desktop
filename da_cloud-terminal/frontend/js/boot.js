@@ -100,6 +100,7 @@ async function init() {
   const label = data.name
   document.getElementById('hdr-host').textContent = '@ ' + (data.host || '')
   sessionData = await invoke('session_load').catch(() => null) || {}
+  await cacheLoad()   // must finish before showProfile() builds the first frames (cachePeek needs it populated)
   showProfile(allProfiles.find(p => p.name === data.name) || data)  // builds this profile's tabs via switchProfileTabs
   try {
     await Promise.all([

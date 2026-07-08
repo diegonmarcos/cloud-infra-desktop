@@ -73,6 +73,7 @@ window.addEventListener('unhandledrejection', e => {
 <script src="js/term.js"></script>
 <script src="js/tabs.js"></script>
 <script src="js/frame.js"></script>
+<script src="js/cache.js"></script>
 
 <script>
 // ══ System-monitor pane (no PTY): a btop-neon + glances clone ═════════
@@ -226,11 +227,8 @@ registerFrame({
   const listRow = (label, detail) => `<div class="stack-list-row"><b>${esc(label)}</b><span>${esc(detail || '')}</span></div>`
   const empty = t => `<span class="ds-empty">${esc(t)}</span>`
 
-  async function load() {
-    const d = await invoke('stack_info').catch(() => null)
-    if (!leaf.isConnected) return
+  function render(d) {
     if (!d) { $('#s-mach-' + id).textContent = 'unavailable'; return }
-
     const m = d.machine || {}
     const ramGb = (m.mem_kb || 0) / 1024 / 1024
     const diskUsedGb = (m.disk_used_kb || 0) / 1024 / 1024
@@ -289,7 +287,13 @@ registerFrame({
       `<span class="stack-chip ok" title="${esc((c.match || []).join(', '))}">${esc(c.group)} · ${esc(c.cat)}</span>`
     ).join('') || empty('none configured')
   }
+  async function load() {
+    const d = await cachedInvoke('stack_info').catch(() => null)
+    if (leaf.isConnected) render(d)
+  }
 
+  const cached = cachePeek('stack_info')
+  if (cached) render(cached)   // instant paint from last session — "as of" comes from a real refresh
   return { load }
   },
   async refresh(api) { await api.load() },
@@ -1018,7 +1022,7 @@ registerFrame({
     // refresh click or when the auto-toggle is on. Was calling probe()
     // here unconditionally, which froze the tab open on a slow/unreachable
     // VM; fixed to render the (unprobed) VM list instantly instead.
-    const data = await invoke('cloud_targets').catch(() => null)
+    const data = await cachedInvoke('cloud_targets').catch(() => null)
     targets = (data && data.vms) || []
     catMap = (data && data.service_categories) || []
     if (!leaf.isConnected) return
@@ -1153,11 +1157,14 @@ registerFrame({
       (rr.releases || []).slice(0, 2).map(rel => kv((rr.repo || '').split('/').pop() + ' ' + (rel.tagName || ''), rel.isLatest ? 'latest' : '', '')).join('')).join('') || empty('no releases')
   }
   async function load() {
-    const d = await invoke('data_sync').catch(() => null)
+    const d = await cachedInvoke('data_sync').catch(() => null)
     if (!el.isConnected) return
     if (d) { renderLocal(d); probePeers() }
     await loadGh()
   }
+
+  const cached = cachePeek('data_sync')
+  if (cached) renderLocal(cached)   // instant paint — probePeers()/GHCR still wait for a real refresh
   return { load }
   },
   async refresh(api) { await api.load() },
@@ -1298,11 +1305,7 @@ registerFrame({
   }
   const fmtNum = n => (n || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
-  async function load() {
-    $('#a-refresh-' + id).textContent = '… scanning'
-    const d = await invoke('agi_usage').catch(() => null)
-    if (!leaf.isConnected) return
-    $('#a-refresh-' + id).textContent = '↻ refresh'
+  function render(d) {
     if (!d) { $('#a-note-' + id).textContent = 'unavailable'; return }
     $('#a-note-' + id).textContent = (d.file_count || 0) + ' session files scanned'
 
@@ -1364,6 +1367,10 @@ registerFrame({
         `<td class="num">${fmtTok(u.cache_read + u.cache_write)}</td><td class="num cost">${usd(u.cost)}</td></tr>`
     }).join('') || '<tr><td colspan="10" style="color:#6b7280">no sessions found</td></tr>'
   }
+  async function load() {
+    const d = await cachedInvoke('agi_usage').catch(() => null)
+    if (leaf.isConnected) render(d)
+  }
 
   // ── LIVE current-session monitor — cheap (one file, not the full 200+
   // history scan), polled every few seconds so this banner tracks the
@@ -1394,6 +1401,8 @@ registerFrame({
     } else { $('#a-cur-' + id).innerHTML = '<span style="color:#6b7280">no active session detected</span>' }
   }
 
+  const cached = cachePeek('agi_usage')
+  if (cached) render(cached)   // instant paint — the live banner still waits for a real refresh
   return { load, pollLive }
   },
   async refresh(api) { await api.load(); await api.pollLive() },

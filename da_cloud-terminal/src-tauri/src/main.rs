@@ -1292,6 +1292,29 @@ fn session_load() -> Value {
         .unwrap_or(Value::Null)
 }
 
+// ── Data cache (~/.cloud-terminal/cache.json) ────────────────────────
+// Every frame renders instantly from last-known data on open instead of a
+// blank pane — js/cache.js keys by cmd+args and persists here on the same
+// debounce as session_save. Exact mirror of the session_save/session_load
+// pattern above; kept as a separate file (not folded into session.json) so
+// the two concerns — "what tabs are open" vs "what did they last show" —
+// stay independently inspectable/clearable.
+fn cache_path() -> String {
+    format!("{}/.cloud-terminal/cache.json", env_or("HOME", "/tmp"))
+}
+#[tauri::command]
+fn cache_save(data: Value) -> Result<(), String> {
+    let p = cache_path();
+    if let Some(dir) = std::path::Path::new(&p).parent() { std::fs::create_dir_all(dir).map_err(|e| e.to_string())?; }
+    std::fs::write(&p, serde_json::to_string(&data).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+}
+#[tauri::command]
+fn cache_load() -> Value {
+    std::fs::read_to_string(cache_path()).ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or(Value::Null)
+}
+
 // ══ AGI dashboard — Claude Code usage analytics ══════════════════════
 // Reads the SAME sources the statusline reads: per-session transcripts
 // (~/.claude/projects/**/*.jsonl, one assistant-message-with-usage row per
@@ -1814,7 +1837,7 @@ fn main() {
             pty_start, pty_input, pty_resize, pty_kill, proc_kill, mem_reclaim, zombie_reap,
             psi_clean, psi_clean_all, journal_feed,
             cloud_targets, cloud_vm, cloud_stats, cloud_logs, cloud_ping, data_sync, data_gh, peer_ping, stack_info,
-            session_save, session_load, agi_usage, agi_live,
+            session_save, session_load, cache_save, cache_load, agi_usage, agi_live,
             run_item, get_init, sys_stats, debug_shot
         ])
         .setup(|app| {
