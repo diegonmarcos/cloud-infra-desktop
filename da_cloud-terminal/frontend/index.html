@@ -192,16 +192,15 @@ function bar(lbl, pct, right, col) {
 // presence (never values), real tool --version output, and the cloud
 // network's static topology (no live SSH probing — that's the Cloud tab's
 // job). Modeled on the fish greeting's info-dense layout.
-function makeStack(tabId) {
-  const id = ++paneSeq
-  const leaf = document.createElement('div')
-  leaf.className = 'leaf stack'; leaf.dataset.pane = String(id)
-  leaf.innerHTML = `
-    <div class="stack-wrap">
-      <div class="agi-top"><span style="font-weight:700;color:var(--accent2);letter-spacing:.08em">STACK</span>
-        <span style="flex:1"></span>
-        <button class="cpbtn" id="s-refresh-${id}">↻ refresh</button>
-        <button class="auto-toggle" id="s-auto-${id}" title="Auto-refresh (60s) — off by default. Stack is mostly static info (repo tree, tools, config) that rarely changes; use manual refresh after real changes."><i class="sw"></i>auto</button></div>
+function makeStack(tabId) { return buildFrame('stack', tabId) }
+registerFrame({
+  type: 'stack',
+  title: '📦 stack',
+  refreshMs: 60000,
+  autoFirstOpen: true,   // fully local/static info — matches prior always-load-on-open
+  make(el, ctx) {
+  const { id, leaf } = ctx
+  el.innerHTML = `
       <div class="jrn-stats" id="s-mach-${id}"></div>
       <div class="jrn-stats" id="s-mach2-${id}"></div>
       <div class="agi-grid">
@@ -220,19 +219,16 @@ function makeStack(tabId) {
         <div class="panel agi-panel-wide"><div class="ph"><span>CLOUD NETWORK · VMs</span><span class="sub">static topology — see the Cloud tab for live status</span></div>
           <div class="ptbl-wrap"><table class="ptbl"><thead><tr><th>ALIAS</th><th>WG IP</th><th>LABEL</th><th>PUBLIC URL</th></tr></thead><tbody id="s-cloud-${id}"></tbody></table></div></div>
         <div class="panel agi-panel-wide"><div class="ph"><span>CLOUD NETWORK · SERVICE CATEGORIES</span></div><div id="s-cats-${id}" class="stack-chips"></div></div>
-      </div>
-    </div>`
-  const $ = s => leaf.querySelector(s)
+      </div>`
+  const $ = s => el.querySelector(s)
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   const chip = (label, ok, title) => `<span class="stack-chip ${ok ? 'ok' : 'bad'}" ${title ? `title="${esc(title)}"` : ''}>${ok ? '●' : '○'} ${esc(label)}</span>`
   const listRow = (label, detail) => `<div class="stack-list-row"><b>${esc(label)}</b><span>${esc(detail || '')}</span></div>`
   const empty = t => `<span class="ds-empty">${esc(t)}</span>`
 
   async function load() {
-    $('#s-refresh-' + id).textContent = '… loading'
     const d = await invoke('stack_info').catch(() => null)
     if (!leaf.isConnected) return
-    $('#s-refresh-' + id).textContent = '↻ refresh'
     if (!d) { $('#s-mach-' + id).textContent = 'unavailable'; return }
 
     const m = d.machine || {}
@@ -294,19 +290,10 @@ function makeStack(tabId) {
     ).join('') || empty('none configured')
   }
 
-  let autoStack = false
-  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
-  $('#s-refresh-' + id).addEventListener('click', load)
-  $('#s-auto-' + id).addEventListener('click', () => {
-    autoStack = !autoStack
-    $('#s-auto-' + id).classList.toggle('on', autoStack)
-  })
-  load()
-  const stackTimer = setInterval(() => { if (autoStack && isActiveTab()) load() }, 60000)
-  leaf.addEventListener('mousedown', () => focusPane(id), true)
-  panes.set(id, { leaf, tabId, kind: 'stack', stop: () => clearInterval(stackTimer) })
-  return { id, leaf }
-}
+  return { load }
+  },
+  async refresh(api) { await api.load() },
+})
 
 function makeMonitor(tabId) {
   const id = ++paneSeq
@@ -1087,17 +1074,16 @@ function makeCloud(tabId) {
 }
 
 // ══ Data Sync Center (no PTY) — data topology, sync, peers, stats ════
-function makeDataSync(tabId) {
-  const id = ++paneSeq
-  const leaf = document.createElement('div')
-  leaf.className = 'leaf datasync'; leaf.dataset.pane = String(id)
+function makeDataSync(tabId) { return buildFrame('datasync', tabId) }
+registerFrame({
+  type: 'datasync',
+  title: '🔄 data-sync',
+  refreshMs: 10000,
+  autoFirstOpen: true,   // matches prior behavior — load() always ran on open
+  make(el, ctx) {
+  const { id } = ctx
   const P = (t, hdr, body) => `<div class="panel ${t}"><div class="ph"><span>${hdr}</span></div>${body}</div>`
-  leaf.innerHTML = `
-    <div class="ds">
-      <div class="ds-top"><span style="font-weight:700;color:var(--accent);letter-spacing:.08em">DATA SYNC CENTER</span>
-        <span style="flex:1"></span><span class="jrn-count" id="d-note-${id}"></span>
-        <button class="cpbtn" id="d-refresh-${id}">↻ refresh</button>
-        <button class="auto-toggle" id="d-auto-${id}" title="Auto-refresh (10s) — off by default, no dashboard polls in the background"><i class="sw"></i>auto</button></div>
+  el.innerHTML = `
       <div class="jrn-stats" id="d-stats-${id}"></div>
       <div class="ds-grid">
         ${P('', 'LOCAL · MOUNTS', '<div class="seg" id="d-mseg-' + id + '"></div><div class="seg-legend" id="d-mleg-' + id + '"></div><div class="bars" id="d-mounts-' + id + '"></div>')}
@@ -1110,9 +1096,8 @@ function makeDataSync(tabId) {
         ${P('', 'SYNC PEERS', '<div class="ds-list" id="d-peers-' + id + '"></div>')}
         ${P('', 'FUSE · USB', '<div class="ds-list" id="d-fuseusb-' + id + '"></div>')}
         ${P('', 'SYNC RULES · RCLONE', '<div class="ds-list" id="d-rules-' + id + '"></div>')}
-      </div>
-    </div>`
-  const $ = s => leaf.querySelector(s)
+      </div>`
+  const $ = s => el.querySelector(s)
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   const empty = m => `<div class="ds-empty">${m}</div>`
   const kv = (k, v, t) => `<div class="ds-kv"><span class="k">${esc(k)}${t ? ' <span class="t">' + esc(t) + '</span>' : ''}</span><span class="v">${esc(v)}</span></div>`
@@ -1178,34 +1163,21 @@ function makeDataSync(tabId) {
   async function loadGh() {
     $('#d-ghcr-' + id).innerHTML = empty('loading…'); $('#d-rel-' + id).innerHTML = empty('loading…')
     const g = await invoke('data_gh').catch(() => null)
-    if (!leaf.isConnected || !g) { $('#d-ghcr-' + id).innerHTML = empty('unavailable'); $('#d-rel-' + id).innerHTML = empty('unavailable'); return }
+    if (!el.isConnected || !g) { $('#d-ghcr-' + id).innerHTML = empty('unavailable'); $('#d-rel-' + id).innerHTML = empty('unavailable'); return }
     $('#d-ghcr-' + id).innerHTML = (g.ghcr || []).map(p => kv(p.name, 'v×' + (p.versions || 0), p.visibility)).join('') || empty('no GHCR packages (needs read:packages)')
     $('#d-rel-' + id).innerHTML = (g.releases || []).map(rr =>
       (rr.releases || []).slice(0, 2).map(rel => kv((rr.repo || '').split('/').pop() + ' ' + (rel.tagName || ''), rel.isLatest ? 'latest' : '', '')).join('')).join('') || empty('no releases')
   }
   async function load() {
-    $('#d-refresh-' + id).textContent = '… loading'
     const d = await invoke('data_sync').catch(() => null)
-    if (!leaf.isConnected) return
+    if (!el.isConnected) return
     if (d) { renderLocal(d); probePeers() }
-    $('#d-refresh-' + id).textContent = '↻ refresh'
-    loadGh()
+    await loadGh()
   }
-  // Off by default — no dashboard polls in the background just from being
-  // open; auto only ticks while this tab is the one actually visible.
-  let autoDs = false
-  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
-  $('#d-refresh-' + id).addEventListener('click', load)
-  $('#d-auto-' + id).addEventListener('click', () => {
-    autoDs = !autoDs
-    $('#d-auto-' + id).classList.toggle('on', autoDs)
-  })
-  load()
-  const dsTimer = setInterval(() => { if (autoDs && isActiveTab()) load() }, 10000)
-  leaf.addEventListener('mousedown', () => focusPane(id), true)
-  panes.set(id, { leaf, tabId, kind: 'datasync', stop: () => clearInterval(dsTimer) })
-  return { id, leaf }
-}
+  return { load }
+  },
+  async refresh(api) { await api.load() },
+})
 
 // ══ DEV CONTROL (no PTY) — invoke() instrumentation, live ═══════════
 // Answers "what's actually trashing the UX": every invoke() call app-wide
@@ -1297,16 +1269,15 @@ function makeDevControl(tabId) {
 }
 
 // ══ AGI dashboard (no PTY) — Claude Code usage analytics ═════════════
-function makeAGI(tabId) {
-  const id = ++paneSeq
-  const leaf = document.createElement('div')
-  leaf.className = 'leaf agi'; leaf.dataset.pane = String(id)
-  leaf.innerHTML = `
-    <div class="agi">
-      <div class="agi-top"><span style="font-weight:700;color:var(--accent2);letter-spacing:.08em">AGI · CLAUDE USAGE</span>
-        <span style="flex:1"></span><span class="jrn-count" id="a-note-${id}"></span>
-        <button class="cpbtn" id="a-refresh-${id}">↻ refresh</button>
-        <button class="auto-toggle" id="a-auto-${id}" title="Auto-refresh the live session banner (4s) — off by default, no dashboard polls in the background"><i class="sw"></i>auto</button></div>
+function makeAGI(tabId) { return buildFrame('agi', tabId) }
+registerFrame({
+  type: 'agi',
+  title: '🤖 agi',
+  refreshMs: 4000,
+  autoFirstOpen: true,   // matches prior behavior — load()+pollLive() always ran on open
+  make(el, ctx) {
+  const { id, leaf } = ctx
+  el.innerHTML = `
       <div class="agi-cur" id="a-cur-${id}"></div>
       <div class="jrn-stats" id="a-stats-${id}"></div>
       <div class="agi-grid">
@@ -1325,9 +1296,8 @@ function makeAGI(tabId) {
         <div class="ptbl-wrap"><table class="agi-tbl">
           <thead><tr><th>SESSION</th><th>PROJECT</th><th>MODEL</th><th>STARTED</th><th>LAST ACTIVE</th>
             <th class="num">DUR</th><th class="num">IN</th><th class="num">OUT</th><th class="num">CACHE</th><th class="num">$</th></tr></thead>
-          <tbody id="a-sess-${id}"></tbody></table></div></div>
-    </div>`
-  const $ = s => leaf.querySelector(s)
+          <tbody id="a-sess-${id}"></tbody></table></div></div>`
+  const $ = s => el.querySelector(s)
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   const modelColor = m => { let h = 0; for (const c of m) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h},65%,60%)` }
   const usd = n => '$' + (n || 0).toFixed(2)
@@ -1439,24 +1409,10 @@ function makeAGI(tabId) {
     } else { $('#a-cur-' + id).innerHTML = '<span style="color:#6b7280">no active session detected</span>' }
   }
 
-  // Off by default — the live banner must not poll from just being open.
-  // Manual refresh (both load() and pollLive() — the button covers both the
-  // full aggregate scan AND an immediate live-banner update) always works;
-  // auto only ticks while this tab is the one actually visible.
-  let autoAgi = false
-  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
-  $('#a-refresh-' + id).addEventListener('click', () => { load(); pollLive() })
-  $('#a-auto-' + id).addEventListener('click', () => {
-    autoAgi = !autoAgi
-    $('#a-auto-' + id).classList.toggle('on', autoAgi)
-  })
-  load()
-  pollLive()
-  const liveTimer = setInterval(() => { if (autoAgi && isActiveTab()) pollLive() }, 4000)
-  leaf.addEventListener('mousedown', () => focusPane(id), true)
-  panes.set(id, { leaf, tabId, kind: 'agi', stop: () => clearInterval(liveTimer) })
-  return { id, leaf }
-}
+  return { load, pollLive }
+  },
+  async refresh(api) { await api.load(); await api.pollLive() },
+})
 </script>
 <script src="js/boot.js"></script>
 
