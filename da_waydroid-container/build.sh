@@ -23,7 +23,17 @@ log()  { printf "${c_g}[waydroid-container]${c_0} %s\n" "$*"; }
 warn() { printf "${c_y}[waydroid-container]${c_0} %s\n" "$*"; }
 die()  { printf "${c_r}[waydroid-container] ERROR:${c_0} %s\n" "$*" >&2; exit 1; }
 
-get() { node -e "const c=require('$CONFIG');const v='$1'.split('.').reduce((o,k)=>o&&o[k],c);process.stdout.write(String(v??''))"; }
+# Config source of truth. In the repo this reads build.json; the self-contained
+# `bundle` artifact (src/waydroid-launcher, baked into the GHCR image at
+# /opt/launcher/waydroid) has BUNDLED_CONFIG_B64 replaced with build.json as base64,
+# so the portable binary needs neither the repo nor build.json beside it — only
+# docker + bash + node. Regenerated FROM build.json on every build (the dist/ artifact
+# pattern), never hand-edited: build.json stays the single source of truth.
+BUNDLED_CONFIG_B64=''
+_config_json() { if [ -n "$BUNDLED_CONFIG_B64" ]; then printf '%s' "$BUNDLED_CONFIG_B64" | base64 -d; else cat "$CONFIG"; fi; }
+get() { _config_json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const c=JSON.parse(s);const v=process.argv[1].split('.').reduce((o,k)=>o&&o[k],c);process.stdout.write(String(v??''))})" "$1"; }
+# get_array <dotted.path> — echoes a JSON string array joined by spaces.
+get_array() { _config_json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const c=JSON.parse(s);const v=process.argv[1].split('.').reduce((o,k)=>o&&o[k],c);process.stdout.write((v||[]).join(' '))})" "$1"; }
 
 tool() { local b; b="$(nix build --no-link --print-out-paths "nixpkgs#$1" 2>/dev/null | head -1)/bin/$2"; [ -x "$b" ] || die "could not resolve $2 via nixpkgs#$1"; printf '%s' "$b"; }
 rd_vncviewer()  { command -v vncviewer >/dev/null 2>&1 && { command -v vncviewer; return; }; tool tigervnc vncviewer; }
@@ -71,8 +81,21 @@ cmd_build() {
   log "built: $img (previous dangling generation pruned)"
 }
 
+# _ensure_running <mode> — start (or create) the container for the given display
+# mode. A container created for one mode carries that mode in its env for its whole
+# life — if the requested mode differs from the existing container's, it is recreated
+# (the /data volume persists, so Android state survives).
 _ensure_running() {
+  local mode="$1"
   command -v docker >/dev/null 2>&1 || die "docker not found (NixOS: virtualisation.docker.enable)"
+  if container_exists; then
+    local cur_mode
+    cur_mode="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$(container_name)" 2>/dev/null | command grep '^WAYDROID_DISPLAY_MODE=' | cut -d= -f2)"
+    if [ "${cur_mode:-}" != "$mode" ]; then
+      log "existing container is mode '${cur_mode:-unknown}', requested '$mode' — recreating (Android /data persists)…"
+      docker rm -f "$(container_name)" >/dev/null 2>&1 || true
+    fi
+  fi
   if container_running; then log "container '$(container_name)' already running"; return 0; fi
   local data; data="$(get container.data_volume)"; sudo mkdir -p "$data"
   if container_exists; then
@@ -115,6 +138,14 @@ _ensure_running() {
     # sway log zero libinput device lines, no input working in the stream). The
     # host's udevd processes the uevents; sharing its /run/udev database+monitor
     # socket read-only is the standard Sunshine-in-docker input wiring.
+    # native mode: the HOST's XDG_RUNTIME_DIR (KDE's wayland + pulse sockets) is
+    # bind-mounted at /host-xdg — Waydroid's hwcomposer becomes a direct Wayland
+    # client of the host compositor (the exact bare-metal Waydroid-on-KDE wiring).
+    local native_mounts=()
+    if [ "$mode" = "native" ]; then
+      [ -n "${XDG_RUNTIME_DIR:-}" ] || die "native mode needs \$XDG_RUNTIME_DIR (run from a desktop session)"
+      native_mounts=(-v "$XDG_RUNTIME_DIR:/host-xdg")
+    fi
     docker run -d --name "$(container_name)" \
       --privileged \
       --cgroupns=host \
@@ -123,11 +154,23 @@ _ensure_running() {
       --device /dev/dri \
       -v /run/udev:/run/udev:ro \
       -v "$data:/var/lib/waydroid" \
+      "${native_mounts[@]}" \
       -p "$(get container.vnc_addr):$port" \
+      -e "WAYDROID_DISPLAY_MODE=$mode" \
+      -e "WAYDROID_HOST_WAYLAND_DISPLAY=$(get display.host_wayland_display)" \
       -e "WAYDROID_VNC_PORT=$port" \
       -e "WAYDROID_WIDTH=$(get container.width)" \
       -e "WAYDROID_HEIGHT=$(get container.height)" \
       "$img" >/dev/null
+  fi
+  if [ "$mode" = "native" ]; then
+    log "waiting for the waydroid session (native window on the host desktop)…"
+    for _ in $(seq 1 90); do
+      docker exec "$(container_name)" waydroid status 2>/dev/null | grep -q "Session:.*RUNNING" && { log "session RUNNING."; return 0; }
+      sleep 2
+    done
+    warn "session not RUNNING within 180s — check: docker logs $(container_name)"
+    return 0
   fi
   log "waiting for VNC (container bridge IP)…"
   local addr host port; addr="$(vnc_addr)"; host="${addr%%:*}"; port="${addr##*:}"
@@ -168,32 +211,53 @@ _pair_moonlight() {
   log "paired."
 }
 
-# _run_gui — GUI-bound invariant: attach the streaming client in the FOREGROUND, and
-# when the window closes, stop the container. "No GUI ⇒ no running waydroid-container".
-# PRIMARY: Moonlight (Sunshine VAAPI-encoded stream — full GPU pipeline).
-# FALLBACK: `up vnc` attaches TigerVNC to wayvnc instead (debug transport).
+# _run_gui — GUI-bound invariant: keep a GUI in the FOREGROUND, and when it closes,
+# stop the container. "No GUI ⇒ no running waydroid-container".
+#   (default) native: Android IS a native window on the host desktop (one cursor,
+#             native touch, native audio, no stream). This engine call blocks while
+#             the window exists and tears the container down when it closes.
+#   stream:   Moonlight window (Sunshine VAAPI stream — remote-desktop UX).
+#   vnc:      TigerVNC window (debug transport).
 _run_gui() {
-  _ensure_running
-  local ip; ip="$(container_ip)"
-  if [ "${1:-}" = "vnc" ]; then
-    local vv; vv="$(rd_vncviewer)"
-    log "launching vncviewer (fallback transport) on $(vnc_addr)…"
-    "$vv" "$(vnc_addr)" || true
-  else
-    local ml; ml="$(rd_moonlight)"
-    for _ in $(seq 1 30); do
-      curl -sk "https://$ip:47990" >/dev/null 2>&1 && break
-      sleep 1
-    done
-    _pair_moonlight "$ml" "$ip"
-    local res fps flags; res="$(get container.width)x$(get container.height)"; fps="$(get stream.fps)"
-    # client_flags (build.json): windowed + absolute mouse/touch — a normal parallel
-    # desktop window, NOT Moonlight's game-mode exclusive-fullscreen + captured mouse.
-    flags="$(node -e "console.log(require('$CONFIG').stream.client_flags.join(' '))")"
-    log "launching Moonlight stream ($res@${fps}fps, VAAPI GPU pipeline, windowed) on $ip…"
-    # shellcheck disable=SC2086 — flags is a flat list of CLI switches by design
-    "$ml" stream "$ip" "$(get stream.app_name)" --resolution "$res" --fps "$fps" --quit-after $flags || true
-  fi
+  local mode="${1:-$(get display.mode)}"
+  _ensure_running "$mode"
+  case "$mode" in
+    native)
+      # KDE Plasma 6 is WAYLAND: the Waydroid window is a native Wayland toplevel of the
+      # host compositor, NOT an X11 window — xdotool/xprop/wmctrl cannot see it (that was
+      # the earlier false-negative "window never appeared" while it was plainly on screen).
+      # So the lifecycle is NOT bound to window polling. Native mode is a normal desktop
+      # app: `up` brings Android up (the entrypoint already ran show-full-ui once), we
+      # re-issue show-full-ui so a re-run re-shows a closed/hidden window, then RETURN —
+      # the window persists like any app. Closing it hides Android (it stays booted, the
+      # desktop-natural behavior, unlike the stream/vnc teardown-on-close); `down` stops
+      # the container. This return skips the cmd_down at the end of _run_gui.
+      docker exec -d "$(container_name)" waydroid show-full-ui 2>/dev/null || true
+      log "Waydroid is now a NATIVE window on your desktop — one cursor, native touch/trackpad/audio."
+      log "  re-show: waydroid up   ·   stop: waydroid down   ·   status: waydroid status"
+      return 0
+      ;;
+    vnc)
+      local vv; vv="$(rd_vncviewer)"
+      log "launching vncviewer (debug transport) on $(vnc_addr)…"
+      "$vv" "$(vnc_addr)" || true
+      ;;
+    stream)
+      local ip; ip="$(container_ip)"
+      local ml; ml="$(rd_moonlight)"
+      for _ in $(seq 1 30); do
+        curl -sk "https://$ip:47990" >/dev/null 2>&1 && break
+        sleep 1
+      done
+      _pair_moonlight "$ml" "$ip"
+      local res fps flags; res="$(get container.width)x$(get container.height)"; fps="$(get stream.fps)"
+      flags="$(get_array stream.client_flags)"
+      log "launching Moonlight stream ($res@${fps}fps, VAAPI GPU pipeline, windowed) on $ip…"
+      # shellcheck disable=SC2086 — flags is a flat list of CLI switches by design
+      "$ml" stream "$ip" "$(get stream.app_name)" --resolution "$res" --fps "$fps" --quit-after $flags || true
+      ;;
+    *) die "unknown display mode '$mode' (native | stream | vnc)" ;;
+  esac
   log "GUI closed — stopping waydroid-container (no GUI ⇒ no running container)…"
   cmd_down
 }
@@ -234,10 +298,36 @@ cmd_status() {
 cmd_test() {
   local name fail=0; name="$(container_name)"
   container_running || die "container not running — run: ./build.sh up"
+  local mode
+  mode="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$name" 2>/dev/null | command grep '^WAYDROID_DISPLAY_MODE=' | cut -d= -f2)"
+  log "testing display mode: ${mode:-unknown}"
 
   printf "1. boot_completed: "
   local bc; bc="$(docker exec "$name" waydroid shell -- getprop sys.boot_completed 2>/dev/null | tr -d '[:space:]')"
   [ "$bc" = "1" ] && echo "OK" || { echo "FAIL (got '$bc')"; fail=1; }
+
+  if [ "$mode" = "native" ]; then
+    # Wayland-safe checks only — no X11 window tools (they can't see the native
+    # Wayland toplevel). Session RUNNING = hwcomposer attached to the host compositor
+    # (the window is up); non-blank screencap = Android is actually rendering into it.
+    printf "2. waydroid session attached to host compositor: "
+    docker exec "$name" waydroid status 2>/dev/null | grep -q "Session:.*RUNNING" && echo "OK" \
+      || { echo "FAIL (session not RUNNING)"; fail=1; }
+
+    printf "3. Android actually rendering (screencap non-blank): "
+    local sz
+    docker exec "$name" waydroid shell -- screencap -p /data/local/tmp/t.png >/dev/null 2>&1
+    sz="$(docker exec "$name" stat -c %s /root/.local/share/waydroid/data/local/tmp/t.png 2>/dev/null || echo 0)"
+    if [ "${sz:-0}" -gt 20000 ] 2>/dev/null; then echo "OK (${sz} bytes)"
+    else echo "FAIL (screencap ${sz:-0} bytes — likely blank)"; fail=1; fi
+
+    printf "4. host wayland socket mounted (native-mode wiring): "
+    docker exec "$name" sh -c '[ -S /host-xdg/$WAYDROID_HOST_WAYLAND_DISPLAY ]' 2>/dev/null && echo "OK" \
+      || { echo "FAIL (host compositor socket not bind-mounted)"; fail=1; }
+
+    [ "$fail" = 0 ] && log "ALL TESTS PASSED — native window pipeline verified" || die "pipeline test FAILED"
+    return 0
+  fi
 
   printf "2. UI surface mapped in sway: "
   local sock; sock="$(docker exec "$name" sh -c "find \$XDG_RUNTIME_DIR -maxdepth 1 -name 'sway-ipc.*.sock' | head -1")"
@@ -301,5 +391,5 @@ case "${1:-up}" in
   test)   cmd_test ;;
   push)   cmd_push ;;
   *) die "unknown command '$1'
-  build | up [vnc] | down | status | test | push" ;;
+  build | up [native|stream|vnc] | down | status | test | push" ;;
 esac

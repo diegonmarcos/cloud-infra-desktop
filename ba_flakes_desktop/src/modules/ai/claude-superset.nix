@@ -69,6 +69,11 @@ let
 
   claude-superset = pkgs.writeShellScriptBin "claude-superset" ''
     set -u
+    # help: plain-text usage of every arg (the TUI dashboard is --help / -h).
+    if [ "''${1:-}" = "help" ]; then
+      exec cat ${./claude-superset-help.txt}
+    fi
+
     # --help / -h: interactive status dashboard — probes every face, all MCPs,
     # plugins (Headroom + Ponytail), and direct Anthropic fallback.
     if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ]; then
@@ -92,6 +97,29 @@ let
     MODE="remote"
     case "''${1:-}" in
       local|remote) MODE="$1"; shift ;;
+    esac
+
+    # Session action (default: fresh = passthrough to claude). `restore <X>` /
+    # `restore-hours <Y>` reopen recent sessions as konsole tabs — each tab runs
+    # `claude-superset <MODE> --resume <id>` in the session's own cwd. Selection
+    # + tab-layout generation is data-driven in ./claude-superset-restore.mjs.
+    case "''${1:-}" in
+      fresh) shift ;;
+      restore|restore-hours)
+        sel=count; [ "$1" = "restore-hours" ] && sel=hours; shift
+        val="''${1:-}"; shift || true
+        case "$val" in ""|*[!0-9]*)
+          echo "[claude-superset] $sel restore needs a positive number" >&2; exit 2 ;;
+        esac
+        tabs="''${XDG_RUNTIME_DIR:-/tmp}/claude-superset-tabs"
+        ${pkgs.nodejs}/bin/node ${./claude-superset-restore.mjs} "$MODE" "$sel" "$val" > "$tabs"
+        if [ ! -s "$tabs" ]; then
+          echo "[claude-superset] no matching sessions to restore" >&2; exit 1
+        fi
+        n=$(${pkgs.coreutils}/bin/wc -l < "$tabs")
+        echo "[claude-superset] restoring $n session(s) into konsole tabs" >&2
+        exec ${pkgs.kdePackages.konsole}/bin/konsole --tabs-from-file "$tabs"
+        ;;
     esac
 
     if [ "$MODE" = "local" ]; then

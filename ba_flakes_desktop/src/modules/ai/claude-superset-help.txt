@@ -1,0 +1,29 @@
+claude-superset — Claude Code via the Headroom compression proxy
+
+USAGE
+  claude-superset [remote|local] [fresh|restore <X>|restore-hours <Y>] [claude args…]
+
+FACE (default: remote)
+  remote                Route through the oci-apps proxy over WireGuard
+                        (direct-Anthropic fallback if unreachable).
+  local                 Run the same container on THIS host (docker compose,
+                        127.0.0.1 only). `local down` tears it down.
+
+SESSION ACTION (default: fresh)
+  fresh                 Open a normal fresh session (passes remaining args
+                        straight to claude).
+  restore <X>           Open the last X sessions, one per konsole tab, each
+                        running `claude --resume <id>` in the session's cwd;
+                        each tab is titled with the session summary.
+  restore-hours <Y>     Same, but restore every session touched in the last
+                        Y hours.
+
+OTHER
+  --help, -h            Interactive status dashboard (faces, MCPs, plugins).
+  help                  This message.
+
+EXAMPLES
+  claude-superset                      # remote, fresh
+  claude-superset local fresh          # local face, fresh
+  claude-superset remote restore 5     # reopen last 5 sessions in tabs
+  claude-superset restore-hours 8      # reopen sessions from last 8h

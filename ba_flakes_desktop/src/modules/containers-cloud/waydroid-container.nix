@@ -82,10 +82,10 @@ in {
     icon = desktopId;
     categories = [ "System" ];
     # KDE's taskbar matches a running window to a pinned launcher by comparing the
-    # window's WM_CLASS to the desktop file's StartupWMClass. The window that opens is
-    # Moonlight's ("Moonlight"). Verify via `xprop WM_CLASS` if a Moonlight version
-    # bump ever changes it.
-    settings.StartupWMClass = "Moonlight";
+    # window's WM_CLASS to the desktop file's StartupWMClass. In the default NATIVE
+    # display mode the window is Waydroid's own native window (WM_CLASS "Waydroid" —
+    # Android renders directly into KDE via the bind-mounted host Wayland socket).
+    settings.StartupWMClass = "Waydroid";
   };
 
   # Pin the launcher to the KDE Plasma taskbar (icontasks) — plasma-manager's
