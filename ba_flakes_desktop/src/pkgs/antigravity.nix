@@ -6,7 +6,7 @@
 #
 # Runs inside buildFHSEnv: the binary expects an FHS layout
 # (/lib64/ld-linux-x86-64.so.2 + system GTK/NSS/X11 stack).
-{ lib, stdenv, fetchurl, buildFHSEnv, makeDesktopItem, copyDesktopItems }:
+{ lib, stdenv, fetchurl, buildFHSEnv, makeDesktopItem, copyDesktopItems, writeShellScript }:
 
 let
   version = "2.2.1";
@@ -75,7 +75,16 @@ let
     profile = ''
       export XDG_DATA_DIRS=/usr/share:$XDG_DATA_DIRS
     '';
-    runScript = "${unpacked}/opt/antigravity/antigravity";
+    # Known upstream bug (all Linux distros): Antigravity can leave orphaned
+    # helper processes on close that wedge the session (freeze-on-close, see
+    # jacopone/antigravity-nix README). Reap everything from this install on
+    # exit so a close can never strand children.
+    runScript = writeShellScript "antigravity-run" ''
+      "${unpacked}/opt/antigravity/antigravity" "$@"
+      rc=$?
+      pkill -9 -f "${unpacked}/opt/antigravity" 2>/dev/null || true
+      exit $rc
+    '';
   };
 in
 stdenv.mkDerivation {
