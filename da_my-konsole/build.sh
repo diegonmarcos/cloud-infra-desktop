@@ -88,7 +88,12 @@ cmd_run() {
   fi
   [ -x "$bin" ] || die "no binary at $bin (build or fetch first)"
   local libpath; libpath="$(nix eval --raw "$HERE#runtimeLibPath" 2>/dev/null || true)"
-  LD_LIBRARY_PATH="${libpath}:${LD_LIBRARY_PATH:-}" MYK_SHELL="${MYK_SHELL:-fish}" exec "$bin"
+  # WEBKIT_DISABLE_COMPOSITING_MODE=1: force software compositing so the webview
+  # doesn't probe GBM/DRI (harmless GBM errors on the Surface's iGPU otherwise).
+  # WEBKIT_DISABLE_DMABUF_RENDERER=1 is the newer WebKitGTK knob for the same.
+  LD_LIBRARY_PATH="${libpath}:${LD_LIBRARY_PATH:-}" \
+    WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 \
+    MYK_SHELL="${MYK_SHELL:-fish}" exec "$bin"
 }
 
 # install — write a ~/.local/bin/my-konsole launcher (→ build.sh run). Idempotent.
