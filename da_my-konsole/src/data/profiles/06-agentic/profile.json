@@ -1,0 +1,44 @@
+{
+  "name": "agentic",
+  "display_name": "Agentic",
+  "theme": { "accent": "#9b59b6" },
+  "sections": [
+    {
+      "title": "CLAUDE CODE",
+      "items": [
+        { "label": "claude", "cmd": "claude" },
+        { "label": "resume session", "cmd": "claude --resume" },
+        { "label": "continue last", "cmd": "claude --continue" },
+        { "label": "pick model", "cmd": "claude --model opus" },
+        { "label": "claude in kg-bridge", "cmd": "ssh claude_oci-apps" },
+        { "label": "claude-rescue chain", "cmd": "bash ~/git/tools/dtk.sh recover.claude-rescue" }
+      ]
+    },
+    {
+      "title": "GOOSE / GEMINI",
+      "items": [
+        { "label": "goose session", "cmd": "goose session" },
+        { "label": "goose configure", "cmd": "goose configure" },
+        { "label": "install goose", "cmd": "bash ~/git/tools/dtk.sh provision.goose" },
+        { "label": "provision claude/gemini", "cmd": "bash ~/git/tools/dtk.sh provision.claude" }
+      ]
+    },
+    {
+      "title": "OLLAMA (gcp-t4 GPU)",
+      "items": [
+        { "label": "list models", "cmd": "ssh gcp-t4 ollama list" },
+        { "label": "run model", "cmd": "ssh -t gcp-t4 ollama run llama3" },
+        { "label": "ps (running)", "cmd": "ssh gcp-t4 ollama ps" },
+        { "label": "gpu status", "cmd": "ssh gcp-t4 nvidia-smi" }
+      ]
+    },
+    {
+      "title": "MCP / TOOLING",
+      "items": [
+        { "label": "bearer token", "cmd": "python ~/git/vault/A0_keys/providers/authelia/oauth/get_token.py" },
+        { "label": "DTK menu", "cmd": "bash ~/git/tools/dtk.sh" },
+        { "label": "connect dashboard", "cmd": "bash ~/git/tools/dtk.sh connect.dashboard" }
+      ]
+    }
+  ]
+}

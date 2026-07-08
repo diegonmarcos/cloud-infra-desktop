@@ -106,28 +106,41 @@ fn pty_kill(ptys: State<Ptys>, id: String) {
     ptys.0.lock().unwrap().remove(&id); // drop closes the PTY → shell gets SIGHUP
 }
 
-// Load profiles (top-nav + command sections) from the data dir. Data-driven:
-// each profile is src/data/profiles/<name>/profile.json, shipped next to the bin.
-#[tauri::command]
-fn get_profiles(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
-    let base = app
-        .path()
-        .resolve("profiles", tauri::path::BaseDirectory::Resource)
-        .map_err(|e| e.to_string())?;
+// Load profiles (top-nav + command sections). Data-driven: each profile is a
+// <slug>/profile.json (dirs sorted, so numeric prefixes control order). Prefer
+// the USER dir (~/.local/share/my-konsole/profiles) so edits apply on restart
+// WITHOUT a recompile; fall back to the bundled Resource copy.
+fn read_profiles_dir(base: &std::path::Path) -> Vec<serde_json::Value> {
     let mut profiles = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(&base) {
+    if let Ok(entries) = std::fs::read_dir(base) {
         let mut dirs: Vec<_> = entries.flatten().map(|e| e.path()).collect();
         dirs.sort();
         for d in dirs {
-            let pj = d.join("profile.json");
-            if let Ok(txt) = std::fs::read_to_string(&pj) {
+            if let Ok(txt) = std::fs::read_to_string(d.join("profile.json")) {
                 if let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt) {
                     profiles.push(v);
                 }
             }
         }
     }
-    Ok(serde_json::json!({ "profiles": profiles }))
+    profiles
+}
+
+#[tauri::command]
+fn get_profiles(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    // 1. user dir (instant edits, no rebuild)
+    if let Some(home) = std::env::var_os("HOME") {
+        let user = std::path::Path::new(&home).join(".local/share/my-konsole/profiles");
+        let p = read_profiles_dir(&user);
+        if !p.is_empty() {
+            return Ok(serde_json::json!({ "profiles": p }));
+        }
+    }
+    // 2. bundled resource fallback
+    if let Ok(base) = app.path().resolve("profiles", tauri::path::BaseDirectory::Resource) {
+        return Ok(serde_json::json!({ "profiles": read_profiles_dir(&base) }));
+    }
+    Ok(serde_json::json!({ "profiles": [] }))
 }
 
 fn main() {
