@@ -341,16 +341,27 @@ registerFrame({
           </div></div>
       </div>
 
-      <div class="panel cores-panel"><div class="ph"><span>CPU CORES</span><span class="sub" id="m-coresub-${id}"></span></div>
-        <div class="cores" id="m-cores-${id}"></div></div>
-
-      <div class="mon-row trip">
-        <div class="panel psi-panel"><div class="ph"><span>PRESSURE · PSI</span><span class="sub">% stalled · graph 0–30%</span></div>
-          <div class="psi">
-            <div class="psi-g"><div class="psi-gh"><span class="pl">CPU</span><span class="psi-avgs" id="m-psia-cpu-${id}"></span></div><canvas class="g" id="m-psic-cpu-${id}"></canvas></div>
-            <div class="psi-g"><div class="psi-gh"><span class="pl">IO</span><span class="psi-avgs" id="m-psia-io-${id}"></span></div><canvas class="g" id="m-psic-io-${id}"></canvas></div>
-            <div class="psi-g"><div class="psi-gh"><span class="pl">MEM</span><span class="psi-avgs" id="m-psia-mem-${id}"></span></div><canvas class="g" id="m-psic-mem-${id}"></canvas></div>
+      <div class="mon-row cores-psi">
+        <div class="panel cores-panel"><div class="ph"><span>CPU CORES</span><span class="sub" id="m-coresub-${id}"></span></div>
+          <div class="cores" id="m-cores-${id}"></div></div>
+        <div class="panel psi-panel"><div class="ph"><span>PRESSURE · PSI</span><span class="sub">% stalled · 10s avg</span></div>
+          <div class="psi-hbars">
+            <div class="psi-group">
+              <div class="psi-gt">SOME <span class="psi-gsub">task stalled</span></div>
+              <div class="psi-hrow"><span class="phlbl">CPU</span><div class="phtrack"><i id="m-psib-some-cpu-${id}"></i></div><span class="phval" id="m-psiv-some-cpu-${id}"></span></div>
+              <div class="psi-hrow"><span class="phlbl">IO</span><div class="phtrack"><i id="m-psib-some-io-${id}"></i></div><span class="phval" id="m-psiv-some-io-${id}"></span></div>
+              <div class="psi-hrow"><span class="phlbl">MEM</span><div class="phtrack"><i id="m-psib-some-mem-${id}"></i></div><span class="phval" id="m-psiv-some-mem-${id}"></span></div>
+            </div>
+            <div class="psi-group">
+              <div class="psi-gt">FULL <span class="psi-gsub">all stalled</span></div>
+              <div class="psi-hrow"><span class="phlbl">CPU</span><div class="phtrack"><i id="m-psib-full-cpu-${id}"></i></div><span class="phval" id="m-psiv-full-cpu-${id}"></span></div>
+              <div class="psi-hrow"><span class="phlbl">IO</span><div class="phtrack"><i id="m-psib-full-io-${id}"></i></div><span class="phval" id="m-psiv-full-io-${id}"></span></div>
+              <div class="psi-hrow"><span class="phlbl">MEM</span><div class="phtrack"><i id="m-psib-full-mem-${id}"></i></div><span class="phval" id="m-psiv-full-mem-${id}"></span></div>
+            </div>
           </div></div>
+      </div>
+
+      <div class="mon-row pair">
         <div class="panel swap-panel"><div class="ph"><span>SWAP · ZRAM</span><span class="sub" id="m-swapsub-${id}"></span></div>
           <div class="kv" id="m-swapkv-${id}"></div></div>
         <div class="panel batt-panel"><div class="ph"><span>BATTERY</span><span class="sub" id="m-battsub-${id}"></span></div>
@@ -393,7 +404,6 @@ registerFrame({
     </div>`
   const hist = { cpu: [], mem: [], rx: [], tx: [] }
   const coreHist = []
-  const psiHist = { cpu: [], io: [], mem: [] }   // per-resource PSI some-avg10 history
   let prevSwap = null                            // for swapping-activity detection
   let sortBy = 'cpu', viewMode = 'flat', lastS = null
   const expanded = new Set()            // pids with the detail row open
@@ -656,16 +666,20 @@ registerFrame({
       kv('free', fmtBytes((m.swap_total || 0) - (m.swap_used || 0))) +
       zkv
 
-    // ── PSI panel: per-resource time graphs (fixed 0–30% ceiling, so 30%
-    // stall fills the graph) with absolute avg10/avg60/avg300 numbers. ──
+    // ── PSI panel: horizontal bars, two groups (some/full) × 3 resources.
+    // CPU has no "full" line in the kernel (stall-all-tasks makes no sense
+    // for cpu) — its full bar just reads 0%. Fill % is scaled against a
+    // 30%-stall ceiling so real-world pressure (rarely >10%) still reads. ──
     const psi = s.psi || {}
     const PSI_MAX = 30
-    for (const [k, key, hue] of [['cpu', 'cpu', 45], ['io', 'io', 190], ['mem', 'memory', 300]]) {
-      const some = (psi[key] || {}).some || {}
-      push(psiHist[k], some.avg10 || 0)
-      drawGraph($('#m-psic-' + k + '-' + id), psiHist[k], PSI_MAX, hue, true)
-      $('#m-psia-' + k + '-' + id).innerHTML =
-        `10s <b>${(some.avg10 || 0).toFixed(1)}%</b> · 1m ${(some.avg60 || 0).toFixed(1)}% · 5m ${(some.avg300 || 0).toFixed(1)}%`
+    for (const [k, key] of [['cpu', 'cpu'], ['io', 'io'], ['mem', 'memory']]) {
+      const r = psi[key] || {}
+      for (const tag of ['some', 'full']) {
+        const avg10 = (r[tag] || {}).avg10 || 0
+        const bar = $(`#m-psib-${tag}-${k}-${id}`)
+        if (bar) { const col = heat(1 - Math.min(1, avg10 / PSI_MAX)); bar.style.width = Math.min(100, avg10 / PSI_MAX * 100) + '%'; bar.style.background = col; bar.style.color = col }
+        const val = $(`#m-psiv-${tag}-${k}-${id}`); if (val) val.textContent = avg10.toFixed(1) + '%'
+      }
     }
 
     // ── SWAP · ZRAM breakdown ──
