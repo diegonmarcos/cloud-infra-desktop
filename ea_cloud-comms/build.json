@@ -227,8 +227,8 @@
       "_doc_interval": "WorkManager periodic minimum is 15 min. 6h matches typical cadence + spares battery/data.",
       "require_unmetered_network": false,
       "require_charging": false,
-      "_doc_install": "'prompt' uses PackageInstaller with a user-confirmation dialog (only no-root path). 'silent' needs the system updater privilege (F-Droid Privileged Extension) \u2014 not used here.",
-      "install_mode": "prompt",
+      "_doc_install": "Declared default for the runtime Auto-update toggle (Configs \u2192 About \u2192 Cloud Mail). 'silent' \u2192 USER_ACTION_NOT_REQUIRED (no install prompt) once 'Install unknown apps' is granted; falls back to a prompt without it. 'prompt' \u2192 always USER_ACTION_REQUIRED.",
+      "install_mode": "silent",
       "_doc_abi_tags": "Runtime ABI awareness: the in-app updater tries GHCR tag '<tag>-<deviceAbi>' (e.g. latest-x86_64 on Waydroid) before falling back to the universal '<tag>'. publish-fork pushes :latest for universal APKs and :latest-<abi> for ABI-specific builds."
     }
   },
