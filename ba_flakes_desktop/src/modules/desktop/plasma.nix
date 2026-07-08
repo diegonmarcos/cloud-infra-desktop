@@ -234,7 +234,7 @@ in
       plasmashell = {
         "show-on-mouse-pos" = "Meta+V";
       };
-      "Alacritty.desktop"."_launch" = "Meta+Return";
+      "my-konsole.desktop"."_launch" = "Meta+Return";
       "org.kde.dolphin.desktop"."_launch" = "Meta+E";
     };
 
@@ -468,8 +468,11 @@ in
       "kdeglobals"."General" = {
         ColorSchemeHash = "babca25f3a5cf7ece26a85de212ab43d0a141257";
         ColorScheme = "BreezeDark";
-        TerminalApplication = "alacritty";
-        TerminalService = "Alacritty.desktop";
+        # my-konsole is the default terminal. ponytail: Dolphin's "Open Terminal
+        # here" passes a workdir the Tauri app doesn't yet consume — opens at
+        # $HOME for now; add a --workdir arg to the app if that matters.
+        TerminalApplication = "my-konsole";
+        TerminalService = "my-konsole.desktop";
       };
       "kdeglobals"."Icons" = {
         Theme = "breeze-dark";
