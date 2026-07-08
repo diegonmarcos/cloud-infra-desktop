@@ -1,0 +1,31 @@
+{
+  "name": "default",
+  "display_name": "Shell",
+  "theme": { "accent": "#3daee9" },
+  "sections": [
+    {
+      "title": "Navigation",
+      "items": [
+        { "label": "Home", "cmd": "cd ~" },
+        { "label": "Git repos", "cmd": "cd ~/git" },
+        { "label": "List (ll)", "cmd": "ls -lah" }
+      ]
+    },
+    {
+      "title": "Git",
+      "items": [
+        { "label": "Status", "cmd": "git status" },
+        { "label": "Log (oneline)", "cmd": "git log --oneline -15" },
+        { "label": "Diff", "cmd": "git diff" }
+      ]
+    },
+    {
+      "title": "System",
+      "items": [
+        { "label": "Disk usage", "cmd": "df -h" },
+        { "label": "Memory", "cmd": "free -h" },
+        { "label": "Top (btop)", "cmd": "btop" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>my-konsole</title>
+  <link rel="stylesheet" href="vendor/xterm.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- Top profile nav -->
+  <header id="topnav">
+    <div id="brand">my-konsole</div>
+    <nav id="profiles"><!-- .profile-pill per profile (boot.js) --></nav>
+    <div id="topnav-spacer"></div>
+    <button id="btn-newtab" title="New Tab (Ctrl+Shift+T)">＋ Tab</button>
+  </header>
+
+  <div id="body">
+    <!-- Left: search + per-profile command sections -->
+    <aside id="sidebar">
+      <input id="search" type="search" placeholder="Search commands…" autocomplete="off" />
+      <div id="sections"><!-- .section per profile.sections[] (boot.js) --></div>
+    </aside>
+
+    <!-- Center: tab strip + terminals -->
+    <main id="center">
+      <div id="tabstrip"><!-- .tab per terminal (tabs.js) --></div>
+      <div id="terms"><!-- .term host per tab (term.js) --></div>
+      <!-- Konsole-style find bar (Ctrl+Shift+F) -->
+      <div id="findbar" hidden>
+        <input id="find-input" type="text" placeholder="Find…" />
+        <button id="find-prev" title="Previous">▲</button>
+        <button id="find-next" title="Next">▼</button>
+        <button id="find-close" title="Close (Esc)">✕</button>
+      </div>
+    </main>
+  </div>
+
+  <script src="vendor/xterm.js"></script>
+  <script src="vendor/xterm-addon-fit.js"></script>
+  <script src="vendor/xterm-addon-search.js"></script>
+  <script src="js/term.js"></script>
+  <script src="js/tabs.js"></script>
+  <script src="js/boot.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "my-konsole",
+  "description": "my-konsole — Rust (Tauri v2) KDE Konsole alternative: tabbed terminal with a profile top-nav, command search, and per-profile command sections. Own project, cloud-terminal-inspired UI.",
+  "app": {
+    "identifier": "com.diegonmarcos.my-konsole",
+    "product_name": "my-konsole",
+    "wm_class": "com.diegonmarcos.my-konsole",
+    "bin": "my-konsole",
+    "shell": "fish"
+  },
+  "build": {
+    "engine": "cargo tauri build",
+    "bundle": "deb",
+    "vendor": ["xterm"],
+    "remote": true,
+    "_remote_note": "Rust/Tauri compile is heavy — built on GHA (ship-my-konsole-app.yml), published to GH release + GHCR, pulled on the laptop. Never compiled locally (freeze-guard)."
+  },
+  "kde": {
+    "set_default_terminal": true,
+    "terminal_service": "com.diegonmarcos.my-konsole.desktop"
+  }
+}
