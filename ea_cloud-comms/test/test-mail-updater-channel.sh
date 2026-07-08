@@ -47,12 +47,13 @@ else
     || ok  "assetless newer tag $NEWEST_ANY correctly skipped"
 fi
 
-echo "== T4: update-decision logic (exact Java comparisons, lexicographic compareTo)"
+echo "== T4: update-decision logic (patch 0047 CommsUpdateWorker.isOutdated, lexicographic compareTo)"
 decide() { # installed stamp -> UP_TO_DATE | UPDATE
+  # Java: isOutdated = "dev".equals(installed) || remote.compareTo(installed) > 0
   local inst=$1
-  if [ "$inst" = "dev" ] || [ "$inst" = "$STAMP" ] || [[ "$STAMP" < "$inst" ]]; then echo UP_TO_DATE; else echo UPDATE; fi
+  if [ "$inst" = "dev" ] || [[ "$STAMP" > "$inst" ]]; then echo UPDATE; else echo UP_TO_DATE; fi
 }
-[ "$(decide dev)"              = UP_TO_DATE ] && ok "installed=dev → up-to-date (why pre-0045 builds are update-blind)" || bad "dev guard broken"
+[ "$(decide dev)"              = UPDATE     ] && ok "installed=dev → ALWAYS outdated (0047: dev pulls newest release)"   || bad "dev must mean always-update"
 [ "$(decide "$STAMP")"         = UP_TO_DATE ] && ok "installed==release stamp → up to date (no self-update loop)"       || bad "self-compare broken"
 [ "$(decide 20260707.000000)"  = UPDATE     ] && ok "older installed stamp → update detected"                            || bad "older stamp not detected"
 [ "$(decide 20270101.000000)"  = UP_TO_DATE ] && ok "newer installed stamp → up to date"                                 || bad "newer stamp treated as update"
@@ -75,6 +76,9 @@ grep -aql "no release with tag prefix" "$TMP"/classes*.dex 2>/dev/null \
 grep -aql "releases/latest" "$TMP"/classes*.dex 2>/dev/null \
   && echo "  note: 'releases/latest' string still in dex (may be unrelated FairEmail code)" \
   || ok "no 'releases/latest' string anywhere in dex — old endpoint fully gone"
+grep -aql "comms_build_stamp_override" "$TMP"/classes*.dex 2>/dev/null \
+  && ok "patch-0047 stamp-override pref present in dex (user can re-point update channel)" \
+  || bad "patch-0047 marker 'comms_build_stamp_override' absent from dex — override feature not shipped"
 rm -rf "$TMP"
 
 echo
