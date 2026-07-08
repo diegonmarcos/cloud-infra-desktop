@@ -17,12 +17,17 @@ in
 {
   home.packages = with pkgs; [ zstd curl jq ];
 
+  # Personalized launcher icon (Breeze-dark terminal + tab strip + accent >_),
+  # installed into the hicolor theme so the menu launcher AND the running-window
+  # task entry resolve it by name "my-konsole".
+  home.file.".local/share/icons/hicolor/scalable/apps/my-konsole.svg".source = ./my-konsole.svg;
+
   xdg.desktopEntries."my-konsole" = {
     name = "my-konsole";
     genericName = "Terminal";
     comment = "Rust KDE Konsole alternative — tabbed terminal, profiles, command sections";
     exec = "${config.home.homeDirectory}/.local/bin/my-konsole";
-    icon = "utilities-terminal";
+    icon = "my-konsole";
     terminal = false;
     type = "Application";
     startupNotify = true;
