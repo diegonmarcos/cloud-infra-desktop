@@ -64,12 +64,16 @@ function buildFrame(type, tabId) {
   const stampEl = $('#frame-stamp-' + id)
   const bodyEl = $('#frame-body-' + id)
 
-  const ctx = { id, leaf }
+  // auto/isActiveTab declared before ctx so frames that live-push their own
+  // updates (e.g. DevControl, driven by devctlListeners rather than a
+  // polling interval) can gate that push on the same on/off + visibility
+  // rules the manager's own timer already respects.
+  let auto = false
+  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
+  const ctx = { id, leaf, isAuto: () => auto, isActiveTab }
   const api = def.make(bodyEl, ctx)
 
-  let auto = false
   let busy = false
-  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
   const stampNow = () => { stampEl.textContent = 'as of ' + new Date().toLocaleTimeString() }
 
   async function doRefresh() {
