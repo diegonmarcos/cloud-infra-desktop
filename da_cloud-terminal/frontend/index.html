@@ -1409,30 +1409,5 @@ registerFrame({
 })
 </script>
 <script src="js/boot.js"></script>
-
-<script>
-// TEMPORARY diagnostic-only — cycles through every dashboard tab in the
-// Dashboards profile and screenshots each one via the debug_shot command, so
-// the button-visibility bug report can be checked visually without OS-level
-// input automation (no xdotool/ydotool on this Wayland session). Removed
-// once confirmed.
-setTimeout(() => {
-  const dashProf = allProfiles.find(p => p.name === 'dashboards')
-  if (dashProf) showProfile(dashProf)
-  const order = ['stack', 'monitor', 'journal', 'cloud', 'datasync', 'agi', 'devctl']
-  let i = 0
-  const step = () => {
-    if (i >= order.length) return
-    const type = order[i]
-    for (const [tid, t] of tabs) { if (t.profile === 'dashboards' && t.type === type) { activateTab(tid); break } }
-    setTimeout(() => {
-      invoke('debug_shot', { path: `/tmp/claude-1000/-home-diego/92c7b349-4d3c-418c-8d4c-5d485e2e3914/scratchpad/ct-dbg-${type}.png` })
-      i++
-      setTimeout(step, 1200)
-    }, 800)
-  }
-  step()
-}, 3000)
-</script>
 </body>
 </html>
