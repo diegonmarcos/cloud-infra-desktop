@@ -977,6 +977,18 @@ cmd_switch_runner() {
     log_header "switch (runner): fetch GHA-built closure + activate (no local eval)"
     _host="${1:-surface-plasma}"; _user="${2:-diego}"
     command -v gh >/dev/null 2>&1 || { log_error "gh CLI not found — install it, or use: ./build.sh switch local"; return 1; }
+    # CONCURRENCY LOCK (root-caused 2026-07-08): multiple sessions invoking
+    # `switch` concurrently each `rm -rf dist-ci` and restart the ~6GB
+    # download, clobbering the other's partial zip — none ever completes.
+    # flock on fd 9: second caller fails fast instead of silently destroying
+    # the first one's progress. Lock dir survives; the fd releases on exit.
+    _lock="$SCRIPT_DIR/.switch.lock"
+    exec 9>"$_lock"
+    if ! flock -n 9; then
+        log_error "another 'build.sh switch' is already running (lock: $_lock)."
+        log_error "wait for it to finish — concurrent switches clobber each other's download."
+        return 1
+    fi
     _artname="${HM_CLOSURE_ARTIFACT:-nixos-desktop-hm-closure}"
     _wf="${HM_SHIP_WORKFLOW:-ship_nix-flakes_desktop_hm.yaml}"
     _art="$SCRIPT_DIR/dist-ci"
