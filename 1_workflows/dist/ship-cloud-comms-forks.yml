@@ -216,13 +216,17 @@ jobs:
           # APK — the app parses the stamp after the tag's last '-'.
           TAG="cloud-comms-${FORK}-${COMMS_BUILD_TIMESTAMP}"
           # APK attached as release asset — the in-app updater (CommsUpdateWorker,
-          # patch 0039+) downloads BuildConfig.COMMS_RELEASE_ASSET_NAME from
-          # /releases/latest. A bare release = "asset not found" in the app.
+          # patch 0046+) LISTS releases and picks the newest tag with its own
+          # prefix (cloud-comms-<fork>-). It does NOT use /releases/latest: the
+          # unix repo's release space is shared (qute-standalone, cloud-terminal,
+          # waydroid-apks, ...) so the repo-wide "Latest" badge is contended —
+          # --latest=false keeps comms releases out of that fight and leaves the
+          # badge to rolling-tag artifacts whose download URLs depend on it.
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
             --title "Cloud Mail · ${{ env.COMMS_BUILD_TIMESTAMP }}" \
             --notes "New build published to ghcr.io/diegonmarcos/cloud-comms-${FORK}:latest — install via Cloud Mail → About → Check for updates." \
-            --latest \
+            --latest=false \
             "${{ env.WORK_DIR }}/dist/cloud-comms-${FORK}.apk"
 
       # Hub re-bundle deliberately NOT dispatched here. See top-of-file comment.
