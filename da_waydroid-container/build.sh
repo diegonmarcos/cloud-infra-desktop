@@ -8,10 +8,23 @@
 # 1.2.1+), unlike redroid's stock AOSP image — the target for Chromium-based browsers
 # (Brave) that crash under redroid on this ashmem-less mainline-kernel host.
 #
-#   ./build.sh build   # docker build the image (Debian + waydroid + sway + wayvnc, baked fixes)
-#   ./build.sh up      # run the container + attach VNC GUI (GUI-bound, like da_redroid)
-#   ./build.sh down    # stop the container
-#   ./build.sh status  # container + waydroid state
+# Two display modes (build.json display.mode, default native):
+#   native  — Android is a NATIVE KDE window (host Wayland socket bind-mounted in;
+#             one cursor, native touch/trackpad/audio, no stream). The seamless UX.
+#   stream  — headless sway + Sunshine VAAPI encode → Moonlight (remote-desktop UX).
+#   vnc     — headless sway → wayvnc → TigerVNC (debug transport).
+#
+#   ./build.sh build            # bundle + docker build the image (baked launcher inside)
+#   ./build.sh bundle           # (re)generate the self-contained launcher from build.json
+#   ./build.sh install [bindir] # pull the GHCR image, copy the baked launcher into a bin dir
+#   ./build.sh up [native|stream|vnc]   # bring the container up + open the GUI (default native)
+#   ./build.sh down             # stop the container
+#   ./build.sh status           # container + waydroid state
+#   ./build.sh test             # evidence-based pipeline tester
+#   ./build.sh push             # push the image to GHCR (CI path)
+#
+# The `install`-produced binary is fully self-contained (build.json baked in as
+# base64) — it needs docker+bash+node but NO repo and NO build.json beside it.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -63,8 +76,41 @@ cpu_cap() {
   [ "$want" -le "$avail" ] 2>/dev/null && printf '%s' "$want" || printf '%s' "$avail"
 }
 
+# bundle — generate the self-contained launcher (src/waydroid-launcher): this very
+# engine with build.json baked in as base64 (BUNDLED_CONFIG_B64), so it runs with no
+# repo and no build.json beside it. Emitted into the docker BUILD CONTEXT (src/) so
+# the Dockerfile can COPY it into the image at /opt/launcher/waydroid → it ships to
+# GHCR, and `install` extracts it to a bin dir. gitignored (generated artifact).
+cmd_bundle() {
+  command -v base64 >/dev/null 2>&1 || die "base64 not found"
+  local out="$SRC/waydroid-launcher" b64
+  b64="$(base64 -w0 "$CONFIG")"          # base64 alphabet is sed-`|`-delimiter-safe
+  sed "s|^BUNDLED_CONFIG_B64=''|BUNDLED_CONFIG_B64='$b64'|" "$ROOT/build.sh" > "$out"
+  chmod +x "$out"
+  log "bundled self-contained launcher: $out ($(wc -c <"$out") bytes)"
+}
+
+# install — the "pull it to copy into a linux bin" step. Pull the GHCR image, extract
+# the baked launcher (the CI build ran `bundle`, the Dockerfile copied it in), and drop
+# it at <bindir>/waydroid (default ~/.local/bin). No container is run — docker cp from
+# a throwaway `docker create`.
+cmd_install() {
+  command -v docker >/dev/null 2>&1 || die "docker not found"
+  local img bindir dest; img="$(get container.image)"
+  bindir="${1:-$HOME/.local/bin}"; dest="$bindir/waydroid"
+  mkdir -p "$bindir"
+  docker image inspect "$img" >/dev/null 2>&1 || { log "pulling $img from GHCR…"; docker pull "$img" || die "pull failed"; }
+  local cid; cid="$(docker create "$img")" || die "docker create failed"
+  docker cp "$cid:/opt/launcher/waydroid" "$dest" || { docker rm -f "$cid" >/dev/null 2>&1; die "extract failed — was the image built with a bundled launcher?"; }
+  docker rm -f "$cid" >/dev/null 2>&1 || true
+  chmod +x "$dest"
+  log "installed self-contained launcher: $dest"
+  case ":$PATH:" in *":$bindir:"*) : ;; *) warn "$bindir is not on \$PATH — add it, or run $dest directly";; esac
+}
+
 cmd_build() {
   command -v docker >/dev/null 2>&1 || die "docker not found"
+  cmd_bundle          # regenerate the baked launcher from build.json before the image build
   local base img; base="$(get container.base_image)"; img="$(get container.image)"
   log "docker build $img (base $base)…"
   docker build --build-arg BASE="$base" \
@@ -384,12 +430,14 @@ cmd_push() {
 }
 
 case "${1:-up}" in
-  build)  cmd_build ;;
-  up)     cmd_up "${2:-}" ;;
-  down)   cmd_down ;;
-  status) cmd_status ;;
-  test)   cmd_test ;;
-  push)   cmd_push ;;
+  build)   cmd_build ;;
+  bundle)  cmd_bundle ;;
+  install) cmd_install "${2:-}" ;;
+  up)      cmd_up "${2:-}" ;;
+  down)    cmd_down ;;
+  status)  cmd_status ;;
+  test)    cmd_test ;;
+  push)    cmd_push ;;
   *) die "unknown command '$1'
-  build | up [native|stream|vnc] | down | status | test | push" ;;
+  build | bundle | install [bindir] | up [native|stream|vnc] | down | status | test | push" ;;
 esac
