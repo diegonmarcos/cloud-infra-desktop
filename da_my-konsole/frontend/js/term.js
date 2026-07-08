@@ -1,109 +1,164 @@
-// term.js — one xterm.js instance + Rust PTY per tab. Konsole keybindings.
+// term.js — terminals, panes, and splits. Each tab holds a binary split TREE:
+// leaves are `.pane` (one xterm.js + one Rust PTY each), internal nodes are
+// `.split.row` (left/right) or `.split.col` (top/bottom) flex containers.
+// Konsole-style. All keybindings are data-driven (config.json → MYK.config).
 const invoke = window.__TAURI__.core.invoke;
 const listen = window.__TAURI__.event.listen;
 
 const MYK = {
-  terms: new Map(),   // id -> { term, fit, search, host, unlisten }
-  active: null,
+  panes: new Map(),   // paneId -> { term, fit, search, host, tabId }
+  activePane: null,
   seq: 0,
+  config: {},         // theme/font/terminal/keybindings — set by boot.js
 
-  theme: {
-    background: "#232629", foreground: "#fcfcfc", cursor: "#fcfcfc",
-    black: "#232629", red: "#ed1515", green: "#11d116", yellow: "#f67400",
-    blue: "#1d99f3", magenta: "#9b59b6", cyan: "#1abc9c", white: "#fcfcfc",
-    brightBlack: "#7f8c8d", brightRed: "#c0392b", brightGreen: "#1cdc9a",
-    brightYellow: "#fdbc4b", brightBlue: "#3daee9", brightMagenta: "#8e44ad",
-    brightCyan: "#16a085", brightWhite: "#ffffff",
-  },
-
-  async newTerm(title) {
-    const id = "t" + ++this.seq;
+  // ── Create a leaf pane (xterm + PTY) inside `container` (not yet split) ──
+  async makePane(tabId, container) {
+    const id = "p" + ++this.seq;
     const host = document.createElement("div");
-    host.className = "term";
+    host.className = "pane";
     host.dataset.id = id;
-    document.getElementById("terms").appendChild(host);
+    host.tabIndex = -1;
+    container.appendChild(host);
 
+    const c = this.config || {}, font = c.font || {}, t = c.terminal || {};
     const term = new Terminal({
-      fontFamily: '"JetBrainsMono Nerd Font", "JetBrains Mono", monospace',
-      fontSize: 11, scrollback: 5000, cursorBlink: true, theme: this.theme,
+      fontFamily: font.family || "monospace",
+      fontSize: font.size || 11,
+      scrollback: t.scrollback ?? 5000,
+      cursorBlink: t.cursorBlink ?? true,
+      theme: c.theme || {},
       allowProposedApi: true,
     });
     const fit = new FitAddon.FitAddon();
     const search = new SearchAddon.SearchAddon();
-    term.loadAddon(fit);
-    term.loadAddon(search);
+    term.loadAddon(fit); term.loadAddon(search);
     term.open(host);
-
     this._bindKeys(term, id);
+    host.addEventListener("mousedown", () => this.focusPane(id));
+
     term.onData((d) => invoke("pty_write", { id, data: d }));
     term.onResize(({ cols, rows }) => invoke("pty_resize", { id, cols, rows }));
-    term.onTitleChange((t) => Tabs.setTitle(id, t));
-
+    term.onTitleChange((title) => Tabs.setTitle(tabId, title));
     const unlisten = await listen(`pty:${id}`, (e) => term.write(e.payload.data));
-    await listen(`pty-exit:${id}`, () => Tabs.close(id));
+    await listen(`pty-exit:${id}`, () => this.closeView(id));
 
-    this.terms.set(id, { term, fit, search, host, unlisten });
+    this.panes.set(id, { term, fit, search, host, tabId, unlisten });
     fit.fit();
     await invoke("pty_start", { id, cols: term.cols, rows: term.rows, cwd: null });
-    Tabs.add(id, title || "shell");
-    this.activate(id);
     return id;
   },
 
-  activate(id) {
-    this.active = id;
-    for (const [tid, t] of this.terms) {
-      const on = tid === id;
-      t.host.classList.toggle("active", on);
-      if (on) { t.fit.fit(); t.term.focus(); }
+  focusPane(id) {
+    const p = this.panes.get(id);
+    if (!p) return;
+    this.activePane = id;
+    for (const [pid, pane] of this.panes) pane.host.classList.toggle("focused", pid === id);
+    p.fit.fit(); p.term.focus();
+  },
+
+  // ── Split the active pane. dir: "row" = left/right, "col" = top/bottom ──
+  async split(dir) {
+    const p = this.panes.get(this.activePane);
+    if (!p) return;
+    const host = p.host, parent = host.parentNode;
+    const wrap = document.createElement("div");
+    wrap.className = "split " + dir;
+    parent.replaceChild(wrap, host);
+    wrap.appendChild(host);
+    const nid = await this.makePane(p.tabId, wrap);
+    this._fitTab(p.tabId);
+    this.focusPane(nid);
+  },
+
+  // ── Close the active view (pane). Unwraps the split; closes tab if last. ──
+  closeView(id) {
+    id = id || this.activePane;
+    const p = this.panes.get(id);
+    if (!p) return;
+    const tabId = p.tabId;
+    this._disposePane(id);
+    const host = p.host, wrap = host.parentNode;
+    if (wrap && wrap.classList.contains("split")) {
+      const sibling = [...wrap.children].find((c) => c !== host);
+      wrap.parentNode.replaceChild(sibling, wrap);
+      const firstPane = sibling.classList.contains("pane") ? sibling : sibling.querySelector(".pane");
+      this._fitTab(tabId);
+      if (firstPane) this.focusPane(firstPane.dataset.id);
+    } else {
+      Tabs.close(tabId); // was the tab's only pane
     }
   },
 
-  dispose(id) {
-    const t = this.terms.get(id);
-    if (!t) return;
+  _disposePane(id) {
+    const p = this.panes.get(id);
+    if (!p) return;
     invoke("pty_kill", { id });
-    if (t.unlisten) t.unlisten();
-    t.term.dispose();
-    t.host.remove();
-    this.terms.delete(id);
+    if (p.unlisten) p.unlisten();
+    p.term.dispose();
+    p.host.remove();
+    this.panes.delete(id);
   },
 
-  fitActive() { const t = this.terms.get(this.active); if (t) t.fit.fit(); },
+  paneIdsOf(tabId) {
+    return [...this.panes.entries()].filter(([, p]) => p.tabId === tabId).map(([id]) => id);
+  },
+  disposeTab(tabId) { for (const id of this.paneIdsOf(tabId)) this._disposePane(id); },
+  _fitTab(tabId) { for (const id of this.paneIdsOf(tabId)) this.panes.get(id)?.fit.fit(); },
+  fitActive() { const p = this.panes.get(this.activePane); if (p) p.fit.fit(); },
 
-  // Konsole default keybindings.
+  focusSibling(delta) {
+    const p = this.panes.get(this.activePane); if (!p) return;
+    const ids = this.paneIdsOf(p.tabId);
+    const i = ids.indexOf(this.activePane);
+    if (i < 0) return;
+    this.focusPane(ids[(i + delta + ids.length) % ids.length]);
+  },
+
+  // ── Data-driven keybinding dispatch ──────────────────────────────────────
+  _action(name, term, id) {
+    switch (name) {
+      case "new-tab":          Tabs.newTab(); return false;
+      case "close-tab":        Tabs.close(this.panes.get(this.activePane)?.tabId); return false;
+      case "next-tab":         Tabs.next(); return false;
+      case "prev-tab":         Tabs.prev(); return false;
+      case "move-tab-left":    Tabs.move(-1); return false;
+      case "move-tab-right":   Tabs.move(+1); return false;
+      case "copy": {
+        const sel = term.getSelection();
+        if (sel) { navigator.clipboard.writeText(sel); return false; }
+        return true; // no selection → let it fall through
+      }
+      case "paste":            navigator.clipboard.readText().then((t) => invoke("pty_write", { id, data: t })); return false;
+      case "find":             Find.open(); return false;
+      case "split-left-right": this.split("row"); return false;
+      case "split-top-bottom": this.split("col"); return false;
+      case "close-view":       this.closeView(this.activePane); return false;
+      case "focus-next-view":  this.focusSibling(+1); return false;
+      case "focus-prev-view":  this.focusSibling(-1); return false;
+      case "clear-scrollback": term.clear(); return false;
+      default: return true;
+    }
+  },
+
   _bindKeys(term, id) {
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
-      const c = e.ctrlKey && e.shiftKey;
-      if (c && e.code === "KeyT") { Tabs.newTab(); return false; }          // new tab
-      if (c && e.code === "KeyW") { Tabs.close(this.active); return false; } // close TAB
-      if (c && e.code === "KeyC") {                                          // copy
-        const sel = term.getSelection();
-        if (sel) { navigator.clipboard.writeText(sel); return false; }
-        return true; // no selection → let Ctrl+Shift+C fall through
+      for (const b of (this.config.keybindings || [])) {
+        if (!!e.ctrlKey === !!b.ctrl && !!e.shiftKey === !!b.shift &&
+            !!e.altKey === !!b.alt && e.code === b.key) {
+          return this._action(b.action, term, id) === true;
+        }
       }
-      if (c && e.code === "KeyV") {                                          // paste
-        navigator.clipboard.readText().then((t) => invoke("pty_write", { id, data: t }));
-        return false;
-      }
-      if (c && e.code === "KeyF") { Find.open(); return false; }            // find
-      if (e.ctrlKey && e.code === "PageDown") { Tabs.next(); return false; }
-      if (e.ctrlKey && e.code === "PageUp")   { Tabs.prev(); return false; }
       return true;
     });
   },
 };
 
-// Find bar (Konsole Ctrl+Shift+F)
+// Find bar (find action)
 const Find = {
-  open() {
-    const bar = document.getElementById("findbar");
-    bar.hidden = false;
-    document.getElementById("find-input").focus();
-  },
-  close() { document.getElementById("findbar").hidden = true; MYK.terms.get(MYK.active)?.term.focus(); },
-  _s() { return MYK.terms.get(MYK.active)?.search; },
+  open() { const b = document.getElementById("findbar"); b.hidden = false; document.getElementById("find-input").focus(); },
+  close() { document.getElementById("findbar").hidden = true; MYK.panes.get(MYK.activePane)?.term.focus(); },
+  _s() { return MYK.panes.get(MYK.activePane)?.search; },
   next() { const q = document.getElementById("find-input").value; if (q) this._s()?.findNext(q); },
   prev() { const q = document.getElementById("find-input").value; if (q) this._s()?.findPrevious(q); },
 };

@@ -126,6 +126,28 @@ fn read_profiles_dir(base: &std::path::Path) -> Vec<serde_json::Value> {
     profiles
 }
 
+// Runtime UI config (theme/font/terminal/keybindings). Same user-dir-first
+// resolution as profiles, so config.json edits apply on restart without rebuild.
+#[tauri::command]
+fn get_config(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    if let Some(home) = std::env::var_os("HOME") {
+        let user = std::path::Path::new(&home).join(".local/share/my-konsole/config.json");
+        if let Ok(txt) = std::fs::read_to_string(&user) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt) {
+                return Ok(v);
+            }
+        }
+    }
+    if let Ok(p) = app.path().resolve("config.json", tauri::path::BaseDirectory::Resource) {
+        if let Ok(txt) = std::fs::read_to_string(&p) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt) {
+                return Ok(v);
+            }
+        }
+    }
+    Ok(serde_json::json!({}))
+}
+
 #[tauri::command]
 fn get_profiles(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     // 1. user dir (instant edits, no rebuild)
@@ -148,7 +170,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .manage(Ptys::default())
         .invoke_handler(tauri::generate_handler![
-            pty_start, pty_write, pty_resize, pty_kill, get_profiles
+            pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running my-konsole");

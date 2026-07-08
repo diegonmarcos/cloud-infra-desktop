@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# my-konsole engine. All heavy steps run inside `nix develop` (flake.nix), so
-# the host never needs cargo/webkit/node. Rust/Tauri compile is heavy → CI
+# my-konsole engine. 100% DATA-DRIVEN: all identity/config comes from build.json;
+# no values are hardcoded here. Heavy steps run inside `nix develop` (flake.nix),
+# so the host never needs cargo/webkit/node. Rust/Tauri compile is heavy → CI
 # (ship-my-konsole-app.yml) is the normal build path; local `build` is for devs.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -9,24 +10,28 @@ cd "$HERE"
 log()  { printf '\033[0;36m[my-konsole]\033[0m %s\n' "$*"; }
 die()  { printf '\033[0;31m[my-konsole] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
-APP_ID="com.diegonmarcos.my-konsole"
-BIN="my-konsole"
+command -v jq >/dev/null 2>&1 || die "jq required (reads build.json — the single source of truth)"
+cfg() { jq -r "$1" build.json; }
 
-# Vendor xterm.js browser assets into frontend/vendor (names match index.html).
+# ── All engine data sourced from build.json (never hardcoded) ──────────────
+BIN="$(cfg '.app.bin')"
+SHELL_CMD="$(cfg '.app.shell')"
+RELEASE_TAG="$(cfg '.build.release_tag')"
+REPO="$(cfg '.build.repo')"
+STORE="$HOME/$(cfg '.runtime.store_subdir')"
+
+# Vendor xterm.js browser assets → frontend/vendor. Packages + dest names are
+# data (.build.vendor / .build.vendor_map), so adding an addon is a JSON edit.
 vendor() {
   log "Vendoring xterm assets…"
   mkdir -p frontend/vendor   # git doesn't track the empty dir; recreate on fresh checkout
   local tmp; tmp="$(mktemp -d)"
-  ( cd "$tmp"
-    npm init -y >/dev/null 2>&1
-    npm install --no-audit --no-fund --silent \
-      @xterm/xterm@^5 @xterm/addon-fit@^0.10 @xterm/addon-search@^0.15 >/dev/null 2>&1
-  )
-  local nm="$tmp/node_modules"
-  command cp -f "$nm/@xterm/xterm/lib/xterm.js"                 frontend/vendor/xterm.js
-  command cp -f "$nm/@xterm/xterm/css/xterm.css"               frontend/vendor/xterm.css
-  command cp -f "$nm/@xterm/addon-fit/lib/addon-fit.js"        frontend/vendor/xterm-addon-fit.js
-  command cp -f "$nm/@xterm/addon-search/lib/addon-search.js"  frontend/vendor/xterm-addon-search.js
+  local pkgs; mapfile -t pkgs < <(jq -r '.build.vendor | to_entries[] | "\(.key)@\(.value)"' build.json)
+  ( cd "$tmp"; npm init -y >/dev/null 2>&1; npm install --no-audit --no-fund --silent "${pkgs[@]}" >/dev/null 2>&1 )
+  local src dst
+  while IFS=$'\t' read -r src dst; do
+    command cp -f "$tmp/node_modules/$src" "frontend/vendor/$dst"
+  done < <(jq -r '.build.vendor_map | to_entries[] | "\(.key)\t\(.value)"' build.json)
   rm -rf "$tmp"
   log "Vendored: $(command ls frontend/vendor | tr '\n' ' ')"
 }
@@ -35,15 +40,17 @@ vendor() {
 stage_resources() {
   mkdir -p src-tauri/profiles
   command cp -rf src/data/profiles/* src-tauri/profiles/ 2>/dev/null || true
+  # config.json (theme/font/keybindings) ships too — read at runtime.
+  command cp -f src/data/config.json src-tauri/config.json 2>/dev/null || true
 }
 
-# Sync repo profiles → user dir. get_profiles prefers this over the bundled
-# copy, so profile edits apply on the next launch WITHOUT a rebuild.
-sync_profiles() {
-  local dst="$HOME/.local/share/my-konsole/profiles"
-  mkdir -p "$dst"
-  command cp -rf src/data/profiles/* "$dst/" 2>/dev/null || true
-  log "Synced profiles → $dst"
+# Sync repo data (profiles + config) → user dir. The app prefers this over the
+# bundled copy, so edits apply on the next launch WITHOUT a rebuild.
+sync_data() {
+  mkdir -p "$STORE/profiles"
+  command cp -rf src/data/profiles/* "$STORE/profiles/" 2>/dev/null || true
+  command cp -f src/data/config.json "$STORE/config.json" 2>/dev/null || true
+  log "Synced profiles + config → $STORE"
 }
 
 icon() {
@@ -73,23 +80,22 @@ cmd_dev()   { vendor; stage_resources; icon; nix develop -c cargo tauri dev; }
 # check also stages resources + icon: tauri's build.rs validates the
 # tauri.conf.json `resources`/`icon` globs even under `cargo check`.
 cmd_check() { stage_resources; icon; nix develop -c cargo check --manifest-path src-tauri/Cargo.toml; }
-cmd_clean() { rm -rf src-tauri/target src-tauri/profiles frontend/vendor/*.js frontend/vendor/*.css; }
+cmd_clean() { rm -rf src-tauri/target src-tauri/profiles src-tauri/config.json frontend/vendor/*.js frontend/vendor/*.css; }
 
 # Fetch the CI-built binary from the rolling GitHub Release into the store dir.
-STORE="$HOME/.local/share/my-konsole"
 cmd_fetch() {
   mkdir -p "$STORE"
   command -v gh >/dev/null 2>&1 || die "gh CLI required to fetch the CI binary"
-  log "Fetching my-konsole binary from GH release my-konsole-latest…"
-  gh release download my-konsole-latest --repo diegonmarcos/unix \
-     --pattern "$BIN" --dir "$STORE" --clobber || die "release download failed"
+  log "Fetching $BIN from GH release $RELEASE_TAG ($REPO)…"
+  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$BIN" --dir "$STORE" --clobber \
+    || die "release download failed"
   chmod +x "$STORE/$BIN"
   log "Fetched → $STORE/$BIN"
 }
 
 # Launch the binary (local build > fetched) using ONLY runtime libs.
 cmd_run() {
-  sync_profiles
+  sync_data
   local bin="${1:-}"
   if [ -z "$bin" ]; then
     if   [ -x "src-tauri/target/release/$BIN" ]; then bin="src-tauri/target/release/$BIN"
@@ -97,30 +103,30 @@ cmd_run() {
     else cmd_fetch; bin="$STORE/$BIN"; fi
   fi
   [ -x "$bin" ] || die "no binary at $bin (build or fetch first)"
-  # Cache the runtime lib path to disk: `nix eval` realizes the webkit closure
-  # (slow first time). Read the cached value on later launches → instant exec.
+  # Cache the runtime lib path: `nix eval` realizes the webkit closure (slow
+  # first time). Read the cached value on later launches → instant exec.
   local cache="$STORE/runtime-libpath" libpath=""
   [ -s "$cache" ] && libpath="$(command cat "$cache")"
   if [ -z "$libpath" ]; then
     libpath="$(nix eval --raw "$HERE#runtimeLibPath" 2>/dev/null || true)"
     [ -n "$libpath" ] && { mkdir -p "$STORE"; printf '%s' "$libpath" > "$cache"; }
   fi
-  # WEBKIT_DISABLE_COMPOSITING_MODE=1: force software compositing so the webview
-  # doesn't probe GBM/DRI (harmless GBM errors on the Surface's iGPU otherwise).
-  # WEBKIT_DISABLE_DMABUF_RENDERER=1 is the newer WebKitGTK knob for the same.
-  LD_LIBRARY_PATH="${libpath}:${LD_LIBRARY_PATH:-}" \
-    WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 \
-    MYK_SHELL="${MYK_SHELL:-fish}" exec "$bin"
+  # Runtime env is data-driven (.runtime.env in build.json) — e.g. the WEBKIT
+  # software-compositing flags that avoid GBM errors on the Surface iGPU.
+  local k v
+  while IFS=$'\t' read -r k v; do export "$k=$v"; done \
+    < <(jq -r '.runtime.env | to_entries[] | "\(.key)\t\(.value)"' build.json)
+  LD_LIBRARY_PATH="${libpath}:${LD_LIBRARY_PATH:-}" MYK_SHELL="${MYK_SHELL:-$SHELL_CMD}" exec "$bin"
 }
 
-# install — write a ~/.local/bin/my-konsole launcher (→ build.sh run). Idempotent.
+# install — write a ~/.local/bin/<bin> launcher (→ build.sh run). Idempotent.
 cmd_install() {
-  sync_profiles
+  sync_data
   mkdir -p "$HOME/.local/bin"
   local launcher="$HOME/.local/bin/$BIN"
   cat > "$launcher" <<EOF
 #!/usr/bin/env bash
-# my-konsole launcher (generated by build.sh install) — never edit.
+# $BIN launcher (generated by build.sh install) — never edit.
 exec "$HERE/build.sh" run
 EOF
   chmod +x "$launcher"
@@ -134,8 +140,8 @@ case "${1:-build}" in
   run)      shift; cmd_run "${1:-}" ;;
   fetch)    cmd_fetch ;;
   install)  cmd_install ;;
-  profiles) sync_profiles ;;
+  data)     sync_data ;;
   clean)    cmd_clean ;;
   vendor)   vendor ;;
-  *)        echo "Usage: $0 [build|dev|check|run|fetch|install|profiles|clean|vendor]" ;;
+  *)        echo "Usage: $0 [build|dev|check|run|fetch|install|data|clean|vendor]" ;;
 esac
