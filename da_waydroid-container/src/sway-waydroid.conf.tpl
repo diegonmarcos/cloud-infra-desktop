@@ -16,3 +16,10 @@ output HEADLESS-1 bg #000000 solid_color
 # not a tiled window with sway decorations.
 default_border none
 focus_follows_mouse no
+
+# Hide the compositor cursor almost immediately (100ms idle, the minimum) — in
+# Moonlight's absolute-mouse (remote-desktop) mode the CLIENT's own cursor is the
+# pointer the user steers; the server-side cursor rendered into the stream shows up
+# as a SECOND cursor (documented: moonlight-qt#1268 / Sunshine#1940 — hiding the
+# host cursor is the accepted fix; this is the wlroots mechanism for it).
+seat * hide_cursor 100
