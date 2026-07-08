@@ -870,18 +870,25 @@ registerFrame({
 })
 
 // ══ Cloud Control Center (no PTY) — VMs, containers, log center ══════
-function makeCloud(tabId) {
-  const id = ++paneSeq
-  const leaf = document.createElement('div')
-  leaf.className = 'leaf cloud'; leaf.dataset.pane = String(id)
-  leaf.innerHTML = `
-    <div class="cloud">
+// Two-tier data: the local static topology (cloud_targets) always loads on
+// open — cheap, no network. probe() is the heavy SSH/docker work and is
+// what refresh()/the auto-toggle drive; it must NEVER fire just from the
+// tab being opened (that was the root cause of an earlier "Cloud tab
+// freezes on open" bug) — hence autoFirstOpen:false below.
+function makeCloud(tabId) { return buildFrame('cloud', tabId) }
+registerFrame({
+  type: 'cloud',
+  title: '☁ cloud',
+  refreshMs: 10000,
+  autoFirstOpen: false,
+  make(el, ctx) {
+  const { id, leaf } = ctx
+  el.innerHTML = `
       <div class="cloud-vms" id="c-vms-${id}"></div>
       <div class="panel cloud-cont"><div class="ph"><span id="c-conthdr-${id}">CONTAINERS</span>
         <span class="proc-tools">
           <span class="ptbl-tabs" id="c-view-${id}"><button data-v="vm" class="on">BY VM</button><button data-v="service">BY SERVICE</button></span>
-          <button class="cpbtn" id="c-refresh-${id}" title="Re-probe all VMs (docker ps + stats over the SSH mux)">↻ probe</button>
-          <button class="auto-toggle" id="c-auto-${id}" title="Auto re-probe (10s) — off by default, no dashboard polls in the background"><i class="sw"></i>auto</button></span></div>
+        </span></div>
         <div class="ptbl-wrap"><table class="ptbl ctbl">
           <thead><tr><th>NAME</th><th>VM</th><th>IMAGE</th><th>STATE</th><th class="num">CPU%</th><th class="num">MEM</th><th>PORTS</th></tr></thead>
           <tbody id="c-cont-${id}"></tbody></table></div></div>
@@ -894,10 +901,9 @@ function makeCloud(tabId) {
           <button class="cpbtn" id="c-logref-${id}" title="Reload logs">↻</button>
           <button class="cpbtn" id="c-logcopy-${id}" title="Copy logs">⎘</button>
         </span></div>
-        <div class="cloud-logfeed" id="c-logfeed-${id}">select a VM or container…</div></div>
-    </div>`
+        <div class="cloud-logfeed" id="c-logfeed-${id}">select a VM or container…</div></div>`
   let targets = [], vms = {}, selVm = null, selCont = null, tail = 200, logq = '', logRaw = '', viewMode = 'vm', catMap = [], logSrc = 'system'
-  const $ = s => leaf.querySelector(s)
+  const $ = s => el.querySelector(s)
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   const contStat = (vm, name) => ((vms[vm] || {}).stats || {})[name] || {}
   const rowHtml = (c, vm) => {
@@ -997,7 +1003,6 @@ function makeCloud(tabId) {
   }
   function selectVm(alias) { selVm = alias; selCont = null; renderVms(); renderConts(); populateLogContainerPicker(); loadLogs() }
   async function probe() {
-    $('#c-refresh-' + id).textContent = '… probing'
     await Promise.all(targets.map(async t => {
       const [v, ping, stats] = await Promise.all([
         invoke('cloud_vm', { alias: t.alias }).catch(e => ({ alias: t.alias, reachable: false, error: String(e) })),
@@ -1012,7 +1017,6 @@ function makeCloud(tabId) {
       if (leaf.isConnected) { renderVms(); renderConts(); if (t.alias === selVm) populateLogContainerPicker() }
     }))
     if (!leaf.isConnected) return
-    $('#c-refresh-' + id).textContent = '↻ probe'
     if (!selVm) { const first = targets.find(t => (vms[t.alias] || {}).reachable) || targets[0]; if (first) selectVm(first.alias) }
     else { renderConts(); populateLogContainerPicker() }
   }
@@ -1044,16 +1048,6 @@ function makeCloud(tabId) {
     const b = e.target.closest('button'); if (!b) return
     viewMode = b.dataset.v; for (const x of $('#c-view-' + id).children) x.classList.toggle('on', x === b); renderConts()
   })
-  $('#c-refresh-' + id).addEventListener('click', probe)
-  // Off by default — the SSH/docker probe is the exact heavy work that must
-  // never run just from this tab being open; auto only ticks while this tab
-  // is the one actually visible.
-  let autoCloud = false
-  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
-  $('#c-auto-' + id).addEventListener('click', () => {
-    autoCloud = !autoCloud
-    $('#c-auto-' + id).classList.toggle('on', autoCloud)
-  })
   $('#c-logsrc-' + id).addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return
     logSrc = b.dataset.v; syncLogSrcButtons()
@@ -1066,12 +1060,11 @@ function makeCloud(tabId) {
   $('#c-tail-' + id).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; tail = +b.dataset.v; for (const x of $('#c-tail-' + id).children) x.classList.toggle('on', x === b); loadLogs() })
   $('#c-logcopy-' + id).addEventListener('click', () => { clip.write(logRaw); const b = $('#c-logcopy-' + id), t = b.textContent; b.textContent = '✓'; setTimeout(() => b.textContent = t, 1200) })
 
-  init()
-  const cloudTimer = setInterval(() => { if (autoCloud && isActiveTab()) probe() }, 10000)
-  leaf.addEventListener('mousedown', () => focusPane(id), true)
-  panes.set(id, { leaf, tabId, kind: 'cloud', stop: () => clearInterval(cloudTimer) })
-  return { id, leaf }
-}
+  init()   // cheap local topology only — always runs; probe() (network) never does
+  return { probe }
+  },
+  async refresh(api) { await api.probe() },
+})
 
 // ══ Data Sync Center (no PTY) — data topology, sync, peers, stats ════
 function makeDataSync(tabId) { return buildFrame('datasync', tabId) }
@@ -1186,18 +1179,26 @@ registerFrame({
 // aggregates by command (count/total/avg/max — sorted by TOTAL time, the
 // real culprit ranking) or shows the raw recent-call feed, live via
 // devctlListeners rather than polling.
-function makeDevControl(tabId) {
-  const id = ++paneSeq
-  const leaf = document.createElement('div')
-  leaf.className = 'leaf devctl'; leaf.dataset.pane = String(id)
-  leaf.innerHTML = `
-    <div class="devctl">
+// DevControl is a special frame: it never calls invoke() itself — it reads
+// the devctlLog ring buffer directly and live-pushes on every OTHER
+// dashboard's invoke() call (via devctlListeners), rather than polling on
+// a timer. refresh() still exists (re-render on manual click / the
+// manager's own auto-timer as a fallback), but the live push is what makes
+// it feel instant; ctx.isAuto()/isActiveTab() (see frame.js) gate that
+// push the same way the timer gates itself.
+function makeDevControl(tabId) { return buildFrame('devctl', tabId) }
+registerFrame({
+  type: 'devctl',
+  title: '🛠 devctl',
+  refreshMs: 5000,        // fallback tick only — the live push is the real driver
+  autoFirstOpen: true,    // pure local re-render, no cost to show current state on open
+  make(el, ctx) {
+  const { id, isAuto, isActiveTab } = ctx
+  el.innerHTML = `
       <div class="panel">
         <div class="ph"><span id="dc-hdr-${id}">DEV CONTROL · invoke() instrumentation</span>
           <span class="proc-tools">
             <span class="ptbl-tabs" id="dc-view-${id}"><button data-v="agg" class="on">BY COMMAND</button><button data-v="recent">RECENT</button></span>
-            <button class="cpbtn" id="dc-refresh-${id}" title="Re-render now">↻ refresh</button>
-            <button class="auto-toggle" id="dc-auto-${id}" title="Auto-update on every invoke() call — off by default, only ticks while this tab is visible"><i class="sw"></i>auto</button>
             <button class="cpbtn" id="dc-clear-${id}" title="Clear the recorded log">🗑 clear</button>
           </span>
         </div>
@@ -1205,14 +1206,12 @@ function makeDevControl(tabId) {
           <thead id="dc-head-${id}"></thead>
           <tbody id="dc-body-${id}"></tbody>
         </table></div>
-      </div>
-    </div>`
-  const $ = s => leaf.querySelector(s)
+      </div>`
+  const $ = s => el.querySelector(s)
   const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
   const fmtMs = ms => ms >= 1000 ? (ms / 1000).toFixed(2) + 's' : ms.toFixed(0) + 'ms'
   const agoStr = at => { const s = Math.max(0, Math.round((Date.now() - at) / 1000)); return s < 60 ? s + 's ago' : Math.round(s / 60) + 'm ago' }
-  let view = 'agg', autoDc = false
-  const isActiveTab = () => leaf.parentElement && leaf.parentElement.classList.contains('active')
+  let view = 'agg'
 
   function renderAgg() {
     $('#dc-head-' + id).innerHTML = '<tr><th>COMMAND</th><th class="num">CALLS</th><th class="num">TOTAL</th>' +
@@ -1247,7 +1246,7 @@ function makeDevControl(tabId) {
   // Off by default — even though this is just a DOM re-render (no network
   // cost), the same convention applies everywhere: no dashboard updates
   // itself just from being open, and auto only ticks while visible.
-  const onNewEntry = () => { if (autoDc && isActiveTab() && leaf.isConnected) render() }
+  const onNewEntry = () => { if (isAuto() && isActiveTab() && el.isConnected) render() }
   devctlListeners.add(onNewEntry)
 
   $('#dc-view-' + id).addEventListener('click', e => {
@@ -1255,18 +1254,13 @@ function makeDevControl(tabId) {
     for (const x of $('#dc-view-' + id).children) x.classList.remove('on')
     b.classList.add('on'); view = b.dataset.v; render()
   })
-  $('#dc-refresh-' + id).addEventListener('click', render)
-  $('#dc-auto-' + id).addEventListener('click', () => {
-    autoDc = !autoDc
-    $('#dc-auto-' + id).classList.toggle('on', autoDc)
-  })
   $('#dc-clear-' + id).addEventListener('click', () => { devctlLog.length = 0; render() })
 
-  render()
-  leaf.addEventListener('mousedown', () => focusPane(id), true)
-  panes.set(id, { leaf, tabId, kind: 'devctl', stop: () => devctlListeners.delete(onNewEntry) })
-  return { id, leaf }
-}
+  return { render, cleanup: () => devctlListeners.delete(onNewEntry) }
+  },
+  refresh(api) { api.render() },
+  destroy(api) { api.cleanup() },
+})
 
 // ══ AGI dashboard (no PTY) — Claude Code usage analytics ═════════════
 function makeAGI(tabId) { return buildFrame('agi', tabId) }
