@@ -34,6 +34,12 @@
       "WEBKIT_DISABLE_DMABUF_RENDERER": "1"
     }
   },
+  "desktop": {
+    "generic_name": "Terminal",
+    "comment": "Rust KDE Konsole alternative — tabbed terminal, profiles, command sections",
+    "categories": "System;TerminalEmulator;Utility;",
+    "icon_svg": "icon.svg"
+  },
   "kde": {
     "set_default_terminal": true,
     "terminal_service": "com.diegonmarcos.my-konsole.desktop"
