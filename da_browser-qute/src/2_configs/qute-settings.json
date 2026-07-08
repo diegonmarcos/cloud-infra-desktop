@@ -38,6 +38,10 @@
     },
     "default_encoding": "utf-8"
   },
+  "auto_save": {
+    "_note": "Restore the last session (open tabs) on startup instead of a fresh dashboard window. Saves the _autosave session on quit; restored on next launch when no URL is given on the CLI (start_pages still used for brand-new/-empty sessions).",
+    "session": true
+  },
   "downloads": {
     "location": {
       "directory": "~/Downloads",

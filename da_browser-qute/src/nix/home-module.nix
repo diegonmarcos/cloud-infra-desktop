@@ -25,16 +25,21 @@ let
   searchEngines   = builtins.fromJSON (builtins.readFile "${configsDir}/qute-search-engines.json");
   keyBindings     = builtins.fromJSON (builtins.readFile "${configsDir}/qute-keybindings.json");
 
-  # qute-bookmarks.json is the FOLDER SoT for the dashboard (see src/dashboard).
-  # For qutebrowser's flat quickmarks we flatten the CURATED folders (those with
-  # inline "links") into "Folder/name" keys — pure-eval-safe. The cloud folders
-  # (source:"cloud:*") are resolved at generate-time by gen-dashboard.sh from
-  # cloud-data, so they live only in the dashboard, not in quickmarks.
+  # qute-bookmarks.json is the SECTION SoT for the dashboard (see src/dashboard).
+  # For qutebrowser's flat quickmarks we flatten only the CURATED inline links —
+  # a section's direct "links" → "Section/name", and each folder's "links" →
+  # "Section/Folder/name" — all pure-eval-safe. Source-driven sections/folders
+  # (history / front / cloud:*) carry no inline links here; they're resolved at
+  # generate-time by gen-dashboard.sh, so they live only in the dashboard.
   bookmarks       = builtins.fromJSON (builtins.readFile "${configsDir}/qute-bookmarks.json");
-  curatedFolders  = builtins.filter (f: f ? links) (bookmarks.folders or []);
-  flatQuickmarks  = lib.foldl' (acc: f:
-      acc // (lib.mapAttrs' (n: url: lib.nameValuePair "${f.name}/${n}" url) f.links)
-    ) {} curatedFolders;
+  flatQuickmarks  = lib.foldl' (acc: s:
+      let
+        direct  = lib.mapAttrs' (n: url: lib.nameValuePair "${s.name}/${n}" url) (s.links or {});
+        folders = lib.foldl' (a: f:
+            a // lib.mapAttrs' (n: url: lib.nameValuePair "${s.name}/${f.name}/${n}" url) (f.links or {})
+          ) {} (s.folders or []);
+      in acc // direct // folders
+    ) {} (bookmarks.sections or []);
 
   # "New Default Window" — a qutebrowser command that opens a fresh window with
   # the default arrangement (data-driven from qute-default-window.json): first
