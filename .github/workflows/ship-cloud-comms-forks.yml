@@ -162,6 +162,18 @@ jobs:
           chmod +x build.sh
           ./build.sh materialize-fork "$FORK"
 
+      - name: Generate build stamp (baked into APK BuildConfig AND release tag)
+        run: |
+          # ONE stamp (YYYYMMDD.HHMMSS, sorts lexicographically) used BOTH as
+          # the baked COMMS_BUILD_TIMESTAMP and as the release-tag suffix — the
+          # app detects updates by comparing its baked stamp against the tag
+          # stamp, so an APK exactly equals its own release (published_at is
+          # minutes later than build time → self-update loop). Must be set
+          # BEFORE build-fork so the $ENV:COMMS_BUILD_TIMESTAMP gradle_prop
+          # resolves; without it the engine bakes "dev" = updater disabled
+          # (the bug that shipped update-blind APKs until patch 0045).
+          echo "COMMS_BUILD_TIMESTAMP=$(date -u '+%Y%m%d.%H%M%S')" >> "$GITHUB_ENV"
+
       - name: Build fork APK (fork's own gradle wrapper + constellation signing)
         working-directory: ${{ env.WORK_DIR }}
         env:
@@ -169,6 +181,8 @@ jobs:
           # Shared Cloud-constellation signing key (vault checkout above).
           VAULT_DIR: ${{ github.workspace }}/.vault
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+          # Picked up by build.sh step_build_fork via $ENV:COMMS_BUILD_TIMESTAMP
+          COMMS_BUILD_TIMESTAMP: ${{ env.COMMS_BUILD_TIMESTAMP }}
         run: |
           ./build.sh build-fork "$FORK"
           ls -la dist/
@@ -198,14 +212,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BUILD_DATE="$(date -u '+%Y%m%d.%H%M%S')"
-          TAG="cloud-comms-${FORK}-${BUILD_DATE}"
+          # Tag stamp MUST equal the COMMS_BUILD_TIMESTAMP baked into this very
+          # APK — the app parses the stamp after the tag's last '-'.
+          TAG="cloud-comms-${FORK}-${COMMS_BUILD_TIMESTAMP}"
           # APK attached as release asset — the in-app updater (CommsUpdateWorker,
           # patch 0039+) downloads BuildConfig.COMMS_RELEASE_ASSET_NAME from
           # /releases/latest. A bare release = "asset not found" in the app.
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
-            --title "Cloud Mail · ${BUILD_DATE}" \
+            --title "Cloud Mail · ${{ env.COMMS_BUILD_TIMESTAMP }}" \
             --notes "New build published to ghcr.io/diegonmarcos/cloud-comms-${FORK}:latest — install via Cloud Mail → About → Check for updates." \
             --latest \
             "${{ env.WORK_DIR }}/dist/cloud-comms-${FORK}.apk"
