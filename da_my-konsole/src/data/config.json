@@ -30,6 +30,7 @@
     { "action": "move-tab-right",    "ctrl": true, "shift": true,  "key": "ArrowRight" },
     { "action": "copy",              "ctrl": true, "shift": true,  "key": "KeyC" },
     { "action": "paste",             "ctrl": true, "shift": true,  "key": "KeyV" },
+    { "action": "find",              "ctrl": true, "shift": false, "key": "KeyF" },
     { "action": "find",              "ctrl": true, "shift": true,  "key": "KeyF" },
     { "action": "split-left-right",  "ctrl": true, "shift": true,  "key": "Digit9" },
     { "action": "split-top-bottom",  "ctrl": true, "shift": true,  "key": "Digit0" },
