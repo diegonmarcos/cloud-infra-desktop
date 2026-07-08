@@ -2,7 +2,11 @@
   description = "NixOS Surface Slim - Ultra-Minimal USB Recovery System";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    # 25.05 (not 24.11): 24.11's initrd modules-shrunk step runs modprobe and
+    # aborts when a btrfs-checksum dep (blake2b_generic) is builtin rather than
+    # a loadable .ko — which is the case on the linux-surface 6.19.8 kernel
+    # pulled via nixos-hardware master. 25.05's shrink tolerates builtin modules.
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
 
     # Surface Pro hardware support (linux-surface kernel, iptsd, firmware)
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
