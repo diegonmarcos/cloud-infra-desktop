@@ -24,7 +24,12 @@ permissions:
 
 concurrency:
   group: ship-desktop-hm
-  cancel-in-progress: true
+  # QUEUE, don't cancel: the closure build takes ~20 min, so cancel-in-progress
+  # meant it never completed during active pushes (every new commit killed the
+  # in-flight build). `switch` consumes the latest SUCCESSFUL run, so a queued
+  # build finishing a commit or two behind HEAD is fine — a completed artifact
+  # beats a perpetually-cancelled one.
+  cancel-in-progress: false
 
 jobs:
   build:
