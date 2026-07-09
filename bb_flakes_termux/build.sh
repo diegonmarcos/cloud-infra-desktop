@@ -161,12 +161,19 @@ perf_end() {
         log "PERF: $_PERF_STEP_NAME = $_dur"
         _PERF_STEPS="${_PERF_STEPS}${_elapsed} ${_PERF_STEP_NAME}
 "
+        _PERF_STEP_START=""
+        _PERF_STEP_NAME=""
     fi
-    # Total
-    _total=$(( _now - _PERF_TOTAL_START ))
-    _total_dur=$(_fmt_duration "$_total")
-    printf "${BOLD}${CYAN}[PERF]${NC} ${BOLD}══ Total: %s ══ %s${NC}\n" "$_PERF_CMD" "$_total_dur"
-    log "PERF: TOTAL $_PERF_CMD = $_total_dur"
+    # Total — only when a total timer is actually active. perf_end may be
+    # called again for post-switch addendum steps (verify, sshd-guarantee)
+    # after the main perf_end already reset the timer; without this guard
+    # `_now - ""` prints the full epoch as minutes (the 29726296m bug).
+    if [ -n "$_PERF_TOTAL_START" ]; then
+        _total=$(( _now - _PERF_TOTAL_START ))
+        _total_dur=$(_fmt_duration "$_total")
+        printf "${BOLD}${CYAN}[PERF]${NC} ${BOLD}══ Total: %s ══ %s${NC}\n" "$_PERF_CMD" "$_total_dur"
+        log "PERF: TOTAL $_PERF_CMD = $_total_dur"
+    fi
     # Reset
     _PERF_CMD=""
     _PERF_TOTAL_START=""
@@ -329,6 +336,10 @@ EOT
     perf_step "sshd guarantee"
     _wg_ip=$(awk -F'"' '/"wg_ip"/{print $4; exit}' "$SCRIPT_DIR/build.json" 2>/dev/null)
     _wg_ip="${_wg_ip:-127.0.0.1}"
+    # ssh_port is an unquoted JSON number ("ssh_port": 8024) — split on : and ,
+    # then strip non-digits. Data-driven from build.json; never hardcode.
+    _ssh_port=$(awk -F'[:,]' '/"ssh_port"/{gsub(/[^0-9]/,"",$2); print $2; exit}' "$SCRIPT_DIR/build.json" 2>/dev/null)
+    _ssh_port="${_ssh_port:-8024}"
     _sshd_up=0
 
     # Path 1: the flake-deployed wrapper (uses opensshPinned + sshd_config).
@@ -358,17 +369,17 @@ EOT
         fi
     fi
 
-    # Verify TCP listen actually accepts on :8022 (Android `ss` output is
+    # Verify TCP listen actually accepts on :$_ssh_port (Android `ss` output is
     # spotty — try ss first, fall back to nc against the WG IP and 127.0.0.1).
     _bound=0
-    if ss -tln 2>/dev/null | grep -q ":8022 "; then _bound=1; fi
-    [ "$_bound" -eq 0 ] && nc -z -w 2 "$_wg_ip" 8022 2>/dev/null && _bound=1
-    [ "$_bound" -eq 0 ] && nc -z -w 2 127.0.0.1 8022 2>/dev/null && _bound=1
+    if ss -tln 2>/dev/null | grep -q ":$_ssh_port "; then _bound=1; fi
+    [ "$_bound" -eq 0 ] && nc -z -w 2 "$_wg_ip" "$_ssh_port" 2>/dev/null && _bound=1
+    [ "$_bound" -eq 0 ] && nc -z -w 2 127.0.0.1 "$_ssh_port" 2>/dev/null && _bound=1
 
     if [ "$_sshd_up" -eq 1 ] && [ "$_bound" -eq 1 ]; then
-        log_success "sshd-guarantee: listening on :8022 (WG=$_wg_ip)"
+        log_success "sshd-guarantee: listening on :$_ssh_port (WG=$_wg_ip)"
     elif [ "$_sshd_up" -eq 1 ]; then
-        log_warn "sshd-guarantee: process up but port :8022 not detected — verify manually"
+        log_warn "sshd-guarantee: process up but port :$_ssh_port not detected — verify manually"
     else
         log_error "sshd-guarantee: BOTH wrapper AND rescue failed. SSH UNAVAILABLE."
         log_error "  manual recovery on device: sh ~/git/tools/5-infos/rescue-sshd/rescue-sshd.sh"
