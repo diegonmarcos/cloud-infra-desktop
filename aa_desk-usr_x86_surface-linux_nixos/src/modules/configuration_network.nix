@@ -172,12 +172,13 @@ in {
           address1 = "${wgData.client.wg_ip}/24";
           dns = wgData.hub.wg_ip;        # Hickory mesh DNS for diegonmarcos.com
           dns-priority = "50";
-          # ~diegonmarcos.com = routing domain: systemd-resolved routes ONLY
-          # *.diegonmarcos.com queries to Hickory (10.0.0.1). All other queries
-          # continue to use the global DNS (127.0.0.1 = dnscrypt-proxy2).
-          # Without this, dns-priority=50 would make Hickory the global primary
-          # resolver (before dnscrypt-proxy2), but Hickory only knows diegonmarcos.com.
-          dns-search = "~diegonmarcos.com";
+          # Routing domains (data-driven, from wireguard-endpoints.json.dns_search):
+          # systemd-resolved routes ONLY these zones to Hickory (10.0.0.1) — the
+          # zones Hickory actually serves (diegonmarcos.com + the internal .app/.db
+          # mesh names). All other queries continue to the global DNS (127.0.0.1 =
+          # dnscrypt-proxy2). Without this, dns-priority=50 would make Hickory the
+          # global primary, but Hickory only knows its declared zones.
+          dns-search = wgData.dns_search;
           never-default = "true";        # only route the mesh subnet, not all traffic
         };
         ipv6.method = "ignore";

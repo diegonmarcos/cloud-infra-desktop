@@ -21,5 +21,7 @@
     }
   },
   "subnet": "10.0.0.0/24",
-  "persistent_keepalive": 25
+  "persistent_keepalive": 25,
+  "_dns_search_doc": "systemd-resolved routing domains (~ prefix) sent to Hickory (hub.wg_ip). Mirrors the zones Hickory serves: cloud/a_solutions/infra-net_hickory-dns/build.json .dns.zones = [diegonmarcos.com, app, db]. Without a zone here, its names fall through to the global resolver (dnscrypt-proxy2) and NXDOMAIN.",
+  "dns_search": "~diegonmarcos.com ~app ~db"
 }
