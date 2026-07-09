@@ -88,6 +88,34 @@ let
   dashboardHtml = "file:///home/diego/.config/qutebrowser/qute-bookmarks.html";
   configShortcutsCmd = "open ${dashboardHtml}#shortcuts";
 
+  # ── PLUGIN REGISTRY (qute-plugins.json) — see PLAN_plugins-vaultwarden.md ──
+  # A 'plugin' is config|userscript|daemon. Config plugins are runtime-
+  # toggleable via :config-cycle (ZERO footprint when off) — this is what
+  # keeps the browser minimal while still offering Brave-parity features.
+  # From the registry we generate, data-driven:
+  #   • default settings for each ENABLED config plugin (registry is the SoT
+  #     for those leaves — they are intentionally removed from qute-settings.json),
+  #   • `:plugin-toggle-<id>` aliases (live :config-cycle, no rebuild),
+  #   • keybindings for config plugins that declare one,
+  #   • the `:plugins` / `:plugins-vaultwarden` manager-page aliases.
+  plugins    = (builtins.fromJSON (builtins.readFile "${configsDir}/qute-plugins.json")).plugins or [];
+  cfgPlugins = lib.filter (p: (p.surface or "") == "config" && (p ? option)) plugins;
+  # :config-cycle needs literal true/false/enum tokens, not Nix bools.
+  vtok = v: if builtins.isBool v then (if v then "true" else "false") else toString v;
+  cycleCmd = p: "config-cycle ${p.option} ${vtok p.on_value} ${vtok p.off_value}";
+  pluginSettings = lib.foldl' lib.recursiveUpdate {}
+    (map (p: lib.setAttrByPath (lib.splitString "." p.option)
+              (if (p.enabled or false) then p.on_value else p.off_value)) cfgPlugins);
+  pluginToggleAliases = lib.listToAttrs
+    (map (p: lib.nameValuePair "plugin-toggle-${p.id}" (cycleCmd p)) cfgPlugins);
+  pluginKeybinds = lib.listToAttrs
+    (map (p: lib.nameValuePair p.keybinding (cycleCmd p))
+      (lib.filter (p: p ? keybinding) cfgPlugins));
+  pluginPageAliases = {
+    "plugins"             = "open ${dashboardHtml}#plugins";
+    "plugins-vaultwarden" = "open ${dashboardHtml}#plugins-vaultwarden";
+  };
+
   # Vaultwarden integration config (build.json::integrations.vaultwarden_bitwarden_cli).
   # build.json lives at the project root, two levels up from src/nix/.
   buildJson = builtins.fromJSON (builtins.readFile ../../build.json);
@@ -142,7 +170,8 @@ in
     programs.qutebrowser = {
       enable = true;
       package = cfg.package;
-      settings = lib.recursiveUpdate cleanSettings cfg.extraSettings;
+      # base JSON settings, then registry-owned plugin defaults, then operator escape hatch.
+      settings = lib.recursiveUpdate (lib.recursiveUpdate cleanSettings pluginSettings) cfg.extraSettings;
       # `default_window` alias (New Default Window). MUST go through the dedicated
       # `aliases` option — it serializes via formatDictLine to
       #   c.aliases['default_window'] = "..."
@@ -156,18 +185,30 @@ in
         "0-default-tabs"   = defaultWindowCmd;    # "0 Open Default Tabs"
         "1-last-session"   = lastSessionCmd;      # "1 Open Last Session Tabs"
         "config-shortcuts" = configShortcutsCmd;  # Shortcuts reference (,s)
-      };
+      } // pluginPageAliases     # :plugins, :plugins-vaultwarden (manager page)
+        // pluginToggleAliases;  # :plugin-toggle-<id> (live :config-cycle)
       searchEngines = cleanSearchEngines;
       # Ctrl-Shift-N → New Default Window; Ctrl-Shift-T → Open Saved Tabs
       # (same list, opened as tabs in the current window instead of a new
       # one); Ctrl-Shift-B → Vaultwarden autofill (qute-bitwarden userscript,
       # ships bundled with qutebrowser — see build.json::integrations).
-      keyBindings = lib.recursiveUpdate cleanKeyBindings ({
-        normal."<Ctrl-Shift-n>" = "default_window";
-        normal."<Ctrl-Shift-t>" = "open_saved_tabs";
-      } // lib.optionalAttrs (vwCfg.enabled or false) {
-        normal."<Ctrl-Shift-b>" = "spawn --userscript qute-bitwarden --totp";
-      });
+      # ONE merged `normal` set. NB: `//` between two attrsets that BOTH have a
+      # `normal` key is SHALLOW — it replaces the whole set, not merges it. The
+      # previous form (`{normal=…} // optionalAttrs {normal.<C-S-b>=…}`) silently
+      # dropped every other normal bind whenever vaultwarden was enabled. Merge
+      # all leaf keys into a single `normal` instead, then recursiveUpdate onto
+      # the JSON binds (cleanKeyBindings) which is a proper deep merge.
+      keyBindings = lib.recursiveUpdate cleanKeyBindings {
+        normal = {
+          "<Ctrl-Shift-n>" = "default_window";
+          "<Ctrl-Shift-t>" = "open_saved_tabs";
+          ",pp"            = "plugins";   # open the Plugins manager page
+        }
+        // pluginKeybinds   # ,pa ,pj ,pd ,pf ,pm — live config-plugin toggles
+        // lib.optionalAttrs (vwCfg.enabled or false) {
+             "<Ctrl-Shift-b>" = "spawn --userscript qute-bitwarden --totp";
+           };
+      };
       quickmarks = flatQuickmarks;
     };
 

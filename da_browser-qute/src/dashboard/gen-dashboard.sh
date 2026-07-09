@@ -135,10 +135,39 @@ else
   KEYBINDINGS='[]'
 fi
 
+# Plugin registry → the dashboard's Plugins tab (:plugins / #plugins). SoT is
+# qute-plugins.json (same file the home-module wires into qutebrowser). Drop
+# _-prefixed doc keys from actions so the card renders cleanly.
+PLUGINS_JSON="${PLUGINS_JSON:-$HERE/../2_configs/qute-plugins.json}"
+if [ -r "$PLUGINS_JSON" ]; then
+  PLUGINS="$(jq '[ .plugins // [] | .[]
+    | { id, name, category, surface, enabled: (.enabled // false),
+        status: (.status // ""), keybinding: (.keybinding // ""),
+        option: (.option // ""), description: (.description // ""),
+        footprint: (.footprint // ""),
+        actions: ((.actions // {}) | with_entries(select(.key | startswith("_") | not))) } ]' \
+    "$PLUGINS_JSON")"
+else
+  PLUGINS='[]'
+fi
+
 mkdir -p "$(dirname "$OUT")"
-# Inject via awk (safe with URLs/JSON; no sed backref hazards). Two tokens in one pass.
-awk -v bm="$DATA" -v kb="$KEYBINDINGS" \
-  '{ gsub(/__BOOKMARKS_JSON__/, bm); gsub(/__KEYBINDINGS_JSON__/, kb); print }' "$TEMPLATE" > "$OUT"
+# Inject three tokens. LITERAL replacement via index()/substr() + ENVIRON —
+# NOT gsub() and NOT `-v`: awk gsub treats `&` in the replacement as "the
+# matched text" (so a plugin name like "Ad & Tracker Blocking" or any URL
+# query-string `?a=1&b=2` corrupts the output), and `-v` runs C-escape
+# processing on the value (mangling JSON's \" \\ ). ENVIRON + substr avoids
+# both entirely — the injected JSON is inserted byte-for-byte.
+BM="$DATA" KB="$KEYBINDINGS" PL="$PLUGINS" awk '
+  function inject(s, tok, val,   i, out) {
+    out = ""
+    while ((i = index(s, tok)) > 0) { out = out substr(s, 1, i-1) val; s = substr(s, i + length(tok)) }
+    return out s
+  }
+  { line = inject($0,   "__BOOKMARKS_JSON__",   ENVIRON["BM"])
+    line = inject(line, "__KEYBINDINGS_JSON__", ENVIRON["KB"])
+    line = inject(line, "__PLUGINS_JSON__",     ENVIRON["PL"])
+    print line }' "$TEMPLATE" > "$OUT"
 nsec=$(jq -r '.sections|length' <<<"$DATA")
 nlink=$(jq -r '[.sections[] | (.links|length) + ([.folders[].links|length]|add // 0)]|add' <<<"$DATA")
 echo "gen-dashboard: wrote $OUT ($nlink links across $nsec sections)"

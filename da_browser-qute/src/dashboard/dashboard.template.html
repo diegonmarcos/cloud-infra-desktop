@@ -183,6 +183,7 @@
 <script>
 const DATA = __BOOKMARKS_JSON__;
 const KEYBINDINGS = __KEYBINDINGS_JSON__;   // [{key,cmd,desc,group}] — SoT: qute-keybindings.json
+const PLUGINS = __PLUGINS_JSON__;           // [{id,name,category,surface,enabled,...}] — SoT: qute-plugins.json
 // sections[] → { name, desc, recent, links{}, folders:[{name,desc,links{}}] }
 const SECTIONS = (DATA.sections||[]).map(s=>({
   name:s.name, desc:s.desc||'', recent:!!s.recent,
@@ -277,7 +278,7 @@ function openConfig(tab){
   sheet.dataset.k=''; sheet.style.setProperty('--a','var(--dnm)');
   sheet.innerHTML=`<h2><span class="dot"></span>Config
       <button class="x" title="close (Esc)">✕</button></h2>
-    <div class="tabs"><button data-t="shortcuts">Shortcuts</button><button data-t="health">Health</button><button data-t="about">About</button></div>
+    <div class="tabs"><button data-t="plugins">Plugins</button><button data-t="shortcuts">Shortcuts</button><button data-t="health">Health</button><button data-t="about">About</button></div>
     <div class="cfg-body" id="cfgbody"></div>`;
   sheet.querySelector('.x').addEventListener('click',closeFolder);
   sheet.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>showCfgTab(b.dataset.t)));
@@ -287,7 +288,9 @@ function openConfig(tab){
 function showCfgTab(t){
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   const body=document.getElementById('cfgbody');
-  if(t==='shortcuts'){
+  if(t==='plugins'){
+    renderPlugins(body);
+  } else if(t==='shortcuts'){
     renderShortcuts(body);
   } else if(t==='about'){
     const secCount=n=>Object.keys(sectionLinks(n)).length+n.folders.reduce((a,f)=>a+Object.keys(f.links).length,0);
@@ -338,6 +341,47 @@ function renderShortcuts(body){
     body.querySelectorAll('.kbgrp').forEach(g=>g.classList.toggle('hidden',
       !!t&&![...g.querySelectorAll('.kbrow')].some(r=>!r.classList.contains('hidden'))));
   });
+  setTimeout(()=>q.focus(),50);
+}
+function renderPlugins(body){
+  const cats=[...new Set(PLUGINS.map(p=>p.category))];
+  const planned=p=>(p.status||'').indexOf('planned')===0;
+  const pill=p=> planned(p)
+      ? '<span style="font-size:11px;padding:1px 8px;border-radius:10px;font-weight:600;background:#3a3f44;color:#a1a9b1">planned</span>'
+      : (p.enabled
+        ? '<span style="font-size:11px;padding:1px 8px;border-radius:10px;font-weight:600;background:#1e5738;color:#7fe0a8">ON</span>'
+        : '<span style="font-size:11px;padding:1px 8px;border-radius:10px;font-weight:600;background:#3a2426;color:#e0a0a0">off</span>');
+  const meta=p=>{
+    if(p.surface==='config') return `<span class="kbc">:plugin-toggle-${p.id}</span>`+(p.keybinding?` &nbsp;<span class="kbk">${kbd(p.keybinding)}</span>`:'')+` &nbsp;<span style="color:var(--muted);font-size:11px">(live · no rebuild)</span>`;
+    const acts=Object.entries(p.actions||{}).map(([k,v])=>`<div class="kbrow"><span class="kbk">${k}</span><span class="kbd-desc">${v}</span></div>`).join('');
+    return (p.keybinding?`<span class="kbk">${kbd(p.keybinding)}</span> `:'')+(p.command?`<span class="kbc">${p.command}</span>`:'')+(acts?`<div style="margin-top:6px">${acts}</div>`:'');
+  };
+  body.innerHTML=`<p style="color:var(--muted);font-size:12px;margin-bottom:10px">
+      Registry: <code>qute-plugins.json</code>. Config plugins toggle <b>live</b> (<code>:config-cycle</code>, no rebuild) —
+      zero footprint when off. Open anytime: <kbd>:plugins</kbd> · <kbd>,pp</kbd>.</p>
+    <label class="search" style="display:block;margin-bottom:12px"><input id="plq" placeholder="filter plugins…" autocomplete="off" style="width:100%"></label>
+    <div id="pllist">`+
+    cats.map(c=>`<div class="kbgrp" data-g="${c}"><div class="hgrp"><span class="dot" style="--a:var(--dnm)"></span>${c}</div>`+
+      PLUGINS.filter(p=>p.category===c).map(p=>
+        `<div class="plcard" data-plugin="${p.id}" data-f="${(p.id+' '+p.name+' '+p.category+' '+p.description).toLowerCase()}"
+              style="border:1px solid #2a2e32;border-radius:8px;padding:10px 12px;margin:8px 0;background:#23272b">
+           <div style="display:flex;align-items:center;gap:8px;font-size:14px">${pill(p)} <b>${p.name}</b>
+             <span style="margin-left:auto;font-size:11px;color:var(--muted);text-transform:uppercase">${p.surface}</span></div>
+           <div style="color:var(--muted);font-size:12px;margin:6px 0">${p.description}</div>
+           <div>${meta(p)}</div>
+           <div style="color:#6a7078;font-size:11px;margin-top:6px">footprint: ${p.footprint||'—'}</div>
+         </div>`).join('')
+      +`</div>`).join('')+`</div>`;
+  const q=body.querySelector('#plq');
+  q.addEventListener('input',()=>{ const t=q.value.trim().toLowerCase();
+    body.querySelectorAll('.plcard').forEach(r=>r.classList.toggle('hidden',!!t&&!r.dataset.f.includes(t)));
+    body.querySelectorAll('.kbgrp').forEach(g=>g.classList.toggle('hidden',
+      !!t&&![...g.querySelectorAll('.plcard')].some(r=>!r.classList.contains('hidden'))));
+  });
+  if(location.hash==='#plugins-vaultwarden'){
+    const el=body.querySelector('[data-plugin="vaultwarden"]');
+    if(el){ el.scrollIntoView({block:'center'}); el.style.outline='2px solid var(--dnm)'; }
+  }
   setTimeout(()=>q.focus(),50);
 }
 async function ping(url){
@@ -455,8 +499,13 @@ document.addEventListener('keydown',e=>{
 const clk=document.getElementById('clock');
 const tick=()=>{const d=new Date();clk.textContent=d.toTimeString().slice(0,5);};
 tick(); setInterval(tick,10000);
-// deep-link: #shortcuts (config-shortcuts command / ,s) opens the Shortcuts tab
-function hashRoute(){ if(location.hash==='#shortcuts') openConfig('shortcuts'); }
+// deep-links: #shortcuts (,s) → Shortcuts tab; #plugins (:plugins / ,pp) and
+// #plugins-vaultwarden (:plugins-vaultwarden) → Plugins tab.
+function hashRoute(){
+  const h=location.hash;
+  if(h==='#shortcuts') openConfig('shortcuts');
+  else if(h==='#plugins'||h==='#plugins-vaultwarden') openConfig('plugins');
+}
 window.addEventListener('hashchange',hashRoute); hashRoute();
 </script>
 </body>
