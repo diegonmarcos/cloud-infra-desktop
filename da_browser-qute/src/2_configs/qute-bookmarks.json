@@ -3,8 +3,12 @@
   "sections": [
     {
       "name": "Last Sessions",
-      "desc": "recent history · last 5 (live)",
-      "source": "history"
+      "desc": "recent · live",
+      "source": "history",
+      "links": {
+        "Full History": "qute://history"
+      },
+      "_note": "source:history bakes last-5 from history.sqlite AT BUILD TIME, but sqlite3 is absent in CI (and CI never has your history.sqlite), so the baked part is empty in shipped bundles — the dashboard JS merges LIVE recents from localStorage (bm-recent, dashboard-link clicks) on top. The static 'Full History' link always points at qutebrowser's real qute://history so this section is never empty and real history is one click away."
     },
     {
       "name": "QuickMarks",

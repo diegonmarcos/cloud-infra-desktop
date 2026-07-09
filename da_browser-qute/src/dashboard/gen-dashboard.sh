@@ -136,7 +136,7 @@ DATA="$(jq -n \
           name: .name,
           desc: (.desc // ""),
           recent: (.source == "history"),
-          links: ( if   .source == "history" then $history
+          links: ( if   .source == "history" then ((.links // {}) + $history)
                    else (.links // {}) end ),
           folders: ( if   .source == "front"            then $front
                      elif .source == "cloud:categories" then $cloudcats
