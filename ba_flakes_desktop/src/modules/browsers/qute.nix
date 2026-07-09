@@ -6,7 +6,7 @@
 #   * da_autofill-rbw-rofi (system-wide hotkey password autofill).
 #
 # Config is JSON-driven (settings / search engines / keybindings / quickmarks)
-# and lives in the daemon repo at ~/git/unix/da_browser-qute/src/2_configs/.
+# and lives in the daemon repo at ~/git/unix/da_my-browser/src/2_configs/.
 # The home-manager module shipped from that repo reads the JSON at flake
 # evaluation and projects it into `programs.qutebrowser`.
 #
@@ -22,9 +22,9 @@
 { inputs, ... }:
 
 {
-  imports = [ "${inputs.unix-repo}/da_browser-qute/src/nix/home-module.nix" ];
+  imports = [ "${inputs.unix-repo}/da_my-browser/src/nix/home-module.nix" ];
 
-  programs.da_browser-qute = {
+  programs.my-browser = {
     enable = true;
     # Stay non-default for now — keep Brave as the system default until the
     # qute config has had real-world miles. Operator can flip this later.

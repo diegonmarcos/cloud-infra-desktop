@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# da_browser-qute — build engine
+# da_my-browser — build engine
 #
 # This project ships no compiled artifact — it's a pure NixOS / home-manager
 # config layer on top of upstream qutebrowser. The "build" is a JSON-schema
@@ -89,6 +89,49 @@ case "$cmd" in
     "$0" print-config | tail -50
     ;;
 
+  fork)
+    # Build the FORK package (patched qutebrowser with the native chrome bar).
+    # Proves the patch series applies + the package builds. This is what
+    # packages.x86_64-linux.my-browser evaluates to.
+    log "nix build .#my-browser (fork)"
+    cd "$SRC"
+    nix build .#my-browser --no-write-lock-file -o "$ROOT/.result-fork"
+    log "→ $(readlink -f "$ROOT/.result-fork")/bin/qutebrowser"
+    ;;
+
+  fork-release)
+    # Package the FORK as a PORTABLE single-file binary via `nix bundle`
+    # (self-extracting; QtWebEngine included, ~640MB). gzip it into dist/ for
+    # upload. This is what "deploy the fork in our releases" produces.
+    enabled="$(node -e "const c=require('$CONFIG'); process.stdout.write(String(c.release.fork.enabled))")"
+    [ "$enabled" = "true" ] || { log "fork-release: enabled=false — skip"; exit 0; }
+    asset="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.fork.asset_name)")"
+    cd "$SRC"
+    log "nix bundle .#my-browser (portable fork binary)"
+    nix bundle .#my-browser --no-write-lock-file -o "$ROOT/.result-fork-bundle"
+    mkdir -p "$ROOT/dist"
+    log "gzip → dist/$asset"
+    gzip -c -n "$(readlink -f "$ROOT/.result-fork-bundle")" > "$ROOT/dist/$asset"
+    log "→ $ROOT/dist/$asset ($(du -h "$ROOT/dist/$asset" | cut -f1))"
+    ;;
+
+  fork-gh-release)
+    # Publish the portable fork binary to its OWN rolling GitHub Release tag.
+    enabled="$(node -e "const c=require('$CONFIG'); process.stdout.write(String(c.release.fork.enabled))")"
+    [ "$enabled" = "true" ] || { log "fork-gh-release: enabled=false — skip"; exit 0; }
+    tag="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.fork.rolling_tag)")"
+    asset="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.fork.asset_name)")"
+    dst="$ROOT/dist/$asset"
+    [ -f "$dst" ] || die "fork-gh-release: $dst missing — run './build.sh fork-release' first"
+    log "fork-gh-release: rolling tag=$tag ← $asset"
+    if ! gh release view "$tag" >/dev/null 2>&1; then
+      gh release create "$tag" --title "my-browser (qute)" --target "${GITHUB_SHA:-main}" \
+        --notes "Rolling release of the my-browser (qute) FORK — patched qutebrowser with the native bookmark + plugin chrome bar. Portable self-extracting binary: gunzip then chmod +x and run." --latest
+    fi
+    gh release upload "$tag" "$dst" --clobber
+    log "✓ published fork binary"
+    ;;
+
   release)
     # Build the standalone config bundle (nix/standalone.nix) — independent
     # of the desktop's 37-module home-manager closure. Tarball -> dist/.
@@ -114,7 +157,7 @@ case "$cmd" in
     log "gh-release: rolling tag=$tag ← $asset"
     if ! gh release view "$tag" >/dev/null 2>&1; then
       gh release create "$tag" --title "$tag" --target "${GITHUB_SHA:-main}" \
-        --notes "Rolling qutebrowser standalone config release — overwritten on every push touching da_browser-qute/." --latest
+        --notes "Rolling qutebrowser standalone config release — overwritten on every push touching da_my-browser/." --latest
     fi
     gh release upload "$tag" "$dst" --clobber
     gh release edit "$tag" --latest >/dev/null 2>&1 || true
@@ -180,6 +223,6 @@ case "$cmd" in
     ;;
 
   *)
-    die "Unknown command: $cmd  (use: lint-json | check | print-config | diff | release | gh-release | ghcr-push | install-standalone)"
+    die "Unknown command: $cmd  (use: lint-json | check | dashboard | print-config | diff | fork | fork-release | fork-gh-release | release | gh-release | ghcr-push | install-standalone)"
     ;;
 esac

@@ -210,3 +210,25 @@ jq -r '.sections[] | select(.name != "Last Sessions") as $s
          ( ($s.folders // [])[] as $f | $f.links | to_entries[]
            | "\(.value)  \($s.name)/\($f.name)/\(.key)" )' <<<"$DATA" > "$BOOKMARKS_URLS"
 echo "gen-dashboard: wrote $BOOKMARKS_URLS ($(wc -l < "$BOOKMARKS_URLS") bookmarks)"
+
+# Emit mybar.json — the SoT for the FORK's native chrome bar (mybar.py). Two
+# lanes, both DATA-DRIVEN from the same resolved set:
+#   bookmarks[] — each section's direct links → {name,url} buttons; each folder
+#                 → {name,links} dropdown. "Last Sessions" skipped (transient).
+#   plugins[]   — enabled plugins from qute-plugins.json that have an in-browser
+#                 command: an explicit `command` (Vaultwarden) or, for config
+#                 plugins, the generated `plugin-toggle-<id>` alias. Daemon-only
+#                 plugins (fido2, OS autofill) have no command → omitted.
+# ponytail: labels are text (bookmark/plugin name). Real favicons/emoji need an
+# `icon` field added to the source JSON — bar reads entry.icon when present.
+MYBAR_JSON="${MYBAR_JSON:-$HERE/../../dist/mybar.json}"
+BM_BAR="$(jq '[ .sections[] | select(.name != "Last Sessions")
+       | ( ( (.links // {}) | to_entries[] | { name: .key, url: .value } ),
+           ( (.folders // [])[] | { name: .name, links: .links } ) ) ]' <<<"$DATA")"
+PL_BAR="$(jq '[ .plugins // [] | .[] | select(.enabled == true)
+       | if .command then { name: .name, command: .command }
+         elif .surface == "config" then { name: .name, command: ("plugin-toggle-" + .id) }
+         else empty end ]' "$PLUGINS_JSON" 2>/dev/null || echo '[]')"
+jq -n --argjson bookmarks "$BM_BAR" --argjson plugins "$PL_BAR" \
+   '{ bookmarks: $bookmarks, plugins: $plugins }' > "$MYBAR_JSON"
+echo "gen-dashboard: wrote $MYBAR_JSON ($(jq '.bookmarks|length' "$MYBAR_JSON") bar entries, $(jq '.plugins|length' "$MYBAR_JSON") plugins)"
