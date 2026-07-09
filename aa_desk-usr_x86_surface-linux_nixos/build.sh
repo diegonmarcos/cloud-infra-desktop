@@ -1612,11 +1612,39 @@ pull_remote() {
     header "Activate prebuilt closure (no eval — cannot freeze)"
     local art="${1:-$SCRIPT_DIR/dist-ci}"
     local tb="$art/system-closure.nar.zst"
+    local _img="${SYSTEM_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-system-cache}:latest"
     local sys=""
     [ -f "$art/toplevel.name" ] && sys="/nix/store/$(cat "$art/toplevel.name")"
 
+    # ── Refresh the toplevel pointer from GHCR (source of truth) ─────────
+    # dist-ci/toplevel.name is only written by ci_build (on the runner) or a
+    # manual `gh run download` — locally it goes STALE. 2026-07-09 bug: the
+    # stale pointer + the "already present locally" short-circuit below
+    # re-activated the OLD system on every `switch` while CI had long since
+    # published a newer closure (the never-crash disk-protection fix sat
+    # committed+built but never activated through three switches). The
+    # layered cache image :latest always contains exactly one toplevel
+    # (*-nixos-system-surface-*) — read it from there; the docker pull is
+    # incremental so this is cheap when nothing changed. On any failure
+    # (offline, no docker) fall back to the local pointer, loudly.
+    local _fresh="" _p
+    if command -v docker >/dev/null 2>&1 && docker pull "$_img" >/dev/null 2>&1; then
+        for _p in $(docker run --rm "$_img" sh -c 'ls /nix/store' 2>/dev/null); do
+            case "$_p" in *-nixos-system-surface-*) _fresh="$_p"; break ;; esac
+        done
+        if [ -n "$_fresh" ]; then
+            sys="/nix/store/$_fresh"
+            mkdir -p "$art"
+            printf '%s\n' "$_fresh" > "$art/toplevel.name"
+            log "Toplevel pointer refreshed from GHCR: $_fresh"
+        else
+            warn "GHCR image pulled but no *-nixos-system-surface-* toplevel found in it — keeping local pointer"
+        fi
+    else
+        warn "GHCR unreachable — using LOCAL pointer ($art/toplevel.name), which may be STALE"
+    fi
+
     # ── Try GHCR-layered pull first (incremental) ────────────────────────
-    local _img="${SYSTEM_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-system-cache}:latest"
     if [ -n "$sys" ] && [ -d "$sys" ]; then
         log "$sys already present locally — skipping pull entirely."
     elif ghcr_pull_layered "$_img" && [ -n "$sys" ] && [ -d "$sys" ]; then
