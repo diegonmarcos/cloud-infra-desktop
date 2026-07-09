@@ -35,11 +35,9 @@
     },
     {
       "name": "Cloud",
-      "desc": "self-hosted",
-      "folders": [
-        { "name": "Pub",  "desc": "Public Caddy edge — *.diegonmarcos.com (Authelia 2FA)", "source": "cloud:public" },
-        { "name": "Priv", "desc": "Internal WG mesh — *.app",                              "source": "cloud:app" }
-      ]
+      "desc": "self-hosted · by category",
+      "source": "cloud:categories",
+      "_note": "gen-dashboard.sh expands this into one folder per service category (agi/app/cloud/data/fin/mic/net/obs/sec/tools) from cloud-data build-flakes_desktop.json's .category field, URL = public domain else internal .app. Replaces the old flat Pub/Priv split."
     },
     {
       "name": "Front",
