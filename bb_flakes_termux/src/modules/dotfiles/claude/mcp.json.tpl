@@ -3,7 +3,7 @@
     "unix": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/tools/6-unix-mcp-api/src/index.ts"],
+      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/tools/products/mcp-unix-api/src/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules"
       }
@@ -11,7 +11,7 @@
     "dtk": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/tools/7-dtk-mcp/src/index.ts"],
+      "args": ["--import", "/data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs", "/data/data/com.termux.nix/files/home/git/tools/products/mcp-dtk/src/index.ts"],
       "env": {
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules"
       }
