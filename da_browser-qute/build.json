@@ -16,6 +16,8 @@
     "binary_name": "qutebrowser",
     "config_dir": "~/.config/qutebrowser",
     "data_dir": "~/.local/share/qutebrowser",
+    "default_browser": true,
+    "_default_browser_note": "true → home-module sets xdg.mimeApps so qutebrowser owns http(s)/html/about/unknown scheme handlers (the system default browser). Flip to false to disown. Data-driven toggle read by src/nix/home-module.nix.",
     "comment": "Upstream qutebrowser is configured via Python config.py OR via NixOS home-manager `programs.qutebrowser`. This project uses the home-manager path so the SoT is JSON + Nix, not imperative Python."
   },
   "data_sources": {
