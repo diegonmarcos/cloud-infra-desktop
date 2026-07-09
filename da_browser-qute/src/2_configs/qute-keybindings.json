@@ -40,8 +40,9 @@
     "<Ctrl-Shift-o>": { "cmd": "spawn --detach /home/diego/.local/bin/da_autofill-rbw-rofi totp", "desc": "Autofill: TOTP", "group": "Autofill" },
     "_comment_autofill": "spawn --detach (NOT --userscript): da_autofill-rbw-rofi is a standalone GUI helper; the browser is just a focused window to it. Trailing arg pick|user|pass|totp selects the action.",
 
-    ",d":           { "cmd": "open file:///home/diego/.config/qutebrowser/dashboard.html", "desc": "Open dashboard (bookmarks)", "group": "Leader" },
+    ",d":           { "cmd": "open file:///home/diego/.config/qutebrowser/qute-bookmarks.html", "desc": "Open bookmarks (dashboard)", "group": "Leader" },
     ",s":           { "cmd": "config-shortcuts", "desc": "Open Shortcuts reference (Config-shortcuts)", "group": "Leader" },
+    ",e":           { "cmd": "config-edit", "desc": "Edit config.py in $EDITOR (native qutebrowser command)", "group": "Leader" },
     ",v":           { "cmd": "open https://vault.diegonmarcos.com", "desc": "Vaultwarden", "group": "Leader" },
     ",a":           { "cmd": "open https://auth.diegonmarcos.com", "desc": "Authelia", "group": "Leader" },
     ",g":           { "cmd": "open https://git.diegonmarcos.com", "desc": "Gitea", "group": "Leader" }

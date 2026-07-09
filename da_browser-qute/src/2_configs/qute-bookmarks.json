@@ -1,5 +1,5 @@
 {
-  "_description": "qutebrowser bookmarks — SECTION source of truth for the dashboard start page (Icons + List views) AND flattened `Folder/name` quickmarks. Model: sections[] → each has direct `links` and/or `folders[]` → each folder has `links`. DATA-DRIVEN sources resolved by gen-dashboard.sh: section source:\"history\" → last 5 from qutebrowser history.sqlite (merged live with localStorage clicks); section source:\"front\" → one folder per front git category (a-/b-/c-) from front-topology.json; folder source:\"cloud:public\"|\"cloud:app\" → services from cloud-data build-flakes_desktop.json (wg_only split). Hand-curated links live inline here. Edit this file (or the cloud/front SoTs); never edit generated dashboard.html. Order = array order.",
+  "_description": "qutebrowser bookmarks — SECTION source of truth for the dashboard start page (Icons + List views) AND flattened `Folder/name` quickmarks. Model: sections[] → each has direct `links` and/or `folders[]` → each folder has `links`. DATA-DRIVEN sources resolved by gen-dashboard.sh: section source:\"history\" → last 5 from qutebrowser history.sqlite (merged live with localStorage clicks); section source:\"front\" → one folder per front git category (a-/b-/c-) from front-topology.json; folder source:\"cloud:public\"|\"cloud:app\" → services from cloud-data build-flakes_desktop.json (wg_only split). Hand-curated links live inline here. Edit this file (or the cloud/front SoTs); never edit generated qute-bookmarks.html. Order = array order.",
   "sections": [
     {
       "name": "Last Sessions",
@@ -10,7 +10,7 @@
       "name": "QuickMarks",
       "desc": "pinned",
       "links": {
-        "bookmarks": "file:///home/diego/.config/qutebrowser/dashboard.html",
+        "bookmarks": "file:///home/diego/.config/qutebrowser/qute-bookmarks.html",
         "git":       "http://localhost:8000/git",
         "linktree":  "https://linktree.diegonmarcos.com",
         "cloud":     "https://cloud.diegonmarcos.com",

@@ -45,7 +45,7 @@ case "$cmd" in
     ;;
 
   dashboard)
-    # Regenerate the committed start-page dashboard (dist/dashboard.html) from the
+    # Regenerate the committed start-page dashboard (dist/qute-bookmarks.html) from the
     # bookmark folder SoT + cloud-data (build-flakes_desktop.json). The cloud folders
     # (source:"cloud:*") resolve here — without this step the committed dashboard goes
     # stale and the cloud service URLs (*.diegonmarcos.com + api/app) go missing.
