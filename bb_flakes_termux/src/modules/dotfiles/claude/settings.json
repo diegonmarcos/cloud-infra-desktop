@@ -16,7 +16,6 @@
   },
   "effortLevel": "xhigh",
   "alwaysThinkingEnabled": true,
-  "effortLevel": "xhigh",
   "hooks": {
     "SessionStart": [
       {

@@ -113,6 +113,19 @@ ea_*-*/
 ## like ea_cloud-superapp / ea_cloud-comms / ea_cloud-ide. Added 2026-06-14.
 !ea_cloud-nav/
 !ea_cloud-nav/**
+## EXCEPTION: ea_cloud-browser/ — standalone browser APK (WebView locked to
+## constellation domains). Lifted out of ea_cloud-superapp libs:browser.
+## Added 2026-07-09.
+!ea_cloud-browser/
+!ea_cloud-browser/**
+## EXCEPTION: ea_cloud-wallet/ — standalone wallet APK (NFC tap-to-pay +
+## QR cards). Lifted out of ea_cloud-superapp libs:wallet. Added 2026-07-09.
+!ea_cloud-wallet/
+!ea_cloud-wallet/**
+## EXCEPTION: ea_cloud-vault/ — standalone Vaultwarden client APK (locked
+## WebView to vault.diegonmarcos.com). Added 2026-07-09.
+!ea_cloud-vault/
+!ea_cloud-vault/**
 ## Re-ignore signing keystores inside the whitelisted Android projects. The
 ## !ea_cloud-*/** whitelists above would otherwise override the *.jks/*.keystore
 ## rules (lines ~27-28) and make a locally-generated keystore committable.
@@ -126,6 +139,12 @@ ea_cloud-ide/**/*.keystore
 ea_cloud-ide/**/*.jks
 ea_cloud-nav/**/*.keystore
 ea_cloud-nav/**/*.jks
+ea_cloud-browser/**/*.keystore
+ea_cloud-browser/**/*.jks
+ea_cloud-wallet/**/*.keystore
+ea_cloud-wallet/**/*.jks
+ea_cloud-vault/**/*.keystore
+ea_cloud-vault/**/*.jks
 ## Re-ignore Gradle build outputs inside the whitelisted ea_cloud-ide/ tree
 ## (the !ea_cloud-ide/** whitelist would otherwise track build/.gradle dirs).
 ## Added 2026-06-13.
@@ -155,6 +174,21 @@ ea_cloud-ide/dist/
 ea_cloud-ide/**/*.apk
 ea_cloud-nav/dist/
 ea_cloud-nav/**/*.apk
+ea_cloud-browser/.gradle/
+ea_cloud-browser/build/
+ea_cloud-browser/**/build/
+ea_cloud-browser/dist/
+ea_cloud-browser/**/*.apk
+ea_cloud-wallet/.gradle/
+ea_cloud-wallet/build/
+ea_cloud-wallet/**/build/
+ea_cloud-wallet/dist/
+ea_cloud-wallet/**/*.apk
+ea_cloud-vault/.gradle/
+ea_cloud-vault/build/
+ea_cloud-vault/**/build/
+ea_cloud-vault/dist/
+ea_cloud-vault/**/*.apk
 ## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/

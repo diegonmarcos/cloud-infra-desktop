@@ -765,7 +765,15 @@
                 source = ../src/modules/dotfiles/claude/c-pretool-guard-warning.sh;
                 executable = true;
               };
-              home.file.".claude/settings.json".source = ../src/modules/dotfiles/claude/settings.json;
+              # settings.json deployed as a writable real file (not a nix-store symlink)
+              # so that runtime commands (/effort, /model, /fast) can persist their writes.
+              # Source is authoritative: each switch resets runtime prefs back to declared values.
+              home.activation.claudeSettingsWritable = lib.hm.dag.entryAfter ["linkGeneration"] ''
+                _src=${../src/modules/dotfiles/claude/settings.json}
+                _dst="$HOME/.claude/settings.json"
+                [ -L "$_dst" ] && rm "$_dst"
+                ${pkgs.coreutils}/bin/install -m 600 "$_src" "$_dst"
+              '';
               home.file.".claude/skills/frontend-design.md".source = ../src/modules/dotfiles/claude/skills/frontend-design.md;
 
               # claude-api skill — pinned from anthropics/skills repo. Symlinks
