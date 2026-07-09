@@ -611,9 +611,15 @@ cmd_ci_build() {
     if [ "${GHCR_PUSH:-0}" = "1" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
         _img="${TERMUX_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-termux-cache}"
         log_info "building + pushing layered termux cache image -> ${_img}:latest (incremental)"
+        # GHA Ubuntu runners ship /etc/containers/registries.conf as legacy v1,
+        # which skopeo 1.23 refuses ("must be in v2 format"). Empty v2 config —
+        # fully-qualified refs need no registries. (2026-07-09 silent-push fix.)
+        local _reg="$_out/registries.conf"
+        printf 'unqualified-search-registries = []\n' > "$_reg"
         if "$_nix" build "$SRC_DIR#packages.aarch64-linux.termux-cache-image" \
              --impure --accept-flake-config --out-link "$_out/termux-cache-image" \
              --extra-experimental-features "nix-command flakes"; then
+            CONTAINERS_REGISTRIES_CONF="$_reg" \
             "$_nix" run --extra-experimental-features "nix-command flakes" nixpkgs#skopeo -- \
                 copy --dest-creds "x:${GITHUB_TOKEN}" \
                 "docker-archive:$(readlink -f "$_out/termux-cache-image")" \

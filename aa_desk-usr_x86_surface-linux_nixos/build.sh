@@ -1556,9 +1556,18 @@ ci_build() {
     if [ "${GHCR_PUSH:-0}" = "1" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
         local _img="${SYSTEM_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-system-cache}"
         log "building + pushing layered system cache image → ${_img}:latest (incremental)"
+        # GHA Ubuntu runners ship /etc/containers/registries.conf in the LEGACY
+        # v1 format, which skopeo 1.23 refuses to load ("must be in v2 format
+        # but is in v1") — the 2026-07-09 silent-failure root cause that left
+        # the incremental cache image unpublished for weeks, forcing every
+        # `switch` to pull the full 5.6GB nar.zst. Point skopeo at an ephemeral
+        # empty v2 config: fully-qualified docker:// refs need no registries.
+        local _reg="$out/registries.conf"
+        printf 'unqualified-search-registries = []\n' > "$_reg"
         if nix build "$FLAKE_PATH#packages.x86_64-linux.system-cache-image" \
              --accept-flake-config --out-link "$out/system-cache-image" \
              --extra-experimental-features "nix-command flakes"; then
+            CONTAINERS_REGISTRIES_CONF="$_reg" \
             nix run --extra-experimental-features "nix-command flakes" nixpkgs#skopeo -- \
                 copy --dest-creds "x:${GITHUB_TOKEN}" \
                 "docker-archive:$(readlink -f "$out/system-cache-image")" \
