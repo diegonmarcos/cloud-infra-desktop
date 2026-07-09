@@ -76,12 +76,59 @@ cmd_install() {
   log "NEXT: render+deploy the boot entry:  (cd $ROOT/../aa_bootloader && ./build.sh deploy)"
 }
 
+# fetch-apks — nix-prefetch every entry in the apps lock (verifying its pinned sha256) into
+# apk_dir. Reproducible + offline-verified: a tampered/moved APK fails the hash and aborts.
+cmd_fetch_apks() {
+  local lock dir n; lock="$ROOT/$(get apps.lock)"; dir="$ROOT/$(get apps.apk_dir)"
+  [ -f "$lock" ] || die "apps lock not found: $lock"
+  mkdir -p "$dir"
+  n="$(node -e "process.stdout.write(String(require('$lock').apps.length))")"
+  log "fetching $n APKs -> $dir (hash-verified)…"
+  local i pkg url sha store
+  for ((i=0;i<n;i++)); do
+    pkg="$(node -e "process.stdout.write(require('$lock').apps[$i].package)")"
+    url="$(node -e "process.stdout.write(require('$lock').apps[$i].url)")"
+    sha="$(node -e "process.stdout.write(require('$lock').apps[$i].sha256)")"
+    [ -n "$url" ] && [ -n "$sha" ] || { warn "  skip $pkg (missing url/sha256)"; continue; }
+    store="$(nix store prefetch-file --json --hash-type sha256 --expected-hash "$sha" "$url" \
+      | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>process.stdout.write(JSON.parse(d).storePath))')"
+    [ -f "$store" ] || die "fetch failed for $pkg ($url)"
+    cp -f "$store" "$dir/$pkg.apk"
+    log "  ✓ $pkg"
+  done
+  log "fetched all APKs into $dir"
+}
+
+# provision — adb-install every fetched APK into the running BlissOS. BlissOS must be booted
+# and reachable at apps.adb_target (adb over network; enable ADB in BlissOS Developer options,
+# or `adb tcpip 5555` over USB first). Idempotent: -r reinstalls, keeping data.
+cmd_provision() {
+  local dir tgt; dir="$ROOT/$(get apps.apk_dir)"; tgt="$(get apps.adb_target)"
+  command -v adb >/dev/null 2>&1 || die "adb not on PATH (add android-tools to the shell)"
+  [ -d "$dir" ] || die "no fetched APKs at $dir — run: ./install/build.sh fetch-apks"
+  log "adb connect $tgt…"
+  adb connect "$tgt" >/dev/null 2>&1 || die "cannot adb connect $tgt (is BlissOS booted with ADB enabled?)"
+  adb -s "$tgt" wait-for-device
+  local apk ok=0 fail=0
+  for apk in "$dir"/*.apk; do
+    [ -f "$apk" ] || continue
+    if adb -s "$tgt" install -r -g "$apk" >/dev/null 2>&1; then
+      log "  ✓ $(basename "$apk" .apk)"; ok=$((ok+1))
+    else
+      warn "  ✗ $(basename "$apk" .apk) (install failed — arch/minSdk?)"; fail=$((fail+1))
+    fi
+  done
+  log "provisioned: $ok installed, $fail failed"
+}
+
 cmd_status() {
-  local dst; dst="$(get install.src_dir)"
+  local dst dir; dst="$(get install.src_dir)"; dir="$ROOT/$(get apps.apk_dir)"
   echo "release: $(get release.version) [$(get release.variant)]  url=$(get release.url)"
   echo "sha256:  $(get release.sha256)"
   echo "target:  $dst"
   if [ -d "$dst" ]; then ls -lh "$dst" 2>/dev/null | sed 's/^/  /'; else echo "  (not installed)"; fi
+  echo "apps:    lock=$(get apps.lock) via=$(get apps.install_via) target=$(get apps.adb_target)"
+  if [ -d "$dir" ]; then echo "  fetched APKs: $(ls -1 "$dir"/*.apk 2>/dev/null | wc -l)"; else echo "  fetched APKs: 0 (run fetch-apks)"; fi
 }
 
 cmd_uninstall() {
@@ -95,7 +142,9 @@ cmd_uninstall() {
 case "${1:-status}" in
   lock) cmd_lock ;;
   install) cmd_install ;;
+  fetch-apks) cmd_fetch_apks ;;
+  provision) cmd_provision ;;
   status) cmd_status ;;
   uninstall) cmd_uninstall ;;
-  *) die "unknown command '$1' (lock|install|status|uninstall)" ;;
+  *) die "unknown command '$1' (lock|install|fetch-apks|provision|status|uninstall)" ;;
 esac
