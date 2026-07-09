@@ -297,12 +297,20 @@ step_materialize_fork() {
   local key="${2:-}"
   [ -n "$key" ] || { errlog "usage: build.sh materialize-fork <mail|chat|matrix>"; exit 1; }
 
-  local repo tracker tag blocked
+  local repo tracker tag blocked mtask
   repo="$(_json ".forks.${key}.upstream_repo")"
   tracker="$(_json ".forks.${key}.tracker_dir")"
   tag="$(_json ".forks.${key}.pinned_tag")"
   blocked="$(_json ".forks.${key}.blocked_on")"
   [ -n "$repo" ] && [ -n "$tracker" ] || { errlog "unknown fork '$key' in build.json::forks"; exit 1; }
+
+  # Upstream-APK forks (no gradle_task) build from the pinned release APK, not
+  # source — nothing to clone/patch. build-fork fetches + resigns it directly.
+  mtask="$(_json ".forks.${key}.build.gradle_task")"
+  if [ -z "$mtask" ] || [ "$mtask" = "null" ]; then
+    log "materialize-fork[$key]: upstream-APK fork (no gradle build) — no source to materialize; build-fork resigns the pinned upstream APK."
+    return 0
+  fi
 
   if [ -n "$blocked" ] && [ "$blocked" != "null" ]; then
     errlog "fork '$key' is BLOCKED on: $blocked — resolve the blocker before materializing."
@@ -376,8 +384,33 @@ step_build_fork() {
   apk_glob="$(_json ".forks.${key}.build.apk_glob")"
   signing="$(_json ".forks.${key}.build.signing")"
   dest="$SCRIPT_DIR/../$tracker"
+
+  # ── Upstream-APK fork (no gradle build): chat (Mattermost) / matrix (Element)
+  #    ship the pinned upstream release APK re-signed with the ONE shared
+  #    constellation key — same _fetch_upstream_apk the hub's bundle-forks uses,
+  #    but here the resigned APK becomes cloud-comms-<key>.apk so publish-fork
+  #    can oras-push it as a STANDALONE GHCR image (Constellation AppStore).
+  #    Needs no materialized source. ABI variant mirrors bundle-forks.
+  if [ -z "$task" ] || [ "$task" = "null" ]; then
+    local up_url up_sha up_resign bundle_abi v_url v_sha
+    up_url="$(_json ".forks.${key}.upstream_apk.url")"
+    up_sha="$(_json ".forks.${key}.upstream_apk.sha256")"
+    up_resign="$(_json ".forks.${key}.upstream_apk.resign")"
+    bundle_abi="${COMMS_BUNDLE_ABI:-arm64-v8a}"
+    v_url="$(_json ".forks.${key}.upstream_apk.abi_variants[\"$bundle_abi\"].url")"
+    v_sha="$(_json ".forks.${key}.upstream_apk.abi_variants[\"$bundle_abi\"].sha256")"
+    if [ -n "$v_url" ] && [ "$v_url" != "null" ]; then up_url="$v_url"; up_sha="$v_sha"; fi
+    [ -n "$up_url" ] && [ "$up_url" != "null" ] \
+      || { errlog "fork '$key' has neither build.gradle_task nor upstream_apk.url"; exit 1; }
+    mkdir -p "$DIST_DIR"
+    _fetch_upstream_apk "$key" "$up_url" "$up_sha" "$up_resign" "$DIST_DIR/cloud-comms-${key}.apk" \
+      || { errlog "build-fork[$key]: upstream APK fetch/resign failed"; exit 1; }
+    _enforce_signature "$DIST_DIR/cloud-comms-${key}.apk"
+    log "build-fork[$key]: upstream-APK fork ($bundle_abi) → $DIST_DIR/cloud-comms-${key}.apk ($(wc -c <"$DIST_DIR/cloud-comms-${key}.apk") B)"
+    return 0
+  fi
+
   [ -d "$dest/.git" ] || { errlog "fork '$key' not materialized — run: ./build.sh materialize-fork $key"; exit 1; }
-  [ -n "$task" ] || { errlog "fork '$key' has no build.gradle_task in build.json"; exit 1; }
 
   if [ "$signing" = "keystore_properties" ]; then
     # Resolve the ONE shared constellation key (fails loud if unavailable —

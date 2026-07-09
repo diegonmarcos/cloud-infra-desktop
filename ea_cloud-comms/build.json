@@ -117,8 +117,9 @@
       "primary_lang": "Kotlin",
       "runtime": "native",
       "priority": 3,
-      "blocked_on": "matrix-chat-bridge-stack-ship",
-      "comment": "Element X Android (Kotlin + Rust matrix-sdk FFI). BLOCKED until the continuwuity + mautrix-whatsapp + element stack ships (cloud repo, merged 2026-06-10, not deployed). Exporter reads via the Rust-SDK Kotlin BINDINGS, never raw store files. Push via UnifiedPush with our ntfy (rss.diegonmarcos.com) as distributor \u2014 Element X supports it natively.",
+      "blocked_on": null,
+      "_blocked_on_history": "Was 'matrix-chat-bridge-stack-ship' (continuwuity + mautrix-whatsapp + element stack). Unblocked 2026-07-09 to publish the standalone GHCR APK for the Constellation AppStore \u2014 the resigned upstream Element X APK installs independent of the homeserver; the app is non-functional until the Matrix backend stack is deployed.",
+      "comment": "Element X Android (Kotlin + Rust matrix-sdk FFI). Exporter reads via the Rust-SDK Kotlin BINDINGS, never raw store files. Push via UnifiedPush with our ntfy (rss.diegonmarcos.com) as distributor \u2014 Element X supports it natively.",
       "upstream_apk": {
         "_doc": "Pinned UPSTREAM RELEASE APK \u2014 bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true \u2192 the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs \u2014 unsigned can't install; our key also makes it IPC-compatible). NOTE: blocked_on gates OUR fork build (homeserver work), not stock-client bundling \u2014 Element X is a generic Matrix client.",
         "url": "https://github.com/element-hq/element-x-android/releases/download/v26.06.2/app-fdroid-arm64-v8a-release-signed.apk",
