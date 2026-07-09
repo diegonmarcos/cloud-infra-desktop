@@ -63,6 +63,12 @@ cmd_install() {
     $SUDO cp -f "$payload/$f" "$dst/$f"
   done
 
+  # unmount now (not at script EXIT — the trap's $tmp would be out of scope by
+  # then, since it's local to this function and the trap fires after return)
+  $SUDO umount "$tmp" 2>/dev/null || fusermount -u "$tmp" 2>/dev/null || true
+  rmdir "$tmp" 2>/dev/null || true
+  trap - EXIT
+
   # persistent /data image (created once; kept across reinstalls)
   local dimg="$dst/data.img" mb; mb="$(get install.data_img_size_mb)"
   if [ ! -f "$dimg" ]; then
