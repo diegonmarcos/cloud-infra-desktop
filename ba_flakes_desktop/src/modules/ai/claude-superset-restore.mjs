@@ -38,16 +38,20 @@ const TMUX = process.env.CAS_TMUX || "";
 // resume ever lands in the wrong project dir.
 const encodeCwd = (cwd) => cwd.replace(/\//g, "-");
 
-// Pull {cwd, title} out of a session jsonl body. Title prefers a summary line,
-// then the first real user prompt, else the short id.
+// Pull {cwd, title} out of a session jsonl body. Title matches what the
+// `/resume` picker shows: customTitle (set by `/rename`) → slug (the dashed
+// auto-name) → aiTitle → first user prompt → short id. customTitle/aiTitle take
+// the last occurrence (a rename late in the session wins).
 function inspect(text, id) {
-  let cwd = null, summary = null, firstPrompt = null;
+  let cwd = null, customTitle = null, slug = null, aiTitle = null, firstPrompt = null;
   for (const line of text.split("\n")) {
     if (!line) continue;
     let o;
     try { o = JSON.parse(line); } catch { continue; }
     if (!cwd && typeof o.cwd === "string") cwd = o.cwd;
-    if (!summary && o.type === "summary" && o.summary) summary = String(o.summary);
+    if (o.customTitle) customTitle = String(o.customTitle);
+    if (o.aiTitle) aiTitle = String(o.aiTitle);
+    if (!slug && o.slug) slug = String(o.slug);
     if (!firstPrompt && o.type === "user") {
       const c = o.message?.content;
       const t = typeof c === "string" ? c
@@ -55,7 +59,7 @@ function inspect(text, id) {
       if (t && !t.startsWith("<")) firstPrompt = t;
     }
   }
-  const raw = summary || firstPrompt || id.slice(0, 8);
+  const raw = customTitle || slug || aiTitle || firstPrompt || id.slice(0, 8);
   const title = raw.replace(/[\r\n;]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 40) || id.slice(0, 8);
   return { cwd, title };
 }
