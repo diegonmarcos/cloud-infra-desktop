@@ -332,41 +332,20 @@ in
         X11LibInputXAccelProfileFlat = true;
       };
 
-      # Full Breeze Dark Color Scheme
-      "kdeglobals"."ColorEffects:Disabled" = {
-        Color = "56,56,56";
-        ColorAmount = 0;
-        ColorEffect = 0;
-        ContrastAmount = "0.65";
-        ContrastEffect = 1;
-        IntensityAmount = "0.1";
-        IntensityEffect = 2;
-      };
-      "kdeglobals"."ColorEffects:Inactive" = {
-        ChangeSelectionColor = true;
-        Color = "112,111,110";
-        ColorAmount = "0.025";
-        ColorEffect = 2;
-        ContrastAmount = "0.1";
-        ContrastEffect = 2;
-        Enable = false;
-        IntensityAmount = 0;
-        IntensityEffect = 0;
-      };
-      "kdeglobals"."Colors:Button" = {
-        BackgroundAlternate = "30,87,116";
-        BackgroundNormal = "49,54,59";
-        DecorationFocus = "61,174,233";
-        DecorationHover = "61,174,233";
-        ForegroundActive = "61,174,233";
-        ForegroundInactive = "161,169,177";
-        ForegroundLink = "29,153,243";
-        ForegroundNegative = "218,68,83";
-        ForegroundNeutral = "246,116,0";
-        ForegroundNormal = "252,252,252";
-        ForegroundPositive = "39,174,96";
-        ForegroundVisited = "155,89,182";
-      };
+      # Full Breeze Dark Color Scheme.
+      #
+      # ColorEffects:Disabled/Inactive and Colors:Button/Selection/Tooltip/
+      # View/Window are DELIBERATELY NOT declared here — they're in
+      # plasma-manager's own colorscheme.nix `ignoreKeys` list, which sets
+      # persistent=mkDefault true on those keys as soon as workspace.
+      # colorScheme = "BreezeDark" (below) is set. Also declaring a raw
+      # value for the SAME keys here made write_config.py reject the whole
+      # activation: "Persistency enabled for key ... A value cannot be
+      # given when persistency is enabled" — plasma-manager already applies
+      # Breeze Dark's correct values for these via colorScheme, natively,
+      # without the conflict. Verified against plasma-manager's actual
+      # source (lib/colorscheme.nix) before removing — this broke every
+      # switch on this machine until removed.
       "kdeglobals"."Colors:Complementary" = {
         BackgroundAlternate = "30,87,116";
         BackgroundNormal = "42,46,50";
@@ -409,77 +388,22 @@ in
         ForegroundPositive = "39,174,96";
         ForegroundVisited = "155,89,182";
       };
-      "kdeglobals"."Colors:Selection" = {
-        BackgroundAlternate = "30,87,116";
-        BackgroundNormal = "61,174,233";
-        DecorationFocus = "61,174,233";
-        DecorationHover = "61,174,233";
-        ForegroundActive = "252,252,252";
-        ForegroundInactive = "161,169,177";
-        ForegroundLink = "253,188,75";
-        ForegroundNegative = "176,55,69";
-        ForegroundNeutral = "198,92,0";
-        ForegroundNormal = "252,252,252";
-        ForegroundPositive = "23,104,57";
-        ForegroundVisited = "155,89,182";
-      };
-      "kdeglobals"."Colors:Tooltip" = {
-        BackgroundAlternate = "42,46,50";
-        BackgroundNormal = "49,54,59";
-        DecorationFocus = "61,174,233";
-        DecorationHover = "61,174,233";
-        ForegroundActive = "61,174,233";
-        ForegroundInactive = "161,169,177";
-        ForegroundLink = "29,153,243";
-        ForegroundNegative = "218,68,83";
-        ForegroundNeutral = "246,116,0";
-        ForegroundNormal = "252,252,252";
-        ForegroundPositive = "39,174,96";
-        ForegroundVisited = "155,89,182";
-      };
-      "kdeglobals"."Colors:View" = {
-        BackgroundAlternate = "35,38,41";
-        BackgroundNormal = "27,30,32";
-        DecorationFocus = "61,174,233";
-        DecorationHover = "61,174,233";
-        ForegroundActive = "61,174,233";
-        ForegroundInactive = "161,169,177";
-        ForegroundLink = "29,153,243";
-        ForegroundNegative = "218,68,83";
-        ForegroundNeutral = "246,116,0";
-        ForegroundNormal = "252,252,252";
-        ForegroundPositive = "39,174,96";
-        ForegroundVisited = "155,89,182";
-      };
-      "kdeglobals"."Colors:Window" = {
-        BackgroundAlternate = "49,54,59";
-        BackgroundNormal = "42,46,50";
-        DecorationFocus = "61,174,233";
-        DecorationHover = "61,174,233";
-        ForegroundActive = "61,174,233";
-        ForegroundInactive = "161,169,177";
-        ForegroundLink = "29,153,243";
-        ForegroundNegative = "218,68,83";
-        ForegroundNeutral = "246,116,0";
-        ForegroundNormal = "252,252,252";
-        ForegroundPositive = "39,174,96";
-        ForegroundVisited = "155,89,182";
-      };
       "kdeglobals"."General" = {
-        ColorSchemeHash = "babca25f3a5cf7ece26a85de212ab43d0a141257";
-        ColorScheme = "BreezeDark";
+        # ColorScheme/ColorSchemeHash deliberately NOT declared — same
+        # persistency conflict as the Colors:* groups above:
+        # workspace.colorScheme = "BreezeDark" (below) already writes
+        # these exact values via plasma-manager's own colorScheme
+        # mechanism, which marks General.ColorScheme persistent=true.
         # my-konsole is the default terminal. ponytail: Dolphin's "Open Terminal
         # here" passes a workdir the Tauri app doesn't yet consume — opens at
         # $HOME for now; add a --workdir arg to the app if that matters.
         TerminalApplication = "my-konsole";
         TerminalService = "my-konsole.desktop";
       };
-      "kdeglobals"."Icons" = {
-        Theme = "breeze-dark";
-      };
-      "kdeglobals"."KDE" = {
-        LookAndFeelPackage = "org.kde.breezedark.desktop";
-      };
+      # kdeglobals.Icons.Theme and kdeglobals.KDE.LookAndFeelPackage
+      # deliberately NOT declared — same persistency conflict: both are
+      # theme-identity keys plasma-manager's colorScheme mechanism already
+      # sets to the Breeze Dark values via workspace.colorScheme below.
 
       # Dolphin - Terminal integration
       "dolphinrc"."General" = {
@@ -631,14 +555,9 @@ in
         VariantList = ",,,";  # Default variants for each layout
       };
 
-      "kdeglobals"."WM" = {
-        activeBackground = "49,54,59";
-        activeBlend = "252,252,252";
-        activeForeground = "252,252,252";
-        inactiveBackground = "42,46,50";
-        inactiveBlend = "161,169,177";
-        inactiveForeground = "161,169,177";
-      };
+      # kdeglobals.WM (titlebar colors) deliberately NOT declared — same
+      # persistency conflict as the other theme-identity keys above;
+      # workspace.colorScheme = "BreezeDark" already covers it.
     };
   };
 
