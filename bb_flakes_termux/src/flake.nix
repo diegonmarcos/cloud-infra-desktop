@@ -330,7 +330,13 @@
                   exec ${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-tui.mjs}
                 fi
 
-                # Termux has no `local`/docker face — remote only.
+                # Termux has no `local`/docker face — remote only. `claude`
+                # bypasses everything and runs a plain claude (claude-malloc).
+                case "''${1:-}" in
+                  claude) shift; export CLAUDE_SUPERSET_MODE="claude"; exec claude-malloc "$@" ;;
+                esac
+                # Face → statusline (PL[M:{L|R|C} …]). Termux is remote-only.
+                export CLAUDE_SUPERSET_MODE="remote"
                 # Plugin toggles (any order, before the action): headroom on|off,
                 # ponytail on|off|lite|full|ultra.
                 HEADROOM="on"

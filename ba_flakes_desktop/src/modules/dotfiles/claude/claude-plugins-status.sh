@@ -44,6 +44,16 @@ while IFS=$'\t' read -r label icon dtype env path show; do
         on=true
         [ "$show" = "true" ] && detail=$(tr -d '[:space:]' < "$CFG/$path" 2>/dev/null)
       fi ;;
+    env_value)
+      # Value indicator (e.g. superset face L|R|C from CLAUDE_SUPERSET_MODE):
+      # render "<icon>:<UPPER first char>", no on/off dot. Absent => nothing.
+      _v="${!env:-}"
+      if [ -n "$_v" ]; then
+        detail=$(printf '%s' "$_v" | cut -c1 | tr '[:lower:]' '[:upper:]')
+        ansi="$ansi ${icon}\033[32m:${detail}\033[0m"
+        plain="$plain ${label}:${detail}"
+      fi
+      continue ;;
   esac
   if [ "$on" = true ]; then
     ansi="$ansi ${icon}\033[32m●\033[0m"
