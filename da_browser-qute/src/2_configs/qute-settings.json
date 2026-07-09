@@ -9,9 +9,9 @@
     "_note": "Brand the window/taskbar title 'my-browser (qute)' (display brand; project dir + GHCR image keep the da_browser-qute identity).",
     "title_format": "{perc}{current_title}{title_sep}my-browser (qute)"
   },
+  "_plugins_note": "content.blocking.enabled, content.javascript.enabled and content.autoplay are OWNED by the plugin registry (qute-plugins.json — ids adblock/javascript/no-autoplay) so they are runtime-toggleable via :plugins; they are intentionally NOT set here to avoid a double source of truth. Non-toggle sub-keys (blocking.method/lists, javascript.clipboard) stay here.",
   "content": {
     "blocking": {
-      "enabled": true,
       "method": "both",
       "_method_options": "auto | adblock | hosts | both",
       "adblock": {
@@ -28,14 +28,12 @@
       }
     },
     "javascript": {
-      "enabled": true,
       "clipboard": "access-paste"
     },
     "cookies": {
       "accept": "no-3rdparty",
       "store": true
     },
-    "autoplay": false,
     "geolocation": false,
     "notifications": {
       "enabled": "ask"
