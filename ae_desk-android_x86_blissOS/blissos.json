@@ -5,7 +5,7 @@
     "version": "16.9.7-gapps-20241012",
     "variant": "gapps",
     "url": "https://downloads.sourceforge.net/project/blissos-x86/Official/BlissOS16/Gapps/Surface/Bliss-Surface-v16.9.7-x86_64-OFFICIAL-gapps-20241012.iso",
-    "sha256": "",
+    "sha256": "sha256-OLvD3ECy5zXdOV3yMC18diovkQMM7x8SvBzLGr+kPOE=",
     "kind": "iso"
   },
   "install": {
@@ -15,8 +15,12 @@
     "mount_point": "/mnt/shared-lib",
     "src_dir": "/mnt/shared-lib/blissos",
     "iso_payload_subdir": "",
-    "files": [ "kernel", "initrd.img", "ramdisk.img", "system.sfs" ],
-    "data_img_size_mb": 32768
+    "files": [
+      "kernel",
+      "initrd.img",
+      "system.efs"
+    ],
+    "data_img_size_mb": 8192
   },
   "apps": {
     "_doc": "App-seed set installed into the running BlissOS after first boot. lock = pinned manifest (url + SRI sha256 per package), reused verbatim from the da_waydroid-apps set: alternative stores (F-Droid, Aurora, Obtainium), the FOSS app suite, and all four ea_cloud-* APKs (x86_64 variants for SuperApp/Nav, hubs for Comms/IDE). Reproducible: `./install/build.sh fetch-apks` nix-prefetches every entry verifying its sha256 into dist/apks/. `./install/build.sh provision` adb-installs them into the booted device. install_via=adb because Android's package manager must register each app (dropping APKs into data.img does NOT install them).",
