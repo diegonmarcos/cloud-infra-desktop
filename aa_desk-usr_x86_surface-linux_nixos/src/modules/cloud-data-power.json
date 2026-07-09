@@ -11,9 +11,9 @@
   },
 
   "idle_minutes": {
-    "_comment": "Minutes of user inactivity before each step. lock applies on both AC and Battery (security is power-source-independent). hibernate is the only AC-vs-Battery split: AC trusts the user (long fail-safe so a build/download isn't killed), Battery defends the work (shorter). null disables a step.",
-    "ac":      { "lock": 15, "hibernate": 240 },
-    "battery": { "lock": 15, "hibernate": 60 }
+    "_comment": "Minutes of user inactivity before each step. lock applies on both AC and Battery (security is power-source-independent). null disables a step. hibernate DISABLED on idle 2026-07-09 (owner requirement: hibernation triggers on battery-level ONLY — see thresholds.critical_pct / actions.critical — never on idle time, on AC or battery). Idle still locks the screen; it just never auto-hibernates.",
+    "ac":      { "lock": 15, "hibernate": null },
+    "battery": { "lock": 15, "hibernate": null }
   },
 
   "events": {
@@ -127,16 +127,16 @@
         "expect": "20"
       },
       {
-        "id": "powerdevil_battery_idle_hibernate",
-        "description": "PowerDevil [Battery][SuspendAndShutdown] AutoSuspendIdleTimeoutSec matches idle_minutes.battery.hibernate*60 (run as user)",
+        "id": "powerdevil_battery_idle_hibernate_disabled",
+        "description": "PowerDevil [Battery][SuspendAndShutdown] AutoSuspendIdleTimeoutSec is 0 (disabled) — idle_minutes.battery.hibernate=null, hibernation is battery-level-only (run as user)",
         "command": "awk '/^\\[Battery\\]\\[SuspendAndShutdown\\]/{f=1;next} /^\\[/{f=0} f && /^AutoSuspendIdleTimeoutSec=/ {gsub(/.*=/,\"\"); gsub(/[ \\t]/,\"\"); print; exit}' $HOME/.config/powerdevilrc",
-        "expect": "3600"
+        "expect": "0"
       },
       {
-        "id": "powerdevil_ac_idle_hibernate",
-        "description": "PowerDevil [AC][SuspendAndShutdown] AutoSuspendIdleTimeoutSec matches idle_minutes.ac.hibernate*60 (run as user)",
+        "id": "powerdevil_ac_idle_hibernate_disabled",
+        "description": "PowerDevil [AC][SuspendAndShutdown] AutoSuspendIdleTimeoutSec is 0 (disabled) — idle_minutes.ac.hibernate=null, hibernation is battery-level-only (run as user)",
         "command": "awk '/^\\[AC\\]\\[SuspendAndShutdown\\]/{f=1;next} /^\\[/{f=0} f && /^AutoSuspendIdleTimeoutSec=/ {gsub(/.*=/,\"\"); gsub(/[ \\t]/,\"\"); print; exit}' $HOME/.config/powerdevilrc",
-        "expect": "14400"
+        "expect": "0"
       },
       {
         "id": "kscreenlocker_idle_lock",
