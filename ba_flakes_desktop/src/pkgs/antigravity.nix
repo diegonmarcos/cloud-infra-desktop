@@ -6,7 +6,7 @@
 #
 # Runs inside buildFHSEnv: the binary expects an FHS layout
 # (/lib64/ld-linux-x86-64.so.2 + system GTK/NSS/X11 stack).
-{ lib, stdenv, fetchurl, buildFHSEnv, makeDesktopItem, copyDesktopItems, writeShellScript }:
+{ lib, stdenv, fetchurl, buildFHSEnv, makeDesktopItem, copyDesktopItems, writeShellScript, asar }:
 
 let
   version = "2.2.1";
@@ -94,16 +94,21 @@ stdenv.mkDerivation {
   inherit version;
 
   dontUnpack = true;
-  nativeBuildInputs = [ copyDesktopItems ];
+  nativeBuildInputs = [ copyDesktopItems asar ];
 
   desktopItems = [
     (makeDesktopItem {
       name = "antigravity";
       exec = "antigravity %U";
+      icon = "antigravity";
       desktopName = "Antigravity";
       genericName = "Agentic IDE";
       comment = "Google Antigravity — Agentic Desktop Application";
       categories = [ "Development" "IDE" ];
+      # Electron sets the Wayland app_id / X11 WM class to the app name
+      # ("antigravity"); KDE task manager matches the window to this entry via
+      # StartupWMClass, so the taskbar shows the Antigravity icon (not generic).
+      startupWMClass = "antigravity";
     })
   ];
 
@@ -111,6 +116,13 @@ stdenv.mkDerivation {
     runHook preInstall
     mkdir -p $out/bin
     ln -s ${fhs}/bin/antigravity $out/bin/antigravity
+
+    # Icon lives inside the Electron asar (/icon.png, 512x512) — extract it into
+    # the hicolor theme so the desktop entry's Icon=antigravity resolves.
+    mkdir -p $out/share/icons/hicolor/512x512/apps
+    asar extract-file ${unpacked}/opt/antigravity/resources/app.asar icon.png
+    cp icon.png $out/share/icons/hicolor/512x512/apps/antigravity.png
+
     runHook postInstall
   '';
 
