@@ -34,6 +34,12 @@ FLAKE_PATH="${FLAKE_REL%#*}"
 FLAKE_ATTR="${FLAKE_REL#*#}"
 FLAKE_DIR="$(cd "$SCRIPT_DIR/$FLAKE_PATH" && pwd)" || die "flake dir not found: $SCRIPT_DIR/$FLAKE_PATH"
 FLAKE_REF="$FLAKE_DIR#$FLAKE_ATTR"
+CACHE_IMG="$(j .cache_image)"
+CACHE_IMG_REL="$(j .cache_image_attr)"
+CACHE_IMG_PATH="${CACHE_IMG_REL%#*}"
+CACHE_IMG_ATTR="${CACHE_IMG_REL#*#}"
+CACHE_IMG_DIR="$(cd "$SCRIPT_DIR/$CACHE_IMG_PATH" && pwd)" || die "cache-image flake dir not found: $SCRIPT_DIR/$CACHE_IMG_PATH"
+CACHE_IMG_REF="$CACHE_IMG_DIR#$CACHE_IMG_ATTR"
 
 preflight() {
   [ -d "$P5_ROOT" ] || die "$P5_ROOT does not exist — apply the NixOS host tmpfiles rule first (build.sh switch on aa_desk-usr…)."
@@ -101,6 +107,70 @@ cmd_ci_build() {
   nix-store --export $(nix-store -qR "$sys") | zstd -T0 -15 > "$out/devstore-closure.nar.zst"
   rm -f "$out/result"
   echo "[dev-store] done: $(du -h "$out/devstore-closure.nar.zst" | cut -f1) → $out/"
+
+  # ── Stage 1: layered GHCR cache (INCREMENTAL delivery) ──────────────────
+  # Additive + NON-FATAL: the nar.zst above stays the active mechanism until
+  # pull learns to consume this. Build a layered image of the SAME devProfile
+  # closure (one layer per store path) and skopeo-copy it to GHCR — skopeo
+  # skips blobs already present in the registry, so only changed layers
+  # upload. Guarded by GHCR_PUSH=1 (set by the ship workflow, which holds
+  # packages:write + GITHUB_TOKEN). A failure here never fails the closure export.
+  if [ "${GHCR_PUSH:-0}" = "1" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
+    echo "[dev-store] building + pushing layered dev-store cache image -> ${CACHE_IMG}:latest (incremental)"
+    # GHA Ubuntu runners ship /etc/containers/registries.conf as legacy v1,
+    # which skopeo 1.23 refuses ("must be in v2 format"). Empty v2 config —
+    # fully-qualified refs need no registries.
+    local reg="$out/registries.conf"
+    printf 'unqualified-search-registries = []\n' > "$reg"
+    if nix build "${NIXFLAGS[@]}" --accept-flake-config "$CACHE_IMG_REF" --out-link "$out/cache-image"; then
+      CONTAINERS_REGISTRIES_CONF="$reg" \
+      nix run "${NIXFLAGS[@]}" nixpkgs#skopeo -- \
+          copy --dest-creds "x:${GITHUB_TOKEN}" \
+          "docker-archive:$(readlink -f "$out/cache-image")" \
+          "docker://${CACHE_IMG}:latest" \
+          && echo "[dev-store] pushed layered dev-store cache -> ${CACHE_IMG}:latest" \
+          || echo "[dev-store] WARN: skopeo push failed (non-fatal — nar.zst artifact still delivered)"
+    else
+      echo "[dev-store] WARN: dev-store-cache-image build failed (non-fatal — nar.zst still delivered)"
+    fi
+    rm -f "$out/cache-image"
+  fi
+}
+
+# ghcr_pull_layered <image:tag> — try to materialise a layered GHCR closure
+# image's /nix/store paths onto the p5 chroot store, skipping any path
+# already present (genuine incremental — unchanged layers are never even
+# pulled by `docker pull`, and unchanged store paths are never re-copied
+# locally either). Returns 1 (silently, caller falls back) on ANY failure:
+# docker missing, image missing, pull failure — additive, never fatal.
+# Populated by `dev-store-cache-image` (ba_flakes_desktop/src/flake.nix) +
+# the skopeo push in cmd_ci_build above.
+ghcr_pull_layered() {
+  local img="$1"
+  command -v docker >/dev/null 2>&1 || return 1
+  echo "[dev-store] trying layered GHCR pull: $img …"
+  docker pull "$img" >/dev/null 2>&1 || { echo "[dev-store] WARN: GHCR image unavailable — falling back to nar.zst"; return 1; }
+
+  local tmp="dev-store-cache-extract-$$"
+  docker create --name "$tmp" "$img" >/dev/null 2>&1 || { echo "[dev-store] WARN: docker create failed — falling back to nar.zst"; return 1; }
+
+  local copied=0 skipped=0
+  # buildLayeredImage roots the closure at /nix/store inside the image —
+  # list it via a throwaway inspect run, then `docker cp` only the missing
+  # store paths, importing them into the p5 chroot store (STORE_URI), NOT
+  # the pool.
+  for p in $(docker run --rm "$img" sh -c 'ls /nix/store' 2>/dev/null); do
+    if nix path-info "${NIXFLAGS[@]}" --store "$STORE_URI" "/nix/store/$p" >/dev/null 2>&1; then
+      skipped=$((skipped + 1))
+      continue
+    fi
+    if docker cp "$tmp:/nix/store/$p" - 2>/dev/null | nix-store --import --store "$STORE_URI" >/dev/null 2>&1; then
+      copied=$((copied + 1))
+    fi
+  done
+  docker rm "$tmp" >/dev/null 2>&1 || true
+  echo "[dev-store] layered pull: $copied copied, $skipped already present"
+  [ "$copied" -gt 0 ] || [ "$skipped" -gt 0 ]
 }
 
 # pull [artifact-dir] — run on the Surface. Import the GHA-built devProfile closure
@@ -111,11 +181,19 @@ cmd_pull() {
   preflight
   local art="${1:-$SCRIPT_DIR/dist-ci}"
   local tb="$art/devstore-closure.nar.zst"
-  [ -f "$tb" ] || die "no closure tarball at $tb (fetch first: gh run download -n nixos-dev-store-closure -D '$art')"
-  [ -f "$art/devprofile.name" ] || die "missing $art/devprofile.name"
-  local sys="/nix/store/$(cat "$art/devprofile.name")"
-  echo "[dev-store] importing closure into p5 chroot store ($STORE_URI) — no build…"
-  zstd -d -c "$tb" | nix-store --import --store "$STORE_URI" >/dev/null || die "import failed"
+  local sys=""
+  [ -f "$art/devprofile.name" ] && sys="/nix/store/$(cat "$art/devprofile.name")"
+
+  # ── Try GHCR-layered pull first (incremental) ──────────────────────────
+  if [ -n "$sys" ] && ghcr_pull_layered "${CACHE_IMG}:latest"; then
+    echo "[dev-store] closure materialised via layered GHCR pull."
+  else
+    [ -f "$tb" ] || die "no closure tarball at $tb (fetch first: gh run download -n nixos-dev-store-closure -D '$art')"
+    [ -f "$art/devprofile.name" ] || die "missing $art/devprofile.name"
+    sys="/nix/store/$(cat "$art/devprofile.name")"
+    echo "[dev-store] importing closure into p5 chroot store ($STORE_URI) — no build…"
+    zstd -d -c "$tb" | nix-store --import --store "$STORE_URI" >/dev/null || die "import failed"
+  fi
   echo "[dev-store] registering p5 gcroot $GCROOT (no eval)…"
   nix-store "${NIXFLAGS[@]}" --store "$STORE_URI" --realise "$sys" --add-root "$GCROOT" --indirect >/dev/null \
     || die "gcroot registration failed"

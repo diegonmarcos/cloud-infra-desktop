@@ -349,6 +349,21 @@
           };
         };
 
+        # ── dev-store-cache-image: LAYERED image of the devProfile closure ──
+        # Same incremental-GHCR-cache pattern as hm-cache-image, for the heavy
+        # dev toolchain (bc_flakes_dev-store/build.sh ci-build pushes it; pull
+        # consumes it before falling back to the full nar.zst tarball).
+        dev-store-cache-image = pkgs.dockerTools.buildLayeredImage {
+          name = "unix-dev-store-cache";
+          tag = "latest";
+          maxLayers = 120;
+          contents = [ devProfile ];
+          config.Labels = {
+            "org.opencontainers.image.description" = "Dev-store profile (devProfile) as layered store paths (incremental GHCR cache).";
+            "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
+          };
+        };
+
         # Main container image
         container = pkgs.dockerTools.buildImage {
           name = "diego-dev";
