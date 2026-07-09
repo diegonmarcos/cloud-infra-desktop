@@ -149,7 +149,13 @@ in
     ];
   };
 
-  systemd.services.earlyoom.serviceConfig = {
+  # Gated on earlyoom.enable: when earlyoom is DISABLED, services.earlyoom
+  # produces no unit — but an UNCONDITIONAL serviceConfig override still forges
+  # a phantom earlyoom.service with these settings and NO ExecStart, which
+  # systemd refuses ("Service has no ExecStart=… Refusing"), failing activation
+  # with exit 4 (2026-07-09: this aborted the switch before bootloader regen).
+  # mkIf ties the hardening to the unit actually existing.
+  systemd.services.earlyoom.serviceConfig = lib.mkIf sysprot.earlyoom.enable {
     Slice = "connectivity.slice";          # the untouchable island
     CPUSchedulingPolicy = "rr";
     CPUSchedulingPriority = 1;
