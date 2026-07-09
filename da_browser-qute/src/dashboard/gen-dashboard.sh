@@ -20,7 +20,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BOOKMARKS_JSON="${BOOKMARKS_JSON:-$HERE/../2_configs/qute-bookmarks.json}"
 CLOUD_DESKTOP_JSON="${CLOUD_DESKTOP_JSON:-$HOME/git/cloud/2_configs/dist/build-flakes_desktop.json}"
-FRONT_TOPOLOGY_JSON="${FRONT_TOPOLOGY_JSON:-$HOME/git/front/I_front-data/front-topology.json}"
+FRONT_TOPOLOGY_JSON="${FRONT_TOPOLOGY_JSON:-$HOME/git/front/front-topology.json}"
 FRONT_ROOT="${FRONT_ROOT:-$HOME/git/front}"
 HISTORY_SQLITE="${HISTORY_SQLITE:-$HOME/.local/share/qutebrowser/history.sqlite}"
 TEMPLATE="${TEMPLATE:-$HERE/dashboard.template.html}"
