@@ -4,7 +4,7 @@
 # `programs.qutebrowser` renderer — the same code path the desktop flake
 # uses — so the JSON→config.py logic lives in exactly one place: home-module.nix).
 #
-# Output: config.py + quickmarks + bookmarks/urls + dashboard.html + a
+# Output: config.py + quickmarks + bookmarks/urls + qute-bookmarks.html + a
 # `--basedir`-isolated launcher script, packaged as a tarball. This is what
 # `build.sh release` builds and ships to GitHub Releases — a few hundred KB,
 # independent of the ~6GB 37-module desktop HM closure. Installing it never
@@ -39,7 +39,7 @@ let
   configPy    = cfg.home.file."${homeDir}/.config/qutebrowser/config.py".source;
   quickmarks  = cfg.home.file."${homeDir}/.config/qutebrowser/quickmarks".source;
   bookmarks   = cfg.home.file."${homeDir}/.config/qutebrowser/bookmarks/urls".source;
-  dashboard   = cfg.home.file."${homeDir}/.config/qutebrowser/dashboard.html".source;
+  dashboard   = cfg.home.file."${homeDir}/.config/qutebrowser/qute-bookmarks.html".source;
 
   # The launcher must NOT bake in the CI runner's /nix/store paths for
   # config.py etc. — this bundle is extracted from a tarball on a machine
@@ -66,7 +66,7 @@ let
       cp -f "$here/config.py"          "$basedir/config/config.py"
       cp -f "$here/quickmarks"         "$basedir/config/quickmarks"
       cp -f "$here/bookmarks/urls"     "$basedir/config/bookmarks/urls"
-      cp -f "$here/dashboard.html"     "$basedir/config/dashboard.html"
+      cp -f "$here/qute-bookmarks.html" "$basedir/config/qute-bookmarks.html"
       exec qutebrowser --basedir "$basedir" "$@"
     '';
   };
@@ -77,7 +77,7 @@ pkgs.runCommand "qutebrowser-standalone-bundle" {} ''
   cp ${quickmarks} $out/quickmarks
   mkdir -p $out/bookmarks
   cp ${bookmarks}  $out/bookmarks/urls
-  cp ${dashboard}  $out/dashboard.html
+  cp ${dashboard}  $out/qute-bookmarks.html
   cp ${launcher}/bin/qutebrowser-standalone $out/qutebrowser-standalone
   chmod +x $out/qutebrowser-standalone
 ''

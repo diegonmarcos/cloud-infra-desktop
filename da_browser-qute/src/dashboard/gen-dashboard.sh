@@ -8,7 +8,7 @@
 #   FRONT_ROOT          front repo root for file:// links (default ~/git/front)
 #   HISTORY_SQLITE      qutebrowser history db for the "Last Sessions" section
 #   TEMPLATE            dashboard.template.html (has the __BOOKMARKS_JSON__ token)
-#   OUT                 output dashboard.html
+#   OUT                 output qute-bookmarks.html
 #
 # Section model: sections[] → each has direct `links` and/or `folders[]`.
 # DATA-DRIVEN sources (never hardcoded):
@@ -24,7 +24,7 @@ FRONT_TOPOLOGY_JSON="${FRONT_TOPOLOGY_JSON:-$HOME/git/front/I_front-data/front-t
 FRONT_ROOT="${FRONT_ROOT:-$HOME/git/front}"
 HISTORY_SQLITE="${HISTORY_SQLITE:-$HOME/.local/share/qutebrowser/history.sqlite}"
 TEMPLATE="${TEMPLATE:-$HERE/dashboard.template.html}"
-OUT="${OUT:-$HERE/../../dist/dashboard.html}"
+OUT="${OUT:-$HERE/../../dist/qute-bookmarks.html}"
 
 [ -r "$BOOKMARKS_JSON" ] || { echo "gen-dashboard: missing $BOOKMARKS_JSON" >&2; exit 1; }
 [ -r "$TEMPLATE" ]       || { echo "gen-dashboard: missing $TEMPLATE" >&2; exit 1; }
@@ -79,7 +79,7 @@ history_links() {
     # TSV: url \t title  (newest first, distinct url, real navigations only)
     sqlite3 -separator $'\t' "$HISTORY_SQLITE" \
       "SELECT url, COALESCE(NULLIF(title,''), url) FROM History
-         WHERE redirect=0 AND url NOT LIKE 'file://%dashboard.html'
+         WHERE redirect=0 AND url NOT LIKE 'file://%qute-bookmarks.html'
          GROUP BY url ORDER BY max(atime) DESC LIMIT 5;" 2>/dev/null \
     | jq -R -s '
         split("\n") | map(select(length>0) | split("\t"))
