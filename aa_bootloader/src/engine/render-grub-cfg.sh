@@ -173,6 +173,33 @@ EOF2
     fi
 }
 
+emit_efi_chainload() {
+    # Generic EFI-binary chainload for a grub.menu.<key> that declares
+    # efi_uuid + efi_path (FIRE RULE 4/6: data-driven, fs-agnostic). Unlike
+    # emit_linux_partition (which loads a kernel+initrd), this hands control to
+    # the OS's own EFI bootloader — used when that bootloader owns a cmdline we
+    # must not reproduce (e.g. a NixOS live-ISO tree on a partition whose baked
+    # GRUB carries the volatile /nix/store/<hash>/init). insmod fat AND ext2 so
+    # the target may live on an ESP or a plain ext4 partition.
+    local key="$1"
+    [ "$(jq -r ".grub.menu.$key.enabled // false" "$BOOT_JSON")" = "true" ] || return 0
+    local L U P
+    L=$(jq -r ".grub.menu.$key.label" "$BOOT_JSON")
+    U=$(jq -r ".grub.menu.$key.efi_uuid" "$BOOT_JSON")
+    P=$(jq -r ".grub.menu.$key.efi_path" "$BOOT_JSON")
+    cat <<EOF
+menuentry "$L" --class $key --class os {
+  insmod part_gpt
+  insmod fat
+  insmod ext2
+  insmod chain
+  search --no-floppy --fs-uuid --set=root $U
+  chainloader $P
+}
+
+EOF
+}
+
 emit_windows() {
     [ "$(jq -r '.grub.menu.windows.enabled // false' "$BOOT_JSON")" = "true" ] || return 0
     L=$(jq_get '.grub.menu.windows.label')
@@ -333,6 +360,9 @@ EOF
     # distros render and in what order. Adding a new distro is a JSON-only edit.
     for key in $(jq -r '.grub.linux_order[]?' "$BOOT_JSON"); do
         emit_linux_partition "$key"
+    done
+    for key in $(jq -r '.grub.efi_chainload_order[]?' "$BOOT_JSON"); do
+        emit_efi_chainload "$key"
     done
     emit_windows
     emit_usb

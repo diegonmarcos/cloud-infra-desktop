@@ -77,6 +77,69 @@ build_raw() {
     log_ok "Raw image built: $(readlink -f result-raw)"
 }
 
+install_partition() {
+    log_head "Installing my-konsole live tree onto rescue partition (approach A: chainload)"
+
+    local J="$SCRIPT_DIR/install.json"
+    command -v jq >/dev/null || log_err "jq required"
+    local DEV UUID LABEL EFI REL REPO
+    DEV=$(jq -r '.partition.device'       "$J")
+    UUID=$(jq -r '.partition.uuid'        "$J")
+    LABEL=$(jq -r '.partition.volume_label' "$J")
+    EFI=$(jq -r '.partition.efi_binary'   "$J")
+    REL=$(jq -r '.partition.iso_release'  "$J")
+    REPO=$(jq -r '.partition.iso_repo'    "$J")
+
+    # ── Resolve ISO: prefer local build, else pull the GHA-built release ──────
+    local ISO="$SCRIPT_DIR/my-konsole.iso"
+    if [ ! -f "$ISO" ]; then
+        log_info "No local ISO — fetching from GH release '$REL' ($REPO)…"
+        command -v gh >/dev/null || log_err "gh required to fetch the ISO (or run ./build.sh first)"
+        gh release download "$REL" --repo "$REPO" -p '*.iso' -D "$SCRIPT_DIR" \
+            || log_err "gh release download failed — build+publish the ISO on GHA first (ship-my-konsole-iso)"
+        ISO=$(command find "$SCRIPT_DIR" -maxdepth 1 -name '*.iso' | command head -1)
+        [ -f "$ISO" ] || log_err "no .iso after download"
+    fi
+    log_ok "ISO: $ISO"
+
+    # ── Safety: the device MUST be the exact UUID from install.json ───────────
+    local actual
+    actual=$(blkid -s UUID -o value "$DEV" 2>/dev/null || true)
+    [ "$actual" = "$UUID" ] || log_err "SAFETY ABORT: $DEV UUID is '$actual', expected '$UUID' (install.json). Refusing to write."
+    findmnt -rn "$DEV" >/dev/null 2>&1 && log_err "SAFETY ABORT: $DEV is mounted — unmount it first."
+
+    # ── Mount ISO (ro loop) + target, verify payload BEFORE touching p8 ───────
+    local isod pd
+    isod=$(mktemp -d); pd=$(mktemp -d)
+    trap 'umount "$isod" 2>/dev/null; umount "$pd" 2>/dev/null; rmdir "$isod" "$pd" 2>/dev/null' EXIT
+    mount -o loop,ro "$ISO" "$isod" || log_err "loop-mount of ISO failed"
+    [ -f "$isod$EFI" ]                 || log_err "ISO missing $EFI — wrong ISO?"
+    [ -f "$isod/nix-store.squashfs" ]  || log_err "ISO missing /nix-store.squashfs — wrong ISO?"
+
+    mount "$DEV" "$pd" || log_err "mount of $DEV failed"
+    log_info "Syncing ISO tree → $DEV (rsync --delete)…"
+    rsync -aHAX --delete "$isod"/ "$pd"/ || log_err "rsync failed"
+    sync
+    umount "$pd" && umount "$isod"; trap - EXIT; rmdir "$isod" "$pd" 2>/dev/null || true
+
+    # ── Relabel so the ISO's baked GRUB finds the squashfs by isoImage.volumeID
+    e2label "$DEV" "$LABEL" || log_err "e2label failed"
+
+    # ── Tester (FIRE RULE 5) ──────────────────────────────────────────────────
+    local got; got=$(e2label "$DEV")
+    [ "$got" = "$LABEL" ] || log_err "VERIFY: label is '$got', expected '$LABEL'"
+    local vd; vd=$(mktemp -d)
+    mount -o ro "$DEV" "$vd" || log_err "VERIFY: remount failed"
+    if [ -f "$vd$EFI" ] && [ -f "$vd/nix-store.squashfs" ]; then
+        log_ok "VERIFY: $EFI + nix-store.squashfs present on $DEV (label=$LABEL)"
+    else
+        umount "$vd"; rmdir "$vd"; log_err "VERIFY: payload missing on $DEV after sync"
+    fi
+    umount "$vd"; rmdir "$vd"
+
+    log_ok "p8 populated. Now wire boot menus:  cd ~/git/unix/aa_bootloader && ./build.sh deploy-refind deploy-grub"
+}
+
 clean() {
     log_head "Cleaning build artifacts"
     rm -f result result-vm result-raw
@@ -126,11 +189,12 @@ case "${1:-}" in
     vm)     build_vm ;;
     raw)    build_raw ;;
     clean)  clean ;;
+    install-partition) install_partition ;;
     check)  check_flake ;;
     info)   show_info ;;
     ""|iso) build_iso ;;
     *)
-        echo "Usage: $0 [iso|vm|raw|check|clean|info]"
+        echo "Usage: $0 [iso|vm|raw|install-partition|check|clean|info]"
         exit 1
         ;;
 esac
