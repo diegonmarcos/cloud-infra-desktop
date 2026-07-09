@@ -2,14 +2,14 @@
   "mcpServers": {
     "unix": {
       "type": "stdio",
-      "command": "/home/diego/git/tools/6-unix-mcp-api/src/start.sh",
+      "command": "/home/diego/git/tools/products/mcp-unix-api/src/start.sh",
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules"
       }
     },
     "dtk": {
       "type": "stdio",
-      "command": "/home/diego/git/tools/7-dtk-mcp/src/start.sh",
+      "command": "/home/diego/git/tools/products/mcp-dtk/src/start.sh",
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules"
       }
