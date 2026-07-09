@@ -42,46 +42,41 @@ let
     ) {} (bookmarks.sections or []);
 
   # "New Default Window" / "Open Saved Tabs" — data-driven from
-  # qute-default-window.json's tabs[] ({url, pinned}). Opening order fixes
-  # each tab's 1-based index; pin commands are appended AFTER all opens using
-  # qutebrowser's <count><cmd> glued-prefix syntax (e.g. "1tab-pin" pins tab
-  # index 1) so pinning is index-targeted, NOT "pin the current tab" — the
-  # latter would silently pin the wrong tab since tabs.background=true opens
-  # new tabs unfocused (verified against qutebrowser's tab_pin/_cntwidget
-  # source: count is 1-based, count-1 indexes the tab widget directly).
+  # qute-default-window.json's tabs[] ({url, pinned}).
+  #
+  # NO auto-pinning in these aliases. The `pinned:true` flag is NOT honored
+  # here — it needs the session mechanism instead (see below). Two verified
+  # reasons the alias-chain approach is impossible:
+  #   1. `<N>tab-pin` count-glue is KEYPARSER-ONLY. Through an alias/command
+  #      runner it is looked up as a literal command → "1tab-pin: no such
+  #      command" (reproduced live). Aliases run through the command parser,
+  #      not the key parser.
+  #   2. `tab-focus N ;; tab-pin` avoids that, but `open -w` (default_window)
+  #      splits the window context — the chained commands don't reliably run
+  #      in the newly-opened window ("no tab with index 2", reproduced live).
+  # Proper declarative pinned-default-tabs = a qutebrowser session YAML
+  # (`:session-load`), which carries per-tab pinned state natively. Tracked in
+  # PLAN_qute-master-roadmap.md (Track C). For now these aliases just OPEN the
+  # tabs (correct, no errors); pin manually with <Ctrl-p> if wanted.
   dwTabsRaw = (builtins.fromJSON (builtins.readFile "${configsDir}/qute-default-window.json")).tabs or [];
   # Tolerate the old plain-string-url schema too (pinned defaults to false).
   dwTabs = map (t: if builtins.isString t then { url = t; pinned = false; } else t) dwTabsRaw;
-  pinCmds = lib.concatStringsSep " ;; "
-    (lib.filter (c: c != null)
-      (lib.imap1 (i: t: if t.pinned or false then "${toString i}tab-pin" else null) dwTabs));
-  withPins = openCmds: lib.concatStringsSep " ;; "
-    (lib.filter (c: c != "") [ openCmds pinCmds ]);
 
-  defaultWindowCmd = withPins (lib.concatStringsSep " ;; "
-    (lib.imap0 (i: t: (if i == 0 then "open -w " else "open -t ") + t.url) dwTabs));
+  # default_window: first url → new window (open -w), rest → tabs (open -t).
+  defaultWindowCmd = lib.concatStringsSep " ;; "
+    (lib.imap0 (i: t: (if i == 0 then "open -w " else "open -t ") + t.url) dwTabs);
 
-  # "Open Saved Tabs" — reuses the SAME list as the fresh-session/default-window
-  # arrangement (qute-default-window.json is the single SoT for "what opens on
-  # a fresh session"), but opens every url as a tab in the CURRENT window
-  # (no forced new window) — distinct from default_window's Ctrl-Shift-N
-  # new-window behavior. On-demand command to recover the saved tab set into
-  # whatever window is already focused.
-  #
-  # Deliberately NOT auto-pinned (unlike default_window): pin-by-index
-  # (<N>tab-pin) is only correct in a GUARANTEED-fresh window where opened
-  # tabs occupy indices 1..N exactly. open_saved_tabs runs in whatever
-  # window is already focused — any pre-existing tabs shift the index of
-  # our newly-opened ones, so a blind "1tab-pin ;; 2tab-pin" would pin the
-  # WRONG tabs. Use `default_window` (Ctrl-Shift-N) when you want the
-  # pinned arrangement guaranteed correct.
+  # open_saved_tabs: same list, all as tabs in the CURRENT window.
   openSavedTabsCmd = lib.concatStringsSep " ;; " (map (t: "open -t " + t.url) dwTabs);
 
   # "1 Open Last Session Tabs" — restore the auto-saved session (qutebrowser
   # saves `_autosave` on quit when content.auto_save.session is true, which
   # qute-settings.json enables). Distinct from open_saved_tabs (fixed default
   # set): this reopens whatever was actually open last time.
-  lastSessionCmd = "session-load _autosave";
+  # `_autosave` is qutebrowser's INTERNAL session name — session-load refuses
+  # it without --force ("_autosave is an internal session, use --force to load
+  # anyways", reproduced live). Hence the flag.
+  lastSessionCmd = "session-load --force _autosave";
 
   # "Config-shortcuts" — deep-link the dashboard's Shortcuts reference tab. The
   # dashboard JS auto-opens that tab when the URL ends in #shortcuts.
