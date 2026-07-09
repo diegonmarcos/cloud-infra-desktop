@@ -195,27 +195,13 @@ ColumnLayout {
 
         enabled: root.visible
 
-        cgroupMapping: {
-            "session.slice": "services",
-            "background.slice": "services",
-            "org.a11y.atspi.Registry": "services",
-            "org.kde.discover.notifier": "services",
-            "geoclue": "services",
-            "org.kde.kunifiedpush": "services",
-            "dconf.service": "services",
-            "flatpak-session-helper.service": "services",
-            "gpg-agent.service": "services",
-            "org.kde.xwaylandvideobridge": "services",
-            "org.kde.kalendarac": "services",
-            "xdg-desktop-portal-gtk.service": "services",
-            "org.kde.kdeconnect": "services",
-            "org.kde.kwalletd6": "services",
-            "org.kde.kclockd": "services"
-        }
-
-        // ponytail: applicationOverrides removed — property absent in installed
-        // libksysguard ApplicationDataModel (crashes the component). cgroupMapping
-        // above still merges these into "services". Re-add if you upgrade Plasma.
+        // ponytail: applicationOverrides AND cgroupMapping removed — BOTH are
+        // absent from the installed libksysguard ApplicationDataModel on Plasma
+        // 6.2.5. Assigning a non-existent property is a hard QML compile error
+        // that fails TopApplicationList → CpuPage → FullRepresentation → the
+        // whole plasmoid. cgroupMapping landed upstream in Plasma 6.3; the
+        // earlier vendor commit stripped applicationOverrides but wrongly kept
+        // cgroupMapping. Re-add both if/when Plasma is bumped to ≥6.3.
 
         enabledAttributes: {
             var result = [];
