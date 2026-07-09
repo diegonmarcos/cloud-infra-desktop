@@ -75,28 +75,13 @@ let
     profile = ''
       export XDG_DATA_DIRS=/usr/share:$XDG_DATA_DIRS
     '';
-    # Two hardening steps wrap the real binary:
-    #
-    # 1. Drop every env var whose value contains a newline before launch.
-    #    NixOS vault-keys (~/git/vault/vault-keys-fish.fish, sourced by
-    #    config.fish) export multi-line SSH/GPG/JWKS private keys into the
-    #    login env. Antigravity snapshots the shell env (shell-env) and passes
-    #    it to child_process.spawn, which rejects a multi-line environment
-    #    block -> "Invalid environment block." Stripping them also stops the
-    #    app + its bundled git/telemetry from ever seeing your private keys.
-    #    Computed at runtime (env -0), never a hardcoded list.
-    #
-    # 2. Known upstream bug (all Linux distros): Antigravity can leave orphaned
-    #    helpers on close that wedge the session (freeze-on-close, see
-    #    jacopone/antigravity-nix README). Reap this install's processes on exit.
+    # Known upstream bug (all Linux distros): Antigravity can leave orphaned
+    # helpers on close that wedge the session (freeze-on-close, see
+    # jacopone/antigravity-nix README). Reap this install's processes on exit.
+    # (The "Invalid environment block" crash was a vault-keys bug — multi-line
+    # private keys exported into the login env; fixed at the source in
+    # vault/build.sh, which now exports <NAME>_FILE paths, not the material.)
     runScript = writeShellScript "antigravity-run" ''
-      while IFS= read -r -d "" kv; do
-        name=''${kv%%=*}
-        case "''${kv#*=}" in
-          *$'\n'*) unset "$name" 2>/dev/null || true ;;
-        esac
-      done < <(env -0)
-
       "${unpacked}/opt/antigravity/antigravity" "$@"
       rc=$?
       pkill -9 -f "${unpacked}/opt/antigravity" 2>/dev/null || true
