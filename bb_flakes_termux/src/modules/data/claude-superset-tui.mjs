@@ -31,6 +31,25 @@ const EP = {
 const LAUNCH = process.env.CAS_LAUNCH || "claude";
 const PLUGINS_SCRIPT = process.env.CAS_PLUGINS_SCRIPT || `${process.env.HOME}/.claude/claude-plugins-status.sh`;
 
+// Launch-options picker: cycle each field with a key, then [l] launches
+// `claude-superset` with the matching flags. Data-driven cycles — add a value
+// to a list and it just works.
+const CYCLES = {
+  face:     ["remote", "local", "claude"],
+  headroom: ["on", "off"],
+  ponytail: ["default", "off", "lite", "full", "ultra"],
+};
+const sel = { face: "remote", headroom: "on", ponytail: "default" };
+const cycle = (k) => { const c = CYCLES[k]; sel[k] = c[(c.indexOf(sel[k]) + 1) % c.length]; };
+// Build the argv for `claude-superset` from the current selection.
+function selArgs() {
+  if (sel.face === "claude") return ["claude"];       // plain — flags N/A
+  const a = [sel.face];
+  if (sel.headroom === "off") a.push("headroom", "off");
+  if (sel.ponytail !== "default") a.push("ponytail", sel.ponytail);
+  return a;
+}
+
 function pluginStatus() {
   try {
     const r = spawnSync("bash", [PLUGINS_SCRIPT, "--format", "plain"],
@@ -123,10 +142,21 @@ async function header() {
   } else {
     console.log(`\n  ${C.dim}savings  (compress face unreachable)${C.r}`);
   }
+  // Launch-options picker — tick the values, then [l] launches with them.
+  sep("launch options");
+  const pick = (k, v) => `${k} ${C.g}${C.b}[${v}]${C.r}`;
+  const faceName = { remote: "remote (R)", local: "local (L)", claude: "claude/plain (C)" }[sel.face];
+  console.log(`  ${pick("face", faceName)}`);
+  if (sel.face === "claude") {
+    console.log(`  ${C.dim}headroom/ponytail N/A for plain claude${C.r}`);
+  } else {
+    console.log(`  ${pick("headroom", sel.headroom)}   ${pick("ponytail", sel.ponytail)}`);
+  }
+
   console.log("");
-  console.log(`  ${C.b}[l]${C.r} launch ${LAUNCH} via superset    ${C.b}[d]${C.r} open dashboard`);
-  console.log(`  ${C.b}[s]${C.r} refresh stats                ${C.b}[h]${C.r} health re-check`);
-  console.log(`  ${C.b}[q]${C.r} quit\n`);
+  console.log(`  ${C.b}[f]${C.r} cycle face   ${C.b}[c]${C.r} headroom   ${C.b}[p]${C.r} ponytail`);
+  console.log(`  ${C.b}[l]${C.r} launch: ${C.cy}claude-superset ${selArgs().join(" ")}${C.r}`);
+  console.log(`  ${C.b}[d]${C.r} dashboard   ${C.b}[s]${C.r} stats   ${C.b}[h]${C.r} re-check   ${C.b}[q]${C.r} quit\n`);
 }
 
 function open(url) {
@@ -146,10 +176,13 @@ async function main() {
     if (k === "q" || (key?.ctrl && key?.name === "c")) { if (process.stdin.isTTY) process.stdin.setRawMode(false); rl.close(); process.exit(0); }
     if (k === "h" || k === "s") return header();
     if (k === "d") { open(EP.dashboard); return header(); }
+    if (k === "f") { cycle("face"); return header(); }
+    if (k === "c") { cycle("headroom"); return header(); }
+    if (k === "p") { cycle("ponytail"); return header(); }
     if (k === "l") {
       if (process.stdin.isTTY) process.stdin.setRawMode(false);
       rl.close(); console.clear();
-      const child = spawn("claude-superset", [], { stdio: "inherit" });
+      const child = spawn("claude-superset", selArgs(), { stdio: "inherit" });
       child.on("exit", (c) => process.exit(c ?? 0));
       child.on("error", () => { console.log("claude-superset not found"); process.exit(1); });
     }
