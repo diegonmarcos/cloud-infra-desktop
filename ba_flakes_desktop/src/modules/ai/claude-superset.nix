@@ -91,12 +91,17 @@ let
       exec ${pkgs.nodejs}/bin/node ${./claude-superset-tui.mjs}
     fi
 
-    # Face: local | remote (default: remote). `local` runs the same container on
-    # THIS host via docker compose; `remote` is the oci-apps proxy over WG.
+    # Face: local | remote | claude (default: remote). `local` runs the same
+    # container on THIS host via docker compose; `remote` is the oci-apps proxy
+    # over WG; `claude` bypasses everything (no proxy, no session engine, no
+    # plugin munging) and runs a plain claude.
     MODE="remote"
     case "''${1:-}" in
+      claude)       shift; export CLAUDE_SUPERSET_MODE="claude"; exec claude "$@" ;;
       local|remote) MODE="$1"; shift ;;
     esac
+    # Face → statusline (PL[M:{L|R|C} …]); read by claude-plugins-status.sh.
+    export CLAUDE_SUPERSET_MODE="$MODE"
 
     # Plugin toggles (any order, before the session action):
     #   headroom on|off       — on = route via the compression proxy (sets

@@ -10,6 +10,7 @@ FACE (default: remote)
   local                 Run the same container on THIS host (docker compose,
                         127.0.0.1 only). `local down` tears it down.
                         (Desktop only — no docker in Termux/TTY.)
+  claude                Bypass everything — plain claude, no proxy/engine/plugins.
 
 PLUGIN TOGGLES (any order, before the action)
   headroom on|off       on  = compress via the proxy (sets ANTHROPIC_BASE_URL).
