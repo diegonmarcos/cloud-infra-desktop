@@ -45,11 +45,12 @@ while IFS=$'\t' read -r label icon dtype env path show; do
         [ "$show" = "true" ] && detail=$(tr -d '[:space:]' < "$CFG/$path" 2>/dev/null)
       fi ;;
     env_value)
-      # Value indicator (e.g. superset face L|R|C from CLAUDE_SUPERSET_MODE):
-      # render "<icon>:<UPPER first char>", no on/off dot. Absent => nothing.
+      # Value indicator (superset face from CLAUDE_SUPERSET_MODE: remote/local/
+      # claude -> Rem/Loc/Cla), no on/off dot. Absent => nothing shown.
       _v="${!env:-}"
       if [ -n "$_v" ]; then
-        detail=$(printf '%s' "$_v" | cut -c1 | tr '[:lower:]' '[:upper:]')
+        _v3=$(printf '%s' "$_v" | cut -c1-3)
+        detail="$(tr '[:lower:]' '[:upper:]' <<<"${_v3:0:1}")${_v3:1}"
         ansi="$ansi ${icon}\033[32m:${detail}\033[0m"
         plain="$plain ${label}:${detail}"
       fi

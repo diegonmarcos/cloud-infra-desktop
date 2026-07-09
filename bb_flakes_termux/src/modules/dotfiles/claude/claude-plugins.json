@@ -2,12 +2,6 @@
   "_comment": "Registry of Claude Code PLUGINS (NOT MCP servers) surfaced in the status bar (PL[...]) and the claude-superset banner. Data-driven: add a plugin by appending an entry here — the engine (claude-plugins-status.sh) needs NO edits. Detection is intentionally cheap (env var / flag file) so it runs in the statusline hot path with zero spawns.",
   "plugins": [
     {
-      "id": "superset-mode",
-      "label": "M",
-      "icon": "M",
-      "detect": { "type": "env_value", "env": "CLAUDE_SUPERSET_MODE" }
-    },
-    {
       "id": "headroom",
       "label": "Headroom",
       "icon": "H",
@@ -18,6 +12,12 @@
       "label": "Ponytail",
       "icon": "P",
       "detect": { "type": "flag_file", "path": ".ponytail-active", "show_content": true }
+    },
+    {
+      "id": "superset-mode",
+      "label": "M",
+      "icon": "M",
+      "detect": { "type": "env_value", "env": "CLAUDE_SUPERSET_MODE" }
     }
   ]
 }
