@@ -1,22 +1,29 @@
 {
-  "_doc": "Single source of truth for the BlissOS x86_64 install-to-folder on p5 (Shared-Lib). The NVMe is fully partitioned (no free space for a native BlissOS partition), so BlissOS is laid into a folder on the existing ext4 p5 partition (android-x86 'install without formatting' style) and booted DIRECTLY by rEFInd: a native linux_partition stanza (volume=p5, loader=install.src_dir/kernel) — rEFInd's ext4 driver reads the real kernel file (no GRUB chainload; that's only needed for Debian/Kali whose /vmlinuz is a symlink). The BOOT ENTRY itself is owned by aa_bootloader/src/boot.json (grub.menu.blissos + grub.linux_order + the rEFInd manual_stanzas entry `from:blissos`); THIS file owns only the INSTALL (which release, which files, where, data.img size). Reproducible: release.sha256 is pinned by `install/build.sh lock`; `install` verifies it before extracting.",
+  "_doc": "Single source of truth for the BlissOS x86_64 install-to-folder on p5 (Shared-Lib). The NVMe is fully partitioned (no free space for a native BlissOS partition), so BlissOS is laid into a folder on the existing ext4 p5 partition (android-x86 'install without formatting' style) and booted DIRECTLY by rEFInd: a native linux_partition stanza (volume=p5, loader=install.src_dir/kernel) — rEFInd's ext4 driver reads the real kernel file (no GRUB chainload; that's only needed for Debian/Kali whose /vmlinuz is a symlink). The BOOT ENTRY itself is owned by aa_bootloader/src/boot.json (grub.menu.blissos + grub.linux_order + the rEFInd manual_stanzas entry `from:blissos`); THIS file owns the INSTALL (which release, which files, where, data.img size) AND the app-seed set (apps.lock — stores + FOSS apps + our ea_cloud-* APKs, adb-installed after first boot).",
   "release": {
-    "_doc": "Pick a BlissOS x86_64 release (GApps or Vanilla). Vanilla by default (no Google). Fill url from the chosen BlissRoms/x86 release asset (.iso), then run `./install/build.sh lock` to prefetch + record sha256 (nix SRI). version is descriptive only.",
-    "version": "",
-    "variant": "vanilla",
-    "url": "",
+    "_doc": "BlissOS x86_64 release. GApps + Surface-tuned build for the Surface Pro 8 (Intel Xe). version is descriptive only; run `./install/build.sh lock` to prefetch + record sha256 (nix SRI). Direct-download host (downloads.sourceforge.net) so nix store prefetch-file follows no HTML interstitial.",
+    "version": "16.9.7-gapps-20241012",
+    "variant": "gapps",
+    "url": "https://downloads.sourceforge.net/project/blissos-x86/Official/BlissOS16/Gapps/Surface/Bliss-Surface-v16.9.7-x86_64-OFFICIAL-gapps-20241012.iso",
     "sha256": "",
     "kind": "iso"
   },
   "install": {
-    "_doc": "src_dir is the folder on p5 that GRUB boots from (must match boot.json grub.menu.blissos.kernel/initrd path prefix = /blissos → mounted p5 root + /blissos). files[] are copied verbatim out of the ISO's live payload. data_img_size_mb is the persistent /data image created inside src_dir (DATA= empty in the cmdline → Android uses data.img here).",
+    "_doc": "src_dir is the folder on p5 that rEFInd boots from (must match boot.json grub.menu.blissos kernel/initrd path prefix = /blissos). files[] are copied verbatim out of the ISO's live payload. data_img_size_mb is the persistent /data image created inside src_dir (DATA= empty in the cmdline → Android uses data.img here). Minimal 8 GB: OS + the seeded apps, little user data — fits p5 today.",
     "partition_label": "Shared-Lib",
     "partition_uuid": "7e3626ac-ce13-4adc-84e2-1a843d7e2793",
     "mount_point": "/mnt/shared-lib",
     "src_dir": "/mnt/shared-lib/blissos",
     "iso_payload_subdir": "",
     "files": [ "kernel", "initrd.img", "ramdisk.img", "system.sfs" ],
-    "data_img_size_mb": 16384
+    "data_img_size_mb": 32768
+  },
+  "apps": {
+    "_doc": "App-seed set installed into the running BlissOS after first boot. lock = pinned manifest (url + SRI sha256 per package), reused verbatim from the da_waydroid-apps set: alternative stores (F-Droid, Aurora, Obtainium), the FOSS app suite, and all four ea_cloud-* APKs (x86_64 variants for SuperApp/Nav, hubs for Comms/IDE). Reproducible: `./install/build.sh fetch-apks` nix-prefetches every entry verifying its sha256 into dist/apks/. `./install/build.sh provision` adb-installs them into the booted device. install_via=adb because Android's package manager must register each app (dropping APKs into data.img does NOT install them).",
+    "lock": "apps.lock.json",
+    "install_via": "adb",
+    "adb_target": "127.0.0.1:5555",
+    "apk_dir": "dist/apks"
   },
   "boot_entry_owner": "aa_bootloader/src/boot.json (grub.menu.blissos + grub.linux_order[] + refind.manual_stanzas.order[] from:blissos). After install, render+deploy with: (cd ../aa_bootloader && ./build.sh deploy)."
 }

@@ -311,6 +311,10 @@
               # plugins including Ponytail, and the direct Anthropic fallback).
               (writeShellScriptBin "claude-superset" ''
                 set -u
+                # help: plain-text usage (the TUI dashboard is --help / -h).
+                if [ "''${1:-}" = "help" ]; then
+                  exec cat ${./modules/data/claude-superset-help.txt}
+                fi
                 if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ]; then
                   export CAS_PROXY="${claudeSuperset.proxy}" CAS_API="${claudeSuperset.api}"
                   export CAS_OLLAMA="${claudeSuperset.ollama}" CAS_DASHBOARD="${claudeSuperset.dashboard}"
@@ -325,13 +329,70 @@
                   export CAS_PLUGINS_SCRIPT="$HOME/.claude/claude-plugins-status.sh"
                   exec ${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-tui.mjs}
                 fi
-                URL="''${CLAUDE_SUPERSET_URL:-${claudeSuperset.proxy}}"
-                if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
-                  export ANTHROPIC_BASE_URL="$URL"
-                  echo "[claude-superset] via superset proxy → $URL (Headroom compression ON)" >&2
+
+                # Termux has no `local`/docker face — remote only.
+                # Plugin toggles (any order, before the action): headroom on|off,
+                # ponytail on|off|lite|full|ultra.
+                HEADROOM="on"
+                while :; do
+                  case "''${1:-}" in
+                    remote) shift ;;
+                    headroom) HEADROOM="''${2:-on}"; shift 2 || shift ;;
+                    ponytail)
+                      case "''${2:-on}" in
+                        on)              export PONYTAIL_DEFAULT_MODE="full" ;;
+                        off)             export PONYTAIL_DEFAULT_MODE="off" ;;
+                        lite|full|ultra) export PONYTAIL_DEFAULT_MODE="''${2}" ;;
+                        *) echo "[claude-superset] ponytail: on|off|lite|full|ultra" >&2; exit 2 ;;
+                      esac
+                      shift 2 || shift ;;
+                    *) break ;;
+                  esac
+                done
+
+                # Session engine env. No konsole in Termux → engine uses tmux.
+                export CAS_API="${claudeSuperset.api}" CAS_SELF="claude-superset" CAS_FACE="remote"
+                export CAS_TMUX="${pkgs.tmux}/bin/tmux"
+                ${if ((claudeSuperset.device or "") != "") then ''export CAS_DEVICE="${claudeSuperset.device}"'' else ""}
+                CAS_DEVICE="''${CAS_DEVICE:-}"
+                ENGINE="${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-restore.mjs}"
+                KEEP="${toString (claudeSuperset.sync_keep or 20)}"
+
+                case "''${1:-}" in
+                  sync) exec $ENGINE sync "$CAS_DEVICE" "$KEEP" ;;
+                  restore|restore-hours)
+                    sel=count; [ "$1" = "restore-hours" ] && sel=hours; shift
+                    devsel="local"; a="''${1:-}"; b="''${2:-}"
+                    case "$a" in
+                      ""|*[!0-9]*) devsel="$a"; val="$b" ;;
+                      *)           val="$a" ;;
+                    esac
+                    case "$val" in ""|*[!0-9]*)
+                      echo "[claude-superset] restore needs a positive number" >&2; exit 2 ;;
+                    esac
+                    exec $ENGINE launch remote "$devsel" "$sel" "$val" ;;
+                  fresh) shift ;;
+                esac
+
+                if [ "$HEADROOM" = "on" ]; then
+                  URL="''${CLAUDE_SUPERSET_URL:-${claudeSuperset.proxy}}"
+                  if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
+                    export ANTHROPIC_BASE_URL="$URL"
+                    echo "[claude-superset] via superset proxy → $URL (Headroom compression ON)" >&2
+                  else
+                    echo "[claude-superset] proxy unreachable ($URL) — direct to Anthropic, no compression" >&2
+                  fi
                 else
-                  echo "[claude-superset] proxy unreachable ($URL) — direct to Anthropic, no compression" >&2
+                  echo "[claude-superset] Headroom OFF — direct to Anthropic (no compression)" >&2
                 fi
+
+                # Auto-sync recent sessions to the hub (background, best-effort)
+                # unless this is a resumed session.
+                case " $* " in
+                  *" --resume "*) : ;;
+                  *) ( $ENGINE sync "$CAS_DEVICE" "$KEEP" >/dev/null 2>&1 & ) ;;
+                esac
+
                 # Plugin status line (data-driven; mirrors the statusline PL[...] segment).
                 pl=$(${pkgs.bash}/bin/bash "$HOME/.claude/claude-plugins-status.sh" --format plain 2>/dev/null)
                 [ -n "$pl" ] && echo "[claude-superset] plugins: $pl" >&2

@@ -91,69 +91,106 @@ let
       exec ${pkgs.nodejs}/bin/node ${./claude-superset-tui.mjs}
     fi
 
-    # Subcommand: local | remote (default: remote). `local` runs the same
-    # container on THIS host via docker compose (on-demand); `remote` is the
-    # oci-apps proxy over WG with a direct-Anthropic fallback.
+    # Face: local | remote (default: remote). `local` runs the same container on
+    # THIS host via docker compose; `remote` is the oci-apps proxy over WG.
     MODE="remote"
     case "''${1:-}" in
       local|remote) MODE="$1"; shift ;;
     esac
 
-    # Session action (default: fresh = passthrough to claude). `restore <X>` /
-    # `restore-hours <Y>` reopen recent sessions as konsole tabs — each tab runs
-    # `claude-superset <MODE> --resume <id>` in the session's own cwd. Selection
-    # + tab-layout generation is data-driven in ./claude-superset-restore.mjs.
+    # Plugin toggles (any order, before the session action):
+    #   headroom on|off       — on = route via the compression proxy (sets
+    #                           ANTHROPIC_BASE_URL, which the Headroom plugin
+    #                           detects); off = direct to Anthropic, no compression.
+    #   ponytail on|off|lite|full|ultra — sets PONYTAIL_DEFAULT_MODE, read by the
+    #                           ponytail SessionStart hook.
+    HEADROOM="on"
+    while :; do
+      case "''${1:-}" in
+        headroom) HEADROOM="''${2:-on}"; shift 2 || shift ;;
+        ponytail)
+          case "''${2:-on}" in
+            on)              export PONYTAIL_DEFAULT_MODE="full" ;;
+            off)             export PONYTAIL_DEFAULT_MODE="off" ;;
+            lite|full|ultra) export PONYTAIL_DEFAULT_MODE="''${2}" ;;
+            *) echo "[claude-superset] ponytail: on|off|lite|full|ultra" >&2; exit 2 ;;
+          esac
+          shift 2 || shift ;;
+        *) break ;;
+      esac
+    done
+
+    # Session engine env (data-driven; device id = hostname unless JSON overrides).
+    export CAS_API="${ep.api}" CAS_SELF="claude-superset" CAS_FACE="$MODE"
+    export CAS_KONSOLE="${pkgs.kdePackages.konsole}/bin/konsole" CAS_TMUX="${pkgs.tmux}/bin/tmux"
+    ${lib.optionalString ((ep.device or "") != "") ''export CAS_DEVICE="${ep.device}"''}
+    CAS_DEVICE="''${CAS_DEVICE:-}"   # empty => engine falls back to os.hostname()
+    ENGINE="${pkgs.nodejs}/bin/node ${./claude-superset-restore.mjs}"
+    KEEP="${toString (ep.sync_keep or 20)}"
+
+    # Session action (default: fresh = passthrough to claude).
+    #   sync                              push last KEEP local sessions to the hub
+    #   restore <X> | restore-hours <Y>   reopen this device's recent sessions
+    #   restore <device|all> <X>          pull+reopen another device's sessions
+    # Restore fans out one tab/window per session (konsole → tmux → plain).
     case "''${1:-}" in
-      fresh) shift ;;
+      sync) exec $ENGINE sync "$CAS_DEVICE" "$KEEP" ;;
       restore|restore-hours)
         sel=count; [ "$1" = "restore-hours" ] && sel=hours; shift
-        val="''${1:-}"; shift || true
-        case "$val" in ""|*[!0-9]*)
-          echo "[claude-superset] $sel restore needs a positive number" >&2; exit 2 ;;
+        devsel="local"; a="''${1:-}"; b="''${2:-}"
+        case "$a" in
+          ""|*[!0-9]*) devsel="$a"; val="$b" ;;   # non-numeric => device selector
+          *)           val="$a" ;;                 # numeric     => this device
         esac
-        tabs="''${XDG_RUNTIME_DIR:-/tmp}/claude-superset-tabs"
-        ${pkgs.nodejs}/bin/node ${./claude-superset-restore.mjs} "$MODE" "$sel" "$val" > "$tabs"
-        if [ ! -s "$tabs" ]; then
-          echo "[claude-superset] no matching sessions to restore" >&2; exit 1
-        fi
-        n=$(${pkgs.coreutils}/bin/wc -l < "$tabs")
-        echo "[claude-superset] restoring $n session(s) into konsole tabs" >&2
-        exec ${pkgs.kdePackages.konsole}/bin/konsole --tabs-from-file "$tabs"
-        ;;
+        case "$val" in ""|*[!0-9]*)
+          echo "[claude-superset] restore needs a positive number" >&2; exit 2 ;;
+        esac
+        exec $ENGINE launch "$MODE" "$devsel" "$sel" "$val" ;;
+      fresh) shift ;;
     esac
 
-    if [ "$MODE" = "local" ]; then
-      # `local down` / `local stop` tears the container down.
-      case "''${1:-}" in
-        down|stop)
-          exec docker compose -p claude-superset-local -f ${localCompose} down ;;
-      esac
-      echo "[claude-superset] local mode — ensuring container up (${lo.container_name})" >&2
-      docker compose -p claude-superset-local -f ${localCompose} up -d || {
-        echo "[claude-superset] docker compose up failed — is dockerd running?" >&2; exit 1; }
-      URL="${lo.proxy}"
-      # Wait for the local Headroom proxy to answer (image pull + start_period).
-      for _ in $(seq 1 60); do
-        ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1 && break
-        sleep 2
-      done
-      if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
-        export ANTHROPIC_BASE_URL="$URL"
-        echo "[claude-superset] via LOCAL proxy → $URL (Headroom compression ON)" >&2
+    # Headroom face: only wire the proxy when headroom is ON.
+    if [ "$HEADROOM" = "on" ]; then
+      if [ "$MODE" = "local" ]; then
+        case "''${1:-}" in
+          down|stop) exec docker compose -p claude-superset-local -f ${localCompose} down ;;
+        esac
+        echo "[claude-superset] local mode — ensuring container up (${lo.container_name})" >&2
+        docker compose -p claude-superset-local -f ${localCompose} up -d || {
+          echo "[claude-superset] docker compose up failed — is dockerd running?" >&2; exit 1; }
+        URL="${lo.proxy}"
+        for _ in $(seq 1 60); do
+          ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1 && break
+          sleep 2
+        done
+        if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
+          export ANTHROPIC_BASE_URL="$URL"
+          echo "[claude-superset] via LOCAL proxy → $URL (Headroom compression ON)" >&2
+        else
+          echo "[claude-superset] local proxy not ready — first run needs a login:" >&2
+          echo "    docker exec -it ${lo.container_name} claude" >&2
+          echo "[claude-superset] continuing direct to Anthropic, no compression" >&2
+        fi
       else
-        echo "[claude-superset] local proxy not ready — first run needs a login:" >&2
-        echo "    docker exec -it ${lo.container_name} claude" >&2
-        echo "[claude-superset] continuing direct to Anthropic, no compression" >&2
+        URL="''${CLAUDE_SUPERSET_URL:-${ep.proxy}}"
+        if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
+          export ANTHROPIC_BASE_URL="$URL"
+          echo "[claude-superset] via superset proxy → $URL (Headroom compression ON)" >&2
+        else
+          echo "[claude-superset] proxy unreachable ($URL) — direct to Anthropic, no compression" >&2
+        fi
       fi
     else
-      URL="''${CLAUDE_SUPERSET_URL:-${ep.proxy}}"
-      if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
-        export ANTHROPIC_BASE_URL="$URL"
-        echo "[claude-superset] via superset proxy → $URL (Headroom compression ON)" >&2
-      else
-        echo "[claude-superset] proxy unreachable ($URL) — direct to Anthropic, no compression" >&2
-      fi
+      echo "[claude-superset] Headroom OFF — direct to Anthropic (no compression)" >&2
     fi
+
+    # Auto-sync recent sessions to the hub (best-effort, background) unless this
+    # is a resumed session (restored tabs would otherwise re-push on every open).
+    case " $* " in
+      *" --resume "*) : ;;
+      *) ( $ENGINE sync "$CAS_DEVICE" "$KEEP" >/dev/null 2>&1 & ) ;;
+    esac
+
     # Plugin status line (data-driven; mirrors the statusline PL[...] segment).
     pl=$(${pkgs.bash}/bin/bash "$HOME/.claude/claude-plugins-status.sh" --format plain 2>/dev/null)
     [ -n "$pl" ] && echo "[claude-superset] plugins: $pl" >&2

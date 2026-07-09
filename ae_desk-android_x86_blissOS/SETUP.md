@@ -16,7 +16,12 @@ Debian/Kali whose `/vmlinuz` is a symlink rEFInd can't follow). Reversible: dele
 
 ## Data model
 - **`blissos.json`** — the install SoT: which release (`release.url` + pinned `release.sha256`),
-  where (`install.src_dir` on p5), which payload files, and the `data.img` size.
+  where (`install.src_dir` on p5), which payload files, the `data.img` size, and the `apps`
+  block (app-seed set + adb target).
+- **`apps.lock.json`** — the app-seed manifest referenced by `blissos.json` `apps.lock`. Each
+  entry is pinned by `url` + SRI `sha256`: alternative stores (F-Droid, Aurora, Obtainium), the
+  FOSS app suite, and all four `ea_cloud-*` APKs (x86_64 variants for SuperApp/Nav, hubs for
+  Comms/IDE). Seeded from the `da_waydroid-apps` set.
 - **Boot entry** lives in `aa_bootloader/src/boot.json` (single SoT for the bootloader):
   - `grub.menu.blissos` — `root_param:/dev/ram0`, kernel `/blissos/kernel`, android cmdline
     (`SRC=/blissos DATA=`), booted from p5 (UUID `7e3626ac…`).
@@ -34,8 +39,24 @@ cd ~/git/unix/ae_desk-android_x86_blissOS/install
 # 3. Render + install the boot entry (rEFInd + GRUB):
 ( cd ../../aa_bootloader && ./build.sh deploy )
 ./build.sh status               # verify /blissos contents
+# 4. Pre-fetch the seed apps (hash-verified, reproducible) — can run any time:
+./build.sh fetch-apks           # nix-prefetch every apps.lock entry into dist/apks/
 ```
 Reboot → rEFInd shows **"BlissOS - Android"** → it chainloads GRUB → boots `/blissos/kernel`.
+
+## Seed apps (one-time, after first boot)
+BlissOS boots as a full OS, so apps are installed over **adb** (Android's package manager must
+register each one — dropping APKs into `data.img` does not install them). In BlissOS: Settings →
+System → Developer options → enable **ADB / wireless debugging**, note its `ip:port` (default
+here `127.0.0.1:5555` if you boot BlissOS in a VM with a forwarded port; use the LAN ip:port for
+bare-metal). Then from the desktop:
+```
+cd ~/git/unix/ae_desk-android_x86_blissOS/install
+./build.sh fetch-apks           # (if not already) hash-verified download into dist/apks/
+./build.sh provision            # adb connect + adb install -r -g every APK (stores + FOSS + ea_cloud-*)
+```
+`provision` is idempotent (`-r` reinstalls, keeps data). Adjust `apps.adb_target` in
+`blissos.json` to match your device's ADB address.
 
 Remove: `./build.sh uninstall` then drop the three boot.json blissos references + `deploy`.
 
