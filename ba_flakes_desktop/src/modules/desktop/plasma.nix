@@ -136,15 +136,17 @@ in
   # plasma-manager's configFile mangles nested-bracket sections (writes them
   # as [X\x5d\x5bY] which PowerDevil ignores), so we use kwriteconfig6 with
   # multiple --group flags. Idle auto-hibernate values come from
-  # cloud-data-power.json (idle_minutes.{ac,battery}.hibernate, in minutes).
-  # AC trusts the user (long fail-safe so builds/downloads aren't killed);
-  # Battery defends the work (shorter). [LowBattery] uses the same battery
-  # value (already low → don't add extra delay).
+  # cloud-data-power.json (idle_minutes.{ac,battery}.hibernate, in minutes;
+  # null disables idle-triggered hibernation for that power source — encoded
+  # here as AutoSuspendIdleTimeoutSec=0, PowerDevil's "never" sentinel, with
+  # AutoSuspendAction forced to NoAction(0) too so a stale timeout can't
+  # still fire the action). [LowBattery] tracks the Battery value.
   home.activation.powerDevilSuspend = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
     PD_RC="$HOME/.config/powerdevilrc"
-    AC_SEC=${toString (idleAC.hibernate * 60)}
-    BAT_SEC=${toString (idleBat.hibernate * 60)}
-    CRIT_ACT=${toString critAction}
+    AC_SEC=${toString (if idleAC.hibernate  == null then 0 else idleAC.hibernate  * 60)}
+    BAT_SEC=${toString (if idleBat.hibernate == null then 0 else idleBat.hibernate * 60)}
+    AC_ACT=${toString (if idleAC.hibernate  == null then 0 else critAction)}
+    BAT_ACT=${toString (if idleBat.hibernate == null then 0 else critAction)}
 
     # Strip stale escaped duplicates plasma-manager may have written.
     if [ -f "$PD_RC" ]; then
@@ -159,11 +161,13 @@ in
     fi
 
     KW=${pkgs.kdePackages.kconfig}/bin/kwriteconfig6
-    for src_act in "AC:$AC_SEC" "Battery:$BAT_SEC" "LowBattery:$BAT_SEC"; do
-      src=''${src_act%%:*}
-      sec=''${src_act##*:}
+    for src_sec_act in "AC:$AC_SEC:$AC_ACT" "Battery:$BAT_SEC:$BAT_ACT" "LowBattery:$BAT_SEC:$BAT_ACT"; do
+      src=''${src_sec_act%%:*}
+      rest=''${src_sec_act#*:}
+      sec=''${rest%%:*}
+      act=''${rest#*:}
       "$KW" --file powerdevilrc --group "$src" --group SuspendAndShutdown \
-            --key AutoSuspendAction         "$CRIT_ACT"
+            --key AutoSuspendAction         "$act"
       "$KW" --file powerdevilrc --group "$src" --group SuspendAndShutdown \
             --key AutoSuspendIdleTimeoutSec "$sec"
     done
