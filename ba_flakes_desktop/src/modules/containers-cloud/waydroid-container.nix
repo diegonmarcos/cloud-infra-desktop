@@ -27,11 +27,12 @@ let
   binary = "$HOME/.local/bin/waydroid";
   desktopId = "waydroid-container";
 in {
-  # Fallback-transport clients on PATH (native mode needs no client at all; these are
-  # only for `up stream` / `up vnc`). Declared here so a menu launch never stalls on
-  # the engine's runtime `nix build` fallback (a live failure mode when the nix-daemon
-  # socket was frozen). moonlight-qt = stream; tigervnc = vnc.
-  home.packages = [ pkgs.moonlight-qt pkgs.tigervnc ];
+  # On PATH so a menu launch never stalls on the engine's runtime `nix build` fallback
+  # (a live failure mode when the nix-daemon socket was frozen). kdotool: KWin/Wayland
+  # window query — native mode uses it for the close-window ⇒ stop-container lifecycle
+  # (X11 xdotool can't see the native Wayland toplevel). moonlight-qt = stream transport,
+  # tigervnc = vnc transport (native mode needs neither).
+  home.packages = [ pkgs.kdotool pkgs.moonlight-qt pkgs.tigervnc ];
 
   # KDE launcher dispatcher. Prefers the self-contained installed binary
   # (~/.local/bin/waydroid, build.json baked in — the portable artifact the user

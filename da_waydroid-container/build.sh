@@ -51,6 +51,10 @@ get_array() { _config_json | node -e "let s='';process.stdin.on('data',d=>s+=d).
 tool() { local b; b="$(nix build --no-link --print-out-paths "nixpkgs#$1" 2>/dev/null | head -1)/bin/$2"; [ -x "$b" ] || die "could not resolve $2 via nixpkgs#$1"; printf '%s' "$b"; }
 rd_vncviewer()  { command -v vncviewer >/dev/null 2>&1 && { command -v vncviewer; return; }; tool tigervnc vncviewer; }
 rd_moonlight()  { command -v moonlight >/dev/null 2>&1 && { command -v moonlight; return; }; tool moonlight-qt moonlight; }
+# kdotool — xdotool for KWin/Wayland (Plasma 6). The only way to see the native
+# Waydroid Wayland toplevel (X11 tools can't). Optional: if absent, native close-to-
+# stop is disabled and the container is stopped with `waydroid down` instead.
+rd_kdotool()    { command -v kdotool  >/dev/null 2>&1 && { command -v kdotool;  return; }; tool kdotool kdotool; }
 
 container_name() { get container.container_name; }
 container_running() { docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$(container_name)"; }
@@ -269,19 +273,30 @@ _run_gui() {
   _ensure_running "$mode"
   case "$mode" in
     native)
-      # KDE Plasma 6 is WAYLAND: the Waydroid window is a native Wayland toplevel of the
-      # host compositor, NOT an X11 window — xdotool/xprop/wmctrl cannot see it (that was
-      # the earlier false-negative "window never appeared" while it was plainly on screen).
-      # So the lifecycle is NOT bound to window polling. Native mode is a normal desktop
-      # app: `up` brings Android up (the entrypoint already ran show-full-ui once), we
-      # re-issue show-full-ui so a re-run re-shows a closed/hidden window, then RETURN —
-      # the window persists like any app. Closing it hides Android (it stays booted, the
-      # desktop-natural behavior, unlike the stream/vnc teardown-on-close); `down` stops
-      # the container. This return skips the cmd_down at the end of _run_gui.
+      # KDE Plasma 6 is WAYLAND: the Waydroid window is a native Wayland toplevel — X11
+      # tools (xdotool/xprop/wmctrl) can't see it. kdotool (KWin scripting) CAN, verified
+      # live (class=Waydroid). GUI-bound invariant, Wayland-native: show the UI, wait for
+      # the window, then block until the user CLOSES it → tear the container down (falls
+      # through to cmd_down below). show-full-ui returns immediately (it only fires the
+      # intent, confirmed), so it can't be the blocker — the window poll is.
       docker exec -d "$(container_name)" waydroid show-full-ui 2>/dev/null || true
-      log "Waydroid is now a NATIVE window on your desktop — one cursor, native touch/trackpad/audio."
-      log "  re-show: waydroid up   ·   stop: waydroid down   ·   status: waydroid status"
-      return 0
+      local kd wc; kd="$(rd_kdotool 2>/dev/null || true)"; wc="$(get display.window_class)"
+      if [ -z "$kd" ]; then
+        warn "kdotool not found — window-close can't auto-stop; container stays up (stop with: waydroid down)"
+        log "Waydroid is a NATIVE window on your desktop — one cursor, native touch/trackpad/audio."
+        return 0
+      fi
+      log "Waydroid is a NATIVE window on your desktop — one cursor, native touch/trackpad/audio."
+      local seen=""
+      for _ in $(seq 1 30); do
+        [ -n "$("$kd" search --class "$wc" 2>/dev/null | head -1)" ] && { seen=1; break; }
+        sleep 2
+      done
+      # Guard: only teardown if we actually SAW the window — otherwise a detection miss
+      # would stop a healthy container prematurely.
+      [ -n "$seen" ] || { warn "native window not detected via kdotool — leaving container up (stop with: waydroid down)"; return 0; }
+      log "  close the window to stop the container (no GUI ⇒ no container)."
+      while [ -n "$("$kd" search --class "$wc" 2>/dev/null | head -1)" ]; do sleep 2; done
       ;;
     vnc)
       local vv; vv="$(rd_vncviewer)"
