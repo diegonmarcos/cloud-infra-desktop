@@ -78,7 +78,9 @@
           "COMMS_GH_OWNER": "diegonmarcos",
           "COMMS_GH_REPO": "unix",
           "COMMS_RELEASE_ASSET_NAME": "cloud-comms-mail.apk",
-          "COMMS_BUILD_TIMESTAMP": "$ENV:COMMS_BUILD_TIMESTAMP"
+          "COMMS_BUILD_TIMESTAMP": "$ENV:COMMS_BUILD_TIMESTAMP",
+          "_COMMS_RSS_BASE_doc": "SUPER RSS READER default feed root (wg0-only rss-gateway, feed_auth=none). Baked into BuildConfig.COMMS_RSS_BASE; WorkerFeedSync auto-provisions the channel tree from <base>/channels.json on first run — no manual Cloud Feeds dialog needed.",
+          "COMMS_RSS_BASE": "https://rss.diegonmarcos.com/feed"
         }
       },
       "comment": "FairEmail. Reuses the EXISTING ea_mail-fairmail tracker clone already used by ea_cloud-superapp's cherry-pick \u2014 materialize-fork checks out the pin, never trusts the tracker HEAD. Server: Maddy + Stalwart on oci-mail (imap./smtps. via SNI on :443, jmap.). Do this fork first: pure Java, no RN/Rust, mail server is live."
