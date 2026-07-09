@@ -229,7 +229,10 @@ in
     # folders (cloud:* can't be resolved in pure eval); this file carries all.
     xdg.configFile."qutebrowser/bookmarks/urls".source = ../../dist/qute-bookmarks-urls;
 
-    xdg.mimeApps = lib.mkIf cfg.defaultBrowser {
+    # Default-browser is a DATA-DRIVEN toggle: build.json::browser.default_browser
+    # OR the module's defaultBrowser option (either true wins). Flip the JSON to
+    # own/disown http(s)/html without touching Nix.
+    xdg.mimeApps = lib.mkIf (cfg.defaultBrowser || (buildJson.browser.default_browser or false)) {
       enable = true;
       defaultApplications = {
         "text/html"             = "org.qutebrowser.qutebrowser.desktop";
