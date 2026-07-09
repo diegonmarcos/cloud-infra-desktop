@@ -1,5 +1,5 @@
 # Standalone qutebrowser config bundle — NOT the desktop home-manager
-# closure. Evaluates ONLY `programs.da_browser-qute` via a minimal
+# closure. Evaluates ONLY `programs.my-browser` via a minimal
 # `home-manager.lib.homeManagerConfiguration` (reusing home-manager's real
 # `programs.qutebrowser` renderer — the same code path the desktop flake
 # uses — so the JSON→config.py logic lives in exactly one place: home-module.nix).
@@ -20,7 +20,7 @@ let
     modules = [
       ./home-module.nix
       {
-        programs.da_browser-qute.enable = true;
+        programs.my-browser.enable = true;
         home.username = "diego";
         home.homeDirectory = "/home/diego";
         home.stateVersion = "24.11";

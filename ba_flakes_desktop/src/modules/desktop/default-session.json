@@ -93,7 +93,7 @@
       "split": "horizontal",
       "windows": [
         { "cell": "left",  "app": "dolphin",     "args": ["/home/diego", "/home/diego/git/unix", "/home/diego/git/cloud", "/home/diego/git/front", "/home/diego/Downloads", "/mnt"] },
-        { "cell": "right", "app": "qutebrowser", "_comment": "Default arrangement — keep in sync with da_browser-qute qute-default-window.json (the 'New Default Window' command). tab0 = the bookmark dashboard (homepage).", "urls": [
+        { "cell": "right", "app": "qutebrowser", "_comment": "Default arrangement — keep in sync with da_my-browser qute-default-window.json (the 'New Default Window' command). tab0 = the bookmark dashboard (homepage).", "urls": [
           "file:///home/diego/.config/qutebrowser/dashboard.html",
           "http://localhost:8000",
           "https://gemini.google.com",

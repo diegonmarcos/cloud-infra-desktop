@@ -1,4 +1,4 @@
-# da_browser-qute
+# da_my-browser
 
 A *config layer* (not a fork) over upstream qutebrowser that ships as a
 home-manager module. Reads four JSON files in `src/2_configs/` and projects
@@ -27,7 +27,7 @@ We don't fork. We just own the config.
 ## What's in this repo
 
 ```
-da_browser-qute/
+da_my-browser/
 ├── build.json                     SoT (paths, integrations, data sources)
 ├── build.sh                       engine: lint-json / check / print-config / diff
 └── src/
@@ -55,8 +55,8 @@ inputs.unix-repo = { url = "github:diegonmarcos/unix"; flake = false; };
 # ba_flakes_desktop/src/modules/browsers/qute.nix
 { inputs, ... }:
 {
-  imports = [ "${inputs.unix-repo}/da_browser-qute/src/nix/home-module.nix" ];
-  programs.da_browser-qute = {
+  imports = [ "${inputs.unix-repo}/da_my-browser/src/nix/home-module.nix" ];
+  programs.da_my-browser = {
     enable = true;
     defaultBrowser = false;   # flip to true to own http(s) via xdg.mime
   };
@@ -79,14 +79,14 @@ monorepo and bump the pin — `nix flake lock --update-input unix-repo` (or
 `--override-input unix-repo path:/home/diego/git/unix`.
 
 For a standalone home flake (no monorepo), the generic path still works:
-`inputs.da_browser-qute.url = "path:../../da_browser-qute/src"` then import
-`da_browser-qute.homeManagerModules.default`.
+`inputs.da_my-browser.url = "path:../../da_my-browser/src"` then import
+`da_my-browser.homeManagerModules.default`.
 
 ## Editing the config
 
 ```bash
-$EDITOR ~/git/unix/da_browser-qute/src/2_configs/qute-search-engines.json
-~/git/unix/da_browser-qute/build.sh check       # validate JSON + nix eval
+$EDITOR ~/git/unix/da_my-browser/src/2_configs/qute-search-engines.json
+~/git/unix/da_my-browser/build.sh check       # validate JSON + nix eval
 ~/git/unix/cb_user_diego_nix/build.sh switch    # apply
 # qutebrowser already running picks up new config on next config-source
 ```
