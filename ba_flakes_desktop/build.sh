@@ -1417,4 +1417,30 @@ main() {
     log "========== Build script finished =========="
 }
 
+# ── Progress-window re-exec ─────────────────────────────────────────────
+# nix-switch-progress-wrap (programs/nix-switch-progress.nix) is designed to
+# cover BOTH a local eval+build (`switch local`, wired inside nix_switch())
+# AND the default runner path (`switch`/`pull`/`switch-remote` — fetch a
+# GHA-built closure + activate, no eval) — but the latter never called it, so
+# every real activation on the default path ran with no visible window. Fix
+# at the single choke point every invocation passes through: re-exec the
+# whole script under the wrapper once, guarded by NSP_WRAPPED so the second
+# (wrapped) invocation runs the real command instead of re-wrapping forever.
+# Passthrough (no-op) when the wrapper isn't installed (headless/CI/SSH) or
+# we're already inside one.
+if [ -z "${NSP_WRAPPED:-}" ] && command -v nix-switch-progress-wrap >/dev/null 2>&1; then
+    case "${1:-}" in
+        switch)
+            if [ "${2:-}" != "local" ]; then
+                export NSP_WRAPPED=1 NSP_SRC_DIR="$SRC_DIR"
+                exec nix-switch-progress-wrap "$0" "$@"
+            fi
+            ;;
+        pull|switch-remote)
+            export NSP_WRAPPED=1 NSP_SRC_DIR="$SRC_DIR"
+            exec nix-switch-progress-wrap "$0" "$@"
+            ;;
+    esac
+fi
+
 main "$@"

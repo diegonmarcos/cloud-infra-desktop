@@ -1,0 +1,8 @@
+{
+  "_doc": "Config for programs/hm-auto-update.nix — polls the GHCR layered HM cache image directly for a new digest (no ntfy/webhook) and, on change, launches `build.sh switch` detached via systemd-run. image/tag MUST match the default HM_CACHE_IMAGE in ba_flakes_desktop/build.sh (cmd_ci_build).",
+  "image": "ghcr.io/diegonmarcos/unix-hm-cache",
+  "tag": "latest",
+  "poll_interval_seconds": 300,
+  "on_boot_delay_seconds": 90,
+  "repo_build_sh": "$HOME/git/unix/ba_flakes_desktop/build.sh"
+}

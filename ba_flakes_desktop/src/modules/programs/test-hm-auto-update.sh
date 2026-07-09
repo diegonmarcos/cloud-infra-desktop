@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# test-hm-auto-update.sh — verify hm-auto-update-check: seeds a baseline on
+# first run without switching, no-ops on an unchanged digest, and fires
+# `systemd-run --user --unit=hm-auto-switch ... switch` on a changed digest.
+# Exercises the REAL generated script (extracted straight from the .nix via
+# `nix eval`) against stub gh/skopeo/systemd-run/notify-send on PATH — no
+# network, no real switch.
+#
+# Run: bash modules/programs/test-hm-auto-update.sh
+
+set -u
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SRC_DIR="$(cd "$SELF_DIR/../.." && pwd)"
+
+fail() { echo "FAIL: $1" >&2; cleanup_test; exit 1; }
+pass() { echo "  ✓ $1"; }
+
+TMP_DIR=""
+cleanup_test() { [ -n "$TMP_DIR" ] && rm -rf "$TMP_DIR" 2>/dev/null || true; }
+trap cleanup_test EXIT INT TERM
+
+echo "=== hm-auto-update-check ==="
+
+command -v nix >/dev/null 2>&1 || fail "nix not found — cannot extract the generated script"
+
+TMP_DIR="$(mktemp -d -t test-hm-auto-update.XXXXXX)"
+SCRIPT="$TMP_DIR/hm-auto-update-check"
+BIN_DIR="$TMP_DIR/bin"
+STATE_DIR="$TMP_DIR/state"
+SWITCH_LOG="$TMP_DIR/switch-calls.log"
+mkdir -p "$BIN_DIR" "$STATE_DIR"
+: > "$SWITCH_LOG"
+
+# Extract the REAL generated script text straight from the flake — proves
+# the .nix module actually produces this, not a hand-copied duplicate.
+nix eval --impure --accept-flake-config \
+    --extra-experimental-features "nix-command flakes" --raw \
+    "$SRC_DIR#homeConfigurations.\"diego@user\".config.home.file.\".local/bin/hm-auto-update-check\".text" \
+    > "$SCRIPT" 2>"$TMP_DIR/eval.err"
+[ -s "$SCRIPT" ] || { cat "$TMP_DIR/eval.err" >&2; fail "nix eval produced no script text"; }
+chmod +x "$SCRIPT"
+pass "extracted generated script from the flake"
+
+bash -n "$SCRIPT" || fail "generated script has syntax errors"
+pass "generated script syntax valid"
+
+# ── stub PATH: gh, skopeo, systemd-run, notify-send ─────────────────────
+cat > "$BIN_DIR/gh" <<'EOF'
+#!/usr/bin/env bash
+[ "$1" = auth ] && [ "$2" = token ] && { echo "faketoken"; exit 0; }
+exit 1
+EOF
+cat > "$BIN_DIR/notify-send" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+cat > "$BIN_DIR/systemd-run" <<EOF
+#!/usr/bin/env bash
+echo "\$@" >> "$SWITCH_LOG"
+exit 0
+EOF
+chmod +x "$BIN_DIR"/gh "$BIN_DIR"/notify-send "$BIN_DIR"/systemd-run
+
+skopeo_stub() {
+    local digest="$1"
+    cat > "$BIN_DIR/skopeo" <<EOF
+#!/usr/bin/env bash
+echo "$digest"
+exit 0
+EOF
+    chmod +x "$BIN_DIR/skopeo"
+}
+
+run_check() {
+    PATH="$BIN_DIR:$PATH" \
+    HAU_STATE_DIR="$STATE_DIR" \
+    HAU_BUILD_SH="/nonexistent/build.sh" \
+    HAU_IMAGE="test/image" HAU_TAG="test" \
+    bash "$SCRIPT"
+}
+
+# ── first run: seeds baseline, does NOT switch ──────────────────────────
+skopeo_stub "sha256:aaaa"
+run_check || fail "first run exited non-zero"
+[ -f "$STATE_DIR/last-digest" ] || fail "first run did not seed last-digest"
+[ "$(cat "$STATE_DIR/last-digest")" = "sha256:aaaa" ] || fail "seeded digest mismatch"
+[ ! -s "$SWITCH_LOG" ] || fail "first run triggered a switch (should only seed)"
+pass "first run seeds baseline digest, no switch"
+
+# ── unchanged digest: no-op, no switch ───────────────────────────────────
+run_check || fail "unchanged-digest run exited non-zero"
+[ ! -s "$SWITCH_LOG" ] || fail "unchanged digest triggered a switch"
+pass "unchanged digest is a no-op"
+
+# ── changed digest: triggers systemd-run switch ──────────────────────────
+skopeo_stub "sha256:bbbb"
+run_check || fail "changed-digest run exited non-zero"
+[ "$(cat "$STATE_DIR/last-digest")" = "sha256:bbbb" ] || fail "digest file not updated"
+grep -q "hm-auto-switch" "$SWITCH_LOG" || fail "changed digest did not fire systemd-run --unit=hm-auto-switch"
+grep -q "/nonexistent/build.sh switch" "$SWITCH_LOG" || fail "systemd-run did not target build.sh switch"
+pass "changed digest fires systemd-run --unit=hm-auto-switch ... build.sh switch"
+
+# ── skopeo unavailable (registry down / not yet pushed): skip, no crash ──
+cat > "$BIN_DIR/skopeo" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$BIN_DIR/skopeo"
+: > "$SWITCH_LOG"
+run_check || fail "skopeo-failure run should exit 0 (soft-skip), not fail"
+[ ! -s "$SWITCH_LOG" ] || fail "skopeo failure should never trigger a switch"
+pass "skopeo/registry failure soft-skips (no crash, no switch)"
+
+echo ""
+echo "=== hm-auto-update-check: PASS ==="
