@@ -6,5 +6,7 @@
   "store_uri": "local?root=/mnt/shared-lib/dev-store&store=/nix/store",
   "p5_root": "/mnt/shared-lib/dev-store",
   "profile_gcroot": "/mnt/shared-lib/dev-store/profile",
-  "gc_keep": 2
+  "gc_keep": 2,
+  "cache_image": "ghcr.io/diegonmarcos/unix-dev-store-cache",
+  "cache_image_attr": "../ba_flakes_desktop/src#packages.x86_64-linux.dev-store-cache-image"
 }
