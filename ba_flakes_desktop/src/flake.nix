@@ -216,6 +216,7 @@
         # tool, reached via `dev`; no longer on the pool/login PATH.
         ./modules/programs/dev-shell.nix   # the `dev` bwrap launcher + bubblewrap (always-on)
         ./modules/programs/nix-switch-progress.nix   # KDE progress popup for any nix command build.sh wraps (always-on)
+        ./modules/programs/hm-auto-update.nix   # poll GHCR for new HM builds, auto build.sh switch (always-on)
         ./modules/cloud.nix
         ./modules/cloud-network-wg-dns.nix
         ./modules/cloud-network-wg-public.nix

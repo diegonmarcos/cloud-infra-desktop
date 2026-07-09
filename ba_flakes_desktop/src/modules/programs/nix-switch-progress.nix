@@ -136,9 +136,21 @@ in {
       konsole --geometry "${cfg.konsole_geometry}" -p "tabtitle=${cfg.title}" \
         -e bash -c "tail -n +1 -f '$STATUS_FILE'" >/dev/null 2>&1 &
 
-      # --log-format internal-json is a common nix arg, forwarded through by
-      # both `nix build ...` and `home-manager switch ...` (which wraps nix
-      # build internally) — trailing here is safe for either caller shape.
+      # --log-format internal-json is only understood by `nix build ...` and
+      # `home-manager switch ...` (which wraps nix build internally) — only
+      # append it when the wrapped command actually IS one of those. Other
+      # callers (e.g. build.sh's `pull`/`switch` runner path: `gh run
+      # download`, `zstd`, `docker`, `nix-store --import`, the activation
+      # script itself) don't accept the flag at all — appending it
+      # unconditionally would break them outright. Those commands' plain-text
+      # output still flows through the same pipe into the .mjs, which already
+      # treats any non-`@nix` line as pass-through activation output (see
+      # nix-switch-progress.mjs) — so the one Konsole window still shows
+      # everything, just without the byte-level nix build bars (there's
+      # nothing to bar there — no local build/copy happens on that path).
+      case "$1" in
+        nix|home-manager) set -- "$@" --log-format internal-json ;;
+      esac
       # The .mjs prints a colorized, phase-aware, data-dense progress line
       # per update (both bars, sizes, ETA — plus passes through real
       # activation output) to its own stdout — teed into BOTH the caller's
@@ -146,9 +158,9 @@ in {
       set -o pipefail
       export NSP_START_MS="$START_MS"
       if [ -n "''${NSP_LOG_FILE:-}" ]; then
-        "$@" --log-format internal-json 2>&1 | tee -a "$NSP_LOG_FILE" | node "${mjs}" | tee -a "$STATUS_FILE" >/dev/null
+        "$@" 2>&1 | tee -a "$NSP_LOG_FILE" | node "${mjs}" | tee -a "$STATUS_FILE" >/dev/null
       else
-        "$@" --log-format internal-json 2>&1 | node "${mjs}" | tee -a "$STATUS_FILE" >/dev/null
+        "$@" 2>&1 | node "${mjs}" | tee -a "$STATUS_FILE" >/dev/null
       fi
       _rc=''${PIPESTATUS[0]}
 
