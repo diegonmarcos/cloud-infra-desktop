@@ -53,6 +53,31 @@ cloud_links() { # $1 = public|app
   fi
 }
 
+# cloud services grouped BY CATEGORY → [ {name:<Category>, links:{svc:url}} ],
+# one folder per category (agi/app/cloud/data/fin/mic/net/obs/sec/tools). URL =
+# public domain when the service has one, else its internal .app (WG-only). This
+# is the "break each url per category of purpose" view. Category label is the raw
+# code Title-cased. Empty [] if the cloud file is absent.
+cloud_by_category() {
+  if [ -r "$CLOUD_DESKTOP_JSON" ]; then
+    jq '
+      [ .services // {} | to_entries[]
+        | select(.value.enabled != false)
+        | { cat: (.value.category // "other"), name: .key,
+            url: ( if .value.domain then ("https://" + .value.domain)
+                   elif .value.dns  then ("https://" + .value.dns)
+                   else null end ) }
+        | select(.url) ]
+      | group_by(.cat)
+      | map({ name: ((.[0].cat | .[0:1] | ascii_upcase) + (.[0].cat | .[1:])),
+              links: (reduce (sort_by(.name)[]) as $s ({}; .[$s.name] = $s.url)) })
+      | sort_by(.name)
+    ' "$CLOUD_DESKTOP_JSON"
+  else
+    echo '[]'
+  fi
+}
+
 # front categories → [ { name, links:{proj:file://…} } ], one folder per ^[abc]- category.
 # file:// links point at each project's index.html under FRONT_ROOT/<path>.
 front_folders() {
@@ -91,6 +116,7 @@ history_links() {
 
 PUBLIC="$(cloud_links public)"
 WGONLY="$(cloud_links app)"
+CLOUDCATS="$(cloud_by_category)"
 FRONT="$(front_folders)"
 HISTORY="$(history_links)"
 
@@ -101,6 +127,7 @@ DATA="$(jq -n \
   --slurpfile bm "$BOOKMARKS_JSON" \
   --argjson public "$PUBLIC" \
   --argjson wgonly "$WGONLY" \
+  --argjson cloudcats "$CLOUDCATS" \
   --argjson front  "$FRONT" \
   --argjson history "$HISTORY" '
   { sections: (
@@ -111,7 +138,8 @@ DATA="$(jq -n \
           recent: (.source == "history"),
           links: ( if   .source == "history" then $history
                    else (.links // {}) end ),
-          folders: ( if .source == "front" then $front
+          folders: ( if   .source == "front"            then $front
+                     elif .source == "cloud:categories" then $cloudcats
                      else ( .folders // []
                             | map({ name: .name, desc: (.desc // ""),
                                     links: ( if   .source == "cloud:public" then $public
