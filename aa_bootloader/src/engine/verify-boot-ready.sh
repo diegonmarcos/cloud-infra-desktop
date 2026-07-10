@@ -188,6 +188,62 @@ if sudo -n test -f "$CONF"; then
     done
 fi
 
+# ── T-Cw: loader (and initrd) files EXIST on their resolved volume ─────────
+# T-Cv proves the volume identifier resolves; this proves the pointed-at files
+# are actually there. Catches the dangling-entry class twice hit in practice:
+# a correct stanza whose target was never populated (empty /blissos on p5;
+# empty p8 before install-partition ran, 2026-07-10). For every stanza whose
+# volume resolves to a LOCAL block device, RO-mount it (or reuse the existing
+# mountpoint) and test -f each declared path. Unresolvable volumes were
+# already reported by T-Cv; removable ones are skipped there too.
+hdr "T-Cw loader/initrd files exist on their volume"
+if sudo -n test -f "$CONF"; then
+    sudo -n awk '
+        /^menuentry/    { vol=""; ldr=""; ird="" }
+        /^[ \t]+volume/ { vol=$2; gsub("\"", "", vol) }
+        /^[ \t]+initrd/ { ird=$2 }
+        /^[ \t]+loader/ { ldr=$2 }
+        /^\}/           { if (vol != "" && ldr != "") printf "%s\t%s\t%s\n", vol, ldr, ird }
+    ' "$CONF" | sort -u | while IFS="$(printf '\t')" read -r vol ldr ird; do
+        # Resolve the volume the same way rEFInd does (label / PARTLABEL /
+        # PARTUUID / FAT serial) to a local device; skip if absent (T-Cv's job).
+        # Every lookup is `|| true`-guarded: the script runs under set -eu and
+        # blkid exits 2 on no-match (e.g. the unplugged Ventoy USB), which
+        # would otherwise abort the whole audit mid-loop.
+        dev=$(sudo -n blkid -L "$vol" 2>/dev/null || true)
+        [ -n "$dev" ] || dev=$(sudo -n blkid -o device -t PARTLABEL="$vol" 2>/dev/null | head -1 || true)
+        [ -n "$dev" ] || dev=$(sudo -n blkid -o device -t PARTUUID="$vol" 2>/dev/null | head -1 || true)
+        [ -n "$dev" ] || dev=$(sudo -n blkid -U "$vol" 2>/dev/null || true)
+        [ -n "$dev" ] || { note "volume \"$vol\" not present — files not checkable (see T-Cv)"; continue; }
+        # Reuse a live mountpoint when the device is already mounted; else RO-mount.
+        mp=$(findmnt -n -o TARGET --source "$dev" 2>/dev/null | head -1 || true)
+        tmp_mp=""
+        if [ -z "$mp" ]; then
+            tmp_mp=$(mktemp -d) && sudo -n mount -o ro "$dev" "$tmp_mp" 2>/dev/null \
+                || { rmdir "$tmp_mp" 2>/dev/null; note "volume \"$vol\" ($dev): cannot RO-mount to check files"; continue; }
+            mp="$tmp_mp"
+        fi
+        if sudo -n test -f "$mp$ldr"; then
+            ok "[$vol] loader $ldr exists ($dev)"
+        else
+            bad "[$vol] loader $ldr MISSING on $dev — dangling boot entry (populate the volume or drop the stanza)"
+        fi
+        if [ -n "$ird" ]; then
+            if sudo -n test -f "$mp$ird"; then
+                ok "[$vol] initrd $ird exists"
+            else
+                bad "[$vol] initrd $ird MISSING on $dev"
+            fi
+        fi
+        # `if` form, not `[ ] && { }` — under set -e a false && as the loop
+        # body's last command would abort the script.
+        if [ -n "$tmp_mp" ]; then
+            sudo -n umount "$tmp_mp" 2>/dev/null || true
+            rmdir "$tmp_mp" 2>/dev/null || true
+        fi
+    done
+fi
+
 # ── T-D: kernel/initrd magic bytes ─────────────────────────────────────────
 hdr "T-D kernel + initrd binary integrity"
 if sudo -n test -f "$CONF"; then
