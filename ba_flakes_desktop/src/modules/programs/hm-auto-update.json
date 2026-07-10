@@ -13,7 +13,9 @@
     "switch_swap_max": "4G",
     "_isolate_comment": "2026-07-10 v3.1 — a heavy HM switch/pull must run ISOLATED from the desktop, not in its own app.slice (that is what froze the box 5×). When isolate=true, `build.sh switch` re-execs (as this user, with the desktop session env passed so `systemctl --user` activation still works) into isolation_slice — a SYSTEM slice sibling of user.slice, NOT under user-1000.slice — bounded by switch_memory_max/switch_swap_max. The transfer can no longer thrash the compositor; if it balloons the kernel OOM-kills the switch there. Same mechanism as the NixOS engine's switch_isolation.",
     "isolate": true,
-    "isolation_slice": "workload.slice"
+    "isolation_slice": "workload.slice",
+    "_incremental_comment": "2026-07-10: the docker-layered 'incremental' pull (ghcr_pull_layered) is BROKEN and disabled. dockerTools.buildLayeredImage has no shell, so `docker run <img> sh -c 'ls /nix/store'` always fails and copies 0 paths; worse, OCI layers carry raw files with NO nix-DB metadata, so extracted paths can't be registered/activated. The correct nix closure transport is the nar.zst artifact (nix-store --import carries the DB info). incremental_pull=false makes the switch skip the broken docker path and go straight to the reliable nar.zst download+import+activate. TRUE incremental (only-changed-paths, memory-light) needs a nix binary cache (nix copy --from) — a separate future project, tracked in memory.",
+    "incremental_pull": false
   },
   "countdown": {
     "_comment": "Cancellable pre-switch gate. On a new digest: notify-send + a centered kdialog (Yes=switch now, No=skip THIS build, Cancel/timeout=proceed at countdown end). delay_seconds is the auto-proceed timeout. Headless (no DISPLAY/WAYLAND or no kdialog) skips the dialog and proceeds after a journal note — never blocks unattended operation.",
