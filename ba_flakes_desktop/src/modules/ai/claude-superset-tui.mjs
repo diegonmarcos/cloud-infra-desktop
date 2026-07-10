@@ -22,7 +22,7 @@ const jp = (s) => { try { return JSON.parse(s || "{}"); } catch { return {}; } }
 const MESH = jp(env.CAS_MESH), PUBLIC = jp(env.CAS_PUBLIC);
 const IMAGE = env.CAS_IMAGE || "ghcr.io/diegonmarcos/claude-superset-api-binaries";
 const BIN = { ping: env.CAS_PING || "ping", df: env.CAS_DF || "df", git: env.CAS_GIT || "git" };
-const SELF = "claude-superset", HOME = os.homedir(), CFG = env.CLAUDE_CONFIG_DIR || path.join(HOME, ".claude");
+const SELF = env.CAS_SELF || "claude-superset", HOME = os.homedir(), CFG = env.CLAUDE_CONFIG_DIR || path.join(HOME, ".claude");
 const GITROOT = path.join(HOME, "git"), REPOS = ["cloud", "unix", "front", "vault", "tools"];
 const RESTORE_PRESETS = { count: [1, 3, 5, 10, 20, 50], hours: [1, 4, 8, 24, 72, 168] };
 const PONY_LEVELS = ["lite", "full", "ultra"];
@@ -290,6 +290,7 @@ function render() {
   L.push(`  ${C.b}${C.cy}|${C.r} ${C.b}${C.mag}C L A U D E - S U P E R S E T${C.r}  ${C.dim}launch + infra dashboard${C.r}${padE("", W - 55)}${C.b}${C.cy}|${C.r}`);
   L.push(`  ${C.b}${C.cy}${bar}${C.r}`);
   L.push(`   ${C.g}>${C.r} ${C.cy}${SELF} ${selArgs().join(" ")}${C.r}   ${refreshing ? `${C.y}${SPIN[spin]} probing ${pr.done}/${pr.total}${C.r}` : `${C.dim}r=Refresh${C.r}`}`);
+  if (lastLaunch) L.push(`   ${C.g}[launched in new window: ${lastLaunch}]${C.r}  ${C.dim}TUI stays open${C.r}`);
   pageCompose(L);
   pageNetwork(L);
   pageSessions(L);
@@ -309,7 +310,26 @@ function adjust(row, dir) {
 }
 function teardown() { tearing = true; if (process.stdin.isTTY) process.stdin.setRawMode(false); process.stdout.write("\x1b[?25h"); }
 function quit() { teardown(); process.exit(0); }
-function launch() { teardown(); process.stdout.write("\x1b[2J\x1b[H"); const ch = spawn(SELF, selArgs(), { stdio: "inherit" }); ch.on("exit", (c) => process.exit(c ?? 0)); ch.on("error", () => { console.log(`${SELF} not found on PATH`); process.exit(1); }); }
+let lastLaunch = "";
+function launch() {
+  const args = selArgs();
+  const isRestore = args.includes("restore") || args.includes("restore-hours");
+  // GUI: open the composed command in a NEW konsole window and KEEP the TUI
+  // open as a launcher dashboard. Restore already opens its own tab window, so
+  // run the wrapper directly; a fresh launch is wrapped in `konsole -e` to give
+  // it a terminal.
+  if (env.CAS_KONSOLE && env.DISPLAY) {
+    const argv = isRestore ? [SELF, ...args] : [env.CAS_KONSOLE, "-e", SELF, ...args];
+    try { spawn(argv[0], argv.slice(1), { detached: true, stdio: "ignore" }).unref(); lastLaunch = args.join(" "); }
+    catch { lastLaunch = "FAILED"; }
+    return render();
+  }
+  // Bare TTY / termux (no GUI): hand the terminal over — the TUI exits.
+  teardown(); process.stdout.write("\x1b[2J\x1b[H");
+  const ch = spawn(SELF, args, { stdio: "inherit" });
+  ch.on("exit", (c) => process.exit(c ?? 0));
+  ch.on("error", () => { console.log(`${SELF} not found on PATH`); process.exit(1); });
+}
 function main() {
   if (!process.stdin.isTTY) { console.log(`claude-superset TUI needs a terminal. Would launch: ${SELF} ${selArgs().join(" ")}`); process.exit(0); }
   process.stdout.write("\x1b[2J\x1b[H\x1b[?25l"); render();
