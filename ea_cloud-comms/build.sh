@@ -468,9 +468,16 @@ step_publish_fork() {
   artifact="$DIST_DIR/cloud-comms-${key}.apk"
   [ -f "$artifact" ] || { errlog "publish-fork[$key]: $artifact missing — run build-fork first"; exit 1; }
   sha="${GITHUB_SHA:-$(prefer_host git -C "$SCRIPT_DIR" rev-parse --short=8 HEAD 2>/dev/null || echo unknown)}"
+  # ABI-aware tag suffix — mirrors build-fork's COMMS_BUNDLE_ABI. The default
+  # arm64-v8a publishes the bare tags (latest, sha-x); a non-default abi (e.g.
+  # x86_64, resigned from .forks.<key>.upstream_apk.abi_variants.x86_64)
+  # publishes latest-<abi> — the exact tag the in-app fleet updater tries first
+  # on that device before falling back to the universal `latest`.
+  local abi="${COMMS_BUNDLE_ABI:-arm64-v8a}" suffix=""
+  [ "$abi" = "arm64-v8a" ] || suffix="-$abi"
   local tag ref
   for tag in latest "sha-${sha:0:8}"; do
-    ref="$registry/$namespace/$image:$tag"
+    ref="$registry/$namespace/$image:${tag}${suffix}"
     log "publish-fork[$key]: oras push $ref"
     ( cd "$DIST_DIR" && in_nix oras push "$ref" "cloud-comms-${key}.apk:$media_type" \
         --artifact-type "$media_type" )
