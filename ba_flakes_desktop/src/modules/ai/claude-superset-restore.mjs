@@ -144,7 +144,12 @@ function localEntries(selector, value) {
 // ── launch entries as tabs/windows via the best available multiplexer ────────
 function launch(entries, face) {
   if (!entries.length) { process.stderr.write("[restore] no matching sessions\n"); process.exit(1); }
-  const cmd = (id) => `${SELF} ${face} --resume ${id}`;
+  const SH = process.env.SHELL || "/bin/bash";
+  const bare = (id) => `${SELF} ${face} --resume ${id}`;
+  // Run inside an interactive shell that STAYS after claude exits: Ctrl+C
+  // soft-kills claude (which prints its `claude --resume <id>` hint) and drops
+  // you back to a shell prompt in the same tab — the tab is NOT killed.
+  const cmd = (id) => `${SH} -c "${bare(id)}; exec ${SH} -i"`;
   process.stderr.write(`[restore] restoring ${entries.length} session(s)\n`);
 
   if (KONSOLE && process.env.DISPLAY) {
@@ -167,9 +172,9 @@ function launch(entries, face) {
     spawnSync(TMUX, ["attach", "-t", S], { stdio: "inherit" });
     return;
   }
-  // No multiplexer: print the commands so the user can run them by hand.
+  // No multiplexer: print the (bare) commands so the user can run them by hand.
   process.stderr.write("[restore] no konsole/tmux — run these yourself:\n");
-  for (const e of entries) process.stdout.write(`(cd ${e.workdir} && ${cmd(e.id)})   # ${e.title}\n`);
+  for (const e of entries) process.stdout.write(`(cd ${e.workdir} && ${bare(e.id)})   # ${e.title}\n`);
 }
 
 // ── entry point ──────────────────────────────────────────────────────────────
