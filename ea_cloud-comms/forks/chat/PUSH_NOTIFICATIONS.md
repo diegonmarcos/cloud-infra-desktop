@@ -57,18 +57,27 @@ Recommendation: try (a) first.
 ## Build steps once creds land
 
 ### 1. NEW cloud service `a_solutions/user-comm_mattermost-push-proxy/`
-- `build.json`: `deploy.host=oci-apps`, `ports.app=8066`, NO public `proxy` (internal —
-  the MM container reaches it at `http://mattermost-push-proxy:8066` on the shared
-  docker network; FCM is outbound). Register its container slice in cloud-data so
-  `2_configs` derives `build-mattermost-push-proxy.json` (mirror how chat-mattermost is
-  wired), OR keep it self-contained if the slice isn't needed.
-- `src/flake.nix` + `src/compose.nix`: run image `mattermost/mattermost-push-proxy`
-  (mirror to GHCR per the no-Docker-Hub-direct rule). Mount `mattermost-push-proxy.json`
-  (config) + the sops-decrypted service-account JSON at `ServiceFileLocation`.
-- `src/mattermost-push-proxy.json` (config, data-driven): `ListenAddress=":8066"`,
+VERIFIED networking (oci-apps): every container runs `network_mode: host`, and the MM
+server's `MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS` already includes
+`localhost`. So the proxy binds `127.0.0.1:8066` and the MM server reaches it at
+`http://localhost:8066` — NO docker network, NO Caddy route (FCM is outbound only).
+- `build.json`: mirror `infra-db_redis` (Type-B upstream wrap). `deploy.host=oci-apps`,
+  `ports.app=8066`, `category=app`, `build.include_cloud_data=true`, `compose.custom=true`,
+  `containers.app` (container_name `mattermost-push-proxy`, `public=false`, `proxy=null`),
+  `docker.{registry=ghcr.io/diegonmarcos, image=mattermost-push-proxy, dockerfile=Dockerfile}`
+  so it publishes to GHCR (no Docker-Hub-direct). `build.sh` → symlink `../_engine.sh`.
+  `include_cloud_data:true` makes `2_configs` derive `build-mattermost-push-proxy.json`
+  (the `./build-<name>.json` symlink the flake reads) at ship time.
+- `src/code/Dockerfile`: `FROM mattermost/mattermost-push-proxy:<pin>` (Type-B wrap → GHCR).
+- `src/flake.nix` (mirror redis) + `src/compose.nix`: `network_mode=host`, `env_file=[".secrets"]`,
+  command wrapper writes the service-account env → file then execs the proxy:
+  `sh -c 'printf "%s" "$$FCM_SERVICE_ACCOUNT_JSON" > /config/fcm-sa.json && exec /mattermost-push-proxy -config /config/mattermost-push-proxy.json'`
+  (env→file is the standard way to land a JSON secret from the KEY=VALUE `.secrets`).
+- `src/mattermost-push-proxy.json` (config, data-driven): `ListenAddress="127.0.0.1:8066"`,
   `AndroidPushSettings=[{ "Type":"android_rn", "ServiceFileLocation":"/config/fcm-sa.json" }]`.
-- `src/secrets.yaml` (sops): `FCM_SERVICE_ACCOUNT_JSON` → engine writes it to the mounted
-  path. (Placeholder scaffold until the real key is provided.)
+- `src/secrets.yaml` (sops): add `FCM_SERVICE_ACCOUNT_JSON` via `sops edit` (or `build.sh
+  secrets`) ONCE the owner provides the service-account key — cannot be created earlier
+  (a valid sops file needs the real value + age key; no plaintext placeholder is allowed).
 
 ### 2. MM server config — `user-comm_chat-mattermost/src/compose.nix`
 Add (staged; auto-deploys to LIVE oci-apps on push — only push when proxy is up):
