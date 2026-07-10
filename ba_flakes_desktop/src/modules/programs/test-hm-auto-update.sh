@@ -72,11 +72,36 @@ EOF
     chmod +x "$BIN_DIR/skopeo"
 }
 
+# yad stub with a controllable exit code (simulates the countdown dialog:
+# 0=Switch now, 1=Skip this build, 70=timeout/auto-proceed).
+YAD_LOG="$TMP_DIR/yad-calls.log"
+yad_stub() {
+    local rc="$1"
+    cat > "$BIN_DIR/yad" <<EOF
+#!/usr/bin/env bash
+echo "\$@" >> "$YAD_LOG"
+exit $rc
+EOF
+    chmod +x "$BIN_DIR/yad"
+}
+
+# Default: headless (no dialog), zero countdown so the test never waits.
 run_check() {
     PATH="$BIN_DIR:$PATH" \
     HAU_STATE_DIR="$STATE_DIR" \
     HAU_BUILD_SH="/nonexistent/build.sh" \
     HAU_IMAGE="test/image" HAU_TAG="test" \
+    HAU_DIALOG=0 HAU_DELAY=0 \
+    bash "$SCRIPT"
+}
+
+# Dialog path: force a graphical session + enable the dialog; yad_stub decides.
+run_check_dialog() {
+    PATH="$BIN_DIR:$PATH" \
+    HAU_STATE_DIR="$STATE_DIR" \
+    HAU_BUILD_SH="/nonexistent/build.sh" \
+    HAU_IMAGE="test/image" HAU_TAG="test" \
+    HAU_DIALOG=1 HAU_DELAY=0 DISPLAY=":0" \
     bash "$SCRIPT"
 }
 
@@ -100,6 +125,37 @@ run_check || fail "changed-digest run exited non-zero"
 grep -q "hm-auto-switch" "$SWITCH_LOG" || fail "changed digest did not fire systemd-run --unit=hm-auto-switch"
 grep -q "/nonexistent/build.sh switch" "$SWITCH_LOG" || fail "systemd-run did not target build.sh switch"
 pass "changed digest fires systemd-run --unit=hm-auto-switch ... build.sh switch"
+
+# ── headless changed digest already covered above (run_check = headless) ──
+# It fired the switch with no dialog → proves the headless-proceed path.
+pass "headless changed digest proceeds without a dialog (covered above)"
+
+# ── dialog: 'Skip this build' (yad rc=1) → digest recorded, NO switch ─────
+skopeo_stub "sha256:cccc"
+yad_stub 1
+: > "$SWITCH_LOG"; : > "$YAD_LOG"
+run_check_dialog || fail "dialog-skip run exited non-zero"
+[ "$(cat "$STATE_DIR/last-digest")" = "sha256:cccc" ] || fail "skip must still record the digest (no re-prompt loop)"
+[ -s "$YAD_LOG" ] || fail "dialog was not shown"
+[ ! -s "$SWITCH_LOG" ] || fail "'Skip this build' still triggered a switch"
+pass "dialog 'Skip this build' records digest, does NOT switch"
+
+# ── dialog: 'Switch now' (yad rc=0) → switch fires ───────────────────────
+skopeo_stub "sha256:dddd"
+yad_stub 0
+: > "$SWITCH_LOG"; : > "$YAD_LOG"
+run_check_dialog || fail "dialog-switch-now run exited non-zero"
+[ -s "$YAD_LOG" ] || fail "dialog was not shown"
+grep -q "hm-auto-switch" "$SWITCH_LOG" || fail "'Switch now' did not fire the switch"
+pass "dialog 'Switch now' fires the switch"
+
+# ── dialog: timeout (yad rc=70) → proceed (auto) ─────────────────────────
+skopeo_stub "sha256:eeee"
+yad_stub 70
+: > "$SWITCH_LOG"; : > "$YAD_LOG"
+run_check_dialog || fail "dialog-timeout run exited non-zero"
+grep -q "hm-auto-switch" "$SWITCH_LOG" || fail "countdown timeout did not auto-proceed to switch"
+pass "dialog countdown timeout auto-proceeds to switch"
 
 # ── skopeo unavailable (registry down / not yet pushed): skip, no crash ──
 cat > "$BIN_DIR/skopeo" <<'EOF'

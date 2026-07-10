@@ -55,6 +55,7 @@ RUN apt-get install -y --no-install-recommends \
       jq \
       sqlite3 \
       nodejs \
+      zstd \
     && rm -rf /var/lib/apt/lists/*
 
 # 2b) Sunshine — the PRIMARY display transport (VAAPI hardware H.264 encode of the sway
@@ -120,6 +121,14 @@ COPY waydroid-launcher /opt/launcher/waydroid
 COPY build.json /etc/waydroid-container.json
 COPY apks/ /opt/apps/
 COPY apps/gen-layout-sql.js /opt/launcher/gen-layout-sql.js
+
+# Baked /data seed — a full provisioned snapshot (vendor images + installed apps +
+# seeded layout/theme) produced by `build.sh bake`. `build.sh build` writes an EMPTY
+# placeholder here so this COPY always resolves; the entrypoint treats an empty seed
+# as "not baked" and falls back to runtime provisioning. When `bake` fills it, first
+# boot restores it and is instantly at the curated home screen. LAST COPY so a bake
+# only rebuilds this one (multi-GB) layer, not the whole image.
+COPY data-seed.tar.zst /opt/data-seed.tar.zst
 
 RUN chmod +x /usr/local/bin/waydroid-container-entrypoint.sh /opt/launcher/waydroid
 

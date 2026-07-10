@@ -1,8 +1,14 @@
 {
-  "_doc": "Config for programs/hm-auto-update.nix — polls the GHCR layered HM cache image directly for a new digest (no ntfy/webhook) and, on change, launches `build.sh switch` detached via systemd-run. image/tag MUST match the default HM_CACHE_IMAGE in ba_flakes_desktop/build.sh (cmd_ci_build).",
+  "_doc": "Single source of truth for the GHCR layered-HM-cache subscription. Consumed by BOTH programs/hm-auto-update.nix (the poll timer) AND ba_flakes_desktop/build.sh (cmd_ci_build push, cmd_switch_runner incremental-first pull) — build.sh reads image/tag/activation_label from here via jq so nothing is hardcoded twice. Polls the image digest directly (no ntfy/webhook); on change pops a cancellable countdown then launches `build.sh switch` detached via systemd-run.",
   "image": "ghcr.io/diegonmarcos/unix-hm-cache",
   "tag": "latest",
+  "activation_label": "com.diegonmarcos.activation-path",
   "poll_interval_seconds": 300,
   "on_boot_delay_seconds": 90,
-  "repo_build_sh": "$HOME/git/unix/ba_flakes_desktop/build.sh"
+  "repo_build_sh": "$HOME/git/unix/ba_flakes_desktop/build.sh",
+  "countdown": {
+    "_comment": "Cancellable pre-switch gate. On a new digest: notify-send + a centered kdialog (Yes=switch now, No=skip THIS build, Cancel/timeout=proceed at countdown end). delay_seconds is the auto-proceed timeout. Headless (no DISPLAY/WAYLAND or no kdialog) skips the dialog and proceeds after a journal note — never blocks unattended operation.",
+    "delay_seconds": 60,
+    "channels": { "dialog_center": true, "notify_send": true, "journal": true }
+  }
 }

@@ -347,6 +347,12 @@
           config.Labels = {
             "org.opencontainers.image.description" = "Desktop home-manager activation closure as layered store paths (incremental GHCR cache).";
             "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
+            # The activation store path baked into this image. A KB-sized
+            # `skopeo inspect` reads this label so `build.sh switch` knows
+            # WHICH store path to activate WITHOUT downloading the 6 GB nar
+            # artifact first (the artifact was previously the only carrier of
+            # this metadata). Enables true incremental-only switching.
+            "com.diegonmarcos.activation-path" = "${self.homeConfigurations."diego@surface-plasma".activationPackage}";
           };
         };
 
@@ -362,6 +368,9 @@
           config.Labels = {
             "org.opencontainers.image.description" = "Dev-store profile (devProfile) as layered store paths (incremental GHCR cache).";
             "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
+            # devProfile store path baked in — same skopeo-inspect metadata
+            # pattern as hm-cache-image (consumed by dev-store incremental pull).
+            "com.diegonmarcos.activation-path" = "${devProfile}";
           };
         };
 
