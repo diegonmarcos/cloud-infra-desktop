@@ -140,6 +140,54 @@ if sudo -n test -f "$CONF"; then
     done
 fi
 
+# ── T-Cv: every rEFInd `volume` identifier actually resolves ───────────────
+# rEFInd's `volume` token matches ONLY a filesystem LABEL, a partition label
+# (PARTLABEL), or a partition GPT GUID (PARTUUID) — plus the FAT volume serial
+# (XXXX-XXXX) it stores for FAT ESP/USB. It does NOT match an ext4 filesystem
+# UUID. This is the check that was missing: T-C above prints "external — can't
+# verify" for non-ESP volumes and never confirms the identifier resolves at
+# all, so a stanza with volume=<ext4 fs-UUID> passed audit yet gave "kernel not
+# found" at boot (BlissOS/my-konsole, 2026-07-10). We reproduce rEFInd's rule
+# so a fs-UUID that is NOT also a PARTUUID FAILS here, before a reboot.
+hdr "T-Cv rEFInd volume identifiers resolve (label / PARTLABEL / PARTUUID)"
+if sudo -n test -f "$CONF"; then
+    sudo -n grep -oE '^[ \t]+volume[ \t]+"[^"]+"' "$CONF" \
+        | sed -E 's/^[ \t]+volume[ \t]+"([^"]+)"/\1/' | sort -u | while read -r vol; do
+        [ -n "$vol" ] || continue
+        if echo "$vol" | grep -qiE '^[0-9a-f]{4}-[0-9a-f]{4}$'; then
+            # FAT volume serial (ESP / Ventoy USB) — rEFInd matches these.
+            if sudo -n blkid -U "$vol" >/dev/null 2>&1; then
+                ok "volume \"$vol\"  (FAT volume serial → $(sudo -n blkid -U "$vol"))"
+            else
+                # A FAT serial that isn't present is almost always a removable
+                # device not currently connected (e.g. the Ventoy USB) — not a
+                # boot regression. Surface it, don't fail the audit.
+                note "volume \"$vol\"  (FAT volume serial not present — removable/USB not connected?)"
+            fi
+        elif echo "$vol" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
+            # Full UUID form — rEFInd treats this as a PARTITION GUID (PARTUUID),
+            # NOT a filesystem UUID. Must resolve as a PARTUUID.
+            dev=$(sudo -n blkid -o device -t PARTUUID="$vol" 2>/dev/null | head -1)
+            if [ -n "$dev" ]; then
+                ok "volume \"$vol\"  (PARTUUID → $dev)"
+            elif sudo -n blkid -U "$vol" >/dev/null 2>&1; then
+                bad "volume \"$vol\"  is a FILESYSTEM UUID, not a PARTUUID — rEFInd CANNOT match it (→ 'kernel not found'). Use the fs label or the partition's PARTUUID ($(sudo -n blkid -o value -s PARTUUID $(sudo -n blkid -U "$vol") 2>/dev/null))."
+            else
+                bad "volume \"$vol\"  matches no PARTUUID and no filesystem on disk"
+            fi
+        else
+            # Bare string — a filesystem LABEL or a partition PARTLABEL.
+            if sudo -n blkid -L "$vol" >/dev/null 2>&1; then
+                ok "volume \"$vol\"  (filesystem label → $(sudo -n blkid -L "$vol"))"
+            elif sudo -n blkid -o device -t PARTLABEL="$vol" 2>/dev/null | grep -q .; then
+                ok "volume \"$vol\"  (partition label → $(sudo -n blkid -o device -t PARTLABEL="$vol" | head -1))"
+            else
+                bad "volume \"$vol\"  matches no filesystem label or PARTLABEL on disk"
+            fi
+        fi
+    done
+fi
+
 # ── T-D: kernel/initrd magic bytes ─────────────────────────────────────────
 hdr "T-D kernel + initrd binary integrity"
 if sudo -n test -f "$CONF"; then
