@@ -90,13 +90,10 @@ jobs:
           api-level: 34
           arch: x86_64
           target: google_apis
-          # -gpu swiftshader (full, in-process) instead of swiftshader_indirect:
-          # the indirect path renders the server-tiled vector BASEMAP but does
-          # NOT run MapLibre's client-side GeoJSON tiling, so runtime CircleLayer
-          # pins never build into tiles (source reports 0 features, nothing
-          # draws — proven by the styleState/selfQuery diagnostics). Full
-          # swiftshader runs the in-process GL path that DOES tile GeoJSON.
-          emulator-options: -no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim
+          # Explored now draws pins with a plain-View Canvas OVERLAY (not
+          # MapLibre GeoJSON), which the test captures via View.draw() — works
+          # under the fast headless indirect GPU regardless of GL tiling.
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           working-directory: ea_cloud-nav
           script: |
