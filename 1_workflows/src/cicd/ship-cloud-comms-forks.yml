@@ -95,9 +95,10 @@ jobs:
           combos=$(jq -cn --argjson forks "$FORKS_JSON" \
             --argjson bj "$(cat ea_cloud-comms/build.json)" '
             $forks | map(. as $f
-              | [ {fork: $f, abi: "arm64-v8a"} ]
+              | ($bj.forks[$f].runtime // "native") as $rt
+              | [ {fork: $f, abi: "arm64-v8a", runtime: $rt} ]
               + ( if (($bj.forks[$f].upstream_apk.abi_variants.x86_64) // null) != null
-                  then [ {fork: $f, abi: "x86_64"} ] else [] end ) )
+                  then [ {fork: $f, abi: "x86_64", runtime: $rt} ] else [] end ) )
             | add')
           echo "combos=$combos" >> $GITHUB_OUTPUT
 
@@ -109,7 +110,7 @@ jobs:
       matrix:
         combo: ${{ fromJson(needs.detect-forks.outputs.combos) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # FairEmail is a ~3500-file build
+    timeout-minutes: 120  # FairEmail ~3500 files; Mattermost RN (npm+hermes+fastlane) is heavier
     env:
       FORK: ${{ matrix.combo.fork }}
       # Picked up by build.sh build-fork (stock-resign abi_variants) + publish-
@@ -133,6 +134,32 @@ jobs:
           distribution: temurin
           java-version: "17"   # exactly what upstream FairEmail CI uses
           cache: gradle
+
+      # ── React-Native fork toolchain (chat / Mattermost) ─────────────────
+      # ONLY react-native forks need Node + Ruby/Bundler (fastlane) + the
+      # Android NDK; mail/dialer are plain gradle and skip all of this. Gated on
+      # the data-driven matrix.combo.runtime so a future RN fork self-provisions.
+      # The project deps (npm ci → patch-package, bundle install) run inside the
+      # materialized tracker via build.json::forks.chat.build.prepare, not here —
+      # here we only install the interpreters + SDK/NDK.
+      - name: Set up Node 20 (react-native forks)
+        if: ${{ matrix.combo.runtime == 'react-native' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Ruby + Bundler (react-native fastlane)
+        if: ${{ matrix.combo.runtime == 'react-native' }}
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          # Gemfile lives in the materialized tracker (resolved by build.prepare
+          # `bundle install`), so no bundler-cache path exists at this point.
+          bundler-cache: false
+
+      - name: Set up Android SDK + NDK (react-native native modules / hermes)
+        if: ${{ matrix.combo.runtime == 'react-native' }}
+        uses: android-actions/setup-android@v3
 
       # ── ONE shared Cloud-constellation signing key (vault) ──────────────
       # Same key + mechanism as ship-cloud-comms.yml: EVERY Android app (hub +

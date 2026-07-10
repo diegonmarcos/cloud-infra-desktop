@@ -304,10 +304,13 @@ step_materialize_fork() {
   blocked="$(_json ".forks.${key}.blocked_on")"
   [ -n "$repo" ] && [ -n "$tracker" ] || { errlog "unknown fork '$key' in build.json::forks"; exit 1; }
 
-  # Upstream-APK forks (no gradle_task) build from the pinned release APK, not
-  # source — nothing to clone/patch. build-fork fetches + resigns it directly.
+  # Upstream-APK forks (no gradle_task AND no build.command) build from the
+  # pinned release APK, not source — nothing to clone/patch. build-fork fetches +
+  # resigns it directly. A fork with EITHER a gradle_task OR a build.command
+  # (RN wrapper) is a from-source fork → clone + patch below.
   mtask="$(_json ".forks.${key}.build.gradle_task")"
-  if [ -z "$mtask" ] || [ "$mtask" = "null" ]; then
+  local mcmd; mcmd="$(_json ".forks.${key}.build.command")"
+  if { [ -z "$mtask" ] || [ "$mtask" = "null" ]; } && { [ -z "$mcmd" ] || [ "$mcmd" = "null" ]; }; then
     log "materialize-fork[$key]: upstream-APK fork (no gradle build) — no source to materialize; build-fork resigns the pinned upstream APK."
     return 0
   fi
@@ -385,13 +388,15 @@ step_build_fork() {
   signing="$(_json ".forks.${key}.build.signing")"
   dest="$SCRIPT_DIR/../$tracker"
 
-  # ── Upstream-APK fork (no gradle build): chat (Mattermost) / matrix (Element)
-  #    ship the pinned upstream release APK re-signed with the ONE shared
+  # ── Upstream-APK fork (no gradle_task AND no build.command): matrix (Element)
+  #    ships the pinned upstream release APK re-signed with the ONE shared
   #    constellation key — same _fetch_upstream_apk the hub's bundle-forks uses,
   #    but here the resigned APK becomes cloud-comms-<key>.apk so publish-fork
   #    can oras-push it as a STANDALONE GHCR image (Constellation AppStore).
-  #    Needs no materialized source. ABI variant mirrors bundle-forks.
-  if [ -z "$task" ] || [ "$task" = "null" ]; then
+  #    Needs no materialized source. ABI variant mirrors bundle-forks. A fork
+  #    with a build.command (RN: chat) falls through to the from-source path.
+  local bcmd_gate; bcmd_gate="$(_json ".forks.${key}.build.command")"
+  if { [ -z "$task" ] || [ "$task" = "null" ]; } && { [ -z "$bcmd_gate" ] || [ "$bcmd_gate" = "null" ]; }; then
     local up_url up_sha up_resign bundle_abi v_url v_sha
     up_url="$(_json ".forks.${key}.upstream_apk.url")"
     up_sha="$(_json ".forks.${key}.upstream_apk.sha256")"
@@ -424,6 +429,17 @@ step_build_fork() {
     log "build-fork[$key]: keystore.properties → ONE shared constellation key"
   fi
 
+  # Data-driven PRE-BUILD steps (build.json::forks.<key>.build.prepare[]). Run
+  # in the tracker with the fork's toolchain — host in CI (BYPASS_NIX=1, node/
+  # ruby provisioned by the workflow), devShell locally. React-Native forks use
+  # this for `npm ci` (→ patch-package postinstall) + `bundle install` (fastlane)
+  # before the actual assemble. NEVER hardcode per-fork — build.json drives it.
+  while IFS= read -r pcmd; do
+    [ -n "$pcmd" ] || continue
+    log "build-fork[$key]: prepare → $pcmd"
+    ( cd "$dest" && in_nix bash -lc "$pcmd" ) || { errlog "build-fork[$key]: prepare failed: $pcmd"; exit 1; }
+  done < <(prefer_host jq -r ".forks.${key}.build.prepare // [] | .[]" "$SCRIPT_DIR/build.json")
+
   # Data-driven gradle -P properties from build.json::forks.<key>.build.gradle_props
   # (object key→value). The fork's build.gradle(.kts) reads these via
   # project.findProperty(...) — e.g. APPLICATION_ID (unique package id) + the
@@ -440,8 +456,18 @@ step_build_fork() {
     gprops+=("-P${gp_key}=${gp_val}")
   done < <(prefer_host jq -r ".forks.${key}.build.gradle_props // {} | to_entries[] | select(.key | startswith(\"_\") | not) | \"\(.key)\t\(.value)\"" "$SCRIPT_DIR/build.json")
 
-  log "build-fork[$key]: $tracker ./gradlew $task ${gprops[*]:-(no -P props)} (upstream-pinned toolchain)"
-  ( cd "$dest" && chmod +x gradlew && in_nix ./gradlew --no-daemon "$task" "${gprops[@]}" )
+  # Build command is data-driven: build.command overrides the default gradlew
+  # invocation. RN forks build via their OWN wrapper (e.g.
+  # `npm run build:android-unsigned` → fastlane → gradle assembleUnsigned); the
+  # default keeps the fork's gradle wrapper + -P props (mail/dialer unchanged).
+  local bcmd; bcmd="$(_json ".forks.${key}.build.command")"
+  if [ -n "$bcmd" ] && [ "$bcmd" != "null" ]; then
+    log "build-fork[$key]: $tracker → $bcmd (upstream build wrapper)"
+    ( cd "$dest" && in_nix bash -lc "$bcmd" )
+  else
+    log "build-fork[$key]: $tracker ./gradlew $task ${gprops[*]:-(no -P props)} (upstream-pinned toolchain)"
+    ( cd "$dest" && chmod +x gradlew && in_nix ./gradlew --no-daemon "$task" "${gprops[@]}" )
+  fi
 
   mkdir -p "$DIST_DIR"
   shopt -s nullglob
@@ -449,6 +475,15 @@ step_build_fork() {
   shopt -u nullglob
   [ "${#apks[@]}" -ge 1 ] || { errlog "build-fork[$key]: no APK matched $apk_glob"; exit 1; }
   cp "${apks[0]}" "$DIST_DIR/cloud-comms-${key}.apk"
+  # Forks whose upstream emits an UNSIGNED apk (build.json::forks.<key>.build.
+  # resign_unsigned) get resigned with the ONE shared constellation key here —
+  # same key the stock-resign path uses (signature IPC + updater install chain).
+  if [ "$(_json ".forks.${key}.build.resign_unsigned")" = "true" ]; then
+    log "build-fork[$key]: resign unsigned build with constellation key"
+    _resign_apk "$DIST_DIR/cloud-comms-${key}.apk" "$DIST_DIR/cloud-comms-${key}.apk.signed" \
+      && mv "$DIST_DIR/cloud-comms-${key}.apk.signed" "$DIST_DIR/cloud-comms-${key}.apk" \
+      || { errlog "build-fork[$key]: resign failed"; exit 1; }
+  fi
   _enforce_signature "$DIST_DIR/cloud-comms-${key}.apk"
   log "→ $DIST_DIR/cloud-comms-${key}.apk ($(wc -c <"$DIST_DIR/cloud-comms-${key}.apk") B)"
 }
@@ -525,25 +560,33 @@ _fetch_upstream_apk() {
     errlog "upstream[$key]: sha256 mismatch (got $got, pinned $sha)"; rm -f "$tmp"; return 1
   fi
   if [ "$resign" = "true" ]; then
-    local bt zipalign apksigner ks
-    # Resign with the ONE shared constellation key (fails loud if unavailable —
-    # no legacy/random fallback). _resolve_signing exports ANDROID_KEYSTORE_*.
-    _resolve_signing
-    bt="$(ls -d "${ANDROID_HOME:-/nonexistent}"/build-tools/* 2>/dev/null | sort -V | tail -1)"
-    zipalign="$bt/zipalign"; apksigner="$bt/apksigner"
-    ks="$ANDROID_KEYSTORE_FILE"
-    if [ ! -x "$zipalign" ] || [ ! -x "$apksigner" ] || [ ! -f "$ks" ]; then
-      errlog "upstream[$key]: resign needed but zipalign/apksigner/keystore missing (bt=$bt ks=$ks)"
-      rm -f "$tmp"; return 1
-    fi
-    "$zipalign" -f 4 "$tmp" "${tmp}.aligned" || { rm -f "$tmp" "${tmp}.aligned"; return 1; }
-    "$apksigner" sign --ks "$ks" --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
-      --ks-key-alias "$ANDROID_KEY_ALIAS" --key-pass "pass:${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}" \
-      --out "$out" "${tmp}.aligned" || { rm -f "$tmp" "${tmp}.aligned"; return 1; }
-    rm -f "$tmp" "${tmp}.aligned" "${out}.idsig"
+    # Resign with the ONE shared constellation key (fails loud if unavailable).
+    _resign_apk "$tmp" "$out" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
   else
     mv "$tmp" "$out"
   fi
+  return 0
+}
+
+# Resign an APK (in-place-safe: in != out) with the ONE shared constellation
+# key — zipalign + apksigner. Used by _fetch_upstream_apk (downloaded unsigned
+# stock APKs) AND by from-source forks whose upstream build emits an UNSIGNED
+# APK (build.json::forks.<key>.build.resign_unsigned). Tools: zipalign/apksigner
+# from $ANDROID_HOME/build-tools (hub CI via setup-android). Fails loud.
+_resign_apk() {
+  local in="$1" out="$2" bt zipalign apksigner ks
+  _resolve_signing
+  bt="$(ls -d "${ANDROID_HOME:-/nonexistent}"/build-tools/* 2>/dev/null | sort -V | tail -1)"
+  zipalign="$bt/zipalign"; apksigner="$bt/apksigner"; ks="$ANDROID_KEYSTORE_FILE"
+  if [ ! -x "$zipalign" ] || [ ! -x "$apksigner" ] || [ ! -f "$ks" ]; then
+    errlog "resign: zipalign/apksigner/keystore missing (bt=$bt ks=$ks)"; return 1
+  fi
+  "$zipalign" -f 4 "$in" "${in}.aligned" || { rm -f "${in}.aligned"; return 1; }
+  "$apksigner" sign --ks "$ks" --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+    --ks-key-alias "$ANDROID_KEY_ALIAS" --key-pass "pass:${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}" \
+    --out "$out" "${in}.aligned" || { rm -f "${in}.aligned"; return 1; }
+  rm -f "${in}.aligned" "${out}.idsig"
   return 0
 }
 
