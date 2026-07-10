@@ -68,9 +68,19 @@ env:
 
 jobs:
   build_and_publish:
-    name: "Build hub APK + Push (ubuntu-latest, native amd64)"
+    name: "Build hub APK + Push (${{ matrix.abi }})"
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Multi-arch: one leg per build.json::release.abis key. The default abi
+    # (arm64-v8a) produces the unsuffixed Cloud-IDE-Hub.apk → GHCR `latest`;
+    # x86_64 produces Cloud-IDE-Hub-x86_64.apk → GHCR `latest-x86_64`. The
+    # engine's step_oras_push auto-discovers whichever abi artifact is in dist/,
+    # so each leg publishes exactly its own abi's tags (Waydroid/x86 emulators
+    # pull latest-x86_64; the ABI-aware fleet updater falls back to latest).
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, x86_64]
 
     steps:
       - name: Checkout
@@ -152,16 +162,16 @@ jobs:
         run: |
           chmod +x build.sh
           if [ "${{ steps.variant.outputs.variant }}" = "release" ]; then
-            ./build.sh release
+            ./build.sh release "${{ matrix.abi }}"
           else
-            ./build.sh build
+            ./build.sh build "${{ matrix.abi }}"
           fi
           ls -la dist/
 
       - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Cloud-IDE-Hub-${{ steps.variant.outputs.variant }}-${{ github.sha }}
+          name: Cloud-IDE-Hub-${{ matrix.abi }}-${{ steps.variant.outputs.variant }}-${{ github.sha }}
           path: ${{ env.WORK_DIR }}/dist/*.apk
           if-no-files-found: error
           retention-days: 30
@@ -182,8 +192,11 @@ jobs:
         run: ./build.sh oras-push
 
       # ── GitHub Release (engine reads build.json::release.gh_release) ──
+      # Only the default abi (unsuffixed Cloud-IDE-Hub.apk) feeds the rolling
+      # GH Release asset; x86_64 distributes via GHCR `latest-x86_64`. Running
+      # gh-release on the x86 leg would fail — no unsuffixed apk in dist/.
       - name: Publish to GitHub Releases
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.create_release }}
+        if: ${{ matrix.abi == 'arm64-v8a' && (github.event_name != 'workflow_dispatch' || inputs.create_release) }}
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
