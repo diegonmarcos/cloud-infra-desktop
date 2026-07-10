@@ -50,6 +50,11 @@
     "mem_pressure_full_avg10": 40.0,
     "io_pressure_full_avg10": 30.0,
     "cpu_pressure_some_avg10": 80.0,
+    "_write_storm_comment": "2026-07-10 v3.2 — WRITE-STORM voter, the LEADING indicator PSI misses. A big write burst lands in page cache as dirty pages INSTANTLY (no stall → PSI flat); the freeze comes later during writeback when dirty pages exceed vm.dirty_ratio and the kernel forces synchronous writeback (all writes block). By the time io-PSI reflects it you are already frozen. This voter reads /proc/diskstats write rate + /proc/meminfo Dirty+Writeback directly: sustained write rate > write_storm_mb_per_sec for write_storm_sustain_sec, OR dirty backlog > dirty_mb_max, → SIGKILL the top disk WRITER (largest /proc/PID/io write_bytes delta), never a kthread/essential. Catches the storm BEFORE the writeback stall.",
+    "write_storm_mb_per_sec": 120,
+    "dirty_mb_max": 1800,
+    "write_storm_sustain_sec": 4,
+    "write_storm_disk": "nvme0n1",
     "max_kills_per_tick": 4,
     "prefer_kill": ["cc1plus", "cc1", "rustc", "ld", "lto1", "ghc", "node", "electron", "brave", "firefox", "chromium"],
     "avoid_kill": "kwin|plasmashell|kwin_wayland|sddm|Xwayland|pipewire|wireplumber|systemd|dbus|dbus-broker|dropbear|sshd|freeze-guard|earlyoom|systemd-oomd|polkit|NetworkManager|wpa_supplicant",
@@ -277,6 +282,12 @@
         "id": "freeze_guard_skips_kthreads",
         "description": "v3.1: freeze-guard never targets kernel threads (is_kthread / KTHREAD_RE) — the 15:29 guard flailed SIGKILLing kworker/thermald when it ran out of real victims",
         "command": "grep -hcE 'is_kthread|KTHREAD_RE' \"$(systemctl show freeze-guard.service -p ExecStart --value | grep -oE '/nix/store/[^ ]*freeze-guard[^ ;]*' | head -1)\"",
+        "expect_regex": "^[1-9][0-9]*$"
+      },
+      {
+        "id": "freeze_guard_has_write_storm_voter",
+        "description": "v3.2: freeze-guard has the write-storm voter (WRITE-STORM / disk_write_mbps / dirty_mb) — the LEADING indicator PSI misses (a write burst fills dirty cache with no stall, then forces a writeback freeze)",
+        "command": "grep -hcE 'WRITE-STORM|disk_write_mbps|pick_top_writer' \"$(systemctl show freeze-guard.service -p ExecStart --value | grep -oE '/nix/store/[^ ]*freeze-guard[^ ;]*' | head -1)\"",
         "expect_regex": "^[1-9][0-9]*$"
       }
     ]
