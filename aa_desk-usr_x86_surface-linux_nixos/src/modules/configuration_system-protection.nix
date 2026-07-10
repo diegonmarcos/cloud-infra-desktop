@@ -268,10 +268,56 @@ in
       THRASH_CG="/sys/fs/cgroup/${sysprot.watchdog.thrash_slice}"
       HIGH_MAX=${toString sysprot.watchdog.high_events_per_sec_max}
       THRASH_SUSTAIN=${toString sysprot.watchdog.thrash_sustain_sec}
+      # ── per-slice PSI voter (v3.1, 2026-07-10) — the 15:29 freeze root cause ──
+      # freeze-guard read GLOBAL /proc/pressure/io (=0.14%) and stayed blind while
+      # the DESKTOP slice's own io.pressure was 96%/56% (IO-starved by a bulk
+      # writer). A freeze is per-slice; watch the desktop slice's OWN pressure.
+      WATCH_CG="/sys/fs/cgroup/${sysprot.watchdog.watch_slice}"
+      SLICE_IO_LIMIT=${toString sysprot.watchdog.slice_io_full_avg10}
+      SLICE_MEM_LIMIT=${toString sysprot.watchdog.slice_mem_full_avg10}
+      HOG_CGS="${lib.concatStringsSep " " (map (s: "/sys/fs/cgroup/" + s) sysprot.watchdog.hog_slices)}"
+      KTHREAD_RE="${sysprot.watchdog.kthread_comm_re}"
 
       # $2 = "full" (mem/io: all tasks stalled) or "some" (cpu: any task stalled).
       psi_avg10() {
         awk -v k="$2" '$1 == k { for (i=1;i<=NF;i++) if ($i ~ /^avg10=/) { sub(/avg10=/,"",$i); print $i } }' "/proc/pressure/$1" 2>/dev/null
+      }
+
+      # Per-slice PSI: read a cgroup's OWN {io,memory,cpu}.pressure file.
+      # $1 = cgroup dir, $2 = io|memory|cpu, $3 = full|some.
+      psi_slice_avg10() {
+        awk -v k="$3" '$1 == k { for (i=1;i<=NF;i++) if ($i ~ /^avg10=/) { sub(/avg10=/,"",$i); print $i } }' "$1/$2.pressure" 2>/dev/null
+      }
+
+      # A pid is a kernel thread (never killable, never a valid victim) if its
+      # comm matches KTHREAD_RE or it has zero RSS. The 15:29 guard wasted ticks
+      # SIGKILLing kworker/thermald while the real IO hog kept running.
+      is_kthread() {
+        local c r
+        c=$(cat "/proc/$1/comm" 2>/dev/null) || return 0
+        echo "$c" | grep -Eq -- "$KTHREAD_RE" && return 0
+        r=$(awk '/^VmRSS:/ {print $2}' "/proc/$1/status" 2>/dev/null)
+        [ -z "$r" ] || [ "$r" -eq 0 ] 2>/dev/null
+      }
+
+      # Largest-RSS non-kthread, non-avoid victim across the HOG slices (the bulk
+      # writers/CPU hogs that starve the desktop). Used when the DESKTOP slice is
+      # starved but global PSI is low — the culprit is elsewhere, not the desktop.
+      pick_hog_victim() {
+        local cg p comm rss best_pid="" best_rss=-1 best_comm=""
+        for cg in $HOG_CGS; do
+          [ -r "$cg/cgroup.procs" ] || continue
+          while read -r p; do
+            [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null || continue
+            is_kthread "$p" && continue
+            comm=$(cat "/proc/$p/comm" 2>/dev/null) || continue
+            echo "$comm" | grep -Eq -- "$AVOID" && continue
+            rss=$(awk '/^VmRSS:/ {print $2}' "/proc/$p/status" 2>/dev/null)
+            [ -n "$rss" ] || continue
+            if [ "$rss" -gt "$best_rss" ]; then best_rss="$rss"; best_pid="$p"; best_comm="$comm"; fi
+          done < "$cg/cgroup.procs"
+        done
+        [ -n "$best_pid" ] && echo "$best_pid $best_rss $best_comm"
       }
 
       # Pick the top offender by $1 sort key (rss or pcpu), skipping already-killed
@@ -280,10 +326,14 @@ in
       pick_victim() {
         local key="$1" skip="$2" excl=""
         [ -n "$skip" ] && excl="^($(echo "$skip" | tr ' ' '|')) "
+        # `ps comm=` renders kernel threads with their kworker/ksoftirqd/... name;
+        # KTHREAD_RE strips them so the guard never wastes a kill on an unkillable
+        # kernel thread (the 15:29 kworker/thermald flailing). AVOID protects the
+        # compositor/session essentials.
         local cmd="ps -eo pid=,$key=,comm= --sort=-$key"
         local line
-        line=$($cmd | grep -E -- "$PREFER" | grep -E -v -- "$AVOID" | { [ -n "$excl" ] && grep -E -v -- "$excl" || cat; } | head -n1)
-        [ -z "$line" ] && line=$($cmd | grep -E -v -- "$AVOID" | { [ -n "$excl" ] && grep -E -v -- "$excl" || cat; } | head -n1)
+        line=$($cmd | grep -E -- "$PREFER" | grep -E -v -- "$AVOID" | grep -E -v -- "$KTHREAD_RE" | { [ -n "$excl" ] && grep -E -v -- "$excl" || cat; } | head -n1)
+        [ -z "$line" ] && line=$($cmd | grep -E -v -- "$AVOID" | grep -E -v -- "$KTHREAD_RE" | { [ -n "$excl" ] && grep -E -v -- "$excl" || cat; } | head -n1)
         echo "$line"
       }
 
@@ -351,6 +401,26 @@ in
         cpu=$(psi_avg10 cpu some);    cpu=''${cpu:-0}
         mem=$(psi_avg10 memory full); mem=''${mem:-0}
         io=$(psi_avg10 io full);      io=''${io:-0}
+
+        # ── VOTER: per-slice desktop starvation (v3.1) — the 15:29 root cause ──
+        # The desktop froze with user.slice io.pressure=96%/56% while GLOBAL io
+        # was 0.14% — a bulk writer was hogging the NVMe queue and starving the
+        # compositor. The global voter below is blind to this. Read the DESKTOP
+        # slice's OWN pressure; if IT is starved, the culprit is a hog ELSEWHERE
+        # (workload/machine/system) — kill the biggest hog, never the desktop's
+        # own stalled procs. EVERY evaluation over threshold logs.
+        sio=$(psi_slice_avg10 "$WATCH_CG" io full);     sio=''${sio:-0}
+        smem=$(psi_slice_avg10 "$WATCH_CG" memory full); smem=''${smem:-0}
+        if awk "BEGIN { exit !($sio+0 > $SLICE_IO_LIMIT || $smem+0 > $SLICE_MEM_LIMIT) }"; then
+          set -- $(pick_hog_victim)
+          hpid="$1"; hrss="$2"; hcomm="$3"
+          if [ -n "$hpid" ] && [ "$hpid" -gt 1 ] 2>/dev/null; then
+            do_kill "$hpid" "$hcomm"; hsig=$SIG
+            echo "[freeze-guard] DESKTOP-STARVED sliceIO=$sio sliceMEM=$smem (global io=$io) → SIG$hsig hog pid=$hpid rss=''${hrss}kB ($hcomm)"
+          else
+            echo "[freeze-guard] DESKTOP-STARVED sliceIO=$sio sliceMEM=$smem — no hog victim outside the desktop (all essential/kthread?)"
+          fi
+        fi
 
         # ── VOTER: memory.high thrash (PSI-invisible reclaim storm) ──────────
         # Watches the throttle counter itself, so it fires even when PSI stays

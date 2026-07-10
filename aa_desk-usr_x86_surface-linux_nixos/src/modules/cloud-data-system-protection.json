@@ -50,6 +50,13 @@
     "thrash_slice": "user.slice/user-1000.slice",
     "high_events_per_sec_max": 1000,
     "thrash_sustain_sec": 6,
+    "_perslice_comment": "2026-07-10 v3.1 — THE root cause of the 15:29 freeze: freeze-guard read GLOBAL /proc/pressure/io = 0.14% and never fired, while user.slice io.pressure was 96%/56% (the desktop was IO-STARVED by a bulk writer hogging the NVMe queue). A freeze is a PER-SLICE event; the global gauge is blind to it. These voters read the DESKTOP slice's OWN cgroup pressure files. When the desktop is starved, the fix is to kill the top NON-DESKTOP offender (the hog in workload/machine.slice) — the desktop procs are the victims, not the cause. hog_slices lists where the bulk writers live.",
+    "watch_slice": "user.slice/user-1000.slice",
+    "slice_io_full_avg10": 50.0,
+    "slice_mem_full_avg10": 50.0,
+    "hog_slices": ["workload.slice", "machine.slice", "system.slice"],
+    "_kthread_comment": "2026-07-10 v3.1 — the 15:29 guard ran out of real victims and SIGKILLed thermald then tried to kill kworker/R-kthrotld (a KERNEL THREAD, rss=0). Killing a kthread is impossible AND killing essentials makes the freeze worse. kthread_comm_re matches kernel worker comms; any proc matching it, or with rss=0, is NEVER a victim.",
+    "kthread_comm_re": "^(kworker|ksoftirqd|kthreadd|migration|rcu_|watchdog/|kdevtmpfs|kswapd|kcompactd|khugepaged|kintegrityd|kblockd|kthrotld|irq/|kcryptd|kauditd|khungtaskd|oom_reaper|writeback|kthrotld)",
     "_threshold_evidence": "13:41-13:54 freeze (the third one, during the docker-pull bootstrap): sustained thrash measured at ~2,900 high-events/s (psi-recorder: 1,615,161→1,644,543 in 10s) — BELOW the initial 5000/s guess, so the voter would have sat silent through it. 1000/s is safely under every observed freeze (2900-15000/s) while normal desktop operation idles at <100/s."
   },
 
@@ -250,6 +257,18 @@
         "id": "freeze_guard_escalates_sigterm",
         "description": "v3 root-cause fix: freeze-guard escalates an IGNORED SIGTERM to SIGKILL (KILL-ESC) — the 13:06 freeze was the same claude pid SIGTERM'd 20+ times over 75s, never dying, no escalation",
         "command": "grep -hc 'KILL-ESC' \"$(systemctl show freeze-guard.service -p ExecStart --value | grep -oE '/nix/store/[^ ]*freeze-guard[^ ;]*' | head -1)\"",
+        "expect_regex": "^[1-9][0-9]*$"
+      },
+      {
+        "id": "freeze_guard_reads_per_slice_psi",
+        "description": "v3.1 root-cause fix (15:29 freeze): freeze-guard reads the DESKTOP slice's OWN io/memory.pressure (psi_slice_avg10 / DESKTOP-STARVED), not just global /proc/pressure — global was 0.14% while user.slice io was 96%",
+        "command": "grep -hcE 'psi_slice_avg10|DESKTOP-STARVED' \"$(systemctl show freeze-guard.service -p ExecStart --value | grep -oE '/nix/store/[^ ]*freeze-guard[^ ;]*' | head -1)\"",
+        "expect_regex": "^[1-9][0-9]*$"
+      },
+      {
+        "id": "freeze_guard_skips_kthreads",
+        "description": "v3.1: freeze-guard never targets kernel threads (is_kthread / KTHREAD_RE) — the 15:29 guard flailed SIGKILLing kworker/thermald when it ran out of real victims",
+        "command": "grep -hcE 'is_kthread|KTHREAD_RE' \"$(systemctl show freeze-guard.service -p ExecStart --value | grep -oE '/nix/store/[^ ]*freeze-guard[^ ;]*' | head -1)\"",
         "expect_regex": "^[1-9][0-9]*$"
       }
     ]
