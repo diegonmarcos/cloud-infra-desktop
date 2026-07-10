@@ -100,8 +100,9 @@
       "priority": 2,
       "blocked_on": null,
       "build": {
-        "_doc": "FROM-SOURCE React-Native build (not the ./gradlew model mail/dialer use). Mattermost's Android build = npm deps (postinstall runs patch-package) + Ruby/Bundler fastlane wrapper that runs gradle assembleUnsigned and emits a UNIVERSAL Mattermost-unsigned.apk at the tracker root. The engine runs build.prepare[] in the materialized tree, then build.command (the npm wrapper), globs apk_glob, and resign_unsigned=true re-signs it with the ONE shared constellation key (Mattermost ships unsigned). NODE 20 + Ruby/Bundler are provisioned by ship-cloud-comms-forks.yml only for react-native forks. Output is universal → one leg covers arm64+x86_64.",
-        "prepare": ["npm ci", "bundle install"],
+        "_doc": "FROM-SOURCE React-Native build (not the ./gradlew model mail/dialer use). Mattermost's Android build = npm deps (postinstall runs patch-package + asset staging) + Ruby/Bundler fastlane wrapper that runs gradle assembleUnsigned and emits a UNIVERSAL Mattermost-unsigned.apk at the tracker root. The engine runs build.prepare[] in the materialized tree, then build.command (the npm wrapper), globs apk_glob, and resign_unsigned=true re-signs it with the ONE shared constellation key (Mattermost ships unsigned). NODE 20 + Ruby/Bundler are provisioned by ship-cloud-comms-forks.yml only for react-native forks. Output is universal → one leg covers arm64+x86_64.",
+        "_prepare_doc": "npm's `preinstall` hook runs `npx solidarity`, a DEV doctor that hard-fails on CI because the Android `emulator` binary isn't installed (the build never needs it). So install with --ignore-scripts (skips solidarity AND postinstall), then run the two REAL postinstall steps by hand: patch-package (RN native-module patches) + scripts/postinstall.sh (stages Compass-icon fonts + generate-assets + notification sounds into android/; its macOS CocoaPods branch no-ops on Linux). bundle install resolves the fastlane Gemfile.",
+        "prepare": ["npm ci --ignore-scripts", "npx patch-package", "./scripts/postinstall.sh", "bundle install"],
         "command": "npm run build:android-unsigned",
         "apk_glob": "Mattermost-unsigned.apk",
         "resign_unsigned": true
