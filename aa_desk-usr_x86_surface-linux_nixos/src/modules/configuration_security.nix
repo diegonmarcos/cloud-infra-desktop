@@ -67,6 +67,23 @@ in
 
   security.sudo.wheelNeedsPassword = false;
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # MESH ROOT CA — trust for internal *.app / *.db TLS (2026-07-10)
+  # ═══════════════════════════════════════════════════════════════════════════
+  #
+  # Caddy on gcp-proxy issues internal-zone certs (snappymail.app,
+  # gitea-sqlite-null.db, …) from a mesh root CA declared in the vault
+  # (A0_keys/providers/mesh-ca/, delivered to Caddy via the sops .secrets.d
+  # pipeline — see cloud/a_solutions/infra-sec_caddy 00-globals.caddy.tpl).
+  # Trusting the PUBLIC root here makes those certs valid system-wide:
+  # curl/git without -k, and browsers — critically including HSTS-preloaded
+  # TLDs like .app, where Chromium/QtWebEngine hard-refuse untrusted certs
+  # with no click-through (root cause of "snappymail.app unreachable in
+  # browsers"). NixOS wires security.pki into p11-kit, which Chromium,
+  # QtWebEngine (qutebrowser) and NSS consumers all read.
+  # The .crt is PUBLIC material — safe to commit; the key never leaves vault.
+  security.pki.certificates = [ (builtins.readFile ./mesh-ca.crt) ];
+
   # Root password (same as diego: 1234567890)
   users.users.root.hashedPassword = "$6$0lk5nosoLlNAcDTp$or4FVVs/Lq1gFMYgjuw6FUdh6dKNE8e/vBClzgik290mxMCzctvN43odeGq7D.qpuJCyyDxJJAsSQNSsB3Vst0";
 
