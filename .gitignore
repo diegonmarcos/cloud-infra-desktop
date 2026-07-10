@@ -65,11 +65,19 @@ libs/
 ## because inject-header.sh was ignored despite being referenced by build.sh.
 !1_workflows/src/libs/
 !1_workflows/src/libs/**
-## ea_cloud-superapp/libs/ is the gradle multi-module source tree (libs:core,
-## libs:mail, libs:cal, …) — NOT build artifacts; the libs/ ignore above must
-## not swallow it.
+## EXCEPTION: ea_cloud-superapp/libs/ is the gradle multi-module source tree
+## (libs:core, libs:mail, libs:cal, …). Each is its own Android library
+## with build.gradle + src/. NOT build artifacts. Added 2026-05-29 when
+## the scaffold landed and these files silently disappeared on git add;
+## renamed from ea_superapp → ea_cloud-superapp 2026-05-30.
 !ea_cloud-superapp/libs/
 !ea_cloud-superapp/libs/**
+## EXCEPTION: ea_cloud-nav/libs/ is likewise the gradle multi-module SOURCE
+## tree (libs:core, libs:maps, libs:updater) — Android library src/, NOT build
+## artifacts (those are caught by ea_cloud-nav/**/build/ below). Added when a
+## new libs:maps source file (MapsImport.kt) silently failed to `git add`.
+!ea_cloud-nav/libs/
+!ea_cloud-nav/libs/**
 ## Signing keystores are generated in CI only — never vendored.
 ea_cloud-superapp/**/*.keystore
 ea_cloud-superapp/**/*.jks
