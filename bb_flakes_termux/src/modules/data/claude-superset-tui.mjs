@@ -1,213 +1,216 @@
 #!/usr/bin/env node
-// claude-superset-tui — terminal helper/dashboard for claude-superset-api.
-// No npm deps (node:readline + global fetch). Endpoints come from the env
-// (CAS_PROXY / CAS_API / CAS_OLLAMA / CAS_COMPRESS / CAS_DASHBOARD /
-//  CAS_MCP_* / CAS_ANTHROPIC), injected by the Nix wrapper from the
-// data-driven claude-superset.json — nothing hardcoded.
+// claude-superset-tui — full-screen TUI to compose a `claude-superset` launch.
+// No npm deps (node:readline raw-mode + ANSI). Endpoints come from the env
+// (CAS_PROXY / CAS_API / CAS_DASHBOARD / CAS_MCP_* …) injected by the Nix
+// wrapper from the data-driven claude-superset.json — nothing hardcoded.
 //
-// Universal: identical on desktop and termux. Shows live Headroom savings,
-// health-checks every face (superset + MCPs + direct fallback), opens the
-// dashboard, and launches `claude` routed through the proxy (graceful fallback).
-// CAS_PLUGINS_SCRIPT — path to claude-plugins-status.sh (injected by Nix wrapper).
+// A REAL form, not a text menu:
+//   ↑/↓  move between fields      Space  toggle / select
+//   ←/→  change value (level, N)  Enter  activate LAUNCH
+//   q    quit
+//
+//   ◉/◯  selection boxes (pick ONE): face, restore mode
+//   [x]/[ ]  check boxes (toggles): headroom, ponytail
+//
+// Launching only happens when YOU move to LAUNCH and press Enter.
 import readline from "node:readline";
 import { spawn, spawnSync } from "node:child_process";
 
 const EP = {
   proxy:     process.env.CAS_PROXY     || "http://10.0.0.6:8789",
-  api:       process.env.CAS_API       || "http://10.0.0.6:3117",
-  ollama:    process.env.CAS_OLLAMA    || "http://10.0.0.6:11436",
-  compress:  process.env.CAS_COMPRESS  || "http://10.0.0.6:8788",
   dashboard: process.env.CAS_DASHBOARD || "http://10.0.0.6:8788/dashboard",
-  anthropic: process.env.CAS_ANTHROPIC || "https://api.anthropic.com",
-  mcps: {
-    c3_infra:   process.env.CAS_MCP_C3_INFRA   || "http://10.0.0.6:3100",
-    c3_svc:     process.env.CAS_MCP_C3_SVC     || "http://10.0.0.6:3101",
-    mattermost: process.env.CAS_MCP_MATTERMOST || "http://10.0.0.6:3102",
-    mail:       process.env.CAS_MCP_MAIL       || "http://10.0.0.6:3103",
-    gws:        process.env.CAS_MCP_GWS        || "http://10.0.0.6:3104",
-    gp:         process.env.CAS_MCP_GP         || "http://10.0.0.6:3106",
-  },
+  compress:  process.env.CAS_COMPRESS  || "http://10.0.0.6:8788",
 };
-const LAUNCH = process.env.CAS_LAUNCH || "claude";
-const PLUGINS_SCRIPT = process.env.CAS_PLUGINS_SCRIPT || `${process.env.HOME}/.claude/claude-plugins-status.sh`;
-
-// Launch-options picker: cycle each field with a key, then [l] launches
-// `claude-superset` with the matching flags. Data-driven cycles — add a value
-// to a list and it just works.
-const CYCLES = {
-  face:     ["remote", "local", "claude"],
-  headroom: ["on", "off"],
-  ponytail: ["default", "off", "lite", "full", "ultra"],
-  restore:  ["off", "count", "hours"],
-};
-// Preset ladders for [+]/[-] — count = sessions, hours = lookback window.
+const SELF = "claude-superset";
 const RESTORE_PRESETS = { count: [1, 3, 5, 10, 20, 50], hours: [1, 4, 8, 24, 72, 168] };
-const sel = { face: "remote", headroom: "on", ponytail: "default", restore: "off", restoreN: 5 };
-const cycle = (k) => {
-  const c = CYCLES[k]; sel[k] = c[(c.indexOf(sel[k]) + 1) % c.length];
-  if (k === "restore" && sel.restore !== "off") sel.restoreN = RESTORE_PRESETS[sel.restore][0];
+
+const C = {
+  r: "\x1b[0m", b: "\x1b[1m", dim: "\x1b[2m", inv: "\x1b[7m",
+  g: "\x1b[32m", y: "\x1b[33m", red: "\x1b[31m", cy: "\x1b[36m", mag: "\x1b[35m",
 };
-const bumpRestoreN = (dir) => {
-  if (sel.restore === "off") return;
-  const p = RESTORE_PRESETS[sel.restore];
-  const i = Math.max(0, p.indexOf(sel.restoreN));
-  sel.restoreN = p[Math.min(p.length - 1, Math.max(0, i + dir))];
+
+// ── selection state ───────────────────────────────────────────────────────
+const st = {
+  face: "remote",      // remote | local | claude   (selection box)
+  headroom: true,      // checkbox
+  ponytail: true,      // checkbox
+  ponyLevel: "full",   // lite | full | ultra        (← / → cycles)
+  restore: "off",      // off | count | hours         (selection box)
+  restoreN: 5,         // ← / → adjusts on presets
 };
-// Build the argv for `claude-superset` from the current selection.
+const PONY_LEVELS = ["lite", "full", "ultra"];
+
+// Compose the argv exactly like the shell wrapper's grammar.
 function selArgs() {
-  if (sel.face === "claude") return ["claude"];       // plain — flags N/A
-  const a = [sel.face];
-  if (sel.headroom === "off") a.push("headroom", "off");
-  if (sel.ponytail !== "default") a.push("ponytail", sel.ponytail);
-  if (sel.restore === "count") a.push("restore", String(sel.restoreN));
-  if (sel.restore === "hours") a.push("restore-hours", String(sel.restoreN));
+  if (st.face === "claude") return ["claude"];
+  const a = [st.face];
+  if (!st.headroom) a.push("headroom", "off");
+  a.push("ponytail", st.ponytail ? st.ponyLevel : "off");
+  if (st.restore === "count") a.push("restore", String(st.restoreN));
+  if (st.restore === "hours") a.push("restore-hours", String(st.restoreN));
   return a;
 }
 
-function pluginStatus() {
-  try {
-    const r = spawnSync("bash", [PLUGINS_SCRIPT, "--format", "plain"],
-      { encoding: "utf8", timeout: 1000 });
-    return r.status === 0 ? (r.stdout || "").trim() : "";
-  } catch { return ""; }
-}
+// ── focusable rows (rebuilt each render; disabled fields drop out) ──────────
+function buildRows() {
+  const rows = [];
+  rows.push({ t: "head", text: "FACE  — pick one" });
+  rows.push({ t: "radio", grp: "face", val: "remote", label: "remote", note: "route via the WG compression proxy" });
+  rows.push({ t: "radio", grp: "face", val: "local",  label: "local",  note: "run the container on THIS host" });
+  rows.push({ t: "radio", grp: "face", val: "claude", label: "claude", note: "plain — no proxy / plugins / restore" });
 
-const C = { r: "\x1b[0m", b: "\x1b[1m", dim: "\x1b[2m", g: "\x1b[32m", y: "\x1b[33m", red: "\x1b[31m", cy: "\x1b[36m" };
-const ok = (b) => (b ? `${C.g}● up${C.r}` : `${C.red}○ down${C.r}`);
-const fmt = (n) => Number(n || 0).toLocaleString();
+  if (st.face !== "claude") {
+    rows.push({ t: "gap" });
+    rows.push({ t: "head", text: "PLUGINS  — toggle" });
+    rows.push({ t: "check", key: "headroom", label: "headroom", note: "compression proxy (ANTHROPIC_BASE_URL)" });
+    rows.push({ t: "checklevel", key: "ponytail", label: "ponytail", note: "← / → level" });
 
-// probe: r.ok=true only for 2xx; anyStatus=true for any HTTP response (reachability check)
-async function probe(url, path = "/readyz", anyStatus = false) {
-  try {
-    const c = new AbortController();
-    const t = setTimeout(() => c.abort(), 2500);
-    const r = await fetch(`${url.replace(/\/$/, "")}${path}`, { signal: c.signal }).finally(() => clearTimeout(t));
-    return anyStatus ? true : r.ok;
-  } catch { return false; }
-}
-
-async function stats() {
-  try {
-    const r = await fetch(`${EP.compress.replace(/\/$/, "")}/stats`, { signal: AbortSignal.timeout(2500) });
-    if (!r.ok) return null;
-    return await r.json();
-  } catch { return null; }
-}
-
-async function header() {
-  console.clear();
-  // all probes fire in parallel — 2.5 s timeout each
-  const [p, a, o, c, ci, csvc, mmcp, ml, gw, gpers, direct] = await Promise.all([
-    probe(EP.proxy),
-    probe(EP.api,             "/health"),
-    probe(EP.ollama,          "/api/version"),
-    probe(EP.compress),
-    probe(EP.mcps.c3_infra,   "/health"),
-    probe(EP.mcps.c3_svc,     "/health"),
-    probe(EP.mcps.mattermost, "/health"),
-    probe(EP.mcps.mail,       "/health"),
-    probe(EP.mcps.gws,        "/health"),
-    probe(EP.mcps.gp,         "/health"),
-    probe(EP.anthropic,       "/v1/models", true),  // any HTTP = reachable
-  ]);
-  const s = await stats();
-
-  const row = (label, url, up, note) =>
-    console.log(`  ${label.padEnd(11)}${url.padEnd(27)} ${ok(up)}   ${C.dim}(${note})${C.r}`);
-  const sep = (title) =>
-    console.log(`\n  ${C.dim}── ${title} ${"─".repeat(Math.max(0, 46 - title.length))}${C.r}`);
-
-  const plugins = pluginStatus();
-
-  console.log(`${C.b}${C.cy}  claude-superset-api · helper${C.r}`);
-  console.log(`  ${C.dim}WG-only · token compression via Headroom${C.r}`);
-
-  if (plugins) {
-    sep("plugins");
-    plugins.split(/\s+/).filter(Boolean).forEach(p => {
-      const [label, val] = p.split(":");
-      const on = val !== "off";
-      const badge = on ? `${C.g}● ${val || "on"}${C.r}` : `${C.dim}○ off${C.r}`;
-      console.log(`  ${(label || "").padEnd(11)}${" ".repeat(27)} ${badge}`);
-    });
+    rows.push({ t: "gap" });
+    rows.push({ t: "head", text: "RESTORE SESSIONS  — pick one" });
+    rows.push({ t: "radio", grp: "restore", val: "off",   label: "off",   note: "fresh session" });
+    rows.push({ t: "radio", grp: "restore", val: "count", label: "count", note: "reopen last N sessions" });
+    rows.push({ t: "radio", grp: "restore", val: "hours", label: "hours", note: "reopen sessions from last N hours" });
+    if (st.restore !== "off")
+      rows.push({ t: "number", key: "restoreN", label: "N", note: "← / →" });
   }
 
-  sep("superset");
-  row("proxy",    EP.proxy,    p, "ANTHROPIC_BASE_URL · Headroom");
-  row("api",      EP.api,      a, "OpenAI /v1");
-  row("ollama",   EP.ollama,   o, "/api");
-  row("compress", EP.compress, c, "compress/stats");
+  rows.push({ t: "gap" });
+  rows.push({ t: "action", key: "launch" });
+  rows.push({ t: "action", key: "quit" });
+  return rows;
+}
+const isFocusable = (row) => ["radio", "check", "checklevel", "number", "action"].includes(row.t);
 
-  sep("MCPs (WG-direct)");
-  row("c3-infra",   EP.mcps.c3_infra,   ci,    "infra tools");
-  row("c3-svc",     EP.mcps.c3_svc,     csvc,  "services tools");
-  row("mattermost", EP.mcps.mattermost, mmcp,  "chat MCP");
-  row("mail",       EP.mcps.mail,       ml,    "email MCP");
-  row("gws",        EP.mcps.gws,        gw,    "Google Workspace");
-  row("gp",         EP.mcps.gp,         gpers, "Google Personal");
+let rows = buildRows();
+let focus = 0; // index into focusable rows only
+function focusables() { return rows.map((r, i) => (isFocusable(r) ? i : -1)).filter((i) => i >= 0); }
 
-  sep("fallback");
-  row("direct", EP.anthropic, direct, "Anthropic API (no proxy)");
-
-  if (s) {
-    const ratio = s.lifetime_ratio != null ? (s.lifetime_ratio * 100).toFixed(1) : "0.0";
-    console.log(`\n  ${C.y}savings${C.r}  ${C.b}${fmt(s.tokens_saved)}${C.r} tokens removed  ` +
-                `(${C.g}${ratio}%${C.r} of ${fmt(s.tokens_before)} over ${fmt(s.compressions)} compressions)`);
-  } else {
-    console.log(`\n  ${C.dim}savings  (compress face unreachable)${C.r}`);
-  }
-  // Launch-options picker — tick the values, then [l] launches with them.
-  sep("launch options");
-  const pick = (k, v) => `${k} ${C.g}${C.b}[${v}]${C.r}`;
-  const faceName = { remote: "remote (R)", local: "local (L)", claude: "claude/plain (C)" }[sel.face];
-  console.log(`  ${pick("face", faceName)}`);
-  if (sel.face === "claude") {
-    console.log(`  ${C.dim}headroom/ponytail/restore N/A for plain claude${C.r}`);
-  } else {
-    console.log(`  ${pick("headroom", sel.headroom)}   ${pick("ponytail", sel.ponytail)}`);
-    const restoreLabel = sel.restore === "off" ? "off (fresh session)"
-      : `${sel.restore === "count" ? "last N sessions" : "sessions in last N hours"} · N=${sel.restoreN}`;
-    console.log(`  ${pick("restore", restoreLabel)}`);
-  }
-
-  console.log("");
-  console.log(`  ${C.b}[f]${C.r} face   ${C.b}[c]${C.r} headroom   ${C.b}[p]${C.r} ponytail   ${C.b}[r]${C.r} restore mode`);
-  if (sel.face !== "claude" && sel.restore !== "off")
-    console.log(`  ${C.b}[+/-]${C.r} adjust N (${RESTORE_PRESETS[sel.restore].join(", ")})`);
-  console.log(`  ${C.b}[l]${C.r} launch: ${C.cy}claude-superset ${selArgs().join(" ")}${C.r}`);
-  console.log(`  ${C.b}[d]${C.r} dashboard   ${C.b}[s]${C.r} stats   ${C.b}[h]${C.r} re-check   ${C.b}[q]${C.r} quit\n`);
+let proxyUp = null, saved = null;
+async function probe() {
+  try {
+    const c = new AbortController(); const t = setTimeout(() => c.abort(), 1500);
+    const r = await fetch(`${EP.proxy.replace(/\/$/, "")}/readyz`, { signal: c.signal }).finally(() => clearTimeout(t));
+    proxyUp = r.ok;
+  } catch { proxyUp = false; }
+  try {
+    const c = new AbortController(); const t = setTimeout(() => c.abort(), 1500);
+    const r = await fetch(`${EP.compress.replace(/\/$/, "")}/stats`, { signal: c.signal }).finally(() => clearTimeout(t));
+    const j = await r.json(); saved = Number(j.tokens_saved || 0);
+  } catch { saved = null; }
 }
 
-function open(url) {
-  const opener = process.platform === "darwin" ? "open" : "xdg-open";
-  spawn(opener, [url], { stdio: "ignore", detached: true }).on("error", () => {
-    console.log(`  ${C.y}open manually:${C.r} ${url}`);
-  }).unref();
+// ── render ──────────────────────────────────────────────────────────────────
+function render() {
+  rows = buildRows();
+  const fl = focusables();
+  if (focus >= fl.length) focus = fl.length - 1;
+  if (focus < 0) focus = 0;
+  const focusedRowIdx = fl[focus];
+
+  const out = [];
+  out.push("\x1b[2J\x1b[H"); // clear + home
+  out.push(`${C.b}${C.cy}  claude-superset${C.r}  ${C.dim}— compose a launch${C.r}\n`);
+  const pstat = proxyUp == null ? `${C.dim}…${C.r}` : proxyUp ? `${C.g}● proxy up${C.r}` : `${C.red}○ proxy down${C.r}`;
+  const sstat = saved == null ? "" : `  ${C.dim}·${C.r} ${C.y}${saved.toLocaleString()}${C.r} ${C.dim}tok saved${C.r}`;
+  out.push(`  ${pstat}${sstat}\n`);
+  out.push("\n");
+
+  rows.forEach((row, i) => {
+    const foc = i === focusedRowIdx;
+    const cur = foc ? `${C.cy}${C.b}❯${C.r} ` : "  ";
+    const hl = (s) => (foc ? `${C.inv}${s}${C.r}` : s);
+    if (row.t === "head") { out.push(`   ${C.dim}${row.text}${C.r}\n`); return; }
+    if (row.t === "gap") { out.push("\n"); return; }
+    let body = "";
+    if (row.t === "radio") {
+      const on = st[row.grp] === row.val;
+      const box = on ? `${C.g}◉${C.r}` : `${C.dim}◯${C.r}`;
+      body = `${box} ${hl(row.label.padEnd(8))} ${C.dim}${row.note}${C.r}`;
+    } else if (row.t === "check") {
+      const on = st[row.key];
+      const box = on ? `${C.g}[x]${C.r}` : `${C.dim}[ ]${C.r}`;
+      body = `${box} ${hl(row.label.padEnd(8))} ${C.dim}${row.note}${C.r}`;
+    } else if (row.t === "checklevel") {
+      const on = st[row.key];
+      const box = on ? `${C.g}[x]${C.r}` : `${C.dim}[ ]${C.r}`;
+      const lvl = on ? `${C.mag}‹ ${st.ponyLevel} ›${C.r}` : `${C.dim}(off)${C.r}`;
+      body = `${box} ${hl(row.label.padEnd(8))} ${lvl}  ${C.dim}${row.note}${C.r}`;
+    } else if (row.t === "number") {
+      body = `    ${hl(row.label)} ${C.mag}‹ ${st.restoreN} ›${C.r}  ${C.dim}${row.note}${C.r}`;
+    } else if (row.t === "action") {
+      const label = row.key === "launch" ? " LAUNCH " : " Quit ";
+      const col = row.key === "launch" ? C.g : C.dim;
+      body = foc ? `${C.inv}${col}${label}${C.r}` : `${col}[${label.trim()}]${C.r}`;
+      if (row.key === "launch") body += `   ${C.cy}${SELF} ${selArgs().join(" ")}${C.r}`;
+    }
+    out.push(`${cur}${body}\n`);
+  });
+
+  out.push("\n");
+  out.push(`  ${C.dim}↑/↓ move · Space select/toggle · ←/→ change · Enter launch · q quit${C.r}\n`);
+  process.stdout.write(out.join(""));
+}
+
+// ── input ─────────────────────────────────────────────────────────────────
+function activate(row) {
+  if (row.t === "radio") st[row.grp] = row.val;
+  else if (row.t === "check" || row.t === "checklevel") st[row.key] = !st[row.key];
+}
+function adjust(row, dir) {
+  if (row.t === "checklevel" && st.ponytail) {
+    const i = PONY_LEVELS.indexOf(st.ponyLevel);
+    st.ponyLevel = PONY_LEVELS[(i + dir + PONY_LEVELS.length) % PONY_LEVELS.length];
+  } else if (row.t === "number") {
+    const p = RESTORE_PRESETS[st.restore] || [];
+    const i = Math.max(0, p.indexOf(st.restoreN));
+    st.restoreN = p[Math.min(p.length - 1, Math.max(0, i + dir))];
+  } else if (row.t === "radio") {
+    // ←/→ also cycles within a selection group for convenience
+    const opts = rows.filter((r) => r.t === "radio" && r.grp === row.grp).map((r) => r.val);
+    const i = opts.indexOf(st[row.grp]);
+    st[row.grp] = opts[(i + dir + opts.length) % opts.length];
+  }
+}
+
+function teardown() {
+  if (process.stdin.isTTY) process.stdin.setRawMode(false);
+  process.stdout.write("\x1b[?25h"); // show cursor
+}
+
+function launch() {
+  teardown();
+  process.stdout.write("\x1b[2J\x1b[H");
+  const child = spawn(SELF, selArgs(), { stdio: "inherit" });
+  child.on("exit", (c) => process.exit(c ?? 0));
+  child.on("error", () => { console.log(`${SELF} not found on PATH`); process.exit(1); });
 }
 
 async function main() {
-  await header();
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  readline.emitKeypressEvents(process.stdin, rl);
-  if (process.stdin.isTTY) process.stdin.setRawMode(true);
-  process.stdin.on("keypress", async (_str, key) => {
-    const k = key?.name;
-    if (k === "q" || (key?.ctrl && key?.name === "c")) { if (process.stdin.isTTY) process.stdin.setRawMode(false); rl.close(); process.exit(0); }
-    if (k === "h" || k === "s") return header();
-    if (k === "d") { open(EP.dashboard); return header(); }
-    if (k === "f") { cycle("face"); return header(); }
-    if (k === "c") { cycle("headroom"); return header(); }
-    if (k === "p") { cycle("ponytail"); return header(); }
-    if (k === "r") { cycle("restore"); return header(); }
-    if (k === "+" || k === "=" || k === "kpplus") { bumpRestoreN(1); return header(); }
-    if (k === "-" || k === "kpminus") { bumpRestoreN(-1); return header(); }
-    if (k === "l") {
-      if (process.stdin.isTTY) process.stdin.setRawMode(false);
-      rl.close(); console.clear();
-      const child = spawn("claude-superset", selArgs(), { stdio: "inherit" });
-      child.on("exit", (c) => process.exit(c ?? 0));
-      child.on("error", () => { console.log("claude-superset not found"); process.exit(1); });
-    }
+  if (!process.stdin.isTTY) {
+    console.log(`claude-superset TUI needs a terminal. Would launch: ${SELF} ${selArgs().join(" ")}`);
+    process.exit(0);
+  }
+  process.stdout.write("\x1b[?25l"); // hide cursor
+  render();
+  probe().then(render);
+
+  readline.emitKeypressEvents(process.stdin);
+  process.stdin.setRawMode(true);
+  process.stdin.on("keypress", (str, key) => {
+    const fl = focusables();
+    const row = rows[fl[focus]];
+    const name = key?.name;
+    if (name === "q" || (key?.ctrl && name === "c")) { teardown(); process.exit(0); }
+    else if (name === "up" || name === "k") focus = (focus - 1 + fl.length) % fl.length;
+    else if (name === "down" || name === "j") focus = (focus + 1) % fl.length;
+    else if (name === "left" || name === "h") adjust(row, -1);
+    else if (name === "right" || name === "l") adjust(row, 1);
+    else if (name === "space") { row.t === "action" ? (row.key === "launch" ? launch() : (teardown(), process.exit(0))) : activate(row); }
+    else if (name === "return") {
+      if (row.t === "action") { row.key === "launch" ? launch() : (teardown(), process.exit(0)); }
+      else if (row.t === "radio" || row.t === "check" || row.t === "checklevel") activate(row);
+    } else return;
+    render();
   });
 }
 main();
