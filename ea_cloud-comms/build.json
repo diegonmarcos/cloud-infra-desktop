@@ -87,7 +87,7 @@
     },
     "chat": {
       "app_id": "com.diegonmarcos.comms.chat",
-      "_repackage_doc": "From-source fork repackages applicationId com.mattermost.rnbeta -> com.diegonmarcos.comms.chat (patch 0001, + the google-services.json beta-client package_name so the google-services plugin still matches). app_id is therefore the REAL installed package now; the legacy alt_id/stock-detection was removed so the fleet never mistakes a real Mattermost (com.mattermost.rnbeta) install for ours. namespace stays com.mattermost.rnbeta (R/BuildConfig + native refs).",
+      "_repackage_doc": "From-source fork repackages ONLY applicationId com.mattermost.rnbeta -> com.diegonmarcos.comms.chat (patch 0001). namespace stays com.mattermost.rnbeta (R/BuildConfig + native refs) — and the com.google.gms.google-services plugin matches google-services.json against the NAMESPACE, not applicationId, so google-services.json is left untouched (touching it broke the build: 'No matching client for com.mattermost.rnbeta'). app_id is now the REAL installed package; legacy alt_id/stock-detection removed so the fleet never mistakes a real Mattermost install for ours. Push deferred, so the upstream Firebase project in google-services.json is irrelevant.",
       "label": "Chat (Mattermost)",
       "image": "cloud-comms-chat",
       "upstream_repo": "https://github.com/mattermost/mattermost-mobile.git",

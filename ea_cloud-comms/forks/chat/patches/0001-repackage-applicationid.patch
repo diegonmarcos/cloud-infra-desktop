@@ -1,19 +1,23 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: cloud-comms-engine <engine@diegonmarcos.com>
-Date: Fri, 10 Jul 2026 13:51:20 +0300
+Date: Fri, 10 Jul 2026 14:39:19 +0300
 Subject: [PATCH] repackage: applicationId com.mattermost.rnbeta ->
  com.diegonmarcos.comms.chat
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
 
-Give the Cloud-Comms chat fork its OWN package id (constellation identity,
-no collision with a real Mattermost install). google-services.json's beta
-client package_name is changed to match so the com.google.gms.google-services
-plugin still finds a matching client (else the build fails). namespace stays
-com.mattermost.rnbeta (R/BuildConfig package + native code refs unchanged).
-Push remains disabled (self-compiled apps need their own push service).
+Give the Cloud-Comms chat fork its OWN install package id (constellation
+identity; no collision with a real Mattermost). ONLY applicationId changes.
+namespace stays com.mattermost.rnbeta (R/BuildConfig + native refs) — and the
+com.google.gms.google-services plugin matches google-services.json against the
+NAMESPACE, not applicationId, so google-services.json is left untouched (its
+beta client already matches com.mattermost.rnbeta). Push stays disabled
+(self-compiled apps need their own push service), so the Firebase project in
+google-services.json being upstream's is irrelevant.
 ---
- android/app/build.gradle         | 2 +-
- android/app/google-services.json | 2 +-
- 2 files changed, 2 insertions(+), 2 deletions(-)
+ android/app/build.gradle | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/android/app/build.gradle b/android/app/build.gradle
 index 5568b9d7f..a471d031f 100644
@@ -28,16 +32,3 @@ index 5568b9d7f..a471d031f 100644
          minSdkVersion rootProject.ext.minSdkVersion
          targetSdkVersion rootProject.ext.targetSdkVersion
          versionCode 749
-diff --git a/android/app/google-services.json b/android/app/google-services.json
-index 6b71b966d..eb6223e78 100644
---- a/android/app/google-services.json
-+++ b/android/app/google-services.json
-@@ -46,7 +46,7 @@
-       "client_info": {
-         "mobilesdk_app_id": "1:184930218130:android:c7debfa7ea3f75a7",
-         "android_client_info": {
--          "package_name": "com.mattermost.rnbeta"
-+          "package_name": "com.diegonmarcos.comms.chat"
-         }
-       },
-       "oauth_client": [
