@@ -1,0 +1,22 @@
+{
+  "_doc": "Data-driven config for programs/watchdog-systray.nix — a KDE system-tray applet (yad --notification) exposing the system-protection stack: live status, a manual OOM trigger, the escape-hatch keybind reminder, and a log viewer. Plus a companion NixOS tray. All labels/commands/units live here; the .nix only wires them.",
+  "watchdog_tray": {
+    "enable": true,
+    "icon": "security-high",
+    "title": "Watchdog — System Protection",
+    "oom": {
+      "_comment": "Manual OOM trigger. kernel_sysrq=true uses the in-kernel SysRq OOM killer (echo f > /proc/sysrq-trigger) — the SAME action as the Alt+SysRq+F keybind, works even under heavy load (needs kernel.sysrq bit 64, set via sysctl). Falls back to killing the biggest non-essential RSS hog if sysrq is unavailable.",
+      "kernel_sysrq": true,
+      "keybind_primary": "Alt+SysRq+F",
+      "keybind_convenience": "Meta+Ctrl+K"
+    },
+    "log_units": ["freeze-guard.service", "disk-watchdog-v2.service", "battery-watchdog.service", "systemd-oomd.service"],
+    "status_slices": ["user.slice/user-1000.slice", "workload.slice", "connectivity.slice"]
+  },
+  "nixos_tray": {
+    "enable": true,
+    "icon": "nix-snowflake",
+    "title": "NixOS",
+    "build_sh": "$HOME/git/unix/ba_flakes_desktop/build.sh"
+  }
+}
