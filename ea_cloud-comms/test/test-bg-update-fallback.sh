@@ -33,6 +33,14 @@ for f in "$NAV" "$IDE" "$SUP"; do
   grep -Pzo 'FLAG_ACTIVITY_NEW_TASK\)\n\s*context\.startActivity\(confirm\)\n\s*\}' "$ROOT/$f" >/dev/null 2>&1 \
     && bad "$app: startActivity still unguarded (no bg fallback)" \
     || ok "$app: startActivity is guarded"
+  # try/catch is NOT enough: Android 10+ drops a blocked bg startActivity
+  # WITHOUT throwing, so the catch never runs. The fallback must be gated on a
+  # real foreground check, not an exception that never comes.
+  if grep -qF "isForeground(context)" "$ROOT/$f" 2>/dev/null; then
+    ok "$app: bg fallback gated on foreground check (not a dead try/catch)"
+  else
+    bad "$app: fallback relies on catch of a non-throwing startActivity"
+  fi
 done
 
 echo "== comms-hub: already background-safe via InstallGate =="
