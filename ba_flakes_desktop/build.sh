@@ -1382,6 +1382,69 @@ main() {
 
     # Parse command
     cmd="$1"
+
+    # ── FREEZE-SAFE ISOLATION (2026-07-10 v3.1) ──────────────────────────────
+    # A heavy switch/pull (closure download + import) MUST NOT run in the
+    # desktop's own cgroup (app.slice under user-1000.slice) — its memory
+    # pressure thrashes the compositor and freezes the box (5× on 2026-07-10).
+    # Re-exec the whole invocation, as this user, into isolation_slice (a SYSTEM
+    # slice isolated from the desktop) bounded by switch_memory_max/swap_max,
+    # passing the desktop session env so HM activation's `systemctl --user`
+    # still reaches the user bus. SWITCH_ISOLATED guards infinite re-exec.
+    if [ -z "${SWITCH_ISOLATED:-}" ] && command -v systemd-run >/dev/null 2>&1 \
+       && command -v jq >/dev/null 2>&1 && [ -f "$HM_AUTO_CFG" ] \
+       && [ "$(jq -r '.safety.isolate // false' "$HM_AUTO_CFG")" = "true" ]; then
+        case "$cmd" in
+            switch|pull|switch-remote)
+                if [ "$cmd" = "switch" ] && [ "${2:-}" = "local" ]; then :; else
+                    _iso_slice="$(jq -r '.safety.isolation_slice // "workload.slice"' "$HM_AUTO_CFG")"
+                    _iso_mm="$(jq -r '.safety.switch_memory_max // "2G"' "$HM_AUTO_CFG")"
+                    _iso_sm="$(jq -r '.safety.switch_swap_max // "4G"' "$HM_AUTO_CFG")"
+                    _iso_xdg="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+                    _iso_dbus="''${DBUS_SESSION_BUS_ADDRESS:-unix:path=$_iso_xdg/bus}"
+                    _iso_sudo="/run/wrappers/bin/sudo"; [ -x "$_iso_sudo" ] || _iso_sudo="sudo"
+                    log_info "Isolating switch into $_iso_slice (mem≤$_iso_mm swap≤$_iso_sm) — the desktop can NOT be frozen by this transfer."
+
+                    # ── MANDATORY POPUP (2026-07-10 — user requirement: EVERY nix
+                    # switch MUST show a popup). Spawned HERE in the outer desktop
+                    # context (guaranteed DISPLAY/DBUS), NOT via the fragile
+                    # progress-wrapper re-exec. A Konsole window tails build.log
+                    # live (the isolated switch writes to it) + a start toast.
+                    # Cannot be suppressed — this is the visible progress surface.
+                    if [ -n "''${DISPLAY:-}''${WAYLAND_DISPLAY:-}" ]; then
+                        command -v notify-send >/dev/null 2>&1 && \
+                          notify-send -u critical -i system-software-update \
+                            "Nix switch STARTED" "Pulling + activating a new generation.\nProgress window opening. Isolated in $_iso_slice — the desktop is protected." || true
+                        if command -v konsole >/dev/null 2>&1; then
+                            konsole --hold -p tabtitle="Nix Switch — LIVE progress" \
+                              -e bash -c "echo '=== NIX SWITCH LIVE PROGRESS (isolated in $_iso_slice) ==='; tail -n 40 -f '$LOG_FILE'" >/dev/null 2>&1 &
+                            _popup_pid=$!
+                        fi
+                    fi
+
+                    "$_iso_sudo" systemd-run --slice="$_iso_slice" --unit=hm-switch-isolated \
+                        --uid="$(id -u)" --gid="$(id -g)" --wait --collect --quiet \
+                        -p MemoryHigh="$_iso_mm" -p MemoryMax="$_iso_mm" -p MemorySwapMax="$_iso_sm" \
+                        --setenv=SWITCH_ISOLATED=1 --setenv=HOME="$HOME" --setenv=PATH="$PATH" \
+                        --setenv=XDG_RUNTIME_DIR="$_iso_xdg" --setenv=DBUS_SESSION_BUS_ADDRESS="$_iso_dbus" \
+                        --setenv=DISPLAY="''${DISPLAY:-}" --setenv=WAYLAND_DISPLAY="''${WAYLAND_DISPLAY:-}" \
+                        --setenv=NSP_WRAPPED=1 \
+                        --working-directory="$SCRIPT_DIR" \
+                        "$0" "$@"
+                    _iso_rc=$?
+                    if [ -n "''${DISPLAY:-}''${WAYLAND_DISPLAY:-}" ] && command -v notify-send >/dev/null 2>&1; then
+                        if [ "$_iso_rc" -eq 0 ]; then
+                            notify-send -i system-software-update "Nix switch DONE ✓" "New generation activated successfully." || true
+                        else
+                            notify-send -u critical -i dialog-error "Nix switch FAILED ✗ (exit $_iso_rc)" "See the progress window / build.log." || true
+                        fi
+                    fi
+                    exit "$_iso_rc"
+                fi
+                ;;
+        esac
+    fi
+
     shift
 
     case "$cmd" in
@@ -1493,32 +1556,14 @@ main() {
 # re-exec — nothing below runs when sourced for tests.
 if [ -z "${BUILDSH_SOURCE_ONLY:-}" ]; then
 
-# ── Progress-window re-exec ─────────────────────────────────────────────
-# nix-switch-progress-wrap (programs/nix-switch-progress.nix) is designed to
-# cover BOTH a local eval+build (`switch local`, wired inside nix_switch())
-# AND the default runner path (`switch`/`pull`/`switch-remote` — fetch a
-# GHA-built closure + activate, no eval) — but the latter never called it, so
-# every real activation on the default path ran with no visible window. Fix
-# at the single choke point every invocation passes through: re-exec the
-# whole script under the wrapper once, guarded by NSP_WRAPPED so the second
-# (wrapped) invocation runs the real command instead of re-wrapping forever.
-# Passthrough (no-op) when the wrapper isn't installed (headless/CI/SSH) or
-# we're already inside one.
-if [ -z "${NSP_WRAPPED:-}" ] && command -v nix-switch-progress-wrap >/dev/null 2>&1; then
-    case "${1:-}" in
-        switch)
-            if [ "${2:-}" != "local" ]; then
-                export NSP_WRAPPED=1 NSP_SRC_DIR="$SRC_DIR"
-                exec nix-switch-progress-wrap "$0" "$@"
-            fi
-            ;;
-        pull|switch-remote)
-            export NSP_WRAPPED=1 NSP_SRC_DIR="$SRC_DIR"
-            exec nix-switch-progress-wrap "$0" "$@"
-            ;;
-    esac
-fi
-
+# The MANDATORY switch popup (notify-send + a Konsole window tailing build.log
+# live) is now fired inside main()'s isolation block for switch/pull/switch-
+# remote — in the outer desktop context, BEFORE isolating into workload.slice,
+# so it always appears and doesn't depend on the (deploy-lagging) progress
+# wrapper. The old bottom-of-file `nix-switch-progress-wrap` re-exec was removed
+# (2026-07-10): the OLD deployed wrapper appended `--log-format internal-json`
+# unconditionally, which build.sh does not accept, and it opened a second
+# competing window. `switch local` still self-wraps inside nix_switch().
 main "$@"
 
 fi
