@@ -12,7 +12,7 @@
     "freeze_slices":    ["workload.slice"],
     "protected_slices": ["os-essentials.slice", "connectivity.slice"],
     "ntfy_priority": "urgent",
-    "actions": ["emergency_signal", "purge_tmp_worktrees", "purge_tmp_dotfiles", "purge_audit_old", "docker_prune_images", "docker_prune_volumes_dangling", "nix_gc_14d", "dev_store_gc", "recheck_gate", "freeze_nonsystem", "kill_nonsystem", "thaw_nonsystem"]
+    "actions": ["emergency_signal", "purge_tmp_worktrees", "purge_tmp_dotfiles", "purge_audit_old", "docker_prune_images", "docker_prune_builder", "docker_prune_volumes_dangling", "nix_gc_14d", "dev_store_gc", "recheck_gate", "freeze_nonsystem", "kill_nonsystem", "thaw_nonsystem"]
   },
 
   "watches": {
@@ -64,7 +64,7 @@
         "warn_pct": 80,
         "critical_pct": 90,
         "actions_on_warn":     ["alert_ntfy"],
-        "actions_on_critical": ["alert_ntfy", "docker_prune_images", "docker_prune_volumes_dangling", "dev_store_gc"]
+        "actions_on_critical": ["alert_ntfy", "docker_prune_images", "docker_prune_builder", "docker_prune_volumes_dangling", "dev_store_gc"]
       }
     ]
   },
@@ -222,6 +222,12 @@
       "description": "Prune dangling docker images",
       "safe_mode": true,
       "script": "docker image prune -f"
+    },
+    "docker_prune_builder": {
+      "type": "exec",
+      "description": "Prune the docker BUILD CACHE (buildkit layers) — `docker builder prune -af`. Build cache is NEVER referenced by a running container (docker system df reports it 0 active), so pruning it all is 100% safe. Root cause of the 2026-07-10 freeze: p5 filled to 97% with ~16GB of build cache from image rebuild loops (waydroid/caddy/superset), which docker_prune_images (dangling images only) and nix_gc (pool, not p5) could NOT touch — so RECLAIM was always INSUFFICIENT and the guard fell through to freezing workload.slice. This is the reclaim action that actually frees that space.",
+      "safe_mode": true,
+      "script": "docker builder prune -af"
     },
     "docker_prune_volumes_dangling": {
       "type": "exec",
@@ -396,6 +402,24 @@
         "description": "thaw_nonsystem is the final action (ungated safety un-freeze)",
         "command": "jq -r '.emergency.actions[-1]' /etc/cloud-data/disk-protection.json",
         "expect": "thaw_nonsystem"
+      },
+      {
+        "id": "emergency_prunes_build_cache_before_recheck",
+        "description": "2026-07-10 root cause: docker BUILD CACHE (not dangling images) filled p5, so reclaim must run `docker builder prune` BEFORE recheck_gate or the guard can never self-heal and freezes. Assert docker_prune_builder is in the emergency reclaim list, before the recheck gate.",
+        "command": "jq -r '.emergency.actions as $a | (($a|index(\"docker_prune_builder\")) != null) and (($a|index(\"docker_prune_builder\")) < ($a|index(\"recheck_gate\")))' /etc/cloud-data/disk-protection.json",
+        "expect": "true"
+      },
+      {
+        "id": "p5_critical_prunes_build_cache",
+        "description": "The /mnt/shared-lib (p5, docker data-root) critical tier prunes build cache at 90% — 5 points before the 95% emergency tier can arm, so build-cache fill self-heals early without any freeze.",
+        "command": "jq -r '.watches.mounts[] | select(.mount==\"/mnt/shared-lib\") | .actions_on_critical | index(\"docker_prune_builder\") != null' /etc/cloud-data/disk-protection.json",
+        "expect": "true"
+      },
+      {
+        "id": "docker_prune_builder_defined_safe",
+        "description": "docker_prune_builder action exists, is safe_mode, and prunes the build cache",
+        "command": "jq -r '.actions.docker_prune_builder | (.safe_mode == true) and (.script | test(\"builder prune\"))' /etc/cloud-data/disk-protection.json",
+        "expect": "true"
       },
       {
         "id": "emergency_cooldown_declared",
