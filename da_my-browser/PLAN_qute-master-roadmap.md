@@ -134,6 +134,26 @@ Only if you accept tracking upstream + maintaining a patch series. Everything ab
 - L4. A true settings GUI (vs the current `:config-edit` + dashboard reference).
 Recommendation: **defer.** Command/userscript/dashboard equivalents cover ~95%; a fork
 is a permanent maintenance tax on a project whose whole point is minimalism.
+- L5. **Dual tab-strip layout** (opt-in 2026-07-10) — a SECOND `QTabWidget`/`TabBar`
+  for pinned tabs, visually separate from the regular-tabs strip, with MyBar (bookmark
+  bar removed once bookmarks live as a pinned tab; plugin icons only) as a third row.
+  Real surgery: every tab-indexed keybinding/command (`H`/`L`, `tab-focus <N>`,
+  `tab-move`, `tab-close`, session save/restore, `tabbed_browser.widget` call sites
+  across `mainwindow.py`/`tabbedbrowser.py`/`app.py`) must route by pinned-state across
+  TWO widgets instead of one. Default pinned set = `localhost:8000`, `qute-bookmarks.html`,
+  Qwant — from `qute-default-window.json`. Needs its own dedicated session: prototype
+  the second QTabWidget + minimal routing first, verify tab-index-dependent keybinds
+  don't silently break, THEN wire pin/unpin to move a tab between strips.
+- L6. **Full network-traffic capture / export** (opt-in 2026-07-10) — "export everything
+  the browser saw for this site", including XHR/fetch API response bodies (e.g.
+  LinkedIn's server-rendered JSON), not just the rendered DOM (native `page.save()`
+  MHTML would miss those). Needs QtWebEngine's remote-debugging port (Chromium DevTools
+  Protocol) + a CDP client that subscribes to `Network.responseReceived` /
+  `Network.getResponseBody`, a storage format (per-site capture session → directory of
+  request/response pairs), and `:capture-start` / `:capture-stop` / `:capture-export`
+  commands. New daemon-class component, not a MyBar tweak — own PLAN doc before coding.
+Both L5/L6 confirmed in-scope by the operator (not deferred) — sized here so the next
+session starts with a real plan instead of re-deriving scope from scratch.
 
 ---
 
