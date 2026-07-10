@@ -275,6 +275,13 @@ producer_linux_partition() {
     initrd=$(jq -r ".grub.menu.$from.initrd" "$BOOT_JSON")
     opts=$(jq -r ".grub.menu.$from.options" "$BOOT_JSON")
     icon="${icon_override:-os_$from}"
+    # rEFInd's `volume` token matches ONLY a filesystem label, a partition label, or a
+    # partition GPT GUID (PARTUUID) — NOT the ext4 filesystem UUID (rodsbooks configfile.html).
+    # root_uuid is the *filesystem* UUID (right for root=UUID= and GRUB's search --fs-uuid, wrong
+    # for rEFInd). So prefer refind_volume (label/PARTUUID) when set; fall back to root_uuid only
+    # for FAT volumes where rEFInd matches the serial. Bug: blissos used root_uuid → rEFInd
+    # couldn't resolve the volume → "kernel not found" even with /blissos/kernel present.
+    vol=$(jq -r ".grub.menu.$from.refind_volume // .grub.menu.$from.root_uuid" "$BOOT_JSON")
     # root= kernel param. Default root=UUID=<root_uuid>; an entry may override via
     # grub.menu.<from>.root_param (e.g. Android-x86/BlissOS: "/dev/ram0" — the ramdisk root;
     # the real rootfs comes from SRC= in options). rEFInd's ext4 driver reads the kernel/initrd
@@ -284,7 +291,7 @@ producer_linux_partition() {
     cat <<EOF
 menuentry "$label" {
     icon ${STANZA_ICON_PATH}/${icon}.png
-    volume "$uuid"
+    volume "$vol"
     loader $kernel
     initrd $initrd
     options "root=$rp $opts"
@@ -343,6 +350,12 @@ producer_efi_chainload() {
     [ "$enabled" = "true" ] || { warn "  $label: source grub.menu.$from disabled"; return 0; }
     uuid=$(jq -r ".grub.menu.$from.efi_uuid // \"\"" "$BOOT_JSON")
     path=$(jq -r ".grub.menu.$from.efi_path // \"\"" "$BOOT_JSON")
+    # rEFInd's `volume` matches a filesystem label / partition label / partition GPT GUID
+    # (PARTUUID) — NOT an ext4 filesystem UUID. efi_uuid is the *filesystem* UUID (right for
+    # GRUB's search --fs-uuid on the FAT ESP, where rEFInd also matches the serial). For an
+    # ext4 partition (e.g. my-konsole on p8), prefer refind_volume (its PARTUUID, which survives
+    # the MY_KONSOLE relabel) so rEFInd can actually resolve the volume.
+    vol=$(jq -r ".grub.menu.$from.refind_volume // .grub.menu.$from.efi_uuid // \"\"" "$BOOT_JSON")
     # Priority: per-stanza icon override (manual_stanzas.order) >
     #           grub.menu.<from>.icon > "os_<from>" default
     if [ -n "$icon_override" ]; then
@@ -355,7 +368,7 @@ producer_efi_chainload() {
     cat <<EOF
 menuentry "$label" {
     icon ${STANZA_ICON_PATH}/${icon}.png
-    volume "$uuid"
+    volume "$vol"
     loader $path
 }
 
