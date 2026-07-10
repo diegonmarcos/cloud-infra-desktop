@@ -183,11 +183,19 @@
   <div id="scrim"><div class="sheet" id="sheet"></div></div>
   <footer><kbd>v</kbd> view · <kbd>/</kbd> search · <kbd>Esc</kbd> close · qutebrowser <kbd>f</kbd> to follow</footer>
 
+<!-- Fork-written real browsing history (window.QUTE_HISTORY_RECENT), refreshed live
+     by mybar.py off history.web_history.changed. A plain <script src> load across
+     file:// paths works (verified); fetch()/XHR to it or to qute://history/data
+     does NOT (CORS-mode network requests are blocked even with LocalAccessAllowed).
+     Missing/stale file (fresh install, before first navigation) → just no globals,
+     handled by the fallback below. -->
+<script src="file://__HISTORY_JS_PATH__"></script>
 <script>
 const DATA = __BOOKMARKS_JSON__;
 const KEYBINDINGS = __KEYBINDINGS_JSON__;   // [{key,cmd,desc,group}] — SoT: qute-keybindings.json
 const PLUGINS = __PLUGINS_JSON__;           // [{id,name,category,surface,enabled,...}] — SoT: qute-plugins.json
 const SEARCH_URL = "__SEARCH_URL__";        // web-search template ({} = query) — SoT: qute-search-engines.json "qw"
+const HISTORY_RECENT = window.QUTE_HISTORY_RECENT || [];  // real qutebrowser history, see script tag above
 // sections[] → { name, desc, recent, links{}, folders:[{name,desc,links{}}] }
 const SECTIONS = (DATA.sections||[]).map(s=>({
   name:s.name, desc:s.desc||'', recent:!!s.recent,
@@ -202,7 +210,7 @@ const host = u => { try{ return new URL(u).hostname||'localhost'; }catch(e){ ret
 const fav  = u => `https://icons.duckduckgo.com/ip3/${host(u)}.ico`;
 const L    = n => (n.replace(/[^a-z0-9]/ig,'')[0]||'◆').toUpperCase();
 // icon <img> with letter fallback
-const icon = (name,url,cls)=>`<span class="${cls}" data-l="${L(name)}"><img src="${fav(url)}" alt="" loading="lazy" onerror="this.remove();this.parentNode.textContent=this.parentNode.dataset.l"></span>`;
+const icon = (name,url,cls)=>`<span class="${cls}" data-l="${L(name)}"><img src="${fav(url)}" alt="" loading="lazy" onerror="this.parentNode.textContent=this.parentNode.dataset.l"></span>`;
 
 /* ---------- Last Sessions: live recents (localStorage), merged over build-baked ---------- */
 const RECENT_KEY='bm-recent';
@@ -213,12 +221,18 @@ function pushRecent(name,url){
   r.unshift({name:name||host(url),url}); r=r.slice(0,5);
   try{ localStorage.setItem(RECENT_KEY,JSON.stringify(r)); }catch(e){}
 }
-// resolve a section's links, merging live recents ahead of baked ones for recent sections
+// resolve a section's links for "recent" sections: real qutebrowser history
+// (HISTORY_RECENT, fork-written, most authoritative) first, then dashboard
+// click-throughs (localStorage), then any baked/static links — deduped by
+// URL, capped so this stays a "recent" glance, not a full history browser
+// (qute://history / the "Full History" link is that).
 function sectionLinks(s){
   if(!s.recent) return s.links;
   const out={}; const seen=new Set();
-  getRecent().concat(Object.entries(s.links).map(([name,url])=>({name,url})))
-    .forEach(({name,url})=>{ if(out[name]||seen.has(url)) return; if(Object.keys(out).length>=5) return; out[name]=url; seen.add(url); });
+  HISTORY_RECENT.map(h=>({name:h.title,url:h.url}))
+    .concat(getRecent())
+    .concat(Object.entries(s.links).map(([name,url])=>({name,url})))
+    .forEach(({name,url})=>{ if(out[name]||seen.has(url)) return; if(Object.keys(out).length>=8) return; out[name]=url; seen.add(url); });
   return out;
 }
 // track clicks on any dashboard link
@@ -233,7 +247,7 @@ const appIco=(name,url)=>`<a class="folder-ico" href="${url}" target="_blank" re
     <span class="cap">${name}</span></a>`;
 function folderIco(f){
   const names=Object.keys(f.links);
-  const preview=names.slice(0,4).map(n=>`<span class="mini" data-l="${L(n)}"><img src="${fav(f.links[n])}" alt="" onerror="this.remove();this.parentNode.textContent=this.parentNode.dataset.l"></span>`).join('')
+  const preview=names.slice(0,4).map(n=>`<span class="mini" data-l="${L(n)}"><img src="${fav(f.links[n])}" alt="" onerror="this.parentNode.textContent=this.parentNode.dataset.l"></span>`).join('')
                || '<span class="mini">·</span>';
   const b=document.createElement('button');
   b.className='folder-ico'; b.dataset.k=f.name; b.dataset.i=f._id;

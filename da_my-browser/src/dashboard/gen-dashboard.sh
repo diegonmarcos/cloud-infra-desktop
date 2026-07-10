@@ -23,6 +23,10 @@ CLOUD_DESKTOP_JSON="${CLOUD_DESKTOP_JSON:-$HOME/git/cloud/2_configs/dist/build-f
 FRONT_TOPOLOGY_JSON="${FRONT_TOPOLOGY_JSON:-$HOME/git/front/front-topology.json}"
 FRONT_ROOT="${FRONT_ROOT:-$HOME/git/front}"
 HISTORY_SQLITE="${HISTORY_SQLITE:-$HOME/.local/share/qutebrowser/history.sqlite}"
+# Live history.js dumped by the fork (mybar.py, event-driven off history.web_history.changed)
+# — matches its default standarddir.data() path exactly. See dashboard.template.html's
+# __HISTORY_JS_PATH__ token for why this can't just be a fetch() of qute://history/data.
+HISTORY_JS_PATH="${HISTORY_JS_PATH:-$HOME/.local/share/qutebrowser/history-recent.js}"
 TEMPLATE="${TEMPLATE:-$HERE/dashboard.template.html}"
 OUT="${OUT:-$HERE/../../dist/qute-bookmarks.html}"
 
@@ -191,13 +195,13 @@ else
 fi
 
 mkdir -p "$(dirname "$OUT")"
-# Inject four tokens. LITERAL replacement via index()/substr() + ENVIRON —
+# Inject five tokens. LITERAL replacement via index()/substr() + ENVIRON —
 # NOT gsub() and NOT `-v`: awk gsub treats `&` in the replacement as "the
 # matched text" (so a plugin name like "Ad & Tracker Blocking" or any URL
 # query-string `?a=1&b=2` corrupts the output), and `-v` runs C-escape
 # processing on the value (mangling JSON's \" \\ ). ENVIRON + substr avoids
 # both entirely — the injected JSON is inserted byte-for-byte.
-BM="$DATA" KB="$KEYBINDINGS" PL="$PLUGINS" SU="$SEARCH_URL" awk '
+BM="$DATA" KB="$KEYBINDINGS" PL="$PLUGINS" SU="$SEARCH_URL" HJ="$HISTORY_JS_PATH" awk '
   function inject(s, tok, val,   i, out) {
     out = ""
     while ((i = index(s, tok)) > 0) { out = out substr(s, 1, i-1) val; s = substr(s, i + length(tok)) }
@@ -207,6 +211,7 @@ BM="$DATA" KB="$KEYBINDINGS" PL="$PLUGINS" SU="$SEARCH_URL" awk '
     line = inject(line, "__KEYBINDINGS_JSON__", ENVIRON["KB"])
     line = inject(line, "__PLUGINS_JSON__",     ENVIRON["PL"])
     line = inject(line, "__SEARCH_URL__",       ENVIRON["SU"])
+    line = inject(line, "__HISTORY_JS_PATH__",  ENVIRON["HJ"])
     print line }' "$TEMPLATE" > "$OUT"
 nsec=$(jq -r '.sections|length' <<<"$DATA")
 nlink=$(jq -r '[.sections[] | (.links|length) + ([.folders[].links|length]|add // 0)]|add' <<<"$DATA")
