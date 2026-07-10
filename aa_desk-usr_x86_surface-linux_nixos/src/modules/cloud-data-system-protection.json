@@ -48,8 +48,9 @@
     "notify": true,
     "_thrash_comment": "2026-07-10 v3: the memory.high-THRASH voter — the early detector for the exact failure that PSI missed. The 13:06 freeze had memory.pressure ~35% (below every PSI limit) while user-1000.slice hit memory.high 1.14M times doing reclaim thrash. This voter reads the memory.events 'high' counter delta on thrash_slice each tick; if the per-second rate exceeds high_events_per_sec_max sustained for thrash_sustain_sec, it SIGKILLs the largest-RSS process INSIDE that throttled slice (via cgroup.procs, not systemwide) — the actual runaway, never an innocent. Fires regardless of PSI because it watches the throttle counter itself.",
     "thrash_slice": "user.slice/user-1000.slice",
-    "high_events_per_sec_max": 5000,
-    "thrash_sustain_sec": 6
+    "high_events_per_sec_max": 1000,
+    "thrash_sustain_sec": 6,
+    "_threshold_evidence": "13:41-13:54 freeze (the third one, during the docker-pull bootstrap): sustained thrash measured at ~2,900 high-events/s (psi-recorder: 1,615,161→1,644,543 in 10s) — BELOW the initial 5000/s guess, so the voter would have sat silent through it. 1000/s is safely under every observed freeze (2900-15000/s) while normal desktop operation idles at <100/s."
   },
 
   "watchdog_selfcheck": {
