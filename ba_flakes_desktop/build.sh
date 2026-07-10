@@ -36,6 +36,9 @@ CONTAINER_DIR="$SCRIPT_DIR/src/container"
 # poll timer and the switch/ci-build engine agree on ONE image + label — never
 # hardcoded twice. Read via hmcfg() below.
 HM_AUTO_CFG="$SRC_DIR/modules/programs/hm-auto-update.json"
+# GitHub-Pages nix binary cache config (incremental streaming transport — the
+# only deploy path that works on the disk-full box). See nix-cache.json.
+NIX_CACHE_CFG="$SRC_DIR/modules/nix-cache.json"
 
 # Age key — dotfile symlink from vault/build.sh setup system, sops-nix fallback
 : "${SOPS_AGE_KEY_FILE:=$HOME/.config/sops/age/keys.txt}"
@@ -1002,6 +1005,50 @@ cmd_pull() {
 # download. Returns 0 iff the activation path is fully present afterwards; 1 on
 # ANY failure (no skopeo, no gh auth, unlabeled image, image/pull failure) so
 # the caller falls back to the byte-exact artifact-download path.
+# nixcache_switch <artifact-dir> — THE incremental transport (2026-07-10). Pulls
+# the new HM generation from the GitHub-Pages nix cache by STREAMING only the
+# store paths this box is missing — no 6GB artifact, no 14G staging, works on a
+# full disk, cannot freeze. Verified primitives: `nix copy --from` works for the
+# non-root user with --no-check-sigs (no trusted-user / system change needed).
+# Flow: toplevel from the GHCR label (KB skopeo inspect) → fetch the CUSTOM paths
+# from the Pages cache (small) → let cache.nixos.org fill the public ones →
+# write activation.name for cmd_pull. Returns 1 (caller falls back) on any miss
+# (cache not populated yet, offline, etc.).
+nixcache_switch() {
+    _art="$1"
+    command -v jq >/dev/null 2>&1 && [ -f "$NIX_CACHE_CFG" ] || return 1
+    [ "$(jq -r '.enabled' "$NIX_CACHE_CFG" 2>/dev/null)" = "true" ] || return 1
+    command -v skopeo >/dev/null 2>&1 && command -v gh >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 || return 1
+    _url="$(jq -r '.cache_url' "$NIX_CACHE_CFG")"
+    _manifest="$(jq -r '.manifest_file' "$NIX_CACHE_CFG")"
+    _img="${HM_CACHE_IMAGE:-$(hm_cache_image)}:latest"
+    _label="$(hm_cache_label)"
+    _tok="$(gh auth token 2>/dev/null)" || return 1
+    log_info "nixcache: resolving toplevel from $_img label..."
+    _sys="$(skopeo inspect --creds "x:$_tok" --format "{{ index .Labels \"$_label\" }}" "docker://$_img" 2>/dev/null)"
+    [ -n "$_sys" ] && [ "$_sys" != "<no value>" ] || { log_warn "nixcache: no activation label — falling back."; return 1; }
+    mkdir -p "$_art"; basename "$_sys" > "$_art/activation.name"
+    if [ -d "$_sys" ]; then log_success "nixcache: $_sys already present — no download."; return 0; fi
+    # Is the cache reachable + populated for THIS generation?
+    if ! curl -fsSL "$_url/$_manifest" -o "$_art/custom-paths.txt" 2>/dev/null; then
+        log_warn "nixcache: cache/manifest not reachable at $_url ($_manifest) — falling back (CI may not have published yet)."
+        return 1
+    fi
+    log_info "nixcache: streaming $(wc -l < "$_art/custom-paths.txt") custom paths from $_url ..."
+    # 1) custom paths from the Pages cache (small). 2) public deps from
+    # cache.nixos.org (custom already local → skipped). Both explicit copies,
+    # streamed straight into /nix/store — no staging.
+    xargs -a "$_art/custom-paths.txt" -r nix copy --from "$_url" --no-check-sigs 2>&1 | tail -2
+    log_info "nixcache: filling public deps from cache.nixos.org ..."
+    nix copy --from "https://cache.nixos.org" "$_sys" --no-check-sigs 2>&1 | tail -2
+    if [ -d "$_sys" ]; then
+        log_success "nixcache: generation materialised (incremental, streamed — NO 6GB, NO staging)."
+        return 0
+    fi
+    log_warn "nixcache: $_sys still missing after stream — falling back."
+    return 1
+}
+
 ghcr_incremental_switch() {
     _art="$1"
     # The docker-layered incremental transport is BROKEN (buildLayeredImage has no
@@ -1072,10 +1119,16 @@ cmd_switch_runner() {
     _art="$SCRIPT_DIR/dist-ci"
     rm -rf "$_art"; mkdir -p "$_art"
 
-    # ── Incremental-first (the whole point of the layered cache image): try to
-    #    switch using ONLY that image — label → activation store path → docker
-    #    cp of just the missing layers. Skips the ~6GB artifact download on the
-    #    common path. Any failure falls through to the full download below.
+    # ── PRIMARY: GitHub-Pages nix cache (streams only the missing paths — no
+    #    6GB, no 14G staging, works on the full disk). The ONLY path that can
+    #    actually complete on this box; everything below is a fallback.
+    if nixcache_switch "$_art"; then
+        cmd_pull "$_art"
+        return $?
+    fi
+
+    # ── Fallback A: layered GHCR image (kept, though docker transport is
+    #    disabled by default via .safety.incremental_pull).
     if ghcr_incremental_switch "$_art"; then
         cmd_pull "$_art"
         return $?

@@ -1,0 +1,11 @@
+{
+  "_doc": "GitHub-Pages nix binary cache — the incremental deploy transport (2026-07-10). CI (ship_nix-flakes_desktop_hm.yaml) builds the HM closure, `nix copy --to` publishes the CUSTOM store paths (closure minus what cache.nixos.org already has = tens of MB) to the gh-pages branch, served as a static HTTP nix cache at cache_url. The desktop's build.sh switch does `nix copy --from cache_url <custom-paths>` (small, from Pages) then `nix copy --from cache.nixos.org <toplevel>` (public paths, custom already local) then activates — streaming, NO 14G artifact staging, works on the disk-full 8GB box, no freeze. `nix copy --from` is an explicit fetch that works for the non-root user with no trusted-user/system change (verified 2026-07-10). Public key here (not secret); private signing key in vault + the NIX_CACHE_PRIVKEY GH Actions secret.",
+  "cache_url": "https://diegonmarcos.github.io/unix",
+  "public_key": "diegonmarcos.github.io-nixcache-1:+Ag+y1P1pNBwb88nvc/x+B+S9ouKcHRgxPbD8e0WRIM=",
+  "key_name": "diegonmarcos.github.io-nixcache-1",
+  "pages_branch": "gh-pages",
+  "manifest_file": "custom-paths.txt",
+  "signing_key_gh_secret": "NIX_CACHE_PRIVKEY",
+  "signing_key_vault_path": "A0_keys/providers/github/nix-cache-signing.pem",
+  "enabled": true
+}

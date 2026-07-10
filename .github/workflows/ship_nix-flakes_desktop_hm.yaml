@@ -31,7 +31,7 @@ on:
       - "1_workflows/src/cicd/ship_nix-flakes_desktop_hm.yaml"
 
 permissions:
-  contents: read
+  contents: write        # push the nix cache to the gh-pages branch (Pages)
   packages: write        # push the incremental layered HM cache image to GHCR
 
 concurrency:
@@ -64,6 +64,41 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HM_CACHE_IMAGE: ghcr.io/${{ github.repository_owner }}/unix-hm-cache
         run: ./ba_flakes_desktop/build.sh ci-build
+
+      # ── Incremental nix cache → GitHub Pages (2026-07-10) ──────────────────
+      # The disk-full 8GB laptop cannot stage the 6GB artifact. Publish ONLY the
+      # CUSTOM store paths (closure minus what cache.nixos.org already serves =
+      # tens of MB) as a signed static nix cache to the gh-pages branch. The
+      # desktop's `build.sh switch` streams those (nix copy --from) + fills the
+      # public deps from cache.nixos.org — no 6GB, no 14G staging, no freeze.
+      - name: Publish incremental nix cache to GitHub Pages
+        env:
+          NIX_CACHE_PRIVKEY: ${{ secrets.NIX_CACHE_PRIVKEY }}
+        run: |
+          set -euo pipefail
+          TOP="/nix/store/$(cat ba_flakes_desktop/dist-ci/activation.name)"
+          echo "toplevel: $TOP"
+          nix path-info -r "$TOP" | sort > /tmp/all.txt
+          # Paths cache.nixos.org already serves — exclude them (desktop gets
+          # those from cache.nixos.org directly). On failure, publish all.
+          if nix path-info -r "$TOP" --store https://cache.nixos.org 2>/dev/null | sort > /tmp/public.txt; then
+            comm -23 /tmp/all.txt /tmp/public.txt > /tmp/custom.txt
+          else
+            cp /tmp/all.txt /tmp/custom.txt
+          fi
+          echo "custom paths: $(wc -l < /tmp/custom.txt) of $(wc -l < /tmp/all.txt) total"
+          printf '%s' "$NIX_CACHE_PRIVKEY" > /tmp/cache-key.pem
+          mkdir -p cache
+          xargs -a /tmp/custom.txt -r nix copy --to "file://$PWD/cache?secret-key=/tmp/cache-key.pem"
+          cp /tmp/custom.txt cache/custom-paths.txt
+          rm -f /tmp/cache-key.pem
+          echo "cache size:"; du -sh cache
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./cache
+          publish_branch: gh-pages
+          force_orphan: true
 
       - uses: actions/upload-artifact@v4
         with:
