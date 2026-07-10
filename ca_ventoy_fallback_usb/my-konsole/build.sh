@@ -82,22 +82,29 @@ install_partition() {
 
     local J="$SCRIPT_DIR/install.json"
     command -v jq >/dev/null || log_err "jq required"
-    local DEV UUID LABEL EFI REL REPO
-    DEV=$(jq -r '.partition.device'       "$J")
-    UUID=$(jq -r '.partition.uuid'        "$J")
+    local DEV UUID LABEL EFI ART WF REPO
+    DEV=$(jq -r '.partition.device'         "$J")
+    UUID=$(jq -r '.partition.uuid'          "$J")
     LABEL=$(jq -r '.partition.volume_label' "$J")
-    EFI=$(jq -r '.partition.efi_binary'   "$J")
-    REL=$(jq -r '.partition.iso_release'  "$J")
-    REPO=$(jq -r '.partition.iso_repo'    "$J")
+    EFI=$(jq -r '.partition.efi_binary'     "$J")
+    ART=$(jq -r '.partition.iso_artifact'   "$J")
+    WF=$(jq -r '.partition.iso_workflow'    "$J")
+    REPO=$(jq -r '.partition.iso_repo'      "$J")
 
-    # ── Resolve ISO: prefer local build, else pull the GHA-built release ──────
+    # ── Resolve ISO: prefer local build, else pull the GHA workflow ARTIFACT ──
+    # (ship-my-konsole-iso publishes the .iso via actions/upload-artifact, NOT a
+    # GH release — so fetch it from the latest successful run with `gh run download`.)
     local ISO="$SCRIPT_DIR/my-konsole.iso"
     if [ ! -f "$ISO" ]; then
-        log_info "No local ISO — fetching from GH release '$REL' ($REPO)…"
+        log_info "No local ISO — fetching artifact '$ART' from latest successful $WF run…"
         command -v gh >/dev/null || log_err "gh required to fetch the ISO (or run ./build.sh first)"
-        gh release download "$REL" --repo "$REPO" -p '*.iso' -D "$SCRIPT_DIR" \
-            || log_err "gh release download failed — build+publish the ISO on GHA first (ship-my-konsole-iso)"
-        ISO=$(command find "$SCRIPT_DIR" -maxdepth 1 -name '*.iso' | command head -1)
+        local RID
+        RID=$(gh run list --repo "$REPO" --workflow "$WF" --status success \
+                --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null)
+        [ -n "$RID" ] || log_err "no successful $WF run yet — build the ISO on GHA first"
+        gh run download "$RID" --repo "$REPO" -n "$ART" -D "$SCRIPT_DIR" \
+            || log_err "gh run download failed (run $RID, artifact $ART)"
+        ISO=$(command find "$SCRIPT_DIR" -maxdepth 2 -name '*.iso' | command head -1)
         [ -f "$ISO" ] || log_err "no .iso after download"
     fi
     log_ok "ISO: $ISO"
