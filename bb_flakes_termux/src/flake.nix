@@ -365,7 +365,8 @@
 
                 # Session engine env. No konsole in Termux → engine uses tmux.
                 export CAS_API="${claudeSuperset.api}" CAS_SELF="claude-superset" CAS_FACE="$MODE"
-                export CAS_TMUX="${pkgs.tmux}/bin/tmux"
+                # ''${VAR-default}: a pre-set (even empty) CAS_TMUX survives — test override.
+                export CAS_TMUX="''${CAS_TMUX-${pkgs.tmux}/bin/tmux}"
                 ${if ((claudeSuperset.device or "") != "") then ''export CAS_DEVICE="${claudeSuperset.device}"'' else ""}
                 CAS_DEVICE="''${CAS_DEVICE:-}"
                 ENGINE="${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-restore.mjs}"
