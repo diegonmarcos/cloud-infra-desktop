@@ -87,6 +87,12 @@ ea_cloud-ide/**/*.keystore
 ea_cloud-ide/**/*.jks
 ea_cloud-nav/**/*.keystore
 ea_cloud-nav/**/*.jks
+## Fork-clone workspace: build.json::forks.<key>.tracker_dir materializes the
+## upstream clones here (Mattermost / FairEmail / Fossify / Element-X) via
+## `build.sh materialize-fork`. Huge third-party trees — NEVER vendored. OUR
+## changes live as git-am patch series in ea_cloud-comms/forks/<key>/patches/
+## (tracked). Was covered by the old `ea_*-*/` blanket rule, removed 2026-07-10.
+ea_upstreams-sources/
 ea_cloud-wallet/**/*.keystore
 ea_cloud-wallet/**/*.jks
 ea_cloud-browser/**/*.keystore
