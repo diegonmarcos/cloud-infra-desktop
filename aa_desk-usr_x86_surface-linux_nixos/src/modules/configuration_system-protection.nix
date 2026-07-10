@@ -123,6 +123,18 @@ in
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # KERNEL WATCHDOG — last-line escape hatch (2026-07-10 v3)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # The Surface exposes NO hardware watchdog (/sys/class/watchdog empty,
+  # RuntimeWatchdogUSec=0) — before this, a true kernel wedge could ONLY be
+  # cleared by holding the power button. softdog + systemd's RuntimeWatchdogSec
+  # makes PID1 pet /dev/watchdog every runtime_sec/2; if the box is so wedged
+  # PID1 can't run, softdog fires and reboots in runtime_sec. Session-on-disk
+  # checkpoints bound the blast radius. Data-driven from sysprot.kernel_watchdog.
+  boot.kernelModules = lib.optional sysprot.kernel_watchdog.enable sysprot.kernel_watchdog.module;
+  systemd.watchdog.runtimeTime = lib.mkIf sysprot.kernel_watchdog.enable "${toString sysprot.kernel_watchdog.runtime_sec}s";
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # EARLYOOM: last resort OOM killer (RR scheduler)
   # ═══════════════════════════════════════════════════════════════════════════
   # earlyoom — DISABLED (2026-07-03 user directive: ONLY PSI-based killers, no
@@ -247,6 +259,15 @@ in
       INTERVAL=${toString sysprot.watchdog.interval_sec}
       PREFER="${lib.concatStringsSep "|" sysprot.watchdog.prefer_kill}"
       AVOID="${sysprot.watchdog.avoid_kill}"
+      # ── memory.high-THRASH voter (v3, 2026-07-10) ──────────────────────────
+      # The 13:06 freeze was INVISIBLE to PSI (memory.pressure ~35%, below every
+      # limit) yet user-1000.slice hit memory.high 1.14M times reclaim-thrashing.
+      # This voter watches the memory.events 'high' counter delta on the throttled
+      # slice directly; sustained > HIGH_MAX/s for THRASH_SUSTAIN s → SIGKILL the
+      # biggest-RSS process INSIDE that slice (cgroup.procs), never systemwide.
+      THRASH_CG="/sys/fs/cgroup/${sysprot.watchdog.thrash_slice}"
+      HIGH_MAX=${toString sysprot.watchdog.high_events_per_sec_max}
+      THRASH_SUSTAIN=${toString sysprot.watchdog.thrash_sustain_sec}
 
       # $2 = "full" (mem/io: all tasks stalled) or "some" (cpu: any task stalled).
       psi_avg10() {
@@ -266,18 +287,51 @@ in
         echo "$line"
       }
 
-      # Signal picker: graceful SIGTERM for node/claude so Claude Code can print
-      # its "claude --resume" hint on the way out; hard SIGKILL for everything
-      # else. NOT a whitelist — node/claude still gets killed, just cleanly.
-      # Match on the FULL CMDLINE, not comm: claude runs via the glibc loader
-      # (comm=ld-linux-x86-64), so a comm match misses it — 2026-07-02 claude
-      # was SIGKILLed 4x with no resume hint because of exactly that.
+      # Largest-RSS pid INSIDE the throttled cgroup (thrash voter target). Reads
+      # the slice's own cgroup.procs — so the runaway that is actually filling
+      # user-1000.slice is killed, never an innocent process elsewhere. Skips
+      # avoid_kill comms (compositor/session infra). Prints "pid rss comm".
+      pick_cgroup_victim() {
+        local procs="$1/cgroup.procs" p comm rss best_pid="" best_rss=-1 best_comm=""
+        [ -r "$procs" ] || return 1
+        while read -r p; do
+          [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null || continue
+          comm=$(cat "/proc/$p/comm" 2>/dev/null) || continue
+          echo "$comm" | grep -Eq -- "$AVOID" && continue
+          rss=$(awk '/^VmRSS:/ {print $2}' "/proc/$p/status" 2>/dev/null)
+          [ -n "$rss" ] || continue
+          if [ "$rss" -gt "$best_rss" ]; then best_rss="$rss"; best_pid="$p"; best_comm="$comm"; fi
+        done < "$procs"
+        [ -n "$best_pid" ] && echo "$best_pid $best_rss $best_comm"
+      }
+
+      # Signal picker WITH ESCALATION (2026-07-10 v3 — root cause of the 13:06
+      # freeze). Graceful SIGTERM for node/claude so Claude Code can print its
+      # "claude --resume" hint; hard SIGKILL for everything else. CRITICAL FIX:
+      # a graceful SIGTERM that is IGNORED must ESCALATE. The 13:06 freeze was
+      # freeze-guard SIGTERM-ing the SAME claude pid (89831, comm=ld-linux) 20+
+      # times over 75s while it sat wedged in IO-stall (D-state) and never died
+      # — polite-forever with no teeth. Now: first offense = SIGTERM; if the
+      # SAME pid is still the offender on a later tick (already in TERMED) =
+      # SIGKILL. So a process that won't leave on request gets forced out within
+      # one interval. Match on FULL CMDLINE (claude runs via ld-linux, comm
+      # misses it). TERMED is a persistent cross-tick map (declared before the
+      # loop); dead pids are pruned there.
+      # Sets the global SIG (never echoes) and MUST be called directly, NOT via
+      # $(do_kill ...): command substitution runs in a subshell, so a TERMED[]
+      # mutation there would be lost and escalation would silently never fire
+      # (caught in testing 2026-07-10). Callers do:  do_kill "$pid" "$name"; sig=$SIG
       do_kill() {
         local cmdline
         cmdline=$(tr '\0' ' ' < "/proc/$1/cmdline" 2>/dev/null || echo "$2")
         case "$cmdline" in
-          *claude*|*node*) kill -TERM "$1" 2>/dev/null || true; echo TERM ;;
-          *)               kill -9    "$1" 2>/dev/null || true; echo KILL ;;
+          *claude*|*node*)
+            if [ -n "''${TERMED[$1]:-}" ]; then
+              kill -9 "$1" 2>/dev/null || true; unset "TERMED[$1]"; SIG=KILL-ESC
+            else
+              kill -TERM "$1" 2>/dev/null || true; TERMED[$1]=1; SIG=TERM
+            fi ;;
+          *) kill -9 "$1" 2>/dev/null || true; SIG=KILL ;;
         esac
       }
 
@@ -286,11 +340,46 @@ in
       # (PSI 'some'/'full' avg10 over limit); the victim is then RANKED by %cpu
       # (cpu breach) or RSS (mem/io breach) — ranking is victim-selection, not the
       # trigger. Graceful SIGTERM for node/claude via do_kill.
-      echo "[freeze-guard] online as $(id -un); PSI-ONLY trigger — cpuPSI(some)>$CPU_LIMIT | memPSI(full)>$MEM_LIMIT | ioPSI(full)>$IO_LIMIT; max $MAX_KILLS kills/tick"
+      echo "[freeze-guard] online as $(id -un); PSI trigger — cpuPSI(some)>$CPU_LIMIT | memPSI(full)>$MEM_LIMIT | ioPSI(full)>$IO_LIMIT; THRASH trigger — memory.high >$HIGH_MAX/s for ''${THRASH_SUSTAIN}s on $THRASH_CG; max $MAX_KILLS kills/tick"
+      prev_high=""; thrash_secs=0
+      declare -A TERMED    # pids already SIGTERM'd once — escalate to SIGKILL on recurrence
       while :; do
+        # Prune escalation map: drop pids that already died (so it can't grow
+        # unbounded and a recycled pid isn't wrongly fast-killed).
+        for _p in "''${!TERMED[@]}"; do [ -d "/proc/$_p" ] || unset "TERMED[$_p]"; done
+
         cpu=$(psi_avg10 cpu some);    cpu=''${cpu:-0}
         mem=$(psi_avg10 memory full); mem=''${mem:-0}
         io=$(psi_avg10 io full);      io=''${io:-0}
+
+        # ── VOTER: memory.high thrash (PSI-invisible reclaim storm) ──────────
+        # Watches the throttle counter itself, so it fires even when PSI stays
+        # low (the exact 13:06 blind spot). EVERY evaluation logs (silence was
+        # what made the last freeze undebuggable).
+        cur_high=$(awk '$1=="high"{print $2}' "$THRASH_CG/memory.events" 2>/dev/null)
+        cur_high=''${cur_high:-0}
+        if [ -n "$prev_high" ]; then
+          rate=$(( (cur_high - prev_high) / (INTERVAL > 0 ? INTERVAL : 1) ))
+          [ "$rate" -lt 0 ] && rate=0
+          if [ "$rate" -gt "$HIGH_MAX" ]; then
+            thrash_secs=$(( thrash_secs + INTERVAL ))
+            echo "[freeze-guard] THRASH-WATCH memory.high rate=''${rate}/s > $HIGH_MAX (sustained ''${thrash_secs}s/''${THRASH_SUSTAIN}s) on $THRASH_CG"
+            if [ "$thrash_secs" -ge "$THRASH_SUSTAIN" ]; then
+              set -- $(pick_cgroup_victim "$THRASH_CG")
+              vpid="$1"; vrss="$2"; vcomm="$3"
+              if [ -n "$vpid" ] && [ "$vpid" -gt 1 ] 2>/dev/null; then
+                do_kill "$vpid" "$vcomm"; vsig=$SIG
+                echo "[freeze-guard] THRASH-KILL memory.high ''${rate}/s → SIG$vsig pid=$vpid rss=''${vrss}kB ($vcomm) in $THRASH_CG"
+              else
+                echo "[freeze-guard] THRASH-KILL: no eligible victim in $THRASH_CG (all avoid_kill?) — cannot act"
+              fi
+              thrash_secs=0
+            fi
+          else
+            thrash_secs=0
+          fi
+        fi
+        prev_high="$cur_high"
 
         killed=""; n=0
         while [ "$n" -lt "$MAX_KILLS" ] && \
@@ -300,7 +389,7 @@ in
           set -- $(pick_victim "$key" "$killed")
           pid="$1"; metric="$2"; name="$3"
           [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null || break
-          sig=$(do_kill "$pid" "$name")
+          do_kill "$pid" "$name"; sig=$SIG
           echo "[freeze-guard] FREEZE-RISK cpuPSI=$cpu memPSI=$mem ioPSI=$io → SIG$sig pid=$pid rank-by=$key metric=$metric ($name)"
           killed="$killed $pid"; n=$((n + 1))
           sleep 0.3   # let PSI reflect the kill before re-reading
@@ -353,10 +442,15 @@ in
   };
 
   # os-essentials.slice — 95% cap, protection + connectivity
+  # v3 (2026-07-10): + MemoryMin so reclaim can NEVER evict sshd/session/logind
+  # pages (the infra you need to debug a freeze), + high IOWeight so those
+  # daemons keep the NVMe queue when workload bulk-writers storm it.
   systemd.slices."os-essentials" = {
     description = "OS-essential services — protection, connectivity";
     sliceConfig = {
       CPUQuota = osEssentialsCpuQuota;
+      MemoryMin = sysprot.slice_protection.os_essentials_memory_min;
+      IOWeight = sysprot.slice_protection.os_essentials_io_weight;
     };
   };
 
@@ -375,10 +469,14 @@ in
   };
 
   # workload.slice — 75% cap, catch-all for non-essential services
+  # v3 (2026-07-10): + low IOWeight so bulk writers (docker/nix-daemon/backups)
+  # yield the NVMe queue to the desktop + island — they can no longer IO-starve
+  # the compositor the way the 13:06 reclaim thrash did.
   systemd.slices."workload" = {
     description = "Workload services — docker, containers, nix-daemon";
     sliceConfig = {
       CPUQuota = workloadCpuQuota;
+      IOWeight = sysprot.slice_protection.workload_io_weight;
     };
   };
 

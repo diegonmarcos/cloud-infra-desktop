@@ -22,9 +22,10 @@
   "gui_session": {
     "_comment": "user-1000.slice (the KDE Plasma desktop). MemoryMin = RAM the kernel is FORBIDDEN to reclaim, so the compositor (kwin/plasmashell) stays responsive under build pressure. 2026-07-02 FIX: MemorySwapMax=0 also blocked ZRAM (cgroup swap caps can't distinguish zram from disk) — with MemoryHigh below the real working set the kernel could only evict file-backed pages (running executables), which faulted straight back through kcryptd/btrfs = the freeze. 2026-07-03: valve 2G→6G — the 2G valve saturated (Redroid + multi-claude workload), reclaim had nowhere to spill while 17G of zram sat FREE, MemAvailable collapsed to 2% and earlyoom killed sessions/imports at near-zero PSI. 6G still lands zram-first (prio 100 vs disk -1); the disk swapfile is touched only after ~7.6G compressed zram truly fills.",
     "MemoryMin": "1G",
-    "MemoryHigh": "4505M",
+    "MemoryHigh": "5400M",
     "MemoryMax": "5734M",
-    "MemorySwapMax": "6G"
+    "MemorySwapMax": "6G",
+    "_memoryhigh_note": "2026-07-10 v3 FIX: MemoryHigh 4505M→5400M. The 4505/5734 gap was a 1.2G 'throttle purgatory' — the 13:06 double-freeze was user-1000.slice hitting memory.high 1,146,211 times (memory.events high, oom_kill=0), doing endless direct reclaim (io.pressure full=62% for minutes) instead of ever killing. Narrowing the band to ~330M means memory.high is a brief ramp, not a permanent stall; escalation to a kill (oomd 30% / freeze-guard thrash voter) happens in seconds instead of never."
   },
 
   "reservation": {
@@ -44,7 +45,11 @@
     "max_kills_per_tick": 4,
     "prefer_kill": ["cc1plus", "cc1", "rustc", "ld", "lto1", "ghc", "node", "electron", "brave", "firefox", "chromium"],
     "avoid_kill": "kwin|plasmashell|kwin_wayland|sddm|Xwayland|pipewire|wireplumber|systemd|dbus|dbus-broker|dropbear|sshd|freeze-guard|earlyoom|systemd-oomd|polkit|NetworkManager|wpa_supplicant",
-    "notify": true
+    "notify": true,
+    "_thrash_comment": "2026-07-10 v3: the memory.high-THRASH voter — the early detector for the exact failure that PSI missed. The 13:06 freeze had memory.pressure ~35% (below every PSI limit) while user-1000.slice hit memory.high 1.14M times doing reclaim thrash. This voter reads the memory.events 'high' counter delta on thrash_slice each tick; if the per-second rate exceeds high_events_per_sec_max sustained for thrash_sustain_sec, it SIGKILLs the largest-RSS process INSIDE that throttled slice (via cgroup.procs, not systemwide) — the actual runaway, never an innocent. Fires regardless of PSI because it watches the throttle counter itself.",
+    "thrash_slice": "user.slice/user-1000.slice",
+    "high_events_per_sec_max": 5000,
+    "thrash_sustain_sec": 6
   },
 
   "watchdog_selfcheck": {
@@ -56,9 +61,10 @@
   "oomd": {
     "_comment": "systemd-oomd — PSI-aware proactive killer, THE evidence-based fix. The 2026-06-27 forensics (psi-recorder) showed the freezes were user.slice memory.pressure full-avg10 sustained at 62-68% for MINUTES with memory.events oom_kill=0 — the kernel throttled at MemoryHigh and swapped into 20G of swap forever while NOTHING ever killed. enable*Slice turns oomd on for -.slice/system.slice/user.slice, but its built-in default limit is 80% — ABOVE the 65% freeze, so it would never fire. pressure_limit OVERRIDES that to a value below the observed stall so oomd kills the worst cgroup BEFORE the machine locks. PSI is swap-independent, so 20G of swap cannot mask it. duration = sustained-seconds before the kill.",
     "enable": true,
-    "pressure_limit": "50%",
-    "duration": "15s",
-    "SwapUsedLimit": "90%"
+    "pressure_limit": "30%",
+    "duration": "10s",
+    "SwapUsedLimit": "90%",
+    "_v3_note": "2026-07-10: pressure_limit 50%→30%, duration 15s→10s. The 13:06 thrash held memory PSI at only ~35-38% — below the old 50% limit — so oomd (correctly, per its config) never fired. 30% sits below the observed thrash band so oomd now kills the worst child cgroup in ~10s. oomd watches memory PSI only; the io-PSI blind spot is covered by freeze-guard's io + thrash voters."
   },
 
   "earlyoom": {
@@ -79,7 +85,23 @@
     "vm.dirty_ratio": 5,
     "vm.dirty_background_ratio": 2,
     "vm.vfs_cache_pressure": 50,
-    "vm.watermark_scale_factor": 500
+    "vm.watermark_scale_factor": 500,
+    "kernel.sysrq": 244,
+    "_sysrq_note": "2026-07-10 v3: was the kernel default 16 (sync only) — so Alt+SysRq+F did NOTHING during the freeze. 244 = 4(SAK)+16(sync)+32(remount-ro)+64(signal/OOM-kill: Alt+SysRq+F) +128(reboot/poweroff: Alt+SysRq+B). Arms the physical-keyboard escape hatches: REISUB and manual OOM-kill work even when userspace is fully wedged."
+  },
+
+  "kernel_watchdog": {
+    "_comment": "2026-07-10 v3: last-line kernel escape hatch. The Surface exposes NO hardware watchdog (/sys/class/watchdog empty, RuntimeWatchdogUSec=0) — a true kernel wedge could ONLY be cleared by holding the power button. softdog + systemd's RuntimeWatchdogSec makes PID1 pet /dev/watchdog every runtime_sec/2; if the box is so wedged PID1 can't run, the softdog fires and REBOOTS in runtime_sec. Session-on-disk checkpoints (6h + on-hibernate) bound the blast radius. This is the ONLY mechanism that recovers a hard wedge with no human present — the 'always-on VM' guarantee.",
+    "enable": true,
+    "module": "softdog",
+    "runtime_sec": 120
+  },
+
+  "slice_protection": {
+    "_comment": "2026-07-10 v3 IO ladder. Kernel reclaim IO can't be cgroup-weighted, but BULK WRITERS (docker/nix-daemon/backups in workload.slice) can — so they can no longer starve the desktop's own IO the way the 13:06 thrash did. os_essentials ALSO gets a memory reservation: today os-essentials.slice has NO MemoryMin, so reclaim can evict sshd/session/logind pages (the very infra you'd need to debug a freeze). connectivity island already has io_weight=1000 (reservation block); this ladders the rest below it.",
+    "os_essentials_io_weight": 800,
+    "os_essentials_memory_min": "512M",
+    "workload_io_weight": 50
   },
 
   "testers": {
@@ -180,6 +202,54 @@
         "description": "U1: user-0.slice MemoryMax = ramMB×95% = 8192×0.95 = 7782M ≈ 8.16e9 bytes (systemd rounds to page granularity), proving ramMB is derived from sysprot.specs.ram_gb (=8 → 8192MB) not the old hardcoded ramMB=8192 let-binding. Range check tolerates systemd page-alignment rounding.",
         "command": "systemctl show user-0.slice -p MemoryMax --value",
         "expect_regex": "^81603[0-9]{5}$"
+      },
+      {
+        "id": "sysrq_escape_hatch_armed",
+        "description": "v3: kernel.sysrq=244 so Alt+SysRq+F (manual OOM) and REISUB work when userspace is wedged (was 16 = sync-only during the 13:06 freeze)",
+        "command": "cat /proc/sys/kernel/sysrq",
+        "expect_regex": "^244$"
+      },
+      {
+        "id": "kernel_watchdog_device_present",
+        "description": "v3: /dev/watchdog exists (softdog loaded) so systemd can pet it and self-reboot a hard wedge (Surface has no HW watchdog)",
+        "command": "test -e /dev/watchdog && echo present || echo absent",
+        "expect": "present"
+      },
+      {
+        "id": "gui_mem_high_band_narrow",
+        "description": "v3: user-1000.slice (MemoryMax − MemoryHigh) ≤ 536870912 (512M) — no wide 'throttle purgatory' band that reclaim-thrashes forever instead of escalating to a kill (13:06 root cause: 1.2G band)",
+        "command": "echo $(( $(systemctl show user-1000.slice -p MemoryMax --value) - $(systemctl show user-1000.slice -p MemoryHigh --value) <= 536870912 ))",
+        "expect": "1"
+      },
+      {
+        "id": "oomd_pressure_limit_tightened",
+        "description": "v3: oomd ManagedOOMMemoryPressureLimit = 30% on user.slice — fires at the observed ~35% thrash instead of never (old 50% was above the stall)",
+        "command": "systemctl show user.slice -p ManagedOOMMemoryPressureLimit --value",
+        "expect_regex": "^30(\\.00)?%$"
+      },
+      {
+        "id": "os_essentials_mem_reserved",
+        "description": "v3: os-essentials.slice has a 512M MemoryMin reservation so reclaim can't evict sshd/session/logind pages (the debug infra) — was unreserved",
+        "command": "systemctl show os-essentials.slice -p MemoryMin --value",
+        "expect_regex": "^536870912$"
+      },
+      {
+        "id": "workload_io_deprioritized",
+        "description": "v3: workload.slice IOWeight = 50 — bulk writers (docker/nix/backups) yield the NVMe queue to the desktop + island",
+        "command": "systemctl show workload.slice -p IOWeight --value",
+        "expect_regex": "^50$"
+      },
+      {
+        "id": "freeze_guard_has_thrash_voter",
+        "description": "v3: freeze-guard's deployed script has the memory.high-thrash voter (memory.events 'high' delta) — the detector for the PSI-invisible reclaim-thrash freeze",
+        "command": "grep -hE 'HIGH_MAX|memory.events|THRASH' \"$(systemctl show freeze-guard.service -p ExecStart --value | grep -oE '/nix/store/[^ ]*freeze-guard[^ ;]*' | head -1)\" | head -1",
+        "expect_regex": "HIGH_MAX|memory.events|THRASH"
+      },
+      {
+        "id": "freeze_guard_escalates_sigterm",
+        "description": "v3 root-cause fix: freeze-guard escalates an IGNORED SIGTERM to SIGKILL (KILL-ESC) — the 13:06 freeze was the same claude pid SIGTERM'd 20+ times over 75s, never dying, no escalation",
+        "command": "grep -hc 'KILL-ESC' \"$(systemctl show freeze-guard.service -p ExecStart --value | grep -oE '/nix/store/[^ ]*freeze-guard[^ ;]*' | head -1)\"",
+        "expect_regex": "^[1-9][0-9]*$"
       }
     ]
   }
