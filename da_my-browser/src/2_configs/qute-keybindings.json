@@ -15,6 +15,9 @@
 
     "H":            { "cmd": "back", "desc": "Back", "group": "Navigate" },
     "L":            { "cmd": "forward", "desc": "Forward", "group": "Navigate" },
+    "<Alt-Left>":   { "cmd": "back", "desc": "Back (Alt-Left)", "group": "Navigate" },
+    "<Alt-Right>":  { "cmd": "forward", "desc": "Forward (Alt-Right)", "group": "Navigate" },
+    "<Alt-Up>":     { "cmd": "open file:///home/diego/.config/qutebrowser/qute-bookmarks.html", "desc": "Home (dashboard, Alt-Up)", "group": "Navigate" },
     "r":            { "cmd": "reload", "desc": "Reload", "group": "Navigate" },
     "R":            { "cmd": "reload -f", "desc": "Hard reload (bypass cache)", "group": "Navigate" },
     "<F5>":         { "cmd": "reload", "desc": "Reload", "group": "Navigate" },
