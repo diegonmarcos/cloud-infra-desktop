@@ -96,12 +96,14 @@ jobs:
           script: |
             rc=0
             ./build.sh instrument || rc=$?
-            # Screenshot copied by the test to /data/local/tmp (survives the
-            # post-test uninstall). Grab it + logcat regardless of pass/fail.
-            mkdir -p /tmp/test-out
-            adb pull /data/local/tmp/explored.png /tmp/test-out/ || true
-            adb logcat -d > /tmp/test-out/logcat.txt || true
-            adb logcat -d -s ExploredRenderTest > /tmp/test-out/probe.txt || true
+            # Collect evidence into a WORKSPACE-relative dir — upload-artifact v4
+            # only reliably uploads paths under the workspace (an absolute
+            # /tmp/... path is silently dropped). The test copied the screenshot
+            # to /data/local/tmp (survives the post-test uninstall).
+            mkdir -p test-out
+            adb pull /data/local/tmp/explored.png test-out/ || true
+            adb logcat -d > test-out/logcat.txt || true
+            adb logcat -d -s ExploredRenderTest:* > test-out/probe.txt || true
             exit $rc
 
       - name: Upload render evidence (screenshot + logcat + reports)
@@ -110,6 +112,6 @@ jobs:
         with:
           name: explored-render
           path: |
-            /tmp/test-out/
+            ea_cloud-nav/test-out/
             ea_cloud-nav/app/build/reports/androidTests/
           if-no-files-found: warn
