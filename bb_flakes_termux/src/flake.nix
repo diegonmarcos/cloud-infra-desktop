@@ -327,16 +327,20 @@
                   export CAS_MCP_GWS="${claudeSuperset.mcps.gws}"
                   export CAS_MCP_GP="${claudeSuperset.mcps.gp}"
                   export CAS_PLUGINS_SCRIPT="$HOME/.claude/claude-plugins-status.sh"
+                  export CAS_MESH='${builtins.toJSON (claudeSuperset.mesh or {})}'
                   exec ${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-tui.mjs}
                 fi
 
-                # Termux has no `local`/docker face — remote only. `claude`
-                # bypasses everything and runs a plain claude (claude-malloc).
+                # Termux has no `local`/docker face — remote only. `claude` sets a
+                # PLAIN flag (no proxy/plugins) but still flows through the restore
+                # dispatch below, so `claude-superset claude restore N` works —
+                # restore just reopens sessions via `claude --resume`.
+                MODE="remote"; PLAIN=0
                 case "''${1:-}" in
-                  claude) shift; export CLAUDE_SUPERSET_MODE="claude"; exec claude-malloc "$@" ;;
+                  claude) MODE="claude"; PLAIN=1; shift ;;
                 esac
-                # Face → statusline (PL[M:{L|R|C} …]). Termux is remote-only.
-                export CLAUDE_SUPERSET_MODE="remote"
+                # Face → statusline (PL[M:{L|R|C} …]).
+                export CLAUDE_SUPERSET_MODE="$MODE"
                 # Plugin toggles (any order, before the action): headroom on|off,
                 # ponytail on|off|lite|full|ultra.
                 HEADROOM="on"
@@ -357,7 +361,7 @@
                 done
 
                 # Session engine env. No konsole in Termux → engine uses tmux.
-                export CAS_API="${claudeSuperset.api}" CAS_SELF="claude-superset" CAS_FACE="remote"
+                export CAS_API="${claudeSuperset.api}" CAS_SELF="claude-superset" CAS_FACE="$MODE"
                 export CAS_TMUX="${pkgs.tmux}/bin/tmux"
                 ${if ((claudeSuperset.device or "") != "") then ''export CAS_DEVICE="${claudeSuperset.device}"'' else ""}
                 CAS_DEVICE="''${CAS_DEVICE:-}"
@@ -376,9 +380,16 @@
                     case "$val" in ""|*[!0-9]*)
                       echo "[claude-superset] restore needs a positive number" >&2; exit 2 ;;
                     esac
-                    exec $ENGINE launch remote "$devsel" "$sel" "$val" ;;
+                    exec $ENGINE launch "$MODE" "$devsel" "$sel" "$val" ;;
                   fresh) shift ;;
                 esac
+
+                # Plain `claude` face: no proxy/plugins/sync. Restore already
+                # dispatched above; a bare `claude-superset claude [args…]` (incl.
+                # `--resume <id>` from a restored tab) execs plain claude-malloc.
+                if [ "$PLAIN" = "1" ]; then
+                  exec claude-malloc "$@"
+                fi
 
                 if [ "$HEADROOM" = "on" ]; then
                   URL="''${CLAUDE_SUPERSET_URL:-${claudeSuperset.proxy}}"

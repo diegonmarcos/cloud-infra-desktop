@@ -7,6 +7,13 @@
   "anthropic": "https://api.anthropic.com",
   "_sessions_comment": "Cross-device session sync via the hub's /sessions store (on api). device defaults to hostname; sync_keep = recent local sessions to push.",
   "sync_keep": 20,
+  "_mesh_comment": "WireGuard mesh peers (the 4 VMs, per CLAUDE.md B.1). Consumed by the TUI status dashboard (CAS_MESH) for per-peer ICMP latency.",
+  "mesh": {
+    "gcp-proxy":     "10.0.0.1",
+    "oci-mail":      "10.0.0.3",
+    "oci-analytics": "10.0.0.4",
+    "oci-apps":      "10.0.0.6"
+  },
   "mcps": {
     "c3_infra":   "http://10.0.0.6:3100",
     "c3_svc":     "http://10.0.0.6:3101",

@@ -88,6 +88,7 @@ let
       export CAS_MCP_GWS="${ep.mcps.gws}"
       export CAS_MCP_GP="${ep.mcps.gp}"
       export CAS_PLUGINS_SCRIPT="$HOME/.claude/claude-plugins-status.sh"
+      export CAS_MESH='${builtins.toJSON (ep.mesh or {})}'
       exec ${pkgs.nodejs}/bin/node ${./claude-superset-tui.mjs}
     fi
 
@@ -95,9 +96,12 @@ let
     # container on THIS host via docker compose; `remote` is the oci-apps proxy
     # over WG; `claude` bypasses everything (no proxy, no session engine, no
     # plugin munging) and runs a plain claude.
-    MODE="remote"
+    # `claude` sets a PLAIN flag (no proxy/plugins) but still flows through the
+    # restore dispatch below, so `claude-superset claude restore N` works —
+    # restore just reopens sessions via `claude --resume`, proxy-independent.
+    MODE="remote"; PLAIN=0
     case "''${1:-}" in
-      claude)       shift; export CLAUDE_SUPERSET_MODE="claude"; exec claude "$@" ;;
+      claude)       MODE="claude"; PLAIN=1; shift ;;
       local|remote) MODE="$1"; shift ;;
     esac
     # Face → statusline (PL[M:{L|R|C} …]); read by claude-plugins-status.sh.
@@ -153,6 +157,13 @@ let
         exec $ENGINE launch "$MODE" "$devsel" "$sel" "$val" ;;
       fresh) shift ;;
     esac
+
+    # Plain `claude` face: no proxy, no plugins, no auto-sync. Any restore action
+    # was already dispatched above; a bare `claude-superset claude [args…]` (incl.
+    # `--resume <id>` from a restored tab) execs plain claude here.
+    if [ "$PLAIN" = "1" ]; then
+      exec claude "$@"
+    fi
 
     # Headroom face: only wire the proxy when headroom is ON.
     if [ "$HEADROOM" = "on" ]; then
