@@ -1010,7 +1010,10 @@ ghcr_incremental_switch() {
     # .safety.incremental_pull is false, skip it entirely so the reliable nar.zst
     # artifact path (nix-store --import, proper DB registration) runs. See the
     # _incremental_comment in hm-auto-update.json.
-    if [ "$(jq -r '.safety.incremental_pull // true' "$HM_AUTO_CFG" 2>/dev/null)" != "true" ]; then
+    # NB: read WITHOUT jq's `//` operator — `false // true` evaluates to `true`
+    # in jq (false is treated as empty), which would silently defeat this switch.
+    _inc="$(jq -r '.safety.incremental_pull' "$HM_AUTO_CFG" 2>/dev/null)"
+    if [ "$_inc" = "false" ]; then
         log_info "Incremental docker pull disabled (broken transport) — using the reliable nar.zst artifact path."
         return 1
     fi
