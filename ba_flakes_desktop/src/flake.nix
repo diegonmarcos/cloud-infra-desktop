@@ -218,6 +218,7 @@
         ./modules/programs/nix-switch-progress.nix   # KDE progress popup for any nix command build.sh wraps (always-on)
         ./modules/programs/hm-auto-update.nix   # poll GHCR for new HM builds, auto build.sh switch (always-on)
         ./modules/programs/watchdog-systray.nix   # Watchdog + NixOS system-tray applets (status, OOM trigger, logs)
+        ./modules/programs/disable-baloo.nix   # disable KDE baloo file indexer (CPU/IO hog on this 8GB box)
         ./modules/cloud.nix
         ./modules/cloud-network-wg-dns.nix
         ./modules/cloud-network-wg-public.nix
