@@ -115,3 +115,17 @@ jobs:
             ea_cloud-nav/test-out/
             ea_cloud-nav/app/build/reports/androidTests/
           if-no-files-found: warn
+
+      # gradle connectedAndroidTest exited 0 despite a FAILING instrumented
+      # test (emulator-runner masked it) — a false green that let the empty-map
+      # bug ship as "verified". Gate explicitly on the JUnit XML: any
+      # failure/error fails the job.
+      - name: Gate on instrumented test results
+        if: always()
+        run: |
+          shopt -s globstar nullglob
+          xmls=(ea_cloud-nav/app/build/outputs/androidTest-results/**/*.xml)
+          if [ ${#xmls[@]} -eq 0 ]; then echo "NO test result XML found — treating as failure"; exit 1; fi
+          fails=$(grep -hoE '(failures|errors)="[0-9]+"' "${xmls[@]}" | grep -oE '[0-9]+' | awk '{s+=$1} END{print s+0}')
+          echo "instrumented failures+errors = $fails across ${#xmls[@]} result file(s)"
+          [ "$fails" = "0" ] || { echo "::error::instrumented tests FAILED ($fails)"; exit 1; }
