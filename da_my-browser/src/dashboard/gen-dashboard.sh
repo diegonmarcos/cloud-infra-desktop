@@ -163,6 +163,17 @@ else
   KEYBINDINGS='[]'
 fi
 
+# Dashboard search bar → web-search URL template. SoT is qute-search-engines.json's
+# "qw" (Qwant) entry — the SAME engine qutebrowser itself uses for `qw <query>` in
+# the `:` bar, so the dashboard's Enter-to-search and qutebrowser's own bang stay
+# in lockstep. `{}` is replaced with the URL-encoded query client-side.
+SEARCH_ENGINES_JSON="${SEARCH_ENGINES_JSON:-$HERE/../2_configs/qute-search-engines.json}"
+if [ -r "$SEARCH_ENGINES_JSON" ]; then
+  SEARCH_URL="$(jq -r '.qw // .DEFAULT // "https://www.qwant.com/?q={}"' "$SEARCH_ENGINES_JSON")"
+else
+  SEARCH_URL="https://www.qwant.com/?q={}"
+fi
+
 # Plugin registry → the dashboard's Plugins tab (:plugins / #plugins). SoT is
 # qute-plugins.json (same file the home-module wires into qutebrowser). Drop
 # _-prefixed doc keys from actions so the card renders cleanly.
@@ -180,13 +191,13 @@ else
 fi
 
 mkdir -p "$(dirname "$OUT")"
-# Inject three tokens. LITERAL replacement via index()/substr() + ENVIRON —
+# Inject four tokens. LITERAL replacement via index()/substr() + ENVIRON —
 # NOT gsub() and NOT `-v`: awk gsub treats `&` in the replacement as "the
 # matched text" (so a plugin name like "Ad & Tracker Blocking" or any URL
 # query-string `?a=1&b=2` corrupts the output), and `-v` runs C-escape
 # processing on the value (mangling JSON's \" \\ ). ENVIRON + substr avoids
 # both entirely — the injected JSON is inserted byte-for-byte.
-BM="$DATA" KB="$KEYBINDINGS" PL="$PLUGINS" awk '
+BM="$DATA" KB="$KEYBINDINGS" PL="$PLUGINS" SU="$SEARCH_URL" awk '
   function inject(s, tok, val,   i, out) {
     out = ""
     while ((i = index(s, tok)) > 0) { out = out substr(s, 1, i-1) val; s = substr(s, i + length(tok)) }
@@ -195,6 +206,7 @@ BM="$DATA" KB="$KEYBINDINGS" PL="$PLUGINS" awk '
   { line = inject($0,   "__BOOKMARKS_JSON__",   ENVIRON["BM"])
     line = inject(line, "__KEYBINDINGS_JSON__", ENVIRON["KB"])
     line = inject(line, "__PLUGINS_JSON__",     ENVIRON["PL"])
+    line = inject(line, "__SEARCH_URL__",       ENVIRON["SU"])
     print line }' "$TEMPLATE" > "$OUT"
 nsec=$(jq -r '.sections|length' <<<"$DATA")
 nlink=$(jq -r '[.sections[] | (.links|length) + ([.folders[].links|length]|add // 0)]|add' <<<"$DATA")

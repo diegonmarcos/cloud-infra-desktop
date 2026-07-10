@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <!--
   qutebrowser start-page dashboard — TEMPLATE.
-  Generator (gen-dashboard.sh) replaces __BOOKMARKS_JSON__ with the merged folder JSON.
+  Generator (gen-dashboard.sh) replaces __BOOKMARKS_JSON__ (folders), __KEYBINDINGS_JSON__,
+  __PLUGINS_JSON__, and __SEARCH_URL__ (Qwant web-search template, from qute-search-engines.json).
+  The #q search box double-duties: typing filters the bookmarks below live; Enter opens
+  a Qwant results tab for the typed query (window.open → new qutebrowser tab).
   Two views (persisted in localStorage):
     • Icons — ANDROID LAUNCHER: home screen of folder icons (squircle w/ 2x2 preview);
               tap a folder to open it and reveal the app icons inside.
@@ -166,7 +169,7 @@
     <div class="brand">◆ <b>my-browser</b> <span style="color:var(--muted);font-weight:400;font-size:14px">(qute)</span></div>
     <div class="clock" id="clock"></div>
     <div class="spacer"></div>
-    <label class="search"><input id="q" type="text" placeholder="search…" autocomplete="off" spellcheck="false"></label>
+    <label class="search"><input id="q" type="text" placeholder="search bookmarks… (Enter → Qwant)" autocomplete="off" spellcheck="false"></label>
     <div class="toggle" id="toggle">
       <button data-view="icons" title="Icons (v)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Icons</button>
       <button data-view="list" title="List (v)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>List</button>
@@ -184,6 +187,7 @@
 const DATA = __BOOKMARKS_JSON__;
 const KEYBINDINGS = __KEYBINDINGS_JSON__;   // [{key,cmd,desc,group}] — SoT: qute-keybindings.json
 const PLUGINS = __PLUGINS_JSON__;           // [{id,name,category,surface,enabled,...}] — SoT: qute-plugins.json
+const SEARCH_URL = "__SEARCH_URL__";        // web-search template ({} = query) — SoT: qute-search-engines.json "qw"
 // sections[] → { name, desc, recent, links{}, folders:[{name,desc,links{}}] }
 const SECTIONS = (DATA.sections||[]).map(s=>({
   name:s.name, desc:s.desc||'', recent:!!s.recent,
@@ -490,6 +494,12 @@ setView((()=>{try{return localStorage.getItem('bm-view')||'icons';}catch(e){retu
 document.getElementById('toggle').addEventListener('click',e=>{const b=e.target.closest('button'); if(b)setView(b.dataset.view);});
 const q=document.getElementById('q');
 q.addEventListener('input',()=>filter(q.value));
+q.addEventListener('keydown',e=>{
+  if(e.key!=='Enter')return;
+  const t=q.value.trim();
+  if(!t)return;
+  window.open(SEARCH_URL.replace('{}',encodeURIComponent(t)),'_blank');
+});
 document.addEventListener('keydown',e=>{
   if(e.target===q){ if(e.key==='Escape'){q.value='';filter('');q.blur();} return; }
   if(e.key==='/'){ e.preventDefault(); q.focus(); }

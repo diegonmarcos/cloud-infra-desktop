@@ -343,7 +343,415 @@
       ]
     }
   ]
-} with the merged folder JSON.
+} (folders), [
+  {
+    "key": "<Tab>",
+    "cmd": "tab-next",
+    "desc": "Next tab",
+    "group": "Tabs"
+  },
+  {
+    "key": "<Shift-Tab>",
+    "cmd": "tab-prev",
+    "desc": "Previous tab",
+    "group": "Tabs"
+  },
+  {
+    "key": "t",
+    "cmd": "cmd-set-text -s :open -t",
+    "desc": "New tab → type address",
+    "group": "Tabs"
+  },
+  {
+    "key": "T",
+    "cmd": "open -t about:blank",
+    "desc": "New blank tab",
+    "group": "Tabs"
+  },
+  {
+    "key": "w",
+    "cmd": "tab-close",
+    "desc": "Close current tab",
+    "group": "Tabs"
+  },
+  {
+    "key": "W",
+    "cmd": "tab-only",
+    "desc": "Close all other tabs",
+    "group": "Tabs"
+  },
+  {
+    "key": "u",
+    "cmd": "undo",
+    "desc": "Reopen last closed tab",
+    "group": "Tabs"
+  },
+  {
+    "key": "<",
+    "cmd": "tab-move -",
+    "desc": "Move tab left",
+    "group": "Tabs"
+  },
+  {
+    "key": ">",
+    "cmd": "tab-move +",
+    "desc": "Move tab right",
+    "group": "Tabs"
+  },
+  {
+    "key": "<Ctrl-p>",
+    "cmd": "tab-pin",
+    "desc": "Pin / unpin tab",
+    "group": "Tabs"
+  },
+  {
+    "key": "<Ctrl-m>",
+    "cmd": "tab-mute",
+    "desc": "Mute / unmute tab",
+    "group": "Tabs"
+  },
+  {
+    "key": "H",
+    "cmd": "back",
+    "desc": "Back",
+    "group": "Navigate"
+  },
+  {
+    "key": "L",
+    "cmd": "forward",
+    "desc": "Forward",
+    "group": "Navigate"
+  },
+  {
+    "key": "<Alt-Left>",
+    "cmd": "back",
+    "desc": "Back (Alt-Left)",
+    "group": "Navigate"
+  },
+  {
+    "key": "<Alt-Right>",
+    "cmd": "forward",
+    "desc": "Forward (Alt-Right)",
+    "group": "Navigate"
+  },
+  {
+    "key": "<Alt-Up>",
+    "cmd": "open file:///home/diego/.config/qutebrowser/qute-bookmarks.html",
+    "desc": "Home (dashboard, Alt-Up)",
+    "group": "Navigate"
+  },
+  {
+    "key": "r",
+    "cmd": "reload",
+    "desc": "Reload",
+    "group": "Navigate"
+  },
+  {
+    "key": "R",
+    "cmd": "reload -f",
+    "desc": "Hard reload (bypass cache)",
+    "group": "Navigate"
+  },
+  {
+    "key": "<F5>",
+    "cmd": "reload",
+    "desc": "Reload",
+    "group": "Navigate"
+  },
+  {
+    "key": "<Escape>",
+    "cmd": "stop",
+    "desc": "Stop loading",
+    "group": "Navigate"
+  },
+  {
+    "key": "<F11>",
+    "cmd": "fullscreen",
+    "desc": "Toggle fullscreen",
+    "group": "Navigate"
+  },
+  {
+    "key": "o",
+    "cmd": "cmd-set-text -s :open",
+    "desc": "Open address (this tab)",
+    "group": "URL / clipboard"
+  },
+  {
+    "key": "O",
+    "cmd": "cmd-set-text -s :open -t",
+    "desc": "Open address (new tab)",
+    "group": "URL / clipboard"
+  },
+  {
+    "key": "e",
+    "cmd": "cmd-set-text :open {url:pretty}",
+    "desc": "Edit current URL",
+    "group": "URL / clipboard"
+  },
+  {
+    "key": "E",
+    "cmd": "cmd-set-text :open -t {url:pretty}",
+    "desc": "Edit current URL → new tab",
+    "group": "URL / clipboard"
+  },
+  {
+    "key": "Y",
+    "cmd": "yank url",
+    "desc": "Copy current URL",
+    "group": "URL / clipboard"
+  },
+  {
+    "key": "p",
+    "cmd": "open -- {clipboard}",
+    "desc": "Open clipboard URL (this tab)",
+    "group": "URL / clipboard"
+  },
+  {
+    "key": "P",
+    "cmd": "open -t -- {clipboard}",
+    "desc": "Open clipboard URL (new tab)",
+    "group": "URL / clipboard"
+  },
+  {
+    "key": "gD",
+    "cmd": "open -t qute://downloads",
+    "desc": "Downloads page",
+    "group": "Pages / tools"
+  },
+  {
+    "key": "<F12>",
+    "cmd": "devtools",
+    "desc": "Developer tools",
+    "group": "Pages / tools"
+  },
+  {
+    "key": "gI",
+    "cmd": "open -t qute://history",
+    "desc": "History page",
+    "group": "Pages / tools"
+  },
+  {
+    "key": "gS",
+    "cmd": "open -t qute://settings",
+    "desc": "Settings page",
+    "group": "Pages / tools"
+  },
+  {
+    "key": "<Ctrl-Shift-p>",
+    "cmd": "spawn --detach /home/diego/.local/bin/da_autofill-rbw-rofi pick",
+    "desc": "Autofill: action picker",
+    "group": "Autofill"
+  },
+  {
+    "key": "<Ctrl-Shift-u>",
+    "cmd": "spawn --detach /home/diego/.local/bin/da_autofill-rbw-rofi user",
+    "desc": "Autofill: username",
+    "group": "Autofill"
+  },
+  {
+    "key": "<Ctrl-Shift-l>",
+    "cmd": "spawn --detach /home/diego/.local/bin/da_autofill-rbw-rofi pass",
+    "desc": "Autofill: password",
+    "group": "Autofill"
+  },
+  {
+    "key": "<Ctrl-Shift-o>",
+    "cmd": "spawn --detach /home/diego/.local/bin/da_autofill-rbw-rofi totp",
+    "desc": "Autofill: TOTP",
+    "group": "Autofill"
+  },
+  {
+    "key": ",d",
+    "cmd": "open file:///home/diego/.config/qutebrowser/qute-bookmarks.html",
+    "desc": "Open bookmarks (dashboard)",
+    "group": "Leader"
+  },
+  {
+    "key": ",s",
+    "cmd": "config-shortcuts",
+    "desc": "Open Shortcuts reference (Config-shortcuts)",
+    "group": "Leader"
+  },
+  {
+    "key": ",e",
+    "cmd": "config-edit",
+    "desc": "Edit config.py in $EDITOR (native qutebrowser command)",
+    "group": "Leader"
+  },
+  {
+    "key": ",v",
+    "cmd": "open https://vault.diegonmarcos.com",
+    "desc": "Vaultwarden",
+    "group": "Leader"
+  },
+  {
+    "key": ",a",
+    "cmd": "open https://auth.diegonmarcos.com",
+    "desc": "Authelia",
+    "group": "Leader"
+  },
+  {
+    "key": ",g",
+    "cmd": "open https://git.diegonmarcos.com",
+    "desc": "Gitea",
+    "group": "Leader"
+  }
+],
+  [
+  {
+    "id": "adblock",
+    "name": "Ad & Tracker Blocking",
+    "category": "Privacy",
+    "surface": "config",
+    "enabled": true,
+    "status": "",
+    "keybinding": ",pa",
+    "option": "content.blocking.enabled",
+    "description": "EasyList + EasyPrivacy + StevenBlack hosts (lists in qute-settings.json). Blocks ads and trackers network-wide.",
+    "footprint": "none when off — pure network filter",
+    "actions": {}
+  },
+  {
+    "id": "javascript",
+    "name": "JavaScript",
+    "category": "Privacy",
+    "surface": "config",
+    "enabled": true,
+    "status": "",
+    "keybinding": ",pj",
+    "option": "content.javascript.enabled",
+    "description": "Global JS on/off. Off = maximum privacy/minimal footprint but breaks most sites; use per-site overrides for exceptions.",
+    "footprint": "off = lowest possible",
+    "actions": {}
+  },
+  {
+    "id": "dark-mode",
+    "name": "Dark Mode (all sites)",
+    "category": "Appearance",
+    "surface": "config",
+    "enabled": false,
+    "status": "",
+    "keybinding": ",pd",
+    "option": "colors.webpage.darkmode.enabled",
+    "description": "QtWebEngine's native page darkening for every site (independent of site theme). Off by default; toggle per taste.",
+    "footprint": "none when off",
+    "actions": {}
+  },
+  {
+    "id": "anti-fingerprint",
+    "name": "Anti-Fingerprint (canvas)",
+    "category": "Privacy",
+    "surface": "config",
+    "enabled": true,
+    "status": "",
+    "keybinding": ",pf",
+    "option": "content.canvas_reading",
+    "description": "Blocks canvas read-back, a major browser-fingerprinting vector. Enabled (protected) = canvas_reading disabled. Rarely breaks sites.",
+    "footprint": "none — a permission gate",
+    "actions": {}
+  },
+  {
+    "id": "no-autoplay",
+    "name": "Block Autoplay",
+    "category": "Appearance",
+    "surface": "config",
+    "enabled": true,
+    "status": "",
+    "keybinding": ",pm",
+    "option": "content.autoplay",
+    "description": "Stops media autoplaying. Enabled (blocked) = content.autoplay off.",
+    "footprint": "none",
+    "actions": {}
+  },
+  {
+    "id": "vaultwarden",
+    "name": "Vaultwarden Autofill",
+    "category": "Security",
+    "surface": "userscript",
+    "enabled": true,
+    "status": "",
+    "keybinding": "<Ctrl-Shift-b>",
+    "option": "",
+    "description": "In-page autofill against self-hosted vault.diegonmarcos.com via the official qute-bitwarden userscript + bw CLI (keyctl session, auto-lock). Login user/pass/TOTP today; cards, identities, save/edit/add land in Phase 1. One-time setup: run `bw login` once.",
+    "footprint": "none until invoked — a userscript",
+    "actions": {
+      "user-pass": "Fill username + Tab + password (Ctrl-Shift-B)",
+      "totp": "Copy 2FA/TOTP code to clipboard (--totp)"
+    }
+  },
+  {
+    "id": "autofill-daemon",
+    "name": "System Autofill (rofi)",
+    "category": "Security",
+    "surface": "daemon",
+    "enabled": true,
+    "status": "",
+    "keybinding": "<Ctrl-Shift-p>",
+    "option": "",
+    "description": "OS-level password autofill (rbw + rofi → keystroke synth). Works in ANY window, not just the browser. Complements the in-page Vaultwarden plugin.",
+    "footprint": "none until invoked — a systemd user service",
+    "actions": {
+      "pick": "Ctrl-Shift-P — action picker (rofi)",
+      "user": "Ctrl-Shift-U — type username",
+      "pass": "Ctrl-Shift-L — type password",
+      "totp": "Ctrl-Shift-O — TOTP to clipboard"
+    }
+  },
+  {
+    "id": "fido2-passkeys",
+    "name": "FIDO2 Passkeys / WebAuthn",
+    "category": "Security",
+    "surface": "daemon",
+    "enabled": true,
+    "status": "",
+    "keybinding": "",
+    "option": "",
+    "description": "Passkeys / WebAuthn over a virtual FIDO2 device (/dev/uhid). QtWebEngine discovers it automatically on any WebAuthn prompt — zero browser config, no in-page UI needed.",
+    "footprint": "none — passive, discovered on demand",
+    "actions": {}
+  },
+  {
+    "id": "reader-mode",
+    "name": "Reader Mode",
+    "category": "Reading",
+    "surface": "userscript",
+    "enabled": false,
+    "status": "planned:phase-2",
+    "keybinding": "",
+    "option": "",
+    "description": "Strip a page to its article via readability-lxml (already in qute's python env). Planned Phase 2.",
+    "footprint": "none until invoked",
+    "actions": {}
+  },
+  {
+    "id": "video-tools",
+    "name": "Video Tools (speed / PiP / download)",
+    "category": "Media",
+    "surface": "userscript",
+    "enabled": false,
+    "status": "planned:phase-2",
+    "keybinding": "",
+    "option": "",
+    "description": "Playback speed ±, picture-in-picture, download via yt-dlp. Planned Phase 2.",
+    "footprint": "none until invoked",
+    "actions": {}
+  },
+  {
+    "id": "translate",
+    "name": "Translate Selection",
+    "category": "Reading",
+    "surface": "userscript",
+    "enabled": false,
+    "status": "planned:phase-2",
+    "keybinding": "",
+    "option": "",
+    "description": "Send the current selection to a translate endpoint. Planned Phase 2.",
+    "footprint": "none until invoked",
+    "actions": {}
+  }
+], and https://www.qwant.com/?q={} (Qwant web-search template, from qute-search-engines.json).
+  The #q search box double-duties: typing filters the bookmarks below live; Enter opens
+  a Qwant results tab for the typed query (window.open → new qutebrowser tab).
   Two views (persisted in localStorage):
     • Icons — ANDROID LAUNCHER: home screen of folder icons (squircle w/ 2x2 preview);
               tap a folder to open it and reveal the app icons inside.
@@ -508,7 +916,7 @@
     <div class="brand">◆ <b>my-browser</b> <span style="color:var(--muted);font-weight:400;font-size:14px">(qute)</span></div>
     <div class="clock" id="clock"></div>
     <div class="spacer"></div>
-    <label class="search"><input id="q" type="text" placeholder="search…" autocomplete="off" spellcheck="false"></label>
+    <label class="search"><input id="q" type="text" placeholder="search bookmarks… (Enter → Qwant)" autocomplete="off" spellcheck="false"></label>
     <div class="toggle" id="toggle">
       <button data-view="icons" title="Icons (v)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Icons</button>
       <button data-view="list" title="List (v)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>List</button>
@@ -946,6 +1354,24 @@ const KEYBINDINGS = [
     "group": "Navigate"
   },
   {
+    "key": "<Alt-Left>",
+    "cmd": "back",
+    "desc": "Back (Alt-Left)",
+    "group": "Navigate"
+  },
+  {
+    "key": "<Alt-Right>",
+    "cmd": "forward",
+    "desc": "Forward (Alt-Right)",
+    "group": "Navigate"
+  },
+  {
+    "key": "<Alt-Up>",
+    "cmd": "open file:///home/diego/.config/qutebrowser/qute-bookmarks.html",
+    "desc": "Home (dashboard, Alt-Up)",
+    "group": "Navigate"
+  },
+  {
     "key": "r",
     "cmd": "reload",
     "desc": "Reload",
@@ -1255,6 +1681,7 @@ const PLUGINS = [
     "actions": {}
   }
 ];           // [{id,name,category,surface,enabled,...}] — SoT: qute-plugins.json
+const SEARCH_URL = "https://www.qwant.com/?q={}";        // web-search template ({} = query) — SoT: qute-search-engines.json "qw"
 // sections[] → { name, desc, recent, links{}, folders:[{name,desc,links{}}] }
 const SECTIONS = (DATA.sections||[]).map(s=>({
   name:s.name, desc:s.desc||'', recent:!!s.recent,
@@ -1561,6 +1988,12 @@ setView((()=>{try{return localStorage.getItem('bm-view')||'icons';}catch(e){retu
 document.getElementById('toggle').addEventListener('click',e=>{const b=e.target.closest('button'); if(b)setView(b.dataset.view);});
 const q=document.getElementById('q');
 q.addEventListener('input',()=>filter(q.value));
+q.addEventListener('keydown',e=>{
+  if(e.key!=='Enter')return;
+  const t=q.value.trim();
+  if(!t)return;
+  window.open(SEARCH_URL.replace('{}',encodeURIComponent(t)),'_blank');
+});
 document.addEventListener('keydown',e=>{
   if(e.target===q){ if(e.key==='Escape'){q.value='';filter('');q.blur();} return; }
   if(e.key==='/'){ e.preventDefault(); q.focus(); }
