@@ -1837,6 +1837,44 @@ if [ $# -gt 0 ]; then
     # Normalise: lowercase, trim. Same alias set as the interactive menu.
     cli_cmd=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
 
+    # ── FREEZE-SAFE ISOLATION (2026-07-10 v3.1) ──────────────────────────────
+    # A heavy switch/pull (6GB closure download + nix-store import) MUST NOT run
+    # in the desktop's own cgroup (app.slice under user-1000.slice) — its memory
+    # pressure thrashes the compositor and freezes the box (happened 5× on
+    # 2026-07-10). Re-exec the whole invocation, as this user, into workload.slice
+    # (a SYSTEM slice isolated from the desktop) bounded by switch_isolation.*.
+    # If the transfer balloons past the cap, oomd kills the SWITCH there; the
+    # desktop is untouched. SWITCH_ISOLATED=1 guards against infinite re-exec.
+    _sp_json="$FLAKE_PATH/modules/cloud-data-system-protection.json"
+    if [ -z "${SWITCH_ISOLATED:-}" ] && command -v systemd-run >/dev/null 2>&1 \
+       && command -v jq >/dev/null 2>&1 && [ -f "$_sp_json" ] \
+       && [ "$(jq -r '.switch_isolation.enable // false' "$_sp_json")" = "true" ]; then
+        case "$cli_cmd" in
+            s|switch|rebuild|pull)
+                # Only isolate the freeze-prone REMOTE path (pull). `switch local`
+                # is a local eval that this 8GB box shouldn't run anyway; leave it
+                # to fail loudly rather than isolate an already-forbidden path.
+                if [ "$cli_cmd" = "switch" ] && [ "${2:-pull}" = "local" ]; then :; else
+                    _iso_slice="$(jq -r '.switch_isolation.slice // "workload.slice"' "$_sp_json")"
+                    _iso_mm="$(jq -r '.switch_isolation.memory_max // "3G"' "$_sp_json")"
+                    _iso_sm="$(jq -r '.switch_isolation.swap_max // "6G"' "$_sp_json")"
+                    _iso_sudo="/run/wrappers/bin/sudo"; [ -x "$_iso_sudo" ] || _iso_sudo="sudo"
+                    log "Isolating switch into $_iso_slice (mem≤$_iso_mm swap≤$_iso_sm) — the desktop can NOT be frozen by this transfer."
+                    exec "$_iso_sudo" systemd-run --slice="$_iso_slice" --unit=nixos-switch-isolated \
+                        --uid="$(id -u)" --gid="$(id -g)" --wait --collect --quiet \
+                        -p MemoryHigh="$_iso_mm" -p MemoryMax="$_iso_mm" -p MemorySwapMax="$_iso_sm" \
+                        --setenv=SWITCH_ISOLATED=1 --setenv=HOME="$HOME" --setenv=PATH="$PATH" \
+                        --working-directory="$SCRIPT_DIR" \
+                        "$0" "$@"
+                    # exec only returns if it FAILED to launch — never fall through
+                    # to an un-isolated switch (that is the freeze we are preventing).
+                    error "switch isolation failed to launch ($_iso_slice) — refusing to run the transfer un-isolated (freeze risk). Fix systemd-run/sudo, then retry."
+                    exit 1
+                fi
+                ;;
+        esac
+    fi
+
     case "$cli_cmd" in
         s|switch|rebuild)
             # switch {pull|local} — pull is the DEFAULT: this 8GB machine must
