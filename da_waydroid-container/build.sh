@@ -186,9 +186,14 @@ cmd_apps_fetch() {
 cmd_bake() {
   command -v docker >/dev/null 2>&1 || die "docker not found"
   command -v zstd   >/dev/null 2>&1 || die "zstd not found (nix profile / systemPackages)"
-  cmd_build   # ensure the base image (apps in /opt/apps, empty seed placeholder)
   local img bakevol seed; img="$(get container.image)"
   seed="$SRC/data-seed.tar.zst"
+  # CRITICAL: the bake container must PROVISION FROM SCRATCH — so the base image it
+  # boots must carry an EMPTY seed. If a prior (or stale) seed were baked in, the bake
+  # container would restore it and skip provisioning, snapshotting nothing new. Empty
+  # the seed BEFORE the base build so the bake boot goes down the runtime-provision path.
+  : > "$seed"
+  cmd_build   # base image with apps in /opt/apps + the now-EMPTY seed placeholder
   bakevol="$(mktemp -d /mnt/shared-lib/waydroid-bake.XXXXXX)"
   log "bake: booting a throwaway container on a scratch volume to provision…"
   docker rm -f waydroid-bake >/dev/null 2>&1 || true
@@ -221,8 +226,24 @@ cmd_bake() {
   sudo chown "$USER" "$seed"
   sudo rm -rf "$bakevol"
   log "bake: seed is $(du -h "$seed" | cut -f1) — rebuilding image WITH the seed baked in…"
-  cmd_build   # second build: real seed now present → baked into the image's last layer
+  # reseal via _docker_build_image (NOT cmd_build): the context (apks/bundle/build.json)
+  # is already staged from the first cmd_build; re-running apps-fetch here would
+  # needlessly re-hit the network and could hash-mismatch on a moved `latest` tag,
+  # breaking the reseal AFTER the expensive provision+snapshot already succeeded.
+  _docker_build_image
   log "bake: complete. Push with: ./build.sh push  (then 'up' on any host is instant)"
+}
+
+# reseal — bake the ALREADY-STAGED seed (src/data-seed.tar.zst, produced by a prior
+# `bake` whose provision+snapshot succeeded) into the image, without re-provisioning.
+# Recovery path for a bake whose expensive snapshot completed but whose reseal build
+# failed (e.g. a moved `latest` tag). Reuses the staged context verbatim.
+cmd_reseal() {
+  command -v docker >/dev/null 2>&1 || die "docker not found"
+  [ -s "$SRC/data-seed.tar.zst" ] || die "no staged seed at $SRC/data-seed.tar.zst — run: ./build.sh bake"
+  log "reseal: baking staged seed ($(du -h "$SRC/data-seed.tar.zst" | cut -f1)) into the image…"
+  _docker_build_image
+  log "reseal: complete. Push with: ./build.sh push"
 }
 
 # install — the "pull it to copy into a linux bin" step. Pull the GHCR image, extract
@@ -243,19 +264,15 @@ cmd_install() {
   case ":$PATH:" in *":$bindir:"*) : ;; *) warn "$bindir is not on \$PATH — add it, or run $dest directly";; esac
 }
 
-cmd_build() {
-  command -v docker >/dev/null 2>&1 || die "docker not found"
-  cmd_bundle          # regenerate the baked launcher from build.json before the image build
-  cmd_apps_fetch      # fetch the pinned APK set into src/apks/ for the Dockerfile to COPY
-  # build.json itself must be INSIDE the docker build context (src/) for the Dockerfile
-  # to COPY it in — entrypoint.sh reads it at runtime (jq) to drive app provisioning
-  # (apps/launcher/theme), same "regenerate a build-context artifact" pattern as
-  # bundle/apps-fetch. Gitignored — build.json in the repo root stays the one source.
-  cp -f "$CONFIG" "$SRC/build.json"
-  # Seed placeholder: the Dockerfile always COPYs data-seed.tar.zst; a plain `build`
-  # produces an EMPTY one (entrypoint → runtime provisioning). `bake` overwrites it
-  # with a real provisioned snapshot BEFORE calling build again. Never clobber an
-  # existing (baked) seed here — only create the placeholder when none exists.
+# _docker_build_image — the docker-build step ONLY (assumes the build context in src/
+# is already staged: launcher bundle, apks, build.json, seed). Shared by cmd_build and
+# cmd_bake's reseal so the reseal does NOT redundantly re-run apps-fetch (which, with a
+# rolling `latest` GitHub release, can hash-mismatch mid-bake and break the reseal —
+# confirmed live: the seed was already built when the reseal's re-fetch failed).
+_docker_build_image() {
+  # Seed placeholder: the Dockerfile always COPYs data-seed.tar.zst; a plain build
+  # leaves an EMPTY one (→ runtime provisioning); bake fills it before reseal. Never
+  # clobber an existing (baked) seed — only create the placeholder when none exists.
   [ -f "$SRC/data-seed.tar.zst" ] || : > "$SRC/data-seed.tar.zst"
   local base img; base="$(get container.base_image)"; img="$(get container.image)"
   log "docker build $img (base $base)…"
@@ -270,7 +287,25 @@ cmd_build() {
   # FREEZE halted the whole desktop (perceived as a total system freeze). Dangling-
   # only prune: tagged images and volumes are never touched.
   docker image prune -f >/dev/null 2>&1 || true
-  log "built: $img (previous dangling generation pruned)"
+  # Also prune the BUILD CACHE (buildkit layers). Dangling-image prune does NOT
+  # touch it, and it accumulates GBs across rebuilds — confirmed 2026-07-10:
+  # ~16GB of build cache drove /mnt/shared-lib to 97% and froze the desktop
+  # (the disk-emergency reclaim couldn't self-heal because nothing pruned it).
+  # Build cache is never referenced by a running container, so -af is safe.
+  docker builder prune -af >/dev/null 2>&1 || true
+  log "built: $img (previous dangling generation + build cache pruned)"
+}
+
+cmd_build() {
+  command -v docker >/dev/null 2>&1 || die "docker not found"
+  cmd_bundle          # regenerate the baked launcher from build.json before the image build
+  cmd_apps_fetch      # fetch the pinned APK set into src/apks/ for the Dockerfile to COPY
+  # build.json itself must be INSIDE the docker build context (src/) for the Dockerfile
+  # to COPY it in — entrypoint.sh reads it at runtime (jq) to drive app provisioning
+  # (apps/launcher/theme), same "regenerate a build-context artifact" pattern as
+  # bundle/apps-fetch. Gitignored — build.json in the repo root stays the one source.
+  cp -f "$CONFIG" "$SRC/build.json"
+  _docker_build_image
 }
 
 # _ensure_running <mode> — start (or create) the container for the given display
@@ -592,6 +627,7 @@ case "${1:-up}" in
   apps-lock)  shift; cmd_apps_lock "$@" ;;
   apps-fetch) cmd_apps_fetch ;;
   bake)    cmd_bake ;;
+  reseal)  cmd_reseal ;;
   install) cmd_install "${2:-}" ;;
   up)      cmd_up "${2:-}" ;;
   down)    cmd_down ;;
