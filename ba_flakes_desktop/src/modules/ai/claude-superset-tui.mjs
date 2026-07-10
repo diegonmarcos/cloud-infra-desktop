@@ -38,15 +38,29 @@ const CYCLES = {
   face:     ["remote", "local", "claude"],
   headroom: ["on", "off"],
   ponytail: ["default", "off", "lite", "full", "ultra"],
+  restore:  ["off", "count", "hours"],
 };
-const sel = { face: "remote", headroom: "on", ponytail: "default" };
-const cycle = (k) => { const c = CYCLES[k]; sel[k] = c[(c.indexOf(sel[k]) + 1) % c.length]; };
+// Preset ladders for [+]/[-] — count = sessions, hours = lookback window.
+const RESTORE_PRESETS = { count: [1, 3, 5, 10, 20, 50], hours: [1, 4, 8, 24, 72, 168] };
+const sel = { face: "remote", headroom: "on", ponytail: "default", restore: "off", restoreN: 5 };
+const cycle = (k) => {
+  const c = CYCLES[k]; sel[k] = c[(c.indexOf(sel[k]) + 1) % c.length];
+  if (k === "restore" && sel.restore !== "off") sel.restoreN = RESTORE_PRESETS[sel.restore][0];
+};
+const bumpRestoreN = (dir) => {
+  if (sel.restore === "off") return;
+  const p = RESTORE_PRESETS[sel.restore];
+  const i = Math.max(0, p.indexOf(sel.restoreN));
+  sel.restoreN = p[Math.min(p.length - 1, Math.max(0, i + dir))];
+};
 // Build the argv for `claude-superset` from the current selection.
 function selArgs() {
   if (sel.face === "claude") return ["claude"];       // plain — flags N/A
   const a = [sel.face];
   if (sel.headroom === "off") a.push("headroom", "off");
   if (sel.ponytail !== "default") a.push("ponytail", sel.ponytail);
+  if (sel.restore === "count") a.push("restore", String(sel.restoreN));
+  if (sel.restore === "hours") a.push("restore-hours", String(sel.restoreN));
   return a;
 }
 
@@ -148,13 +162,18 @@ async function header() {
   const faceName = { remote: "remote (R)", local: "local (L)", claude: "claude/plain (C)" }[sel.face];
   console.log(`  ${pick("face", faceName)}`);
   if (sel.face === "claude") {
-    console.log(`  ${C.dim}headroom/ponytail N/A for plain claude${C.r}`);
+    console.log(`  ${C.dim}headroom/ponytail/restore N/A for plain claude${C.r}`);
   } else {
     console.log(`  ${pick("headroom", sel.headroom)}   ${pick("ponytail", sel.ponytail)}`);
+    const restoreLabel = sel.restore === "off" ? "off (fresh session)"
+      : `${sel.restore === "count" ? "last N sessions" : "sessions in last N hours"} · N=${sel.restoreN}`;
+    console.log(`  ${pick("restore", restoreLabel)}`);
   }
 
   console.log("");
-  console.log(`  ${C.b}[f]${C.r} cycle face   ${C.b}[c]${C.r} headroom   ${C.b}[p]${C.r} ponytail`);
+  console.log(`  ${C.b}[f]${C.r} face   ${C.b}[c]${C.r} headroom   ${C.b}[p]${C.r} ponytail   ${C.b}[r]${C.r} restore mode`);
+  if (sel.face !== "claude" && sel.restore !== "off")
+    console.log(`  ${C.b}[+/-]${C.r} adjust N (${RESTORE_PRESETS[sel.restore].join(", ")})`);
   console.log(`  ${C.b}[l]${C.r} launch: ${C.cy}claude-superset ${selArgs().join(" ")}${C.r}`);
   console.log(`  ${C.b}[d]${C.r} dashboard   ${C.b}[s]${C.r} stats   ${C.b}[h]${C.r} re-check   ${C.b}[q]${C.r} quit\n`);
 }
@@ -179,6 +198,9 @@ async function main() {
     if (k === "f") { cycle("face"); return header(); }
     if (k === "c") { cycle("headroom"); return header(); }
     if (k === "p") { cycle("ponytail"); return header(); }
+    if (k === "r") { cycle("restore"); return header(); }
+    if (k === "+" || k === "=" || k === "kpplus") { bumpRestoreN(1); return header(); }
+    if (k === "-" || k === "kpminus") { bumpRestoreN(-1); return header(); }
     if (k === "l") {
       if (process.stdin.isTTY) process.stdin.setRawMode(false);
       rl.close(); console.clear();
