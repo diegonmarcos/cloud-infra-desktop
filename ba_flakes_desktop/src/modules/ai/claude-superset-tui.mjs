@@ -75,7 +75,7 @@ function loadLocalSessions() {
     for (const n of names) { if (!n.endsWith(".jsonl")) continue; const f = path.join(dir, n); try { const st = fs.statSync(f); out.push({ id: n.slice(0, -6), f, mtime: st.mtimeMs, size: st.size }); } catch {} } }
   const total = out.length, bytes = out.reduce((a, s) => a + s.size, 0);
   out.sort((a, b) => b.mtime - a.mtime);
-  const list = out.slice(0, 6).map((s) => {
+  const list = out.slice(0, 10).map((s) => {
     let ct = null, slug = null, ai = null, fp = null, cwd = null, msgs = 0;
     try { for (const line of fs.readFileSync(s.f, "utf8").split("\n")) { if (!line) continue; let o; try { o = JSON.parse(line); } catch { continue; }
       if (o.customTitle) ct = String(o.customTitle); if (o.aiTitle) ai = String(o.aiTitle); if (!slug && o.slug) slug = String(o.slug);
@@ -206,7 +206,7 @@ function pageCompose(L) {
     else if (row.t === "check") b = `${st[row.key] ? `${C.g}[x]${C.r}` : `${C.dim}[ ]${C.r}`} ${hl(padE(row.label, 8))} ${C.dim}${row.note}${C.r}`;
     else if (row.t === "checklevel") { const lv = st[row.key] ? `${C.mag}< ${st.ponyLevel} >${C.r}` : `${C.dim}(off)${C.r}`; b = `${st[row.key] ? `${C.g}[x]${C.r}` : `${C.dim}[ ]${C.r}`} ${hl(padE(row.label, 8))} ${lv}  ${C.dim}${row.note}${C.r}`; }
     else if (row.t === "number") { const sv = foc && numBuf !== "" ? numBuf : String(st.restoreN); b = `    ${hl(row.label)} ${foc ? `${C.inv} ${sv}_ ${C.r}` : `${C.mag}< ${sv} >${C.r}`}  ${C.dim}${row.note}${C.r}`; }
-    else if (row.t === "action") { const A = { refresh: [" Refresh ", C.blu], launch: [" LAUNCH ", C.g], quit: [" Quit ", C.dim] }[row.key]; b = foc ? `${C.inv}${A[1]}${A[0]}${C.r}` : `${A[1]}[${A[0].trim()}]${C.r}`; }
+    else if (row.t === "action") { const A = { refresh: [" (r) Refresh ", C.blu], launch: [" (l) LAUNCH ", C.g], quit: [" (q) Quit ", C.dim] }[row.key]; b = foc ? `${C.inv}${A[1]}${A[0]}${C.r}` : `${A[1]}[${A[0].trim()}]${C.r}`; }
     L.push(`${cur}${b}`);
   });
 }
@@ -268,8 +268,9 @@ function pageSystem(L) {
     else s = `${C.cy}${padE(v.br, 8)}${C.r} ${v.ahead ? C.g + "+" + v.ahead + " " : ""}${v.behind ? C.red + "-" + v.behind + " " : ""}${C.r}${v.dirty ? C.y + v.dirty + " dirty" : C.g + "clean"}${C.r}`;
     L.push(`    ${C.mag}${padE(rp, 8)}${C.r} ${s}`); });
   L.push(""); L.push(secHead("CLAUDE"));
-  L.push(`    ${C.dim}model${C.r}     ${OFF.cfg.model}   ${C.dim}statusline${C.r} ${OFF.cfg.statusline ? C.g + "on" : C.dim + "off"}${C.r}   ${C.dim}mcp${C.r} ${OFF.cfg.mcpCount}`);
-  L.push(`    ${C.dim}plugins${C.r}   ${OFF.plugins.map((p) => `${p.on ? C.g : C.dim}${p.label}${p.detail ? ":" + p.detail : ""}${C.r}`).join("  ")}`);
+  L.push(`    ${C.dim}model${C.r}     ${OFF.cfg.model}   ${C.dim}mcp${C.r} ${OFF.cfg.mcpCount}`);
+  // Statusline is listed AS a plugin (it is one: statusLine command in settings).
+  L.push(`    ${C.dim}plugins${C.r}   ${[...OFF.plugins.map((p) => `${p.on ? C.g : C.dim}${p.label}${p.detail ? ":" + p.detail : ""}${C.r}`), `${OFF.cfg.statusline ? C.g : C.dim}Statusline${OFF.cfg.statusline ? ":on" : ":off"}${C.r}`].join("  ")}`);
   L.push(`    ${C.dim}skills${C.r}    ${OFF.cfg.skills.slice(0, 12).map((s) => `${C.dim}${s}${C.r}`).join(" ") || C.dim + "none" + C.r}`);
   L.push(`    ${C.dim}hooks${C.r}     ${OFF.hooks.map((h) => `${C.dim}${h.name}(${h.kb}K)${C.r}`).join("  ")}`);
 }
@@ -293,8 +294,9 @@ function render() {
   pageNetwork(L);
   pageSessions(L);
   pageSystem(L);
-  L.push(""); L.push(secHead("KEYS"));
-  L.push(`   ${C.dim}Up/Down move . Space select . Left/Right change . 0-9 N . r Refresh . Enter launch . q quit${C.r}`);
+  L.push(""); L.push(secHead("KEYS + LEGEND"));
+  L.push(`   ${C.b}(l)${C.r}aunch  ${C.b}(r)${C.r}efresh  ${C.b}(q)${C.r}uit   ${C.dim}Up/Down move . Space select . Left/Right change . 0-9 type N . Enter activate${C.r}`);
+  L.push(`   ${C.g}up${C.r}${C.dim}=reachable(+latency)${C.r}  ${C.red}dn${C.r}${C.dim}=down${C.r}  ${C.y}t/o${C.r}${C.dim}=timeout(no reply<2s)${C.r}  ${C.dim}..${C.r}${C.dim}=probing  --=not probed yet (press r)${C.r}  ${C.blu}stdio${C.r}${C.dim}=local-process MCP (no ping)${C.r}`);
   process.stdout.write("\x1b[H" + L.map((l) => l + "\x1b[K").join("\n") + "\x1b[0J");
 }
 
@@ -316,6 +318,7 @@ function main() {
     const name = key?.name;
     if (name === "q" || (key?.ctrl && name === "c")) return quit();
     if (name === "r") return refresh();
+    if (name === "l") return launch();
     const row = rows[fl[focus]];
     const editingN = row?.t === "number";
     if (name === "up" || name === "k") { numBuf = ""; focus = (focus - 1 + fl.length) % fl.length; }
