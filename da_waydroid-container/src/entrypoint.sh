@@ -239,8 +239,157 @@ waydroid shell -- sh -c '
   svc power stayon true
   locksettings set-disabled true
   input keyevent KEYCODE_WAKEUP
+  wm dismiss-keyguard
 ' 2>/dev/null && log "display keep-awake + lockscreen-off applied" \
   || log "WARNING: could not apply keep-awake settings (boot_completed never reached?)"
+# `locksettings set-disabled true` only disables REQUIRING the keyguard on future
+# locks — it does NOT dismiss one already showing (confirmed live: screencap after
+# this block still showed the AOSP lockscreen clock+quick-shortcuts, not the
+# provisioned home screen). `wm dismiss-keyguard` is the actual dismiss action; retry
+# it once more after a short delay since the keyguard can (re)show right as
+# SystemUI finishes starting, racing this first call.
+sleep 2
+waydroid shell -- wm dismiss-keyguard 2>/dev/null || true
+
+# ── 6b) App provisioning — ported 2026-07-09 from the decommissioned da_waydroid-apps
+#    project: install the declarative app set (build.json apps.list, APKs baked into
+#    the image at /opt/apps/ by `build.sh apps-fetch`), grant permissions/app-ops, seed
+#    the Launcher3 home-screen+nav layout (build.json launcher{}), and apply the theme
+#    (build.json theme{}). Runs EXACTLY ONCE per container lifetime — guarded by a
+#    marker on the persistent /var/lib/waydroid volume — because layout/appops writes
+#    are meant to seed initial state, not fight the user's later in-app changes on
+#    every restart. jq (installed in the image) reads /etc/waydroid-container.json
+#    (build.json baked in by `build.sh build`). ─────────────────────────────────────
+PROVISION_MARKER=/var/lib/waydroid/.apps-provisioned
+CFG=/etc/waydroid-container.json
+if [ ! -f "$PROVISION_MARKER" ] && [ -f "$CFG" ]; then
+  log "provisioning apps (first boot of this container's /data — one-time)…"
+  # Guest /data is rbind-mounted from THIS container's own
+  # /root/.local/share/waydroid/data (waydroid's own LXC config) — so staging an APK
+  # for `pm install` is a plain local cp, no docker cp / cross-container step needed.
+  WD_DATA=/root/.local/share/waydroid/data
+  CTMP="$(jq -r '.waydroid.container_tmp' "$CFG")"
+  HOST_TMP="$WD_DATA/local/tmp"
+  mkdir -p "$HOST_TMP"
+  GRANT_FLAG=""; [ "$(jq -r '.waydroid.grant_all_permissions' "$CFG")" = "true" ] && GRANT_FLAG="-g"
+
+  N_APPS="$(jq -r '.apps.list | length' "$CFG")"
+  i=0
+  while [ "$i" -lt "$N_APPS" ]; do
+    PKG="$(jq -r ".apps.list[$i].package" "$CFG")"
+    APK="/opt/apps/$PKG.apk"
+    if [ ! -f "$APK" ]; then
+      log "  skip $PKG (no baked APK — was it in apps.list when apps-fetch ran?)"
+      i=$((i + 1)); continue
+    fi
+    cp -f "$APK" "$HOST_TMP/$PKG.apk"
+    OUT="$(waydroid shell -- pm install -r -d $GRANT_FLAG "$CTMP/$PKG.apk" 2>&1)"; OUT="${OUT//$'\r'/}"
+    if ! printf '%s' "$OUT" | grep -q Success; then
+      # signing-key change (e.g. a Cloud-* app re-signed by a fresh CI release) — pm
+      # install -r can't replace a different signature; uninstall then fresh install.
+      if printf '%s' "$OUT" | grep -qE 'signatures do not match|UPDATE_INCOMPATIBLE|INCONSISTENT_CERTIFICATES|signature'; then
+        waydroid shell -- pm uninstall "$PKG" >/dev/null 2>&1 || true
+        OUT="$(waydroid shell -- pm install -d $GRANT_FLAG "$CTMP/$PKG.apk" 2>&1)"; OUT="${OUT//$'\r'/}"
+      fi
+    fi
+    rm -f "$HOST_TMP/$PKG.apk"
+    if printf '%s' "$OUT" | grep -q Success; then log "  ✓ $PKG installed"; else log "  ✗ $PKG install FAILED: ${OUT##*$'\n'}"; fi
+
+    # Declared per-app appops (build.json apps.list[].appops), plus the full_perms
+    # bundle (build.json apps.full_perms_appops) for apps.list[].full_perms:true —
+    # Diego's own constellation apps get every extra app-op beyond the -g runtime
+    # grants above (install-other-apks, draw-over-apps, modify-settings, all-files).
+    FULL="$(jq -r ".apps.list[$i].full_perms // false" "$CFG")"
+    if [ "$FULL" = "true" ]; then
+      jq -r '.apps.full_perms_appops[]' "$CFG" | while read -r OP; do
+        waydroid shell -- appops set "$PKG" "$OP" allow >/dev/null 2>&1 \
+          && log "  appop $OP=allow ($PKG, full_perms)" || true
+      done
+    fi
+    jq -r ".apps.list[$i].appops[]? // empty" "$CFG" | while read -r OP; do
+      waydroid shell -- appops set "$PKG" "$OP" allow >/dev/null 2>&1 \
+        && log "  appop $OP=allow ($PKG)" || true
+    done
+    i=$((i + 1))
+  done
+
+  # Home-screen + nav layout (Launcher3 favorites DB). Resolve each referenced
+  # package's LAUNCHER activity live (never assumed), render the layout SQL from
+  # build.json's `launcher` block via gen-layout-sql.js, apply with sqlite3.
+  log "resolving launcher components + applying home-screen/nav layout…"
+  jq -r '
+    [ (.launcher.folders | to_entries[] | select(.key | startswith("_") | not) | .value.members[]),
+      (.launcher.hotseat[] | select(startswith("folder:") | not)),
+      (.launcher.workspace.cells[].ref | select(startswith("folder:") | not))
+    ] | unique[]
+  ' "$CFG" > /tmp/launcher-pkgs.txt
+  : > /tmp/components.tsv
+  while read -r PKG; do
+    [ -n "$PKG" ] || continue
+    COMP="$(waydroid shell -- cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$PKG" 2>/dev/null \
+      | tr -d '\r' | awk 'NF{l=$0} END{print l}')"
+    case "$COMP" in */*) printf '%s\t%s\n' "$PKG" "$COMP" >> /tmp/components.tsv ;; esac
+  done < /tmp/launcher-pkgs.txt
+  COMPONENTS_J="$(jq -R -s 'split("\n") | map(select(length>0) | split("\t")) | map({(.[0]):.[1]}) | add // {}' /tmp/components.tsv)"
+
+  DB="$(find "$WD_DATA" -path "*/$(jq -r '.waydroid.launcher_db_glob' "$CFG")" 2>/dev/null | sort | head -1)"
+  if [ -n "$DB" ]; then
+    FOLDERS_J="$(jq -c '.launcher.folders' "$CFG")" \
+    HOTSEAT_J="$(jq -c '.launcher.hotseat' "$CFG")" \
+    WORKSPACE_J="$(jq -c '.launcher.workspace' "$CFG")" \
+    COMPONENTS_J="$COMPONENTS_J" \
+    HOTSEAT_CONTAINER="$(jq -r '.waydroid.hotseat_container' "$CFG")" \
+    WORKSPACE_CONTAINER="$(jq -r '.waydroid.workspace_container' "$CFG")" \
+    FLAGS="$(jq -r '.waydroid.launch_flags' "$CFG")" \
+    ITEM_APP="$(jq -r '.waydroid.item_type_application' "$CFG")" \
+    ITEM_FOLDER="$(jq -r '.waydroid.item_type_folder' "$CFG")" \
+    node /opt/launcher/gen-layout-sql.js > /tmp/layout.sql
+    DBOWNER="$(stat -c '%u:%g' "$DB")"
+    HOME_COMPONENT="$(jq -r '.waydroid.launcher_home_activity' "$CFG")"
+    waydroid shell -- am force-stop "$(jq -r '.waydroid.launcher_package' "$CFG")" 2>/dev/null || true
+    sqlite3 "$DB" < /tmp/layout.sql \
+      && sqlite3 "$DB" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 \
+      && rm -f "$DB-wal" "$DB-shm" \
+      && chown "$DBOWNER" "$DB" \
+      && log "  layout applied ($(grep -c '^INSERT' /tmp/layout.sql) rows)" \
+      || log "  WARNING: layout apply failed — see $DB"
+    # `-c android.intent.category.HOME` is AMBIGUOUS once apps.list installs any other
+    # HOME-capable app (Cloud-SuperApp, Mako both legitimately declare it) — Android
+    # then shows its disambiguation resolver ('Use Trebuchet as Home' / Just once /
+    # Always), which BLOCKS rendering until manually tapped (no error, no crash — the
+    # DB was correct on disk the whole time; only the resolver silently covered the
+    # real home screen — confirmed live 2026-07-09). `set-home-activity` + an EXPLICIT
+    # component start (`-n`, never `-c HOME`) bypasses the resolver entirely.
+    waydroid shell -- cmd package set-home-activity "$HOME_COMPONENT" >/dev/null 2>&1 || true
+    waydroid shell -- am start -n "$HOME_COMPONENT" >/dev/null 2>&1 || true
+  else
+    log "  WARNING: launcher DB not found under $WD_DATA — layout skipped"
+  fi
+
+  # Theme: dark mode, auto-rotate (follows the accelerometer HAL), wallpaper dim.
+  # AOSP 13's `cmd wallpaper` has no set-image subcommand (dim controls only), so
+  # `wallpaper.dim=1.0` is how a solid-black background is achieved from the host.
+  if [ "$(jq -r '.theme.dark_mode' "$CFG")" = "true" ]; then
+    waydroid shell -- cmd uimode night yes >/dev/null 2>&1 || true
+    waydroid shell -- settings put secure ui_night_mode 2 >/dev/null 2>&1 || true
+  fi
+  if [ "$(jq -r '.theme.auto_rotate' "$CFG")" = "true" ]; then
+    waydroid shell -- settings put system accelerometer_rotation 1 >/dev/null 2>&1 || true
+  fi
+  DIM="$(jq -r '.theme.wallpaper.dim' "$CFG")"
+  [ -n "$DIM" ] && [ "$DIM" != "null" ] && waydroid shell -- cmd wallpaper set-dim-amount "$DIM" >/dev/null 2>&1
+  log "theme applied (dark_mode/auto_rotate/wallpaper per build.json)"
+
+  touch "$PROVISION_MARKER"
+  log "app provisioning complete — will not re-run on future restarts of this /data volume"
+elif [ -f "$PROVISION_MARKER" ]; then
+  log "apps already provisioned (marker present) — skipping"
+fi
+# The launcher force-stop/relaunch (or an idle timeout during the multi-minute
+# provisioning pass) can leave/put the keyguard back up over the freshly-seeded
+# home screen — dismiss it one more time so the FIRST thing shown is the
+# provisioned launcher, not the lockscreen.
+waydroid shell -- wm dismiss-keyguard 2>/dev/null || true
 
 # ── 7) PID 1 duties: stay in foreground, forward SIGTERM to a FULL, ORDERED shutdown
 #    of every stack this entrypoint started — graceful `waydroid ... stop` first, so
