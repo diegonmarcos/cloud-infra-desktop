@@ -26,7 +26,8 @@ hasre() { grep -qE "$2" "$ROOT/$1" 2>/dev/null && ok "$3" || bad "$3 ($1)"; }
 NAV_UPD="ea_cloud-nav/libs/updater/src/main/java/com/diegonmarcos/cloudnav/updater"
 NAV_UI="ea_cloud-nav/app/src/main/java/com/diegonmarcos/cloudnav/configs/DevControlFragment.kt"
 SUP_UPD="ea_cloud-superapp/libs/updater/src/main/java/com/diegonmarcos/superapp/updater"
-SUP_UI="ea_cloud-superapp/app/src/main/java/com/diegonmarcos/superapp/devcontrol/DevControlFragment.kt"
+# superapp's grant UI moved DevControlFragment → configs/PermissionsFragment.
+SUP_UI="ea_cloud-superapp/app/src/main/java/com/diegonmarcos/superapp/configs/PermissionsFragment.kt"
 IDE_UPD="ea_cloud-ide/hub/src/main/java/com/diegonmarcos/ide/update"
 IDE_UI="ea_cloud-ide/hub/src/main/java/com/diegonmarcos/ide/AboutActivity.kt"
 
@@ -46,13 +47,21 @@ for u in "$NAV_UPD" "$SUP_UPD" "$IDE_UPD"; do
 done
 
 echo "== T3: Configs/About exposes the toggle + 'Install unknown apps' grant =="
-for f in "$NAV_UI" "$SUP_UI" "$IDE_UI"; do
+# nav / ide keep the original silent-toggle idiom.
+for f in "$NAV_UI" "$IDE_UI"; do
   has "$f" "Auto-update (silent)" "About shows auto-update status row — ${f##*/}"
   has "$f" "Install unknown apps" "About shows grant status row — ${f##*/}"
   has "$f" "openUnknownAppSourcesSettings" "About wires the grant button — ${f##*/}"
   has "$f" "ACTION_MANAGE_UNKNOWN_APP_SOURCES" "grant opens the right settings screen — ${f##*/}"
   has "$f" "AutoUpdatePrefs.setSilent" "About toggle flips the pref — ${f##*/}"
 done
+# superapp evolved: Configs→Permissions exposes a MASTER Auto-update toggle
+# (AutoUpdatePrefs.setEnabled; silent stays default-ON) + the same grant row.
+has "$SUP_UI" "Auto-update" "Permissions shows auto-update row — superapp"
+has "$SUP_UI" "Install unknown apps" "Permissions shows grant status row — superapp"
+has "$SUP_UI" "openUnknownAppSourcesSettings" "Permissions wires the grant button — superapp"
+has "$SUP_UI" "ACTION_MANAGE_UNKNOWN_APP_SOURCES" "grant opens the right settings screen — superapp"
+has "$SUP_UI" "AutoUpdatePrefs.setEnabled" "Permissions master toggle flips the pref — superapp"
 
 echo "== T4: build.json declares install_mode=silent default (4 apps) =="
 for b in ea_cloud-nav ea_cloud-superapp ea_cloud-ide ea_cloud-comms; do
@@ -63,6 +72,22 @@ echo "== T5: manifests declare REQUEST_INSTALL_PACKAGES =="
 has "ea_cloud-superapp/app/src/main/AndroidManifest.xml" "REQUEST_INSTALL_PACKAGES" "superapp manifest grants install"
 has "ea_cloud-nav/libs/updater/src/main/AndroidManifest.xml" "REQUEST_INSTALL_PACKAGES" "nav updater manifest grants install"
 has "ea_cloud-ide/hub/src/main/AndroidManifest.xml" "REQUEST_INSTALL_PACKAGES" "ide hub manifest grants install"
+
+echo "== T5b: manifests declare UPDATE_PACKAGES_WITHOUT_USER_ACTION =="
+# Android 12+ hard requirement for USER_ACTION_NOT_REQUIRED: without this
+# install-time permission the OS SILENTLY downgrades every commit to a prompt
+# — silent auto-update can never engage, with zero error anywhere. Every app
+# whose installer requests NOT_REQUIRED must carry it in its APK manifest.
+for m in \
+  "ea_cloud-superapp/app/src/main/AndroidManifest.xml superapp" \
+  "ea_cloud-wallet/app/src/main/AndroidManifest.xml wallet" \
+  "ea_cloud-vault/app/src/main/AndroidManifest.xml vault" \
+  "ea_cloud-browser/app/src/main/AndroidManifest.xml browser" \
+  "ea_cloud-nav/app/src/main/AndroidManifest.xml nav" \
+  "ea_cloud-ide/hub/src/main/AndroidManifest.xml ide-hub"; do
+  path="${m% *}"; app="${m##* }"
+  has "$path" "UPDATE_PACKAGES_WITHOUT_USER_ACTION" "$app manifest allows silent updates"
+done
 
 echo "== T6: mail fork (patch 0050 — silent installer + About toggle/grant) =="
 MAIL_PATCH=$(ls "$ROOT"/ea_cloud-comms/forks/mail/patches/0050-*.patch 2>/dev/null | head -1)
