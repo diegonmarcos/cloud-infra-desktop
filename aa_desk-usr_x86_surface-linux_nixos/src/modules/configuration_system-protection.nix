@@ -277,6 +277,50 @@ in
       SLICE_MEM_LIMIT=${toString sysprot.watchdog.slice_mem_full_avg10}
       HOG_CGS="${lib.concatStringsSep " " (map (s: "/sys/fs/cgroup/" + s) sysprot.watchdog.hog_slices)}"
       KTHREAD_RE="${sysprot.watchdog.kthread_comm_re}"
+      # ── write-storm voter (v3.2) — the LEADING indicator PSI misses ─────────
+      WS_MBPS=${toString sysprot.watchdog.write_storm_mb_per_sec}
+      WS_DIRTY_MB=${toString sysprot.watchdog.dirty_mb_max}
+      WS_SUSTAIN=${toString sysprot.watchdog.write_storm_sustain_sec}
+      WS_DISK="${sysprot.watchdog.write_storm_disk}"
+
+      # Disk write rate (MB/s) since the last call: field 10 of /proc/diskstats
+      # (sectors written) * 512, delta / interval. Global writeback view — the
+      # burst that fills dirty page cache before any PSI stall registers.
+      disk_write_mbps() {
+        local now sec
+        sec=$(awk -v d="$WS_DISK" '$3==d {print $10; exit}' /proc/diskstats 2>/dev/null)
+        sec=''${sec:-0}
+        now=$sec
+        if [ -n "$PREV_WSEC" ]; then
+          echo $(( (now - PREV_WSEC) * 512 / 1024 / 1024 / (INTERVAL>0?INTERVAL:1) ))
+        else echo 0; fi
+        PREV_WSEC=$now
+      }
+      # Dirty + Writeback pages (MB) — the backlog that triggers synchronous
+      # forced writeback (the stall) once it crosses vm.dirty_ratio.
+      dirty_mb() {
+        awk '/^Dirty:/{d=$2} /^Writeback:/{w=$2} END{print int((d+w)/1024)}' /proc/meminfo 2>/dev/null
+      }
+      # Top disk WRITER by /proc/PID/io write_bytes DELTA (bytes written since
+      # last tick). Persistent map PREV_WB[pid]. Skips kthreads + avoid_kill.
+      # Prints "pid mbdelta comm".
+      pick_top_writer() {
+        local p wb comm best_pid="" best_d=-1 best_comm="" d
+        for p in /proc/[0-9]*; do
+          p=''${p#/proc/}
+          [ "$p" -gt 1 ] 2>/dev/null || continue
+          wb=$(awk '/^write_bytes:/{print $2}' "/proc/$p/io" 2>/dev/null) || continue
+          [ -n "$wb" ] || continue
+          d=$(( wb - ''${PREV_WB[$p]:-$wb} ))
+          PREV_WB[$p]=$wb
+          [ "$d" -gt "$best_d" ] || continue
+          is_kthread "$p" && continue
+          comm=$(cat "/proc/$p/comm" 2>/dev/null) || continue
+          echo "$comm" | grep -Eq -- "$AVOID" && continue
+          best_d=$d; best_pid=$p; best_comm=$comm
+        done
+        [ -n "$best_pid" ] && echo "$best_pid $((best_d/1024/1024)) $best_comm"
+      }
 
       # $2 = "full" (mem/io: all tasks stalled) or "some" (cpu: any task stalled).
       psi_avg10() {
@@ -391,16 +435,42 @@ in
       # (cpu breach) or RSS (mem/io breach) — ranking is victim-selection, not the
       # trigger. Graceful SIGTERM for node/claude via do_kill.
       echo "[freeze-guard] online as $(id -un); PSI trigger — cpuPSI(some)>$CPU_LIMIT | memPSI(full)>$MEM_LIMIT | ioPSI(full)>$IO_LIMIT; THRASH trigger — memory.high >$HIGH_MAX/s for ''${THRASH_SUSTAIN}s on $THRASH_CG; max $MAX_KILLS kills/tick"
-      prev_high=""; thrash_secs=0
+      prev_high=""; thrash_secs=0; ws_secs=0; PREV_WSEC=""
       declare -A TERMED    # pids already SIGTERM'd once — escalate to SIGKILL on recurrence
+      declare -A PREV_WB   # per-pid write_bytes for the write-storm voter's delta
       while :; do
-        # Prune escalation map: drop pids that already died (so it can't grow
-        # unbounded and a recycled pid isn't wrongly fast-killed).
+        # Prune maps: drop pids that already died (unbounded-growth guard).
         for _p in "''${!TERMED[@]}"; do [ -d "/proc/$_p" ] || unset "TERMED[$_p]"; done
+        for _p in "''${!PREV_WB[@]}"; do [ -d "/proc/$_p" ] || unset "PREV_WB[$_p]"; done
 
         cpu=$(psi_avg10 cpu some);    cpu=''${cpu:-0}
         mem=$(psi_avg10 memory full); mem=''${mem:-0}
         io=$(psi_avg10 io full);      io=''${io:-0}
+
+        # ── VOTER: write-storm (v3.2) — LEADING indicator PSI misses ──────────
+        # A write burst fills dirty page cache instantly (no stall → PSI flat);
+        # the freeze hits later when dirty pages force synchronous writeback.
+        # Watch the write RATE + dirty backlog directly and kill the top writer
+        # BEFORE the stall. do_kill/pick_top_writer skip kthreads + essentials.
+        wmbps=$(disk_write_mbps)
+        dmb=$(dirty_mb); dmb=''${dmb:-0}
+        if [ "$wmbps" -gt "$WS_MBPS" ] || [ "$dmb" -gt "$WS_DIRTY_MB" ]; then
+          ws_secs=$(( ws_secs + INTERVAL ))
+          echo "[freeze-guard] WRITE-STORM ''${wmbps}MB/s (>$WS_MBPS) dirty=''${dmb}MB (>$WS_DIRTY_MB) sustained ''${ws_secs}s/''${WS_SUSTAIN}s"
+          if [ "$ws_secs" -ge "$WS_SUSTAIN" ]; then
+            set -- $(pick_top_writer)
+            wpid="$1"; wmb="$2"; wcomm="$3"
+            if [ -n "$wpid" ] && [ "$wpid" -gt 1 ] 2>/dev/null; then
+              do_kill "$wpid" "$wcomm"; wsig=$SIG
+              echo "[freeze-guard] WRITE-STORM-KILL → SIG$wsig top-writer pid=$wpid ''${wmb}MB/tick ($wcomm)"
+            else
+              echo "[freeze-guard] WRITE-STORM: no eligible writer (all essential/kthread?)"
+            fi
+            ws_secs=0
+          fi
+        else
+          ws_secs=0
+        fi
 
         # ── VOTER: per-slice desktop starvation (v3.1) — the 15:29 root cause ──
         # The desktop froze with user.slice io.pressure=96%/56% while GLOBAL io
