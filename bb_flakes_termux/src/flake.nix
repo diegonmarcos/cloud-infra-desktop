@@ -328,6 +328,9 @@
                   export CAS_MCP_GP="${claudeSuperset.mcps.gp}"
                   export CAS_PLUGINS_SCRIPT="$HOME/.claude/claude-plugins-status.sh"
                   export CAS_MESH='${builtins.toJSON (claudeSuperset.mesh or {})}'
+                  export CAS_PUBLIC='${builtins.toJSON (claudeSuperset.public or {})}'
+                  export CAS_IMAGE="${claudeSuperset.image or ""}"
+                  export CAS_PING="${pkgs.iputils}/bin/ping" CAS_DF="${pkgs.coreutils}/bin/df" CAS_GIT="${pkgs.git}/bin/git"
                   exec ${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-tui.mjs}
                 fi
 

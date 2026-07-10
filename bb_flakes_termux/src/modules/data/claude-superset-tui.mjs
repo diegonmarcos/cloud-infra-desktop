@@ -1,347 +1,341 @@
 #!/usr/bin/env node
-// claude-superset-tui — full-screen launch composer + infra dashboard.
-// No npm deps (node:readline raw-mode + ANSI). TTY-SAFE: only ASCII glyphs +
-// ANSI colors, so it renders identically on a bare Linux console, xterm and
-// konsole. Data is OFFLINE (read instantly at startup: MCP registry, plugins,
-// hooks, local sessions) or NETWORK (probed ONLY on Refresh — nothing hits the
-// wire on open, so it never blocks/freezes). Each probe is independent + hard
-// timeout'd and patches only its own field, re-rendering as answers arrive.
-//
-//   Up/Down move   Space toggle/select   Left/Right change   0-9 type N
-//   r / Refresh probe network   Enter activate   q quit
-//
-//   (*)/( ) selection (pick one)    [x]/[ ] checkbox (toggle)
+// claude-superset-tui — paged launch composer + infra dashboard (TTY-safe).
+// No npm deps. ASCII glyphs + ANSI colors only, so it renders identically on a
+// bare Linux console, xterm and konsole. Pages: [1]Compose [2]Network
+// [3]Sessions [4]System  (1-4 or Tab to switch).  Data is OFFLINE (instant fs
+// reads at startup) or NETWORK/CMD (fired ONLY on Refresh/r) — nothing hits the
+// wire on open, so it never blocks. Each probe is independent + hard-timeout'd
+// and patches only its own slot, re-rendering as answers arrive.
 import readline from "node:readline";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-// ── endpoints (from the Nix wrapper env; sane fallbacks) ────────────────────
+const env = process.env;
 const EP = {
-  proxy:     process.env.CAS_PROXY     || "http://10.0.0.6:8789",
-  api:       process.env.CAS_API       || "http://10.0.0.6:3117",
-  ollama:    process.env.CAS_OLLAMA    || "http://10.0.0.6:11436",
-  compress:  process.env.CAS_COMPRESS  || "http://10.0.0.6:8788",
-  anthropic: process.env.CAS_ANTHROPIC || "https://api.anthropic.com",
+  proxy: env.CAS_PROXY || "http://10.0.0.6:8789", api: env.CAS_API || "http://10.0.0.6:3117",
+  ollama: env.CAS_OLLAMA || "http://10.0.0.6:11436", compress: env.CAS_COMPRESS || "http://10.0.0.6:8788",
+  anthropic: env.CAS_ANTHROPIC || "https://api.anthropic.com",
 };
-const MESH = (() => { try { return JSON.parse(process.env.CAS_MESH || "{}"); } catch { return {}; } })();
-const SELF = "claude-superset";
-const HOME = os.homedir();
-const CFG = process.env.CLAUDE_CONFIG_DIR || path.join(HOME, ".claude");
+const jp = (s) => { try { return JSON.parse(s || "{}"); } catch { return {}; } };
+const MESH = jp(env.CAS_MESH), PUBLIC = jp(env.CAS_PUBLIC);
+const IMAGE = env.CAS_IMAGE || "ghcr.io/diegonmarcos/claude-superset-api-binaries";
+const BIN = { ping: env.CAS_PING || "ping", df: env.CAS_DF || "df", git: env.CAS_GIT || "git" };
+const SELF = "claude-superset", HOME = os.homedir(), CFG = env.CLAUDE_CONFIG_DIR || path.join(HOME, ".claude");
+const GITROOT = path.join(HOME, "git"), REPOS = ["cloud", "unix", "front", "vault", "tools"];
 const RESTORE_PRESETS = { count: [1, 3, 5, 10, 20, 50], hours: [1, 4, 8, 24, 72, 168] };
 const PONY_LEVELS = ["lite", "full", "ultra"];
-
-const C = {
-  r: "\x1b[0m", b: "\x1b[1m", dim: "\x1b[2m", inv: "\x1b[7m",
-  g: "\x1b[32m", y: "\x1b[33m", red: "\x1b[31m", cy: "\x1b[36m", mag: "\x1b[35m", blu: "\x1b[34m",
-};
+const C = { r: "\x1b[0m", b: "\x1b[1m", dim: "\x1b[2m", inv: "\x1b[7m", g: "\x1b[32m", y: "\x1b[33m", red: "\x1b[31m", cy: "\x1b[36m", mag: "\x1b[35m", blu: "\x1b[34m" };
 const strip = (s) => s.replace(/\x1b\[[0-9;]*m/g, "");
 const padE = (s, n) => { const w = strip(s).length; return w >= n ? s : s + " ".repeat(n - w); };
 const padS = (s, n) => { const w = strip(s).length; return w >= n ? s : " ".repeat(n - w) + s; };
-const W = 70;
-const RULE = "-".repeat(W);
-const SPIN = ["|", "/", "-", "\\"];
-let spin = 0, spinTimer = null;
-// beautiful, TTY-safe section header:  --[ TITLE ]----------------[ right ]--
+const W = 76;
+const num = (x) => Number(x || 0).toLocaleString();
+const SPIN = ["|", "/", "-", "\\"]; let spin = 0, spinTimer = null;
 function secHead(title, right = "") {
-  const left = `--[ ${title} ]`;
-  const rt = right ? `[ ${right} ]--` : "--";
-  const mid = "-".repeat(Math.max(2, W - strip(left).length - strip(rt).length));
-  return `  ${C.dim}--${C.r}${C.b}${C.blu}[ ${title} ]${C.r}${C.dim}${mid}${right ? C.r + C.y + `[ ${right} ]` + C.dim : ""}--${C.r}`;
+  const left = `[ ${title} ]`, rt = right ? `[ ${right} ]` : "";
+  const mid = "-".repeat(Math.max(2, W - strip(left).length - strip(rt).length - 4));
+  return `  ${C.dim}--${C.r}${C.b}${C.blu}${left}${C.r}${C.dim}${mid}${C.r}${right ? `${C.y}${rt}${C.r}` : ""}${C.dim}--${C.r}`;
 }
 
-// ── offline data (read instantly at startup — no network) ───────────────────
-function readJSON(p) { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; } }
+// ── OFFLINE data (instant) ──────────────────────────────────────────────────
+const readJSON = (p) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; } };
 function loadMcps() {
   const j = readJSON(path.join(HOME, ".mcp.json")) || readJSON(path.join(HOME, ".claude.json")) || {};
   return Object.entries(j.mcpServers || {}).map(([name, v]) => {
-    const type = v.type || (v.url ? "http" : "stdio");
-    let host = null; try { if (v.url) host = new URL(v.url).host; } catch {}
+    const type = v.type || (v.url ? "http" : "stdio"); let host = null;
+    try { if (v.url) host = new URL(v.url).host; } catch {}
     return { name, type, url: v.url || null, host, st: undefined };
   });
 }
 function loadPlugins() {
-  const j = readJSON(path.join(CFG, "claude-plugins.json")) || readJSON(path.join(HOME, ".claude", "claude-plugins.json")) || { plugins: [] };
-  return (j.plugins || []).map((p) => ({ id: p.id, label: p.label || p.id, icon: p.icon || "*" }));
-}
-function loadHooks() {
-  try {
-    return fs.readdirSync(path.join(CFG, "hooks")).filter((f) => !f.startsWith(".")).map((f) => f.replace(/\.(sh|json|md)$/, ""));
-  } catch { return []; }
-}
-function inspectTitle(text, id) {
-  let ct = null, slug = null, ai = null, fp = null;
-  for (const line of text.split("\n")) {
-    if (!line) continue;
-    let o; try { o = JSON.parse(line); } catch { continue; }
-    if (o.customTitle) ct = String(o.customTitle);
-    if (o.aiTitle) ai = String(o.aiTitle);
-    if (!slug && o.slug) slug = String(o.slug);
-    if (!fp && o.type === "user") {
-      const c = o.message?.content;
-      const t = typeof c === "string" ? c : Array.isArray(c) ? c.find((b) => b?.type === "text")?.text : null;
-      if (t && !t.startsWith("<")) fp = t;
-    }
-  }
-  return (ct || slug || ai || fp || id.slice(0, 8)).replace(/[\r\n]+/g, " ").trim().slice(0, 34);
-}
-const ago = (ms) => {
-  const s = Math.max(0, (Date.now() - ms) / 1000);
-  if (s < 90) return `${Math.round(s)}s`;
-  if (s < 5400) return `${Math.round(s / 60)}m`;
-  if (s < 172800) return `${Math.round(s / 3600)}h`;
-  return `${Math.round(s / 86400)}d`;
-};
-function loadLocalSessions() {
-  const base = path.join(HOME, ".claude", "projects");
-  const out = [];
-  let dirs = []; try { dirs = fs.readdirSync(base).map((d) => path.join(base, d)); } catch { return []; }
-  for (const dir of dirs) {
-    let names = []; try { if (!fs.statSync(dir).isDirectory()) continue; names = fs.readdirSync(dir); } catch { continue; }
-    for (const n of names) {
-      if (!n.endsWith(".jsonl")) continue;
-      const f = path.join(dir, n);
-      try { out.push({ id: n.slice(0, -6), f, mtime: fs.statSync(f).mtimeMs }); } catch {}
-    }
-  }
-  out.sort((a, b) => b.mtime - a.mtime);
-  return out.slice(0, 10).map((s) => {
-    let title = s.id.slice(0, 8);
-    try { title = inspectTitle(fs.readFileSync(s.f, "utf8"), s.id); } catch {}
-    return { id: s.id, title, age: ago(s.mtime) };
+  const j = readJSON(path.join(CFG, "claude-plugins.json")) || { plugins: [] };
+  return (j.plugins || []).map((p) => {
+    const d = p.detect || {}; let on = false, detail = "";
+    if (d.type === "env_set") on = !!env[d.env];
+    else if (d.type === "env_value") { on = !!env[d.env]; detail = env[d.env] || ""; }
+    else if (d.type === "flag_file") { try { on = fs.existsSync(path.join(CFG, d.path)); if (on && d.show_content) detail = fs.readFileSync(path.join(CFG, d.path), "utf8").trim(); } catch {} }
+    return { id: p.id, label: p.label || p.id, icon: p.icon || "*", on, detail };
   });
 }
+function loadDirList(dir) {
+  try { return fs.readdirSync(path.join(CFG, dir)).filter((f) => !f.startsWith(".")); } catch { return []; }
+}
+function hooksDetailed() {
+  const d = path.join(CFG, "hooks"); const out = [];
+  try { for (const f of fs.readdirSync(d)) { if (f.startsWith(".")) continue; let sz = 0; try { sz = fs.statSync(path.join(d, f)).size; } catch {} out.push({ name: f.replace(/\.(sh|json|md)$/, ""), kb: Math.max(1, Math.round(sz / 1024)) }); } } catch {}
+  return out;
+}
+const ago = (ms) => { const s = Math.max(0, (Date.now() - ms) / 1000); return s < 90 ? `${Math.round(s)}s` : s < 5400 ? `${Math.round(s / 60)}m` : s < 172800 ? `${Math.round(s / 3600)}h` : `${Math.round(s / 86400)}d`; };
+function loadLocalSessions() {
+  const base = path.join(HOME, ".claude", "projects"); const out = []; let dirs = [];
+  try { dirs = fs.readdirSync(base).map((d) => path.join(base, d)); } catch { return { list: [], total: 0, bytes: 0 }; }
+  for (const dir of dirs) { let names = []; try { if (!fs.statSync(dir).isDirectory()) continue; names = fs.readdirSync(dir); } catch { continue; }
+    for (const n of names) { if (!n.endsWith(".jsonl")) continue; const f = path.join(dir, n); try { const st = fs.statSync(f); out.push({ id: n.slice(0, -6), f, mtime: st.mtimeMs, size: st.size }); } catch {} } }
+  const total = out.length, bytes = out.reduce((a, s) => a + s.size, 0);
+  out.sort((a, b) => b.mtime - a.mtime);
+  const list = out.slice(0, 10).map((s) => {
+    let ct = null, slug = null, ai = null, fp = null, cwd = null, msgs = 0;
+    try { for (const line of fs.readFileSync(s.f, "utf8").split("\n")) { if (!line) continue; let o; try { o = JSON.parse(line); } catch { continue; }
+      if (o.customTitle) ct = String(o.customTitle); if (o.aiTitle) ai = String(o.aiTitle); if (!slug && o.slug) slug = String(o.slug);
+      if (!cwd && o.cwd) cwd = o.cwd; if (o.type === "user" || o.type === "assistant") msgs++;
+      if (!fp && o.type === "user") { const c = o.message?.content; const t = typeof c === "string" ? c : Array.isArray(c) ? c.find((b) => b?.type === "text")?.text : null; if (t && !t.startsWith("<")) fp = t; } } } catch {}
+    const title = (ct || slug || ai || fp || s.id.slice(0, 8)).replace(/[\r\n]+/g, " ").trim().slice(0, 30);
+    return { id: s.id, title, age: ago(s.mtime), kb: Math.max(1, Math.round(s.size / 1024)), msgs, cwd: (cwd || "").replace(HOME, "~") };
+  });
+  return { list, total, bytes };
+}
+function claudeConfig() {
+  const s = readJSON(path.join(CFG, "settings.json")) || {};
+  return { model: s.model || "(default)", statusline: !!s.statusLine, skills: loadDirList("skills"), mcpCount: loadMcps().length };
+}
 
-// ── network probes (fired ONLY on Refresh) ──────────────────────────────────
-async function timed(url, sub, anyStatus = false) {
+// ── probes ──────────────────────────────────────────────────────────────────
+async function httpTimed(url, sub = "", { anyStatus = false, headers, timeout = 1800, wantBody = false } = {}) {
   const t0 = Date.now();
   try {
-    const c = new AbortController(); const t = setTimeout(() => c.abort(), 1800);
-    const r = await fetch(`${url.replace(/\/$/, "")}${sub}`, { signal: c.signal, redirect: "manual" }).finally(() => clearTimeout(t));
-    return { up: anyStatus ? true : r.ok, ms: Date.now() - t0 };
+    const c = new AbortController(); const t = setTimeout(() => c.abort(), timeout);
+    const r = await fetch(`${url.replace(/\/$/, "")}${sub}`, { signal: c.signal, redirect: "manual", headers }).finally(() => clearTimeout(t));
+    const v = { up: anyStatus ? true : r.ok, ms: Date.now() - t0, status: r.status };
+    if (wantBody) { try { v.body = await r.json(); } catch {} }
+    return v;
   } catch { return "t/o"; }
 }
-function pingHost(ip) {
+function sh(cmd, args, timeout = 2500) {
   return new Promise((resolve) => {
     let done = false; const fin = (v) => { if (!done) { done = true; resolve(v); } };
-    let child; try { child = spawn("ping", ["-c", "1", "-W", "1", ip]); } catch { return fin("t/o"); }
-    const kill = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} fin("t/o"); }, 2000);
-    let out = ""; child.stdout.on("data", (d) => (out += d));
-    child.on("error", () => { clearTimeout(kill); fin("t/o"); });
-    child.on("close", () => { clearTimeout(kill); const m = out.match(/time[=<]([\d.]+)\s*ms/); fin(m ? { up: true, ms: Math.round(Number(m[1])) } : "t/o"); });
+    let ch; try { ch = spawn(cmd, args); } catch { return fin("t/o"); }
+    const k = setTimeout(() => { try { ch.kill("SIGKILL"); } catch {} fin("t/o"); }, timeout);
+    let out = ""; ch.stdout.on("data", (d) => (out += d)); ch.stderr.on("data", () => {});
+    ch.on("error", () => { clearTimeout(k); fin("t/o"); });
+    ch.on("close", () => { clearTimeout(k); fin({ out }); });
   });
 }
+async function ping(ip) { const r = await sh(BIN.ping, ["-c", "1", "-W", "1", ip], 2000); if (r === "t/o") return "t/o"; const m = r.out.match(/time[=<]([\d.]+)\s*ms/); return m ? { up: true, ms: Math.round(Number(m[1])) } : "t/o"; }
+async function imageArches() {
+  try {
+    const repo = IMAGE.replace(/^ghcr\.io\//, "");
+    const tk = await httpTimed(`https://ghcr.io/token?scope=repository:${repo}:pull`, "", { wantBody: true, timeout: 2000 });
+    if (tk === "t/o" || !tk.body?.token) return "t/o";
+    const acc = "application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json";
+    const m = await httpTimed(`https://ghcr.io/v2/${repo}/manifests/latest`, "", { headers: { Authorization: `Bearer ${tk.body.token}`, Accept: acc }, wantBody: true, timeout: 2200 });
+    if (m === "t/o" || !m.body) return "t/o";
+    return m.body.manifests ? { arches: m.body.manifests.map((x) => x.platform?.architecture).filter(Boolean) } : { arches: [m.body.architecture || "single"] };
+  } catch { return "t/o"; }
+}
 
-// ── state — ALL plugins ON by default ───────────────────────────────────────
+// ── state ───────────────────────────────────────────────────────────────────
 const st = { face: "remote", headroom: true, ponytail: true, ponyLevel: "full", restore: "off", restoreN: 5 };
-let numBuf = "";
-const OFF = { mcps: loadMcps(), plugins: loadPlugins(), hooks: loadHooks(), sessions: loadLocalSessions() };
-const NET = { proxy: undefined, api: undefined, ollama: undefined, compress: undefined, direct: undefined, mesh: {}, tokens: undefined, server: undefined };
-Object.keys(MESH).forEach((k) => (NET.mesh[k] = undefined));
-let refreshing = false, tearing = false;
+let numBuf = "", page = 1, focus = 0, refreshing = false, tearing = false;
+const OFF = { mcps: loadMcps(), plugins: loadPlugins(), hooks: hooksDetailed(), sessions: loadLocalSessions(), cfg: claudeConfig() };
+const D = {}; // net/cmd slots by id: undefined|null|value|"t/o"
 
-function selArgs() {
-  const n = String(Math.max(1, st.restoreN || 1));
-  const a = [st.face];
-  if (st.face !== "claude") { if (!st.headroom) a.push("headroom", "off"); a.push("ponytail", st.ponytail ? st.ponyLevel : "off"); }
-  if (st.restore === "count") a.push("restore", n);
-  if (st.restore === "hours") a.push("restore-hours", n);
-  return a;
+function collectors() {
+  const cs = [
+    ["proxy", () => httpTimed(EP.proxy, "/readyz")],
+    ["api", () => httpTimed(EP.api, "/health", { wantBody: true })],
+    ["ollama", () => httpTimed(EP.ollama, "/api/version")],
+    ["compress", () => httpTimed(EP.compress, "/readyz")],
+    ["direct", () => httpTimed(EP.anthropic, "/v1/models", { anyStatus: true })],
+    ["health", () => httpTimed(EP.api, "/health", { wantBody: true })],
+    ["tokens", () => httpTimed(EP.compress, "/stats", { wantBody: true })],
+    ["server", () => httpTimed(EP.api, "/sessions", { wantBody: true })],
+    ["image", () => imageArches()],
+    ["hostdisk", () => sh(BIN.df, ["-h", HOME, "/mnt/shared-lib"], 2500)],
+  ];
+  for (const [n, ip] of Object.entries(MESH)) cs.push([`mesh:${n}`, () => ping(ip)]);
+  for (const [n, ip] of Object.entries(PUBLIC)) cs.push([`pub:${n}`, () => ping(ip)]);
+  for (const m of OFF.mcps) if (m.type === "http" && m.url) cs.push([`mcp:${m.name}`, () => httpTimed(m.url, "", { anyStatus: true })]);
+  for (const rp of REPOS) cs.push([`repo:${rp}`, () => sh(BIN.git, ["-C", path.join(GITROOT, rp), "status", "--porcelain=v1", "-b"], 2500)]);
+  return cs;
 }
-
-// probe progress: pending / total (for the animated STATUS header)
-function progress() {
-  const slots = [NET.proxy, NET.api, NET.ollama, NET.compress, NET.direct, NET.tokens, NET.server,
-    ...Object.values(NET.mesh), ...OFF.mcps.filter((m) => m.type === "http").map((m) => m.st)];
-  const total = slots.length;
-  const pending = slots.filter((s) => s === null).length;
-  return { total, done: total - pending };
-}
-
-// ── refresh: fire every probe independently ─────────────────────────────────
+const COLS = collectors();
 function refresh() {
-  if (refreshing) return;
-  refreshing = true;
-  const patch = (fn) => { fn(); if (!tearing) render(); };
-  NET.proxy = NET.api = NET.ollama = NET.compress = NET.direct = null;
-  NET.tokens = null; NET.server = null;
-  Object.keys(NET.mesh).forEach((k) => (NET.mesh[k] = null));
+  if (refreshing) return; refreshing = true;
+  for (const [id] of COLS) D[id] = null;
   OFF.mcps.forEach((m) => (m.st = m.type === "http" ? null : "stdio"));
-  // spinner animation — bounded, self-stops when all resolve or after 2.6s
   if (spinTimer) clearInterval(spinTimer);
-  spinTimer = setInterval(() => {
-    spin = (spin + 1) % SPIN.length;
-    if (!tearing) render();
-    if (progress().done >= progress().total) { clearInterval(spinTimer); spinTimer = null; }
-  }, 110);
+  spinTimer = setInterval(() => { spin = (spin + 1) % SPIN.length; if (!tearing) render(); }, 110);
   render();
-  timed(EP.proxy, "/readyz").then((v) => patch(() => (NET.proxy = v)));
-  timed(EP.api, "/health").then((v) => patch(() => (NET.api = v)));
-  timed(EP.ollama, "/api/version").then((v) => patch(() => (NET.ollama = v)));
-  timed(EP.compress, "/readyz").then((v) => patch(() => (NET.compress = v)));
-  timed(EP.anthropic, "/v1/models", true).then((v) => patch(() => (NET.direct = v)));
-  for (const [name, ip] of Object.entries(MESH)) pingHost(ip).then((v) => patch(() => (NET.mesh[name] = v)));
-  for (const m of OFF.mcps) if (m.type === "http" && m.url) timed(m.url, "", true).then((v) => patch(() => (m.st = v)));
-  fetch(`${EP.compress.replace(/\/$/, "")}/stats`, { signal: AbortSignal.timeout(1800) })
-    .then((r) => r.json()).then((j) => patch(() => (NET.tokens = j))).catch(() => patch(() => (NET.tokens = "t/o")));
-  fetch(`${EP.api.replace(/\/$/, "")}/sessions`, { signal: AbortSignal.timeout(1800) })
-    .then((r) => r.json()).then((j) => patch(() => (NET.server = Array.isArray(j) ? j.sort((a, b) => (b.mtime || 0) - (a.mtime || 0)).slice(0, 10) : []))).catch(() => patch(() => (NET.server = "t/o")));
-  setTimeout(() => { refreshing = false; if (spinTimer) { clearInterval(spinTimer); spinTimer = null; } if (!tearing) render(); }, 2600);
+  for (const [id, run] of COLS) run().then((v) => { D[id] = v; if (id.startsWith("mcp:")) { const m = OFF.mcps.find((x) => x.name === id.slice(4)); if (m) m.st = v; } if (!tearing) render(); }).catch(() => { D[id] = "t/o"; });
+  setTimeout(() => { refreshing = false; if (spinTimer) { clearInterval(spinTimer); spinTimer = null; } if (!tearing) render(); }, 3400);
 }
+const progress = () => { const s = COLS.map(([id]) => D[id]); return { total: s.length, done: s.filter((x) => x !== null && x !== undefined).length }; };
 
-// ── focusable form rows ─────────────────────────────────────────────────────
-function buildRows() {
-  const rows = [];
-  rows.push({ t: "sec", text: "FACE" });
-  rows.push({ t: "radio", grp: "face", val: "remote", label: "remote", note: "WG compression proxy" });
-  rows.push({ t: "radio", grp: "face", val: "local",  label: "local",  note: "container on THIS host" });
-  rows.push({ t: "radio", grp: "face", val: "claude", label: "claude", note: "plain claude (restore still works)" });
-  if (st.face !== "claude") {
-    rows.push({ t: "sec", text: "PLUGINS" });
-    rows.push({ t: "check", key: "headroom", label: "Headroom", note: "compression proxy" });
-    rows.push({ t: "checklevel", key: "ponytail", label: "Ponytail", note: "Left/Right level" });
-  }
-  rows.push({ t: "sec", text: "RESTORE" });
-  rows.push({ t: "radio", grp: "restore", val: "off",   label: "off",   note: "fresh session" });
-  rows.push({ t: "radio", grp: "restore", val: "count", label: "count", note: "last N sessions" });
-  rows.push({ t: "radio", grp: "restore", val: "hours", label: "hours", note: "sessions from last N hours" });
-  if (st.restore !== "off") rows.push({ t: "number", key: "restoreN", label: "N", note: "type digits or Left/Right" });
-  rows.push({ t: "sec", text: "ACTION" });
-  rows.push({ t: "action", key: "refresh" });
-  rows.push({ t: "action", key: "launch" });
-  rows.push({ t: "action", key: "quit" });
-  return rows;
-}
-const focusableT = ["radio", "check", "checklevel", "number", "action"];
-let rows = buildRows();
-let focus = 0;
-const focusables = () => rows.map((r, i) => (focusableT.includes(r.t) ? i : -1)).filter((i) => i >= 0);
-
-// ── status: ASCII-safe colored tokens ───────────────────────────────────────
 function dm(v) {
   if (v === undefined) return `${C.dim}--${C.r}     `;
-  if (v === null) return `${C.dim}..${C.r}     `;
+  if (v === null) return `${C.dim}${SPIN[spin]} ${C.r}    `;
   if (v === "t/o") return `${C.y}t/o${C.r}    `;
   if (v === "stdio") return `${C.blu}stdio${C.r}  `;
-  return `${v.up ? C.g + "up" : C.red + "dn"}${C.r} ${padS(`${v.ms}ms`, 5)}`;
+  const col = !v.up ? C.red : v.ms < 60 ? C.g : v.ms < 200 ? C.y : C.red;
+  return `${v.up ? C.g + "up" : C.red + "dn"}${C.r} ${col}${padS(`${v.ms}ms`, 5)}${C.r}`;
 }
-function statusLines() {
-  const L = [];
-  const kv = (k, s) => `    ${C.dim}${padE(k, 13)}${C.r}${s}`;
-  const pr = progress();
-  const right = refreshing ? `${SPIN[spin]} probing ${pr.done}/${pr.total}` : (pr.done ? "ready" : "idle");
-  L.push(secHead("STATUS", right));
-  L.push(kv("services", ["proxy", "api", "ollama", "compress", "direct"].map((k, i) =>
-    `${C.dim}${["proxy", "api", "ollama", "compr", "direct"][i]}${C.r} ${dm(NET[k])}`).join(" ")));
-  const mesh = Object.entries(MESH).map(([n]) => `${C.dim}${n}${C.r} ${dm(NET.mesh[n])}`);
-  if (mesh.length) L.push(kv("mesh", mesh.join(" ")));
-  L.push(kv(`mcp (${OFF.mcps.length})`, ""));
-  for (let i = 0; i < OFF.mcps.length; i += 3)
-    L.push("      " + OFF.mcps.slice(i, i + 3).map((m) => padE(`${C.mag}${padE(m.name, 20)}${C.r} ${dm(m.st)}`, 36)).join(""));
-  let tok;
-  if (NET.tokens === undefined) tok = `${C.dim}--${C.r}`;
-  else if (NET.tokens === null) tok = `${C.dim}..${C.r}`;
-  else if (NET.tokens === "t/o") tok = `${C.y}t/o${C.r}`;
-  else {
-    const j = NET.tokens, num = (x) => Number(x || 0).toLocaleString();
-    tok = `${C.y}${num(j.tokens_saved)}${C.r} saved ${C.dim}(${((j.lifetime_ratio || 0) * 100).toFixed(0)}%)${C.r}  ` +
-      `${C.dim}before${C.r} ${num(j.tokens_before)}  ${C.dim}after${C.r} ${num(j.tokens_after)}  ${C.dim}compress${C.r} ${num(j.compressions)}  ${C.dim}calls${C.r} ${num(j.calls)}`;
+const parseDf = (v) => { if (!v || v === "t/o" || v.out === undefined) return null; return v.out.trim().split("\n").slice(1).map((l) => { const p = l.split(/\s+/); return { fs: p[0], size: p[1], used: p[2], avail: p[3], pct: p[4], mount: p[5] }; }); };
+const parseRepo = (v) => { if (!v || v === "t/o" || v.out === undefined) return "t/o"; const lines = v.out.split("\n"); const head = lines[0] || ""; const br = (head.match(/## ([^.\s]+)/) || [])[1] || "?"; const ah = (head.match(/ahead (\d+)/) || [])[1] || 0; const be = (head.match(/behind (\d+)/) || [])[1] || 0; const dirty = lines.slice(1).filter(Boolean).length; return { br, ahead: +ah, behind: +be, dirty }; };
+
+// ── PAGES ────────────────────────────────────────────────────────────────────
+let rows = [], fl = [];
+function buildRows() {
+  const r = [];
+  r.push({ t: "sec", text: "FACE" });
+  r.push({ t: "radio", grp: "face", val: "remote", label: "remote", note: "WG compression proxy" });
+  r.push({ t: "radio", grp: "face", val: "local", label: "local", note: "container on THIS host" });
+  r.push({ t: "radio", grp: "face", val: "claude", label: "claude", note: "plain claude (restore still works)" });
+  if (st.face !== "claude") { r.push({ t: "sec", text: "PLUGINS" }); r.push({ t: "check", key: "headroom", label: "Headroom", note: "compression proxy" }); r.push({ t: "checklevel", key: "ponytail", label: "Ponytail", note: "Left/Right level" }); }
+  r.push({ t: "sec", text: "RESTORE" });
+  r.push({ t: "radio", grp: "restore", val: "off", label: "off", note: "fresh session" });
+  r.push({ t: "radio", grp: "restore", val: "count", label: "count", note: "last N sessions" });
+  r.push({ t: "radio", grp: "restore", val: "hours", label: "hours", note: "sessions from last N hours" });
+  if (st.restore !== "off") r.push({ t: "number", key: "restoreN", label: "N", note: "type digits or Left/Right" });
+  r.push({ t: "sec", text: "ACTION" });
+  r.push({ t: "action", key: "refresh" }); r.push({ t: "action", key: "launch" }); r.push({ t: "action", key: "quit" });
+  return r;
+}
+const FOCT = ["radio", "check", "checklevel", "number", "action"];
+function pageCompose(L) {
+  rows = buildRows(); fl = rows.map((r, i) => (FOCT.includes(r.t) ? i : -1)).filter((i) => i >= 0);
+  if (focus >= fl.length) focus = fl.length - 1; if (focus < 0) focus = 0;
+  const focIdx = fl[focus];
+  L.push(secHead("COMPOSE", st.face));
+  rows.forEach((row, i) => {
+    const foc = i === focIdx, cur = foc ? `${C.cy}${C.b}>${C.r} ` : "  ", hl = (s) => (foc ? `${C.inv}${s}${C.r}` : s);
+    if (row.t === "sec") return L.push(`   ${C.dim}${row.text}${C.r}`);
+    let b = "";
+    if (row.t === "radio") b = `${st[row.grp] === row.val ? `${C.g}(*)${C.r}` : `${C.dim}( )${C.r}`} ${hl(padE(row.label, 8))} ${C.dim}${row.note}${C.r}`;
+    else if (row.t === "check") b = `${st[row.key] ? `${C.g}[x]${C.r}` : `${C.dim}[ ]${C.r}`} ${hl(padE(row.label, 8))} ${C.dim}${row.note}${C.r}`;
+    else if (row.t === "checklevel") { const lv = st[row.key] ? `${C.mag}< ${st.ponyLevel} >${C.r}` : `${C.dim}(off)${C.r}`; b = `${st[row.key] ? `${C.g}[x]${C.r}` : `${C.dim}[ ]${C.r}`} ${hl(padE(row.label, 8))} ${lv}  ${C.dim}${row.note}${C.r}`; }
+    else if (row.t === "number") { const sv = foc && numBuf !== "" ? numBuf : String(st.restoreN); b = `    ${hl(row.label)} ${foc ? `${C.inv} ${sv}_ ${C.r}` : `${C.mag}< ${sv} >${C.r}`}  ${C.dim}${row.note}${C.r}`; }
+    else if (row.t === "action") { const A = { refresh: [" Refresh ", C.blu], launch: [" LAUNCH ", C.g], quit: [" Quit ", C.dim] }[row.key]; b = foc ? `${C.inv}${A[1]}${A[0]}${C.r}` : `${A[1]}[${A[0].trim()}]${C.r}`; }
+    L.push(`${cur}${b}`);
+  });
+}
+function pageNetwork(L) {
+  fl = [];
+  const kv = (k, s) => `    ${C.dim}${padE(k, 11)}${C.r}${s}`;
+  L.push(secHead("FACES"));
+  L.push(kv("services", ["proxy", "api", "ollama", "compress", "direct"].map((k, i) => `${C.dim}${["proxy", "api", "ollama", "compr", "direct"][i]}${C.r} ${dm(D[k])}`).join(" ")));
+  const h = D.health; let hl = `${C.dim}--${C.r}`;
+  if (h === null) hl = `${C.dim}${SPIN[spin]}${C.r}`; else if (h === "t/o") hl = `${C.y}t/o${C.r}`;
+  else if (h && h.body) { const s = h.body.stats || {}; hl = `${C.dim}conc${C.r} ${h.body.active}/${h.body.max}  ${C.dim}calls${C.r} ${num(s.calls)}  ${C.dim}err${C.r} ${num(s.errors)}  ${C.dim}in${C.r} ${num(s.prompt_tokens)}  ${C.dim}out${C.r} ${num(s.completion_tokens)}  ${C.dim}hr${C.r} ${h.body.headroom ? C.g + "on" : C.dim + "off"}${C.r}`; }
+  L.push(kv("container", hl));
+  const tk = D.tokens; let tl = `${C.dim}--${C.r}`;
+  if (tk === null) tl = `${C.dim}${SPIN[spin]}${C.r}`; else if (tk === "t/o") tl = `${C.y}t/o${C.r}`;
+  else if (tk && tk.body) { const j = tk.body; tl = `${C.y}${num(j.tokens_saved)}${C.r} saved ${C.dim}(${((j.lifetime_ratio || 0) * 100).toFixed(0)}%)${C.r}  ${C.dim}before${C.r} ${num(j.tokens_before)}  ${C.dim}after${C.r} ${num(j.tokens_after)}  ${C.dim}compress${C.r} ${num(j.compressions)}`; }
+  L.push(kv("tokens", tl));
+  const im = D.image; let il = `${C.dim}--${C.r}`;
+  if (im === null) il = `${C.dim}${SPIN[spin]}${C.r}`; else if (im === "t/o") il = `${C.y}t/o${C.r}`;
+  else if (im && im.arches) { const multi = im.arches.length > 1; il = `${multi ? C.g : C.red}${im.arches.join(",")}${C.r} ${C.dim}${multi ? "(multi-arch)" : "(single-arch!)"}${C.r}`; }
+  L.push(kv("image", il));
+  L.push(secHead("MESH (wg)"));
+  L.push("    " + Object.keys(MESH).map((n) => `${C.dim}${padE(n, 13)}${C.r}${dm(D[`mesh:${n}`])}`).join("  "));
+  L.push(secHead("PUBLIC edge"));
+  L.push("    " + Object.keys(PUBLIC).map((n) => `${C.dim}${padE(n, 13)}${C.r}${dm(D[`pub:${n}`])}`).join("  "));
+  L.push(secHead(`MCP servers (${OFF.mcps.length})`));
+  for (let i = 0; i < OFF.mcps.length; i += 2)
+    L.push("    " + OFF.mcps.slice(i, i + 2).map((m) => padE(`${C.mag}${padE(m.name, 20)}${C.r} ${m.type === "http" ? dm(D[`mcp:${m.name}`]) : dm("stdio")}`, 38)).join(""));
+}
+function pageSessions(L) {
+  fl = [];
+  L.push(secHead(`LOCAL sessions (${OFF.sessions.total} total, ${Math.round(OFF.sessions.bytes / 1048576)}MB)`));
+  L.push(`    ${C.dim}${padE("age", 5)}${padE("msgs", 6)}${padE("size", 7)}${padE("title", 32)}cwd${C.r}`);
+  OFF.sessions.list.forEach((s) => L.push(`    ${padE(s.age, 5)}${C.dim}${padE(String(s.msgs), 6)}${padE(s.kb + "K", 7)}${C.r}${padE(s.title, 32)}${C.dim}${s.cwd}${C.r}`));
+  const sv = D.server;
+  L.push(secHead("SERVER sessions (hub)", refreshing ? "probing" : ""));
+  if (sv === undefined) L.push(`    ${C.dim}-- press Refresh / r${C.r}`);
+  else if (sv === null) L.push(`    ${C.dim}${SPIN[spin]} loading${C.r}`);
+  else if (sv === "t/o" || !sv.body) L.push(`    ${C.y}t/o (hub unreachable)${C.r}`);
+  else if (Array.isArray(sv.body)) {
+    const arr = sv.body.slice().sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+    const byDev = {}; arr.forEach((s) => { (byDev[s.device || "?"] ||= []).push(s); });
+    L.push(`    ${C.dim}${arr.length} sessions across ${Object.keys(byDev).length} device(s)${C.r}`);
+    for (const [dev, list] of Object.entries(byDev)) {
+      L.push(`    ${C.cy}${dev}${C.r} ${C.dim}(${list.length})${C.r}`);
+      list.slice(0, 10).forEach((s) => L.push(`      ${C.dim}${padS(s.mtime ? ago(s.mtime) : "", 5)}  ${padE((s.id || "").slice(0, 8), 10)}${padE(Math.round((s.size || 0) / 1024) + "K", 6)}${C.r}`));
+    }
   }
-  L.push(kv("tokens", tok));
-  L.push(kv(`hooks (${OFF.hooks.length})`, OFF.hooks.map((h) => `${C.dim}${h}${C.r}`).join("  ") || `${C.dim}none${C.r}`));
-  L.push(kv(`plugins (${OFF.plugins.length})`, OFF.plugins.map((p) => `${C.mag}${p.icon}${C.r} ${p.label}`).join("   ")));
-  L.push(kv(`local (${OFF.sessions.length})`, ""));
-  OFF.sessions.forEach((s) => L.push(`      ${C.dim}${padS(s.age, 4)}${C.r}  ${s.title}`));
-  let sh;
-  if (NET.server === undefined) sh = `${C.dim}-- Refresh to load${C.r}`;
-  else if (NET.server === null) sh = `${C.dim}..${C.r}`;
-  else if (NET.server === "t/o") sh = `${C.y}t/o (hub unreachable)${C.r}`;
-  else sh = NET.server.length ? "" : `${C.dim}none${C.r}`;
-  L.push(kv(`server (${Array.isArray(NET.server) ? NET.server.length : "-"})`, sh));
-  if (Array.isArray(NET.server)) NET.server.forEach((s) =>
-    L.push(`      ${C.dim}${padE(s.device || "?", 16)}${padS(s.mtime ? ago(s.mtime) : "", 5)}${C.r}  ${(s.id || "").slice(0, 8)}`));
-  return L;
+}
+function pageSystem(L) {
+  fl = [];
+  L.push(secHead("HOST"));
+  const disks = parseDf(D.hostdisk);
+  if (D.hostdisk === undefined) L.push(`    ${C.dim}disk    -- press Refresh${C.r}`);
+  else if (D.hostdisk === null) L.push(`    ${C.dim}disk    ${SPIN[spin]}${C.r}`);
+  else if (!disks) L.push(`    ${C.y}disk    t/o${C.r}`);
+  else disks.forEach((d) => { const pct = parseInt(d.pct) || 0; const col = pct > 90 ? C.red : pct > 75 ? C.y : C.g; L.push(`    ${C.dim}disk${C.r}  ${padE(d.mount || "", 18)} ${col}${padS(d.pct || "", 4)}${C.r} ${C.dim}${d.used}/${d.size} used, ${d.avail} free${C.r}`); });
+  try { const mi = fs.readFileSync("/proc/meminfo", "utf8"); const g = (k) => +((mi.match(new RegExp(k + ":\\s+(\\d+)")) || [])[1] || 0); const tot = g("MemTotal"), av = g("MemAvailable"); L.push(`    ${C.dim}mem${C.r}   ${padE("", 18)} ${((1 - av / tot) * 100).toFixed(0)}% ${C.dim}${(av / 1048576).toFixed(1)}G free / ${(tot / 1048576).toFixed(1)}G${C.r}`); } catch {}
+  try { const la = fs.readFileSync("/proc/loadavg", "utf8").split(" ").slice(0, 3).join(" "); L.push(`    ${C.dim}load${C.r}  ${padE("", 18)} ${la}`); } catch {}
+  L.push(secHead("GIT REPOS"));
+  REPOS.forEach((rp) => { const v = parseRepo(D[`repo:${rp}`]); let s;
+    if (D[`repo:${rp}`] === undefined) s = `${C.dim}-- Refresh${C.r}`; else if (D[`repo:${rp}`] === null) s = `${C.dim}${SPIN[spin]}${C.r}`; else if (v === "t/o") s = `${C.y}t/o${C.r}`;
+    else s = `${C.cy}${padE(v.br, 8)}${C.r} ${v.ahead ? C.g + "+" + v.ahead + " " : ""}${v.behind ? C.red + "-" + v.behind + " " : ""}${C.r}${v.dirty ? C.y + v.dirty + " dirty" : C.g + "clean"}${C.r}`;
+    L.push(`    ${C.mag}${padE(rp, 8)}${C.r} ${s}`); });
+  L.push(secHead("CLAUDE"));
+  L.push(`    ${C.dim}model${C.r}     ${OFF.cfg.model}   ${C.dim}statusline${C.r} ${OFF.cfg.statusline ? C.g + "on" : C.dim + "off"}${C.r}   ${C.dim}mcp${C.r} ${OFF.cfg.mcpCount}`);
+  L.push(`    ${C.dim}plugins${C.r}   ${OFF.plugins.map((p) => `${p.on ? C.g : C.dim}${p.label}${p.detail ? ":" + p.detail : ""}${C.r}`).join("  ")}`);
+  L.push(`    ${C.dim}skills${C.r}    ${OFF.cfg.skills.slice(0, 12).map((s) => `${C.dim}${s}${C.r}`).join(" ") || C.dim + "none" + C.r}`);
+  L.push(`    ${C.dim}hooks${C.r}     ${OFF.hooks.map((h) => `${C.dim}${h.name}(${h.kb}K)${C.r}`).join("  ")}`);
 }
 
 // ── render ──────────────────────────────────────────────────────────────────
+const PAGES = [["Compose", pageCompose], ["Network", pageNetwork], ["Sessions", pageSessions], ["System", pageSystem]];
+function selArgs() {
+  const n = String(Math.max(1, st.restoreN || 1)), a = [st.face];
+  if (st.face !== "claude") { if (!st.headroom) a.push("headroom", "off"); a.push("ponytail", st.ponytail ? st.ponyLevel : "off"); }
+  if (st.restore === "count") a.push("restore", n); if (st.restore === "hours") a.push("restore-hours", n);
+  return a;
+}
 function render() {
   if (tearing) return;
-  rows = buildRows();
-  const fl = focusables();
-  if (focus >= fl.length) focus = fl.length - 1;
-  if (focus < 0) focus = 0;
-  const focIdx = fl[focus];
-  const L = [];
-  const bar = `+${"-".repeat(W)}+`;
+  const L = [], bar = `+${"-".repeat(W)}+`;
+  const pr = progress();
+  const tabs = PAGES.map(([n], i) => (i + 1 === page ? `${C.b}${C.cy}[${i + 1} ${n}]${C.r}` : `${C.dim}${i + 1} ${n}${C.r}`)).join(" ");
   L.push(`  ${C.b}${C.cy}${bar}${C.r}`);
   L.push(`  ${C.b}${C.cy}|${C.r} ${C.b}${C.mag}C L A U D E - S U P E R S E T${C.r}${padE("", W - 30)}${C.b}${C.cy}|${C.r}`);
-  L.push(`  ${C.b}${C.cy}|${C.r} ${C.dim}launch composer  &  live infra dashboard${padE("", W - 42)}${C.r}${C.b}${C.cy}|${C.r}`);
+  L.push(`  ${C.b}${C.cy}|${C.r} ${tabs}${padE("", Math.max(0, W - 1 - strip(tabs).length))}${C.b}${C.cy}|${C.r}`);
   L.push(`  ${C.b}${C.cy}${bar}${C.r}`);
-  L.push(`   ${C.g}>${C.r} ${C.cy}${SELF} ${selArgs().join(" ")}${C.r}`);
+  L.push(`   ${C.g}>${C.r} ${C.cy}${SELF} ${selArgs().join(" ")}${C.r}   ${refreshing ? `${C.y}${SPIN[spin]} probing ${pr.done}/${pr.total}${C.r}` : `${C.dim}r=Refresh${C.r}`}`);
   L.push("");
-  L.push(secHead("COMPOSE", `${st.face}`));
-  rows.forEach((row, i) => {
-    const foc = i === focIdx;
-    const cur = foc ? `${C.cy}${C.b}>${C.r} ` : "  ";
-    const hl = (s) => (foc ? `${C.inv}${s}${C.r}` : s);
-    if (row.t === "sec") return L.push(`   ${C.dim}${row.text}${C.r}`);
-    let body = "";
-    if (row.t === "radio") body = `${st[row.grp] === row.val ? `${C.g}(*)${C.r}` : `${C.dim}( )${C.r}`} ${hl(padE(row.label, 8))} ${C.dim}${row.note}${C.r}`;
-    else if (row.t === "check") body = `${st[row.key] ? `${C.g}[x]${C.r}` : `${C.dim}[ ]${C.r}`} ${hl(padE(row.label, 8))} ${C.dim}${row.note}${C.r}`;
-    else if (row.t === "checklevel") { const lvl = st[row.key] ? `${C.mag}< ${st.ponyLevel} >${C.r}` : `${C.dim}(off)${C.r}`; body = `${st[row.key] ? `${C.g}[x]${C.r}` : `${C.dim}[ ]${C.r}`} ${hl(padE(row.label, 8))} ${lvl}  ${C.dim}${row.note}${C.r}`; }
-    else if (row.t === "number") { const shown = foc && numBuf !== "" ? numBuf : String(st.restoreN); body = `    ${hl(row.label)} ${foc ? `${C.inv} ${shown}_ ${C.r}` : `${C.mag}< ${shown} >${C.r}`}  ${C.dim}${row.note}${C.r}`; }
-    else if (row.t === "action") { const A = { refresh: [" Refresh ", C.blu], launch: [" LAUNCH ", C.g], quit: [" Quit ", C.dim] }[row.key]; body = foc ? `${C.inv}${A[1]}${A[0]}${C.r}` : `${A[1]}[${A[0].trim()}]${C.r}`; }
-    L.push(`${cur}${body}`);
-  });
-  L.push("");
-  statusLines().forEach((l) => L.push(l));
+  PAGES[page - 1][1](L);
   L.push("");
   L.push(secHead("KEYS"));
-  L.push(`   ${C.dim}Up/Down move  Space select  Left/Right change  0-9 type N  r Refresh  Enter go  q quit${C.r}`);
-  // flicker-free: home cursor, clear each line to EOL, clear below — no full wipe.
+  L.push(`   ${C.dim}1-4/Tab page . Up/Down move . Space select . Left/Right change . 0-9 N . r Refresh . Enter go . q quit${C.r}`);
   process.stdout.write("\x1b[H" + L.map((l) => l + "\x1b[K").join("\n") + "\x1b[0J");
 }
 
-// ── input ─────────────────────────────────────────────────────────────────
-function activate(row) {
-  if (row.t === "radio") st[row.grp] = row.val;
-  else if (row.t === "check" || row.t === "checklevel") st[row.key] = !st[row.key];
-}
+// ── input ────────────────────────────────────────────────────────────────────
+function activate(row) { if (row.t === "radio") st[row.grp] = row.val; else if (row.t === "check" || row.t === "checklevel") st[row.key] = !st[row.key]; }
 function adjust(row, dir) {
-  if (row.t === "checklevel" && st.ponytail) { const i = PONY_LEVELS.indexOf(st.ponyLevel); st.ponyLevel = PONY_LEVELS[(i + dir + PONY_LEVELS.length) % PONY_LEVELS.length]; }
+  if (row.t === "checklevel" && st.ponytail) { const i = PONY_LEVELS.indexOf(st.ponyLevel); st.ponyLevel = PONY_LEVELS[(i + dir + 3) % 3]; }
   else if (row.t === "number") { numBuf = ""; const p = RESTORE_PRESETS[st.restore] || []; const i = Math.max(0, p.indexOf(st.restoreN)); st.restoreN = p[Math.min(p.length - 1, Math.max(0, i + dir))]; }
-  else if (row.t === "radio") { const opts = rows.filter((r) => r.t === "radio" && r.grp === row.grp).map((r) => r.val); const i = opts.indexOf(st[row.grp]); st[row.grp] = opts[(i + dir + opts.length) % opts.length]; }
+  else if (row.t === "radio") { const o = rows.filter((r) => r.t === "radio" && r.grp === row.grp).map((r) => r.val); const i = o.indexOf(st[row.grp]); st[row.grp] = o[(i + dir + o.length) % o.length]; }
 }
 function teardown() { tearing = true; if (process.stdin.isTTY) process.stdin.setRawMode(false); process.stdout.write("\x1b[?25h"); }
 function quit() { teardown(); process.exit(0); }
-function launch() {
-  teardown(); process.stdout.write("\x1b[2J\x1b[H");
-  const ch = spawn(SELF, selArgs(), { stdio: "inherit" });
-  ch.on("exit", (c) => process.exit(c ?? 0));
-  ch.on("error", () => { console.log(`${SELF} not found on PATH`); process.exit(1); });
-}
+function launch() { teardown(); process.stdout.write("\x1b[2J\x1b[H"); const ch = spawn(SELF, selArgs(), { stdio: "inherit" }); ch.on("exit", (c) => process.exit(c ?? 0)); ch.on("error", () => { console.log(`${SELF} not found on PATH`); process.exit(1); }); }
 function main() {
   if (!process.stdin.isTTY) { console.log(`claude-superset TUI needs a terminal. Would launch: ${SELF} ${selArgs().join(" ")}`); process.exit(0); }
-  process.stdout.write("\x1b[2J\x1b[H\x1b[?25l"); // one-time clear + hide cursor
-  render();
-  readline.emitKeypressEvents(process.stdin);
-  process.stdin.setRawMode(true);
+  process.stdout.write("\x1b[2J\x1b[H\x1b[?25l"); render();
+  readline.emitKeypressEvents(process.stdin); process.stdin.setRawMode(true);
   process.stdin.on("keypress", (str, key) => {
-    const fl = focusables();
-    const row = rows[fl[focus]];
     const name = key?.name;
-    const onAction = (k) => (k === "refresh" ? refresh() : k === "launch" ? launch() : quit());
     if (name === "q" || (key?.ctrl && name === "c")) return quit();
     if (name === "r") return refresh();
-    if (name === "up" || name === "k") { numBuf = ""; focus = (focus - 1 + fl.length) % fl.length; }
-    else if (name === "down" || name === "j" || name === "tab") { numBuf = ""; focus = (focus + 1) % fl.length; }
-    else if (name === "left") adjust(row, -1);
-    else if (name === "right") adjust(row, 1);
-    else if (row?.t === "number" && str && /^[0-9]$/.test(str)) { numBuf = (numBuf + str).slice(0, 4).replace(/^0+/, "") || "0"; st.restoreN = Number(numBuf); }
-    else if (row?.t === "number" && name === "backspace") { numBuf = numBuf.slice(0, -1); st.restoreN = Number(numBuf) || 0; }
-    else if (name === "space" || name === "return") { row.t === "action" ? onAction(row.key) : activate(row); }
-    else return;
+    if (name === "tab") { page = key?.shift ? ((page + 2) % 4) + 1 : (page % 4) + 1; focus = 0; return render(); }
+    const row = page === 1 ? rows[fl[focus]] : null;
+    const editingN = row?.t === "number";
+    // digits 1-4 switch pages, EXCEPT while typing into the restore-N field
+    if (str && "1234".includes(str) && !editingN) { page = +str; focus = 0; return render(); }
+    if (page === 1) {
+      if (name === "up" || name === "k") { numBuf = ""; focus = (focus - 1 + fl.length) % fl.length; }
+      else if (name === "down" || name === "j") { numBuf = ""; focus = (focus + 1) % fl.length; }
+      else if (name === "left") adjust(row, -1);
+      else if (name === "right") adjust(row, 1);
+      else if (editingN && str && /^[0-9]$/.test(str)) { numBuf = (numBuf + str).slice(0, 4).replace(/^0+/, "") || "0"; st.restoreN = Number(numBuf); }
+      else if (editingN && name === "backspace") { numBuf = numBuf.slice(0, -1); st.restoreN = Number(numBuf) || 0; }
+      else if (name === "space" || name === "return") { row.t === "action" ? (row.key === "refresh" ? refresh() : row.key === "launch" ? launch() : quit()) : activate(row); }
+      else return;
+    } else return;
     render();
   });
 }
