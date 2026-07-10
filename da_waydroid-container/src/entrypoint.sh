@@ -168,6 +168,22 @@ else
   log "sunshine: $(ss -tln 2>/dev/null | grep -q ':47990 ' && echo "up (pid $SUNSHINE_PID, web :47990)" || echo 'NOT LISTENING — VNC fallback only')"
 fi
 
+# ── 2c) Persist the Android USERDATA on the volume. Waydroid stores the running
+#    session's Android /data (installed apps, launcher DB, settings) under the invoking
+#    user's XDG data dir — here /root/.local/share/waydroid — which is the container's
+#    EPHEMERAL layer, NOT the /var/lib/waydroid docker volume. Left as-is, all installed
+#    apps + the seeded layout vanish on every container recreation, and `build.sh bake`
+#    (which snapshots /var/lib/waydroid) captures only the vendor images, never the apps
+#    — confirmed live: a baked seed restored a booting-but-empty Android. Symlink the
+#    session dir onto the volume so the userdata persists AND is captured by the seed.
+#    Idempotent; must run before waydroid init/session and before the seed restore (the
+#    seed carries session-home as a real dir on the volume, which this symlink targets).
+mkdir -p /var/lib/waydroid/session-home /root/.local/share
+if [ ! -L /root/.local/share/waydroid ]; then
+  rm -rf /root/.local/share/waydroid
+  ln -s /var/lib/waydroid/session-home /root/.local/share/waydroid
+fi
+
 # ── 3) First-boot /data provisioning. Two paths, both keyed on an EMPTY volume
 #    (no images/ yet):
 #      (a) BAKED SEED (the "image baked with our configs" path): if a non-empty

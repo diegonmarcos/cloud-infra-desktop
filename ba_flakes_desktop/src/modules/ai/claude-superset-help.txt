@@ -31,6 +31,14 @@ SESSION ACTION (default: fresh)
 
   Tabs use the best terminal available: konsole (KDE) → tmux (TTY/Termux).
 
+SETUP (installer / deps-solver — NO npm, native binaries)
+  setup                 Ensure `claude` is installed. Platform-aware:
+                        nix/termux = flake-managed (declarative, guides you);
+                        deb/linux/macos = Anthropic native installer
+                        (downloads.claude.ai) + installs curl if missing.
+  setup --shell         Ephemeral claude via nix-shell (temporary use,
+                        no permanent install).
+
 OTHER
   --help, -h            Interactive status dashboard (faces, MCPs, plugins).
   help                  This message.

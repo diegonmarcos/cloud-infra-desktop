@@ -30,8 +30,13 @@ name: "Ship → my-konsole rescue ISO (build remotely, cache 25.05 kernel)"
 # module + linux-surface kernel + iptsd) — the runner only lends CPU/RAM, the
 # derivation built is identical to a local build.
 #
-# Kernel compile is ~30-45 min on ubuntu-latest (4 vCPU / 16 GB); free disk
-# first to avoid ENOSPC. cache.nixos.org has no prebuilt linux-surface binary.
+# The kernel is compiled FROM SOURCE: the slim flake's NixOS kernel .config is
+# custom (surface initrd modules etc.), so it's a cache MISS on cache.nixos.org
+# AND on the linux-surface/nixos-surface cachix (those cache the linux-surface
+# *binary* for their own nixpkgs pin, not this flake's derivation). Evidenced by
+# run 29037262731: `building linux-6.19.8.drv` ran 2h54m then hit the 180-min
+# timeout. A full kernel compile on ubuntu-latest (4 vCPU / 16 GB) is ~2.5-3h, so
+# the job budget MUST clear that. Free disk first to avoid ENOSPC.
 
 on:
   workflow_dispatch: {}
@@ -52,7 +57,9 @@ jobs:
   build-slim-iso:
     name: "Build my-konsole ISO + cache 25.05 kernel closure"
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    # From-source kernel compile is ~2.5-3h (see header); 180 killed it mid-build.
+    # 350 clears it with headroom, still under GitHub's 360-min hosted-job cap.
+    timeout-minutes: 350
     steps:
       - name: Free disk (~30 GB on runner)
         uses: jlumbroso/free-disk-space@main

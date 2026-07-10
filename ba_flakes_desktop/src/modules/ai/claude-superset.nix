@@ -74,6 +74,16 @@ let
       exec cat ${./claude-superset-help.txt}
     fi
 
+    # setup: ensure `claude` is installed WITHOUT npm (native installer +
+    # deps-solver, platform-aware: nix/termux declarative, deb/other native,
+    # `setup --shell` = ephemeral nix-shell). Data-driven from the JSON.
+    if [ "''${1:-}" = "setup" ]; then
+      shift
+      export CAS_SETUP_URL="${ep.setup.installer_url or "https://claude.ai/install.sh"}"
+      export CAS_SETUP_CHANNEL="${ep.setup.channel or "stable"}"
+      exec ${pkgs.bash}/bin/bash ${./claude-superset-setup.sh} "$@"
+    fi
+
     # --help / -h: interactive status dashboard — probes every face, all MCPs,
     # plugins (Headroom + Ponytail), and direct Anthropic fallback.
     if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ]; then
@@ -134,7 +144,10 @@ let
 
     # Session engine env (data-driven; device id = hostname unless JSON overrides).
     export CAS_API="${ep.api}" CAS_SELF="claude-superset" CAS_FACE="$MODE"
-    export CAS_KONSOLE="${pkgs.kdePackages.konsole}/bin/konsole" CAS_TMUX="${pkgs.tmux}/bin/tmux"
+    # ''${VAR-default}: a pre-set (even empty) CAS_KONSOLE/CAS_TMUX survives —
+    # lets tests disable tab-spawning without the wrapper clobbering it.
+    export CAS_KONSOLE="''${CAS_KONSOLE-${pkgs.kdePackages.konsole}/bin/konsole}"
+    export CAS_TMUX="''${CAS_TMUX-${pkgs.tmux}/bin/tmux}"
     ${lib.optionalString ((ep.device or "") != "") ''export CAS_DEVICE="${ep.device}"''}
     CAS_DEVICE="''${CAS_DEVICE:-}"   # empty => engine falls back to os.hostname()
     ENGINE="${pkgs.nodejs}/bin/node ${./claude-superset-restore.mjs}"
