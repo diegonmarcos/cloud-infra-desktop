@@ -38,6 +38,9 @@ SETUP (installer / deps-solver — NO npm, native binaries)
                         (downloads.claude.ai) + installs curl if missing.
   setup --shell         Ephemeral claude via nix-shell (temporary use,
                         no permanent install).
+  setup rescue [args]   Run claude via a fallback chain when it's not installed:
+                        podman -> npx -> nix -> node (reuses tools/claude-rescue
+                        when present). Last-resort, ephemeral.
 
 OTHER
   --help, -h            Interactive status dashboard (faces, MCPs, plugins).

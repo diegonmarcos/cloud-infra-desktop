@@ -26,7 +26,8 @@
   "_setup_comment": "`claude-superset setup` deps-solver/installer. Uses Anthropic's NATIVE installer (downloads.claude.ai binaries) — NOT npm. nix/termux are flake-managed (declarative); deb/other-linux/macos get the native binary; `setup --shell` runs it ephemerally via nix-shell.",
   "setup": {
     "installer_url": "https://claude.ai/install.sh",
-    "channel": "stable"
+    "channel": "stable",
+    "rescue_pkg": "@anthropic-ai/claude-code"
   },
   "_local_comment": "`claude-superset local` runs the same container on THIS host via docker compose (on-demand). Listeners are published to 127.0.0.1 only (never the public NIC). Image is the multi-arch binaries tag (amd64 variant pulled here). First run needs a one-time login: `docker exec -it claude-superset-api-local claude`.",
   "local": {

@@ -81,6 +81,7 @@ let
       shift
       export CAS_SETUP_URL="${ep.setup.installer_url or "https://claude.ai/install.sh"}"
       export CAS_SETUP_CHANNEL="${ep.setup.channel or "stable"}"
+      export CAS_SETUP_PKG="${ep.setup.rescue_pkg or "@anthropic-ai/claude-code"}"
       exec ${pkgs.bash}/bin/bash ${./claude-superset-setup.sh} "$@"
     fi
 
