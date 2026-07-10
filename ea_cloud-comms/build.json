@@ -93,12 +93,19 @@
       "image": "cloud-comms-chat",
       "upstream_repo": "https://github.com/mattermost/mattermost-mobile.git",
       "tracker_dir": "ea_upstreams-sources/chat-mattermost",
-      "pinned_tag": "",
+      "pinned_tag": "v2.40.0",
       "license": "Apache-2.0",
       "primary_lang": "TypeScript+Kotlin",
       "runtime": "react-native",
       "priority": 2,
       "blocked_on": null,
+      "build": {
+        "_doc": "FROM-SOURCE React-Native build (not the ./gradlew model mail/dialer use). Mattermost's Android build = npm deps (postinstall runs patch-package) + Ruby/Bundler fastlane wrapper that runs gradle assembleUnsigned and emits a UNIVERSAL Mattermost-unsigned.apk at the tracker root. The engine runs build.prepare[] in the materialized tree, then build.command (the npm wrapper), globs apk_glob, and resign_unsigned=true re-signs it with the ONE shared constellation key (Mattermost ships unsigned). NODE 20 + Ruby/Bundler are provisioned by ship-cloud-comms-forks.yml only for react-native forks. Output is universal → one leg covers arm64+x86_64.",
+        "prepare": ["npm ci", "bundle install"],
+        "command": "npm run build:android-unsigned",
+        "apk_glob": "Mattermost-unsigned.apk",
+        "resign_unsigned": true
+      },
       "comment": "Mattermost mobile (React Native). Server: chat.diegonmarcos.com on oci-apps. Exporter is a NATIVE Kotlin module reading WatermelonDB; RN side left untouched. OPEN DECISION before building: push notifications (self-host mattermost-push-proxy as a new cloud service vs sync-on-open + ntfy) \u2014 needs owner sign-off.",
       "upstream_apk": {
         "_doc": "Pinned UPSTREAM RELEASE APK \u2014 bundle fallback (owner directive 2026-06-12: ALL apps ship inside the hub NOW). bundle-forks embeds this sha256-verified APK whenever our own fork image isn't on GHCR yet; the patched fork replaces it the moment its CI lands. resign=true \u2192 the engine zipalign+apksigner's it with the constellation key (Mattermost publishes unsigned APKs \u2014 unsigned can't install; our key also makes it IPC-compatible).",
