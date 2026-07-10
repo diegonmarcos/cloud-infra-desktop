@@ -1004,6 +1004,16 @@ cmd_pull() {
 # the caller falls back to the byte-exact artifact-download path.
 ghcr_incremental_switch() {
     _art="$1"
+    # The docker-layered incremental transport is BROKEN (buildLayeredImage has no
+    # shell → `docker run sh` fails, copies 0 paths; OCI layers carry no nix-DB
+    # metadata → can't register/activate). Data-driven kill switch: when
+    # .safety.incremental_pull is false, skip it entirely so the reliable nar.zst
+    # artifact path (nix-store --import, proper DB registration) runs. See the
+    # _incremental_comment in hm-auto-update.json.
+    if [ "$(jq -r '.safety.incremental_pull // true' "$HM_AUTO_CFG" 2>/dev/null)" != "true" ]; then
+        log_info "Incremental docker pull disabled (broken transport) — using the reliable nar.zst artifact path."
+        return 1
+    fi
     command -v skopeo >/dev/null 2>&1 || { log_warn "skopeo not found — cannot do label-based incremental switch, falling back to artifact download."; return 1; }
     command -v gh >/dev/null 2>&1 || return 1
     _img="${HM_CACHE_IMAGE:-$(hm_cache_image)}:latest"
