@@ -31,6 +31,11 @@ LOG_FILE="$SCRIPT_DIR/build.log"
 SRC_DIR="$SCRIPT_DIR/src"
 DIST_DIR="$SCRIPT_DIR/dist"
 CONTAINER_DIR="$SCRIPT_DIR/src/container"
+# Single source of truth for the GHCR layered-HM-cache subscription (image,
+# tag, activation-path label). Shared with programs/hm-auto-update.nix so the
+# poll timer and the switch/ci-build engine agree on ONE image + label — never
+# hardcoded twice. Read via hmcfg() below.
+HM_AUTO_CFG="$SRC_DIR/modules/programs/hm-auto-update.json"
 
 # Age key — dotfile symlink from vault/build.sh setup system, sops-nix fallback
 : "${SOPS_AGE_KEY_FILE:=$HOME/.config/sops/age/keys.txt}"
@@ -190,6 +195,20 @@ config_get() {
         echo ""
     fi
 }
+
+# Read a value from the shared HM-auto-update config (single source of truth
+# for the GHCR cache image name, tag, and activation-path label). Falls back to
+# the hardcoded literals ONLY if jq or the file is unavailable, so ci-build on a
+# minimal runner still works.
+hmcfg() {
+    if command -v jq >/dev/null 2>&1 && [ -f "$HM_AUTO_CFG" ]; then
+        jq -r "$1" "$HM_AUTO_CFG" 2>/dev/null || echo ""
+    else
+        echo ""
+    fi
+}
+hm_cache_image() { _v="$(hmcfg .image)"; [ -n "$_v" ] && [ "$_v" != "null" ] && echo "$_v" || echo "ghcr.io/diegonmarcos/unix-hm-cache"; }
+hm_cache_label() { _v="$(hmcfg .activation_label)"; [ -n "$_v" ] && [ "$_v" != "null" ] && echo "$_v" || echo "com.diegonmarcos.activation-path"; }
 
 get_default_user() {
     val=$(config_get '.defaults.user')
@@ -850,7 +869,7 @@ cmd_ci_build() {
     # upload. Guarded by GHCR_PUSH=1 (set by the ship workflow, which holds
     # packages:write + GITHUB_TOKEN). A failure here never fails the closure export.
     if [ "${GHCR_PUSH:-0}" = "1" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
-        _img="${HM_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-hm-cache}"
+        _img="${HM_CACHE_IMAGE:-$(hm_cache_image)}"
         log_info "building + pushing layered HM cache image -> ${_img}:latest (incremental)"
         # GHA Ubuntu runners ship /etc/containers/registries.conf as legacy v1,
         # which skopeo 1.23 refuses ("must be in v2 format"). Empty v2 config —
@@ -927,7 +946,7 @@ cmd_pull() {
     fi
 
     # ── Try GHCR-layered pull first (incremental) ────────────────────────
-    _img="${HM_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-hm-cache}:latest"
+    _img="${HM_CACHE_IMAGE:-$(hm_cache_image)}:latest"
     if [ -n "$_sys" ] && [ -d "$_sys" ]; then
         log_info "$_sys already present locally — skipping pull entirely."
     elif ghcr_pull_layered "$_img" && [ -n "$_sys" ] && [ -d "$_sys" ]; then
@@ -973,12 +992,52 @@ cmd_pull() {
     log_success "Activated prebuilt home-manager generation (no eval)."
 }
 
+# ghcr_incremental_switch <artifact-dir> — switch using ONLY the layered GHCR
+# cache image: NO ~6GB artifact download. A KB-sized `skopeo inspect` reads the
+# activation store path from the image's OCI label (com.diegonmarcos.activation
+# -path), then ghcr_pull_layered materialises only the store paths not already
+# present locally (docker pull skips unchanged layers; docker cp skips present
+# paths) — so a typical update transfers only the changed layers (MBs). Writes
+# activation.name into the artifact dir so cmd_pull activates without any
+# download. Returns 0 iff the activation path is fully present afterwards; 1 on
+# ANY failure (no skopeo, no gh auth, unlabeled image, image/pull failure) so
+# the caller falls back to the byte-exact artifact-download path.
+ghcr_incremental_switch() {
+    _art="$1"
+    command -v skopeo >/dev/null 2>&1 || { log_warn "skopeo not found — cannot do label-based incremental switch, falling back to artifact download."; return 1; }
+    command -v gh >/dev/null 2>&1 || return 1
+    _img="${HM_CACHE_IMAGE:-$(hm_cache_image)}:latest"
+    _label="$(hm_cache_label)"
+    _tok="$(gh auth token 2>/dev/null)" || { log_warn "gh not authenticated — falling back to artifact download."; return 1; }
+    log_info "Inspecting $_img for activation path (label $_label)..."
+    _sys="$(skopeo inspect --creds "x:$_tok" --format "{{ index .Labels \"$_label\" }}" "docker://$_img" 2>/dev/null)"
+    if [ -z "$_sys" ] || [ "$_sys" = "<no value>" ]; then
+        log_warn "cache image carries no '$_label' label (predates labeled builds) — falling back to artifact download."
+        return 1
+    fi
+    log_info "Target activation: $_sys"
+    mkdir -p "$_art"
+    basename "$_sys" > "$_art/activation.name"
+    if [ -d "$_sys" ]; then
+        log_success "activation path already present locally — incremental switch needs no pull."
+        return 0
+    fi
+    if ghcr_pull_layered "$_img" && [ -d "$_sys" ]; then
+        log_success "activation path materialised via layered GHCR pull (incremental — NO artifact download)."
+        return 0
+    fi
+    log_warn "layered pull incomplete ($_sys still missing) — falling back to artifact download."
+    return 1
+}
+
 # switch runner (DEFAULT) — one-shot: fetch the latest GHA-built home-manager
-# closure artifact and activate it locally. No local eval → cannot freeze the
-# 8GB Surface. Assumes the ship workflow already ran for your pushed HEAD (GHA
-# builds on push), so `switch local` is the escape hatch to eval on-device.
-# Artifact name overridable via HM_CLOSURE_ARTIFACT; workflow (hint only) via
-# HM_SHIP_WORKFLOW.
+# closure + activate it locally. No local eval → cannot freeze the 8GB Surface.
+# Incremental-first: tries ghcr_incremental_switch (layered GHCR cache, only
+# changed layers, no big download); falls back to the full artifact download
+# only when that path is unavailable. Assumes the ship workflow already ran for
+# your pushed HEAD (GHA builds on push), so `switch local` is the escape hatch
+# to eval on-device. Artifact name overridable via HM_CLOSURE_ARTIFACT;
+# workflow (hint only) via HM_SHIP_WORKFLOW.
 cmd_switch_runner() {
     log_header "switch (runner): fetch GHA-built closure + activate (no local eval)"
     _host="${1:-surface-plasma}"; _user="${2:-diego}"
@@ -999,6 +1058,18 @@ cmd_switch_runner() {
     _wf="${HM_SHIP_WORKFLOW:-ship_nix-flakes_desktop_hm.yaml}"
     _art="$SCRIPT_DIR/dist-ci"
     rm -rf "$_art"; mkdir -p "$_art"
+
+    # ── Incremental-first (the whole point of the layered cache image): try to
+    #    switch using ONLY that image — label → activation store path → docker
+    #    cp of just the missing layers. Skips the ~6GB artifact download on the
+    #    common path. Any failure falls through to the full download below.
+    if ghcr_incremental_switch "$_art"; then
+        cmd_pull "$_art"
+        return $?
+    fi
+    log_info "Incremental switch unavailable — falling back to full artifact download."
+    rm -rf "$_art"; mkdir -p "$_art"
+
     # Resolve SUCCESSFUL runs of the HM ship workflow and pull the artifact by
     # run-id — `gh run download -n <name>` with NO run-id only checks the single
     # most-recent run, which may be a newer/failed one lacking the artifact.
@@ -1417,6 +1488,11 @@ main() {
     log "========== Build script finished =========="
 }
 
+# BUILDSH_SOURCE_ONLY=1 lets test scripts `. build.sh` to unit-test individual
+# functions (e.g. ghcr_incremental_switch) without executing the dispatcher or
+# re-exec — nothing below runs when sourced for tests.
+if [ -z "${BUILDSH_SOURCE_ONLY:-}" ]; then
+
 # ── Progress-window re-exec ─────────────────────────────────────────────
 # nix-switch-progress-wrap (programs/nix-switch-progress.nix) is designed to
 # cover BOTH a local eval+build (`switch local`, wired inside nix_switch())
@@ -1444,3 +1520,5 @@ if [ -z "${NSP_WRAPPED:-}" ] && command -v nix-switch-progress-wrap >/dev/null 2
 fi
 
 main "$@"
+
+fi

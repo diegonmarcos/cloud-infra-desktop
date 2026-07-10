@@ -168,10 +168,29 @@ else
   log "sunshine: $(ss -tln 2>/dev/null | grep -q ':47990 ' && echo "up (pid $SUNSHINE_PID, web :47990)" || echo 'NOT LISTENING — VNC fallback only')"
 fi
 
-# ── 3) Waydroid one-time image fetch (persisted on the /data volume across restarts) ──
+# ── 3) First-boot /data provisioning. Two paths, both keyed on an EMPTY volume
+#    (no images/ yet):
+#      (a) BAKED SEED (the "image baked with our configs" path): if a non-empty
+#          /opt/data-seed.tar.zst is present — produced by `build.sh bake`, which
+#          boots + fully provisions a scratch container and snapshots its entire
+#          /var/lib/waydroid (vendor images + Android /data with all apps installed +
+#          the seeded Launcher3 layout + theme + the .apps-provisioned marker) — we
+#          extract it and are INSTANTLY at the provisioned state: no `waydroid init`
+#          download, no per-app `pm install`, no layout pass (the marker in the seed
+#          makes step 6b skip). This is what makes the FIRST launch show the curated
+#          home screen immediately instead of default-then-provision.
+#      (b) FALLBACK: no seed baked → `waydroid init` (fetch vendor images) now, then
+#          step 6b provisions apps/layout/theme at runtime (slower first boot, but the
+#          CI-built base image which cannot boot Android to bake still works).
 if [ ! -d /var/lib/waydroid/images ]; then
-  log "first boot: waydroid init (fetching vendor images — this is slow, once only)…"
-  waydroid init
+  if [ -s /opt/data-seed.tar.zst ]; then
+    log "first boot: restoring BAKED /data seed (apps+layout+theme pre-provisioned)…"
+    zstd -dc /opt/data-seed.tar.zst | tar -C /var/lib/waydroid --numeric-owner -xf -
+    log "  seed restored — skipping waydroid init + runtime provisioning"
+  else
+    log "first boot: waydroid init (fetching vendor images — this is slow, once only)…"
+    waydroid init
+  fi
 fi
 
 # Waydroid's OWN default LXC config mounts cgroup READ-ONLY for the guest — fine on

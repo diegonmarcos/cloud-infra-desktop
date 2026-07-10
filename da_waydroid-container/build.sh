@@ -17,6 +17,7 @@
 #   ./build.sh build            # bundle + apps-fetch + docker build (apps/launcher/theme baked in)
 #   ./build.sh bundle           # (re)generate the self-contained launcher from build.json
 #   ./build.sh apps-fetch       # reproducibly fetch the pinned APK set (build.json apps.list) into src/apks/
+#   ./build.sh bake             # boot+provision a scratch container, snapshot /data, bake it into the image (LOCAL-only: needs binder)
 #   ./build.sh install [bindir] # pull the GHCR image, copy the baked launcher into a bin dir
 #   ./build.sh up [native|stream|vnc]   # bring the container up + open the GUI (default native)
 #   ./build.sh down             # stop the container
@@ -171,6 +172,59 @@ cmd_apps_fetch() {
   log "fetched $(ls "$SRC/apks" | wc -l) pinned APK(s) into src/apks/ (reproducible, sha256-pinned)"
 }
 
+# bake — "the default image baked WITH our configs". Boot a throwaway container on a
+# scratch volume, let it fully provision (waydroid init + install all apps + seed
+# layout/theme), snapshot the ENTIRE provisioned /var/lib/waydroid, bake that snapshot
+# into the image, and push. Result: the FIRST launch of the baked image restores the
+# snapshot and is INSTANTLY at the curated home screen — no init download, no per-app
+# install, no layout pass at runtime.
+#
+# LOCAL-ONLY: baking must boot Android (needs the binder kernel module), which GitHub
+# CI runners do not have — so the CI ship-waydroid-container workflow builds only the
+# BASE image (empty seed → runtime provisioning fallback), and this `bake` runs on a
+# real host and pushes the fast image itself.
+cmd_bake() {
+  command -v docker >/dev/null 2>&1 || die "docker not found"
+  command -v zstd   >/dev/null 2>&1 || die "zstd not found (nix profile / systemPackages)"
+  cmd_build   # ensure the base image (apps in /opt/apps, empty seed placeholder)
+  local img bakevol seed; img="$(get container.image)"
+  seed="$SRC/data-seed.tar.zst"
+  bakevol="$(mktemp -d /mnt/shared-lib/waydroid-bake.XXXXXX)"
+  log "bake: booting a throwaway container on a scratch volume to provision…"
+  docker rm -f waydroid-bake >/dev/null 2>&1 || true
+  # stream mode: self-contained (nested sway) — no host Wayland dep, so bake works
+  # headless / on any host. The provisioning pass is identical regardless of mode.
+  docker run -d --name waydroid-bake \
+    --privileged --cgroupns=host \
+    --cpus "$(cpu_cap)" --memory-reservation "$(get container.memory_reservation)" \
+    --device /dev/dri -v /run/udev:/run/udev:ro \
+    -v "$bakevol:/var/lib/waydroid" \
+    -e WAYDROID_DISPLAY_MODE=stream \
+    -e "WAYDROID_WIDTH=$(get container.width)" -e "WAYDROID_HEIGHT=$(get container.height)" \
+    "$img" >/dev/null || { rm -rf "$bakevol"; die "bake container failed to start"; }
+  log "bake: waiting for full provisioning (init + install all apps + layout — several minutes)…"
+  local ok=""
+  for _ in $(seq 1 240); do   # up to ~40min (first-boot init download + 54 pm installs)
+    docker exec waydroid-bake test -f /var/lib/waydroid/.apps-provisioned 2>/dev/null && { ok=1; break; }
+    docker ps --format '{{.Names}}' | grep -qx waydroid-bake || { rm -rf "$bakevol"; die "bake container died — check: docker logs waydroid-bake"; }
+    sleep 10
+  done
+  [ -n "$ok" ] || { docker rm -f waydroid-bake >/dev/null 2>&1; rm -rf "$bakevol"; die "provisioning did not finish in time"; }
+  log "bake: provisioned — graceful stop to flush Android /data…"
+  docker stop -t "$(get container.stop_timeout_seconds)" waydroid-bake >/dev/null 2>&1 || true
+  docker rm -f waydroid-bake >/dev/null 2>&1 || true
+  log "bake: snapshotting provisioned /var/lib/waydroid → seed (zstd)…"
+  # --numeric-owner: Android uids/gids are numeric and must be preserved verbatim on
+  # restore (the entrypoint extracts with --numeric-owner too). Run tar as root: the
+  # provisioned tree is owned by container-internal Android uids the host doesn't map.
+  sudo tar -C "$bakevol" --numeric-owner -cf - . | zstd -3 -T0 -o "$seed" -f
+  sudo chown "$USER" "$seed"
+  sudo rm -rf "$bakevol"
+  log "bake: seed is $(du -h "$seed" | cut -f1) — rebuilding image WITH the seed baked in…"
+  cmd_build   # second build: real seed now present → baked into the image's last layer
+  log "bake: complete. Push with: ./build.sh push  (then 'up' on any host is instant)"
+}
+
 # install — the "pull it to copy into a linux bin" step. Pull the GHCR image, extract
 # the baked launcher (the CI build ran `bundle`, the Dockerfile copied it in), and drop
 # it at <bindir>/waydroid (default ~/.local/bin). No container is run — docker cp from
@@ -198,6 +252,11 @@ cmd_build() {
   # (apps/launcher/theme), same "regenerate a build-context artifact" pattern as
   # bundle/apps-fetch. Gitignored — build.json in the repo root stays the one source.
   cp -f "$CONFIG" "$SRC/build.json"
+  # Seed placeholder: the Dockerfile always COPYs data-seed.tar.zst; a plain `build`
+  # produces an EMPTY one (entrypoint → runtime provisioning). `bake` overwrites it
+  # with a real provisioned snapshot BEFORE calling build again. Never clobber an
+  # existing (baked) seed here — only create the placeholder when none exists.
+  [ -f "$SRC/data-seed.tar.zst" ] || : > "$SRC/data-seed.tar.zst"
   local base img; base="$(get container.base_image)"; img="$(get container.image)"
   log "docker build $img (base $base)…"
   docker build --build-arg BASE="$base" \
@@ -532,6 +591,7 @@ case "${1:-up}" in
   bundle)  cmd_bundle ;;
   apps-lock)  shift; cmd_apps_lock "$@" ;;
   apps-fetch) cmd_apps_fetch ;;
+  bake)    cmd_bake ;;
   install) cmd_install "${2:-}" ;;
   up)      cmd_up "${2:-}" ;;
   down)    cmd_down ;;
@@ -539,5 +599,5 @@ case "${1:-up}" in
   test)    cmd_test ;;
   push)    cmd_push ;;
   *) die "unknown command '$1'
-  build | bundle | apps-lock [pkg...] | apps-fetch | install [bindir] | up [native|stream|vnc] | down | status | test | push" ;;
+  build | bundle | apps-lock [pkg...] | apps-fetch | bake | install [bindir] | up [native|stream|vnc] | down | status | test | push" ;;
 esac
