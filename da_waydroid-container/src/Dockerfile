@@ -37,6 +37,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #    grim: wlroots screenshot tool — used by `build.sh test` to capture what the
 #    compositor ACTUALLY composites (the exact pixels wayvnc serves), so "it renders"
 #    is verified evidence, never an assumption.
+#    jq + sqlite3 + nodejs: app provisioning (entrypoint.sh reads build.json's
+#    apps/launcher/theme with jq, applies the Launcher3 layout via sqlite3, and runs
+#    gen-layout-sql.js — a small JS layout-SQL generator — via node).
 RUN apt-get install -y --no-install-recommends \
       waydroid \
       sway \
@@ -49,6 +52,9 @@ RUN apt-get install -y --no-install-recommends \
       iptables \
       kmod \
       openssl \
+      jq \
+      sqlite3 \
+      nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # 2b) Sunshine — the PRIMARY display transport (VAAPI hardware H.264 encode of the sway
@@ -104,6 +110,17 @@ COPY sunshine-apps.json /etc/sunshine-apps.json
 # with docker+bash+node and NO repo checkout. Shipped INSIDE the image so `build.sh
 # install` can `docker cp` it out of the pulled GHCR image straight into ~/.local/bin.
 COPY waydroid-launcher /opt/launcher/waydroid
+
+# App provisioning: build.json (copied into the build context by `build.sh build`),
+# the pinned APK set (fetched reproducibly by `build.sh apps-fetch` into src/apks/),
+# and the Launcher3 layout-SQL generator. entrypoint.sh installs every APK, applies
+# app-ops/permissions, renders the home-screen+nav layout, and sets the theme — ONCE
+# per container lifetime, guarded by a marker on the persistent /var/lib/waydroid
+# volume — the first time Android reaches boot_completed=1.
+COPY build.json /etc/waydroid-container.json
+COPY apks/ /opt/apps/
+COPY apps/gen-layout-sql.js /opt/launcher/gen-layout-sql.js
+
 RUN chmod +x /usr/local/bin/waydroid-container-entrypoint.sh /opt/launcher/waydroid
 
 # XDG_RUNTIME_DIR set here (not just exported inside entrypoint.sh's own shell) so every
