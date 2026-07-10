@@ -58,6 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       forks: ${{ steps.detect.outputs.forks }}
+      combos: ${{ steps.detect.outputs.combos }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,8 +66,7 @@ jobs:
       - id: detect
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            FORK="${{ inputs.fork || 'mail' }}"
-            echo "forks=[\"$FORK\"]" >> $GITHUB_OUTPUT
+            FORKS_JSON="[\"${{ inputs.fork || 'mail' }}\"]"
           else
             # Diff the WHOLE push range (before..after), NOT just HEAD~1..HEAD.
             # BUG FIXED: a multi-commit push where the forks/ patch commit is a
@@ -78,25 +78,43 @@ jobs:
             if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
               BEFORE="${{ github.sha }}~1"
             fi
-            changed=$(git diff --name-only "$BEFORE" "${{ github.sha }}" -- ea_cloud-comms/forks/ \
+            FORKS_JSON=$(git diff --name-only "$BEFORE" "${{ github.sha }}" -- ea_cloud-comms/forks/ \
               | sed 's|ea_cloud-comms/forks/||;s|/.*||' | sort -u \
               | jq -R . | jq -sc 'map(select(length>0))')
-            if [ -z "$changed" ] || [ "$changed" = "[]" ]; then
-              changed='["mail"]'
+            if [ -z "$FORKS_JSON" ] || [ "$FORKS_JSON" = "[]" ]; then
+              FORKS_JSON='["mail"]'
             fi
-            echo "forks=$changed" >> $GITHUB_OUTPUT
           fi
+          echo "forks=$FORKS_JSON" >> $GITHUB_OUTPUT
+          # Data-driven multi-arch: EVERY fork builds arm64-v8a; a fork ALSO
+          # gets an x86_64 leg IFF its build.json declares an x86_64 upstream
+          # ABI variant (.forks.<k>.upstream_apk.abi_variants.x86_64 — matrix/
+          # Element X today). Source-built universal forks (mail/dialer) and
+          # variant-less stock forks (chat, no x86 upstream) stay single-leg.
+          # No fork/abi is hand-listed — the matrix is derived from build.json.
+          combos=$(jq -cn --argjson forks "$FORKS_JSON" \
+            --argjson bj "$(cat ea_cloud-comms/build.json)" '
+            $forks | map(. as $f
+              | [ {fork: $f, abi: "arm64-v8a"} ]
+              + ( if (($bj.forks[$f].upstream_apk.abi_variants.x86_64) // null) != null
+                  then [ {fork: $f, abi: "x86_64"} ] else [] end ) )
+            | add')
+          echo "combos=$combos" >> $GITHUB_OUTPUT
 
   build_and_publish_fork:
-    name: "Materialize + build + publish fork (${{ matrix.fork }})"
+    name: "Materialize + build + publish fork (${{ matrix.combo.fork }} · ${{ matrix.combo.abi }})"
     needs: detect-forks
     strategy:
+      fail-fast: false
       matrix:
-        fork: ${{ fromJson(needs.detect-forks.outputs.forks) }}
+        combo: ${{ fromJson(needs.detect-forks.outputs.combos) }}
     runs-on: ubuntu-latest
     timeout-minutes: 60   # FairEmail is a ~3500-file build
     env:
-      FORK: ${{ matrix.fork }}
+      FORK: ${{ matrix.combo.fork }}
+      # Picked up by build.sh build-fork (stock-resign abi_variants) + publish-
+      # fork (tag suffix). Default arm64-v8a → bare tags; x86_64 → latest-x86_64.
+      COMMS_BUNDLE_ABI: ${{ matrix.combo.abi }}
 
     steps:
       - name: Checkout
@@ -178,8 +196,8 @@ jobs:
       - name: Upload fork APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cloud-comms-${{ matrix.fork }}-${{ github.sha }}
-          path: ${{ env.WORK_DIR }}/dist/cloud-comms-${{ matrix.fork }}.apk
+          name: cloud-comms-${{ matrix.combo.fork }}-${{ matrix.combo.abi }}-${{ github.sha }}
+          path: ${{ env.WORK_DIR }}/dist/cloud-comms-${{ matrix.combo.fork }}.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -195,8 +213,11 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: ./build.sh publish-fork "$FORK"
 
+      # Only the default abi leg cuts the RSS release — the tag is
+      # cloud-comms-<fork>-<stamp> (no abi), so two abi legs would collide on
+      # the same tag. x86_64 distributes via GHCR latest-x86_64 only.
       - name: Create GitHub Release (RSS update notification)
-        if: success()
+        if: ${{ success() && matrix.combo.abi == 'arm64-v8a' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
