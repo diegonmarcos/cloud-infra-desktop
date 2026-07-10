@@ -89,6 +89,9 @@ let
       export CAS_MCP_GP="${ep.mcps.gp}"
       export CAS_PLUGINS_SCRIPT="$HOME/.claude/claude-plugins-status.sh"
       export CAS_MESH='${builtins.toJSON (ep.mesh or {})}'
+      export CAS_PUBLIC='${builtins.toJSON (ep.public or {})}'
+      export CAS_IMAGE="${ep.image or ""}"
+      export CAS_PING="${pkgs.iputils}/bin/ping" CAS_DF="${pkgs.coreutils}/bin/df" CAS_GIT="${pkgs.git}/bin/git"
       exec ${pkgs.nodejs}/bin/node ${./claude-superset-tui.mjs}
     fi
 
@@ -137,6 +140,27 @@ let
     ENGINE="${pkgs.nodejs}/bin/node ${./claude-superset-restore.mjs}"
     KEEP="${toString (ep.sync_keep or 20)}"
 
+    # Resume tabs (spawned by a restore fan-out) carry `--resume` — they must
+    # ATTACH to the already-running shared proxy, never manage the container.
+    case " $* " in *" --resume "*) IS_RESUME=1 ;; *) IS_RESUME=0 ;; esac
+
+    # local face uses exactly ONE container (like remote uses one VM). Bring it
+    # up ONCE here — in the parent, BEFORE any restore fan-out — so N restored
+    # tabs reuse it instead of each running `docker compose up`. Skipped for
+    # resume tabs (they attach below) and when headroom is off.
+    if [ "$MODE" = "local" ] && [ "$HEADROOM" = "on" ] && [ "$IS_RESUME" = "0" ]; then
+      case "''${1:-}" in
+        down|stop) exec docker compose -p claude-superset-local -f ${localCompose} down ;;
+      esac
+      echo "[claude-superset] local — ensuring the ONE container is up (${lo.container_name})" >&2
+      docker compose -p claude-superset-local -f ${localCompose} up -d || {
+        echo "[claude-superset] docker compose up failed — is dockerd running?" >&2; exit 1; }
+      for _ in $(seq 1 45); do
+        ${pkgs.curl}/bin/curl -fsS --max-time 2 "${lo.proxy}/readyz" >/dev/null 2>&1 && break
+        sleep 2
+      done
+    fi
+
     # Session action (default: fresh = passthrough to claude).
     #   sync                              push last KEEP local sessions to the hub
     #   restore <X> | restore-hours <Y>   reopen this device's recent sessions
@@ -165,36 +189,18 @@ let
       exec claude "$@"
     fi
 
-    # Headroom face: only wire the proxy when headroom is ON.
+    # Wire ANTHROPIC_BASE_URL by a SHORT probe (no bring-up here — the local
+    # container was already ensured once above; resume tabs just attach). Same
+    # shape as remote: point at a URL, fall back to direct if unreachable. This
+    # is what makes N restored `local` tabs share ONE container.
     if [ "$HEADROOM" = "on" ]; then
-      if [ "$MODE" = "local" ]; then
-        case "''${1:-}" in
-          down|stop) exec docker compose -p claude-superset-local -f ${localCompose} down ;;
-        esac
-        echo "[claude-superset] local mode — ensuring container up (${lo.container_name})" >&2
-        docker compose -p claude-superset-local -f ${localCompose} up -d || {
-          echo "[claude-superset] docker compose up failed — is dockerd running?" >&2; exit 1; }
-        URL="${lo.proxy}"
-        for _ in $(seq 1 60); do
-          ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1 && break
-          sleep 2
-        done
-        if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
-          export ANTHROPIC_BASE_URL="$URL"
-          echo "[claude-superset] via LOCAL proxy → $URL (Headroom compression ON)" >&2
-        else
-          echo "[claude-superset] local proxy not ready — first run needs a login:" >&2
-          echo "    docker exec -it ${lo.container_name} claude" >&2
-          echo "[claude-superset] continuing direct to Anthropic, no compression" >&2
-        fi
+      if [ "$MODE" = "local" ]; then URL="${lo.proxy}"; else URL="''${CLAUDE_SUPERSET_URL:-${ep.proxy}}"; fi
+      if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
+        export ANTHROPIC_BASE_URL="$URL"
+        echo "[claude-superset] via $MODE proxy → $URL (Headroom compression ON)" >&2
       else
-        URL="''${CLAUDE_SUPERSET_URL:-${ep.proxy}}"
-        if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
-          export ANTHROPIC_BASE_URL="$URL"
-          echo "[claude-superset] via superset proxy → $URL (Headroom compression ON)" >&2
-        else
-          echo "[claude-superset] proxy unreachable ($URL) — direct to Anthropic, no compression" >&2
-        fi
+        [ "$MODE" = "local" ] && echo "[claude-superset] local proxy not ready — first run: docker exec -it ${lo.container_name} claude" >&2
+        echo "[claude-superset] proxy unreachable ($URL) — direct to Anthropic, no compression" >&2
       fi
     else
       echo "[claude-superset] Headroom OFF — direct to Anthropic (no compression)" >&2

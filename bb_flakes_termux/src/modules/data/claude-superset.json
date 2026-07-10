@@ -9,17 +9,24 @@
   "sync_keep": 20,
   "_mesh_comment": "WireGuard mesh peers (the 4 VMs, per CLAUDE.md B.1). Consumed by the TUI status dashboard (CAS_MESH) for per-peer ICMP latency.",
   "mesh": {
-    "gcp-proxy":     "10.0.0.1",
-    "oci-mail":      "10.0.0.3",
+    "gcp-proxy": "10.0.0.1",
+    "oci-mail": "10.0.0.3",
     "oci-analytics": "10.0.0.4",
-    "oci-apps":      "10.0.0.6"
+    "oci-apps": "10.0.0.6"
   },
   "mcps": {
-    "c3_infra":   "http://10.0.0.6:3100",
-    "c3_svc":     "http://10.0.0.6:3101",
+    "c3_infra": "http://10.0.0.6:3100",
+    "c3_svc": "http://10.0.0.6:3101",
     "mattermost": "http://10.0.0.6:3102",
-    "mail":       "http://10.0.0.6:3103",
-    "gws":        "http://10.0.0.6:3104",
-    "gp":         "http://10.0.0.6:3106"
-  }
+    "mail": "http://10.0.0.6:3103",
+    "gws": "http://10.0.0.6:3104",
+    "gp": "http://10.0.0.6:3106"
+  },
+  "public": {
+    "gcp-proxy": "35.226.147.64",
+    "oci-mail": "130.110.251.193",
+    "oci-analytics": "129.151.228.66",
+    "oci-apps": "82.70.229.129"
+  },
+  "image": "ghcr.io/diegonmarcos/claude-superset-api-binaries"
 }

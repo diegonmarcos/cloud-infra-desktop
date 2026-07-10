@@ -14,6 +14,15 @@
     "oci-analytics": "10.0.0.4",
     "oci-apps":      "10.0.0.6"
   },
+  "_public_comment": "Public VM IPs (per CLAUDE.md B.1). TUI dashboard (CAS_PUBLIC) pings these to show public-edge reachability vs the WG mesh.",
+  "public": {
+    "gcp-proxy":     "35.226.147.64",
+    "oci-mail":      "130.110.251.193",
+    "oci-analytics": "129.151.228.66",
+    "oci-apps":      "82.70.229.129"
+  },
+  "_image_comment": "GHCR binaries image repo (no tag). TUI queries the anonymous manifest to show whether -binaries:latest is a native multi-arch list (amd64,arm64) or single-arch.",
+  "image": "ghcr.io/diegonmarcos/claude-superset-api-binaries",
   "_local_comment": "`claude-superset local` runs the same container on THIS host via docker compose (on-demand). Listeners are published to 127.0.0.1 only (never the public NIC). Image is the multi-arch binaries tag (amd64 variant pulled here). First run needs a one-time login: `docker exec -it claude-superset-api-local claude`.",
   "local": {
     "proxy": "http://127.0.0.1:8789",
