@@ -34,9 +34,9 @@ const W = 76;
 const num = (x) => Number(x || 0).toLocaleString();
 const SPIN = ["|", "/", "-", "\\"]; let spin = 0, spinTimer = null;
 function secHead(title, right = "") {
-  const left = `[ ${title} ]`, rt = right ? `[ ${right} ]` : "";
-  const mid = "-".repeat(Math.max(2, W - strip(left).length - strip(rt).length - 4));
-  return `  ${C.dim}--${C.r}${C.b}${C.blu}${left}${C.r}${C.dim}${mid}${C.r}${right ? `${C.y}${rt}${C.r}` : ""}${C.dim}--${C.r}`;
+  const label = `[ ${title} ]`, rt = right ? `[ ${right} ]` : "";
+  const fill = Math.max(2, W - strip(label).length - strip(rt).length - 6);
+  return `  ${C.cy}${C.b}+==${C.r}${C.b}${C.mag}${label}${C.r}${C.cy}${C.b}${"=".repeat(fill)}${right ? `${C.r}${C.y}${rt}${C.cy}${C.b}` : ""}==+${C.r}`;
 }
 
 // ── OFFLINE data (instant) ──────────────────────────────────────────────────
@@ -75,7 +75,7 @@ function loadLocalSessions() {
     for (const n of names) { if (!n.endsWith(".jsonl")) continue; const f = path.join(dir, n); try { const st = fs.statSync(f); out.push({ id: n.slice(0, -6), f, mtime: st.mtimeMs, size: st.size }); } catch {} } }
   const total = out.length, bytes = out.reduce((a, s) => a + s.size, 0);
   out.sort((a, b) => b.mtime - a.mtime);
-  const list = out.slice(0, 10).map((s) => {
+  const list = out.slice(0, 6).map((s) => {
     let ct = null, slug = null, ai = null, fp = null, cwd = null, msgs = 0;
     try { for (const line of fs.readFileSync(s.f, "utf8").split("\n")) { if (!line) continue; let o; try { o = JSON.parse(line); } catch { continue; }
       if (o.customTitle) ct = String(o.customTitle); if (o.aiTitle) ai = String(o.aiTitle); if (!slug && o.slug) slug = String(o.slug);
@@ -197,7 +197,7 @@ function pageCompose(L) {
   rows = buildRows(); fl = rows.map((r, i) => (FOCT.includes(r.t) ? i : -1)).filter((i) => i >= 0);
   if (focus >= fl.length) focus = fl.length - 1; if (focus < 0) focus = 0;
   const focIdx = fl[focus];
-  L.push(secHead("COMPOSE", st.face));
+  L.push(""); L.push(secHead("COMPOSE", st.face));
   rows.forEach((row, i) => {
     const foc = i === focIdx, cur = foc ? `${C.cy}${C.b}>${C.r} ` : "  ", hl = (s) => (foc ? `${C.inv}${s}${C.r}` : s);
     if (row.t === "sec") return L.push(`   ${C.dim}${row.text}${C.r}`);
@@ -211,9 +211,8 @@ function pageCompose(L) {
   });
 }
 function pageNetwork(L) {
-  fl = [];
   const kv = (k, s) => `    ${C.dim}${padE(k, 11)}${C.r}${s}`;
-  L.push(secHead("FACES"));
+  L.push(""); L.push(secHead("FACES"));
   L.push(kv("services", ["proxy", "api", "ollama", "compress", "direct"].map((k, i) => `${C.dim}${["proxy", "api", "ollama", "compr", "direct"][i]}${C.r} ${dm(D[k])}`).join(" ")));
   const h = D.health; let hl = `${C.dim}--${C.r}`;
   if (h === null) hl = `${C.dim}${SPIN[spin]}${C.r}`; else if (h === "t/o") hl = `${C.y}t/o${C.r}`;
@@ -227,21 +226,20 @@ function pageNetwork(L) {
   if (im === null) il = `${C.dim}${SPIN[spin]}${C.r}`; else if (im === "t/o") il = `${C.y}t/o${C.r}`;
   else if (im && im.arches) { const multi = im.arches.length > 1; il = `${multi ? C.g : C.red}${im.arches.join(",")}${C.r} ${C.dim}${multi ? "(multi-arch)" : "(single-arch!)"}${C.r}`; }
   L.push(kv("image", il));
-  L.push(secHead("MESH (wg)"));
+  L.push(""); L.push(secHead("MESH (wg)"));
   L.push("    " + Object.keys(MESH).map((n) => `${C.dim}${padE(n, 13)}${C.r}${dm(D[`mesh:${n}`])}`).join("  "));
-  L.push(secHead("PUBLIC edge"));
+  L.push(""); L.push(secHead("PUBLIC edge"));
   L.push("    " + Object.keys(PUBLIC).map((n) => `${C.dim}${padE(n, 13)}${C.r}${dm(D[`pub:${n}`])}`).join("  "));
-  L.push(secHead(`MCP servers (${OFF.mcps.length})`));
-  for (let i = 0; i < OFF.mcps.length; i += 2)
-    L.push("    " + OFF.mcps.slice(i, i + 2).map((m) => padE(`${C.mag}${padE(m.name, 20)}${C.r} ${m.type === "http" ? dm(D[`mcp:${m.name}`]) : dm("stdio")}`, 38)).join(""));
+  L.push(""); L.push(secHead(`MCP servers (${OFF.mcps.length})`));
+  for (let i = 0; i < OFF.mcps.length; i += 3)
+    L.push("   " + OFF.mcps.slice(i, i + 3).map((m) => padE(`${C.mag}${padE(m.name, 15)}${C.r} ${m.type === "http" ? dm(D[`mcp:${m.name}`]) : dm("stdio")}`, 26)).join(""));
 }
 function pageSessions(L) {
-  fl = [];
-  L.push(secHead(`LOCAL sessions (${OFF.sessions.total} total, ${Math.round(OFF.sessions.bytes / 1048576)}MB)`));
+  L.push(""); L.push(secHead(`LOCAL sessions (${OFF.sessions.total} total, ${Math.round(OFF.sessions.bytes / 1048576)}MB)`));
   L.push(`    ${C.dim}${padE("age", 5)}${padE("msgs", 6)}${padE("size", 7)}${padE("title", 32)}cwd${C.r}`);
   OFF.sessions.list.forEach((s) => L.push(`    ${padE(s.age, 5)}${C.dim}${padE(String(s.msgs), 6)}${padE(s.kb + "K", 7)}${C.r}${padE(s.title, 32)}${C.dim}${s.cwd}${C.r}`));
   const sv = D.server;
-  L.push(secHead("SERVER sessions (hub)", refreshing ? "probing" : ""));
+  L.push(""); L.push(secHead("SERVER sessions (hub)", refreshing ? "probing" : ""));
   if (sv === undefined) L.push(`    ${C.dim}-- press Refresh / r${C.r}`);
   else if (sv === null) L.push(`    ${C.dim}${SPIN[spin]} loading${C.r}`);
   else if (sv === "t/o" || !sv.body) L.push(`    ${C.y}t/o (hub unreachable)${C.r}`);
@@ -256,8 +254,7 @@ function pageSessions(L) {
   }
 }
 function pageSystem(L) {
-  fl = [];
-  L.push(secHead("HOST"));
+  L.push(""); L.push(secHead("HOST"));
   const disks = parseDf(D.hostdisk);
   if (D.hostdisk === undefined) L.push(`    ${C.dim}disk    -- press Refresh${C.r}`);
   else if (D.hostdisk === null) L.push(`    ${C.dim}disk    ${SPIN[spin]}${C.r}`);
@@ -265,20 +262,19 @@ function pageSystem(L) {
   else disks.forEach((d) => { const pct = parseInt(d.pct) || 0; const col = pct > 90 ? C.red : pct > 75 ? C.y : C.g; L.push(`    ${C.dim}disk${C.r}  ${padE(d.mount || "", 18)} ${col}${padS(d.pct || "", 4)}${C.r} ${C.dim}${d.used}/${d.size} used, ${d.avail} free${C.r}`); });
   try { const mi = fs.readFileSync("/proc/meminfo", "utf8"); const g = (k) => +((mi.match(new RegExp(k + ":\\s+(\\d+)")) || [])[1] || 0); const tot = g("MemTotal"), av = g("MemAvailable"); L.push(`    ${C.dim}mem${C.r}   ${padE("", 18)} ${((1 - av / tot) * 100).toFixed(0)}% ${C.dim}${(av / 1048576).toFixed(1)}G free / ${(tot / 1048576).toFixed(1)}G${C.r}`); } catch {}
   try { const la = fs.readFileSync("/proc/loadavg", "utf8").split(" ").slice(0, 3).join(" "); L.push(`    ${C.dim}load${C.r}  ${padE("", 18)} ${la}`); } catch {}
-  L.push(secHead("GIT REPOS"));
+  L.push(""); L.push(secHead("GIT REPOS"));
   REPOS.forEach((rp) => { const v = parseRepo(D[`repo:${rp}`]); let s;
     if (D[`repo:${rp}`] === undefined) s = `${C.dim}-- Refresh${C.r}`; else if (D[`repo:${rp}`] === null) s = `${C.dim}${SPIN[spin]}${C.r}`; else if (v === "t/o") s = `${C.y}t/o${C.r}`;
     else s = `${C.cy}${padE(v.br, 8)}${C.r} ${v.ahead ? C.g + "+" + v.ahead + " " : ""}${v.behind ? C.red + "-" + v.behind + " " : ""}${C.r}${v.dirty ? C.y + v.dirty + " dirty" : C.g + "clean"}${C.r}`;
     L.push(`    ${C.mag}${padE(rp, 8)}${C.r} ${s}`); });
-  L.push(secHead("CLAUDE"));
+  L.push(""); L.push(secHead("CLAUDE"));
   L.push(`    ${C.dim}model${C.r}     ${OFF.cfg.model}   ${C.dim}statusline${C.r} ${OFF.cfg.statusline ? C.g + "on" : C.dim + "off"}${C.r}   ${C.dim}mcp${C.r} ${OFF.cfg.mcpCount}`);
   L.push(`    ${C.dim}plugins${C.r}   ${OFF.plugins.map((p) => `${p.on ? C.g : C.dim}${p.label}${p.detail ? ":" + p.detail : ""}${C.r}`).join("  ")}`);
   L.push(`    ${C.dim}skills${C.r}    ${OFF.cfg.skills.slice(0, 12).map((s) => `${C.dim}${s}${C.r}`).join(" ") || C.dim + "none" + C.r}`);
   L.push(`    ${C.dim}hooks${C.r}     ${OFF.hooks.map((h) => `${C.dim}${h.name}(${h.kb}K)${C.r}`).join("  ")}`);
 }
 
-// ── render ──────────────────────────────────────────────────────────────────
-const PAGES = [["Compose", pageCompose], ["Network", pageNetwork], ["Sessions", pageSessions], ["System", pageSystem]];
+// ── render — EVERYTHING on one screen (no pages) ────────────────────────────
 function selArgs() {
   const n = String(Math.max(1, st.restoreN || 1)), a = [st.face];
   if (st.face !== "claude") { if (!st.headroom) a.push("headroom", "off"); a.push("ponytail", st.ponytail ? st.ponyLevel : "off"); }
@@ -289,17 +285,16 @@ function render() {
   if (tearing) return;
   const L = [], bar = `+${"-".repeat(W)}+`;
   const pr = progress();
-  const tabs = PAGES.map(([n], i) => (i + 1 === page ? `${C.b}${C.cy}[${i + 1} ${n}]${C.r}` : `${C.dim}${i + 1} ${n}${C.r}`)).join(" ");
   L.push(`  ${C.b}${C.cy}${bar}${C.r}`);
-  L.push(`  ${C.b}${C.cy}|${C.r} ${C.b}${C.mag}C L A U D E - S U P E R S E T${C.r}${padE("", W - 30)}${C.b}${C.cy}|${C.r}`);
-  L.push(`  ${C.b}${C.cy}|${C.r} ${tabs}${padE("", Math.max(0, W - 1 - strip(tabs).length))}${C.b}${C.cy}|${C.r}`);
+  L.push(`  ${C.b}${C.cy}|${C.r} ${C.b}${C.mag}C L A U D E - S U P E R S E T${C.r}  ${C.dim}launch + infra dashboard${C.r}${padE("", W - 55)}${C.b}${C.cy}|${C.r}`);
   L.push(`  ${C.b}${C.cy}${bar}${C.r}`);
   L.push(`   ${C.g}>${C.r} ${C.cy}${SELF} ${selArgs().join(" ")}${C.r}   ${refreshing ? `${C.y}${SPIN[spin]} probing ${pr.done}/${pr.total}${C.r}` : `${C.dim}r=Refresh${C.r}`}`);
-  L.push("");
-  PAGES[page - 1][1](L);
-  L.push("");
-  L.push(secHead("KEYS"));
-  L.push(`   ${C.dim}1-4/Tab page . Up/Down move . Space select . Left/Right change . 0-9 N . r Refresh . Enter go . q quit${C.r}`);
+  pageCompose(L);
+  pageNetwork(L);
+  pageSessions(L);
+  pageSystem(L);
+  L.push(""); L.push(secHead("KEYS"));
+  L.push(`   ${C.dim}Up/Down move . Space select . Left/Right change . 0-9 N . r Refresh . Enter launch . q quit${C.r}`);
   process.stdout.write("\x1b[H" + L.map((l) => l + "\x1b[K").join("\n") + "\x1b[0J");
 }
 
@@ -321,21 +316,16 @@ function main() {
     const name = key?.name;
     if (name === "q" || (key?.ctrl && name === "c")) return quit();
     if (name === "r") return refresh();
-    if (name === "tab") { page = key?.shift ? ((page + 2) % 4) + 1 : (page % 4) + 1; focus = 0; return render(); }
-    const row = page === 1 ? rows[fl[focus]] : null;
+    const row = rows[fl[focus]];
     const editingN = row?.t === "number";
-    // digits 1-4 switch pages, EXCEPT while typing into the restore-N field
-    if (str && "1234".includes(str) && !editingN) { page = +str; focus = 0; return render(); }
-    if (page === 1) {
-      if (name === "up" || name === "k") { numBuf = ""; focus = (focus - 1 + fl.length) % fl.length; }
-      else if (name === "down" || name === "j") { numBuf = ""; focus = (focus + 1) % fl.length; }
-      else if (name === "left") adjust(row, -1);
-      else if (name === "right") adjust(row, 1);
-      else if (editingN && str && /^[0-9]$/.test(str)) { numBuf = (numBuf + str).slice(0, 4).replace(/^0+/, "") || "0"; st.restoreN = Number(numBuf); }
-      else if (editingN && name === "backspace") { numBuf = numBuf.slice(0, -1); st.restoreN = Number(numBuf) || 0; }
-      else if (name === "space" || name === "return") { row.t === "action" ? (row.key === "refresh" ? refresh() : row.key === "launch" ? launch() : quit()) : activate(row); }
-      else return;
-    } else return;
+    if (name === "up" || name === "k") { numBuf = ""; focus = (focus - 1 + fl.length) % fl.length; }
+    else if (name === "down" || name === "j" || name === "tab") { numBuf = ""; focus = (focus + 1) % fl.length; }
+    else if (name === "left") adjust(row, -1);
+    else if (name === "right") adjust(row, 1);
+    else if (editingN && str && /^[0-9]$/.test(str)) { numBuf = (numBuf + str).slice(0, 4).replace(/^0+/, "") || "0"; st.restoreN = Number(numBuf); }
+    else if (editingN && name === "backspace") { numBuf = numBuf.slice(0, -1); st.restoreN = Number(numBuf) || 0; }
+    else if (name === "space" || name === "return") { row.t === "action" ? (row.key === "refresh" ? refresh() : row.key === "launch" ? launch() : quit()) : activate(row); }
+    else return;
     render();
   });
 }
