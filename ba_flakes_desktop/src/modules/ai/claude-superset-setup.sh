@@ -20,8 +20,32 @@ CHANNEL="${CAS_SETUP_CHANNEL:-stable}"
 have() { command -v "$1" >/dev/null 2>&1; }
 say()  { printf '[setup] %s\n' "$*" >&2; }
 
+RESCUE_PKG="${CAS_SETUP_PKG:-@anthropic-ai/claude-code}"
 MODE="install"
-case "${1:-}" in --shell|shell) MODE="shell"; shift ;; esac
+case "${1:-}" in
+  --shell|shell)   MODE="shell"; shift ;;
+  --rescue|rescue) MODE="rescue"; shift ;;
+esac
+
+# ── rescue: run claude via a fallback chain (podman -> npx -> nix -> node) ───
+# Last resort when claude isn't installed. Reuses the canonical 12-tier rescue
+# from the tools repo when present (DRY); otherwise runs the inline 4-tier chain.
+if [ "$MODE" = "rescue" ]; then
+  for r in "$HOME/git/tools/commands/recover/claude-rescue/claude-rescue.sh" \
+           "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh"; do
+    [ -f "$r" ] && { say "rescue via canonical tools chain: $r"; exec sh "$r" "$@"; }
+  done
+  say "tools claude-rescue.sh not found — inline chain: podman -> npx -> nix -> node"
+  export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}" TERM="${TERM:-xterm-256color}" UV_USE_IO_URING=0
+  if have podman; then say "try podman (node:22-slim)"; timeout 90 podman run --rm -e ANTHROPIC_API_KEY -e TERM --user root node:22-slim \
+      sh -c "npm i -g $RESCUE_PKG --no-audit --no-fund >/dev/null 2>&1 && claude $*" && exit 0 || say "podman failed"; fi
+  if have npx;    then say "try npx"; NODE_OPTIONS="--max-old-space-size=512" timeout 150 npx -y "$RESCUE_PKG" "$@" && exit 0 || say "npx failed"; fi
+  if have nix;    then say "try nix run nodejs_22 + npx"; timeout 120 nix --extra-experimental-features 'nix-command flakes' run nixpkgs#nodejs_22 -- \
+      -e "const{spawn}=require('child_process');const a=['-y','$RESCUE_PKG'].concat(process.argv.slice(1));spawn('npx',a,{stdio:'inherit',env:process.env}).on('exit',c=>process.exit(c));" "$@" && exit 0 || say "nix failed"; fi
+  if have node && have npm; then say "try node/npm in tmpdir"; t=$(mktemp -d) && (cd "$t" && npm init -y >/dev/null 2>&1 && \
+      timeout 150 npm i "$RESCUE_PKG" --no-audit --no-fund >/dev/null 2>&1 && exec ./node_modules/.bin/claude "$@"); rm -rf "$t" 2>/dev/null; fi
+  say "all rescue fallbacks failed"; exit 1
+fi
 
 # ── Already installed? nothing to do ────────────────────────────────────────
 if have claude && [ "$MODE" != "shell" ]; then
