@@ -8,6 +8,14 @@
     "cpu": 8
   },
 
+  "switch_isolation": {
+    "_comment": "2026-07-10 v3.1 — the deploy itself must never freeze the box. Every heavy `build.sh switch`/`pull` (6GB closure download + nix-store import) re-execs into workload.slice (a SYSTEM slice, sibling of user.slice — NOT under the desktop's user-1000.slice) bounded by memory_max/swap_max. So the transfer's memory counts against workload.slice, capped; if it balloons the kernel OOM-kills the SWITCH there and the compositor is untouched. This is why the box froze 5× on 2026-07-10: the switch ran in the desktop's own app.slice and its pressure thrashed the compositor. Guard env SWITCH_ISOLATED=1 stops infinite re-exec.",
+    "enable": true,
+    "slice": "workload.slice",
+    "memory_max": "3G",
+    "swap_max": "6G"
+  },
+
   "rescue_port": 2200,
   "_rescue_port_comment": "U1: Dropbear rescue-SSH port, mirroring vm-pilot's _cloud-data-consolidated.json[._home_manager.vms.<vm>.rescue_port]. Reachable only via wg0 (configuration_network.nix declares wg0 trusted).",
 
