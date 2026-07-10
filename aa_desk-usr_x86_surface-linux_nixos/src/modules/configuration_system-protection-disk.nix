@@ -116,6 +116,12 @@ let
           command -v cargo-sweep >/dev/null 2>&1 && cargo-sweep --time 30 /home/diego/.cargo/target 2>/dev/null || true ;;
         docker_prune_images)
           command -v docker >/dev/null 2>&1 && docker image prune -f 2>/dev/null || true ;;
+        docker_prune_builder)
+          # Prune the buildkit BUILD CACHE — the 2026-07-10 freeze root cause:
+          # ~16GB of build cache filled p5, untouchable by image/volume prune or
+          # nix-gc, so reclaim was always insufficient → forced freeze. Build
+          # cache is never referenced by a running container, so -af is safe.
+          command -v docker >/dev/null 2>&1 && docker builder prune -af 2>/dev/null || true ;;
         docker_prune_volumes_dangling)
           command -v docker >/dev/null 2>&1 && docker volume prune -f 2>/dev/null || true ;;
         nix_gc_14d)
