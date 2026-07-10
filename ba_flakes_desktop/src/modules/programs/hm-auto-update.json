@@ -6,6 +6,12 @@
   "poll_interval_seconds": 300,
   "on_boot_delay_seconds": 90,
   "repo_build_sh": "$HOME/git/unix/ba_flakes_desktop/build.sh",
+  "safety": {
+    "_comment": "2026-07-10: the auto-updater must NEVER trigger a heavy switch when the desktop is already memory-full — that is exactly what froze the box on the 13:41 bootstrap (avail RAM ~900MB, the pull tipped user-1000.slice into reclaim-thrash). min_free_mb: if MemAvailable is below this, DEFER the switch (do NOT record the digest, so the next poll retries) until the box has headroom. switch_memory_max / switch_swap_max bound the switch's OWN transient scope so its footprint can't pile onto the desktop and, if it balloons, oomd/OOM kills the switch — not the compositor.",
+    "min_free_mb": 2500,
+    "switch_memory_max": "2G",
+    "switch_swap_max": "4G"
+  },
   "countdown": {
     "_comment": "Cancellable pre-switch gate. On a new digest: notify-send + a centered kdialog (Yes=switch now, No=skip THIS build, Cancel/timeout=proceed at countdown end). delay_seconds is the auto-proceed timeout. Headless (no DISPLAY/WAYLAND or no kdialog) skips the dialog and proceeds after a journal note — never blocks unattended operation.",
     "delay_seconds": 60,

@@ -85,13 +85,14 @@ EOF
     chmod +x "$BIN_DIR/yad"
 }
 
-# Default: headless (no dialog), zero countdown so the test never waits.
+# Default: headless (no dialog), zero countdown, RAM guard disabled
+# (HAU_MIN_FREE_MB=0) so the guard never defers on a low-RAM test box.
 run_check() {
     PATH="$BIN_DIR:$PATH" \
     HAU_STATE_DIR="$STATE_DIR" \
     HAU_BUILD_SH="/nonexistent/build.sh" \
     HAU_IMAGE="test/image" HAU_TAG="test" \
-    HAU_DIALOG=0 HAU_DELAY=0 \
+    HAU_DIALOG=0 HAU_DELAY=0 HAU_MIN_FREE_MB=0 \
     bash "$SCRIPT"
 }
 
@@ -101,7 +102,17 @@ run_check_dialog() {
     HAU_STATE_DIR="$STATE_DIR" \
     HAU_BUILD_SH="/nonexistent/build.sh" \
     HAU_IMAGE="test/image" HAU_TAG="test" \
-    HAU_DIALOG=1 HAU_DELAY=0 DISPLAY=":0" \
+    HAU_DIALOG=1 HAU_DELAY=0 HAU_MIN_FREE_MB=0 DISPLAY=":0" \
+    bash "$SCRIPT"
+}
+
+# RAM-guard path: impossibly high floor → must DEFER (no switch, no digest record).
+run_check_lowram() {
+    PATH="$BIN_DIR:$PATH" \
+    HAU_STATE_DIR="$STATE_DIR" \
+    HAU_BUILD_SH="/nonexistent/build.sh" \
+    HAU_IMAGE="test/image" HAU_TAG="test" \
+    HAU_DIALOG=0 HAU_DELAY=0 HAU_MIN_FREE_MB=999999999 \
     bash "$SCRIPT"
 }
 
@@ -156,6 +167,17 @@ yad_stub 70
 run_check_dialog || fail "dialog-timeout run exited non-zero"
 grep -q "hm-auto-switch" "$SWITCH_LOG" || fail "countdown timeout did not auto-proceed to switch"
 pass "dialog countdown timeout auto-proceeds to switch"
+
+# ── RAM guard: low free RAM must DEFER (no switch, digest NOT recorded) ──
+# Prove the exact fix for the 13:41 bootstrap freeze: never fire a heavy
+# switch when the desktop is memory-full.
+echo "sha256:ffff" > "$STATE_DIR/last-digest"   # known baseline
+skopeo_stub "sha256:9999"                        # a new digest is available
+: > "$SWITCH_LOG"
+run_check_lowram || fail "low-RAM run should exit 0 (soft-defer), not fail"
+[ ! -s "$SWITCH_LOG" ] || fail "low RAM must NOT trigger a switch (would freeze the box)"
+[ "$(cat "$STATE_DIR/last-digest")" = "sha256:ffff" ] || fail "defer must NOT record the new digest (so next poll retries)"
+pass "low free RAM DEFERS the switch, digest not recorded (retries next poll)"
 
 # ── skopeo unavailable (registry down / not yet pushed): skip, no crash ──
 cat > "$BIN_DIR/skopeo" <<'EOF'

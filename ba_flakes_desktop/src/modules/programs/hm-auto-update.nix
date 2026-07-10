@@ -15,6 +15,7 @@ let
   cfg = builtins.fromJSON (builtins.readFile ./hm-auto-update.json);
   cd  = cfg.countdown;
   ch  = cd.channels;
+  sf  = cfg.safety;
   boolSh = b: if b then "1" else "0";
 in {
   # yad = the countdown dialog (same tool the pre-hibernate warning uses:
@@ -38,6 +39,9 @@ in {
       DELAY="''${HAU_DELAY:-${toString cd.delay_seconds}}"
       DIALOG_ENABLED="''${HAU_DIALOG:-${boolSh ch.dialog_center}}"
       NOTIFY_ENABLED="${boolSh ch.notify_send}"
+      MIN_FREE_MB="''${HAU_MIN_FREE_MB:-${toString sf.min_free_mb}}"
+      SW_MEM_MAX="${sf.switch_memory_max}"
+      SW_SWAP_MAX="${sf.switch_swap_max}"
 
       command -v skopeo >/dev/null 2>&1 || { echo "hm-auto-update: skopeo missing, skipping check" >&2; exit 0; }
       command -v gh >/dev/null 2>&1 || { echo "hm-auto-update: gh CLI missing, skipping check" >&2; exit 0; }
@@ -64,6 +68,20 @@ in {
 
       OLD_DIGEST="$(cat "$DIGEST_FILE" 2>/dev/null || true)"
       if [ "$NEW_DIGEST" = "$OLD_DIGEST" ]; then
+        exit 0
+      fi
+
+      # ── RAM-headroom guard (2026-07-10) ─────────────────────────────────
+      # A new generation exists — but if the desktop is already memory-full,
+      # firing a ~GB pull now tips user-1000.slice into reclaim-thrash and
+      # freezes the box (exactly the 13:41 bootstrap freeze). DEFER: do NOT
+      # record the digest, so the very next poll retries once the box has
+      # headroom. This is the difference between "auto-update waits politely"
+      # and "auto-update freezes your desktop".
+      AVAIL_MB=$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)
+      AVAIL_MB="''${AVAIL_MB:-0}"
+      if [ "$AVAIL_MB" -lt "$MIN_FREE_MB" ]; then
+        echo "hm-auto-update: DEFERRING switch — only ''${AVAIL_MB}MB free < ''${MIN_FREE_MB}MB safe floor; will retry next poll (digest NOT recorded)" >&2
         exit 0
       fi
 
@@ -114,11 +132,16 @@ in {
         exit 0
       fi
 
-      echo "hm-auto-update: activating generation $SHORT via build.sh switch" >&2
+      echo "hm-auto-update: activating generation $SHORT via build.sh switch (bounded: mem<=$SW_MEM_MAX swap<=$SW_SWAP_MAX)" >&2
       # Detached — survives this oneshot service's own lifetime. build.sh's
       # own .switch.lock flock (cmd_switch_runner) makes this safe even if a
       # manual switch is already in flight. `switch` is incremental-first.
-      systemd-run --user --unit=hm-auto-switch --collect "$BUILD_SH" switch
+      # MEMORY-BOUNDED: the switch's own footprint (build.sh, zstd, nix-store
+      # import) is capped so it can't pile onto the full desktop; if it
+      # balloons, oomd/OOM sacrifices the SWITCH, never the compositor.
+      systemd-run --user --unit=hm-auto-switch --collect \
+        -p MemoryHigh="$SW_MEM_MAX" -p MemoryMax="$SW_MEM_MAX" -p MemorySwapMax="$SW_SWAP_MAX" \
+        "$BUILD_SH" switch
     '';
   };
 
