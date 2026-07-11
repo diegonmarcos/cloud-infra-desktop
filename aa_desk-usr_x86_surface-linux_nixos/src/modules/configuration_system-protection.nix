@@ -131,7 +131,8 @@ in
   # makes PID1 pet /dev/watchdog every runtime_sec/2; if the box is so wedged
   # PID1 can't run, softdog fires and reboots in runtime_sec. Session-on-disk
   # checkpoints bound the blast radius. Data-driven from sysprot.kernel_watchdog.
-  boot.kernelModules = lib.optional sysprot.kernel_watchdog.enable sysprot.kernel_watchdog.module;
+  # "msr" — prochot-guard reads/clears MSR 0x1FC (BD_PROCHOT, the 200MHz clamp)
+  boot.kernelModules = [ "msr" ] ++ lib.optional sysprot.kernel_watchdog.enable sysprot.kernel_watchdog.module;
   systemd.watchdog.runtimeTime = lib.mkIf sysprot.kernel_watchdog.enable "${toString sysprot.kernel_watchdog.runtime_sec}s";
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -646,6 +647,50 @@ in
     serviceConfig.MemorySwapMax = sysprot.compositor_no_swap.MemorySwapMax;
   });
 
+  # prochot-guard (2026-07-11): detect EC BD_PROCHOT hardware clamps — the
+  # 200MHz incident. All cores clamped to 200MHz (below the 400MHz software
+  # floor) at 40°C by a falsely-asserted EC PROCHOT pin; PSI/oomd/freeze-guard
+  # were ALL blind (they measure stalls, not clock speed — a 20x-slowed CPU
+  # reads as "busy but healthy"). Compares scaling_cur_freq vs scaling_min_freq
+  # each tick; sustained below floor = hardware clamp → CRIT journal +
+  # notify-send (fix = EC power-drain) + best-effort MSR 0x1FC bit0 clear.
+  # Data-driven from sysprot.prochot_guard.
+  systemd.services.prochot-guard = {
+    description = "Detect EC BD_PROCHOT hardware CPU clamp (PSI-invisible)";
+    serviceConfig = {
+      Type = "oneshot";
+      Slice = "connectivity.slice";   # untouchable island — must run even when starved
+    };
+    path = [ pkgs.msr-tools pkgs.libnotify pkgs.gawk pkgs.coreutils ];
+    script = ''
+      cur=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq)
+      min=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq)
+      state=/run/prochot-guard.count
+      if [ "$cur" -lt $(( min * 9 / 10 )) ]; then
+        n=$(( $(cat "$state" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$state"
+        echo "PROCHOT-GUARD: cpu0 at ''${cur}kHz < floor ''${min}kHz (strike $n)"
+        if [ "$n" -ge ${toString sysprot.prochot_guard.sustain_checks} ]; then
+          prochot=$(( $(rdmsr -d 0x1FC 2>/dev/null || echo 0) & 1 ))
+          echo "PROCHOT-GUARD CRIT: hardware clamp sustained, BD_PROCHOT=$prochot — EC power-drain needed (shutdown, unplug, hold power 30s)"
+          wrmsr -a 0x1FC $(( $(rdmsr -d 0x1FC) & ~1 )) 2>/dev/null || true   # best-effort; EC may re-latch
+          sudo -u '#${toString sysprot.prochot_guard.notify_user_uid}' \
+            DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${toString sysprot.prochot_guard.notify_user_uid}/bus \
+            notify-send -u critical "CPU HARDWARE-CLAMPED at $(( cur / 1000 ))MHz" \
+            "EC asserted BD_PROCHOT ($prochot). PSI cannot see this. Fix: full shutdown, unplug charger, hold power 30s." 2>/dev/null || true
+        fi
+      else
+        rm -f "$state"
+      fi
+    '';
+  };
+  systemd.timers.prochot-guard = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2min";
+      OnUnitActiveSec = "${toString sysprot.prochot_guard.interval_sec}s";
+    };
+  };
+
   # user-0 (root) — emergency maintenance
   systemd.slices."user-0" = {
     description = "Root (UID 0) resource limits — emergency";
@@ -778,7 +823,10 @@ in
   # ═══════════════════════════════════════════════════════════════════════════
   # PACKAGES + FIREWALL
   # ═══════════════════════════════════════════════════════════════════════════
-  environment.systemPackages = [ pkgs.dropbear ];
+  environment.systemPackages = [
+    pkgs.dropbear
+    pkgs.msr-tools   # rdmsr/wrmsr — manual BD_PROCHOT (MSR 0x1FC) diagnosis, used by prochot-guard
+  ];
   # Rescue dropbear (port ${toString rescuePort}) is reachable only via wg0
   # (configuration_network.nix declares wg0 as trustedInterface, so all
   # ports are accepted from peers in 10.0.0.0/24). No global TCP opening

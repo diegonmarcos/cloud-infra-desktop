@@ -36,6 +36,13 @@
     "_memoryhigh_note": "2026-07-10 v3 FIX: MemoryHigh 4505M→5400M. The 4505/5734 gap was a 1.2G 'throttle purgatory' — the 13:06 double-freeze was user-1000.slice hitting memory.high 1,146,211 times (memory.events high, oom_kill=0), doing endless direct reclaim (io.pressure full=62% for minutes) instead of ever killing. Narrowing the band to ~330M means memory.high is a brief ramp, not a permanent stall; escalation to a kill (oomd 30% / freeze-guard thrash voter) happens in seconds instead of never."
   },
 
+  "prochot_guard": {
+    "_comment": "2026-07-11 — the 200MHz incident. The Surface EC falsely asserted BD_PROCHOT (MSR 0x1FC bit0 read 1, re-latched after clearing) clamping ALL cores to 200MHz at 40°C (zero thermal-throttle events, correct governor). INVISIBLE to every existing monitor: PSI measures stalls not clock speed, so a 20x-slowed CPU reads as 'busy but healthy' (cpu full=0, load 10+). This guard is the missing KPI class: every interval_sec compare scaling_cur_freq against scaling_min_freq; sustained below the software floor is impossible except under a hardware clamp → journal CRIT + notify-send telling the user the EC needs a power-drain (hold power 30s, unplugged). Best-effort MSR bit0 clear is attempted (works when the assertion is transient, not when the EC re-latches). Consumed by configuration_system-protection.nix (prochot-guard.service + timer).",
+    "interval_sec": 60,
+    "sustain_checks": 2,
+    "notify_user_uid": 1000
+  },
+
   "compositor_no_swap": {
     "_comment": "2026-07-11 — 'the compositor can never be swapped'. Observed live: plasmashell had 238MB paged to swap, kwin 64MB, Xwayland 31MB; every click faulted them back from the NVMe = 5s GUI lag with PSI near 0 (single-process swap-in latency does not move the PSI averages). Linux NEVER proactively pulls swapped pages back — they return only when faulted on access — so once the compositor is out, it stays laggy until forced back. FIX: MemorySwapMax=0 on the COMPOSITOR USER UNITS ONLY (not the whole user-1000.slice — that whole-slice swap=0 caused the 2026-07-02 file-page-thrash freeze, see gui_session._comment). These units keep their pages resident in RAM; the rest of the session retains its 6G zram-first valve. Xwayland is spawned as a child of kwin_wayland so it shares kwin's cgroup and inherits swap=0 — no separate unit. Consumed by configuration_system-protection.nix → systemd.user.services.<unit>.serviceConfig.MemorySwapMax.",
     "units": [ "plasma-plasmashell", "plasma-kwin_wayland" ],
@@ -157,6 +164,18 @@
         "description": "user-1000.slice has a bounded 2G swap valve (zram-first) — not 0 (file-page thrash) and not unlimited (disk thrash)",
         "command": "systemctl show user-1000.slice -p MemorySwapMax --value",
         "expect_regex": "^6442450944$"
+      },
+      {
+        "id": "prochot_guard_timer_active",
+        "description": "prochot-guard timer is armed — detects EC BD_PROCHOT hardware clamps (the 200MHz incident class, invisible to PSI)",
+        "command": "systemctl is-active prochot-guard.timer",
+        "expect": "active"
+      },
+      {
+        "id": "cpu_not_prochot_clamped",
+        "description": "cpu0 current frequency is at or above the software minimum — no hardware BD_PROCHOT clamp active",
+        "command": "awk -v min=\"$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq)\" '{print ($1 >= min*0.9) ? \"ok\" : \"CLAMPED \" $1}' /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq",
+        "expect": "ok"
       },
       {
         "id": "compositor_plasmashell_no_swap",
