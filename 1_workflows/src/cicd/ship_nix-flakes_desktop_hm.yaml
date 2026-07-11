@@ -19,7 +19,7 @@ on:
       - "1_workflows/src/cicd/ship_nix-flakes_desktop_hm.yaml"
 
 permissions:
-  contents: write        # push the nix cache to the gh-pages branch (Pages)
+  contents: write        # upload the incremental nix cache as a Release asset
   packages: write        # push the incremental layered HM cache image to GHCR
 
 concurrency:
@@ -53,19 +53,25 @@ jobs:
           HM_CACHE_IMAGE: ghcr.io/${{ github.repository_owner }}/unix-hm-cache
         run: ./ba_flakes_desktop/build.sh ci-build
 
-      # ── Incremental nix cache → GitHub Pages (2026-07-10) ──────────────────
-      # The disk-full 8GB laptop cannot stage the 6GB artifact. Publish ONLY the
-      # CUSTOM store paths (closure minus what cache.nixos.org already serves =
-      # tens of MB) as a signed static nix cache to the gh-pages branch. The
-      # desktop's `build.sh switch` streams those (nix copy --from) + fills the
-      # public deps from cache.nixos.org — no 6GB, no 14G staging, no freeze.
-      - name: Publish incremental nix cache to GitHub Pages
+      # ── Incremental nix cache → GitHub RELEASE asset (2026-07-11) ──────────
+      # Was gh-pages until git rejected the large nar push (HTTP 500 / send-pack
+      # disconnect on every run — a git branch can't hold a nix binary cache).
+      # Publish ONLY the CUSTOM store paths (closure minus what cache.nixos.org
+      # already serves = tens of MB) as a signed nix cache, TAR it, and upload
+      # it as one ASSET on a rolling Release tag (--clobber). Release assets
+      # hold large binaries fine. The desktop's `build.sh switch` downloads that
+      # one asset, extracts, `nix copy --from file://`s the custom paths, and
+      # fills the public deps from cache.nixos.org — no 6GB, no 14G, no freeze.
+      - name: Publish incremental nix cache as a Release asset
         env:
           NIX_CACHE_PRIVKEY: ${{ secrets.NIX_CACHE_PRIVKEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          CFG=ba_flakes_desktop/src/modules/nix-cache.json
+          TAG=$(jq -r .release_tag "$CFG"); ASSET=$(jq -r .asset_name "$CFG")
           TOP="/nix/store/$(cat ba_flakes_desktop/dist-ci/activation.name)"
-          echo "toplevel: $TOP"
+          echo "toplevel: $TOP  → release $TAG / $ASSET"
           nix path-info -r "$TOP" | sort > /tmp/all.txt
           # Paths cache.nixos.org already serves — exclude them (desktop gets
           # those from cache.nixos.org directly). On failure, publish all.
@@ -78,15 +84,15 @@ jobs:
           printf '%s' "$NIX_CACHE_PRIVKEY" > /tmp/cache-key.pem
           mkdir -p cache
           xargs -a /tmp/custom.txt -r nix copy --to "file://$PWD/cache?secret-key=/tmp/cache-key.pem"
-          cp /tmp/custom.txt cache/custom-paths.txt
+          cp /tmp/custom.txt "cache/$(jq -r .manifest_file "$CFG")"
           rm -f /tmp/cache-key.pem
-          echo "cache size:"; du -sh cache
-      - uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./cache
-          publish_branch: gh-pages
-          force_orphan: true
+          tar -C cache -caf "$ASSET" .
+          echo "asset size:"; du -sh "$ASSET"
+          # Rolling release: create the tag once, then clobber the asset each run.
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" -t "HM incremental nix cache" \
+                 -n "Rolling delta cache for build.sh switch. Auto-updated by CI." --latest=false
+          gh release upload "$TAG" -R "$GITHUB_REPOSITORY" "$ASSET" --clobber
 
       - uses: actions/upload-artifact@v4
         with:

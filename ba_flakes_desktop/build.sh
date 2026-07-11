@@ -1015,22 +1015,27 @@ cmd_pull() {
 # download. Returns 0 iff the activation path is fully present afterwards; 1 on
 # ANY failure (no skopeo, no gh auth, unlabeled image, image/pull failure) so
 # the caller falls back to the byte-exact artifact-download path.
-# nixcache_switch <artifact-dir> — THE incremental transport (2026-07-10). Pulls
-# the new HM generation from the GitHub-Pages nix cache by STREAMING only the
-# store paths this box is missing — no 6GB artifact, no 14G staging, works on a
-# full disk, cannot freeze. Verified primitives: `nix copy --from` works for the
-# non-root user with --no-check-sigs (no trusted-user / system change needed).
-# Flow: toplevel from the GHCR label (KB skopeo inspect) → fetch the CUSTOM paths
-# from the Pages cache (small) → let cache.nixos.org fill the public ones →
-# write activation.name for cmd_pull. Returns 1 (caller falls back) on any miss
-# (cache not populated yet, offline, etc.).
+# nixcache_switch <artifact-dir> — THE incremental transport (2026-07-11, was
+# gh-pages until git rejected the large nar push; now a GitHub RELEASE asset).
+# Pulls the new HM generation by downloading ONE small tarball (custom store
+# paths only = tens of MB, closure minus cache.nixos.org) from a rolling Release
+# tag, extracting it, and streaming those paths into /nix/store — no 6GB
+# artifact, no 14G staging, works on a full disk, cannot freeze. Verified
+# primitive: `nix copy --from file://` works for the non-root user with
+# --no-check-sigs (no trusted-user / system change). Flow: toplevel from the
+# GHCR label (KB skopeo inspect) → download+extract the delta cache asset →
+# `nix copy --from file://<dir>` the CUSTOM paths → let cache.nixos.org fill the
+# public ones → write activation.name for cmd_pull. Returns 1 (caller falls
+# back to the full artifact) on any miss (release not published yet, offline…).
 nixcache_switch() {
     _art="$1"
     command -v jq >/dev/null 2>&1 && [ -f "$NIX_CACHE_CFG" ] || return 1
     [ "$(jq -r '.enabled' "$NIX_CACHE_CFG" 2>/dev/null)" = "true" ] || return 1
-    command -v skopeo >/dev/null 2>&1 && command -v gh >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 || return 1
-    _url="$(jq -r '.cache_url' "$NIX_CACHE_CFG")"
+    command -v skopeo >/dev/null 2>&1 && command -v gh >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 || return 1
+    _tag="$(jq -r '.release_tag' "$NIX_CACHE_CFG")"
+    _asset="$(jq -r '.asset_name' "$NIX_CACHE_CFG")"
     _manifest="$(jq -r '.manifest_file' "$NIX_CACHE_CFG")"
+    _repo="${GITHUB_REPOSITORY:-diegonmarcos/unix}"
     _img="${HM_CACHE_IMAGE:-$(hm_cache_image)}:latest"
     _label="$(hm_cache_label)"
     _tok="$(gh auth token 2>/dev/null)" || return 1
@@ -1039,20 +1044,26 @@ nixcache_switch() {
     [ -n "$_sys" ] && [ "$_sys" != "<no value>" ] || { log_warn "nixcache: no activation label — falling back."; return 1; }
     mkdir -p "$_art"; basename "$_sys" > "$_art/activation.name"
     if [ -d "$_sys" ]; then log_success "nixcache: $_sys already present — no download."; return 0; fi
-    # Is the cache reachable + populated for THIS generation?
-    if ! curl -fsSL "$_url/$_manifest" -o "$_art/custom-paths.txt" 2>/dev/null; then
-        log_warn "nixcache: cache/manifest not reachable at $_url ($_manifest) — falling back (CI may not have published yet)."
+    # Download the delta cache asset from the rolling Release (small). Missing
+    # release/asset ⇒ CI hasn't published yet ⇒ fall back.
+    _cachedir="$_art/nixcache"; rm -rf "$_cachedir"; mkdir -p "$_cachedir"
+    log_info "nixcache: downloading delta asset $_asset from release $_tag ($_repo)..."
+    if ! gh release download "$_tag" -R "$_repo" -p "$_asset" -D "$_art" --clobber 2>/dev/null; then
+        log_warn "nixcache: release asset not reachable ($_tag/$_asset) — falling back (CI may not have published yet)."
         return 1
     fi
-    log_info "nixcache: streaming $(wc -l < "$_art/custom-paths.txt") custom paths from $_url ..."
-    # 1) custom paths from the Pages cache (small). 2) public deps from
-    # cache.nixos.org (custom already local → skipped). Both explicit copies,
-    # streamed straight into /nix/store — no staging.
-    xargs -a "$_art/custom-paths.txt" -r nix copy --from "$_url" --no-check-sigs 2>&1 | tail -2
+    tar -C "$_cachedir" -xf "$_art/$_asset" 2>/dev/null || { log_warn "nixcache: asset extract failed — falling back."; return 1; }
+    [ -f "$_cachedir/$_manifest" ] || { log_warn "nixcache: $_manifest missing in asset — falling back."; return 1; }
+    log_info "nixcache: streaming $(wc -l < "$_cachedir/$_manifest") custom paths from the delta asset ..."
+    # 1) custom paths from the extracted local cache (file://, small). 2) public
+    # deps from cache.nixos.org (custom already local → skipped). Both explicit
+    # copies, straight into /nix/store — no staging.
+    xargs -a "$_cachedir/$_manifest" -r nix copy --from "file://$_cachedir" --no-check-sigs 2>&1 | tail -2
     log_info "nixcache: filling public deps from cache.nixos.org ..."
     nix copy --from "https://cache.nixos.org" "$_sys" --no-check-sigs 2>&1 | tail -2
     if [ -d "$_sys" ]; then
-        log_success "nixcache: generation materialised (incremental, streamed — NO 6GB, NO staging)."
+        rm -rf "$_cachedir" "$_art/$_asset"
+        log_success "nixcache: generation materialised (incremental delta asset — NO 6GB, NO staging)."
         return 0
     fi
     log_warn "nixcache: $_sys still missing after stream — falling back."
