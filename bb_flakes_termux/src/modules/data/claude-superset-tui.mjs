@@ -126,7 +126,7 @@ async function imageArches() {
 }
 
 // ── state ───────────────────────────────────────────────────────────────────
-const st = { face: "remote", headroom: true, ponytail: true, ponyLevel: "full", restore: "off", restoreN: 5 };
+const st = { face: "remote", headroom: true, ponytail: true, ponyLevel: "full", rtk: true, caveman: true, restore: "off", restoreN: 5 };
 let numBuf = "", page = 1, focus = 0, refreshing = false, tearing = false;
 const OFF = { mcps: loadMcps(), plugins: loadPlugins(), hooks: hooksDetailed(), sessions: loadLocalSessions(), cfg: claudeConfig() };
 const D = {}; // net/cmd slots by id: undefined|null|value|"t/o"
@@ -182,7 +182,7 @@ function buildRows() {
   r.push({ t: "radio", grp: "face", val: "remote", label: "remote", note: "WG compression proxy" });
   r.push({ t: "radio", grp: "face", val: "local", label: "local", note: "container on THIS host" });
   r.push({ t: "radio", grp: "face", val: "claude", label: "claude", note: "plain claude (restore still works)" });
-  if (st.face !== "claude") { r.push({ t: "sec", text: "PLUGINS" }); r.push({ t: "check", key: "headroom", label: "Headroom", note: "compression proxy" }); r.push({ t: "checklevel", key: "ponytail", label: "Ponytail", note: "Left/Right level" }); }
+  if (st.face !== "claude") { r.push({ t: "sec", text: "PLUGINS" }); r.push({ t: "check", key: "headroom", label: "Headroom", note: "compression proxy" }); r.push({ t: "checklevel", key: "ponytail", label: "Ponytail", note: "Left/Right level" }); r.push({ t: "check", key: "rtk", label: "RTK", note: "strip CLI/test noise pre-Headroom" }); r.push({ t: "check", key: "caveman", label: "Caveman", note: "linguistic compression" }); }
   r.push({ t: "sec", text: "RESTORE" });
   r.push({ t: "radio", grp: "restore", val: "off", label: "off", note: "fresh session" });
   r.push({ t: "radio", grp: "restore", val: "count", label: "count", note: "last N sessions" });
@@ -278,7 +278,7 @@ function pageSystem(L) {
 // ── render — EVERYTHING on one screen (no pages) ────────────────────────────
 function selArgs() {
   const n = String(Math.max(1, st.restoreN || 1)), a = [st.face];
-  if (st.face !== "claude") { if (!st.headroom) a.push("headroom", "off"); a.push("ponytail", st.ponytail ? st.ponyLevel : "off"); }
+  if (st.face !== "claude") { if (!st.headroom) a.push("headroom", "off"); a.push("ponytail", st.ponytail ? st.ponyLevel : "off"); if (!st.rtk) a.push("rtk", "off"); if (!st.caveman) a.push("caveman", "off"); }
   if (st.restore === "count") a.push("restore", n); if (st.restore === "hours") a.push("restore-hours", n);
   return a;
 }

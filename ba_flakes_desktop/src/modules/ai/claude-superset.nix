@@ -127,6 +127,13 @@ let
     #                           detects); off = direct to Anthropic, no compression.
     #   ponytail on|off|lite|full|ultra — sets PONYTAIL_DEFAULT_MODE, read by the
     #                           ponytail SessionStart hook.
+    #   rtk on|off            — RTK (Rust Token Killer): strips CLI/test noise
+    #                           BEFORE Headroom. Sets RTK_ENABLED for the proxy.
+    #   caveman on|off        — Caveman: linguistic/conversational compression.
+    #                           Sets CAVEMAN_ENABLED for the proxy.
+    # Compression plugins default ON (like the others); plain `claude` face stays
+    # bypassed. The Headroom proxy honours these signals for its pre/post stages.
+    [ "$MODE" = "claude" ] || { export RTK_ENABLED=1 CAVEMAN_ENABLED=1; }
     HEADROOM="on"
     while :; do
       case "''${1:-}" in
@@ -139,6 +146,8 @@ let
             *) echo "[claude-superset] ponytail: on|off|lite|full|ultra" >&2; exit 2 ;;
           esac
           shift 2 || shift ;;
+        rtk)     case "''${2:-on}" in on) export RTK_ENABLED=1 ;; off) unset RTK_ENABLED ;; *) echo "[claude-superset] rtk: on|off" >&2; exit 2 ;; esac; shift 2 || shift ;;
+        caveman) case "''${2:-on}" in on) export CAVEMAN_ENABLED=1 ;; off) unset CAVEMAN_ENABLED ;; *) echo "[claude-superset] caveman: on|off" >&2; exit 2 ;; esac; shift 2 || shift ;;
         *) break ;;
       esac
     done
