@@ -636,6 +636,16 @@ in
     };
   };
 
+  # Compositor NEVER swaps (2026-07-11). MemorySwapMax=0 on the Plasma user units
+  # only — NOT the whole user-1000.slice (that whole-slice swap=0 caused the
+  # 2026-07-02 file-page-thrash freeze). Data-driven from compositor_no_swap.units;
+  # an unconditional serviceConfig override forges a drop-in for these
+  # package-shipped user units (same mechanism as the earlyoom override above).
+  # Xwayland is a child of kwin_wayland → shares its cgroup → inherits swap=0.
+  systemd.user.services = lib.genAttrs sysprot.compositor_no_swap.units (_: {
+    serviceConfig.MemorySwapMax = sysprot.compositor_no_swap.MemorySwapMax;
+  });
+
   # user-0 (root) — emergency maintenance
   systemd.slices."user-0" = {
     description = "Root (UID 0) resource limits — emergency";
