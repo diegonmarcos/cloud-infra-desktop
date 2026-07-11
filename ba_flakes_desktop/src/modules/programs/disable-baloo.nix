@@ -6,15 +6,12 @@
 # `balooctl disable` on activation so it takes effect without a re-login.
 { config, pkgs, lib, ... }:
 {
-  # Authoritative: baloofilerc with indexing off. plasma-manager may also touch
-  # this; a plain home.file is the single writer for the Basic Settings block.
-  home.file.".config/baloofilerc".text = ''
-    [Basic Settings]
-    Indexing-Enabled=false
-  '';
-
-  # Stop + purge the running indexer at activation (no re-login needed). Uses
-  # balooctl6 (Plasma 6); best-effort, never fails the switch.
+  # NB: do NOT write ~/.config/baloofilerc via home.file — plasma-manager
+  # (programs.plasma) already manages that file, and two managed writers is a
+  # hard HM eval error ("Conflicting managed target files: .config/baloofilerc").
+  # Instead disable + purge the indexer at activation with balooctl, which
+  # persists Indexing-Enabled=false into baloofilerc itself. Runs after the
+  # plasma config is written, so it wins; re-applied on every switch.
   home.activation.disableBaloo = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     if command -v balooctl6 >/dev/null 2>&1; then
       $DRY_RUN_CMD balooctl6 disable 2>/dev/null || true
