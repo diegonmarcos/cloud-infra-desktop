@@ -943,6 +943,12 @@ cmd_pull() {
     _art="${1:-$SCRIPT_DIR/dist-ci}"
     _tb="$_art/hm-closure.nar.zst"
 
+    # KDE progress popup (verbosity + progress bar + Cancel) for the PULL path —
+    # the SAME wrapper the local-eval switch uses. Transparent passthrough when
+    # the wrapper is absent or the session is non-graphical (SSH/CI: exec "$@").
+    _nsp=""; command -v nix-switch-progress-wrap >/dev/null 2>&1 && _nsp="nix-switch-progress-wrap"
+    export NSP_SRC_DIR="$SRC_DIR"
+
     _sys=""
     if [ -f "$_art/activation.name" ]; then
         _sys="/nix/store/$(cat "$_art/activation.name")"
@@ -961,7 +967,7 @@ cmd_pull() {
 
         _sudo="/run/wrappers/bin/sudo"; [ -x "$_sudo" ] || _sudo="sudo"
         log_info "Importing closure into the store (no build)..."
-        zstd -d -c "$_tb" | $_sudo nix-store --import >/dev/null || { log_error "import failed"; return 1; }
+        zstd -d -c "$_tb" | $_nsp $_sudo nix-store --import >/dev/null || { log_error "import failed"; return 1; }
     fi
     [ -d "$_sys" ] || { log_error "imported path $_sys missing after import"; return 1; }
 
@@ -975,9 +981,13 @@ cmd_pull() {
     # (e.g. ~/.gtkrc-2.0). Same idiom as the termux engine: on that failure, back
     # up the in-the-way files (flake always wins) and retry once. Idempotent —
     # only triggers on this exact message.
+    export NSP_FLAKE_ATTR="$_sys"   # closure-size panel reads this store path
     log_info "Activating ($_act)..."
     _alog=$(mktemp)
-    if "$_act" >"$_alog" 2>&1; then _rc=0; else _rc=$?; fi
+    # Wrap the activation in the KDE popup (phases + progress + Cancel). The
+    # wrapper tees full output to NSP_LOG_FILE so the "in the way" retry below
+    # still works; non-graphical falls back to a plain capture.
+    if [ -n "$_nsp" ]; then NSP_LOG_FILE="$_alog" $_nsp "$_act" >/dev/null 2>&1; _rc=$?; else "$_act" >"$_alog" 2>&1; _rc=$?; fi
     cat "$_alog"
     if [ "$_rc" -ne 0 ] && grep -q "is in the way of" "$_alog"; then
         log_warn "home-manager file conflict — backing up in-the-way files and retrying"
@@ -987,7 +997,7 @@ cmd_pull() {
                 mv -f "$_p" "${_p}.hm-backup-${_ts}" && log_info "  backed up: $_p -> ${_p}.hm-backup-${_ts}"
             fi
         done
-        if "$_act" >"$_alog" 2>&1; then _rc=0; else _rc=$?; fi
+        if [ -n "$_nsp" ]; then NSP_LOG_FILE="$_alog" $_nsp "$_act" >/dev/null 2>&1; _rc=$?; else "$_act" >"$_alog" 2>&1; _rc=$?; fi
         cat "$_alog"
     fi
     rm -f "$_alog"
