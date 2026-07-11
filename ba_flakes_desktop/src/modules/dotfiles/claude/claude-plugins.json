@@ -14,6 +14,18 @@
       "detect": { "type": "flag_file", "path": ".ponytail-active", "show_content": true }
     },
     {
+      "id": "rtk",
+      "label": "RTK",
+      "icon": "R",
+      "detect": { "type": "env_set", "env": "RTK_ENABLED" }
+    },
+    {
+      "id": "caveman",
+      "label": "Caveman",
+      "icon": "C",
+      "detect": { "type": "env_set", "env": "CAVEMAN_ENABLED" }
+    },
+    {
       "id": "superset-mode",
       "label": "M",
       "icon": "M",

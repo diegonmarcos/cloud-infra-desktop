@@ -17,6 +17,10 @@ PLUGIN TOGGLES (any order, before the action)
                         off = direct to Anthropic, no compression.
   ponytail on|off|LVL   Set ponytail mode. LVL = lite|full|ultra.
                         on = full, off = disabled.
+  rtk on|off            RTK (Rust Token Killer): strip CLI/test noise BEFORE
+                        Headroom compresses. Default on. (RTK_ENABLED)
+  caveman on|off        Caveman: linguistic/conversational compression.
+                        Default on. (CAVEMAN_ENABLED)
 
 SESSION ACTION (default: fresh)
   fresh                 Normal fresh session (passes remaining args to claude).
