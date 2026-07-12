@@ -72,6 +72,10 @@ libs/
 ## renamed from ea_superapp → ea_cloud-superapp 2026-05-30.
 !ea_cloud-superapp/libs/
 !ea_cloud-superapp/libs/**
+## EXCEPTION: ea_cloud-wallet/libs/ is the gradle multi-module source tree
+## (libs:wallet). Same pattern as ea_cloud-superapp/libs/. Added 2026-07-12.
+!ea_cloud-wallet/libs/
+!ea_cloud-wallet/libs/**
 ## Signing keystores are generated in CI only — never vendored.
 ea_cloud-superapp/**/*.keystore
 ea_cloud-superapp/**/*.jks
