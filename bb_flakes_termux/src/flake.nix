@@ -792,8 +792,6 @@
                 [ -L "$_dst" ] && rm "$_dst"
                 ${pkgs.coreutils}/bin/install -m 600 "$_src" "$_dst"
               '';
-              home.file.".claude/skills/frontend-design.md".source = ../src/modules/dotfiles/claude/skills/frontend-design.md;
-
               # claude-api skill — pinned from anthropics/skills repo. Symlinks
               # the whole directory (SKILL.md + per-language assets) so updates
               # are a single rev/hash bump. https://github.com/anthropics/skills
