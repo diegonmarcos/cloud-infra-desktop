@@ -601,6 +601,19 @@ cmd_ci_build() {
     fi
 
     _nix="nix"; [ -x "$HOME/.nix-profile/bin/nix" ] && _nix="$HOME/.nix-profile/bin/nix"
+
+    # builtins.storePath checks the LOCAL nix store at eval time — substituters
+    # are NOT consulted during evaluation. Pre-copy proot-termux-static from the
+    # nix-on-droid cachix so the path exists before nix build starts evaluating.
+    # ponytail: hardcoded path matches flake.lock nix-on-droid pin; update when bumping.
+    _PROOT="/nix/store/7qd99m1w65x2vgqg453nd70y60sm3kay-proot-termux-static-aarch64-unknown-linux-android-unstable-2024-05-04"
+    if ! nix-store --check-validity "$_PROOT" 2>/dev/null; then
+        log_info "Pre-fetching proot-termux-static (builtins.storePath needs local presence at eval time)..."
+        "$_nix" copy --from "https://nix-on-droid.cachix.org" --no-check-sigs \
+            --extra-experimental-features "nix-command flakes" \
+            "$_PROOT" 2>&1 || log_warn "proot pre-fetch failed — nix build may error at eval"
+    fi
+
     log_info "Building activationPackage (accept-flake-config → cached substitutes)..."
     "$_nix" build "$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" \
         --impure --accept-flake-config --out-link "$_out/result" \
