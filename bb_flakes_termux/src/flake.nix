@@ -818,6 +818,9 @@
               home.file.".claude/skills/ponytail-gain".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail-gain;
               home.file.".claude/skills/ponytail-help".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail-help;
 
+              # frontend-design — vendored from claude-plugins-official marketplace.
+              home.file.".claude/skills/frontend-design".source = ../src/modules/dotfiles/claude/skills/frontend-design;
+
               home.file.".rgignore".source = ../src/modules/dotfiles/claude/rgignore;
 
               # Gemini CLI configuration + MCP server config
