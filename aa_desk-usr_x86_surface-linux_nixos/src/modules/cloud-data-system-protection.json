@@ -43,6 +43,15 @@
     "notify_user_uid": 1000
   },
 
+  "oom_hotkey": {
+    "_comment": "2026-07-16 — a physical escape hatch: hold RIGHTCTRL for hold_ms with no release → write sysrq_char to /proc/sysrq-trigger, which invokes the OOM killer IN KERNEL CONTEXT (same path as Alt+SysRq+F), so the kill can't get stuck behind busy/starved userspace. Implemented as a PASSIVE evdev watcher (oom-hotkey.py) — it OBSERVES /dev/input without grabbing, so RIGHTCTRL keeps working normally for everything (no latency, no modifier breakage) and a quick chord (RCtrl+C) never fires (keyup cancels the timer before hold_ms). The kernel input layer delivers key events even when the compositor is wedged, and the service runs in the untouchable island (connectivity.slice: realtime CPU/IO, MemoryMin, OOMScoreAdjust=-1000) so it always gets scheduled. Requires kernel.sysrq bit 64 (mask 244, already set) for the 'f' trigger to be honored. RIGHTCTRL chosen over ESC to avoid adding any latency to the vim/terminal-critical Esc key.",
+    "enable": true,
+    "key": "RIGHTCTRL",
+    "hold_ms": 3000,
+    "sysrq_char": "f",
+    "slice": "connectivity.slice"
+  },
+
   "compositor_no_swap": {
     "_comment": "2026-07-11 — 'the compositor can never be swapped'. Observed live: plasmashell had 238MB paged to swap, kwin 64MB, Xwayland 31MB; every click faulted them back from the NVMe = 5s GUI lag with PSI near 0 (single-process swap-in latency does not move the PSI averages). Linux NEVER proactively pulls swapped pages back — they return only when faulted on access — so once the compositor is out, it stays laggy until forced back. FIX: MemorySwapMax=0 on the COMPOSITOR USER UNITS ONLY (not the whole user-1000.slice — that whole-slice swap=0 caused the 2026-07-02 file-page-thrash freeze, see gui_session._comment). These units keep their pages resident in RAM; the rest of the session retains its 6G zram-first valve. Xwayland is spawned as a child of kwin_wayland so it shares kwin's cgroup and inherits swap=0 — no separate unit. Consumed by configuration_system-protection.nix → systemd.user.services.<unit>.serviceConfig.MemorySwapMax.",
     "units": [ "plasma-plasmashell", "plasma-kwin_wayland" ],
@@ -176,6 +185,12 @@
         "description": "cpu0 current frequency is at or above the software minimum — no hardware BD_PROCHOT clamp active",
         "command": "awk -v min=\"$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq)\" '{print ($1 >= min*0.9) ? \"ok\" : \"CLAMPED \" $1}' /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq",
         "expect": "ok"
+      },
+      {
+        "id": "oom_hotkey_armed",
+        "description": "the RIGHTCTRL long-press → kernel-OOM escape-hatch watcher is running (untouchable island)",
+        "command": "systemctl is-active oom-hotkey.service",
+        "expect": "active"
       },
       {
         "id": "compositor_plasmashell_no_swap",
