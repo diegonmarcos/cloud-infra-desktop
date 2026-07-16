@@ -147,13 +147,13 @@
       "name": "Data",
       "links": {
         "gitea": "https://git.diegonmarcos.com",
-        "redis": "https://redis.app"
+        "redis": "https://redis.app",
+        "scrappers-api": "https://api.diegonmarcos.com"
       }
     },
     {
       "name": "Fin",
       "links": {
-        "crawlee-cloud": "https://api.diegonmarcos.com",
         "fin-api": "https://api.diegonmarcos.com/fin-api"
       }
     },
@@ -263,6 +263,12 @@
       }
     },
     {
+      "name": "b-Projects",
+      "links": {
+        "Leafy2": "file:///home/diego/git/front/b-Projects/galaxy/index.html"
+      }
+    },
+    {
       "name": "c-Circus",
       "links": {
         "Carto": "file:///home/diego/git/front/c-Circus/carto/dist/index.html",
@@ -282,6 +288,8 @@
     {
       "name": "c-LabTools",
       "links": {
+        "LMMS": "file:///home/diego/git/front/c-LabTools/Music_DAW_LLMS/dist/index.html",
+        "Mixxx": "file:///home/diego/git/front/c-LabTools/Music_DJ-Mixer_Mixxx/dist/index.html",
         "CentralBank": "file:///home/diego/git/front/c-LabTools/central_bank/dist/index.html",
         "FinTerminal": "file:///home/diego/git/front/c-LabTools/fin-terminal/dist/index.html",
         "MarketWatch": "file:///home/diego/git/front/c-LabTools/market_watch/dist/index.html",

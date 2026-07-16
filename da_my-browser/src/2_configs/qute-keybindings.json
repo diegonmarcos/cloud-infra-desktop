@@ -7,6 +7,7 @@
     "T":            { "cmd": "open -t about:blank", "desc": "New blank tab", "group": "Tabs" },
     "w":            { "cmd": "tab-close", "desc": "Close current tab", "group": "Tabs" },
     "W":            { "cmd": "tab-only", "desc": "Close all other tabs", "group": "Tabs" },
+    "q":            { "cmd": "close", "desc": "Close window", "group": "Tabs" },
     "u":            { "cmd": "undo", "desc": "Reopen last closed tab", "group": "Tabs" },
     "<":            { "cmd": "tab-move -", "desc": "Move tab left", "group": "Tabs" },
     ">":            { "cmd": "tab-move +", "desc": "Move tab right", "group": "Tabs" },
