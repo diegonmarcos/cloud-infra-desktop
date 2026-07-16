@@ -63,7 +63,7 @@ https://jmap.diegonmarcos.com  Cloud/App/stalwart
 https://dns.internal  Cloud/Cloud/hickory-dns
 https://git.diegonmarcos.com  Cloud/Data/gitea
 https://redis.app  Cloud/Data/redis
-https://api.diegonmarcos.com  Cloud/Fin/crawlee-cloud
+https://api.diegonmarcos.com  Cloud/Data/scrappers-api
 https://api.diegonmarcos.com/fin-api  Cloud/Fin/fin-api
 https://vault.diegonmarcos.com  Cloud/Mic/vaultwarden
 https://api.diegonmarcos.com/c3a  Cloud/Obs/c3-analytics-api
@@ -110,6 +110,7 @@ file:///home/diego/git/front/b-MyData/myid/dist/index.html  Front/b-MyData/myID
 file:///home/diego/git/front/b-MyData/mymaps-mytrips/dist/index.html  Front/b-MyData/MyMaps MyTrips
 file:///home/diego/git/front/b-MyData/myphotos/dist/index.html  Front/b-MyData/MyPhotos
 file:///home/diego/git/front/b-Profiles/myprofile/dist/index.html  Front/b-Profiles/MyProfile
+file:///home/diego/git/front/b-Projects/galaxy/index.html  Front/b-Projects/Leafy2
 file:///home/diego/git/front/c-Circus/carto/dist/index.html  Front/c-Circus/Carto
 file:///home/diego/git/front/c-Circus/games/dist/index.html  Front/c-Circus/Games
 file:///home/diego/git/front/c-Circus/movies/dist/index.html  Front/c-Circus/Movies
@@ -117,6 +118,8 @@ file:///home/diego/git/front/c-Circus/music/dist/index.html  Front/c-Circus/Musi
 file:///home/diego/git/front/c-Cloud/api/dist/index.html  Front/c-Cloud/API
 file:///home/diego/git/front/c-Cloud/mcp-api-swagger/dist/index.html  Front/c-Cloud/mcp-api-swagger
 file:///home/diego/git/front/c-Cloud/skills_mcp/dist/index.html  Front/c-Cloud/Skills MCP
+file:///home/diego/git/front/c-LabTools/Music_DAW_LLMS/dist/index.html  Front/c-LabTools/LMMS
+file:///home/diego/git/front/c-LabTools/Music_DJ-Mixer_Mixxx/dist/index.html  Front/c-LabTools/Mixxx
 file:///home/diego/git/front/c-LabTools/central_bank/dist/index.html  Front/c-LabTools/CentralBank
 file:///home/diego/git/front/c-LabTools/fin-terminal/dist/index.html  Front/c-LabTools/FinTerminal
 file:///home/diego/git/front/c-LabTools/market_watch/dist/index.html  Front/c-LabTools/MarketWatch
