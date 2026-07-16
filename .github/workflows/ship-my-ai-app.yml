@@ -57,6 +57,8 @@ jobs:
           path: |
             da_my-ai/target/release/my-ai
             da_my-ai/target/release/my-ai-dash
+            da_my-ai/target/release/my-ai-gui
+            da_my-ai/target/release/bundle/**
           if-no-files-found: warn
 
       - name: Publish rolling GitHub Release
@@ -71,4 +73,6 @@ jobs:
           gh release upload my-ai-latest \
             target/release/my-ai \
             target/release/my-ai-dash \
+            target/release/my-ai-gui \
+            target/release/bundle/deb/*.deb \
             --clobber
