@@ -52,6 +52,22 @@ jobs:
         with:
           submodules: true
 
+      # The HM closure is ~24GB realised; ubuntu-latest ships only ~14GB free on
+      # / so the sops-install-secrets Go build hit "no space left on device"
+      # (2026-07-16, run 29506574808). Reclaim the ~20-30GB of preinstalled
+      # toolchains we never use (Android SDK, .NET, GHC, tool-cache, docker
+      # images) before the build. large-packages/swap left off (slow / risky).
+      - name: Free up runner disk (large HM closure needs headroom)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: true
+          swap-storage: false
+
       - uses: cachix/install-nix-action@v30
         with:
           extra_nix_config: |
