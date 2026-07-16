@@ -73,21 +73,32 @@ jobs:
           TOP="/nix/store/$(cat ba_flakes_desktop/dist-ci/activation.name)"
           echo "toplevel: $TOP  → release $TAG / $ASSET"
           nix path-info -r "$TOP" | sort > /tmp/all.txt
-          # Paths cache.nixos.org already serves — exclude them (desktop gets
-          # those from cache.nixos.org directly). On failure, publish all.
-          if nix path-info -r "$TOP" --store https://cache.nixos.org 2>/dev/null | sort > /tmp/public.txt; then
-            comm -23 /tmp/all.txt /tmp/public.txt > /tmp/custom.txt
-          else
-            cp /tmp/all.txt /tmp/custom.txt
-          fi
-          echo "custom paths: $(wc -l < /tmp/custom.txt) of $(wc -l < /tmp/all.txt) total"
+          # CUSTOM paths = closure MINUS what cache.nixos.org already serves.
+          # Membership test = probe each path's .narinfo on the cache (the only
+          # reliable check; `path-info -r --store <remote>` computes the closure
+          # INSIDE the remote and errors because $TOP isn't there → previously
+          # marked ALL 4152 paths custom → 6GB asset → over the 2GB cap). Probe
+          # in parallel; a path is public iff its narinfo returns 200.
+          xargs -a /tmp/all.txt -P 32 -I{} sh -c '
+            h=$(basename "{}"); h=${h%%-*}
+            curl -sf -o /dev/null "https://cache.nixos.org/${h}.narinfo" && echo "{}"
+          ' | sort > /tmp/public.txt || true
+          comm -23 /tmp/all.txt /tmp/public.txt > /tmp/custom.txt
+          echo "custom paths: $(wc -l < /tmp/custom.txt) of $(wc -l < /tmp/all.txt) total (rest served by cache.nixos.org)"
           printf '%s' "$NIX_CACHE_PRIVKEY" > /tmp/cache-key.pem
           mkdir -p cache
           xargs -a /tmp/custom.txt -r nix copy --to "file://$PWD/cache?secret-key=/tmp/cache-key.pem"
           cp /tmp/custom.txt "cache/$(jq -r .manifest_file "$CFG")"
           rm -f /tmp/cache-key.pem
           tar -C cache -caf "$ASSET" .
-          echo "asset size:"; du -sh "$ASSET"
+          SZ=$(stat -c%s "$ASSET"); echo "asset size: $((SZ/1024/1024)) MiB"
+          # Hard guard: GitHub Release assets cap at 2 GiB. If the delta still
+          # exceeds it, the subtraction is wrong or the closure genuinely carries
+          # >2GB of non-cached paths — fail LOUDLY (don't blow up in the upload).
+          if [ "$SZ" -ge 2147483648 ]; then
+            echo "::error::delta asset is $((SZ/1024/1024)) MiB ≥ 2 GiB Release cap — needs chunking or an object-store cache (OCI S3 / R2)."
+            exit 1
+          fi
           # Rolling release: create the tag once, then clobber the asset each run.
           gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
             || gh release create "$TAG" -R "$GITHUB_REPOSITORY" -t "HM incremental nix cache" \
