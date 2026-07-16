@@ -1194,13 +1194,16 @@ nixcache_switch() {
     # next round until everything lands). Root is a trusted nix user, so
     # unsigned --import is accepted.
     _bd="$_art/nixcache-blobs"; rm -rf "$_bd"; mkdir -p "$_bd"
-    _miss=0
-    while IFS=$'\t' read -r digest title; do
+    _miss=0; _tab="$(printf '\t')"
+    # POSIX sh (#!/bin/sh): no process substitution / $'\t' — go via a temp file.
+    _lst="$_art/nixcache-layers.tsv"
+    jq -r '.layers[] | "\(.digest)\t\(.annotations["org.opencontainers.image.title"])"' "$_man" > "$_lst"
+    while IFS="$_tab" read -r digest title; do
         h="${title%.zst}"
         ls -d /nix/store/${h}-* >/dev/null 2>&1 && continue
         _miss=$((_miss+1))
         _oras blob fetch "${_ref}@${digest}" --output "$_bd/${h}.zst" 2>/dev/null || true
-    done < <(jq -r '.layers[] | "\(.digest)\t\(.annotations["org.opencontainers.image.title"])"' "$_man")
+    done < "$_lst"
     log_info "nixcache: fetched $(ls "$_bd" 2>/dev/null | wc -l)/$_miss missing custom-path blobs — importing..."
 
     _rounds=0
