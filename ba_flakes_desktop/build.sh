@@ -896,6 +896,141 @@ cmd_ci_build() {
     fi
 }
 
+# _oras — oras CLI: the flake package on the desktop, `nix run` on a CI runner
+# that hasn't got it on PATH. One indirection so callers never branch.
+_oras() {
+    if command -v oras >/dev/null 2>&1; then oras "$@"
+    else nix run --extra-experimental-features "nix-command flakes" nixpkgs#oras -- "$@"; fi
+}
+
+# cmd_nixcache_publish — CI: publish the CUSTOM store paths of the freshly-built
+# HM closure to GHCR as PER-PATH oras blobs (the true-incremental transport,
+# 2026-07-16). Reads dist-ci/activation.path (written by ci-build). Each custom
+# path -> its own `nix-store --export | zstd` blob (layer title = store hash);
+# the toplevel activation name rides a manifest annotation. Content-addressed
+# blobs dedup across builds (push delta); the desktop pulls only the blobs it
+# LACKS (pull delta). Custom paths are emitted in TOPOLOGICAL order (tsort) so
+# the desktop's per-path `nix-store --import` always has each path's references
+# already valid. All logic here (engine), never inline in the workflow YAML.
+cmd_nixcache_publish() {
+    log_header "CI: publish per-path GHCR nix cache (oras)"
+    [ -n "${GITHUB_TOKEN:-}" ] || { log_error "GITHUB_TOKEN required"; return 1; }
+    command -v jq >/dev/null 2>&1 || { log_error "jq required"; return 1; }
+    _cfg="$NIX_CACHE_CFG"
+    [ "$(jq -r '.enabled' "$_cfg" 2>/dev/null)" = "true" ] || { log_warn "nix cache disabled"; return 0; }
+    _ref="$(jq -r '.oci_ref' "$_cfg")"; _tag="$(jq -r '.oci_tag' "$_cfg")"
+    _mtype="$(jq -r '.blob_media_type' "$_cfg")"; _tlann="$(jq -r '.toplevel_annotation' "$_cfg")"
+    _manf="$(jq -r '.manifest_file' "$_cfg")"
+    _out="$SCRIPT_DIR/dist-ci"
+    _top="$(cat "$_out/activation.path" 2>/dev/null)"
+    [ -n "$_top" ] && [ -d "$_top" ] || { log_error "no dist-ci/activation.path — run ci-build first"; return 1; }
+    _tlname="$(basename "$_top")"; log_info "toplevel: $_tlname"
+
+    # 1) topological order of the whole closure (deps BEFORE dependents) — the
+    #    order a per-path `nix-store --import` can consume safely.
+    _work="$_out/nixcache"; rm -rf "$_work"; mkdir -p "$_work/blobs"
+    for p in $(nix-store -qR "$_top"); do
+        for r in $(nix-store -q --references "$p"); do
+            [ "$r" = "$p" ] || printf '%s %s\n' "$r" "$p"
+        done
+        printf '%s %s\n' "$p" "$p"   # keep leaves (no refs) in the graph
+    done | tsort > "$_work/topo.txt"
+
+    # 2) custom = closure MINUS what cache.nixos.org serves (robust retry probe;
+    #    only a real 200 = public, --retry so a transient blip never masquerades
+    #    as custom). Keep custom paths IN TOPOLOGICAL ORDER.
+    nix-store -qR "$_top" | sort > "$_work/all.txt"
+    log_info "probing cache.nixos.org for $(wc -l < "$_work/all.txt") paths..."
+    xargs -a "$_work/all.txt" -P 16 -I{} sh -c '
+        h=$(basename "{}"); h=${h%%-*}
+        curl -s -f -o /dev/null --retry 6 --retry-connrefused --retry-delay 1 \
+          --max-time 40 "https://cache.nixos.org/${h}.narinfo" && echo "{}"
+    ' | sort > "$_work/public.txt" || true
+    comm -23 "$_work/all.txt" "$_work/public.txt" | sort > "$_work/custom-set.txt"
+    grep -Fx -f "$_work/custom-set.txt" "$_work/topo.txt" > "$_work/$_manf"   # topo-ordered custom
+    _n=$(wc -l < "$_work/$_manf")
+    log_info "custom paths: $_n of $(wc -l < "$_work/all.txt") (rest from cache.nixos.org)"
+    [ "$_n" -gt 0 ] || { log_warn "no custom paths — nothing to publish"; return 0; }
+
+    # 3) export each custom path to its own zstd blob (filename = store hash).
+    while IFS= read -r p; do
+        h=$(basename "$p"); h=${h%%-*}
+        nix-store --export "$p" | zstd -T0 -19 -q -o "$_work/blobs/$h.zst"
+    done < "$_work/$_manf"
+    cp "$_work/$_manf" "$_work/blobs/$_manf"
+    log_info "exported $_n blobs, $(du -sh "$_work/blobs" | cut -f1) — pushing ${_ref}:${_tag}"
+
+    # 4) oras push — one layer per blob (title = <hash>.zst, IN topo order),
+    #    toplevel on a manifest annotation. Content-addressed → GHCR dedups
+    #    unchanged blobs, so only changed paths actually upload.
+    _files=""
+    while IFS= read -r p; do
+        h=$(basename "$p"); h=${h%%-*}; _files="$_files $h.zst:$_mtype"
+    done < "$_work/$_manf"
+    ( cd "$_work/blobs" && _oras push --disable-path-validation \
+        --username x --password "${GITHUB_TOKEN}" \
+        --annotation "${_tlann}=${_tlname}" \
+        "${_ref}:${_tag}" $_files "$_manf:text/plain" ) \
+      && log_success "published ${_n}-path nix cache -> ${_ref}:${_tag}" \
+      || { log_error "oras push failed"; return 1; }
+    rm -rf "$_work"
+}
+
+# nixcache-publish — CI: publish the CUSTOM store paths of the freshly-built HM
+# activation closure to GHCR as per-path OCI blobs (oras). Each custom path →
+# its own `nix-store --export | zstd` blob whose OCI layer title is
+# "<storehash>.zst"; the toplevel activation name rides a manifest annotation.
+# GHCR content-addresses blobs, so unchanged paths dedup across builds (push
+# delta) and the desktop switch fetches ONLY blobs for paths it lacks (pull
+# delta). Custom = closure MINUS what cache.nixos.org serves (robust retry
+# probe). Reads dist-ci/activation.path from ci-build. Needs GITHUB_TOKEN.
+cmd_nixcache_publish() {
+    log_header "CI: publish per-path OCI nix cache -> GHCR"
+    [ -n "${GITHUB_TOKEN:-}" ] || { log_error "GITHUB_TOKEN required"; return 1; }
+    [ -f "$NIX_CACHE_CFG" ] || { log_error "missing $NIX_CACHE_CFG"; return 1; }
+    _ref="$(jq -r '.oci_ref' "$NIX_CACHE_CFG")"
+    _tag="$(jq -r '.oci_tag' "$NIX_CACHE_CFG")"
+    _mt="$(jq -r '.blob_media_type' "$NIX_CACHE_CFG")"
+    _ann="$(jq -r '.toplevel_annotation' "$NIX_CACHE_CFG")"
+    _out="$SCRIPT_DIR/dist-ci"
+    _sys="$(cat "$_out/activation.path" 2>/dev/null)"
+    [ -n "$_sys" ] && [ -d "$_sys" ] || { log_error "no dist-ci/activation.path — run ci-build first"; return 1; }
+    _work="$_out/nixcache"; rm -rf "$_work"; mkdir -p "$_work/blobs"
+
+    log_info "Closure of $(basename "$_sys") ..."
+    nix-store -qR "$_sys" | sort > "$_work/all.txt"
+    log_info "Probing cache.nixos.org (custom = closure minus public, retry probe)..."
+    xargs -a "$_work/all.txt" -P 16 -I{} sh -c '
+      h=$(basename "{}"); h=${h%%-*}
+      curl -s -f -o /dev/null --retry 6 --retry-connrefused --retry-delay 1 --max-time 40 \
+        "https://cache.nixos.org/${h}.narinfo" && echo "{}"
+    ' | sort > "$_work/public.txt" || true
+    comm -23 "$_work/all.txt" "$_work/public.txt" > "$_work/custom.txt"
+    _n=$(wc -l < "$_work/custom.txt")
+    log_info "custom paths: $_n of $(wc -l < "$_work/all.txt") total (rest served by cache.nixos.org)"
+    [ "$_n" -gt 0 ] || { log_warn "no custom paths — nothing to publish"; return 0; }
+
+    log_info "Exporting $_n paths to per-path zstd blobs..."
+    : > "$_work/files.txt"
+    while read -r p; do
+        h=$(basename "$p"); h=${h%%-*}
+        nix-store --export "$p" | zstd -q -T0 -15 -o "$_work/blobs/${h}.zst"
+        printf 'blobs/%s.zst:%s\n' "$h" "$_mt" >> "$_work/files.txt"
+    done < "$_work/custom.txt"
+    log_info "blob set: $(du -sh "$_work/blobs" | cut -f1)"
+
+    _owner="$(printf '%s' "${GITHUB_REPOSITORY:-diegonmarcos/unix}" | cut -d/ -f1)"
+    echo "${GITHUB_TOKEN}" | nix run --extra-experimental-features "nix-command flakes" nixpkgs#oras -- \
+        login ghcr.io -u "$_owner" --password-stdin >/dev/null 2>&1 || { log_error "oras login failed"; return 1; }
+    log_info "oras push $_ref:$_tag ($_n blobs, toplevel annotation $_ann)..."
+    ( cd "$_work" && xargs -a files.txt \
+        nix run --extra-experimental-features "nix-command flakes" nixpkgs#oras -- push \
+        --annotation "${_ann}=$(basename "$_sys")" "$_ref:$_tag" ) \
+        && log_success "published $_n custom paths -> $_ref:$_tag" \
+        || { log_error "oras push failed"; return 1; }
+    rm -rf "$_work/blobs"
+}
+
 # ghcr_pull_layered <image:tag> — try to materialise a layered GHCR closure
 # image's /nix/store paths onto the real local store, skipping any path
 # already present (genuine incremental — unchanged layers are never even
@@ -1027,46 +1162,70 @@ cmd_pull() {
 # `nix copy --from file://<dir>` the CUSTOM paths → let cache.nixos.org fill the
 # public ones → write activation.name for cmd_pull. Returns 1 (caller falls
 # back to the full artifact) on any miss (release not published yet, offline…).
+# _oras … — run oras from the desktop env if present, else via nix run (the
+# flake ships oras, but nix run keeps the switch working before activation).
+_oras() {
+    if command -v oras >/dev/null 2>&1; then oras "$@"
+    else nix run --extra-experimental-features "nix-command flakes" nixpkgs#oras -- "$@"; fi
+}
 nixcache_switch() {
     _art="$1"
     command -v jq >/dev/null 2>&1 && [ -f "$NIX_CACHE_CFG" ] || return 1
     [ "$(jq -r '.enabled' "$NIX_CACHE_CFG" 2>/dev/null)" = "true" ] || return 1
-    command -v skopeo >/dev/null 2>&1 && command -v gh >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 || return 1
-    _tag="$(jq -r '.release_tag' "$NIX_CACHE_CFG")"
-    _asset="$(jq -r '.asset_name' "$NIX_CACHE_CFG")"
-    _manifest="$(jq -r '.manifest_file' "$NIX_CACHE_CFG")"
-    _repo="${GITHUB_REPOSITORY:-diegonmarcos/unix}"
-    _img="${HM_CACHE_IMAGE:-$(hm_cache_image)}:latest"
-    _label="$(hm_cache_label)"
+    command -v gh >/dev/null 2>&1 && command -v zstd >/dev/null 2>&1 || return 1
+    _ref="$(jq -r '.oci_ref' "$NIX_CACHE_CFG")"
+    _tag="$(jq -r '.oci_tag' "$NIX_CACHE_CFG")"
+    _ann="$(jq -r '.toplevel_annotation' "$NIX_CACHE_CFG")"
     _tok="$(gh auth token 2>/dev/null)" || return 1
-    log_info "nixcache: resolving toplevel from $_img label..."
-    _sys="$(skopeo inspect --creds "x:$_tok" --format "{{ index .Labels \"$_label\" }}" "docker://$_img" 2>/dev/null)"
-    [ -n "$_sys" ] && [ "$_sys" != "<no value>" ] || { log_warn "nixcache: no activation label — falling back."; return 1; }
-    mkdir -p "$_art"; basename "$_sys" > "$_art/activation.name"
-    if [ -d "$_sys" ]; then log_success "nixcache: $_sys already present — no download."; return 0; fi
-    # Download the delta cache asset from the rolling Release (small). Missing
-    # release/asset ⇒ CI hasn't published yet ⇒ fall back.
-    _cachedir="$_art/nixcache"; rm -rf "$_cachedir"; mkdir -p "$_cachedir"
-    log_info "nixcache: downloading delta asset $_asset from release $_tag ($_repo)..."
-    if ! gh release download "$_tag" -R "$_repo" -p "$_asset" -D "$_art" --clobber 2>/dev/null; then
-        log_warn "nixcache: release asset not reachable ($_tag/$_asset) — falling back (CI may not have published yet)."
-        return 1
-    fi
-    tar -C "$_cachedir" -xf "$_art/$_asset" 2>/dev/null || { log_warn "nixcache: asset extract failed — falling back."; return 1; }
-    [ -f "$_cachedir/$_manifest" ] || { log_warn "nixcache: $_manifest missing in asset — falling back."; return 1; }
-    log_info "nixcache: streaming $(wc -l < "$_cachedir/$_manifest") custom paths from the delta asset ..."
-    # 1) custom paths from the extracted local cache (file://, small). 2) public
-    # deps from cache.nixos.org (custom already local → skipped). Both explicit
-    # copies, straight into /nix/store — no staging.
-    xargs -a "$_cachedir/$_manifest" -r nix copy --from "file://$_cachedir" --no-check-sigs 2>&1 | tail -2
+    echo "$_tok" | _oras login ghcr.io -u x --password-stdin >/dev/null 2>&1 || true
+
+    log_info "nixcache: fetching OCI manifest $_ref:$_tag ..."
+    mkdir -p "$_art"; _man="$_art/nixcache-manifest.json"
+    _oras manifest fetch "$_ref:$_tag" > "$_man" 2>/dev/null || { log_warn "nixcache: manifest unreachable — falling back (CI may not have published yet)."; return 1; }
+    _sysname="$(jq -r --arg k "$_ann" '.annotations[$k] // empty' "$_man")"
+    [ -n "$_sysname" ] || { log_warn "nixcache: no toplevel annotation on manifest — falling back."; return 1; }
+    _sys="/nix/store/$_sysname"
+    basename "$_sys" > "$_art/activation.name"
+    if [ -d "$_sys" ]; then log_success "nixcache: $_sysname already present — no pull."; return 0; fi
+
+    # Each layer title = "<storehash>.zst". Fetch ONLY blobs for paths this box
+    # LACKS (the true delta), then import in a fixpoint loop (import order need
+    # not be topological — a path whose refs aren't in yet fails and retries the
+    # next round until everything lands). Root is a trusted nix user, so
+    # unsigned --import is accepted.
+    _bd="$_art/nixcache-blobs"; rm -rf "$_bd"; mkdir -p "$_bd"
+    _miss=0
+    while IFS=$'\t' read -r digest title; do
+        h="${title%.zst}"
+        ls -d /nix/store/${h}-* >/dev/null 2>&1 && continue
+        _miss=$((_miss+1))
+        _oras blob fetch "${_ref}@${digest}" --output "$_bd/${h}.zst" 2>/dev/null || true
+    done < <(jq -r '.layers[] | "\(.digest)\t\(.annotations["org.opencontainers.image.title"])"' "$_man")
+    log_info "nixcache: fetched $(ls "$_bd" 2>/dev/null | wc -l)/$_miss missing custom-path blobs — importing..."
+
+    _rounds=0
+    while :; do
+        _prog=0; _rounds=$((_rounds+1))
+        for f in "$_bd"/*.zst; do
+            [ -e "$f" ] || break
+            if zstd -dq -c "$f" | /run/wrappers/bin/sudo nix-store --import >/dev/null 2>&1; then
+                rm -f "$f"; _prog=1
+            fi
+        done
+        [ "$_prog" = 0 ] && break
+        [ "$_rounds" -gt 50 ] && { log_warn "nixcache: import fixpoint stalled after 50 rounds — falling back."; break; }
+    done
+    _left=$(ls "$_bd"/*.zst 2>/dev/null | wc -l)
+    [ "$_left" -gt 0 ] && { log_warn "nixcache: $_left blobs never imported (dangling refs) — falling back."; return 1; }
+
     log_info "nixcache: filling public deps from cache.nixos.org ..."
     nix copy --from "https://cache.nixos.org" "$_sys" --no-check-sigs 2>&1 | tail -2
     if [ -d "$_sys" ]; then
-        rm -rf "$_cachedir" "$_art/$_asset"
-        log_success "nixcache: generation materialised (incremental delta asset — NO 6GB, NO staging)."
+        rm -rf "$_bd"
+        log_success "nixcache: generation materialised (GHCR per-path delta — NO 6GB, only $_miss changed paths pulled)."
         return 0
     fi
-    log_warn "nixcache: $_sys still missing after stream — falling back."
+    log_warn "nixcache: $_sys still missing after import — falling back."
     return 1
 }
 
@@ -1558,6 +1717,9 @@ main() {
             ;;
         ci-build)
             cmd_ci_build "${1:-surface-plasma}" "${2:-diego}"
+            ;;
+        nixcache-publish)
+            cmd_nixcache_publish
             ;;
         pull|switch-remote)
             cmd_pull "${1:-}"
