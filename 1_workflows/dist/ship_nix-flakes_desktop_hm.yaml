@@ -91,9 +91,18 @@ jobs:
           # INSIDE the remote and errors because $TOP isn't there → previously
           # marked ALL 4152 paths custom → 6GB asset → over the 2GB cap). Probe
           # in parallel; a path is public iff its narinfo returns 200.
-          xargs -a /tmp/all.txt -P 32 -I{} sh -c '
+          # ROBUST probe (2026-07-16): the previous -P32/no-retry version marked
+          # CACHED paths custom on any transient blip/429 → 474 false-customs =
+          # 5.3GB asset (verified: digikam/obs/kdenlive/plasma-workspace all
+          # return 200 but were flagged custom). Fix: retries so a blip resolves
+          # to its true 200/404, lower parallelism, and treat ONLY a real 200 as
+          # public. -f → 404 exits 22 immediately (real custom); --retry handles
+          # transient 5xx/429/connection so they never masquerade as custom.
+          xargs -a /tmp/all.txt -P 16 -I{} sh -c '
             h=$(basename "{}"); h=${h%%-*}
-            curl -sf -o /dev/null "https://cache.nixos.org/${h}.narinfo" && echo "{}"
+            curl -s -f -o /dev/null --retry 6 --retry-connrefused \
+              --retry-delay 1 --max-time 40 "https://cache.nixos.org/${h}.narinfo" \
+              && echo "{}"
           ' | sort > /tmp/public.txt || true
           comm -23 /tmp/all.txt /tmp/public.txt > /tmp/custom.txt
           echo "custom paths: $(wc -l < /tmp/custom.txt) of $(wc -l < /tmp/all.txt) total (rest served by cache.nixos.org)"
