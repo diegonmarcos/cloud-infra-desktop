@@ -48,6 +48,13 @@ let
   # caps are enforced both at boot (here) and live before every build (engine).
   sysprot = builtins.fromJSON (builtins.readFile ./cloud-data-system-protection.json);
 
+  # oom-hotkey: passive evdev watcher, values baked from sysprot.oom_hotkey.
+  oomHotkeyPy = pkgs.writeText "oom-hotkey.py" (builtins.replaceStrings
+    [ "@KEY@" "@HOLD_MS@" "@SYSRQ_CHAR@" ]
+    [ sysprot.oom_hotkey.key (toString sysprot.oom_hotkey.hold_ms) sysprot.oom_hotkey.sysrq_char ]
+    (builtins.readFile ./oom-hotkey.py));
+  oomHotkeyPython = pkgs.python3.withPackages (p: [ p.evdev ]);
+
   # ── Hardware specs (Surface Pro 8) — DATA-DRIVEN (U1) ──────────────────
   # Converged onto the vm-pilot schema: cpu/ram_gb/rescue_port now live in
   # cloud-data-system-protection.json[.specs] / [.rescue_port], mirroring how
@@ -688,6 +695,30 @@ in
     timerConfig = {
       OnBootSec = "2min";
       OnUnitActiveSec = "${toString sysprot.prochot_guard.interval_sec}s";
+    };
+  };
+
+  # oom-hotkey (2026-07-16): hold RIGHTCTRL ≥ hold_ms → write sysrq_char to
+  # /proc/sysrq-trigger = OOM kill IN KERNEL CONTEXT, so it can't get stuck
+  # behind busy/starved userspace (same guarantee as Alt+SysRq+F, but a single
+  # key). PASSIVE evdev watcher (no device grab) → zero latency, RIGHTCTRL still
+  # works normally, a quick chord never fires. Runs in the untouchable island so
+  # it always gets scheduled. Needs kernel.sysrq bit 64 (mask 244, set above).
+  systemd.services.oom-hotkey = lib.mkIf sysprot.oom_hotkey.enable {
+    description = "RIGHTCTRL long-press → kernel-direct OOM via SysRq (PSI-invisible escape hatch)";
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      ExecStart = "${oomHotkeyPython}/bin/python3 ${oomHotkeyPy}";
+      Slice = sysprot.oom_hotkey.slice;      # untouchable island
+      CPUSchedulingPolicy = "rr";
+      CPUSchedulingPriority = 1;
+      IOSchedulingClass = "realtime";
+      IOSchedulingPriority = 0;
+      OOMScoreAdjust = lib.mkForce (-1000);  # never killed
+      MemoryMin = sysprot.reservation.memory_min;
+      Nice = -20;
+      Restart = "always";
+      RestartSec = 2;
     };
   };
 
