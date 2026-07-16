@@ -13,6 +13,20 @@
 #                                ← thresholds.* + actions.critical
 #   - services.logind.powerKey   ← events.power_button.short
 #   - boot.kernelParams          ← kernel.mem_sleep_default (force S3 over s2idle)
+#   - systemd.sleep.extraConfig  ← actions.never (HARD systemd-level suspend ban)
+#
+# WHY THE systemd.sleep BLOCK (2026-07-16)
+# ────────────────────────────────────────
+# mem_sleep_default=deep was the ONLY anti-suspend lever, on the theory that a
+# rogue suspend would hit S3 and "fail fast". On the SP8 that theory is false:
+# ACPI advertises only S0/S4/S5 (no S3), so /sys/power/mem_sleep exposes s2idle
+# ONLY and the kernel silently downgrades `deep` → s2idle. A `systemctl suspend`
+# from any path with no consumer-side guard (KDE Sleep menu, autosuspend) then
+# half-sleeps in s2idle and never resumes → forced reboot (observed 2026-07-11).
+# logind/UPower/PowerDevil are already guarded, but nothing enforced the ban at
+# the systemd layer. AllowSuspend=no makes systemd-sleep itself refuse every
+# suspend-family mode while keeping AllowHibernation=yes (critical action +
+# reboot-with-session both need S4). This is the invariant made real.
 #
 # Lid handling lives in configuration_security.nix (logind.lidSwitch family).
 # PowerDevil / kscreenlockerrc lives in ba_flakes_desktop home-manager flake.
@@ -43,6 +57,13 @@ let
   powerKey = guard "events.power_button.short" evt.power_button.short;
 
   memSleep = pwrJson.kernel.mem_sleep_default or "deep";
+
+  # Suspend is banned iff the SoT never-list names any suspend-family verb.
+  # (mem_sleep_default can't enforce this on the SP8 — S3 doesn't exist, so the
+  # kernel downgrades `deep` → s2idle. systemd-sleep is the real enforcement.)
+  suspendBanned = lib.any (v: builtins.elem v banned)
+    [ "sleep" "suspend" "s2idle" "hybrid-sleep" "suspend-then-hibernate" ];
+  noYes = b: if b then "no" else "yes";
 in
 
 {
@@ -62,8 +83,21 @@ in
   services.logind.powerKey          = powerKey;
   services.logind.powerKeyLongPress = "ignore";
 
-  # ───── Force S3-deep instead of s2idle ─────
-  # If anything ever does try to suspend (against policy), it goes to S3 and
-  # fails fast rather than half-sleeping in s2idle forever.
+  # ───── Prefer S3-deep over s2idle (best-effort cmdline hint) ─────
+  # Kept as a hint, but on the SP8 the kernel exposes s2idle ONLY and ignores
+  # this — see the header note. Real enforcement is the systemd.sleep block below.
   boot.kernelParams = [ "mem_sleep_default=${memSleep}" ];
+
+  # ───── HARD suspend ban at the systemd-sleep layer ─────
+  # /etc/systemd/sleep.conf. systemd-sleep refuses any mode set to Allow*=no,
+  # so `systemctl suspend` / logind auto-suspend / KDE Sleep all fail cleanly
+  # instead of s2idle-hanging. Hibernation stays allowed (critical-battery
+  # action + `reboot-with-session` both need S4; the session-checkpoint runtime
+  # drop-in only overrides HibernateMode, never these Allow* keys).
+  systemd.sleep.extraConfig = ''
+    AllowSuspend=${noYes suspendBanned}
+    AllowHybridSleep=${noYes suspendBanned}
+    AllowSuspendThenHibernate=${noYes suspendBanned}
+    AllowHibernation=yes
+  '';
 }
