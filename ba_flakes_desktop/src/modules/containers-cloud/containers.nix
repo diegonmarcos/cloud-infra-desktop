@@ -7,6 +7,7 @@
     youki            # Rust OCI runtime — replaces runc (Go)
     buildah
     skopeo
+    oras             # OCI registry CLI — per-path nix cache pull in build.sh switch (nixcache_switch)
     dive             # Docker image analyzer
     docker-compose
     docker-buildx

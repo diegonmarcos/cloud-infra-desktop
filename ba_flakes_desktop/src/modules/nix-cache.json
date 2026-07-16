@@ -1,11 +1,9 @@
 {
-  "_doc": "GitHub-RELEASES nix binary cache — the incremental deploy transport (2026-07-11, was gh-pages until git rejected the large nar push with HTTP 500 / send-pack disconnect on all 3 runs). CI (ship_nix-flakes_desktop_hm.yaml) builds the HM closure, `nix copy --to` writes the CUSTOM store paths (closure minus what cache.nixos.org already serves = tens of MB) into a signed local nix cache dir, tars it (asset_name) and uploads it as an ASSET on a rolling Release tag (release_tag) with --clobber. Release assets hold large binaries fine — unlike a git branch. The desktop's `build.sh switch` does `gh release download` (one small asset) → extract → `nix copy --from file://<dir>` the custom paths → `nix copy --from cache.nixos.org` the toplevel (custom already local) → activate. Streaming, NO 6GB full artifact, NO 14G staging, works on the disk-full 8GB box, no freeze. `nix copy --from file://` works for the non-root user with no trusted-user/system change. Public key here (not secret); private signing key in vault + the NIX_CACHE_PRIVKEY GH Actions secret.",
-  "release_tag": "hm-nixcache",
-  "asset_name": "nixcache-delta.tar.zst",
+  "_doc": "GHCR per-path OCI nix cache — the TRUE incremental transport (2026-07-16). Prior transports all failed on the 5.3GB custom set: gh-pages (git rejects large nar push, HTTP 500), Release asset (2GiB/asset cap), and a monolithic tarball can't be incremental anyway (you download all 5.3GB to extract the few new paths). Fix: CI (`build.sh nixcache-publish`) computes the CUSTOM store paths (closure minus what cache.nixos.org serves — robust retry probe), `nix-store --export`s EACH path to its own zstd blob, and `oras push`es them to GHCR (oci_ref) as one artifact — each layer's title IS the store hash, and the toplevel activation name rides a manifest annotation. GHCR blobs are content-addressed so unchanged paths dedup across builds (push delta). The desktop's `build.sh switch` does `oras manifest fetch` (KBs) → maps each layer→store-hash from its title → fetches ONLY the blobs for paths it is MISSING (pull delta, `oras blob fetch`) → `sudo nix-store --import` (root is trusted → no sig hassle; registers the nix DB the old buildLayeredImage pull skipped) → `nix copy --from cache.nixos.org` fills public deps → activate. No size cap (GHCR), no monolith, true per-change delta, no new secrets (GITHUB_TOKEN). Proven end-to-end 2026-07-16 (oras push/fetch + annotation round-trip). Requires oras on the runner AND the desktop (added to the flake).",
+  "oci_ref": "ghcr.io/diegonmarcos/unix-hm-cache",
+  "oci_tag": "nixcache-latest",
+  "blob_media_type": "application/vnd.nix.nar.zst",
+  "toplevel_annotation": "com.diegonmarcos.nix-toplevel",
   "manifest_file": "custom-paths.txt",
-  "public_key": "diegonmarcos.github.io-nixcache-1:+Ag+y1P1pNBwb88nvc/x+B+S9ouKcHRgxPbD8e0WRIM=",
-  "key_name": "diegonmarcos.github.io-nixcache-1",
-  "signing_key_gh_secret": "NIX_CACHE_PRIVKEY",
-  "signing_key_vault_path": "A0_keys/providers/github/nix-cache-signing.pem",
   "enabled": true
 }
