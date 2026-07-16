@@ -115,6 +115,18 @@
         "expect": "mem_sleep_default=deep"
       },
       {
+        "id": "systemd_sleep_suspend_banned",
+        "description": "/etc/systemd/sleep.conf hard-bans suspend at the systemd-sleep layer (actions.never contains a suspend-family verb → AllowSuspend=no). This is what stops a rogue `systemctl suspend` from s2idle-hanging the SP8; mem_sleep_default can't (no S3 on this hardware).",
+        "command": "awk -F= '/^AllowSuspend=/ {gsub(/[ \\t]/,\"\",$2); print $2; exit}' /etc/systemd/sleep.conf",
+        "expect": "no"
+      },
+      {
+        "id": "systemd_sleep_hibernate_allowed",
+        "description": "/etc/systemd/sleep.conf still allows hibernation (critical-battery action + reboot-with-session both need S4). Guards against over-broad Allow*=no that would break the intended sleep path.",
+        "command": "awk -F= '/^AllowHibernation=/ {gsub(/[ \\t]/,\"\",$2); print $2; exit}' /etc/systemd/sleep.conf",
+        "expect": "yes"
+      },
+      {
         "id": "powerdevil_battery_critical_level",
         "description": "PowerDevil BatteryCriticalLevel matches thresholds.critical_pct (run as user)",
         "command": "awk -F= '/^BatteryCriticalLevel=/ {gsub(/[ \\t]/,\"\",$2); print $2}' $HOME/.config/powerdevilrc",
