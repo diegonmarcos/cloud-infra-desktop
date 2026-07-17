@@ -514,6 +514,15 @@ const server = createServer(async (req, res) => {
       if (hasIndex) {
         ctx.render = 'index'; ctx.note = `${join(urlPath, 'index.html')}`;
         let html = await readFile(indexPath, 'utf8');
+        // Directory served without a trailing slash (e.g. /dist instead of
+        // /dist/) breaks relative asset paths ("./_app/...") used by static
+        // SPA builds (SvelteKit adapter-static, Vite, etc.) — the browser
+        // resolves "./" against the parent, not this dir. Inject a <base>
+        // instead of a redirect so the URL bar keeps exactly what was typed.
+        if (!/<base[\s>]/i.test(html)) {
+          const dirUrl = urlPath.endsWith('/') ? urlPath : urlPath + '/';
+          html = html.replace(/<head(\s[^>]*)?>/i, (m) => `${m}<base href="${dirUrl}">`);
+        }
         html = html.replace(/<\/body>/i, `${ERUDA_SCRIPT}</body>`);
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         return res.end(html);
