@@ -1066,7 +1066,15 @@ cmd_pull() {
     # up the in-the-way files (flake always wins) and retry once. Idempotent —
     # only triggers on this exact message.
     export NSP_FLAKE_ATTR="$_sys"   # closure-size panel reads this store path
-    log_info "Activating ($_act)..."
+    # Let home-manager's own checkLinkTargets back up in-the-way regular files
+    # NATIVELY (moves each to "<file>.$HOME_MANAGER_BACKUP_EXT") in a SINGLE pass
+    # — the prebuilt `activate` honours this env var. A unique per-run timestamp
+    # extension avoids the "backup would be clobbered" re-collision on repeated
+    # runs. This is the robust mechanism; the grep/mv retry below is now only a
+    # belt-and-suspenders fallback (its rc came from the popup wrapper, not the
+    # activator, so it could silently skip — the env var removes that fragility).
+    export HOME_MANAGER_BACKUP_EXT="hm-bak-$(date +%Y%m%d-%H%M%S)"
+    log_info "Activating ($_act)  [backup-ext: $HOME_MANAGER_BACKUP_EXT]..."
     _alog=$(mktemp)
     # Wrap the activation in the KDE popup (phases + progress + Cancel). The
     # wrapper tees full output to NSP_LOG_FILE so the "in the way" retry below
@@ -1117,6 +1125,15 @@ _oras() {
     if command -v oras >/dev/null 2>&1; then oras "$@"
     else nix run --extra-experimental-features "nix-command flakes" nixpkgs#oras -- "$@"; fi
 }
+# _closure_valid <storepath> — true iff the path AND its whole closure are valid
+# in the store. nix-store has NO `--check-validity --recursive` flag (it errors
+# 'unknown flag'), so the old check ALWAYS failed. Correct primitive: `-qR`
+# lists the closure from the db (succeeds only if the top path is valid), then
+# `--check-validity --print-invalid` reports any missing member; empty = valid.
+_closure_valid() {
+    nix-store -qR "$1" >/dev/null 2>&1 || return 1
+    [ -z "$(nix-store -qR "$1" 2>/dev/null | xargs -r nix-store --check-validity --print-invalid 2>/dev/null)" ]
+}
 nixcache_switch() {
     _art="$1"
     command -v jq >/dev/null 2>&1 && [ -f "$NIX_CACHE_CFG" ] || return 1
@@ -1146,7 +1163,7 @@ nixcache_switch() {
     # VALIDITY, not dir-existence: a prior partial import can leave the gen DIR
     # present while its deps (home-manager-path/files) are invalid → activate
     # dies instantly. --check-validity --recursive verifies the WHOLE closure.
-    if nix-store --check-validity --recursive "$_sys" >/dev/null 2>&1; then
+    if _closure_valid "$_sys"; then
         log_success "nixcache: $_sysname closure already fully valid — no pull."; return 0
     fi
 
@@ -1206,7 +1223,7 @@ nixcache_switch() {
         rm -f "$f" "$f.err"
     done < "$_art/custom-topo.txt"
 
-    if nix-store --check-validity --recursive "$_sys" >/dev/null 2>&1; then
+    if _closure_valid "$_sys"; then
         rm -rf "$_bd"
         log_success "nixcache: closure fully valid (GHCR layered delta — NO 6GB; pre-filled public + topo import)."
         return 0
