@@ -76,12 +76,6 @@ libs/
 ## (libs:wallet). Same pattern as ea_cloud-superapp/libs/. Added 2026-07-12.
 !ea_cloud-wallet/libs/
 !ea_cloud-wallet/libs/**
-## EXCEPTION: ea_cloud-nav/libs/ is likewise the gradle multi-module source
-## tree (libs:maps — Kotlin + bundled geo assets), NOT build artifacts. Added
-## 2026-07-11 when the Explored choropleth (MapsGeoLayers + assets/geo/*.geojson)
-## landed and new files under libs/ were blocked by the blanket libs/ rule.
-!ea_cloud-nav/libs/
-!ea_cloud-nav/libs/**
 ## Signing keystores are generated in CI only — never vendored.
 ea_cloud-superapp/**/*.keystore
 ea_cloud-superapp/**/*.jks
@@ -165,7 +159,7 @@ bc_flakes_dev-store/dist-ci/
 ## my-browser (qute) release binaries — built in CI, published to GitHub Releases, NEVER committed.
 ## The portable fork bundle (~640MB) and the standalone config tarball are artifacts only.
 ## (dist/*.html, dist/*-urls, dist/mybar.json ARE committed — those are small generated config.)
-da_my-browser/dist/*.gz
-da_my-browser/dist/*.tar.gz
+da_my-browser-qute/dist/*.gz
+da_my-browser-qute/dist/*.tar.gz
 ## Obsidian
 .obsidian/workspace-mobile.json

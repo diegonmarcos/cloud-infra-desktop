@@ -1,0 +1,22 @@
+{
+  "project": {
+    "name": "my-browser-rust-chromium",
+    "description": "Rust front-end + Chromium (CEF) backend browser. Clean Chrome TLS fingerprint (BoringSSL) + full UI control in Rust. Sibling to my-browser-qute.",
+    "status": "skeleton",
+    "engine": "cef",
+    "backend": "libcef (prebuilt, real Chromium/BoringSSL)",
+    "frontend": "rust (winit + cef-rs)"
+  },
+  "build": {
+    "toolchain": "rust-stable",
+    "libcef": {
+      "note": "cef-rs download-cef fetches prebuilt libcef; pin version + sha256 in flake.nix as a fixed-output derivation. NOT built from Chromium source.",
+      "version": "TODO",
+      "sha256": "TODO"
+    }
+  },
+  "release": {
+    "artifact": "my-browser-rust-chromium-latest",
+    "note": "mirror da_my-browser-qute's nix-bundle portable pipeline once buildable"
+  }
+}
