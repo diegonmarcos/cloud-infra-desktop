@@ -1,22 +1,20 @@
 {
   "project": {
     "name": "my-browser-rust-chromium",
-    "description": "Rust front-end + Chromium (CEF) backend browser. Clean Chrome TLS fingerprint (BoringSSL) + full UI control in Rust. Sibling to my-browser-qute.",
-    "status": "skeleton",
+    "description": "Rust UI + Chromium (CEF) backend browser. Clean Chrome TLS fingerprint (BoringSSL) + full UI control in Rust. Sibling to my-browser-qute.",
+    "status": "mvp-baseline",
     "engine": "cef",
-    "backend": "libcef (prebuilt, real Chromium/BoringSSL)",
-    "frontend": "rust (winit + cef-rs)"
+    "backend": "libcef (real Chromium/BoringSSL, via cef-rs export-cef-dir)",
+    "frontend": "rust (cef-rs)"
   },
-  "build": {
-    "toolchain": "rust-stable",
-    "libcef": {
-      "note": "cef-rs download-cef fetches prebuilt libcef; pin version + sha256 in flake.nix as a fixed-output derivation. NOT built from Chromium source.",
-      "version": "TODO",
-      "sha256": "TODO"
-    }
+  "cef_rs": {
+    "repo": "https://github.com/tauri-apps/cef-rs",
+    "ref": "dev",
+    "example": "cefsimple",
+    "note": "MVP builds the upstream cefsimple example in-workspace (deps resolve, export-cef-dir fetches the matching CEF). Fork/customize on top next."
   },
   "release": {
     "artifact": "my-browser-rust-chromium-latest",
-    "note": "mirror da_my-browser-qute's nix-bundle portable pipeline once buildable"
+    "tarball": "my-browser-rust-chromium-linux-x86_64.tar.gz"
   }
 }
