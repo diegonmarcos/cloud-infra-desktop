@@ -37,6 +37,16 @@ case "$cmd" in
     mkdir -p "$DIST/bundle"
     cp "$SRC/target/release/$EXAMPLE" "$DIST/bundle/$NAME"
     cp -r "$CEF_DIR"/. "$DIST/bundle/" 2>/dev/null || true   # libcef.so + resources for a portable run
+    # baked homepage (copied from qute's dashboard → 2_configs/, committed)
+    cp "$HERE/2_configs/my-browser-chromium-homepage.html" "$DIST/bundle/" 2>/dev/null || true
+    # launcher: sets CEF paths + opens the baked homepage (cefsimple honours --url=)
+    cat > "$DIST/bundle/my-browser" <<'LAUNCH'
+#!/usr/bin/env bash
+HERE="$(cd "$(dirname "$0")" && pwd)"
+export CEF_PATH="$HERE" LD_LIBRARY_PATH="$HERE"
+exec "$HERE/my-browser-rust-chromium" --url="file://$HERE/my-browser-chromium-homepage.html" "$@"
+LAUNCH
+    chmod +x "$DIST/bundle/my-browser"
     tar -C "$DIST/bundle" -czf "$DIST/$TARBALL" .
     echo "staged $DIST/$TARBALL" ;;
 
