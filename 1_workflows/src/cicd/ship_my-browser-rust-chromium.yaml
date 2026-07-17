@@ -1,30 +1,25 @@
 name: "Ship → my-browser-rust-chromium (Rust + CEF) release"
 
-# Builds the Rust+CEF browser on a beefy GHA runner (the Surface can't build
-# CEF). cef-dll-sys fetches prebuilt libcef + builds libcef_dll_wrapper via
-# cmake/ninja, then cargo links the binary → real Chromium/BoringSSL. Publishes
-# a rolling GitHub Release (pullable) + GHCR OCI mirror.
-#
-# NOTE: first runs may fail to COMPILE — main.rs is written against the
-# browser-window API but not yet locally compile-verified. That's intentional:
-# this workflow IS the compiler/test loop. Fix errors it surfaces, re-push.
-#
-# ALL logic in da_my-browser-rust-chromium/build.sh (verbs: release, gh-release,
-# ghcr-push). Thin YAML.
+# Builds a real Rust + Chromium (CEF/BoringSSL → clean fingerprint) browser on a
+# GHA runner (the Surface can't build CEF). MVP baseline = upstream cef-rs
+# `cefsimple` built in-workspace: build.sh clones cef-rs@ref (build.json),
+# `export-cef-dir` fetches the matching CEF, cargo builds the example, and we
+# tarball binary+CEF-runtime → rolling GitHub Release (pullable) + GHCR mirror.
+# All logic in da_my-browser-rust-chromium/build.sh. Thin YAML.
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - "da_my-browser-rust-chromium/src/**"
       - "da_my-browser-rust-chromium/build.sh"
       - "da_my-browser-rust-chromium/build.json"
+      - "da_my-browser-rust-chromium/src/**"
       - "1_workflows/src/cicd/ship_my-browser-rust-chromium.yaml"
 
 permissions:
-  contents: write    # gh release create/upload
-  packages: write    # oras push to ghcr.io
+  contents: write
+  packages: write
 
 concurrency:
   group: ship-my-browser-rust-chromium
@@ -33,7 +28,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # CEF wrapper build (cmake/ninja) needs headroom
+    timeout-minutes: 90   # CEF download + libcef_dll_wrapper build needs headroom
     steps:
       - uses: actions/checkout@v4
 
@@ -41,18 +36,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            cmake ninja-build clang pkg-config \
+            cmake ninja-build clang libclang-dev pkg-config jq \
             libgtk-3-dev libnss3 libnspr4-dev \
             libx11-dev libxcomposite-dev libxdamage-dev libxrandr-dev \
             libasound2-dev libcups2-dev
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: da_my-browser-rust-chromium/src
-
-      - name: Build release binary (cef-dll-sys fetches libcef)
+      - name: Build (clone cef-rs, export CEF, cargo build cefsimple)
         run: ./da_my-browser-rust-chromium/build.sh release
 
       - name: Publish to rolling GitHub Release
@@ -60,9 +51,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./da_my-browser-rust-chromium/build.sh gh-release
 
-      - name: Mirror to GHCR (OCI artifact)
-        uses: oras-project/setup-oras@v1
-      - name: oras login + push
+      - uses: oras-project/setup-oras@v1
+      - name: Mirror to GHCR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

@@ -166,3 +166,4 @@ da_my-browser-rust-chromium/dist/*.tar.gz
 da_my-browser-rust-chromium/dist/my-browser-rust-chromium
 ## Obsidian
 .obsidian/workspace-mobile.json
+da_my-browser-rust-chromium/.build/
