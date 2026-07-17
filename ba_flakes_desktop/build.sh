@@ -958,6 +958,10 @@ cmd_nixcache_publish() {
         nix-store --export "$p" | zstd -T0 -19 -q -o "$_work/blobs/$h.zst"
     done < "$_work/$_manf"
     cp "$_work/$_manf" "$_work/blobs/$_manf"
+    # Also ship the PUBLIC-deps list so the desktop can pre-substitute every
+    # cache.nixos.org path BEFORE importing customs — then the topo-ordered
+    # import has ALL refs valid in one pass (no fragile per-error recovery).
+    cp "$_work/public.txt" "$_work/blobs/public.txt" 2>/dev/null || : > "$_work/blobs/public.txt"
     log_info "exported $_n blobs, $(du -sh "$_work/blobs" | cut -f1) — pushing ${_ref}:${_tag}"
 
     # 4) oras push — one layer per blob (title = <hash>.zst, IN topo order),
@@ -970,7 +974,7 @@ cmd_nixcache_publish() {
     ( cd "$_work/blobs" && _oras push --disable-path-validation \
         --username x --password "${GITHUB_TOKEN}" \
         --annotation "${_tlann}=${_tlname}" \
-        "${_ref}:${_tag}" $_files "$_manf:text/plain" ) \
+        "${_ref}:${_tag}" $_files "$_manf:text/plain" "public.txt:text/plain" ) \
       && log_success "published ${_n}-path nix cache -> ${_ref}:${_tag}" \
       || { log_error "oras push failed"; return 1; }
     rm -rf "$_work"
@@ -1177,55 +1181,89 @@ nixcache_switch() {
     _tag="$(jq -r '.oci_tag' "$NIX_CACHE_CFG")"
     _ann="$(jq -r '.toplevel_annotation' "$NIX_CACHE_CFG")"
     _tok="$(gh auth token 2>/dev/null)" || return 1
-    echo "$_tok" | _oras login ghcr.io -u x --password-stdin >/dev/null 2>&1 || true
+    # GHCR login: username must be the package OWNER (derived from oci_ref —
+    # data-driven), NOT a dummy "x" (that authed as anonymous → 401 on the
+    # private package → silent empty fetches). Show the result (verbose).
+    _owner="$(printf '%s' "$_ref" | cut -d/ -f2)"
+    log_info "nixcache: oras login ghcr.io as '$_owner' ..."
+    printf '%s' "$_tok" | _oras login ghcr.io -u "$_owner" --password-stdin 2>&1 \
+        | sed 's/^/  [login] /' \
+        || { log_warn "nixcache: oras login failed — falling back."; return 1; }
 
     log_info "nixcache: fetching OCI manifest $_ref:$_tag ..."
     mkdir -p "$_art"; _man="$_art/nixcache-manifest.json"
-    _oras manifest fetch "$_ref:$_tag" > "$_man" 2>/dev/null || { log_warn "nixcache: manifest unreachable — falling back (CI may not have published yet)."; return 1; }
+    _oras manifest fetch "$_ref:$_tag" > "$_man" 2>"$_art/nixcache-manifest.err" \
+        || { log_warn "nixcache: manifest unreachable ($(tail -1 "$_art/nixcache-manifest.err" 2>/dev/null)) — falling back."; return 1; }
     _sysname="$(jq -r --arg k "$_ann" '.annotations[$k] // empty' "$_man")"
     [ -n "$_sysname" ] || { log_warn "nixcache: no toplevel annotation on manifest — falling back."; return 1; }
     _sys="/nix/store/$_sysname"
     basename "$_sys" > "$_art/activation.name"
-    if [ -d "$_sys" ]; then log_success "nixcache: $_sysname already present — no pull."; return 0; fi
+    # VALIDITY, not dir-existence: a prior partial import can leave the gen DIR
+    # present while its deps (home-manager-path/files) are invalid → activate
+    # dies instantly. --check-validity --recursive verifies the WHOLE closure.
+    if nix-store --check-validity --recursive "$_sys" >/dev/null 2>&1; then
+        log_success "nixcache: $_sysname closure already fully valid — no pull."; return 0
+    fi
 
-    # Each layer title = "<storehash>.zst". Fetch ONLY blobs for paths this box
-    # LACKS (the true delta), then import in a fixpoint loop (import order need
-    # not be topological — a path whose refs aren't in yet fails and retries the
-    # next round until everything lands). Root is a trusted nix user, so
-    # unsigned --import is accepted.
+    # ── THE robust layered pull (2026-07-17): no fragile per-error recovery.
+    # (0) pull two tiny index blobs: public.txt (all cache.nixos.org deps) and
+    #     the topo-ordered custom path list ($_manf). (A) pre-substitute EVERY
+    #     public dep from cache.nixos.org — so every custom path's public refs
+    #     are valid. (B) fetch blobs for custom paths this box lacks/corrupts.
+    #     (C) import customs IN TOPOLOGICAL ORDER — one pass, every ref already
+    #     valid, nothing to deadlock. Nix (not us) owns dependency resolution.
     _bd="$_art/nixcache-blobs"; rm -rf "$_bd"; mkdir -p "$_bd"
-    _miss=0; _tab="$(printf '\t')"
-    # POSIX sh (#!/bin/sh): no process substitution / $'\t' — go via a temp file.
+    _tab="$(printf '\t')"; _manf="$(jq -r '.manifest_file' "$NIX_CACHE_CFG")"
     _lst="$_art/nixcache-layers.tsv"
     jq -r '.layers[] | "\(.digest)\t\(.annotations["org.opencontainers.image.title"])"' "$_man" > "$_lst"
-    while IFS="$_tab" read -r digest title; do
-        h="${title%.zst}"
-        ls -d /nix/store/${h}-* >/dev/null 2>&1 && continue
-        _miss=$((_miss+1))
-        _oras blob fetch "${_ref}@${digest}" --output "$_bd/${h}.zst" 2>/dev/null || true
-    done < "$_lst"
-    log_info "nixcache: fetched $(ls "$_bd" 2>/dev/null | wc -l)/$_miss missing custom-path blobs — importing..."
+    _dig() { awk -F"$_tab" -v t="$1" '$2==t{print $1; exit}' "$_lst"; }
+    _pd="$(_dig public.txt)"; _md="$(_dig "$_manf")"
+    [ -n "$_pd" ] && _oras blob fetch "${_ref}@${_pd}" --output "$_art/public.txt" >/dev/null 2>&1
+    [ -n "$_md" ] && _oras blob fetch "${_ref}@${_md}" --output "$_art/custom-topo.txt" >/dev/null 2>&1
+    if [ ! -s "$_art/custom-topo.txt" ] || [ ! -f "$_art/public.txt" ]; then
+        log_warn "nixcache: cache predates the public/topo index (needs a CI re-publish) — falling back."; return 1
+    fi
 
-    _rounds=0
-    while :; do
-        _prog=0; _rounds=$((_rounds+1))
-        for f in "$_bd"/*.zst; do
-            [ -e "$f" ] || break
-            if zstd -dq -c "$f" | /run/wrappers/bin/sudo nix-store --import >/dev/null 2>&1; then
-                rm -f "$f"; _prog=1
-            fi
-        done
-        [ "$_prog" = 0 ] && break
-        [ "$_rounds" -gt 50 ] && { log_warn "nixcache: import fixpoint stalled after 50 rounds — falling back."; break; }
-    done
-    _left=$(ls "$_bd"/*.zst 2>/dev/null | wc -l)
-    [ "$_left" -gt 0 ] && { log_warn "nixcache: $_left blobs never imported (dangling refs) — falling back."; return 1; }
+    # (A) pre-substitute all public deps (nix fetches only the ones we lack).
+    log_info "nixcache: pre-substituting $(wc -l < "$_art/public.txt") public deps from cache.nixos.org (only missing fetch) ..."
+    xargs -a "$_art/public.txt" -r nix copy --from https://cache.nixos.org --no-check-sigs 2>&1 | tail -2
 
-    log_info "nixcache: filling public deps from cache.nixos.org ..."
-    nix copy --from "https://cache.nixos.org" "$_sys" --no-check-sigs 2>&1 | tail -2
-    if [ -d "$_sys" ]; then
+    # (B) which custom paths must we fetch? missing dirs + present-but-INVALID
+    #     (a killed run can leave corrupt dirs). One batched validity check.
+    : > "$_art/present.txt"; : > "$_art/tofetch.txt"
+    while IFS= read -r _p; do
+        _ph="$(basename "$_p")"; _hp="$(ls -d /nix/store/${_ph%%-*}-* 2>/dev/null | head -1)"
+        if [ -n "$_hp" ]; then echo "$_hp" >> "$_art/present.txt"; else echo "$_p" >> "$_art/tofetch.txt"; fi
+    done < "$_art/custom-topo.txt"
+    [ -s "$_art/present.txt" ] && xargs -a "$_art/present.txt" -r nix-store --check-validity --print-invalid 2>/dev/null >> "$_art/tofetch.txt"
+    sort -u "$_art/tofetch.txt" -o "$_art/tofetch.txt"
+    _nf=$(wc -l < "$_art/tofetch.txt")
+    log_info "nixcache: fetching $_nf custom blobs (missing/corrupt) of $(wc -l < "$_art/custom-topo.txt") ..."
+    _i=0
+    while IFS= read -r _p; do
+        _i=$((_i+1)); _ph="$(basename "$_p")"; h="${_ph%%-*}"
+        _d="$(_dig "${h}.zst")"; [ -n "$_d" ] || _d="$(_dig "blobs/${h}.zst")"
+        [ -n "$_d" ] || { log_warn "  [$_i/$_nf] no blob for $h"; continue; }
+        log "  [$_i/$_nf] FETCH $_ph"
+        _oras blob fetch "${_ref}@${_d}" --output "$_bd/${h}.zst" >/dev/null 2>&1 || log_warn "  fetch failed: $h"
+    done < "$_art/tofetch.txt"
+
+    # (C) import in TOPOLOGICAL order — deps first, public already present.
+    log_info "nixcache: importing custom paths in topological order ..."
+    while IFS= read -r _p; do
+        _ph="$(basename "$_p")"; h="${_ph%%-*}"; f="$_bd/${h}.zst"
+        [ -e "$f" ] || continue
+        if zstd -dq -c "$f" | /run/wrappers/bin/sudo nix-store --import >/dev/null 2>"$f.err"; then
+            log "  imported $_ph"
+        else
+            log_warn "  import failed $_ph: $(tail -1 "$f.err" 2>/dev/null)"
+        fi
+        rm -f "$f" "$f.err"
+    done < "$_art/custom-topo.txt"
+
+    if nix-store --check-validity --recursive "$_sys" >/dev/null 2>&1; then
         rm -rf "$_bd"
-        log_success "nixcache: generation materialised (GHCR per-path delta — NO 6GB, only $_miss changed paths pulled)."
+        log_success "nixcache: closure fully valid (GHCR layered delta — NO 6GB; pre-filled public + topo import)."
         return 0
     fi
     log_warn "nixcache: $_sys still missing after import — falling back."
@@ -1283,6 +1321,11 @@ ghcr_incremental_switch() {
 # workflow (hint only) via HM_SHIP_WORKFLOW.
 cmd_switch_runner() {
     log_header "switch (runner): fetch GHA-built closure + activate (no local eval)"
+    # DELTA-ONLY by default (2026-07-17, user directive: the layered cache MUST
+    # work; no silent 6GB fallback masking delta bugs). The full-artifact pull is
+    # now an EXPLICIT opt-in on its own argv:  ./build.sh switch full
+    _full=0
+    if [ "${1:-}" = "full" ]; then _full=1; shift; fi
     _host="${1:-surface-plasma}"; _user="${2:-diego}"
     command -v gh >/dev/null 2>&1 || { log_error "gh CLI not found — install it, or use: ./build.sh switch local"; return 1; }
     # CONCURRENCY LOCK (root-caused 2026-07-08): multiple sessions invoking
@@ -1302,21 +1345,25 @@ cmd_switch_runner() {
     _art="$SCRIPT_DIR/dist-ci"
     rm -rf "$_art"; mkdir -p "$_art"
 
-    # ── PRIMARY: GitHub-Pages nix cache (streams only the missing paths — no
-    #    6GB, no 14G staging, works on the full disk). The ONLY path that can
-    #    actually complete on this box; everything below is a fallback.
+    # ── THE cache: GHCR per-path OCI delta (streams only the paths this box
+    #    lacks — no 6GB, no 14G staging). This is the CONTRACT. On failure we do
+    #    NOT silently download 6GB (that masks delta bugs — user directive
+    #    2026-07-17). Fail LOUDLY so the real error is visible and gets fixed.
     if nixcache_switch "$_art"; then
         cmd_pull "$_art"
         return $?
     fi
 
-    # ── Fallback A: layered GHCR image (kept, though docker transport is
-    #    disabled by default via .safety.incremental_pull).
-    if ghcr_incremental_switch "$_art"; then
-        cmd_pull "$_art"
-        return $?
+    if [ "$_full" = 0 ]; then
+        log_error "════════════════════════════════════════════════════════════════"
+        log_error "DELTA (GHCR per-path) SWITCH FAILED — see the nixcache error above."
+        log_error "NOT falling back to the 6GB artifact: the layered cache is the contract."
+        log_error "To force the full-artifact pull explicitly:   ./build.sh switch full"
+        log_error "════════════════════════════════════════════════════════════════"
+        return 1
     fi
-    log_info "Incremental switch unavailable — falling back to full artifact download."
+
+    log_warn "'full' requested — pulling the entire ~6GB artifact (explicit opt-in)."
     rm -rf "$_art"; mkdir -p "$_art"
 
     # Resolve SUCCESSFUL runs of the HM ship workflow and pull the artifact by
@@ -1649,26 +1696,38 @@ main() {
                     _iso_slice="$(jq -r '.safety.isolation_slice // "workload.slice"' "$HM_AUTO_CFG")"
                     _iso_mm="$(jq -r '.safety.switch_memory_max // "2G"' "$HM_AUTO_CFG")"
                     _iso_sm="$(jq -r '.safety.switch_swap_max // "4G"' "$HM_AUTO_CFG")"
-                    _iso_xdg="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-                    _iso_dbus="''${DBUS_SESSION_BUS_ADDRESS:-unix:path=$_iso_xdg/bus}"
+                    _iso_xdg="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+                    _iso_dbus="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$_iso_xdg/bus}"
                     _iso_sudo="/run/wrappers/bin/sudo"; [ -x "$_iso_sudo" ] || _iso_sudo="sudo"
+                    # Resolve the graphical session env even when launched HEADLESS
+                    # (systemd timer, ssh, or a non-desktop shell like Claude's) so
+                    # the MANDATORY popup ALWAYS appears + HM `systemctl --user`
+                    # reaches the user bus. Prior bug: the popup only spawned when
+                    # the LAUNCHING shell already had DISPLAY/WAYLAND set.
+                    _iso_wl="${WAYLAND_DISPLAY:-}"; _iso_x="${DISPLAY:-}"
+                    if [ -z "$_iso_wl$_iso_x" ]; then
+                        for _s in "$_iso_xdg"/wayland-*; do
+                            [ -S "$_s" ] && { _iso_wl="$(basename "$_s")"; break; }
+                        done
+                        [ -z "$_iso_wl" ] && [ -S /tmp/.X11-unix/X0 ] && _iso_x=":0"
+                    fi
                     log_info "Isolating switch into $_iso_slice (mem≤$_iso_mm swap≤$_iso_sm) — the desktop can NOT be frozen by this transfer."
 
-                    # ── MANDATORY POPUP (2026-07-10 — user requirement: EVERY nix
-                    # switch MUST show a popup). Spawned HERE in the outer desktop
-                    # context (guaranteed DISPLAY/DBUS), NOT via the fragile
-                    # progress-wrapper re-exec. A Konsole window tails build.log
-                    # live (the isolated switch writes to it) + a start toast.
-                    # Cannot be suppressed — this is the visible progress surface.
-                    if [ -n "''${DISPLAY:-}''${WAYLAND_DISPLAY:-}" ]; then
+                    # ── MANDATORY POPUP: a Konsole window tailing build.log live
+                    # (the isolated switch's per-path progress goes there via log()).
+                    # Headless-safe — the konsole/notify are handed the resolved
+                    # session env so they draw even when the launcher had none.
+                    if [ -n "$_iso_wl$_iso_x" ] && command -v konsole >/dev/null 2>&1; then
                         command -v notify-send >/dev/null 2>&1 && \
+                          WAYLAND_DISPLAY="$_iso_wl" DISPLAY="$_iso_x" XDG_RUNTIME_DIR="$_iso_xdg" DBUS_SESSION_BUS_ADDRESS="$_iso_dbus" \
                           notify-send -u critical -i system-software-update \
-                            "Nix switch STARTED" "Pulling + activating a new generation.\nProgress window opening. Isolated in $_iso_slice — the desktop is protected." || true
-                        if command -v konsole >/dev/null 2>&1; then
-                            konsole --hold -p tabtitle="Nix Switch — LIVE progress" \
-                              -e bash -c "echo '=== NIX SWITCH LIVE PROGRESS (isolated in $_iso_slice) ==='; tail -n 40 -f '$LOG_FILE'" >/dev/null 2>&1 &
-                            _popup_pid=$!
-                        fi
+                            "Nix switch STARTED" "Pulling + activating. Live progress window opening. Isolated in $_iso_slice — desktop protected." >/dev/null 2>&1 || true
+                        WAYLAND_DISPLAY="$_iso_wl" DISPLAY="$_iso_x" XDG_RUNTIME_DIR="$_iso_xdg" DBUS_SESSION_BUS_ADDRESS="$_iso_dbus" QT_QPA_PLATFORM="" \
+                          konsole --hold -p ColorScheme=DarkPastels -p tabtitle="Nix Switch — LIVE progress" \
+                            -e bash -c "echo '=== NIX SWITCH — LIVE PROGRESS (isolated in $_iso_slice) ==='; echo '--- [journal] filtered nix activity + [build.log] per-path progress ---'; ( journalctl -f -o short-iso -u hm-switch-isolated.service _COMM=nix-daemon _COMM=nix 2>/dev/null | sed 's/^/[journal] /' & ); tail -n 60 -f '$LOG_FILE'" >/dev/null 2>&1 &
+                        _popup_pid=$!
+                    else
+                        log_warn "no graphical session resolved — switch runs headless (no popup this time)."
                     fi
 
                     "$_iso_sudo" systemd-run --slice="$_iso_slice" --unit=hm-switch-isolated \
@@ -1676,7 +1735,8 @@ main() {
                         -p MemoryHigh="$_iso_mm" -p MemoryMax="$_iso_mm" -p MemorySwapMax="$_iso_sm" \
                         --setenv=SWITCH_ISOLATED=1 --setenv=HOME="$HOME" --setenv=PATH="$PATH" \
                         --setenv=XDG_RUNTIME_DIR="$_iso_xdg" --setenv=DBUS_SESSION_BUS_ADDRESS="$_iso_dbus" \
-                        --setenv=DISPLAY="''${DISPLAY:-}" --setenv=WAYLAND_DISPLAY="''${WAYLAND_DISPLAY:-}" \
+                        --setenv=DISPLAY="$_iso_x" --setenv=WAYLAND_DISPLAY="$_iso_wl" \
+                        --setenv=LANG="${LANG:-C.UTF-8}" --setenv=LC_ALL="${LC_ALL:-C.UTF-8}" \
                         --setenv=NSP_WRAPPED=1 \
                         --working-directory="$SCRIPT_DIR" \
                         "$0" "$@"
