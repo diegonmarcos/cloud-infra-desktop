@@ -45,8 +45,8 @@ case "$cmd" in
       || gh release create "$TAG" --title "$NAME (rolling)" --notes "Rust + real-Chromium (CEF) MVP — upstream cefsimple baseline"
     gh release upload "$TAG" "$DIST/$TARBALL" --clobber ;;
 
-  ghcr-push)
-    oras push "ghcr.io/diegonmarcos/${NAME}:latest" "$DIST/$TARBALL:application/gzip" ;;
+  ghcr-push)   # oras rejects absolute paths → push from inside $DIST with a relative name
+    ( cd "$DIST" && oras push "ghcr.io/diegonmarcos/${NAME}:latest" "${TARBALL}:application/gzip" ) ;;
 
   ship)    "$0" release && "$0" gh-release && "$0" ghcr-push ;;
   help|*)  echo "usage: build.sh {fetch|build|run [URL]|release|gh-release|ghcr-push|ship|clean}" ;;
