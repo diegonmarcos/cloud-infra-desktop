@@ -15,7 +15,8 @@ NAME="my-browser-rust-chromium"; TAG="${NAME}-latest"; TARBALL="${NAME}-linux-x8
 
 REPO="$(jq -r '.cef_rs.repo' "$HERE/build.json")"
 REF="$(jq -r '.cef_rs.ref'  "$HERE/build.json")"
-EXAMPLE="$(jq -r '.cef_rs.example' "$HERE/build.json")"
+EXAMPLE_DIR="$(jq -r '.cef_rs.example_dir' "$HERE/build.json")"
+EXAMPLE_PKG="$(jq -r '.cef_rs.example_pkg' "$HERE/build.json")"
 CEF_DIR="$WORK/cef"; SRC="$WORK/cef-rs"
 
 _fetch() {   # clone cef-rs @ ref + export the matching CEF into $CEF_DIR
@@ -25,22 +26,22 @@ _fetch() {   # clone cef-rs @ ref + export the matching CEF into $CEF_DIR
 }
 _overlay() {   # our fork lives as full-file overrides in src/overlay/, layered over
                # the cloned cefsimple before building. Robust (no patch-context drift).
-  [ -d "$HERE/src/overlay" ] && command cp -rf "$HERE/src/overlay/." "$SRC/examples/$EXAMPLE/" && echo "overlay applied"
+  [ -d "$HERE/src/overlay" ] && command cp -rf "$HERE/src/overlay/." "$SRC/examples/$EXAMPLE_DIR/" && echo "overlay applied"
   return 0
 }
 _build() { _overlay; export CEF_PATH="$CEF_DIR" LD_LIBRARY_PATH="$CEF_DIR:${LD_LIBRARY_PATH:-}"
-  ( cd "$SRC" && cargo build -p "$EXAMPLE" --release ) ; }
+  ( cd "$SRC" && cargo build -p "$EXAMPLE_PKG" --release ) ; }
 
 cmd="${1:-help}"
 case "$cmd" in
   fetch)   _fetch ;;
   build)   [ -d "$SRC" ] || _fetch; _build ;;
-  run)     "$0" build; CEF_PATH="$CEF_DIR" LD_LIBRARY_PATH="$CEF_DIR" "$SRC/target/release/$EXAMPLE" "${2:-}" ;;
+  run)     "$0" build; CEF_PATH="$CEF_DIR" LD_LIBRARY_PATH="$CEF_DIR" "$SRC/target/release/$EXAMPLE_PKG" "${2:-}" ;;
   clean)   rm -rf "$WORK" "$DIST" ;;
 
   release) "$0" build
     mkdir -p "$DIST/bundle"
-    cp "$SRC/target/release/$EXAMPLE" "$DIST/bundle/$NAME"
+    cp "$SRC/target/release/$EXAMPLE_PKG" "$DIST/bundle/$NAME"
     cp -r "$CEF_DIR"/. "$DIST/bundle/" 2>/dev/null || true   # libcef.so + resources for a portable run
     # baked homepage (copied from qute's dashboard → 2_configs/, committed)
     cp "$HERE/2_configs/my-browser-chromium-homepage.html" "$DIST/bundle/" 2>/dev/null || true
