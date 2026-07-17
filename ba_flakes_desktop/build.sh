@@ -980,61 +980,6 @@ cmd_nixcache_publish() {
     rm -rf "$_work"
 }
 
-# nixcache-publish — CI: publish the CUSTOM store paths of the freshly-built HM
-# activation closure to GHCR as per-path OCI blobs (oras). Each custom path →
-# its own `nix-store --export | zstd` blob whose OCI layer title is
-# "<storehash>.zst"; the toplevel activation name rides a manifest annotation.
-# GHCR content-addresses blobs, so unchanged paths dedup across builds (push
-# delta) and the desktop switch fetches ONLY blobs for paths it lacks (pull
-# delta). Custom = closure MINUS what cache.nixos.org serves (robust retry
-# probe). Reads dist-ci/activation.path from ci-build. Needs GITHUB_TOKEN.
-cmd_nixcache_publish() {
-    log_header "CI: publish per-path OCI nix cache -> GHCR"
-    [ -n "${GITHUB_TOKEN:-}" ] || { log_error "GITHUB_TOKEN required"; return 1; }
-    [ -f "$NIX_CACHE_CFG" ] || { log_error "missing $NIX_CACHE_CFG"; return 1; }
-    _ref="$(jq -r '.oci_ref' "$NIX_CACHE_CFG")"
-    _tag="$(jq -r '.oci_tag' "$NIX_CACHE_CFG")"
-    _mt="$(jq -r '.blob_media_type' "$NIX_CACHE_CFG")"
-    _ann="$(jq -r '.toplevel_annotation' "$NIX_CACHE_CFG")"
-    _out="$SCRIPT_DIR/dist-ci"
-    _sys="$(cat "$_out/activation.path" 2>/dev/null)"
-    [ -n "$_sys" ] && [ -d "$_sys" ] || { log_error "no dist-ci/activation.path — run ci-build first"; return 1; }
-    _work="$_out/nixcache"; rm -rf "$_work"; mkdir -p "$_work/blobs"
-
-    log_info "Closure of $(basename "$_sys") ..."
-    nix-store -qR "$_sys" | sort > "$_work/all.txt"
-    log_info "Probing cache.nixos.org (custom = closure minus public, retry probe)..."
-    xargs -a "$_work/all.txt" -P 16 -I{} sh -c '
-      h=$(basename "{}"); h=${h%%-*}
-      curl -s -f -o /dev/null --retry 6 --retry-connrefused --retry-delay 1 --max-time 40 \
-        "https://cache.nixos.org/${h}.narinfo" && echo "{}"
-    ' | sort > "$_work/public.txt" || true
-    comm -23 "$_work/all.txt" "$_work/public.txt" > "$_work/custom.txt"
-    _n=$(wc -l < "$_work/custom.txt")
-    log_info "custom paths: $_n of $(wc -l < "$_work/all.txt") total (rest served by cache.nixos.org)"
-    [ "$_n" -gt 0 ] || { log_warn "no custom paths — nothing to publish"; return 0; }
-
-    log_info "Exporting $_n paths to per-path zstd blobs..."
-    : > "$_work/files.txt"
-    while read -r p; do
-        h=$(basename "$p"); h=${h%%-*}
-        nix-store --export "$p" | zstd -q -T0 -15 -o "$_work/blobs/${h}.zst"
-        printf 'blobs/%s.zst:%s\n' "$h" "$_mt" >> "$_work/files.txt"
-    done < "$_work/custom.txt"
-    log_info "blob set: $(du -sh "$_work/blobs" | cut -f1)"
-
-    _owner="$(printf '%s' "${GITHUB_REPOSITORY:-diegonmarcos/unix}" | cut -d/ -f1)"
-    echo "${GITHUB_TOKEN}" | nix run --extra-experimental-features "nix-command flakes" nixpkgs#oras -- \
-        login ghcr.io -u "$_owner" --password-stdin >/dev/null 2>&1 || { log_error "oras login failed"; return 1; }
-    log_info "oras push $_ref:$_tag ($_n blobs, toplevel annotation $_ann)..."
-    ( cd "$_work" && xargs -a files.txt \
-        nix run --extra-experimental-features "nix-command flakes" nixpkgs#oras -- push \
-        --annotation "${_ann}=$(basename "$_sys")" "$_ref:$_tag" ) \
-        && log_success "published $_n custom paths -> $_ref:$_tag" \
-        || { log_error "oras push failed"; return 1; }
-    rm -rf "$_work/blobs"
-}
-
 # ghcr_pull_layered <image:tag> — try to materialise a layered GHCR closure
 # image's /nix/store paths onto the real local store, skipping any path
 # already present (genuine incremental — unchanged layers are never even
