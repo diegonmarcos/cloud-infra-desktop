@@ -2,15 +2,17 @@
 name = "my-browser-rust-chromium"
 version = "0.0.1"
 edition = "2021"
-description = "Rust front-end + Chromium (CEF) backend browser"
+description = "Rust UI + Chromium (CEF) backend browser"
 
 [[bin]]
 name = "my-browser-rust-chromium"
 path = "main.rs"
 
 [dependencies]
-# cef-rs: safe Rust bindings to CEF (Chromium Embedded Framework), maintained by
-# the Tauri org. Links a PREBUILT libcef (real Chromium + BoringSSL) — no
-# Chromium-from-source build. Pin an exact version once wiring the flake.
-cef = "*"          # TODO: pin exact version alongside the libcef fixed-output in flake.nix
-winit = "0.30"     # window + event loop for our Rust-owned chrome
+# browser-window: Rust GUI toolkit that hosts a real browser view. The `cef`
+# feature backs it with libcef (real Chromium + BoringSSL) → clean Chrome
+# fingerprint. (Other features webkitgtk/edge2 exist but WOULD get flagged —
+# cef is mandatory here.) This is the fastest path to a Rust-driven window
+# rendering pages with the correct fingerprint; the qute-parity chrome bar +
+# vim keybinds get ported on top (from antoyo/titanium).
+browser-window = { version = "0.12", default-features = false, features = ["cef"] }
