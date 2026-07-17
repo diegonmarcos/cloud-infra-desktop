@@ -159,7 +159,7 @@ bc_flakes_dev-store/dist-ci/
 ## my-browser (qute) release binaries — built in CI, published to GitHub Releases, NEVER committed.
 ## The portable fork bundle (~640MB) and the standalone config tarball are artifacts only.
 ## (dist/*.html, dist/*-urls, dist/mybar.json ARE committed — those are small generated config.)
-da_my-browser/dist/*.gz
-da_my-browser/dist/*.tar.gz
+da_my-browser-qute/dist/*.gz
+da_my-browser-qute/dist/*.tar.gz
 ## Obsidian
 .obsidian/workspace-mobile.json

@@ -1,0 +1,16 @@
+[package]
+name = "my-browser-rust-chromium"
+version = "0.0.1"
+edition = "2021"
+description = "Rust front-end + Chromium (CEF) backend browser"
+
+[[bin]]
+name = "my-browser-rust-chromium"
+path = "main.rs"
+
+[dependencies]
+# cef-rs: safe Rust bindings to CEF (Chromium Embedded Framework), maintained by
+# the Tauri org. Links a PREBUILT libcef (real Chromium + BoringSSL) — no
+# Chromium-from-source build. Pin an exact version once wiring the flake.
+cef = "*"          # TODO: pin exact version alongside the libcef fixed-output in flake.nix
+winit = "0.30"     # window + event loop for our Rust-owned chrome

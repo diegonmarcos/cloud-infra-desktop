@@ -6,7 +6,7 @@
 #   * da_autofill-rbw-rofi (system-wide hotkey password autofill).
 #
 # Config is JSON-driven (settings / search engines / keybindings / quickmarks)
-# and lives in the daemon repo at ~/git/unix/da_my-browser/src/2_configs/.
+# and lives in the daemon repo at ~/git/unix/da_my-browser-qute/src/2_configs/.
 # The home-manager module shipped from that repo reads the JSON at flake
 # evaluation and projects it into `programs.qutebrowser`.
 #
@@ -22,7 +22,7 @@
 { inputs, ... }:
 
 {
-  imports = [ "${inputs.unix-repo}/da_my-browser/src/nix/home-module.nix" ];
+  imports = [ "${inputs.unix-repo}/da_my-browser-qute/src/nix/home-module.nix" ];
 
   programs.my-browser = {
     enable = true;
