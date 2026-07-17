@@ -23,7 +23,12 @@ _fetch() {   # clone cef-rs @ ref + export the matching CEF into $CEF_DIR
   git clone --depth 1 --branch "$REF" "$REPO" "$SRC" 2>/dev/null || git clone --depth 1 "$REPO" "$SRC"
   ( cd "$SRC" && cargo run -p export-cef-dir -- --force "$CEF_DIR" )
 }
-_build() { export CEF_PATH="$CEF_DIR" LD_LIBRARY_PATH="$CEF_DIR:${LD_LIBRARY_PATH:-}"
+_overlay() {   # our fork lives as full-file overrides in src/overlay/, layered over
+               # the cloned cefsimple before building. Robust (no patch-context drift).
+  [ -d "$HERE/src/overlay" ] && command cp -rf "$HERE/src/overlay/." "$SRC/examples/$EXAMPLE/" && echo "overlay applied"
+  return 0
+}
+_build() { _overlay; export CEF_PATH="$CEF_DIR" LD_LIBRARY_PATH="$CEF_DIR:${LD_LIBRARY_PATH:-}"
   ( cd "$SRC" && cargo build -p "$EXAMPLE" --release ) ; }
 
 cmd="${1:-help}"
