@@ -161,5 +161,8 @@ bc_flakes_dev-store/dist-ci/
 ## (dist/*.html, dist/*-urls, dist/mybar.json ARE committed — those are small generated config.)
 da_my-browser-qute/dist/*.gz
 da_my-browser-qute/dist/*.tar.gz
+da_my-browser-rust-chromium/dist/*.gz
+da_my-browser-rust-chromium/dist/*.tar.gz
+da_my-browser-rust-chromium/dist/my-browser-rust-chromium
 ## Obsidian
 .obsidian/workspace-mobile.json
