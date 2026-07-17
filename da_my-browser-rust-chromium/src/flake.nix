@@ -26,6 +26,7 @@
         # then export CEF_PATH=${libcef} into the build + runtime env.
       in {
         devShells.default = pkgs.mkShell {
+          nativeBuildInputs = with pkgs; [ cmake ninja pkg-config ]; # browser-window/cef build
           buildInputs = with pkgs; [
             rustc cargo rustfmt clippy
             # CEF runtime deps (X11/GL/NSS etc.) — trimmed list, expand as linker asks:

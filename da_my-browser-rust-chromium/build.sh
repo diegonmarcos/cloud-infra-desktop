@@ -7,7 +7,7 @@ cmd="${1:-help}"
 
 case "$cmd" in
   build)   cd "$HERE/src" && cargo build --release ;;   # needs libcef pinned in flake first
-  run)     cd "$HERE/src" && cargo run ;;               # skeleton: prints status, no CEF yet
+  run)     cd "$HERE/src" && cargo run -- "${2:-}" ;;    # opens a real-Chromium window; optional URL
   fmt)     cd "$HERE/src" && cargo fmt ;;
   clean)   cd "$HERE/src" && cargo clean ;;
   release) echo "TODO: nix-bundle portable artifact (mirror da_my-browser-qute)"; exit 1 ;;
