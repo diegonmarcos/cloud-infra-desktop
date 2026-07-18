@@ -73,7 +73,15 @@ stdenv.mkDerivation {
       --set SYSTRAY_BASH       "${bash}/bin/bash" \
       --set SYSTRAY_KONSOLE    "${konsole}/bin/konsole" \
       --set SYSTRAY_XDG        "${xdg-utils}/bin/xdg-open" \
-      --set-default ELECTRON_OZONE_PLATFORM_HINT "auto"
+      --set-default ELECTRON_OZONE_PLATFORM_HINT "x11"
+      # x11, not auto (2026-07-18): "auto" resolves to the Wayland Ozone backend
+      # on this native-Wayland Plasma session, and Electron's Tray API has no
+      # Wayland Ozone implementation — main() exits 1 immediately ("This mode
+      # not supported outside X11"), crash-looping under systemd. Forcing x11
+      # runs Electron under XWayland, where GTK tray + KDE's xembedsniproxy
+      # bridge SNI correctly. Trade-off: reintroduces the xembedsniproxy-driven
+      # "Input devices" portal popup main.ts's header comment tried to avoid —
+      # a working tray with one dismissable popup beats a permanently crashing one.
     # SYSTRAY_FLAKE is set by the systemd unit (points to the live flake checkout)
 
     runHook postInstall

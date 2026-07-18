@@ -1860,16 +1860,28 @@ if [ $# -gt 0 ]; then
                     _iso_sm="$(jq -r '.switch_isolation.swap_max // "6G"' "$_sp_json")"
                     _iso_sudo="/run/wrappers/bin/sudo"; [ -x "$_iso_sudo" ] || _iso_sudo="sudo"
                     log "Isolating switch into $_iso_slice (mem≤$_iso_mm swap≤$_iso_sm) — the desktop can NOT be frozen by this transfer."
-                    exec "$_iso_sudo" systemd-run --slice="$_iso_slice" --unit=nixos-switch-isolated \
+                    # notify-send (2026-07-18): switches run silent for minutes with no
+                    # popup/progress-bar — Diego has repeatedly been blindsided by a
+                    # background `switch` he had no visibility into. Fire start + finish/fail.
+                    command -v notify-send >/dev/null 2>&1 && notify-send -u normal -i nix-snowflake-white \
+                        "build.sh $cli_cmd starting" "isolated in $_iso_slice (mem≤$_iso_mm) — $FLAKE_PATH"
+                    _iso_start="$(date +%s)"
+                    "$_iso_sudo" systemd-run --slice="$_iso_slice" --unit=nixos-switch-isolated \
                         --uid="$(id -u)" --gid="$(id -g)" --wait --collect --quiet \
                         -p MemoryHigh="$_iso_mm" -p MemoryMax="$_iso_mm" -p MemorySwapMax="$_iso_sm" \
                         --setenv=SWITCH_ISOLATED=1 --setenv=HOME="$HOME" --setenv=PATH="$PATH" \
                         --working-directory="$SCRIPT_DIR" \
                         "$0" "$@"
-                    # exec only returns if it FAILED to launch — never fall through
-                    # to an un-isolated switch (that is the freeze we are preventing).
-                    error "switch isolation failed to launch ($_iso_slice) — refusing to run the transfer un-isolated (freeze risk). Fix systemd-run/sudo, then retry."
-                    exit 1
+                    _iso_rc=$?
+                    _iso_elapsed=$(( $(date +%s) - _iso_start ))
+                    if [ "$_iso_rc" -eq 0 ]; then
+                        command -v notify-send >/dev/null 2>&1 && notify-send -u normal -i emblem-default \
+                            "build.sh $cli_cmd done (${_iso_elapsed}s)" "$FLAKE_PATH"
+                    else
+                        command -v notify-send >/dev/null 2>&1 && notify-send -u critical -i emblem-important \
+                            "build.sh $cli_cmd FAILED (${_iso_elapsed}s, exit $_iso_rc)" "$FLAKE_PATH"
+                    fi
+                    exit "$_iso_rc"
                 fi
                 ;;
         esac

@@ -113,6 +113,14 @@
       hg = builtins.readFile ./fish/functions/hg.fish;
       myhelp = builtins.readFile ./fish/functions/myhelp.fish;
       "__fzf_search_commands" = builtins.readFile ./fish/functions/__fzf_search_commands.fish;
+
+      # Global Nix CLI notify-send catcher (2026-07-18): every nix/nixos-rebuild/
+      # home-manager invocation runs silent for minutes with no popup/progress —
+      # wrap w/ start + finish/fail notify-send so it's never invisible again.
+      _notify_wrap = builtins.readFile ./fish/functions/_notify_wrap.fish;
+      nix = builtins.readFile ./fish/functions/nix.fish;
+      "nixos-rebuild" = builtins.readFile ./fish/functions/nixos-rebuild.fish;
+      "home-manager" = builtins.readFile ./fish/functions/home-manager.fish;
     };
 
     interactiveShellInit = builtins.readFile ./fish/interactiveShellInit.fish;

@@ -64,7 +64,12 @@ stdenv.mkDerivation {
       --set SYSTRAY_BASH          "${bash}/bin/bash" \
       --set SYSTRAY_KONSOLE       "${konsole}/bin/konsole" \
       --set SYSTRAY_XDG           "${xdg-utils}/bin/xdg-open" \
-      --set-default ELECTRON_OZONE_PLATFORM_HINT "auto"
+      --set-default ELECTRON_OZONE_PLATFORM_HINT "x11"
+      # x11, not auto (2026-07-18): same fix as da_nixos-systray/src/nix/package.nix —
+      # "auto" resolves to Wayland Ozone on this native-Wayland Plasma session, and
+      # Electron's Tray API has no Wayland Ozone implementation, so it exits 1
+      # immediately and crash-loops under systemd. x11 runs it under XWayland
+      # where GTK tray + xembedsniproxy work.
     # SYSTRAY_FLAKE_SYSTEM / _DESKTOP / _CLOUD set by the systemd unit
 
     runHook postInstall
