@@ -18,10 +18,10 @@ the nudge is PostToolUse. The guard is **fail-closed** (unreadable registry ⇒ 
 | level | count | event |
 |---|---|---|
 | allow | 7 | PreToolUse:Bash |
-| deny | 8 | PreToolUse:Bash |
+| deny | 9 | PreToolUse:Bash |
 | warn | 34 | PreToolUse:Bash |
 | nudge | 1 | PostToolUse |
-| inject | 6 | SessionStart,UserPromptSubmit, SessionStart,UserPromptSubmit,PreToolUse:Bash, UserPromptSubmit |
+| inject | 7 | SessionStart, SessionStart,UserPromptSubmit, SessionStart,UserPromptSubmit,PreToolUse:Bash, UserPromptSubmit |
 
 Irreversible rules (audit-first when relaxing anything):
 
@@ -64,6 +64,7 @@ Irreversible rules (audit-first when relaxing anything):
 | `secret-write-redirect` | secrets | irreversible | PreToolUse:Bash | `(^|[;&|])\s*(echo|printf)\b[^|;]*>>?\s*[^|;]*((^|/)\.env([[:space:];|&]|$)|(^|/)\.secrets([[:space:];|&]|$)|secrets\.ya?ml([[:space:];|&]|$))` | imperative write (echo/printf >) to .secrets/.env/secrets.yaml bypasses sops | edit src/secrets.yaml + build.sh secrets |
 | `secret-tee` | secrets | irreversible | PreToolUse:Bash | `(^|[;&|])\s*tee\b[^|;]*\s+[^|;]*((^|/)\.env([[:space:];|&]|$)|(^|/)\.secrets([[:space:];|&]|$)|secrets\.ya?ml([[:space:];|&]|$))` | tee writing to .secrets/.env/secrets.yaml bypasses sops | edit src/secrets.yaml + build.sh secrets |
 | `git-add-secret` | secrets | irreversible | PreToolUse:Bash | `(^|[;&|])\s*git\s+(-[Cc]\s+\S+\s+)?add\b[^;|&]*(\.(env|key|pem|age|p12|pfx)([[:space:];|&]|$)|(^|/)\.secrets([[:space:];|&]|$)|secrets\.ya?ml([[:space:];|&]|$))` | git add of secret-shaped path — public-repo exposure risk | sops-encrypt secrets.yaml first; raw key material lives only in ~/git/vault |
+| `git-branch-create` | workflow | recoverable | PreToolUse:Bash | `(^|[;&|])\s*git\s+(-[Cc]\s+\S+\s+)?(checkout\s+-b\b|switch\s+-[cC]\b|branch\s+[^-[:space:];&|]|worktree\s+add\b)` | BRANCHES ARE FORBIDDEN — this repo works ONLY on main (direct commit + push; GHA deploys on push). Never create or switch to a branch. | stay on main: edit, commit, and push directly. No branches, no PRs. |
 
 ## WARN — advisory (exit 0, first match wins)
 
@@ -114,6 +115,7 @@ Irreversible rules (audit-first when relaxing anything):
 
 | id | fragment | tiers |
 |---|---|---|
+| `inject-reference-sessionstart` | `hooks-fragments/reference.md` | SessionStart |
 | `inject-core-principles` | `hooks-fragments/core-principles.md` | SessionStart, UserPromptSubmit, PreToolUse:Bash |
 | `inject-fire-rules` | `hooks-fragments/fire-rules.md` | UserPromptSubmit |
 | `inject-stack-philosophy` | `hooks-fragments/stack-philosophy.md` | UserPromptSubmit |

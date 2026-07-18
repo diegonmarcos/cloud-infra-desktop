@@ -8,17 +8,21 @@
 #   guard                                              — PreToolUse:Bash allow/deny/warn
 #   nudge                                              — PostToolUse soft graph nudge
 #
-# Resolution: files are found beside the *invoked* path (~/.claude/hooks/),
-# NOT via readlink — home-manager symlinks each file separately into the store,
-# so the symlink dir (not the store target dir) is what co-locates them.
+# Resolution: files are found beside the *invoked* path (this script's own
+# dir), NOT via readlink — Claude Code copies the whole plugin dir into its
+# cache on marketplace install, so $HERE co-locates hooks-rules.json and
+# hooks-fragments/ regardless of whether we're running from the nix-store
+# source or the installed plugin cache.
 #
 # Fail policy (deliberate, per mode):
 #   guard  → FAIL-CLOSED: unreadable/invalid registry ⇒ DENY (never silent-allow).
 #   inject → fail-open: emit a minimal static reminder.
 #   nudge  → fail-open: exit 0.
 #
-# Source: ~/git/unix/{ba_flakes_desktop,bb_flakes_termux}/src/modules/dotfiles/claude/
-# Deployed: ~/.claude/hooks/hook-engine.sh (via home-manager)
+# Source: ~/git/unix/ba_flakes_desktop/src/modules/dotfiles/claude/cloud-marketplace/cloud-principles-ai-plugin/scripts/
+# Deployed via: home.file ".claude/cloud-marketplace" + `claude plugin marketplace add`
+#   (see common.nix claudeMarketplace activation) — installed copy runs from
+#   ~/.claude/plugins/cache/cloud-marketplace/cloud-principles-ai-plugin/<version>/scripts/
 # ============================================================================
 set -uo pipefail
 

@@ -12,6 +12,14 @@
   },
   "rules": [
     {
+      "id": "inject-reference-sessionstart",
+      "level": "inject",
+      "category": "read-only",
+      "tiers": ["SessionStart"],
+      "fragment": "hooks-fragments/reference.md",
+      "reason": "One-time repo/ops/gotchas reference — replaces the old static CLAUDE.md (now a 1-char stub). SessionStart-only so it doesn't inflate per-turn UserPromptSubmit cost."
+    },
+    {
       "id": "allow-npm-readonly",
       "level": "allow",
       "category": "read-only",

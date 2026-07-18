@@ -75,6 +75,22 @@ nfire mcp__cloud-cgc-mcp__cgc_octocode_search >/dev/null
 [ -z "$(nfire Read | jq -r '.hookSpecificOutput.additionalContext // ""' 2>/dev/null)" ] && ok || bad "nudge not reset by cloud-cgc call"
 rm -f "$ST"
 
+echo "## CLAUDE.md stub: no duplication, plugin owns all injected content ##"
+CLAUDE_MD="$HOME/.claude/CLAUDE.md"
+if [ -f "$CLAUDE_MD" ]; then
+    sz=$(wc -c < "$CLAUDE_MD" 2>/dev/null || echo 999999)
+    [ "$sz" -le 10 ] && ok || bad "~/.claude/CLAUDE.md should be a ~1-char stub (got ${sz} bytes) — content belongs in hooks-fragments/*.md, not duplicated here"
+else
+    echo "  (~/.claude/CLAUDE.md not deployed on this host — skipping)"
+fi
+
+echo "## SessionStart injection budget: <=5k tokens (~20k chars, 4 chars/tok heuristic) ##"
+sso="$(printf '{}' | bash "$ENGINE" inject SessionStart)"
+sso_chars=${#sso}
+sso_budget=20000
+[ "$sso_chars" -le "$sso_budget" ] && ok \
+    || bad "SessionStart injection is ${sso_chars} chars (budget ${sso_budget} ~= 5k tokens) — trim hooks-fragments/*.md"
+
 echo "## doc drift: gen-hooks-doc.sh == HOOKS.md ##"
 if [ -f "$HERE/HOOKS.md" ]; then
     if diff -q <(bash "$HERE/gen-hooks-doc.sh") "$HERE/HOOKS.md" >/dev/null 2>&1; then ok
