@@ -16,6 +16,12 @@
     "swap_max": "6G"
   },
 
+  "konsole_wrap": {
+    "_comment": "2026-07-18 — every interactive switch/pull MUST show visible, live progress: Diego was repeatedly blindsided by build.sh running headless with no popup/progress bar/terminal he could see (multiple incidents same day). Declarative, automatic, engine-level fix (not an ad-hoc manual konsole wrap): the FIRST time an interactive command runs and a desktop session is present, build.sh self-relaunches itself inside `konsole --hold` so there is ALWAYS a visible terminal streaming real output. Guarded by BUILD_SH_KONSOLE_WRAPPED=1 to stop infinite re-exec (same pattern as SWITCH_ISOLATED). Never fires in CI (GITHUB_ACTIONS=true) or when no desktop session is present (DISPLAY/DBUS unset) — falls through to plain execution.",
+    "enable": true,
+    "commands": ["switch", "s", "pull", "switch-remote"]
+  },
+
   "rescue_port": 2200,
   "_rescue_port_comment": "U1: Dropbear rescue-SSH port, mirroring vm-pilot's _cloud-data-consolidated.json[._home_manager.vms.<vm>.rescue_port]. Reachable only via wg0 (configuration_network.nix declares wg0 trusted).",
 
