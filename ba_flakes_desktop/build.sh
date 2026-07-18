@@ -851,6 +851,12 @@ cmd_ci_build() {
             || log_warn "self-input relock failed — falling back to committed lock"
     fi
 
+    # Pre-warm the (otherwise cold, ephemeral-runner) /nix/store from the last
+    # published GHCR cache — CI only (see cmd_nixcache_prewarm comment).
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        cmd_nixcache_prewarm || log_warn "prewarm failed — continuing with cold build"
+    fi
+
     log_info "Building $_attr (accept-flake-config → cached substitutes)..."
     nix build "$SRC_DIR#$_attr" --impure --accept-flake-config \
         --out-link "$_out/result" --extra-experimental-features "nix-command flakes" \
@@ -901,6 +907,69 @@ cmd_ci_build() {
 _oras() {
     if command -v oras >/dev/null 2>&1; then oras "$@"
     else nix run --extra-experimental-features "nix-command flakes" nixpkgs#oras -- "$@"; fi
+}
+
+# cmd_nixcache_prewarm — CI: pull the LAST published per-path GHCR nix cache
+# and import it into THIS runner's /nix/store BEFORE building (2026-07-18).
+# Every GHA run gets a cold, empty /nix/store (ephemeral ubuntu-latest) — the
+# existing per-path GHCR cache (nixcache_publish below) only ever fed the
+# DESKTOP; nothing fed it back into the NEXT CI run, so every build
+# re-evaluated + re-built the full ~5.3GB custom set from scratch even for a
+# one-line change (80-95min observed, 2026-07-18). This imports whatever the
+# LAST successful ci-build published, so the `nix build` below only builds
+# what actually changed. Reuses the exact fetch/import shape as
+# nixcache_switch (the desktop puller) — same manifest, same topo-ordered
+# import — just unconditional (import everything published, not gated on one
+# toplevel's validity) and GITHUB_TOKEN-authed instead of `gh auth token`.
+# Additive + NON-FATAL at every step: any failure just means a cold build,
+# identical to today's behavior — never blocks or fails the CI build.
+cmd_nixcache_prewarm() {
+    log_header "CI: pre-warm /nix/store from last published GHCR cache"
+    command -v jq >/dev/null 2>&1 && [ -f "$NIX_CACHE_CFG" ] || { log_warn "prewarm: no jq/config — skipping"; return 0; }
+    [ "$(jq -r '.enabled' "$NIX_CACHE_CFG" 2>/dev/null)" = "true" ] || { log_warn "prewarm: cache disabled — skipping"; return 0; }
+    [ -n "${GITHUB_TOKEN:-}" ] || { log_warn "prewarm: no GITHUB_TOKEN — skipping"; return 0; }
+    _ref="$(jq -r '.oci_ref' "$NIX_CACHE_CFG")"
+    _tag="$(jq -r '.oci_tag' "$NIX_CACHE_CFG")"
+    _manf="$(jq -r '.manifest_file' "$NIX_CACHE_CFG")"
+    _owner="$(printf '%s' "$_ref" | cut -d/ -f2)"
+    log_info "prewarm: oras login ghcr.io as '$_owner' ..."
+    printf '%s' "$GITHUB_TOKEN" | _oras login ghcr.io -u "$_owner" --password-stdin >/dev/null 2>&1 \
+        || { log_warn "prewarm: oras login failed — skipping (cold build)"; return 0; }
+
+    _art="$SCRIPT_DIR/dist-ci/nixcache-prewarm"; rm -rf "$_art"; mkdir -p "$_art"
+    log_info "prewarm: fetching manifest $_ref:$_tag ..."
+    _man="$_art/manifest.json"
+    _oras manifest fetch "$_ref:$_tag" > "$_man" 2>/dev/null \
+        || { log_warn "prewarm: no prior cache published yet — skipping (cold build, first run)"; return 0; }
+
+    _tab="$(printf '\t')"; _lst="$_art/layers.tsv"
+    jq -r '.layers[] | "\(.digest)\t\(.annotations["org.opencontainers.image.title"])"' "$_man" > "$_lst"
+    _dig() { awk -F"$_tab" -v t="$1" '$2==t{print $1; exit}' "$_lst"; }
+    _pd="$(_dig public.txt)"; _md="$(_dig "$_manf")"
+    [ -n "$_pd" ] && _oras blob fetch "${_ref}@${_pd}" --output "$_art/public.txt" >/dev/null 2>&1
+    [ -n "$_md" ] && _oras blob fetch "${_ref}@${_md}" --output "$_art/custom-topo.txt" >/dev/null 2>&1
+    if [ ! -s "$_art/custom-topo.txt" ] || [ ! -f "$_art/public.txt" ]; then
+        log_warn "prewarm: cache predates the public/topo index — skipping (cold build)"; return 0
+    fi
+
+    log_info "prewarm: pre-substituting $(wc -l < "$_art/public.txt") public deps from cache.nixos.org ..."
+    xargs -a "$_art/public.txt" -r nix copy --from https://cache.nixos.org --no-check-sigs 2>&1 | tail -2
+
+    _n=$(wc -l < "$_art/custom-topo.txt")
+    log_info "prewarm: fetching + importing up to $_n previously-published custom paths ..."
+    _imported=0; _skipped=0
+    while IFS= read -r _p; do
+        _ph="$(basename "$_p")"; h="${_ph%%-*}"
+        if [ -e "/nix/store/$_ph" ]; then _skipped=$((_skipped + 1)); continue; fi
+        _d="$(_dig "${h}.zst")"; [ -n "$_d" ] || continue
+        if _oras blob fetch "${_ref}@${_d}" --output "$_art/${h}.zst" >/dev/null 2>&1 \
+           && zstd -dq -c "$_art/${h}.zst" | sudo nix-store --import >/dev/null 2>&1; then
+            _imported=$((_imported + 1))
+        fi
+        rm -f "$_art/${h}.zst"
+    done < "$_art/custom-topo.txt"
+    log_success "prewarm: imported $_imported, already-present $_skipped, of $_n published paths"
+    rm -rf "$_art"
 }
 
 # cmd_nixcache_publish — CI: publish the CUSTOM store paths of the freshly-built
@@ -1745,6 +1814,9 @@ main() {
             ;;
         nixcache-publish)
             cmd_nixcache_publish
+            ;;
+        nixcache-prewarm)
+            cmd_nixcache_prewarm
             ;;
         pull|switch-remote)
             cmd_pull "${1:-}"
