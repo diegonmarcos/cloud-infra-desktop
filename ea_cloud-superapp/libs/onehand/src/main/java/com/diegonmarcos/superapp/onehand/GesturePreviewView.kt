@@ -101,19 +101,17 @@ class GesturePreviewView(ctx: Context) : View(ctx) {
             OneHandConfig.Edge.RIGHT  -> PI          // pointing left
             OneHandConfig.Edge.BOTTOM -> -PI / 2    // pointing up
         }
-        // RIGHT edge: slot "top" (idx 0, frac -0.5) must appear UP in screen-y coords.
-        // l1Centre=PI (left), frac negative → angle < PI → sin > 0 = DOWN. Negate spread to invert.
-        val l1Spread = if (edge == OneHandConfig.Edge.RIGHT) -PI / 4 else PI / 4
+        val l1Spread = PI / 4  // ±45° total, so 3 items at -45°, 0°, +45°
         val l1Cx = startX; val l1Cy = startY
 
         // ── L2 geometry: arc centre far below screen → near-horizontal line ──
-        // Target: centre item at y≈sh*0.55, outer items at x = sw*[0.12..0.88].
+        // L2: target centre item at y≈sh*0.55; outer items at x=sw*[0.12..0.88] on screen.
+        // Arc centre at 7×sh below → nearly flat arc. Radius and half-angle derived from targets.
         val targetL2Y = sh * 0.55f
         val l2CentreX = sw * 0.5f
-        val l2CentreY = sh * 7.0f                                       // well below display
-        val r2 = l2CentreY - targetL2Y                                   // radius → centre item hits targetL2Y
-        val l2BaseAngle = -PI / 2                                        // pointing up from below
-        // Half-angle so outer items land at sw/2 ± sw*0.38
+        val l2CentreY = sh * 7.0f
+        val r2 = l2CentreY - targetL2Y
+        val l2BaseAngle = -PI / 2
         val l2Spread = asin((sw * 0.38f / r2).coerceIn(-1f, 1f).toDouble())
 
         // ── interpolate per-item positions ──
