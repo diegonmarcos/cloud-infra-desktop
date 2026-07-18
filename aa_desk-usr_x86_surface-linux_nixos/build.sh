@@ -1837,6 +1837,25 @@ if [ $# -gt 0 ]; then
     # Normalise: lowercase, trim. Same alias set as the interactive menu.
     cli_cmd=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
 
+    # ── ALWAYS-VISIBLE KONSOLE (2026-07-18, engine-level, declarative) ───────
+    # Diego was repeatedly blindsided by switch/pull running headless — no
+    # popup, no progress bar, no terminal he could see. Never manually wrap
+    # this again: the FIRST time an interactive command runs (guarded by
+    # BUILD_SH_KONSOLE_WRAPPED=1 against infinite re-exec) with a real desktop
+    # session present, self-relaunch inside `konsole --hold` so there is
+    # ALWAYS a visible terminal with live output. Never fires in CI or headless
+    # (DISPLAY/DBUS unset) — falls through to plain execution there.
+    _sp_json="$FLAKE_PATH/modules/cloud-data-system-protection.json"
+    if [ -z "${BUILD_SH_KONSOLE_WRAPPED:-}" ] && [ -z "${SWITCH_ISOLATED:-}" ] \
+       && [ "${GITHUB_ACTIONS:-}" != "true" ] && command -v jq >/dev/null 2>&1 \
+       && [ -f "$_sp_json" ] \
+       && [ "$(jq -r '.konsole_wrap.enable // false' "$_sp_json")" = "true" ] \
+       && jq -e --arg c "$cli_cmd" '.konsole_wrap.commands | index($c)' "$_sp_json" >/dev/null 2>&1 \
+       && [ -n "${DISPLAY:-}" ] && [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] \
+       && command -v konsole >/dev/null 2>&1; then
+        exec env BUILD_SH_KONSOLE_WRAPPED=1 konsole --hold -e "$0" "$@"
+    fi
+
     # ── FREEZE-SAFE ISOLATION (2026-07-10 v3.1) ──────────────────────────────
     # A heavy switch/pull (6GB closure download + nix-store import) MUST NOT run
     # in the desktop's own cgroup (app.slice under user-1000.slice) — its memory
