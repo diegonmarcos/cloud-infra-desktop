@@ -144,7 +144,9 @@
     "_comment": "2026-07-10 v3 IO ladder. Kernel reclaim IO can't be cgroup-weighted, but BULK WRITERS (docker/nix-daemon/backups in workload.slice) can — so they can no longer starve the desktop's own IO the way the 13:06 thrash did. os_essentials ALSO gets a memory reservation: today os-essentials.slice has NO MemoryMin, so reclaim can evict sshd/session/logind pages (the very infra you'd need to debug a freeze). connectivity island already has io_weight=1000 (reservation block); this ladders the rest below it.",
     "os_essentials_io_weight": 800,
     "os_essentials_memory_min": "512M",
-    "workload_io_weight": 50
+    "workload_io_weight": 50,
+    "workload_memory_max": "4096M",
+    "workload_memory_swap_max": "0"
   },
 
   "testers": {

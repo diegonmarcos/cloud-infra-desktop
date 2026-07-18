@@ -104,6 +104,14 @@ let
   # anti-freeze guards; the high MemoryMin was pinning 3GB unnecessarily.
   userMemMin = "${toString (ramMB * 12 / 100)}M";     # 983M (was 38%=3113M)
   nixMemSwapMax = "0";                                # NO disk swap — OOM-kill instead of I/O thrash freeze (was 2048M = THE BUG)
+  # workloadMemMax/SwapMax (2026-07-18): kernel-enforced hard ceiling on workload.slice.
+  # IOWeight alone is a relative priority, not a cap — under sustained saturation it
+  # doesn't stop the NVMe queue from staying full (2026-07-18 freeze: freeze-guard's
+  # SIGTERM escalation never reached wedged D-state tasks). MemoryMax forces the kernel
+  # to OOM-kill inside workload.slice BEFORE reclaim thrash builds into an IO storm —
+  # no signal delivery required. MemorySwapMax=0 mirrors nix-daemon: OOM-kill, not swap-thrash.
+  workloadMemMax = sysprot.slice_protection.workload_memory_max;
+  workloadMemSwapMax = sysprot.slice_protection.workload_memory_swap_max;
   # userMemSwapMax=0 also blocked ZRAM (per-cgroup swap cap can't distinguish
   # zram from disk), defeating the swappiness=150 zram-first design and leaving
   # the desktop with no pressure valve. 2048M lands on zram (prio 100 vs disk -1).
@@ -625,6 +633,8 @@ in
     sliceConfig = {
       CPUQuota = workloadCpuQuota;
       IOWeight = sysprot.slice_protection.workload_io_weight;
+      MemoryMax = workloadMemMax;
+      MemorySwapMax = workloadMemSwapMax;
     };
   };
 
