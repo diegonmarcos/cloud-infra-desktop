@@ -732,12 +732,11 @@
                 "${pkgs.nerdfonts.override { fonts = [ "JetBrainsMono" ]; }}/share/fonts/truetype/NerdFonts/JetBrainsMonoNerdFont-Regular.ttf";
 
               # Claude Code master context + MCP server config
-              # CLAUDE.md is generated dynamically from template + cloud-data at activation time
-              home.file.".claude/CLAUDE.md.tpl".source = ../src/modules/dotfiles/claude/CLAUDE.md.tpl;
-              home.file.".claude/gen-claude-md.sh" = {
-                source = ../src/modules/dotfiles/claude/gen-claude-md.sh;
-                executable = true;
-              };
+              # CLAUDE.md is now a 1-char stub — all principles/reference content moved to
+              # cloud-principles-ai-plugin (hooks-fragments/*.md, injected via SessionStart/
+              # UserPromptSubmit hooks), shared with ba_flakes_desktop's cloud-marketplace
+              # (one source of truth — see that flake's common.nix for the full rationale).
+              home.file.".claude/CLAUDE.md".text = "\n";
               home.file.".claude/mcp.json.tpl".source = ../src/modules/dotfiles/claude/mcp.json.tpl;
               home.file.".claude/secrets.yaml".source = ../src/modules/dotfiles/claude/secrets.yaml;
               home.file.".claude/statusline-command.sh" = {
@@ -754,35 +753,21 @@
                 source = ../src/modules/dotfiles/claude/claude-mcp-status.sh;
                 executable = true;
               };
+              # Shared with ba_flakes_desktop (one source of truth) — reads the
+              # cloud-marketplace plugin cache path, same on both platforms.
               home.file.".claude/claude-hooks-status.sh" = {
-                source = ../src/modules/dotfiles/claude/claude-hooks-status.sh;
+                source = ../../ba_flakes_desktop/src/modules/dotfiles/claude/claude-hooks-status.sh;
                 executable = true;
               };
               home.file.".claude/claude-pricing.json".source =
                 ../src/modules/dotfiles/claude/claude-pricing.json;
-              # Tier-based Claude Code hooks (renamed 2026-05-07).
-              #   a-* → SessionStart, b-* → UserPromptSubmit,
-              #   c-* → PreToolUse(Bash), split into blockers + warnings.
-              home.file.".claude/hooks/a-context-inject-memory.sh" = {
-                source = ../src/modules/dotfiles/claude/a-context-inject-memory.sh;
-                executable = true;
-              };
-              home.file.".claude/hooks/b-context-inject-prompt.sh" = {
-                source = ../src/modules/dotfiles/claude/b-context-inject-prompt.sh;
-                executable = true;
-              };
-              home.file.".claude/hooks/c-context-inject-pretool.sh" = {
-                source = ../src/modules/dotfiles/claude/c-context-inject-pretool.sh;
-                executable = true;
-              };
-              home.file.".claude/hooks/c-pretool-guard-blockers.sh" = {
-                source = ../src/modules/dotfiles/claude/c-pretool-guard-blockers.sh;
-                executable = true;
-              };
-              home.file.".claude/hooks/c-pretool-guard-warning.sh" = {
-                source = ../src/modules/dotfiles/claude/c-pretool-guard-warning.sh;
-                executable = true;
-              };
+              # cloud-marketplace — SHARED with ba_flakes_desktop (one source of truth,
+              # not a copy): local Claude Code plugin marketplace holding
+              # cloud-principles-ai-plugin (the data-driven hook engine — replaces the
+              # old tier-based a-/b-/c- hook scripts above) and ponytail. See
+              # ba_flakes_desktop/src/modules/common.nix for the full rationale.
+              home.file.".claude/cloud-marketplace".source =
+                ../../ba_flakes_desktop/src/modules/dotfiles/claude/cloud-marketplace;
               # settings.json deployed as a writable real file (not a nix-store symlink)
               # so that runtime commands (/effort, /model, /fast) can persist their writes.
               # Source is authoritative: each switch resets runtime prefs back to declared values.
@@ -791,6 +776,19 @@
                 _dst="$HOME/.claude/settings.json"
                 [ -L "$_dst" ] && rm "$_dst"
                 ${pkgs.coreutils}/bin/install -m 600 "$_src" "$_dst"
+              '';
+              # Register cloud-marketplace as a plugin marketplace (idempotent CLI call
+              # from a nix-committed activation — same pattern as
+              # ba_flakes_desktop's claudeMarketplace). claude-code is a real nix
+              # derivation on PATH here (pkgs/claude-code), not a curl-installed binary.
+              home.activation.claudeMarketplace = lib.hm.dag.entryAfter [ "claudeSettingsWritable" ] ''
+                MARKETPLACE_DIR="$HOME/.claude/cloud-marketplace"
+                if command -v claude >/dev/null 2>&1 && [ -d "$MARKETPLACE_DIR" ]; then
+                  $DRY_RUN_CMD claude plugin marketplace add "$MARKETPLACE_DIR" >/dev/null 2>&1 || true
+                  echo "[claude-marketplace] cloud-marketplace registered (enabledPlugins declared in settings.json)"
+                else
+                  echo "[claude-marketplace] WARNING: claude CLI or marketplace dir not found, skipping"
+                fi
               '';
               # claude-api skill — pinned from anthropics/skills repo. Symlinks
               # the whole directory (SKILL.md + per-language assets) so updates
@@ -803,20 +801,6 @@
                   sha256 = "08b3g2y0dx02bg5ypi8yvsd10dc19j9zm811hqq50aymbq8ny9h6";
                 };
                 in "${anthropicSkills}/skills/claude-api";
-
-              # ponytail — "lazy senior dev" skill (vendored, owned copy from
-              # DietrichGebert/ponytail @ 6da37bf, MIT). Wired declaratively, NOT via
-              # the plugin marketplace: self-contained dir keeps hooks/ beside skills/
-              # (relative requires + ../skills/ponytail/SKILL.md), and each SKILL.md is
-              # exposed under .claude/skills/ to auto-load as /ponytail*. Activation
-              # hooks (SessionStart + UserPromptSubmit) live in settings.json.
-              home.file.".claude/ponytail".source = ../src/modules/dotfiles/claude/ponytail;
-              home.file.".claude/skills/ponytail".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail;
-              home.file.".claude/skills/ponytail-review".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail-review;
-              home.file.".claude/skills/ponytail-audit".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail-audit;
-              home.file.".claude/skills/ponytail-debt".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail-debt;
-              home.file.".claude/skills/ponytail-gain".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail-gain;
-              home.file.".claude/skills/ponytail-help".source = ../src/modules/dotfiles/claude/ponytail/skills/ponytail-help;
 
               # frontend-design — vendored from claude-plugins-official marketplace.
               home.file.".claude/skills/frontend-design".source = ../src/modules/dotfiles/claude/skills/frontend-design;
@@ -936,26 +920,6 @@
 
                 chmod 600 "$OUT"
                 echo "[gemini-mcp] ~/.gemini/settings.json templated ($(echo $VARS | wc -w) vars substituted)"
-              '';
-
-              # Generate CLAUDE.md from template + cloud-data (dynamic VM/service tables)
-              home.activation.genClaudeMd = lib.hm.dag.entryAfter ["linkGeneration"] ''
-                GEN="$HOME/.claude/gen-claude-md.sh"
-                if [ -x "$GEN" ]; then
-                  # The activation PATH is minimal and lacks gawk — gen-claude-md.sh
-                  # uses awk (ANSI strip + repo trees) under `set -euo pipefail`, so a
-                  # missing awk aborts generation and freezes CLAUDE.md. Pin the script's
-                  # toolchain explicitly for a reproducible activation.
-                  NODE_BIN="${pkgs.nodejs_22}/bin/node" \
-                  PATH="${lib.makeBinPath [ pkgs.gawk pkgs.coreutils pkgs.findutils pkgs.gnused ]}:$PATH" \
-                    $DRY_RUN_CMD "$GEN" \
-                      "$HOME/.claude/CLAUDE.md.tpl" \
-                      "$HOME/.claude/CLAUDE.md" \
-                      "$HOME/git/cloud/cloud-data" \
-                    || echo "[gen-claude-md] WARNING: generation failed, template used as fallback"
-                else
-                  echo "[gen-claude-md] WARNING: gen-claude-md.sh not found"
-                fi
               '';
 
               # Minimal .gitignore so $HOME is a git repo (ignore everything)

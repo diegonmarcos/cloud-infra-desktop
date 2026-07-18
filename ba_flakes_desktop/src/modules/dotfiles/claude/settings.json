@@ -10,7 +10,9 @@
     "rust-analyzer-lsp@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
-    "ralph-loop@claude-plugins-official": true
+    "ralph-loop@claude-plugins-official": true,
+    "cloud-principles-ai-plugin@cloud-marketplace": true,
+    "ponytail@cloud-marketplace": true
   },
   "env": {
     "NODE_PATH": "/home/diego/.node_modules/node_modules",
@@ -21,70 +23,5 @@
     "AUTHELIA_TOKEN_URL": "https://auth.diegonmarcos.com/api/oidc/token"
   },
   "alwaysThinkingEnabled": true,
-  "tui": "fullscreen",
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/hook-engine.sh inject SessionStart",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "node \"$HOME\"/.claude/ponytail/hooks/ponytail-activate.js",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/hook-engine.sh inject UserPromptSubmit",
-            "timeout": 3
-          },
-          {
-            "type": "command",
-            "command": "node \"$HOME\"/.claude/ponytail/hooks/ponytail-mode-tracker.js",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/hook-engine.sh inject PreToolUse",
-            "timeout": 3
-          },
-          {
-            "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/hook-engine.sh guard",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$HOME\"/.claude/hooks/hook-engine.sh nudge",
-            "timeout": 3
-          }
-        ]
-      }
-    ]
-  }
+  "tui": "fullscreen"
 }
