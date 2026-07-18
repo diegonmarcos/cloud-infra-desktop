@@ -140,12 +140,12 @@
   };
 
   # Claude Code configuration + MCP server config
-  # CLAUDE.md is generated dynamically from template + cloud-data at activation time
-  home.file.".claude/CLAUDE.md.tpl".source = ./dotfiles/claude/CLAUDE.md.tpl;
-  home.file.".claude/gen-claude-md.sh" = {
-    source = ./dotfiles/claude/gen-claude-md.sh;
-    executable = true;
-  };
+  # CLAUDE.md is now a 1-char stub — all principles/reference content moved to
+  # cloud-principles-ai-plugin (hooks-fragments/*.md, injected via SessionStart/
+  # UserPromptSubmit hooks) to eliminate the double-injection (static file +
+  # hook injection of the same text) that was bloating every session's fixed
+  # context. See dotfiles/claude/cloud-marketplace/.
+  home.file.".claude/CLAUDE.md".text = "\n";
   home.file.".claude/mcp.json.tpl".source = ./dotfiles/claude/mcp.json.tpl;
   # Universal launcher for local stdio MCP servers — self-creates the
   # node_modules symlink(s) ESM bare-import resolution requires (NODE_PATH is
@@ -175,27 +175,19 @@
   };
   # Data-driven per-MTok pricing for the statusline LINE 3 $ breakdown.
   home.file.".claude/claude-pricing.json".source = ./dotfiles/claude/claude-pricing.json;
-  # Data-driven Claude Code hooks (refactored 2026-06-25 from the a-/b-/c- split).
-  # ONE engine + ONE registry (hooks-rules.json) drives every tier:
-  #   inject <tier> → SessionStart / UserPromptSubmit / PreToolUse context
-  #   guard         → PreToolUse(Bash) allow/deny/warn (fail-closed)
-  #   nudge         → PostToolUse soft graph nudge
-  # Docs (HOOKS.md) + tests (test-hooks.sh) are generated/driven from the registry.
-  home.file.".claude/hooks/hook-engine.sh" = {
-    source = ./dotfiles/claude/hook-engine.sh;
-    executable = true;
-  };
-  home.file.".claude/hooks/hooks-rules.json".source = ./dotfiles/claude/hooks-rules.json;
-  home.file.".claude/hooks/hooks-fragments".source = ./dotfiles/claude/hooks-fragments;
-  home.file.".claude/hooks/gen-hooks-doc.sh" = {
-    source = ./dotfiles/claude/gen-hooks-doc.sh;
-    executable = true;
-  };
-  home.file.".claude/hooks/test-hooks.sh" = {
-    source = ./dotfiles/claude/test-hooks.sh;
-    executable = true;
-  };
-  home.file.".claude/hooks/HOOKS.md".source = ./dotfiles/claude/HOOKS.md;
+  # cloud-marketplace — local Claude Code plugin marketplace holding:
+  #   - cloud-principles-ai-plugin: the data-driven hook engine (was
+  #     ~/.claude/hooks/*) — ONE engine + ONE registry (hooks-rules.json):
+  #       inject <tier> → SessionStart / UserPromptSubmit / PreToolUse context
+  #       guard         → PreToolUse(Bash) allow/deny/warn (fail-closed)
+  #       nudge         → PostToolUse soft graph nudge
+  #   - ponytail: "lazy senior dev" skill (vendored, DietrichGebert/ponytail
+  #     @ 6da37bf, MIT), moved in from its old standalone ~/.claude/ponytail/.
+  # Registered as a real plugin marketplace (not settings.json hooks) so both
+  # are independently toggleable via `/plugin` — e.g. disable
+  # cloud-principles-ai-plugin for a lean Sonnet 200k session without a
+  # source edit. See claudeMarketplace activation below for registration.
+  home.file.".claude/cloud-marketplace".source = ./dotfiles/claude/cloud-marketplace;
   # settings.json: deployed WRITABLE (not a read-only store symlink) so the
   # runtime `/effort` command can persist effortLevel. Nix owns the baseline
   # (hooks, statusline, env, plugins) and refreshes it every switch; effortLevel
@@ -236,21 +228,24 @@
     };
     in "${anthropicSkills}/skills/claude-api";
 
-  # ponytail — "lazy senior dev" skill (vendored, owned copy from
-  # DietrichGebert/ponytail @ 6da37bf, MIT). Wired declaratively, NOT via the
-  # plugin marketplace (settings-only local-marketplace activation is not
-  # guaranteed by Claude Code docs):
-  #   - the self-contained dir keeps hooks/ beside skills/ so the hook JS resolves
-  #     its relative requires and reads ../skills/ponytail/SKILL.md;
-  #   - each SKILL.md is also exposed under .claude/skills/ to auto-load as /ponytail*.
-  # SessionStart + UserPromptSubmit activation hooks are registered in settings.json.
-  home.file.".claude/ponytail".source = ./dotfiles/claude/ponytail;
-  home.file.".claude/skills/ponytail".source = ./dotfiles/claude/ponytail/skills/ponytail;
-  home.file.".claude/skills/ponytail-review".source = ./dotfiles/claude/ponytail/skills/ponytail-review;
-  home.file.".claude/skills/ponytail-audit".source = ./dotfiles/claude/ponytail/skills/ponytail-audit;
-  home.file.".claude/skills/ponytail-debt".source = ./dotfiles/claude/ponytail/skills/ponytail-debt;
-  home.file.".claude/skills/ponytail-gain".source = ./dotfiles/claude/ponytail/skills/ponytail-gain;
-  home.file.".claude/skills/ponytail-help".source = ./dotfiles/claude/ponytail/skills/ponytail-help;
+  # Register ~/.claude/cloud-marketplace as a plugin marketplace + enable both
+  # plugins. `claude plugin marketplace add` is idempotent (re-add of a known
+  # path is a no-op / refresh) so this is safe to run every switch — same
+  # imperative-but-declared-and-reproducible pattern as installClaudeCode /
+  # mcpSecrets below (CLI call from a nix-committed activation block, not an
+  # ad-hoc one-liner).
+  home.activation.claudeMarketplace = lib.hm.dag.entryAfter [ "claudeSettings" "installClaudeCode" ] ''
+    (
+    CLAUDE_BIN="$HOME/.local/bin/claude"
+    MARKETPLACE_DIR="$HOME/.claude/cloud-marketplace"
+    if [ -x "$CLAUDE_BIN" ] && [ -d "$MARKETPLACE_DIR" ]; then
+      $DRY_RUN_CMD "$CLAUDE_BIN" plugin marketplace add "$MARKETPLACE_DIR" >/dev/null 2>&1 || true
+      echo "[claude-marketplace] cloud-marketplace registered (enabledPlugins declared in settings.json)"
+    else
+      echo "[claude-marketplace] WARNING: claude CLI or marketplace dir not found, skipping"
+    fi
+    ) || echo "[claude-marketplace] subshell failed; HM chain continues"
+  '';
 
   home.file.".rgignore".source = ./dotfiles/claude/rgignore;
 
@@ -464,24 +459,6 @@
     chmod 600 "$OUT"
     echo "[gemini-mcp] ~/.gemini/settings.json templated ($(echo $VARS | wc -w) vars substituted)"
     ) || echo "[gemini-mcp] subshell exited non-zero; HM chain continues"
-  '';
-
-  # Generate CLAUDE.md from template + cloud-data (dynamic VM/service tables)
-  home.activation.genClaudeMd = lib.hm.dag.entryAfter ["linkGeneration"] ''
-    GEN="$HOME/.claude/gen-claude-md.sh"
-    if [ -x "$GEN" ]; then
-      # gen-claude-md.sh uses awk + find + sort + date — HM activations have
-      # only a minimal PATH, so binaries must be put on PATH explicitly.
-      PATH="${pkgs.gawk}/bin:${pkgs.findutils}/bin:${pkgs.coreutils}/bin:$PATH" \
-      NODE_BIN="${pkgs.nodejs_20}/bin/node" \
-        $DRY_RUN_CMD "$GEN" \
-          "$HOME/.claude/CLAUDE.md.tpl" \
-          "$HOME/.claude/CLAUDE.md" \
-          "$HOME/git/cloud/cloud-data" \
-        || echo "[gen-claude-md] WARNING: generation failed, template used as fallback"
-    else
-      echo "[gen-claude-md] WARNING: gen-claude-md.sh not found"
-    fi
   '';
 
   # KDE Plasma 6 [Formats] override — plasma-manager / Dolphin / Konsole /

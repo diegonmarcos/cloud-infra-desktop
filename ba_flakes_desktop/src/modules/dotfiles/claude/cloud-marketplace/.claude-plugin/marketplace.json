@@ -1,0 +1,17 @@
+{
+  "name": "cloud-marketplace",
+  "owner": { "name": "Diego Nepomuceno Marcos" },
+  "description": "Local marketplace — Diego's declarative Claude Code plugins (cloud principles + ponytail), source-of-truth in ~/git/unix.",
+  "plugins": [
+    {
+      "name": "cloud-principles-ai-plugin",
+      "source": "./cloud-principles-ai-plugin",
+      "description": "CORE PRINCIPLES + FIRE rules + repo reference, injected via hooks (replaces static CLAUDE.md)."
+    },
+    {
+      "name": "ponytail",
+      "source": "./ponytail",
+      "description": "Lazy-senior-dev mode: forces the simplest solution that works (YAGNI, stdlib-first)."
+    }
+  ]
+}

@@ -2,8 +2,9 @@
 # claude-hooks-status.sh — tier summary of the data-driven hook ruleset, for the
 # statusline HK[…] segment (mirrors claude-plugins-status.sh PL[…]).
 #
-# Reads ~/.claude/hooks/hooks-rules.json — the SAME registry hook-engine.sh
-# enforces — with ONE jq call. Spawn-free, safe on every render.
+# Reads hooks-rules.json from the installed cloud-principles-ai-plugin cache —
+# the SAME registry hook-engine.sh enforces — with ONE jq call. Spawn-free,
+# safe on every render.
 #
 # Output (ansi):  HK[56 ⛔8 ⚠34 ✓7 ⊕7]
 #   total · deny(red) · warn(yellow) · allow(green) · inject+nudge(grey)
@@ -16,7 +17,12 @@
 set -u
 
 fmt="ansi"; [ "${1:-}" = "--format" ] && fmt="${2:-ansi}"
-RULES="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/hooks-rules.json"
+CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# Plugin installs are cached under plugins/cache/<marketplace>/<plugin>/<version>/
+# — resolve the newest installed version rather than hardcoding one.
+RULES="$(find "$CFG/plugins/cache/cloud-marketplace/cloud-principles-ai-plugin" \
+    -maxdepth 2 -name hooks-rules.json 2>/dev/null | sort -V | tail -1)"
+[ -n "$RULES" ] || RULES="$CFG/cloud-marketplace/cloud-principles-ai-plugin/scripts/hooks-rules.json"
 
 command -v jq >/dev/null 2>&1 || exit 0
 [ -f "$RULES" ] || exit 0
