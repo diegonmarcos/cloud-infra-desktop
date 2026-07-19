@@ -313,7 +313,7 @@ PATH="/run/wrappers/bin:$PATH"
 OUTPUT_BASE="/mnt/kinoite/@images/a_nixos_host"
 FLAKE_PATH="$SCRIPT_DIR/src"
 LOG_DIR="$SCRIPT_DIR/logs"
-LOG_FILE="$LOG_DIR/build-$(date +%Y%m%d-%H%M%S).log"
+LOG_FILE="${LOG_FILE:-$LOG_DIR/build-$(date +%Y%m%d-%H%M%S).log}"
 
 # CPU limits — keep the desktop responsive on the 8-core/8GB Surface.
 # --cores: threads per derivation build, --max-jobs: parallel derivations.
@@ -1837,14 +1837,20 @@ if [ $# -gt 0 ]; then
     # Normalise: lowercase, trim. Same alias set as the interactive menu.
     cli_cmd=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
 
-    # ── ALWAYS-VISIBLE KONSOLE (2026-07-18, engine-level, declarative) ───────
+    # ── ALWAYS-VISIBLE KONSOLE + ALERT + PROGRESS BAR (2026-07-18/19, engine-level, declarative) ──
     # Diego was repeatedly blindsided by switch/pull running headless — no
     # popup, no progress bar, no terminal he could see. Never manually wrap
     # this again: the FIRST time an interactive command runs (guarded by
     # BUILD_SH_KONSOLE_WRAPPED=1 against infinite re-exec) with a real desktop
-    # session present, self-relaunch inside `konsole --hold` so there is
-    # ALWAYS a visible terminal with live output. Never fires in CI or headless
-    # (DISPLAY/DBUS unset) — falls through to plain execution there.
+    # session present, this block fires ALL THREE defaults declared in
+    # konsole_wrap: (1) a notify-send alert, (2) a self-relaunch inside
+    # `konsole --hold` so there is ALWAYS a visible terminal with live output,
+    # (3) a kdialog progress bar tailing the same log. Never fires in CI or
+    # headless (DISPLAY/DBUS unset) — falls through to plain execution there.
+    # 2026-07-19 BUG FIX: bare "$0" has no meaning inside konsole's own
+    # default cwd (relative paths die instantly, looked like a silent hang —
+    # was actually crash-on-launch). Resolve to $SCRIPT_DIR/build.sh + pass
+    # --workdir explicitly.
     _sp_json="$FLAKE_PATH/modules/cloud-data-system-protection.json"
     if [ -z "${BUILD_SH_KONSOLE_WRAPPED:-}" ] && [ -z "${SWITCH_ISOLATED:-}" ] \
        && [ "${GITHUB_ACTIONS:-}" != "true" ] && command -v jq >/dev/null 2>&1 \
@@ -1853,7 +1859,46 @@ if [ $# -gt 0 ]; then
        && jq -e --arg c "$cli_cmd" '.konsole_wrap.commands | index($c)' "$_sp_json" >/dev/null 2>&1 \
        && [ -n "${DISPLAY:-}" ] && [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] \
        && command -v konsole >/dev/null 2>&1; then
-        exec env BUILD_SH_KONSOLE_WRAPPED=1 konsole --hold -e "$0" "$@"
+
+        if [ "$(jq -r '.konsole_wrap.notify_send // false' "$_sp_json")" = "true" ] \
+           && command -v notify-send >/dev/null 2>&1; then
+            notify-send -u normal -i nix-snowflake-white \
+                "build.sh $cli_cmd starting" "$FLAKE_PATH — opening Konsole with full log"
+        fi
+
+        if [ "$(jq -r '.konsole_wrap.kdialog_progress // false' "$_sp_json")" = "true" ] \
+           && command -v kdialog >/dev/null 2>&1; then
+            _qdbus="$(command -v qdbus6 || command -v qdbus || true)"
+            export BUILD_SH_KDIALOG_LOG="$LOG_DIR/build-konsole-$(date +%Y%m%d-%H%M%S).log"
+            mkdir -p "$LOG_DIR"
+            : > "$BUILD_SH_KDIALOG_LOG"
+            (
+                _dlgsvc="$(kdialog --title "NixOS — $cli_cmd" --progressbar "Starting…" 4 2>/dev/null)" || _dlgsvc=""
+                _dlgname="${_dlgsvc%% *}"; _dlgpath="${_dlgsvc##* }"
+                [ -z "$_dlgname" ] && exit 0
+                _phase=0
+                while command pgrep -f "BUILD_SH_KONSOLE_WRAPPED=1.*konsole" >/dev/null 2>&1; do
+                    if [ -f "$BUILD_SH_KDIALOG_LOG" ]; then
+                        if command grep -qiE 'evaluating|fetching' "$BUILD_SH_KDIALOG_LOG" 2>/dev/null && [ $_phase -lt 1 ]; then
+                            _phase=1; [ -n "$_qdbus" ] && "$_qdbus" "$_dlgname" "$_dlgpath" setValue 1 2>/dev/null
+                        fi
+                        if command grep -qE 'building|copying|importing' "$BUILD_SH_KDIALOG_LOG" 2>/dev/null && [ $_phase -lt 2 ]; then
+                            _phase=2; [ -n "$_qdbus" ] && "$_qdbus" "$_dlgname" "$_dlgpath" setValue 2 2>/dev/null
+                        fi
+                        if command grep -qiE 'activating' "$BUILD_SH_KDIALOG_LOG" 2>/dev/null && [ $_phase -lt 3 ]; then
+                            _phase=3; [ -n "$_qdbus" ] && "$_qdbus" "$_dlgname" "$_dlgpath" setValue 3 2>/dev/null
+                        fi
+                        _last="$(command grep -v '^[[:space:]]*$' "$BUILD_SH_KDIALOG_LOG" 2>/dev/null | tail -1 | cut -c1-90)"
+                        [ -n "$_qdbus" ] && "$_qdbus" "$_dlgname" "$_dlgpath" setLabelText "$_last" 2>/dev/null
+                    fi
+                    sleep 2
+                done
+                [ -n "$_qdbus" ] && "$_qdbus" "$_dlgname" "$_dlgpath" close 2>/dev/null
+            ) & disown
+        fi
+
+        exec env BUILD_SH_KONSOLE_WRAPPED=1 LOG_FILE="${BUILD_SH_KDIALOG_LOG:-}" \
+            konsole --workdir "$SCRIPT_DIR" --hold -e "$SCRIPT_DIR/build.sh" "$@"
     fi
 
     # ── FREEZE-SAFE ISOLATION (2026-07-10 v3.1) ──────────────────────────────
