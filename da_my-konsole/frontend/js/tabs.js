@@ -23,7 +23,7 @@ const Tabs = {
       if (e.target.classList.contains("tab-close")) { this.close(tabId); return; }
       this.activate(tabId);
     });
-    document.getElementById("tabstrip").appendChild(tabEl);
+    document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
     this.tabs.set(tabId, { rootEl, tabEl, profile });
     this.order.push(tabId);
@@ -50,7 +50,7 @@ const Tabs = {
       if (e.target.classList.contains("tab-close")) { this.close(tabId); return; }
       this.activate(tabId);
     });
-    document.getElementById("tabstrip").appendChild(tabEl);
+    document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
     this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true });
     this.order.push(tabId);
@@ -126,7 +126,7 @@ const Tabs = {
     const firstIdx = this.order.findIndex((id) => this.tabs.get(id)?.profile === this.activeProfile);
     this.order = this.order.filter((id) => this.tabs.get(id)?.profile !== this.activeProfile);
     this.order.splice(firstIdx, 0, ...group);
-    const strip = document.getElementById("tabstrip");
-    group.forEach((id) => strip.appendChild(this.tabs.get(id).tabEl));
+    const strip = document.getElementById("tabstrip"), btn = document.getElementById("btn-newtab");
+    group.forEach((id) => strip.insertBefore(this.tabs.get(id).tabEl, btn));
   },
 };

@@ -73,6 +73,8 @@
 
   // Buttons + find bar
   document.getElementById("btn-newtab").addEventListener("click", () => Tabs.newTab());
+  document.getElementById("btn-sidebar").addEventListener("click", () =>
+    document.getElementById("sidebar").classList.toggle("hidden"));
   document.getElementById("find-next").addEventListener("click", () => Find.next());
   document.getElementById("find-prev").addEventListener("click", () => Find.prev());
   document.getElementById("find-close").addEventListener("click", () => Find.close());
