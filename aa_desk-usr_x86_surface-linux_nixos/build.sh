@@ -1601,7 +1601,11 @@ ghcr_pull_layered() {
     # streaming text (Pulling fs layer / Downloading [==>] N/M / Pull
     # complete) — real byte-level verbosity that lands in the log AND stays
     # visible in the konsole window.
-    docker pull "$img" 2>&1 | cat
+    # `cat` itself block-buffers (~4K) when its own stdout is a pipe rather
+    # than a terminal, so early per-layer lines sat invisible until the
+    # buffer filled or the pull finished. stdbuf -oL forces line buffering
+    # through the pipe so each line lands in the log/window as it's printed.
+    docker pull "$img" 2>&1 | stdbuf -oL cat
     [ "${PIPESTATUS[0]}" -eq 0 ] || { warn "GHCR image unavailable — falling back to nar.zst"; return 1; }
 
     local tmp="system-cache-extract-$$"
