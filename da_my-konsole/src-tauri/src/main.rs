@@ -165,12 +165,37 @@ fn get_profiles(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({ "profiles": [] }))
 }
 
+#[derive(serde::Serialize)]
+struct FsEntry { name: String, is_dir: bool }
+
+// Lists one directory (yazi-style miller columns read one level at a time).
+// Not gated by Tauri's fs-plugin ACL — plain std::fs in a native command.
+#[tauri::command]
+fn fs_list_dir(path: String) -> Result<Vec<FsEntry>, String> {
+    let expanded = if let Some(rest) = path.strip_prefix('~') {
+        let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+        format!("{home}{rest}")
+    } else {
+        path
+    };
+    let mut entries: Vec<FsEntry> = std::fs::read_dir(&expanded)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter_map(|e| {
+            let is_dir = e.file_type().ok()?.is_dir();
+            Some(FsEntry { name: e.file_name().to_string_lossy().into_owned(), is_dir })
+        })
+        .collect();
+    entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+    Ok(entries)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(Ptys::default())
         .invoke_handler(tauri::generate_handler![
-            pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config
+            pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config, fs_list_dir
         ])
         .run(tauri::generate_context!())
         .expect("error while running my-konsole");

@@ -13,6 +13,8 @@
     profiles = res.profiles || [];
   } catch (e) { console.error("get_profiles failed", e); }
   if (profiles.length === 0) profiles = [{ name: "default", display_name: "Shell", sections: [] }];
+  Palette.profiles = profiles;
+  Palette.runItem = runItem;
 
   // Top-nav pills
   const nav = document.getElementById("profiles");
@@ -89,5 +91,6 @@
   buildSections(current);
   Tabs.activeProfile = current.name;
   if (current.browser) Tabs.openBrowserTab(current.url, current.name);
+  else if (current.filebrowser) Tabs.openFileBrowserTab(current.start_path || "~", current.name);
   else await Tabs.newTab(current.name);
 })();
