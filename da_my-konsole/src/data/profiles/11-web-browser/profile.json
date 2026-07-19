@@ -1,0 +1,8 @@
+{
+  "name": "web-browser",
+  "display_name": "Web Browser",
+  "browser": true,
+  "url": "http://localhost:8000",
+  "theme": { "accent": "#e94d3d" },
+  "sections": []
+}
