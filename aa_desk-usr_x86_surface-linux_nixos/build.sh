@@ -1592,7 +1592,14 @@ ghcr_pull_layered() {
     local img="$1"
     command -v docker >/dev/null 2>&1 || return 1
     log "Trying layered GHCR pull: $img …"
-    docker pull "$img" >/dev/null 2>&1 || { warn "GHCR image unavailable — falling back to nar.zst"; return 1; }
+    # BUG FIX 2026-07-19: this used to redirect docker pull's entire output
+    # to /dev/null, so the konsole window showed nothing for the whole pull
+    # (looked frozen even though it was transferring real bytes). docker's
+    # CLI auto-detects a non-TTY stdout and switches from the interactive
+    # \r-updating bar to classic per-layer streaming lines (Pulling fs layer /
+    # Downloading [==>] N/M / Pull complete) — exactly the byte-level
+    # verbosity we want in the log. Let it flow straight through.
+    docker pull "$img" || { warn "GHCR image unavailable — falling back to nar.zst"; return 1; }
 
     local tmp="system-cache-extract-$$"
     docker create --name "$tmp" "$img" >/dev/null 2>&1 || { warn "docker create failed — falling back to nar.zst"; return 1; }
