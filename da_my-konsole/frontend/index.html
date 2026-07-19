@@ -14,7 +14,23 @@
     <div id="brand">my-konsole</div>
     <nav id="profiles"><!-- .profile-pill per profile (boot.js) --></nav>
     <div id="topnav-spacer"></div>
+    <div id="menu-wrap">
+      <button id="btn-menu" title="Menu">⋮</button>
+      <div id="menu-dropdown" hidden>
+        <div class="menu-item" id="menu-restore-session">Restore Last Session</div>
+        <div class="menu-item" id="menu-about">About</div>
+      </div>
+    </div>
   </header>
+
+  <!-- About dialog -->
+  <div id="about" hidden>
+    <div id="about-box">
+      <h2>my-konsole</h2>
+      <div id="about-body"></div>
+      <button id="about-close">Close</button>
+    </div>
+  </div>
 
   <div id="body">
     <!-- Left: search + per-profile command sections -->

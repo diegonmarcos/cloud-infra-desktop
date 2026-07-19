@@ -85,6 +85,24 @@
     if (e.key === "Escape") Find.close();
   });
   window.addEventListener("resize", () => { if (Tabs.active) MYK._fitTab(Tabs.active); });
+  window.addEventListener("beforeunload", () => Tabs.saveSession());
+
+  // Global menu (top-right ⋮): restore session, about
+  const menuBtn = document.getElementById("btn-menu");
+  const menuDrop = document.getElementById("menu-dropdown");
+  menuBtn.addEventListener("click", (e) => { e.stopPropagation(); menuDrop.hidden = !menuDrop.hidden; });
+  document.addEventListener("click", () => { menuDrop.hidden = true; });
+
+  document.getElementById("menu-restore-session").addEventListener("click", () => Tabs.restoreSession());
+  document.getElementById("menu-about").addEventListener("click", async () => {
+    let appVersion = "unknown", tauriVersion = "unknown";
+    try { appVersion = await window.__TAURI__.app.getVersion(); } catch {}
+    try { tauriVersion = await window.__TAURI__.app.getTauriVersion(); } catch {}
+    document.getElementById("about-body").textContent =
+      `Version: ${appVersion}\nTauri: ${tauriVersion}\nProfiles loaded: ${profiles.length}\nTabs open: ${Tabs.tabs.size}`;
+    document.getElementById("about").hidden = false;
+  });
+  document.getElementById("about-close").addEventListener("click", () => { document.getElementById("about").hidden = true; });
 
   // First profile + its first tab (one pane, or a browser tab)
   current = profiles[0];

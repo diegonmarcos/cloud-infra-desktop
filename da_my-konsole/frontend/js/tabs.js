@@ -145,6 +145,30 @@ const Tabs = {
     if (this.active === tabId) this.activate(remaining[remaining.length - 1]);
   },
 
+  // ── Session snapshot: dump {profile, kind, url/startPath} per tab to
+  // localStorage. No cwd tracking for shell tabs — restoring just opens a
+  // fresh shell in that profile (ponytail: good enough, not a full state dump).
+  saveSession() {
+    const snap = this.order.map((id) => {
+      const t = this.tabs.get(id);
+      if (t.isBrowser) return { profile: t.profile, kind: "browser", url: t.rootEl.querySelector(".browser-addr-input")?.value };
+      if (t.isFileBrowser) return { profile: t.profile, kind: "filebrowser", startPath: t.rootEl.querySelector(".fb-addr-input")?.value };
+      return { profile: t.profile, kind: "shell" };
+    });
+    localStorage.setItem("myk-session", JSON.stringify(snap));
+  },
+
+  async restoreSession() {
+    let snap;
+    try { snap = JSON.parse(localStorage.getItem("myk-session") || "[]"); } catch { snap = []; }
+    if (snap.length === 0) return;
+    for (const t of snap) {
+      if (t.kind === "browser") this.openBrowserTab(t.url, t.profile);
+      else if (t.kind === "filebrowser") this.openFileBrowserTab(t.startPath || "~", t.profile);
+      else await this.newTab(t.profile);
+    }
+  },
+
   next() { this._step(+1); },
   prev() { this._step(-1); },
   _group() { return this.order.filter((id) => this.tabs.get(id)?.profile === this.activeProfile); },
