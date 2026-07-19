@@ -122,6 +122,34 @@ ${ERUDA_SCRIPT}
 </body></html>`;
 }
 
+// ── SvelteKit adapter-static SPA fallback ──────────────────────────────────
+// adapter-static's `fallback: '200.html'` is the standard marker a custom
+// Node server is expected to serve for any route path that isn't a real
+// file — SvelteKit's own client router then takes over from
+// location.pathname. See https://svelte.dev/docs/kit/single-page-apps.
+// Walk up from the 404'd path to find the nearest project dir (marked by
+// containing a 200.html) — this lets ANY prerendered SvelteKit project
+// under $ROOT get correct SPA fallback with zero per-project config.
+async function findAncestorFallback(rootFsDir, urlPath) {
+  let dir = urlPath.replace(/\/[^/]*$/, '') || '/';
+  while (true) {
+    const candidate = join(rootFsDir, dir, '200.html');
+    if (await stat(candidate).catch(() => null)) return { fallbackPath: candidate, projectUrlDir: dir };
+    if (dir === '/' || dir === '') return null;
+    dir = dir.replace(/\/[^/]*$/, '') || '/';
+  }
+}
+
+// adapter-static's 200.html always emits ROOT-ABSOLUTE asset paths
+// (href="/_app/...") regardless of `paths.relative`, because it must work
+// for any unknown route depth. Since this server hosts many projects under
+// one root, root-absolute paths resolve against the WRONG (server) root —
+// rewrite them to be absolute from the project's own mount directory.
+function rewriteFallbackAbsolutePaths(html, projectUrlDir) {
+  if (projectUrlDir === '/' || projectUrlDir === '') return html; // already at server root
+  return html.replace(/(href|src)="\/(?!\/)/g, `$1="${projectUrlDir}/`);
+}
+
 function breadcrumb(urlPath) {
   const parts = urlPath.split('/').filter(Boolean);
   let crumbs = '<a href="/">~</a>';
@@ -496,10 +524,28 @@ const server = createServer(async (req, res) => {
       return res.end(data);
     }
 
-    const fsPath = join(ROOT, urlPath);
-    const info = await stat(fsPath).catch(() => null);
+    let fsPath = join(ROOT, urlPath);
+    let info = await stat(fsPath).catch(() => null);
+
+    // SvelteKit route paths have no extension (e.g. /scene/demo-day) but
+    // prerender to a sibling .html file (scene/demo-day.html) — try that
+    // before falling back to the SPA shell.
+    if (!info && extname(fsPath) === '') {
+      const htmlCandidate = `${fsPath}.html`;
+      const htmlInfo = await stat(htmlCandidate).catch(() => null);
+      if (htmlInfo) { fsPath = htmlCandidate; info = htmlInfo; }
+    }
 
     if (!info) {
+      const fallback = await findAncestorFallback(ROOT, urlPath);
+      if (fallback) {
+        const html = await readFile(fallback.fallbackPath, 'utf8');
+        const rewritten = rewriteFallbackAbsolutePaths(html, fallback.projectUrlDir)
+          .replace(/<\/body>/i, `${ERUDA_SCRIPT}</body>`);
+        ctx.render = 'spa-fallback'; ctx.note = `200.html @ ${fallback.projectUrlDir}`;
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        return res.end(rewritten);
+      }
       ctx.render = 'notfound'; ctx.note = `path missing: ${fsPath}`;
       res.writeHead(404, { 'content-type': 'text/plain' });
       return res.end('Not found');
@@ -629,6 +675,8 @@ function startupBanner() {
     `  ${C.bold}routes${C.reset}`,
     `    ${C.cyan}/${C.reset}                                  serve files from ${C.dim}\$ROOT${C.reset}`,
     `    ${C.cyan}/<dir>/${C.reset}                            index.html if present, else SPA browse`,
+    `    ${C.cyan}/<route-no-ext>${C.reset}                    <route>.html if present (SvelteKit prerender)`,
+    `    ${C.cyan}/<unmatched-under-project>${C.reset}         nearest ancestor 200.html (SvelteKit SPA fallback)`,
     `    ${C.cyan}/<file>.{json,yaml,yml,secrets}${C.reset}    structured HTML render`,
     `    ${C.cyan}/<file>.md${C.reset}                         marked.js render`,
     `    ${C.cyan}/<file>?raw${C.reset}                        plain text passthrough`,
