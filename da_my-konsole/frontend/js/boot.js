@@ -29,6 +29,7 @@
     for (const el of document.querySelectorAll(".profile-pill")) el.classList.remove("active");
     pill.classList.add("active");
     buildSections(p);
+    Tabs.switchProfile(p);
   }
 
   // Per-profile command sections
@@ -81,8 +82,10 @@
   });
   window.addEventListener("resize", () => { if (Tabs.active) MYK._fitTab(Tabs.active); });
 
-  // First profile + first tab (one pane)
+  // First profile + its first tab (one pane, or a browser tab)
   current = profiles[0];
   buildSections(current);
-  await Tabs.newTab();
+  Tabs.activeProfile = current.name;
+  if (current.browser) Tabs.openBrowserTab(current.url, current.name);
+  else await Tabs.newTab(current.name);
 })();
