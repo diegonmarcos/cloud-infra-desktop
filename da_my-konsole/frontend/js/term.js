@@ -35,6 +35,11 @@ const MYK = {
     term.open(host);
     this._bindKeys(term, id);
     host.addEventListener("mousedown", () => this.focusPane(id));
+    host.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      this.focusPane(id);
+      this.showPaneMenu(e.clientX, e.clientY);
+    });
 
     term.onData((d) => invoke("pty_write", { id, data: d }));
     term.onResize(({ cols, rows }) => invoke("pty_resize", { id, cols, rows }));
@@ -56,8 +61,9 @@ const MYK = {
     p.fit.fit(); p.term.focus();
   },
 
-  // ── Split the active pane. dir: "row" = left/right, "col" = top/bottom ──
-  async split(dir) {
+  // ── Split the active pane. dir: "row" = left/right, "col" = top/bottom.
+  // before: new pane goes before the current one (left/up) instead of after (right/down).
+  async split(dir, before = false) {
     const p = this.panes.get(this.activePane);
     if (!p) return;
     const host = p.host, parent = host.parentNode;
@@ -66,8 +72,36 @@ const MYK = {
     parent.replaceChild(wrap, host);
     wrap.appendChild(host);
     const nid = await this.makePane(p.tabId, wrap);
+    if (before) wrap.insertBefore(this.panes.get(nid).host, host);
     this._fitTab(p.tabId);
     this.focusPane(nid);
+  },
+
+  // ── Right-click pane menu: split in any of 4 directions, or close pane ──
+  showPaneMenu(x, y) {
+    document.getElementById("pane-menu")?.remove();
+    const menu = document.createElement("div");
+    menu.id = "pane-menu";
+    const items = [
+      ["Split Right", () => this.split("row", false)],
+      ["Split Left", () => this.split("row", true)],
+      ["Split Down", () => this.split("col", false)],
+      ["Split Up", () => this.split("col", true)],
+      ["Close Pane", () => this.closeView()],
+    ];
+    for (const [label, fn] of items) {
+      const it = document.createElement("div");
+      it.className = "pane-menu-item";
+      it.textContent = label;
+      it.addEventListener("click", () => { menu.remove(); fn(); });
+      menu.appendChild(it);
+    }
+    document.body.appendChild(menu);
+    const r = menu.getBoundingClientRect();
+    menu.style.left = Math.min(x, window.innerWidth - r.width - 4) + "px";
+    menu.style.top = Math.min(y, window.innerHeight - r.height - 4) + "px";
+    const closeOnce = (e) => { if (!menu.contains(e.target)) menu.remove(); };
+    setTimeout(() => document.addEventListener("mousedown", closeOnce, { once: true }), 0);
   },
 
   // ── Close the active view (pane). Unwraps the split; closes tab if last. ──

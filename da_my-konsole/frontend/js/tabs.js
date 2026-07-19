@@ -33,15 +33,29 @@ const Tabs = {
     return tabId;
   },
 
-  // ── Browser tab: single iframe, no PTY. Reuses the OS webview engine
-  // (WebKitGTK) — no bundled Chromium, no extra deps. One per profile.
+  // ── Browser tab: iframe + editable address bar, no PTY. Reuses the OS
+  // webview engine (WebKitGTK) — no bundled Chromium, no extra deps.
   openBrowserTab(url, profile = this.activeProfile) {
     const tabId = "T" + ++this.seq;
     const rootEl = document.createElement("div");
     rootEl.className = "tab-root";
     rootEl.dataset.id = tabId;
-    rootEl.innerHTML = `<iframe class="browser-frame" src="${url}"></iframe>`;
+    rootEl.innerHTML = `
+      <div class="browser-wrap">
+        <div class="browser-addr"><input class="browser-addr-input" type="text" spellcheck="false" value="${url}" /></div>
+        <iframe class="browser-frame" src="${url}"></iframe>
+      </div>`;
     document.getElementById("terms").appendChild(rootEl);
+
+    const addr = rootEl.querySelector(".browser-addr-input");
+    const frame = rootEl.querySelector(".browser-frame");
+    addr.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      let v = addr.value.trim();
+      if (!/^[a-z]+:\/\//i.test(v)) v = "http://" + v;
+      addr.value = v;
+      frame.src = v;
+    });
 
     const tabEl = document.createElement("div");
     tabEl.className = "tab"; tabEl.dataset.id = tabId;
@@ -53,6 +67,30 @@ const Tabs = {
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
     this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true });
+    this.order.push(tabId);
+    this.activate(tabId);
+    return tabId;
+  },
+
+  // ── File browser tab: yazi-style miller columns, no PTY.
+  openFileBrowserTab(startPath, profile = this.activeProfile) {
+    const tabId = "T" + ++this.seq;
+    const rootEl = document.createElement("div");
+    rootEl.className = "tab-root";
+    rootEl.dataset.id = tabId;
+    document.getElementById("terms").appendChild(rootEl);
+    FileBrowser.mount(rootEl, startPath);
+
+    const tabEl = document.createElement("div");
+    tabEl.className = "tab"; tabEl.dataset.id = tabId;
+    tabEl.innerHTML = `<span class="tab-title">Files</span><span class="tab-close">✕</span>`;
+    tabEl.addEventListener("click", (e) => {
+      if (e.target.classList.contains("tab-close")) { this.close(tabId); return; }
+      this.activate(tabId);
+    });
+    document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
+
+    this.tabs.set(tabId, { rootEl, tabEl, profile, isFileBrowser: true });
     this.order.push(tabId);
     this.activate(tabId);
     return tabId;
@@ -84,6 +122,7 @@ const Tabs = {
     const last = this.lastActiveByProfile.get(name);
     if (last && this.tabs.has(last)) { this.activate(last); return; }
     if (p.browser) this.openBrowserTab(p.url, name);
+    else if (p.filebrowser) this.openFileBrowserTab(p.start_path || "~", name);
     else this.newTab(name);
   },
 

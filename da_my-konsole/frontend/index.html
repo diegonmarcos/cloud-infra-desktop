@@ -40,11 +40,19 @@
     </main>
   </div>
 
+  <!-- Vim-style ":" command palette — searches commands across ALL profiles -->
+  <div id="palette" hidden>
+    <input id="palette-input" type="text" spellcheck="false" autocomplete="off" />
+    <div id="palette-results"></div>
+  </div>
+
   <script src="vendor/xterm.js"></script>
   <script src="vendor/xterm-addon-fit.js"></script>
   <script src="vendor/xterm-addon-search.js"></script>
   <script src="js/term.js"></script>
+  <script src="js/filebrowser.js"></script>
   <script src="js/tabs.js"></script>
+  <script src="js/palette.js"></script>
   <script src="js/boot.js"></script>
 </body>
 </html>
