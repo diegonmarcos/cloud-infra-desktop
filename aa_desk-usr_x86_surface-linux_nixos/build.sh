@@ -1872,12 +1872,21 @@ if [ $# -gt 0 ]; then
             export BUILD_SH_KDIALOG_LOG="$LOG_DIR/build-konsole-$(date +%Y%m%d-%H%M%S).log"
             mkdir -p "$LOG_DIR"
             : > "$BUILD_SH_KDIALOG_LOG"
+            # BUG FIX 2026-07-19: env-var assignments (BUILD_SH_KONSOLE_WRAPPED=1)
+            # are NOT part of a process's argv/cmdline, so `pgrep -f
+            # "BUILD_SH_KONSOLE_WRAPPED=1.*konsole"` never matched anything —
+            # the watch loop ran zero iterations and the dialog closed
+            # instantly with no visible progress. `exec` replaces the process
+            # image but keeps the PID, so $$ captured HERE (still the
+            # pre-exec shell) is exactly the PID that becomes konsole right
+            # after — track liveness with `kill -0` on that PID instead.
+            _watch_pid=$$
             (
                 _dlgsvc="$(kdialog --title "NixOS — $cli_cmd" --progressbar "Starting…" 4 2>/dev/null)" || _dlgsvc=""
                 _dlgname="${_dlgsvc%% *}"; _dlgpath="${_dlgsvc##* }"
                 [ -z "$_dlgname" ] && exit 0
                 _phase=0
-                while command pgrep -f "BUILD_SH_KONSOLE_WRAPPED=1.*konsole" >/dev/null 2>&1; do
+                while kill -0 "$_watch_pid" 2>/dev/null; do
                     if [ -f "$BUILD_SH_KDIALOG_LOG" ]; then
                         if command grep -qiE 'evaluating|fetching' "$BUILD_SH_KDIALOG_LOG" 2>/dev/null && [ $_phase -lt 1 ]; then
                             _phase=1; [ -n "$_qdbus" ] && "$_qdbus" "$_dlgname" "$_dlgpath" setValue 1 2>/dev/null
