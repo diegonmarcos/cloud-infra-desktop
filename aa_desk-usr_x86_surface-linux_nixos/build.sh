@@ -1594,12 +1594,15 @@ ghcr_pull_layered() {
     log "Trying layered GHCR pull: $img …"
     # BUG FIX 2026-07-19: this used to redirect docker pull's entire output
     # to /dev/null, so the konsole window showed nothing for the whole pull
-    # (looked frozen even though it was transferring real bytes). docker's
-    # CLI auto-detects a non-TTY stdout and switches from the interactive
-    # \r-updating bar to classic per-layer streaming lines (Pulling fs layer /
-    # Downloading [==>] N/M / Pull complete) — exactly the byte-level
-    # verbosity we want in the log. Let it flow straight through.
-    docker pull "$img" || { warn "GHCR image unavailable — falling back to nar.zst"; return 1; }
+    # (looked frozen even though it was transferring real bytes). Piping
+    # through `cat` forces docker's isatty() check to fail, which switches it
+    # from the interactive \r-overwriting bar (invisible to grep/log files,
+    # only visible live on a real terminal) to classic one-line-per-layer
+    # streaming text (Pulling fs layer / Downloading [==>] N/M / Pull
+    # complete) — real byte-level verbosity that lands in the log AND stays
+    # visible in the konsole window.
+    docker pull "$img" 2>&1 | cat
+    [ "${PIPESTATUS[0]}" -eq 0 ] || { warn "GHCR image unavailable — falling back to nar.zst"; return 1; }
 
     local tmp="system-cache-extract-$$"
     docker create --name "$tmp" "$img" >/dev/null 2>&1 || { warn "docker create failed — falling back to nar.zst"; return 1; }
@@ -1950,6 +1953,7 @@ if [ $# -gt 0 ]; then
                         --uid="$(id -u)" --gid="$(id -g)" --wait --collect --quiet \
                         -p MemoryHigh="$_iso_mm" -p MemoryMax="$_iso_mm" -p MemorySwapMax="$_iso_sm" \
                         --setenv=SWITCH_ISOLATED=1 --setenv=HOME="$HOME" --setenv=PATH="$PATH" \
+                        --setenv=LOG_FILE="$LOG_FILE" \
                         --working-directory="$SCRIPT_DIR" \
                         "$0" "$@"
                     _iso_rc=$?
