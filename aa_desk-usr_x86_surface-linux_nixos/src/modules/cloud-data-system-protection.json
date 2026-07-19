@@ -17,9 +17,11 @@
   },
 
   "konsole_wrap": {
-    "_comment": "2026-07-18 — every interactive switch/pull MUST show visible, live progress: Diego was repeatedly blindsided by build.sh running headless with no popup/progress bar/terminal he could see (multiple incidents same day). Declarative, automatic, engine-level fix (not an ad-hoc manual konsole wrap): the FIRST time an interactive command runs and a desktop session is present, build.sh self-relaunches itself inside `konsole --hold` so there is ALWAYS a visible terminal streaming real output. Guarded by BUILD_SH_KONSOLE_WRAPPED=1 to stop infinite re-exec (same pattern as SWITCH_ISOLATED). Never fires in CI (GITHUB_ACTIONS=true) or when no desktop session is present (DISPLAY/DBUS unset) — falls through to plain execution.",
+    "_comment": "2026-07-18/19 — every interactive switch/pull MUST show visible, live progress: Diego was repeatedly blindsided by build.sh running headless with no popup/progress bar/terminal he could see (multiple incidents same day). Declarative, automatic, engine-level fix (not an ad-hoc manual konsole wrap): the FIRST time an interactive command runs and a desktop session is present, build.sh self-relaunches itself inside `konsole --hold` so there is ALWAYS a visible terminal streaming real output, PLUS a notify-send alert AND a kdialog progress bar fire immediately (three requirements, one data-driven block). Guarded by BUILD_SH_KONSOLE_WRAPPED=1 to stop infinite re-exec (same pattern as SWITCH_ISOLATED). Never fires in CI (GITHUB_ACTIONS=true) or when no desktop session is present (DISPLAY/DBUS unset) — falls through to plain execution. 2026-07-19 BUG FIX: the original exec used bare \"$0\" with no --workdir; konsole -e resolves relative paths against ITS OWN default cwd (not the caller's), so a relative invocation (./build.sh) died instantly inside konsole with zero output — looked like a hang, was actually a crash on line 1 of the re-exec. Fixed by resolving to $SCRIPT_DIR/build.sh + passing --workdir explicitly.",
     "enable": true,
-    "commands": ["switch", "s", "pull", "switch-remote"]
+    "commands": ["switch", "s", "pull", "switch-remote"],
+    "notify_send": true,
+    "kdialog_progress": true
   },
 
   "rescue_port": 2200,
