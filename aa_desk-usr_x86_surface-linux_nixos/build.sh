@@ -1668,6 +1668,20 @@ pull_remote() {
         warn "GHCR unreachable — using LOCAL pointer ($art/toplevel.name), which may be STALE"
     fi
 
+    # ── Skip entirely if this store path is already the active generation ──
+    # Comparing store-path hashes (nix store paths ARE content hashes) tells
+    # us with certainty whether a switch is needed BEFORE spending 7GB/49min
+    # pulling a closure we already have active. 2026-07-19 bug: a full pull
+    # ran to completion, activated cleanly, and generation never advanced
+    # because $sys was byte-identical to the already-current gen — wasted
+    # the whole cycle. `readlink -f` resolves the profile symlink chain to
+    # the real store path for a direct string compare against $sys.
+    local _active; _active="$(readlink -f /nix/var/nix/profiles/system)"
+    if [ -n "$sys" ] && [ "$sys" = "$_active" ]; then
+        log "Target closure $sys is already the active generation — nothing to switch. Skipping pull+activate entirely."
+        return 0
+    fi
+
     # ── Try GHCR-layered pull first (incremental) ────────────────────────
     if [ -n "$sys" ] && [ -d "$sys" ]; then
         log "$sys already present locally — skipping pull entirely."
