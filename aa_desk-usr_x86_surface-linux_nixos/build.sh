@@ -1651,7 +1651,8 @@ pull_remote() {
     # incremental so this is cheap when nothing changed. On any failure
     # (offline, no docker) fall back to the local pointer, loudly.
     local _fresh="" _p
-    if command -v docker >/dev/null 2>&1 && docker pull "$_img" >/dev/null 2>&1; then
+    log "Refreshing toplevel pointer from GHCR (pull is incremental once the layered cache below has run once)…"
+    if command -v docker >/dev/null 2>&1 && docker pull "$_img" 2>&1 | stdbuf -oL cat && [ "${PIPESTATUS[0]}" -eq 0 ]; then
         for _p in $(docker run --rm "$_img" sh -c 'ls /nix/store' 2>/dev/null); do
             case "$_p" in *-nixos-system-surface-*) _fresh="$_p"; break ;; esac
         done
