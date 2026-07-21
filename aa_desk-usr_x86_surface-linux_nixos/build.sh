@@ -1901,42 +1901,25 @@ if [ $# -gt 0 ]; then
 
         if [ "$(jq -r '.konsole_wrap.kdialog_progress // false' "$_sp_json")" = "true" ] \
            && command -v kdialog >/dev/null 2>&1; then
-            _qdbus="$(command -v qdbus6 || command -v qdbus || true)"
             export BUILD_SH_KDIALOG_LOG="$LOG_DIR/build-konsole-$(date +%Y%m%d-%H%M%S).log"
             mkdir -p "$LOG_DIR"
             : > "$BUILD_SH_KDIALOG_LOG"
-            # BUG FIX 2026-07-19: env-var assignments (BUILD_SH_KONSOLE_WRAPPED=1)
-            # are NOT part of a process's argv/cmdline, so `pgrep -f
-            # "BUILD_SH_KONSOLE_WRAPPED=1.*konsole"` never matched anything —
-            # the watch loop ran zero iterations and the dialog closed
-            # instantly with no visible progress. `exec` replaces the process
-            # image but keeps the PID, so $$ captured HERE (still the
-            # pre-exec shell) is exactly the PID that becomes konsole right
-            # after — track liveness with `kill -0` on that PID instead.
+            # 2026-07-21: the old inline watcher was a lazy 4-step bar with no
+            # data (just setValue 1/2/3 + last log line). Replaced by
+            # src/scripts/switch-progress.sh — a real dialog showing overall %,
+            # current stage + per-stage fill, layers done/total (from the image
+            # manifest), elapsed, layers/min rate, ETA, and downloaded GB. It
+            # parses BUILD_SH_KDIALOG_LOG live and tracks liveness via `kill -0`
+            # on $$ (captured pre-exec — `exec` keeps the PID, so this shell IS
+            # the konsole that runs the switch). Backgrounded + disowned so it
+            # never blocks the exec below.
             _watch_pid=$$
-            (
-                _dlgsvc="$(kdialog --title "NixOS — $cli_cmd" --progressbar "Starting…" 4 2>/dev/null)" || _dlgsvc=""
-                _dlgname="${_dlgsvc%% *}"; _dlgpath="${_dlgsvc##* }"
-                [ -z "$_dlgname" ] && exit 0
-                _phase=0
-                while kill -0 "$_watch_pid" 2>/dev/null; do
-                    if [ -f "$BUILD_SH_KDIALOG_LOG" ]; then
-                        if command grep -qiE 'evaluating|fetching' "$BUILD_SH_KDIALOG_LOG" 2>/dev/null && [ $_phase -lt 1 ]; then
-                            _phase=1; [ -n "$_qdbus" ] && "$_qdbus" "$_dlgname" "$_dlgpath" setValue 1 2>/dev/null
-                        fi
-                        if command grep -qE 'building|copying|importing' "$BUILD_SH_KDIALOG_LOG" 2>/dev/null && [ $_phase -lt 2 ]; then
-                            _phase=2; [ -n "$_qdbus" ] && "$_qdbus" "$_dlgname" "$_dlgpath" setValue 2 2>/dev/null
-                        fi
-                        if command grep -qiE 'activating' "$BUILD_SH_KDIALOG_LOG" 2>/dev/null && [ $_phase -lt 3 ]; then
-                            _phase=3; [ -n "$_qdbus" ] && "$_qdbus" "$_dlgname" "$_dlgpath" setValue 3 2>/dev/null
-                        fi
-                        _last="$(command grep -v '^[[:space:]]*$' "$BUILD_SH_KDIALOG_LOG" 2>/dev/null | tail -1 | cut -c1-90)"
-                        [ -n "$_qdbus" ] && "$_qdbus" "$_dlgname" "$_dlgpath" setLabelText "$_last" 2>/dev/null
-                    fi
-                    sleep 2
-                done
-                [ -n "$_qdbus" ] && "$_qdbus" "$_dlgname" "$_dlgpath" close 2>/dev/null
-            ) & disown
+            _prog_img="${SYSTEM_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-system-cache}:latest"
+            _prog_sh="$SCRIPT_DIR/src/scripts/switch-progress.sh"
+            if [ -f "$_prog_sh" ]; then
+                setsid bash "$_prog_sh" "$BUILD_SH_KDIALOG_LOG" "$_prog_img" "$_watch_pid" \
+                    </dev/null >/dev/null 2>&1 & disown
+            fi
         fi
 
         # 2026-07-21 ROOT-CAUSE FIX: the konsole used to run build.sh directly,
