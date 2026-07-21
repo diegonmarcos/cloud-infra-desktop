@@ -151,7 +151,7 @@ const Tabs = {
         row.className = "tabpanel-item" + (id === this.active ? " active" : "");
         row.dataset.id = id;
         row.style.borderLeftColor = g ? this.groupColor(g) : "transparent";
-        row.innerHTML = `<span class="tabpanel-title">${t.tabEl.querySelector(".tab-title").textContent}</span><span class="tab-close">✕</span>`;
+        row.innerHTML = `<span class="tab-icon">${t.icon}</span><span class="tabpanel-title">${t.tabEl.querySelector(".tab-title").textContent}</span><span class="tab-close">✕</span>`;
         row.addEventListener("click", (e) => {
           if (e.target.classList.contains("tab-close")) { this.close(id); return; }
           this.activate(id);
@@ -172,11 +172,11 @@ const Tabs = {
 
     const tabEl = document.createElement("div");
     tabEl.className = "tab"; tabEl.dataset.id = tabId;
-    tabEl.innerHTML = `<span class="tab-title">shell</span><span class="tab-close">✕</span>`;
+    tabEl.innerHTML = `<span class="tab-icon">💻</span><span class="tab-title">shell</span><span class="tab-close">✕</span>`;
     this._wireTabEl(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
-    this.tabs.set(tabId, { rootEl, tabEl, profile, group: null });
+    this.tabs.set(tabId, { rootEl, tabEl, profile, icon: "💻", group: null });
     this.order.push(tabId);
     const paneId = await MYK.makePane(tabId, rootEl);
     this.activate(tabId);
@@ -210,11 +210,11 @@ const Tabs = {
 
     const tabEl = document.createElement("div");
     tabEl.className = "tab"; tabEl.dataset.id = tabId;
-    tabEl.innerHTML = `<span class="tab-title">Browser</span><span class="tab-close">✕</span>`;
+    tabEl.innerHTML = `<span class="tab-icon">🌐</span><span class="tab-title">Browser</span><span class="tab-close">✕</span>`;
     this._wireTabEl(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
-    this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true, group: null });
+    this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true, icon: "🌐", group: null });
     this.order.push(tabId);
     this.activate(tabId);
     return tabId;
@@ -231,11 +231,11 @@ const Tabs = {
 
     const tabEl = document.createElement("div");
     tabEl.className = "tab"; tabEl.dataset.id = tabId;
-    tabEl.innerHTML = `<span class="tab-title">Files</span><span class="tab-close">✕</span>`;
+    tabEl.innerHTML = `<span class="tab-icon">📁</span><span class="tab-title">Files</span><span class="tab-close">✕</span>`;
     this._wireTabEl(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
-    this.tabs.set(tabId, { rootEl, tabEl, profile, isFileBrowser: true, group: null });
+    this.tabs.set(tabId, { rootEl, tabEl, profile, isFileBrowser: true, icon: "📁", group: null });
     this.order.push(tabId);
     this.activate(tabId);
     return tabId;
