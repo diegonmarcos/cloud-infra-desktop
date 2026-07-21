@@ -9,6 +9,43 @@ const Tabs = {
   lastActiveByProfile: new Map(),
   seq: 0,
 
+  // ── Drag-to-reorder (Konsole-style): click-hold + drag a tab to move it.
+  // Native HTML5 DnD — no library. Drop target picks left/right half of the
+  // hovered tab to decide before/after; reorderTo() rebuilds this.order + DOM.
+  _bindDrag(tabEl, tabId) {
+    tabEl.draggable = true;
+    tabEl.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", tabId);
+      e.dataTransfer.effectAllowed = "move";
+      tabEl.classList.add("dragging");
+    });
+    tabEl.addEventListener("dragend", () => tabEl.classList.remove("dragging"));
+    tabEl.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      const after = e.clientX - tabEl.getBoundingClientRect().left > tabEl.offsetWidth / 2;
+      tabEl.classList.toggle("drag-over-after", after);
+      tabEl.classList.toggle("drag-over-before", !after);
+    });
+    tabEl.addEventListener("dragleave", () => tabEl.classList.remove("drag-over-after", "drag-over-before"));
+    tabEl.addEventListener("drop", (e) => {
+      e.preventDefault();
+      tabEl.classList.remove("drag-over-after", "drag-over-before");
+      const draggedId = e.dataTransfer.getData("text/plain");
+      const after = e.clientX - tabEl.getBoundingClientRect().left > tabEl.offsetWidth / 2;
+      this.reorderTo(draggedId, tabId, after);
+    });
+  },
+
+  reorderTo(draggedId, targetId, after) {
+    if (draggedId === targetId || !this.tabs.has(draggedId) || !this.tabs.has(targetId)) return;
+    this.order = this.order.filter((id) => id !== draggedId);
+    let idx = this.order.indexOf(targetId);
+    if (after) idx++;
+    this.order.splice(idx, 0, draggedId);
+    const strip = document.getElementById("tabstrip"), btn = document.getElementById("btn-newtab");
+    for (const id of this.order) strip.insertBefore(this.tabs.get(id).tabEl, btn);
+  },
+
   async newTab(profile = this.activeProfile) {
     const tabId = "T" + ++this.seq;
     const rootEl = document.createElement("div");
@@ -23,6 +60,7 @@ const Tabs = {
       if (e.target.classList.contains("tab-close")) { this.close(tabId); return; }
       this.activate(tabId);
     });
+    this._bindDrag(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
     this.tabs.set(tabId, { rootEl, tabEl, profile });
@@ -64,6 +102,7 @@ const Tabs = {
       if (e.target.classList.contains("tab-close")) { this.close(tabId); return; }
       this.activate(tabId);
     });
+    this._bindDrag(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
     this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true });
@@ -88,6 +127,7 @@ const Tabs = {
       if (e.target.classList.contains("tab-close")) { this.close(tabId); return; }
       this.activate(tabId);
     });
+    this._bindDrag(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
     this.tabs.set(tabId, { rootEl, tabEl, profile, isFileBrowser: true });
