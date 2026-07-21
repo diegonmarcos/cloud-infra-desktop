@@ -89,6 +89,9 @@ body { display: flex; flex-direction: column; }
 .tab .tab-title { overflow: hidden; text-overflow: ellipsis; }
 .tab .tab-close { opacity: .6; }
 .tab .tab-close:hover { opacity: 1; color: #ed1515; }
+.tab.dragging { opacity: .4; }
+.tab.drag-over-before { box-shadow: inset 2px 0 0 var(--accent); }
+.tab.drag-over-after { box-shadow: inset -2px 0 0 var(--accent); }
 
 #terms { flex: 1; min-height: 0; position: relative; background: var(--bg); }
 /* one .tab-root per tab; holds a split tree */
