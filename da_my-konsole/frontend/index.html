@@ -35,8 +35,15 @@
   <div id="body">
     <!-- Left: search + per-profile command sections -->
     <aside id="sidebar">
-      <input id="search" type="search" placeholder="Search commands…" autocomplete="off" />
-      <div id="sections"><!-- .section per profile.sections[] (boot.js) --></div>
+      <div id="sidebar-toggle">
+        <button class="sidebar-toggle-btn active" data-view="commands">Commands</button>
+        <button class="sidebar-toggle-btn" data-view="tabs">Tabs</button>
+      </div>
+      <div id="commands-panel">
+        <input id="search" type="search" placeholder="Search commands…" autocomplete="off" />
+        <div id="sections"><!-- .section per profile.sections[] (boot.js) --></div>
+      </div>
+      <div id="tabs-panel" hidden><!-- vertical tab list, grouped (tabs.js) --></div>
     </aside>
 
     <!-- Center: tab strip + terminals -->

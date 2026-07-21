@@ -104,6 +104,17 @@
   });
   document.getElementById("about-close").addEventListener("click", () => { document.getElementById("about").hidden = true; });
 
+  // Sidebar view switcher: Commands (search + per-profile items) | Tabs (vertical, grouped)
+  for (const btn of document.querySelectorAll(".sidebar-toggle-btn")) {
+    btn.addEventListener("click", () => {
+      for (const b of document.querySelectorAll(".sidebar-toggle-btn")) b.classList.toggle("active", b === btn);
+      const isTabs = btn.dataset.view === "tabs";
+      document.getElementById("commands-panel").hidden = isTabs;
+      document.getElementById("tabs-panel").hidden = !isTabs;
+      if (isTabs) Tabs.renderTabList();
+    });
+  }
+
   // First profile + its first tab (one pane, or a browser tab)
   current = profiles[0];
   buildSections(current);
