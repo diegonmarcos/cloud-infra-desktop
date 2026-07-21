@@ -10,28 +10,32 @@ const Tabs = {
   seq: 0,
 
   // ── Drag-to-reorder (Konsole-style): click-hold + drag a tab to move it.
-  // Native HTML5 DnD — no library. Drop target picks left/right half of the
-  // hovered tab to decide before/after; reorderTo() rebuilds this.order + DOM.
-  _bindDrag(tabEl, tabId) {
-    tabEl.draggable = true;
-    tabEl.addEventListener("dragstart", (e) => {
+  // Native HTML5 DnD — no library. Works on both the horizontal strip tabEl
+  // and the vertical sidebar row for the same tabId. Drop position (left/right
+  // half for the strip, top/bottom half for the vertical list) decides
+  // before/after; reorderTo() rebuilds this.order + both DOM listings.
+  _bindDrag(el, tabId, vertical = false) {
+    el.draggable = true;
+    el.addEventListener("dragstart", (e) => {
       e.dataTransfer.setData("text/plain", tabId);
       e.dataTransfer.effectAllowed = "move";
-      tabEl.classList.add("dragging");
+      el.classList.add("dragging");
     });
-    tabEl.addEventListener("dragend", () => tabEl.classList.remove("dragging"));
-    tabEl.addEventListener("dragover", (e) => {
+    el.addEventListener("dragend", () => el.classList.remove("dragging"));
+    el.addEventListener("dragover", (e) => {
       e.preventDefault();
-      const after = e.clientX - tabEl.getBoundingClientRect().left > tabEl.offsetWidth / 2;
-      tabEl.classList.toggle("drag-over-after", after);
-      tabEl.classList.toggle("drag-over-before", !after);
+      const r = el.getBoundingClientRect();
+      const after = vertical ? e.clientY - r.top > r.height / 2 : e.clientX - r.left > r.width / 2;
+      el.classList.toggle("drag-over-after", after);
+      el.classList.toggle("drag-over-before", !after);
     });
-    tabEl.addEventListener("dragleave", () => tabEl.classList.remove("drag-over-after", "drag-over-before"));
-    tabEl.addEventListener("drop", (e) => {
+    el.addEventListener("dragleave", () => el.classList.remove("drag-over-after", "drag-over-before"));
+    el.addEventListener("drop", (e) => {
       e.preventDefault();
-      tabEl.classList.remove("drag-over-after", "drag-over-before");
+      el.classList.remove("drag-over-after", "drag-over-before");
       const draggedId = e.dataTransfer.getData("text/plain");
-      const after = e.clientX - tabEl.getBoundingClientRect().left > tabEl.offsetWidth / 2;
+      const r = el.getBoundingClientRect();
+      const after = vertical ? e.clientY - r.top > r.height / 2 : e.clientX - r.left > r.width / 2;
       this.reorderTo(draggedId, tabId, after);
     });
   },
@@ -42,8 +46,121 @@ const Tabs = {
     let idx = this.order.indexOf(targetId);
     if (after) idx++;
     this.order.splice(idx, 0, draggedId);
+    this._syncStripOrder();
+    this.renderTabList();
+  },
+
+  _syncStripOrder() {
     const strip = document.getElementById("tabstrip"), btn = document.getElementById("btn-newtab");
-    for (const id of this.order) strip.insertBefore(this.tabs.get(id).tabEl, btn);
+    for (const id of this.order) if (this.tabs.has(id)) strip.insertBefore(this.tabs.get(id).tabEl, btn);
+  },
+
+  // ── Wire the strip's tabEl: click/close, right-click group menu, drag ──
+  _wireTabEl(tabEl, tabId) {
+    tabEl.addEventListener("click", (e) => {
+      if (e.target.classList.contains("tab-close")) { this.close(tabId); return; }
+      this.activate(tabId);
+    });
+    tabEl.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      this.showTabMenu(tabId, e.clientX, e.clientY);
+    });
+    this._bindDrag(tabEl, tabId);
+  },
+
+  // ── Tab grouping: cluster tabs under a named, color-coded group. Purely
+  // organizational (no isolation) — group tabs sit adjacent in both the
+  // strip and the vertical sidebar list, tagged with a deterministic color.
+  groupColor(name) {
+    if (!name) return "transparent";
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+    return `hsl(${h}, 65%, 55%)`;
+  },
+
+  setGroup(tabId, name) {
+    const t = this.tabs.get(tabId);
+    if (!t) return;
+    t.group = name || null;
+    t.tabEl.style.borderLeftColor = this.groupColor(t.group);
+    if (t.group) {
+      const mates = this.order.filter((id) => id !== tabId && this.tabs.get(id)?.profile === t.profile && this.tabs.get(id)?.group === t.group);
+      if (mates.length) {
+        this.order = this.order.filter((id) => id !== tabId);
+        this.order.splice(this.order.indexOf(mates[mates.length - 1]) + 1, 0, tabId);
+      }
+    }
+    this._syncStripOrder();
+    this.renderTabList();
+  },
+
+  showTabMenu(tabId, x, y) {
+    document.getElementById("tab-menu")?.remove();
+    const t = this.tabs.get(tabId);
+    if (!t) return;
+    const menu = document.createElement("div");
+    menu.id = "tab-menu";
+    const items = [
+      [t.group ? "Rename Group…" : "New Group…", () => {
+        const name = prompt("Group name:", t.group || "");
+        if (name !== null) this.setGroup(tabId, name.trim());
+      }],
+    ];
+    if (t.group) items.push(["Remove from Group", () => this.setGroup(tabId, null)]);
+    items.push(["Close Tab", () => this.close(tabId)]);
+    for (const [label, fn] of items) {
+      const it = document.createElement("div");
+      it.className = "pane-menu-item";
+      it.textContent = label;
+      it.addEventListener("click", () => { menu.remove(); fn(); });
+      menu.appendChild(it);
+    }
+    document.body.appendChild(menu);
+    const r = menu.getBoundingClientRect();
+    menu.style.left = Math.min(x, window.innerWidth - r.width - 4) + "px";
+    menu.style.top = Math.min(y, window.innerHeight - r.height - 4) + "px";
+    const closeOnce = (e) => { if (!menu.contains(e.target)) menu.remove(); };
+    setTimeout(() => document.addEventListener("mousedown", closeOnce, { once: true }), 0);
+  },
+
+  // ── Vertical tab list (sidebar "Tabs" view): current profile's tabs,
+  // clustered by group (ungrouped last), draggable to reorder same as strip.
+  renderTabList() {
+    const host = document.getElementById("tabs-panel");
+    if (!host) return;
+    host.innerHTML = "";
+    const ids = this._group();
+    const byGroup = new Map();
+    for (const id of ids) {
+      const g = this.tabs.get(id)?.group || null;
+      if (!byGroup.has(g)) byGroup.set(g, []);
+      byGroup.get(g).push(id);
+    }
+    const keys = [...byGroup.keys()].sort((a, b) => (a === null) - (b === null));
+    for (const g of keys) {
+      if (g) {
+        const h = document.createElement("div");
+        h.className = "tabpanel-group-title";
+        h.style.borderLeftColor = this.groupColor(g);
+        h.textContent = g;
+        host.appendChild(h);
+      }
+      for (const id of byGroup.get(g)) {
+        const t = this.tabs.get(id);
+        const row = document.createElement("div");
+        row.className = "tabpanel-item" + (id === this.active ? " active" : "");
+        row.dataset.id = id;
+        row.style.borderLeftColor = g ? this.groupColor(g) : "transparent";
+        row.innerHTML = `<span class="tabpanel-title">${t.tabEl.querySelector(".tab-title").textContent}</span><span class="tab-close">✕</span>`;
+        row.addEventListener("click", (e) => {
+          if (e.target.classList.contains("tab-close")) { this.close(id); return; }
+          this.activate(id);
+        });
+        row.addEventListener("contextmenu", (e) => { e.preventDefault(); this.showTabMenu(id, e.clientX, e.clientY); });
+        this._bindDrag(row, id, true);
+        host.appendChild(row);
+      }
+    }
   },
 
   async newTab(profile = this.activeProfile) {
@@ -56,14 +173,10 @@ const Tabs = {
     const tabEl = document.createElement("div");
     tabEl.className = "tab"; tabEl.dataset.id = tabId;
     tabEl.innerHTML = `<span class="tab-title">shell</span><span class="tab-close">✕</span>`;
-    tabEl.addEventListener("click", (e) => {
-      if (e.target.classList.contains("tab-close")) { this.close(tabId); return; }
-      this.activate(tabId);
-    });
-    this._bindDrag(tabEl, tabId);
+    this._wireTabEl(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
-    this.tabs.set(tabId, { rootEl, tabEl, profile });
+    this.tabs.set(tabId, { rootEl, tabEl, profile, group: null });
     this.order.push(tabId);
     const paneId = await MYK.makePane(tabId, rootEl);
     this.activate(tabId);
@@ -98,14 +211,10 @@ const Tabs = {
     const tabEl = document.createElement("div");
     tabEl.className = "tab"; tabEl.dataset.id = tabId;
     tabEl.innerHTML = `<span class="tab-title">Browser</span><span class="tab-close">✕</span>`;
-    tabEl.addEventListener("click", (e) => {
-      if (e.target.classList.contains("tab-close")) { this.close(tabId); return; }
-      this.activate(tabId);
-    });
-    this._bindDrag(tabEl, tabId);
+    this._wireTabEl(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
-    this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true });
+    this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true, group: null });
     this.order.push(tabId);
     this.activate(tabId);
     return tabId;
@@ -123,14 +232,10 @@ const Tabs = {
     const tabEl = document.createElement("div");
     tabEl.className = "tab"; tabEl.dataset.id = tabId;
     tabEl.innerHTML = `<span class="tab-title">Files</span><span class="tab-close">✕</span>`;
-    tabEl.addEventListener("click", (e) => {
-      if (e.target.classList.contains("tab-close")) { this.close(tabId); return; }
-      this.activate(tabId);
-    });
-    this._bindDrag(tabEl, tabId);
+    this._wireTabEl(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
-    this.tabs.set(tabId, { rootEl, tabEl, profile, isFileBrowser: true });
+    this.tabs.set(tabId, { rootEl, tabEl, profile, isFileBrowser: true, group: null });
     this.order.push(tabId);
     this.activate(tabId);
     return tabId;
@@ -149,6 +254,7 @@ const Tabs = {
     }
     const first = this.tabs.get(tabId).rootEl.querySelector(".pane");
     if (first) MYK.focusPane(first.dataset.id);
+    this.renderTabList();
   },
 
   // Switch to a profile's tab group: show only its tabs in the strip,
@@ -169,6 +275,7 @@ const Tabs = {
   setTitle(tabId, title) {
     const t = this.tabs.get(tabId);
     if (t && title) t.tabEl.querySelector(".tab-title").textContent = title;
+    this.renderTabList();
   },
 
   close(tabId) {
@@ -231,5 +338,6 @@ const Tabs = {
     this.order.splice(firstIdx, 0, ...group);
     const strip = document.getElementById("tabstrip"), btn = document.getElementById("btn-newtab");
     group.forEach((id) => strip.insertBefore(this.tabs.get(id).tabEl, btn));
+    this.renderTabList();
   },
 };
