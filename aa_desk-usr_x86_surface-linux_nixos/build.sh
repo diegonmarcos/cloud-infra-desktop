@@ -1679,114 +1679,25 @@ ghcr_pull_layered() {
 # Default artifact-dir is dist-ci/ (e.g. after `gh run download -n nixos-surface-closure -D dist-ci`).
 pull_remote() {
     header "Activate prebuilt closure (no eval — cannot freeze)"
-    local art="${1:-$SCRIPT_DIR/dist-ci}"
-    local tb="$art/system-closure.nar.zst"
-    local _img="${SYSTEM_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-system-cache}:latest"
-    local sys="" _via_diff=0
-    [ -f "$art/toplevel.name" ] && sys="/nix/store/$(cat "$art/toplevel.name")"
-
-    # ── Try the closure-DIFF artifact FIRST (2026-07-22, small download) ──
-    # CI exports only the store paths this laptop is missing (vs the
-    # committed dist-ci-have/have-paths.txt) as artifact
-    # nixos-surface-closure-diff. Typically a few hundred MB — never the 7GB
-    # GHCR mono-layer that flaky home wifi can't survive.
-    if command -v gh >/dev/null 2>&1; then
-        local _difd="$SCRIPT_DIR/dist-ci-diff-dl" _run
-        _run=$(cd "$SCRIPT_DIR" && gh run list \
-            --workflow ship_nix-flakes_desktop_nixos.yaml --status success \
-            --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null)
-        if [ -n "$_run" ]; then
-            rm -rf "$_difd"; mkdir -p "$_difd"
-            log "Trying closure-diff artifact from CI run $_run…"
-            if (cd "$SCRIPT_DIR" && gh run download "$_run" -n nixos-surface-closure-diff -D "$_difd" 2>/dev/null); then
-                local _dsys="/nix/store/$(cat "$_difd/toplevel.name")"
-                if [ "$_dsys" = "$(readlink -f /nix/var/nix/profiles/system)" ]; then
-                    log "Diff target $_dsys is already the active generation — nothing to switch."
-                    return 0
-                fi
-                if [ -s "$_difd/closure-diff.nar.zst" ]; then
-                    log "Importing closure DIFF ($(du -h "$_difd/closure-diff.nar.zst" | cut -f1))…"
-                    zstd -d -c "$_difd/closure-diff.nar.zst" | sudo nix-store --import >/dev/null \
-                        || warn "diff import failed — falling back to full pull"
-                fi
-                if [ -d "$_dsys" ]; then
-                    sys="$_dsys"
-                    mkdir -p "$art"; cp "$_difd/toplevel.name" "$art/toplevel.name"
-                    _via_diff=1
-                    log "Closure complete via DIFF — skipping GHCR pull entirely."
-                fi
-            else
-                log "No closure-diff artifact on run $_run (older CI) — falling back to GHCR."
-            fi
-        fi
-    fi
-
-    # GHCR pointer-refresh REMOVED (2026-07-22): it ran `docker pull` of the
-    # system-cache image whose 7.1GB mono-layer is forbidden on this laptop.
-    # The closure-diff artifact above is the sole source of toplevel.name.
-
-    # ── Skip entirely if this store path is already the active generation ──
-    # Comparing store-path hashes (nix store paths ARE content hashes) tells
-    # us with certainty whether a switch is needed BEFORE spending 7GB/49min
-    # pulling a closure we already have active. 2026-07-19 bug: a full pull
-    # ran to completion, activated cleanly, and generation never advanced
-    # because $sys was byte-identical to the already-current gen — wasted
-    # the whole cycle. `readlink -f` resolves the profile symlink chain to
-    # the real store path for a direct string compare against $sys.
-    local _active; _active="$(readlink -f /nix/var/nix/profiles/system)"
-    if [ -n "$sys" ] && [ "$sys" = "$_active" ]; then
-        log "Target closure $sys is already the active generation — nothing to switch. Skipping pull+activate entirely."
-        return 0
-    fi
-
-    # ── DIFF-ONLY POLICY (2026-07-22, Diego's hard rule) ─────────────────
-    # A full-closure download (7GB GHCR mono-layer OR 6GB nar.zst artifact)
-    # is NEVER allowed on this laptop — not as a first choice, not as a
-    # fallback. The ONLY delivery is the closure-diff artifact above. If it
-    # didn't materialise the target, fail loudly with the fix.
-    if [ -z "$sys" ] || [ ! -d "$sys" ]; then
-        error "closure NOT available via diff — and full downloads are FORBIDDEN."
-        error "Fix: ensure the latest CI run succeeded with the nixos-surface-closure-diff artifact"
-        error "     (gh run list --workflow ship_nix-flakes_desktop_nixos.yaml), then rerun switch."
-        return 1
-    fi
-    # ── Closure completeness check (2026-07-22) ──────────────────────────
-    # The diff is computed against the COMMITTED have-paths inventory; if a
-    # local GC deleted inventoried paths since, the diff omits them and the
-    # toplevel dir alone existing is NOT proof the closure is whole.
-    # `nix-store -qR` walks the full reference graph from the nix DB and
-    # fails if any dependency is unregistered/missing — catch that BEFORE
-    # activating a broken system.
-    if ! nix-store -qR "$sys" >/dev/null 2>&1; then
-        error "closure INCOMPLETE: $sys has missing dependencies (likely a GC deleted inventoried paths)."
-        error "Fix: nix-store -qR /nix/var/nix/profiles/system | sort > dist-ci-have/have-paths.txt,"
-        error "     commit+push it, rerun CI, then switch again."
-        return 1
-    fi
-    log "$sys present + closure verified complete — proceeding to activation."
-
-    log "Phase 2: activate as root (fast — no eval)…"
-    sudo nix-env -p /nix/var/nix/profiles/system --set "$sys" || return 1
-    sudo "$sys/bin/switch-to-configuration" switch
-    local rc=$?
-    [ $rc -eq 0 ] && regen_bootloader
-    if [ $rc -eq 0 ]; then
-        # ── Self-refresh the have-paths inventory (2026-07-22) ────────────
-        # CI diffs against dist-ci-have/have-paths.txt; if it goes stale the
-        # diff balloons back toward a full closure. After every successful
-        # activation, regenerate from the NEW generation and push — the ship
-        # loop maintains itself.
-        log "Refreshing dist-ci-have/have-paths.txt from the new generation…"
-        mkdir -p "$SCRIPT_DIR/dist-ci-have"
-        nix-store -qR /nix/var/nix/profiles/system | sort > "$SCRIPT_DIR/dist-ci-have/have-paths.txt"
-        ( cd "$SCRIPT_DIR" \
-          && git add dist-ci-have/have-paths.txt \
-          && git commit -q -m "have-paths: refresh after switch to $(basename "$sys")" -- dist-ci-have/have-paths.txt \
-          && git push -q origin main ) 2>/dev/null \
-          && log "have-paths refreshed + pushed" \
-          || warn "have-paths refresh not pushed (commit/push failed — push it manually)"
-    fi
-    return $rc
+    # ── ORCHESTRATOR (2026-07-22 refactor) ───────────────────────────────
+    # The pipeline lives in src/scripts/steps/ — one script per step, each
+    # independently runnable, hand-off via dist-ci/toplevel.name:
+    #   10-fetch-diff.sh        gh diff artifact (DIFF-ONLY: 7GB forbidden)
+    #   20-import-diff.sh       nix-store --import (empty diff = no-op)
+    #   30-verify-closure.sh    full reference-graph completeness proof
+    #   40-activate.sh          profile set + switch-to-configuration
+    #   45-bootloader.sh        aa_bootloader deploy-all + verify-boot
+    #   50-refresh-inventory.sh have-paths self-refresh + push
+    # Step exit 3 = "already active" → success, stop early.
+    local steps="$SCRIPT_DIR/src/scripts/steps" _s _rc
+    for _s in 10-fetch-diff 20-import-diff 30-verify-closure 40-activate 45-bootloader 50-refresh-inventory; do
+        log "── STEP $_s ──"
+        bash "$steps/$_s.sh"; _rc=$?
+        if [ "$_rc" -eq 3 ]; then log "Pipeline stopped early: already active."; return 0; fi
+        if [ "$_rc" -ne 0 ]; then error "STEP $_s failed (rc=$_rc) — pipeline aborted."; return "$_rc"; fi
+    done
+    log "Switch pipeline complete."
+    return 0
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
