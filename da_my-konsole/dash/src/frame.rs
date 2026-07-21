@@ -16,6 +16,10 @@ pub trait Dashboard {
     fn update(&mut self); // exactly one refresh pass (gather data)
     fn render(&mut self, f: &mut Frame, area: Rect);
     fn on_key(&mut self, _k: KeyCode) {}
+    // True for dashboards whose values are a DELTA between two refreshes
+    // (CPU%, net rate) — a single startup refresh reads as ~0/empty. Others
+    // (SSH probes, file reads) gain nothing from a second pass, only latency.
+    fn needs_warmup(&self) -> bool { false }
 }
 
 pub fn now_hms() -> String {
@@ -30,9 +34,13 @@ pub fn now_hms() -> String {
 
 pub fn run(dash: &mut dyn Dashboard) -> std::io::Result<()> {
     let mut term = ratatui::init();
-    let mut auto = false;
+    let mut auto = true; // dashboards are labeled "(live)" — refresh without being asked
     let mut last = Instant::now();
     dash.update();
+    if dash.needs_warmup() {
+        std::thread::sleep(Duration::from_millis(250));
+        dash.update();
+    }
     let mut as_of = now_hms();
 
     let res = (|| -> std::io::Result<()> {

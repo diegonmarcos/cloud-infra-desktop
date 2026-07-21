@@ -69,6 +69,7 @@ fn net_totals() -> (u64, u64) {
 impl Dashboard for Monitor {
     fn title(&self) -> String { "📊 monitor".into() }
     fn tick_ms(&self) -> u64 { 1000 }
+    fn needs_warmup(&self) -> bool { true }
 
     fn update(&mut self) {
         self.sys.refresh_all();
