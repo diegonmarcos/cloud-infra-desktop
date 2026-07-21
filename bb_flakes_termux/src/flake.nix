@@ -743,6 +743,12 @@
                 source = ../src/modules/dotfiles/claude/statusline-command.sh;
                 executable = true;
               };
+              # Agent fleet manifest (explore/build/review/ops, all pinned model:sonnet)
+              # — same roster as desktop (ba_flakes_desktop dotfiles/claude/agents).
+              home.file.".claude/agents" = {
+                source = ../src/modules/dotfiles/claude/agents;
+                recursive = true;
+              };
               # Plugin/MCP status for the statusline + claude-superset banner (data-driven).
               home.file.".claude/claude-plugins.json".source = ../src/modules/dotfiles/claude/claude-plugins.json;
               home.file.".claude/claude-plugins-status.sh" = {
