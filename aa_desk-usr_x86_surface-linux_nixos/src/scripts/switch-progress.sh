@@ -21,12 +21,27 @@
 #       --tui LOG IMAGE WATCH_PID                    (internal: the TUI itself)
 set -u
 
-# ── spawn mode: relaunch self inside a konsole window ──────────────────────
+# ── spawn mode: KDE popup window (yad --text-info --tail) fed by the TUI ──
+# 2026-07-21: Diego wants a real KDE popup, NOT a terminal. yad --text-info
+# streams unlimited appended text into a GUI window; the --tui renderer below
+# is reused with DASH_PLAIN=1 (no clear/ANSI, appends snapshot blocks).
 if [ "${1:-}" != "--tui" ]; then
     LOG="${1:?log}"; IMG="${2:-}"; WATCH="${3:-$PPID}"
-    command -v konsole >/dev/null 2>&1 || exit 0
-    setsid konsole --title "NixOS switch — live dashboard" --hold \
-        -e bash "$0" --tui "$LOG" "$IMG" "$WATCH" </dev/null >/dev/null 2>&1 &
+    # 1) terminal TUI dashboard in a konsole window
+    if command -v konsole >/dev/null 2>&1; then
+        setsid konsole --title "NixOS switch — live dashboard (TUI)" --hold \
+            -e bash "$0" --tui "$LOG" "$IMG" "$WATCH" </dev/null >/dev/null 2>&1 &
+    fi
+    # 2) KDE popup GUI of the same data
+    if command -v yad >/dev/null 2>&1; then
+        setsid bash -c '
+            DASH_PLAIN=1 bash "$1" --tui "$2" "$3" "$4" | yad --text-info --tail \
+                --title "NixOS switch — LIVE DASHBOARD" \
+                --width=780 --height=680 --fontname="monospace 9" \
+                --button="📜 Open byte-log:setsid konsole --hold -e tail -n +1 -F $2" \
+                --button="Close:1"
+        ' _ "$0" "$LOG" "$IMG" "$WATCH" </dev/null >/dev/null 2>&1 &
+    fi
     exit 0
 fi
 
@@ -57,6 +72,11 @@ done
 
 B="\033[1m"; DIM="\033[2m"; R="\033[0m"
 GRN="\033[32m"; YLW="\033[33m"; CYN="\033[36m"; RED="\033[31m"
+# DASH_PLAIN=1 → plain text feed for the yad GUI popup (no ANSI, no clear)
+if [ -n "${DASH_PLAIN:-}" ]; then
+    B=""; DIM=""; R=""; GRN=""; YLW=""; CYN=""; RED=""
+    clear() { printf '\n'; }
+fi
 gb()  { awk -v b="${1:-0}" 'BEGIN{ printf "%.2f", b/1073741824 }'; }
 mb()  { awk -v b="${1:-0}" 'BEGIN{ printf "%.0f", b/1048576 }'; }
 clk() { local s=${1:-0}; printf "%02d:%02d" $(( s/60 )) $(( s%60 )); }
