@@ -81,3 +81,9 @@ jobs:
           path: aa_desk-usr_x86_surface-linux_nixos/dist-ci-diff/
           retention-days: 7
           compression-level: 0
+
+      # auto-switch trigger: laptop's nixos-switch-autotrigger service
+      # subscribes to this ntfy topic and runs build.sh switch on receipt
+      - name: Notify laptop — closure ready
+        if: success()
+        run: curl -s -d "closure-ready ${{ github.sha }}" https://ntfy.sh/diegonmarcos-nixos-switch-x7k2

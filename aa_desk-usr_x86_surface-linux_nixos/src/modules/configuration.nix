@@ -111,6 +111,8 @@
     # Waydroid host modules (data-heal / launcher / sensors HAL) UNWIRED 2026-07-01 — waydroid fully disabled (ghost Android procs after GUI close). Module files kept on disk, no longer imported.
     ./configuration_nixos-switch-gui.nix          # POST-2026-06-25: nixos-systray — NixOS control-panel tray (yad) + dark verbose konsole runner — switch/boot/test/dry-run/update/logs/settings + workspace setup; data-driven from nixos-cp.json
     ./configuration_cloud-cp.nix                  # POST-2026-06-25: cloud-systray — Cloud & Infra control-panel tray (yad) — VMs, mesh, flake builds, KDE connect; data-driven from cloud-cp.json
+    ./configuration_workflow-systray.nix          # POST-2026-07-18: workflow-systray — GH Actions status (ntfy SSE + gh CLI poll) + Dagu DAG list/trigger tray; data-driven from workflow-cp.json
+    ./configuration_switch-autotrigger.nix        # POST-2026-07-22: auto-run build.sh switch when CI publishes a closure (ntfy SSE); data-driven from cloud-data-nix-build.json .autotrigger
     ./configuration_tmp.nix
     ./configuration_packages.nix
     ./configuration_persistence.nix

@@ -1,7 +1,6 @@
 {
   "_comment": "Nix build engine policy — consumed by aa_desk-usr_x86_surface-linux_nixos/build.sh. All tuning that governs how _rebuild_exec() behaves lives here, not hardcoded in the script.",
   "version": 1,
-
   "phase1_scope": {
     "_comment": "systemd-run --user --scope properties applied to the nix build client (Phase 1). 2026-07-02: MemorySwapMax 0->2G — the system eval peaks past 4G RSS and was OOM-killed 5x with swap=0; the bounded valve lands on zram (prio 100, compressed RAM), NOT the disk swapfile (prio -1), so the anti-disk-thrash guarantee holds. OOMScoreAdjust=1000 (applied via choom) = on a user-slice OOM the kernel sacrifices the eval, never claude. IOSchedulingClass=idle = block-layer idling that works on NVMe (IOWeight=10 is also set but has no effect on the 'none' NVMe scheduler — left as belt+suspenders for CFQ/BFQ fallback).",
     "MemoryMax": "4G",
@@ -14,7 +13,6 @@
     "IOSchedulingPriority": "7",
     "IOWeight": "10"
   },
-
   "pull_scope": {
     "_comment": "systemd-run --scope (system, root) properties for the pull-path closure import (nix-store --import). 2026-07-03: an uncapped import was kernel-OOM-killed at <600M available RAM. Bounded memory + 2G zram valve = the import survives peaks by spilling to compressed RAM instead of dying.",
     "MemoryMax": "3G",
@@ -23,7 +21,6 @@
     "CPUWeight": "20",
     "IOWeight": "50"
   },
-
   "suspend_during_build": {
     "_comment": "User systemd services to stop before Phase 1 (nix build) and restart after, regardless of build outcome. These are background indexers/daemons that compete for I/O and CPU during builds. Only --user units should be listed here; system-level units are managed by the nix-daemon cgroup caps in configuration_system-protection.nix. Services not loaded/running are silently skipped — no errors.",
     "services": [
@@ -46,5 +43,11 @@
         "reason": "2026-07-02: a STALE deployed freeze-guard generation carried an absolute-metric HOG killer that SIGKILLed every nix eval (cpu 30-50%, rss 2-3G), deadlocking the very switch that fixes it. Suspended only for Phase 1; slice caps + earlyoom still protect; resumed unconditionally after."
       }
     ]
+  },
+  "autotrigger": {
+    "enable": true,
+    "url": "https://ntfy.sh",
+    "topic": "diegonmarcos-nixos-switch-x7k2",
+    "repo": "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos"
   }
 }
