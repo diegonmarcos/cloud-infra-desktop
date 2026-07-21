@@ -1707,38 +1707,9 @@ pull_remote() {
         fi
     fi
 
-    # ── Refresh the toplevel pointer from GHCR (source of truth) ─────────
-    # dist-ci/toplevel.name is only written by ci_build (on the runner) or a
-    # manual `gh run download` — locally it goes STALE. 2026-07-09 bug: the
-    # stale pointer + the "already present locally" short-circuit below
-    # re-activated the OLD system on every `switch` while CI had long since
-    # published a newer closure (the never-crash disk-protection fix sat
-    # committed+built but never activated through three switches). The
-    # layered cache image :latest always contains exactly one toplevel
-    # (*-nixos-system-surface-*) — read it from there; the docker pull is
-    # incremental so this is cheap when nothing changed. On any failure
-    # (offline, no docker) fall back to the local pointer, loudly.
-    local _fresh="" _p
-    if [ "$_via_diff" = "1" ]; then
-        log "Diff path succeeded — skipping GHCR pointer refresh (would pull the 7GB mono-layer)."
-    else
-    log "Refreshing toplevel pointer from GHCR (pull is incremental once the layered cache below has run once)…"
-    if command -v docker >/dev/null 2>&1 && docker pull "$_img" 2>&1 | stdbuf -oL cat && [ "${PIPESTATUS[0]}" -eq 0 ]; then
-        for _p in $(docker run --rm "$_img" sh -c 'ls /nix/store' 2>/dev/null); do
-            case "$_p" in *-nixos-system-surface-*) _fresh="$_p"; break ;; esac
-        done
-        if [ -n "$_fresh" ]; then
-            sys="/nix/store/$_fresh"
-            mkdir -p "$art"
-            printf '%s\n' "$_fresh" > "$art/toplevel.name"
-            log "Toplevel pointer refreshed from GHCR: $_fresh"
-        else
-            warn "GHCR image pulled but no *-nixos-system-surface-* toplevel found in it — keeping local pointer"
-        fi
-    else
-        warn "GHCR unreachable — using LOCAL pointer ($art/toplevel.name), which may be STALE"
-    fi
-    fi  # _via_diff guard
+    # GHCR pointer-refresh REMOVED (2026-07-22): it ran `docker pull` of the
+    # system-cache image whose 7.1GB mono-layer is forbidden on this laptop.
+    # The closure-diff artifact above is the sole source of toplevel.name.
 
     # ── Skip entirely if this store path is already the active generation ──
     # Comparing store-path hashes (nix store paths ARE content hashes) tells
@@ -1754,51 +1725,18 @@ pull_remote() {
         return 0
     fi
 
-    # ── Try GHCR-layered pull first (incremental) ────────────────────────
-    if [ -n "$sys" ] && [ -d "$sys" ]; then
-        log "$sys already present locally — skipping pull entirely."
-    elif ghcr_pull_layered "$_img" && [ -n "$sys" ] && [ -d "$sys" ]; then
-        log "System closure materialised via layered GHCR pull."
-    else
-        [ -f "$tb" ] || { error "no closure tarball at $tb (fetch it first: gh run download -n nixos-surface-closure -D '$art')"; return 1; }
-        [ -f "$art/toplevel.name" ] || { error "missing $art/toplevel.name"; return 1; }
-        sys="/nix/store/$(cat "$art/toplevel.name")"
-
-    # Reinforce the declared user-slice limits BEFORE importing — the pull
-    # path had no reinforce step (only _rebuild_exec did), so a stale live
-    # swap valve stayed saturated, MemAvailable collapsed and earlyoom
-    # SIGKILLed the import at 2% avail while 17G of zram sat free.
-    local _sp_json="$FLAKE_PATH/modules/cloud-data-system-protection.json"
-    local _sudo_p="/run/wrappers/bin/sudo"; [ -x "$_sudo_p" ] || _sudo_p="sudo"
-    if command -v jq >/dev/null 2>&1 && [ -f "$_sp_json" ]; then
-        $_sudo_p systemctl set-property --runtime user-1000.slice \
-            MemoryMin="$(jq -r .gui_session.MemoryMin "$_sp_json")" \
-            MemoryHigh="$(jq -r .gui_session.MemoryHigh "$_sp_json")" \
-            MemoryMax="$(jq -r .gui_session.MemoryMax "$_sp_json")" \
-            MemorySwapMax="$(jq -r .gui_session.MemorySwapMax "$_sp_json")" \
-            || warn "pull: user-1000.slice reinforce failed"
-        log "Reinforced user-1000.slice from gui_session (swap valve live)"
+    # ── DIFF-ONLY POLICY (2026-07-22, Diego's hard rule) ─────────────────
+    # A full-closure download (7GB GHCR mono-layer OR 6GB nar.zst artifact)
+    # is NEVER allowed on this laptop — not as a first choice, not as a
+    # fallback. The ONLY delivery is the closure-diff artifact above. If it
+    # didn't materialise the target, fail loudly with the fix.
+    if [ -z "$sys" ] || [ ! -d "$sys" ]; then
+        error "closure NOT available via diff — and full downloads are FORBIDDEN."
+        error "Fix: ensure the latest CI run succeeded with the nixos-surface-closure-diff artifact"
+        error "     (gh run list --workflow ship_nix-flakes_desktop_nixos.yaml), then rerun switch."
+        return 1
     fi
-
-    log "Importing closure into the store (no build)…"
-    # Import runs inside a capped transient scope, data-driven from
-    # cloud-data-nix-build.json pull_scope. 2026-07-03: an uncapped import
-    # (root context) was kernel-OOM-killed while the desktop sat at <600M
-    # available — the same protection pattern as phase1: bounded memory +
-    # zram swap valve absorbs the decompress/registration peak instead of
-    # dying or thrashing.
-    local _pull_props=()
-    local _pl_key _pl_val
-    local _pull_json="$FLAKE_PATH/modules/cloud-data-nix-build.json"
-    for _pl_key in MemoryMax MemoryHigh MemorySwapMax CPUWeight IOWeight; do
-        _pl_val=$(jq -r ".pull_scope.${_pl_key} // empty" "$_pull_json" 2>/dev/null)
-        [ -n "$_pl_val" ] && _pull_props+=("--property=${_pl_key}=${_pl_val}")
-    done
-    zstd -d -c "$tb" | sudo systemd-run --scope --unit="nix-pull-$$" --quiet \
-        "${_pull_props[@]}" -- nix-store --import >/dev/null \
-        || { error "import failed"; return 1; }
-    fi
-    [ -d "$sys" ] || { error "imported store path $sys not present after import"; return 1; }
+    log "$sys present locally — proceeding to activation."
 
     log "Phase 2: activate as root (fast — no eval)…"
     sudo nix-env -p /nix/var/nix/profiles/system --set "$sys" || return 1
