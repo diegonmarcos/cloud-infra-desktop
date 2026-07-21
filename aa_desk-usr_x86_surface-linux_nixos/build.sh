@@ -1757,6 +1757,22 @@ pull_remote() {
     sudo "$sys/bin/switch-to-configuration" switch
     local rc=$?
     [ $rc -eq 0 ] && regen_bootloader
+    if [ $rc -eq 0 ]; then
+        # ── Self-refresh the have-paths inventory (2026-07-22) ────────────
+        # CI diffs against dist-ci-have/have-paths.txt; if it goes stale the
+        # diff balloons back toward a full closure. After every successful
+        # activation, regenerate from the NEW generation and push — the ship
+        # loop maintains itself.
+        log "Refreshing dist-ci-have/have-paths.txt from the new generation…"
+        mkdir -p "$SCRIPT_DIR/dist-ci-have"
+        nix-store -qR /nix/var/nix/profiles/system | sort > "$SCRIPT_DIR/dist-ci-have/have-paths.txt"
+        ( cd "$SCRIPT_DIR" \
+          && git add dist-ci-have/have-paths.txt \
+          && git commit -q -m "have-paths: refresh after switch to $(basename "$sys")" -- dist-ci-have/have-paths.txt \
+          && git push -q origin main ) 2>/dev/null \
+          && log "have-paths refreshed + pushed" \
+          || warn "have-paths refresh not pushed (commit/push failed — push it manually)"
+    fi
     return $rc
 }
 
