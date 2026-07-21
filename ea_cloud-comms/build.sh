@@ -326,7 +326,9 @@ step_materialize_fork() {
   fi
 
   local dest="$SCRIPT_DIR/../$tracker"
-  local patch_dir="$SCRIPT_DIR/forks/${key}/patches"
+  # Forks were split out of ea_cloud-comms/forks/<key>/ into sibling
+  # ea_cloud-<key>/ app folders (2026-07-21/22) — patches now live there.
+  local patch_dir="$SCRIPT_DIR/../ea_cloud-${key}/patches"
 
   if [ ! -d "$dest/.git" ]; then
     log "materialize-fork[$key]: cloning $repo → $tracker (tag $tag)"
