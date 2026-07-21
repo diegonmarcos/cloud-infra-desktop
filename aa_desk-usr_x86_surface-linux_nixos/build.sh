@@ -1506,14 +1506,28 @@ restore_boot_cache() {
     find "$tmp/unpacked" -type f | while read -r blob; do tar -xf "$blob" -C "$tmp" 2>/dev/null || true; done
     rm -rf "$tmp/unpacked" "$tmp/img.tar"
     if [ -d "$tmp/boot-cache" ]; then
-        # `| tail` would mask nix copy's exit code (the if would test tail, always
-        # 0) — 2026-07-02 this hid import results entirely. Test PIPESTATUS[0].
-        nix copy --no-check-sigs --from "file://$tmp/boot-cache" --all \
-            --extra-experimental-features "nix-command flakes" 2>&1 | tail -2
-        if [ "${PIPESTATUS[0]}" = "0" ]; then
-            log "boot-cache restored → linux-surface kernel now in /nix/store (no compile)"
+        # 2026-07-22 ROOT-CAUSE FIX: `nix copy --all` is atomic — ONE bogus
+        # path in the cache (a literal '…-x' garbage narinfo shipped into
+        # unix-boot-cache) aborted the whole restore, so EVERY CI run
+        # recompiled the linux-surface kernel (~140 min burned per run since
+        # the cache was poisoned). Copy per-path instead: skip garbage, a
+        # single bad path can no longer kill the kernel restore.
+        local _sp _ok=0 _bad=0
+        for _sp in $(sed -n 's/^StorePath: //p' "$tmp/boot-cache"/*.narinfo 2>/dev/null); do
+            case "$_sp" in
+                *-x|*'?'*|*' '*) warn "skipping bogus cache path: $_sp"; _bad=$((_bad+1)); continue ;;
+            esac
+            if nix copy --no-check-sigs --from "file://$tmp/boot-cache" "$_sp" \
+                 --extra-experimental-features "nix-command flakes" 2>/dev/null; then
+                _ok=$((_ok+1))
+            else
+                warn "boot-cache path failed (non-fatal): $_sp"; _bad=$((_bad+1))
+            fi
+        done
+        if [ "$_ok" -gt 0 ]; then
+            log "boot-cache restored $_ok paths ($_bad skipped/failed) → kernel should NOT compile"
         else
-            warn "nix copy from boot-cache failed — kernel will compile"
+            warn "boot-cache restored nothing ($_bad bad) — kernel will compile"
         fi
     else
         warn "boot-cache payload missing in image — kernel will compile"
