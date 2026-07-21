@@ -60,3 +60,12 @@ jobs:
           path: aa_desk-usr_x86_surface-linux_nixos/dist-ci/
           retention-days: 7
           compression-level: 0
+
+      # closure DIFF vs the laptop's committed have-paths — small download,
+      # never the 7GB GHCR mono-layer (2026-07-22)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nixos-surface-closure-diff
+          path: aa_desk-usr_x86_surface-linux_nixos/dist-ci-diff/
+          retention-days: 7
+          compression-level: 0

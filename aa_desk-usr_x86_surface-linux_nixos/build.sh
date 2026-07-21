@@ -1548,6 +1548,34 @@ ci_build() {
 
     log "Exporting closure → zstd tarball…"
     nix-store --export $(nix-store -qR "$sys") | zstd -T0 -15 > "$out/system-closure.nar.zst"
+
+    # ── Closure DIFF export (2026-07-22) ────────────────────────────────────
+    # The laptop commits the store-path list it already has
+    # (dist-ci-have/have-paths.txt). Export ONLY the missing paths as a small
+    # separate artifact — home wifi must NEVER download a 7GB bundle again
+    # (the layered GHCR image hides a 7.1GB mono-layer: >maxLayers store
+    # paths get lumped, and one blob restart-from-zero can't survive flaky
+    # wifi). The diff is typically a few hundred MB at most.
+    local _have="$SCRIPT_DIR/dist-ci-have/have-paths.txt"
+    local _dout="$SCRIPT_DIR/dist-ci-diff"
+    rm -rf "$_dout"; mkdir -p "$_dout"
+    if [ -f "$_have" ]; then
+        nix-store -qR "$sys" | sort > "$out/want-paths.txt"
+        local _missing; _missing=$(comm -23 "$out/want-paths.txt" <(sort "$_have"))
+        if [ -n "$_missing" ]; then
+            log "Diff export: $(printf '%s\n' "$_missing" | wc -l) paths missing on laptop"
+            nix-store --export $_missing | zstd -T0 -15 > "$_dout/closure-diff.nar.zst"
+        else
+            log "Diff export: laptop already has every path (empty diff)"
+            : > "$_dout/closure-diff.nar.zst"
+        fi
+        cp "$out/toplevel.name" "$_dout/"
+        log "diff artifact: $(du -h "$_dout/closure-diff.nar.zst" | cut -f1)"
+    else
+        warn "no dist-ci-have/have-paths.txt — skipping diff export"
+        cp "$out/toplevel.name" "$_dout/" 2>/dev/null || true
+    fi
+
     rm -f "$out/result"
     log "Done: $(du -h "$out/system-closure.nar.zst" | cut -f1) → $out/"
 
@@ -1640,8 +1668,44 @@ pull_remote() {
     local art="${1:-$SCRIPT_DIR/dist-ci}"
     local tb="$art/system-closure.nar.zst"
     local _img="${SYSTEM_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-system-cache}:latest"
-    local sys=""
+    local sys="" _via_diff=0
     [ -f "$art/toplevel.name" ] && sys="/nix/store/$(cat "$art/toplevel.name")"
+
+    # ── Try the closure-DIFF artifact FIRST (2026-07-22, small download) ──
+    # CI exports only the store paths this laptop is missing (vs the
+    # committed dist-ci-have/have-paths.txt) as artifact
+    # nixos-surface-closure-diff. Typically a few hundred MB — never the 7GB
+    # GHCR mono-layer that flaky home wifi can't survive.
+    if command -v gh >/dev/null 2>&1; then
+        local _difd="$SCRIPT_DIR/dist-ci-diff-dl" _run
+        _run=$(cd "$SCRIPT_DIR" && gh run list \
+            --workflow ship_nix-flakes_desktop_nixos.yaml --status success \
+            --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null)
+        if [ -n "$_run" ]; then
+            rm -rf "$_difd"; mkdir -p "$_difd"
+            log "Trying closure-diff artifact from CI run $_run…"
+            if (cd "$SCRIPT_DIR" && gh run download "$_run" -n nixos-surface-closure-diff -D "$_difd" 2>/dev/null); then
+                local _dsys="/nix/store/$(cat "$_difd/toplevel.name")"
+                if [ "$_dsys" = "$(readlink -f /nix/var/nix/profiles/system)" ]; then
+                    log "Diff target $_dsys is already the active generation — nothing to switch."
+                    return 0
+                fi
+                if [ -s "$_difd/closure-diff.nar.zst" ]; then
+                    log "Importing closure DIFF ($(du -h "$_difd/closure-diff.nar.zst" | cut -f1))…"
+                    zstd -d -c "$_difd/closure-diff.nar.zst" | sudo nix-store --import >/dev/null \
+                        || warn "diff import failed — falling back to full pull"
+                fi
+                if [ -d "$_dsys" ]; then
+                    sys="$_dsys"
+                    mkdir -p "$art"; cp "$_difd/toplevel.name" "$art/toplevel.name"
+                    _via_diff=1
+                    log "Closure complete via DIFF — skipping GHCR pull entirely."
+                fi
+            else
+                log "No closure-diff artifact on run $_run (older CI) — falling back to GHCR."
+            fi
+        fi
+    fi
 
     # ── Refresh the toplevel pointer from GHCR (source of truth) ─────────
     # dist-ci/toplevel.name is only written by ci_build (on the runner) or a
@@ -1655,6 +1719,9 @@ pull_remote() {
     # incremental so this is cheap when nothing changed. On any failure
     # (offline, no docker) fall back to the local pointer, loudly.
     local _fresh="" _p
+    if [ "$_via_diff" = "1" ]; then
+        log "Diff path succeeded — skipping GHCR pointer refresh (would pull the 7GB mono-layer)."
+    else
     log "Refreshing toplevel pointer from GHCR (pull is incremental once the layered cache below has run once)…"
     if command -v docker >/dev/null 2>&1 && docker pull "$_img" 2>&1 | stdbuf -oL cat && [ "${PIPESTATUS[0]}" -eq 0 ]; then
         for _p in $(docker run --rm "$_img" sh -c 'ls /nix/store' 2>/dev/null); do
@@ -1671,6 +1738,7 @@ pull_remote() {
     else
         warn "GHCR unreachable — using LOCAL pointer ($art/toplevel.name), which may be STALE"
     fi
+    fi  # _via_diff guard
 
     # ── Skip entirely if this store path is already the active generation ──
     # Comparing store-path hashes (nix store paths ARE content hashes) tells
