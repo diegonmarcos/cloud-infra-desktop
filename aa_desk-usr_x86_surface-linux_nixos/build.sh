@@ -1750,7 +1750,20 @@ pull_remote() {
         error "     (gh run list --workflow ship_nix-flakes_desktop_nixos.yaml), then rerun switch."
         return 1
     fi
-    log "$sys present locally — proceeding to activation."
+    # ── Closure completeness check (2026-07-22) ──────────────────────────
+    # The diff is computed against the COMMITTED have-paths inventory; if a
+    # local GC deleted inventoried paths since, the diff omits them and the
+    # toplevel dir alone existing is NOT proof the closure is whole.
+    # `nix-store -qR` walks the full reference graph from the nix DB and
+    # fails if any dependency is unregistered/missing — catch that BEFORE
+    # activating a broken system.
+    if ! nix-store -qR "$sys" >/dev/null 2>&1; then
+        error "closure INCOMPLETE: $sys has missing dependencies (likely a GC deleted inventoried paths)."
+        error "Fix: nix-store -qR /nix/var/nix/profiles/system | sort > dist-ci-have/have-paths.txt,"
+        error "     commit+push it, rerun CI, then switch again."
+        return 1
+    fi
+    log "$sys present + closure verified complete — proceeding to activation."
 
     log "Phase 2: activate as root (fast — no eval)…"
     sudo nix-env -p /nix/var/nix/profiles/system --set "$sys" || return 1
