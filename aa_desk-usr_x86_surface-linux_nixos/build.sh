@@ -507,8 +507,12 @@ setup_logging() {
         echo ""
     } > "$LOG_FILE"
 
-    # Redirect all output to both terminal and log file
-    exec > >(tee -a "$LOG_FILE") 2>&1
+    # Redirect all output to both terminal and log file, timestamping every
+    # line ([HH:MM:SS]). 2026-07-21: raw `docker pull` / activation lines had
+    # no time frame at all — impossible to tell a live transfer from a stall.
+    # gawk strftime + fflush() keeps it line-buffered so the konsole tail sees
+    # each line the instant it is written.
+    exec > >(stdbuf -oL awk '{ printf "[%s] %s\n", strftime("%H:%M:%S"), $0; fflush() }' | tee -a "$LOG_FILE") 2>&1
 
     echo "[LOG] Output being saved to: $LOG_FILE"
 }
@@ -1935,8 +1939,29 @@ if [ $# -gt 0 ]; then
             ) & disown
         fi
 
+        # 2026-07-21 ROOT-CAUSE FIX: the konsole used to run build.sh directly,
+        # but build.sh's REAL work re-execs into `systemd-run --wait` (isolation
+        # block below), and a systemd unit's stdout goes to the JOURNAL — never
+        # back to this terminal. So the konsole window went dark after the first
+        # few lines while everything happened invisibly in the unit. The unit
+        # DOES tee everything to LOG_FILE (=BUILD_SH_KDIALOG_LOG, propagated via
+        # --setenv), so instead of running the muted script we run the switch in
+        # the background and `tail -F` that shared log in the foreground — the
+        # window now shows genuine byte-per-byte live output regardless of how
+        # many times build.sh re-execs itself.
         exec env BUILD_SH_KONSOLE_WRAPPED=1 LOG_FILE="${BUILD_SH_KDIALOG_LOG:-}" \
-            konsole --workdir "$SCRIPT_DIR" --hold -e "$SCRIPT_DIR/build.sh" "$@"
+            konsole --workdir "$SCRIPT_DIR" --hold -e bash -c '
+                _log="$1"; shift
+                : > "$_log"
+                tail -n +1 -F "$_log" &
+                _tp=$!
+                "$@" >/dev/null 2>&1
+                _ec=$?
+                sleep 1
+                kill "$_tp" 2>/dev/null
+                exit "$_ec"
+            ' _ "${BUILD_SH_KDIALOG_LOG:-$LOG_DIR/build-konsole-$(date +%Y%m%d-%H%M%S).log}" \
+              "$SCRIPT_DIR/build.sh" "$@"
     fi
 
     # ── FREEZE-SAFE ISOLATION (2026-07-10 v3.1) ──────────────────────────────
