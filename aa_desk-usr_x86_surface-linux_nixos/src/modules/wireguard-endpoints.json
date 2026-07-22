@@ -22,6 +22,6 @@
   },
   "subnet": "10.0.0.0/24",
   "persistent_keepalive": 25,
-  "_dns_search_doc": "systemd-resolved routing domains (~ prefix) sent to Hickory (hub.wg_ip). Mirrors the zones Hickory serves: cloud/a_solutions/infra-net_hickory-dns/build.json .dns.zones = [diegonmarcos.com, app, db]. Without a zone here, its names fall through to the global resolver (dnscrypt-proxy2) and NXDOMAIN.",
-  "dns_search": "~diegonmarcos.com ~app ~db"
+  "_dns_search_doc": "systemd-resolved routing domains (~ prefix) sent to Hickory (hub.wg_ip). Mirrors the zones Hickory serves: cloud/a_solutions/infra-net_hickory-dns/build.json .dns.zones = [diegonmarcos.com, app, db]. Without a zone here, its names fall through to the global resolver (dnscrypt-proxy2) and NXDOMAIN. MUST be a JSON array — one routing domain per element. configuration_network.nix joins these with ';' for NetworkManager's ipv4.dns-search keyfile list. A single space-joined string is mis-parsed by NM as ONE domain literally named 'diegonmarcos.com ~app ~db', so mcp.diegonmarcos.com never routed to Hickory → public IP → Caddy WG-gate 403.",
+  "dns_search": ["~diegonmarcos.com", "~app", "~db"]
 }
