@@ -238,53 +238,17 @@ cmd_switch() {
         return 1
     fi
 
-    # Flake always wins: delete regular files where HM needs to place symlinks
-    perf_step "clear stale files"
-    for _hm_file in .claude/settings.json .claude/hooks/pretool-guard.sh .claude/skills/frontend-design.md .local/lib/httpd/github-markdown-dark.css .local/lib/httpd/marked.min.js .config/git/ignore .config/nix/nix.conf .ssh/authorized_keys .ssh/sshd_config .profile; do
-        _full="$HOME/$_hm_file"
-        if [ -f "$_full" ] && [ ! -L "$_full" ]; then
-            rm -f "$_full"
-        fi
-    done
-
     perf_step "nix-on-droid switch"
     log_info "Applying nix-on-droid configuration (verbose=$VERBOSE)..."
+    # HOME_MANAGER_BACKUP_EXT: home-manager's built-in conflict resolver — any
+    # plain file blocking a managed symlink is moved to <file>.hm-conflict
+    # automatically. Nix always wins; no hardcoded per-file list needed.
+    export HOME_MANAGER_BACKUP_EXT="hm-bak-$(date +%Y%m%d-%H%M%S)"
     _rc_file=$(mktemp)
-    _switch_log=$(mktemp)
-    # tee to BOTH the log file AND the user's terminal — full visibility by
-    # default. _switch_log captures the same output for the auto-medicine
-    # scanner below. Verbose nix flags are appended for show-trace + build logs.
-    { nix-on-droid switch --flake "$SRC_DIR" $NIXOD_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE" "$_switch_log"
+    { nix-on-droid switch --flake "$SRC_DIR" $NIXOD_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     exit_code=$(cat "$_rc_file" 2>/dev/null)
     exit_code=${exit_code:-0}
     rm -f "$_rc_file"
-
-    # Auto-medicine: home-manager refuses to overwrite regular files that should
-    # be symlinks ("Existing file 'X' is in the way"). Parse those paths, move
-    # them to <path>.hm-conflict, retry once. Idempotent — only kicks in on a
-    # very specific failure mode, no risk of clobbering anything else.
-    if [ "$exit_code" -ne 0 ] && grep -q "is in the way of" "$_switch_log"; then
-        log_warn "home-manager file conflict detected — applying auto-medicine"
-        _moved=0
-        while IFS= read -r _conflict; do
-            # Match: "Existing file '/full/path' is in the way of '...'"
-            _path=$(printf '%s\n' "$_conflict" | sed -n "s/.*Existing file '\([^']*\)' is in the way.*/\1/p")
-            if [ -n "$_path" ] && [ -e "$_path" ] && [ ! -L "$_path" ]; then
-                mv -f "$_path" "${_path}.hm-conflict.$(date +%s)"
-                log_info "  moved: $_path -> ${_path}.hm-conflict.*"
-                _moved=$((_moved + 1))
-            fi
-        done < "$_switch_log"
-        if [ "$_moved" -gt 0 ]; then
-            log_info "Retrying nix-on-droid switch after moving $_moved conflict(s)..."
-            _rc_file=$(mktemp)
-            { nix-on-droid switch --flake "$SRC_DIR" $NIXOD_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
-            exit_code=$(cat "$_rc_file" 2>/dev/null)
-            exit_code=${exit_code:-0}
-            rm -f "$_rc_file"
-        fi
-    fi
-    rm -f "$_switch_log"
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Configuration failed (exit $exit_code)"
