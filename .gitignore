@@ -102,6 +102,17 @@ ea_cloud-browser/**/*.keystore
 ea_cloud-browser/**/*.jks
 ea_cloud-vault/**/*.keystore
 ea_cloud-vault/**/*.jks
+## Orphan gitlink guard (restored 2026-07-22). These 4 dirs are empty nested-repo
+## placeholders with NO .gitmodules entry. An auto-sync `git add -A` keeps
+## re-capturing them as mode-160000 gitlinks, which makes actions/checkout fail
+## ("fatal: No url found for submodule path ...") and breaks ALL CI. They have no
+## real repo (~/git/<name> absent) and no tracked content. Formerly covered by the
+## `ea_*-*/` blanket rule removed 2026-07-10; 93fdc30c re-added explicit ignores
+## that were later lost. If any becomes a real app, whitelist it like ea_cloud-*.
+ea_keyboard-dicts/
+ea_keyboard-heliboard/
+ea_net-firestack/
+ea_zoomies-pets/
 ## Re-ignore Gradle build outputs inside the whitelisted ea_cloud-ide/ tree
 ## (the !ea_cloud-ide/** whitelist would otherwise track build/.gradle dirs).
 ## Added 2026-06-13.
