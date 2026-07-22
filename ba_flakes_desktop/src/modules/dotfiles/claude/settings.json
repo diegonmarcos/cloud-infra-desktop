@@ -4,7 +4,8 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash /home/diego/.claude/statusline-command.sh"
+    "command": "bash /home/diego/.claude/statusline-command.sh",
+    "refreshInterval": 1
   },
   "enabledPlugins": {
     "rust-analyzer-lsp@claude-plugins-official": true,
