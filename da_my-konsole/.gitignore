@@ -4,3 +4,5 @@ frontend/vendor/*.css
 src-tauri/profiles/
 src-tauri/icons/*.png
 src-tauri/Cargo.lock
+pty-core/Cargo.lock
+engine/Cargo.lock

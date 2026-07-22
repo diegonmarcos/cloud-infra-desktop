@@ -18,8 +18,8 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-portable-pty = "0.8"
-# ponytail: portable-pty gives in-process PTYs — no bundled node/pty-server.
+pty-core = { path = "../pty-core" }
+# ponytail: PTY logic lives in the shared pty-core crate — no bundled node/pty-server.
 
 [profile.release]
 strip = true
