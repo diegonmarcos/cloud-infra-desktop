@@ -68,6 +68,22 @@ done <<EOF
 $rows
 EOF
 
+# Agents: count custom agents in ~/.claude/agents/ (excluding README).
+_ag_dir="$CFG/agents"; _ag_c=0; _ag_names=""
+if [ -d "$_ag_dir" ]; then
+  for _f in "$_ag_dir"/*.md; do
+    [ -f "$_f" ] || continue
+    _n="${_f##*/}"; _n="${_n%.md}"
+    case "$_n" in README*|readme*) continue ;; esac
+    _ag_c=$((_ag_c + 1))
+    _ag_names="${_ag_names:+${_ag_names},}${_n}"
+  done
+fi
+[ "$_ag_c" -gt 0 ] && {
+  ansi="$ansi \033[34mAg\033[32m:${_ag_c}\033[0m"
+  plain="$plain Agents:${_ag_c}[${_ag_names}]"
+}
+
 ansi="${ansi# }"; plain="${plain# }"
 if [ "$fmt" = "plain" ]; then
   printf '%s' "$plain"

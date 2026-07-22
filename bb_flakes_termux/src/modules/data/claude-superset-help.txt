@@ -63,7 +63,7 @@ SETUP (installer / deps-solver — NO npm, native binaries)
                         when present). Last-resort, ephemeral.
 
 OTHER
-  --help, -h            Interactive status dashboard (faces, MCPs, plugins).
+  --help, -h, h         Interactive status dashboard (faces, MCPs, plugins).
   help                  This text + live status: agents, plugin status line,
                         and recent sessions (last 48h + last 5 by time).
 
