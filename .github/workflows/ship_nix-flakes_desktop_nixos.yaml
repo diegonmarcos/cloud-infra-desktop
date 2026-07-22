@@ -77,7 +77,7 @@ jobs:
           GHCR_OWNER: ${{ github.repository_owner }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_PUSH: "1"                       # build.sh also builds+pushes the layered cache image
+          GHCR_PUSH: "0"                       # 2026-07-22: laptop is DIFF-ONLY — the 7GB layered image has no consumer; skip build+push
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SYSTEM_CACHE_IMAGE: ghcr.io/${{ github.repository_owner }}/unix-system-cache
         run: ./aa_desk-usr_x86_surface-linux_nixos/build.sh ci-build

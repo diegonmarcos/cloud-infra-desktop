@@ -1560,8 +1560,13 @@ ci_build() {
     basename "$sys" > "$out/toplevel.name"
     echo "$sys" > "$out/toplevel.path"
 
-    log "Exporting closure → zstd tarball…"
-    nix-store --export $(nix-store -qR "$sys") | zstd -T0 -15 > "$out/system-closure.nar.zst"
+    # Full nar export DISABLED by default (2026-07-22): the laptop is
+    # diff-only — nothing consumes the 7GB tarball, it just burned ~15min +
+    # 7GB artifact storage per run. FULL_NAR=1 resurrects it for emergencies.
+    if [ "${FULL_NAR:-0}" = "1" ]; then
+        log "Exporting FULL closure → zstd tarball (FULL_NAR=1)…"
+        nix-store --export $(nix-store -qR "$sys") | zstd -T0 -15 > "$out/system-closure.nar.zst"
+    fi
 
     # ── Closure DIFF export (2026-07-22) ────────────────────────────────────
     # The laptop commits the store-path list it already has
@@ -1591,7 +1596,7 @@ ci_build() {
     fi
 
     rm -f "$out/result"
-    log "Done: $(du -h "$out/system-closure.nar.zst" | cut -f1) → $out/"
+    log "Done → $out/ (diff-only: full nar skipped unless FULL_NAR=1)"
 
     # ── Stage 1: layered GHCR cache (INCREMENTAL delivery) ──────────────────
     # Additive + NON-FATAL: the nar.zst above stays the active mechanism until
