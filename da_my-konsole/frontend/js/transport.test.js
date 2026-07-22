@@ -13,4 +13,11 @@ assert.deepEqual(
   { ev: "output", id: "t", data: "hi" }
 );
 
+// fs_* request/response round-trip (Task 3 — frozen protocol).
+const fsReq = { op: "fs_read", rid: 1, path: "/x" };
+assert.deepEqual(_decode(_encode(fsReq)), fsReq);
+
+const fsRes = { ev: "fs_result", rid: 1, ok: true, content: "hi" };
+assert.deepEqual(_decode(_encode(fsRes)), fsRes);
+
 console.log("transport.test.js: PASS");

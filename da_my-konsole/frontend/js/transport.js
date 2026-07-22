@@ -6,7 +6,9 @@
 // Wire protocol (frozen, matches my-konsole-engine):
 //   client→server: {op:"start",id,cols,rows,cwd} {op:"write",id,data}
 //                  {op:"resize",id,cols,rows} {op:"kill",id}
+//                  {op:"fs_list"|"fs_read"|"fs_write",rid,path,content?}
 //   server→client: {ev:"output",id,data} {ev:"exit",id}
+//                  {ev:"fs_result",rid,ok,entries?,content?,error?}
 
 // ── pure wire-protocol fns — importable under node, no window/DOM needed ──
 function _encode(op) { return JSON.stringify(op); }
@@ -24,6 +26,9 @@ if (typeof window !== "undefined") {
     ptyKill: (id) => window.__TAURI__.core.invoke("pty_kill", { id }),
     onPty: (id, cb) => window.__TAURI__.event.listen(`pty:${id}`, (e) => cb(e.payload.data)),
     onPtyExit: (id, cb) => window.__TAURI__.event.listen(`pty-exit:${id}`, () => cb()),
+    listDir: (path) => window.__TAURI__.core.invoke("fs_list_dir", { path }),
+    readFile: (path) => window.__TAURI__.core.invoke("fs_read_file", { path }),
+    writeFile: (path, content) => window.__TAURI__.core.invoke("fs_write_file", { path, content }),
   };
 
   // WebSocket impl (Android WebView / browser): one shared socket to the engine.
@@ -31,7 +36,8 @@ if (typeof window !== "undefined") {
   function makeWsImpl() {
     const url = window.MYK_ENGINE_URL || "ws://127.0.0.1:7333";
     const subs = new Map(); // id -> { out, exit }
-    let open = false, queue = [];
+    const pending = new Map(); // rid -> { resolve, reject } for fs_* request/response
+    let open = false, queue = [], rid = 0;
     const ws = new WebSocket(url);
     const send = (op) => { const f = _encode(op); if (open) ws.send(f); else queue.push(f); };
 
@@ -43,12 +49,28 @@ if (typeof window !== "undefined") {
     });
     ws.addEventListener("message", (e) => {
       const m = _decode(e.data);
+      if (m.ev === "fs_result") {
+        const p = pending.get(m.rid);
+        if (!p) return;
+        pending.delete(m.rid);
+        if (m.ok) p.resolve(m); else p.reject(m.error);
+        return;
+      }
       const s = subs.get(m.id);
       if (!s) return;
       if (m.ev === "output") s.out?.(m.data);
       else if (m.ev === "exit") s.exit?.();
     });
     // ponytail: no reconnect/backoff — add if the engine proves flaky in the field.
+
+    // fs_* request/response, correlated by a monotonic rid against `pending`.
+    const fsRequest = (op, extra) => {
+      const r = ++rid;
+      return new Promise((resolve, reject) => {
+        pending.set(r, { resolve, reject });
+        send({ op, rid: r, ...extra });
+      });
+    };
 
     return {
       ptyStart: (id, cols, rows, cwd) => { send({ op: "start", id, cols, rows, cwd }); return Promise.resolve(); },
@@ -63,6 +85,9 @@ if (typeof window !== "undefined") {
         const s = subs.get(id) || {}; s.exit = cb; subs.set(id, s);
         return () => { s.exit = null; };
       },
+      listDir: (path) => fsRequest("fs_list", { path }).then((m) => m.entries),
+      readFile: (path) => fsRequest("fs_read", { path }).then((m) => m.content),
+      writeFile: (path, content) => fsRequest("fs_write", { path, content }),
     };
   }
 

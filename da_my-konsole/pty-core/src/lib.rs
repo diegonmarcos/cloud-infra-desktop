@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::Mutex;
 
+pub mod fs;
+
 pub enum PtyEvent {
     Output { id: String, data: String },
     Exit { id: String },
