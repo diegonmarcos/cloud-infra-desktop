@@ -55,6 +55,12 @@ on:
       - "ea_cloud-ide-v*"
     paths:
       - "ea_cloud-ide/**"
+      # The WebView APK bundles the my-konsole frontend at build time
+      # (build.sh step_bundle_frontend copies ../da_my-konsole/frontend into
+      # assets/; step_bundle_data generates its profiles) — so a frontend or
+      # build.sh change must rebuild the APK too.
+      - "da_my-konsole/frontend/**"
+      - "da_my-konsole/build.sh"
       - "1_workflows/src/cicd/ship-cloud-ide.yml"
       # Generated .github/workflows/*.yml intentionally NOT watched (regenerated
       # by 1_workflows/build.sh → would self-trigger rebuilds on unrelated commits).
