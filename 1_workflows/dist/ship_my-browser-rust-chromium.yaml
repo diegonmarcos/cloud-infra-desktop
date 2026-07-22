@@ -1,3 +1,15 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║                                                                  ║
+# ║   GENERATED FILE — DO NOT EDIT                                   ║
+# ║                                                                  ║
+# ║   Source : 1_workflows/src/cicd/ship_my-browser-rust-chromium.yaml
+# ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
+# ║   Rebuild: ./1_workflows/build.sh
+# ║                                                                  ║
+# ║   Manual edits will be overwritten on next build.                ║
+# ║                                                                  ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
 name: "Ship → my-browser-rust-chromium (Rust + CEF) release"
 
 # Builds a real Rust + Chromium (CEF/BoringSSL → clean fingerprint) browser on a

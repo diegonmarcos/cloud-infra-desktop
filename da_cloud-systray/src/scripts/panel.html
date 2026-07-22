@@ -227,6 +227,15 @@ body {
       <div class="about-row"><span class="about-key">Kernel</span><span class="about-val" id="ab-kern">—</span></div>
       <div class="about-row"><span class="about-key">Arch</span><span class="about-val" id="ab-arch">—</span></div>
     </div>
+    <div class="about-card">
+      <div class="about-row"><span class="about-key">What</span><span class="about-val">Monitors and drives the 5-repo cloud fleet — WireGuard mesh/DNS/firewall checks, unix flake (system + desktop) build/switch/update/diff, KDE Connect + system-resource shortcuts, per-VM SSH health, cloud service health checks, and quick links into the Cloud Portal / Dagu — all data-driven from JSON, dispatched from a native Electron SNI tray icon.</span></div>
+      <div class="about-row"><span class="about-key">Version</span><span class="about-val">cloud-systray 1.0.0 (src/nix/package.nix)</span></div>
+      <div class="about-row"><span class="about-key">Data</span><span class="about-val">da_cloud-systray/src/data/cloud-cp.json</span></div>
+      <div class="about-row"><span class="about-key">Calls</span><span class="about-val">local: wg show, resolvectl, iptables/nft, ssh gcp-proxy|oci-apps|oci-analytics|oci-mail; remote: https://api.diegonmarcos.com/pub/health, /c3-infra-api/health, /pub/routes; xdg-open https://diegonmarcos.github.io/a-Portals/cloud/ and https://workflows.diegonmarcos.com</span></div>
+      <div class="about-row"><span class="about-key">Unit</span><span class="about-val">systemd.user.services.cloud-systray (manual start, no autostart)</span></div>
+      <div class="about-row"><span class="about-key">Wired by</span><span class="about-val">aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_cloud-cp.nix</span></div>
+      <div class="about-row"><span class="about-key">Env vars</span><span class="about-val">SYSTRAY_DATA, SYSTRAY_ICON, SYSTRAY_BASH, SYSTRAY_KONSOLE, SYSTRAY_XDG, SYSTRAY_FLAKE_SYSTEM, SYSTRAY_FLAKE_DESKTOP, SYSTRAY_FLAKE_CLOUD</span></div>
+    </div>
   </div>
 
 </div>
