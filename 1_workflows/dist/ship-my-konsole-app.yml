@@ -17,12 +17,12 @@ name: ship-my-konsole-app
 # this is where the Rust actually compiles. Publishes the binary + .deb to a
 # rolling GitHub Release (my-konsole-latest) for `build.sh run` / KDE install.
 #
-# build-engine (2nd job): cross-builds the standalone my-konsole-engine crate
-# (no tauri/webkit deps) to a STATIC aarch64-unknown-linux-musl binary — a
-# static-musl bin runs unmodified on Termux (Android) since it makes raw
-# syscalls instead of linking Termux's own libc. Uses rustup+a prebuilt musl
-# cross toolchain (not nix — the pkgsCross musl toolchain isn't cached on
-# Hydra and rebuilds gcc from source). Published alongside the Tauri assets.
+# build-engine (2nd job): builds the standalone my-konsole-engine crate (no
+# tauri/webkit deps) to a STATIC aarch64-unknown-linux-musl binary — a static-musl
+# bin runs unmodified on Termux (Android) since it makes raw syscalls instead of
+# linking Termux's own libc. Built NATIVELY on a ubuntu-24.04-arm runner (house
+# "NO QEMU" mandate, same as ship-my-ai-app.yml) with Ubuntu's musl-tools —
+# reliable, unlike the musl.cc download it replaced. Published with the Tauri assets.
 on:
   push:
     branches: [main]
@@ -83,25 +83,31 @@ jobs:
             --clobber
 
   build-engine:
-    runs-on: ubuntu-latest
+    # NATIVE aarch64 runner (house mandate: NO QEMU, NO cross-toolchain download —
+    # ship-builders.yml + ship-my-ai-app.yml build aarch64 the same way). Still
+    # target *-musl (STATIC) so the binary runs on ANY Termux flavour (bionic
+    # Termux or nix-on-droid glibc), unlike a native-glibc build. musl-gcc comes
+    # from Ubuntu's own musl-tools (reliable) — the old musl.cc curl was the single
+    # point of failure (run 29923983817: connect-to-musl.cc timeout after 135s).
+    runs-on: ubuntu-24.04-arm
     defaults:
       run:
         working-directory: da_my-konsole
     steps:
       - uses: actions/checkout@v4
 
-      - name: Add aarch64-unknown-linux-musl target
-        run: rustup target add aarch64-unknown-linux-musl
+      - name: Rust toolchain + aarch64 musl target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl
 
-      - name: Install aarch64-linux-musl cross toolchain
-        run: |
-          curl -fL https://musl.cc/aarch64-linux-musl-cross.tgz | tar xz -C "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/aarch64-linux-musl-cross/bin" >> "$GITHUB_PATH"
+      - name: Install musl-tools (native aarch64 musl-gcc)
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Build my-konsole-engine (static, aarch64-unknown-linux-musl)
         env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-musl-gcc
-          CC_aarch64_unknown_linux_musl: aarch64-linux-musl-gcc
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+          CC_aarch64_unknown_linux_musl: musl-gcc
           RUSTFLAGS: -C target-feature=+crt-static
         run: cargo build --release --manifest-path engine/Cargo.toml --target aarch64-unknown-linux-musl
 
