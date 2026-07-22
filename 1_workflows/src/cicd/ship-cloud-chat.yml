@@ -1,10 +1,8 @@
 name: "Ship → Cloud Chat (materialize + build + publish to GHCR)"
 
-# Split out of ship-cloud-comms-forks.yml so each constellation fork ships as
-# its own independent app/workflow (ea_cloud-chat/ folder). The build ENGINE
-# still lives in ea_cloud-comms/build.sh (materialize-fork / build-fork /
-# publish-fork) — ea_cloud-comms is not yet decommissioned, only the fork
-# source + CI trigger are split per-app. See ea_cloud-chat/ship.yaml.
+# Independent per-app workflow for Cloud Chat (Mattermost fork).
+# Engine: 1_workflows/src/scripts/cloud-comms-fork-engine.sh (symlinked as ea_cloud-chat/build.sh).
+# Per-app build.json at ea_cloud-chat/build.json; patches at ea_cloud-chat/patches/.
 
 on:
   workflow_dispatch: {}
@@ -12,8 +10,7 @@ on:
     branches: [main]
     paths:
       - "ea_cloud-chat/**"
-      - "ea_cloud-comms/build.json"
-      - "ea_cloud-comms/build.sh"   # the engine IS the fork pipeline
+      - "1_workflows/src/scripts/cloud-comms-fork-engine.sh"
       - "1_workflows/src/cicd/ship-cloud-chat.yml"
 
 permissions:
@@ -21,7 +18,7 @@ permissions:
   packages: write   # ghcr push (oras)
 
 env:
-  WORK_DIR: ea_cloud-comms
+  WORK_DIR: ea_cloud-chat
   FORK: chat
 
 jobs:

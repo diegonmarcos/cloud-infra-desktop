@@ -208,6 +208,26 @@ _enforce_signature() {
   log "sign-enforce: OK $(basename "$apk") signed by the ONE shared constellation key"
 }
 
+# Guard against shipping an APK with the wrong package identity.
+# $1=key, $2=apk path, $3=expected package id (defaults to .forks.<key>.app_id).
+# Source-built forks pass app_id; upstream-APK forks pass upstream_apk.package when set.
+_assert_apk_identity() {
+  local key="$1" apk="$2" expected_id="${3:-}"
+  if [ -z "$expected_id" ]; then
+    expected_id="$(_json ".forks.${key}.app_id")"
+  fi
+  [ -n "$expected_id" ] && [ "$expected_id" != "null" ] \
+    || { errlog "identity-assert[$key]: expected package id not provided and .forks.${key}.app_id missing"; exit 1; }
+  local pkgs; pkgs="$(unzip -p "$apk" AndroidManifest.xml | LC_ALL=C strings -e l)" \
+    || { errlog "identity-assert[$key]: failed to extract AndroidManifest.xml from $apk"; exit 1; }
+  if ! printf '%s\n' "$pkgs" | grep -Fqx "$expected_id"; then
+    errlog "identity-assert[$key]: APK package != $expected_id — refusing to publish"
+    errlog "  Found packages: $(printf '%s\n' "$pkgs" | grep -E '\.' | head -5 | tr '\n' ' ')"
+    exit 1
+  fi
+  log "identity-assert[$key]: OK — package $expected_id confirmed in manifest"
+}
+
 # ── hub build/test ─────────────────────────────────────────────────────
 step_build() {
   step_bundle_forks
@@ -326,9 +346,9 @@ step_materialize_fork() {
   fi
 
   local dest="$SCRIPT_DIR/../$tracker"
-  # Forks were split out of ea_cloud-comms/forks/<key>/ into sibling
-  # ea_cloud-<key>/ app folders (2026-07-21/22) — patches now live there.
-  local patch_dir="$SCRIPT_DIR/../ea_cloud-${key}/patches"
+  # Per-app model: patches always live beside the build.sh/engine symlink
+  # (ea_cloud-<fork>/patches/). SCRIPT_DIR resolves to the invocation dir.
+  local patch_dir="$SCRIPT_DIR/patches"
 
   if [ ! -d "$dest/.git" ]; then
     log "materialize-fork[$key]: cloning $repo → $tracker (tag $tag)"
@@ -413,6 +433,11 @@ step_build_fork() {
     _fetch_upstream_apk "$key" "$up_url" "$up_sha" "$up_resign" "$DIST_DIR/cloud-comms-${key}.apk" \
       || { errlog "build-fork[$key]: upstream APK fetch/resign failed"; exit 1; }
     _enforce_signature "$DIST_DIR/cloud-comms-${key}.apk"
+    # upstream_apk.package: the actual package in the re-signed upstream APK (may differ
+    # from app_id which is aspirational for a future source fork)
+    local up_pkg; up_pkg="$(_json ".forks.${key}.upstream_apk.package")"
+    if [ -z "$up_pkg" ] || [ "$up_pkg" = "null" ]; then up_pkg=""; fi
+    _assert_apk_identity "$key" "$DIST_DIR/cloud-comms-${key}.apk" "$up_pkg"
     log "build-fork[$key]: upstream-APK fork ($bundle_abi) → $DIST_DIR/cloud-comms-${key}.apk ($(wc -c <"$DIST_DIR/cloud-comms-${key}.apk") B)"
     return 0
   fi
@@ -487,6 +512,7 @@ step_build_fork() {
       || { errlog "build-fork[$key]: resign failed"; exit 1; }
   fi
   _enforce_signature "$DIST_DIR/cloud-comms-${key}.apk"
+  _assert_apk_identity "$key" "$DIST_DIR/cloud-comms-${key}.apk"
   log "→ $DIST_DIR/cloud-comms-${key}.apk ($(wc -c <"$DIST_DIR/cloud-comms-${key}.apk") B)"
 }
 
