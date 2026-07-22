@@ -30,6 +30,14 @@ let
         done
       fi
       rm -rf node_modules/.pnpm/turbo-linux-64@* node_modules/.pnpm/turbo@* fixtures 2>/dev/null || true
+      # nixpkgs' noBrokenSymlinks fixup (added upstream ~2026-07) rejects the
+      # workers-sdk monorepo's dev-only dangling links — e.g.
+      #   lib/node_modules/.pnpm/node_modules/<x>-app -> ../../fixtures/<x>
+      # whose targets we just pruned above. They are test/example fixture apps
+      # the CLI never execs, so delete every broken symlink in the output.
+      # Completes the slim AND satisfies the check; `wrangler --version` below
+      # still gates that nothing runtime-critical was removed.
+      find "$out" -xtype l -delete 2>/dev/null || true
     '';
     doInstallCheck = true;
     installCheckPhase = (old.installCheckPhase or "") + ''
