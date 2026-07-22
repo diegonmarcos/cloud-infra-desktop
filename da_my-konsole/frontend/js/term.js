@@ -2,9 +2,6 @@
 // leaves are `.pane` (one xterm.js + one Rust PTY each), internal nodes are
 // `.split.row` (left/right) or `.split.col` (top/bottom) flex containers.
 // Konsole-style. All keybindings are data-driven (config.json → MYK.config).
-const invoke = window.__TAURI__.core.invoke;
-const listen = window.__TAURI__.event.listen;
-
 const MYK = {
   panes: new Map(),   // paneId -> { term, fit, search, host, tabId }
   activePane: null,
@@ -41,15 +38,15 @@ const MYK = {
       this.showPaneMenu(e.clientX, e.clientY);
     });
 
-    term.onData((d) => invoke("pty_write", { id, data: d }));
-    term.onResize(({ cols, rows }) => invoke("pty_resize", { id, cols, rows }));
+    term.onData((d) => Transport.ptyWrite(id, d));
+    term.onResize(({ cols, rows }) => Transport.ptyResize(id, cols, rows));
     term.onTitleChange((title) => Tabs.setTitle(tabId, title));
-    const unlisten = await listen(`pty:${id}`, (e) => term.write(e.payload.data));
-    await listen(`pty-exit:${id}`, () => this.closeView(id));
+    const unlisten = await Transport.onPty(id, (data) => term.write(data));
+    await Transport.onPtyExit(id, () => this.closeView(id));
 
     this.panes.set(id, { term, fit, search, host, tabId, unlisten });
     fit.fit();
-    await invoke("pty_start", { id, cols: term.cols, rows: term.rows, cwd: null });
+    await Transport.ptyStart(id, term.cols, term.rows, null);
     return id;
   },
 
@@ -126,7 +123,7 @@ const MYK = {
   _disposePane(id) {
     const p = this.panes.get(id);
     if (!p) return;
-    invoke("pty_kill", { id });
+    Transport.ptyKill(id);
     if (p.unlisten) p.unlisten();
     p.term.dispose();
     p.host.remove();
@@ -162,7 +159,7 @@ const MYK = {
         if (sel) { navigator.clipboard.writeText(sel); return false; }
         return true; // no selection → let it fall through
       }
-      case "paste":            navigator.clipboard.readText().then((t) => invoke("pty_write", { id, data: t })); return false;
+      case "paste":            navigator.clipboard.readText().then((t) => Transport.ptyWrite(id, t)); return false;
       case "find":             Find.open(); return false;
       case "split-left-right": this.split("row"); return false;
       case "split-top-bottom": this.split("col"); return false;
