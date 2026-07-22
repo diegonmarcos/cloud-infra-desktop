@@ -131,3 +131,16 @@ jobs:
             --notes "New build published to ghcr.io/diegonmarcos/cloud-comms-mail:latest — install via Cloud Mail → About → Check for updates." \
             --latest=false \
             "${{ env.WORK_DIR }}/dist/cloud-comms-mail.apk"
+
+      # Rolling 'latest' release: upload the APK under its own name so
+      # /releases/latest/download/cloud-comms-mail.apk is a stable install URL
+      # (ea_cloud-superapp ui.external_apps[cloud-mail].install_apk_url).
+      # Engine step reads build.json::release.gh_release (rolling_tag=latest).
+      - name: Publish fork APK to rolling 'latest' release (stable install URL)
+        if: ${{ success() && matrix.combo.abi == 'arm64-v8a' }}
+        working-directory: ${{ env.WORK_DIR }}
+        env:
+          BYPASS_NIX: "1"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: ./build.sh gh-release-fork "$FORK"
