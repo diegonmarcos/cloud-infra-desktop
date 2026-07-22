@@ -658,12 +658,12 @@ in
   # only — NOT the whole user-1000.slice (that whole-slice swap=0 caused the
   # 2026-07-02 file-page-thrash freeze). Data-driven from compositor_no_swap.units.
   # Xwayland is a child of kwin_wayland → shares its cgroup → inherits swap=0.
-  # overrideStrategy = "asDropIn" is MANDATORY (2026-07-22 incident): without it
+  # overrideStrategy = "asDropin" is MANDATORY (2026-07-22 incident): without it
   # NixOS emits a FULL replacement unit (only MemorySwapMax, no ExecStart) that
   # shadows the plasma-shipped unit in /etc/systemd/user — systemd then refuses
   # to start plasmashell/kwin after login = black desktop (gen 48).
   systemd.user.services = lib.genAttrs sysprot.compositor_no_swap.units (_: {
-    overrideStrategy = "asDropIn";
+    overrideStrategy = "asDropin";
     serviceConfig.MemorySwapMax = sysprot.compositor_no_swap.MemorySwapMax;
   });
 
