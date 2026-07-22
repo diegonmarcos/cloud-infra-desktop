@@ -133,6 +133,13 @@ mcp_configured=0
 [ -f "${cwd}/.mcp.json" ] && { n=$(jq '.mcpServers // {} | keys | length' "${cwd}/.mcp.json" 2>/dev/null); [ -n "$n" ] && mcp_configured=$((mcp_configured + n)); }
 [ "$mcp_configured" -gt 0 ] && mcp_color="32" || mcp_color="90"
 
+# Subagent (.md) count — user (~/.claude/agents) + plugin-provided agent defs.
+# Mirrors the MCP count above (README.md is the dir's index, not an agent).
+agents_configured=$(find "$HOME/.claude/agents" -maxdepth 1 -name '*.md' ! -name 'README.md' 2>/dev/null | wc -l)
+n=$(find "$HOME/.claude/plugins/cache" -path '*/agents/*.md' 2>/dev/null | wc -l)
+agents_configured=$((agents_configured + n))
+[ "$agents_configured" -gt 0 ] && agents_color="32" || agents_color="90"
+
 # Per-MCP online/offline icons (lazy 15-min cache) + plugin status PL[...].
 # Both helpers emit literal \033 escapes; the final `printf %b` renders them.
 mcp_seg=$(bash "$HOME/.claude/claude-mcp-status.sh" "$cwd" 2>/dev/null)
@@ -283,6 +290,7 @@ OUT+=" \033[90m${session_short}\033[0m"
 # MCP cell (fallback to count if the probe emitted nothing)
 OUT+=" \033[37m|\033[0m"
 if [ -n "$mcp_seg" ]; then OUT+=" ${mcp_seg}"; else OUT+=" \033[${mcp_color}mMCP:${mcp_configured}\033[0m"; fi
+OUT+=" \033[${agents_color}mAgents:${agents_configured}\033[0m"
 # PL / HK cells — only when their helper produced output (self-omitting)
 [ -n "$plugins_seg" ] && OUT+=" \033[37m|\033[0m ${plugins_seg}"
 [ -n "$hooks_seg" ] && OUT+=" \033[37m|\033[0m ${hooks_seg}"
@@ -380,10 +388,9 @@ OUT+=" \033[${cost_color}mΣ${d_tot}\033[0m"
 OUT+=" \033[37m│\033[0m"
 OUT+=" \033[${pct_color}mCtx:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
 OUT+=" \033[${cache_color}mCache:${cache_hit}%\033[0m"
-OUT+=" \033[90m$(fmt_age $secs_since)\033[0m"
-# Prompt/action age: how long ago the last user prompt / last AI action landed.
-OUT+=" \033[90mPrompt:${prompt_age}\033[0m"
-OUT+=" \033[90mAction:${action_age}\033[0m"
+# User/Agent idle age: how long ago the last user prompt / last agent action landed.
+OUT+=" \033[90mUser:${prompt_age}\033[0m"
+OUT+=" \033[90mAgent:${action_age}\033[0m"
 OUT+=" \033[37m|\033[0m\n"
 
 printf "%b" "$OUT"

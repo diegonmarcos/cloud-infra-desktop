@@ -238,9 +238,32 @@
     (
     CLAUDE_BIN="$HOME/.local/bin/claude"
     MARKETPLACE_DIR="$HOME/.claude/cloud-marketplace"
+    JQ="${pkgs.jq}/bin/jq"
     if [ -x "$CLAUDE_BIN" ] && [ -d "$MARKETPLACE_DIR" ]; then
       $DRY_RUN_CMD "$CLAUDE_BIN" plugin marketplace add "$MARKETPLACE_DIR" >/dev/null 2>&1 || true
       echo "[claude-marketplace] cloud-marketplace registered (enabledPlugins declared in settings.json)"
+      # Durable installPath materialization. Claude Code records each installed
+      # plugin's installPath as plugins/cache/<marketplace>/<plugin>/<version>
+      # and its /plugin loader validates that path — but nothing populates it
+      # for a directory-source marketplace, so after a nix store-swap the loader
+      # reports "cannot find the hooks". Recreate each installPath as a symlink
+      # into the (HM-refreshed, store-backed) marketplace dir. Pointing at the
+      # stable ~/.claude/cloud-marketplace/<plugin> path (not the raw store
+      # hash) keeps it valid across every rebuild/GC. Data-driven: plugin names
+      # from marketplace.json, version from each plugin.json.
+      CACHE_DIR="$HOME/.claude/plugins/cache/cloud-marketplace"
+      MKT_JSON="$MARKETPLACE_DIR/.claude-plugin/marketplace.json"
+      if [ -f "$MKT_JSON" ]; then
+        for P in $("$JQ" -r '.plugins[].name' "$MKT_JSON" 2>/dev/null); do
+          VER=$("$JQ" -r '.version // "1.0.0"' "$MARKETPLACE_DIR/$P/.claude-plugin/plugin.json" 2>/dev/null || echo "1.0.0")
+          DEST="$CACHE_DIR/$P/$VER"
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$CACHE_DIR/$P"
+          # Replace any real dir left by a prior copy-install; -sfn handles the symlink case.
+          [ -e "$DEST" ] && [ ! -L "$DEST" ] && $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -rf "$DEST"
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/ln -sfn "$MARKETPLACE_DIR/$P" "$DEST"
+          echo "[claude-marketplace] materialized $P@$VER -> cache installPath"
+        done
+      fi
     else
       echo "[claude-marketplace] WARNING: claude CLI or marketplace dir not found, skipping"
     fi
