@@ -35,6 +35,20 @@ vendor() {
   done < <(jq -r '.build.vendor_map | to_entries[] | "\(.key)\t\(.value)"' build.json)
   rm -rf "$tmp"
   log "Vendored: $(command ls frontend/vendor | tr '\n' ' ')"
+  step_bundle_data
+}
+
+# Bundle profiles + config → frontend/data/*.json (static JSON, generated —
+# NOT committed). The WebView build (Android cloud-ide + plain browser) has no
+# Tauri backend, so its frontend worker fetches these instead of calling
+# get_profiles/get_config. Same source (src/data/) as stage_resources/sync_data,
+# same sorted-by-dirname order the Rust backend globs in.
+step_bundle_data() {
+  log "Bundling profiles + config → frontend/data/…"
+  mkdir -p frontend/data   # git doesn't track the empty dir; recreate on fresh checkout
+  jq -s '{profiles: .}' src/data/profiles/*/profile.json > frontend/data/profiles.json
+  command cp -f src/data/config.json frontend/data/config.json 2>/dev/null || echo '{}' > frontend/data/config.json
+  log "Bundled → frontend/data/{profiles,config}.json"
 }
 
 # Copy data profiles next to the built binary as Tauri resources (bundled).
@@ -219,5 +233,6 @@ case "${1:-build}" in
   data)     sync_data ;;
   clean)    cmd_clean ;;
   vendor)   vendor ;;
-  *)        echo "Usage: $0 [build|dev|check|run|fetch|install|data|clean|vendor]" ;;
+  bundle-data) step_bundle_data ;;
+  *)        echo "Usage: $0 [build|dev|check|run|fetch|install|data|clean|vendor|bundle-data]" ;;
 esac

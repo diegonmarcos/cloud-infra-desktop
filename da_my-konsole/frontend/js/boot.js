@@ -4,13 +4,19 @@
   let current = null;
 
   // Load runtime UI config (theme/font/terminal/keybindings) BEFORE any pane.
-  // ponytail: Phase 2b — engine-serve profiles/config/fs over ws; for now the
-  // ws/browser path just gets an empty default so the UI still loads.
-  try { MYK.config = window.__TAURI__ ? await window.__TAURI__.core.invoke("get_config") : {}; }
-  catch (e) { console.error("get_config failed", e); MYK.config = {}; }
+  // ponytail: Phase 2b — on Tauri, invoke the Rust commands directly; on the
+  // WebView/browser path (no __TAURI__) load the static JSON the build emits
+  // instead (frozen paths/format: data/config.json, data/profiles.json).
+  try {
+    MYK.config = window.__TAURI__
+      ? await window.__TAURI__.core.invoke("get_config")
+      : await fetch("data/config.json").then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+  } catch (e) { console.error("get_config failed", e); MYK.config = {}; }
 
   try {
-    const res = window.__TAURI__ ? await window.__TAURI__.core.invoke("get_profiles") : { profiles: [] };
+    const res = window.__TAURI__
+      ? await window.__TAURI__.core.invoke("get_profiles")
+      : await fetch("data/profiles.json").then((r) => (r.ok ? r.json() : { profiles: [] })).catch(() => ({ profiles: [] }));
     profiles = res.profiles || [];
   } catch (e) { console.error("get_profiles failed", e); }
   if (profiles.length === 0) profiles = [{ name: "default", display_name: "Shell", sections: [] }];
@@ -95,15 +101,25 @@
   document.addEventListener("click", () => { menuDrop.hidden = true; });
 
   document.getElementById("menu-restore-session").addEventListener("click", () => Tabs.restoreSession());
-  document.getElementById("menu-about").addEventListener("click", async () => {
+
+  async function showAbout() {
     let appVersion = "unknown", tauriVersion = "unknown";
-    try { appVersion = await window.__TAURI__.app.getVersion(); } catch {}
-    try { tauriVersion = await window.__TAURI__.app.getTauriVersion(); } catch {}
+    if (window.__TAURI__) {
+      try { appVersion = await window.__TAURI__.app.getVersion(); } catch {}
+      try { tauriVersion = await window.__TAURI__.app.getTauriVersion(); } catch {}
+    }
     document.getElementById("about-body").textContent =
       `Version: ${appVersion}\nTauri: ${tauriVersion}\nProfiles loaded: ${profiles.length}\nTabs open: ${Tabs.tabs.size}`;
     document.getElementById("about").hidden = false;
-  });
+  }
+  document.getElementById("menu-about").addEventListener("click", showAbout);
   document.getElementById("about-close").addEventListener("click", () => { document.getElementById("about").hidden = true; });
+
+  // Row 1 (Home): fixed actions, always visible regardless of active profile.
+  document.getElementById("btn-home-filebrowser").addEventListener("click", () => Tabs.openFileBrowserTab("~"));
+  document.getElementById("btn-home-fileeditor").addEventListener("click", () => Tabs.openFileEditorTab(null));
+  document.getElementById("btn-home-browser").addEventListener("click", () => Tabs.openBrowserTab());
+  document.getElementById("btn-home-about").addEventListener("click", showAbout);
 
   // Sidebar view switcher: Commands (search + per-profile items) | Tabs (vertical, grouped)
   for (const btn of document.querySelectorAll(".sidebar-toggle-btn")) {

@@ -8,18 +8,27 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- Top profile nav -->
+  <!-- Top nav: row 1 = fixed Home actions, row 2 = data-driven profile pills -->
   <header id="topnav">
-    <button id="btn-sidebar" title="Toggle sidebar">☰</button>
-    <div id="brand">my-konsole</div>
-    <nav id="profiles"><!-- .profile-pill per profile (boot.js) --></nav>
-    <div id="topnav-spacer"></div>
-    <div id="menu-wrap">
-      <button id="btn-menu" title="Menu">⋮</button>
-      <div id="menu-dropdown" hidden>
-        <div class="menu-item" id="menu-restore-session">Restore Last Session</div>
-        <div class="menu-item" id="menu-about">About</div>
+    <div class="nav-row" id="nav-row-home">
+      <button id="btn-sidebar" title="Toggle sidebar">☰</button>
+      <div id="brand">my-konsole</div>
+      <span class="nav-label">Home</span>
+      <button class="home-btn" id="btn-home-filebrowser">File Browser</button>
+      <button class="home-btn" id="btn-home-fileeditor">File Editor</button>
+      <button class="home-btn" id="btn-home-browser">Browser</button>
+      <button class="home-btn" id="btn-home-about">About</button>
+      <div id="topnav-spacer"></div>
+      <div id="menu-wrap">
+        <button id="btn-menu" title="Menu">⋮</button>
+        <div id="menu-dropdown" hidden>
+          <div class="menu-item" id="menu-restore-session">Restore Last Session</div>
+          <div class="menu-item" id="menu-about">About</div>
+        </div>
       </div>
+    </div>
+    <div class="nav-row" id="nav-row-profiles">
+      <nav id="profiles"><!-- .profile-pill per profile (boot.js) --></nav>
     </div>
   </header>
 

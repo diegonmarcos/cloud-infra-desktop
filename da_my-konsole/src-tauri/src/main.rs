@@ -109,29 +109,21 @@ fn get_profiles(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({ "profiles": [] }))
 }
 
-#[derive(serde::Serialize)]
-struct FsEntry { name: String, is_dir: bool }
-
 // Lists one directory (yazi-style miller columns read one level at a time).
-// Not gated by Tauri's fs-plugin ACL — plain std::fs in a native command.
+// Not gated by Tauri's fs-plugin ACL — plain std::fs, shared with the engine via pty-core::fs.
 #[tauri::command]
-fn fs_list_dir(path: String) -> Result<Vec<FsEntry>, String> {
-    let expanded = if let Some(rest) = path.strip_prefix('~') {
-        let home = std::env::var("HOME").map_err(|e| e.to_string())?;
-        format!("{home}{rest}")
-    } else {
-        path
-    };
-    let mut entries: Vec<FsEntry> = std::fs::read_dir(&expanded)
-        .map_err(|e| e.to_string())?
-        .flatten()
-        .filter_map(|e| {
-            let is_dir = e.file_type().ok()?.is_dir();
-            Some(FsEntry { name: e.file_name().to_string_lossy().into_owned(), is_dir })
-        })
-        .collect();
-    entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.to_lowercase().cmp(&b.name.to_lowercase())));
-    Ok(entries)
+fn fs_list_dir(path: String) -> Result<Vec<pty_core::fs::FsEntry>, String> {
+    pty_core::fs::list_dir(&path)
+}
+
+#[tauri::command]
+fn fs_read_file(path: String) -> Result<String, String> {
+    pty_core::fs::read_file(&path)
+}
+
+#[tauri::command]
+fn fs_write_file(path: String, content: String) -> Result<(), String> {
+    pty_core::fs::write_file(&path, &content)
 }
 
 fn main() {
@@ -139,7 +131,8 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .manage(PtyBroker::new())
         .invoke_handler(tauri::generate_handler![
-            pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config, fs_list_dir
+            pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config,
+            fs_list_dir, fs_read_file, fs_write_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running my-konsole");

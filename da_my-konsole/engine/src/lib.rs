@@ -32,6 +32,22 @@ enum ClientOp {
     Auth {
         token: String,
     },
+    #[serde(rename = "fs_list")]
+    FsList {
+        rid: u64,
+        path: String,
+    },
+    #[serde(rename = "fs_read")]
+    FsRead {
+        rid: u64,
+        path: String,
+    },
+    #[serde(rename = "fs_write")]
+    FsWrite {
+        rid: u64,
+        path: String,
+        content: String,
+    },
 }
 
 // server -> client, tagged by "ev"
@@ -40,6 +56,26 @@ enum ClientOp {
 enum ServerEv {
     Output { id: String, data: String },
     Exit { id: String },
+    #[serde(rename = "fs_result")]
+    FsResult {
+        rid: u64,
+        ok: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        entries: Option<Vec<pty_core::fs::FsEntry>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        content: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
+}
+
+impl ServerEv {
+    fn fs_ok(rid: u64, entries: Option<Vec<pty_core::fs::FsEntry>>, content: Option<String>) -> Self {
+        ServerEv::FsResult { rid, ok: true, entries, content, error: None }
+    }
+    fn fs_err(rid: u64, error: String) -> Self {
+        ServerEv::FsResult { rid, ok: false, entries: None, content: None, error: Some(error) }
+    }
 }
 
 /// Blocking accept loop; one thread per connection. Bind whatever addr is passed —
@@ -126,6 +162,33 @@ fn handle_conn(stream: TcpStream) {
                         let _ = broker.resize(&id, cols, rows);
                     }
                     ClientOp::Kill { id } => broker.kill(&id),
+                    ClientOp::FsList { rid, path } => {
+                        let ev = match pty_core::fs::list_dir(&path) {
+                            Ok(entries) => ServerEv::fs_ok(rid, Some(entries), None),
+                            Err(e) => ServerEv::fs_err(rid, e),
+                        };
+                        if let Ok(json) = serde_json::to_string(&ev) {
+                            let _ = tx.send(json);
+                        }
+                    }
+                    ClientOp::FsRead { rid, path } => {
+                        let ev = match pty_core::fs::read_file(&path) {
+                            Ok(content) => ServerEv::fs_ok(rid, None, Some(content)),
+                            Err(e) => ServerEv::fs_err(rid, e),
+                        };
+                        if let Ok(json) = serde_json::to_string(&ev) {
+                            let _ = tx.send(json);
+                        }
+                    }
+                    ClientOp::FsWrite { rid, path, content } => {
+                        let ev = match pty_core::fs::write_file(&path, &content) {
+                            Ok(()) => ServerEv::fs_ok(rid, None, None),
+                            Err(e) => ServerEv::fs_err(rid, e),
+                        };
+                        if let Ok(json) = serde_json::to_string(&ev) {
+                            let _ = tx.send(json);
+                        }
+                    }
                 }
             }
             Ok(Message::Close(_)) => return,

@@ -18,18 +18,31 @@ html, body {
 }
 body { display: flex; flex-direction: column; }
 
-/* Top nav */
+/* Top nav: stacked into two rows — row 1 fixed Home actions, row 2 profile pills */
 #topnav {
-  display: flex; align-items: center; gap: 12px;
-  height: 40px; padding: 0 10px; background: var(--bg3);
-  border-bottom: 1px solid var(--border); flex: 0 0 auto;
+  display: flex; flex-direction: column;
+  background: var(--bg3); border-bottom: 1px solid var(--border); flex: 0 0 auto;
 }
+.nav-row {
+  display: flex; align-items: center; gap: 8px;
+  height: 34px; padding: 0 10px;
+}
+#nav-row-home { gap: 12px; border-bottom: 1px solid var(--border); }
+#nav-row-profiles { height: 32px; }
 #btn-sidebar {
   background: transparent; color: var(--muted); border: 1px solid var(--border);
   border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 13px;
 }
 #btn-sidebar:hover { border-color: var(--accent); color: var(--fg); }
 #brand { font-weight: 700; color: var(--accent); letter-spacing: .3px; }
+.nav-label {
+  color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: .5px;
+}
+.home-btn {
+  background: transparent; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 6px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+}
+.home-btn:hover { background: var(--bg2); color: var(--fg); border-color: var(--accent); }
 #profiles { display: flex; gap: 4px; }
 .profile-pill {
   padding: 4px 12px; border-radius: 6px; cursor: pointer;
@@ -133,16 +146,30 @@ body { display: flex; flex-direction: column; }
   outline: 1px solid transparent; }
 .pane.focused { outline: 1px solid var(--accent); }
 .pane .xterm { height: 100%; }
-.browser-wrap, .fb-wrap {
+.browser-wrap, .fb-wrap, .editor-wrap {
   flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
 }
-.browser-addr, .fb-addr { flex: 0 0 auto; padding: 4px; border-bottom: 1px solid var(--border); }
-.browser-addr-input, .fb-addr-input {
+.browser-addr, .fb-addr, .editor-addr {
+  flex: 0 0 auto; padding: 4px; border-bottom: 1px solid var(--border);
+  display: flex; gap: 4px;
+}
+.browser-addr-input, .fb-addr-input, .editor-path-input {
   width: 100%; background: var(--bg2); color: var(--fg); border: 1px solid var(--border);
   border-radius: 6px; padding: 4px 8px; font: 13px monospace;
 }
-.browser-addr-input:focus, .fb-addr-input:focus { outline: none; border-color: var(--accent); }
+.browser-addr-input:focus, .fb-addr-input:focus, .editor-path-input:focus { outline: none; border-color: var(--accent); }
 .browser-frame { flex: 1 1 0; width: 100%; height: 100%; border: 0; }
+
+.editor-reload, .editor-save {
+  flex: 0 0 auto; background: var(--bg2); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px;
+}
+.editor-reload:hover, .editor-save:hover { border-color: var(--accent); }
+.editor-area {
+  flex: 1 1 0; width: 100%; resize: none; border: 0; outline: none;
+  background: var(--bg); color: var(--fg); font: 13px var(--font); padding: 8px;
+  /* ponytail: syntax highlighting later */
+}
 
 .fb-cols { flex: 1 1 0; display: flex; flex-direction: row; overflow-x: auto; min-height: 0; }
 .fb-col {

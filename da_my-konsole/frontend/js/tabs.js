@@ -186,7 +186,7 @@ const Tabs = {
 
   // ── Browser tab: iframe + editable address bar, no PTY. Reuses the OS
   // webview engine (WebKitGTK) — no bundled Chromium, no extra deps.
-  openBrowserTab(url, profile = this.activeProfile) {
+  openBrowserTab(url = "https://duckduckgo.com", profile = this.activeProfile) {
     const tabId = "T" + ++this.seq;
     const rootEl = document.createElement("div");
     rootEl.className = "tab-root";
@@ -238,6 +238,52 @@ const Tabs = {
     this.tabs.set(tabId, { rootEl, tabEl, profile, isFileBrowser: true, icon: "📁", group: null });
     this.order.push(tabId);
     this.activate(tabId);
+    return tabId;
+  },
+
+  // ── File editor tab: plain textarea editor, no PTY. ponytail: syntax
+  // highlighting later — this is deliberately just a <textarea>, no
+  // CodeMirror/Monaco dependency.
+  openFileEditorTab(path, profile = this.activeProfile) {
+    const tabId = "T" + ++this.seq;
+    const rootEl = document.createElement("div");
+    rootEl.className = "tab-root";
+    rootEl.dataset.id = tabId;
+    rootEl.innerHTML = `
+      <div class="editor-wrap">
+        <div class="editor-addr">
+          <input class="editor-path-input" type="text" spellcheck="false" value="${path || ""}" />
+          <button class="editor-reload" title="Reload">⟳</button>
+          <button class="editor-save" title="Save">Save</button>
+        </div>
+        <textarea class="editor-area" spellcheck="false"></textarea>
+      </div>`;
+    document.getElementById("terms").appendChild(rootEl);
+
+    const pathInput = rootEl.querySelector(".editor-path-input");
+    const area = rootEl.querySelector(".editor-area");
+    const load = async (p) => {
+      if (!p) return;
+      try { area.value = await Transport.readFile(p); }
+      catch (e) { console.error("readFile failed", e); }
+    };
+    rootEl.querySelector(".editor-reload").addEventListener("click", () => load(pathInput.value.trim()));
+    rootEl.querySelector(".editor-save").addEventListener("click", async () => {
+      try { await Transport.writeFile(pathInput.value.trim(), area.value); console.log("saved", pathInput.value.trim()); }
+      catch (e) { console.error("writeFile failed", e); }
+    });
+
+    const tabEl = document.createElement("div");
+    tabEl.className = "tab"; tabEl.dataset.id = tabId;
+    const title = path ? (path.split("/").filter(Boolean).pop() || path) : "untitled";
+    tabEl.innerHTML = `<span class="tab-icon">📝</span><span class="tab-title">${title}</span><span class="tab-close">✕</span>`;
+    this._wireTabEl(tabEl, tabId);
+    document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
+
+    this.tabs.set(tabId, { rootEl, tabEl, profile, isFileEditor: true, icon: "📝", group: null });
+    this.order.push(tabId);
+    this.activate(tabId);
+    if (path) load(path);
     return tabId;
   },
 
@@ -300,6 +346,7 @@ const Tabs = {
       const t = this.tabs.get(id);
       if (t.isBrowser) return { profile: t.profile, kind: "browser", url: t.rootEl.querySelector(".browser-addr-input")?.value };
       if (t.isFileBrowser) return { profile: t.profile, kind: "filebrowser", startPath: t.rootEl.querySelector(".fb-addr-input")?.value };
+      if (t.isFileEditor) return { profile: t.profile, kind: "fileeditor", path: t.rootEl.querySelector(".editor-path-input")?.value };
       return { profile: t.profile, kind: "shell" };
     });
     localStorage.setItem("myk-session", JSON.stringify(snap));
@@ -312,6 +359,7 @@ const Tabs = {
     for (const t of snap) {
       if (t.kind === "browser") this.openBrowserTab(t.url, t.profile);
       else if (t.kind === "filebrowser") this.openFileBrowserTab(t.startPath || "~", t.profile);
+      else if (t.kind === "fileeditor") this.openFileEditorTab(t.path || null, t.profile);
       else await this.newTab(t.profile);
     }
   },
