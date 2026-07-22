@@ -1,15 +1,16 @@
 // boot.js — wire the shell: profiles top-nav, command sections, search, find.
 (async function () {
-  const invoke = window.__TAURI__.core.invoke;
   let profiles = [];
   let current = null;
 
   // Load runtime UI config (theme/font/terminal/keybindings) BEFORE any pane.
-  try { MYK.config = await invoke("get_config"); }
+  // ponytail: Phase 2b — engine-serve profiles/config/fs over ws; for now the
+  // ws/browser path just gets an empty default so the UI still loads.
+  try { MYK.config = window.__TAURI__ ? await window.__TAURI__.core.invoke("get_config") : {}; }
   catch (e) { console.error("get_config failed", e); MYK.config = {}; }
 
   try {
-    const res = await invoke("get_profiles");
+    const res = window.__TAURI__ ? await window.__TAURI__.core.invoke("get_profiles") : { profiles: [] };
     profiles = res.profiles || [];
   } catch (e) { console.error("get_profiles failed", e); }
   if (profiles.length === 0) profiles = [{ name: "default", display_name: "Shell", sections: [] }];
@@ -60,7 +61,7 @@
     const id = MYK.activePane;
     if (!id || !item.cmd) return;
     const run = !/\s$/.test(item.cmd);
-    invoke("pty_write", { id, data: run ? item.cmd + "\n" : item.cmd });
+    Transport.ptyWrite(id, run ? item.cmd + "\n" : item.cmd);
     MYK.panes.get(id)?.term.focus();
   }
 
