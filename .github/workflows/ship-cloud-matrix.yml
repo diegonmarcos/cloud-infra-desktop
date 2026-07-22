@@ -12,11 +12,9 @@
 
 name: "Ship → Cloud Matrix (materialize + build + publish to GHCR)"
 
-# Split out of ship-cloud-comms-forks.yml so each constellation fork ships as
-# its own independent app/workflow (ea_cloud-matrix/ folder). The build ENGINE
-# still lives in z_archive/ea_cloud-comms/build.sh (materialize-fork / build-fork /
-# publish-fork) — ea_cloud-comms was archived to z_archive/, engine kept alive there
-# source + CI trigger are split per-app. See ea_cloud-matrix/ship.yaml.
+# Independent per-app workflow for Cloud Matrix (Element X fork).
+# Engine: 1_workflows/src/scripts/cloud-comms-fork-engine.sh (symlinked as ea_cloud-matrix/build.sh).
+# Per-app build.json at ea_cloud-matrix/build.json.
 
 on:
   workflow_dispatch: {}
@@ -24,8 +22,7 @@ on:
     branches: [main]
     paths:
       - "ea_cloud-matrix/**"
-      - "z_archive/ea_cloud-comms/build.json"
-      - "z_archive/ea_cloud-comms/build.sh"   # the engine IS the fork pipeline
+      - "1_workflows/src/scripts/cloud-comms-fork-engine.sh"
       - "1_workflows/src/cicd/ship-cloud-matrix.yml"
 
 permissions:
@@ -33,7 +30,7 @@ permissions:
   packages: write   # ghcr push (oras)
 
 env:
-  WORK_DIR: z_archive/ea_cloud-comms
+  WORK_DIR: ea_cloud-matrix
   FORK: matrix
 
 jobs:
