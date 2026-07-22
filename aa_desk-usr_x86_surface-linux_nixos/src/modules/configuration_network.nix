@@ -178,7 +178,10 @@ in {
           # mesh names). All other queries continue to the global DNS (127.0.0.1 =
           # dnscrypt-proxy2). Without this, dns-priority=50 would make Hickory the
           # global primary, but Hickory only knows its declared zones.
-          dns-search = wgData.dns_search;
+          # dns_search is a JSON array; NM's keyfile ipv4.dns-search is a
+          # ';'-separated list. Joining with spaces made NM store all three as ONE
+          # bogus domain, so diegonmarcos.com never routed to Hickory (403 on mcp.*).
+          dns-search = lib.concatStringsSep ";" wgData.dns_search;
           never-default = "true";        # only route the mesh subnet, not all traffic
         };
         ipv6.method = "ignore";
