@@ -12,6 +12,22 @@ FACE (default: remote)
                         (Desktop only — no docker in Termux/TTY.)
   claude                Bypass everything — plain claude, no proxy/engine/plugins.
 
+MODE (comes first; default: --auto)
+  --auto                Auto-approve: passes --dangerously-skip-permissions to
+                        Claude. Claude acts without per-tool permission prompts.
+                        This is the DEFAULT — no flag needed.
+  --plan                Plan-first mode: record intent for display. Future CLI
+                        flag when Claude Code adds native plan mode support.
+  --interactive         Explicit standard interactive mode. Claude asks before
+                        each action (override if auto was set elsewhere).
+
+  --model <id>          Override the model (sets ANTHROPIC_MODEL env var).
+                        IDs: claude-sonnet-4-6 · claude-opus-4-8 · claude-haiku-4-5
+  --effort <lvl>        Effort tier (sets CLAUDE_EFFORT env): high|medium|low.
+                        Default: model decides.
+
+  Mode + model flags must appear before all other arguments.
+
 PLUGIN TOGGLES (any order, before the action)
   headroom on|off       on  = compress via the proxy (sets ANTHROPIC_BASE_URL).
                         off = direct to Anthropic, no compression.
@@ -48,14 +64,25 @@ SETUP (installer / deps-solver — NO npm, native binaries)
 
 OTHER
   --help, -h            Interactive status dashboard (faces, MCPs, plugins).
-  help                  This message.
+  help                  This text + live status: agents, plugin status line,
+                        and recent sessions (last 48h + last 5 by time).
+
+my-ai                   Alias for claude-superset (future replacement). Same
+                        script, same flags, same behaviour.
 
 EXAMPLES
-  claude-superset                          # remote, fresh, headroom on
-  claude-superset local ponytail ultra     # local face, ponytail ultra
-  claude-superset headroom off             # direct, no compression
-  claude-superset restore 5                # reopen last 5 local sessions
-  claude-superset restore-hours 8          # reopen local sessions from last 8h
-  claude-superset restore android-termux 3 # reopen 3 sessions from the phone
-  claude-superset restore all 10           # reopen last 10 across all devices
-  claude-superset sync                     # push local sessions to the hub now
+  claude-superset                              # auto mode, remote, fresh, headroom on
+  my-ai                                        # same (alias)
+  claude-superset --auto                       # explicit auto mode (same as default)
+  claude-superset --plan                       # plan-first mode
+  claude-superset --interactive                # interactive mode (ask per action)
+  claude-superset --model claude-opus-4-8      # override model
+  claude-superset --effort high                # override effort tier
+  claude-superset local ponytail ultra         # local face, ponytail ultra
+  claude-superset headroom off                 # direct, no compression
+  claude-superset restore 5                    # reopen last 5 local sessions
+  claude-superset restore-hours 8              # reopen local sessions from last 8h
+  claude-superset restore android-termux 3     # reopen 3 sessions from the phone
+  claude-superset restore all 10               # reopen last 10 across all devices
+  claude-superset sync                         # push local sessions to the hub now
+  claude-superset help                         # this text + live status + sessions
