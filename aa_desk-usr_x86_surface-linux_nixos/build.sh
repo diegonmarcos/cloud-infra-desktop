@@ -1860,8 +1860,8 @@ if [ $# -gt 0 ]; then
 
         if [ "$(jq -r '.konsole_wrap.notify_send // false' "$_sp_json")" = "true" ] \
            && command -v notify-send >/dev/null 2>&1; then
-            notify-send -u normal -i nix-snowflake-white \
-                "build.sh $cli_cmd starting" "$FLAKE_PATH — opening Konsole with full log"
+            timeout 3 notify-send -u normal -i nix-snowflake-white \
+                "build.sh $cli_cmd starting" "$FLAKE_PATH — opening Konsole with full log" 2>/dev/null || true
         fi
 
         if [ "$(jq -r '.konsole_wrap.kdialog_progress // false' "$_sp_json")" = "true" ] \
@@ -1938,8 +1938,15 @@ if [ $# -gt 0 ]; then
                     # notify-send (2026-07-18): switches run silent for minutes with no
                     # popup/progress-bar — Diego has repeatedly been blindsided by a
                     # background `switch` he had no visibility into. Fire start + finish/fail.
-                    command -v notify-send >/dev/null 2>&1 && notify-send -u normal -i nix-snowflake-white \
-                        "build.sh $cli_cmd starting" "isolated in $_iso_slice (mem≤$_iso_mm) — $FLAKE_PATH"
+                    # BUG FIX (2026-07-22): unlike the konsole_wrap notify-send above, this
+                    # path has no DISPLAY/DBUS_SESSION_BUS_ADDRESS gate — on a bare tty
+                    # session (no notification daemon on the bus) `notify-send` blocks
+                    # ~50s on DBUS StartServiceByName before failing, aborting the whole
+                    # switch pipeline. `command -v` only proves the binary exists, not
+                    # that a daemon answers it. `timeout 3` bounds every call so a
+                    # missing daemon can never block/kill the pipeline.
+                    command -v notify-send >/dev/null 2>&1 && { timeout 3 notify-send -u normal -i nix-snowflake-white \
+                        "build.sh $cli_cmd starting" "isolated in $_iso_slice (mem≤$_iso_mm) — $FLAKE_PATH" 2>/dev/null || true; }
                     _iso_start="$(date +%s)"
                     "$_iso_sudo" systemd-run --slice="$_iso_slice" --unit=nixos-switch-isolated \
                         --uid="$(id -u)" --gid="$(id -g)" --wait --collect --quiet \
@@ -1951,11 +1958,11 @@ if [ $# -gt 0 ]; then
                     _iso_rc=$?
                     _iso_elapsed=$(( $(date +%s) - _iso_start ))
                     if [ "$_iso_rc" -eq 0 ]; then
-                        command -v notify-send >/dev/null 2>&1 && notify-send -u normal -i emblem-default \
-                            "build.sh $cli_cmd done (${_iso_elapsed}s)" "$FLAKE_PATH"
+                        command -v notify-send >/dev/null 2>&1 && { timeout 3 notify-send -u normal -i emblem-default \
+                            "build.sh $cli_cmd done (${_iso_elapsed}s)" "$FLAKE_PATH" 2>/dev/null || true; }
                     else
-                        command -v notify-send >/dev/null 2>&1 && notify-send -u critical -i emblem-important \
-                            "build.sh $cli_cmd FAILED (${_iso_elapsed}s, exit $_iso_rc)" "$FLAKE_PATH"
+                        command -v notify-send >/dev/null 2>&1 && { timeout 3 notify-send -u critical -i emblem-important \
+                            "build.sh $cli_cmd FAILED (${_iso_elapsed}s, exit $_iso_rc)" "$FLAKE_PATH" 2>/dev/null || true; }
                     fi
                     exit "$_iso_rc"
                 fi
