@@ -153,6 +153,7 @@
 
     # ─── Network ───────────────────────────────────────────────────────────────
     curl wget git openssh iwd
+    networkmanager        # nmtui — terminal WiFi; explicit so it's guaranteed on PATH
 
     # ─── System tools ──────────────────────────────────────────────────────────
     htop btop neofetch
@@ -165,6 +166,9 @@
 
     # ─── Development (Claude Code) ─────────────────────────────────────────────
     nodejs_22
+
+    # ─── Build toolchain (compile/patch in rescue) ─────────────────────────────
+    gcc gnumake pkg-config
 
     # ─── Openbox GUI (minimal) ─────────────────────────────────────────────────
     alacritty           # Terminal (my-konsole — Rust/GPU)
