@@ -30,7 +30,18 @@
     initrd = {
       compressor = "zstd";
       compressorArgs = [ "-19" "-T0" ];
-      supportedFilesystems = [ "btrfs" "ext4" "vfat" ];
+      # NO btrfs in the initrd. btrfs pulls blake2b_generic as a checksum dep,
+      # and on the linux-surface 6.19.8 kernel blake2b_generic is BUILTIN (=y),
+      # not a loadable .ko — so the initrd modules-shrunk step's
+      # `modprobe blake2b_generic` aborts FATAL and the whole ISO build fails.
+      # Proven: GHA runs 29081577942 + 29037262731, BOTH on nixpkgs 25.05 (the
+      # "25.05 tolerates builtin modules" claim was wrong). The initrd only ever
+      # mounts the ISO media (iso9660/vfat) or the ext4 rescue partition p8 on
+      # chainload — never btrfs. btrfs recovery (mounting the user's LUKS/btrfs
+      # pool) is a POST-boot task using the stage-2 kernel module
+      # (boot.supportedFilesystems below) + btrfs-progs — so btrfs does not
+      # belong in the initrd. ext4 stays (p8 chainload), vfat stays (EFI/Ventoy).
+      supportedFilesystems = [ "ext4" "vfat" ];
       kernelModules = [ "i915" ];  # Intel graphics early
     };
 
