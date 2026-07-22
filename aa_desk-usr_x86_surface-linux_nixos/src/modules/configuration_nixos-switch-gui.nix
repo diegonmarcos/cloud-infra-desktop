@@ -35,6 +35,11 @@ in {
         "XDG_CURRENT_DESKTOP=KDE"
         "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
         "NO_AT_BRIDGE=1"
+        # 2026-07-22: the tray binary drives yad --notification, which is
+        # X11-only ("This mode not supported outside X11") — on the Wayland
+        # session it crash-looped 1898× and the tray never appeared. Force
+        # the GTK X11 backend (Xwayland).
+        "GDK_BACKEND=x11"
         # Flake path for log file discovery (tooltip + log viewer)
         "SYSTRAY_FLAKE=/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos"
       ];
