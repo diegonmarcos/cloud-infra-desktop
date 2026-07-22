@@ -372,7 +372,7 @@
                   exit 0
                 fi
 
-                if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ]; then
+                if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ] || [ "''${1:-}" = "h" ]; then
                   export CAS_PROXY="${claudeSuperset.proxy}" CAS_API="${claudeSuperset.api}"
                   export CAS_OLLAMA="${claudeSuperset.ollama}" CAS_DASHBOARD="${claudeSuperset.dashboard}"
                   export CAS_COMPRESS="''${CAS_DASHBOARD%/dashboard}" CAS_LAUNCH="claude-malloc"

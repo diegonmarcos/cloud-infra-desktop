@@ -69,9 +69,65 @@ let
 
   claude-superset = pkgs.writeShellScriptBin "claude-superset" ''
     set -u
-    # help: plain-text usage of every arg (the TUI dashboard is --help / -h).
+    # ── Flags: mode / model / effort (parsed first) ────────────────────
+    # --auto (default): pass --dangerously-skip-permissions to claude.
+    # --plan / --interactive: recorded for display; no extra CLI flags.
+    # --model <id>: sets ANTHROPIC_MODEL. --effort <lvl>: CLAUDE_EFFORT.
+    CC_EXTRA_FLAGS=""
+    while :; do
+      case "''${1:-}" in
+        --auto)        CC_EXTRA_FLAGS="--dangerously-skip-permissions"; shift ;;
+        --plan)        shift ;;
+        --interactive) shift ;;
+        --model)       shift; [ -n "''${1:-}" ] && export ANTHROPIC_MODEL="$1"; shift ;;
+        --effort)      shift; export CLAUDE_EFFORT="''${1:-high}"; shift ;;
+        *) break ;;
+      esac
+    done
+
+    # help: plain-text usage + live status (agents, plugins, sessions).
     if [ "''${1:-}" = "help" ]; then
-      exec cat ${./claude-superset-help.txt}
+      cat ${./claude-superset-help.txt}
+      printf '\nMODEL ACTIVE\n  ANTHROPIC_MODEL=%s  CLAUDE_EFFORT=%s\n' \
+        "''${ANTHROPIC_MODEL:-<unset>}" "''${CLAUDE_EFFORT:-<unset>}"
+      printf '\nAGENTS\n'
+      _ag_dir="$HOME/.claude/agents"; _ag_c=0
+      if [ -d "$_ag_dir" ]; then
+        for _f in "$_ag_dir"/*.md; do
+          [ -f "$_f" ] || continue
+          _n="''${_f##*/}"; _n="''${_n%.md}"
+          case "$_n" in README*|readme*) continue ;; esac
+          printf '  %s\n' "$_n"; _ag_c=$((_ag_c+1))
+        done
+        [ "$_ag_c" -eq 0 ] && printf '  (none configured)\n'
+      else
+        printf '  (no agents dir)\n'
+      fi
+      printf '\nSTATUS LINE\n  '
+      bash "$HOME/.claude/claude-plugins-status.sh" --format plain 2>/dev/null || true
+      printf '\n'
+      _pdir="$HOME/.claude/projects"
+      printf '\nSESSIONS (last 48h — unique projects)\n'
+      if [ -d "$_pdir" ]; then
+        find "$_pdir" -name "*.jsonl" -mmin -2880 2>/dev/null \
+          | while IFS= read -r _f; do
+              _dir="''${_f%/*}"; printf '%s\n' "''${_dir##*/}"
+            done | sort -u | head -20 \
+          | while IFS= read -r _n; do printf '  %s\n' "$_n"; done
+      fi
+      printf '\nSESSIONS (last 5 by time)\n'
+      if [ -d "$_pdir" ]; then
+        _files=$(find "$_pdir" -name "*.jsonl" 2>/dev/null | tr '\n' ' ')
+        if [ -n "$_files" ]; then
+          ls -t $_files 2>/dev/null | head -5 \
+            | while IFS= read -r _f; do
+                _id="''${_f##*/}"; _id="''${_id%.jsonl}"
+                _dir="''${_f%/*}"; _proj="''${_dir##*/}"
+                printf '  %s  %s\n' "$_id" "$_proj"
+              done
+        fi
+      fi
+      exit 0
     fi
 
     # setup: ensure `claude` is installed WITHOUT npm (native installer +
@@ -85,9 +141,9 @@ let
       exec ${pkgs.bash}/bin/bash ${./claude-superset-setup.sh} "$@"
     fi
 
-    # --help / -h: interactive status dashboard — probes every face, all MCPs,
-    # plugins (Headroom + Ponytail), and direct Anthropic fallback.
-    if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ]; then
+    # --help / -h / h: interactive status dashboard — probes every face, all
+    # MCPs, plugins (Headroom + Ponytail), and direct Anthropic fallback.
+    if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ] || [ "''${1:-}" = "h" ]; then
       export CAS_PROXY="${ep.proxy}" CAS_API="${ep.api}" CAS_OLLAMA="${ep.ollama}"
       export CAS_DASHBOARD="${ep.dashboard}" CAS_LAUNCH="claude"
       export CAS_COMPRESS="''${CAS_DASHBOARD%/dashboard}"
@@ -209,7 +265,7 @@ let
     # was already dispatched above; a bare `claude-superset claude [args…]` (incl.
     # `--resume <id>` from a restored tab) execs plain claude here.
     if [ "$PLAIN" = "1" ]; then
-      exec claude "$@"
+      exec claude $CC_EXTRA_FLAGS "$@"
     fi
 
     # Wire ANTHROPIC_BASE_URL by a SHORT probe (no bring-up here — the local
@@ -239,7 +295,7 @@ let
     # Plugin status line (data-driven; mirrors the statusline PL[...] segment).
     pl=$(${pkgs.bash}/bin/bash "$HOME/.claude/claude-plugins-status.sh" --format plain 2>/dev/null)
     [ -n "$pl" ] && echo "[claude-superset] plugins: $pl" >&2
-    exec claude "$@"
+    exec claude $CC_EXTRA_FLAGS "$@"
   '';
 
   # Desktop tray (KDE Plasma 6 / SNI via yad) — live savings in the tooltip,
@@ -261,8 +317,12 @@ let
       --image=utilities-terminal --text="claude-superset" \
       --menu="Dashboard!${pkgs.xdg-utils}/bin/xdg-open $DASH|Status!${pkgs.kdePackages.konsole}/bin/konsole -e claude-superset --help|Quit!quit"
   '';
+  # my-ai: future replacement alias — shares the claude-superset script via exec.
+  my-ai = pkgs.writeShellScriptBin "my-ai" ''
+    exec claude-superset "$@"
+  '';
 in {
-  home.packages = [ claude-superset claude-superset-tray ];
+  home.packages = [ claude-superset claude-superset-tray my-ai ];
 
   # Autostart the tray with the graphical session (manual-recovery friendly:
   # Restart is intentionally NOT set — matches the fleet no-auto-restart rule).
