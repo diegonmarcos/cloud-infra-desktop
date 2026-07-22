@@ -86,6 +86,23 @@ if [ -f "$ctx_reset_file" ]; then
     [ -n "$last_reset_line" ] && last_reset_ts=$(date -d "$(echo "$last_reset_line" | cut -d' ' -f1)" "+%m-%d %H:%M" 2>/dev/null || echo "?")
 fi
 
+# === Prompt/action age timers — last `user` and last `assistant` transcript
+# entries (real timestamps, not render-cadence heuristics like mins_since).
+# tac scans from the tail so this stays cheap even on multi-MB transcripts.
+prompt_age="?"; action_age="?"
+if [ -f "$transcript_path" ]; then
+    last_user_ts=$(tac "$transcript_path" 2>/dev/null | jq -r 'select(.type=="user") | .timestamp' 2>/dev/null | head -1)
+    last_asst_ts=$(tac "$transcript_path" 2>/dev/null | jq -r 'select(.type=="assistant") | .timestamp' 2>/dev/null | head -1)
+    if [ -n "$last_user_ts" ] && [ "$last_user_ts" != "null" ]; then
+        u_epoch=$(date -d "$last_user_ts" +%s 2>/dev/null)
+        [ -n "$u_epoch" ] && prompt_age="$(( (now_epoch - u_epoch) / 60 ))m"
+    fi
+    if [ -n "$last_asst_ts" ] && [ "$last_asst_ts" != "null" ]; then
+        a_epoch=$(date -d "$last_asst_ts" +%s 2>/dev/null)
+        [ -n "$a_epoch" ] && action_age="$(( (now_epoch - a_epoch) / 60 ))m"
+    fi
+fi
+
 # Cost color
 cost_cents=$(LC_NUMERIC=C awk "BEGIN {printf \"%.0f\", ${session_cost:-0} * 100}")
 [ -z "$cost_cents" ] && cost_cents=0
@@ -338,6 +355,9 @@ OUT+=" \033[37m│\033[0m"
 OUT+=" \033[${pct_color}mCtx:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
 OUT+=" \033[${cache_color}mCache:${cache_hit}%\033[0m"
 OUT+=" \033[90m${mins_since}m\033[0m"
+# Prompt/action age: how long ago the last user prompt / last AI action landed.
+OUT+=" \033[90mPrompt:${prompt_age}\033[0m"
+OUT+=" \033[90mAction:${action_age}\033[0m"
 OUT+=" \033[37m|\033[0m\n"
 
 printf "%b" "$OUT"
