@@ -1,3 +1,15 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║                                                                  ║
+# ║   GENERATED FILE — DO NOT EDIT                                   ║
+# ║                                                                  ║
+# ║   Source : 1_workflows/src/cicd/ship_qutebrowser_standalone.yaml
+# ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
+# ║   Rebuild: ./1_workflows/build.sh
+# ║                                                                  ║
+# ║   Manual edits will be overwritten on next build.                ║
+# ║                                                                  ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
 name: "Ship → qutebrowser standalone config release (decoupled from desktop HM closure)"
 
 # WHY: pulling the FULL ~6GB 37-module desktop home-manager closure just to

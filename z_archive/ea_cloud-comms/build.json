@@ -141,7 +141,7 @@
           "_doc": "Per-ABI upstream assets. bundle-forks picks abi_variants[$COMMS_BUNDLE_ABI] when set (default arm64-v8a uses the top-level url/sha256). x86_64 = Waydroid debug builds.",
           "x86_64": {
             "url": "https://github.com/element-hq/element-x-android/releases/download/v26.06.2/app-fdroid-x86_64-release-signed.apk",
-            "sha256": "33f8baf3878da0638f0cd919ce16f5c6b6406c289b7a359824275d8bfc4aa260"
+            "sha256": "a2b626ec067ecfb199a5129ef419db945388a3cf966e415ca798bcdf504f1a16"
           }
         }
       }

@@ -289,6 +289,15 @@ body {
       <div class="about-row"><span class="about-key">NixOS</span><span class="about-val" id="ab-nixos">—</span></div>
       <div class="about-row"><span class="about-key">Arch</span><span class="about-val" id="ab-arch">—</span></div>
     </div>
+    <div class="about-card">
+      <div class="about-row"><span class="about-key">What</span><span class="about-val">Rebuilds &amp; manages this NixOS host — switch/boot/test/dry-run, flake update, generation list/GC/optimise, live build-log tail, and quick Plasma session actions — all driven by data-<wbr>-driven menu JSON, dispatched from a native Electron SNI tray icon (no xembedsniproxy).</span></div>
+      <div class="about-row"><span class="about-key">Version</span><span class="about-val">nixos-systray 1.0.0 (src/nix/package.nix)</span></div>
+      <div class="about-row"><span class="about-key">Data</span><span class="about-val">da_nixos-systray/src/data/nixos-cp.json</span></div>
+      <div class="about-row"><span class="about-key">Calls</span><span class="about-val">local: {FLAKE}/build.sh switch|boot|test|dry-run|update; nix-env --list-generations; nix-collect-garbage; nix-store --optimise; kwriteconfig6/qdbus6/loginctl/kquitapp6 (all localhost, no network)</span></div>
+      <div class="about-row"><span class="about-key">Unit</span><span class="about-val">systemd.user.services.nixos-systray (manual start, no autostart)</span></div>
+      <div class="about-row"><span class="about-key">Wired by</span><span class="about-val">aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_nixos-switch-gui.nix</span></div>
+      <div class="about-row"><span class="about-key">Env vars</span><span class="about-val">SYSTRAY_DATA, SYSTRAY_ICON, SYSTRAY_SWITCH_GUI, SYSTRAY_BASH, SYSTRAY_KONSOLE, SYSTRAY_XDG, SYSTRAY_FLAKE</span></div>
+    </div>
   </div>
 
 </div>
