@@ -110,6 +110,14 @@ jobs:
           # with Gradle 9.x's strict configuration cache.
           gradle-version: "8.10.2"
 
+      - name: Set up Node 20 (my-konsole frontend vendor step)
+        uses: actions/setup-node@v4
+        with:
+          # build.sh::step_bundle_frontend runs da_my-konsole/build.sh vendor to
+          # fetch xterm.js into the frontend before it's copied into assets/ —
+          # needs node/npm. Pinned to build.json::toolchain.node.
+          node-version: "20"
+
       # ── ONE shared Cloud-constellation signing key (vault) ──────────────
       # The WHOLE constellation (hub + 3 forks + Cloud-SuperApp + Cloud-Comms +
       # Cloud-Nav) must share ONE signature: the IPC permission is
