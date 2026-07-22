@@ -852,9 +852,29 @@
               # derivation on PATH here (pkgs/claude-code), not a curl-installed binary.
               home.activation.claudeMarketplace = lib.hm.dag.entryAfter [ "claudeSettingsWritable" ] ''
                 MARKETPLACE_DIR="$HOME/.claude/cloud-marketplace"
+                JQ="${pkgs.jq}/bin/jq"
                 if command -v claude >/dev/null 2>&1 && [ -d "$MARKETPLACE_DIR" ]; then
                   $DRY_RUN_CMD claude plugin marketplace add "$MARKETPLACE_DIR" >/dev/null 2>&1 || true
                   echo "[claude-marketplace] cloud-marketplace registered (enabledPlugins declared in settings.json)"
+                  # Durable installPath materialization (see ba_flakes_desktop/common.nix
+                  # for the rationale): Claude Code's /plugin loader validates
+                  # plugins/cache/<marketplace>/<plugin>/<version>, which nothing
+                  # populates for a directory-source marketplace — so it reports
+                  # "cannot find the hooks" after a store-swap. Symlink each
+                  # installPath into the store-backed marketplace dir. Data-driven:
+                  # plugin names from marketplace.json, version from each plugin.json.
+                  CACHE_DIR="$HOME/.claude/plugins/cache/cloud-marketplace"
+                  MKT_JSON="$MARKETPLACE_DIR/.claude-plugin/marketplace.json"
+                  if [ -f "$MKT_JSON" ]; then
+                    for P in $("$JQ" -r '.plugins[].name' "$MKT_JSON" 2>/dev/null); do
+                      VER=$("$JQ" -r '.version // "1.0.0"' "$MARKETPLACE_DIR/$P/.claude-plugin/plugin.json" 2>/dev/null || echo "1.0.0")
+                      DEST="$CACHE_DIR/$P/$VER"
+                      $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$CACHE_DIR/$P"
+                      [ -e "$DEST" ] && [ ! -L "$DEST" ] && $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -rf "$DEST"
+                      $DRY_RUN_CMD ${pkgs.coreutils}/bin/ln -sfn "$MARKETPLACE_DIR/$P" "$DEST"
+                      echo "[claude-marketplace] materialized $P@$VER -> cache installPath"
+                    done
+                  fi
                 else
                   echo "[claude-marketplace] WARNING: claude CLI or marketplace dir not found, skipping"
                 fi
