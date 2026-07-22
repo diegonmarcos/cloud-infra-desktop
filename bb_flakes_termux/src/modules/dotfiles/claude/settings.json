@@ -4,7 +4,8 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash $HOME/.claude/statusline-command.sh"
+    "command": "bash $HOME/.claude/statusline-command.sh",
+    "refreshInterval": 1
   },
   "env": {
     "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
