@@ -34,7 +34,7 @@
   "packages": {
     "shells": ["fish", "bash"],
     "editors": ["vim", "nano"],
-    "network": ["networkmanager", "iwd", "openssh", "curl", "wget", "git"],
+    "network": ["networkmanager", "nmtui", "iwd", "openssh", "curl", "wget", "git"],
     "gui": {
       "window_manager": "openbox",
       "terminal": "alacritty (my-konsole; Rust/GPU)",
@@ -47,7 +47,7 @@
     "cli_tools": ["btop", "htop", "ripgrep", "fzf", "jq", "tmux", "neofetch"],
     "disk_tools": ["parted", "gptfdisk", "btrfs-progs", "cryptsetup", "e2fsprogs", "dosfstools", "ntfs3g"],
     "recovery": ["testdisk", "ddrescue"],
-    "dev": ["nodejs_22"]
+    "dev": ["nodejs_22", "gcc", "gnumake", "pkg-config"]
   },
   "claude": {
     "install_method": "npx wrapper",
