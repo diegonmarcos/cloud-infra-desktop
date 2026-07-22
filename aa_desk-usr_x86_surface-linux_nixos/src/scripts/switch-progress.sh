@@ -37,6 +37,7 @@ if [ "${1:-}" != "--tui" ]; then
         setsid bash -c '
             DASH_PLAIN=1 bash "$1" --tui "$2" "$3" "$4" | yad --text-info --tail \
                 --title "NixOS switch — LIVE DASHBOARD" \
+                --center --on-top --sticky --skip-taskbar=false \
                 --width=780 --height=680 --fontname="monospace 9" \
                 --button="📜 Open byte-log:setsid konsole --hold -e tail -n +1 -F $2" \
                 --button="Close:1"
@@ -96,6 +97,20 @@ declare -A stage_t0 stage_el
 df_line="—"; tick=0
 active_gen="$(readlink /nix/var/nix/profiles/system 2>/dev/null || echo '?')"
 toplevel=""
+
+# ── one-time rich context (computed before the loop; cheap per-tick reuse) ──
+REPO="$(cd "$(dirname "$LOG")/.." 2>/dev/null && pwd)"
+GEN_LINE="$(nixos-rebuild list-generations 2>/dev/null | command grep current | awk '{print "gen "$1"  built "$3" "$4}')"
+GIT_HEAD="$(git -C "$REPO" log --oneline -1 2>/dev/null | cut -c1-64)"
+BIG_LAYER="$(printf '%s' "${_mf:-}" | jq -r '[.layers[].size] | max / 1048576 | floor' 2>/dev/null)"
+CI_RUN="$(cd "$REPO" && timeout 8 gh run list --limit 1 --json databaseId,conclusion,headSha \
+    --jq '.[0] | "\(.databaseId) \(.conclusion) \(.headSha[0:8])"' 2>/dev/null)"
+CI_URL="https://github.com/diegonmarcos/unix/actions/runs/${CI_RUN%% *}"
+HIST="$(ls -t "$(dirname "$LOG")"/build-konsole-*.log 2>/dev/null | head -5 | while read -r f; do
+    v="…run"; command grep -qa 'SAFE TO REBOOT' "$f" && v="✅ OK"
+    command grep -qaE 'unexpected EOF|network is unreachable' "$f" && v="❌ net-fail"
+    printf '    %s  %s\n' "$(basename "$f" | sed 's/build-konsole-//;s/\.log//')" "$v"
+done)"
 
 while :; do
     alive=1; kill -0 "$WATCH" 2>/dev/null || alive=0
@@ -190,6 +205,16 @@ while :; do
     printf "  ${B}Isolation${R}  workload.slice %s MB used (cap 3G mem · 6G swap)\n" "$iso"
     printf "  ${B}System${R}     RAM %sM used · %sM avail   swap %sM   load %s\n" "${ram_used:-?}" "${ram_avail:-?}" "${swap_used:-?}" "${loadavg:-?}"
     printf "  ${B}Disk${R}       /nix free %s   ·   p5 free %s   ·   docker img %s\n" "${nix_free:-?}" "${p5_free:-?}" "${df_line:-—}"
+    printf "\n  ${B}Versions${R}   active: %s  (%s)\n" "$active_gen" "${GEN_LINE:-?}"
+    printf "             target: %s\n" "${toplevel:-<resolving>}"
+    printf "  ${B}Repo${R}       HEAD %s\n" "${GIT_HEAD:-?}"
+    printf "  ${B}CI${R}         run %s\n" "${CI_RUN:-?}"
+    printf "             %s\n" "$CI_URL"
+    printf "  ${B}GHCR${R}       %s   layers %s (biggest %s MB)\n" "$IMG" "$TOTAL_L" "${BIG_LAYER:-?}"
+    printf "  ${B}Paths${R}      repo:    %s\n" "$REPO"
+    printf "             log:     %s\n" "$LOG"
+    printf "             dist-ci: %s/dist-ci   profile: /nix/var/nix/profiles/system\n" "$REPO"
+    printf "  ${B}History${R}    (last 5 switch runs)\n%s\n" "$HIST"
     printf "\n  ${B}${DIM}── last log lines ──────────────────────────────────────────────${R}\n"
     command grep -av '^[[:space:]]*$' "$LOG" 2>/dev/null | tail -5 | cut -c1-78 | sed 's/^/  /'
     printf "  ${DIM}log: %s${R}\n" "$LOG"
