@@ -56,12 +56,28 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
+      # Cache the WHOLE /nix/store between runs (2026-07-22): runners start
+      # empty, so every run re-downloaded/rebuilt everything. This restores
+      # the previous run's store (GHA cache, 10GB repo limit, gc'd to 8G
+      # before save) so a small change rebuilds only its delta — CI drops
+      # from ~30-140min to ~5-10min on a warm cache.
+      - name: Restore /nix/store from previous run
+        uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-store-${{ runner.os }}-${{ hashFiles('aa_desk-usr_x86_surface-linux_nixos/src/flake.lock') }}-${{ hashFiles('aa_desk-usr_x86_surface-linux_nixos/src/**/*.nix') }}
+          restore-prefixes-first-match: nix-store-${{ runner.os }}-
+          gc-max-store-size-linux: 8G
+          purge: true
+          purge-prefixes: nix-store-${{ runner.os }}-
+          purge-created: 0
+          purge-primary-key: never
+
       - name: Build + export system closure (+ push incremental GHCR cache)
         env:
           GHCR_OWNER: ${{ github.repository_owner }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_PUSH: "1"                       # build.sh also builds+pushes the layered cache image
+          GHCR_PUSH: "0"                       # 2026-07-22: laptop is DIFF-ONLY — the 7GB layered image has no consumer; skip build+push
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SYSTEM_CACHE_IMAGE: ghcr.io/${{ github.repository_owner }}/unix-system-cache
         run: ./aa_desk-usr_x86_surface-linux_nixos/build.sh ci-build

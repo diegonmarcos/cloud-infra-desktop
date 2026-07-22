@@ -53,6 +53,24 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
+      # Cache the WHOLE /nix/store between runs (2026-07-22): arm64 runners start
+      # empty, so every run re-downloaded/rebuilt the full nix-on-droid closure.
+      # This restores the previous run's store (GHA cache, 10GB repo limit, gc'd
+      # to 8G before save) so a small change rebuilds only its delta — CI drops
+      # from ~30-140min to ~5-10min on a warm cache. Same win as the surface
+      # nixos ship. Key is namespaced `nix-store-termux-<arch>` so this aarch64
+      # store never restore-matches the x86 surface cache (shared os prefix).
+      - name: Restore /nix/store from previous run
+        uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-store-termux-${{ runner.arch }}-${{ hashFiles('bb_flakes_termux/src/flake.lock') }}-${{ hashFiles('bb_flakes_termux/src/**/*.nix') }}
+          restore-prefixes-first-match: nix-store-termux-${{ runner.arch }}-
+          gc-max-store-size-linux: 8G
+          purge: true
+          purge-prefixes: nix-store-termux-${{ runner.arch }}-
+          purge-created: 0
+          purge-primary-key: never
+
       - name: Build + export nix-on-droid closure (+ push incremental GHCR cache)
         env:
           GHCR_PUSH: "1"
