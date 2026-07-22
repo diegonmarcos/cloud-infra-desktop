@@ -2,10 +2,14 @@
   description = "my-konsole - Ultra-Minimal USB Recovery System";
 
   inputs = {
-    # 25.05 (not 24.11): 24.11's initrd modules-shrunk step runs modprobe and
-    # aborts when a btrfs-checksum dep (blake2b_generic) is builtin rather than
-    # a loadable .ko — which is the case on the linux-surface 6.19.8 kernel
-    # pulled via nixos-hardware master. 25.05's shrink tolerates builtin modules.
+    # nixos-25.05 pinned (not 24.11) as the general base. NOTE: 25.05 alone does
+    # NOT fix the blake2b_generic-builtin initrd abort — GHA run 29081577942
+    # failed on 25.05 with exactly that. The real fix is keeping btrfs OUT of
+    # boot.initrd.supportedFilesystems (see configuration.nix's initrd block):
+    # the initrd never mounts btrfs, so its blake2b_generic checksum dep (builtin
+    # =y on the linux-surface 6.19.8 kernel) must never enter the modules-shrunk
+    # modprobe walk. btrfs recovery stays available post-boot via the stage-2
+    # module + btrfs-progs.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
 
     # Surface Pro hardware support (linux-surface kernel, iptsd, firmware)
