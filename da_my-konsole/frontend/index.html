@@ -6,6 +6,8 @@
   <title>my-konsole</title>
   <link rel="stylesheet" href="vendor/xterm.css" />
   <link rel="stylesheet" href="css/style.css" />
+  <!-- engine bootstrap: put the saved ws URL on window BEFORE transport.js reads it (WebView/browser path). -->
+  <script>try { var u = localStorage.getItem("myk-engine-url"); if (u) window.MYK_ENGINE_URL = u; } catch (e) {}</script>
 </head>
 <body>
   <!-- Top nav: row 1 = fixed Home actions, row 2 = data-driven profile pills -->

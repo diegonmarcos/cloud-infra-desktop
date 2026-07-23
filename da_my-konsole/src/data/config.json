@@ -8,6 +8,14 @@
     "scrollback": 5000,
     "cursorBlink": true
   },
+  "engine": {
+    "_note": "WebView/browser ONLY: which my-konsole-engine ws server the terminal connects to. transport.js reads window.MYK_ENGINE_URL (set by the index.html <head> bootstrap from localStorage 'myk-engine-url') or falls back to the first backend's url. Desktop (Tauri) IGNORES this — it uses in-process PTYs. Switch at runtime via the ⚙ engine pill in the top nav (persists in localStorage, reloads to reconnect). Keep the default backend's url == transport.js fallback (ws://127.0.0.1:7333) so a fresh load needs no reload. Ports are per-env: run the my-konsole-engine on a distinct port in each env (nix-on-droid vs the separate Termux app) — EDIT these urls to match your real engine ports.",
+    "backend": "nix-on-droid",
+    "backends": {
+      "nix-on-droid": { "label": "Nix-on-Droid", "url": "ws://127.0.0.1:7333" },
+      "termux":       { "label": "Termux",       "url": "ws://127.0.0.1:7334" }
+    }
+  },
   "theme": {
     "background": "#232629",
     "foreground": "#fcfcfc",

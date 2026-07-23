@@ -43,6 +43,7 @@ body { display: flex; flex-direction: column; }
   border-radius: 6px; padding: 3px 10px; cursor: pointer; font-size: 12px;
 }
 .home-btn:hover { background: var(--bg2); color: var(--fg); border-color: var(--accent); }
+#engine-toggle { border-left: 3px solid var(--accent); color: var(--accent); }
 #profiles { display: flex; gap: 4px; }
 .profile-pill {
   padding: 4px 12px; border-radius: 6px; cursor: pointer;
