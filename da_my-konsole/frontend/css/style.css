@@ -28,7 +28,7 @@ body { display: flex; flex-direction: column; }
   height: 34px; padding: 0 10px;
 }
 #nav-row-home { gap: 12px; border-bottom: 1px solid var(--border); }
-#nav-row-profiles { height: 32px; }
+#nav-row-profiles { height: 32px; overflow: hidden; }
 #btn-sidebar {
   background: transparent; color: var(--muted); border: 1px solid var(--border);
   border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 13px;
@@ -41,13 +41,24 @@ body { display: flex; flex-direction: column; }
 .home-btn {
   background: transparent; color: var(--muted); border: 1px solid var(--border);
   border-radius: 6px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+  flex: 0 0 auto; white-space: nowrap;
 }
 .home-btn:hover { background: var(--bg2); color: var(--fg); border-color: var(--accent); }
-#profiles { display: flex; gap: 4px; }
+/* Both nav strips scroll horizontally (swipe) when they overflow — no wrap. */
+#home-actions {
+  display: flex; align-items: center; gap: 8px; flex: 1 1 0; min-width: 0;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+}
+#profiles {
+  display: flex; gap: 4px; flex: 1 1 0; min-width: 0;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+}
+#home-actions::-webkit-scrollbar, #profiles::-webkit-scrollbar { display: none; }
 .profile-pill {
   padding: 4px 12px; border-radius: 6px; cursor: pointer;
   background: transparent; color: var(--muted); border: 1px solid transparent;
   font-size: 12px; user-select: none;
+  flex: 0 0 auto; white-space: nowrap;
 }
 .profile-pill:hover { background: var(--bg2); color: var(--fg); }
 .profile-pill.active { background: var(--bg); color: var(--fg); border-color: var(--accent); }

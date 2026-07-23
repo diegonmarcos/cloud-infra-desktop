@@ -119,7 +119,7 @@
   document.getElementById("btn-home-filebrowser").addEventListener("click", () => Tabs.openFileBrowserTab("~"));
   document.getElementById("btn-home-fileeditor").addEventListener("click", () => Tabs.openFileEditorTab(null));
   document.getElementById("btn-home-browser").addEventListener("click", () => Tabs.openBrowserTab());
-  document.getElementById("btn-home-about").addEventListener("click", showAbout);
+  // About lives in the Configs (⋮ → menu-about) dropdown now — no standalone button.
 
   // Sidebar view switcher: Commands (search + per-profile items) | Tabs (vertical, grouped)
   for (const btn of document.querySelectorAll(".sidebar-toggle-btn")) {

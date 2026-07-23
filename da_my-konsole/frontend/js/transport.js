@@ -37,7 +37,7 @@ if (typeof window !== "undefined") {
     const url = window.MYK_ENGINE_URL || "ws://127.0.0.1:7333";
     const subs = new Map(); // id -> { out, exit }
     const pending = new Map(); // rid -> { resolve, reject } for fs_* request/response
-    let open = false, queue = [], rid = 0;
+    let open = false, queue = [], rid = 0, connErr = null;
     const ws = new WebSocket(url);
     const send = (op) => { const f = _encode(op); if (open) ws.send(f); else queue.push(f); };
 
@@ -61,6 +61,11 @@ if (typeof window !== "undefined") {
       if (m.ev === "output") s.out?.(m.data);
       else if (m.ev === "exit") s.exit?.();
     });
+    // Surface a failed connect to any live terminal instead of a silent blank.
+    const _fail = () => `\r\n\x1b[31m⚠ my-konsole engine unreachable at ${url} — is it running?\x1b[0m\r\n`;
+    const _onFail = () => { if (!open && !connErr) { connErr = _fail(); subs.forEach((s) => s.out && s.out(connErr)); } };
+    ws.addEventListener("error", _onFail);
+    ws.addEventListener("close", _onFail);
     // ponytail: no reconnect/backoff — add if the engine proves flaky in the field.
 
     // fs_* request/response, correlated by a monotonic rid against `pending`.
@@ -79,6 +84,7 @@ if (typeof window !== "undefined") {
       ptyKill: (id) => send({ op: "kill", id }),
       onPty: (id, cb) => {
         const s = subs.get(id) || {}; s.out = cb; subs.set(id, s);
+        if (connErr) cb(connErr);   // replay a connect error that fired before this subscriber
         return () => { s.out = null; };
       },
       onPtyExit: (id, cb) => {
