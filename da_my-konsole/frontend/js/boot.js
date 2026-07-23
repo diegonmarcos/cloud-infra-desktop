@@ -13,6 +13,33 @@
       : await fetch("data/config.json").then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
   } catch (e) { console.error("get_config failed", e); MYK.config = {}; }
 
+  // Engine switcher — WebView/browser only (desktop Tauri uses in-process PTYs
+  // and ignores the ws URL). Cycles the configured engine backends, persists the
+  // choice + resolved url, and reloads so transport.js reconnects to the new url.
+  if (!window.__TAURI__) {
+    const ecfg = (MYK.config && MYK.config.engine) || {};
+    const backends = ecfg.backends || {};
+    const ekeys = Object.keys(backends);
+    if (ekeys.length >= 2) {
+      let active = localStorage.getItem("myk-engine");
+      if (!active || !backends[active]) active = backends[ecfg.backend] ? ecfg.backend : ekeys[0];
+      const pill = document.createElement("button");
+      pill.id = "engine-toggle";
+      pill.className = "home-btn";
+      pill.title = "Terminal engine — click to switch (reloads)";
+      pill.textContent = "⚙ " + (backends[active]?.label || active);
+      pill.addEventListener("click", () => {
+        const i = ekeys.indexOf(active);
+        active = ekeys[(i + 1) % ekeys.length];
+        localStorage.setItem("myk-engine", active);
+        localStorage.setItem("myk-engine-url", backends[active]?.url || "");
+        location.reload();
+      });
+      const menuWrap = document.getElementById("menu-wrap");
+      menuWrap?.parentNode.insertBefore(pill, menuWrap);   // right side of the Home nav row
+    }
+  }
+
   try {
     const res = window.__TAURI__
       ? await window.__TAURI__.core.invoke("get_profiles")
