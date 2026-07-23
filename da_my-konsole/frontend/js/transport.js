@@ -97,8 +97,13 @@ if (typeof window !== "undefined") {
     };
   }
 
-  const impl = hasTauri ? tauriImpl : makeWsImpl();
-  window.Transport = { ...impl, _encode, _decode };
+  // A host may inject its own Transport before this script (e.g. the cloud-ide
+  // Android WebView wires an SSH-into-the-env bridge at document-start). Don't
+  // clobber it — and skip opening the ws when the host already provided one.
+  if (!window.Transport) {
+    const impl = hasTauri ? tauriImpl : makeWsImpl();
+    window.Transport = { ...impl, _encode, _decode };
+  }
 }
 
 // ── node test import (see transport.test.js) — no-op in the browser ──
