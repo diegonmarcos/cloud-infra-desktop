@@ -184,8 +184,12 @@
     # ─── WiFi GUI ──────────────────────────────────────────────────────────────
     networkmanagerapplet  # nm-connection-editor for GUI WiFi config
 
-    # ─── Browser (OAuth for Claude) ────────────────────────────────────────────
-    surf                # Minimal webkit browser
+    # ─── Browser: intentionally NONE ───────────────────────────────────────────
+    # A GUI browser (surf → webkitgtk) is the heaviest thing in the closure and
+    # not always cached on cache.nixos.org after a nixpkgs bump → from-source
+    # compile blows the CI timeout. A rescue console does not need one: Claude
+    # Code CLI login prints an OAuth URL you open on any other device, then paste
+    # the token back. No webkitgtk in the ISO.
 
     # ─── Fonts (minimal) ───────────────────────────────────────────────────────
     dejavu_fonts
@@ -261,7 +265,6 @@
     <menu id="root-menu" label="Menu">
       <item label="Terminal"><action name="Execute"><command>alacritty</command></action></item>
       <item label="Files"><action name="Execute"><command>pcmanfm</command></action></item>
-      <item label="Browser"><action name="Execute"><command>surf https://claude.ai</command></action></item>
       <separator />
       <item label="WiFi Settings"><action name="Execute"><command>nm-connection-editor</command></action></item>
       <item label="WiFi (nmtui)"><action name="Execute"><command>alacritty -e nmtui</command></action></item>
@@ -292,7 +295,6 @@
     <keyboard>
       <keybind key="W-Return"><action name="Execute"><command>alacritty</command></action></keybind>
       <keybind key="W-e"><action name="Execute"><command>pcmanfm</command></action></keybind>
-      <keybind key="W-b"><action name="Execute"><command>surf https://claude.ai</command></action></keybind>
       <keybind key="W-d"><action name="Execute"><command>dmenu_run</command></action></keybind>
       <keybind key="W-w"><action name="Execute"><command>nm-connection-editor</command></action></keybind>
       <keybind key="W-q"><action name="Close"/></keybind>
