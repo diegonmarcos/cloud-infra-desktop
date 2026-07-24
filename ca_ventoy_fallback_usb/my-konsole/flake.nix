@@ -2,18 +2,12 @@
   description = "my-konsole - Ultra-Minimal USB Recovery System";
 
   inputs = {
-    # nixos-25.05 pinned (not 24.11) as the general base. NOTE: 25.05 alone does
-    # NOT fix the blake2b_generic-builtin initrd abort — GHA run 29081577942
-    # failed on 25.05 with exactly that. The real fix is keeping btrfs OUT of
-    # boot.initrd.supportedFilesystems (see configuration.nix's initrd block):
-    # the initrd never mounts btrfs, so its blake2b_generic checksum dep (builtin
-    # =y on the linux-surface 6.19.8 kernel) must never enter the modules-shrunk
-    # modprobe walk. btrfs recovery stays available post-boot via the stage-2
-    # module + btrfs-progs.
+    # nixos-25.05 base → stock kernel 6.12.x, a prebuilt cache.nixos.org hit (no
+    # from-source compile). The old linux-surface 6.19.8 pin is gone, so the
+    # blake2b_generic-builtin initrd abort is moot (it's a loadable module on the
+    # stock kernel). btrfs is still kept out of the initrd for slimness — see
+    # configuration.nix's initrd block; btrfs recovery is a post-boot task.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
-
-    # Surface Pro hardware support (linux-surface kernel, iptsd, firmware)
-    nixos-hardware.url = "github:NixOS/nixos-hardware/master";
 
     # ISO/image generation
     nixos-generators = {
@@ -22,7 +16,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, nixos-hardware, nixos-generators, ... }:
+  outputs = { self, nixpkgs, nixos-generators, ... }:
   let
     system = "x86_64-linux";
   in {
@@ -34,9 +28,8 @@
       iso = nixos-generators.nixosGenerate {
         inherit system;
         modules = [
-          # CRITICAL: Surface hardware support (linux-surface kernel + iptsd)
-          nixos-hardware.nixosModules.microsoft-surface-pro-intel
-
+          # Stock nixpkgs kernel (prebuilt cache hit) — NO linux-surface compile.
+          # Surface Type Cover keyboard works via mainline SAM modules (see configuration.nix boot.kernelModules).
           ./configuration.nix
           ./iso.nix
         ];
@@ -63,7 +56,6 @@
     nixosConfigurations.my-konsole = nixpkgs.lib.nixosSystem {
       inherit system;
       modules = [
-        nixos-hardware.nixosModules.microsoft-surface-pro-intel
         ./configuration.nix
         ./iso.nix
       ];
