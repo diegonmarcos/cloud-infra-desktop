@@ -20,6 +20,9 @@
     profiles = res.profiles || [];
   } catch (e) { console.error("get_profiles failed", e); }
   if (profiles.length === 0) profiles = [{ name: "default", display_name: "Shell", sections: [] }];
+  console.log("[boot] tauri=" + !!window.__TAURI__ + " config.keys=" + Object.keys(MYK.config || {}).join(","));
+  console.log("[boot] profiles(" + profiles.length + "): " + profiles.map((p) => p.name + (p.home ? "*" : "")).join(", "));
+  console.log("[boot] home profiles: " + profiles.filter((p) => p.home).map((p) => p.name).join(", "));
   Palette.profiles = profiles;
   Palette.runItem = runItem;
 
@@ -40,7 +43,8 @@
   // tabs stay grouped per profile. `pill` is null for home buttons; `opener`
   // forces a specific new tab (e.g. Vim) instead of the group's default.
   function selectProfile(p, pill, opener) {
-    if (!p) return;
+    if (!p) { console.error("[selectProfile] null profile — byName miss? (button wired to a profile that isn't loaded)"); return; }
+    console.log(`[selectProfile] ${p.name} pill=${!!pill} opener=${!!opener} sections=${(p.sections || []).length}`);
     current = p;
     for (const el of document.querySelectorAll(".profile-pill")) el.classList.remove("active");
     if (pill) pill.classList.add("active");
@@ -181,11 +185,26 @@
   // PTY). Both open in the file-editor group; Vim uses the opener override.
   const editorBtn = document.getElementById("btn-home-fileeditor");
   const editorMenu = document.getElementById("editor-menu");
-  editorBtn.addEventListener("click", (e) => { e.stopPropagation(); editorMenu.hidden = !editorMenu.hidden; });
+  editorBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const show = editorMenu.hidden;
+    editorMenu.hidden = !show;
+    if (show) {  // position the fixed menu right under the button
+      const r = editorBtn.getBoundingClientRect();
+      editorMenu.style.top = `${r.bottom + 2}px`;
+      editorMenu.style.left = `${r.left}px`;
+    }
+    console.log("[editor] dropdown", editorMenu.hidden ? "closed" : "opened");
+  });
   document.addEventListener("click", () => { editorMenu.hidden = true; });
-  document.getElementById("editor-plain").addEventListener("click", () => selectProfile(byName("file-editor"), null));
-  document.getElementById("editor-vim").addEventListener("click", () =>
-    selectProfile(byName("file-editor"), null, () => Tabs.openVimTab("file-editor")));
+  document.getElementById("editor-plain").addEventListener("click", () => {
+    console.log("[editor] Plain clicked → file-editor profile");
+    selectProfile(byName("file-editor"), null);
+  });
+  document.getElementById("editor-vim").addEventListener("click", () => {
+    console.log("[editor] Vim clicked → file-editor profile + vim");
+    selectProfile(byName("file-editor"), null, () => Tabs.openVimTab("file-editor"));
+  });
   // About lives in the Configs (⋮ → menu-about) dropdown now — no standalone button.
 
   // Sidebar view switcher: Commands (search + per-profile items) | Tabs (vertical, grouped)

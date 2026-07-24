@@ -51,6 +51,8 @@ const DevLog = (function () {
     catch (e) { console.error("DevLog export failed", e); return null; }
   }
 
-  return { buffer: buf, snapshot, export: exportLog, clear: () => (buf.length = 0), PATH };
+  const api = { buffer: buf, snapshot, export: exportLog, clear: () => (buf.length = 0), PATH };
+  console.log("[devlog] console capture active (log/info/warn/error/debug + window errors)");
+  return api;
 })();
 window.DevLog = DevLog;
