@@ -35,7 +35,7 @@ let
   # the proot execveat-with-fd path. The patch is still on disk in
   # pkgs/proot-termux-patched/ ready to wire up when one of those lands.
 
-  authData = builtins.fromJSON (builtins.readFile ./data/authorized-keys.json);
+  authData = builtins.fromJSON (builtins.readFile ../data/authorized-keys.json);
   authorizedKeysContent =
     lib.concatStringsSep "\n" authData.trusted_pubkeys + "\n";
   # Cloud IDE APK pubkey, sops-encrypted (decrypted at activation).
@@ -48,7 +48,7 @@ let
   # Default port is 8023, NOT 8022 — on this device 8022 hits EADDRINUSE
   # despite /proc/net/tcp showing the port free (suspected kernel TIME_WAIT
   # or Android sandbox lock invisible to proot's view).
-  buildJson = builtins.fromJSON (builtins.readFile ../../build.json);
+  buildJson = builtins.fromJSON (builtins.readFile ../../../build.json);
   wgIp = buildJson.defaults.wg_ip or "127.0.0.1";
   sshPort = buildJson.defaults.ssh_port or 8023;
 
@@ -63,8 +63,8 @@ let
     SSHD_BIN="${opensshPinned}/bin/sshd"
     SSH_KEYGEN_BIN="${opensshPinned}/bin/ssh-keygen"
 
-    PID_FILE="$HOME/.cache/cloud-ide-sshd.pid"
-    LOG_FILE="$HOME/.cache/cloud-ide-sshd.log"
+    PID_FILE="$HOME/.cache/sshd.pid"
+    LOG_FILE="$HOME/.cache/sshd.log"
     HOST_KEY="$HOME/.ssh/ssh_host_rsa_key"
     SSHD_CONFIG="$HOME/.ssh/sshd_config"
 
@@ -285,7 +285,7 @@ in
   home.file.".profile".text = profileText;
 
   programs.fish.shellInit = lib.mkAfter ''
-    if not test -f $HOME/.cache/cloud-ide-sshd.pid; or not kill -0 (cat $HOME/.cache/cloud-ide-sshd.pid 2>/dev/null) 2>/dev/null
+    if not test -f $HOME/.cache/sshd.pid; or not kill -0 (cat $HOME/.cache/sshd.pid 2>/dev/null) 2>/dev/null
       cloud-ide-sshd start >/dev/null 2>&1
     end
   '';

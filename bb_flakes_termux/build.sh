@@ -307,9 +307,9 @@ EOT
     _sshd_up=0
 
     # Path 1: the flake-deployed wrapper (uses opensshPinned + sshd_config).
-    if [ -x "$HOME/.local/bin/termux-sshd" ]; then
+    if [ -x "$HOME/.local/bin/cloud-ide-sshd" ]; then
         log_info "sshd-guarantee: (1/2) trying flake wrapper restart..."
-        if "$HOME/.local/bin/termux-sshd" restart 2>&1 | tee -a "$LOG_FILE"; then
+        if "$HOME/.local/bin/cloud-ide-sshd" restart 2>&1 | tee -a "$LOG_FILE"; then
             sleep 1
             if [ -f "$HOME/.cache/sshd.pid" ] && kill -0 "$(cat "$HOME/.cache/sshd.pid")" 2>/dev/null; then
                 _sshd_up=1
