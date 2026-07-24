@@ -287,13 +287,15 @@ const Tabs = {
     return tabId;
   },
 
-  // ── Vim tab: a normal PTY tab that immediately runs vim. newTab awaits the
-  // pane spawn, so the write lands on a ready shell (no timing hack).
-  async openVimTab(profile = this.activeProfile) {
+  // ── Run tab: a normal PTY tab that immediately runs a command. newTab awaits
+  // the pane spawn, so the write lands on a ready shell (no timing hack).
+  async openRunTab(cmd, title, profile = this.activeProfile) {
     const tabId = await this.newTab(profile);
-    if (MYK.activePane) Transport.ptyWrite(MYK.activePane, "vim\n");
+    if (title) this.setTitle(tabId, title);
+    if (MYK.activePane && cmd) Transport.ptyWrite(MYK.activePane, cmd + "\n");
     return tabId;
   },
+  openVimTab(profile = this.activeProfile) { return this.openRunTab("vim", "vim", profile); },
 
   activate(tabId) {
     if (!this.tabs.has(tabId)) return;

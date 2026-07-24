@@ -103,6 +103,27 @@
 
   document.getElementById("menu-restore-session").addEventListener("click", () => Tabs.restoreSession());
 
+  // Updater — all params from the engine-derived MYK.config.app (single source:
+  // build.json). Commands run in a visible PTY tab so the user sees progress.
+  // ponytail: no bespoke updater UI — a terminal tab IS the progress view.
+  const app = (MYK.config && MYK.config.app) || {};
+  document.getElementById("menu-update").addEventListener("click", () => {
+    if (!app.repo) return;
+    const s = app.store, b = app.bin, d = app.dash;
+    Tabs.openRunTab(
+      `gh release download ${app.release_tag} --repo ${app.repo} --pattern ${b} --pattern ${d} --dir ${s} --clobber ` +
+      `&& chmod +x ${s}/${b} ${s}/${d} 2>/dev/null; echo '✓ Fetched — restart my-konsole to load the new binary'`,
+      "update");
+  });
+  document.getElementById("menu-clone-build").addEventListener("click", () => {
+    if (!app.repo_url) return;
+    Tabs.openRunTab(
+      `git clone ${app.repo_url} ${app.clone_dir} 2>/dev/null || git -C ${app.clone_dir} pull; ` +
+      `cd ${app.clone_dir}/${app.subdir} && ./build.sh build && ./build.sh install ` +
+      `&& echo '✓ Built + installed locally (heavy — CI is the normal path)'`,
+      "clone+build");
+  });
+
   async function showAbout() {
     let appVersion = "unknown", tauriVersion = "unknown";
     if (window.__TAURI__) {
@@ -111,8 +132,21 @@
     }
     document.getElementById("about-body").textContent =
       `Version: ${appVersion}\nTauri: ${tauriVersion}\nProfiles loaded: ${profiles.length}\nTabs open: ${Tabs.tabs.size}`;
+    // Repo / location block — from the derived app metadata.
+    const url = document.getElementById("about-repo-url");
+    url.textContent = app.repo_url || "—"; url.href = app.repo_url || "#";
+    document.getElementById("about-repo-path").textContent = app.clone_dir ? `${app.clone_dir}/${app.subdir}` : "—";
+    document.getElementById("about-bin-path").textContent = (app.store && app.bin) ? `${app.store}/${app.bin}` : "—";
     document.getElementById("about").hidden = false;
   }
+  document.getElementById("about-clone").addEventListener("click", () => {
+    if (!app.repo_url) return;
+    document.getElementById("about").hidden = true;
+    Tabs.openRunTab(
+      `git clone ${app.repo_url} ${app.clone_dir} 2>/dev/null || git -C ${app.clone_dir} pull; ` +
+      `echo '✓ Repo at ${app.clone_dir}'`,
+      "clone");
+  });
   document.getElementById("menu-about").addEventListener("click", showAbout);
   document.getElementById("about-close").addEventListener("click", () => { document.getElementById("about").hidden = true; });
 

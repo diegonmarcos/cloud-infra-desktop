@@ -29,6 +29,8 @@
       <div id="menu-wrap">
         <button id="btn-menu" title="Configs">Configs ▾</button>
         <div id="menu-dropdown" hidden>
+          <div class="menu-item" id="menu-update">Update Binary (fetch release)</div>
+          <div class="menu-item" id="menu-clone-build">Clone &amp; Build Locally</div>
           <div class="menu-item" id="menu-restore-session">Restore Last Session</div>
           <div class="menu-item" id="menu-about">About</div>
         </div>
@@ -44,6 +46,12 @@
     <div id="about-box">
       <h2>my-konsole</h2>
       <div id="about-body"></div>
+      <div id="about-repo">
+        <div class="about-row">Repo: <a id="about-repo-url" href="#" target="_blank" rel="noreferrer"></a>
+          <button class="home-btn" id="about-clone">Clone</button></div>
+        <div class="about-row">Local repo: <span id="about-repo-path"></span></div>
+        <div class="about-row">Binary: <span id="about-bin-path"></span></div>
+      </div>
       <button id="about-close">Close</button>
     </div>
   </div>
