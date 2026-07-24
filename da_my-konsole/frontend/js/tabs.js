@@ -9,6 +9,7 @@ const Browser = window.__TAURI__ ? {
   bounds: (label, r) => window.__TAURI__.core.invoke("browser_bounds", { label, x: r.x, y: r.y, w: r.w, h: r.h }),
   hide: (label) => window.__TAURI__.core.invoke("browser_hide", { label }),
   close: (label) => window.__TAURI__.core.invoke("browser_close", { label }),
+  back: (label) => window.__TAURI__.core.invoke("browser_back", { label }),
 } : null;
 
 const Tabs = {
@@ -207,22 +208,30 @@ const Tabs = {
     rootEl.dataset.id = tabId;
     rootEl.innerHTML = `
       <div class="browser-wrap">
-        <div class="browser-addr"><input class="browser-addr-input" type="text" spellcheck="false" value="${url}" /></div>
+        <div class="browser-addr">
+          <button class="browser-btn" data-act="back" title="Back">‹</button>
+          <button class="browser-btn" data-act="reload" title="Reload">↻</button>
+          <input class="browser-addr-input" type="text" spellcheck="false" value="${url}" />
+          <button class="browser-btn browser-btn-close" data-act="close" title="Close tab">✕</button>
+        </div>
         ${native ? `<div class="browser-holder"></div>` : `<iframe class="browser-frame" src="${url}"></iframe>`}
       </div>`;
     document.getElementById("terms").appendChild(rootEl);
 
     const addr = rootEl.querySelector(".browser-addr-input");
-    console.log(`[openBrowserTab] ${native ? "native" : "iframe"} url=${url} profile=${profile}`);
-    addr.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter") return;
-      let v = addr.value.trim();
+    console.log(`[openBrowserTab] ${native ? "native" : "iframe"} url=${url} profile=${profile} dpr=${window.devicePixelRatio}`);
+    const go = (v) => {
       if (!/^[a-z]+:\/\//i.test(v)) v = "https://" + v;
       addr.value = v;
       const t = this.tabs.get(tabId); if (t) t.browserUrl = v;
       console.log("[browser] navigate → " + v);
       if (native) Browser.navigate(tabId, v); else rootEl.querySelector(".browser-frame").src = v;
-    });
+    };
+    addr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(addr.value.trim()); });
+    // Toolbar (DOM, above the webview holder → never covered by the floating webview).
+    rootEl.querySelector('[data-act="back"]').addEventListener("click", () => native ? Browser.back(tabId) : history.back());
+    rootEl.querySelector('[data-act="reload"]').addEventListener("click", () => go(addr.value.trim()));
+    rootEl.querySelector('[data-act="close"]').addEventListener("click", () => this.close(tabId));
 
     const tabEl = document.createElement("div");
     tabEl.className = "tab"; tabEl.dataset.id = tabId;

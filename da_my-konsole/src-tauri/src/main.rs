@@ -190,6 +190,13 @@ fn browser_close(app: tauri::AppHandle, label: String) {
     }
 }
 
+#[tauri::command]
+fn browser_back(app: tauri::AppHandle, label: String) {
+    if let Some(wv) = app.get_webview(&label) {
+        let _ = wv.eval("history.back()");
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -197,7 +204,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config,
             fs_list_dir, fs_read_file, fs_write_file,
-            browser_open, browser_navigate, browser_bounds, browser_hide, browser_close
+            browser_open, browser_navigate, browser_bounds, browser_hide, browser_close, browser_back
         ])
         .run(tauri::generate_context!())
         .expect("error while running my-konsole");

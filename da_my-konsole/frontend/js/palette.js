@@ -98,12 +98,20 @@ document.getElementById("palette-input").addEventListener("keydown", (e) => {
   if (e.key === "ArrowUp") { e.preventDefault(); Palette.move(-1); return; }
 });
 
-// Bare ":" opens the palette — but only when a terminal pane isn't the
-// target, so normal shell/vim usage of ":" is never intercepted.
+// Bare ":" opens the bottom command line — vim-style, only in "normal mode".
+// INPUT MODE (":" is a literal keystroke, palette NOT opened): focus is in a
+// terminal pane, or any text field (address bar, search, editor textarea,
+// contenteditable). NORMAL MODE (anywhere else): ":" opens the command line.
+function inInputMode(t) {
+  if (!t) return false;
+  if (t.closest && t.closest(".pane")) return true;             // terminal = insert mode
+  const tag = (t.tagName || "").toLowerCase();
+  return tag === "input" || tag === "textarea" || t.isContentEditable;
+}
 window.addEventListener("keydown", (e) => {
   if (Palette.isOpen()) return;
   if (e.key !== ":" || e.ctrlKey || e.altKey || e.metaKey) return;
-  if (e.target.closest(".pane")) return;
+  if (inInputMode(e.target)) return;
   e.preventDefault();
   Palette.open();
 });
