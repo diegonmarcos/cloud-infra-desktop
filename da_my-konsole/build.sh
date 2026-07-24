@@ -135,12 +135,18 @@ cmd_fetch() {
   mkdir -p "$STORE"
   command -v gh >/dev/null 2>&1 || die "gh CLI required to fetch the CI binary"
   log "Fetching $BIN + $DASH from GH release $RELEASE_TAG ($REPO)…"
-  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$BIN" --dir "$STORE" --clobber \
+  # Download into a temp dir, then atomically mv over the target. A running
+  # binary can't be overwritten in place (ETXTBSY: "text file busy"), but a
+  # rename swaps the inode — the running process keeps the old one, the next
+  # launch picks up the new one.
+  local tmp; tmp="$(mktemp -d "$STORE/.fetch.XXXXXX")"
+  trap 'rm -rf "$tmp"' RETURN
+  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$BIN" --dir "$tmp" --clobber \
     || die "release download failed"
-  chmod +x "$STORE/$BIN"
-  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$DASH" --dir "$STORE" --clobber 2>/dev/null \
-    && chmod +x "$STORE/$DASH" || log "(dashboards binary not in release yet — non-fatal)"
-  log "Fetched → $STORE/$BIN"
+  chmod +x "$tmp/$BIN"; mv -f "$tmp/$BIN" "$STORE/$BIN"
+  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$DASH" --dir "$tmp" --clobber 2>/dev/null \
+    && { chmod +x "$tmp/$DASH"; mv -f "$tmp/$DASH" "$STORE/$DASH"; } || log "(dashboards binary not in release yet — non-fatal)"
+  log "Fetched → $STORE/$BIN (restart my-konsole to load it)"
 }
 
 # Resolve + cache the webkit runtime lib path. `nix eval` realizes the closure
