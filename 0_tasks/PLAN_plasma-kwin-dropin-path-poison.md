@@ -1,6 +1,12 @@
 # PLAN: Plasma broken after login — swap-pin drop-in poisons kwin's PATH
 
-**Status**: root-caused 2026-07-24, evidence below. Fix not yet applied.
+**Status**: root-caused 2026-07-24. Declarative fix APPLIED to
+`configuration_system-protection.nix` same day (raw-text `systemd.user.units`
+drop-in) — **`build.sh switch` still pending**. An imperative bridge
+(Diego-authorized, 2026-07-24) was placed to unblock the GUI immediately:
+`~/.config/systemd/user/plasma-{kwin_wayland,plasmashell}.service.d/zz-unpoison-path.conf`
+(`Environment=` reset — clears the poisoned PATH; lexically last so it wins).
+The bridge is inert once the switch ships, but MUST be deleted (cleanup below).
 **Severity**: P0 — desktop GUI unusable (login → black screen → back to SDDM loop).
 **Executor**: build agent (sonnet). All edits in `~/git/unix`, main branch, direct push.
 
@@ -77,6 +83,9 @@ Two imperative shadow layers currently duplicate MemorySwapMax=0 and must go
   real switch ships".
 - `~/.config/systemd/user.control/plasma-{kwin_wayland,plasmashell}.service.d/50-MemorySwapMax.conf`
   — `systemctl set-property` residue.
+- `~/.config/systemd/user/plasma-{kwin_wayland,plasmashell}.service.d/zz-unpoison-path.conf`
+  — the 2026-07-24 imperative bridge (Environment= reset). Inert after the
+  switch, delete anyway.
 
 Do NOT touch `~/.config/systemd/user/*/memory-cap.conf` — those are HM-managed
 (`ba_flakes_desktop/src/modules/desktop-session/system-protection-desktop-session.nix`).
