@@ -662,10 +662,23 @@ in
   # NixOS emits a FULL replacement unit (only MemorySwapMax, no ExecStart) that
   # shadows the plasma-shipped unit in /etc/systemd/user — systemd then refuses
   # to start plasmashell/kwin after login = black desktop (gen 48).
-  systemd.user.services = lib.genAttrs sysprot.compositor_no_swap.units (_: {
-    overrideStrategy = "asDropin";
-    serviceConfig.MemorySwapMax = sysprot.compositor_no_swap.MemorySwapMax;
-  });
+  # MUST be systemd.user.units RAW TEXT, not systemd.user.services (2026-07-24
+  # incident): the services generator injects its default Environment=PATH=
+  # (coreutils/findutils/grep/sed/systemd — NO kwin) into the drop-in, which
+  # overrides the vendor unit env; kwin_wayland_wrapper resolves `kwin_wayland`
+  # by bare name via PATH → compositor died at exec before its first log line,
+  # wrapper kept the DBus name + a dead wayland-0 socket, unit stayed "active",
+  # every Qt client blocked in the accept queue → all session units hit
+  # Type=dbus timeouts after login. Raw unit text emits ONLY the lines below.
+  # See 0_tasks/PLAN_plasma-kwin-dropin-path-poison.md for the full forensics.
+  systemd.user.units = lib.genAttrs
+    (map (u: "${u}.service") sysprot.compositor_no_swap.units) (_: {
+      overrideStrategy = "asDropin";
+      text = ''
+        [Service]
+        MemorySwapMax=${sysprot.compositor_no_swap.MemorySwapMax}
+      '';
+    });
 
   # prochot-guard (2026-07-11): detect EC BD_PROCHOT hardware clamps — the
   # 200MHz incident. All cores clamped to 200MHz (below the 400MHz software
