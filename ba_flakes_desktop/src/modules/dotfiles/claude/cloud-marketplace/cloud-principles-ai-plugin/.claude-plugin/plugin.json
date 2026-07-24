@@ -3,6 +3,5 @@
   "displayName": "Cloud Principles",
   "version": "1.0.0",
   "description": "Diego's declarative/data-driven/sops CORE PRINCIPLES + FIRE rules + repo reference, injected via hooks (replaces static CLAUDE.md).",
-  "author": { "name": "Diego Nepomuceno Marcos" },
-  "hooks": "./hooks/hooks.json"
+  "author": { "name": "Diego Nepomuceno Marcos" }
 }
