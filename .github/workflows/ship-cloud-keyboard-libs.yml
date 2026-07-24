@@ -37,6 +37,8 @@ on:
       - "ea_cloud-superapp/libs/media/**"
       - "ea_cloud-superapp/libs/translate/**"
       - "ea_cloud-superapp/libs/voice/**"
+      - "ea_cloud-superapp/libs/voice-vosk/**"
+      - "ea_cloud-superapp/libs/translate-mlkit/**"
       - "1_workflows/src/cicd/ship-cloud-keyboard-libs.yml"
 
 permissions:
