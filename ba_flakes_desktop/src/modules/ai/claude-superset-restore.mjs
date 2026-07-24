@@ -38,6 +38,9 @@ const TMUX = process.env.CAS_TMUX || "";
 // resume ever lands in the wrong project dir.
 const encodeCwd = (cwd) => cwd.replace(/\//g, "-");
 
+// POSIX single-quote a string for safe embedding inside a generated /bin/sh script.
+const shq = (s) => `'${String(s).replace(/'/g, "'\\''")}'`;
+
 // Pull {cwd, title} out of a session jsonl body. Title matches what the
 // `/resume` picker shows: customTitle (set by `/rename`) → slug (the dashed
 // auto-name) → aiTitle → first user prompt → short id. customTitle/aiTitle take
@@ -146,22 +149,38 @@ function launch(entries, face) {
   if (!entries.length) { process.stderr.write("[restore] no matching sessions\n"); process.exit(1); }
   const SH = process.env.SHELL || "/bin/bash";
   const bare = (id) => `${SELF} ${face} --resume ${id}`;
-  // Run inside an interactive shell that STAYS after claude exits: Ctrl+C
+  // Each tab runs an interactive shell that STAYS after claude exits: Ctrl+C
   // soft-kills claude (which prints its `claude --resume <id>` hint) and drops
   // you back to a shell prompt in the same tab — the tab is NOT killed.
-  const cmd = (id) => `${SH} -c "${bare(id)}; exec ${SH} -i"`;
+  // Emitted as a per-session launcher SCRIPT (see the konsole branch for why):
+  //   cd <workdir> ; <resume> ; exec <shell> -i
+  const tabScript = (e) =>
+    `#!/bin/sh\ncd ${shq(e.workdir)} 2>/dev/null || cd ${shq(HOME)}\n${bare(e.id)}\nexec ${SH} -i\n`;
   process.stderr.write(`[restore] restoring ${entries.length} session(s)\n`);
 
   if (KONSOLE && process.env.DISPLAY) {
-    const lines = entries.map((e) =>
-      `title: ${e.title} ;; workdir: ${e.workdir} ;; command: ${cmd(e.id)}`);
-    const tabs = path.join(process.env.XDG_RUNTIME_DIR || os.tmpdir(), "claude-superset-tabs");
+    // konsole's --tabs-from-file tokenizes the `command:` field on whitespace
+    // and does NOT honor shell quoting — a quoted `sh -c "…; exec sh -i"` gets
+    // split apart, the shell dies on the broken fragment, and the tab closes
+    // instantly with nothing restored (the exec keep-alive never runs). So write
+    // each session's real command to a launcher script and reference it as bare
+    // `sh <path>` tokens — no quotes, no `;`, nothing for konsole to mangle.
+    const dir = process.env.XDG_RUNTIME_DIR || os.tmpdir();
+    const lines = entries.map((e) => {
+      const scr = path.join(dir, `claude-superset-tab-${e.id}.sh`);
+      fs.writeFileSync(scr, tabScript(e), { mode: 0o755 });
+      return `title: ${e.title} ;; command: ${SH} ${scr}`;
+    });
+    const tabs = path.join(dir, "claude-superset-tabs");
     fs.writeFileSync(tabs, lines.join("\n") + "\n");
     spawn(KONSOLE, ["--tabs-from-file", tabs], { detached: true, stdio: "ignore" }).unref();
     return;
   }
   if (TMUX) {
     const S = "claude-superset";
+    // tmux receives the command as a single argv element (quoting preserved) and
+    // runs it via `sh -c`, so the inline keep-alive form is safe here.
+    const cmd = (id) => `${SH} -c ${shq(`${bare(id)}; exec ${SH} -i`)}`;
     // Fresh detached session; first entry seeds window 0, the rest are new windows.
     spawnSync(TMUX, ["kill-session", "-t", S], { stdio: "ignore" });
     spawnSync(TMUX, ["new-session", "-d", "-s", S, "-n", entries[0].title, "-c", entries[0].workdir, cmd(entries[0].id)]);
