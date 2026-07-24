@@ -2,7 +2,7 @@
 # Target: ~600-700MB ISO, minimal footprint
 #
 # Features:
-#   - Surface Pro 8 hardware support (linux-surface kernel via nixos-hardware)
+#   - Surface Pro 8 keyboard via mainline SAM modules (stock nixpkgs kernel, no compile)
 #   - Openbox minimal GUI (X11) - NO display manager, use startx
 #   - Fish shell with essential CLI tools
 #   - Node.js + Claude Code
@@ -30,22 +30,15 @@
     initrd = {
       compressor = "zstd";
       compressorArgs = [ "-19" "-T0" ];
-      # NO btrfs in the initrd. btrfs pulls blake2b_generic as a checksum dep,
-      # and on the linux-surface 6.19.8 kernel blake2b_generic is BUILTIN (=y),
-      # not a loadable .ko — so the initrd modules-shrunk step's
-      # `modprobe blake2b_generic` aborts FATAL and the whole ISO build fails.
-      # Proven: GHA runs 29081577942 + 29037262731, BOTH on nixpkgs 25.05 (the
-      # "25.05 tolerates builtin modules" claim was wrong). The initrd only ever
-      # mounts the ISO media (iso9660/vfat) or the ext4 rescue partition p8 on
-      # chainload — never btrfs. btrfs recovery (mounting the user's LUKS/btrfs
-      # pool) is a POST-boot task using the stage-2 kernel module
-      # (boot.supportedFilesystems below) + btrfs-progs — so btrfs does not
-      # belong in the initrd. ext4 stays (p8 chainload), vfat stays (EFI/Ventoy).
+      # Keep btrfs OUT of the initrd (slim). On the stock kernel blake2b_generic is a
+      # loadable module so this is no longer a FATAL-abort issue, but a rescue initrd
+      # only ever mounts the ISO media (iso9660/vfat) or the ext4 p8 chainload — btrfs
+      # recovery is a POST-boot task via the stage-2 module + btrfs-progs.
       supportedFilesystems = [ "ext4" "vfat" ];
       kernelModules = [ "i915" ];  # Intel graphics early
     };
 
-    # Surface kernel modules (Type Cover keyboard CRITICAL)
+    # Surface Aggregator (SAM) modules — MAINLINE, drive the Type Cover keyboard on the stock kernel
     kernelModules = [
       "surface_aggregator"
       "surface_aggregator_registry"
@@ -129,8 +122,9 @@
   # HARDWARE - Surface specific
   # ═══════════════════════════════════════════════════════════════════════════
 
-  # iptsd for touch/pen/keyboard (CRITICAL for Type Cover)
-  services.iptsd.enable = true;
+  # iptsd disabled: IPTS touch/pen needs linux-surface patches absent from the stock
+  # kernel. Keyboard is unaffected (SAM surface_hid, above). Touch is not needed for rescue.
+  services.iptsd.enable = false;
 
   hardware.graphics.enable = true;
 

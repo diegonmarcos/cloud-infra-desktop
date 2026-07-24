@@ -10,33 +10,34 @@
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-name: "Ship → my-konsole rescue ISO (build remotely, cache 25.05 kernel)"
+name: "Ship → my-konsole rescue ISO (stock kernel, cache boot closure to GHCR)"
 
-# Builds the my-konsole rescue ISO on a GHA runner so the laptop never
-# has to compile the linux-surface kernel locally (its freeze-guard/oomd kills
-# heavy builds by design). Two deliverables per run, mirroring ship-boot-cache:
+# Builds the my-konsole rescue ISO on a GHA runner so the laptop never has to
+# build it locally (its freeze-guard/oomd kills heavy builds by design). Two
+# deliverables per run, mirroring ship-boot-cache:
 #
 #   1. ghcr.io/<owner>/unix-my-konsole-boot-cache:{nix-linux-<kver>,latest}
 #      — Nix-format closure of the my-konsole ISO's kernel + initrd (nixpkgs 25.05).
 #        Distinct image from unix-boot-cache (that one is the host's 24.11
 #        kernel; this is the slim flake's 25.05 derivation — different hash).
-#        Lets the laptop `nix copy --from` the kernel instead of recompiling.
+#        Lets the laptop `nix copy --from` the kernel instead of rebuilding.
 #
 #   2. Workflow artifact `my-konsole-iso` — the built .iso, downloaded
 #      on the laptop via `gh run download` to populate the my-konsole rescue
 #      partition (nvme0n1p8, label mykonsole-resc).
 #
-# The slim flake keeps the Surface config intact (microsoft-surface-pro-intel
-# module + linux-surface kernel + iptsd) — the runner only lends CPU/RAM, the
-# derivation built is identical to a local build.
+# The flake now uses the STOCK nixpkgs kernel (no nixos-hardware /
+# linux-surface module). The Surface Type Cover keyboard still works via
+# mainline Surface Aggregator (SAM) modules (surface_aggregator*, surface_hid*;
+# see configuration.nix). Touchscreen/pen (iptsd/IPTS) is disabled — not
+# available on the stock kernel and not needed for a rescue console.
 #
-# The kernel is compiled FROM SOURCE: the slim flake's NixOS kernel .config is
-# custom (surface initrd modules etc.), so it's a cache MISS on cache.nixos.org
-# AND on the linux-surface/nixos-surface cachix (those cache the linux-surface
-# *binary* for their own nixpkgs pin, not this flake's derivation). Evidenced by
-# run 29037262731: `building linux-6.19.8.drv` ran 2h54m then hit the 180-min
-# timeout. A full kernel compile on ubuntu-latest (4 vCPU / 16 GB) is ~2.5-3h, so
-# the job budget MUST clear that. Free disk first to avoid ENOSPC.
+# The kernel is a CACHE HIT, not a from-source compile: the stock nixpkgs
+# 25.05 kernel derivation substitutes from cache.nixos.org, so the
+# linux-surface/nixos-surface cachix substituters are no longer needed. This
+# job still realizes + pushes the kernel+initrd closure to GHCR (deliverable
+# #1 above) so the laptop can `nix copy --from` it. Free disk first to avoid
+# ENOSPC.
 
 on:
   workflow_dispatch: {}
@@ -47,7 +48,7 @@ on:
       - "ca_ventoy_fallback_usb/my-konsole/flake.lock"
       - "ca_ventoy_fallback_usb/my-konsole/configuration.nix"
       - "ca_ventoy_fallback_usb/my-konsole/iso.nix"
-      - "1_workflows/src/cicd/ship-slim-iso.yml"
+      - "1_workflows/src/cicd/ship-my-konsole-iso.yml"
 
 permissions:
   contents: read
@@ -57,9 +58,9 @@ jobs:
   build-slim-iso:
     name: "Build my-konsole ISO + cache 25.05 kernel closure"
     runs-on: ubuntu-latest
-    # From-source kernel compile is ~2.5-3h (see header); 180 killed it mid-build.
-    # 350 clears it with headroom, still under GitHub's 360-min hosted-job cap.
-    timeout-minutes: 350
+    # Stock kernel is a cache-hit download, not a compile — ISO assembly +
+    # closure copy/push to GHCR fits easily inside 60.
+    timeout-minutes: 60
     steps:
       - name: Free disk (~30 GB on runner)
         uses: jlumbroso/free-disk-space@main
@@ -81,8 +82,6 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
             accept-flake-config = true
-            extra-substituters = https://linux-surface.cachix.org https://nixos-surface.cachix.org
-            extra-trusted-public-keys = linux-surface.cachix.org-1:f+M1d2Zq+TfvrcL3vrAJL3Pc4U5GbU+s5SCV5fAR4ow=
 
       - name: Resolve kernel version + image meta
         id: meta
@@ -95,7 +94,7 @@ jobs:
           echo "image=${IMAGE}"                  >> "$GITHUB_OUTPUT"
           echo "tag_nix=nix-linux-${KVER}"       >> "$GITHUB_OUTPUT"
 
-      - name: Build my-konsole ISO (compiles + caches the 25.05 surface kernel)
+      - name: Build my-konsole ISO (stock kernel, cache hit) + realize boot closure
         id: iso
         working-directory: ca_ventoy_fallback_usb/my-konsole
         run: |
@@ -132,7 +131,7 @@ jobs:
           buildah copy "$ctr" "$STAGE" "/boot-cache"
           buildah config \
             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
-            --label "org.opencontainers.image.description=NixOS-format binary cache: my-konsole linux-surface ${KVER} kernel+initrd closure (nixpkgs 25.05). Recover via: nix copy --no-check-sigs --from file://.../boot-cache --to 'local?store=/nix/store' --all" \
+            --label "org.opencontainers.image.description=NixOS-format binary cache: my-konsole stock ${KVER} kernel+initrd closure (nixpkgs 25.05). Recover via: nix copy --no-check-sigs --from file://.../boot-cache --to 'local?store=/nix/store' --all" \
             --label "kernel.version=${KVER}" \
             "$ctr"
           buildah commit --rm "$ctr" "${IMAGE}:${TAG_NIX}"
