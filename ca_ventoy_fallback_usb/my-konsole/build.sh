@@ -102,10 +102,18 @@ install_partition() {
         RID=$(gh run list --repo "$REPO" --workflow "$WF" --status success \
                 --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null)
         [ -n "$RID" ] || log_err "no successful $WF run yet — build the ISO on GHA first"
-        gh run download "$RID" --repo "$REPO" -n "$ART" -D "$SCRIPT_DIR" \
-            || log_err "gh run download failed (run $RID, artifact $ART)"
-        ISO=$(command find "$SCRIPT_DIR" -maxdepth 2 -name '*.iso' | command head -1)
-        [ -f "$ISO" ] || log_err "no .iso after download"
+        # gh run download is all-or-nothing (no resume): a single mid-transfer
+        # stall throws away all progress. On a flaky/metered link (hotspot, NAT64)
+        # a multi-GB artifact rarely lands first try, so retry the whole fetch a
+        # few times before giving up. Each attempt starts clean (gh leaves no
+        # partial), so this only needs one good window to succeed.
+        local n=0 tries=8
+        until ISO=$(command find "$SCRIPT_DIR" -maxdepth 2 -name '*.iso' | command head -1); [ -f "$ISO" ]; do
+            n=$((n+1))
+            [ "$n" -gt "$tries" ] && log_err "gh run download failed after $tries attempts (run $RID, artifact $ART) — network too unstable for the $(printf '%s' "$ART") transfer"
+            log_info "download attempt $n/$tries…"
+            gh run download "$RID" --repo "$REPO" -n "$ART" -D "$SCRIPT_DIR" || { log_info "attempt $n stalled; retrying in 8s…"; sleep 8; }
+        done
     fi
     log_ok "ISO: $ISO"
 
