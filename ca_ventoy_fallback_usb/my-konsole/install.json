@@ -93,7 +93,7 @@
     "device": "/dev/nvme0n1p8",
     "uuid": "27ffc22b-f89e-492d-aeda-2341e8eba898",
     "volume_label": "MY_KONSOLE",
-    "efi_binary": "/EFI/boot/bootx64.efi",
+    "efi_binary": "/EFI/BOOT/BOOTX64.EFI",
     "iso_artifact": "my-konsole-iso",
     "iso_workflow": "ship-my-konsole-iso.yml",
     "iso_repo": "diegonmarcos/unix"
