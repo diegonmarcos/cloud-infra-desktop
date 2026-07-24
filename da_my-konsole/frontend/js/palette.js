@@ -16,10 +16,12 @@ const Palette = {
     input.focus();
     this.highlight = 0;
     this.render();
+    if (typeof Tabs !== "undefined") Tabs._syncBrowsers();  // hide native browser under the palette
   },
 
   close() {
     document.getElementById("palette").hidden = true;
+    if (typeof Tabs !== "undefined") Tabs._syncBrowsers();
   },
 
   render() {
