@@ -39,6 +39,11 @@ pub fn read_file(path: &str) -> Result<String, String> {
 
 pub fn write_file(path: &str, content: &str) -> Result<(), String> {
     let expanded = expand_home(path)?;
+    // Create parent dirs so writing to a fresh path (e.g. logs/debug.log, or a
+    // new file in the editor) doesn't fail on a missing directory.
+    if let Some(parent) = std::path::Path::new(&expanded).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
     std::fs::write(&expanded, content).map_err(|e| e.to_string())
 }
 

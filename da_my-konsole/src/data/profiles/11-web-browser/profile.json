@@ -3,7 +3,7 @@
   "display_name": "Web Browser",
   "home": true,
   "browser": true,
-  "url": "http://localhost:8000",
+  "url": "https://duckduckgo.com",
   "theme": { "accent": "#e94d3d" },
   "sections": []
 }
