@@ -29,8 +29,11 @@
     makeEfiBootable = true;
     makeUsbBootable = true;
 
-    # No splash image (slimmer)
-    efiSplashImage = null;
+    # NOTE: do NOT set efiSplashImage = null. nixpkgs iso-image.nix adds the
+    # efiSplashImage → /EFI/BOOT/efi-background.png entry UNCONDITIONALLY (unlike
+    # grubTheme, which is null-guarded), so null yields an empty pathlist source
+    # → xorriso "Will not graft-in the whole local filesystem by path '/'" →
+    # build aborts. Leave it at the default (a small stock PNG; negligible size).
 
     # GRUB menu label
     appendToMenuLabel = " (my-konsole)";
