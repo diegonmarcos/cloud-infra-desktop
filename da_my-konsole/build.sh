@@ -53,7 +53,8 @@ step_bundle_data() {
 
 # Copy data profiles next to the built binary as Tauri resources (bundled).
 stage_resources() {
-  mkdir -p src-tauri/profiles
+  # Mirror source — rm first so a renamed/removed profile dir leaves no orphan.
+  rm -rf src-tauri/profiles; mkdir -p src-tauri/profiles
   command cp -rf src/data/profiles/* src-tauri/profiles/ 2>/dev/null || true
   # config.json (theme/font/keybindings) ships too — read at runtime.
   command cp -f src/data/config.json src-tauri/config.json 2>/dev/null || true
@@ -62,7 +63,8 @@ stage_resources() {
 # Sync repo data (profiles + config) → user dir. The app prefers this over the
 # bundled copy, so edits apply on the next launch WITHOUT a rebuild.
 sync_data() {
-  mkdir -p "$STORE/profiles"
+  # Mirror source — rm first so a renamed/removed profile dir leaves no orphan.
+  rm -rf "$STORE/profiles"; mkdir -p "$STORE/profiles"
   command cp -rf src/data/profiles/* "$STORE/profiles/" 2>/dev/null || true
   command cp -f src/data/config.json "$STORE/config.json" 2>/dev/null || true
   # shared/*.json feed the ratatui dashboards (e.g. cloud-targets.json)

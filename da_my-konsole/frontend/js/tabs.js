@@ -287,6 +287,14 @@ const Tabs = {
     return tabId;
   },
 
+  // ── Vim tab: a normal PTY tab that immediately runs vim. newTab awaits the
+  // pane spawn, so the write lands on a ready shell (no timing hack).
+  async openVimTab(profile = this.activeProfile) {
+    const tabId = await this.newTab(profile);
+    if (MYK.activePane) Transport.ptyWrite(MYK.activePane, "vim\n");
+    return tabId;
+  },
+
   activate(tabId) {
     if (!this.tabs.has(tabId)) return;
     this.active = tabId;
