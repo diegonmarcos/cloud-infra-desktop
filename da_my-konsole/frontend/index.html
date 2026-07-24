@@ -31,6 +31,8 @@
         <div id="menu-dropdown" hidden>
           <div class="menu-item" id="menu-update">Update Binary (fetch release)</div>
           <div class="menu-item" id="menu-clone-build">Clone &amp; Build Locally</div>
+          <div class="menu-item" id="menu-logs">View Logs (console)</div>
+          <div class="menu-item" id="menu-export-logs">Export Logs → file</div>
           <div class="menu-item" id="menu-restore-session">Restore Last Session</div>
           <div class="menu-item" id="menu-about">About</div>
         </div>
@@ -53,6 +55,20 @@
         <div class="about-row">Binary: <span id="about-bin-path"></span></div>
       </div>
       <button id="about-close">Close</button>
+    </div>
+  </div>
+
+  <!-- Logs (logcat) viewer -->
+  <div id="logs" hidden>
+    <div id="logs-box">
+      <div id="logs-head">
+        <span>Console Logs</span>
+        <button class="home-btn" id="logs-refresh">Refresh</button>
+        <button class="home-btn" id="logs-export">Export</button>
+        <button class="home-btn" id="logs-clear">Clear</button>
+        <button class="home-btn" id="logs-close">Close</button>
+      </div>
+      <pre id="logs-body"></pre>
     </div>
   </div>
 
@@ -96,6 +112,7 @@
   <script src="vendor/xterm.js"></script>
   <script src="vendor/xterm-addon-fit.js"></script>
   <script src="vendor/xterm-addon-search.js"></script>
+  <script src="js/devlog.js"></script>
   <script src="js/transport.js"></script>
   <script src="js/term.js"></script>
   <script src="js/filebrowser.js"></script>

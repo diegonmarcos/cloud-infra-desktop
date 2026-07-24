@@ -186,7 +186,8 @@ const Tabs = {
 
   // ── Browser tab: iframe + editable address bar, no PTY. Reuses the OS
   // webview engine (WebKitGTK) — no bundled Chromium, no extra deps.
-  openBrowserTab(url = "https://duckduckgo.com", profile = this.activeProfile) {
+  openBrowserTab(url, profile = this.activeProfile) {
+    url = url || "https://duckduckgo.com";
     const tabId = "T" + ++this.seq;
     const rootEl = document.createElement("div");
     rootEl.className = "tab-root";
@@ -315,16 +316,21 @@ const Tabs = {
 
   // Switch to a profile's tab group: show only its tabs in the strip,
   // resume its last-active tab, or open a fresh one if it has none yet.
-  switchProfile(p) {
+  // Make `p`'s group the visible one. Always re-filters the strip so each
+  // profile shows ONLY its own tabs (no cross-profile bleed). `opener` (optional)
+  // forces a specific new tab — e.g. Vim — otherwise we resume the group's
+  // last-active tab, or open its default kind if the group is empty. Re-selecting
+  // the active profile reuses its tab instead of spawning a new one.
+  switchProfile(p, opener) {
     const name = p.name;
-    if (this.activeProfile === name) return;
     this.activeProfile = name;
     for (const [, t] of this.tabs) t.tabEl.style.display = t.profile === name ? "" : "none";
-
+    if (opener) { opener(name); return; }
     const last = this.lastActiveByProfile.get(name);
     if (last && this.tabs.has(last)) { this.activate(last); return; }
     if (p.browser) this.openBrowserTab(p.url, name);
     else if (p.filebrowser) this.openFileBrowserTab(p.start_path || "~", name);
+    else if (p.fileeditor) this.openFileEditorTab(null, name);
     else this.newTab(name);
   },
 

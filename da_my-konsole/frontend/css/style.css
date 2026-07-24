@@ -259,6 +259,16 @@ body { display: flex; flex-direction: column; }
 #about-repo a { color: var(--accent); text-decoration: none; }
 #about-repo a:hover { text-decoration: underline; }
 #about-repo span { font-family: monospace; color: var(--fg); }
+
+/* Logs (logcat) viewer modal */
+#logs { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; }
+#logs[hidden] { display: none; }
+#logs-box { width: 80vw; height: 75vh; display: flex; flex-direction: column;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+#logs-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+#logs-head span { font-weight: 600; margin-right: auto; }
+#logs-body { flex: 1 1 0; margin: 0; padding: 10px 12px; overflow: auto; font-family: monospace;
+  font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; color: var(--fg); }
 #menu-dropdown .menu-item { padding: 6px 14px; font-size: 12px; cursor: pointer; }
 #menu-dropdown .menu-item:hover { background: var(--accent); color: var(--bg); }
 
