@@ -12,7 +12,7 @@
 #   3. Connecting shells get `/bin/sh` which does NOT read `.bashrc` —
 #      put nix env loading in `~/.profile` so PATH and tooling resolve.
 #
-# Provides: termux-sshd command (start|stop|status|restart)
+# Provides: cloud-ide-sshd command (start|stop|status|restart) — serves the Cloud IDE APK over 127.0.0.1 and WG.
 # Trusted pubkeys: data-driven from data/authorized-keys.json.
 { config, pkgs, lib, ... }:
 
@@ -38,6 +38,8 @@ let
   authData = builtins.fromJSON (builtins.readFile ./data/authorized-keys.json);
   authorizedKeysContent =
     lib.concatStringsSep "\n" authData.trusted_pubkeys + "\n";
+  # Cloud IDE APK pubkey, sops-encrypted (decrypted at activation).
+  secretsFile = ./secrets.yaml;
 
   # Read the WG IP + SSH port from build.json (data-driven). sshd binds ONLY
   # to wgIp — no public exposure. If wg0 is down, sshd refuses to start
@@ -50,9 +52,9 @@ let
   wgIp = buildJson.defaults.wg_ip or "127.0.0.1";
   sshPort = buildJson.defaults.ssh_port or 8023;
 
-  sshdScript = pkgs.writeShellScript "termux-sshd" ''
-    # termux-sshd — POSIX wrapper for nix-on-droid sshd
-    # Usage: termux-sshd [start|stop|status|restart]
+  sshdScript = pkgs.writeShellScript "cloud-ide-sshd" ''
+    # cloud-ide-sshd — POSIX wrapper for nix-on-droid sshd
+    # Usage: cloud-ide-sshd [start|stop|status|restart]
     #
     # Hard-pinned to OpenSSH 8.9p1 (interpolated nix store path) to dodge
     # the proot execveat-with-fd limitation that breaks 9.x child processes
@@ -61,8 +63,8 @@ let
     SSHD_BIN="${opensshPinned}/bin/sshd"
     SSH_KEYGEN_BIN="${opensshPinned}/bin/ssh-keygen"
 
-    PID_FILE="$HOME/.cache/sshd.pid"
-    LOG_FILE="$HOME/.cache/sshd.log"
+    PID_FILE="$HOME/.cache/cloud-ide-sshd.pid"
+    LOG_FILE="$HOME/.cache/cloud-ide-sshd.log"
     HOST_KEY="$HOME/.ssh/ssh_host_rsa_key"
     SSHD_CONFIG="$HOME/.ssh/sshd_config"
 
@@ -115,6 +117,16 @@ let
     do_start() {
       self_heal
 
+      # ListenAddress lines: 127.0.0.1 ALWAYS (the Cloud IDE APK connects over
+      # loopback), plus the WG IP when wg0 is actually up. Best-effort probe:
+      # if `ip` is unavailable we keep the WG bind (previous behavior).
+      WG_LISTEN="ListenAddress ${wgIp}"
+      if command -v ip >/dev/null 2>&1; then
+        if ! ip -o addr show 2>/dev/null | grep -q "inet ${wgIp}"; then
+          WG_LISTEN="# wg0 (${wgIp}) not up — binding loopback only"
+        fi
+      fi
+
       if is_running; then
         pid=$(cat "$PID_FILE")
         echo "sshd already running (PID $pid) on :${toString sshPort}"
@@ -137,7 +149,8 @@ let
       # up at start time sshd will fail to bind and the wrapper will log it.
       cat > "$SSHD_CONFIG" <<EOF
     HostKey $HOST_KEY
-    ListenAddress ${wgIp}
+    ListenAddress 127.0.0.1
+    $WG_LISTEN
     Port ${toString sshPort}
     PidFile $PID_FILE
     AuthorizedKeysFile $HOME/.ssh/authorized_keys
@@ -207,7 +220,7 @@ let
       stop)    do_stop ;;
       status)  do_status ;;
       restart) do_stop; sleep 0.3; do_start ;;
-      *)       echo "Usage: termux-sshd {start|stop|status|restart}"; exit 1 ;;
+      *)       echo "Usage: cloud-ide-sshd {start|stop|status|restart}"; exit 1 ;;
     esac
   '';
 
@@ -233,21 +246,47 @@ in
   # home.activation.installPatchedProot — DISABLED until tzdata-static-musl
   # builds again. See the comment near prootPatched above for context.
 
-  home.file.".local/bin/termux-sshd" = {
+  home.file.".local/bin/cloud-ide-sshd" = {
     source = sshdScript;
     executable = true;
   };
 
-  home.file.".ssh/authorized_keys" = {
-    text = authorizedKeysContent;
-  };
+  # authorized_keys is generated at activation: static trusted keys (baked
+  # from authorized-keys.json) are ALWAYS written first so a sops failure
+  # can never lock us out of WG SSH; the Cloud IDE key is then appended
+  # best-effort from the sops-encrypted secrets.yaml.
+  home.activation.cloudIdeAuthorizedKeys = lib.hm.dag.entryAfter ["linkGeneration"] ''
+    SOPS="$HOME/.nix-profile/bin/sops"
+    # Pin the age identity to the on-device XDG path. An ambient SOPS_AGE_KEY_FILE
+    # may point at the desktop vault path (/home/diego/...) which doesn't exist
+    # here, silently breaking decrypt. |: true keeps this safe under set -e.
+    [ -r "$HOME/.config/sops/age/keys.txt" ] && export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt" || true
+    YQ="${pkgs.yq-go}/bin/yq"
+    SECRETS="${secretsFile}"
+    OUT="$HOME/.ssh/authorized_keys"
+    mkdir -p "$HOME/.ssh"; chmod 700 "$HOME/.ssh"
+    # Old generations symlinked this into the read-only nix store — drop it
+    # before writing a real file.
+    rm -f "$OUT"
+    printf '%s' ${lib.escapeShellArg authorizedKeysContent} > "$OUT"
+    if [ -f "$SOPS" ] && [ -f "$SECRETS" ]; then
+      _key=$("$SOPS" -d "$SECRETS" 2>/dev/null | "$YQ" -r '.cloud_ide_authorized_keys' 2>/dev/null) || true
+      if [ -n "$_key" ] && [ "$_key" != "null" ]; then
+        printf '%s\n' "$_key" >> "$OUT"
+        echo "[cloud-ide-sshd] authorized_keys: static keys + cloud-ide key"
+      else
+        echo "[cloud-ide-sshd] WARNING: cloud-ide key decrypt failed — static keys only"
+      fi
+    fi
+    chmod 600 "$OUT"
+  '';
 
   # ~/.profile loads nix env for ssh-spawned /bin/sh sessions
   home.file.".profile".text = profileText;
 
   programs.fish.shellInit = lib.mkAfter ''
-    if not test -f $HOME/.cache/sshd.pid; or not kill -0 (cat $HOME/.cache/sshd.pid 2>/dev/null) 2>/dev/null
-      termux-sshd start >/dev/null 2>&1
+    if not test -f $HOME/.cache/cloud-ide-sshd.pid; or not kill -0 (cat $HOME/.cache/cloud-ide-sshd.pid 2>/dev/null) 2>/dev/null
+      cloud-ide-sshd start >/dev/null 2>&1
     end
   '';
 }
