@@ -270,6 +270,34 @@
     ) || echo "[claude-marketplace] subshell failed; HM chain continues"
   '';
 
+  # ── Writable dotfiles ─────────────────────────────────────────────────────
+  # Make every HM-delivered file WRITABLE for imperative testing. HM symlinks
+  # each managed file read-only into the nix store; right after linkGeneration
+  # we swap each store symlink for a writable copy of the same content. The next
+  # switch's linkGeneration re-establishes the store symlink (declarative ALWAYS
+  # wins) and this re-copies — so deployed files are always editable between
+  # switches yet never diverge from source across one. Data-driven: the target
+  # list is derived from config.home.file (xdg.configFile feeds into it), so
+  # every managed file is covered with zero per-file wiring. Only store-backed
+  # symlinks are touched (out-of-store symlinks are left as-is).
+  home.activation.unfreezeHmFiles =
+    let
+      _writableTargets = pkgs.writeText "hm-writable-targets"
+        (lib.concatMapStringsSep "\n" (f: f.target) (lib.attrValues config.home.file));
+    in lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      while IFS= read -r _rel; do
+        [ -n "$_rel" ] || continue
+        _t="$HOME/$_rel"
+        [ -L "$_t" ] || continue
+        _r="$(${pkgs.coreutils}/bin/readlink -f "$_t" 2>/dev/null)"
+        [ -n "$_r" ] && [ -e "$_r" ] || continue
+        case "$_r" in /nix/store/*) ;; *) continue ;; esac
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -f "$_t"
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/cp -RL "$_r" "$_t"
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/chmod -R u+w "$_t"
+      done < ${_writableTargets}
+    '';
+
   home.file.".rgignore".source = ./dotfiles/claude/rgignore;
 
   # Goose AI CLI configuration (cloud-ai-cli alias)
