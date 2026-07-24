@@ -746,7 +746,7 @@
                 ./modules/node-npm-deps.nix
                 ./modules/node-bins.nix
                 ./modules/web-server-md-eruda.nix
-                ./modules/sshd.nix
+                ./modules/cloud-ide-sshd
                 ./modules/wireguard.nix
                 ./modules/wireguard-wstunnel.nix
               ];
@@ -1056,7 +1056,7 @@
                 shellAliases = sharedAliases;
                 interactiveShellInit = ''
 
-                  # NOTE: sshd auto-start lives in modules/sshd.nix (`termux-sshd start`).
+                  # NOTE: sshd auto-start lives in modules/cloud-ide-sshd (`cloud-ide-sshd start`).
                   # The previous block here referenced ~/.ssh/sshd_config which is never
                   # created — it failed silently and hid real startup errors. Removed.
 

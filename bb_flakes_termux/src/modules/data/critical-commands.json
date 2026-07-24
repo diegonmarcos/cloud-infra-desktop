@@ -26,9 +26,9 @@
       "category": "ai"
     },
     {
-      "name": "termux-sshd",
-      "path": "$HOME/.local/bin/termux-sshd",
-      "fix": "Installed by sshd.nix via home.file. If missing, the flake didn't activate — re-run build.sh switch.",
+      "name": "cloud-ide-sshd",
+      "path": "$HOME/.local/bin/cloud-ide-sshd",
+      "fix": "Installed by cloud-ide-sshd module via home.file. If missing, the flake didn't activate — re-run build.sh switch.",
       "category": "system"
     },
     {
