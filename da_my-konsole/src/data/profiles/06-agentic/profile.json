@@ -1,6 +1,7 @@
 {
   "name": "agentic",
   "display_name": "Agentic",
+  "home": true,
   "theme": { "accent": "#9b59b6" },
   "sections": [
     {

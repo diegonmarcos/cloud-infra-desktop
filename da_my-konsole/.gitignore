@@ -3,6 +3,7 @@ frontend/vendor/*.js
 frontend/vendor/*.css
 frontend/data/*.json
 src-tauri/profiles/
+src-tauri/config.json
 src-tauri/icons/*.png
 src-tauri/Cargo.lock
 pty-core/Cargo.lock

@@ -23,9 +23,9 @@
   Palette.profiles = profiles;
   Palette.runItem = runItem;
 
-  // Top-nav pills
+  // Top-nav pills — Row 2. Profiles flagged `home` live in Row 1 instead.
   const nav = document.getElementById("profiles");
-  profiles.forEach((p, i) => {
+  profiles.filter((p) => !p.home).forEach((p, i) => {
     const pill = document.createElement("div");
     pill.className = "profile-pill" + (i === 0 ? " active" : "");
     pill.textContent = p.display_name || p.name;
@@ -33,10 +33,11 @@
     nav.appendChild(pill);
   });
 
+  // pill omitted when triggered from a Row-1 home button (no pill to activate).
   function selectProfile(p, pill) {
     current = p;
     for (const el of document.querySelectorAll(".profile-pill")) el.classList.remove("active");
-    pill.classList.add("active");
+    if (pill) pill.classList.add("active");
     buildSections(p);
     Tabs.switchProfile(p);
   }
@@ -117,8 +118,19 @@
 
   // Row 1 (Home): fixed actions, always visible regardless of active profile.
   document.getElementById("btn-home-filebrowser").addEventListener("click", () => Tabs.openFileBrowserTab("~"));
-  document.getElementById("btn-home-fileeditor").addEventListener("click", () => Tabs.openFileEditorTab(null));
   document.getElementById("btn-home-browser").addEventListener("click", () => Tabs.openBrowserTab());
+  // Agentic: a promoted (home) profile — load its command palette like a pill.
+  document.getElementById("btn-home-agentic").addEventListener("click", () => {
+    const agentic = profiles.find((p) => p.name === "agentic");
+    if (agentic) selectProfile(agentic, null);
+  });
+  // File Editor is a mode dropdown: Plain (in-app textarea) | Vim (real vim in a PTY).
+  const editorBtn = document.getElementById("btn-home-fileeditor");
+  const editorMenu = document.getElementById("editor-menu");
+  editorBtn.addEventListener("click", (e) => { e.stopPropagation(); editorMenu.hidden = !editorMenu.hidden; });
+  document.addEventListener("click", () => { editorMenu.hidden = true; });
+  document.getElementById("editor-plain").addEventListener("click", () => Tabs.openFileEditorTab(null));
+  document.getElementById("editor-vim").addEventListener("click", () => Tabs.openVimTab());
   // About lives in the Configs (⋮ → menu-about) dropdown now — no standalone button.
 
   // Sidebar view switcher: Commands (search + per-profile items) | Tabs (vertical, grouped)
