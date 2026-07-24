@@ -134,7 +134,10 @@ install_partition() {
     mount "$DEV" "$pd" || log_err "mount of $DEV failed"
     log_info "Syncing ISO tree → $DEV (rsync --delete)…"
     rsync -aHAX --delete "$isod"/ "$pd"/ || log_err "rsync failed"
-    sync
+    # No explicit `sync`: umount below already flushes all pending writes before
+    # returning, so it was redundant — and on this host `sync` is shadowed by a
+    # user wrapper (~/.nix-profile/bin/sync) that aborts under root. umount is the
+    # durability barrier.
     umount "$pd" && umount "$isod"; trap - EXIT; rmdir "$isod" "$pd" 2>/dev/null || true
 
     # ── Relabel so the ISO's baked GRUB finds the squashfs by isoImage.volumeID
