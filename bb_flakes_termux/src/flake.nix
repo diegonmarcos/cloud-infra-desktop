@@ -733,7 +733,7 @@
             ];
 
             # --- HOME MANAGER CONFIG ---
-            home-manager.config = { pkgs, lib, ... }: {
+            home-manager.config = { config, pkgs, lib, ... }: {
               _module.args.nodejs = pkgsNew.nodejs_22;
               # wstunnel 7.x (Rust) lives in pkgsUnstable. The old wstunnel 0.5.x
               # in pinned nixos-24.05 is Haskell and pulls connection-0.3.1 which
@@ -893,6 +893,29 @@
 
               # frontend-design — vendored from claude-plugins-official marketplace.
               home.file.".claude/skills/frontend-design".source = ../src/modules/dotfiles/claude/skills/frontend-design;
+
+              # ── Writable dotfiles (see ba_flakes_desktop/common.nix for rationale) ──
+              # Swap each store-backed HM symlink for a writable copy right after
+              # linkGeneration so deployed files are editable for imperative tests;
+              # the next switch re-links then re-copies (declarative always wins).
+              # Data-driven from config.home.file (xdg.configFile feeds into it).
+              home.activation.unfreezeHmFiles =
+                let
+                  _writableTargets = pkgs.writeText "hm-writable-targets"
+                    (lib.concatMapStringsSep "\n" (f: f.target) (lib.attrValues config.home.file));
+                in lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+                  while IFS= read -r _rel; do
+                    [ -n "$_rel" ] || continue
+                    _t="$HOME/$_rel"
+                    [ -L "$_t" ] || continue
+                    _r="$(${pkgs.coreutils}/bin/readlink -f "$_t" 2>/dev/null)"
+                    [ -n "$_r" ] && [ -e "$_r" ] || continue
+                    case "$_r" in /nix/store/*) ;; *) continue ;; esac
+                    $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -f "$_t"
+                    $DRY_RUN_CMD ${pkgs.coreutils}/bin/cp -RL "$_r" "$_t"
+                    $DRY_RUN_CMD ${pkgs.coreutils}/bin/chmod -R u+w "$_t"
+                  done < ${_writableTargets}
+                '';
 
               home.file.".rgignore".source = ../src/modules/dotfiles/claude/rgignore;
 
