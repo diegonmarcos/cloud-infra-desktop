@@ -101,8 +101,23 @@ in {
     # wg0's Hickory (10.0.0.1) is registered by NM per-interface and is used
     # ONLY for ~diegonmarcos.com routing domain (see wg0 profile below).
     fallbackDns = [ "1.1.1.1" "9.9.9.9" ];  # bare fallback if dnscrypt-proxy2 down
+    # Ordered global resolvers: dnscrypt-proxy2 first; on its failure resolved
+    # rotates to the next. The two trailing entries are nat64.net's public DNS64
+    # resolvers (Kasper Dupont, Tayga) — they synthesize 64:ff9b-style AAAA whose
+    # NAT64 gateway is reachable over plain IPv6. This is the escape hatch for an
+    # IPv6-only WiFi with NO NAT64 gateway of its own (GitHub etc. is IPv4-only):
+    # dnscrypt can't reach its DoH upstreams → SERVFAIL → resolved fails over to
+    # nat64.net → the v4-only host becomes reachable via NAT64 over IPv6. On any
+    # healthy/dual-stack network 127.0.0.1 answers first, so nat64.net never sees
+    # a query (dnscrypt privacy preserved). fallbackDns above is NOT the right
+    # slot for this — it only fires when zero DNS= servers exist, which never
+    # happens while dnscrypt-proxy2 is listening.
+    # ponytail: 2 inline IPs, matching this file's existing inline-resolver style.
+    #   Move to wireguard-endpoints.json-style data file only if a 2nd host needs it.
+    # UNTESTED end-to-end: only exercisable on a real IPv6-only-no-NAT64 network.
+    #   Verify nat64.net resolver IPs are current at https://nat64.net before relying.
     extraConfig = ''
-      DNS=127.0.0.1
+      DNS=127.0.0.1 2a00:1098:2b::1 2a01:4f9:c010:3f02::1
     '';
   };
   networking.networkmanager.dns = "systemd-resolved";
