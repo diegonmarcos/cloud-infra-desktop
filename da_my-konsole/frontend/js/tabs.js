@@ -201,11 +201,15 @@ const Tabs = {
 
     const addr = rootEl.querySelector(".browser-addr-input");
     const frame = rootEl.querySelector(".browser-frame");
+    console.log("[openBrowserTab] url=" + url + " profile=" + profile);
+    frame.addEventListener("load", () => console.log("[browser] frame load event, src=" + frame.src));
+    frame.addEventListener("error", () => console.error("[browser] frame error, src=" + frame.src));
     addr.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       let v = addr.value.trim();
       if (!/^[a-z]+:\/\//i.test(v)) v = "http://" + v;
       addr.value = v;
+      console.log("[browser] navigate → " + v);
       frame.src = v;
     });
 
@@ -246,6 +250,7 @@ const Tabs = {
   // highlighting later — this is deliberately just a <textarea>, no
   // CodeMirror/Monaco dependency.
   openFileEditorTab(path, profile = this.activeProfile) {
+    console.log(`[openFileEditorTab] path=${path} profile=${profile}`);
     const tabId = "T" + ++this.seq;
     const rootEl = document.createElement("div");
     rootEl.className = "tab-root";
@@ -291,6 +296,7 @@ const Tabs = {
   // ── Run tab: a normal PTY tab that immediately runs a command. newTab awaits
   // the pane spawn, so the write lands on a ready shell (no timing hack).
   async openRunTab(cmd, title, profile = this.activeProfile) {
+    console.log(`[openRunTab] profile=${profile} title=${title} cmd=${cmd}`);
     const tabId = await this.newTab(profile);
     if (title) this.setTitle(tabId, title);
     if (MYK.activePane && cmd) Transport.ptyWrite(MYK.activePane, cmd + "\n");
@@ -325,9 +331,11 @@ const Tabs = {
     const name = p.name;
     this.activeProfile = name;
     for (const [, t] of this.tabs) t.tabEl.style.display = t.profile === name ? "" : "none";
-    if (opener) { opener(name); return; }
+    if (opener) { console.log(`[switchProfile] ${name} → opener()`); opener(name); return; }
     const last = this.lastActiveByProfile.get(name);
-    if (last && this.tabs.has(last)) { this.activate(last); return; }
+    if (last && this.tabs.has(last)) { console.log(`[switchProfile] ${name} → resume ${last}`); this.activate(last); return; }
+    const kind = p.browser ? "browser" : p.filebrowser ? "filebrowser" : p.fileeditor ? "fileeditor" : "shell";
+    console.log(`[switchProfile] ${name} → open new ${kind}`);
     if (p.browser) this.openBrowserTab(p.url, name);
     else if (p.filebrowser) this.openFileBrowserTab(p.start_path || "~", name);
     else if (p.fileeditor) this.openFileEditorTab(null, name);
