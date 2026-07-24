@@ -21,6 +21,22 @@ RELEASE_TAG="$(cfg '.build.release_tag')"
 REPO="$(cfg '.build.repo')"
 STORE="$HOME/$(cfg '.runtime.store_subdir')"
 
+# Emit runtime config = src/data/config.json + a derived `app` block the frontend
+# uses for the About panel + updater (repo/release/paths). Single source is
+# build.json; paths stay ~-relative (portable → reproducible on any machine,
+# the shell expands ~ when the updater command runs). $1 = dest file.
+emit_config() {
+  jq --arg repo "$REPO" \
+     --arg repo_url "https://github.com/$REPO" \
+     --arg tag "$RELEASE_TAG" \
+     --arg bin "$BIN" --arg dash "$DASH" \
+     --arg store "~/$(cfg '.runtime.store_subdir')" \
+     --arg clone_dir "~/git/$(basename "$REPO")" \
+     --arg subdir "$(cfg '.build.subdir')" \
+     '. + {app: {repo:$repo, repo_url:$repo_url, release_tag:$tag, bin:$bin, dash:$dash, store:$store, clone_dir:$clone_dir, subdir:$subdir}}' \
+     src/data/config.json > "$1"
+}
+
 # Vendor xterm.js browser assets → frontend/vendor. Packages + dest names are
 # data (.build.vendor / .build.vendor_map), so adding an addon is a JSON edit.
 vendor() {
@@ -47,7 +63,7 @@ step_bundle_data() {
   log "Bundling profiles + config → frontend/data/…"
   mkdir -p frontend/data   # git doesn't track the empty dir; recreate on fresh checkout
   jq -s '{profiles: .}' src/data/profiles/*/profile.json > frontend/data/profiles.json
-  command cp -f src/data/config.json frontend/data/config.json 2>/dev/null || echo '{}' > frontend/data/config.json
+  emit_config frontend/data/config.json 2>/dev/null || echo '{}' > frontend/data/config.json
   log "Bundled → frontend/data/{profiles,config}.json"
 }
 
@@ -56,8 +72,8 @@ stage_resources() {
   # Mirror source — rm first so a renamed/removed profile dir leaves no orphan.
   rm -rf src-tauri/profiles; mkdir -p src-tauri/profiles
   command cp -rf src/data/profiles/* src-tauri/profiles/ 2>/dev/null || true
-  # config.json (theme/font/keybindings) ships too — read at runtime.
-  command cp -f src/data/config.json src-tauri/config.json 2>/dev/null || true
+  # config.json (theme/font/keybindings + derived app block) ships too — read at runtime.
+  emit_config src-tauri/config.json 2>/dev/null || true
 }
 
 # Sync repo data (profiles + config) → user dir. The app prefers this over the
@@ -66,7 +82,7 @@ sync_data() {
   # Mirror source — rm first so a renamed/removed profile dir leaves no orphan.
   rm -rf "$STORE/profiles"; mkdir -p "$STORE/profiles"
   command cp -rf src/data/profiles/* "$STORE/profiles/" 2>/dev/null || true
-  command cp -f src/data/config.json "$STORE/config.json" 2>/dev/null || true
+  emit_config "$STORE/config.json" 2>/dev/null || command cp -f src/data/config.json "$STORE/config.json" 2>/dev/null || true
   # shared/*.json feed the ratatui dashboards (e.g. cloud-targets.json)
   command cp -f src/data/shared/*.json "$STORE/" 2>/dev/null || true
   log "Synced profiles + config + shared → $STORE"
