@@ -157,6 +157,11 @@
               # `nix run nixpkgs#zstd` round-trip.
               zstd
 
+              # OCI registry client — build.sh `pull` uses oras for the per-path
+              # GHCR nix cache (manifest fetch + delta blob fetch). Native so
+              # `pull` skips the slow `nix run nixpkgs#oras` proot eval.
+              oras
+
               # Secrets & crypto
               openssl
               gnupg

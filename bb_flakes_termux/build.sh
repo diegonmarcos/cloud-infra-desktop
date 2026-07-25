@@ -549,14 +549,20 @@ cmd_status() {
 
 # _oras — oras CLI: available on PATH, or fall back to `nix run nixpkgs#oras`.
 _oras() {
-    if command -v oras >/dev/null 2>&1; then oras "$@"
+    if command -v oras >/dev/null 2>&1; then oras "$@"; return; fi
+    # Prefer an already-realised store path (fast) over a fresh nix eval (slow
+    # + fragile in proot). nix run re-evaluates nixpkgs every call.
+    _o="$(ls -d /nix/store/*-oras-*/bin/oras 2>/dev/null | head -1)"
+    if [ -n "$_o" ] && [ -x "$_o" ]; then "$_o" "$@"
     else nix run --extra-experimental-features "nix-command flakes" nixpkgs#oras -- "$@"; fi
 }
 
 # _zstd — zstd CLI: available on PATH, or fall back to `nix run nixpkgs#zstd`.
 # zstd is NOT reliably on the nix-on-droid PATH.
 _zstd() {
-    if command -v zstd >/dev/null 2>&1; then zstd "$@"
+    if command -v zstd >/dev/null 2>&1; then zstd "$@"; return; fi
+    _z="$(ls -d /nix/store/*-zstd-*/bin/zstd 2>/dev/null | head -1)"
+    if [ -n "$_z" ] && [ -x "$_z" ]; then "$_z" "$@"
     else nix run --extra-experimental-features "nix-command flakes" nixpkgs#zstd -- "$@"; fi
 }
 
@@ -687,13 +693,16 @@ nixcache_switch() {
         log_warn "nixcache: cache predates the public/topo index (needs a CI re-publish) — falling back."; return 1
     fi
 
-    # (A) pre-substitute all public deps — two passes, one per cache.
-    #     Already-present paths are skipped automatically by nix copy.
-    log_info "nixcache: pre-substituting $(wc -l < "$_art/public.txt") public deps (only missing fetch) ..."
-    xargs -a "$_art/public.txt" -r nix copy --from https://cache.nixos.org \
-        --no-check-sigs 2>&1 | tail -2 || true
-    xargs -a "$_art/public.txt" -r nix copy --from https://nix-on-droid.cachix.org \
-        --no-check-sigs 2>&1 | tail -2 || true
+    # (A) pre-substitute all public deps. Use `nix-store --realise`, NOT
+    #     `nix copy --from <single-source>`: public.txt mixes paths that live on
+    #     DIFFERENT caches (cache.nixos.org vs nix-on-droid.cachix.org). A
+    #     batched `nix copy --from cache.nixos.org` errors + skips the rest of
+    #     its batch the moment it hits a cachix-only path (e.g. *-android
+    #     static libs), leaving public refs invalid → custom imports then fail.
+    #     `nix-store -r` consults ALL configured substituters at once (both
+    #     caches, both trusted keys) and only fetches what's missing.
+    log_info "nixcache: pre-substituting $(wc -l < "$_art/public.txt") public deps (all configured caches) ..."
+    xargs -a "$_art/public.txt" -r nix-store --realise 2>&1 | tail -3 || true
 
     # (B) which custom paths must we fetch? missing dirs + present-but-INVALID.
     : > "$_art/present.txt"; : > "$_art/tofetch.txt"
@@ -962,7 +971,7 @@ case "${1:-switch}" in
     build)   cmd_build ;;
     ci-build) cmd_ci_build ;;
     nixcache-publish) cmd_nixcache_publish ;;
-    pull|switch-remote) cmd_pull "$2" ;;
+    pull|switch-remote) cmd_pull "${2:-}" ;;
     dry-run|plan) cmd_dry_run ;;
     tui)     run_tui ;;
     update)  cmd_update ;;
