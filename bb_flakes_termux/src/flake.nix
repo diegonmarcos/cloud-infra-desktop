@@ -106,9 +106,24 @@
               MALLOC_ARENA_MAX = "2";
               # Terraform: shared plugin cache (avoid 100MB+ provider binaries per project)
               TF_PLUGIN_CACHE_DIR = "$HOME/.terraform.d/plugin-cache";
+              # fish/others expect a private runtime dir; unset → "Runtime path
+              # not available". Created 0700 by the home.activation below.
+              XDG_RUNTIME_DIR = "$HOME/.cache/xdg-runtime";
+              # Locale — en_DK.UTF-8 = ISO-8601 dates + 24h. Set at the nix-on-droid
+              # env level (not home.sessionVariables) so LOCALE_ARCHIVE is already
+              # in scope when LANG/LC_ALL are exported → no setlocale warning at login.
+              LANG = "en_DK.UTF-8";
+              LC_ALL = "en_DK.UTF-8";
+              LOCALE_ARCHIVE = "${pkgs.glibcLocales}/lib/locale/locale-archive";
             };
 
             user.shell = "${pkgs.fish}/bin/fish";
+            # This closure is built in CI, where nix-on-droid would bake
+            # /etc/passwd from the RUNNER's `id -u` (1000). Pin the phone's real
+            # Android app uid so getpwuid(10635) resolves → whoami + sshd client
+            # (git push over SSH) work. Update if the app is reinstalled with a
+            # different uid (`id -u`).
+            user.uid = 10635;
 
             environment.packages = with pkgs; [
               # Nerd Fonts (for terminal icons)
@@ -771,6 +786,11 @@
               # Create Unison target folder on Android storage
               home.activation.createUnisonTarget = lib.hm.dag.entryBefore ["writeBoundary"] ''
                 $DRY_RUN_CMD mkdir -p "/storage/emulated/0/Mounts/Termux-Home"
+              '';
+
+              home.activation.xdgRuntimeDir = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+                mkdir -p "$HOME/.cache/xdg-runtime"
+                chmod 700 "$HOME/.cache/xdg-runtime"
               '';
 
               # Initialize $HOME as minimal git repo so Claude Code uses git ls-files (instant)
