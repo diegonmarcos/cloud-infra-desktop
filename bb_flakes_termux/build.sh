@@ -38,6 +38,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/src"
+NIX_CACHE_CFG="$SRC_DIR/modules/nix-cache.json"
 LOG_FILE="$SCRIPT_DIR/build.log"
 
 # Age key — dotfile symlink from vault/build.sh setup system, sops-nix fallback
@@ -543,6 +544,200 @@ cmd_status() {
 # ============================================================================
 # REMOTE BUILD (GHA arm64) + LOCAL ACTIVATE — never OOM the phone with an eval
 # ============================================================================
+# Per-path GHCR nix cache helpers + commands (incremental transport)
+# ============================================================================
+
+# _oras — oras CLI: available on PATH, or fall back to `nix run nixpkgs#oras`.
+_oras() {
+    if command -v oras >/dev/null 2>&1; then oras "$@"
+    else nix run --extra-experimental-features "nix-command flakes" nixpkgs#oras -- "$@"; fi
+}
+
+# _zstd — zstd CLI: available on PATH, or fall back to `nix run nixpkgs#zstd`.
+# zstd is NOT reliably on the nix-on-droid PATH.
+_zstd() {
+    if command -v zstd >/dev/null 2>&1; then zstd "$@"
+    else nix run --extra-experimental-features "nix-command flakes" nixpkgs#zstd -- "$@"; fi
+}
+
+# _closure_valid — true if $1 is in the store AND its whole closure is valid.
+_closure_valid() {
+    nix-store -qR "$1" >/dev/null 2>&1 || return 1
+    [ -z "$(nix-store -qR "$1" 2>/dev/null | xargs -r nix-store --check-validity --print-invalid 2>/dev/null)" ]
+}
+
+# cmd_nixcache_publish — CI: export each custom store path as its own zstd blob
+# and oras-push to GHCR. Content-addressed → GHCR dedups unchanged blobs so
+# only changed paths actually upload (push delta).
+cmd_nixcache_publish() {
+    log_header "CI: publish per-path GHCR nix cache (oras)"
+    [ -n "${GITHUB_TOKEN:-}" ] || { log_error "GITHUB_TOKEN required"; return 1; }
+    command -v jq >/dev/null 2>&1 || { log_error "jq required"; return 1; }
+    _cfg="$NIX_CACHE_CFG"
+    [ "$(jq -r '.enabled' "$_cfg" 2>/dev/null)" = "true" ] || { log_warn "nix cache disabled"; return 0; }
+    _ref="$(jq -r '.oci_ref' "$_cfg")"; _tag="$(jq -r '.oci_tag' "$_cfg")"
+    _mtype="$(jq -r '.blob_media_type' "$_cfg")"; _tlann="$(jq -r '.toplevel_annotation' "$_cfg")"
+    _manf="$(jq -r '.manifest_file' "$_cfg")"
+    _out="$SCRIPT_DIR/dist-ci"
+    _top="$(cat "$_out/activation.path" 2>/dev/null)"
+    [ -n "$_top" ] && [ -d "$_top" ] || { log_error "no dist-ci/activation.path — run ci-build first"; return 1; }
+    _tlname="$(basename "$_top")"; log_info "toplevel: $_tlname"
+
+    # 1) topological order of the whole closure (deps BEFORE dependents).
+    _work="$_out/nixcache"; rm -rf "$_work"; mkdir -p "$_work/blobs"
+    for p in $(nix-store -qR "$_top"); do
+        for r in $(nix-store -q --references "$p"); do
+            [ "$r" = "$p" ] || printf '%s %s\n' "$r" "$p"
+        done
+        printf '%s %s\n' "$p" "$p"   # keep leaves (no refs) in the graph
+    done | tsort > "$_work/topo.txt"
+
+    # 2) custom = closure MINUS what cache.nixos.org OR nix-on-droid.cachix.org
+    #    serves. A path is public if EITHER cache returns 200. Keep custom paths
+    #    IN TOPOLOGICAL ORDER.
+    nix-store -qR "$_top" | sort > "$_work/all.txt"
+    log_info "probing public caches for $(wc -l < "$_work/all.txt") paths..."
+    xargs -a "$_work/all.txt" -P 16 -I{} sh -c '
+        h=$(basename "{}"); h=${h%%-*}
+        curl -s -f -o /dev/null --retry 6 --retry-connrefused --retry-delay 1 \
+          --max-time 40 "https://cache.nixos.org/${h}.narinfo" && echo "{}" && exit 0
+        curl -s -f -o /dev/null --retry 6 --retry-connrefused --retry-delay 1 \
+          --max-time 40 "https://nix-on-droid.cachix.org/${h}.narinfo" && echo "{}"
+    ' | sort > "$_work/public.txt" || true
+    comm -23 "$_work/all.txt" "$_work/public.txt" | sort > "$_work/custom-set.txt"
+    grep -Fx -f "$_work/custom-set.txt" "$_work/topo.txt" > "$_work/$_manf"   # topo-ordered custom
+    _n=$(wc -l < "$_work/$_manf")
+    log_info "custom paths: $_n of $(wc -l < "$_work/all.txt") (rest from public caches)"
+    [ "$_n" -gt 0 ] || { log_warn "no custom paths — nothing to publish"; return 0; }
+
+    # 3) export each custom path to its own zstd blob (filename = store hash).
+    while IFS= read -r p; do
+        h=$(basename "$p"); h=${h%%-*}
+        nix-store --export "$p" | _zstd -T0 -19 -q -o "$_work/blobs/$h.zst"
+    done < "$_work/$_manf"
+    cp "$_work/$_manf" "$_work/blobs/$_manf"
+    # Also ship the PUBLIC-deps list so the device can pre-substitute every
+    # public-cache path BEFORE importing customs — then the topo-ordered
+    # import has ALL refs valid in one pass (no fragile per-error recovery).
+    cp "$_work/public.txt" "$_work/blobs/public.txt" 2>/dev/null || : > "$_work/blobs/public.txt"
+    log_info "exported $_n blobs, $(du -sh "$_work/blobs" | cut -f1) — pushing ${_ref}:${_tag}"
+
+    # 4) oras push — one layer per blob (title = <hash>.zst, IN topo order),
+    #    toplevel on a manifest annotation. Content-addressed → GHCR dedups
+    #    unchanged blobs, so only changed paths actually upload.
+    _files=""
+    while IFS= read -r p; do
+        h=$(basename "$p"); h=${h%%-*}; _files="$_files $h.zst:$_mtype"
+    done < "$_work/$_manf"
+    ( cd "$_work/blobs" && _oras push --disable-path-validation \
+        --username x --password "${GITHUB_TOKEN}" \
+        --annotation "${_tlann}=${_tlname}" \
+        "${_ref}:${_tag}" $_files "$_manf:text/plain" "public.txt:text/plain" ) \
+      && log_success "published ${_n}-path nix cache -> ${_ref}:${_tag}" \
+      || { log_error "oras push failed"; return 1; }
+    rm -rf "$_work"
+}
+
+# nixcache_switch — device side: oras manifest fetch, pre-substitute public
+# deps from BOTH caches, fetch only missing custom blobs, import in topo order.
+# No sudo (nix-on-droid is single-user). Writes $_art/activation.name on success.
+nixcache_switch() {
+    _art="$1"
+    command -v jq >/dev/null 2>&1 && [ -f "$NIX_CACHE_CFG" ] || return 1
+    [ "$(jq -r '.enabled' "$NIX_CACHE_CFG" 2>/dev/null)" = "true" ] || return 1
+    _ref="$(jq -r '.oci_ref' "$NIX_CACHE_CFG")"
+    _tag="$(jq -r '.oci_tag' "$NIX_CACHE_CFG")"
+    _ann="$(jq -r '.toplevel_annotation' "$NIX_CACHE_CFG")"
+    _tok="$(gh auth token 2>/dev/null)" || return 1
+    # GHCR login: username must be the package OWNER (derived from oci_ref).
+    _owner="$(printf '%s' "$_ref" | cut -d/ -f2)"
+    log_info "nixcache: oras login ghcr.io as '$_owner' ..."
+    printf '%s' "$_tok" | _oras login ghcr.io -u "$_owner" --password-stdin 2>&1 \
+        | sed 's/^/  [login] /' \
+        || { log_warn "nixcache: oras login failed — falling back."; return 1; }
+
+    log_info "nixcache: fetching OCI manifest $_ref:$_tag ..."
+    mkdir -p "$_art"; _man="$_art/nixcache-manifest.json"
+    _oras manifest fetch "$_ref:$_tag" > "$_man" 2>"$_art/nixcache-manifest.err" \
+        || { log_warn "nixcache: manifest unreachable ($(tail -1 "$_art/nixcache-manifest.err" 2>/dev/null)) — falling back."; return 1; }
+    _sysname="$(jq -r --arg k "$_ann" '.annotations[$k] // empty' "$_man")"
+    [ -n "$_sysname" ] || { log_warn "nixcache: no toplevel annotation on manifest — falling back."; return 1; }
+    _sys="/nix/store/$_sysname"
+    basename "$_sys" > "$_art/activation.name"
+    # VALIDITY check: a prior partial import can leave the dir present while
+    # deps are invalid. --check-validity --recursive verifies the WHOLE closure.
+    if _closure_valid "$_sys"; then
+        log_success "nixcache: $_sysname closure already fully valid — no pull."; return 0
+    fi
+
+    # ── THE robust layered pull: no fragile per-error recovery. ──────────────
+    # (0) pull two tiny index blobs: public.txt and topo-ordered custom list.
+    # (A) pre-substitute ALL public deps from BOTH caches.
+    # (B) fetch blobs for custom paths this device lacks or has corrupt.
+    # (C) import customs IN TOPOLOGICAL ORDER — one pass, every ref valid.
+    _bd="$_art/nixcache-blobs"; rm -rf "$_bd"; mkdir -p "$_bd"
+    _tab="$(printf '\t')"; _manf="$(jq -r '.manifest_file' "$NIX_CACHE_CFG")"
+    _lst="$_art/nixcache-layers.tsv"
+    jq -r '.layers[] | "\(.digest)\t\(.annotations["org.opencontainers.image.title"])"' "$_man" > "$_lst"
+    _dig() { awk -F"$_tab" -v t="$1" '$2==t{print $1; exit}' "$_lst"; }
+    _pd="$(_dig public.txt)"; _md="$(_dig "$_manf")"
+    [ -n "$_pd" ] && _oras blob fetch "${_ref}@${_pd}" --output "$_art/public.txt" >/dev/null 2>&1
+    [ -n "$_md" ] && _oras blob fetch "${_ref}@${_md}" --output "$_art/custom-topo.txt" >/dev/null 2>&1
+    if [ ! -s "$_art/custom-topo.txt" ] || [ ! -f "$_art/public.txt" ]; then
+        log_warn "nixcache: cache predates the public/topo index (needs a CI re-publish) — falling back."; return 1
+    fi
+
+    # (A) pre-substitute all public deps — two passes, one per cache.
+    #     Already-present paths are skipped automatically by nix copy.
+    log_info "nixcache: pre-substituting $(wc -l < "$_art/public.txt") public deps (only missing fetch) ..."
+    xargs -a "$_art/public.txt" -r nix copy --from https://cache.nixos.org \
+        --no-check-sigs 2>&1 | tail -2 || true
+    xargs -a "$_art/public.txt" -r nix copy --from https://nix-on-droid.cachix.org \
+        --no-check-sigs 2>&1 | tail -2 || true
+
+    # (B) which custom paths must we fetch? missing dirs + present-but-INVALID.
+    : > "$_art/present.txt"; : > "$_art/tofetch.txt"
+    while IFS= read -r _p; do
+        _ph="$(basename "$_p")"; _hp="$(ls -d /nix/store/${_ph%%-*}-* 2>/dev/null | head -1)"
+        if [ -n "$_hp" ]; then echo "$_hp" >> "$_art/present.txt"; else echo "$_p" >> "$_art/tofetch.txt"; fi
+    done < "$_art/custom-topo.txt"
+    [ -s "$_art/present.txt" ] && xargs -a "$_art/present.txt" -r nix-store --check-validity --print-invalid 2>/dev/null >> "$_art/tofetch.txt"
+    sort -u "$_art/tofetch.txt" -o "$_art/tofetch.txt"
+    _nf=$(wc -l < "$_art/tofetch.txt")
+    log_info "nixcache: fetching $_nf custom blobs (missing/corrupt) of $(wc -l < "$_art/custom-topo.txt") ..."
+    _i=0
+    while IFS= read -r _p; do
+        _i=$((_i+1)); _ph="$(basename "$_p")"; h="${_ph%%-*}"
+        _d="$(_dig "${h}.zst")"; [ -n "$_d" ] || _d="$(_dig "blobs/${h}.zst")"
+        [ -n "$_d" ] || { log_warn "  [$_i/$_nf] no blob for $h"; continue; }
+        log "  [$_i/$_nf] FETCH $_ph"
+        _oras blob fetch "${_ref}@${_d}" --output "$_bd/${h}.zst" >/dev/null 2>&1 || log_warn "  fetch failed: $h"
+    done < "$_art/tofetch.txt"
+
+    # (C) import in TOPOLOGICAL order — deps first, public already present.
+    #     Single-user nix-on-droid: no sudo.
+    log_info "nixcache: importing custom paths in topological order ..."
+    while IFS= read -r _p; do
+        _ph="$(basename "$_p")"; h="${_ph%%-*}"; f="$_bd/${h}.zst"
+        [ -e "$f" ] || continue
+        if _zstd -dq -c "$f" | nix-store --import >/dev/null 2>"$f.err"; then
+            log "  imported $_ph"
+        else
+            log_warn "  import failed $_ph: $(tail -1 "$f.err" 2>/dev/null)"
+        fi
+        rm -f "$f" "$f.err"
+    done < "$_art/custom-topo.txt"
+
+    if _closure_valid "$_sys"; then
+        rm -rf "$_bd"
+        log_success "nixcache: closure fully valid (GHCR per-path delta — no 2.2GB pull; pre-filled public + topo import)."
+        return 0
+    fi
+    log_warn "nixcache: $_sys still missing after import — falling back."
+    return 1
+}
+
+# ============================================================================
 # The phone (7GB, proot) OOM-thrashes on a local `nix-on-droid switch`. So the
 # aarch64 eval+build runs on a GitHub arm64 runner (`ci-build`), and the phone
 # only IMPORTS the prebuilt closure + runs its activate script (`pull`) — no
@@ -592,32 +787,11 @@ cmd_ci_build() {
     rm -f "$_out/result"
     log_success "Done: $(du -h "$_out/nixondroid-closure.nar.zst" | cut -f1) -> $_out/"
 
-    # ── Stage 1: layered GHCR cache (INCREMENTAL delivery) ──────────────────
-    # Additive + NON-FATAL: the nar.zst above stays the active mechanism until
-    # `cmd_pull` learns to consume this. Mirrors ba_flakes_desktop's
-    # cmd_ci_build exactly. Guarded by GHCR_PUSH=1.
+    # ── Stage 1: per-path GHCR nix cache (TRUE incremental delivery) ────────
+    # Additive + non-fatal: the nar.zst above stays a fallback. Publishes each
+    # custom store path as its own oras blob so `cmd_pull` fetches only the delta.
     if [ "${GHCR_PUSH:-0}" = "1" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
-        _img="${TERMUX_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-termux-cache}"
-        log_info "building + pushing layered termux cache image -> ${_img}:latest (incremental)"
-        # GHA Ubuntu runners ship /etc/containers/registries.conf as legacy v1,
-        # which skopeo 1.23 refuses ("must be in v2 format"). Empty v2 config —
-        # fully-qualified refs need no registries. (2026-07-09 silent-push fix.)
-        local _reg="$_out/registries.conf"
-        printf 'unqualified-search-registries = []\n' > "$_reg"
-        if "$_nix" build "$SRC_DIR#packages.aarch64-linux.termux-cache-image" \
-             --impure --accept-flake-config --out-link "$_out/termux-cache-image" \
-             --extra-experimental-features "nix-command flakes"; then
-            CONTAINERS_REGISTRIES_CONF="$_reg" \
-            "$_nix" run --extra-experimental-features "nix-command flakes" nixpkgs#skopeo -- \
-                copy --dest-creds "x:${GITHUB_TOKEN}" \
-                "docker-archive:$(readlink -f "$_out/termux-cache-image")" \
-                "docker://${_img}:latest" \
-                && log_success "pushed layered termux cache -> ${_img}:latest" \
-                || log_warn "skopeo push failed (non-fatal — nar.zst artifact still delivered)"
-        else
-            log_warn "termux-cache-image build failed (non-fatal — nar.zst still delivered)"
-        fi
-        rm -f "$_out/termux-cache-image"
+        cmd_nixcache_publish || log_warn "nixcache publish failed (non-fatal — nar.zst artifact still delivered)"
     fi
 }
 
@@ -656,29 +830,32 @@ ghcr_pull_layered_skopeo() {
 # pull [artifact-dir] — run on the phone. Import a GHA-built closure and run its
 # activate script. NO eval, NO build -> cannot OOM. Default dir is dist-ci/
 # (e.g. after: gh run download -n nixos-termux-closure -D dist-ci).
+# PRIMARY path: per-path GHCR nix cache (oras, delta-only, no 2.2GB image).
+# FALLBACK: local nar.zst tarball (only if already downloaded).
+# ghcr_pull_layered_skopeo is NEVER called automatically (downloads 2.2GB on
+# mobile data — user directive: do not auto-pull the full image).
 cmd_pull() {
     log_header "Activate prebuilt closure (no eval — cannot OOM the phone)"
     check_nix || return 1
     _art="${1:-$SCRIPT_DIR/dist-ci}"
     _tb="$_art/nixondroid-closure.nar.zst"
     _sys=""
-    [ -f "$_art/activation.name" ] && _sys="/nix/store/$(cat "$_art/activation.name")"
 
-    # ── Try GHCR-layered pull first (incremental, no Docker daemon) ──────
-    _img="${TERMUX_CACHE_IMAGE:-ghcr.io/diegonmarcos/unix-termux-cache}:latest"
-    if [ -n "$_sys" ] && [ -d "$_sys" ]; then
-        log_info "$_sys already present locally — skipping pull entirely."
-    elif ghcr_pull_layered_skopeo "$_img" && [ -n "$_sys" ] && [ -d "$_sys" ]; then
-        log_success "Activation closure materialised via layered GHCR pull."
-    else
-        [ -f "$_tb" ] || { log_error "no closure tarball at $_tb (fetch: gh run download -n nixos-termux-closure -D '$_art')"; return 1; }
+    # ── PRIMARY: per-path GHCR nix cache (TRUE incremental, KB manifest) ──
+    if nixcache_switch "$_art"; then
+        _sys="/nix/store/$(cat "$_art/activation.name" 2>/dev/null)"
+        [ -d "$_sys" ] || { log_warn "nixcache_switch succeeded but $_sys missing — trying fallback"; _sys=""; }
+    fi
+
+    # ── FALLBACK: local nar.zst tarball (must already be present) ─────────
+    if [ -z "$_sys" ] || [ ! -d "$_sys" ]; then
+        [ -f "$_tb" ] || { log_error "no closure tarball at $_tb and nixcache_switch failed. Fetch: gh run download -n nixos-termux-closure -D '$_art'"; return 1; }
         [ -f "$_art/activation.name" ] || { log_error "missing $_art/activation.name"; return 1; }
         _sys="/nix/store/$(cat "$_art/activation.name")"
-
-        log_info "Importing closure into the store (no build)..."
-        zstd -d -c "$_tb" | nix-store --import >/dev/null || { log_error "import failed"; return 1; }
+        log_info "Importing closure from local nar.zst (no build)..."
+        _zstd -d -c "$_tb" | nix-store --import >/dev/null || { log_error "import failed"; return 1; }
     fi
-    [ -d "$_sys" ] || { log_error "imported path $_sys missing after import"; return 1; }
+    [ -d "$_sys" ] || { log_error "activation path $_sys missing after import"; return 1; }
 
     # nix-on-droid activationPackages expose the activator at ./activate
     # (older layouts at ./bin/activate) — prefer whichever exists.
@@ -784,6 +961,7 @@ case "${1:-switch}" in
     switch)  cmd_switch ;;
     build)   cmd_build ;;
     ci-build) cmd_ci_build ;;
+    nixcache-publish) cmd_nixcache_publish ;;
     pull|switch-remote) cmd_pull "$2" ;;
     dry-run|plan) cmd_dry_run ;;
     tui)     run_tui ;;

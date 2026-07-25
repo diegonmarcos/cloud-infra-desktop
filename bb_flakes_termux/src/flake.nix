@@ -152,6 +152,11 @@
               # JSON/YAML processing
               jq
 
+              # Compression — zstd is used by build.sh (nar.zst import + the
+              # per-path GHCR nix cache decompress); native so `pull` needs no
+              # `nix run nixpkgs#zstd` round-trip.
+              zstd
+
               # Secrets & crypto
               openssl
               gnupg

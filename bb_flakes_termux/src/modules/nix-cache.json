@@ -1,0 +1,9 @@
+{
+  "_doc": "GHCR per-path OCI nix cache — true incremental transport for nix-on-droid (termux). CI (build.sh nixcache-publish) computes custom store paths (closure minus what cache.nixos.org AND nix-on-droid.cachix.org serve), nix-store --exports each to its own zstd blob, oras-pushes to GHCR (each layer title = store hash, toplevel on a manifest annotation). Content-addressed => GHCR dedups unchanged paths (push delta). Device (build.sh pull) does oras manifest fetch (KBs), pre-substitutes public deps from the two caches, oras blob fetch ONLY the missing custom blobs (pull delta), nix-store --import in topo order (single-user, NO sudo), then activate. Replaces the 2.2GB whole-image skopeo pull.",
+  "oci_ref": "ghcr.io/diegonmarcos/unix-termux-nixcache",
+  "oci_tag": "nixcache-latest",
+  "blob_media_type": "application/vnd.nix.nar.zst",
+  "toplevel_annotation": "com.diegonmarcos.nixondroid-toplevel",
+  "manifest_file": "custom-paths.txt",
+  "enabled": true
+}

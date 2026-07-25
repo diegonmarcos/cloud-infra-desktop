@@ -26,6 +26,7 @@
   home.packages = [
     (pkgs.callPackage ../pkgs/octocode.nix {})  # code-graph-context MCP
     (pkgs.callPackage ../pkgs/goose.nix {})      # cloud-ai-cli (MCP-native AI agent)
+    pkgs.zstd  # used by build.sh (nar.zst import + per-path GHCR nix cache decompress)
   ];
 
   # Nix settings
