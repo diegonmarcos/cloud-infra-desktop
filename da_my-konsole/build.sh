@@ -85,6 +85,8 @@ sync_data() {
   emit_config "$STORE/config.json" 2>/dev/null || command cp -f src/data/config.json "$STORE/config.json" 2>/dev/null || true
   # shared/*.json feed the ratatui dashboards (e.g. cloud-targets.json)
   command cp -f src/data/shared/*.json "$STORE/" 2>/dev/null || true
+  # loose top-level data files (e.g. model-pricing.json) also feed the dashboards
+  command cp -f src/data/*.json "$STORE/" 2>/dev/null || true
   log "Synced profiles + config + shared → $STORE"
 }
 
