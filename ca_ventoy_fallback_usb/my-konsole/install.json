@@ -94,6 +94,12 @@
     "uuid": "27ffc22b-f89e-492d-aeda-2341e8eba898",
     "volume_label": "MY_KONSOLE",
     "efi_binary": "/EFI/BOOT/BOOTX64.EFI",
+    "mkfs": {
+      "_reason": "rEFInd 0.14.2's bundled ext4_x64.efi is a READ-ONLY driver that refuses to mount any filesystem carrying an INCOMPAT feature bit it doesn't recognize. `metadata_csum_seed` = EXT4_FEATURE_INCOMPAT_CSUM_SEED — exactly such a bit — and modern mke2fs (e2fsprogs >=1.47) enables it plus `orphan_file` by default. Evidence (2026-07-26): p8 carried both and rEFInd errored 'Invalid Loader File' selecting the my-konsole entry; p5 (older mke2fs, lacks both, keeps metadata_csum) IS read by the SAME rEFInd driver. p8's fs was created ad-hoc — no engine owned it — so its features were unmanaged. install-partition now reformats p8 with these two features OFF before the rsync (which --delete-owns 100% of p8 anyway), making the fs reproducible + rEFInd-mountable. -U preserves partition.uuid so the safety guard and GRUB efi_uuid stay valid; PARTUUID lives in the GPT and is untouched.",
+      "enabled": true,
+      "type": "ext4",
+      "disable_features": ["orphan_file", "metadata_csum_seed"]
+    },
     "iso_artifact": "my-konsole-iso",
     "iso_workflow": "ship-my-konsole-iso.yml",
     "iso_repo": "diegonmarcos/unix"

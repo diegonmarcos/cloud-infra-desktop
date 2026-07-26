@@ -123,6 +123,24 @@ install_partition() {
     [ "$actual" = "$UUID" ] || log_err "SAFETY ABORT: $DEV UUID is '$actual', expected '$UUID' (install.json). Refusing to write."
     findmnt -rn "$DEV" >/dev/null 2>&1 && log_err "SAFETY ABORT: $DEV is mounted — unmount it first."
 
+    # ── Reformat with a rEFInd-readable ext4 feature set (data-driven) ────────
+    # rEFInd's read-only ext4_x64.efi driver refuses to mount a filesystem with
+    # an INCOMPAT bit it doesn't know (e.g. metadata_csum_seed) → 'Invalid Loader
+    # File' when chainloading p8. Modern mke2fs enables those by default, so we
+    # own the mkfs here with the incompatible features disabled (see
+    # install.json partition.mkfs._reason). rsync --delete below repopulates the
+    # whole tree, so this loses nothing. -U preserves the pinned UUID (safety
+    # guard + GRUB efi_uuid); PARTUUID lives in the GPT and is untouched.
+    if [ "$(jq -r '.partition.mkfs.enabled // false' "$J")" = "true" ]; then
+        local FS OFF
+        FS=$(jq -r '.partition.mkfs.type' "$J")
+        # comma-joined "^feat" list from disable_features[]
+        OFF=$(jq -r '[.partition.mkfs.disable_features[] | "^" + .] | join(",")' "$J")
+        log_info "Reformatting $DEV as $FS (UUID kept $UUID; features off: $OFF)…"
+        "mkfs.$FS" -F -U "$UUID" -L "$LABEL" -O "$OFF" "$DEV" \
+            || log_err "mkfs.$FS on $DEV failed"
+    fi
+
     # ── Mount ISO (ro loop) + target, verify payload BEFORE touching p8 ───────
     local isod pd
     isod=$(mktemp -d); pd=$(mktemp -d)
@@ -154,6 +172,18 @@ install_partition() {
         umount "$vd"; rmdir "$vd"; log_err "VERIFY: payload missing on $DEV after sync"
     fi
     umount "$vd"; rmdir "$vd"
+
+    # ── Tester: the fs must NOT carry features rEFInd's ext4 driver rejects ────
+    if [ "$(jq -r '.partition.mkfs.enabled // false' "$J")" = "true" ]; then
+        local feats bad
+        feats=$(dumpe2fs -h "$DEV" 2>/dev/null | sed -n 's/^Filesystem features:[[:space:]]*//p')
+        for bad in $(jq -r '.partition.mkfs.disable_features[]' "$J"); do
+            case " $feats " in
+                *" $bad "*) log_err "VERIFY: $DEV still has ext4 feature '$bad' — rEFInd will refuse to mount it";;
+            esac
+        done
+        log_ok "VERIFY: no rEFInd-incompatible ext4 features on $DEV (mountable by ext4_x64.efi)"
+    fi
 
     log_ok "p8 populated. Now wire boot menus:  cd ~/git/unix/aa_bootloader && ./build.sh deploy-refind deploy-grub"
 }
