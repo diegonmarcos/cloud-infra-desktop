@@ -124,6 +124,13 @@
             # (git push over SSH) work. Update if the app is reinstalled with a
             # different uid (`id -u`).
             user.uid = 10635;
+            # Same CI-vs-phone mismatch for the group: the runner's `id -g` (100)
+            # gets baked as pw_gid, but the Android /dev/pts nodes are owned by
+            # gid 10635 and we're NOT in group 100. sshd's pty_setowner then does
+            # chown(pts, 10635, 100) as non-root → EPERM → fatal → the app's
+            # terminal session dies right after auth ("Auth OK but no terminal").
+            # Pinning gid=10635 makes pw_gid match the pts group → no chown needed.
+            user.gid = 10635;
 
             environment.packages = with pkgs; [
               # Nerd Fonts (for terminal icons)
