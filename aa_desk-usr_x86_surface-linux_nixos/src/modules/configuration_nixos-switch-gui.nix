@@ -20,9 +20,8 @@ in {
 
   systemd.user.services.nixos-systray = {
     description = "NixOS Control Panel tray icon";
-    # NO autostart — electron tray must not be launched by systemd at login.
-    # Start manually if wanted: `systemctl --user start nixos-systray`.
-    wantedBy    = [ ];
+    # Autostart at login so the SNI icon is always present.
+    wantedBy    = [ "graphical-session.target" ];
     partOf      = [ "graphical-session.target" ];
     after       = [ "graphical-session.target" ];
     serviceConfig = {
@@ -35,11 +34,11 @@ in {
         "XDG_CURRENT_DESKTOP=KDE"
         "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
         "NO_AT_BRIDGE=1"
-        # 2026-07-22: the tray binary drives yad --notification, which is
-        # X11-only ("This mode not supported outside X11") — on the Wayland
-        # session it crash-looped 1898× and the tray never appeared. Force
-        # the GTK X11 backend (Xwayland).
-        "GDK_BACKEND=x11"
+        # The tray is Electron `new Tray()` — a native StatusNotifierItem, not
+        # yad/GtkStatusIcon. It renders directly on the Plasma 6 Wayland session
+        # via Ozone; the old "GDK_BACKEND=x11" force (2026-07-22) misdiagnosed it
+        # as X11-only and pushed it onto XWayland. Run native Wayland instead.
+        "ELECTRON_OZONE_PLATFORM_HINT=auto"
         # Flake path for log file discovery (tooltip + log viewer)
         "SYSTRAY_FLAKE=/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos"
       ];
