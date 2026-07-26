@@ -856,13 +856,25 @@ cmd_pull() {
         [ -d "$_sys" ] || { log_warn "nixcache_switch succeeded but $_sys missing — trying fallback"; _sys=""; }
     fi
 
-    # ── FALLBACK: local nar.zst tarball (must already be present) ─────────
+    # ── FALLBACK 1: local nar.zst tarball (must already be present) ──────
     if [ -z "$_sys" ] || [ ! -d "$_sys" ]; then
-        [ -f "$_tb" ] || { log_error "no closure tarball at $_tb and nixcache_switch failed. Fetch: gh run download -n nixos-termux-closure -D '$_art'"; return 1; }
-        [ -f "$_art/activation.name" ] || { log_error "missing $_art/activation.name"; return 1; }
-        _sys="/nix/store/$(cat "$_art/activation.name")"
-        log_info "Importing closure from local nar.zst (no build)..."
-        _zstd -d -c "$_tb" | nix-store --import >/dev/null || { log_error "import failed"; return 1; }
+        if [ -f "$_tb" ] && [ -f "$_art/activation.name" ]; then
+            _sys="/nix/store/$(cat "$_art/activation.name")"
+            log_info "Importing closure from local nar.zst (no build)..."
+            _zstd -d -c "$_tb" | nix-store --import >/dev/null || _sys=""
+        fi
+    fi
+
+    # ── FALLBACK 2: nix-on-droid switch --flake (uses already-realised store
+    #    paths — no eval OOM, no network download, pure local activation).
+    #    This is the ultimate fallback when GHCR is unreachable (e.g. IPv6-only
+    #    network) and no local tarball exists. Nix must always win.
+    if [ -z "$_sys" ] || [ ! -d "$_sys" ]; then
+        log_warn "GHCR and tarball unavailable — falling back to nix-on-droid switch (local store)"
+        nix-on-droid switch --flake "$SRC_DIR#default" \
+            || { log_error "nix-on-droid switch also failed; you may need network for new paths"; return 1; }
+        log_success "Activated via nix-on-droid switch (local store fallback)."
+        return 0
     fi
     [ -d "$_sys" ] || { log_error "activation path $_sys missing after import"; return 1; }
 
