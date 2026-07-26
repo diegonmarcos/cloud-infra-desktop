@@ -1,14 +1,17 @@
 {
   "_doc": "WireGuard hub endpoint declarations for the Surface Pro NixOS host. Mirrors the schema of cloud/config.json#native.wireguard. The 'fallback' endpoint is the hub-side NAT redirect (Phase 4: udp/<fallback.port> -> udp/<primary.port> on gcp-proxy via firewall.nix). Use the wg-fallback helper to switch when the primary port is blocked (airports/hotels).",
+  "_ipv6_doc": "wg0 dual-stack fields (2026-07-26). The cloud fleet's wg0 mesh became dual-stack — verified in cloud/config.json (wireguard.subnet_v6 = fd0c:1d00::/64; peers[] each carry wg_ipv6, including surface = fd0c:1d00::5). client.wg_ipv6/subnet_v6 mirror that data so this host's NM profile can add ipv6.method=manual instead of ignore.",
   "client": {
     "name": "surface",
     "wg_ip": "10.0.0.5",
+    "wg_ipv6": "fd0c:1d00::5",
     "interface": "wg0"
   },
   "hub": {
     "name": "gcp-proxy",
     "host": "35.226.147.64",
     "wg_ip": "10.0.0.1",
+    "wg_ipv6": "fd0c:1d00::1",
     "wg_public_key": "vV/phXUwnCjxACQ5Df11Uw47BzJaK4r85jPYMu2HmDc=",
     "primary": {
       "port": 51820,
@@ -21,7 +24,10 @@
     }
   },
   "subnet": "10.0.0.0/24",
+  "subnet_v6": "fd0c:1d00::/64",
   "persistent_keepalive": 25,
   "_dns_search_doc": "systemd-resolved routing domains (~ prefix) sent to Hickory (hub.wg_ip). Mirrors the zones Hickory serves: cloud/a_solutions/infra-net_hickory-dns/build.json .dns.zones = [diegonmarcos.com, app, db]. Without a zone here, its names fall through to the global resolver (dnscrypt-proxy2) and NXDOMAIN. MUST be a JSON array — one routing domain per element. configuration_network.nix joins these with ';' for NetworkManager's ipv4.dns-search keyfile list. A single space-joined string is mis-parsed by NM as ONE domain literally named 'diegonmarcos.com ~app ~db', so mcp.diegonmarcos.com never routed to Hickory → public IP → Caddy WG-gate 403.",
-  "dns_search": ["~diegonmarcos.com", "~app", "~db"]
+  "dns_search": ["~diegonmarcos.com", "~app", "~db"],
+  "hickory_ipv6": "fd0c:1d00::1",
+  "_hickory_ipv6_doc": "Hickory DNS also listens over IPv6 on the mesh (cloud/a_solutions/infra-net_hickory-dns/src/flake.nix — bind :: on port 53, reachable at fd0c:1d00::1, same host as hub.wg_ip). Added alongside ipv4.dns=hub.wg_ip in the wg0 NM profile so mesh split-DNS keeps working once wg0 carries an IPv6 address."
 }

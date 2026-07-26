@@ -17,6 +17,11 @@ let
   wgPublicData    = builtins.fromJSON (builtins.readFile ./wireguard-public-endpoints.json);
   wgPublicPrimary = "${wgPublicData.hub.host}:${toString wgPublicData.hub.primary.port}";
 
+  # ── NAT64/DNS64/CLAT declarations (data-driven) ─────────────────────────────
+  # DNS64 resolver addresses + v6 fallback DNS + the CLAT enable flag.
+  # Edit nat64.json, not this file — repo principle 6 (no hardcoded IPs in .nix).
+  nat64Data = builtins.fromJSON (builtins.readFile ./nat64.json);
+
   # Helper: switch the running wg0 endpoint between primary and fallback
   # without rebuilding NixOS. Reads the JSON above so ports are never
   # hardcoded inside the script.
@@ -100,24 +105,27 @@ in {
     # Global DNS = dnscrypt-proxy2 (encrypted DoH/DoT to Cloudflare/Google).
     # wg0's Hickory (10.0.0.1) is registered by NM per-interface and is used
     # ONLY for ~diegonmarcos.com routing domain (see wg0 profile below).
-    fallbackDns = [ "1.1.1.1" "9.9.9.9" ];  # bare fallback if dnscrypt-proxy2 down
+    # v6-capable fallback (Cloudflare + Quad9 IPv6 anycast) — replaces the old
+    # v4-only [1.1.1.1, 9.9.9.9], which is useless on a v6-only network: resolved
+    # could never even reach those addresses. Data-driven from nat64.json.
+    fallbackDns = nat64Data.v6_fallback_dns;
     # Ordered global resolvers: dnscrypt-proxy2 first; on its failure resolved
-    # rotates to the next. The two trailing entries are nat64.net's public DNS64
-    # resolvers (Kasper Dupont, Tayga) — they synthesize 64:ff9b-style AAAA whose
-    # NAT64 gateway is reachable over plain IPv6. This is the escape hatch for an
-    # IPv6-only WiFi with NO NAT64 gateway of its own (GitHub etc. is IPv4-only):
-    # dnscrypt can't reach its DoH upstreams → SERVFAIL → resolved fails over to
-    # nat64.net → the v4-only host becomes reachable via NAT64 over IPv6. On any
-    # healthy/dual-stack network 127.0.0.1 answers first, so nat64.net never sees
-    # a query (dnscrypt privacy preserved). fallbackDns above is NOT the right
-    # slot for this — it only fires when zero DNS= servers exist, which never
-    # happens while dnscrypt-proxy2 is listening.
-    # ponytail: 2 inline IPs, matching this file's existing inline-resolver style.
-    #   Move to wireguard-endpoints.json-style data file only if a 2nd host needs it.
-    # UNTESTED end-to-end: only exercisable on a real IPv6-only-no-NAT64 network.
+    # rotates to the next, then to the public nat64.net DNS64 resolvers. They
+    # synthesize 64:ff9b-style AAAA whose NAT64 gateway is reachable over plain
+    # IPv6. This is the escape hatch for an IPv6-only WiFi with NO NAT64 gateway
+    # of its own (GitHub etc. is IPv4-only): dnscrypt can't reach its DoH
+    # upstreams → SERVFAIL → resolved fails over to nat64.net → the v4-only host
+    # becomes reachable via NAT64 over IPv6. On any healthy/dual-stack network
+    # 127.0.0.1 answers first, so nat64.net never sees a query (dnscrypt privacy
+    # preserved). fallbackDns above is NOT the right slot for this — it only
+    # fires when zero DNS= servers exist, which never happens while
+    # dnscrypt-proxy2 is listening.
+    # Data-driven from nat64.json (repo principle 6 — no hardcoded IPs here).
+    # UNTESTED end-to-end on real hardware: only exercisable on a real
+    #   IPv6-only-no-NAT64 network. Covered by test-ipv6-only.nix (nixosTest).
     #   Verify nat64.net resolver IPs are current at https://nat64.net before relying.
     extraConfig = ''
-      DNS=127.0.0.1 2a00:1098:2b::1 2a01:4f9:c010:3f02::1
+      DNS=127.0.0.1 ${lib.concatStringsSep " " nat64Data.public_dns64_fallback_resolvers}
     '';
   };
   networking.networkmanager.dns = "systemd-resolved";
@@ -177,9 +185,11 @@ in {
           autoconnect = "true";
         };
         wireguard.private-key = "$WG0_PRIVATE_KEY";
+        # allowed-ips carries BOTH the v4 and v6 mesh subnets (dual-stack, 2026-07-26)
+        # so the single wg0 peer routes fd0c:1d00::/64 alongside 10.0.0.0/24.
         "wireguard-peer.${wgData.hub.wg_public_key}" = {
           endpoint = wgPrimary;
-          allowed-ips = wgData.subnet;
+          allowed-ips = "${wgData.subnet},${wgData.subnet_v6}";
           persistent-keepalive = toString wgData.persistent_keepalive;
         };
         ipv4 = {
@@ -199,7 +209,18 @@ in {
           dns-search = lib.concatStringsSep ";" wgData.dns_search;
           never-default = "true";        # only route the mesh subnet, not all traffic
         };
-        ipv6.method = "ignore";
+        # Dual-stack (2026-07-26): cloud wg0 mesh is now dual-stack (fd0c:1d00::/64,
+        # see wireguard-endpoints.json._ipv6_doc). Mirrors the ipv4 block above:
+        # manual address from JSON, v6 Hickory added alongside v4 Hickory so mesh
+        # split-DNS keeps resolving diegonmarcos.com over either stack.
+        ipv6 = {
+          method = "manual";
+          address1 = "${wgData.client.wg_ipv6}/64";
+          dns = "${wgData.hub.wg_ipv6} ${wgData.hickory_ipv6}";
+          dns-priority = "50";
+          dns-search = lib.concatStringsSep ";" wgData.dns_search;
+          never-default = "true";
+        };
       };
       "wg-public" = {
         connection = {
@@ -211,7 +232,7 @@ in {
         wireguard.private-key = "$WGPUB_PRIVATE_KEY";
         "wireguard-peer.${wgPublicData.hub.wg_public_key}" = {
           endpoint = wgPublicPrimary;
-          allowed-ips = wgPublicData.subnet;
+          allowed-ips = "${wgPublicData.subnet},${wgPublicData.subnet_v6}";
           persistent-keepalive = toString wgPublicData.persistent_keepalive;
         };
         ipv4 = {
@@ -220,7 +241,14 @@ in {
           dns-search = "";
           never-default = "true";
         };
-        ipv6.method = "ignore";
+        # Dual-stack (2026-07-26): wg-public mesh is now dual-stack too
+        # (fd0c:1d01::/64, see wireguard-public-endpoints.json._ipv6_doc).
+        ipv6 = {
+          method = "manual";
+          address1 = "${wgPublicData.client.wg_ipv6}/64";
+          dns-search = "";
+          never-default = "true";
+        };
       };
     };
   };
@@ -374,4 +402,26 @@ in {
     "rds"    # Reliable Datagram Sockets
     "tipc"   # Transparent Inter-Process Communication
   ];
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CLAT (464XLAT) — reach raw IPv4 literals over an IPv6-only uplink
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DNS64 (services.resolved above) only helps hostnames that get resolved
+  # through the synthesizing resolver. Anything that skips DNS and connects to
+  # a raw IPv4 literal — e.g. wireguard-endpoints.json hub.host = 35.226.147.64 —
+  # has nothing to translate its packets for it. clatd fills that gap: it
+  # self-discovers the NAT64 prefix via RFC7050 (ipv4only.arpa) and hands out a
+  # local "clat" interface that NATs IPv4 traffic into synthesized IPv6, so
+  # even literal-IP connections work on a v6-only network.
+  #
+  # services.clatd exists as a NixOS module at the pinned nixos-24.11
+  # (nixos/modules/services/networking/clatd.nix, package clatd ~1.6) — used
+  # directly rather than hand-rolling a systemd unit.
+  #
+  # clatd auto-disables when native IPv4 is already present, so it's safe to
+  # enable unconditionally: it's a no-op on every network this laptop uses
+  # today and only activates on a genuinely v6-only uplink. No NAT64 prefix is
+  # hardcoded — it's discovered live per-network. Gated by nat64.json's
+  # clat_enable flag (data-driven, repo principle 6) rather than a bare `true`.
+  services.clatd.enable = nat64Data.clat_enable;
 }

@@ -1208,6 +1208,12 @@ deploy_existing() {
     # Step 3: Build the system
     log "Step 3: Building NixOS system..."
     cd "$FLAKE_PATH"
+    if [ "${ALLOW_LOCAL_TOPLEVEL:-0}" != "1" ]; then
+        error "Refusing local toplevel build: this 8GB Surface cannot run a full nix eval without risking a freeze."
+        error "Use the layered/CI path instead: './build.sh ci-build' (builds remotely on GHA) then './build.sh pull' (imports the closure — no eval, cannot freeze)."
+        error "To override anyway, set ALLOW_LOCAL_TOPLEVEL=1."
+        return 1
+    fi
     nix build .#nixosConfigurations.surface.config.system.build.toplevel
 
     NEW_SYSTEM=$(readlink -f ./result)

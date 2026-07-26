@@ -212,6 +212,21 @@ in
     description = "Freeze-guard watchdog identity — untouchable tier (kills runaways, never killed)";
   };
 
+  # RESET capability (2026-07-26): root-watchdog holds only CAP_KILL +
+  # CAP_DAC_READ_SEARCH — `systemctl restart <unit>` needs root/polkit, which
+  # those caps don't grant. Scope a NOPASSWD sudo rule to EXACTLY the units
+  # freeze-guard is allowed to restart, data-driven from sysprot.watchdog.reset_units
+  # (the JSON is SoT — no unit can be added here without also being declared
+  # there). Empty-string map values (user-session respawns) never generate a
+  # command, so they're naturally excluded.
+  security.sudo.extraRules = [{
+    users = [ "root-watchdog" ];
+    commands = map (unit: {
+      command = "${pkgs.systemd}/bin/systemctl restart ${unit}";
+      options = [ "NOPASSWD" ];
+    }) (lib.unique (lib.filter (u: u != "") (lib.attrValues sysprot.watchdog.reset_units)));
+  }];
+
   # ═══════════════════════════════════════════════════════════════════════════
   # SYSTEMD-OOMD: PSI-aware proactive killer (layer 2, atop earlyoom)
   # ═══════════════════════════════════════════════════════════════════════════
@@ -249,7 +264,7 @@ in
     description = "Freeze-guard — PSI watchdog, kills runaways before the desktop locks up";
     wantedBy = [ "multi-user.target" ];
     after = [ "sysinit.target" ];
-    path = with pkgs; [ coreutils procps gnugrep gawk ];
+    path = with pkgs; [ coreutils procps gnugrep gawk systemd sudo ];
     serviceConfig = {
       User = "root-watchdog";
       Group = "root-watchdog";
@@ -307,6 +322,18 @@ in
       WS_DIRTY_MB=${toString sysprot.watchdog.dirty_mb_max}
       WS_SUSTAIN=${toString sysprot.watchdog.write_storm_sustain_sec}
       WS_DISK="${sysprot.watchdog.write_storm_disk}"
+      # ── RESET map (2026-07-26) — comm → systemd unit to restart after a kill ──
+      # Some victims are systemd-managed daemons (nix-daemon, the compositor)
+      # whose death should be a fresh RESTART, not a permanent kill — e.g. a
+      # SIGKILLed nix-daemon otherwise leaves `nix build`/home-manager broken
+      # until next boot. Data-driven from sysprot.watchdog.reset_units; declare
+      # as an associative array baked at unit-build time (Nix, not bash, does
+      # the JSON→bash translation so no runtime JSON parser is needed).
+      declare -A RESET_UNITS=(
+        ${lib.concatStringsSep "\n        " (lib.mapAttrsToList
+          (comm: unit: "[${lib.escapeShellArg comm}]=${lib.escapeShellArg unit}")
+          sysprot.watchdog.reset_units)}
+      )
 
       # Disk write rate (MB/s) since the last call: field 10 of /proc/diskstats
       # (sectors written) * 512, delta / interval. Global writeback view — the
@@ -467,6 +494,28 @@ in
             fi ;;
           *) kill -9 "$1" 2>/dev/null || true; SIG=KILL ;;
         esac
+        # ── RESET (2026-07-26) — after killing, restart the owning systemd
+        # unit if this victim's comm is in RESET_UNITS, so daemons like
+        # nix-daemon come back fresh instead of staying dead. An empty map
+        # value means the process is a user-session process that systemd
+        # --user / KDE respawns on its own — still logged, no restart command.
+        # NOTE: RESET_UNITS lookup MUST be a regex scan, not an exact-key
+        # lookup — /proc/<pid>/comm is truncated+wrapper-prefixed at runtime
+        # (live values seen: ".plasmashell-wr", ".kwin_wayland-w", "nix" for a
+        # runaway build), so exact `RESET_UNITS[$2]` misses them all. Match
+        # HARD_PROTECT/SOFT_AVOID style: grep -Eq each key against $2.
+        for _rk in "''${!RESET_UNITS[@]}"; do
+          if printf '%s' "$2" | grep -Eq -- "$_rk"; then
+            _runit="''${RESET_UNITS[$_rk]}"
+            if [ -n "$_runit" ]; then
+              sudo -n systemctl restart "$_runit" 2>/dev/null || true
+              echo "[freeze-guard] RESET: $2 pid=$1 -> restart $_runit"
+            else
+              echo "[freeze-guard] RESET: $2 pid=$1 -> user-session respawn (no unit)"
+            fi
+            break
+          fi
+        done
       }
 
       # PSI IS THE ONLY KILL METRIC. No absolute CPU%/RSS/mem% triggers — those
