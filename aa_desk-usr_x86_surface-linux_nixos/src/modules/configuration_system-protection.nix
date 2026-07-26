@@ -275,6 +275,15 @@ in
       INTERVAL=${toString sysprot.watchdog.interval_sec}
       PREFER="${lib.concatStringsSep "|" sysprot.watchdog.prefer_kill}"
       AVOID="${sysprot.watchdog.avoid_kill}"
+      # ── two-tier protect (2026-07-26, root cause of the 14:09 freeze) ─────
+      # hard_protect = NEVER a victim, no matter what (session+debug island).
+      # soft_avoid = PREFERENCE not an absolute veto: pick_cgroup_victim tries
+      # non-soft_avoid first, but falls back to the largest-RSS soft_avoid
+      # process rather than doing nothing (the old AVOID veto covered EVERY
+      # candidate in the throttled slice → "no eligible victim ... cannot act"
+      # → zero kills → froze).
+      HARD_PROTECT="${sysprot.watchdog.hard_protect}"
+      SOFT_AVOID="${sysprot.watchdog.soft_avoid}"
       # ── memory.high-THRASH voter (v3, 2026-07-10) ──────────────────────────
       # The 13:06 freeze was INVISIBLE to PSI (memory.pressure ~35%, below every
       # limit) yet user-1000.slice hit memory.high 1.14M times reclaim-thrashing.
@@ -399,20 +408,35 @@ in
 
       # Largest-RSS pid INSIDE the throttled cgroup (thrash voter target). Reads
       # the slice's own cgroup.procs — so the runaway that is actually filling
-      # user-1000.slice is killed, never an innocent process elsewhere. Skips
-      # avoid_kill comms (compositor/session infra). Prints "pid rss comm".
+      # user-1000.slice is killed, never an innocent process elsewhere.
+      # TWO-TIER (2026-07-26): pass 1 excludes hard_protect AND soft_avoid
+      # (preferred victim); if that yields nothing, pass 2 excludes ONLY
+      # hard_protect — the exact "all soft_avoid" situation that froze the
+      # box on 2026-07-26 (THRASH-KILL: no eligible victim, all avoid_kill?)
+      # now STILL kills the largest-RSS non-hard_protect process instead of
+      # doing nothing. Prints "pid rss comm tier".
       pick_cgroup_victim() {
-        local procs="$1/cgroup.procs" p comm rss best_pid="" best_rss=-1 best_comm=""
+        local procs="$1/cgroup.procs" p comm rss
+        local best_pid="" best_rss=-1 best_comm=""
+        local fb_pid="" fb_rss=-1 fb_comm=""
         [ -r "$procs" ] || return 1
         while read -r p; do
           [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null || continue
           comm=$(cat "/proc/$p/comm" 2>/dev/null) || continue
-          echo "$comm" | grep -Eq -- "$AVOID" && continue
+          echo "$comm" | grep -Eq -- "$HARD_PROTECT" && continue
           rss=$(awk '/^VmRSS:/ {print $2}' "/proc/$p/status" 2>/dev/null)
           [ -n "$rss" ] || continue
+          # Fallback pool: any non-hard_protect process (covers soft_avoid too).
+          if [ "$rss" -gt "$fb_rss" ]; then fb_rss="$rss"; fb_pid="$p"; fb_comm="$comm"; fi
+          # Preferred pool: non-hard_protect AND non-soft_avoid.
+          echo "$comm" | grep -Eq -- "$SOFT_AVOID" && continue
           if [ "$rss" -gt "$best_rss" ]; then best_rss="$rss"; best_pid="$p"; best_comm="$comm"; fi
         done < "$procs"
-        [ -n "$best_pid" ] && echo "$best_pid $best_rss $best_comm"
+        if [ -n "$best_pid" ]; then
+          echo "$best_pid $best_rss $best_comm preferred"
+        elif [ -n "$fb_pid" ]; then
+          echo "$fb_pid $fb_rss $fb_comm fallback-soft_avoid"
+        fi
       }
 
       # Signal picker WITH ESCALATION (2026-07-10 v3 — root cause of the 13:06
@@ -522,12 +546,12 @@ in
             echo "[freeze-guard] THRASH-WATCH memory.high rate=''${rate}/s > $HIGH_MAX (sustained ''${thrash_secs}s/''${THRASH_SUSTAIN}s) on $THRASH_CG"
             if [ "$thrash_secs" -ge "$THRASH_SUSTAIN" ]; then
               set -- $(pick_cgroup_victim "$THRASH_CG")
-              vpid="$1"; vrss="$2"; vcomm="$3"
+              vpid="$1"; vrss="$2"; vcomm="$3"; vtier="$4"
               if [ -n "$vpid" ] && [ "$vpid" -gt 1 ] 2>/dev/null; then
                 do_kill "$vpid" "$vcomm"; vsig=$SIG
-                echo "[freeze-guard] THRASH-KILL memory.high ''${rate}/s → SIG$vsig pid=$vpid rss=''${vrss}kB ($vcomm) in $THRASH_CG"
+                echo "[freeze-guard] THRASH-KILL memory.high ''${rate}/s → SIG$vsig pid=$vpid rss=''${vrss}kB ($vcomm) tier=$vtier in $THRASH_CG"
               else
-                echo "[freeze-guard] THRASH-KILL: no eligible victim in $THRASH_CG (all avoid_kill?) — cannot act"
+                echo "[freeze-guard] THRASH-KILL: no eligible victim in $THRASH_CG (all hard_protect?) — cannot act"
               fi
               thrash_secs=0
             fi
