@@ -628,9 +628,7 @@ in
     [General]
     dbVersion=2
     only basic indexing=true
-    exclude filters version=9
-    exclude filters=*~,*.part,*.o,*.la,*.lo,*.loT,*.moc,moc_*.cpp,qrc_*.cpp,ui_*.h,cmake_install.cmake,CMakeCache.txt,CTestTestfile.cmake,libtool,config.status,confdefs.h,autom4te,conftest,confstat,Makefile.am,.ninja_deps,.ninja_log,build.ninja,*.m4,*.rej,*.gmo,*.pc,*.omf,*.aux,*.tmp,*.po,*.swp,*.swap,lzo,litmain.sh,*.orig,.histfile.*,.xsession-errors*,*.map,*.so,*.a,*.db,*.qrc,*.class,*.pyc,*.pyo,*.elc,*.qmlc,*.jsc,po,CVS,.svn,.git,_darcs,.bzr,.hg,CMakeFiles,CMakeTmp,CMakeTmpQmake,.moc,.obj,.pch,.uic,.npm,.yarn,.yarn-cache,__pycache__,node_modules,node_packages,nbproject,.terraform,.venv,venv,core-dumps,lost+found,*.rlib,*.rmeta,*.d,*.dSYM,*.o.d,*.crate,*.lock,*.wasm,*.lib,*.dylib,*.dll,target,debug,release,dist,build,out,coverage,.nyc_output,.cache,.parcel-cache,.next,.nuxt,.svelte-kit,.vite,.turbo,.rollup.cache,.cargo,.rustup,.gradle,.m2,.ivy2,.sbt,.android,.docker,.containers,.podman,vendor,bower_components,jspm_packages,Pods,Carthage,DerivedData,.tox,.pytest_cache,.mypy_cache,.ruff_cache,.eggs,*.egg-info,htmlcov,result,result-*
-    exclude folders[$e]=$HOME/.cargo,$HOME/.rustup,$HOME/.cache,$HOME/.local/share/Trash,$HOME/.local/share/baloo,$HOME/.local/share/containers,$HOME/.local/share/flatpak,$HOME/.local/share/Steam,$HOME/.var,$HOME/.npm,$HOME/.npm-global,$HOME/.pnpm-store,$HOME/.yarn,$HOME/.bun,$HOME/.node_modules,$HOME/.docker,$HOME/.podman,$HOME/.gradle,$HOME/.m2,$HOME/.ivy2,$HOME/.android,$HOME/.terraform.d,$HOME/.nix-profile,$HOME/.local/state/nix,$HOME/.mozilla,$HOME/.config/google-chrome,$HOME/.config/chromium,$HOME/.config/BraveSoftware,$HOME/Sync/.stversions,$HOME/Pictures/.thumbnails,$HOME/.thumbnails,$HOME/.dbus,$HOME/.gvfs,/tmp,/var/cache,/var/log,/nix,/mnt,/media
+    folders[$e]=$HOME/bin
 
     [Basic Settings]
     Indexing-Enabled=true
