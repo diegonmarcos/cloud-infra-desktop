@@ -247,17 +247,20 @@ let
     # Restore fans out one tab/window per session (konsole → tmux → plain).
     case "''${1:-}" in
       sync) exec $ENGINE sync "$CAS_DEVICE" "$KEEP" ;;
-      restore|restore-hours)
-        sel=count; [ "$1" = "restore-hours" ] && sel=hours; shift
+      restore|restore-hours|list|list-hours)
+        verb="$1"; sel=count; case "$verb" in *-hours) sel=hours ;; esac; shift
         devsel="local"; a="''${1:-}"; b="''${2:-}"
         case "$a" in
           ""|*[!0-9]*) devsel="$a"; val="$b" ;;   # non-numeric => device selector
           *)           val="$a" ;;                 # numeric     => this device
         esac
         case "$val" in ""|*[!0-9]*)
-          echo "[claude-superset] restore needs a positive number" >&2; exit 2 ;;
+          echo "[claude-superset] $verb needs a positive number" >&2; exit 2 ;;
         esac
-        exec $ENGINE launch "$MODE" "$devsel" "$sel" "$val" ;;
+        case "$verb" in
+          list*) exec $ENGINE list "$devsel" "$sel" "$val" ;;
+          *)     exec $ENGINE launch "$MODE" "$devsel" "$sel" "$val" ;;
+        esac ;;
       fresh) shift ;;
     esac
 

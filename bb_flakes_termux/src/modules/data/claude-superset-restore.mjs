@@ -25,6 +25,9 @@ import path from "node:path";
 import os from "node:os";
 import { spawn, spawnSync } from "node:child_process";
 
+// `list | head` closes stdout early — swallow the resulting EPIPE, don't crash.
+process.stdout.on("error", (e) => { if (e.code === "EPIPE") process.exit(0); });
+
 const HOME = os.homedir();
 const PROJECTS = path.join(HOME, ".claude", "projects");
 const API = (process.env.CAS_API || "").replace(/\/$/, "");
@@ -197,6 +200,13 @@ function launch(entries, face) {
 }
 
 // ── entry point ──────────────────────────────────────────────────────────────
+// ── list: print recent sessions (no launch), newest first ────────────────────
+async function doList(devsel, selector, value) {
+  const entries = devsel === "local" ? localEntries(selector, value) : await remoteEntries(devsel, selector, value);
+  if (!entries.length) { process.stderr.write("[restore] no matching sessions\n"); return; }
+  for (const e of entries) process.stdout.write(`${e.id}  ${e.title}\n`);
+}
+
 const [, , cmd, ...rest] = process.argv;
 if (cmd === "sync") {
   const device = rest[0] || DEVICE;
@@ -208,7 +218,12 @@ if (cmd === "sync") {
   if (!Number.isFinite(value) || value <= 0) { process.stderr.write(`[restore] bad value: ${rawValue}\n`); process.exit(2); }
   const entries = devsel === "local" ? localEntries(selector, value) : await remoteEntries(devsel, selector, value);
   launch(entries, face);
+} else if (cmd === "list") {
+  const [devsel = "local", selector = "count", rawValue = "0"] = rest;
+  const value = Number(rawValue);
+  if (!Number.isFinite(value) || value <= 0) { process.stderr.write(`[restore] bad value: ${rawValue}\n`); process.exit(2); }
+  await doList(devsel, selector, value);
 } else {
-  process.stderr.write("usage: restore.mjs sync [device] [keep] | launch <face> <local|all|device> <count|hours> <value>\n");
+  process.stderr.write("usage: restore.mjs sync [device] [keep] | launch <face> <local|all|device> <count|hours> <value> | list <local|all|device> <count|hours> <value>\n");
   process.exit(2);
 }
