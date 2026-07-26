@@ -2,6 +2,7 @@
   "name": "agentic",
   "display_name": "Agentic",
   "home": true,
+  "home_cmd": "my-konsole-dash agi",
   "theme": { "accent": "#9b59b6" },
   "sections": [
     {
@@ -39,6 +40,21 @@
         { "label": "bearer token", "cmd": "python ~/git/vault/A0_keys/providers/authelia/oauth/get_token.py" },
         { "label": "DTK menu", "cmd": "bash ~/git/tools/dtk.sh" },
         { "label": "connect dashboard", "cmd": "bash ~/git/tools/dtk.sh connect.dashboard" }
+      ]
+    },
+    {
+      "title": "CLAUDE-SUPERSET-API (oci-apps 10.0.0.6)",
+      "items": [
+        { "label": "health", "cmd": "curl -s http://10.0.0.6:3117/health" },
+        { "label": "models (OpenAI /v1)", "cmd": "curl -s http://10.0.0.6:3117/v1/models" },
+        { "label": "headroom savings", "cmd": "curl -s http://10.0.0.6:8788" }
+      ]
+    },
+    {
+      "title": "HERMES AGENT (oci-apps 10.0.0.6)",
+      "items": [
+        { "label": "dashboard", "cmd": "curl -s http://10.0.0.6:9119" },
+        { "label": "api ping", "cmd": "curl -s http://10.0.0.6:8642" }
       ]
     }
   ]

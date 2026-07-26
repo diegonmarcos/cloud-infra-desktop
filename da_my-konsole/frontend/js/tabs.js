@@ -391,11 +391,12 @@ const Tabs = {
     if (opener) { console.log(`[switchProfile] ${name} → opener()`); opener(name); return; }
     const last = this.lastActiveByProfile.get(name);
     if (last && this.tabs.has(last)) { console.log(`[switchProfile] ${name} → resume ${last}`); this.activate(last); return; }
-    const kind = p.browser ? "browser" : p.filebrowser ? "filebrowser" : p.fileeditor ? "fileeditor" : "shell";
+    const kind = p.browser ? "browser" : p.filebrowser ? "filebrowser" : p.fileeditor ? "fileeditor" : p.home_cmd ? "hometab" : "shell";
     console.log(`[switchProfile] ${name} → open new ${kind}`);
     if (p.browser) this.openBrowserTab(p.url, name);
     else if (p.filebrowser) this.openFileBrowserTab(p.start_path || "~", name);
     else if (p.fileeditor) this.openFileEditorTab(null, name);
+    else if (p.home_cmd) this.openRunTab(p.home_cmd, "Home", name);
     else this.newTab(name);
   },
 
