@@ -41,6 +41,15 @@ in {
       # Generated from programs/nix-switch-progress.nix — do not edit by hand.
       set -uo pipefail
 
+      # Composability with the global nix/nixos-rebuild PATH shim
+      # (aa_desk-usr configuration_nix-command-catcher.nix, 2026-07-26): that
+      # shim shadows `nix`/`nixos-rebuild` and routes heavy verbs through THIS
+      # wrapper. Mark this whole process tree as already inside the catcher so
+      # the wrapped command's inner `nix`/`nixos-rebuild` (which resolve to the
+      # shim, and any internal `nix path-info` below) pass straight through to
+      # the real binary instead of opening a SECOND progress window / recursing.
+      export NSP_ACTIVE=1
+
       # Passthrough (no popup/window) when there's no graphical session or
       # konsole is missing — must never block a headless/CI/SSH nix invocation.
       if { [ -z "''${DISPLAY:-}" ] && [ -z "''${WAYLAND_DISPLAY:-}" ]; } || ! command -v konsole >/dev/null 2>&1; then

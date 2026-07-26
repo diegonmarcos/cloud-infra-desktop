@@ -102,6 +102,8 @@ ea_cloud-browser/**/*.keystore
 ea_cloud-browser/**/*.jks
 ea_cloud-vault/**/*.keystore
 ea_cloud-vault/**/*.jks
+ea_cloud-media-center/**/*.keystore
+ea_cloud-media-center/**/*.jks
 ## Orphan gitlink guard (restored 2026-07-22). These 4 dirs are empty nested-repo
 ## placeholders with NO .gitmodules entry. An auto-sync `git add -A` keeps
 ## re-capturing them as mode-160000 gitlinks, which makes actions/checkout fail
@@ -122,6 +124,9 @@ ea_cloud-ide/**/build/
 ea_cloud-nav/.gradle/
 ea_cloud-nav/build/
 ea_cloud-nav/**/build/
+ea_cloud-media-center/.gradle/
+ea_cloud-media-center/build/
+ea_cloud-media-center/**/build/
 ## Re-ignore Gradle/Kotlin daemon caches inside the whitelisted ea_cloud-superapp/
 ## tree — same class of gap as the .gradle/build re-ignores above. Missing this
 ## let a local `./gradlew` run's Go-module dependency cache (.cache/gopath/...,
@@ -148,6 +153,8 @@ ea_cloud-browser/dist/
 ea_cloud-browser/**/*.apk
 ea_cloud-vault/dist/
 ea_cloud-vault/**/*.apk
+ea_cloud-media-center/dist/
+ea_cloud-media-center/**/*.apk
 ## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/

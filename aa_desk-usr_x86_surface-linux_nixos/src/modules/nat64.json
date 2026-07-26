@@ -1,15 +1,15 @@
 {
   "_doc": "DNS64/NAT64/CLAT data for reaching IPv4-only sites (github.com etc.) on an IPv6-only WiFi network. Consumed by configuration_network.nix (services.resolved.extraConfig + fallbackDns) — edit the JSON, not the .nix. Companion to wireguard-endpoints.json/wireguard-public-endpoints.json's dual-stack fields; this file is the NAT64-specific counterpart. See also 0_tasks/PLAN_ipv6-only-wifi.md history.",
-
-  "own_dns64_resolvers": ["fd0c:1d01::1"],
-  "_own_dns64_resolvers_doc": "Our own DNS64 resolver. cloud/a_solutions/infra-net_unbound-dns64 deploys an unbound DNS64 synthesizer on oci-analytics (domain dns64.internal, port 53) — the SAME host as the wg-public hub, so it is reachable at wg-public's hub.wg_ipv6 (fd0c:1d01::1, see wireguard-public-endpoints.json) once wg-public carries an IPv6 address on this host. Preferred over the public nat64.net resolvers below because it's inside the trust boundary and doesn't depend on a 3rd party staying up. Only usable while wg-public is connected; the public fallbacks below cover the case where the host has NO working WG tunnel yet (bootstrap on a fresh v6-only network).",
-
-  "public_dns64_fallback_resolvers": ["2a00:1098:2b::1", "2a01:4f9:c010:3f02::1"],
+  "public_dns64_fallback_resolvers": [
+    "2a00:1098:2b::1",
+    "2a01:4f9:c010:3f02::1"
+  ],
   "_public_dns64_fallback_resolvers_doc": "nat64.net's public DNS64 resolvers (Kasper Dupont, Tayga) — moved here from the old inline extraConfig literals in configuration_network.nix per repo principle 6 (no hardcoded IPs in .nix source). They synthesize 64:ff9b::/96-style AAAA records for v4-only names, reachable over plain IPv6. Escape hatch for an IPv6-only WiFi with no NAT64 gateway of its own and no WG tunnel yet: dnscrypt-proxy2 (127.0.0.1, first in the DNS= list) fails over to these when its DoH upstreams are unreachable over v4. UNTESTED end-to-end outside the nixosTest in test-ipv6-only.nix — verify these are still current at https://nat64.net before relying on them in the field.",
-
-  "v6_fallback_dns": ["2606:4700:4700::1111", "2620:fe::fe"],
+  "v6_fallback_dns": [
+    "2606:4700:4700::1111",
+    "2620:fe::fe"
+  ],
   "_v6_fallback_dns_doc": "services.resolved.fallbackDns, IPv6-capable versions. The previous value ([1.1.1.1, 9.9.9.9]) is v4-only and useless on a v6-only network — resolved could never even reach those IPs to ask them anything. 2606:4700:4700::1111 = Cloudflare's well-known IPv6 anycast resolver (mirrors 1.1.1.1); 2620:fe::fe = Quad9's well-known IPv6 anycast resolver (mirrors 9.9.9.9), filtered/malware-blocking, DNSSEC-validating. Both are long-standing, well-known addresses (Cloudflare 1.1.1.1 launched 2018-04; Quad9 published fe::fe alongside its v4 anycast at general availability) and are the standard v6 fallback pairing cited alongside their respective v4 addresses in public documentation. resolved's fallbackDns only fires when the DNS= list is completely empty, so this is a last-resort safety net, not the primary DNS64 path (see public_dns64_fallback_resolvers above for that).",
-
   "clat_enable": true,
   "_clat_enable_doc": "Enables 464XLAT (CLAT) via services.clatd or the hand-rolled systemd unit (see configuration_network.nix). DNS64 alone only helps hostnames that get resolved through the synthesizing resolver; anything that skips DNS and connects to a raw IPv4 literal (e.g. wireguard-endpoints.json hub.host = 35.226.147.64) has nothing to translate its packets. clatd self-discovers the NAT64 prefix via RFC7050 (ipv4only.arpa) and no-ops when native IPv4 already exists, so it is safe to leave enabled unconditionally on a dual-stack-capable laptop — it does nothing until the uplink is genuinely v6-only."
 }

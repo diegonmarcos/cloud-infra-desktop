@@ -89,7 +89,7 @@ jobs:
           # Pins mirror ea_cloud-media-center/flake.nix + build.json::toolchain.
           # ndk;29.0.14033849 + cmake;3.31.6 required — ReFra upstream builds
           # native libheif/libde265 via CMake (see comment above).
-          packages: "platforms;android-35 platforms;android-34 platforms;android-26 build-tools;35.0.0 build-tools;34.0.0 platform-tools ndk;29.0.14033849 cmake;3.31.6"
+          packages: "platforms;android-37 platforms;android-35 platforms;android-34 platforms;android-26 build-tools;37.0.0 build-tools;35.0.0 build-tools;34.0.0 platform-tools ndk;29.0.14033849 cmake;3.31.6"
 
       - name: Set up Gradle 8.10.2 (cached)
         uses: gradle/actions/setup-gradle@v3

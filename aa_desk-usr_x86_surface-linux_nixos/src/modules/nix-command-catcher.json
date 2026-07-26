@@ -1,0 +1,5 @@
+{
+  "_doc": "Verb allowlists for configuration_nix-command-catcher.nix. A verb here means the invocation is HEAVY (does real evaluation/build/activation work) and must be routed through nix-switch-progress-wrap. Any verb NOT listed passes straight through to the real binary with zero UI (nix eval, nix path-info, nix flake show, nixos-rebuild list-generations, etc). Add new heavy verbs here — never hardcode them in the wrapper script.",
+  "heavy_nix_verbs": ["build", "develop", "run"],
+  "heavy_nixos_rebuild_verbs": ["switch", "boot", "build", "test", "dry-build"]
+}
