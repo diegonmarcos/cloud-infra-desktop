@@ -28,6 +28,22 @@
 # ║                                                                  ║
 # ║ NEVER bypass this script for build operations.                    ║
 # ╚══════════════════════════════════════════════════════════════════╝
+#
+# GENERAL-PURPOSE NOTE (2026-07-26): this engine now serves TWO app shapes,
+# selected purely from build.json data (never from app name):
+#   - hub+forks constellations (mail/chat/dialer/matrix): build.json has NO
+#     top-level "mode" key → all steps take the original hub-coupled path
+#     (gradle :hub:*, hub/build/outputs/apk/..., bundle-forks, verify-contract)
+#     unchanged.
+#   - hub-less single-fork apps (media-center, and future ones): build.json
+#     sets top-level "mode": "single-app". The single entry under
+#     build.json::forks.<key> is built directly via the existing
+#     step_build_fork machinery — no hub module, no bundle-forks, no IPC
+#     contract.
+# The filename `cloud-comms-fork-engine.sh` is now inaccurate (it is no
+# longer comms-specific) but is NOT renamed in this pass — 4+ ea_cloud-*
+# build.sh symlinks point at this exact path; a rename is a deliberate,
+# separate follow-up.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -55,6 +71,27 @@ prefer_host() {
 }
 
 _json() { prefer_host jq -r "$1 // empty" "$SCRIPT_DIR/build.json"; }
+
+# ── hub-less single-fork detection ──────────────────────────────────────
+# Purely data-driven: build.json::mode=="single-app" opts an app OUT of the
+# hub+bundle-forks+IPC-contract model. Absent (the default for every existing
+# hub-based consumer's build.json) → old hub-coupled behavior, unchanged.
+_is_hubless() { [ "$(_json '.mode')" = "single-app" ]; }
+
+# The one fork key declared under forks.<key> for a hub-less app.
+_single_fork_key() { _json '.forks | keys[0]'; }
+
+# Launcher activity is read from build.json; the historical hub literal is
+# kept only as the fallback default for pre-existing hub consumers that don't
+# declare it, so their behavior is byte-for-byte unchanged.
+_launcher_activity() {
+  local a; a="$(_json '.launcher_activity')"
+  if [ -z "$a" ]; then
+    local key; key="$(_single_fork_key)"
+    a="$(_json ".forks.${key}.launcher_activity")"
+  fi
+  echo "${a:-com.diegonmarcos.comms.MainActivity}"
+}
 
 # ── bundle-forks ───────────────────────────────────────────────────────
 # Embedded-installer model: seed hub/src/main/assets/forks/<domain>.apk with
@@ -229,7 +266,22 @@ _assert_apk_identity() {
 }
 
 # ── hub build/test ─────────────────────────────────────────────────────
+# Hub-less single-fork apps (build.json::mode=="single-app") reuse the
+# existing, already-generic step_build_fork machinery for their one
+# forks.<key> entry — no hub module, no bundle-forks, no embedded APKs.
+_step_build_single_app() {
+  local variant="$1" key; key="$(_single_fork_key)"
+  [ -n "$key" ] || { errlog "single-app mode but build.json::forks has no entries"; exit 1; }
+  log "Build: hub-less single-fork app ($key, $variant)"
+  step_build_fork "" "$key"
+  mkdir -p "$DIST_DIR"
+  local out="$DIST_DIR/$(_json ".release.artifact.${variant}")"
+  [ "$DIST_DIR/cloud-comms-${key}.apk" = "$out" ] || cp "$DIST_DIR/cloud-comms-${key}.apk" "$out"
+  log "→ $out"
+}
+
 step_build() {
+  if _is_hubless; then _step_build_single_app debug; return; fi
   step_bundle_forks
   _resolve_signing
   log "Build: cloud-comms bundle (hub + embedded forks, debug APK)"
@@ -242,6 +294,7 @@ step_build() {
 }
 
 step_release() {
+  if _is_hubless; then _step_build_single_app release; return; fi
   step_bundle_forks
   _resolve_signing
   log "Build: cloud-comms bundle (hub + embedded forks, release APK)"
@@ -255,9 +308,17 @@ step_release() {
 }
 
 step_dev() {
+  if _is_hubless; then
+    local key; key="$(_single_fork_key)"
+    step_build
+    log "Dev: installing $key on connected device (adb)"
+    in_nix adb install -r "$DIST_DIR/$(_json '.release.artifact.debug')"
+    in_nix adb shell am start -n "$(_json '.android.application_id')/$(_launcher_activity)"
+    return
+  fi
   log "Dev: installing hub on connected device (adb)"
   in_nix gradle :hub:installDebug
-  in_nix adb shell am start -n "$(_json '.android.application_id')/com.diegonmarcos.comms.MainActivity"
+  in_nix adb shell am start -n "$(_json '.android.application_id')/$(_launcher_activity)"
 }
 
 step_test()       { log "Test: hub JVM unit tests"; in_nix gradle :hub:test; }
@@ -277,6 +338,10 @@ step_ship() {
 # stays consistent with it. This is the Phase-0 tester gate — no scaffold is
 # "done" until the contract validates (FIRE rule 5).
 step_verify_contract() {
+  if _is_hubless; then
+    log "verify-contract: hub-less single-app mode (build.json::mode=single-app) — no IPC contract, skipping"
+    return 0
+  fi
   local contract="$SCRIPT_DIR/contract/comms-ipc-v1.json"
   local schema="$SCRIPT_DIR/contract/comms-ipc-v1.schema.json"
   [ -f "$contract" ] || { errlog "missing $contract"; exit 1; }
@@ -756,27 +821,32 @@ step_gh_release_fork() {
   in_nix gh release upload "$rolling_tag" "$src" --clobber
 }
 
-case "$CMD" in
-  build)            step_build ;;
-  release)          step_release ;;
-  dev)              step_dev ;;
-  test)             step_test ;;
-  instrument)       step_instrument ;;
-  lint)             step_lint ;;
-  clean)            step_clean ;;
-  shell)            step_shell ;;
-  ship)             step_ship ;;
-  verify-contract)  step_verify_contract ;;
-  bundle-forks)     step_bundle_forks ;;
-  materialize-fork) step_materialize_fork "$@" ;;
-  build-fork)       step_build_fork "$@" ;;
-  publish-fork)     step_publish_fork "$@" ;;
-  oras-push)        step_oras_push ;;
-  oras-pull)        step_oras_pull "$@" ;;
-  phone-install)    step_phone_install "$@" ;;
-  gh-release)       step_gh_release ;;
-  gh-release-fork)  step_gh_release_fork "$@" ;;
-  help|*)
-    sed -n '2,/^set -euo/p' "$0" | sed 's/^# *//; /^set/d; /^$/d'
-    ;;
-esac
+# Main-guard: allow this file to be `source`d (e.g. by tests) to exercise the
+# resolution helpers (_is_hubless / _single_fork_key / _launcher_activity /
+# _json) without running any real gradle/adb/network command.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  case "$CMD" in
+    build)            step_build ;;
+    release)          step_release ;;
+    dev)              step_dev ;;
+    test)             step_test ;;
+    instrument)       step_instrument ;;
+    lint)             step_lint ;;
+    clean)            step_clean ;;
+    shell)            step_shell ;;
+    ship)             step_ship ;;
+    verify-contract)  step_verify_contract ;;
+    bundle-forks)     step_bundle_forks ;;
+    materialize-fork) step_materialize_fork "$@" ;;
+    build-fork)       step_build_fork "$@" ;;
+    publish-fork)     step_publish_fork "$@" ;;
+    oras-push)        step_oras_push ;;
+    oras-pull)        step_oras_pull "$@" ;;
+    phone-install)    step_phone_install "$@" ;;
+    gh-release)       step_gh_release ;;
+    gh-release-fork)  step_gh_release_fork "$@" ;;
+    help|*)
+      sed -n '2,/^set -euo/p' "$0" | sed 's/^# *//; /^set/d; /^$/d'
+      ;;
+  esac
+fi
