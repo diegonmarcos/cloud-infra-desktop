@@ -149,6 +149,11 @@ cmd_fetch() {
   gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$DASH" --dir "$tmp" --clobber 2>/dev/null \
     && { chmod +x "$tmp/$DASH"; mv -f "$tmp/$DASH" "$STORE/$DASH"; } || log "(dashboards binary not in release yet — non-fatal)"
   sync_data   # profiles/config must match the binary — never fetch a binary with stale data
+  # $DASH runs off $PATH (~/.local/bin), not $STORE — keep that copy in sync too,
+  # or a stale $HOME/.local/bin/$DASH silently shadows every fresh fetch.
+  if [ -x "$STORE/$DASH" ] && [ -d "$HOME/.local/bin" ]; then
+    command cp -f "$STORE/$DASH" "$HOME/.local/bin/$DASH"; chmod +x "$HOME/.local/bin/$DASH"
+  fi
   log "Fetched → $STORE/$BIN (restart my-konsole to load it)"
 }
 
