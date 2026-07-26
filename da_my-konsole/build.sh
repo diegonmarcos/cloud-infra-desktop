@@ -146,6 +146,7 @@ cmd_fetch() {
   chmod +x "$tmp/$BIN"; mv -f "$tmp/$BIN" "$STORE/$BIN"
   gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$DASH" --dir "$tmp" --clobber 2>/dev/null \
     && { chmod +x "$tmp/$DASH"; mv -f "$tmp/$DASH" "$STORE/$DASH"; } || log "(dashboards binary not in release yet — non-fatal)"
+  sync_data   # profiles/config must match the binary — never fetch a binary with stale data
   log "Fetched → $STORE/$BIN (restart my-konsole to load it)"
 }
 
