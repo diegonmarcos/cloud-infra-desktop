@@ -435,7 +435,7 @@
         "efi_uuid": "27ffc22b-f89e-492d-aeda-2341e8eba898",
         "refind_volume": "5f765784-767d-42ab-85a1-40d4d44519e4",
         "_refind_volume_note": "p8's PARTUUID (GPT partition GUID). rEFInd matches label/PARTUUID, not the ext4 fs UUID (efi_uuid). PARTUUID is used (not the label) because install-partition RELABELS p8 to MY_KONSOLE — a label would go stale, the PARTUUID survives. efi_uuid stays for GRUB's fs-agnostic search side.",
-        "efi_path": "/EFI/boot/bootx64.efi",
+        "efi_path": "/EFI/BOOT/BOOTX64.EFI",
         "fs": "ext4",
         "icon": "tool_rescue",
         "_note": "my-konsole NixOS live-ISO tree extracted onto p8 (nvme0n1p8, ext4). Populated by ca_ventoy_fallback_usb/my-konsole/build.sh install-partition, which rsyncs the whole ISO fs to p8 and relabels it MY_KONSOLE (= isoImage.volumeID) so the ISO's baked GRUB finds nix-store.squashfs by label. Both rEFInd (efi_chainload producer) and GRUB (emit_efi_chainload) CHAINLOAD p8's own /EFI/boot/bootx64.efi — the volatile init=/nix/store/<hash>/init lives inside that GRUB, never in boot.json. efi_uuid is the stable partition UUID (survives the relabel). Reversible: wipe p8 + drop this key + the two order entries.",
