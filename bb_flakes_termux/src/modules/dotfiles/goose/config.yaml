@@ -26,7 +26,7 @@ extensions:
     name: Cloud Code Graph Context MCP
     type: streamable_http
     uri: https://mcp.diegonmarcos.com/cloud-cgc-mcp/mcp
-    enabled: false
+    enabled: true
     timeout: 300
     headers:
       Authorization: Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}
