@@ -589,6 +589,102 @@
                 echo "claude-orphan-sweep: $swept process(es) reaped" >&2
               '')
 
+              # goose-malloc: same isolation/supervision as claude-malloc.
+              # Tight malloc arenas + dedicated TMPDIR to avoid OOM on phone.
+              (writeShellScriptBin "goose-malloc" ''
+                # Max-isolation: tight malloc arenas + dedicated TMPDIR.
+                export MALLOC_ARENA_MAX=2
+                export GOOSE_TMP="$HOME/tmp/goose"
+                mkdir -p "$GOOSE_TMP"
+                export TMPDIR="$GOOSE_TMP"
+
+                # Sweep stale orphans from previous Android-OOM-killed sessions
+                # before launching.
+                command -v goose-orphan-sweep >/dev/null 2>&1 \
+                  && goose-orphan-sweep >/dev/null 2>&1 || true
+
+                _bin="$HOME/.nix-profile/bin/goose"
+                if [ -x "$_bin" ]; then
+                  # Process supervision (countermeasure to lmkd / parent-shell exits):
+                  # setpriv --pdeathsig TERM : if THIS wrapper dies (any signal
+                  # except SIGKILL), the kernel SIGTERMs goose directly. Goose runs
+                  # in the foreground terminal pgroup (no -g, no &, no trap), so
+                  # the interactive TUI keeps the controlling terminal — Ctrl-C,
+                  # job control, etc.
+                  #
+                  # tini is DELIBERATELY NOT USED here. nix-on-droid runs the whole
+                  # rootfs under proot, whose ptrace/seccomp layer returns ENOSYS
+                  # for tini's reaper waitpid(-1, WNOHANG). tini treats any wait
+                  # errno other than ECHILD as fatal, so it aborts with
+                  #   [FATAL tini] Error while waiting for pids: 'Function not implemented'
+                  # and takes goose down with it (the crash this fix resolves).
+                  # proot is already the subreaper, so zombie reaping is handled;
+                  # stray goose/node/MCP children that outlive a hard kill are mopped
+                  # up by the goose-orphan-sweep call above (PPID=1 + session-group
+                  # kill) at the next launch.
+                  #
+                  # SIGKILL on this wrapper is uncatchable (Android lmkd hard kill);
+                  # the orphan-sweep likewise covers those survivors.
+                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM -- "$_bin" "$@"
+                  _rc=$?
+                  case "$_rc" in
+                    126|127|137|139) ;;   # exec/signal failure → no rescue chain
+                    *) exit "$_rc" ;;
+                  esac
+                fi
+                echo "[goose-malloc] native exec failed — cannot fall back (goose has no rescue chain)" >&2
+                exit "$_rc"
+              '')
+
+              # goose-orphan-sweep: reap stale goose orphans left over from a
+              # previous SIGKILL'd session (Android lmkd hard kills are uncatchable).
+              # Targets PPID=1 ONLY — active sessions parented by fish/bash are
+              # never touched. Called automatically at the start of each
+              # goose-malloc launch.
+              (writeShellScriptBin "goose-orphan-sweep" ''
+                set -u
+                swept=0
+                _kill() {
+                  local sig=$1 pid=$2 pgid=$3
+                  if [ -n "$pgid" ] && [ "$pgid" -gt 1 ] 2>/dev/null; then
+                    kill -"$sig" -- -"$pgid" 2>/dev/null || true
+                  else
+                    kill -"$sig" "$pid" 2>/dev/null || true
+                  fi
+                }
+                for proc in /proc/[0-9]*; do
+                  pid=''${proc##*/}
+                  [ -r "$proc/status" ] || continue
+                  ppid=$(${pkgs.gawk}/bin/awk '/^PPid:/ {print $2}' "$proc/status" 2>/dev/null) || continue
+                  [ "$ppid" = "1" ] || continue
+                  comm=$(cat "$proc/comm" 2>/dev/null) || continue
+                  case "$comm" in
+                    goose|goose-malloc)
+                      pgid=$(${pkgs.gawk}/bin/awk '{print $5}' "$proc/stat" 2>/dev/null)
+                      _kill TERM "$pid" "$pgid"
+                      swept=$((swept+1))
+                      ;;
+                  esac
+                done
+                if [ "$swept" -gt 0 ]; then
+                  sleep 2
+                  for proc in /proc/[0-9]*; do
+                    pid=''${proc##*/}
+                    [ -r "$proc/status" ] || continue
+                    ppid=$(${pkgs.gawk}/bin/awk '/^PPid:/ {print $2}' "$proc/status" 2>/dev/null) || continue
+                    [ "$ppid" = "1" ] || continue
+                    comm=$(cat "$proc/comm" 2>/dev/null) || continue
+                    case "$comm" in
+                      goose|goose-malloc)
+                        pgid=$(${pkgs.gawk}/bin/awk '{print $5}' "$proc/stat" 2>/dev/null)
+                        _kill KILL "$pid" "$pgid"
+                        ;;
+                    esac
+                  done
+                fi
+                echo "goose-orphan-sweep: $swept process(es) reaped" >&2
+              '')
+
               # 3. SYNC — unified sync engine (git + rclone)
               # Source: ~/git/tools/a-sync/sync.sh
               (writeShellScriptBin "sync" ''
