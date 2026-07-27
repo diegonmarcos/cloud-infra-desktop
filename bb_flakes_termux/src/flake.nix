@@ -603,6 +603,16 @@
                 command -v goose-orphan-sweep >/dev/null 2>&1 \
                   && goose-orphan-sweep >/dev/null 2>&1 || true
 
+                # Read Bearer token from vault for HTTP MCP Authorization headers
+                # Config templates use AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN env var
+                _token_file="$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens/claude-admin.json"
+                if [ -r "$_token_file" ]; then
+                  _token=$(${pkgs.jq}/bin/jq -r '.access_token' "$_token_file" 2>/dev/null)
+                  if [ -n "$_token" ] && [ "$_token" != "null" ]; then
+                    export AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN="$_token"
+                  fi
+                fi
+
                 _bin="$HOME/.nix-profile/bin/goose"
                 if [ -x "$_bin" ]; then
                   # Process supervision (countermeasure to lmkd / parent-shell exits):
