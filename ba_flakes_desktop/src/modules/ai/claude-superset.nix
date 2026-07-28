@@ -343,7 +343,7 @@ in {
       icon = "utilities-terminal";
       terminal = false;
       categories = [ "System" "Monitor" ];
-      settings.NoDisplay = true;
+      settings.NoDisplay = "true";
     };
   };
 
