@@ -6,4 +6,13 @@
     ranger
     mc               # Midnight Commander
   ];
+
+  xdg.desktopEntries.mc = {
+    name = "Midnight Commander";
+    comment = "Terminal file manager with dual-panel interface";
+    exec = "mc";
+    icon = "system-file-manager";
+    terminal = true;
+    categories = [ "System" "FileManager" "Utility" ];
+  };
 }

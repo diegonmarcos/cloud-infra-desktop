@@ -8,4 +8,15 @@
     duf              # df replacement
     tree             # directory tree view
   ];
+
+  xdg.desktopEntries = {
+    browsh = {
+      name = "Browsh";
+      comment = "Terminal web browser (headless Firefox)";
+      exec = "browsh";
+      icon = "web-browser";
+      terminal = true;
+      categories = [ "Network" "WebBrowser" ];
+    };
+  };
 }
