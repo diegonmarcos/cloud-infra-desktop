@@ -48,4 +48,14 @@ in
     # Raw engine also linked, in case the user wants to invoke it directly
     ".local/share/system-protection/orphan-reaper-engine.sh".source = enginePath;
   };
+
+  # ── Desktop entry for launcher ──
+  xdg.desktopEntries.orphan-reaper = {
+    name = "Orphan Reaper";
+    comment = "Clean up orphaned processes (dry-run mode)";
+    exec = "orphan-reaper";
+    icon = "utilities-process";
+    terminal = true;
+    categories = [ "System" "Utility" ];
+  };
 }

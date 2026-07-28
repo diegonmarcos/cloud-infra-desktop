@@ -5,4 +5,13 @@
   home.packages = with pkgs; [
     ttyd
   ];
+
+  xdg.desktopEntries.ttyd = {
+    name = "ttyd Web Terminal";
+    comment = "Share terminal over the web";
+    exec = "ttyd bash";
+    icon = "utilities-terminal";
+    terminal = false;
+    categories = [ "System" "Network" ];
+  };
 }

@@ -327,6 +327,26 @@ let
 in {
   home.packages = [ claude-superset claude-superset-tray my-ai ];
 
+  xdg.desktopEntries = {
+    my-ai = {
+      name = "My AI";
+      comment = "Claude Code CLI via Headroom compression proxy";
+      exec = "my-ai --help";
+      icon = "utilities-terminal";
+      terminal = true;
+      categories = [ "Development" "ConsoleOnly" ];
+    };
+    claude-superset-tray = {
+      name = "Claude Superset Tray";
+      comment = "System-tray helper — live Headroom savings stats, dashboard & status launcher";
+      exec = "claude-superset-tray";
+      icon = "utilities-terminal";
+      terminal = false;
+      categories = [ "System" "Monitor" ];
+      settings.NoDisplay = true;
+    };
+  };
+
   # Autostart the tray with the graphical session (manual-recovery friendly:
   # Restart is intentionally NOT set — matches the fleet no-auto-restart rule).
   systemd.user.services.claude-superset-tray = {

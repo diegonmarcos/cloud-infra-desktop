@@ -15,4 +15,14 @@
     glances          # resource monitor (system + containers + sensors, all-in-one TUI)
     multitail        # multi-file tail with split view
   ];
+
+  # ── Desktop entry for Glances web UI mode ──
+  xdg.desktopEntries.glances = {
+    name = "Glances (Web UI)";
+    comment = "System monitor with web interface";
+    exec = "glances -w --open-web-browser";
+    icon = "utilities-system-monitor";
+    terminal = false;
+    categories = [ "System" "Monitor" ];
+  };
 }

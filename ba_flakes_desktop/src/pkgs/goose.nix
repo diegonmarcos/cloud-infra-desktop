@@ -1,15 +1,15 @@
 { lib, stdenv, fetchurl, autoPatchelfHook, gcc-unwrapped, libgcc }:
 
 let
-  version = "1.28.0";
+  version = "1.44.0";
   assets = {
     x86_64-linux = {
       url = "https://github.com/block/goose/releases/download/v${version}/goose-x86_64-unknown-linux-gnu.tar.bz2";
-      hash = "sha256:0jq7cm6hcng3f9kw1mwqn3qz17w6spg1pff50ww0yihzgdpry121";
+      hash = "sha256-h4g6tS43SOSc97HtCGdzN2UcNdb2jx75906MWLyuzXM=";
     };
     aarch64-linux = {
       url = "https://github.com/block/goose/releases/download/v${version}/goose-aarch64-unknown-linux-gnu.tar.bz2";
-      hash = "sha256:1xr4l4d0hmwwyp5rhrlnximlaqgb1zl1lk27bcsgmasc74im65ym";
+      hash = "sha256-qw1NROS0JRtk0Nl4SII4MTeJO9b2j0VZOtbBhqK9wqk=";
     };
   };
   asset = assets.${stdenv.hostPlatform.system} or (throw "goose: unsupported platform ${stdenv.hostPlatform.system}");
