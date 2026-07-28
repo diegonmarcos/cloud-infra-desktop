@@ -9,6 +9,12 @@ let
   cfg = builtins.fromJSON (builtins.readFile ./watchdog-systray.json);
   wt  = cfg.watchdog_tray;
   nt  = cfg.nixos_tray;
+
+  # Dedicated python env for the SNI tray scripts. NOT added to home.packages —
+  # the scripts reference it directly via their shebang (#!${pyEnv}/bin/python3)
+  # so it's a build-time dependency only, avoiding a bin/2to3 collision with
+  # the main python312 env from languages/python.nix.
+  pyEnv = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
   logUnits    = lib.concatStringsSep " " wt.log_units;
   statusSlices = lib.concatStringsSep " " wt.status_slices;
 
@@ -32,7 +38,7 @@ let
   # Shared SNI tray body (Wayland-native, DBus StatusNotifierItem via libayatana-appindicator).
   # id/icon/title/defaultCmd/menu are the only per-tray inputs — no tray-specific logic here.
   sniScript = { id, icon, title, defaultCmd, menu }: ''
-    #!/usr/bin/env python3
+    #!${pyEnv}/bin/python3
     # Generated from programs/watchdog-systray.nix. Wayland-native SNI tray (no DISPLAY/X11).
     import subprocess
     import gi
@@ -76,7 +82,7 @@ let
 in {
   home.packages = [
     pkgs.yad # still used by watchdog-status's --text-info dialog (a plain window, not a tray icon — works fine under Wayland/XWayland)
-    (pkgs.python3.withPackages (ps: [ ps.pygobject3 ]))
+    # pyEnv NOT in home.packages — referenced via shebang only (avoids python3-3.12.12-env collision)
     pkgs.libayatana-appindicator
     pkgs.gtk3
   ];

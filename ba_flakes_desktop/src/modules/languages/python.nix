@@ -3,9 +3,10 @@
 { config, pkgs, lib, ... }:
 {
   home.packages = with pkgs; [
-    python312
-    python312Packages.pip
-    python312Packages.virtualenv
+    # Use a SINGLE withPackages env (not bare python312 + separate pip/virtualenv)
+    # to avoid a bin/2to3 collision between python3-3.12.12 (bare interpreter)
+    # and python3-3.12.12-env (the wrapper pip/virtualenv pull in).
+    (python312.withPackages (p: [ p.pip p.virtualenv ]))
     pipx             # install Python apps in isolated environments
     uv               # fast Python package manager
   ];

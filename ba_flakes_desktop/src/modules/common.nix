@@ -25,7 +25,8 @@
   # Packages needed by MCP servers (all profiles)
   home.packages = [
     (pkgs.callPackage ../pkgs/octocode.nix {})  # code-graph-context MCP
-    (pkgs.callPackage ../pkgs/goose.nix {})      # cloud-ai-cli (MCP-native AI agent)
+    (pkgs.callPackage ../pkgs/goose.nix {})       # cloud-ai-cli (MCP-native AI agent)
+    (pkgs.callPackage ../pkgs/goose-desktop.nix {}) # goose desktop UI (Electron)
     pkgs.zstd  # used by build.sh (nar.zst import + per-path GHCR nix cache decompress)
   ];
 
@@ -118,8 +119,11 @@
     "$HOME/.nix-profile/bin"
   ];
 
-  # Font configuration
-  fonts.fontconfig.enable = true;
+  # Disable man-page cache generation (mandb). Some upstream man pages (fish,
+  # ranger, openssl, peek) have formatting that mandb can't parse, causing the
+  # man-cache.drv build to fail. This only affects `apropos` / `man -k` keyword
+  # searches — man pages themselves are still available via `man <page>`.
+  programs.man.generateCaches = false;
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;

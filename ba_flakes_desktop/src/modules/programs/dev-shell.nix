@@ -63,4 +63,13 @@ let
 in
 {
   home.packages = [ pkgs.bubblewrap devLauncher ];
+
+  xdg.desktopEntries.dev = {
+    name = "Dev Shell";
+    comment = "Bubblewrap sandboxed development environment";
+    exec = "dev";
+    icon = "utilities-terminal";
+    terminal = true;
+    categories = [ "Development" "System" ];
+  };
 }

@@ -339,6 +339,18 @@ _rebuild_exec() {
     local result_link="/tmp/nixos-rebuild-result-$$"
     local nix_build_json="$FLAKE_PATH/modules/cloud-data-nix-build.json"
 
+    # 2026-07-26: this is the SAME local toplevel `nix build` that froze the
+    # 8GB box (deploy_existing gated it at ~L1211) — every caller of
+    # _rebuild_exec (switch_system/boot_system/test_system AND dry_run, i.e.
+    # `build.sh check`) reaches Phase 1 below. Gate it here too so `check`
+    # can't trigger an unprotected local eval.
+    if [ "${ALLOW_LOCAL_TOPLEVEL:-0}" != "1" ]; then
+        error "Refusing local toplevel build (mode=$mode): this 8GB Surface cannot run a full nix eval without risking a freeze."
+        error "Use the layered/CI path instead: './build.sh ci-build' (builds remotely on GHA) then './build.sh pull' (imports the closure — no eval, cannot freeze)."
+        error "To override anyway, set ALLOW_LOCAL_TOPLEVEL=1."
+        return 1
+    fi
+
     # ── Read suspend lists from data file ─────────────────────────────────────
     local -a suspend_units=() suspend_sys_units=()
     if command -v jq >/dev/null 2>&1 && [ -f "$nix_build_json" ]; then
