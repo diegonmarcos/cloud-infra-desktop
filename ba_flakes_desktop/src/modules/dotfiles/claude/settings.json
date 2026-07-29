@@ -24,6 +24,5 @@
     "AUTHELIA_TOKEN_URL": "https://auth.diegonmarcos.com/api/oidc/token"
   },
   "alwaysThinkingEnabled": true,
-  "tui": "fullscreen",
-  "autoCompactWindow": 180000
+  "tui": "fullscreen"
 }
