@@ -39,7 +39,11 @@ model_name=$(echo "$model_id" | sed -E 's/^claude-//; s/-([0-9]{8})$//')
 # current_ctx = total input in the live window (new + cache-write + cache-read).
 ctx_window_size=${ctx_window:-200000}
 current_ctx=${ctx_input:-0}
-compact_win=$((ctx_window_size * 80 / 100))
+settings_json="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+if [ -f "$settings_json" ] && command -v jq >/dev/null 2>&1; then
+    compact_win=$(jq -r '.autoCompactWindow // empty' "$settings_json" 2>/dev/null)
+fi
+[ -z "$compact_win" ] || [ "$compact_win" = "null" ] && compact_win=$((ctx_window_size * 90 / 100))
 if [ "$current_ctx" -gt 0 ] && [ "$compact_win" -gt 0 ]; then
     ctx_percent=$((current_ctx * 100 / compact_win))
 else
