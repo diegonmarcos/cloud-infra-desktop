@@ -43,7 +43,7 @@ settings_json="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
 if [ -f "$settings_json" ] && command -v jq >/dev/null 2>&1; then
     compact_win=$(jq -r '.autoCompactWindow // empty' "$settings_json" 2>/dev/null)
 fi
-[ -z "$compact_win" ] || [ "$compact_win" = "null" ] && compact_win=$((ctx_window_size * 90 / 100))
+[ -z "$compact_win" ] || [ "$compact_win" = "null" ] && compact_win=$((ctx_window_size * 95 / 100))
 if [ "$current_ctx" -gt 0 ] && [ "$compact_win" -gt 0 ]; then
     ctx_percent=$((current_ctx * 100 / compact_win))
 else
