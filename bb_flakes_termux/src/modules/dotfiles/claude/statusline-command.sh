@@ -373,6 +373,14 @@ elif [ "$ctx_percent" -ge 90 ]; then pct_color="31"; elif [ "$ctx_percent" -ge 5
 
 OUT+="\033[37m|\033[0m"
 OUT+=" \033[90m${last_reset_ts}\033[0m"
+# Rate limits (5h / 7d window %) — omitted when the field is absent from stdin.
+if [ -n "$rl_5h" ] || [ -n "$rl_7d" ]; then
+    rl_5h_disp="${rl_5h%.*}"; [ -z "$rl_5h_disp" ] && rl_5h_disp="N/A"
+    rl_7d_disp="${rl_7d%.*}"; [ -z "$rl_7d_disp" ] && rl_7d_disp="N/A"
+    OUT+=" \033[37m│\033[0m"
+    OUT+=" \033[$(get_color "$rl_5h_disp")m5h:${rl_5h_disp}%\033[0m"
+    OUT+=" \033[$(get_color "$rl_7d_disp")m7d:${rl_7d_disp}%\033[0m"
+fi
 # Tokens + cost block (combined)
 OUT+=" \033[37m│\033[0m \033[1;37mTok\033[0m"
 OUT+=" \033[36mI:${new_fmt}(¢${d_in})\033[0m"
@@ -386,14 +394,6 @@ OUT+=" \033[${cache_color}mC:${cache_hit}%\033[0m"
 # User/Agent idle age: how long ago the last user prompt / last agent action landed.
 OUT+=" \033[90mU:${prompt_age}\033[0m"
 OUT+=" \033[90mA:${action_age}\033[0m"
-# Rate limits (5h / 7d window %) — omitted when the field is absent from stdin.
-if [ -n "$rl_5h" ] || [ -n "$rl_7d" ]; then
-    rl_5h_disp="${rl_5h%.*}"; [ -z "$rl_5h_disp" ] && rl_5h_disp="N/A"
-    rl_7d_disp="${rl_7d%.*}"; [ -z "$rl_7d_disp" ] && rl_7d_disp="N/A"
-    OUT+=" \033[37m│\033[0m"
-    OUT+=" \033[$(get_color "$rl_5h_disp")m5h:${rl_5h_disp}%\033[0m"
-    OUT+=" \033[$(get_color "$rl_7d_disp")m7d:${rl_7d_disp}%\033[0m"
-fi
 OUT+=" \033[37m|\033[0m\n"
 
 printf "%b" "$OUT"
