@@ -860,11 +860,9 @@
                 exec ${pkgs.bash}/bin/bash ${./nix-version-drift.sh} "$@"
               '')
 
-              # 9. CLAUDE — native binary nix derivation. Permanent path,
-              # no npm install at activation (which OOM-killed half the time).
-              # Pulls the published native arm64-musl binary from npm registry
-              # as a content-addressed source.
-              (pkgs.callPackage ./pkgs/claude-code {})
+              # 9. CLAUDE — from nixpkgs (added to nixpkgs-unstable 2026-07).
+              # Auto-updates via `build.sh update` + switch. No manual hash pins.
+              pkgs.claude-code
 
               # 10. ANT — official Anthropic CLI for the Claude Developer
               # Platform (Managed Agents, Messages, Files, ...). Released
