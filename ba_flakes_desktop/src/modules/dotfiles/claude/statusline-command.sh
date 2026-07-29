@@ -39,11 +39,9 @@ model_name=$(echo "$model_id" | sed -E 's/^claude-//; s/-([0-9]{8})$//')
 # current_ctx = total input in the live window (new + cache-write + cache-read).
 ctx_window_size=${ctx_window:-200000}
 current_ctx=${ctx_input:-0}
-# Prefer Claude Code's pre-computed used_percentage; else derive from window size.
-if [ -n "$ctx_used_pct" ] && [ "$ctx_used_pct" != "-1" ]; then
-    ctx_percent=${ctx_used_pct%.*}
-elif [ "$current_ctx" -gt 0 ] && [ "$ctx_window_size" -gt 0 ]; then
-    ctx_percent=$((current_ctx * 100 / ctx_window_size))
+compact_win=$((ctx_window_size * 80 / 100))
+if [ "$current_ctx" -gt 0 ] && [ "$compact_win" -gt 0 ]; then
+    ctx_percent=$((current_ctx * 100 / compact_win))
 else
     ctx_percent=0
 fi
@@ -65,8 +63,8 @@ ctx_reset_file="/tmp/statusline_ctx_reset_$(echo "$transcript_path" | md5sum | c
 now_epoch=$(date +%s)
 # fmt_age: seconds -> compact live string that ticks every refreshInterval.
 fmt_age() { local s=${1:-0}; [ "$s" -lt 0 ] && s=0
-    if [ "$s" -lt 60 ]; then echo "${s}s"
-    elif [ "$s" -lt 3600 ]; then echo "$((s/60))m$((s%60))s"
+    if [ "$s" -lt 60 ]; then echo "0m"
+    elif [ "$s" -lt 3600 ]; then echo "$((s/60))m"
     else echo "$((s/3600))h$(((s%3600)/60))m"; fi; }
 prev_ctx=0; prev_exceeds="false"; prev_epoch=$now_epoch
 [ -f "$ctx_state_file" ] && read prev_ctx prev_exceeds prev_epoch < "$ctx_state_file" 2>/dev/null
@@ -357,14 +355,14 @@ cache_fmt=$(fmt_tok "$cache_tok")
 out_fmt=$(fmt_tok "${cu_out:-0}")
 sum_tok=$(( ${cu_new:-0} + cache_tok + ${cu_out:-0} ))
 sum_fmt=$(fmt_tok "$sum_tok")
-win_fmt=$(fmt_tok "$ctx_window_size")
+win_fmt=$(fmt_tok "$compact_win")
 ctx_fmt=$(fmt_tok "$current_ctx")
 
 # per-category $ for THIS turn
 read d_in d_out d_cache d_tot < <(LC_NUMERIC=C awk \
     -v n="${cu_new:-0}" -v o="${cu_out:-0}" -v cr="${cu_cread:-0}" -v cw="${cu_cwrite:-0}" \
     -v pi="$p_in" -v po="$p_out" -v pcr="$p_cr" -v pcw="$p_cw" \
-    'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dc=cr/1e6*pcr+cw/1e6*pcw; printf "%.2f %.2f %.2f %.2f", di, dou, dc, di+dou+dc}')
+    'BEGIN{di=n/1e6*pi*100; dou=o/1e6*po*100; dc=(cr/1e6*pcr+cw/1e6*pcw)*100; printf "%.0f %.0f %.0f %.0f", di, dou, dc, di+dou+dc}')
 
 # cache hit rate + colors
 total_in=$(( ${cu_new:-0} + cache_tok ))
@@ -375,22 +373,16 @@ elif [ "$ctx_percent" -ge 90 ]; then pct_color="31"; elif [ "$ctx_percent" -ge 5
 
 OUT+="\033[37m|\033[0m"
 OUT+=" \033[90m${last_reset_ts}\033[0m"
-# Tokens block
+# Tokens + cost block (combined)
 OUT+=" \033[37m│\033[0m \033[1;37mTok\033[0m"
-OUT+=" \033[36mIn:${new_fmt}\033[0m"
-OUT+=" \033[34mCache:${cache_fmt}\033[0m"
-OUT+=" \033[36mOut:${out_fmt}\033[0m"
-OUT+=" \033[90mΣ${sum_fmt}\033[0m"
-# $ block  (order per spec: In, Out, Cache, Total)
-OUT+=" \033[37m│\033[0m \033[1;32m\$\033[0m"
-OUT+=" \033[32mIn:${d_in}\033[0m"
-OUT+=" \033[32mOut:${d_out}\033[0m"
-OUT+=" \033[32mCache:${d_cache}\033[0m"
-OUT+=" \033[${cost_color}mΣ${d_tot}\033[0m"
+OUT+=" \033[36mI:${new_fmt}(¢${d_in})\033[0m"
+OUT+=" \033[34mC:${cache_fmt}(¢${d_cache})\033[0m"
+OUT+=" \033[36mO:${out_fmt}(¢${d_out})\033[0m"
+OUT+=" \033[${cost_color}mΣ${sum_fmt}(¢${d_tot})\033[0m"
 # Ctx / cache block
 OUT+=" \033[37m│\033[0m"
 OUT+=" \033[${pct_color}mCtx:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
-OUT+=" \033[${cache_color}mCache:${cache_hit}%\033[0m"
+OUT+=" \033[${cache_color}mC:${cache_hit}%\033[0m"
 # User/Agent idle age: how long ago the last user prompt / last agent action landed.
 OUT+=" \033[90mUser:${prompt_age}\033[0m"
 OUT+=" \033[90mAgent:${action_age}\033[0m"

@@ -18,7 +18,9 @@ eval "$(echo "$input" | jq -r '
     @sh "session_cost=\(.cost.total_cost_usd // 0)",
     @sh "session_id=\(.session_id // empty)",
     @sh "effort_level=\(.effort.level // empty)",
-    @sh "session_name=\(.session_name // empty)"
+    @sh "session_name=\(.session_name // empty)",
+    @sh "rl_5h=\(.rate_limits.five_hour.used_percentage // empty)",
+    @sh "rl_7d=\(.rate_limits.seven_day.used_percentage // empty)"
 ')"
 
 # Fallback session ID from transcript path
@@ -37,11 +39,9 @@ model_name=$(echo "$model_id" | sed -E 's/^claude-//; s/-([0-9]{8})$//')
 # current_ctx = total input in the live window (new + cache-write + cache-read).
 ctx_window_size=${ctx_window:-200000}
 current_ctx=${ctx_input:-0}
-# Prefer Claude Code's pre-computed used_percentage; else derive from window size.
-if [ -n "$ctx_used_pct" ] && [ "$ctx_used_pct" != "-1" ]; then
-    ctx_percent=${ctx_used_pct%.*}
-elif [ "$current_ctx" -gt 0 ] && [ "$ctx_window_size" -gt 0 ]; then
-    ctx_percent=$((current_ctx * 100 / ctx_window_size))
+compact_win=$((ctx_window_size * 80 / 100))
+if [ "$current_ctx" -gt 0 ] && [ "$compact_win" -gt 0 ]; then
+    ctx_percent=$((current_ctx * 100 / compact_win))
 else
     ctx_percent=0
 fi
@@ -63,8 +63,8 @@ ctx_reset_file="/tmp/statusline_ctx_reset_$(echo "$transcript_path" | md5sum | c
 now_epoch=$(date +%s)
 # fmt_age: seconds -> compact live string that ticks every refreshInterval.
 fmt_age() { local s=${1:-0}; [ "$s" -lt 0 ] && s=0
-    if [ "$s" -lt 60 ]; then echo "${s}s"
-    elif [ "$s" -lt 3600 ]; then echo "$((s/60))m$((s%60))s"
+    if [ "$s" -lt 60 ]; then echo "0m"
+    elif [ "$s" -lt 3600 ]; then echo "$((s/60))m"
     else echo "$((s/3600))h$(((s%3600)/60))m"; fi; }
 prev_ctx=0; prev_exceeds="false"; prev_epoch=$now_epoch
 [ -f "$ctx_state_file" ] && read prev_ctx prev_exceeds prev_epoch < "$ctx_state_file" 2>/dev/null
@@ -218,13 +218,14 @@ done
     echo "${cpu:-0}" > "$_async/cpu"
 ) &
 
-# === Expensive probes — DISABLED 2026-05-01 ===
-# Reason: Termux has no GPU (nvidia-smi wasted) and the mesh/public-IP curls
-# fired on every status render — external network calls per refresh. Private-IP
-# probe also disabled because it forks `ip route get` + reads /proc/net/fib_trie
-# every render despite the IP barely changing on a phone session.
-# Static stubs preserve the rendering contract; vars below are read by the
-# render block unchanged. To re-enable, restore from git history.
+# === Expensive probes — STUBBED (mirrors termux statusline) ===
+# Reason this is the desktop default: the mesh-status + public-IP curls fired
+# on EVERY status render (external network calls per refresh), and VRAM via
+# nvidia-smi is wasted on the Surface's Intel iGPU. The private-IP probe forks
+# `ip route get` + reads /proc/net/fib_trie every render despite barely
+# changing. Static stubs preserve the rendering contract; vars below are read
+# by the render block unchanged. To make any of these live, replace the
+# matching stub with its probe (restore from git history).
 echo "N/A" > "$_async/vram"
 # --- Background: WireGuard mesh probe (re-enabled 2026-06-25) ---
 # Root-free, NO network: per WG interface, just admin-up state + address via `ip`
@@ -261,10 +262,10 @@ cpu_color=$(get_color "$cpu_percent")
 disk_color=$(get_color "$disk_percent")
 vram_color=$(get_color "$vram_percent")
 
-# Battery — instant sysfs read (no fork). battery = Android/termux, BAT* = fallback.
+# Battery — instant sysfs read (no fork). BAT* = laptop, battery = fallback.
 # Low %% is bad, so this is colored inverse of the load metrics above.
 bat_percent="N/A"; bat_color="90"
-for _b in /sys/class/power_supply/battery/capacity /sys/class/power_supply/BAT*/capacity; do
+for _b in /sys/class/power_supply/BAT*/capacity /sys/class/power_supply/battery/capacity; do
     [ -r "$_b" ] && { bat_percent=$(cat "$_b" 2>/dev/null); break; }
 done
 case "$bat_percent" in
@@ -296,7 +297,7 @@ OUT+=" \033[${agents_color}mAgents:${agents_configured}\033[0m"
 [ -n "$hooks_seg" ] && OUT+=" \033[37m|\033[0m ${hooks_seg}"
 OUT+=" \033[37m|\033[0m\n"
 
-# LINE 2: | user@OS | folder@branch | RAM CPU Disk VRAM | Mesh M:ip P:ip Pub:ip |
+# LINE 2: | user@OS | folder@branch | RAM CPU Disk VRAM | Mesh ●wg0:ip ●wg-public:ip |
 # user@host + folder@branch moved here from LINE 1 (2026-06-25).
 OUT+="\033[37m|\033[0m"
 OUT+=" \033[36m${user_host}\033[0m"
@@ -354,14 +355,14 @@ cache_fmt=$(fmt_tok "$cache_tok")
 out_fmt=$(fmt_tok "${cu_out:-0}")
 sum_tok=$(( ${cu_new:-0} + cache_tok + ${cu_out:-0} ))
 sum_fmt=$(fmt_tok "$sum_tok")
-win_fmt=$(fmt_tok "$ctx_window_size")
+win_fmt=$(fmt_tok "$compact_win")
 ctx_fmt=$(fmt_tok "$current_ctx")
 
 # per-category $ for THIS turn
 read d_in d_out d_cache d_tot < <(LC_NUMERIC=C awk \
     -v n="${cu_new:-0}" -v o="${cu_out:-0}" -v cr="${cu_cread:-0}" -v cw="${cu_cwrite:-0}" \
     -v pi="$p_in" -v po="$p_out" -v pcr="$p_cr" -v pcw="$p_cw" \
-    'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dc=cr/1e6*pcr+cw/1e6*pcw; printf "%.2f %.2f %.2f %.2f", di, dou, dc, di+dou+dc}')
+    'BEGIN{di=n/1e6*pi*100; dou=o/1e6*po*100; dc=(cr/1e6*pcr+cw/1e6*pcw)*100; printf "%.0f %.0f %.0f %.0f", di, dou, dc, di+dou+dc}')
 
 # cache hit rate + colors
 total_in=$(( ${cu_new:-0} + cache_tok ))
@@ -372,25 +373,27 @@ elif [ "$ctx_percent" -ge 90 ]; then pct_color="31"; elif [ "$ctx_percent" -ge 5
 
 OUT+="\033[37m|\033[0m"
 OUT+=" \033[90m${last_reset_ts}\033[0m"
-# Tokens block
+# Tokens + cost block (combined)
 OUT+=" \033[37m│\033[0m \033[1;37mTok\033[0m"
-OUT+=" \033[36mIn:${new_fmt}\033[0m"
-OUT+=" \033[34mCache:${cache_fmt}\033[0m"
-OUT+=" \033[36mOut:${out_fmt}\033[0m"
-OUT+=" \033[90mΣ${sum_fmt}\033[0m"
-# $ block  (order per spec: In, Out, Cache, Total)
-OUT+=" \033[37m│\033[0m \033[1;32m\$\033[0m"
-OUT+=" \033[32mIn:${d_in}\033[0m"
-OUT+=" \033[32mOut:${d_out}\033[0m"
-OUT+=" \033[32mCache:${d_cache}\033[0m"
-OUT+=" \033[${cost_color}mΣ${d_tot}\033[0m"
+OUT+=" \033[36mI:${new_fmt}(¢${d_in})\033[0m"
+OUT+=" \033[34mC:${cache_fmt}(¢${d_cache})\033[0m"
+OUT+=" \033[36mO:${out_fmt}(¢${d_out})\033[0m"
+OUT+=" \033[${cost_color}mΣ${sum_fmt}(¢${d_tot})\033[0m"
 # Ctx / cache block
 OUT+=" \033[37m│\033[0m"
 OUT+=" \033[${pct_color}mCtx:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
-OUT+=" \033[${cache_color}mCache:${cache_hit}%\033[0m"
+OUT+=" \033[${cache_color}mC:${cache_hit}%\033[0m"
 # User/Agent idle age: how long ago the last user prompt / last agent action landed.
 OUT+=" \033[90mUser:${prompt_age}\033[0m"
 OUT+=" \033[90mAgent:${action_age}\033[0m"
+# Rate limits (5h / 7d window %) — omitted when the field is absent from stdin.
+if [ -n "$rl_5h" ] || [ -n "$rl_7d" ]; then
+    rl_5h_disp="${rl_5h%.*}"; [ -z "$rl_5h_disp" ] && rl_5h_disp="N/A"
+    rl_7d_disp="${rl_7d%.*}"; [ -z "$rl_7d_disp" ] && rl_7d_disp="N/A"
+    OUT+=" \033[37m│\033[0m"
+    OUT+=" \033[$(get_color "$rl_5h_disp")m5h:${rl_5h_disp}%\033[0m"
+    OUT+=" \033[$(get_color "$rl_7d_disp")m7d:${rl_7d_disp}%\033[0m"
+fi
 OUT+=" \033[37m|\033[0m\n"
 
 printf "%b" "$OUT"
