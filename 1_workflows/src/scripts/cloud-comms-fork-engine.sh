@@ -72,6 +72,20 @@ prefer_host() {
 
 _json() { prefer_host jq -r "$1 // empty" "$SCRIPT_DIR/build.json"; }
 
+# Fork-scoped read. ALWAYS use this rather than interpolating the fork key
+# into a jq path via _json —
+# a fork key containing a hyphen (e.g. "media-center") is parsed by jq as
+# subtraction when interpolated into a path, yielding
+#     jq: error: center/0 is not defined
+# Passing the key as DATA (--arg) and indexing with brackets makes any key
+# safe, and closes a shell->jq injection path.
+#   _fork_json "$key" '.build.gradle_task'
+#   _fork_json "$key" ''                    # the whole fork object
+_fork_json() {
+  local k="$1" sub="${2:-}"
+  prefer_host jq -r --arg k "$k" ".forks[\$k]${sub} // empty" "$SCRIPT_DIR/build.json"
+}
+
 # ── hub-less single-fork detection ──────────────────────────────────────
 # Purely data-driven: build.json::mode=="single-app" opts an app OUT of the
 # hub+bundle-forks+IPC-contract model. Absent (the default for every existing
@@ -88,7 +102,7 @@ _launcher_activity() {
   local a; a="$(_json '.launcher_activity')"
   if [ -z "$a" ]; then
     local key; key="$(_single_fork_key)"
-    a="$(_json ".forks.${key}.launcher_activity")"
+    a="$(_fork_json "$key" ".launcher_activity")"
   fi
   echo "${a:-com.diegonmarcos.comms.MainActivity}"
 }
@@ -109,18 +123,18 @@ step_bundle_forks() {
   tag="$(_json '.release.auto_update.tag')"; tag="${tag:-latest}"
   while IFS= read -r key; do
     [ -z "$key" ] && continue
-    image="$(_json ".forks.${key}.image")"
-    blocked="$(_json ".forks.${key}.blocked_on")"
-    up_url="$(_json ".forks.${key}.upstream_apk.url")"
-    up_sha="$(_json ".forks.${key}.upstream_apk.sha256")"
-    up_resign="$(_json ".forks.${key}.upstream_apk.resign")"
+    image="$(_fork_json "$key" ".image")"
+    blocked="$(_fork_json "$key" ".blocked_on")"
+    up_url="$(_fork_json "$key" ".upstream_apk.url")"
+    up_sha="$(_fork_json "$key" ".upstream_apk.sha256")"
+    up_resign="$(_fork_json "$key" ".upstream_apk.resign")"
     # Per-ABI upstream variant (COMMS_BUNDLE_ABI, default arm64-v8a — the
     # device target). x86_64 builds the Waydroid-debuggable bundle.
     local bundle_abi="${COMMS_BUNDLE_ABI:-arm64-v8a}"
     if [ "$bundle_abi" != "arm64-v8a" ]; then
       local v_url v_sha
-      v_url="$(_json ".forks.${key}.upstream_apk.abi_variants[\"$bundle_abi\"].url")"
-      v_sha="$(_json ".forks.${key}.upstream_apk.abi_variants[\"$bundle_abi\"].sha256")"
+      v_url="$(_fork_json "$key" ".upstream_apk.abi_variants[\"$bundle_abi\"].url")"
+      v_sha="$(_fork_json "$key" ".upstream_apk.abi_variants[\"$bundle_abi\"].sha256")"
       if [ -n "$v_url" ]; then
         up_url="$v_url"; up_sha="$v_sha"
         log "bundle-forks: $key using $bundle_abi upstream variant"
@@ -251,7 +265,7 @@ _enforce_signature() {
 _assert_apk_identity() {
   local key="$1" apk="$2" expected_id="${3:-}"
   if [ -z "$expected_id" ]; then
-    expected_id="$(_json ".forks.${key}.app_id")"
+    expected_id="$(_fork_json "$key" ".app_id")"
   fi
   [ -n "$expected_id" ] && [ "$expected_id" != "null" ] \
     || { errlog "identity-assert[$key]: expected package id not provided and .forks.${key}.app_id missing"; exit 1; }
@@ -383,18 +397,18 @@ step_materialize_fork() {
   [ -n "$key" ] || { errlog "usage: build.sh materialize-fork <mail|chat|matrix>"; exit 1; }
 
   local repo tracker tag blocked mtask
-  repo="$(_json ".forks.${key}.upstream_repo")"
-  tracker="$(_json ".forks.${key}.tracker_dir")"
-  tag="$(_json ".forks.${key}.pinned_tag")"
-  blocked="$(_json ".forks.${key}.blocked_on")"
+  repo="$(_fork_json "$key" ".upstream_repo")"
+  tracker="$(_fork_json "$key" ".tracker_dir")"
+  tag="$(_fork_json "$key" ".pinned_tag")"
+  blocked="$(_fork_json "$key" ".blocked_on")"
   [ -n "$repo" ] && [ -n "$tracker" ] || { errlog "unknown fork '$key' in build.json::forks"; exit 1; }
 
   # Upstream-APK forks (no gradle_task AND no build.command) build from the
   # pinned release APK, not source — nothing to clone/patch. build-fork fetches +
   # resigns it directly. A fork with EITHER a gradle_task OR a build.command
   # (RN wrapper) is a from-source fork → clone + patch below.
-  mtask="$(_json ".forks.${key}.build.gradle_task")"
-  local mcmd; mcmd="$(_json ".forks.${key}.build.command")"
+  mtask="$(_fork_json "$key" ".build.gradle_task")"
+  local mcmd; mcmd="$(_fork_json "$key" ".build.command")"
   if { [ -z "$mtask" ] || [ "$mtask" = "null" ]; } && { [ -z "$mcmd" ] || [ "$mcmd" = "null" ]; }; then
     log "materialize-fork[$key]: upstream-APK fork (no gradle build) — no source to materialize; build-fork resigns the pinned upstream APK."
     return 0
@@ -469,10 +483,10 @@ step_build_fork() {
   local key="${2:-}"
   [ -n "$key" ] || { errlog "usage: build.sh build-fork <mail|chat|matrix>"; exit 1; }
   local tracker dest task apk_glob signing
-  tracker="$(_json ".forks.${key}.tracker_dir")"
-  task="$(_json ".forks.${key}.build.gradle_task")"
-  apk_glob="$(_json ".forks.${key}.build.apk_glob")"
-  signing="$(_json ".forks.${key}.build.signing")"
+  tracker="$(_fork_json "$key" ".tracker_dir")"
+  task="$(_fork_json "$key" ".build.gradle_task")"
+  apk_glob="$(_fork_json "$key" ".build.apk_glob")"
+  signing="$(_fork_json "$key" ".build.signing")"
   dest="$SCRIPT_DIR/../$tracker"
 
   # ── Upstream-APK fork (no gradle_task AND no build.command): matrix (Element)
@@ -482,15 +496,15 @@ step_build_fork() {
   #    can oras-push it as a STANDALONE GHCR image (Constellation AppStore).
   #    Needs no materialized source. ABI variant mirrors bundle-forks. A fork
   #    with a build.command (RN: chat) falls through to the from-source path.
-  local bcmd_gate; bcmd_gate="$(_json ".forks.${key}.build.command")"
+  local bcmd_gate; bcmd_gate="$(_fork_json "$key" ".build.command")"
   if { [ -z "$task" ] || [ "$task" = "null" ]; } && { [ -z "$bcmd_gate" ] || [ "$bcmd_gate" = "null" ]; }; then
     local up_url up_sha up_resign bundle_abi v_url v_sha
-    up_url="$(_json ".forks.${key}.upstream_apk.url")"
-    up_sha="$(_json ".forks.${key}.upstream_apk.sha256")"
-    up_resign="$(_json ".forks.${key}.upstream_apk.resign")"
+    up_url="$(_fork_json "$key" ".upstream_apk.url")"
+    up_sha="$(_fork_json "$key" ".upstream_apk.sha256")"
+    up_resign="$(_fork_json "$key" ".upstream_apk.resign")"
     bundle_abi="${COMMS_BUNDLE_ABI:-arm64-v8a}"
-    v_url="$(_json ".forks.${key}.upstream_apk.abi_variants[\"$bundle_abi\"].url")"
-    v_sha="$(_json ".forks.${key}.upstream_apk.abi_variants[\"$bundle_abi\"].sha256")"
+    v_url="$(_fork_json "$key" ".upstream_apk.abi_variants[\"$bundle_abi\"].url")"
+    v_sha="$(_fork_json "$key" ".upstream_apk.abi_variants[\"$bundle_abi\"].sha256")"
     if [ -n "$v_url" ] && [ "$v_url" != "null" ]; then up_url="$v_url"; up_sha="$v_sha"; fi
     [ -n "$up_url" ] && [ "$up_url" != "null" ] \
       || { errlog "fork '$key' has neither build.gradle_task nor upstream_apk.url"; exit 1; }
@@ -500,7 +514,7 @@ step_build_fork() {
     _enforce_signature "$DIST_DIR/cloud-comms-${key}.apk"
     # upstream_apk.package: the actual package in the re-signed upstream APK (may differ
     # from app_id which is aspirational for a future source fork)
-    local up_pkg; up_pkg="$(_json ".forks.${key}.upstream_apk.package")"
+    local up_pkg; up_pkg="$(_fork_json "$key" ".upstream_apk.package")"
     if [ -z "$up_pkg" ] || [ "$up_pkg" = "null" ]; then up_pkg=""; fi
     _assert_apk_identity "$key" "$DIST_DIR/cloud-comms-${key}.apk" "$up_pkg"
     log "build-fork[$key]: upstream-APK fork ($bundle_abi) → $DIST_DIR/cloud-comms-${key}.apk ($(wc -c <"$DIST_DIR/cloud-comms-${key}.apk") B)"
@@ -552,7 +566,7 @@ step_build_fork() {
   # invocation. RN forks build via their OWN wrapper (e.g.
   # `npm run build:android-unsigned` → fastlane → gradle assembleUnsigned); the
   # default keeps the fork's gradle wrapper + -P props (mail/dialer unchanged).
-  local bcmd; bcmd="$(_json ".forks.${key}.build.command")"
+  local bcmd; bcmd="$(_fork_json "$key" ".build.command")"
   if [ -n "$bcmd" ] && [ "$bcmd" != "null" ]; then
     log "build-fork[$key]: $tracker → $bcmd (upstream build wrapper)"
     ( cd "$dest" && in_nix bash -lc "$bcmd" )
@@ -570,7 +584,7 @@ step_build_fork() {
   # Forks whose upstream emits an UNSIGNED apk (build.json::forks.<key>.build.
   # resign_unsigned) get resigned with the ONE shared constellation key here —
   # same key the stock-resign path uses (signature IPC + updater install chain).
-  if [ "$(_json ".forks.${key}.build.resign_unsigned")" = "true" ]; then
+  if [ "$(_fork_json "$key" ".build.resign_unsigned")" = "true" ]; then
     log "build-fork[$key]: resign unsigned build with constellation key"
     _resign_apk "$DIST_DIR/cloud-comms-${key}.apk" "$DIST_DIR/cloud-comms-${key}.apk.signed" \
       && mv "$DIST_DIR/cloud-comms-${key}.apk.signed" "$DIST_DIR/cloud-comms-${key}.apk" \
@@ -589,7 +603,7 @@ step_publish_fork() {
   local key="${2:-}"
   [ -n "$key" ] || { errlog "usage: build.sh publish-fork <mail|chat|matrix>"; exit 1; }
   local image registry namespace media_type artifact sha
-  image="$(_json ".forks.${key}.image")"
+  image="$(_fork_json "$key" ".image")"
   registry="$(_json '.release.ghcr.registry')"
   namespace="$(_json '.release.ghcr.namespace')"
   media_type="$(_json '.release.ghcr.media_type')"

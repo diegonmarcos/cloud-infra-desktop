@@ -80,9 +80,36 @@ check "single-word sibling key still resolves" "echo mail" "$sib"
 # --- the engine source must not reintroduce an interpolated jq path ---------
 ENGINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/cloud-comms-fork-engine.sh"
 if [[ -f "$ENGINE" ]]; then
-  leaked=$(grep -c 'jq[^|]*\.forks\.\${' "$ENGINE" 2>/dev/null || true)
-  [[ -z "$leaked" ]] && leaked=0
-  check "engine has no interpolated .forks.\${...} jq path" "0" "$leaked"
+  # Count EXECUTABLE occurrences of an interpolated fork path. Comments and
+  # human-readable error-message strings are excluded; a jq filter is not.
+  #
+  # An earlier version of this check only looked at two known call sites and a
+  # bad regex reported "no others" while 29 remained (GHA 30529963919 failed
+  # with the same jq error after the "fix"). It now scans the whole file.
+  leaked=$(python3 - "$ENGINE" <<'PY'
+import re, sys
+bad = 0
+for line in open(sys.argv[1], encoding='utf8'):
+    s = line.strip()
+    if s.startswith('#'):
+        continue
+    if '.forks.${' not in s:
+        continue
+    # errlog/printf/echo message text is prose, not a jq program
+    if re.search(r'\b(errlog|log|printf|echo)\b', s):
+        continue
+    bad += 1
+print(bad)
+PY
+)
+  check "engine has no executable interpolated .forks.\${...} jq path" "0" "$leaked"
+
+  # Every fork read must go through the safe helper.
+  helper=$(python3 -c "
+import sys; print(open(sys.argv[1],encoding='utf8').read().count('_fork_json'))" "$ENGINE")
+  [[ "$helper" -gt 0 ]] \
+    && check "engine defines/uses _fork_json helper" "yes" "yes" \
+    || check "engine defines/uses _fork_json helper" "yes" "no"
 else
   printf 'FAIL engine not found at %s\n' "$ENGINE"; FAIL=$((FAIL + 1))
 fi
