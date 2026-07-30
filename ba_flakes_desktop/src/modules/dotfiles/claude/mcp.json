@@ -8,28 +8,9 @@
       },
       "alwaysLoad": false
     },
-    "dtk": {
-      "type": "stdio",
-      "command": "/home/diego/git/tools/products/mcp-dtk/src/start.sh",
-      "env": {
-        "NODE_PATH": "/home/diego/.node_modules/node_modules"
-      },
-      "alwaysLoad": false
-    },
     "cloud-infra": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-infra-mcp/mcp",
-      "alwaysLoad": false
-    },
-    "cloud-infra-local": {
-      "type": "stdio",
-      "command": "tsx",
-      "args": [
-        "/home/diego/git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/mcp/index.ts"
-      ],
-      "env": {
-        "GIT_BASE": "/home/diego/git"
-      },
       "alwaysLoad": false
     },
     "cloud-cgc-mcp": {
@@ -58,11 +39,6 @@
     "cloud-services": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-services-mcp/mcp",
-      "alwaysLoad": false
-    },
-    "mattermost": {
-      "type": "http",
-      "url": "https://mcp.diegonmarcos.com/mattermost-mcp/mcp",
       "alwaysLoad": false
     },
     "mailu-mcp": {
