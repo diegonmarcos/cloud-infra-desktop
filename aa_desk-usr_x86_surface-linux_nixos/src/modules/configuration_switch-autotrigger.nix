@@ -37,7 +37,10 @@ lib.mkIf (cfg.enable or false) {
     # jq, ssh, ...) it gets when run interactively. Give it the full declarative
     # system + HM profile PATH instead of curating individual pkgs.X derivations.
     environment = {
-      PATH = "/run/current-system/sw/bin:/etc/profiles/per-user/diego/bin:/nix/var/nix/profiles/default/bin";
+      # nixos/modules/system/boot/systemd/user.nix already sets a default PATH
+      # for every systemd.user.services.<name> — plain assignment conflicts
+      # with it (no priority ⇒ "conflicting definition values"). Force ours.
+      PATH = lib.mkForce "/run/current-system/sw/bin:/etc/profiles/per-user/diego/bin:/nix/var/nix/profiles/default/bin";
     };
     serviceConfig = {
       ExecStart = listener;
