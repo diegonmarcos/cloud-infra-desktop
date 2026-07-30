@@ -61,7 +61,7 @@ out="$(printf '{}' | bash "$ENGINE" inject SessionStart)"
 out="$(printf '{}' | bash "$ENGINE" inject PreToolUse)"
 printf '%s' "$out" | jq -e '.hookSpecificOutput.additionalContext|length>0' >/dev/null 2>&1 && ok || bad "inject PreToolUse not valid JSON additionalContext"
 out="$(printf '{}' | bash "$ENGINE" inject UserPromptSubmit)"
-printf '%s' "$out" | grep -q 'FIRE RULES' && ok || bad "inject UserPromptSubmit missing FIRE RULES"
+printf '%s' "$out" | grep -q 'PRINCIPLES' && ok || bad "inject UserPromptSubmit missing one-line PRINCIPLES pointer"
 
 echo "## nudge: 5th read fires, mcp resets ##"
 SID="t-$$"; ST="${TMPDIR:-/tmp}/claude-graph-nudge-$SID"; rm -f "$ST"

@@ -15,7 +15,9 @@
       "id": "inject-reference-sessionstart",
       "level": "inject",
       "category": "read-only",
-      "tiers": ["SessionStart"],
+      "tiers": [
+        "SessionStart"
+      ],
       "fragment": "hooks-fragments/reference.md",
       "reason": "One-time repo/ops/gotchas reference — replaces the old static CLAUDE.md (now a 1-char stub). SessionStart-only so it doesn't inflate per-turn UserPromptSubmit cost."
     },
@@ -23,7 +25,9 @@
       "id": "inject-memory-system-sessionstart",
       "level": "inject",
       "category": "read-only",
-      "tiers": ["SessionStart"],
+      "tiers": [
+        "SessionStart"
+      ],
       "fragment": "hooks-fragments/memory-system.md",
       "reason": "Memory structure rule: all individual files go in entries/ subdirectory, only MEMORY.md at root. CC loads all top-level .md files unconditionally — this prevents 46k+ token waste per session."
     },
@@ -1080,9 +1084,7 @@
       "level": "inject",
       "fragment": "hooks-fragments/core-principles.md",
       "tiers": [
-        "SessionStart",
-        "UserPromptSubmit",
-        "PreToolUse:Bash"
+        "SessionStart"
       ]
     },
     {
@@ -1090,7 +1092,7 @@
       "level": "inject",
       "fragment": "hooks-fragments/fire-rules.md",
       "tiers": [
-        "UserPromptSubmit"
+        "SessionStart"
       ]
     },
     {
@@ -1098,7 +1100,7 @@
       "level": "inject",
       "fragment": "hooks-fragments/stack-philosophy.md",
       "tiers": [
-        "UserPromptSubmit"
+        "SessionStart"
       ]
     },
     {
@@ -1106,8 +1108,7 @@
       "level": "inject",
       "fragment": "hooks-fragments/pre-action-checklist.md",
       "tiers": [
-        "SessionStart",
-        "UserPromptSubmit"
+        "SessionStart"
       ]
     },
     {
@@ -1115,8 +1116,7 @@
       "level": "inject",
       "fragment": "hooks-fragments/forbidden-patterns.md",
       "tiers": [
-        "SessionStart",
-        "UserPromptSubmit"
+        "SessionStart"
       ]
     },
     {
@@ -1124,7 +1124,7 @@
       "level": "inject",
       "fragment": "hooks-fragments/dead-shell-recovery.md",
       "tiers": [
-        "UserPromptSubmit"
+        "SessionStart"
       ]
     },
     {
@@ -1156,6 +1156,16 @@
           "git checkout -- file.txt"
         ]
       }
+    },
+    {
+      "id": "inject-principles-oneline",
+      "level": "inject",
+      "fragment": "hooks-fragments/principles-oneline.md",
+      "tiers": [
+        "UserPromptSubmit",
+        "PreToolUse:Bash"
+      ],
+      "reason": "Per-turn/per-bash one-line pointer; full principles load once at SessionStart to keep steady-state context small."
     }
   ]
 }
