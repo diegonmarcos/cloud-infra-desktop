@@ -1,4 +1,9 @@
-import { zRecipeDto } from '@aaif/goose-sdk';
+// The published @aaif/goose-sdk npm package (0.20.2, the latest available)
+// doesn't export zRecipeDto yet — upstream builds it from the workspace-local
+// ui/sdk source, not the published package. Vendored directly from
+// goose-upstream/ui/sdk/src/generated/zod.gen.ts instead of pulling the whole
+// SDK build pipeline into this standalone fork.
+import { zRecipeDto } from '../goose-sdk-zod.gen';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 type JsonSchema = Record<string, unknown>;
