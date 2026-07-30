@@ -198,14 +198,14 @@ impl Dashboard for Agi {
     }
     fn tick_ms(&self) -> u64 { 8000 }
 
-    fn on_key(&mut self, key: KeyCode) -> bool {
+    fn on_key(&mut self, key: KeyCode) {
         match key {
-            KeyCode::Left | KeyCode::Char('h') => { self.page = (self.page + 2) % 3; true }
-            KeyCode::Right | KeyCode::Char('l') | KeyCode::Tab => { self.page = (self.page + 1) % 3; true }
-            KeyCode::Char('1') => { self.page = 0; true }
-            KeyCode::Char('2') => { self.page = 1; true }
-            KeyCode::Char('3') => { self.page = 2; true }
-            _ => false,
+            KeyCode::Left | KeyCode::Char('h') => self.page = (self.page + 2) % 3,
+            KeyCode::Right | KeyCode::Char('l') | KeyCode::Tab => self.page = (self.page + 1) % 3,
+            KeyCode::Char('1') => self.page = 0,
+            KeyCode::Char('2') => self.page = 1,
+            KeyCode::Char('3') => self.page = 2,
+            _ => {}
         }
     }
 
