@@ -1,7 +1,7 @@
 name: "Ship → Cloud Mail (materialize + build + publish to GHCR)"
 
 # Independent per-app workflow for Cloud Mail (Fairmail fork).
-# Engine: 1_workflows/src/scripts/cloud-comms-fork-engine.sh (symlinked as ea_cloud-mail/build.sh).
+# Engine: 1_workflows/src/scripts/cloud-mail-fork-engine.sh (symlinked as ea_cloud-mail/build.sh).
 # Per-app build.json at ea_cloud-mail/build.json; patches at ea_cloud-mail/patches/.
 
 on:
@@ -10,7 +10,7 @@ on:
     branches: [main]
     paths:
       - "ea_cloud-mail/**"
-      - "1_workflows/src/scripts/cloud-comms-fork-engine.sh"
+      - "1_workflows/src/scripts/cloud-mail-fork-engine.sh"
       - "1_workflows/src/cicd/ship-cloud-mail.yml"
 
 permissions:

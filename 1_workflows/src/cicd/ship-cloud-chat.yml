@@ -1,7 +1,7 @@
 name: "Ship → Cloud Chat (materialize + build + publish to GHCR)"
 
 # Independent per-app workflow for Cloud Chat (Mattermost fork).
-# Engine: 1_workflows/src/scripts/cloud-comms-fork-engine.sh (symlinked as ea_cloud-chat/build.sh).
+# Engine: 1_workflows/src/scripts/cloud-chat-fork-engine.sh (symlinked as ea_cloud-chat/build.sh).
 # Per-app build.json at ea_cloud-chat/build.json; patches at ea_cloud-chat/patches/.
 
 on:
@@ -10,7 +10,7 @@ on:
     branches: [main]
     paths:
       - "ea_cloud-chat/**"
-      - "1_workflows/src/scripts/cloud-comms-fork-engine.sh"
+      - "1_workflows/src/scripts/cloud-chat-fork-engine.sh"
       - "1_workflows/src/cicd/ship-cloud-chat.yml"
 
 permissions:
