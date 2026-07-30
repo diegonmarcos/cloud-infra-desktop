@@ -12,6 +12,11 @@
 
 name: "Ship → Cloud Media Center APK (build + push to GHCR via ORAS + attach to GH Release)"
 
+# Engine: 1_workflows/src/scripts/cloud-media-center-fork-engine.sh
+# (symlinked as ea_cloud-media-center/build.sh) — this app's own copy, not
+# shared, matching the ea_cloud-{mail,chat,dialer,matrix} per-app convention
+# (the old shared cloud-comms-fork-engine.sh was retired 2026-07-30).
+#
 # Builds the Cloud Media Center APK from ea_cloud-media-center/ (a fork of
 # IacobIonut01/ReFra) and publishes via two channels, both data-driven by
 # ea_cloud-media-center/build.json::release (mirror of the
@@ -58,6 +63,7 @@ on:
     paths:
       - "ea_cloud-media-center/**"
       - "1_workflows/src/cicd/ship-cloud-media-center.yml"
+      - "1_workflows/src/scripts/cloud-media-center-fork-engine.sh"
       # NOTE: the generated .github/workflows/ship-cloud-media-center.yml is
       # deliberately NOT watched — it's regenerated (with all sibling
       # workflows) by 1_workflows/build.sh, so watching it self-triggered a
