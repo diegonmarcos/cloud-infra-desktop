@@ -530,7 +530,7 @@ step_build_fork() {
     [ -n "$pcmd" ] || continue
     log "build-fork[$key]: prepare → $pcmd"
     ( cd "$dest" && in_nix bash -lc "$pcmd" ) || { errlog "build-fork[$key]: prepare failed: $pcmd"; exit 1; }
-  done < <(prefer_host jq -r ".forks.${key}.build.prepare // [] | .[]" "$SCRIPT_DIR/build.json")
+  done < <(prefer_host jq -r --arg k "$key" '.forks[$k].build.prepare // [] | .[]' "$SCRIPT_DIR/build.json")
 
   # Data-driven gradle -P properties from build.json::forks.<key>.build.gradle_props
   # (object key→value). The fork's build.gradle(.kts) reads these via
@@ -546,7 +546,7 @@ step_build_fork() {
       gp_val="${!env_var:-dev}"
     fi
     gprops+=("-P${gp_key}=${gp_val}")
-  done < <(prefer_host jq -r ".forks.${key}.build.gradle_props // {} | to_entries[] | select(.key | startswith(\"_\") | not) | \"\(.key)\t\(.value)\"" "$SCRIPT_DIR/build.json")
+  done < <(prefer_host jq -r --arg k "$key" '.forks[$k].build.gradle_props // {} | to_entries[] | select(.key | startswith("_") | not) | "\(.key)\t\(.value)"' "$SCRIPT_DIR/build.json")
 
   # Build command is data-driven: build.command overrides the default gradlew
   # invocation. RN forks build via their OWN wrapper (e.g.
