@@ -880,13 +880,31 @@ step_gh_release_fork() {
   [ -n "$rolling_tag" ] && [ "$rolling_tag" != "null" ] || { errlog "gh-release-fork[$key]: release.gh_release.rolling_tag unset"; exit 1; }
   src="$DIST_DIR/cloud-comms-${key}.apk"
   [ -f "$src" ] || { errlog "gh-release-fork[$key]: $src missing — run build-fork first"; exit 1; }
+  # The uploaded PUBLIC filename may differ from the internal dist path above
+  # (that internal name is an engine convention, not a public contract). An
+  # app declares its real public name via build.json::release.artifact.release
+  # — e.g. media-center's superapp/fleet registrations and install_apk_url all
+  # reference "cloud-media-center.apk", not "cloud-comms-media-center.apk".
+  # Existing comms consumers don't declare this key, so they fall back to the
+  # historical literal — byte-for-byte unchanged.
+  # NOTE: `gh release upload <file>#<label>` sets a display LABEL only — the
+  # actual asset name (what appears in the download URL) is always the local
+  # file's basename, so renaming requires a real copy, not the #-syntax.
+  local public_name upload_src; public_name="$(_json '.release.artifact.release')"
+  [ -n "$public_name" ] && [ "$public_name" != "null" ] || public_name="cloud-comms-${key}.apk"
+  if [ "$public_name" = "cloud-comms-${key}.apk" ]; then
+    upload_src="$src"
+  else
+    upload_src="$DIST_DIR/$public_name"
+    cp -f "$src" "$upload_src"
+  fi
   if ! in_nix gh release view "$rolling_tag" >/dev/null 2>&1; then
     in_nix gh release create "$rolling_tag" --title "$rolling_tag" \
       --target "${GITHUB_SHA:-main}" \
       --notes "Rolling release — overwritten on every main push." --latest
   fi
-  log "gh-release-fork[$key]: upload cloud-comms-${key}.apk → $rolling_tag"
-  in_nix gh release upload "$rolling_tag" "$src" --clobber
+  log "gh-release-fork[$key]: upload $public_name → $rolling_tag"
+  in_nix gh release upload "$rolling_tag" "$upload_src" --clobber
 }
 
 # Main-guard: allow this file to be `source`d (e.g. by tests) to exercise the
