@@ -8,3 +8,7 @@ src-tauri/icons/*.png
 src-tauri/Cargo.lock
 pty-core/Cargo.lock
 engine/Cargo.lock
+src-tauri/agentic-ui-dist/
+agentic-ui/node_modules/
+agentic-ui/dist/
+agentic-ui/config.json

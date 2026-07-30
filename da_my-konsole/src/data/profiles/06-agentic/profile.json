@@ -56,6 +56,12 @@
         { "label": "dashboard", "cmd": "curl -s http://10.0.0.6:9119" },
         { "label": "api ping", "cmd": "curl -s http://10.0.0.6:8642" }
       ]
+    },
+    {
+      "title": "GOOSE UI (native, wired to goosed 10.0.0.6:3227)",
+      "items": [
+        { "label": "open goose desktop UI", "url": "http://127.0.0.1:58765/" }
+      ]
     }
   ]
 }
