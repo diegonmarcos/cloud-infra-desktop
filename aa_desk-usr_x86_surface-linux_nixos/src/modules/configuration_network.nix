@@ -185,11 +185,13 @@ in {
           autoconnect = "true";
         };
         wireguard.private-key = "$WG0_PRIVATE_KEY";
-        # allowed-ips carries BOTH the v4 and v6 mesh subnets (dual-stack, 2026-07-26)
-        # so the single wg0 peer routes fd0c:1d00::/64 alongside 10.0.0.0/24.
+        # allowed-ips carries ONLY the v4 subnet (2026-07-30): NM's keyfile
+        # parser can't handle a combined v4+v6 value here (see the
+        # dispatcherScripts workaround below) — fd0c:1d00::/64 is added to
+        # the kernel peer at runtime by the dispatcher script instead.
         "wireguard-peer.${wgData.hub.wg_public_key}" = {
           endpoint = wgPrimary;
-          allowed-ips = "${wgData.subnet},${wgData.subnet_v6}";
+          allowed-ips = wgData.subnet;
           persistent-keepalive = toString wgData.persistent_keepalive;
         };
         ipv4 = {
@@ -230,9 +232,11 @@ in {
           autoconnect = "true";
         };
         wireguard.private-key = "$WGPUB_PRIVATE_KEY";
+        # allowed-ips carries ONLY the v4 subnet — see the wg0 profile above
+        # + the dispatcherScripts workaround below for why.
         "wireguard-peer.${wgPublicData.hub.wg_public_key}" = {
           endpoint = wgPublicPrimary;
-          allowed-ips = "${wgPublicData.subnet},${wgPublicData.subnet_v6}";
+          allowed-ips = wgPublicData.subnet;
           persistent-keepalive = toString wgPublicData.persistent_keepalive;
         };
         ipv4 = {
@@ -282,6 +286,37 @@ in {
   # reactivates the profile; for a permanent fallback port, edit the profile +
   # rebuild. The `status` subcommand still works as-is for quick inspection.
   environment.systemPackages = [ wg-fallback ];
+
+  # WORKAROUND (2026-07-30): NetworkManager's keyfile parser (nmcli 1.48.10)
+  # silently fails to apply a per-peer `allowed-ips` value that carries BOTH
+  # the IPv4 and IPv6 mesh subnet together ("keyfile: ... has invalid
+  # allowed-ips" in the journal) — the kernel wg interface is left with
+  # allowed-ips=(none), so all traffic (v4 AND v6) dies with "Required key
+  # not available", even though NM correctly brought the interface up and
+  # assigned both addresses. Reapply AllowedIPs directly to the kernel via
+  # `wg set` once NM reports the device up — this bypasses NM's broken
+  # keyfile-list parsing for this one property while NM still owns
+  # everything else (keys, addresses, DNS, autoconnect).
+  networking.networkmanager.dispatcherScripts = [
+    {
+      source = pkgs.writeShellScript "wg-dualstack-allowedips-fix" ''
+        #!${pkgs.runtimeShell}
+        IFACE="$1"; STATUS="$2"
+        [ "$STATUS" = "up" ] || exit 0
+        case "$IFACE" in
+          ${wgData.client.interface})
+            ${pkgs.wireguard-tools}/bin/wg set "$IFACE" peer ${wgData.hub.wg_public_key} \
+              allowed-ips "${wgData.subnet},${wgData.subnet_v6}"
+            ;;
+          ${wgPublicData.client.interface})
+            ${pkgs.wireguard-tools}/bin/wg set "$IFACE" peer ${wgPublicData.hub.wg_public_key} \
+              allowed-ips "${wgPublicData.subnet},${wgPublicData.subnet_v6}"
+            ;;
+        esac
+      '';
+      type = "basic";
+    }
+  ];
 
   # ═══════════════════════════════════════════════════════════════════════════
   # WIFI & BLUETOOTH PERSISTENCE
