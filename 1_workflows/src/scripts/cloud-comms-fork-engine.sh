@@ -615,9 +615,16 @@ step_build_fork() {
   fi
 
   mkdir -p "$DIST_DIR"
-  shopt -s nullglob
+  # globstar is REQUIRED for the "**" in apk_glob to cross more than one
+  # directory. Without it bash treats "**" as a plain "*" (single level), so
+  # app/build/outputs/apk/**/*.apk never matches AGP's real two-level layout
+  # app/build/outputs/apk/<abiFlavor><ml>/<buildType>/*.apk — which is how
+  # GHA 30539856374 compiled and signed an APK and then reported
+  # "no APK matched". Existing single-level consumers still match, since
+  # globstar's "**" also matches zero directories.
+  shopt -s nullglob globstar
   local apks=("$dest"/$apk_glob)
-  shopt -u nullglob
+  shopt -u nullglob globstar
   [ "${#apks[@]}" -ge 1 ] || { errlog "build-fork[$key]: no APK matched $apk_glob"; exit 1; }
   cp "${apks[0]}" "$DIST_DIR/cloud-comms-${key}.apk"
   # Forks whose upstream emits an UNSIGNED apk (build.json::forks.<key>.build.
