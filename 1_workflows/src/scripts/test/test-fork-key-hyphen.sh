@@ -206,5 +206,38 @@ PY
   check "every signing_env token is known to the engine" "clean" "$bad_tokens"
 fi
 
+# --- apk_glob needs globstar ------------------------------------------------
+# AGP writes to app/build/outputs/apk/<abiFlavor><ml>/<buildType>/*.apk — TWO
+# levels below apk/. Bash only treats "**" as recursive when globstar is on;
+# otherwise it degrades to a single-level "*" and the APK is never found. GHA
+# 30539856374 compiled AND signed an APK, then failed with "no APK matched".
+AGP="$FIX/tracker/app/build/outputs/apk/arm64-v8aNoML/release"
+mkdir -p "$AGP"
+: >"$AGP/ReFra-5.1.1-arm64-v8a-release.apk"
+GLOB='app/build/outputs/apk/**/*.apk'
+
+count_glob() { # count_glob <globstar on|off>
+  ( if [[ "$1" == on ]]; then shopt -s nullglob globstar; else shopt -s nullglob; shopt -u globstar; fi
+    local a=("$FIX/tracker"/$GLOB); printf '%d' "${#a[@]}" )
+}
+check "without globstar the two-level APK is NOT found (proves the bug)" "0" "$(count_glob off)"
+check "with globstar the two-level APK IS found" "1" "$(count_glob on)"
+
+# a one-level layout (existing hub consumers) must keep matching with globstar on
+ONE="$FIX/tracker2/app/build/outputs/apk/release"
+mkdir -p "$ONE"
+: >"$ONE/app-release.apk"
+one=$( shopt -s nullglob globstar; a=("$FIX/tracker2"/$GLOB); printf '%d' "${#a[@]}" )
+check "globstar does not break single-level consumers" "1" "$one"
+
+# the engine must actually enable it at the expansion site
+if [[ -f "$ENGINE" ]]; then
+  has=$(python3 -c "
+import re,sys
+t=open(sys.argv[1],encoding='utf8').read()
+print('yes' if re.search(r'shopt -s [^\n]*globstar', t) else 'no')" "$ENGINE")
+  check "engine enables globstar before expanding apk_glob" "yes" "$has"
+fi
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]
