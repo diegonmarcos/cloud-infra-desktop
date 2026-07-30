@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║ Cloud-Comms — Universal Build Dispatcher                          ║
-# ║                                                                  ║
+# ║ Cloud Dialer — Build Dispatcher                                    ║
 # ║ Constellation of forked comms APKs + a thin hub APK. The hub is   ║
 # ║ an in-tree gradle module; the three forks are pinned-upstream +   ║
 # ║ patch-series, materialized into gitignored tracker clones.        ║
@@ -40,10 +39,12 @@
 #     build.json::forks.<key> is built directly via the existing
 #     step_build_fork machinery — no hub module, no bundle-forks, no IPC
 #     contract.
-# The filename `cloud-comms-fork-engine.sh` is now inaccurate (it is no
-# longer comms-specific) but is NOT renamed in this pass — 4+ ea_cloud-*
-# build.sh symlinks point at this exact path; a rename is a deliberate,
-# separate follow-up.
+#
+# SPLIT (2026-07-30): this used to be one shared cloud-comms-fork-engine.sh
+# symlinked from all 4 ea_cloud-* build.sh entrypoints. Per-app copies now —
+# no more consolidated filename. Logic is identical across the 4 copies
+# (still 100% data-driven from each app's own build.json); only this
+# header + the invoking symlink differ.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

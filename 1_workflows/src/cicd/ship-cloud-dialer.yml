@@ -1,7 +1,7 @@
 name: "Ship → Cloud Dialer (materialize + build + publish to GHCR)"
 
 # Independent per-app workflow for Cloud Dialer (Fossify Phone fork).
-# Engine: 1_workflows/src/scripts/cloud-comms-fork-engine.sh (symlinked as ea_cloud-dialer/build.sh).
+# Engine: 1_workflows/src/scripts/cloud-dialer-fork-engine.sh (symlinked as ea_cloud-dialer/build.sh).
 # Per-app build.json at ea_cloud-dialer/build.json; patches at ea_cloud-dialer/patches/.
 
 on:
@@ -10,7 +10,7 @@ on:
     branches: [main]
     paths:
       - "ea_cloud-dialer/**"
-      - "1_workflows/src/scripts/cloud-comms-fork-engine.sh"
+      - "1_workflows/src/scripts/cloud-dialer-fork-engine.sh"
       - "1_workflows/src/cicd/ship-cloud-dialer.yml"
 
 permissions:

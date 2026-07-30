@@ -1,7 +1,7 @@
 name: "Ship → Cloud Matrix (materialize + build + publish to GHCR)"
 
 # Independent per-app workflow for Cloud Matrix (Element X fork).
-# Engine: 1_workflows/src/scripts/cloud-comms-fork-engine.sh (symlinked as ea_cloud-matrix/build.sh).
+# Engine: 1_workflows/src/scripts/cloud-matrix-fork-engine.sh (symlinked as ea_cloud-matrix/build.sh).
 # Per-app build.json at ea_cloud-matrix/build.json.
 
 on:
@@ -10,7 +10,7 @@ on:
     branches: [main]
     paths:
       - "ea_cloud-matrix/**"
-      - "1_workflows/src/scripts/cloud-comms-fork-engine.sh"
+      - "1_workflows/src/scripts/cloud-matrix-fork-engine.sh"
       - "1_workflows/src/cicd/ship-cloud-matrix.yml"
 
 permissions:
