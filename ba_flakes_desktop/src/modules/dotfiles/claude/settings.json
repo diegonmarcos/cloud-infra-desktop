@@ -25,7 +25,22 @@
     "AUTHELIA_OIDC_CREDENTIALS_DIR": "/home/diego/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/credentials",
     "AUTHELIA_OIDC_TOKENS_DIR": "/home/diego/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens",
     "AUTHELIA_OIDC_CLIENT_ID": "claude-admin",
-    "AUTHELIA_TOKEN_URL": "https://auth.diegonmarcos.com/api/oidc/token"
+    "AUTHELIA_TOKEN_URL": "https://auth.diegonmarcos.com/api/oidc/token",
+    "DISABLE_WORKFLOWS": "1",
+    "DISABLE_ARTIFACT": "1",
+    "DISABLE_BUNDLED_SKILLS": "1",
+    "DISABLE_BUILTIN_AGENTS": "1",
+    "DISABLE_ADVISOR_TOOL": "1",
+    "DISABLE_CLAUDE_API_SKILL": "1",
+    "DISABLE_CLAUDE_CODE_SKILL": "1",
+    "DISABLE_POLICY_SKILLS": "1",
+    "DISABLE_CRON": "1",
+    "DISABLE_EXPLORE_PLAN_AGENTS": "1",
+    "DISABLE_AGENT_VIEW": "1",
+    "DISABLE_SOURCE_CODE_PREVIEW": "1",
+    "DISABLE_ATTACHMENTS": "1",
+    "DISABLE_GIT_INSTRUCTIONS": "1",
+    "DISABLE_LAUNCH_COMPOSER": "1"
   },
   "alwaysThinkingEnabled": true,
   "tui": "fullscreen"
