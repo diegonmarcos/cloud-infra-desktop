@@ -11,34 +11,11 @@
       },
       "alwaysLoad": false
     },
-    "dtk": {
-      "type": "stdio",
-      "command": "tsx",
-      "args": [
-        "/home/diego/git/tools/products/mcp-dtk/src/index.ts"
-      ],
-      "env": {
-        "NODE_PATH": "/home/diego/.node_modules/node_modules"
-      },
-      "alwaysLoad": false
-    },
     "cloud-infra": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-infra-mcp/mcp",
       "headers": {
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
-      },
-      "alwaysLoad": false
-    },
-    "cloud-infra-local": {
-      "type": "stdio",
-      "command": "/home/diego/.claude/mcp-local-launch.sh",
-      "args": [
-        "/home/diego/git/cloud/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/index.ts"
-      ],
-      "env": {
-        "NODE_PATH": "/home/diego/.node_modules/node_modules",
-        "GIT_BASE": "/home/diego/git"
       },
       "alwaysLoad": false
     },
@@ -79,14 +56,6 @@
     "cloud-services": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-services-mcp/mcp",
-      "headers": {
-        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
-      },
-      "alwaysLoad": false
-    },
-    "mattermost": {
-      "type": "http",
-      "url": "https://mcp.diegonmarcos.com/mattermost-mcp/mcp",
       "headers": {
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
       },
