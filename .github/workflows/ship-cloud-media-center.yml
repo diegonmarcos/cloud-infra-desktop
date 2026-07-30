@@ -163,11 +163,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           chmod +x build.sh
-          if [ "${{ steps.variant.outputs.variant }}" = "release" ]; then
-            ./build.sh release
-          else
-            ./build.sh build
-          fi
+          # Fork lifecycle, same shape as ship-cloud-mail.yml. This is a
+          # pinned-upstream + patch-series fork: the tracker clone must be
+          # materialized before any gradle task can run, otherwise the engine
+          # exits 1 with "fork '<key>' not materialized" (GHA 30530415219).
+          # The key is read from build.json (single "forks" entry) rather than
+          # hardcoded here — data-driven, no app name in the workflow.
+          FORK="$(jq -r '.forks | keys[0]' build.json)"
+          echo "fork key: $FORK"
+          ./build.sh materialize-fork "$FORK"
+          ./build.sh build-fork "$FORK"
           ls -la dist/
 
       - name: Upload APK as workflow artifact
@@ -192,7 +197,7 @@ jobs:
           BYPASS_NIX: "1"
           CLOUDMEDIA_VARIANT: ${{ matrix.abi }}
           GITHUB_SHA: ${{ github.sha }}
-        run: ./build.sh oras-push
+        run: ./build.sh publish-fork "$(jq -r '.forks | keys[0]' build.json)"
 
       # ── GitHub Release (engine reads build.json::release.gh_release) ──
       - name: Publish to GitHub Releases
@@ -204,4 +209,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF: ${{ github.ref }}
-        run: ./build.sh gh-release
+        run: ./build.sh gh-release-fork "$(jq -r '.forks | keys[0]' build.json)"
