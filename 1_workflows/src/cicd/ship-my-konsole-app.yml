@@ -37,8 +37,11 @@ jobs:
 
       - name: Build agentic-ui (goose-desktop-derived React frontend)
         working-directory: da_my-konsole/agentic-ui
+        # npm install, not ci: no package-lock.json is committed (all builds
+        # happen in CI, never locally, so there's no natural place a lockfile
+        # gets generated/reviewed yet).
         run: |
-          npm ci
+          npm install
           npm run build
 
       - uses: cachix/install-nix-action@v27
