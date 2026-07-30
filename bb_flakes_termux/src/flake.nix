@@ -1023,20 +1023,14 @@
                   echo "[claude-marketplace] WARNING: claude CLI or marketplace dir not found, skipping"
                 fi
               '';
-              # claude-api skill — pinned from anthropics/skills repo. Symlinks
-              # the whole directory (SKILL.md + per-language assets) so updates
-              # are a single rev/hash bump. https://github.com/anthropics/skills
-              home.file.".claude/skills/claude-api".source =
-                let anthropicSkills = pkgs.fetchFromGitHub {
-                  owner = "anthropics";
-                  repo  = "skills";
-                  rev   = "da20c92503b2e8ff1cf28ca81a0df4673debdbf7";
-                  sha256 = "08b3g2y0dx02bg5ypi8yvsd10dc19j9zm811hqq50aymbq8ny9h6";
-                };
-                in "${anthropicSkills}/skills/claude-api";
-
-              # frontend-design — vendored from claude-plugins-official marketplace.
-              home.file.".claude/skills/frontend-design".source = ../src/modules/dotfiles/claude/skills/frontend-design;
+              # NO LOOSE SKILLS — same design as ba_flakes_desktop. ~/.claude/skills/
+              # must stay empty; every skill ships as a plugin (skill-<name>-plugin)
+              # in the SHARED cloud-marketplace, enabled declaratively via
+              # settings.json enabledPlugins, and unloads with its plugin.
+              #   claude-api      -> cloud-marketplace/skill-claude-api-plugin
+              #   frontend-design -> frontend-design@claude-plugins-official (already
+              #                      enabled in settings.json; the vendored skill copy
+              #                      was a duplicate and was removed)
 
               # ── Writable dotfiles (see ba_flakes_desktop/common.nix for rationale) ──
               # Swap each store-backed HM symlink for a writable copy right after

@@ -23,6 +23,7 @@
     "compression-cloud-ai-plugin@cloud-marketplace": true,
     "memory-system-cloud-ai-plugin@cloud-marketplace": true,
     "sub-agents-cloud-ai-plugin@cloud-marketplace": true,
+    "skill-claude-api-plugin@cloud-marketplace": true,
     "ponytail@cloud-marketplace": true
   }
 }
