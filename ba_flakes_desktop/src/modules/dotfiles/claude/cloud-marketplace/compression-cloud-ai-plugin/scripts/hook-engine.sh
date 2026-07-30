@@ -41,7 +41,17 @@ MODE="${1:-}"
 # ════════════════════════════════════════════════════════════════════════════
 if [ "$MODE" = "inject" ]; then
     TIER="${2:-}"
-    cat >/dev/null 2>&1 || true   # drain stdin (hook payload unused here)
+    INPUT="$(cat 2>/dev/null || true)"
+
+    # PreToolUse fires on every Bash call — gate the injected fragment to
+    # once per session via a sentinel file, keyed by session_id (falls back
+    # to PPID if session_id is unavailable), instead of repeating every turn.
+    if [ "$TIER" = "PreToolUse" ]; then
+        SID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)"
+        [ -n "$SID" ] || SID="ppid-$PPID"
+        SENTINEL="${TMPDIR:-/tmp}/claude-${SID}.principles-shown"
+        [ -f "$SENTINEL" ] && exit 0   # already shown once this session
+    fi
 
     emit_fallback() {
         printf '## CORE PRINCIPLES (fallback)\n\n1. FULLY DECLARATIVE. 2. DATA-DRIVEN. 5. FIX THE ENGINE, NO HACKS. 7. USE SOPS. 8. ASK, DONT ASSUME. 9. USE cloud-cgc-mcp — never guess architecture.\n'
@@ -63,10 +73,14 @@ if [ "$MODE" = "inject" ]; then
             body="${body}$(cat "$path")"$'\n\n'
         done < <(jq -r --arg t "$TIER" \
             '.rules[] | select(.level=="inject") | select(any(.tiers[]?; startswith($t))) | .fragment' "$RULES")
-        [ -n "$body" ] || body="$(emit_fallback)"
+        # No matching rules for this tier is a normal, valid state (e.g. a
+        # plugin intentionally has zero UserPromptSubmit rules) — NOT a
+        # failure, so don't fall back to the CORE PRINCIPLES blurb here.
+        # The fallback is reserved for an unreadable/invalid registry only.
     fi
 
     if [ "$TIER" = "PreToolUse" ]; then
+        touch "$SENTINEL" 2>/dev/null || true
         # Must be JSON additionalContext to reach the model on PreToolUse.
         jq -nc --arg ctx "$body" \
           '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$ctx}}' 2>/dev/null \
