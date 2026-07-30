@@ -32,6 +32,13 @@ lib.mkIf (cfg.enable or false) {
     description = "Auto-run build.sh switch when CI publishes a new closure (ntfy SSE)";
     wantedBy = [ "graphical-session.target" ];
     after = [ "graphical-session.target" ];
+    # NixOS's default systemd-unit PATH is coreutils/findutils/gnugrep/gnused/
+    # systemd ONLY — build.sh switch needs the real toolchain (awk, nix, docker,
+    # jq, ssh, ...) it gets when run interactively. Give it the full declarative
+    # system + HM profile PATH instead of curating individual pkgs.X derivations.
+    environment = {
+      PATH = "/run/current-system/sw/bin:/etc/profiles/per-user/diego/bin:/nix/var/nix/profiles/default/bin";
+    };
     serviceConfig = {
       ExecStart = listener;
       Restart = "always";
