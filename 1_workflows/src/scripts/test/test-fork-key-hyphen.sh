@@ -114,5 +114,58 @@ else
   printf 'FAIL engine not found at %s\n' "$ENGINE"; FAIL=$((FAIL + 1))
 fi
 
+# --- ABI-keyed gradle task resolution -------------------------------------
+# Upstream ReFra dimensions productFlavors by ABI, so each ABI has its OWN
+# assemble task and one fixed string cannot serve a multi-ABI matrix. Gradle
+# capitalizes only the first letter of a flavor name, so "arm64-v8a" becomes
+# "Arm64-v8a" -- the hyphen SURVIVES. GHA run 30535280370 proved it:
+#   Task 'assembleArm64V8aNoMLRelease' not found ...
+#   Some candidates are: 'assembleArm64-v8aNoMLRelease'
+cat >"$FIX/abi.json" <<'JSON'
+{
+  "forks": {
+    "media-center": {
+      "build": {
+        "gradle_task": "assembleArm64-v8aNoMLRelease",
+        "gradle_task_by_abi": {
+          "arm64-v8a": "assembleArm64-v8aNoMLRelease",
+          "x86_64": "assembleX86_64NoMLRelease"
+        }
+      }
+    }
+  },
+  "single": { "build": { "gradle_task": "assembleGithubRelease" } }
+}
+JSON
+
+resolve() { # resolve <abi> <json> — mirrors the engine's two-step lookup
+  local abi="$1" f="$2" t
+  t=$(jq -r --arg k media-center --arg a "$abi" \
+      '.forks[$k].build.gradle_task_by_abi[$a] // empty' "$f")
+  [[ -n "$t" ]] || t=$(jq -r --arg k media-center '.forks[$k].build.gradle_task // empty' "$f")
+  printf '%s' "$t"
+}
+
+check "arm64-v8a resolves its own task (hyphen preserved)" \
+  "assembleArm64-v8aNoMLRelease" "$(resolve arm64-v8a "$FIX/abi.json")"
+check "x86_64 resolves a DIFFERENT task" \
+  "assembleX86_64NoMLRelease" "$(resolve x86_64 "$FIX/abi.json")"
+check "unknown ABI falls back to .gradle_task" \
+  "assembleArm64-v8aNoMLRelease" "$(resolve riscv64 "$FIX/abi.json")"
+
+# the wrong name that actually failed in CI must not be produced for any ABI
+for a in arm64-v8a x86_64 riscv64; do
+  got="$(resolve "$a" "$FIX/abi.json")"
+  case "$got" in
+    *Arm64V8a*) check "ABI $a does not emit the CI-proven-wrong Arm64V8a form" "clean" "GOT:$got" ;;
+    *)          check "ABI $a does not emit the CI-proven-wrong Arm64V8a form" "clean" "clean" ;;
+  esac
+done
+
+# a sibling fork declaring only .gradle_task must be unaffected by the new key
+sib2=$(jq -r '.single.build.gradle_task_by_abi["arm64-v8a"] // .single.build.gradle_task' "$FIX/abi.json")
+check "fork without gradle_task_by_abi still resolves .gradle_task" \
+  "assembleGithubRelease" "$sib2"
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

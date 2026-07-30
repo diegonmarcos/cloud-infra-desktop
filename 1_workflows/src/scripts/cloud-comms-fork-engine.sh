@@ -484,7 +484,15 @@ step_build_fork() {
   [ -n "$key" ] || { errlog "usage: build.sh build-fork <mail|chat|matrix>"; exit 1; }
   local tracker dest task apk_glob signing
   tracker="$(_fork_json "$key" ".tracker_dir")"
-  task="$(_fork_json "$key" ".build.gradle_task")"
+  # Gradle task may be ABI-specific. A fork whose upstream dimensions its
+  # productFlavors by ABI (ReFra: flavorDimensions abi x ml) has a DIFFERENT
+  # assemble task per ABI, so one fixed string cannot serve a multi-ABI build
+  # matrix. Resolution order, all from build.json (never hardcoded):
+  #   1. .build.gradle_task_by_abi["$COMMS_BUNDLE_ABI"]   (ABI-dimensioned forks)
+  #   2. .build.gradle_task                                (single-task forks)
+  # Existing hub consumers declare only (2), so their behavior is unchanged.
+  task="$(_fork_json "$key" ".build.gradle_task_by_abi[\"${COMMS_BUNDLE_ABI:-arm64-v8a}\"]")"
+  [ -n "$task" ] || task="$(_fork_json "$key" ".build.gradle_task")"
   apk_glob="$(_fork_json "$key" ".build.apk_glob")"
   signing="$(_fork_json "$key" ".build.signing")"
   dest="$SCRIPT_DIR/../$tracker"

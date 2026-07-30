@@ -81,7 +81,11 @@ jobs:
       # the canonical phone build; x86_64 is for Waydroid / desktop emulators.
       fail-fast: false
       matrix:
-        abi: [arm64, x86_64]
+        # These are the REAL Android ABI names, matching upstream ReFra's
+        # productFlavor keys (abiVersionCodes in app/build.gradle.kts) and
+        # build.json::forks.<key>.build.gradle_task_by_abi. Kept identical on
+        # purpose so no name-mapping table is needed anywhere in this workflow.
+        abi: [arm64-v8a, x86_64]
 
     steps:
       - name: Checkout
@@ -155,9 +159,9 @@ jobs:
           # Shared Cloud-constellation signing key (vault checkout above).
           VAULT_DIR: ${{ github.workspace }}/.vault
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-          # CLOUDMEDIA_VARIANT selects the ABI variant (build.json::release
+          # COMMS_BUNDLE_ABI selects the ABI variant (build.json::release
           # .variants[].id) → engine overrides ABI filter + artifact name.
-          CLOUDMEDIA_VARIANT: ${{ matrix.abi }}
+          COMMS_BUNDLE_ABI: ${{ matrix.abi }}
           # app/build.gradle shells out to `gh run list` at config phase to
           # bake recent CI durations into BuildConfig (About → Stack).
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -195,7 +199,7 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
-          CLOUDMEDIA_VARIANT: ${{ matrix.abi }}
+          COMMS_BUNDLE_ABI: ${{ matrix.abi }}
           GITHUB_SHA: ${{ github.sha }}
         run: ./build.sh publish-fork "$(jq -r '.forks | keys[0]' build.json)"
 
@@ -205,7 +209,7 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
-          CLOUDMEDIA_VARIANT: ${{ matrix.abi }}
+          COMMS_BUNDLE_ABI: ${{ matrix.abi }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF: ${{ github.ref }}
