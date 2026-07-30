@@ -32,7 +32,7 @@
         "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
         "CONFIG_PATH": "/data/data/com.termux.nix/files/home/git/cloud/config.json"
       },
-      "alwaysLoad": true
+      "alwaysLoad": false
     },
     "diego-personal-data": {
       "type": "stdio",
