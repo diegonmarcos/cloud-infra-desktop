@@ -1,5 +1,5 @@
 {
-  "description": "Data-driven hook engine — inject (SessionStart/UserPromptSubmit/PreToolUse context), guard (PreToolUse:Bash allow/deny/warn), nudge (PostToolUse). See scripts/hook-engine.sh.",
+  "description": "Data-driven hook engine — inject (SessionStart principles), guard (PreToolUse:Bash allow/deny/warn), nudge (PostToolUse). See scripts/hook-engine.sh.",
   "hooks": {
     "SessionStart": [
       {
@@ -13,27 +13,10 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook-engine.sh inject UserPromptSubmit",
-            "timeout": 3
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook-engine.sh inject PreToolUse",
-            "timeout": 3
-          },
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook-engine.sh guard",
