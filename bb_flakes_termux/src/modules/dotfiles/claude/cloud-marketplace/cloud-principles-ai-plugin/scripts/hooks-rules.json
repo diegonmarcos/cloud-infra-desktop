@@ -20,6 +20,14 @@
       "reason": "One-time repo/ops/gotchas reference — replaces the old static CLAUDE.md (now a 1-char stub). SessionStart-only so it doesn't inflate per-turn UserPromptSubmit cost."
     },
     {
+      "id": "inject-memory-system-sessionstart",
+      "level": "inject",
+      "category": "read-only",
+      "tiers": ["SessionStart"],
+      "fragment": "hooks-fragments/memory-system.md",
+      "reason": "Memory structure rule: all individual files go in entries/ subdirectory, only MEMORY.md at root. CC loads all top-level .md files unconditionally — this prevents 46k+ token waste per session."
+    },
+    {
       "id": "allow-npm-readonly",
       "level": "allow",
       "category": "read-only",
