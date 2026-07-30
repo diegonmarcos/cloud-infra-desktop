@@ -5,59 +5,75 @@
       "command": "/home/diego/git/tools/products/mcp-unix-api/src/start.sh",
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules"
-      }
+      },
+      "alwaysLoad": false
     },
     "dtk": {
       "type": "stdio",
       "command": "/home/diego/git/tools/products/mcp-dtk/src/start.sh",
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules"
-      }
+      },
+      "alwaysLoad": false
     },
     "cloud-infra": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/c3-infra-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/c3-infra-mcp/mcp",
+      "alwaysLoad": false
     },
     "cloud-infra-local": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/mcp/index.ts"],
+      "args": [
+        "/home/diego/git/cloud/a_solutions/bc-obs_c3-infra-mcp/src/mcp/index.ts"
+      ],
       "env": {
         "GIT_BASE": "/home/diego/git"
-      }
+      },
+      "alwaysLoad": false
     },
     "cloud-cgc-mcp": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts"],
+      "args": [
+        "/home/diego/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts"
+      ],
       "env": {
         "CONFIG_PATH": "/home/diego/git/cloud/config.json"
-      }
+      },
+      "alwaysLoad": true
     },
     "diego-personal-data": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/git/cloud/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts"],
+      "args": [
+        "/home/diego/git/cloud/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts"
+      ],
       "env": {
         "VAULT_PATH": "/home/diego/git/vault",
         "CONFIG_PATH": "/home/diego/git/cloud/config.json"
-      }
+      },
+      "alwaysLoad": false
     },
     "cloud-services": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/c3-services-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/c3-services-mcp/mcp",
+      "alwaysLoad": false
     },
     "mattermost": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/mattermost-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/mattermost-mcp/mcp",
+      "alwaysLoad": false
     },
     "mailu-mcp": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/mailu-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/mailu-mcp/mcp",
+      "alwaysLoad": false
     },
     "google-workspace": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/g-workspace/mcp"
+      "url": "https://mcp.diegonmarcos.com/g-workspace/mcp",
+      "alwaysLoad": false
     }
   }
 }
