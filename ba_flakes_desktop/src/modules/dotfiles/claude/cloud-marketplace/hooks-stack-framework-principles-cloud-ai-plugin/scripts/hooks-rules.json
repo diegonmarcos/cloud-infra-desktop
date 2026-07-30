@@ -1,5 +1,5 @@
 {
-  "_comment": "SINGLE SOURCE OF TRUTH for Claude Code hook rules. Consumed by hook-engine.sh (enforce), gen-hooks-doc.sh (docs), test-hooks.sh (fixtures). NEVER hand-edit deployed copy — edit here + build.sh switch. Three independent axes: level (allow|deny|warn|nudge|inject) = reinforcement strength; category (secrets|data-loss|declarative-state|shell-safety|arch-guessing|read-only) = protected asset/invariant, ONE question only; reversibility (irreversible|recoverable|advisory) = blast radius, orthogonal to level. Array order is significant for guard: allow short-circuits first, then deny, then warn (first match wins).",
+  "_comment": "SINGLE SOURCE OF TRUTH for this plugin's hook rules. Consumed by hook-engine.sh (enforce), gen-hooks-doc.sh (docs), test-hooks.sh (fixtures). NEVER hand-edit deployed copy — edit here + build.sh switch. Owns the core engine: SessionStart principles injects + PreToolUse:Bash guard (allow|deny|warn) + PostToolUse nudge. Three independent axes: level (allow|deny|warn|nudge|inject) = reinforcement strength; category = protected asset/invariant; reversibility = blast radius.",
   "meta": {
     "version": 2,
     "nudge_threshold": 5,
@@ -20,16 +20,6 @@
       ],
       "fragment": "hooks-fragments/reference.md",
       "reason": "One-time repo/ops/gotchas reference — replaces the old static CLAUDE.md (now a 1-char stub). SessionStart-only so it doesn't inflate per-turn UserPromptSubmit cost."
-    },
-    {
-      "id": "inject-memory-system-sessionstart",
-      "level": "inject",
-      "category": "read-only",
-      "tiers": [
-        "SessionStart"
-      ],
-      "fragment": "hooks-fragments/memory-system.md",
-      "reason": "Memory structure rule: all individual files go in entries/ subdirectory, only MEMORY.md at root. CC loads all top-level .md files unconditionally — this prevents 46k+ token waste per session."
     },
     {
       "id": "allow-npm-readonly",
@@ -1156,16 +1146,6 @@
           "git checkout -- file.txt"
         ]
       }
-    },
-    {
-      "id": "inject-principles-oneline",
-      "level": "inject",
-      "fragment": "hooks-fragments/principles-oneline.md",
-      "tiers": [
-        "UserPromptSubmit",
-        "PreToolUse:Bash"
-      ],
-      "reason": "Per-turn/per-bash one-line pointer; full principles load once at SessionStart to keep steady-state context small."
     }
   ]
 }
