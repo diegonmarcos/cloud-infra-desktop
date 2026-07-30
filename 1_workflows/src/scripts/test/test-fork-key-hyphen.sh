@@ -167,5 +167,44 @@ sib2=$(jq -r '.single.build.gradle_task_by_abi["arm64-v8a"] // .single.build.gra
 check "fork without gradle_task_by_abi still resolves .gradle_task" \
   "assembleGithubRelease" "$sib2"
 
+# --- signing_env token vocabulary ------------------------------------------
+# signing=vault_jks_env maps upstream-chosen env var NAMES to tokens the engine
+# resolves. A typo'd token is only discovered as an exit 1 mid-CI, so assert
+# every token declared by any consumer is one the engine actually handles.
+if [[ -f "$ENGINE" ]]; then
+  bad_tokens=$(python3 - "$ENGINE" <<'PY'
+import glob, json, os, re, sys
+
+engine = open(sys.argv[1], encoding='utf8').read()
+# the case arms inside the vault_jks_env branch define the vocabulary
+known = set(re.findall(r'^\s*(store_password|key_password|key_alias|keystore_path)\)',
+                       engine, re.M))
+root = os.path.abspath(os.path.join(os.path.dirname(sys.argv[1]), '..', '..', '..'))
+bad = []
+for bj in glob.glob(os.path.join(root, 'ea_cloud-*', 'build.json')):
+    try:
+        d = json.load(open(bj, encoding='utf8'))
+    except Exception:
+        continue
+    for k, f in (d.get('forks') or {}).items():
+        if k.startswith('_') or not isinstance(f, dict):
+            continue
+        b = f.get('build') or {}
+        env = b.get('signing_env') or {}
+        if env and b.get('signing') != 'vault_jks_env':
+            bad.append(f"{os.path.basename(os.path.dirname(bj))}:{k} declares signing_env but signing={b.get('signing')!r}")
+        for name, tok in env.items():
+            if name.startswith('_'):
+                continue
+            if tok not in known:
+                bad.append(f"{os.path.basename(os.path.dirname(bj))}:{k}:{name} -> unknown token {tok!r}")
+        if b.get('signing') == 'vault_jks_env' and not b.get('keystore_dest'):
+            bad.append(f"{os.path.basename(os.path.dirname(bj))}:{k} vault_jks_env without keystore_dest")
+print('; '.join(bad) if bad else 'clean')
+PY
+)
+  check "every signing_env token is known to the engine" "clean" "$bad_tokens"
+fi
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

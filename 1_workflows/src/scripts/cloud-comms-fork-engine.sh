@@ -543,6 +543,37 @@ step_build_fork() {
     log "build-fork[$key]: keystore.properties → ONE shared constellation key"
   fi
 
+  # Upstreams that read the keystore from a FILE AT A FIXED PATH plus env vars
+  # instead of a keystore.properties. ReFra:
+  #   signingConfigs.release { storeFile = file("release_key.jks")
+  #                            storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+  #                            keyAlias      = System.getenv("SIGNING_KEY_ALIAS")
+  #                            keyPassword   = System.getenv("SIGNING_KEY_PASSWORD") }
+  # storeFile is resolved at CONFIGURE time, so the file must exist before the
+  # task graph is built or gradle fails with "specifies file ... which doesn't
+  # exist" (GHA 30538571570). Both the destination path and the env-var NAMES
+  # are data (upstreams pick their own names) — nothing here is hardcoded.
+  if [ "$signing" = "vault_jks_env" ]; then
+    _resolve_signing
+    local ks_dest; ks_dest="$(_fork_json "$key" ".build.keystore_dest")"
+    [ -n "$ks_dest" ] || { errlog "build-fork[$key]: signing=vault_jks_env requires .build.keystore_dest in build.json"; exit 1; }
+    mkdir -p "$(dirname "$dest/$ks_dest")"
+    cp -f "$ANDROID_KEYSTORE_FILE" "$dest/$ks_dest"
+    log "build-fork[$key]: shared constellation keystore → $ks_dest"
+    local sv_name sv_token
+    while IFS=$'\t' read -r sv_name sv_token; do
+      [ -n "$sv_name" ] || continue
+      case "$sv_token" in
+        store_password) export "$sv_name=$ANDROID_KEYSTORE_PASSWORD" ;;
+        key_password)   export "$sv_name=${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}" ;;
+        key_alias)      export "$sv_name=$ANDROID_KEY_ALIAS" ;;
+        keystore_path)  export "$sv_name=$dest/$ks_dest" ;;
+        *) errlog "build-fork[$key]: unknown signing_env token '$sv_token' for \$$sv_name (want store_password|key_password|key_alias|keystore_path)"; exit 1 ;;
+      esac
+      log "build-fork[$key]: exported \$$sv_name ($sv_token)"
+    done < <(prefer_host jq -r --arg k "$key" '.forks[$k].build.signing_env // {} | to_entries[] | select(.key | startswith("_") | not) | "\(.key)\t\(.value)"' "$SCRIPT_DIR/build.json")
+  fi
+
   # Data-driven PRE-BUILD steps (build.json::forks.<key>.build.prepare[]). Run
   # in the tracker with the fork's toolchain — host in CI (BYPASS_NIX=1, node/
   # ruby provisioned by the workflow), devShell locally. React-Native forks use
