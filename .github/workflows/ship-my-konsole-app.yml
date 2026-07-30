@@ -43,6 +43,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build agentic-ui (goose-desktop-derived React frontend)
+        working-directory: da_my-konsole/agentic-ui
+        run: |
+          npm ci
+          npm run build
+
       - uses: cachix/install-nix-action@v27
         with:
           extra_nix_config: |
@@ -58,6 +68,9 @@ jobs:
           CARGO_BUILD_JOBS: "4"
         run: ./build.sh build
 
+      - name: Tarball agentic-ui dist (for build.sh fetch)
+        run: tar -czf agentic-ui-dist.tar.gz -C agentic-ui/dist .
+
       - uses: actions/upload-artifact@v4
         with:
           name: my-konsole-bundle
@@ -65,6 +78,7 @@ jobs:
             da_my-konsole/src-tauri/target/release/my-konsole
             da_my-konsole/dash/target/release/my-konsole-dash
             da_my-konsole/src-tauri/target/release/bundle/**
+            da_my-konsole/agentic-ui-dist.tar.gz
           if-no-files-found: warn
 
       - name: Publish rolling GitHub Release
@@ -80,6 +94,7 @@ jobs:
             src-tauri/target/release/my-konsole \
             dash/target/release/my-konsole-dash \
             src-tauri/target/release/bundle/deb/*.deb \
+            agentic-ui-dist.tar.gz \
             --clobber
 
   build-engine:

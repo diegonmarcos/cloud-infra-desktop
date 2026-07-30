@@ -20,6 +20,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 pty-core = { path = "../pty-core" }
 # ponytail: PTY logic lives in the shared pty-core crate — no bundled node/pty-server.
+tiny_http = "0.12"
+# Serves the vendored agentic-ui/dist static build to the native browser-tab
+# webview (browser_open needs a real http:// URL, not a file:// root) — see
+# agentic_ui_serve below. Smallest workable dep for this, per plan.
 
 [profile.release]
 strip = true

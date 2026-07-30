@@ -74,7 +74,11 @@
 
   // Run a command item in the active pane. Convention: a cmd ending in a
   // space is PREFILLED (no Enter) so the user can add args; otherwise it runs.
+  // An item with `url` (no `cmd`) opens a pinned native browser tab instead —
+  // same mechanism as a `browser:true` profile (Tabs.openBrowserTab), just
+  // triggered from a section item rather than being the profile's home tab.
   function runItem(item) {
+    if (item.url && !item.cmd) { Tabs.openBrowserTab(item.url, item.label); return; }
     const id = MYK.activePane;
     if (!id || !item.cmd) return;
     const run = !/\s$/.test(item.cmd);

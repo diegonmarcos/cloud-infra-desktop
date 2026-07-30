@@ -2,20 +2,25 @@
 # Plain shell + assert test (matches ~/git/cloud/2_configs/test/*.sh convention:
 # no framework, source fixture data, assert on resolved values).
 #
-# Proves cloud-comms-fork-engine.sh's hub-vs-hub-less branching is purely
-# data-driven from build.json (never app-name based):
+# Proves the fork-engine's hub-vs-hub-less branching is purely data-driven
+# from build.json (never app-name based):
 #   - a hub-less fixture (build.json::mode=="single-app", media-center shape)
 #     must resolve gradle task / apk path / launcher activity WITHOUT any
 #     ":hub:" or "com.diegonmarcos.comms" literal.
 #   - a hub-based fixture (mail shape, no "mode" key) must still resolve the
 #     exact historical ":hub:assembleDebug" / hub apk path / activity.
 #
+# SPLIT (2026-07-30): the engine is now 4 per-app files (cloud-{mail,chat,
+# dialer,matrix}-fork-engine.sh) instead of one shared cloud-comms-fork-
+# engine.sh — they're byte-identical copies of the same generic logic, so
+# testing one (mail, picked arbitrarily) covers all 4.
+#
 # No network, no Android SDK, no gradle, no adb, no device. Dry-run only:
 # this test only calls the pure resolution helpers (_is_hubless,
 # _single_fork_key, _launcher_activity, _json), never step_build/step_dev/etc.
 set -euo pipefail
 
-ENGINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/cloud-comms-fork-engine.sh"
+ENGINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/cloud-mail-fork-engine.sh"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 

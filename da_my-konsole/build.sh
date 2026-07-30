@@ -74,6 +74,18 @@ stage_resources() {
   command cp -rf src/data/profiles/* src-tauri/profiles/ 2>/dev/null || true
   # config.json (theme/font/keybindings + derived app block) ships too — read at runtime.
   emit_config src-tauri/config.json 2>/dev/null || true
+  # agentic-ui/dist (goose-desktop-derived static build) → bundled resource, so
+  # a fresh install works even before the first `build.sh fetch`. CI builds it
+  # via `npm run build` in agentic-ui/ before calling build.sh build. Always
+  # create the dir (even a placeholder) — tauri's resource-glob validation
+  # fails `cargo check`/`cargo tauri build` if "agentic-ui-dist/**/*" matches nothing.
+  rm -rf src-tauri/agentic-ui-dist; mkdir -p src-tauri/agentic-ui-dist
+  if [ -d agentic-ui/dist ]; then
+    command cp -rf agentic-ui/dist/. src-tauri/agentic-ui-dist/
+  else
+    echo '<!doctype html><title>agentic-ui not built</title>run agentic-ui/npm run build' \
+      > src-tauri/agentic-ui-dist/index.html
+  fi
 }
 
 # Sync repo data (profiles + config) → user dir. The app prefers this over the
@@ -148,6 +160,11 @@ cmd_fetch() {
   chmod +x "$tmp/$BIN"; mv -f "$tmp/$BIN" "$STORE/$BIN"
   gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$DASH" --dir "$tmp" --clobber 2>/dev/null \
     && { chmod +x "$tmp/$DASH"; mv -f "$tmp/$DASH" "$STORE/$DASH"; } || log "(dashboards binary not in release yet — non-fatal)"
+  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "agentic-ui-dist.tar.gz" --dir "$tmp" --clobber 2>/dev/null \
+    && { rm -rf "$STORE/agentic-ui/dist"; mkdir -p "$STORE/agentic-ui/dist"; \
+         tar -xzf "$tmp/agentic-ui-dist.tar.gz" -C "$STORE/agentic-ui/dist"; \
+         log "Synced agentic-ui dist → $STORE/agentic-ui/dist"; } \
+    || log "(agentic-ui-dist not in release yet — non-fatal)"
   sync_data   # profiles/config must match the binary — never fetch a binary with stale data
   # $DASH runs off $PATH (~/.local/bin), not $STORE — keep that copy in sync too,
   # or a stale $HOME/.local/bin/$DASH silently shadows every fresh fetch.
