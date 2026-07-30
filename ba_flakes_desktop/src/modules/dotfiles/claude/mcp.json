@@ -41,7 +41,7 @@
       "env": {
         "CONFIG_PATH": "/home/diego/git/cloud/config.json"
       },
-      "alwaysLoad": true
+      "alwaysLoad": false
     },
     "diego-personal-data": {
       "type": "stdio",

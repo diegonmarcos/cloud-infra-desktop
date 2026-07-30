@@ -54,7 +54,7 @@
       "headers": {
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
       },
-      "alwaysLoad": true
+      "alwaysLoad": false
     },
     "cloud-cgc-mcp-local": {
       "type": "stdio",
