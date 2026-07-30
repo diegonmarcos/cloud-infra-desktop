@@ -9,7 +9,6 @@
       "level": "inject",
       "fragment": "hooks-fragments/principles-oneline.md",
       "tiers": [
-        "UserPromptSubmit",
         "PreToolUse:Bash"
       ],
       "reason": "Per-turn/per-bash one-line pointer; full principles load once at SessionStart (hooks-stack-framework-principles-cloud-ai-plugin) to keep steady-state context small."

@@ -12,14 +12,14 @@
   },
   "rules": [
     {
-      "id": "inject-reference-sessionstart",
+      "id": "inject-principles-compact-sessionstart",
       "level": "inject",
       "category": "read-only",
       "tiers": [
         "SessionStart"
       ],
-      "fragment": "hooks-fragments/reference.md",
-      "reason": "One-time repo/ops/gotchas reference — replaces the old static CLAUDE.md (now a 1-char stub). SessionStart-only so it doesn't inflate per-turn UserPromptSubmit cost."
+      "fragment": "hooks-fragments/principles-compact.md",
+      "reason": "Compact SessionStart summary (~950B) replacing 7 separate long fragments (~9.5KB combined: reference/core-principles/fire-rules/stack-philosophy/pre-action-checklist/forbidden-patterns/dead-shell-recovery). Originals left intact on disk for on-demand reading; see 'Full reference' line in the compact fragment."
     },
     {
       "id": "allow-npm-readonly",
@@ -1068,54 +1068,6 @@
         "deny": [],
         "allow": []
       }
-    },
-    {
-      "id": "inject-core-principles",
-      "level": "inject",
-      "fragment": "hooks-fragments/core-principles.md",
-      "tiers": [
-        "SessionStart"
-      ]
-    },
-    {
-      "id": "inject-fire-rules",
-      "level": "inject",
-      "fragment": "hooks-fragments/fire-rules.md",
-      "tiers": [
-        "SessionStart"
-      ]
-    },
-    {
-      "id": "inject-stack-philosophy",
-      "level": "inject",
-      "fragment": "hooks-fragments/stack-philosophy.md",
-      "tiers": [
-        "SessionStart"
-      ]
-    },
-    {
-      "id": "inject-pre-action-checklist",
-      "level": "inject",
-      "fragment": "hooks-fragments/pre-action-checklist.md",
-      "tiers": [
-        "SessionStart"
-      ]
-    },
-    {
-      "id": "inject-forbidden-patterns",
-      "level": "inject",
-      "fragment": "hooks-fragments/forbidden-patterns.md",
-      "tiers": [
-        "SessionStart"
-      ]
-    },
-    {
-      "id": "inject-dead-shell-recovery",
-      "level": "inject",
-      "fragment": "hooks-fragments/dead-shell-recovery.md",
-      "tiers": [
-        "SessionStart"
-      ]
     },
     {
       "id": "git-branch-create",
