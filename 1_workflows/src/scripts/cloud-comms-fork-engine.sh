@@ -273,7 +273,14 @@ _assert_apk_identity() {
     || { errlog "identity-assert[$key]: failed to extract AndroidManifest.xml from $apk"; exit 1; }
   if ! printf '%s\n' "$pkgs" | grep -Fqx "$expected_id"; then
     errlog "identity-assert[$key]: APK package != $expected_id — refusing to publish"
-    errlog "  Found packages: $(printf '%s\n' "$pkgs" | grep -E '\.' | head -5 | tr '\n' ' ')"
+    # Only report PACKAGE-SHAPED strings. Grepping for any dotted string picks
+    # up intent-filter pathPatterns (ReFra registers e.g. '.*\..*\..*\.apng'
+    # for file associations), which made GHA 30540989541 report
+    # "Found packages: .*\..*\..*\.apng .*\..*\..*\.jxl" — useless for
+    # diagnosing an identity mismatch. Application ids are lowercase dotted
+    # segments with no regex metacharacters.
+    errlog "  Package-shaped strings found: $(printf '%s\n' "$pkgs" \
+      | grep -E '^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$' | sort -u | head -5 | tr '\n' ' ')"
     exit 1
   fi
   log "identity-assert[$key]: OK — package $expected_id confirmed in manifest"
