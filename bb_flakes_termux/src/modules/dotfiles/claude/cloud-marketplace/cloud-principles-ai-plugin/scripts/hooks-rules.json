@@ -29,7 +29,7 @@
         "SessionStart"
       ],
       "fragment": "hooks-fragments/memory-system.md",
-      "reason": "Memory structure rule: all individual files go in entries/ subdirectory, only MEMORY.md at root. CC loads all top-level .md files unconditionally — this prevents 46k+ token waste per session."
+            "reason": "Memory structure rule: unconditional loading of entry files is FORBIDDEN; MEMORY.md is an index, not a preload bundle. Individual files go in feedback/, project/, reference/, or user/ subfolders, never loose at root \u2014 CC loads all top-level .md files unconditionally, so this prevents 46k+ token waste (was ~25% of context) per session."
     },
     {
       "id": "allow-npm-readonly",
