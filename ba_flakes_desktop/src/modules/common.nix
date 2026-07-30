@@ -221,17 +221,11 @@
     ) || echo "[claude-settings] subshell failed; HM chain continues"
   '';
 
-  # claude-api skill — pinned from anthropics/skills repo. Symlinks the whole
-  # directory (SKILL.md + per-language assets) so updates are a single
-  # rev/hash bump. https://github.com/anthropics/skills
-  home.file.".claude/skills/claude-api".source =
-    let anthropicSkills = pkgs.fetchFromGitHub {
-      owner = "anthropics";
-      repo  = "skills";
-      rev   = "da20c92503b2e8ff1cf28ca81a0df4673debdbf7";
-      sha256 = "08b3g2y0dx02bg5ypi8yvsd10dc19j9zm811hqq50aymbq8ny9h6";
-    };
-    in "${anthropicSkills}/skills/claude-api";
+  # NO LOOSE SKILLS. ~/.claude/skills/ must stay empty — every skill ships as a
+  # plugin (skill-<name>-plugin) in cloud-marketplace, so it is enabled/disabled
+  # declaratively via settings.json enabledPlugins and unloads with its plugin.
+  # claude-api now lives in cloud-marketplace/skill-claude-api-plugin (see its
+  # ORIGIN.md for the upstream anthropics/skills rev it was vendored from).
 
   # Register ~/.claude/cloud-marketplace as a plugin marketplace + enable both
   # plugins. `claude plugin marketplace add` is idempotent (re-add of a known

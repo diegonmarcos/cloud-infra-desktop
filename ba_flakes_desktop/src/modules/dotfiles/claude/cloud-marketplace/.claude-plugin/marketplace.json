@@ -1,6 +1,8 @@
 {
   "name": "cloud-marketplace",
-  "owner": { "name": "Diego Nepomuceno Marcos" },
+  "owner": {
+    "name": "Diego Nepomuceno Marcos"
+  },
   "description": "Local marketplace — Diego's declarative Claude Code plugins (cloud principles, split 2026-07-30 into 4 focused plugins, + ponytail), source-of-truth in ~/git/unix.",
   "plugins": [
     {
@@ -22,6 +24,11 @@
       "name": "sub-agents-cloud-ai-plugin",
       "source": "./sub-agents-cloud-ai-plugin",
       "description": "Scaffold — reserved for future sub-agent / Task-tool orchestration principles. No active rules yet."
+    },
+    {
+      "name": "skill-claude-api-plugin",
+      "source": "./skill-claude-api-plugin",
+      "description": "Claude API / Anthropic SDK skill, delivered as a plugin (no loose ~/.claude/skills)."
     },
     {
       "name": "ponytail",
