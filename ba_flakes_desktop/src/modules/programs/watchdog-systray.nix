@@ -176,8 +176,10 @@ in {
     # "always": this is the system-protection tray icon — must respawn even after a manual close.
     Service = { ExecStart = "%h/.local/bin/watchdog-systray"; Restart = "always"; RestartSec = 3;
       Environment = [
-        "GI_TYPELIB_PATH=${pkgs.libayatana-appindicator}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.gobject-introspection}/lib/girepository-1.0"
-        "LD_LIBRARY_PATH=${pkgs.libayatana-appindicator}/lib"
+        # GObject-2.0.typelib ships in glib's girepository-1.0 output, NOT gobject-introspection's
+        # (that package only ships its own scanner-related typelibs, e.g. cairo-1.0/libxml2-2.0).
+        "GI_TYPELIB_PATH=${pkgs.libayatana-appindicator}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.glib.out}/lib/girepository-1.0"
+        "LD_LIBRARY_PATH=${pkgs.libayatana-appindicator}/lib:${pkgs.glib.out}/lib"
       ];
     };
     Install.WantedBy = [ "graphical-session.target" ];
@@ -188,8 +190,8 @@ in {
     # "always": this is the nix-daemon control panel — must respawn even after a manual close.
     Service = { ExecStart = "%h/.local/bin/nixos-systray"; Restart = "always"; RestartSec = 3;
       Environment = [
-        "GI_TYPELIB_PATH=${pkgs.libayatana-appindicator}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.gobject-introspection}/lib/girepository-1.0"
-        "LD_LIBRARY_PATH=${pkgs.libayatana-appindicator}/lib"
+        "GI_TYPELIB_PATH=${pkgs.libayatana-appindicator}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.glib.out}/lib/girepository-1.0"
+        "LD_LIBRARY_PATH=${pkgs.libayatana-appindicator}/lib:${pkgs.glib.out}/lib"
       ];
     };
     Install.WantedBy = [ "graphical-session.target" ];
