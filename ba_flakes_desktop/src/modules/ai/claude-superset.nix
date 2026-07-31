@@ -289,9 +289,16 @@ let
     fi
 
     # Auto-sync recent sessions to the hub (best-effort, background) unless this
-    # is a resumed session (restored tabs would otherwise re-push on every open).
+    # is a resumed session (restored tabs would otherwise re-push on every open),
+    # or a read-only query.
+    #
+    # Read-only subcommands must be exempt: they can be called from hot paths like
+    # the status line, and each one forked a full Node engine (measured 44% CPU,
+    # 67MB) to push sessions nobody changed. Anything that only *reads* state has
+    # no sessions worth syncing, so the fork is pure waste — and waste that scales
+    # with repaint frequency is what took the desktop down on 2026-07-31.
     case " $* " in
-      *" --resume "*) : ;;
+      *" --resume "*|*" usage "*|*" --version "*|*" -v "*|*" --help "*|*" -h "*) : ;;
       *) ( $ENGINE sync "$CAS_DEVICE" "$KEEP" >/dev/null 2>&1 & ) ;;
     esac
 
@@ -320,12 +327,54 @@ let
       --image=utilities-terminal --text="claude-superset" \
       --menu="Dashboard!${pkgs.xdg-utils}/bin/xdg-open $DASH|Status!${pkgs.kdePackages.konsole}/bin/konsole -e claude-superset --help|Quit!quit"
   '';
-  # my-ai: future replacement alias — shares the claude-superset script via exec.
-  my-ai = pkgs.writeShellScriptBin "my-ai" ''
-    exec claude-superset "$@"
-  '';
+  # NO my-ai stub here, deliberately.
+  #
+  # This used to be `writeShellScriptBin "my-ai" "exec claude-superset \"$@\""` as a
+  # "future replacement alias". Two problems, both load-bearing:
+  #
+  #  1. It SHADOWED the real binary. The Rust my-ai installs to ~/.local/bin via
+  #     `build.sh install`, but ~/.nix-profile/bin precedes it on PATH, so the stub
+  #     always won and the real implementation could never run.
+  #  2. Forwarding to claude-superset meant `my-ai usage --statusline` landed in the
+  #     263MB claude binary, where --statusline is not a valid option. The status
+  #     line called it every second per session: ~296MB and 0.76s to print an error.
+  #     That drove /user.slice past oomd's 30% pressure limit and killed plasmashell
+  #     twice on 2026-07-31.
+  #
+  # Leaving my-ai absent is strictly better than aliasing it: the status line reads a
+  # published segment file and simply omits the row when it's missing, so an absent
+  # my-ai degrades silently while a wrong one takes the desktop down.
 in {
-  home.packages = [ claude-superset claude-superset-tray my-ai ];
+  home.packages = [ claude-superset claude-superset-tray ];
+
+  # The producer half of the status line's usage row: one publisher for the whole
+  # session, writing $XDG_RUNTIME_DIR/my-ai-usage.seg on an interval. The status
+  # line only ever reads that file, so cost is decoupled from repaint frequency —
+  # N sessions repainting every second cost exactly one scan per interval, not N
+  # per second. my-ai-gui runs the same loop in-process for its tray readout; this
+  # unit covers the headless case (no GUI running).
+  #
+  # ConditionPathExists keeps this inert until the real Rust my-ai is installed to
+  # ~/.local/bin by `build.sh install` — the unit is skipped, not failed, so it
+  # can't spam the journal or block activation before the binary exists.
+  systemd.user.services.my-ai-usage = {
+    Unit = {
+      Description = "my-ai ccusage publisher (5h window segment for the Claude status line)";
+      ConditionPathExists = "%h/.local/bin/my-ai";
+    };
+    Service = {
+      ExecStart = "%h/.local/bin/my-ai usage --daemon --interval 30";
+      Restart = "on-failure";
+      RestartSec = 30;
+      # It exists to keep the desktop responsive; it must never be the reason
+      # memory gets tight. A scan is small, so a low cap is a real bound, and
+      # deprioritising it means it yields under exactly the pressure it prevents.
+      MemoryMax = "128M";
+      Nice = 19;
+      CPUWeight = 20;
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
 
   xdg.desktopEntries = {
     my-ai = {
