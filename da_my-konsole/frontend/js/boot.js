@@ -187,6 +187,20 @@
   document.getElementById("btn-home-filebrowser").addEventListener("click", () => selectProfile(byName("file-browser"), null));
   document.getElementById("btn-home-browser").addEventListener("click", () => selectProfile(byName("web-browser"), null));
   document.getElementById("btn-home-agentic").addEventListener("click", () => selectProfile(byName("agentic"), null));
+  // Any other `home:true` profile (e.g. goose-desktop, cloud-agentic) gets its
+  // button generated here instead of a hardcoded HTML entry — new pinned tabs
+  // are then just a new profile.json, no code change. The 4 above are hand-wired
+  // because file-editor is a dropdown menu, not a plain profile click, and
+  // file-browser/web-browser/agentic predate this loop.
+  const fixedHomeBtns = new Set(["file-browser", "file-editor", "web-browser", "agentic"]);
+  const homeActions = document.getElementById("home-actions");
+  profiles.filter((p) => p.home && !fixedHomeBtns.has(p.name)).forEach((p) => {
+    const b = document.createElement("button");
+    b.className = "home-btn";
+    b.textContent = p.display_name || p.name;
+    b.addEventListener("click", () => selectProfile(p, null));
+    homeActions.appendChild(b);
+  });
   // File Editor is a mode dropdown: Plain (in-app textarea) | Vim (real vim in a
   // PTY). Both open in the file-editor group; Vim uses the opener override.
   const editorBtn = document.getElementById("btn-home-fileeditor");
