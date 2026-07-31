@@ -32,11 +32,11 @@
       "_note": "Restarting kwin tears the Wayland session — only notify, NEVER auto-restart. Hard ceiling 2.5G lets systemd kill kwin if it truly runs away; Plasma can respawn it."
     },
     "plasma-plasmashell.service": {
-      "MemoryHigh": "1000M",
-      "MemoryMax": "1800M",
-      "watchdog_warn_mb": 800,
+      "MemoryHigh": "1700M",
+      "MemoryMax": "2200M",
+      "watchdog_warn_mb": 1500,
       "watchdog_action": "restart",
-      "_note": "Plasmashell restart is in-place safe; user sees panel flicker only."
+      "_note": "2026-07-31: 1000M/1800M was too tight — normal working set (~1.03G+) sat above MemoryHigh, causing sustained memory.high direct-reclaim throttle (memory.events high=259229) that froze/crashed the shell twice with no OOM and low aggregate PSI (Never-Freeze v3 mechanism, matches the 2026-07-10 13:06 user-1000.slice incident at service-unit scope). Widened so normal usage stays under MemoryHigh; MemoryMax kept well below the 8GB host ceiling. Plasmashell restart is in-place safe; user sees panel flicker only."
     },
     "plasma-ksystemstats.service": {
       "MemoryHigh": "256M",
