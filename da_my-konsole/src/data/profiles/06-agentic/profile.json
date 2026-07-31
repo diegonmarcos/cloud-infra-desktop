@@ -6,22 +6,35 @@
   "theme": { "accent": "#9b59b6" },
   "sections": [
     {
-      "title": "CLAUDE CODE",
+      "title": "HOME",
       "items": [
-        { "label": "claude", "cmd": "claude" },
+        { "label": "home-page (AGI dashboard)", "cmd": "my-konsole-dash agi" }
+      ]
+    },
+    {
+      "title": "CLAUDE-CLI",
+      "items": [
+        { "label": "local cli", "cmd": "claude" },
         { "label": "resume session", "cmd": "claude --resume" },
         { "label": "continue last", "cmd": "claude --continue" },
         { "label": "pick model", "cmd": "claude --model opus" },
-        { "label": "claude in kg-bridge", "cmd": "ssh claude_oci-apps" },
+        { "label": "server (kg-bridge)", "cmd": "ssh claude_oci-apps" },
         { "label": "claude-rescue chain", "cmd": "bash ~/git/tools/dtk.sh recover.claude-rescue" }
       ]
     },
     {
-      "title": "GOOSE / GEMINI",
+      "title": "GOOSE",
       "items": [
-        { "label": "goose session", "cmd": "goose session" },
-        { "label": "goose configure", "cmd": "goose configure" },
-        { "label": "install goose", "cmd": "bash ~/git/tools/dtk.sh provision.goose" },
+        { "label": "local cli", "cmd": "goose session" },
+        { "label": "local desktop", "url": "http://127.0.0.1:58767/" },
+        { "label": "server (my-ai-api goosed)", "url": "http://127.0.0.1:58765/" },
+        { "label": "configure", "cmd": "goose configure" },
+        { "label": "install", "cmd": "bash ~/git/tools/dtk.sh provision.goose" }
+      ]
+    },
+    {
+      "title": "GEMINI",
+      "items": [
         { "label": "provision claude/gemini", "cmd": "bash ~/git/tools/dtk.sh provision.claude" }
       ]
     },
@@ -51,10 +64,10 @@
       ]
     },
     {
-      "title": "HERMES AGENT (oci-apps 10.0.0.6)",
+      "title": "HERMES",
       "items": [
-        { "label": "dashboard", "cmd": "curl -s http://10.0.0.6:9119" },
-        { "label": "api ping", "cmd": "curl -s http://10.0.0.6:8642" }
+        { "label": "server dashboard (oci-apps)", "cmd": "curl -s http://10.0.0.6:9119" },
+        { "label": "server api ping (oci-apps)", "cmd": "curl -s http://10.0.0.6:8642" }
       ]
     }
   ]
