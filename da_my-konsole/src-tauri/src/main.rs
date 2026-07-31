@@ -143,6 +143,15 @@ fn browser_open(
     x: f64, y: f64, w: f64, h: f64,
 ) -> Result<(), String> {
     let u = parse_url(&url)?;
+    // Lazily start the agentic-ui static server (+ local goosed, for the
+    // local port) only when its tab is actually opened — not at app launch.
+    if let Some(dist) = agentic_ui_dist_dir(&app) {
+        if u.port() == Some(AGENTIC_UI_PORT) {
+            agentic_ui_serve_once(dist, AGENTIC_UI_PORT, false);
+        } else if u.port() == Some(AGENTIC_UI_LOCAL_PORT) {
+            agentic_ui_serve_once(dist, AGENTIC_UI_LOCAL_PORT, true);
+        }
+    }
     // Already exists → just navigate + reposition (reuse, don't stack webviews).
     if let Some(wv) = app.get_webview(&label) {
         wv.navigate(u).map_err(|e| e.to_string())?;
@@ -259,6 +268,13 @@ fn content_type_for(path: &std::path::Path) -> &'static str {
     }
 }
 
+fn agentic_ui_serve_once(dist_dir: std::path::PathBuf, port: u16, local: bool) {
+    static CLOUD_STARTED: std::sync::Once = std::sync::Once::new();
+    static LOCAL_STARTED: std::sync::Once = std::sync::Once::new();
+    let once = if local { &LOCAL_STARTED } else { &CLOUD_STARTED };
+    once.call_once(|| agentic_ui_serve(dist_dir, port, local));
+}
+
 // `local` selects which goosed this static agentic-ui build talks to:
 // false = remote my-ai-api goosed (10.0.0.6:3227, cloud-agentic tab),
 // true  = `goose serve` spawned locally by this app (goose-desktop tab).
@@ -321,11 +337,9 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .manage(PtyBroker::new())
         .setup(|app| {
-            let handle = app.handle().clone();
-            if let Some(dist) = agentic_ui_dist_dir(&handle) {
-                agentic_ui_serve(dist.clone(), AGENTIC_UI_PORT, false); // cloud-agentic: remote goosed
-                agentic_ui_serve(dist, AGENTIC_UI_LOCAL_PORT, true);    // goose-desktop: local goosed
-            } else {
+            // agentic-ui's static server(s) + the local `goose serve` are started
+            // lazily from browser_open when their tab is actually opened, not here.
+            if agentic_ui_dist_dir(app.handle()).is_none() {
                 eprintln!("agentic-ui: no dist dir found (fetch it via build.sh fetch) — tab will fail to load");
             }
             Ok(())
