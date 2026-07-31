@@ -120,6 +120,30 @@ if [ -f "$transcript_path" ]; then
     fi
 fi
 
+# === Cumulative session token totals — sum of every assistant message's
+# usage{} across the WHOLE transcript, not the live-window snapshot that
+# context_window.current_usage gives (that one resets/shrinks on compaction,
+# badly undercounting Out — the most expensive token category). Cached
+# against transcript size, same pattern as age_cache above: idle refreshes
+# are a stat, not a rescan of a multi-MB JSONL.
+tok_cache="/tmp/statusline_tok_$(echo "$transcript_path" | md5sum | cut -c1-8).dat"
+sum_in=0; sum_out=0; sum_cread=0; sum_cwrite=0
+if [ -f "$transcript_path" ]; then
+    tsize2=$(stat -c %s "$transcript_path" 2>/dev/null || echo 0)
+    c_size2=""
+    [ -f "$tok_cache" ] && read -r c_size2 sum_in sum_out sum_cread sum_cwrite < "$tok_cache" 2>/dev/null
+    if [ "$tsize2" != "$c_size2" ]; then
+        read -r sum_in sum_out sum_cread sum_cwrite < <(jq -rs '
+            [.[] | select(.type=="assistant") | .message.usage | select(.)] as $u |
+            [ ($u | map(.input_tokens // 0) | add // 0),
+              ($u | map(.output_tokens // 0) | add // 0),
+              ($u | map(.cache_read_input_tokens // 0) | add // 0),
+              ($u | map(.cache_creation_input_tokens // 0) | add // 0) ] | @tsv' "$transcript_path" 2>/dev/null)
+        [ -z "$sum_in" ] && { sum_in=0; sum_out=0; sum_cread=0; sum_cwrite=0; }
+        echo "$tsize2 $sum_in $sum_out $sum_cread $sum_cwrite" > "$tok_cache"
+    fi
+fi
+
 # Cost color
 cost_cents=$(LC_NUMERIC=C awk "BEGIN {printf \"%.0f\", ${session_cost:-0} * 100}")
 [ -z "$cost_cents" ] && cost_cents=0
@@ -144,11 +168,17 @@ n=$(find "$HOME/.claude/plugins/cache" -path '*/agents/*.md' 2>/dev/null | wc -l
 agents_configured=$((agents_configured + n))
 [ "$agents_configured" -gt 0 ] && agents_color="32" || agents_color="90"
 
-# Per-MCP online/offline icons (lazy 15-min cache) + plugin status PL[...].
-# Both helpers emit literal \033 escapes; the final `printf %b` renders them.
+# Per-MCP online/offline icons (lazy 15-min cache), Full/Lean context-profile
+# indicator, and PL[ Skl[...] Rul[...] Sys[...] ] — Skl/Sys from the plugins
+# helper, Rul (per-plugin rule counts) from the hooks helper, interleaved so
+# Rul lands between the two plugin buckets as designed.
+# All helpers emit literal \033 escapes; the final `printf %b` renders them.
 mcp_seg=$(bash "$HOME/.claude/claude-mcp-status.sh" "$cwd" 2>/dev/null)
-plugins_seg=$(bash "$HOME/.claude/claude-plugins-status.sh" --format ansi 2>/dev/null)
-hooks_seg=$(bash "$HOME/.claude/claude-hooks-status.sh" --format ansi 2>/dev/null)
+flags_seg=$(bash "$HOME/.claude/claude-flags-status.sh" --format ansi 2>/dev/null)
+skl_seg=$(bash "$HOME/.claude/claude-plugins-status.sh" --part skl --format ansi 2>/dev/null)
+sys_seg=$(bash "$HOME/.claude/claude-plugins-status.sh" --part sys --format ansi 2>/dev/null)
+rul_seg=$(bash "$HOME/.claude/claude-hooks-status.sh" --format ansi 2>/dev/null)
+plugins_seg="PL[ ${skl_seg}${skl_seg:+ }${rul_seg}${rul_seg:+ }${sys_seg} ]"
 
 # user@host (date removed from LINE 1 per 2026-06-25 layout change)
 user_host="$(whoami)@$(hostname -s)"
@@ -260,11 +290,22 @@ vram_percent=$(cat "$_async/vram" 2>/dev/null); [ -z "$vram_percent" ] && vram_p
 mesh_seg=$(cat "$_async/mesh" 2>/dev/null)   # "wg0:up:10.0.0.5 wg-public:up:10.1.0.5"
 rm -rf "$_async"
 
+# CPU pressure-stall (PSI) — "some avg10" = % of time ANY task was stalled
+# waiting on CPU in the last 10s. Distinct from CPU:% (raw utilization):
+# PSI stays low under a busy-but-not-contended box, spikes under real
+# scheduling pressure. Linux-only; absent on the termux/Android kernel.
+cpu_psi="N/A"
+if [ -r /proc/pressure/cpu ]; then
+    cpu_psi=$(awk -F'avg10=' '/^some/{split($2,a," "); printf "%.0f", a[1]}' /proc/pressure/cpu 2>/dev/null)
+    [ -z "$cpu_psi" ] && cpu_psi="N/A"
+fi
+
 # Colors
 mem_color=$(get_color "$mem_percent")
 cpu_color=$(get_color "$cpu_percent")
 disk_color=$(get_color "$disk_percent")
 vram_color=$(get_color "$vram_percent")
+psi_color=$(get_color "$cpu_psi")
 
 # Battery — instant sysfs read (no fork). BAT* = laptop, battery = fallback.
 # Low %% is bad, so this is colored inverse of the load metrics above.
@@ -282,8 +323,7 @@ esac
 # === BUILD OUTPUT ===
 OUT=""
 
-# LINE 1: | model@effort | session@name | MCP | PL | HK | user@OS | folder@branch |
-# Date dropped 2026-06-25; every segment is now its own │-delimited cell.
+# LINE 1: | model@effort | session@name | user@OS | folder@branch |
 OUT+="\033[37m|\033[0m"
 # model @ effort  (effort omitted when the model doesn't support the param)
 OUT+=" \033[35m${model_name}\033[0m"
@@ -292,18 +332,7 @@ OUT+=" \033[35m${model_name}\033[0m"
 OUT+=" \033[37m|\033[0m"
 OUT+=" \033[90m${session_short}\033[0m"
 [ -n "$session_name" ] && OUT+=" \033[90m@\033[0m \033[37m${session_name_disp}\033[0m"
-# MCP cell (fallback to count if the probe emitted nothing)
 OUT+=" \033[37m|\033[0m"
-if [ -n "$mcp_seg" ]; then OUT+=" ${mcp_seg}"; else OUT+=" \033[${mcp_color}mMCP:${mcp_configured}\033[0m"; fi
-OUT+=" \033[${agents_color}mAgents:${agents_configured}\033[0m"
-# PL / HK cells — only when their helper produced output (self-omitting)
-[ -n "$plugins_seg" ] && OUT+=" \033[37m|\033[0m ${plugins_seg}"
-[ -n "$hooks_seg" ] && OUT+=" \033[37m|\033[0m ${hooks_seg}"
-OUT+=" \033[37m|\033[0m\n"
-
-# LINE 2: | user@OS | folder@branch | RAM CPU Disk VRAM | Mesh ●wg0:ip ●wg-public:ip |
-# user@host + folder@branch moved here from LINE 1 (2026-06-25).
-OUT+="\033[37m|\033[0m"
 OUT+=" \033[36m${user_host}\033[0m"
 # folder@branch cell (collapse repo/folder when folder == repo root, or no repo)
 OUT+=" \033[37m|\033[0m"
@@ -314,29 +343,18 @@ else
     OUT+=" \033[34m${folder}\033[0m"
 fi
 [ -n "$git_branch" ] && OUT+=" \033[90m@\033[0m \033[33m${git_branch}\033[0m"
-OUT+=" \033[37m|\033[0m"
-OUT+=" \033[${mem_color}mRAM:${mem_percent}%\033[0m"
-OUT+=" \033[${cpu_color}mCPU:${cpu_percent}%\033[0m"
-OUT+=" \033[${disk_color}mDisk:${disk_percent}%\033[0m"
-OUT+=" \033[${vram_color}mVRAM:${vram_percent}%\033[0m"
-OUT+=" \033[${bat_color}mBattery:${bat_percent}%\033[0m"
-OUT+=" \033[37m|\033[0m"
-OUT+=" \033[1;37mMesh\033[0m"
-if [ -n "$mesh_seg" ]; then
-    for tok in $mesh_seg; do
-        wif=${tok%%:*}; rest=${tok#*:}
-        if [ "${rest%%:*}" = "up" ]; then
-            OUT+=" \033[32m●\033[0m\033[36m${wif}:${rest#up:}\033[0m"
-        else
-            OUT+=" \033[31m○${wif}\033[0m"
-        fi
-    done
-else
-    OUT+=" \033[90m—\033[0m"
-fi
 OUT+=" \033[37m|\033[0m\n"
 
-# LINE 3 — ONE line, three blocks separated by │ (per spec):
+# LINE 2: | MCP[...] | Flags[Full vs Lean] |
+OUT+="\033[37m|\033[0m"
+if [ -n "$mcp_seg" ]; then OUT+=" ${mcp_seg}"; else OUT+=" \033[${mcp_color}mMCP:${mcp_configured}\033[0m"; fi
+[ -n "$flags_seg" ] && OUT+=" \033[37m|\033[0m ${flags_seg}"
+OUT+=" \033[37m|\033[0m\n"
+
+# LINE 3 — PL[ Skl[...] Rul[...] Sys[...] ] (self-omitting when all buckets empty)
+[ -n "$skl_seg$rul_seg$sys_seg" ] && OUT+=" \033[37m|\033[0m ${plugins_seg}\n"
+
+# LINE 4 — ONE line, three blocks separated by │ (per spec):
 #   <datetime> │ Tok In Cache Out Σ │ $ In Out Cache Σ │ Ctx:used/win(%) Cache:hit% <idle>m
 # Tokens = LIVE context window (context_window.current_usage) from stdin (spawn-free).
 # $ = THIS turn = tokens/1e6 × per-MTok price from claude-pricing.json (data-driven).
@@ -352,21 +370,27 @@ if command -v jq >/dev/null 2>&1 && [ -f "$PRICING" ]; then
     [ -z "$p_in" ] && { p_in=15; p_out=75; p_cr=1.50; p_cw=18.75; }
 fi
 
-# token counts (live window)
-new_fmt=$(fmt_tok "${cu_new:-0}")
-cache_tok=$(( ${cu_cread:-0} + ${cu_cwrite:-0} ))
+# token counts — cumulative session totals (sum_in/out/cread/cwrite, see the
+# transcript scan above), not the live context-window snapshot.
+new_fmt=$(fmt_tok "${sum_in:-0}")
+cache_tok=$(( ${sum_cread:-0} + ${sum_cwrite:-0} ))
 cache_fmt=$(fmt_tok "$cache_tok")
-out_fmt=$(fmt_tok "${cu_out:-0}")
-sum_tok=$(( ${cu_new:-0} + cache_tok + ${cu_out:-0} ))
+out_fmt=$(fmt_tok "${sum_out:-0}")
+sum_tok=$(( ${sum_in:-0} + cache_tok + ${sum_out:-0} ))
 sum_fmt=$(fmt_tok "$sum_tok")
 win_fmt=$(fmt_tok "$compact_win")
 ctx_fmt=$(fmt_tok "$current_ctx")
 
-# per-category $ for THIS turn
+# per-category $ for the WHOLE SESSION (sum_* from the cumulative transcript
+# scan above) — actual USD. Two bugs fixed here: (1) was mistakenly *100'd as
+# if for a ¢ display, then relabeled $ without removing the scale factor: a
+# 141K-tok cache read at $1.50/MTok read as "$22" instead of the real $0.21;
+# (2) was sourced from context_window.current_usage, a live-window snapshot
+# that shrinks on compaction — badly undercounting Out, the priciest category.
 read d_in d_out d_cache d_tot < <(LC_NUMERIC=C awk \
-    -v n="${cu_new:-0}" -v o="${cu_out:-0}" -v cr="${cu_cread:-0}" -v cw="${cu_cwrite:-0}" \
+    -v n="${sum_in:-0}" -v o="${sum_out:-0}" -v cr="${sum_cread:-0}" -v cw="${sum_cwrite:-0}" \
     -v pi="$p_in" -v po="$p_out" -v pcr="$p_cr" -v pcw="$p_cw" \
-    'BEGIN{di=n/1e6*pi*100; dou=o/1e6*po*100; dc=(cr/1e6*pcr+cw/1e6*pcw)*100; printf "%.0f %.0f %.0f %.0f", di, dou, dc, di+dou+dc}')
+    'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dc=(cr/1e6*pcr+cw/1e6*pcw); printf "%.3f %.3f %.3f %.3f", di, dou, dc, di+dou+dc}')
 
 # cache hit rate + colors
 total_in=$(( ${cu_new:-0} + cache_tok ))
@@ -375,29 +399,56 @@ if [ "$cache_hit" -ge 80 ]; then cache_color="32"; elif [ "$cache_hit" -ge 40 ];
 if [ "$exceeds_200k" = "true" ] && [ "$ctx_window_size" -le 200000 ]; then pct_color="31"
 elif [ "$ctx_percent" -ge 90 ]; then pct_color="31"; elif [ "$ctx_percent" -ge 50 ]; then pct_color="33"; else pct_color="32"; fi
 
+# Block 1: Ctx% (quick tag, same value as the full Ctx:used/win(%) at the end)
+# + rate limits — omitted when the field is absent from stdin.
 OUT+="\033[37m|\033[0m"
-OUT+=" \033[90m${last_reset_ts}\033[0m"
-# Rate limits (5h / 7d window %) — omitted when the field is absent from stdin.
+OUT+=" \033[${pct_color}mCtx:${ctx_percent}%\033[0m"
 if [ -n "$rl_5h" ] || [ -n "$rl_7d" ]; then
     rl_5h_disp="${rl_5h%.*}"; [ -z "$rl_5h_disp" ] && rl_5h_disp="N/A"
     rl_7d_disp="${rl_7d%.*}"; [ -z "$rl_7d_disp" ] && rl_7d_disp="N/A"
-    OUT+=" \033[37m│\033[0m"
     OUT+=" \033[$(get_color "$rl_5h_disp")m5h:${rl_5h_disp}%\033[0m"
     OUT+=" \033[$(get_color "$rl_7d_disp")m7d:${rl_7d_disp}%\033[0m"
 fi
-# Tokens + cost block (combined)
-OUT+=" \033[37m│\033[0m \033[1;37mTok\033[0m"
-OUT+=" \033[36mI:${new_fmt}(¢${d_in})\033[0m"
-OUT+=" \033[34mC:${cache_fmt}(¢${d_cache})\033[0m"
-OUT+=" \033[36mO:${out_fmt}(¢${d_out})\033[0m"
-OUT+=" \033[${cost_color}mΣ${sum_fmt}(¢${d_tot})\033[0m"
-# Ctx / cache block
+# Block 2: cache hit % + idle ages
+OUT+=" \033[37m│\033[0m"
+OUT+=" \033[${cache_color}mCch:${cache_hit}%\033[0m"
+OUT+=" \033[90mUsr:${prompt_age}\033[0m"
+OUT+=" \033[90mAgt:${action_age}\033[0m"
+# Block 3: tokens + $ cost (per turn)
+OUT+=" \033[37m│\033[0m"
+OUT+=" \033[36mIn:${new_fmt}(\$${d_in})\033[0m"
+OUT+=" \033[34mCch:${cache_fmt}(\$${d_cache})\033[0m"
+OUT+=" \033[36mOut:${out_fmt}(\$${d_out})\033[0m"
+OUT+=" \033[${cost_color}mΣ${sum_fmt}(\$${d_tot})\033[0m"
+# Block 4: full context window detail
 OUT+=" \033[37m│\033[0m"
 OUT+=" \033[${pct_color}mCtx:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
-OUT+=" \033[${cache_color}mC:${cache_hit}%\033[0m"
-# User/Agent idle age: how long ago the last user prompt / last agent action landed.
-OUT+=" \033[90mU:${prompt_age}\033[0m"
-OUT+=" \033[90mA:${action_age}\033[0m"
+OUT+="\n"
+
+# LINE 5: | CPUPSI CPU | RAM Disk VRAM | Battery | Mesh ●wg0:ip ●wg-public:ip |
+OUT+="\033[37m|\033[0m"
+OUT+=" \033[${psi_color}mCPUPSI:${cpu_psi}%\033[0m"
+OUT+=" \033[${cpu_color}mCPU:${cpu_percent}%\033[0m"
+OUT+=" \033[37m|\033[0m"
+OUT+=" \033[${mem_color}mRAM:${mem_percent}%\033[0m"
+OUT+=" \033[${disk_color}mDisk:${disk_percent}%\033[0m"
+OUT+=" \033[${vram_color}mVRAM:${vram_percent}%\033[0m"
+OUT+=" \033[37m|\033[0m"
+OUT+=" \033[${bat_color}mBattery:${bat_percent}%\033[0m"
+OUT+=" \033[37m|\033[0m"
+OUT+=" \033[1;37mMesh\033[0m"
+if [ -n "$mesh_seg" ]; then
+    for tok in $mesh_seg; do
+        wif=${tok%%:*}; rest=${tok#*:}
+        if [ "${rest%%:*}" = "up" ]; then
+            OUT+=" \033[32m●\033[0m\033[36m${wif}:${rest#up:}\033[0m"
+        else
+            OUT+=" \033[31m○${wif}\033[0m"
+        fi
+    done
+else
+    OUT+=" \033[90m—\033[0m"
+fi
 OUT+=" \033[37m|\033[0m\n"
 
 printf "%b" "$OUT"
