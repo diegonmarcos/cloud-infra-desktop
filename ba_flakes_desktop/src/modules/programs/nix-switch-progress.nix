@@ -189,15 +189,25 @@ in {
           echo ""
           printf '%b✗ SWITCH FAILED%b (exit %s)\n' "$C_FAIL" "$C_0" "$_rc"
         } >> "$STATUS_FILE"
-        ${lib.optionalString cfg.notify_on_finish ''
-        command -v notify-send >/dev/null 2>&1 && notify-send -u critical -i "${cfg.icon}" "${cfg.title}" "Failed (exit $_rc) — full log copied to clipboard." || true
-        ''}
         _clean="$(sed -r 's/\x1b\[[0-9;]*m//g' "$STATUS_FILE")"
         if command -v wl-copy >/dev/null 2>&1; then
           printf '%s' "$_clean" | wl-copy
         elif command -v xclip >/dev/null 2>&1; then
           printf '%s' "$_clean" | xclip -selection clipboard
         fi
+        # STATUS_FILE must survive past this script's exit so the "Open Log"
+        # notification action (below) has something to open — copy it into a
+        # stable per-failure path instead of leaving it in mktemp limbo.
+        FAIL_LOG="$STATE_DIR/last-failure.log"
+        cp -f "$STATUS_FILE" "$FAIL_LOG" 2>/dev/null || true
+        ${lib.optionalString cfg.notify_on_finish ''
+        if command -v notify-send >/dev/null 2>&1; then
+          _action="$(notify-send -u critical -i "${cfg.icon}" -A "open=Open Log" "${cfg.title}" "Failed (exit $_rc) — full log copied to clipboard." 2>/dev/null || true)"
+          if [ "$_action" = "open" ]; then
+            konsole -e less -R "$FAIL_LOG" >/dev/null 2>&1 &
+          fi
+        fi
+        ''}
       fi
 
       exit "$_rc"
