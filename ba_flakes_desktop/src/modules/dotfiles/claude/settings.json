@@ -20,6 +20,7 @@
     "ponytail@cloud-marketplace": true
   },
   "env": {
+    "ENABLE_TOOL_SEARCH": "true",
     "NODE_PATH": "/home/diego/.node_modules/node_modules",
     "GIT_BASE": "/home/diego/git",
     "AUTHELIA_OIDC_CREDENTIALS_DIR": "/home/diego/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/credentials",
