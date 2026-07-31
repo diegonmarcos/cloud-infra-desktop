@@ -3,7 +3,7 @@
   "display_name": "Goose Desktop",
   "home": true,
   "browser": true,
-  "url": "http://127.0.0.1:58765/",
+  "url": "http://127.0.0.1:58767/",
   "theme": { "accent": "#00b0a6" },
   "sections": []
 }
