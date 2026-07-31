@@ -178,6 +178,11 @@
     source = ./dotfiles/claude/claude-hooks-status.sh;
     executable = true;
   };
+  # 5h billing-window token/cost breakdown for the statusline (ccusage-backed).
+  home.file.".claude/claude-usage-status.sh" = {
+    source = ./dotfiles/claude/claude-usage-status.sh;
+    executable = true;
+  };
   # Data-driven per-MTok pricing for the statusline LINE 3 $ breakdown.
   home.file.".claude/claude-pricing.json".source = ./dotfiles/claude/claude-pricing.json;
   # cloud-marketplace — local Claude Code plugin marketplace holding:
