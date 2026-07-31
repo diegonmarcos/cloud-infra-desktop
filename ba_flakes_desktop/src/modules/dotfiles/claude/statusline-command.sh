@@ -439,7 +439,16 @@ OUT+="\n"
 # New/CchW/CchR/Out/Σ shape, summed over the active 5h block across ALL
 # projects. Self-cached/detached-refresh, so cheap on the hot path; emits
 # nothing when idle or ccusage/jq unavailable — row is simply omitted.
-usage_seg=$(bash "$HOME/.claude/claude-usage-status.sh" 2>/dev/null)
+# Prefer the my-ai daemon's published segment: a plain file read, no process at
+# all. claude-usage-status.sh is the fallback when no daemon is running — it is
+# correctly shaped (mtime gate + lockdir + detached refresh) but still pays an
+# `npx ccusage` Node start on a miss, where the daemon pays nothing here.
+_seg="${XDG_RUNTIME_DIR:-/tmp}/my-ai-usage.seg"
+if [ -s "$_seg" ]; then
+    usage_seg=$(cat "$_seg" 2>/dev/null)
+else
+    usage_seg=$(bash "$HOME/.claude/claude-usage-status.sh" 2>/dev/null)
+fi
 [ -n "$usage_seg" ] && OUT+="\033[37m|\033[0m ${usage_seg}\n"
 
 # LINE 5: | CPUPSI CPU | RAM Disk VRAM | Battery | Mesh ●wg0:ip ●wg-public:ip |
