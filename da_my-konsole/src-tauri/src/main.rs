@@ -206,6 +206,32 @@ fn browser_back(app: tauri::AppHandle, label: String) {
 // goosed URL/secret never sit in the static bundle — sourced the same way the
 // my-ai CLI does (GOOSE_SERVER__SECRET_KEY env var; WG endpoint is fixed).
 const AGENTIC_UI_PORT: u16 = 58765;
+const AGENTIC_UI_LOCAL_PORT: u16 = 58767;
+// Local-run mode: the goose-desktop-ui clone can also talk to a `goose serve`
+// spawned right here in the Tauri process instead of the remote my-ai-api one
+// (10.0.0.6:3227) — this app IS the desktop client goose-desktop always was,
+// no reason the agent has to live on a remote box. Loopback-only, so a fixed
+// key is fine (never leaves 127.0.0.1, no WG/network exposure).
+const LOCAL_GOOSE_PORT: u16 = 58766;
+const LOCAL_GOOSE_SECRET: &str = "my-konsole-local-agent";
+
+fn local_goose_ensure_running() {
+    static STARTED: std::sync::Once = std::sync::Once::new();
+    STARTED.call_once(|| {
+        let spawned = std::process::Command::new("goose")
+            .args([
+                "serve", "--platform", "desktop",
+                "--host", "127.0.0.1",
+                "--port", &LOCAL_GOOSE_PORT.to_string(),
+            ])
+            .env("GOOSE_SERVER__SECRET_KEY", LOCAL_GOOSE_SECRET)
+            .spawn();
+        match spawned {
+            Ok(_) => eprintln!("local-goose: serving on 127.0.0.1:{LOCAL_GOOSE_PORT}"),
+            Err(e) => eprintln!("local-goose: failed to spawn `goose serve` — {e}"),
+        }
+    });
+}
 
 fn agentic_ui_dist_dir(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
     if let Some(home) = std::env::var_os("HOME") {
@@ -233,24 +259,32 @@ fn content_type_for(path: &std::path::Path) -> &'static str {
     }
 }
 
-fn agentic_ui_serve(dist_dir: std::path::PathBuf) {
+// `local` selects which goosed this static agentic-ui build talks to:
+// false = remote my-ai-api goosed (10.0.0.6:3227, cloud-agentic tab),
+// true  = `goose serve` spawned locally by this app (goose-desktop tab).
+fn agentic_ui_serve(dist_dir: std::path::PathBuf, port: u16, local: bool) {
     std::thread::spawn(move || {
-        let server = match tiny_http::Server::http(("127.0.0.1", AGENTIC_UI_PORT)) {
+        let server = match tiny_http::Server::http(("127.0.0.1", port)) {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("agentic-ui: static server bind failed: {e}");
+                eprintln!("agentic-ui: static server bind failed on :{port}: {e}");
                 return;
             }
         };
         for req in server.incoming_requests() {
             let url_path = req.url().trim_start_matches('/');
             if url_path == "config.json" {
-                // GOOSE_SERVER__SECRET_KEY: same env var my-ai-api's container reads
-                // from sops (see da_my-ai/core/src/lib.rs). Empty if unset — the UI
-                // then shows a connection error rather than silently no-op'ing.
-                let secret = std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_default();
+                let (goosed_url, secret) = if local {
+                    local_goose_ensure_running();
+                    (format!("http://127.0.0.1:{LOCAL_GOOSE_PORT}"), LOCAL_GOOSE_SECRET.to_string())
+                } else {
+                    // GOOSE_SERVER__SECRET_KEY: same env var my-ai-api's container reads
+                    // from sops (see da_my-ai/core/src/lib.rs). Empty if unset — the UI
+                    // then shows a connection error rather than silently no-op'ing.
+                    ("http://10.0.0.6:3227".to_string(), std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_default())
+                };
                 let body = serde_json::json!({
-                    "goosedUrl": "http://10.0.0.6:3227",
+                    "goosedUrl": goosed_url,
                     "secretKey": secret,
                 })
                 .to_string();
@@ -289,7 +323,8 @@ fn main() {
         .setup(|app| {
             let handle = app.handle().clone();
             if let Some(dist) = agentic_ui_dist_dir(&handle) {
-                agentic_ui_serve(dist);
+                agentic_ui_serve(dist.clone(), AGENTIC_UI_PORT, false); // cloud-agentic: remote goosed
+                agentic_ui_serve(dist, AGENTIC_UI_LOCAL_PORT, true);    // goose-desktop: local goosed
             } else {
                 eprintln!("agentic-ui: no dist dir found (fetch it via build.sh fetch) — tab will fail to load");
             }

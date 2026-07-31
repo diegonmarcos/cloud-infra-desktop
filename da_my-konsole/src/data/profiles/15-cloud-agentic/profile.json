@@ -1,0 +1,9 @@
+{
+  "name": "cloud-agentic",
+  "display_name": "Cloud Agentic",
+  "home": true,
+  "browser": true,
+  "url": "http://127.0.0.1:58765/",
+  "theme": { "accent": "#2e86de" },
+  "sections": []
+}
