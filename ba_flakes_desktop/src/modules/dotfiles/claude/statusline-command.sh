@@ -396,7 +396,7 @@ ctx_fmt=$(fmt_tok "$current_ctx")
 read d_in d_out d_cwrite d_cread d_tot < <(LC_NUMERIC=C awk \
     -v n="${sum_in:-0}" -v o="${sum_out:-0}" -v cr="${sum_cread:-0}" -v cw="${sum_cwrite:-0}" \
     -v pi="$p_in" -v po="$p_out" -v pcr="$p_cr" -v pcw="$p_cw" \
-    'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dcw=cw/1e6*pcw; dcr=cr/1e6*pcr; printf "%.3f %.3f %.3f %.3f %.3f", di, dou, dcw, dcr, di+dou+dcw+dcr}')
+    'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dcw=cw/1e6*pcw; dcr=cr/1e6*pcr; printf "%.0f %.0f %.0f %.0f %.0f", di, dou, dcw, dcr, di+dou+dcw+dcr}')
 
 # cache hit rate + colors
 total_in=$(( ${cu_new:-0} + cache_tok ))
@@ -433,6 +433,17 @@ OUT+=" \033[${cost_color}mΣ${sum_fmt}(\$${d_tot})\033[0m"
 OUT+=" \033[37m│\033[0m"
 OUT+=" \033[${pct_color}mCtx:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
 OUT+="\n"
+
+# LINE 4b — 5h billing-window token breakdown (ccusage-native, via `my-ai usage`).
+# Companion to LINE 4's per-SESSION breakdown: same New/CchW/CchR/Out/Σ+$ shape,
+# but summed over the active 5-hour billing window across ALL projects' transcripts.
+# `my-ai usage --statusline` emits a ready ANSI segment (self-cached, 30s TTL, so
+# cheap on the hot path) or empty output when idle / binary not yet installed →
+# the row is simply omitted. Degrades gracefully before `my-ai` is on PATH.
+if command -v my-ai >/dev/null 2>&1; then
+    usage_seg=$(my-ai usage --statusline 2>/dev/null)
+    [ -n "$usage_seg" ] && OUT+="\033[37m|\033[0m ${usage_seg}\n"
+fi
 
 # LINE 5: | CPUPSI CPU | RAM Disk VRAM | Battery | Mesh ●wg0:ip ●wg-public:ip |
 OUT+="\033[37m|\033[0m"
