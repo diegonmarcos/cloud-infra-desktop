@@ -121,20 +121,44 @@ if [ "$need" = true ] && command -v claude >/dev/null 2>&1; then
   fi
 fi
 
+# Short label for a server id: strip noise words (cloud/mcp/local — the
+# project-wide prefix/suffix clutter), then abbreviate what's left to exactly
+# 3 chars — fixed width keeps the MCP[...] segment scannable/aligned.
+# 1 word  -> first 3 chars, capitalized  (mail-mcp -> Mai, cloud-cgc-mcp -> Cgc)
+# 2+ words -> first 2 of word1 + first 1 of word2 (google-workspace -> Gow)
+abbrev() {
+  local id="$1" w cleaned=""
+  IFS='-' read -ra parts <<<"$id"
+  for w in "${parts[@]}"; do
+    case "$w" in mcp|local|cloud|"") continue ;; esac
+    cleaned="$cleaned $w"
+  done
+  cleaned="${cleaned# }"
+  [ -z "$cleaned" ] && cleaned="$id"
+  read -ra words <<<"$cleaned"
+  if [ "${#words[@]}" -ge 2 ]; then
+    printf '%s%s' "$(printf '%s' "${words[0]}" | cut -c1-2)" "$(printf '%s' "${words[1]}" | cut -c1-1)" | sed 's/.*/\u&/'
+  else
+    printf '%s' "${words[0]}" | cut -c1-3 | sed 's/.*/\u&/'
+  fi
+}
+
 # --- Render from cache (stale OK); uncached/unknown server → off ---
 # ● full = reachable, ○ empty = unreachable/unknown — no shape distinction
-# by locality.
+# by locality. Each server gets its abbreviated label before the dot.
 out=""
 while IFS= read -r s; do
   [ -z "$s" ] && continue
   state="off"
   [ -f "$CACHE" ] && { c=$(awk -F'\t' -v n="$s" '$1==n {print $2; exit}' "$CACHE" 2>/dev/null); [ -n "$c" ] && state="$c"; }
+  label=$(abbrev "$s")
   case "$state" in
-    on) out="$out\033[32m●\033[0m" ;;   # green, reachable
-    *)  out="$out\033[90m○\033[0m" ;;   # grey, unreachable/unknown
+    on) out="$out $label\033[32m●\033[0m" ;;   # green, reachable
+    *)  out="$out $label\033[90m○\033[0m" ;;   # grey, unreachable/unknown
   esac
 done <<EOF
 $servers
 EOF
+out="${out# }"
 
 printf '%s' "MCP[$out]"
