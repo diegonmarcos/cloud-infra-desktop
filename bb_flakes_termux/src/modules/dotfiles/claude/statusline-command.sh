@@ -396,7 +396,7 @@ ctx_fmt=$(fmt_tok "$current_ctx")
 read d_in d_out d_cwrite d_cread d_tot < <(LC_NUMERIC=C awk \
     -v n="${sum_in:-0}" -v o="${sum_out:-0}" -v cr="${sum_cread:-0}" -v cw="${sum_cwrite:-0}" \
     -v pi="$p_in" -v po="$p_out" -v pcr="$p_cr" -v pcw="$p_cw" \
-    'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dcw=cw/1e6*pcw; dcr=cr/1e6*pcr; printf "%.3f %.3f %.3f %.3f %.3f", di, dou, dcw, dcr, di+dou+dcw+dcr}')
+    'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dcw=cw/1e6*pcw; dcr=cr/1e6*pcr; printf "%.0f %.0f %.0f %.0f %.0f", di, dou, dcw, dcr, di+dou+dcw+dcr}')
 
 # cache hit rate + colors
 total_in=$(( ${cu_new:-0} + cache_tok ))
