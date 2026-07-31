@@ -391,6 +391,17 @@ const Tabs = {
     if (opener) { console.log(`[switchProfile] ${name} → opener()`); opener(name); return; }
     const last = this.lastActiveByProfile.get(name);
     if (last && this.tabs.has(last)) { console.log(`[switchProfile] ${name} → resume ${last}`); this.activate(last); return; }
+    if (p.auto_tabs && p.auto_tabs.length) {
+      console.log(`[switchProfile] ${name} → open ${p.auto_tabs.length} auto_tabs`);
+      (async () => {
+        const ids = [];
+        for (const t of p.auto_tabs) {
+          ids.push(t.kind === "browser" ? this.openBrowserTab(t.url, name) : await this.openRunTab(t.cmd, t.label, name));
+        }
+        if (ids[0]) this.activate(ids[0]);
+      })();
+      return;
+    }
     const kind = p.browser ? "browser" : p.filebrowser ? "filebrowser" : p.fileeditor ? "fileeditor" : p.home_cmd ? "hometab" : "shell";
     console.log(`[switchProfile] ${name} → open new ${kind}`);
     if (p.browser) this.openBrowserTab(p.url, name);
