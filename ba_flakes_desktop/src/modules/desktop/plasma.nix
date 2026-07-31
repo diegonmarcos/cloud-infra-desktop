@@ -548,14 +548,16 @@ in
         Timeout  = idleBat.lock;
       };
 
-      # Keyboard layouts - Spanish (default), British, Portuguese, German
+      # Keyboard layout switching disabled 2026-07-31 (user request) — single
+      # default layout only, no Alt+Shift cycling. List kept for a quick
+      # revert; Use=false is what actually turns switching off.
       "kxkbrc"."Layout" = {
         LayoutList = "es,gb,pt,de";
         DisplayNames = "Spanish,British,Portuguese,German";
         Options = "grp:alt_shift_toggle";  # Switch layouts with Alt+Shift
         ResetOldOptions = true;
         SwitchMode = "Global";
-        Use = true;
+        Use = false;
         VariantList = ",,,";  # Default variants for each layout
       };
 
