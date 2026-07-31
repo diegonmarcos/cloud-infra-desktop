@@ -371,10 +371,16 @@ if command -v jq >/dev/null 2>&1 && [ -f "$PRICING" ]; then
 fi
 
 # token counts — cumulative session totals (sum_in/out/cread/cwrite, see the
-# transcript scan above), not the live context-window snapshot.
+# transcript scan above), not the live context-window snapshot. New/CchW/
+# CchR/Out are kept as four distinct fields, not folded into one Cch bucket:
+# New (input_tokens) is nearly always ~0 once caching is on — your actual
+# new content each turn goes into CchW (cache_creation), not New. Folding
+# CchW into "Cch" alongside CchR made New look like "your input" when it's
+# really "content that bypassed caching entirely" (rare).
 new_fmt=$(fmt_tok "${sum_in:-0}")
+cwrite_fmt=$(fmt_tok "${sum_cwrite:-0}")
+cread_fmt=$(fmt_tok "${sum_cread:-0}")
 cache_tok=$(( ${sum_cread:-0} + ${sum_cwrite:-0} ))
-cache_fmt=$(fmt_tok "$cache_tok")
 out_fmt=$(fmt_tok "${sum_out:-0}")
 sum_tok=$(( ${sum_in:-0} + cache_tok + ${sum_out:-0} ))
 sum_fmt=$(fmt_tok "$sum_tok")
@@ -387,10 +393,10 @@ ctx_fmt=$(fmt_tok "$current_ctx")
 # 141K-tok cache read at $1.50/MTok read as "$22" instead of the real $0.21;
 # (2) was sourced from context_window.current_usage, a live-window snapshot
 # that shrinks on compaction — badly undercounting Out, the priciest category.
-read d_in d_out d_cache d_tot < <(LC_NUMERIC=C awk \
+read d_in d_out d_cwrite d_cread d_tot < <(LC_NUMERIC=C awk \
     -v n="${sum_in:-0}" -v o="${sum_out:-0}" -v cr="${sum_cread:-0}" -v cw="${sum_cwrite:-0}" \
     -v pi="$p_in" -v po="$p_out" -v pcr="$p_cr" -v pcw="$p_cw" \
-    'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dc=(cr/1e6*pcr+cw/1e6*pcw); printf "%.3f %.3f %.3f %.3f", di, dou, dc, di+dou+dc}')
+    'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dcw=cw/1e6*pcw; dcr=cr/1e6*pcr; printf "%.3f %.3f %.3f %.3f %.3f", di, dou, dcw, dcr, di+dou+dcw+dcr}')
 
 # cache hit rate + colors
 total_in=$(( ${cu_new:-0} + cache_tok ))
@@ -414,10 +420,13 @@ OUT+=" \033[37m│\033[0m"
 OUT+=" \033[${cache_color}mCch:${cache_hit}%\033[0m"
 OUT+=" \033[90mUsr:${prompt_age}\033[0m"
 OUT+=" \033[90mAgt:${action_age}\033[0m"
-# Block 3: tokens + $ cost (per turn)
+# Block 3: New / cache-write / cache-read / Out, each with its own $ cost —
+# kept as four fields (not folded into one Cch bucket) so New isn't mistaken
+# for "your total input" when almost all of it is really CchW.
 OUT+=" \033[37m│\033[0m"
-OUT+=" \033[36mIn:${new_fmt}(\$${d_in})\033[0m"
-OUT+=" \033[34mCch:${cache_fmt}(\$${d_cache})\033[0m"
+OUT+=" \033[36mNew:${new_fmt}(\$${d_in})\033[0m"
+OUT+=" \033[33mCchW:${cwrite_fmt}(\$${d_cwrite})\033[0m"
+OUT+=" \033[34mCchR:${cread_fmt}(\$${d_cread})\033[0m"
 OUT+=" \033[36mOut:${out_fmt}(\$${d_out})\033[0m"
 OUT+=" \033[${cost_color}mΣ${sum_fmt}(\$${d_tot})\033[0m"
 # Block 4: full context window detail
