@@ -1,16 +1,13 @@
 // tabs.js — tab strip. Each tab belongs to a profile (its "group"); switching
 // profile shows only that group's tabs in the strip + center pane. Each tab
 // owns a `.tab-root` in #terms that holds its pane split-tree (term.js).
-// Native browser bridge — child-webview commands (Tauri only; null on the
-// WebView build, where openBrowserTab falls back to an <iframe>).
-const Browser = window.__TAURI__ ? {
-  open: (label, url, r) => window.__TAURI__.core.invoke("browser_open", { label, url, x: r.x, y: r.y, w: r.w, h: r.h }),
-  navigate: (label, url) => window.__TAURI__.core.invoke("browser_navigate", { label, url }),
-  bounds: (label, r) => window.__TAURI__.core.invoke("browser_bounds", { label, x: r.x, y: r.y, w: r.w, h: r.h }),
-  hide: (label) => window.__TAURI__.core.invoke("browser_hide", { label }),
-  close: (label) => window.__TAURI__.core.invoke("browser_close", { label }),
-  back: (label) => window.__TAURI__.core.invoke("browser_back", { label }),
-} : null;
+// Browser tabs are a plain <iframe> — CSS-positioned like any other DOM
+// element (no floating native webview, no manual bounds-syncing). On Tauri,
+// opening one first fires an "ensure_agentic_backend" invoke so our own
+// localhost static servers / local goosed are lazily started before load.
+const ensureAgenticBackend = (url) => {
+  if (window.__TAURI__) window.__TAURI__.core.invoke("ensure_agentic_backend", { url }).catch(() => {});
+};
 
 const Tabs = {
   tabs: new Map(),  // tabId -> { rootEl, tabEl, profile, isBrowser }
@@ -195,14 +192,15 @@ const Tabs = {
     return tabId;
   },
 
-  // ── Browser tab: a REAL native child webview (WebKitGTK) on Tauri, so any site
-  // loads (no iframe X-Frame-Options limit). The webview floats above the DOM and
-  // isn't CSS-clipped, so we drive its bounds/visibility (_syncBrowsers). On the
-  // non-Tauri WebView build we fall back to an <iframe> (framable sites only).
+  // ── Browser tab: a plain <iframe>, a normal DOM element laid out and
+  // clipped by CSS exactly like every other tab pane — no floating native
+  // webview, no manual bounds/visibility syncing, nothing that can render
+  // outside the tab area. Closing the tab removes the iframe from the DOM,
+  // which tears it down; no explicit close call needed.
   openBrowserTab(url, profile = this.activeProfile) {
     url = url || "https://duckduckgo.com";
     const tabId = "T" + ++this.seq;
-    const native = !!Browser;
+    ensureAgenticBackend(url);
     const rootEl = document.createElement("div");
     rootEl.className = "tab-root";
     rootEl.dataset.id = tabId;
@@ -214,22 +212,22 @@ const Tabs = {
           <input class="browser-addr-input" type="text" spellcheck="false" value="${url}" />
           <button class="browser-btn browser-btn-close" data-act="close" title="Close tab">✕</button>
         </div>
-        ${native ? `<div class="browser-holder"></div>` : `<iframe class="browser-frame" src="${url}"></iframe>`}
+        <iframe class="browser-frame" src="${url}"></iframe>
       </div>`;
     document.getElementById("terms").appendChild(rootEl);
 
     const addr = rootEl.querySelector(".browser-addr-input");
-    console.log(`[openBrowserTab] ${native ? "native" : "iframe"} url=${url} profile=${profile} dpr=${window.devicePixelRatio}`);
+    const frame = rootEl.querySelector(".browser-frame");
+    console.log(`[openBrowserTab] iframe url=${url} profile=${profile}`);
     const go = (v) => {
       if (!/^[a-z]+:\/\//i.test(v)) v = "https://" + v;
       addr.value = v;
       const t = this.tabs.get(tabId); if (t) t.browserUrl = v;
-      console.log("[browser] navigate → " + v);
-      if (native) Browser.navigate(tabId, v); else rootEl.querySelector(".browser-frame").src = v;
+      ensureAgenticBackend(v);
+      frame.src = v;
     };
     addr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(addr.value.trim()); });
-    // Toolbar (DOM, above the webview holder → never covered by the floating webview).
-    rootEl.querySelector('[data-act="back"]').addEventListener("click", () => native ? Browser.back(tabId) : history.back());
+    rootEl.querySelector('[data-act="back"]').addEventListener("click", () => { try { frame.contentWindow.history.back(); } catch {} });
     rootEl.querySelector('[data-act="reload"]').addEventListener("click", () => go(addr.value.trim()));
     rootEl.querySelector('[data-act="close"]').addEventListener("click", () => this.close(tabId));
 
@@ -239,46 +237,10 @@ const Tabs = {
     this._wireTabEl(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
-    this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true, native, browserUrl: url, icon: "🌐", group: null });
+    this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true, browserUrl: url, icon: "🌐", group: null });
     this.order.push(tabId);
-    this.activate(tabId);  // makes rootEl visible so the holder has real bounds
-    if (native) {
-      const r = this._holderRect(rootEl);
-      console.log(`[browser] open native ${tabId} @ ${JSON.stringify(r)}`);
-      Browser.open(tabId, url, r)
-        .then(() => this._syncBrowsers())  // enforce correct visibility if the active tab changed meanwhile
-        .catch((e) => console.error("[browser] open failed", e));
-    }
+    this.activate(tabId);
     return tabId;
-  },
-
-  _holderRect(rootEl) {
-    const el = rootEl.querySelector(".browser-holder");
-    const r = el.getBoundingClientRect();
-    return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
-  },
-
-  // Native browser webviews float ABOVE the DOM (not CSS-clipped), so they'd
-  // cover any open modal/menu. Policy, centralized here: show the active tab's
-  // webview over its holder ONLY when no overlay is open; hide every other one
-  // (and all of them while an overlay is up). Call after activate / resize /
-  // any overlay toggle — it re-reads DOM state so redundant calls are safe.
-  _anyOverlayOpen() {
-    return ["about", "logs", "palette", "menu-dropdown", "editor-menu"]
-      .some((id) => { const el = document.getElementById(id); return el && !el.hidden; });
-  },
-  _syncBrowsers() {
-    if (!Browser) return;
-    const overlay = this._anyOverlayOpen();
-    for (const [id, t] of this.tabs) {
-      if (!t.isBrowser || !t.native) continue;
-      if (!overlay && id === this.active && t.rootEl.classList.contains("active")) {
-        const r = this._holderRect(t.rootEl);
-        if (r.w > 0 && r.h > 0) Browser.bounds(id, r);
-      } else {
-        Browser.hide(id);
-      }
-    }
   },
 
   // ── File browser tab: yazi-style miller columns, no PTY.
@@ -374,7 +336,6 @@ const Tabs = {
     const first = this.tabs.get(tabId).rootEl.querySelector(".pane");
     if (first) MYK.focusPane(first.dataset.id);
     this.renderTabList();
-    this._syncBrowsers();  // show active browser webview, hide the rest
   },
 
   // Switch to a profile's tab group: show only its tabs in the strip,
@@ -420,8 +381,6 @@ const Tabs = {
   close(tabId) {
     if (!this.tabs.has(tabId)) return;
     const profile = this.tabs.get(tabId).profile;
-    const t0 = this.tabs.get(tabId);
-    if (t0.isBrowser && t0.native && Browser) Browser.close(tabId);  // destroy the child webview
     MYK.disposeTab(tabId);
     const t = this.tabs.get(tabId);
     t.rootEl.remove(); t.tabEl.remove();

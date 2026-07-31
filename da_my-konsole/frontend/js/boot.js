@@ -99,7 +99,6 @@
   document.getElementById("btn-newtab").addEventListener("click", () => Tabs.newTab());
   document.getElementById("btn-sidebar").addEventListener("click", () => {
     document.getElementById("sidebar").classList.toggle("hidden");
-    Tabs._syncBrowsers();  // sidebar width changed → reposition native browser
   });
   document.getElementById("find-next").addEventListener("click", () => Find.next());
   document.getElementById("find-prev").addEventListener("click", () => Find.prev());
@@ -108,14 +107,14 @@
     if (e.key === "Enter") Find.next();
     if (e.key === "Escape") Find.close();
   });
-  window.addEventListener("resize", () => { if (Tabs.active) MYK._fitTab(Tabs.active); Tabs._syncBrowsers(); });
+  window.addEventListener("resize", () => { if (Tabs.active) MYK._fitTab(Tabs.active); });
   window.addEventListener("beforeunload", () => Tabs.saveSession());
 
   // Global menu (top-right ⋮): restore session, about
   const menuBtn = document.getElementById("btn-menu");
   const menuDrop = document.getElementById("menu-dropdown");
-  menuBtn.addEventListener("click", (e) => { e.stopPropagation(); menuDrop.hidden = !menuDrop.hidden; Tabs._syncBrowsers(); });
-  document.addEventListener("click", () => { menuDrop.hidden = true; Tabs._syncBrowsers(); });
+  menuBtn.addEventListener("click", (e) => { e.stopPropagation(); menuDrop.hidden = !menuDrop.hidden; });
+  document.addEventListener("click", () => { menuDrop.hidden = true; });
 
   document.getElementById("menu-restore-session").addEventListener("click", () => Tabs.restoreSession());
 
@@ -215,9 +214,8 @@
       editorMenu.style.left = `${r.left}px`;
     }
     console.log("[editor] dropdown", editorMenu.hidden ? "closed" : "opened");
-    Tabs._syncBrowsers();  // menu floats over the tab area → hide native browser under it
   });
-  document.addEventListener("click", () => { editorMenu.hidden = true; Tabs._syncBrowsers(); });
+  document.addEventListener("click", () => { editorMenu.hidden = true; });
   document.getElementById("editor-plain").addEventListener("click", () => {
     console.log("[editor] Plain clicked → file-editor profile");
     selectProfile(byName("file-editor"), null);
