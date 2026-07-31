@@ -6,8 +6,7 @@
 
 use pty_core::{PtyBroker, PtyEvent};
 use serde::Serialize;
-use tauri::webview::WebviewBuilder;
-use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl};
+use tauri::{Emitter, Manager, State};
 
 #[derive(Serialize, Clone)]
 struct PtyChunk {
@@ -127,24 +126,18 @@ fn fs_write_file(path: String, content: String) -> Result<(), String> {
     pty_core::fs::write_file(&path, &content)
 }
 
-// ── Native browser tabs: a real child webview (WebKitGTK) embedded over the tab
-// area, so any site loads (no iframe X-Frame-Options limit). The frontend drives
-// bounds/visibility because a child webview floats above the DOM and is NOT
-// clipped by CSS — it must be repositioned on layout changes and moved off-screen
-// when its tab isn't active. One webview per browser tab, keyed by the tab id.
+// ── Browser tabs are plain <iframe>s in the frontend now (a normal DOM
+// element, CSS-clipped like any other tab pane) — no child webview, no
+// bounds/visibility syncing. The only backend work left is lazily starting
+// our own localhost servers (agentic-ui static server, local goosed) the
+// first time a tab actually navigates to one of their ports.
 fn parse_url(u: &str) -> Result<tauri::Url, String> {
     u.parse::<tauri::Url>().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn browser_open(
-    app: tauri::AppHandle,
-    label: String, url: String,
-    x: f64, y: f64, w: f64, h: f64,
-) -> Result<(), String> {
+fn ensure_agentic_backend(app: tauri::AppHandle, url: String) -> Result<(), String> {
     let u = parse_url(&url)?;
-    // Lazily start the agentic-ui static server (+ local goosed, for the
-    // local port) only when its tab is actually opened — not at app launch.
     if let Some(dist) = agentic_ui_dist_dir(&app) {
         if u.port() == Some(AGENTIC_UI_PORT) {
             agentic_ui_serve_once(dist, AGENTIC_UI_PORT, false);
@@ -152,66 +145,12 @@ fn browser_open(
             agentic_ui_serve_once(dist, AGENTIC_UI_LOCAL_PORT, true);
         }
     }
-    // Already exists → just navigate + reposition (reuse, don't stack webviews).
-    if let Some(wv) = app.get_webview(&label) {
-        wv.navigate(u).map_err(|e| e.to_string())?;
-        let _ = wv.set_position(LogicalPosition::new(x, y));
-        let _ = wv.set_size(LogicalSize::new(w, h));
-        return Ok(());
-    }
-    let window = app.get_window("main").ok_or_else(|| "no main window".to_string())?;
-    window
-        .add_child(
-            WebviewBuilder::new(&label, WebviewUrl::External(u)),
-            LogicalPosition::new(x, y),
-            LogicalSize::new(w, h),
-        )
-        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
-#[tauri::command]
-fn browser_navigate(app: tauri::AppHandle, label: String, url: String) -> Result<(), String> {
-    let wv = app.get_webview(&label).ok_or_else(|| "no such webview".to_string())?;
-    wv.navigate(parse_url(&url)?).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn browser_bounds(app: tauri::AppHandle, label: String, x: f64, y: f64, w: f64, h: f64) {
-    if let Some(wv) = app.get_webview(&label) {
-        let _ = wv.set_position(LogicalPosition::new(x, y));
-        let _ = wv.set_size(LogicalSize::new(w, h));
-    }
-}
-
-#[tauri::command]
-fn browser_hide(app: tauri::AppHandle, label: String) {
-    // Child Webview has no hide(); moving it off-screen reliably takes it out of view.
-    if let Some(wv) = app.get_webview(&label) {
-        let _ = wv.set_position(LogicalPosition::new(-20000.0, -20000.0));
-    }
-}
-
-#[tauri::command]
-fn browser_close(app: tauri::AppHandle, label: String) {
-    if let Some(wv) = app.get_webview(&label) {
-        // wv.close() can silently no-op for child webviews on some platforms —
-        // move it off-screen first so a failed close still leaves nothing visible.
-        let _ = wv.set_position(LogicalPosition::new(-20000.0, -20000.0));
-        let _ = wv.close();
-    }
-}
-
-#[tauri::command]
-fn browser_back(app: tauri::AppHandle, label: String) {
-    if let Some(wv) = app.get_webview(&label) {
-        let _ = wv.eval("history.back()");
-    }
-}
-
 // ── Agentic UI static server: the goose-desktop-derived React fork (vendored
-// at da_my-konsole/agentic-ui) is a static build, but browser_open needs a real
-// http:// URL (the child webview has no file:// asset-serving story here).
+// at da_my-konsole/agentic-ui) is a static build, but the frontend's <iframe>
+// needs a real http:// URL to point at (no file:// asset-serving story here).
 // tiny_http on a fixed localhost port serves the dist dir, same user-dir-first
 // resolution as get_profiles/get_config so `build.sh fetch` updates apply
 // without a rebuild. /config.json is synthesized (not a file on disk) so the
@@ -341,7 +280,7 @@ fn main() {
         .manage(PtyBroker::new())
         .setup(|app| {
             // agentic-ui's static server(s) + the local `goose serve` are started
-            // lazily from browser_open when their tab is actually opened, not here.
+            // lazily from ensure_agentic_backend when their tab is actually opened, not here.
             if agentic_ui_dist_dir(app.handle()).is_none() {
                 eprintln!("agentic-ui: no dist dir found (fetch it via build.sh fetch) — tab will fail to load");
             }
@@ -350,7 +289,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config,
             fs_list_dir, fs_read_file, fs_write_file,
-            browser_open, browser_navigate, browser_bounds, browser_hide, browser_close, browser_back
+            ensure_agentic_backend
         ])
         .run(tauri::generate_context!())
         .expect("error while running my-konsole");
