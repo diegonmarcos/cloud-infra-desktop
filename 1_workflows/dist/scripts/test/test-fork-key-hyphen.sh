@@ -91,7 +91,18 @@ sib=$(jq -r --arg k "mail" '.forks[$k].build.prepare // [] | .[]' "$FIX/hub.json
 check "single-word sibling key still resolves" "echo mail" "$sib"
 
 # --- the engine source must not reintroduce an interpolated jq path ---------
-ENGINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/cloud-comms-fork-engine.sh"
+# The shared cloud-comms-fork-engine.sh was retired 2026-07-30 — each
+# ea_cloud-* app now carries its OWN byte-for-byte copy
+# (cloud-{mail,chat,dialer,matrix,media-center}-fork-engine.sh). A fix applied
+# to one copy does NOT propagate to its siblings, so this checks EVERY copy,
+# not one hardcoded name (rule 6) — glob, not a literal app list.
+SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+mapfile -t ENGINES < <(printf '%s\n' "$SCRIPTS_DIR"/*-fork-engine.sh)
+if [[ "${#ENGINES[@]}" -eq 0 ]]; then
+  printf 'FAIL no *-fork-engine.sh found under %s\n' "$SCRIPTS_DIR"; FAIL=$((FAIL + 1))
+fi
+for ENGINE in "${ENGINES[@]}"; do
+NAME="$(basename "$ENGINE")"
 if [[ -f "$ENGINE" ]]; then
   # Count EXECUTABLE occurrences of an interpolated fork path. Comments and
   # human-readable error-message strings are excluded; a jq filter is not.
@@ -115,17 +126,18 @@ for line in open(sys.argv[1], encoding='utf8'):
 print(bad)
 PY
 )
-  check "engine has no executable interpolated .forks.\${...} jq path" "0" "$leaked"
+  check "[$NAME] no executable interpolated .forks.\${...} jq path" "0" "$leaked"
 
   # Every fork read must go through the safe helper.
   helper=$(python3 -c "
 import sys; print(open(sys.argv[1],encoding='utf8').read().count('_fork_json'))" "$ENGINE")
   [[ "$helper" -gt 0 ]] \
-    && check "engine defines/uses _fork_json helper" "yes" "yes" \
-    || check "engine defines/uses _fork_json helper" "yes" "no"
+    && check "[$NAME] defines/uses _fork_json helper" "yes" "yes" \
+    || check "[$NAME] defines/uses _fork_json helper" "yes" "no"
 else
   printf 'FAIL engine not found at %s\n' "$ENGINE"; FAIL=$((FAIL + 1))
 fi
+done
 
 # --- ABI-keyed gradle task resolution -------------------------------------
 # Upstream ReFra dimensions productFlavors by ABI, so each ABI has its OWN
@@ -184,6 +196,10 @@ check "fork without gradle_task_by_abi still resolves .gradle_task" \
 # signing=vault_jks_env maps upstream-chosen env var NAMES to tokens the engine
 # resolves. A typo'd token is only discovered as an exit 1 mid-CI, so assert
 # every token declared by any consumer is one the engine actually handles.
+# Checked against EACH engine copy — a consumer's build.json is only
+# guaranteed compatible with its OWN app's engine copy since the split.
+for ENGINE in "${ENGINES[@]}"; do
+NAME="$(basename "$ENGINE")"
 if [[ -f "$ENGINE" ]]; then
   bad_tokens=$(python3 - "$ENGINE" <<'PY'
 import glob, json, os, re, sys
@@ -216,8 +232,9 @@ for bj in glob.glob(os.path.join(root, 'ea_cloud-*', 'build.json')):
 print('; '.join(bad) if bad else 'clean')
 PY
 )
-  check "every signing_env token is known to the engine" "clean" "$bad_tokens"
+  check "[$NAME] every signing_env token is known to the engine" "clean" "$bad_tokens"
 fi
+done
 
 # --- apk_glob needs globstar ------------------------------------------------
 # AGP writes to app/build/outputs/apk/<abiFlavor><ml>/<buildType>/*.apk — TWO
@@ -243,14 +260,17 @@ mkdir -p "$ONE"
 one=$( shopt -s nullglob globstar; a=("$FIX/tracker2"/$GLOB); printf '%d' "${#a[@]}" )
 check "globstar does not break single-level consumers" "1" "$one"
 
-# the engine must actually enable it at the expansion site
+# the engine must actually enable it at the expansion site — every copy
+for ENGINE in "${ENGINES[@]}"; do
+NAME="$(basename "$ENGINE")"
 if [[ -f "$ENGINE" ]]; then
   has=$(python3 -c "
 import re,sys
 t=open(sys.argv[1],encoding='utf8').read()
 print('yes' if re.search(r'shopt -s [^\n]*globstar', t) else 'no')" "$ENGINE")
-  check "engine enables globstar before expanding apk_glob" "yes" "$has"
+  check "[$NAME] engine enables globstar before expanding apk_glob" "yes" "$has"
 fi
+done
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]
