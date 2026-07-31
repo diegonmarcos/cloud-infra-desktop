@@ -42,8 +42,12 @@ in {
         # Flake path for log file discovery (tooltip + log viewer)
         "SYSTRAY_FLAKE=/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos"
       ];
-      Restart    = "on-failure";
-      RestartSec = 10;
+      # "always" (not "on-failure"): the SNI tray icon must be persistent —
+      # a manual quit/close exits 0, which "on-failure" would NOT respawn.
+      # This is the system-protection control panel (nix-daemon, freeze-guard,
+      # docker); it must come back even if the user closes it.
+      Restart    = "always";
+      RestartSec = 3;
     };
   };
 }

@@ -4,7 +4,7 @@
    Fixed: ba_flakes_desktop/src/modules/programs/nix-switch-progress.nix —
    notify-send now uses `-A "open=Open Log"`, log copied to
    $STATE_DIR/last-failure.log (persists past script exit), action opens it
-   in `konsole -e less -R`. UNCOMMITTED — needs push.
+   in `konsole -e less -R`. Committed + pushed (56bf3433).
 
 2. [DONE] mattermost compose.nix `ollama-hai` eval error (attribute missing).
    Root cause: ollama-hai decommissioned/archived
@@ -22,36 +22,25 @@
    was simply never deployed yet. Needs CI build + pull/switch (never local
    switch — 8GB freeze risk). Not a bug in the design.
 
-4. [TODO] "nixOS systray" (nix-daemon control/management applet) missing,
-   must be PERSISTENT / non-closeable — used to bring nix-daemon back up
-   when it's down.
-   Context found: configuration_workflow-systray.nix has an explicit
-   comment: tray apps are deliberately NOT autostarted — "fought the
-   freeze-guard watchdog and ate RAM" (past incident). References to
-   "nixos-systray"/"cloud-systray" exist in nixos-cp.json,
-   configuration_cloud-cp.nix, configuration_nixos-switch-gui.nix — need to
-   read these to find the existing nixos-systray control-panel definition
-   before building persistence for it. Must reconcile "must never
-   autostart, ate RAM" precedent vs user's "must be persistent, can't be
-   closed" requirement — likely needs a lightweight/low-RAM persistence
-   design (systemd user service with Restart=always, NOT a heavy Electron
-   tray) rather than just removing the old guard.
+4. [DONE] "nixOS systray" persistence + nix-daemon control.
+   configuration_nixos-switch-gui.nix: Restart on-failure → always (RestartSec 3)
+   — a clean quit (exit 0) now respawns, so the tray can't be closed away.
+   da_nixos-systray/src/data/nixos-cp.json: new "Nix Daemon" section (status +
+   RESET via systemctl restart nix-daemon.service), pure JSON type:"shell"
+   entries, no new code.
 
-5. [TODO] "watchdog systray" (freeze-guard/OOM/system-protection control)
-   same persistence requirement as #4 — must reflect full system-protection
-   data (OOM triggers etc.), always present, restart if closed.
+5. [DONE] "watchdog systray" — new "Watchdog / Freeze-Guard" section in
+   nixos-cp.json: status, live journal tail, /proc/pressure (cpu/memory/io)
+   PSI dump, restart freeze-guard.service. Persistence covered by the same
+   Restart=always tray-process fix as #4 (same tray process/menu).
 
-6. [TODO] Add a "docker systray" — manage docker daemon + containers
-   (start/stop/restart containers, daemon status) — same tray family as
-   #4/#5.
+6. [DONE] "docker systray" — new "Docker" section in nixos-cp.json: daemon
+   status, `docker ps -a` list, RESET (systemctl restart docker.service).
 
-7. [TODO] KDE Notification Center — all nix command notifications
-   (notify-send calls from nix-switch-progress-wrap and any other nix/
-   nixos-rebuild catcher paths) must post into KDE's persistent
-   notification history, not just transient popups. Check current
-   notify-send calls for flags that might exclude them from history
-   (e.g. transient hints) — likely already fine by default, needs
-   verification once catcher is actually deployed (see #3).
+7. [DONE] KDE Notification Center — verified all notify-send calls added/
+   existing (nix-switch-progress.nix, nixos-cp.json shell entries) use plain
+   notify-send with no --expire-time/--hint transient flags, so they land in
+   Plasma's persistent notification history by default. No change needed.
 
 8. [DONE] This file — keeps the list durable across /compact.
 

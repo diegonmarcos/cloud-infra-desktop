@@ -28,6 +28,21 @@
       { "label": "Setup Workspace (4 virtual desktops)", "icon": "user-desktop",               "type": "shell", "arg": "kwriteconfig6 --file kwinrc --group Desktops --key Number 4 --key Rows 1 && qdbus6 org.kde.KWin /KWin reconfigureX 2>/dev/null; notify-send 'NixOS' '4 virtual desktops configured'" },
       { "label": "Lock Screen",                      "icon": "system-lock-screen",            "type": "shell", "arg": "loginctl lock-session" },
       { "label": "Restart Plasma Shell",             "icon": "system-reboot",                 "type": "shell", "arg": "kquitapp6 plasmashell; sleep 1; kstart plasmashell" }
+    ]},
+    { "title": "Nix Daemon", "icon": "run-build", "items": [
+      { "label": "Status: nix-daemon",               "icon": "dialog-information",            "type": "shell", "arg": "systemctl status nix-daemon.service --no-pager | head -30 > /tmp/nix-daemon-status.txt; konsole -e less /tmp/nix-daemon-status.txt" },
+      { "label": "RESET nix-daemon (kill + restart)","icon": "view-refresh",                   "type": "shell", "arg": "/run/wrappers/bin/sudo systemctl restart nix-daemon.service && notify-send 'NixOS' 'nix-daemon reset (killed + restarted)'" }
+    ]},
+    { "title": "Watchdog / Freeze-Guard", "icon": "security-medium", "items": [
+      { "label": "Status: freeze-guard",             "icon": "dialog-information",            "type": "shell", "arg": "systemctl status freeze-guard.service --no-pager | head -30 > /tmp/freeze-guard-status.txt; konsole -e less /tmp/freeze-guard-status.txt" },
+      { "label": "Tail freeze-guard journal (live)", "icon": "text-x-changelog",              "type": "shell", "arg": "konsole -e journalctl -fu freeze-guard.service" },
+      { "label": "PSI (cpu/mem/io pressure now)",    "icon": "utilities-system-monitor",      "type": "shell", "arg": "for r in cpu memory io; do echo \"== $r ==\"; cat /proc/pressure/$r; done > /tmp/psi-now.txt; konsole -e less /tmp/psi-now.txt" },
+      { "label": "RESTART freeze-guard",              "icon": "view-refresh",                  "type": "shell", "arg": "/run/wrappers/bin/sudo systemctl restart freeze-guard.service && notify-send 'NixOS' 'freeze-guard restarted'" }
+    ]},
+    { "title": "Docker", "icon": "docker", "items": [
+      { "label": "Status: docker daemon",            "icon": "dialog-information",            "type": "shell", "arg": "systemctl status docker.service --no-pager | head -30 > /tmp/docker-status.txt; konsole -e less /tmp/docker-status.txt" },
+      { "label": "List containers",                  "icon": "view-list-details",             "type": "shell", "arg": "docker ps -a > /tmp/docker-ps.txt; konsole -e less /tmp/docker-ps.txt" },
+      { "label": "RESET docker daemon",               "icon": "view-refresh",                  "type": "shell", "arg": "/run/wrappers/bin/sudo systemctl restart docker.service && notify-send 'NixOS' 'docker daemon reset (killed + restarted)'" }
     ]}
   ]
 }
