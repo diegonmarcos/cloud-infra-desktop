@@ -173,9 +173,10 @@ in {
 
   systemd.user.services.watchdog-systray = lib.mkIf wt.enable {
     Unit = { Description = "Watchdog system-protection tray"; After = [ "graphical-session.target" ]; PartOf = [ "graphical-session.target" ]; };
-    Service = { ExecStart = "%h/.local/bin/watchdog-systray"; Restart = "on-failure"; RestartSec = 5;
+    # "always": this is the system-protection tray icon — must respawn even after a manual close.
+    Service = { ExecStart = "%h/.local/bin/watchdog-systray"; Restart = "always"; RestartSec = 3;
       Environment = [
-        "GI_TYPELIB_PATH=${pkgs.libayatana-appindicator}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0"
+        "GI_TYPELIB_PATH=${pkgs.libayatana-appindicator}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.gobject-introspection}/lib/girepository-1.0"
         "LD_LIBRARY_PATH=${pkgs.libayatana-appindicator}/lib"
       ];
     };
@@ -184,9 +185,10 @@ in {
 
   systemd.user.services.nixos-systray = lib.mkIf nt.enable {
     Unit = { Description = "NixOS tray"; After = [ "graphical-session.target" ]; PartOf = [ "graphical-session.target" ]; };
-    Service = { ExecStart = "%h/.local/bin/nixos-systray"; Restart = "on-failure"; RestartSec = 5;
+    # "always": this is the nix-daemon control panel — must respawn even after a manual close.
+    Service = { ExecStart = "%h/.local/bin/nixos-systray"; Restart = "always"; RestartSec = 3;
       Environment = [
-        "GI_TYPELIB_PATH=${pkgs.libayatana-appindicator}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0"
+        "GI_TYPELIB_PATH=${pkgs.libayatana-appindicator}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.gobject-introspection}/lib/girepository-1.0"
         "LD_LIBRARY_PATH=${pkgs.libayatana-appindicator}/lib"
       ];
     };
