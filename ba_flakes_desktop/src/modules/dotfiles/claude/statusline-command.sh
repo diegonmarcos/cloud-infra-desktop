@@ -434,17 +434,6 @@ OUT+=" \033[37m│\033[0m"
 OUT+=" \033[${pct_color}mCtx:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
 OUT+="\n"
 
-# LINE 4b — 5h billing-window token breakdown (ccusage-native, via `my-ai usage`).
-# Companion to LINE 4's per-SESSION breakdown: same New/CchW/CchR/Out/Σ+$ shape,
-# but summed over the active 5-hour billing window across ALL projects' transcripts.
-# `my-ai usage --statusline` emits a ready ANSI segment (self-cached, 30s TTL, so
-# cheap on the hot path) or empty output when idle / binary not yet installed →
-# the row is simply omitted. Degrades gracefully before `my-ai` is on PATH.
-if command -v my-ai >/dev/null 2>&1; then
-    usage_seg=$(my-ai usage --statusline 2>/dev/null)
-    [ -n "$usage_seg" ] && OUT+="\033[37m|\033[0m ${usage_seg}\n"
-fi
-
 # LINE 5: | CPUPSI CPU | RAM Disk VRAM | Battery | Mesh ●wg0:ip ●wg-public:ip |
 OUT+="\033[37m|\033[0m"
 OUT+=" \033[${psi_color}mCPUPSI:${cpu_psi}%\033[0m"
