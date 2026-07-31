@@ -2,7 +2,12 @@
   "name": "agentic",
   "display_name": "Agentic",
   "home": true,
-  "home_cmd": "my-konsole-dash agi",
+  "auto_tabs": [
+    { "label": "AGI Dashboard", "kind": "run", "cmd": "my-konsole-dash agi" },
+    { "label": "Goose Desktop", "kind": "browser", "url": "http://127.0.0.1:58767/" },
+    { "label": "Goose Cloud", "kind": "browser", "url": "http://127.0.0.1:58765/" },
+    { "label": "Hermes Cloud", "kind": "browser", "url": "http://10.0.0.6:9119" }
+  ],
   "theme": { "accent": "#9b59b6" },
   "sections": [
     {
