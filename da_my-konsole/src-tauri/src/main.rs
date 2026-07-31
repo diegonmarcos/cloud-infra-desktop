@@ -195,6 +195,9 @@ fn browser_hide(app: tauri::AppHandle, label: String) {
 #[tauri::command]
 fn browser_close(app: tauri::AppHandle, label: String) {
     if let Some(wv) = app.get_webview(&label) {
+        // wv.close() can silently no-op for child webviews on some platforms —
+        // move it off-screen first so a failed close still leaves nothing visible.
+        let _ = wv.set_position(LogicalPosition::new(-20000.0, -20000.0));
         let _ = wv.close();
     }
 }
