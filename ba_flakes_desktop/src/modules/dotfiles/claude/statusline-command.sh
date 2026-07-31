@@ -434,6 +434,14 @@ OUT+=" \033[37m│\033[0m"
 OUT+=" \033[${pct_color}mCtx:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
 OUT+="\n"
 
+# LINE 4b — 5h billing-window token/cost breakdown, ccusage-backed (see
+# claude-usage-status.sh). Companion to LINE 4's per-SESSION breakdown, same
+# New/CchW/CchR/Out/Σ shape, summed over the active 5h block across ALL
+# projects. Self-cached/detached-refresh, so cheap on the hot path; emits
+# nothing when idle or ccusage/jq unavailable — row is simply omitted.
+usage_seg=$(bash "$HOME/.claude/claude-usage-status.sh" 2>/dev/null)
+[ -n "$usage_seg" ] && OUT+="\033[37m|\033[0m ${usage_seg}\n"
+
 # LINE 5: | CPUPSI CPU | RAM Disk VRAM | Battery | Mesh ●wg0:ip ●wg-public:ip |
 OUT+="\033[37m|\033[0m"
 OUT+=" \033[${psi_color}mCPUPSI:${cpu_psi}%\033[0m"
