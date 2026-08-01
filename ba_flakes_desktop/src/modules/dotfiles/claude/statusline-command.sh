@@ -27,6 +27,33 @@ eval "$(echo "$input" | jq -r '
 [ -z "$session_id" ] && session_id=$(basename "$(dirname "$transcript_path")" 2>/dev/null)
 session_short="${session_id:0:8}"
 
+# ── SELF-THROTTLE ────────────────────────────────────────────────────────────
+# Drawing this line costs ~440 small forks. `refreshInterval` bounds how often
+# Claude Code ASKS for it, but that value is read once at session start: an
+# already-running session keeps repainting at whatever it launched with, so
+# lowering the setting cannot slow down the sessions that are already hurting.
+# With six sessions repainting every second, the status line alone was ~170% of
+# 8 cores and cpu.pressure some avg10 sat near 50.
+#
+# So the script bounds its OWN rate: within MIN_INTERVAL of the last full
+# render, replay the cached output and exit before doing any work. Cost per
+# session becomes one jq + one cat, no matter what interval asked for it.
+# The cache is invalidated by content, not just time — a new turn changes the
+# context size, so real updates still appear immediately.
+# ponytail: 3s floor; raise it if the fork count ever climbs again.
+STATUSLINE_MIN_INTERVAL="${STATUSLINE_MIN_INTERVAL:-3}"
+_throttle="/tmp/statusline_out_${session_short:-none}.cache"
+_stamp="$_throttle.key"
+_key="${ctx_input:-0}:${cu_out:-0}:${session_cost:-0}"
+if [ -s "$_throttle" ] && [ -f "$_stamp" ]; then
+    read -r _prev_key _prev_at < "$_stamp" 2>/dev/null
+    if [ "$_prev_key" = "$_key" ] &&
+       [ $(( $(date +%s) - ${_prev_at:-0} )) -lt "$STATUSLINE_MIN_INTERVAL" ]; then
+        cat "$_throttle"
+        exit 0
+    fi
+fi
+
 # Custom session name capped to 13 display chars (ellipsis when longer)
 session_name_disp="$session_name"
 [ "${#session_name_disp}" -gt 13 ] && session_name_disp="${session_name:0:12}…"
@@ -522,5 +549,12 @@ else
     OUT+=" \033[90m—\033[0m"
 fi
 OUT+=" \033[37m|\033[0m\n"
+
+# Publish for the self-throttle above, then print. Written temp-then-rename so a
+# concurrently-starting render reads a whole line or the previous one, never a
+# half-written buffer.
+printf "%b" "$OUT" > "$_throttle.tmp" 2>/dev/null &&
+    mv -f "$_throttle.tmp" "$_throttle" 2>/dev/null &&
+    echo "$_key $(date +%s)" > "$_stamp" 2>/dev/null
 
 printf "%b" "$OUT"

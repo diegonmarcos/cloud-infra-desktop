@@ -297,8 +297,22 @@
         [ -n "$_r" ] && [ -e "$_r" ] || continue
         case "$_r" in /nix/store/*) ;; *) continue ;; esac
         $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -f "$_t"
-        $DRY_RUN_CMD ${pkgs.coreutils}/bin/cp -RL "$_r" "$_t"
-        $DRY_RUN_CMD ${pkgs.coreutils}/bin/chmod -R u+w "$_t"
+        # -R, NOT -RL. `$_r` is already the resolved real path, so -L bought
+        # nothing at the top level while forcing every symlink INSIDE a copied
+        # directory to be dereferenced too. ~/.config/fish/completions is a tree
+        # of links into per-package completion derivations; when one of those
+        # (openssl-*-fish-completions) is not in the closure, cp -RL fails with
+        # "cannot stat", and one missing completion file aborted the ENTIRE
+        # home-manager activation. Copying links as links makes a dangling entry
+        # cost exactly one dangling entry.
+        if ! $DRY_RUN_CMD ${pkgs.coreutils}/bin/cp -R "$_r" "$_t"; then
+          # Never fatal: this step exists to make files editable, so failing to
+          # unfreeze one is a warning, not a reason to abandon the generation.
+          echo "[unfreeze] WARNING: could not copy $_r -> $_t (leaving store symlink)"
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/ln -sfn "$_r" "$_t" || true
+          continue
+        fi
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/chmod -R u+w "$_t" || true
       done < ${_writableTargets}
     '';
 
