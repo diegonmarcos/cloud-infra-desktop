@@ -9,6 +9,7 @@ let
   cfg = builtins.fromJSON (builtins.readFile ./watchdog-systray.json);
   wt  = cfg.watchdog_tray;
   nt  = cfg.nixos_tray;
+  dt  = cfg.docker_tray;
 
   # Dedicated python env for the SNI tray scripts. NOT added to home.packages —
   # the scripts reference it directly via their shebang (#!${pyEnv}/bin/python3)
@@ -171,6 +172,18 @@ in {
     };
   };
 
+  # ── Docker SNI tray (Wayland-native) ─────────────────────────────────────
+  home.file.".local/bin/docker-systray" = {
+    executable = true;
+    text = sniScript {
+      id = "docker-systray";
+      icon = dt.icon;
+      title = dt.title;
+      defaultCmd = dt.default_command;
+      menu = dt.menu;
+    };
+  };
+
   systemd.user.services.watchdog-systray = lib.mkIf wt.enable {
     Unit = { Description = "Watchdog system-protection tray"; After = [ "graphical-session.target" ]; PartOf = [ "graphical-session.target" ]; };
     # "always": this is the system-protection tray icon — must respawn even after a manual close.
@@ -189,6 +202,18 @@ in {
     Unit = { Description = "NixOS tray"; After = [ "graphical-session.target" ]; PartOf = [ "graphical-session.target" ]; };
     # "always": this is the nix-daemon control panel — must respawn even after a manual close.
     Service = { ExecStart = "%h/.local/bin/nixos-systray"; Restart = "always"; RestartSec = 3;
+      Environment = [
+        "GI_TYPELIB_PATH=${pkgs.libayatana-appindicator}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.glib.out}/lib/girepository-1.0"
+        "LD_LIBRARY_PATH=${pkgs.libayatana-appindicator}/lib:${pkgs.glib.out}/lib"
+      ];
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
+  };
+
+  systemd.user.services.docker-systray = lib.mkIf dt.enable {
+    Unit = { Description = "Docker tray"; After = [ "graphical-session.target" ]; PartOf = [ "graphical-session.target" ]; };
+    # "always": container control panel — must respawn even after a manual close.
+    Service = { ExecStart = "%h/.local/bin/docker-systray"; Restart = "always"; RestartSec = 3;
       Environment = [
         "GI_TYPELIB_PATH=${pkgs.libayatana-appindicator}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.glib.out}/lib/girepository-1.0"
         "LD_LIBRARY_PATH=${pkgs.libayatana-appindicator}/lib:${pkgs.glib.out}/lib"
