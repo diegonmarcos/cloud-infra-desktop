@@ -1,0 +1,12 @@
+{
+  "_doc": "Manifest of KDE tray icons delivered by my-konsole. Each entry launches `my-konsole --profile <profile>` (initial-profile CLI support pending, see TODO below) instead of a separate per-tray app.",
+  "_TODO": "my-konsole has no --profile / initial-tab CLI arg yet — profiles are currently only selectable from inside the running app's UI. Needs a small Rust (main.rs, read MY_KONSOLE_INITIAL_PROFILE env) + frontend (select that tab on mount) addition before these trays can jump straight to their profile.",
+  "trays": [
+    { "id": "nixos-systray", "icon": "nix-snowflake", "title": "NixOS", "profile": "nix-flakes", "enable": true },
+    { "id": "watchdog-systray", "icon": "security-high", "title": "Watchdog — System Protection", "profile": "watchdog", "enable": true },
+    { "id": "docker-systray", "icon": "docker", "title": "Docker", "profile": "docker", "enable": true },
+    { "id": "cloud-systray", "icon": "network-vpn", "title": "Cloud — Mesh / VMs", "profile": "ssh-manager", "enable": true },
+    { "id": "vault-systray", "icon": "security-medium", "title": "Vault", "profile": "vault", "enable": true },
+    { "id": "workflow-systray", "icon": "view-refresh", "title": "Workflow — GHA / Dagu", "profile": "cloud-infra", "enable": true }
+  ]
+}

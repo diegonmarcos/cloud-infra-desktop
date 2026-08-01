@@ -109,8 +109,6 @@
     ./configuration_p5_diagnostic.nix             # POST-2026-05-16: forensic instrumentation for repeating p5 corruption (boot/shutdown fsck check + superblock+groups-945-947 sha256 snapshots + iostat capture + dmesg trace). All output → /var/log/p5-diag/ and journalctl -t p5-diagnostic
     ./configuration_home_ownership_repair.nix     # POST-2026-05-16: defensive chown of fragile $HOME paths (.claude/.config/.local/.ssh) on every activation — fixes class-of-bug where install/chroot flows leak root-owned files into /home/$user that then break standalone home-manager apply
     # Waydroid host modules (data-heal / launcher / sensors HAL) UNWIRED 2026-07-01 — waydroid fully disabled (ghost Android procs after GUI close). Module files kept on disk, no longer imported.
-    ./configuration_cloud-cp.nix                  # POST-2026-06-25: cloud-systray — Cloud & Infra control-panel tray (yad) — VMs, mesh, flake builds, KDE connect; data-driven from cloud-cp.json
-    ./configuration_workflow-systray.nix          # POST-2026-07-18: workflow-systray — GH Actions status (ntfy SSE + gh CLI poll) + Dagu DAG list/trigger tray; data-driven from workflow-cp.json
     ./configuration_switch-autotrigger.nix        # POST-2026-07-22: auto-run build.sh switch when CI publishes a closure (ntfy SSE); data-driven from cloud-data-nix-build.json .autotrigger
     ./configuration_nix-command-catcher.nix       # POST-2026-07-26: PATH-level `nix`/`nixos-rebuild` shims forcing any heavy verb through nix-switch-progress-wrap (freeze bypass — see file header); verb allowlist in nix-command-catcher.json
     ./configuration_tmp.nix
