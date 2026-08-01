@@ -266,7 +266,28 @@ EOF
   elif [ -x "$STORE/$DASH" ];              then dashsrc="$STORE/$DASH"; fi
   if [ -n "$dashsrc" ]; then command cp -f "$dashsrc" "$HOME/.local/bin/$DASH"; chmod +x "$HOME/.local/bin/$DASH"; fi
 
-  # 5. refresh caches (best-effort — no failure if the tools are absent)
+  # 5b. systray shortcuts — one .desktop per configs/systrays.json entry, same
+  #     launcher binary, jumping straight to its profile via env var. Replaces
+  #     the old per-tray Electron apps (da_nixos-systray etc) and standalone
+  #     bash/yad scripts — one binary, N launch targets.
+  if [ -f configs/systrays.json ]; then
+    while IFS=$'\t' read -r _id _icon _title _profile _enable; do
+      [ "$_enable" = "true" ] || continue
+      cat > "$apps/$_id.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=$_title
+Exec=env MY_KONSOLE_INITIAL_PROFILE=$_profile $launcher
+Icon=$_icon
+Terminal=false
+StartupNotify=true
+Categories=System;
+EOF
+    done < <(jq -r '.trays[] | [.id,.icon,.title,.profile,.enable] | @tsv' configs/systrays.json)
+    log "Installed $(jq '.trays | length' configs/systrays.json) systray shortcut(s) from configs/systrays.json"
+  fi
+
+  # 6. refresh caches (best-effort — no failure if the tools are absent)
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$apps" 2>/dev/null || true
   command -v gtk-update-icon-cache   >/dev/null 2>&1 && gtk-update-icon-cache -qtf "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
   log "Installed launcher + desktop entry + icon + dashboards ($DASH)"
