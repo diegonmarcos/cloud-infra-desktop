@@ -106,8 +106,15 @@ if [ -f "$transcript_path" ]; then
     c_size=""; last_user_ts=""; last_asst_ts=""
     [ -f "$age_cache" ] && read -r c_size last_user_ts last_asst_ts < "$age_cache" 2>/dev/null
     if [ "$tsize" != "$c_size" ]; then
-        last_user_ts=$(tac "$transcript_path" 2>/dev/null | jq -r 'select(.type=="user") | .timestamp' 2>/dev/null | head -1)
-        last_asst_ts=$(tac "$transcript_path" 2>/dev/null | jq -r 'select(.type=="assistant") | .timestamp' 2>/dev/null | head -1)
+        # Only the LAST user and LAST assistant entry matter, so read the tail —
+        # not the file. `tac whole-file | jq`, twice, cost two full reads of a
+        # 60+ MB JSONL on every turn. 2 MB reaches back many turns; on the rare
+        # miss the row shows "?" for one render and self-heals on the next.
+        # ponytail: fixed 2 MB window, widen it if "?" ever sticks.
+        _tail=$(tail -c 2000000 "$transcript_path" 2>/dev/null | tac)
+        last_user_ts=$(printf '%s' "$_tail" | jq -r 'select(.type=="user") | .timestamp' 2>/dev/null | head -1)
+        last_asst_ts=$(printf '%s' "$_tail" | jq -r 'select(.type=="assistant") | .timestamp' 2>/dev/null | head -1)
+        unset _tail
         echo "$tsize $last_user_ts $last_asst_ts" > "$age_cache"
     fi
     if [ -n "$last_user_ts" ] && [ "$last_user_ts" != "null" ]; then
@@ -124,23 +131,43 @@ fi
 # usage{} across the WHOLE transcript, not the live-window snapshot that
 # context_window.current_usage gives (that one resets/shrinks on compaction,
 # badly undercounting Out — the most expensive token category). Cached
-# against transcript size, same pattern as age_cache above: idle refreshes
-# are a stat, not a rescan of a multi-MB JSONL.
+# INCREMENTALLY, rescanning only the bytes appended since the last render.
+#
+# The cache is keyed on a byte OFFSET, not on size-equality. The old version
+# re-slurped the WHOLE file with `jq -rs` whenever the size changed — i.e. on
+# every single turn. On a 62 MB transcript that is ~4.6 s of CPU and ~140 MB of
+# jq heap, per session, at refreshInterval 1: the renders piled up on top of
+# each other and drove load to 16 with cpu.pressure some avg10 ~60. Streaming
+# `reduce inputs` + append-only offsets makes the steady state ~0.10 s / 4.6 MB.
 tok_cache="/tmp/statusline_tok_$(echo "$transcript_path" | md5sum | cut -c1-8).dat"
-sum_in=0; sum_out=0; sum_cread=0; sum_cwrite=0
+tok_off=0; sum_in=0; sum_out=0; sum_cread=0; sum_cwrite=0
 if [ -f "$transcript_path" ]; then
+    [ -f "$tok_cache" ] && read -r tok_off sum_in sum_out sum_cread sum_cwrite < "$tok_cache" 2>/dev/null
     tsize2=$(stat -c %s "$transcript_path" 2>/dev/null || echo 0)
-    c_size2=""
-    [ -f "$tok_cache" ] && read -r c_size2 sum_in sum_out sum_cread sum_cwrite < "$tok_cache" 2>/dev/null
-    if [ "$tsize2" != "$c_size2" ]; then
-        read -r sum_in sum_out sum_cread sum_cwrite < <(jq -rs '
-            [.[] | select(.type=="assistant") | .message.usage | select(.)] as $u |
-            [ ($u | map(.input_tokens // 0) | add // 0),
-              ($u | map(.output_tokens // 0) | add // 0),
-              ($u | map(.cache_read_input_tokens // 0) | add // 0),
-              ($u | map(.cache_creation_input_tokens // 0) | add // 0) ] | @tsv' "$transcript_path" 2>/dev/null)
-        [ -z "$sum_in" ] && { sum_in=0; sum_out=0; sum_cread=0; sum_cwrite=0; }
-        echo "$tsize2 $sum_in $sum_out $sum_cread $sum_cwrite" > "$tok_cache"
+    # Shrunk => different session or truncated; cached sums are meaningless.
+    [ "$tsize2" -lt "${tok_off:-0}" ] && { tok_off=0; sum_in=0; sum_out=0; sum_cread=0; sum_cwrite=0; }
+    if [ "$tsize2" -gt "${tok_off:-0}" ]; then
+        tok_cb=$(mktemp)
+        # LC_ALL=C so gawk's length() counts BYTES — under a UTF-8 locale the
+        # multi-byte chars in transcripts make the offset drift and the next
+        # resume lands mid-line. RT=="" is the trailing line still being
+        # written: dropped here and excluded from the count, so the next call
+        # re-reads it whole. Nothing double-counted, nothing lost.
+        read -r d_in d_out d_cr d_cw < <(
+            tail -c "+$((tok_off + 1))" "$transcript_path" 2>/dev/null |
+            LC_ALL=C gawk -v C="$tok_cb" 'RT=="\n"{n += length($0) + 1; print} END{print n+0 > C}' |
+            jq -rn 'reduce (inputs | select(.type=="assistant") | .message.usage | select(.)) as $x
+                      ([0,0,0,0];
+                       [ .[0] + ($x.input_tokens                // 0),
+                         .[1] + ($x.output_tokens               // 0),
+                         .[2] + ($x.cache_read_input_tokens     // 0),
+                         .[3] + ($x.cache_creation_input_tokens // 0) ]) | @tsv' 2>/dev/null)
+        tok_consumed=$(cat "$tok_cb" 2>/dev/null); rm -f "$tok_cb"
+        if [ -n "${tok_consumed:-}" ] && [ -n "${d_in:-}" ]; then
+            sum_in=$((sum_in + d_in));       sum_out=$((sum_out + d_out))
+            sum_cread=$((sum_cread + d_cr)); sum_cwrite=$((sum_cwrite + d_cw))
+            echo "$((tok_off + tok_consumed)) $sum_in $sum_out $sum_cread $sum_cwrite" > "$tok_cache"
+        fi
     fi
 fi
 
@@ -439,17 +466,28 @@ OUT+="\n"
 # New/CchW/CchR/Out/Σ shape, summed over the active 5h block across ALL
 # projects. Self-cached/detached-refresh, so cheap on the hot path; emits
 # nothing when idle or ccusage/jq unavailable — row is simply omitted.
-# Prefer the my-ai daemon's published segment: a plain file read, no process at
-# all. claude-usage-status.sh is the fallback when no daemon is running — it is
-# correctly shaped (mtime gate + lockdir + detached refresh) but still pays an
-# `npx ccusage` Node start on a miss, where the daemon pays nothing here.
+# The ONLY source is the my-ai daemon's published segment: a plain file read, no
+# process at all. The old `claude-usage-status.sh` fallback is deliberately gone
+# — on a cache miss it paid an `npx ccusage` Node start ON THE PAINT PATH, which
+# is exactly the shape that OOM-killed plasmashell. Daemon down => no row.
+# ponytail: no fallback by design; the producer is the fix, not a second reader.
 _seg="${XDG_RUNTIME_DIR:-/tmp}/my-ai-usage.seg"
 if [ -s "$_seg" ]; then
     usage_seg=$(cat "$_seg" 2>/dev/null)
-else
-    usage_seg=$(bash "$HOME/.claude/claude-usage-status.sh" 2>/dev/null)
+    [ -n "$usage_seg" ] && OUT+="\033[37m|\033[0m ${usage_seg}\n"
 fi
-[ -n "$usage_seg" ] && OUT+="\033[37m|\033[0m ${usage_seg}\n"
+
+# LINE 4c — 5h-S: the SAME fields as 5h-T above, scoped to THIS session only.
+# Reuses the cumulative transcript sums already computed for LINE 4 (block 3),
+# so this row costs nothing extra — no scan, no spawn. Read as a pair with
+# 5h-T: -T is every project in the active 5h block, -S is just this session.
+OUT+="\033[37m|\033[0m 5h-S \033[37m[\033[0m"
+OUT+=" \033[36mNew:${new_fmt}(\$${d_in})\033[0m"
+OUT+=" \033[33mCchW:${cwrite_fmt}(\$${d_cwrite})\033[0m"
+OUT+=" \033[34mCchR:${cread_fmt}(\$${d_cread})\033[0m"
+OUT+=" \033[36mOut:${out_fmt}(\$${d_out})\033[0m"
+OUT+=" \033[1m\033[${cost_color}mΣ${sum_fmt}(\$${d_tot})\033[0m"
+OUT+=" \033[37m]\033[0m\n"
 
 # LINE 5: | CPUPSI CPU | RAM Disk VRAM | Battery | Mesh ●wg0:ip ●wg-public:ip |
 OUT+="\033[37m|\033[0m"
