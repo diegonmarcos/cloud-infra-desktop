@@ -99,7 +99,9 @@ sync_data() {
   command cp -f src/data/shared/*.json "$STORE/" 2>/dev/null || true
   # loose top-level data files (e.g. model-pricing.json) also feed the dashboards
   command cp -f src/data/*.json "$STORE/" 2>/dev/null || true
-  log "Synced profiles + config + shared → $STORE"
+  # systrays.json — read directly by main.rs's setup_systrays() at startup
+  command cp -f configs/systrays.json "$STORE/systrays.json" 2>/dev/null || true
+  log "Synced profiles + config + shared + systrays → $STORE"
 }
 
 icon() {
@@ -266,25 +268,34 @@ EOF
   elif [ -x "$STORE/$DASH" ];              then dashsrc="$STORE/$DASH"; fi
   if [ -n "$dashsrc" ]; then command cp -f "$dashsrc" "$HOME/.local/bin/$DASH"; chmod +x "$HOME/.local/bin/$DASH"; fi
 
-  # 5b. systray shortcuts — one .desktop per configs/systrays.json entry, same
-  #     launcher binary, jumping straight to its profile via env var. Replaces
-  #     the old per-tray Electron apps (da_nixos-systray etc) and standalone
-  #     bash/yad scripts — one binary, N launch targets.
+  # 5b. systray daemon — my-konsole IS the systray now (native Tauri tray-icon
+  #     feature, see src-tauri/src/main.rs setup_systrays()). One persistent
+  #     `my-konsole --tray-daemon` process hosts every enabled icon in
+  #     configs/systrays.json (already synced to $STORE/systrays.json by
+  #     sync_data above). Replaces the old per-tray Electron apps, the
+  #     bash/yad scripts, and the one-.desktop-per-tray launcher approach —
+  #     real StatusNotifierItem icons, one binary, self-installed, no nix.
   if [ -f configs/systrays.json ]; then
-    while IFS=$'\t' read -r _id _icon _title _profile _enable; do
-      [ "$_enable" = "true" ] || continue
-      cat > "$apps/$_id.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=$_title
-Exec=env MY_KONSOLE_INITIAL_PROFILE=$_profile $launcher
-Icon=$_icon
-Terminal=false
-StartupNotify=true
-Categories=System;
+    local sysd="$HOME/.config/systemd/user"
+    mkdir -p "$sysd"
+    cat > "$sysd/my-konsole-tray.service" <<EOF
+[Unit]
+Description=my-konsole systray daemon (nixos/watchdog/docker/cloud/vault/workflow icons)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=$launcher --tray-daemon
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target
 EOF
-    done < <(jq -r '.trays[] | [.id,.icon,.title,.profile,.enable] | @tsv' configs/systrays.json)
-    log "Installed $(jq '.trays | length' configs/systrays.json) systray shortcut(s) from configs/systrays.json"
+    systemctl --user daemon-reload 2>/dev/null || true
+    systemctl --user enable --now my-konsole-tray.service 2>/dev/null \
+      && log "systray daemon: enabled + started ($(jq '.trays | map(select(.enable)) | length' configs/systrays.json) icon(s))" \
+      || log "systray daemon: installed unit, but couldn't start it now (no user session bus?) — will start on next login"
   fi
 
   # 6. refresh caches (best-effort — no failure if the tools are absent)
