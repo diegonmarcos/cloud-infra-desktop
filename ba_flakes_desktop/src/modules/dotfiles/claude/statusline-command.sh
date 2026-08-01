@@ -1,7 +1,71 @@
 #!/usr/bin/env bash
 
-# Read JSON input from stdin — single jq call extracts everything
 input=$(cat)
+
+# ── PAINT PATH: zero forks, zero renders ─────────────────────────────────────
+# Everything below this block is the REFRESHER. A paint must not even run jq:
+# with 10 sessions asking every second, one jq per paint is 10 processes/second
+# before any real work starts. session_id is pulled out with bash pattern
+# matching instead — no subshell, no pipe, no external command. A paint is then
+# a read, a match, and a `cat`.
+#
+# The paint NEVER renders. It prints the last published line and, if that line
+# is stale, starts a DETACHED refresh it does not wait for.
+#
+# A plain in-process time floor was not enough, and the reason matters: Claude
+# Code kills a status line that takes too long. A cold render costs ~1.5s under
+# load, so it was killed before it could write its cache; the next tick found no
+# cache, rendered from scratch, and was killed too. Six sessions sat in that
+# loop permanently — the tell was six sessions with a timestamp file and exactly
+# ONE with cached output, 8-10 concurrent copies of this script, 465% of 8
+# cores. A detached child is not killed with us, so the cache always lands.
+#
+# ponytail: 15s floor. That is what keeps N sessions cheap — refresher cost is
+# N × render / interval, so 10 sessions cost ~1 core at 15s and ~3 at 5s.
+STATUSLINE_MIN_INTERVAL="${STATUSLINE_MIN_INTERVAL:-15}"
+if [ "${STATUSLINE_RENDER:-0}" != "1" ]; then
+    _sid=""
+    case "$input" in
+        *'"session_id":"'*) _sid="${input#*\"session_id\":\"}"; _sid="${_sid%%\"*}" ;;
+    esac
+    if [ -z "$_sid" ]; then
+        case "$input" in
+            *'"transcript_path":"'*)
+                _sid="${input#*\"transcript_path\":\"}"; _sid="${_sid%%\"*}"
+                _sid="${_sid##*/}"; _sid="${_sid%.jsonl}" ;;
+        esac
+    fi
+    _throttle="/tmp/statusline_out_${_sid:0:8}.cache"
+    _stamp="$_throttle.key"
+
+    printf -v _now '%(%s)T' -1          # bash builtin: no `date` fork
+    _prev_at=0
+    [ -f "$_stamp" ] && read -r _prev_at < "$_stamp" 2>/dev/null
+    case "$_prev_at" in ""|*[!0-9]*) _prev_at=0;; esac
+
+    if [ $(( _now - _prev_at )) -ge "$STATUSLINE_MIN_INTERVAL" ]; then
+        # mkdir is the atomic test-and-set: exactly one refresher per session,
+        # so a slow render can never stack up behind itself.
+        if mkdir "$_throttle.lock" 2>/dev/null; then
+            echo "$_now" > "$_stamp" 2>/dev/null
+            printf '%s' "$input" > "$_throttle.in" 2>/dev/null
+            (
+                trap 'rmdir "$_throttle.lock" 2>/dev/null' EXIT
+                STATUSLINE_RENDER=1 bash "$0" < "$_throttle.in" > "$_throttle.tmp" 2>/dev/null &&
+                    mv -f "$_throttle.tmp" "$_throttle" 2>/dev/null
+            ) </dev/null >/dev/null 2>&1 &
+            disown 2>/dev/null || true
+        elif [ $(( _now - _prev_at )) -gt 120 ]; then
+            # Refresher died without releasing the lock — reclaim it.
+            rmdir "$_throttle.lock" 2>/dev/null || true
+        fi
+    fi
+    # Whatever we have. Empty on the very first tick; populated a moment later.
+    [ -s "$_throttle" ] && cat "$_throttle"
+    exit 0
+fi
+
+# ── REFRESHER ONLY from here down ────────────────────────────────────────────
 eval "$(echo "$input" | jq -r '
     @sh "cwd=\(.workspace.current_dir)",
     @sh "model_id=\(.model.id)",
@@ -26,58 +90,6 @@ eval "$(echo "$input" | jq -r '
 # Fallback session ID from transcript path
 [ -z "$session_id" ] && session_id=$(basename "$(dirname "$transcript_path")" 2>/dev/null)
 session_short="${session_id:0:8}"
-
-# ── SELF-THROTTLE ────────────────────────────────────────────────────────────
-# Drawing this line costs ~440 small forks. `refreshInterval` bounds how often
-# Claude Code ASKS for it, but that value is read once at session start: an
-# already-running session keeps repainting at whatever it launched with, so
-# lowering the setting cannot slow down the sessions that are already hurting.
-# With six sessions repainting every second, the status line alone was ~170% of
-# 8 cores and cpu.pressure some avg10 sat near 50.
-#
-# So the paint path NEVER renders. It prints the last published line and, if
-# that line is stale, kicks off a DETACHED refresh it does not wait for. Drawing
-# costs one `cat`; the expensive part happens off the critical path.
-#
-# A plain in-process time floor was not enough, and the reason matters: Claude
-# Code kills a status line that takes too long. A first render costs ~1.5s under
-# load, got killed before it could write its cache, so the next tick found no
-# cache, rendered from scratch, and was killed too. Six sessions sat in that
-# loop permanently — the observable symptom was 6 sessions with a timestamp file
-# but only ONE with any cached output, and 8-10 concurrent copies of this script
-# spiking to 465% of 8 cores. A detached child cannot be killed with us, so the
-# cache always gets written even when every foreground render dies.
-# ponytail: 5s floor; the line is at most that stale.
-STATUSLINE_MIN_INTERVAL="${STATUSLINE_MIN_INTERVAL:-5}"
-_throttle="/tmp/statusline_out_${session_short:-none}.cache"
-_stamp="$_throttle.key"
-
-if [ "${STATUSLINE_RENDER:-0}" != "1" ]; then
-    _now=$(date +%s)
-    _prev_at=0
-    [ -f "$_stamp" ] && read -r _prev_at < "$_stamp" 2>/dev/null
-    case "$_prev_at" in ""|*[!0-9]*) _prev_at=0;; esac
-    if [ $(( _now - _prev_at )) -ge "$STATUSLINE_MIN_INTERVAL" ]; then
-        # mkdir is the atomic test-and-set: exactly one refresher per session,
-        # so a slow render can never stack up behind itself.
-        if mkdir "$_throttle.lock" 2>/dev/null; then
-            echo "$_now" > "$_stamp" 2>/dev/null
-            printf '%s' "$input" > "$_throttle.in" 2>/dev/null
-            (
-                trap 'rmdir "$_throttle.lock" 2>/dev/null' EXIT
-                STATUSLINE_RENDER=1 bash "$0" < "$_throttle.in" > "$_throttle.tmp" 2>/dev/null &&
-                    mv -f "$_throttle.tmp" "$_throttle" 2>/dev/null
-            ) </dev/null >/dev/null 2>&1 &
-            disown 2>/dev/null || true
-        elif [ $(( _now - _prev_at )) -gt 120 ]; then
-            # Refresher died without releasing the lock — reclaim it.
-            rmdir "$_throttle.lock" 2>/dev/null || true
-        fi
-    fi
-    # Whatever we have. Empty on the very first tick; populated a moment later.
-    [ -s "$_throttle" ] && cat "$_throttle"
-    exit 0
-fi
 
 # Custom session name capped to 13 display chars (ellipsis when longer)
 session_name_disp="$session_name"
@@ -242,11 +254,27 @@ agents_configured=$((agents_configured + n))
 # helper, Rul (per-plugin rule counts) from the hooks helper, interleaved so
 # Rul lands between the two plugin buckets as designed.
 # All helpers emit literal \033 escapes; the final `printf %b` renders them.
-mcp_seg=$(bash "$HOME/.claude/claude-mcp-status.sh" "$cwd" 2>/dev/null)
-flags_seg=$(bash "$HOME/.claude/claude-flags-status.sh" --format ansi 2>/dev/null)
-skl_seg=$(bash "$HOME/.claude/claude-plugins-status.sh" --part skl --format ansi 2>/dev/null)
-sys_seg=$(bash "$HOME/.claude/claude-plugins-status.sh" --part sys --format ansi 2>/dev/null)
-rul_seg=$(bash "$HOME/.claude/claude-hooks-status.sh" --format ansi 2>/dev/null)
+#
+# These five are properties of the MACHINE, not of a session: every session
+# produced the identical five strings by spawning five shell scripts (~0.43s per
+# render). At ten sessions that was fifty processes a second for five strings
+# that are the same for all of them. The daemon runs them once per interval and
+# publishes the output under .blocks, so this is one jq read of a file.
+# Falls back to spawning only if no daemon has published yet.
+mcp_seg=""; flags_seg=""; skl_seg=""; sys_seg=""; rul_seg=""
+if [ -s "$usage_json" ]; then
+    read -r mcp_seg flags_seg skl_seg sys_seg rul_seg < <(
+        jq -r '(.blocks // {}) | [ (.mcp//""), (.flags//""), (.skl//""), (.sys//""), (.rul//"") ] | @tsv' \
+            "$usage_json" 2>/dev/null | tr '\t' '\037' | { IFS=$'\037' read -r a b c d e; printf '%s\t%s\t%s\t%s\t%s\n' "$a" "$b" "$c" "$d" "$e"; }
+    )
+fi
+if [ -z "$mcp_seg" ]; then
+    mcp_seg=$(bash "$HOME/.claude/claude-mcp-status.sh" "$cwd" 2>/dev/null)
+    flags_seg=$(bash "$HOME/.claude/claude-flags-status.sh" --format ansi 2>/dev/null)
+    skl_seg=$(bash "$HOME/.claude/claude-plugins-status.sh" --part skl --format ansi 2>/dev/null)
+    sys_seg=$(bash "$HOME/.claude/claude-plugins-status.sh" --part sys --format ansi 2>/dev/null)
+    rul_seg=$(bash "$HOME/.claude/claude-hooks-status.sh" --format ansi 2>/dev/null)
+fi
 plugins_seg="PL[ ${skl_seg}${skl_seg:+ }${rul_seg}${rul_seg:+ }${sys_seg} ]"
 
 # user@host (date removed from LINE 1 per 2026-06-25 layout change)
