@@ -26,9 +26,22 @@
   Palette.profiles = profiles;
   Palette.runItem = runItem;
 
-  // Top-nav pills — Row 2. Profiles flagged `home` live in Row 1 instead.
+  // Top-nav pills — Row 1 (the CLI tools, each with its own bookmark sections).
+  // Profiles flagged `home` are the GUI-demanding tools and live in Row 0.
+  //
+  // Ordering is data-driven: `order` in each profile.json, not the directory
+  // name. Directory prefixes (00-, 01-, ...) are how the files sort on disk,
+  // which is not the same question as how the nav should read — Home belongs
+  // first in the nav regardless of where its folder sorts. Profiles with no
+  // `order` fall to the end, in their existing order, so adding one is not a
+  // silent reshuffle.
   const nav = document.getElementById("profiles");
-  profiles.filter((p) => !p.home).forEach((p, i) => {
+  const row1 = profiles
+    .filter((p) => !p.home)
+    .map((p, idx) => ({ p, idx }))
+    .sort((a, b) => (a.p.order ?? 999) - (b.p.order ?? 999) || a.idx - b.idx)
+    .map((x) => x.p);
+  row1.forEach((p, i) => {
     const pill = document.createElement("div");
     pill.className = "profile-pill" + (i === 0 ? " active" : "");
     pill.textContent = p.display_name || p.name;
