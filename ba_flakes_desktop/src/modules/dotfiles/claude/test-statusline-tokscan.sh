@@ -1,79 +1,66 @@
 #!/usr/bin/env bash
-# One runnable check for the statusline's incremental token scan (the hot path
-# that used to re-slurp a 62 MB transcript on every render). Asserts that
-# scanning a file in two appended chunks equals scanning it whole, including
-# across a multi-byte UTF-8 line — the exact case that made byte offsets drift.
+# One runnable check for the status line's usage rows. The contract is that the
+# status line COMPUTES NOTHING about token usage — `my-ai usage --daemon`
+# publishes my-ai-usage.json and this script only looks its own session up and
+# draws it. Both halves are asserted here: the lookup produces the right numbers,
+# and the paint path contains no transcript parsing of any kind.
 #   bash test-statusline-tokscan.sh
 set -u
 SL="$(dirname "$0")/statusline-command.sh"
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-t="$tmp/t.jsonl"; c="$tmp/c.dat"
-
-mk() { printf '{"type":"assistant","message":{"usage":{"input_tokens":%s,"output_tokens":%s,"cache_read_input_tokens":%s,"cache_creation_input_tokens":%s}},"note":"%s"}\n' "$1" "$2" "$3" "$4" "$5"; }
-
-# The scan block, lifted verbatim from the statusline so the test tracks it.
-scan() {
-    transcript_path="$1"; tok_cache="$2"
-    tok_off=0; sum_in=0; sum_out=0; sum_cread=0; sum_cwrite=0
-    [ -f "$tok_cache" ] && read -r tok_off sum_in sum_out sum_cread sum_cwrite < "$tok_cache" 2>/dev/null
-    tsize2=$(stat -c %s "$transcript_path" 2>/dev/null || echo 0)
-    [ "$tsize2" -lt "${tok_off:-0}" ] && { tok_off=0; sum_in=0; sum_out=0; sum_cread=0; sum_cwrite=0; }
-    if [ "$tsize2" -gt "${tok_off:-0}" ]; then
-        cb=$(mktemp)
-        read -r d_in d_out d_cr d_cw < <(
-            tail -c "+$((tok_off + 1))" "$transcript_path" 2>/dev/null |
-            LC_ALL=C gawk -v C="$cb" 'RT=="\n"{n += length($0) + 1; print} END{print n+0 > C}' |
-            jq -rn 'reduce (inputs | select(.type=="assistant") | .message.usage | select(.)) as $x
-                      ([0,0,0,0];
-                       [ .[0] + ($x.input_tokens                // 0),
-                         .[1] + ($x.output_tokens               // 0),
-                         .[2] + ($x.cache_read_input_tokens     // 0),
-                         .[3] + ($x.cache_creation_input_tokens // 0) ]) | @tsv' 2>/dev/null)
-        consumed=$(cat "$cb"); rm -f "$cb"
-        if [ -n "$consumed" ] && [ -n "${d_in:-}" ]; then
-            sum_in=$((sum_in + d_in)); sum_out=$((sum_out + d_out))
-            sum_cread=$((sum_cread + d_cr)); sum_cwrite=$((sum_cwrite + d_cw))
-            echo "$((tok_off + consumed)) $sum_in $sum_out $sum_cread $sum_cwrite" > "$tok_cache"
-        fi
-    fi
-    echo "$sum_in $sum_out $sum_cread $sum_cwrite"
-}
-
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
-# ── chunk 1: includes a multi-byte line (│ ─ ✓ are all over real transcripts)
-mk 10 1 100 5  "plain"      >  "$t"
-mk 20 2 200 10 "5h │ Σ ✓ ─" >> "$t"
-a=$(scan "$t" "$c")
-[ "$a" = "30 3 300 15" ] || fail "cold scan: got '$a' want '30 3 300 15'"
+# A snapshot shaped like the daemon's: all-time totals per session, the active
+# 5h block, and that block split per session.
+cat > "$tmp/usage.json" <<'JSON'
+{
+  "generated_ms": 1000,
+  "block": { "input": 100, "output": 20, "cache_read": 5000, "cache_write": 300,
+             "total_tokens": 5420, "cost": 12.5, "reset_in": "2h 30m", "burn_per_min": 1234.0 },
+  "block_sessions": {
+    "sess-a": { "input": 10, "output": 2, "cache_read": 500, "cache_write": 30, "total_tokens": 542 }
+  },
+  "sessions": {
+    "sess-a": { "input": 999, "output": 888, "cache_read": 77777, "cache_write": 6666, "total_tokens": 86330 },
+    "sess-b": { "input": 1,   "output": 1,   "cache_read": 1,     "cache_write": 1,    "total_tokens": 4 }
+  }
+}
+JSON
 
-# ── nothing appended: must be a no-op, not a recount
-a=$(scan "$t" "$c")
-[ "$a" = "30 3 300 15" ] || fail "idle rescan double-counted: got '$a'"
+# The lookup, lifted from the status line so the test tracks it.
+lookup() {
+    jq -r --arg id "$1" '
+        (.sessions[$id]       // {}) as $s |
+        (.block_sessions[$id] // {}) as $b |
+        [ ($s.input//0), ($s.output//0), ($s.cache_read//0), ($s.cache_write//0),
+          ($b.input//0), ($b.output//0), ($b.cache_read//0), ($b.cache_write//0),
+          (if (.block_sessions[$id]) then 1 else 0 end) ] | @tsv' "$tmp/usage.json" |
+    tr '\t' ' '
+}
 
-# ── chunk 2 appended after the multi-byte line — the offset-drift case
-mk 5 4 50 1 "after ✓" >> "$t"
-a=$(scan "$t" "$c")
-[ "$a" = "35 7 350 16" ] || fail "incremental: got '$a' want '35 7 350 16'"
+# All-time totals for LINE 4, window-scoped totals for 5h-S, present flag set.
+got=$(lookup sess-a)
+[ "$got" = "999 888 77777 6666 10 2 500 30 1" ] || fail "sess-a lookup: got '$got'"
 
-# ── a partial trailing line (still being written) must be ignored, then
-#    counted in full once its newline lands
-printf '{"type":"assistant","message":{"usage":{"input_tokens":99' >> "$t"
-a=$(scan "$t" "$c")
-[ "$a" = "35 7 350 16" ] || fail "partial line counted: got '$a'"
-printf ',"output_tokens":1,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}\n' >> "$t"
-a=$(scan "$t" "$c")
-[ "$a" = "134 8 350 16" ] || fail "completed line: got '$a' want '134 8 350 16'"
+# THE regression this exists for: 5h-S must be SMALLER than the session total.
+# It was briefly wired to the all-time figures, so a long-running session
+# printed a 5h row larger than the 5h-T line above it.
+read -r s_in _ _ _ b_in _ <<<"$(lookup sess-a)"
+[ "$b_in" -lt "$s_in" ] || fail "5h-S ($b_in) not window-scoped vs session total ($s_in)"
 
-# ── truncation (new session reusing the path) resets instead of going negative
-mk 1 1 1 1 "fresh" > "$t"; a=$(scan "$t" "$c")
-[ "$a" = "1 1 1 1" ] || fail "truncation reset: got '$a' want '1 1 1 1'"
+# A session with no usage in the active block must not draw a 5h-S row at all.
+got=$(lookup sess-b)
+[ "${got##* }" = "0" ] || fail "sess-b has no block usage but was flagged present: '$got'"
 
-# ── the statusline itself must never slurp or spawn on the paint path.
-#    Comment lines are stripped first — both patterns are named in the comments
-#    that explain why they were removed.
+# An unknown session degrades to zeros instead of erroring.
+got=$(lookup nope)
+[ "$got" = "0 0 0 0 0 0 0 0 0" ] || fail "unknown session: got '$got'"
+
+# ── the paint path must not parse transcripts or spawn a scanner ─────────────
 code=$(grep -v '^[[:space:]]*#' "$SL")
-printf '%s' "$code" | grep -q 'jq -rs'                 && fail "statusline still slurps the whole transcript (jq -rs)"
-printf '%s' "$code" | grep -q 'my-ai usage --statusline' && fail "statusline spawns my-ai on the paint path"
+printf '%s' "$code" | grep -q 'jq -rs'                   && fail "status line slurps a transcript (jq -rs)"
+printf '%s' "$code" | grep -q 'my-ai usage --statusline' && fail "status line spawns my-ai on the paint path"
+printf '%s' "$code" | grep -q 'type=="assistant"'        && fail "status line parses transcript records itself"
+printf '%s' "$code" | grep -q 'tac'                      && fail "status line reads a whole transcript with tac"
 
 echo "ok"
