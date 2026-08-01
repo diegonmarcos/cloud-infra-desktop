@@ -38,21 +38,29 @@ session_short="${session_id:0:8}"
 # So the script bounds its OWN rate: within MIN_INTERVAL of the last full
 # render, replay the cached output and exit before doing any work. Cost per
 # session becomes one jq + one cat, no matter what interval asked for it.
-# The cache is invalidated by content, not just time — a new turn changes the
-# context size, so real updates still appear immediately.
-# ponytail: 3s floor; raise it if the fork count ever climbs again.
-STATUSLINE_MIN_INTERVAL="${STATUSLINE_MIN_INTERVAL:-3}"
+#
+# This is a HARD time floor, deliberately not conditioned on the content having
+# changed. A first version skipped the render only when ctx/cost were also
+# unchanged — but `cost.total_cost_usd` ticks up continuously WHILE a response
+# streams, so during exactly the busy periods that matter the key never matched,
+# every render ran in full, and renders overlapped: 7-9 concurrent copies of
+# this script, ~256% of 8 cores. Being at most MIN_INTERVAL stale is worth far
+# more than being instantly correct.
+# ponytail: 5s floor; lower it only if the line feels laggy AND the fork count
+# has come down.
+STATUSLINE_MIN_INTERVAL="${STATUSLINE_MIN_INTERVAL:-5}"
 _throttle="/tmp/statusline_out_${session_short:-none}.cache"
 _stamp="$_throttle.key"
-_key="${ctx_input:-0}:${cu_out:-0}:${session_cost:-0}"
 if [ -s "$_throttle" ] && [ -f "$_stamp" ]; then
-    read -r _prev_key _prev_at < "$_stamp" 2>/dev/null
-    if [ "$_prev_key" = "$_key" ] &&
-       [ $(( $(date +%s) - ${_prev_at:-0} )) -lt "$STATUSLINE_MIN_INTERVAL" ]; then
+    read -r _prev_at < "$_stamp" 2>/dev/null
+    if [ $(( $(date +%s) - ${_prev_at:-0} )) -lt "$STATUSLINE_MIN_INTERVAL" ]; then
         cat "$_throttle"
         exit 0
     fi
 fi
+# Claim the slot BEFORE rendering, not after. Otherwise every render that starts
+# while a slow one is still running also sees a stale stamp and starts its own.
+echo "$(date +%s)" > "$_stamp" 2>/dev/null
 
 # Custom session name capped to 13 display chars (ellipsis when longer)
 session_name_disp="$session_name"
@@ -557,8 +565,7 @@ OUT+=" \033[37m|\033[0m\n"
 # Publish for the self-throttle above, then print. Written temp-then-rename so a
 # concurrently-starting render reads a whole line or the previous one, never a
 # half-written buffer.
-printf "%b" "$OUT" > "$_throttle.tmp" 2>/dev/null &&
-    mv -f "$_throttle.tmp" "$_throttle" 2>/dev/null &&
-    echo "$_key $(date +%s)" > "$_stamp" 2>/dev/null
+printf "%b" "$OUT" > "$_throttle.tmp.$$" 2>/dev/null &&
+    mv -f "$_throttle.tmp.$$" "$_throttle" 2>/dev/null
 
 printf "%b" "$OUT"
