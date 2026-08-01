@@ -345,7 +345,26 @@ let
   # published segment file and simply omits the row when it's missing, so an absent
   # my-ai degrades silently while a wrong one takes the desktop down.
 in {
-  home.packages = [ claude-superset claude-superset-tray ];
+  home.packages = [
+    claude-superset
+    claude-superset-tray
+    # Prefer the tray build, fall back to headless. A shell wrapper rather than
+    # two ExecStart= lines because systemd would run BOTH: `-` only ignores the
+    # failure, it does not stop the sequence. The tray exiting non-zero (no
+    # display, no StatusNotifier host) must hand over to headless, not run
+    # alongside it — two publishers would fight over the same snapshot file.
+    (pkgs.writeShellScriptBin "my-ai-usage-daemon" ''
+      GUI="$HOME/.local/bin/my-ai-gui"
+      CLI="$HOME/.local/bin/my-ai"
+      # NOT `exec` for the GUI: exec replaces this process, so a GUI that fails
+      # to start could never fall through to the headless line below.
+      if [ -x "$GUI" ] && [ -n "''${WAYLAND_DISPLAY:-}''${DISPLAY:-}" ]; then
+        "$GUI" && exit 0
+        echo "[my-ai] tray build exited non-zero — falling back to headless" >&2
+      fi
+      exec "$CLI" usage --daemon --interval 30
+    '')
+  ];
 
   # The producer half of the status line's usage row: one publisher for the whole
   # session, writing $XDG_RUNTIME_DIR/my-ai-usage.seg on an interval. The status
@@ -357,13 +376,28 @@ in {
   # ConditionPathExists keeps this inert until the real Rust my-ai is installed to
   # ~/.local/bin by `build.sh install` — the unit is skipped, not failed, so it
   # can't spam the journal or block activation before the binary exists.
+  # ONE always-running publisher per machine, and it is visible.
+  #
+  # my-ai-gui is the same daemon with a tray icon: it publishes the snapshot on
+  # the same interval AND shows the 5h usage in the systray, so the thing every
+  # status line depends on is something you can see and click, not an invisible
+  # process. It was built, installed, and then never launched by anything — no
+  # unit, no autostart — which is why no icon ever appeared.
+  #
+  # ExecStart falls back to the headless binary: on a TTY or over SSH there is no
+  # tray to attach to, and the status line must still get its data. `-` prefixes
+  # the GUI attempt so a failure to reach the display does not fail the unit.
   systemd.user.services.my-ai-usage = {
     Unit = {
-      Description = "my-ai ccusage publisher (5h window segment for the Claude status line)";
+      Description = "my-ai usage publisher + systray (5h window data for the Claude status line)";
       ConditionPathExists = "%h/.local/bin/my-ai";
+      # The tray needs a session to attach to; without this it races the
+      # compositor at login, fails, and falls back to headless for the session.
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
     };
     Service = {
-      ExecStart = "%h/.local/bin/my-ai usage --daemon --interval 30";
+      ExecStart = "%h/.local/bin/my-ai-usage-daemon";
       Restart = "on-failure";
       RestartSec = 30;
       # It exists to keep the desktop responsive; it must never be the reason
@@ -376,6 +410,11 @@ in {
     Install.WantedBy = [ "default.target" ];
   };
 
+  # Prefer the tray build, fall back to headless. A shell wrapper rather than
+  # two ExecStart= lines because systemd would run BOTH: `-` only ignores the
+  # failure, it does not stop the sequence. The tray exiting non-zero (no
+  # display, no StatusNotifier host) must hand over to headless, not run
+  # alongside it — two publishers would fight over the same snapshot file.
   xdg.desktopEntries = {
     my-ai = {
       name = "My AI";
