@@ -160,31 +160,26 @@
     executable = true;
   };
   home.file.".claude/secrets.yaml".source = ./dotfiles/claude/secrets.yaml;
-  home.file.".claude/statusline-command.sh" = {
-    source = ./dotfiles/claude/statusline-command.sh;
-    executable = true;
-  };
-  # Plugin/MCP status for the statusline + claude-superset banner (data-driven).
+  # ── The status line is OWNED BY THE my-ai BINARY, not by this flake ────────
+  #
+  # statusline-command.sh, claude-{mcp,plugins,hooks,flags}-status.sh and
+  # claude-pricing.json used to be home.file entries here. That split ONE feature
+  # across two release cadences: the `05h-T` label was a Rust format string
+  # needing a GHA round-trip, while `All-S` and `05h-S` beside it were a file
+  # copy. And the daemon shells out to those scripts to build `.blocks`, so the
+  # binary had an undeclared dependency on files this flake shipped — upgrade one
+  # without the other and `.blocks` goes silently empty, sending every session
+  # back to spawning five scripts per render.
+  #
+  # my-ai now embeds them (core/src/statusline_assets.rs) and writes them out on
+  # every daemon start, so whatever binary is running is running against the
+  # assets that shipped with it. This flake keeps exactly one decision:
+  # settings.json, which says WHERE the status line appears. my-ai decides WHAT
+  # it is. Update them in da_my-ai/src/data/statusline/.
+  #
+  # claude-plugins.json stays here: it is machine configuration (which plugins
+  # this host has), not part of the status line's implementation.
   home.file.".claude/claude-plugins.json".source = ./dotfiles/claude/claude-plugins.json;
-  home.file.".claude/claude-plugins-status.sh" = {
-    source = ./dotfiles/claude/claude-plugins-status.sh;
-    executable = true;
-  };
-  home.file.".claude/claude-mcp-status.sh" = {
-    source = ./dotfiles/claude/claude-mcp-status.sh;
-    executable = true;
-  };
-  home.file.".claude/claude-hooks-status.sh" = {
-    source = ./dotfiles/claude/claude-hooks-status.sh;
-    executable = true;
-  };
-  # 5h billing-window token/cost breakdown for the statusline (ccusage-backed).
-  home.file.".claude/claude-usage-status.sh" = {
-    source = ./dotfiles/claude/claude-usage-status.sh;
-    executable = true;
-  };
-  # Data-driven per-MTok pricing for the statusline LINE 3 $ breakdown.
-  home.file.".claude/claude-pricing.json".source = ./dotfiles/claude/claude-pricing.json;
   # cloud-marketplace — local Claude Code plugin marketplace holding:
   #   - cloud-principles-ai-plugin: the data-driven hook engine (was
   #     ~/.claude/hooks/*) — ONE engine + ONE registry (hooks-rules.json):
