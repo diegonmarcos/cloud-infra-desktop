@@ -151,7 +151,16 @@
       "kind": "panelspacer"
     },
     {
-      "kind": "digitalclock"
+      "kind": "digitalclock",
+      "config": {
+        "Appearance": {
+          "showDate": true,
+          "dateFormat": "shortDate",
+          "use24hFormat": "2",
+          "showSeconds": "0",
+          "autoFontAndSize": true
+        }
+      }
     },
     {
       "kind": "panelspacer"

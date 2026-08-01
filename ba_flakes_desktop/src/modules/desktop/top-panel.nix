@@ -22,7 +22,7 @@ let
   data = builtins.fromJSON (builtins.readFile ./top-panel.json);
   toWidget = w:
     if w ? name then { inherit (w) name; config = w.config; }
-    else if w.kind == "digitalclock" then { name = "org.kde.plasma.digitalclock"; }
+    else if w.kind == "digitalclock" then { name = "org.kde.plasma.digitalclock"; } // (if w ? config then { inherit (w) config; } else {})
     else "org.kde.plasma.${w.kind}";     # panelspacer et al.
 in
 {
