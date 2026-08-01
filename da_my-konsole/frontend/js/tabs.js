@@ -349,6 +349,16 @@ const Tabs = {
     const name = p.name;
     this.activeProfile = name;
     for (const [, t] of this.tabs) t.tabEl.style.display = t.profile === name ? "" : "none";
+    // Hide the outgoing profile's CONTENT immediately, not just its tab button.
+    // Only `activate()` used to clear `.active`, and several paths below reach
+    // it late or not at all: `auto_tabs` activates inside an async IIFE, and
+    // opening can fail outright. Until then the previous tab kept painting — so
+    // a browser opened under one profile stayed visible under every other one.
+    // activate() re-adds `.active` a moment later; an extra frame with an empty
+    // pane is the correct trade against a tab that never goes away.
+    for (const [, t] of this.tabs) {
+      if (t.profile !== name) t.rootEl.classList.remove("active");
+    }
     if (opener) { console.log(`[switchProfile] ${name} → opener()`); opener(name); return; }
     const last = this.lastActiveByProfile.get(name);
     if (last && this.tabs.has(last)) { console.log(`[switchProfile] ${name} → resume ${last}`); this.activate(last); return; }
