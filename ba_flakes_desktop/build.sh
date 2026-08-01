@@ -1090,6 +1090,67 @@ ghcr_pull_layered() {
 # pull [artifact-dir] — run on the Surface. Import a GHA-built home-manager
 # closure and run its activate script. NO eval, NO build -> cannot freeze.
 # Default dir dist-ci/ (e.g. after: gh run download -n nixos-desktop-hm-closure -D dist-ci).
+# cmd_dotfiles [pattern] — SURGICAL LOCAL deploy: copy managed dotfiles straight
+# from src/ to their $HOME targets. No nix eval, no closure, no GHA round-trip.
+#
+# `switch` (remote closure) and `switch local` (on-device eval) both rebuild the
+# WORLD to change one shell script. The remote path needs a green CI run and can
+# activate a stale artifact; the local path is a heavy KDE eval on a machine
+# that is usually already under pressure. Neither is proportionate when the file
+# that changed is a status line — and being unable to ship a one-file fix
+# quickly is exactly how imperative edits to ~/.claude creep in.
+#
+# The source of truth stays the nix module: the target->source mapping is PARSED
+# out of the `home.file.".x".source = ./dotfiles/y` declarations rather than
+# guessed from a naming convention, so this can never deploy a file the flake
+# does not declare, or to a path the flake does not own. The next real switch
+# re-establishes the store symlinks and wins, as always.
+cmd_dotfiles() {
+  _pat="${1:-}"
+  log_header "dotfiles (surgical, local): copy declared dotfiles -> \$HOME"
+  _mods="$SRC_DIR/modules"
+  [ -d "$_mods" ] || { log_error "no modules dir at $_mods"; return 1; }
+
+  _map=$(command find "$_mods" -name '*.nix' -type f -print0 2>/dev/null |
+    xargs -0 awk '
+      # Remember the most recent home.file."<target>" attribute name, then pair
+      # it with the next ./dotfiles/... source (same line or a following one).
+      match($0, /home\.file\.".*"/) {
+        t = substr($0, RSTART + 11, RLENGTH - 12); gsub(/"/, "", t); tgt = t
+      }
+      match($0, /\.\/dotfiles\/[^;[:space:]]+/) {
+        if (tgt != "") { print tgt "\t" substr($0, RSTART + 2, RLENGTH - 2); tgt = "" }
+      }')
+
+  [ -n "$_map" ] || { log_error "parsed no dotfile mappings from $_mods"; return 1; }
+
+  _n=0; _skip=0
+  while IFS="$(printf '\t')" read -r _tgt _rel; do
+    [ -n "$_tgt" ] && [ -n "$_rel" ] || continue
+    case "$_tgt" in "$_pat"*|*"$_pat"*) ;; *) continue ;; esac
+    _src="$_mods/${_rel#./}"
+    if [ ! -e "$_src" ]; then
+      log_warn "  missing source, skipping: $_rel"; _skip=$((_skip + 1)); continue
+    fi
+    _dst="$HOME/$_tgt"
+    mkdir -p "$(dirname "$_dst")"
+    # rm first: the target is normally a read-only symlink into the store.
+    rm -rf "$_dst"
+    if ! cp -R "$_src" "$_dst"; then
+      log_warn "  copy failed: $_tgt"; _skip=$((_skip + 1)); continue
+    fi
+    chmod -R u+w "$_dst" 2>/dev/null || true
+    [ -x "$_src" ] && chmod u+x "$_dst" 2>/dev/null
+    log_info "  $_tgt"
+    _n=$((_n + 1))
+  done <<EOF
+$_map
+EOF
+
+  log_success "deployed $_n file(s)${_skip:+, skipped $_skip}${_pat:+ (filter: $_pat)}"
+  log_info "Declarative source unchanged — the next switch re-links these from the store."
+}
+
 cmd_pull() {
     log_header "Activate prebuilt home-manager closure (no eval — cannot freeze)"
     check_nix || return 1
@@ -1815,6 +1876,12 @@ main() {
                 runner) [ $# -gt 0 ] && shift || :; cmd_switch_runner "${1:-surface-plasma}" "${2:-diego}" ;;
                 *)      cmd_switch_runner "${1:-surface-plasma}" "${2:-diego}" ;;  # `switch <host>` → runner
             esac
+            ;;
+        # Surgical local deploy of declared dotfiles — no eval, no closure.
+        #   ./build.sh dotfiles              all of them
+        #   ./build.sh dotfiles .claude/     just Claude's
+        dotfiles)
+            cmd_dotfiles "${1:-}"
             ;;
         build)
             nix_build "${1:-surface-plasma}" "${2:-diego}"
