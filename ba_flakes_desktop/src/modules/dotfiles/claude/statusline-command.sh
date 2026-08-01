@@ -263,10 +263,13 @@ agents_configured=$((agents_configured + n))
 # Falls back to spawning only if no daemon has published yet.
 mcp_seg=""; flags_seg=""; skl_seg=""; sys_seg=""; rul_seg=""
 if [ -s "$usage_json" ]; then
-    read -r mcp_seg flags_seg skl_seg sys_seg rul_seg < <(
-        jq -r '(.blocks // {}) | [ (.mcp//""), (.flags//""), (.skl//""), (.sys//""), (.rul//"") ] | @tsv' \
-            "$usage_json" 2>/dev/null | tr '\t' '\037' | { IFS=$'\037' read -r a b c d e; printf '%s\t%s\t%s\t%s\t%s\n' "$a" "$b" "$c" "$d" "$e"; }
-    )
+    # One line per field. These strings contain spaces, tabs and \033 escapes,
+    # so they must not be word-split — `IFS= read -r` per line, not one read
+    # across a delimiter.
+    { IFS= read -r mcp_seg; IFS= read -r flags_seg; IFS= read -r skl_seg
+      IFS= read -r sys_seg; IFS= read -r rul_seg; } < <(
+        jq -r '(.blocks // {}) | (.mcp//""), (.flags//""), (.skl//""), (.sys//""), (.rul//"")' \
+            "$usage_json" 2>/dev/null)
 fi
 if [ -z "$mcp_seg" ]; then
     mcp_seg=$(bash "$HOME/.claude/claude-mcp-status.sh" "$cwd" 2>/dev/null)

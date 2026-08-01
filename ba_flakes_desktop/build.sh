@@ -1162,7 +1162,14 @@ cmd_dotfiles() {
   _n=0; _skip=0
   while IFS="$(printf '\t')" read -r _tgt _rel; do
     [ -n "$_tgt" ] && [ -n "$_rel" ] || continue
-    case "$_tgt" in "$_pat"*|*"$_pat"*) ;; *) continue ;; esac
+    # Match the filter against EITHER side of the mapping, so you can name what
+    # you are thinking of: the deployed path (`.claude/`, `.config/fish`) or the
+    # source in the repo (`dotfiles/claude`, `statusline-command.sh`). Requiring
+    # the target side meant you had to know where a file lands before you could
+    # deploy it.
+    if [ -n "$_pat" ]; then
+      case "$_tgt$_rel" in *"$_pat"*) ;; *) continue ;; esac
+    fi
     _src="$_mods/${_rel#./}"
     if [ ! -e "$_src" ]; then
       log_warn "  missing source, skipping: $_rel"; _skip=$((_skip + 1)); continue
@@ -1830,13 +1837,27 @@ main() {
         case "$cmd" in
             switch|pull|switch-remote)
                 # Isolation exists to stop a ~6GB closure import from thrashing
-                # the compositor. The light switch targets move a few MB (an app
-                # binary) or copy a handful of files, so wrapping them costs a
-                # sudo, a transient unit and a Konsole popup to save nothing —
-                # and the transient unit lingers, blocking the NEXT real switch.
-                case "$cmd $2" in
-                    "switch local"|"switch my-ai"|"switch my-konsole"|"switch dotfiles") : ;;
-                    *)
+                # the compositor. Only the whole-closure paths do that; an app
+                # artifact is a few MB and a dotfile switch is a file copy, and
+                # wrapping those costs a sudo, a transient unit and a Konsole
+                # popup to save nothing — while the leftover transient unit then
+                # blocks the NEXT real switch.
+                #
+                # ALLOWLIST, not denylist: `switch` accepts any target now, so
+                # "everything except these few names" would silently isolate
+                # every new target someone adds. Isolate only what is heavy:
+                # bare `switch`, `runner`, `full`, or a host name. `pull` and
+                # `switch-remote` are always the closure path.
+                _iso_want=0
+                case "$cmd" in
+                    pull|switch-remote) _iso_want=1 ;;
+                    switch)
+                        case "${2:-}" in
+                            ""|runner|full|surface-plasma) _iso_want=1 ;;
+                        esac
+                        ;;
+                esac
+                if [ "$_iso_want" = "0" ]; then :; else
                     _iso_slice="$(jq -r '.safety.isolation_slice // "workload.slice"' "$HM_AUTO_CFG")"
                     _iso_mm="$(jq -r '.safety.switch_memory_max // "2G"' "$HM_AUTO_CFG")"
                     _iso_sm="$(jq -r '.safety.switch_swap_max // "4G"' "$HM_AUTO_CFG")"
@@ -1893,8 +1914,7 @@ main() {
                         fi
                     fi
                     exit "$_iso_rc"
-                    ;;
-                esac
+                fi
                 ;;
         esac
     fi
@@ -1914,14 +1934,29 @@ main() {
         switch)
             # DEFAULT = runner (GHA-built closure + activate; no freeze-prone local eval).
             # `switch local [host] [user]` = eval+build+activate on-device.
+            # `switch <target>` resolves the target rather than matching a fixed
+            # list. Anything the repo can deploy on its own is a valid target:
+            #   switch                  whole closure, GHA-built (default)
+            #   switch local|full       on-device eval / explicit 6GB artifact
+            #   switch <host>           whole closure for another host
+            #   switch <app>            one app's release artifact (da_<app>/)
+            #   switch <anything else>  every declared dotfile whose target or
+            #                           source matches — a file, a directory, a
+            #                           module's worth of them
             case "${1:-runner}" in
-                # Per-app artifact switch — no closure, no eval.
-                my-ai|my-konsole) cmd_switch_app "$1" ;;
-                # Dotfiles-only surgical deploy, spelled as a switch target.
-                dotfiles) shift; cmd_dotfiles "${1:-}" ;;
                 local)  shift; nix_switch "${1:-surface-plasma}" "${2:-diego}" ;;
+                full)   cmd_switch_runner "$@" ;;
                 runner) [ $# -gt 0 ] && shift || :; cmd_switch_runner "${1:-surface-plasma}" "${2:-diego}" ;;
-                *)      cmd_switch_runner "${1:-surface-plasma}" "${2:-diego}" ;;  # `switch <host>` → runner
+                *)
+                    _t="$1"
+                    if [ -x "$(cd "$SCRIPT_DIR/.." && pwd)/da_$_t/build.sh" ]; then
+                        cmd_switch_app "$_t"                    # an app in da_*/
+                    elif [ -d "$SRC_DIR/hosts/$_t" ] || [ "$_t" = "surface-plasma" ]; then
+                        cmd_switch_runner "$_t" "${2:-diego}"   # a whole host
+                    else
+                        cmd_dotfiles "$_t"                      # a file/dir/module
+                    fi
+                    ;;
             esac
             ;;
         # Surgical local deploy of declared dotfiles — no eval, no closure.
