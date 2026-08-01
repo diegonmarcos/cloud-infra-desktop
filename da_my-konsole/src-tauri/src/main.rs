@@ -274,15 +274,94 @@ fn agentic_ui_serve(dist_dir: std::path::PathBuf, port: u16, local: bool) {
     });
 }
 
+// ── System tray icons — my-konsole IS the systray daemon. No separate
+// per-tray process, no python/GTK, no nix module: build.sh install writes
+// ~/.local/share/my-konsole/systrays.json (mirrored from configs/systrays.json,
+// same user-dir-first convention as profiles/config) and a systemd --user
+// service running `my-konsole --tray-daemon` (Restart=always). Every enabled
+// tray in that manifest becomes a real StatusNotifierItem via Tauri's native
+// tray-icon feature; each menu item just shell-execs its `command`.
+fn load_systrays() -> serde_json::Value {
+    if let Some(home) = std::env::var_os("HOME") {
+        let user = std::path::Path::new(&home).join(".local/share/my-konsole/systrays.json");
+        if let Ok(txt) = std::fs::read_to_string(&user) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt) {
+                return v;
+            }
+        }
+    }
+    serde_json::json!({ "trays": [] })
+}
+
+fn setup_systrays(app: &tauri::App) {
+    use tauri::menu::MenuBuilder;
+    use tauri::menu::MenuItemBuilder;
+    use tauri::tray::TrayIconBuilder;
+
+    let data = load_systrays();
+    let trays = data
+        .get("trays")
+        .and_then(|t| t.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let icon = app.default_window_icon().cloned();
+
+    for tray in trays {
+        if !tray.get("enable").and_then(|v| v.as_bool()).unwrap_or(false) {
+            continue;
+        }
+        let id = tray.get("id").and_then(|v| v.as_str()).unwrap_or("systray").to_string();
+        let title = tray.get("title").and_then(|v| v.as_str()).unwrap_or(&id).to_string();
+        let menu_items = tray.get("menu").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+
+        let mut commands: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        let mut builder = MenuBuilder::new(app);
+        for (i, item) in menu_items.iter().enumerate() {
+            let label = item.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let cmd = item.get("command").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let item_id = format!("{id}::{i}");
+            commands.insert(item_id.clone(), cmd);
+            if let Ok(mi) = MenuItemBuilder::with_id(item_id, label).build(app) {
+                builder = builder.item(&mi);
+            }
+        }
+        let Ok(menu) = builder.build() else { continue };
+
+        let mut tb = TrayIconBuilder::with_id(id.clone()).tooltip(&title).menu(&menu);
+        if let Some(ic) = icon.clone() {
+            tb = tb.icon(ic);
+        }
+        let tb = tb.on_menu_event(move |_app, event| {
+            let eid: &str = event.id().as_ref();
+            if let Some(cmd) = commands.get(eid) {
+                let _ = std::process::Command::new("sh").arg("-c").arg(cmd).spawn();
+            }
+        });
+        if let Err(e) = tb.build(app) {
+            eprintln!("systray: failed to build tray '{id}': {e}");
+        }
+    }
+}
+
 fn main() {
+    let tray_daemon = std::env::args().any(|a| a == "--tray-daemon");
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(PtyBroker::new())
-        .setup(|app| {
+        .setup(move |app| {
             // agentic-ui's static server(s) + the local `goose serve` are started
             // lazily from ensure_agentic_backend when their tab is actually opened, not here.
             if agentic_ui_dist_dir(app.handle()).is_none() {
                 eprintln!("agentic-ui: no dist dir found (fetch it via build.sh fetch) — tab will fail to load");
+            }
+            setup_systrays(app);
+            // --tray-daemon: this launch exists only to host the persistent tray
+            // icons (systemd --user service) — hide the terminal window instead
+            // of showing it, so it doesn't pop a Konsole-alternative window at login.
+            if tray_daemon {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.hide();
+                }
             }
             Ok(())
         })

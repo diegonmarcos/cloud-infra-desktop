@@ -1,0 +1,16 @@
+{
+  "name": "docker",
+  "display_name": "Docker",
+  "theme": { "accent": "#2496ed" },
+  "sections": [
+    {
+      "title": "Docker",
+      "items": [
+        { "label": "Status", "cmd": "systemctl status docker.service --no-pager | head -30" },
+        { "label": "Containers", "cmd": "docker ps -a" },
+        { "label": "Live stats", "cmd": "docker stats" },
+        { "label": "RESET daemon", "cmd": "sudo systemctl restart docker.service" }
+      ]
+    }
+  ]
+}

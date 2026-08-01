@@ -1,12 +1,96 @@
 {
-  "_doc": "Manifest of KDE tray icons delivered by my-konsole. Each entry launches `my-konsole --profile <profile>` (initial-profile CLI support pending, see TODO below) instead of a separate per-tray app.",
-  "_TODO": "my-konsole has no --profile / initial-tab CLI arg yet — profiles are currently only selectable from inside the running app's UI. Needs a small Rust (main.rs, read MY_KONSOLE_INITIAL_PROFILE env) + frontend (select that tab on mount) addition before these trays can jump straight to their profile.",
+  "_doc": "my-konsole IS the systray daemon. Each entry here becomes a real StatusNotifierItem tray icon, created natively by src-tauri/src/main.rs's setup_systrays() (Tauri's tray-icon feature) when my-konsole runs with --tray-daemon. `menu` items shell-exec `command` on click. `profile` names the my-konsole profile this tray's content mirrors (for the future --initial-profile jump-to-tab support — see _TODO). build.sh install copies this file to ~/.local/share/my-konsole/systrays.json and installs+starts a systemd --user service running `my-konsole --tray-daemon` (Restart=always) — no nix module, no separate python/GTK process.",
+  "_TODO": "my-konsole has no CLI/env initial-profile support yet — `profile` here is documentation only until that lands.",
   "trays": [
-    { "id": "nixos-systray", "icon": "nix-snowflake", "title": "NixOS", "profile": "nix-flakes", "enable": true },
-    { "id": "watchdog-systray", "icon": "security-high", "title": "Watchdog — System Protection", "profile": "watchdog", "enable": true },
-    { "id": "docker-systray", "icon": "docker", "title": "Docker", "profile": "docker", "enable": true },
-    { "id": "cloud-systray", "icon": "network-vpn", "title": "Cloud — Mesh / VMs", "profile": "ssh-manager", "enable": true },
-    { "id": "vault-systray", "icon": "security-medium", "title": "Vault", "profile": "vault", "enable": true },
-    { "id": "workflow-systray", "icon": "view-refresh", "title": "Workflow — GHA / Dagu", "profile": "cloud-infra", "enable": true }
+    {
+      "id": "nixos-systray",
+      "icon": "nix-snowflake",
+      "title": "NixOS",
+      "profile": "nix-flakes",
+      "enable": true,
+      "default_command": "konsole --hold -e bash -lc '$HOME/git/unix/ba_flakes_desktop/build.sh status'",
+      "menu": [
+        { "label": "Switch (pull latest, isolated)", "command": "konsole --hold -e bash -lc '$HOME/git/unix/ba_flakes_desktop/build.sh switch'" },
+        { "label": "Generations", "command": "konsole --hold -e bash -lc 'home-manager generations; read'" },
+        { "label": "Status", "command": "konsole --hold -e bash -lc '$HOME/git/unix/ba_flakes_desktop/build.sh status; read'" },
+        { "label": "Nix Daemon: status", "command": "konsole --hold -e bash -lc 'systemctl status nix-daemon.service --no-pager | head -30'" },
+        { "label": "Nix Daemon: RESET (restart)", "command": "bash -lc 'sudo systemctl restart nix-daemon.service && notify-send \"NixOS\" \"nix-daemon reset\"'" }
+      ]
+    },
+    {
+      "id": "watchdog-systray",
+      "icon": "security-high",
+      "title": "Watchdog — System Protection",
+      "profile": "watchdog",
+      "enable": true,
+      "default_command": "bash -lc watchdog-status",
+      "menu": [
+        { "label": "Status / PSI", "command": "bash -lc watchdog-status" },
+        { "label": "🔴 Trigger OOM (Alt+SysRq+F)", "command": "bash -lc watchdog-oom" },
+        { "label": "Watch guard logs", "command": "bash -lc watchdog-logs" },
+        { "label": "freeze-guard log", "command": "konsole --hold -e journalctl -u freeze-guard.service -f" },
+        { "label": "Nix Daemon: RESET", "command": "bash -lc 'sudo systemctl restart nix-daemon.service && notify-send \"Watchdog\" \"nix-daemon reset\"'" }
+      ]
+    },
+    {
+      "id": "docker-systray",
+      "icon": "docker",
+      "title": "Docker",
+      "profile": "docker",
+      "enable": true,
+      "default_command": "konsole --hold -e bash -lc 'docker ps -a; read'",
+      "menu": [
+        { "label": "Status", "command": "konsole --hold -e bash -lc 'systemctl status docker.service --no-pager | head -30'" },
+        { "label": "Containers", "command": "konsole --hold -e bash -lc 'docker ps -a; read'" },
+        { "label": "Live stats", "command": "konsole --hold -e bash -lc 'docker stats'" },
+        { "label": "RESET daemon", "command": "bash -lc 'sudo systemctl restart docker.service && notify-send \"Docker\" \"docker daemon reset\"'" }
+      ]
+    },
+    {
+      "id": "cloud-systray",
+      "icon": "network-vpn",
+      "title": "Cloud — Mesh / VMs",
+      "profile": "ssh-manager",
+      "enable": true,
+      "default_command": "konsole --hold -e bash -lc 'sudo wg show; read'",
+      "menu": [
+        { "label": "Mesh: peers (wg show)", "command": "konsole --hold -e bash -lc 'sudo wg show; read'" },
+        { "label": "VM: SSH gcp-proxy (10.0.0.1)", "command": "konsole -e ssh gcp-proxy" },
+        { "label": "VM: SSH oci-mail (10.0.0.3)", "command": "konsole -e ssh oci-mail" },
+        { "label": "VM: SSH oci-analytics (10.0.0.4)", "command": "konsole -e ssh oci-analytics" },
+        { "label": "VM: SSH oci-apps (10.0.0.6)", "command": "konsole -e ssh oci-apps" },
+        { "label": "VM: SSH gcp-t4 (10.0.0.8)", "command": "konsole -e ssh gcp-t4" },
+        { "label": "Containers: all peers (docker ps -a)", "command": "konsole --hold -e bash -lc 'docker ps -a; read'" },
+        { "label": "Containers: live stats", "command": "konsole --hold -e bash -lc 'docker stats'" }
+      ]
+    },
+    {
+      "id": "vault-systray",
+      "icon": "security-medium",
+      "title": "Vault",
+      "profile": "vault",
+      "enable": true,
+      "default_command": "konsole --hold -e bash -lc '$HOME/git/vault/build.sh status; read'",
+      "menu": [
+        { "label": "Status", "command": "konsole --hold -e bash -lc '$HOME/git/vault/build.sh status; read'" },
+        { "label": "Open in file manager", "command": "dolphin $HOME/git/vault" },
+        { "label": "Edit secrets (sops)", "command": "konsole --hold -e sops $HOME/git/unix/ba_flakes_desktop/src/secrets/secrets.yaml" },
+        { "label": "List secret keys (no values)", "command": "konsole --hold -e bash -lc 'sops -d --output-type json $HOME/git/unix/ba_flakes_desktop/src/secrets/secrets.yaml | jq keys; read'" }
+      ]
+    },
+    {
+      "id": "workflow-systray",
+      "icon": "view-refresh",
+      "title": "Workflow — GHA / Dagu",
+      "profile": "cloud-infra",
+      "enable": true,
+      "default_command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/unix -L 15; read'",
+      "menu": [
+        { "label": "GHA: recent runs (unix)", "command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/unix -L 15; read'" },
+        { "label": "GHA: recent runs (cloud)", "command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/cloud -L 15; read'" },
+        { "label": "GHA: watch latest run", "command": "konsole -e gh run watch" },
+        { "label": "GHA: auth status", "command": "konsole --hold -e bash -lc 'gh auth status; read'" }
+      ]
+    }
   ]
 }
