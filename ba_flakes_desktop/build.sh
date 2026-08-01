@@ -1114,6 +1114,16 @@ cmd_pull() {
     elif ghcr_pull_layered "$_img" && [ -n "$_sys" ] && [ -d "$_sys" ]; then
         log_success "Activation closure materialised via layered GHCR pull."
     else
+        # Layered (diff) pull is the only sanctioned path — it fetches just the
+        # missing store-path layers. The full hm-closure.nar.zst tarball (whole
+        # closure, ~GBs) is a manual-recovery escape hatch ONLY, gated behind an
+        # explicit opt-in so nothing (including an agent/script) can silently
+        # fall back to a full download when layered pull fails or is skipped.
+        if [ "${ALLOW_FULL_CLOSURE_PULL:-}" != "1" ]; then
+            log_error "layered GHCR pull did not materialise $_sys — refusing to fall back to a full closure download."
+            log_error "Fix the layered pull (check $_img / GHCR auth) instead. Full-tarball fallback requires ALLOW_FULL_CLOSURE_PULL=1 (manual recovery only)."
+            return 1
+        fi
         [ -f "$_tb" ] || { log_error "no closure tarball at $_tb (fetch: gh run download -n nixos-desktop-hm-closure -D '$_art')"; return 1; }
         [ -f "$_art/activation.name" ] || { log_error "missing $_art/activation.name"; return 1; }
         _sys="/nix/store/$(cat "$_art/activation.name")"
