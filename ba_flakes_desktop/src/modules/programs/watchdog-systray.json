@@ -71,21 +71,29 @@
         "label": "Nix Daemon: RESET (restart)",
         "icon": "view-refresh",
         "command": "bash -lc '/run/wrappers/bin/sudo systemctl restart nix-daemon.service && notify-send \"NixOS\" \"nix-daemon reset (killed + restarted)\"'"
-      },
+      }
+    ]
+  },
+  "docker_tray": {
+    "enable": true,
+    "icon": "docker",
+    "title": "Docker",
+    "default_command": "konsole --hold -e bash -lc 'docker ps -a; read'",
+    "menu": [
       {
-        "label": "Docker: status",
+        "label": "Status",
         "icon": "dialog-information",
         "command": "konsole --hold -e bash -lc 'systemctl status docker.service --no-pager | head -30'"
       },
       {
-        "label": "Docker: containers",
+        "label": "Containers",
         "icon": "view-list-details",
         "command": "konsole --hold -e bash -lc 'docker ps -a; read'"
       },
       {
-        "label": "Docker: RESET daemon",
+        "label": "RESET daemon",
         "icon": "view-refresh",
-        "command": "bash -lc '/run/wrappers/bin/sudo systemctl restart docker.service && notify-send \"NixOS\" \"docker daemon reset (killed + restarted)\"'"
+        "command": "bash -lc '/run/wrappers/bin/sudo systemctl restart docker.service && notify-send \"Docker\" \"docker daemon reset (killed + restarted)\"'"
       }
     ]
   }
