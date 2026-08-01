@@ -34,7 +34,18 @@ body { display: flex; flex-direction: column; }
   border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 13px;
 }
 #btn-sidebar:hover { border-color: var(--accent); color: var(--fg); }
-#brand { font-weight: 700; color: var(--accent); letter-spacing: .3px; }
+/* The app title is centred across the whole row, not left-packed after the
+   hamburger. Absolute + translate rather than flex centring on purpose: the
+   left group (hamburger) and the right group (Configs) have different widths,
+   so flex would centre it BETWEEN them and it would visibly shift whenever a
+   button appears or a label changes. This pins it to the row's centre.
+   pointer-events:none so it can never eat a click meant for a control. */
+#nav-row-home { position: relative; }
+#brand {
+  font-weight: 700; color: var(--accent); letter-spacing: .3px;
+  position: absolute; left: 50%; transform: translateX(-50%);
+  pointer-events: none; white-space: nowrap;
+}
 .nav-label {
   color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: .5px;
 }
