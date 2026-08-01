@@ -228,7 +228,10 @@ const Tabs = {
   // webview, no manual bounds/visibility syncing, nothing that can render
   // outside the tab area. Closing the tab removes the iframe from the DOM,
   // which tears it down; no explicit close call needed.
-  openBrowserTab(url, profile = this.activeProfile) {
+  // `label` names the tab. Without it every browser tab was titled "Browser",
+  // so a profile with several (agentic: Goose Desktop / Goose Cloud / Hermes
+  // Cloud) showed three identical tabs and you could not tell the modes apart.
+  openBrowserTab(url, profile = this.activeProfile, label) {
     // Home page. NOT a search engine: the tab is an iframe, and every major
     // search engine sends X-Frame-Options: DENY, so it loaded a blank frame with
     // no error — the browser looked simply broken. This one is ours and frames.
@@ -285,7 +288,8 @@ const Tabs = {
 
     const tabEl = document.createElement("div");
     tabEl.className = "tab"; tabEl.dataset.id = tabId;
-    tabEl.innerHTML = `<span class="tab-icon">🌐</span><span class="tab-title">Browser</span><span class="tab-close">✕</span>`;
+    tabEl.innerHTML = `<span class="tab-icon">🌐</span><span class="tab-title"></span><span class="tab-close">✕</span>`;
+    tabEl.querySelector(".tab-title").textContent = label || "Browser";
     this._wireTabEl(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
@@ -369,7 +373,20 @@ const Tabs = {
     console.log(`[openRunTab] profile=${profile} title=${title} cmd=${cmd}`);
     const tabId = await this.newTab(profile);
     if (title) this.setTitle(tabId, title);
-    if (MYK.activePane && cmd) Transport.ptyWrite(MYK.activePane, cmd + "\n");
+    if (!cmd) return tabId;
+    // Write to THIS tab's pane, and only once it exists. Reading MYK.activePane
+    // straight after newTab() raced the pane being created and focused: the
+    // write either went to the previously-focused pane or was dropped, which is
+    // why "File Editor → Vim" opened a bare shell with no vim in it. Resolve the
+    // pane from the tab we just made, and give the PTY a few frames to appear
+    // before giving up.
+    const paneOf = () => this.tabs.get(tabId)?.rootEl.querySelector(".pane")?.dataset.id;
+    for (let i = 0; i < 40; i++) {
+      const pane = paneOf();
+      if (pane) { Transport.ptyWrite(pane, cmd + "\n"); return tabId; }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    console.error(`[openRunTab] no pane after 2s — dropped: ${cmd}`);
     return tabId;
   },
   openVimTab(profile = this.activeProfile) { return this.openRunTab("vim", "vim", profile); },
@@ -419,7 +436,7 @@ const Tabs = {
       (async () => {
         const ids = [];
         for (const t of p.auto_tabs) {
-          ids.push(t.kind === "browser" ? this.openBrowserTab(t.url, name) : await this.openRunTab(t.cmd, t.label, name));
+          ids.push(t.kind === "browser" ? this.openBrowserTab(t.url, name, t.label) : await this.openRunTab(t.cmd, t.label, name));
         }
         if (ids[0]) this.activate(ids[0]);
       })();
@@ -427,7 +444,7 @@ const Tabs = {
     }
     const kind = p.browser ? "browser" : p.filebrowser ? "filebrowser" : p.fileeditor ? "fileeditor" : p.home_cmd ? "hometab" : "shell";
     console.log(`[switchProfile] ${name} → open new ${kind}`);
-    if (p.browser) this.openBrowserTab(p.url, name);
+    if (p.browser) this.openBrowserTab(p.url, name, p.display_name);
     else if (p.filebrowser) this.openFileBrowserTab(p.start_path || "~", name);
     else if (p.fileeditor) this.openFileEditorTab(null, name);
     else if (p.home_cmd) this.openRunTab(p.home_cmd, "Home", name);
