@@ -1105,6 +1105,41 @@ ghcr_pull_layered() {
 # guessed from a naming convention, so this can never deploy a file the flake
 # does not declare, or to a path the flake does not own. The next real switch
 # re-establishes the store symlinks and wins, as always.
+# cmd_switch_app <my-ai|my-konsole> — deploy ONE app's GHA-built binaries.
+#
+# These ship as their own release artifacts, not as part of the home-manager
+# closure, so pulling a new my-ai should never require the ~6GB closure path or
+# a green desktop-closure run. Each app's own build.sh already knows how to
+# fetch its artifact and install it; this just makes that reachable from the one
+# build.sh you actually type, next to `dotfiles`.
+cmd_switch_app() {
+  _app="$1"
+  _dir="$(cd "$SCRIPT_DIR/.." && pwd)/da_$_app"
+  log_header "switch $_app (app artifact only — no closure, no eval)"
+  [ -x "$_dir/build.sh" ] || { log_error "no build.sh at $_dir"; return 1; }
+
+  # Stop the app's units BEFORE installing. A running daemon holds its own
+  # executable open, so `install` fails with "text file busy" — and that failure
+  # is non-fatal in the app's build.sh, so the whole switch reports success
+  # while the OLD binary is still on disk and still running.
+  _units="$(systemctl --user list-units --no-legend --plain "$_app*" 2>/dev/null | awk '{print $1}')"
+  for _u in $_units; do
+    log_info "stopping $_u"
+    systemctl --user stop "$_u" 2>/dev/null || true
+  done
+
+  _rc=0
+  ( cd "$_dir" && ./build.sh fetch && ./build.sh install ) || _rc=1
+
+  for _u in $_units; do
+    log_info "starting $_u"
+    systemctl --user start "$_u" 2>/dev/null || true
+  done
+
+  [ "$_rc" -eq 0 ] || { log_error "$_app: fetch/install failed"; return 1; }
+  log_success "$_app switched"
+}
+
 cmd_dotfiles() {
   _pat="${1:-}"
   log_header "dotfiles (surgical, local): copy declared dotfiles -> \$HOME"
@@ -1794,7 +1829,14 @@ main() {
        && [ "$(jq -r '.safety.isolate // false' "$HM_AUTO_CFG")" = "true" ]; then
         case "$cmd" in
             switch|pull|switch-remote)
-                if [ "$cmd" = "switch" ] && [ "${2:-}" = "local" ]; then :; else
+                # Isolation exists to stop a ~6GB closure import from thrashing
+                # the compositor. The light switch targets move a few MB (an app
+                # binary) or copy a handful of files, so wrapping them costs a
+                # sudo, a transient unit and a Konsole popup to save nothing —
+                # and the transient unit lingers, blocking the NEXT real switch.
+                case "$cmd $2" in
+                    "switch local"|"switch my-ai"|"switch my-konsole"|"switch dotfiles") : ;;
+                    *)
                     _iso_slice="$(jq -r '.safety.isolation_slice // "workload.slice"' "$HM_AUTO_CFG")"
                     _iso_mm="$(jq -r '.safety.switch_memory_max // "2G"' "$HM_AUTO_CFG")"
                     _iso_sm="$(jq -r '.safety.switch_swap_max // "4G"' "$HM_AUTO_CFG")"
@@ -1851,7 +1893,8 @@ main() {
                         fi
                     fi
                     exit "$_iso_rc"
-                fi
+                    ;;
+                esac
                 ;;
         esac
     fi
@@ -1872,6 +1915,10 @@ main() {
             # DEFAULT = runner (GHA-built closure + activate; no freeze-prone local eval).
             # `switch local [host] [user]` = eval+build+activate on-device.
             case "${1:-runner}" in
+                # Per-app artifact switch — no closure, no eval.
+                my-ai|my-konsole) cmd_switch_app "$1" ;;
+                # Dotfiles-only surgical deploy, spelled as a switch target.
+                dotfiles) shift; cmd_dotfiles "${1:-}" ;;
                 local)  shift; nix_switch "${1:-surface-plasma}" "${2:-diego}" ;;
                 runner) [ $# -gt 0 ] && shift || :; cmd_switch_runner "${1:-surface-plasma}" "${2:-diego}" ;;
                 *)      cmd_switch_runner "${1:-surface-plasma}" "${2:-diego}" ;;  # `switch <host>` → runner
