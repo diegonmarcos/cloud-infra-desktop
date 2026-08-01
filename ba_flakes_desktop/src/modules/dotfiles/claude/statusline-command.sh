@@ -413,7 +413,7 @@ ctx_fmt=$(fmt_tok "$current_ctx")
 read d_in d_out d_cwrite d_cread d_tot < <(LC_NUMERIC=C awk \
     -v n="${sum_in:-0}" -v o="${sum_out:-0}" -v cr="${sum_cread:-0}" -v cw="${sum_cwrite:-0}" \
     -v pi="$p_in" -v po="$p_out" -v pcr="$p_cr" -v pcw="$p_cw" \
-    'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dcw=cw/1e6*pcw; dcr=cr/1e6*pcr; printf "%.0f %.0f %.0f %.0f %.0f", di, dou, dcw, dcr, di+dou+dcw+dcr}')
+    'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dcw=cw/1e6*pcw; dcr=cr/1e6*pcr; printf "%.2f %.2f %.2f %.2f %.2f", di, dou, dcw, dcr, di+dou+dcw+dcr}')
 
 # cache hit rate + colors
 total_in=$(( ${cu_new:-0} + cache_tok ))
@@ -437,19 +437,27 @@ OUT+=" \033[37m│\033[0m"
 OUT+=" \033[${cache_color}mCch:${cache_hit}%\033[0m"
 OUT+=" \033[90mUsr:${prompt_age}\033[0m"
 OUT+=" \033[90mAgt:${action_age}\033[0m"
-# Block 3: New / cache-write / cache-read / Out, each with its own $ cost —
-# kept as four fields (not folded into one Cch bucket) so New isn't mistaken
-# for "your total input" when almost all of it is really CchW.
+# Block 3: full context window detail. The token/cost breakdown that used to sit
+# here moved to its own `All-S` row below, so the three usage scopes read as a
+# stack of directly comparable rows instead of one being buried in this line.
 OUT+=" \033[37m│\033[0m"
+OUT+=" \033[${pct_color}mCtx:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
+OUT+="\n"
+
+# LINE 4a — All-S: this session id, ALL TIME (not capped to the 5h window).
+# Same fields in the same order as the 5h-T / 5h-S rows beneath it, so the three
+# scopes stack: all-time this session, 5h all sessions, 5h this session.
+# New/CchW/CchR/Out stay four separate fields rather than one folded "Cch"
+# bucket — New (input_tokens) is near-zero once caching is on, so folding CchW
+# in with CchR made New look like "your input" when it is really "content that
+# bypassed caching entirely".
+OUT+="\033[37m|\033[0m All-S \033[37m[\033[0m"
 OUT+=" \033[36mNew:${new_fmt}(\$${d_in})\033[0m"
 OUT+=" \033[33mCchW:${cwrite_fmt}(\$${d_cwrite})\033[0m"
 OUT+=" \033[34mCchR:${cread_fmt}(\$${d_cread})\033[0m"
 OUT+=" \033[36mOut:${out_fmt}(\$${d_out})\033[0m"
-OUT+=" \033[${cost_color}mΣ${sum_fmt}(\$${d_tot})\033[0m"
-# Block 4: full context window detail
-OUT+=" \033[37m│\033[0m"
-OUT+=" \033[${pct_color}mCtx:${ctx_fmt}/${win_fmt}(${ctx_percent}%)\033[0m"
-OUT+="\n"
+OUT+=" \033[1m\033[${cost_color}mΣ${sum_fmt}(\$${d_tot})\033[0m"
+OUT+=" \033[37m]\033[0m\n"
 
 # LINE 4b — 5h billing-window token/cost breakdown, ccusage-backed (see
 # claude-usage-status.sh). Companion to LINE 4's per-SESSION breakdown, same
