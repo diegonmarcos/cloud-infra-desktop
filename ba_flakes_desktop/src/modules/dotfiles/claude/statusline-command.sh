@@ -478,12 +478,16 @@ OUT+="\n"
 # bucket — New (input_tokens) is near-zero once caching is on, so folding CchW
 # in with CchR made New look like "your input" when it is really "content that
 # bypassed caching entirely".
+# Σ leads each row: it is the number being compared across the three scopes, so
+# it sits at a fixed left position instead of at the end of a variable-width
+# list. Labels are padded to 5 chars (All-S / 05h-T / 05h-S) so the brackets and
+# the totals line up vertically.
 OUT+="\033[37m|\033[0m All-S \033[37m[\033[0m"
+OUT+=" \033[1m\033[${cost_color}mΣ${sum_fmt}(\$${d_tot})\033[0m"
 OUT+=" \033[36mNew:${new_fmt}(\$${d_in})\033[0m"
 OUT+=" \033[33mCchW:${cwrite_fmt}(\$${d_cwrite})\033[0m"
 OUT+=" \033[34mCchR:${cread_fmt}(\$${d_cread})\033[0m"
 OUT+=" \033[36mOut:${out_fmt}(\$${d_out})\033[0m"
-OUT+=" \033[1m\033[${cost_color}mΣ${sum_fmt}(\$${d_tot})\033[0m"
 OUT+=" \033[37m]\033[0m\n"
 
 # LINE 4b — 5h billing-window token/cost breakdown, ccusage-backed (see
@@ -515,12 +519,12 @@ if [ "${has_bs:-0}" = "1" ]; then
         -v n="$b_in" -v o="$b_out" -v cr="$b_cread" -v cw="$b_cwrite" \
         -v pi="$p_in" -v po="$p_out" -v pcr="$p_cr" -v pcw="$p_cw" \
         'BEGIN{di=n/1e6*pi; dou=o/1e6*po; dcw=cw/1e6*pcw; dcr=cr/1e6*pcr; printf "%.2f %.2f %.2f %.2f %.2f", di, dou, dcw, dcr, di+dou+dcw+dcr}')
-    OUT+="\033[37m|\033[0m 5h-S \033[37m[\033[0m"
+    OUT+="\033[37m|\033[0m 05h-S \033[37m[\033[0m"
+    OUT+=" \033[1mΣ$(fmt_tok "$b_total")(\$${s_tot})\033[0m"
     OUT+=" \033[36mNew:$(fmt_tok "$b_in")(\$${s_in})\033[0m"
     OUT+=" \033[33mCchW:$(fmt_tok "$b_cwrite")(\$${s_cwrite})\033[0m"
     OUT+=" \033[34mCchR:$(fmt_tok "$b_cread")(\$${s_cread})\033[0m"
     OUT+=" \033[36mOut:$(fmt_tok "$b_out")(\$${s_out})\033[0m"
-    OUT+=" \033[1mΣ$(fmt_tok "$b_total")(\$${s_tot})\033[0m"
     OUT+=" \033[37m]\033[0m\n"
 fi
 
