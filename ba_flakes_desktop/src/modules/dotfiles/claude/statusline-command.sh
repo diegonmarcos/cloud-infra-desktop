@@ -35,32 +35,49 @@ session_short="${session_id:0:8}"
 # With six sessions repainting every second, the status line alone was ~170% of
 # 8 cores and cpu.pressure some avg10 sat near 50.
 #
-# So the script bounds its OWN rate: within MIN_INTERVAL of the last full
-# render, replay the cached output and exit before doing any work. Cost per
-# session becomes one jq + one cat, no matter what interval asked for it.
+# So the paint path NEVER renders. It prints the last published line and, if
+# that line is stale, kicks off a DETACHED refresh it does not wait for. Drawing
+# costs one `cat`; the expensive part happens off the critical path.
 #
-# This is a HARD time floor, deliberately not conditioned on the content having
-# changed. A first version skipped the render only when ctx/cost were also
-# unchanged — but `cost.total_cost_usd` ticks up continuously WHILE a response
-# streams, so during exactly the busy periods that matter the key never matched,
-# every render ran in full, and renders overlapped: 7-9 concurrent copies of
-# this script, ~256% of 8 cores. Being at most MIN_INTERVAL stale is worth far
-# more than being instantly correct.
-# ponytail: 5s floor; lower it only if the line feels laggy AND the fork count
-# has come down.
+# A plain in-process time floor was not enough, and the reason matters: Claude
+# Code kills a status line that takes too long. A first render costs ~1.5s under
+# load, got killed before it could write its cache, so the next tick found no
+# cache, rendered from scratch, and was killed too. Six sessions sat in that
+# loop permanently — the observable symptom was 6 sessions with a timestamp file
+# but only ONE with any cached output, and 8-10 concurrent copies of this script
+# spiking to 465% of 8 cores. A detached child cannot be killed with us, so the
+# cache always gets written even when every foreground render dies.
+# ponytail: 5s floor; the line is at most that stale.
 STATUSLINE_MIN_INTERVAL="${STATUSLINE_MIN_INTERVAL:-5}"
 _throttle="/tmp/statusline_out_${session_short:-none}.cache"
 _stamp="$_throttle.key"
-if [ -s "$_throttle" ] && [ -f "$_stamp" ]; then
-    read -r _prev_at < "$_stamp" 2>/dev/null
-    if [ $(( $(date +%s) - ${_prev_at:-0} )) -lt "$STATUSLINE_MIN_INTERVAL" ]; then
-        cat "$_throttle"
-        exit 0
+
+if [ "${STATUSLINE_RENDER:-0}" != "1" ]; then
+    _now=$(date +%s)
+    _prev_at=0
+    [ -f "$_stamp" ] && read -r _prev_at < "$_stamp" 2>/dev/null
+    case "$_prev_at" in ""|*[!0-9]*) _prev_at=0;; esac
+    if [ $(( _now - _prev_at )) -ge "$STATUSLINE_MIN_INTERVAL" ]; then
+        # mkdir is the atomic test-and-set: exactly one refresher per session,
+        # so a slow render can never stack up behind itself.
+        if mkdir "$_throttle.lock" 2>/dev/null; then
+            echo "$_now" > "$_stamp" 2>/dev/null
+            printf '%s' "$input" > "$_throttle.in" 2>/dev/null
+            (
+                trap 'rmdir "$_throttle.lock" 2>/dev/null' EXIT
+                STATUSLINE_RENDER=1 bash "$0" < "$_throttle.in" > "$_throttle.tmp" 2>/dev/null &&
+                    mv -f "$_throttle.tmp" "$_throttle" 2>/dev/null
+            ) </dev/null >/dev/null 2>&1 &
+            disown 2>/dev/null || true
+        elif [ $(( _now - _prev_at )) -gt 120 ]; then
+            # Refresher died without releasing the lock — reclaim it.
+            rmdir "$_throttle.lock" 2>/dev/null || true
+        fi
     fi
+    # Whatever we have. Empty on the very first tick; populated a moment later.
+    [ -s "$_throttle" ] && cat "$_throttle"
+    exit 0
 fi
-# Claim the slot BEFORE rendering, not after. Otherwise every render that starts
-# while a slow one is still running also sees a stale stamp and starts its own.
-echo "$(date +%s)" > "$_stamp" 2>/dev/null
 
 # Custom session name capped to 13 display chars (ellipsis when longer)
 session_name_disp="$session_name"
@@ -562,10 +579,6 @@ else
 fi
 OUT+=" \033[37m|\033[0m\n"
 
-# Publish for the self-throttle above, then print. Written temp-then-rename so a
-# concurrently-starting render reads a whole line or the previous one, never a
-# half-written buffer.
-printf "%b" "$OUT" > "$_throttle.tmp.$$" 2>/dev/null &&
-    mv -f "$_throttle.tmp.$$" "$_throttle" 2>/dev/null
-
+# Only ever reached as the detached refresher (STATUSLINE_RENDER=1); the caller
+# redirects this into the cache and renames it into place atomically.
 printf "%b" "$OUT"
