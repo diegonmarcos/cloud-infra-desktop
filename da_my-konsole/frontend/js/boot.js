@@ -175,6 +175,66 @@
       `echo '✓ Repo at ${app.clone_dir}'`,
       "clone");
   });
+  // ── Dependency solver ────────────────────────────────────────────────────
+  // The hub's dependency list is DERIVED, never hand-written: every bookmark in
+  // every profile is a shell command, and the first word of that command is the
+  // binary it needs. A hand-kept list would rot the moment someone adds a
+  // bookmark — this cannot, because the bookmarks ARE the list.
+  //
+  // It reports where each one came from, so a missing binary tells you which
+  // profile stops working rather than just naming something absent.
+  function scanDeps() {
+    const SHELL_BUILTINS = new Set([
+      "cd", "export", "source", ".", "echo", "exit", "set", "unset", "alias",
+      "if", "for", "while", "read", "eval", "exec", "trap", "true", "false",
+      "clear", "pushd", "popd", "wait", "kill", "jobs", "fg", "bg", "printf",
+    ]);
+    const deps = new Map(); // binary -> Set(profile display names)
+    for (const p of profiles) {
+      const label = p.display_name || p.name;
+      for (const sec of p.sections || []) {
+        for (const it of sec.items || []) {
+          if (!it.cmd) continue;
+          // Take the first word of each ;/&&/| segment: a bookmark is often a
+          // pipeline, and every stage of it is a dependency too.
+          for (const seg of it.cmd.split(/\|\||&&|[;|]/)) {
+            let w = seg.trim().split(/\s+/)[0] || "";
+            w = w.replace(/^\(+/, "");                 // "(cmd ..." subshells
+            if (!w || w.startsWith("$") || w.startsWith("-")) continue;
+            if (w.includes("/")) w = w.split("/").pop(); // /usr/bin/x -> x
+            if (!/^[A-Za-z][\w.+-]*$/.test(w)) continue;
+            if (SHELL_BUILTINS.has(w)) continue;
+            if (!deps.has(w)) deps.set(w, new Set());
+            deps.get(w).add(label);
+          }
+        }
+      }
+    }
+    return deps;
+  }
+
+  document.getElementById("menu-deps").addEventListener("click", () => {
+    const deps = scanDeps();
+    const names = [...deps.keys()].sort();
+    console.log(`[deps] ${names.length} binaries referenced by ${profiles.length} profiles`);
+    // Checked in a real shell rather than guessed at: `command -v` is the only
+    // answer that accounts for PATH, nix profiles, shell functions and aliases.
+    // Output is a tab so it is copy-pasteable and scrolls like anything else.
+    const list = names.join(" ");
+    const script =
+      `printf '%s\\n' 'DEPENDENCY SOLVER — ${names.length} binaries referenced by this hub' ''; ` +
+      `miss=0; have=0; ` +
+      `for b in ${list}; do ` +
+      `  if p=$(command -v "$b" 2>/dev/null); then have=$((have+1)); printf '  \\033[32m✓\\033[0m %-24s %s\\n' "$b" "$p"; ` +
+      `  else miss=$((miss+1)); printf '  \\033[31m✗\\033[0m %-24s MISSING\\n' "$b"; fi; ` +
+      `done; ` +
+      `printf '\\n  %s installed, \\033[31m%s missing\\033[0m\\n' "$have" "$miss"`;
+    Tabs.openRunTab(script, "Deps", current?.name);
+    // The which-profile-needs-it mapping is only useful next to a miss, so it
+    // goes to the console rather than doubling the length of the tab output.
+    for (const [b, who] of [...deps].sort()) console.log(`[deps] ${b} <- ${[...who].join(", ")}`);
+  });
+
   document.getElementById("menu-about").addEventListener("click", showAbout);
   document.getElementById("about-close").addEventListener("click", () => { document.getElementById("about").hidden = true; });
 
