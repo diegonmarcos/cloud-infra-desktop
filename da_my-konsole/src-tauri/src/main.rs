@@ -307,13 +307,19 @@ fn setup_systrays(app: &tauri::App) {
     // NOT app.default_window_icon(): on this platform it returns a raw RGBA
     // buffer whose length doesn't match its own reported width/height (a 2x
     // HiDPI variant leaking through), which tray_icon's stricter size check
-    // rejects outright ("wrong data size, expected 4096 got 8192"). Load the
-    // bundled 32x32 PNG directly instead — Image::from_path decodes it fresh.
+    // rejects outright ("wrong data size, expected 4096 got 8192"). Decode
+    // the bundled 32x32 PNG ourselves instead — Image has no from_path in
+    // this tauri version, only new_owned(rgba, width, height).
     let icon = app
         .path()
         .resolve("icons/32x32.png", tauri::path::BaseDirectory::Resource)
         .ok()
-        .and_then(|p| tauri::image::Image::from_path(p).ok());
+        .and_then(|p| image::open(p).ok())
+        .map(|img| {
+            let rgba = img.to_rgba8();
+            let (w, h) = (rgba.width(), rgba.height());
+            tauri::image::Image::new_owned(rgba.into_raw(), w, h)
+        });
 
     for tray in trays {
         if !tray.get("enable").and_then(|v| v.as_bool()).unwrap_or(false) {
