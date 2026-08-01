@@ -5,6 +5,37 @@
 // element (no floating native webview, no manual bounds-syncing). On Tauri,
 // opening one first fires an "ensure_agentic_backend" invoke so our own
 // localhost static servers / local goosed are lazily started before load.
+// The browser tab's home page, and the fallback for any site that refuses to be
+// framed. Kept as one constant so the address bar's "home" and a fresh tab can
+// never disagree.
+const HOME_URL = "https://linktree.diegonmarcos.com";
+
+// Sites that send X-Frame-Options: DENY / frame-ancestors 'none' load as a blank
+// frame and fire no error event — indistinguishable from "still loading". After
+// a load with a still-empty frame we say so, and offer the system browser,
+// instead of showing an empty rectangle forever.
+const watchForFrameBlock = (frame, note, url) => {
+  let settled = false;
+  const done = (blocked) => {
+    if (settled) return;
+    settled = true;
+    note.hidden = !blocked;
+    if (blocked) note.querySelector(".browser-note-url").textContent = url;
+  };
+  frame.addEventListener("load", () => {
+    // Cross-origin access throwing is NORMAL for a page that loaded fine, so it
+    // cannot be the signal. A blocked frame stays at about:blank, which is
+    // same-origin and therefore readable — that asymmetry is the tell.
+    try {
+      const href = frame.contentWindow.location.href;
+      done(href === "about:blank");
+    } catch {
+      done(false); // readable-failure => a real cross-origin page => it loaded
+    }
+  }, { once: true });
+  setTimeout(() => done(false), 6000); // never leave the notice stuck on
+};
+
 const ensureAgenticBackend = (url) => {
   if (window.__TAURI__) window.__TAURI__.core.invoke("ensure_agentic_backend", { url }).catch(() => {});
 };
@@ -198,7 +229,10 @@ const Tabs = {
   // outside the tab area. Closing the tab removes the iframe from the DOM,
   // which tears it down; no explicit close call needed.
   openBrowserTab(url, profile = this.activeProfile) {
-    url = url || "https://duckduckgo.com";
+    // Home page. NOT a search engine: the tab is an iframe, and every major
+    // search engine sends X-Frame-Options: DENY, so it loaded a blank frame with
+    // no error — the browser looked simply broken. This one is ours and frames.
+    url = url || HOME_URL;
     const tabId = "T" + ++this.seq;
     ensureAgenticBackend(url);
     const rootEl = document.createElement("div");
@@ -209,8 +243,14 @@ const Tabs = {
         <div class="browser-addr">
           <button class="browser-btn" data-act="back" title="Back">‹</button>
           <button class="browser-btn" data-act="reload" title="Reload">↻</button>
+          <button class="browser-btn" data-act="home" title="Home">⌂</button>
           <input class="browser-addr-input" type="text" spellcheck="false" value="${url}" />
           <button class="browser-btn browser-btn-close" data-act="close" title="Close tab">✕</button>
+        </div>
+        <div class="browser-note" hidden>
+          <div><b class="browser-note-url"></b> refuses to be embedded
+          (X-Frame-Options / frame-ancestors).</div>
+          <button class="browser-btn" data-act="external">Open in system browser</button>
         </div>
         <iframe class="browser-frame" src="${url}"></iframe>
       </div>`;
@@ -219,16 +259,28 @@ const Tabs = {
     const addr = rootEl.querySelector(".browser-addr-input");
     const frame = rootEl.querySelector(".browser-frame");
     console.log(`[openBrowserTab] iframe url=${url} profile=${profile}`);
+    const note = rootEl.querySelector(".browser-note");
     const go = (v) => {
       if (!/^[a-z]+:\/\//i.test(v)) v = "https://" + v;
       addr.value = v;
       const t = this.tabs.get(tabId); if (t) t.browserUrl = v;
       ensureAgenticBackend(v);
+      note.hidden = true;
+      watchForFrameBlock(frame, note, v);
       frame.src = v;
     };
+    watchForFrameBlock(frame, note, url);
     addr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(addr.value.trim()); });
     rootEl.querySelector('[data-act="back"]').addEventListener("click", () => { try { frame.contentWindow.history.back(); } catch {} });
     rootEl.querySelector('[data-act="reload"]').addEventListener("click", () => go(addr.value.trim()));
+    rootEl.querySelector('[data-act="home"]').addEventListener("click", () => go(HOME_URL));
+    rootEl.querySelector('[data-act="external"]').addEventListener("click", () => {
+      const target = addr.value.trim();
+      // Tauri's opener when we have it; a normal new tab in a plain browser.
+      if (window.__TAURI__?.opener?.openUrl) window.__TAURI__.opener.openUrl(target).catch(() => {});
+      else if (window.__TAURI__?.shell?.open) window.__TAURI__.shell.open(target).catch(() => {});
+      else window.open(target, "_blank", "noopener");
+    });
     rootEl.querySelector('[data-act="close"]').addEventListener("click", () => this.close(tabId));
 
     const tabEl = document.createElement("div");

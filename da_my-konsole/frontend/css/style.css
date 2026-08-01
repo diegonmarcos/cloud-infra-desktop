@@ -325,3 +325,13 @@ body { display: flex; flex-direction: column; }
 }
 .pane-menu-item { padding: 5px 14px; font: 13px monospace; cursor: pointer; }
 .pane-menu-item:hover { background: var(--accent); color: var(--bg); }
+
+/* Shown only when a site refused to be framed — otherwise the tab is a blank
+   rectangle with no error, which reads as "the browser is broken". */
+.browser-note {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; background: var(--bg2);
+  border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.browser-note[hidden] { display: none; }
+.browser-note-url { color: var(--accent); }
