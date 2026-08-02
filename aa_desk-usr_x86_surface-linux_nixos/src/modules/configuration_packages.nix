@@ -92,6 +92,22 @@
   # ═══════════════════════════════════════════════════════════════════════════
 
   services.flatpak.enable = true;
+  # nix-ld exports NIX_LD/NIX_LD_LIBRARY_PATH globally (see above) so arbitrary
+  # dynamically-linked binaries can find a loader. systemd imports that into
+  # every user-session process, including flatpak's own CLI/portal helpers —
+  # so flatpak's dynamic linker resolves libs through nix-ld's (older,
+  # nixos-24.11-pinned) glibc/glib instead of its own bundled runtime,
+  # producing version mismatches like "GLIBC_ABI_DT_X86_64_PLT not found".
+  # Unset those vars for flatpak specifically; it must never see nix-ld's libs.
+  services.flatpak.package = pkgs.symlinkJoin {
+    name = "flatpak-no-nix-ld";
+    paths = [ pkgs.flatpak ];
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''
+      wrapProgram $out/bin/flatpak \
+        --unset NIX_LD --unset NIX_LD_LIBRARY_PATH --unset LD_LIBRARY_PATH
+    '';
+  };
 
   # Add Flathub remote on boot (only if not already configured)
   # Uses ConditionPathExists to skip entirely if flathub is already set up
