@@ -30,9 +30,11 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 # alternative — imagemagick at install time — puts a build tool on every user
 # machine for six 32x32 images.
 resvg = { version = "0.44", default-features = false }
-# Config-file glob expansion for the sidebar "Configs" panel (fs_glob below) —
-# a real matcher (**, *, ?) instead of hand-rolling one.
-glob = "0.3"
+# Directory walk for the sidebar "Data" panel (fs_glob below) — filter_entry
+# prunes a subtree BEFORE descending into it, which the `glob` crate this
+# replaced could not do (it filtered .git/target/node_modules/result out of
+# the *results*, after already walking every one of them in full).
+walkdir = "2"
 # Serves the vendored agentic-ui/dist static build to the native browser-tab
 # webview (browser_open needs a real http:// URL, not a file:// root) — see
 # agentic_ui_serve below. Smallest workable dep for this, per plan.
