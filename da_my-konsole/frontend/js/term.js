@@ -74,31 +74,95 @@ const MYK = {
     this.focusPane(nid);
   },
 
-  // ── Right-click pane menu: split in any of 4 directions, or close pane ──
+  // Open the pane's working directory in the system file manager. No cwd is
+  // tracked per-pane (ptyStart's cwd is always null — see makePane) so this
+  // always opens $HOME; that's the only "current directory" this app actually
+  // knows, and pretending otherwise would be a fabricated feature.
+  openFileManager() {
+    const home = "$HOME"; // shell-expanded by the target, not resolved here
+    if (window.__TAURI__?.shell?.open) window.__TAURI__.shell.open(home).catch(() => {});
+    else console.warn("[pane-menu] Open File Manager: no Tauri shell plugin in this environment");
+  },
+
+  renameTab(tabId) {
+    const t = Tabs.tabs.get(tabId);
+    if (!t) return;
+    const name = prompt("Tab name:", t.tabEl.querySelector(".tab-title")?.textContent || "");
+    if (name !== null && name.trim()) Tabs.setTitle(tabId, name.trim());
+  },
+
+  // ── Right-click pane menu: Konsole's terminal context menu, minus the
+  // entries this app can't actually do (Adjust Scrollback…, Detach Current
+  // Tab — see term.js history / task notes for why those are omitted).
   showPaneMenu(x, y) {
     document.getElementById("pane-menu")?.remove();
+    const p = this.panes.get(this.activePane);
+    if (!p) return;
+    const { term, tabId } = p;
+    const id = this.activePane;
+
+    const items = [
+      { label: "Copy", disabled: !term.hasSelection(), action: () => navigator.clipboard.writeText(term.getSelection()) },
+      { label: "Paste", action: () => navigator.clipboard.readText().then((t) => Transport.ptyWrite(id, t)) },
+      { sep: true },
+      { label: "Select All", action: () => term.selectAll() },
+      { sep: true },
+      { label: "Open File Manager", action: () => this.openFileManager() },
+      { sep: true },
+      { label: "Rename Tab…", action: () => this.renameTab(tabId) },
+      { sep: true },
+      { label: "Clear Scrollback", action: () => term.clear() },
+      { label: "Clear Scrollback and Reset", action: () => term.reset() },
+      { sep: true },
+      { label: "Split View", sub: [
+        { label: "Split View Left/Right", action: () => this.split("row") },
+        { label: "Split View Top/Bottom", action: () => this.split("col") },
+      ] },
+      { sep: true },
+      { label: "Show Menu Bar", check: true, checked: window.Layout?.get("topnav"), action: () => window.Layout?.toggle("topnav") },
+      { label: "Close Tab", action: () => Tabs.close(tabId) },
+    ];
+
     const menu = document.createElement("div");
     menu.id = "pane-menu";
-    const items = [
-      ["Split Right", () => this.split("row", false)],
-      ["Split Left", () => this.split("row", true)],
-      ["Split Down", () => this.split("col", false)],
-      ["Split Up", () => this.split("col", true)],
-      ["Close Pane", () => this.closeView()],
-    ];
-    for (const [label, fn] of items) {
-      const it = document.createElement("div");
-      it.className = "pane-menu-item";
-      it.textContent = label;
-      it.addEventListener("click", () => { menu.remove(); fn(); });
-      menu.appendChild(it);
-    }
+    this._renderMenuItems(menu, items);
     document.body.appendChild(menu);
     const r = menu.getBoundingClientRect();
     menu.style.left = Math.min(x, window.innerWidth - r.width - 4) + "px";
     menu.style.top = Math.min(y, window.innerHeight - r.height - 4) + "px";
     const closeOnce = (e) => { if (!menu.contains(e.target)) menu.remove(); };
     setTimeout(() => document.addEventListener("mousedown", closeOnce, { once: true }), 0);
+  },
+
+  // Shared renderer for the pane menu's flat items / separators / one-level
+  // submenu (Split View) / checkbox row (Show Menu Bar) — same DOM shape as
+  // the ☰ dropdown (#menu-dropdown in index.html) so the CSS in style.css
+  // applies unchanged instead of growing a second menu skin.
+  _renderMenuItems(host, items) {
+    for (const it of items) {
+      if (it.sep) {
+        const s = document.createElement("div");
+        s.className = "menu-sep";
+        host.appendChild(s);
+        continue;
+      }
+      const row = document.createElement("div");
+      row.className = "menu-item" + (it.sub ? " has-sub" : "") + (it.check ? " check" : "") + (it.checked ? " checked" : "") + (it.disabled ? " disabled" : "");
+      row.append(document.createTextNode(it.label));
+      if (it.sub) {
+        const sub = document.createElement("div");
+        sub.className = "submenu";
+        this._renderMenuItems(sub, it.sub);
+        row.appendChild(sub);
+      } else {
+        row.addEventListener("click", (e) => {
+          e.stopPropagation();
+          document.getElementById("pane-menu")?.remove();
+          it.action?.();
+        });
+      }
+      host.appendChild(row);
+    }
   },
 
   // ── Close the active view (pane). Unwraps the split; closes tab if last. ──

@@ -6,12 +6,43 @@ const FileBrowser = {
   mount(container, startPath) {
     container.innerHTML = `
       <div class="fb-wrap">
-        <div class="fb-addr"><input class="fb-addr-input" type="text" spellcheck="false" /></div>
+        <div class="fb-addr">
+          <input class="fb-addr-input" type="text" spellcheck="false" />
+          <button class="home-btn fb-tree-btn" type="button">Tree ▾</button>
+          <div class="home-menu fb-tree-menu" hidden></div>
+        </div>
         <div class="fb-cols"></div>
       </div>`;
     const addr = container.querySelector(".fb-addr-input");
     const cols = container.querySelector(".fb-cols");
+    const treeBtn = container.querySelector(".fb-tree-btn");
+    const treeMenu = container.querySelector(".fb-tree-menu");
     const state = { columns: [], lastClicked: null };
+
+    // Tree-* actions scan whatever directory is CURRENTLY on screen (addr.value
+    // at click time, not startPath) — that's the point of having them in a
+    // live file browser rather than just the profile-rooted Data panel ones.
+    for (const kind of Object.keys(TreeCmd.KINDS)) {
+      const item = document.createElement("div");
+      item.className = "menu-item";
+      item.textContent = kind;
+      item.addEventListener("click", () => {
+        treeMenu.hidden = true;
+        const root = addr.value.trim() || startPath;
+        Tabs.openRunTab(TreeCmd.command(kind, root), kind);
+      });
+      treeMenu.appendChild(item);
+    }
+    treeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (treeMenu.hidden) {
+        const r = treeBtn.getBoundingClientRect(); // .home-menu is position:fixed — every opener places it itself
+        treeMenu.style.top = `${r.bottom + 2}px`;
+        treeMenu.style.left = `${Math.min(r.left, window.innerWidth - 160)}px`;
+      }
+      treeMenu.hidden = !treeMenu.hidden;
+    });
+    document.addEventListener("click", () => { treeMenu.hidden = true; });
 
     const join = (base, name) => (base.endsWith("/") ? base : base + "/") + name;
 

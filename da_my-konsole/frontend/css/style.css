@@ -24,17 +24,23 @@ body { display: flex; flex-direction: column; }
   background: var(--bg3); border-bottom: 1px solid var(--border); flex: 0 0 auto;
 }
 .nav-row {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 12px;
   height: 34px; padding: 0 10px;
 }
-#nav-row-home { gap: 12px; border-bottom: 1px solid var(--border); }
+#nav-row-home { border-bottom: 1px solid var(--border); }
 #nav-row-profiles { height: 32px; overflow: hidden; }
 /* No title text and no separate sidebar button: the ☰ on the right IS the menu,
    and the sidebar is a ticker inside it (Layout → Left Side Bar). */
 #nav-row-home { position: relative; }
+/* Reads as the row's title, not another control in the strip: fixed-width
+   column (both rows share one x for where their controls start) plus a
+   divider, since the uppercase/inline treatment used to blend it into the
+   button row. Stays outside #home-actions/#profiles' overflow-x so it never
+   scrolls or shrinks with the pill strip. */
 .nav-label {
-  flex: 0 0 auto;
-  color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: .5px;
+  flex: 0 0 auto; width: 96px;
+  color: var(--fg); font-weight: 600; font-size: 12px;
+  padding-right: 12px; border-right: 1px solid var(--border);
 }
 .home-btn {
   background: transparent; color: var(--muted); border: 1px solid var(--border);
@@ -256,9 +262,9 @@ body { display: flex; flex-direction: column; }
 }
 #btn-menu:hover { border-color: var(--accent); color: var(--fg); }
 #menu-dropdown {
-  position: absolute; top: 32px; right: 0; z-index: 20; min-width: 180px;
+  position: absolute; top: 32px; right: 0; z-index: 20; min-width: 210px;
   background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.4); padding: 4px 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,.45); padding: 6px 0;
 }
 #menu-dropdown[hidden] { display: none; }
 
@@ -304,6 +310,22 @@ body { display: flex; flex-direction: column; }
 #logs-body { flex: 1 1 0; margin: 0; padding: 10px 12px; overflow: auto; font-family: monospace;
   font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; color: var(--fg); }
 
+/* Dependency Solver panel — same modal chrome as #logs (box/head/body split) */
+#deps { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; }
+#deps[hidden] { display: none; }
+#deps-box { width: 70vw; height: 75vh; display: flex; flex-direction: column;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+#deps-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+#deps-summary { font-weight: 600; margin-right: auto; font-size: 12px; }
+#deps-search { flex: 0 0 220px; }
+#deps-body { flex: 1 1 0; overflow: auto; padding: 6px 12px; font-family: monospace; font-size: 12px; user-select: text; }
+.deps-row { display: flex; align-items: baseline; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--border); }
+.deps-mark { width: 14px; flex: 0 0 auto; color: var(--accent); }
+.deps-row.missing .deps-mark { color: #e05555; }
+.deps-name { flex: 0 0 200px; }
+.deps-path { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
+.deps-who { color: var(--muted); font-size: 11px; font-style: italic; }
+
 /* About dialog */
 #about {
   position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.5);
@@ -322,13 +344,13 @@ body { display: flex; flex-direction: column; }
 }
 #about-box button:hover { border-color: var(--accent); }
 
-/* Right-click pane context menu (also reused, by class, for #tab-menu) */
+/* Right-click pane context menu (also reused, by class, for #tab-menu) — same
+   chrome (box) as #menu-dropdown; row styling itself is shared via .menu-item
+   below so this is one menu language, not two. */
 #pane-menu, #tab-menu {
   position: fixed; z-index: 20; background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.4); padding: 4px 0; min-width: 140px;
+  border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.4); padding: 6px 0; min-width: 210px;
 }
-.pane-menu-item { padding: 5px 14px; font: 13px monospace; cursor: pointer; }
-.pane-menu-item:hover { background: var(--accent); color: var(--bg); }
 
 /* Shown only when a site refused to be framed — otherwise the tab is a blank
    rectangle with no error, which reads as "the browser is broken". */
@@ -346,32 +368,33 @@ body { display: flex; flex-direction: column; }
    open/close state itself stays CSS-driven, plus the two Layout tickers.
    Metrics below approximate Breeze/Oxygen menu chrome (Plasma default):
    28px row height, 1px inset-bordered popup, 14px gutter for the check glyph. */
+/* Same row language everywhere a Konsole-style menu shows up: the ☰ dropdown,
+   the pane right-click menu, and the tab right-click menu all share these
+   .menu-item/.menu-sep/.submenu rules — one menu vocabulary, not three. */
 #btn-menu { font-size: 15px; line-height: 1; padding: 2px 8px; }
-#menu-dropdown {
-  min-width: 210px; padding: 6px 0;
-  border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.45);
-}
-#menu-dropdown .menu-item {
+#menu-dropdown .menu-item, #pane-menu .menu-item, #tab-menu .menu-item {
   position: relative; display: flex; align-items: center;
   height: 28px; padding: 0 14px 0 30px; margin: 0 4px; width: calc(100% - 8px);
-  border-radius: 4px; box-sizing: border-box;
+  border-radius: 4px; box-sizing: border-box; cursor: pointer;
   transition: background-color 100ms, color 100ms;
 }
-#menu-dropdown .menu-item.has-sub::after {
+#menu-dropdown .menu-item.has-sub::after, #pane-menu .menu-item.has-sub::after {
   content: "▸"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
   opacity: .7; font-size: 10px;
 }
-#menu-dropdown .submenu {
+/* Same fill as the root dropdown (Breeze submenus don't shift shade) — the
+   border and shadow alone carry the separation where it overlaps the parent. */
+#menu-dropdown .submenu, #pane-menu .submenu {
   display: none; position: absolute; left: 100%; top: -7px; min-width: 210px;
-  background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.45); padding: 6px 0; z-index: 60;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.55); padding: 6px 0; z-index: 60;
 }
-#menu-dropdown .menu-item.has-sub:hover > .submenu,
+#menu-dropdown .menu-item.has-sub:hover > .submenu, #pane-menu .menu-item.has-sub:hover > .submenu,
 #menu-dropdown .submenu.open { display: block; }
-#menu-dropdown .submenu .menu-item { padding: 0 14px 0 30px; font-size: 12px; cursor: pointer; white-space: nowrap; }
-#menu-dropdown .menu-item:hover,
-#menu-dropdown .submenu .menu-item:hover { background: var(--accent); color: var(--bg); }
-#menu-sep, #menu-dropdown .menu-sep {
+#menu-dropdown .submenu .menu-item, #pane-menu .submenu .menu-item { padding: 0 14px 0 30px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+#menu-dropdown .menu-item:hover, #pane-menu .menu-item:hover, #tab-menu .menu-item:hover,
+#menu-dropdown .submenu .menu-item:hover, #pane-menu .submenu .menu-item:hover { background: var(--accent); color: var(--bg); }
+#menu-sep, #menu-dropdown .menu-sep, #pane-menu .menu-sep, #tab-menu .menu-sep {
   height: 1px; background: var(--border); margin: 5px 12px;
 }
 /* Tickers read as checkboxes; the box is drawn, not an <input>, so it inherits
@@ -379,11 +402,14 @@ body { display: flex; flex-direction: column; }
    checkable, or plain) reserves the same left gutter via .menu-item's
    padding-left above, so labels line up regardless of row type — only
    .check rows actually draw a glyph into that gutter. */
-#menu-dropdown .menu-item.check::before {
+#menu-dropdown .menu-item.check::before, #pane-menu .menu-item.check::before {
   content: "☐"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
   opacity: .8; font-size: 11px;
 }
-#menu-dropdown .menu-item.check.checked::before { content: "☑"; opacity: 1; }
+#menu-dropdown .menu-item.check.checked::before, #pane-menu .menu-item.check.checked::before { content: "☑"; opacity: 1; }
+/* Copy with no selection: greyed but present (Konsole never hides it), same
+   gutter as every other row so the label doesn't jump when it re-enables. */
+#pane-menu .menu-item.disabled { opacity: .4; cursor: default; pointer-events: none; }
 
 /* Layout tickers */
 #topnav.hidden, #sidebar.hidden { display: none; }
@@ -446,3 +472,16 @@ body { display: flex; flex-direction: column; }
   color: var(--muted); font-size: 10px; margin: 6px 6px 2px 18px; opacity: .75;
 }
 .data-leaf { padding-left: 20px; }
+
+/* Tree-* row above the Data panel search box — six small buttons, each a
+   recursive `tree`/`find` listing of the active profile's config root,
+   filtered to one file-type family (boot.js buildDataPanel). Wraps rather
+   than scrolling; the sidebar is narrow and six buttons don't fit one row. */
+#data-tree-btns { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 6px; }
+#data-tree-btns .home-btn { font-size: 11px; padding: 3px 6px; }
+
+/* File Browser's "Tree ▾" dropdown — same six actions as #data-tree-btns,
+   rooted at whatever directory is on screen instead of the profile's config
+   root (filebrowser.js). Sits next to the address bar, not in it. */
+.fb-tree-btn { flex: 0 0 auto; white-space: nowrap; font-size: 12px; }
+.fb-tree-menu { min-width: 120px; }

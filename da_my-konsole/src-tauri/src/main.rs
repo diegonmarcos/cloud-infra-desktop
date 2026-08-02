@@ -304,6 +304,33 @@ fn match_segment(pat: &str, s: &str) -> bool {
     go(pat.as_bytes(), s.as_bytes())
 }
 
+// Resolves each binary name against $PATH in pure Rust — no `sh -c`, no
+// `command -v`, so it can never choke on a caller's shell dialect (this is
+// what replaced a generated bash one-liner that fish users couldn't run).
+// "executable" here means a regular file with any of the owner/group/other
+// exec bits set, same bar `command -v` uses.
+#[tauri::command]
+fn which_all(bins: Vec<String>) -> Result<Vec<(String, Option<String>)>, String> {
+    use std::os::unix::fs::PermissionsExt;
+    let path_var = std::env::var("PATH").unwrap_or_default();
+    let dirs: Vec<&str> = path_var.split(':').filter(|d| !d.is_empty()).collect();
+    let is_exec = |p: &std::path::Path| -> bool {
+        std::fs::metadata(p)
+            .map(|m| m.is_file() && (m.permissions().mode() & 0o111) != 0)
+            .unwrap_or(false)
+    };
+    Ok(bins
+        .into_iter()
+        .map(|b| {
+            let found = dirs.iter().find_map(|d| {
+                let candidate = std::path::Path::new(d).join(&b);
+                is_exec(&candidate).then(|| candidate.to_string_lossy().into_owned())
+            });
+            (b, found)
+        })
+        .collect())
+}
+
 // ── Browser tabs are NATIVE child webviews, not <iframe>s.
 //
 // The iframe version could not browse the web, and not by a little: an iframe
@@ -749,7 +776,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config,
-            fs_list_dir, fs_read_file, fs_write_file, fs_glob,
+            fs_list_dir, fs_read_file, fs_write_file, fs_glob, which_all,
             ensure_agentic_backend,
             browser_open, browser_bounds, browser_navigate, browser_back, browser_close
         ])

@@ -70,19 +70,26 @@
   };
   // `group` inserts a "|" between clusters (my-AI/Mesh/Cloud | Git/Git Sync |
   // …) so the strip reads as groups rather than one long run.
+  const mkSep = () => {
+    const sep = document.createElement("span");
+    sep.className = "nav-pill-sep";
+    sep.textContent = "|";
+    sep.setAttribute("aria-hidden", "true");
+    return sep;
+  };
   let lastGroup = null;
   row1.forEach((p, i) => {
     if (lastGroup !== null && p.group !== lastGroup) {
-      const sep = document.createElement("span");
-      sep.className = "nav-pill-sep";
-      sep.textContent = "|";
-      sep.setAttribute("aria-hidden", "true");
-      nav.appendChild(sep);
+      nav.appendChild(mkSep());
     }
     lastGroup = p.group ?? null;
     nav.appendChild(mkPill(p, i === 0));
   });
   if (others.length) {
+    // Same separator the cluster loop uses, so "Others" reads as one more
+    // cluster rather than a bolt-on — but only if row1 actually rendered
+    // something, or this would open the strip with a leading "|".
+    if (row1.length) nav.appendChild(mkSep());
     const wrap = document.createElement("div");
     wrap.className = "home-dropdown";
     wrap.innerHTML = `<div class="profile-pill" id="others-pill" tabindex="0">Others ▾</div><div class="home-menu others-menu" id="others-menu" hidden></div>`;
@@ -312,9 +319,55 @@
                     // stale in-flight fs_glob response landing after the
                     // user has already switched to a different profile.
 
+  // Root for the Tree-* buttons: the longest literal (non-glob) directory
+  // prefix shared by every profile.configs[].paths pattern — same shape as
+  // commonDir() above, but over glob strings rather than resolved files, so
+  // a scan doesn't wait on fs_glob just to find out where to start. A glob
+  // segment (containing * ? [ or a bare **) ends the literal prefix.
+  function configsRoot(p) {
+    const patterns = (p.configs || []).flatMap((g) => g.paths || []);
+    if (!patterns.length) return null;
+    const literalDirs = (pattern) => {
+      const segs = pattern.split("/");
+      const out = [];
+      for (const seg of segs) {
+        if (/[*?[]/.test(seg)) break;
+        out.push(seg);
+      }
+      return out.slice(0, -1); // drop the trailing literal filename, keep dirs only
+    };
+    let common = literalDirs(patterns[0]);
+    for (const pat of patterns.slice(1)) {
+      const dirs = literalDirs(pat);
+      let i = 0;
+      while (i < common.length && i < dirs.length && common[i] === dirs[i]) i++;
+      common = common.slice(0, i);
+    }
+    return common.length ? common.join("/") : null;
+  }
+
+  function renderTreeButtons(p) {
+    const host = document.getElementById("data-tree-btns");
+    host.innerHTML = "";
+    const root = configsRoot(p);
+    const rootPath = root || "$HOME";
+    for (const kind of Object.keys(TreeCmd.KINDS)) {
+      const b = document.createElement("button");
+      b.className = "home-btn";
+      b.textContent = kind;
+      const title = root ? kind : `${kind} (whole home — profile declares no configs)`;
+      b.title = root ? rootPath : "no configs[] on this profile — falling back to $HOME";
+      b.addEventListener("click", () => {
+        Tabs.openRunTab(TreeCmd.command(kind, rootPath), title, p.name);
+      });
+      host.appendChild(b);
+    }
+  }
+
   function buildDataPanel(p) {
     dataGen++;
     const gen = dataGen;
+    renderTreeButtons(p);
     const host = document.getElementById("data-list");
     host.innerHTML = "";
     if (!p.configs || !p.configs.length) {
@@ -444,6 +497,14 @@
     localStorage.setItem("myk-layout", JSON.stringify(layout));
     if (Tabs.active) MYK._fitTab(Tabs.active);   // the terminal must re-fit, not clip
   };
+  // `layout` itself is trapped in this IIFE's closure — the pane context menu's
+  // "Show Menu Bar" checkbox (term.js) lives outside it and needs to read/flip
+  // the SAME state as the ☰ → Layout → Top Nav Bar ticker below, never a copy
+  // that can drift out of sync. This accessor is the one door in.
+  window.Layout = {
+    get: (key) => layout[key],
+    toggle: (key) => { layout[key] = !layout[key]; applyLayout(); },
+  };
   const ticker = (id, key) =>
     document.getElementById(id).addEventListener("click", (e) => {
       e.stopPropagation();                       // keep the menu open: both are often toggled together
@@ -539,6 +600,11 @@
       "cd", "export", "source", ".", "echo", "exit", "set", "unset", "alias",
       "if", "for", "while", "read", "eval", "exec", "trap", "true", "false",
       "clear", "pushd", "popd", "wait", "kill", "jobs", "fg", "bg", "printf",
+      // Control-flow keywords a bookmark's pipeline can start a segment with
+      // (e.g. "... ; do ...; done") — these aren't binaries, `command -v`/
+      // `which_all` would just report them MISSING forever.
+      "do", "done", "end", "then", "fi", "elif", "else", "esac", "in",
+      "function", "return", "local", "test",
     ]);
     const deps = new Map(); // binary -> Set(profile display names)
     for (const p of profiles) {
@@ -555,6 +621,10 @@
             if (w.includes("/")) w = w.split("/").pop(); // /usr/bin/x -> x
             if (!/^[A-Za-z][\w.+-]*$/.test(w)) continue;
             if (SHELL_BUILTINS.has(w)) continue;
+            // "build.sh" etc. is a script NAME (run as ./build.sh or bash
+            // build.sh), not a PATH-resolved command — a false positive that
+            // would sit in the missing column forever.
+            if (w.endsWith(".sh")) continue;
             if (!deps.has(w)) deps.set(w, new Set());
             deps.get(w).add(label);
           }
@@ -564,26 +634,49 @@
     return deps;
   }
 
-  document.getElementById("menu-deps").addEventListener("click", () => {
+  // Resolution is pure Rust (which_all — see src-tauri/src/main.rs), never a
+  // shell: the old version built a ~4KB `for b in ...; do ...; done` bash
+  // one-liner and wrote it into a PTY tab, which fish-shell users' shells
+  // rejected outright (bash `x=0` isn't valid fish) — and dumping a generated
+  // script into an interactive terminal was bad UX even for bash users.
+  let depsResults = []; // [[name, path|null, Set(profile labels)], ...] — current scan, for the filter box
+  function renderDepsRows(filter) {
+    const body = document.getElementById("deps-body");
+    body.innerHTML = "";
+    const q = (filter || "").toLowerCase();
+    for (const [name, path, who] of depsResults) {
+      if (q && !name.toLowerCase().includes(q)) continue;
+      const row = document.createElement("div");
+      row.className = "deps-row" + (path ? "" : " missing");
+      const needers = path ? "" : ` <span class="deps-who">needed by: ${[...who].join(", ")}</span>`;
+      row.innerHTML =
+        `<span class="deps-mark">${path ? "✓" : "✗"}</span>` +
+        `<span class="deps-name">${name}</span>` +
+        `<span class="deps-path">${path || ""}</span>${needers}`;
+      body.appendChild(row);
+    }
+  }
+  document.getElementById("menu-deps").addEventListener("click", async () => {
     const deps = scanDeps();
     const names = [...deps.keys()].sort();
     console.log(`[deps] ${names.length} binaries referenced by ${profiles.length} profiles`);
-    // Checked in a real shell rather than guessed at: `command -v` is the only
-    // answer that accounts for PATH, nix profiles, shell functions and aliases.
-    // Output is a tab so it is copy-pasteable and scrolls like anything else.
-    const list = names.join(" ");
-    const script =
-      `printf '%s\\n' 'DEPENDENCY SOLVER — ${names.length} binaries referenced by this hub' ''; ` +
-      `miss=0; have=0; ` +
-      `for b in ${list}; do ` +
-      `  if p=$(command -v "$b" 2>/dev/null); then have=$((have+1)); printf '  \\033[32m✓\\033[0m %-24s %s\\n' "$b" "$p"; ` +
-      `  else miss=$((miss+1)); printf '  \\033[31m✗\\033[0m %-24s MISSING\\n' "$b"; fi; ` +
-      `done; ` +
-      `printf '\\n  %s installed, \\033[31m%s missing\\033[0m\\n' "$have" "$miss"`;
-    Tabs.openRunTab(script, "Deps", current?.name);
-    // The which-profile-needs-it mapping is only useful next to a miss, so it
-    // goes to the console rather than doubling the length of the tab output.
-    for (const [b, who] of [...deps].sort()) console.log(`[deps] ${b} <- ${[...who].join(", ")}`);
+    const resolved = await Transport.whichAll(names); // [[name, path|null], ...]
+    // Missing first, then installed — each group alphabetical, same order the
+    // Rust side returned them in (names was already sorted going in).
+    const missing = resolved.filter(([, p]) => !p).map(([n, p]) => [n, p, deps.get(n)]);
+    const installed = resolved.filter(([, p]) => p).map(([n, p]) => [n, p, deps.get(n)]);
+    depsResults = [...missing, ...installed];
+    document.getElementById("deps-summary").textContent =
+      `${resolved.length} binaries — ${installed.length} installed, ${missing.length} missing`;
+    document.getElementById("deps-search").value = "";
+    renderDepsRows("");
+    document.getElementById("deps").hidden = false;
+  });
+  document.getElementById("deps-search").addEventListener("input", (e) => renderDepsRows(e.target.value));
+  document.getElementById("deps-close").addEventListener("click", () => { document.getElementById("deps").hidden = true; });
+  document.getElementById("deps-copy-missing").addEventListener("click", () => {
+    const text = depsResults.filter(([, p]) => !p).map(([n]) => n).join("\n");
+    navigator.clipboard.writeText(text).catch(() => {});
   });
 
   document.getElementById("menu-about").addEventListener("click", showAbout);
