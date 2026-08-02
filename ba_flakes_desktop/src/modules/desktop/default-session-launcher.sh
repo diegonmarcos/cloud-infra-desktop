@@ -74,6 +74,31 @@ if [ "$RUN_ON" = "fresh_only" ]; then
   fi
 fi
 
+# ── Run-once guard ──────────────────────────────────────────────────────────
+# The boot-type gate above tests /proc/cmdline, which is a per-BOOT signal —
+# but this script is invoked per SESSION START. Within one boot the cmdline
+# never changes, so every re-login and every ksmserver restart passed that gate
+# and launched a complete fresh set of apps. The log showed 104 runs, five of
+# them inside one second, which is where 13 Dolphin windows and 12 Konsole
+# processes came from; on a box with a 5.6GiB user slice that closed an OOM
+# loop, because a kill restarts the session manager, which fires this again.
+#
+# Two guards, because they fail differently. The lock stops CONCURRENT
+# invocations (the five-in-one-second case). The stamp — in $XDG_RUNTIME_DIR,
+# which is tmpfs and therefore empty on a real boot — stops LATER ones in the
+# same boot, which is what "fresh_only" was always trying to express.
+RUNDIR="${XDG_RUNTIME_DIR:-/tmp}"
+exec 9>"$RUNDIR/default-session.lock" 2>/dev/null || true
+if command -v flock >/dev/null 2>&1; then
+  flock -n 9 || { log "another instance holds the lock — this one exits (fallback: no duplicate layout)"; exit 0; }
+fi
+STAMP="$RUNDIR/default-session.done"
+if [ -e "$STAMP" ]; then
+  log "already ran this boot ($STAMP exists) — skipping (fallback: no duplicate layout)"
+  exit 0
+fi
+: >"$STAMP" 2>/dev/null || true
+
 TIMEOUT="$(q '.fallback.per_app_launch_timeout_sec // 25')"
 POS_PASSES="$(q '.fallback.position_passes // 10')"
 POS_INTERVAL="$(q '.fallback.position_interval_sec // 1.5')"
@@ -213,6 +238,18 @@ for di in $(seq 0 $((ndesk-1))); do
     # FALLBACK: app binary (or its launch_prefix tool) not installed → log + skip
     if ! command -v "$aexec" >/dev/null 2>&1; then
       log "SKIP desk=$desk cell=$cell app=$app — exec '$aexec' NOT FOUND on PATH (fallback: continue)"
+      continue
+    fi
+
+    # Belt to the run-once guard's braces: never launch a second copy of an app
+    # that is already running. The lock and stamp cover the normal duplication
+    # path, but they cannot help a session that was half-built (an earlier run
+    # killed partway, or an app the user started themselves before login
+    # finished). Matching on the exec name is deliberately loose — the cost of a
+    # false positive is one window not opening, the cost of a false negative is
+    # the pileup this whole guard exists to prevent.
+    if pgrep -x "$aexec" >/dev/null 2>&1; then
+      log "SKIP desk=$desk cell=$cell app=$app — already running (fallback: no duplicate window)"
       continue
     fi
     if [ "${#prefix[@]}" -gt 0 ] && ! command -v "${prefix[0]}" >/dev/null 2>&1; then

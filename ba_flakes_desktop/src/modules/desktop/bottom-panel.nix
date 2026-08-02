@@ -69,14 +69,24 @@ in
         }
 
         "org.kde.plasma.marginsseparator"
+
+        # TWO trays, matching the live layout this file is now captured from.
+        # One holds OUR eight app trays and shows them permanently; the other
+        # holds KDE's own indicators and lets them auto-hide, so battery and
+        # volume appear when they have something to say while nix-flakes,
+        # docker, my-ai and the rest are always one click away. A single tray
+        # cannot express both policies — shownItems/hiddenItems are per-tray.
+        #
+        # The item lists are NOT set here: Plasma reads them from the PRIVATE
+        # systemtray containment rather than the applet, so plasma-manager
+        # writing them to the applet has no effect. plasma.nix's fixSystemTray
+        # activation writes the real containments; these two entries only
+        # declare that two trays exist and in what order.
         { name = "org.kde.plasma.systemtray"; }
-        {
-          digitalClock = {
-            time.format = "24h";
-            date = { enable = true; format = "isoDate"; position = "belowTime"; };
-            calendar.firstDayOfWeek = "monday";
-          };
-        }
+        { name = "org.kde.plasma.systemtray"; }
+
+        # No clock here — it lives on the top panel only. Two clocks on one
+        # screen is just two clocks.
       ];
     }
   ];

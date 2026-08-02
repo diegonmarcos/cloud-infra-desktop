@@ -41,26 +41,16 @@ let
 in
 {
   imports = [
-    ./top-panel.nix       # top panel + its 15 monitor widgets (data: top-panel.json)
-    ./bottom-panel.nix    # bottom panel: kickoff, pager, tasks, sysmon, tray, clock
+    ./top-panel.nix       # top panel: disk · mem · cpu │ clock │ psi · psi · psi · cpu
+    ./bottom-panel.nix    # bottom panel: kickoff, pager, tasks, sysmon, TWO trays
+    ./default-session.nix # the fixed default layout + its autostart entry
   ];
 
-  programs.plasma = {
-    configFile = {
-      # The session policy itself. `restorePreviousSession` makes Plasma save
-      # the client list on logout and bring it back on login — the same switch
-      # System Settings → Startup exposes. session-restore.nix documented this
-      # workflow first; the setting lives here now so one file owns it.
-      "ksmserverrc"."General" = {
-        loginMode = "restorePreviousSession";
-        # Don't hold the logout on an app that refuses to close — the old
-        # launcher's whole "never block the login" doctrine applies just as
-        # much to logout, and a stuck logout is how half-saved sessions happen.
-        shutdownType = 0;
-      };
-
-    };
-  };
+  # loginMode stays with ./default-session.nix (emptySession), because the fixed
+  # layout and Plasma's restore are alternatives, not partners: restoring the
+  # previous session AND imposing the template would give you both sets of
+  # windows. One file owning the launcher should own the switch that decides
+  # whether the launcher's work is wanted.
 
   # The wallpaper stays declared in plasma.nix (programs.plasma.workspace.wallpaper,
   # plus the lock screen and SDDM, all resolved from cloud-data-wallpaper.json) —
