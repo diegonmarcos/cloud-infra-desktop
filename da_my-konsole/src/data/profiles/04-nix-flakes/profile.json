@@ -140,19 +140,38 @@
   "configs": [
     {
       "title": "NixOS host",
-      "paths": ["~/git/unix/aa_desk-usr_x86_surface-linux_nixos/src/**/*.nix", "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/src/flake.lock"]
+      "paths": [
+        "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/**/*.nix",
+        "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/**/*.json",
+        "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/**/*.md",
+        "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/**/*.lock"
+      ]
     },
     {
       "title": "Desktop flake (Home-Manager)",
-      "paths": ["~/git/unix/ba_flakes_desktop/src/**/*.nix", "~/git/unix/ba_flakes_desktop/src/flake.lock", "~/git/unix/ba_flakes_desktop/build.json"]
+      "paths": [
+        "~/git/unix/ba_flakes_desktop/**/*.nix",
+        "~/git/unix/ba_flakes_desktop/**/*.json",
+        "~/git/unix/ba_flakes_desktop/**/*.md",
+        "~/git/unix/ba_flakes_desktop/**/*.lock"
+      ]
     },
     {
       "title": "Termux flake (Home-Manager)",
-      "paths": ["~/git/unix/bb_flakes_termux/src/**/*.nix", "~/git/unix/bb_flakes_termux/src/flake.lock", "~/git/unix/bb_flakes_termux/build.json"]
+      "paths": [
+        "~/git/unix/bb_flakes_termux/**/*.nix",
+        "~/git/unix/bb_flakes_termux/**/*.json",
+        "~/git/unix/bb_flakes_termux/**/*.md",
+        "~/git/unix/bb_flakes_termux/**/*.lock"
+      ]
     },
     {
       "title": "Bootloader",
-      "paths": ["~/git/unix/aa_bootloader/**/*.nix"]
+      "paths": [
+        "~/git/unix/aa_bootloader/**/*.nix",
+        "~/git/unix/aa_bootloader/**/*.json",
+        "~/git/unix/aa_bootloader/**/*.md"
+      ]
     }
   ],
   "order": 6,

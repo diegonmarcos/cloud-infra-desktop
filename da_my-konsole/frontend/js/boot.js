@@ -107,9 +107,11 @@
     for (const el of document.querySelectorAll(".profile-pill")) el.classList.remove("active");
     if (pill) pill.classList.add("active");
     buildSections(p);
-    // Only bother re-globbing if the Configs view is actually visible — same
-    // deal as Tabs.renderTabList(), no reason to do the work for a hidden panel.
-    if (!document.getElementById("configs-panel").hidden) buildConfigs(p);
+    // Only bother rebuilding if the Data view is actually visible — same deal
+    // as Tabs.renderTabList(), no reason to do the work for a hidden panel.
+    // (The groups themselves are lazyloaded regardless — this just decides
+    // whether to draw the skeleton at all.)
+    if (!document.getElementById("data-panel").hidden) buildDataPanel(p);
     Tabs.switchProfile(p, opener);
   }
 
@@ -156,8 +158,11 @@
   }
   document.getElementById("search").addEventListener("input", (e) => filterSearch(e.target.value));
 
-  // ── Configs panel: glob-expand the active profile's `configs[]` (the
-  // CLI/framework it wraps) into real files, grouped exactly like Commands.
+  // ── Data panel: glob-expand the active profile's `configs[]` (the
+  // CLI/framework it wraps) into real files. Lazyloaded — a group's `paths`
+  // aren't resolved until the user expands it, so opening the panel costs
+  // nothing; the Rust-side fs_glob cache (60s TTL) makes re-expanding, or
+  // switching back to a profile, near-instant without a JS-side cache here.
   // Two "nothing here" cases are deliberately worded differently — no
   // `configs` key means the profile never claimed a config surface; an empty
   // glob result means it did, but the patterns found nothing (a real problem,
@@ -167,6 +172,7 @@
     return m ? "~" + p.slice(m[0].length) : p;
   };
   const shQuote = (s) => "'" + s.replace(/'/g, "'\\''") + "'";
+  const DATA_CAP = 500; // must match GLOB_MAX_RESULTS in src-tauri/src/main.rs
 
   function openConfig(path, profile) {
     if ((localStorage.getItem("myk-editor") || "vim") === "plain") {
@@ -176,44 +182,174 @@
     Tabs.openRunTab(`vim ${shQuote(path)}`, path.split("/").filter(Boolean).pop() || path, profile);
   }
 
-  async function buildConfigs(p) {
-    const host = document.getElementById("configs-list");
-    host.innerHTML = "";
-    if (!p.configs || !p.configs.length) {
-      host.innerHTML = `<div class="configs-muted">This profile declares no config files.</div>`;
-      return;
+  // First grouping level: file type, derived from the extension rather than
+  // hand-declared per profile (a profile's paths mix ad-hoc file kinds and
+  // nobody wants to maintain a second list in sync with them). `.md` sorts
+  // last (documentation, not configuration) and `.lock` second-to-last
+  // (generated) — everything else keeps a stable, arbitrary-but-fixed order.
+  const TYPE_ORDER = ["nix", "json", "toml", "yaml", "conf", "sh", "other", "lock", "md"];
+  const TYPE_LABEL = {
+    nix: ".nix", json: ".json", toml: ".toml", yaml: ".yaml/.yml", conf: ".conf/.cfg/.ini",
+    sh: ".sh", other: "other", lock: ".lock", md: ".md",
+  };
+  const EXT_TYPE = {
+    nix: "nix", json: "json", toml: "toml", yaml: "yaml", yml: "yaml",
+    md: "md", lock: "lock", conf: "conf", cfg: "conf", ini: "conf", sh: "sh",
+  };
+  const fileType = (f) => {
+    const m = /\.([^./]+)$/.exec(f);
+    return (m && EXT_TYPE[m[1].toLowerCase()]) || "other";
+  };
+
+  // The group's "walk root" for the second grouping level (directory), derived
+  // from the resolved files themselves rather than re-parsing the glob
+  // patterns — the longest directory prefix every file in the group shares.
+  // Groups with no shared directory (e.g. exact dotfiles scattered across
+  // ~/.config) fall back to null, and each file's directory is shown
+  // ~/-relative instead.
+  function commonDir(paths) {
+    if (!paths.length) return null;
+    let common = paths[0].split("/").slice(0, -1);
+    for (const p of paths.slice(1)) {
+      const dir = p.split("/").slice(0, -1);
+      let i = 0;
+      while (i < common.length && i < dir.length && common[i] === dir[i]) i++;
+      common = common.slice(0, i);
     }
-    for (const group of p.configs) {
-      const files = await Transport.fsGlob(group.paths || []);
-      const t = document.createElement("div");
-      t.className = "section-title"; t.textContent = `${group.title} (${files.length})`;
-      host.appendChild(t);
-      if (!files.length) {
-        const m = document.createElement("div");
-        m.className = "configs-muted"; m.textContent = "No files matched these patterns.";
-        host.appendChild(m);
-        continue;
-      }
-      for (const f of files) {
-        const b = document.createElement("button");
-        b.className = "cmd-item";
-        const label = homeRelative(f);
-        b.textContent = label;
-        b.title = f;
-        b.dataset.search = label.toLowerCase();
-        b.addEventListener("click", () => openConfig(f, p.name));
-        host.appendChild(b);
-      }
-    }
-    filterConfigs(document.getElementById("configs-search").value);
+    return common.length > 1 ? common.join("/") : null; // require more than a bare "/"
+  }
+  const dirBucket = (f, root) => {
+    const dir = f.split("/").slice(0, -1).join("/");
+    if (!root) return homeRelative(dir);
+    if (dir === root) return homeRelative(root); // files sitting directly in the root — never an empty label
+    if (dir.startsWith(root + "/")) return dir.slice(root.length + 1); // relative to the walk root
+    return homeRelative(dir); // shouldn't happen — every file here came from the same commonDir()
+  };
+
+  function leafButton(f, profileName) {
+    const b = document.createElement("button");
+    b.className = "cmd-item data-leaf";
+    b.textContent = f.split("/").filter(Boolean).pop() || f;
+    b.title = f;
+    b.dataset.search = homeRelative(f).toLowerCase();
+    b.addEventListener("click", () => openConfig(f, profileName));
+    return b;
   }
 
-  function filterConfigs(q) {
+  // Renders one group's resolved file list into `body`: type buckets (only
+  // non-empty ones, TYPE_ORDER), each split further by containing directory —
+  // unless every file in that type bucket lives in the same directory, in
+  // which case the directory level is pure noise and gets skipped.
+  function renderGroupBody(body, files, profileName) {
+    body.innerHTML = "";
+    if (!files.length) {
+      const m = document.createElement("div");
+      m.className = "data-muted"; m.textContent = "No files matched these patterns.";
+      body.appendChild(m);
+      return;
+    }
+    const root = commonDir(files);
+    const byType = new Map();
+    for (const f of files) {
+      const t = fileType(f);
+      if (!byType.has(t)) byType.set(t, []);
+      byType.get(t).push(f);
+    }
+    for (const type of TYPE_ORDER) {
+      const group = byType.get(type);
+      if (!group || !group.length) continue;
+      const typeHeader = document.createElement("div");
+      typeHeader.className = "section-title";
+      typeHeader.textContent = `${TYPE_LABEL[type]} (${group.length})`;
+      body.appendChild(typeHeader);
+
+      const byDir = new Map();
+      for (const f of group) {
+        const label = dirBucket(f, root);
+        if (!byDir.has(label)) byDir.set(label, []);
+        byDir.get(label).push(f);
+      }
+      if (byDir.size <= 1) {
+        for (const f of group) body.appendChild(leafButton(f, profileName));
+      } else {
+        for (const [label, list] of byDir) {
+          const dirHeader = document.createElement("div");
+          dirHeader.className = "data-dir-title";
+          dirHeader.textContent = `${label} (${list.length})`;
+          body.appendChild(dirHeader);
+          for (const f of list) body.appendChild(leafButton(f, profileName));
+        }
+      }
+    }
+  }
+
+  // Groups expanded per profile, kept for the session so switching profiles
+  // away and back doesn't re-collapse everything the user had opened.
+  const dataExpanded = new Map(); // profile.name -> Set<group.title>
+  let dataGen = 0; // bumped per buildDataPanel() call — guards against a
+                    // stale in-flight fs_glob response landing after the
+                    // user has already switched to a different profile.
+
+  function buildDataPanel(p) {
+    dataGen++;
+    const gen = dataGen;
+    const host = document.getElementById("data-list");
+    host.innerHTML = "";
+    if (!p.configs || !p.configs.length) {
+      host.innerHTML = `<div class="data-muted">This profile declares no config files.</div>`;
+      return;
+    }
+    const expanded = dataExpanded.get(p.name) || new Set();
+    dataExpanded.set(p.name, expanded);
+
+    for (const group of p.configs) {
+      const header = document.createElement("button");
+      header.className = "section-title data-group-title";
+      const caret = document.createElement("span");
+      caret.className = "data-caret"; caret.textContent = "▸";
+      const label = document.createElement("span");
+      label.textContent = group.title;
+      const count = document.createElement("span");
+      count.className = "data-count";
+      header.append(caret, label, count);
+
+      const body = document.createElement("div");
+      body.hidden = true;
+
+      let loaded = false;
+      const setOpen = (open) => {
+        body.hidden = !open;
+        caret.textContent = open ? "▾" : "▸";
+        if (open) expanded.add(group.title); else expanded.delete(group.title);
+      };
+      const load = async () => {
+        if (loaded) return;
+        loaded = true;
+        body.innerHTML = `<div class="data-scanning">scanning…</div>`;
+        const files = await Transport.fsGlob(group.paths || []);
+        if (gen !== dataGen) return; // a newer profile's panel is on screen now — drop it
+        renderGroupBody(body, files, p.name);
+        count.textContent = files.length >= DATA_CAP ? ` (${files.length}, capped)` : ` (${files.length})`;
+      };
+      header.addEventListener("click", () => {
+        const open = body.hidden;
+        setOpen(open);
+        if (open) load();
+      });
+
+      host.appendChild(header);
+      host.appendChild(body);
+      if (expanded.has(group.title)) { setOpen(true); load(); }
+    }
+    filterData(document.getElementById("data-search").value);
+  }
+
+  function filterData(q) {
     q = (q || "").toLowerCase();
-    for (const b of document.querySelectorAll("#configs-list .cmd-item"))
+    for (const b of document.querySelectorAll("#data-list .cmd-item"))
       b.classList.toggle("hidden", q && !b.dataset.search.includes(q));
   }
-  document.getElementById("configs-search").addEventListener("input", (e) => filterConfigs(e.target.value));
+  document.getElementById("data-search").addEventListener("input", (e) => filterData(e.target.value));
 
   // Buttons + find bar
   document.getElementById("btn-newtab").addEventListener("click", () => Tabs.newTab());
@@ -269,7 +405,7 @@
   applyLayout();
 
   // ── Editor setting (☰ → Editor): which app opens a file clicked in the
-  // Configs panel — Vim (real vim in a PTY, default) or Plain (in-app
+  // Data panel — Vim (real vim in a PTY, default) or Plain (in-app
   // textarea). Unlike the Layout tickers these are mutually exclusive:
   // picking one clears the other. Same "don't close the menu" behavior.
   const applyEditorPref = () => {
@@ -468,17 +604,17 @@
   });
   // About lives in the Configs (⋮ → menu-about) dropdown now — no standalone button.
 
-  // Sidebar view switcher: Commands (search + per-profile items) | Tabs
-  // (vertical, grouped) | Configs (per-profile config/data files).
+  // Sidebar view switcher: Commands (search + per-profile items) | Data
+  // (per-profile config/data files, lazyloaded) | Tabs (vertical, grouped).
   for (const btn of document.querySelectorAll(".sidebar-toggle-btn")) {
     btn.addEventListener("click", () => {
       for (const b of document.querySelectorAll(".sidebar-toggle-btn")) b.classList.toggle("active", b === btn);
       const view = btn.dataset.view;
       document.getElementById("commands-panel").hidden = view !== "commands";
       document.getElementById("tabs-panel").hidden = view !== "tabs";
-      document.getElementById("configs-panel").hidden = view !== "configs";
+      document.getElementById("data-panel").hidden = view !== "data";
       if (view === "tabs") Tabs.renderTabList();
-      if (view === "configs") buildConfigs(current);
+      if (view === "data") buildDataPanel(current);
     });
   }
 

@@ -126,42 +126,182 @@ fn fs_write_file(path: String, content: String) -> Result<(), String> {
     pty_core::fs::write_file(&path, &content)
 }
 
-// Expands the glob patterns behind the sidebar "Configs" panel (a profile's
+// Directory NAMES pruned BEFORE descending. This list used to be applied to
+// the glob crate's *results*, after it had already walked every one of these
+// subtrees in full — that was the bug: da_my-ai/target alone is 1200+
+// directories of Rust build output, walked twice (once per pattern) on every
+// panel open. walkdir's filter_entry skips the subtree outright, which is
+// the whole point of switching crates.
+const SKIP_DIRS: [&str; 10] = [
+    ".git", "target", "node_modules", "result", ".cache", ".direnv", "dist", "build", ".venv",
+    "__pycache__",
+];
+const GLOB_MAX_RESULTS: usize = 500;
+// Total directory entries visited across ALL patterns in one fs_glob call, and
+// max depth per walk — a runaway pattern (or a profile pointing at a huge
+// tree) returns a short list instead of hanging the UI. Silent by design,
+// same as the result cap: the frontend just sees "up to 500".
+const GLOB_MAX_ENTRIES: usize = 20_000;
+const GLOB_MAX_DEPTH: usize = 12;
+// The Data panel is lazyloaded (glob fires per group, on first expand), so
+// re-expanding a group or switching back to a profile mid-session should be
+// instant rather than re-walking a tree that hasn't changed. TTL is short —
+// not infinite — because these ARE the files the user is actively editing;
+// silently serving a minute-old list is fine, serving a stale one forever
+// isn't.
+const GLOB_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(60);
+
+#[derive(Default)]
+struct GlobCache(std::sync::Mutex<std::collections::HashMap<Vec<String>, (std::time::Instant, Vec<String>)>>);
+
+impl GlobCache {
+    fn get(&self, patterns: &[String]) -> Option<Vec<String>> {
+        let map = self.0.lock().ok()?;
+        let (ts, result) = map.get(patterns)?;
+        (ts.elapsed() < GLOB_CACHE_TTL).then(|| result.clone())
+    }
+
+    fn put(&self, patterns: Vec<String>, result: Vec<String>) {
+        if let Ok(mut map) = self.0.lock() {
+            map.insert(patterns, (std::time::Instant::now(), result));
+        }
+    }
+}
+
+// Expands the glob patterns behind the sidebar "Data" panel (a profile's
 // `configs[].paths`) into concrete files. `~` is the only shorthand a
-// profile.json pattern uses — glob itself knows nothing about home dirs, so
-// it's expanded by hand before handing the pattern to the crate. Skips build/
-// vcs noise dirs and caps the result so a runaway pattern (e.g. bare "~/**")
-// can't hang the UI; the cap is silent to the caller by design — the frontend
-// just sees "up to 500" and shows the count next to each group title.
+// profile.json pattern uses — expanded by hand before matching, same as
+// before.
 #[tauri::command]
-fn fs_glob(patterns: Vec<String>) -> Result<Vec<String>, String> {
-    const SKIP_DIRS: [&str; 4] = [".git", "target", "node_modules", "result"];
-    const MAX_RESULTS: usize = 500;
+fn fs_glob(cache: State<GlobCache>, patterns: Vec<String>) -> Result<Vec<String>, String> {
+    if let Some(hit) = cache.get(&patterns) {
+        return Ok(hit);
+    }
     let home = std::env::var("HOME").unwrap_or_default();
     let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    for pat in patterns {
+    let mut budget = GLOB_MAX_ENTRIES;
+    for pat in &patterns {
         let expanded = if pat == "~" {
             home.clone()
         } else if let Some(rest) = pat.strip_prefix("~/") {
             format!("{home}/{rest}")
         } else {
-            pat
+            pat.clone()
         };
-        let Ok(entries) = glob::glob(&expanded) else { continue };
-        for path in entries.flatten() {
-            if !path.is_file() {
-                continue;
-            }
-            let skip = path.components().any(|c| {
-                SKIP_DIRS.contains(&c.as_os_str().to_string_lossy().as_ref())
-            });
-            if skip {
-                continue;
-            }
-            out.insert(path.to_string_lossy().into_owned());
+        glob_one(&expanded, &home, &mut out, &mut budget);
+    }
+    let result: Vec<String> = out.into_iter().take(GLOB_MAX_RESULTS).collect();
+    cache.put(patterns, result.clone());
+    Ok(result)
+}
+
+// A pattern with no wildcard is a plain existence check — most configs.paths
+// entries are exact filenames (an SSH config, a settings.json) and should
+// cost one stat, not a walk. A pattern WITH a wildcard is split at its first
+// wildcard-bearing component: everything before that is a literal walk root,
+// everything from there on is matched by hand below. Refuses to walk from
+// "/" or the home dir itself — those are the two roots big enough to hang.
+fn glob_one(
+    pattern: &str,
+    home: &str,
+    out: &mut std::collections::BTreeSet<String>,
+    budget: &mut usize,
+) {
+    if !has_wildcard(pattern) {
+        if std::path::Path::new(pattern).is_file() {
+            out.insert(pattern.to_string());
+        }
+        return;
+    }
+    if *budget == 0 || out.len() >= GLOB_MAX_RESULTS {
+        return;
+    }
+
+    let parts: Vec<&str> = pattern.split('/').collect();
+    let Some(wildcard_idx) = parts.iter().position(|p| has_wildcard(p)) else { return };
+    let root = match wildcard_idx {
+        0 => "/".to_string(),
+        _ => parts[..wildcard_idx].join("/"),
+    };
+    if root == "/" || root == home {
+        return;
+    }
+    let root_path = std::path::Path::new(&root);
+    if !root_path.is_dir() {
+        return; // profile references a repo the user hasn't cloned — skip silently
+    }
+    let rel_pattern = parts[wildcard_idx..].join("/");
+    // A non-recursive pattern only ever matches at a fixed depth (segment
+    // count below root) — no reason to let walkdir descend past that.
+    let depth_cap = if rel_pattern.starts_with("**/") {
+        GLOB_MAX_DEPTH
+    } else {
+        rel_pattern.split('/').count().min(GLOB_MAX_DEPTH)
+    };
+
+    for entry in walkdir::WalkDir::new(root_path)
+        .max_depth(depth_cap)
+        .into_iter()
+        .filter_entry(|e| {
+            e.depth() == 0
+                || e.file_type().is_file()
+                || !SKIP_DIRS.contains(&e.file_name().to_string_lossy().as_ref())
+        })
+    {
+        if *budget == 0 || out.len() >= GLOB_MAX_RESULTS {
+            return;
+        }
+        *budget -= 1;
+        let Ok(entry) = entry else { continue };
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let Ok(rel) = entry.path().strip_prefix(root_path) else { continue };
+        if match_glob(&rel_pattern, &rel.to_string_lossy()) {
+            out.insert(entry.path().to_string_lossy().into_owned());
         }
     }
-    Ok(out.into_iter().take(MAX_RESULTS).collect())
+}
+
+fn has_wildcard(s: &str) -> bool {
+    s.contains('*') || s.contains('?')
+}
+
+// ponytail: hand-rolled matcher, not a real glob engine — covers exactly what
+// configs.paths uses today: literal segments, `*` within one segment (never
+// crosses `/`), `?`, and a leading `**/` for recursive-below-root. No brace
+// expansion, no `[a-z]` classes. If a pattern ever needs those, reach for a
+// real matcher crate (e.g. `globset`) instead of growing this by hand.
+fn match_glob(pattern: &str, path: &str) -> bool {
+    match pattern.strip_prefix("**/") {
+        Some(rest) => {
+            let rest_segs: Vec<&str> = rest.split('/').collect();
+            let path_segs: Vec<&str> = path.split('/').collect();
+            (0..path_segs.len()).any(|i| match_segments(&rest_segs, &path_segs[i..]))
+        }
+        None => match_segments(
+            &pattern.split('/').collect::<Vec<_>>(),
+            &path.split('/').collect::<Vec<_>>(),
+        ),
+    }
+}
+
+fn match_segments(pat: &[&str], path: &[&str]) -> bool {
+    pat.len() == path.len() && pat.iter().zip(path).all(|(p, s)| match_segment(p, s))
+}
+
+// `*` matches any run of chars within the segment, `?` matches exactly one.
+fn match_segment(pat: &str, s: &str) -> bool {
+    fn go(pat: &[u8], s: &[u8]) -> bool {
+        match (pat.first(), s.first()) {
+            (None, None) => true,
+            (Some(b'*'), _) => go(&pat[1..], s) || (!s.is_empty() && go(pat, &s[1..])),
+            (Some(b'?'), Some(_)) => go(&pat[1..], &s[1..]),
+            (Some(a), Some(b)) if a == b => go(&pat[1..], &s[1..]),
+            _ => false,
+        }
+    }
+    go(pat.as_bytes(), s.as_bytes())
 }
 
 // ── Browser tabs are NATIVE child webviews, not <iframe>s.
@@ -523,6 +663,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(PtyBroker::new())
+        .manage(GlobCache::default())
         .setup(move |app| {
             // agentic-ui's static server(s) + the local `goose serve` are started
             // lazily from ensure_agentic_backend when their tab is actually opened, not here.

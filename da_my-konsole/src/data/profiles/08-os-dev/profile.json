@@ -208,11 +208,20 @@
   "configs": [
     {
       "title": "NixOS host",
-      "paths": ["~/git/unix/aa_desk-usr_x86_surface-linux_nixos/src/**/*.nix", "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/src/flake.lock"]
+      "paths": [
+        "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/**/*.nix",
+        "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/**/*.json",
+        "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/**/*.md",
+        "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/**/*.lock"
+      ]
     },
     {
       "title": "Bootloader",
-      "paths": ["~/git/unix/aa_bootloader/**/*.nix"]
+      "paths": [
+        "~/git/unix/aa_bootloader/**/*.nix",
+        "~/git/unix/aa_bootloader/**/*.json",
+        "~/git/unix/aa_bootloader/**/*.md"
+      ]
     }
   ],
   "order": 11,

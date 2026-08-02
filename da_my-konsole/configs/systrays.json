@@ -211,6 +211,49 @@
           "command": "konsole --hold -e bash -lc \"STATUSLINE_RENDER=1 bash ~/.claude/statusline-command.sh </dev/null; echo; read\""
         }
       ]
+    },
+    {
+      "id": "http-dev-systray",
+      "icon": "http-dev",
+      "title": "http-dev — local file server",
+      "profile": "http-dev",
+      "enable": true,
+      "default_command": "konsole --hold -e bash -lc \"http-dev status; read\"",
+      "_doc": "http-dev is deployed by home-manager (ba_flakes_desktop/src/modules/web-server-md-eruda.nix) as BOTH a PID-file wrapper (~/.local/bin/http-dev) and a systemd --user unit, which both want :8000. This menu drives the wrapper, because that is the one actually running today (the unit ships disabled), and shows the unit state next to it so the split is visible rather than a mystery when the two fight over the port.",
+      "menu": [
+        {
+          "label": "Status",
+          "command": "konsole --hold -e bash -lc \"http-dev status; read\""
+        },
+        {
+          "label": "Start",
+          "command": "bash -lc \"http-dev start && notify-send http-dev \\\"serving :8000\\\"\""
+        },
+        {
+          "label": "Stop",
+          "command": "bash -lc \"http-dev stop && notify-send http-dev stopped\""
+        },
+        {
+          "label": "Restart",
+          "command": "bash -lc \"http-dev restart && notify-send http-dev restarted\""
+        },
+        {
+          "label": "Open http://127.0.0.1:8000",
+          "command": "xdg-open http://127.0.0.1:8000"
+        },
+        {
+          "label": "Who holds :8000",
+          "command": "konsole --hold -e bash -lc \"ss -tulpn | grep :8000 || echo \\\"nothing listening on 8000\\\"; read\""
+        },
+        {
+          "label": "systemd unit: status",
+          "command": "konsole --hold -e bash -lc \"systemctl --user status http-dev.service --no-pager; read\""
+        },
+        {
+          "label": "systemd unit: logs",
+          "command": "konsole --hold -e bash -lc \"journalctl --user -u http-dev.service -n 200 --no-pager; read\""
+        }
+      ]
     }
   ]
 }

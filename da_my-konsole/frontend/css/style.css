@@ -84,8 +84,8 @@ body { display: flex; flex-direction: column; }
 }
 .sidebar-toggle-btn:hover { color: var(--fg); }
 .sidebar-toggle-btn.active { background: var(--bg); color: var(--fg); border-color: var(--accent); }
-#commands-panel, #tabs-panel, #configs-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-#commands-panel[hidden], #tabs-panel[hidden], #configs-panel[hidden] { display: none; }
+#commands-panel, #tabs-panel, #data-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+#commands-panel[hidden], #tabs-panel[hidden], #data-panel[hidden] { display: none; }
 #tabs-panel { overflow-y: auto; padding: 6px; gap: 2px; }
 .tabpanel-group-title {
   padding: 6px 0 2px 9px; font-size: 10px; text-transform: uppercase; letter-spacing: .5px;
@@ -103,12 +103,12 @@ body { display: flex; flex-direction: column; }
 .tabpanel-item .tab-close { opacity: .5; }
 .tabpanel-item .tab-close:hover { opacity: 1; color: #ed1515; }
 .tabpanel-title { flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#search, #configs-search {
+#search, #data-search {
   margin: 8px; padding: 6px 8px; background: var(--bg); color: var(--fg);
   border: 1px solid var(--border); border-radius: 6px; outline: none;
 }
-#search:focus, #configs-search:focus { border-color: var(--accent); }
-#sections, #configs-list { overflow-y: auto; padding: 0 6px 8px; }
+#search:focus, #data-search:focus { border-color: var(--accent); }
+#sections, #data-list { overflow-y: auto; padding: 0 6px 8px; }
 .section-title {
   color: var(--muted); text-transform: uppercase; font-size: 10px;
   letter-spacing: .5px; margin: 12px 6px 4px;
@@ -377,6 +377,26 @@ body { display: flex; flex-direction: column; }
 /* Separator between nav pill clusters (my-AI/Mesh/Cloud | Git/Data Sync | …) */
 .pill-sep { width: 1px; align-self: center; height: 16px; background: var(--border); margin: 0 5px; flex: 0 0 auto; }
 
-/* Configs panel "nothing here" lines — no-configs-key vs. glob-found-nothing
+/* Data panel "nothing here" lines — no-configs-key vs. glob-found-nothing
    are worded differently in JS, but read identically. */
-.configs-muted { padding: 4px 8px 10px; color: var(--muted); font-size: 12px; }
+.data-muted { padding: 4px 8px 10px; color: var(--muted); font-size: 12px; }
+
+/* Data panel group headers — one per profile.configs[] entry, lazyloaded:
+   collapsed by default, a caret + click expands it and fires the glob. Reuses
+   .section-title as the base look; this just adds the caret/clickable bits. */
+.data-group-title {
+  display: flex; align-items: center; gap: 4px; width: 100%;
+  background: transparent; border: none; cursor: pointer; text-align: left;
+  font-family: inherit; padding: 0;
+}
+.data-group-title:hover { color: var(--fg); }
+.data-caret { display: inline-block; width: 8px; font-size: 9px; }
+.data-count { color: var(--muted); font-weight: normal; text-transform: none; letter-spacing: 0; }
+.data-scanning { padding: 4px 8px 10px 18px; color: var(--muted); font-size: 12px; font-style: italic; }
+/* Second grouping level (directory, within a file-type bucket) — same idea as
+   .section-title, one notch dimmer and indented so the two levels don't read
+   as equal weight. */
+.data-dir-title {
+  color: var(--muted); font-size: 10px; margin: 6px 6px 2px 18px; opacity: .75;
+}
+.data-leaf { padding-left: 20px; }

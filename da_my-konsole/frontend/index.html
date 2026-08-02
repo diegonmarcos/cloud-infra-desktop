@@ -106,17 +106,18 @@
     <aside id="sidebar">
       <div id="sidebar-toggle">
         <button class="sidebar-toggle-btn active" data-view="commands">Commands</button>
+        <button class="sidebar-toggle-btn" data-view="data">Data</button>
+        <span class="pill-sep"></span>
         <button class="sidebar-toggle-btn" data-view="tabs">Tabs</button>
-        <button class="sidebar-toggle-btn" data-view="configs">Configs</button>
       </div>
       <div id="commands-panel">
         <input id="search" type="search" placeholder="Search commands…" autocomplete="off" />
         <div id="sections"><!-- .section per profile.sections[] (boot.js) --></div>
       </div>
       <div id="tabs-panel" hidden><!-- vertical tab list, grouped (tabs.js) --></div>
-      <div id="configs-panel" hidden>
-        <input id="configs-search" type="search" placeholder="Search configs…" autocomplete="off" />
-        <div id="configs-list"><!-- .section per profile.configs[] (boot.js) --></div>
+      <div id="data-panel" hidden>
+        <input id="data-search" type="search" placeholder="Search data…" autocomplete="off" />
+        <div id="data-list"><!-- .section per profile.configs[] (boot.js), lazyloaded per group --></div>
       </div>
     </aside>
 
