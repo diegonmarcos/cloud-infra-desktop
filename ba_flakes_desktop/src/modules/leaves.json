@@ -44,14 +44,8 @@
     "security-net/firewall"
   ],
 
-  "_comment_data-science": "Heavy data-science leaves (python-numerics/ml, jupyter, stats-r, scientific, scraping, databases-cli, api-clients) REMOVED 2026-06-18 to reclaim ~GB of pool — they pulled scipy/sklearn/R/jupyter closures the desktop didn't need (data work runs in cloud/CI). The AI CLIs stay: they are the daily driver, not the ds stack. The profile key is retained (referenced by flake.nix toolsets + build.json) and now carries only the AI CLIs; rename in lockstep across all three if ever desired.",
-  "data-science": [
-    "ai/gemini",
-    "ai/claude",
-    "ai/ant",
-    "ai/claude-superset",
-    "ai/antigravity"
-  ],
+  "_comment_data-science": "Heavy data-science leaves (python-numerics/ml, jupyter, stats-r, scientific, scraping, databases-cli, api-clients) REMOVED 2026-06-18 to reclaim ~GB of pool — they pulled scipy/sklearn/R/jupyter closures the desktop didn't need (data work runs in cloud/CI). The AI CLIs that used to live here (ai/gemini, ai/claude, ai/ant, ai/claude-superset, ai/antigravity) moved again on 2026-08-02: they are now app_especific/my-ai (always-on in flake.nix userModules, not toolset-gated), so this leaf list is intentionally empty — not a stub, a no-op. The profile key is retained (referenced by flake.nix toolsets + build.json) purely so those preset lists keep resolving; nothing is lost by selecting it.",
+  "data-science": [],
 
   "productivity": [
     "browsers/brave",
