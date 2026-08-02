@@ -24,6 +24,7 @@ import org.kde.plasma.components as PlasmaComponents
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.quickcharts as Charts
 import org.kde.kirigami as Kirigami
+import org.kde.plasma.plasma5support as Plasma5Support
 
 PlasmoidItem {
     id: root
@@ -147,10 +148,23 @@ PlasmoidItem {
     // QML cannot signal a process. Handing a panel widget an exec path is worse
     // than handing the daemon a mailbox: the daemon runs as this user, so it
     // can only ever signal what the user already could.
+    //
+    // Writing to that mailbox is its own problem: QML's XMLHttpRequest against
+    // a file:// URL only ever supports GET in Qt's implementation — there is
+    // no writable file scheme handler, so a PUT here silently does nothing
+    // and every signal request would vanish. The executable data engine is
+    // the supported way a plasmoid runs a shell command; used here only to
+    // append a line, never to run anything built from unsanitised input.
+    Plasma5Support.DataSource {
+        id: killWriter
+        engine: "executable"
+        connectedSources: []
+        onNewData: (sourceName) => disconnectSource(sourceName)
+    }
+
     function sendSignal(pid, sig) {
-        var x = new XMLHttpRequest();
-        x.open("PUT", "file://" + root.killPath);
-        x.send(String(pid) + " " + sig + "\n");
+        var cmd = "printf '%s %s\\n' '" + pid + "' '" + sig + "' >> '" + root.killPath + "'";
+        killWriter.connectSource(cmd);
     }
 
     preferredRepresentation: compactRepresentation
@@ -246,6 +260,14 @@ PlasmoidItem {
             clip: true
             spacing: 2
             delegate: RowLayout {
+                id: procRow
+                // The inner Repeater below (over signalList) has its own
+                // modelData/index that shadow this delegate's — reading
+                // procList.model[index] inside onTriggered used the SIGNAL
+                // list's index against the PROCESS list, sending a signal to
+                // whatever pid happened to sit at that row instead of the one
+                // the menu was opened on. Capture the pid up front instead.
+                property int procPid: modelData.pid
                 width: procList.width
                 spacing: 6
                 PlasmaComponents.Label { text: modelData.name; Layout.fillWidth: true; elide: Text.ElideRight }
@@ -261,7 +283,7 @@ PlasmoidItem {
                             model: root.signalList
                             delegate: PlasmaComponents.MenuItem {
                                 text: modelData.label
-                                onTriggered: root.sendSignal(procList.model[index] ? procList.model[index].pid : 0, modelData.sig)
+                                onTriggered: root.sendSignal(procRow.procPid, modelData.sig)
                             }
                         }
                     }
