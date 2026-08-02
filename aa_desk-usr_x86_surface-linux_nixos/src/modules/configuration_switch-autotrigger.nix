@@ -34,13 +34,21 @@ lib.mkIf (cfg.enable or false) {
     after = [ "graphical-session.target" ];
     # NixOS's default systemd-unit PATH is coreutils/findutils/gnugrep/gnused/
     # systemd ONLY — build.sh switch needs the real toolchain (awk, nix, docker,
-    # jq, ssh, ...) it gets when run interactively. Give it the full declarative
-    # system + HM profile PATH instead of curating individual pkgs.X derivations.
+    # jq, gh, ssh, ...) it gets when run interactively. This host runs
+    # *standalone* home-manager (build.sh calls `home-manager switch` directly,
+    # not the NixOS-integrated module), so HM-installed packages land in
+    # ~/.nix-profile/bin, NOT /etc/profiles/per-user/<user>/bin — that path is
+    # only populated by NixOS-integrated HM, which this system does not use.
+    # %h/.nix-profile/bin comes first so this unit sees the same `git`/`nix`/`jq`
+    # an interactive shell resolves (HM profile shadows the system profile there).
     environment = {
       # nixos/modules/system/boot/systemd/user.nix already sets a default PATH
       # for every systemd.user.services.<name> — plain assignment conflicts
       # with it (no priority ⇒ "conflicting definition values"). Force ours.
-      PATH = lib.mkForce "/run/current-system/sw/bin:/etc/profiles/per-user/diego/bin:/nix/var/nix/profiles/default/bin";
+      # %h expands to the unit's home directory (specifier expansion works in
+      # Environment=, per systemd.exec(5)) — kept alongside /etc/profiles/per-user/diego
+      # below in case NixOS-integrated HM packages ever show up there too.
+      PATH = lib.mkForce "%h/.nix-profile/bin:/run/current-system/sw/bin:/etc/profiles/per-user/diego/bin:/nix/var/nix/profiles/default/bin";
     };
     serviceConfig = {
       ExecStart = listener;
