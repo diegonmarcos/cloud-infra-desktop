@@ -11,7 +11,7 @@
   <!-- Top nav: row 1 = fixed Home actions, row 2 = data-driven profile pills -->
   <header id="topnav">
     <div class="nav-row" id="nav-row-home">
-      <span class="nav-label">tauri-apps</span>
+      <span class="nav-label">Tauri Apps</span>
       <div id="home-actions">
         <button class="home-btn" id="btn-home-home">Home</button>
         <button class="home-btn" id="btn-home-filebrowser">File Browser</button>
@@ -67,7 +67,7 @@
       </div>
     </div>
     <div class="nav-row" id="nav-row-profiles">
-      <span class="nav-label">terminal-clis</span>
+      <span class="nav-label">Terminal CLIs</span>
       <nav id="profiles"><!-- .profile-pill per profile (boot.js) --></nav>
     </div>
   </header>
@@ -101,6 +101,19 @@
     </div>
   </div>
 
+  <!-- Dependency Solver panel — replaces the old giant-bash-script-in-a-PTY-tab -->
+  <div id="deps" hidden>
+    <div id="deps-box">
+      <div id="deps-head">
+        <span id="deps-summary"></span>
+        <input id="deps-search" type="search" placeholder="Filter…" autocomplete="off" />
+        <button class="home-btn" id="deps-copy-missing">Copy missing</button>
+        <button class="home-btn" id="deps-close">Close</button>
+      </div>
+      <div id="deps-body"><!-- .deps-row per binary (boot.js) --></div>
+    </div>
+  </div>
+
   <div id="body">
     <!-- Left: search + per-profile command sections -->
     <aside id="sidebar">
@@ -116,6 +129,7 @@
       </div>
       <div id="tabs-panel" hidden><!-- vertical tab list, grouped (tabs.js) --></div>
       <div id="data-panel" hidden>
+        <div id="data-tree-btns"><!-- Tree-* buttons, wired in boot.js --></div>
         <input id="data-search" type="search" placeholder="Search data…" autocomplete="off" />
         <div id="data-list"><!-- .section per profile.configs[] (boot.js), lazyloaded per group --></div>
       </div>

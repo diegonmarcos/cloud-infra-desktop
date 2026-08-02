@@ -30,6 +30,7 @@ if (typeof window !== "undefined") {
     readFile: (path) => window.__TAURI__.core.invoke("fs_read_file", { path }),
     writeFile: (path, content) => window.__TAURI__.core.invoke("fs_write_file", { path, content }),
     fsGlob: (patterns) => window.__TAURI__.core.invoke("fs_glob", { patterns }),
+    whichAll: (bins) => window.__TAURI__.core.invoke("which_all", { bins }),
   };
 
   // WebSocket impl (Android WebView / browser): one shared socket to the engine.
@@ -99,6 +100,9 @@ if (typeof window !== "undefined") {
       // shows "no files matched" on this path rather than growing a new op for
       // a desktop-only feature.
       fsGlob: () => Promise.resolve([]),
+      // Same story: which_all is a desktop-only Tauri command, no engine op
+      // for it — the Dependency Solver just reports everything unresolved.
+      whichAll: (bins) => Promise.resolve(bins.map((b) => [b, null])),
     };
   }
 

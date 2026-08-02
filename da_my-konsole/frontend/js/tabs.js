@@ -14,6 +14,59 @@ const ensureAgenticBackend = (url) => {
   if (window.__TAURI__) window.__TAURI__.core.invoke("ensure_agentic_backend", { url }).catch(() => {});
 };
 
+// ── TreeCmd: builds the recursive listing command behind every "Tree-*"
+// button, shared by the Data panel (boot.js) and the File Browser
+// (filebrowser.js) so the six filters and the prune list live in exactly one
+// place. Prefers real `tree` (its -P/--matchdirs/-I do the filtering and
+// pruning in one pass); falls back to `find` when `tree` isn't installed.
+// The `command -v tree` check runs in the user's shell at PTY time, not here
+// — this file only ever produces a string.
+const TreeCmd = {
+  // Directories pruned from every scan. Non-negotiable: an earlier unpruned
+  // recursive scan here walked 1207 `target/` dirs and pegged a CPU core.
+  PRUNE: [".git", "target", "node_modules", "result", ".direnv", "dist", "build", ".venv", "__pycache__", ".cache"],
+
+  KINDS: {
+    "Tree-Confs": { pattern: "*.json|*.yml|*.yaml|*.nix|flake.nix|flake.lock" },
+    "Tree-Text": { pattern: "*.md|*.txt" },
+    "Tree-Bin": { bin: true }, // no extension to match on — defined as executable-bit regular files
+    "Tree-Runt": { pattern: "*.sh|*.py|*.ts|*.js|*.go" },
+    "Tree-Build": { pattern: "*.rs|*.c|*.h|*.cpp|*.cc|*.hpp|*.java" },
+    "Tree-Web": { pattern: "*.html|*.css" },
+  },
+
+  shQuote(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; },
+
+  // Builds the full shell command for `kind` (one of the KINDS keys) rooted
+  // at `rootPath`. Same command shape on both surfaces — only the root differs.
+  command(kind, rootPath) {
+    const spec = this.KINDS[kind];
+    if (!spec) throw new Error(`TreeCmd: unknown kind ${kind}`);
+    // "$HOME" is the no-configs[] fallback root — left unquoted so the shell
+    // expands it. A "~/..." root (profiles declare their configs[] globs
+    // with "~") gets its "~" swapped for the same unquoted $HOME, with the
+    // remainder still single-quoted. Everything else is a plain literal path.
+    let root;
+    if (rootPath === "$HOME") root = rootPath;
+    else if (rootPath === "~" || rootPath.startsWith("~/")) root = "$HOME" + this.shQuote(rootPath.slice(1));
+    else root = this.shQuote(rootPath);
+    const pruneIgnore = this.PRUNE.join("|"); // tree -I takes a single '|'-joined glob list
+    const pruneFind = this.PRUNE.map((d) => `-name ${this.shQuote(d)}`).join(" -o ");
+
+    if (spec.bin) {
+      // tree has no "executable bit" filter, so this is find-only on both
+      // paths — no point pretending tree can do it.
+      return `find ${root} \\( ${pruneFind} \\) -prune -o -type f -perm -u+x -print | sort`;
+    }
+
+    const pat = spec.pattern;
+    const treeCmd = `tree -a --prune -I '${pruneIgnore}' -P '${pat}' --matchdirs ${root}`;
+    const findPat = pat.split("|").map((p) => `-iname ${this.shQuote(p)}`).join(" -o ");
+    const findCmd = `find ${root} \\( ${pruneFind} \\) -prune -o -type f \\( ${findPat} \\) -print | sort`;
+    return `if command -v tree >/dev/null 2>&1; then ${treeCmd}; else ${findCmd}; fi`;
+  },
+};
+
 // ── Native child webviews ──────────────────────────────────────────────────
 // A native webview floats above the DOM: nothing in CSS clips it, so its
 // rectangle has to be pushed to the backend by hand. The rect is measured from
@@ -178,7 +231,7 @@ const Tabs = {
     items.push(["Close Tab", () => this.close(tabId)]);
     for (const [label, fn] of items) {
       const it = document.createElement("div");
-      it.className = "pane-menu-item";
+      it.className = "menu-item";
       it.textContent = label;
       it.addEventListener("click", () => { menu.remove(); fn(); });
       menu.appendChild(it);

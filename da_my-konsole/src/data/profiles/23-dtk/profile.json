@@ -1,0 +1,58 @@
+{
+  "name": "dtk",
+  "display_name": "DTK",
+  "order": 26,
+  "secondary": true,
+  "theme": { "accent": "#e84393" },
+  "_doc": "Diego's Toolkit — ~/git/tools/dtk.sh, a POSIX-sh unified CLI for aliases, containers, cloud connect and ops. It has an interactive menu of its own, so the top bookmark just launches that; the rest are the direct subcommands, which are faster than navigating the menu when you already know what you want. Numbers in the labels are dtk's own shortcodes, kept verbatim so the menu and these bookmarks cannot drift apart.",
+  "configs": [
+    { "title": "DTK", "paths": ["~/git/tools/*.sh", "~/git/tools/*.json", "~/git/tools/*.md"] }
+  ],
+  "sections": [
+    {
+      "title": "LAUNCH",
+      "items": [
+        { "label": "interactive menu", "cmd": "~/git/tools/dtk.sh" },
+        { "label": "help (full command grid)", "cmd": "~/git/tools/dtk.sh help" },
+        { "label": "run shortcode…", "cmd": "~/git/tools/dtk.sh " }
+      ]
+    },
+    {
+      "title": "LOCAL",
+      "items": [
+        { "label": "10 aliases", "cmd": "~/git/tools/dtk.sh aliases" },
+        { "label": "tools (installed CLIs)", "cmd": "~/git/tools/dtk.sh tools" },
+        { "label": "30a btop", "cmd": "~/git/tools/dtk.sh btop" },
+        { "label": "30c top-batch", "cmd": "~/git/tools/dtk.sh top-batch" },
+        { "label": "32 journal-dash", "cmd": "~/git/tools/dtk.sh journal-dash" },
+        { "label": "51a sys-info", "cmd": "~/git/tools/dtk.sh info" }
+      ]
+    },
+    {
+      "title": "CLOUD",
+      "items": [
+        { "label": "33 connect (dashboard)", "cmd": "~/git/tools/dtk.sh connect" },
+        { "label": "34a btop-dash (all VMs)", "cmd": "~/git/tools/dtk.sh btop-dash" },
+        { "label": "34b remote-journal", "cmd": "~/git/tools/dtk.sh remote-journal" },
+        { "label": "21 ssh (serial/ssh/rescue)", "cmd": "~/git/tools/dtk.sh ssh" }
+      ]
+    },
+    {
+      "title": "OPS / RESCUE",
+      "items": [
+        { "label": "1214 fix-journal", "cmd": "~/git/tools/dtk.sh fix-journal" },
+        { "label": "1215 full-rescue", "cmd": "~/git/tools/dtk.sh full-rescue" },
+        { "label": "43 git-clone (all repos)", "cmd": "~/git/tools/dtk.sh git-clone" },
+        { "label": "52b deps-solver", "cmd": "~/git/tools/dtk.sh deps-solver" }
+      ]
+    },
+    {
+      "title": "LOGS",
+      "items": [
+        { "label": "dtk.log (raw + trace)", "cmd": "less -R ~/dtk.log" },
+        { "label": "dtk.md (clean markdown)", "cmd": "less -R ~/dtk.md" },
+        { "label": "tail dtk.log", "cmd": "tail -f ~/dtk.log" }
+      ]
+    }
+  ]
+}
