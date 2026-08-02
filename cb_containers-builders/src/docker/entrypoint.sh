@@ -246,14 +246,39 @@ for repo in cloud cloud-data unix front tools; do
     # fetch+reset moves HEAD even when submodule checkout is broken;
     # submodule update is best-effort and must never mask a moved HEAD.
     # No 2>/dev/null on fetch/reset — sync errors must be visible.
-    if git -C "$dir" fetch origin main \
-       && git -C "$dir" reset --hard origin/main; then
-      git -C "$dir" submodule update --init --recursive 2>/dev/null \
-        || echo "[setup] WARN: submodule update failed for $repo (continuing)"
-      echo "[setup] Synced $repo (legacy fetch+reset)"
-    else
-      echo "[setup] Sync failed for $repo (non-fatal)"
+    #
+    # Retried: github.com is reachable-but-slow often enough that a single
+    # attempt is a coin flip. 2026-08-02 run 30753108019 — cloud-cgc-mcp died
+    # on "Failed to connect to github.com port 443 after 136060 ms", the one
+    # attempt was spent, and the run limped on with a stale workspace until
+    # the staleness gate below aborted it with an unrelated-looking error.
+    _n=0
+    while :; do
+      if git -C "$dir" fetch origin main \
+         && git -C "$dir" reset --hard origin/main; then
+        git -C "$dir" submodule update --init --recursive 2>/dev/null \
+          || echo "[setup] WARN: submodule update failed for $repo (continuing)"
+        echo "[setup] Synced $repo (legacy fetch+reset)"
+        _synced=1
+        break
+      fi
+      _n=$((_n + 1))
+      if [ "$_n" -ge 3 ]; then
+        break
+      fi
+      echo "[setup] WARN: sync attempt $_n failed for $repo — retrying in $((_n * 10))s"
+      sleep $((_n * 10))
+    done
+  fi
+  if [ "$_synced" -eq 0 ]; then
+    # The payload repo is not optional: continuing leaves the workspace stale
+    # and the failure resurfaces below as a confusing HEAD-mismatch abort.
+    # Fail here, where the real reason (the git error) is on screen.
+    if [ "$repo" = "cloud" ]; then
+      echo "[setup] FATAL: sync failed for payload repo '$repo' after 3 attempts — see the git error above"
+      exit 1
     fi
+    echo "[setup] Sync failed for $repo (non-fatal)"
   fi
 done
 
