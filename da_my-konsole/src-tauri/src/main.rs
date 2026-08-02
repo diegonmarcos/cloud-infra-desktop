@@ -560,10 +560,12 @@ fn load_systrays() -> serde_json::Value {
     serde_json::json!({ "trays": [] })
 }
 
-// Rasterise configs/systray-icons/<name>.svg to a 32x32 RGBA tray image.
-// Same user-dir-first lookup as profiles/config: build.sh install mirrors the
-// repo's icons into ~/.local/share/my-konsole/systray-icons/.
-fn load_systray_icon(name: &str) -> Option<tauri::image::Image<'static>> {
+// Rasterise configs/systray-icons/<name>.svg to 32x32 RGBA (R,G,B,A per
+// pixel). Same user-dir-first lookup as profiles/config: build.sh install
+// mirrors the repo's icons into ~/.local/share/my-konsole/systray-icons/.
+// Returns raw RGBA rather than a tauri::image::Image — ksni::Icon wants its
+// own ARGB32 layout (see rgba_to_ksni_icon), not Tauri's image type.
+fn load_systray_icon(name: &str) -> Option<(Vec<u8>, u32, u32)> {
     const SIZE: u32 = 32;
     let home = std::env::var_os("HOME")?;
     let path = std::path::Path::new(&home)
@@ -581,13 +583,78 @@ fn load_systray_icon(name: &str) -> Option<tauri::image::Image<'static>> {
         resvg::tiny_skia::Transform::from_scale(scale, scale),
         &mut pixmap.as_mut(),
     );
-    Some(tauri::image::Image::new_owned(pixmap.take(), SIZE, SIZE))
+    Some((pixmap.take(), SIZE, SIZE))
+}
+
+// resvg/tiny_skia gives RGBA8 (R,G,B,A per pixel, premultiplied). ksni::Icon
+// wants ARGB32 "network byte order", i.e. each pixel's bytes in the order
+// A,R,G,B — getting this wrong doesn't error, it just silently swaps
+// channels, so verify against a real render rather than trusting the compile.
+fn rgba_to_ksni_icon(rgba: Vec<u8>, width: u32, height: u32) -> ksni::Icon {
+    let mut argb = Vec::with_capacity(rgba.len());
+    for px in rgba.chunks_exact(4) {
+        let [r, g, b, a] = [px[0], px[1], px[2], px[3]];
+        argb.extend_from_slice(&[a, r, g, b]);
+    }
+    ksni::Icon { width: width as i32, height: height as i32, data: argb }
+}
+
+// One ksni::Tray impl per enabled entry in systrays.json. NOT Tauri's
+// tray-icon feature — see the comment on the ksni dependency in Cargo.toml:
+// tray-icon's tooltip is a documented no-op on Linux, which is the whole
+// reason this exists. Someone will otherwise "simplify" this back to
+// TrayIconBuilder and silently reintroduce the bug.
+struct SystrayItem {
+    id: String,
+    title: String,
+    profile: String,
+    icon: Option<ksni::Icon>,
+    default_command: String,
+    menu: Vec<(String, String)>, // (label, command), same shell-exec as before
+}
+
+impl ksni::Tray for SystrayItem {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+    fn title(&self) -> String {
+        self.title.clone()
+    }
+    fn icon_pixmap(&self) -> Vec<ksni::Icon> {
+        self.icon.clone().into_iter().collect()
+    }
+    // The entire point of this rewrite: KDE reads ToolTip.title on hover,
+    // where tray-icon's `.tooltip()` was silently discarded on Linux.
+    fn tool_tip(&self) -> ksni::ToolTip {
+        ksni::ToolTip { title: self.title.clone(), description: self.profile.clone(), ..Default::default() }
+    }
+    // Primary click. `default_command` was declared in systrays.json and read
+    // by nothing until now — wiring it here makes the manifest honest.
+    fn activate(&mut self, _x: i32, _y: i32) {
+        if !self.default_command.is_empty() {
+            let _ = std::process::Command::new("sh").arg("-c").arg(&self.default_command).spawn();
+        }
+    }
+    fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
+        self.menu
+            .iter()
+            .map(|(label, cmd)| {
+                let cmd = cmd.clone();
+                ksni::menu::StandardItem {
+                    label: label.clone(),
+                    activate: Box::new(move |_this: &mut Self| {
+                        let _ = std::process::Command::new("sh").arg("-c").arg(&cmd).spawn();
+                    }),
+                    ..Default::default()
+                }
+                .into()
+            })
+            .collect()
+    }
 }
 
 fn setup_systrays(app: &tauri::App) {
-    use tauri::menu::MenuBuilder;
-    use tauri::menu::MenuItemBuilder;
-    use tauri::tray::TrayIconBuilder;
+    use ksni::blocking::TrayMethods;
 
     let data = load_systrays();
     let trays = data
@@ -597,11 +664,10 @@ fn setup_systrays(app: &tauri::App) {
         .unwrap_or_default();
     // NOT app.default_window_icon(): on this platform it returns a raw RGBA
     // buffer whose length doesn't match its own reported width/height (a 2x
-    // HiDPI variant leaking through), which tray_icon's stricter size check
-    // rejects outright ("wrong data size, expected 4096 got 8192"). Decode
-    // the bundled 32x32 PNG ourselves instead — Image has no from_path in
-    // this tauri version, only new_owned(rgba, width, height).
-    let icon = app
+    // HiDPI variant leaking through). Decode the bundled 32x32 PNG ourselves
+    // instead — Image has no from_path in this tauri version, only
+    // new_owned(rgba, width, height).
+    let app_icon = app
         .path()
         .resolve("icons/32x32.png", tauri::path::BaseDirectory::Resource)
         .ok()
@@ -609,8 +675,15 @@ fn setup_systrays(app: &tauri::App) {
         .map(|img| {
             let rgba = img.to_rgba8();
             let (w, h) = (rgba.width(), rgba.height());
-            tauri::image::Image::new_owned(rgba.into_raw(), w, h)
+            rgba_to_ksni_icon(rgba.into_raw(), w, h)
         });
+
+    // ksni::blocking spawns each tray on its own background D-Bus connection
+    // and hands back a Handle used only for later updates/shutdown — nothing
+    // in this daemon calls either, but the Handle must outlive setup_systrays
+    // or the tray's D-Bus service goes away with it. Leak the Vec: this is a
+    // --tray-daemon process that lives for the systemd service's lifetime.
+    let mut handles = Vec::new();
 
     for tray in trays {
         if !tray.get("enable").and_then(|v| v.as_bool()).unwrap_or(false) {
@@ -618,44 +691,37 @@ fn setup_systrays(app: &tauri::App) {
         }
         let id = tray.get("id").and_then(|v| v.as_str()).unwrap_or("systray").to_string();
         let title = tray.get("title").and_then(|v| v.as_str()).unwrap_or(&id).to_string();
+        let profile = tray.get("profile").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let default_command = tray.get("default_command").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let menu_items = tray.get("menu").and_then(|v| v.as_array()).cloned().unwrap_or_default();
-
-        let mut commands: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-        let mut builder = MenuBuilder::new(app);
-        for (i, item) in menu_items.iter().enumerate() {
-            let label = item.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let cmd = item.get("command").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let item_id = format!("{id}::{i}");
-            commands.insert(item_id.clone(), cmd);
-            if let Ok(mi) = MenuItemBuilder::with_id(item_id, label).build(app) {
-                builder = builder.item(&mi);
-            }
-        }
-        let Ok(menu) = builder.build() else { continue };
+        let menu = menu_items
+            .iter()
+            .map(|item| {
+                let label = item.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let cmd = item.get("command").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                (label, cmd)
+            })
+            .collect();
 
         // Per-tray icon, app icon only as the fallback. Every tray used to get
-        // `icon.clone()` unconditionally and the manifest's `icon` field was
+        // the app icon unconditionally and the manifest's `icon` field was
         // read by nothing — so seven trays showed seven copies of the same
         // my-konsole logo and were impossible to tell apart in the tray.
-        let tray_icon = tray
+        let icon = tray
             .get("icon")
             .and_then(|v| v.as_str())
             .and_then(load_systray_icon)
-            .or_else(|| icon.clone());
-        let mut tb = TrayIconBuilder::with_id(id.clone()).tooltip(&title).menu(&menu);
-        if let Some(ic) = tray_icon {
-            tb = tb.icon(ic);
-        }
-        let tb = tb.on_menu_event(move |_app, event| {
-            let eid: &str = event.id().as_ref();
-            if let Some(cmd) = commands.get(eid) {
-                let _ = std::process::Command::new("sh").arg("-c").arg(cmd).spawn();
-            }
-        });
-        if let Err(e) = tb.build(app) {
-            eprintln!("systray: failed to build tray '{id}': {e}");
+            .map(|(rgba, w, h)| rgba_to_ksni_icon(rgba, w, h))
+            .or_else(|| app_icon.clone());
+
+        let item = SystrayItem { id: id.clone(), title, profile, icon, default_command, menu };
+        match item.spawn() {
+            Ok(handle) => handles.push(handle),
+            Err(e) => eprintln!("systray: failed to build tray '{id}': {e}"),
         }
     }
+
+    Box::leak(Box::new(handles));
 }
 
 fn main() {

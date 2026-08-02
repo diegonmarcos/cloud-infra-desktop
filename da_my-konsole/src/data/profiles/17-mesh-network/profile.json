@@ -1,6 +1,6 @@
 {
   "name": "mesh-network",
-  "display_name": "Mesh & Network",
+  "display_name": "Mesh&Net",
   "order": 2,
   "group": "g1",
   "theme": { "accent": "#00b894" },

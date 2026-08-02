@@ -57,9 +57,16 @@ body { display: flex; flex-direction: column; }
   background: transparent; color: var(--muted); border: 1px solid transparent;
   font-size: 12px; user-select: none;
   flex: 0 0 auto; white-space: nowrap;
+  transition: background-color 100ms, color 100ms, border-color 100ms;
 }
 .profile-pill:hover { background: var(--bg2); color: var(--fg); }
-.profile-pill.active { background: var(--bg); color: var(--fg); border-color: var(--accent); }
+/* border-width never changes (transparent → accent, both 1px), so becoming
+   active never shifts a neighboring pill — only color changes. */
+.profile-pill.active { background: var(--bg); color: var(--fg); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.profile-pill:focus-visible, .home-btn:focus-visible, .sidebar-toggle-btn:focus-visible,
+#btn-menu:focus-visible, #menu-dropdown .menu-item:focus-visible, .home-menu .menu-item:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
 #topnav-spacer { flex: 1; }
 #btn-newtab {
   background: var(--bg2); color: var(--fg); border: 1px solid var(--border);
@@ -265,8 +272,20 @@ body { display: flex; flex-direction: column; }
   box-shadow: 0 4px 16px rgba(0,0,0,.4); padding: 4px 0;
 }
 .home-menu[hidden] { display: none; }
-.home-menu .menu-item { padding: 6px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.home-menu .menu-item {
+  padding: 7px 16px; font-size: 12px; cursor: pointer; white-space: nowrap;
+  transition: background-color 100ms, color 100ms;
+}
 .home-menu .menu-item:hover { background: var(--accent); color: var(--bg); }
+/* Others ▾ (bookmarks-menu feel): each entry gets a small leading dot in its
+   profile's accent color so rows are distinguishable without pill/icon. */
+.others-menu .menu-item {
+  position: relative; padding-left: 26px;
+}
+.others-menu .menu-item::before {
+  content: ""; position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--muted));
+}
 
 /* About: repo / location block */
 #about-repo { margin: 10px 0; font-size: 12px; color: var(--muted); }
@@ -284,8 +303,6 @@ body { display: flex; flex-direction: column; }
 #logs-head span { font-weight: 600; margin-right: auto; }
 #logs-body { flex: 1 1 0; margin: 0; padding: 10px 12px; overflow: auto; font-family: monospace;
   font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; color: var(--fg); }
-#menu-dropdown .menu-item { padding: 6px 14px; font-size: 12px; cursor: pointer; }
-#menu-dropdown .menu-item:hover { background: var(--accent); color: var(--bg); }
 
 /* About dialog */
 #about {
@@ -324,25 +341,49 @@ body { display: flex; flex-direction: column; }
 .browser-note-url { color: var(--accent); }
 
 /* ── Konsole-style menu: an icon button whose entries open child menus ──────
-   Submenus are pure CSS (:hover), so there is no open/close state to keep in
-   sync — the only JS state here is the two Layout tickers. */
+   Submenus are pure CSS (:hover) for the trigger; boot.js only adds inline
+   positioning (flip/shift) when a submenu would land off-screen — the
+   open/close state itself stays CSS-driven, plus the two Layout tickers.
+   Metrics below approximate Breeze/Oxygen menu chrome (Plasma default):
+   28px row height, 1px inset-bordered popup, 14px gutter for the check glyph. */
 #btn-menu { font-size: 15px; line-height: 1; padding: 2px 8px; }
-#menu-dropdown { min-width: 190px; }
-#menu-dropdown .menu-item { position: relative; }
-#menu-dropdown .menu-item.has-sub::after { content: "▸"; position: absolute; right: 8px; opacity: .6; }
-#menu-dropdown .submenu {
-  display: none; position: absolute; left: 100%; top: -4px; min-width: 210px;
-  background: var(--bg2); border: 1px solid var(--border); border-radius: 4px;
-  padding: 4px 0; z-index: 60;
+#menu-dropdown {
+  min-width: 210px; padding: 6px 0;
+  border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.45);
 }
-#menu-dropdown .menu-item.has-sub:hover > .submenu { display: block; }
-#menu-dropdown .submenu .menu-item { padding: 6px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+#menu-dropdown .menu-item {
+  position: relative; display: flex; align-items: center;
+  height: 28px; padding: 0 14px 0 30px; margin: 0 4px; width: calc(100% - 8px);
+  border-radius: 4px; box-sizing: border-box;
+  transition: background-color 100ms, color 100ms;
+}
+#menu-dropdown .menu-item.has-sub::after {
+  content: "▸"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  opacity: .7; font-size: 10px;
+}
+#menu-dropdown .submenu {
+  display: none; position: absolute; left: 100%; top: -7px; min-width: 210px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.45); padding: 6px 0; z-index: 60;
+}
+#menu-dropdown .menu-item.has-sub:hover > .submenu,
+#menu-dropdown .submenu.open { display: block; }
+#menu-dropdown .submenu .menu-item { padding: 0 14px 0 30px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+#menu-dropdown .menu-item:hover,
 #menu-dropdown .submenu .menu-item:hover { background: var(--accent); color: var(--bg); }
-#menu-sep, #menu-dropdown .menu-sep { height: 1px; background: var(--border); margin: 4px 0; }
+#menu-sep, #menu-dropdown .menu-sep {
+  height: 1px; background: var(--border); margin: 5px 12px;
+}
 /* Tickers read as checkboxes; the box is drawn, not an <input>, so it inherits
-   the menu row's hover styling like every other entry. */
-#menu-dropdown .menu-item.check::before { content: "☐ "; opacity: .8; }
-#menu-dropdown .menu-item.check.checked::before { content: "☑ "; opacity: 1; }
+   the menu row's hover styling like every other entry. Every row (checked,
+   checkable, or plain) reserves the same left gutter via .menu-item's
+   padding-left above, so labels line up regardless of row type — only
+   .check rows actually draw a glyph into that gutter. */
+#menu-dropdown .menu-item.check::before {
+  content: "☐"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  opacity: .8; font-size: 11px;
+}
+#menu-dropdown .menu-item.check.checked::before { content: "☑"; opacity: 1; }
 
 /* Layout tickers */
 #topnav.hidden, #sidebar.hidden { display: none; }
@@ -374,8 +415,13 @@ body { display: flex; flex-direction: column; }
 .browser-frame { display: none; }
 .browser-note { display: none; }
 
-/* Separator between nav pill clusters (my-AI/Mesh/Cloud | Git/Data Sync | …) */
-.pill-sep { width: 1px; align-self: center; height: 16px; background: var(--border); margin: 0 5px; flex: 0 0 auto; }
+/* Separator between nav pill clusters (my-AI/Mesh/Cloud | Git/Git Sync | …) —
+   a literal "|" glyph rather than a rule, distinct from the sidebar's
+   .pill-sep (which stays a thin vertical rule; unrelated surface). */
+.nav-pill-sep {
+  align-self: center; color: var(--muted); font-size: 13px; line-height: 1;
+  margin: 0 6px; flex: 0 0 auto; user-select: none;
+}
 
 /* Data panel "nothing here" lines — no-configs-key vs. glob-found-nothing
    are worded differently in JS, but read identically. */
