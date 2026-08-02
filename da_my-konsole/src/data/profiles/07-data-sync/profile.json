@@ -1,6 +1,6 @@
 {
   "name": "data-sync",
-  "display_name": "Git Sync",
+  "display_name": "Data Sync",
   "theme": {
     "accent": "#27ae60"
   },

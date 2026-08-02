@@ -392,6 +392,12 @@ body { display: flex; flex-direction: column; }
 #menu-dropdown .menu-item.has-sub:hover > .submenu, #pane-menu .menu-item.has-sub:hover > .submenu,
 #menu-dropdown .submenu.open { display: block; }
 #menu-dropdown .submenu .menu-item, #pane-menu .submenu .menu-item { padding: 0 14px 0 30px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+/* The hover rule below sets color:var(--bg) on a .has-sub row while its submenu
+   is open — and .submenu is that row's DOM child, so without this reset every
+   label (and check glyph) inside inherits near-black text on the submenu's own
+   dark background. Two classes on .submenu beats the single-class .menu-item:hover
+   it's undoing, so this wins regardless of source order. */
+#menu-dropdown .submenu, #pane-menu .submenu { color: var(--fg); }
 #menu-dropdown .menu-item:hover, #pane-menu .menu-item:hover, #tab-menu .menu-item:hover,
 #menu-dropdown .submenu .menu-item:hover, #pane-menu .submenu .menu-item:hover { background: var(--accent); color: var(--bg); }
 #menu-sep, #menu-dropdown .menu-sep, #pane-menu .menu-sep, #tab-menu .menu-sep {
