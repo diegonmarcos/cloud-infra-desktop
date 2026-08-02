@@ -304,6 +304,26 @@ export BUILDSH_GUARDRAIL=1
 # bare `sudo` resolves to /run/wrappers/bin/sudo (has setuid) not the
 # unwrapped nix-store copy (no setuid, fails with "must be owned by uid 0").
 PATH="/run/wrappers/bin:$PATH"
+# The autotrigger systemd unit runs this script with a deliberately narrow
+# PATH (run/current-system/sw/bin + per-user profile + nix default profile)
+# that cannot see tools installed into the standalone home-manager profile,
+# e.g. `gh` at ~/.nix-profile/bin. The unit-side fix for that lives in
+# configuration_switch-autotrigger.nix — but that fix only takes effect once
+# its own closure has been switched to, and doing that switch is this
+# script's job, so the unit can never bootstrap itself out of the bad PATH.
+# build.sh is a plain repo file, not part of the closure, so patching PATH
+# here is what actually breaks the deadlock: it takes effect on the very
+# next autotrigger run with no rebuild required. Do not remove this as
+# "redundant" with the nix fix — the nix fix is exactly the thing this
+# line exists to work around until it has had one chance to apply itself.
+# Guarded so this is a no-op when run interactively, where PATH already
+# has these directories (nothing is prepended twice).
+for _extra_bin in "$HOME/.nix-profile/bin" "/etc/profiles/per-user/$USER/bin"; do
+    if [ -d "$_extra_bin" ] && [[ ":$PATH:" != *":$_extra_bin:"* ]]; then
+        PATH="$_extra_bin:$PATH"
+    fi
+done
+unset _extra_bin
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CONFIGURATION

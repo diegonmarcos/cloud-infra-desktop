@@ -763,11 +763,19 @@ fn main() {
             if agentic_ui_dist_dir(app.handle()).is_none() {
                 eprintln!("agentic-ui: no dist dir found (fetch it via build.sh fetch) — tab will fail to load");
             }
-            setup_systrays(app);
             // --tray-daemon: this launch exists only to host the persistent tray
             // icons (systemd --user service) — hide the terminal window instead
             // of showing it, so it doesn't pop a Konsole-alternative window at login.
+            //
+            // setup_systrays MUST stay inside this branch. The daemon (Restart=always,
+            // enabled by build.sh install) is the sole owner of the tray icons; a plain
+            // GUI launch is always a second, ordinary window on top of that daemon, never
+            // a substitute for it, so it has no reason to spawn its own copies. Calling
+            // setup_systrays unconditionally here — once per process, with no coordination
+            // between them — is exactly what produced every tray showing up twice. Nothing
+            // else in the GUI process reads its return value or depends on it having run.
             if tray_daemon {
+                setup_systrays(app);
                 if let Some(w) = app.get_webview_window("main") {
                     let _ = w.hide();
                 }
