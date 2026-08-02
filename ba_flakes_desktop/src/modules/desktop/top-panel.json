@@ -3,15 +3,6 @@
   "height": 44,
   "widgets": [
     {
-      "name": "org.kde.plasma.systemmonitor",
-      "config": {
-        "Appearance": {
-          "chartFace": "org.kde.ksysguard.piechart"
-        },
-        "updateRateLimit": 2000
-      }
-    },
-    {
       "name": "org.kde.plasma.systemmonitor.diskusage",
       "config": {
         "Appearance": {
@@ -36,77 +27,6 @@
       }
     },
     {
-      "name": "org.kde.plasma.systemmonitor",
-      "config": {
-        "Appearance": {
-          "chartFace": "org.kde.ksysguard.horizontalbars",
-          "title": "Write-Read"
-        },
-        "SensorColors": {
-          "cpu/all/usage": "88,233,61",
-          "cpu/cpu age": "233,183,61",
-          "cpu/cpu0/usage": "61,174,233",
-          "cpu/cpu1/usage": "61,80,233",
-          "cpu/cpu2/usage": "136,61,233",
-          "cpu/cpu3/usage": "229,61,233",
-          "cpu/cpu4/usage": "233,61,143",
-          "cpu/cpu5/usage": "233,73,61",
-          "cpu/cpu6/usage": "233,167,61",
-          "cpu/cpu7/usage": "205,233,61",
-          "disk/all/read": "229,233,61",
-          "disk/all/write": "233,61,224",
-          "os/kernel/name": "61,123,233"
-        },
-        "Sensors": {
-          "highPrioritySensorIds": "[\"disk/all/read\",\"disk/all/write\",\"cpu/all/usage\"]"
-        },
-        "updateRateLimit": 2000
-      }
-    },
-    {
-      "name": "org.kde.plasma.systemmonitor.cpu",
-      "config": {
-        "Appearance": {
-          "chartFace": "org.kde.ksysguard.piechart",
-          "title": "Total CPU Use"
-        },
-        "SensorColors": {
-          "cpu/all/usage": "61,174,233"
-        },
-        "Sensors": {
-          "highPrioritySensorIds": "[\"cpu/all/usage\"]",
-          "lowPrioritySensorIds": "[\"cpu/all/cpuCount\",\"cpu/all/coreCount\"]",
-          "totalSensors": "[\"cpu/all/usage\"]"
-        },
-        "updateRateLimit": 2000
-      }
-    },
-    {
-      "name": "org.kde.plasma.systemmonitor.cpucore",
-      "config": {
-        "Appearance": {
-          "chartFace": "org.kde.ksysguard.barchart",
-          "title": "Individual Core Usage"
-        },
-        "SensorColors": {
-          "cpu/cpu.*/usage": "61,174,233",
-          "cpu/cpu0/usage": "61,174,233",
-          "cpu/cpu1/usage": "77,61,233",
-          "cpu/cpu2/usage": "206,61,233",
-          "cpu/cpu3/usage": "233,61,131",
-          "cpu/cpu4/usage": "233,120,61",
-          "cpu/cpu5/usage": "217,233,61",
-          "cpu/cpu6/usage": "88,233,61",
-          "cpu/cpu7/usage": "61,233,163"
-        },
-        "Sensors": {
-          "highPrioritySensorIds": "[\"cpu/cpu.*/usage\"]",
-          "totalSensors": "[\"cpu/all/usage\"]"
-        },
-        "updateRateLimit": 2000
-      }
-    },
-    {
       "name": "org.kde.plasma.systemmonitor.memory",
       "config": {
         "Appearance": {
@@ -126,23 +46,19 @@
       }
     },
     {
-      "name": "org.kde.plasma.systemmonitor.diskusage",
+      "name": "org.kde.plasma.systemmonitor.cpu",
       "config": {
         "Appearance": {
-          "chartFace": "org.kde.ksysguard.horizontalbars",
-          "title": "Disk Usage"
+          "chartFace": "org.kde.ksysguard.piechart",
+          "title": "Total CPU Use"
         },
         "SensorColors": {
-          "disk/0eaf7961-48c5-4b55-8a8f-04cd0b71de07/usedPercent": "61,174,233",
-          "disk/27ffc22b-f89e-492d-aeda-2341e8eba898/usedPercent": "154,61,233",
-          "disk/3c75c6db-4d7c-4570-81f1-02d168781aac/usedPercent": "233,120,61",
-          "disk/7e3626ac-ce13-4adc-84e2-1a843d7e2793/usedPercent": "88,233,61",
-          "disk/all/usedPercent": "206,61,233"
+          "cpu/all/usage": "61,174,233"
         },
         "Sensors": {
-          "highPrioritySensorIds": "[\"disk/.*/usedPercent\"]",
-          "lowPrioritySensorIds": "[\"disk/all/total\"]",
-          "totalSensors": "[\"disk/all/usedPercent\"]"
+          "highPrioritySensorIds": "[\"cpu/all/usage\"]",
+          "lowPrioritySensorIds": "[\"cpu/all/cpuCount\",\"cpu/all/coreCount\"]",
+          "totalSensors": "[\"cpu/all/usage\"]"
         },
         "updateRateLimit": 2000
       }
@@ -199,7 +115,7 @@
       "config": {
         "Appearance": {
           "chartFace": "org.kde.ksysguard.barchart",
-          "title": "Individual Core Usage"
+          "title": "Pressure some10"
         },
         "SensorColors": {
           "cpu/cpu.*/usage": "61,174,233",
@@ -233,7 +149,7 @@
       "config": {
         "Appearance": {
           "chartFace": "org.kde.ksysguard.horizontalbars",
-          "title": "Total CPU Use"
+          "title": "Pressure full10"
         },
         "SensorColors": {
           "cpu/all/usage": "61,174,233",
@@ -259,24 +175,6 @@
       "config": {
         "Appearance": {
           "chartFace": "org.kde.ksysguard.piechart",
-          "title": "Total CPU Use"
-        },
-        "SensorColors": {
-          "cpu/all/usage": "61,174,233"
-        },
-        "Sensors": {
-          "highPrioritySensorIds": "[\"cpu/all/usage\"]",
-          "lowPrioritySensorIds": "[\"cpu/all/cpuCount\",\"cpu/all/coreCount\"]",
-          "totalSensors": "[\"cpu/all/usage\"]"
-        },
-        "updateRateLimit": 2000
-      }
-    },
-    {
-      "name": "org.kde.plasma.systemmonitor.cpu",
-      "config": {
-        "Appearance": {
-          "chartFace": "org.kde.ksysguard.processtable",
           "title": "Total CPU Use"
         },
         "SensorColors": {

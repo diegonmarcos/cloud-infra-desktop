@@ -45,41 +45,67 @@ in
     ./cloud-terminal.nix     # pull Cloud Terminal from its GH Release (version-guarded)
   ];
 
-  # Fix system tray visibility after home-manager switch
-  # Plasma reads shownItems from the PRIVATE systemtray containment, not the applet
+  # System tray item visibility, captured from the live layout on 2026-08-02.
+  #
+  # There are TWO trays on the bottom panel (declared in ./bottom-panel.nix)
+  # because one tray cannot hold two policies — shownItems/hiddenItems are
+  # per-tray. The FIRST holds our eight app trays and pins them visible; the
+  # SECOND holds KDE's own indicators and lets them auto-hide, so battery and
+  # volume surface when they have something to say while nix-flakes, docker,
+  # my-ai and the rest stay one click away.
+  #
+  # This runs as an activation rather than through plasma-manager because
+  # Plasma reads these lists from the PRIVATE systemtray containment, not from
+  # the applet that plasma-manager can write — declaring them on the applet
+  # writes a key nothing reads.
+  #
+  # The previous version of this named `nixos-systray,cloud-systray`. Neither
+  # id exists any more: my-konsole is the tray daemon now and publishes eight
+  # ids, of which cloud-systray is the only survivor and nixos-systray was
+  # renamed nix-flakes-systray. So the hook had been pinning two items, one
+  # imaginary, and leaving the real eight to the overflow.
   home.activation.fixSystemTray = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
     APPLETS_FILE="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
     if [ -f "$APPLETS_FILE" ]; then
-      # nixos-systray / cloud-systray = Control Panel tray apps. Listing them in
-      # shownItems forces them ALWAYS visible in the tray (not the overflow).
-      ALL_ITEMS="org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.clipboard,org.kde.plasma.devicenotifier,org.kde.plasma.notifications,org.kde.kdeconnect,org.kde.kscreen,org.kde.plasma.keyboardlayout,org.kde.plasma.keyboardindicator,org.kde.plasma.cameraindicator,org.kde.plasma.manage-inputmethod,org.kde.plasma.mediacontroller,nixos-systray,cloud-systray"
+      # Ours — the my-konsole tray daemon's ids (configs/systrays.json).
+      OURS="cloud-systray,docker-systray,http-dev-systray,my-ai-systray,nix-flakes-systray,vault-systray,watchdog-systray,workflow-systray"
+      # KDE's own indicators.
+      SYSTEM="org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.clipboard,org.kde.plasma.devicenotifier,org.kde.plasma.notifications,org.kde.kdeconnect,org.kde.kscreen,org.kde.plasma.keyboardlayout,org.kde.plasma.keyboardindicator,org.kde.plasma.cameraindicator,org.kde.plasma.manage-inputmethod,org.kde.plasma.mediacontroller"
 
-      # Find the PRIVATE systemtray containment ID (plugin=org.kde.plasma.private.systemtray)
-      TRAY_ID=$(${pkgs.gawk}/bin/awk '
+      # BOTH private systemtray containments, in panel order — the old hook
+      # took only the first (`exit` after one match) which is why the second
+      # tray was never configured at all.
+      TRAY_IDS=$(${pkgs.gawk}/bin/awk '
         /^\[Containments\]\[[0-9]+\]$/ { current_id = gensub(/.*\[([0-9]+)\]$/, "\\1", "g") }
-        /^plugin=org\.kde\.plasma\.private\.systemtray$/ { print current_id; exit }
+        /^plugin=org\.kde\.plasma\.private\.systemtray$/ { print current_id }
       ' "$APPLETS_FILE")
 
-      if [ -n "$TRAY_ID" ]; then
+      idx=0
+      for TRAY_ID in $TRAY_IDS; do
+        idx=$((idx + 1))
+        if [ "$idx" = 1 ]; then
+          SHOWN="$OURS";   HIDDEN=""
+        else
+          SHOWN="";        HIDDEN="$OURS"
+        fi
         GENERAL_SECTION="[Containments][$TRAY_ID][General]"
-
-        # Check if [General] section exists for this containment
         if grep -qF "$GENERAL_SECTION" "$APPLETS_FILE"; then
-          # Remove existing shownItems/hiddenItems in this section
           ${pkgs.gnused}/bin/sed -i "/^\[Containments\]\[$TRAY_ID\]\[General\]$/,/^\[/ {
             /^shownItems=/d
             /^hiddenItems=/d
+            /^extraItems=/d
           }" "$APPLETS_FILE"
-          # Add shownItems and hiddenItems after the section header
-          ${pkgs.gnused}/bin/sed -i "/^\[Containments\]\[$TRAY_ID\]\[General\]$/a shownItems=$ALL_ITEMS\nhiddenItems=" "$APPLETS_FILE"
+          ${pkgs.gnused}/bin/sed -i "/^\[Containments\]\[$TRAY_ID\]\[General\]$/a shownItems=$SHOWN\nhiddenItems=$HIDDEN\nextraItems=$SYSTEM,$OURS" "$APPLETS_FILE"
         else
-          # Section doesn't exist, append it at end of file
-          echo "" >> "$APPLETS_FILE"
-          echo "$GENERAL_SECTION" >> "$APPLETS_FILE"
-          echo "shownItems=$ALL_ITEMS" >> "$APPLETS_FILE"
-          echo "hiddenItems=" >> "$APPLETS_FILE"
+          {
+            echo ""
+            echo "$GENERAL_SECTION"
+            echo "shownItems=$SHOWN"
+            echo "hiddenItems=$HIDDEN"
+            echo "extraItems=$SYSTEM,$OURS"
+          } >> "$APPLETS_FILE"
         fi
-      fi
+      done
     fi
   '';
 
