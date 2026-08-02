@@ -9,28 +9,16 @@
                           http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
   <kcfgfile name=""/>
   <group name="General">
-    <entry name="showCpu" type="Bool">
-      <default>true</default>
+    <!-- Which cluster this instance renders. One widget serves the whole
+         panel; another metric is a config change rather than another applet,
+         which is the thing being fixed. -->
+    <entry name="mode" type="String">
+      <default>left</default>
     </entry>
-    <entry name="showMem" type="Bool">
-      <default>true</default>
-    </entry>
-    <entry name="showSwap" type="Bool">
-      <default>false</default>
-    </entry>
-    <!-- PSI is the number that actually predicts a stall, and no stock
-         KSysGuard sensor exposes it — /proc/pressure has no KSystemStats
-         backend. The old top panel faked it with diskusage widgets pointed at
-         pressure paths, which is why two of them carried titles naming
-         something other than what they measured. -->
-    <entry name="showPsi" type="Bool">
-      <default>true</default>
-    </entry>
-    <!-- The user slice cap decides who gets OOM-killed here: the machine has
-         more RAM than the slice may use, so free(1) reads healthy while the
-         session is being reaped. -->
-    <entry name="showSlice" type="Bool">
-      <default>true</default>
+    <!-- The snapshot lives in /run/user/<uid> and QML has no getenv. Declared
+         rather than hardcoded so this is not silently single-user. -->
+    <entry name="uid" type="Int">
+      <default>1000</default>
     </entry>
   </group>
 </kcfg>

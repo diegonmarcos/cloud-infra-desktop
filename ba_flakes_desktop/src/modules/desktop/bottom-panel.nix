@@ -62,11 +62,8 @@ in
         {
           name = "com.diegonmarcos.watchdog";
           config.General = {
-            showCpu = true;
-            showMem = true;
-            showSwap = true;
-            showPsi = true;
-            showSlice = false;   # the top panel's right cluster carries slice + PSI detail
+            mode = "left";   # memory / swap / cpu pies + per-core bars
+            uid = 1000;
           };
         }
 

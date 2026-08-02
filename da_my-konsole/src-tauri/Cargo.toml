@@ -41,6 +41,9 @@ resvg = { version = "0.44", default-features = false }
 # replaced could not do (it filtered .git/target/node_modules/result out of
 # the *results*, after already walking every one of them in full).
 walkdir = "2"
+# statvfs for the watchdog's root-filesystem percentage — Rust std has no
+# equivalent, and one FFI call every 2s beats forking df.
+libc = "0.2"
 # Serves the vendored agentic-ui/dist static build to the native browser-tab
 # webview (browser_open needs a real http:// URL, not a file:// root) — see
 # agentic_ui_serve below. Smallest workable dep for this, per plan.
