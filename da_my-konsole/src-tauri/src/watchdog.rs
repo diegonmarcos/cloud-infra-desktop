@@ -322,6 +322,93 @@ fn disk_root_percent() -> f64 {
     (used / total) * 100.0
 }
 
+// Battery — read straight from sysfs, never upowerd. On the Surface Pro 8 the
+// SAM controller intermittently reports voltage_now=0, which sends upowerd's
+// percentage math to NaN and its threshold actions silently stop firing —
+// battery-watchdog.service (aa_desk-usr .../configuration_system-protection-
+// battery.nix) exists on the privileged side for exactly that reason, with a
+// multi-voter design to survive a frozen gauge. This reader is READ-ONLY: it
+// publishes what sysfs says so the panel can show it, and does NOT decide to
+// hibernate — that stays the sole job of the systemd-side watchdog, which is
+// already the single choke point session-checkpoint-hibernate.service and
+// hibernate-preflight are wired to (see configuration_session-checkpoint.nix,
+// configuration_pre-hibernate-warning.nix). A second trigger here, running
+// unprivileged in the tray daemon, would race the existing one instead of
+// replacing it — worse than the one path that exists today.
+struct BatteryReading {
+    present: bool,
+    pct: f64,
+    status: String,
+    minutes_left: Option<f64>,
+}
+
+fn find_battery_dir() -> Option<PathBuf> {
+    let rd = fs::read_dir("/sys/class/power_supply").ok()?;
+    for e in rd.flatten() {
+        let name = e.file_name();
+        let Some(nm) = name.to_str() else { continue };
+        if nm.starts_with("BAT") {
+            return Some(e.path());
+        }
+    }
+    None
+}
+
+/// `None` means no battery directory at all (desktop). `Some(present=false)`
+/// means the dir exists but the kernel currently reports no cell attached
+/// (present flips transiently on some hardware) — the panel should show
+/// "no battery" rather than stale numbers either way.
+fn read_battery() -> Option<BatteryReading> {
+    let dir = find_battery_dir()?;
+    let read = |f: &str| -> Option<String> {
+        fs::read_to_string(dir.join(f)).ok().map(|s| s.trim().to_string())
+    };
+    let present = read("present").and_then(|s| s.parse::<i32>().ok()).unwrap_or(1) != 0;
+    if !present {
+        return Some(BatteryReading { present: false, pct: 0.0, status: "Absent".into(), minutes_left: None });
+    }
+    let pct = read("capacity").and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+    let status = read("status").unwrap_or_else(|| "Unknown".into());
+    // Time-to-empty only when discharging AND power_now is known and
+    // strictly positive. This is the divide-by-zero guard: a zero or
+    // missing power_now (SAM freeze, AC just unplugged, no reading yet)
+    // must produce "unknown", never a NaN/Infinity that would break the
+    // widget's JSON.parse and take the whole panel down with it.
+    let power_now = read("power_now").and_then(|s| s.parse::<f64>().ok());
+    let energy_now = read("energy_now").and_then(|s| s.parse::<f64>().ok());
+    let minutes_left = match (status.as_str(), power_now, energy_now) {
+        ("Discharging", Some(p), Some(e)) if p > 0.0 && e >= 0.0 => {
+            let m = e / p * 60.0;
+            if m.is_finite() { Some(m) } else { None }
+        }
+        _ => None,
+    };
+    Some(BatteryReading { present: true, pct, status, minutes_left })
+}
+
+/// Battery block of the snapshot JSON. `null` when there is no battery at
+/// all (desktop) so the widget can tell "no battery" apart from "battery
+/// present but reading unavailable".
+fn battery_json(b: &Option<BatteryReading>) -> String {
+    let Some(b) = b else { return "null".into() };
+    if !b.present {
+        return "{\"present\":false}".into();
+    }
+    // status comes straight from the kernel (Charging/Discharging/Full/Not
+    // charging/Unknown) — no free-form text, but strip quotes defensively
+    // rather than trust sysfs never to hand back something that breaks JSON.
+    let status: String = b.status.chars().filter(|c| *c != '"' && *c != '\\').collect();
+    let minutes = match b.minutes_left {
+        Some(m) => format!("{m:.0}"),
+        None => "null".into(),
+    };
+    format!(
+        "{{\"present\":true,\"pct\":{:.0},\"status\":\"{status}\",\"charging\":{},\"minutes_left\":{minutes}}}",
+        b.pct,
+        status == "Charging",
+    )
+}
+
 /// Serialise one sample. Hand-rolled rather than serde_json: it is a fixed
 /// shape written every 2s and read by QML's JSON.parse, and the whole point of
 /// this file is that the machine is measured once and cheaply.
@@ -333,6 +420,7 @@ fn render(
     net_rx: f64, net_tx: f64,
     load1: f64, load5: f64, load15: f64,
     slice_cur: f64, slice_max: f64,
+    battery: &Option<BatteryReading>,
     procs: &str,
 ) -> String {
     let core_list: Vec<String> = cores.iter().map(|c| format!("{c:.1}")).collect();
@@ -346,11 +434,13 @@ fn render(
           \"load1\":{load1:.2},\"load5\":{load5:.2},\"load15\":{load15:.2},\
           \"psi\":{{\"cpu\":{},\"io\":{},\"memory\":{}}},\
           \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\
+          \"battery\":{},\
           \"procs\":{procs},\"ts\":{}}}",
         core_list.join(","),
         pressure_block("cpu"),
         pressure_block("io"),
         pressure_block("memory"),
+        battery_json(battery),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -461,6 +551,7 @@ pub fn spawn() {
                 net_rx, net_tx,
                 load1, load5, load15,
                 slice_cur, slice_max,
+                &read_battery(),
                 &top_procs(12),
             );
             publish(&path, &body);
@@ -499,12 +590,54 @@ mod tests {
     #[test]
     fn render_is_parseable_json_with_every_field() {
         let s = render(12.5, &[10.0, 20.0, 30.0, 40.0], 40.0, 1.0,
-                       55.0, 1.5, 2.5, 0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, "[]");
+                       55.0, 1.5, 2.5, 0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6,
+                       &None, "[]");
         for k in ["cpu", "cores", "mem", "swap", "disk", "disk_r", "disk_w",
                   "net_rx", "net_tx", "load1", "load5", "load15",
-                  "psi", "slice_gib", "slice_max_gib", "procs", "ts"] {
+                  "psi", "slice_gib", "slice_max_gib", "battery", "procs", "ts"] {
             assert!(s.contains(&format!("\"{k}\":")), "missing {k} in {s}");
         }
         assert!(s.starts_with('{') && s.ends_with('}'), "not an object: {s}");
+    }
+
+    // No battery at all (desktop) must render valid `null`, not an absent key
+    // or a panic — the widget branches on this to hide the battery cluster.
+    #[test]
+    fn battery_json_is_null_when_no_battery_present() {
+        assert_eq!(battery_json(&None), "null");
+    }
+
+    // The whole point of this reader: a zero or missing power_now (SAM
+    // freeze, just-unplugged, charging) must never reach a division — it
+    // must come out as JSON `null`, never NaN/Infinity, which is not valid
+    // JSON and would break the widget's JSON.parse for every field, not
+    // just battery.
+    #[test]
+    fn minutes_left_is_null_not_nan_when_rate_is_zero_or_absent() {
+        let zero_rate = BatteryReading {
+            present: true, pct: 40.0, status: "Discharging".into(), minutes_left: None,
+        };
+        let j = battery_json(&Some(zero_rate));
+        assert!(j.contains("\"minutes_left\":null"), "expected null minutes_left, got {j}");
+        assert!(!j.contains("NaN") && !j.contains("Infinity"), "invalid JSON literal in {j}");
+
+        // Charging (rate direction doesn't apply) also renders a clean null.
+        let charging = BatteryReading {
+            present: true, pct: 80.0, status: "Charging".into(), minutes_left: None,
+        };
+        let j2 = battery_json(&Some(charging));
+        assert!(j2.contains("\"charging\":true"));
+        assert!(j2.contains("\"minutes_left\":null"));
+    }
+
+    // A real, finite estimate must serialise as a plain number the widget
+    // can format directly.
+    #[test]
+    fn minutes_left_serialises_as_a_finite_number_when_known() {
+        let r = BatteryReading {
+            present: true, pct: 55.0, status: "Discharging".into(), minutes_left: Some(123.4),
+        };
+        let j = battery_json(&Some(r));
+        assert!(j.contains("\"minutes_left\":123"), "expected ~123 in {j}");
     }
 }
