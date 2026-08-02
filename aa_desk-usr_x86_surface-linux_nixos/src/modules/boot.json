@@ -247,7 +247,7 @@
           "label": "my-konsole Rescue",
           "icon": "tool_rescue",
           "integration": "chainload",
-          "_note": "Chainloads p8's /EFI/boot/bootx64.efi (grub.menu.mykonsole.efi_uuid = nvme0n1p8 UUID; ext4 via rEFInd's bundled ext4_x64 driver). p8 holds the my-konsole NixOS live-ISO tree relabelled MY_KONSOLE; its baked GRUB carries the volatile init= and finds nix-store.squashfs by label. No kernel/initrd/init here — nothing goes stale on ISO rebuild. Populate: ca_ventoy_fallback_usb/my-konsole/build.sh install-partition."
+          "_note": "Chainloads p8's /EFI/BOOT/BOOTX64.EFI (grub.menu.mykonsole.efi_path, uppercase to match on-disk casing; refind_volume = PARTUUID 5f765784-767d-42ab-85a1-40d4d44519e4, not the fs UUID 27ffc22b…, since install-partition relabels/reformats p8 each run — PARTUUID is stable across that; ext4 via rEFInd's bundled ext4_x64 driver). p8 holds the my-konsole NixOS live-ISO tree relabelled MY_KONSOLE; its baked GRUB carries the volatile init= and finds nix-store.squashfs by label. No kernel/initrd/init here — nothing goes stale on ISO rebuild. Populate: ca_ventoy_fallback_usb/my-konsole/build.sh install-partition."
         },
         {
           "producer": "usb_chainload",
