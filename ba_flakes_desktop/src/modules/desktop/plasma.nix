@@ -36,11 +36,13 @@ in
     # konsole-ssh-manager-quick-commands.nix used to be pulled sideways from
     # here — app_especific is now always in userModules (flake.nix) and owns
     # it, so this profile no longer needs its own copy.
-    ./session-restore.nix    # Plasma's native session save/restore (inert; loginMode moved out)
-    ./default-session.nix    # DECLARATIVE default 4-desktop login layout (data: default-session.json)
+    # ONE owner for what the session looks like and how it comes back: both
+    # panels and their widgets, the tray, the wallpaper, and the login/restore
+    # policy. It pulls in top-panel.nix + bottom-panel.nix itself. This used to
+    # be four separate imports here plus loginMode declared in a fifth place,
+    # so "why does my session look like this" had five answers.
+    ./session-default-config.nix
     ./cloud-terminal.nix     # pull Cloud Terminal from its GH Release (version-guarded)
-    ./bottom-panel.nix       # DECLARATIVE bottom panel (data: bottom-panel.json)
-    ./top-panel.nix          # DECLARATIVE top panel  (data: top-panel.json)
   ];
 
   # Fix system tray visibility after home-manager switch
@@ -444,10 +446,10 @@ in
         ShowTerminal = true;
       };
 
-      # ksmserverrc.General.loginMode is now declared by ./session-restore.nix
-      # — it toggles between restorePreviousSession (capture mode) and
-      # restoreSavedSession (deploy mode) based on whether session-snapshot/
-      # has been populated. See that module for the workflow.
+      # ksmserverrc.General.loginMode is declared by ./session-default-config.nix,
+      # which owns the whole session story now. session-restore.nix and
+      # default-session.nix both used to set it from different directions and
+      # are no longer imported.
 
       # ─────────────────────────────────────────────────────────────────
       # KWin Window Behavior — fix focus stealing on Surface touchpad
