@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Which metrics the widget shows. Every one is a field already in the
+     snapshot, so enabling one costs a label rather than another applet — which
+     is the entire reason this widget exists instead of fourteen KSysGuard
+     instances. -->
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+                          http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name=""/>
+  <group name="General">
+    <entry name="showCpu" type="Bool">
+      <default>true</default>
+    </entry>
+    <entry name="showMem" type="Bool">
+      <default>true</default>
+    </entry>
+    <entry name="showSwap" type="Bool">
+      <default>false</default>
+    </entry>
+    <!-- PSI is the number that actually predicts a stall, and no stock
+         KSysGuard sensor exposes it — /proc/pressure has no KSystemStats
+         backend. The old top panel faked it with diskusage widgets pointed at
+         pressure paths, which is why two of them carried titles naming
+         something other than what they measured. -->
+    <entry name="showPsi" type="Bool">
+      <default>true</default>
+    </entry>
+    <!-- The user slice cap decides who gets OOM-killed here: the machine has
+         more RAM than the slice may use, so free(1) reads healthy while the
+         session is being reaped. -->
+    <entry name="showSlice" type="Bool">
+      <default>true</default>
+    </entry>
+  </group>
+</kcfg>

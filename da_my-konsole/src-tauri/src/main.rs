@@ -4,6 +4,8 @@
 // `pty:<id>` / `pty-exit:<id>`. The frontend (xterm.js) renders it.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod watchdog;
+
 use pty_core::{PtyBroker, PtyEvent};
 use serde::Serialize;
 use tauri::{Emitter, Manager, State};
@@ -776,6 +778,11 @@ fn main() {
             // else in the GUI process reads its return value or depends on it having run.
             if tray_daemon {
                 setup_systrays(app);
+                // Same reasoning as the trays: ONE publisher. The watchdog
+                // samples /proc once every 2s and writes a snapshot the panel
+                // widgets read, instead of fourteen KSysGuard applets each
+                // running their own sensor stack inside plasmashell.
+                watchdog::spawn();
                 if let Some(w) = app.get_webview_window("main") {
                     let _ = w.hide();
                 }
