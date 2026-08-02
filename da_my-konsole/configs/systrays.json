@@ -1,35 +1,65 @@
 {
-  "_doc": "my-konsole IS the systray daemon. Each entry here becomes a real StatusNotifierItem tray icon, created natively by src-tauri/src/main.rs's setup_systrays() (Tauri's tray-icon feature) when my-konsole runs with --tray-daemon. `menu` items shell-exec `command` on click. `profile` names the my-konsole profile this tray's content mirrors (for the future --initial-profile jump-to-tab support — see _TODO). build.sh install copies this file to ~/.local/share/my-konsole/systrays.json and installs+starts a systemd --user service running `my-konsole --tray-daemon` (Restart=always) — no nix module, no separate python/GTK process.",
+  "_doc": "my-konsole IS the systray daemon. Each entry here becomes a real StatusNotifierItem tray icon, created natively by src-tauri/src/main.rs's setup_systrays() (Tauri's tray-icon feature) when my-konsole runs with --tray-daemon. `menu` items shell-exec `command` on click. `profile` names the my-konsole profile this tray's content mirrors (for the future --initial-profile jump-to-tab support — see _TODO). build.sh install copies this file to ~/.local/share/my-konsole/systrays.json and installs+starts a systemd --user service running `my-konsole --tray-daemon` (Restart=always) — no nix module, no separate python/GTK process. Icons are the SVGs in configs/systray-icons/ — `icon` is that basename; they are rasterised at load, so every tray has its OWN icon (they all shared the app icon before).",
   "_TODO": "my-konsole has no CLI/env initial-profile support yet — `profile` here is documentation only until that lands.",
   "trays": [
     {
-      "id": "nixos-systray",
-      "icon": "nix-snowflake",
-      "title": "NixOS",
+      "id": "nix-flakes-systray",
+      "icon": "nix-flakes",
+      "title": "Nix Flakes",
       "profile": "nix-flakes",
       "enable": true,
       "default_command": "konsole --hold -e bash -lc '$HOME/git/unix/ba_flakes_desktop/build.sh status'",
       "menu": [
-        { "label": "Switch (pull latest, isolated)", "command": "konsole --hold -e bash -lc '$HOME/git/unix/ba_flakes_desktop/build.sh switch'" },
-        { "label": "Generations", "command": "konsole --hold -e bash -lc 'home-manager generations; read'" },
-        { "label": "Status", "command": "konsole --hold -e bash -lc '$HOME/git/unix/ba_flakes_desktop/build.sh status; read'" },
-        { "label": "Nix Daemon: status", "command": "konsole --hold -e bash -lc 'systemctl status nix-daemon.service --no-pager | head -30'" },
-        { "label": "Nix Daemon: RESET (restart)", "command": "bash -lc 'sudo systemctl restart nix-daemon.service && notify-send \"NixOS\" \"nix-daemon reset\"'" }
+        {
+          "label": "Switch (pull latest, isolated)",
+          "command": "konsole --hold -e bash -lc '$HOME/git/unix/ba_flakes_desktop/build.sh switch'"
+        },
+        {
+          "label": "Generations",
+          "command": "konsole --hold -e bash -lc 'home-manager generations; read'"
+        },
+        {
+          "label": "Status",
+          "command": "konsole --hold -e bash -lc '$HOME/git/unix/ba_flakes_desktop/build.sh status; read'"
+        },
+        {
+          "label": "Nix Daemon: status",
+          "command": "konsole --hold -e bash -lc 'systemctl status nix-daemon.service --no-pager | head -30'"
+        },
+        {
+          "label": "Nix Daemon: RESET (restart)",
+          "command": "bash -lc 'sudo systemctl restart nix-daemon.service && notify-send \"NixOS\" \"nix-daemon reset\"'"
+        }
       ]
     },
     {
       "id": "watchdog-systray",
-      "icon": "security-high",
-      "title": "Watchdog — System Protection",
+      "icon": "watchdog",
+      "title": "Watchdog",
       "profile": "watchdog",
       "enable": true,
       "default_command": "bash -lc watchdog-status",
       "menu": [
-        { "label": "Status / PSI", "command": "bash -lc watchdog-status" },
-        { "label": "🔴 Trigger OOM (Alt+SysRq+F)", "command": "bash -lc watchdog-oom" },
-        { "label": "Watch guard logs", "command": "bash -lc watchdog-logs" },
-        { "label": "freeze-guard log", "command": "konsole --hold -e journalctl -u freeze-guard.service -f" },
-        { "label": "Nix Daemon: RESET", "command": "bash -lc 'sudo systemctl restart nix-daemon.service && notify-send \"Watchdog\" \"nix-daemon reset\"'" }
+        {
+          "label": "Status / PSI",
+          "command": "bash -lc watchdog-status"
+        },
+        {
+          "label": "🔴 Trigger OOM (Alt+SysRq+F)",
+          "command": "bash -lc watchdog-oom"
+        },
+        {
+          "label": "Watch guard logs",
+          "command": "bash -lc watchdog-logs"
+        },
+        {
+          "label": "freeze-guard log",
+          "command": "konsole --hold -e journalctl -u freeze-guard.service -f"
+        },
+        {
+          "label": "Nix Daemon: RESET",
+          "command": "bash -lc 'sudo systemctl restart nix-daemon.service && notify-send \"Watchdog\" \"nix-daemon reset\"'"
+        }
       ]
     },
     {
@@ -40,56 +70,146 @@
       "enable": true,
       "default_command": "konsole --hold -e bash -lc 'docker ps -a; read'",
       "menu": [
-        { "label": "Status", "command": "konsole --hold -e bash -lc 'systemctl status docker.service --no-pager | head -30'" },
-        { "label": "Containers", "command": "konsole --hold -e bash -lc 'docker ps -a; read'" },
-        { "label": "Live stats", "command": "konsole --hold -e bash -lc 'docker stats'" },
-        { "label": "RESET daemon", "command": "bash -lc 'sudo systemctl restart docker.service && notify-send \"Docker\" \"docker daemon reset\"'" }
+        {
+          "label": "Status",
+          "command": "konsole --hold -e bash -lc 'systemctl status docker.service --no-pager | head -30'"
+        },
+        {
+          "label": "Containers",
+          "command": "konsole --hold -e bash -lc 'docker ps -a; read'"
+        },
+        {
+          "label": "Live stats",
+          "command": "konsole --hold -e bash -lc 'docker stats'"
+        },
+        {
+          "label": "RESET daemon",
+          "command": "bash -lc 'sudo systemctl restart docker.service && notify-send \"Docker\" \"docker daemon reset\"'"
+        }
       ]
     },
     {
       "id": "cloud-systray",
-      "icon": "network-vpn",
+      "icon": "cloud",
       "title": "Cloud — Mesh / VMs",
       "profile": "ssh-manager",
       "enable": true,
       "default_command": "konsole --hold -e bash -lc 'sudo wg show; read'",
       "menu": [
-        { "label": "Mesh: peers (wg show)", "command": "konsole --hold -e bash -lc 'sudo wg show; read'" },
-        { "label": "VM: SSH gcp-proxy (10.0.0.1)", "command": "konsole -e ssh gcp-proxy" },
-        { "label": "VM: SSH oci-mail (10.0.0.3)", "command": "konsole -e ssh oci-mail" },
-        { "label": "VM: SSH oci-analytics (10.0.0.4)", "command": "konsole -e ssh oci-analytics" },
-        { "label": "VM: SSH oci-apps (10.0.0.6)", "command": "konsole -e ssh oci-apps" },
-        { "label": "VM: SSH gcp-t4 (10.0.0.8)", "command": "konsole -e ssh gcp-t4" },
-        { "label": "Containers: all peers (docker ps -a)", "command": "konsole --hold -e bash -lc 'docker ps -a; read'" },
-        { "label": "Containers: live stats", "command": "konsole --hold -e bash -lc 'docker stats'" }
+        {
+          "label": "Mesh: peers (wg show)",
+          "command": "konsole --hold -e bash -lc 'sudo wg show; read'"
+        },
+        {
+          "label": "VM: SSH gcp-proxy (10.0.0.1)",
+          "command": "konsole -e ssh gcp-proxy"
+        },
+        {
+          "label": "VM: SSH oci-mail (10.0.0.3)",
+          "command": "konsole -e ssh oci-mail"
+        },
+        {
+          "label": "VM: SSH oci-analytics (10.0.0.4)",
+          "command": "konsole -e ssh oci-analytics"
+        },
+        {
+          "label": "VM: SSH oci-apps (10.0.0.6)",
+          "command": "konsole -e ssh oci-apps"
+        },
+        {
+          "label": "VM: SSH gcp-t4 (10.0.0.8)",
+          "command": "konsole -e ssh gcp-t4"
+        },
+        {
+          "label": "Containers: all peers (docker ps -a)",
+          "command": "konsole --hold -e bash -lc 'docker ps -a; read'"
+        },
+        {
+          "label": "Containers: live stats",
+          "command": "konsole --hold -e bash -lc 'docker stats'"
+        }
       ]
     },
     {
       "id": "vault-systray",
-      "icon": "security-medium",
+      "icon": "vault",
       "title": "Vault",
       "profile": "vault",
       "enable": true,
       "default_command": "konsole --hold -e bash -lc '$HOME/git/vault/build.sh status; read'",
       "menu": [
-        { "label": "Status", "command": "konsole --hold -e bash -lc '$HOME/git/vault/build.sh status; read'" },
-        { "label": "Open in file manager", "command": "dolphin $HOME/git/vault" },
-        { "label": "Edit secrets (sops)", "command": "konsole --hold -e sops $HOME/git/unix/ba_flakes_desktop/src/secrets/secrets.yaml" },
-        { "label": "List secret keys (no values)", "command": "konsole --hold -e bash -lc 'sops -d --output-type json $HOME/git/unix/ba_flakes_desktop/src/secrets/secrets.yaml | jq keys; read'" }
+        {
+          "label": "Status",
+          "command": "konsole --hold -e bash -lc '$HOME/git/vault/build.sh status; read'"
+        },
+        {
+          "label": "Open in file manager",
+          "command": "dolphin $HOME/git/vault"
+        },
+        {
+          "label": "Edit secrets (sops)",
+          "command": "konsole --hold -e sops $HOME/git/unix/ba_flakes_desktop/src/secrets/secrets.yaml"
+        },
+        {
+          "label": "List secret keys (no values)",
+          "command": "konsole --hold -e bash -lc 'sops -d --output-type json $HOME/git/unix/ba_flakes_desktop/src/secrets/secrets.yaml | jq keys; read'"
+        }
       ]
     },
     {
       "id": "workflow-systray",
-      "icon": "view-refresh",
+      "icon": "workflow",
       "title": "Workflow — GHA / Dagu",
       "profile": "cloud-infra",
       "enable": true,
       "default_command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/unix -L 15; read'",
       "menu": [
-        { "label": "GHA: recent runs (unix)", "command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/unix -L 15; read'" },
-        { "label": "GHA: recent runs (cloud)", "command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/cloud -L 15; read'" },
-        { "label": "GHA: watch latest run", "command": "konsole -e gh run watch" },
-        { "label": "GHA: auth status", "command": "konsole --hold -e bash -lc 'gh auth status; read'" }
+        {
+          "label": "GHA: recent runs (unix)",
+          "command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/unix -L 15; read'"
+        },
+        {
+          "label": "GHA: recent runs (cloud)",
+          "command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/cloud -L 15; read'"
+        },
+        {
+          "label": "GHA: watch latest run",
+          "command": "konsole -e gh run watch"
+        },
+        {
+          "label": "GHA: auth status",
+          "command": "konsole --hold -e bash -lc 'gh auth status; read'"
+        }
+      ]
+    },
+    {
+      "id": "my-ai-systray",
+      "icon": "my-ai",
+      "title": "my-AI — usage daemon",
+      "profile": "my-ai",
+      "enable": true,
+      "default_command": "konsole --hold -e bash -lc \"systemctl --user status my-ai-usage-daemon --no-pager; read\"",
+      "menu": [
+        {
+          "label": "Daemon: status",
+          "command": "konsole --hold -e bash -lc \"systemctl --user status my-ai-usage-daemon --no-pager; read\""
+        },
+        {
+          "label": "Daemon: restart",
+          "command": "bash -lc \"systemctl --user restart my-ai-usage-daemon && notify-send my-AI \\\"usage daemon restarted\\\"\""
+        },
+        {
+          "label": "Daemon: logs",
+          "command": "konsole --hold -e bash -lc \"journalctl --user -u my-ai-usage-daemon -n 200 --no-pager; read\""
+        },
+        {
+          "label": "Usage JSON",
+          "command": "konsole --hold -e bash -lc \"jq . \\\"$XDG_RUNTIME_DIR/my-ai-usage.json\\\"; read\""
+        },
+        {
+          "label": "Statusline (render once)",
+          "command": "konsole --hold -e bash -lc \"STATUSLINE_RENDER=1 bash ~/.claude/statusline-command.sh </dev/null; echo; read\""
+        }
       ]
     }
   ]

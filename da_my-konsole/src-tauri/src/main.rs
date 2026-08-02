@@ -126,13 +126,102 @@ fn fs_write_file(path: String, content: String) -> Result<(), String> {
     pty_core::fs::write_file(&path, &content)
 }
 
-// ── Browser tabs are plain <iframe>s in the frontend now (a normal DOM
-// element, CSS-clipped like any other tab pane) — no child webview, no
-// bounds/visibility syncing. The only backend work left is lazily starting
-// our own localhost servers (agentic-ui static server, local goosed) the
-// first time a tab actually navigates to one of their ports.
+// ── Browser tabs are NATIVE child webviews, not <iframe>s.
+//
+// The iframe version could not browse the web, and not by a little: an iframe
+// obeys X-Frame-Options, and essentially every site worth opening sends it —
+// including our OWN home page (linktree.diegonmarcos.com: SAMEORIGIN). The
+// result was a blank rectangle with no error, i.e. "the browser has no
+// internet". No amount of frontend work fixes that; the header is enforced by
+// WebKit itself and it is enforced correctly. An embedded browser has to be a
+// real webview.
+//
+// The cost is manual bounds/visibility syncing (a native webview floats above
+// the DOM and is not clipped by CSS), which is what the frontend's
+// browser_bounds polling handles. Hiding is done by parking the webview far
+// offscreen rather than a hide() call: it is the one operation guaranteed to
+// exist on every platform backend, and it survives a webview that is mid-load.
+const OFFSCREEN: f64 = -100_000.0;
+
 fn parse_url(u: &str) -> Result<tauri::Url, String> {
     u.parse::<tauri::Url>().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn browser_open(
+    app: tauri::AppHandle,
+    label: String,
+    url: String,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> Result<(), String> {
+    use tauri::{LogicalPosition, LogicalSize};
+    let u = parse_url(&url)?;
+    ensure_agentic_backend(app.clone(), url.clone())?;
+    // Re-opening an existing label navigates it instead of stacking a second
+    // webview on the same rectangle (which would leak one per restore-session).
+    if let Some(wv) = app.get_webview(&label) {
+        return wv.navigate(u).map_err(|e| e.to_string());
+    }
+    let win = app.get_window("main").ok_or("no main window")?;
+    win.add_child(
+        // No .auto_resize(): the 4 Hz bounds poll is already the authority on
+        // this webview's rectangle, and auto-resize would fight it on every
+        // window resize.
+        tauri::webview::WebviewBuilder::new(&label, tauri::WebviewUrl::External(u)),
+        LogicalPosition::new(x, y),
+        LogicalSize::new(w.max(1.0), h.max(1.0)),
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn browser_bounds(
+    app: tauri::AppHandle,
+    label: String,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    visible: bool,
+) -> Result<(), String> {
+    use tauri::{LogicalPosition, LogicalSize};
+    let Some(wv) = app.get_webview(&label) else { return Ok(()) };
+    // Size first, then position: a zero/negative size is rejected by the
+    // backend, and an inactive tab legitimately measures 0x0 while hidden.
+    wv.set_size(LogicalSize::new(w.max(1.0), h.max(1.0)))
+        .map_err(|e| e.to_string())?;
+    let pos = if visible {
+        LogicalPosition::new(x, y)
+    } else {
+        LogicalPosition::new(OFFSCREEN, OFFSCREEN)
+    };
+    wv.set_position(pos).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn browser_navigate(app: tauri::AppHandle, label: String, url: String) -> Result<(), String> {
+    let u = parse_url(&url)?;
+    ensure_agentic_backend(app.clone(), url)?;
+    let wv = app.get_webview(&label).ok_or("no such webview")?;
+    wv.navigate(u).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn browser_back(app: tauri::AppHandle, label: String) -> Result<(), String> {
+    let wv = app.get_webview(&label).ok_or("no such webview")?;
+    wv.eval("history.back()").map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn browser_close(app: tauri::AppHandle, label: String) -> Result<(), String> {
+    if let Some(wv) = app.get_webview(&label) {
+        wv.close().map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -293,6 +382,30 @@ fn load_systrays() -> serde_json::Value {
     serde_json::json!({ "trays": [] })
 }
 
+// Rasterise configs/systray-icons/<name>.svg to a 32x32 RGBA tray image.
+// Same user-dir-first lookup as profiles/config: build.sh install mirrors the
+// repo's icons into ~/.local/share/my-konsole/systray-icons/.
+fn load_systray_icon(name: &str) -> Option<tauri::image::Image<'static>> {
+    const SIZE: u32 = 32;
+    let home = std::env::var_os("HOME")?;
+    let path = std::path::Path::new(&home)
+        .join(".local/share/my-konsole/systray-icons")
+        .join(format!("{name}.svg"));
+    let data = std::fs::read(&path).ok()?;
+    let tree = resvg::usvg::Tree::from_data(&data, &resvg::usvg::Options::default()).ok()?;
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(SIZE, SIZE)?;
+    let s = tree.size();
+    // Fit the SVG's own viewBox into 32x32 rather than assuming it is already
+    // that size — the icons are authored at whatever viewBox reads clearly.
+    let scale = (SIZE as f32 / s.width()).min(SIZE as f32 / s.height());
+    resvg::render(
+        &tree,
+        resvg::tiny_skia::Transform::from_scale(scale, scale),
+        &mut pixmap.as_mut(),
+    );
+    Some(tauri::image::Image::new_owned(pixmap.take(), SIZE, SIZE))
+}
+
 fn setup_systrays(app: &tauri::App) {
     use tauri::menu::MenuBuilder;
     use tauri::menu::MenuItemBuilder;
@@ -342,8 +455,17 @@ fn setup_systrays(app: &tauri::App) {
         }
         let Ok(menu) = builder.build() else { continue };
 
+        // Per-tray icon, app icon only as the fallback. Every tray used to get
+        // `icon.clone()` unconditionally and the manifest's `icon` field was
+        // read by nothing — so seven trays showed seven copies of the same
+        // my-konsole logo and were impossible to tell apart in the tray.
+        let tray_icon = tray
+            .get("icon")
+            .and_then(|v| v.as_str())
+            .and_then(load_systray_icon)
+            .or_else(|| icon.clone());
         let mut tb = TrayIconBuilder::with_id(id.clone()).tooltip(&title).menu(&menu);
-        if let Some(ic) = icon.clone() {
+        if let Some(ic) = tray_icon {
             tb = tb.icon(ic);
         }
         let tb = tb.on_menu_event(move |_app, event| {
@@ -383,7 +505,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config,
             fs_list_dir, fs_read_file, fs_write_file,
-            ensure_agentic_backend
+            ensure_agentic_backend,
+            browser_open, browser_bounds, browser_navigate, browser_back, browser_close
         ])
         .run(tauri::generate_context!())
         .expect("error while running my-konsole");

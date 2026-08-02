@@ -35,19 +35,64 @@
   // first in the nav regardless of where its folder sorts. Profiles with no
   // `order` fall to the end, in their existing order, so adding one is not a
   // silent reshuffle.
+  //
+  // `secondary: true` sends a profile to the "Others ▾" dropdown instead of a
+  // pill. The strip is a single 32px row: past ~10 pills it overflows into a
+  // horizontal scroll nobody discovers, so the rarely-used profiles live behind
+  // one dropdown rather than making every profile harder to reach.
   const nav = document.getElementById("profiles");
-  const row1 = profiles
-    .filter((p) => !p.home)
-    .map((p, idx) => ({ p, idx }))
-    .sort((a, b) => (a.p.order ?? 999) - (b.p.order ?? 999) || a.idx - b.idx)
-    .map((x) => x.p);
-  row1.forEach((p, i) => {
+  const byOrder = (list) =>
+    list.map((p, idx) => ({ p, idx }))
+        .sort((a, b) => (a.p.order ?? 999) - (b.p.order ?? 999) || a.idx - b.idx)
+        .map((x) => x.p);
+  const cli = profiles.filter((p) => !p.home);
+  const row1 = byOrder(cli.filter((p) => !p.secondary));
+  const others = byOrder(cli.filter((p) => p.secondary));
+  const mkPill = (p, active) => {
     const pill = document.createElement("div");
-    pill.className = "profile-pill" + (i === 0 ? " active" : "");
+    pill.className = "profile-pill" + (active ? " active" : "");
     pill.textContent = p.display_name || p.name;
     pill.addEventListener("click", () => selectProfile(p, pill));
-    nav.appendChild(pill);
+    return pill;
+  };
+  // `group` inserts a thin separator between clusters (my-AI/Mesh/Cloud | Git/
+  // Data Sync | …) so the strip reads as groups rather than one long run.
+  let lastGroup = null;
+  row1.forEach((p, i) => {
+    if (lastGroup !== null && p.group !== lastGroup) {
+      const sep = document.createElement("span");
+      sep.className = "pill-sep";
+      nav.appendChild(sep);
+    }
+    lastGroup = p.group ?? null;
+    nav.appendChild(mkPill(p, i === 0));
   });
+  if (others.length) {
+    const wrap = document.createElement("div");
+    wrap.className = "home-dropdown";
+    wrap.innerHTML = `<div class="profile-pill" id="others-pill">Others ▾</div><div class="home-menu" id="others-menu" hidden></div>`;
+    nav.appendChild(wrap);
+    const menu = wrap.querySelector("#others-menu");
+    for (const p of others) {
+      const it = document.createElement("div");
+      it.className = "menu-item";
+      it.textContent = p.display_name || p.name;
+      it.addEventListener("click", () => selectProfile(p, wrap.querySelector("#others-pill")));
+      menu.appendChild(it);
+    }
+    const pill = wrap.querySelector("#others-pill");
+    pill.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const show = menu.hidden;
+      menu.hidden = !show;
+      if (show) {
+        const r = pill.getBoundingClientRect();
+        menu.style.top = `${r.bottom + 2}px`;
+        menu.style.left = `${Math.min(r.left, window.innerWidth - 220)}px`;
+      }
+    });
+    document.addEventListener("click", () => { menu.hidden = true; });
+  }
 
   const byName = (n) => profiles.find((p) => p.name === n);
 
@@ -110,9 +155,6 @@
 
   // Buttons + find bar
   document.getElementById("btn-newtab").addEventListener("click", () => Tabs.newTab());
-  document.getElementById("btn-sidebar").addEventListener("click", () => {
-    document.getElementById("sidebar").classList.toggle("hidden");
-  });
   document.getElementById("find-next").addEventListener("click", () => Find.next());
   document.getElementById("find-prev").addEventListener("click", () => Find.prev());
   document.getElementById("find-close").addEventListener("click", () => Find.close());
@@ -123,11 +165,46 @@
   window.addEventListener("resize", () => { if (Tabs.active) MYK._fitTab(Tabs.active); });
   window.addEventListener("beforeunload", () => Tabs.saveSession());
 
-  // Global menu (top-right ⋮): restore session, about
+  // Global ☰ menu. Submenus are CSS-driven (:hover); the only thing JS owns is
+  // opening/closing the root and the two Layout tickers.
   const menuBtn = document.getElementById("btn-menu");
   const menuDrop = document.getElementById("menu-dropdown");
   menuBtn.addEventListener("click", (e) => { e.stopPropagation(); menuDrop.hidden = !menuDrop.hidden; });
   document.addEventListener("click", () => { menuDrop.hidden = true; });
+
+  // ── Layout tickers (Konsole's View menu): show/hide the top nav and the left
+  // sidebar. Persisted, because a hidden chrome that comes back on every launch
+  // is not "hidden", it's a flicker.
+  //
+  // Hiding the top nav also hides the ☰ that unhides it — Ctrl+Shift+M is the
+  // way back, same as Konsole's Ctrl+M. Without it the setting is a one-way
+  // door that survives restarts.
+  const layout = { topnav: true, sidebar: true };
+  try { Object.assign(layout, JSON.parse(localStorage.getItem("myk-layout") || "{}")); } catch {}
+  const applyLayout = () => {
+    document.getElementById("topnav").classList.toggle("hidden", !layout.topnav);
+    document.getElementById("sidebar").classList.toggle("hidden", !layout.sidebar);
+    document.getElementById("cfg-topnav").classList.toggle("checked", layout.topnav);
+    document.getElementById("cfg-sidebar").classList.toggle("checked", layout.sidebar);
+    localStorage.setItem("myk-layout", JSON.stringify(layout));
+    if (Tabs.active) MYK._fitTab(Tabs.active);   // the terminal must re-fit, not clip
+  };
+  const ticker = (id, key) =>
+    document.getElementById(id).addEventListener("click", (e) => {
+      e.stopPropagation();                       // keep the menu open: both are often toggled together
+      layout[key] = !layout[key];
+      applyLayout();
+    });
+  ticker("cfg-topnav", "topnav");
+  ticker("cfg-sidebar", "sidebar");
+  window.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.shiftKey && (e.key === "M" || e.key === "m")) {
+      e.preventDefault();
+      layout.topnav = !layout.topnav;
+      applyLayout();
+    }
+  });
+  applyLayout();
 
   document.getElementById("menu-restore-session").addEventListener("click", () => Tabs.restoreSession());
 
@@ -256,6 +333,17 @@
 
   // Row 1 (Home): each button selects its own home profile → its own tab group +
   // its own (empty) command sidebar. Reuses the group's tab instead of spawning.
+  // Home is a tauri-app, not a shell profile: its tab is the hub's inventory
+  // page. Tabs needs the profile list to render it, and `select` so a card can
+  // actually take you there — that is the whole point of the page.
+  Tabs.allProfiles = profiles;
+  Tabs.selectProfileByName = (n) => {
+    const p = byName(n);
+    if (!p) return;
+    const pill = [...document.querySelectorAll(".profile-pill")].find((e) => e.textContent === (p.display_name || p.name));
+    selectProfile(p, pill || null);
+  };
+  document.getElementById("btn-home-home").addEventListener("click", () => selectProfile(byName("home"), null));
   document.getElementById("btn-home-filebrowser").addEventListener("click", () => selectProfile(byName("file-browser"), null));
   document.getElementById("btn-home-browser").addEventListener("click", () => selectProfile(byName("web-browser"), null));
   document.getElementById("btn-home-agentic").addEventListener("click", () => selectProfile(byName("agentic"), null));
@@ -264,7 +352,7 @@
   // are then just a new profile.json, no code change. The 4 above are hand-wired
   // because file-editor is a dropdown menu, not a plain profile click, and
   // file-browser/web-browser/agentic predate this loop.
-  const fixedHomeBtns = new Set(["file-browser", "file-editor", "web-browser", "agentic"]);
+  const fixedHomeBtns = new Set(["home", "file-browser", "file-editor", "web-browser", "agentic"]);
   const homeActions = document.getElementById("home-actions");
   profiles.filter((p) => p.home && !fixedHomeBtns.has(p.name)).forEach((p) => {
     const b = document.createElement("button");

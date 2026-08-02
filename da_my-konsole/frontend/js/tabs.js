@@ -10,34 +10,63 @@
 // never disagree.
 const HOME_URL = "https://linktree.diegonmarcos.com";
 
-// Sites that send X-Frame-Options: DENY / frame-ancestors 'none' load as a blank
-// frame and fire no error event — indistinguishable from "still loading". After
-// a load with a still-empty frame we say so, and offer the system browser,
-// instead of showing an empty rectangle forever.
-const watchForFrameBlock = (frame, note, url) => {
-  let settled = false;
-  const done = (blocked) => {
-    if (settled) return;
-    settled = true;
-    note.hidden = !blocked;
-    if (blocked) note.querySelector(".browser-note-url").textContent = url;
-  };
-  frame.addEventListener("load", () => {
-    // Cross-origin access throwing is NORMAL for a page that loaded fine, so it
-    // cannot be the signal. A blocked frame stays at about:blank, which is
-    // same-origin and therefore readable — that asymmetry is the tell.
-    try {
-      const href = frame.contentWindow.location.href;
-      done(href === "about:blank");
-    } catch {
-      done(false); // readable-failure => a real cross-origin page => it loaded
-    }
-  }, { once: true });
-  setTimeout(() => done(false), 6000); // never leave the notice stuck on
-};
-
 const ensureAgenticBackend = (url) => {
   if (window.__TAURI__) window.__TAURI__.core.invoke("ensure_agentic_backend", { url }).catch(() => {});
+};
+
+// ── Native child webviews ──────────────────────────────────────────────────
+// A native webview floats above the DOM: nothing in CSS clips it, so its
+// rectangle has to be pushed to the backend by hand. The rect is measured from
+// a placeholder <div> that IS laid out by CSS, so the webview tracks whatever
+// the stylesheet does (sidebar hidden, top nav hidden, window resized, tab
+// strip growing a row) without any of those paths needing to know it exists.
+//
+// One 4 Hz poll drives every browser tab, and only invokes when a rect actually
+// changed. Hooking the individual layout paths instead was the previous design
+// and it is what let the webview render over the sidebar: every new layout path
+// was a new chance to forget one. Measuring the truth is cheaper than
+// enumerating the causes.
+const NativeBrowser = {
+  slots: new Map(),                       // label -> { host, last }
+  timer: null,
+  on() { return !!window.__TAURI__; },
+  invoke(cmd, args) {
+    if (!this.on()) return Promise.resolve();
+    return window.__TAURI__.core.invoke(cmd, args).catch((e) => console.error(`[browser] ${cmd}`, e));
+  },
+  register(label, host) {
+    this.slots.set(label, { host, last: null });
+    if (!this.timer) this.timer = setInterval(() => this.sync(), 250);
+  },
+  unregister(label) {
+    this.slots.delete(label);
+    this.invoke("browser_close", { label });
+    if (!this.slots.size && this.timer) { clearInterval(this.timer); this.timer = null; }
+  },
+  rectOf(host) {
+    const r = host.getBoundingClientRect();
+    // offsetParent===null means the element (or an ancestor) is display:none —
+    // i.e. an inactive tab. getBoundingClientRect alone reports 0x0 for that,
+    // which is indistinguishable from "not laid out yet".
+    const visible = host.offsetParent !== null && r.width > 0 && r.height > 0;
+    return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), visible };
+  },
+  sync() {
+    for (const [label, slot] of this.slots) {
+      const r = this.rectOf(slot.host);
+      const key = `${r.x},${r.y},${r.w},${r.h},${r.visible}`;
+      if (key === slot.last) continue;
+      slot.last = key;
+      this.invoke("browser_bounds", { label, ...r });
+    }
+  },
+  open(label, url, host) {
+    this.register(label, host);
+    const r = this.rectOf(host);
+    return this.invoke("browser_open", { label, url, x: r.x, y: r.y, w: r.w, h: r.h });
+  },
+  navigate(label, url) { return this.invoke("browser_navigate", { label, url }); },
+  back(label) { return this.invoke("browser_back", { label }); },
 };
 
 const Tabs = {
@@ -232,15 +261,15 @@ const Tabs = {
   // so a profile with several (agentic: Goose Desktop / Goose Cloud / Hermes
   // Cloud) showed three identical tabs and you could not tell the modes apart.
   openBrowserTab(url, profile = this.activeProfile, label) {
-    // Home page. NOT a search engine: the tab is an iframe, and every major
-    // search engine sends X-Frame-Options: DENY, so it loaded a blank frame with
-    // no error — the browser looked simply broken. This one is ours and frames.
     url = url || HOME_URL;
     const tabId = "T" + ++this.seq;
-    ensureAgenticBackend(url);
+    const wvLabel = "browser-" + tabId;
     const rootEl = document.createElement("div");
     rootEl.className = "tab-root";
     rootEl.dataset.id = tabId;
+    // The address bar stays DOM (it must be clipped and scrolled with the tab);
+    // .browser-host is an empty placeholder whose only job is to be measured —
+    // the page itself is painted by the native webview parked over it.
     rootEl.innerHTML = `
       <div class="browser-wrap">
         <div class="browser-addr">
@@ -248,38 +277,32 @@ const Tabs = {
           <button class="browser-btn" data-act="reload" title="Reload">↻</button>
           <button class="browser-btn" data-act="home" title="Home">⌂</button>
           <input class="browser-addr-input" type="text" spellcheck="false" value="${url}" />
+          <button class="browser-btn" data-act="external" title="Open in system browser">↗</button>
           <button class="browser-btn browser-btn-close" data-act="close" title="Close tab">✕</button>
         </div>
-        <div class="browser-note" hidden>
-          <div><b class="browser-note-url"></b> refuses to be embedded
-          (X-Frame-Options / frame-ancestors).</div>
-          <button class="browser-btn" data-act="external">Open in system browser</button>
-        </div>
-        <iframe class="browser-frame" src="${url}"></iframe>
+        <div class="browser-host"></div>
       </div>`;
     document.getElementById("terms").appendChild(rootEl);
 
     const addr = rootEl.querySelector(".browser-addr-input");
-    const frame = rootEl.querySelector(".browser-frame");
-    console.log(`[openBrowserTab] iframe url=${url} profile=${profile}`);
-    const note = rootEl.querySelector(".browser-note");
+    const host = rootEl.querySelector(".browser-host");
+    console.log(`[openBrowserTab] native webview ${wvLabel} url=${url} profile=${profile}`);
+    // The rect is only real after the tab-root is activated + laid out; open on
+    // the next frame so the first bounds we send are not 0x0.
+    requestAnimationFrame(() => NativeBrowser.open(wvLabel, url, host));
+
     const go = (v) => {
       if (!/^[a-z]+:\/\//i.test(v)) v = "https://" + v;
       addr.value = v;
       const t = this.tabs.get(tabId); if (t) t.browserUrl = v;
-      ensureAgenticBackend(v);
-      note.hidden = true;
-      watchForFrameBlock(frame, note, v);
-      frame.src = v;
+      NativeBrowser.navigate(wvLabel, v);
     };
-    watchForFrameBlock(frame, note, url);
     addr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(addr.value.trim()); });
-    rootEl.querySelector('[data-act="back"]').addEventListener("click", () => { try { frame.contentWindow.history.back(); } catch {} });
+    rootEl.querySelector('[data-act="back"]').addEventListener("click", () => NativeBrowser.back(wvLabel));
     rootEl.querySelector('[data-act="reload"]').addEventListener("click", () => go(addr.value.trim()));
     rootEl.querySelector('[data-act="home"]').addEventListener("click", () => go(HOME_URL));
     rootEl.querySelector('[data-act="external"]').addEventListener("click", () => {
       const target = addr.value.trim();
-      // Tauri's opener when we have it; a normal new tab in a plain browser.
       if (window.__TAURI__?.opener?.openUrl) window.__TAURI__.opener.openUrl(target).catch(() => {});
       else if (window.__TAURI__?.shell?.open) window.__TAURI__.shell.open(target).catch(() => {});
       else window.open(target, "_blank", "noopener");
@@ -293,7 +316,69 @@ const Tabs = {
     this._wireTabEl(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
-    this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true, browserUrl: url, icon: "🌐", group: null });
+    this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true, wvLabel, browserUrl: url, icon: "🌐", group: null });
+    this.order.push(tabId);
+    this.activate(tabId);
+    return tabId;
+  },
+
+  // ── Home tab: the hub's inventory. DERIVED from the loaded profiles, never a
+  // hand-written list — a new profile.json shows up here on its own, and one
+  // that is removed disappears. The cards are the navigation: clicking a
+  // terminal-cli card switches to that profile, so this doubles as the "what is
+  // in this thing" answer and the fastest way to get anywhere in it.
+  openHomeTab(profile = this.activeProfile) {
+    const tabId = "T" + ++this.seq;
+    const rootEl = document.createElement("div");
+    rootEl.className = "tab-root";
+    rootEl.dataset.id = tabId;
+
+    const all = this.allProfiles || [];
+    const apps = all.filter((p) => p.home && p.name !== "home");
+    const clis = all.filter((p) => !p.home);
+    const bookmarks = clis.reduce((n, p) => n + (p.sections || []).reduce((m, s) => m + (s.items || []).length, 0), 0);
+    const app = (window.MYK?.config?.app) || {};
+    const card = (t, d, target) =>
+      `<div class="home-card"${target ? ` data-go="${target}"` : ""}><div class="t">${t}</div><div class="d">${d}</div></div>`;
+
+    rootEl.innerHTML = `
+      <div class="home-page">
+        <div class="home-hero">
+          <h1>my-konsole</h1>
+          <div class="sub">The unix constellation hub — tauri apps, terminal CLIs and system trays in one window.</div>
+        </div>
+        <div class="home-stats">
+          <div><b>${apps.length}</b>tauri-apps</div>
+          <div><b>${clis.length}</b>terminal-clis</div>
+          <div><b>${bookmarks}</b>bookmarks</div>
+        </div>
+        <div class="home-sec">tauri-apps</div>
+        <div class="home-grid">${apps.map((p) =>
+          card(p.display_name || p.name, p.browser ? "embedded web browser" : p.filebrowser ? "miller-column file browser" : p.fileeditor ? "plain + vim editor" : "GUI tab", p.name)).join("")}</div>
+        <div class="home-sec">terminal-clis</div>
+        <div class="home-grid">${clis.map((p) => {
+          const n = (p.sections || []).reduce((m, s) => m + (s.items || []).length, 0);
+          return card(p.display_name || p.name, `${n} bookmark${n === 1 ? "" : "s"}`, p.name);
+        }).join("")}</div>
+        <div class="home-sec">this build</div>
+        <div class="home-stats">
+          <div><b>${app.repo || "—"}</b>repo</div>
+          <div><b>${app.bin || "—"}</b>binary</div>
+        </div>
+      </div>`;
+    document.getElementById("terms").appendChild(rootEl);
+    rootEl.addEventListener("click", (e) => {
+      const c = e.target.closest("[data-go]");
+      if (c) this.selectProfileByName?.(c.dataset.go);
+    });
+
+    const tabEl = document.createElement("div");
+    tabEl.className = "tab"; tabEl.dataset.id = tabId;
+    tabEl.innerHTML = `<span class="tab-icon">🏠</span><span class="tab-title">Home</span><span class="tab-close">✕</span>`;
+    this._wireTabEl(tabEl, tabId);
+    document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
+
+    this.tabs.set(tabId, { rootEl, tabEl, profile, isHome: true, icon: "🏠", group: null });
     this.order.push(tabId);
     this.activate(tabId);
     return tabId;
@@ -442,9 +527,10 @@ const Tabs = {
       })();
       return;
     }
-    const kind = p.browser ? "browser" : p.filebrowser ? "filebrowser" : p.fileeditor ? "fileeditor" : p.home_cmd ? "hometab" : "shell";
+    const kind = p.homepage ? "homepage" : p.browser ? "browser" : p.filebrowser ? "filebrowser" : p.fileeditor ? "fileeditor" : p.home_cmd ? "hometab" : "shell";
     console.log(`[switchProfile] ${name} → open new ${kind}`);
-    if (p.browser) this.openBrowserTab(p.url, name, p.display_name);
+    if (p.homepage) this.openHomeTab(name);
+    else if (p.browser) this.openBrowserTab(p.url, name, p.display_name);
     else if (p.filebrowser) this.openFileBrowserTab(p.start_path || "~", name);
     else if (p.fileeditor) this.openFileEditorTab(null, name);
     else if (p.home_cmd) this.openRunTab(p.home_cmd, "Home", name);
@@ -462,6 +548,9 @@ const Tabs = {
     const profile = this.tabs.get(tabId).profile;
     MYK.disposeTab(tabId);
     const t = this.tabs.get(tabId);
+    // A native webview is not a DOM node — removing rootEl does NOT tear it
+    // down, it would stay floating over the window forever.
+    if (t.wvLabel) NativeBrowser.unregister(t.wvLabel);
     t.rootEl.remove(); t.tabEl.remove();
     this.tabs.delete(tabId);
     this.order = this.order.filter((x) => x !== tabId);
@@ -477,6 +566,7 @@ const Tabs = {
   saveSession() {
     const snap = this.order.map((id) => {
       const t = this.tabs.get(id);
+      if (t.isHome) return { profile: t.profile, kind: "home" };
       if (t.isBrowser) return { profile: t.profile, kind: "browser", url: t.rootEl.querySelector(".browser-addr-input")?.value };
       if (t.isFileBrowser) return { profile: t.profile, kind: "filebrowser", startPath: t.rootEl.querySelector(".fb-addr-input")?.value };
       if (t.isFileEditor) return { profile: t.profile, kind: "fileeditor", path: t.rootEl.querySelector(".editor-path-input")?.value };
@@ -490,7 +580,8 @@ const Tabs = {
     try { snap = JSON.parse(localStorage.getItem("myk-session") || "[]"); } catch { snap = []; }
     if (snap.length === 0) return;
     for (const t of snap) {
-      if (t.kind === "browser") this.openBrowserTab(t.url, t.profile);
+      if (t.kind === "home") this.openHomeTab(t.profile);
+      else if (t.kind === "browser") this.openBrowserTab(t.url, t.profile);
       else if (t.kind === "filebrowser") this.openFileBrowserTab(t.startPath || "~", t.profile);
       else if (t.kind === "fileeditor") this.openFileEditorTab(t.path || null, t.profile);
       else await this.newTab(t.profile);

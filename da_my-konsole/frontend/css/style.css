@@ -29,24 +29,11 @@ body { display: flex; flex-direction: column; }
 }
 #nav-row-home { gap: 12px; border-bottom: 1px solid var(--border); }
 #nav-row-profiles { height: 32px; overflow: hidden; }
-#btn-sidebar {
-  background: transparent; color: var(--muted); border: 1px solid var(--border);
-  border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 13px;
-}
-#btn-sidebar:hover { border-color: var(--accent); color: var(--fg); }
-/* The app title is centred across the whole row, not left-packed after the
-   hamburger. Absolute + translate rather than flex centring on purpose: the
-   left group (hamburger) and the right group (Configs) have different widths,
-   so flex would centre it BETWEEN them and it would visibly shift whenever a
-   button appears or a label changes. This pins it to the row's centre.
-   pointer-events:none so it can never eat a click meant for a control. */
+/* No title text and no separate sidebar button: the ☰ on the right IS the menu,
+   and the sidebar is a ticker inside it (Layout → Left Side Bar). */
 #nav-row-home { position: relative; }
-#brand {
-  font-weight: 700; color: var(--accent); letter-spacing: .3px;
-  position: absolute; left: 50%; transform: translateX(-50%);
-  pointer-events: none; white-space: nowrap;
-}
 .nav-label {
+  flex: 0 0 auto;
   color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: .5px;
 }
 .home-btn {
@@ -335,3 +322,57 @@ body { display: flex; flex-direction: column; }
 }
 .browser-note[hidden] { display: none; }
 .browser-note-url { color: var(--accent); }
+
+/* ── Konsole-style menu: an icon button whose entries open child menus ──────
+   Submenus are pure CSS (:hover), so there is no open/close state to keep in
+   sync — the only JS state here is the two Layout tickers. */
+#btn-menu { font-size: 15px; line-height: 1; padding: 2px 8px; }
+#menu-dropdown { min-width: 190px; }
+#menu-dropdown .menu-item { position: relative; }
+#menu-dropdown .menu-item.has-sub::after { content: "▸"; position: absolute; right: 8px; opacity: .6; }
+#menu-dropdown .submenu {
+  display: none; position: absolute; left: 100%; top: -4px; min-width: 210px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 4px;
+  padding: 4px 0; z-index: 60;
+}
+#menu-dropdown .menu-item.has-sub:hover > .submenu { display: block; }
+#menu-dropdown .submenu .menu-item { padding: 6px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+#menu-dropdown .submenu .menu-item:hover { background: var(--accent); color: var(--bg); }
+#menu-sep, #menu-dropdown .menu-sep { height: 1px; background: var(--border); margin: 4px 0; }
+/* Tickers read as checkboxes; the box is drawn, not an <input>, so it inherits
+   the menu row's hover styling like every other entry. */
+#menu-dropdown .menu-item.check::before { content: "☐ "; opacity: .8; }
+#menu-dropdown .menu-item.check.checked::before { content: "☑ "; opacity: 1; }
+
+/* Layout tickers */
+#topnav.hidden, #sidebar.hidden { display: none; }
+
+/* ── Home: the hub's inventory page ─────────────────────────────────────── */
+.home-page { flex: 1 1 0; overflow: auto; padding: 22px 26px; }
+.home-hero { margin-bottom: 20px; }
+.home-hero h1 { font-size: 22px; margin: 0 0 4px; }
+.home-hero .sub { color: var(--muted); font-size: 12px; }
+.home-sec { margin: 22px 0 8px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.home-card {
+  background: var(--bg2); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: 4px; padding: 9px 11px; cursor: pointer;
+}
+.home-card:hover { background: var(--bg3); }
+.home-card .t { font-size: 13px; }
+.home-card .d { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.home-stats { display: flex; gap: 22px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.home-stats b { color: var(--fg); font-size: 15px; display: block; }
+
+/* ── Native browser tab ────────────────────────────────────────────────────
+   .browser-host is a measured placeholder, not a viewport: the page is painted
+   by a native child webview parked over this rectangle (see NativeBrowser in
+   tabs.js). It is deliberately empty and deliberately still laid out by CSS —
+   that is how the webview follows the sidebar/top-nav/resize without any of
+   them knowing about it. */
+.browser-host { flex: 1 1 0; min-height: 0; width: 100%; background: var(--bg); }
+.browser-frame { display: none; }
+.browser-note { display: none; }
+
+/* Separator between nav pill clusters (my-AI/Mesh/Cloud | Git/Data Sync | …) */
+.pill-sep { width: 1px; align-self: center; height: 16px; background: var(--border); margin: 0 5px; flex: 0 0 auto; }
