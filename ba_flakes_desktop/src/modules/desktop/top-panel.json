@@ -6,7 +6,7 @@
       "name": "org.kde.plasma.systemmonitor.diskusage",
       "config": {
         "Appearance": {
-          "chartFace": "org.kde.ksysguard.piechart",
+          "chartFace": "org.kde.ksysguard.textonly",
           "title": "Disk Usage"
         },
         "SensorColors": {
@@ -30,7 +30,7 @@
       "name": "org.kde.plasma.systemmonitor.memory",
       "config": {
         "Appearance": {
-          "chartFace": "org.kde.ksysguard.piechart",
+          "chartFace": "org.kde.ksysguard.textonly",
           "title": "Memory Usage"
         },
         "SensorColors": {
@@ -49,7 +49,7 @@
       "name": "org.kde.plasma.systemmonitor.cpu",
       "config": {
         "Appearance": {
-          "chartFace": "org.kde.ksysguard.piechart",
+          "chartFace": "org.kde.ksysguard.textonly",
           "title": "Total CPU Use"
         },
         "SensorColors": {
@@ -74,8 +74,10 @@
           "dateFormat": "shortDate",
           "use24hFormat": "2",
           "showSeconds": "0",
-          "autoFontAndSize": true
-        }
+          "autoFontAndSize": true,
+          "chartFace": "org.kde.ksysguard.textonly"
+        },
+        "updateRateLimit": 2000
       }
     },
     {
@@ -114,7 +116,7 @@
       "name": "org.kde.plasma.systemmonitor.diskusage",
       "config": {
         "Appearance": {
-          "chartFace": "org.kde.ksysguard.barchart",
+          "chartFace": "org.kde.ksysguard.textonly",
           "title": "Pressure some10"
         },
         "SensorColors": {
@@ -148,7 +150,7 @@
       "name": "org.kde.plasma.systemmonitor.diskusage",
       "config": {
         "Appearance": {
-          "chartFace": "org.kde.ksysguard.horizontalbars",
+          "chartFace": "org.kde.ksysguard.textonly",
           "title": "Pressure full10"
         },
         "SensorColors": {
@@ -174,7 +176,7 @@
       "name": "org.kde.plasma.systemmonitor.cpu",
       "config": {
         "Appearance": {
-          "chartFace": "org.kde.ksysguard.piechart",
+          "chartFace": "org.kde.ksysguard.textonly",
           "title": "Total CPU Use"
         },
         "SensorColors": {
