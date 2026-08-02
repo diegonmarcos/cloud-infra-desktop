@@ -126,6 +126,44 @@ fn fs_write_file(path: String, content: String) -> Result<(), String> {
     pty_core::fs::write_file(&path, &content)
 }
 
+// Expands the glob patterns behind the sidebar "Configs" panel (a profile's
+// `configs[].paths`) into concrete files. `~` is the only shorthand a
+// profile.json pattern uses — glob itself knows nothing about home dirs, so
+// it's expanded by hand before handing the pattern to the crate. Skips build/
+// vcs noise dirs and caps the result so a runaway pattern (e.g. bare "~/**")
+// can't hang the UI; the cap is silent to the caller by design — the frontend
+// just sees "up to 500" and shows the count next to each group title.
+#[tauri::command]
+fn fs_glob(patterns: Vec<String>) -> Result<Vec<String>, String> {
+    const SKIP_DIRS: [&str; 4] = [".git", "target", "node_modules", "result"];
+    const MAX_RESULTS: usize = 500;
+    let home = std::env::var("HOME").unwrap_or_default();
+    let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for pat in patterns {
+        let expanded = if pat == "~" {
+            home.clone()
+        } else if let Some(rest) = pat.strip_prefix("~/") {
+            format!("{home}/{rest}")
+        } else {
+            pat
+        };
+        let Ok(entries) = glob::glob(&expanded) else { continue };
+        for path in entries.flatten() {
+            if !path.is_file() {
+                continue;
+            }
+            let skip = path.components().any(|c| {
+                SKIP_DIRS.contains(&c.as_os_str().to_string_lossy().as_ref())
+            });
+            if skip {
+                continue;
+            }
+            out.insert(path.to_string_lossy().into_owned());
+        }
+    }
+    Ok(out.into_iter().take(MAX_RESULTS).collect())
+}
+
 // ── Browser tabs are NATIVE child webviews, not <iframe>s.
 //
 // The iframe version could not browse the web, and not by a little: an iframe
@@ -504,7 +542,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config,
-            fs_list_dir, fs_read_file, fs_write_file,
+            fs_list_dir, fs_read_file, fs_write_file, fs_glob,
             ensure_agentic_backend,
             browser_open, browser_bounds, browser_navigate, browser_back, browser_close
         ])

@@ -36,6 +36,12 @@
               <div class="menu-item check" id="cfg-sidebar">Left Side Bar</div>
             </div>
           </div>
+          <div class="menu-item has-sub">Editor
+            <div class="submenu">
+              <div class="menu-item check" id="cfg-editor-vim">Vim</div>
+              <div class="menu-item check" id="cfg-editor-plain">Plain (textarea)</div>
+            </div>
+          </div>
           <div class="menu-sep"></div>
           <div class="menu-item has-sub">Application
             <div class="submenu">
@@ -101,12 +107,17 @@
       <div id="sidebar-toggle">
         <button class="sidebar-toggle-btn active" data-view="commands">Commands</button>
         <button class="sidebar-toggle-btn" data-view="tabs">Tabs</button>
+        <button class="sidebar-toggle-btn" data-view="configs">Configs</button>
       </div>
       <div id="commands-panel">
         <input id="search" type="search" placeholder="Search commands…" autocomplete="off" />
         <div id="sections"><!-- .section per profile.sections[] (boot.js) --></div>
       </div>
       <div id="tabs-panel" hidden><!-- vertical tab list, grouped (tabs.js) --></div>
+      <div id="configs-panel" hidden>
+        <input id="configs-search" type="search" placeholder="Search configs…" autocomplete="off" />
+        <div id="configs-list"><!-- .section per profile.configs[] (boot.js) --></div>
+      </div>
     </aside>
 
     <!-- Center: tab strip + terminals -->

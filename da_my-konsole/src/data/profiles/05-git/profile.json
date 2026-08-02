@@ -131,6 +131,16 @@
       ]
     }
   ],
+  "configs": [
+    {
+      "title": "Git config",
+      "paths": ["~/.config/git/config", "~/.config/git/ignore"]
+    },
+    {
+      "title": "GitHub CLI config",
+      "paths": ["~/.config/gh/config.yml"]
+    }
+  ],
   "order": 4,
   "group": "g2"
 }

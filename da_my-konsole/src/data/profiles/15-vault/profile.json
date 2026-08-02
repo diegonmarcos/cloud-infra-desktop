@@ -27,6 +27,12 @@
       ]
     }
   ],
+  "configs": [
+    {
+      "title": "Secrets (sops-encrypted)",
+      "paths": ["~/git/unix/ba_flakes_desktop/src/secrets/secrets.yaml"]
+    }
+  ],
   "order": 8,
   "group": "g4"
 }

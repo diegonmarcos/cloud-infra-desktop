@@ -29,6 +29,7 @@ if (typeof window !== "undefined") {
     listDir: (path) => window.__TAURI__.core.invoke("fs_list_dir", { path }),
     readFile: (path) => window.__TAURI__.core.invoke("fs_read_file", { path }),
     writeFile: (path, content) => window.__TAURI__.core.invoke("fs_write_file", { path, content }),
+    fsGlob: (patterns) => window.__TAURI__.core.invoke("fs_glob", { patterns }),
   };
 
   // WebSocket impl (Android WebView / browser): one shared socket to the engine.
@@ -94,6 +95,10 @@ if (typeof window !== "undefined") {
       listDir: (path) => fsRequest("fs_list", { path }).then((m) => m.entries),
       readFile: (path) => fsRequest("fs_read", { path }).then((m) => m.content),
       writeFile: (path, content) => fsRequest("fs_write", { path, content }),
+      // The engine's wire protocol has no fs_glob op — the Configs panel just
+      // shows "no files matched" on this path rather than growing a new op for
+      // a desktop-only feature.
+      fsGlob: () => Promise.resolve([]),
     };
   }
 

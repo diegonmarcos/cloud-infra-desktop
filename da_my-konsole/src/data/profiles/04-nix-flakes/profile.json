@@ -137,6 +137,24 @@
       ]
     }
   ],
+  "configs": [
+    {
+      "title": "NixOS host",
+      "paths": ["~/git/unix/aa_desk-usr_x86_surface-linux_nixos/src/**/*.nix", "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/src/flake.lock"]
+    },
+    {
+      "title": "Desktop flake (Home-Manager)",
+      "paths": ["~/git/unix/ba_flakes_desktop/src/**/*.nix", "~/git/unix/ba_flakes_desktop/src/flake.lock", "~/git/unix/ba_flakes_desktop/build.json"]
+    },
+    {
+      "title": "Termux flake (Home-Manager)",
+      "paths": ["~/git/unix/bb_flakes_termux/src/**/*.nix", "~/git/unix/bb_flakes_termux/src/flake.lock", "~/git/unix/bb_flakes_termux/build.json"]
+    },
+    {
+      "title": "Bootloader",
+      "paths": ["~/git/unix/aa_bootloader/**/*.nix"]
+    }
+  ],
   "order": 6,
   "group": "g3"
 }
