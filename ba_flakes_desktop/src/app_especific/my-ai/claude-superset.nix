@@ -348,21 +348,16 @@ in {
   home.packages = [
     claude-superset
     claude-superset-tray
-    # Prefer the tray build, fall back to headless. A shell wrapper rather than
-    # two ExecStart= lines because systemd would run BOTH: `-` only ignores the
-    # failure, it does not stop the sequence. The tray exiting non-zero (no
-    # display, no StatusNotifier host) must hand over to headless, not run
-    # alongside it — two publishers would fight over the same snapshot file.
+    # Headless `my-ai usage --daemon` is the unit's ExecStart, not the GUI:
+    # it now grows its own ksni systray when a display is present, so the
+    # GUI's webview no longer has to be paid for just to get a tray icon.
+    # my-ai-gui stays a normal user-launched app (desktop entry below).
+    #
+    # This wrapper and the systemd.user.services.my-ai-usage unit below are a
+    # deliberate MIRROR of da_my-ai/build.sh, so switch-installed and
+    # home-manager-installed machines behave identically. Keep them in step.
     (pkgs.writeShellScriptBin "my-ai-usage-daemon" ''
-      GUI="$HOME/.local/bin/my-ai-gui"
-      CLI="$HOME/.local/bin/my-ai"
-      # NOT `exec` for the GUI: exec replaces this process, so a GUI that fails
-      # to start could never fall through to the headless line below.
-      if [ -x "$GUI" ] && [ -n "''${WAYLAND_DISPLAY:-}''${DISPLAY:-}" ]; then
-        "$GUI" && exit 0
-        echo "[my-ai] tray build exited non-zero — falling back to headless" >&2
-      fi
-      exec "$CLI" usage --daemon --interval 30
+      exec "$HOME/.local/bin/my-ai" usage --daemon --interval 30
     '')
   ];
 
@@ -370,35 +365,39 @@ in {
   # session, writing $XDG_RUNTIME_DIR/my-ai-usage.seg on an interval. The status
   # line only ever reads that file, so cost is decoupled from repaint frequency —
   # N sessions repainting every second cost exactly one scan per interval, not N
-  # per second. my-ai-gui runs the same loop in-process for its tray readout; this
-  # unit covers the headless case (no GUI running).
+  # per second. The daemon grows its own ksni systray in-process when a display
+  # is present (da_my-ai/cli/src/tray.rs), so this one unit both publishes and
+  # shows the tray icon — no separate GUI process to keep alive.
   #
   # ConditionPathExists keeps this inert until the real Rust my-ai is installed to
   # ~/.local/bin by `build.sh install` — the unit is skipped, not failed, so it
   # can't spam the journal or block activation before the binary exists.
   # ONE always-running publisher per machine, and it is visible.
   #
-  # my-ai-gui is the same daemon with a tray icon: it publishes the snapshot on
-  # the same interval AND shows the 5h usage in the systray, so the thing every
-  # status line depends on is something you can see and click, not an invisible
-  # process. It was built, installed, and then never launched by anything — no
-  # unit, no autostart — which is why no icon ever appeared.
-  #
-  # ExecStart falls back to the headless binary: on a TTY or over SSH there is no
-  # tray to attach to, and the status line must still get its data. `-` prefixes
-  # the GUI attempt so a failure to reach the display does not fail the unit.
+  # my-ai-gui remains a separate, hand-launched app (desktop entry below) for
+  # people who want the full Tauri window; the unit no longer runs it. It used
+  # to: the wrapper preferred the GUI for its tray, which put a full webview in
+  # this unit's cgroup for a job that only writes a ~39KB JSON every 30s — on
+  # this 8GB box that pinned the 128M cap, was OOM-killed 251 times, and burned
+  # 6min CPU in 9min wall time, then exited 0 and stayed dead (Restart was
+  # on-failure), silently freezing the status line's 05h-T/05h-S rows.
   systemd.user.services.my-ai-usage = {
     Unit = {
       Description = "my-ai usage publisher + systray (5h window data for the Claude status line)";
       ConditionPathExists = "%h/.local/bin/my-ai";
       # The tray needs a session to attach to; without this it races the
-      # compositor at login, fails, and falls back to headless for the session.
+      # compositor at login, fails soft (ksni is best-effort), and the
+      # publisher keeps running headless for the session.
       After = [ "graphical-session.target" ];
       PartOf = [ "graphical-session.target" ];
     };
     Service = {
       ExecStart = "%h/.local/bin/my-ai-usage-daemon";
-      Restart = "on-failure";
+      # `always`, not `on-failure`: a publisher that exits 0 and stays dead
+      # leaves the status line frozen on stale numbers with no error anywhere
+      # — which is exactly what the old GUI-preferring wrapper did. `always`
+      # means a clean exit still gets relaunched.
+      Restart = "always";
       RestartSec = 30;
       # It exists to keep the desktop responsive; it must never be the reason
       # memory gets tight. A scan is small, so a low cap is a real bound, and
