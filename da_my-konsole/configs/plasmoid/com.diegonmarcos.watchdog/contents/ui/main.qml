@@ -66,6 +66,23 @@ PlasmoidItem {
     function mbs(v)  { return (v === undefined ? "--" : v.toFixed(1) + "M/s"); }
     function psi(k, f) { return (snap.psi && snap.psi[k]) ? snap.psi[k][f] : undefined; }
 
+    // Battery text for tooltip/header. `battery` is JSON `null` on a desktop
+    // (no BAT* in sysfs), `{present:false}` if the kernel briefly reports no
+    // cell, or the full reading otherwise. minutes_left is JSON `null`
+    // whenever the daemon couldn't safely compute a rate (charging, or
+    // power_now zero/absent) — never trust it to always be a number.
+    function batteryText() {
+        var b = root.snap.battery;
+        if (!b || !b.present) return "";
+        var t = "batt " + b.pct.toFixed(0) + "% " + b.status;
+        if (b.minutes_left !== null && b.minutes_left !== undefined) {
+            var h = Math.floor(b.minutes_left / 60);
+            var m = Math.round(b.minutes_left % 60);
+            t += " (" + h + "h" + m + "m left)";
+        }
+        return t;
+    }
+
     // Pressure earns colour: it predicts a stall, and the reason this panel
     // exists is a machine that froze with nothing on screen saying so.
     function heat(v) {
@@ -250,6 +267,7 @@ PlasmoidItem {
                     : "slice " + root.two(root.snap.slice_gib) + " / " + root.two(root.snap.slice_max_gib) + " GiB"
                       + "   ·   load " + root.two(root.snap.load1) + " " + root.two(root.snap.load5) + " " + root.two(root.snap.load15)
                       + "   ·   net ↓" + root.mbs(root.snap.net_rx) + " ↑" + root.mbs(root.snap.net_tx)
+                      + (root.batteryText() ? "   ·   " + root.batteryText() : "")
                 elide: Text.ElideRight
             }
         }
@@ -302,4 +320,5 @@ PlasmoidItem {
           + "\nPSI some avg10  cpu " + two(psi("cpu","some10")) + "  io " + two(psi("io","some10")) + "  mem " + two(psi("memory","some10"))
           + "\nPSI full avg10  cpu " + two(psi("cpu","full10")) + "  io " + two(psi("io","full10")) + "  mem " + two(psi("memory","full10"))
           + "\nuser slice " + two(snap.slice_gib) + " / " + two(snap.slice_max_gib) + " GiB"
+          + (batteryText() ? "\n" + batteryText() : "")
 }
