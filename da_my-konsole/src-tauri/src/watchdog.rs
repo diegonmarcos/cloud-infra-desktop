@@ -186,15 +186,23 @@ fn read_diskstats() -> DiskTotals {
         }
         // Skip partitions and virtual devices, or every byte is counted twice
         // (once for sda, again for sda1). Whole disks only.
+        //
+        // "last char is a digit" picks out sda1/sdb2 partitions on SCSI/SATA
+        // disks, where the whole-disk name (sda) has none. But nvme and mmc
+        // devices number the *disk* too (nvme0n1, mmcblk0) and only append a
+        // 'p' before the partition digit (nvme0n1p1, mmcblk0p1) — this box is
+        // a Surface, so its NVMe/eMMC disk would otherwise be silently
+        // excluded and every disk widget would read zero forever.
         let name = f[2];
         if name.starts_with("loop") || name.starts_with("ram") || name.starts_with("dm-") {
             continue;
         }
-        if name.chars().last().is_some_and(|c| c.is_ascii_digit()) && !name.starts_with("nvme") {
-            continue;
-        }
-        if name.starts_with("nvme") && name.contains('p') {
-            continue;
+        if name.starts_with("nvme") || name.starts_with("mmcblk") {
+            if name.contains('p') {
+                continue; // nvme0n1p1, mmcblk0p1
+            }
+        } else if name.chars().last().is_some_and(|c| c.is_ascii_digit()) {
+            continue; // sda1, sdb2, …
         }
         t.read_sectors += f[5].parse::<u64>().unwrap_or(0);
         t.write_sectors += f[9].parse::<u64>().unwrap_or(0);
@@ -334,6 +342,8 @@ fn render(
         "{{\"cpu\":{cpu:.1},\"cores\":[{}],\
           \"mem\":{mem:.1},\"swap\":{swap:.1},\
           \"disk\":{disk:.1},\"disk_r\":{disk_r:.2},\"disk_w\":{disk_w:.2},\
+          \"net_rx\":{net_rx:.2},\"net_tx\":{net_tx:.2},\
+          \"load1\":{load1:.2},\"load5\":{load5:.2},\"load15\":{load15:.2},\
           \"psi\":{{\"cpu\":{},\"io\":{},\"memory\":{}}},\
           \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\
           \"procs\":{procs},\"ts\":{}}}",
