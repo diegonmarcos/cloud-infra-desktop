@@ -24,6 +24,12 @@ tiny_http = "0.12"
 # PNG -> raw RGBA decode for tray icons (tauri::image::Image has no from_path
 # in this version — see setup_systrays in main.rs).
 image = { version = "0.25", default-features = false, features = ["png"] }
+# Per-tray icons are SVGs (configs/systray-icons/<id>.svg) rasterised at load.
+# Rasterising here rather than shipping PNGs keeps ONE source per icon: a PNG
+# pair would be a generated file to regenerate by hand every time, and the
+# alternative — imagemagick at install time — puts a build tool on every user
+# machine for six 32x32 images.
+resvg = { version = "0.44", default-features = false }
 # Serves the vendored agentic-ui/dist static build to the native browser-tab
 # webview (browser_open needs a real http:// URL, not a file:// root) — see
 # agentic_ui_serve below. Smallest workable dep for this, per plan.

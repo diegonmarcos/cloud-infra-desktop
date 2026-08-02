@@ -1,6 +1,6 @@
 {
   "name": "watchdog",
-  "display_name": "Watchdog — System Protection",
+  "display_name": "Watchdog",
   "theme": {
     "accent": "#c0392b"
   },
@@ -57,5 +57,6 @@
       ]
     }
   ],
-  "order": 10
+  "order": 21,
+  "secondary": true
 }

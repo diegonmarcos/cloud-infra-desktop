@@ -48,5 +48,6 @@
       ]
     }
   ],
-  "order": 1
+  "order": 20,
+  "secondary": true
 }

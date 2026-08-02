@@ -1,0 +1,33 @@
+{
+  "name": "my-ai",
+  "display_name": "my-AI",
+  "order": 1,
+  "group": "g1",
+  "theme": { "accent": "#a29bfe" },
+  "sections": [
+    {
+      "title": "Daemon",
+      "items": [
+        { "label": "Status", "cmd": "systemctl --user status my-ai-usage-daemon --no-pager" },
+        { "label": "Restart", "cmd": "systemctl --user restart my-ai-usage-daemon" },
+        { "label": "Logs (follow)", "cmd": "journalctl --user -u my-ai-usage-daemon -f" },
+        { "label": "Usage JSON", "cmd": "jq . \"$XDG_RUNTIME_DIR/my-ai-usage.json\"" }
+      ]
+    },
+    {
+      "title": "Claude",
+      "items": [
+        { "label": "Claude", "cmd": "claude " },
+        { "label": "Sessions", "cmd": "ls -lt ~/.claude/projects" },
+        { "label": "Statusline (render once)", "cmd": "STATUSLINE_RENDER=1 bash ~/.claude/statusline-command.sh < /dev/null" }
+      ]
+    },
+    {
+      "title": "Goose",
+      "items": [
+        { "label": "Goose session", "cmd": "goose session " },
+        { "label": "Goose serve", "cmd": "goose serve " }
+      ]
+    }
+  ]
+}

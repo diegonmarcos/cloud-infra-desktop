@@ -11,10 +11,9 @@
   <!-- Top nav: row 1 = fixed Home actions, row 2 = data-driven profile pills -->
   <header id="topnav">
     <div class="nav-row" id="nav-row-home">
-      <button id="btn-sidebar" title="Toggle sidebar">☰</button>
-      <div id="brand">my-konsole</div>
-      <span class="nav-label">Home</span>
+      <span class="nav-label">tauri-apps</span>
       <div id="home-actions">
+        <button class="home-btn" id="btn-home-home">Home</button>
         <button class="home-btn" id="btn-home-filebrowser">File Browser</button>
         <div class="home-dropdown" id="editor-wrap">
           <button class="home-btn" id="btn-home-fileeditor">File Editor ▾</button>
@@ -26,20 +25,43 @@
         <button class="home-btn" id="btn-home-browser">Web Browser</button>
         <button class="home-btn" id="btn-home-agentic">Agentic</button>
       </div>
+      <!-- Konsole-style menu button: an icon, and a menu whose entries open
+           child menus rather than one flat list. -->
       <div id="menu-wrap">
-        <button id="btn-menu" title="Configs">Configs ▾</button>
+        <button id="btn-menu" title="Menu (Ctrl+Shift+M)">☰</button>
         <div id="menu-dropdown" hidden>
-          <div class="menu-item" id="menu-update">Update Binary (fetch release)</div>
-          <div class="menu-item" id="menu-clone-build">Clone &amp; Build Locally</div>
-          <div class="menu-item" id="menu-logs">View Logs (console)</div>
-          <div class="menu-item" id="menu-export-logs">Export Logs → file</div>
-          <div class="menu-item" id="menu-restore-session">Restore Last Session</div>
-          <div class="menu-item" id="menu-deps">Dependency Solver (what this hub needs)</div>
+          <div class="menu-item has-sub">Layout
+            <div class="submenu">
+              <div class="menu-item check" id="cfg-topnav">Top Nav Bar</div>
+              <div class="menu-item check" id="cfg-sidebar">Left Side Bar</div>
+            </div>
+          </div>
+          <div class="menu-sep"></div>
+          <div class="menu-item has-sub">Application
+            <div class="submenu">
+              <div class="menu-item" id="menu-update">Update Binary (fetch release)</div>
+              <div class="menu-item" id="menu-clone-build">Clone &amp; Build Locally</div>
+              <div class="menu-item" id="menu-deps">Dependency Solver</div>
+            </div>
+          </div>
+          <div class="menu-item has-sub">Session
+            <div class="submenu">
+              <div class="menu-item" id="menu-restore-session">Restore Last Session</div>
+            </div>
+          </div>
+          <div class="menu-item has-sub">Logs
+            <div class="submenu">
+              <div class="menu-item" id="menu-logs">View Logs (console)</div>
+              <div class="menu-item" id="menu-export-logs">Export Logs → file</div>
+            </div>
+          </div>
+          <div class="menu-sep"></div>
           <div class="menu-item" id="menu-about">About</div>
         </div>
       </div>
     </div>
     <div class="nav-row" id="nav-row-profiles">
+      <span class="nav-label">terminal-clis</span>
       <nav id="profiles"><!-- .profile-pill per profile (boot.js) --></nav>
     </div>
   </header>
