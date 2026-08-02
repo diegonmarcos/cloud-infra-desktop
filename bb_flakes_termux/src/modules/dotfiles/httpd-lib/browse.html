@@ -123,6 +123,9 @@ body {
   text-overflow: ellipsis;
   position: relative;
 }
+.file-entry.is-broken { opacity: .55; cursor: default; text-decoration: line-through; }
+.file-entry.is-broken:hover { background: none; }
+.broken-tag { font-size: .8em; opacity: .8; text-decoration: none; font-style: italic; }
 
 .file-entry[title]:hover::after {
   content: attr(title);
@@ -496,10 +499,19 @@ function renderEntries(entries, isSearch) {
     const absPath = isSearch
       ? (currentDir === '/' ? '/' + e.path : currentDir + '/' + e.path)
       : (currentDir === '/' ? '/' + e.name : currentDir + '/' + e.name);
-    const icon = e.isDir ? '&#128193;' : fileIcon(fullName);
+    // A dangling symlink used to be dropped by the server's stat() filter, so
+    // it vanished from the listing entirely — identical to a file that never
+    // existed. It is listed now, marked, and NOT clickable: there is nothing
+    // behind it to open, and the target is shown so the reason is visible
+    // without dropping to a shell.
+    const icon = e.broken ? '&#128279;' : (e.isDir ? '&#128193;' : fileIcon(fullName));
     const el = mkEntry(icon, displayName, e.isDir, absPath);
 
-    if (e.isDir) {
+    if (e.broken) {
+      el.classList.add('is-broken');
+      el.title = 'broken symlink \u2192 ' + (e.target || '(unreadable)');
+      el.innerHTML += ' <span class="broken-tag">\u2192 ' + esc(e.target || '?') + ' (broken)</span>';
+    } else if (e.isDir) {
       el.addEventListener('click', () => loadDir(absPath));
     } else {
       el.addEventListener('click', () => openFile(absPath, el));

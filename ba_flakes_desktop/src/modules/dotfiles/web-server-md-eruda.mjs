@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile, stat, readdir } from 'node:fs/promises';
+import { readFile, stat, lstat, readlink, readdir } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { homedir } from 'node:os';
 import process from 'node:process';
@@ -424,8 +424,20 @@ const server = createServer(async (req, res) => {
       const entries = [];
       for (const name of items) {
         if (name.startsWith('.')) continue;
-        const s = await stat(join(fsDir, name)).catch(() => null);
-        if (s) entries.push({ name, isDir: s.isDirectory() });
+        const full = join(fsDir, name);
+        const s = await stat(full).catch(() => null);
+        if (s) { entries.push({ name, isDir: s.isDirectory() }); continue; }
+        // stat() FOLLOWS symlinks, so a dangling one throws ENOENT and used to
+        // be dropped here — the entry simply vanished from the listing, which
+        // is indistinguishable from "the file was never there". That cost real
+        // debugging time on a link that was one ../ short of its target: the
+        // shell showed the file, the browser showed nothing, and neither said
+        // why. lstat() stats the LINK rather than what it points at, so a
+        // broken one can be listed as what it actually is.
+        const l = await lstat(full).catch(() => null);
+        if (l && l.isSymbolicLink()) {
+          entries.push({ name, isDir: false, broken: true, target: await readlink(full).catch(() => null) });
+        }
       }
       entries.sort((a, b) => (b.isDir - a.isDir) || a.name.localeCompare(b.name));
       res.writeHead(200, { 'content-type': 'application/json' });
