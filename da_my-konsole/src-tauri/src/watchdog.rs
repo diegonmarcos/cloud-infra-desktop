@@ -32,9 +32,7 @@ struct CpuTotals {
     total: u64,
 }
 
-fn read_cpu() -> CpuTotals {
-    let Ok(s) = fs::read_to_string("/proc/stat") else { return CpuTotals::default() };
-    let Some(line) = s.lines().next() else { return CpuTotals::default() };
+fn parse_cpu_line(line: &str) -> CpuTotals {
     let v: Vec<u64> = line
         .split_whitespace()
         .skip(1)
@@ -43,6 +41,26 @@ fn read_cpu() -> CpuTotals {
     // user nice system idle iowait irq softirq steal …
     let idle = v.get(3).copied().unwrap_or(0) + v.get(4).copied().unwrap_or(0);
     CpuTotals { idle, total: v.iter().sum() }
+}
+
+/// Aggregate plus one entry per core. The panel wants per-core bars, and
+/// /proc/stat already carries them — sampling the aggregate separately would
+/// read the same file twice for numbers that must agree.
+fn read_cpu_all() -> (CpuTotals, Vec<CpuTotals>) {
+    let Ok(s) = fs::read_to_string("/proc/stat") else { return (CpuTotals::default(), Vec::new()) };
+    let mut agg = CpuTotals::default();
+    let mut cores = Vec::new();
+    for l in s.lines() {
+        if !l.starts_with("cpu") {
+            break; // the cpu* lines are contiguous and first
+        }
+        if l.starts_with("cpu ") {
+            agg = parse_cpu_line(l);
+        } else {
+            cores.push(parse_cpu_line(l));
+        }
+    }
+    (agg, cores)
 }
 
 fn cpu_percent(prev: CpuTotals, now: CpuTotals) -> f64 {
@@ -76,23 +94,179 @@ fn meminfo() -> (f64, f64) {
 // sensor exposes it — /proc/pressure has no KSystemStats backend, which is why
 // the old top panel faked it with diskusage widgets pointed at pressure paths
 // and mislabelled titles. Read it directly instead.
-fn pressure(kind: &str) -> f64 {
+//
+// BOTH lines, because the panel this replaces displayed both: one widget
+// carried pressure/{cpu,io,memory}/some10Sec and another carried the full10Sec
+// variants. `some` is "at least one task stalled", `full` is "every task
+// stalled" — on a box that thrashes, full is the one that means the machine
+// stopped, so dropping it would lose the more alarming number.
+fn pressure(kind: &str, line: &str, window: &str) -> f64 {
     fs::read_to_string(format!("/proc/pressure/{kind}"))
         .ok()
         .and_then(|s| {
             s.lines()
-                .find(|l| l.starts_with("some"))?
+                .find(|l| l.starts_with(line))?
                 .split_whitespace()
-                .find_map(|f| f.strip_prefix("avg10=")?.parse::<f64>().ok())
+                .find_map(|f| f.strip_prefix(window)?.parse::<f64>().ok())
         })
         .unwrap_or(0.0)
+}
+
+/// One kind's full picture: some/full across all three windows the kernel
+/// keeps. The panel shows avg10 as the live bar and avg60 as the "1 min"
+/// reading, and there is no cost to publishing avg300 alongside.
+fn pressure_block(kind: &str) -> String {
+    let g = |l: &str, w: &str| pressure(kind, l, w);
+    format!(
+        "{{\"some10\":{:.2},\"some60\":{:.2},\"some300\":{:.2},\
+          \"full10\":{:.2},\"full60\":{:.2},\"full300\":{:.2}}}",
+        g("some", "avg10="), g("some", "avg60="), g("some", "avg300="),
+        g("full", "avg10="), g("full", "avg60="), g("full", "avg300=")
+    )
+}
+
+/// Top processes by RSS, for the expanded view's killable table. Read straight
+/// from /proc rather than forking ps every 2s — this runs forever.
+fn top_procs(n: usize) -> String {
+    let mut v: Vec<(u64, i32, String)> = Vec::new();
+    let Ok(rd) = fs::read_dir("/proc") else { return "[]".into() };
+    for e in rd.flatten() {
+        let name = e.file_name();
+        let Some(nm) = name.to_str() else { continue };
+        let Ok(pid) = nm.parse::<i32>() else { continue };
+        let Ok(st) = fs::read_to_string(format!("/proc/{pid}/status")) else { continue };
+        let rss = st
+            .lines()
+            .find(|l| l.starts_with("VmRSS:"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|x| x.parse::<u64>().ok())
+            .unwrap_or(0);
+        if rss == 0 {
+            continue;
+        }
+        let comm = st
+            .lines()
+            .find(|l| l.starts_with("Name:"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .unwrap_or("?")
+            .to_string();
+        v.push((rss, pid, comm));
+    }
+    v.sort_unstable_by(|a, b| b.0.cmp(&a.0));
+    v.truncate(n);
+    let items: Vec<String> = v
+        .iter()
+        .map(|(rss, pid, comm)| {
+            // Escape the name: a process can be called anything, and one quote
+            // in it would make the whole snapshot unparseable.
+            let safe: String = comm.chars().filter(|c| c.is_alphanumeric() || "-_.".contains(*c)).collect();
+            format!("{{\"pid\":{pid},\"rss\":{:.0},\"name\":\"{safe}\"}}", *rss as f64 / 1024.0)
+        })
+        .collect();
+    format!("[{}]", items.join(","))
+}
+
+// Disk throughput, matching the panel's disk/all/read + disk/all/write.
+// /proc/diskstats is cumulative sectors since boot, so this needs the same
+// two-sample treatment as CPU. Sectors are 512 bytes by kernel convention
+// regardless of the device's physical block size.
+#[derive(Default, Clone, Copy)]
+struct DiskTotals {
+    read_sectors: u64,
+    write_sectors: u64,
+}
+
+fn read_diskstats() -> DiskTotals {
+    let Ok(s) = fs::read_to_string("/proc/diskstats") else { return DiskTotals::default() };
+    let mut t = DiskTotals::default();
+    for l in s.lines() {
+        let f: Vec<&str> = l.split_whitespace().collect();
+        if f.len() < 10 {
+            continue;
+        }
+        // Skip partitions and virtual devices, or every byte is counted twice
+        // (once for sda, again for sda1). Whole disks only.
+        let name = f[2];
+        if name.starts_with("loop") || name.starts_with("ram") || name.starts_with("dm-") {
+            continue;
+        }
+        if name.chars().last().is_some_and(|c| c.is_ascii_digit()) && !name.starts_with("nvme") {
+            continue;
+        }
+        if name.starts_with("nvme") && name.contains('p') {
+            continue;
+        }
+        t.read_sectors += f[5].parse::<u64>().unwrap_or(0);
+        t.write_sectors += f[9].parse::<u64>().unwrap_or(0);
+    }
+    t
+}
+
+fn disk_rate_mb(prev: DiskTotals, now: DiskTotals, secs: f64) -> (f64, f64) {
+    if secs <= 0.0 {
+        return (0.0, 0.0);
+    }
+    let b = |a: u64, b: u64| (a.saturating_sub(b) as f64 * 512.0) / 1_048_576.0 / secs;
+    (b(now.read_sectors, prev.read_sectors), b(now.write_sectors, prev.write_sectors))
+}
+
+// Network throughput, both directions, summed across real interfaces.
+// /proc/net/dev is cumulative bytes, so same two-sample treatment as cpu/disk.
+#[derive(Default, Clone, Copy)]
+struct NetTotals {
+    rx: u64,
+    tx: u64,
+}
+
+fn read_net() -> NetTotals {
+    let Ok(s) = fs::read_to_string("/proc/net/dev") else { return NetTotals::default() };
+    let mut t = NetTotals::default();
+    for l in s.lines().skip(2) {
+        let Some((name, rest)) = l.split_once(':') else { continue };
+        let name = name.trim();
+        // Loopback would double every local connection, and the virtual
+        // bridges docker/wireguard create carry traffic already counted on the
+        // physical interface it leaves by.
+        if name == "lo" || name.starts_with("veth") || name.starts_with("br-") || name.starts_with("docker") {
+            continue;
+        }
+        let f: Vec<&str> = rest.split_whitespace().collect();
+        t.rx += f.first().and_then(|x| x.parse::<u64>().ok()).unwrap_or(0);
+        t.tx += f.get(8).and_then(|x| x.parse::<u64>().ok()).unwrap_or(0);
+    }
+    t
+}
+
+fn net_rate_mb(prev: NetTotals, now: NetTotals, secs: f64) -> (f64, f64) {
+    if secs <= 0.0 {
+        return (0.0, 0.0);
+    }
+    let r = |a: u64, b: u64| (a.saturating_sub(b) as f64) / 1_048_576.0 / secs;
+    (r(now.rx, prev.rx), r(now.tx, prev.tx))
+}
+
+// Load average — the one number that is already an average, so it needs no
+// sampling state and says something the instantaneous percentages cannot:
+// how many tasks wanted a CPU, including the ones that never got one.
+fn loadavg() -> (f64, f64, f64) {
+    fs::read_to_string("/proc/loadavg")
+        .ok()
+        .map(|s| {
+            let f: Vec<f64> = s.split_whitespace().take(3).filter_map(|x| x.parse().ok()).collect();
+            (
+                f.first().copied().unwrap_or(0.0),
+                f.get(1).copied().unwrap_or(0.0),
+                f.get(2).copied().unwrap_or(0.0),
+            )
+        })
+        .unwrap_or((0.0, 0.0, 0.0))
 }
 
 // The user slice's cap is what actually decides who gets OOM-killed on this
 // box — the machine has more RAM than the slice is allowed to use, so free(1)
 // reads healthy while the session is being reaped. Publish both numbers.
 fn slice_mem() -> (f64, f64) {
-    let uid = unsafe { libc_getuid() };
+    let uid = current_uid();
     let base = format!("/sys/fs/cgroup/user.slice/user-{uid}.slice");
     let read = |f: &str| -> f64 {
         fs::read_to_string(format!("{base}/{f}"))
@@ -103,8 +277,10 @@ fn slice_mem() -> (f64, f64) {
     (read("memory.current") / 1_073_741_824.0, read("memory.max") / 1_073_741_824.0)
 }
 
-// Avoiding a libc dependency for one call — the uid is also in /proc/self/status.
-unsafe fn libc_getuid() -> u32 {
+// Read from /proc/self/status rather than libc::getuid(): the uid is needed to
+// build a cgroup path, and a path that silently points at the wrong slice is
+// worse than one that fails loudly. This way the fallback is explicit.
+fn current_uid() -> u32 {
     fs::read_to_string("/proc/self/status")
         .ok()
         .and_then(|s| {
@@ -118,32 +294,108 @@ unsafe fn libc_getuid() -> u32 {
         .unwrap_or(1000)
 }
 
+// Root filesystem fullness, matching the panel's disk/all/total widget.
+// Rust std has no statvfs, so this goes through libc — one FFI call every 2s
+// is cheaper than forking df, which is the only alternative that does not
+// involve reimplementing filesystem-specific superblock parsing.
 fn disk_root_percent() -> f64 {
-    // statvfs without libc: /proc/self/mountinfo gives the device, but the
-    // simplest portable read here is the cgroup-free `df`-equivalent in
-    // /proc — which does not exist. Fall back to 0 rather than shelling out
-    // every 2s; disk fullness changes on a scale where the Data panel's
-    // on-demand commands are the right place for it.
-    0.0
+    let path = std::ffi::CString::new("/").unwrap();
+    let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+    if unsafe { libc::statvfs(path.as_ptr(), &mut st) } != 0 {
+        return 0.0;
+    }
+    let total = st.f_blocks as f64;
+    if total <= 0.0 {
+        return 0.0;
+    }
+    // f_bavail, not f_bfree: the reserved-for-root blocks are not space the
+    // user can use, and df reports the same way.
+    let used = total - st.f_bavail as f64;
+    (used / total) * 100.0
 }
 
-/// Serialise one sample. Hand-rolled rather than serde_json: this is eight
-/// numbers on a 2s timer, and the file is read by QML's JSON.parse.
-fn render(cpu: f64, mem: f64, swap: f64, psi_cpu: f64, psi_io: f64, psi_mem: f64, slice_cur: f64, slice_max: f64) -> String {
-    let mut s = String::with_capacity(256);
+/// Serialise one sample. Hand-rolled rather than serde_json: it is a fixed
+/// shape written every 2s and read by QML's JSON.parse, and the whole point of
+/// this file is that the machine is measured once and cheaply.
+#[allow(clippy::too_many_arguments)]
+fn render(
+    cpu: f64, cores: &[f64],
+    mem: f64, swap: f64,
+    disk: f64, disk_r: f64, disk_w: f64,
+    net_rx: f64, net_tx: f64,
+    load1: f64, load5: f64, load15: f64,
+    slice_cur: f64, slice_max: f64,
+    procs: &str,
+) -> String {
+    let core_list: Vec<String> = cores.iter().map(|c| format!("{c:.1}")).collect();
+    let mut s = String::with_capacity(1024);
     let _ = write!(
         s,
-        "{{\"cpu\":{cpu:.1},\"mem\":{mem:.1},\"swap\":{swap:.1},\
-         \"psi_cpu\":{psi_cpu:.2},\"psi_io\":{psi_io:.2},\"psi_mem\":{psi_mem:.2},\
-         \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\
-         \"disk\":{:.1},\"ts\":{}}}",
-        disk_root_percent(),
+        "{{\"cpu\":{cpu:.1},\"cores\":[{}],\
+          \"mem\":{mem:.1},\"swap\":{swap:.1},\
+          \"disk\":{disk:.1},\"disk_r\":{disk_r:.2},\"disk_w\":{disk_w:.2},\
+          \"psi\":{{\"cpu\":{},\"io\":{},\"memory\":{}}},\
+          \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\
+          \"procs\":{procs},\"ts\":{}}}",
+        core_list.join(","),
+        pressure_block("cpu"),
+        pressure_block("io"),
+        pressure_block("memory"),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0)
     );
     s
+}
+
+/// Signals the panel's process table may send. Not just SIGTERM/SIGKILL: a
+/// process table that can only destroy is a blunt instrument, and the reason
+/// this one exists is a machine that thrashes — STOP/CONT to freeze a runaway
+/// without losing its state is often the right first move, and HUP is how you
+/// tell a daemon to reload rather than die.
+fn signal_by_name(name: &str) -> Option<i32> {
+    Some(match name {
+        "TERM" => libc::SIGTERM, // ask politely; the default
+        "KILL" => libc::SIGKILL, // unignorable, unmaskable, no cleanup
+        "INT"  => libc::SIGINT,  // as if Ctrl-C
+        "HUP"  => libc::SIGHUP,  // reload for daemons, hangup for the rest
+        "QUIT" => libc::SIGQUIT, // terminate + core dump
+        "STOP" => libc::SIGSTOP, // freeze without killing — unignorable
+        "CONT" => libc::SIGCONT, // resume a stopped one
+        "USR1" => libc::SIGUSR1, // application-defined
+        _ => return None,
+    })
+}
+
+/// A signal requested from the panel. QML cannot signal a process, and giving a
+/// widget an exec path is worse than giving the daemon a mailbox: the daemon
+/// already runs as this user, so it can only ever signal what the user could.
+/// Each line is "<pid> <SIG>"; the file is consumed on read, so a stale request
+/// cannot fire twice.
+fn drain_kill_requests() {
+    let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") else { return };
+    let req = PathBuf::from(&dir).join("my-konsole-watchdog.kill");
+    let Ok(body) = fs::read_to_string(&req) else { return };
+    let _ = fs::remove_file(&req);
+    for line in body.lines() {
+        let mut it = line.split_whitespace();
+        let Some(Ok(pid)) = it.next().map(|x| x.parse::<i32>()) else { continue };
+        let sig = it.next().unwrap_or("TERM");
+        let Some(signum) = signal_by_name(sig) else {
+            eprintln!("[watchdog] unknown signal {sig:?} — ignored");
+            continue;
+        };
+        // Never signal init or ourselves. kill(2) already stops us reaching
+        // another user's processes; this stops the panel stopping the thing
+        // that feeds it, which would leave the widget frozen and blameless.
+        if pid <= 1 || pid == std::process::id() as i32 {
+            eprintln!("[watchdog] refusing to signal pid {pid}");
+            continue;
+        }
+        unsafe { libc::kill(pid, signum) };
+        eprintln!("[watchdog] SIG{sig} -> pid {pid} (requested from panel)");
+    }
 }
 
 /// Publish atomically — a widget polling on its own timer must never read a
@@ -165,23 +417,41 @@ pub fn spawn() {
         return;
     };
     std::thread::spawn(move || {
-        let mut prev = read_cpu();
+        let (mut prev, mut prev_cores) = read_cpu_all();
+        let mut prev_disk = read_diskstats();
+        let mut prev_net = read_net();
         loop {
             std::thread::sleep(std::time::Duration::from_millis(INTERVAL_MS));
-            let now = read_cpu();
+            drain_kill_requests();
+
+            let (now, now_cores) = read_cpu_all();
             let cpu = cpu_percent(prev, now);
+            let cores: Vec<f64> = now_cores
+                .iter()
+                .zip(prev_cores.iter().chain(std::iter::repeat(&CpuTotals::default())))
+                .map(|(n, p)| cpu_percent(*p, *n))
+                .collect();
             prev = now;
+            prev_cores = now_cores;
+
+            let now_disk = read_diskstats();
+            let (disk_r, disk_w) = disk_rate_mb(prev_disk, now_disk, INTERVAL_MS as f64 / 1000.0);
+            prev_disk = now_disk;
+
+            let now_net = read_net();
+            let (net_rx, net_tx) = net_rate_mb(prev_net, now_net, INTERVAL_MS as f64 / 1000.0);
+            prev_net = now_net;
+            let (load1, load5, load15) = loadavg();
+
             let (mem, swap) = meminfo();
             let (slice_cur, slice_max) = slice_mem();
             let body = render(
-                cpu,
-                mem,
-                swap,
-                pressure("cpu"),
-                pressure("io"),
-                pressure("memory"),
-                slice_cur,
-                slice_max,
+                cpu, &cores, mem, swap,
+                disk_root_percent(), disk_r, disk_w,
+                net_rx, net_tx,
+                load1, load5, load15,
+                slice_cur, slice_max,
+                &top_procs(12),
             );
             publish(&path, &body);
         }
@@ -204,10 +474,25 @@ mod tests {
         assert_eq!(cpu_percent(a, a), 0.0);
     }
 
+    // Disk throughput is cumulative sectors, same trap as CPU: a wrong delta
+    // shows an idle disk as saturated or vice versa.
+    #[test]
+    fn disk_rate_is_bytes_per_second_between_samples() {
+        let a = DiskTotals { read_sectors: 0, write_sectors: 0 };
+        let b = DiskTotals { read_sectors: 2048, write_sectors: 4096 }; // 1MiB / 2MiB
+        let (r, w) = disk_rate_mb(a, b, 2.0);
+        assert!((r - 0.5).abs() < 0.01, "expected 0.5 MB/s read, got {r}");
+        assert!((w - 1.0).abs() < 0.01, "expected 1.0 MB/s write, got {w}");
+        assert_eq!(disk_rate_mb(a, b, 0.0), (0.0, 0.0));
+    }
+
     #[test]
     fn render_is_parseable_json_with_every_field() {
-        let s = render(12.5, 40.0, 1.0, 0.5, 0.25, 0.0, 4.9, 5.6);
-        for k in ["cpu", "mem", "swap", "psi_cpu", "psi_io", "psi_mem", "slice_gib", "slice_max_gib", "ts"] {
+        let s = render(12.5, &[10.0, 20.0, 30.0, 40.0], 40.0, 1.0,
+                       55.0, 1.5, 2.5, 0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, "[]");
+        for k in ["cpu", "cores", "mem", "swap", "disk", "disk_r", "disk_w",
+                  "net_rx", "net_tx", "load1", "load5", "load15",
+                  "psi", "slice_gib", "slice_max_gib", "procs", "ts"] {
             assert!(s.contains(&format!("\"{k}\":")), "missing {k} in {s}");
         }
         assert!(s.starts_with('{') && s.ends_with('}'), "not an object: {s}");

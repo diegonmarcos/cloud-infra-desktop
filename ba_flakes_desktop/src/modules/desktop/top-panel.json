@@ -7,11 +7,8 @@
       "name": "com.diegonmarcos.watchdog",
       "config": {
         "General": {
-          "showCpu": true,
-          "showMem": true,
-          "showSwap": true,
-          "showPsi": false,
-          "showSlice": false
+          "mode": "left",
+          "uid": 1000
         }
       }
     },
@@ -28,11 +25,8 @@
       "name": "com.diegonmarcos.watchdog",
       "config": {
         "General": {
-          "showCpu": false,
-          "showMem": false,
-          "showSwap": false,
-          "showPsi": true,
-          "showSlice": true
+          "mode": "right",
+          "uid": 1000
         }
       }
     }
