@@ -81,6 +81,9 @@ libs/
 ## Added 2026-07-22 after ic_3d_cube.xml silently vanished from `git add`.
 !ea_cloud-nav/libs/
 !ea_cloud-nav/libs/**
+## Added 2026-08-03 for cloud-calendar standalone app.
+!ea_cloud-calendar/libs/
+!ea_cloud-calendar/libs/**
 ## Signing keystores are generated in CI only — never vendored.
 ea_cloud-superapp/**/*.keystore
 ea_cloud-superapp/**/*.jks
