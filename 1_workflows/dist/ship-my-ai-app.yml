@@ -11,12 +11,15 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 name: ship-my-ai-app
-# Build the my-ai Rust workspace, matrixed per-arch. my-ai (CLI) + my-ai-dash
-# (ratatui TTY) are pure Rust → built for x86_64 AND aarch64. my-ai-gui (Tauri v2
-# systray/webview) needs webkit → x86_64 only (build.gui_arches). Toolchain comes
-# from da_my-ai/flake.nix; CI just needs nix. Publishes arch-suffixed binaries
-# (+ x86 .deb) to a rolling GitHub Release (my-ai-latest): desktop (x86_64) pulls
-# the trio, termux (aarch64) pulls cli+dash — via da_my-ai/build.sh install.
+# Build the my-ai Rust workspace, matrixed per-arch. my-ai (CLI) is pure Rust →
+# built for x86_64 AND aarch64. my-ai-gui (Tauri v2 systray/webview) needs
+# webkit → x86_64 only (build.gui_arches). Toolchain comes from
+# da_my-ai/flake.nix; CI just needs nix. Publishes arch-suffixed binaries
+# (+ x86 .deb) to a rolling GitHub Release (my-ai-latest): desktop (x86_64)
+# pulls cli+gui, termux (aarch64) pulls cli only — via da_my-ai/build.sh install.
+# my-ai-dash (the ratatui TUI, execed internally by `my-ai --help`/`-h`/no-args)
+# is built for both arches too, but only ever lands in $STORE — never on PATH,
+# never a standalone command.
 on:
   push:
     branches: [main]
