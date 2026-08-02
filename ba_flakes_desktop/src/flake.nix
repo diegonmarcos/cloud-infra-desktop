@@ -233,6 +233,7 @@
         ./modules/cloud-network-wg-public.nix
         ./modules/wireguard-wstunnel.nix
         ./modules/front.nix
+        ./app_especific   # was orphaned (nothing imported it) — now the sole owner of AI + app leaves
       ];
 
       # ============================================================
