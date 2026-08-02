@@ -105,6 +105,16 @@ sync_data() {
   # must not keep resolving to the old file left behind here.
   rm -rf "$STORE/systray-icons"; mkdir -p "$STORE/systray-icons"
   command cp -f configs/systray-icons/*.svg "$STORE/systray-icons/" 2>/dev/null || true
+  # Watchdog panel widget. Goes to Plasma's plasmoid dir rather than $STORE
+  # because that is the only path plasmashell looks in; the widget itself is
+  # just a reader of the snapshot the tray daemon publishes. rm first so a
+  # renamed file cannot linger and shadow the new one.
+  _pl="$HOME/.local/share/plasma/plasmoids/com.diegonmarcos.watchdog"
+  if [ -d configs/plasmoid/com.diegonmarcos.watchdog ]; then
+    rm -rf "$_pl"; mkdir -p "$(dirname "$_pl")"
+    command cp -rf configs/plasmoid/com.diegonmarcos.watchdog "$_pl" 2>/dev/null || true
+    log "Installed watchdog plasmoid → $_pl"
+  fi
   log "Synced profiles + config + shared + systrays → $STORE"
 }
 
