@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-// nix-switch-progress.mjs — parse nix's `--log-format internal-json` activity
+// progress.mjs — parse nix's `--log-format internal-json` activity
 // stream (on stdin) into a real percentage and print a single, data-dense
 // ASCII progress line (both an overall bar and a current-step bar, byte
 // sizes, elapsed/remaining/total ETA) to its own stdout for every update.
 // Consumed by the wrapper's ONE companion Konsole window — see
-// nix-switch-progress.nix. Invoked by nix-switch-progress.nix; never run
-// directly. No kdialog / D-Bus involved — this is the only progress surface,
-// by design (previously drove two separate kdialog popup windows; merged
-// into this single in-window text line 2026-07-04 per direct request).
+// default.nix (programs/flakes-switch-progress-logs). Invoked by
+// default.nix; never run directly. No kdialog / D-Bus involved — this is
+// the only progress surface, by design (previously drove two separate
+// kdialog popup windows; merged into this single in-window text line
+// 2026-07-04 per direct request).
 //
 // nix emits, on stderr, lines containing `@nix {…json…}`. Relevant events:
 //   action:"start"  type:105 (actBuild)      text:"building '/nix/store/…drv'"

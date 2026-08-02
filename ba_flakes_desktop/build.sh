@@ -348,17 +348,21 @@ nix_switch() {
     HM_BACKUP_EXT="hm-backup-$(date +%Y%m%d-%H%M%S)"
     log_info "home-manager backup extension: $HM_BACKUP_EXT"
 
-    # KDE progress popup (programs/nix-switch-progress.nix) — transparent when
-    # absent or non-graphical (SSH/CI): falls back to a plain passthrough exec.
+    # KDE progress popup (programs/flakes-switch-progress-logs/default.nix) —
+    # the window itself is now owned by the global re-exec at the bottom of
+    # this script; this wrap just runs in NESTED mode, supplying
+    # --log-format internal-json for the byte-level nix build bars and
+    # feeding them into that same window. Still transparent when absent or
+    # non-graphical (SSH/CI): falls back to a plain passthrough exec.
     # NSP_SRC_DIR/NSP_FLAKE_ATTR feed the wrapper's git-diff + closure-size panel.
     _nsp=""
-    command -v nix-switch-progress-wrap >/dev/null 2>&1 && _nsp="nix-switch-progress-wrap"
+    command -v flakes-switch-progress-logs >/dev/null 2>&1 && _nsp="flakes-switch-progress-logs"
     export NSP_SRC_DIR="$SRC_DIR"
     export NSP_FLAKE_ATTR="$SRC_DIR#homeConfigurations.\"${user}@${host}\".activationPackage"
 
     # Capture exit code from the actual command, not tee. NSP_LOG_FILE lets
     # the wrapper's own internal tee write $LOG_FILE (avoids double-teeing
-    # when the wrapper is active — see nix-switch-progress.nix).
+    # when the wrapper is active — see default.nix).
     _rc_file=$(mktemp)
     if check_home_manager 2>/dev/null; then
         if [ -n "$_nsp" ]; then
@@ -1200,9 +1204,11 @@ cmd_pull() {
     _tb="$_art/hm-closure.nar.zst"
 
     # KDE progress popup (verbosity + progress bar + Cancel) for the PULL path —
-    # the SAME wrapper the local-eval switch uses. Transparent passthrough when
-    # the wrapper is absent or the session is non-graphical (SSH/CI: exec "$@").
-    _nsp=""; command -v nix-switch-progress-wrap >/dev/null 2>&1 && _nsp="nix-switch-progress-wrap"
+    # the SAME wrapper the local-eval switch uses, now in NESTED mode (the
+    # window itself is owned by the global re-exec at the bottom of this
+    # script). Transparent passthrough when the wrapper is absent or the
+    # session is non-graphical (SSH/CI: exec "$@").
+    _nsp=""; command -v flakes-switch-progress-logs >/dev/null 2>&1 && _nsp="flakes-switch-progress-logs"
     export NSP_SRC_DIR="$SRC_DIR"
 
     _sys=""
@@ -1878,19 +1884,27 @@ main() {
                     fi
                     log_info "Isolating switch into $_iso_slice (mem≤$_iso_mm swap≤$_iso_sm) — the desktop can NOT be frozen by this transfer."
 
-                    # ── MANDATORY POPUP: a Konsole window tailing build.log live
-                    # (the isolated switch's per-path progress goes there via log()).
-                    # Headless-safe — the konsole/notify are handed the resolved
-                    # session env so they draw even when the launcher had none.
-                    if [ -n "$_iso_wl$_iso_x" ] && command -v konsole >/dev/null 2>&1; then
+                    # ── MANDATORY notify-send toast (always fires — a toast
+                    # is not a window) + a companion Konsole window tailing
+                    # build.log live, guarded to fire ONLY when NSP_ACTIVE is
+                    # unset: if it's already set, the global re-exec at the
+                    # bottom of this script (flakes-switch-progress-logs, see
+                    # default.nix) already owns a window showing this same
+                    # build.log-backed progress, so opening this one too
+                    # would be a second, competing window. Headless-safe —
+                    # the konsole/notify are handed the resolved session env
+                    # so they draw even when the launcher had none.
+                    if [ -n "$_iso_wl$_iso_x" ]; then
                         command -v notify-send >/dev/null 2>&1 && \
                           WAYLAND_DISPLAY="$_iso_wl" DISPLAY="$_iso_x" XDG_RUNTIME_DIR="$_iso_xdg" DBUS_SESSION_BUS_ADDRESS="$_iso_dbus" \
                           notify-send -u critical -i system-software-update \
                             "Nix switch STARTED" "Pulling + activating. Live progress window opening. Isolated in $_iso_slice — desktop protected." >/dev/null 2>&1 || true
-                        WAYLAND_DISPLAY="$_iso_wl" DISPLAY="$_iso_x" XDG_RUNTIME_DIR="$_iso_xdg" DBUS_SESSION_BUS_ADDRESS="$_iso_dbus" QT_QPA_PLATFORM="" \
-                          konsole --hold -p ColorScheme=DarkPastels -p tabtitle="Nix Switch — LIVE progress" \
-                            -e bash -c "echo '=== NIX SWITCH — LIVE PROGRESS (isolated in $_iso_slice) ==='; echo '--- [journal] filtered nix activity + [build.log] per-path progress ---'; ( journalctl -f -o short-iso -u hm-switch-isolated.service _COMM=nix-daemon _COMM=nix 2>/dev/null | sed 's/^/[journal] /' & ); tail -n 60 -f '$LOG_FILE'" >/dev/null 2>&1 &
-                        _popup_pid=$!
+                        if [ -z "${NSP_ACTIVE:-}" ] && command -v konsole >/dev/null 2>&1; then
+                            WAYLAND_DISPLAY="$_iso_wl" DISPLAY="$_iso_x" XDG_RUNTIME_DIR="$_iso_xdg" DBUS_SESSION_BUS_ADDRESS="$_iso_dbus" QT_QPA_PLATFORM="" \
+                              konsole --hold -p ColorScheme=DarkPastels -p tabtitle="Nix Switch — LIVE progress" \
+                                -e bash -c "echo '=== NIX SWITCH — LIVE PROGRESS (isolated in $_iso_slice) ==='; echo '--- [journal] filtered nix activity + [build.log] per-path progress ---'; ( journalctl -f -o short-iso -u hm-switch-isolated.service _COMM=nix-daemon _COMM=nix 2>/dev/null | sed 's/^/[journal] /' & ); tail -n 60 -f '$LOG_FILE'" >/dev/null 2>&1 &
+                            _popup_pid=$!
+                        fi
                     else
                         log_warn "no graphical session resolved — switch runs headless (no popup this time)."
                     fi
@@ -2061,14 +2075,32 @@ main() {
 # re-exec — nothing below runs when sourced for tests.
 if [ -z "${BUILDSH_SOURCE_ONLY:-}" ]; then
 
-# The MANDATORY switch popup (notify-send + a Konsole window tailing build.log
-# live) is now fired inside main()'s isolation block for switch/pull/switch-
-# remote — in the outer desktop context, BEFORE isolating into workload.slice,
-# so it always appears and doesn't depend on the (deploy-lagging) progress
-# wrapper. The old bottom-of-file `nix-switch-progress-wrap` re-exec was removed
-# (2026-07-10): the OLD deployed wrapper appended `--log-format internal-json`
-# unconditionally, which build.sh does not accept, and it opened a second
-# competing window. `switch local` still self-wraps inside nix_switch().
+# Re-exec the WHOLE invocation through flakes-switch-progress-logs so every
+# build.sh run — not just nix_switch()/pull's own internal wraps, but also
+# the surgical `switch <app>`/dotfiles paths that never touched the wrapper
+# before — gets the ONE Konsole progress window. NSP_ACTIVE (set by this exec
+# before main() starts) guards against re-wrapping an already-wrapped run.
+# FSPL_NO_WRAP=1 is the documented manual opt-out. flakes-switch-progress-logs
+# is itself a passthrough (plain `exec "$@"`, no window) the moment there's no
+# $DISPLAY/$WAYLAND_DISPLAY or no konsole — that check is the FIRST thing
+# owner mode does (see default.nix) — so this is a no-op over SSH/CI/headless.
+#
+# A re-exec like this one existed here before and was removed (2026-07-10)
+# for two reasons: (a) the deployed wrapper appended `--log-format
+# internal-json` unconditionally, which most of what build.sh runs (gh run
+# download, zstd, docker, nix-store --import, the activation script itself)
+# does not accept, breaking them outright; (b) it opened a SECOND window
+# competing with the isolated-switch path's own `konsole --hold ... tail -f`
+# (this file, main()'s isolation block, ~line 1892). Reason (a) is fixed: the
+# wrapper only appends that flag when $1 is nix/home-manager (default.nix).
+# Reason (b) is fixed by the wrapper's owner/nested-mode split (default.nix)
+# plus gating the isolated-switch path's own konsole spawn on NSP_ACTIVE being
+# unset (above) — so there is never more than one window. Don't re-remove
+# this without re-solving both, or history repeats a third time.
+if [ -z "${NSP_ACTIVE:-}" ] && [ -z "${FSPL_NO_WRAP:-}" ] && command -v flakes-switch-progress-logs >/dev/null 2>&1; then
+  exec flakes-switch-progress-logs "$0" "$@"
+fi
+
 main "$@"
 
 fi

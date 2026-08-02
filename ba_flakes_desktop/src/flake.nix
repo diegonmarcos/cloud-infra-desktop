@@ -80,6 +80,16 @@
               hash = "sha256-GVCpiHip6vxuz6RKRhVk1A7L1I2zuYurDUFloo/xLAs=";
             };
           });
+          # Plasma bump (2026-08-01): 25.05-stable ships Plasma 6.2.5, which has
+          # a real upstream QML binding-loop bug in PanelConfiguration.qml (a
+          # SpinBox implicitWidth loop that fires every time panel-edit mode
+          # opens — spams the journal and stalls the compositor while editing
+          # widgets). Pull just plasma-desktop + plasma-workspace from
+          # nixpkgs-unstable instead of bumping the whole system off 25.05.
+          kdePackages = prev.kdePackages // {
+            plasma-desktop = final.unstable.kdePackages.plasma-desktop;
+            plasma-workspace = final.unstable.kdePackages.plasma-workspace;
+          };
         })
       ];
 
@@ -215,7 +225,7 @@
         # rust-cargo-deps moved to the dev profile (devProfile) — rust is a dev
         # tool, reached via `dev`; no longer on the pool/login PATH.
         ./modules/programs/dev-shell.nix   # the `dev` bwrap launcher + bubblewrap (always-on)
-        ./modules/programs/nix-switch-progress.nix   # KDE progress popup for any nix command build.sh wraps (always-on)
+        ./modules/programs/flakes-switch-progress-logs   # KDE progress popup for any nix command build.sh wraps (always-on)
         ./modules/programs/hm-auto-update.nix   # poll GHCR for new HM builds, auto build.sh switch (always-on)
         ./modules/programs/disable-baloo.nix   # disable KDE baloo file indexer (CPU/IO hog on this 8GB box)
         ./modules/cloud.nix
