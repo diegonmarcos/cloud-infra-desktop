@@ -33,7 +33,9 @@ in
 
 {
   imports = [
-    ../../app_especific/konsole-ssh-manager-quick-commands.nix
+    # konsole-ssh-manager-quick-commands.nix used to be pulled sideways from
+    # here — app_especific is now always in userModules (flake.nix) and owns
+    # it, so this profile no longer needs its own copy.
     ./session-restore.nix    # Plasma's native session save/restore (inert; loginMode moved out)
     ./default-session.nix    # DECLARATIVE default 4-desktop login layout (data: default-session.json)
     ./cloud-terminal.nix     # pull Cloud Terminal from its GH Release (version-guarded)
