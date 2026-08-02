@@ -205,6 +205,16 @@
       ]
     }
   ],
+  "configs": [
+    {
+      "title": "NixOS host",
+      "paths": ["~/git/unix/aa_desk-usr_x86_surface-linux_nixos/src/**/*.nix", "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/src/flake.lock"]
+    },
+    {
+      "title": "Bootloader",
+      "paths": ["~/git/unix/aa_bootloader/**/*.nix"]
+    }
+  ],
   "order": 11,
   "group": "g5"
 }

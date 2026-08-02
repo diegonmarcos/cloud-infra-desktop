@@ -122,6 +122,12 @@
       ]
     }
   ],
+  "configs": [
+    {
+      "title": "SSH client config",
+      "paths": ["~/.ssh/config"]
+    }
+  ],
   "order": 9,
   "group": "g4"
 }

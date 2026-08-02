@@ -185,6 +185,16 @@
       ]
     }
   ],
+  "configs": [
+    {
+      "title": "rclone",
+      "paths": ["~/.config/rclone/rclone.conf"]
+    },
+    {
+      "title": "Syncthing",
+      "paths": ["~/.local/state/syncthing/config.xml"]
+    }
+  ],
   "order": 5,
   "group": "g2"
 }

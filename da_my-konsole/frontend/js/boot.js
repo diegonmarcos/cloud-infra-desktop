@@ -107,6 +107,9 @@
     for (const el of document.querySelectorAll(".profile-pill")) el.classList.remove("active");
     if (pill) pill.classList.add("active");
     buildSections(p);
+    // Only bother re-globbing if the Configs view is actually visible — same
+    // deal as Tabs.renderTabList(), no reason to do the work for a hidden panel.
+    if (!document.getElementById("configs-panel").hidden) buildConfigs(p);
     Tabs.switchProfile(p, opener);
   }
 
@@ -152,6 +155,65 @@
     for (const t of document.querySelectorAll(".section-title")) t.style.display = "";
   }
   document.getElementById("search").addEventListener("input", (e) => filterSearch(e.target.value));
+
+  // ── Configs panel: glob-expand the active profile's `configs[]` (the
+  // CLI/framework it wraps) into real files, grouped exactly like Commands.
+  // Two "nothing here" cases are deliberately worded differently — no
+  // `configs` key means the profile never claimed a config surface; an empty
+  // glob result means it did, but the patterns found nothing (a real problem,
+  // e.g. a repo that moved).
+  const homeRelative = (p) => {
+    const m = /^\/home\/[^/]+/.exec(p);
+    return m ? "~" + p.slice(m[0].length) : p;
+  };
+  const shQuote = (s) => "'" + s.replace(/'/g, "'\\''") + "'";
+
+  function openConfig(path, profile) {
+    if ((localStorage.getItem("myk-editor") || "vim") === "plain") {
+      Tabs.openFileEditorTab(path, profile);
+      return;
+    }
+    Tabs.openRunTab(`vim ${shQuote(path)}`, path.split("/").filter(Boolean).pop() || path, profile);
+  }
+
+  async function buildConfigs(p) {
+    const host = document.getElementById("configs-list");
+    host.innerHTML = "";
+    if (!p.configs || !p.configs.length) {
+      host.innerHTML = `<div class="configs-muted">This profile declares no config files.</div>`;
+      return;
+    }
+    for (const group of p.configs) {
+      const files = await Transport.fsGlob(group.paths || []);
+      const t = document.createElement("div");
+      t.className = "section-title"; t.textContent = `${group.title} (${files.length})`;
+      host.appendChild(t);
+      if (!files.length) {
+        const m = document.createElement("div");
+        m.className = "configs-muted"; m.textContent = "No files matched these patterns.";
+        host.appendChild(m);
+        continue;
+      }
+      for (const f of files) {
+        const b = document.createElement("button");
+        b.className = "cmd-item";
+        const label = homeRelative(f);
+        b.textContent = label;
+        b.title = f;
+        b.dataset.search = label.toLowerCase();
+        b.addEventListener("click", () => openConfig(f, p.name));
+        host.appendChild(b);
+      }
+    }
+    filterConfigs(document.getElementById("configs-search").value);
+  }
+
+  function filterConfigs(q) {
+    q = (q || "").toLowerCase();
+    for (const b of document.querySelectorAll("#configs-list .cmd-item"))
+      b.classList.toggle("hidden", q && !b.dataset.search.includes(q));
+  }
+  document.getElementById("configs-search").addEventListener("input", (e) => filterConfigs(e.target.value));
 
   // Buttons + find bar
   document.getElementById("btn-newtab").addEventListener("click", () => Tabs.newTab());
@@ -205,6 +267,25 @@
     }
   });
   applyLayout();
+
+  // ── Editor setting (☰ → Editor): which app opens a file clicked in the
+  // Configs panel — Vim (real vim in a PTY, default) or Plain (in-app
+  // textarea). Unlike the Layout tickers these are mutually exclusive:
+  // picking one clears the other. Same "don't close the menu" behavior.
+  const applyEditorPref = () => {
+    const editor = localStorage.getItem("myk-editor") || "vim";
+    document.getElementById("cfg-editor-vim").classList.toggle("checked", editor === "vim");
+    document.getElementById("cfg-editor-plain").classList.toggle("checked", editor === "plain");
+  };
+  const editorTicker = (id, val) =>
+    document.getElementById(id).addEventListener("click", (e) => {
+      e.stopPropagation();
+      localStorage.setItem("myk-editor", val);
+      applyEditorPref();
+    });
+  editorTicker("cfg-editor-vim", "vim");
+  editorTicker("cfg-editor-plain", "plain");
+  applyEditorPref();
 
   document.getElementById("menu-restore-session").addEventListener("click", () => Tabs.restoreSession());
 
@@ -387,14 +468,17 @@
   });
   // About lives in the Configs (⋮ → menu-about) dropdown now — no standalone button.
 
-  // Sidebar view switcher: Commands (search + per-profile items) | Tabs (vertical, grouped)
+  // Sidebar view switcher: Commands (search + per-profile items) | Tabs
+  // (vertical, grouped) | Configs (per-profile config/data files).
   for (const btn of document.querySelectorAll(".sidebar-toggle-btn")) {
     btn.addEventListener("click", () => {
       for (const b of document.querySelectorAll(".sidebar-toggle-btn")) b.classList.toggle("active", b === btn);
-      const isTabs = btn.dataset.view === "tabs";
-      document.getElementById("commands-panel").hidden = isTabs;
-      document.getElementById("tabs-panel").hidden = !isTabs;
-      if (isTabs) Tabs.renderTabList();
+      const view = btn.dataset.view;
+      document.getElementById("commands-panel").hidden = view !== "commands";
+      document.getElementById("tabs-panel").hidden = view !== "tabs";
+      document.getElementById("configs-panel").hidden = view !== "configs";
+      if (view === "tabs") Tabs.renderTabList();
+      if (view === "configs") buildConfigs(current);
     });
   }
 

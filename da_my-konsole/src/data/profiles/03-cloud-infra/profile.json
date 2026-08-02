@@ -215,6 +215,12 @@
       ]
     }
   ],
+  "configs": [
+    {
+      "title": "Cloud hub config",
+      "paths": ["~/git/cloud/config.json", "~/git/cloud/git.yaml", "~/git/cloud/2_configs/build.json", "~/git/cloud/2_configs/manifest.json"]
+    }
+  ],
   "order": 3,
   "group": "g1"
 }
