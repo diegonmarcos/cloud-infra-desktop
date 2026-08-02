@@ -543,6 +543,13 @@ const Tabs = {
     const first = this.tabs.get(tabId).rootEl.querySelector(".pane");
     if (first) MYK.focusPane(first.dataset.id);
     this.renderTabList();
+    // The active/inactive classes just toggled above; getBoundingClientRect
+    // inside sync() forces the reflow that makes them real, so this reads
+    // post-toggle geometry immediately instead of waiting up to 250ms for the
+    // next poll tick — that gap is exactly the overhang the poll alone can't
+    // close (the previously-active browser tab keeps painting in the old
+    // spot, or the newly-active one stays parked offscreen).
+    NativeBrowser.sync();
   },
 
   // Switch to a profile's tab group: show only its tabs in the strip,
@@ -566,6 +573,10 @@ const Tabs = {
     for (const [, t] of this.tabs) {
       if (t.profile !== name) t.rootEl.classList.remove("active");
     }
+    // Same reasoning as activate(): the outgoing profile's browser tab(s) just
+    // went display:none above — sync immediately so the webview parks
+    // offscreen this frame, not up to 250ms from now.
+    NativeBrowser.sync();
     if (opener) { console.log(`[switchProfile] ${name} → opener()`); opener(name); return; }
     const last = this.lastActiveByProfile.get(name);
     if (last && this.tabs.has(last)) { console.log(`[switchProfile] ${name} → resume ${last}`); this.activate(last); return; }
@@ -610,7 +621,8 @@ const Tabs = {
 
     const remaining = this.order.filter((id) => this.tabs.get(id)?.profile === profile);
     if (remaining.length === 0) { this.newTab(profile); return; }
-    if (this.active === tabId) this.activate(remaining[remaining.length - 1]);
+    if (this.active === tabId) this.activate(remaining[remaining.length - 1]); // activate() syncs
+    else NativeBrowser.sync(); // closing a background tab can still shift a sibling's layout (e.g. sidebar list)
   },
 
   // ── Session snapshot: dump {profile, kind, url/startPath} per tab to

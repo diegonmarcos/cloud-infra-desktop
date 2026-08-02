@@ -325,6 +325,28 @@ for _extra_bin in "$HOME/.nix-profile/bin" "/etc/profiles/per-user/$USER/bin"; d
 done
 unset _extra_bin
 
+# Re-exec the WHOLE invocation through flakes-switch-progress-logs so this
+# repo's build.sh gets the same ONE Konsole progress window ba_flakes_desktop's
+# does (git diff, closure size, PSI panel, progress bars, live output) instead
+# of the silent runs Diego has been getting. Must come after the PATH
+# self-repair above — the wrapper only lives in the HM profile, which is one
+# of the directories that block just added. NSP_ACTIVE (set by the wrapper
+# before re-invoking us) blocks re-wrapping an already-wrapped run; FSPL_NO_WRAP=1
+# is the manual opt-out. Falls back to the pre-rename alias
+# (nix-switch-progress-wrap) for a machine that hasn't run an HM switch since
+# the module was renamed, same as ba_flakes_desktop/build.sh. The wrapper is
+# itself a passthrough (`exec "$@"`, no window) whenever there's no
+# $DISPLAY/$WAYLAND_DISPLAY or no konsole, so SSH/CI/headless is unaffected.
+# This script's own konsole_wrap block below (~line 1890) is now gated on
+# NSP_ACTIVE too, so it won't open a second, competing window when this
+# re-exec has already claimed the one Konsole.
+if [ -z "${NSP_ACTIVE:-}" ] && [ -z "${FSPL_NO_WRAP:-}" ]; then
+    _fspl_bin=""
+    command -v flakes-switch-progress-logs >/dev/null 2>&1 && _fspl_bin="flakes-switch-progress-logs"
+    [ -z "$_fspl_bin" ] && command -v nix-switch-progress-wrap >/dev/null 2>&1 && _fspl_bin="nix-switch-progress-wrap"
+    [ -n "$_fspl_bin" ] && exec "$_fspl_bin" "$0" "$@"
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1889,6 +1911,7 @@ if [ $# -gt 0 ]; then
     # --workdir explicitly.
     _sp_json="$FLAKE_PATH/modules/cloud-data-system-protection.json"
     if [ -z "${BUILD_SH_KONSOLE_WRAPPED:-}" ] && [ -z "${SWITCH_ISOLATED:-}" ] \
+       && [ -z "${NSP_ACTIVE:-}" ] \
        && [ "${GITHUB_ACTIONS:-}" != "true" ] && command -v jq >/dev/null 2>&1 \
        && [ -f "$_sp_json" ] \
        && [ "$(jq -r '.konsole_wrap.enable // false' "$_sp_json")" = "true" ] \

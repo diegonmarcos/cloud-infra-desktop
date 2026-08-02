@@ -355,8 +355,12 @@ nix_switch() {
     # feeding them into that same window. Still transparent when absent or
     # non-graphical (SSH/CI): falls back to a plain passthrough exec.
     # NSP_SRC_DIR/NSP_FLAKE_ATTR feed the wrapper's git-diff + closure-size panel.
+    # Prefer the current name, fall back to the pre-rename alias — the module
+    # installs both, but only after an HM activation, so a machine that hasn't
+    # switched since the rename still has just nix-switch-progress-wrap.
     _nsp=""
     command -v flakes-switch-progress-logs >/dev/null 2>&1 && _nsp="flakes-switch-progress-logs"
+    [ -z "$_nsp" ] && command -v nix-switch-progress-wrap >/dev/null 2>&1 && _nsp="nix-switch-progress-wrap"
     export NSP_SRC_DIR="$SRC_DIR"
     export NSP_FLAKE_ATTR="$SRC_DIR#homeConfigurations.\"${user}@${host}\".activationPackage"
 
@@ -1208,7 +1212,9 @@ cmd_pull() {
     # window itself is owned by the global re-exec at the bottom of this
     # script). Transparent passthrough when the wrapper is absent or the
     # session is non-graphical (SSH/CI: exec "$@").
+    # Prefer the current name, fall back to the pre-rename alias (see nix_switch above).
     _nsp=""; command -v flakes-switch-progress-logs >/dev/null 2>&1 && _nsp="flakes-switch-progress-logs"
+    [ -z "$_nsp" ] && command -v nix-switch-progress-wrap >/dev/null 2>&1 && _nsp="nix-switch-progress-wrap"
     export NSP_SRC_DIR="$SRC_DIR"
 
     _sys=""
@@ -2097,8 +2103,14 @@ if [ -z "${BUILDSH_SOURCE_ONLY:-}" ]; then
 # plus gating the isolated-switch path's own konsole spawn on NSP_ACTIVE being
 # unset (above) — so there is never more than one window. Don't re-remove
 # this without re-solving both, or history repeats a third time.
-if [ -z "${NSP_ACTIVE:-}" ] && [ -z "${FSPL_NO_WRAP:-}" ] && command -v flakes-switch-progress-logs >/dev/null 2>&1; then
-  exec flakes-switch-progress-logs "$0" "$@"
+# Fall back to the pre-rename alias (nix-switch-progress-wrap) when the
+# current name isn't installed yet — the module installs both, but only after
+# an HM activation, which is exactly the switch this wrap exists to show.
+_fspl_bin=""
+command -v flakes-switch-progress-logs >/dev/null 2>&1 && _fspl_bin="flakes-switch-progress-logs"
+[ -z "$_fspl_bin" ] && command -v nix-switch-progress-wrap >/dev/null 2>&1 && _fspl_bin="nix-switch-progress-wrap"
+if [ -z "${NSP_ACTIVE:-}" ] && [ -z "${FSPL_NO_WRAP:-}" ] && [ -n "$_fspl_bin" ]; then
+  exec "$_fspl_bin" "$0" "$@"
 fi
 
 main "$@"
