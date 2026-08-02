@@ -48,20 +48,35 @@
   const cli = profiles.filter((p) => !p.home);
   const row1 = byOrder(cli.filter((p) => !p.secondary));
   const others = byOrder(cli.filter((p) => p.secondary));
+  // Full names for abbreviated pills — shown as a tooltip so the shortened
+  // label ("SSH Man", "Mesh&Net") doesn't lose its meaning at a glance.
+  const FULL_NAME = {
+    "ssh-manager": "SSH Manager",
+    "mesh-network": "Mesh & Network",
+    "cloud-infra": "Cloud & Infra",
+    "data-sync": "Data Sync",
+    docker: "Docker",
+  };
   const mkPill = (p, active) => {
     const pill = document.createElement("div");
     pill.className = "profile-pill" + (active ? " active" : "");
     pill.textContent = p.display_name || p.name;
+    pill.tabIndex = 0;
+    const full = FULL_NAME[p.name];
+    if (full && full !== (p.display_name || p.name)) pill.title = full;
     pill.addEventListener("click", () => selectProfile(p, pill));
+    pill.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectProfile(p, pill); } });
     return pill;
   };
-  // `group` inserts a thin separator between clusters (my-AI/Mesh/Cloud | Git/
-  // Data Sync | …) so the strip reads as groups rather than one long run.
+  // `group` inserts a "|" between clusters (my-AI/Mesh/Cloud | Git/Git Sync |
+  // …) so the strip reads as groups rather than one long run.
   let lastGroup = null;
   row1.forEach((p, i) => {
     if (lastGroup !== null && p.group !== lastGroup) {
       const sep = document.createElement("span");
-      sep.className = "pill-sep";
+      sep.className = "nav-pill-sep";
+      sep.textContent = "|";
+      sep.setAttribute("aria-hidden", "true");
       nav.appendChild(sep);
     }
     lastGroup = p.group ?? null;
@@ -70,28 +85,35 @@
   if (others.length) {
     const wrap = document.createElement("div");
     wrap.className = "home-dropdown";
-    wrap.innerHTML = `<div class="profile-pill" id="others-pill">Others ▾</div><div class="home-menu" id="others-menu" hidden></div>`;
+    wrap.innerHTML = `<div class="profile-pill" id="others-pill" tabindex="0">Others ▾</div><div class="home-menu others-menu" id="others-menu" hidden></div>`;
     nav.appendChild(wrap);
     const menu = wrap.querySelector("#others-menu");
     for (const p of others) {
       const it = document.createElement("div");
       it.className = "menu-item";
       it.textContent = p.display_name || p.name;
+      // A leading color dot per entry (its profile.theme.accent) — with no
+      // pill/icon in this dropdown, it's the only way to tell these apart
+      // at a glance, same as a browser bookmarks menu's favicons.
+      it.style.setProperty("--dot", (p.theme && p.theme.accent) || "var(--muted)");
       it.addEventListener("click", () => selectProfile(p, wrap.querySelector("#others-pill")));
       menu.appendChild(it);
     }
     const pill = wrap.querySelector("#others-pill");
+    const closeMenu = () => { menu.hidden = true; };
+    const openMenu = () => {
+      menu.hidden = false;
+      const r = pill.getBoundingClientRect();
+      menu.style.top = `${r.bottom + 2}px`;
+      menu.style.left = `${Math.min(r.left, window.innerWidth - 220)}px`;
+    };
     pill.addEventListener("click", (e) => {
       e.stopPropagation();
-      const show = menu.hidden;
-      menu.hidden = !show;
-      if (show) {
-        const r = pill.getBoundingClientRect();
-        menu.style.top = `${r.bottom + 2}px`;
-        menu.style.left = `${Math.min(r.left, window.innerWidth - 220)}px`;
-      }
+      if (menu.hidden) openMenu(); else closeMenu();
     });
-    document.addEventListener("click", () => { menu.hidden = true; });
+    pill.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } });
+    document.addEventListener("click", closeMenu);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
   }
 
   const byName = (n) => profiles.find((p) => p.name === n);
@@ -363,12 +385,47 @@
   window.addEventListener("resize", () => { if (Tabs.active) MYK._fitTab(Tabs.active); });
   window.addEventListener("beforeunload", () => Tabs.saveSession());
 
-  // Global ☰ menu. Submenus are CSS-driven (:hover); the only thing JS owns is
-  // opening/closing the root and the two Layout tickers.
+  // Global ☰ menu. Submenus stay CSS-driven (:hover) for visibility; JS only
+  // adds positioning so a submenu near the right/bottom of the window doesn't
+  // open off-screen and become unreachable (Konsole flips left / shifts up).
   const menuBtn = document.getElementById("btn-menu");
   const menuDrop = document.getElementById("menu-dropdown");
   menuBtn.addEventListener("click", (e) => { e.stopPropagation(); menuDrop.hidden = !menuDrop.hidden; });
-  document.addEventListener("click", () => { menuDrop.hidden = true; });
+  document.addEventListener("click", () => {
+    menuDrop.hidden = true;
+    resetSubmenus(); // the root closing must not leave a flipped submenu visibly stuck open
+  });
+
+  function resetSubmenus() {
+    for (const sub of menuDrop.querySelectorAll(".submenu")) {
+      sub.classList.remove("open");
+      sub.style.left = ""; sub.style.right = ""; sub.style.top = ""; sub.style.bottom = "";
+    }
+  }
+  for (const row of menuDrop.querySelectorAll(".menu-item.has-sub")) {
+    const sub = row.querySelector(".submenu");
+    if (!sub) continue;
+    row.addEventListener("mouseenter", () => {
+      // Reset first so the measurement below reflects the row's own default
+      // (right-of-parent) position, not a flip left over from a previous open.
+      sub.style.left = ""; sub.style.right = ""; sub.style.top = ""; sub.style.bottom = "";
+      sub.classList.add("open"); // force visible so getBoundingClientRect is real, not display:none's 0×0
+      const subRect = sub.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      if (subRect.right > window.innerWidth) {
+        sub.style.left = "auto";
+        sub.style.right = "100%";
+      }
+      if (subRect.bottom > window.innerHeight) {
+        const overflow = subRect.bottom - window.innerHeight;
+        sub.style.top = `${-7 - overflow}px`;
+      }
+    });
+    row.addEventListener("mouseleave", () => {
+      sub.classList.remove("open");
+      sub.style.left = ""; sub.style.right = ""; sub.style.top = ""; sub.style.bottom = "";
+    });
+  }
 
   // ── Layout tickers (Konsole's View menu): show/hide the top nav and the left
   // sidebar. Persisted, because a hidden chrome that comes back on every launch

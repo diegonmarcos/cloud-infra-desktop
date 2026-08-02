@@ -14,8 +14,14 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "unstable"] }
+# NOT tauri's "tray-icon" feature: on Linux tray-icon builds each tray via
+# AppIndicator::new(..., "") and drops the `tooltip` field entirely (it is
+# documented Unsupported on that platform), so every tray showed the app name
+# on hover instead of its own title. ksni implements StatusNotifierItem
+# directly over D-Bus, including the ToolTip property KDE actually reads.
+tauri = { version = "2", features = ["unstable"] }
 tauri-plugin-shell = "2"
+ksni = { version = "0.3", features = ["blocking"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 pty-core = { path = "../pty-core" }
