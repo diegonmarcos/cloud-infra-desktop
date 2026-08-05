@@ -6,6 +6,11 @@
     nixpkgs-new.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
 
+    my-ai-src = {
+      url = "github:diegonmarcos/unix?dir=da_my-ai";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nix-on-droid = {
       # release-24.05 hasn't moved since 2024-07-07 (effectively abandoned) —
       # its fixed-output-derivation binary pins (e.g. proot-termux-static)
@@ -22,7 +27,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-new, nixpkgs-unstable, nix-on-droid, home-manager }:
+  outputs = { self, nixpkgs, nixpkgs-new, nixpkgs-unstable, nix-on-droid, home-manager, my-ai-src }:
     let
       pkgsNew = import nixpkgs-new { system = "aarch64-linux"; };
       pkgsUnstable = import nixpkgs-unstable { system = "aarch64-linux"; };
@@ -515,11 +520,9 @@
                 exec claude-malloc $CC_EXTRA_FLAGS "$@"
               '')
 
-              # my-ai: future replacement for claude-superset — shares the same
-              # script via exec (single source of truth in claude-superset).
-              (writeShellScriptBin "my-ai" ''
-                exec claude-superset "$@"
-              '')
+              # my-ai: pre-built Rust binary from GH Release via da_my-ai flake.
+              # Replaces the bash stub; binary is fetched by nix (no local build).
+              my-ai-src.packages.aarch64-linux.my-ai
 
               # claude-rescue: delegates to tools/5-infos/claude-rescue/
               # (12-fallback chain). The flake-side wrapper is intentionally
