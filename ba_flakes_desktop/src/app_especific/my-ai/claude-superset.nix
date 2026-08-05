@@ -16,8 +16,10 @@
 # faces, MCPs, plugins including Ponytail, and the direct Anthropic fallback).
 # The dashboard logic lives in ./claude-superset-tui.mjs — not exposed as a
 # separate binary.
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, inputs, ... }:
 let
+  my-ai = inputs.my-ai-src.packages.x86_64-linux.my-ai;
+
   ep = builtins.fromJSON (builtins.readFile ./claude-superset.json);
   lo = ep.local;
 
@@ -348,6 +350,9 @@ in {
   home.packages = [
     claude-superset
     claude-superset-tray
+    # Pre-built Rust binary from GH Release via da_my-ai flake input.
+    # Hashes auto-updated by ship-my-ai-app.yml's update-hashes job.
+    my-ai
     # Headless `my-ai usage --daemon` is the unit's ExecStart, not the GUI:
     # it now grows its own ksni systray when a display is present, so the
     # GUI's webview no longer has to be paid for just to get a tray icon.
@@ -357,7 +362,7 @@ in {
     # deliberate MIRROR of da_my-ai/build.sh, so switch-installed and
     # home-manager-installed machines behave identically. Keep them in step.
     (pkgs.writeShellScriptBin "my-ai-usage-daemon" ''
-      exec "$HOME/.local/bin/my-ai" usage --daemon --interval 30
+      exec "${my-ai}/bin/my-ai" usage --daemon --interval 30
     '')
   ];
 
@@ -369,9 +374,8 @@ in {
   # is present (da_my-ai/cli/src/tray.rs), so this one unit both publishes and
   # shows the tray icon — no separate GUI process to keep alive.
   #
-  # ConditionPathExists keeps this inert until the real Rust my-ai is installed to
-  # ~/.local/bin by `build.sh install` — the unit is skipped, not failed, so it
-  # can't spam the journal or block activation before the binary exists.
+  # my-ai is now managed by the da_my-ai flake input: always present after
+  # `home-manager switch`, no ConditionPathExists guard needed.
   # ONE always-running publisher per machine, and it is visible.
   #
   # my-ai-gui remains a separate, hand-launched app (desktop entry below) for
@@ -384,7 +388,6 @@ in {
   systemd.user.services.my-ai-usage = {
     Unit = {
       Description = "my-ai usage publisher + systray (5h window data for the Claude status line)";
-      ConditionPathExists = "%h/.local/bin/my-ai";
       # The tray needs a session to attach to; without this it races the
       # compositor at login, fails soft (ksni is best-effort), and the
       # publisher keeps running headless for the session.

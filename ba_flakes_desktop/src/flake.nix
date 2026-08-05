@@ -54,9 +54,15 @@
       url = "github:diegonmarcos/cloud";
       flake = false;
     };
+
+    # my-ai Rust CLI: pre-built binary from GH Release, hashes auto-updated by GHA.
+    my-ai-src = {
+      url = "github:diegonmarcos/unix?dir=da_my-ai";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+    };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nur, sops-nix, plasma-manager, unix-repo, cloud-repo, ... }@inputs:
+  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nur, sops-nix, plasma-manager, unix-repo, cloud-repo, my-ai-src, ... }@inputs:
     let
       system = "x86_64-linux";
 
