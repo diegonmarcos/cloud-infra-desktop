@@ -1,0 +1,8 @@
+# Log files: never block a merge/rebase/stash-pop on a conflict.
+# `union` is a built-in git merge driver (no per-machine config needed, so it
+# works on every clone and in CI) — it takes the lines from BOTH sides instead
+# of raising a conflict. Build logs are regenerated on the next run anyway, so
+# the only cost is a briefly duplicated log body; the win is the pre-push hook's
+# `pull --rebase --autostash` never gets stuck half-way (see the stuck
+# .git/rebase-merge incident).
+*.log merge=union
