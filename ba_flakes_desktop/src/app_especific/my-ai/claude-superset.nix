@@ -14,17 +14,17 @@
 #
 # `claude-superset --help` opens an interactive status dashboard (probes all
 # faces, MCPs, plugins including Ponytail, and the direct Anthropic fallback).
-# The dashboard logic lives in da_my-ai/superset/claude-superset-tui.mjs (the
+# The dashboard logic lives in da_my-ai/scripts/claude-superset/claude-superset-tui.mjs (the
 # single source of truth) — not exposed as a separate binary.
 { config, pkgs, lib, inputs, ... }:
 let
   my-ai = inputs.my-ai-src.packages.x86_64-linux.my-ai;
 
   # Config for the desktop tray — read from the unified da_my-ai SoT config.
-  ep = builtins.fromJSON (builtins.readFile ../../../../da_my-ai/superset/claude-superset.json);
+  ep = builtins.fromJSON (builtins.readFile ../../../../da_my-ai/scripts/claude-superset/claude-superset.json);
 
   # claude-superset is an ASSET OF my-ai — it ships INSIDE the my-ai package
-  # (installed by da_my-ai/nix/my-ai.nix from da_my-ai/superset/). The flake
+  # (installed by da_my-ai/nix/my-ai.nix from da_my-ai/scripts/claude-superset/). The flake
   # only pulls my-ai; it never installs the wrapper itself. This alias lets the
   # tray + desktop entries below keep referencing `${claude-superset}/bin/claude-superset`.
   claude-superset = my-ai;

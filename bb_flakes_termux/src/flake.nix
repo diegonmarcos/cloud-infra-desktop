@@ -336,7 +336,7 @@
               # whole unix repo tarball and fail on proot). Termux can't use
               # da_my-ai/nix/my-ai.nix (its autoPatchelfHook SIGBUSes under proot), so
               # this mirrors that package's claude-superset install for the lean path.
-              # The pure wrapper (da_my-ai/superset/) is copied + shebang-patched +
+              # The pure wrapper (da_my-ai/scripts/claude-superset/) is copied + shebang-patched +
               # wrapped with its tools on PATH; the script detects Termux at runtime
               # and hands off to claude-malloc for Android isolation.
               (pkgs.runCommandLocal "my-ai" {
@@ -348,7 +348,7 @@
               } ''
                 install -Dm755 $src $out/bin/my-ai
                 mkdir -p $out/share/claude-superset
-                cp -r ${../../da_my-ai/superset}/. $out/share/claude-superset/
+                cp -r ${../../da_my-ai/scripts/claude-superset}/. $out/share/claude-superset/
                 chmod +x $out/share/claude-superset/claude-superset
                 patchShebangs $out/share/claude-superset/claude-superset
                 makeWrapper $out/share/claude-superset/claude-superset $out/bin/claude-superset \
