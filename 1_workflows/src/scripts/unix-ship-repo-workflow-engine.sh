@@ -72,6 +72,12 @@ do_build() {
         log "Built gitignore"
     fi
 
+    # Gitattributes (src/gitattributes → dist/.gitattributes)
+    if [ -f "$SRC_DIR/gitattributes" ]; then
+        inject_header "$SRC_DIR/gitattributes" "$DIST_DIR/.gitattributes"
+        log "Built gitattributes"
+    fi
+
     # Gitconfig (src/gitconfig → dist/)
     if [ -f "$SRC_DIR/gitconfig" ]; then
         inject_header "$SRC_DIR/gitconfig" "$DIST_DIR/gitconfig"
