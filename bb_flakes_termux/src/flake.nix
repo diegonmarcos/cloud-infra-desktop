@@ -6,11 +6,6 @@
     nixpkgs-new.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    my-ai-src = {
-      url = "github:diegonmarcos/unix?dir=da_my-ai";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     nix-on-droid = {
       # release-24.05 hasn't moved since 2024-07-07 (effectively abandoned) —
       # its fixed-output-derivation binary pins (e.g. proot-termux-static)
@@ -27,7 +22,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-new, nixpkgs-unstable, nix-on-droid, home-manager, my-ai-src }:
+  outputs = { self, nixpkgs, nixpkgs-new, nixpkgs-unstable, nix-on-droid, home-manager }:
     let
       pkgsNew = import nixpkgs-new { system = "aarch64-linux"; };
       pkgsUnstable = import nixpkgs-unstable { system = "aarch64-linux"; };
@@ -520,9 +515,29 @@
                 exec claude-malloc $CC_EXTRA_FLAGS "$@"
               '')
 
-              # my-ai: pre-built Rust binary from GH Release via da_my-ai flake.
-              # Replaces the bash stub; binary is fetched by nix (no local build).
-              my-ai-src.packages.aarch64-linux.my-ai
+              # my-ai: pre-built Rust binary fetched directly from GH Release.
+              # Uses fetchurl (no flake input) — avoids downloading the entire unix
+              # repo tarball which fails on proot due to filesystem limitations.
+              # Hashes are read from da_my-ai/nix/hashes.json (same source of truth
+              # as the full da_my-ai flake package).
+              (let
+                hashes  = builtins.fromJSON (builtins.readFile ../../da_my-ai/nix/hashes.json);
+                sys     = hashes."aarch64-linux";
+                base    = "https://github.com/diegonmarcos/unix/releases/download/my-ai-latest";
+              in pkgs.stdenv.mkDerivation {
+                pname   = "my-ai";
+                version = "latest";
+                src      = pkgs.fetchurl { url = "${base}/my-ai-aarch64";      hash = sys.my-ai; };
+                dashSrc  = pkgs.fetchurl { url = "${base}/my-ai-dash-aarch64"; hash = sys."my-ai-dash"; };
+                nativeBuildInputs = [ pkgs.autoPatchelfHook pkgs.makeWrapper ];
+                buildInputs = [ pkgs.gcc-unwrapped.lib ];
+                dontUnpack = true;
+                installPhase = ''
+                  install -Dm755 $src     $out/bin/my-ai
+                  install -Dm755 $dashSrc $out/libexec/my-ai/my-ai-dash
+                  wrapProgram $out/bin/my-ai --set MY_AI_DASH_BIN "$out/libexec/my-ai/my-ai-dash"
+                '';
+              })
 
               # claude-rescue: delegates to tools/5-infos/claude-rescue/
               # (12-fallback chain). The flake-side wrapper is intentionally
