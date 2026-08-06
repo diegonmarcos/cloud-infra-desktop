@@ -800,10 +800,10 @@
                 source = ../src/modules/dotfiles/claude/claude-mcp-status.sh;
                 executable = true;
               };
-              # Shared with ba_flakes_desktop (one source of truth) — reads the
-              # cloud-marketplace plugin cache path, same on both platforms.
+              # Single source of truth is da_my-ai (my-ai owns the status-line
+              # assets — see commit "my-ai: take ownership of the status line").
               home.file.".claude/claude-hooks-status.sh" = {
-                source = ../../ba_flakes_desktop/src/modules/dotfiles/claude/claude-hooks-status.sh;
+                source = ../../da_my-ai/src/data/statusline/claude-hooks-status.sh;
                 executable = true;
               };
               home.file.".claude/claude-pricing.json".source =
