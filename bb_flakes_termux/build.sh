@@ -239,6 +239,12 @@ cmd_switch() {
         return 1
     fi
 
+    # Resolve any new flake inputs added to flake.nix but not yet in flake.lock.
+    # nix flake lock with no --update-input only adds missing entries; existing
+    # pins are untouched. This is the universal fix for "new input, stale lock".
+    log_info "Locking any new flake inputs..."
+    nix flake lock "$SRC_DIR" $NIX_VERBOSE_FLAGS 2>&1 | tee -a "$LOG_FILE" || true
+
     perf_step "nix-on-droid switch"
     log_info "Applying nix-on-droid configuration (verbose=$VERBOSE)..."
     # HOME_MANAGER_BACKUP_EXT: home-manager's built-in conflict resolver — any

@@ -2,7 +2,7 @@
 # ║                                                                  ║
 # ║   GENERATED FILE — DO NOT EDIT                                   ║
 # ║                                                                  ║
-# ║   Source : 1_workflows/src/cicd/ship-cloud-wallet.yml
+# ║   Source : 1_workflows/src/cicd/ship-cloud-calendar.yml
 # ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
 # ║   Rebuild: ./1_workflows/build.sh
 # ║                                                                  ║
@@ -10,7 +10,7 @@
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-name: "Ship → Cloud Wallet APK (build + push to GHCR via ORAS + attach to GH Release)"
+name: "Ship → Cloud Calendar APK (build + push to GHCR via ORAS + attach to GH Release)"
 
 on:
   workflow_dispatch:
@@ -34,17 +34,17 @@ on:
   push:
     branches: [main]
     tags:
-      - "ea_cloud-wallet-v*"
+      - "ea_cloud-calendar-v*"
     paths:
-      - "ea_cloud-wallet/**"
-      - "1_workflows/src/cicd/ship-cloud-wallet.yml"
+      - "ea_cloud-calendar/**"
+      - "1_workflows/src/cicd/ship-cloud-calendar.yml"
 
 permissions:
   contents: write
   packages: write
 
 env:
-  WORK_DIR: ea_cloud-wallet
+  WORK_DIR: ea_cloud-calendar
 
 jobs:
   build_and_publish:
@@ -110,7 +110,7 @@ jobs:
           BYPASS_NIX: "1"
           VAULT_DIR: ${{ github.workspace }}/.vault
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-          CLOUDWALLET_VARIANT: ${{ matrix.abi }}
+          CLOUDCALENDAR_VARIANT: ${{ matrix.abi }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           chmod +x build.sh
@@ -124,7 +124,7 @@ jobs:
       - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Cloud-Wallet-${{ matrix.abi }}-${{ steps.variant.outputs.variant }}-${{ github.sha }}
+          name: Cloud-Calendar-${{ matrix.abi }}-${{ steps.variant.outputs.variant }}-${{ github.sha }}
           path: ${{ env.WORK_DIR }}/dist/*.apk
           if-no-files-found: error
           retention-days: 30
@@ -138,7 +138,7 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
-          CLOUDWALLET_VARIANT: ${{ matrix.abi }}
+          CLOUDCALENDAR_VARIANT: ${{ matrix.abi }}
           GITHUB_SHA: ${{ github.sha }}
         run: ./build.sh oras-push
 
@@ -147,7 +147,7 @@ jobs:
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
-          CLOUDWALLET_VARIANT: ${{ matrix.abi }}
+          CLOUDCALENDAR_VARIANT: ${{ matrix.abi }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF: ${{ github.ref }}
