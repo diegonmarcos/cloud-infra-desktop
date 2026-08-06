@@ -48,7 +48,9 @@ let
   # Default port is 8023, NOT 8022 — on this device 8022 hits EADDRINUSE
   # despite /proc/net/tcp showing the port free (suspected kernel TIME_WAIT
   # or Android sandbox lock invisible to proot's view).
-  buildJson = builtins.fromJSON (builtins.readFile ../../../build.json);
+  # ../../build.json = src/build.json (vendored by build.sh). Must NOT reach
+  # outside src/ — a path: flake escaping src/ copies the whole repo (proot dies).
+  buildJson = builtins.fromJSON (builtins.readFile ../../build.json);
   wgIp = buildJson.defaults.wg_ip or "127.0.0.1";
   sshPort = buildJson.defaults.ssh_port or 8023;
 

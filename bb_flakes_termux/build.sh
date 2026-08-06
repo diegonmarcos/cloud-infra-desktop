@@ -218,6 +218,13 @@ cmd_switch() {
         fi
     fi
 
+    # Vendor build.json into src/ so the path: flake reads it without a ../ ref
+    # escaping src/ — any such escape forces nix to copy the whole 3.6GB repo as
+    # the flake source and proot dies mid-copy ("Function not implemented").
+    if [ -f "$SCRIPT_DIR/build.json" ]; then
+        cp -f "$SCRIPT_DIR/build.json" "$SRC_DIR/build.json"
+    fi
+
     # Clean old backup files
     perf_step "clean backups"
     backup_count=$(command find "$HOME" -maxdepth 1 -name "*.backup" -type f 2>/dev/null | wc -l)
@@ -422,6 +429,13 @@ cmd_build() {
         fi
     fi
 
+    # Vendor build.json into src/ so the path: flake reads it without a ../ ref
+    # escaping src/ — any such escape forces nix to copy the whole 3.6GB repo as
+    # the flake source and proot dies mid-copy ("Function not implemented").
+    if [ -f "$SCRIPT_DIR/build.json" ]; then
+        cp -f "$SCRIPT_DIR/build.json" "$SRC_DIR/build.json"
+    fi
+
     log_info "Building activation package..."
     _nix="nix"
     [ -x "$HOME/.nix-profile/bin/nix" ] && _nix="$HOME/.nix-profile/bin/nix"
@@ -448,6 +462,13 @@ cmd_dry_run() {
             log_info "Staging dirty files for flake evaluation..."
             git -C "$SRC_DIR" add -A 2>/dev/null || true
         fi
+    fi
+
+    # Vendor build.json into src/ so the path: flake reads it without a ../ ref
+    # escaping src/ — any such escape forces nix to copy the whole 3.6GB repo as
+    # the flake source and proot dies mid-copy ("Function not implemented").
+    if [ -f "$SCRIPT_DIR/build.json" ]; then
+        cp -f "$SCRIPT_DIR/build.json" "$SRC_DIR/build.json"
     fi
 
     log_info "Evaluating what would be built..."
