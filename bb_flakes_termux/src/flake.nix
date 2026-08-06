@@ -194,7 +194,7 @@
               cloudflared
               google-cloud-sdk
               oci-cli
-              awscli2
+              # awscli2 removed (~440MB) — AWS not used; gcloud + oci kept
 
               # Infrastructure as Code
               terraform
