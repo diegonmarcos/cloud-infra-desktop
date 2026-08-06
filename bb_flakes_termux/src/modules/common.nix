@@ -26,6 +26,9 @@
     settings = {
       experimental-features = [ "nix-command" "flakes" ];
       warn-dirty = false;
+      # No build-dep pinning — termux doesn't build, GHA does.
+      keep-outputs = false;
+      keep-derivations = false;
     };
   };
 
@@ -48,6 +51,17 @@
         nix profile remove "$pkg" 2>/dev/null || true
       done
     fi
+  '';
+
+  # No generation accumulation on termux — keep only the current gen, GC the rest.
+  # Runs on every switch (no systemd/cron on Android). --delete-generations old
+  # never removes the current generation, so this is safe mid-activation.
+  home.activation.trimGenerations = lib.hm.dag.entryAfter [ "installPackages" ] ''
+    export PATH="${pkgs.nix}/bin:$PATH"
+    $DRY_RUN_CMD nix-env -p /nix/var/nix/profiles/nix-on-droid --delete-generations old 2>/dev/null || true
+    $DRY_RUN_CMD nix-env -p "$HOME/.local/state/nix/profiles/home-manager" --delete-generations old 2>/dev/null || true
+    $DRY_RUN_CMD nix-env -p /nix/var/nix/profiles/per-user/nix-on-droid/profile --delete-generations old 2>/dev/null || true
+    $DRY_RUN_CMD nix-collect-garbage 2>/dev/null || true
   '';
 
   # Goose AI CLI config (cloud-ai-cli alias)
