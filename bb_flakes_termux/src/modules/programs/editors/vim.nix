@@ -5,6 +5,9 @@
   programs.vim = {
     enable = true;
     defaultEditor = true;
+    # Minimal vim: customize pkgs.vim (~40MB) instead of the default
+    # pkgs.vim-full (~620MB, drags in python/ruby/perl/tcl). No builds here.
+    packageConfigurable = pkgs.vim;
 
     settings = {
       number = true;
