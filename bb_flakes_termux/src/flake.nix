@@ -244,58 +244,22 @@
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22
 
-              # my-ai: pull the aarch64 GH-release binary AND install claude-superset
-              # (an ASSET OF my-ai — my-ai owns and installs it; the flake never
-              # touches the wrapper). The release binary is already patchelf'd to nix
-              # store paths at build time (interpreter + RUNPATH point at /nix/store
-              # glibc & gcc-lib), so nix's reference scanner auto-adds them to the
-              # closure — no autoPatchelfHook, no flake input (which would fetch the
-              # whole unix repo tarball and fail on proot). Termux can't use
-              # da_my-ai/nix/my-ai.nix (its autoPatchelfHook SIGBUSes under proot), so
-              # this mirrors that package's claude-superset install for the lean path.
-              # The pure wrapper (da_my-ai/scripts/claude-superset/) is copied + shebang-patched +
-              # wrapped with its tools on PATH; the script detects Termux at runtime
-              # and hands off to claude-malloc for Android isolation.
+              # my-ai: pull ONLY the prebuilt aarch64 binary from the GH release.
+              # The flake builds NOTHING and references NOTHING from da_my-ai — it
+              # just fetches the artifact. my-ai carries its own scripts
+              # (claude-superset, goose/claude supervision wrappers, dash), baked
+              # into the binary at GHA build time. The release binary is already
+              # patchelf'd to nix store paths (interpreter + RUNPATH → /nix/store
+              # glibc & gcc-lib) so nix's scanner adds them to the closure — no
+              # autoPatchelfHook needed. Hash is inlined (bumped by
+              # ship-my-ai-app.yml); no ../../ ref keeps this a self-contained
+              # path: flake (nix copies only src/, never the 3.6GB repo).
               (pkgs.runCommandLocal "my-ai" {
-                nativeBuildInputs = [ pkgs.makeWrapper ];
                 src = pkgs.fetchurl {
                   url  = "https://github.com/diegonmarcos/unix/releases/download/my-ai-latest/my-ai-aarch64";
-                  hash = (builtins.fromJSON (builtins.readFile ../../da_my-ai/nix/hashes.json))."aarch64-linux".my-ai;
+                  hash = "sha256-/rvxDuJ6TXN2bNyKGkIBdUw0fHCGiQGQmaGeRlCNJfs=";
                 };
-              } ''
-                install -Dm755 $src $out/bin/my-ai
-                mkdir -p $out/share/claude-superset
-                cp -r ${../../da_my-ai/scripts/claude-superset}/. $out/share/claude-superset/
-                chmod +x $out/share/claude-superset/claude-superset
-                patchShebangs $out/share/claude-superset/claude-superset
-                makeWrapper $out/share/claude-superset/claude-superset $out/bin/claude-superset \
-                  --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.jq pkgsNew.nodejs_22 pkgs.curl pkgs.tmux pkgs.git pkgs.iputils pkgs.coreutils pkgs.findutils pkgs.bash ]}
-
-                # claude wrappers — mirror da_my-ai/nix/my-ai.nix (termux can't use
-                # autoPatchelfHook; see comment above).
-                for _name in claude-malloc claude-termux claude-orphan-sweep claude-rescue; do
-                  mkdir -p $out/share/claude
-                  cp ${../../da_my-ai/scripts/claude}/$_name $out/share/claude/$_name
-                  chmod +x $out/share/claude/$_name
-                  patchShebangs $out/share/claude/$_name
-                done
-                for _name in claude-malloc claude-termux claude-orphan-sweep; do
-                  makeWrapper $out/share/claude/$_name $out/bin/$_name \
-                    --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.util-linux pkgs.gawk pkgs.coreutils pkgs.findutils pkgs.bash ]}
-                done
-                makeWrapper $out/share/claude/claude-rescue $out/bin/claude-rescue \
-                  --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.bash ]}
-
-                # goose wrappers — mirror da_my-ai/nix/my-ai.nix
-                for _name in goose-malloc goose-orphan-sweep; do
-                  mkdir -p $out/share/goose
-                  cp ${../../da_my-ai/scripts/goose}/$_name $out/share/goose/$_name
-                  chmod +x $out/share/goose/$_name
-                  patchShebangs $out/share/goose/$_name
-                  makeWrapper $out/share/goose/$_name $out/bin/$_name \
-                    --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.util-linux pkgs.gawk pkgs.coreutils pkgs.findutils pkgs.bash pkgs.jq ]}
-                done
-              '')
+              } "install -Dm755 $src $out/bin/my-ai")
 
               # 3. SYNC — unified sync engine (git + rclone)
               # Source: ~/git/tools/a-sync/sync.sh
@@ -585,10 +549,10 @@
                 source = ../src/modules/dotfiles/claude/claude-mcp-status.sh;
                 executable = true;
               };
-              # Single source of truth is da_my-ai (my-ai owns the status-line
-              # assets — see commit "my-ai: take ownership of the status line").
+              # Vendored locally — the flake must stay self-contained (path: flake,
+              # no cross-repo refs). Refreshed from the da_my-ai statusline SoT.
               home.file.".claude/claude-hooks-status.sh" = {
-                source = ../../da_my-ai/src/data/statusline/claude-hooks-status.sh;
+                source = ../src/modules/dotfiles/claude/claude-hooks-status.sh;
                 executable = true;
               };
               home.file.".claude/claude-pricing.json".source =
@@ -599,7 +563,7 @@
               # old tier-based a-/b-/c- hook scripts above) and ponytail. See
               # ba_flakes_desktop/src/modules/common.nix for the full rationale.
               home.file.".claude/cloud-marketplace".source =
-                ../../ba_flakes_desktop/src/modules/dotfiles/claude/cloud-marketplace;
+                ../src/modules/dotfiles/claude/cloud-marketplace;
               # settings.json deployed as a writable real file (not a nix-store symlink)
               # so that runtime commands (/effort, /model, /fast) can persist their writes.
               # Source is authoritative: each switch resets runtime prefs back to declared values.
