@@ -530,48 +530,48 @@
               # UserPromptSubmit hooks), shared with ba_flakes_desktop's cloud-marketplace
               # (one source of truth — see that flake's common.nix for the full rationale).
               home.file.".claude/CLAUDE.md".text = "\n";
-              home.file.".claude/mcp.json.tpl".source = ../src/modules/dotfiles/claude/mcp.json.tpl;
-              home.file.".claude/secrets.yaml".source = ../src/modules/dotfiles/claude/secrets.yaml;
+              home.file.".claude/mcp.json.tpl".source = ./modules/dotfiles/claude/mcp.json.tpl;
+              home.file.".claude/secrets.yaml".source = ./modules/dotfiles/claude/secrets.yaml;
               home.file.".claude/statusline-command.sh" = {
-                source = ../src/modules/dotfiles/claude/statusline-command.sh;
+                source = ./modules/dotfiles/claude/statusline-command.sh;
                 executable = true;
               };
               # Agent fleet manifest (explore/build/review/ops, all pinned model:sonnet)
               # — same roster as desktop (ba_flakes_desktop dotfiles/claude/agents).
               home.file.".claude/agents" = {
-                source = ../src/modules/dotfiles/claude/agents;
+                source = ./modules/dotfiles/claude/agents;
                 recursive = true;
               };
               # Plugin/MCP status for the statusline + claude-superset banner (data-driven).
-              home.file.".claude/claude-plugins.json".source = ../src/modules/dotfiles/claude/claude-plugins.json;
+              home.file.".claude/claude-plugins.json".source = ./modules/dotfiles/claude/claude-plugins.json;
               home.file.".claude/claude-plugins-status.sh" = {
-                source = ../src/modules/dotfiles/claude/claude-plugins-status.sh;
+                source = ./modules/dotfiles/claude/claude-plugins-status.sh;
                 executable = true;
               };
               home.file.".claude/claude-mcp-status.sh" = {
-                source = ../src/modules/dotfiles/claude/claude-mcp-status.sh;
+                source = ./modules/dotfiles/claude/claude-mcp-status.sh;
                 executable = true;
               };
               # Vendored locally — the flake must stay self-contained (path: flake,
               # no cross-repo refs). Refreshed from the da_my-ai statusline SoT.
               home.file.".claude/claude-hooks-status.sh" = {
-                source = ../src/modules/dotfiles/claude/claude-hooks-status.sh;
+                source = ./modules/dotfiles/claude/claude-hooks-status.sh;
                 executable = true;
               };
               home.file.".claude/claude-pricing.json".source =
-                ../src/modules/dotfiles/claude/claude-pricing.json;
+                ./modules/dotfiles/claude/claude-pricing.json;
               # cloud-marketplace — SHARED with ba_flakes_desktop (one source of truth,
               # not a copy): local Claude Code plugin marketplace holding
               # cloud-principles-ai-plugin (the data-driven hook engine — replaces the
               # old tier-based a-/b-/c- hook scripts above) and ponytail. See
               # ba_flakes_desktop/src/modules/common.nix for the full rationale.
               home.file.".claude/cloud-marketplace".source =
-                ../src/modules/dotfiles/claude/cloud-marketplace;
+                ./modules/dotfiles/claude/cloud-marketplace;
               # settings.json deployed as a writable real file (not a nix-store symlink)
               # so that runtime commands (/effort, /model, /fast) can persist their writes.
               # Source is authoritative: each switch resets runtime prefs back to declared values.
               home.activation.claudeSettingsWritable = lib.hm.dag.entryAfter ["linkGeneration"] ''
-                _src=${../src/modules/dotfiles/claude/settings.json}
+                _src=${./modules/dotfiles/claude/settings.json}
                 _dst="$HOME/.claude/settings.json"
                 [ -L "$_dst" ] && rm "$_dst"
                 ${pkgs.coreutils}/bin/install -m 600 "$_src" "$_dst"
@@ -641,10 +641,10 @@
                   done < ${_writableTargets}
                 '';
 
-              home.file.".rgignore".source = ../src/modules/dotfiles/claude/rgignore;
+              home.file.".rgignore".source = ./modules/dotfiles/claude/rgignore;
 
               # Gemini CLI configuration + MCP server config
-              home.file.".gemini/settings.json.tpl".source = ../src/modules/dotfiles/gemini/settings.json.tpl;
+              home.file.".gemini/settings.json.tpl".source = ./modules/dotfiles/gemini/settings.json.tpl;
 
               # MCP secrets: decrypt secrets.yaml → awk subst ''${VAR} → ~/.mcp.json
               # Mimics Docker env_file + init.sh pattern using awk index() (literal, no regex)
