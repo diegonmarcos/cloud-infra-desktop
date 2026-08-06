@@ -336,6 +336,10 @@ nix_switch() {
         \( -name "*.hm-backup-*" -mtime +7 -o -name "*.backup" \) \
         -type f -delete 2>/dev/null || true
 
+    # Resolve any new flake inputs added to flake.nix but not yet in flake.lock.
+    log_info "Locking any new flake inputs..."
+    nix flake lock "$SRC_DIR" 2>&1 || true
+
     perf_step "home-manager switch"
     log_info "Applying Home Manager configuration..."
 
