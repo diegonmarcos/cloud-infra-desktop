@@ -243,7 +243,7 @@ cmd_switch() {
     # nix flake lock with no --update-input only adds missing entries; existing
     # pins are untouched. This is the universal fix for "new input, stale lock".
     log_info "Locking any new flake inputs..."
-    nix flake lock "$SRC_DIR" $NIX_VERBOSE_FLAGS 2>&1 | tee -a "$LOG_FILE" || true
+    nix flake lock "path:$SRC_DIR" $NIX_VERBOSE_FLAGS 2>&1 | tee -a "$LOG_FILE" || true
 
     perf_step "nix-on-droid switch"
     log_info "Applying nix-on-droid configuration (verbose=$VERBOSE)..."
@@ -255,7 +255,7 @@ cmd_switch() {
     # Capture THIS switch's output to a private file too — LOG_FILE accumulates
     # across runs, so grepping it for errors would match stale ones.
     _out_file=$(mktemp)
-    { nix-on-droid switch --flake "$SRC_DIR" $NIXOD_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE" "$_out_file"
+    { nix-on-droid switch --flake "path:$SRC_DIR" $NIXOD_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE" "$_out_file"
     exit_code=$(cat "$_rc_file" 2>/dev/null)
     exit_code=${exit_code:-0}
 
@@ -426,7 +426,7 @@ cmd_build() {
     _nix="nix"
     [ -x "$HOME/.nix-profile/bin/nix" ] && _nix="$HOME/.nix-profile/bin/nix"
     _rc_file=$(mktemp)
-    { "$_nix" build "$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" --impure --no-link $NIX_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+    { "$_nix" build "path:$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" --impure --no-link $NIX_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     exit_code=$(cat "$_rc_file")
     rm -f "$_rc_file"
 
@@ -453,7 +453,7 @@ cmd_dry_run() {
     log_info "Evaluating what would be built..."
     _nix="nix"
     [ -x "$HOME/.nix-profile/bin/nix" ] && _nix="$HOME/.nix-profile/bin/nix"
-    "$_nix" build "$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" --impure --no-link --dry-run $NIX_VERBOSE_FLAGS 2>&1 | tee -a "$LOG_FILE"
+    "$_nix" build "path:$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" --impure --no-link --dry-run $NIX_VERBOSE_FLAGS 2>&1 | tee -a "$LOG_FILE"
 }
 
 cmd_check() {
@@ -806,7 +806,7 @@ cmd_ci_build() {
     fi
 
     log_info "Building activationPackage (accept-flake-config → cached substitutes)..."
-    "$_nix" build "$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" \
+    "$_nix" build "path:$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" \
         --impure --accept-flake-config --out-link "$_out/result" \
         --extra-experimental-features "nix-command flakes" $NIX_VERBOSE_FLAGS \
         || { log_error "ci build failed"; return 1; }
@@ -894,7 +894,7 @@ cmd_pull() {
     #    network) and no local tarball exists. Nix must always win.
     if [ -z "$_sys" ] || [ ! -d "$_sys" ]; then
         log_warn "GHCR and tarball unavailable — falling back to nix-on-droid switch (local store)"
-        nix-on-droid switch --flake "$SRC_DIR#default" \
+        nix-on-droid switch --flake "path:$SRC_DIR#default" \
             || { log_error "nix-on-droid switch also failed; you may need network for new paths"; return 1; }
         log_success "Activated via nix-on-droid switch (local store fallback)."
         return 0
