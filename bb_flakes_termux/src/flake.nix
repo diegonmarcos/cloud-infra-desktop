@@ -327,36 +327,33 @@
                 exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
               '')
 
-              # claude-superset: PURE SCRIPT — single source of truth is
-              # da_my-ai/superset/. We only INSTALL it here (copy + symlink onto
-              # PATH), never inline it. Runtime tools (node/jq/curl/tmux/git/…)
-              # come from environment.packages; config is read from the bundled
-              # claude-superset.json at runtime. The script detects Termux and
-              # hands off to claude-malloc for Android isolation.
-              (pkgs.runCommandLocal "claude-superset" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
-                mkdir -p $out/bin $out/share/claude-superset
-                cp -r ${../../da_my-ai/superset}/. $out/share/claude-superset/
-                chmod +x $out/share/claude-superset/claude-superset
-                patchShebangs $out/share/claude-superset/claude-superset
-                # Thin installer supplies the script's tools on PATH; the script
-                # itself stays pure. --prefix keeps the user's PATH (claude-malloc).
-                makeWrapper $out/share/claude-superset/claude-superset $out/bin/claude-superset \
-                  --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.jq pkgsNew.nodejs_22 pkgs.curl pkgs.tmux pkgs.git pkgs.iputils pkgs.coreutils pkgs.findutils pkgs.bash ]}
-              '')
-
-              # my-ai: pull ONLY the aarch64 GH-release binary and drop it on PATH.
-              # The release asset is already patchelf'd to nix store paths at build
-              # time (interpreter + RUNPATH point at /nix/store glibc & gcc-lib), so
-              # nix's reference scanner auto-adds them to the closure — no
-              # autoPatchelfHook, no callPackage, no flake input (which would fetch
-              # the whole unix repo tarball and fail on proot). Hash from the same
-              # da_my-ai/nix/hashes.json the release build publishes.
+              # my-ai: pull the aarch64 GH-release binary AND install claude-superset
+              # (an ASSET OF my-ai — my-ai owns and installs it; the flake never
+              # touches the wrapper). The release binary is already patchelf'd to nix
+              # store paths at build time (interpreter + RUNPATH point at /nix/store
+              # glibc & gcc-lib), so nix's reference scanner auto-adds them to the
+              # closure — no autoPatchelfHook, no flake input (which would fetch the
+              # whole unix repo tarball and fail on proot). Termux can't use
+              # da_my-ai/nix/my-ai.nix (its autoPatchelfHook SIGBUSes under proot), so
+              # this mirrors that package's claude-superset install for the lean path.
+              # The pure wrapper (da_my-ai/superset/) is copied + shebang-patched +
+              # wrapped with its tools on PATH; the script detects Termux at runtime
+              # and hands off to claude-malloc for Android isolation.
               (pkgs.runCommandLocal "my-ai" {
+                nativeBuildInputs = [ pkgs.makeWrapper ];
                 src = pkgs.fetchurl {
                   url  = "https://github.com/diegonmarcos/unix/releases/download/my-ai-latest/my-ai-aarch64";
                   hash = (builtins.fromJSON (builtins.readFile ../../da_my-ai/nix/hashes.json))."aarch64-linux".my-ai;
                 };
-              } "install -Dm755 $src $out/bin/my-ai")
+              } ''
+                install -Dm755 $src $out/bin/my-ai
+                mkdir -p $out/share/claude-superset
+                cp -r ${../../da_my-ai/superset}/. $out/share/claude-superset/
+                chmod +x $out/share/claude-superset/claude-superset
+                patchShebangs $out/share/claude-superset/claude-superset
+                makeWrapper $out/share/claude-superset/claude-superset $out/bin/claude-superset \
+                  --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.jq pkgsNew.nodejs_22 pkgs.curl pkgs.tmux pkgs.git pkgs.iputils pkgs.coreutils pkgs.findutils pkgs.bash ]}
+              '')
 
               # claude-rescue: delegates to tools/5-infos/claude-rescue/
               # (12-fallback chain). The flake-side wrapper is intentionally
