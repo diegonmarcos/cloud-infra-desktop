@@ -10,8 +10,10 @@
     sysstat          # iostat, mpstat, pidstat, sar
     multitail        # multi-file tail with split view
     tree
-    (callPackage ../pkgs/octocode.nix {})
-    (callPackage ../pkgs/goose.nix {})
+    # octocode + goose removed: they were the ONLY source-built packages, and
+    # pulled the entire Rust/LLVM/GCC/Node toolchain (~5GB) onto the phone.
+    # Termux is edit+git only now — nothing builds here. If needed, ship them
+    # prebuilt from the GHA binary cache instead of callPackage-from-source.
     # Termux:API CLI helpers (termux-vibrate, termux-toast, …) are NOT
     # wired here — the upstream C bridge (termux-api.c) includes
     # <sys/endian.h>, a bionic-only header that the nix-on-droid build
