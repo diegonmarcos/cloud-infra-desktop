@@ -10,3 +10,11 @@
 	path = III_front-data
 	url = https://github.com/diegonmarcos/front-data.git
 	ignore = all
+[submodule "cloud-configs"]
+	path = IV_cloud-configs
+	url = https://github.com/diegonmarcos/cloud.git
+	ignore = all
+[submodule "front-configs"]
+	path = V_front-configs
+	url = https://github.com/diegonmarcos/diegonmarcos.github.io.git
+	ignore = all
