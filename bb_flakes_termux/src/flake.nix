@@ -243,90 +243,6 @@
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22
 
-              # claude family — every wrapper has the SAME failure-mode safety:
-              # try native nix-store binary first, on ANY failure (missing,
-              # SIGSEGV, exit≠0 from libc init, etc.) fall through to
-              # claude-rescue's 12-fallback chain. This is intentional — the
-              # phone is unreliable enough that a single-path wrapper is
-              # guaranteed to fail eventually, and the user shouldn't have to
-              # remember which command to run when it does.
-              #
-              # NOTE: NODE_OPTIONS is dropped — claude is a compiled native
-              # binary, not Node.js. MALLOC_ARENA_MAX still applies (libc).
-
-              (writeShellScriptBin "claude-termux" ''
-                # Conservative malloc tuning for phone RAM.
-                export MALLOC_ARENA_MAX=2
-
-                # Sweep stale orphans before launching (see claude-malloc).
-                command -v claude-orphan-sweep >/dev/null 2>&1 \
-                  && claude-orphan-sweep >/dev/null 2>&1 || true
-
-                _bin="$HOME/.nix-profile/bin/claude"
-                if [ -x "$_bin" ]; then
-                  # Same supervision as claude-malloc: setpriv --pdeathsig,
-                  # synchronous foreground, NO tini (see claude-malloc for why
-                  # tini is unusable under proot).
-                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM -- "$_bin" "$@"
-                  _rc=$?
-                  # exit codes 0–125 are user-meaningful. 126/127 = exec
-                  # failure (interpreter/permission). 137/139 = SIGKILL/SEGV.
-                  case "$_rc" in
-                    126|127|137|139) ;;   # fall through to rescue
-                    *) exit "$_rc" ;;
-                  esac
-                fi
-                echo "[claude-termux] native exec failed — trying rescue chain..." >&2
-                exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
-              '')
-
-              (writeShellScriptBin "claude-malloc" ''
-                # Max-isolation: tight malloc arenas + dedicated TMPDIR.
-                export MALLOC_ARENA_MAX=2
-                export CLAUDE_TMP="$HOME/tmp/claude"
-                mkdir -p "$CLAUDE_TMP"
-                export TMPDIR="$CLAUDE_TMP"
-
-                # Sweep stale orphans from previous Android-OOM-killed sessions
-                # before launching, so node/MCP zombies don't pile up over time.
-                command -v claude-orphan-sweep >/dev/null 2>&1 \
-                  && claude-orphan-sweep >/dev/null 2>&1 || true
-
-                _bin="$HOME/.nix-profile/bin/claude"
-                if [ -x "$_bin" ]; then
-                  # Process supervision (countermeasure to lmkd / parent-shell exits):
-                  #   setpriv --pdeathsig TERM : if THIS wrapper dies (any signal
-                  #                              except SIGKILL), the kernel SIGTERMs
-                  #                              claude directly. Claude runs in the
-                  #                              foreground terminal pgroup (no -g, no
-                  #                              &, no trap), so the interactive TUI
-                  #                              keeps the controlling terminal —
-                  #                              Ctrl-C, job control, etc.
-                  #
-                  # tini is DELIBERATELY NOT USED here. nix-on-droid runs the whole
-                  # rootfs under proot, whose ptrace/seccomp layer returns ENOSYS for
-                  # tini's reaper waitpid(-1, WNOHANG). tini treats any wait errno
-                  # other than ECHILD as fatal, so it aborts with
-                  #   [FATAL tini] Error while waiting for pids: 'Function not implemented'
-                  # and takes claude down with it (the crash this fix resolves).
-                  # proot is already the subreaper, so zombie reaping is handled;
-                  # stray claude/node/MCP children that outlive a hard kill are mopped
-                  # up by the claude-orphan-sweep call above (PPID=1 + session-group
-                  # kill) at the next launch.
-                  #
-                  # SIGKILL on this wrapper is uncatchable (Android lmkd hard kill);
-                  # the orphan-sweep likewise covers those survivors.
-                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM -- "$_bin" "$@"
-                  _rc=$?
-                  case "$_rc" in
-                    126|127|137|139) ;;   # exec/signal failure → rescue
-                    *) exit "$_rc" ;;
-                  esac
-                fi
-                echo "[claude-malloc] native exec failed — trying rescue chain..." >&2
-                exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
-              '')
-
               # my-ai: pull the aarch64 GH-release binary AND install claude-superset
               # (an ASSET OF my-ai — my-ai owns and installs it; the flake never
               # touches the wrapper). The release binary is already patchelf'd to nix
@@ -353,180 +269,31 @@
                 patchShebangs $out/share/claude-superset/claude-superset
                 makeWrapper $out/share/claude-superset/claude-superset $out/bin/claude-superset \
                   --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.jq pkgsNew.nodejs_22 pkgs.curl pkgs.tmux pkgs.git pkgs.iputils pkgs.coreutils pkgs.findutils pkgs.bash ]}
-              '')
 
-              # claude-rescue: delegates to tools/5-infos/claude-rescue/
-              # (12-fallback chain). The flake-side wrapper is intentionally
-              # thin so the rescue logic has ONE home.
-              (writeShellScriptBin "claude-rescue" ''
-                exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
-              '')
-
-              # claude-orphan-sweep: reap stale claude/tini orphans left over
-              # from a previous SIGKILL'd session (Android lmkd hard kills are
-              # uncatchable; their children get reparented to PID 1 and just
-              # accumulate). Targets PPID=1 ONLY — active sessions parented by
-              # a fish/bash are never touched. Called automatically at the
-              # start of each claude-malloc / claude-termux launch.
-              #
-              # Teardown is by PROCESS GROUP, not session. fish's job control
-              # puts each claude-malloc launch in its own process group (pgid =
-              # claude-malloc's pid), and claude + its node/MCP children inherit
-              # it — but they stay in the *login session* (sid = the fish/proot
-              # session, shared by everything). So `kill -- -<session>` would
-              # both MISS the claude subtree and signal the login session group.
-              # We read field 5 (pgrp) of /proc/<pid>/stat and `kill -- -<pgrp>`,
-              # which surgically takes down claude + all its children and nothing
-              # else. (awk on $5 is safe here: it only runs after the comm has
-              # already matched the space-free names below.)
-              (writeShellScriptBin "claude-orphan-sweep" ''
-                set -u
-                swept=0
-                _kill() {
-                  local sig=$1 pid=$2 pgid=$3
-                  if [ -n "$pgid" ] && [ "$pgid" -gt 1 ] 2>/dev/null; then
-                    kill -"$sig" -- -"$pgid" 2>/dev/null || true
-                  else
-                    kill -"$sig" "$pid" 2>/dev/null || true
-                  fi
-                }
-                for proc in /proc/[0-9]*; do
-                  pid=''${proc##*/}
-                  [ -r "$proc/status" ] || continue
-                  ppid=$(${pkgs.gawk}/bin/awk '/^PPid:/ {print $2}' "$proc/status" 2>/dev/null) || continue
-                  [ "$ppid" = "1" ] || continue
-                  comm=$(cat "$proc/comm" 2>/dev/null) || continue
-                  case "$comm" in
-                    claude|claude-malloc|claude-termux|tini)
-                      pgid=$(${pkgs.gawk}/bin/awk '{print $5}' "$proc/stat" 2>/dev/null)
-                      _kill TERM "$pid" "$pgid"
-                      swept=$((swept+1))
-                      ;;
-                  esac
+                # claude wrappers — mirror da_my-ai/nix/my-ai.nix (termux can't use
+                # autoPatchelfHook; see comment above).
+                for _name in claude-malloc claude-termux claude-orphan-sweep claude-rescue; do
+                  mkdir -p $out/share/claude
+                  cp ${../../da_my-ai/scripts/claude}/$_name $out/share/claude/$_name
+                  chmod +x $out/share/claude/$_name
+                  patchShebangs $out/share/claude/$_name
                 done
-                if [ "$swept" -gt 0 ]; then
-                  sleep 2
-                  for proc in /proc/[0-9]*; do
-                    pid=''${proc##*/}
-                    [ -r "$proc/status" ] || continue
-                    ppid=$(${pkgs.gawk}/bin/awk '/^PPid:/ {print $2}' "$proc/status" 2>/dev/null) || continue
-                    [ "$ppid" = "1" ] || continue
-                    comm=$(cat "$proc/comm" 2>/dev/null) || continue
-                    case "$comm" in
-                      claude|claude-malloc|claude-termux|tini)
-                        pgid=$(${pkgs.gawk}/bin/awk '{print $5}' "$proc/stat" 2>/dev/null)
-                        _kill KILL "$pid" "$pgid"
-                        ;;
-                    esac
-                  done
-                fi
-                echo "claude-orphan-sweep: $swept process(es) reaped" >&2
-              '')
-
-              # goose-malloc: same isolation/supervision as claude-malloc.
-              # Tight malloc arenas + dedicated TMPDIR to avoid OOM on phone.
-              (writeShellScriptBin "goose-malloc" ''
-                # Max-isolation: tight malloc arenas + dedicated TMPDIR.
-                export MALLOC_ARENA_MAX=2
-                export GOOSE_TMP="$HOME/tmp/goose"
-                mkdir -p "$GOOSE_TMP"
-                export TMPDIR="$GOOSE_TMP"
-
-                # Sweep stale orphans from previous Android-OOM-killed sessions
-                # before launching.
-                command -v goose-orphan-sweep >/dev/null 2>&1 \
-                  && goose-orphan-sweep >/dev/null 2>&1 || true
-
-                # Read Bearer token from vault for HTTP MCP Authorization headers
-                # Config templates use AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN env var
-                _token_file="$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens/claude-admin.json"
-                if [ -r "$_token_file" ]; then
-                  _token=$(${pkgs.jq}/bin/jq -r '.access_token' "$_token_file" 2>/dev/null)
-                  if [ -n "$_token" ] && [ "$_token" != "null" ]; then
-                    export AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN="$_token"
-                  fi
-                fi
-
-                _bin="$HOME/.nix-profile/bin/goose"
-                if [ -x "$_bin" ]; then
-                  # Process supervision (countermeasure to lmkd / parent-shell exits):
-                  # setpriv --pdeathsig TERM : if THIS wrapper dies (any signal
-                  # except SIGKILL), the kernel SIGTERMs goose directly. Goose runs
-                  # in the foreground terminal pgroup (no -g, no &, no trap), so
-                  # the interactive TUI keeps the controlling terminal — Ctrl-C,
-                  # job control, etc.
-                  #
-                  # tini is DELIBERATELY NOT USED here. nix-on-droid runs the whole
-                  # rootfs under proot, whose ptrace/seccomp layer returns ENOSYS
-                  # for tini's reaper waitpid(-1, WNOHANG). tini treats any wait
-                  # errno other than ECHILD as fatal, so it aborts with
-                  #   [FATAL tini] Error while waiting for pids: 'Function not implemented'
-                  # and takes goose down with it (the crash this fix resolves).
-                  # proot is already the subreaper, so zombie reaping is handled;
-                  # stray goose/node/MCP children that outlive a hard kill are mopped
-                  # up by the goose-orphan-sweep call above (PPID=1 + session-group
-                  # kill) at the next launch.
-                  #
-                  # SIGKILL on this wrapper is uncatchable (Android lmkd hard kill);
-                  # the orphan-sweep likewise covers those survivors.
-                  ${pkgs.util-linux}/bin/setpriv --pdeathsig TERM -- "$_bin" "$@"
-                  _rc=$?
-                  case "$_rc" in
-                    126|127|137|139) ;;   # exec/signal failure → no rescue chain
-                    *) exit "$_rc" ;;
-                  esac
-                fi
-                echo "[goose-malloc] native exec failed — cannot fall back (goose has no rescue chain)" >&2
-                exit "$_rc"
-              '')
-
-              # goose-orphan-sweep: reap stale goose orphans left over from a
-              # previous SIGKILL'd session (Android lmkd hard kills are uncatchable).
-              # Targets PPID=1 ONLY — active sessions parented by fish/bash are
-              # never touched. Called automatically at the start of each
-              # goose-malloc launch.
-              (writeShellScriptBin "goose-orphan-sweep" ''
-                set -u
-                swept=0
-                _kill() {
-                  local sig=$1 pid=$2 pgid=$3
-                  if [ -n "$pgid" ] && [ "$pgid" -gt 1 ] 2>/dev/null; then
-                    kill -"$sig" -- -"$pgid" 2>/dev/null || true
-                  else
-                    kill -"$sig" "$pid" 2>/dev/null || true
-                  fi
-                }
-                for proc in /proc/[0-9]*; do
-                  pid=''${proc##*/}
-                  [ -r "$proc/status" ] || continue
-                  ppid=$(${pkgs.gawk}/bin/awk '/^PPid:/ {print $2}' "$proc/status" 2>/dev/null) || continue
-                  [ "$ppid" = "1" ] || continue
-                  comm=$(cat "$proc/comm" 2>/dev/null) || continue
-                  case "$comm" in
-                    goose|goose-malloc)
-                      pgid=$(${pkgs.gawk}/bin/awk '{print $5}' "$proc/stat" 2>/dev/null)
-                      _kill TERM "$pid" "$pgid"
-                      swept=$((swept+1))
-                      ;;
-                  esac
+                for _name in claude-malloc claude-termux claude-orphan-sweep; do
+                  makeWrapper $out/share/claude/$_name $out/bin/$_name \
+                    --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.util-linux pkgs.gawk pkgs.coreutils pkgs.findutils pkgs.bash ]}
                 done
-                if [ "$swept" -gt 0 ]; then
-                  sleep 2
-                  for proc in /proc/[0-9]*; do
-                    pid=''${proc##*/}
-                    [ -r "$proc/status" ] || continue
-                    ppid=$(${pkgs.gawk}/bin/awk '/^PPid:/ {print $2}' "$proc/status" 2>/dev/null) || continue
-                    [ "$ppid" = "1" ] || continue
-                    comm=$(cat "$proc/comm" 2>/dev/null) || continue
-                    case "$comm" in
-                      goose|goose-malloc)
-                        pgid=$(${pkgs.gawk}/bin/awk '{print $5}' "$proc/stat" 2>/dev/null)
-                        _kill KILL "$pid" "$pgid"
-                        ;;
-                    esac
-                  done
-                fi
-                echo "goose-orphan-sweep: $swept process(es) reaped" >&2
+                makeWrapper $out/share/claude/claude-rescue $out/bin/claude-rescue \
+                  --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.bash ]}
+
+                # goose wrappers — mirror da_my-ai/nix/my-ai.nix
+                for _name in goose-malloc goose-orphan-sweep; do
+                  mkdir -p $out/share/goose
+                  cp ${../../da_my-ai/scripts/goose}/$_name $out/share/goose/$_name
+                  chmod +x $out/share/goose/$_name
+                  patchShebangs $out/share/goose/$_name
+                  makeWrapper $out/share/goose/$_name $out/bin/$_name \
+                    --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.util-linux pkgs.gawk pkgs.coreutils pkgs.findutils pkgs.bash pkgs.jq ]}
+                done
               '')
 
               # 3. SYNC — unified sync engine (git + rclone)
