@@ -515,11 +515,19 @@
                 exec claude-malloc $CC_EXTRA_FLAGS "$@"
               '')
 
-              # my-ai: pre-built Rust binary from GH Release. Reuses the existing
-              # da_my-ai/nix/my-ai.nix package (single source of truth, same one the
-              # desktop flake builds) via a relative path — NOT a flake input, which
-              # would fetch the whole unix repo tarball and fail on proot.
-              (pkgs.callPackage ../../da_my-ai/nix/my-ai.nix {})
+              # my-ai: pull ONLY the aarch64 GH-release binary and drop it on PATH.
+              # The release asset is already patchelf'd to nix store paths at build
+              # time (interpreter + RUNPATH point at /nix/store glibc & gcc-lib), so
+              # nix's reference scanner auto-adds them to the closure — no
+              # autoPatchelfHook, no callPackage, no flake input (which would fetch
+              # the whole unix repo tarball and fail on proot). Hash from the same
+              # da_my-ai/nix/hashes.json the release build publishes.
+              (pkgs.runCommandLocal "my-ai" {
+                src = pkgs.fetchurl {
+                  url  = "https://github.com/diegonmarcos/unix/releases/download/my-ai-latest/my-ai-aarch64";
+                  hash = (builtins.fromJSON (builtins.readFile ../../da_my-ai/nix/hashes.json))."aarch64-linux".my-ai;
+                };
+              } "install -Dm755 $src $out/bin/my-ai")
 
               # claude-rescue: delegates to tools/5-infos/claude-rescue/
               # (12-fallback chain). The flake-side wrapper is intentionally
