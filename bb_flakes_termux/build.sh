@@ -252,10 +252,27 @@ cmd_switch() {
     # automatically. Nix always wins; no hardcoded per-file list needed.
     export HOME_MANAGER_BACKUP_EXT="hm-bak-$(date +%Y%m%d-%H%M%S)"
     _rc_file=$(mktemp)
-    { nix-on-droid switch --flake "$SRC_DIR" $NIXOD_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+    # Capture THIS switch's output to a private file too — LOG_FILE accumulates
+    # across runs, so grepping it for errors would match stale ones.
+    _out_file=$(mktemp)
+    { nix-on-droid switch --flake "$SRC_DIR" $NIXOD_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE" "$_out_file"
     exit_code=$(cat "$_rc_file" 2>/dev/null)
     exit_code=${exit_code:-0}
-    rm -f "$_rc_file"
+
+    # False-green guard: `nix-on-droid switch` can exit 0 even when nix printed a
+    # FATAL error (unfree-license refusal, missing attribute, SIGBUS during the
+    # activation build). In that case the activation is never applied and NO new
+    # generation is created, but the bare exit code lies and we'd report success.
+    # A fatal nix error is a `^error:` line (col 0, no color when piped). The
+    # benign flake-lock `error (ignored):` starts with "error " (space) not
+    # "error:" so it does not match, and it is emitted before this block anyway.
+    if grep -qE '^error:' "$_out_file"; then
+        _first_err=$(grep -E '^error:' "$_out_file" | head -1)
+        log_error "nix-on-droid printed a FATAL error (raw exit was $exit_code) — no generation applied:"
+        log_error "  $_first_err"
+        exit_code=1
+    fi
+    rm -f "$_rc_file" "$_out_file"
 
     if [ "$exit_code" -ne 0 ]; then
         log_error "Configuration failed (exit $exit_code)"
