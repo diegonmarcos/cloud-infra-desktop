@@ -1,15 +1,3 @@
-# ╔══════════════════════════════════════════════════════════════════╗
-# ║                                                                  ║
-# ║   GENERATED FILE — DO NOT EDIT                                   ║
-# ║                                                                  ║
-# ║   Source : 1_workflows/src/modules/gitmodules
-# ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
-# ║   Rebuild: ./1_workflows/build.sh
-# ║                                                                  ║
-# ║   Manual edits will be overwritten on next build.                ║
-# ║                                                                  ║
-# ╚══════════════════════════════════════════════════════════════════╝
-
 [submodule "cloud-data"]
 	path = I_cloud-data
 	url = https://github.com/diegonmarcos/cloud-data.git
@@ -21,4 +9,12 @@
 [submodule "front-data"]
 	path = III_front-data
 	url = https://github.com/diegonmarcos/front-data.git
+	ignore = all
+[submodule "cloud-configs"]
+	path = IV_cloud-configs
+	url = https://github.com/diegonmarcos/cloud.git
+	ignore = all
+[submodule "front-configs"]
+	path = V_front-configs
+	url = https://github.com/diegonmarcos/diegonmarcos.github.io.git
 	ignore = all
