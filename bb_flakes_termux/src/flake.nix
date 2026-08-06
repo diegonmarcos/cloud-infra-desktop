@@ -25,7 +25,7 @@
   outputs = { self, nixpkgs, nixpkgs-new, nixpkgs-unstable, nix-on-droid, home-manager }:
     let
       pkgsNew = import nixpkgs-new { system = "aarch64-linux"; };
-      pkgsUnstable = import nixpkgs-unstable { system = "aarch64-linux"; };
+      pkgsUnstable = import nixpkgs-unstable { system = "aarch64-linux"; config.allowUnfree = true; };
 
       # Node identity for DTK webhooks (ntfy topic = dtk-cmd-<dtkNode>).
       # Source of truth: build.json -> defaults.dtk_node. Termux can't
