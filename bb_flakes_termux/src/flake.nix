@@ -515,29 +515,11 @@
                 exec claude-malloc $CC_EXTRA_FLAGS "$@"
               '')
 
-              # my-ai: pre-built Rust binary fetched directly from GH Release.
-              # Uses fetchurl (no flake input) — avoids downloading the entire unix
-              # repo tarball which fails on proot due to filesystem limitations.
-              # Hashes are read from da_my-ai/nix/hashes.json (same source of truth
-              # as the full da_my-ai flake package).
-              (let
-                hashes  = builtins.fromJSON (builtins.readFile ../../da_my-ai/nix/hashes.json);
-                sys     = hashes."aarch64-linux";
-                base    = "https://github.com/diegonmarcos/unix/releases/download/my-ai-latest";
-              in pkgs.stdenv.mkDerivation {
-                pname   = "my-ai";
-                version = "latest";
-                src      = pkgs.fetchurl { url = "${base}/my-ai-aarch64";      hash = sys.my-ai; };
-                dashSrc  = pkgs.fetchurl { url = "${base}/my-ai-dash-aarch64"; hash = sys."my-ai-dash"; };
-                nativeBuildInputs = [ pkgs.autoPatchelfHook pkgs.makeWrapper ];
-                buildInputs = [ pkgs.gcc-unwrapped.lib ];
-                dontUnpack = true;
-                installPhase = ''
-                  install -Dm755 $src     $out/bin/my-ai
-                  install -Dm755 $dashSrc $out/libexec/my-ai/my-ai-dash
-                  wrapProgram $out/bin/my-ai --set MY_AI_DASH_BIN "$out/libexec/my-ai/my-ai-dash"
-                '';
-              })
+              # my-ai: pre-built Rust binary from GH Release. Reuses the existing
+              # da_my-ai/nix/my-ai.nix package (single source of truth, same one the
+              # desktop flake builds) via a relative path — NOT a flake input, which
+              # would fetch the whole unix repo tarball and fail on proot.
+              (pkgs.callPackage ../../da_my-ai/nix/my-ai.nix {})
 
               # claude-rescue: delegates to tools/5-infos/claude-rescue/
               # (12-fallback chain). The flake-side wrapper is intentionally
