@@ -4,7 +4,7 @@
 # ║                                                                  ║
 # ║   GENERATED FILE — DO NOT EDIT                                   ║
 # ║                                                                  ║
-# ║   Source : 1_workflows/src/hooks/pre-push
+# ║   Source : 1_workflows/src/hooks/post-merge
 # ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
 # ║   Rebuild: ./1_workflows/build.sh
 # ║                                                                  ║
@@ -13,22 +13,21 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║ pre-push — rebase submodules onto their upstream HEAD            ║
+# ║ post-merge — rebase submodules after pull/merge                  ║
 # ║                                                                  ║
-# ║ Source: cloud/1_workflows/src/hooks/pre-push                     ║
+# ║ Source: cloud/1_workflows/src/hooks/post-merge                   ║
 # ║ Active via [core] hooksPath = 1_workflows/dist/hooks             ║
 # ║                                                                  ║
-# ║ Before every push, sync each submodule worktree to its remote    ║
-# ║ HEAD (rebased). Pointer bumps in the parent repo are NOT         ║
-# ║ auto-staged — that remains the responsibility of the GHA         ║
-# ║ sync-submodules workflow on main. This hook only ensures the     ║
-# ║ local worktree reflects upstream before the push goes out.       ║
+# ║ Fires after `git pull` and `git merge`. Pulls each submodule     ║
+# ║ worktree onto its upstream HEAD (rebased) so local submodule     ║
+# ║ contents always reflect upstream immediately after a pull.       ║
+# ║ Non-blocking: never fails the merge result.                      ║
 # ╚══════════════════════════════════════════════════════════════════╝
 set -uo pipefail
 
 # ── Safer-alternative reminder ──────────────────────────────────────
 if [ -t 2 ]; then
-  printf '\033[33m\n┌─ git push ─ tip ──────────────────────────────────────────────┐\n' >&2
+  printf '\033[33m\n┌─ git pull ─ tip ──────────────────────────────────────────────┐\n' >&2
   printf   '│ Prefer `git sync` — safer: auto-stash + rebase + submodules.  │\n' >&2
   printf   '│   git sync remote   (origin wins on conflict, default)        │\n' >&2
   printf   '│   git sync local    (local commits win on conflict)           │\n' >&2
@@ -36,26 +35,9 @@ if [ -t 2 ]; then
   printf   '└───────────────────────────────────────────────────────────────┘\033[0m\n' >&2
 fi
 
-# ── Pull/rebase before pushing ──────────────────────────────────────────────
-# Ensures the push never fails due to diverged remote — mirrors `git sync`.
-if ! git pull --rebase 2>&1; then
-  echo "[pre-push] pull --rebase failed — resolve conflicts then try again." >&2
-  exit 1
-fi
-
-# Skip during interactive rebase / merge / bisect — don't compound state.
-if [ -d "$(git rev-parse --git-path rebase-merge 2>/dev/null)" ] \
-   || [ -d "$(git rev-parse --git-path rebase-apply 2>/dev/null)" ] \
-   || [ -f "$(git rev-parse --git-path MERGE_HEAD   2>/dev/null)" ] \
-   || [ -f "$(git rev-parse --git-path BISECT_LOG   2>/dev/null)" ]; then
-  exit 0
-fi
-
-# Skip if no submodules declared
 [ -f .gitmodules ] || exit 0
 
-echo "[pre-push] rebasing submodules onto upstream HEAD..."
-if ! git submodule update --init --recursive --remote --rebase; then
-  echo "[pre-push] submodule rebase reported errors — continuing (non-blocking)." >&2
-fi
+echo "[post-merge] rebasing submodules onto upstream HEAD..."
+git submodule update --init --recursive --remote --rebase \
+  || echo "[post-merge] submodule rebase reported errors (non-blocking)." >&2
 exit 0
