@@ -260,7 +260,7 @@
               (pkgs.runCommandLocal "my-ai" {
                 src = pkgs.fetchurl {
                   url  = "https://github.com/diegonmarcos/unix/releases/download/my-ai-latest/my-ai-aarch64";
-                  hash = "sha256-/rvxDuJ6TXN2bNyKGkIBdUw0fHCGiQGQmaGeRlCNJfs=";
+                  hash = "sha256-Wa1huOrB9w7rcI7Jvcduj2sKraoRCq4bFpNWtKF+vwg=";
                 };
               } "install -Dm755 $src $out/bin/my-ai")
 
