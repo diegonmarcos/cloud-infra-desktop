@@ -154,11 +154,12 @@
               browsh    # terminal web browser (headless Firefox rendering)
               iproute2  # Provides 'ip' command for network interface management
 
-              # Rust toolchain (unstable for edition2024 support, 1.85+)
-              pkgsUnstable.rustc
-              pkgsUnstable.cargo
+              # Rust toolchain REMOVED — ~6GB (rustc+cargo+llvm), build-only.
+              # Termux is edit+git only; nothing compiles here. Restore only if
+              # you deliberately reverse the no-build policy.
 
-              # Dependencies that stop npm from panicking
+              # Dependencies that stop npm from panicking (build-only — removable
+              # if the node deps-merge never compiles native addons)
               python3
               gnumake
               gcc
