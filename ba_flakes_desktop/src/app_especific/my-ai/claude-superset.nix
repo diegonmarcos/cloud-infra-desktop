@@ -23,18 +23,11 @@ let
   # Config for the desktop tray — read from the unified da_my-ai SoT config.
   ep = builtins.fromJSON (builtins.readFile ../../../../da_my-ai/superset/claude-superset.json);
 
-  # claude-superset: PURE SCRIPT — single source of truth is da_my-ai/superset/.
-  # We only INSTALL it here (copy + patch shebang + wrap with its tools on PATH),
-  # never inline it. Config (claude-superset.json) + assets are bundled beside
-  # the script and read at runtime; the script auto-detects desktop vs Termux.
-  claude-superset = pkgs.runCommandLocal "claude-superset" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
-    mkdir -p $out/bin $out/share/claude-superset
-    cp -r ${../../../../da_my-ai/superset}/. $out/share/claude-superset/
-    chmod +x $out/share/claude-superset/claude-superset
-    patchShebangs $out/share/claude-superset/claude-superset
-    makeWrapper $out/share/claude-superset/claude-superset $out/bin/claude-superset \
-      --prefix PATH : ${lib.makeBinPath [ pkgs.jq pkgs.nodejs pkgs.curl pkgs.tmux pkgs.git pkgs.iputils pkgs.coreutils pkgs.findutils pkgs.bash pkgs.kdePackages.konsole ]}
-  '';
+  # claude-superset is an ASSET OF my-ai — it ships INSIDE the my-ai package
+  # (installed by da_my-ai/nix/my-ai.nix from da_my-ai/superset/). The flake
+  # only pulls my-ai; it never installs the wrapper itself. This alias lets the
+  # tray + desktop entries below keep referencing `${claude-superset}/bin/claude-superset`.
+  claude-superset = my-ai;
 
   # Desktop tray (KDE Plasma 6 / SNI via yad) — live savings in the tooltip,
   # menu to open the dashboard or launch claude via the proxy. Desktop-only.
@@ -74,7 +67,7 @@ let
   # my-ai degrades silently while a wrong one takes the desktop down.
 in {
   home.packages = [
-    claude-superset
+    # my-ai ships claude-superset inside it (bin/claude-superset) — no separate entry.
     claude-superset-tray
     # Pre-built Rust binary from GH Release via da_my-ai flake input.
     # Hashes auto-updated by ship-my-ai-app.yml's update-hashes job.
