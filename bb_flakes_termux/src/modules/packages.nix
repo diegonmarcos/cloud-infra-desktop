@@ -10,7 +10,7 @@
     sysstat          # iostat, mpstat, pidstat, sar
     multitail        # multi-file tail with split view
     tree
-    (callPackage ../../../da_my-ai/nix/goose.nix {})  # prebuilt binary (fetchurl + patchelf), no source build
+    (callPackage ../pkgs/goose.nix {})  # prebuilt binary (fetchurl + patchelf), no source build
     # octocode removed (not wanted). Both octocode + goose are prebuilt-binary
     # derivations — the Rust/GCC/Node toolchain in the store was build-dep
     # residue from keep-derivations=true, now cleared by keep-derivations=false
