@@ -32,7 +32,10 @@
       # sethostname() on Android (no root) so `hostname -s` returns
       # "localhost" — useless as a topic key. This makes the identity
       # declarative + data-driven instead.
-      buildJson = builtins.fromJSON (builtins.readFile ../build.json);
+      # ./build.json is vendored into src/ by build.sh before eval — the flake
+      # must reference nothing outside src/ (path: flake; a ../ ref escaping src/
+      # forces nix to copy the whole 3.6GB repo and proot dies mid-copy).
+      buildJson = builtins.fromJSON (builtins.readFile ./build.json);
       dtkNode = buildJson.defaults.dtk_node or "unset";
 
       # Build termux-am from nix-on-droid source (provides `am` for Android intents)
