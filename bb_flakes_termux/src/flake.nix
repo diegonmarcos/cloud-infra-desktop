@@ -823,6 +823,17 @@
                 shellAliases = sharedAliases;
                 profileExtra = ''
                   export PATH="$HOME/.nix-profile/bin:/run/current-system/sw/bin:$PATH"
+                  # /etc self-heal — a FAILED nix-on-droid switch relinks
+                  # /etc/static to the new generation's etc mid-activation, then
+                  # aborts before committing; that orphaned etc is later GC'd, so
+                  # /etc/{passwd,resolv.conf,group} dangle → no SSH/DNS → and you
+                  # can't switch to fix it (activation needs a working /etc).
+                  # Repair from the LIVE, GC-rooted generation etc. Declarative,
+                  # runs every login, no-op when healthy.
+                  if [ ! -e /etc/static/passwd ]; then
+                    _ge=$(${pkgs.coreutils}/bin/readlink -f /nix/var/nix/profiles/nix-on-droid/etc 2>/dev/null)
+                    [ -n "$_ge" ] && [ -e "$_ge/passwd" ] && ${pkgs.coreutils}/bin/ln -sfn "$_ge" /etc/static 2>/dev/null || true
+                  fi
                 '';
               };
 
@@ -835,6 +846,17 @@
                 enable = true;
                 shellAliases = sharedAliases;
                 interactiveShellInit = ''
+
+                  # /etc self-heal — repair a dangling /etc/static (left by a
+                  # failed switch whose orphaned etc got GC'd) from the live,
+                  # GC-rooted generation etc. See programs.bash.profileExtra for
+                  # the full rationale. Declarative, no-op when healthy.
+                  if not test -e /etc/static/passwd
+                    set -l _ge (${pkgs.coreutils}/bin/readlink -f /nix/var/nix/profiles/nix-on-droid/etc 2>/dev/null)
+                    if test -n "$_ge"; and test -e "$_ge/passwd"
+                      ${pkgs.coreutils}/bin/ln -sfn "$_ge" /etc/static 2>/dev/null
+                    end
+                  end
 
                   # NOTE: sshd auto-start lives in modules/cloud-ide-sshd (`cloud-ide-sshd start`).
                   # The previous block here referenced ~/.ssh/sshd_config which is never
