@@ -35,10 +35,6 @@
       buildJson = builtins.fromJSON (builtins.readFile ../build.json);
       dtkNode = buildJson.defaults.dtk_node or "unset";
 
-      # claude-api-superset endpoints (WG-only). Data-driven, not inlined in the
-      # wrapper script — see modules/data/claude-superset.json.
-      claudeSuperset = builtins.fromJSON (builtins.readFile ./modules/data/claude-superset.json);
-
       # Build termux-am from nix-on-droid source (provides `am` for Android intents)
       termux-am = (import nixpkgs { system = "aarch64-linux"; }).callPackage
         "${nix-on-droid}/pkgs/android-integration/termux-am.nix" {};
@@ -331,188 +327,21 @@
                 exec sh "$HOME/git/tools/5-infos/claude-rescue/claude-rescue.sh" "$@"
               '')
 
-              # claude-superset: route claude through claude-superset-api
-              # Headroom proxy (token compression) over WireGuard, then hand off to
-              # claude-malloc (keeps the Android isolation/supervision). Transparent
-              # proxy (compress → forward to Anthropic with the client's own creds),
-              # so interactive multi-turn / tool use is preserved. Health-checks the
-              # proxy and falls back to direct Anthropic when it's unreachable.
-              # Endpoint is data-driven (modules/data/claude-superset.json), override
-              # via CLAUDE_SUPERSET_URL.
-              # --help / -h: interactive status dashboard (probes all faces, MCPs,
-              # plugins including Ponytail, and the direct Anthropic fallback).
-              (writeShellScriptBin "claude-superset" ''
-                set -u
-                # ── Flags: mode / model / effort (parsed first) ────────────────
-                # --auto (default): pass --dangerously-skip-permissions to claude.
-                # --plan / --interactive: recorded for display; no extra CLI flags.
-                # --model <id>: sets ANTHROPIC_MODEL. --effort <lvl>: CLAUDE_EFFORT.
-                CC_EXTRA_FLAGS=""
-                while :; do
-                  case "''${1:-}" in
-                    --auto)        CC_EXTRA_FLAGS="--dangerously-skip-permissions"; shift ;;
-                    --plan)        shift ;;
-                    --interactive) shift ;;
-                    --model)       shift; [ -n "''${1:-}" ] && export ANTHROPIC_MODEL="$1"; shift ;;
-                    --effort)      shift; export CLAUDE_EFFORT="''${1:-high}"; shift ;;
-                    *) break ;;
-                  esac
-                done
-
-                # help: plain-text usage + live status (agents, plugins, sessions).
-                if [ "''${1:-}" = "help" ]; then
-                  cat ${./modules/data/claude-superset-help.txt}
-                  printf '\nMODEL ACTIVE\n  ANTHROPIC_MODEL=%s  CLAUDE_EFFORT=%s\n' \
-                    "''${ANTHROPIC_MODEL:-<unset>}" "''${CLAUDE_EFFORT:-<unset>}"
-                  printf '\nAGENTS\n'
-                  _ag_dir="$HOME/.claude/agents"; _ag_c=0
-                  if [ -d "$_ag_dir" ]; then
-                    for _f in "$_ag_dir"/*.md; do
-                      [ -f "$_f" ] || continue
-                      _n="''${_f##*/}"; _n="''${_n%.md}"
-                      case "$_n" in README*|readme*) continue ;; esac
-                      printf '  %s\n' "$_n"; _ag_c=$((_ag_c+1))
-                    done
-                    [ "$_ag_c" -eq 0 ] && printf '  (none configured)\n'
-                  else
-                    printf '  (no agents dir)\n'
-                  fi
-                  printf '\nSTATUS LINE\n  '
-                  bash "$HOME/.claude/claude-plugins-status.sh" --format plain 2>/dev/null || true
-                  printf '\n'
-                  _pdir="$HOME/.claude/projects"
-                  printf '\nSESSIONS (last 48h — unique projects)\n'
-                  if [ -d "$_pdir" ]; then
-                    find "$_pdir" -name "*.jsonl" -mmin -2880 2>/dev/null \
-                      | while IFS= read -r _f; do
-                          _dir="''${_f%/*}"; printf '%s\n' "''${_dir##*/}"
-                        done | sort -u | head -20 \
-                      | while IFS= read -r _n; do printf '  %s\n' "$_n"; done
-                  fi
-                  printf '\nSESSIONS (last 5 by time)\n'
-                  if [ -d "$_pdir" ]; then
-                    _files=$(find "$_pdir" -name "*.jsonl" 2>/dev/null | tr '\n' ' ')
-                    if [ -n "$_files" ]; then
-                      ls -t $_files 2>/dev/null | head -5 \
-                        | while IFS= read -r _f; do
-                            _id="''${_f##*/}"; _id="''${_id%.jsonl}"
-                            _dir="''${_f%/*}"; _proj="''${_dir##*/}"
-                            printf '  %s  %s\n' "$_id" "$_proj"
-                          done
-                    fi
-                  fi
-                  exit 0
-                fi
-
-                if [ "''${1:-}" = "--help" ] || [ "''${1:-}" = "-h" ] || [ "''${1:-}" = "h" ]; then
-                  export CAS_PROXY="${claudeSuperset.proxy}" CAS_API="${claudeSuperset.api}"
-                  export CAS_OLLAMA="${claudeSuperset.ollama}" CAS_DASHBOARD="${claudeSuperset.dashboard}"
-                  export CAS_COMPRESS="''${CAS_DASHBOARD%/dashboard}" CAS_LAUNCH="claude-malloc"
-                  export CAS_ANTHROPIC="${claudeSuperset.anthropic}"
-                  export CAS_MCP_C3_INFRA="${claudeSuperset.mcps.c3_infra}"
-                  export CAS_MCP_C3_SVC="${claudeSuperset.mcps.c3_svc}"
-                  export CAS_MCP_MATTERMOST="${claudeSuperset.mcps.mattermost}"
-                  export CAS_MCP_MAIL="${claudeSuperset.mcps.mail}"
-                  export CAS_MCP_GWS="${claudeSuperset.mcps.gws}"
-                  export CAS_MCP_GP="${claudeSuperset.mcps.gp}"
-                  export CAS_PLUGINS_SCRIPT="$HOME/.claude/claude-plugins-status.sh"
-                  export CAS_MESH='${builtins.toJSON (claudeSuperset.mesh or {})}'
-                  export CAS_PUBLIC='${builtins.toJSON (claudeSuperset.public or {})}'
-                  export CAS_IMAGE="${claudeSuperset.image or ""}"
-                  export CAS_PING="${pkgs.iputils}/bin/ping" CAS_DF="${pkgs.coreutils}/bin/df" CAS_GIT="${pkgs.git}/bin/git"
-                  exec ${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-tui.mjs}
-                fi
-
-                # Termux has no `local`/docker face — remote only. `claude` sets a
-                # PLAIN flag (no proxy/plugins) but still flows through the restore
-                # dispatch below, so `claude-superset claude restore N` works —
-                # restore just reopens sessions via `claude --resume`.
-                MODE="remote"; PLAIN=0
-                case "''${1:-}" in
-                  claude) MODE="claude"; PLAIN=1; shift ;;
-                esac
-                # Face → statusline (PL[M:{L|R|C} …]).
-                export CLAUDE_SUPERSET_MODE="$MODE"
-                # Plugin toggles (any order, before the action): headroom on|off,
-                # ponytail on|off|lite|full|ultra . rtk on|off . caveman on|off.
-                [ "$MODE" = "claude" ] || { export RTK_ENABLED=1 CAVEMAN_ENABLED=1; }
-                HEADROOM="on"
-                while :; do
-                  case "''${1:-}" in
-                    remote) shift ;;
-                    headroom) HEADROOM="''${2:-on}"; shift 2 || shift ;;
-                    ponytail)
-                      case "''${2:-on}" in
-                        on)              export PONYTAIL_DEFAULT_MODE="full" ;;
-                        off)             export PONYTAIL_DEFAULT_MODE="off" ;;
-                        lite|full|ultra) export PONYTAIL_DEFAULT_MODE="''${2}" ;;
-                        *) echo "[claude-superset] ponytail: on|off|lite|full|ultra" >&2; exit 2 ;;
-                      esac
-                      shift 2 || shift ;;
-                    rtk)     case "''${2:-on}" in on) export RTK_ENABLED=1 ;; off) unset RTK_ENABLED ;; *) echo "[claude-superset] rtk: on|off" >&2; exit 2 ;; esac; shift 2 || shift ;;
-                    caveman) case "''${2:-on}" in on) export CAVEMAN_ENABLED=1 ;; off) unset CAVEMAN_ENABLED ;; *) echo "[claude-superset] caveman: on|off" >&2; exit 2 ;; esac; shift 2 || shift ;;
-                    *) break ;;
-                  esac
-                done
-
-                # Session engine env. No konsole in Termux → engine uses tmux.
-                export CAS_API="${claudeSuperset.api}" CAS_SELF="claude-superset" CAS_FACE="$MODE"
-                # ''${VAR-default}: a pre-set (even empty) CAS_TMUX survives — test override.
-                export CAS_TMUX="''${CAS_TMUX-${pkgs.tmux}/bin/tmux}"
-                ${if ((claudeSuperset.device or "") != "") then ''export CAS_DEVICE="${claudeSuperset.device}"'' else ""}
-                CAS_DEVICE="''${CAS_DEVICE:-}"
-                ENGINE="${pkgs.nodejs}/bin/node ${./modules/data/claude-superset-restore.mjs}"
-                KEEP="${toString (claudeSuperset.sync_keep or 20)}"
-
-                case "''${1:-}" in
-                  sync) exec $ENGINE sync "$CAS_DEVICE" "$KEEP" ;;
-                  restore|restore-hours|list|list-hours)
-                    verb="$1"; sel=count; case "$verb" in *-hours) sel=hours ;; esac; shift
-                    devsel="local"; a="''${1:-}"; b="''${2:-}"
-                    case "$a" in
-                      ""|*[!0-9]*) devsel="$a"; val="$b" ;;
-                      *)           val="$a" ;;
-                    esac
-                    case "$val" in ""|*[!0-9]*)
-                      echo "[claude-superset] $verb needs a positive number" >&2; exit 2 ;;
-                    esac
-                    case "$verb" in
-                      list*) exec $ENGINE list "$devsel" "$sel" "$val" ;;
-                      *)     exec $ENGINE launch "$MODE" "$devsel" "$sel" "$val" ;;
-                    esac ;;
-                  fresh) shift ;;
-                esac
-
-                # Plain `claude` face: no proxy/plugins/sync. Restore already
-                # dispatched above; a bare `claude-superset claude [args…]` (incl.
-                # `--resume <id>` from a restored tab) execs plain claude-malloc.
-                if [ "$PLAIN" = "1" ]; then
-                  exec claude-malloc $CC_EXTRA_FLAGS "$@"
-                fi
-
-                if [ "$HEADROOM" = "on" ]; then
-                  URL="''${CLAUDE_SUPERSET_URL:-${claudeSuperset.proxy}}"
-                  if ${pkgs.curl}/bin/curl -fsS --max-time 2 "''${URL%/}/readyz" >/dev/null 2>&1; then
-                    export ANTHROPIC_BASE_URL="$URL"
-                    echo "[claude-superset] via superset proxy → $URL (Headroom compression ON)" >&2
-                  else
-                    echo "[claude-superset] proxy unreachable ($URL) — direct to Anthropic, no compression" >&2
-                  fi
-                else
-                  echo "[claude-superset] Headroom OFF — direct to Anthropic (no compression)" >&2
-                fi
-
-                # Auto-sync recent sessions to the hub (background, best-effort)
-                # unless this is a resumed session.
-                case " $* " in
-                  *" --resume "*) : ;;
-                  *) ( $ENGINE sync "$CAS_DEVICE" "$KEEP" >/dev/null 2>&1 & ) ;;
-                esac
-
-                # Plugin status line (data-driven; mirrors the statusline PL[...] segment).
-                pl=$(${pkgs.bash}/bin/bash "$HOME/.claude/claude-plugins-status.sh" --format plain 2>/dev/null)
-                [ -n "$pl" ] && echo "[claude-superset] plugins: $pl" >&2
-                exec claude-malloc $CC_EXTRA_FLAGS "$@"
+              # claude-superset: PURE SCRIPT — single source of truth is
+              # da_my-ai/superset/. We only INSTALL it here (copy + symlink onto
+              # PATH), never inline it. Runtime tools (node/jq/curl/tmux/git/…)
+              # come from environment.packages; config is read from the bundled
+              # claude-superset.json at runtime. The script detects Termux and
+              # hands off to claude-malloc for Android isolation.
+              (pkgs.runCommandLocal "claude-superset" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+                mkdir -p $out/bin $out/share/claude-superset
+                cp -r ${../../da_my-ai/superset}/. $out/share/claude-superset/
+                chmod +x $out/share/claude-superset/claude-superset
+                patchShebangs $out/share/claude-superset/claude-superset
+                # Thin installer supplies the script's tools on PATH; the script
+                # itself stays pure. --prefix keeps the user's PATH (claude-malloc).
+                makeWrapper $out/share/claude-superset/claude-superset $out/bin/claude-superset \
+                  --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.jq pkgsNew.nodejs_22 pkgs.curl pkgs.tmux pkgs.git pkgs.iputils pkgs.coreutils pkgs.findutils pkgs.bash ]}
               '')
 
               # my-ai: pull ONLY the aarch64 GH-release binary and drop it on PATH.
