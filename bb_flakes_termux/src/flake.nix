@@ -880,7 +880,7 @@
 
               # 9. CLAUDE — from nixpkgs (added to nixpkgs-unstable 2026-07).
               # Auto-updates via `build.sh update` + switch. No manual hash pins.
-              pkgs.claude-code
+              pkgsUnstable.claude-code
 
               # 10. ANT — official Anthropic CLI for the Claude Developer
               # Platform (Managed Agents, Messages, Files, ...). Released
@@ -1011,7 +1011,7 @@
               # Register cloud-marketplace as a plugin marketplace (idempotent CLI call
               # from a nix-committed activation — same pattern as
               # ba_flakes_desktop's claudeMarketplace). claude-code is a real nix
-              # derivation on PATH here (pkgs/claude-code), not a curl-installed binary.
+              # derivation on PATH here (pkgsUnstable.claude-code), not a curl-installed binary.
               home.activation.claudeMarketplace = lib.hm.dag.entryAfter [ "claudeSettingsWritable" ] ''
                 MARKETPLACE_DIR="$HOME/.claude/cloud-marketplace"
                 JQ="${pkgs.jq}/bin/jq"
