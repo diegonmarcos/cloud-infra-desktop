@@ -53,10 +53,11 @@ port_holder_pids() {
     match($0, /pid=[0-9]+/);
     if (RSTART) print substr($0, RSTART+4, RLENGTH-4)
   }' | sort -u
-  # Fallback for Android/proot ss without -p detail: try fuser/lsof if present.
-  if [ -z "$(ss -tlnp 2>/dev/null | grep ":$SSH_PORT ")" ]; then
-    :  # nothing on port
-  fi
+  # No fallback for Android/proot ss without -p detail: the block that used to
+  # sit here had an empty body, so it never did anything. It also tripped SC2143
+  # ([ -z "$(... | grep ...)" ] instead of ! grep -q), which is fatal under
+  # writeShellApplication. Callers already treat "no pid printed" as "nothing on
+  # port", so dropping it changes no behaviour.
 }
 
 # Self-heal step before do_start: if something else is on :$SSH_PORT but our
