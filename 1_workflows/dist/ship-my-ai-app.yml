@@ -29,6 +29,16 @@ on:
 permissions:
   contents: write
 
+# Serialize runs. my-ai is not a reproducible build — every CI run produces a
+# differently-hashed binary. Because the release tag (my-ai-latest) is rolling
+# and clobbered on each upload, overlapping runs race: one commits the hash of
+# a binary another has already overwritten, so the pinned hash never matches the
+# live asset. A single-flight group guarantees the last update-hashes commit
+# reflects the last uploaded binary. cancel-in-progress=false so no half-upload.
+concurrency:
+  group: ship-my-ai-app
+  cancel-in-progress: false
+
 jobs:
   build:
     strategy:
@@ -140,4 +150,22 @@ jobs:
           git add da_my-ai/nix/hashes.json bb_flakes_termux/src/pkgs/my-ai-hashes.json
           git diff --cached --quiet || \
             git commit -m "chore: update my-ai nix/hashes.json [skip ci]"
-          git push
+          # Retry with a rebase. The build above takes ~10 minutes, and main
+          # very often moves in that window (other pushes, sibling ship-*
+          # workflows). A bare `git push` then loses the race and the step
+          # fails -- which is worse than it sounds: the release assets on the
+          # rolling my-ai-latest tag have ALREADY been replaced by this point,
+          # so hashes.json is left pinning bytes that no longer exist and
+          # EVERY downstream closure build dies on "hash mismatch in
+          # fixed-output derivation" until someone fixes it by hand.
+          # Rebase is safe here: this step only ever touches the two hash
+          # files, so there is nothing for it to conflict with.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              exit 0
+            fi
+            echo "push rejected (attempt $attempt) -- rebasing onto origin/main"
+            git pull --rebase origin main
+          done
+          echo "::error::could not push updated hashes after 5 attempts"
+          exit 1

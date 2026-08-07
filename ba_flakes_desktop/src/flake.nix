@@ -227,6 +227,7 @@
         ./modules/desktop-session/system-protection.nix
         ./modules/ssh-stale-socket-cleaner.nix
         ./modules/curl-wget-wrapper.nix
+        ./modules/home-manager-command-catcher.nix
         ./modules/node-npm-deps.nix
         # rust-cargo-deps moved to the dev profile (devProfile) — rust is a dev
         # tool, reached via `dev`; no longer on the pool/login PATH.
