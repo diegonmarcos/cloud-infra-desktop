@@ -50,6 +50,9 @@ SCRUB_DAY_OF_MONTH=$(jq -r '.storage_maintenance.btrfs.scrub_day_of_month // "01
 FSTRIM_ENABLED=$(jq -r '.storage_maintenance.fstrim_enabled // true' "$CONFIG_JSON")
 
 # ── Helper: snapshot btrfs chunk allocation for a mount ─────────────────────
+# Emits ONLY the bare values, space-separated, in this fixed field order
+# (contract with callers, which `read` them positionally):
+#   size alloc unalloc used data_pct meta_pct
 snapshot_chunks() {
   local mount="$1"
   btrfs filesystem usage "$mount" 2>/dev/null | awk '
@@ -63,7 +66,7 @@ snapshot_chunks() {
     /^Metadata,/ { in_meta=1 }
     in_meta && /Size:/ { split($0, a, "("); gsub(/[^0-9.]/, "", a[2]); meta_pct=a[2]; in_meta=0 }
     END {
-      printf "size=%s alloc=%s unalloc=%s used=%s data_pct=%s meta_pct=%s", size, alloc, unalloc, used, data_pct, meta_pct
+      printf "%s %s %s %s %s %s", size, alloc, unalloc, used, data_pct, meta_pct
     }
   '
 }
@@ -71,9 +74,8 @@ snapshot_chunks() {
 # ── Helper: print chunk summary ────────────────────────────────────
 print_chunks() {
   local label="$1" mount="$2"
-  local stats
-  stats=$(snapshot_chunks "$mount")
-  eval "$stats"
+  local size alloc unalloc used data_pct meta_pct
+  read -r size alloc unalloc used data_pct meta_pct <<< "$(snapshot_chunks "$mount")"
   echo "  [$label] $mount:"
   echo "    Used: ${used}GiB / ${size}GiB"
   echo "    Allocated: ${alloc}GiB  |  Unallocated: ${unalloc}GiB"
