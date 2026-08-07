@@ -1,0 +1,12 @@
+{
+  "_description": "SoT for configuration_activation_verify.nix (nixos-activation-verify). Human users that MUST be present in /etc/shadow with a real password hash, and paths that MUST exist after activation. Deployed to /etc/cloud-data/activation-verify.json and read at RUNTIME via jq — nothing here is baked in by Nix interpolation.",
+  "required_human_users": ["root", "diego", "guest"],
+  "required_paths": [
+    "/etc/shadow",
+    "/etc/passwd",
+    "/etc/group",
+    "/etc/nixos",
+    "/run/current-system",
+    "/nix/var/nix/profiles/system"
+  ]
+}

@@ -25,102 +25,21 @@
 { config, lib, pkgs, ... }:
 
 let
-  # Users who MUST be present in /etc/shadow with a real hashedPassword
-  # (anything starting with $) — not `!` (locked), not `*` (no password).
-  requiredHumanUsers = [ "root" "diego" "guest" ];
-
-  # Files/paths that MUST exist after activation.
-  requiredPaths = [
-    "/etc/shadow"
-    "/etc/passwd"
-    "/etc/group"
-    "/etc/nixos"
-    "/run/current-system"
-    "/nix/var/nix/profiles/system"
-  ];
-
+  # Required human users and required paths are DATA, not Nix-eval-time
+  # config: they live in activation-verify.json, deployed to
+  # /etc/cloud-data/activation-verify.json (a NEW path — no existing module
+  # declares it) and read at RUNTIME via jq. See nixos-activation-verify.sh
+  # for the full check logic (inline shell in nix modules is forbidden).
   verifyScript = pkgs.writeShellApplication {
     name = "nixos-activation-verify";
-    runtimeInputs = with pkgs; [ coreutils gawk util-linux ];
-    text = ''
-      set -u
-      problems=()
-
-      # ── 1. Critical paths exist ─────────────────────────────────────────
-      ${lib.concatMapStringsSep "\n" (p: ''
-        if [ ! -e ${lib.escapeShellArg p} ]; then
-          problems+=("MISSING PATH: ${p}")
-        fi
-      '') requiredPaths}
-
-      # ── 2. Human users in /etc/shadow with REAL hash ────────────────────
-      ${lib.concatMapStringsSep "\n" (u: ''
-        line=$(grep "^${u}:" /etc/shadow 2>/dev/null || true)
-        if [ -z "$line" ]; then
-          problems+=("USER MISSING FROM /etc/shadow: ${u} — login will fail")
-        else
-          hash=$(echo "$line" | cut -d: -f2)
-          case "$hash" in
-            \$*)  : ;;  # real $6$... hash → ok
-            "!"*) problems+=("USER LOCKED in /etc/shadow: ${u} — login will fail") ;;
-            "*")  problems+=("USER HAS NO PASSWORD in /etc/shadow: ${u}") ;;
-            "")   problems+=("USER HAS EMPTY hash field in /etc/shadow: ${u}") ;;
-            *)    problems+=("USER ${u} has unrecognised hash format in /etc/shadow: ''${hash:0:8}...") ;;
-          esac
-        fi
-      '') requiredHumanUsers}
-
-      # ── 3. swap is on a non-pool filesystem (per 2026-05-15 incident) ───
-      # If swapDevices is configured AND the swap file is on btrfs, scream.
-      if grep -q "^/" /proc/swaps 2>/dev/null; then
-        while read -r dev rest; do
-          [ "''${dev:0:1}" = "/" ] || continue
-          fs=$(${pkgs.util-linux}/bin/findmnt -no FSTYPE -T "$dev" 2>/dev/null || echo "unknown")
-          if [ "$fs" = "btrfs" ]; then
-            problems+=("SWAP ON BTRFS: $dev — see incident 2026-05-15")
-          fi
-        done < /proc/swaps
-      fi
-
-      # ── REPORT ──────────────────────────────────────────────────────────
-      if [ ''${#problems[@]} -eq 0 ]; then
-        ${pkgs.util-linux}/bin/logger -t nixos-activation-verify -p user.info \
-          "all ${toString (builtins.length requiredHumanUsers)} human users present, all ${toString (builtins.length requiredPaths)} critical paths exist, swap not on btrfs"
-        exit 0
-      fi
-
-      # FAIL — loud broadcast on every channel.
-      banner="
-╔══════════════════════════════════════════════════════════════════╗
-║   NIXOS ACTIVATION VERIFY: $(printf '%2d' "''${#problems[@]}") PROBLEM(S) DETECTED            ║
-╠══════════════════════════════════════════════════════════════════╣"
-      msg="$banner"
-      for p in "''${problems[@]}"; do
-        msg="$msg
-║   • $p"
-      done
-      msg="$msg
-╚══════════════════════════════════════════════════════════════════╝"
-
-      echo "$msg" >&2
-      echo "$msg" | ${pkgs.util-linux}/bin/wall -n 2>/dev/null || true
-      for p in "''${problems[@]}"; do
-        ${pkgs.util-linux}/bin/logger -t nixos-activation-verify -p user.crit "$p"
-      done
-
-      # Append to /etc/motd so login banner shows it.
-      {
-        echo
-        echo "$msg"
-        echo
-      } >> /etc/motd 2>/dev/null || true
-
-      exit 1
-    '';
+    runtimeInputs = with pkgs; [ coreutils gawk util-linux gnugrep jq ];
+    text = builtins.readFile ./nixos-activation-verify.sh;
   };
 
 in
 {
+  environment.etc."cloud-data/activation-verify.json".source = ./activation-verify.json;
+
   # Run DEAD LAST in activation. The `deps` empty list places it as a leaf —
   # NixOS will schedule it after everything else with no children.
   system.activationScripts.zzz-verify = lib.stringAfter [ "users" "groups" "etc" "specialfs" "var" ] ''
