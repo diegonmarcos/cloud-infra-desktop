@@ -6,8 +6,9 @@
 # truth, not the live appletsrc).
 #
 # Layout (left → right):
-#   Kickoff · Pager(Desk1-4) │ spacer │ IconTasks │ spacer │ Watchdog │ TWO SystemTrays
+#   Kickoff · Pager(Desk1-4) │ spacer │ IconTasks │ spacer │ TWO SystemTrays
 #   (the launchers sit between two expanding spacers, so they centre)
+#   No clock and no watchdog — both live on the top panel only.
 #   (no clock — it lives on the top panel only).
 #
 # 2026-08-02: the system-monitor widget is gone. Its history is worth keeping
@@ -54,7 +55,15 @@ in
         { name = "org.kde.plasma.icontasks"; config.General.launchers = launchers; }
         "org.kde.plasma.panelspacer"
 
-        # ── Watchdog widget — reads the snapshot, runs no sensor stack ──
+        # ── NO watchdog widget here — it belongs to the TOP panel only ──
+        # top-panel.json already carries two instances (mode=left, mode=right)
+        # flanking the clock. A third copy down here would poll and draw the
+        # same snapshot a third time to say the same numbers twice on one
+        # screen, which is the duplication this widget replaced, not a use of
+        # it. The history below is kept because it explains why the bottom
+        # panel has no system monitor of ANY kind now.
+        #
+        # ── (former) Watchdog widget — reads the snapshot, runs no sensor stack ──
         # Was ONE consolidated org.kde.plasma.systemmonitor carrying six
         # sensors, which was itself a fix for seven separate instances (only
         # the first in a containment ever rendered — a KSysGuard backend bug
@@ -68,14 +77,6 @@ in
         # This reads it. Cost no longer scales with how many metrics show, and
         # PSI is available at last — /proc/pressure has no KSystemStats
         # backend, so no stock widget could ever display it.
-        {
-          name = "com.diegonmarcos.watchdog";
-          config.General = {
-            mode = "left";   # memory / swap / cpu pies + per-core bars
-            uid = 1000;
-          };
-        }
-
         "org.kde.plasma.marginsseparator"
 
         # TWO trays, matching the live layout this file is now captured from.
