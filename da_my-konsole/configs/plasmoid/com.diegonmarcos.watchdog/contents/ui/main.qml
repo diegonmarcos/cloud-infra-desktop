@@ -131,8 +131,11 @@ PlasmoidItem {
             opacity: 0.75
         }
         Rectangle {
-            Layout.preferredWidth: 38
-            Layout.preferredHeight: 8
+            // 38x8 was sized for one row of six. Stacked 3x2 in a 30px panel
+            // the height has to come down with it, and the extra column of
+            // width is what stops the whole cluster overflowing.
+            Layout.preferredWidth: 30
+            Layout.preferredHeight: 6
             radius: 2
             color: Kirigami.Theme.backgroundColor
             border { color: Kirigami.Theme.disabledTextColor; width: 1 }
@@ -237,12 +240,23 @@ PlasmoidItem {
                         text: "R " + root.mbs(root.snap.disk_r) + "  W " + root.mbs(root.snap.disk_w)
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
                     }
-                    Bar { label: "Sc"; value: root.psi("cpu","some10")    || 0; fill: root.heat(root.psi("cpu","some10")) }
-                    Bar { label: "Si"; value: root.psi("io","some10")     || 0; fill: root.heat(root.psi("io","some10")) }
-                    Bar { label: "Sm"; value: root.psi("memory","some10") || 0; fill: root.heat(root.psi("memory","some10")) }
-                    Bar { label: "Fc"; value: root.psi("cpu","full10")    || 0; fill: root.heat(root.psi("cpu","full10")) }
-                    Bar { label: "Fi"; value: root.psi("io","full10")     || 0; fill: root.heat(root.psi("io","full10")) }
-                    Bar { label: "Fm"; value: root.psi("memory","full10") || 0; fill: root.heat(root.psi("memory","full10")) }
+                    // Six bars in ONE row ran ~400px and overflowed the top
+                    // panel. They are 3x2 now: `some` on top, `full` beneath,
+                    // cpu/io/memory in the same column both times, so a column
+                    // reads as one resource and the pair reads as "some of it
+                    // stalled" over "all of it stalled". Halves the width and
+                    // spends panel height that was already there.
+                    GridLayout {
+                        columns: 3
+                        rowSpacing: 1
+                        columnSpacing: 5
+                        Bar { label: "Sc"; value: root.psi("cpu","some10")    || 0; fill: root.heat(root.psi("cpu","some10")) }
+                        Bar { label: "Si"; value: root.psi("io","some10")     || 0; fill: root.heat(root.psi("io","some10")) }
+                        Bar { label: "Sm"; value: root.psi("memory","some10") || 0; fill: root.heat(root.psi("memory","some10")) }
+                        Bar { label: "Fc"; value: root.psi("cpu","full10")    || 0; fill: root.heat(root.psi("cpu","full10")) }
+                        Bar { label: "Fi"; value: root.psi("io","full10")     || 0; fill: root.heat(root.psi("io","full10")) }
+                        Bar { label: "Fm"; value: root.psi("memory","full10") || 0; fill: root.heat(root.psi("memory","full10")) }
+                    }
                     // A 60s average printed rather than barred: a bar of a
                     // trend reads like a live value and isn't one.
                     PlasmaComponents.Label {
