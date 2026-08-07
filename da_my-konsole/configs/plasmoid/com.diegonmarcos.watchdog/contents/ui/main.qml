@@ -231,6 +231,72 @@ PlasmoidItem {
 
     function pct0(v) { return v === undefined ? "--" : Math.round(v) + "%"; }
 
+    // Bytes/sec -> human string for the proctable's read/write columns.
+    // Matches mbs()'s one-decimal style but scales down to K/s since a lot
+    // of processes sit well under 1 MB/s and "0.0M/s" for everything below
+    // that would make the column useless for sorting-by-eye.
+    function bps(v) {
+        if (v === undefined || v === null) return "--";
+        if (v >= 1048576) return (v / 1048576).toFixed(1) + "M/s";
+        if (v >= 1024) return (v / 1024).toFixed(1) + "K/s";
+        return Math.round(v) + "B/s";
+    }
+
+    // ── proctable mode: sortable multi-column process table ──────────────────
+    // Column set matches the `proc_table` JSON keys 1:1 so sorting is a
+    // straight compare on modelData[key], never a re-derivation.
+    readonly property var ptColumns: [
+        { key: "name",              label: "Name",  width: 130 },
+        { key: "user",              label: "User",  width: 70 },
+        { key: "pid",               label: "PID",   width: 55 },
+        { key: "cpu_pct",           label: "CPU%",  width: 55 },
+        { key: "mem_pct",           label: "Mem%",  width: 55 },
+        { key: "read_bytes_per_s",  label: "Read",  width: 65 },
+        { key: "write_bytes_per_s", label: "Write", width: 65 },
+        { key: "runq_wait_pct",     label: "RunQ%", width: 60 }
+    ]
+    property string ptSortKey: "cpu_pct"
+    property bool ptSortAsc: false
+
+    function ptSort(key) {
+        if (root.ptSortKey === key) root.ptSortAsc = !root.ptSortAsc;
+        else { root.ptSortKey = key; root.ptSortAsc = false; }
+    }
+
+    // Sorted copy of proc_table — never mutates root.snap.proc_table itself,
+    // since that array is replaced wholesale by refresh() every poll and a
+    // sort-in-place would race a JSON.parse landing mid-sort.
+    function ptSorted() {
+        var arr = (root.snap.proc_table || []).slice();
+        var key = root.ptSortKey, asc = root.ptSortAsc;
+        arr.sort(function (a, b) {
+            var av = a[key], bv = b[key];
+            if (typeof av === "string") {
+                av = (av || "").toLowerCase();
+                bv = (bv || "").toLowerCase();
+            } else {
+                av = av || 0;
+                bv = bv || 0;
+            }
+            if (av < bv) return asc ? -1 : 1;
+            if (av > bv) return asc ? 1 : -1;
+            return 0;
+        });
+        return arr;
+    }
+
+    // Formatted cell text for one (row, column) pair.
+    function ptCellText(row, key) {
+        switch (key) {
+            case "cpu_pct":
+            case "runq_wait_pct": return Number(row[key] || 0).toFixed(1) + "%";
+            case "mem_pct": return Number(row[key] || 0).toFixed(1) + "%";
+            case "read_bytes_per_s":
+            case "write_bytes_per_s": return root.bps(row[key]);
+            default: return String(row[key] !== undefined ? row[key] : "--");
+        }
+    }
+
     // ── pie, the same element KSysGuard's piechart face uses ─────────────────
     component Pie : Item {
         id: pie
@@ -488,12 +554,38 @@ PlasmoidItem {
                     }
                 }
             }
+
+            // PROCTABLE cluster: the compact row only has room for a
+            // headline, not eight columns — show the current top-CPU
+            // process (proc_table is already sorted by cpu_pct desc coming
+            // out of the daemon). Click still expands to the full sortable
+            // table below, same as every other mode.
+            Loader {
+                active: Plasmoid.configuration.mode === "proctable"
+                visible: active
+                sourceComponent: RowLayout {
+                    spacing: 4
+                    PlasmaComponents.Label {
+                        text: {
+                            var t = root.snap.proc_table;
+                            if (!t || !t.length) return "procs --";
+                            return t[0].name + " " + t[0].cpu_pct.toFixed(0) + "%";
+                        }
+                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    }
+                }
+            }
         }
     }
 
     // ── expanded: process table, every signal available ──────────────────────
     fullRepresentation: PlasmaExtras.Representation {
-        Layout.minimumWidth: Kirigami.Units.gridUnit * 26
+        // 26 gridUnits fits the simple (name/rss/pid/Signal) list every
+        // other mode uses; proctable's 8 columns + a Signal button need more
+        // — widened rather than made mode-conditional since fullRepresentation
+        // is created once and Loader.active can't retroactively resize it.
+        Layout.minimumWidth: Plasmoid.configuration.mode === "proctable"
+            ? Kirigami.Units.gridUnit * 42 : Kirigami.Units.gridUnit * 26
         Layout.minimumHeight: Kirigami.Units.gridUnit * 22
 
         header: PlasmaExtras.PlasmoidHeading {
@@ -508,36 +600,137 @@ PlasmoidItem {
             }
         }
 
-        ListView {
-            id: procList
-            model: root.snap.procs || []
-            clip: true
-            spacing: 2
-            delegate: RowLayout {
-                id: procRow
-                // The inner Repeater below (over signalList) has its own
-                // modelData/index that shadow this delegate's — reading
-                // procList.model[index] inside onTriggered used the SIGNAL
-                // list's index against the PROCESS list, sending a signal to
-                // whatever pid happened to sit at that row instead of the one
-                // the menu was opened on. Capture the pid up front instead.
-                property int procPid: modelData.pid
-                width: procList.width
-                spacing: 6
-                PlasmaComponents.Label { text: modelData.name; Layout.fillWidth: true; elide: Text.ElideRight }
-                PlasmaComponents.Label { text: modelData.rss + "M"; opacity: 0.85 }
-                PlasmaComponents.Label { text: modelData.pid; opacity: 0.5 }
-                PlasmaComponents.Button {
-                    text: "Signal"
-                    icon.name: "process-stop"
-                    onClicked: sigMenu.open()
-                    PlasmaComponents.Menu {
-                        id: sigMenu
-                        Repeater {
-                            model: root.signalList
-                            delegate: PlasmaComponents.MenuItem {
-                                text: modelData.label
-                                onTriggered: root.sendSignal(procRow.procPid, modelData.sig)
+        // Non-proctable instances (left/right/guard) keep the simple
+        // RSS-sorted list this always had — the rich sortable table below is
+        // gated to mode==="proctable" only, same Loader-on-mode pattern the
+        // compact clusters already use.
+        Loader {
+            anchors.fill: parent
+            active: Plasmoid.configuration.mode !== "proctable"
+            visible: active
+            sourceComponent: ListView {
+                id: procList
+                model: root.snap.procs || []
+                clip: true
+                spacing: 2
+                delegate: RowLayout {
+                    id: procRow
+                    // The inner Repeater below (over signalList) has its own
+                    // modelData/index that shadow this delegate's — reading
+                    // procList.model[index] inside onTriggered used the SIGNAL
+                    // list's index against the PROCESS list, sending a signal to
+                    // whatever pid happened to sit at that row instead of the one
+                    // the menu was opened on. Capture the pid up front instead.
+                    property int procPid: modelData.pid
+                    width: procList.width
+                    spacing: 6
+                    PlasmaComponents.Label { text: modelData.name; Layout.fillWidth: true; elide: Text.ElideRight }
+                    PlasmaComponents.Label { text: modelData.rss + "M"; opacity: 0.85 }
+                    PlasmaComponents.Label { text: modelData.pid; opacity: 0.5 }
+                    PlasmaComponents.Button {
+                        text: "Signal"
+                        icon.name: "process-stop"
+                        onClicked: sigMenu.open()
+                        PlasmaComponents.Menu {
+                            id: sigMenu
+                            Repeater {
+                                model: root.signalList
+                                delegate: PlasmaComponents.MenuItem {
+                                    text: modelData.label
+                                    onTriggered: root.sendSignal(procRow.procPid, modelData.sig)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // proctable mode: sortable multi-column table over `proc_table`
+        // (pid/name/user/cpu/mem/read/write/runq_wait), clickable headers
+        // that toggle asc/desc, and a per-row Signal menu offering every
+        // signal in signalList — disabled with the reason shown when the
+        // daemon marked the row `protected` (pid 1 / a protected slice),
+        // so a user sees WHY a row can't be killed instead of a silent no-op.
+        Loader {
+            anchors.fill: parent
+            active: Plasmoid.configuration.mode === "proctable"
+            visible: active
+            sourceComponent: ColumnLayout {
+                spacing: 0
+
+                RowLayout {
+                    id: ptHeader
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Repeater {
+                        model: root.ptColumns
+                        delegate: PlasmaComponents.Label {
+                            Layout.preferredWidth: modelData.width
+                            font.bold: root.ptSortKey === modelData.key
+                            text: modelData.label + (root.ptSortKey === modelData.key ? (root.ptSortAsc ? " ▲" : " ▼") : "")
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.ptSort(modelData.key)
+                            }
+                        }
+                    }
+                    // Signal column header — no sort, just aligns with the
+                    // per-row Signal buttons below.
+                    Item { Layout.fillWidth: true }
+                }
+
+                ListView {
+                    id: ptList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    model: root.ptSorted()
+                    clip: true
+                    spacing: 1
+                    delegate: RowLayout {
+                        id: ptRow
+                        // Same shadowing hazard as procList above: capture
+                        // pid/protected state up front, before the inner
+                        // Repeater over signalList introduces its own
+                        // modelData that would otherwise shadow this one.
+                        property int ptPid: modelData.pid
+                        property bool ptProtected: !!modelData.protected
+                        property string ptReason: modelData.protected_reason || ""
+                        width: ptList.width
+                        spacing: 6
+                        opacity: ptProtected ? 0.6 : 1.0
+
+                        PlasmaComponents.Label { Layout.preferredWidth: 130; text: modelData.name; elide: Text.ElideRight }
+                        PlasmaComponents.Label { Layout.preferredWidth: 70; text: modelData.user; elide: Text.ElideRight }
+                        PlasmaComponents.Label { Layout.preferredWidth: 55; text: modelData.pid }
+                        PlasmaComponents.Label { Layout.preferredWidth: 55; text: root.ptCellText(modelData, "cpu_pct") }
+                        PlasmaComponents.Label { Layout.preferredWidth: 55; text: root.ptCellText(modelData, "mem_pct") }
+                        PlasmaComponents.Label { Layout.preferredWidth: 65; text: root.ptCellText(modelData, "read_bytes_per_s") }
+                        PlasmaComponents.Label { Layout.preferredWidth: 65; text: root.ptCellText(modelData, "write_bytes_per_s") }
+                        PlasmaComponents.Label { Layout.preferredWidth: 60; text: root.ptCellText(modelData, "runq_wait_pct") }
+
+                        PlasmaComponents.Button {
+                            Layout.fillWidth: true
+                            text: ptRow.ptProtected ? "Protected" : "Signal"
+                            icon.name: "process-stop"
+                            enabled: !ptRow.ptProtected
+                            // Shown even though the button is disabled: this
+                            // is the "show the user why, not fail silently"
+                            // requirement — a disabled button with no
+                            // explanation is indistinguishable from a bug.
+                            PlasmaComponents.ToolTip.visible: ptRow.ptProtected && hovered
+                            PlasmaComponents.ToolTip.text: ptRow.ptReason
+                            onClicked: ptSigMenu.open()
+                            PlasmaComponents.Menu {
+                                id: ptSigMenu
+                                Repeater {
+                                    model: root.signalList
+                                    delegate: PlasmaComponents.MenuItem {
+                                        text: modelData.label
+                                        onTriggered: root.sendSignal(ptRow.ptPid, modelData.sig)
+                                    }
+                                }
                             }
                         }
                     }
