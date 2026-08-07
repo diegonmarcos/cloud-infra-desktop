@@ -2,8 +2,10 @@
 # test-hm-auto-update.sh — verify hm-auto-update-check: seeds a baseline on
 # first run without switching, no-ops on an unchanged digest, and fires
 # `systemd-run --user --unit=hm-auto-switch ... switch` on a changed digest.
-# Exercises the REAL generated script (extracted straight from the .nix via
-# `nix eval`) against stub gh/skopeo/systemd-run/notify-send on PATH — no
+# Exercises the REAL script (programs/hm-auto-update-check.sh — the source of
+# truth read at RUNTIME by the writeShellApplication wired in
+# programs/hm-auto-update.nix, not a hand-copied duplicate) against stub
+# gh/skopeo/systemd-run/notify-send on PATH and a stub CONFIG_JSON — no
 # network, no real switch.
 #
 # Run: bash modules/programs/test-hm-auto-update.sh
@@ -11,7 +13,6 @@
 set -u
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_DIR="$(cd "$SELF_DIR/../.." && pwd)"
 
 fail() { echo "FAIL: $1" >&2; cleanup_test; exit 1; }
 pass() { echo "  ✓ $1"; }
@@ -22,28 +23,38 @@ trap cleanup_test EXIT INT TERM
 
 echo "=== hm-auto-update-check ==="
 
-command -v nix >/dev/null 2>&1 || fail "nix not found — cannot extract the generated script"
+command -v jq >/dev/null 2>&1 || fail "jq not found — the script reads its config via jq"
 
 TMP_DIR="$(mktemp -d -t test-hm-auto-update.XXXXXX)"
-SCRIPT="$TMP_DIR/hm-auto-update-check"
+SCRIPT="$SELF_DIR/hm-auto-update-check.sh"
+CONFIG_JSON="$TMP_DIR/hm-auto-update.json"
 BIN_DIR="$TMP_DIR/bin"
 STATE_DIR="$TMP_DIR/state"
 SWITCH_LOG="$TMP_DIR/switch-calls.log"
 mkdir -p "$BIN_DIR" "$STATE_DIR"
 : > "$SWITCH_LOG"
 
-# Extract the REAL generated script text straight from the flake — proves
-# the .nix module actually produces this, not a hand-copied duplicate.
-nix eval --impure --accept-flake-config \
-    --extra-experimental-features "nix-command flakes" --raw \
-    "$SRC_DIR#homeConfigurations.\"diego@user\".config.home.file.\".local/bin/hm-auto-update-check\".text" \
-    > "$SCRIPT" 2>"$TMP_DIR/eval.err"
-[ -s "$SCRIPT" ] || { cat "$TMP_DIR/eval.err" >&2; fail "nix eval produced no script text"; }
-chmod +x "$SCRIPT"
-pass "extracted generated script from the flake"
+[ -s "$SCRIPT" ] || fail "hm-auto-update-check.sh not found next to this test"
+pass "found the real hm-auto-update-check.sh"
 
-bash -n "$SCRIPT" || fail "generated script has syntax errors"
-pass "generated script syntax valid"
+bash -n "$SCRIPT" || fail "script has syntax errors"
+pass "script syntax valid"
+
+# Stub CONFIG_JSON: only the fields the script has NO HAU_* env override for
+# (notify_send channel, switch cgroup bounds) matter here — the rest are
+# overridden per-run below, but jq still needs every key present.
+cat > "$CONFIG_JSON" <<'EOF'
+{
+  "image": "test/image",
+  "tag": "test",
+  "repo_build_sh": "/nonexistent/build.sh",
+  "safety": { "min_free_mb": 0, "switch_memory_max": "4G", "switch_swap_max": "4G" },
+  "countdown": {
+    "delay_seconds": 0,
+    "channels": { "dialog_center": false, "notify_send": true }
+  }
+}
+EOF
 
 # ── stub PATH: gh, skopeo, systemd-run, notify-send ─────────────────────
 cat > "$BIN_DIR/gh" <<'EOF'
@@ -89,6 +100,7 @@ EOF
 # (HAU_MIN_FREE_MB=0) so the guard never defers on a low-RAM test box.
 run_check() {
     PATH="$BIN_DIR:$PATH" \
+    HAU_CONFIG_JSON="$CONFIG_JSON" \
     HAU_STATE_DIR="$STATE_DIR" \
     HAU_BUILD_SH="/nonexistent/build.sh" \
     HAU_IMAGE="test/image" HAU_TAG="test" \
@@ -99,6 +111,7 @@ run_check() {
 # Dialog path: force a graphical session + enable the dialog; yad_stub decides.
 run_check_dialog() {
     PATH="$BIN_DIR:$PATH" \
+    HAU_CONFIG_JSON="$CONFIG_JSON" \
     HAU_STATE_DIR="$STATE_DIR" \
     HAU_BUILD_SH="/nonexistent/build.sh" \
     HAU_IMAGE="test/image" HAU_TAG="test" \
@@ -109,6 +122,7 @@ run_check_dialog() {
 # RAM-guard path: impossibly high floor → must DEFER (no switch, no digest record).
 run_check_lowram() {
     PATH="$BIN_DIR:$PATH" \
+    HAU_CONFIG_JSON="$CONFIG_JSON" \
     HAU_STATE_DIR="$STATE_DIR" \
     HAU_BUILD_SH="/nonexistent/build.sh" \
     HAU_IMAGE="test/image" HAU_TAG="test" \
