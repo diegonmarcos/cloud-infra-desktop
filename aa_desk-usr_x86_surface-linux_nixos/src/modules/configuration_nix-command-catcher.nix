@@ -38,86 +38,39 @@
 { config, pkgs, lib, ... }:
 
 let
-  cfg = builtins.fromJSON (builtins.readFile ./nix-command-catcher.json);
-
-  # Bash array literal from a Nix string list, e.g. ("build" "develop" "run")
-  bashArray = verbs: "(" + lib.concatMapStringsSep " " (v: "\"${v}\"") verbs + ")";
-
-  mkCatcher = { name, realBin, heavyVerbs }:
+  # Verb allowlists live in nix-command-catcher.json, deployed to
+  # /etc/cloud-data/nix-command-catcher.json (a NEW path — no existing
+  # module declares it) and read at RUNTIME via jq by
+  # nix-command-catcher.sh. Nothing is baked in by Nix interpolation except
+  # each wrapper's own real-binary store path, which is not readable from
+  # a deployed JSON file (it's a Nix-eval-time value) and so is passed via
+  # writeShellApplication's runtimeEnv instead — the same pattern as
+  # ba_flakes_desktop/src/modules/home-manager-command-catcher.nix.
+  mkCatcher = { name, realBin, verbsKey }:
     pkgs.writeShellApplication {
       inherit name;
-      runtimeInputs = [ ];
-      text = ''
-        # Generated from configuration_nix-command-catcher.nix — do not edit by hand.
-        # Verb allowlist is data-driven from nix-command-catcher.json (heavy_${
-          if name == "nix" then "nix_verbs" else "nixos_rebuild_verbs"
-        }).
-        REAL="${realBin}"
-
-        # Recursion guard: once inside a catcher-spawned invocation, go
-        # straight to the real binary — never re-enter this wrapper.
-        if [ -n "''${NSP_ACTIVE:-}" ]; then
-          exec "$REAL" "$@"
-        fi
-
-        HEAVY_VERBS=${bashArray heavyVerbs}
-
-        # First non-flag argument is the verb we gate on.
-        verb=""
-        for arg in "$@"; do
-          case "$arg" in
-            -*) continue ;;
-            *) verb="$arg"; break ;;
-          esac
-        done
-
-        is_heavy=0
-        for v in "''${HEAVY_VERBS[@]}"; do
-          if [ "$verb" = "$v" ]; then
-            is_heavy=1
-            break
-          fi
-        done
-
-        if [ "$is_heavy" -ne 1 ]; then
-          exec "$REAL" "$@"
-        fi
-
-        # NSP_ACTIVE must stay UNSET here. nix-switch-progress-wrap keys its
-        # whole mode off it: unset on entry = "owner mode", open the progress
-        # window and drive it; already set = "nested mode", assume an outer
-        # wrap already owns a window and just exec the command bare. Exporting
-        # it before the exec below therefore made the wrap open NOTHING, so
-        # every heavy `nix`/`nixos-rebuild` caught here ran with zero UI — the
-        # exact "dashboard never launches" symptom this module exists to fix.
-        # The wrap exports it itself (wrap:40) for everything it spawns, and
-        # recursion is already impossible on this path because we hand it
-        # "$REAL" — an absolute store path — never a PATH lookup of `nix`.
-        if command -v nix-switch-progress-wrap >/dev/null 2>&1 \
-          && { [ -n "''${DISPLAY:-}" ] || [ -n "''${WAYLAND_DISPLAY:-}" ]; }; then
-          exec nix-switch-progress-wrap "$REAL" "$@"
-        fi
-
-        # Headless or catcher not installed: no window, never block. Here the
-        # guard IS needed — nothing downstream sets it, and the real binary may
-        # re-enter this wrapper through a child process's PATH.
-        export NSP_ACTIVE=1
-        exec "$REAL" "$@"
-      '';
+      runtimeInputs = [ pkgs.jq ];
+      runtimeEnv = {
+        CATCHER_REAL = realBin;
+        CATCHER_VERBS_KEY = verbsKey;
+      };
+      text = builtins.readFile ./nix-command-catcher.sh;
     };
 
   nixCatcher = mkCatcher {
     name = "nix";
     realBin = "${pkgs.nix}/bin/nix";
-    heavyVerbs = cfg.heavy_nix_verbs;
+    verbsKey = "heavy_nix_verbs";
   };
 
   nixosRebuildCatcher = mkCatcher {
     name = "nixos-rebuild";
     realBin = "${pkgs.nixos-rebuild}/bin/nixos-rebuild";
-    heavyVerbs = cfg.heavy_nixos_rebuild_verbs;
+    verbsKey = "heavy_nixos_rebuild_verbs";
   };
 in {
+  environment.etc."cloud-data/nix-command-catcher.json".source = ./nix-command-catcher.json;
+
   environment.systemPackages = [
     (lib.hiPrio nixCatcher)
     (lib.hiPrio nixosRebuildCatcher)
