@@ -29,6 +29,17 @@ let
     else throw "plasma.nix: pdAction(${v}) — unsupported (sleep/suspend banned)";
   critAction = pdAction (pdGuard "actions.critical" pwrJson.actions.critical);
   lidAction  = pdAction (pdGuard "events.lid_close" pwrJson.events.lid_close.battery);
+
+  # Repairs panel widgets plasma-manager cannot reliably write (see the
+  # home.activation.fixMissingPanelWidgets comment below for the root
+  # cause). Data-driven: the .sh reads plasma-panel-repair.json at runtime
+  # via jq — nothing about which widget/panel/config is Nix-interpolated
+  # into the script, matching the home-manager-command-catcher convention.
+  fixMissingPanelWidgetsScript = pkgs.writeShellApplication {
+    name = "plasma-fix-missing-panel-widgets";
+    runtimeInputs = [ pkgs.coreutils pkgs.gawk pkgs.jq pkgs.kdePackages.qttools ];
+    text = builtins.readFile ./plasma-fix-missing-panel-widgets.sh;
+  };
 in
 
 {
@@ -150,6 +161,33 @@ in
         fi
       fi
     fi
+  '';
+
+  # Repairs panel widgets plasma-manager cannot reliably write.
+  #
+  # ROOT CAUSE: top-panel.json declares THREE com.diegonmarcos.watchdog
+  # applets in the top panel (config.General.mode = left/right/guard).
+  # plasma-manager compiles a panel's widget declarations into ONE
+  # evaluateScript D-Bus call holding all of that panel's addWidget(...)
+  # calls back to back. plasmashell's script engine silently drops the
+  # third addWidget() call for the same plugin id within one such script —
+  # only "left" and "right" ever land in
+  # plasma-org.kde.plasma.desktop-appletsrc; "guard" never does. The
+  # repo-side config (top-panel.json / top-panel.nix / plasma.nix) is
+  # provably correct — home-manager writes exactly what it's told to and
+  # the loss happens inside plasmashell itself — so this cannot be fixed
+  # by changing the config; it needs a post-hoc repair pass instead.
+  #
+  # The fix: this hook re-checks every widget listed in
+  # plasma-panel-repair.json (deployed via xdg.configFile below) and, for
+  # each one still missing, issues its OWN SEPARATE evaluateScript call —
+  # never batched with plasma-manager's, which is what triggers the drop
+  # in the first place. Fully idempotent: it runs on every activation and
+  # is a no-op once a widget is present. See
+  # plasma-fix-missing-panel-widgets.sh and plasma-panel-repair.json for
+  # the data-driven implementation.
+  home.activation.fixMissingPanelWidgets = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
+    ${fixMissingPanelWidgetsScript}/bin/plasma-fix-missing-panel-widgets || true
   '';
 
   # Lock screen wallpaper — matches the desktop + SDDM wallpaper (declared in
@@ -668,6 +706,11 @@ in
   # Source of truth: this file. Re-rendered on every home-manager switch.
   # Apply the change WITHOUT logout via:
   #   balooctl6 disable && balooctl6 purge && balooctl6 enable
+  # Data manifest for home.activation.fixMissingPanelWidgets — see that
+  # hook's comment for the root cause (plasmashell dropping the 3rd
+  # same-plugin addWidget() call in a batched evaluateScript).
+  xdg.configFile."cloud-data/plasma-panel-repair.json".source = ./plasma-panel-repair.json;
+
   xdg.configFile."baloofilerc".text = ''
     [General]
     dbVersion=2

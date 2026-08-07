@@ -112,22 +112,38 @@ while [ "$i" -lt "$WIDGET_COUNT" ]; do
   fi
 
   # Applet ids inside that containment whose plugin matches.
-  APPLET_IDS="$(awk -v cid="$CONTAINMENT_ID" -v plugin="$PLUGIN" '
+  APPLET_IDS=()
+  while IFS= read -r aid; do
+    [ -n "$aid" ] && APPLET_IDS+=("$aid")
+  done < <(awk -v cid="$CONTAINMENT_ID" -v plugin="$PLUGIN" '
     $0 ~ ("^\\[Containments\\]\\[" cid "\\]\\[Applets\\]\\[[0-9]+\\]$") {
       aid = $0; gsub(/.*\[Applets\]\[|\]$/, "", aid); next
     }
     $0 == "plugin=" plugin { print aid }
-  ' "$APPLETS_FILE")"
+  ' "$APPLETS_FILE")
+
+  # Flattened "group\tkey\tvalue" rows for every key this entry's config
+  # declares — used below to test whether a candidate applet already has
+  # them all written.
+  CONFIG_ROWS=()
+  while IFS= read -r row; do
+    [ -n "$row" ] && CONFIG_ROWS+=("$row")
+  done < <(echo "$ENTRY" | jq -r '.config | to_entries[] as $g | $g.value | to_entries[] | [$g.key, .key, (.value|tostring)] | @tsv')
 
   # An applet already counts as "present" only if its plugin matches AND
   # every key/value pair this entry's config declares is already written
   # under that applet's [Configuration][<group>] section — this is what
   # tells apart the "left"/"right"/"guard" instances of the same plugin id.
   ALREADY_PRESENT=0
-  for AID in $APPLET_IDS; do
+  for AID in "${APPLET_IDS[@]:-}"; do
+    [ -n "$AID" ] || continue
     MATCH=1
-    while IFS="$(printf '\t')" read -r GROUP KEY VALUE; do
-      [ -n "$GROUP" ] || continue
+    for ROW in "${CONFIG_ROWS[@]:-}"; do
+      [ -n "$ROW" ] || continue
+      GROUP="${ROW%%$'\t'*}"
+      REST="${ROW#*$'\t'}"
+      KEY="${REST%%$'\t'*}"
+      VALUE="${REST#*$'\t'}"
       LINE_FOUND="$(awk -v pat="^\\[Containments\\]\\[$CONTAINMENT_ID\\]\\[Applets\\]\\[$AID\\]\\[Configuration\\]\\[$GROUP\\]$" -v want="$KEY=$VALUE" '
         $0 ~ pat { flag = 1; next }
         /^\[/ { flag = 0 }
@@ -137,9 +153,7 @@ while [ "$i" -lt "$WIDGET_COUNT" ]; do
         MATCH=0
         break
       fi
-    done <<EOF
-$(echo "$ENTRY" | jq -r '.config | to_entries[] as $g | $g.value | to_entries[] | [$g.key, .key, (.value|tostring)] | @tsv')
-EOF
+    done
     if [ "$MATCH" = 1 ]; then
       ALREADY_PRESENT=1
       break
