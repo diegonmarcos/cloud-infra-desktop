@@ -13,16 +13,21 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║ pre-push — rebase submodules onto their upstream HEAD            ║
+# ║ pre-push — force submodules to their upstream HEAD                ║
 # ║                                                                  ║
 # ║ Source: cloud/1_workflows/src/hooks/pre-push                     ║
 # ║ Active via [core] hooksPath = 1_workflows/dist/hooks             ║
 # ║                                                                  ║
-# ║ Before every push, sync each submodule worktree to its remote    ║
-# ║ HEAD (rebased). Pointer bumps in the parent repo are NOT         ║
-# ║ auto-staged — that remains the responsibility of the GHA         ║
-# ║ sync-submodules workflow on main. This hook only ensures the     ║
-# ║ local worktree reflects upstream before the push goes out.       ║
+# ║ Submodules are READ-ONLY / pull-only by design — no local commits ║
+# ║ or edits should ever exist inside one (2026-08-07: a dirty        ║
+# ║ V_front-configs kept aborting this hook's old `--rebase` update,  ║
+# ║ which requires a clean worktree and just fell through to a        ║
+# ║ non-blocking warning forever). Before every push, force-discard   ║
+# ║ any local state in each submodule and reset it to its remote      ║
+# ║ HEAD — never rebase/preserve. Pointer bumps in the parent repo    ║
+# ║ are NOT auto-staged — that remains the responsibility of the GHA  ║
+# ║ sync-submodules workflow on main. This hook only ensures the      ║
+# ║ local worktree reflects upstream before the push goes out.        ║
 # ╚══════════════════════════════════════════════════════════════════╝
 set -uo pipefail
 
@@ -54,8 +59,16 @@ fi
 # Skip if no submodules declared
 [ -f .gitmodules ] || exit 0
 
-echo "[pre-push] rebasing submodules onto upstream HEAD..."
-if ! git submodule update --init --recursive --remote --rebase; then
-  echo "[pre-push] submodule rebase reported errors — continuing (non-blocking)." >&2
+echo "[pre-push] discarding any local submodule state, syncing to upstream HEAD..."
+# Force-clean every initialized submodule first — read-only means no local
+# commits/edits ever survive a push, so there is nothing to preserve or
+# rebase. `update --remote` alone would abort (non-fast-forward / dirty
+# worktree) instead of actually enforcing that; discard-then-update does.
+git submodule foreach --recursive '
+  git checkout -f -- . 2>/dev/null || true
+  git clean -fdx 2>/dev/null || true
+' || true
+if ! git submodule update --init --recursive --remote --force; then
+  echo "[pre-push] submodule sync reported errors — continuing (non-blocking)." >&2
 fi
 exit 0
