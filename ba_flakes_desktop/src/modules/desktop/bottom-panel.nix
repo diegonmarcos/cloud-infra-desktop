@@ -6,7 +6,8 @@
 # truth, not the live appletsrc).
 #
 # Layout (left → right):
-#   Kickoff · Pager(Desk1-4) │ IconTasks │ spacer │ Watchdog │ TWO SystemTrays
+#   Kickoff · Pager(Desk1-4) │ spacer │ IconTasks │ spacer │ Watchdog │ TWO SystemTrays
+#   (the launchers sit between two expanding spacers, so they centre)
 #   (no clock — it lives on the top panel only).
 #
 # 2026-08-02: the system-monitor widget is gone. Its history is worth keeping
@@ -42,6 +43,14 @@ in
         { name = "org.kde.plasma.kickoff"; config.General.icon = "nix-snowflake-white"; }
         { name = "org.kde.plasma.pager"; }
         "org.kde.plasma.marginsseparator"
+
+        # Spacer BEFORE the launchers as well as after. A panelspacer is
+        # expanding, so one on each side splits the leftover width evenly and
+        # the launcher row lands centred; with only the trailing one it was
+        # pinned hard against the pager, which is the gap being complained
+        # about. Centring it in icontasks' own config is not an option —
+        # the applet has no such setting, the panel layout is the mechanism.
+        "org.kde.plasma.panelspacer"
         { name = "org.kde.plasma.icontasks"; config.General.launchers = launchers; }
         "org.kde.plasma.panelspacer"
 

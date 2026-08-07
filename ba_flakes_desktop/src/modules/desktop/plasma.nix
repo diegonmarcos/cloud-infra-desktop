@@ -70,7 +70,12 @@ in
       # Ours — the my-konsole tray daemon's ids (configs/systrays.json).
       OURS="cloud-systray,docker-systray,http-dev-systray,my-ai-systray,nix-flakes-systray,vault-systray,watchdog-systray,workflow-systray"
       # KDE's own indicators.
-      SYSTEM="org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.clipboard,org.kde.plasma.devicenotifier,org.kde.plasma.notifications,org.kde.kdeconnect,org.kde.kscreen,org.kde.plasma.keyboardlayout,org.kde.plasma.keyboardindicator,org.kde.plasma.cameraindicator,org.kde.plasma.manage-inputmethod,org.kde.plasma.mediacontroller"
+      SYSTEM="org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.clipboard,org.kde.plasma.devicenotifier,org.kde.plasma.notifications,org.kde.kdeconnect,org.kde.kscreen,org.kde.plasma.cameraindicator,org.kde.plasma.manage-inputmethod,org.kde.plasma.mediacontroller"
+      # Keyboard layout/indicator: a single-layout machine, so it is a letter
+      # that never changes. Kept out of SYSTEM and named here so tray 2 hides it
+      # explicitly — leaving it merely absent lets Plasma auto-show it, since a
+      # tray displays anything that registers unless hiddenItems says otherwise.
+      KEYBOARD="org.kde.plasma.keyboardlayout,org.kde.plasma.keyboardindicator"
 
       # BOTH private systemtray containments, in panel order — the old hook
       # took only the first (`exit` after one match) which is why the second
@@ -84,9 +89,16 @@ in
       for TRAY_ID in $TRAY_IDS; do
         idx=$((idx + 1))
         if [ "$idx" = 1 ]; then
-          SHOWN="$OURS";   HIDDEN=""
+          # Tray 1 — OURS AND NOTHING ELSE. extraItems is what the tray is
+          # allowed to know about at all, so listing SYSTEM here (as this did)
+          # is what let KDE's indicators leak in beside ours; hiddenItems then
+          # keeps out anything that registers itself without being listed.
+          SHOWN="$OURS";              HIDDEN="$SYSTEM,$KEYBOARD"; EXTRA="$OURS"
         else
-          SHOWN="";        HIDDEN="$OURS"
+          # Tray 2 — everything KDE, auto-hiding, minus the keyboard layout.
+          # shownItems pins the indicators visible: "show ALL" is a policy, and
+          # leaving them unlisted only means Plasma decides per item.
+          SHOWN="$SYSTEM";            HIDDEN="$OURS,$KEYBOARD";   EXTRA="$SYSTEM"
         fi
         GENERAL_SECTION="[Containments][$TRAY_ID][General]"
         if grep -qF "$GENERAL_SECTION" "$APPLETS_FILE"; then
@@ -95,14 +107,14 @@ in
             /^hiddenItems=/d
             /^extraItems=/d
           }" "$APPLETS_FILE"
-          ${pkgs.gnused}/bin/sed -i "/^\[Containments\]\[$TRAY_ID\]\[General\]$/a shownItems=$SHOWN\nhiddenItems=$HIDDEN\nextraItems=$SYSTEM,$OURS" "$APPLETS_FILE"
+          ${pkgs.gnused}/bin/sed -i "/^\[Containments\]\[$TRAY_ID\]\[General\]$/a shownItems=$SHOWN\nhiddenItems=$HIDDEN\nextraItems=$EXTRA" "$APPLETS_FILE"
         else
           {
             echo ""
             echo "$GENERAL_SECTION"
             echo "shownItems=$SHOWN"
             echo "hiddenItems=$HIDDEN"
-            echo "extraItems=$SYSTEM,$OURS"
+            echo "extraItems=$EXTRA"
           } >> "$APPLETS_FILE"
         fi
       done

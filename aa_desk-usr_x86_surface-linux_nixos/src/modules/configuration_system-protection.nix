@@ -610,7 +610,13 @@ in
               thrash_secs=0
             fi
           else
-            thrash_secs=0
+            # decay, don't hard-reset (2026-08-07): real thrash is bursty and
+            # dips below HIGH_MAX for a tick or two even mid-incident. A hard
+            # reset to 0 here meant thrash_secs could never accumulate past a
+            # couple seconds, so THRASH_SUSTAIN was in practice unreachable
+            # and the relief kill never fired. Decay by one interval instead
+            # so genuine sustained-but-bursty thrash still crosses the bar.
+            thrash_secs=$(( thrash_secs > INTERVAL ? thrash_secs - INTERVAL : 0 ))
           fi
         fi
         prev_high="$cur_high"
@@ -729,6 +735,12 @@ in
       MemoryMax = userMemMax;
       MemoryMin = sysprot.gui_session.MemoryMin;   # reserved RAM — never reclaimed for a build (anti-freeze)
       IOWeight = 500;           # desktop I/O strongly preempts background/build I/O
+      # oomd override (2026-08-07): was only set on the parent "user" slice
+      # (below) and root/system slices — systemd-oomd reads the limit on the
+      # cgroup it's actually monitoring, and live inspection showed 0% here on
+      # user-1000.slice itself, i.e. oomd's memory-PSI kill path was
+      # effectively disabled for this user's session. Set it directly.
+      ManagedOOMMemoryPressureLimit = sysprot.oomd.pressure_limit;
     };
   };
 
