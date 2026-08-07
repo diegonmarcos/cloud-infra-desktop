@@ -293,7 +293,7 @@
                 ./modules/curl-wget-wrapper.nix
                 ./modules/node-npm-deps.nix
                 ./modules/node-bins.nix
-                ./modules/web-server-md-eruda.nix
+                ./modules/httpd-web-server-json-md-eruda
                 ./modules/cloud-ide-sshd
                 ./modules/wireguard.nix
                 ./modules/wireguard-wstunnel.nix
@@ -669,11 +669,14 @@
                   # The previous block here referenced ~/.ssh/sshd_config which is never
                   # created — it failed silently and hid real startup errors. Removed.
 
-                  # Auto-start http-dev (web-server-md-eruda)
+                  # Auto-start httpd-web-server-json-md-eruda (on-demand wrapper).
+                  # If the runit service (sv-enable'd by the nix module) is
+                  # already supervising it in the background, this is a no-op
+                  # (is_running check inside the wrapper finds its PID file).
                   set -g __httpd_port 8000
-                  if command -q http-dev
-                    http-dev start >/dev/null 2>&1
-                    set -g __httpd_pid (cat ~/.cache/web-server-md-eruda.pid 2>/dev/null)
+                  if command -q httpd-web-server-json-md-eruda
+                    httpd-web-server-json-md-eruda start >/dev/null 2>&1
+                    set -g __httpd_pid (cat ~/.cache/httpd-web-server-json-md-eruda.pid 2>/dev/null)
                   end
 
                   # FZF configuration

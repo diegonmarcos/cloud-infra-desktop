@@ -1,0 +1,155 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║                                                                  ║
+# ║   GENERATED FILE — DO NOT EDIT                                   ║
+# ║                                                                  ║
+# ║   Source : 1_workflows/src/cicd/ship-httpd-web-server-json-md-eruda.yml
+# ║   Engine : 1_workflows/src/scripts/unix-ship-repo-workflow-engine.sh
+# ║   Rebuild: ./1_workflows/build.sh
+# ║                                                                  ║
+# ║   Manual edits will be overwritten on next build.                ║
+# ║                                                                  ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+name: ship-httpd-web-server-json-md-eruda
+# Build httpd-web-server-json-md-eruda.mjs into a per-arch, single-file Node
+# Single Executable Application (SEA) binary — node --experimental-sea-config
+# + postject injection on pkgs.nodejs_20, no third-party bundler. The two
+# runtime assets (marked.min.js, github-markdown-dark.css) are embedded into
+# the binary via the SEA config's `assets` map, so the shipped artifact has
+# no loose sidecar files. Publishes arch-suffixed binaries to a rolling
+# GitHub Release (httpd-web-server-json-md-eruda-latest). A post-publish
+# update-hashes job recomputes SRI sha256s and commits them into both the
+# desktop and Termux modules' hashes.json so their fetchurl derivations stay
+# in sync automatically. Modeled on ship-my-ai-app.yml.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda.mjs'
+      - 'ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda.sea-config.json'
+      - 'ba_flakes_desktop/src/modules/dotfiles/httpd-lib/**'
+      - '1_workflows/src/cicd/ship-httpd-web-server-json-md-eruda.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Serialize runs — same rationale as ship-my-ai-app.yml: the release tag
+# (httpd-web-server-json-md-eruda-latest) is rolling and clobbered on each
+# upload, so overlapping runs would race the update-hashes commit against
+# whichever binary landed last.
+concurrency:
+  group: ship-httpd-web-server-json-md-eruda
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: ba_flakes_desktop/src/modules/dotfiles
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Generate SEA prep blob
+        run: |
+          nix shell nixpkgs#nodejs_20 -c node --experimental-sea-config httpd-web-server-json-md-eruda.sea-config.json
+
+      - name: Inject blob into a node binary copy (postject)
+        run: |
+          OUT="httpd-web-server-json-md-eruda-${{ matrix.arch }}"
+          nix shell nixpkgs#nodejs_20 -c bash -c '
+            set -e
+            cp "$(command -v node)" "'"$OUT"'"
+            npx --yes postject@1.0.0-alpha.6 "'"$OUT"'" NODE_SEA_BLOB sea-prep.blob \
+              --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+          '
+          chmod +x "$OUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: httpd-web-server-json-md-eruda-${{ matrix.arch }}
+          path: ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda-${{ matrix.arch }}
+          if-no-files-found: error
+
+      - name: Publish to rolling GitHub Release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create httpd-web-server-json-md-eruda-latest \
+            --title "httpd-web-server-json-md-eruda (rolling)" \
+            --notes "Latest multi-arch build — main@${GITHUB_SHA:0:8}. Fetched by ba_flakes_desktop's and bb_flakes_termux's httpd-web-server-json-md-eruda nix modules." \
+            --target "$GITHUB_SHA" 2>/dev/null || true
+          gh release upload httpd-web-server-json-md-eruda-latest \
+            "httpd-web-server-json-md-eruda-${{ matrix.arch }}" --clobber
+
+  update-hashes:
+    name: Update hashes.json
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download released binaries
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: /tmp
+        run: |
+          gh release download httpd-web-server-json-md-eruda-latest --repo diegonmarcos/unix \
+            --pattern "httpd-web-server-json-md-eruda-aarch64" \
+            --pattern "httpd-web-server-json-md-eruda-x86_64" \
+            --clobber
+
+      - uses: cachix/install-nix-action@v27
+
+      - name: Compute SRI hashes and update hashes.json
+        run: |
+          aarch64_hash=$(nix hash file --sri /tmp/httpd-web-server-json-md-eruda-aarch64)
+          x86_64_hash=$(nix hash file --sri /tmp/httpd-web-server-json-md-eruda-x86_64)
+
+          cat > ba_flakes_desktop/src/modules/httpd-web-server-json-md-eruda/hashes.json <<JSON
+          {
+            "version": "latest",
+            "aarch64-linux": {
+              "httpd-web-server-json-md-eruda": "$aarch64_hash"
+            },
+            "x86_64-linux": {
+              "httpd-web-server-json-md-eruda": "$x86_64_hash"
+            }
+          }
+          JSON
+
+          cat > bb_flakes_termux/src/modules/httpd-web-server-json-md-eruda/hashes.json <<JSON
+          {
+            "httpd-web-server-json-md-eruda": "$aarch64_hash"
+          }
+          JSON
+
+      - name: Commit updated hashes
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ba_flakes_desktop/src/modules/httpd-web-server-json-md-eruda/hashes.json \
+                  bb_flakes_termux/src/modules/httpd-web-server-json-md-eruda/hashes.json
+          git diff --cached --quiet || \
+            git commit -m "chore: update httpd-web-server-json-md-eruda hashes.json [skip ci]"
+          git push

@@ -8,7 +8,7 @@
     ./programs/shells/fish.nix
     ./programs/shells/starship.nix
     ./programs/shells/fzf.nix
-    ./web-server-md-eruda.nix
+    ./httpd-web-server-json-md-eruda
     ./cliphist.nix
     ./programs/editors/vim.nix
     ./programs/git.nix
@@ -131,9 +131,10 @@
   # Systemd user services (for Linux)
   systemd.user.startServices = "sd-switch";
 
-  # Web server: web-server-md-eruda (Node.js, Markdown + Eruda DevTools)
-  # Module imported above → deploys http-dev + web-server-md-eruda.mjs
-  # Auto-started in fish interactiveShellInit (port 8000)
+  # Web server: httpd-web-server-json-md-eruda (JSON/YAML tables + Markdown +
+  # Eruda DevTools). Module imported above → deploys the
+  # httpd-web-server-json-md-eruda wrapper around a prebuilt, per-arch fetched
+  # binary. Auto-started via systemd.user.services (port 8000).
 
   # News notifications
   news.display = "silent";

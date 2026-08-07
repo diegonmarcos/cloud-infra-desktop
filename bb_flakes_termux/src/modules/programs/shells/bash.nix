@@ -120,7 +120,7 @@
 
       gcam() { git add --all && git commit -m "$1"; }
 
-      serve() { http-dev start "$@"; }
+      serve() { httpd-web-server-json-md-eruda start "$@"; }
 
       # Local overrides
       [[ -f ~/.bashrc.local ]] && source ~/.bashrc.local

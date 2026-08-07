@@ -4,43 +4,43 @@
   "order": 25,
   "secondary": true,
   "theme": { "accent": "#00b894" },
-  "_doc": "http-dev — the Node file server home-manager deploys (ba_flakes_desktop/src/modules/web-server-md-eruda.nix): a POSIX wrapper at ~/.local/bin/http-dev around `node ~/.local/bin/web-server-md-eruda.mjs <port> <dir>`, plus a systemd --user unit that wants the same :8000. The unit ships disabled and the wrapper is what actually runs, so these bookmarks drive the wrapper and keep the unit's state one click away — when the two do fight over the port, that has to be visible rather than a mystery.",
+  "_doc": "httpd-web-server-json-md-eruda — the file server home-manager deploys (ba_flakes_desktop/src/modules/httpd-web-server-json-md-eruda/default.nix): a POSIX wrapper at ~/.local/bin/httpd-web-server-json-md-eruda around a prebuilt, per-arch Node SEA binary fetched from the rolling GitHub Release (<port> <dir> args), plus a systemd --user unit that wants the same :8000. The unit ships disabled and the wrapper is what actually runs, so these bookmarks drive the wrapper and keep the unit's state one click away — when the two do fight over the port, that has to be visible rather than a mystery.",
   "sections": [
     {
       "title": "SERVER",
       "items": [
-        { "label": "status", "cmd": "http-dev status" },
-        { "label": "start", "cmd": "http-dev start" },
-        { "label": "stop", "cmd": "http-dev stop" },
-        { "label": "restart", "cmd": "http-dev restart" },
+        { "label": "status", "cmd": "httpd-web-server-json-md-eruda status" },
+        { "label": "start", "cmd": "httpd-web-server-json-md-eruda start" },
+        { "label": "stop", "cmd": "httpd-web-server-json-md-eruda stop" },
+        { "label": "restart", "cmd": "httpd-web-server-json-md-eruda restart" },
         { "label": "open in browser", "cmd": "xdg-open http://127.0.0.1:8000" }
       ]
     },
     {
       "title": "SERVE A ROOT",
       "items": [
-        { "label": "$HOME (default)", "cmd": "http-dev restart 8000 $HOME" },
-        { "label": "~/git/unix", "cmd": "http-dev restart 8000 $HOME/git/unix" },
-        { "label": "~/git/cloud", "cmd": "http-dev restart 8000 $HOME/git/cloud" },
-        { "label": "~/git/front", "cmd": "http-dev restart 8000 $HOME/git/front" },
-        { "label": "custom port + dir", "cmd": "http-dev restart " }
+        { "label": "$HOME (default)", "cmd": "httpd-web-server-json-md-eruda restart 8000 $HOME" },
+        { "label": "~/git/unix", "cmd": "httpd-web-server-json-md-eruda restart 8000 $HOME/git/unix" },
+        { "label": "~/git/cloud", "cmd": "httpd-web-server-json-md-eruda restart 8000 $HOME/git/cloud" },
+        { "label": "~/git/front", "cmd": "httpd-web-server-json-md-eruda restart 8000 $HOME/git/front" },
+        { "label": "custom port + dir", "cmd": "httpd-web-server-json-md-eruda restart " }
       ]
     },
     {
       "title": "DIAGNOSE",
       "items": [
         { "label": "who holds :8000", "cmd": "ss -tulpn | grep :8000" },
-        { "label": "node process", "cmd": "ps -eo pid,etime,rss,args | grep '[w]eb-server-md-eruda'" },
-        { "label": "pid file", "cmd": "cat ~/.cache/web-server-md-eruda.pid" },
-        { "label": "run in foreground (logs)", "cmd": "node ~/.local/bin/web-server-md-eruda.mjs 8001 $HOME" }
+        { "label": "server process", "cmd": "ps -eo pid,etime,rss,args | grep '[h]ttpd-web-server-json-md-eruda'" },
+        { "label": "pid file", "cmd": "cat ~/.cache/httpd-web-server-json-md-eruda.pid" },
+        { "label": "run in foreground (logs)", "cmd": "httpd-web-server-json-md-eruda stop; $(grep -oP '(?<=SERVER=\")[^\"]+' ~/.local/bin/httpd-web-server-json-md-eruda) 8001 $HOME" }
       ]
     },
     {
       "title": "SYSTEMD UNIT",
       "items": [
-        { "label": "unit status", "cmd": "systemctl --user status http-dev.service --no-pager" },
-        { "label": "unit logs", "cmd": "journalctl --user -u http-dev.service -n 200 --no-pager" },
-        { "label": "unit enabled?", "cmd": "systemctl --user is-enabled http-dev.service" }
+        { "label": "unit status", "cmd": "systemctl --user status httpd-web-server-json-md-eruda.service --no-pager" },
+        { "label": "unit logs", "cmd": "journalctl --user -u httpd-web-server-json-md-eruda.service -n 200 --no-pager" },
+        { "label": "unit enabled?", "cmd": "systemctl --user is-enabled httpd-web-server-json-md-eruda.service" }
       ]
     }
   ]
