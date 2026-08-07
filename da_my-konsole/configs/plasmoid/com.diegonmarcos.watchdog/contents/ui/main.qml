@@ -92,6 +92,59 @@ PlasmoidItem {
         return Kirigami.Theme.positiveTextColor;
     }
 
+    // Short mount label for the disk bars — "/" stays "/", everything else
+    // is the last path segment ("home", "boot" for "/boot").
+    function shortMount(m) {
+        if (!m) return "?";
+        if (m === "/") return "/";
+        var parts = m.split("/");
+        return parts[parts.length - 1] || m;
+    }
+
+    // mem_detail ({total,used,buffers,cached,free} GiB) is what the sampler
+    // is growing to emit; today's daemon only has the overall `mem` percent.
+    // Fall back to a two-segment used/free ring so the pie still means
+    // something instead of throwing on the missing field.
+    function memLayers() {
+        var m = root.snap.mem_detail;
+        if (m && m.total) return [m.used || 0, m.buffers || 0, m.cached || 0, m.free || 0];
+        var used = root.snap.mem || 0;
+        return [used, 100 - used];
+    }
+    function memLayerColors() {
+        var m = root.snap.mem_detail;
+        if (m && m.total)
+            return [Kirigami.Theme.highlightColor, Kirigami.Theme.neutralTextColor,
+                    Kirigami.Theme.positiveTextColor, Kirigami.Theme.disabledTextColor];
+        return [Kirigami.Theme.highlightColor, Kirigami.Theme.disabledTextColor];
+    }
+    // Centre number: reclaimable memory as a percent of total (free + buffers
+    // + cached) / total — falls back to 100 - mem% when mem_detail is absent.
+    function memCentreText() {
+        var m = root.snap.mem_detail;
+        if (m && m.total)
+            return Math.round(((m.free || 0) + (m.buffers || 0) + (m.cached || 0)) / m.total * 100) + "%";
+        return root.snap.mem !== undefined ? Math.round(100 - root.snap.mem) + "%" : "--";
+    }
+
+    // vram is JSON `null` on machines with no discrete GPU sysfs node — that
+    // is normal here, not an error, so callers must treat undefined as "—".
+    function vramPct() {
+        var v = root.snap.vram;
+        if (!v || !v.total) return undefined;
+        return (v.used / v.total) * 100;
+    }
+
+    // slice_pct is the sampler's future field; derive it from the GiB pair
+    // that is already published today so the pie isn't blank in the meantime.
+    function slicePct() {
+        if (root.snap.slice_pct !== undefined) return root.snap.slice_pct;
+        if (root.snap.slice_max_gib) return (root.snap.slice_gib / root.snap.slice_max_gib) * 100;
+        return undefined;
+    }
+
+    function pct0(v) { return v === undefined ? "--" : Math.round(v) + "%"; }
+
     // ── pie, the same element KSysGuard's piechart face uses ─────────────────
     component Pie : Item {
         id: pie
@@ -113,6 +166,36 @@ PlasmoidItem {
         PlasmaComponents.Label {
             anchors.centerIn: parent
             text: pie.label
+            font.pointSize: Kirigami.Theme.smallFont.pointSize - 1
+            opacity: 0.9
+        }
+    }
+
+    // ── layered pie: several segments in one ring, e.g. mem used/buffers/
+    // cached/free. Chart.IndexAllValues treats a single ArraySource's array
+    // as one segment per entry instead of one source per segment — confirmed
+    // against Chart/ArraySource/PieChart in kquickcharts' QuickCharts.qmltypes.
+    component MultiPie : Item {
+        id: mpie
+        property string label: ""
+        property var values: []
+        property var colors: []
+        implicitWidth: 26
+        implicitHeight: 26
+
+        Charts.PieChart {
+            anchors.fill: parent
+            range { automatic: true }
+            indexingMode: Charts.Chart.IndexAllValues
+            valueSources: [ Charts.ArraySource { array: mpie.values } ]
+            colorSource: Charts.ArraySource { array: mpie.colors }
+            backgroundColor: Kirigami.Theme.backgroundColor
+            thickness: 5
+            filled: false
+        }
+        PlasmaComponents.Label {
+            anchors.centerIn: parent
+            text: mpie.label
             font.pointSize: Kirigami.Theme.smallFont.pointSize - 1
             opacity: 0.9
         }
@@ -200,52 +283,86 @@ PlasmoidItem {
             spacing: 9
             opacity: root.stale ? 0.45 : 1.0
 
-            // LEFT cluster: memory, swap, cpu as pies; per-core as thin bars.
+            // LEFT cluster: disk bars, mem/swap/vram/cpu as pies with the
+            // headline number centred in the ring.
             Loader {
                 active: Plasmoid.configuration.mode === "left"
                 visible: active
                 sourceComponent: RowLayout {
                     spacing: 6
-                    Pie { label: "M"; value: root.snap.mem  || 0; fill: Kirigami.Theme.highlightColor }
-                    Pie { label: "S"; value: root.snap.swap || 0; fill: Kirigami.Theme.neutralTextColor }
-                    Pie { label: "C"; value: root.snap.cpu  || 0; fill: root.heat(root.snap.cpu) }
-                    RowLayout {
-                        spacing: 2
+
+                    // 1. disk-usage — one thin horizontal bar per mount.
+                    // `disks` is another field the sampler hasn't shipped
+                    // yet; an empty model just renders no bars.
+                    ColumnLayout {
+                        spacing: 1
                         Repeater {
-                            model: root.snap.cores || []
-                            delegate: Rectangle {
-                                width: 4; height: 16; radius: 1
-                                color: Kirigami.Theme.backgroundColor
-                                border { color: Kirigami.Theme.disabledTextColor; width: 1 }
-                                Rectangle {
-                                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 1 }
-                                    height: Math.max(0, Math.min(1, modelData / 100)) * (parent.height - 2)
-                                    color: root.heat(modelData)
-                                    radius: 1
-                                }
+                            model: root.snap.disks || []
+                            delegate: Bar {
+                                label: root.shortMount(modelData.mount)
+                                value: modelData.pct || 0
+                                fill: root.heat(modelData.pct)
                             }
                         }
+                    }
+
+                    // 2. mem-usage — layered ring (used/buffers/cached/free),
+                    // centre = reclaimable percent.
+                    MultiPie {
+                        label: root.memCentreText()
+                        values: root.memLayers()
+                        colors: root.memLayerColors()
+                    }
+
+                    // 3. swap-usage
+                    Pie {
+                        label: root.pct0(root.snap.swap)
+                        value: root.snap.swap || 0
+                        fill: root.heat(root.snap.swap)
+                    }
+
+                    // 4. vram-usage — vram is null on this machine (no
+                    // discrete GPU sysfs node); show a grey ring and "--"
+                    // rather than hiding it or erroring.
+                    Pie {
+                        label: root.vramPct() !== undefined ? root.pct0(root.vramPct()) : "--"
+                        value: root.vramPct() || 0
+                        fill: root.vramPct() !== undefined ? root.heat(root.vramPct()) : Kirigami.Theme.disabledTextColor
+                    }
+
+                    // 5. cpu-usage
+                    Pie {
+                        label: root.pct0(root.snap.cpu)
+                        value: root.snap.cpu || 0
+                        fill: root.heat(root.snap.cpu)
                     }
                 }
             }
 
-            // RIGHT cluster: disk r/w, three `some` PSI bars, three `full` PSI
-            // bars, and the 1-minute cpu trend.
+            // RIGHT cluster: user-slice pie, three `some` PSI bars, three
+            // `full` PSI bars.
             Loader {
                 active: Plasmoid.configuration.mode === "right"
                 visible: active
                 sourceComponent: RowLayout {
                     spacing: 6
-                    PlasmaComponents.Label {
-                        text: "R " + root.mbs(root.snap.disk_r) + "  W " + root.mbs(root.snap.disk_w)
-                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+
+                    // 1. slices-usage — percent of the user cgroup slice's
+                    // memory.max in use. slice_pct is another field the
+                    // sampler hasn't shipped yet; derive it from slice_gib /
+                    // slice_max_gib, which today's daemon already publishes.
+                    Pie {
+                        label: root.pct0(root.slicePct())
+                        value: root.slicePct() || 0
+                        fill: root.heat(root.slicePct())
                     }
-                    // Six bars in ONE row ran ~400px and overflowed the top
-                    // panel. They are 3x2 now: `some` on top, `full` beneath,
-                    // cpu/io/memory in the same column both times, so a column
-                    // reads as one resource and the pair reads as "some of it
-                    // stalled" over "all of it stalled". Halves the width and
-                    // spends panel height that was already there.
+
+                    // 2 & 3. Six bars in ONE row ran ~400px and overflowed the
+                    // top panel. They are 3x2 now: `some` on top, `full`
+                    // beneath, cpu/io/memory in the same column both times, so
+                    // a column reads as one resource and the pair reads as
+                    // "some of it stalled" over "all of it stalled". Halves
+                    // the width and spends panel height that was already there.
                     GridLayout {
                         columns: 3
                         rowSpacing: 1
@@ -256,13 +373,6 @@ PlasmoidItem {
                         Bar { label: "Fc"; value: root.psi("cpu","full10")    || 0; fill: root.heat(root.psi("cpu","full10")) }
                         Bar { label: "Fi"; value: root.psi("io","full10")     || 0; fill: root.heat(root.psi("io","full10")) }
                         Bar { label: "Fm"; value: root.psi("memory","full10") || 0; fill: root.heat(root.psi("memory","full10")) }
-                    }
-                    // A 60s average printed rather than barred: a bar of a
-                    // trend reads like a live value and isn't one.
-                    PlasmaComponents.Label {
-                        text: "1m " + root.two(root.psi("cpu","some60"))
-                        color: root.heat(root.psi("cpu","some60"))
-                        font.pointSize: Kirigami.Theme.smallFont.pointSize
                     }
                 }
             }

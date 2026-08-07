@@ -72,8 +72,22 @@ fn cpu_percent(prev: CpuTotals, now: CpuTotals) -> f64 {
     ((dt.saturating_sub(di)) as f64 / dt as f64) * 100.0
 }
 
-fn meminfo() -> (f64, f64) {
-    let Ok(s) = fs::read_to_string("/proc/meminfo") else { return (0.0, 0.0) };
+// Pure parse of /proc/meminfo's kB fields, kept separate from the file read so
+// it can be exercised with sample text in tests without touching the real
+// filesystem.
+#[derive(Default, Debug, PartialEq)]
+struct MemInfoRaw {
+    total_kb: f64,
+    free_kb: f64,
+    avail_kb: f64,
+    buffers_kb: f64,
+    cached_kb: f64,
+    sreclaimable_kb: f64,
+    swap_total_kb: f64,
+    swap_free_kb: f64,
+}
+
+fn parse_meminfo(s: &str) -> MemInfoRaw {
     let kv = |k: &str| -> f64 {
         s.lines()
             .find(|l| l.starts_with(k))
@@ -81,13 +95,52 @@ fn meminfo() -> (f64, f64) {
             .and_then(|v| v.parse::<f64>().ok())
             .unwrap_or(0.0)
     };
-    let total = kv("MemTotal:");
-    let avail = kv("MemAvailable:");
-    let swap_total = kv("SwapTotal:");
-    let swap_free = kv("SwapFree:");
-    let mem_pct = if total > 0.0 { (total - avail) / total * 100.0 } else { 0.0 };
-    let swap_pct = if swap_total > 0.0 { (swap_total - swap_free) / swap_total * 100.0 } else { 0.0 };
-    (mem_pct, swap_pct)
+    MemInfoRaw {
+        total_kb: kv("MemTotal:"),
+        free_kb: kv("MemFree:"),
+        avail_kb: kv("MemAvailable:"),
+        buffers_kb: kv("Buffers:"),
+        cached_kb: kv("Cached:"),
+        sreclaimable_kb: kv("SReclaimable:"),
+        swap_total_kb: kv("SwapTotal:"),
+        swap_free_kb: kv("SwapFree:"),
+    }
+}
+
+fn kb_to_gib(kb: f64) -> f64 {
+    kb / 1_048_576.0
+}
+
+/// Everything the panel wants out of /proc/meminfo in one read: the two
+/// legacy percentages plus the pie-chart detail objects. `used` in
+/// mem_detail is defined as total-available (the honest "not reclaimable"
+/// figure), not total-free — free alone ignores buffers/cache the kernel
+/// would hand back under pressure, which is exactly the number that used to
+/// make this box look worse than it was.
+fn meminfo_all() -> (f64, f64, String, String) {
+    let s = fs::read_to_string("/proc/meminfo").unwrap_or_default();
+    let raw = parse_meminfo(&s);
+
+    let mem_pct = if raw.total_kb > 0.0 { (raw.total_kb - raw.avail_kb) / raw.total_kb * 100.0 } else { 0.0 };
+    let swap_pct =
+        if raw.swap_total_kb > 0.0 { (raw.swap_total_kb - raw.swap_free_kb) / raw.swap_total_kb * 100.0 } else { 0.0 };
+
+    let total = kb_to_gib(raw.total_kb);
+    let available = kb_to_gib(raw.avail_kb);
+    let used = total - available;
+    let buffers = kb_to_gib(raw.buffers_kb);
+    let cached = kb_to_gib(raw.cached_kb + raw.sreclaimable_kb);
+    let free = kb_to_gib(raw.free_kb);
+    let mem_detail = format!(
+        "{{\"total\":{total:.2},\"used\":{used:.2},\"buffers\":{buffers:.2},\
+          \"cached\":{cached:.2},\"free\":{free:.2},\"available\":{available:.2}}}"
+    );
+
+    let swap_total = kb_to_gib(raw.swap_total_kb);
+    let swap_used = swap_total - kb_to_gib(raw.swap_free_kb);
+    let swap_detail = format!("{{\"total\":{swap_total:.2},\"used\":{swap_used:.2}}}");
+
+    (mem_pct, swap_pct, mem_detail, swap_detail)
 }
 
 // PSI is the number that actually predicts a stall, and no stock KSysGuard
@@ -322,6 +375,193 @@ fn disk_root_percent() -> f64 {
     (used / total) * 100.0
 }
 
+/// Filesystems worth putting a row in the disk widget for. Everything else
+/// (tmpfs, proc, sys, cgroup, overlay, squashfs, devtmpfs, autofs, fuse.*,
+/// ...) is either not a real disk or is a container/snap mount that would
+/// just be noise.
+const DISK_FSTYPES: [&str; 7] = ["ext4", "btrfs", "xfs", "f2fs", "vfat", "exfat", "ntfs3"];
+
+/// /proc/{mounts,self/mounts} octal-escapes space, tab, newline and backslash
+/// in the mount-point field (`\040` for a space, etc). Decode those back to
+/// real characters so the mount path we hand to statvfs(2) — and later put in
+/// JSON — is correct.
+fn decode_mount_escapes(s: &str) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\\'
+            && i + 3 < chars.len()
+            && chars[i + 1..i + 4].iter().all(|c| ('0'..='7').contains(c))
+        {
+            let oct: String = chars[i + 1..i + 4].iter().collect();
+            if let Ok(v) = u8::from_str_radix(&oct, 8) {
+                out.push(v as char);
+                i += 4;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+/// Pure parse of a mounts-file body into (device, decoded mount point) pairs,
+/// filtered to real on-disk filesystems and deduplicated by device so a
+/// btrfs subvolume or bind mount doesn't get a row for every mount point it
+/// appears under. Kept separate from the file read so it's testable with
+/// sample text.
+fn parse_mounts(s: &str) -> Vec<(String, String)> {
+    let mut seen_devices = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for line in s.lines() {
+        let f: Vec<&str> = line.split_whitespace().collect();
+        if f.len() < 3 {
+            continue;
+        }
+        let (device, mount_raw, fstype) = (f[0], f[1], f[2]);
+        if !DISK_FSTYPES.contains(&fstype) {
+            continue;
+        }
+        if !seen_devices.insert(device.to_string()) {
+            continue; // already have a row for this device
+        }
+        out.push((device.to_string(), decode_mount_escapes(mount_raw)));
+    }
+    out
+}
+
+/// statvfs(2) a mount point into (used_pct, used_gib, total_gib). Same
+/// f_bavail-not-f_bfree reasoning as disk_root_percent above.
+fn statvfs_gib(path: &str) -> Option<(f64, f64, f64)> {
+    let c = std::ffi::CString::new(path).ok()?;
+    let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+    if unsafe { libc::statvfs(c.as_ptr(), &mut st) } != 0 {
+        return None;
+    }
+    let total = st.f_blocks as f64;
+    if total <= 0.0 {
+        return None;
+    }
+    let used = total - st.f_bavail as f64;
+    let bytes_per_block = if st.f_frsize > 0 { st.f_frsize as f64 } else { st.f_bsize as f64 };
+    Some((
+        used / total * 100.0,
+        used * bytes_per_block / 1_073_741_824.0,
+        total * bytes_per_block / 1_073_741_824.0,
+    ))
+}
+
+/// Minimal JSON string escaping for mount paths, which are the only
+/// hand-interpolated strings in this file's output that can contain
+/// arbitrary characters (spaces, quotes in theory, control bytes on exotic
+/// setups).
+fn json_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => {
+                let _ = write!(out, "\\u{:04x}", c as u32);
+            }
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// Builds the "disks" JSON array from /proc/self/mounts, capped at 6 rows —
+/// the widget is a small pie/list, not a df(1) dump.
+fn disks_json() -> String {
+    let Ok(s) = fs::read_to_string("/proc/self/mounts") else { return "[]".into() };
+    let mut items = Vec::new();
+    for (_, mount) in parse_mounts(&s) {
+        if items.len() >= 6 {
+            break;
+        }
+        let Some((pct, used_gib, total_gib)) = statvfs_gib(&mount) else { continue };
+        items.push(format!(
+            "{{\"mount\":\"{}\",\"pct\":{pct:.1},\"used_gib\":{used_gib:.2},\"total_gib\":{total_gib:.2}}}",
+            json_escape(&mount)
+        ));
+    }
+    format!("[{}]", items.join(","))
+}
+
+/// Best-effort GPU VRAM read for the "vram" field. Tries amdgpu's sysfs
+/// counters first (reliable, byte-accurate), then falls back to i915's
+/// debugfs-style file if present. On this Intel Surface neither the amdgpu
+/// files nor a readable i915_gem_gtt exist, so None — and therefore JSON
+/// null — is the expected, correct result, not a failure to be logged.
+fn read_vram() -> Option<(f64, f64)> {
+    let rd = fs::read_dir("/sys/class/drm").ok()?;
+    for e in rd.flatten() {
+        let name = e.file_name();
+        let Some(nm) = name.to_str() else { continue };
+        // Only bare "cardN" directories carry a `device` symlink to the GPU;
+        // connector directories look like "cardN-DP-1" and have none of the
+        // files below.
+        if !nm.starts_with("card") || !nm["card".len()..].chars().all(|c| c.is_ascii_digit()) {
+            continue;
+        }
+        let dev = e.path().join("device");
+
+        if let (Ok(t), Ok(u)) =
+            (fs::read_to_string(dev.join("mem_info_vram_total")), fs::read_to_string(dev.join("mem_info_vram_used")))
+        {
+            if let (Ok(tb), Ok(ub)) = (t.trim().parse::<f64>(), u.trim().parse::<f64>()) {
+                return Some((tb / 1_048_576.0, ub / 1_048_576.0)); // bytes -> MiB
+            }
+        }
+
+        if let Ok(gtt) = fs::read_to_string(dev.join("i915_gem_gtt")) {
+            if let Some(pair) = parse_i915_gem_gtt(&gtt) {
+                return Some(pair);
+            }
+        }
+    }
+    None
+}
+
+/// i915_gem_gtt's format isn't a stable, documented one — this is a
+/// best-effort scrape that returns (total_mib, used_mib) only when it finds
+/// clearly-labelled "total" and "used"/"active" lines, and skips (returns
+/// None) otherwise rather than guess.
+fn parse_i915_gem_gtt(s: &str) -> Option<(f64, f64)> {
+    let first_number = |line: &str| -> Option<f64> {
+        line.split_whitespace().find_map(|tok| {
+            let cleaned: String = tok.chars().filter(|c| c.is_ascii_digit() || *c == '.').collect();
+            if cleaned.is_empty() { None } else { cleaned.parse::<f64>().ok() }
+        })
+    };
+    let mut total = None;
+    let mut used = None;
+    for line in s.lines() {
+        let lower = line.to_ascii_lowercase();
+        let Some(n) = first_number(&lower) else { continue };
+        if lower.contains("total") {
+            total = Some(n);
+        } else if lower.contains("used") || lower.contains("active") {
+            used = Some(n);
+        }
+    }
+    match (total, used) {
+        (Some(t), Some(u)) => Some((t / 1024.0, u / 1024.0)), // KiB -> MiB
+        _ => None,
+    }
+}
+
+fn vram_json(v: Option<(f64, f64)>) -> String {
+    match v {
+        Some((total, used)) => format!("{{\"total\":{total:.0},\"used\":{used:.0}}}"),
+        None => "null".to_string(),
+    }
+}
+
 // Battery — read straight from sysfs, never upowerd. On the Surface Pro 8 the
 // SAM controller intermittently reports voltage_now=0, which sends upowerd's
 // percentage math to NaN and its threshold actions silently stop firing —
@@ -416,7 +656,10 @@ fn battery_json(b: &Option<BatteryReading>) -> String {
 fn render(
     cpu: f64, cores: &[f64],
     mem: f64, swap: f64,
+    mem_detail: &str, swap_detail: &str,
     disk: f64, disk_r: f64, disk_w: f64,
+    disks: &str,
+    vram: Option<(f64, f64)>,
     net_rx: f64, net_tx: f64,
     load1: f64, load5: f64, load15: f64,
     slice_cur: f64, slice_max: f64,
@@ -424,19 +667,23 @@ fn render(
     procs: &str,
 ) -> String {
     let core_list: Vec<String> = cores.iter().map(|c| format!("{c:.1}")).collect();
-    let mut s = String::with_capacity(1024);
+    let slice_pct = if slice_max > 0.0 { slice_cur / slice_max * 100.0 } else { 0.0 };
+    let mut s = String::with_capacity(1536);
     let _ = write!(
         s,
         "{{\"cpu\":{cpu:.1},\"cores\":[{}],\
           \"mem\":{mem:.1},\"swap\":{swap:.1},\
+          \"mem_detail\":{mem_detail},\"swap_detail\":{swap_detail},\
+          \"vram\":{},\
           \"disk\":{disk:.1},\"disk_r\":{disk_r:.2},\"disk_w\":{disk_w:.2},\
+          \"disks\":{disks},\
           \"net_rx\":{net_rx:.2},\"net_tx\":{net_tx:.2},\
           \"load1\":{load1:.2},\"load5\":{load5:.2},\"load15\":{load15:.2},\
           \"psi\":{{\"cpu\":{},\"io\":{},\"memory\":{}}},\
-          \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\
+          \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\"slice_pct\":{slice_pct:.1},\
           \"battery\":{},\
           \"procs\":{procs},\"ts\":{}}}",
-        core_list.join(","),
+        vram_json(vram),
         pressure_block("cpu"),
         pressure_block("io"),
         pressure_block("memory"),
@@ -543,11 +790,14 @@ pub fn spawn() {
             prev_net = now_net;
             let (load1, load5, load15) = loadavg();
 
-            let (mem, swap) = meminfo();
+            let (mem, swap, mem_detail, swap_detail) = meminfo_all();
             let (slice_cur, slice_max) = slice_mem();
             let body = render(
                 cpu, &cores, mem, swap,
+                &mem_detail, &swap_detail,
                 disk_root_percent(), disk_r, disk_w,
+                &disks_json(),
+                read_vram(),
                 net_rx, net_tx,
                 load1, load5, load15,
                 slice_cur, slice_max,
@@ -589,15 +839,100 @@ mod tests {
 
     #[test]
     fn render_is_parseable_json_with_every_field() {
+        let mem_detail = r#"{"total":16.00,"used":8.00,"buffers":0.50,"cached":2.00,"free":5.50,"available":8.00}"#;
+        let swap_detail = r#"{"total":4.00,"used":0.10}"#;
+        let disks = r#"[{"mount":"/","pct":42.0,"used_gib":100.00,"total_gib":238.00}]"#;
         let s = render(12.5, &[10.0, 20.0, 30.0, 40.0], 40.0, 1.0,
-                       55.0, 1.5, 2.5, 0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6,
+                       mem_detail, swap_detail,
+                       55.0, 1.5, 2.5,
+                       disks,
+                       Some((1024.0, 512.0)),
+                       0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6,
                        &None, "[]");
-        for k in ["cpu", "cores", "mem", "swap", "disk", "disk_r", "disk_w",
+        for k in ["cpu", "cores", "mem", "swap", "mem_detail", "swap_detail",
+                  "vram", "disk", "disk_r", "disk_w", "disks",
                   "net_rx", "net_tx", "load1", "load5", "load15",
-                  "psi", "slice_gib", "slice_max_gib", "battery", "procs", "ts"] {
+                  "psi", "slice_gib", "slice_max_gib", "slice_pct", "battery", "procs", "ts"] {
             assert!(s.contains(&format!("\"{k}\":")), "missing {k} in {s}");
         }
         assert!(s.starts_with('{') && s.ends_with('}'), "not an object: {s}");
+
+        // vram must render as a null literal when None (the expected case on
+        // machines without a readable GPU VRAM counter), not an absent key.
+        let s2 = render(12.5, &[], 40.0, 1.0, mem_detail, swap_detail,
+                         55.0, 1.5, 2.5, "[]", None,
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]");
+        assert!(s2.contains("\"vram\":null"), "expected null vram, got {s2}");
+
+        // slice_pct must be 0.0, not NaN/Infinity, when slice_max is 0.
+        let s3 = render(12.5, &[], 40.0, 1.0, mem_detail, swap_detail,
+                         55.0, 1.5, 2.5, "[]", None,
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]");
+        assert!(s3.contains("\"slice_pct\":0.0"), "expected 0.0 slice_pct, got {s3}");
+    }
+
+    // Pure /proc/meminfo parsing: feed sample text in directly so this is
+    // testable without touching the real filesystem.
+    #[test]
+    fn parse_meminfo_reads_expected_fields() {
+        let sample = "\
+MemTotal:       16384000 kB
+MemFree:         2048000 kB
+MemAvailable:    8192000 kB
+Buffers:          512000 kB
+Cached:          2048000 kB
+SwapCached:            0 kB
+SReclaimable:     256000 kB
+SwapTotal:       4096000 kB
+SwapFree:        3072000 kB
+";
+        let raw = parse_meminfo(sample);
+        assert_eq!(raw.total_kb, 16384000.0);
+        assert_eq!(raw.free_kb, 2048000.0);
+        assert_eq!(raw.avail_kb, 8192000.0);
+        assert_eq!(raw.buffers_kb, 512000.0);
+        assert_eq!(raw.cached_kb, 2048000.0);
+        assert_eq!(raw.sreclaimable_kb, 256000.0);
+        assert_eq!(raw.swap_total_kb, 4096000.0);
+        assert_eq!(raw.swap_free_kb, 3072000.0);
+    }
+
+    // Missing fields must default to 0.0, not panic — real /proc/meminfo
+    // varies by kernel config (e.g. no SReclaimable on some builds).
+    #[test]
+    fn parse_meminfo_defaults_missing_fields_to_zero() {
+        let raw = parse_meminfo("MemTotal:       16384000 kB\n");
+        assert_eq!(raw.total_kb, 16384000.0);
+        assert_eq!(raw.avail_kb, 0.0);
+        assert_eq!(raw.sreclaimable_kb, 0.0);
+    }
+
+    // /proc/self/mounts filtering: keep only real on-disk filesystems, skip
+    // pseudo/virtual ones, and dedup by device so a bind mount or btrfs
+    // subvolume doesn't get a second row.
+    #[test]
+    fn parse_mounts_filters_and_dedups() {
+        let sample = "\
+sysfs /sys sysfs rw 0 0
+/dev/nvme0n1p2 / btrfs rw,relatime 0 0
+/dev/nvme0n1p2 /home btrfs rw,relatime 0 0
+/dev/nvme0n1p1 /boot vfat rw,relatime 0 0
+tmpfs /run tmpfs rw 0 0
+overlay /var/lib/docker/overlay2/abc/merged overlay rw 0 0
+/dev/sdb1 /mnt/backup\\040drive ntfs3 rw 0 0
+";
+        let mounts = parse_mounts(sample);
+        let devices: Vec<&str> = mounts.iter().map(|(d, _)| d.as_str()).collect();
+        assert_eq!(devices, vec!["/dev/nvme0n1p2", "/dev/nvme0n1p1", "/dev/sdb1"]);
+
+        let points: Vec<&str> = mounts.iter().map(|(_, m)| m.as_str()).collect();
+        assert!(points.contains(&"/"));
+        assert!(!points.contains(&"/home")); // deduped: same device as /
+        assert!(points.contains(&"/boot"));
+        assert!(!points.iter().any(|p| p.contains("sys") || p.contains("run") || p.contains("docker")));
+
+        // Octal-escaped space in the mount point must be decoded.
+        assert!(points.contains(&"/mnt/backup drive"), "escapes not decoded: {points:?}");
     }
 
     // No battery at all (desktop) must render valid `null`, not an absent key
