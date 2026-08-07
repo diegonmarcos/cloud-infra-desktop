@@ -29,6 +29,16 @@ on:
 permissions:
   contents: write
 
+# Serialize runs. my-ai is not a reproducible build — every CI run produces a
+# differently-hashed binary. Because the release tag (my-ai-latest) is rolling
+# and clobbered on each upload, overlapping runs race: one commits the hash of
+# a binary another has already overwritten, so the pinned hash never matches the
+# live asset. A single-flight group guarantees the last update-hashes commit
+# reflects the last uploaded binary. cancel-in-progress=false so no half-upload.
+concurrency:
+  group: ship-my-ai-app
+  cancel-in-progress: false
+
 jobs:
   build:
     strategy:
