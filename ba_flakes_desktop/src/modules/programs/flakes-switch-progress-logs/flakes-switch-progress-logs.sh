@@ -146,7 +146,12 @@ fi
       printf 'Status:    %b✓ clean%b\n' "$C_OK" "$C_0"
     else
       printf 'Status:    %b✗ %s dirty file(s)%b\n' "$C_FAIL" "$(echo "$DIRTY" | wc -l)" "$C_0"
-      echo "$DIRTY" | sed 's/^/             /'
+      # Indent each dirty path. Not `sed 's/^/.../'`: shellcheck rejects
+      # echo|sed as SC2001 (style, still fatal under writeShellApplication),
+      # and ${var//} cannot anchor per-line.
+      printf '%s\n' "$DIRTY" | while IFS= read -r _dirty_line; do
+        printf '             %s\n' "$_dirty_line"
+      done
     fi
     printf 'Commit:    %b%s%b  %s\n' "$C_VAL" "$CUR_HASH" "$C_0" "$CUR_SUBJ"
     [ -n "$PREV_HASH" ] && printf 'Previous:  %b%s%b  %s\n' "$C_VAL" "$PREV_HASH" "$C_0" "$PREV_SUBJ"
