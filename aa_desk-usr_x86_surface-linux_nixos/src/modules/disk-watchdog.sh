@@ -199,7 +199,36 @@ run_action() {
   esac
 }
 
+# ── escalate — the ONE escalation path (warn -> critical -> emergency) shared
+# by every usage source. Originally this three-tier if/elif chain was inlined
+# once in the per-mount df loop below; it is now a function specifically so
+# the btrfs-qgroup per-subvolume loop (further down) can feed IT THE SAME
+# EMERG_WORST_PCT / NO_MERCY_PCT / freeze-then-kill machinery instead of
+# duplicating it — a subvolume over its emergency threshold must reach the
+# exact same freeze/kill path as the pool-wide emergency tier.
+# Args: mount usage warn_pct critical_pct emerg_pct actions_warn_json actions_crit_json actions_emerg_json [label]
+escalate() {
+  local mount="$1" usage="$2" warn_pct="$3" critical_pct="$4" emerg_pct="$5"
+  local actions_warn_json="$6" actions_crit_json="$7" actions_emerg_json="$8"
+  local label="${9:-}" tag="" a
+  [ -n "$label" ] && tag=" [$label]"
+  echo "[disk-watchdog] ${mount}${tag}: ${usage}%"
+  if [ "$usage" -ge "$emerg_pct" ]; then
+    echo "[disk-watchdog] EMERGENCY ${mount}${tag} ${usage}% >= ${emerg_pct}% — stop-the-bleeding"
+    while read -r a; do run_action "$a" "$mount" "$usage"; done < <(printf '%s\n' "$actions_emerg_json" | jq -r '.[]')
+  elif [ "$usage" -ge "$critical_pct" ]; then
+    echo "[disk-watchdog] CRITICAL ${mount}${tag} ${usage}% >= ${critical_pct}%"
+    while read -r a; do run_action "$a" "$mount" "$usage"; done < <(printf '%s\n' "$actions_crit_json" | jq -r '.[]')
+  elif [ "$usage" -ge "$warn_pct" ]; then
+    echo "[disk-watchdog] WARN ${mount}${tag} ${usage}% >= ${warn_pct}%"
+    while read -r a; do run_action "$a" "$mount" "$usage"; done < <(printf '%s\n' "$actions_warn_json" | jq -r '.[]')
+  fi
+}
+
 # ── Per-mount loop — iterates the JSON array at RUNTIME (not code-generated).
+# This is POOL-WIDE df accounting: every btrfs subvolume on the same pool
+# reports the SAME used/avail here (df has no per-subvolume concept without
+# qgroups) — see the btrfs-qgroup loop below for the per-subvolume answer.
 while IFS=$'\t' read -r MOUNT WARN_PCT CRITICAL_PCT ACTIONS_WARN_JSON ACTIONS_CRIT_JSON; do
   [ -n "$MOUNT" ] || continue
   # `mountpoint -q` guard must NOT silently skip: log skipped mounts at
@@ -215,15 +244,79 @@ while IFS=$'\t' read -r MOUNT WARN_PCT CRITICAL_PCT ACTIONS_WARN_JSON ACTIONS_CR
     echo "[disk-watchdog] $MOUNT: unreadable usage ('$USAGE') — skipped"
     continue
   fi
-  echo "[disk-watchdog] $MOUNT: ${USAGE}%"
-  if [ "$USAGE" -ge "$EMERGENCY_PCT" ]; then
-    echo "[disk-watchdog] EMERGENCY $MOUNT ${USAGE}% >= ${EMERGENCY_PCT}% — stop-the-bleeding"
-    while read -r a; do run_action "$a" "$MOUNT" "$USAGE"; done < <(printf '%s\n' "$EMERGENCY_ACTIONS_JSON" | jq -r '.[]')
-  elif [ "$USAGE" -ge "$CRITICAL_PCT" ]; then
-    echo "[disk-watchdog] CRITICAL $MOUNT ${USAGE}% >= ${CRITICAL_PCT}%"
-    while read -r a; do run_action "$a" "$MOUNT" "$USAGE"; done < <(printf '%s\n' "$ACTIONS_CRIT_JSON" | jq -r '.[]')
-  elif [ "$USAGE" -ge "$WARN_PCT" ]; then
-    echo "[disk-watchdog] WARN $MOUNT ${USAGE}% >= ${WARN_PCT}%"
-    while read -r a; do run_action "$a" "$MOUNT" "$USAGE"; done < <(printf '%s\n' "$ACTIONS_WARN_JSON" | jq -r '.[]')
-  fi
+  escalate "$MOUNT" "$USAGE" "$WARN_PCT" "$CRITICAL_PCT" "$EMERGENCY_PCT" \
+    "$ACTIONS_WARN_JSON" "$ACTIONS_CRIT_JSON" "$EMERGENCY_ACTIONS_JSON" ""
 done < <(jq -r '.watches.mounts[]? | [.mount, .warn_pct, .critical_pct, (.actions_on_warn // [] | tojson), (.actions_on_critical // [] | tojson)] | @tsv' "$CONFIG_JSON")
+
+# ── btrfs qgroup loop — PER-SUBVOLUME fill, only meaningful because qgroups
+# exist (see cloud-data-disk-protection.json btrfs_qgroups._comment for why
+# this is otherwise unrepresentable). Feeds the SAME escalate() function
+# above, so a subvolume over ITS OWN emergency_pct reaches the exact same
+# freeze/kill machinery as the pool-wide emergency tier — even if the pool
+# as a whole is well under its own threshold. That is the entire point of
+# this loop: it is additive granularity on top of the df loop, never a
+# replacement for it.
+QGROUPS_ENABLED=$(jq -r '.btrfs_qgroups.enabled // false' "$CONFIG_JSON")
+if [ "$QGROUPS_ENABLED" = "true" ]; then
+  FS_MOUNT=$(jq -r '.btrfs_qgroups.filesystem_mount // "/"' "$CONFIG_JSON")
+  # Fixed, minimal action set for qgroup warn/critical — notify-only. The
+  # destructive reclaim/freeze/kill actions live solely in EMERGENCY_ACTIONS_JSON
+  # (global, already wired above) so a per-subvolume warn/critical never
+  # duplicates or races the pool-wide reclaim list.
+  QG_ACTIONS_WARN_JSON='["alert_ntfy"]'
+  QG_ACTIONS_CRIT_JSON='["alert_ntfy"]'
+  # Probe once: if `btrfs qgroup show` fails here (quotas not enabled, fs not
+  # btrfs, permission denied, etc.) fall back cleanly to the df-based checks
+  # already performed above — do NOT attempt per-subvolume evaluation with a
+  # broken data source.
+  if ! btrfs qgroup show --raw -f "$FS_MOUNT" >/dev/null 2>&1; then
+    logger -t disk-watchdog -p user.warning "disk-watchdog: btrfs qgroup show failed on $FS_MOUNT (quotas not enabled / not btrfs?) — falling back to df-only per-mount checks"
+    echo "[disk-watchdog] btrfs_qgroups enabled but 'btrfs qgroup show' failed on $FS_MOUNT — falling back to df-only checks"
+  else
+    POOL_TOTAL_BYTES=$(df --output=size -B1 "$FS_MOUNT" 2>/dev/null | tail -1 | tr -d ' ')
+    [[ "$POOL_TOTAL_BYTES" =~ ^[0-9]+$ ]] || POOL_TOTAL_BYTES=0
+    while IFS=$'\t' read -r SUBMOUNT SUBWARN SUBCRIT SUBEMERG; do
+      [ -n "$SUBMOUNT" ] || continue
+      if ! mountpoint -q "$SUBMOUNT" 2>/dev/null; then
+        logger -t disk-watchdog -p user.warning "disk-watchdog: btrfs_qgroups $SUBMOUNT is NOT a mountpoint — SKIPPED"
+        echo "[disk-watchdog] $SUBMOUNT: NOT MOUNTED — skipped (qgroup)"
+        continue
+      fi
+      SUBVOLID=$(btrfs subvolume show "$SUBMOUNT" 2>/dev/null | awk -F': ' '/^Subvolume ID:/ {print $2}' | tr -d ' ')
+      if ! [[ "$SUBVOLID" =~ ^[0-9]+$ ]]; then
+        echo "[disk-watchdog] $SUBMOUNT: could not resolve subvolume ID — skipped (qgroup)"
+        continue
+      fi
+      QGROUP_ROW=$(btrfs qgroup show --raw -f "$SUBMOUNT" 2>/dev/null | awk -v id="0/$SUBVOLID" '$1==id {print $2, $4}')
+      if [ -z "$QGROUP_ROW" ]; then
+        echo "[disk-watchdog] $SUBMOUNT: no qgroup row for 0/$SUBVOLID — skipped (qgroup)"
+        continue
+      fi
+      SUBRFER=""
+      SUBMAXRFER=""
+      read -r SUBRFER SUBMAXRFER <<< "$QGROUP_ROW"
+      if ! [[ "$SUBRFER" =~ ^[0-9]+$ ]]; then
+        echo "[disk-watchdog] $SUBMOUNT: unreadable rfer ('$SUBRFER') — skipped (qgroup)"
+        continue
+      fi
+      SUBPCT=""
+      if [[ "$SUBMAXRFER" =~ ^[0-9]+$ ]] && [ "$SUBMAXRFER" -gt 0 ]; then
+        # Enforced kernel limit set (limit_gib) — pct against that cap, since
+        # that is the number the kernel itself will ENOSPC writes against.
+        SUBPCT=$(( SUBRFER * 100 / SUBMAXRFER ))
+      elif [ "$POOL_TOTAL_BYTES" -gt 0 ]; then
+        # No hard limit configured (soft monitoring only) — pct against the
+        # POOL's total size, i.e. "what share of the whole pool does this
+        # ONE subvolume alone consume". This is exactly the number df cannot
+        # give you per-subvolume, and is what makes '/home/diego at 95% while
+        # the pool is at 60%' representable at all.
+        SUBPCT=$(( SUBRFER * 100 / POOL_TOTAL_BYTES ))
+      else
+        echo "[disk-watchdog] $SUBMOUNT: no max_rfer and no pool total — skipped (qgroup)"
+        continue
+      fi
+      escalate "$SUBMOUNT" "$SUBPCT" "$SUBWARN" "$SUBCRIT" "$SUBEMERG" \
+        "$QG_ACTIONS_WARN_JSON" "$QG_ACTIONS_CRIT_JSON" "$EMERGENCY_ACTIONS_JSON" "qgroup"
+    done < <(jq -r '.btrfs_qgroups.subvolumes[]? | [.mount, .warn_pct, .critical_pct, .emergency_pct] | @tsv' "$CONFIG_JSON")
+  fi
+fi

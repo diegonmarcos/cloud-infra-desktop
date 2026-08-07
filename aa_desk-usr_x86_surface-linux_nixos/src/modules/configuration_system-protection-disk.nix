@@ -88,6 +88,28 @@ let
     ];
   };
 
+  # btrfs qgroup setup — script lives in btrfs-qgroup-setup.sh (kept out of
+  # the Nix module; inline scripts inside flake/nix modules are forbidden
+  # here). It is fully DATA-DRIVEN: whether it does anything at all, which
+  # filesystem, which subvolumes and which limit_gib are read at RUNTIME from
+  # /etc/cloud-data/disk-protection.json via jq — nothing is baked in by Nix
+  # interpolation. Idempotent: enables quotas only if not already enabled,
+  # applies/updates `btrfs qgroup limit` only where the kernel-side value
+  # differs from the desired one. Safe to run on every boot. See
+  # cloud-data-disk-protection.json btrfs_qgroups._comment for why qgroups
+  # are required for per-subvolume accounting to exist at all, and the
+  # first-activation rescan cost warning.
+  btrfsQgroupSetupPkg = pkgs.writeShellApplication {
+    name = "btrfs-qgroup-setup";
+    text = builtins.readFile ./btrfs-qgroup-setup.sh;
+    runtimeInputs = with pkgs; [
+      btrfs-progs  # quota enable / qgroup show / qgroup limit
+      jq           # runtime config parsing
+      gawk         # parse `btrfs subvolume show` / `btrfs qgroup show` output
+      util-linux   # mountpoint, logger
+    ];
+  };
+
   # Weekly housekeeping — script lives in disk-housekeeping-weekly.sh (kept
   # out of the Nix module; inline scripts inside flake/nix modules are
   # forbidden here). It is fully DATA-DRIVEN: whether each section runs
@@ -135,6 +157,24 @@ in
   # rather than silently running with empty thresholds.
   environment.etc."cloud-data/disk-protection.json".source = ./cloud-data-disk-protection.json;
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # BTRFS QGROUP SETUP — enables per-subvolume quota accounting (declarative)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Oneshot, runs after local-fs.target (btrfs subvolumes must be mounted
+  # first) and before disk-watchdog-v2 would need to read qgroup data. Only
+  # ever mutates the filesystem when btrfs_qgroups.enabled is true AND the
+  # runtime check finds a real change is needed (see btrfs-qgroup-setup.sh).
+  systemd.services."btrfs-qgroup-setup" = lib.mkIf (cfg.btrfs_qgroups.enabled or false) {
+    description = "Enable btrfs qgroups + apply per-subvolume limits (data-driven)";
+    after = [ "local-fs.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      Slice = "os-essentials.slice";
+    };
+    script = "${btrfsQgroupSetupPkg}/bin/btrfs-qgroup-setup";
+  };
+
   systemd.timers."disk-watchdog-v2" = lib.mkIf ((cfg.watches.mounts or []) != []) {
     wantedBy = [ "timers.target" ];
     timerConfig = {
@@ -144,6 +184,11 @@ in
   };
 
   systemd.services."disk-watchdog-v2" = lib.mkIf ((cfg.watches.mounts or []) != []) {
+    # Ordered after btrfs-qgroup-setup (when it exists) so the FIRST run of
+    # the watchdog after boot never races the one-time quota-enable/rescan —
+    # `after` here is a no-op if btrfs-qgroup-setup is not present (qgroups
+    # disabled), since systemd ignores an `after=` unit that doesn't exist.
+    after = [ "btrfs-qgroup-setup.service" ];
     serviceConfig = {
       Type = "oneshot";
       Slice = "os-essentials.slice";

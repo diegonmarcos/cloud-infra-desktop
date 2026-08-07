@@ -94,6 +94,50 @@
     ]
   },
 
+  "btrfs_qgroups": {
+    "_comment": "WHY THIS SECTION EXISTS: the pool `/dev/mapper/pool` (~80G, ~64G used) hosts multiple btrfs subvolumes (@home-diego, @home-guest, @shared, @nixos/nix, @shared/tmp, @shared/journal) that ALL share one free-space pool. Without btrfs qgroups (quotas), `df` on every one of those mountpoints reports the SAME pool-wide used/avail numbers — there is no such thing as '/home/diego is at 95%' while the pool is at 60%, because df has no per-subvolume concept to report. The `watches.mounts` df-based checks above are therefore only ever measuring the WHOLE POOL's fill level once per subvolume that happens to live on it; a single subvolume silently ballooning (e.g. runaway ~/.cache, a leaked docker overlay, a git worktree explosion under /home/diego) is invisible until the pool itself is critical, by which point every subvolume on it is equally starved. Enabling btrfs qgroups makes per-subvolume accounting EXIST: each subvolume gets a 0/<subvolid> qgroup with its own `rfer` (referenced bytes) and, if `limit_gib` is set, a kernel-ENFORCED `max_rfer` cap that ENOSPCs writes to that subvolume specifically once it is hit — independent of how much free space the pool has left. That is what lets the watchdog answer 'is THIS subvolume overfull', which today is unrepresentable. WARNING — ACTIVATION COST: the FIRST `btrfs quota enable` on a filesystem that has never had quotas triggers a full one-time qgroup rescan (btrfs walks every extent to build initial accounting) — this is IO- and CPU-heavy and, on this ~64G-used pool, can take from a couple of minutes to tens of minutes depending on extent count/fragmentation, during which btrfs qgroup numbers are provisional (`btrfs qgroup show` shows a rescan-in-progress state) and filesystem IO latency is elevated. Do this at a time you can tolerate it, not mid-build. Every subsequent boot is a no-op (btrfs-qgroup-setup.sh checks `btrfs qgroup show` output first and only calls `quota enable` if it reports disabled). `limit_gib` is OPTIONAL per entry: leave it unset/null to get accounting + watchdog alerting with NO kernel-enforced cap (soft monitoring only); set it to also let the kernel itself refuse writes past that size regardless of what the watchdog does or how busy it is.",
+    "enabled": false,
+    "filesystem_mount": "/mnt/btrfs-root",
+    "subvolumes": [
+      {
+        "mount": "/home/diego",
+        "subvol": "@home-diego",
+        "limit_gib": null,
+        "warn_pct": 80,
+        "critical_pct": 90,
+        "emergency_pct": 95,
+        "description": "primary dev workspace — most likely to runaway (git worktrees, caches, containers under home)"
+      },
+      {
+        "mount": "/home/guest",
+        "subvol": "@home-guest",
+        "limit_gib": 15,
+        "warn_pct": 80,
+        "critical_pct": 90,
+        "emergency_pct": 95,
+        "description": "guest home — hard-capped at 15G so a guest session can never starve diego's workspace or the pool"
+      },
+      {
+        "mount": "/mnt/shared",
+        "subvol": "@shared",
+        "limit_gib": null,
+        "warn_pct": 80,
+        "critical_pct": 90,
+        "emergency_pct": 95,
+        "description": "persistent app state/audit logs — includes @shared/tmp and @shared/journal as nested subvols, watched separately by their own mountpoints"
+      },
+      {
+        "mount": "/nix",
+        "subvol": "@nixos/nix",
+        "limit_gib": null,
+        "warn_pct": 80,
+        "critical_pct": 90,
+        "emergency_pct": 95,
+        "description": "nix store — only shrinks via gc, same threshold family as the existing df-based /nix watch"
+      }
+    ]
+  },
+
   "tmpfiles_rules": {
     "_comment": "Written to /etc/tmpfiles.d/50-cloud-data-disk-protection.conf via nix module. Format: `d <path> - - - <age> -`. Age in d (days), h (hours), m (minutes).",
     "rules": [
