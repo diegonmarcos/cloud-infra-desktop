@@ -83,132 +83,51 @@ let
   ) (lib.attrNames cfg.forms);
 
   # "key=value key=value …" for a profile's hardware (values are space-free).
+  # Still used by the activation script below (data source, not shell-text
+  # generation — the activation loop reads the equivalent JSON at runtime).
   hwPairs = p: lib.concatStringsSep " " (lib.mapAttrsToList (k: v: "${k}=${v}") p.hw);
-
-  # kdialog --menu tag/description pairs, e.g.  phone-x86-full "Phone_x86_full (6144M/6c)"
-  menuArgs = lib.concatStringsSep " " (map (p:
-    ''${p.id} "${p.label} (${p.hw."hw.ramSize"}/${p.hw."hw.cpu.ncore"}c)"'') profiles);
-
-  # case body mapping the chosen profile id → its GPU mode + ABI (data-driven;
-  # x86 → angle_indirect = hardware GLES via Intel Vulkan, arm → swiftshader_indirect).
-  profCase = lib.concatMapStringsSep "\n      " (p:
-    ''${p.id}) gpu="${p.gpu}"; abi="${p.abi}" ;;'') profiles;
 
   prov = cfg.provisioning;
 
-  # Per-app install block (idempotent). $HOME inside the JSON apk path expands at
-  # runtime; the `{abi}` token is replaced with the booted profile's ABI ($abi,
-  # set by the launcher) so an arm profile installs the arm64 APK and x86 the
-  # x86_64 one — a wrong-ABI install would defeat the faithful-ARM-test goal.
-  installApps = lib.concatMapStringsSep "\n" (a: ''
-    if ! "$ADB" shell pm list packages 2>/dev/null | ${pkgs.gawk}/bin/awk -v p="${a.pkg}" 'index($0,p){f=1} END{exit f?0:1}'; then
-      APK="${a.apk}"; APK="''${APK//'{abi}'/$abi}"
-      if [ -f "$APK" ]; then
-        echo "[provision] installing ${a.pkg} ($abi)…"; "$ADB" install -r "$APK" || true
-      else
-        kdialog --error "APK not found:\n$APK\n\nBuild it once:\n  cd ~/git/unix/ea_cloud-superapp && SUPERAPP_VARIANT=$abi ./build.sh build" 2>/dev/null || true
-      fi
-    fi
-  '') prov.apps;
-
-  # System settings (data-driven) — e.g. disable window/transition animations.
-  # Harmless on hardware (x86) and a real help on the software-GLES arm guests.
-  applySettings = lib.optionalString (prov ? settings) (lib.concatMapStringsSep "\n" (s:
-    ''"$ADB" shell settings put ${s.ns} ${s.key} ${s.value} >/dev/null 2>&1 || true'') prov.settings);
+  # Runtime JSON (single source of truth stays android-emulator.json; this is
+  # just the computed `profiles` cross-product + `prov`, serialised so the
+  # launcher and the activation script can both read it at RUNTIME via jq
+  # instead of Nix unrolling per-profile/per-app/per-setting shell stanzas at
+  # eval time). Mirrors the shared-symlink.sh / kernel-closure-backup.sh
+  # builtins.toJSON-of-a-computed-list pattern.
+  runtimeJson = builtins.toJSON { inherit profiles; provisioning = prov; };
 
   # ── Launcher: profile chooser → boot → wait → provision ─────────────────────
-  emulatorApp = pkgs.writeShellScriptBin "android-emulator" ''
-    set -u
-    export ANDROID_SDK_ROOT="${sdkRoot}"
-    export ANDROID_HOME="${sdkRoot}"
-    export ANDROID_AVD_HOME="$HOME/.android/avd"
-    export JAVA_HOME="${jdk}/lib/openjdk"
-    export PATH="${jdk}/bin:${sdk}/bin:${kdialog}/bin:$PATH"
-    # NixOS host-GPU acceleration: the emulator's bundled GL/Vulkan can't find
-    # the system driver on its own, so -gpu host/auto fell back to slow software
-    # GL (felt like "thrashing"). Point it at the NixOS runtime driver dir + host
-    # Vulkan ICDs so `auto` uses real Intel hardware accel; it still falls back to
-    # software if unavailable, so the window always opens. Data-driven: discovers
-    # whatever ICDs the host declares (no hardcoded GPU vendor).
-    export LD_LIBRARY_PATH="/run/opengl-driver/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-    VK_ICD_FILENAMES=""
-    for _icd in /run/opengl-driver/share/vulkan/icd.d/*.json; do
-      [ -e "$_icd" ] && VK_ICD_FILENAMES="$VK_ICD_FILENAMES''${VK_ICD_FILENAMES:+:}$_icd"
-    done
-    export VK_ICD_FILENAMES
-    ADB="${sdk}/bin/adb"
-    EMU="${sdk}/bin/emulator"
-
-    # 1. profile chooser
-    sel="$(kdialog --title "Android Emulator" --menu "Choose a profile to boot:" ${menuArgs})" || exit 0
-    avd="superapp-$sel"
-    if [ ! -d "$ANDROID_AVD_HOME/$avd.avd" ]; then
-      kdialog --error "AVD '$avd' not found. Run:\n  cd ~/git/unix/ba_flakes_desktop && ./build.sh switch surface" 2>/dev/null || true
-      exit 1
-    fi
-
-    # resolve the chosen profile's GPU mode + ABI (data-driven, per-arch)
-    gpu="swiftshader_indirect"; abi="x86_64"
-    case "$sel" in
-      ${profCase}
-    esac
-
-    # 2. boot the chosen profile. GPU mode is per-arch (JSON arches[].gpu_mode):
-    #    x86 → angle_indirect — ANGLE translates guest GLES → Vulkan → REAL Intel
-    #    Xe hardware (the host Vulkan ICD is wired via VK_ICD_FILENAMES above; this
-    #    is true GPU acceleration, fit for game design — NOT a software fallback);
-    #    arm → swiftshader_indirect — a TCG-emulated arm64 guest can't drive host
-    #    GL translation, so faithful software GLES is correct. CPU: x86 = KVM,
-    #    arm = software (TCG). Backgrounded; its window opens.
-    echo "[android-emulator] booting $avd (abi=$abi gpu=$gpu)…"
-    "$EMU" -avd "$avd" -gpu "$gpu" -no-boot-anim >/dev/null 2>&1 &
-
-    # 3. wait for full boot
-    "$ADB" wait-for-device
-    for _ in $(seq 1 150); do
-      [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break
-      sleep 2
-    done
-
-    # 4. provision (idempotent) ─────────────────────────────────────────────
-    ${installApps}
-
-    ${lib.optionalString prov.system_dark ''
-    "$ADB" shell cmd uimode night yes >/dev/null 2>&1 || true
-    ''}
-
-    # data-driven system settings (e.g. disable animations → far less work for
-    # the software-GLES renderer on this host).
-    ${applySettings}
-
-    # set the SuperApp as the device HOME launcher
-    "$ADB" shell cmd package set-home-activity "${prov.home_launcher}" >/dev/null 2>&1 || true
-
-    # pre-seed the SuperApp's own launcher theme (data-driven; the dark
-    # cloud_minimalist_black). Written via base64 to avoid the quoting/
-    # stdin-through-adb breakage that made the plain `cat > file` write silently
-    # produce no file. run-as works (debug APK). force-stop so the app re-reads
-    # the pref on next launch.
-    PKG="${prov.superapp_pkg}"
-    if "$ADB" shell pm list packages 2>/dev/null | ${pkgs.gawk}/bin/awk -v p="$PKG" 'index($0,p){f=1} END{exit f?0:1}'; then
-      THEME_B64="$(printf '%s' '<?xml version="1.0" encoding="utf-8" standalone="yes" ?><map><string name="theme">${prov.superapp_launcher_theme}</string></map>' | base64 -w0)"
-      "$ADB" shell "run-as $PKG sh -c 'mkdir -p shared_prefs; echo $THEME_B64 | base64 -d > shared_prefs/launcher_theme_prefs.xml'" >/dev/null 2>&1 || true
-      "$ADB" shell am force-stop "$PKG" >/dev/null 2>&1 || true
-    fi
-
-    # land on the (SuperApp) home screen
-    "$ADB" shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
-    echo "[android-emulator] $avd ready."
-  '';
+  # Body extracted to ./android-emulator.sh; all per-profile/per-app/
+  # per-setting data now comes from the runtime JSON via jq, not Nix-side
+  # map/concatMapStringsSep. Binary paths arrive via runtimeInputs (never
+  # ${pkgs.foo} inside the .sh); ANDROID_SDK_ROOT/HOME/JAVA_HOME via runtimeEnv.
+  emulatorApp = pkgs.writeShellApplication {
+    name = "android-emulator";
+    runtimeInputs = [ sdk jdk kdialog pkgs.jq pkgs.gawk pkgs.coreutils ];
+    runtimeEnv = {
+      ANDROID_SDK_ROOT = sdkRoot;
+      ANDROID_HOME = sdkRoot;
+      JAVA_HOME = "${jdk}/lib/openjdk";
+    };
+    text = builtins.readFile ./android-emulator.sh;
+  };
 in
 {
   # Only the launcher goes on PATH; SDK/JDK/kdialog are retained via the
   # wrapper's store-path refs (off-profile → no bin collisions with JDK 21 etc.).
   home.packages = [ emulatorApp ];
 
-  # Phase 1 — create the 4 AVDs + write their config.ini from the JSON, on every
+  # Runtime JSON deploy (Home Manager: xdg.configFile) — single source both
+  # the launcher (via runtimeEnv-resolved jq) and the activation script below
+  # read at runtime, generated from the Nix-computed `profiles` + `prov`.
+  xdg.configFile."cloud-data/android-emulator.json".text = runtimeJson;
+
+  # Phase 1 — create the 8 AVDs + write their config.ini from the JSON, on every
   # switch. Idempotent; subshell + || true so it never breaks activation.
-  home.activation.androidEmulatorProfiles = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+  # entryAfter "linkGeneration" (not just "writeBoundary") so the JSON above
+  # is already symlinked into place before this reads it.
+  home.activation.androidEmulatorProfiles = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     (
       export ANDROID_SDK_ROOT="${sdkRoot}"
       export ANDROID_HOME="${sdkRoot}"
@@ -242,7 +161,25 @@ in
         merge_ini "$ANDROID_AVD_HOME/$avd.avd/config.ini" "$@"
       }
 
-      ${lib.concatMapStringsSep "\n      " (p: ''ensure_profile ${p.avd} "${p.image}" ${hwPairs p}'') profiles}
+      # RUNTIME loop over the same `profiles` list, now read from the JSON
+      # deployed by xdg.configFile above (was: lib.concatMapStringsSep
+      # unrolling one `ensure_profile ...` call per profile at Nix eval time).
+      CONFIG_JSON="$HOME/.config/cloud-data/android-emulator.json"
+      if [ -r "$CONFIG_JSON" ]; then
+        while IFS= read -r p; do
+          [ -n "$p" ] || continue
+          avd="$(printf '%s' "$p" | ${pkgs.jq}/bin/jq -r '.avd')"
+          image="$(printf '%s' "$p" | ${pkgs.jq}/bin/jq -r '.image')"
+          hwpairs="$(printf '%s' "$p" | ${pkgs.jq}/bin/jq -r '.hw | to_entries | map("\(.key)=\(.value)") | join(" ")')"
+          # word-splitting hwpairs into ensure_profile's "$@" is intentional
+          # (space-joined key=value list, same shape the Nix-generated call
+          # used to pass literally).
+          # shellcheck disable=SC2086
+          ensure_profile "$avd" "$image" $hwpairs
+        done < <(${pkgs.jq}/bin/jq -c '.profiles[]' "$CONFIG_JSON")
+      else
+        echo "[android-emulator] $CONFIG_JSON missing; skipping profile pre-create"
+      fi
 
       # retire superseded AVDs (old single-profile + the pre-arch 4-profile names)
       for _old in surface-x86_64 superapp-phone-light superapp-phone-full superapp-tablet-light superapp-tablet-full; do
