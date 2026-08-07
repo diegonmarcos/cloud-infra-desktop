@@ -52,8 +52,32 @@ let
   p5Device = "/dev/disk/by-label/Shared-Lib";
   p5RawDevice = "/dev/nvme0n1p5";
   diagDir = "/var/log/p5-diag";
+
+  # p5-fsck-preboot / p5-snapshot-boot: shell bodies live in
+  # ./p5-fsck-preboot.sh and ./p5-snapshot-boot.sh, data-driven at runtime
+  # from /etc/cloud-data/p5-diagnostic.json (declared below) instead of
+  # Nix-interpolating the device paths / diag dir into the script bodies.
+  p5FsckPreboot = pkgs.writeShellApplication {
+    name = "p5-fsck-preboot";
+    runtimeInputs = with pkgs; [ e2fsprogs util-linux coreutils jq ];
+    text = builtins.readFile ./p5-fsck-preboot.sh;
+  };
+  p5SnapshotBoot = pkgs.writeShellApplication {
+    name = "p5-snapshot-boot";
+    runtimeInputs = with pkgs; [ coreutils util-linux gawk jq ];
+    text = builtins.readFile ./p5-snapshot-boot.sh;
+  };
 in
 {
+  # Runtime data for p5-fsck-preboot / p5-snapshot-boot (new cloud-data path
+  # — verified against the already-declared
+  # environment.etc."cloud-data/..." set, no collisions).
+  environment.etc."cloud-data/p5-diagnostic.json".text = builtins.toJSON {
+    p5_device = p5Device;
+    p5_raw_device = p5RawDevice;
+    diag_dir = diagDir;
+  };
+
   systemd.tmpfiles.rules = [
     "d ${diagDir} 0755 root root -"
   ];
@@ -79,32 +103,8 @@ in
       RemainAfterExit = true;
       StandardOutput = "journal+console";
       StandardError  = "journal+console";
+      ExecStart      = "${p5FsckPreboot}/bin/p5-fsck-preboot";
     };
-    path = with pkgs; [ e2fsprogs util-linux coreutils ];
-    script = ''
-      set -u
-      TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-      mkdir -p ${diagDir}
-      LOG=${diagDir}/fsck-preboot-$TS.log
-
-      echo "[p5-diag] boot $TS — checking ${p5Device} with fsck.ext4 -nfv (read-only)" | tee -a $LOG
-      if [ ! -e "${p5Device}" ]; then
-        echo "[p5-diag] CRITICAL: ${p5Device} not present — partition table issue?" | tee -a $LOG
-        logger -t p5-diagnostic -p user.crit "preboot fsck SKIPPED — device ${p5Device} missing"
-        exit 0
-      fi
-
-      if fsck.ext4 -nfv "${p5Device}" 2>&1 | tee -a $LOG; then
-        echo "[p5-diag] boot $TS — fsck CLEAN. p5 was healthy at start of this boot." | tee -a $LOG
-        logger -t p5-diagnostic -p user.info "preboot fsck CLEAN at $TS"
-      else
-        rc=$?
-        echo "[p5-diag] boot $TS — fsck reported ERRORS (exit $rc). PREVIOUS BOOT CORRUPTED p5." | tee -a $LOG
-        logger -t p5-diagnostic -p user.crit "preboot fsck FAILED (exit $rc) — previous boot corrupted p5"
-        # Echo to wall so console user sees it pre-login.
-        echo "*** p5 (/mnt/shared-lib) WAS CORRUPTED BY PREVIOUS BOOT — see $LOG ***" | wall -n 2>/dev/null || true
-      fi
-    '';
   };
 
   # ─── 2. Superblock + critical metadata snapshot at boot ─────────────
@@ -115,43 +115,8 @@ in
     serviceConfig = {
       Type           = "oneshot";
       RemainAfterExit = true;
+      ExecStart      = "${p5SnapshotBoot}/bin/p5-snapshot-boot";
     };
-    path = with pkgs; [ coreutils util-linux gawk ];
-    script = ''
-      TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-      SNAP=${diagDir}/snap-boot-$TS.sha
-      mkdir -p ${diagDir}
-
-      # Superblock (first 4 KiB, contains primary + key metadata)
-      sb=$(dd if=${p5RawDevice} bs=4096 count=1 2>/dev/null | sha256sum | awk '{print $1}')
-      echo "superblock(0..4KiB) $sb" > $SNAP
-
-      # Groups 945, 946, 947 — the corruption target.
-      # Group g block bitmap: blk = g * 32768 + 1 (block 0 = superblock copy, block 1 = bitmap)
-      for g in 945 946 947; do
-        offset=$(( g * 32768 * 4096 ))
-        h=$(dd if=${p5RawDevice} bs=4096 count=32 skip=$((g * 32768)) 2>/dev/null | sha256sum | awk '{print $1}')
-        echo "group_''${g}_first_128KiB $h" >> $SNAP
-      done
-
-      # Backup superblock (group 32 or wherever ext4 puts them)
-      bsb=$(dd if=${p5RawDevice} bs=4096 count=1 skip=$((32 * 32768)) 2>/dev/null | sha256sum | awk '{print $1}')
-      echo "backup_superblock_g32 $bsb" >> $SNAP
-
-      logger -t p5-diagnostic -p user.info "boot snapshot written to $SNAP"
-
-      # Compare with last shutdown snapshot.
-      LAST_SHUTDOWN=$(ls -1t ${diagDir}/snap-shutdown-*.sha 2>/dev/null | head -1)
-      if [ -n "$LAST_SHUTDOWN" ]; then
-        echo "comparing boot snapshot to last shutdown: $LAST_SHUTDOWN"
-        if diff -u "$LAST_SHUTDOWN" $SNAP > ${diagDir}/diff-since-shutdown-$TS.log; then
-          logger -t p5-diagnostic -p user.info "p5 metadata UNCHANGED between shutdown and boot — corruption did NOT happen offline"
-        else
-          logger -t p5-diagnostic -p user.crit "p5 metadata CHANGED between shutdown and boot — see ${diagDir}/diff-since-shutdown-$TS.log"
-          cat ${diagDir}/diff-since-shutdown-$TS.log | head -20
-        fi
-      fi
-    '';
   };
 
   # ─── 3. iostat — first 5 min capture write spikes ─────────────────

@@ -53,8 +53,23 @@
 let
   bootCfg  = builtins.fromJSON (builtins.readFile ./boot.json);
   swapfile = bootCfg.swap_hibernate.swapfile;
+
+  # Shell body lives in ./rescue-invalidate-hibernate.sh, data-driven at
+  # runtime from /etc/cloud-data/rescue-invalidate-hibernate.json (declared
+  # below) instead of Nix-interpolating the swapfile path into the script.
+  rescueInvalidateHibernate = pkgs.writeShellApplication {
+    name = "rescue-invalidate-hibernate";
+    runtimeInputs = with pkgs; [ coreutils util-linux jq gawk ];
+    text = builtins.readFile ./rescue-invalidate-hibernate.sh;
+  };
 in
 {
+  # Runtime data for rescue-invalidate-hibernate (new cloud-data path —
+  # verified against the already-declared environment.etc."cloud-data/..."
+  # set, no collisions).
+  environment.etc."cloud-data/rescue-invalidate-hibernate.json".text =
+    builtins.toJSON { inherit swapfile; };
+
   systemd.services."rescue-invalidate-hibernate" = {
     description = "Invalidate any stale hibernate signature in the swapfile (rescue/noresume boots only)";
     wantedBy    = [ "multi-user.target" ];
@@ -68,37 +83,7 @@ in
     serviceConfig = {
       Type            = "oneshot";
       RemainAfterExit = true;
+      ExecStart       = "${rescueInvalidateHibernate}/bin/rescue-invalidate-hibernate";
     };
-    path = with pkgs; [ coreutils util-linux ];
-    script = ''
-      SWAP=${lib.escapeShellArg swapfile}
-
-      if [ ! -f "$SWAP" ]; then
-        logger -t rescue-invalidate-hibernate -p user.warning \
-          "swapfile $SWAP not present — nothing to invalidate"
-        exit 0
-      fi
-
-      # Active swap: swapon already rewrote any S1SUSPEND signature when it
-      # activated the area, and mkswap would (rightly) refuse anyway.
-      if awk -v f="$SWAP" '$1 == f { found=1 } END { exit !found }' /proc/swaps; then
-        logger -t rescue-invalidate-hibernate -p user.info \
-          "swapfile $SWAP is active swap — signature already clean, skipping"
-        exit 0
-      fi
-
-      # Header magic sits at byte 4086 of the swap area's first page:
-      # "SWAPSPACE2" = clean swap, "S1SUSPEND " = pending hibernate image.
-      MAGIC=$(dd if="$SWAP" bs=1 skip=4086 count=10 status=none | tr -d '\0')
-      logger -t rescue-invalidate-hibernate -p user.info \
-        "swapfile $SWAP header magic before invalidation: '$MAGIC'"
-
-      # Rewrite the swap header INSIDE THE FILE. Never touch the partition:
-      # the backing device is the ext4 filesystem itself (2026-06-12 incident).
-      mkswap "$SWAP" >/dev/null
-
-      logger -t rescue-invalidate-hibernate -p user.warning \
-        "rescue boot: swap header of $SWAP rewritten (was: '$MAGIC', now: SWAPSPACE2). No stale resume possible."
-    '';
   };
 }

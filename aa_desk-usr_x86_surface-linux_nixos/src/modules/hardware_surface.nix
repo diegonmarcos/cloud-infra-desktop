@@ -1,7 +1,27 @@
 # Surface Pro 8 hardware: kernel, CPU, firmware, power management
 { config, lib, pkgs, ... }:
 
+let
+  # surface-trackpad-watchdog: shell body lives in
+  # ./surface-trackpad-watchdog.sh, data-driven at runtime from
+  # /etc/cloud-data/surface-trackpad-watchdog.json (declared below).
+  surfaceTrackpadWatchdog = pkgs.writeShellApplication {
+    name = "surface-trackpad-watchdog";
+    runtimeInputs = with pkgs; [ kmod coreutils procps gnugrep util-linux jq ];
+    text = builtins.readFile ./surface-trackpad-watchdog.sh;
+  };
+in
+
 {
+  # Runtime data for surface-trackpad-watchdog (new cloud-data path —
+  # verified against the already-declared environment.etc."cloud-data/..."
+  # set, no collisions).
+  environment.etc."cloud-data/surface-trackpad-watchdog.json".text =
+    builtins.toJSON {
+      interval_sec = 300;
+      touchpad_name = "045E:09AF Touchpad";
+    };
+
   # ═══════════════════════════════════════════════════════════════════════════
   # LINUX-SURFACE KERNEL  ← ⚠ THIS IS THE ONLY LINE THAT TRIGGERS A REBUILD
   # ═══════════════════════════════════════════════════════════════════════════
@@ -129,39 +149,13 @@
     description = "Surface trackpad click loss watchdog";
     after = [ "graphical.target" ];
     wantedBy = [ "graphical.target" ];
-    path = with pkgs; [ kmod coreutils procps gnugrep ];
     serviceConfig = {
       Type = "simple";
       Restart = "always";
       RestartSec = 5;
       StandardOutput = "journal";
       StandardError = "journal";
+      ExecStart = "${surfaceTrackpadWatchdog}/bin/surface-trackpad-watchdog";
     };
-    script = ''
-      # Only run on Plasma
-      while ! pgrep -f kwin_wayland >/dev/null 2>&1; do sleep 5; done
-      echo "[trackpad-watchdog] Plasma detected"
-
-      # Proactive reset every 5 minutes — lightweight, no detection needed
-      # The HID reset takes <2s and causes no visible interruption
-      # This prevents BTN_LEFT from staying dead for more than 5 min
-      while true; do
-        sleep 300
-        # Only reset if touchpad exists
-        if grep -rq "045E:09AF Touchpad" /sys/class/input/event*/device/name 2>/dev/null; then
-          echo "[trackpad-watchdog] Periodic HID reset"
-          modprobe -r surface_hid_core surface_hid 2>/dev/null || true
-          modprobe surface_hid_core surface_hid
-          modprobe -r hid_multitouch 2>/dev/null || true
-          modprobe hid_multitouch
-          modprobe -r usbhid 2>/dev/null || true
-          modprobe usbhid
-          modprobe -r surface_aggregator_registry surface_aggregator_hub surface_hid surface_hid_core 2>/dev/null || true
-          sleep 1
-          modprobe surface_aggregator_registry
-          modprobe surface_hid
-        fi
-      done
-    '';
   };
 }
