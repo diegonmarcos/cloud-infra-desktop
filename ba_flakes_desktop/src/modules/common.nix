@@ -105,6 +105,10 @@
   # For interactive fish shells, fish.nix also calls fish_add_path (idempotent)
   # to ensure paths are available even when __HM_SESS_VARS_SOURCED is inherited.
   home.sessionPath = [
+    # Must precede /run/current-system/sw/bin so `sudo` resolves to the setuid
+    # wrapper. /etc/set-environment prepends it, but that file is guarded against
+    # re-running, so login shells inherit a PATH where sw/bin has taken the lead.
+    "/run/wrappers/bin"
     # Shared tools (previously in OS environment.sessionVariables.PATH)
     "/mnt/shared/tools/base/bin"
     "/mnt/shared/tools/dev/bin"
