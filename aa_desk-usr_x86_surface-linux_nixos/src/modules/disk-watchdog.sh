@@ -76,17 +76,25 @@ run_action() {
       find /mnt/shared/log/audit -type f -mtime +3 -delete 2>/dev/null || true
       systemd-tmpfiles --clean --prefix=/mnt/shared/log/audit 2>/dev/null || true ;;
     cargo_sweep)
-      command -v cargo-sweep >/dev/null 2>&1 && cargo-sweep --time 30 /home/diego/.cargo/target 2>/dev/null || true ;;
+      if command -v cargo-sweep >/dev/null 2>&1; then
+        cargo-sweep --time 30 /home/diego/.cargo/target 2>/dev/null || true
+      fi ;;
     docker_prune_images)
-      command -v docker >/dev/null 2>&1 && docker image prune -f 2>/dev/null || true ;;
+      if command -v docker >/dev/null 2>&1; then
+        docker image prune -f 2>/dev/null || true
+      fi ;;
     docker_prune_builder)
       # Prune the buildkit BUILD CACHE — the 2026-07-10 freeze root cause:
       # ~16GB of build cache filled p5, untouchable by image/volume prune or
       # nix-gc, so reclaim was always insufficient → forced freeze. Build
       # cache is never referenced by a running container, so -af is safe.
-      command -v docker >/dev/null 2>&1 && docker builder prune -af 2>/dev/null || true ;;
+      if command -v docker >/dev/null 2>&1; then
+        docker builder prune -af 2>/dev/null || true
+      fi ;;
     docker_prune_volumes_dangling)
-      command -v docker >/dev/null 2>&1 && docker volume prune -f 2>/dev/null || true ;;
+      if command -v docker >/dev/null 2>&1; then
+        docker volume prune -f 2>/dev/null || true
+      fi ;;
     nix_gc_14d)
       nix-collect-garbage --delete-older-than 14d 2>/dev/null || true ;;
     dev_store_gc)
@@ -134,9 +142,13 @@ run_action() {
       # a protected slice.
       [ "${EMERG_STILL_FULL:-1}" = "1" ] || { echo "[disk-watchdog] freeze skipped (self-healed)"; return 0; }
       for s in $FREEZE_SLICES; do
-        is_protected "$s" && { logger -t disk-emergency -p user.err "REFUSED to freeze protected slice $s"; continue; }
-        systemctl freeze "$s" 2>/dev/null \
-          && logger -t disk-emergency -p user.warning "FROZE $s -> its writes are halted for cleanup" || true
+        if is_protected "$s"; then
+          logger -t disk-emergency -p user.err "REFUSED to freeze protected slice $s"
+          continue
+        fi
+        if systemctl freeze "$s" 2>/dev/null; then
+          logger -t disk-emergency -p user.warning "FROZE $s -> its writes are halted for cleanup"
+        fi
       done ;;
     kill_nonsystem)
       # Gated: only if reclaim did NOT self-heal. SIGTERM every process in the
@@ -166,17 +178,22 @@ run_action() {
       fi
       touch "$stamp" 2>/dev/null || true
       for s in $KILL_SLICES; do
-        is_protected "$s" && { logger -t disk-emergency -p user.err "REFUSED to SIGTERM protected slice $s"; continue; }
-        systemctl kill --kill-whom=all -s SIGTERM "$s" 2>/dev/null \
-          && logger -t disk-emergency -p user.warning "SIGTERM -> $s (kill non-system writers)" || true
+        if is_protected "$s"; then
+          logger -t disk-emergency -p user.err "REFUSED to SIGTERM protected slice $s"
+          continue
+        fi
+        if systemctl kill --kill-whom=all -s SIGTERM "$s" 2>/dev/null; then
+          logger -t disk-emergency -p user.warning "SIGTERM -> $s (kill non-system writers)"
+        fi
       done ;;
     thaw_nonsystem)
       # UNGATED and always last, so a transient spike or a run interrupted
       # between freeze and thaw never strands a slice frozen. No-op if already
       # thawed.
       for s in $FREEZE_SLICES; do
-        systemctl thaw "$s" 2>/dev/null \
-          && logger -t disk-emergency -p user.info "THAWED $s -> resumed" || true
+        if systemctl thaw "$s" 2>/dev/null; then
+          logger -t disk-emergency -p user.info "THAWED $s -> resumed"
+        fi
       done ;;
     *) echo "[disk-watchdog] unknown action: $action" ;;
   esac

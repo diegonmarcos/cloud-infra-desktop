@@ -1,0 +1,15 @@
+{
+  "_comment": "Widgets that plasma-manager cannot reliably write and that plasma-fix-missing-panel-widgets.sh (see plasma.nix) must repair on every activation. Root cause: top-panel.json declares THREE com.diegonmarcos.watchdog applets in the top panel (mode left/right/guard). plasma-manager batches all of that panel's addWidget() calls into ONE evaluateScript D-Bus call, and plasmashell silently drops the third addWidget() call when the same plugin id repeats a third time in one script — only 'left' and 'right' ever land in plasma-org.kde.plasma.desktop-appletsrc, 'guard' never does. The repo-side config is provably correct (top-panel.json/top-panel.nix/plasma.nix); the drop happens inside plasmashell's script engine, so this is a runtime repair pass, not a config fix. Structured as a list so a future dropped widget (same failure mode, different panel/plugin) is a data edit here, not a code change in the .sh.",
+  "widgets": [
+    {
+      "panel_location": "top",
+      "plugin": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "guard",
+          "uid": 1000
+        }
+      }
+    }
+  ]
+}
