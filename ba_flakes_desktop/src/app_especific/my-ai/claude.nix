@@ -4,6 +4,25 @@
 # carries the wrapper scripts that tweak NODE_OPTIONS / containers / fallback
 # chains around the deployed `claude` command.
 { config, pkgs, lib, ... }:
+let
+  # claude-rescue: shell body lives in ./claude-rescue.sh. Nothing here was
+  # ever Nix-interpolated config (no ports/paths/thresholds baked in) — the
+  # extraction is purely the RULE's writeShellScriptBin -> writeShellApplication
+  # conversion. `podman`/`npx`/`nix`/`node`/`npm` are DELIBERATELY left off
+  # runtimeInputs: this is a fallback chain that must keep working (and keep
+  # skipping unavailable methods) exactly as before, so those stay
+  # soft-dependencies resolved from the inherited PATH via `command -v`,
+  # never forced build inputs. Only coreutils (timeout, mktemp) is mandatory.
+  #
+  # Secrets: ANTHROPIC_API_KEY is read from the caller's environment only
+  # (`"${ANTHROPIC_API_KEY:-}"`) — never written into this script, the JSON
+  # data set, or the nix store. No JSON file was introduced for this script.
+  claudeRescue = pkgs.writeShellApplication {
+    name = "claude-rescue";
+    runtimeInputs = [ pkgs.coreutils ];
+    text = builtins.readFile ./claude-rescue.sh;
+  };
+in
 {
   home.packages = with pkgs; [
     # ── `claude` loader-shim wrapper (survives auto-updates) ────────────────
@@ -40,46 +59,6 @@
       export TMPDIR="$CLAUDE_TMP"
       exec claude "$@"
     '')
-    (pkgs.writeShellScriptBin "claude-rescue" ''
-      echo "Claude Rescue — fallback chain"
-      export ANTHROPIC_API_KEY="''${ANTHROPIC_API_KEY:-}"
-      export TERM="''${TERM:-xterm-256color}"
-      # 1) Podman
-      if command -v podman >/dev/null 2>&1; then
-        echo "[1/4] Trying podman..."
-        timeout 60 podman run --rm -it \
-          --name claude-rescue \
-          -v "$HOME:/host-home:ro" \
-          -e ANTHROPIC_API_KEY -e TERM \
-          --user root \
-          node:22-slim \
-          sh -c 'npm install -g @anthropic-ai/claude-code 2>/dev/null && claude "$@"' -- "$@" \
-          && exit 0
-        echo "[1/4] podman failed, trying next..."
-      fi
-      # 2) npx
-      if command -v npx >/dev/null 2>&1; then
-        echo "[2/4] Trying npx..."
-        npx -y @anthropic-ai/claude-code "$@" && exit 0
-        echo "[2/4] npx failed, trying next..."
-      fi
-      # 3) Nix shell
-      if command -v nix >/dev/null 2>&1; then
-        echo "[3/4] Trying nix shell..."
-        timeout 120 nix shell nixpkgs#nodejs_22 --command sh -c \
-          'npx -y @anthropic-ai/claude-code "$@"' -- "$@" \
-          && exit 0
-        echo "[3/4] nix shell failed, trying next..."
-      fi
-      # 4) Raw node
-      if command -v node >/dev/null 2>&1; then
-        echo "[4/4] Trying raw node bootstrap..."
-        _tmp=$(mktemp -d)
-        cd "$_tmp" && npm init -y >/dev/null 2>&1 && npm install @anthropic-ai/claude-code >/dev/null 2>&1
-        ./node_modules/.bin/claude "$@" && exit 0
-      fi
-      echo "ALL METHODS FAILED"
-      exit 1
-    '')
+    claudeRescue
   ];
 }
