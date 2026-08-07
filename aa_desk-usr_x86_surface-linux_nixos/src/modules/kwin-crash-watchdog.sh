@@ -46,7 +46,9 @@ LAST_RESET=$(date +%s)
 
   # Detect crash indicators
   case "$line" in
-    *"terminated"*|*"crash"*|*"SEGV"*|*"signal 11"*|*"Compositor crashed"*)
+    # No *"Compositor crashed"* arm: *"crash"* already subsumes it, and
+    # shellcheck rejects the dead pattern (SC2221/SC2222), failing the build.
+    *"terminated"*|*"crash"*|*"SEGV"*|*"signal 11"*)
       CRASH_COUNT=$((CRASH_COUNT + 1))
       echo "[kwin-watchdog] KWin crash detected ($CRASH_COUNT/$THRESHOLD in ${WINDOW}s window)"
 
