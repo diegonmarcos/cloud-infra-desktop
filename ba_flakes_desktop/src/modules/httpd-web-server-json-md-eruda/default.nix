@@ -94,7 +94,12 @@ in
   xdg.desktopEntries.httpd-web-server-json-md-eruda = {
     name = "httpd-web-server-json-md-eruda";
     comment = "Local file server — Markdown + JSON/YAML tables + Eruda DevTools";
-    exec = "httpd-web-server-json-md-eruda restart 8000 %h";
+    # NOT %h. The Desktop Entry spec defines no home-directory field code, so
+    # desktop-file-validate rejects it and the .desktop derivation fails the
+    # build -- which takes home-manager-path and the whole generation with it.
+    # %h is only valid in systemd units (see the ExecStart below, where it is
+    # correct). Here the path has to be interpolated at eval time.
+    exec = "httpd-web-server-json-md-eruda restart 8000 ${config.home.homeDirectory}";
     icon = "httpd-web-server-json-md-eruda";
     terminal = false;
     categories = [ "Network" "Utility" ];
