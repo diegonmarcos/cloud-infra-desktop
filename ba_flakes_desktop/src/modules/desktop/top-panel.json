@@ -29,6 +29,18 @@
           "uid": 1000
         }
       }
+    },
+    {
+      "kind": "panelspacer"
+    },
+    {
+      "name": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "guard",
+          "uid": 1000
+        }
+      }
     }
   ]
 }
