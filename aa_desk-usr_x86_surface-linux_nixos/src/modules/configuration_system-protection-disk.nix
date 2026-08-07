@@ -38,11 +38,10 @@ let
   # Journal-flood guard (the invisible-failure-mode voter) config.
   jflood        = cfg.journal_flood_guard or {};
   jfloodEnabled = jflood.enabled or false;
-  jfloodMax     = jflood.lines_per_min_max or 40000;
+  # OnUnitActiveSec needs the timer interval at BUILD time (systemd unit
+  # config), so jfloodInt stays Nix-side. Every other jflood value is read
+  # at RUNTIME by journal-flood-guard.sh via jq — see that file.
   jfloodInt     = jflood.interval_sec or 60;
-  jfloodRestart = jflood.restart_loudest_unit or false;
-  jfloodNtfy    = jflood.ntfy_priority or "urgent";
-  jfloodNever   = jflood.never_restart or [];
 
   # Disk watchdog — script lives in disk-watchdog.sh (kept out of the Nix
   # module; inline scripts inside flake/nix modules are forbidden here).
@@ -65,6 +64,47 @@ let
       nix          # nix-collect-garbage, nix store gc
       gawk         # awk-dependent action scripts (if any)
       btrfs-progs  # btrfs-aware mounts
+    ];
+  };
+
+  # Journal-flood guard — script lives in journal-flood-guard.sh (kept out of
+  # the Nix module; inline scripts inside flake/nix modules are forbidden
+  # here). It is fully DATA-DRIVEN: reads ALL thresholds, the never-restart
+  # denylist, the restart-loudest-unit switch and the ntfy priority/topic at
+  # RUNTIME from /etc/cloud-data/disk-protection.json via jq — nothing is
+  # baked in by Nix interpolation.
+  journalFloodGuardPkg = pkgs.writeShellApplication {
+    name = "journal-flood-guard";
+    text = builtins.readFile ./journal-flood-guard.sh;
+    runtimeInputs = with pkgs; [
+      coreutils    # wc, awk-adjacent
+      systemd      # journalctl, systemctl
+      util-linux   # logger
+      curl         # ntfy alerts
+      jq           # runtime config parsing
+      gawk         # awk
+      gnugrep      # grep -qE
+      gnused
+    ];
+  };
+
+  # Weekly housekeeping — script lives in disk-housekeeping-weekly.sh (kept
+  # out of the Nix module; inline scripts inside flake/nix modules are
+  # forbidden here). It is fully DATA-DRIVEN: whether each section runs
+  # (docker prune / cargo-sweep / nix-gc), the disk-pct gate and the
+  # keep-days for each are read at RUNTIME from
+  # /etc/cloud-data/disk-protection.json via jq — nothing is baked in by
+  # Nix interpolation.
+  diskHousekeepingWeeklyPkg = pkgs.writeShellApplication {
+    name = "disk-housekeeping-weekly";
+    text = builtins.readFile ./disk-housekeeping-weekly.sh;
+    runtimeInputs = with pkgs; [
+      coreutils
+      docker
+      cargo-sweep
+      nix
+      jq
+      util-linux   # logger
     ];
   };
 
@@ -132,36 +172,7 @@ in
       OOMScoreAdjust = -900;
       IOSchedulingClass = "idle";
     };
-    path = with pkgs; [ coreutils systemd util-linux curl jq gawk ];
-    script = ''
-      set -u
-      WINDOW=60
-      MAX=${toString jfloodMax}
-      NEVER="${lib.concatStringsSep "|" jfloodNever}"
-      # Count lines emitted in the last WINDOW seconds; scale to per-minute.
-      n=$(journalctl --since "''${WINDOW}s ago" -q --no-pager 2>/dev/null | wc -l)
-      rate=$(( n * 60 / WINDOW ))
-      [ "$rate" -lt "$MAX" ] && exit 0
-
-      # Over threshold — find the single loudest unit in the window.
-      unit=$(journalctl --since "''${WINDOW}s ago" -o json --output-fields=_SYSTEMD_UNIT --no-pager 2>/dev/null \
-        | jq -r '._SYSTEMD_UNIT // empty' \
-        | sort | uniq -c | sort -rn | head -n1 | awk '{print $2}')
-      msg="JOURNAL FLOOD: ''${rate} lines/min (>= ''${MAX}). Loudest unit: ''${unit:-unknown}."
-      logger -t journal-flood-guard -p user.alert "$msg"
-      echo "[journal-flood-guard] $msg"
-
-      # Restart the offender unless it is on the never_restart denylist or empty.
-      base=''${unit%.service}; base=''${base%.scope}; base=''${base%.slice}
-      if ${lib.boolToString jfloodRestart} && [ -n "''${unit:-}" ] \
-         && ! printf '%s' "$base" | grep -qE "^(''${NEVER})$"; then
-        systemctl restart "$unit" 2>/dev/null \
-          && logger -t journal-flood-guard -p user.warning "restarted flooding unit $unit" \
-          && msg="$msg Restarted $unit."
-      fi
-      curl -sS -H "Title: journal flood ''${rate}/min" -H "Priority: ${jfloodNtfy}" -H "Tags: loudspeaker" \
-        -d "$msg" https://ntfy.sh/${cfg.actions.alert_ntfy.topic or "diegonmarcos-infra"} 2>/dev/null || true
-    '';
+    script = "${journalFloodGuardPkg}/bin/journal-flood-guard";
   };
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -189,23 +200,6 @@ in
         Slice = "workload.slice";
         OOMScoreAdjust = 200;
       };
-      path = with pkgs; [ coreutils docker nix ];
-      script = ''
-        ${lib.optionalString (cfg.docker_retention.enabled or false) ''
-          USAGE=$(df / --output=pcent | tail -1 | tr -d ' %')
-          if [ "$USAGE" -ge "${toString (cfg.docker_retention.only_if_disk_pct_above or 75)}" ]; then
-            command -v docker >/dev/null && docker system prune -f 2>/dev/null || true
-          fi
-        ''}
-        ${lib.optionalString (cfg.cargo_sweep.enabled or false) ''
-          command -v cargo-sweep >/dev/null && \
-            cargo-sweep --time ${toString (cfg.cargo_sweep.keep_days or 30)} \
-              /home/diego/.cargo/target 2>/dev/null || true
-        ''}
-        ${lib.optionalString (cfg.nix_gc.enabled or false) ''
-          ${pkgs.nix}/bin/nix-collect-garbage \
-            --delete-older-than ${toString (cfg.nix_gc.keep_days or 14)}d 2>/dev/null || true
-        ''}
-      '';
+      script = "${diskHousekeepingWeeklyPkg}/bin/disk-housekeeping-weekly";
     };
 }
