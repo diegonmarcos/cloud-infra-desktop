@@ -59,4 +59,14 @@ in
   # override. Exported here so anything that needs the resolved store path reads
   # the same value instead of rebuilding it.
   home.sessionVariables.SESSION_WALLPAPER = wallpaperPath;
+
+  # com.diegonmarcos.watchdog reads the tray daemon's snapshot with
+  # XMLHttpRequest GET on file:///run/user/<uid>/my-konsole-watchdog.json. Qt 6
+  # refuses local-file XHR unless this is set, and it refuses it SILENTLY as far
+  # as QML is concerned — readyState reaches DONE with an empty responseText, so
+  # every widget parsed nothing and drew nothing while plasmashell's journal
+  # repeated "Set QML_XHR_ALLOW_FILE_READ to 1 to enable this feature."
+  # It has to be in the session environment: plasmashell is started by the
+  # session, so setting it any later is too late for the shell already running.
+  home.sessionVariables.QML_XHR_ALLOW_FILE_READ = "1";
 }

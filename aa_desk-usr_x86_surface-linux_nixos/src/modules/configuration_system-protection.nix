@@ -505,7 +505,12 @@ in
         # runaway build), so exact `RESET_UNITS[$2]` misses them all. Match
         # HARD_PROTECT/SOFT_AVOID style: grep -Eq each key against $2.
         for _rk in "''${!RESET_UNITS[@]}"; do
-          if printf '%s' "$2" | grep -Eq -- "$_rk"; then
+          # \b-anchored (2026-08-07): unanchored substring match let short keys
+          # like "ld" (the linker) hit unrelated comms containing "ld" as a
+          # substring — "thermald", "kthrotld" — firing a bogus nix-daemon
+          # restart on every unrelated kill. \b still matches wrapper-prefixed
+          # comms (".ld-wrapper") since "." is a non-word boundary.
+          if printf '%s' "$2" | grep -Eq -- "\\b''${_rk}\\b"; then
             _runit="''${RESET_UNITS[$_rk]}"
             if [ -n "$_runit" ]; then
               sudo -n systemctl restart "$_runit" 2>/dev/null || true
