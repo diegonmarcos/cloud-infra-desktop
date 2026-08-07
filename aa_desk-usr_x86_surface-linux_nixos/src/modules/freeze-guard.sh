@@ -151,7 +151,7 @@ pick_hog_victim() {
   for cg in $HOG_CGS; do
     [ -r "$cg/cgroup.procs" ] || continue
     while read -r p; do
-      [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null || continue
+      if ! [[ "$p" =~ ^[0-9]+$ ]] || [ "$p" -le 1 ]; then continue; fi
       is_kthread "$p" && continue
       comm=$(cat "/proc/$p/comm" 2>/dev/null) || continue
       echo "$comm" | grep -Eq -- "$AVOID" && continue
@@ -175,8 +175,8 @@ pick_victim() {
   # compositor/session essentials.
   local cmd="ps -eo pid=,$key=,comm= --sort=-$key"
   local line
-  line=$($cmd | grep -E -- "$PREFER" | grep -E -v -- "$AVOID" | grep -E -v -- "$KTHREAD_RE" | { [ -n "$excl" ] && grep -E -v -- "$excl" || cat; } | head -n1)
-  [ -z "$line" ] && line=$($cmd | grep -E -v -- "$AVOID" | grep -E -v -- "$KTHREAD_RE" | { [ -n "$excl" ] && grep -E -v -- "$excl" || cat; } | head -n1)
+  line=$($cmd | grep -E -- "$PREFER" | grep -E -v -- "$AVOID" | grep -E -v -- "$KTHREAD_RE" | { if [ -n "$excl" ]; then grep -E -v -- "$excl"; else cat; fi; } | head -n1)
+  [ -z "$line" ] && line=$($cmd | grep -E -v -- "$AVOID" | grep -E -v -- "$KTHREAD_RE" | { if [ -n "$excl" ]; then grep -E -v -- "$excl"; else cat; fi; } | head -n1)
   echo "$line"
 }
 
@@ -195,7 +195,7 @@ pick_cgroup_victim() {
   local fb_pid="" fb_rss=-1 fb_comm=""
   [ -r "$procs" ] || return 1
   while read -r p; do
-    [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null || continue
+    if ! [[ "$p" =~ ^[0-9]+$ ]] || [ "$p" -le 1 ]; then continue; fi
     comm=$(cat "/proc/$p/comm" 2>/dev/null) || continue
     echo "$comm" | grep -Eq -- "$HARD_PROTECT" && continue
     rss=$(awk '/^VmRSS:/ {print $2}' "/proc/$p/status" 2>/dev/null)
@@ -333,8 +333,7 @@ while :; do
     ws_secs=$(( ws_secs + INTERVAL ))
     echo "[freeze-guard] WRITE-STORM ${wmbps}MB/s (>$WS_MBPS) dirty=${dmb}MB (>$WS_DIRTY_MB) sustained ${ws_secs}s/${WS_SUSTAIN}s"
     if [ "$ws_secs" -ge "$WS_SUSTAIN" ]; then
-      set -- $(pick_top_writer)
-      wpid="$1"; wmb="$2"; wcomm="$3"
+      read -r wpid wmb wcomm <<< "$(pick_top_writer)"
       if [ -n "$wpid" ] && [ "$wpid" -gt 1 ] 2>/dev/null; then
         do_kill "$wpid" "$wcomm"; wsig=$SIG
         echo "[freeze-guard] WRITE-STORM-KILL → SIG$wsig top-writer pid=$wpid ${wmb}MB/tick ($wcomm)"
@@ -357,8 +356,7 @@ while :; do
   sio=$(psi_slice_avg10 "$WATCH_CG" io full);     sio=${sio:-0}
   smem=$(psi_slice_avg10 "$WATCH_CG" memory full); smem=${smem:-0}
   if awk "BEGIN { exit !($sio+0 > $SLICE_IO_LIMIT || $smem+0 > $SLICE_MEM_LIMIT) }"; then
-    set -- $(pick_hog_victim)
-    hpid="$1"; hrss="$2"; hcomm="$3"
+    read -r hpid hrss hcomm <<< "$(pick_hog_victim)"
     if [ -n "$hpid" ] && [ "$hpid" -gt 1 ] 2>/dev/null; then
       do_kill "$hpid" "$hcomm"; hsig=$SIG
       echo "[freeze-guard] DESKTOP-STARVED sliceIO=$sio sliceMEM=$smem (global io=$io) → SIG$hsig hog pid=$hpid rss=${hrss}kB ($hcomm)"
@@ -380,8 +378,7 @@ while :; do
       thrash_secs=$(( thrash_secs + INTERVAL ))
       echo "[freeze-guard] THRASH-WATCH memory.high rate=${rate}/s > $HIGH_MAX (sustained ${thrash_secs}s/${THRASH_SUSTAIN}s) on $THRASH_CG"
       if [ "$thrash_secs" -ge "$THRASH_SUSTAIN" ]; then
-        set -- $(pick_cgroup_victim "$THRASH_CG")
-        vpid="$1"; vrss="$2"; vcomm="$3"; vtier="$4"
+        read -r vpid vrss vcomm vtier <<< "$(pick_cgroup_victim "$THRASH_CG")"
         if [ -n "$vpid" ] && [ "$vpid" -gt 1 ] 2>/dev/null; then
           do_kill "$vpid" "$vcomm"; vsig=$SIG
           echo "[freeze-guard] THRASH-KILL memory.high ${rate}/s → SIG$vsig pid=$vpid rss=${vrss}kB ($vcomm) tier=$vtier in $THRASH_CG"
@@ -412,9 +409,8 @@ while :; do
         awk "BEGIN { exit !($cpu+0 > $CPU_LIMIT || $mem+0 > $MEM_LIMIT || $io+0 > $IO_LIMIT) }"; do
     # Rank by %cpu when CPU is the breaching signal, else by RSS.
     if awk "BEGIN { exit !($cpu+0 > $CPU_LIMIT) }"; then key="pcpu"; else key="rss"; fi
-    set -- $(pick_victim "$key" "$killed")
-    pid="$1"; metric="$2"; name="$3"
-    [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null || break
+    read -r pid metric name <<< "$(pick_victim "$key" "$killed")"
+    if ! [[ "$pid" =~ ^[0-9]+$ ]] || [ "$pid" -le 1 ]; then break; fi
     do_kill "$pid" "$name"; sig=$SIG
     echo "[freeze-guard] FREEZE-RISK cpuPSI=$cpu memPSI=$mem ioPSI=$io → SIG$sig pid=$pid rank-by=$key metric=$metric ($name)"
     killed="$killed $pid"; n=$((n + 1))
