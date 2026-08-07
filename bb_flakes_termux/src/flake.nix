@@ -207,18 +207,7 @@
               # NOTE: wireguard-tools (wg CLI) requires root — useless on Android.
               # The WireGuard Android app manages the tunnel via VPN API instead.
               # We provide a wrapper that warns and redirects to `connect`.
-              (writeShellScriptBin "wg" ''
-                echo ""
-                echo "  THIS IS A ROOTLESS ANDROID!"
-                echo "  You should NEVER try to check WireGuard connection using wg!"
-                echo ""
-                echo "  Use the 'connect' command instead:"
-                echo "    connect status       — unified dashboard"
-                echo "    connect flex-status  — OCI VM status"
-                echo "    connect mount-all-vm — mount VMs via SSHFS"
-                echo "    connect logs | jq .mesh — mesh JSON data"
-                echo ""
-              '')
+              (writeShellScriptBin "wg" (builtins.readFile ./scripts/wg.sh))
               # inetutils → telnet, ftp, rsh, rlogin, hostname, dnsdomainname, etc.
               # Demoted with lowPrio so iputils wins the ping/ping6/traceroute6 file
               # collisions. inetutils' ping uses SOCK_RAW + setuid() (bionic libc
@@ -235,14 +224,7 @@
 
               # getconf — POSIX sysconf utility needed by wrangler (Cloudflare Workers CLI)
               # Not included in Termux/nix-on-droid by default (normally from glibc)
-              (writeShellScriptBin "getconf" ''
-                case "$1" in
-                  LONG_BIT)       echo 64 ;;
-                  PAGE_SIZE)      echo 4096 ;;
-                  _NPROCESSORS_ONLN) nproc 2>/dev/null || echo 1 ;;
-                  *)              echo "" ;;
-                esac
-              '')
+              (writeShellScriptBin "getconf" (builtins.readFile ./scripts/getconf.sh))
 
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22
@@ -253,168 +235,39 @@
 
               # 3. SYNC — unified sync engine (git + rclone)
               # Source: ~/git/tools/a-sync/sync.sh
-              (writeShellScriptBin "sync" ''
-                exec "$HOME/git/tools/a-sync/sync.sh" "$@"
-              '')
+              (writeShellScriptBin "sync" (builtins.readFile ./scripts/sync.sh))
 
               # 3b. SERVER — delegates to ~/git/front/server.sh (dev server control)
-              (writeShellScriptBin "server" ''
-                exec "$HOME/git/front/server.sh" "$@"
-              '')
+              (writeShellScriptBin "server" (builtins.readFile ./scripts/server.sh))
 
               # 4. CODE-SERVER (trying aggressive V8/Node fixes for Android)
-              (writeShellScriptBin "code" ''
-                # Force jemalloc for this process tree
-                export LD_PRELOAD="${pkgs.jemalloc}/lib/libjemalloc.so"
-
-                # Aggressive Node/V8 settings to prevent crashes
-                export NODE_OPTIONS="--max-old-space-size=256 --v8-pool-size=1"
-                export UV_THREADPOOL_SIZE=1
-                export VSCODE_DISABLE_FILE_WATCHER=1
-
-                # Disable features that cause issues on Android
-                export ELECTRON_DISABLE_SANDBOX=1
-                export ELECTRON_NO_ATTACH_CONSOLE=1
-
-                # Colors
-                C_RESET="\033[0m"
-                C_CYAN="\033[0;36m"
-                C_GREEN="\033[0;32m"
-                C_YELLOW="\033[0;33m"
-                C_RED="\033[0;31m"
-                C_MAGENTA="\033[0;35m"
-                C_BLUE="\033[0;34m"
-
-                LOG_FILE="$HOME/.cache/code-server.log"
-                PID_FILE="$HOME/.cache/code-server.pid"
-
-                get_lan_ip() {
-                  ${pkgs.python3}/bin/python3 -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0]); s.close()" 2>/dev/null || echo "<no-network>"
-                }
-
-                is_running() {
-                  [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
-                }
-
-                case "''${1:-}" in
-                  local)
-                    if is_running; then
-                      printf "''${C_YELLOW}code-server already running (PID: $(cat "$PID_FILE"))''${C_RESET}\n"
-                      exit 0
-                    fi
-                    printf "''${C_CYAN}Starting code-server on localhost:8080...''${C_RESET}\n"
-                    mkdir -p "$(dirname "$LOG_FILE")"
-                    nohup ${pkgs.code-server}/bin/code-server --bind-addr 127.0.0.1:8080 --auth none --disable-workspace-trust --disable-telemetry > "$LOG_FILE" 2>&1 &
-                    echo $! > "$PID_FILE"
-                    sleep 1
-                    if is_running; then
-                      printf "''${C_GREEN}Started on http://127.0.0.1:8080''${C_RESET}\n"
-                    else
-                      printf "''${C_RED}Failed to start. Check $LOG_FILE''${C_RESET}\n"
-                    fi
-                    ;;
-                  lan)
-                    if is_running; then
-                      printf "''${C_YELLOW}code-server already running (PID: $(cat "$PID_FILE"))''${C_RESET}\n"
-                      exit 0
-                    fi
-                    LAN_IP=$(get_lan_ip)
-                    printf "''${C_CYAN}Starting code-server on LAN (daemon)...''${C_RESET}\n"
-                    mkdir -p "$(dirname "$LOG_FILE")"
-                    nohup ${pkgs.code-server}/bin/code-server --bind-addr 0.0.0.0:8080 --disable-workspace-trust --disable-telemetry > "$LOG_FILE" 2>&1 &
-                    echo $! > "$PID_FILE"
-                    sleep 1
-                    if is_running; then
-                      printf "''${C_GREEN}Started on http://$LAN_IP:8080''${C_RESET}\n"
-                      printf "''${C_MAGENTA}Password:''${C_RESET} $(grep "^password:" ~/.config/code-server/config.yaml 2>/dev/null | cut -d' ' -f2 || echo 'not set')\n"
-                    else
-                      printf "''${C_RED}Failed to start. Check $LOG_FILE''${C_RESET}\n"
-                    fi
-                    ;;
-                  stop)
-                    printf "''${C_YELLOW}Stopping code-server...''${C_RESET}\n"
-                    if is_running; then
-                      kill "$(cat "$PID_FILE")" 2>/dev/null
-                      rm -f "$PID_FILE"
-                    fi
-                    ps aux 2>/dev/null | grep "code-server" | grep -v grep | awk '{print $2}' | xargs -r kill -9 2>/dev/null
-                    sleep 1
-                    printf "''${C_GREEN}Stopped.''${C_RESET}\n"
-                    ;;
-                  log)
-                    if [ -f "$LOG_FILE" ]; then
-                      tail -50 "$LOG_FILE"
-                    else
-                      printf "''${C_RED}No log file found''${C_RESET}\n"
-                    fi
-                    ;;
-                  *)
-                    LAN_IP=$(get_lan_ip)
-                    printf "''${C_CYAN}=== code-server ===''${C_RESET}\n"
-                    if is_running; then
-                      printf "''${C_GREEN}RUNNING''${C_RESET} (PID: $(cat "$PID_FILE"))\n"
-                      printf "  Local: ''${C_CYAN}http://127.0.0.1:8080''${C_RESET}\n"
-                      printf "  LAN:   ''${C_CYAN}http://$LAN_IP:8080''${C_RESET}\n"
-                    else
-                      printf "''${C_RED}STOPPED''${C_RESET}\n"
-                    fi
-                    echo ""
-                    printf "''${C_YELLOW}Commands:''${C_RESET}\n"
-                    printf "  ''${C_BLUE}code local''${C_RESET}   Start on localhost (daemon)\n"
-                    printf "  ''${C_BLUE}code lan''${C_RESET}     Start on LAN (daemon)\n"
-                    printf "  ''${C_BLUE}code stop''${C_RESET}    Stop code-server\n"
-                    printf "  ''${C_BLUE}code log''${C_RESET}     Show recent logs\n"
-                    echo ""
-                    printf "''${C_MAGENTA}Password:''${C_RESET} $(grep "^password:" ~/.config/code-server/config.yaml 2>/dev/null | cut -d' ' -f2 || echo 'not set')\n"
-                    echo ""
-                    printf "''${C_RED}Note:''${C_RESET} Terminal/extensions may crash on Android.\n"
-                    printf "       Access from another device for best experience.\n"
-                    ;;
-                esac
-              '')
+              (writeShellScriptBin "code"
+                (builtins.replaceStrings
+                  [ "@jemalloc@"        "@python3_bin@"       "@code_server_bin@"       ]
+                  [ "${pkgs.jemalloc}"  "${pkgs.python3}/bin" "${pkgs.code-server}/bin" ]
+                  (builtins.readFile ./scripts/code.sh)))
 
               # 5. GACP (Git Add, Commit, Push) — convenience wrapper for sync
-              (writeShellScriptBin "gacp" ''
-                exec "$HOME/git/tools/a-sync/sync.sh" git remote "$@"
-              '')
+              (writeShellScriptBin "gacp" (builtins.readFile ./scripts/gacp.sh))
 
               # 6. GCL (Git Clone shortcut)
-              (writeShellScriptBin "gcl" ''
-                if [ -z "$1" ]; then
-                  printf "\033[0;31mError: Repository URL required\033[0m\n"
-                  printf "Usage: gcl <url> [folder]\n"
-                  printf "Examples:\n"
-                  printf "  gcl git@github.com:user/repo.git\n"
-                  printf "  gcl https://github.com/user/repo.git\n"
-                  printf "  gcl https://github.com/user/repo.git myrepo\n"
-                  exit 1
-                fi
-                printf "\033[0;36m→ Cloning $1...\033[0m\n"
-                if [ -n "$2" ]; then
-                  git clone "$1" "$2" || exit 1
-                else
-                  git clone "$1" || exit 1
-                fi
-                printf "\033[0;32m✓ Done\033[0m\n"
-              '')
+              (writeShellScriptBin "gcl" (builtins.readFile ./scripts/gcl.sh))
 
               # 7. CONNECT (Unified hub: HM, mesh, git, drives, sync, servers, security)
               # Source: ~/git/tools/a-connect/connect.sh
-              (writeShellScriptBin "connect" ''
-                exec "$HOME/git/tools/a-connect/connect.sh" "$@"
-              '')
+              (writeShellScriptBin "connect" (builtins.readFile ./scripts/connect.sh))
 
               # 7b. SYNC (Rclone sync manager)
               # Source: ~/git/tools/a-sync/sync.sh
-              (writeShellScriptBin "sync" ''
-                exec "$HOME/git/tools/a-sync/sync.sh" "$@"
-              '')
+              (writeShellScriptBin "sync" (builtins.readFile ./scripts/sync.sh))
 
               # 8. NIX-DRIFT (Version drift detection for nix flakes)
               # Source: ./nix-version-drift.sh
-              (writeShellScriptBin "nix-drift" ''
-                exec ${pkgs.bash}/bin/bash ${./nix-version-drift.sh} "$@"
-              '')
+              (writeShellScriptBin "nix-drift"
+                (builtins.replaceStrings
+                  [ "@nixVersionDriftSh@"     ]
+                  [ "${./nix-version-drift.sh}" ]
+                  (builtins.readFile ./scripts/nix-drift.sh)))
 
               # 9. CLAUDE — from nixpkgs (added to nixpkgs-unstable 2026-07).
               # Auto-updates via `build.sh update` + switch. No manual hash pins.

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+echo ""
+echo "  THIS IS A ROOTLESS ANDROID!"
+echo "  You should NEVER try to check WireGuard connection using wg!"
+echo ""
+echo "  Use the 'connect' command instead:"
+echo "    connect status       — unified dashboard"
+echo "    connect flex-status  — OCI VM status"
+echo "    connect mount-all-vm — mount VMs via SSHFS"
+echo "    connect logs | jq .mesh — mesh JSON data"
+echo ""
