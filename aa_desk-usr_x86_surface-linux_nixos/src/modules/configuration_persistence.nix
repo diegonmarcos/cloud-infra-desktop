@@ -1,7 +1,33 @@
 # Persistence: machine-id, journald, tmpfiles, activation scripts, bluetooth/NM symlinks
 { config, pkgs, lib, ... }:
 
+let
+  # nixSpecs: shell body lives in ./nix-specs.sh, data-driven at runtime from
+  # /etc/cloud-data/nix-specs.json (declared below) instead of the repo path
+  # being Nix-interpolated straight into the activation script.
+  nixSpecsScript = pkgs.writeShellApplication {
+    name = "nix-specs";
+    runtimeInputs = [ pkgs.jq pkgs.util-linux pkgs.coreutils ];
+    text = builtins.readFile ./nix-specs.sh;
+  };
+
+  # networkmanager-persistent / bluetooth-persistent: the two ExecStart
+  # bodies were near-identical hand-duplicated heredocs. Both are now this
+  # ONE data-driven script (./shared-symlink.sh), selecting which entry to
+  # apply at runtime by name from /etc/cloud-data/shared-symlinks.json.
+  sharedSymlinkScript = pkgs.writeShellApplication {
+    name = "shared-symlink";
+    runtimeInputs = [ pkgs.jq pkgs.util-linux pkgs.coreutils ];
+    text = builtins.readFile ./shared-symlink.sh;
+  };
+in
+
 {
+  # Runtime data for nixSpecs and shared-symlink (new cloud-data paths —
+  # verified against the already-declared environment.etc."cloud-data/..."
+  # set, no collisions).
+  environment.etc."cloud-data/nix-specs.json".source = ./nix-specs.json;
+  environment.etc."cloud-data/shared-symlinks.json".source = ./shared-symlinks.json;
   # ═══════════════════════════════════════════════════════════════════════════
   # MACHINE IDENTITY (Hardcoded - stable across reboots)
   # ═══════════════════════════════════════════════════════════════════════════
@@ -128,72 +154,7 @@
   # Canonical source: /home/diego/git/unix/aa_nixos-surface_host/
   # Convenient access: /nix/specs/
 
-  system.activationScripts.nixSpecs = ''
-    echo "[SPECS] Setting up /nix/specs/..."
-    SPECS_SRC="/home/diego/git/unix/aa_nixos-surface_host"
-
-    # Check if source exists
-    if [ -d "$SPECS_SRC" ]; then
-      # Remove existing symlink/directory
-      if [ -L /nix/specs ]; then
-        rm -f /nix/specs
-        echo "[SPECS] Removed old symlink"
-      elif [ -d /nix/specs ]; then
-        rm -rf /nix/specs
-        echo "[SPECS] Removed old directory"
-      fi
-
-      # Create symlink
-      if ln -sf "$SPECS_SRC" /nix/specs; then
-        echo "[SPECS] SUCCESS: /nix/specs -> $SPECS_SRC"
-
-        # Verify symlink works
-        if [ -f /nix/specs/flake.nix ]; then
-          echo "[SPECS] Verified: flake.nix accessible"
-        else
-          echo "[SPECS] WARNING: Symlink created but flake.nix not found" >&2
-        fi
-      else
-        echo "[SPECS] ERROR: Failed to create symlink (exit $?)" >&2
-      fi
-    else
-      # Source not found — repo path missing or home not mounted yet.
-      echo "[SPECS] WARNING: Config source not found at $SPECS_SRC" >&2
-
-      if ! mountpoint -q /home/diego 2>/dev/null; then
-        echo "[SPECS] HINT: /home/diego is not mounted (LUKS pool not unlocked?)" >&2
-      fi
-
-      # Create fallback directory with README
-      mkdir -p /nix/specs
-      cat > /nix/specs/README.md << 'SPECEOF'
-# NixOS Specs - FALLBACK MODE
-
-Configuration source not found at expected location.
-
-## Expected Location
-/home/diego/git/unix/aa_nixos-surface_host/
-
-## Troubleshooting
-
-1. Check if /home/diego is mounted (it lives on the LUKS btrfs pool):
-   mountpoint /home/diego
-
-2. If LUKS is locked, unlock + mount the pool:
-   sudo cryptsetup open /dev/nvme0n1p4 pool
-   sudo mount -o subvol=@home-diego /dev/mapper/pool /home/diego
-
-3. Rebuild NixOS once the source is reachable:
-   sudo nixos-rebuild switch --flake /home/diego/git/unix/aa_nixos-surface_host#surface
-
-## Alternative
-
-The system is fully functional without /nix/specs.
-Edit configuration directly at the source location.
-SPECEOF
-      echo "[SPECS] Created fallback README at /nix/specs/"
-    fi
-  '';
+  system.activationScripts.nixSpecs = "${nixSpecsScript}/bin/nix-specs";
 
   # ═══════════════════════════════════════════════════════════════════════════
   # BLUETOOTH PERSISTENCE (via @shared)
@@ -211,45 +172,7 @@ SPECEOF
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = pkgs.writeShellScript "networkmanager-shared-symlink" ''
-        echo "[NETWORKMANAGER] Setting up persistent WiFi storage..."
-
-        # Check if @shared is mounted
-        if ! mountpoint -q /mnt/shared 2>/dev/null; then
-          echo "[NETWORKMANAGER] ERROR: /mnt/shared is not mounted" >&2
-          exit 1
-        fi
-
-        # Create @shared NetworkManager directory if needed
-        if mkdir -p /mnt/shared/NetworkManager/system-connections 2>/dev/null; then
-          chmod 700 /mnt/shared/NetworkManager
-          chmod 700 /mnt/shared/NetworkManager/system-connections
-          echo "[NETWORKMANAGER] Created /mnt/shared/NetworkManager/system-connections"
-        else
-          echo "[NETWORKMANAGER] ERROR: Failed to create directory" >&2
-          exit 1
-        fi
-
-        # Ensure /etc/NetworkManager exists
-        mkdir -p /etc/NetworkManager
-
-        # Remove any existing system-connections
-        if [ -e /etc/NetworkManager/system-connections ]; then
-          if rm -rf /etc/NetworkManager/system-connections 2>/dev/null; then
-            echo "[NETWORKMANAGER] Removed existing system-connections"
-          else
-            echo "[NETWORKMANAGER] WARNING: Could not remove system-connections" >&2
-          fi
-        fi
-
-        # Create symlink
-        if ln -sf /mnt/shared/NetworkManager/system-connections /etc/NetworkManager/system-connections; then
-          echo "[NETWORKMANAGER] SUCCESS: system-connections -> /mnt/shared/NetworkManager/system-connections"
-        else
-          echo "[NETWORKMANAGER] ERROR: Failed to create symlink" >&2
-          exit 1
-        fi
-      '';
+      ExecStart = "${sharedSymlinkScript}/bin/shared-symlink networkmanager";
     };
   };
 
@@ -264,41 +187,7 @@ SPECEOF
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = pkgs.writeShellScript "bluetooth-shared-symlink" ''
-        echo "[BLUETOOTH] Setting up persistent bluetooth storage..."
-
-        # Check if @shared is mounted
-        if ! mountpoint -q /mnt/shared 2>/dev/null; then
-          echo "[BLUETOOTH] ERROR: /mnt/shared is not mounted" >&2
-          exit 1
-        fi
-
-        # Create @shared bluetooth directory if needed
-        if mkdir -p /mnt/shared/bluetooth 2>/dev/null; then
-          chmod 700 /mnt/shared/bluetooth
-          echo "[BLUETOOTH] Created /mnt/shared/bluetooth"
-        else
-          echo "[BLUETOOTH] ERROR: Failed to create /mnt/shared/bluetooth" >&2
-          exit 1
-        fi
-
-        # Remove any existing /var/lib/bluetooth
-        if [ -e /var/lib/bluetooth ]; then
-          if rm -rf /var/lib/bluetooth 2>/dev/null; then
-            echo "[BLUETOOTH] Removed existing /var/lib/bluetooth"
-          else
-            echo "[BLUETOOTH] WARNING: Could not remove /var/lib/bluetooth" >&2
-          fi
-        fi
-
-        # Create symlink
-        if ln -sf /mnt/shared/bluetooth /var/lib/bluetooth; then
-          echo "[BLUETOOTH] SUCCESS: /var/lib/bluetooth -> /mnt/shared/bluetooth"
-        else
-          echo "[BLUETOOTH] ERROR: Failed to create symlink" >&2
-          exit 1
-        fi
-      '';
+      ExecStart = "${sharedSymlinkScript}/bin/shared-symlink bluetooth";
     };
   };
 }

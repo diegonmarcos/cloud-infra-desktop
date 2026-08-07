@@ -21,7 +21,35 @@ let
   wgDomains = [ "~app" ];
   # Vault key material — same base as cloud-network-wg-public.nix.
   vaultBase = "${config.home.homeDirectory}/git/vault/A0_keys/providers/wireguard";
+
+  # wg-dns-up / wg-dns-down: shell bodies live in ./wg-dns-up.sh and
+  # ./wg-dns-down.sh, data-driven at runtime from
+  # cloud-network-wg-dns.json (declared below via xdg.configFile, per the
+  # wireguard-wstunnel precedent) instead of hickoryDns/wgInterface/wgDomains
+  # being Nix-interpolated straight into the unit's ExecStart/ExecStop.
+  # Store paths (jq, ip, dig) arrive via runtimeEnv.
+  wgDnsUpScript = pkgs.writeShellApplication {
+    name = "wg-dns-up";
+    runtimeInputs = [ pkgs.jq pkgs.iproute2 pkgs.dnsutils ];
+    runtimeEnv = {
+      WG_DNS_JQ_BIN  = "${pkgs.jq}/bin/jq";
+      WG_DNS_IP_BIN  = "${pkgs.iproute2}/bin/ip";
+      WG_DNS_DIG_BIN = "${pkgs.dnsutils}/bin/dig";
+    };
+    text = builtins.readFile ./wg-dns-up.sh;
+  };
+  wgDnsDownScript = pkgs.writeShellApplication {
+    name = "wg-dns-down";
+    runtimeInputs = [ pkgs.jq ];
+    runtimeEnv = {
+      WG_DNS_JQ_BIN = "${pkgs.jq}/bin/jq";
+    };
+    text = builtins.readFile ./wg-dns-down.sh;
+  };
 in {
+  # Runtime data for wg-dns-up / wg-dns-down.
+  xdg.configFile."cloud-data/cloud-network-wg-dns.json".source = ./cloud-network-wg-dns.json;
+
   # ── wg0 private key ────────────────────────────────────────
   # Consumed by the NixOS host's networking.wireguard.interfaces.wg0.
   # Out-of-store symlink so the live vault file is read at runtime (the key
@@ -49,52 +77,8 @@ in {
     Service = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = pkgs.writeShellScript "wg-dns-up" ''
-        # Wait for wg0 interface to exist (max 10s)
-        for i in $(seq 1 10); do
-          if ip link show ${wgInterface} >/dev/null 2>&1; then
-            break
-          fi
-          sleep 1
-        done
-
-        if ! ip link show ${wgInterface} >/dev/null 2>&1; then
-          echo "[wg-dns] ${wgInterface} not found — skipping DNS config"
-          exit 0
-        fi
-
-        echo "[wg-dns] Adding ${hickoryDns} to resolv.conf for .app names"
-
-        # Method 1: systemd-resolved (if available)
-        if command -v resolvectl >/dev/null 2>&1 && systemctl is-active systemd-resolved >/dev/null 2>&1; then
-          echo "[wg-dns] Using systemd-resolved split DNS"
-          sudo resolvectl dns ${wgInterface} ${hickoryDns}
-          sudo resolvectl domain ${wgInterface} ${lib.concatStringsSep " " wgDomains}
-          sudo resolvectl default-route ${wgInterface} false
-        else
-          # Method 2: Direct resolv.conf prepend (resolvconf/NetworkManager systems)
-          echo "[wg-dns] Using resolv.conf prepend (no systemd-resolved)"
-          if ! grep -q "${hickoryDns}" /etc/resolv.conf 2>/dev/null; then
-            # Prepend Hickory as first nameserver
-            sudo sed -i '1s/^/nameserver ${hickoryDns}\n/' /etc/resolv.conf
-            echo "[wg-dns] Added nameserver ${hickoryDns} to /etc/resolv.conf"
-          else
-            echo "[wg-dns] ${hickoryDns} already in resolv.conf"
-          fi
-        fi
-
-        echo "[wg-dns] Verifying: dig @${hickoryDns} authelia.app"
-        dig @${hickoryDns} +short authelia.app 2>/dev/null || echo "(hickory not reachable — wg0 may need time)"
-        echo "[wg-dns] Done"
-      '';
-      ExecStop = pkgs.writeShellScript "wg-dns-down" ''
-        echo "[wg-dns] Removing ${hickoryDns} from resolv.conf"
-        if command -v resolvectl >/dev/null 2>&1 && systemctl is-active systemd-resolved >/dev/null 2>&1; then
-          sudo resolvectl revert ${wgInterface} 2>/dev/null || true
-        else
-          sudo sed -i '/^nameserver ${hickoryDns}$/d' /etc/resolv.conf 2>/dev/null || true
-        fi
-      '';
+      ExecStart = "${wgDnsUpScript}/bin/wg-dns-up";
+      ExecStop = "${wgDnsDownScript}/bin/wg-dns-down";
     };
     Install = {
       WantedBy = [ "default.target" ];

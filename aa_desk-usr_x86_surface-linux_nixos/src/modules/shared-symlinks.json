@@ -1,0 +1,27 @@
+[
+  {
+    "name": "networkmanager",
+    "label": "NETWORKMANAGER",
+    "mount_check": "/mnt/shared",
+    "create_dirs": [
+      "/mnt/shared/NetworkManager",
+      "/mnt/shared/NetworkManager/system-connections"
+    ],
+    "dir_perm": "700",
+    "target_parent": "/etc/NetworkManager",
+    "target": "/etc/NetworkManager/system-connections",
+    "source": "/mnt/shared/NetworkManager/system-connections"
+  },
+  {
+    "name": "bluetooth",
+    "label": "BLUETOOTH",
+    "mount_check": "/mnt/shared",
+    "create_dirs": [
+      "/mnt/shared/bluetooth"
+    ],
+    "dir_perm": "700",
+    "target_parent": "",
+    "target": "/var/lib/bluetooth",
+    "source": "/mnt/shared/bluetooth"
+  }
+]
