@@ -826,6 +826,16 @@ cmd_ci_build() {
             "$_PROOT" 2>&1 || log_warn "proot pre-fetch failed — nix build may error at eval"
     fi
 
+    # Vendor build.json into src/ so the path: flake reads it without a ../ ref
+    # escaping src/ — any such escape forces nix to copy the whole 3.6GB repo as
+    # the flake source and proot dies mid-copy ("Function not implemented").
+    # cmd_switch and cmd_build both do this; ci-build did not, so every CI run
+    # died at eval with "opening file '.../source/build.json': No such file".
+    # src/build.json is gitignored, so the checkout never carries it.
+    if [ -f "$SCRIPT_DIR/build.json" ]; then
+        cp -f "$SCRIPT_DIR/build.json" "$SRC_DIR/build.json"
+    fi
+
     log_info "Building activationPackage (accept-flake-config → cached substitutes)..."
     "$_nix" build "path:$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" \
         --impure --accept-flake-config --out-link "$_out/result" \
