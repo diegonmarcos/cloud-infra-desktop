@@ -6,10 +6,18 @@
 # truth, not the live appletsrc).
 #
 # Layout (left → right):
-#   Kickoff · Pager(Desk1-4) │ spacer │ IconTasks │ spacer │ TWO SystemTrays
+#   Kickoff · Pager(Desk1-4) │ spacer │ IconTasks │ spacer │ Watchdog(proctable) │ TWO SystemTrays
 #   (the launchers sit between two expanding spacers, so they centre)
-#   No clock and no watchdog — both live on the top panel only.
-#   (no clock — it lives on the top panel only).
+#   No clock — it lives on the top panel only.
+#
+# 2026-08-07: ONE com.diegonmarcos.watchdog instance added back, mode=
+# "proctable" — a sortable process table with multiple kill signals, not a
+# summary-numbers duplicate of the top panel's left/right/guard instances (see
+# the long-form history below for why THOSE were kept off this panel). This is
+# also the plugin's FIRST addWidget() call in the bottom panel's script, so the
+# "3rd-and-later same-plugin instance silently dropped" bug documented in
+# plasma-panel-repair.json (which is about the TOP panel's 3rd instance,
+# mode=guard) does not apply here and no repair-list entry was added for it.
 #
 # 2026-08-02: the system-monitor widget is gone. Its history is worth keeping
 # because it explains why the replacement is not another one: it began as 7
@@ -55,13 +63,19 @@ in
         { name = "org.kde.plasma.icontasks"; config.General.launchers = launchers; }
         "org.kde.plasma.panelspacer"
 
-        # ── NO watchdog widget here — it belongs to the TOP panel only ──
-        # top-panel.json already carries two instances (mode=left, mode=right)
-        # flanking the clock. A third copy down here would poll and draw the
-        # same snapshot a third time to say the same numbers twice on one
-        # screen, which is the duplication this widget replaced, not a use of
-        # it. The history below is kept because it explains why the bottom
-        # panel has no system monitor of ANY kind now.
+        # The process-table instance. Deliberately NOT mode=left/right/guard —
+        # those are summary numbers already shown on the top panel, and a copy
+        # here would just poll and draw the same snapshot a second time.
+        # proctable is a distinct capability (sortable per-process table,
+        # multiple kill signals), so one instance earns its place here.
+        { name = "com.diegonmarcos.watchdog"; config.General = { mode = "proctable"; uid = data.watchdog_uid; }; }
+        "org.kde.plasma.marginsseparator"
+
+        # ── The rest of this panel carries NO other watchdog widget ──
+        # top-panel.json already carries the three summary instances
+        # (mode=left, mode=right, mode=guard) flanking the clock. The history
+        # below is kept because it explains why the bottom panel had no
+        # system monitor of ANY kind before the proctable instance above.
         #
         # ── (former) Watchdog widget — reads the snapshot, runs no sensor stack ──
         # Was ONE consolidated org.kde.plasma.systemmonitor carrying six
@@ -77,7 +91,6 @@ in
         # This reads it. Cost no longer scales with how many metrics show, and
         # PSI is available at last — /proc/pressure has no KSystemStats
         # backend, so no stock widget could ever display it.
-        "org.kde.plasma.marginsseparator"
 
         # TWO trays, matching the live layout this file is now captured from.
         # One holds OUR eight app trays and shows them permanently; the other

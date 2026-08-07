@@ -13,9 +13,11 @@
          panel; another metric is a config change rather than another applet,
          which is the thing being fixed. Valid values: "left", "right",
          "guard" (2026-08-07 — freeze-guard voter state from
-         /run/freeze-guard.json). No <choices> restriction here (plain
-         String), so validity is enforced in main.qml's mode Loaders, not
-         this schema. -->
+         /run/freeze-guard.json), "proctable" (2026-08-07 — sortable
+         multi-column process table with multiple kill signals, replacing
+         the compact/expanded content of an instance in this mode). No
+         <choices> restriction here (plain String), so validity is enforced
+         in main.qml's mode Loaders, not this schema. -->
     <entry name="mode" type="String">
       <default>left</default>
     </entry>

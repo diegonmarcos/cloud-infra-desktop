@@ -101,6 +101,10 @@ sync_data() {
   command cp -f src/data/*.json "$STORE/" 2>/dev/null || true
   # systrays.json — read directly by main.rs's setup_systrays() at startup
   command cp -f configs/systrays.json "$STORE/systrays.json" 2>/dev/null || true
+  # protected-slices.json — read directly by watchdog.rs's process-table kill
+  # guard (load_protected_slices/proc_protected_slice), re-read on every kill
+  # request so an edit here takes effect without restarting the daemon.
+  command cp -f configs/protected-slices.json "$STORE/protected-slices.json" 2>/dev/null || true
   # …and the per-tray SVGs it names. rm first: an icon renamed in the manifest
   # must not keep resolving to the old file left behind here.
   rm -rf "$STORE/systray-icons"; mkdir -p "$STORE/systray-icons"

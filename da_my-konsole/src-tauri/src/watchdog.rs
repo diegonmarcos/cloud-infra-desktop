@@ -14,11 +14,72 @@
 // So the tray daemon — which already runs permanently under Restart=always —
 // samples once and writes a snapshot, and the panel widgets become Text
 // elements over a Timer. Cost stops scaling with how many numbers you show.
+use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::fs;
 use std::path::PathBuf;
 
 const INTERVAL_MS: u64 = 2_000;
+
+/// How many rows the process-table (`proc_table`) publishes, top-N by CPU%.
+/// Data-driven via env rather than a bare literal: at 2s cadence the snapshot
+/// is read by a widget's XMLHttpRequest on every tick, so the row count is a
+/// direct trade against JSON size — an operator who wants a deeper table (or
+/// a smaller one, on a machine with hundreds of processes) sets
+/// MY_KONSOLE_PROCTABLE_N rather than editing and rebuilding this file.
+fn proc_table_n() -> usize {
+    std::env::var("MY_KONSOLE_PROCTABLE_N")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(40)
+}
+
+/// Slices the process-table's kill action must never signal into, no matter
+/// which signal was requested — read fresh on every drain so an edit to the
+/// file takes effect without restarting the daemon. Mirrors the
+/// `protected_slices` notion in aa_desk-usr's cloud-data-disk-protection.json
+/// (os-essentials.slice = ssh/wg/session/watchdog, connectivity.slice = the
+/// freeze-guard island) — kept as a separate, unprivileged-readable copy
+/// because that file is consumed by root-owned nix-generated systemd units
+/// and this one is read by the per-user tray daemon straight off disk. Falls
+/// back to the same two names if the file is missing/unparseable so a broken
+/// sync never *widens* what can be killed.
+fn load_protected_slices() -> Vec<String> {
+    let fallback = || vec!["os-essentials.slice".to_string(), "connectivity.slice".to_string()];
+    let Some(home) = std::env::var_os("HOME") else { return fallback() };
+    let path = PathBuf::from(home).join(".local/share/my-konsole/protected-slices.json");
+    let Ok(body) = fs::read_to_string(&path) else { return fallback() };
+    // Hand-parse rather than pull in serde_json for one array: find
+    // "protected_slices": [ ... ] and split its quoted entries.
+    let Some(start) = body.find("\"protected_slices\"") else { return fallback() };
+    let Some(open) = body[start..].find('[') else { return fallback() };
+    let Some(close) = body[start + open..].find(']') else { return fallback() };
+    let inner = &body[start + open + 1..start + open + close];
+    let names: Vec<String> = inner
+        .split(',')
+        .filter_map(|tok| {
+            let t = tok.trim().trim_matches('"');
+            if t.is_empty() { None } else { Some(t.to_string()) }
+        })
+        .collect();
+    if names.is_empty() { fallback() } else { names }
+}
+
+/// Which protected slice (if any) a pid's cgroup places it in, read from
+/// /proc/<pid>/cgroup. Returns the matched slice name so the caller can show
+/// *why* a process is not killable rather than just refusing silently.
+fn proc_protected_slice(pid: i32, protected: &[String]) -> Option<String> {
+    let s = fs::read_to_string(format!("/proc/{pid}/cgroup")).ok()?;
+    for line in s.lines() {
+        for name in protected {
+            if line.contains(name.as_str()) {
+                return Some(name.clone());
+            }
+        }
+    }
+    None
+}
 
 pub fn snapshot_path() -> Option<PathBuf> {
     std::env::var_os("XDG_RUNTIME_DIR").map(|d| PathBuf::from(d).join("my-konsole-watchdog.json"))
@@ -217,6 +278,243 @@ fn top_procs(n: usize) -> String {
         })
         .collect();
     format!("[{}]", items.join(","))
+}
+
+/// Total system RAM in kB, for turning a process's RSS into mem_pct. Separate
+/// tiny parse rather than reusing meminfo_all(), which already collapsed
+/// MemTotal into GiB totals the process table doesn't need.
+fn mem_total_kb() -> f64 {
+    fs::read_to_string("/proc/meminfo")
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with("MemTotal:"))
+                .and_then(|l| l.split_whitespace().nth(1))
+                .and_then(|v| v.parse::<f64>().ok())
+        })
+        .unwrap_or(0.0)
+}
+
+/// uid -> login name, parsed from /etc/passwd once per tick. A process table
+/// that shows raw uids is unreadable on a box with more than one account;
+/// /etc/passwd is world-readable and tiny, so this is cheaper than a getpwuid
+/// FFI call per process.
+fn read_uid_names() -> HashMap<u32, String> {
+    let mut m = HashMap::new();
+    if let Ok(s) = fs::read_to_string("/etc/passwd") {
+        for line in s.lines() {
+            let f: Vec<&str> = line.split(':').collect();
+            if f.len() < 3 {
+                continue;
+            }
+            if let Ok(uid) = f[2].parse::<u32>() {
+                m.insert(uid, f[0].to_string());
+            }
+        }
+    }
+    m
+}
+
+/// clock ticks/second (usually 100 on Linux, but never assumed) — needed to
+/// turn /proc/<pid>/stat's utime+stime tick counts into seconds of CPU time.
+fn clk_tck() -> f64 {
+    let hz = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
+    if hz > 0 { hz as f64 } else { 100.0 }
+}
+
+/// One tick's raw counters for one pid, kept between samples so cpu%,
+/// read/write rates and the runqueue-wait proxy below are all deltas, never
+/// cumulative counters passed straight through.
+#[derive(Clone, Copy)]
+struct ProcSample {
+    cpu_ticks: u64,
+    read_bytes: u64,
+    write_bytes: u64,
+    runq_wait_ns: u64,
+}
+
+/// utime+stime (fields 14,15 of /proc/<pid>/stat) in clock ticks. The comm
+/// field (field 2) is parenthesised and may itself contain spaces or closing
+/// parens, so this splits on the LAST ')' rather than whitespace — the same
+/// trap /proc/<pid>/stat parsers are famous for getting wrong.
+fn read_proc_cpu_ticks(pid: i32) -> Option<u64> {
+    let s = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let after = s.rsplit_once(')')?.1;
+    let f: Vec<&str> = after.split_whitespace().collect();
+    // After the comm field, index 0 is state; utime is field 14 overall,
+    // i.e. index (14-3)=11 in this post-comm slice, stime is index 12.
+    let utime: u64 = f.get(11)?.parse().ok()?;
+    let stime: u64 = f.get(12)?.parse().ok()?;
+    Some(utime + stime)
+}
+
+/// read_bytes/write_bytes from /proc/<pid>/io — actual storage I/O, not the
+/// rchar/wchar counters (which also count pipes/tty and would call a chatty
+/// terminal "disk-heavy"). Only readable for processes this uid owns (or as
+/// root); permission-denied on someone else's process is expected, not an
+/// error, so it degrades to 0 rather than dropping the row.
+fn read_proc_io(pid: i32) -> (u64, u64) {
+    let Ok(s) = fs::read_to_string(format!("/proc/{pid}/io")) else { return (0, 0) };
+    let get = |k: &str| -> u64 {
+        s.lines()
+            .find(|l| l.starts_with(k))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0)
+    };
+    (get("read_bytes:"), get("write_bytes:"))
+}
+
+/// Field 2 of /proc/<pid>/schedstat: cumulative nanoseconds this task spent
+/// RUNNABLE but waiting for a CPU. This is a per-process PROXY for pressure,
+/// NOT real PSI — /proc/pressure only publishes system-wide cpu/io/memory
+/// figures, there is no per-task PSI in the kernel. Named runq_wait_pct
+/// (never psi) so nothing downstream mistakes it for the real thing: it is
+/// "share of this sample window this task spent waiting for a CPU it didn't
+/// get", which is the practical stand-in the task asked for.
+fn read_proc_runq_wait_ns(pid: i32) -> Option<u64> {
+    let s = fs::read_to_string(format!("/proc/{pid}/schedstat")).ok()?;
+    let f: Vec<&str> = s.split_whitespace().collect();
+    f.get(1)?.parse().ok()
+}
+
+/// Builds the `proc_table` JSON array: top-N by CPU% among all processes
+/// readable right now, with the rate fields computed as deltas against
+/// `prev` (the previous tick's raw counters) rather than passed through
+/// cumulative. Returns the JSON plus the raw-counter map for every process
+/// actually sampled this tick, which becomes `prev` for the next call.
+fn build_proc_table(
+    n: usize,
+    prev: &HashMap<i32, ProcSample>,
+    secs: f64,
+    total_mem_kb: f64,
+    protected: &[String],
+    uid_names: &HashMap<u32, String>,
+) -> (String, HashMap<i32, ProcSample>) {
+    struct Row {
+        pid: i32,
+        name: String,
+        uid: u32,
+        rss_kb: f64,
+        cpu_pct: f64,
+        mem_pct: f64,
+        read_bps: f64,
+        write_bps: f64,
+        runq_wait_pct: f64,
+    }
+
+    let mut next: HashMap<i32, ProcSample> = HashMap::new();
+    let mut rows: Vec<Row> = Vec::new();
+    let Ok(rd) = fs::read_dir("/proc") else { return ("[]".into(), next) };
+
+    for e in rd.flatten() {
+        let name_os = e.file_name();
+        let Some(nm) = name_os.to_str() else { continue };
+        let Ok(pid) = nm.parse::<i32>() else { continue };
+
+        let Ok(status) = fs::read_to_string(format!("/proc/{pid}/status")) else { continue };
+        let rss_kb: f64 = status
+            .lines()
+            .find(|l| l.starts_with("VmRSS:"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|x| x.parse().ok())
+            .unwrap_or(0.0);
+        let comm = status
+            .lines()
+            .find(|l| l.starts_with("Name:"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .unwrap_or("?")
+            .to_string();
+        let uid: u32 = status
+            .lines()
+            .find(|l| l.starts_with("Uid:"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|x| x.parse().ok())
+            .unwrap_or(0);
+
+        let cpu_ticks = read_proc_cpu_ticks(pid).unwrap_or(0);
+        let (read_bytes, write_bytes) = read_proc_io(pid);
+        let runq_wait_ns = read_proc_runq_wait_ns(pid).unwrap_or(0);
+
+        let sample = ProcSample { cpu_ticks, read_bytes, write_bytes, runq_wait_ns };
+        let p = prev.get(&pid);
+
+        let cpu_pct = p
+            .map(|p| {
+                if secs <= 0.0 { 0.0 } else {
+                    (cpu_ticks.saturating_sub(p.cpu_ticks) as f64 / clk_tck()) / secs * 100.0
+                }
+            })
+            .unwrap_or(0.0);
+        let (read_bps, write_bps) = p
+            .map(|p| {
+                if secs <= 0.0 { (0.0, 0.0) } else {
+                    (
+                        read_bytes.saturating_sub(p.read_bytes) as f64 / secs,
+                        write_bytes.saturating_sub(p.write_bytes) as f64 / secs,
+                    )
+                }
+            })
+            .unwrap_or((0.0, 0.0));
+        let runq_wait_pct = p
+            .map(|p| {
+                if secs <= 0.0 { 0.0 } else {
+                    (runq_wait_ns.saturating_sub(p.runq_wait_ns) as f64 / 1_000_000_000.0) / secs * 100.0
+                }
+            })
+            .unwrap_or(0.0);
+
+        next.insert(pid, sample);
+
+        // First sample for a pid (no `prev` entry) has no valid rate yet —
+        // skip the row rather than publish a fake 0%/spike; it will appear
+        // next tick once a delta exists.
+        if p.is_none() {
+            continue;
+        }
+
+        rows.push(Row {
+            pid,
+            name: comm,
+            uid,
+            rss_kb,
+            cpu_pct,
+            mem_pct: if total_mem_kb > 0.0 { rss_kb / total_mem_kb * 100.0 } else { 0.0 },
+            read_bps,
+            write_bps,
+            runq_wait_pct,
+        });
+    }
+
+    rows.sort_unstable_by(|a, b| b.cpu_pct.partial_cmp(&a.cpu_pct).unwrap_or(std::cmp::Ordering::Equal));
+    rows.truncate(n);
+
+    let items: Vec<String> = rows
+        .iter()
+        .map(|r| {
+            let safe_name: String = r.name.chars().filter(|c| c.is_alphanumeric() || "-_.".contains(*c)).collect();
+            let user = uid_names.get(&r.uid).cloned().unwrap_or_else(|| r.uid.to_string());
+            let safe_user: String = user.chars().filter(|c| c.is_alphanumeric() || "-_.".contains(*c)).collect();
+            let (is_protected, reason) = if r.pid == 1 {
+                (true, "pid 1 (init)".to_string())
+            } else if let Some(slice) = proc_protected_slice(r.pid, protected) {
+                (true, format!("in protected slice {slice}"))
+            } else {
+                (false, String::new())
+            };
+            format!(
+                "{{\"pid\":{},\"name\":\"{safe_name}\",\"user\":\"{safe_user}\",\
+                  \"cpu_pct\":{:.1},\"mem_rss_bytes\":{:.0},\"mem_pct\":{:.2},\
+                  \"read_bytes_per_s\":{:.0},\"write_bytes_per_s\":{:.0},\
+                  \"runq_wait_pct\":{:.2},\"protected\":{is_protected},\
+                  \"protected_reason\":{}}}",
+                r.pid, r.cpu_pct, r.rss_kb * 1024.0, r.mem_pct, r.read_bps, r.write_bps, r.runq_wait_pct,
+                if is_protected { format!("\"{}\"", json_escape(&reason)) } else { "null".to_string() },
+            )
+        })
+        .collect();
+
+    (format!("[{}]", items.join(",")), next)
 }
 
 // Disk throughput, matching the panel's disk/all/read + disk/all/write.
@@ -665,6 +963,7 @@ fn render(
     slice_cur: f64, slice_max: f64,
     battery: &Option<BatteryReading>,
     procs: &str,
+    proc_table: &str,
 ) -> String {
     // Named, not positional: this format string mixes inline-captured names
     // with `{}` holes, and when the cores list was positional it was simply
@@ -690,7 +989,7 @@ fn render(
           \"psi\":{{\"cpu\":{},\"io\":{},\"memory\":{}}},\
           \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\"slice_pct\":{slice_pct:.1},\
           \"battery\":{},\
-          \"procs\":{procs},\"ts\":{}}}",
+          \"procs\":{procs},\"proc_table\":{proc_table},\"ts\":{}}}",
         vram_json(vram),
         pressure_block("cpu"),
         pressure_block("io"),
@@ -733,6 +1032,12 @@ fn drain_kill_requests() {
     let req = PathBuf::from(&dir).join("my-konsole-watchdog.kill");
     let Ok(body) = fs::read_to_string(&req) else { return };
     let _ = fs::remove_file(&req);
+    // Loaded fresh per drain (not cached in `spawn`'s state) so an edit to
+    // protected-slices.json takes effect on the very next kill request, not
+    // after a daemon restart — and so this enforcement point never trusts
+    // whatever the QML layer decided to show/disable, since that is only a
+    // UI convenience, not the safety boundary.
+    let protected = load_protected_slices();
     for line in body.lines() {
         let mut it = line.split_whitespace();
         let Some(Ok(pid)) = it.next().map(|x| x.parse::<i32>()) else { continue };
@@ -746,6 +1051,10 @@ fn drain_kill_requests() {
         // that feeds it, which would leave the widget frozen and blameless.
         if pid <= 1 || pid == std::process::id() as i32 {
             eprintln!("[watchdog] refusing to signal pid {pid}");
+            continue;
+        }
+        if let Some(slice) = proc_protected_slice(pid, &protected) {
+            eprintln!("[watchdog] refusing to signal pid {pid}: in protected slice {slice}");
             continue;
         }
         unsafe { libc::kill(pid, signum) };
@@ -771,10 +1080,12 @@ pub fn spawn() {
         eprintln!("[watchdog] no XDG_RUNTIME_DIR — not publishing metrics");
         return;
     };
+    let ptn = proc_table_n();
     std::thread::spawn(move || {
         let (mut prev, mut prev_cores) = read_cpu_all();
         let mut prev_disk = read_diskstats();
         let mut prev_net = read_net();
+        let mut prev_proc_table: HashMap<i32, ProcSample> = HashMap::new();
         loop {
             std::thread::sleep(std::time::Duration::from_millis(INTERVAL_MS));
             drain_kill_requests();
@@ -800,6 +1111,19 @@ pub fn spawn() {
 
             let (mem, swap, mem_detail, swap_detail) = meminfo_all();
             let (slice_cur, slice_max) = slice_mem();
+
+            let protected_slices = load_protected_slices();
+            let uid_names = read_uid_names();
+            let (proc_table_json, next_proc_table) = build_proc_table(
+                ptn,
+                &prev_proc_table,
+                INTERVAL_MS as f64 / 1000.0,
+                mem_total_kb(),
+                &protected_slices,
+                &uid_names,
+            );
+            prev_proc_table = next_proc_table;
+
             let body = render(
                 cpu, &cores, mem, swap,
                 &mem_detail, &swap_detail,
@@ -811,6 +1135,7 @@ pub fn spawn() {
                 slice_cur, slice_max,
                 &read_battery(),
                 &top_procs(12),
+                &proc_table_json,
             );
             publish(&path, &body);
         }
@@ -856,11 +1181,12 @@ mod tests {
                        disks,
                        Some((1024.0, 512.0)),
                        0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6,
-                       &None, "[]");
+                       &None, "[]", "[]");
         for k in ["cpu", "cores", "mem", "swap", "mem_detail", "swap_detail",
                   "vram", "disk", "disk_r", "disk_w", "disks",
                   "net_rx", "net_tx", "load1", "load5", "load15",
-                  "psi", "slice_gib", "slice_max_gib", "slice_pct", "battery", "procs", "ts"] {
+                  "psi", "slice_gib", "slice_max_gib", "slice_pct", "battery", "procs",
+                  "proc_table", "ts"] {
             assert!(s.contains(&format!("\"{k}\":")), "missing {k} in {s}");
         }
         assert!(s.starts_with('{') && s.ends_with('}'), "not an object: {s}");
@@ -869,13 +1195,13 @@ mod tests {
         // machines without a readable GPU VRAM counter), not an absent key.
         let s2 = render(12.5, &[], 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
-                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]");
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]", "[]");
         assert!(s2.contains("\"vram\":null"), "expected null vram, got {s2}");
 
         // slice_pct must be 0.0, not NaN/Infinity, when slice_max is 0.
         let s3 = render(12.5, &[], 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
-                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]");
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]", "[]");
         assert!(s3.contains("\"slice_pct\":0.0"), "expected 0.0 slice_pct, got {s3}");
     }
 
