@@ -3,10 +3,35 @@ import { readFile, stat, lstat, readlink, readdir } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { homedir } from 'node:os';
 import process from 'node:process';
+// node:sea — present since Node 20, but only "active" (isSea() === true) when
+// this file is running as a compiled Single Executable Application binary
+// (node --experimental-sea-config + postject). `marked.min.js` and
+// `github-markdown-dark.css` are embedded into the binary as SEA assets at
+// build time (see httpd-web-server-json-md-eruda.sea-config.json) so the
+// shipped release artifact is one file with no sidecar libs to fetch
+// separately. Plain `node httpd-web-server-json-md-eruda.mjs` (local dev)
+// still works — isSea() is false there and getLibAsset() falls back to a
+// normal fs read from LIB_DIR below.
+import { isSea, getAsset } from 'node:sea';
 
 const PORT = parseInt(process.argv[2] || '8000');
 const ROOT = process.argv[3] || process.env.HOME || '.';
 const LIB_DIR = join(homedir(), '.local/lib/httpd');
+
+// SEA-embedded assets (see import comment above). Only marked.min.js and
+// github-markdown-dark.css are baked into the binary — browse.html is not
+// (kept small/rare enough to just read from disk) and still requires
+// LIB_DIR to be populated when running as the compiled binary.
+const SEA_ASSETS = new Set(['marked.min.js', 'github-markdown-dark.css']);
+
+async function getLibAsset(libFile) {
+  if (SEA_ASSETS.has(libFile) && isSea()) {
+    try {
+      return Buffer.from(getAsset(libFile));
+    } catch { /* fall through to fs read */ }
+  }
+  return readFile(join(LIB_DIR, libFile)).catch(() => null);
+}
 const VERBOSE = process.env.HTTPD_VERBOSE !== '0';  // default ON; set HTTPD_VERBOSE=0 to silence
 
 const ERUDA_SCRIPT = `<script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init();</script>`;
@@ -522,8 +547,7 @@ const server = createServer(async (req, res) => {
         res.writeHead(404, { 'content-type': 'text/plain' });
         return res.end('Not found');
       }
-      const libPath = join(LIB_DIR, libFile);
-      const data = await readFile(libPath).catch(() => null);
+      const data = await getLibAsset(libFile);
       if (!data) {
         res.writeHead(404, { 'content-type': 'text/plain' });
         return res.end('Lib file not found');
@@ -674,7 +698,7 @@ function startupBanner() {
   const url = `http://127.0.0.1:${PORT}`;
   const lines = [
     '',
-    `${C.bold}${C.green}━━━ web-server-md-eruda ━━━${C.reset}`,
+    `${C.bold}${C.green}━━━ httpd-web-server-json-md-eruda ━━━${C.reset}`,
     `  ${C.dim}url       ${C.reset}${C.cyan}${url}/${C.reset}`,
     `  ${C.dim}root      ${C.reset}${ROOT}`,
     `  ${C.dim}lib_dir   ${C.reset}${LIB_DIR}`,

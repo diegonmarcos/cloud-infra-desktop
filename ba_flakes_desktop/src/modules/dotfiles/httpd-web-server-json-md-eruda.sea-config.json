@@ -1,0 +1,9 @@
+{
+  "main": "httpd-web-server-json-md-eruda.mjs",
+  "output": "sea-prep.blob",
+  "disableExperimentalSEAWarning": true,
+  "assets": {
+    "marked.min.js": "httpd-lib/marked.min.js",
+    "github-markdown-dark.css": "httpd-lib/github-markdown-dark.css"
+  }
+}

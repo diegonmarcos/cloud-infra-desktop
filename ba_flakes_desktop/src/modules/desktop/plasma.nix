@@ -68,7 +68,7 @@ in
     APPLETS_FILE="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
     if [ -f "$APPLETS_FILE" ]; then
       # Ours — the my-konsole tray daemon's ids (configs/systrays.json).
-      OURS="cloud-systray,docker-systray,http-dev-systray,my-ai-systray,nix-flakes-systray,vault-systray,watchdog-systray,workflow-systray"
+      OURS="cloud-systray,docker-systray,httpd-web-server-json-md-eruda-systray,my-ai-systray,nix-flakes-systray,vault-systray,watchdog-systray,workflow-systray"
       # KDE's own indicators.
       SYSTEM="org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.clipboard,org.kde.plasma.devicenotifier,org.kde.plasma.notifications,org.kde.kdeconnect,org.kde.kscreen,org.kde.plasma.cameraindicator,org.kde.plasma.manage-inputmethod,org.kde.plasma.mediacontroller"
       # Keyboard layout/indicator: a single-layout machine, so it is a letter
