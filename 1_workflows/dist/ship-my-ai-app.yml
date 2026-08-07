@@ -126,11 +126,18 @@ jobs:
           }
           JSON
 
+          cat > bb_flakes_termux/src/pkgs/my-ai-hashes.json <<JSON
+          {
+            "my-ai": "$aarch64_my_ai",
+            "my-ai-dash": "$aarch64_dash"
+          }
+          JSON
+
       - name: Commit updated hashes
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add da_my-ai/nix/hashes.json
+          git add da_my-ai/nix/hashes.json bb_flakes_termux/src/pkgs/my-ai-hashes.json
           git diff --cached --quiet || \
             git commit -m "chore: update my-ai nix/hashes.json [skip ci]"
           git push
