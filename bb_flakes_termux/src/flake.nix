@@ -247,22 +247,9 @@
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
               pkgsNew.nodejs_22
 
-              # my-ai: pull ONLY the prebuilt aarch64 binary from the GH release.
-              # The flake builds NOTHING and references NOTHING from da_my-ai — it
-              # just fetches the artifact. my-ai carries its own scripts
-              # (claude-superset, goose/claude supervision wrappers, dash), baked
-              # into the binary at GHA build time. The release binary is already
-              # patchelf'd to nix store paths (interpreter + RUNPATH → /nix/store
-              # glibc & gcc-lib) so nix's scanner adds them to the closure — no
-              # autoPatchelfHook needed. Hash is inlined (bumped by
-              # ship-my-ai-app.yml); no ../../ ref keeps this a self-contained
-              # path: flake (nix copies only src/, never the 3.6GB repo).
-              (pkgs.runCommandLocal "my-ai" {
-                src = pkgs.fetchurl {
-                  url  = "https://github.com/diegonmarcos/unix/releases/download/my-ai-latest/my-ai-aarch64";
-                  hash = "sha256-Wa1huOrB9w7rcI7Jvcduj2sKraoRCq4bFpNWtKF+vwg=";
-                };
-              } "install -Dm755 $src $out/bin/my-ai")
+              # my-ai: fetch + autoPatchelf + install both my-ai and my-ai-dash.
+              # Hashes live in pkgs/my-ai-hashes.json (bumped by ship-my-ai-app.yml).
+              (pkgs.callPackage ./pkgs/my-ai.nix {})
 
               # 3. SYNC — unified sync engine (git + rclone)
               # Source: ~/git/tools/a-sync/sync.sh
