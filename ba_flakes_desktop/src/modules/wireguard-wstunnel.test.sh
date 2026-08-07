@@ -10,6 +10,12 @@ set -euo pipefail
 
 MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MOD_FILE="$MOD_DIR/wireguard-wstunnel.nix"
+# Shell bodies were extracted out of the .nix into sibling writeShellApplication
+# scripts; assertions about script *content* must look at those files, while
+# assertions about Nix wiring keep looking at $MOD_FILE.
+HELPER_SH="$MOD_DIR/wireguard-wstunnel.sh"
+RENDER_SH="$MOD_DIR/wireguard-wstunnel-render.sh"
+ALL_SRC="$MOD_FILE $HELPER_SH $RENDER_SH"
 SIBLING_BUILD_JSON="$HOME/git/cloud/a_solutions/bb-net_wireguard-mesh-ws-tunnel/build.json"
 
 pass=0; fail=0
@@ -76,19 +82,19 @@ grep -q 'restrict-http-upgrade-path-prefix' "$MOD_FILE" \
 echo "▶ Phase 6 · wg-tcp helper script"
 grep -q 'home\.file\."\.local/bin/wg-tcp"' "$MOD_FILE" && ok "wg-tcp helper script declared in home.file" || nope "helper script missing"
 # Helper has bash case branches: `up)`, `down)`, `status)`
-grep -qE '^\s*(up|down|status)\)' "$MOD_FILE" \
+grep -qE '^\s*(up|down|status)\)' $HELPER_SH \
   && ok "helper has up/down/status case branches" \
   || nope "helper modes missing"
 
 # ── Phase 6b · NetworkManager auto-import ───────────────────────────────
 echo "▶ Phase 6b · NetworkManager auto-import (KDE applet visible)"
-grep -q 'nmcli connection import type wireguard' "$MOD_FILE" \
+grep -q 'nmcli connection import type wireguard\|connection import type wireguard' $RENDER_SH \
   && ok "module imports wg0-tcp.conf into NetworkManager (KDE applet sees it)" \
   || nope "no nmcli import — wg0-tcp won't appear in KDE network applet"
-grep -q "grep -qx 'wg0-tcp'" "$MOD_FILE" \
+grep -q 'grep -qx' $RENDER_SH \
   && ok "import is idempotent (skips if profile already exists)" \
   || nope "no idempotency guard — re-runs may duplicate the profile"
-grep -q 'autoconnect no' "$MOD_FILE" \
+grep -q 'autoconnect no' $RENDER_SH \
   && ok "imported profile defaults to autoconnect=no (opt-in fallback)" \
   || nope "should set autoconnect=no — wg0 stays primary, wg0-tcp is fallback only"
 
