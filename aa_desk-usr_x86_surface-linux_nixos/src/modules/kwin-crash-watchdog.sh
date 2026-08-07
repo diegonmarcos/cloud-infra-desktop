@@ -44,10 +44,12 @@ LAST_RESET=$(date +%s)
     LAST_RESET=$NOW
   fi
 
-  # Detect crash indicators
+  # Detect crash indicators.
+  # No *"Compositor crashed"* arm: *"crash"* already subsumes it, and shellcheck
+  # rejects the dead pattern (SC2221/SC2222). The comment lives ABOVE the case
+  # rather than in front of a branch -- shellcheck parses a comment there as a
+  # misplaced directive (SC1124) and then fails to parse the case at all.
   case "$line" in
-    # No *"Compositor crashed"* arm: *"crash"* already subsumes it, and
-    # shellcheck rejects the dead pattern (SC2221/SC2222), failing the build.
     *"terminated"*|*"crash"*|*"SEGV"*|*"signal 11"*)
       CRASH_COUNT=$((CRASH_COUNT + 1))
       echo "[kwin-watchdog] KWin crash detected ($CRASH_COUNT/$THRESHOLD in ${WINDOW}s window)"
