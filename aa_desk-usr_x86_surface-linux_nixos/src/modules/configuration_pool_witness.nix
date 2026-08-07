@@ -20,12 +20,31 @@
 #
 # This adds zero runtime overhead beyond a 16-byte write at mount/unmount.
 { config, pkgs, lib, ... }:
+let
+  witnessDir = "/mnt/shared/.pool-witness";
+
+  # pool-witness-stamp-on-mount: shell body lives in
+  # ./pool-witness-stamp-on-mount.sh, data-driven at runtime from
+  # /etc/cloud-data/pool-witness.json (declared below).
+  poolWitnessStampOnMount = pkgs.writeShellApplication {
+    name = "pool-witness-stamp-on-mount";
+    runtimeInputs = with pkgs; [ coreutils util-linux jq ];
+    text = builtins.readFile ./pool-witness-stamp-on-mount.sh;
+  };
+in
 {
+  # Runtime data for pool-witness-stamp-on-mount (new cloud-data path —
+  # verified against the already-declared environment.etc."cloud-data/..."
+  # set, no collisions).
+  environment.etc."cloud-data/pool-witness.json".text = builtins.toJSON {
+    witness_dir = witnessDir;
+  };
+
   # Ensure the on-pool witness directory exists (tmpfiles runs at boot).
   # /run/pool-witness and /var/lib/pool-witness are managed declaratively
   # by RuntimeDirectory= and StateDirectory= on the service units.
   systemd.tmpfiles.rules = [
-    "d /mnt/shared/.pool-witness 0700 root root -"
+    "d ${witnessDir} 0700 root root -"
   ];
 
   systemd.services."pool-witness-stamp-on-mount" = {
@@ -44,31 +63,8 @@
       RuntimeDirectoryMode = "0700";
       StateDirectory   = "pool-witness";
       StateDirectoryMode = "0700";
+      ExecStart        = "${poolWitnessStampOnMount}/bin/pool-witness-stamp-on-mount";
     };
-    path = with pkgs; [ coreutils util-linux ];
-    script = ''
-      set -eu
-
-      # Boot-time check: previous nonce on disk must match what we last wrote
-      # at clean shutdown. If mismatched, something else mounted the pool —
-      # log loudly so the hibernate preflight gate can refuse.
-      PREV=$(cat /mnt/shared/.pool-witness/id 2>/dev/null || echo "")
-      LAST=$(cat /var/lib/pool-witness/last-clean-mount.id 2>/dev/null || echo "")
-      if [ -n "$LAST" ] && [ -n "$PREV" ] && [ "$PREV" != "$LAST" ]; then
-        ${pkgs.util-linux}/bin/logger -t pool-witness -p user.crit \
-          "POOL MOUNTED OUT-OF-BAND: disk_nonce=$PREV expected=$LAST — hibernate will be refused this boot. Source: another OS or live-USB unlocked LUKS and mounted the pool."
-      fi
-
-      # Stamp this boot.
-      NEW=$(${pkgs.coreutils}/bin/head -c16 /dev/urandom \
-            | ${pkgs.coreutils}/bin/od -An -tx1 | tr -d ' \n')
-      echo "$NEW" > /mnt/shared/.pool-witness/id
-      echo "$NEW" > /run/pool-witness/current-mount.id
-      ${pkgs.coreutils}/bin/sync -f /mnt/shared/.pool-witness/id
-
-      ${pkgs.util-linux}/bin/logger -t pool-witness -p user.info \
-        "stamped nonce=$NEW for this NixOS boot"
-    '';
   };
 
   systemd.services."pool-witness-commit-on-shutdown" = {

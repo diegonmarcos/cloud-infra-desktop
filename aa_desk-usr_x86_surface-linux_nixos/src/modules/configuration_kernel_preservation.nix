@@ -76,105 +76,50 @@ let
     ++ lib.optional preserveFullSystem config.system.build.toplevel;
 
   # Recovery CLI — reads from the on-/boot cache, writes into a target store.
+  # Shell body lives in ./kernel-closure-restore.sh; runtime config comes
+  # from /etc/cloud-data/kernel-closure-preservation.json (declared below).
   kernelClosureRestore = pkgs.writeShellApplication {
     name = "kernel-closure-restore";
-    runtimeInputs = with pkgs; [ nix coreutils util-linux ];
-    text = ''
-      TARGET_NIX="''${1:-/mnt/nixos/nix}"
-      CACHE=${lib.escapeShellArg cache}
-
-      if [ ! -d "$CACHE" ]; then
-        echo "ERROR: kernel closure cache not found at $CACHE" >&2
-        echo "Was /boot mounted? Was a NixOS rebuild ever run on this host?" >&2
-        exit 1
-      fi
-
-      if [ ! -d "$TARGET_NIX/store" ] && [ "$TARGET_NIX" != "/nix" ]; then
-        echo "ERROR: target store $TARGET_NIX/store does not exist" >&2
-        echo "Mount the target nix store first (e.g. mount @nixos/nix at $TARGET_NIX)" >&2
-        exit 1
-      fi
-
-      echo "[kernel-closure-restore] importing from $CACHE → $TARGET_NIX"
-      ${pkgs.nix}/bin/nix --extra-experimental-features 'nix-command flakes' \
-        copy \
-        --no-check-sigs \
-        --from "file://$CACHE" \
-        --to "local?root=$TARGET_NIX&store=/nix/store" \
-        --all
-      echo "[kernel-closure-restore] done. Next nixos-install/rebuild reuses the cached kernel instead of rebuilding from source."
-    '';
+    runtimeInputs = with pkgs; [ nix coreutils util-linux jq ];
+    text = builtins.readFile ./kernel-closure-restore.sh;
   };
 
   # Manual on-demand backup (idempotent — same as the systemd unit's logic).
+  # Shell body lives in ./kernel-closure-backup.sh, data-driven at runtime
+  # from the same JSON.
   kernelClosureBackup = pkgs.writeShellApplication {
     name = "kernel-closure-backup";
-    runtimeInputs = with pkgs; [ nix coreutils util-linux findutils ];
-    text = ''
-      CACHE=${lib.escapeShellArg cache}
-      MIN_FREE_MIB=${toString minFreeMiB}
-
-      mkdir -p "$CACHE"
-
-      # ── Capacity gate ────────────────────────────────────────────────────
-      FREE_MIB=$(${pkgs.coreutils}/bin/df -BM --output=avail /boot \
-                  | tail -1 | tr -d 'M ')
-      if [ "$FREE_MIB" -lt "$MIN_FREE_MIB" ]; then
-        # NOTE: no backticks in this message — inside double quotes they are
-        # command substitution and would EXECUTE kernel-closure-prune.
-        ${pkgs.util-linux}/bin/logger -t kernel-closure-backup -p user.crit \
-          "REFUSED: /boot free=$FREE_MIB MiB < min=$MIN_FREE_MIB MiB. \
-Run 'kernel-closure-prune' or grow /boot (Phase 2)."
-        exit 1
-      fi
-
-      echo "[kernel-closure-backup] mirroring current kernel+initrd closure to $CACHE"
-      ${lib.concatMapStringsSep "\n" (p: ''
-        ${pkgs.nix}/bin/nix --extra-experimental-features 'nix-command flakes' \
-          copy --no-check-sigs \
-          --to "file://$CACHE?compression=zstd" \
-          ${p} || true
-      '') preservedPaths}
-
-      echo "[kernel-closure-backup] cache size now:"
-      ${pkgs.coreutils}/bin/du -sh "$CACHE" || true
-    '';
+    runtimeInputs = with pkgs; [ nix coreutils util-linux findutils jq ];
+    text = builtins.readFile ./kernel-closure-backup.sh;
   };
 
   # Retention pruner — drops narinfo files for kernel/initrd store paths
   # older than the most-recent maxGenerations. Run by a timer + after backup.
+  # Shell body lives in ./kernel-closure-prune.sh, data-driven at runtime
+  # from the same JSON.
   kernelClosurePrune = pkgs.writeShellApplication {
     name = "kernel-closure-prune";
-    runtimeInputs = with pkgs; [ coreutils findutils nix ];
-    text = ''
-      CACHE=${lib.escapeShellArg cache}
-      MAX_GEN=${toString maxGenerations}
-      [ -d "$CACHE" ] || exit 0
-
-      # For each derivation family (linux, initrd), keep the N newest by
-      # mtime, drop the rest. The cache's narinfo files reference nars by
-      # hash; we delete both halves for each pruned path.
-      for family in linux initrd-linux; do
-        # shellcheck disable=SC2012
-        old=$(${pkgs.coreutils}/bin/ls -t1 "$CACHE"/*.narinfo 2>/dev/null \
-              | ${pkgs.findutils}/bin/xargs -r ${pkgs.gnugrep}/bin/grep -l "StorePath:.*-$family-" \
-              | ${pkgs.coreutils}/bin/tail -n +"$((MAX_GEN + 1))" || true)
-        # Word-split on purpose: $old is a newline list of narinfo paths
-        # under $CACHE (no spaces — nix store hashes).
-        # shellcheck disable=SC2086
-        for nf in $old; do
-          nar=$(${pkgs.gnugrep}/bin/grep '^URL:' "$nf" | ${pkgs.coreutils}/bin/cut -d' ' -f2)
-          ${pkgs.coreutils}/bin/rm -f -- "$nf" "$CACHE/$nar"
-          echo "[prune] dropped $nf and $CACHE/$nar"
-        done
-      done
-      echo "[prune] cache size now:"
-      ${pkgs.coreutils}/bin/du -sh "$CACHE" || true
-    '';
+    runtimeInputs = with pkgs; [ coreutils findutils gnugrep nix jq util-linux ];
+    text = builtins.readFile ./kernel-closure-prune.sh;
   };
 
 in
 {
+  # Runtime data for kernel-closure-restore/backup/prune (new cloud-data
+  # path — verified against the already-declared
+  # environment.etc."cloud-data/..." set, no collisions). preserved_paths is
+  # evaluation-time data (the actual kernel/initrd/toplevel store paths for
+  # THIS system generation), not a user-tunable knob, so it's generated here
+  # via toJSON rather than hand-authored — but still read at runtime via jq
+  # like every other field, never Nix-interpolated into the .sh bodies.
+  environment.etc."cloud-data/kernel-closure-preservation.json".text =
+    builtins.toJSON {
+      inherit cache;
+      min_free_mib = minFreeMiB;
+      max_generations = maxGenerations;
+      preserved_paths = map (p: "${p}") preservedPaths;
+    };
+
   # ── /boot/.nix-kernel-closure as a PERMANENT Nix substituter ─────────────
   # This is the "kernel-specific nix-store" pattern (per user spec
   # 2026-05-16): make the on-/boot binary cache a first-class Nix
