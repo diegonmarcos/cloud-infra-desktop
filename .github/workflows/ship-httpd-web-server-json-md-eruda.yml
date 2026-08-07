@@ -13,7 +13,7 @@
 name: ship-httpd-web-server-json-md-eruda
 # Build httpd-web-server-json-md-eruda.mjs into a per-arch, single-file Node
 # Single Executable Application (SEA) binary — node --experimental-sea-config
-# + postject injection on pkgs.nodejs_20, no third-party bundler. The two
+# + postject injection on pkgs.nodejs_22, no third-party bundler. The two
 # runtime assets (marked.min.js, github-markdown-dark.css) are embedded into
 # the binary via the SEA config's `assets` map, so the shipped artifact has
 # no loose sidecar files. Publishes arch-suffixed binaries to a rolling
@@ -66,12 +66,12 @@ jobs:
 
       - name: Generate SEA prep blob
         run: |
-          nix shell nixpkgs#nodejs_20 -c node --experimental-sea-config httpd-web-server-json-md-eruda.sea-config.json
+          nix shell nixpkgs#nodejs_22 -c node --experimental-sea-config httpd-web-server-json-md-eruda.sea-config.json
 
       - name: Inject blob into a node binary copy (postject)
         run: |
           OUT="httpd-web-server-json-md-eruda-${{ matrix.arch }}"
-          nix shell nixpkgs#nodejs_20 -c bash -c '
+          nix shell nixpkgs#nodejs_22 -c bash -c '
             set -e
             cp "$(command -v node)" "'"$OUT"'"
             npx --yes postject@1.0.0-alpha.6 "'"$OUT"'" NODE_SEA_BLOB sea-prep.blob \
