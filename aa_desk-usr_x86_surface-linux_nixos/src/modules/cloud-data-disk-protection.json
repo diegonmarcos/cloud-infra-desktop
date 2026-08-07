@@ -7,6 +7,7 @@
     "_comment": "HARD stop-the-bleeding tier, ABOVE every per-mount critical. RECLAIM-FIRST ORDER (2026-07-08 incident fix): the 2026-07-08 freeze was this tier firing every 5min, each time SIGTERM+FREEZING workload.slice BEFORE reclaim — but reclaim (docker prune of ~23GB dangling layers) would have freed the space with ZERO disruption. New order runs ALL reclaim first, then `recheck_gate` re-reads usage: if reclaim self-healed the mount (< pct), the freeze/kill/thaw are SKIPPED entirely — the box is never disrupted. Only if reclaim was insufficient does the last-resort freeze (pause writes, reversible) + kill (SIGTERM) run. `cooldown_minutes` prevents re-SIGTERM'ing the same slices every 5min when the disk is genuinely full of non-reclaimable data (that repeated kill was the spawn-storm that killed the session). `protected_slices` (os-essentials = ssh/wg/session/watchdog; connectivity = the untouchable island hosting freeze-guard) is NEVER killed or frozen. Defaults target workload.slice (background docker/nix-daemon), never the live desktop (user-1000.slice). recheck_gate MUST sit AFTER all reclaim and BEFORE freeze/kill; thaw MUST stay last (it always runs, defensively un-freezing even if a prior run stranded a slice).",
     "pct": 95,
     "cooldown_minutes": 30,
+    "no_mercy_pct": 99,
     "recheck_after_reclaim": true,
     "kill_slices":      ["workload.slice"],
     "freeze_slices":    ["workload.slice"],
@@ -27,12 +28,36 @@
         "actions_on_critical": ["alert_ntfy", "purge_tmp_worktrees", "purge_tmp_dotfiles", "purge_audit_old"]
       },
       {
-        "mount": "/home",
-        "description": "btrfs user data — slow-fill; primary dev workspace",
+        "mount": "/home/diego",
+        "description": "btrfs user data — slow-fill; primary dev workspace. MUST be /home/diego, not /home: /home itself is NOT a mountpoint (the subvolumes are @home-diego and @home-guest, mounted at /home/diego and /home/guest), so the watchdog's `mountpoint -q` guard silently skipped it and this volume was never checked once.",
         "warn_pct": 80,
         "critical_pct": 90,
         "actions_on_warn":     ["alert_ntfy"],
         "actions_on_critical": ["alert_ntfy", "cargo_sweep", "docker_prune_images"]
+      },
+      {
+        "mount": "/home/guest",
+        "description": "btrfs guest home — same subvolume family as /home/diego.",
+        "warn_pct": 80,
+        "critical_pct": 90,
+        "actions_on_warn":     ["alert_ntfy"],
+        "actions_on_critical": ["alert_ntfy"]
+      },
+      {
+        "mount": "/tmpfs",
+        "description": "tmpfs, size=2G. UNLIKE every btrfs entry here this has a REAL independent limit, and it is backed by RAM: filling it consumes 2G of an 8G machine, so a disk-fill here surfaces as an OOM kill rather than ENOSPC. Thresholds are deliberately tighter than the btrfs volumes because there is no reclaim path — nothing to GC, nothing to prune, the only fix is to stop the writer.",
+        "warn_pct": 70,
+        "critical_pct": 85,
+        "actions_on_warn":     ["alert_ntfy"],
+        "actions_on_critical": ["alert_ntfy"]
+      },
+      {
+        "mount": "/dev/shm",
+        "description": "tmpfs, defaults to 50% of RAM. Same RAM-backed hazard as /tmpfs — a leaking shm segment is invisible to every btrfs check in this file.",
+        "warn_pct": 70,
+        "critical_pct": 85,
+        "actions_on_warn":     ["alert_ntfy"],
+        "actions_on_critical": ["alert_ntfy"]
       },
       {
         "mount": "/mnt/shared",
