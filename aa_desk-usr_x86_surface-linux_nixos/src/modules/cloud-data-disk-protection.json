@@ -2,100 +2,168 @@
   "_comment": "Declarative disk-full defense. Source of truth for: per-mount watch thresholds, systemd-tmpfiles cleanup rules, journald limits, docker retention, and reclaim actions. Nix module `configuration_system-protection.nix` reads this file and generates systemd units + tmpfiles.d + logrotate rules. Change what gets protected = edit this file, `build.sh ship` home-manager.",
   "version": 1,
   "enabled": true,
-
   "emergency": {
-    "_comment": "HARD stop-the-bleeding tier, ABOVE every per-mount critical. RECLAIM-FIRST ORDER (2026-07-08 incident fix): the 2026-07-08 freeze was this tier firing every 5min, each time SIGTERM+FREEZING workload.slice BEFORE reclaim — but reclaim (docker prune of ~23GB dangling layers) would have freed the space with ZERO disruption. New order runs ALL reclaim first, then `recheck_gate` re-reads usage: if reclaim self-healed the mount (< pct), the freeze/kill/thaw are SKIPPED entirely — the box is never disrupted. Only if reclaim was insufficient does the last-resort freeze (pause writes, reversible) + kill (SIGTERM) run. `cooldown_minutes` prevents re-SIGTERM'ing the same slices every 5min when the disk is genuinely full of non-reclaimable data (that repeated kill was the spawn-storm that killed the session). `protected_slices` (os-essentials = ssh/wg/session/watchdog; connectivity = the untouchable island hosting freeze-guard) is NEVER killed or frozen. Defaults target workload.slice (background docker/nix-daemon), never the live desktop (user-1000.slice). recheck_gate MUST sit AFTER all reclaim and BEFORE freeze/kill; thaw MUST stay last (it always runs, defensively un-freezing even if a prior run stranded a slice).",
+    "_comment": "HARD stop-the-bleeding tier, ABOVE every per-mount critical. RECLAIM-FIRST ORDER (2026-07-08 incident fix): the 2026-07-08 freeze was this tier firing every 5min, each time SIGTERM+FREEZING workload.slice BEFORE reclaim \u2014 but reclaim (docker prune of ~23GB dangling layers) would have freed the space with ZERO disruption. New order runs ALL reclaim first, then `recheck_gate` re-reads usage: if reclaim self-healed the mount (< pct), the freeze/kill/thaw are SKIPPED entirely \u2014 the box is never disrupted. Only if reclaim was insufficient does the last-resort freeze (pause writes, reversible) + kill (SIGTERM) run. `cooldown_minutes` prevents re-SIGTERM'ing the same slices every 5min when the disk is genuinely full of non-reclaimable data (that repeated kill was the spawn-storm that killed the session). `protected_slices` (os-essentials = ssh/wg/session/watchdog; connectivity = the untouchable island hosting freeze-guard) is NEVER killed or frozen. Defaults target workload.slice (background docker/nix-daemon), never the live desktop (user-1000.slice). recheck_gate MUST sit AFTER all reclaim and BEFORE freeze/kill; thaw MUST stay last (it always runs, defensively un-freezing even if a prior run stranded a slice).",
     "pct": 95,
     "cooldown_minutes": 30,
     "no_mercy_pct": 99,
     "recheck_after_reclaim": true,
-    "kill_slices":      ["workload.slice"],
-    "freeze_slices":    ["workload.slice"],
-    "protected_slices": ["os-essentials.slice", "connectivity.slice"],
+    "kill_slices": [
+      "workload.slice"
+    ],
+    "freeze_slices": [
+      "workload.slice"
+    ],
+    "protected_slices": [
+      "os-essentials.slice",
+      "connectivity.slice"
+    ],
     "ntfy_priority": "urgent",
-    "actions": ["emergency_signal", "purge_tmp_worktrees", "purge_tmp_dotfiles", "purge_audit_old", "docker_prune_images", "docker_prune_builder", "docker_prune_volumes_dangling", "nix_gc_14d", "dev_store_gc", "recheck_gate", "freeze_nonsystem", "kill_nonsystem", "thaw_nonsystem"]
+    "actions": [
+      "emergency_signal",
+      "purge_tmp_worktrees",
+      "purge_tmp_dotfiles",
+      "purge_audit_old",
+      "docker_prune_images",
+      "docker_prune_builder",
+      "docker_prune_volumes_dangling",
+      "nix_gc_14d",
+      "dev_store_gc",
+      "recheck_gate",
+      "freeze_nonsystem",
+      "kill_nonsystem",
+      "thaw_nonsystem"
+    ]
   },
-
   "watches": {
     "_comment": "Per-mount threshold-triggered actions. `critical_pct` fires the action list. Actions defined in `actions` map below.",
     "mounts": [
       {
         "mount": "/",
-        "description": "tmpfs root — NixOS impermanence; filling blocks login, breaks systemd",
+        "description": "tmpfs root \u2014 NixOS impermanence; filling blocks login, breaks systemd",
         "warn_pct": 70,
         "critical_pct": 85,
-        "actions_on_warn":     ["alert_ntfy"],
-        "actions_on_critical": ["alert_ntfy", "purge_tmp_worktrees", "purge_tmp_dotfiles", "purge_audit_old"]
+        "actions_on_warn": [
+          "alert_ntfy"
+        ],
+        "actions_on_critical": [
+          "alert_ntfy",
+          "purge_tmp_worktrees",
+          "purge_tmp_dotfiles",
+          "purge_audit_old"
+        ]
       },
       {
         "mount": "/home/diego",
-        "description": "btrfs user data — slow-fill; primary dev workspace. MUST be /home/diego, not /home: /home itself is NOT a mountpoint (the subvolumes are @home-diego and @home-guest, mounted at /home/diego and /home/guest), so the watchdog's `mountpoint -q` guard silently skipped it and this volume was never checked once.",
+        "description": "btrfs user data \u2014 slow-fill; primary dev workspace. MUST be /home/diego, not /home: /home itself is NOT a mountpoint (the subvolumes are @home-diego and @home-guest, mounted at /home/diego and /home/guest), so the watchdog's `mountpoint -q` guard silently skipped it and this volume was never checked once.",
         "warn_pct": 80,
         "critical_pct": 90,
-        "actions_on_warn":     ["alert_ntfy"],
-        "actions_on_critical": ["alert_ntfy", "cargo_sweep", "docker_prune_images"]
+        "actions_on_warn": [
+          "alert_ntfy"
+        ],
+        "actions_on_critical": [
+          "alert_ntfy",
+          "cargo_sweep",
+          "docker_prune_images"
+        ]
       },
       {
         "mount": "/home/guest",
-        "description": "btrfs guest home — same subvolume family as /home/diego.",
+        "description": "btrfs guest home \u2014 same subvolume family as /home/diego.",
         "warn_pct": 80,
         "critical_pct": 90,
-        "actions_on_warn":     ["alert_ntfy"],
-        "actions_on_critical": ["alert_ntfy"]
+        "actions_on_warn": [
+          "alert_ntfy"
+        ],
+        "actions_on_critical": [
+          "alert_ntfy"
+        ]
       },
       {
         "mount": "/tmpfs",
-        "description": "tmpfs, size=2G. UNLIKE every btrfs entry here this has a REAL independent limit, and it is backed by RAM: filling it consumes 2G of an 8G machine, so a disk-fill here surfaces as an OOM kill rather than ENOSPC. Thresholds are deliberately tighter than the btrfs volumes because there is no reclaim path — nothing to GC, nothing to prune, the only fix is to stop the writer.",
+        "description": "tmpfs, size=2G. UNLIKE every btrfs entry here this has a REAL independent limit, and it is backed by RAM: filling it consumes 2G of an 8G machine, so a disk-fill here surfaces as an OOM kill rather than ENOSPC. Thresholds are deliberately tighter than the btrfs volumes because there is no reclaim path \u2014 nothing to GC, nothing to prune, the only fix is to stop the writer.",
         "warn_pct": 70,
         "critical_pct": 85,
-        "actions_on_warn":     ["alert_ntfy"],
-        "actions_on_critical": ["alert_ntfy"]
+        "actions_on_warn": [
+          "alert_ntfy"
+        ],
+        "actions_on_critical": [
+          "alert_ntfy"
+        ]
       },
       {
         "mount": "/dev/shm",
-        "description": "tmpfs, defaults to 50% of RAM. Same RAM-backed hazard as /tmpfs — a leaking shm segment is invisible to every btrfs check in this file.",
+        "description": "tmpfs, defaults to 50% of RAM. Same RAM-backed hazard as /tmpfs \u2014 a leaking shm segment is invisible to every btrfs check in this file.",
         "warn_pct": 70,
         "critical_pct": 85,
-        "actions_on_warn":     ["alert_ntfy"],
-        "actions_on_critical": ["alert_ntfy"]
+        "actions_on_warn": [
+          "alert_ntfy"
+        ],
+        "actions_on_critical": [
+          "alert_ntfy"
+        ]
       },
       {
         "mount": "/mnt/shared",
-        "description": "btrfs @shared — persistent app state, audit logs, configs",
+        "description": "btrfs @shared \u2014 persistent app state, audit logs, configs",
         "warn_pct": 80,
         "critical_pct": 90,
-        "actions_on_warn":     ["alert_ntfy"],
-        "actions_on_critical": ["alert_ntfy", "purge_audit_old", "docker_prune_images"]
+        "actions_on_warn": [
+          "alert_ntfy"
+        ],
+        "actions_on_critical": [
+          "alert_ntfy",
+          "purge_audit_old",
+          "docker_prune_images"
+        ]
       },
       {
         "mount": "/mnt/shared/data/containers",
         "description": "Docker/Podman storage (CLAUDE.md: data lives under @shared)",
         "warn_pct": 75,
         "critical_pct": 85,
-        "actions_on_warn":     ["alert_ntfy"],
-        "actions_on_critical": ["alert_ntfy", "docker_prune_images", "docker_prune_volumes_dangling"]
+        "actions_on_warn": [
+          "alert_ntfy"
+        ],
+        "actions_on_critical": [
+          "alert_ntfy",
+          "docker_prune_images",
+          "docker_prune_volumes_dangling"
+        ]
       },
       {
         "mount": "/nix",
-        "description": "Nix store — only shrinks via gc",
+        "description": "Nix store \u2014 only shrinks via gc",
         "warn_pct": 80,
         "critical_pct": 90,
-        "actions_on_warn":     ["alert_ntfy"],
-        "actions_on_critical": ["alert_ntfy", "nix_gc_14d"]
+        "actions_on_warn": [
+          "alert_ntfy"
+        ],
+        "actions_on_critical": [
+          "alert_ntfy",
+          "nix_gc_14d"
+        ]
       },
       {
         "mount": "/mnt/shared-lib",
-        "description": "p5 ext4 — Docker data-root + the dev-store chroot Nix store (~25G dev toolchain off the pool)",
+        "description": "p5 ext4 \u2014 Docker data-root + the dev-store chroot Nix store (~25G dev toolchain off the pool)",
         "warn_pct": 80,
         "critical_pct": 90,
-        "actions_on_warn":     ["alert_ntfy"],
-        "actions_on_critical": ["alert_ntfy", "docker_prune_images", "docker_prune_builder", "docker_prune_volumes_dangling", "dev_store_gc"]
+        "actions_on_warn": [
+          "alert_ntfy"
+        ],
+        "actions_on_critical": [
+          "alert_ntfy",
+          "docker_prune_images",
+          "docker_prune_builder",
+          "docker_prune_volumes_dangling",
+          "dev_store_gc"
+        ]
       }
     ]
   },
-
   "btrfs_qgroups": {
-    "_comment": "WHY THIS SECTION EXISTS: the pool `/dev/mapper/pool` (~80G, ~64G used) hosts multiple btrfs subvolumes (@home-diego, @home-guest, @shared, @nixos/nix, @shared/tmp, @shared/journal) that ALL share one free-space pool. Without btrfs qgroups (quotas), `df` on every one of those mountpoints reports the SAME pool-wide used/avail numbers — there is no such thing as '/home/diego is at 95%' while the pool is at 60%, because df has no per-subvolume concept to report. The `watches.mounts` df-based checks above are therefore only ever measuring the WHOLE POOL's fill level once per subvolume that happens to live on it; a single subvolume silently ballooning (e.g. runaway ~/.cache, a leaked docker overlay, a git worktree explosion under /home/diego) is invisible until the pool itself is critical, by which point every subvolume on it is equally starved. Enabling btrfs qgroups makes per-subvolume accounting EXIST: each subvolume gets a 0/<subvolid> qgroup with its own `rfer` (referenced bytes) and, if `limit_gib` is set, a kernel-ENFORCED `max_rfer` cap that ENOSPCs writes to that subvolume specifically once it is hit — independent of how much free space the pool has left. That is what lets the watchdog answer 'is THIS subvolume overfull', which today is unrepresentable. WARNING — ACTIVATION COST: the FIRST `btrfs quota enable` on a filesystem that has never had quotas triggers a full one-time qgroup rescan (btrfs walks every extent to build initial accounting) — this is IO- and CPU-heavy and, on this ~64G-used pool, can take from a couple of minutes to tens of minutes depending on extent count/fragmentation, during which btrfs qgroup numbers are provisional (`btrfs qgroup show` shows a rescan-in-progress state) and filesystem IO latency is elevated. Do this at a time you can tolerate it, not mid-build. Every subsequent boot is a no-op (btrfs-qgroup-setup.sh checks `btrfs qgroup show` output first and only calls `quota enable` if it reports disabled). `limit_gib` is OPTIONAL per entry: leave it unset/null to get accounting + watchdog alerting with NO kernel-enforced cap (soft monitoring only); set it to also let the kernel itself refuse writes past that size regardless of what the watchdog does or how busy it is.",
+    "_comment": "WHY THIS SECTION EXISTS: the pool `/dev/mapper/pool` (~80G, ~64G used) hosts multiple btrfs subvolumes (@home-diego, @home-guest, @shared, @nixos/nix, @shared/tmp, @shared/journal) that ALL share one free-space pool. Without btrfs qgroups (quotas), `df` on every one of those mountpoints reports the SAME pool-wide used/avail numbers \u2014 there is no such thing as '/home/diego is at 95%' while the pool is at 60%, because df has no per-subvolume concept to report. The `watches.mounts` df-based checks above are therefore only ever measuring the WHOLE POOL's fill level once per subvolume that happens to live on it; a single subvolume silently ballooning (e.g. runaway ~/.cache, a leaked docker overlay, a git worktree explosion under /home/diego) is invisible until the pool itself is critical, by which point every subvolume on it is equally starved. Enabling btrfs qgroups makes per-subvolume accounting EXIST: each subvolume gets a 0/<subvolid> qgroup with its own `rfer` (referenced bytes) and, if `limit_gib` is set, a kernel-ENFORCED `max_rfer` cap that ENOSPCs writes to that subvolume specifically once it is hit \u2014 independent of how much free space the pool has left. That is what lets the watchdog answer 'is THIS subvolume overfull', which today is unrepresentable. WARNING \u2014 ACTIVATION COST: the FIRST `btrfs quota enable` on a filesystem that has never had quotas triggers a full one-time qgroup rescan (btrfs walks every extent to build initial accounting) \u2014 this is IO- and CPU-heavy and, on this ~64G-used pool, can take from a couple of minutes to tens of minutes depending on extent count/fragmentation, during which btrfs qgroup numbers are provisional (`btrfs qgroup show` shows a rescan-in-progress state) and filesystem IO latency is elevated. Do this at a time you can tolerate it, not mid-build. Every subsequent boot is a no-op (btrfs-qgroup-setup.sh checks `btrfs qgroup show` output first and only calls `quota enable` if it reports disabled). `limit_gib` is OPTIONAL per entry: leave it unset/null to get accounting + watchdog alerting with NO kernel-enforced cap (soft monitoring only); set it to also let the kernel itself refuse writes past that size regardless of what the watchdog does or how busy it is.",
     "enabled": false,
     "filesystem_mount": "/mnt/btrfs-root",
     "subvolumes": [
@@ -106,7 +174,7 @@
         "warn_pct": 80,
         "critical_pct": 90,
         "emergency_pct": 95,
-        "description": "primary dev workspace — most likely to runaway (git worktrees, caches, containers under home)"
+        "description": "primary dev workspace \u2014 most likely to runaway (git worktrees, caches, containers under home)"
       },
       {
         "mount": "/home/guest",
@@ -115,7 +183,7 @@
         "warn_pct": 80,
         "critical_pct": 90,
         "emergency_pct": 95,
-        "description": "guest home — hard-capped at 15G so a guest session can never starve diego's workspace or the pool"
+        "description": "guest home \u2014 hard-capped at 15G so a guest session can never starve diego's workspace or the pool"
       },
       {
         "mount": "/mnt/shared",
@@ -124,7 +192,7 @@
         "warn_pct": 80,
         "critical_pct": 90,
         "emergency_pct": 95,
-        "description": "persistent app state/audit logs — includes @shared/tmp and @shared/journal as nested subvols, watched separately by their own mountpoints"
+        "description": "persistent app state/audit logs \u2014 includes @shared/tmp and @shared/journal as nested subvols, watched separately by their own mountpoints"
       },
       {
         "mount": "/nix",
@@ -133,11 +201,10 @@
         "warn_pct": 80,
         "critical_pct": 90,
         "emergency_pct": 95,
-        "description": "nix store — only shrinks via gc, same threshold family as the existing df-based /nix watch"
+        "description": "nix store \u2014 only shrinks via gc, same threshold family as the existing df-based /nix watch"
       }
     ]
   },
-
   "tmpfiles_rules": {
     "_comment": "Written to /etc/tmpfiles.d/50-cloud-data-disk-protection.conf via nix module. Format: `d <path> - - - <age> -`. Age in d (days), h (hours), m (minutes).",
     "rules": [
@@ -160,9 +227,8 @@
       "L+ /var/lib/systemd/coredump    - - -    -    /mnt/shared/coredump",
       "d /mnt/shared-lib/dev-store      0755 diego users -"
     ],
-    "_comment_dev-store": "The last rule PROVISIONS (not cleans) a diego-owned DEV-STORE root on /mnt/shared-lib (p5, ~83G free) — a chroot Nix store (storeDir=/nix/store) holding the heavy dev toolchain (~25G) OFF the 80G pool. /mnt/shared-lib is root-owned ext4 so the user-tier home-manager cannot create it; the NixOS host does, here. Populated by bc_flakes_dev-store/build.sh, entered via the `dev` bwrap shell. Supersedes the 2026-06-18 android-only dirs — android-emulator is now a normal dev leaf inside this store. Plan: 0_tasks/PLAN_dev-store-split.md."
+    "_comment_dev-store": "The last rule PROVISIONS (not cleans) a diego-owned DEV-STORE root on /mnt/shared-lib (p5, ~83G free) \u2014 a chroot Nix store (storeDir=/nix/store) holding the heavy dev toolchain (~25G) OFF the 80G pool. /mnt/shared-lib is root-owned ext4 so the user-tier home-manager cannot create it; the NixOS host does, here. Populated by bc_flakes_dev-store/build.sh, entered via the `dev` bwrap shell. Supersedes the 2026-06-18 android-only dirs \u2014 android-emulator is now a normal dev leaf inside this store. Plan: 0_tasks/PLAN_dev-store-split.md."
   },
-
   "tmp_mounts": {
     "_comment": "Dedicated /tmp (btrfs, persistent, 3d age) + /tmpfs (RAM, ephemeral, 1d age). Decouples scratch from the 2G impermanence root so a leaky script can no longer block login by filling /. Nix module `configuration_tmp.nix` reads this and generates fileSystems.* + tmpfiles D! rules + activation-script that creates missing btrfs subvolumes. Rationale: previously /tmp lived inside tmpfs root and routinely hit 97% from orphaned working copies (e.g. /tmp/cloud-clean-work).",
     "mounts": [
@@ -171,62 +237,79 @@
         "type": "btrfs",
         "subvol": "@shared/tmp",
         "device": "/dev/mapper/pool",
-        "options": ["compress=zstd", "noatime", "nofail", "x-systemd.device-timeout=10s"],
+        "options": [
+          "compress=zstd",
+          "noatime",
+          "nofail",
+          "x-systemd.device-timeout=10s"
+        ],
         "mode": "1777",
         "clean_on_boot": true,
         "max_age": "3d",
-        "description": "Large persistent scratch — wiped on boot, age 3 days. Use for build dirs, git worktrees, anything that might grow."
+        "description": "Large persistent scratch \u2014 wiped on boot, age 3 days. Use for build dirs, git worktrees, anything that might grow."
       },
       {
         "path": "/tmpfs",
         "type": "tmpfs",
         "size": "2G",
-        "options": ["size=2G", "mode=1777", "nosuid", "nodev"],
+        "options": [
+          "size=2G",
+          "mode=1777",
+          "nosuid",
+          "nodev"
+        ],
         "mode": "1777",
         "clean_on_boot": true,
         "max_age": "1d",
-        "description": "Fast RAM-backed scratch — 2G cap, wiped on every boot (tmpfs is RAM). Use for quick cache, ipc, workloads that benefit from RAM speed."
+        "description": "Fast RAM-backed scratch \u2014 2G cap, wiped on every boot (tmpfs is RAM). Use for quick cache, ipc, workloads that benefit from RAM speed."
       }
     ]
   },
-
   "journald_limits": {
-    "_comment": "systemd-journald.conf values — SINGLE SOURCE OF TRUTH, applied via configuration_system-protection-disk.nix `services.journald.extraConfig`. RATE-LIMITING (2026-07-08 incident fix): the freeze had ~87k journal lines/min from a systembus-notify restart loop + dead-unit polling, because rate-limiting was hardcoded OFF (RateLimitBurst=0) in configuration_persistence.nix. That log storm pegged the CPU and helped collapse the session. RateLimitBurst=10000 per RateLimitIntervalSec=30s caps any single service to ~20k lines/min (vs 87k) — a runaway unit can no longer flood journald/CPU. MaxLevelStore=info drops debug-spam from disk. persistence.nix now owns ONLY storage/sync/seal keys (no rate-limit, no levels) to avoid the previous two-writer collision.",
-    "SystemMaxUse":       "500M",
-    "SystemKeepFree":     "200M",
-    "RuntimeMaxUse":      "100M",
-    "MaxRetentionSec":    "14d",
-    "MaxFileSec":         "1d",
-    "ForwardToSyslog":    "no",
+    "_comment": "systemd-journald.conf values \u2014 SINGLE SOURCE OF TRUTH, applied via configuration_system-protection-disk.nix `services.journald.extraConfig`. RATE-LIMITING (2026-07-08 incident fix): the freeze had ~87k journal lines/min from a systembus-notify restart loop + dead-unit polling, because rate-limiting was hardcoded OFF (RateLimitBurst=0) in configuration_persistence.nix. That log storm pegged the CPU and helped collapse the session. RateLimitBurst=10000 per RateLimitIntervalSec=30s caps any single service to ~20k lines/min (vs 87k) \u2014 a runaway unit can no longer flood journald/CPU. MaxLevelStore=info drops debug-spam from disk. persistence.nix now owns ONLY storage/sync/seal keys (no rate-limit, no levels) to avoid the previous two-writer collision.",
+    "SystemMaxUse": "500M",
+    "SystemKeepFree": "200M",
+    "RuntimeMaxUse": "100M",
+    "MaxRetentionSec": "14d",
+    "MaxFileSec": "1d",
+    "ForwardToSyslog": "no",
     "RateLimitIntervalSec": "30s",
-    "RateLimitBurst":       "10000",
-    "MaxLevelStore":        "info",
-    "MaxLevelSyslog":       "info",
-    "MaxLevelKMsg":         "notice"
+    "RateLimitBurst": "10000",
+    "MaxLevelStore": "info",
+    "MaxLevelSyslog": "info",
+    "MaxLevelKMsg": "notice"
   },
-
   "journal_flood_guard": {
-    "_comment": "The invisible-failure-mode voter (2026-07-08). That freeze had a ~87k-lines/min journald storm (systembus-notify restart loop + dead-unit polling) that NO PSI voter could see — memory/cpu/io PSI were ~0 at slice level throughout, so freeze-guard never fired. This guard watches the AGGREGATE journal line-rate over a 60s window: if it exceeds `lines_per_min_max`, it finds the single loudest unit and restarts it (breaking a restart/poll loop at the source) + urgent ntfy. Complements the per-unit journald RateLimitBurst cap: that bounds ONE unit's rate; this bounds the aggregate and acts on the offender. Runs isolated in os-essentials.slice (idle IO) — deliberately NOT inside freeze-guard's loop, so a bug here can never take down the PSI killer. `never_restart` protects units whose restart would be harmful or pointless.",
+    "_comment": "The invisible-failure-mode voter (2026-07-08). That freeze had a ~87k-lines/min journald storm (systembus-notify restart loop + dead-unit polling) that NO PSI voter could see \u2014 memory/cpu/io PSI were ~0 at slice level throughout, so freeze-guard never fired. This guard watches the AGGREGATE journal line-rate over a 60s window: if it exceeds `lines_per_min_max`, it finds the single loudest unit and restarts it (breaking a restart/poll loop at the source) + urgent ntfy. Complements the per-unit journald RateLimitBurst cap: that bounds ONE unit's rate; this bounds the aggregate and acts on the offender. Runs isolated in os-essentials.slice (idle IO) \u2014 deliberately NOT inside freeze-guard's loop, so a bug here can never take down the PSI killer. `never_restart` protects units whose restart would be harmful or pointless.",
     "enabled": true,
     "interval_sec": 60,
     "lines_per_min_max": 40000,
     "restart_loudest_unit": true,
     "ntfy_priority": "urgent",
-    "never_restart": ["systemd-journald", "freeze-guard", "sshd", "dropbear", "journal-flood-guard", "disk-watchdog-v2", "init.scope", "systemd-logind", "dbus", "dbus-broker"]
+    "never_restart": [
+      "systemd-journald",
+      "freeze-guard",
+      "sshd",
+      "dropbear",
+      "journal-flood-guard",
+      "disk-watchdog-v2",
+      "init.scope",
+      "systemd-logind",
+      "dbus",
+      "dbus-broker"
+    ]
   },
-
   "docker_retention": {
     "_comment": "Weekly `docker system prune` guarded by free-space check. Only prunes when real disk is >75% full to avoid churning healthy state.",
     "enabled": true,
     "schedule": "weekly",
     "only_if_disk_pct_above": 75,
-    "prune_dangling_images":                true,
-    "prune_stopped_containers_older_than":  "7d",
-    "prune_dangling_volumes":               true,
-    "prune_unused_networks":                true,
-    "prune_build_cache_older_than":         "30d"
+    "prune_dangling_images": true,
+    "prune_stopped_containers_older_than": "7d",
+    "prune_dangling_volumes": true,
+    "prune_unused_networks": true,
+    "prune_build_cache_older_than": "30d"
   },
-
   "cargo_sweep": {
     "_comment": "cargo-sweep keeps ~/.cargo/target/ bounded. Runs weekly; keeps only targets touched in last `keep_days`.",
     "enabled": true,
@@ -234,30 +317,52 @@
     "keep_days": 30,
     "schedule": "weekly"
   },
-
   "nix_gc": {
     "_comment": "Nix store garbage collection. Keeps generations younger than `keep_days`.",
     "enabled": true,
     "keep_days": 14,
     "schedule": "weekly"
   },
-
+  "storage_maintenance": {
+    "_comment": "Daily (04:00) deep storage maintenance \u2014 configuration_system-protection-storage.nix / storage-maintenance.sh. Distinct from the disk-watchdog reclaim tier above: this is scheduled preventive housekeeping (cache/swap cleanup, journal vacuum, nix GC, docker/podman prune, btrfs balance + monthly scrub, fstrim), not threshold-triggered emergency reclaim.",
+    "enabled": true,
+    "btrfs_mounts": [
+      "/nix",
+      "/home/diego"
+    ],
+    "tmp_atime_days": 1,
+    "var_tmp_atime_days": 1,
+    "user_cache_atime_days": 7,
+    "journal": {
+      "vacuum_time": "7d",
+      "vacuum_size": "200M"
+    },
+    "nix_gc_keep_days": 7,
+    "docker": {
+      "builder_keep_storage": "2G"
+    },
+    "btrfs": {
+      "balance_data_usage_pct": 85,
+      "balance_metadata_usage_pct": 90,
+      "scrub_day_of_month": "01"
+    },
+    "fstrim_enabled": true
+  },
   "script_hygiene": {
     "_comment": "CI lint rules for scripts that create tmp dirs. Each violation fails CI.",
-    "require_exit_trap_on_mktemp":    true,
-    "require_exit_trap_on_workdir":   true,
+    "require_exit_trap_on_mktemp": true,
+    "require_exit_trap_on_workdir": true,
     "forbidden_patterns": [
       "mktemp -d(?!.*trap)",
       "TMPDIR=\\$\\(date[^)]+\\)"
     ],
     "ci_gate": true
   },
-
   "actions": {
     "_comment": "Action definitions. Nix module generates the corresponding ExecStart for disk-watchdog.service.",
     "alert_ntfy": {
       "type": "notify",
-      "via":  "ntfy",
+      "via": "ntfy",
       "topic": "diegonmarcos-infra",
       "priority": "high",
       "title_template": "disk-full {mount} {pct}%"
@@ -294,13 +399,13 @@
     },
     "docker_prune_builder": {
       "type": "exec",
-      "description": "Prune the docker BUILD CACHE (buildkit layers) — `docker builder prune -af`. Build cache is NEVER referenced by a running container (docker system df reports it 0 active), so pruning it all is 100% safe. Root cause of the 2026-07-10 freeze: p5 filled to 97% with ~16GB of build cache from image rebuild loops (waydroid/caddy/superset), which docker_prune_images (dangling images only) and nix_gc (pool, not p5) could NOT touch — so RECLAIM was always INSUFFICIENT and the guard fell through to freezing workload.slice. This is the reclaim action that actually frees that space.",
+      "description": "Prune the docker BUILD CACHE (buildkit layers) \u2014 `docker builder prune -af`. Build cache is NEVER referenced by a running container (docker system df reports it 0 active), so pruning it all is 100% safe. Root cause of the 2026-07-10 freeze: p5 filled to 97% with ~16GB of build cache from image rebuild loops (waydroid/caddy/superset), which docker_prune_images (dangling images only) and nix_gc (pool, not p5) could NOT touch \u2014 so RECLAIM was always INSUFFICIENT and the guard fell through to freezing workload.slice. This is the reclaim action that actually frees that space.",
       "safe_mode": true,
       "script": "docker builder prune -af"
     },
     "docker_prune_volumes_dangling": {
       "type": "exec",
-      "description": "Prune dangling docker volumes — NEVER named volumes",
+      "description": "Prune dangling docker volumes \u2014 NEVER named volumes",
       "safe_mode": true,
       "script": "docker volume prune -f --filter label!=keep"
     },
@@ -318,7 +423,7 @@
     },
     "emergency_signal": {
       "type": "signal",
-      "description": "VERBOSE journal (logger -t disk-emergency -p user.alert) + urgent ntfy + wall broadcast — explains which mount is full, the %, and exactly what the watchdog is about to do. The unmissable 'disk is full, writes are being stopped for cleanup' signal.",
+      "description": "VERBOSE journal (logger -t disk-emergency -p user.alert) + urgent ntfy + wall broadcast \u2014 explains which mount is full, the %, and exactly what the watchdog is about to do. The unmissable 'disk is full, writes are being stopped for cleanup' signal.",
       "safe_mode": true
     },
     "kill_nonsystem": {
@@ -328,7 +433,7 @@
     },
     "freeze_nonsystem": {
       "type": "slice_freeze",
-      "description": "cgroup-v2 freeze of emergency.freeze_slices — survivors' writes halt instantly (paused, reversible, no data loss) while reclaim runs.",
+      "description": "cgroup-v2 freeze of emergency.freeze_slices \u2014 survivors' writes halt instantly (paused, reversible, no data loss) while reclaim runs.",
       "safe_mode": true
     },
     "thaw_nonsystem": {
@@ -342,7 +447,6 @@
       "safe_mode": true
     }
   },
-
   "testers": {
     "_comment": "Each tester verifies one invariant of the disk defense. Wire into reports-logs or a dedicated CI job.",
     "checks": [
@@ -462,7 +566,7 @@
       },
       {
         "id": "emergency_reclaim_before_punish",
-        "description": "RECLAIM-FIRST invariant: docker_prune_images comes before recheck_gate, which comes before freeze_nonsystem and kill_nonsystem — so reclaim always runs before any freeze/kill and can self-heal without disruption",
+        "description": "RECLAIM-FIRST invariant: docker_prune_images comes before recheck_gate, which comes before freeze_nonsystem and kill_nonsystem \u2014 so reclaim always runs before any freeze/kill and can self-heal without disruption",
         "command": "jq -r '.emergency.actions as $a | ($a|index(\"docker_prune_images\")) < ($a|index(\"recheck_gate\")) and ($a|index(\"recheck_gate\")) < ($a|index(\"freeze_nonsystem\")) and ($a|index(\"recheck_gate\")) < ($a|index(\"kill_nonsystem\"))' /etc/cloud-data/disk-protection.json",
         "expect": "true"
       },
@@ -480,7 +584,7 @@
       },
       {
         "id": "p5_critical_prunes_build_cache",
-        "description": "The /mnt/shared-lib (p5, docker data-root) critical tier prunes build cache at 90% — 5 points before the 95% emergency tier can arm, so build-cache fill self-heals early without any freeze.",
+        "description": "The /mnt/shared-lib (p5, docker data-root) critical tier prunes build cache at 90% \u2014 5 points before the 95% emergency tier can arm, so build-cache fill self-heals early without any freeze.",
         "command": "jq -r '.watches.mounts[] | select(.mount==\"/mnt/shared-lib\") | .actions_on_critical | index(\"docker_prune_builder\") != null' /etc/cloud-data/disk-protection.json",
         "expect": "true"
       },
@@ -504,13 +608,13 @@
       },
       {
         "id": "journald_ratelimit_active",
-        "description": "journald rate-limiting is ON (RateLimitBurst > 0) — a runaway unit cannot flood journald/CPU as in the 2026-07-08 87k-lines/min storm",
+        "description": "journald rate-limiting is ON (RateLimitBurst > 0) \u2014 a runaway unit cannot flood journald/CPU as in the 2026-07-08 87k-lines/min storm",
         "command": "systemctl show systemd-journald -p LogRateLimitBurst --value 2>/dev/null; grep -h '^RateLimitBurst=' /run/systemd/journald.conf.d/*.conf /etc/systemd/journald.conf.d/*.conf /etc/systemd/journald.conf 2>/dev/null | tail -1 | cut -d= -f2",
         "expect_regex": "^(10000|[1-9][0-9]{3,})$"
       },
       {
         "id": "journald_no_unlimited_ratelimit",
-        "description": "no config sets RateLimitBurst=0 (unlimited) — the persistence.nix footgun is gone",
+        "description": "no config sets RateLimitBurst=0 (unlimited) \u2014 the persistence.nix footgun is gone",
         "command": "grep -rh '^RateLimitBurst=0$' /etc/systemd/journald.conf /etc/systemd/journald.conf.d/ /run/systemd/journald.conf.d/ 2>/dev/null | wc -l",
         "expect": "0"
       },
@@ -522,13 +626,12 @@
       },
       {
         "id": "journal_flood_guard_active",
-        "description": "journal-flood-guard timer is active — the PSI-blind log-storm voter is armed",
+        "description": "journal-flood-guard timer is active \u2014 the PSI-blind log-storm voter is armed",
         "command": "systemctl is-active journal-flood-guard.timer",
         "expect": "active"
       }
     ]
   },
-
   "deployment": {
     "_comment": "Where this config is consumed.",
     "consumers": [
