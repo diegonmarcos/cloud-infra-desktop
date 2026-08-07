@@ -10,14 +10,20 @@
     "have helped — it has --avoid for these very services (correct: you",
     "don't want earlyoom killing kwin under any circumstance).",
     "",
-    "What this module does:",
-    "  1. systemd user drop-ins with MemoryHigh/MemoryMax per leaky service",
-    "  2. Periodic watchdog timer that proactively restarts before the cap",
+    "2026-08-07: removed per-service MemoryHigh/MemoryMax drop-ins. They were",
+    "an independent hard-cap mechanism competing with the global PSI watchdog",
+    "(freeze-guard + systemd-oomd, see aa_desk-usr.../cloud-data-system-protection.json)",
+    "— plasma-plasmashell.service's cap alone caused two freeze/crash incidents",
+    "via memory.high throttle-thrash (not real OOM, PSI stayed low) before the",
+    "thrash-voter's own sustain-counter bug was fixed there. Sole source of kill",
+    "decisions is now that one global watchdog; every per-service hard cap found",
+    "in the repo is being removed for the same reason (see grep for 'MemoryMax'",
+    "across the repo — nothing should hardcode one outside that file).",
     "",
-    "Defense layers per service:",
-    "  MemoryHigh       = soft throttle (process paused for memory reclaim)",
-    "  MemoryMax        = hard ceiling (systemd kills the unit; Plasma respawns)",
-    "  watchdog_warn_mb = proactive threshold (restart BEFORE the ceiling)",
+    "What this module does now: ONLY proactive self-healing, no kill authority.",
+    "  watchdog_warn_mb = RSS threshold to proactively restart BEFORE any real",
+    "                      pressure forms (still useful — a clean restart beats",
+    "                      waiting for a PSI kill on a known KDE leak)",
     "  watchdog_action  = 'restart' (in-place safe) or 'notify' (kwin: never auto-restart)",
     "",
     "Sized for Surface Pro 8 (8GB RAM, 8 logical CPUs).",
@@ -25,29 +31,21 @@
   ],
   "services": {
     "plasma-kwin_wayland.service": {
-      "MemoryHigh": "1500M",
-      "MemoryMax": "2500M",
       "watchdog_warn_mb": 1200,
       "watchdog_action": "notify",
-      "_note": "Restarting kwin tears the Wayland session — only notify, NEVER auto-restart. Hard ceiling 2.5G lets systemd kill kwin if it truly runs away; Plasma can respawn it."
+      "_note": "Restarting kwin tears the Wayland session — only notify, NEVER auto-restart. No hard MemoryMax — the global PSI watchdog decides if a real kill is warranted."
     },
     "plasma-plasmashell.service": {
-      "MemoryHigh": "1700M",
-      "MemoryMax": "2200M",
       "watchdog_warn_mb": 1500,
       "watchdog_action": "restart",
-      "_note": "2026-07-31: 1000M/1800M was too tight — normal working set (~1.03G+) sat above MemoryHigh, causing sustained memory.high direct-reclaim throttle (memory.events high=259229) that froze/crashed the shell twice with no OOM and low aggregate PSI (Never-Freeze v3 mechanism, matches the 2026-07-10 13:06 user-1000.slice incident at service-unit scope). Widened so normal usage stays under MemoryHigh; MemoryMax kept well below the 8GB host ceiling. Plasmashell restart is in-place safe; user sees panel flicker only."
+      "_note": "2026-07-31: this service's own MemoryHigh/MemoryMax caused sustained memory.high direct-reclaim throttle (memory.events high=259229) that froze/crashed the shell twice with no real OOM and low aggregate PSI. 2026-08-07: removed the cap entirely — the global PSI watchdog (with its thrash-voter sustain bug now fixed) is the only kill authority. Plasmashell restart is in-place safe; user sees panel flicker only."
     },
     "plasma-ksystemstats.service": {
-      "MemoryHigh": "256M",
-      "MemoryMax": "512M",
       "watchdog_warn_mb": 400,
       "watchdog_action": "restart",
       "_note": "Known leak in KDE 6.2.x — recycle aggressively, no UI impact."
     },
     "plasma-kded6.service": {
-      "MemoryHigh": "256M",
-      "MemoryMax": "512M",
       "watchdog_warn_mb": 400,
       "watchdog_action": "restart",
       "_note": "Defense in depth — kded daemons can leak; restart is invisible."

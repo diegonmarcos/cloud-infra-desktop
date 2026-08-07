@@ -59,7 +59,7 @@ fi
 # ── Phase 4 · systemd unit shape ────────────────────────────────────────
 echo "▶ Phase 4 · systemd-user unit"
 grep -q 'systemd\.user\.services\.wstunnel-client' "$MOD_FILE" && ok "systemd.user.services.wstunnel-client declared" || nope "service unit missing"
-grep -q 'MemoryMax' "$MOD_FILE" && ok "MemoryMax cap declared (resource-bound)" || nope "no MemoryMax cap"
+grep -q 'MemoryMax *=' "$MOD_FILE" && nope "MemoryMax cap declared (spurious-kill risk — global PSI watchdog is the sole kill authority)" || ok "no per-service MemoryMax cap (PSI-governed)"
 grep -q 'CPUQuota' "$MOD_FILE"  && ok "CPUQuota declared"                       || nope "no CPUQuota"
 grep -q 'NoNewPrivileges'    "$MOD_FILE" && ok "NoNewPrivileges = true (hardened)" || nope "no NoNewPrivileges"
 grep -q 'ProtectSystem'      "$MOD_FILE" && ok "ProtectSystem (hardened)"          || nope "no ProtectSystem"

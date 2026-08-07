@@ -61,7 +61,10 @@ in
         ExecStart = "${cfg.package}/bin/fido2-vault-broker run";
         Restart = "on-failure";
         RestartSec = 5;
-        MemoryMax = "64M";
+        # No MemoryMax (2026-08-07): a hard per-service cap outside the global
+        # PSI watchdog (aa_desk-usr.../cloud-data-system-protection.json) is a
+        # spurious-kill risk with no upside — that watchdog is the sole kill
+        # authority now.
         NoNewPrivileges = true;
         Environment = "RUST_LOG=${cfg.logLevel}";
       };

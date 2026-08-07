@@ -121,10 +121,13 @@ in {
       # means a clean exit still gets relaunched.
       Restart = "always";
       RestartSec = 30;
-      # It exists to keep the desktop responsive; it must never be the reason
-      # memory gets tight. A scan is small, so a low cap is a real bound, and
-      # deprioritising it means it yields under exactly the pressure it prevents.
-      MemoryMax = "128M";
+      # No MemoryMax (2026-08-07): a static byte cap kills this unit's own
+      # normal subprocesses (ld-linux, jq, JITWorker at startup — not a leak)
+      # the moment they legitimately cross it, regardless of whether the
+      # system is actually under pressure. It stays in the default slice and
+      # is governed only by PSI (freeze-guard / systemd-oomd), same as every
+      # other unit — Nice/CPUWeight below still keep it low-priority so it
+      # yields CPU under contention without a hard memory kill trigger.
       Nice = 19;
       CPUWeight = 20;
     };

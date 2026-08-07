@@ -90,7 +90,10 @@ in
       '';
       Restart    = "on-failure";
       RestartSec = 10;
-      MemoryMax  = "32M";
+      # No MemoryMax (2026-08-07): a hard per-service cap is a spurious-kill
+      # risk on a connectivity-critical tunnel — the global PSI watchdog
+      # (aa_desk-usr.../cloud-data-system-protection.json) is the sole kill
+      # authority now. CPUQuota is a throttle, not a kill, so it stays.
       CPUQuota   = "10%";
       # Hardening — wstunnel needs only outbound network + the secret file
       ProtectSystem        = "strict";
