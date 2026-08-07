@@ -666,12 +666,20 @@ fn render(
     battery: &Option<BatteryReading>,
     procs: &str,
 ) -> String {
-    let core_list: Vec<String> = cores.iter().map(|c| format!("{c:.1}")).collect();
+    // Named, not positional: this format string mixes inline-captured names
+    // with `{}` holes, and when the cores list was positional it was simply
+    // left out of the argument list, shifting vram into its slot and every
+    // later argument by one.
+    let cores_joined = cores
+        .iter()
+        .map(|c| format!("{c:.1}"))
+        .collect::<Vec<String>>()
+        .join(",");
     let slice_pct = if slice_max > 0.0 { slice_cur / slice_max * 100.0 } else { 0.0 };
     let mut s = String::with_capacity(1536);
     let _ = write!(
         s,
-        "{{\"cpu\":{cpu:.1},\"cores\":[{}],\
+        "{{\"cpu\":{cpu:.1},\"cores\":[{cores_joined}],\
           \"mem\":{mem:.1},\"swap\":{swap:.1},\
           \"mem_detail\":{mem_detail},\"swap_detail\":{swap_detail},\
           \"vram\":{},\
