@@ -32,112 +32,41 @@ let
   cfg = builtins.fromJSON (builtins.readFile ./cloud-data-session-checkpoint.json);
   enabled   = cfg.enabled or false;
   cp        = cfg.checkpoint;
-  btrfsRoot = cp.btrfs_root;
   srcSubvol = cp.source_subvol;
-  snapDir   = cp.snapshot_dir;
   interval  = cp.interval_minutes;
-  retention = cp.retention_count;
-  notifyOnSave = cp.notify or false;
 
   shutdownCheckpoint = (cfg.shutdown_checkpoint or {}).enabled or false;
   hibernateCheckpoint = (cfg.hibernate_checkpoint or {}).enabled or false;
   rebootWithSessionEnabled = (cfg.reboot_with_session or {}).enabled or false;
 
-  # Shared checkpoint body — used by the periodic timer service AND the
-  # shutdown/reboot hook (REBOOT MUST ALWAYS SAVE A SNAPSHOT IN DISK).
-  mkCheckpointScript = tag: ''
-    set -u
-    ROOT=${lib.escapeShellArg btrfsRoot}
-    SRC="$ROOT/${srcSubvol}"
-    DEST_DIR="$ROOT/${snapDir}"
-    KEEP=${toString retention}
+  # Shared checkpoint body (session-checkpoint.sh) — used by the periodic
+  # timer service AND the shutdown/hibernate hooks (REBOOT MUST ALWAYS SAVE
+  # A SNAPSHOT IN DISK). Which checkpoint is selected at runtime by tag (arg
+  # 1); policy (btrfs_root/source_subvol/snapshot_dir/retention_count/
+  # notify) is read at runtime via jq from the SAME JSON this .nix already
+  # treats as source of truth (builtins.fromJSON above) — no new JSON
+  # needed, just exposed to the running system via environment.etc below.
+  sessionCheckpointScript = pkgs.writeShellApplication {
+    name = "session-checkpoint";
+    runtimeInputs = with pkgs; [ jq btrfs-progs coreutils util-linux gawk libnotify findutils ];
+    text = builtins.readFile ./session-checkpoint.sh;
+  };
 
-    # Pool not mounted (rescue context, mid-recovery) → skip, never fail.
-    if ! btrfs subvolume show "$SRC" >/dev/null 2>&1; then
-      logger -t session-checkpoint -p user.warning \
-        "source subvol $SRC not available — skipping ${tag} checkpoint"
-      exit 0
-    fi
-
-    # Parent of the snapshot tree must be a subvolume too (so checkpoints
-    # are excluded from any future snapshot of the top level). Create the
-    # hierarchy on first run.
-    PARENT="$ROOT/$(dirname ${lib.escapeShellArg snapDir})"
-    if ! btrfs subvolume show "$PARENT" >/dev/null 2>&1; then
-      btrfs subvolume create "$PARENT"
-    fi
-    mkdir -p "$DEST_DIR"
-
-    TS=$(date -u +%Y-%m-%dT%H-%M-%SZ)-${tag}
-    btrfs subvolume snapshot -r "$SRC" "$DEST_DIR/$TS" >/dev/null
-    sync
-    logger -t session-checkpoint -p user.info \
-      "${tag} session checkpoint written: $DEST_DIR/$TS"
-
-    # Desktop notification confirming the local snapshot was saved. PERIODIC
-    # only — at shutdown the session is tearing down, no bus to notify. Runs
-    # as the logged-in user (runuser + their DBus/XDG_RUNTIME_DIR), so it
-    # follows the KDE dark theme. Gated by checkpoint.notify in the JSON SoT.
-    ${lib.optionalString notifyOnSave ''
-      if [ "${tag}" != "shutdown" ]; then
-        KEPT=$(${pkgs.coreutils}/bin/ls -1 "$DEST_DIR" | ${pkgs.coreutils}/bin/wc -l)
-        for udir in /run/user/*; do
-          [ -d "$udir" ] || continue
-          uid=$(${pkgs.coreutils}/bin/basename "$udir")
-          user=$(${pkgs.gawk}/bin/awk -F: -v u="$uid" '$3==u{print $1; exit}' /etc/passwd) || continue
-          [ -n "$user" ] || continue
-          bus="$udir/bus"
-          [ -S "$bus" ] || continue
-          ${pkgs.util-linux}/bin/runuser -u "$user" -- env \
-            DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" XDG_RUNTIME_DIR="$udir" \
-            ${pkgs.libnotify}/bin/notify-send -a "Session" -i document-save-symbolic -t 4000 \
-              "Session snapshot saved" "Local btrfs checkpoint written to disk:
-$DEST_DIR/$TS
-($KEPT kept, newest-${toString retention} retained)" || true
-        done
-      fi
-    ''}
-
-    # Prune: keep the newest $KEEP (timestamp names sort chronologically).
-    ls -1 "$DEST_DIR" | sort | head -n -"$KEEP" | while read -r old; do
-      btrfs subvolume delete "$DEST_DIR/$old" >/dev/null \
-        && logger -t session-checkpoint -p user.info "pruned checkpoint $old"
-    done
-  '';
-
-  # `sudo reboot-with-session` — the RAM-session counterpart for restarts:
-  # write the full hibernate image, then REBOOT instead of powering off
-  # (kernel disk-mode 'reboot' via a RUNTIME sleep.conf.d drop-in that only
-  # exists for this invocation: /run is tmpfs, so a completed reboot wipes
-  # it, and the battery-watchdog's critical hibernate keeps its normal
-  # power-off semantics). At the boot menu: NixOS - Primary resumes the
-  # session; NixOS - Fresh Desktop starts clean. For booting a NEW kernel,
-  # use plain `reboot` — resuming the image returns to the old kernel by
-  # design.
+  # `sudo reboot-with-session` — the RAM-session counterpart for restarts.
+  # See ./reboot-with-session.sh for the full behaviour/contract comment.
   rebootWithSession = pkgs.writeShellApplication {
     name = "reboot-with-session";
     runtimeInputs = with pkgs; [ systemd coreutils util-linux ];
-    text = ''
-      if [ "$(id -u)" -ne 0 ]; then
-        echo "reboot-with-session: must run as root (sudo)" >&2
-        exit 1
-      fi
-      DROPIN_DIR=/run/systemd/sleep.conf.d
-      DROPIN="$DROPIN_DIR/zz-reboot-with-session.conf"
-      mkdir -p "$DROPIN_DIR"
-      printf '[Sleep]\nHibernateMode=reboot\n' > "$DROPIN"
-      # If hibernate is refused (no swap, masked, gate tripped), remove the
-      # drop-in so a later battery-critical hibernate still powers OFF.
-      # On success the machine reboots and tmpfs /run discards it anyway;
-      # if the session is RESUMED later, /run came back from the image —
-      # the trap fires as this script continues, cleaning it then too.
-      trap 'rm -f "$DROPIN"' EXIT
-      logger -t reboot-with-session "writing session image to disk, then rebooting"
-      systemctl hibernate
-    '';
+    text = builtins.readFile ./reboot-with-session.sh;
   };
 in
 {
+  # Runtime data for session-checkpoint.sh — the SAME file this .nix reads
+  # at eval time (builtins.fromJSON above), now also exposed to the running
+  # system so the script can read it via jq at runtime. Path checked against
+  # the already-declared environment.etc."cloud-data*" set — no collision.
+  environment.etc."cloud-data/session-checkpoint.json".source = ./cloud-data-session-checkpoint.json;
+
   systemd.timers."session-checkpoint" = lib.mkIf enabled {
     description = "Session checkpoint — snapshot ${srcSubvol} every ${toString interval} min";
     wantedBy = [ "timers.target" ];
@@ -156,9 +85,8 @@ in
       Nice                = 19;
       CPUSchedulingPolicy = "idle";
       IOSchedulingClass   = "idle";
+      ExecStart = "${sessionCheckpointScript}/bin/session-checkpoint periodic";
     };
-    path = with pkgs; [ btrfs-progs coreutils util-linux ];
-    script = mkCheckpointScript "periodic";
   };
 
   # REBOOT/SHUTDOWN MUST ALWAYS SAVE A SNAPSHOT IN DISK (hard requirement
@@ -176,9 +104,8 @@ in
     serviceConfig = {
       Type            = "oneshot";
       RemainAfterExit = true;
+      ExecStart = "${sessionCheckpointScript}/bin/session-checkpoint shutdown";
     };
-    path = with pkgs; [ btrfs-progs coreutils util-linux ];
-    script = mkCheckpointScript "shutdown";
   };
 
   # HIBERNATE MUST ALSO SAVE A BTRFS SNAPSHOT (2026-06-27). Hibernate does not
@@ -200,9 +127,8 @@ in
       TimeoutStartSec = "30s";
       Nice                = 19;
       IOSchedulingClass   = "idle";
+      ExecStart = "${sessionCheckpointScript}/bin/session-checkpoint hibernate";
     };
-    path = with pkgs; [ btrfs-progs coreutils util-linux ];
-    script = mkCheckpointScript "hibernate";
   };
 
   environment.systemPackages = lib.mkIf (enabled && rebootWithSessionEnabled) [
