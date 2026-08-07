@@ -1,7 +1,28 @@
 # Fallback & safety: safe-graphics specialisation, KWin watchdog, GC protection
 { config, pkgs, lib, ... }:
 
+let
+  # kwin-crash-watchdog: shell body lives in ./kwin-crash-watchdog.sh and is
+  # data-driven at runtime from /etc/cloud-data/kwin-crash-watchdog.json
+  # (declared below). Real binary paths go through runtimeEnv so the .sh
+  # never string-interpolates a store path.
+  kwinCrashWatchdog = pkgs.writeShellApplication {
+    name = "kwin-crash-watchdog";
+    # util-linux supplies `logger` for the fail-loud path.
+    runtimeInputs = [ pkgs.jq pkgs.util-linux pkgs.coreutils ];
+    runtimeEnv = {
+      KWIN_WATCHDOG_JOURNALCTL_BIN = "${pkgs.systemd}/bin/journalctl";
+      KWIN_WATCHDOG_CHVT_BIN       = "${pkgs.kbd}/bin/chvt";
+    };
+    text = builtins.readFile ./kwin-crash-watchdog.sh;
+  };
+in
+
 {
+  # Runtime data for kwin-crash-watchdog (new cloud-data path — verified not
+  # to collide with the already-declared environment.etc."cloud-data/..." set).
+  environment.etc."cloud-data/kwin-crash-watchdog.json".source = ./kwin-crash-watchdog.json;
+
   # ═══════════════════════════════════════════════════════════════════════════
   # SDDM GREETER MODE — left to configuration_display.nix
   # ═══════════════════════════════════════════════════════════════════════════
@@ -60,38 +81,7 @@
       Type = "simple";
       Restart = "on-failure";
       RestartSec = 10;
-      ExecStart = pkgs.writeShellScript "kwin-crash-watchdog" ''
-        CRASH_COUNT=0
-        WINDOW=60
-        THRESHOLD=3
-        LAST_RESET=$(date +%s)
-
-        # Monitor KWin via systemd user journal
-        ${pkgs.systemd}/bin/journalctl --user -u plasma-kwin_wayland -f --no-tail -o cat | while read -r line; do
-          NOW=$(date +%s)
-
-          # Reset counter if window expired
-          if [ $((NOW - LAST_RESET)) -ge $WINDOW ]; then
-            CRASH_COUNT=0
-            LAST_RESET=$NOW
-          fi
-
-          # Detect crash indicators
-          case "$line" in
-            *"terminated"*|*"crash"*|*"SEGV"*|*"signal 11"*|*"Compositor crashed"*)
-              CRASH_COUNT=$((CRASH_COUNT + 1))
-              echo "[kwin-watchdog] KWin crash detected ($CRASH_COUNT/$THRESHOLD in ''${WINDOW}s window)"
-
-              if [ $CRASH_COUNT -ge $THRESHOLD ]; then
-                echo "[kwin-watchdog] THRESHOLD REACHED — switching to TTY2"
-                ${pkgs.kbd}/bin/chvt 2 2>/dev/null || true
-                CRASH_COUNT=0
-                LAST_RESET=$NOW
-              fi
-              ;;
-          esac
-        done
-      '';
+      ExecStart = "${kwinCrashWatchdog}/bin/kwin-crash-watchdog";
     };
   };
 

@@ -52,6 +52,47 @@ let
   secretFile  = "${config.home.homeDirectory}/.config/wireguard/.wstunnel-secret";
   wgTcpConf   = "${config.home.homeDirectory}/.config/wireguard/wg0-tcp.conf";
   wstunnelBin = "${pkgs.wstunnel}/bin/wstunnel";
+  wg0Conf     = "${config.home.homeDirectory}/.config/wireguard/wg0.conf";
+
+  # ── Runtime JSON (fire-rule 4 + 6) ─────────────────────────────────────
+  # Values still originate from the cloud build.json source of truth above;
+  # only their *consumption* moved from Nix-eval-time interpolation into a
+  # runtime jq read, so the extracted .sh files carry no baked-in config.
+  # Deployed to ${XDG_CONFIG_HOME:-$HOME/.config}/cloud-data/wireguard-wstunnel.json
+  # NOTE: secretFile is a PATH only — the WSTUNNEL_PATH_PREFIX secret itself
+  # is never written to this JSON nor to the nix store; it stays sops-managed
+  # on disk and is read by the unit at run time.
+  wstunnelRuntimeJson = builtins.toJSON {
+    local_udp_port   = localUdp;
+    remote_wg_port   = remoteWg;
+    ws_endpoint      = wsEndpoint;
+    secret_file      = secretFile;
+    wg0_conf         = wg0Conf;
+    wg_tcp_conf      = wgTcpConf;
+    wg_tcp_interface = "wg0-tcp";
+    service_unit     = "wstunnel-client";
+  };
+
+  wgTcpPkg = pkgs.writeShellApplication {
+    name = "wg-tcp";
+    runtimeInputs = [ pkgs.jq ];
+    runtimeEnv = {
+      WG_TCP_SYSTEMCTL_BIN = "${pkgs.systemd}/bin/systemctl";
+      WG_TCP_WG_QUICK_BIN  = "${pkgs.wireguard-tools}/bin/wg-quick";
+      WG_TCP_WG_BIN        = "${pkgs.wireguard-tools}/bin/wg";
+    };
+    text = builtins.readFile ./wireguard-wstunnel.sh;
+  };
+
+  wgTcpRenderPkg = pkgs.writeShellApplication {
+    name = "wireguard-wstunnel-render";
+    # util-linux supplies `logger` (fail-loud path); gnugrep for `grep -qx`.
+    runtimeInputs = [ pkgs.jq pkgs.gawk pkgs.gnugrep pkgs.util-linux ];
+    runtimeEnv = {
+      WG_RENDER_NMCLI_BIN = "${pkgs.networkmanager}/bin/nmcli";
+    };
+    text = builtins.readFile ./wireguard-wstunnel-render.sh;
+  };
 in
 {
   # ── Package: wstunnel binary (Rust, ~10 MB RSS when active) ────────────
@@ -125,88 +166,18 @@ in
   # mcpNodeModulesSymlinks, lockScreenWallpaper, …) is silently skipped.
   home.activation.installWg0TcpConf = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     (
-    set -eu
-    mkdir -p "$(dirname '${wgTcpConf}')"
-
-    # ── (1) Render wg0-tcp.conf ───────────────────────────────────────
-    SOURCE='${config.home.homeDirectory}/.config/wireguard/wg0.conf'
-    if [ -r "$SOURCE" ]; then
-      ${pkgs.gawk}/bin/awk '
-        BEGIN  { in_peer = 0 }
-        /^\[Peer\]/ { in_peer = 1 }
-        /^\[/      { if ($0 != "[Peer]") in_peer = 0 }
-        in_peer && /^Endpoint[[:space:]]*=/ { print "Endpoint = 127.0.0.1:${toString localUdp}"; next }
-        { print }
-      ' "$SOURCE" > '${wgTcpConf}.tmp'
-      mv '${wgTcpConf}.tmp' '${wgTcpConf}'
-      chmod 600 '${wgTcpConf}'
-      echo "[wireguard-wstunnel] rendered ${wgTcpConf} (Endpoint=127.0.0.1:${toString localUdp})"
-    else
-      echo "[wireguard-wstunnel] $SOURCE not found — skipping wg0-tcp.conf render"
-      exit 0
-    fi
-
-    # ── (2) NetworkManager import (so KDE applet sees wg0-tcp) ────────
-    # Skip when nmcli is unavailable (server/CI builds).
-    if ! command -v ${pkgs.networkmanager}/bin/nmcli >/dev/null 2>&1; then
-      exit 0
-    fi
-    NMCLI=${pkgs.networkmanager}/bin/nmcli
-
-    # If a profile named "wg0-tcp" already exists, leave it alone (user
-    # may have edited it). Idempotent re-runs are fast no-ops.
-    if $NMCLI -t -f NAME connection show 2>/dev/null | grep -qx 'wg0-tcp'; then
-      echo "[wireguard-wstunnel] NetworkManager profile 'wg0-tcp' already present — skipping import"
-      exit 0
-    fi
-
-    # Import requires root (system-connections live in /etc/NetworkManager/).
-    # Try passwordless sudo; if not allowed, surface a one-line hint and exit
-    # cleanly so home-manager activation doesn't fail.
-    if sudo -n $NMCLI connection import type wireguard file '${wgTcpConf}' >/dev/null 2>&1; then
-      echo "[wireguard-wstunnel] imported wg0-tcp into NetworkManager — visible in KDE applet"
-      sudo -n $NMCLI connection modify wg0-tcp connection.autoconnect no >/dev/null 2>&1 || true
-    else
-      echo "[wireguard-wstunnel] NM import needs root — run once manually:"
-      echo "    sudo nmcli connection import type wireguard file ${wgTcpConf}"
-      echo "    sudo nmcli connection modify wg0-tcp connection.autoconnect no"
-    fi
+    ${wgTcpRenderPkg}/bin/wireguard-wstunnel-render
     ) || echo "[wireguard-wstunnel] subshell exited non-zero; HM chain continues"
   '';
 
+  # ── Runtime JSON deploy (Home Manager: xdg.configFile) ─────────────────
+  xdg.configFile."cloud-data/wireguard-wstunnel.json".text = wstunnelRuntimeJson;
+
   # ── Helper script: toggle direct ↔ tunnel mode in one command ──────────
   # Usage: wg-tcp [up|down|status]
-  home.file.".local/bin/wg-tcp" = {
-    executable = true;
-    text = ''
-      #!${pkgs.bash}/bin/bash
-      # wg-tcp — toggle WireGuard-over-TCP/443 fallback (declarative wrapper)
-      set -eu
-      cmd="''${1:-status}"
-      case "$cmd" in
-        up)
-          echo "[wg-tcp] starting wstunnel-client + bringing wg0-tcp up"
-          ${pkgs.systemd}/bin/systemctl --user start wstunnel-client
-          sleep 1
-          sudo ${pkgs.wireguard-tools}/bin/wg-quick up wg0-tcp || true
-          echo "[wg-tcp] tunnel via TCP/443 active"
-          ;;
-        down)
-          echo "[wg-tcp] tearing down wg0-tcp + wstunnel-client"
-          sudo ${pkgs.wireguard-tools}/bin/wg-quick down wg0-tcp || true
-          ${pkgs.systemd}/bin/systemctl --user stop wstunnel-client
-          ;;
-        status)
-          echo "── wstunnel-client systemd unit:"
-          ${pkgs.systemd}/bin/systemctl --user status wstunnel-client --no-pager 2>&1 | head -10
-          echo "── wg interfaces up:"
-          sudo ${pkgs.wireguard-tools}/bin/wg show interfaces 2>/dev/null || echo "(none)"
-          ;;
-        *)
-          echo "Usage: wg-tcp [up|down|status]"
-          exit 1
-          ;;
-      esac
-    '';
-  };
+  # Implementation lives in ./wireguard-wstunnel.sh, wrapped above as the
+  # `wg-tcp` writeShellApplication; the ~/.local/bin/wg-tcp path is kept so
+  # existing callers and docs are unaffected.
+  home.file.".local/bin/wg-tcp".source = "${wgTcpPkg}/bin/wg-tcp";
+
 }

@@ -1,0 +1,6 @@
+{
+  "window_seconds": 60,
+  "crash_threshold": 3,
+  "watch_unit": "plasma-kwin_wayland",
+  "rescue_vt": 2
+}

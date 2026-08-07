@@ -51,115 +51,57 @@ let
   # wstunnel comes via _module.args (flake.nix → pkgsUnstable.wstunnel, Rust 7.x).
   # The pinned nixos-24.05 'pkgs.wstunnel' is Haskell 0.5.x and pulls a broken dep.
   wstunnelBin = "${wstunnel}/bin/wstunnel";
+  wg0Conf     = "${config.home.homeDirectory}/.config/wireguard/wg0.conf";
+
+  # ── Runtime JSON (fire-rule 4 + 6: no values baked in by interpolation
+  # inside the .sh bodies — the scripts read all of this via jq at RUNTIME).
+  # Deployed to ${XDG_CONFIG_HOME:-$HOME/.config}/cloud-data/wireguard-wstunnel.json
+  wstunnelRuntimeJson = builtins.toJSON {
+    local_udp_port = localUdp;
+    remote_wg_port = remoteWg;
+    ws_endpoint = wsEndpoint;
+    secret_file = secretFile;
+    pid_file = pidFile;
+    log_file = logFile;
+    wg0_conf = wg0Conf;
+    wg_tcp_conf = wgTcpConf;
+  };
+
+  wgTcpPkg = pkgs.writeShellApplication {
+    name = "wg-tcp";
+    runtimeInputs = [ pkgs.jq pkgs.gawk pkgs.procps ];
+    runtimeEnv = {
+      WG_TCP_WSTUNNEL_BIN = wstunnelBin;
+    };
+    text = builtins.readFile ./wireguard-wstunnel.sh;
+  };
+
+  wgTcpRenderPkg = pkgs.writeShellApplication {
+    name = "wireguard-wstunnel-render";
+    # util-linux supplies `logger` (fail-loud path).
+    runtimeInputs = [ pkgs.jq pkgs.gawk pkgs.util-linux ];
+    text = builtins.readFile ./wireguard-wstunnel-render.sh;
+  };
 in
 {
   # ── Package: wstunnel binary (Rust, ~10 MB RSS when active) ────────────
   home.packages = [ wstunnel ];
+
+  # ── Helper script: exposed at the same path as before (~/.local/bin/wg-tcp)
+  # so callers/tests that reference this exact path keep working. The real
+  # implementation is now the writeShellApplication-wrapped wgTcpPkg above.
+  home.file.".local/bin/wg-tcp" = {
+    source = "${wgTcpPkg}/bin/wg-tcp";
+  };
+
+  # ── Runtime JSON deploy (Home Manager: xdg.configFile, not environment.etc) ──
+  xdg.configFile."cloud-data/wireguard-wstunnel.json".text = wstunnelRuntimeJson;
 
   # ── wg0-tcp.conf (WG client config pointing at the local loopback) ─────
   # Identical render rule as desktop — only the Endpoint line is rewritten.
   # Termux WG is managed by the Termux:WireGuard app, so the user imports
   # this file as a separate profile and toggles between wg0 and wg0-tcp.
   home.activation.installWg0TcpConf = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-    set -eu
-    mkdir -p "$(dirname '${wgTcpConf}')"
-
-    SOURCE='${config.home.homeDirectory}/.config/wireguard/wg0.conf'
-    if [ -r "$SOURCE" ]; then
-      ${pkgs.gawk}/bin/awk '
-        BEGIN  { in_peer = 0 }
-        /^\[Peer\]/ { in_peer = 1 }
-        /^\[/      { if ($0 != "[Peer]") in_peer = 0 }
-        in_peer && /^Endpoint[[:space:]]*=/ { print "Endpoint = 127.0.0.1:${toString localUdp}"; next }
-        { print }
-      ' "$SOURCE" > '${wgTcpConf}.tmp'
-      mv '${wgTcpConf}.tmp' '${wgTcpConf}'
-      chmod 600 '${wgTcpConf}'
-      echo "[wireguard-wstunnel] rendered ${wgTcpConf} (Endpoint=127.0.0.1:${toString localUdp})"
-    else
-      echo "[wireguard-wstunnel] $SOURCE not found — skipping wg0-tcp.conf render"
-    fi
+    ${wgTcpRenderPkg}/bin/wireguard-wstunnel-render
   '';
-
-  # ── Helper script: foreground/background-toggle for wstunnel-client ────
-  # Usage: wg-tcp [up|down|status]
-  #   up      starts wstunnel client in the background, writes PID + log
-  #   down    SIGTERM the recorded PID
-  #   status  shows whether the PID is alive + tail of log
-  #
-  # Termux-specific: requires `termux-wake-lock` running so Android doesn't
-  # kill the wstunnel process when the screen sleeps. The helper warns if
-  # the lock is not held.
-  home.file.".local/bin/wg-tcp" = {
-    executable = true;
-    text = ''
-      #!${pkgs.bash}/bin/bash
-      # wg-tcp — WireGuard-over-TCP/443 fallback (Termux foreground variant)
-      set -eu
-      cmd="''${1:-status}"
-      PIDFILE='${pidFile}'
-      LOGFILE='${logFile}'
-      SECRET='${secretFile}'
-
-      pid_alive() {
-        [ -f "$PIDFILE" ] || return 1
-        local p; p=$(cat "$PIDFILE" 2>/dev/null) || return 1
-        [ -n "$p" ] && kill -0 "$p" 2>/dev/null
-      }
-
-      case "$cmd" in
-        up)
-          if pid_alive; then echo "[wg-tcp] wstunnel-client already running (pid=$(cat "$PIDFILE"))"; exit 0; fi
-          if [ ! -r "$SECRET" ]; then
-            echo "[wg-tcp] ERROR: $SECRET not found." >&2
-            echo "[wg-tcp] Put 64-char hex (sops -d <secrets.yaml>) into that file, chmod 600." >&2
-            exit 1
-          fi
-          PATH_PREFIX="$(cat "$SECRET")"
-          : >"$LOGFILE"
-          ${wstunnelBin} client \
-            --local-to-remote 'udp://${toString localUdp}:127.0.0.1:${toString remoteWg}' \
-            --restrict-http-upgrade-path-prefix "$PATH_PREFIX" \
-            '${wsEndpoint}' >>"$LOGFILE" 2>&1 &
-          echo "$!" > "$PIDFILE"
-          sleep 1
-          if pid_alive; then
-            echo "[wg-tcp] wstunnel-client up (pid=$!) — endpoint=${wsEndpoint}"
-            echo "[wg-tcp] log: $LOGFILE"
-          else
-            echo "[wg-tcp] FAILED to start — see $LOGFILE" >&2
-            tail -5 "$LOGFILE" >&2 || true
-            exit 1
-          fi
-          # Wake-lock advisory (Android kills bg processes without it)
-          if ! pgrep -f termux-wake-lock >/dev/null 2>&1; then
-            echo "[wg-tcp] WARNING: termux-wake-lock not held — Android may kill wstunnel when screen sleeps."
-            echo "[wg-tcp] Run: termux-wake-lock"
-          fi
-          ;;
-        down)
-          if ! pid_alive; then echo "[wg-tcp] not running"; rm -f "$PIDFILE"; exit 0; fi
-          p=$(cat "$PIDFILE")
-          kill -TERM "$p" 2>/dev/null || true
-          sleep 1
-          if pid_alive; then kill -KILL "$p" 2>/dev/null || true; fi
-          rm -f "$PIDFILE"
-          echo "[wg-tcp] wstunnel-client down"
-          ;;
-        status)
-          if pid_alive; then
-            echo "[wg-tcp] UP — pid=$(cat "$PIDFILE")"
-            echo "── log tail (${logFile}) ──"
-            tail -5 "$LOGFILE" 2>/dev/null || echo "(no log)"
-          else
-            echo "[wg-tcp] DOWN"
-          fi
-          ;;
-        *)
-          echo "Usage: wg-tcp [up|down|status]"
-          exit 1
-          ;;
-      esac
-    '';
-  };
 }
