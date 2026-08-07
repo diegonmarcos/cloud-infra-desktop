@@ -268,8 +268,13 @@ in
     serviceConfig = {
       User = "root-watchdog";
       Group = "root-watchdog";
-      AmbientCapabilities = [ "CAP_KILL" "CAP_DAC_READ_SEARCH" ];
-      CapabilityBoundingSet = [ "CAP_KILL" "CAP_DAC_READ_SEARCH" ];
+      # CAP_DAC_OVERRIDE added (2026-08-07) alongside the state-publish feature
+      # below: /run is root:root 0755, and root-watchdog otherwise cannot
+      # create /run/freeze-guard.json (write-temp-then-mv needs to create the
+      # sibling .tmp file in that directory). CAP_KILL/CAP_DAC_READ_SEARCH
+      # alone were sufficient for the kill path but not for writing state.
+      AmbientCapabilities = [ "CAP_KILL" "CAP_DAC_READ_SEARCH" "CAP_DAC_OVERRIDE" ];
+      CapabilityBoundingSet = [ "CAP_KILL" "CAP_DAC_READ_SEARCH" "CAP_DAC_OVERRIDE" ];
       Slice = "connectivity.slice";
       Type = "simple";
       Restart = "always";
@@ -523,13 +528,47 @@ in
         done
       }
 
+      # ── STATE PUBLISH (2026-08-07) — expose voter state for the KDE panel ──
+      # Writes /run/freeze-guard.json every tick so com.diegonmarcos.watchdog
+      # (mode=guard) can render live bars instead of the panel staying blind
+      # until a kill actually happens. Same atomic write-temp-then-mv
+      # discipline as my-konsole's watchdog.rs publish() — a widget polling on
+      # its own timer must never read a half-written file. World-readable
+      # (0644): the panel runs as uid 1000, freeze-guard runs as root-watchdog.
+      # All values/thresholds/sustain come from the SAME variables the voters
+      # above already use — nothing here recomputes or reimplements a trigger.
+      publish_guard_state() {
+        local tmp=/run/freeze-guard.json.tmp
+        local a_mem a_io a_cpu a_dio a_dmem a_thrash a_ws
+        awk "BEGIN{exit !($mem+0>$MEM_LIMIT)}"        && a_mem=true    || a_mem=false
+        awk "BEGIN{exit !($io+0>$IO_LIMIT)}"           && a_io=true     || a_io=false
+        awk "BEGIN{exit !($cpu+0>$CPU_LIMIT)}"         && a_cpu=true    || a_cpu=false
+        awk "BEGIN{exit !($sio+0>$SLICE_IO_LIMIT)}"    && a_dio=true    || a_dio=false
+        awk "BEGIN{exit !($smem+0>$SLICE_MEM_LIMIT)}"  && a_dmem=true   || a_dmem=false
+        [ "$thrash_secs" -ge "$THRASH_SUSTAIN" ] && a_thrash=true || a_thrash=false
+        [ "$ws_secs" -ge "$WS_SUSTAIN" ]         && a_ws=true    || a_ws=false
+        cat > "$tmp" <<EOF
+{"ts":$(date +%s),"interval":$INTERVAL,"voters":[
+{"id":"mem_psi_full","label":"mem PSI full","value":$mem,"threshold":$MEM_LIMIT,"sustain":0,"sustain_need":0,"armed":$a_mem},
+{"id":"io_psi_full","label":"io PSI full","value":$io,"threshold":$IO_LIMIT,"sustain":0,"sustain_need":0,"armed":$a_io},
+{"id":"cpu_psi_some","label":"cpu PSI some","value":$cpu,"threshold":$CPU_LIMIT,"sustain":0,"sustain_need":0,"armed":$a_cpu},
+{"id":"desktop_io_psi_full","label":"desktop io PSI full","value":$sio,"threshold":$SLICE_IO_LIMIT,"sustain":0,"sustain_need":0,"armed":$a_dio},
+{"id":"desktop_mem_psi_full","label":"desktop mem PSI full","value":$smem,"threshold":$SLICE_MEM_LIMIT,"sustain":0,"sustain_need":0,"armed":$a_dmem},
+{"id":"mem_high_thrash","label":"mem.high thrash","value":$rate,"threshold":$HIGH_MAX,"sustain":$thrash_secs,"sustain_need":$THRASH_SUSTAIN,"armed":$a_thrash},
+{"id":"write_storm","label":"write storm","value":$wmbps,"threshold":$WS_MBPS,"sustain":$ws_secs,"sustain_need":$WS_SUSTAIN,"armed":$a_ws}
+]}
+EOF
+        chmod 0644 "$tmp" 2>/dev/null || true
+        mv -f "$tmp" /run/freeze-guard.json 2>/dev/null || true
+      }
+
       # PSI IS THE ONLY KILL METRIC. No absolute CPU%/RSS/mem% triggers — those
       # cause false kills (Claude died at PSI=0). We act ONLY on real kernel stall
       # (PSI 'some'/'full' avg10 over limit); the victim is then RANKED by %cpu
       # (cpu breach) or RSS (mem/io breach) — ranking is victim-selection, not the
       # trigger. Graceful SIGTERM for node/claude via do_kill.
       echo "[freeze-guard] online as $(id -un); PSI trigger — cpuPSI(some)>$CPU_LIMIT | memPSI(full)>$MEM_LIMIT | ioPSI(full)>$IO_LIMIT; THRASH trigger — memory.high >$HIGH_MAX/s for ''${THRASH_SUSTAIN}s on $THRASH_CG; max $MAX_KILLS kills/tick"
-      prev_high=""; thrash_secs=0; ws_secs=0; PREV_WSEC=""
+      prev_high=""; thrash_secs=0; ws_secs=0; PREV_WSEC=""; rate=0
       declare -A TERMED    # pids already SIGTERM'd once — escalate to SIGKILL on recurrence
       declare -A PREV_WB   # per-pid write_bytes for the write-storm voter's delta
       while :; do
@@ -620,6 +659,11 @@ in
           fi
         fi
         prev_high="$cur_high"
+
+        # Publish this tick's voter snapshot BEFORE the kill-escalation loop
+        # below mutates cpu/mem/io — the panel should see the reading that
+        # drove the decision, not the post-kill relief values.
+        publish_guard_state
 
         killed=""; n=0
         while [ "$n" -lt "$MAX_KILLS" ] && \

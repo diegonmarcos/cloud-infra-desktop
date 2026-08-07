@@ -32,26 +32,33 @@ jq -e '.services and .watchdog' "$JSON" >/dev/null \
     || fail "JSON missing required keys (.services, .watchdog)"
 pass "JSON schema OK (.services, .watchdog)"
 
-# Each service entry must declare both memory caps + watchdog fields
+# Each service entry must declare its watchdog fields — and, since 2026-08-07,
+# must NOT declare a hard MemoryHigh/MemoryMax (the global PSI watchdog in
+# aa_desk-usr.../cloud-data-system-protection.json is the sole kill authority;
+# a per-service cap here is exactly the mechanism that caused plasmashell's
+# two freeze/crash incidents via memory.high throttle-thrash).
 for svc in $(jq -r '.services | keys[]' "$JSON"); do
     jq -e --arg s "$svc" '
-        .services[$s].MemoryHigh and
-        .services[$s].MemoryMax  and
         .services[$s].watchdog_warn_mb and
         .services[$s].watchdog_action
     ' "$JSON" >/dev/null \
-        || fail "$svc missing required fields (MemoryHigh/MemoryMax/watchdog_warn_mb/watchdog_action)"
-    pass "$svc has full schema"
+        || fail "$svc missing required fields (watchdog_warn_mb/watchdog_action)"
+    jq -e --arg s "$svc" '
+        (.services[$s].MemoryHigh == null) and
+        (.services[$s].MemoryMax  == null)
+    ' "$JSON" >/dev/null \
+        || fail "$svc declares a hard MemoryHigh/MemoryMax — spurious-kill risk, PSI watchdog is the sole kill authority"
+    pass "$svc has full schema, no hard memory cap"
 done
 
-# The 4 leak-targets identified in the 2026-04-28 crash MUST be capped
+# The 4 leak-targets identified in the 2026-04-28 crash MUST still be watched
 for must in plasma-kwin_wayland.service \
             plasma-plasmashell.service \
             plasma-ksystemstats.service \
             plasma-kded6.service; do
     jq -e --arg s "$must" '.services[$s]' "$JSON" >/dev/null \
-        || fail "essential leak-target '$must' is NOT capped"
-    pass "leak-target '$must' is capped"
+        || fail "essential leak-target '$must' is NOT watched"
+    pass "leak-target '$must' is watched"
 done
 
 # kwin must be 'notify' only — auto-restart tears the session
@@ -111,8 +118,10 @@ if [ "${1:-}" = "--integration" ]; then
     echo ""
     echo "── PART C: INTEGRATION (kernel + systemd enforcement) ──"
 
-    # C.1 — cgroup MemoryMax actually OOM-kills (proves the .conf drop-in
-    # mechanism works at runtime, not just on paper)
+    # C.1 — generic kernel/cgroup sanity check: MemoryMax actually OOM-kills
+    # when set (no per-service drop-in uses this anymore since 2026-08-07;
+    # this just proves the underlying mechanism the global PSI watchdog
+    # ultimately relies on still works)
     command -v python3   >/dev/null 2>&1 || fail "python3 required for integration tests"
     command -v systemd-run >/dev/null 2>&1 || fail "systemd-run required for integration tests"
 
