@@ -83,14 +83,25 @@ let
           exec "$REAL" "$@"
         fi
 
-        export NSP_ACTIVE=1
-
+        # NSP_ACTIVE must stay UNSET here. nix-switch-progress-wrap keys its
+        # whole mode off it: unset on entry = "owner mode", open the progress
+        # window and drive it; already set = "nested mode", assume an outer
+        # wrap already owns a window and just exec the command bare. Exporting
+        # it before the exec below therefore made the wrap open NOTHING, so
+        # every heavy `nix`/`nixos-rebuild` caught here ran with zero UI — the
+        # exact "dashboard never launches" symptom this module exists to fix.
+        # The wrap exports it itself (wrap:40) for everything it spawns, and
+        # recursion is already impossible on this path because we hand it
+        # "$REAL" — an absolute store path — never a PATH lookup of `nix`.
         if command -v nix-switch-progress-wrap >/dev/null 2>&1 \
           && { [ -n "''${DISPLAY:-}" ] || [ -n "''${WAYLAND_DISPLAY:-}" ]; }; then
           exec nix-switch-progress-wrap "$REAL" "$@"
         fi
 
-        # Headless or catcher not installed: no window, never block.
+        # Headless or catcher not installed: no window, never block. Here the
+        # guard IS needed — nothing downstream sets it, and the real binary may
+        # re-enter this wrapper through a child process's PATH.
+        export NSP_ACTIVE=1
         exec "$REAL" "$@"
       '';
     };
