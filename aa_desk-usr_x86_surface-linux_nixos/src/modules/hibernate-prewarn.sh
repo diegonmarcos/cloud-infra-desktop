@@ -93,7 +93,15 @@ if [ "$CH_DIALOG_CENTER" = "1" ]; then
     bus="$udir/bus"
     [ -S "$bus" ] || continue
     # Discover the Wayland socket for this session (KDE Plasma 6 = wayland-0).
-    wl=$(basename "$(ls "$udir"/wayland-[0-9] 2>/dev/null | head -1)" 2>/dev/null || echo wayland-0)
+    # Plain glob rather than ls: shellcheck rejects parsing ls (SC2012), and a
+    # non-matching glob stays literal, so the -e test below falls back cleanly.
+    wl=wayland-0
+    for cand in "$udir"/wayland-[0-9]; do
+      if [ -e "$cand" ]; then
+        wl=$(basename "$cand")
+        break
+      fi
+    done
     start=$(date +%s)
     set +e
     # Hard backstop timeout (DELAY+5) in case yad itself hangs; yad's own
