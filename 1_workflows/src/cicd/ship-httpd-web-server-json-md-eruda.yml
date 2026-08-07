@@ -141,4 +141,13 @@ jobs:
                   bb_flakes_termux/src/modules/httpd-web-server-json-md-eruda/hashes.json
           git diff --cached --quiet || \
             git commit -m "chore: update httpd-web-server-json-md-eruda hashes.json [skip ci]"
-          git push
+          # Retry with a rebase — see ship-my-ai-app.yml for why a bare `git push` loses this race.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              exit 0
+            fi
+            echo "push rejected (attempt $attempt) -- rebasing onto origin/main"
+            git pull --rebase origin main
+          done
+          echo "::error::could not push updated hashes after 5 attempts"
+          exit 1
