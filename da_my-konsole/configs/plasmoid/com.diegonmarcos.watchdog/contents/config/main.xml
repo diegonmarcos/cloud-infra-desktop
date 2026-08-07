@@ -11,7 +11,11 @@
   <group name="General">
     <!-- Which cluster this instance renders. One widget serves the whole
          panel; another metric is a config change rather than another applet,
-         which is the thing being fixed. -->
+         which is the thing being fixed. Valid values: "left", "right",
+         "guard" (2026-08-07 — freeze-guard voter state from
+         /run/freeze-guard.json). No <choices> restriction here (plain
+         String), so validity is enforced in main.qml's mode Loaders, not
+         this schema. -->
     <entry name="mode" type="String">
       <default>left</default>
     </entry>

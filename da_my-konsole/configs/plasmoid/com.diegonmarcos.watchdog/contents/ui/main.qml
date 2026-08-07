@@ -32,10 +32,22 @@ PlasmoidItem {
     property var snap: ({})
     property bool stale: true
 
+    // freeze-guard's own PSI-voter state, published by the SYSTEM-level
+    // watchdog (root-watchdog, configuration_system-protection.nix) — a
+    // separate publisher from the my-konsole tray daemon above, hence its own
+    // snap/stale pair and its own poll Timer below. The file will not exist
+    // until a system rebuild lands the publish() change, so every access
+    // below MUST be defensive (missing file / parse failure / missing
+    // properties → neutral empty state, never a QML error that blanks the
+    // whole applet — that regression was just fixed once already).
+    property var guardSnap: ({})
+    property bool guardStale: true
+
     readonly property int pollMs: 1500   // daemon publishes every 2s
     readonly property string runtimeDir: "/run/user/" + Plasmoid.configuration.uid
     readonly property string snapUrl: "file://" + runtimeDir + "/my-konsole-watchdog.json"
     readonly property string killPath: runtimeDir + "/my-konsole-watchdog.kill"
+    readonly property string guardUrl: "file:///run/freeze-guard.json"
 
     function refresh() {
         var xhr = new XMLHttpRequest();
@@ -56,9 +68,35 @@ PlasmoidItem {
         xhr.send();
     }
 
+    // Same shape as refresh() above, against freeze-guard's own snapshot.
+    // On ANY failure (file absent, bad JSON, mid-write partial read) fall
+    // back to an empty object + stale=true rather than throwing — the guard
+    // cluster below already treats {} as "nothing to show".
+    function refreshGuard() {
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== XMLHttpRequest.DONE) return;
+            try {
+                var d = JSON.parse(xhr.responseText);
+                root.guardStale = ((Date.now() / 1000) - (d.ts || 0)) > 15;
+                root.guardSnap = d || {};
+            } catch (e) {
+                root.guardStale = true;
+                root.guardSnap = {};
+            }
+        };
+        xhr.open("GET", root.guardUrl);
+        xhr.send();
+    }
+
     Timer {
         interval: root.pollMs; running: true; repeat: true; triggeredOnStart: true
         onTriggered: root.refresh()
+    }
+
+    Timer {
+        interval: root.pollMs; running: true; repeat: true; triggeredOnStart: true
+        onTriggered: root.refreshGuard()
     }
 
     function pct(v)  { return (v === undefined ? "--" : v.toFixed(0) + "%"); }
@@ -90,6 +128,54 @@ PlasmoidItem {
         if (v >= 40) return Kirigami.Theme.negativeTextColor;
         if (v >= 15) return Kirigami.Theme.neutralTextColor;
         return Kirigami.Theme.positiveTextColor;
+    }
+
+    // ── freeze-guard voter helpers — every one defensive: guardSnap is {}
+    // until the first successful poll, and stays {} forever on a machine
+    // that hasn't rebuilt with the publish() change yet. Every accessor here
+    // must degrade to "empty"/"neutral", never touch a property of undefined.
+    function guardVoters() {
+        return (root.guardSnap && root.guardSnap.voters) ? root.guardSnap.voters : [];
+    }
+    // value/threshold as a percent (100 = exactly at the kill line), fed into
+    // the existing Bar component the same way the PSI bars use a 0-100 value.
+    function guardRatio(v) {
+        if (!v || !v.threshold) return 0;
+        return (v.value || 0) / v.threshold * 100;
+    }
+    function guardColor(v) {
+        if (!v) return Kirigami.Theme.disabledTextColor;
+        if (v.armed) return Kirigami.Theme.negativeTextColor;
+        return root.heat(root.guardRatio(v));
+    }
+    // Two-letter tags so 7 bars fit a 30px-tall panel row; falls back to the
+    // full id (still short) for any voter this map hasn't been taught yet —
+    // additive-safe if the JSON ever grows a voter.
+    readonly property var guardShortLabels: ({
+        "mem_psi_full": "Mp", "io_psi_full": "Ip", "cpu_psi_some": "Cp",
+        "desktop_io_psi_full": "dI", "desktop_mem_psi_full": "dM",
+        "mem_high_thrash": "Th", "write_storm": "Ws"
+    })
+    function shortGuardLabel(v) {
+        if (!v) return "?";
+        return root.guardShortLabels[v.id] || (v.id ? v.id.substring(0, 2) : "?");
+    }
+    // One "label  value/threshold  (Ns/Ns)" line per voter, for the tooltip.
+    function guardTooltipLines() {
+        var voters = root.guardVoters();
+        if (!voters.length) return root.guardStale ? "freeze-guard: not publishing" : "";
+        var lines = [];
+        for (var i = 0; i < voters.length; i++) {
+            var v = voters[i];
+            if (!v) continue;
+            var label = v.label || v.id || "?";
+            var value = (v.value !== undefined && v.value !== null) ? Number(v.value).toFixed(1) : "--";
+            var thr = (v.threshold !== undefined && v.threshold !== null) ? v.threshold : "--";
+            var sus = (v.sustain !== undefined && v.sustain !== null) ? v.sustain : 0;
+            var susNeed = (v.sustain_need !== undefined && v.sustain_need !== null) ? v.sustain_need : 0;
+            lines.push(label + "  " + value + "/" + thr + "  (" + sus + "s/" + susNeed + "s)" + (v.armed ? "  ARMED" : ""));
+        }
+        return lines.join("\n");
     }
 
     // Short mount label for the disk bars — "/" stays "/", everything else
@@ -376,6 +462,32 @@ PlasmoidItem {
                     }
                 }
             }
+
+            // GUARD cluster: freeze-guard's own voter state (mem/io/cpu PSI,
+            // desktop-starvation, memory.high thrash, write-storm — see
+            // configuration_system-protection.nix). Defensive throughout:
+            // /run/freeze-guard.json won't exist until a rebuild lands this,
+            // and guardVoters()/guardRatio()/guardColor() all degrade to an
+            // empty/neutral render rather than throwing. 4 columns so 7
+            // voters fold into 2 rows instead of overflowing one, same
+            // reasoning as the existing 3x2 PSI grid above.
+            Loader {
+                active: Plasmoid.configuration.mode === "guard"
+                visible: active
+                sourceComponent: GridLayout {
+                    columns: 4
+                    rowSpacing: 1
+                    columnSpacing: 5
+                    Repeater {
+                        model: root.guardVoters()
+                        delegate: Bar {
+                            label: root.shortGuardLabel(modelData)
+                            value: root.guardRatio(modelData)
+                            fill: root.guardColor(modelData)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -445,4 +557,5 @@ PlasmoidItem {
           + "\nPSI full avg10  cpu " + two(psi("cpu","full10")) + "  io " + two(psi("io","full10")) + "  mem " + two(psi("memory","full10"))
           + "\nuser slice " + two(snap.slice_gib) + " / " + two(snap.slice_max_gib) + " GiB"
           + (batteryText() ? "\n" + batteryText() : "")
+          + (root.guardTooltipLines() ? "\n\nfreeze-guard voters:\n" + root.guardTooltipLines() : "")
 }
