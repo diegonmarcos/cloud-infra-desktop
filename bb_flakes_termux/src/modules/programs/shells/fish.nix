@@ -88,6 +88,7 @@
     };
 
     functions = {
+      up = builtins.readFile ./fish/functions/up.fish;
       "ai-cli" = builtins.readFile ./fish/functions/ai-cli.fish;
       "cloud-ai-cli" = builtins.readFile ./fish/functions/cloud-ai-cli.fish;
       fish_greeting = builtins.readFile ./fish/functions/fish_greeting.fish;
