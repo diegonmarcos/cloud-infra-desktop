@@ -103,30 +103,12 @@ in
   # from authorized-keys.json) are ALWAYS written first so a sops failure
   # can never lock us out of WG SSH; the Cloud IDE key is then appended
   # best-effort from the sops-encrypted secrets.yaml.
+  # body in ./authorized-keys-render.sh (no-inline-scripts decree 2026-08-08)
   home.activation.cloudIdeAuthorizedKeys = lib.hm.dag.entryAfter ["linkGeneration"] ''
-    SOPS="$HOME/.nix-profile/bin/sops"
-    # Pin the age identity to the on-device XDG path. An ambient SOPS_AGE_KEY_FILE
-    # may point at the desktop vault path (/home/diego/...) which doesn't exist
-    # here, silently breaking decrypt. |: true keeps this safe under set -e.
-    [ -r "$HOME/.config/sops/age/keys.txt" ] && export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt" || true
-    YQ="${pkgs.yq-go}/bin/yq"
-    SECRETS="${secretsFile}"
-    OUT="$HOME/.ssh/authorized_keys"
-    mkdir -p "$HOME/.ssh"; chmod 700 "$HOME/.ssh"
-    # Old generations symlinked this into the read-only nix store — drop it
-    # before writing a real file.
-    rm -f "$OUT"
-    printf '%s' ${lib.escapeShellArg authorizedKeysContent} > "$OUT"
-    if [ -f "$SOPS" ] && [ -f "$SECRETS" ]; then
-      _key=$("$SOPS" -d "$SECRETS" 2>/dev/null | "$YQ" -r '.cloud_ide_authorized_keys' 2>/dev/null) || true
-      if [ -n "$_key" ] && [ "$_key" != "null" ]; then
-        printf '%s\n' "$_key" >> "$OUT"
-        echo "[cloud-ide-sshd] authorized_keys: static keys + cloud-ide key"
-      else
-        echo "[cloud-ide-sshd] WARNING: cloud-ide key decrypt failed — static keys only"
-      fi
-    fi
-    chmod 600 "$OUT"
+    YQ_BIN="${pkgs.yq-go}/bin/yq" \
+    SECRETS="${secretsFile}" \
+    STATIC_KEYS_FILE="${pkgs.writeText "static-authorized-keys" authorizedKeysContent}" \
+    ${pkgs.bash}/bin/bash ${./authorized-keys-render.sh} || true
   '';
 
   # ~/.profile loads nix env for ssh-spawned /bin/sh sessions

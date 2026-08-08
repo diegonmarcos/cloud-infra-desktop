@@ -87,10 +87,21 @@ set -gx AUTHELIA_OIDC_TOKENS_DIR "$HOME/git/vault/A0_keys/providers/authelia/sig
 set -gx AUTHELIA_OIDC_CLIENT_ID "claude-admin"
 set -gx AUTHELIA_TOKEN_URL "https://auth.diegonmarcos.com/api/oidc/token"
 
-# httpd auto-start lives in flake.nix's programs.fish.interactiveShellInit
-# (the two inits are CONCATENATED — a second start here ran it twice per
-# terminal, found in the 2026-08-08 audit). Port var only.
+# /etc self-heal — body in scripts/etc-self-heal.sh (deployed on PATH).
+# Moved here from flake.nix per the no-inline-scripts decree (2026-08-08).
+command -q etc-self-heal; and etc-self-heal 2>/dev/null
+
+# httpd-web-server-json-md-eruda auto-start (single start site — the flake
+# copy was deleted; wrapper is idempotent via PID file).
 set -g __httpd_port 8000
+if command -q httpd-web-server-json-md-eruda
+  httpd-web-server-json-md-eruda start >/dev/null 2>&1
+  set -g __httpd_pid (cat ~/.cache/httpd-web-server-json-md-eruda.pid 2>/dev/null)
+end
+
+# FZF appearance (the fzf_file/history/cd rebinds that lived in flake.nix
+# were deleted 2026-08-08 — they clobbered atuin Ctrl+R and fzf --fish).
+set -gx FZF_DEFAULT_OPTS "--height 40% --layout=reverse --border"
 
 # Local overrides
 if test -f ~/.config/fish/config.local.fish
