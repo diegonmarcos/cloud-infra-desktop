@@ -282,6 +282,14 @@
               # 11. YAZI — TUI file manager. From unstable (24.05's is ancient);
               # aarch64 binary comes from cache.nixos.org, nothing compiles here.
               pkgsUnstable.yazi
+
+              # 12. CLAUDE--DEBUG — one-shot claude-startup diagnostic battery
+              # (env, shell-snapshot cost, headless probe, TUI probes w/ debug
+              # files). Ships its log to cloud-data/logs/ AND unix/1_reports/
+              # (committed+pushed) so the cloud Claude session can pull it and
+              # keep the debugging loop going. Source: ./scripts/claude-debug.sh
+              (writeShellScriptBin "claude--debug"
+                (builtins.readFile ./scripts/claude-debug.sh))
             ];
 
             # --- HOME MANAGER CONFIG ---
