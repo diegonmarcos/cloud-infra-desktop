@@ -53,15 +53,25 @@
     fi
   '';
 
-  # No generation accumulation on termux — keep only the current gen, GC the rest.
-  # Runs on every switch (no systemd/cron on Android). --delete-generations old
-  # never removes the current generation, so this is safe mid-activation.
+  # Generation trim on every switch, but full GC only under DISK PRESSURE.
+  # nix-collect-garbage on every switch was the hidden performance killer:
+  # deleting thousands of just-orphaned store paths evicts the kernel page
+  # cache, so every warm binary (claude, node, tsx) cold-starts from flash
+  # through proot afterwards — measured 11s directory lookups and a 4-minute
+  # claude first-start right after a 5156-path GC (2026-08-08). Keeping the
+  # 2 newest generations also preserves instant rollback.
   home.activation.trimGenerations = lib.hm.dag.entryAfter [ "installPackages" ] ''
     export PATH="${pkgs.nix}/bin:$PATH"
-    $DRY_RUN_CMD nix-env -p /nix/var/nix/profiles/nix-on-droid --delete-generations old 2>/dev/null || true
-    $DRY_RUN_CMD nix-env -p "$HOME/.local/state/nix/profiles/home-manager" --delete-generations old 2>/dev/null || true
-    $DRY_RUN_CMD nix-env -p /nix/var/nix/profiles/per-user/nix-on-droid/profile --delete-generations old 2>/dev/null || true
-    $DRY_RUN_CMD nix-collect-garbage 2>/dev/null || true
+    $DRY_RUN_CMD nix-env -p /nix/var/nix/profiles/nix-on-droid --delete-generations +2 2>/dev/null || true
+    $DRY_RUN_CMD nix-env -p "$HOME/.local/state/nix/profiles/home-manager" --delete-generations +2 2>/dev/null || true
+    $DRY_RUN_CMD nix-env -p /nix/var/nix/profiles/per-user/nix-on-droid/profile --delete-generations +2 2>/dev/null || true
+    _free_kb=$(df -k "$HOME" 2>/dev/null | ${pkgs.gawk}/bin/awk 'NR==2 {print $4}')
+    if [ "''${FORCE_GC:-0}" = 1 ] || [ "''${_free_kb:-0}" -lt 4194304 ]; then
+      echo "[trim-generations] GC running (free=$((_free_kb / 1048576))GiB < 4GiB or FORCE_GC=1)"
+      $DRY_RUN_CMD nix-collect-garbage 2>/dev/null || true
+    else
+      echo "[trim-generations] GC skipped (free=$((_free_kb / 1048576))GiB ≥ 4GiB — FORCE_GC=1 to force)"
+    fi
   '';
 
   # Goose AI CLI config (cloud-ai-cli alias)

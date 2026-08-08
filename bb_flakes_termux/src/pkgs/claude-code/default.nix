@@ -32,7 +32,10 @@ let
   sources = {
     "aarch64-linux" = {
       pkg = "claude-code-linux-arm64";
-      hash = "sha256-lW1uVVXxXB8SARm94eijgVDJ0UXtBt1MkQU34Ve/kU8=";
+      # Flat sha256 of the npm tarball (curl | sha256sum → SRI), verified
+      # against the real registry download 2026-08-08. NOT nix-prefetch-url
+      # --unpack — that yields a NAR hash which fetchurl rejects.
+      hash = "sha256-+7smENr/cNEYyN2orv/ukrOPIKpGTnWMPQnjyDq271Y=";
     };
   };
 
