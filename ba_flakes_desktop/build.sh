@@ -27,7 +27,7 @@ export BUILDSH_GUARDRAIL=1
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/build.json"
-LOG_FILE="$SCRIPT_DIR/build.log"
+LOG_FILE="$HOME/git/cloud-data/logs/ba_flakes_desktop.log"
 SRC_DIR="$SCRIPT_DIR/src"
 DIST_DIR="$SCRIPT_DIR/dist"
 CONTAINER_DIR="$SCRIPT_DIR/src/container"
