@@ -87,6 +87,10 @@
 
       # sync-remote: gacp failed? fetch + rebase (remote wins conflicts) + push
       sync-remote = "!f() { git pull --rebase -X theirs && git push; }; f";
+      # sync: the 6-step engine (stash→fetch→rebase→push→pop→submodules).
+      # Declared here so `git sync` works on fresh installs too — before, it
+      # existed only via the imperative gitconfig include in this checkout.
+      sync = "!./1_workflows/dist/scripts/cloud-git-sync.sh";
     };
 
     ignores = [

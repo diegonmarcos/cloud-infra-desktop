@@ -13,20 +13,25 @@
 [submodule "cloud-data"]
 	path = I_cloud-data
 	url = https://github.com/diegonmarcos/cloud-data.git
-	ignore = all
+	branch = main
+	ignore = dirty
 [submodule "tools"]
 	path = II_tools
 	url = https://github.com/diegonmarcos/tools.git
-	ignore = all
+	branch = main
+	ignore = dirty
 [submodule "front-data"]
 	path = III_front-data
 	url = https://github.com/diegonmarcos/front-data.git
-	ignore = all
+	branch = main
+	ignore = dirty
 [submodule "cloud-configs"]
 	path = IV_cloud-configs
 	url = https://github.com/diegonmarcos/cloud.git
-	ignore = all
+	branch = main
+	ignore = dirty
 [submodule "front-configs"]
 	path = V_front-configs
 	url = https://github.com/diegonmarcos/diegonmarcos.github.io.git
-	ignore = all
+	branch = main
+	ignore = dirty

@@ -9,12 +9,11 @@
     enableFishIntegration = true;
 
     settings = {
-      # Android/Termux git is slow on large repos (the home dir is a git repo
-      # with many untracked files) — the 500ms default makes starship abort
-      # `git status` and emit a timeout warning. 2000ms still fired on the
-      # unix repo right after a switch (cold page cache); 5000ms covers the
-      # measured worst case without ever blocking the prompt render itself.
-      command_timeout = 5000;
+      # Android/Termux git is slow on large repos. command_timeout is the
+      # MAXIMUM TIME STARSHIP BLOCKS THE PROMPT waiting for git — 5000 was
+      # wrong (a 5s prompt stall on every cd into a big repo); a timeout
+      # warning at 2000 is the cheaper failure mode (2026-08-08 audit).
+      command_timeout = 2000;
 
       format = lib.concatStrings [
         "$time"

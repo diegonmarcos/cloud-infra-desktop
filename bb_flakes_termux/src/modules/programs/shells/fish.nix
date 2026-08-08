@@ -26,7 +26,11 @@
       dcd = "docker compose down";
     };
 
-    shellAliases = lib.mkDefault {
+    # NO mkDefault: flake.nix also defines shellAliases (sharedAliases) at
+    # normal priority, and for attrsOf options a lower-priority definition is
+    # DISCARDED WHOLE, not merged — every alias below was dead code until
+    # 2026-08-08. Same priority => key-wise merge.
+    shellAliases = {
       # Modern CLI
       ls = "eza --color=auto --icons";
       ll = "eza -alF --icons";
@@ -60,7 +64,8 @@
       free = "free -h";
       ports = "ss -tulanp";
       myip = "curl -s ifconfig.me";
-      top-batch = "echo '=== CPU/MEM ===' && top -bn1 | head -5 && echo '\\n=== TOP PROCS (CPU) ===' && top -bn1 -o %CPU | tail -n+8 | head -15 && echo '\\n=== DISK ===' && df -h / /home /boot 2>/dev/null && echo '\\n=== DOCKER ===' && docker stats --no-stream --format 'table {{.Name}}\\t{{.CPUPerc}}\\t{{.MemUsage}}\\t{{.MemPerc}}' 2>/dev/null || true";
+      # (top-batch removed 2026-08-08 — df /home /boot + docker stats are
+      # desktop-only; use `top` / `duh` here.)
 
       # Misc
       c = "clear";
@@ -69,17 +74,10 @@
       path = "echo $PATH | tr ':' '\\n'";
       reload = "source ~/.config/fish/config.fish";
 
-      # Session (Plasma 6)
-      logout = "killall -9 -u $USER; qdbus org.kde.Shutdown /Shutdown logout";
-      reboot = "qdbus org.kde.Shutdown /Shutdown logoutAndReboot";
-      poweroff = "qdbus org.kde.Shutdown /Shutdown logoutAndShutdown";
-
-      # Browser dev
-      chrome_no_CORS = "chromium --disable-web-security --user-data-dir=/tmp/chrome-nocors";
-
-      # Custom tools
-      dtk = "bash ~/git/tools/dtk.sh";
-      gdrive = "bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh";
+      # (Plasma session, chromium, and /home/diego-path aliases removed
+      # 2026-08-08 — qdbus/chromium don't exist on Android, and `logout`
+      # even ran killall -9 -u $USER before failing. dtk comes from
+      # flake.nix sharedAliases.)
 
       # AI CLIs — see interactiveShellInit for ai-cli function
 
@@ -103,7 +101,9 @@
       gpsh = builtins.readFile ./fish/functions/gpsh.fish;
       gacp = builtins.readFile ./fish/functions/gacp.fish;
       cpucap = builtins.readFile ./fish/functions/cpucap.fish;
-      serve = builtins.readFile ./fish/functions/serve.fish;
+      # serve — real binary; the old serve.fish called http-dev, which no
+      # module ever installed (2026-08-08 audit).
+      serve = "httpd-web-server-json-md-eruda start $argv";
       duh = builtins.readFile ./fish/functions/duh.fish;
       localip = builtins.readFile ./fish/functions/localip.fish;
       hg = builtins.readFile ./fish/functions/hg.fish;

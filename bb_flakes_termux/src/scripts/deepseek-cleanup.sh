@@ -41,6 +41,13 @@ say ""
 freed=0
 zap() { # zap <path> <description>
   local p=$1 desc=$2 sz
+  # identity guard: linkNixBinsToTermux recreates files/usr/bin/claude as a
+  # SYMLINK TO THE REAL BINARY after every switch — deleting it would undo
+  # that on every run (2026-08-08 audit).
+  if [ "$(readlink -f "$p" 2>/dev/null)" = "$(readlink -f "$REAL" 2>/dev/null)" ]; then
+    say "kept (is the real claude): $p"
+    return 0
+  fi
   if [ -e "$p" ] || [ -L "$p" ]; then
     sz=$(du -sk "$p" 2>/dev/null | cut -f1)
     : "${sz:=0}"

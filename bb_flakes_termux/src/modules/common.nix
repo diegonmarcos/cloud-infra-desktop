@@ -45,10 +45,14 @@
 
   # HM always wins — remove imperative nix profile packages that conflict
   home.activation.removeImperativePackages = lib.hm.dag.entryBefore ["installPackages"] ''
-    if command -v nix >/dev/null 2>&1 && nix profile list >/dev/null 2>&1; then
-      for pkg in $(nix profile list 2>/dev/null | grep "^Name:" | sed 's/.*Name:[[:space:]]*//' | sed 's/\x1b\[[0-9;]*m//g'); do
+    # Explicit store path — activation PATH has no `nix`, so the old
+    # `command -v nix` guard made this whole step a permanent silent no-op
+    # (2026-08-08 audit; trimGenerations below already knew this and
+    # exported ${pkgs.nix}/bin explicitly).
+    if ${pkgs.nix}/bin/nix profile list >/dev/null 2>&1; then
+      for pkg in $(${pkgs.nix}/bin/nix profile list 2>/dev/null | grep "^Name:" | sed 's/.*Name:[[:space:]]*//' | sed 's/\x1b\[[0-9;]*m//g'); do
         echo "[hm] Removing imperative nix profile package: $pkg"
-        nix profile remove "$pkg" 2>/dev/null || true
+        ${pkgs.nix}/bin/nix profile remove "$pkg" 2>/dev/null || true
       done
     fi
   '';

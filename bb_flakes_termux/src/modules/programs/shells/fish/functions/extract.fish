@@ -1,3 +1,5 @@
+# no-arg guard added 2026-08-08 (audit: bare $argv[1] crashed/degenerated)
+if test (count $argv) -eq 0; echo "usage: extract <archive>" >&2; return 1; end
 if test -f $argv[1]
   switch $argv[1]
     case '*.tar.bz2'

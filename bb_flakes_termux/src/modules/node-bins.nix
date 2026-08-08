@@ -6,7 +6,9 @@
   # tsx (TypeScript runner)
   home.activation.globalTsx = lib.hm.dag.entryAfter ["linkGeneration"] ''
     PATH="${nodejs}/bin:$PATH"
-    if ! command -v tsx >/dev/null 2>&1; then
+    # Explicit paths — `command -v tsx` never hit on the minimal activation
+    # PATH, so the npm install -g re-ran on EVERY switch (2026-08-08 audit).
+    if [ ! -x "$HOME/.npm-global/bin/tsx" ] && [ ! -x "$HOME/.node_modules/node_modules/.bin/tsx" ]; then
       $DRY_RUN_CMD ${nodejs}/bin/npm install -g tsx --no-audit --no-fund || true
     fi
   '';

@@ -38,6 +38,11 @@
       buildJson = builtins.fromJSON (builtins.readFile ./build.json);
       dtkNode = buildJson.defaults.dtk_node or "unset";
 
+      # ONE nerdfonts derivation shared by environment.packages and the
+      # ~/.termux/font.ttf home.file (two different `override` calls used to
+      # build two separate huge packages).
+      jbMonoNerd = (import nixpkgs { system = "aarch64-linux"; }).nerdfonts.override { fonts = [ "JetBrainsMono" "FiraCode" ]; };
+
       # Build termux-am from nix-on-droid source (provides `am` for Android intents)
       termux-am = (import nixpkgs { system = "aarch64-linux"; }).callPackage
         "${nix-on-droid}/pkgs/android-integration/termux-am.nix" {};
@@ -48,11 +53,13 @@
       # (fish never autoloads a name that's already defined) — so `up` kept
       # running bare build.sh without the git sync for months. up is a real
       # fish function now; `sw` is the shell-agnostic binary equivalent.
+      # ll/.. removed 2026-08-08: fish.nix/bash.nix define them (eza-flavored)
+      # at the same priority since the mkDefault discard-bug fix — duplicate
+      # keys with different values are a hard eval conflict.
       sharedAliases = {
-        ll = "ls -alh";
-        ".." = "cd ..";
         conf = "nano ~/git/unix/bb_flakes_termux/src/flake.nix";
-        dtk = "sh ~/git/tools/dtk.sh";
+        # bash, not sh — dtk.sh uses bashisms.
+        dtk = "bash ~/git/tools/dtk.sh";
       };
     in
     {
@@ -137,7 +144,7 @@
 
             environment.packages = with pkgs; [
               # Nerd Fonts (for terminal icons)
-              (nerdfonts.override { fonts = [ "JetBrainsMono" "FiraCode" ]; })
+              jbMonoNerd  # single nerdfonts derivation — a second override with a different font list built a SEPARATE multi-hundred-MB package (2026-08-08 audit)
 
               # Core Tools
               nano
@@ -251,8 +258,10 @@
                   [ "${pkgs.jemalloc}"  "${pkgs.python3}/bin" "${pkgs.code-server}/bin" ]
                   (builtins.readFile ./scripts/code.sh)))
 
-              # 5. GACP (Git Add, Commit, Push) — convenience wrapper for sync
-              (writeShellScriptBin "gacp" (builtins.readFile ./scripts/gacp.sh))
+              # 5. gacp binary REMOVED (2026-08-08 audit): the fish `gacp`
+              # function (add/commit/push — the documented behavior) shadows
+              # any PATH binary unconditionally, so this a-sync-delegating
+              # wrapper was unreachable in fish and wrong when reached.
 
               # 6. GCL (Git Clone shortcut)
               (writeShellScriptBin "gcl" (builtins.readFile ./scripts/gcl.sh))
@@ -261,9 +270,9 @@
               # Source: ~/git/tools/a-connect/connect.sh
               (writeShellScriptBin "connect" (builtins.readFile ./scripts/connect.sh))
 
-              # 7b. SYNC (Rclone sync manager)
-              # Source: ~/git/tools/a-sync/sync.sh
-              (writeShellScriptBin "sync" (builtins.readFile ./scripts/sync.sh))
+              # 7b. sync — REMOVED: duplicate of entry 3 above (same name, same
+              # source). Identical today so nix dedups, but any divergence
+              # becomes a store-path collision.
 
               # 8. NIX-DRIFT (Version drift detection for nix flakes)
               # Source: ./nix-version-drift.sh
@@ -381,7 +390,9 @@
                   for f in "$NIX_BIN"/*; do
                     name="$(basename "$f")"
                     target="$TERMUX_BIN/$name"
-                    if [ ! -e "$target" ] && [ ! -L "$target" ]; then
+                    # also relink DANGLING symlinks — once a package left the
+                    # profile its old link stayed broken forever (2026-08-08).
+                    if { [ ! -e "$target" ] && [ ! -L "$target" ]; } || { [ -L "$target" ] && [ ! -e "$target" ]; }; then
                       $DRY_RUN_CMD ln -sf "$f" "$target"
                     fi
                   done
@@ -390,7 +401,7 @@
 
               # Termux font — JetBrainsMono Nerd Font
               home.file.".termux/font.ttf".source =
-                "${pkgs.nerdfonts.override { fonts = [ "JetBrainsMono" ]; }}/share/fonts/truetype/NerdFonts/JetBrainsMonoNerdFont-Regular.ttf";
+                "${jbMonoNerd}/share/fonts/truetype/NerdFonts/JetBrainsMonoNerdFont-Regular.ttf";
 
               # claude-fix — diagnose & repair a shadowed/non-starting `claude`
               # (stale npm shims / leftover claude-tty wrappers / fish functions).
@@ -442,6 +453,12 @@
                 source = ./modules/dotfiles/claude/claude-hooks-status.sh;
                 executable = true;
               };
+              # Was never deployed — statusline-command.sh line ~177 invoked it
+              # every render and got a permanently blank Flags segment.
+              home.file.".claude/claude-flags-status.sh" = {
+                source = ./modules/dotfiles/claude/claude-flags-status.sh;
+                executable = true;
+              };
               home.file.".claude/claude-pricing.json".source =
                 ./modules/dotfiles/claude/claude-pricing.json;
               # cloud-marketplace — SHARED with ba_flakes_desktop (one source of truth,
@@ -460,10 +477,28 @@
                 [ -L "$_dst" ] && rm "$_dst"
                 ${pkgs.coreutils}/bin/install -m 600 "$_src" "$_dst"
               '';
+              # Greeting caches — CLI versions + store-path count computed ONCE
+              # per switch. fish_greeting used to spawn claude/goose/ant (up to
+              # 9s of timeout-blocking) and readdir all of /nix/store on EVERY
+              # new shell (2026-08-08 audit); now it just cats these files.
+              home.activation.greetingVersionCache = lib.hm.dag.entryAfter ["installPackages"] ''
+                _gvc() {
+                  mkdir -p "$HOME/.cache"
+                  _v() { timeout 30 "$1" --version 2>/dev/null | grep -oE '[0-9][0-9.]*' | head -1; }
+                  {
+                    v=$(_v "$HOME/.nix-profile/bin/claude"); printf 'claude %s\n' "''${v:-n/a}"
+                    v=$(_v "$HOME/.nix-profile/bin/goose");  printf 'goose %s\n'  "''${v:-n/a}"
+                    v=$(_v "$HOME/.nix-profile/bin/ant");    printf 'ant %s\n'    "''${v:-n/a}"
+                  } > "$HOME/.cache/greeting-versions" || true
+                  ls /nix/store 2>/dev/null | wc -l | tr -d ' ' > "$HOME/.cache/greeting-storecount" || true
+                  echo "[greeting-cache] CLI versions + store count refreshed"
+                }
+                _gvc
+              '';
               # Register cloud-marketplace as a plugin marketplace (idempotent CLI call
               # from a nix-committed activation — same pattern as
               # ba_flakes_desktop's claudeMarketplace). claude-code is a real nix
-              # derivation on PATH here (pkgsUnstable.claude-code), not a curl-installed binary.
+              # derivation on PATH here (pkgs/claude-code native binary), not a curl-installed binary.
               home.activation.claudeMarketplace = lib.hm.dag.entryAfter [ "claudeSettingsWritable" ] ''
                 MARKETPLACE_DIR="$HOME/.claude/cloud-marketplace"
                 JQ="${pkgs.jq}/bin/jq"
@@ -518,6 +553,12 @@
                 in lib.hm.dag.entryAfter [ "linkGeneration" ] ''
                   while IFS= read -r _rel; do
                     [ -n "$_rel" ] || continue
+                    # cloud-marketplace stays a store symlink: deep-copying the
+                    # whole plugin tree through proot on every switch is
+                    # expensive AND breaks the "store-backed marketplace"
+                    # contract the claudeMarketplace activation relies on
+                    # (2026-08-08 audit).
+                    case "$_rel" in .claude/cloud-marketplace*) continue ;; esac
                     _t="$HOME/$_rel"
                     [ -L "$_t" ] || continue
                     _r="$(${pkgs.coreutils}/bin/readlink -f "$_t" 2>/dev/null)"
@@ -537,6 +578,12 @@
               # MCP secrets: decrypt secrets.yaml → awk subst ''${VAR} → ~/.mcp.json
               # Mimics Docker env_file + init.sh pattern using awk index() (literal, no regex)
               home.activation.mcpSecrets = lib.hm.dag.entryAfter ["linkGeneration"] ''
+                # FUNCTION WRAP (2026-08-08): HM concatenates every activation
+                # entry into ONE script — a bare `exit 0` here aborted the WHOLE
+                # activation, silently skipping every entry sorted after this one
+                # (geminiMcpSecrets, unfreezeHmFiles, ...). Inside a function,
+                # `return` ends only this step.
+                _run_mcp_secrets() {
                 SOPS="$HOME/.nix-profile/bin/sops"
                 TPL="$HOME/.claude/mcp.json.tpl"
                 SECRETS_YAML="$HOME/.claude/secrets.yaml"
@@ -552,7 +599,7 @@
                 if [ ! -f "$SOPS" ] || [ ! -f "$SECRETS_YAML" ] || [ ! -f "$TPL" ]; then
                   echo "[mcp-secrets] WARNING: sops/secrets/template not found, copying template as-is"
                   [ -f "$TPL" ] && { rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"; }
-                  exit 0
+                  return 0
                 fi
 
                 # Decrypt secrets.yaml (same as cloud/ _engine.sh pattern)
@@ -560,7 +607,7 @@
                 if [ -z "$DECRYPTED" ]; then
                   echo "[mcp-secrets] WARNING: failed to decrypt secrets.yaml"
                   rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"
-                  exit 0
+                  return 0
                 fi
 
                 # Copy template to output
@@ -596,10 +643,17 @@
 
                 chmod 600 "$OUT"
                 echo "[mcp-secrets] ~/.mcp.json templated ($(echo $VARS | wc -w) vars substituted)"
+                }
+                _run_mcp_secrets
               '';
 
               # Gemini CLI: decrypt secrets.yaml → awk subst ''${VAR} → ~/.gemini/settings.json
               home.activation.geminiMcpSecrets = lib.hm.dag.entryAfter ["linkGeneration"] ''
+                # Function wrap + rm/chmod around every cp: same two bugs the
+                # mcpSecrets block above documents (bare `exit` aborts the whole
+                # concatenated activation; cp from the store preserves 0444 and
+                # bricks the next overwrite). This block had both (2026-08-08).
+                _run_gemini_mcp_secrets() {
                 SOPS="$HOME/.nix-profile/bin/sops"
                 TPL="$HOME/.gemini/settings.json.tpl"
                 SECRETS_YAML="$HOME/.claude/secrets.yaml"
@@ -609,18 +663,18 @@
 
                 if [ ! -f "$SOPS" ] || [ ! -f "$SECRETS_YAML" ] || [ ! -f "$TPL" ]; then
                   echo "[gemini-mcp] WARNING: sops/secrets/template not found, copying template as-is"
-                  [ -f "$TPL" ] && cp "$TPL" "$OUT"
-                  exit 0
+                  [ -f "$TPL" ] && { rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"; }
+                  return 0
                 fi
 
                 DECRYPTED=$("$SOPS" -d "$SECRETS_YAML" 2>/dev/null) || true
                 if [ -z "$DECRYPTED" ]; then
                   echo "[gemini-mcp] WARNING: failed to decrypt secrets.yaml"
-                  cp "$TPL" "$OUT"
-                  exit 0
+                  rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"
+                  return 0
                 fi
 
-                cp "$TPL" "$OUT"
+                rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"
 
                 VARS=$($AWK '{
                   s = $0
@@ -649,6 +703,8 @@
 
                 chmod 600 "$OUT"
                 echo "[gemini-mcp] ~/.gemini/settings.json templated ($(echo $VARS | wc -w) vars substituted)"
+                }
+                _run_gemini_mcp_secrets
               '';
 
               # Minimal .gitignore so $HOME is a git repo (ignore everything)
@@ -682,7 +738,12 @@
                 enable = true;
                 shellAliases = sharedAliases;
                 profileExtra = ''
-                  export PATH="$HOME/.nix-profile/bin:/run/current-system/sw/bin:$PATH"
+                  # ~/.local/bin must stay AHEAD of nix-profile: the Authelia
+                  # bearer-injecting curl/wget wrappers live there
+                  # (curl-wget-wrapper.nix) — the previous line prepended
+                  # nix-profile alone and silently bypassed them in every bash
+                  # login shell (2026-08-08 audit).
+                  export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:/run/current-system/sw/bin:$PATH"
                   # /etc self-heal — a FAILED nix-on-droid switch relinks
                   # /etc/static to the new generation's etc mid-activation, then
                   # aborts before committing; that orphaned etc is later GC'd, so

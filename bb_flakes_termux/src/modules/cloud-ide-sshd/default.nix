@@ -45,14 +45,17 @@ let
   # to wgIp — no public exposure. If wg0 is down, sshd refuses to start
   # rather than fall back to listening on all interfaces.
   #
-  # Default port is 8023, NOT 8022 — on this device 8022 hits EADDRINUSE
+  # Fallback port is 8024, matching build.json defaults.ssh_port and
+  # build.sh — the three sources used to disagree (8023 here) so a missing
+  # build.json made nix bind a port the probe never checked (2026-08-08).
+  # (8022 hits EADDRINUSE on this device
   # despite /proc/net/tcp showing the port free (suspected kernel TIME_WAIT
   # or Android sandbox lock invisible to proot's view).
   # ../../build.json = src/build.json (vendored by build.sh). Must NOT reach
   # outside src/ — a path: flake escaping src/ copies the whole repo (proot dies).
   buildJson = builtins.fromJSON (builtins.readFile ../../build.json);
   wgIp = buildJson.defaults.wg_ip or "127.0.0.1";
-  sshPort = buildJson.defaults.ssh_port or 8023;
+  sshPort = buildJson.defaults.ssh_port or 8024;
 
   # Runtime JSON (fire-rule 4 + 6): wg_ip/ssh_port still originate from
   # build.json above at Nix eval time; only their *consumption* moved from
@@ -84,7 +87,7 @@ let
   '';
 in
 {
-  # Pinned OpenSSH 8.9p1 — wrapper interpolates its absolute store path so
+  # stock pkgs.openssh (8.9p1 pin abandoned) — wrapper interpolates its absolute store path so
   # there's no PATH ambiguity. Also expose it on PATH for ad-hoc use.
   home.packages = [ opensshPinned ];
 

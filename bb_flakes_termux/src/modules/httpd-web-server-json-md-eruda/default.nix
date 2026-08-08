@@ -84,8 +84,12 @@ in
   # fails if termux-services isn't installed on the underlying Termux prefix,
   # since nix-on-droid doesn't own that install.
   home.activation.httpdWebServerJsonMdErudaSvEnable = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-    if command -v sv-enable >/dev/null 2>&1; then
-      $DRY_RUN_CMD sv-enable ${serviceName} 2>/dev/null || \
+    # Explicit Termux-prefix path — sv-enable is never on the minimal
+    # activation PATH, so `command -v` couldn't distinguish "not installed"
+    # from "not on PATH" (2026-08-08 audit).
+    SV_ENABLE="/data/data/com.termux.nix/files/usr/bin/sv-enable"
+    if [ -x "$SV_ENABLE" ]; then
+      $DRY_RUN_CMD "$SV_ENABLE" ${serviceName} 2>/dev/null || \
         echo "[${serviceName}] WARNING: sv-enable failed — check 'pkg install termux-services' and runsvdir status"
     else
       echo "[${serviceName}] WARNING: sv-enable not found — run 'pkg install termux-services' on Termux for real background supervision (falling back to on-demand wrapper only)"

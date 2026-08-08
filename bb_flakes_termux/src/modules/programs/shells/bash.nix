@@ -19,7 +19,7 @@
       "autocd"
     ];
 
-    shellAliases = lib.mkDefault {
+    shellAliases = {  # no mkDefault — flake sharedAliases would DISCARD this whole set (2026-08-08 audit)
       # Modern CLI replacements
       ls = "eza --color=auto --icons";
       ll = "eza -alF --icons";

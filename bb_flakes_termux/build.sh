@@ -1,4 +1,7 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# bash, not sh: the verify loop uses IFS=$'\t' (ANSI-C quoting) which
+# dash parses as literal characters, silently mis-splitting every field
+# (2026-08-08 audit).
 # ============================================================================
 # Diego's Termux/nix-on-droid - Build Script
 # ============================================================================
@@ -40,6 +43,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/src"
 NIX_CACHE_CFG="$SRC_DIR/modules/nix-cache.json"
 LOG_FILE="$HOME/git/cloud-data/logs/bb_flakes_termux.log"
+# cloud-data may not be cloned yet — a failed >> under set -e killed the
+# whole script with a bare "cannot create" (2026-08-08 audit).
+mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || LOG_FILE=/dev/null
 
 # Age key — dotfile symlink from vault/build.sh setup system, sops-nix fallback
 : "${SOPS_AGE_KEY_FILE:=$HOME/.config/sops/age/keys.txt}"
@@ -288,9 +294,8 @@ cmd_switch() {
     # benign flake-lock `error (ignored):` starts with "error " (space) not
     # "error:" so it does not match, and it is emitted before this block anyway.
     if grep -qE '^error:' "$_out_file"; then
-        _first_err=$(grep -E '^error:' "$_out_file" | head -1)
         log_error "nix-on-droid printed a FATAL error (raw exit was $exit_code) — no generation applied:"
-        log_error "  $_first_err"
+        grep -A6 -E '^error:' "$_out_file" | head -8 | while IFS= read -r _el; do log_error "  $_el"; done
         exit_code=1
     fi
     rm -f "$_rc_file" "$_out_file"
@@ -317,8 +322,11 @@ cmd_switch() {
         # Parse: name, path, fix from JSON. Expand $HOME at shell time.
         while IFS=$'\t' read -r _name _path _fix; do
             _checked=$((_checked + 1))
-            _resolved=$(eval echo "$_path")
-            if [ -e "$_resolved" ] || command -v "$_name" >/dev/null 2>&1; then
+            # No eval (JSON-supplied data), no `command -v` fallback — the
+            # fallback let stale imperative files in ~/.local/bin satisfy the
+            # check, making the declared path unfalsifiable (2026-08-08 audit).
+            _resolved=${_path//\$HOME/$HOME}
+            if [ -e "$_resolved" ]; then
                 continue
             fi
             _missing=$((_missing + 1))
@@ -400,7 +408,7 @@ EOT
     if command -v nix-drift >/dev/null 2>&1; then
         nix-drift drift --cached 2>/dev/null || true
         # Refresh cache in background for next switch
-        nix-drift refresh &
+        ( flock -n 9 && nix-drift refresh ) 9>"$HOME/.cache/nix-drift.refresh.lock" 2>/dev/null &
     fi
 }
 
@@ -509,7 +517,7 @@ cmd_clean() {
     # 1. Remove result symlinks
     perf_step "remove symlinks"
     log_info "Removing result symlinks..."
-    rm -f "$SRC_DIR/result" "$SRC_DIR/result-*"
+    rm -f "$SRC_DIR/result" "$SRC_DIR"/result-*
 
     # 2. Trim home-manager generations (keep last 3)
     perf_step "trim hm generations"
@@ -643,7 +651,7 @@ cmd_nixcache_publish() {
     _mtype="$(jq -r '.blob_media_type' "$_cfg")"; _tlann="$(jq -r '.toplevel_annotation' "$_cfg")"
     _manf="$(jq -r '.manifest_file' "$_cfg")"
     _out="$SCRIPT_DIR/dist-ci"
-    _top="$(cat "$_out/activation.path" 2>/dev/null)"
+    _top="$(cat "$_out/activation.path" 2>/dev/null || true)"
     [ -n "$_top" ] && [ -d "$_top" ] || { log_error "no dist-ci/activation.path — run ci-build first"; return 1; }
     _tlname="$(basename "$_top")"; log_info "toplevel: $_tlname"
 
@@ -669,7 +677,7 @@ cmd_nixcache_publish() {
           --max-time 40 "https://nix-on-droid.cachix.org/${h}.narinfo" && echo "{}"
     ' | sort > "$_work/public.txt" || true
     comm -23 "$_work/all.txt" "$_work/public.txt" | sort > "$_work/custom-set.txt"
-    grep -Fx -f "$_work/custom-set.txt" "$_work/topo.txt" > "$_work/$_manf"   # topo-ordered custom
+    { grep -Fx -f "$_work/custom-set.txt" "$_work/topo.txt" || true; } > "$_work/$_manf"   # topo-ordered custom
     _n=$(wc -l < "$_work/$_manf")
     log_info "custom paths: $_n of $(wc -l < "$_work/all.txt") (rest from public caches)"
     [ "$_n" -gt 0 ] || { log_warn "no custom paths — nothing to publish"; return 0; }

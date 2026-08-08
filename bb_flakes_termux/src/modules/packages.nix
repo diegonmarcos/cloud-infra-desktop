@@ -4,6 +4,16 @@
 
 {
   home.packages = with pkgs; [
+    # Modern-CLI tools the shell aliases point at — were aliased but NEVER
+    # installed (the alias sets themselves were also dead until the mkDefault
+    # discard-bug fix; both found 2026-08-08). All prebuilt from cache.
+    eza              # ls/ll/la/l/lh/lt aliases
+    bat              # cat alias
+    ripgrep          # grep alias
+    fd               # find alias
+    ncdu             # du alias
+    duf              # df alias (bash.nix)
+    zoxide           # z — init'd in interactiveShellInit, never installed
     busybox          # httpd — lightweight static file server
     mdbook
     iotop            # per-process disk I/O monitoring
@@ -42,7 +52,7 @@
                      #   into Cloud-SuperApp's own shell-domain server (libs:
                      #   shizuku-adb-debug-tools, /api/adb/*), so adb here is moot.
                      #   Re-enable (uncomment) only if you need adb from stock Termux.
-    # wrangler: installed from pkgsNew (24.11) in flake.nix environment.packages
-    #           nixpkgs 24.05 has 3.34 which lacks [observability] support (needs 3.60+)
+    # wrangler: npm-global install via node-bins.nix (the old "from pkgsNew
+    # in flake.nix" claim here was stale — 2026-08-08 audit)
   ];
 }
