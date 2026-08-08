@@ -114,21 +114,16 @@ in
     Service = {
       Type = "exec";
       # Pre-flight: make sure the secret file is present (sops-decrypted).
-      ExecStartPre = pkgs.writeShellScript "wstunnel-precheck" ''
-        if [ ! -r "${secretFile}" ]; then
-          echo "[wstunnel] ERROR: ${secretFile} not found." >&2
-          echo "[wstunnel] sops-decrypt the WSTUNNEL_PATH_PREFIX secret first." >&2
-          exit 1
-        fi
-      '';
-      ExecStart = pkgs.writeShellScript "wstunnel-client-start" ''
-        set -eu
-        PATH_PREFIX="$(cat "${secretFile}")"
-        exec ${wstunnelBin} client \
-          --local-to-remote 'udp://${toString localUdp}:127.0.0.1:${toString remoteWg}' \
-          --restrict-http-upgrade-path-prefix "$PATH_PREFIX" \
-          '${wsEndpoint}'
-      '';
+      ExecStartPre = pkgs.writeShellScript "wstunnel-precheck"
+        (builtins.replaceStrings
+          [ "@secretFile@" ]
+          [ secretFile      ]
+          (builtins.readFile ./scripts/wstunnel-precheck.sh));
+      ExecStart = pkgs.writeShellScript "wstunnel-client-start"
+        (builtins.replaceStrings
+          [ "@secretFile@" "@wstunnelBin@" "@localUdp@"          "@remoteWg@"          "@wsEndpoint@" ]
+          [ secretFile      wstunnelBin     (toString localUdp)   (toString remoteWg)   wsEndpoint     ]
+          (builtins.readFile ./scripts/wstunnel-client-start.sh));
       Restart    = "on-failure";
       RestartSec = 10;
       # No MemoryMax (2026-08-07): a hard per-service cap is a spurious-kill

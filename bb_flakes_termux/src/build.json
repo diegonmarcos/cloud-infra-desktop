@@ -1,0 +1,19 @@
+{
+  "project": {
+    "name": "diego-termux",
+    "version": "1.0.0",
+    "description": "Diego's Termux / nix-on-droid Environment"
+  },
+  "paths": {
+    "src": "src",
+    "flake": "src/flake.nix",
+    "log": "build.log"
+  },
+  "defaults": {
+    "user": "nix-on-droid",
+    "host": "nix-on-droid",
+    "dtk_node": "termux",
+    "wg_ip": "10.0.0.9",
+    "ssh_port": 8024
+  }
+}

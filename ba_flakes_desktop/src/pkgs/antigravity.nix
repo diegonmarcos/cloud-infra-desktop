@@ -81,12 +81,9 @@ let
     # (The "Invalid environment block" crash was a vault-keys bug — multi-line
     # private keys exported into the login env; fixed at the source in
     # vault/build.sh, which now exports <NAME>_FILE paths, not the material.)
-    runScript = writeShellScript "antigravity-run" ''
-      "${unpacked}/opt/antigravity/antigravity" "$@"
-      rc=$?
-      pkill -9 -f "${unpacked}/opt/antigravity" 2>/dev/null || true
-      exit $rc
-    '';
+    runScript = writeShellScript "antigravity-run"
+      (builtins.replaceStrings [ "@unpacked@" ] [ "${unpacked}" ]
+        (builtins.readFile ./scripts/antigravity-run.sh));
   };
 in
 stdenv.mkDerivation {

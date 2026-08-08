@@ -30,10 +30,9 @@ let
 
   # Wrapper that points the engine at the deployed whitelist by default.
   # User can still override via --whitelist or WHITELIST_JSON= env.
-  reaperWrapper = pkgs.writeShellScriptBin "orphan-reaper" ''
-    export WHITELIST_JSON="''${WHITELIST_JSON:-$HOME/.config/orphan-reaper/whitelist.json}"
-    exec ${enginePath} "$@"
-  '';
+  reaperWrapper = pkgs.writeShellScriptBin "orphan-reaper"
+    (builtins.replaceStrings [ "@enginePath@" ] [ (toString enginePath) ]
+      (builtins.readFile ./scripts/orphan-reaper.sh));
 in
 {
   home.packages = [

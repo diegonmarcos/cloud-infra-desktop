@@ -22,6 +22,7 @@ let
   realCurl = "${pkgs.curl}/bin/curl";
   realWget = "${pkgs.wget}/bin/wget";
 
+<<<<<<< Updated upstream
   # Extracted from the formerly per-binary Nix-interpolated `mkWrapperPkg`
   # body — now ONE shared script (curl-wget-wrapper.sh), the real binary
   # passed via runtimeEnv (same pattern as nix-command-catcher.sh's
@@ -43,6 +44,41 @@ let
     };
     text = builtins.readFile ./curl-wget-wrapper.sh;
   };
+||||||| Stash base
+  mkWrapperPkg = name: realBin: headerFlag: pkgs.writeShellScriptBin name ''
+    # Re-entry guard
+    if [ "''${_CURL_WRAP:-}" = "1" ]; then
+      exec ${realBin} "$@"
+    fi
+    export _CURL_WRAP=1
+
+    # Check if any arg matches *.diegonmarcos.com*
+    # Skip injection if user already provides an Authorization header
+    _needs_token=0
+    _has_auth=0
+    for _arg in "$@"; do
+      case "$_arg" in
+        *diegonmarcos.com*) _needs_token=1 ;;
+        Authorization:*) _has_auth=1 ;;
+      esac
+    done
+
+    if [ "$_needs_token" = "1" ] && [ "$_has_auth" = "0" ] && [ -f "${tokenFile}" ]; then
+      _token=$(${pkgs.jq}/bin/jq -r .access_token "${tokenFile}" 2>/dev/null)
+      if [ -n "$_token" ] && [ "$_token" != "null" ]; then
+        exec ${realBin} ${headerFlag} "Authorization: Bearer $_token" "$@"
+      fi
+    fi
+
+    exec ${realBin} "$@"
+  '';
+=======
+  mkWrapperPkg = name: realBin: headerFlag: pkgs.writeShellScriptBin name
+    (builtins.replaceStrings
+      [ "@realBin@"  "@tokenFile@"  "@jq@"              "@headerFlag@" ]
+      [ realBin      tokenFile      "${pkgs.jq}/bin/jq"  headerFlag     ]
+      (builtins.readFile ./scripts/curl-wget-wrapper.sh));
+>>>>>>> Stashed changes
 
 in
 {

@@ -1,9 +1,7 @@
 { pkgs, ... }:
 {
   home.packages = [
-    (pkgs.writeShellScriptBin "mesh" ''
-      exec "$HOME/git/tools/3-dashboards/mesh/mesh.sh" "$@"
-    '')
+    (pkgs.writeShellScriptBin "mesh" (builtins.readFile ./scripts/mesh.sh))
   ];
 
   xdg.desktopEntries.mesh = {

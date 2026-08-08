@@ -19,6 +19,7 @@
 let
   cfg = builtins.fromJSON (builtins.readFile ./dev-shell.json);
 
+<<<<<<< Updated upstream
   # Shell body lives in ./dev-shell.sh. Store paths (bwrap, coreutils, jq)
   # arrive via runtimeEnv instead of ${pkgs.foo} interpolation in the body;
   # p5_store_root / prompt_marker / marker_env are read at runtime from the
@@ -36,6 +37,58 @@ let
     };
     text = builtins.readFile ./dev-shell.sh;
   };
+||||||| Stash base
+  devLauncher = pkgs.writeShellScriptBin cfg.name ''
+    set -u
+    P5=${lib.escapeShellArg p5}
+    BWRAP=${pkgs.bubblewrap}/bin/bwrap
+    BN=${pkgs.coreutils}/bin/basename
+    RL=${pkgs.coreutils}/bin/readlink
+
+    if [ ! -d "$P5/nix/store" ]; then
+      echo "${cfg.name}: dev-store not present at $P5 — is p5 (/mnt/shared-lib) mounted?" >&2
+      exit 1
+    fi
+    # The profile gcroot ($P5/profile) points to a LOGICAL /nix/store path that
+    # only resolves INSIDE the namespace. Resolve the PHYSICAL p5 path so the
+    # pre-check works outside AND the binaries' interpreter (/nix/store/…-glibc)
+    # still resolves inside (where /nix/store == the p5 store).
+    PHYS="$P5/nix/store/$("$BN" "$("$RL" "$P5/profile" 2>/dev/null)" 2>/dev/null)"
+    if [ ! -x "$PHYS/bin/bash" ]; then
+      echo "${cfg.name}: dev profile not built yet — run:  ~/git/unix/bc_flakes_dev-store/build.sh ship" >&2
+      exit 1
+    fi
+
+    # Host env passes through (no --clearenv) so DISPLAY/WAYLAND_DISPLAY/HOME/TERM
+    # just work; we only override PATH (→ the p5 profile) and set the marker.
+    base=( "$BWRAP"
+      --dev-bind / /
+      --bind "$P5/nix/store" /nix/store
+      --setenv ${cfg.marker_env} 1
+      --setenv CARGO_HOME "$HOME/.cargo"
+      --setenv CARGO_TARGET_DIR "$HOME/.cargo/target"
+      --setenv PATH "$PHYS/bin:$HOME/.cargo/bin" )
+
+    if [ "''${1:-}" = "--" ]; then
+      shift
+      exec "''${base[@]}" "$PHYS/bin/bash" -c 'exec "$@"' _ "$@"
+    fi
+
+    # Interactive: a throwaway rcfile (host /tmp is bound in) sets the [dev] prompt.
+    RC="$(${pkgs.coreutils}/bin/mktemp /tmp/dev-rc.XXXXXX)"
+    printf 'PS1=%s\n' '"${cfg.prompt_marker}\w \$ "' > "$RC"
+    "''${base[@]}" "$PHYS/bin/bash" --rcfile "$RC" -i
+    rc=$?
+    ${pkgs.coreutils}/bin/rm -f "$RC"
+    exit $rc
+  '';
+=======
+  devLauncher = pkgs.writeShellScriptBin cfg.name
+    (builtins.replaceStrings
+      [ "@p5@"                "@bwrap@"              "@coreutils@"          "@cfgName@"   "@markerEnv@"       "@promptMarker@"       ]
+      [ (lib.escapeShellArg p5) "${pkgs.bubblewrap}" "${pkgs.coreutils}"    cfg.name      cfg.marker_env      cfg.prompt_marker      ]
+      (builtins.readFile ./scripts/dev.sh));
+>>>>>>> Stashed changes
 in
 {
   # Runtime data for dev-shell.sh (Home Manager: xdg.configFile, per the
