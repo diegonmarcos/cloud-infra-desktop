@@ -14,7 +14,12 @@
 { config, pkgs, lib, ... }:
 
 let
-  vaultBase = "${config.home.homeDirectory}/storage/shared/git/vault/A0_keys/providers/wireguard";
+  # ~/git/vault — the SAME path every other module uses (common.nix, the
+  # curl/wget wrappers, claude settings env). The old value pointed at
+  # ~/storage/shared/git/vault/… which doesn't exist, so every symlink
+  # below dangled and "[wireguard-wstunnel] wg0.conf not found — skipping
+  # render" fired on every switch since day one (found 2026-08-08).
+  vaultBase = "${config.home.homeDirectory}/git/vault/A0_keys/providers/wireguard";
 in
 {
   home.file.".config/wireguard/privatekey" = {
@@ -49,7 +54,11 @@ in
     source = config.lib.file.mkOutOfStoreSymlink "${vaultBase}/termux-public/publickey";
   };
 
-  home.file.".config/wireguard/wg-public.conf" = lib.mkIf (builtins.pathExists "${vaultBase}/termux-public/config") {
+  # No pathExists gate: the closure is built in CI where the device path
+  # never exists, so the mkIf was permanently false and wg-public.conf was
+  # never deployed. mkOutOfStoreSymlink tolerates a missing target (the
+  # symlink just dangles until the vault file appears).
+  home.file.".config/wireguard/wg-public.conf" = {
     source = config.lib.file.mkOutOfStoreSymlink "${vaultBase}/termux-public/config";
   };
 

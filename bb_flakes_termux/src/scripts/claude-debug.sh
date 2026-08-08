@@ -94,7 +94,7 @@ for pair in "$HOME/git/cloud-data:$CLOUDDATA_DIR" "$HOME/git/unix:$UNIX_REPORT_D
   for f in "$LOG" "$TUIBARE" "$TUIFULL"; do [ -f "$f" ] && cp -f "$f" "$dir/" 2>/dev/null; done
   ( cd "$repo" \
     && git add "$dir"/claude--debug*.log >/dev/null 2>&1 \
-    && git commit -q -m "claude--debug log $(date -u +%FT%TZ)" >/dev/null 2>&1 \
+    && git commit -q -m "claude--debug log $(date -u +%FT%TZ)" -- "$dir"/claude--debug*.log >/dev/null 2>&1 \
     && git push -q >/dev/null 2>&1 \
     && echo "pushed → $repo" ) || echo "WARN: commit/push failed for $repo (log still on disk)"
 done

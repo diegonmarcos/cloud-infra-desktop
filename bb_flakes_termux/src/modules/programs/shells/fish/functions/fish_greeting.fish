@@ -21,19 +21,30 @@ set -l mem_info (command free -h | awk '/Mem:/ {print $3"/"$2}')
 set -l mem_perc (command free | awk '/Mem:/ {printf "%.0f", $3/$2*100}')
 set -l disk_info (command df -h /nix | awk 'NR==2 {print $3"/"$2}')
 set -l disk_perc (command df /nix | awk 'NR==2 {gsub(/%/,""); print $5}')
-set -l ip_addr (curl -sf --max-time 2 ifconfig.me 2>/dev/null; or echo "offline")
+# public IP: 1h-TTL cache + background refresh — an inline curl blocked
+# every new shell for up to 2s on mobile networks (2026-08-08 audit).
+set -l _ipc $HOME/.cache/greeting-pubip
+set -l ip_addr (command cat $_ipc 2>/dev/null); test -z "$ip_addr" && set ip_addr "…"
+set -l _ipage (math (date +%s) - (stat -c %Y $_ipc 2>/dev/null; or echo 0))
+if test $_ipage -gt 3600
+    begin; curl -sf --max-time 5 ifconfig.me > $_ipc.tmp 2>/dev/null; and mv $_ipc.tmp $_ipc; end &
+    disown 2>/dev/null
+end
 set -l ip_priv (ip -4 addr show scope global 2>/dev/null | awk '/inet / {gsub(/\/.*/, "", $2); iface=$NF; if (iface !~ /docker|br-|veth/) printf "%s(%s) ", $2, iface}' | string trim)
 set -l dns_servers (command awk '/^nameserver/ {printf "%s ", $2}' /etc/resolv.conf 2>/dev/null | string trim)
 set -l load_avg (command cat /proc/loadavg 2>/dev/null | awk '{print $1" "$2" "$3}'); test -z "$load_avg" && set load_avg "n/a"
-set -l pkgs (command ls /nix/store 2>/dev/null | wc -l | string trim)
+# store-path count from the switch-time cache — `ls /nix/store | wc -l` was
+# a full readdir of a 10k+-entry dir on every shell (2026-08-08 audit).
+set -l pkgs (command cat $HOME/.cache/greeting-storecount 2>/dev/null | string trim); test -z "$pkgs" && set pkgs "?"
 set -l procs (command ls /proc 2>/dev/null | grep -c '^[0-9]')
 set -l datetime (date '+%d-%m-%Y %H:%M')
 set -l gpu (command -q lspci && lspci 2>/dev/null | grep -i vga | sed 's/.*: //' | string sub -l 25; or echo "n/a")
 
 # Security info
-set -l ssh_status (command -q systemctl && systemctl is-active sshd 2>/dev/null; or echo "n/a")
-set -l fw_status (command -q systemctl && systemctl is-active firewalld 2>/dev/null; or echo "n/a")
-set -l fail2ban (command -q systemctl && systemctl is-active fail2ban 2>/dev/null; or echo "n/a")
+# No systemd on nix-on-droid — probe the real daemons (2026-08-08 audit).
+set -l ssh_status (pgrep -x sshd >/dev/null 2>&1; and echo active; or echo inactive)
+set -l fw_status "n/a"
+set -l fail2ban "n/a"
 set -l open_ports (ss -tuln 2>/dev/null | grep LISTEN | wc -l | string trim)
 set -l last_login (last -1 -R $user 2>/dev/null | head -1 | awk '{print $4" "$5" "$6}')
 test -z "$last_login" && set last_login "n/a"
@@ -183,15 +194,24 @@ set_color magenta; echo -n "    up               "; set_color normal; echo "Git-
 set_color magenta; echo -n "    conf             "; set_color normal; echo "Edit flake.nix"
 set_color magenta; echo -n "    dtk              "; set_color normal; echo "Diego's Toolkit (cloud ops, dashboards, webhooks)"
 # Dev
-set -l _claude_ver (command -q claude && timeout 3 claude --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
-set -l _goose_ver (command -q goose && timeout 3 goose --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
-set -l _ant_ver (command -q ant && timeout 3 ant --version 2>/dev/null | string match -r '[\d.]+'; or echo "n/a")
+# Versions come from ~/.cache/greeting-versions, written at SWITCH time by
+# home.activation.greetingVersionCache — spawning claude/goose/ant here cost
+# 3 processes + up to 9s of timeout-blocking on EVERY new shell
+# (2026-08-08 audit; claude --version alone needs >3s on this phone).
+set -l _claude_ver "n/a"; set -l _goose_ver "n/a"; set -l _ant_ver "n/a"
+if test -r $HOME/.cache/greeting-versions
+    while read -l _k _v
+        switch $_k
+            case claude; set _claude_ver $_v
+            case goose;  set _goose_ver $_v
+            case ant;    set _ant_ver $_v
+        end
+    end < $HOME/.cache/greeting-versions
+end
 set_color cyan; echo "  Dev:"
 set_color normal
 set_color green; echo -n "    claude           "; set_color normal; echo "Native Anthropic binary (v$_claude_ver)"
-set_color green; echo -n "    claude-termux    "; set_color normal; echo "Android-safe (io_uring fix + 1GB cap)"
-set_color green; echo -n "    claude-malloc    "; set_color normal; echo "Max memory (2GB) + TMPDIR isolation"
-set_color green; echo -n "    claude-rescue    "; set_color normal; echo "Fallback chain: podman → npx → nix → node"
+set_color --dim; echo "    claude-termux/-malloc/-rescue — extracted by the my-ai binary (not this flake)"; set_color normal
 set_color green; echo -n "    ant              "; set_color normal; echo "Anthropic Claude Platform CLI (v$_ant_ver) · Messages, Managed Agents, Files"
 set_color green; echo -n "    ai-cli           "; set_color normal; echo -n "Goose AI (v$_goose_ver) "; set_color --dim; echo "default: Haiku 4.5 · ai-cli -h for models"; set_color normal
 set_color green; echo -n "    code             "; set_color normal; echo "VS Code Server (local/lan/stop)"
@@ -202,12 +222,11 @@ set_color red; echo -n "    connect          "; set_color normal; echo "Cloud Co
 set_color red; echo -n "    sync             "; set_color normal; echo "File sync & serve (WebDAV SFTP HTTP+Eruda)"
 # http-dev status
 if test -n "$__httpd_pid" && kill -0 $__httpd_pid 2>/dev/null
-  set_color green; echo -n "    http-dev         "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: $__httpd_pid)"
-else if command -q systemctl && systemctl --user is-active http-dev.service >/dev/null 2>&1
-  set -l _httpd_pid (systemctl --user show http-dev.service -p MainPID --value 2>/dev/null)
-  set_color green; echo -n "    http-dev         "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: $_httpd_pid)"
+  set_color green; echo -n "    httpd            "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: $__httpd_pid)"
+else if test -f $HOME/.cache/httpd-web-server-json-md-eruda.pid; and kill -0 (cat $HOME/.cache/httpd-web-server-json-md-eruda.pid 2>/dev/null) 2>/dev/null
+  set_color green; echo -n "    httpd            "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: "(cat $HOME/.cache/httpd-web-server-json-md-eruda.pid)")"
 else
-  set_color red; echo -n "    http-dev         "; set_color normal; echo "○ Not running"
+  set_color red; echo -n "    httpd            "; set_color normal; echo "○ Not running (httpd-web-server-json-md-eruda start)"
 end
 # System
 set_color cyan; echo "  System:"
@@ -217,7 +236,6 @@ set_color magenta; echo -n "    yazi             "; set_color normal; echo "Term
 set_color magenta; echo -n "    tldr             "; set_color normal; echo "Simplified man pages (tealdeer)"
 set_color magenta; echo -n "    tmux             "; set_color normal; echo "Terminal multiplexer (sessions, splits, detach)"
 set_color magenta; echo -n "    browsh           "; set_color normal; echo "Web browser in terminal (headless Firefox)"
-set_color magenta; echo -n "    nmtui            "; set_color normal; echo "Network Manager TUI (WiFi, VPN, connections)"
 # Search (fzf)
 set_color cyan; echo "  Search (fzf + atuin):"
 set_color normal

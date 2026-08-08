@@ -7,8 +7,13 @@
 REPO="$HOME/git/unix"
 
 if [ -x "$REPO/1_workflows/dist/scripts/cloud-git-sync.sh" ]; then
-  # 6-step engine: stash → fetch → rebase → PUSH → pop → submodules
-  git -C "$REPO" sync || echo "[sw] WARN: git sync failed — switching with the tree as-is"
+  # 6-step engine: stash → fetch → rebase → PUSH → pop → submodules.
+  # Run the SCRIPT directly — the `git sync` alias only exists where the
+  # imperative gitconfig include was installed; calling the alias here
+  # silently no-op'd on fresh installs ("not a git command" swallowed by
+  # the WARN — found in the 2026-08-08 audit).
+  ( cd "$REPO" && ./1_workflows/dist/scripts/cloud-git-sync.sh ) \
+    || echo "[sw] WARN: git sync failed — switching with the tree as-is"
 else
   echo "[sw] note: sync engine not present yet — plain pull --rebase"
   git -C "$REPO" pull --rebase || echo "[sw] WARN: pull failed — switching with the tree as-is"

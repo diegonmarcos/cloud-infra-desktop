@@ -1,18 +1,6 @@
 {
-  "description": "Data-driven hook engine — UserPromptSubmit + PreToolUse:Bash inject of the compact per-turn principles pointer. See scripts/hook-engine.sh.",
+  "description": "Data-driven hook engine — UserPromptSubmit + PreToolUse:Bash inject of the compact per-turn principles pointer. See scripts/hook-engine.sh. UserPromptSubmit hook removed 2026-08-08: its only rule is tiered PreToolUse:Bash, so the inject was a guaranteed no-op fork per prompt.",
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/hook-engine.sh inject UserPromptSubmit",
-            "timeout": 3
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",

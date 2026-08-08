@@ -51,31 +51,34 @@ bind -M insert \cp '__fzf_search_commands'
 # inherited from a parent process (e.g. Plasma → Konsole).
 # fish_add_path is idempotent: no duplicates added.
 if test -d /mnt/shared/tools/scripts
-  fish_add_path /mnt/shared/tools/scripts
+  fish_add_path -g --path /mnt/shared/tools/scripts
 end
 for dir in /mnt/shared/tools/devops/bin /mnt/shared/tools/data/bin /mnt/shared/tools/dev/bin /mnt/shared/tools/base/bin
   if test -d $dir
-    fish_add_path $dir
+    fish_add_path -g --path $dir
   end
 end
 if test -d $HOME/.npm-global/bin
-  fish_add_path $HOME/.npm-global/bin
+  fish_add_path -g --path $HOME/.npm-global/bin
 end
 if test -d $HOME/.cargo/bin
-  fish_add_path $HOME/.cargo/bin
+  fish_add_path -g --path $HOME/.cargo/bin
 end
-if test -d $HOME/.local/bin
-  fish_add_path $HOME/.local/bin
-end
-# nix-profile must come LAST so it has highest PATH priority
-# (patchelf'd binaries like claude-code override unpatched npm/cargo copies).
-# --move --path is REQUIRED: sessionVariables.PATH (flake.nix) already contains
-# nix-profile BEHIND ~/.node_modules/.bin and ~/.local/bin, and a plain
-# fish_add_path skips already-present components instead of promoting them —
-# so without --move this line was a silent no-op and stale npm shims /
-# leftover wrapper scripts shadowed the real nix binaries (e.g. `claude`).
+# FINAL PATH ORDER (last --move wins the front):
+#   ~/.local/bin  →  ~/.nix-profile/bin  →  everything else
+# ~/.local/bin MUST beat nix-profile: the Authelia bearer-injecting curl/wget
+# wrappers live there (curl-wget-wrapper.nix) — the previous version moved
+# nix-profile alone to the front, silently bypassing the wrappers in fish
+# (2026-08-08 audit). nix-profile still beats npm/cargo/termux copies, and
+# stale `claude` shims in ~/.local/bin are handled by claude-fix/cleanup,
+# not by PATH games. --move --path is REQUIRED (a plain fish_add_path skips
+# already-present components instead of promoting them); -g keeps scope
+# consistent (bare fish_add_path writes UNIVERSAL vars that persist forever).
 if test -d $HOME/.nix-profile/bin
   fish_add_path -g --move --path $HOME/.nix-profile/bin
+end
+if test -d $HOME/.local/bin
+  fish_add_path -g --move --path $HOME/.local/bin
 end
 
 # Authelia OIDC credentials (vault paths)
@@ -84,18 +87,10 @@ set -gx AUTHELIA_OIDC_TOKENS_DIR "$HOME/git/vault/A0_keys/providers/authelia/sig
 set -gx AUTHELIA_OIDC_CLIENT_ID "claude-admin"
 set -gx AUTHELIA_TOKEN_URL "https://auth.diegonmarcos.com/api/oidc/token"
 
-# httpd-web-server-json-md-eruda — auto-start on every terminal (2026-08-08).
-# This is the ONLY working start path on nix-on-droid: the runit route needs
-# `pkg install termux-services` (not installed in the Termux prefix) and
-# there is no user systemd here — the old "runs as systemd user service"
-# comment was desktop copy-paste and nothing ever started the server.
-# The wrapper is idempotent (PID-file guard: no-ops and returns the PID if
-# already running), and it's backgrounded so the prompt is never delayed.
+# httpd auto-start lives in flake.nix's programs.fish.interactiveShellInit
+# (the two inits are CONCATENATED — a second start here ran it twice per
+# terminal, found in the 2026-08-08 audit). Port var only.
 set -g __httpd_port 8000
-if test -x $HOME/.local/bin/httpd-web-server-json-md-eruda
-  $HOME/.local/bin/httpd-web-server-json-md-eruda start $__httpd_port >/dev/null 2>&1 &
-  disown 2>/dev/null
-end
 
 # Local overrides
 if test -f ~/.config/fish/config.local.fish

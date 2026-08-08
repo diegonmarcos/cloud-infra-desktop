@@ -114,7 +114,7 @@ get_latest_npm() {
 get_nix_version() {
   local file="$1"
   if [[ -f "$file" ]]; then
-    grep -oP 'version\s*=\s*"\K[^"]+' "$file" | head -1
+    { grep -oP 'version\s*=\s*"\K[^"]+' "$file" || true; } | head -1
   fi
 }
 
@@ -124,9 +124,9 @@ get_nix_hash() {
   if [[ -f "$file" ]]; then
     # Try hash = "sha256-..." first, then npmDepsHash
     local h
-    h=$(grep -oP '^\s*hash\s*=\s*"\K(sha256-[^"]+)' "$file" | head -1)
+    h=$({ grep -oP '^\s*hash\s*=\s*"\K(sha256-[^"]+)' "$file" || true; } | head -1)
     if [[ -z "$h" ]]; then
-      h=$(grep -oP 'npmDepsHash\s*=\s*"\K(sha256-[^"]+)' "$file" | head -1)
+      h=$({ grep -oP 'npmDepsHash\s*=\s*"\K(sha256-[^"]+)' "$file" || true; } | head -1)
     fi
     echo "${h:-}"
   fi
@@ -189,7 +189,7 @@ get_latest_github_rev() {
 
 # Get the installed claude-code version (direct binary in ~/.local/bin)
 get_local_claude_version() {
-  local bin="$HOME/.local/bin/claude"
+  local bin="$HOME/.nix-profile/bin/claude"  # ~/.local/bin/claude is a shadow claude-fix removes
   if [[ -x "$bin" ]]; then
     "$bin" --version 2>/dev/null | head -1 | sed 's/ .*//' || true
   fi

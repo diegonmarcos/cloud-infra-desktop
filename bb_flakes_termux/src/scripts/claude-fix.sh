@@ -18,6 +18,10 @@
 # ALL output — including full bash xtrace of every command this script runs —
 # goes to ~/claude-fix.log. Console shows the human-readable subset.
 set -u
+# pipefail: run()/probes pipe through tee — without it the pipeline exit
+# is TEE's (always 0) and every verification prints OK even when claude is
+# dead (2026-08-08 audit).
+set -o pipefail
 
 LOG="$HOME/claude-fix.log"
 REAL="$HOME/.nix-profile/bin/claude"

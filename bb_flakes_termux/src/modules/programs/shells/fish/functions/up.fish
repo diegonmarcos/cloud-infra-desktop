@@ -2,7 +2,7 @@
 # Sync is stash-safe: local edits are stashed, pull --rebase on the current
 # branch's upstream, local commits pushed, stash restored. A failed rebase
 # aborts BEFORE the switch so you never build from a half-rebased tree.
-# Extra args pass through to build.sh switch.
+# (build.sh switch takes no extra args; use QUIET=1/FORCE_GC=1 env vars.)
 set -l repo $HOME/git/unix
 
 if test -d $repo/.git

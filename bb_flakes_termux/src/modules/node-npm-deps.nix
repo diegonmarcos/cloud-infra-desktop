@@ -8,10 +8,14 @@
 #
 # Resolution: static list always wins → cloud deps → front deps → npm install
 # Skips install if package.json unchanged since last run.
-{ config, lib, pkgs, ... }:
+args@{ config, lib, pkgs, ... }:
 
 let
-  nodejs = pkgs.nodejs_22;
+  # Take nodejs from module args (flake.nix _module.args = pkgsUnstable
+  # nodejs_22, i.e. >=22.12) — hardcoding pkgs.nodejs_22 here pinned every
+  # npm install to 24.05's node 22.10, which vite 8 / unplugin 3 reject
+  # (the EBADENGINE spam) and which native addons compiled against.
+  nodejs = args.nodejs or pkgs.nodejs_22;
 in {
   imports = [
     ./node-npm-deps-list.nix

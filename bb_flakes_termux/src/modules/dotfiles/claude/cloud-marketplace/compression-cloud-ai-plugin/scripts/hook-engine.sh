@@ -49,7 +49,8 @@ if [ "$MODE" = "inject" ]; then
     if [ "$TIER" = "PreToolUse" ]; then
         SID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)"
         [ -n "$SID" ] || SID="ppid-$PPID"
-        SENTINEL="${TMPDIR:-/tmp}/claude-${SID}.principles-shown"
+        PLUGIN_NS="$(basename "$(dirname "$HERE")")"
+        SENTINEL="${TMPDIR:-/tmp}/claude-${SID}.${PLUGIN_NS}.principles-shown"
         [ -f "$SENTINEL" ] && exit 0   # already shown once this session
     fi
 
@@ -97,6 +98,13 @@ fi
 if [ "$MODE" = "guard" ]; then
     INPUT="$(cat 2>/dev/null || true)"
 
+    # jq MISSING is an environment problem, not a corrupt registry — denying
+    # every Bash call because the interpreter isn't on the hook PATH bricked
+    # the whole session (2026-08-08 audit). Warn + fail OPEN for that case only.
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "⚠️  hook-engine: jq not on hook PATH — guard DISABLED this call (fail-open for missing interpreter)" >&2
+        exit 0
+    fi
     # FAIL-CLOSED: no usable registry ⇒ deny. A data-driven guard that fails
     # open is worse than the hardcoded one.
     if ! rules_ok; then
@@ -134,6 +142,17 @@ if [ "$MODE" = "guard" ]; then
         return 1
     }
 
+    # PREFILTER (2026-08-08): one combined-alternation grep per ci-class.
+    # If NO rule pattern matches at all (the overwhelmingly common case),
+    # exit now — the per-rule walk below cost ~100 forks per Bash call on
+    # proot, flirting with the 5s hook timeout.
+    _pre_cs=$(jq -r '[.rules[] | select(.event=="PreToolUse:Bash" and (.match.ci!=true)) | "(" + .match.pattern + ")"] | join("|")' "$RULES")
+    _pre_ci=$(jq -r '[.rules[] | select(.event=="PreToolUse:Bash" and (.match.ci==true))  | "(" + .match.pattern + ")"] | join("|")' "$RULES")
+    _hit=0
+    [ -n "$_pre_cs" ] && printf '%s' "$CMD" | grep -qE  -- "$_pre_cs" && _hit=1
+    [ "$_hit" = 0 ] && [ -n "$_pre_ci" ] && printf '%s' "$CMD" | grep -qiE -- "$_pre_ci" && _hit=1
+    [ "$_hit" = 0 ] && exit 0
+
     # ALLOW (tier-0 short-circuit) — evaluated first, in array order.
     while IFS=' ' read -r pat ci; do
         [ -n "$pat" ] || continue
@@ -146,7 +165,11 @@ if [ "$MODE" = "guard" ]; then
         [ -n "$pat" ] || continue
         matches "$pat" "$ci" || continue
         if [ "$handler" != "-" ]; then
-            "$handler" || continue          # handler says ALLOW → skip this rule
+            # unknown handler must NOT count as a carve-out (a typo used to
+            # fail OPEN via rc=127 — 2026-08-08 audit)
+            if declare -F "$handler" >/dev/null 2>&1; then
+                "$handler" || continue      # handler says ALLOW → skip this rule
+            fi
         fi
         echo "🛑 BLOCKED by hook-engine.sh: $(b64d "$reason_b")" >&2
         alt="$(b64d "$alt_b")"; [ -n "$alt" ] && echo "   Use instead: $alt" >&2
