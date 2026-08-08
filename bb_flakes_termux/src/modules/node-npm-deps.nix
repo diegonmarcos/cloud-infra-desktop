@@ -80,9 +80,14 @@ in {
     if [ -f "$PKG_JSON" ]; then
       if [ ! -d "$NODE_MODULES/node_modules" ] || [ "$PKG_JSON" -nt "$LOCK" ]; then
         printf "[node-npm-deps] npm install: ~/.node_modules/\n"
+        _npm_t0=$(date +%s)
+        # --loglevel=error: EBADENGINE/peer-dep warn blocks were 100+ lines of
+        # noise per switch drowning the 4 lines that matter; real failures
+        # still print (and the || true keeps activation alive regardless).
         PATH="${nodejs}/bin:$PATH" $DRY_RUN_CMD ${nodejs}/bin/npm install \
           --prefix "$NODE_MODULES" \
-          --no-audit --no-fund --legacy-peer-deps || true
+          --no-audit --no-fund --legacy-peer-deps --loglevel=error || true
+        printf "[node-npm-deps] npm install done in %ss\n" "$(( $(date +%s) - _npm_t0 ))"
       else
         printf "[node-npm-deps] ~/.node_modules/ is up to date\n"
       fi
