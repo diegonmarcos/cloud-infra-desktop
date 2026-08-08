@@ -68,9 +68,14 @@ if test -d $HOME/.local/bin
   fish_add_path $HOME/.local/bin
 end
 # nix-profile must come LAST so it has highest PATH priority
-# (patchelf'd binaries like claude-code override unpatched npm/cargo copies)
+# (patchelf'd binaries like claude-code override unpatched npm/cargo copies).
+# --move --path is REQUIRED: sessionVariables.PATH (flake.nix) already contains
+# nix-profile BEHIND ~/.node_modules/.bin and ~/.local/bin, and a plain
+# fish_add_path skips already-present components instead of promoting them —
+# so without --move this line was a silent no-op and stale npm shims /
+# leftover wrapper scripts shadowed the real nix binaries (e.g. `claude`).
 if test -d $HOME/.nix-profile/bin
-  fish_add_path $HOME/.nix-profile/bin
+  fish_add_path -g --move --path $HOME/.nix-profile/bin
 end
 
 # Authelia OIDC credentials (vault paths)
