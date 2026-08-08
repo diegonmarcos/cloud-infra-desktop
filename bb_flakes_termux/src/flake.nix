@@ -42,12 +42,16 @@
       termux-am = (import nixpkgs { system = "aarch64-linux"; }).callPackage
         "${nix-on-droid}/pkgs/android-integration/termux-am.nix" {};
 
-      # Shared aliases for all shells
+      # Shared aliases for all shells.
+      # `up` REMOVED (2026-08-08): an alias here becomes an alias-function at
+      # fish startup, which permanently shadowed the managed functions/up.fish
+      # (fish never autoloads a name that's already defined) — so `up` kept
+      # running bare build.sh without the git sync for months. up is a real
+      # fish function now; `sw` is the shell-agnostic binary equivalent.
       sharedAliases = {
         ll = "ls -alh";
         ".." = "cd ..";
         conf = "nano ~/git/unix/bb_flakes_termux/src/flake.nix";
-        up = "~/git/unix/bb_flakes_termux/build.sh";
         dtk = "sh ~/git/tools/dtk.sh";
       };
     in
@@ -227,7 +231,7 @@
               (writeShellScriptBin "getconf" (builtins.readFile ./scripts/getconf.sh))
 
               # Node 22 (from nixos-24.11 for Vite 7 compat: requires >=22.12)
-              pkgsNew.nodejs_22
+              pkgsUnstable.nodejs_22
 
               # my-ai: fetch + autoPatchelf + install both my-ai and my-ai-dash.
               # Hashes live in pkgs/my-ai-hashes.json (bumped by ship-my-ai-app.yml).
@@ -288,7 +292,14 @@
               # aarch64 binary comes from cache.nixos.org, nothing compiles here.
               pkgsUnstable.yazi
 
-              # 12. CLAUDE--DEBUG — one-shot claude-startup diagnostic battery
+              # 12. SW — bidirectional git-sync + build.sh switch as a REAL
+              # BINARY. `switch` is a fish reserved word (unusable as a command
+              # name) and `up` was shadowed for months by a config.local.fish
+              # alias — a PATH binary sidesteps fish function machinery
+              # entirely. Source: ./scripts/sw.sh
+              (writeShellScriptBin "sw" (builtins.readFile ./scripts/sw.sh))
+
+              # 12b. CLAUDE--DEBUG — one-shot claude-startup diagnostic battery
               # (env, shell-snapshot cost, headless probe, TUI probes w/ debug
               # files). Ships its log to cloud-data/logs/ AND unix/1_reports/
               # (committed+pushed) so the cloud Claude session can pull it and
@@ -299,7 +310,7 @@
 
             # --- HOME MANAGER CONFIG ---
             home-manager.config = { config, pkgs, lib, ... }: {
-              _module.args.nodejs = pkgsNew.nodejs_22;
+              _module.args.nodejs = pkgsUnstable.nodejs_22;
               # wstunnel 7.x (Rust) lives in pkgsUnstable. The old wstunnel 0.5.x
               # in pinned nixos-24.05 is Haskell and pulls connection-0.3.1 which
               # is marked broken upstream — blocking every home-manager switch.

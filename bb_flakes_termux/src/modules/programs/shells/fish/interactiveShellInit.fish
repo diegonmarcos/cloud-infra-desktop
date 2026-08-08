@@ -91,3 +91,11 @@ set -g __httpd_port 8000
 if test -f ~/.config/fish/config.local.fish
   source ~/.config/fish/config.local.fish
 end
+
+# De-shadow `up`: flake.nix sharedAliases defined `up = build.sh` for months
+# (removed 2026-08-08), and config.local.fish may still carry a copy — an
+# alias-function defined at startup permanently beats the managed autoload
+# function (fish only autoloads a name that isn't defined yet). Erasing here
+# — AFTER every alias/local source has run — guarantees the first `up` call
+# in each session autoloads the managed functions/up.fish (sync + switch).
+functions -e up 2>/dev/null

@@ -11,8 +11,10 @@
     settings = {
       # Android/Termux git is slow on large repos (the home dir is a git repo
       # with many untracked files) — the 500ms default makes starship abort
-      # `git status` and emit a timeout warning. Raise to 2000ms to let it finish.
-      command_timeout = 2000;
+      # `git status` and emit a timeout warning. 2000ms still fired on the
+      # unix repo right after a switch (cold page cache); 5000ms covers the
+      # measured worst case without ever blocking the prompt render itself.
+      command_timeout = 5000;
 
       format = lib.concatStrings [
         "$time"
