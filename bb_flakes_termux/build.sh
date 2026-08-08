@@ -39,7 +39,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/src"
 NIX_CACHE_CFG="$SRC_DIR/modules/nix-cache.json"
-LOG_FILE="$SCRIPT_DIR/build.log"
+LOG_FILE="$HOME/git/cloud-data/logs/bb_flakes_termux.log"
 
 # Age key — dotfile symlink from vault/build.sh setup system, sops-nix fallback
 : "${SOPS_AGE_KEY_FILE:=$HOME/.config/sops/age/keys.txt}"
