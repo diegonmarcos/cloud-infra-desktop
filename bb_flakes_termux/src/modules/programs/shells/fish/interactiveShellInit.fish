@@ -84,8 +84,18 @@ set -gx AUTHELIA_OIDC_TOKENS_DIR "$HOME/git/vault/A0_keys/providers/authelia/sig
 set -gx AUTHELIA_OIDC_CLIENT_ID "claude-admin"
 set -gx AUTHELIA_TOKEN_URL "https://auth.diegonmarcos.com/api/oidc/token"
 
-# http-dev runs as systemd user service (not per-shell)
+# httpd-web-server-json-md-eruda — auto-start on every terminal (2026-08-08).
+# This is the ONLY working start path on nix-on-droid: the runit route needs
+# `pkg install termux-services` (not installed in the Termux prefix) and
+# there is no user systemd here — the old "runs as systemd user service"
+# comment was desktop copy-paste and nothing ever started the server.
+# The wrapper is idempotent (PID-file guard: no-ops and returns the PID if
+# already running), and it's backgrounded so the prompt is never delayed.
 set -g __httpd_port 8000
+if test -x $HOME/.local/bin/httpd-web-server-json-md-eruda
+  $HOME/.local/bin/httpd-web-server-json-md-eruda start $__httpd_port >/dev/null 2>&1 &
+  disown 2>/dev/null
+end
 
 # Local overrides
 if test -f ~/.config/fish/config.local.fish
