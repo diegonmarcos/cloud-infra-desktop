@@ -178,7 +178,7 @@ set_color normal
 # Nix Flakes
 set_color cyan; echo "  Nix Flakes:"
 set_color normal
-set_color magenta; echo -n "    up               "; set_color normal; echo "Rebuild Nix config"
+set_color magenta; echo -n "    up               "; set_color normal; echo "Git-sync unix repo + rebuild Nix config"
 set_color magenta; echo -n "    conf             "; set_color normal; echo "Edit flake.nix"
 set_color magenta; echo -n "    dtk              "; set_color normal; echo "Diego's Toolkit (cloud ops, dashboards, webhooks)"
 # Dev
