@@ -38,24 +38,6 @@
   };
 
   # Helper script to show secret paths
-  home.file.".local/bin/sops-paths".text = ''
-    #!/bin/bash
-    echo "=== SOPS Secret Paths ==="
-    echo ""
-    echo "WakaTime API Key:"
-    echo "  Path: /run/user/$(id -u)/secrets/wakatime_api_key"
-    echo "  Read: cat /run/user/$(id -u)/secrets/wakatime_api_key"
-    echo ""
-    echo "Rclone GDrive Token:"
-    echo "  Path: /run/user/$(id -u)/secrets/rclone_gdrive_token"
-    echo ""
-    echo "SSH Keys:"
-    echo "  OCI: cat /run/user/$(id -u)/secrets/ssh_key_oci"
-    echo "  GCP: cat /run/user/$(id -u)/secrets/ssh_key_gcp"
-    echo ""
-    echo "To edit secrets:"
-    echo "  cd ~/mnt_git/unix/b_user_diego_nix/src"
-    echo "  sops secrets/secrets.yaml"
-  '';
+  home.file.".local/bin/sops-paths".text = builtins.readFile ./scripts/sops-paths.sh;
   home.file.".local/bin/sops-paths".executable = true;
 }

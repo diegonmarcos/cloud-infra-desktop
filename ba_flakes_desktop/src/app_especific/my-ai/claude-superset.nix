@@ -32,22 +32,20 @@ let
   # Desktop tray (KDE Plasma 6 / SNI via yad) — live savings in the tooltip,
   # menu to open the dashboard or launch claude via the proxy. Desktop-only.
   # Autostarted by the systemd user service below.
-  claude-superset-tray = pkgs.writeShellScriptBin "claude-superset-tray" ''
-    set -u
-    DASH="${ep.dashboard}"
-    ROOT="''${DASH%/dashboard}"
-    refresh() {
-      while true; do
-        saved=$(${pkgs.curl}/bin/curl -fsS --max-time 2 "$ROOT/stats" 2>/dev/null \
-          | ${pkgs.nodejs}/bin/node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);process.stdout.write(Number(j.tokens_saved||0).toLocaleString()+" tok ("+((j.lifetime_ratio||0)*100).toFixed(0)+"%)")}catch{process.stdout.write("offline")}})' 2>/dev/null || echo "offline")
-        printf 'tooltip:claude-superset — %s saved\n' "$saved"
-        sleep 30
-      done
-    }
-    refresh | ${pkgs.yad}/bin/yad --notification --listen \
-      --image=utilities-terminal --text="claude-superset" \
-      --menu="Dashboard!${pkgs.xdg-utils}/bin/xdg-open $DASH|Status!${pkgs.kdePackages.konsole}/bin/konsole -e claude-superset --help|Quit!quit"
-  '';
+  claude-superset-tray = pkgs.writeShellApplication {
+    name = "claude-superset-tray";
+    runtimeInputs = [
+      pkgs.curl
+      pkgs.nodejs
+      pkgs.yad
+      pkgs.xdg-utils
+      pkgs.kdePackages.konsole
+    ];
+    text = builtins.replaceStrings
+      [ "@dashboard@" ]
+      [ "${ep.dashboard}" ]
+      (builtins.readFile ./scripts/claude-superset-tray.sh);
+  };
   # NO my-ai stub here, deliberately.
   #
   # This used to be `writeShellScriptBin "my-ai" "exec claude-superset \"$@\""` as a
@@ -80,9 +78,11 @@ in {
     # This wrapper and the systemd.user.services.my-ai-usage unit below are a
     # deliberate MIRROR of da_my-ai/build.sh, so switch-installed and
     # home-manager-installed machines behave identically. Keep them in step.
-    (pkgs.writeShellScriptBin "my-ai-usage-daemon" ''
-      exec "${my-ai}/bin/my-ai" usage --daemon --interval 30
-    '')
+    (pkgs.writeShellScriptBin "my-ai-usage-daemon"
+      (builtins.replaceStrings
+        [ "@myai@" ]
+        [ "${my-ai}" ]
+        (builtins.readFile ./scripts/my-ai-usage-daemon.sh)))
   ];
 
   # The producer half of the status line's usage row: one publisher for the whole

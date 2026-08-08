@@ -6,35 +6,11 @@ let
   tokenFile = "$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens/cloud-admin.json";
 
   # Token check + inject (shared between curl/wget)
-  mkWrapper = tool: headerFlag: ''
-    #!/bin/sh
-    # Re-entry guard
-    if [ "''${_CURL_WRAP:-}" = "1" ]; then
-      exec ${tool} "$@"
-    fi
-    export _CURL_WRAP=1
-    PATH="$(printf "%s" "$PATH" | tr ':' '\n' | grep -v '\.local/bin' | tr '\n' ':')"
-
-    # Check if any arg matches *.diegonmarcos.com*
-    # Skip injection if user already provides an Authorization header
-    _needs_token=0
-    _has_auth=0
-    for _arg in "$@"; do
-      case "$_arg" in
-        *diegonmarcos.com*) _needs_token=1 ;;
-        Authorization:*) _has_auth=1 ;;
-      esac
-    done
-
-    if [ "$_needs_token" = "1" ] && [ "$_has_auth" = "0" ] && [ -f "${tokenFile}" ]; then
-      _token=$(${pkgs.jq}/bin/jq -r .access_token "${tokenFile}" 2>/dev/null)
-      if [ -n "$_token" ] && [ "$_token" != "null" ]; then
-        exec ${tool} ${headerFlag} "Authorization: Bearer $_token" "$@"
-      fi
-    fi
-
-    exec ${tool} "$@"
-  '';
+  mkWrapper = tool: headerFlag:
+    builtins.replaceStrings
+      [ "@TOOL@" "@HEADER_FLAG@" "@JQ_BIN@"            "@TOKEN_FILE@" ]
+      [ tool     headerFlag      "${pkgs.jq}/bin/jq"   tokenFile      ]
+      (builtins.readFile ./scripts/curl-wget-wrapper.sh);
 
 in
 {
