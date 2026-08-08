@@ -44,17 +44,9 @@
   };
 
   # HM always wins — remove imperative nix profile packages that conflict
+  # HM always wins — body in scripts/remove-imperative-packages.sh
   home.activation.removeImperativePackages = lib.hm.dag.entryBefore ["installPackages"] ''
-    # Explicit store path — activation PATH has no `nix`, so the old
-    # `command -v nix` guard made this whole step a permanent silent no-op
-    # (2026-08-08 audit; trimGenerations below already knew this and
-    # exported ${pkgs.nix}/bin explicitly).
-    if ${pkgs.nix}/bin/nix profile list >/dev/null 2>&1; then
-      for pkg in $(${pkgs.nix}/bin/nix profile list 2>/dev/null | grep "^Name:" | sed 's/.*Name:[[:space:]]*//' | sed 's/\x1b\[[0-9;]*m//g'); do
-        echo "[hm] Removing imperative nix profile package: $pkg"
-        ${pkgs.nix}/bin/nix profile remove "$pkg" 2>/dev/null || true
-      done
-    fi
+    NIX_DIR="${pkgs.nix}/bin" ${pkgs.bash}/bin/bash ${./scripts/remove-imperative-packages.sh} || true
   '';
 
   # Generation trim on every switch, but full GC only under DISK PRESSURE.
@@ -64,20 +56,9 @@
   # through proot afterwards — measured 11s directory lookups and a 4-minute
   # claude first-start right after a 5156-path GC (2026-08-08). Keeping the
   # 2 newest generations also preserves instant rollback.
+  # Generation trim + pressure-gated GC — body in scripts/trim-generations.sh
   home.activation.trimGenerations = lib.hm.dag.entryAfter [ "installPackages" ] ''
-    export PATH="${pkgs.nix}/bin:$PATH"
-    $DRY_RUN_CMD nix-env -p /nix/var/nix/profiles/nix-on-droid --delete-generations +2 2>/dev/null || true
-    $DRY_RUN_CMD nix-env -p "$HOME/.local/state/nix/profiles/home-manager" --delete-generations +2 2>/dev/null || true
-    $DRY_RUN_CMD nix-env -p /nix/var/nix/profiles/per-user/nix-on-droid/profile --delete-generations +2 2>/dev/null || true
-    _free_kb=$(df -k "$HOME" 2>/dev/null | ${pkgs.gawk}/bin/awk 'NR==2 {print $4}')
-    if [ "''${FORCE_GC:-0}" = 1 ] || [ "''${_free_kb:-0}" -lt 4194304 ]; then
-      echo "[trim-generations] GC running (free=$((_free_kb / 1048576))GiB < 4GiB or FORCE_GC=1) — this deletes store paths AND evicts warm page cache; expect minutes"
-      _gc_t0=$(date +%s)
-      $DRY_RUN_CMD nix-collect-garbage 2>/dev/null || true
-      echo "[trim-generations] GC done in $(( $(date +%s) - _gc_t0 ))s"
-    else
-      echo "[trim-generations] GC skipped (free=$((_free_kb / 1048576))GiB ≥ 4GiB — FORCE_GC=1 to force)"
-    fi
+    NIX_DIR="${pkgs.nix}/bin" AWK_BIN="${pkgs.gawk}/bin/awk" ${pkgs.bash}/bin/bash ${./scripts/trim-generations.sh} || true
   '';
 
   # Goose AI CLI config (cloud-ai-cli alias)

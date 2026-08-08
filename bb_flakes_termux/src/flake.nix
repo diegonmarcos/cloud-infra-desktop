@@ -301,6 +301,10 @@
               # aarch64 binary comes from cache.nixos.org, nothing compiles here.
               pkgsUnstable.yazi
 
+              # 11b. ETC-SELF-HEAL — /etc/static repair used by bash login and
+              # fish init. Source: ./scripts/etc-self-heal.sh
+              (writeShellScriptBin "etc-self-heal" (builtins.readFile ./scripts/etc-self-heal.sh))
+
               # 12. SW — bidirectional git-sync + build.sh switch as a REAL
               # BINARY. `switch` is a fish reserved word (unusable as a command
               # name) and `up` was shadowed for months by a config.local.fish
@@ -383,20 +387,8 @@
               # Symlink nix-profile bins into Termux usr/bin so non-shell processes
               # (Claude Code, Android app launchers) can find nix-installed tools
               # without relying on shell init PATH expansion.
-              home.activation.linkNixBinsToTermux = lib.hm.dag.entryAfter ["linkGeneration"] ''
-                TERMUX_BIN="/data/data/com.termux.nix/files/usr/bin"
-                NIX_BIN="$HOME/.nix-profile/bin"
-                if [ -d "$TERMUX_BIN" ] && [ -d "$NIX_BIN" ]; then
-                  for f in "$NIX_BIN"/*; do
-                    name="$(basename "$f")"
-                    target="$TERMUX_BIN/$name"
-                    # also relink DANGLING symlinks — once a package left the
-                    # profile its old link stayed broken forever (2026-08-08).
-                    if { [ ! -e "$target" ] && [ ! -L "$target" ]; } || { [ -L "$target" ] && [ ! -e "$target" ]; }; then
-                      $DRY_RUN_CMD ln -sf "$f" "$target"
-                    fi
-                  done
-                fi
+              home.activation.linkNixBinsToTermux = lib.hm.dag.entryAfter ["installPackages"] ''
+                ${pkgs.bash}/bin/bash ${./scripts/link-nix-bins-termux.sh} || true
               '';
 
               # Termux font — JetBrainsMono Nerd Font
@@ -482,55 +474,15 @@
               # 9s of timeout-blocking) and readdir all of /nix/store on EVERY
               # new shell (2026-08-08 audit); now it just cats these files.
               home.activation.greetingVersionCache = lib.hm.dag.entryAfter ["installPackages"] ''
-                _gvc() {
-                  mkdir -p "$HOME/.cache"
-                  _v() { timeout 30 "$1" --version 2>/dev/null | grep -oE '[0-9][0-9.]*' | head -1; }
-                  {
-                    v=$(_v "$HOME/.nix-profile/bin/claude"); printf 'claude %s\n' "''${v:-n/a}"
-                    v=$(_v "$HOME/.nix-profile/bin/goose");  printf 'goose %s\n'  "''${v:-n/a}"
-                    v=$(_v "$HOME/.nix-profile/bin/ant");    printf 'ant %s\n'    "''${v:-n/a}"
-                  } > "$HOME/.cache/greeting-versions" || true
-                  ls /nix/store 2>/dev/null | wc -l | tr -d ' ' > "$HOME/.cache/greeting-storecount" || true
-                  echo "[greeting-cache] CLI versions + store count refreshed"
-                }
-                _gvc
+                ${pkgs.bash}/bin/bash ${./scripts/greeting-version-cache.sh} || true
               '';
               # Register cloud-marketplace as a plugin marketplace (idempotent CLI call
               # from a nix-committed activation — same pattern as
               # ba_flakes_desktop's claudeMarketplace). claude-code is a real nix
               # derivation on PATH here (pkgs/claude-code native binary), not a curl-installed binary.
               home.activation.claudeMarketplace = lib.hm.dag.entryAfter [ "claudeSettingsWritable" ] ''
-                MARKETPLACE_DIR="$HOME/.claude/cloud-marketplace"
-                JQ="${pkgs.jq}/bin/jq"
-                # Explicit path — activation runs with a minimal PATH that does
-                # NOT include ~/.nix-profile/bin, so `command -v claude` failed
-                # here and the marketplace silently never registered.
-                CLAUDE="$HOME/.nix-profile/bin/claude"
-                if [ -x "$CLAUDE" ] && [ -d "$MARKETPLACE_DIR" ]; then
-                  $DRY_RUN_CMD "$CLAUDE" plugin marketplace add "$MARKETPLACE_DIR" >/dev/null 2>&1 || true
-                  echo "[claude-marketplace] cloud-marketplace registered (enabledPlugins declared in settings.json)"
-                  # Durable installPath materialization (see ba_flakes_desktop/common.nix
-                  # for the rationale): Claude Code's /plugin loader validates
-                  # plugins/cache/<marketplace>/<plugin>/<version>, which nothing
-                  # populates for a directory-source marketplace — so it reports
-                  # "cannot find the hooks" after a store-swap. Symlink each
-                  # installPath into the store-backed marketplace dir. Data-driven:
-                  # plugin names from marketplace.json, version from each plugin.json.
-                  CACHE_DIR="$HOME/.claude/plugins/cache/cloud-marketplace"
-                  MKT_JSON="$MARKETPLACE_DIR/.claude-plugin/marketplace.json"
-                  if [ -f "$MKT_JSON" ]; then
-                    for P in $("$JQ" -r '.plugins[].name' "$MKT_JSON" 2>/dev/null); do
-                      VER=$("$JQ" -r '.version // "1.0.0"' "$MARKETPLACE_DIR/$P/.claude-plugin/plugin.json" 2>/dev/null || echo "1.0.0")
-                      DEST="$CACHE_DIR/$P/$VER"
-                      $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$CACHE_DIR/$P"
-                      [ -e "$DEST" ] && [ ! -L "$DEST" ] && $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -rf "$DEST"
-                      $DRY_RUN_CMD ${pkgs.coreutils}/bin/ln -sfn "$MARKETPLACE_DIR/$P" "$DEST"
-                      echo "[claude-marketplace] materialized $P@$VER -> cache installPath"
-                    done
-                  fi
-                else
-                  echo "[claude-marketplace] WARNING: skipping — missing: $([ -x "$CLAUDE" ] || echo "$CLAUDE ")$([ -d "$MARKETPLACE_DIR" ] || echo "$MARKETPLACE_DIR")"
-                fi
+                JQ_BIN="${pkgs.jq}/bin/jq" \
+                ${pkgs.bash}/bin/bash ${./scripts/claude-marketplace-register.sh} || true
               '';
               # NO LOOSE SKILLS — same design as ba_flakes_desktop. ~/.claude/skills/
               # must stay empty; every skill ships as a plugin (skill-<name>-plugin)
@@ -551,23 +503,9 @@
                   _writableTargets = pkgs.writeText "hm-writable-targets"
                     (lib.concatMapStringsSep "\n" (f: f.target) (lib.attrValues config.home.file));
                 in lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-                  while IFS= read -r _rel; do
-                    [ -n "$_rel" ] || continue
-                    # cloud-marketplace stays a store symlink: deep-copying the
-                    # whole plugin tree through proot on every switch is
-                    # expensive AND breaks the "store-backed marketplace"
-                    # contract the claudeMarketplace activation relies on
-                    # (2026-08-08 audit).
-                    case "$_rel" in .claude/cloud-marketplace*) continue ;; esac
-                    _t="$HOME/$_rel"
-                    [ -L "$_t" ] || continue
-                    _r="$(${pkgs.coreutils}/bin/readlink -f "$_t" 2>/dev/null)"
-                    [ -n "$_r" ] && [ -e "$_r" ] || continue
-                    case "$_r" in /nix/store/*) ;; *) continue ;; esac
-                    $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -f "$_t"
-                    $DRY_RUN_CMD ${pkgs.coreutils}/bin/cp -RL "$_r" "$_t"
-                    $DRY_RUN_CMD ${pkgs.coreutils}/bin/chmod -R u+w "$_t"
-                  done < ${_writableTargets}
+                  TARGETS_FILE=${_writableTargets} \
+                  PATH="${pkgs.coreutils}/bin:$PATH" \
+                  ${pkgs.bash}/bin/bash ${./scripts/hm-unfreeze-files.sh} || true
                 '';
 
               home.file.".rgignore".source = ./modules/dotfiles/claude/rgignore;
@@ -577,134 +515,29 @@
 
               # MCP secrets: decrypt secrets.yaml → awk subst ''${VAR} → ~/.mcp.json
               # Mimics Docker env_file + init.sh pattern using awk index() (literal, no regex)
+              # MCP secrets — engine lives in scripts/render-secrets-template.sh
+              # (shared with geminiMcpSecrets; flake only wires paths/env).
               home.activation.mcpSecrets = lib.hm.dag.entryAfter ["linkGeneration"] ''
-                # FUNCTION WRAP (2026-08-08): HM concatenates every activation
-                # entry into ONE script — a bare `exit 0` here aborted the WHOLE
-                # activation, silently skipping every entry sorted after this one
-                # (geminiMcpSecrets, unfreezeHmFiles, ...). Inside a function,
-                # `return` ends only this step.
-                _run_mcp_secrets() {
-                SOPS="$HOME/.nix-profile/bin/sops"
-                TPL="$HOME/.claude/mcp.json.tpl"
-                SECRETS_YAML="$HOME/.claude/secrets.yaml"
-                OUT="$HOME/.mcp.json"
-                YQ="${pkgs.yq-go}/bin/yq"
-                AWK="${pkgs.gawk}/bin/awk"
-
-                # Every cp below must rm the target first + chmod after: cp from
-                # the store template preserves its 0444 mode, so a fallback run
-                # that skipped chmod left ~/.mcp.json read-only and every later
-                # switch died with "cp: cannot create regular file: Permission
-                # denied" (seen 2026-08-08).
-                if [ ! -f "$SOPS" ] || [ ! -f "$SECRETS_YAML" ] || [ ! -f "$TPL" ]; then
-                  echo "[mcp-secrets] WARNING: sops/secrets/template not found, copying template as-is"
-                  [ -f "$TPL" ] && { rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"; }
-                  return 0
-                fi
-
-                # Decrypt secrets.yaml (same as cloud/ _engine.sh pattern)
-                DECRYPTED=$("$SOPS" -d "$SECRETS_YAML" 2>/dev/null) || true
-                if [ -z "$DECRYPTED" ]; then
-                  echo "[mcp-secrets] WARNING: failed to decrypt secrets.yaml"
-                  rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"
-                  return 0
-                fi
-
-                # Copy template to output
-                rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"
-
-                # Extract ''${VAR} placeholders using awk (no sed, no regex on secrets)
-                VARS=$($AWK '{
-                  s = $0
-                  while (match(s, /\$\{[A-Za-z_][A-Za-z0-9_-]*\}/)) {
-                    v = substr(s, RSTART+2, RLENGTH-3)
-                    print v
-                    s = substr(s, RSTART+RLENGTH)
-                  }
-                }' "$OUT" | sort -u) || true
-
-                # awk index() substitution — literal string match, no regex
-                # Same proven pattern as Authelia init.sh and cloud/ _engine.sh
-                for _var in $VARS; do
-                  _val=$(printf '%s' "$DECRYPTED" | "$YQ" -r ".[\"$_var\"]" 2>/dev/null) || true
-                  if [ -z "$_val" ] || [ "$_val" = "null" ]; then
-                    echo "[mcp-secrets] WARNING: $_var not found in secrets — leaving placeholder"
-                    continue
-                  fi
-                  _pat="\''${''${_var}}"
-                  $AWK -v pat="$_pat" -v rep="$_val" '{
-                    while (i = index($0, pat)) {
-                      $0 = substr($0, 1, i-1) rep substr($0, i+length(pat))
-                    }
-                    print
-                  }' "$OUT" > "$OUT.tmp"
-                  mv "$OUT.tmp" "$OUT"
-                done
-
-                chmod 600 "$OUT"
-                echo "[mcp-secrets] ~/.mcp.json templated ($(echo $VARS | wc -w) vars substituted)"
-                }
-                _run_mcp_secrets
+                LABEL=mcp-secrets \
+                TPL="$HOME/.claude/mcp.json.tpl" \
+                OUT="$HOME/.mcp.json" \
+                SECRETS_YAML="$HOME/.claude/secrets.yaml" \
+                SOPS_BIN="$HOME/.nix-profile/bin/sops" \
+                YQ_BIN="${pkgs.yq-go}/bin/yq" \
+                AWK_BIN="${pkgs.gawk}/bin/awk" \
+                ${pkgs.bash}/bin/bash ${./scripts/render-secrets-template.sh} || true
               '';
 
               # Gemini CLI: decrypt secrets.yaml → awk subst ''${VAR} → ~/.gemini/settings.json
               home.activation.geminiMcpSecrets = lib.hm.dag.entryAfter ["linkGeneration"] ''
-                # Function wrap + rm/chmod around every cp: same two bugs the
-                # mcpSecrets block above documents (bare `exit` aborts the whole
-                # concatenated activation; cp from the store preserves 0444 and
-                # bricks the next overwrite). This block had both (2026-08-08).
-                _run_gemini_mcp_secrets() {
-                SOPS="$HOME/.nix-profile/bin/sops"
-                TPL="$HOME/.gemini/settings.json.tpl"
-                SECRETS_YAML="$HOME/.claude/secrets.yaml"
-                OUT="$HOME/.gemini/settings.json"
-                YQ="${pkgs.yq-go}/bin/yq"
-                AWK="${pkgs.gawk}/bin/awk"
-
-                if [ ! -f "$SOPS" ] || [ ! -f "$SECRETS_YAML" ] || [ ! -f "$TPL" ]; then
-                  echo "[gemini-mcp] WARNING: sops/secrets/template not found, copying template as-is"
-                  [ -f "$TPL" ] && { rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"; }
-                  return 0
-                fi
-
-                DECRYPTED=$("$SOPS" -d "$SECRETS_YAML" 2>/dev/null) || true
-                if [ -z "$DECRYPTED" ]; then
-                  echo "[gemini-mcp] WARNING: failed to decrypt secrets.yaml"
-                  rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"
-                  return 0
-                fi
-
-                rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"
-
-                VARS=$($AWK '{
-                  s = $0
-                  while (match(s, /\$\{[A-Za-z_][A-Za-z0-9_-]*\}/)) {
-                    v = substr(s, RSTART+2, RLENGTH-3)
-                    print v
-                    s = substr(s, RSTART+RLENGTH)
-                  }
-                }' "$OUT" | sort -u) || true
-
-                for _var in $VARS; do
-                  _val=$(printf '%s' "$DECRYPTED" | "$YQ" -r ".[\"$_var\"]" 2>/dev/null) || true
-                  if [ -z "$_val" ] || [ "$_val" = "null" ]; then
-                    echo "[gemini-mcp] WARNING: $_var not found in secrets — leaving placeholder"
-                    continue
-                  fi
-                  _pat="\''${''${_var}}"
-                  $AWK -v pat="$_pat" -v rep="$_val" '{
-                    while (i = index($0, pat)) {
-                      $0 = substr($0, 1, i-1) rep substr($0, i+length(pat))
-                    }
-                    print
-                  }' "$OUT" > "$OUT.tmp"
-                  mv "$OUT.tmp" "$OUT"
-                done
-
-                chmod 600 "$OUT"
-                echo "[gemini-mcp] ~/.gemini/settings.json templated ($(echo $VARS | wc -w) vars substituted)"
-                }
-                _run_gemini_mcp_secrets
+                LABEL=gemini-mcp \
+                TPL="$HOME/.gemini/settings.json.tpl" \
+                OUT="$HOME/.gemini/settings.json" \
+                SECRETS_YAML="$HOME/.claude/secrets.yaml" \
+                SOPS_BIN="$HOME/.nix-profile/bin/sops" \
+                YQ_BIN="${pkgs.yq-go}/bin/yq" \
+                AWK_BIN="${pkgs.gawk}/bin/awk" \
+                ${pkgs.bash}/bin/bash ${./scripts/render-secrets-template.sh} || true
               '';
 
               # Minimal .gitignore so $HOME is a git repo (ignore everything)
@@ -738,23 +571,11 @@
                 enable = true;
                 shellAliases = sharedAliases;
                 profileExtra = ''
-                  # ~/.local/bin must stay AHEAD of nix-profile: the Authelia
-                  # bearer-injecting curl/wget wrappers live there
-                  # (curl-wget-wrapper.nix) — the previous line prepended
-                  # nix-profile alone and silently bypassed them in every bash
-                  # login shell (2026-08-08 audit).
+                  # ~/.local/bin AHEAD of nix-profile: the Authelia curl/wget
+                  # wrappers live there (curl-wget-wrapper.nix).
                   export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:/run/current-system/sw/bin:$PATH"
-                  # /etc self-heal — a FAILED nix-on-droid switch relinks
-                  # /etc/static to the new generation's etc mid-activation, then
-                  # aborts before committing; that orphaned etc is later GC'd, so
-                  # /etc/{passwd,resolv.conf,group} dangle → no SSH/DNS → and you
-                  # can't switch to fix it (activation needs a working /etc).
-                  # Repair from the LIVE, GC-rooted generation etc. Declarative,
-                  # runs every login, no-op when healthy.
-                  if [ ! -e /etc/static/passwd ]; then
-                    _ge=$(${pkgs.coreutils}/bin/readlink -f /nix/var/nix/profiles/nix-on-droid/etc 2>/dev/null)
-                    [ -n "$_ge" ] && [ -e "$_ge/passwd" ] && ${pkgs.coreutils}/bin/ln -sfn "$_ge" /etc/static 2>/dev/null || true
-                  fi
+                  # /etc self-heal — body lives in scripts/etc-self-heal.sh
+                  etc-self-heal 2>/dev/null || true
                 '';
               };
 
@@ -766,69 +587,12 @@
               programs.fish = {
                 enable = true;
                 shellAliases = sharedAliases;
-                interactiveShellInit = ''
-
-                  # /etc self-heal — repair a dangling /etc/static (left by a
-                  # failed switch whose orphaned etc got GC'd) from the live,
-                  # GC-rooted generation etc. See programs.bash.profileExtra for
-                  # the full rationale. Declarative, no-op when healthy.
-                  if not test -e /etc/static/passwd
-                    set -l _ge (${pkgs.coreutils}/bin/readlink -f /nix/var/nix/profiles/nix-on-droid/etc 2>/dev/null)
-                    if test -n "$_ge"; and test -e "$_ge/passwd"
-                      ${pkgs.coreutils}/bin/ln -sfn "$_ge" /etc/static 2>/dev/null
-                    end
-                  end
-
-                  # NOTE: sshd auto-start lives in modules/cloud-ide-sshd (`cloud-ide-sshd start`).
-                  # The previous block here referenced ~/.ssh/sshd_config which is never
-                  # created — it failed silently and hid real startup errors. Removed.
-
-                  # Auto-start httpd-web-server-json-md-eruda (on-demand wrapper).
-                  # If the runit service (sv-enable'd by the nix module) is
-                  # already supervising it in the background, this is a no-op
-                  # (is_running check inside the wrapper finds its PID file).
-                  set -g __httpd_port 8000
-                  if command -q httpd-web-server-json-md-eruda
-                    httpd-web-server-json-md-eruda start >/dev/null 2>&1
-                    set -g __httpd_pid (cat ~/.cache/httpd-web-server-json-md-eruda.pid 2>/dev/null)
-                  end
-
-                  # FZF configuration
-                  set -gx FZF_DEFAULT_OPTS "--height 40% --layout=reverse --border"
-
-                  # FZF key bindings for fish
-                  function fzf_file
-                    set -l result (fzf --preview 'head -100 {}')
-                    if test -n "$result"
-                      commandline -i "$result"
-                    end
-                    commandline -f repaint
-                  end
-
-                  function fzf_history
-                    set -l result (history | fzf --no-sort)
-                    if test -n "$result"
-                      commandline -r "$result"
-                    end
-                    commandline -f repaint
-                  end
-
-                  function fzf_cd
-                    set -l result (find . -type d 2>/dev/null | fzf)
-                    if test -n "$result"
-                      cd "$result"
-                    end
-                    commandline -f repaint
-                  end
-
-                  # Bind Ctrl+T for file, Ctrl+R for history, Alt+C for cd
-                  bind \ct fzf_file
-                  bind \cr fzf_history
-                  bind \ec fzf_cd
-
-
-                  # Greeting is fish_greeting in modules/programs/shells/fish/functions/fish_greeting.fish (wired via fish.nix)
-                '';
+                # NO inline init here (2026-08-08 decree: flakes orchestrate,
+                # scripts live in files): everything moved to
+                # modules/programs/shells/fish/interactiveShellInit.fish.
+                # The fzf_file/history/cd binds that lived here were DELETED,
+                # not moved — they clobbered atuin's Ctrl+R and fzf's own
+                # --fish bindings (2026-08-08 audit).
               };
             };
           })

@@ -16,30 +16,8 @@ in {
   };
 
   # Activation: read front-deps.json → write merged output
+  # body in scripts/merge-front-deps.sh
   config.home.activation.mergeFrontDeps = lib.hm.dag.entryBefore ["sharedNodeModules"] ''
-    FRONT_DEPS="$HOME/git/front/front-data/front-deps.json"
-    FRONT_OUT="$HOME/.node_modules/.front-deps-merged.json"
-
-    if [ -f "$FRONT_DEPS" ]; then
-      PATH="${nodejs}/bin:$PATH" ${nodejs}/bin/node -e "
-        const fs = require('fs');
-        const deps = {};
-        try {
-          const d = JSON.parse(fs.readFileSync('$FRONT_DEPS', 'utf8'));
-          const take = (obj) => {
-            for (const [k, v] of Object.entries(obj || {})) {
-              if (!deps[k] || v > deps[k]) deps[k] = v;
-            }
-          };
-          take(d.node?.merged?.dependencies);
-          take(d.node?.merged?.devDependencies);
-        } catch (e) { console.error('WARN: front-deps: ' + e.message); }
-        fs.writeFileSync('$FRONT_OUT', JSON.stringify(deps, null, 2) + '\n');
-        console.log('[node-npm-deps-front] ' + Object.keys(deps).length + ' front deps extracted');
-      " || printf "[node-npm-deps-front] WARN: merge failed\n"
-    else
-      printf "[node-npm-deps-front] No front-deps.json found\n"
-      echo '{}' > "$FRONT_OUT" 2>/dev/null || true
-    fi
+    NODEJS_DIR="${nodejs}/bin" ${pkgs.bash}/bin/bash ${./scripts/merge-front-deps.sh} || true
   '';
 }
