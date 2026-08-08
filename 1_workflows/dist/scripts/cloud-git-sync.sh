@@ -30,10 +30,12 @@
 # ║   1. stash any dirty work (autosaved, named + timestamped)       ║
 # ║   2. fetch origin                                                ║
 # ║   3. rebase onto origin/main with -X theirs|ours                 ║
-# ║   4. pop stash                                                   ║
-# ║   5. submodule update --init --recursive --remote --rebase       ║
-# ║   6. print post-sync summary (old→new SHAs, commits applied,     ║
-# ║      submodule bumps, timings)                                   ║
+# ║   4. push local commits to origin (sync is BIDIRECTIONAL —       ║
+# ║      non-fatal if rejected, commits stay local)                  ║
+# ║   5. pop stash                                                   ║
+# ║   6. submodule update --init --recursive --remote --rebase       ║
+# ║   7. print post-sync summary (old→new SHAs, commits applied,     ║
+# ║      pushed count, submodule bumps, timings)                     ║
 # ║                                                                  ║
 # ║ On any rebase / stash-pop halt, repo is left in a resumable      ║
 # ║ state with a recovery banner printed to stderr.                  ║
@@ -124,7 +126,7 @@ fi
 STASHED=0
 STASH_MSG=""
 if [ "$N_DIRTY" -gt 0 ]; then
-  section "1/5 stash dirty worktree"
+  section "1/6 stash dirty worktree"
   STASH_MSG="pre-sync $(date -u +%FT%TZ)"
   step "git stash push -u -m \"$STASH_MSG\""
   if git stash push -u -m "$STASH_MSG" >/dev/null; then
@@ -135,12 +137,12 @@ if [ "$N_DIRTY" -gt 0 ]; then
     exit 1
   fi
 else
-  section "1/5 stash dirty worktree"
+  section "1/6 stash dirty worktree"
   step "clean worktree — skipped"
 fi
 
 # ── 2. fetch origin ─────────────────────────────────────────────────
-section "2/5 fetch origin"
+section "2/6 fetch origin"
 step "git fetch origin --prune"
 git fetch origin --prune
 AHEAD_AFTER_FETCH=$(git rev-list --count "origin/$BRANCH..HEAD" 2>/dev/null || echo 0)
@@ -148,7 +150,7 @@ BEHIND_AFTER_FETCH=$(git rev-list --count "HEAD..origin/$BRANCH" 2>/dev/null || 
 ok "fetched. local is ahead=$AHEAD_AFTER_FETCH  behind=$BEHIND_AFTER_FETCH of origin/$BRANCH"
 
 # ── 3. rebase ───────────────────────────────────────────────────────
-section "3/5 rebase onto origin/$BRANCH"
+section "3/6 rebase onto origin/$BRANCH"
 step "git rebase -X $STRATEGY origin/$BRANCH"
 N_REBASED=0
 if [ "$BEHIND_AFTER_FETCH" = 0 ] && [ "$AHEAD_AFTER_FETCH" = 0 ]; then
@@ -174,8 +176,28 @@ else
   ok "rebased $N_REBASED local commit(s) onto origin/$BRANCH"
 fi
 
-# ── 4. pop stash ────────────────────────────────────────────────────
-section "4/5 restore dirty worktree"
+# ── 4. push local commits ───────────────────────────────────────────
+# Runs BEFORE the stash pop on purpose: once rebased, the commits are
+# final — pushing here means they're safe on origin even if the pop
+# conflicts and halts the run. Push failure is non-fatal (origin may
+# have moved again mid-sync); the commits stay local for the next sync.
+section "4/6 push local commits"
+N_PUSHED=0
+AHEAD_POST=$(git rev-list --count "origin/$BRANCH..HEAD" 2>/dev/null || echo 0)
+if [ "$AHEAD_POST" -gt 0 ]; then
+  step "git push origin $BRANCH"
+  if git push origin "$BRANCH" >/dev/null 2>&1; then
+    N_PUSHED="$AHEAD_POST"
+    ok "pushed $N_PUSHED commit(s) → origin/$BRANCH"
+  else
+    warn "push rejected (origin moved mid-sync, or auth) — commits kept local; re-run git sync"
+  fi
+else
+  step "nothing to push — origin/$BRANCH already has HEAD"
+fi
+
+# ── 5. pop stash ────────────────────────────────────────────────────
+section "5/6 restore dirty worktree"
 if [ "$STASHED" = 1 ]; then
   step "git stash pop"
   if ! git stash pop >/dev/null; then
@@ -196,8 +218,8 @@ else
   step "no stash to restore — skipped"
 fi
 
-# ── 5. submodule sync ───────────────────────────────────────────────
-section "5/5 refresh submodules"
+# ── 6. submodule sync ───────────────────────────────────────────────
+section "6/6 refresh submodules"
 if [ -f .gitmodules ]; then
   step "git submodule update --init --recursive --remote --rebase"
   git submodule update --init --recursive --remote --rebase 2>&1 | sed 's/^/  │ /'
@@ -220,6 +242,7 @@ else
   N_APPLIED=$(git rev-list --count "$HEAD_BEFORE..$HEAD_AFTER" 2>/dev/null || echo ?)
   kv "new commits"       "$N_APPLIED"
 fi
+kv "pushed"            "$N_PUSHED commit(s) → origin/$BRANCH"
 kv "dirty preserved"   "$N_DIRTY file(s)$([ $STASHED = 1 ] && echo '  (via stash, restored)')"
 if [ -f .gitmodules ]; then
   SM_DRIFTED=$(git submodule status --recursive 2>/dev/null | grep -c '^+' || true)
