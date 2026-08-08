@@ -208,6 +208,20 @@ cmd_switch() {
     perf_start "switch"
     check_nix || return 1
 
+    # IDENTITY LINE — which tree is this switch actually building? Answers
+    # "did my fixes land?" BEFORE the 10-minute build, not after (2026-08-08:
+    # three switches in a row silently rebuilt a pre-fix tree because the
+    # sync step had failed and nothing said so).
+    if command -v git >/dev/null 2>&1; then
+        _head=$(git -C "$SRC_DIR" rev-parse --short HEAD 2>/dev/null || echo '?')
+        _subj=$(git -C "$SRC_DIR" log -1 --format=%s 2>/dev/null | cut -c1-60)
+        _dirtyn=$(git -C "$SRC_DIR" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+        _behind=$(git -C "$SRC_DIR" rev-list --count "HEAD..origin/main" 2>/dev/null || echo '?')
+        log_info "building: $_head \"$_subj\"  (dirty=$_dirtyn, behind origin/main=$_behind)"
+        [ "$_behind" != "?" ] && [ "$_behind" -gt 0 ] 2>/dev/null && \
+            log_warn "this tree is $_behind commit(s) BEHIND origin/main (last fetch) — run 'git sync' first if that's unexpected"
+    fi
+
     # Stage dirty files so nix flake evaluation sees changes
     perf_step "git stage"
     if command -v git >/dev/null 2>&1; then
