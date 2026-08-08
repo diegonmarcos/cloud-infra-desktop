@@ -278,6 +278,10 @@
               # 2026-04-08. Pre-built linux/arm64 Go binary from GitHub
               # releases, fetched as a content-addressed source.
               (pkgs.callPackage ./pkgs/ant {})
+
+              # 11. YAZI — TUI file manager. From unstable (24.05's is ancient);
+              # aarch64 binary comes from cache.nixos.org, nothing compiles here.
+              pkgsUnstable.yazi
             ];
 
             # --- HOME MANAGER CONFIG ---
@@ -431,8 +435,12 @@
               home.activation.claudeMarketplace = lib.hm.dag.entryAfter [ "claudeSettingsWritable" ] ''
                 MARKETPLACE_DIR="$HOME/.claude/cloud-marketplace"
                 JQ="${pkgs.jq}/bin/jq"
-                if command -v claude >/dev/null 2>&1 && [ -d "$MARKETPLACE_DIR" ]; then
-                  $DRY_RUN_CMD claude plugin marketplace add "$MARKETPLACE_DIR" >/dev/null 2>&1 || true
+                # Explicit path — activation runs with a minimal PATH that does
+                # NOT include ~/.nix-profile/bin, so `command -v claude` failed
+                # here and the marketplace silently never registered.
+                CLAUDE="$HOME/.nix-profile/bin/claude"
+                if [ -x "$CLAUDE" ] && [ -d "$MARKETPLACE_DIR" ]; then
+                  $DRY_RUN_CMD "$CLAUDE" plugin marketplace add "$MARKETPLACE_DIR" >/dev/null 2>&1 || true
                   echo "[claude-marketplace] cloud-marketplace registered (enabledPlugins declared in settings.json)"
                   # Durable installPath materialization (see ba_flakes_desktop/common.nix
                   # for the rationale): Claude Code's /plugin loader validates
@@ -454,7 +462,7 @@
                     done
                   fi
                 else
-                  echo "[claude-marketplace] WARNING: claude CLI or marketplace dir not found, skipping"
+                  echo "[claude-marketplace] WARNING: skipping — missing: $([ -x "$CLAUDE" ] || echo "$CLAUDE ")$([ -d "$MARKETPLACE_DIR" ] || echo "$MARKETPLACE_DIR")"
                 fi
               '';
               # NO LOOSE SKILLS — same design as ba_flakes_desktop. ~/.claude/skills/
@@ -504,9 +512,14 @@
                 YQ="${pkgs.yq-go}/bin/yq"
                 AWK="${pkgs.gawk}/bin/awk"
 
+                # Every cp below must rm the target first + chmod after: cp from
+                # the store template preserves its 0444 mode, so a fallback run
+                # that skipped chmod left ~/.mcp.json read-only and every later
+                # switch died with "cp: cannot create regular file: Permission
+                # denied" (seen 2026-08-08).
                 if [ ! -f "$SOPS" ] || [ ! -f "$SECRETS_YAML" ] || [ ! -f "$TPL" ]; then
                   echo "[mcp-secrets] WARNING: sops/secrets/template not found, copying template as-is"
-                  [ -f "$TPL" ] && cp "$TPL" "$OUT"
+                  [ -f "$TPL" ] && { rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"; }
                   exit 0
                 fi
 
@@ -514,12 +527,12 @@
                 DECRYPTED=$("$SOPS" -d "$SECRETS_YAML" 2>/dev/null) || true
                 if [ -z "$DECRYPTED" ]; then
                   echo "[mcp-secrets] WARNING: failed to decrypt secrets.yaml"
-                  cp "$TPL" "$OUT"
+                  rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"
                   exit 0
                 fi
 
                 # Copy template to output
-                cp "$TPL" "$OUT"
+                rm -f "$OUT"; cp "$TPL" "$OUT"; chmod 600 "$OUT"
 
                 # Extract ''${VAR} placeholders using awk (no sed, no regex on secrets)
                 VARS=$($AWK '{
