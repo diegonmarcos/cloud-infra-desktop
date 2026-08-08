@@ -487,3 +487,51 @@ sshd started (PID 16226) on :8024
 [2026-08-08 18:36:41] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
 [2026-08-08 18:36:41] PERF: start switch
 [2026-08-08 18:36:44] INFO: Staging dirty files for flake evaluation...
+[2026-08-08 18:36:50] PERF: git stage = 7.9s
+[2026-08-08 18:36:50] PERF: clean backups = 119ms
+[2026-08-08 18:36:50] INFO: Locking any new flake inputs...
+copying '/data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src'...
+evaluating file '/nix/store/1c0hpq0g7mlwspnwdw68inn77nh83ij8-source/flake.nix'
+[2026-08-08 18:36:51] PERF: profile guard = 807ms
+[2026-08-08 18:36:51] INFO: Applying nix-on-droid configuration (verbose=1)...
+Building activation package...
+copying path '/nix/store/lv9bmgm6v1wc3fiz00v29gi4rk13ja6l-source' from 'https://cache.nixos.org'...
+error:
+       … while evaluating a branch condition
+
+         at /nix/store/8wydsfm5za1baz999cdfxck3v1j5kgzk-source/modules/default.nix:34:5:
+
+           33|   module =
+           34|     if failedAssertions != [ ]
+             |     ^
+           35|     then throw "\nFailed assertions:\n${concatMapStringsSep "\n" (x: "- ${x}") failedAssertions}"
+
+       … while calling the 'map' builtin
+
+         at /nix/store/8wydsfm5za1baz999cdfxck3v1j5kgzk-source/modules/default.nix:31:22:
+
+           30|
+           31|   failedAssertions = map (x: x.message) (filter (x: !x.assertion) rawModule.config.assertions);
+             |                      ^
+           32|
+
+       (stack trace truncated; use '--show-trace' to show the full trace)
+
+       error: syntax error, unexpected '<'
+
+       at /nix/store/1c0hpq0g7mlwspnwdw68inn77nh83ij8-source/modules/cloud-ide-sshd/default.nix:57:1:
+
+           56|
+           57| <<<<<<< Updated upstream
+             | ^
+           58|   # Runtime JSON (fire-rule 4 + 6): wg_ip/ssh_port still originate from
+[2026-08-08 18:40:38] ERROR: nix-on-droid printed a FATAL error (raw exit was 0) — no generation applied:
+[2026-08-08 18:40:38] ERROR:   error:
+[2026-08-08 18:40:38] ERROR: Configuration failed (exit 1)
+[2026-08-08 18:40:38] INFO: Check /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/build.log for details
+[2026-08-08 18:40:38] PERF: nix-on-droid switch = 3m 47s
+[2026-08-08 18:40:38] PERF: TOTAL switch = 3m 56s
+[2026-08-08 18:55:40] ========== Build script started ==========
+[2026-08-08 18:55:40] === Switching to /data/data/com.termux.nix/files/home/git/unix/bb_flakes_termux/src ===
+[2026-08-08 18:55:41] PERF: start switch
+[2026-08-08 18:55:44] INFO: Staging dirty files for flake evaluation...
