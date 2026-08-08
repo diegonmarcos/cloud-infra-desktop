@@ -9,6 +9,8 @@
   },
   "env": {
     "ENABLE_TOOL_SEARCH": "true",
+    "MCP_TIMEOUT": "10000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "NODE_PATH": "/data/data/com.termux.nix/files/home/.node_modules/node_modules",
     "GIT_BASE": "/data/data/com.termux.nix/files/home/git",
     "AUTHELIA_OIDC_CREDENTIALS_DIR": "/data/data/com.termux.nix/files/home/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/credentials",
