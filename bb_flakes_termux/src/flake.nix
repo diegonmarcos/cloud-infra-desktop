@@ -375,6 +375,14 @@
                 source = ./scripts/claude-fix.sh;
                 executable = true;
               };
+              # One-time sweep of the 2026-08 deepseek debugging leftovers
+              # (claude.bin copy, claude-tty wrapper, pre-nix npm claude in the
+              # Termux prefix). Idempotent — prints "already gone" after the
+              # first run. Log: ~/deepseek-cleanup.log.
+              home.file."deepseek-cleanup.sh" = {
+                source = ./scripts/deepseek-cleanup.sh;
+                executable = true;
+              };
 
               # Claude Code master context + MCP server config
               # CLAUDE.md is now a 1-char stub — all principles/reference content moved to
