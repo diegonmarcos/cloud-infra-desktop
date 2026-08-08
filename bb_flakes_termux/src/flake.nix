@@ -269,9 +269,14 @@
                   [ "${./nix-version-drift.sh}" ]
                   (builtins.readFile ./scripts/nix-drift.sh)))
 
-              # 9. CLAUDE — from nixpkgs (added to nixpkgs-unstable 2026-07).
-              # Auto-updates via `build.sh update` + switch. No manual hash pins.
-              pkgsUnstable.claude-code
+              # 9. CLAUDE — native-binary derivation (pkgs/claude-code), pinned
+              # 2.1.226. Was pkgsUnstable.claude-code (2.1.177), but bumping the
+              # whole unstable channel just to get a newer claude drags every
+              # other unstable package along (100+ MiB re-downloads on the
+              # phone). The local derivation upgrades claude ALONE: bump
+              # `version` + `hash` in pkgs/claude-code/default.nix, switch —
+              # one ~90 MB tarball, nothing else rebuilt.
+              (pkgs.callPackage ./pkgs/claude-code {})
 
               # 10. ANT — official Anthropic CLI for the Claude Developer
               # Platform (Managed Agents, Messages, Files, ...). Released
