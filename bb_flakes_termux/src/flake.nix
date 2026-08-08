@@ -364,6 +364,14 @@
               home.file.".termux/font.ttf".source =
                 "${pkgs.nerdfonts.override { fonts = [ "JetBrainsMono" ]; }}/share/fonts/truetype/NerdFonts/JetBrainsMonoNerdFont-Regular.ttf";
 
+              # claude-fix — diagnose & repair a shadowed/non-starting `claude`
+              # (stale npm shims / leftover claude-tty wrappers / fish functions).
+              # Full xtrace log lands in ~/claude-fix.log. See scripts/claude-fix.sh.
+              home.file."claude-fix.sh" = {
+                source = ./scripts/claude-fix.sh;
+                executable = true;
+              };
+
               # Claude Code master context + MCP server config
               # CLAUDE.md is now a 1-char stub — all principles/reference content moved to
               # cloud-principles-ai-plugin (hooks-fragments/*.md, injected via SessionStart/
