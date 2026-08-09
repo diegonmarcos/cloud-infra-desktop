@@ -86,14 +86,23 @@ COPY docker/docker-up.sh /opt/cloud-builder/docker-up.sh
 COPY docker/compose.yaml /opt/cloud-builder/compose.yaml
 RUN chmod +x /opt/cloud-builder/*.sh
 
-# Clone all repos (HTTPS, public) — entrypoint refreshes on start
+# Warm-cache the PUBLIC repos only (HTTPS, no credentials) — the entrypoint
+# refreshes every repo on start anyway, so this layer is a speed optimisation,
+# never a source of truth.
+#
+# cloud-data is deliberately ABSENT: it is the one PRIVATE repo, and an image
+# build has no credentials, so cloning it here failed the whole build on both
+# arches (2026-08-09: "could not read Username for https://github.com"), which
+# in turn blocked every cloud deploy. Same reason --recurse-submodules is gone
+# from the cloud clone: cloud embeds cloud-data as a submodule, so recursing
+# re-introduces the identical failure. Both are fetched at RUNTIME by the
+# entrypoint, where the deploy key is injected. Keep image builds credential-free.
 RUN mkdir -p /root/git \
     && git config --global --add safe.directory "*" \
-    && git clone --depth 1 --recurse-submodules https://github.com/diegonmarcos/cloud.git /root/git/cloud \
+    && git clone --depth 1 https://github.com/diegonmarcos/cloud.git /root/git/cloud \
     && git clone --depth 1 https://github.com/diegonmarcos/unix.git /root/git/unix \
     && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git /root/git/front \
     && git clone --depth 1 https://github.com/diegonmarcos/front-data.git /root/git/front-data \
-    && git clone --depth 1 https://github.com/diegonmarcos/cloud-data.git /root/git/cloud-data \
     && git clone --depth 1 https://github.com/diegonmarcos/tools.git /root/git/tools \
     && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.git /root/git/diegonmarcos
 

@@ -62,8 +62,13 @@ COPY --from=builder /build /opt/cloud-builder-flake
 # to wire its [alias] sync / [alias] nuke into the local .git/config so the
 # entrypoint can call `git nuke` instead of hand-rolling fetch+reset+submodule
 # logic. Repos without 1_workflows/ (cloud-data, front) just stay vanilla.
+# cloud-data is intentionally NOT in this list: it is the only PRIVATE repo and
+# an image build carries no credentials, so cloning it here fails the build
+# ("could not read Username for https://github.com", 2026-08-09). The entrypoint
+# clones/syncs it at RUNTIME, where the deploy key is injected. Keep this list
+# public-only so the image stays buildable without secrets.
 RUN mkdir -p /root/git && \
-    for repo in cloud cloud-data unix front tools; do \
+    for repo in cloud unix front tools; do \
       git clone --depth 1 "https://github.com/diegonmarcos/${repo}.git" "/root/git/${repo}" && \
       if [ -x "/root/git/${repo}/1_workflows/build.sh" ]; then \
         bash -c "cd /root/git/${repo} && bash 1_workflows/build.sh deploy" || true; \
