@@ -136,6 +136,15 @@ ea_cloud-calendar/build/
 ea_cloud-calendar/**/build/
 ea_cloud-calendar/.cache/
 ea_cloud-calendar/.kotlin/
+## Gradle writes local.properties with a machine-local `sdk.dir` on every
+## build. It must never be committed — it points at whatever SDK path that
+## one machine had (here: /tmp/android-sdk) and breaks every other checkout
+## and CI. There was NO rule for this anywhere until 2026-08-09;
+## ea_cloud-calendar's first local ./gradlew run surfaced it, but the gap
+## applies to all nine Android apps in this repo, so the rule is global
+## rather than per-app. Nothing matching it is currently tracked.
+local.properties
+**/local.properties
 ## Re-ignore Gradle/Kotlin daemon caches inside the whitelisted ea_cloud-superapp/
 ## tree — same class of gap as the .gradle/build re-ignores above. Missing this
 ## let a local `./gradlew` run's Go-module dependency cache (.cache/gopath/...,
