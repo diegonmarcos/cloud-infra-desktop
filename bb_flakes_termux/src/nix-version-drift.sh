@@ -110,11 +110,16 @@ get_latest_npm() {
   fi
 }
 
-# Extract version from a .nix file (looks for version = "X.Y.Z")
+# Extract version from a .nix file. Accepts BOTH spellings:
+#   version = "X.Y.Z"   (attribute)
+#   version ? "X.Y.Z"   (function default arg — what pkgs/claude-code uses)
+# Only `=` was matched before, so the termux claude-code pin reported "?" and
+# showed as permanently needing an update even at the newest version
+# (2026-08-09).
 get_nix_version() {
   local file="$1"
   if [[ -f "$file" ]]; then
-    { grep -oP 'version\s*=\s*"\K[^"]+' "$file" || true; } | head -1
+    { grep -oP 'version\s*[=?]\s*"\K[^"]+' "$file" || true; } | head -1
   fi
 }
 
@@ -646,7 +651,8 @@ cmd_drift() {
             [[ "$status" != "OUTDATED" && "$status" != "STALE" ]] && continue
             printf "  ${C_DIM}%-24s %s → %s${C_RESET}\n" "$pkg" "$current" "$latest"
           done < "$RESULTS_CACHE"
-          printf "${C_DIM}  Run: nix-drift plan --apply${C_RESET}\n"
+          printf "${C_DIM}  Run: ./build.sh update${C_RESET}  ${C_DIM}(versions+hashes → commit → sync → switch)${C_RESET}\n"
+          printf "${C_DIM}       nix-drift plan --apply${C_RESET}  ${C_DIM}(source edits only)${C_RESET}\n"
         fi
       fi
     fi

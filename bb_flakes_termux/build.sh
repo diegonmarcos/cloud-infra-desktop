@@ -455,32 +455,134 @@ EOT
     fi
     perf_end
 
-    # Show cached drift summary (instant, no network)
+    # Show cached drift summary (instant, no network) + tell the user the ONE
+    # command that applies it. The list has been printed after every switch
+    # for months with no actionable next step, so it just became wallpaper.
     if command -v nix-drift >/dev/null 2>&1; then
-        nix-drift drift --cached 2>/dev/null || true
+        _drift_out=$(nix-drift drift --cached 2>/dev/null || true)
+        [ -n "$_drift_out" ] && printf '%s\n' "$_drift_out"
+        _drift_n=$(printf '%s\n' "$_drift_out" | grep -cE '^[[:space:]]+[^[:space:]].*→' || true)
+        if [ "${_drift_n:-0}" -gt 0 ]; then
+            log_warn "$_drift_n update(s) pending — run './build.sh update' to apply ALL of them (versions+hashes → commit → sync → switch)"
+        fi
         # Refresh cache in background for next switch
         ( flock -n 9 && nix-drift refresh ) 9>"$HOME/.cache/nix-drift.refresh.lock" 2>/dev/null &
     fi
 }
 
+# cmd_update — THE update path. Everything nix-drift reports, applied and
+# shipped in one command:
+#   1. nix-drift plan --apply   pinned versions + hashes + npm dep ranges
+#   2. nix flake update         flake inputs (nixpkgs, home-manager, ...)
+#   3. commit                   ONLY the files these two steps changed
+#   4. git sync local           rebase (local wins) + push
+#   5. switch                   build and activate
+#
+# It used to be step 2 alone — so `build.sh update` never moved a single
+# pinned derivation, and the drift list just kept growing while the command
+# named "update" reported success (2026-08-09).
+#
+# --no-switch stops after the push (useful from CI or when you want to switch
+# later); --dry-run shows what would change and touches nothing.
 cmd_update() {
-    log_header "Updating Flake Inputs"
+    _no_switch=""; _dry=""
+    for _a in "$@"; do
+        case "$_a" in
+            --no-switch) _no_switch=1 ;;
+            --dry-run|-n) _dry=1 ;;
+        esac
+    done
+
+    log_header "Update everything${_dry:+ (DRY RUN)}"
+    perf_start "update"
     check_nix || return 1
 
-    cd "$SRC_DIR"
-    log_info "Updating flake.lock..."
-
-    _rc_file=$(mktemp)
-    { nix flake update $NIX_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
-    exit_code=$(cat "$_rc_file")
-    rm -f "$_rc_file"
-
-    if [ "$exit_code" -ne 0 ]; then
-        log_error "Flake update failed (exit $exit_code)"
-        return $exit_code
+    _repo="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
+    if [ -z "$_repo" ]; then
+        log_error "not inside a git repo — cannot update"
+        perf_end; return 1
     fi
 
-    log_success "Flake inputs updated"
+    # Snapshot the dirty set BEFORE, so step 3 commits only what the update
+    # itself touched and never sweeps in unrelated work in progress.
+    _before=$(mktemp); _after=$(mktemp)
+    git -C "$_repo" status --porcelain 2>/dev/null | sort > "$_before"
+
+    # ── 1. pinned versions + hashes ─────────────────────────────────
+    perf_step "drift plan"
+    if command -v nix-drift >/dev/null 2>&1; then
+        if [ -n "$_dry" ]; then
+            nix-drift plan 2>&1 | tee -a "$LOG_FILE" || true
+        else
+            nix-drift plan --apply 2>&1 | tee -a "$LOG_FILE" \
+                || log_warn "nix-drift plan --apply reported errors — continuing"
+        fi
+    else
+        log_warn "nix-drift not on PATH — skipping version/hash updates"
+    fi
+
+    # ── 2. flake inputs ─────────────────────────────────────────────
+    perf_step "flake update"
+    if [ -n "$_dry" ]; then
+        log_info "would run: nix flake update (in $SRC_DIR)"
+    else
+        _rc_file=$(mktemp)
+        { (cd "$SRC_DIR" && nix flake update $NIX_VERBOSE_FLAGS) 2>&1; echo $? > "$_rc_file"; } \
+            | tee -a "$LOG_FILE"
+        exit_code=$(cat "$_rc_file"); rm -f "$_rc_file"
+        if [ "${exit_code:-1}" -ne 0 ]; then
+            log_error "Flake update failed (exit $exit_code) — NOT committing or switching"
+            rm -f "$_before" "$_after"; perf_end; return "$exit_code"
+        fi
+        log_success "flake inputs updated"
+    fi
+
+    # ── 3. commit exactly what changed ──────────────────────────────
+    perf_step "commit"
+    git -C "$_repo" status --porcelain 2>/dev/null | sort > "$_after"
+    # Lines present after but not before = paths this update introduced or
+    # whose status it changed. A file already dirty beforehand keeps its line
+    # identical and is therefore left alone (your WIP is never swept in).
+    _changed=$(comm -13 "$_before" "$_after" | sed 's/^...//')
+    rm -f "$_before" "$_after"
+    if [ -z "$_changed" ]; then
+        log_info "nothing changed — already up to date"
+    elif [ -n "$_dry" ]; then
+        log_info "would commit:"; printf '%s\n' "$_changed" | sed 's/^/         /'
+    else
+        log_info "committing $(printf '%s\n' "$_changed" | grep -c .) changed file(s)"
+        printf '%s\n' "$_changed" | while IFS= read -r _f; do
+            [ -n "$_f" ] && git -C "$_repo" add -- "$_f" 2>/dev/null
+        done
+        git -C "$_repo" commit -q -m "chore(update): nix-drift versions/hashes + flake inputs
+
+Applied by build.sh update on $(date -u +%FT%TZ)." \
+            && log_success "committed" || log_warn "nothing to commit"
+    fi
+
+    # ── 4. sync (rebase local-wins + push) ──────────────────────────
+    perf_step "git sync"
+    _sync="$_repo/1_workflows/dist/scripts/cloud-git-sync.sh"
+    if [ -n "$_dry" ]; then
+        log_info "would run: git sync local"
+    elif [ -x "$_sync" ]; then
+        ( cd "$_repo" && "$_sync" local ) || log_warn "sync failed — continuing to switch with the local tree"
+    else
+        log_warn "sync engine not found at $_sync — skipping"
+    fi
+
+    perf_end
+
+    # ── 5. switch ───────────────────────────────────────────────────
+    if [ -n "$_dry" ]; then
+        log_info "dry run complete — nothing was changed. Drop --dry-run to apply."
+        return 0
+    fi
+    if [ -n "$_no_switch" ]; then
+        log_success "update complete (--no-switch): run ./build.sh switch to activate"
+        return 0
+    fi
+    cmd_switch
 }
 
 cmd_show() {
@@ -1145,6 +1247,9 @@ ${YELLOW}COMMANDS:${NC}
     show        Show flake outputs
     check       Validate flake
     status      System info
+    update      Update EVERYTHING: pinned versions+hashes (nix-drift) + flake
+                inputs, commit just those files, git sync, then switch.
+                --dry-run to preview, --no-switch to stop after the push.
     clean       Garbage collect
     clean-backups [days|all] [--dry-run]
                 Prune home-manager conflict backups (*.hm-bak-*). Default 7
@@ -1180,7 +1285,7 @@ case "${1:-switch}" in
     pull|switch-remote) cmd_pull "${2:-}" ;;
     dry-run|plan) cmd_dry_run ;;
     tui)     run_tui ;;
-    update)  cmd_update ;;
+    update)  shift; cmd_update "$@" ;;
     show)    cmd_show ;;
     check)   cmd_check ;;
     status)  cmd_status ;;
