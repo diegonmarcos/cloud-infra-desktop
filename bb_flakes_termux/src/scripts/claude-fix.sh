@@ -23,10 +23,12 @@ set -u
 # dead (2026-08-08 audit).
 set -o pipefail
 
-LOG="$HOME/claude-fix.log"
+# ONE output convention — see 1_workflows/src/scripts/cloud-data-paths.sh
+CDP="$HOME/git/unix/1_workflows/dist/scripts/cloud-data-paths.sh"
+if [ -r "$CDP" ]; then . "$CDP"; LOG="$(cd_log claude-fix)"; else LOG="$HOME/claude-fix.log"; fi
+STARTUP_DEBUG="${LOG%.log}-startup-debug.log"
 REAL="$HOME/.nix-profile/bin/claude"
 BACKUP_DIR="$HOME/claude-fix-backup.$(date +%Y%m%d-%H%M%S)"
-STARTUP_DEBUG="$HOME/claude-fix-startup-debug.log"
 
 : > "$LOG"
 # fd3 = the log; xtrace goes there so the console stays readable while the

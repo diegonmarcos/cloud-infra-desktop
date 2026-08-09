@@ -67,6 +67,15 @@ do_build() {
         log "Built hooks"
     fi
 
+    # Data (src/data/ → dist/data/) — JSON the scripts read at runtime, e.g.
+    # git-hook-repos.json (which repos get the shared hooks). Copied verbatim:
+    # the header injector would corrupt JSON.
+    if [ -d "$SRC_DIR/data" ]; then
+        mkdir -p "$DIST_DIR/data"
+        cp -f "$SRC_DIR/data"/*.json "$DIST_DIR/data/" 2>/dev/null || true
+        log "Built data"
+    fi
+
     # Tests (src/test/ → dist/test/) — preflight testers invoked by ship-ci-image.yml
     if [ -d "$SRC_DIR/test" ]; then
         inject_header_tree "$SRC_DIR/test" "$DIST_DIR/test"

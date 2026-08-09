@@ -42,10 +42,18 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/src"
 NIX_CACHE_CFG="$SRC_DIR/modules/nix-cache.json"
-LOG_FILE="$HOME/git/cloud-data/logs/bb_flakes_termux.log"
-# cloud-data may not be cloned yet — a failed >> under set -e killed the
-# whole script with a bare "cannot create" (2026-08-08 audit).
-mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || LOG_FILE=/dev/null
+# Output paths come from the ONE convention (1_workflows/src/scripts/
+# cloud-data-paths.sh): logs/<name>.log · reports/<name>.json ·
+# journal/<name>.text under cloud-data, with a $HOME fallback so a missing
+# cloud-data clone can never kill the script (it used to die on line 1).
+CLOUD_DATA_PATHS="$SCRIPT_DIR/../1_workflows/dist/scripts/cloud-data-paths.sh"
+if [ -r "$CLOUD_DATA_PATHS" ]; then
+    . "$CLOUD_DATA_PATHS"
+    LOG_FILE="$(cd_log bb_flakes_termux)"
+else
+    LOG_FILE="$HOME/git/cloud-data/logs/bb_flakes_termux.log"
+    mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || LOG_FILE="$HOME/bb_flakes_termux.log"
+fi
 
 # Age key — dotfile symlink from vault/build.sh setup system, sops-nix fallback
 : "${SOPS_AGE_KEY_FILE:=$HOME/.config/sops/age/keys.txt}"
