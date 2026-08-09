@@ -1,1 +1,1 @@
-history | grep $argv
+history | command grep $argv
