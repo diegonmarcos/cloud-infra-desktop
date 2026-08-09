@@ -28,6 +28,8 @@
 	# smart, non-destructive sync — see 1_workflows/src/scripts/cloud-git-sync.sh
 	# ALSO the pre-push hook in every repo (cloud-git-hooks-install.sh).
 	#   git sync           → LOCAL wins on conflict (default)
+	#   git sync ask       → prompt on conflict, local wins if no TTY
+	#                        (this is what the pre-push hook uses)
 	#   git sync local     → local commits win on conflict
 	#   git sync remote    → origin wins on conflict
 	#   git sync --no-push → sync only (what the pre-push hook runs)
