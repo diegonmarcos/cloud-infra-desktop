@@ -38,7 +38,24 @@ _cd_dir() {
   fi
 }
 
-cd_log()     { printf '%s/%s.log'    "$(_cd_dir logs)"    "$1"; }
+# cd_log ROTATES: the switch tees full nix output (hundreds of lines, and a
+# fetch list can be 150+ paths) into its log on every run, with nothing ever
+# truncating it — unbounded growth on a phone that is already at 82% disk.
+# One rollover file is kept (<name>.log.1), so the worst case is 2x the cap.
+# Override the cap with CLOUD_DATA_LOG_MAX_KB (default 5 MB); 0 disables.
+cd_log() {
+  _p="$(_cd_dir logs)/$1.log"
+  _cap="${CLOUD_DATA_LOG_MAX_KB:-5120}"
+  if [ "$_cap" != "0" ] && [ -f "$_p" ]; then
+    _sz=$(du -k "$_p" 2>/dev/null | cut -f1)
+    if [ "${_sz:-0}" -gt "$_cap" ]; then
+      mv -f "$_p" "$_p.1" 2>/dev/null || true
+      printf '[%s] rotated: previous log exceeded %sKB, moved to %s.1\n' \
+        "$(date '+%Y-%m-%d %H:%M:%S')" "$_cap" "$(basename "$_p")" > "$_p" 2>/dev/null || true
+    fi
+  fi
+  printf '%s' "$_p"
+}
 cd_report()  { printf '%s/%s.json'   "$(_cd_dir reports)" "$1"; }
 cd_journal() { printf '%s/%s.text'   "$(_cd_dir journal)" "$1"; }
 
