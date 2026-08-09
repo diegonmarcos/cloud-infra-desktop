@@ -20,6 +20,7 @@
 # ║                                                                  ║
 # ║ Usage:                                                           ║
 # ║   git sync              # default: LOCAL wins on conflict        ║
+# ║   git sync ask          # prompt on conflict (local wins, no TTY)║
 # ║   git sync local        # local commits win on conflict          ║
 # ║   git sync remote       # origin/main wins on conflict           ║
 # ║   git sync --no-push    # sync only, skip step 4 (pre-push hook) ║
@@ -51,12 +52,12 @@ for arg in "$@"; do
   case "$arg" in
     -q|--quiet) QUIET=1 ;;
     --no-push)  NO_PUSH=1 ;;
-    remote|local) MODE="$arg" ;;
+    ask|remote|local) MODE="$arg" ;;
     -h|--help)
-      sed -n '2,20p' "$0" | sed 's/^# \?//'
+      sed -n '2,21p' "$0" | sed 's/^# \?//'
       exit 0 ;;
     *)
-      printf 'usage: git sync [{local|remote}] [--no-push] [-q|--quiet]\n' >&2
+      printf 'usage: git sync [{ask|local|remote}] [--no-push] [-q|--quiet]\n' >&2
       exit 2 ;;
   esac
 done
@@ -72,7 +73,13 @@ MODE="${MODE:-local}"
 # The old mapping had this exactly backwards (remote→theirs), so `git sync`
 # has been doing LOCAL-wins while announcing "remote wins", and `git sync
 # local` did remote-wins. Verified empirically 2026-08-08 before flipping.
-STRATEGY=$([ "$MODE" = "local" ] && echo theirs || echo ours)
+# `ask` has no fixed side — STRATEGY stays unset until a conflict actually
+# happens (see step 3), at which point the user's choice picks theirs/ours.
+if [ "$MODE" = "ask" ]; then
+  STRATEGY=""
+else
+  STRATEGY=$([ "$MODE" = "local" ] && echo theirs || echo ours)
+fi
 
 # ── output helpers ──────────────────────────────────────────────────
 if [ -t 1 ]; then
@@ -99,6 +106,78 @@ banner_err() {
   printf '%s%s%s\n' "$C_RED" "$1" "$C_RESET" >&2
 }
 
+rebase_halted() {
+  # $1 = one-line description of what was attempted, for the banner.
+  banner_err "
+╔══════════════════════════════════════════════════════════════════╗
+║ REBASE HALTED                                                    ║
+║                                                                  ║
+║ $1
+║ Resolve in-place:                                                ║
+║    edit conflicted files    git add <files>                      ║
+║    git rebase --continue                                         ║
+║                                                                  ║
+║ Or abandon the attempt:                                          ║
+║    git rebase --abort                                            ║
+║                                                                  ║
+║ Your stashed dirty work (if any) is at stash@{0}.                ║
+╚══════════════════════════════════════════════════════════════════╝"
+  exit 1
+}
+
+# do_rebase LABEL [git-rebase -X args...]
+# Runs `git rebase <args> origin/$BRANCH`, sets N_REBASED / prints ok on
+# success, halts (rebase_halted, exit 1) on failure. LABEL is cosmetic,
+# shown in the ok line and the halt banner; pass "" for none.
+do_rebase() {
+  _label="$1"; shift
+  if git rebase "$@" "origin/$BRANCH"; then
+    N_REBASED="$AHEAD_AFTER_FETCH"
+    ok "rebased $N_REBASED local commit(s) onto origin/$BRANCH${_label:+ ($_label)}"
+  else
+    rebase_halted "git rebase $* origin/$BRANCH was not enough — a structural conflict remains."
+  fi
+}
+
+# read_conflict_choice: prompts on the controlling terminal (never stdin —
+# a git hook's stdin carries ref data, so a plain `read` would consume
+# garbage) and sets ANSWER. 30s timeout via the `timeout` utility when
+# present (this file is #!/bin/sh; `read -t` is a bashism, so we shell out
+# to `timeout` rather than switch shebangs — if `timeout` isn't installed
+# we fall back to an untimed read rather than hang forever silently, since
+# a hook without `timeout` is already an unusual environment). No usable
+# /dev/tty at all (CI, scripted push): ANSWER stays empty, no prompt shown.
+#
+# --foreground is LOAD-BEARING, not a nicety (2026-08-09): GNU `timeout`
+# puts the child in its OWN process group unless told otherwise. A process
+# group that isn't the terminal's foreground group gets SIGTTIN when it
+# reads the tty — so the read stops dead, the prompt sits there ignoring
+# every keypress, and 30s later the timeout fires and we "auto-choose
+# local". Verified: without --foreground a typed `r` is never seen; with
+# it, `r` returns in 0.3s and an unanswered prompt still times out on
+# schedule. busybox `timeout` has no --foreground (and no setpgid either,
+# so it doesn't need one) — probe once and use the plain form there.
+read_conflict_choice() {
+  ANSWER=""
+  [ -r /dev/tty ] && [ -w /dev/tty ] || return 0
+  _prompt='  conflict — [l]ocal wins / [r]emote wins / [m]anual / [s]kip (30s, default l): '
+  if command -v timeout >/dev/null 2>&1; then
+    if timeout --foreground 1 true 2>/dev/null; then
+      set -- timeout --foreground 30
+    else
+      set -- timeout 30
+    fi
+    ANSWER=$("$@" sh -c '
+      printf %s "$1" > /dev/tty
+      read -r a < /dev/tty
+      printf %s "$a"
+    ' _ "$_prompt" 2>/dev/null) || ANSWER=""
+  else
+    printf '%s' "$_prompt" > /dev/tty
+    read -r ANSWER < /dev/tty || ANSWER=""
+  fi
+}
+
 # Marks this process tree as "sync is driving" so the pre-push hook (which
 # runs the same engine) doesn't re-enter itself during step 4's push.
 export CLOUD_GIT_SYNC_ACTIVE=1
@@ -115,7 +194,11 @@ section "pre-sync state"
 kv "repo"            "$REPO_NAME"
 kv "branch"          "$BRANCH"
 kv "HEAD"            "$HEAD_BEFORE_SHORT"
-kv "mode"            "$MODE (conflict → $MODE wins, rebase -X $STRATEGY)"
+case "$MODE" in
+  ask)    MODE_DESC="ask (prompt on conflict; local wins if no TTY)" ;;
+  *)      MODE_DESC="$MODE (conflict → $MODE wins, rebase -X $STRATEGY)" ;;
+esac
+kv "mode"            "$MODE_DESC"
 
 # dirty file counts
 N_STAGED=$(git diff --cached --name-only | wc -l | tr -d ' ')
@@ -169,29 +252,57 @@ ok "fetched. local is ahead=$AHEAD_AFTER_FETCH  behind=$BEHIND_AFTER_FETCH of or
 
 # ── 3. rebase ───────────────────────────────────────────────────────
 section "3/6 rebase onto origin/$BRANCH"
-step "git rebase -X $STRATEGY origin/$BRANCH"
 N_REBASED=0
 if [ "$BEHIND_AFTER_FETCH" = 0 ] && [ "$AHEAD_AFTER_FETCH" = 0 ]; then
+  step "nothing to rebase"
   ok "already up-to-date — no rebase needed"
-elif ! git rebase -X "$STRATEGY" "origin/$BRANCH"; then
-  banner_err "
-╔══════════════════════════════════════════════════════════════════╗
-║ REBASE HALTED                                                    ║
-║                                                                  ║
-║ rebase -X $STRATEGY was not enough — a structural conflict remains.   ║
-║ Resolve in-place:                                                ║
-║    edit conflicted files    git add <files>                      ║
-║    git rebase --continue                                         ║
-║                                                                  ║
-║ Or abandon the attempt:                                          ║
-║    git rebase --abort                                            ║
-║                                                                  ║
-║ Your stashed dirty work (if any) is at stash@{0}.                ║
-╚══════════════════════════════════════════════════════════════════╝"
-  exit 1
+elif [ "$MODE" = "ask" ]; then
+  # Try a plain rebase first, WITHOUT -X, so a genuine conflict actually
+  # surfaces instead of being silently auto-resolved. Success here means
+  # there was no conflict at all — no question to ask.
+  step "git rebase origin/$BRANCH   (plain — no -X, let a real conflict surface)"
+  if git rebase "origin/$BRANCH"; then
+    N_REBASED="$AHEAD_AFTER_FETCH"
+    ok "rebased $N_REBASED local commit(s) onto origin/$BRANCH — no conflict, no prompt"
+  else
+    if ! git rebase --abort; then
+      err "git rebase --abort failed — repo left mid-rebase, resolve manually"
+      exit 1
+    fi
+    warn "conflict on rebase — asking how to resolve"
+    read_conflict_choice
+    case "$ANSWER" in
+      l|L|"")
+        [ -n "$ANSWER" ] || warn "no answer (no TTY, timeout, or blank) — auto-choosing: local wins"
+        step "git rebase -X theirs origin/$BRANCH   (local wins)"
+        do_rebase "local wins" -X theirs
+        ;;
+      r|R)
+        step "git rebase -X ours origin/$BRANCH   (remote wins)"
+        do_rebase "remote wins" -X ours
+        ;;
+      m|M)
+        step "git rebase origin/$BRANCH   (manual — resolve by hand)"
+        if git rebase "origin/$BRANCH"; then
+          N_REBASED="$AHEAD_AFTER_FETCH"
+          ok "rebased $N_REBASED local commit(s) onto origin/$BRANCH"
+        else
+          rebase_halted "manual resolution requested — resolve the conflict below."
+        fi
+        ;;
+      s|S)
+        warn "skip chosen — leaving HEAD un-rebased; the caller's push may now be rejected by origin (that's expected, not a bug)"
+        ;;
+      *)
+        warn "unrecognized answer '$ANSWER' — defaulting to local wins"
+        step "git rebase -X theirs origin/$BRANCH   (local wins)"
+        do_rebase "local wins" -X theirs
+        ;;
+    esac
+  fi
 else
-  N_REBASED="$AHEAD_AFTER_FETCH"
-  ok "rebased $N_REBASED local commit(s) onto origin/$BRANCH"
+  step "git rebase -X $STRATEGY origin/$BRANCH"
+  do_rebase "" -X "$STRATEGY"
 fi
 
 # ── 4. push local commits ───────────────────────────────────────────
