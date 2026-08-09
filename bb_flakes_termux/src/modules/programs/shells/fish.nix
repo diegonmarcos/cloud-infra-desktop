@@ -1,115 +1,86 @@
-# Fish shell configuration - Comprehensive
+# Fish shell configuration — FULLY DATA-DRIVEN.
+#
+# Every abbreviation, alias and function comes from ONE file:
+#   modules/data/fish-commands.json
+# and so does the Aliases/Functions section of fish_greeting (via the
+# generated __cloud_commands_help function). Adding a command means editing
+# that JSON — never this file — and the greeting updates with it, so it can
+# no longer advertise commands that don't exist (the 2026-08-08 audit found
+# http-dev, nmtui, dlog and dex advertised but never installed).
 { config, pkgs, lib, ... }:
 
+let
+  cmds = builtins.fromJSON (builtins.readFile ../../data/fish-commands.json);
+
+  # ── generators ─────────────────────────────────────────────────────
+  toAttrs = f: list: builtins.listToAttrs (map f list);
+
+  abbrAttrs  = toAttrs (a: { name = a.name; value = a.cmd; }) cmds.abbrs;
+  aliasAttrs = toAttrs (a: { name = a.name; value = a.cmd; }) cmds.aliases;
+
+  # A function is either a file under ./fish/functions/, an inline body, or
+  # generated here (__cloud_commands_help).
+  realFns = builtins.filter (f: !(f.generated or false)) cmds.functions;
+  fnAttrs = toAttrs (f: {
+    name  = f.name;
+    value = if f ? file then builtins.readFile (./fish/functions + "/${f.file}") else f.body;
+  }) realFns;
+
+  # ── greeting help — generated from the SAME data ────────────────────
+  # Rendered at build time into a fish function body: zero subprocesses at
+  # greeting time (the 2026-08-08 perf pass cut ~46 spawns per shell; this
+  # section adds none).
+  visible = list: builtins.filter (x: !(x.hidden or false)) list;
+  pad = s:
+    let n = 17 - builtins.stringLength s;
+    in s + lib.concatStrings (lib.genList (_: " ") (if n > 1 then n else 1));
+
+  # Descriptions land inside a double-quoted fish string, so $ and " must be
+  # escaped — an unescaped $HOME in a desc was EXPANDED at greeting time
+  # ("serve /root over HTTP"), caught by rendering the generated function
+  # before shipping it.
+  esc = builtins.replaceStrings [ "\\" "\"" "$" ] [ "\\\\" "\\\"" "\\$" ];
+
+  line = color: suffix: item:
+    ''set_color ${color}; echo -n "    ${pad (item.name + suffix)}"; set_color normal; echo "${esc (item.desc or "")}"'';
+
+  itemsFor = gid:
+       map (line "cyan"   " ·abbr") (builtins.filter (a: (a.group or "other") == gid) (visible cmds.abbrs))
+    ++ map (line "yellow" "")       (builtins.filter (a: (a.group or "other") == gid) (visible cmds.aliases))
+    ++ map (line "green"  "()")     (builtins.filter (f: (f.group or "other") == gid) (visible cmds.functions));
+
+  groupBlock = g:
+    let items = itemsFor g.id;
+    in if items == [] then "" else ''
+      set_color cyan; echo "  ${g.title}:"
+      set_color normal
+      ${lib.concatStringsSep "\n      " items}
+    '';
+
+  helpBody = ''
+    # GENERATED from modules/data/fish-commands.json by fish.nix — do not
+    # edit. Legend: name ·abbr = expands on space · name() = function ·
+    # bare name = alias.
+    set_color --bold yellow
+    echo "── Aliases & Functions ────────────────────────────────────────────────────────────────────────"
+    set_color normal
+    ${lib.concatStringsSep "\n    " (map groupBlock cmds.groups)}
+    set_color --dim; echo "    (source: modules/data/fish-commands.json — hhelp alias for the full dump)"; set_color normal
+  '';
+in
 {
   programs.fish = {
     enable = true;
 
-    shellAbbrs = {
-      # Git abbreviations (expand on space)
-      gs = "git status -sb";
-      ga = "git add";
-      gaa = "git add --all";
-      gc = "git commit";
-      gcm = "git commit -m";
-      gp = "git push";
-      gl = "git log --oneline --graph --decorate -20";
-      gd = "git diff";
-      gco = "git checkout";
-      gpl = "git pull";
-      gcl = "git clone";
+    shellAbbrs = abbrAttrs;
 
-      # Docker abbreviations
-      dps = "docker ps";
-      dpsa = "docker ps -a";
-      dcu = "docker compose up";
-      dcd = "docker compose down";
-    };
+    # fish.nix owns ALL fish aliases (from the JSON). flake.nix no longer
+    # sets programs.fish.shellAliases — it derives bash/zsh sharedAliases
+    # from the same JSON's shared:true entries, so the two sets can never
+    # collide or drift.
+    shellAliases = aliasAttrs;
 
-    # NO mkDefault: flake.nix also defines shellAliases (sharedAliases) at
-    # normal priority, and for attrsOf options a lower-priority definition is
-    # DISCARDED WHOLE, not merged — every alias below was dead code until
-    # 2026-08-08. Same priority => key-wise merge.
-    shellAliases = {
-      # Modern CLI
-      ls = "eza --color=auto --icons";
-      ll = "eza -alF --icons";
-      la = "eza -A --icons";
-      l = "eza -CF --icons";
-      lh = "eza -lh --icons";
-      lt = "eza --tree --level=2 --icons";
-      cat = "bat --paging=never";
-      grep = "rg";
-      find = "fd";
-      # docker is real docker — no alias needed
-
-      # Navigation
-      ".." = "cd ..";
-      "..." = "cd ../..";
-      "...." = "cd ../../..";
-
-      # Safety
-      rm = "rm -i";
-      cp = "cp -i";
-      mv = "mv -i";
-
-      # Python
-      py = "python3";
-      python = "python3";
-      pip = "pip3";
-      ppy = "poetry run python3";
-
-      # System
-      du = "ncdu";
-      free = "free -h";
-      ports = "ss -tulanp";
-      myip = "curl -s ifconfig.me";
-      # (top-batch removed 2026-08-08 — df /home /boot + docker stats are
-      # desktop-only; use `top` / `duh` here.)
-
-      # Misc
-      c = "clear";
-      cls = "clear";
-      h = "history";
-      path = "echo $PATH | tr ':' '\\n'";
-      reload = "source ~/.config/fish/config.fish";
-
-      # (Plasma session, chromium, and /home/diego-path aliases removed
-      # 2026-08-08 — qdbus/chromium don't exist on Android, and `logout`
-      # even ran killall -9 -u $USER before failing. dtk comes from
-      # flake.nix sharedAliases.)
-
-      # AI CLIs — see interactiveShellInit for ai-cli function
-
-      # Welcome screen
-      welcome = "fish_greeting";
-    };
-
-    functions = {
-      up = builtins.readFile ./fish/functions/up.fish;
-      "ai-cli" = builtins.readFile ./fish/functions/ai-cli.fish;
-      "cloud-ai-cli" = builtins.readFile ./fish/functions/cloud-ai-cli.fish;
-      fish_greeting = builtins.readFile ./fish/functions/fish_greeting.fish;
-      hhelp = builtins.readFile ./fish/functions/hhelp.fish;
-      mkcd = builtins.readFile ./fish/functions/mkcd.fish;
-      mkd = builtins.readFile ./fish/functions/mkd.fish;
-      extract = builtins.readFile ./fish/functions/extract.fish;
-      qfind = builtins.readFile ./fish/functions/qfind.fish;
-      backup = builtins.readFile ./fish/functions/backup.fish;
-      git_current_branch = builtins.readFile ./fish/functions/git_current_branch.fish;
-      gcam = builtins.readFile ./fish/functions/gcam.fish;
-      gpsh = builtins.readFile ./fish/functions/gpsh.fish;
-      gacp = builtins.readFile ./fish/functions/gacp.fish;
-      cpucap = builtins.readFile ./fish/functions/cpucap.fish;
-      # serve — real binary; the old serve.fish called http-dev, which no
-      # module ever installed (2026-08-08 audit).
-      serve = "httpd-web-server-json-md-eruda start $argv";
-      duh = builtins.readFile ./fish/functions/duh.fish;
-      localip = builtins.readFile ./fish/functions/localip.fish;
-      hg = builtins.readFile ./fish/functions/hg.fish;
-      myhelp = builtins.readFile ./fish/functions/myhelp.fish;
-      "__fzf_search_commands" = builtins.readFile ./fish/functions/__fzf_search_commands.fish;
-    };
+    functions = fnAttrs // { __cloud_commands_help = helpBody; };
 
     interactiveShellInit = builtins.readFile ./fish/interactiveShellInit.fish;
   };
