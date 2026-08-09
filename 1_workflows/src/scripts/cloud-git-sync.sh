@@ -245,10 +245,19 @@ fi
 # So adopt a leftover pre-sync stash BEFORE creating a new one. This is the
 # backstop for SIGKILL, which no trap can catch.
 TOP_STASH_MSG=$(git stash list -1 --format='%gs' 2>/dev/null || true)
-case "$TOP_STASH_MSG" in
+case "${SKIP_STASH_RESUME:-}${TOP_STASH_MSG}" in
+  1*) : ;;   # escape hatch: SKIP_STASH_RESUME=1 git sync
   *"pre-sync "*)
     section "0b/6 resume stranded stash"
     warn "a previous sync left work behind: $TOP_STASH_MSG"
+    # Only pop onto a CLEAN tree. Popping onto dirty work can half-apply and
+    # then fail, and the cleanup below would take the user's live edits with
+    # it. When dirty, warn and carry on — step 1 stashes on top, which is not
+    # ideal, but silently mangling current work is worse.
+    if [ "$N_DIRTY" -gt 0 ]; then
+      warn "worktree is dirty ($N_DIRTY file(s)) — not resuming now; run 'git sync' again on a clean tree"
+      warn "stranded work stays at stash@{0}; $(git stash list --format='%gs' | grep -c 'pre-sync' || true) pre-sync stash(es) are queued"
+    else
     step "git stash pop"
     if git stash pop >/dev/null 2>&1; then
       ok "recovered stranded work from stash@{0}"
@@ -259,21 +268,54 @@ case "$TOP_STASH_MSG" in
       N_DIRTY=$((N_STAGED + N_UNSTAGED + N_UNTRACKED))
       kv "dirty (after resume)" "staged=$N_STAGED  unstaged=$N_UNSTAGED  untracked=$N_UNTRACKED  (total=$N_DIRTY)"
     else
-      banner_err "
-╔══════════════════════════════════════════════════════════════════╗
-║ STRANDED STASH WILL NOT POP                                      ║
-║                                                                  ║
-║ A previous sync died before restoring your worktree, and that    ║
-║ work conflicts with the tree as it stands now. NOTHING IS LOST — ║
-║ it is still at stash@{0}. Syncing again would bury it, so this   ║
-║ run stops here.                                                  ║
-║                                                                  ║
-║    git stash show -p stash@{0}    # see what is in there         ║
-║    git checkout stash@{0}^3 -- .  # restore untracked files only ║
-╚══════════════════════════════════════════════════════════════════╝"
-      exit 1
+      # A failed `git stash pop` leaves the HALF-APPLIED result in the tree
+      # (unmerged paths, conflict markers) and keeps the stash. Leaving that
+      # behind is the very thing this guard exists to prevent — and it is how
+      # six .nix files full of markers reached main once already. The tree was
+      # verified clean above, so discarding the partial application restores
+      # exactly the pre-pop state and loses nothing: the stash still has it all.
+      warn "stranded stash does not apply to the current tree — undoing the partial pop"
+      # ORDER MATTERS: `git checkout -- .` refuses to touch an UNMERGED path,
+      # so reset the index back to HEAD first to clear the conflict entries,
+      # then restore the worktree, then drop files the pop introduced. Doing
+      # checkout before reset silently leaves the conflicted file — caught by
+      # the test that greps the tree for markers afterwards.
+      git reset -q 2>/dev/null || true
+      git checkout -- . 2>/dev/null || true
+      git ls-files --others --exclude-standard -z | xargs -0 -r rm -f 2>/dev/null || true
+      # NOT fatal. This runs from the pre-push hook, so exiting here would block
+      # every push until the backlog is triaged. Warn loudly and keep going; the
+      # stash stays put and the warning repeats until someone deals with it.
+      N_PRESYNC=$(git stash list --format='%gs' | grep -c 'pre-sync' || true)
+      warn "left at stash@{0} — $N_PRESYNC pre-sync stash(es) now queued, triage them:"
+      warn "  git stash show -p stash@{0}          # what is in it"
+      warn "  git checkout stash@{0}^3 -- .        # untracked files only"
+      warn "  git stash drop stash@{0}             # once it is confirmed superseded"
+    fi
     fi ;;
 esac
+
+# ── 0c. nothing to do? then never touch the worktree ────────────────
+# The stash existed only to get a clean tree for the rebase. When there is
+# nothing to rebase AND nothing to push, stashing is pure risk: steps 1..5 are
+# the window where a killed process strands your work, and most syncs (every
+# push on an already-current branch, every pre-push hook run) have nothing to
+# do at all. Fetch is read-only and never touches the worktree, so it is safe
+# to do BEFORE the stash and decide from real numbers.
+#
+# Runs after 0b on purpose: a stranded stash must be recovered even on a
+# no-op sync, otherwise it would sit there forever.
+step "git fetch origin --prune (pre-check)"
+git fetch origin --prune --quiet 2>/dev/null || warn "fetch failed — continuing with cached refs"
+PRE_AHEAD=$(git rev-list --count "origin/$BRANCH..HEAD" 2>/dev/null || echo 0)
+PRE_BEHIND=$(git rev-list --count "HEAD..origin/$BRANCH" 2>/dev/null || echo 0)
+if [ "$PRE_AHEAD" = 0 ] && [ "$PRE_BEHIND" = 0 ]; then
+  section "up to date — nothing to sync"
+  kv "vs origin/$BRANCH" "ahead=0  behind=0"
+  ok "no rebase, no push, worktree untouched ($N_DIRTY dirty file(s) left exactly as they are)"
+  exit 0
+fi
+kv "vs origin/$BRANCH" "ahead=$PRE_AHEAD  behind=$PRE_BEHIND — sync needed"
 
 # ── 1. stash dirty state ────────────────────────────────────────────
 STASHED=0
