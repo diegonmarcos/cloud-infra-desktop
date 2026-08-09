@@ -22,6 +22,10 @@
 	#   git sync remote    → origin wins on conflict
 	#   git sync --no-push → sync only (what the pre-push hook runs)
 	sync = !./1_workflows/dist/scripts/cloud-git-sync.sh
+	# sync-then-push in ONE command (no stale ref, no second push): the sync
+	# runs BEFORE git resolves the refs to push. A pre-push hook cannot do
+	# this — git compare-and-swaps against the sha it read pre-hook.
+	push-sync = !./1_workflows/dist/scripts/cloud-git-sync.sh ask
 	# bulletproof reset-from-origin — see 1_workflows/src/scripts/cloud-git-nuke.sh
 	# DESTRUCTIVE: wipes local commits, dirty work, untracked files. Survives
 	# force-pushes and divergent history. For ephemeral CI containers.
