@@ -268,23 +268,7 @@ cmd_switch() {
     # and ~/.config/, and used -type f while a backed-up directory (the
     # whole cloud-marketplace tree) is a dir.
     perf_step "clean backups"
-    _retain="${HM_BACKUP_RETENTION_DAYS:-7}"
-    _baks=$(mktemp)
-    # $HOME/git and friends are pruned: home-manager never puts backups
-    # there, and walking the repos would be slow on the phone.
-    command find "$HOME" -maxdepth 4 \
-        \( -path "$HOME/git" -o -path "$HOME/.node_modules" -o -path "$HOME/storage" \
-           -o -path "$HOME/Mounts" -o -path "$HOME/.cache" -o -path "$HOME/.local/state" \) -prune -o \
-        \( -name '*.hm-bak-*' -o -name '*.backup' \) -mtime "+$_retain" -print \
-        > "$_baks" 2>/dev/null || true
-    _bak_n=$(wc -l < "$_baks" | tr -d ' ')
-    if [ "${_bak_n:-0}" -gt 0 ]; then
-        _bak_kb=$(while IFS= read -r _b; do du -sk "$_b" 2>/dev/null | cut -f1; done < "$_baks" \
-                  | awk '{s+=$1} END {print s+0}')
-        log_info "Pruning $_bak_n home-manager backup(s) older than ${_retain}d (~$((_bak_kb / 1024))MB) — HM_BACKUP_RETENTION_DAYS to change"
-        while IFS= read -r _b; do [ -n "$_b" ] && rm -rf "$_b"; done < "$_baks"
-    fi
-    rm -f "$_baks"
+    prune_hm_backups "${HM_BACKUP_RETENTION_DAYS:-7}"
 
     # Guard: profile must use nix-env format (manifest.nix), not nix profile
     # format (manifest.json). nix-on-droid's installPackages can't parse
@@ -539,6 +523,68 @@ cmd_check() {
     check_nix || return 1
     cd "$SRC_DIR"
     nix flake check
+}
+
+# prune_hm_backups <retention_days> [--dry-run]
+#
+# Deletes home-manager conflict backups. Age 0 = purge EVERYTHING regardless
+# of age (`-mtime +0` still means "older than 24h", so 0 has to bypass the
+# age filter entirely — otherwise you can never clear today's backups, which
+# is exactly the situation a broken pruner leaves you in).
+#
+# Matches BOTH `*.hm-bak-<ts>` (what home-manager writes) and the legacy
+# `*.backup`, files AND directories, down to depth 4 — backups land in
+# ~/.claude/, ~/.config/fish/, and a backed-up directory (the whole
+# cloud-marketplace tree) is a dir, not a file.
+prune_hm_backups() {
+    _retain="${1:-7}"
+    _dry=""
+    [ "${2:-}" = "--dry-run" ] && _dry=1
+    _baks=$(mktemp)
+    # ~/git and friends pruned: home-manager never writes backups there and
+    # walking the repos is slow on the phone.
+    if [ "$_retain" = "0" ]; then
+        _age=""
+    else
+        _age="-mtime +$_retain"
+    fi
+    # shellcheck disable=SC2086 — $_age is an intentional word-split flag pair
+    command find "$HOME" -maxdepth 4 \
+        \( -path "$HOME/git" -o -path "$HOME/.node_modules" -o -path "$HOME/storage" \
+           -o -path "$HOME/Mounts" -o -path "$HOME/.cache" -o -path "$HOME/.local/state" \) -prune -o \
+        \( -name '*.hm-bak-*' -o -name '*.backup' \) $_age -print \
+        > "$_baks" 2>/dev/null || true
+    _bak_n=$(wc -l < "$_baks" | tr -d ' ')
+    if [ "${_bak_n:-0}" -eq 0 ]; then
+        [ -n "$_dry" ] && log_info "No home-manager backups match (retention ${_retain}d)"
+        rm -f "$_baks"
+        return 0
+    fi
+    _bak_kb=$(while IFS= read -r _b; do du -sk "$_b" 2>/dev/null | cut -f1; done < "$_baks" \
+              | awk '{s+=$1} END {print s+0}')
+    if [ -n "$_dry" ]; then
+        log_info "Would prune $_bak_n backup(s), ~$((_bak_kb / 1024))MB:"
+        while IFS= read -r _b; do [ -n "$_b" ] && printf '    %s\n' "$_b"; done < "$_baks"
+    else
+        if [ "$_retain" = "0" ]; then
+            log_info "Pruning ALL $_bak_n home-manager backup(s) (~$((_bak_kb / 1024))MB)"
+        else
+            log_info "Pruning $_bak_n home-manager backup(s) older than ${_retain}d (~$((_bak_kb / 1024))MB)"
+        fi
+        while IFS= read -r _b; do [ -n "$_b" ] && rm -rf "$_b"; done < "$_baks"
+    fi
+    rm -f "$_baks"
+}
+
+# clean-backups [days|all] [--dry-run] — standalone, no switch required.
+cmd_clean_backups() {
+    _arg="${1:-7}"
+    case "$_arg" in
+        all|ALL) _arg=0 ;;
+        --dry-run) set -- 7 --dry-run; _arg=7 ;;
+    esac
+    log_header "Home-manager backup prune (retention: ${_arg}d)"
+    prune_hm_backups "$_arg" "${2:-}"
 }
 
 cmd_clean() {
@@ -1068,6 +1114,9 @@ ${YELLOW}COMMANDS:${NC}
     check       Validate flake
     status      System info
     clean       Garbage collect
+    clean-backups [days|all] [--dry-run]
+                Prune home-manager conflict backups (*.hm-bak-*). Default 7
+                days; `all` purges every one. Runs automatically each switch.
     log         View build log
 
 ${YELLOW}ENV VARS:${NC}
@@ -1079,6 +1128,8 @@ ${YELLOW}EXAMPLES:${NC}
     ./build.sh tui          # Interactive menu
     ./build.sh update       # Update nixpkgs (verbose)
     QUIET=1 ./build.sh      # Same but with minimal output (cron mode)
+    ./build.sh clean-backups all --dry-run   # what would be purged
+    ./build.sh clean-backups all             # purge every hm-bak backup now
 EOF
 }
 
@@ -1102,6 +1153,7 @@ case "${1:-switch}" in
     check)   cmd_check ;;
     status)  cmd_status ;;
     clean)   cmd_clean ;;
+    clean-backups) cmd_clean_backups "${2:-}" "${3:-}" ;;
     log)     ${PAGER:-less} "$LOG_FILE" 2>/dev/null || log_info "No log file" ;;
     *)       log_error "Unknown: $1"; show_help; exit 1 ;;
 esac
