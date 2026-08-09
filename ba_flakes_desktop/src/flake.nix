@@ -223,6 +223,7 @@
       userModules = [
         sops-nix.homeManagerModules.sops
         ./modules/sops.nix
+        ./claude/claude.nix
         ./modules/common.nix
         ./modules/desktop-session/system-protection.nix
         ./modules/ssh-stale-socket-cleaner.nix

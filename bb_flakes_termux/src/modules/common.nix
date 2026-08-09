@@ -4,6 +4,7 @@
 {
   imports = [
     ./programs/shells/bash.nix
+    ./programs/shells/shared-aliases.nix
     ./programs/shells/fish.nix
     ./programs/shells/starship.nix
     ./programs/editors/vim.nix

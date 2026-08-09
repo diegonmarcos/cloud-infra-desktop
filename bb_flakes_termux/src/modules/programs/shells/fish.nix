@@ -31,8 +31,11 @@ let
   # greeting time (the 2026-08-08 perf pass cut ~46 spawns per shell; this
   # section adds none).
   visible = list: builtins.filter (x: !(x.hidden or false)) list;
+  # `·` in the ·abbr suffix is 2 bytes but ONE column, and stringLength counts
+  # bytes — measuring it raw left every abbr row a column left of its neighbours.
+  dispLen = x: builtins.stringLength (builtins.replaceStrings [ "·" ] [ "x" ] x);
   pad = s:
-    let n = 17 - builtins.stringLength s;
+    let n = 17 - dispLen s;
     in s + lib.concatStrings (lib.genList (_: " ") (if n > 1 then n else 1));
 
   # Descriptions land inside a double-quoted fish string, so $ and " must be
@@ -67,6 +70,48 @@ let
     ${lib.concatStringsSep "\n    " (map groupBlock cmds.groups)}
     set_color --dim; echo "    (source: modules/data/fish-commands.json — hhelp alias for the full dump)"; set_color normal
   '';
+
+  # ── env vars — same contract, same generator shape ──────────────────
+  # The old greeting hand-listed these names and printed only set/unset, so it
+  # drifted from what the flake actually declares and never showed a value.
+  # Now: one JSON, rendered at build time, values read LIVE at greeting time.
+  envs = builtins.fromJSON (builtins.readFile ../../data/fish-envvars.json);
+
+  padE = s:
+    let n = 32 - builtins.stringLength s;
+    in s + lib.concatStrings (lib.genList (_: " ") (if n > 1 then n else 1));
+
+  # `set -q NAME` takes the bare name; ''$${v.name} renders a literal `$NAME`
+  # for fish's own expansion, so the VALUE is whatever is really exported now.
+  # Long values (store paths) are cut to keep the two-column layout intact.
+  envLine = v: ''
+    set_color yellow; echo -n "    ${padE v.name}"
+        if set -q ${v.name}
+          ${if (v.secret or false)
+            then ''set_color --dim green; echo "set (hidden)"''
+            else ''set_color normal; echo (string sub -l 72 -- "''$${v.name}")''}
+        else
+          set_color --dim red; echo "unset"
+        end
+        set_color normal'';
+
+  envGroupBlock = g:
+    let items = map envLine (builtins.filter (v: (v.group or "other") == g.id) envs.vars);
+    in if items == [] then "" else ''
+      set_color cyan; echo "  ${g.title}:"
+      set_color normal
+      ${lib.concatStringsSep "\n      " items}
+    '';
+
+  envHelpBody = ''
+    # GENERATED from modules/data/fish-envvars.json by fish.nix — do not edit.
+    # Names come from that file; values are read live, so `unset` is real.
+    set_color --bold yellow
+    echo "── Env Vars ───────────────────────────────────────────────────────────────────────────────────"
+    set_color normal
+    ${lib.concatStringsSep "\n    " (map envGroupBlock envs.groups)}
+    set_color --dim; echo "    (source: modules/data/fish-envvars.json — secrets shown as 'set (hidden)')"; set_color normal
+  '';
 in
 {
   programs.fish = {
@@ -80,7 +125,10 @@ in
     # collide or drift.
     shellAliases = aliasAttrs;
 
-    functions = fnAttrs // { __cloud_commands_help = helpBody; };
+    functions = fnAttrs // {
+      __cloud_commands_help = helpBody;
+      __cloud_envvars_help  = envHelpBody;
+    };
 
     interactiveShellInit = builtins.readFile ./fish/interactiveShellInit.fish;
   };

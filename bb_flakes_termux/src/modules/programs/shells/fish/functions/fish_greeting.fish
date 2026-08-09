@@ -27,9 +27,9 @@ set -l _ipc $HOME/.cache/greeting-pubip
 set -l ip_addr (command cat $_ipc 2>/dev/null); test -z "$ip_addr" && set ip_addr "…"
 set -l _ipage (math (date +%s) - (stat -c %Y $_ipc 2>/dev/null; or echo 0))
 if test $_ipage -gt 3600
-    # `command` on BOTH: mv is aliased to `mv -i`, so this background job sat
-    # prompting "mv: overwrite ...?" on the terminal (2026-08-09). Any script
-    # calling a name that is also an alias must bypass it.
+    # `-f` + `command`: this runs backgrounded, so ANY prompt (mv asking to
+    # overwrite an existing cache) hangs on the terminal with no visible
+    # prompt to answer — it blocked the greeting on 2026-08-09.
     begin; command curl -sf --max-time 5 ifconfig.me > $_ipc.tmp 2>/dev/null; and command mv -f $_ipc.tmp $_ipc; end &
     disown 2>/dev/null
 end
@@ -129,48 +129,6 @@ for d in Gdrive_dnm Gdrive_me
 end
 set_color normal; echo ""; echo ""
 
-# ══════════════════ Env Vars ══════════════════
-set_color --bold yellow; echo "── Env Vars ───────────────────────────────────────────────────────────────────────────────────"
-set_color normal
-set_color blue; echo -n "  Shell:         "; set_color normal
-for v in EDITOR VISUAL PAGER LANG LC_ALL MANPAGER
-  if set -q $v; set_color --dim green; else; set_color --dim red; end
-  printf "%-16s" "$v"
-end
-set_color normal; echo ""
-set_color blue; echo -n "  AI / LLM:      "; set_color normal
-for v in ANTHROPIC_API_KEY OPENAI_BASE_URL OPENAI_API_KEY
-  if set -q $v; set_color --dim green; else; set_color --dim red; end
-  printf "%-22s" "$v"
-end
-set_color normal; echo ""
-set_color blue; echo -n "  Auth:          "; set_color normal
-for v in AUTHELIA_OIDC_CLIENT_ID AUTHELIA_TOKEN_URL
-  if set -q $v; set_color --dim green; else; set_color --dim red; end
-  printf "%-26s" "$v"
-end
-set_color normal; echo ""
-set_color blue; echo -n "                 "; set_color normal
-for v in AUTHELIA_OIDC_CREDENTIALS_DIR AUTHELIA_OIDC_TOKENS_DIR
-  if set -q $v; set_color --dim green; else; set_color --dim red; end
-  printf "%-34s" "$v"
-end
-set_color normal; echo ""
-set_color blue; echo -n "  Dev:           "; set_color normal
-for v in CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix
-  if set -q $v; set_color --dim green; else; set_color --dim red; end
-  printf "%-18s" "$v"
-end
-set_color normal; echo ""
-set_color blue; echo -n "  System:        "; set_color normal
-for v in DEVICE HM_PROFILE BUILDSH_GUARDRAIL TF_PLUGIN_CACHE_DIR GNUPGHOME GIT_EDITOR
-  if set -q $v; set_color --dim green; else; set_color --dim red; end
-  printf "%-16s" "$v"
-end
-set_color normal; echo ""
-set_color --dim; echo "    ('hhelp envvar' — list all env vars with values)"; set_color normal
-echo ""
-
 # ══════════════════ Configuration ══════════════════
 set_color --bold magenta; echo "── Configuration ──────────────────────────────────────────────────────────────────────────────"
 set_color normal
@@ -247,6 +205,13 @@ set_color blue; echo -n "    Ctrl+T           "; set_color normal; echo "Find fi
 set_color blue; echo -n "    Alt+C            "; set_color normal; echo "Cd to folder (fzf)"
 echo ""
 set_color --dim; echo "    ('hhelp tools' — all binaries declared in flake)"; set_color normal
+echo ""
+
+# ══════════════════ Env Vars ══════════════════
+# GENERATED — __cloud_envvars_help is built by fish.nix from
+# modules/data/fish-envvars.json. Names from that file, values read live,
+# so `unset` means genuinely not exported. Secrets render as "set (hidden)".
+__cloud_envvars_help
 echo ""
 
 # ══════════════════ Alias/Functions ══════════════════
