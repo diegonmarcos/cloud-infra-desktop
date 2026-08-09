@@ -253,13 +253,38 @@ cmd_switch() {
         cp -f "$SCRIPT_DIR/build.json" "$SRC_DIR/build.json"
     fi
 
-    # Clean old backup files
+    # Prune old home-manager backups.
+    #
+    # NIX ALWAYS WINS is on (HOME_MANAGER_BACKUP_EXT, set before the switch
+    # below): anything blocking a managed symlink is MOVED ASIDE, never left
+    # to abort the switch. The extension must be timestamped — with a fixed
+    # one, home-manager refuses to overwrite an existing backup and the
+    # SECOND conflict on a file becomes fatal. Timestamps mean backups
+    # accumulate forever unless something prunes them, which is this step.
+    #
+    # The old cleaner never deleted a single real backup (verified
+    # 2026-08-09): it matched `*.backup` while home-manager writes
+    # `*.hm-bak-<ts>`, used -maxdepth 1 while backups land under ~/.claude/
+    # and ~/.config/, and used -type f while a backed-up directory (the
+    # whole cloud-marketplace tree) is a dir.
     perf_step "clean backups"
-    backup_count=$(command find "$HOME" -maxdepth 1 -name "*.backup" -type f 2>/dev/null | wc -l)
-    if [ "$backup_count" -gt 0 ]; then
-        log_info "Cleaning $backup_count old backup file(s)..."
-        command find "$HOME" -maxdepth 1 -name "*.backup" -type f -delete 2>/dev/null || true
+    _retain="${HM_BACKUP_RETENTION_DAYS:-7}"
+    _baks=$(mktemp)
+    # $HOME/git and friends are pruned: home-manager never puts backups
+    # there, and walking the repos would be slow on the phone.
+    command find "$HOME" -maxdepth 4 \
+        \( -path "$HOME/git" -o -path "$HOME/.node_modules" -o -path "$HOME/storage" \
+           -o -path "$HOME/Mounts" -o -path "$HOME/.cache" -o -path "$HOME/.local/state" \) -prune -o \
+        \( -name '*.hm-bak-*' -o -name '*.backup' \) -mtime "+$_retain" -print \
+        > "$_baks" 2>/dev/null || true
+    _bak_n=$(wc -l < "$_baks" | tr -d ' ')
+    if [ "${_bak_n:-0}" -gt 0 ]; then
+        _bak_kb=$(while IFS= read -r _b; do du -sk "$_b" 2>/dev/null | cut -f1; done < "$_baks" \
+                  | awk '{s+=$1} END {print s+0}')
+        log_info "Pruning $_bak_n home-manager backup(s) older than ${_retain}d (~$((_bak_kb / 1024))MB) — HM_BACKUP_RETENTION_DAYS to change"
+        while IFS= read -r _b; do [ -n "$_b" ] && rm -rf "$_b"; done < "$_baks"
     fi
+    rm -f "$_baks"
 
     # Guard: profile must use nix-env format (manifest.nix), not nix profile
     # format (manifest.json). nix-on-droid's installPackages can't parse
@@ -282,9 +307,11 @@ cmd_switch() {
 
     perf_step "nix-on-droid switch"
     log_info "Applying nix-on-droid configuration (verbose=$VERBOSE)..."
-    # HOME_MANAGER_BACKUP_EXT: home-manager's built-in conflict resolver — any
-    # plain file blocking a managed symlink is moved to <file>.hm-conflict
-    # automatically. Nix always wins; no hardcoded per-file list needed.
+    # NIX ALWAYS WINS — home-manager's built-in conflict resolver. Any file
+    # blocking a managed symlink is moved to <file>.hm-bak-<timestamp> and
+    # the switch proceeds; without this the switch ABORTS with "Existing
+    # file ... is in the way". No hardcoded per-file list needed. Identical
+    # content is skipped (no backup churn). Pruned by "clean backups" above.
     export HOME_MANAGER_BACKUP_EXT="hm-bak-$(date +%Y%m%d-%H%M%S)"
     _rc_file=$(mktemp)
     # Capture THIS switch's output to a private file too — LOG_FILE accumulates
