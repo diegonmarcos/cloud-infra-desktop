@@ -27,7 +27,10 @@ set -l _ipc $HOME/.cache/greeting-pubip
 set -l ip_addr (command cat $_ipc 2>/dev/null); test -z "$ip_addr" && set ip_addr "…"
 set -l _ipage (math (date +%s) - (stat -c %Y $_ipc 2>/dev/null; or echo 0))
 if test $_ipage -gt 3600
-    begin; curl -sf --max-time 5 ifconfig.me > $_ipc.tmp 2>/dev/null; and mv $_ipc.tmp $_ipc; end &
+    # `command` on BOTH: mv is aliased to `mv -i`, so this background job sat
+    # prompting "mv: overwrite ...?" on the terminal (2026-08-09). Any script
+    # calling a name that is also an alias must bypass it.
+    begin; command curl -sf --max-time 5 ifconfig.me > $_ipc.tmp 2>/dev/null; and command mv -f $_ipc.tmp $_ipc; end &
     disown 2>/dev/null
 end
 set -l ip_priv (ip -4 addr show scope global 2>/dev/null | awk '/inet / {gsub(/\/.*/, "", $2); iface=$NF; if (iface !~ /docker|br-|veth/) printf "%s(%s) ", $2, iface}' | string trim)
@@ -222,8 +225,8 @@ set_color red; echo -n "    sync             "; set_color normal; echo "File syn
 # http-dev status
 if test -n "$__httpd_pid" && kill -0 $__httpd_pid 2>/dev/null
   set_color green; echo -n "    httpd            "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: $__httpd_pid)"
-else if test -f $HOME/.cache/httpd-web-server-json-md-eruda.pid; and kill -0 (cat $HOME/.cache/httpd-web-server-json-md-eruda.pid 2>/dev/null) 2>/dev/null
-  set_color green; echo -n "    httpd            "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: "(cat $HOME/.cache/httpd-web-server-json-md-eruda.pid)")"
+else if test -f $HOME/.cache/httpd-web-server-json-md-eruda.pid; and kill -0 (command cat $HOME/.cache/httpd-web-server-json-md-eruda.pid 2>/dev/null) 2>/dev/null
+  set_color green; echo -n "    httpd            "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: "(command cat $HOME/.cache/httpd-web-server-json-md-eruda.pid)")"
 else
   set_color red; echo -n "    httpd            "; set_color normal; echo "○ Not running (httpd-web-server-json-md-eruda start)"
 end

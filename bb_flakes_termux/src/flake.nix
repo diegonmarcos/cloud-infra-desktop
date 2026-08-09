@@ -115,11 +115,21 @@
               # fish/others expect a private runtime dir; unset → "Runtime path
               # not available". Created 0700 by the home.activation below.
               XDG_RUNTIME_DIR = "$HOME/.cache/xdg-runtime";
-              # Locale — en_DK.UTF-8 = ISO-8601 dates + 24h. Set at the nix-on-droid
-              # env level (not home.sessionVariables) so LOCALE_ARCHIVE is already
-              # in scope when LANG/LC_ALL are exported → no setlocale warning at login.
+              # Locale — en_DK.UTF-8 = ISO-8601 dates + 24h.
+              #
+              # LC_ALL REMOVED (2026-08-09). The old comment here claimed
+              # LOCALE_ARCHIVE would "already be in scope" — the opposite is
+              # true: nix renders an attrset in SORTED key order, and
+              # LANG < LC_ALL < LD_PRELOAD < LOCALE_ARCHIVE, so LC_ALL was
+              # exported BEFORE the archive it needs. bash then failed its
+              # setlocale and printed
+              #   "warning: setlocale: LC_ALL: cannot change locale (en_DK.UTF-8)"
+              # on every single login. Ordering inside sessionVariables is not
+              # controllable, so the fix is to stop setting the variable that
+              # trips it: LANG alone already supplies the default for every LC_*
+              # category, LC_ALL is the override hammer on top (and only LC_ALL
+              # was ever named in the warning).
               LANG = "en_DK.UTF-8";
-              LC_ALL = "en_DK.UTF-8";
               LOCALE_ARCHIVE = "${pkgs.glibcLocales}/lib/locale/locale-archive";
             };
 
