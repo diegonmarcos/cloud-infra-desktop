@@ -115,47 +115,6 @@ for d in Gdrive_dnm Gdrive_me
 end
 set_color normal; echo ""; echo ""
 
-# ══════════════════ Env Vars ══════════════════
-set_color --bold yellow; echo "── Env Vars ───────────────────────────────────────────────────────────────────────────────────"
-set_color normal
-set_color blue; echo -n "  Shell:         "; set_color normal
-for v in EDITOR VISUAL PAGER LANG LC_ALL MANPAGER
-  if set -q $v; set_color --dim green; else; set_color --dim red; end
-  printf "%-16s" "$v"
-end
-set_color normal; echo ""
-set_color blue; echo -n "  AI / LLM:      "; set_color normal
-for v in ANTHROPIC_API_KEY OPENAI_BASE_URL OPENAI_API_KEY
-  if set -q $v; set_color --dim green; else; set_color --dim red; end
-  printf "%-22s" "$v"
-end
-set_color normal; echo ""
-set_color blue; echo -n "  Auth:          "; set_color normal
-for v in AUTHELIA_OIDC_CLIENT_ID AUTHELIA_TOKEN_URL
-  if set -q $v; set_color --dim green; else; set_color --dim red; end
-  printf "%-26s" "$v"
-end
-set_color normal; echo ""
-set_color blue; echo -n "                 "; set_color normal
-for v in AUTHELIA_OIDC_CREDENTIALS_DIR AUTHELIA_OIDC_TOKENS_DIR
-  if set -q $v; set_color --dim green; else; set_color --dim red; end
-  printf "%-34s" "$v"
-end
-set_color normal; echo ""
-set_color blue; echo -n "  Dev:           "; set_color normal
-for v in CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix
-  if set -q $v; set_color --dim green; else; set_color --dim red; end
-  printf "%-18s" "$v"
-end
-set_color normal; echo ""
-set_color blue; echo -n "  System:        "; set_color normal
-for v in DEVICE HM_PROFILE BUILDSH_GUARDRAIL TF_PLUGIN_CACHE_DIR GNUPGHOME GIT_EDITOR
-  if set -q $v; set_color --dim green; else; set_color --dim red; end
-  printf "%-16s" "$v"
-end
-set_color normal; echo ""
-set_color --dim; echo "    ('hhelp envvar' — list all env vars with values)"; set_color normal
-echo ""
 
 # ══════════════════ Configuration ══════════════════
 set_color --bold magenta; echo "── Configuration ──────────────────────────────────────────────────────────────────────────────"
@@ -240,23 +199,19 @@ echo ""
 set_color --dim; echo "    ('hhelp tools' — all binaries declared in flake)"; set_color normal
 echo ""
 
-# ══════════════════ Alias/Functions ══════════════════
-set_color --bold yellow; echo "── Alias/Functions ────────────────────────────────────────────────────────────────────────────"
-set_color normal
-# Git
-set_color cyan; echo "  Git:"
-set_color normal
-set_color yellow; echo -n "    gacp             "; set_color normal; echo "git add . && commit && push"
-set_color yellow; echo -n "    gcl              "; set_color normal; echo "git clone <url>"
-# Others
-set_color cyan; echo "  Others:"
-set_color normal
-set_color yellow; echo -n "    cloud-terminal   "; set_color normal; echo "Multi-profile terminal + tray — Nix/Cloud/DTK (Tauri)"
-set_color yellow; echo -n "    dtk              "; set_color normal; echo "Tools TUI menu (~/git/tools/dtk.sh)"
-set_color yellow; echo -n "    hhelp            "; set_color normal; echo "Parse flake configs (config/tools/alias)"
-set_color yellow; echo -n "    fish-e           "; set_color normal; echo "Web terminal + mobile keys (ttyd on WireGuard)"
+# ══════════════════ Env Vars ══════════════════
+# GENERATED — __cloud_envvars_help, built by fish.nix from
+# bb_flakes_termux/src/modules/data/fish-envvars.json (one shared copy).
+# Names from that file, values read live, secrets shown as "set (hidden)".
+__cloud_envvars_help
 echo ""
-set_color --dim; echo "    ('hhelp alias' — all functions and aliases in bash and fish)"; set_color normal
+
+# ══════════════════ Alias/Functions ══════════════════
+# GENERATED — __cloud_commands_help, built by fish.nix from the very
+# shellAbbrs/shellAliases attrsets that define them, so this can never
+# advertise something that is not installed.
+__cloud_commands_help
+echo ""
 
 set_color cyan; echo ""
 echo "═══════════════════════════════════════════════════════════════════════════════════════════════"

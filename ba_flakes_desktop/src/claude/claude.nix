@@ -1,0 +1,290 @@
+# Claude Code — every ~/.claude declaration for this flake lives here.
+#
+# OWNERSHIP SPLIT — three owners, do not blur them:
+#
+#   my-ai BINARY  statusline-command.sh + claude-{mcp,plugins,hooks,flags}-status.sh
+#                 + claude-pricing.json. The binary embeds them (core/src/
+#                 statusline_assets.rs) and the daemon writes them into ~/.claude at
+#                 startup. This module must NOT declare them. Desktop already got
+#                 this right; bb_flakes_termux had re-added them and its deployed
+#                 status line sat 141 lines stale from 2026-08-01 to 2026-08-09.
+#
+#   my-ai REPO    Assets shared with bb_flakes_termux — agents/, cloud-marketplace/,
+#                 claude-plugins.json, rgignore, settings.{base,desktop}.json. Pulled
+#                 through the `my-ai` flake input rather than vendored, because two
+#                 vendored copies is precisely how cloud-marketplace drifted across
+#                 7 files (desktop 2026-07-30 vs termux 2026-08-08).
+#
+#   THIS FLAKE    Platform-specific only: mcp.json.tpl (desktop keeps the three stdio
+#                 MCP servers termux bans), mcp-local-launch.sh, secrets.yaml (own
+#                 sops recipients), and the CLAUDE.md stub.
+{ config, lib, pkgs, inputs, ... }:
+
+let
+  # my-ai's `claudeAssets` OUTPUT — not a reach into a source tree. Uses the my-ai-src
+  # input that already exists here for the binary, so this adds no new input.
+  claudeSrc = inputs.my-ai-src.claudeAssets;
+
+  # settings.json = shared base ⊕ desktop overlay.
+  #
+  # The base carries @HOME@ placeholders rather than absolute paths: every path that
+  # used to differ between the two machines (GIT_BASE, NODE_PATH, both AUTHELIA_*_DIR,
+  # statusLine.command) is byte-identical once $HOME is factored out, so they all live
+  # in the base now and the overlay holds only real differences (refreshInterval, tui,
+  # and the four desktop-only LSP plugins).
+  #
+  # Substitution happens on the raw JSON text before parsing. It is NOT left as a
+  # literal "$HOME" because Claude Code shell-expands statusLine.command but sets env
+  # values verbatim, so a literal there would leak "$HOME/git" into GIT_BASE.
+  #
+  # Verified against the pre-split file: byte-identical on this machine.
+  settingsJson = pkgs.writeText "claude-settings.json" (builtins.toJSON
+    (lib.recursiveUpdate
+      (builtins.fromJSON (builtins.replaceStrings [ "@HOME@" ] [ config.home.homeDirectory ]
+        (builtins.readFile "${claudeSrc}/settings.base.json")))
+      (builtins.fromJSON (builtins.readFile "${claudeSrc}/settings.desktop.json"))));
+in
+{
+  # Agent fleet (explore/build/review/ops, pinned model:sonnet). dotfiles/claude/agents
+  # existed here but was NEVER declared, so desktop has never deployed the fleet —
+  # that is why desktop sessions start with no agents. Now shared from the my-ai SoT.
+  home.file.".claude/agents" = {
+    source = "${claudeSrc}/agents";
+    recursive = true;
+  };
+
+  # Claude Code configuration + MCP server config
+  # CLAUDE.md is now a 1-char stub — all principles/reference content moved to
+  # cloud-principles-ai-plugin (hooks-fragments/*.md, injected via SessionStart/
+  # UserPromptSubmit hooks) to eliminate the double-injection (static file +
+  # hook injection of the same text) that was bloating every session's fixed
+  # context. See da_my-ai/src/data/claude/cloud-marketplace/.
+  home.file.".claude/CLAUDE.md".text = "\n";
+  home.file.".claude/mcp.json.tpl".source = ./assets/mcp.json.tpl;
+  # Universal launcher for local stdio MCP servers — self-creates the
+  # node_modules symlink(s) ESM bare-import resolution requires (NODE_PATH is
+  # ignored by the ESM loader). See the script header for the full rationale.
+  home.file.".claude/mcp-local-launch.sh" = {
+    source = ./assets/mcp-local-launch.sh;
+    executable = true;
+  };
+  home.file.".claude/secrets.yaml".source = ./assets/secrets.yaml;
+  # ── The status line is OWNED BY THE my-ai BINARY, not by this flake ────────
+  #
+  # statusline-command.sh, claude-{mcp,plugins,hooks,flags}-status.sh and
+  # claude-pricing.json used to be home.file entries here. That split ONE feature
+  # across two release cadences: the `05h-T` label was a Rust format string
+  # needing a GHA round-trip, while `All-S` and `05h-S` beside it were a file
+  # copy. And the daemon shells out to those scripts to build `.blocks`, so the
+  # binary had an undeclared dependency on files this flake shipped — upgrade one
+  # without the other and `.blocks` goes silently empty, sending every session
+  # back to spawning five scripts per render.
+  #
+  # my-ai now embeds them (core/src/statusline_assets.rs) and writes them out on
+  # every daemon start, so whatever binary is running is running against the
+  # assets that shipped with it. This flake keeps exactly one decision:
+  # settings.json, which says WHERE the status line appears. my-ai decides WHAT
+  # it is. Update them in da_my-ai/src/data/statusline/.
+  #
+  # claude-plugins.json stays here: it is machine configuration (which plugins
+  # this host has), not part of the status line's implementation.
+  home.file.".claude/claude-plugins.json".source = "${claudeSrc}/claude-plugins.json";
+  # cloud-marketplace — local Claude Code plugin marketplace holding:
+  #   - cloud-principles-ai-plugin: the data-driven hook engine (was
+  #     ~/.claude/hooks/*) — ONE engine + ONE registry (hooks-rules.json):
+  #       inject <tier> → SessionStart / UserPromptSubmit / PreToolUse context
+  #       guard         → PreToolUse(Bash) allow/deny/warn (fail-closed)
+  #       nudge         → PostToolUse soft graph nudge
+  #   - ponytail: "lazy senior dev" skill (vendored, DietrichGebert/ponytail
+  #     @ 6da37bf, MIT), moved in from its old standalone ~/.claude/ponytail/.
+  # Registered as a real plugin marketplace (not settings.json hooks) so both
+  # are independently toggleable via `/plugin` — e.g. disable
+  # cloud-principles-ai-plugin for a lean Sonnet 200k session without a
+  # source edit. See claudeMarketplace activation below for registration.
+  home.file.".claude/cloud-marketplace".source = "${claudeSrc}/cloud-marketplace";
+  # settings.json: deployed WRITABLE (not a read-only store symlink) so the
+  # runtime `/effort` command can persist effortLevel. Nix owns the baseline
+  # (hooks, statusline, env, plugins) and refreshes it every switch; effortLevel
+  # is NOT nix-managed — it's a runtime decision, preserved across rebuilds.
+  # Same writable-runtime-file pattern as ~/.mcp.json and ~/.gemini/settings.json.
+  home.activation.claudeSettings = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    (
+    JQ="${pkgs.jq}/bin/jq"
+    SRC="${settingsJson}"
+    DST="$HOME/.claude/settings.json"
+    ${pkgs.coreutils}/bin/mkdir -p "$HOME/.claude"
+    # Preserve a runtime-owned effortLevel (set via /effort) across rebuilds.
+    EFFORT=""
+    if [ -f "$DST" ] && [ ! -L "$DST" ]; then
+      EFFORT=$("$JQ" -r '.effortLevel // empty' "$DST" 2>/dev/null) || true
+    fi
+    # Drop any stale read-only store symlink left by the old home.file mechanism.
+    [ -L "$DST" ] && ${pkgs.coreutils}/bin/rm -f "$DST"
+    if [ -n "$EFFORT" ]; then
+      "$JQ" --arg e "$EFFORT" '. + {effortLevel: $e}' "$SRC" > "$DST"
+    else
+      "$JQ" '.' "$SRC" > "$DST"
+    fi
+    ${pkgs.coreutils}/bin/chmod 0644 "$DST"
+    echo "[claude-settings] ~/.claude/settings.json written (writable; effortLevel=''${EFFORT:-runtime-default})"
+    ) || echo "[claude-settings] subshell failed; HM chain continues"
+  '';
+
+  # NO LOOSE SKILLS. ~/.claude/skills/ must stay empty — every skill ships as a
+  # plugin (skill-<name>-plugin) in cloud-marketplace, so it is enabled/disabled
+  # declaratively via settings.json enabledPlugins and unloads with its plugin.
+  # claude-api now lives in cloud-marketplace/skill-claude-api-plugin (see its
+  # ORIGIN.md for the upstream anthropics/skills rev it was vendored from).
+
+  # Register ~/.claude/cloud-marketplace as a plugin marketplace + enable both
+  # plugins. `claude plugin marketplace add` is idempotent (re-add of a known
+  # path is a no-op / refresh) so this is safe to run every switch — same
+  # imperative-but-declared-and-reproducible pattern as installClaudeCode /
+  # mcpSecrets below (CLI call from a nix-committed activation block, not an
+  # ad-hoc one-liner).
+  home.activation.claudeMarketplace = lib.hm.dag.entryAfter [ "claudeSettings" "installClaudeCode" ] ''
+    (
+    CLAUDE_BIN="$HOME/.local/bin/claude"
+    MARKETPLACE_DIR="$HOME/.claude/cloud-marketplace"
+    JQ="${pkgs.jq}/bin/jq"
+    if [ -x "$CLAUDE_BIN" ] && [ -d "$MARKETPLACE_DIR" ]; then
+      $DRY_RUN_CMD "$CLAUDE_BIN" plugin marketplace add "$MARKETPLACE_DIR" >/dev/null 2>&1 || true
+      echo "[claude-marketplace] cloud-marketplace registered (enabledPlugins declared in settings.json)"
+      # Durable installPath materialization. Claude Code records each installed
+      # plugin's installPath as plugins/cache/<marketplace>/<plugin>/<version>
+      # and its /plugin loader validates that path — but nothing populates it
+      # for a directory-source marketplace, so after a nix store-swap the loader
+      # reports "cannot find the hooks". Recreate each installPath as a symlink
+      # into the (HM-refreshed, store-backed) marketplace dir. Pointing at the
+      # stable ~/.claude/cloud-marketplace/<plugin> path (not the raw store
+      # hash) keeps it valid across every rebuild/GC. Data-driven: plugin names
+      # from marketplace.json, version from each plugin.json.
+      CACHE_DIR="$HOME/.claude/plugins/cache/cloud-marketplace"
+      MKT_JSON="$MARKETPLACE_DIR/.claude-plugin/marketplace.json"
+      if [ -f "$MKT_JSON" ]; then
+        for P in $("$JQ" -r '.plugins[].name' "$MKT_JSON" 2>/dev/null); do
+          VER=$("$JQ" -r '.version // "1.0.0"' "$MARKETPLACE_DIR/$P/.claude-plugin/plugin.json" 2>/dev/null || echo "1.0.0")
+          DEST="$CACHE_DIR/$P/$VER"
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$CACHE_DIR/$P"
+          # Replace any real dir left by a prior copy-install; -sfn handles the symlink case.
+          [ -e "$DEST" ] && [ ! -L "$DEST" ] && $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -rf "$DEST"
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/ln -sfn "$MARKETPLACE_DIR/$P" "$DEST"
+          echo "[claude-marketplace] materialized $P@$VER -> cache installPath"
+        done
+      fi
+    else
+      echo "[claude-marketplace] WARNING: claude CLI or marketplace dir not found, skipping"
+    fi
+    ) || echo "[claude-marketplace] subshell failed; HM chain continues"
+  '';
+
+  home.file.".rgignore".source = "${claudeSrc}/rgignore";
+  # Claude Code — direct Bun binary from Anthropic GCS + patchelf for NixOS
+  # Auto-updates on every home-manager switch. No npm dependency.
+  home.activation.installClaudeCode = lib.hm.dag.entryAfter ["linkGeneration"] ''
+    CLAUDE_BIN="$HOME/.local/bin/claude"
+    CLAUDE_GCS="https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases"
+    ARCH="linux-x64"
+    PATCHELF="${pkgs.patchelf}/bin/patchelf"
+    INTERPRETER="${pkgs.glibc}/lib/ld-linux-x86-64.so.2"
+
+    mkdir -p "$HOME/.local/bin"
+
+    CURRENT=""
+    if [ -x "$CLAUDE_BIN" ]; then
+      CURRENT=$("$CLAUDE_BIN" --version 2>/dev/null | head -1 | sed 's/ .*//' || true)
+    fi
+    LATEST=$(${pkgs.nodejs_22}/bin/npm view @anthropic-ai/claude-code version 2>/dev/null || true)
+
+    if [ -z "$CURRENT" ] || { [ -n "$LATEST" ] && [ "$CURRENT" != "$LATEST" ]; }; then
+      printf "[claude-code] %s → %s (%s)\n" "''${CURRENT:-none}" "$LATEST" "$ARCH"
+      # Stage to a temp file then atomic mv. Avoids:
+      #   (a) curl error 23 "Failed writing body" when $CLAUDE_BIN is mode 555 (owner has no write bit)
+      #   (b) ETXTBSY when $CLAUDE_BIN is currently executing (running claude session)
+      # mv replaces the directory entry; the running process keeps its old inode.
+      TMP="$CLAUDE_BIN.new.$$"
+      # --retry 5 with exponential backoff: tolerate transient GCS errors
+      # (curl 56 "Connection reset", 52 "Empty reply", 18 "partial transfer").
+      $DRY_RUN_CMD ${pkgs.curl}/bin/curl -fsSL \
+        --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 \
+        "$CLAUDE_GCS/$LATEST/$ARCH/claude" -o "$TMP"
+      $DRY_RUN_CMD chmod 755 "$TMP"
+      $DRY_RUN_CMD $PATCHELF --set-interpreter "$INTERPRETER" "$TMP"
+      $DRY_RUN_CMD chmod 555 "$TMP"
+      $DRY_RUN_CMD mv -f "$TMP" "$CLAUDE_BIN"
+    else
+      printf "[claude-code] %s is up to date\n" "$CURRENT"
+    fi
+
+    # Clean up stale npm-global claude if present
+    NPM_PKG="$HOME/.npm-global/lib/node_modules/@anthropic-ai/claude-code"
+    NPM_BIN="$HOME/.npm-global/bin/claude"
+    if [ -d "$NPM_PKG" ] || [ -L "$NPM_BIN" ]; then
+      $DRY_RUN_CMD rm -rf "$NPM_PKG" "$NPM_BIN" || true
+    fi
+  '';
+
+  # MCP secrets: decrypt secrets.yaml → awk subst ''${VAR} → ~/.mcp.json
+  # Mimics Docker env_file + init.sh pattern using awk index() (literal, no regex)
+  # Subshell wrap: `exit 0` early-returns (missing files, decrypt failure)
+  # must stay local to this block. Bare `exit 0` in HM activations terminates
+  # the entire activation script, silently skipping every later activation.
+  home.activation.mcpSecrets = lib.hm.dag.entryAfter ["linkGeneration"] ''
+    (
+    SOPS="${pkgs.sops}/bin/sops"
+    TPL="$HOME/.claude/mcp.json.tpl"
+    SECRETS_YAML="$HOME/.claude/secrets.yaml"
+    OUT="$HOME/.mcp.json"
+    YQ="${pkgs.yq-go}/bin/yq"
+    AWK="${pkgs.gawk}/bin/awk"
+
+    if [ ! -f "$SOPS" ] || [ ! -f "$SECRETS_YAML" ] || [ ! -f "$TPL" ]; then
+      echo "[mcp-secrets] WARNING: sops/secrets/template not found, copying template as-is"
+      [ -f "$TPL" ] && cp --no-preserve=mode "$TPL" "$OUT"
+      exit 0
+    fi
+
+    # Decrypt secrets.yaml (same as cloud/ _engine.sh pattern)
+    DECRYPTED=$("$SOPS" -d "$SECRETS_YAML" 2>/dev/null) || true
+    if [ -z "$DECRYPTED" ]; then
+      echo "[mcp-secrets] WARNING: failed to decrypt secrets.yaml"
+      cp --no-preserve=mode "$TPL" "$OUT"
+      exit 0
+    fi
+
+    # Copy template to output (--no-preserve=mode: nix store files are r--, output must be rw-)
+    cp --no-preserve=mode "$TPL" "$OUT"
+
+    # Extract ''${VAR} placeholders using awk (no sed, no regex on secrets)
+    VARS=$($AWK '{
+      s = $0
+      while (match(s, /\$\{[A-Za-z_][A-Za-z0-9_-]*\}/)) {
+        v = substr(s, RSTART+2, RLENGTH-3)
+        print v
+        s = substr(s, RSTART+RLENGTH)
+      }
+    }' "$OUT" | sort -u) || true
+
+    # awk index() substitution — literal string match, no regex
+    # Same proven pattern as Authelia init.sh and cloud/ _engine.sh
+    for _var in $VARS; do
+      _val=$(printf '%s' "$DECRYPTED" | "$YQ" -r ".[\"$_var\"]" 2>/dev/null) || true
+      if [ -z "$_val" ] || [ "$_val" = "null" ]; then
+        echo "[mcp-secrets] WARNING: $_var not found in secrets — leaving placeholder"
+        continue
+      fi
+      _pat="\''${''${_var}}"
+      $AWK -v pat="$_pat" -v rep="$_val" '{
+        while (i = index($0, pat)) {
+          $0 = substr($0, 1, i-1) rep substr($0, i+length(pat))
+        }
+        print
+      }' "$OUT" > "$OUT.tmp"
+      mv "$OUT.tmp" "$OUT"
+    done
+
+    chmod 600 "$OUT"
+    echo "[mcp-secrets] ~/.mcp.json templated ($(echo $VARS | wc -w) vars substituted)"
+    ) || echo "[mcp-secrets] subshell exited non-zero; HM chain continues"
+  '';
+}
