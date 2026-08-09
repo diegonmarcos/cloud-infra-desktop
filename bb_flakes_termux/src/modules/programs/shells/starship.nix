@@ -9,11 +9,11 @@
     enableFishIntegration = true;
 
     settings = {
-      # Android/Termux git is slow on large repos. command_timeout is the
-      # MAXIMUM TIME STARSHIP BLOCKS THE PROMPT waiting for git — 5000 was
-      # wrong (a 5s prompt stall on every cd into a big repo); a timeout
-      # warning at 2000 is the cheaper failure mode (2026-08-08 audit).
-      command_timeout = 2000;
+      # command_timeout is the MAXIMUM TIME STARSHIP BLOCKS THE PROMPT on any
+      # module command. 1000ms is plenty now that git_status (the only module
+      # that ever exceeded it) is disabled below — raising it just made the
+      # prompt hang longer before printing the same warning.
+      command_timeout = 1000;
 
       format = lib.concatStrings [
         "$time"
@@ -57,6 +57,16 @@
       };
 
       git_status = {
+        # DISABLED on this device (2026-08-09). git_status runs a full
+        # `git status` on every prompt; on the unix repo (5 submodules, huge
+        # worktree) and on $HOME (which initHomeGit makes a repo) it blows
+        # past command_timeout on Android/proot, so the ONLY thing it ever
+        # produced was the pair of starship WARN lines after each prompt —
+        # the status counts never rendered. git_branch above is cheap
+        # (rev-parse, no tree walk) and still shows the branch.
+        # Re-enable with `disabled = false` if you move to faster storage;
+        # for real status use `gs` (git status -sb).
+        disabled = true;
         conflicted = "";
         ahead = "^$count";
         behind = "v$count";
