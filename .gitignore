@@ -127,6 +127,15 @@ ea_cloud-nav/**/build/
 ea_cloud-media-center/.gradle/
 ea_cloud-media-center/build/
 ea_cloud-media-center/**/build/
+## ea_cloud-calendar was added after this list and never got its entries, so a
+## local ./gradlew left .gradle/ and build/ untracked-but-addable — and
+## bb_flakes_termux/build.sh does `git add -A`. Same class of gap as the
+## ~3M-line ea_cloud-superapp cache commit (264c09f2). Added 2026-08-09.
+ea_cloud-calendar/.gradle/
+ea_cloud-calendar/build/
+ea_cloud-calendar/**/build/
+ea_cloud-calendar/.cache/
+ea_cloud-calendar/.kotlin/
 ## Re-ignore Gradle/Kotlin daemon caches inside the whitelisted ea_cloud-superapp/
 ## tree — same class of gap as the .gradle/build re-ignores above. Missing this
 ## let a local `./gradlew` run's Go-module dependency cache (.cache/gopath/...,
@@ -155,6 +164,8 @@ ea_cloud-vault/dist/
 ea_cloud-vault/**/*.apk
 ea_cloud-media-center/dist/
 ea_cloud-media-center/**/*.apk
+ea_cloud-calendar/dist/
+ea_cloud-calendar/**/*.apk
 ## MyShell bundled nix store (500MB+)
 ba_myshell/dist/*/_bundled/
 ba_myshell/bin/
