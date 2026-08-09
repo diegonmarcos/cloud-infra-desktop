@@ -189,10 +189,9 @@ set_color normal
 # Nix Flakes
 set_color cyan; echo "  Nix Flakes:"
 set_color normal
-set_color magenta; echo -n "    sw               "; set_color normal; echo "Sync (2-way) + rebuild Nix config — alias-proof binary"
-set_color magenta; echo -n "    up               "; set_color normal; echo "Git-sync unix repo + rebuild Nix config"
-set_color magenta; echo -n "    conf             "; set_color normal; echo "Edit flake.nix"
-set_color magenta; echo -n "    dtk              "; set_color normal; echo "Diego's Toolkit (cloud ops, dashboards, webhooks)"
+set_color magenta; echo -n "    flakes.switch    "; set_color normal; echo "git sync local (unix) + build.sh switch — the everyday rebuild"
+set_color magenta; echo -n "    sw               "; set_color normal; echo "same two steps as a PATH binary (bash/zsh/cron)"
+set_color --dim;   echo "    (aliases + functions are listed below, generated from fish-commands.json)"; set_color normal
 # Dev
 # Versions come from ~/.cache/greeting-versions, written at SWITCH time by
 # home.activation.greetingVersionCache — spawning claude/goose/ant here cost
@@ -248,19 +247,12 @@ set_color --dim; echo "    ('hhelp tools' — all binaries declared in flake)"; 
 echo ""
 
 # ══════════════════ Alias/Functions ══════════════════
-set_color --bold yellow; echo "── Alias/Functions ────────────────────────────────────────────────────────────────────────────"
-set_color normal
-# Git
-set_color cyan; echo "  Git:"
-set_color normal
-set_color yellow; echo -n "    gacp             "; set_color normal; echo "git add . && commit && push"
-set_color yellow; echo -n "    gcl              "; set_color normal; echo "git clone <url>"
-# Others
-set_color cyan; echo "  Others:"
-set_color normal
-set_color yellow; echo -n "    hhelp            "; set_color normal; echo "Parse flake configs (config/tools/alias)"
+# GENERATED — __cloud_commands_help is built by fish.nix from
+# modules/data/fish-commands.json, the same file that defines the aliases,
+# abbreviations and functions themselves. Add a command there and it appears
+# here automatically; nothing can be advertised that isn't installed.
+__cloud_commands_help
 echo ""
-set_color --dim; echo "    ('hhelp alias' — all functions and aliases in bash and fish)"; set_color normal
 
 set_color cyan; echo ""
 echo "═══════════════════════════════════════════════════════════════════════════════════════════════"

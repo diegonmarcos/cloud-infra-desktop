@@ -47,20 +47,16 @@
       termux-am = (import nixpkgs { system = "aarch64-linux"; }).callPackage
         "${nix-on-droid}/pkgs/android-integration/termux-am.nix" {};
 
-      # Shared aliases for all shells.
-      # `up` REMOVED (2026-08-08): an alias here becomes an alias-function at
-      # fish startup, which permanently shadowed the managed functions/up.fish
-      # (fish never autoloads a name that's already defined) — so `up` kept
-      # running bare build.sh without the git sync for months. up is a real
-      # fish function now; `sw` is the shell-agnostic binary equivalent.
-      # ll/.. removed 2026-08-08: fish.nix/bash.nix define them (eza-flavored)
-      # at the same priority since the mkDefault discard-bug fix — duplicate
-      # keys with different values are a hard eval conflict.
-      sharedAliases = {
-        conf = "nano ~/git/unix/bb_flakes_termux/src/flake.nix";
-        # bash, not sh — dtk.sh uses bashisms.
-        dtk = "bash ~/git/tools/dtk.sh";
-      };
+      # bash + zsh aliases, DERIVED from the same single source of truth the
+      # fish layer uses (modules/data/fish-commands.json, entries flagged
+      # shared:true). Hand-keeping a second copy here is what produced the
+      # `up` shadow that hid the managed fish function for months.
+      # fish is NOT fed from here — fish.nix owns the full set — so the two
+      # definitions can never collide on a key.
+      fishCmds = builtins.fromJSON (builtins.readFile ./modules/data/fish-commands.json);
+      sharedAliases = builtins.listToAttrs (map
+        (a: { name = a.name; value = a.cmd; })
+        (builtins.filter (a: a.shared or false) fishCmds.aliases));
     in
     {
       nixOnDroidConfigurations.default = nix-on-droid.lib.nixOnDroidConfiguration {
@@ -586,7 +582,8 @@
 
               programs.fish = {
                 enable = true;
-                shellAliases = sharedAliases;
+                # shellAliases intentionally absent — modules/programs/shells/
+                # fish.nix generates the full fish set from fish-commands.json.
                 # NO inline init here (2026-08-08 decree: flakes orchestrate,
                 # scripts live in files): everything moved to
                 # modules/programs/shells/fish/interactiveShellInit.fish.
