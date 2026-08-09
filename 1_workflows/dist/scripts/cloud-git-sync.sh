@@ -223,9 +223,95 @@ if [ -f .gitmodules ]; then
       printf "    %-40s %s  (%s)\n", name, substr(sha,1,12), state }'
 fi
 
+# ── 0a. stale index.lock ────────────────────────────────────────────
+# A run killed between steps 1 and 5 leaves .git/index.lock behind, and every
+# later git write then dies with "Another git process seems to be running".
+# Twice on 2026-08-09 that lock sat for over an hour and had to be cleared by
+# hand. Only remove it when nothing is actually running AND it is old enough
+# that no in-flight operation could still own it — deleting a live lock
+# corrupts the index, which is far worse than refusing to sync.
+GIT_DIR_PATH=$(git rev-parse --git-dir)
+LOCK_FILE="$GIT_DIR_PATH/index.lock"
+if [ -e "$LOCK_FILE" ]; then
+  if pgrep -x git >/dev/null 2>&1; then
+    err "a git process is running and holds $LOCK_FILE — aborting"
+    exit 1
+  fi
+  LOCK_AGE=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE" 2>/dev/null || echo 0) ))
+  if [ "$LOCK_AGE" -ge 300 ]; then
+    warn "stale index.lock (${LOCK_AGE}s old, no git process) — removing"
+    rm -f "$LOCK_FILE"
+  else
+    err "index.lock is only ${LOCK_AGE}s old — another sync may be starting; aborting"
+    exit 1
+  fi
+fi
+
+# ── 0b. resume a stash stranded by a previous run ───────────────────
+# Steps 1..5 are NOT atomic. If the process dies in that window — terminal
+# closed, Android killing Termux, phone asleep — the dirty worktree stays in
+# the stash and nothing ever comes back for it. Worse, the next run stashes on
+# top and buries it: that is how this repo reached 10 stashes, and how a whole
+# uncommitted session was stranded on 2026-08-09 (recovered by hand from
+# stash@{0}^3).
+#
+# So adopt a leftover pre-sync stash BEFORE creating a new one. This is the
+# backstop for SIGKILL, which no trap can catch.
+TOP_STASH_MSG=$(git stash list -1 --format='%gs' 2>/dev/null || true)
+case "$TOP_STASH_MSG" in
+  *"pre-sync "*)
+    section "0b/6 resume stranded stash"
+    warn "a previous sync left work behind: $TOP_STASH_MSG"
+    step "git stash pop"
+    if git stash pop >/dev/null 2>&1; then
+      ok "recovered stranded work from stash@{0}"
+      # Recount: step 1 must stash the resumed work too, not the stale totals.
+      N_STAGED=$(git diff --cached --name-only | wc -l | tr -d ' ')
+      N_UNSTAGED=$(git diff --name-only | wc -l | tr -d ' ')
+      N_UNTRACKED=$(git ls-files --others --exclude-standard | wc -l | tr -d ' ')
+      N_DIRTY=$((N_STAGED + N_UNSTAGED + N_UNTRACKED))
+      kv "dirty (after resume)" "staged=$N_STAGED  unstaged=$N_UNSTAGED  untracked=$N_UNTRACKED  (total=$N_DIRTY)"
+    else
+      banner_err "
+╔══════════════════════════════════════════════════════════════════╗
+║ STRANDED STASH WILL NOT POP                                      ║
+║                                                                  ║
+║ A previous sync died before restoring your worktree, and that    ║
+║ work conflicts with the tree as it stands now. NOTHING IS LOST — ║
+║ it is still at stash@{0}. Syncing again would bury it, so this   ║
+║ run stops here.                                                  ║
+║                                                                  ║
+║    git stash show -p stash@{0}    # see what is in there         ║
+║    git checkout stash@{0}^3 -- .  # restore untracked files only ║
+╚══════════════════════════════════════════════════════════════════╝"
+      exit 1
+    fi ;;
+esac
+
 # ── 1. stash dirty state ────────────────────────────────────────────
 STASHED=0
+STASH_RESTORED=0
 STASH_MSG=""
+
+# Pop on ANY early exit — Ctrl-C, terminal close, or a failing step under
+# `set -e`. Covers everything except SIGKILL; 0b above is the backstop for
+# that. Without this, an interrupted sync silently leaves the worktree empty
+# and the user has no idea their files are in a stash.
+restore_stash_on_abort() {
+  _rc=$?
+  trap - EXIT INT TERM
+  if [ "${STASHED:-0}" = 1 ] && [ "${STASH_RESTORED:-0}" = 0 ]; then
+    printf '\n[git sync] interrupted — restoring your worktree from stash@{0}\n' >&2
+    if git stash pop >/dev/null 2>&1; then
+      printf '[git sync] worktree restored\n' >&2
+    else
+      printf '[git sync] could not pop automatically; your work is SAFE at stash@{0}\n' >&2
+    fi
+  fi
+  exit "$_rc"
+}
+trap restore_stash_on_abort EXIT INT TERM
+
 if [ "$N_DIRTY" -gt 0 ]; then
   section "1/6 stash dirty worktree"
   STASH_MSG="pre-sync $(date -u +%FT%TZ)"
@@ -333,6 +419,9 @@ section "5/6 restore dirty worktree"
 if [ "$STASHED" = 1 ]; then
   step "git stash pop"
   if ! git stash pop >/dev/null; then
+    # Deliberately leaving the stash in place — mark it handled so the abort
+    # trap does not try to pop it a second time on the way out.
+    STASH_RESTORED=1
     banner_err "
 ╔══════════════════════════════════════════════════════════════════╗
 ║ STASH POP CONFLICT                                               ║
@@ -345,6 +434,7 @@ if [ "$STASHED" = 1 ]; then
 ╚══════════════════════════════════════════════════════════════════╝"
     exit 1
   fi
+  STASH_RESTORED=1
   ok "restored $N_DIRTY file(s) from stash@{0}"
 else
   step "no stash to restore — skipped"
