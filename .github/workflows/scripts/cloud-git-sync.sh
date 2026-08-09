@@ -19,9 +19,10 @@
 # ║ Wired : 1_workflows/src/gitconfig  →  [alias] sync               ║
 # ║                                                                  ║
 # ║ Usage:                                                           ║
-# ║   git sync              # default: remote wins on conflict       ║
-# ║   git sync remote       # origin/main wins on conflict           ║
+# ║   git sync              # default: LOCAL wins on conflict        ║
 # ║   git sync local        # local commits win on conflict          ║
+# ║   git sync remote       # origin/main wins on conflict           ║
+# ║   git sync --no-push    # sync only, skip step 4 (pre-push hook) ║
 # ║   git sync -q|--quiet   # minimal output (overrides default)     ║
 # ║                                                                  ║
 # ║ Flow:                                                            ║
@@ -45,20 +46,33 @@ set -eu
 # ── arg parse ───────────────────────────────────────────────────────
 QUIET=0
 MODE=""
+NO_PUSH="${CLOUD_GIT_SYNC_NO_PUSH:-0}"
 for arg in "$@"; do
   case "$arg" in
     -q|--quiet) QUIET=1 ;;
+    --no-push)  NO_PUSH=1 ;;
     remote|local) MODE="$arg" ;;
     -h|--help)
       sed -n '2,20p' "$0" | sed 's/^# \?//'
       exit 0 ;;
     *)
-      printf 'usage: git sync [{remote|local}] [-q|--quiet]\n' >&2
+      printf 'usage: git sync [{local|remote}] [--no-push] [-q|--quiet]\n' >&2
       exit 2 ;;
   esac
 done
-MODE="${MODE:-remote}"
-STRATEGY=$([ "$MODE" = "remote" ] && echo theirs || echo ours)
+# DEFAULT = local wins (2026-08-08): this repo's own commits are the source
+# of truth when you sync; taking origin's side silently discards work you
+# just did on the device.
+MODE="${MODE:-local}"
+# ── rebase -X SIDES ARE SWAPPED vs merge (git-rebase(1): "the side reported
+# as ours is the so-far rebased series, starting with <upstream>, and theirs
+# is the working branch"). So during `rebase origin/main`:
+#     -X theirs → YOUR LOCAL commits win
+#     -X ours   → ORIGIN wins
+# The old mapping had this exactly backwards (remote→theirs), so `git sync`
+# has been doing LOCAL-wins while announcing "remote wins", and `git sync
+# local` did remote-wins. Verified empirically 2026-08-08 before flipping.
+STRATEGY=$([ "$MODE" = "local" ] && echo theirs || echo ours)
 
 # ── output helpers ──────────────────────────────────────────────────
 if [ -t 1 ]; then
@@ -84,6 +98,10 @@ kv()      { printf '  %-22s %s%s%s\n' "$1" "$C_BOLD" "$2" "$C_RESET"; }
 banner_err() {
   printf '%s%s%s\n' "$C_RED" "$1" "$C_RESET" >&2
 }
+
+# Marks this process tree as "sync is driving" so the pre-push hook (which
+# runs the same engine) doesn't re-enter itself during step 4's push.
+export CLOUD_GIT_SYNC_ACTIVE=1
 
 T_START=$(date +%s)
 
@@ -184,7 +202,10 @@ fi
 section "4/6 push local commits"
 N_PUSHED=0
 AHEAD_POST=$(git rev-list --count "origin/$BRANCH..HEAD" 2>/dev/null || echo 0)
-if [ "$AHEAD_POST" -gt 0 ]; then
+if [ "$NO_PUSH" = 1 ]; then
+  # pre-push hook path: git is ALREADY pushing — pushing here would recurse.
+  step "--no-push set (pre-push hook) — the caller's push carries these $AHEAD_POST commit(s)"
+elif [ "$AHEAD_POST" -gt 0 ]; then
   step "git push origin $BRANCH"
   if git push origin "$BRANCH" >/dev/null 2>&1; then
     N_PUSHED="$AHEAD_POST"

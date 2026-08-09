@@ -17,10 +17,21 @@
 # WORKS — it will auto-close when the probe timer fires. Don't type into it.
 set -u
 
-CLOUDDATA_DIR="$HOME/git/cloud-data/logs"
+# ONE output convention (1_workflows/src/scripts/cloud-data-paths.sh):
+#   logs/claude--debug.log      this run's narrative     (app log)
+#   reports/claude--debug.json  machine-readable verdict (probe result)
+#   journal/claude--debug.text  logcat tail              (OS journal)
+CDP="$HOME/git/unix/1_workflows/dist/scripts/cloud-data-paths.sh"
+if [ -r "$CDP" ]; then
+  . "$CDP"
+  LOG="$(cd_log claude--debug)"
+  REPORT="$(cd_report claude--debug)"
+  JOURNAL="$(cd_journal claude--debug)"
+else
+  LOG="$HOME/claude--debug.log"; REPORT="$HOME/claude--debug.json"; JOURNAL="$HOME/claude--debug.text"
+fi
+CLOUDDATA_DIR="$(dirname "$LOG")"
 UNIX_REPORT_DIR="$HOME/git/unix/1_reports"
-LOG="$CLOUDDATA_DIR/claude--debug.log"
-mkdir -p "$CLOUDDATA_DIR" 2>/dev/null || LOG="$HOME/claude--debug.log"
 TUIBARE="${LOG%.log}.tui-bare.log"
 TUIFULL="${LOG%.log}.tui-full.log"
 REAL="$HOME/.nix-profile/bin/claude"
@@ -49,12 +60,14 @@ echo "project dirs  : $(ls "$HOME/.claude/projects" 2>/dev/null | wc -l)"
 hdr "1. shell-snapshot cost (bash -lic true — what claude spawns at startup)"
 t0=$SECONDS
 timeout 60 bash -lic true; rc=$?
+R_SHELL_RC=$rc; R_SHELL_S=$((SECONDS-t0))
 echo "bash -lic true: rc=$rc took $((SECONDS-t0))s  (124 = HUNG >60s → snapshot is the blocker)"
 
 # ── 2. probe A: core, no TUI ───────────────────────────────────────
 hdr "2. probe A — core no-TUI (claude --bare -p, no API key)"
 t0=$SECONDS
 timeout 90 env -u ANTHROPIC_API_KEY "$REAL" --bare -p 'say hi' </dev/null; rc=$?
+R_A_RC=$rc; R_A_S=$((SECONDS-t0))
 echo "probe A: rc=$rc took $((SECONDS-t0))s  (fast, any rc = core fine · 124 = core hangs even without TUI)"
 
 # ── 3/4. TUI probes — need the real terminal, not our tee pipe ─────
@@ -70,6 +83,7 @@ run_tui() { # run_tui <label> <secs> <dbgfile> <bare?>
   else
     timeout "$_secs" "$REAL" --debug-file "$_dbg" </dev/tty >/dev/tty 2>&1; rc=$?
   fi
+  case "$_bare" in yes) R_B_RC=$rc; R_B_S=$((SECONDS-t0));; *) R_C_RC=$rc; R_C_S=$((SECONDS-t0));; esac
   echo "$_label: rc=$rc took $((SECONDS-t0))s  (124 = auto-killed: either painted fine OR hung — see UI note above)"
   echo "-- last 12 debug lines ($_dbg):"
   tail -12 "$_dbg" 2>/dev/null | sed 's/^/  │ /'
@@ -86,17 +100,58 @@ echo "  A fast, B stalls       → TUI/terminal handshake (Termux) — compare B
 echo "  A+B fine, C stalls     → plugin/MCP layer — compare C's last debug line vs B's"
 echo "  UI appeared in B or C  → claude STARTS — remaining problem is only slowness"
 
+hdr "os journal"
+if command -v logcat >/dev/null 2>&1; then
+  timeout 20 logcat -d -t 400 > "$JOURNAL" 2>/dev/null \
+    && echo "logcat tail (400 lines) → $JOURNAL" \
+    || echo "logcat present but capture failed"
+else
+  echo "no logcat on PATH — journal skipped"; : > "$JOURNAL" 2>/dev/null || true
+fi
+
+hdr "report"
+# Machine-readable verdict — a PROBE result, so it lands in reports/ as JSON
+# for anything downstream (dashboard, MCP, CI gate) to consume.
+printf '{\n  "tool": "claude--debug",\n  "utc": "%s",\n  "claude_version": "%s",\n  "api_key_in_env": %s,\n  "probes": {\n    "shell_snapshot": {"rc": %s, "seconds": %s},\n    "core_headless":  {"rc": %s, "seconds": %s},\n    "tui_bare":       {"rc": %s, "seconds": %s},\n    "tui_full":       {"rc": %s, "seconds": %s}\n  },\n  "artifacts": {"log": "%s", "journal": "%s", "tui_bare": "%s", "tui_full": "%s"}\n}\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  "$(timeout 30 "$REAL" --version 2>/dev/null | head -1)" \
+  "$([ -n "${ANTHROPIC_API_KEY:-}" ] && echo true || echo false)" \
+  "${R_SHELL_RC:-null}" "${R_SHELL_S:-null}" \
+  "${R_A_RC:-null}" "${R_A_S:-null}" \
+  "${R_B_RC:-null}" "${R_B_S:-null}" \
+  "${R_C_RC:-null}" "${R_C_S:-null}" \
+  "$LOG" "$JOURNAL" "$TUIBARE" "$TUIFULL" > "$REPORT" 2>/dev/null \
+  && echo "verdict → $REPORT" || echo "report write failed"
+
 hdr "shipping logs"
-for pair in "$HOME/git/cloud-data:$CLOUDDATA_DIR" "$HOME/git/unix:$UNIX_REPORT_DIR"; do
-  repo=${pair%%:*}; dir=${pair#*:}
-  [ -d "$repo/.git" ] || { echo "skip: $repo (not a git repo)"; continue; }
-  mkdir -p "$dir"
-  for f in "$LOG" "$TUIBARE" "$TUIFULL"; do [ -f "$f" ] && cp -f "$f" "$dir/" 2>/dev/null; done
-  ( cd "$repo" \
-    && git add "$dir"/claude--debug*.log >/dev/null 2>&1 \
-    && git commit -q -m "claude--debug log $(date -u +%FT%TZ)" -- "$dir"/claude--debug*.log >/dev/null 2>&1 \
+# cloud-data: the three artifacts are ALREADY written in place (logs/,
+# reports/, journal/) — nothing to copy, just publish them.
+if [ -d "$HOME/git/cloud-data/.git" ]; then
+  ( cd "$HOME/git/cloud-data" \
+    && git add logs/claude--debug* reports/claude--debug* journal/claude--debug* >/dev/null 2>&1 \
+    && git commit -q -m "claude--debug $(date -u +%FT%TZ)" \
+         -- logs/claude--debug* reports/claude--debug* journal/claude--debug* >/dev/null 2>&1 \
     && git push -q >/dev/null 2>&1 \
-    && echo "pushed → $repo" ) || echo "WARN: commit/push failed for $repo (log still on disk)"
-done
+    && echo "pushed → cloud-data" ) || echo "WARN: cloud-data publish failed (artifacts still on disk)"
+else
+  echo "skip: ~/git/cloud-data (not a git repo)"
+fi
+
+# unix mirror: flat copy the cloud Claude session can pull (it has no access
+# to the cloud-data repo).
+if [ -d "$HOME/git/unix/.git" ]; then
+  mkdir -p "$UNIX_REPORT_DIR"
+  for f in "$LOG" "$TUIBARE" "$TUIFULL" "$REPORT" "$JOURNAL"; do
+    [ -f "$f" ] && cp -f "$f" "$UNIX_REPORT_DIR/" 2>/dev/null
+  done
+  ( cd "$HOME/git/unix" \
+    && git add 1_reports/claude--debug* >/dev/null 2>&1 \
+    && git commit -q -m "claude--debug $(date -u +%FT%TZ)" -- 1_reports/claude--debug* >/dev/null 2>&1 \
+    && git push -q >/dev/null 2>&1 \
+    && echo "pushed → unix (1_reports mirror)" ) || echo "WARN: unix mirror publish failed"
+fi
 echo ""
-echo "done. share: $LOG (already pushed if lines above say so)"
+echo "done."
+echo "  log     : $LOG"
+echo "  report  : $REPORT"
+echo "  journal : $JOURNAL"

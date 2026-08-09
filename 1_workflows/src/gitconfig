@@ -14,9 +14,11 @@
 	autoStash = true
 [alias]
 	# smart, non-destructive sync — see 1_workflows/src/scripts/cloud-git-sync.sh
-	#   git sync           → remote wins on conflict (default)
-	#   git sync remote    → remote wins on conflict
+	# ALSO the pre-push hook in every repo (cloud-git-hooks-install.sh).
+	#   git sync           → LOCAL wins on conflict (default)
 	#   git sync local     → local commits win on conflict
+	#   git sync remote    → origin wins on conflict
+	#   git sync --no-push → sync only (what the pre-push hook runs)
 	sync = !./1_workflows/dist/scripts/cloud-git-sync.sh
 	# bulletproof reset-from-origin — see 1_workflows/src/scripts/cloud-git-nuke.sh
 	# DESTRUCTIVE: wipes local commits, dirty work, untracked files. Survives
