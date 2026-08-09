@@ -56,6 +56,56 @@ add_blocked() {
   [ -n "$matches" ] && BLOCKED="${BLOCKED}${matches}"$'\n'
 }
 
+# ── UNRESOLVED MERGE-CONFLICT MARKERS ────────────────────
+# Real incident: c89966f ("fix: resolve merge conflict") committed six
+# .nix files to main that still had <<<<<<< markers in them — a Nix file
+# containing <<<<<<< can't evaluate, so the desktop flake broke on main
+# and nobody noticed. Root cause: `git sync`'s stash pop conflicts, leaves
+# markers in the worktree, and a later `git add -A` (build.sh runs this
+# before every switch) sweeps them straight into a commit.
+#
+# We scan STAGED CONTENT (git show :"$f"), not the worktree file — content
+# that is staged is what will actually be committed.
+if [ -z "${SKIP_CONFLICT_CHECK:-}" ]; then
+  CONFLICT=""
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    # skip binary files: numstat reports "-\t-" for binary paths
+    case "$(git diff --cached --numstat -- "$f" | awk '{print $1}')" in
+      -) continue ;;
+    esac
+    content=$(git show ":$f" 2>/dev/null) || continue
+    # A bare '=======' line alone is NOT sufficient evidence — markdown/
+    # asciidoc heading underlines and shell comment separators legitimately
+    # use rows of '='. Only treat '=======' as a marker once the same file
+    # is already confirmed to have a real <<<<<<< / >>>>>>> / ||||||| marker.
+    start_hits=$(printf '%s\n' "$content" | grep -nE '^(<<<<<<< |>>>>>>> |\|\|\|\|\|\|\| )')
+    [ -z "$start_hits" ] && continue
+    all_hits=$(printf '%s\n' "$content" | grep -nE '^(<<<<<<< |>>>>>>> |\|\|\|\|\|\|\| |=======$)')
+    lines=$(printf '%s\n' "$all_hits" | cut -d: -f1 | paste -sd, -)
+    CONFLICT="${CONFLICT}${f}: lines ${lines}"$'\n'
+  done <<< "$STAGED"
+
+  if [ -n "$CONFLICT" ]; then
+    echo "══════════════════════════════════════════════════" >&2
+    echo "BLOCKED: unresolved merge-conflict markers staged" >&2
+    echo "══════════════════════════════════════════════════" >&2
+    echo "$CONFLICT" | sort -u | sed '/^$/d' | while IFS= read -r line; do
+      echo "  - $line" >&2
+    done
+    echo "" >&2
+    echo "Likely cause: a 'git sync' stash-pop or rebase left conflict" >&2
+    echo "markers in the worktree, and a later 'git add -A' swept them" >&2
+    echo "into the commit." >&2
+    echo "Fix: resolve the conflicts (remove <<<<<<< / ======= / >>>>>>>)" >&2
+    echo "and re-stage the file(s)." >&2
+    echo "Escape hatch (only if these ARE intentional, e.g. docs about" >&2
+    echo "conflict markers): SKIP_CONFLICT_CHECK=1 git commit ..." >&2
+    echo "══════════════════════════════════════════════════" >&2
+    exit 1
+  fi
+fi
+
 # ── Secrets & Credentials ────────────────────────────────
 
 # P1: .secrets and .secrets.d/ (dot-prefixed)
