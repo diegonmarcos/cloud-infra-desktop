@@ -1,9 +1,0 @@
-{
-  "_comment": "Anthropic per-MTok USD pricing for the statusline $ breakdown. Keyed by model-id PREFIX (longest match wins), else `default`. cache_write is the 5-min tier; 1h is ~2x input. Update here when prices change — the statusline reads this, nothing is hardcoded.",
-  "models": {
-    "claude-opus-4":   { "input": 15, "output": 75, "cache_read": 1.50, "cache_write": 18.75 },
-    "claude-sonnet-4": { "input": 3,  "output": 15, "cache_read": 0.30, "cache_write": 3.75  },
-    "claude-haiku-4":  { "input": 1,  "output": 5,  "cache_read": 0.10, "cache_write": 1.25  }
-  },
-  "default": { "input": 15, "output": 75, "cache_read": 1.50, "cache_write": 18.75 }
-}
