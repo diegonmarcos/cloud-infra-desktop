@@ -362,6 +362,38 @@ EOT
     else
         log_warn "verify: critical-commands.json or jq missing — skipping post-switch check"
     fi
+
+    # Fish command verify — every name declared in fish-commands.json must
+    # actually RESOLVE in a real login fish. Declaring a command and having
+    # it resolve are different things, and the gap has bitten twice:
+    #   • `up` declared as a function while flake.nix ALSO defined it as an
+    #     alias — the alias won and the function was dead (months).
+    #   • a `functions -e up` de-shadow line erased the autoloaded function
+    #     at init; fish then refuses to autoload it again for that session,
+    #     so `up` became "Unknown command" (reproduced 2026-08-09).
+    # Both were invisible to every other check. One `fish -c` covers all of
+    # them from now on.
+    _fish_json="$SRC_DIR/modules/data/fish-commands.json"
+    if [ -f "$_fish_json" ] && command -v jq >/dev/null 2>&1 && command -v fish >/dev/null 2>&1; then
+        _fnames=$(jq -r '(.abbrs[]?, .aliases[]?, .functions[]?) | select(.hidden != true) | .name' "$_fish_json")
+        # -l: a LOGIN shell, so config.fish + interactiveShellInit run exactly
+        # as they do for the user (that is where both bugs lived).
+        _unresolved=$(printf '%s\n' "$_fnames" | fish -l -c '
+            while read -l n
+                test -n "$n"; or continue
+                type -q -- $n; or abbr -q -- $n; or echo $n
+            end' 2>/dev/null)
+        _n_declared=$(printf '%s\n' "$_fnames" | grep -c . || true)
+        if [ -n "$_unresolved" ]; then
+            log_warn "verify: fish commands DECLARED but not resolving:"
+            printf '%s\n' "$_unresolved" | while IFS= read -r _u; do
+                [ -n "$_u" ] && printf "         %s\n" "$_u"
+            done
+            log_warn "         (shadowed by an alias, erased at init, or the function file did not deploy)"
+        else
+            log_success "verify: all $_n_declared fish commands resolve"
+        fi
+    fi
     perf_end
 
     # ────────────────────────────────────────────────────────────────────
