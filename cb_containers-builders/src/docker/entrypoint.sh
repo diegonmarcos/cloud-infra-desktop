@@ -254,7 +254,15 @@ for repo in cloud cloud-data unix front tools; do
     # the staleness gate below aborted it with an unrelated-looking error.
     _n=0
     while :; do
-      if git -C "$dir" fetch origin main \
+      # --no-recurse-submodules: fetch's job here is to move the SUPERPROJECT's
+      # HEAD. Recursing (git's "on-demand" default) makes the exit code depend on
+      # every submodule being reachable — and cloud-data is a PRIVATE repo the
+      # builder has no HTTPS credentials for, so fetch returned non-zero, the
+      # && chain skipped the reset, all 3 attempts burned, and the workspace went
+      # stale (2026-08-09: every cloud ship failed on "could not read Username").
+      # Submodules are updated separately below, best-effort, where a private
+      # repo we don't need cannot poison the payload sync.
+      if git -C "$dir" fetch --no-recurse-submodules origin main \
          && git -C "$dir" reset --hard origin/main; then
         git -C "$dir" submodule update --init --recursive 2>/dev/null \
           || echo "[setup] WARN: submodule update failed for $repo (continuing)"

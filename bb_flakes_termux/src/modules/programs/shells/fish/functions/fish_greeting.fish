@@ -27,10 +27,16 @@ set -l _ipc $HOME/.cache/greeting-pubip
 set -l ip_addr (command cat $_ipc 2>/dev/null); test -z "$ip_addr" && set ip_addr "…"
 set -l _ipage (math (date +%s) - (stat -c %Y $_ipc 2>/dev/null; or echo 0))
 if test $_ipage -gt 3600
+<<<<<<< Updated upstream
     # `command` on BOTH: mv is aliased to `mv -i`, so this background job sat
     # prompting "mv: overwrite ...?" on the terminal (2026-08-09). Any script
     # calling a name that is also an alias must bypass it.
     begin; command curl -sf --max-time 5 ifconfig.me > $_ipc.tmp 2>/dev/null; and command mv -f $_ipc.tmp $_ipc; end &
+||||||| Stash base
+    begin; curl -sf --max-time 5 ifconfig.me > $_ipc.tmp 2>/dev/null; and mv $_ipc.tmp $_ipc; end &
+=======
+    begin; command curl -sf --max-time 5 ifconfig.me > $_ipc.tmp 2>/dev/null; and command mv -f $_ipc.tmp $_ipc; end &
+>>>>>>> Stashed changes
     disown 2>/dev/null
 end
 set -l ip_priv (ip -4 addr show scope global 2>/dev/null | awk '/inet / {gsub(/\/.*/, "", $2); iface=$NF; if (iface !~ /docker|br-|veth/) printf "%s(%s) ", $2, iface}' | string trim)

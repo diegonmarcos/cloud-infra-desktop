@@ -466,6 +466,26 @@
               # ba_flakes_desktop/src/modules/common.nix for the full rationale.
               home.file.".claude/cloud-marketplace".source =
                 ./modules/dotfiles/claude/cloud-marketplace;
+              # Bulky runtime state lives in ~/git/.claude (429M — 376M of session
+              # transcripts + 50M of file-history) so $HOME stays lean. Out-of-store
+              # symlinks: claude writes through them at runtime and nix never copies
+              # the payload into the store.
+              #
+              # It must be $HOME/.claude that points elsewhere, not the reverse.
+              # Claude Code reads transcripts ONLY from the config dir
+              # ($CLAUDE_CONFIG_DIR, default ~/.claude); a .claude/ inside a project
+              # folder is never scanned for sessions, so parking them in
+              # ~/git/.claude alone leaves /resume blind. /resume additionally
+              # buckets by launch cwd (dir name = slugified cwd at session start),
+              # so $HOME-rooted sessions only list when claude starts from $HOME.
+              home.file.".claude/projects".source =
+                config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/git/.claude/projects";
+              home.file.".claude/file-history".source =
+                config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/git/.claude/file-history";
+              home.file.".claude/session-env".source =
+                config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/git/.claude/session-env";
+              home.file.".claude/shell-snapshots".source =
+                config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/git/.claude/shell-snapshots";
               # settings.json deployed as a writable real file (not a nix-store symlink)
               # so that runtime commands (/effort, /model, /fast) can persist their writes.
               # Source is authoritative: each switch resets runtime prefs back to declared values.
