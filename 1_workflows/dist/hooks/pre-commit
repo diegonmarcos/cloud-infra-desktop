@@ -247,7 +247,10 @@ if [ -n "$LEAKY" ]; then
     echo "  - $f" >&2
   done
   echo "" >&2
-  echo "The file matches (secret|credential|password|token|jwks|dkim|*.pem|*.key)." >&2
+  echo "Reason: matches (secret|credential|password|token|jwks|dkim|*.pem|*.key)," >&2
+  echo "        OR is a submodule gitlink (P16 — bumps belong to the GHA" >&2
+  echo "        sync-submodules workflow, not a hand commit; drop it with" >&2
+  echo "        git checkout -- <path>)." >&2
   echo "It MUST be sops-encrypted (ENC[AES...]) before commit." >&2
   echo "Fix: sops -e -i <file>   OR   git reset HEAD <file>" >&2
   echo "══════════════════════════════════════════════════" >&2
@@ -259,7 +262,10 @@ BLOCKED=$(echo "$BLOCKED" | sort -u | sed '/^$/d')
 
 if [ -n "$BLOCKED" ]; then
   echo "══════════════════════════════════════════════════" >&2
-  echo "BLOCKED: secrets or private keys staged for commit" >&2
+  # The list can contain a SUBMODULE gitlink (rule P16), which is not a
+  # secret at all — calling it one sent me hunting for a leaked key that did
+  # not exist (2026-08-09). Name the real reason per entry below.
+  echo "BLOCKED: files staged that must never be committed here" >&2
   echo "══════════════════════════════════════════════════" >&2
   echo "$BLOCKED" | while IFS= read -r f; do
     echo "  - $f" >&2
