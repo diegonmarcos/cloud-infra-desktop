@@ -217,6 +217,72 @@ check_home_manager() {
 # COMMANDS
 # ============================================================================
 
+# publish_cloud_data_logs — commit + push this run's engine output to
+# cloud-data. Runs at the END of every switch by design; the logs are
+# useless sitting dirty in a clone nobody looks at. SWITCH_PUBLISH_LOGS=0
+# skips it (cron/offline).
+#
+# NEVER fails the switch: an offline phone just leaves the commit local and
+# the next switch carries it.
+publish_cloud_data_logs() {
+    if [ "${SWITCH_PUBLISH_LOGS:-1}" != "1" ]; then
+        log_info "log publish: skipped (SWITCH_PUBLISH_LOGS=0)"
+        return 0
+    fi
+    _cd="${CLOUD_DATA_ROOT:-$HOME/git/cloud-data}"
+    if [ ! -d "$_cd/.git" ]; then
+        log_warn "log publish: $_cd is not a git repo — logs stay local"
+        return 0
+    fi
+    # Scope strictly to the three engine-output dirs. cloud-data holds other
+    # generated content that is not this script's to commit.
+    # Only dirs that CONTAIN something: git has no concept of an empty
+    # directory, so passing one as a pathspec makes add/commit fail outright
+    # ("did not match any files") — and it took the other paths down with it.
+    _paths=""
+    for _d in logs reports journal; do
+        [ -d "$_cd/$_d" ] || continue
+        [ -n "$(ls -A "$_cd/$_d" 2>/dev/null)" ] || continue
+        _paths="$_paths $_d"
+    done
+    if [ -z "$_paths" ]; then
+        log_info "log publish: no logs/reports/journal dirs yet"
+        return 0
+    fi
+    # shellcheck disable=SC2086 — $_paths is an intentional word-split list
+    if [ -z "$(git -C "$_cd" status --porcelain -- $_paths 2>/dev/null)" ]; then
+        log_info "log publish: nothing changed"
+        return 0
+    fi
+    # No `|| true` on these: swallowing the failure is exactly how the first
+    # version of this function reported "pushed" while committing nothing.
+    if ! git -C "$_cd" add -- $_paths 2>&1 | tee -a "$LOG_FILE"; then
+        log_warn "log publish: git add failed — logs stay local"
+        return 0
+    fi
+    if ! git -C "$_cd" commit -q \
+            -m "logs: ${DTK_NODE_NAME:-$(hostname -s 2>/dev/null || echo device)} switch $(date -u +%FT%TZ)" \
+            -- $_paths 2>&1 | tee -a "$LOG_FILE"; then
+        log_warn "log publish: commit failed — logs staged but not committed"
+        return 0
+    fi
+    # Push through the sync engine: another device may have pushed logs, and
+    # the engine rebases (local wins) instead of failing on divergence. It
+    # also marks itself active so cloud-data's pre-push hook cannot re-enter.
+    _sync="$SCRIPT_DIR/../1_workflows/dist/scripts/cloud-git-sync.sh"
+    if [ -x "$_sync" ]; then
+        if ( cd "$_cd" && "$_sync" local -q ) >/dev/null 2>&1; then
+            log_success "log publish: pushed to cloud-data"
+        else
+            log_warn "log publish: sync/push failed (offline?) — commit is local, next switch carries it"
+        fi
+    elif git -C "$_cd" push -q 2>/dev/null; then
+        log_success "log publish: pushed to cloud-data"
+    else
+        log_warn "log publish: push failed (offline?) — commit is local, next switch carries it"
+    fi
+}
+
 cmd_switch() {
     log_header "Switching to $SRC_DIR"
     perf_start "switch"
@@ -468,6 +534,12 @@ EOT
         # Refresh cache in background for next switch
         ( flock -n 9 && nix-drift refresh ) 9>"$HOME/.cache/nix-drift.refresh.lock" 2>/dev/null &
     fi
+
+    # LAST: ship this run's log. Anything logged after this line lands in the
+    # next publish — unavoidable, since the log is still being written.
+    perf_step "publish logs"
+    publish_cloud_data_logs
+    perf_end
 }
 
 # cmd_update — THE update path. Everything nix-drift reports, applied and
