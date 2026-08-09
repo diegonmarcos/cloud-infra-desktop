@@ -12,7 +12,11 @@
 # ║ `git branch <new>`, `git checkout -b <new>` and                 ║
 # ║ `git switch -c <new>` fail. Updates to existing branches,       ║
 # ║ fetches (refs/remotes/*), tags, resets and commits are          ║
-# ║ unaffected. main/master are always allowed.                     ║
+# ║ unaffected. main/master are always allowed. Deletions (NEW is   ║
+# ║ all-zeros) are explicitly allowed so stale local branches can    ║
+# ║ be cleaned up. Note: at the "prepared" phase a delete arrives    ║
+# ║ with BOTH old and new as all-zeros, so the check must also test  ║
+# ║ new (not just old) to tell a creation apart from a deletion.     ║
 # ╚══════════════════════════════════════════════════════════════════╝
 set -uo pipefail
 
@@ -21,11 +25,11 @@ set -uo pipefail
 
 ZERO=0000000000000000000000000000000000000000
 
-while read -r old _new ref; do
+while read -r old new ref; do
   case "$ref" in
     refs/heads/main|refs/heads/master) : ;;
     refs/heads/*)
-      if [ "$old" = "$ZERO" ]; then
+      if [ "$old" = "$ZERO" ] && [ "$new" != "$ZERO" ]; then
         {
           printf '\n\033[31mBLOCKED: creating new local branches is disabled (main-only policy).\033[0m\n'
           printf '  attempted : %s\n' "${ref#refs/heads/}"
