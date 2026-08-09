@@ -32,6 +32,13 @@
 # ║    hook ran, so if the rebase moved HEAD the in-flight push would║
 # ║    carry a stale sha. Abort and tell the user to push again      ║
 # ║    (only happens when you were actually behind origin).          ║
+# ║                                                                  ║
+# ║ That second push after a rebase is INTRINSIC to this hook model: ║
+# ║ git compare-and-swaps refs/heads/<branch> against the sha it read║
+# ║ BEFORE the hook ran, so nothing this hook does can make the      ║
+# ║ in-flight push succeed once it has moved HEAD (verified          ║
+# ║ 2026-08-09). `git push-sync` / `git.push` avoid it entirely by   ║
+# ║ running the sync engine BEFORE git resolves the refs to push.    ║
 # ╚══════════════════════════════════════════════════════════════════╝
 set -uo pipefail
 
@@ -56,6 +63,27 @@ for _c in \
     "$HOME/git/unix/1_workflows/dist/scripts/cloud-git-sync.sh"; do
   [ -n "$_c" ] && [ -x "$_c" ] && SYNC="$_c" && break
 done
+
+# Fast path: if we are not behind origin's copy of this branch, nothing can
+# move HEAD, so neither the stash/rebase nor the submodule pass is needed for
+# THIS push to be correct — skip straight to letting it through. This is the
+# common case and where all the runtime and unreachable-private-submodule
+# noise came from when the full sync ran on every push.
+_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+if git fetch origin --quiet --no-recurse-submodules; then
+  if ! git rev-parse --quiet --verify "origin/$_branch" >/dev/null; then
+    echo "[pre-push] new branch — nothing to integrate, pushing."
+    exit 0
+  fi
+  _behind="$(git rev-list --count "HEAD..origin/$_branch" 2>/dev/null || echo 0)"
+  if [ "$_behind" = "0" ]; then
+    echo "[pre-push] up to date with origin/$_branch — nothing to integrate, pushing."
+    exit 0
+  fi
+  echo "[pre-push] behind origin/$_branch by $_behind commit(s) — running the sync engine."
+else
+  echo "[pre-push] fetch failed (offline?) — falling back to the full sync engine." >&2
+fi
 
 _head_before="$(git rev-parse HEAD 2>/dev/null)"
 
@@ -96,8 +124,10 @@ if [ "$_head_before" != "$_head_after" ]; then
   echo "" >&2
   echo "[pre-push] HEAD moved during sync: ${_head_before:0:8} → ${_head_after:0:8}" >&2
   echo "[pre-push] Your branch was rebased onto origin, so THIS push would send a" >&2
-  echo "[pre-push] stale commit. Nothing was lost — just run your push again," >&2
-  echo "[pre-push] or use \`git sync\` which pushes for you." >&2
+  echo "[pre-push] stale commit. Nothing was lost — just run your push again." >&2
+  echo "[pre-push] To skip this round-trip next time, push with \`git push-sync\`" >&2
+  echo "[pre-push] (fish: \`git.push\`) — it syncs BEFORE git resolves the refs," >&2
+  echo "[pre-push] so the ref is never stale and one command is enough." >&2
   exit 1
 fi
 
