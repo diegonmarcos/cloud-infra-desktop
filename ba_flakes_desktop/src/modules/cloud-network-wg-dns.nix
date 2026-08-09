@@ -78,68 +78,8 @@ in {
     Service = {
       Type = "oneshot";
       RemainAfterExit = true;
-<<<<<<< Updated upstream
       ExecStart = "${wgDnsUpScript}/bin/wg-dns-up";
       ExecStop = "${wgDnsDownScript}/bin/wg-dns-down";
-||||||| Stash base
-      ExecStart = pkgs.writeShellScript "wg-dns-up" ''
-        # Wait for wg0 interface to exist (max 10s)
-        for i in $(seq 1 10); do
-          if ip link show ${wgInterface} >/dev/null 2>&1; then
-            break
-          fi
-          sleep 1
-        done
-
-        if ! ip link show ${wgInterface} >/dev/null 2>&1; then
-          echo "[wg-dns] ${wgInterface} not found — skipping DNS config"
-          exit 0
-        fi
-
-        echo "[wg-dns] Adding ${hickoryDns} to resolv.conf for .app names"
-
-        # Method 1: systemd-resolved (if available)
-        if command -v resolvectl >/dev/null 2>&1 && systemctl is-active systemd-resolved >/dev/null 2>&1; then
-          echo "[wg-dns] Using systemd-resolved split DNS"
-          sudo resolvectl dns ${wgInterface} ${hickoryDns}
-          sudo resolvectl domain ${wgInterface} ${lib.concatStringsSep " " wgDomains}
-          sudo resolvectl default-route ${wgInterface} false
-        else
-          # Method 2: Direct resolv.conf prepend (resolvconf/NetworkManager systems)
-          echo "[wg-dns] Using resolv.conf prepend (no systemd-resolved)"
-          if ! grep -q "${hickoryDns}" /etc/resolv.conf 2>/dev/null; then
-            # Prepend Hickory as first nameserver
-            sudo sed -i '1s/^/nameserver ${hickoryDns}\n/' /etc/resolv.conf
-            echo "[wg-dns] Added nameserver ${hickoryDns} to /etc/resolv.conf"
-          else
-            echo "[wg-dns] ${hickoryDns} already in resolv.conf"
-          fi
-        fi
-
-        echo "[wg-dns] Verifying: dig @${hickoryDns} authelia.app"
-        dig @${hickoryDns} +short authelia.app 2>/dev/null || echo "(hickory not reachable — wg0 may need time)"
-        echo "[wg-dns] Done"
-      '';
-      ExecStop = pkgs.writeShellScript "wg-dns-down" ''
-        echo "[wg-dns] Removing ${hickoryDns} from resolv.conf"
-        if command -v resolvectl >/dev/null 2>&1 && systemctl is-active systemd-resolved >/dev/null 2>&1; then
-          sudo resolvectl revert ${wgInterface} 2>/dev/null || true
-        else
-          sudo sed -i '/^nameserver ${hickoryDns}$/d' /etc/resolv.conf 2>/dev/null || true
-        fi
-      '';
-=======
-      ExecStart = pkgs.writeShellScript "wg-dns-up"
-        (builtins.replaceStrings
-          [ "@wgInterface@" "@hickoryDns@" "@wgDomains@" ]
-          [ wgInterface      hickoryDns      wgDomainsStr  ]
-          (builtins.readFile ./scripts/wg-dns-up.sh));
-      ExecStop = pkgs.writeShellScript "wg-dns-down"
-        (builtins.replaceStrings
-          [ "@wgInterface@" "@hickoryDns@" ]
-          [ wgInterface      hickoryDns     ]
-          (builtins.readFile ./scripts/wg-dns-down.sh));
->>>>>>> Stashed changes
     };
     Install = {
       WantedBy = [ "default.target" ];
