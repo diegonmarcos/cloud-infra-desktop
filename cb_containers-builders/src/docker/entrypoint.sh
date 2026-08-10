@@ -214,11 +214,11 @@ WGEOF
 fi
 
 # ── 7. Re-sync all repos (baked at build time under ~/git/) ──────
-# Each repo's 1_workflows framework provides a `git nuke` alias —
+# Each repo's 1_configs framework provides a `git nuke` alias —
 # bulletproof reset-from-origin (fetch + reset --hard + clean -fdx +
 # submodule update --remote --rebase --force). Survives force-pushed
 # origin, dirty work, untracked files, divergent history.
-# See ~/git/cloud/1_workflows/src/scripts/cloud-git-nuke.sh.
+# See ~/git/cloud/1_configs/src/gha/scripts/cloud-git-nuke.sh.
 #
 # Falls back to hand-rolled fetch+reset for repos without the framework
 # (cloud-data, front) or images that pre-date the alias.

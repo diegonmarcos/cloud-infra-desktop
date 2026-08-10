@@ -16,8 +16,8 @@
 # Gate: refuses to run unless the real nix claude answers --version first.
 set -u
 
-# ONE output convention — see 1_workflows/src/scripts/cloud-data-paths.sh
-CDP="$HOME/git/unix/1_workflows/dist/scripts/cloud-data-paths.sh"
+# ONE output convention — see 1_configs/src/gha/scripts/cloud-data-paths.sh
+CDP="$HOME/git/unix/1_configs/dist/scripts/cloud-data-paths.sh"
 if [ -r "$CDP" ]; then . "$CDP"; LOG="$(cd_log deepseek-cleanup)"; else LOG="$HOME/deepseek-cleanup.log"; fi
 REAL="$HOME/.nix-profile/bin/claude"
 TERMUX_PREFIX="/data/data/com.termux.nix/files/usr"

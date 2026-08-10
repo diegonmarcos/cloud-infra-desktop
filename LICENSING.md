@@ -11,7 +11,7 @@ purpose; **commercial use is not granted** without a separate license. This is a
 ## What the root license covers
 
 All the licensor's own work: the NixOS host + home-manager flakes, bootloader
-engine, `1_workflows/`, the Cloud-SuperApp **app** (`ea_cloud-superapp/`), and
+engine, `1_configs/`, the Cloud-SuperApp **app** (`ea_cloud-superapp/`), and
 the Cloud-Comms / Cloud-IDE **hubs** + scaffolding (their `build.sh`,
 `build.json`, `contract/`, original `hub/` code).
 

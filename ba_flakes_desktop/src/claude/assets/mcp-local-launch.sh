@@ -59,7 +59,7 @@ fi
 # Blocks briefly so the DB is consistent before the server opens it.
 case "$ENTRY" in
   */user-ai_cloud-cgc-mcp/*)
-    _pull="$HOME/git/cloud/1_workflows/src/scripts/cloud-cgc-db-pull.sh"
+    _pull="$HOME/git/cloud/1_configs/src/gha/scripts/cloud-cgc-db-pull.sh"
     _stamp="$HOME/.cache/cgc-db-pull.stamp"
     if [ -f "$_pull" ] && command -v docker >/dev/null 2>&1; then
       if [ ! -f "$_stamp" ] || [ -n "$(find "$_stamp" -mtime +1 2>/dev/null)" ]; then

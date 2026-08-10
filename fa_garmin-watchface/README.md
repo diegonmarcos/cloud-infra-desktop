@@ -64,8 +64,8 @@ once (standard Nix FOD flow — Nix prints the real hash on first run):
 
 ## CI / publishing
 
-`1_workflows/src/cicd/ship-garmin-watchface.yml` (deployed to `.github/workflows/`
-by `1_workflows/build.sh`). On push to `main` under `fa_garmin-watchface/**`: discovers
+`1_configs/src/gha/cicd/ship-garmin-watchface.yml` (deployed to `.github/workflows/`
+by `1_configs/build.sh`). On push to `main` under `fa_garmin-watchface/**`: discovers
 designs from `build.json`, builds each `.prg` on `ubuntu-latest` (x86, `BYPASS_NIX=1`),
 pushes to GHCR via ORAS, and attaches to a rolling `latest` GitHub release. Same flow,
 data-driven, as `ea_cloud-superapp`.
