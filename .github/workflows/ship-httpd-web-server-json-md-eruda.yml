@@ -11,7 +11,7 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 name: ship-httpd-web-server-json-md-eruda
-# Build httpd-web-server-json-md-eruda.mjs into a per-arch, single-file Node
+# Build httpd-web-server-json-md-eruda.cjs into a per-arch, single-file Node
 # Single Executable Application (SEA) binary — node --experimental-sea-config
 # + postject injection, no third-party bundler. The base `node` binary is
 # fetched from the official nodejs.org release (NOT `nix shell
@@ -22,18 +22,23 @@ name: ship-httpd-web-server-json-md-eruda
 # The official nodejs.org tarball statically links all of that; `readelf -d`
 # on it shows only libc/libdl/libm/libpthread/libstdc++/libgcc_s (glibc +
 # libgcc), confirmed 2026-08-10. Verified via nodejs.org's own SHASUMS256.txt.
-# The two runtime assets (marked.min.js, github-markdown-dark.css) are
-# embedded into the binary via the SEA config's `assets` map, so the shipped
-# artifact has no loose sidecar files. Publishes arch-suffixed binaries to a
-# rolling GitHub Release (httpd-web-server-json-md-eruda-latest). A
-# post-publish update-hashes job recomputes SRI sha256s and commits them into
-# both the desktop and Termux modules' hashes.json so their fetchurl
-# derivations stay in sync automatically. Modeled on ship-my-ai-app.yml.
+# The entry script is CommonJS (.cjs), not ESM: Node's SEA main is loaded as
+# CJS even under --experimental-sea-config, so `import` syntax fails to parse
+# once postject-injected ("Cannot use import statement outside a module") —
+# reproduced by hand-building+injecting locally and confirmed fixed by
+# converting to require() and renaming .mjs -> .cjs (2026-08-10). The two
+# runtime assets (marked.min.js, github-markdown-dark.css) are embedded into
+# the binary via the SEA config's `assets` map, so the shipped artifact has
+# no loose sidecar files. Publishes arch-suffixed binaries to a rolling
+# GitHub Release (httpd-web-server-json-md-eruda-latest). A post-publish
+# update-hashes job recomputes SRI sha256s and commits them into both the
+# desktop and Termux modules' hashes.json so their fetchurl derivations stay
+# in sync automatically. Modeled on ship-my-ai-app.yml.
 on:
   push:
     branches: [main]
     paths:
-      - 'ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda.mjs'
+      - 'ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda.cjs'
       - 'ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda.sea-config.json'
       - 'ba_flakes_desktop/src/modules/dotfiles/httpd-lib/**'
       - '1_workflows/src/cicd/ship-httpd-web-server-json-md-eruda.yml'
