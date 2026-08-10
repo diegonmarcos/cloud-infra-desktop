@@ -43,9 +43,15 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     steps:
+      # cloud-data (a private submodule as of 2026-08-09) is unreachable via the
+      # default GITHUB_TOKEN — checkout returns "Repository not found" (404, the
+      # signature of a private cross-repo dependency the token can't see). The
+      # ssh-key input makes actions/checkout clone over SSH (repo + submodules)
+      # using this key instead, matching the same key used for local git pushes.
       - uses: actions/checkout@v4
         with:
           submodules: true
+          ssh-key: ${{ secrets.TERMUX_SUBMODULE_SSH_KEY }}
 
       - uses: cachix/install-nix-action@v30
         with:
