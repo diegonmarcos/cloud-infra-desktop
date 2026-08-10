@@ -29,11 +29,27 @@ name: ship-httpd-web-server-json-md-eruda
 # converting to require() and renaming .mjs -> .cjs (2026-08-10). The two
 # runtime assets (marked.min.js, github-markdown-dark.css) are embedded into
 # the binary via the SEA config's `assets` map, so the shipped artifact has
-# no loose sidecar files. Publishes arch-suffixed binaries to a rolling
-# GitHub Release (httpd-web-server-json-md-eruda-latest). A post-publish
-# update-hashes job recomputes SRI sha256s and commits them into both the
-# desktop and Termux modules' hashes.json so their fetchurl derivations stay
-# in sync automatically. Modeled on ship-my-ai-app.yml.
+# no loose sidecar files.
+#
+# postject injection ALWAYS runs under the x64 host's own node/npx, even for
+# the aarch64 output — never under a native aarch64 node process. Running
+# postject natively on GitHub's aarch64 runner (ubuntu-24.04-arm) corrupts
+# the injected binary's ELF dynamic-symbol/version tables (postject errors
+# mid-run: "patch value ... out of bounds of the segment (limit: 0x10000)",
+# then still exits 0 and writes a broken binary — it crashes at runtime with
+# blank-name "no version information available" / "undefined symbol" dynamic
+# linker errors). This is a known upstream bug on containerized/hosted Linux
+# aarch64 (nodejs/node#61483 — corrupts .gnu.hash the same way; doesn't
+# reproduce on Linux x64 or on bare-metal aarch64 hardware, matching our own
+# finding that hand-injecting on-device on the arm64 phone itself works
+# fine). postject only rewrites bytes in the target file — it never executes
+# it — so running it under x64 node against an aarch64 `node` binary as pure
+# file data sidesteps the bug entirely (confirmed 2026-08-10). Publishes
+# arch-suffixed binaries to a rolling GitHub Release
+# (httpd-web-server-json-md-eruda-latest). A post-publish update-hashes job
+# recomputes SRI sha256s and commits them into both the desktop and Termux
+# modules' hashes.json so their fetchurl derivations stay in sync
+# automatically. Modeled on ship-my-ai-app.yml.
 on:
   push:
     branches: [main]
@@ -60,49 +76,54 @@ env:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            runner: ubuntu-latest
-            node_arch: x64
-          - arch: aarch64
-            runner: ubuntu-24.04-arm
-            node_arch: arm64
-    runs-on: ${{ matrix.runner }}
+    # Single x64 runner for both architectures — see the injection step
+    # below for why aarch64 injection must NOT run on a native aarch64
+    # runner.
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ba_flakes_desktop/src/modules/dotfiles
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch official Node.js release (statically links zlib/openssl/icu/etc — only glibc at runtime)
+      - name: Fetch official Node.js releases, both arches (statically link zlib/openssl/icu/etc — only glibc at runtime)
         run: |
-          TARBALL="node-v${NODE_VERSION}-linux-${{ matrix.node_arch }}"
-          curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}.tar.xz"
           curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt"
-          grep " ${TARBALL}.tar.xz\$" SHASUMS256.txt | sha256sum -c -
-          tar xf "${TARBALL}.tar.xz"
-          echo "NODE_DIR=$PWD/${TARBALL}" >> "$GITHUB_ENV"
+          for node_arch in x64 arm64; do
+            TARBALL="node-v${NODE_VERSION}-linux-${node_arch}"
+            curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}.tar.xz"
+            grep " ${TARBALL}.tar.xz\$" SHASUMS256.txt | sha256sum -c -
+            tar xf "${TARBALL}.tar.xz"
+          done
+          echo "NODE_X64_DIR=$PWD/node-v${NODE_VERSION}-linux-x64" >> "$GITHUB_ENV"
 
-      - name: Generate SEA prep blob
+      - name: Generate SEA prep blob (architecture-independent — pure JS + assets bundle)
         run: |
-          "$NODE_DIR/bin/node" --experimental-sea-config httpd-web-server-json-md-eruda.sea-config.json
+          "$NODE_X64_DIR/bin/node" --experimental-sea-config httpd-web-server-json-md-eruda.sea-config.json
 
-      - name: Inject blob into a node binary copy (postject)
+      - name: Inject blob into each arch's node binary (postject, always run under the x64 host node)
         run: |
-          OUT="httpd-web-server-json-md-eruda-${{ matrix.arch }}"
-          cp "$NODE_DIR/bin/node" "$OUT"
-          chmod +w "$OUT"
-          "$NODE_DIR/bin/npx" --yes postject@1.0.0-alpha.6 "$OUT" NODE_SEA_BLOB sea-prep.blob \
-            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
-          chmod +x "$OUT"
+          for pair in "x86_64:x64" "aarch64:arm64"; do
+            arch="${pair%%:*}"
+            node_arch="${pair##*:}"
+            OUT="httpd-web-server-json-md-eruda-${arch}"
+            cp "node-v${NODE_VERSION}-linux-${node_arch}/bin/node" "$OUT"
+            chmod +w "$OUT"
+            "$NODE_X64_DIR/bin/npx" --yes postject@1.0.0-alpha.6 "$OUT" NODE_SEA_BLOB sea-prep.blob \
+              --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+            chmod +x "$OUT"
+          done
 
       - uses: actions/upload-artifact@v4
         with:
-          name: httpd-web-server-json-md-eruda-${{ matrix.arch }}
-          path: ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda-${{ matrix.arch }}
+          name: httpd-web-server-json-md-eruda-x86_64
+          path: ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda-x86_64
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: httpd-web-server-json-md-eruda-aarch64
+          path: ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda-aarch64
           if-no-files-found: error
 
       - name: Publish to rolling GitHub Release
@@ -115,7 +136,7 @@ jobs:
             --notes "Latest multi-arch build — main@${GITHUB_SHA:0:8}. Fetched by ba_flakes_desktop's and bb_flakes_termux's httpd-web-server-json-md-eruda nix modules." \
             --target "$GITHUB_SHA" 2>/dev/null || true
           gh release upload httpd-web-server-json-md-eruda-latest \
-            "httpd-web-server-json-md-eruda-${{ matrix.arch }}" --clobber
+            httpd-web-server-json-md-eruda-x86_64 httpd-web-server-json-md-eruda-aarch64 --clobber
 
   update-hashes:
     name: Update hashes.json
