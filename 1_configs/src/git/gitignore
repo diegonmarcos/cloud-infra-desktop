@@ -48,11 +48,11 @@ terraform.tfvars
 libs/**
 libs/*
 libs/
-## EXCEPTION: 1_workflows/src/libs/ is engine source code, NOT build artifacts.
+## EXCEPTION: 1_configs/src/lib/ is engine source code, NOT build artifacts.
 ## Same convention as the cloud repo. Added 2026-05-16 after the engine broke
 ## because inject-header.sh was ignored despite being referenced by build.sh.
-!1_workflows/src/libs/
-!1_workflows/src/libs/**
+!1_configs/src/lib/
+!1_configs/src/lib/**
 ## EXCEPTION: ea_cloud-superapp/libs/ is the gradle multi-module source tree
 ## (libs:core, libs:mail, libs:cal, …). Each is its own Android library
 ## with build.gradle + src/. NOT build artifacts. Added 2026-05-29 when
