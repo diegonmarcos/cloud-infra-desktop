@@ -80,6 +80,15 @@ libs/
 ## `git check-ignore` before trusting a clean status.
 !ea_cloud-calendar/libs/
 !ea_cloud-calendar/libs/**
+## EXCEPTION: ea_cloud-news/libs/ is the gradle multi-module source tree
+## (libs:core, libs:updater, libs:news). Added 2026-08-09 BEFORE the module
+## existed, rather than after discovering it had never been committed — the
+## four entries above were all written after the fact. If you scaffold a new
+## app under a libs/ tree, add its exception here in the same commit as the
+## scaffold and confirm with `git check-ignore`; a clean `git status` proves
+## nothing when the rule is this broad.
+!ea_cloud-news/libs/
+!ea_cloud-news/libs/**
 ## Signing keystores are generated in CI only — never vendored.
 ea_cloud-superapp/**/*.keystore
 ea_cloud-superapp/**/*.jks
@@ -135,6 +144,13 @@ ea_cloud-calendar/build/
 ea_cloud-calendar/**/build/
 ea_cloud-calendar/.cache/
 ea_cloud-calendar/.kotlin/
+## Same for ea_cloud-news. These MUST sort after the !ea_cloud-news/libs/**
+## whitelist above, or the whitelist would drag libs/*/build/ back in.
+ea_cloud-news/.gradle/
+ea_cloud-news/build/
+ea_cloud-news/**/build/
+ea_cloud-news/.cache/
+ea_cloud-news/.kotlin/
 ## Gradle writes local.properties with a machine-local `sdk.dir` on every
 ## build. It must never be committed — it points at whatever SDK path that
 ## one machine had (here: /tmp/android-sdk) and breaks every other checkout
