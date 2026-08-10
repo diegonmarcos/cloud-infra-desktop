@@ -26,17 +26,19 @@
 #     fetched binary directly (no fork), per runit convention: runsv restarts
 #     it automatically on exit, giving real supervision the on-demand
 #     PID-file wrapper never had.
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, patchelfUnstable, ... }:
 
 let
   hashes  = builtins.fromJSON (builtins.readFile ./hashes.json);
   baseUrl = "https://github.com/diegonmarcos/unix/releases/download/httpd-web-server-json-md-eruda-latest";
 
   # A raw pkgs.fetchurl result is NOT executable on nix-on-droid: the fetched
-  # ELF's interpreter/rpath point at FHS paths that don't exist under proot,
-  # so it fails "cannot execute: required file not found" (same class of bug
-  # da_my-ai already hit — see pkgs/my-ai.nix). autoPatchelfHook rewrites the
-  # interpreter/rpath to the nix store so it actually runs.
+  # ELF is already nix-patched (the CI job that publishes it runs autoPatchelf
+  # too), but against ITS OWN build's glibc store path — which doesn't exist
+  # on this flake's nixpkgs pin, so it fails "cannot execute: required file
+  # not found" (same class of bug da_my-ai already hit — see pkgs/my-ai.nix).
+  # autoPatchelfHook rewrites the interpreter/rpath to match this system's
+  # actual nix store so it runs here too.
   httpdBin = pkgs.stdenv.mkDerivation {
     pname   = "httpd-web-server-json-md-eruda";
     version = "latest";
@@ -46,7 +48,10 @@ let
       hash = hashes.httpd-web-server-json-md-eruda;
     };
 
-    nativeBuildInputs = [ pkgs.autoPatchelfHook ];
+    # override: nixpkgs-24.05's patchelf 0.15.0 crashes rewriting the
+    # interpreter on this binary — see patchelfUnstable's doc comment in
+    # flake.nix.
+    nativeBuildInputs = [ (pkgs.autoPatchelfHook.override { patchelf = patchelfUnstable; }) ];
     buildInputs       = [ pkgs.gcc-unwrapped.lib pkgs.libgcc ];
 
     dontUnpack = true;
