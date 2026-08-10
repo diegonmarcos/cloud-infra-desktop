@@ -1,14 +1,22 @@
 name: ship-httpd-web-server-json-md-eruda
 # Build httpd-web-server-json-md-eruda.mjs into a per-arch, single-file Node
 # Single Executable Application (SEA) binary — node --experimental-sea-config
-# + postject injection on pkgs.nodejs_22, no third-party bundler. The two
-# runtime assets (marked.min.js, github-markdown-dark.css) are embedded into
-# the binary via the SEA config's `assets` map, so the shipped artifact has
-# no loose sidecar files. Publishes arch-suffixed binaries to a rolling
-# GitHub Release (httpd-web-server-json-md-eruda-latest). A post-publish
-# update-hashes job recomputes SRI sha256s and commits them into both the
-# desktop and Termux modules' hashes.json so their fetchurl derivations stay
-# in sync automatically. Modeled on ship-my-ai-app.yml.
+# + postject injection, no third-party bundler. The base `node` binary is
+# fetched from the official nodejs.org release (NOT `nix shell
+# nixpkgs#nodejs_22`): nixpkgs' nodejs is built with --shared-<lib> flags
+# against ~19 separate nixpkgs-unstable store paths (zlib, openssl, icu4c,
+# llhttp, ada, simdjson, ...), so a raw copy of it depends on that entire
+# closure at runtime — fragile to carry across flakes/nixpkgs revisions.
+# The official nodejs.org tarball statically links all of that; `readelf -d`
+# on it shows only libc/libdl/libm/libpthread/libstdc++/libgcc_s (glibc +
+# libgcc), confirmed 2026-08-10. Verified via nodejs.org's own SHASUMS256.txt.
+# The two runtime assets (marked.min.js, github-markdown-dark.css) are
+# embedded into the binary via the SEA config's `assets` map, so the shipped
+# artifact has no loose sidecar files. Publishes arch-suffixed binaries to a
+# rolling GitHub Release (httpd-web-server-json-md-eruda-latest). A
+# post-publish update-hashes job recomputes SRI sha256s and commits them into
+# both the desktop and Termux modules' hashes.json so their fetchurl
+# derivations stay in sync automatically. Modeled on ship-my-ai-app.yml.
 on:
   push:
     branches: [main]
@@ -30,6 +38,9 @@ concurrency:
   group: ship-httpd-web-server-json-md-eruda
   cancel-in-progress: false
 
+env:
+  NODE_VERSION: 22.23.2
+
 jobs:
   build:
     strategy:
@@ -38,8 +49,10 @@ jobs:
         include:
           - arch: x86_64
             runner: ubuntu-latest
+            node_arch: x64
           - arch: aarch64
             runner: ubuntu-24.04-arm
+            node_arch: arm64
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
@@ -47,25 +60,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: cachix/install-nix-action@v27
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
+      - name: Fetch official Node.js release (statically links zlib/openssl/icu/etc — only glibc at runtime)
+        run: |
+          TARBALL="node-v${NODE_VERSION}-linux-${{ matrix.node_arch }}"
+          curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}.tar.xz"
+          curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt"
+          grep " ${TARBALL}.tar.xz\$" SHASUMS256.txt | sha256sum -c -
+          tar xf "${TARBALL}.tar.xz"
+          echo "NODE_DIR=$PWD/${TARBALL}" >> "$GITHUB_ENV"
 
       - name: Generate SEA prep blob
         run: |
-          nix shell nixpkgs#nodejs_22 -c node --experimental-sea-config httpd-web-server-json-md-eruda.sea-config.json
+          "$NODE_DIR/bin/node" --experimental-sea-config httpd-web-server-json-md-eruda.sea-config.json
 
       - name: Inject blob into a node binary copy (postject)
         run: |
           OUT="httpd-web-server-json-md-eruda-${{ matrix.arch }}"
-          nix shell nixpkgs#nodejs_22 -c bash -c '
-            set -e
-            cp "$(command -v node)" "'"$OUT"'"
-            chmod +w "'"$OUT"'"
-            npx --yes postject@1.0.0-alpha.6 "'"$OUT"'" NODE_SEA_BLOB sea-prep.blob \
-              --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
-          '
+          cp "$NODE_DIR/bin/node" "$OUT"
+          chmod +w "$OUT"
+          "$NODE_DIR/bin/npx" --yes postject@1.0.0-alpha.6 "$OUT" NODE_SEA_BLOB sea-prep.blob \
+            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
           chmod +x "$OUT"
 
       - uses: actions/upload-artifact@v4
