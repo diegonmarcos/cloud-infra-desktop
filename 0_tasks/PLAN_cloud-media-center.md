@@ -73,7 +73,7 @@ until it lands.
 
 - **`build.sh` engine choice.** No engine exists for this app yet. The shared
   comms fork engine
-  (`1_workflows/src/scripts/cloud-comms-fork-engine.sh`, which `ea_cloud-mail`
+  (`1_configs/src/gha/scripts/cloud-comms-fork-engine.sh`, which `ea_cloud-mail`
   symlinks) is hub-coupled: it hardcodes `:hub:assembleDebug`, a
   `hub-debug.apk` path, and `com.diegonmarcos.comms.MainActivity`, and its
   dispatch table routes everything through hub-bundle steps.

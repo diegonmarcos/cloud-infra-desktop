@@ -84,7 +84,7 @@ echo "[3/6] Setting up SSH for $VM"
 # by 2_configs/src/engines/cloud-data-config-derive.ts via external-consumers.json),
 # fall back to legacy cloud-data-gha-config.json, then derive _gha slice
 # from _cloud-data-consolidated.json. Mirrors cloud_paths_gha_config from
-# 1_workflows/src/libs/cloud-paths.sh — the canonical lookup.
+# 1_configs/src/lib/cloud-paths.sh — the canonical lookup.
 GHA_CONFIG=""
 _BUILD_BUILDERS=""
 for _p in \

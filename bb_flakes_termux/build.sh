@@ -42,11 +42,11 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/src"
 NIX_CACHE_CFG="$SRC_DIR/modules/nix-cache.json"
-# Output paths come from the ONE convention (1_workflows/src/scripts/
+# Output paths come from the ONE convention (1_configs/src/gha/scripts/
 # cloud-data-paths.sh): logs/<name>.log · reports/<name>.json ·
 # journal/<name>.text under cloud-data, with a $HOME fallback so a missing
 # cloud-data clone can never kill the script (it used to die on line 1).
-CLOUD_DATA_PATHS="$SCRIPT_DIR/../1_workflows/dist/scripts/cloud-data-paths.sh"
+CLOUD_DATA_PATHS="$SCRIPT_DIR/../1_configs/dist/scripts/cloud-data-paths.sh"
 if [ -r "$CLOUD_DATA_PATHS" ]; then
     . "$CLOUD_DATA_PATHS"
     LOG_FILE="$(cd_log bb_flakes_termux)"
@@ -269,7 +269,7 @@ publish_cloud_data_logs() {
     # Push through the sync engine: another device may have pushed logs, and
     # the engine rebases (local wins) instead of failing on divergence. It
     # also marks itself active so cloud-data's pre-push hook cannot re-enter.
-    _sync="$SCRIPT_DIR/../1_workflows/dist/scripts/cloud-git-sync.sh"
+    _sync="$SCRIPT_DIR/../1_configs/dist/scripts/cloud-git-sync.sh"
     if [ -x "$_sync" ]; then
         if ( cd "$_cd" && "$_sync" local -q ) >/dev/null 2>&1; then
             log_success "log publish: pushed to cloud-data"
@@ -634,7 +634,7 @@ Applied by build.sh update on $(date -u +%FT%TZ)." \
 
     # ── 4. sync (rebase local-wins + push) ──────────────────────────
     perf_step "git sync"
-    _sync="$_repo/1_workflows/dist/scripts/cloud-git-sync.sh"
+    _sync="$_repo/1_configs/dist/scripts/cloud-git-sync.sh"
     if [ -n "$_dry" ]; then
         log_info "would run: git sync local"
     elif [ -x "$_sync" ]; then

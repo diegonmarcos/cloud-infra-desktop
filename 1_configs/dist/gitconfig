@@ -1,0 +1,46 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║                                                                  ║
+# ║   GENERATED FILE — DO NOT EDIT                                   ║
+# ║                                                                  ║
+# ║   Source : 1_configs/src/git/gitconfig
+# ║   Engine : 1_configs/src/gha/scripts/unix-ship-repo-workflow-engine.sh
+# ║   Rebuild: ./1_configs/build.sh
+# ║                                                                  ║
+# ║   Manual edits will be overwritten on next build.                ║
+# ║                                                                  ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+# Repo-level git config — deployed by 1_workflows/build.sh
+# Managed declaratively: edit src/gitconfig, run build.sh, commit.
+[push]
+	recurseSubmodules = on-demand
+[submodule]
+	recurse = true
+[fetch]
+	recurseSubmodules = on-demand
+[core]
+	hooksPath = 1_workflows/dist/hooks
+[pull]
+	rebase = true
+[rebase]
+	autoStash = true
+[alias]
+	# smart, non-destructive sync — see 1_workflows/src/scripts/cloud-git-sync.sh
+	# ALSO the pre-push hook in every repo (cloud-git-hooks-install.sh).
+	#   git sync           → LOCAL wins on conflict (default)
+	#   git sync ask       → prompt on conflict, local wins if no TTY
+	#                        (this is what the pre-push hook uses)
+	#   git sync local     → local commits win on conflict
+	#   git sync remote    → origin wins on conflict
+	#   git sync --no-push → sync only (what the pre-push hook runs)
+	sync = !./1_workflows/dist/scripts/cloud-git-sync.sh
+	# sync-then-push in ONE command (no stale ref, no second push): the sync
+	# runs BEFORE git resolves the refs to push. A pre-push hook cannot do
+	# this — git compare-and-swaps against the sha it read pre-hook.
+	push-sync = !./1_workflows/dist/scripts/cloud-git-sync.sh ask
+	# bulletproof reset-from-origin — see 1_workflows/src/scripts/cloud-git-nuke.sh
+	# DESTRUCTIVE: wipes local commits, dirty work, untracked files. Survives
+	# force-pushes and divergent history. For ephemeral CI containers.
+	#   git nuke           → reset to origin/<current-branch>
+	#   git nuke main      → reset to origin/main explicitly
+	nuke = !./1_workflows/dist/scripts/cloud-git-nuke.sh

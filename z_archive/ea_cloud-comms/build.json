@@ -198,7 +198,7 @@
     }
   },
   "release": {
-    "_doc": "Per-APK distribution for the HUB \u2014 SAME data-driven pattern as ea_cloud-superapp/build.json::release. build.sh oras-push + gh-release read this block; the GHA workflow (1_workflows/src/cicd/ship-cloud-comms.yml) only invokes those engine commands, no hardcoded registry/tag strings. The three forks publish their own OCI artifacts under their own build systems. {sha} \u2192 git short sha, {version_name} \u2192 android.version_name.",
+    "_doc": "Per-APK distribution for the HUB \u2014 SAME data-driven pattern as ea_cloud-superapp/build.json::release. build.sh oras-push + gh-release read this block; the GHA workflow (1_configs/src/gha/cicd/ship-cloud-comms.yml) only invokes those engine commands, no hardcoded registry/tag strings. The three forks publish their own OCI artifacts under their own build systems. {sha} \u2192 git short sha, {version_name} \u2192 android.version_name.",
     "artifact": {
       "_doc": "Path under dist/ to publish. `debug` is the daily-driver build (no ProGuard, real stacktraces, debug keystore) \u2014 THE hub app, not a side-by-side variant. asset_name matches `debug` so the engine skips a redundant copy.",
       "debug": "Cloud-Comms-Hub.apk",

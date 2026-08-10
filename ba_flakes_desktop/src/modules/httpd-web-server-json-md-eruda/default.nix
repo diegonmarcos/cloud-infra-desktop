@@ -4,7 +4,7 @@
 #
 # Ships as a prebuilt, per-arch Node Single Executable Application binary
 # fetched from the rolling GitHub Release (built + published by
-# 1_workflows/src/cicd/ship-httpd-web-server-json-md-eruda.yml), NOT as loose
+# 1_configs/src/gha/cicd/ship-httpd-web-server-json-md-eruda.yml), NOT as loose
 # source files interpreted by `node script.mjs` — same fetchurl + hashes.json
 # pattern as da_my-ai/nix/my-ai.nix. Bump ./hashes.json only via that CI job's
 # update-hashes step.

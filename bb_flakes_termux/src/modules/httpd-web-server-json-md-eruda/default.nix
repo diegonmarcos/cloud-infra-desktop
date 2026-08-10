@@ -2,7 +2,7 @@
 # JSON/YAML table, and Eruda DevTools rendering.
 #
 # Fetches the same prebuilt aarch64 Node SEA binary the desktop module fetches
-# (published by 1_workflows/src/cicd/ship-httpd-web-server-json-md-eruda.yml
+# (published by 1_configs/src/gha/cicd/ship-httpd-web-server-json-md-eruda.yml
 # to the rolling httpd-web-server-json-md-eruda-latest GitHub Release) — same
 # fetchurl + hashes.json pattern as da_my-ai (see
 # bb_flakes_termux/src/pkgs/my-ai-hashes.json). No more loose .mjs + lib
