@@ -35,9 +35,13 @@ log "Installed → $dest"
 boot_dir="$HOME/.termux/boot"
 mkdir -p "$boot_dir"
 cat > "$boot_dir/$BIN_NAME" <<EOF
-#!/data/data/com.termux/files/usr/bin/sh
+#!$PREFIX/bin/sh
 # Autostart my-konsole-engine on boot (via Termux:Boot). Binds 127.0.0.1:7333
 # by default (MYK_ENGINE_ADDR unset) — the on-device WebView connects there.
+# Also (re)starts the httpd/eruda/md-json asset server the WebView renders
+# local markdown/JSON through — boot is the only trigger that fires without
+# an interactive shell (the fish auto-start hook only fires on shell open).
+command -v httpd-web-server-json-md-eruda >/dev/null 2>&1 && httpd-web-server-json-md-eruda start >/dev/null 2>&1
 exec "$dest"
 EOF
 chmod +x "$boot_dir/$BIN_NAME"
