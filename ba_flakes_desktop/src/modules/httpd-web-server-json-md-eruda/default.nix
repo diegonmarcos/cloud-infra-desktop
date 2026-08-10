@@ -47,6 +47,17 @@ let
 
       buildInputs  = runtimeLibs;
       dontPatchELF = true;
+
+      # stdenv's fixupPhase runs `strip -S -p` unconditionally unless told
+      # not to — dontPatchELF only skips the patchelf fixup pass, not this.
+      # strip corrupts this binary's ELF version tables (postject's injected
+      # SEA blob sections aren't a layout strip expects): confirmed by
+      # reproducing byte-for-byte (127249392 bytes, identical crash — "no
+      # version information available" / blank "undefined symbol") via
+      # manually running stdenv's own strip on an otherwise-working patched
+      # copy, 2026-08-10.
+      dontStrip = true;
+
       dontUnpack   = true;
 
       installPhase = ''
