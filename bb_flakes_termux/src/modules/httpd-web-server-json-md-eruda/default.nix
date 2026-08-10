@@ -48,10 +48,15 @@ let
       hash = hashes.httpd-web-server-json-md-eruda;
     };
 
-    # override: nixpkgs-24.05's patchelf 0.15.0 crashes rewriting the
-    # interpreter on this binary — see patchelfUnstable's doc comment in
-    # flake.nix.
-    nativeBuildInputs = [ (pkgs.autoPatchelfHook.override { patchelf = patchelfUnstable; }) ];
+    # nixpkgs-24.05's patchelf 0.15.0 crashes rewriting the interpreter on
+    # this binary (see patchelfUnstable's doc comment in flake.nix).
+    # autoPatchelfHook doesn't take patchelf as a build input to override —
+    # its auto-patchelf.py invokes a bare `patchelf` off PATH (confirmed
+    # against the nixos-24.05 source: no substituted path, no callPackage
+    # wrapper, so no .override either). Listing patchelfUnstable directly in
+    # nativeBuildInputs makes its newer binary win on PATH over stdenv's
+    # default one.
+    nativeBuildInputs = [ pkgs.autoPatchelfHook patchelfUnstable ];
     buildInputs       = [ pkgs.gcc-unwrapped.lib pkgs.libgcc ];
 
     dontUnpack = true;
