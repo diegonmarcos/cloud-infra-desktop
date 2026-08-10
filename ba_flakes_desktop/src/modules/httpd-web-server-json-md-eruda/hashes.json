@@ -1,9 +1,9 @@
 {
   "version": "latest",
   "aarch64-linux": {
-    "httpd-web-server-json-md-eruda": "sha256-/4D9l62CUL6227Y7s7xa+9LE4FQAo6jKJKoIQi+wGT0="
+    "httpd-web-server-json-md-eruda": "sha256-PF0Jl3C68CzkfEysngqQl1mm7kjRyv9mTzoF3PFV/jY="
   },
   "x86_64-linux": {
-    "httpd-web-server-json-md-eruda": "sha256-1SOwASAjpc5Y02JLJDEWXCVTe91xuoXNHZEHghWhHBw="
+    "httpd-web-server-json-md-eruda": "sha256-Nyc9a8xd+gUUhvCol1ciNAk4EgGuoTOhq2e+l1c5a4c="
   }
 }
