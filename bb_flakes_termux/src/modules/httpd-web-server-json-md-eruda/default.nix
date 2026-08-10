@@ -32,9 +32,28 @@ let
   hashes  = builtins.fromJSON (builtins.readFile ./hashes.json);
   baseUrl = "https://github.com/diegonmarcos/unix/releases/download/httpd-web-server-json-md-eruda-latest";
 
-  httpdBin = pkgs.fetchurl {
-    url  = "${baseUrl}/httpd-web-server-json-md-eruda-aarch64";
-    hash = hashes.httpd-web-server-json-md-eruda;
+  # A raw pkgs.fetchurl result is NOT executable on nix-on-droid: the fetched
+  # ELF's interpreter/rpath point at FHS paths that don't exist under proot,
+  # so it fails "cannot execute: required file not found" (same class of bug
+  # da_my-ai already hit — see pkgs/my-ai.nix). autoPatchelfHook rewrites the
+  # interpreter/rpath to the nix store so it actually runs.
+  httpdBin = pkgs.stdenv.mkDerivation {
+    pname   = "httpd-web-server-json-md-eruda";
+    version = "latest";
+
+    src = pkgs.fetchurl {
+      url  = "${baseUrl}/httpd-web-server-json-md-eruda-aarch64";
+      hash = hashes.httpd-web-server-json-md-eruda;
+    };
+
+    nativeBuildInputs = [ pkgs.autoPatchelfHook ];
+    buildInputs       = [ pkgs.gcc-unwrapped.lib pkgs.libgcc ];
+
+    dontUnpack = true;
+
+    installPhase = ''
+      install -Dm755 $src $out/bin/httpd-web-server-json-md-eruda
+    '';
   };
 
   serviceName = "httpd-web-server-json-md-eruda";
@@ -56,7 +75,7 @@ let
     name = "httpd-web-server-json-md-eruda";
     runtimeInputs = [ pkgs.coreutils ];
     runtimeEnv = {
-      HTTPD_WEB_SERVER_BIN = "${httpdBin}";
+      HTTPD_WEB_SERVER_BIN = "${httpdBin}/bin/httpd-web-server-json-md-eruda";
     };
     text = builtins.readFile ./httpd-web-server-json-md-eruda.sh;
   };
@@ -67,7 +86,7 @@ let
   # runit service is meant to always-serve-$HOME-on-8000; use the wrapper
   # directly for one-off custom roots/ports.
   runitRunScript = pkgs.writeShellScript "httpd-web-server-json-md-eruda-run" ''
-    exec "${httpdBin}" 8000 "$HOME"
+    exec "${httpdBin}/bin/httpd-web-server-json-md-eruda" 8000 "$HOME"
   '';
 in
 {
@@ -83,6 +102,15 @@ in
   # no-op symlink-create if already enabled). Best-effort: warns rather than
   # fails if termux-services isn't installed on the underlying Termux prefix,
   # since nix-on-droid doesn't own that install.
+  #
+  # 2026-08-10: the com.termux.nix app (this flake's target — see the
+  # hardcoded prefix path below) ships NO apt/dpkg layer at all (no
+  # /usr/etc/apt, no dpkg status db) — `pkg install termux-services` can
+  # never succeed here, it's not a "not yet installed" gap. Real runit
+  # supervision is unavailable on this app; the fish interactive-shell hook
+  # (programs.fish interactiveShellInit — starts this server on shell open)
+  # is the actual auto-start path. The warning below reflects that instead
+  # of pointing at a dead command.
   home.activation.httpdWebServerJsonMdErudaSvEnable = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     # Explicit Termux-prefix path — sv-enable is never on the minimal
     # activation PATH, so `command -v` couldn't distinguish "not installed"
@@ -90,9 +118,9 @@ in
     SV_ENABLE="/data/data/com.termux.nix/files/usr/bin/sv-enable"
     if [ -x "$SV_ENABLE" ]; then
       $DRY_RUN_CMD "$SV_ENABLE" ${serviceName} 2>/dev/null || \
-        echo "[${serviceName}] WARNING: sv-enable failed — check 'pkg install termux-services' and runsvdir status"
+        echo "[${serviceName}] WARNING: sv-enable failed — check runsvdir status (falling back to the fish-shell auto-start hook)"
     else
-      echo "[${serviceName}] WARNING: sv-enable not found — run 'pkg install termux-services' on Termux for real background supervision (falling back to on-demand wrapper only)"
+      echo "[${serviceName}] NOTE: sv-enable not present (com.termux.nix has no apt/termux-services) — relying on the fish interactive-shell auto-start hook instead"
     fi
   '';
 }
