@@ -39,32 +39,46 @@ let
   # not found" (same class of bug da_my-ai already hit — see pkgs/my-ai.nix).
   # autoPatchelfHook rewrites the interpreter/rpath to match this system's
   # actual nix store so it runs here too.
-  httpdBin = pkgs.stdenv.mkDerivation {
-    pname   = "httpd-web-server-json-md-eruda";
-    version = "latest";
+  httpdBin =
+    let
+      runtimeLibs = [ pkgs.gcc-unwrapped.lib pkgs.libgcc ];
+    in
+    pkgs.stdenv.mkDerivation {
+      pname   = "httpd-web-server-json-md-eruda";
+      version = "latest";
 
-    src = pkgs.fetchurl {
-      url  = "${baseUrl}/httpd-web-server-json-md-eruda-aarch64";
-      hash = hashes.httpd-web-server-json-md-eruda;
+      src = pkgs.fetchurl {
+        url  = "${baseUrl}/httpd-web-server-json-md-eruda-aarch64";
+        hash = hashes.httpd-web-server-json-md-eruda;
+      };
+
+      # nixpkgs-24.05's pinned patchelf (0.15.0) SIGABRTs ("Assertion
+      # !section.empty() failed") rewriting the interpreter on this binary.
+      # autoPatchelfHook can't route around it: its auto-patchelf.py invokes
+      # a bare `patchelf`, which always resolves to stdenv's own pinned one
+      # regardless of nativeBuildInputs ordering — setup.sh appends
+      # `initialPath` (which includes stdenv's patchelf) to PATH *before*
+      # any nativeBuildInputs are processed, and addToSearchPath only ever
+      # appends, so nativeBuildInputs entries always lose that lookup
+      # (confirmed against nixos-24.05's stdenv/generic/setup.sh). The only
+      # reliable fix is calling patchelfUnstable by its full store path,
+      # bypassing PATH entirely — same trick auto-patchelf.py itself uses to
+      # find the interpreter, via $NIX_BINTOOLS/nix-support/dynamic-linker.
+      # dontPatchELF disables stdenv's own automatic fixup-phase patchelf
+      # pass too, which would otherwise hit the same crash.
+      buildInputs  = runtimeLibs;
+      dontPatchELF = true;
+
+      dontUnpack = true;
+
+      installPhase = ''
+        install -Dm755 $src $out/bin/httpd-web-server-json-md-eruda
+        "${patchelfUnstable}/bin/patchelf" \
+          --set-interpreter "$(cat "$NIX_BINTOOLS/nix-support/dynamic-linker")" \
+          --set-rpath "${lib.makeLibraryPath runtimeLibs}" \
+          $out/bin/httpd-web-server-json-md-eruda
+      '';
     };
-
-    # nixpkgs-24.05's patchelf 0.15.0 crashes rewriting the interpreter on
-    # this binary (see patchelfUnstable's doc comment in flake.nix).
-    # autoPatchelfHook doesn't take patchelf as a build input to override —
-    # its auto-patchelf.py invokes a bare `patchelf` off PATH (confirmed
-    # against the nixos-24.05 source: no substituted path, no callPackage
-    # wrapper, so no .override either). Listing patchelfUnstable directly in
-    # nativeBuildInputs makes its newer binary win on PATH over stdenv's
-    # default one.
-    nativeBuildInputs = [ pkgs.autoPatchelfHook patchelfUnstable ];
-    buildInputs       = [ pkgs.gcc-unwrapped.lib pkgs.libgcc ];
-
-    dontUnpack = true;
-
-    installPhase = ''
-      install -Dm755 $src $out/bin/httpd-web-server-json-md-eruda
-    '';
-  };
 
   serviceName = "httpd-web-server-json-md-eruda";
 
