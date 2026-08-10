@@ -1,18 +1,22 @@
-import { createServer } from 'node:http';
-import { readFile, stat, lstat, readlink, readdir } from 'node:fs/promises';
-import { join, extname } from 'node:path';
-import { homedir } from 'node:os';
-import process from 'node:process';
+const { createServer } = require('node:http');
+const { readFile, stat, lstat, readlink, readdir } = require('node:fs/promises');
+const { join, extname } = require('node:path');
+const { homedir } = require('node:os');
+const process = require('node:process');
 // node:sea — present since Node 20, but only "active" (isSea() === true) when
 // this file is running as a compiled Single Executable Application binary
 // (node --experimental-sea-config + postject). `marked.min.js` and
 // `github-markdown-dark.css` are embedded into the binary as SEA assets at
 // build time (see httpd-web-server-json-md-eruda.sea-config.json) so the
 // shipped release artifact is one file with no sidecar libs to fetch
-// separately. Plain `node httpd-web-server-json-md-eruda.mjs` (local dev)
+// separately. Plain `node httpd-web-server-json-md-eruda.cjs` (local dev)
 // still works — isSea() is false there and getLibAsset() falls back to a
 // normal fs read from LIB_DIR below.
-import { isSea, getAsset } from 'node:sea';
+// CommonJS (.cjs), not ESM: Node's SEA main script is loaded as CJS even
+// under --experimental-sea-config — `import` syntax fails at parse time
+// ("Cannot use import statement outside a module") once postject-injected,
+// confirmed 2026-08-10 by reproducing the exact build+inject steps locally.
+const { isSea, getAsset } = require('node:sea');
 
 const PORT = parseInt(process.argv[2] || '8000');
 const ROOT = process.argv[3] || process.env.HOME || '.';

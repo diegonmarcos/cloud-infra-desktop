@@ -1,5 +1,5 @@
 {
-  "main": "httpd-web-server-json-md-eruda.mjs",
+  "main": "httpd-web-server-json-md-eruda.cjs",
   "output": "sea-prep.blob",
   "disableExperimentalSEAWarning": true,
   "assets": {
