@@ -45,9 +45,14 @@ jobs:
     steps:
       # cloud-data (a private submodule as of 2026-08-09) is unreachable via the
       # default GITHUB_TOKEN — checkout returns "Repository not found" (404, the
-      # signature of a private cross-repo dependency the token can't see). The
-      # ssh-key input makes actions/checkout clone over SSH (repo + submodules)
-      # using this key instead, matching the same key used for local git pushes.
+      # signature of a private cross-repo dependency the token can't see).
+      # actions/checkout's ssh-key input only sets up SSH auth — it does NOT
+      # rewrite the https:// submodule URLs .gitmodules declares (that's the
+      # opposite direction of the rewrite checkout does automatically), so the
+      # insteadOf below is required to actually route the clone over SSH.
+      - name: Route github.com submodule URLs over SSH
+        run: git config --global url."git@github.com:".insteadOf "https://github.com/"
+
       - uses: actions/checkout@v4
         with:
           submodules: true
