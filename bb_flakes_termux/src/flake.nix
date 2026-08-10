@@ -91,6 +91,14 @@
               # in pinned nixos-24.05 is Haskell and pulls connection-0.3.1 which
               # is marked broken upstream — blocking every home-manager switch.
               _module.args.wstunnel = pkgsUnstable.wstunnel;
+              # patchelf 0.15.0 (pinned nixos-24.05) crashes with
+              # "Assertion !section.empty() failed" rewriting the interpreter
+              # on large (~70MB+) binaries that are already nix-patched —
+              # exactly what the fetched httpd-web-server-json-md-eruda blob
+              # is (patched once already by the CI job that publishes it, at
+              # a different glibc store path than this flake's own pin).
+              # Fixed in later patchelf releases; pkgsUnstable has one.
+              _module.args.patchelfUnstable = pkgsUnstable.patchelf;
               # my-ai owns the Claude config — claude/claude.nix reads its
               # `claudeAssets` output.
               _module.args.claudeSrc = my-ai.claudeAssets;
