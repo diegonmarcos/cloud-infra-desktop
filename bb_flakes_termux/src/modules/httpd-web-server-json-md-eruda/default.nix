@@ -33,15 +33,18 @@ let
   baseUrl = "https://github.com/diegonmarcos/unix/releases/download/httpd-web-server-json-md-eruda-latest";
 
   # A raw pkgs.fetchurl result is NOT executable on nix-on-droid: the fetched
-  # ELF is already nix-patched (the CI job that publishes it runs autoPatchelf
-  # too), but against ITS OWN build's glibc store path — which doesn't exist
-  # on this flake's nixpkgs pin, so it fails "cannot execute: required file
-  # not found" (same class of bug da_my-ai already hit — see pkgs/my-ai.nix).
-  # autoPatchelfHook rewrites the interpreter/rpath to match this system's
-  # actual nix store so it runs here too.
+  # binary is the official nodejs.org release (see
+  # ship-httpd-web-server-json-md-eruda.yml) with a generic FHS interpreter
+  # (/lib/ld-linux-aarch64.so.1), which doesn't exist on this flake's
+  # nix-on-droid store — "cannot execute: required file not found" (same
+  # class of bug da_my-ai already hit — see pkgs/my-ai.nix). We rewrite the
+  # interpreter to this system's actual glibc and set an rpath covering the
+  # official binary's real (small) runtime dependency set — it statically
+  # links zlib/openssl/icu4c/etc, so it only needs glibc + libgcc, confirmed
+  # via `readelf -d` on the untouched release binary (2026-08-10).
   httpdBin =
     let
-      runtimeLibs = [ pkgs.gcc-unwrapped.lib pkgs.libgcc ];
+      runtimeLibs = [ pkgs.stdenv.cc.libc pkgs.gcc-unwrapped.lib pkgs.libgcc ];
     in
     pkgs.stdenv.mkDerivation {
       pname   = "httpd-web-server-json-md-eruda";
