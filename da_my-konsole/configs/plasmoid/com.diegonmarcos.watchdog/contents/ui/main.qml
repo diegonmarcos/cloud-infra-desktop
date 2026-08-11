@@ -531,10 +531,28 @@ PlasmoidItem {
         property color fill: Kirigami.Theme.highlightColor
         property real barWidth: 30    // floor/default; callers bind these off contentH
         property real barHeight: 6
+        // Total vertical budget for this row, set by the caller from the
+        // available height divided by the number of grid rows. It exists
+        // because barHeight alone never controlled the row: a RowLayout is as
+        // tall as its TALLEST child, and the label below has a text height
+        // that ignores barHeight entirely. On the 2-row grids (psi 6/3,
+        // guard 8/4) a 6pt label measured ~13px against a ~10px budget, so
+        // two rows overran the panel and the second was sliced off by the
+        // panel edge — visible as half-height "Fc Fi Fm" / "dM Th Ws".
+        property real rowH: 12
+        Layout.preferredHeight: bar.rowH
+        Layout.maximumHeight: bar.rowH
         spacing: 3
         PlasmaComponents.Label {
             text: bar.label
-            font.pointSize: Math.max(6, Math.min(Kirigami.Theme.smallFont.pointSize, bar.barHeight * 1.4))
+            // pixelSize, not pointSize: the budget being fitted is in pixels,
+            // and pointSize goes through DPI scaling that can silently land
+            // above it. Floor of 7px keeps the label legible; below that the
+            // grid genuinely does not fit and clipping the text is the honest
+            // outcome.
+            font.pixelSize: Math.max(6, Math.round(bar.rowH * 0.8))
+            Layout.preferredHeight: bar.rowH
+            verticalAlignment: Text.AlignVCenter
             opacity: 0.75
         }
         Rectangle {
@@ -615,12 +633,26 @@ PlasmoidItem {
     // item count and column count (never assumed), then contentH is divided
     // across them — this is what keeps the psi 3x2 / guard 4-col grids
     // inside the panel instead of overflowing it.
-    function bargridBarHeight(metric, columns) {
+    // Height budget for ONE row of a bargrid: the content height minus the
+    // 1px rowSpacing between rows, split evenly. Every element of a row —
+    // label text included — is sized from this, so `rows * bargridRowH` can
+    // never exceed contentH and a multi-row grid cannot overflow the panel.
+    // NO floor on the result. A floor is what a height budget cannot have:
+    // clamping rowH up to a minimum re-creates the overflow this function
+    // exists to prevent the moment rows * minimum exceeds contentH — which
+    // storage (3 mounts, 1 column) does at a 44px panel. If the arithmetic
+    // says 6px per row, 6px per row is what fits; the fix for illegibly thin
+    // rows is a taller panel or fewer rows, not a number that lies.
+    function bargridRowH(metric, columns) {
         var count = root.bargridModel(metric).length;
         var cols = Math.max(1, columns || 1);
         var rows = Math.max(1, Math.ceil(count / cols));
-        var rowH = (root.contentH - (rows - 1)) / rows;
-        return Math.max(4, rowH * 0.55);
+        return Math.max(1, (root.contentH - (rows - 1)) / rows);
+    }
+    // The bar rectangle itself sits inside that row budget, leaving room for
+    // the label's ascender/descender either side of it.
+    function bargridBarHeight(metric, columns) {
+        return Math.max(4, root.bargridRowH(metric, columns) * 0.55);
     }
     function rateItems(metric) {
         switch (metric) {
@@ -791,6 +823,7 @@ PlasmoidItem {
                                         label: modelData.label
                                         value: modelData.value
                                         fill: modelData.fill
+                                        rowH: root.bargridRowH(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
                                         barHeight: root.bargridBarHeight(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
                                         barWidth: Math.max(18, root.contentH * 1.6)
                                     }
