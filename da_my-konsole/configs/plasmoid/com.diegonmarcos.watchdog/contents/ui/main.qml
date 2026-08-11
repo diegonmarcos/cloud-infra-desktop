@@ -531,6 +531,13 @@ PlasmoidItem {
         property color fill: Kirigami.Theme.highlightColor
         property real barWidth: 30    // floor/default; callers bind these off contentH
         property real barHeight: 6
+        // Width reserved for the label, so every bar in a grid STARTS at the
+        // same x. Without it the label is sized to its own text and a grid of
+        // "nix" / "shared-lib" / "kali-root" staircases its bars rightward,
+        // which makes the fills impossible to compare by eye — the one thing
+        // a column of bars is for. The caller measures the widest label in
+        // the grid (see bargridLabelW) and passes it to every row.
+        property real labelW: 0
         // Total vertical budget for this row, set by the caller from the
         // available height divided by the number of grid rows. It exists
         // because barHeight alone never controlled the row: a RowLayout is as
@@ -564,7 +571,9 @@ PlasmoidItem {
             // outcome.
             font.pixelSize: Math.max(6, Math.round(bar.rowH * 0.8))
             Layout.preferredHeight: bar.rowH
+            Layout.preferredWidth: bar.labelW > 0 ? bar.labelW : implicitWidth
             verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
             opacity: 0.75
         }
         Rectangle {
@@ -614,6 +623,40 @@ PlasmoidItem {
                 var s = root.slicePct();
                 return { value: s || 0, label: root.pct0(s), fill: root.heat(s) };
             }
+            // Headline for the storage cluster: how full the pool is overall.
+            // Summed BYTES, not the mean of the per-mount percentages —
+            // averaging percentages weights a 90MB /boot/efi the same as a
+            // 116GB /mnt/shared-lib and reports a number no disk actually has.
+            case "storage_pool": {
+                var p = root.storagePoolPct();
+                return { value: p || 0, label: p !== undefined ? root.pct0(p) : "--",
+                         fill: p !== undefined ? root.heat(p) : Kirigami.Theme.disabledTextColor };
+            }
+            // Headline for PSI: CPU some-pressure over 10s. The grid below
+            // carries every category and window; this is the one number worth
+            // reading at a glance. Value is the log fraction so the ring moves
+            // on the same scale the bars do; the label is the real figure.
+            case "psi_cpu": {
+                var pv = root.psi("cpu", "some10");
+                return { value: root.psiFraction(pv) * 100, label: root.psiText(pv),
+                         fill: pv !== undefined ? root.heat(Math.min(100, pv * 8)) : Kirigami.Theme.disabledTextColor };
+            }
+            // Headline for the guard cluster: the CLOSEST any voter is to its
+            // kill threshold. A mean would hide the one voter about to fire
+            // behind seven idle ones, and the only question this cluster
+            // answers is "how close is the machine to being frozen out".
+            case "guard_worst": {
+                var voters = root.guardVoters();
+                if (!voters.length) return { value: 0, label: "--", fill: Kirigami.Theme.disabledTextColor };
+                var worst = 0, armed = false;
+                for (var gi = 0; gi < voters.length; gi++) {
+                    var r = root.guardRatio(voters[gi]);
+                    if (r > worst) worst = r;
+                    if (voters[gi].armed) armed = true;
+                }
+                return { value: Math.min(100, worst), label: root.pct0(worst),
+                         fill: armed ? Kirigami.Theme.negativeTextColor : root.heat(worst) };
+            }
             default: return { value: 0, label: "--", fill: Kirigami.Theme.disabledTextColor };
         }
     }
@@ -639,6 +682,27 @@ PlasmoidItem {
         if (v === undefined || v === null) return "--";
         return v >= 10 ? v.toFixed(0) : v.toFixed(2);
     }
+    // Pool fill across every mounted filesystem, by BYTES. See the
+    // "storage_pool" case above for why this is not a mean of percentages.
+    function storagePoolPct() {
+        var d = root.snap.disks;
+        if (!d || !d.length) return undefined;
+        var used = 0, total = 0;
+        for (var i = 0; i < d.length; i++) {
+            used += d[i].used_gib || 0;
+            total += d[i].total_gib || 0;
+        }
+        return total > 0 ? used / total * 100 : undefined;
+    }
+    // Load average expressed against the core count: load 8 on 8 cores is
+    // 100%, not "8". The raw figure is meaningless without knowing the width
+    // of the machine, and the widget already knows it from cores.length.
+    function coreCount() {
+        return (root.snap.cores && root.snap.cores.length) ? root.snap.cores.length : 1;
+    }
+    function loadPct(l) {
+        return l === undefined ? undefined : (l / root.coreCount() * 100);
+    }
     // How full to draw a PSI bar. NOT value/100: pressure is a quantity whose
     // entire interesting range lives in its first percent, so a linear bar is
     // blank at 0.12% and blank at 1.2% — it cannot distinguish "idle" from
@@ -652,19 +716,58 @@ PlasmoidItem {
         var f = (Math.log(v) / Math.LN10 + 2) / 4;   // 0.01% -> 0, 100% -> 1
         return Math.max(0, Math.min(1, f));
     }
+    // PSI grid: some/full x cpu/io/mem x 1min/5min. The 10s window is not
+    // here — it is the headline pie, so the grid is the trend rather than a
+    // second copy of "now". Row 1 is every SOME reading, row 2 every FULL,
+    // so a glance down a column compares "some tasks stalled" against "every
+    // task stalled" for the same resource and window.
+    // Labels are <resource><minutes>: c1 = cpu over 1 min.
     readonly property var psiRows: [
-        { label: "Sc", cat: "cpu",    field: "some10" },
-        { label: "Si", cat: "io",     field: "some10" },
-        { label: "Sm", cat: "memory", field: "some10" },
-        { label: "Fc", cat: "cpu",    field: "full10" },
-        { label: "Fi", cat: "io",     field: "full10" },
-        { label: "Fm", cat: "memory", field: "full10" }
+        { label: "c1", cat: "cpu",    field: "some60"  },
+        { label: "c5", cat: "cpu",    field: "some300" },
+        { label: "i1", cat: "io",     field: "some60"  },
+        { label: "i5", cat: "io",     field: "some300" },
+        { label: "m1", cat: "memory", field: "some60"  },
+        { label: "m5", cat: "memory", field: "some300" },
+        { label: "c1", cat: "cpu",    field: "full60"  },
+        { label: "c5", cat: "cpu",    field: "full300" },
+        { label: "i1", cat: "io",     field: "full60"  },
+        { label: "i5", cat: "io",     field: "full300" },
+        { label: "m1", cat: "memory", field: "full60"  },
+        { label: "m5", cat: "memory", field: "full300" }
     ]
+    // Memory breakdown as bars rather than only a ring: the ring shows the
+    // proportions, these show the absolute GiB behind them. Swap rides in the
+    // same grid because it is the same question (what is resident where) and
+    // a separate cluster for two numbers is not worth a panel slot.
+    function memRows() {
+        var m = root.snap.mem_detail || {};
+        var s = root.snap.swap_detail || {};
+        var t = m.total || 0;
+        var st = s.total || 0;
+        var pctOf = function (v, tot) { return tot > 0 ? (v || 0) / tot * 100 : 0; };
+        return [
+            { label: "used",  value: pctOf(m.used, t),      text: root.gib(m.used),   fill: root.heat(pctOf(m.used, t)) },
+            { label: "cache", value: pctOf(m.cached, t),    text: root.gib(m.cached), fill: Kirigami.Theme.positiveTextColor },
+            { label: "buff",  value: pctOf(m.buffers, t),   text: root.gib(m.buffers), fill: Kirigami.Theme.neutralTextColor },
+            { label: "free",  value: pctOf(m.free, t),      text: root.gib(m.free),   fill: Kirigami.Theme.disabledTextColor },
+            { label: "swap",  value: pctOf(s.used, st),     text: root.gib(s.used),   fill: root.heat(pctOf(s.used, st)) }
+        ];
+    }
+    function gib(v) { return v === undefined ? "--" : Number(v).toFixed(1) + "G"; }
     function bargridModel(metric) {
         switch (metric) {
             case "disks":
                 return (root.snap.disks || []).map(function (d) {
-                    return { label: root.shortMount(d.mount), value: d.pct || 0, fill: root.heat(d.pct) };
+                    return { label: root.shortMount(d.mount), value: d.pct || 0,
+                             fill: root.heat(d.pct), text: root.pct0(d.pct) };
+                });
+            case "mem_break": return root.memRows();
+            // One vertical-ish bar per core. Same Bar component, just fed the
+            // per-core percentages the daemon already publishes in `cores`.
+            case "cores":
+                return (root.snap.cores || []).map(function (c, i) {
+                    return { label: String(i), value: c || 0, fill: root.heat(c) };
                 });
             case "psi":
                 return root.psiRows.map(function (r) {
@@ -695,6 +798,34 @@ PlasmoidItem {
     // storage (3 mounts, 1 column) does at a 44px panel. If the arithmetic
     // says 6px per row, 6px per row is what fits; the fix for illegibly thin
     // rows is a taller panel or fewer rows, not a number that lies.
+    // Width to reserve for every label in a grid, so the bars all START at
+    // the same x instead of staircasing right behind labels of different
+    // lengths ("nix" vs "shared-lib" vs "kali-root").
+    //
+    // Estimated from the longest label's character count, NOT measured with
+    // TextMetrics. A shared TextMetrics is the obvious way to do this and is
+    // wrong here: writing its text/font inside a binding that also reads its
+    // advanceWidth makes the binding depend on something it mutates, and QML
+    // detects the loop and drops the binding ("Binding loop detected for
+    // property implicitWidth"). 0.62em per character is a good enough
+    // approximation for the short lowercase labels these grids use, and the
+    // Label elides anyway if a real string overshoots.
+    function bargridLabelW(metric, columns) {
+        var rows = root.bargridModel(metric);
+        var maxChars = 0;
+        for (var i = 0; i < rows.length; i++) {
+            var n = (rows[i].label || "").length;
+            if (n > maxChars) maxChars = n;
+        }
+        // 0.78em per character, not the 0.62 an average lowercase glyph
+        // measures: these labels are capitals and digits ("Mp", "Wp", "c1"),
+        // which sit at the wide end of the font, and a label that overshoots
+        // its reservation elides to "…" rather than pushing the bar — losing
+        // the very thing the column is labelled with. Erring wide costs a few
+        // pixels of gap; erring narrow costs the label.
+        var fontPx = Math.max(6, Math.round(root.bargridRowH(metric, columns) * 0.8));
+        return Math.ceil(maxChars * fontPx * 0.78) + 4;
+    }
     function bargridRowH(metric, columns) {
         var count = root.bargridModel(metric).length;
         var cols = Math.max(1, columns || 1);
@@ -715,7 +846,15 @@ PlasmoidItem {
     }
     function textMetric(metric) {
         switch (metric) {
-            case "load": return root.two(root.snap.load1) + " " + root.two(root.snap.load5) + " " + root.two(root.snap.load15);
+            // Raw load plus what it means on THIS machine. "1.84" says
+            // nothing without the core count; "1.84 (23%)" does, and the
+            // widget already knows the width from cores.length. The percent
+            // is of the 1-minute figure — the one that moves.
+            case "load": {
+                var p = root.loadPct(root.snap.load1);
+                return root.two(root.snap.load1) + " " + root.two(root.snap.load5) + " " + root.two(root.snap.load15)
+                     + (p === undefined ? "" : "  " + p.toFixed(0) + "% of " + root.coreCount() + "c");
+            }
             case "proctable_head": {
                 var t = root.snap.proc_table;
                 if (!t || !t.length || !t[0]) return "procs --";
@@ -876,6 +1015,7 @@ PlasmoidItem {
                                         value: modelData.value
                                         fill: modelData.fill
                                         rowH: root.bargridRowH(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
+                                        labelW: root.bargridLabelW(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
                                         valueText: modelData.text || ""
                                         fraction: modelData.fraction === undefined ? -1 : modelData.fraction
                                         barHeight: root.bargridBarHeight(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
