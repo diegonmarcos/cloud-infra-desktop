@@ -31,7 +31,16 @@ message and authorship. Verify it applies before pushing:
 ## Contents
 
 - `0001-c3-infra-mcp-gha-trigger-inputs-repo-rerun-run-logs.patch`
-  Adds `inputs` / `ref` / `repo` to `devops.workflows.gha_trigger`, plus
-  `devops.workflows.gha_rerun` and `devops.workflows.gha_run_logs`.
+  Full GHA control for `devops.workflows`:
+  - `repo` on ALL seven tools — `GH_REPO` was hardcoded to `<owner>/cloud`,
+    so the unix monorepo's app/APK workflows were invisible, not merely
+    untriggerable
+  - `inputs` + `ref` on `gha_trigger`
+  - new `gha_rerun` (`--failed` by default), `gha_cancel`, `gha_run_logs`
   Typechecked against the real dependency tree: 9 pre-existing errors
   before, 9 after, none in the added code.
+
+  Note: the MCP's power is still bounded by the `gh` token on the host.
+  If that token cannot see a repo, these parameters return "not found"
+  rather than acting — widening the tool surface does not widen the
+  credential.
