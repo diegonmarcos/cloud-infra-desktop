@@ -91,6 +91,16 @@ pub fn snapshot_path() -> Option<PathBuf> {
 struct CpuTotals {
     idle: u64,
     total: u64,
+    // The individual modes, kept alongside idle/total so "23% busy" can be
+    // broken into WHY it is busy. A single busy percentage cannot tell a CPU
+    // pegged in userspace apart from one drowning in iowait, and those two
+    // want completely different responses from whoever is reading the panel.
+    user: u64,
+    nice: u64,
+    system: u64,
+    iowait: u64,
+    irq: u64,
+    steal: u64,
 }
 
 fn parse_cpu_line(line: &str) -> CpuTotals {
@@ -99,9 +109,43 @@ fn parse_cpu_line(line: &str) -> CpuTotals {
         .skip(1)
         .filter_map(|x| x.parse().ok())
         .collect();
+    let g = |i: usize| v.get(i).copied().unwrap_or(0);
     // user nice system idle iowait irq softirq steal …
-    let idle = v.get(3).copied().unwrap_or(0) + v.get(4).copied().unwrap_or(0);
-    CpuTotals { idle, total: v.iter().sum() }
+    // idle here is idle+iowait, which is the conventional definition of "not
+    // doing work" for a busy percentage — iowait is still surfaced on its own
+    // below, because for a breakdown it is very much not the same as idle.
+    let idle = g(3) + g(4);
+    CpuTotals {
+        idle,
+        total: v.iter().sum(),
+        user: g(0),
+        nice: g(1),
+        // softirq folded into system: both are kernel time, and a separate
+        // bar for a number that is almost always a rounding error is a bar
+        // nobody reads.
+        system: g(2) + g(6),
+        iowait: g(4),
+        irq: g(5),
+        steal: g(7),
+    }
+}
+
+/// Each mode's share of the elapsed jiffies, as percentages. Same two-sample
+/// delta as cpu_percent() — these are cumulative counters, not gauges.
+fn cpu_breakdown_json(prev: CpuTotals, now: CpuTotals) -> String {
+    let dt = now.total.saturating_sub(prev.total);
+    let pct = |a: u64, b: u64| {
+        if dt == 0 { 0.0 } else { a.saturating_sub(b) as f64 / dt as f64 * 100.0 }
+    };
+    format!(
+        "{{\"user\":{:.1},\"nice\":{:.1},\"system\":{:.1},\"iowait\":{:.1},\"irq\":{:.1},\"steal\":{:.1}}}",
+        pct(now.user, prev.user),
+        pct(now.nice, prev.nice),
+        pct(now.system, prev.system),
+        pct(now.iowait, prev.iowait),
+        pct(now.irq, prev.irq),
+        pct(now.steal, prev.steal),
+    )
 }
 
 /// Aggregate plus one entry per core. The panel wants per-core bars, and
@@ -1064,7 +1108,7 @@ fn battery_json(b: &Option<BatteryReading>) -> String {
 /// this file is that the machine is measured once and cheaply.
 #[allow(clippy::too_many_arguments)]
 fn render(
-    cpu: f64, cores: &[f64],
+    cpu: f64, cores: &[f64], cpu_detail: &str,
     mem: f64, swap: f64,
     mem_detail: &str, swap_detail: &str,
     disk: f64, disk_r: f64, disk_w: f64,
@@ -1090,7 +1134,7 @@ fn render(
     let mut s = String::with_capacity(1536);
     let _ = write!(
         s,
-        "{{\"cpu\":{cpu:.1},\"cores\":[{cores_joined}],\
+        "{{\"cpu\":{cpu:.1},\"cores\":[{cores_joined}],\"cpu_detail\":{cpu_detail},\
           \"mem\":{mem:.1},\"swap\":{swap:.1},\
           \"mem_detail\":{mem_detail},\"swap_detail\":{swap_detail},\
           \"vram\":{},\
@@ -1204,6 +1248,10 @@ pub fn spawn() {
 
             let (now, now_cores) = read_cpu_all();
             let cpu = cpu_percent(prev, now);
+            // Computed before `prev` is overwritten below — same two samples
+            // the aggregate percentage uses, so the breakdown always sums to
+            // the busy figure shown beside it.
+            let cpu_detail = cpu_breakdown_json(prev, now);
             let cores: Vec<f64> = now_cores
                 .iter()
                 .zip(prev_cores.iter().chain(std::iter::repeat(&CpuTotals::default())))
@@ -1237,7 +1285,7 @@ pub fn spawn() {
             prev_proc_table = next_proc_table;
 
             let body = render(
-                cpu, &cores, mem, swap,
+                cpu, &cores, &cpu_detail, mem, swap,
                 &mem_detail, &swap_detail,
                 disk_root_percent(), disk_r, disk_w,
                 &disks_json(),
@@ -1287,14 +1335,15 @@ mod tests {
         let mem_detail = r#"{"total":16.00,"used":8.00,"buffers":0.50,"cached":2.00,"free":5.50,"available":8.00}"#;
         let swap_detail = r#"{"total":4.00,"used":0.10}"#;
         let disks = r#"[{"mount":"/","pct":42.0,"used_gib":100.00,"total_gib":238.00}]"#;
-        let s = render(12.5, &[10.0, 20.0, 30.0, 40.0], 40.0, 1.0,
+        let cpu_detail = r#"{"user":10.0,"nice":0.0,"system":2.0,"iowait":0.5,"irq":0.0,"steal":0.0}"#;
+        let s = render(12.5, &[10.0, 20.0, 30.0, 40.0], cpu_detail, 40.0, 1.0,
                        mem_detail, swap_detail,
                        55.0, 1.5, 2.5,
                        disks,
                        Some((1024.0, 512.0)),
                        0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6,
                        &None, "[]", "[]");
-        for k in ["cpu", "cores", "mem", "swap", "mem_detail", "swap_detail",
+        for k in ["cpu", "cores", "cpu_detail", "mem", "swap", "mem_detail", "swap_detail",
                   "vram", "disk", "disk_r", "disk_w", "disks",
                   "net_rx", "net_tx", "load1", "load5", "load15",
                   "psi", "slice_gib", "slice_max_gib", "slice_pct", "battery", "procs",
@@ -1305,13 +1354,13 @@ mod tests {
 
         // vram must render as a null literal when None (the expected case on
         // machines without a readable GPU VRAM counter), not an absent key.
-        let s2 = render(12.5, &[], 40.0, 1.0, mem_detail, swap_detail,
+        let s2 = render(12.5, &[], cpu_detail, 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
                          0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]", "[]");
         assert!(s2.contains("\"vram\":null"), "expected null vram, got {s2}");
 
         // slice_pct must be 0.0, not NaN/Infinity, when slice_max is 0.
-        let s3 = render(12.5, &[], 40.0, 1.0, mem_detail, swap_detail,
+        let s3 = render(12.5, &[], cpu_detail, 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
                          0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]", "[]");
         assert!(s3.contains("\"slice_pct\":0.0"), "expected 0.0 slice_pct, got {s3}");

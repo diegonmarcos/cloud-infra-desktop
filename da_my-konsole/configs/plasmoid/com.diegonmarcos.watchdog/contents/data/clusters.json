@@ -45,6 +45,11 @@
             },
             {
                 "kind": "bargrid",
+                "metric": "cpu_break",
+                "columns": 2
+            },
+            {
+                "kind": "bargrid",
                 "metric": "cores",
                 "columns": 2
             },
