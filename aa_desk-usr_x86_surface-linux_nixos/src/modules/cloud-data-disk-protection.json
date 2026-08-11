@@ -5,6 +5,8 @@
   "emergency": {
     "_comment": "HARD stop-the-bleeding tier, ABOVE every per-mount critical. RECLAIM-FIRST ORDER (2026-07-08 incident fix): the 2026-07-08 freeze was this tier firing every 5min, each time SIGTERM+FREEZING workload.slice BEFORE reclaim \u2014 but reclaim (docker prune of ~23GB dangling layers) would have freed the space with ZERO disruption. New order runs ALL reclaim first, then `recheck_gate` re-reads usage: if reclaim self-healed the mount (< pct), the freeze/kill/thaw are SKIPPED entirely \u2014 the box is never disrupted. Only if reclaim was insufficient does the last-resort freeze (pause writes, reversible) + kill (SIGTERM) run. `cooldown_minutes` prevents re-SIGTERM'ing the same slices every 5min when the disk is genuinely full of non-reclaimable data (that repeated kill was the spawn-storm that killed the session). `protected_slices` (os-essentials = ssh/wg/session/watchdog; connectivity = the untouchable island hosting freeze-guard) is NEVER killed or frozen. Defaults target workload.slice (background docker/nix-daemon), never the live desktop (user-1000.slice). recheck_gate MUST sit AFTER all reclaim and BEFORE freeze/kill; thaw MUST stay last (it always runs, defensively un-freezing even if a prior run stranded a slice).",
     "pct": 95,
+    "_alert_ladder_comment": "Alert-ONLY rungs below pct — three escalating warnings before anything is reclaimed, frozen or killed. 2026-08-11: between a routine CRITICAL line and FREEZING workload.slice there was nothing at all, so the first thing actually noticed was the disruption. Integers only: df reports whole percents, so 92.5 is not expressible here — 91/93/94 is the closest usable spacing under pct=95.",
+    "alert_ladder_pct": [ 91, 93, 94 ],
     "cooldown_minutes": 30,
     "no_mercy_pct": 99,
     "recheck_after_reclaim": true,
@@ -290,6 +292,8 @@
     "lines_per_min_max": 40000,
     "restart_loudest_unit": true,
     "ntfy_priority": "urgent",
+    "_alert_ladder_comment": "Three alert-only rungs, as percentages of lines_per_min_max, crossed before anything is restarted. 2026-08-11: this guard had ONE threshold and the notification was sent AFTER the action, so the desktop was restarted with zero warning. Rungs alert and do nothing else; only >= lines_per_min_max acts.",
+    "alert_ladder_pct": [ 60, 80, 92 ],
     "never_restart": [
       "systemd-journald",
       "freeze-guard",
@@ -300,7 +304,11 @@
       "init.scope",
       "systemd-logind",
       "dbus",
-      "dbus-broker"
+      "dbus-broker",
+      "user@[0-9]+",
+      "user-[0-9]+",
+      "user",
+      "user-runtime-dir@[0-9]+"
     ]
   },
   "docker_retention": {

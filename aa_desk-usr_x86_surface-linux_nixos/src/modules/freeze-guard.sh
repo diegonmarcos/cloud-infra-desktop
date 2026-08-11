@@ -29,6 +29,11 @@ if ! jq -e . "$CONFIG_JSON" >/dev/null 2>&1; then
 fi
 
 MEM_LIMIT=$(jq -r '.watchdog.mem_pressure_full_avg10' "$CONFIG_JSON")
+# Alert-only rungs, as percentages of each PSI limit, crossed before any kill.
+# Empty = no early warning (the old silence-then-SIGKILL behaviour).
+PSI_LADDER_PCT=$(jq -r '(.watchdog.alert_ladder_pct // []) | join(" ")' "$CONFIG_JSON")
+PSI_ALERT_REARM_SEC=$(jq -r '.watchdog.alert_rearm_sec // 300' "$CONFIG_JSON")
+PSI_NTFY_TOPIC=$(jq -r '.watchdog.ntfy_topic // "diegonmarcos-infra"' "$CONFIG_JSON")
 IO_LIMIT=$(jq -r '.watchdog.io_pressure_full_avg10' "$CONFIG_JSON")
 CPU_LIMIT=$(jq -r '.watchdog.cpu_pressure_some_avg10' "$CONFIG_JSON")
 MAX_KILLS=$(jq -r '.watchdog.max_kills_per_tick' "$CONFIG_JSON")
@@ -403,6 +408,36 @@ while :; do
   # below mutates cpu/mem/io — the panel should see the reading that
   # drove the decision, not the post-kill relief values.
   publish_guard_state
+
+  # ── Pre-kill early warning (2026-08-11) ───────────────────────────────────
+  # This guard went from silence straight to SIGKILL. PSI_LADDER_PCT are
+  # alert-ONLY rungs, as percentages of each limit, crossed before anything is
+  # killed — so an approaching freeze is visible while it can still be steered
+  # by hand. Nothing here kills, ranks or signals; it only reports.
+  #
+  # Rate-limited by rung: interval_sec is 2, so an unthrottled alert would emit
+  # 30 messages a minute and become noise nobody reads. Re-alerts only when the
+  # highest crossed rung CHANGES, or after PSI_ALERT_REARM_SEC at the same rung.
+  if [ -n "${PSI_LADDER_PCT:-}" ]; then
+    _rung=0; _sig=""
+    for _p in $PSI_LADDER_PCT; do
+      if awk "BEGIN{exit !($mem+0 > $MEM_LIMIT*$_p/100)}"; then [ "$_p" -gt "$_rung" ] && { _rung=$_p; _sig="mem PSI ${mem} (kills at ${MEM_LIMIT})"; }; fi
+      if awk "BEGIN{exit !($io+0  > $IO_LIMIT*$_p/100)}";  then [ "$_p" -gt "$_rung" ] && { _rung=$_p; _sig="io PSI ${io} (kills at ${IO_LIMIT})"; }; fi
+      if awk "BEGIN{exit !($cpu+0 > $CPU_LIMIT*$_p/100)}"; then [ "$_p" -gt "$_rung" ] && { _rung=$_p; _sig="cpu PSI ${cpu} (kills at ${CPU_LIMIT})"; }; fi
+    done
+    _now=$(date +%s)
+    if [ "$_rung" -gt 0 ] \
+       && { [ "$_rung" != "${_psi_last_rung:-0}" ] || [ $(( _now - ${_psi_last_at:-0} )) -ge "${PSI_ALERT_REARM_SEC:-300}" ]; }; then
+      _psi_last_rung="$_rung"; _psi_last_at="$_now"
+      _msg="PRESSURE RISING (${_rung}% of the kill threshold): ${_sig}. Nothing has been killed yet — this is the warning before freeze-guard starts terminating processes."
+      logger -t freeze-guard -p user.warning "$_msg"
+      echo "[freeze-guard] PRE-KILL WARNING ${_rung}% — $_sig"
+      curl -sS -H "Title: pressure rising ${_rung}% of kill threshold" -H "Priority: high" \
+        -H "Tags: warning" -d "$_msg" "https://ntfy.sh/${PSI_NTFY_TOPIC:-diegonmarcos-infra}" 2>/dev/null || true
+    fi
+    # Reset once calm so the next climb alerts from the bottom rung again.
+    [ "$_rung" -eq 0 ] && _psi_last_rung=0
+  fi
 
   killed=""; n=0
   while [ "$n" -lt "$MAX_KILLS" ] && \
