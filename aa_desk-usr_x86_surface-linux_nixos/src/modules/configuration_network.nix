@@ -520,6 +520,14 @@ in {
         # a stale CLAT from a previous network is never refreshed.
         if ${pkgs.iproute2}/bin/ip -4 route show default \
              | ${pkgs.gnugrep}/bin/grep -qv ' dev clat'; then
+          # Native IPv4 is back ⇒ TEAR DOWN any CLAT left over from a previous
+          # IPv6-only network. Merely exiting here (the original bug) left clatd
+          # running with a `default dev clat` route still in the table, pinned to
+          # the OLD network's NAT64 prefix. It only loses to the native route on
+          # metric, so the moment that route flaps — exactly what happens while
+          # roaming between networks — traffic falls into a dead tunnel and the
+          # machine looks like it has no internet.
+          ${config.systemd.package}/bin/systemctl stop clatd 2>/dev/null || true
           exit 0
         fi
         # clatd finds the NAT64 prefix by RFC7050: it asks for AAAA on
