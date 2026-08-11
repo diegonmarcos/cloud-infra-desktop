@@ -1,63 +1,79 @@
-From 4ea2c94faf5a586579c216b77cb7bb3f2d2d53dc Mon Sep 17 00:00:00 2001
+From cf2caa1fb3a312c31ead227ac49f0cb347dd6438 Mon Sep 17 00:00:00 2001
 From: Claude <me@diegonmarcos.com>
 Date: Tue, 11 Aug 2026 18:18:05 +0000
-Subject: [PATCH] feat(c3-infra-mcp): GHA trigger inputs, cross-repo target,
- rerun + run logs
+Subject: [PATCH] =?UTF-8?q?feat(c3-infra-mcp):=20full=20GHA=20control=20?=
+ =?UTF-8?q?=E2=80=94=20cross-repo,=20inputs,=20rerun,=20cancel,=20run=20lo?=
+ =?UTF-8?q?gs?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
 
-devops.workflows.gha_trigger could start a workflow but could not steer
-one. Three gaps, all hit while trying to drive a real deploy from an
-agent instead of a browser.
+devops.workflows could observe the cloud repo and start a workflow in it.
+It could not steer one, could not see any other repo, and could not stop
+or retry anything. Every gap below was hit trying to drive a real deploy
+from an agent instead of a browser.
 
-1. NO INPUT SUPPORT. It ran `gh workflow run <id> --repo … --ref main`
-   with no -f/--field, so a workflow_dispatch input could never be sent.
-   Any workflow gated on an input was unreachable.
+REPO WAS HARDCODED. GH_REPO is <owner>/cloud, baked into every call site.
+The constellation's Android/APK ship workflows live in the unix monorepo,
+so they were invisible to this MCP — not merely untriggerable, but absent
+from gha, gha_ok and gha_errors as well. `repo` is now a parameter on all
+seven tools. This was the real blocker; input support alone would have
+changed nothing.
 
-2. WRONG REPO, AND NOT OVERRIDABLE. GH_REPO is hardcoded to
-   <owner>/cloud, so every Android/APK ship workflow — which lives in the
-   `unix` monorepo — was invisible to this MCP no matter what was passed.
-   This was the gap that actually blocked driving a deploy; the missing
-   inputs would not have mattered without it. `repo` is now a parameter.
+NO INPUTS. gha_trigger ran `gh workflow run` with no -f/--field, so a
+workflow_dispatch input could never be sent and any input-gated workflow
+was unreachable. Now inputs/ref/repo.
 
-3. NO RERUN, NO PER-RUN LOGS. A transient infrastructure failure (an
-   upstream registry 401/5xx, an Actions cache outage) could be observed
-   but not retried, and gha_errors only reaches the last 24h, so
-   diagnosing any older run meant leaving the MCP for the web UI.
+NO LIFECYCLE. A run could be seen but not retried, cancelled, or fetched
+by id — and gha_errors only reaches 24h, so anything older meant leaving
+the MCP for the web UI. Added gha_rerun (--failed by default, so a flake
+does not re-pay for the whole matrix), gha_cancel (a run on the wrong ref
+or a stuck matrix burning runner minutes), and gha_run_logs (one run by
+id, tailed to 400 lines because a matrix log is megabytes).
 
-Added: `inputs`, `ref` and `repo` on gha_trigger; devops.workflows.gha_rerun
-(defaults to --failed, so a flake does not re-pay for the whole matrix);
-devops.workflows.gha_run_logs (one run by id, tailed to 400 lines because
-a matrix log is megabytes).
-
-Inputs are rejected for a bulk 'all' trigger rather than silently dropped:
+Inputs are refused for a bulk 'all' trigger rather than silently dropped:
 inputs are per-workflow by definition, and thirty workflows quietly
-ignoring one reads as success while doing nothing.
+ignoring one reads as success while doing nothing. Input names are
+validated against [A-Za-z_][A-Za-z0-9_-]* because gh parses a leading '-'
+as a flag — execAsync passes an argv array, so there is no shell to
+inject into, but flag injection is still real.
 
-gh() spawns via execAsync with an argv ARRAY, so there is no shell to
-inject into — but a key beginning with "-" would still be parsed by gh as
-a flag, so input names are validated against [A-Za-z_][A-Za-z0-9_-]* and
-values carrying newlines are refused.
+Typechecked against the real dependency tree: 9 pre-existing errors
+before this change, 9 after, none in the added code. The workflows.ts one
+is the long-standing safeRun return-type mismatch at line 26, shared with
+finops.ts and vps-ops.ts and deliberately untouched.
 
-Typechecked against the real dependency tree: 9 pre-existing errors before
-this change, 9 after, none in the added code. The three that touch
-workflows.ts are the long-standing safeRun return-type mismatch at line
-26, shared with finops.ts and vps-ops.ts and untouched here.
+NOTE: this widens what the bearer token can reach. The MCP's actual power
+is still bounded by the gh token on the host — if that token cannot see
+the unix repo, these parameters will return 'not found' rather than
+acting.
 ---
- .../src/code/mcp/tools/workflows.ts           | 147 +++++++++++++++---
- 1 file changed, 128 insertions(+), 19 deletions(-)
+ .../src/code/mcp/tools/workflows.ts           | 213 +++++++++++++++---
+ 1 file changed, 176 insertions(+), 37 deletions(-)
 
 diff --git a/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/tools/workflows.ts b/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/tools/workflows.ts
-index d24cbb3..ae0b298 100644
+index d24cbb3..74824cc 100644
 --- a/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/tools/workflows.ts
 +++ b/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/tools/workflows.ts
 @@ -1,4 +1,4 @@
 -// ── Workflows — GHA + Dagu workflow tools (10 tools) ──
-+// ── Workflows — GHA + Dagu workflow tools (12 tools) ──
++// ── Workflows — GHA + Dagu workflow tools (13 tools) ──
  // Full status, error reports, trigger workflows
  
  import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+@@ -94,10 +94,10 @@ interface GhaRun {
+   event?: string;
+ }
+ 
+-async function ghaRuns24h(filter?: string): Promise<{ runs: GhaRun[]; error?: string }> {
++async function ghaRuns24h(filter?: string, repo = GH_REPO): Promise<{ runs: GhaRun[]; error?: string }> {
+   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+   const args = [
+-    "run", "list", "--repo", GH_REPO,
++    "run", "list", "--repo", repo,
+     "--limit", "100",
+     "--json", "name,workflowName,status,conclusion,updatedAt,headBranch,databaseId,url,event",
+   ];
 @@ -114,8 +114,8 @@ async function ghaRuns24h(filter?: string): Promise<{ runs: GhaRun[]; error?: st
    }
  }
@@ -69,6 +85,51 @@ index d24cbb3..ae0b298 100644
    if (!r.ok) return [];
    try { return JSON.parse(r.stdout); } catch { return []; }
  }
+@@ -185,17 +185,17 @@ async function daguHistory(dagName: string): Promise<unknown[]> {
+ // TOOL: workflows_gha
+ // ──────────────────────────────────────────────────────────────────────────────
+ 
+-async function workflowsGha(): Promise<string> {
++async function workflowsGha(repo = GH_REPO): Promise<string> {
+   const sections: string[] = [];
+   sections.push("GHA WORKFLOWS — LAST 24H");
+   sections.push("═".repeat(70));
+ 
+   // Available workflows
+-  const wfs = await ghaWorkflows();
++  const wfs = await ghaWorkflows(repo);
+   sections.push(`\n${wfs.length} workflows registered (${wfs.filter((w) => w.state === "active").length} active)\n`);
+ 
+   // Recent runs
+-  const { runs, error } = await ghaRuns24h();
++  const { runs, error } = await ghaRuns24h(undefined, repo);
+   if (error) {
+     sections.push(`Error fetching runs: ${error}`);
+     return sections.join("\n");
+@@ -251,12 +251,12 @@ async function workflowsGha(): Promise<string> {
+ // TOOL: workflows_gha_errors_24
+ // ──────────────────────────────────────────────────────────────────────────────
+ 
+-async function workflowsGhaErrors(): Promise<string> {
++async function workflowsGhaErrors(repo = GH_REPO): Promise<string> {
+   const sections: string[] = [];
+   sections.push("GHA FAILURES — LAST 24H");
+   sections.push("═".repeat(70));
+ 
+-  const { runs, error } = await ghaRuns24h("failure");
++  const { runs, error } = await ghaRuns24h("failure", repo);
+   if (error) return `Error: ${error}`;
+ 
+   if (runs.length === 0) {
+@@ -273,7 +273,7 @@ async function workflowsGhaErrors(): Promise<string> {
+     // Try to get failure logs
+     const logResult = await gh([
+       "run", "view", String(r.databaseId),
+-      "--repo", GH_REPO,
++      "--repo", repo,
+       "--log-failed",
+     ], 15_000);
+ 
 @@ -297,17 +297,53 @@ async function workflowsGhaErrors(): Promise<string> {
  // TOOL: workflows_gha_trigger
  // ──────────────────────────────────────────────────────────────────────────────
@@ -128,7 +189,7 @@ index d24cbb3..ae0b298 100644
          return { name: wf.name, ok: r.ok, error: r.stderr.trim() };
        }),
      );
-@@ -317,19 +353,64 @@ async function workflowsGhaTrigger(workflowName?: string): Promise<string> {
+@@ -317,19 +353,78 @@ async function workflowsGhaTrigger(workflowName?: string): Promise<string> {
        }
      }
    } else {
@@ -171,6 +232,20 @@ index d24cbb3..ae0b298 100644
 +}
 +
 +// ──────────────────────────────────────────────────────────────────────────────
++// TOOL: workflows_gha_cancel
++// ──────────────────────────────────────────────────────────────────────────────
++
++// Completes the control surface: without cancel, a run started in error (wrong
++// ref, wrong inputs, a stuck matrix burning runner minutes) could only be
++// stopped from the web UI.
++async function workflowsGhaCancel(runId: string, repo = GH_REPO): Promise<string> {
++  if (!/^\d+$/.test(runId)) return `✗ invalid run id "${runId}" — expected digits`;
++  const r = await gh(["run", "cancel", runId, "--repo", repo], 20_000);
++  if (r.ok) return `✓ Cancelled run ${runId} in ${repo}`;
++  return `✗ Failed to cancel ${runId} — ${r.stderr.trim() || r.stdout.trim()}`;
++}
++
++// ──────────────────────────────────────────────────────────────────────────────
 +// TOOL: workflows_gha_run_logs
 +// ──────────────────────────────────────────────────────────────────────────────
 +
@@ -198,7 +273,48 @@ index d24cbb3..ae0b298 100644
  // ──────────────────────────────────────────────────────────────────────────────
  // TOOL: workflows_dagu
  // ──────────────────────────────────────────────────────────────────────────────
-@@ -486,19 +567,47 @@ export function registerWorkflowTools(server: McpServer): void {
+@@ -455,24 +550,30 @@ export function registerWorkflowTools(server: McpServer): void {
+   // ── GHA ──
+   server.tool(
+     "devops.workflows.gha",
+-    "GHA x86 runner (ubuntu-latest): all workflow runs last 24h — status, counts, per-workflow breakdown",
+-    {},
+-    () => safeRun(workflowsGha),
++    "GHA: all workflow runs last 24h — status, counts, per-workflow breakdown. `repo` targets another repo.",
++    {
++      repo: z.string().optional().describe("owner/repo (default: the cloud repo). Use the unix monorepo for app/APK ship workflows."),
++    },
++    ({ repo }) => safeRun(() => workflowsGha(repo ?? GH_REPO)),
+   );
+ 
+   server.tool(
+     "devops.workflows.gha_errors",
+-    "GHA: failed runs last 24h with failure logs",
+-    {},
+-    () => safeRun(workflowsGhaErrors),
++    "GHA: failed runs last 24h with failure logs. `repo` targets another repo.",
++    {
++      repo: z.string().optional().describe("owner/repo (default: the cloud repo). Use the unix monorepo for app/APK ship workflows."),
++    },
++    ({ repo }) => safeRun(() => workflowsGhaErrors(repo ?? GH_REPO)),
+   );
+ 
+   server.tool(
+     "devops.workflows.gha_ok",
+-    "GHA: successful runs last 24h",
+-    {},
+-    () => safeRun(async () => {
+-      const { runs, error } = await ghaRuns24h("success");
++    "GHA: successful runs last 24h. `repo` targets another repo.",
++    {
++      repo: z.string().optional().describe("owner/repo (default: the cloud repo). Use the unix monorepo for app/APK ship workflows."),
++    },
++    ({ repo }) => safeRun(async () => {
++      const { runs, error } = await ghaRuns24h("success", repo ?? GH_REPO);
+       if (error) return `Error: ${error}`;
+       if (runs.length === 0) return "No successful runs in the last 24 hours.";
+       const rows = runs.map((r) => [
+@@ -486,19 +587,57 @@ export function registerWorkflowTools(server: McpServer): void {
  
    server.tool(
      "devops.workflows.gha_trigger",
@@ -235,6 +351,16 @@ index d24cbb3..ae0b298 100644
 +    },
 +    ({ run_id, failed_only, repo }) =>
 +      safeRun(() => workflowsGhaRerun(run_id, failed_only ?? true, repo ?? GH_REPO)),
++  );
++
++  server.tool(
++    "devops.workflows.gha_cancel",
++    "Cancel an in-flight GHA run by id — for a run started on the wrong ref or with the wrong inputs, or a stuck matrix burning runner minutes.",
++    {
++      run_id: z.string().describe("Numeric run id."),
++      repo: z.string().optional().describe("owner/repo (default: the cloud repo)."),
++    },
++    ({ run_id, repo }) => safeRun(() => workflowsGhaCancel(run_id, repo ?? GH_REPO)),
 +  );
 +
 +  server.tool(
