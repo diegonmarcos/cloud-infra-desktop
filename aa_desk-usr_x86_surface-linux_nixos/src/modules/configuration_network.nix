@@ -517,6 +517,19 @@ in {
         if ${pkgs.iproute2}/bin/ip -4 route show default | ${pkgs.gnugrep}/bin/grep -q .; then
           exit 0
         fi
+        # clatd finds the NAT64 prefix by RFC7050: it asks for AAAA on
+        # ipv4only.arpa and reads the PLAT prefix out of the synthesized answer.
+        # That needs a DNS64 resolver — and plenty of IPv6-only networks provide
+        # NAT64 with no DNS64, or neither. Observed 2026-08-11 on a real v6-only
+        # WiFi: the restart below fired correctly and clatd still died with
+        # "No PLAT prefix could be discovered. Your ISP probably doesn't provide
+        # NAT64/DNS64 PLAT service." Pointing the link at nat64.json's public
+        # DNS64 resolvers made discovery succeed on the very next start.
+        # Only override when the link genuinely can't synthesize, so a network
+        # with working DNS64 keeps its own resolver.
+        if ! ${config.systemd.package}/bin/resolvectl query --type=AAAA --legend=no ipv4only.arpa >/dev/null 2>&1; then
+          ${config.systemd.package}/bin/resolvectl dns "$IFACE" ${lib.concatStringsSep " " nat64Data.public_dns64_fallback_resolvers}
+        fi
         ${config.systemd.package}/bin/systemctl restart clatd
       '';
       type = "basic";
