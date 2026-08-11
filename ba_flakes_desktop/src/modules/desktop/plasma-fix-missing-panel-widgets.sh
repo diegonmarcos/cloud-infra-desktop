@@ -91,7 +91,7 @@ while [ "$i" -lt "$WIDGET_COUNT" ]; do
   # Find the containment id of the panel at this screen edge: the first
   # [Containments][N] block (no nested subsection) whose direct keys carry
   # both plugin=org.kde.panel and location=$LOC_CODE. Same awk convention
-  # as fixSystemTray/fixBatteryPercentage in plasma.nix — track the current
+  # as fixBatteryPercentage in plasma.nix — track the current
   # top-level containment header, stop collecting at the next "[" line, and
   # only match keys seen before that boundary.
   CONTAINMENT_ID="$(awk -v loc="$LOC_CODE" '
