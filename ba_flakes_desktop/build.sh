@@ -59,9 +59,16 @@ NC='\033[0m' # No Color
 # LOGGING FUNCTIONS
 # ============================================================================
 
+# mkdir -p the log dir on every call, not once at startup: LOG_FILE lives under
+# $HOME/git/cloud-data/logs, which exists on a real workstation but never on a
+# GHA runner. The runner invokes this under `bash -e`, so the very first log()
+# died with "Directory nonexistent" and took ci-build with it before a single
+# nix command ran. Both redirects are tolerant for the same reason -- a log
+# write must never be what fails a build.
 log() {
     timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
-    printf "[%s] %s\n" "$timestamp" "$*" >> "$LOG_FILE"
+    mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+    printf "[%s] %s\n" "$timestamp" "$*" >> "$LOG_FILE" 2>/dev/null || true
 }
 
 log_info() {
