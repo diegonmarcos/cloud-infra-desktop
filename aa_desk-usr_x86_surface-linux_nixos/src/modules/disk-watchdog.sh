@@ -46,6 +46,11 @@ COOLDOWN_MIN=$(jq -r '.emergency.cooldown_minutes // 0' "$CONFIG_JSON")
 NO_MERCY_PCT=$(jq -r '.emergency.no_mercy_pct // 99' "$CONFIG_JSON")
 NTFY_TOPIC=$(jq -r '.actions.alert_ntfy.topic // "diegonmarcos-infra"' "$CONFIG_JSON")
 NTFY_PRIORITY=$(jq -r '.emergency.ntfy_priority // "urgent"' "$CONFIG_JSON")
+# octocode code-index cache root + staleness cutoff (days) — data-driven per
+# project rule, same mechanism as NTFY_TOPIC above. Defaults to "" (never a
+# destructive glob) / 30 so a missing key cannot silently widen the cutoff.
+OCTOCODE_PATH=$(jq -r '.actions.purge_octocode_stale.path // ""' "$CONFIG_JSON")
+OCTOCODE_STALE_DAYS=$(jq -r '.actions.purge_octocode_stale.stale_days // 30' "$CONFIG_JSON")
 
 EMERG_WORST_PCT=0
 # Reclaim-first gate: 1 = still full after reclaim (punish), 0 = self-healed
@@ -121,6 +126,23 @@ run_action() {
       # generation -- the correct trade at 99%, where the alternative is
       # freezing the user's work.
       nix-collect-garbage --delete-older-than 1d 2>/dev/null || true ;;
+    purge_octocode_stale)
+      # octocode (cloud-cgc-mcp's code-index cache) is REBUILDABLE per repo —
+      # dropping a per-repo index dir only costs re-indexing time on next use.
+      # 2026-08-11: 14G across 175 per-repo dirs, 70 of them (4.0GB) stale
+      # >30d, was the single largest reclaimable item on the box at a moment
+      # the emergency tier reported freeing 0 bytes and fell through to
+      # freezing+SIGTERM of workload.slice.
+      #
+      # Guarded: OCTOCODE_PATH must be non-empty and an existing directory
+      # before find ever runs, so a missing/unset config value is a no-op,
+      # never a destructive glob. -mindepth 1 -maxdepth 1 -type d restricts
+      # the match to DIRECT CHILD directories of the root only — the root
+      # itself (mindepth 1) is never a match, and nothing below a child is
+      # ever recursed into for matching (maxdepth 1).
+      if [ -n "$OCTOCODE_PATH" ] && [ -d "$OCTOCODE_PATH" ]; then
+        find "$OCTOCODE_PATH" -mindepth 1 -maxdepth 1 -type d -mtime "+${OCTOCODE_STALE_DAYS}" -exec rm -rf {} + 2>/dev/null || true
+      fi ;;
     dev_store_gc)
       # GC the p5 dev-store chroot store (storeDir=/nix/store, root on p5). The
       # bc_flakes_dev-store profile gcroot pins the current toolchain.

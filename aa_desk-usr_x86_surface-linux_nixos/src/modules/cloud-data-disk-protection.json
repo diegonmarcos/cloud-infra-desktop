@@ -30,6 +30,7 @@
       "docker_prune_volumes_dangling",
       "nix_gc_emergency",
       "dev_store_gc",
+      "purge_octocode_stale",
       "recheck_gate",
       "freeze_nonsystem",
       "kill_nonsystem",
@@ -65,7 +66,8 @@
         "actions_on_critical": [
           "alert_ntfy",
           "cargo_sweep",
-          "docker_prune_images"
+          "docker_prune_images",
+          "purge_octocode_stale"
         ]
       },
       {
@@ -436,6 +438,15 @@
       "description": "GC the p5 dev-store chroot Nix store (keeps the current profile gcroot)",
       "safe_mode": true,
       "script": "nix store gc --store 'local?root=/mnt/shared-lib/dev-store&store=/nix/store'"
+    },
+    "purge_octocode_stale": {
+      "type": "exec",
+      "description": "Delete stale octocode per-repo code-index dirs (direct children of `path` only, mtime older than `stale_days`) — rebuildable, costs only re-indexing time on next use",
+      "_comment": "2026-08-11: /home/diego/.local/share/octocode (the cloud-cgc-mcp code-index cache) held 14G across 175 per-repo index dirs, 70 of them (4.0GB) with mtime >30d. This was the single largest reclaimable item on the box at the exact moment the emergency tier reported freeing 0 bytes and fell through to freezing+SIGTERM of workload.slice. `path` and `stale_days` are read at runtime by disk-watchdog.sh via jq (same mechanism already used for actions.alert_ntfy.topic and the emergency.* fields) — never hardcoded in the script. 30d is the measured basis: conservative, well past normal re-use cycles for an index.",
+      "safe_mode": true,
+      "path": "/home/diego/.local/share/octocode",
+      "stale_days": 30,
+      "script": "find \"$OCTOCODE_PATH\" -mindepth 1 -maxdepth 1 -type d -mtime +$OCTOCODE_STALE_DAYS -exec rm -rf {} +"
     },
     "emergency_signal": {
       "type": "signal",
