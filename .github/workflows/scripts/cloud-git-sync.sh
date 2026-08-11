@@ -487,6 +487,40 @@ section "6/6 refresh submodules"
 if [ -f .gitmodules ]; then
   step "git submodule update --init --recursive --remote --rebase"
   git submodule update --init --recursive --remote --rebase 2>&1 | sed 's/^/  │ /'
+
+  # Sweep orphaned nested-submodule stubs (2026-08-11). When a NESTED
+  # submodule fails to clone — which happens on every machine lacking
+  # credentials for a private one — git still leaves the mount-point
+  # directory behind containing a lone `.git` file whose `gitdir:` points
+  # at a .git/modules/... path that was never created. Nothing is tracked
+  # under it, it is not in .gitmodules, and it is invisible to the parent
+  # repo, but `git status` inside the SUBMODULE reports it as untracked
+  # forever. Four of these (cloud-master, Unix, front, front-assets-cdn)
+  # accumulated in IV_cloud-configs and tripped the stop-hook's
+  # untracked-files check on every run.
+  #
+  # Only a directory that is ALL of: untracked, containing nothing but a
+  # `.git` file, and whose gitdir target does not exist, is removed. A
+  # populated or half-populated submodule is never touched — losing real
+  # work to a cleanup routine would be far worse than a noisy status.
+  _swept=0
+  for _sm in $(git submodule --quiet foreach --recursive 'echo "$toplevel/$sm_path"' 2>/dev/null); do
+    [ -d "$_sm" ] || continue
+    ( cd "$_sm" 2>/dev/null || exit 0
+      git status --porcelain 2>/dev/null | sed -n 's/^?? //p' | while IFS= read -r _d; do
+        _d="${_d%/}"
+        [ -d "$_d" ] || continue
+        # exactly one entry, and it is `.git`
+        [ "$(ls -A "$_d" 2>/dev/null | wc -l)" = "1" ] || continue
+        [ -f "$_d/.git" ] || continue
+        _gd=$(sed -n 's/^gitdir: //p' "$_d/.git" 2>/dev/null)
+        [ -n "$_gd" ] || continue
+        case "$_gd" in /*) _abs="$_gd" ;; *) _abs="$_d/$_gd" ;; esac
+        [ -e "$_abs" ] && continue          # real submodule — leave alone
+        rm -rf "$_d" && printf '  │ swept orphaned stub: %s (dangling gitdir)\n' "$_d"
+      done ) && _swept=$((_swept + 1))
+  done
+
   ok "submodules refreshed"
 else
   step "no .gitmodules in this repo — skipped"
