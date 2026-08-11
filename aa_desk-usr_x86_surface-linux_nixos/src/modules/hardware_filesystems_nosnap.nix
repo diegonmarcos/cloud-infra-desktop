@@ -53,15 +53,18 @@ let
   # ADDING ONE: append here, run the migration script, switch. Nothing else.
   # The rule for what belongs: it must be REGENERABLE, and losing it on a crash
   # must cost only time.
+  # `mode` drives the tmpfiles rule below. A btrfs subvolume root is created
+  # root:root 0755, so WITHOUT that rule every one of these mounts lands
+  # unwritable by the user who owns everything under it.
   nosnap = [
-    { path = "/home/diego/git";                        subvol = "@nosnap/git";              note = "24G, biggest churn source; all pushed"; }
-    { path = "/home/diego/.local/share/octocode";      subvol = "@nosnap/octocode";         note = "9.1G index; canonical copy is GHCR cloud-cgc-mcp-octocode-db"; }
-    { path = "/home/diego/.local/share/claude";        subvol = "@nosnap/claude";           note = "857M agent state"; }
-    { path = "/home/diego/.local/share/antigravity-ide"; subvol = "@nosnap/antigravity-ide"; note = "732M IDE state"; }
-    { path = "/home/diego/.cache";                     subvol = "@nosnap/cache";            note = "definitionally disposable"; }
-    { path = "/home/diego/.cargo";                     subvol = "@nosnap/cargo";            note = "rebuildable"; }
-    { path = "/home/diego/.gradle";                    subvol = "@nosnap/gradle";           note = "rebuildable"; }
-    { path = "/home/diego/.node_modules";              subvol = "@nosnap/node_modules";     note = "rebuildable"; }
+    { path = "/home/diego/git";                        subvol = "@nosnap/git";              mode = "0755"; note = "24G, biggest churn source; all pushed"; }
+    { path = "/home/diego/.local/share/octocode";      subvol = "@nosnap/octocode";         mode = "0700"; note = "9.1G index; canonical copy is GHCR cloud-cgc-mcp-octocode-db"; }
+    { path = "/home/diego/.local/share/claude";        subvol = "@nosnap/claude";           mode = "0700"; note = "857M agent state"; }
+    { path = "/home/diego/.local/share/antigravity-ide"; subvol = "@nosnap/antigravity-ide"; mode = "0700"; note = "732M IDE state"; }
+    { path = "/home/diego/.cache";                     subvol = "@nosnap/cache";            mode = "0755"; note = "definitionally disposable"; }
+    { path = "/home/diego/.cargo";                     subvol = "@nosnap/cargo";            mode = "0755"; note = "rebuildable"; }
+    { path = "/home/diego/.gradle";                    subvol = "@nosnap/gradle";           mode = "0755"; note = "rebuildable"; }
+    { path = "/home/diego/.node_modules";              subvol = "@nosnap/node_modules";     mode = "0755"; note = "rebuildable"; }
   ];
 
   # nofail + a short device-timeout everywhere: a cache that fails to mount must
@@ -81,4 +84,23 @@ let
 in
 {
   fileSystems = lib.listToAttrs (map mkMount nosnap);
+
+  # Own the MOUNTED subvolume roots (2026-08-11).
+  #
+  # A btrfs subvolume root is born root:root 0755. Declaring the mount is not
+  # enough: once mounted, the directory the user sees is that root, so
+  # /home/diego/.cache became unwritable by diego and everything that caches
+  # there broke at once — `nix develop` died with "creating directory
+  # '/home/diego/.cache/nix': Permission denied" (and, because it exits 1 with
+  # NO message, every build using it appeared to fail silently), starship
+  # spammed "Unable to create log dir", and plasmashell could not build its
+  # icon cache so the whole panel rendered blank.
+  #
+  # Fixing it by hand does not survive: a switch re-asserts the subvolume and
+  # the ownership reverts, which is exactly what happened tonight. It has to be
+  # declared. systemd-tmpfiles-setup runs After=local-fs.target, i.e. after
+  # these (nofail) mounts, so the rule applies to the mounted root and not to
+  # the directory hidden underneath it.
+  systemd.tmpfiles.rules =
+    map (e: "d ${e.path} ${e.mode} diego users - -") nosnap;
 }
