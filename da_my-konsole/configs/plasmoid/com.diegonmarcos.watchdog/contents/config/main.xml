@@ -11,15 +11,25 @@
   <group name="General">
     <!-- Which cluster this instance renders. One widget serves the whole
          panel; another metric is a config change rather than another applet,
-         which is the thing being fixed. Valid values: "left", "right",
-         "guard" (2026-08-07 — freeze-guard voter state from
-         /run/freeze-guard.json), "proctable" (2026-08-07 — sortable
-         multi-column process table with multiple kill signals, replacing
-         the compact/expanded content of an instance in this mode). No
-         <choices> restriction here (plain String), so validity is enforced
-         in main.qml's mode Loaders, not this schema. -->
+         which is the thing being fixed. Valid values (2026-08-11 — replaced
+         the old "left"/"right" 4-cluster split with one mode per domain, so
+         each widget can carry its own title and autoscale to the panel
+         instead of several clusters fighting over one row):
+           "storage"  — per-mount disk bars + disk read/write rates
+           "mem"      — layered mem ring, swap pie, user-slice pie
+           "cpu"      — cpu pie, vram pie (GPU sibling of cpu), load1/5/15
+           "network"  — net_rx / net_tx
+           "psi"      — the 3x2 some/full PSI grid (Sc Si Sm / Fc Fi Fm)
+           "guard"    — freeze-guard voters from /run/freeze-guard.json
+           "proctable"— sortable multi-column process table with multiple
+                        kill signals, replacing the compact/expanded content
+                        of an instance in this mode
+         The actual per-mode title + item composition is data, not here —
+         see contents/data/clusters.json. No <choices> restriction here
+         (plain String), so validity is enforced in main.qml's clusters
+         lookup, not this schema. -->
     <entry name="mode" type="String">
-      <default>left</default>
+      <default>cpu</default>
     </entry>
     <!-- The snapshot lives in /run/user/<uid> and QML has no getenv. Declared
          rather than hardcoded so this is not silently single-user. -->

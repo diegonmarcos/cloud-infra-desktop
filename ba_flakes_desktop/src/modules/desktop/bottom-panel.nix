@@ -12,12 +12,13 @@
 #
 # 2026-08-07: ONE com.diegonmarcos.watchdog instance added back, mode=
 # "proctable" — a sortable process table with multiple kill signals, not a
-# summary-numbers duplicate of the top panel's left/right/guard instances (see
-# the long-form history below for why THOSE were kept off this panel). This is
-# also the plugin's FIRST addWidget() call in the bottom panel's script, so the
-# "3rd-and-later same-plugin instance silently dropped" bug documented in
-# plasma-panel-repair.json (which is about the TOP panel's 3rd instance,
-# mode=guard) does not apply here and no repair-list entry was added for it.
+# summary-numbers duplicate of the top panel's storage/mem/cpu/network/
+# guard/psi instances (see the long-form history below for why THOSE were
+# kept off this panel). It is also the plugin's 7th addWidget() call across
+# the whole (cross-panel, batched-into-one) activation script — the drop
+# bug documented in plasma-panel-repair.json is counted per plugin id
+# across ALL panels, not per panel, so being the FIRST watchdog call on
+# THIS panel does not exempt it; it needs (and has) a repair-list entry.
 #
 # 2026-08-02: the system-monitor widget is gone. Its history is worth keeping
 # because it explains why the replacement is not another one: it began as 7
@@ -63,19 +64,19 @@ in
         { name = "org.kde.plasma.icontasks"; config.General.launchers = launchers; }
         "org.kde.plasma.panelspacer"
 
-        # The process-table instance. Deliberately NOT mode=left/right/guard —
-        # those are summary numbers already shown on the top panel, and a copy
-        # here would just poll and draw the same snapshot a second time.
-        # proctable is a distinct capability (sortable per-process table,
-        # multiple kill signals), so one instance earns its place here.
+        # The process-table instance. Deliberately NOT one of the summary
+        # modes (storage/mem/cpu/network/guard/psi) already shown on the top
+        # panel, which would just poll and draw the same snapshot a second
+        # time. proctable is a distinct capability (sortable per-process
+        # table, multiple kill signals), so one instance earns its place here.
         { name = "com.diegonmarcos.watchdog"; config.General = { mode = "proctable"; uid = data.watchdog_uid; }; }
         "org.kde.plasma.marginsseparator"
 
         # ── The rest of this panel carries NO other watchdog widget ──
-        # top-panel.json already carries the three summary instances
-        # (mode=left, mode=right, mode=guard) flanking the clock. The history
-        # below is kept because it explains why the bottom panel had no
-        # system monitor of ANY kind before the proctable instance above.
+        # top-panel.json already carries the six summary instances
+        # (storage, mem, cpu, network, guard, psi) flanking the clock. The
+        # history below is kept because it explains why the bottom panel had
+        # no system monitor of ANY kind before the proctable instance above.
         #
         # ── (former) Watchdog widget — reads the snapshot, runs no sensor stack ──
         # Was ONE consolidated org.kde.plasma.systemmonitor carrying six

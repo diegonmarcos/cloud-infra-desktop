@@ -41,7 +41,7 @@ let
 in
 {
   imports = [
-    ./top-panel.nix       # top panel: disk · mem · cpu │ clock │ psi · psi · psi · cpu
+    ./top-panel.nix       # top panel: storage, mem, cpu, network │ clock │ guard, psi
     ./bottom-panel.nix    # bottom panel: kickoff, pager, tasks, sysmon, TWO trays
     ./default-session.nix # the fixed default layout + its autostart entry
   ];

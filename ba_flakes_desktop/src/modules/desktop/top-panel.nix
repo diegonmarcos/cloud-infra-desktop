@@ -1,22 +1,23 @@
 # top-panel.nix — FULLY DECLARATIVE top panel (plasma-manager).
 #
-# Captured from the live layout on 2026-07-08 (user-blessed "source of truth"):
-# 15 widgets — a monitor cluster (Disk/CPU/Cores/Mem/Write-Read + two PSI
-# pressure widgets) around a centre clock. Data lives in top-panel.json;
-# this file only renders it, exactly like bottom-panel.nix.
+# 2026-08-11: nine widgets — four com.diegonmarcos.watchdog summary widgets
+# (storage, mem, cpu, network), a panelspacer, the digital clock, a second
+# panelspacer, then two more watchdog widgets (guard, psi — psi is
+# deliberately the rightmost widget on the panel). Data lives in
+# top-panel.json, including the widget order; this file only renders it
+# generically (map over data.widgets), exactly like bottom-panel.nix — it
+# has no hardcoded widget count or index, so the widget list can grow or
+# shrink purely by editing the JSON. See top-panel.json's own _comment for
+# the full history (this replaced fourteen org.kde.plasma.systemmonitor
+# instances) and plasma-panel-repair.json for why four of these six
+# watchdog widgets need a post-activation repair pass to actually appear.
 #
-# WHY the original plugin variants are preserved (systemmonitor.cpu /
-# .cpucore / .memory / .diskusage rather than all-generic): KSysGuard has a
-# backend bug where only the FIRST generic org.kde.plasma.systemmonitor in a
-# containment renders its sensors (documented in bottom-panel.nix). Keeping
-# the specific variants sidesteps it — every widget renders.
-#
-# Each widget is emitted in plasma-manager's raw form { name; config; } where
-# config mirrors the appletsrc [Configuration][<group>] sections verbatim
-# (Appearance / Sensors / SensorColors / SensorLabels). Duplicate-accumulation
-# is prevented by programs.plasma.overrideConfig = true (set in plasma.nix):
-# plasma-manager regenerates the whole panel set from THIS declaration on every
-# switch, so nothing can pile up in the live appletsrc anymore.
+# Each widget is emitted in plasma-manager's raw form { name; config; } —
+# config mirrors the appletsrc [Configuration][<group>] sections verbatim.
+# Duplicate-accumulation is prevented by programs.plasma.overrideConfig =
+# true (set in plasma.nix): plasma-manager regenerates the whole panel set
+# from THIS declaration on every switch, so nothing can pile up in the live
+# appletsrc anymore.
 { config, lib, pkgs, ... }:
 let
   data = builtins.fromJSON (builtins.readFile ./top-panel.json);
