@@ -89,33 +89,19 @@ in {
     settings.StartupWMClass = "Waydroid";
   };
 
-  # Pin the launcher to the KDE Plasma taskbar (icontasks) — plasma-manager's
-  # configFile cannot write the hierarchical [Containments][N][Applets][M] groups
-  # (it escapes the brackets into broken \x5d\x5b headers), so this uses
-  # kwriteconfig6 in home.activation, the sanctioned pattern for hierarchical KDE
-  # INI groups. Idempotent: skips if already pinned. The pin renders on the next
-  # plasmashell restart/login.
-  home.activation.pinWaydroidContainerTaskbar = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    rc="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
-    entry="applications:${desktopId}.desktop"
-    if [ -f "$rc" ] && ! ${pkgs.gnugrep}/bin/grep -q "$entry" "$rc"; then
-      ids="$(${pkgs.gawk}/bin/awk '
-        /^\[Containments\]\[[0-9]+\]\[Applets\]\[[0-9]+\]$/ {
-          g=$0; sub(/^\[Containments\]\[/,"",g); sub(/\]\[Applets\]\[/," ",g); sub(/\]$/,"",g); grp=g
-        }
-        /^plugin=org\.kde\.plasma\.icontasks$/ { print grp; exit }
-      ' "$rc")"
-      if [ -n "$ids" ]; then
-        cid="''${ids%% *}"; aid="''${ids##* }"
-        cur="$(${pkgs.kdePackages.kconfig}/bin/kreadconfig6 --file "$rc" \
-          --group Containments --group "$cid" --group Applets --group "$aid" \
-          --group Config --group General --key launchers 2>/dev/null || true)"
-        case ",$cur," in *",$entry,"*) : ;; *)
-          run ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 --file "$rc" \
-            --group Containments --group "$cid" --group Applets --group "$aid" \
-            --group Config --group General --key launchers "''${cur:+$cur,}$entry"
-        ;; esac
-      fi
-    fi
-  '';
+  # No taskbar pin here. It used to live in this file as
+  # home.activation.pinWaydroidContainerTaskbar and was removed 2026-08-11 for
+  # two reasons:
+  #
+  #   1. It wrote to [Containments][N][Applets][M][Config][General] -- "Config",
+  #      not "Configuration". plasmashell reads launchers from
+  #      [Configuration][General], so the key it wrote was inert, and because it
+  #      READ from the same wrong group its "append to current" always saw an
+  #      empty list and wrote a single-entry one. The live appletsrc still has
+  #      the bogus [Config][General] section it left behind.
+  #   2. It is redundant. bottom-panel.json owns the launcher row declaratively
+  #      and lists waydroid-container as its 9th entry, so an imperative hook
+  #      pinning one app behind the declarative list's back can only fight it.
+  #
+  # Add or reorder launchers in bottom-panel.json, nowhere else.
 }
