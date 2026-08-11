@@ -37,7 +37,7 @@ in
     Font=JetBrainsMono NF,11,-1,5,50,0,0,0,0,0
 
     [General]
-    Command=/usr/bin/fish
+    Command=/run/current-system/sw/bin/fish
     Name=Profile 1
     Parent=FALLBACK/
     TerminalColumns=120
