@@ -631,6 +631,15 @@ PlasmoidItem {
         // applet whatever width it asks for, so implicitWidth stays derived
         // from the rendered content below.
         implicitWidth: content.implicitWidth
+        // A panel containment sizes an applet from the Layout attached
+        // properties of its compact representation; implicitWidth alone is
+        // not enough for a MouseArea root. Without these, every watchdog
+        // instance was allotted the layout minimum -- effectively zero -- so
+        // all five left-hand instances piled into ~300px at the panel's left
+        // edge and drew their pies and labels on top of one another, while
+        // the rest of the panel sat empty (screenshotted 2026-08-11).
+        Layout.minimumWidth: content.implicitWidth
+        Layout.preferredWidth: content.implicitWidth
         // Height is NOT content-driven: the panel containment dictates it
         // (44px top / 60px bottom), and the widget must not fight that by
         // asking for a height computed from its own content — that was the
