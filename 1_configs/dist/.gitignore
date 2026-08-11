@@ -11,19 +11,33 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 # ══════════════════════════════════════════════════════════
-# REPO: unix (PUBLIC)
-# https://github.com/diegonmarcos/unix
+# REPO: cloud (PUBLIC)
+# https://github.com/diegonmarcos/cloud
 # ══════════════════════════════════════════════════════════
 
 # ── Secrets & Credentials (reinforces global gitignore) ──
-# KEEP IN SYNC with global gitignore: ~/git/unix/ba_flakes_desktop/src/modules/programs/git.nix
-#                                      ~/git/unix/bb_flakes_termux/src/modules/programs/git.nix
+# KEEP IN SYNC WITH:
+#   Pre-commit hook: 1_configs/src/git/hooks/pre-commit  (blocks even git add -f)
+#   Global gitignore: ~/git/unix/ba_flakes_desktop/src/modules/programs/git.nix
+#   Global gitignore: ~/git/unix/bb_flakes_termux/src/modules/programs/git.nix
 ## Decrypted secrets output
 .secrets
 *.secrets
 **/.secrets
 .secrets.d/
 **/.secrets.d/
+## .secrets.json — JSON dumps of decrypted env (build engine output).
+## NOT matched by *.secrets glob (which only matches files literally
+## ending in .secrets, not .secrets.json). Found 2026-05-05 leaking
+## AUTHELIA_CLI_SECRET / CF_API_TOKEN / NTFY_ADMIN_AUTH from dist/.
+.secrets.json
+*.secrets.json
+**/.secrets.json
+**/dist/.secrets.json
+## NOTE: secrets.yaml (+ .new / .draft / .bak variants) are ALLOWED
+## to be tracked — but ONLY when sops-encrypted. The pre-commit hook's
+## content-scan blocks any secret-named file lacking `ENC[AES...]` or
+## `sops:` markers. Fix workflow: sops -e -i secrets.yaml → commit OK.
 ## Environment files
 .env
 .env.*
@@ -55,208 +69,60 @@ terraform.tfvars
 *.tfvars
 !*.tfvars.example
 
+# ── Dependencies (managed by shared ~/.node_modules) ──
+node_modules
+
 # ── Repo-specific ──
-## Large build artifacts - keep folders via .gitkeep
-libs/**
-libs/*
-libs/
-## EXCEPTION: 1_configs/src/lib/ is engine source code, NOT build artifacts.
-## Same convention as the cloud repo. Added 2026-05-16 after the engine broke
-## because inject-header.sh was ignored despite being referenced by build.sh.
-!1_configs/src/lib/
-!1_configs/src/lib/**
-## EXCEPTION: ea_cloud-superapp/libs/ is the gradle multi-module source tree
-## (libs:core, libs:mail, libs:cal, …). Each is its own Android library
-## with build.gradle + src/. NOT build artifacts. Added 2026-05-29 when
-## the scaffold landed and these files silently disappeared on git add;
-## renamed from ea_superapp → ea_cloud-superapp 2026-05-30.
-!ea_cloud-superapp/libs/
-!ea_cloud-superapp/libs/**
-## EXCEPTION: ea_cloud-wallet/libs/ is the gradle multi-module source tree
-## (libs:wallet). Same pattern as ea_cloud-superapp/libs/. Added 2026-07-12.
-!ea_cloud-wallet/libs/
-!ea_cloud-wallet/libs/**
-## EXCEPTION: ea_cloud-nav/libs/ is the gradle multi-module source tree
-## (libs:core, libs:maps, libs:updater). Same pattern as ea_cloud-superapp/libs/.
-## Added 2026-07-22 after ic_3d_cube.xml silently vanished from `git add`.
-!ea_cloud-nav/libs/
-!ea_cloud-nav/libs/**
-## EXCEPTION: ea_cloud-calendar/libs/ is the gradle multi-module source tree
-## (libs:core, libs:updater, libs:cal). Same pattern as ea_cloud-superapp/libs/.
-## Added 2026-08-09 — the FOURTH time this bit us, and the worst: libs/core and
-## libs/updater happened to be tracked already, so nothing looked broken, while
-## libs/cal (created later) was silently ignored from birth. The entire calendar
-## engine — IcsParser, CalSync, CalendarStore, CalModels — plus the CalDAV/VTODO
-## client had never been committed and existed only on one machine's disk.
-## `git status` showed clean. If you add a new module under any libs/, check
-## `git check-ignore` before trusting a clean status.
-!ea_cloud-calendar/libs/
-!ea_cloud-calendar/libs/**
-## EXCEPTION: ea_cloud-news/libs/ is the gradle multi-module source tree
-## (libs:core, libs:updater, libs:news). Added 2026-08-09 BEFORE the module
-## existed, rather than after discovering it had never been committed — the
-## four entries above were all written after the fact. If you scaffold a new
-## app under a libs/ tree, add its exception here in the same commit as the
-## scaffold and confirm with `git check-ignore`; a clean `git status` proves
-## nothing when the rule is this broad.
-!ea_cloud-news/libs/
-!ea_cloud-news/libs/**
-## Signing keystores are generated in CI only — never vendored.
-ea_cloud-superapp/**/*.keystore
-ea_cloud-superapp/**/*.jks
-ea_cloud-comms/**/*.keystore
-ea_cloud-comms/**/*.jks
-ea_cloud-ide/**/*.keystore
-ea_cloud-ide/**/*.jks
-ea_cloud-nav/**/*.keystore
-ea_cloud-nav/**/*.jks
-## Fork-clone workspace: build.json::forks.<key>.tracker_dir materializes the
-## upstream clones here (Mattermost / FairEmail / Fossify / Element-X) via
-## `build.sh materialize-fork`. Huge third-party trees — NEVER vendored. OUR
-## changes live as git-am patch series in ea_cloud-comms/forks/<key>/patches/
-## (tracked). Was covered by the old `ea_*-*/` blanket rule, removed 2026-07-10.
-ea_upstreams-sources/
-ea_cloud-wallet/**/*.keystore
-ea_cloud-wallet/**/*.jks
-ea_cloud-browser/**/*.keystore
-ea_cloud-browser/**/*.jks
-ea_cloud-vault/**/*.keystore
-ea_cloud-vault/**/*.jks
-ea_cloud-media-center/**/*.keystore
-ea_cloud-media-center/**/*.jks
-## Orphan gitlink guard (restored 2026-07-22). These 4 dirs are empty nested-repo
-## placeholders with NO .gitmodules entry. An auto-sync `git add -A` keeps
-## re-capturing them as mode-160000 gitlinks, which makes actions/checkout fail
-## ("fatal: No url found for submodule path ...") and breaks ALL CI. They have no
-## real repo (~/git/<name> absent) and no tracked content. Formerly covered by the
-## `ea_*-*/` blanket rule removed 2026-07-10; 93fdc30c re-added explicit ignores
-## that were later lost. If any becomes a real app, whitelist it like ea_cloud-*.
-ea_keyboard-dicts/
-ea_keyboard-heliboard/
-ea_net-firestack/
-ea_zoomies-pets/
-## Re-ignore Gradle build outputs inside the whitelisted ea_cloud-ide/ tree
-## (the !ea_cloud-ide/** whitelist would otherwise track build/.gradle dirs).
-## Added 2026-06-13.
-ea_cloud-ide/.gradle/
-ea_cloud-ide/build/
-ea_cloud-ide/**/build/
-ea_cloud-nav/.gradle/
-ea_cloud-nav/build/
-ea_cloud-nav/**/build/
-ea_cloud-media-center/.gradle/
-ea_cloud-media-center/build/
-ea_cloud-media-center/**/build/
-## ea_cloud-calendar was added after this list and never got its entries, so a
-## local ./gradlew left .gradle/ and build/ untracked-but-addable — and
-## bb_flakes_termux/build.sh does `git add -A`. Same class of gap as the
-## ~3M-line ea_cloud-superapp cache commit (264c09f2). Added 2026-08-09.
-ea_cloud-calendar/.gradle/
-ea_cloud-calendar/build/
-ea_cloud-calendar/**/build/
-ea_cloud-calendar/.cache/
-ea_cloud-calendar/.kotlin/
-## Same for ea_cloud-news. These MUST sort after the !ea_cloud-news/libs/**
-## whitelist above, or the whitelist would drag libs/*/build/ back in.
-ea_cloud-news/.gradle/
-ea_cloud-news/build/
-ea_cloud-news/**/build/
-ea_cloud-news/.cache/
-ea_cloud-news/.kotlin/
-## Gradle writes local.properties with a machine-local `sdk.dir` on every
-## build. It must never be committed — it points at whatever SDK path that
-## one machine had (here: /tmp/android-sdk) and breaks every other checkout
-## and CI. There was NO rule for this anywhere until 2026-08-09;
-## ea_cloud-calendar's first local ./gradlew run surfaced it, but the gap
-## applies to all nine Android apps in this repo, so the rule is global
-## rather than per-app. Nothing matching it is currently tracked.
-local.properties
-**/local.properties
-## Re-ignore Gradle/Kotlin daemon caches inside the whitelisted ea_cloud-superapp/
-## tree — same class of gap as the .gradle/build re-ignores above. Missing this
-## let a local `./gradlew` run's Go-module dependency cache (.cache/gopath/...,
-## from gvisor via some transitive Gradle plugin) and Kotlin compiler session
-## files (.kotlin/sessions/...) get git-added and pushed as a ~3M-line commit
-## (264c09f2, 2026-07-03). These are machine-local build caches, never vendored.
-ea_cloud-superapp/.cache/
-ea_cloud-superapp/.kotlin/
-## Re-ignore build OUTPUTS inside the whitelisted Android projects — the
-## !ea_cloud-*/** whitelists would otherwise make a locally-built APK / dist/
-## tree committable (each APK is ~6-40 MB). Build artifacts are published to
-## GHCR + GH Releases by the ship workflows, never vendored in git.
-ea_cloud-superapp/dist/
-ea_cloud-superapp/**/*.apk
-ea_cloud-comms/dist/
-ea_cloud-comms/**/*.apk
-ea_cloud-ide/dist/
-ea_cloud-ide/**/*.apk
-ea_cloud-nav/dist/
-ea_cloud-nav/**/*.apk
-ea_cloud-wallet/dist/
-ea_cloud-wallet/**/*.apk
-ea_cloud-browser/dist/
-ea_cloud-browser/**/*.apk
-ea_cloud-vault/dist/
-ea_cloud-vault/**/*.apk
-ea_cloud-media-center/dist/
-ea_cloud-media-center/**/*.apk
-ea_cloud-calendar/dist/
-ea_cloud-calendar/**/*.apk
-## MyShell bundled nix store (500MB+)
-ba_myshell/dist/*/_bundled/
-ba_myshell/bin/
-## Container storage
-storage/
-!storage/.gitkeep
-## Disk images
-*.raw
-*.qcow2
-*.iso
-## Kernel/initrd
-initrd.img
-vmlinuz
-*.img
+## Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+!*.tfstate.enc
 ## Nix build artifacts
-a_nixos_host/result
-## Desktop remote-build closure (GHA-built system tarball ~7GB — artifact only, never vendored)
-aa_desk-usr_x86_surface-linux_nixos/dist-ci/
-## Termux remote-build closure (GHA arm64-built nix-on-droid tarball — artifact only, never vendored)
-bb_flakes_termux/dist-ci/
-## Desktop home-manager remote-build closure (GHA x86-built tarball — artifact only, never vendored)
-ba_flakes_desktop/dist-ci/
-## Dev-store remote-build closure (GHA x86-built devProfile tarball → p5 chroot store — artifact only)
-bc_flakes_dev-store/dist-ci/
-## my-browser (qute) release binaries — built in CI, published to GitHub Releases, NEVER committed.
-## The portable fork bundle (~640MB) and the standalone config tarball are artifacts only.
-## (dist/*.html, dist/*-urls, dist/mybar.json ARE committed — those are small generated config.)
-da_my-browser-qute/dist/*.gz
-da_my-browser-qute/dist/*.tar.gz
-da_my-browser-rust-chromium/dist/*.gz
-da_my-browser-rust-chromium/dist/*.tar.gz
-da_my-browser-rust-chromium/dist/my-browser-rust-chromium
+result
+.result
+## Temporary files
+*.tmp
+## Generated data files → symlinks to cloud-data/ submodule (tracked)
 ## Obsidian
 .obsidian/workspace-mobile.json
-da_my-browser-rust-chromium/.build/
 
-## Claude Code — machine STATE and RENDERED secrets. None of these belong in
-## a repo (2026-08-09):
-##   .claude.json                — auth/OAuth state, session history, per-project
-##                                 MRU. One per machine, ~50KB, holds your login.
-##   .mcp.json                   — the RENDERED MCP config. The template
-##                                 (dotfiles/claude/mcp.json.tpl) carries
-##                                 ${AUTHELIA_OIDC_TOKEN_*} placeholders; the
-##                                 rendered file carries the REAL bearer token.
-##   .claude/settings.local.json — per-machine overrides, not shared config.
-## Shared, intentionally committed: .claude/agents/, .claude/settings.json.
+# Deployed secrets (never commit)
+b_infra/nixhm-sudo-*/dist/.secrets
+b_infra/nixhm-sudo-*/dist/.secrets.d/
+
+# ── Nix closure binaries (generated by HM docker-package step) ──
+*.nar.gz
+**/nix-store/
+**/nix-path-info.json.gz
+
+# ── Vendored Python deps (regenerated at build time) ──
+**/.deps/
+
+# ── Rust build artifacts (regenerated at build time) ──
+**/target/
+**/.cargo-home/
+
+## Per-service build transcript written by cloud-ship-container-engine.sh
+## (tee -a "$BUILD_LOG_FILE"). Purely local run output — 65 of these staged
+## themselves the first time every service build.sh was exercised.
+build.log
+**/build.log
+
+# ── Agent/editor machine state ───────────────────────────────────────────────
+## These sit inside directories that ARE committed (.claude/, .obsidian/), so
+## they need naming individually — the deploy step already treats them as
+## "machine state, never managed" and refuses to overwrite them, but nothing
+## stopped them being committed. vault and tools each shipped a
+## settings.local.json full of one machine's Bash permission grants, including
+## absolute paths into a repo layout that no longer exists.
+##
+## Committed alongside, deliberately: .claude/settings.json (shared config) and
+## .mcp.json (generated, identical everywhere).
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
 .claude.json
 .claude.json.backup
 .claude.json.tmp.*
-.claude/settings.local.json
-
-## .mcp.json is COMMITTED, not ignored. It used to be a machine-local file
-## (cloud tracked it as a symlink to /home/diego/.mcp.json), so ignoring it
-## made sense then. It is now generated — 1_configs/src/apps/root/mcp.json,
-## derived in cloud from the .mcp blocks in a_solutions/*/build.json and
-## deployed here by build.sh. Ignoring it would leave this repo the only one
-## without MCP servers, and Claude Code reports nothing when .mcp.json is
-## absent — it simply loads none.
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
