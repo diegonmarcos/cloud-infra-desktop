@@ -97,7 +97,13 @@ while IFS=$'\t' read -r SUBMOUNT LIMIT_GIB; do
   DESIRED_BYTES=$(( LIMIT_GIB * 1024 * 1024 * 1024 ))
 
   CURRENT_MAXRFER=""
-  CURRENT_MAXRFER=$(btrfs qgroup show --raw -f "$SUBMOUNT" 2>/dev/null | awk -v id="0/$SUBVOLID" '$1==id {print $4}')
+  # -re is REQUIRED for $4 to be max_rfer. Without it `btrfs qgroup show` emits
+  # only qgroupid/rfer/excl/path, so $4 was the PATH — this read '@home-diego'
+  # where it expected a byte count. Effect: the "already set — no change" test
+  # could never match, so every activation re-applied an identical limit and
+  # logged "(was '@home-diego')" instead of the previous cap. Harmless but not
+  # idempotent, and the same missing flag is a REAL bug in disk-watchdog.sh.
+  CURRENT_MAXRFER=$(btrfs qgroup show --raw -ref "$SUBMOUNT" 2>/dev/null | awk -v id="0/$SUBVOLID" '$1==id {print $4}')
 
   if [ "$CURRENT_MAXRFER" = "$DESIRED_BYTES" ]; then
     echo "[btrfs-qgroup-setup] $SUBMOUNT: max_rfer already ${LIMIT_GIB}GiB — no change"

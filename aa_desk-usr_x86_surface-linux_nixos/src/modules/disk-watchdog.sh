@@ -364,7 +364,17 @@ if [ "$QGROUPS_ENABLED" = "true" ]; then
         echo "[disk-watchdog] $SUBMOUNT: could not resolve subvolume ID — skipped (qgroup)"
         continue
       fi
-      QGROUP_ROW=$(btrfs qgroup show --raw -f "$SUBMOUNT" 2>/dev/null | awk -v id="0/$SUBVOLID" '$1==id {print $2, $4}')
+      # -re is REQUIRED, and its absence was a REAL bug, not cosmetic. Plain
+      # `btrfs qgroup show --raw -f` prints only qgroupid/rfer/excl/path, so $4
+      # was the PATH ('@home-diego'), never max_rfer. That string fails the
+      # ^[0-9]+$ test below, so SUBMAXRFER was always empty and every subvolume
+      # silently fell through to the pool-total branch — meaning the watchdog
+      # IGNORED the kernel caps it had just been given and measured each
+      # subvolume as a share of the whole 80G pool instead. /home/diego at
+      # 21GiB reads 26% of the pool but 66% of its own 32GiB cap; the alert
+      # ladder would have stayed asleep until far past the cap it exists to
+      # enforce.
+      QGROUP_ROW=$(btrfs qgroup show --raw -ref "$SUBMOUNT" 2>/dev/null | awk -v id="0/$SUBVOLID" '$1==id {print $2, $4}')
       if [ -z "$QGROUP_ROW" ]; then
         echo "[disk-watchdog] $SUBMOUNT: no qgroup row for 0/$SUBVOLID — skipped (qgroup)"
         continue
