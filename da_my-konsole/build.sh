@@ -101,6 +101,12 @@ sync_data() {
   command cp -f src/data/*.json "$STORE/" 2>/dev/null || true
   # systrays.json — read directly by main.rs's setup_systrays() at startup
   command cp -f configs/systrays.json "$STORE/systrays.json" 2>/dev/null || true
+  # clipboard.json — tunables for the clipboard-manager tray (clipboard.rs).
+  # NOT part of systrays.json: that tray is native ksni, not config-driven
+  # (see clipboard.rs's module doc). The runtime store (history/pinned/
+  # lists) is separate and lives at $STORE/clipboard-store.json, created by
+  # the daemon itself at 0600 — never touched by install.
+  command cp -f configs/clipboard.json "$STORE/clipboard.json" 2>/dev/null || true
   # protected-slices.json — read directly by watchdog.rs's process-table kill
   # guard (load_protected_slices/proc_protected_slice), re-read on every kill
   # request so an edit here takes effect without restarting the daemon.
