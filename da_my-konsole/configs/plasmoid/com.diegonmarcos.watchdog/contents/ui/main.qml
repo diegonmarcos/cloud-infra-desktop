@@ -308,36 +308,18 @@ PlasmoidItem {
         { key: "write_bytes_per_s", label: "Write", width: 65 },
         { key: "runq_wait_pct",     label: "RunQ%", width: 60 }
     ]
-    // Same metrics as ptColumns, minus name/user/pid (not meaningfully
-    // "sortable" as a ranking) — friendly names for the explicit sort
-    // selector, since the header click affordance turned out to be
-    // undiscoverable on its own. runq_wait_pct is per-process PSI-CPU
-    // (scheduler run-queue wait): the short "RunQ%" column header stays,
-    // but the selector spells out what it means.
-    readonly property var ptSortableMetrics: [
-        { key: "cpu_pct",           label: "CPU %" },
-        { key: "mem_pct",           label: "Mem %" },
-        { key: "mem_rss_bytes",     label: "Mem RSS" },
-        { key: "runq_wait_pct",     label: "PSI-CPU (runq wait)" },
-        { key: "read_bytes_per_s",  label: "Read rate" },
-        { key: "write_bytes_per_s", label: "Write rate" }
-    ]
     property string ptSortKey: "cpu_pct"
     property bool ptSortAsc: false
 
-    // Header click: same key toggles direction, a different key selects it
-    // descending (the useful default for every one of these — "biggest
-    // consumer first").
+    // Clicking a column header is the ONLY way to sort (2026-08-11 — the
+    // "Sort by" ComboBox that used to sit above the table is gone). Same key
+    // toggles direction, a different key selects it descending, which is the
+    // useful default for every numeric column: biggest consumer first. Every
+    // column is clickable, name/user/pid included — ptSorted() compares
+    // strings case-insensitively, so those sort alphabetically.
     function ptSort(key) {
         if (root.ptSortKey === key) root.ptSortAsc = !root.ptSortAsc;
         else { root.ptSortKey = key; root.ptSortAsc = false; }
-    }
-    // Explicit selector (ComboBox): always sets the key descending, even if
-    // it's already the current key — picking from a list is a statement of
-    // intent, not a toggle request.
-    function ptSelectSort(key) {
-        root.ptSortKey = key;
-        root.ptSortAsc = false;
     }
 
     // Sorted copy of proc_table — never mutates root.snap.proc_table itself,
@@ -769,7 +751,7 @@ PlasmoidItem {
     fullRepresentation: PlasmaExtras.Representation {
         // 26 gridUnits fits the simple (name/rss/pid/Signal) list every
         // other mode uses; proctable's 9 columns (8 + RSS) + a Signal button
-        // + the sort ComboBox need more — widened rather than made
+        // need more — widened rather than made
         // mode-conditional since fullRepresentation is created once and
         // Loader.active can't retroactively resize it.
         Layout.minimumWidth: Plasmoid.configuration.mode === "proctable"
@@ -836,10 +818,9 @@ PlasmoidItem {
 
         // proctable mode: sortable multi-column table over `proc_table`
         // (pid/name/user/cpu/mem/rss/read/write/runq_wait), clickable
-        // headers with a hover highlight and a ▲/▼ direction indicator, PLUS
-        // an explicit "Sort by" selector naming every sortable metric —
-        // the header-click mechanism already existed but was undiscoverable
-        // on its own, so both now drive the same ptSortKey/ptSortAsc state.
+        // headers with a hover highlight and a ▲/▼ direction indicator.
+        // Clicking a header is the only sort control; the "Sort by" ComboBox
+        // that used to sit above the table was removed 2026-08-11 by request.
         // Each row also carries a per-row Signal menu offering every signal
         // in signalList — disabled with the reason shown when the daemon
         // marked the row `protected` (pid 1 / a protected slice), so a user
@@ -850,24 +831,6 @@ PlasmoidItem {
             visible: active
             sourceComponent: ColumnLayout {
                 spacing: 4
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 6
-                    PlasmaComponents.Label { text: "Sort by:"; opacity: 0.75 }
-                    PlasmaComponents.ComboBox {
-                        id: ptSortCombo
-                        Layout.preferredWidth: 220
-                        model: root.ptSortableMetrics
-                        textRole: "label"
-                        currentIndex: {
-                            for (var i = 0; i < root.ptSortableMetrics.length; i++)
-                                if (root.ptSortableMetrics[i].key === root.ptSortKey) return i;
-                            return 0;
-                        }
-                        onActivated: root.ptSelectSort(root.ptSortableMetrics[currentIndex].key)
-                    }
-                }
 
                 RowLayout {
                     id: ptHeader
