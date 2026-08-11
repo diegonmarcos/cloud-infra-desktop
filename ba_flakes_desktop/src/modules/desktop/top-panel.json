@@ -1,5 +1,5 @@
 {
-  "_comment": "Top panel. The eight org.kde.plasma.systemmonitor widgets that used to live here were replaced by ONE com.diegonmarcos.watchdog widget per cluster (my-konsole/configs/plasmoid). Each systemmonitor instance builds a sensor-face controller and a KQuickCharts scene graph inside plasmashell; fourteen of them settled at ~24% CPU and 410MB, of which 135MB was QML JS heap, to show eight numbers. The watchdog widgets read one JSON the my-konsole tray daemon publishes every 2s, so adding a metric costs a label rather than another sub-application. PSI is in there properly now too — /proc/pressure has no KSystemStats backend, which is why the old panel faked it with diskusage widgets pointed at pressure paths and titles that named something else.",
+  "_comment": "Top panel. The eight org.kde.plasma.systemmonitor widgets that used to live here were replaced by ONE com.diegonmarcos.watchdog widget per cluster (my-konsole/configs/plasmoid). Each systemmonitor instance builds a sensor-face controller and a KQuickCharts scene graph inside plasmashell; fourteen of them settled at ~24% CPU and 410MB, of which 135MB was QML JS heap, to show eight numbers. The watchdog widgets read one JSON the my-konsole tray daemon publishes every 2s, so adding a metric costs a label rather than another sub-application. PSI is in there properly now too — /proc/pressure has no KSystemStats backend, which is why the old panel faked it with diskusage widgets pointed at pressure paths and titles that named something else. 2026-08-11: the plasmoid's single 'left' cluster mode was split into four dedicated modes (storage/mem/cpu/network) so each metric is its own widget instead of one wide text blob, and 'right' was retired in favour of putting guard and psi on the far side — psi last, deliberately the rightmost widget on the panel. Left-to-right order is now: storage, mem, cpu, network, [spacer], digitalclock, [spacer], guard, psi. The two panelspacer entries are the bare-string form (no config), which plasma-manager renders with no explicit 'expanding' key — the panelspacer applet's own QML default is expanding=true (same convention already proven live in bottom-panel.json's launcher-centring spacers), so the clock lands genuinely centred without needing an explicit expanding=true override. This panel now carries SIX com.diegonmarcos.watchdog instances; plasma-panel-repair.json documents which of them plasmashell drops from the batched addWidget() script and repairs individually.",
   "location": "top",
   "height": 44,
   "widgets": [
@@ -7,7 +7,34 @@
       "name": "com.diegonmarcos.watchdog",
       "config": {
         "General": {
-          "mode": "left",
+          "mode": "storage",
+          "uid": 1000
+        }
+      }
+    },
+    {
+      "name": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "mem",
+          "uid": 1000
+        }
+      }
+    },
+    {
+      "name": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "cpu",
+          "uid": 1000
+        }
+      }
+    },
+    {
+      "name": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "network",
           "uid": 1000
         }
       }
@@ -25,19 +52,16 @@
       "name": "com.diegonmarcos.watchdog",
       "config": {
         "General": {
-          "mode": "right",
+          "mode": "guard",
           "uid": 1000
         }
       }
     },
     {
-      "kind": "panelspacer"
-    },
-    {
       "name": "com.diegonmarcos.watchdog",
       "config": {
         "General": {
-          "mode": "guard",
+          "mode": "psi",
           "uid": 1000
         }
       }

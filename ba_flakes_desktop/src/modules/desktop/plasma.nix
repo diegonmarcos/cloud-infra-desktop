@@ -134,25 +134,33 @@ in
 
   # Repairs panel widgets plasma-manager cannot reliably write.
   #
-  # ROOT CAUSE: top-panel.json declares THREE com.diegonmarcos.watchdog
-  # applets in the top panel (config.General.mode = left/right/guard).
-  # plasma-manager compiles a panel's widget declarations into ONE
-  # evaluateScript D-Bus call holding all of that panel's addWidget(...)
-  # calls back to back. plasmashell's script engine silently drops the
-  # third addWidget() call for the same plugin id within one such script —
-  # only "left" and "right" ever land in
-  # plasma-org.kde.plasma.desktop-appletsrc; "guard" never does. The
-  # repo-side config (top-panel.json / top-panel.nix / plasma.nix) is
-  # provably correct — home-manager writes exactly what it's told to and
-  # the loss happens inside plasmashell itself — so this cannot be fixed
-  # by changing the config; it needs a post-hoc repair pass instead.
+  # ROOT CAUSE: top-panel.json and bottom-panel.json together declare SEVEN
+  # com.diegonmarcos.watchdog applets (config.General.mode =
+  # storage/mem/cpu/network/guard/psi on the top panel, proctable on the
+  # bottom). plasma-manager compiles ALL panels' widget declarations into
+  # ONE evaluateScript D-Bus call holding every addWidget(...) call back to
+  # back. plasmashell's script engine silently drops every addWidget() call
+  # for a given plugin id past the SECOND one within one such script,
+  # counted across the whole script rather than per panel — only the first
+  # two watchdog instances (storage, mem) ever land in
+  # plasma-org.kde.plasma.desktop-appletsrc; the other five never do. The
+  # repo-side config (top-panel.json / bottom-panel.json / *.nix /
+  # plasma.nix) is provably correct — home-manager writes exactly what it's
+  # told to and the loss happens inside plasmashell itself — so this cannot
+  # be fixed by changing the config; it needs a post-hoc repair pass
+  # instead.
   #
   # The fix: this hook re-checks every widget listed in
   # plasma-panel-repair.json (deployed via xdg.configFile below) and, for
   # each one still missing, issues its OWN SEPARATE evaluateScript call —
   # never batched with plasma-manager's, which is what triggers the drop
-  # in the first place. Fully idempotent: it runs on every activation and
-  # is a no-op once a widget is present. See
+  # in the first place — that also repositions the widget to its declared
+  # place instead of leaving it appended at the end (see
+  # plasma-panel-repair.json's "insert_after" rationale). A final sweep
+  # removes any watchdog applet whose mode is no longer wanted (e.g. the
+  # retired left/right modes), since the repair pass itself is add-only.
+  # Fully idempotent: it runs on every activation and is a no-op once a
+  # widget is present in its intended position. See
   # plasma-fix-missing-panel-widgets.sh and plasma-panel-repair.json for
   # the data-driven implementation.
   home.activation.fixMissingPanelWidgets = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''

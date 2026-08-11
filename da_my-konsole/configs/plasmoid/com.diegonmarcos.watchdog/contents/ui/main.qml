@@ -16,6 +16,11 @@
  *
  * `mode` picks which cluster an instance renders, so one widget serves the
  * whole panel and another metric is a config change rather than another applet.
+ * The cluster COMPOSITION (title + which items, in which order) is data —
+ * contents/data/clusters.json — read once at startup via XHR against
+ * Qt.resolvedUrl(); main.qml supplies the kind->component mapping and the
+ * metric->{value,label,fill} lookups the JSON's item entries name. Growing a
+ * mode means editing that JSON, not adding another hardcoded Loader block.
  */
 import QtQuick
 import QtQuick.Layouts
@@ -88,6 +93,41 @@ PlasmoidItem {
         xhr.open("GET", root.guardUrl);
         xhr.send();
     }
+
+    // ── clusters.json: which items each mode's cluster draws, and its title.
+    // Read once, synchronously, at startup — it is a small static file
+    // shipped inside the plasmoid, not a value that changes at runtime like
+    // snap/guardSnap above, so there is no polling Timer for it. Sync XHR
+    // against a local file:// URL is supported by QML's XMLHttpRequest and
+    // keeps clusterDefs populated before the first paint instead of racing an
+    // async load against the compact representation's first layout pass.
+    // Qt.resolvedUrl() is used (rather than the bare relative string
+    // "data/clusters.json") because that string would resolve relative to
+    // this file's own directory (contents/ui/), not contents/ — verified by
+    // reading Qt.resolvedUrl's own resolution rules; "../data/clusters.json"
+    // from contents/ui/main.qml correctly lands on contents/data/clusters.json.
+    readonly property string clustersUrl: Qt.resolvedUrl("../data/clusters.json")
+    property var clusterDefs: ({})
+
+    function loadClusters() {
+        var xhr = new XMLHttpRequest();
+        try {
+            xhr.open("GET", root.clustersUrl, false); // sync: tiny static file, once
+            xhr.send();
+            root.clusterDefs = JSON.parse(xhr.responseText);
+        } catch (e) {
+            // Missing/unparsable clusters.json must not blank the whole
+            // applet — same defensive stance as refresh()/refreshGuard().
+            root.clusterDefs = {};
+        }
+    }
+
+    // The cluster this instance renders, keyed by Plasmoid.configuration.mode.
+    // Falls back to an empty title/items pair for a mode string clusters.json
+    // doesn't (yet) know about, rather than throwing.
+    readonly property var currentCluster: root.clusterDefs[Plasmoid.configuration.mode] || { title: "", items: [] }
+
+    Component.onCompleted: root.loadClusters()
 
     Timer {
         interval: root.pollMs; running: true; repeat: true; triggeredOnStart: true
@@ -215,14 +255,17 @@ PlasmoidItem {
 
     // vram is JSON `null` on machines with no discrete GPU sysfs node — that
     // is normal here, not an error, so callers must treat undefined as "—".
+    // Lives in the `cpu` cluster (see clusters.json) rather than its own mode:
+    // it is CPU's GPU sibling, not a resource big enough to earn a panel slot
+    // of its own on a machine that mostly doesn't have a discrete GPU anyway.
     function vramPct() {
         var v = root.snap.vram;
         if (!v || !v.total) return undefined;
         return (v.used / v.total) * 100;
     }
 
-    // slice_pct is the sampler's future field; derive it from the GiB pair
-    // that is already published today so the pie isn't blank in the meantime.
+    // slice_pct is published directly today; the GiB-pair fallback covers an
+    // older daemon build that hasn't been rebuilt yet.
     function slicePct() {
         if (root.snap.slice_pct !== undefined) return root.snap.slice_pct;
         if (root.snap.slice_max_gib) return (root.snap.slice_gib / root.snap.slice_max_gib) * 100;
@@ -242,6 +285,15 @@ PlasmoidItem {
         return Math.round(v) + "B/s";
     }
 
+    // Bytes (absolute, not per-second) -> human string, for the RSS column.
+    function bytesFmt(v) {
+        if (v === undefined || v === null) return "--";
+        if (v >= 1073741824) return (v / 1073741824).toFixed(1) + "G";
+        if (v >= 1048576) return (v / 1048576).toFixed(0) + "M";
+        if (v >= 1024) return (v / 1024).toFixed(0) + "K";
+        return Math.round(v) + "B";
+    }
+
     // ── proctable mode: sortable multi-column process table ──────────────────
     // Column set matches the `proc_table` JSON keys 1:1 so sorting is a
     // straight compare on modelData[key], never a re-derivation.
@@ -251,16 +303,41 @@ PlasmoidItem {
         { key: "pid",               label: "PID",   width: 55 },
         { key: "cpu_pct",           label: "CPU%",  width: 55 },
         { key: "mem_pct",           label: "Mem%",  width: 55 },
+        { key: "mem_rss_bytes",     label: "RSS",   width: 65 },
         { key: "read_bytes_per_s",  label: "Read",  width: 65 },
         { key: "write_bytes_per_s", label: "Write", width: 65 },
         { key: "runq_wait_pct",     label: "RunQ%", width: 60 }
     ]
+    // Same metrics as ptColumns, minus name/user/pid (not meaningfully
+    // "sortable" as a ranking) — friendly names for the explicit sort
+    // selector, since the header click affordance turned out to be
+    // undiscoverable on its own. runq_wait_pct is per-process PSI-CPU
+    // (scheduler run-queue wait): the short "RunQ%" column header stays,
+    // but the selector spells out what it means.
+    readonly property var ptSortableMetrics: [
+        { key: "cpu_pct",           label: "CPU %" },
+        { key: "mem_pct",           label: "Mem %" },
+        { key: "mem_rss_bytes",     label: "Mem RSS" },
+        { key: "runq_wait_pct",     label: "PSI-CPU (runq wait)" },
+        { key: "read_bytes_per_s",  label: "Read rate" },
+        { key: "write_bytes_per_s", label: "Write rate" }
+    ]
     property string ptSortKey: "cpu_pct"
     property bool ptSortAsc: false
 
+    // Header click: same key toggles direction, a different key selects it
+    // descending (the useful default for every one of these — "biggest
+    // consumer first").
     function ptSort(key) {
         if (root.ptSortKey === key) root.ptSortAsc = !root.ptSortAsc;
         else { root.ptSortKey = key; root.ptSortAsc = false; }
+    }
+    // Explicit selector (ComboBox): always sets the key descending, even if
+    // it's already the current key — picking from a list is a statement of
+    // intent, not a toggle request.
+    function ptSelectSort(key) {
+        root.ptSortKey = key;
+        root.ptSortAsc = false;
     }
 
     // Sorted copy of proc_table — never mutates root.snap.proc_table itself,
@@ -291,11 +368,44 @@ PlasmoidItem {
             case "cpu_pct":
             case "runq_wait_pct": return Number(row[key] || 0).toFixed(1) + "%";
             case "mem_pct": return Number(row[key] || 0).toFixed(1) + "%";
+            case "mem_rss_bytes": return root.bytesFmt(row[key]);
             case "read_bytes_per_s":
             case "write_bytes_per_s": return root.bps(row[key]);
             default: return String(row[key] !== undefined ? row[key] : "--");
         }
     }
+
+    // ── compact-representation sizing — the actual bug being fixed. Every
+    // pie/bar/font size below derives from contentH instead of a fixed pixel
+    // number, so the widget fits whatever thickness the panel gives it
+    // (44px top / 60px bottom here, see top-panel.json/bottom-panel.json)
+    // instead of overflowing/overlapping at a size nobody chose.
+    //
+    // availH is the height the panel containment actually granted the
+    // COMPACT REPRESENTATION instance — not root.height. root is the
+    // PlasmoidItem, and in a panel the PlasmoidItem's own height is not
+    // reliably the panel thickness; the item the containment layout actually
+    // sizes to the panel is compactRepresentation (compactRoot below). A
+    // Binding down in compactRepresentation pushes compactRoot.height into
+    // this property, one-way, so nothing here reads back from a size this
+    // same property influences — contentH must never feed something that
+    // feeds availH, or it becomes the exact feedback loop that was here
+    // before (implicitHeight computed from contentH, contentH computed from
+    // the height implicitHeight was supposed to inform).
+    property int availH: 0
+    readonly property real titleH: Math.max(9, Math.round(Kirigami.Theme.smallFont.pixelSize * 1.2))
+    readonly property real clusterSpacing: 2
+    // The Math.max floor is load-bearing, not decorative, on TWO counts:
+    // first frame availH is still 0 (the Binding below hasn't fired yet), so
+    // without a floor this would go negative before any panel geometry
+    // exists at all. Second, KDE bug 489307 is the same failure mode at a
+    // nonzero-but-small panel thickness — a chart-style widget's rendered
+    // size collapsing to zero, so the widget occupies no visible space
+    // rather than merely looking small. bottom-panel.json documents that
+    // incident; this floor exists so this widget cannot repeat it no matter
+    // how thin a panel someone picks, or how early this binding evaluates.
+    readonly property real contentH: Math.max(16, root.availH - root.titleH - root.clusterSpacing)
+    readonly property real fontPt: Math.max(6, Math.min(Kirigami.Theme.smallFont.pointSize, root.contentH / 4))
 
     // ── pie, the same element KSysGuard's piechart face uses ─────────────────
     component Pie : Item {
@@ -303,8 +413,9 @@ PlasmoidItem {
         property string label: ""
         property real value: 0
         property color fill: Kirigami.Theme.highlightColor
-        implicitWidth: 26
-        implicitHeight: 26
+        property real size: 26   // floor/default; callers bind this to root.contentH
+        implicitWidth: Math.max(16, size)
+        implicitHeight: Math.max(16, size)
 
         Charts.PieChart {
             anchors.fill: parent
@@ -312,13 +423,13 @@ PlasmoidItem {
             valueSources: Charts.SingleValueSource { value: pie.value }
             colorSource: Charts.SingleValueSource { value: pie.fill }
             backgroundColor: Kirigami.Theme.backgroundColor
-            thickness: 5
+            thickness: Math.max(3, pie.size * 0.19)
             filled: false
         }
         PlasmaComponents.Label {
             anchors.centerIn: parent
             text: pie.label
-            font.pointSize: Kirigami.Theme.smallFont.pointSize - 1
+            font.pointSize: Math.max(6, Math.min(Kirigami.Theme.smallFont.pointSize - 1, pie.size / 4))
             opacity: 0.9
         }
     }
@@ -332,8 +443,9 @@ PlasmoidItem {
         property string label: ""
         property var values: []
         property var colors: []
-        implicitWidth: 26
-        implicitHeight: 26
+        property real size: 26   // floor/default; callers bind this to root.contentH
+        implicitWidth: Math.max(16, size)
+        implicitHeight: Math.max(16, size)
 
         Charts.PieChart {
             anchors.fill: parent
@@ -342,35 +454,34 @@ PlasmoidItem {
             valueSources: [ Charts.ArraySource { array: mpie.values } ]
             colorSource: Charts.ArraySource { array: mpie.colors }
             backgroundColor: Kirigami.Theme.backgroundColor
-            thickness: 5
+            thickness: Math.max(3, mpie.size * 0.19)
             filled: false
         }
         PlasmaComponents.Label {
             anchors.centerIn: parent
             text: mpie.label
-            font.pointSize: Kirigami.Theme.smallFont.pointSize - 1
+            font.pointSize: Math.max(6, Math.min(Kirigami.Theme.smallFont.pointSize - 1, mpie.size / 4))
             opacity: 0.9
         }
     }
 
-    // ── horizontal bar, for the PSI row ──────────────────────────────────────
+    // ── horizontal bar, for the PSI/guard/disk grids ──────────────────────────
     component Bar : RowLayout {
         id: bar
         property string label: ""
         property real value: 0
         property color fill: Kirigami.Theme.highlightColor
+        property real barWidth: 30    // floor/default; callers bind these off contentH
+        property real barHeight: 6
         spacing: 3
         PlasmaComponents.Label {
             text: bar.label
-            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            font.pointSize: Math.max(6, Math.min(Kirigami.Theme.smallFont.pointSize, bar.barHeight * 1.4))
             opacity: 0.75
         }
         Rectangle {
-            // 38x8 was sized for one row of six. Stacked 3x2 in a 30px panel
-            // the height has to come down with it, and the extra column of
-            // width is what stops the whole cluster overflowing.
-            Layout.preferredWidth: 30
-            Layout.preferredHeight: 6
+            Layout.preferredWidth: Math.max(14, bar.barWidth)
+            Layout.preferredHeight: Math.max(4, bar.barHeight)
             radius: 2
             color: Kirigami.Theme.backgroundColor
             border { color: Kirigami.Theme.disabledTextColor; width: 1 }
@@ -382,6 +493,96 @@ PlasmoidItem {
                 // Deliberately not animated: a 2s sample eased over 2s is a
                 // repaint every frame, which is the cost being removed.
             }
+        }
+    }
+
+    // ── metric lookups — clusters.json items name a "metric" id; these
+    // functions are the other half of that data-driven split: JSON says
+    // WHICH items a mode shows and in what order, these say what a given
+    // metric id actually reads off snap/guardSnap and how to render it.
+    function pieMetric(metric) {
+        switch (metric) {
+            case "cpu": return { value: root.snap.cpu || 0, label: root.pct0(root.snap.cpu), fill: root.heat(root.snap.cpu) };
+            case "vram": {
+                var v = root.vramPct();
+                return { value: v || 0, label: v !== undefined ? root.pct0(v) : "--",
+                         fill: v !== undefined ? root.heat(v) : Kirigami.Theme.disabledTextColor };
+            }
+            case "swap": return { value: root.snap.swap || 0, label: root.pct0(root.snap.swap), fill: root.heat(root.snap.swap) };
+            case "slice": {
+                var s = root.slicePct();
+                return { value: s || 0, label: root.pct0(s), fill: root.heat(s) };
+            }
+            default: return { value: 0, label: "--", fill: Kirigami.Theme.disabledTextColor };
+        }
+    }
+    function multiPieMetric(metric) {
+        switch (metric) {
+            case "mem": return { values: root.memLayers(), colors: root.memLayerColors(), label: root.memCentreText() };
+            default: return { values: [], colors: [], label: "--" };
+        }
+    }
+    // Fixed sub-metrics of the PSI 3x2 grid — structurally the same kind of
+    // small labeled table as ptColumns/signalList/guardShortLabels above,
+    // not a magic-number list: it names the 6 (category, avg10-field) pairs
+    // PSI has, which is not itself something clusters.json's generic
+    // {kind,metric} item schema can express any more cheaply.
+    readonly property var psiRows: [
+        { label: "Sc", cat: "cpu",    field: "some10" },
+        { label: "Si", cat: "io",     field: "some10" },
+        { label: "Sm", cat: "memory", field: "some10" },
+        { label: "Fc", cat: "cpu",    field: "full10" },
+        { label: "Fi", cat: "io",     field: "full10" },
+        { label: "Fm", cat: "memory", field: "full10" }
+    ]
+    function bargridModel(metric) {
+        switch (metric) {
+            case "disks":
+                return (root.snap.disks || []).map(function (d) {
+                    return { label: root.shortMount(d.mount), value: d.pct || 0, fill: root.heat(d.pct) };
+                });
+            case "psi":
+                return root.psiRows.map(function (r) {
+                    var v = root.psi(r.cat, r.field);
+                    return { label: r.label, value: v || 0, fill: root.heat(v) };
+                });
+            case "guard":
+                return root.guardVoters().map(function (v) {
+                    return { label: root.shortGuardLabel(v), value: root.guardRatio(v), fill: root.guardColor(v) };
+                });
+            default: return [];
+        }
+    }
+    // Per-row bar height for a bargrid: rows are computed from the actual
+    // item count and column count (never assumed), then contentH is divided
+    // across them — this is what keeps the psi 3x2 / guard 4-col grids
+    // inside the panel instead of overflowing it.
+    function bargridBarHeight(metric, columns) {
+        var count = root.bargridModel(metric).length;
+        var cols = Math.max(1, columns || 1);
+        var rows = Math.max(1, Math.ceil(count / cols));
+        var rowH = (root.contentH - (rows - 1)) / rows;
+        return Math.max(4, rowH * 0.55);
+    }
+    function rateItems(metric) {
+        switch (metric) {
+            case "disk_io": return [ { label: "R ", text: root.mbs(root.snap.disk_r) }, { label: "W ", text: root.mbs(root.snap.disk_w) } ];
+            case "net_io": return [ { label: "↓", text: root.mbs(root.snap.net_rx) }, { label: "↑", text: root.mbs(root.snap.net_tx) } ];
+            default: return [];
+        }
+    }
+    function textMetric(metric) {
+        switch (metric) {
+            case "load": return root.two(root.snap.load1) + " " + root.two(root.snap.load5) + " " + root.two(root.snap.load15);
+            case "proctable_head": {
+                var t = root.snap.proc_table;
+                if (!t || !t.length || !t[0]) return "procs --";
+                // .toFixed() on an absent/null cpu_pct throws, which blanks
+                // the whole binding — every other accessor in this file is
+                // defensive (`|| 0`), this one needs to be too.
+                return (t[0].name || "?") + " " + Number(t[0].cpu_pct || 0).toFixed(0) + "%";
+            }
+            default: return "";
         }
     }
 
@@ -425,153 +626,130 @@ PlasmoidItem {
     preferredRepresentation: compactRepresentation
 
     compactRepresentation: MouseArea {
-        implicitWidth: row.implicitWidth
-        implicitHeight: Math.max(row.implicitHeight, 26)
+        id: compactRoot
+        // Width is genuinely content-driven — the panel gives a horizontal
+        // applet whatever width it asks for, so implicitWidth stays derived
+        // from the rendered content below.
+        implicitWidth: content.implicitWidth
+        // Height is NOT content-driven: the panel containment dictates it
+        // (44px top / 60px bottom), and the widget must not fight that by
+        // asking for a height computed from its own content — that was the
+        // circular binding (implicitHeight -> contentH -> availH ->
+        // compactRoot.height -> implicitHeight) that reproduced the exact
+        // overflow this widget exists to fix. No implicitHeight binding
+        // here at all; a small constant floor only matters before the panel
+        // has assigned any geometry (e.g. a desktop-widget preview), and
+        // even then it must not reference contentH/availH.
+        implicitHeight: 16
         onClicked: root.expanded = !root.expanded
 
-        RowLayout {
-            id: row
+        // One-way: pushes the height the panel containment actually granted
+        // THIS item into root.availH, which contentH (above) derives from.
+        // `when: compactRoot.height > 0` keeps a stale/zero read from ever
+        // landing during the brief window before the panel has laid this
+        // item out; until then contentH's own floor (16) covers rendering.
+        Binding {
+            target: root
+            property: "availH"
+            value: compactRoot.height
+            when: compactRoot.height > 0
+        }
+
+        ColumnLayout {
+            id: content
             anchors.fill: parent
-            spacing: 9
+            spacing: root.clusterSpacing
             opacity: root.stale ? 0.45 : 1.0
 
-            // LEFT cluster: disk bars, mem/swap/vram/cpu as pies with the
-            // headline number centred in the ring.
-            Loader {
-                active: Plasmoid.configuration.mode === "left"
-                visible: active
-                sourceComponent: RowLayout {
-                    spacing: 6
+            // Per-cluster title, small and low-opacity — every mode gets
+            // one now instead of the old bare row of pies/bars.
+            PlasmaComponents.Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: root.currentCluster.title || ""
+                font.pointSize: Math.max(6, Math.min(Kirigami.Theme.smallFont.pointSize - 1, root.titleH * 0.7))
+                opacity: 0.6
+                elide: Text.ElideRight
+            }
 
-                    // 1. disk-usage — one thin horizontal bar per mount.
-                    // `disks` is another field the sampler hasn't shipped
-                    // yet; an empty model just renders no bars.
-                    ColumnLayout {
-                        spacing: 1
-                        Repeater {
-                            model: root.snap.disks || []
-                            delegate: Bar {
-                                label: root.shortMount(modelData.mount)
-                                value: modelData.pct || 0
-                                fill: root.heat(modelData.pct)
+            RowLayout {
+                id: itemsRow
+                Layout.alignment: Qt.AlignHCenter
+                spacing: 6
+
+                // One mode's cluster is one array of {kind, metric, columns?}
+                // items from clusters.json; kind picks which Component below
+                // renders it, metric picks which snap/guardSnap field(s) it
+                // reads via the metric-lookup functions above.
+                Repeater {
+                    model: root.currentCluster.items || []
+                    delegate: Loader {
+                        id: itemLoader
+                        readonly property var itemDef: modelData
+                        sourceComponent: {
+                            switch (itemDef.kind) {
+                                case "pie": return pieDelegate;
+                                case "multipie": return multipieDelegate;
+                                case "bargrid": return bargridDelegate;
+                                case "rate": return rateDelegate;
+                                case "text": return textDelegate;
+                                default: return null;
                             }
                         }
-                    }
 
-                    // 2. mem-usage — layered ring (used/buffers/cached/free),
-                    // centre = reclaimable percent.
-                    MultiPie {
-                        label: root.memCentreText()
-                        values: root.memLayers()
-                        colors: root.memLayerColors()
-                    }
-
-                    // 3. swap-usage
-                    Pie {
-                        label: root.pct0(root.snap.swap)
-                        value: root.snap.swap || 0
-                        fill: root.heat(root.snap.swap)
-                    }
-
-                    // 4. vram-usage — vram is null on this machine (no
-                    // discrete GPU sysfs node); show a grey ring and "--"
-                    // rather than hiding it or erroring.
-                    Pie {
-                        label: root.vramPct() !== undefined ? root.pct0(root.vramPct()) : "--"
-                        value: root.vramPct() || 0
-                        fill: root.vramPct() !== undefined ? root.heat(root.vramPct()) : Kirigami.Theme.disabledTextColor
-                    }
-
-                    // 5. cpu-usage
-                    Pie {
-                        label: root.pct0(root.snap.cpu)
-                        value: root.snap.cpu || 0
-                        fill: root.heat(root.snap.cpu)
-                    }
-                }
-            }
-
-            // RIGHT cluster: user-slice pie, three `some` PSI bars, three
-            // `full` PSI bars.
-            Loader {
-                active: Plasmoid.configuration.mode === "right"
-                visible: active
-                sourceComponent: RowLayout {
-                    spacing: 6
-
-                    // 1. slices-usage — percent of the user cgroup slice's
-                    // memory.max in use. slice_pct is another field the
-                    // sampler hasn't shipped yet; derive it from slice_gib /
-                    // slice_max_gib, which today's daemon already publishes.
-                    Pie {
-                        label: root.pct0(root.slicePct())
-                        value: root.slicePct() || 0
-                        fill: root.heat(root.slicePct())
-                    }
-
-                    // 2 & 3. Six bars in ONE row ran ~400px and overflowed the
-                    // top panel. They are 3x2 now: `some` on top, `full`
-                    // beneath, cpu/io/memory in the same column both times, so
-                    // a column reads as one resource and the pair reads as
-                    // "some of it stalled" over "all of it stalled". Halves
-                    // the width and spends panel height that was already there.
-                    GridLayout {
-                        columns: 3
-                        rowSpacing: 1
-                        columnSpacing: 5
-                        Bar { label: "Sc"; value: root.psi("cpu","some10")    || 0; fill: root.heat(root.psi("cpu","some10")) }
-                        Bar { label: "Si"; value: root.psi("io","some10")     || 0; fill: root.heat(root.psi("io","some10")) }
-                        Bar { label: "Sm"; value: root.psi("memory","some10") || 0; fill: root.heat(root.psi("memory","some10")) }
-                        Bar { label: "Fc"; value: root.psi("cpu","full10")    || 0; fill: root.heat(root.psi("cpu","full10")) }
-                        Bar { label: "Fi"; value: root.psi("io","full10")     || 0; fill: root.heat(root.psi("io","full10")) }
-                        Bar { label: "Fm"; value: root.psi("memory","full10") || 0; fill: root.heat(root.psi("memory","full10")) }
-                    }
-                }
-            }
-
-            // GUARD cluster: freeze-guard's own voter state (mem/io/cpu PSI,
-            // desktop-starvation, memory.high thrash, write-storm — see
-            // configuration_system-protection.nix). Defensive throughout:
-            // /run/freeze-guard.json won't exist until a rebuild lands this,
-            // and guardVoters()/guardRatio()/guardColor() all degrade to an
-            // empty/neutral render rather than throwing. 4 columns so 7
-            // voters fold into 2 rows instead of overflowing one, same
-            // reasoning as the existing 3x2 PSI grid above.
-            Loader {
-                active: Plasmoid.configuration.mode === "guard"
-                visible: active
-                sourceComponent: GridLayout {
-                    columns: 4
-                    rowSpacing: 1
-                    columnSpacing: 5
-                    Repeater {
-                        model: root.guardVoters()
-                        delegate: Bar {
-                            label: root.shortGuardLabel(modelData)
-                            value: root.guardRatio(modelData)
-                            fill: root.guardColor(modelData)
+                        Component {
+                            id: pieDelegate
+                            Pie {
+                                readonly property var m: root.pieMetric(itemLoader.itemDef.metric)
+                                label: m.label; value: m.value; fill: m.fill
+                                size: root.contentH
+                            }
                         }
-                    }
-                }
-            }
-
-            // PROCTABLE cluster: the compact row only has room for a
-            // headline, not eight columns — show the current top-CPU
-            // process (proc_table is already sorted by cpu_pct desc coming
-            // out of the daemon). Click still expands to the full sortable
-            // table below, same as every other mode.
-            Loader {
-                active: Plasmoid.configuration.mode === "proctable"
-                visible: active
-                sourceComponent: RowLayout {
-                    spacing: 4
-                    PlasmaComponents.Label {
-                        text: {
-                            var t = root.snap.proc_table;
-                            if (!t || !t.length) return "procs --";
-                            return t[0].name + " " + t[0].cpu_pct.toFixed(0) + "%";
+                        Component {
+                            id: multipieDelegate
+                            MultiPie {
+                                readonly property var m: root.multiPieMetric(itemLoader.itemDef.metric)
+                                label: m.label; values: m.values; colors: m.colors
+                                size: root.contentH
+                            }
                         }
-                        font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        Component {
+                            id: bargridDelegate
+                            GridLayout {
+                                columns: Math.max(1, itemLoader.itemDef.columns || 1)
+                                rowSpacing: 1
+                                columnSpacing: 5
+                                Repeater {
+                                    model: root.bargridModel(itemLoader.itemDef.metric)
+                                    delegate: Bar {
+                                        label: modelData.label
+                                        value: modelData.value
+                                        fill: modelData.fill
+                                        barHeight: root.bargridBarHeight(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
+                                        barWidth: Math.max(18, root.contentH * 1.6)
+                                    }
+                                }
+                            }
+                        }
+                        Component {
+                            id: rateDelegate
+                            RowLayout {
+                                spacing: 4
+                                Repeater {
+                                    model: root.rateItems(itemLoader.itemDef.metric)
+                                    delegate: PlasmaComponents.Label {
+                                        text: modelData.label + modelData.text
+                                        font.pointSize: root.fontPt
+                                    }
+                                }
+                            }
+                        }
+                        Component {
+                            id: textDelegate
+                            PlasmaComponents.Label {
+                                text: root.textMetric(itemLoader.itemDef.metric)
+                                font.pointSize: root.fontPt
+                            }
+                        }
                     }
                 }
             }
@@ -581,11 +759,12 @@ PlasmoidItem {
     // ── expanded: process table, every signal available ──────────────────────
     fullRepresentation: PlasmaExtras.Representation {
         // 26 gridUnits fits the simple (name/rss/pid/Signal) list every
-        // other mode uses; proctable's 8 columns + a Signal button need more
-        // — widened rather than made mode-conditional since fullRepresentation
-        // is created once and Loader.active can't retroactively resize it.
+        // other mode uses; proctable's 9 columns (8 + RSS) + a Signal button
+        // + the sort ComboBox need more — widened rather than made
+        // mode-conditional since fullRepresentation is created once and
+        // Loader.active can't retroactively resize it.
         Layout.minimumWidth: Plasmoid.configuration.mode === "proctable"
-            ? Kirigami.Units.gridUnit * 42 : Kirigami.Units.gridUnit * 26
+            ? Kirigami.Units.gridUnit * 46 : Kirigami.Units.gridUnit * 26
         Layout.minimumHeight: Kirigami.Units.gridUnit * 22
 
         header: PlasmaExtras.PlasmoidHeading {
@@ -600,10 +779,10 @@ PlasmoidItem {
             }
         }
 
-        // Non-proctable instances (left/right/guard) keep the simple
-        // RSS-sorted list this always had — the rich sortable table below is
-        // gated to mode==="proctable" only, same Loader-on-mode pattern the
-        // compact clusters already use.
+        // Non-proctable instances (storage/mem/cpu/network/psi/guard) keep
+        // the simple RSS-sorted list this always had — the rich sortable
+        // table below is gated to mode==="proctable" only, same
+        // Loader-on-mode pattern the compact clusters used to use.
         Loader {
             anchors.fill: parent
             active: Plasmoid.configuration.mode !== "proctable"
@@ -647,17 +826,39 @@ PlasmoidItem {
         }
 
         // proctable mode: sortable multi-column table over `proc_table`
-        // (pid/name/user/cpu/mem/read/write/runq_wait), clickable headers
-        // that toggle asc/desc, and a per-row Signal menu offering every
-        // signal in signalList — disabled with the reason shown when the
-        // daemon marked the row `protected` (pid 1 / a protected slice),
-        // so a user sees WHY a row can't be killed instead of a silent no-op.
+        // (pid/name/user/cpu/mem/rss/read/write/runq_wait), clickable
+        // headers with a hover highlight and a ▲/▼ direction indicator, PLUS
+        // an explicit "Sort by" selector naming every sortable metric —
+        // the header-click mechanism already existed but was undiscoverable
+        // on its own, so both now drive the same ptSortKey/ptSortAsc state.
+        // Each row also carries a per-row Signal menu offering every signal
+        // in signalList — disabled with the reason shown when the daemon
+        // marked the row `protected` (pid 1 / a protected slice), so a user
+        // sees WHY a row can't be killed instead of a silent no-op.
         Loader {
             anchors.fill: parent
             active: Plasmoid.configuration.mode === "proctable"
             visible: active
             sourceComponent: ColumnLayout {
-                spacing: 0
+                spacing: 4
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    PlasmaComponents.Label { text: "Sort by:"; opacity: 0.75 }
+                    PlasmaComponents.ComboBox {
+                        id: ptSortCombo
+                        Layout.preferredWidth: 220
+                        model: root.ptSortableMetrics
+                        textRole: "label"
+                        currentIndex: {
+                            for (var i = 0; i < root.ptSortableMetrics.length; i++)
+                                if (root.ptSortableMetrics[i].key === root.ptSortKey) return i;
+                            return 0;
+                        }
+                        onActivated: root.ptSelectSort(root.ptSortableMetrics[currentIndex].key)
+                    }
+                }
 
                 RowLayout {
                     id: ptHeader
@@ -665,12 +866,28 @@ PlasmoidItem {
                     spacing: 6
                     Repeater {
                         model: root.ptColumns
-                        delegate: PlasmaComponents.Label {
+                        delegate: Item {
+                            id: ptHeaderCell
                             Layout.preferredWidth: modelData.width
-                            font.bold: root.ptSortKey === modelData.key
-                            text: modelData.label + (root.ptSortKey === modelData.key ? (root.ptSortAsc ? " ▲" : " ▼") : "")
-                            MouseArea {
+                            implicitHeight: ptHeaderLabel.implicitHeight + 4
+
+                            Rectangle {
                                 anchors.fill: parent
+                                radius: 2
+                                color: Kirigami.Theme.highlightColor
+                                opacity: ptHeaderHover.containsMouse ? 0.25 : 0
+                            }
+                            PlasmaComponents.Label {
+                                id: ptHeaderLabel
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                font.bold: root.ptSortKey === modelData.key
+                                text: modelData.label + (root.ptSortKey === modelData.key ? (root.ptSortAsc ? " ▲" : " ▼") : "")
+                            }
+                            MouseArea {
+                                id: ptHeaderHover
+                                anchors.fill: parent
+                                hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: root.ptSort(modelData.key)
                             }
@@ -706,6 +923,7 @@ PlasmoidItem {
                         PlasmaComponents.Label { Layout.preferredWidth: 55; text: modelData.pid }
                         PlasmaComponents.Label { Layout.preferredWidth: 55; text: root.ptCellText(modelData, "cpu_pct") }
                         PlasmaComponents.Label { Layout.preferredWidth: 55; text: root.ptCellText(modelData, "mem_pct") }
+                        PlasmaComponents.Label { Layout.preferredWidth: 65; text: root.ptCellText(modelData, "mem_rss_bytes") }
                         PlasmaComponents.Label { Layout.preferredWidth: 65; text: root.ptCellText(modelData, "read_bytes_per_s") }
                         PlasmaComponents.Label { Layout.preferredWidth: 65; text: root.ptCellText(modelData, "write_bytes_per_s") }
                         PlasmaComponents.Label { Layout.preferredWidth: 60; text: root.ptCellText(modelData, "runq_wait_pct") }
