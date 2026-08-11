@@ -37,7 +37,9 @@ let
   # into the script, matching the home-manager-command-catcher convention.
   fixMissingPanelWidgetsScript = pkgs.writeShellApplication {
     name = "plasma-fix-missing-panel-widgets";
-    runtimeInputs = [ pkgs.coreutils pkgs.gawk pkgs.jq pkgs.kdePackages.qttools ];
+    # No awk: presence/dedup/orphan decisions come from a live evaluateScript
+    # inventory of plasmashell itself, not from parsing appletsrc.
+    runtimeInputs = [ pkgs.coreutils pkgs.jq pkgs.kdePackages.qttools ];
     text = builtins.readFile ./plasma-fix-missing-panel-widgets.sh;
   };
 
@@ -150,17 +152,22 @@ in
   # be fixed by changing the config; it needs a post-hoc repair pass
   # instead.
   #
-  # The fix: this hook re-checks every widget listed in
-  # plasma-panel-repair.json (deployed via xdg.configFile below) and, for
-  # each one still missing, issues its OWN SEPARATE evaluateScript call —
-  # never batched with plasma-manager's, which is what triggers the drop
-  # in the first place — that also repositions the widget to its declared
-  # place instead of leaving it appended at the end (see
-  # plasma-panel-repair.json's "insert_after" rationale). A final sweep
-  # removes any watchdog applet whose mode is no longer wanted (e.g. the
-  # retired left/right modes), since the repair pass itself is add-only.
-  # Fully idempotent: it runs on every activation and is a no-op once a
-  # widget is present in its intended position. See
+  # The fix: this hook reads a LIVE inventory of plasmashell (one
+  # evaluateScript call — panels()/widgetIds/widgetById/readConfig, never
+  # the appletsrc file, which plasmashell only flushes lazily and so never
+  # reflects what this same activation just added) and, for every widget
+  # listed in plasma-panel-repair.json (deployed via xdg.configFile below)
+  # still missing from that live inventory, issues its OWN SEPARATE
+  # evaluateScript call — never batched with plasma-manager's, which is
+  # what triggers the drop in the first place — that also repositions the
+  # widget to its declared place instead of leaving it appended at the end
+  # (see plasma-panel-repair.json's "insert_after" rationale). A final
+  # sweep, computed from that same live inventory, removes both duplicate
+  # instances of the same (panel, plugin, mode) — keeping the oldest — and
+  # any watchdog applet whose mode is no longer wanted (e.g. the retired
+  # left/right modes), since the repair pass itself is add-only. Fully
+  # idempotent: it runs on every activation and is a no-op once exactly one
+  # widget per desired mode is present in its intended position. See
   # plasma-fix-missing-panel-widgets.sh and plasma-panel-repair.json for
   # the data-driven implementation.
   home.activation.fixMissingPanelWidgets = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
