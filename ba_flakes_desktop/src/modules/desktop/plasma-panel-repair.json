@@ -32,7 +32,22 @@
       }
     },
     {
-      "_comment": "5th addWidget() for this plugin. Belongs after the SECOND panelspacer on the top panel -- the one right after the digital clock, not the first one (which sits before the clock and would put guard between cpu/network and the clock instead of after it).",
+      "_comment": "5th addWidget() for this plugin. The process table, restored to the TOP panel: 8a285547 removed it from the bottom panel and dropped it from desired_modes, which left it deployed nowhere while the sweep below actively pruned any survivor. Belongs immediately after network -- end of the left group, before the centring spacer -- so it does not sit between the clock and the right-hand guard/psi pair.",
+      "panel_location": "top",
+      "plugin": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "proctable",
+          "uid": 1000
+        }
+      },
+      "insert_after": {
+        "plugin": "com.diegonmarcos.watchdog",
+        "mode": "network"
+      }
+    },
+    {
+      "_comment": "6th addWidget() for this plugin. Belongs after the SECOND panelspacer on the top panel -- the one right after the digital clock, not the first one (which sits before the clock and would put guard between cpu/network and the clock instead of after it).",
       "panel_location": "top",
       "plugin": "com.diegonmarcos.watchdog",
       "config": {
@@ -47,7 +62,7 @@
       }
     },
     {
-      "_comment": "6th addWidget() for this plugin. psi is deliberately the rightmost widget on the top panel, so it just goes after guard.",
+      "_comment": "7th addWidget() for this plugin. psi is deliberately the rightmost widget on the top panel, so it just goes after guard.",
       "panel_location": "top",
       "plugin": "com.diegonmarcos.watchdog",
       "config": {
@@ -65,6 +80,6 @@
   "watchdog_orphan_scope": {
     "_comment": "Drives the removal sweep -- see the top-level _comment for why an add-only repair pass needs a companion delete pass. desired_modes is the full current mode set across BOTH panels; anything else found under plugin==com.diegonmarcos.watchdog anywhere is an orphan (e.g. the retired 'left'/'right' modes) and gets removed.",
     "plugin": "com.diegonmarcos.watchdog",
-    "desired_modes": ["storage", "mem", "cpu", "network", "guard", "psi"]
+    "desired_modes": ["storage", "mem", "cpu", "network", "proctable", "guard", "psi"]
   }
 }
