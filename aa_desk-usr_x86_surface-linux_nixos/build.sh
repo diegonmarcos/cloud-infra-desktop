@@ -344,7 +344,14 @@ if [ -z "${NSP_ACTIVE:-}" ] && [ -z "${FSPL_NO_WRAP:-}" ]; then
     _fspl_bin=""
     command -v flakes-switch-progress-logs >/dev/null 2>&1 && _fspl_bin="flakes-switch-progress-logs"
     [ -z "$_fspl_bin" ] && command -v nix-switch-progress-wrap >/dev/null 2>&1 && _fspl_bin="nix-switch-progress-wrap"
-    [ -n "$_fspl_bin" ] && exec "$_fspl_bin" "$0" "$@"
+    # "$SCRIPT_DIR/build.sh", never "$0": line 296 already cd'd into SCRIPT_DIR,
+    # so a relative "$0" no longer resolves from the new cwd. Invoking this from
+    # the repo root as ./aa_desk-usr_x86_surface-linux_nixos/build.sh therefore
+    # re-exec'd a path that does not exist there and died with exit 127 and no
+    # output at all — the wrapper had already replaced the shell, so nothing was
+    # left to report the error. Only invocations by absolute path worked, which
+    # is why this survived: interactive use from inside the directory is fine.
+    [ -n "$_fspl_bin" ] && exec "$_fspl_bin" "$SCRIPT_DIR/build.sh" "$@"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════
