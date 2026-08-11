@@ -80,7 +80,15 @@ while IFS=$'\t' read -r SUBMOUNT LIMIT_GIB; do
     continue
   fi
 
-  SUBVOLID=$(btrfs subvolume show "$SUBMOUNT" 2>/dev/null | awk -F': ' '/^Subvolume ID:/ {print $2}' | tr -d ' ')
+  # NOT anchored, and $NF rather than -F': ' $2. `btrfs subvolume show` indents
+  # every field with a TAB, so the real line is "\tSubvolume ID: \t\t257": the
+  # old /^Subvolume ID:/ anchor could never match, and even on a match `tr -d ' '`
+  # strips spaces but NOT the tabs that -F': ' left in $2. Every subvolume was
+  # therefore "could not resolve subvolume ID — skipped" and NO limit was ever
+  # applied (btrfs qgroup show reported max_rfer=none across the board). This hid
+  # until 2026-08-11 because the loop bails out earlier when limit_gib is unset,
+  # so the whole-file default of null meant this line was never reached.
+  SUBVOLID=$(btrfs subvolume show "$SUBMOUNT" 2>/dev/null | awk '/Subvolume ID:/ {print $NF}' | tr -dc '0-9')
   if ! [[ "$SUBVOLID" =~ ^[0-9]+$ ]]; then
     echo "[btrfs-qgroup-setup] $SUBMOUNT: could not resolve subvolume ID — skipped" >&2
     continue
