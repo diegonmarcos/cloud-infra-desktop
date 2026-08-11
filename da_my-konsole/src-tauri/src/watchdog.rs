@@ -322,15 +322,72 @@ fn clk_tck() -> f64 {
     if hz > 0 { hz as f64 } else { 100.0 }
 }
 
+/// The six per-process values the proctable averages, held as one
+/// exponentially-weighted moving average per window. One struct per window
+/// (1m/5m/15m), carried per pid across ticks in ProcSample below.
+///
+/// EWMA rather than a real sliding window on purpose: a true 15-minute mean
+/// would need every sample of every pid retained (~450 samples x ~500 pids
+/// x 6 metrics), where this needs six f64 per window per pid and no history
+/// at all. It is also exactly what the kernel does for load1/load5/load15,
+/// which this file already publishes — so "avg" here means the same kind of
+/// thing it means one field up in the same JSON.
+#[derive(Default, Clone, Copy)]
+struct ProcAvg {
+    cpu_pct: f64,
+    mem_pct: f64,
+    rss_bytes: f64,
+    read_bps: f64,
+    write_bps: f64,
+    runq_wait_pct: f64,
+}
+
+/// Averaging windows, in seconds — the EWMA time constants, matching the
+/// load1/load5/load15 triple.
+const PROC_AVG_WINDOWS: [f64; 3] = [60.0, 300.0, 900.0];
+const PROC_AVG_LABELS: [&str; 3] = ["1m", "5m", "15m"];
+
+impl ProcAvg {
+    /// One EWMA step toward this tick's live values. `alpha` is derived from
+    /// the ACTUAL elapsed time, not assumed to be one fixed interval, so a
+    /// late or skipped tick weights correctly instead of quietly stretching
+    /// the window.
+    fn step(&mut self, alpha: f64, live: &ProcAvg) {
+        let f = |old: f64, new: f64| old + alpha * (new - old);
+        self.cpu_pct = f(self.cpu_pct, live.cpu_pct);
+        self.mem_pct = f(self.mem_pct, live.mem_pct);
+        self.rss_bytes = f(self.rss_bytes, live.rss_bytes);
+        self.read_bps = f(self.read_bps, live.read_bps);
+        self.write_bps = f(self.write_bps, live.write_bps);
+        self.runq_wait_pct = f(self.runq_wait_pct, live.runq_wait_pct);
+    }
+
+    fn to_json(self) -> String {
+        format!(
+            "{{\"cpu_pct\":{:.1},\"mem_pct\":{:.2},\"mem_rss_bytes\":{:.0},\
+              \"read_bytes_per_s\":{:.0},\"write_bytes_per_s\":{:.0},\"runq_wait_pct\":{:.2}}}",
+            self.cpu_pct, self.mem_pct, self.rss_bytes, self.read_bps, self.write_bps, self.runq_wait_pct
+        )
+    }
+}
+
 /// One tick's raw counters for one pid, kept between samples so cpu%,
 /// read/write rates and the runqueue-wait proxy below are all deltas, never
-/// cumulative counters passed straight through.
+/// cumulative counters passed straight through. `avg` rides along in the same
+/// map so the EWMA state is evicted with the pid the moment it stops being
+/// sampled — no separate history map to garbage-collect.
 #[derive(Clone, Copy)]
 struct ProcSample {
     cpu_ticks: u64,
     read_bytes: u64,
     write_bytes: u64,
     runq_wait_ns: u64,
+    avg: [ProcAvg; 3],
+    /// False until this pid has produced one real rate sample, so the first
+    /// EWMA step SEEDS with the live value instead of ramping up from zero
+    /// (which would show every freshly-started process as artificially idle
+    /// for its first few minutes).
+    seeded: bool,
 }
 
 /// utime+stime (fields 14,15 of /proc/<pid>/stat) in clock ticks. The comm
@@ -401,6 +458,7 @@ fn build_proc_table(
         read_bps: f64,
         write_bps: f64,
         runq_wait_pct: f64,
+        avg: [ProcAvg; 3],
     }
 
     let mut next: HashMap<i32, ProcSample> = HashMap::new();
@@ -436,8 +494,12 @@ fn build_proc_table(
         let (read_bytes, write_bytes) = read_proc_io(pid);
         let runq_wait_ns = read_proc_runq_wait_ns(pid).unwrap_or(0);
 
-        let sample = ProcSample { cpu_ticks, read_bytes, write_bytes, runq_wait_ns };
         let p = prev.get(&pid);
+        // A pid whose cumulative CPU ticks went BACKWARDS is not the same
+        // process any more — the kernel recycled the number. Drop the
+        // inherited averages rather than blend a dead process's history into
+        // a new one's.
+        let p = p.filter(|p| cpu_ticks >= p.cpu_ticks);
 
         let cpu_pct = p
             .map(|p| {
@@ -464,7 +526,47 @@ fn build_proc_table(
             })
             .unwrap_or(0.0);
 
-        next.insert(pid, sample);
+        let mem_pct = if total_mem_kb > 0.0 { rss_kb / total_mem_kb * 100.0 } else { 0.0 };
+
+        // Advance this pid's three EWMAs toward the values just measured.
+        // Done for EVERY pid sampled, not just the top-N published below:
+        // a process that only enters the top-N occasionally must still have
+        // a meaningful 15m average when it gets there, which it cannot have
+        // if its history only accrued on the ticks it happened to rank.
+        let live = ProcAvg {
+            cpu_pct,
+            mem_pct,
+            rss_bytes: rss_kb * 1024.0,
+            read_bps,
+            write_bps,
+            runq_wait_pct,
+        };
+        let mut avg = p.map(|p| p.avg).unwrap_or_default();
+        let seeded = p.map(|p| p.seeded).unwrap_or(false);
+        if p.is_some() {
+            if seeded {
+                for (i, w) in PROC_AVG_WINDOWS.iter().enumerate() {
+                    // alpha from the real elapsed time; clamped so a very
+                    // long gap can at most jump straight to the live value.
+                    let alpha = if *w <= 0.0 { 1.0 } else { (1.0 - (-secs / w).exp()).clamp(0.0, 1.0) };
+                    avg[i].step(alpha, &live);
+                }
+            } else {
+                avg = [live; 3];
+            }
+        }
+
+        next.insert(
+            pid,
+            ProcSample {
+                cpu_ticks,
+                read_bytes,
+                write_bytes,
+                runq_wait_ns,
+                avg,
+                seeded: seeded || p.is_some(),
+            },
+        );
 
         // First sample for a pid (no `prev` entry) has no valid rate yet —
         // skip the row rather than publish a fake 0%/spike; it will appear
@@ -479,10 +581,11 @@ fn build_proc_table(
             uid,
             rss_kb,
             cpu_pct,
-            mem_pct: if total_mem_kb > 0.0 { rss_kb / total_mem_kb * 100.0 } else { 0.0 },
+            mem_pct,
             read_bps,
             write_bps,
             runq_wait_pct,
+            avg,
         });
     }
 
@@ -502,14 +605,23 @@ fn build_proc_table(
             } else {
                 (false, String::new())
             };
+            // "avg" carries the same six keys as the live row, once per
+            // window, so the panel can swap which set it renders without any
+            // per-metric special-casing on its side.
+            let avg_json: Vec<String> = PROC_AVG_LABELS
+                .iter()
+                .enumerate()
+                .map(|(i, label)| format!("\"{label}\":{}", r.avg[i].to_json()))
+                .collect();
             format!(
                 "{{\"pid\":{},\"name\":\"{safe_name}\",\"user\":\"{safe_user}\",\
                   \"cpu_pct\":{:.1},\"mem_rss_bytes\":{:.0},\"mem_pct\":{:.2},\
                   \"read_bytes_per_s\":{:.0},\"write_bytes_per_s\":{:.0},\
                   \"runq_wait_pct\":{:.2},\"protected\":{is_protected},\
-                  \"protected_reason\":{}}}",
+                  \"protected_reason\":{},\"avg\":{{{}}}}}",
                 r.pid, r.cpu_pct, r.rss_kb * 1024.0, r.mem_pct, r.read_bps, r.write_bps, r.runq_wait_pct,
                 if is_protected { format!("\"{}\"", json_escape(&reason)) } else { "null".to_string() },
+                avg_json.join(","),
             )
         })
         .collect();
