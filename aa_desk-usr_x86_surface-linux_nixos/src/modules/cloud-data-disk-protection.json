@@ -174,7 +174,7 @@
       {
         "mount": "/home/diego",
         "subvol": "@home-diego",
-        "limit_gib": 56,
+        "limit_gib": 32,
         "warn_pct": 80,
         "critical_pct": 90,
         "emergency_pct": 95,
@@ -192,7 +192,7 @@
       {
         "mount": "/mnt/shared",
         "subvol": "@shared",
-        "limit_gib": 12,
+        "limit_gib": 20,
         "warn_pct": 80,
         "critical_pct": 90,
         "emergency_pct": 95,
@@ -201,7 +201,7 @@
       {
         "mount": "/nix",
         "subvol": "@nixos/nix",
-        "limit_gib": 56,
+        "limit_gib": 40,
         "warn_pct": 80,
         "critical_pct": 90,
         "emergency_pct": 95,
