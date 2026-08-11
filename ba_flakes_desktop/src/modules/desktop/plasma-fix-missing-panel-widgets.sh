@@ -74,9 +74,17 @@ command -v awk >/dev/null 2>&1 || { log "awk not found — skipping"; exit 0; }
 QDBUS="$(command -v qdbus6 || command -v qdbus || true)"
 [ -n "$QDBUS" ] || { log "qdbus not found — skipping"; exit 0; }
 
-if command -v pgrep >/dev/null 2>&1; then
-  pgrep -x plasmashell >/dev/null 2>&1 || { log "plasmashell not running — skipping"; exit 0; }
-fi
+# Probe the D-Bus endpoint, which is the actual dependency, rather than the
+# process name. This used to be `pgrep -x plasmashell`, which NEVER matched on
+# NixOS: the running binary is a wrapper, so /proc/<pid>/comm is
+# ".plasmashell-wr" (comm is capped at 15 chars) and `pgrep -x plasmashell`
+# exits 1. Every run of this script therefore logged "plasmashell not running"
+# and exited 0 without repairing anything -- which is why the top panel kept
+# its missing widgets no matter how many times activation ran.
+"$QDBUS" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "1" >/dev/null 2>&1 || {
+  log "plasmashell D-Bus endpoint unavailable — skipping"
+  exit 0
+}
 
 [ -f "$JSON_FILE" ] || { log "no repair manifest at $JSON_FILE — skipping"; exit 0; }
 [ -f "$APPLETS_FILE" ] || { log "no appletsrc yet at $APPLETS_FILE — skipping"; exit 0; }
