@@ -32,7 +32,11 @@ miss="$(jq -r '[.desktops[].windows[].app] - (.apps|keys) | unique[]' "$JSON" 2>
 [ -z "$miss" ] && ok "all windows reference a registered app" || no "unregistered apps: $miss"
 
 echo "── 3. registry execs resolve on PATH ──"
-export PATH="/run/current-system/sw/bin:$HOME/.nix-profile/bin:/run/wrappers/bin:/etc/profiles/per-user/$USER/bin:$PATH"
+# Mirrors default-session-launcher.sh's PATH exactly — wrappers FIRST (see the
+# comment there: sw/bin ahead of wrappers shadowed every setuid binary). A test
+# that resolves execs against a different PATH than the launcher uses is not
+# testing the launcher.
+export PATH="/run/wrappers/bin:/run/current-system/sw/bin:$HOME/.nix-profile/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 while read -r exe; do
   [ -z "$exe" ] && continue
   if command -v "$exe" >/dev/null 2>&1; then ok "exec '$exe' found"; else no "exec '$exe' NOT on PATH"; fi
