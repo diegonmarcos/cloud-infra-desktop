@@ -300,7 +300,6 @@ in {
   networking.networkmanager.dispatcherScripts = [
     {
       source = pkgs.writeShellScript "wg-dualstack-allowedips-fix" ''
-        #!${pkgs.runtimeShell}
         IFACE="$1"; STATUS="$2"
         [ "$STATUS" = "up" ] || exit 0
         case "$IFACE" in
