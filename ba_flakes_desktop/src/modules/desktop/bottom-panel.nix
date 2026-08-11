@@ -93,7 +93,7 @@ in
         #
         # The item lists are NOT set here: Plasma reads them from the PRIVATE
         # systemtray containment rather than the applet, so plasma-manager
-        # writing them to the applet has no effect. plasma-panel-config.service
+        # writing them to the applet has no effect. plasma-systray-config.service
         # activation writes the real containments; these two entries only
         # declare that two trays exist and in what order.
         { name = "org.kde.plasma.systemtray"; }
