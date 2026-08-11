@@ -40,6 +40,20 @@ let
     runtimeInputs = [ pkgs.coreutils pkgs.gawk pkgs.jq pkgs.kdePackages.qttools ];
     text = builtins.readFile ./plasma-fix-missing-panel-widgets.sh;
   };
+
+  # Same convention: the tray contents live in systray-items.json, the script
+  # is plain shell, nothing about which item goes where is interpolated here.
+  systrayConfigScript = pkgs.writeShellApplication {
+    name = "plasma-systray-config";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.gawk
+      pkgs.gnused
+      pkgs.jq
+      pkgs.kdePackages.kconfig
+    ];
+    text = builtins.readFile ./plasma-systray-config.sh;
+  };
 in
 
 {
@@ -56,81 +70,36 @@ in
     ./cloud-terminal.nix     # pull Cloud Terminal from its GH Release (version-guarded)
   ];
 
-  # System tray item visibility, captured from the live layout on 2026-08-02.
+  # ---------------------------------------------------------------------------
+  # System tray contents (two trays, both on the bottom panel)
+  # ---------------------------------------------------------------------------
+  # bottom-panel.nix declares two bare org.kde.plasma.systemtray widgets; what
+  # each one contains lives in the private systemtray containments of
+  # plasma-org.kde.plasma.desktop-appletsrc, which plasma-manager cannot write.
   #
-  # There are TWO trays on the bottom panel (declared in ./bottom-panel.nix)
-  # because one tray cannot hold two policies — shownItems/hiddenItems are
-  # per-tray. The FIRST holds our eight app trays and pins them visible; the
-  # SECOND holds KDE's own indicators and lets them auto-hide, so battery and
-  # volume surface when they have something to say while nix-flakes, docker,
-  # my-ai and the rest stay one click away.
+  # This replaces home.activation.fixSystemTray (removed 2026-08-11). That
+  # never held: an activation writes while plasmashell is running, and
+  # plasmashell writes its own in-memory item lists back over the whole file at
+  # logout. Tray 1 ended up with no hiddenItems= line at all and both trays fell
+  # back to showing every icon. A oneshot ordered Before plasmashell owns the
+  # file when nothing else does, so plasmashell reads our lists at startup.
   #
-  # This runs as an activation rather than through plasma-manager because
-  # Plasma reads these lists from the PRIVATE systemtray containment, not from
-  # the applet that plasma-manager can write — declaring them on the applet
-  # writes a key nothing reads.
-  #
-  # The previous version of this named `nixos-systray,cloud-systray`. Neither
-  # id exists any more: my-konsole is the tray daemon now and publishes eight
-  # ids, of which cloud-systray is the only survivor and nixos-systray was
-  # renamed nix-flakes-systray. So the hook had been pinning two items, one
-  # imaginary, and leaving the real eight to the overflow.
-  home.activation.fixSystemTray = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
-    APPLETS_FILE="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
-    if [ -f "$APPLETS_FILE" ]; then
-      # Ours — the my-konsole tray daemon's ids (configs/systrays.json).
-      OURS="cloud-systray,docker-systray,httpd-web-server-json-md-eruda-systray,my-ai-systray,nix-flakes-systray,vault-systray,watchdog-systray,workflow-systray"
-      # KDE's own indicators.
-      SYSTEM="org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.brightness,org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.clipboard,org.kde.plasma.devicenotifier,org.kde.plasma.notifications,org.kde.kdeconnect,org.kde.kscreen,org.kde.plasma.cameraindicator,org.kde.plasma.manage-inputmethod,org.kde.plasma.mediacontroller"
-      # Keyboard layout/indicator: a single-layout machine, so it is a letter
-      # that never changes. Kept out of SYSTEM and named here so tray 2 hides it
-      # explicitly — leaving it merely absent lets Plasma auto-show it, since a
-      # tray displays anything that registers unless hiddenItems says otherwise.
-      KEYBOARD="org.kde.plasma.keyboardlayout,org.kde.plasma.keyboardindicator"
+  # Items and the complement-based hidden list: ./systray-items.json and
+  # ./plasma-systray-config.sh. Test: ./test-systray-config.sh.
+  home.file.".local/share/systray-items.json".source = ./systray-items.json;
 
-      # BOTH private systemtray containments, in panel order — the old hook
-      # took only the first (`exit` after one match) which is why the second
-      # tray was never configured at all.
-      TRAY_IDS=$(${pkgs.gawk}/bin/awk '
-        /^\[Containments\]\[[0-9]+\]$/ { current_id = gensub(/.*\[([0-9]+)\]$/, "\\1", "g") }
-        /^plugin=org\.kde\.plasma\.private\.systemtray$/ { print current_id }
-      ' "$APPLETS_FILE")
-
-      idx=0
-      for TRAY_ID in $TRAY_IDS; do
-        idx=$((idx + 1))
-        if [ "$idx" = 1 ]; then
-          # Tray 1 — OURS AND NOTHING ELSE. extraItems is what the tray is
-          # allowed to know about at all, so listing SYSTEM here (as this did)
-          # is what let KDE's indicators leak in beside ours; hiddenItems then
-          # keeps out anything that registers itself without being listed.
-          SHOWN="$OURS";              HIDDEN="$SYSTEM,$KEYBOARD"; EXTRA="$OURS"
-        else
-          # Tray 2 — everything KDE, auto-hiding, minus the keyboard layout.
-          # shownItems pins the indicators visible: "show ALL" is a policy, and
-          # leaving them unlisted only means Plasma decides per item.
-          SHOWN="$SYSTEM";            HIDDEN="$OURS,$KEYBOARD";   EXTRA="$SYSTEM"
-        fi
-        GENERAL_SECTION="[Containments][$TRAY_ID][General]"
-        if grep -qF "$GENERAL_SECTION" "$APPLETS_FILE"; then
-          ${pkgs.gnused}/bin/sed -i "/^\[Containments\]\[$TRAY_ID\]\[General\]$/,/^\[/ {
-            /^shownItems=/d
-            /^hiddenItems=/d
-            /^extraItems=/d
-          }" "$APPLETS_FILE"
-          ${pkgs.gnused}/bin/sed -i "/^\[Containments\]\[$TRAY_ID\]\[General\]$/a shownItems=$SHOWN\nhiddenItems=$HIDDEN\nextraItems=$EXTRA" "$APPLETS_FILE"
-        else
-          {
-            echo ""
-            echo "$GENERAL_SECTION"
-            echo "shownItems=$SHOWN"
-            echo "hiddenItems=$HIDDEN"
-            echo "extraItems=$EXTRA"
-          } >> "$APPLETS_FILE"
-        fi
-      done
-    fi
-  '';
+  systemd.user.services.plasma-systray-config = {
+    Unit = {
+      Description = "Apply declarative Plasma system tray item lists";
+      Before = [ "plasma-plasmashell.service" ];
+      PartOf = [ "plasma-workspace.target" ];
+    };
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${systrayConfigScript}/bin/plasma-systray-config";
+    };
+    Install.WantedBy = [ "plasma-workspace.target" ];
+  };
 
   # Configure battery widget to show percentage instead of icon
   home.activation.fixBatteryPercentage = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
@@ -393,7 +362,7 @@ in
     configFile = {
       # NOTE: Panel/widget containment IDs (like 244, 308) are NOT configured here
       # because Plasma assigns dynamic IDs. Panel config is user-managed.
-      # The activation script (fixSystemTray) handles system tray visibility dynamically.
+      # plasma-systray-config.service handles system tray visibility instead.
 
       # Mouse/Touchpad settings
       "kcminputrc"."Libinput.1267.12693.ELAN0732:00 04F3:3195 Touchpad" = {
@@ -718,7 +687,7 @@ in
     folders[$e]=$HOME/bin
 
     [Basic Settings]
-    Indexing-Enabled=true
+    Indexing-Enabled=false
   '';
 
   # ─────────────────────────────────────────────────────────────────
@@ -920,7 +889,7 @@ in
 
   # Fix system tray showAllItems (plasma-manager writes to applet, but Plasma reads from containment)
   # DISABLED: The kquitapp6/kstart plasmashell combo causes GUI freezes 8 seconds after every login.
-  # The activation script (fixSystemTray) handles this during home-manager switch instead.
+  # plasma-systray-config.service handles this at login, before plasmashell starts.
   # If you need to fix system tray visibility, run manually:
   #   kquitapp6 plasmashell && kstart plasmashell
   #

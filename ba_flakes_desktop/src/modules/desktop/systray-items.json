@@ -1,0 +1,54 @@
+{
+  "_comment": [
+    "Contents of the two system trays on the bottom panel, in panel order.",
+    "bottom-panel.nix declares the two bare org.kde.plasma.systemtray widgets;",
+    "this file says what goes in them. plasma-systray-config.sh applies it.",
+    "",
+    "Tray 1 = our own daemons only (ids published by da_my-konsole's",
+    "configs/systrays.json). Tray 2 = the KDE indicators.",
+    "",
+    "There is deliberately no 'hidden' list: hiddenItems is computed as the",
+    "complement of 'shown', because the systray default for an id it was never",
+    "told about is *shown*. Listing hidden items only hides what we predicted,",
+    "which is how my-ai-usage / Xwayland Video Bridge / diskquota leaked in."
+  ],
+
+  "always_hidden": [
+    "org.kde.plasma.keyboardlayout",
+    "org.kde.plasma.keyboardindicator"
+  ],
+
+  "trays": [
+    {
+      "name": "ours",
+      "shown": [
+        "cloud-systray",
+        "docker-systray",
+        "httpd-web-server-json-md-eruda-systray",
+        "my-ai-systray",
+        "nix-flakes-systray",
+        "vault-systray",
+        "watchdog-systray",
+        "workflow-systray"
+      ]
+    },
+    {
+      "name": "system",
+      "shown": [
+        "org.kde.plasma.battery",
+        "org.kde.plasma.bluetooth",
+        "org.kde.plasma.brightness",
+        "org.kde.plasma.networkmanagement",
+        "org.kde.plasma.volume",
+        "org.kde.plasma.clipboard",
+        "org.kde.plasma.devicenotifier",
+        "org.kde.plasma.notifications",
+        "org.kde.kdeconnect",
+        "org.kde.kscreen",
+        "org.kde.plasma.cameraindicator",
+        "org.kde.plasma.manage-inputmethod",
+        "org.kde.plasma.mediacontroller"
+      ]
+    }
+  ]
+}
