@@ -58,7 +58,12 @@ if [ -f "$LIVE" ]; then
             FAILS=$((FAILS + 1))
         fi
     else
-        echo "ℹ LIVE: $LIVE older than source — run ba_flakes_desktop/build.sh switch && balooctl6 purge && balooctl6 enable"
+        # Do NOT re-add `balooctl6 enable` here. Baloo is disabled on purpose
+        # (2026-08-11: it drove user.slice to 49.4% memory pressure and oomd
+        # killed plasmashell). KDE search is served by the CI-built store index
+        # instead — desktop/store-search.nix. These excludes are kept only so
+        # the config stays coherent if baloo is ever revived.
+        echo "ℹ LIVE: $LIVE older than source — run ba_flakes_desktop/build.sh switch"
     fi
 else
     echo "ℹ LIVE: $LIVE not present yet — run ba_flakes_desktop/build.sh switch first"

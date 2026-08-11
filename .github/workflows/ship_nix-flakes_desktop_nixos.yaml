@@ -72,6 +72,12 @@ jobs:
           purge-created: 0
           purge-primary-key: never
 
+      # plocate-build turns the closure's file list into a PATH-keyed index.
+      # ci-build degrades gracefully if this is missing, so a repo failure here
+      # must never block shipping the closure itself.
+      - name: Install plocate (store search index)
+        run: sudo apt-get install -y -qq plocate || true
+
       - name: Build + export system closure (+ push incremental GHCR cache)
         env:
           GHCR_OWNER: ${{ github.repository_owner }}
@@ -88,6 +94,18 @@ jobs:
           path: aa_desk-usr_x86_surface-linux_nixos/dist-ci/
           retention-days: 7
           compression-level: 0
+
+      # Store filename index for KDE/KRunner search (~1.5MB). Shipped WHOLE,
+      # deliberately not diffed like the closure below — see ci_build() for why.
+      # if-no-files-found: warn, never error: search is a convenience, and a
+      # missing index must not fail a switch that is otherwise good.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nixos-surface-search-index
+          path: aa_desk-usr_x86_surface-linux_nixos/dist-ci-index/
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: warn
 
       # closure DIFF vs the laptop's committed have-paths — small download,
       # never the 7GB GHCR mono-layer (2026-07-22)

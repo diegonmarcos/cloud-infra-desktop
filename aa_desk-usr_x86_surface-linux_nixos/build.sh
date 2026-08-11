@@ -1655,6 +1655,45 @@ ci_build() {
         cp "$out/toplevel.name" "$_dout/" 2>/dev/null || true
     fi
 
+    # ── Store filename index (2026-08-11) ───────────────────────────────────
+    # Filename index over the system closure, consumed by the KRunner runner
+    # (modules/desktop/store-search.nix) so KDE search can find files in the
+    # store without ANY local indexing.
+    #
+    # NOT baloo: baloo keys every document by (device, inode) — an index built
+    # on this runner is structurally meaningless on the laptop, since inodes
+    # differ per filesystem. plocate's DB is keyed by PATH, and store paths are
+    # content-addressed and byte-identical on every machine, so this artifact
+    # transplants exactly. That property is the whole reason this can be built
+    # in CI at all.
+    #
+    # Deliberately NOT diffed/layered like the closure above: measured ~1.5MB
+    # zstd for a ~240k-file closure. The have/want machinery exists for GB-scale
+    # transfers; computing which shards are missing would cost more than just
+    # shipping the blob.
+    local _idx="$SCRIPT_DIR/dist-ci-index"
+    rm -rf "$_idx"; mkdir -p "$_idx"
+    if command -v plocate-build >/dev/null 2>&1; then
+        # find $(...) rather than xargs: `find` requires paths BEFORE expressions,
+        # so `xargs find -type f` appends them in the wrong order and errors out.
+        # ~3k paths ≈ 200KB of argv, comfortably under ARG_MAX.
+        find $(nix-store -qR "$sys") -xdev -type f 2>/dev/null > "$_idx/files.txt"
+        # -p/--plaintext: read a newline-separated path list instead of an
+        # mlocate DB. Do NOT silence stderr here — hiding the error is exactly
+        # how disable-baloo.nix's `balooctl disable 2>/dev/null || true` masked
+        # a write that could never succeed, for a month.
+        if plocate-build -p "$_idx/files.txt" "$_idx/store.db"; then
+            log "search index: $(wc -l < "$_idx/files.txt") files → $(du -h "$_idx/store.db" | cut -f1)"
+        else
+            warn "plocate-build failed (see stderr above) — search index skipped"
+            rm -f "$_idx/store.db"
+        fi
+        rm -f "$_idx/files.txt"
+        cp "$out/toplevel.name" "$_idx/"
+    else
+        warn "plocate-build not found — search index skipped (non-fatal)"
+    fi
+
     rm -f "$out/result"
     log "Done → $out/ (diff-only: full nar skipped unless FULL_NAR=1)"
 
@@ -1753,9 +1792,10 @@ pull_remote() {
     #   40-activate.sh          profile set + switch-to-configuration
     #   45-bootloader.sh        aa_bootloader deploy-all + verify-boot
     #   50-refresh-inventory.sh have-paths self-refresh + push
+    #   60-fetch-search-index.sh KDE/KRunner store index (always exits 0)
     # Step exit 3 = "already active" → success, stop early.
     local steps="$SCRIPT_DIR/src/scripts/steps" _s _rc
-    for _s in 10-fetch-diff 20-import-diff 30-verify-closure 40-activate 45-bootloader 50-refresh-inventory; do
+    for _s in 10-fetch-diff 20-import-diff 30-verify-closure 40-activate 45-bootloader 50-refresh-inventory 60-fetch-search-index; do
         log "── STEP $_s ──"
         bash "$steps/$_s.sh"; _rc=$?
         if [ "$_rc" -eq 3 ]; then log "Pipeline stopped early: already active."; return 0; fi
