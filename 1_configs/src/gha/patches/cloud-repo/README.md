@@ -30,17 +30,34 @@ message and authorship. Verify it applies before pushing:
 
 ## Contents
 
-- `0001-c3-infra-mcp-gha-trigger-inputs-repo-rerun-run-logs.patch`
-  Full GHA control for `devops.workflows`:
-  - `repo` on ALL seven tools — `GH_REPO` was hardcoded to `<owner>/cloud`,
-    so the unix monorepo's app/APK workflows were invisible, not merely
-    untriggerable
-  - `inputs` + `ref` on `gha_trigger`
-  - new `gha_rerun` (`--failed` by default), `gha_cancel`, `gha_run_logs`
-  Typechecked against the real dependency tree: 9 pre-existing errors
-  before, 9 after, none in the added code.
+`0001-c3-infra-mcp-gha-trigger-inputs-repo-rerun-run-logs.patch` carries TWO
+commits (apply with `git am`, which preserves both):
 
-  Note: the MCP's power is still bounded by the `gh` token on the host.
-  If that token cannot see a repo, these parameters return "not found"
-  rather than acting — widening the tool surface does not widen the
-  credential.
+1. **Full GHA control** — `repo` on all seven `devops.workflows.*` tools
+   (`GH_REPO` was hardcoded to `<owner>/cloud`, so the unix monorepo's
+   app/APK workflows were invisible, not merely untriggerable), `inputs`
+   and `ref` on `gha_trigger`, plus new `gha_rerun`, `gha_cancel` and
+   `gha_run_logs`.
+
+2. **Full GitHub surface** — 31 new `devops.gh.*` tools: PRs, issues,
+   releases (incl. assets — which APK a tag carries), artifacts, repo
+   metadata, Actions secrets, and a generic `gh api` escape hatch.
+   Also fixes a latent hang in the SHARED exec lib (stdin was opened as a
+   pipe and never closed, so any child reading stdin blocked until the
+   timeout). That file lives in `c3-infra-api` and is symlinked into
+   `c3-infra-mcp`, so **redeploy both services together**.
+
+Both typechecked against the real dependency tree: 9 pre-existing errors
+before and after, none in the new code. Verified with `git apply --check`
+against a pristine clone of current `main`.
+
+### Two things to check after deploying
+
+- **The `gh` token on the host bounds everything.** Widening the tool
+  surface does not widen the credential — if that token lacks `workflow`
+  scope or cannot see `diegonmarcos/unix`, the new `repo` parameters
+  return "not found" rather than acting.
+- **Destructive tools require `confirm=true`** (pr_merge, pr_close,
+  issue_close, release_delete, secret_delete, any non-GET `api`). These sit
+  behind one bearer token valid until 2036 alongside `devops.docker.exec`
+  and `devops.vm.reset`; the flag makes intent explicit.

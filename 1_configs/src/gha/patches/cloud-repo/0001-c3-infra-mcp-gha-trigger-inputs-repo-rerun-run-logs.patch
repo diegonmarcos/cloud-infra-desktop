@@ -1,9 +1,9 @@
 From cf2caa1fb3a312c31ead227ac49f0cb347dd6438 Mon Sep 17 00:00:00 2001
 From: Claude <me@diegonmarcos.com>
 Date: Tue, 11 Aug 2026 18:18:05 +0000
-Subject: [PATCH] =?UTF-8?q?feat(c3-infra-mcp):=20full=20GHA=20control=20?=
- =?UTF-8?q?=E2=80=94=20cross-repo,=20inputs,=20rerun,=20cancel,=20run=20lo?=
- =?UTF-8?q?gs?=
+Subject: [PATCH 1/2] =?UTF-8?q?feat(c3-infra-mcp):=20full=20GHA=20control?=
+ =?UTF-8?q?=20=E2=80=94=20cross-repo,=20inputs,=20rerun,=20cancel,=20run?=
+ =?UTF-8?q?=20logs?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -378,6 +378,631 @@ index d24cbb3..74824cc 100644
    // ── Dagu ──
    server.tool(
      "devops.workflows.dagu",
+-- 
+2.43.0
+
+
+From 4123bd1a2f7d12502fa949d82b91b7d53c4df1e8 Mon Sep 17 00:00:00 2001
+From: Claude <me@diegonmarcos.com>
+Date: Tue, 11 Aug 2026 19:06:46 +0000
+Subject: [PATCH 2/2] =?UTF-8?q?feat(c3-infra-mcp):=20full=20GitHub=20surfa?=
+ =?UTF-8?q?ce=20via=20gh=20=E2=80=94=20PRs,=20issues,=20releases,=20artifa?=
+ =?UTF-8?q?cts,=20secrets,=20api?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+devops.workflows.* covers the Actions RUN lifecycle. Everything else GitHub
+was missing: the MCP could watch a build but not see the release it
+produced, not read a PR, not set the secret a workflow needs.
+
+31 tools under devops.gh.*, every one taking an optional `repo` (the
+app/APK workflows and releases live in the unix monorepo, not cloud):
+  PRs        list, view (with check rollup), diff, create, comment,
+             review, merge, close, ready
+  Issues     list, view, create, comment, close, reopen
+  Releases   list, view (with ASSETS — which APK a tag currently carries),
+             create, upload, download, delete
+  Artifacts  run_artifacts, artifact_download
+  Repo       repo_view, branch_list, tag_list, commit_list
+  Secrets    secret_list, secret_set, secret_delete
+  Escape     api — generic `gh api`, the catch-all for anything not wrapped
+             (deployments, environments, checks, collaborators, webhooks)
+
+FIXES A LATENT HANG IN THE SHARED exec LIB. execAsync spawned with stdin as
+a pipe and never wrote or closed it, so any child reading stdin blocked
+until the timeout killed it. stdin is now always ended, and both exec and
+execAsync accept an optional `input`. Note the path: c3-infra-mcp's
+src/code/shared is a SYMLINK into c3-infra-api, so this file is shared
+between the two services — the fix benefits both, and both should be
+redeployed together.
+
+SECRET VALUES NEVER ENTER argv. `gh secret set NAME --body VALUE` puts the
+value in the process list where anyone with `ps` on the host can read it.
+The value goes on stdin instead (hence the exec fix), is never logged, and
+is never echoed back — secret_set returns only the name and ok/failed.
+secret_list is documented as names-only because GitHub genuinely cannot
+return values.
+
+DESTRUCTIVE OPERATIONS REQUIRE confirm=true: pr_merge, pr_close,
+issue_close, release_delete, secret_delete, and any non-GET `api` call.
+These tools sit behind ONE bearer token valid until 2036, stored in
+plaintext, alongside devops.docker.exec and devops.vm.reset. An accidental
+merge or secret deletion is a real failure mode; an explicit flag makes
+intent deliberate without blocking anything actually intended.
+
+Validation is about FLAG injection, not shell injection — execAsync passes
+an argv array so there is no shell, but gh reads a leading "-" as an
+option. Repos, numbers, secret names and api field names are pattern
+checked, and positional values may not begin with "-". Large outputs
+(diffs, api responses) are tailed to 300 lines.
+
+Typechecked against the real dependency tree: 9 pre-existing errors before
+and after, none in the new files. This module's safeRun annotates its
+callback return types, so unlike the copies in workflows/finops/vps-ops it
+does not contribute a TS2322.
+---
+ .../src/code/shared/libs/exec.ts              |  18 +-
+ .../src/code/mcp/http.ts                      |   2 +
+ .../src/code/mcp/tools/github.ts              | 478 ++++++++++++++++++
+ 3 files changed, 496 insertions(+), 2 deletions(-)
+ create mode 100644 a_solutions/infra-api_c3-infra-mcp/src/code/mcp/tools/github.ts
+
+diff --git a/a_solutions/infra-api_c3-infra-api/src/code/shared/libs/exec.ts b/a_solutions/infra-api_c3-infra-api/src/code/shared/libs/exec.ts
+index e9d4f8f..74403cb 100644
+--- a/a_solutions/infra-api_c3-infra-api/src/code/shared/libs/exec.ts
++++ b/a_solutions/infra-api_c3-infra-api/src/code/shared/libs/exec.ts
+@@ -23,12 +23,13 @@ function resolveExecEnv(command: string): NodeJS.ProcessEnv {
+ export function exec(
+   command: string,
+   args: string[],
+-  options?: { timeout?: number; cwd?: string }
++  options?: { timeout?: number; cwd?: string; input?: string }
+ ): ExecResult {
+   const timeout = options?.timeout ?? 30_000;
+   const result = spawnSync(command, args, {
+     timeout,
+     cwd: options?.cwd,
++    input: options?.input,
+     encoding: "utf-8",
+     env: resolveExecEnv(command),
+     maxBuffer: 10 * 1024 * 1024,
+@@ -42,10 +43,18 @@ export function exec(
+   };
+ }
+ 
++// `input` writes to the child's stdin and closes it. This exists so callers can
++// pass SECRET material without putting it in argv, where anyone running `ps` on
++// the host could read it (`gh secret set NAME --body <value>` leaks exactly that
++// way).
++//
++// stdin is now ALWAYS ended, input or not. Previously stdio[0] was opened as a
++// pipe and never written or closed, so any child that read stdin blocked until
++// the timeout killed it — a latent hang for every caller, not just new ones.
+ export function execAsync(
+   command: string,
+   args: string[],
+-  options?: { timeout?: number; cwd?: string }
++  options?: { timeout?: number; cwd?: string; input?: string }
+ ): Promise<ExecResult> {
+   const timeout = options?.timeout ?? 30_000;
+   return new Promise((resolve) => {
+@@ -55,6 +64,11 @@ export function execAsync(
+       stdio: ["pipe", "pipe", "pipe"],
+     });
+ 
++    try {
++      if (options?.input !== undefined) proc.stdin.write(options.input);
++      proc.stdin.end();
++    } catch { /* child may have exited already; the close/error handler resolves */ }
++
+     let stdout = "";
+     let stderr = "";
+     let settled = false;
+diff --git a/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/http.ts b/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/http.ts
+index 1f4674e..4301ea1 100644
+--- a/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/http.ts
++++ b/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/http.ts
+@@ -19,6 +19,7 @@ import { registerFinOpsCloudTools } from "./tools/finops-cloud.js";
+ import { registerObservabilityExecTools } from "./tools/observability.js";
+ // B) DevOps
+ import { registerWorkflowTools } from "./tools/workflows.js";
++import { registerGithubTools } from "./tools/github.js";
+ import { registerVpsOpsTools } from "./tools/vps-ops.js";
+ import { registerDeliveryTools } from "./tools/delivery.js";
+ import { registerOperationsTools } from "./tools/operations.js";
+@@ -44,6 +45,7 @@ function createMcpServer(): McpServer {
+   registerObservabilityExecTools(server);
+   // B) DevOps
+   registerWorkflowTools(server);
++  registerGithubTools(server);
+   registerVpsOpsTools(server);
+   registerDeliveryTools(server);
+   registerOperationsTools(server);
+diff --git a/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/tools/github.ts b/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/tools/github.ts
+new file mode 100644
+index 0000000..fec803c
+--- /dev/null
++++ b/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/tools/github.ts
+@@ -0,0 +1,478 @@
++// ── GitHub — full `gh` CLI surface beyond Actions (26 tools) ──
++// PRs, issues, releases, artifacts, repo metadata, Actions secrets, and a
++// generic `gh api` escape hatch for everything not wrapped here.
++//
++// devops.workflows.* already covers the Actions RUN lifecycle (trigger, rerun,
++// cancel, logs). This module is everything else GitHub.
++//
++// The MCP shells out to the `gh` CLI on its host, so the real authority is
++// whatever THAT token can do. Widening this tool surface does not widen the
++// credential: if the token lacks a scope, or cannot see a repo, these tools
++// return gh's own "not found"/"insufficient scope" rather than acting.
++
++import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
++import { z } from "zod";
++import { execAsync } from "../../shared/libs/exec.js";
++
++const log = (msg: string) => process.stderr.write(`[github] ${msg}\n`);
++
++function resolveGhRepo(): string {
++  try {
++    const { getConfig } = require("../../shared/libs/config.js");
++    const config = getConfig();
++    return `${config.owner?.github ?? "diegonmarcos"}/cloud`;
++  } catch {}
++  return "diegonmarcos/cloud";
++}
++const GH_REPO = resolveGhRepo();
++
++// ──────────────────────────────────────────────────────────────────────────────
++// HELPERS
++// ──────────────────────────────────────────────────────────────────────────────
++
++// NB: the identical helper in workflows.ts / finops.ts / vps-ops.ts omits the
++// callback return annotations, so TS widens the tuple to an array and each copy
++// contributes a TS2322. Annotating both callbacks keeps the tuple type and
++// costs nothing — this copy is clean rather than adding to that debt.
++type TextResult = { content: [{ type: "text"; text: string }] };
++
++function safeRun(fn: () => Promise<string>): Promise<TextResult> {
++  return fn()
++    .then((text): TextResult => ({ content: [{ type: "text" as const, text }] }))
++    .catch((err): TextResult => ({ content: [{ type: "text" as const, text: `ERROR: ${err instanceof Error ? err.message : String(err)}` }] }));
++}
++
++// execAsync spawns with an argv ARRAY — there is no shell, so nothing here is a
++// shell-injection surface. The validation below is about FLAG injection: gh
++// parses a leading "-" as an option, so an unvalidated value could smuggle one.
++async function gh(args: string[], timeout = 30_000, input?: string): Promise<{ ok: boolean; stdout: string; stderr: string }> {
++  const r = await execAsync("gh", args, { timeout, input });
++  return { ok: r.ok, stdout: r.stdout, stderr: r.stderr };
++}
++
++const RE_REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
++const RE_NUM = /^\d+$/;
++const RE_FIELD = /^[A-Za-z_][A-Za-z0-9_.\[\]-]*$/;
++const RE_SECRET = /^[A-Za-z_][A-Za-z0-9_]*$/;
++
++function badRepo(repo: string): string | null {
++  return RE_REPO.test(repo) ? null : `✗ invalid repo "${repo}" — expected owner/name`;
++}
++function badNum(v: string, label: string): string | null {
++  return RE_NUM.test(v) ? null : `✗ invalid ${label} "${v}" — expected digits`;
++}
++// A positional value starting with "-" would be read by gh as a flag.
++function badPositional(v: string, label: string): string | null {
++  return v.startsWith("-") ? `✗ ${label} may not start with "-"` : null;
++}
++
++// A diff, a log or an api response can be megabytes. Never hand that back whole.
++function tail(text: string, max = 300): string {
++  const lines = text.split("\n");
++  if (lines.length <= max) return text;
++  return [`(${lines.length - max} earlier lines trimmed)`, ...lines.slice(-max)].join("\n");
++}
++
++function out(r: { ok: boolean; stdout: string; stderr: string }, okMsg?: string, max = 300): string {
++  if (!r.ok) return `✗ ${r.stderr.trim() || r.stdout.trim() || "gh failed with no output"}`;
++  const body = r.stdout.trim();
++  if (okMsg) return body ? `${okMsg}\n${tail(body, max)}` : okMsg;
++  return body ? tail(body, max) : "(no output)";
++}
++
++// Destructive operations take an explicit confirm. These tools sit behind ONE
++// bearer token valid until 2036, alongside devops.docker.exec and
++// devops.vm.reset — an accidental merge, release deletion or secret removal is
++// a real failure mode, and a confirm flag makes intent explicit without
++// blocking anything a caller actually meant to do.
++function needConfirm(confirm: boolean | undefined, what: string): string | null {
++  return confirm === true ? null : `✗ refused: ${what} is destructive — pass confirm=true to proceed`;
++}
++
++const repoArg = z.string().optional().describe("owner/repo (default: the cloud repo). Use the unix monorepo for the app/APK workflows and releases.");
++
++// ──────────────────────────────────────────────────────────────────────────────
++// REGISTRATION
++// ──────────────────────────────────────────────────────────────────────────────
++
++export function registerGithubTools(server: McpServer): void {
++  const R = (repo?: string) => repo ?? GH_REPO;
++
++  // ── Pull requests ───────────────────────────────────────────────────────
++  server.tool(
++    "devops.gh.pr_list",
++    "List pull requests. state: open|closed|merged|all (default open).",
++    { repo: repoArg, state: z.string().optional(), limit: z.number().optional(), search: z.string().optional() },
++    ({ repo, state, limit, search }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t); if (e) return e;
++      const a = ["pr", "list", "--repo", t, "--state", state ?? "open", "--limit", String(limit ?? 30),
++        "--json", "number,title,author,state,isDraft,headRefName,baseRefName,updatedAt,url"];
++      if (search) { const b = badPositional(search, "search"); if (b) return b; a.push("--search", search); }
++      return out(await gh(a));
++    }),
++  );
++
++  server.tool(
++    "devops.gh.pr_view",
++    "View one PR: body, state, review decision, and CI check results.",
++    { pr: z.string().describe("PR number"), repo: repoArg },
++    ({ pr, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(pr, "pr"); if (e) return e;
++      return out(await gh(["pr", "view", pr, "--repo", t,
++        "--json", "number,title,body,state,isDraft,author,reviewDecision,mergeable,headRefName,baseRefName,statusCheckRollup,url"]));
++    }),
++  );
++
++  server.tool(
++    "devops.gh.pr_diff",
++    "Diff of a PR. Truncated to the last 300 lines — a large PR diff would otherwise swamp the response.",
++    { pr: z.string(), repo: repoArg },
++    ({ pr, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(pr, "pr"); if (e) return e;
++      return out(await gh(["pr", "diff", pr, "--repo", t], 60_000));
++    }),
++  );
++
++  server.tool(
++    "devops.gh.pr_create",
++    "Open a pull request. Note: this repo's own convention is to work directly on main — only use this where a PR is genuinely wanted.",
++    { title: z.string(), body: z.string().optional(), base: z.string().optional(), head: z.string().optional(), draft: z.boolean().optional(), repo: repoArg },
++    ({ title, body, base, head, draft, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badPositional(title, "title"); if (e) return e;
++      const a = ["pr", "create", "--repo", t, "--title", title, "--body", body ?? ""];
++      if (base) a.push("--base", base);
++      if (head) a.push("--head", head);
++      if (draft) a.push("--draft");
++      return out(await gh(a, 45_000), "✓ PR created");
++    }),
++  );
++
++  server.tool(
++    "devops.gh.pr_comment",
++    "Add a comment to a PR.",
++    { pr: z.string(), body: z.string(), repo: repoArg },
++    ({ pr, body, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(pr, "pr"); if (e) return e;
++      return out(await gh(["pr", "comment", pr, "--repo", t, "--body", body]), "✓ comment added");
++    }),
++  );
++
++  server.tool(
++    "devops.gh.pr_review",
++    "Review a PR: approve | request-changes | comment. request-changes and comment require a body.",
++    { pr: z.string(), action: z.enum(["approve", "request-changes", "comment"]), body: z.string().optional(), repo: repoArg },
++    ({ pr, action, body, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(pr, "pr"); if (e) return e;
++      if (action !== "approve" && !body) return `✗ "${action}" requires a body`;
++      const flag = action === "approve" ? "--approve" : action === "request-changes" ? "--request-changes" : "--comment";
++      const a = ["pr", "review", pr, "--repo", t, flag];
++      if (body) a.push("--body", body);
++      return out(await gh(a), `✓ review submitted (${action})`);
++    }),
++  );
++
++  server.tool(
++    "devops.gh.pr_merge",
++    "Merge a PR (merge|squash|rebase). DESTRUCTIVE — requires confirm=true.",
++    { pr: z.string(), method: z.enum(["merge", "squash", "rebase"]).optional(), delete_branch: z.boolean().optional(), confirm: z.boolean().optional(), repo: repoArg },
++    ({ pr, method, delete_branch, confirm, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(pr, "pr") ?? needConfirm(confirm, `merging PR #${pr}`); if (e) return e;
++      const a = ["pr", "merge", pr, "--repo", t, `--${method ?? "squash"}`];
++      if (delete_branch) a.push("--delete-branch");
++      return out(await gh(a, 60_000), `✓ merged PR #${pr}`);
++    }),
++  );
++
++  server.tool(
++    "devops.gh.pr_close",
++    "Close a PR without merging. DESTRUCTIVE — requires confirm=true.",
++    { pr: z.string(), confirm: z.boolean().optional(), repo: repoArg },
++    ({ pr, confirm, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(pr, "pr") ?? needConfirm(confirm, `closing PR #${pr}`); if (e) return e;
++      return out(await gh(["pr", "close", pr, "--repo", t]), `✓ closed PR #${pr}`);
++    }),
++  );
++
++  server.tool(
++    "devops.gh.pr_ready",
++    "Mark a draft PR ready for review.",
++    { pr: z.string(), repo: repoArg },
++    ({ pr, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(pr, "pr"); if (e) return e;
++      return out(await gh(["pr", "ready", pr, "--repo", t]), `✓ PR #${pr} ready for review`);
++    }),
++  );
++
++  // ── Issues ──────────────────────────────────────────────────────────────
++  server.tool(
++    "devops.gh.issue_list",
++    "List issues. state: open|closed|all (default open).",
++    { repo: repoArg, state: z.string().optional(), limit: z.number().optional(), label: z.string().optional() },
++    ({ repo, state, limit, label }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t); if (e) return e;
++      const a = ["issue", "list", "--repo", t, "--state", state ?? "open", "--limit", String(limit ?? 30),
++        "--json", "number,title,author,state,labels,updatedAt,url"];
++      if (label) a.push("--label", label);
++      return out(await gh(a));
++    }),
++  );
++
++  server.tool(
++    "devops.gh.issue_view",
++    "View one issue with its body and comments.",
++    { issue: z.string(), repo: repoArg },
++    ({ issue, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(issue, "issue"); if (e) return e;
++      return out(await gh(["issue", "view", issue, "--repo", t, "--json", "number,title,body,state,author,labels,comments,url"]));
++    }),
++  );
++
++  server.tool(
++    "devops.gh.issue_create",
++    "Open an issue.",
++    { title: z.string(), body: z.string().optional(), labels: z.string().optional().describe("comma-separated"), repo: repoArg },
++    ({ title, body, labels, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badPositional(title, "title"); if (e) return e;
++      const a = ["issue", "create", "--repo", t, "--title", title, "--body", body ?? ""];
++      if (labels) a.push("--label", labels);
++      return out(await gh(a, 45_000), "✓ issue created");
++    }),
++  );
++
++  server.tool(
++    "devops.gh.issue_comment",
++    "Comment on an issue.",
++    { issue: z.string(), body: z.string(), repo: repoArg },
++    ({ issue, body, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(issue, "issue"); if (e) return e;
++      return out(await gh(["issue", "comment", issue, "--repo", t, "--body", body]), "✓ comment added");
++    }),
++  );
++
++  server.tool(
++    "devops.gh.issue_close",
++    "Close an issue. DESTRUCTIVE — requires confirm=true.",
++    { issue: z.string(), reason: z.enum(["completed", "not planned"]).optional(), confirm: z.boolean().optional(), repo: repoArg },
++    ({ issue, reason, confirm, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(issue, "issue") ?? needConfirm(confirm, `closing issue #${issue}`); if (e) return e;
++      const a = ["issue", "close", issue, "--repo", t];
++      if (reason) a.push("--reason", reason);
++      return out(await gh(a), `✓ closed issue #${issue}`);
++    }),
++  );
++
++  server.tool(
++    "devops.gh.issue_reopen",
++    "Reopen a closed issue.",
++    { issue: z.string(), repo: repoArg },
++    ({ issue, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(issue, "issue"); if (e) return e;
++      return out(await gh(["issue", "reopen", issue, "--repo", t]), `✓ reopened issue #${issue}`);
++    }),
++  );
++
++  // ── Releases ────────────────────────────────────────────────────────────
++  // The constellation ships every APK as an asset on a rolling `latest`
++  // release, so these close the loop between a build and what a device installs.
++  server.tool(
++    "devops.gh.release_list",
++    "List releases (tag, name, draft/prerelease, published date).",
++    { repo: repoArg, limit: z.number().optional() },
++    ({ repo, limit }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t); if (e) return e;
++      return out(await gh(["release", "list", "--repo", t, "--limit", String(limit ?? 30)]));
++    }),
++  );
++
++  server.tool(
++    "devops.gh.release_view",
++    "View a release and its ASSETS — use this to see which APK/artifact a tag currently carries, with sizes.",
++    { tag: z.string(), repo: repoArg },
++    ({ tag, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badPositional(tag, "tag"); if (e) return e;
++      return out(await gh(["release", "view", tag, "--repo", t, "--json", "tagName,name,isDraft,isPrerelease,publishedAt,assets,url"]));
++    }),
++  );
++
++  server.tool(
++    "devops.gh.release_create",
++    "Create a release for a tag.",
++    { tag: z.string(), title: z.string().optional(), notes: z.string().optional(), draft: z.boolean().optional(), prerelease: z.boolean().optional(), repo: repoArg },
++    ({ tag, title, notes, draft, prerelease, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badPositional(tag, "tag"); if (e) return e;
++      const a = ["release", "create", tag, "--repo", t, "--notes", notes ?? ""];
++      if (title) a.push("--title", title);
++      if (draft) a.push("--draft");
++      if (prerelease) a.push("--prerelease");
++      return out(await gh(a, 60_000), `✓ release ${tag} created`);
++    }),
++  );
++
++  server.tool(
++    "devops.gh.release_upload",
++    "Upload asset file(s) to an existing release. clobber=true replaces an asset of the same name (how the rolling `latest` tag is updated).",
++    { tag: z.string(), files: z.array(z.string()).describe("absolute paths on the MCP host"), clobber: z.boolean().optional(), repo: repoArg },
++    ({ tag, files, clobber, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badPositional(tag, "tag"); if (e) return e;
++      for (const f of files) { const b = badPositional(f, "file"); if (b) return b; }
++      const a = ["release", "upload", tag, ...files, "--repo", t];
++      if (clobber) a.push("--clobber");
++      return out(await gh(a, 300_000), `✓ uploaded ${files.length} asset(s) to ${tag}`);
++    }),
++  );
++
++  server.tool(
++    "devops.gh.release_download",
++    "Download release assets to a directory on the MCP host.",
++    { tag: z.string(), dir: z.string(), pattern: z.string().optional(), repo: repoArg },
++    ({ tag, dir, pattern, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badPositional(tag, "tag") ?? badPositional(dir, "dir"); if (e) return e;
++      const a = ["release", "download", tag, "--repo", t, "--dir", dir];
++      if (pattern) a.push("--pattern", pattern);
++      return out(await gh(a, 300_000), `✓ downloaded ${tag} → ${dir}`);
++    }),
++  );
++
++  server.tool(
++    "devops.gh.release_delete",
++    "Delete a release. DESTRUCTIVE — requires confirm=true. Does not delete the git tag unless cleanup_tag=true.",
++    { tag: z.string(), cleanup_tag: z.boolean().optional(), confirm: z.boolean().optional(), repo: repoArg },
++    ({ tag, cleanup_tag, confirm, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badPositional(tag, "tag") ?? needConfirm(confirm, `deleting release ${tag}`); if (e) return e;
++      const a = ["release", "delete", tag, "--repo", t, "--yes"];
++      if (cleanup_tag) a.push("--cleanup-tag");
++      return out(await gh(a, 60_000), `✓ deleted release ${tag}`);
++    }),
++  );
++
++  // ── Artifacts ───────────────────────────────────────────────────────────
++  // gh has no `run artifacts` subcommand, so these go through the REST API.
++  server.tool(
++    "devops.gh.run_artifacts",
++    "List artifacts produced by a workflow run (name, size, expiry).",
++    { run_id: z.string(), repo: repoArg },
++    ({ run_id, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(run_id, "run_id"); if (e) return e;
++      return out(await gh(["api", `repos/${t}/actions/runs/${run_id}/artifacts`,
++        "--jq", ".artifacts[] | {name, size_in_bytes, expired, expires_at}"]));
++    }),
++  );
++
++  server.tool(
++    "devops.gh.artifact_download",
++    "Download a workflow run's artifacts to a directory on the MCP host.",
++    { run_id: z.string(), dir: z.string(), name: z.string().optional().describe("single artifact name; omit for all"), repo: repoArg },
++    ({ run_id, dir, name, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? badNum(run_id, "run_id") ?? badPositional(dir, "dir"); if (e) return e;
++      const a = ["run", "download", run_id, "--repo", t, "--dir", dir];
++      if (name) a.push("--name", name);
++      return out(await gh(a, 300_000), `✓ downloaded artifacts of run ${run_id} → ${dir}`);
++    }),
++  );
++
++  // ── Repo metadata ───────────────────────────────────────────────────────
++  server.tool(
++    "devops.gh.repo_view",
++    "Repository metadata: default branch, visibility, topics, sizes.",
++    { repo: repoArg },
++    ({ repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t); if (e) return e;
++      return out(await gh(["repo", "view", t, "--json", "name,owner,defaultBranchRef,visibility,description,pushedAt,diskUsage,repositoryTopics"]));
++    }),
++  );
++
++  server.tool(
++    "devops.gh.branch_list",
++    "List branches with their head SHAs.",
++    { repo: repoArg, limit: z.number().optional() },
++    ({ repo, limit }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t); if (e) return e;
++      return out(await gh(["api", `repos/${t}/branches?per_page=${limit ?? 50}`, "--jq", ".[] | {name, sha: .commit.sha, protected}"]));
++    }),
++  );
++
++  server.tool(
++    "devops.gh.tag_list",
++    "List tags with their SHAs.",
++    { repo: repoArg, limit: z.number().optional() },
++    ({ repo, limit }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t); if (e) return e;
++      return out(await gh(["api", `repos/${t}/tags?per_page=${limit ?? 50}`, "--jq", ".[] | {name, sha: .commit.sha}"]));
++    }),
++  );
++
++  server.tool(
++    "devops.gh.commit_list",
++    "Recent commits on a branch (sha, message first line, author, date).",
++    { repo: repoArg, branch: z.string().optional(), limit: z.number().optional() },
++    ({ repo, branch, limit }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t); if (e) return e;
++      const q = `repos/${t}/commits?per_page=${limit ?? 20}${branch ? `&sha=${encodeURIComponent(branch)}` : ""}`;
++      return out(await gh(["api", q, "--jq", '.[] | {sha: .sha[0:8], msg: (.commit.message | split("\n")[0]), author: .commit.author.name, date: .commit.author.date}']));
++    }),
++  );
++
++  // ── Actions secrets ─────────────────────────────────────────────────────
++  server.tool(
++    "devops.gh.secret_list",
++    "List Actions secret NAMES and their updated-at. Values are never returned — GitHub stores them one-way encrypted and no API can read them back.",
++    { repo: repoArg },
++    ({ repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t); if (e) return e;
++      return out(await gh(["secret", "list", "--repo", t]));
++    }),
++  );
++
++  server.tool(
++    "devops.gh.secret_set",
++    "Create or update an Actions secret. The value is passed to gh on STDIN, never in argv — a --body argument would be visible to anyone running `ps` on the host. The value is never logged or echoed back.",
++    { name: z.string(), value: z.string(), repo: repoArg },
++    ({ name, value, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t); if (e) return e;
++      if (!RE_SECRET.test(name)) return `✗ invalid secret name "${name}" — expected [A-Za-z_][A-Za-z0-9_]*`;
++      log(`secret_set ${name} in ${t} (value withheld)`);
++      const r = await gh(["secret", "set", name, "--repo", t], 30_000, value);
++      // Deliberately does NOT echo the value, and reports gh's stderr only.
++      return r.ok ? `✓ secret ${name} set in ${t}` : `✗ failed to set ${name} — ${r.stderr.trim()}`;
++    }),
++  );
++
++  server.tool(
++    "devops.gh.secret_delete",
++    "Delete an Actions secret. DESTRUCTIVE — requires confirm=true. A workflow depending on it will start failing.",
++    { name: z.string(), confirm: z.boolean().optional(), repo: repoArg },
++    ({ name, confirm, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t) ?? needConfirm(confirm, `deleting secret ${name}`); if (e) return e;
++      if (!RE_SECRET.test(name)) return `✗ invalid secret name "${name}"`;
++      return out(await gh(["secret", "delete", name, "--repo", t]), `✓ deleted secret ${name}`);
++    }),
++  );
++
++  // ── Generic escape hatch ────────────────────────────────────────────────
++  server.tool(
++    "devops.gh.api",
++    "Call any GitHub REST/GraphQL endpoint via `gh api` — the catch-all for anything not wrapped above (deployments, environments, checks, collaborators, webhooks…). Non-GET methods are destructive and require confirm=true. Output is truncated to 300 lines.",
++    {
++      endpoint: z.string().describe('e.g. "repos/{owner}/{repo}/actions/runs" or "graphql"'),
++      method: z.enum(["GET", "POST", "PATCH", "PUT", "DELETE"]).optional(),
++      fields: z.record(z.string()).optional().describe("-f key=value pairs"),
++      jq: z.string().optional().describe("jq filter applied by gh"),
++      confirm: z.boolean().optional(),
++      repo: repoArg,
++    },
++    ({ endpoint, method, fields, jq, confirm, repo }) => safeRun(async () => {
++      const t = R(repo); const e = badRepo(t); if (e) return e;
++      const m = method ?? "GET";
++      if (m !== "GET") { const c = needConfirm(confirm, `a ${m} to ${endpoint}`); if (c) return c; }
++      const b = badPositional(endpoint, "endpoint"); if (b) return b;
++      const a = ["api", endpoint, "--method", m];
++      for (const [k, v] of Object.entries(fields ?? {})) {
++        if (!RE_FIELD.test(k)) return `✗ invalid field name "${k}"`;
++        if (/[\r\n]/.test(v)) return `✗ field "${k}" contains a newline`;
++        a.push("-f", `${k}=${v}`);
++      }
++      if (jq) a.push("--jq", jq);
++      return out(await gh(a, 60_000));
++    }),
++  );
++}
 -- 
 2.43.0
 
