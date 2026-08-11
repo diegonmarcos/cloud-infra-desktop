@@ -25,6 +25,7 @@
 import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.plasmoid
+import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.quickcharts as Charts
@@ -322,11 +323,86 @@ PlasmoidItem {
         else { root.ptSortKey = key; root.ptSortAsc = false; }
     }
 
+    // ── proctable averaging window ───────────────────────────────────────────
+    // "live" | "1m" | "5m" | "15m". Only the PROCESS TABLE averages; the panel
+    // clusters always show the current tick. watchdog.rs publishes each row's
+    // averages as row.avg["1m"|"5m"|"15m"], each carrying the same six keys as
+    // the live row, so switching window is a projection here rather than any
+    // per-metric special-casing.
+    readonly property var ptWindows: ["live", "1m", "5m", "15m"]
+    readonly property var ptWindowLabels: ({ "live": "live", "1m": "1 min avg", "5m": "5 min avg", "15m": "15 min avg" })
+    readonly property string ptWindow: {
+        var w = Plasmoid.configuration.ptWindow || "live";
+        return root.ptWindows.indexOf(w) === -1 ? "live" : w;
+    }
+
+    // Right-click menu: pick the window. Four flat checkable entries rather
+    // than a submenu — Plasmoid.contextualActions is a flat list and four
+    // entries do not need nesting. Only the proctable instance shows them;
+    // every other mode renders the current tick and has nothing to switch.
+    Plasmoid.contextualActions: [
+        ptWindowActionLive, ptWindowAction1m, ptWindowAction5m, ptWindowAction15m
+    ]
+    PlasmaCore.Action {
+        id: ptWindowActionLive
+        text: "Show: live"
+        checkable: true
+        checked: root.ptWindow === "live"
+        visible: Plasmoid.configuration.mode === "proctable"
+        onTriggered: Plasmoid.configuration.ptWindow = "live"
+    }
+    PlasmaCore.Action {
+        id: ptWindowAction1m
+        text: "Show: 1 min avg"
+        checkable: true
+        checked: root.ptWindow === "1m"
+        visible: Plasmoid.configuration.mode === "proctable"
+        onTriggered: Plasmoid.configuration.ptWindow = "1m"
+    }
+    PlasmaCore.Action {
+        id: ptWindowAction5m
+        text: "Show: 5 min avg"
+        checkable: true
+        checked: root.ptWindow === "5m"
+        visible: Plasmoid.configuration.mode === "proctable"
+        onTriggered: Plasmoid.configuration.ptWindow = "5m"
+    }
+    PlasmaCore.Action {
+        id: ptWindowAction15m
+        text: "Show: 15 min avg"
+        checkable: true
+        checked: root.ptWindow === "15m"
+        visible: Plasmoid.configuration.mode === "proctable"
+        onTriggered: Plasmoid.configuration.ptWindow = "15m"
+    }
+
+    // One row with the selected window's numbers hoisted into the live keys.
+    // Everything downstream (sorting, cell formatting, the Signal button) then
+    // works on one row shape and never has to know a window was chosen.
+    // A row missing its avg block — an old daemon still running, or a pid
+    // sampled for the first time — falls back to the live values rather than
+    // rendering blanks.
+    function ptProject(row) {
+        if (root.ptWindow === "live") return row;
+        var a = row.avg ? row.avg[root.ptWindow] : null;
+        if (!a) return row;
+        return {
+            pid: row.pid, name: row.name, user: row.user,
+            protected: row.protected, protected_reason: row.protected_reason,
+            cpu_pct: a.cpu_pct, mem_pct: a.mem_pct, mem_rss_bytes: a.mem_rss_bytes,
+            read_bytes_per_s: a.read_bytes_per_s, write_bytes_per_s: a.write_bytes_per_s,
+            runq_wait_pct: a.runq_wait_pct
+        };
+    }
+
     // Sorted copy of proc_table — never mutates root.snap.proc_table itself,
     // since that array is replaced wholesale by refresh() every poll and a
     // sort-in-place would race a JSON.parse landing mid-sort.
     function ptSorted() {
-        var arr = (root.snap.proc_table || []).slice();
+        // Project BEFORE sorting, so the table is ordered by the numbers it
+        // actually shows — picking "15 min avg" and then sorting by live CPU%
+        // would rank rows by a column nobody can see.
+        var arr = (root.snap.proc_table || []).map(root.ptProject);
         var key = root.ptSortKey, asc = root.ptSortAsc;
         arr.sort(function (a, b) {
             var av = a[key], bv = b[key];
@@ -866,8 +942,20 @@ PlasmoidItem {
                         }
                     }
                     // Signal column header — no sort, just aligns with the
-                    // per-row Signal buttons below.
-                    Item { Layout.fillWidth: true }
+                    // per-row Signal buttons below. It also carries the
+                    // current averaging window, because a table of 15-minute
+                    // averages is indistinguishable from a very calm machine
+                    // unless it says so somewhere.
+                    Item {
+                        Layout.fillWidth: true
+                        PlasmaComponents.Label {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.ptWindowLabels[root.ptWindow]
+                            opacity: 0.7
+                            font.italic: root.ptWindow !== "live"
+                        }
+                    }
                 }
 
                 ListView {

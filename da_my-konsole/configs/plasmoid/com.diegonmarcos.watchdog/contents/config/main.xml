@@ -36,5 +36,15 @@
     <entry name="uid" type="Int">
       <default>1000</default>
     </entry>
+    <!-- proctable ONLY: which set of per-process numbers the table renders.
+         "live" is the current tick; "1m"/"5m"/"15m" read the matching block
+         of each row's "avg" object, which watchdog.rs publishes as an EWMA
+         per pid (same mechanism as load1/load5/load15). Set from the widget's
+         right-click menu, not a config dialog, so it is one action away while
+         reading the table. No <choices> for the same reason as "mode" above:
+         an unknown value falls back to live in main.qml's lookup. -->
+    <entry name="ptWindow" type="String">
+      <default>live</default>
+    </entry>
   </group>
 </kcfg>
