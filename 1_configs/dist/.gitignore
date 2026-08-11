@@ -298,3 +298,21 @@ build.log
 .claude.json.tmp.*
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
+
+# ── Sibling working clones (were submodules until 2026-08-11) ────────────────
+## cloud-master is the indexing path now: it holds committed RELATIVE symlinks
+## out to working clones in ~/git, deliberately not submodules (a submodule
+## pins a commit and wants --recursive, which meant cloud-master containing
+## cloud containing cloud-master). unix no longer tracks these at all.
+##
+## They are still on disk here as ordinary clones and would otherwise show up
+## as untracked forever. Ignoring them keeps `git status` honest without
+## deleting anything. Nothing in unix reads through these paths at runtime.
+##
+## Do NOT re-add these to 1_configs/src/git/gitmodules — the ship engine
+## reconciles from that file and would resurrect them as submodules.
+/I_cloud-data/
+/II_tools/
+/III_front-data/
+/IV_cloud-configs/
+/V_front-configs/
