@@ -27,7 +27,13 @@
   "subnet_v6": "fd0c:1d00::/64",
   "persistent_keepalive": 25,
   "_dns_search_doc": "systemd-resolved routing domains (~ prefix) sent to Hickory (hub.wg_ip). Mirrors the zones Hickory serves: cloud/a_solutions/infra-net_hickory-dns/build.json .dns.zones = [diegonmarcos.com, app, db]. Without a zone here, its names fall through to the global resolver (dnscrypt-proxy2) and NXDOMAIN. MUST be a JSON array — one routing domain per element. configuration_network.nix joins these with ';' for NetworkManager's ipv4.dns-search keyfile list. A single space-joined string is mis-parsed by NM as ONE domain literally named 'diegonmarcos.com ~app ~db', so mcp.diegonmarcos.com never routed to Hickory → public IP → Caddy WG-gate 403.",
-  "dns_search": ["~diegonmarcos.com", "~app", "~db"],
+  "dns_search": [
+    "~diegonmarcos.com",
+    "~app",
+    "~db"
+  ],
   "hickory_ipv6": "fd0c:1d00::1",
-  "_hickory_ipv6_doc": "Hickory DNS also listens over IPv6 on the mesh (cloud/a_solutions/infra-net_hickory-dns/src/flake.nix — bind :: on port 53, reachable at fd0c:1d00::1, same host as hub.wg_ip). Added alongside ipv4.dns=hub.wg_ip in the wg0 NM profile so mesh split-DNS keeps working once wg0 carries an IPv6 address."
+  "_hickory_ipv6_doc": "Hickory DNS also listens over IPv6 on the mesh (cloud/a_solutions/infra-net_hickory-dns/src/flake.nix — bind :: on port 53, reachable at fd0c:1d00::1, same host as hub.wg_ip). Added alongside ipv4.dns=hub.wg_ip in the wg0 NM profile so mesh split-DNS keeps working once wg0 carries an IPv6 address.",
+  "tunnel_mode": "split",
+  "_tunnel_mode_doc": "split | full. split = only subnet + subnet_v6 are routed into the tunnel (mesh-only; the rest of your traffic uses the local WiFi/LTE). full = 0.0.0.0/0 + ::/0 are routed into the tunnel (all traffic exits via the hub). Read by configuration_network.nix, which derives BOTH the peer allowed-ips AND ipv4/ipv6.never-default AND the dispatcher-script wg set from this one field — never edit those three by hand or they will disagree. Only ONE interface may be full at a time: two default routes over two wg devices fight."
 }
