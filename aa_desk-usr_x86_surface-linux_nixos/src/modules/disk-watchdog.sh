@@ -71,6 +71,15 @@ run_action() {
       systemd-tmpfiles --clean --prefix=/tmp 2>/dev/null || true ;;
     purge_tmp_dotfiles)
       find /tmp -maxdepth 1 -name '.tmp*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true ;;
+    purge_tmp_gh_artifacts)
+      # `gh run download` stages the artifact as /tmp/gh-artifact.<id>.zip and
+      # leaks it if the process is killed — which is exactly what the emergency
+      # tier below does when it freezes workload.slice, so this tier CREATES
+      # this garbage. 2026-08-11: 4.0GB of these was the single largest
+      # reclaimable item on the box while emergency reclaim reported freeing 0.
+      # +30min so an in-flight download is never touched: the HM closure is
+      # ~7GB and legitimately takes a while on home wifi.
+      find /tmp -maxdepth 1 -name 'gh-artifact.*.zip' -mmin +30 -delete 2>/dev/null || true ;;
     purge_audit_old)
       # Bound the audit log dir even when high traffic outpaces tmpfiles cleanup.
       find /mnt/shared/log/audit -type f -mtime +3 -delete 2>/dev/null || true
@@ -97,6 +106,21 @@ run_action() {
       fi ;;
     nix_gc_14d)
       nix-collect-garbage --delete-older-than 14d 2>/dev/null || true ;;
+    nix_gc_emergency)
+      # 14d is a no-op precisely when it is needed most. 2026-08-11, /nix at
+      # 99%: the box had 5 system generations, the oldest 11 days old, so
+      # `--delete-older-than 14d` matched nothing and reported "0 store paths
+      # deleted, 0.00 MiB freed" -- twice -- and the ladder fell straight
+      # through to FREEZING workload.slice. Reclaim-first only works if the
+      # reclaim can actually reclaim.
+      #
+      # At >=95% keep only the CURRENT generation plus one rollback. Deleting
+      # old generations never touches the running system: its closure is a live
+      # GC root, so `switch-to-configuration` and the active boot entry are
+      # unaffected. What is lost is the ability to roll back further than one
+      # generation -- the correct trade at 99%, where the alternative is
+      # freezing the user's work.
+      nix-collect-garbage --delete-older-than 1d 2>/dev/null || true ;;
     dev_store_gc)
       # GC the p5 dev-store chroot store (storeDir=/nix/store, root on p5). The
       # bc_flakes_dev-store profile gcroot pins the current toolchain.
