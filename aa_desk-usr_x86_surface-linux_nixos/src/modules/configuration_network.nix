@@ -514,7 +514,12 @@ in {
         case "$STATUS" in up|dhcp6-change) ;; *) exit 0 ;; esac
         # Never recurse on our own tunnels: wg0 coming up must not re-run this.
         case "$IFACE" in ${wgData.client.interface}|${wgPublicData.client.interface}|lo|clat) exit 0 ;; esac
-        if ${pkgs.iproute2}/bin/ip -4 route show default | ${pkgs.gnugrep}/bin/grep -q .; then
+        # NATIVE v4 only — clatd creates a PERSISTENT tun device whose own
+        # `default dev clat` route outlives a reconnect. Counting that as native
+        # IPv4 makes this script no-op on exactly the event it exists for, and
+        # a stale CLAT from a previous network is never refreshed.
+        if ${pkgs.iproute2}/bin/ip -4 route show default \
+             | ${pkgs.gnugrep}/bin/grep -qv ' dev clat'; then
           exit 0
         fi
         # clatd finds the NAT64 prefix by RFC7050: it asks for AAAA on
