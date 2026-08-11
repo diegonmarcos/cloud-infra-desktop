@@ -24,8 +24,16 @@
 # WHAT THIS DOES NOT DO
 # ─────────────────────
 # It never deletes your data. Originals are renamed <path>.premigration and left
-# for you to remove once the new mounts are verified. Reboot (or mount -a) after
-# switching, then delete them.
+# for you to remove once the new mounts are verified.
+#
+# It also never leaves a path empty. Each subvol is mounted with an explicit
+# -o subvol=... the moment its contents are copied, NOT at the next reboot:
+# between the rename and the mount the path is an empty directory, and for
+# /home/diego/git that would mean every repo on the machine disappearing from
+# where every tool expects it. If that mount fails the original is moved back
+# and the script aborts. An explicit mount needs no fstab entry, so this works
+# whether or not hardware_filesystems_nosnap.nix has been switched in yet —
+# the switch only matters for making the mounts survive a reboot.
 #
 # Usage:  sudo ./migrate-nosnap-subvols.sh --apply
 #         (no --apply = dry run, prints the plan and exits)
@@ -63,7 +71,12 @@ fi
 # Refuse to run while a checkpoint snapshot still pins the old extents: the
 # migration would appear to succeed while freeing nothing, which is exactly the
 # confusion this whole change exists to end.
-SNAPS=$(find "$BTRFS_ROOT/@snapshots/home-diego" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+# `|| true` is load-bearing: with `set -o pipefail`, find exiting non-zero
+# (the snapshot dir is absent once every snapshot has been deleted — the normal
+# state after a cleanup) propagates through the pipe and `set -e` kills the
+# script before it prints anything at all. Absent dir means zero snapshots,
+# which is the good case, not an error.
+SNAPS=$( { find "$BTRFS_ROOT/@snapshots/home-diego" -mindepth 1 -maxdepth 1 -type d 2>/dev/null || true; } | wc -l)
 if [ "$SNAPS" -gt 0 ]; then
   warn "$SNAPS session-checkpoint snapshot(s) still present — they pin the old extents."
   warn "Nothing will actually be reclaimed until they are deleted:"
@@ -115,6 +128,22 @@ while IFS=$'\t' read -r SRC SUBVOL; do
   mv "$SRC" "$SRC.premigration"
   mkdir -p "$SRC"                       # empty mountpoint for the declared mount
   chown --reference="$SRC.premigration" "$SRC" 2>/dev/null || true
+
+  # Mount IMMEDIATELY, do not wait for a reboot. Between the mv above and the
+  # mount, $SRC is an EMPTY DIRECTORY — for /home/diego/git that means every
+  # repo on this machine vanishes from its expected path. Telling the operator
+  # to "reboot afterwards" leaves that window open for as long as they take to
+  # get there, with running tools reading an empty tree the whole time.
+  if mount -o "subvol=$SUBVOL,compress=zstd,noatime" /dev/mapper/pool "$SRC" 2>/dev/null; then
+    log "  mounted $SUBVOL at $SRC"
+  else
+    # Expected when the fileSystems entry has not been switched in yet — the
+    # explicit -o above does not need fstab, so this is a real failure, not the
+    # declarative one. Restore rather than leave the path empty.
+    rmdir "$SRC" 2>/dev/null && mv "$SRC.premigration" "$SRC" \
+      && die "mount failed for $SUBVOL — ORIGINAL RESTORED at $SRC, nothing lost"
+    die "mount failed for $SUBVOL and $SRC could not be restored — data is at $SRC.premigration"
+  fi
   log "  done — original kept at $SRC.premigration"
 done <<< "$ENTRIES"
 
