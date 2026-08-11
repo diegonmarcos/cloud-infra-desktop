@@ -20,5 +20,7 @@
   },
   "subnet": "10.1.0.0/24",
   "subnet_v6": "fd0c:1d01::/64",
-  "persistent_keepalive": 25
+  "persistent_keepalive": 25,
+  "tunnel_mode": "split",
+  "_tunnel_mode_doc": "split | full. split = only subnet + subnet_v6 are routed into the tunnel (mesh-only; the rest of your traffic uses the local WiFi/LTE). full = 0.0.0.0/0 + ::/0 are routed into the tunnel (all traffic exits via the hub). Read by configuration_network.nix, which derives BOTH the peer allowed-ips AND ipv4/ipv6.never-default AND the dispatcher-script wg set from this one field — never edit those three by hand or they will disagree. Only ONE interface may be full at a time: two default routes over two wg devices fight."
 }

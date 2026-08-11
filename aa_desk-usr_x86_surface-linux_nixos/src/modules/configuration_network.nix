@@ -17,6 +17,28 @@ let
   wgPublicData    = builtins.fromJSON (builtins.readFile ./wireguard-public-endpoints.json);
   wgPublicPrimary = "${wgPublicData.hub.host}:${toString wgPublicData.hub.primary.port}";
 
+  # ── Tunnel mode: split vs full (data-driven, per interface) ────────────────
+  # `tunnel_mode` in each endpoints JSON is the ONLY place to flip this. Split
+  # (default) routes just the mesh subnets into the tunnel; full routes
+  # everything (0.0.0.0/0 + ::/0) so all traffic exits via the hub.
+  #
+  # It has to drive THREE things that must agree, or the tunnel half-works:
+  #   1. the peer's allowed-ips     — what wg will encrypt (crypto-routing)
+  #   2. ipv4/ipv6.never-default    — whether NM installs a default route via wg
+  #   3. the dispatcher script's `wg set … allowed-ips`, which re-applies (1) on
+  #      every link-up and would otherwise stomp it straight back to split
+  # Set only (1) and packets are encryptable but route nowhere; set only (2) and
+  # they route into the tunnel and die with "Required key not available".
+  mkTunnel = data: rec {
+    isFull       = (data.tunnel_mode or "split") == "full";
+    allowed4     = if isFull then "0.0.0.0/0" else data.subnet;
+    allowed6     = if isFull then "::/0" else data.subnet_v6;
+    allowedBoth  = "${allowed4},${allowed6}";
+    neverDefault = if isFull then "false" else "true";
+  };
+  wgTunnel       = mkTunnel wgData;
+  wgPublicTunnel = mkTunnel wgPublicData;
+
   # ── NAT64/DNS64/CLAT declarations (data-driven) ─────────────────────────────
   # DNS64 resolver addresses + v6 fallback DNS + the CLAT enable flag.
   # Edit nat64.json, not this file — repo principle 6 (no hardcoded IPs in .nix).
@@ -68,6 +90,16 @@ let
     '';
   };
 in {
+  # Two full tunnels means two default routes over two wg devices, and whichever
+  # loses the metric tie-break silently blackholes. Catch it at eval, not at 3am
+  # on hotel WiFi. (See the tunnel_mode block above.)
+  assertions = [
+    {
+      assertion = !(wgTunnel.isFull && wgPublicTunnel.isFull);
+      message = "wireguard: tunnel_mode = \"full\" is set on BOTH wireguard-endpoints.json (wg0) and wireguard-public-endpoints.json (wg-public). Only one interface may carry the default route — set the other back to \"split\".";
+    }
+  ];
+
   # ═══════════════════════════════════════════════════════════════════════════
   # NETWORKING
   # ═══════════════════════════════════════════════════════════════════════════
@@ -185,13 +217,13 @@ in {
           autoconnect = "true";
         };
         wireguard.private-key = "$WG0_PRIVATE_KEY";
-        # allowed-ips carries ONLY the v4 subnet (2026-07-30): NM's keyfile
-        # parser can't handle a combined v4+v6 value here (see the
-        # dispatcherScripts workaround below) — fd0c:1d00::/64 is added to
-        # the kernel peer at runtime by the dispatcher script instead.
+        # allowed-ips carries ONLY the v4 half (2026-07-30): NM's keyfile parser
+        # can't handle a combined v4+v6 value here (see the dispatcherScripts
+        # workaround below) — the v6 half is added to the kernel peer at runtime
+        # by the dispatcher script instead. Both halves come from tunnel_mode.
         "wireguard-peer.${wgData.hub.wg_public_key}" = {
           endpoint = wgPrimary;
-          allowed-ips = wgData.subnet;
+          allowed-ips = wgTunnel.allowed4;
           persistent-keepalive = toString wgData.persistent_keepalive;
         };
         ipv4 = {
@@ -209,7 +241,7 @@ in {
           # ';'-separated list. Joining with spaces made NM store all three as ONE
           # bogus domain, so diegonmarcos.com never routed to Hickory (403 on mcp.*).
           dns-search = lib.concatStringsSep ";" wgData.dns_search;
-          never-default = "true";        # only route the mesh subnet, not all traffic
+          never-default = wgTunnel.neverDefault;   # split ⇒ mesh subnet only
         };
         # Dual-stack (2026-07-26): cloud wg0 mesh is now dual-stack (fd0c:1d00::/64,
         # see wireguard-endpoints.json._ipv6_doc). Mirrors the ipv4 block above:
@@ -221,7 +253,7 @@ in {
           dns = "${wgData.hub.wg_ipv6} ${wgData.hickory_ipv6}";
           dns-priority = "50";
           dns-search = lib.concatStringsSep ";" wgData.dns_search;
-          never-default = "true";
+          never-default = wgTunnel.neverDefault;
         };
       };
       "wg-public" = {
@@ -236,14 +268,14 @@ in {
         # + the dispatcherScripts workaround below for why.
         "wireguard-peer.${wgPublicData.hub.wg_public_key}" = {
           endpoint = wgPublicPrimary;
-          allowed-ips = wgPublicData.subnet;
+          allowed-ips = wgPublicTunnel.allowed4;
           persistent-keepalive = toString wgPublicData.persistent_keepalive;
         };
         ipv4 = {
           method = "manual";
           address1 = "${wgPublicData.client.wg_ip}/24";
           dns-search = "";
-          never-default = "true";
+          never-default = wgPublicTunnel.neverDefault;
         };
         # Dual-stack (2026-07-26): wg-public mesh is now dual-stack too
         # (fd0c:1d01::/64, see wireguard-public-endpoints.json._ipv6_doc).
@@ -251,7 +283,7 @@ in {
           method = "manual";
           address1 = "${wgPublicData.client.wg_ipv6}/64";
           dns-search = "";
-          never-default = "true";
+          never-default = wgPublicTunnel.neverDefault;
         };
       };
     };
@@ -305,11 +337,11 @@ in {
         case "$IFACE" in
           ${wgData.client.interface})
             ${pkgs.wireguard-tools}/bin/wg set "$IFACE" peer ${wgData.hub.wg_public_key} \
-              allowed-ips "${wgData.subnet},${wgData.subnet_v6}"
+              allowed-ips "${wgTunnel.allowedBoth}"
             ;;
           ${wgPublicData.client.interface})
             ${pkgs.wireguard-tools}/bin/wg set "$IFACE" peer ${wgPublicData.hub.wg_public_key} \
-              allowed-ips "${wgPublicData.subnet},${wgPublicData.subnet_v6}"
+              allowed-ips "${wgPublicTunnel.allowedBoth}"
             ;;
         esac
       '';
