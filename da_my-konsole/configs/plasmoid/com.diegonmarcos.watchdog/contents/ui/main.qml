@@ -540,6 +540,10 @@ PlasmoidItem {
         // two rows overran the panel and the second was sliced off by the
         // panel edge — visible as half-height "Fc Fi Fm" / "dM Th Ws".
         property real rowH: 12
+        // Optional reading rendered after the bar. Empty for grids where the
+        // fill IS the reading (disk usage, guard voters); set for PSI, whose
+        // real values are too small to see as a fill.
+        property string valueText: ""
         Layout.preferredHeight: bar.rowH
         Layout.maximumHeight: bar.rowH
         spacing: 3
@@ -569,6 +573,14 @@ PlasmoidItem {
                 // Deliberately not animated: a 2s sample eased over 2s is a
                 // repaint every frame, which is the cost being removed.
             }
+        }
+        PlasmaComponents.Label {
+            visible: bar.valueText !== ""
+            text: bar.valueText
+            font.pixelSize: Math.max(6, Math.round(bar.rowH * 0.8))
+            Layout.preferredHeight: bar.rowH
+            verticalAlignment: Text.AlignVCenter
+            opacity: 0.9
         }
     }
 
@@ -603,6 +615,17 @@ PlasmoidItem {
     // not a magic-number list: it names the 6 (category, avg10-field) pairs
     // PSI has, which is not itself something clusters.json's generic
     // {kind,metric} item schema can express any more cheaply.
+    // PSI as text, because PSI as a bar is unreadable on a healthy machine:
+    // a typical idle reading is 0.02%, which fills 1/5000th of the bar — the
+    // grid rendered six empty outlines and looked broken rather than calm.
+    // Two decimals below 10 so the normal range stays legible, whole numbers
+    // above it where the bar carries the message anyway. "--" (not "0.00")
+    // when the field is genuinely absent, so a missing publisher never
+    // masquerades as zero pressure.
+    function psiText(v) {
+        if (v === undefined || v === null) return "--";
+        return v >= 10 ? v.toFixed(0) : v.toFixed(2);
+    }
     readonly property var psiRows: [
         { label: "Sc", cat: "cpu",    field: "some10" },
         { label: "Si", cat: "io",     field: "some10" },
@@ -620,7 +643,7 @@ PlasmoidItem {
             case "psi":
                 return root.psiRows.map(function (r) {
                     var v = root.psi(r.cat, r.field);
-                    return { label: r.label, value: v || 0, fill: root.heat(v) };
+                    return { label: r.label, value: v || 0, fill: root.heat(v), text: root.psiText(v) };
                 });
             case "guard":
                 return root.guardVoters().map(function (v) {
@@ -824,6 +847,7 @@ PlasmoidItem {
                                         value: modelData.value
                                         fill: modelData.fill
                                         rowH: root.bargridRowH(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
+                                        valueText: modelData.text || ""
                                         barHeight: root.bargridBarHeight(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
                                         barWidth: Math.max(18, root.contentH * 1.6)
                                     }
