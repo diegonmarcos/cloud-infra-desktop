@@ -23,11 +23,12 @@
       "emergency_signal",
       "purge_tmp_worktrees",
       "purge_tmp_dotfiles",
+      "purge_tmp_gh_artifacts",
       "purge_audit_old",
       "docker_prune_images",
       "docker_prune_builder",
       "docker_prune_volumes_dangling",
-      "nix_gc_14d",
+      "nix_gc_emergency",
       "dev_store_gc",
       "recheck_gate",
       "freeze_nonsystem",
@@ -164,7 +165,8 @@
   },
   "btrfs_qgroups": {
     "_comment": "WHY THIS SECTION EXISTS: the pool `/dev/mapper/pool` (~80G, ~64G used) hosts multiple btrfs subvolumes (@home-diego, @home-guest, @shared, @nixos/nix, @shared/tmp, @shared/journal) that ALL share one free-space pool. Without btrfs qgroups (quotas), `df` on every one of those mountpoints reports the SAME pool-wide used/avail numbers \u2014 there is no such thing as '/home/diego is at 95%' while the pool is at 60%, because df has no per-subvolume concept to report. The `watches.mounts` df-based checks above are therefore only ever measuring the WHOLE POOL's fill level once per subvolume that happens to live on it; a single subvolume silently ballooning (e.g. runaway ~/.cache, a leaked docker overlay, a git worktree explosion under /home/diego) is invisible until the pool itself is critical, by which point every subvolume on it is equally starved. Enabling btrfs qgroups makes per-subvolume accounting EXIST: each subvolume gets a 0/<subvolid> qgroup with its own `rfer` (referenced bytes) and, if `limit_gib` is set, a kernel-ENFORCED `max_rfer` cap that ENOSPCs writes to that subvolume specifically once it is hit \u2014 independent of how much free space the pool has left. That is what lets the watchdog answer 'is THIS subvolume overfull', which today is unrepresentable. WARNING \u2014 ACTIVATION COST: the FIRST `btrfs quota enable` on a filesystem that has never had quotas triggers a full one-time qgroup rescan (btrfs walks every extent to build initial accounting) \u2014 this is IO- and CPU-heavy and, on this ~64G-used pool, can take from a couple of minutes to tens of minutes depending on extent count/fragmentation, during which btrfs qgroup numbers are provisional (`btrfs qgroup show` shows a rescan-in-progress state) and filesystem IO latency is elevated. Do this at a time you can tolerate it, not mid-build. Every subsequent boot is a no-op (btrfs-qgroup-setup.sh checks `btrfs qgroup show` output first and only calls `quota enable` if it reports disabled). `limit_gib` is OPTIONAL per entry: leave it unset/null to get accounting + watchdog alerting with NO kernel-enforced cap (soft monitoring only); set it to also let the kernel itself refuse writes past that size regardless of what the watchdog does or how busy it is.",
-    "enabled": false,
+    "_enabled_comment": "Turned on 2026-08-11. Until now this was false, which meant per-subvolume enforcement did not exist at all: every df-based watch above reads the POOL, so a subvolume ballooning on its own was unrepresentable and the watchdog could only ever react once the WHOLE pool was critical (which is exactly what happened -- /nix and /mnt/shared both reported 99% because the pool did, and the emergency tier froze+SIGTERM'd workload.slice). The one-time rescan cost documented above is accepted; it runs on the next activation via btrfs-qgroup-setup.service and is a no-op on every boot after that.",
+    "enabled": true,
     "filesystem_mount": "/mnt/btrfs-root",
     "subvolumes": [
       {
@@ -414,6 +416,20 @@
       "description": "nix-collect-garbage --delete-older-than 14d",
       "safe_mode": true,
       "script": "nix-collect-garbage --delete-older-than 14d"
+    },
+    "nix_gc_emergency": {
+      "type": "exec",
+      "description": "nix-collect-garbage --delete-older-than 1d — emergency tier only; 14d cannot free anything when every generation is newer than 14d",
+      "_comment": "2026-08-11, /nix at 99%: nix_gc_14d reported \"0 store paths deleted, 0.00 MiB freed\" TWICE, because the box had 5 system generations and the oldest was 11 days old. Reclaim-first only helps if the reclaim can reclaim, so the ladder fell straight through to FREEZING workload.slice. Keeps the current generation plus one rollback; the running system is a live GC root and is never at risk. Lower tiers deliberately keep 14d — this aggression is only correct at >=95%.",
+      "safe_mode": true,
+      "script": "nix-collect-garbage --delete-older-than 1d"
+    },
+    "purge_tmp_gh_artifacts": {
+      "type": "exec",
+      "description": "Delete stale /tmp/gh-artifact.*.zip staging files older than 30min",
+      "_comment": "`gh run download` stages artifacts as /tmp/gh-artifact.<id>.zip and leaks them when killed — which is what freeze_nonsystem/kill_nonsystem below do, so this tier generates its own garbage. 2026-08-11: 4.0GB of these sat in /tmp while emergency reclaim freed 0. +30min so an in-flight download is never deleted; the HM closure is ~7GB and takes a while on home wifi.",
+      "safe_mode": true,
+      "script": "find /tmp -maxdepth 1 -name 'gh-artifact.*.zip' -mmin +30 -delete"
     },
     "dev_store_gc": {
       "type": "exec",
