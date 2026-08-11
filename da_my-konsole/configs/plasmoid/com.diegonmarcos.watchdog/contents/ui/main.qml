@@ -755,6 +755,32 @@ PlasmoidItem {
         ];
     }
     function gib(v) { return v === undefined ? "--" : Number(v).toFixed(1) + "G"; }
+
+    // Why the CPU is busy, not just how much. A single busy percentage cannot
+    // tell a machine pegged in userspace apart from one drowning in iowait,
+    // and those want opposite responses from whoever is reading the panel.
+    //
+    // Fed by cpu_detail, published by watchdog.rs from the per-mode columns of
+    // /proc/stat against the SAME two samples the aggregate uses, so these
+    // always sum to the busy figure beside them. Returns [] when the field is
+    // absent — an older daemon — and the bargrid then renders nothing rather
+    // than a row of confident zeroes.
+    function cpuRows() {
+        var c = root.snap.cpu_detail;
+        if (!c) return [];
+        var mk = function (label, v, fill) {
+            return { label: label, value: v || 0, text: root.pct1(v), fill: fill };
+        };
+        return [
+            mk("usr", c.user,   Kirigami.Theme.highlightColor),
+            mk("sys", c.system, Kirigami.Theme.neutralTextColor),
+            mk("io",  c.iowait, Kirigami.Theme.negativeTextColor),
+            mk("nice", c.nice,  Kirigami.Theme.positiveTextColor),
+            mk("irq", c.irq,    Kirigami.Theme.disabledTextColor),
+            mk("stl", c.steal,  Kirigami.Theme.disabledTextColor)
+        ];
+    }
+    function pct1(v) { return v === undefined ? "--" : Number(v).toFixed(1); }
     function bargridModel(metric) {
         switch (metric) {
             case "disks":
@@ -763,6 +789,7 @@ PlasmoidItem {
                              fill: root.heat(d.pct), text: root.pct0(d.pct) };
                 });
             case "mem_break": return root.memRows();
+            case "cpu_break": return root.cpuRows();
             // One vertical-ish bar per core. Same Bar component, just fed the
             // per-core percentages the daemon already publishes in `cores`.
             case "cores":
