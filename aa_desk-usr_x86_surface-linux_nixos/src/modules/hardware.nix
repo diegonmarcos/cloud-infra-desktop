@@ -16,6 +16,7 @@
     (modulesPath + "/installer/scan/not-detected.nix")
     ./hardware_surface.nix
     ./hardware_filesystems.nix
+    ./hardware_filesystems_nosnap.nix  # regenerable caches on their own subvols → excluded from session-checkpoint snapshots (2026-08-11: deleting 9.1G freed 0 bytes because snapshots pinned it)
     # OS-internal initrd + swap (bootloader proper is in aa_bootloader/)
     # GENERATED FROM aa_bootloader/dist/adapters/nixos/ — do not edit
     ./hardware_bootloader_boot.nix  # LUKS + initrd + kernel modules
