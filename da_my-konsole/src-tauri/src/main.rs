@@ -4,6 +4,7 @@
 // `pty:<id>` / `pty-exit:<id>`. The frontend (xterm.js) renders it.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod clipboard;
 mod watchdog;
 
 use pty_core::{PtyBroker, PtyEvent};
@@ -594,7 +595,7 @@ fn load_systrays() -> serde_json::Value {
 // mirrors the repo's icons into ~/.local/share/my-konsole/systray-icons/.
 // Returns raw RGBA rather than a tauri::image::Image — ksni::Icon wants its
 // own ARGB32 layout (see rgba_to_ksni_icon), not Tauri's image type.
-fn load_systray_icon(name: &str) -> Option<(Vec<u8>, u32, u32)> {
+pub(crate) fn load_systray_icon(name: &str) -> Option<(Vec<u8>, u32, u32)> {
     const SIZE: u32 = 32;
     let home = std::env::var_os("HOME")?;
     let path = std::path::Path::new(&home)
@@ -619,7 +620,7 @@ fn load_systray_icon(name: &str) -> Option<(Vec<u8>, u32, u32)> {
 // wants ARGB32 "network byte order", i.e. each pixel's bytes in the order
 // A,R,G,B — getting this wrong doesn't error, it just silently swaps
 // channels, so verify against a real render rather than trusting the compile.
-fn rgba_to_ksni_icon(rgba: Vec<u8>, width: u32, height: u32) -> ksni::Icon {
+pub(crate) fn rgba_to_ksni_icon(rgba: Vec<u8>, width: u32, height: u32) -> ksni::Icon {
     let mut argb = Vec::with_capacity(rgba.len());
     for px in rgba.chunks_exact(4) {
         let [r, g, b, a] = [px[0], px[1], px[2], px[3]];
@@ -633,13 +634,77 @@ fn rgba_to_ksni_icon(rgba: Vec<u8>, width: u32, height: u32) -> ksni::Icon {
 // tray-icon's tooltip is a documented no-op on Linux, which is the whole
 // reason this exists. Someone will otherwise "simplify" this back to
 // TrayIconBuilder and silently reintroduce the bug.
+// A menu entry is either a leaf that shell-execs, a submenu, or a separator.
+// Nested rather than flat because the cloud-mesh tray grew past 30 entries and
+// a single column that tall is unusable — see parse_menu for the JSON shape.
+enum MenuNode {
+    Item { label: String, command: String },
+    Sub { label: String, children: Vec<MenuNode> },
+    Separator,
+}
+
+// systrays.json menu grammar (all backwards-compatible — a plain
+// {label, command} list still works exactly as before):
+//   { "label": "...", "command": "..."   }  → clickable item
+//   { "label": "...", "submenu": [ ... ]  }  → parent, recurses
+//   { "separator": true }  or  "-"           → separator rule
+fn parse_menu(items: &[serde_json::Value]) -> Vec<MenuNode> {
+    items
+        .iter()
+        .filter_map(|item| {
+            if item.as_str() == Some("-")
+                || item.get("separator").and_then(|v| v.as_bool()).unwrap_or(false)
+            {
+                return Some(MenuNode::Separator);
+            }
+            let label = item.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if let Some(kids) = item.get("submenu").and_then(|v| v.as_array()) {
+                return Some(MenuNode::Sub { label, children: parse_menu(kids) });
+            }
+            let command = item.get("command").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if label.is_empty() && command.is_empty() {
+                return None;
+            }
+            Some(MenuNode::Item { label, command })
+        })
+        .collect()
+}
+
 struct SystrayItem {
     id: String,
     title: String,
     profile: String,
     icon: Option<ksni::Icon>,
     default_command: String,
-    menu: Vec<(String, String)>, // (label, command), same shell-exec as before
+    menu: Vec<MenuNode>,
+}
+
+// Recursive because MenuNode is; ksni::menu::SubMenu nests MenuItem<T> the
+// same way, so one function covers any depth.
+fn build_menu(nodes: &[MenuNode]) -> Vec<ksni::MenuItem<SystrayItem>> {
+    nodes
+        .iter()
+        .map(|node| match node {
+            MenuNode::Separator => ksni::MenuItem::Separator,
+            MenuNode::Sub { label, children } => ksni::menu::SubMenu {
+                label: label.clone(),
+                submenu: build_menu(children),
+                ..Default::default()
+            }
+            .into(),
+            MenuNode::Item { label, command } => {
+                let cmd = command.clone();
+                ksni::menu::StandardItem {
+                    label: label.clone(),
+                    activate: Box::new(move |_this: &mut SystrayItem| {
+                        let _ = std::process::Command::new("sh").arg("-c").arg(&cmd).spawn();
+                    }),
+                    ..Default::default()
+                }
+                .into()
+            }
+        })
+        .collect()
 }
 
 impl ksni::Tray for SystrayItem {
@@ -665,20 +730,7 @@ impl ksni::Tray for SystrayItem {
         }
     }
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
-        self.menu
-            .iter()
-            .map(|(label, cmd)| {
-                let cmd = cmd.clone();
-                ksni::menu::StandardItem {
-                    label: label.clone(),
-                    activate: Box::new(move |_this: &mut Self| {
-                        let _ = std::process::Command::new("sh").arg("-c").arg(&cmd).spawn();
-                    }),
-                    ..Default::default()
-                }
-                .into()
-            })
-            .collect()
+        build_menu(&self.menu)
     }
 }
 
@@ -723,14 +775,7 @@ fn setup_systrays(app: &tauri::App) {
         let profile = tray.get("profile").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let default_command = tray.get("default_command").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let menu_items = tray.get("menu").and_then(|v| v.as_array()).cloned().unwrap_or_default();
-        let menu = menu_items
-            .iter()
-            .map(|item| {
-                let label = item.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let cmd = item.get("command").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                (label, cmd)
-            })
-            .collect();
+        let menu = parse_menu(&menu_items);
 
         // Per-tray icon, app icon only as the fallback. Every tray used to get
         // the app icon unconditionally and the manifest's `icon` field was
@@ -754,6 +799,15 @@ fn setup_systrays(app: &tauri::App) {
 }
 
 fn main() {
+    // Intercepted BEFORE Tauri boots: this is how `wl-paste --watch` re-
+    // invokes this same binary on every clipboard change (see
+    // clipboard::spawn_capture) — a short-lived, non-GUI run that just
+    // forwards captured stdin to the already-running tray daemon over a
+    // Unix socket, then exits. See clipboard.rs's module doc.
+    if std::env::args().any(|a| a == "--clip-sink") {
+        clipboard::run_clip_sink();
+        return;
+    }
     let tray_daemon = std::env::args().any(|a| a == "--tray-daemon");
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -783,6 +837,10 @@ fn main() {
                 // widgets read, instead of fourteen KSysGuard applets each
                 // running their own sensor stack inside plasmashell.
                 watchdog::spawn();
+                // Second native ksni tray, same "ONE publisher" rule as the
+                // trays above — see clipboard.rs's module doc for why it is
+                // NOT one more entry in systrays.json.
+                clipboard::spawn();
                 if let Some(w) = app.get_webview_window("main") {
                     let _ = w.hide();
                 }
