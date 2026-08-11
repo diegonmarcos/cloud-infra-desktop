@@ -328,7 +328,14 @@ if [ "$QGROUPS_ENABLED" = "true" ]; then
         echo "[disk-watchdog] $SUBMOUNT: NOT MOUNTED — skipped (qgroup)"
         continue
       fi
-      SUBVOLID=$(btrfs subvolume show "$SUBMOUNT" 2>/dev/null | awk -F': ' '/^Subvolume ID:/ {print $2}' | tr -d ' ')
+      # Same parse bug btrfs-qgroup-setup.sh had (fixed 2026-08-11): `btrfs
+      # subvolume show` TAB-indents every field, so "\tSubvolume ID: \t\t257"
+      # never matches a /^Subvolume ID:/ anchor, and -F': ' leaves tabs in $2
+      # that `tr -d ' '` does not strip. Unfixed, EVERY subvolume fell through to
+      # "could not resolve subvolume ID — skipped (qgroup)", so enabling qgroups
+      # bought no per-subvolume monitoring at all — the exact capability this
+      # loop exists to provide.
+      SUBVOLID=$(btrfs subvolume show "$SUBMOUNT" 2>/dev/null | awk '/Subvolume ID:/ {print $NF}' | tr -dc '0-9')
       if ! [[ "$SUBVOLID" =~ ^[0-9]+$ ]]; then
         echo "[disk-watchdog] $SUBMOUNT: could not resolve subvolume ID — skipped (qgroup)"
         continue
