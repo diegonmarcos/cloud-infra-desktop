@@ -97,128 +97,158 @@
       "default_command": "konsole --hold -e bash -lc 'sudo wg-tunnel status; echo; sudo wg show; read'",
       "menu": [
         {
-          "label": "Tunnel: status (split/full per iface)",
-          "command": "konsole --hold -e bash -lc 'sudo wg-tunnel status; read'"
+          "label": "Tunnel  —  split / full",
+          "submenu": [
+            {
+              "label": "Tunnel: status (split/full per iface)",
+              "command": "konsole --hold -e bash -lc 'sudo wg-tunnel status; read'"
+            },
+            {
+              "label": "Tunnel: status JSON",
+              "command": "konsole --hold -e bash -lc 'sudo wg-tunnel json | jq .; read'"
+            },
+            {
+              "label": "Tunnel: TOGGLE wg0  (split <-> full)",
+              "command": "sudo wg-tunnel toggle wg0 && notify-send \"wg0 tunnel\" \"$(sudo wg-tunnel status | head -1)\""
+            },
+            {
+              "label": "Tunnel: TOGGLE wg-public  (split <-> full)",
+              "command": "sudo wg-tunnel toggle wg-public && notify-send \"wg-public tunnel\" \"$(sudo wg-tunnel status | tail -1)\""
+            },
+            {
+              "label": "Tunnel: wg0 -> FULL (all traffic via hub; IPv4 only)",
+              "command": "sudo wg-tunnel full wg0 && notify-send \"wg0\" \"full tunnel\""
+            },
+            {
+              "label": "Tunnel: wg0 -> SPLIT (mesh only)",
+              "command": "sudo wg-tunnel split wg0 && notify-send \"wg0\" \"split tunnel\""
+            },
+            {
+              "label": "Tunnel: wg-public -> FULL",
+              "command": "sudo wg-tunnel full wg-public && notify-send \"wg-public\" \"full tunnel\""
+            },
+            {
+              "label": "Tunnel: wg-public -> SPLIT",
+              "command": "sudo wg-tunnel split wg-public && notify-send \"wg-public\" \"split tunnel\""
+            }
+          ]
         },
         {
-          "label": "Tunnel: status JSON",
-          "command": "konsole --hold -e bash -lc 'sudo wg-tunnel json | jq .; read'"
+          "label": "Mesh  —  state",
+          "submenu": [
+            {
+              "label": "Mesh: peers (wg show)",
+              "command": "konsole --hold -e bash -lc 'sudo wg show; read'"
+            },
+            {
+              "label": "Mesh: handshakes + transfer",
+              "command": "konsole --hold -e bash -lc 'for i in wg0 wg-public; do echo \"== $i\"; sudo wg show $i latest-handshakes; sudo wg show $i transfer; done; read'"
+            },
+            {
+              "label": "Mesh: addresses (v4 + v6)",
+              "command": "konsole --hold -e bash -lc 'ip -brief addr show wg0; ip -brief addr show wg-public; read'"
+            },
+            {
+              "label": "Mesh: routes (v4)",
+              "command": "konsole --hold -e bash -lc 'ip route show table all | grep -E \"wg0|wg-public|^default\"; read'"
+            },
+            {
+              "label": "Mesh: routes (v6)",
+              "command": "konsole --hold -e bash -lc 'ip -6 route show table all | grep -E \"wg0|wg-public|^default\"; read'"
+            },
+            {
+              "label": "Mesh: endpoints (hub IP:port)",
+              "command": "konsole --hold -e bash -lc 'sudo wg show wg0 endpoints; sudo wg show wg-public endpoints; read'"
+            }
+          ]
         },
         {
-          "label": "Tunnel: TOGGLE wg0  (split <-> full)",
-          "command": "sudo wg-tunnel toggle wg0 && notify-send \"wg0 tunnel\" \"$(sudo wg-tunnel status | head -1)\""
+          "label": "Check  —  connectivity",
+          "submenu": [
+            {
+              "label": "Check: ping hubs (IPv4)",
+              "command": "konsole --hold -e bash -lc 'ping -c3 10.0.0.1; echo; ping -c3 10.1.0.1; read'"
+            },
+            {
+              "label": "Check: ping hubs (IPv6 ULA)",
+              "command": "konsole --hold -e bash -lc 'ping -c3 fd0c:1d00::1; echo; ping -c3 fd0c:1d01::1; read'"
+            },
+            {
+              "label": "Check: public egress IP (who am I)",
+              "command": "konsole --hold -e bash -lc 'echo \"v4: $(curl -s -4 -m 8 ifconfig.co || echo none)\"; echo \"v6: $(curl -s -6 -m 8 ifconfig.co || echo none)\"; read'"
+            },
+            {
+              "label": "Check: mesh DNS A + AAAA",
+              "command": "konsole --hold -e bash -lc 'for n in diegonmarcos.com auth.diegonmarcos.com maddy.app; do echo \"== $n\"; dig +short $n A; dig +short $n AAAA; done; read'"
+            },
+            {
+              "label": "Check: which stack does a name use?",
+              "command": "konsole --hold -e bash -lc 'getent ahosts diegonmarcos.com; echo; echo \"(::ffff:x = IPv4-mapped, fd0c: = mesh IPv6)\"; read'"
+            }
+          ]
         },
         {
-          "label": "Tunnel: TOGGLE wg-public  (split <-> full)",
-          "command": "sudo wg-tunnel toggle wg-public && notify-send \"wg-public tunnel\" \"$(sudo wg-tunnel status | tail -1)\""
+          "label": "NetworkManager  —  profiles",
+          "submenu": [
+            {
+              "label": "NM: active connections",
+              "command": "konsole --hold -e bash -lc 'nmcli -f NAME,DEVICE,TYPE,STATE connection show --active; read'"
+            },
+            {
+              "label": "NM: wireguard profiles",
+              "command": "konsole --hold -e bash -lc 'nmcli -f NAME,UUID,TYPE,AUTOCONNECT connection show | grep -iE \"wireguard|wg\"; read'"
+            },
+            {
+              "label": "NM: restart wg0",
+              "command": "sudo nmcli connection down wg0; sudo nmcli connection up wg0"
+            },
+            {
+              "label": "NM: restart wg-public",
+              "command": "sudo nmcli connection down wg-public; sudo nmcli connection up wg-public"
+            },
+            {
+              "label": "WG: endpoint primary/fallback",
+              "command": "konsole --hold -e bash -lc 'wg-fallback status; read'"
+            }
+          ]
         },
         {
-          "label": "Tunnel: wg0 -> FULL (all traffic via hub; IPv4 only)",
-          "command": "sudo wg-tunnel full wg0 && notify-send \"wg0\" \"full tunnel\""
+          "label": "VMs  —  ssh",
+          "submenu": [
+            {
+              "label": "VM: SSH gcp-proxy (10.0.0.1 / fd0c:1d00::1)",
+              "command": "konsole -e ssh gcp-proxy"
+            },
+            {
+              "label": "VM: SSH oci-mail (10.0.0.3 / fd0c:1d00::3)",
+              "command": "konsole -e ssh oci-mail"
+            },
+            {
+              "label": "VM: SSH oci-analytics (10.0.0.4 / fd0c:1d00::4)",
+              "command": "konsole -e ssh oci-analytics"
+            },
+            {
+              "label": "VM: SSH oci-apps (10.0.0.6 / fd0c:1d00::6)",
+              "command": "konsole -e ssh oci-apps"
+            },
+            {
+              "label": "VM: SSH gcp-t4 (10.0.0.8)",
+              "command": "konsole -e ssh gcp-t4"
+            }
+          ]
         },
         {
-          "label": "Tunnel: wg0 -> SPLIT (mesh only)",
-          "command": "sudo wg-tunnel split wg0 && notify-send \"wg0\" \"split tunnel\""
-        },
-        {
-          "label": "Tunnel: wg-public -> FULL",
-          "command": "sudo wg-tunnel full wg-public && notify-send \"wg-public\" \"full tunnel\""
-        },
-        {
-          "label": "Tunnel: wg-public -> SPLIT",
-          "command": "sudo wg-tunnel split wg-public && notify-send \"wg-public\" \"split tunnel\""
-        },
-        {
-          "label": "Mesh: peers (wg show)",
-          "command": "konsole --hold -e bash -lc 'sudo wg show; read'"
-        },
-        {
-          "label": "Mesh: handshakes + transfer",
-          "command": "konsole --hold -e bash -lc 'for i in wg0 wg-public; do echo \"== $i\"; sudo wg show $i latest-handshakes; sudo wg show $i transfer; done; read'"
-        },
-        {
-          "label": "Mesh: addresses (v4 + v6)",
-          "command": "konsole --hold -e bash -lc 'ip -brief addr show wg0; ip -brief addr show wg-public; read'"
-        },
-        {
-          "label": "Mesh: routes (v4)",
-          "command": "konsole --hold -e bash -lc 'ip route show table all | grep -E \"wg0|wg-public|^default\"; read'"
-        },
-        {
-          "label": "Mesh: routes (v6)",
-          "command": "konsole --hold -e bash -lc 'ip -6 route show table all | grep -E \"wg0|wg-public|^default\"; read'"
-        },
-        {
-          "label": "Mesh: endpoints (hub IP:port)",
-          "command": "konsole --hold -e bash -lc 'sudo wg show wg0 endpoints; sudo wg show wg-public endpoints; read'"
-        },
-        {
-          "label": "Check: ping hubs (IPv4)",
-          "command": "konsole --hold -e bash -lc 'ping -c3 10.0.0.1; echo; ping -c3 10.1.0.1; read'"
-        },
-        {
-          "label": "Check: ping hubs (IPv6 ULA)",
-          "command": "konsole --hold -e bash -lc 'ping -c3 fd0c:1d00::1; echo; ping -c3 fd0c:1d01::1; read'"
-        },
-        {
-          "label": "Check: public egress IP (who am I)",
-          "command": "konsole --hold -e bash -lc 'echo \"v4: $(curl -s -4 -m 8 ifconfig.co || echo none)\"; echo \"v6: $(curl -s -6 -m 8 ifconfig.co || echo none)\"; read'"
-        },
-        {
-          "label": "Check: mesh DNS A + AAAA",
-          "command": "konsole --hold -e bash -lc 'for n in diegonmarcos.com auth.diegonmarcos.com maddy.app; do echo \"== $n\"; dig +short $n A; dig +short $n AAAA; done; read'"
-        },
-        {
-          "label": "Check: which stack does a name use?",
-          "command": "konsole --hold -e bash -lc 'getent ahosts diegonmarcos.com; echo; echo \"(::ffff:x = IPv4-mapped, fd0c: = mesh IPv6)\"; read'"
-        },
-        {
-          "label": "NM: active connections",
-          "command": "konsole --hold -e bash -lc 'nmcli -f NAME,DEVICE,TYPE,STATE connection show --active; read'"
-        },
-        {
-          "label": "NM: wireguard profiles",
-          "command": "konsole --hold -e bash -lc 'nmcli -f NAME,UUID,TYPE,AUTOCONNECT connection show | grep -iE \"wireguard|wg\"; read'"
-        },
-        {
-          "label": "NM: restart wg0",
-          "command": "sudo nmcli connection down wg0; sudo nmcli connection up wg0"
-        },
-        {
-          "label": "NM: restart wg-public",
-          "command": "sudo nmcli connection down wg-public; sudo nmcli connection up wg-public"
-        },
-        {
-          "label": "WG: endpoint primary/fallback",
-          "command": "konsole --hold -e bash -lc 'wg-fallback status; read'"
-        },
-        {
-          "label": "VM: SSH gcp-proxy (10.0.0.1 / fd0c:1d00::1)",
-          "command": "konsole -e ssh gcp-proxy"
-        },
-        {
-          "label": "VM: SSH oci-mail (10.0.0.3 / fd0c:1d00::3)",
-          "command": "konsole -e ssh oci-mail"
-        },
-        {
-          "label": "VM: SSH oci-analytics (10.0.0.4 / fd0c:1d00::4)",
-          "command": "konsole -e ssh oci-analytics"
-        },
-        {
-          "label": "VM: SSH oci-apps (10.0.0.6 / fd0c:1d00::6)",
-          "command": "konsole -e ssh oci-apps"
-        },
-        {
-          "label": "VM: SSH gcp-t4 (10.0.0.8)",
-          "command": "konsole -e ssh gcp-t4"
-        },
-        {
-          "label": "Containers: all peers (docker ps -a)",
-          "command": "konsole --hold -e bash -lc 'docker ps -a; read'"
-        },
-        {
-          "label": "Containers: live stats",
-          "command": "konsole --hold -e bash -lc 'docker stats'"
+          "label": "Containers",
+          "submenu": [
+            {
+              "label": "Containers: all peers (docker ps -a)",
+              "command": "konsole --hold -e bash -lc 'docker ps -a; read'"
+            },
+            {
+              "label": "Containers: live stats",
+              "command": "konsole --hold -e bash -lc 'docker stats'"
+            }
+          ]
         }
       ]
     },
