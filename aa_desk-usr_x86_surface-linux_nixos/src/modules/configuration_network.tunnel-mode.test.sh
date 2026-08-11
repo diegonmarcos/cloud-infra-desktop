@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
-# Guard for the tunnel_mode toggle (configuration_network.nix).
+# Guard for the split/full tunnel toggle (configuration_network.nix).
 #
-# The toggle only works if ALL THREE consumers derive from tunnel_mode:
-#   1. peer allowed-ips   2. ipv4/ipv6.never-default   3. dispatcher `wg set`
-# Regressing any one of them back to a hardcoded literal makes the toggle
-# silently half-apply, which is the exact failure mode this file exists to
-# catch. ponytail: grep-level, not a nix eval — the 8GB Surface can't eval.
+# Split and full are two NM profiles on ONE interface, differing only in
+# allowed-ips + never-default. The toggle only works if every consumer derives
+# from the profile's `tunnel` argument rather than a hardcoded literal, and if
+# the dispatcher keys off CONNECTION_ID (wg0 and wg0-full share an interface,
+# so matching on IFACE alone re-applies split over full on every link-up).
+# ponytail: grep-level, not a nix eval — the 8GB Surface can't eval.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 NIX=configuration_network.nix
 fail=0
-ok()   { echo "  ok   — $1"; }
-bad()  { echo "  FAIL — $1"; fail=1; }
+ok()  { echo "  ok   — $1"; }
+bad() { echo "  FAIL — $1"; fail=1; }
 
-# 1. both JSONs declare the field
+# 1. both JSONs declare the boot default
 for f in wireguard-endpoints.json wireguard-public-endpoints.json; do
   m=$(jq -r '.tunnel_mode // "MISSING"' "$f")
   case "$m" in
@@ -23,23 +24,37 @@ for f in wireguard-endpoints.json wireguard-public-endpoints.json; do
   esac
 done
 
-# 2. no consumer bypasses the toggle
-grep -q 'allowed-ips = wgTunnel.allowed4;'        "$NIX" && ok "wg0 allowed-ips derived"        || bad "wg0 allowed-ips not derived"
-grep -q 'allowed-ips = wgPublicTunnel.allowed4;'  "$NIX" && ok "wg-public allowed-ips derived"  || bad "wg-public allowed-ips not derived"
-grep -q 'wgTunnel.allowedBoth'                    "$NIX" && ok "wg0 dispatcher derived"         || bad "wg0 dispatcher not derived"
-grep -q 'wgPublicTunnel.allowedBoth'              "$NIX" && ok "wg-public dispatcher derived"   || bad "wg-public dispatcher not derived"
+# 2. all four profiles exist
+for p in '"wg0" = mkWg0Profile' '"wg0-full" = mkWg0Profile' \
+         '"wg-public" = mkWgPublicProfile' '"wg-public-full" = mkWgPublicProfile'; do
+  grep -qF "$p" "$NIX" && ok "profile ${p%% =*} declared" || bad "missing profile: ${p%% =*}"
+done
+
+# 3. no consumer bypasses the tunnel argument
+n=$(grep -c 'allowed-ips = tunnel.allowed4;' "$NIX")
+[ "$n" -eq 2 ] && ok "2 allowed-ips consumers derived" || bad "expected 2 derived allowed-ips, found $n"
+
+n=$(grep -c 'never-default = tunnel.neverDefault;' "$NIX")
+[ "$n" -eq 4 ] && ok "4 never-default consumers derived" || bad "expected 4 derived never-default, found $n"
 
 if grep -qE 'never-default = "(true|false)"' "$NIX"; then
-  bad "a hardcoded never-default survives — it must be wg{,Public}Tunnel.neverDefault"
+  bad "a hardcoded never-default survives — must be tunnel.neverDefault"
 else
-  ok "all never-default values derived"
+  ok "no hardcoded never-default"
 fi
 
-n=$(grep -cE 'never-default = wg(Public)?Tunnel\.neverDefault' "$NIX")
-[ "$n" -eq 4 ] && ok "4 never-default consumers wired" || bad "expected 4 never-default consumers, found $n"
+# 4. dispatcher keys on CONNECTION_ID and covers all four profiles
+grep -q 'CONNECTION_ID' "$NIX" && ok "dispatcher keys on CONNECTION_ID" || bad "dispatcher still keys on IFACE only"
+for id in wg0 wg0-full wg-public wg-public-full; do
+  grep -qE "^ *$id\)" "$NIX" && ok "dispatcher handles $id" || bad "dispatcher missing case: $id"
+done
+for t in wgTunnel.allowedBoth wgTunnelFull.allowedBoth wgPublicTunnel.allowedBoth wgPublicTunnelFull.allowedBoth; do
+  grep -qF "$t" "$NIX" && ok "dispatcher uses $t" || bad "dispatcher never uses $t"
+done
 
-# 3. the both-full footgun is guarded at eval time
-grep -q 'wgTunnel.isFull && wgPublicTunnel.isFull' "$NIX" && ok "both-full assertion present" || bad "both-full assertion missing"
+# 5. footguns guarded
+grep -q 'wgBootFull && wgPublicBootFull' "$NIX" && ok "both-boot-full assertion present" || bad "both-boot-full assertion missing"
+grep -q 'wg-tunnel' "$NIX" && ok "wg-tunnel CLI shipped" || bad "wg-tunnel CLI missing"
 
 nix-instantiate --parse "$NIX" >/dev/null && ok "$NIX parses"
 

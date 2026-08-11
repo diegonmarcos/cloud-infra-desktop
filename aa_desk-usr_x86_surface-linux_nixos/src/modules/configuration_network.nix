@@ -29,15 +29,202 @@ let
   #      every link-up and would otherwise stomp it straight back to split
   # Set only (1) and packets are encryptable but route nowhere; set only (2) and
   # they route into the tunnel and die with "Required key not available".
-  mkTunnel = data: rec {
-    isFull       = (data.tunnel_mode or "split") == "full";
+  # BOTH variants are always generated as separate NM profiles on the SAME
+  # interface (wg0 / wg0-full), so the toggle is live — `nmcli con up wg0-full`
+  # or a click in plasma-nm — instead of a JSON edit + 2h closure rebuild.
+  # tunnel_mode then only decides which of the two autoconnects at boot.
+  mkTunnel = mode: data: rec {
+    isFull       = mode == "full";
     allowed4     = if isFull then "0.0.0.0/0" else data.subnet;
     allowed6     = if isFull then "::/0" else data.subnet_v6;
     allowedBoth  = "${allowed4},${allowed6}";
     neverDefault = if isFull then "false" else "true";
   };
-  wgTunnel       = mkTunnel wgData;
-  wgPublicTunnel = mkTunnel wgPublicData;
+  wgTunnel           = mkTunnel "split" wgData;
+  wgTunnelFull       = mkTunnel "full"  wgData;
+  wgPublicTunnel     = mkTunnel "split" wgPublicData;
+  wgPublicTunnelFull = mkTunnel "full"  wgPublicData;
+
+  # Declared boot default per interface — "split" (default) or "full".
+  wgBootFull       = (wgData.tunnel_mode or "split") == "full";
+  wgPublicBootFull = (wgPublicData.tunnel_mode or "split") == "full";
+
+  # `wg-tunnel {status|json|split|full|toggle} [wg0|wg-public]` — the live
+  # toggle. Activating the sibling profile on the same interface swaps routing
+  # in place; no rebuild. `json` is the machine-readable form the my-konsole
+  # systray consumes.
+  wg-tunnel = pkgs.writeShellApplication {
+    name = "wg-tunnel";
+    runtimeInputs = with pkgs; [ networkmanager wireguard-tools iproute2 gawk coreutils ];
+    text = ''
+      IFACES="${wgData.client.interface} ${wgPublicData.client.interface}"
+
+      # Active NM profile id bound to an interface ("" when the iface is down).
+      active_id() {
+        nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null \
+          | awk -F: -v d="$1" '$2 == d { print $1; exit }'
+      }
+      # split | full | down
+      mode_of() {
+        case "$(active_id "$1")" in
+          *-full) echo full ;;
+          "")     echo down ;;
+          *)      echo split ;;
+        esac
+      }
+      handshake_of() {
+        wg show "$1" latest-handshakes 2>/dev/null | awk '{print $2; exit}' || echo 0
+      }
+      allowed_of() {
+        wg show "$1" allowed-ips 2>/dev/null | awk '{$1=""; sub(/^ /,""); print; exit}'
+      }
+      endpoint_of() {
+        wg show "$1" endpoints 2>/dev/null | awk '{print $2; exit}'
+      }
+      addr_of() {
+        ip -brief addr show "$1" 2>/dev/null | awk '{$1="";$2="";sub(/^  /,""); print}'
+      }
+
+      set_mode() {   # $1 = iface, $2 = split|full
+        target="$1"; [ "$2" = "full" ] && target="$1-full"
+        # Only one interface may hold the default route: drop the other one out
+        # of full first, or the two default routes fight and one blackholes.
+        if [ "$2" = "full" ]; then
+          for other in $IFACES; do
+            [ "$other" = "$1" ] && continue
+            if [ "$(mode_of "$other")" = "full" ]; then
+              echo "wg-tunnel: $other was full — returning it to split first" >&2
+              nmcli connection up "$other" >/dev/null || true
+            fi
+          done
+        fi
+        nmcli connection up "$target"
+      }
+
+      json_one() {
+        printf '{"iface":"%s","mode":"%s","allowed_ips":"%s","endpoint":"%s","addresses":"%s","latest_handshake":%s,"profile":"%s"}' \
+          "$1" "$(mode_of "$1")" "$(allowed_of "$1")" "$(endpoint_of "$1")" \
+          "$(addr_of "$1")" "$(handshake_of "$1")" "$(active_id "$1")"
+      }
+
+      cmd="''${1:-status}"; iface="''${2:-}"
+
+      case "$cmd" in
+        status)
+          for i in $IFACES; do
+            printf '%-12s %-6s %s\n' "$i" "$(mode_of "$i")" "$(allowed_of "$i")"
+          done
+          ;;
+        json)
+          printf '['
+          first=1
+          for i in $IFACES; do
+            [ "$first" = 1 ] || printf ','
+            first=0
+            json_one "$i"
+          done
+          printf ']\n'
+          ;;
+        split|full)
+          [ -n "$iface" ] || { echo "wg-tunnel: $cmd needs an interface ($IFACES)" >&2; exit 2; }
+          set_mode "$iface" "$cmd"
+          ;;
+        toggle)
+          [ -n "$iface" ] || { echo "wg-tunnel: toggle needs an interface ($IFACES)" >&2; exit 2; }
+          if [ "$(mode_of "$iface")" = "full" ]; then set_mode "$iface" split; else set_mode "$iface" full; fi
+          ;;
+        *)
+          echo "usage: wg-tunnel {status|json|split|full|toggle} [$IFACES]" >&2
+          exit 2
+          ;;
+      esac
+    '';
+  };
+
+  # Full tunnel is IPv4-only in practice (2026-08-11): neither hub has a global
+  # IPv6 address (gcp-proxy's ens4 is v4-only with no v6 default route), so
+  # NAT66 for ::/0 has nothing to translate to. The ::/0 half is still declared
+  # so the profile is correct the day a hub gains v6 egress; until then v6
+  # traffic under a full tunnel goes nowhere. Mesh v6 (fd0c:1d0x::/64) is
+  # unaffected — it never leaves the tunnel.
+
+  # Profile builders. Split and full differ ONLY in allowed-ips + never-default;
+  # same key, same address, same peer, same interface — so switching profiles is
+  # a routing change, not a new tunnel.
+  mkWg0Profile = { id, tunnel, autoconnect }: {
+    connection = {
+      inherit id autoconnect;
+      type = "wireguard";
+      interface-name = wgData.client.interface;
+    };
+    wireguard.private-key = "$WG0_PRIVATE_KEY";
+    # allowed-ips carries ONLY the v4 half (2026-07-30): NM's keyfile parser
+    # can't handle a combined v4+v6 value here (see the dispatcherScripts
+    # workaround below) — the v6 half is added to the kernel peer at runtime
+    # by the dispatcher, which keys off CONNECTION_ID to pick the matching half.
+    "wireguard-peer.${wgData.hub.wg_public_key}" = {
+      endpoint = wgPrimary;
+      allowed-ips = tunnel.allowed4;
+      persistent-keepalive = toString wgData.persistent_keepalive;
+    };
+    ipv4 = {
+      method = "manual";
+      address1 = "${wgData.client.wg_ip}/24";
+      dns = wgData.hub.wg_ip;        # Hickory mesh DNS for diegonmarcos.com
+      dns-priority = "50";
+      # Routing domains (data-driven, from wireguard-endpoints.json.dns_search):
+      # systemd-resolved routes ONLY these zones to Hickory (10.0.0.1) — the
+      # zones Hickory actually serves (diegonmarcos.com + the internal .app/.db
+      # mesh names). All other queries continue to the global DNS (127.0.0.1 =
+      # dnscrypt-proxy2). Without this, dns-priority=50 would make Hickory the
+      # global primary, but Hickory only knows its declared zones.
+      # dns_search is a JSON array; NM's keyfile ipv4.dns-search is a
+      # ';'-separated list. Joining with spaces made NM store all three as ONE
+      # bogus domain, so diegonmarcos.com never routed to Hickory (403 on mcp.*).
+      dns-search = lib.concatStringsSep ";" wgData.dns_search;
+      never-default = tunnel.neverDefault;
+    };
+    # Dual-stack (2026-07-26): cloud wg0 mesh is dual-stack (fd0c:1d00::/64, see
+    # wireguard-endpoints.json._ipv6_doc). Mirrors the ipv4 block: manual address
+    # from JSON, v6 Hickory alongside v4 Hickory so mesh split-DNS keeps
+    # resolving diegonmarcos.com over either stack.
+    ipv6 = {
+      method = "manual";
+      address1 = "${wgData.client.wg_ipv6}/64";
+      dns = "${wgData.hub.wg_ipv6} ${wgData.hickory_ipv6}";
+      dns-priority = "50";
+      dns-search = lib.concatStringsSep ";" wgData.dns_search;
+      never-default = tunnel.neverDefault;
+    };
+  };
+
+  mkWgPublicProfile = { id, tunnel, autoconnect }: {
+    connection = {
+      inherit id autoconnect;
+      type = "wireguard";
+      interface-name = wgPublicData.client.interface;
+    };
+    wireguard.private-key = "$WGPUB_PRIVATE_KEY";
+    "wireguard-peer.${wgPublicData.hub.wg_public_key}" = {
+      endpoint = wgPublicPrimary;
+      allowed-ips = tunnel.allowed4;
+      persistent-keepalive = toString wgPublicData.persistent_keepalive;
+    };
+    ipv4 = {
+      method = "manual";
+      address1 = "${wgPublicData.client.wg_ip}/24";
+      dns-search = "";
+      never-default = tunnel.neverDefault;
+    };
+    # Dual-stack (2026-07-26): wg-public mesh is dual-stack too
+    # (fd0c:1d01::/64, see wireguard-public-endpoints.json._ipv6_doc).
+    ipv6 = {
+      method = "manual";
+      address1 = "${wgPublicData.client.wg_ipv6}/64";
+      dns-search = "";
+      never-default = tunnel.neverDefault;
+    };
+  };
 
   # ── NAT64/DNS64/CLAT declarations (data-driven) ─────────────────────────────
   # DNS64 resolver addresses + v6 fallback DNS + the CLAT enable flag.
@@ -95,8 +282,8 @@ in {
   # on hotel WiFi. (See the tunnel_mode block above.)
   assertions = [
     {
-      assertion = !(wgTunnel.isFull && wgPublicTunnel.isFull);
-      message = "wireguard: tunnel_mode = \"full\" is set on BOTH wireguard-endpoints.json (wg0) and wireguard-public-endpoints.json (wg-public). Only one interface may carry the default route — set the other back to \"split\".";
+      assertion = !(wgBootFull && wgPublicBootFull);
+      message = "wireguard: tunnel_mode = \"full\" is set on BOTH wireguard-endpoints.json (wg0) and wireguard-public-endpoints.json (wg-public), so both -full profiles would autoconnect and fight over the default route. Only one may boot full — set the other back to \"split\" (you can still flip it live with `wg-tunnel full wg-public`).";
     }
   ];
 
@@ -209,82 +396,29 @@ in {
   networking.networkmanager.ensureProfiles = {
     environmentFiles = [ "/run/nm-wg-secrets.env" ];
     profiles = {
-      "wg0" = {
-        connection = {
-          id = "wg0";
-          type = "wireguard";
-          interface-name = wgData.client.interface;
-          autoconnect = "true";
-        };
-        wireguard.private-key = "$WG0_PRIVATE_KEY";
-        # allowed-ips carries ONLY the v4 half (2026-07-30): NM's keyfile parser
-        # can't handle a combined v4+v6 value here (see the dispatcherScripts
-        # workaround below) — the v6 half is added to the kernel peer at runtime
-        # by the dispatcher script instead. Both halves come from tunnel_mode.
-        "wireguard-peer.${wgData.hub.wg_public_key}" = {
-          endpoint = wgPrimary;
-          allowed-ips = wgTunnel.allowed4;
-          persistent-keepalive = toString wgData.persistent_keepalive;
-        };
-        ipv4 = {
-          method = "manual";
-          address1 = "${wgData.client.wg_ip}/24";
-          dns = wgData.hub.wg_ip;        # Hickory mesh DNS for diegonmarcos.com
-          dns-priority = "50";
-          # Routing domains (data-driven, from wireguard-endpoints.json.dns_search):
-          # systemd-resolved routes ONLY these zones to Hickory (10.0.0.1) — the
-          # zones Hickory actually serves (diegonmarcos.com + the internal .app/.db
-          # mesh names). All other queries continue to the global DNS (127.0.0.1 =
-          # dnscrypt-proxy2). Without this, dns-priority=50 would make Hickory the
-          # global primary, but Hickory only knows its declared zones.
-          # dns_search is a JSON array; NM's keyfile ipv4.dns-search is a
-          # ';'-separated list. Joining with spaces made NM store all three as ONE
-          # bogus domain, so diegonmarcos.com never routed to Hickory (403 on mcp.*).
-          dns-search = lib.concatStringsSep ";" wgData.dns_search;
-          never-default = wgTunnel.neverDefault;   # split ⇒ mesh subnet only
-        };
-        # Dual-stack (2026-07-26): cloud wg0 mesh is now dual-stack (fd0c:1d00::/64,
-        # see wireguard-endpoints.json._ipv6_doc). Mirrors the ipv4 block above:
-        # manual address from JSON, v6 Hickory added alongside v4 Hickory so mesh
-        # split-DNS keeps resolving diegonmarcos.com over either stack.
-        ipv6 = {
-          method = "manual";
-          address1 = "${wgData.client.wg_ipv6}/64";
-          dns = "${wgData.hub.wg_ipv6} ${wgData.hickory_ipv6}";
-          dns-priority = "50";
-          dns-search = lib.concatStringsSep ";" wgData.dns_search;
-          never-default = wgTunnel.neverDefault;
-        };
+      # Split (mesh-only) and full (0.0.0.0/0) live side by side on the SAME
+      # interface. Exactly one of each pair is active at a time; `nmcli con up
+      # wg0-full` swaps them in place, and both show up in the plasma-nm applet.
+      # tunnel_mode in the endpoints JSON picks which one autoconnects at boot.
+      "wg0" = mkWg0Profile {
+        id = "wg0";
+        tunnel = wgTunnel;
+        autoconnect = if wgBootFull then "false" else "true";
       };
-      "wg-public" = {
-        connection = {
-          id = "wg-public";
-          type = "wireguard";
-          interface-name = wgPublicData.client.interface;
-          autoconnect = "true";
-        };
-        wireguard.private-key = "$WGPUB_PRIVATE_KEY";
-        # allowed-ips carries ONLY the v4 subnet — see the wg0 profile above
-        # + the dispatcherScripts workaround below for why.
-        "wireguard-peer.${wgPublicData.hub.wg_public_key}" = {
-          endpoint = wgPublicPrimary;
-          allowed-ips = wgPublicTunnel.allowed4;
-          persistent-keepalive = toString wgPublicData.persistent_keepalive;
-        };
-        ipv4 = {
-          method = "manual";
-          address1 = "${wgPublicData.client.wg_ip}/24";
-          dns-search = "";
-          never-default = wgPublicTunnel.neverDefault;
-        };
-        # Dual-stack (2026-07-26): wg-public mesh is now dual-stack too
-        # (fd0c:1d01::/64, see wireguard-public-endpoints.json._ipv6_doc).
-        ipv6 = {
-          method = "manual";
-          address1 = "${wgPublicData.client.wg_ipv6}/64";
-          dns-search = "";
-          never-default = wgPublicTunnel.neverDefault;
-        };
+      "wg0-full" = mkWg0Profile {
+        id = "wg0-full";
+        tunnel = wgTunnelFull;
+        autoconnect = if wgBootFull then "true" else "false";
+      };
+      "wg-public" = mkWgPublicProfile {
+        id = "wg-public";
+        tunnel = wgPublicTunnel;
+        autoconnect = if wgPublicBootFull then "false" else "true";
+      };
+      "wg-public-full" = mkWgPublicProfile {
+        id = "wg-public-full";
+        tunnel = wgPublicTunnelFull;
+        autoconnect = if wgPublicBootFull then "true" else "false";
       };
     };
   };
@@ -317,7 +451,7 @@ in {
   # NOTE: with NM-managed wg0, a `wg set` endpoint tweak survives only until NM
   # reactivates the profile; for a permanent fallback port, edit the profile +
   # rebuild. The `status` subcommand still works as-is for quick inspection.
-  environment.systemPackages = [ wg-fallback ];
+  environment.systemPackages = [ wg-fallback wg-tunnel ];
 
   # WORKAROUND (2026-07-30): NetworkManager's keyfile parser (nmcli 1.48.10)
   # silently fails to apply a per-peer `allowed-ips` value that carries BOTH
@@ -334,14 +468,26 @@ in {
       source = pkgs.writeShellScript "wg-dualstack-allowedips-fix" ''
         IFACE="$1"; STATUS="$2"
         [ "$STATUS" = "up" ] || exit 0
-        case "$IFACE" in
-          ${wgData.client.interface})
+        # Key off CONNECTION_ID, not IFACE: wg0 and wg0-full share one interface
+        # and differ only in allowed-ips, so matching on the interface alone
+        # would re-apply the split set over a full profile on every link-up.
+        # NM exports CONNECTION_ID to dispatcher scripts.
+        case "''${CONNECTION_ID:-$IFACE}" in
+          wg0)
             ${pkgs.wireguard-tools}/bin/wg set "$IFACE" peer ${wgData.hub.wg_public_key} \
               allowed-ips "${wgTunnel.allowedBoth}"
             ;;
-          ${wgPublicData.client.interface})
+          wg0-full)
+            ${pkgs.wireguard-tools}/bin/wg set "$IFACE" peer ${wgData.hub.wg_public_key} \
+              allowed-ips "${wgTunnelFull.allowedBoth}"
+            ;;
+          wg-public)
             ${pkgs.wireguard-tools}/bin/wg set "$IFACE" peer ${wgPublicData.hub.wg_public_key} \
               allowed-ips "${wgPublicTunnel.allowedBoth}"
+            ;;
+          wg-public-full)
+            ${pkgs.wireguard-tools}/bin/wg set "$IFACE" peer ${wgPublicData.hub.wg_public_key} \
+              allowed-ips "${wgPublicTunnelFull.allowedBoth}"
             ;;
         esac
       '';
