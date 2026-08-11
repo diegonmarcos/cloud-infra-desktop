@@ -1,27 +1,14 @@
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 # Konsole terminal emulator configuration
 
-{
-  # Konsole profile
-  home.file.".local/share/konsole/Profile 1.profile".text = ''
-    [Appearance]
-    ColorScheme=Breeze
-    Font=JetBrainsMono NF,11,-1,5,50,0,0,0,0,0
-
-    [General]
-    Command=/usr/bin/fish
-    Name=Profile 1
-    Parent=FALLBACK/
-    TerminalColumns=120
-    TerminalRows=60
-
-    [Scrolling]
-    HistorySize=5000
-  '';
-
-  # Konsole main config
-  home.file.".config/konsolerc".text = ''
+let
+  # konsolerc CANNOT be a store symlink: KConfig rewrites it on every settings
+  # change (and on some window events), so a read-only /nix/store target makes
+  # Konsole print `Configuration file "/nix/store/…-hm_.configkonsolerc" not
+  # writable.` and drop the change. Declare the defaults here, seed a real
+  # mutable copy on activation.
+  konsolercDefaults = pkgs.writeText "konsolerc" ''
     [Desktop Entry]
     DefaultProfile=Profile 1.profile
 
@@ -40,6 +27,41 @@
 
     [UiSettings]
     ColorScheme=
+  '';
+in
+{
+  # Konsole profile
+  home.file.".local/share/konsole/Profile 1.profile".text = ''
+    [Appearance]
+    ColorScheme=Breeze
+    Font=JetBrainsMono NF,11,-1,5,50,0,0,0,0,0
+
+    [General]
+    Command=/usr/bin/fish
+    Name=Profile 1
+    Parent=FALLBACK/
+    TerminalColumns=120
+    TerminalRows=60
+
+    [Scrolling]
+    HistorySize=5000
+  '';
+
+  # Konsole main config — seeded, not symlinked (see konsolercDefaults above).
+  # Replaces a store symlink left by an earlier generation; never overwrites a
+  # real file, so settings the user changes in the GUI survive rebuilds.
+  # ponytail: same shape applies to "Profile 1.profile" if GUI profile edits
+  # ever start failing the same way — seed it the same way then.
+  home.activation.seedKonsolerc = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    (
+    DST="$HOME/.config/konsolerc"
+    if [ -L "$DST" ] || [ ! -e "$DST" ]; then
+      $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$HOME/.config"
+      $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -f "$DST"
+      $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m 0644 ${konsolercDefaults} "$DST"
+      echo "[konsole] seeded writable konsolerc"
+    fi
+    )
   '';
 
   # Breeze color scheme
