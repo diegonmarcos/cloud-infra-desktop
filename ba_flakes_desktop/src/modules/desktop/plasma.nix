@@ -31,7 +31,7 @@ let
   lidAction  = pdAction (pdGuard "events.lid_close" pwrJson.events.lid_close.battery);
 
   # Repairs panel widgets plasma-manager cannot reliably write (see the
-  # home.activation.fixMissingPanelWidgets comment below for the root
+  # plasma-panel-config.service comment below for the root
   # cause). Data-driven: the .sh reads plasma-panel-repair.json at runtime
   # via jq — nothing about which widget/panel/config is Nix-interpolated
   # into the script, matching the home-manager-command-catcher convention.
@@ -88,15 +88,20 @@ in
   # ./plasma-systray-config.sh. Test: ./test-systray-config.sh.
   home.file.".local/share/systray-items.json".source = ./systray-items.json;
 
-  systemd.user.services.plasma-systray-config = {
+  systemd.user.services.plasma-panel-config = {
     Unit = {
-      Description = "Apply declarative Plasma system tray item lists";
+      Description = "Apply declarative Plasma panel widgets and system tray lists";
       Before = [ "plasma-plasmashell.service" ];
       PartOf = [ "plasma-workspace.target" ];
     };
     Service = {
       Type = "oneshot";
-      ExecStart = "${systrayConfigScript}/bin/plasma-systray-config";
+      # Widget repair first: it can add applets, and the tray pass derives its
+      # hidden list from the applet set it finds.
+      ExecStart = [
+        "-${fixMissingPanelWidgetsScript}/bin/plasma-fix-missing-panel-widgets"
+        "${systrayConfigScript}/bin/plasma-systray-config"
+      ];
     };
     Install.WantedBy = [ "plasma-workspace.target" ];
   };
@@ -163,9 +168,13 @@ in
   # widget is present in its intended position. See
   # plasma-fix-missing-panel-widgets.sh and plasma-panel-repair.json for
   # the data-driven implementation.
-  home.activation.fixMissingPanelWidgets = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
-    ${fixMissingPanelWidgetsScript}/bin/plasma-fix-missing-panel-widgets || true
-  '';
+  # 2026-08-11: moved off home.activation for the same reason fixSystemTray
+  # was (see the systray block above). An activation writes appletsrc while
+  # plasmashell is running, and plasmashell writes its whole in-memory state
+  # back over the file at logout -- so a repaired widget survived until the
+  # next logout and then vanished again, which is exactly the "widgets still
+  # missing from the top panel" symptom. It now runs in the same pre-plasmashell
+  # oneshot, ordered before the tray pass so the tray sees the final applet set.
 
   # Lock screen wallpaper — matches the desktop + SDDM wallpaper (declared in
   # cloud-data-wallpaper.json, consumed via wallpaperPath in this file's let-binding).
@@ -370,7 +379,7 @@ in
     configFile = {
       # NOTE: Panel/widget containment IDs (like 244, 308) are NOT configured here
       # because Plasma assigns dynamic IDs. Panel config is user-managed.
-      # plasma-systray-config.service handles system tray visibility instead.
+      # plasma-panel-config.service handles system tray visibility instead.
 
       # Mouse/Touchpad settings
       "kcminputrc"."Libinput.1267.12693.ELAN0732:00 04F3:3195 Touchpad" = {
@@ -683,7 +692,7 @@ in
   # Source of truth: this file. Re-rendered on every home-manager switch.
   # Apply the change WITHOUT logout via:
   #   balooctl6 disable && balooctl6 purge && balooctl6 enable
-  # Data manifest for home.activation.fixMissingPanelWidgets — see that
+  # Data manifest for plasma-panel-config.service — see that
   # hook's comment for the root cause (plasmashell dropping the 3rd
   # same-plugin addWidget() call in a batched evaluateScript).
   xdg.configFile."cloud-data/plasma-panel-repair.json".source = ./plasma-panel-repair.json;
@@ -897,7 +906,7 @@ in
 
   # Fix system tray showAllItems (plasma-manager writes to applet, but Plasma reads from containment)
   # DISABLED: The kquitapp6/kstart plasmashell combo causes GUI freezes 8 seconds after every login.
-  # plasma-systray-config.service handles this at login, before plasmashell starts.
+  # plasma-panel-config.service handles this at login, before plasmashell starts.
   # If you need to fix system tray visibility, run manually:
   #   kquitapp6 plasmashell && kstart plasmashell
   #
