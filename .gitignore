@@ -251,5 +251,12 @@ da_my-browser-rust-chromium/.build/
 .claude.json
 .claude.json.backup
 .claude.json.tmp.*
-.mcp.json
 .claude/settings.local.json
+
+## .mcp.json is COMMITTED, not ignored. It used to be a machine-local file
+## (cloud tracked it as a symlink to /home/diego/.mcp.json), so ignoring it
+## made sense then. It is now generated — 1_configs/src/apps/root/mcp.json,
+## derived in cloud from the .mcp blocks in a_solutions/*/build.json and
+## deployed here by build.sh. Ignoring it would leave this repo the only one
+## without MCP servers, and Claude Code reports nothing when .mcp.json is
+## absent — it simply loads none.
