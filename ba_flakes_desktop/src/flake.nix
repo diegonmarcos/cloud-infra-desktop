@@ -236,6 +236,7 @@
         ./modules/programs/flakes-switch-progress-logs   # KDE progress popup for any nix command build.sh wraps (always-on)
         ./modules/programs/hm-auto-update.nix   # poll GHCR for new HM builds, auto build.sh switch (always-on)
         ./modules/programs/disable-baloo.nix   # disable KDE baloo file indexer (CPU/IO hog on this 8GB box)
+        ./modules/desktop/store-search.nix     # KRunner search over the CI-built store index (replaces baloo's runner)
         ./modules/programs/disable-thumbnails.nix   # trim Dolphin thumbnail plugins (CPU/IO hog on this 8GB box)
         ./modules/cloud.nix
         ./modules/cloud-network-wg-dns.nix
