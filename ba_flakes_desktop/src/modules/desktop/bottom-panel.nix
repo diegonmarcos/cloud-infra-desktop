@@ -10,15 +10,11 @@
 #   (the launchers sit between two expanding spacers, so they centre)
 #   No clock — it lives on the top panel only.
 #
-# 2026-08-07: ONE com.diegonmarcos.watchdog instance added back, mode=
-# "proctable" — a sortable process table with multiple kill signals, not a
-# summary-numbers duplicate of the top panel's storage/mem/cpu/network/
-# guard/psi instances (see the long-form history below for why THOSE were
-# kept off this panel). It is also the plugin's 7th addWidget() call across
-# the whole (cross-panel, batched-into-one) activation script — the drop
-# bug documented in plasma-panel-repair.json is counted per plugin id
-# across ALL panels, not per panel, so being the FIRST watchdog call on
-# THIS panel does not exempt it; it needs (and has) a repair-list entry.
+# 2026-08-11: no com.diegonmarcos.watchdog instance on this panel at all,
+# by request — watchdog lives on the top panel only. This reverts the
+# 2026-08-07 addition of a mode="proctable" instance here, and with it that
+# instance's entry in plasma-panel-repair.json (the drop bug is counted per
+# plugin id across ALL panels, so removing the call removes the need).
 #
 # 2026-08-02: the system-monitor widget is gone. Its history is worth keeping
 # because it explains why the replacement is not another one: it began as 7
@@ -64,15 +60,10 @@ in
         { name = "org.kde.plasma.icontasks"; config.General.launchers = launchers; }
         "org.kde.plasma.panelspacer"
 
-        # The process-table instance. Deliberately NOT one of the summary
-        # modes (storage/mem/cpu/network/guard/psi) already shown on the top
-        # panel, which would just poll and draw the same snapshot a second
-        # time. proctable is a distinct capability (sortable per-process
-        # table, multiple kill signals), so one instance earns its place here.
-        { name = "com.diegonmarcos.watchdog"; config.General = { mode = "proctable"; uid = data.watchdog_uid; }; }
-        "org.kde.plasma.marginsseparator"
+        # ── This panel carries NO watchdog widget ──
+        # The proctable instance that used to sit here was removed 2026-08-11
+        # by request: watchdog belongs on the top panel only.
 
-        # ── The rest of this panel carries NO other watchdog widget ──
         # top-panel.json already carries the six summary instances
         # (storage, mem, cpu, network, guard, psi) flanking the clock. The
         # history below is kept because it explains why the bottom panel had
