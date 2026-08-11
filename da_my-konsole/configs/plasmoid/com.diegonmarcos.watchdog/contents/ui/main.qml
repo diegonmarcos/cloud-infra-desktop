@@ -544,6 +544,14 @@ PlasmoidItem {
         // fill IS the reading (disk usage, guard voters); set for PSI, whose
         // real values are too small to see as a fill.
         property string valueText: ""
+        // How full to draw, 0..1. Negative means "derive it linearly from
+        // value", which is right for every grid whose values genuinely span
+        // 0-100 (disk usage, guard voters). PSI passes an explicit log-scaled
+        // fraction instead — see psiFraction().
+        property real fraction: -1
+        readonly property real fillRatio: bar.fraction >= 0
+            ? bar.fraction
+            : Math.max(0, Math.min(1, bar.value / 100))
         Layout.preferredHeight: bar.rowH
         Layout.maximumHeight: bar.rowH
         spacing: 3
@@ -567,7 +575,12 @@ PlasmoidItem {
             border { color: Kirigami.Theme.disabledTextColor; width: 1 }
             Rectangle {
                 anchors { left: parent.left; top: parent.top; bottom: parent.bottom; margins: 1 }
-                width: Math.max(0, Math.min(1, bar.value / 100)) * (parent.width - 2)
+                // A non-zero reading always paints at least 2px. Rounding a
+                // real-but-small value down to an empty bar is what made the
+                // PSI grid look like a dead publisher.
+                width: bar.fillRatio <= 0
+                    ? 0
+                    : Math.max(2, bar.fillRatio * (parent.width - 2))
                 radius: 1
                 color: bar.fill
                 // Deliberately not animated: a 2s sample eased over 2s is a
@@ -626,6 +639,19 @@ PlasmoidItem {
         if (v === undefined || v === null) return "--";
         return v >= 10 ? v.toFixed(0) : v.toFixed(2);
     }
+    // How full to draw a PSI bar. NOT value/100: pressure is a quantity whose
+    // entire interesting range lives in its first percent, so a linear bar is
+    // blank at 0.12% and blank at 1.2% — it cannot distinguish "idle" from
+    // "starting to hurt", which is the only thing the bar is for. This is a
+    // log decade scale instead: 0.01% empty, 0.1% a quarter, 1% half, 10%
+    // three quarters, 100% full. Each quarter of the bar is one order of
+    // magnitude. The exact number is printed alongside by psiText(), so the
+    // bar is the at-a-glance shape and the text is the reading.
+    function psiFraction(v) {
+        if (!v || v <= 0.01) return 0;
+        var f = (Math.log(v) / Math.LN10 + 2) / 4;   // 0.01% -> 0, 100% -> 1
+        return Math.max(0, Math.min(1, f));
+    }
     readonly property var psiRows: [
         { label: "Sc", cat: "cpu",    field: "some10" },
         { label: "Si", cat: "io",     field: "some10" },
@@ -643,7 +669,10 @@ PlasmoidItem {
             case "psi":
                 return root.psiRows.map(function (r) {
                     var v = root.psi(r.cat, r.field);
-                    return { label: r.label, value: v || 0, fill: root.heat(v), text: root.psiText(v) };
+                    return {
+                        label: r.label, value: v || 0, fill: root.heat(v),
+                        text: root.psiText(v), fraction: root.psiFraction(v)
+                    };
                 });
             case "guard":
                 return root.guardVoters().map(function (v) {
@@ -848,6 +877,7 @@ PlasmoidItem {
                                         fill: modelData.fill
                                         rowH: root.bargridRowH(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
                                         valueText: modelData.text || ""
+                                        fraction: modelData.fraction === undefined ? -1 : modelData.fraction
                                         barHeight: root.bargridBarHeight(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
                                         barWidth: Math.max(18, root.contentH * 1.6)
                                     }
