@@ -511,38 +511,69 @@ in {
     {
       source = pkgs.writeShellScript "clat-on-v6only" ''
         IFACE="$1"; STATUS="$2"
-        case "$STATUS" in up|dhcp6-change) ;; *) exit 0 ;; esac
+        # dhcp4-change matters as much as up: on a dual-stack link NM can fire
+        # `up` BEFORE DHCPv4 has finished, and the v4 lease lands afterwards.
+        case "$STATUS" in up|dhcp4-change|dhcp6-change) ;; *) exit 0 ;; esac
         # Never recurse on our own tunnels: wg0 coming up must not re-run this.
         case "$IFACE" in ${wgData.client.interface}|${wgPublicData.client.interface}|lo|clat) exit 0 ;; esac
-        # NATIVE v4 only — clatd creates a PERSISTENT tun device whose own
-        # `default dev clat` route outlives a reconnect. Counting that as native
-        # IPv4 makes this script no-op on exactly the event it exists for, and
-        # a stale CLAT from a previous network is never refreshed.
-        if ${pkgs.iproute2}/bin/ip -4 route show default \
-             | ${pkgs.gnugrep}/bin/grep -qv ' dev clat'; then
-          # Native IPv4 is back ⇒ TEAR DOWN any CLAT left over from a previous
-          # IPv6-only network. Merely exiting here (the original bug) left clatd
-          # running with a `default dev clat` route still in the table, pinned to
-          # the OLD network's NAT64 prefix. It only loses to the native route on
-          # metric, so the moment that route flaps — exactly what happens while
-          # roaming between networks — traffic falls into a dead tunnel and the
-          # machine looks like it has no internet.
+
+        OVR=/run/systemd/system/clatd.service.d/plat-prefix.conf
+        # Drop any forced prefix FIRST, on every path. It belongs to whichever
+        # network we were last on; leaving it behind (the native-v4 branch used
+        # to exit before this) means the next IPv6-only network can start clatd
+        # against the wrong NAT64 prefix.
+        ${pkgs.coreutils}/bin/rm -f "$OVR"
+
+        # Does this link have NATIVE IPv4? Ask NM, not the route table.
+        # At `up` time DHCPv4 may not have installed the route yet, so an empty
+        # table reads as "IPv6-only" — that race is how an earlier version of
+        # this script started CLAT on a dual-stack network and left a competing
+        # `default dev clat` route behind, killing IPv4 when the native route
+        # arrived seconds later. NM's own IP4_NUM_ADDRESSES describes the
+        # connection being activated and is authoritative; only fall back to the
+        # route table when NM told us nothing (e.g. a manual invocation).
+        if [ -n "''${IP4_NUM_ADDRESSES:-}" ]; then
+          if [ "''${IP4_NUM_ADDRESSES}" -gt 0 ] 2>/dev/null; then NATIVE4=1; else NATIVE4=0; fi
+        elif ${pkgs.iproute2}/bin/ip -4 route show default \
+               | ${pkgs.gnugrep}/bin/grep -qv ' dev clat'; then
+          NATIVE4=1
+        else
+          NATIVE4=0
+        fi
+
+        if [ "$NATIVE4" = 1 ]; then
+          # Native IPv4 present ⇒ tear down any CLAT left from a previous
+          # IPv6-only network. clatd's tun device is PERSISTENT and its default
+          # route outlives a reconnect; it only loses to the native route on
+          # metric, so leaving it running blackholes IPv4 the moment that route
+          # flaps — which is exactly what roaming does.
+          ${config.systemd.package}/bin/systemctl daemon-reload
           ${config.systemd.package}/bin/systemctl stop clatd 2>/dev/null || true
           exit 0
         fi
-        # clatd finds the NAT64 prefix by RFC7050: it asks for AAAA on
-        # ipv4only.arpa and reads the PLAT prefix out of the synthesized answer.
-        # That needs a DNS64 resolver — and plenty of IPv6-only networks provide
-        # NAT64 with no DNS64, or neither. Observed 2026-08-11 on a real v6-only
-        # WiFi: the restart below fired correctly and clatd still died with
-        # "No PLAT prefix could be discovered. Your ISP probably doesn't provide
-        # NAT64/DNS64 PLAT service." Pointing the link at nat64.json's public
-        # DNS64 resolvers made discovery succeed on the very next start.
-        # Only override when the link genuinely can't synthesize, so a network
-        # with working DNS64 keeps its own resolver.
-        if ! ${config.systemd.package}/bin/resolvectl query --type=AAAA --legend=no ipv4only.arpa >/dev/null 2>&1; then
+
+        # IPv6-only from here. clatd finds the NAT64 prefix by RFC7050 — it asks
+        # for AAAA on ipv4only.arpa and reads the prefix out of the synthesized
+        # answer — so it needs a DNS64 resolver. Observed 2026-08-11 on a real
+        # v6-only WiFi: this script fired correctly and clatd still died with
+        # "No PLAT prefix could be discovered."
+        #
+        # Prefer a LOCAL NAT64 at the RFC6052 well-known prefix before touching
+        # DNS: many v6-only networks run NAT64 at 64:ff9b::/96 while publishing
+        # no DNS64 at all. Probing it keeps every IPv4 packet (both WG tunnels
+        # included) on the local gateway instead of hairpinning through
+        # nat64.net's volunteer service, which nat64.json itself flags as
+        # unverified. clatd's own conf is empty, so forcing plat-prefix via a
+        # /run drop-in (tmpfs — gone on reboot) skips discovery entirely.
+        if ${pkgs.iputils}/bin/ping -6 -c1 -W2 64:ff9b::808:808 >/dev/null 2>&1; then
+          ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$OVR")"
+          ${pkgs.coreutils}/bin/printf '[Service]\nExecStart=\nExecStart=%s/bin/clatd plat-prefix=64:ff9b::/96\n' \
+            ${pkgs.clatd} > "$OVR"
+        elif ! ${config.systemd.package}/bin/resolvectl query --type=AAAA --legend=no ipv4only.arpa >/dev/null 2>&1; then
+          # No local NAT64 and no DNS64 — last resort, public DNS64 + its NAT64.
           ${config.systemd.package}/bin/resolvectl dns "$IFACE" ${lib.concatStringsSep " " nat64Data.public_dns64_fallback_resolvers}
         fi
+        ${config.systemd.package}/bin/systemctl daemon-reload
         ${config.systemd.package}/bin/systemctl restart clatd
       '';
       type = "basic";
