@@ -493,6 +493,34 @@ in {
       '';
       type = "basic";
     }
+
+    # CLAT on an IPv6-only uplink (2026-08-11, verified in the field).
+    # clatd.service is WantedBy=multi-user.target, so it only ever runs at BOOT
+    # — and at boot on a dual-stack network it correctly self-disables and
+    # exits. Join an IPv6-only WiFi later and NOTHING re-triggers it.
+    #
+    # That is fatal rather than degraded: both WG endpoints are raw IPv4
+    # literals (hub.host in wireguard{,-public}-endpoints.json), and DNS64 can
+    # only synthesize AAAA for NAMES — a literal has nothing to translate. No
+    # CLAT ⇒ no route to either hub ⇒ the entire mesh is unreachable on exactly
+    # the network the dual-stack work was meant to survive.
+    #
+    # Restart clatd on link-up when there is no IPv4 default route. When native
+    # IPv4 exists we skip it entirely: clatd would self-disable anyway, and
+    # churning the unit on every link event is noise.
+    {
+      source = pkgs.writeShellScript "clat-on-v6only" ''
+        IFACE="$1"; STATUS="$2"
+        case "$STATUS" in up|dhcp6-change) ;; *) exit 0 ;; esac
+        # Never recurse on our own tunnels: wg0 coming up must not re-run this.
+        case "$IFACE" in ${wgData.client.interface}|${wgPublicData.client.interface}|lo|clat) exit 0 ;; esac
+        if ${pkgs.iproute2}/bin/ip -4 route show default | ${pkgs.gnugrep}/bin/grep -q .; then
+          exit 0
+        fi
+        ${config.systemd.package}/bin/systemctl restart clatd
+      '';
+      type = "basic";
+    }
   ];
 
   # ═══════════════════════════════════════════════════════════════════════════
