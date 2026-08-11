@@ -60,26 +60,11 @@
         "plugin": "com.diegonmarcos.watchdog",
         "mode": "guard"
       }
-    },
-    {
-      "_comment": "The process table. 7th com.diegonmarcos.watchdog addWidget() in the batched script even though it is the FIRST on the bottom panel -- the drop is counted per plugin id across the WHOLE script, not per panel, which is exactly why this needs an entry here. Belongs after the SECOND panelspacer on the bottom panel -- the one right after icontasks.",
-      "panel_location": "bottom",
-      "plugin": "com.diegonmarcos.watchdog",
-      "config": {
-        "General": {
-          "mode": "proctable",
-          "uid": 1000
-        }
-      },
-      "insert_after": {
-        "plugin": "org.kde.plasma.panelspacer",
-        "occurrence": 2
-      }
     }
   ],
   "watchdog_orphan_scope": {
     "_comment": "Drives the removal sweep -- see the top-level _comment for why an add-only repair pass needs a companion delete pass. desired_modes is the full current mode set across BOTH panels; anything else found under plugin==com.diegonmarcos.watchdog anywhere is an orphan (e.g. the retired 'left'/'right' modes) and gets removed.",
     "plugin": "com.diegonmarcos.watchdog",
-    "desired_modes": ["storage", "mem", "cpu", "network", "guard", "psi", "proctable"]
+    "desired_modes": ["storage", "mem", "cpu", "network", "guard", "psi"]
   }
 }
