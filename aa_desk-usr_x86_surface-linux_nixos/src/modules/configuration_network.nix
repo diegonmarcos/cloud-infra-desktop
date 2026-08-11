@@ -440,11 +440,31 @@ in {
       OUT=/run/nm-wg-secrets.env
       : > "$OUT"
       chmod 0600 "$OUT"
+      # ~/.config/wireguard/* are home-manager symlinks that ultimately resolve
+      # into the VAULT REPO: /home/diego/git/vault/A0_keys/providers/wireguard/.
+      # That path lives on the @nosnap/git subvolume, so this unit cannot read a
+      # single key until that mount exists — see RequiresMountsFor below.
       WG0_KEY=/home/diego/.config/wireguard/privatekey
       WGPUB_KEY=/home/diego/.config/wireguard/privatekey-public
-      [ -r "$WG0_KEY" ]   && printf 'WG0_PRIVATE_KEY=%s\n'   "$(tr -d '\n\r' < "$WG0_KEY")"   >> "$OUT"
-      [ -r "$WGPUB_KEY" ] && printf 'WGPUB_PRIVATE_KEY=%s\n' "$(tr -d '\n\r' < "$WGPUB_KEY")" >> "$OUT"
+      MISSING=""
+      [ -r "$WG0_KEY" ]   && printf 'WG0_PRIVATE_KEY=%s\n'   "$(tr -d '\n\r' < "$WG0_KEY")"   >> "$OUT" || MISSING="$MISSING $WG0_KEY"
+      [ -r "$WGPUB_KEY" ] && printf 'WGPUB_PRIVATE_KEY=%s\n' "$(tr -d '\n\r' < "$WGPUB_KEY")" >> "$OUT" || MISSING="$MISSING $WGPUB_KEY"
+      if [ -n "$MISSING" ]; then
+        # Fail LOUDLY and name the files. Previously the last `[ -r ]` test
+        # simply returned 1 under `set -e`, so the unit died with a bare
+        # "status=1/FAILURE" and no clue — while NetworkManager, handed an empty
+        # env file, silently fell back to PROMPTING THE USER for the wg0
+        # password (observed 2026-08-11 19:25 after the git subvolume failed to
+        # mount at boot, which dangled every key symlink).
+        echo "nm-wg-secrets: unreadable key(s):$MISSING" >&2
+        echo "nm-wg-secrets: is /home/diego/git mounted? the vault lives there." >&2
+        exit 1
+      fi
     '';
+    # The keys resolve into /home/diego/git/vault, so this unit MUST NOT run
+    # before that subvolume is mounted. Without this, boot ordering decides
+    # whether your VPN comes up or NetworkManager asks you to type a password.
+    unitConfig.RequiresMountsFor = "/home/diego/git";
   };
 
   # Runtime endpoint switcher: `wg-fallback {status|primary|fallback}`
