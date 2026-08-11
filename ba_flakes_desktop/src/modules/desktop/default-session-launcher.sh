@@ -25,7 +25,17 @@ set -u
 # PATH safety net — Plasma autostart may invoke us with a thin PATH (same reason
 # build.sh prepends these). The tools we need (konsole, qdbus, jq, dolphin, kate,
 # brave, waydroid) live across system + nix-profile.
-export PATH="/run/current-system/sw/bin:$HOME/.nix-profile/bin:/run/wrappers/bin:/etc/profiles/per-user/$USER/bin:$PATH"
+#
+# /run/wrappers/bin MUST come first. It used to sit third, behind
+# /run/current-system/sw/bin, and because this launcher starts the whole desktop
+# session every process inherited that order. The result: `sudo` resolved to
+# /run/current-system/sw/bin/sudo (the plain package binary, not setuid) and
+# every invocation died with "must be owned by uid 0 and have the setuid bit
+# set" — 2026-08-11, hit while trying to delete btrfs snapshots. This is not a
+# sudo-specific bug: /run/wrappers/bin holds EVERY setuid wrapper (sudo, mount,
+# ping, pkexec, fusermount), so anything shadowed there fails the same way.
+# Wrappers first is the NixOS default ordering for exactly this reason.
+export PATH="/run/wrappers/bin:/run/current-system/sw/bin:$HOME/.nix-profile/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 
 SELF_DIR="$(dirname "$(readlink -f "$0")")"
 JSON="${DEFAULT_SESSION_JSON:-$SELF_DIR/default-session.json}"
