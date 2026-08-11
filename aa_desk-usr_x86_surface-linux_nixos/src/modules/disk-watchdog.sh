@@ -44,6 +44,9 @@ COOLDOWN_MIN=$(jq -r '.emergency.cooldown_minutes // 0' "$CONFIG_JSON")
 # rather than 100 because a volume reporting 100% is already refusing
 # writes — the point is to act while there is still a sliver left.
 NO_MERCY_PCT=$(jq -r '.emergency.no_mercy_pct // 99' "$CONFIG_JSON")
+# Alert-only rungs below emergency.pct. Space-separated for the shell loop in
+# escalate(). Empty list = no early warning, i.e. the old cliff-edge behaviour.
+EMERG_LADDER_PCT=$(jq -r '(.emergency.alert_ladder_pct // []) | join(" ")' "$CONFIG_JSON")
 NTFY_TOPIC=$(jq -r '.actions.alert_ntfy.topic // "diegonmarcos-infra"' "$CONFIG_JSON")
 NTFY_PRIORITY=$(jq -r '.emergency.ntfy_priority // "urgent"' "$CONFIG_JSON")
 # octocode code-index cache root + staleness cutoff (days) — data-driven per
@@ -259,6 +262,27 @@ escalate() {
   local label="${9:-}" tag="" a
   [ -n "$label" ] && tag=" [$label]"
   echo "[disk-watchdog] ${mount}${tag}: ${usage}%"
+  # ── Pre-emergency early warning (2026-08-11) ──────────────────────────────
+  # Between critical and emergency there was NOTHING: the box went from a
+  # routine CRITICAL line to freezing workload.slice with no escalating signal
+  # in between, so the first thing the user ever noticed was the disruption
+  # itself. EMERG_LADDER_PCT are alert-ONLY rungs below emerg_pct — they never
+  # run a reclaim or freeze action, they just make the approach visible while
+  # there is still time to act by hand. Highest crossed rung wins, so one pass
+  # emits one message.
+  if [ "$usage" -lt "$emerg_pct" ]; then
+    local _hit=0 _p
+    for _p in $EMERG_LADDER_PCT; do
+      [ "$usage" -ge "$_p" ] && [ "$_p" -gt "$_hit" ] && _hit="$_p"
+    done
+    if [ "$_hit" -gt 0 ]; then
+      local _m="DISK APPROACHING EMERGENCY: ${mount}${tag} at ${usage}% (emergency fires at ${emerg_pct}%). No reclaim, freeze or kill has run — this is the warning before that."
+      logger -t disk-emergency -p user.warning "$_m"
+      echo "[disk-watchdog] PRE-EMERGENCY ${mount}${tag} ${usage}% >= ${_hit}%"
+      curl -sS -H "Title: disk ${mount} ${usage}% — nearing emergency" -H "Priority: high" \
+        -H "Tags: warning" -d "$_m" "https://ntfy.sh/${NTFY_TOPIC}" 2>/dev/null || true
+    fi
+  fi
   if [ "$usage" -ge "$emerg_pct" ]; then
     echo "[disk-watchdog] EMERGENCY ${mount}${tag} ${usage}% >= ${emerg_pct}% — stop-the-bleeding"
     while read -r a; do run_action "$a" "$mount" "$usage"; done < <(printf '%s\n' "$actions_emerg_json" | jq -r '.[]')
