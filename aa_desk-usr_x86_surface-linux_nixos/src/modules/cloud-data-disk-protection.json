@@ -172,11 +172,11 @@
       {
         "mount": "/home/diego",
         "subvol": "@home-diego",
-        "limit_gib": null,
+        "limit_gib": 56,
         "warn_pct": 80,
         "critical_pct": 90,
         "emergency_pct": 95,
-        "description": "primary dev workspace \u2014 most likely to runaway (git worktrees, caches, containers under home)"
+        "description": "primary dev workspace \u2014 most likely to runaway (git worktrees, caches, containers under home). Cap 56G, measured 2026-08-11 at 43G referenced (git 22G, .local 16G) = 77% of cap. SIZING RULE, and the reason this is not tighter: a qgroup emergency runs the POOL-WIDE emergency action set (freeze_nonsystem + kill_nonsystem), so a cap that trips 95% on day one would freeze and SIGTERM workload.slice on the very next timer tick. Every cap here is therefore set so today's usage sits below warn_pct (80%), i.e. cap >= current / 0.8, leaving the ladder inert until real growth happens. 56G puts warn at 44.8G, critical at 50.4G, emergency at 53.2G."
       },
       {
         "mount": "/home/guest",
@@ -190,7 +190,7 @@
       {
         "mount": "/mnt/shared",
         "subvol": "@shared",
-        "limit_gib": null,
+        "limit_gib": 12,
         "warn_pct": 80,
         "critical_pct": 90,
         "emergency_pct": 95,
@@ -199,7 +199,7 @@
       {
         "mount": "/nix",
         "subvol": "@nixos/nix",
-        "limit_gib": null,
+        "limit_gib": 56,
         "warn_pct": 80,
         "critical_pct": 90,
         "emergency_pct": 95,
