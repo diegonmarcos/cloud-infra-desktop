@@ -535,7 +535,19 @@ in {
         # `up` BEFORE DHCPv4 has finished, and the v4 lease lands afterwards.
         case "$STATUS" in up|dhcp4-change|dhcp6-change) ;; *) exit 0 ;; esac
         # Never recurse on our own tunnels: wg0 coming up must not re-run this.
-        case "$IFACE" in ${wgData.client.interface}|${wgPublicData.client.interface}|lo|clat) exit 0 ;; esac
+        #
+        # VIRTUAL BRIDGES MUST BE IGNORED TOO (2026-08-12). docker0 carries a
+        # private IPv4 (172.16.0.1), so an `up` event on it sets NATIVE4=1 below
+        # and the native-IPv4 branch then runs `systemctl stop clatd` — killing
+        # IPv4 on a genuinely IPv6-only uplink because an unrelated bridge
+        # appeared. Not hypothetical: this dispatcher was observed running with
+        # IFACE=docker0 (its resolvectl remedy pinned the DNS64 servers to
+        # docker0, a link with no default route). Only a real uplink can answer
+        # "does this machine have native IPv4".
+        case "$IFACE" in
+          ${wgData.client.interface}|${wgPublicData.client.interface}|lo|clat) exit 0 ;;
+          docker*|br-*|virbr*|veth*|waydroid*|tun*|tap*) exit 0 ;;
+        esac
 
         OVR=/run/systemd/system/clatd.service.d/plat-prefix.conf
         # Drop any forced prefix FIRST, on every path. It belongs to whichever
@@ -585,13 +597,54 @@ in {
         # nat64.net's volunteer service, which nat64.json itself flags as
         # unverified. clatd's own conf is empty, so forcing plat-prefix via a
         # /run drop-in (tmpfs — gone on reboot) skips discovery entirely.
-        if ${pkgs.iputils}/bin/ping -6 -c1 -W2 64:ff9b::808:808 >/dev/null 2>&1; then
+        # force <clatd-args> — pin clatd's argv via the /run drop-in, skipping
+        # whichever discovery step we have already decided cannot work.
+        force() {
           ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$OVR")"
-          ${pkgs.coreutils}/bin/printf '[Service]\nExecStart=\nExecStart=%s/bin/clatd plat-prefix=64:ff9b::/96\n' \
-            ${pkgs.clatd} > "$OVR"
-        elif ! ${config.systemd.package}/bin/resolvectl query --type=AAAA --legend=no ipv4only.arpa >/dev/null 2>&1; then
-          # No local NAT64 and no DNS64 — last resort, public DNS64 + its NAT64.
-          ${config.systemd.package}/bin/resolvectl dns "$IFACE" ${lib.concatStringsSep " " nat64Data.public_dns64_fallback_resolvers}
+          ${pkgs.coreutils}/bin/printf '[Service]\nExecStart=\nExecStart=%s/bin/clatd %s\n' \
+            ${config.services.clatd.package} "$1" > "$OVR"
+        }
+
+        # TIER 1 — a NAT64 on THIS network at the RFC6052 well-known prefix.
+        # Always preferred: every IPv4 packet stays on the local gateway.
+        if ${pkgs.iputils}/bin/ping -6 -c1 -W2 ${nat64Data.nat64_probe_target} >/dev/null 2>&1; then
+          force 'plat-prefix=${nat64Data.nat64_wellknown_prefix}'
+
+        # TIER 2 — the system resolver really is a DNS64: let clatd discover the
+        # LOCAL prefix by RFC7050, as upstream intends.
+        #
+        # `timeout 5` is load-bearing. This query used to run unbounded, and on
+        # 2026-08-12 it hit dnscrypt-proxy2 (127.0.0.1, first in resolved's DNS=
+        # list) whose upstreams are IPv4 literals — unreachable on a v6-only
+        # link, so it TIMED OUT rather than SERVFAILing. Inside an NM dispatcher
+        # script that stalls the whole event, and resolved never rotates to the
+        # DNS64 servers because it never saw a failure.
+        elif ${pkgs.coreutils}/bin/timeout 5 ${config.systemd.package}/bin/resolvectl \
+               query --type=AAAA --legend=no ipv4only.arpa >/dev/null 2>&1; then
+          : # discovery will work unaided${lib.optionalString (nat64Data.clat_plat_prefix != null) ''
+
+        # TIER 3a — the fleet's OWN NAT64. Self-hosted: no volunteer service in
+        # the path. Set nat64.json#clat_plat_prefix to enable.
+        else
+          force 'plat-prefix=${toString nat64Data.clat_plat_prefix}'
+        ''}${lib.optionalString (nat64Data.clat_plat_prefix == null && (nat64Data.clat_dns64_direct or false)) ''
+
+        # TIER 3b — public DNS64, queried DIRECTLY by clatd (its own Net::DNS
+        # resolver), bypassing resolved/dnscrypt/per-link DNS. Off by default;
+        # see nat64.json#clat_dns64_direct for the privacy cost.
+        else
+          ${pkgs.util-linux}/bin/logger -t clat-on-v6only -p daemon.warning \
+            "LAST RESORT: no local NAT64, no local DNS64. clatd will query ${lib.concatStringsSep "," nat64Data.public_dns64_fallback_resolvers} directly and adopt its prefix — ALL plain IPv4 will transit a third-party volunteer NAT64 (nat64.json#clat_dns64_direct)."
+          force 'dns64-servers=${lib.concatStringsSep "," nat64Data.public_dns64_fallback_resolvers}'
+        ''}${lib.optionalString (nat64Data.clat_plat_prefix == null && !(nat64Data.clat_dns64_direct or false)) ''
+
+        # FAIL CLOSED — no local NAT64, no local DNS64, no self-hosted prefix,
+        # and third-party transit is disabled. Say so instead of leaving clatd to
+        # die with a message that blames DNS.
+        else
+          ${pkgs.util-linux}/bin/logger -t clat-on-v6only -p daemon.warning \
+            "IPv6-only uplink with no NAT64 and no DNS64. No IPv4 will be available: clat_plat_prefix is unset and clat_dns64_direct is false (fail-closed by design). Set one in nat64.json, or use a wg hub with tunnel_mode=full."
+        ''}
         fi
         ${config.systemd.package}/bin/systemctl daemon-reload
         ${config.systemd.package}/bin/systemctl restart clatd
@@ -741,4 +794,25 @@ in {
   # hardcoded — it's discovered live per-network. Gated by nat64.json's
   # clat_enable flag (data-driven, repo principle 6) rather than a bare `true`.
   services.clatd.enable = nat64Data.clat_enable;
+
+  # Disable the nixpkgs module's OWN NetworkManager dispatcher (2026-08-12).
+  #
+  # It defaults to `config.networking.networkmanager.enable` — i.e. ON here — and
+  # installs a second dispatcher script whose entire body is:
+  #     [ "$2" != "up" ] && [ "$2" != "down" ] && exit 0
+  #     systemctl restart clatd.service
+  # (nixpkgs nixos/modules/services/networking/clatd.nix:93-103). It restarts
+  # clatd unconditionally: no native-IPv4 check, and no knowledge of the
+  # plat-prefix drop-in that clat-on-v6only writes above.
+  #
+  # Two dispatchers then race by module-merge order (NixOS names them
+  # 03userscript0001, 0002, … and NM runs them in sequence). Whichever loses,
+  # clatd gets churned twice per link event, and a restart landing BEFORE our
+  # drop-in is written starts clatd with no forced prefix — the exact
+  # "No PLAT prefix could be discovered" failure, now on a timer.
+  #
+  # Ours is strictly more capable: it tears CLAT down on native IPv4, forces a
+  # prefix, and handles dhcp4-change/dhcp6-change (which the module's does not).
+  # The only coverage given up is `down`, where the next `up` re-evaluates anyway.
+  services.clatd.enableNetworkManagerIntegration = false;
 }
