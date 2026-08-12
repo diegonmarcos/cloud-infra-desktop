@@ -28,7 +28,7 @@ ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 # filter-syscalls=false: avoid seccomp conflicts with Docker's own seccomp
 RUN mkdir -p /etc/nix \
     && printf "build-users-group =\nexperimental-features = nix-command flakes\nsandbox = false\nfilter-syscalls = false\n" > /etc/nix/nix.conf \
-    && curl -L https://nixos.org/nix/install | sh -s -- --no-daemon \
+    && curl -L --retry 5 --retry-delay 3 --retry-all-errors https://nixos.org/nix/install | sh -s -- --no-daemon \
     && . /root/.nix-profile/etc/profile.d/nix.sh
 
 # Make nix available for subsequent RUN commands
