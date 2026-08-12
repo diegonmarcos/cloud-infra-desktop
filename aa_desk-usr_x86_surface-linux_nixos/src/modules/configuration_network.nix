@@ -167,6 +167,11 @@ let
       interface-name = wgData.client.interface;
     };
     wireguard.private-key = "$WG0_PRIVATE_KEY";
+    # MTU from JSON, not 1420. A wg frame nested inside a CLAT path (route mtu
+    # 1260) is dropped with DF set, and ICMP is filtered there so PMTU discovery
+    # never learns it — a black hole that passes small packets and hangs on the
+    # first big one. See wireguard-endpoints.json._mtu_doc.
+    wireguard.mtu = toString wgData.mtu;
     # allowed-ips carries ONLY the v4 half (2026-07-30): NM's keyfile parser
     # can't handle a combined v4+v6 value here (see the dispatcherScripts
     # workaround below) — the v6 half is added to the kernel peer at runtime
@@ -214,6 +219,9 @@ let
       interface-name = wgPublicData.client.interface;
     };
     wireguard.private-key = "$WGPUB_PRIVATE_KEY";
+    # See wireguard-public-endpoints.json._mtu_doc. This is the tunnel meant to
+    # carry IPv4 on a v6-only uplink, so it is always the nested one.
+    wireguard.mtu = toString wgPublicData.mtu;
     "wireguard-peer.${wgPublicData.hub.wg_public_key}" = {
       endpoint = wgPublicPrimary;
       allowed-ips = tunnel.allowed4;

@@ -23,6 +23,8 @@
   "subnet": "10.1.0.0/24",
   "subnet_v6": "fd0c:1d01::/64",
   "persistent_keepalive": 25,
+  "_mtu_doc": "Tunnel MTU — see wireguard-endpoints.json._mtu_doc for the full derivation and field evidence. 1200 = 1260 (clat route MTU) - 20 IPv4 - 8 UDP - 32 WireGuard. Matters even more here than on wg0: this is the tunnel that is supposed to CARRY IPv4 on a v6-only network, so it is the one guaranteed to be nested inside a reduced-MTU path, and its handshake must survive a link where ICMP is filtered and so PMTU discovery cannot work.",
+  "mtu": 1200,
   "tunnel_mode": "split",
   "_tunnel_mode_doc": "split | full. split = only subnet + subnet_v6 are routed into the tunnel (mesh-only; the rest of your traffic uses the local WiFi/LTE). full = 0.0.0.0/0 + ::/0 are routed into the tunnel (all traffic exits via the hub). Read by configuration_network.nix, which derives BOTH the peer allowed-ips AND ipv4/ipv6.never-default AND the dispatcher-script wg set from this one field — never edit those three by hand or they will disagree. Only ONE interface may be full at a time: two default routes over two wg devices fight."
 }
