@@ -23,8 +23,8 @@ set -u
 # dead (2026-08-08 audit).
 set -o pipefail
 
-# ONE output convention — see 1_configs/src/gha/scripts/cloud-data-paths.sh
-CDP="$HOME/git/unix/1_configs/dist/scripts/cloud-data-paths.sh"
+# ONE output convention — see 1_cicd/src/scripts/cloud-data-paths.sh
+CDP="$HOME/git/unix/1_cicd/dist/scripts/cloud-data-paths.sh"
 if [ -r "$CDP" ]; then . "$CDP"; LOG="$(cd_log claude-fix)"; else LOG="$HOME/claude-fix.log"; fi
 STARTUP_DEBUG="${LOG%.log}-startup-debug.log"
 REAL="$HOME/.nix-profile/bin/claude"

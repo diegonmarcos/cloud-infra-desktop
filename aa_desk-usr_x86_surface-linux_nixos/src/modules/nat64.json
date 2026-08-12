@@ -1,5 +1,5 @@
 {
-  "_doc": "DNS64/NAT64/CLAT data for reaching IPv4-only sites (github.com etc.) on an IPv6-only WiFi network. Consumed by configuration_network.nix (services.resolved.extraConfig + fallbackDns) — edit the JSON, not the .nix. Companion to wireguard-endpoints.json/wireguard-public-endpoints.json's dual-stack fields; this file is the NAT64-specific counterpart. See also 0_tasks/PLAN_ipv6-only-wifi.md history.",
+  "_doc": "DNS64/NAT64/CLAT data for reaching IPv4-only sites (github.com etc.) on an IPv6-only WiFi network. Consumed by configuration_network.nix (services.resolved.extraConfig + fallbackDns) — edit the JSON, not the .nix. Companion to wireguard-endpoints.json/wireguard-public-endpoints.json's dual-stack fields; this file is the NAT64-specific counterpart. See also a0_tasks/PLAN_ipv6-only-wifi.md history.",
   "public_dns64_fallback_resolvers": [
     "2a00:1098:2b::1",
     "2a01:4f9:c010:3f02::1"

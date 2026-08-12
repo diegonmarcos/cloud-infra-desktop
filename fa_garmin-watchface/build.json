@@ -44,7 +44,7 @@
   },
 
   "release": {
-    "_doc": "Data-driven publish targets — mirrors ea_cloud-superapp/build.json::release. build.sh oras-push + gh-release read this block; the GHA workflow (1_configs/src/gha/cicd/ship-garmin-watchface.yml) only invokes those engine commands. {design} / {sha} / {version} / {product} are expanded by the engine. The published artifact is the device-specific .prg (sideload/store-uploadable) produced by `build.sh build <design>`.",
+    "_doc": "Data-driven publish targets — mirrors ea_cloud-superapp/build.json::release. build.sh oras-push + gh-release read this block; the GHA workflow (1_cicd/src/cicd/ship-garmin-watchface.yml) only invokes those engine commands. {design} / {sha} / {version} / {product} are expanded by the engine. The published artifact is the device-specific .prg (sideload/store-uploadable) produced by `build.sh build <design>`.",
     "artifact": {
       "_doc": "Path under dist/<design>/ to publish. monkeyc emits <design>.prg; the store-package .iq is produced by `build.sh package <design>` for manual store upload.",
       "prg": "{design}.prg",

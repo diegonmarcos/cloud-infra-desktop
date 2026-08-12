@@ -469,7 +469,7 @@ in
   # wrapper kept the DBus name + a dead wayland-0 socket, unit stayed "active",
   # every Qt client blocked in the accept queue → all session units hit
   # Type=dbus timeouts after login. Raw unit text emits ONLY the lines below.
-  # See 0_tasks/PLAN_plasma-kwin-dropin-path-poison.md for the full forensics.
+  # See a0_tasks/PLAN_plasma-kwin-dropin-path-poison.md for the full forensics.
   systemd.user.units = lib.genAttrs
     (map (u: "${u}.service") sysprot.compositor_no_swap.units) (_: {
       overrideStrategy = "asDropin";

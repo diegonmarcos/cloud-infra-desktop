@@ -73,7 +73,7 @@ each fork current from GHCR afterwards.
 - **SuperApp wiring** (`CommsDataSource` + fallback) is Phase 3 — additive, does
   not touch SuperApp until the forks prove out.
 
-Full plan + decisions: [`../0_tasks/PLAN_cloud-comms-constellation.md`](../0_tasks/PLAN_cloud-comms-constellation.md).
+Full plan + decisions: [`../a0_tasks/PLAN_cloud-comms-constellation.md`](../a0_tasks/PLAN_cloud-comms-constellation.md).
 
 ## License
 

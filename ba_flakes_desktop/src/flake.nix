@@ -136,7 +136,7 @@
       # unstable/customPkgs/nur) + inputs — one definition, shared with the pool
       # (DRY). bc_flakes_dev-store/build.sh realises this into the p5 chroot store
       # (never the pool); it is NEVER added to a host profile — reached only inside
-      # the `dev` bwrap shell. See 0_tasks/PLAN_dev-store-split.md.
+      # the `dev` bwrap shell. See a0_tasks/PLAN_dev-store-split.md.
       devProfile = pkgs.buildEnv {
         name = "dev-profile";
         paths = (home-manager.lib.homeManagerConfiguration {
