@@ -8,6 +8,11 @@ let
   # the kdePackages.plasma-workspace-wallpapers derivation directly.
   wallpaperJson = builtins.fromJSON (builtins.readFile ./cloud-data-wallpaper.json);
   wallpaperPath = "${pkgs.kdePackages.plasma-workspace-wallpapers}/share/wallpapers/${wallpaperJson.wallpaper.theme}/contents/images/${wallpaperJson.wallpaper.image}";
+  # mode=color → solid colour (org.kde.color) instead of an image. Defaults to
+  # "image" when the key is absent, so an older cloud-data-wallpaper.json (e.g.
+  # the copy in the host flake, which is replicated by hand) still evaluates.
+  wallpaperMode = wallpaperJson.wallpaper.mode or "image";
+  wallpaperColor = wallpaperJson.wallpaper.color or "0,0,0";
 
   # Unified energy/power policy (cloud-data-power.json). Same SoT consumed by
   # the host flake (UPower.conf, logind lid + power button, kernel cmdline).
@@ -179,21 +184,35 @@ in
   # plasma-manager's configFile escapes ] [ in section names (turns them into \x5d\x5b),
   # which breaks KDE's hierarchical [Greeter][Wallpaper][org.kde.image][General] section.
   # kwriteconfig6 with multiple --group flags produces the correct nested-group syntax.
+  # Follows wallpaper.mode: an image lock screen behind a solid-black desktop
+  # would defeat the "login → desktop → lock screen present a coherent visual"
+  # goal this whole file is built around, so mode=color switches the greeter to
+  # the org.kde.color plugin rather than leaving it on a now-unused image.
   home.activation.lockScreenWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
     LOCK_RC="$HOME/.config/kscreenlockerrc"
     LOCK_IMG="${wallpaperPath}"
+    KW=${pkgs.kdePackages.kconfig}/bin/kwriteconfig6
     # Strip stale sections (old buddha path + plasma-manager's escaped duplicate)
     if [ -f "$LOCK_RC" ]; then
       ${pkgs.gnused}/bin/sed -i \
         -e '/^\[Greeter\\x5d\\x5bWallpaper\\x5d\\x5borg\.kde\.image\\x5d\\x5bGeneral\]$/,/^\[/{/^\[Greeter\\x5d\\x5bWallpaper\\x5d\\x5borg\.kde\.image\\x5d\\x5bGeneral\]$/d;/^\[/!d}' \
         "$LOCK_RC"
     fi
-    ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 --file kscreenlockerrc \
-      --group Greeter --group Wallpaper --group org.kde.image --group General \
-      --key Image "$LOCK_IMG"
-    ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 --file kscreenlockerrc \
-      --group Greeter --group Wallpaper --group org.kde.image --group General \
-      --key PreviewImage "$LOCK_IMG"
+    ${lib.optionalString (wallpaperMode == "color") ''
+      $KW --file kscreenlockerrc --group Greeter --key WallpaperPlugin "org.kde.color"
+      $KW --file kscreenlockerrc \
+        --group Greeter --group Wallpaper --group org.kde.color --group General \
+        --key Color "${wallpaperColor}"
+    ''}
+    ${lib.optionalString (wallpaperMode != "color") ''
+      $KW --file kscreenlockerrc --group Greeter --key WallpaperPlugin "org.kde.image"
+      $KW --file kscreenlockerrc \
+        --group Greeter --group Wallpaper --group org.kde.image --group General \
+        --key Image "$LOCK_IMG"
+      $KW --file kscreenlockerrc \
+        --group Greeter --group Wallpaper --group org.kde.image --group General \
+        --key PreviewImage "$LOCK_IMG"
+    ''}
   '';
 
   # PowerDevil [*][SuspendAndShutdown] groups via kwriteconfig6.
@@ -259,8 +278,13 @@ in
       cursor.theme = "breeze_cursors";
       iconTheme = "breeze-dark";
       lookAndFeel = "org.kde.breezedark.desktop";
-      wallpaper = wallpaperPath;
-    };
+    } // (
+      # wallpaper and wallpaperPlainColor are mutually exclusive in
+      # plasma-manager — setting both is an eval error, so the mode selects one.
+      if wallpaperMode == "color"
+      then { wallpaperPlainColor = wallpaperColor; }
+      else { wallpaper = wallpaperPath; }
+    );
 
     # Window decorations - Dark
     kwin.titlebarButtons = {
