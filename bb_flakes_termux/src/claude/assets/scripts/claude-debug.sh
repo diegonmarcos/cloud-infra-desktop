@@ -17,11 +17,11 @@
 # WORKS — it will auto-close when the probe timer fires. Don't type into it.
 set -u
 
-# ONE output convention (1_configs/src/gha/scripts/cloud-data-paths.sh):
+# ONE output convention (1_cicd/src/scripts/cloud-data-paths.sh):
 #   logs/claude--debug.log      this run's narrative     (app log)
 #   reports/claude--debug.json  machine-readable verdict (probe result)
 #   journal/claude--debug.text  logcat tail              (OS journal)
-CDP="$HOME/git/unix/1_configs/dist/scripts/cloud-data-paths.sh"
+CDP="$HOME/git/unix/1_cicd/dist/scripts/cloud-data-paths.sh"
 if [ -r "$CDP" ]; then
   . "$CDP"
   LOG="$(cd_log claude--debug)"

@@ -63,9 +63,9 @@ on:
       - "ea_cloud-comms/*.gradle"
       - "ea_cloud-comms/gradle/**"
       - "ea_cloud-comms/settings.gradle"
-      - "1_configs/src/gha/cicd/ship-cloud-comms.yml"
+      - "1_cicd/src/cicd/ship-cloud-comms.yml"
       # Generated .github/workflows/*.yml intentionally NOT watched (regenerated
-      # by 1_configs/build.sh → would self-trigger rebuilds on unrelated commits).
+      # by 9_others/build.sh → would self-trigger rebuilds on unrelated commits).
 
 permissions:
   contents: write   # for gh release create

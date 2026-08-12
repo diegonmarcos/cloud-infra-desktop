@@ -90,7 +90,7 @@
       # sync: the 6-step engine (stash→fetch→rebase→push→pop→submodules).
       # Declared here so `git sync` works on fresh installs too — before, it
       # existed only via the imperative gitconfig include in this checkout.
-      sync = "!./1_configs/dist/scripts/cloud-git-sync.sh";
+      sync = "!./1_cicd/dist/scripts/cloud-git-sync.sh";
     };
 
     ignores = [

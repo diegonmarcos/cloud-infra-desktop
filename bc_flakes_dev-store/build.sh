@@ -7,7 +7,7 @@
 # local?root=/mnt/shared-lib/dev-store&store=/nix/store`: storeDir stays /nix/store
 # (so cache.nixos.org substitutes — no rebuild-world) but the bytes land on p5,
 # NEVER the <7G-free pool. The `dev` bwrap launcher then binds that store over
-# /nix/store. Config: build.json. Plan: ../0_tasks/PLAN_dev-store-split.md.
+# /nix/store. Config: build.json. Plan: ../a0_tasks/PLAN_dev-store-split.md.
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

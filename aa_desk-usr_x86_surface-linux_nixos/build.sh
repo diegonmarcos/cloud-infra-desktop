@@ -1546,7 +1546,7 @@ test_system() {
 # closure from the GHCR boot-cache and import it into the local /nix/store BEFORE
 # `nix build`, so the closure build finds the kernel present instead of compiling
 # it from source (~2h > the 120m GHA wall — the reason every prior desktop_nixos
-# run was cancelled). Producer: 1_configs/src/gha/cicd/ship-boot-cache.yml publishes
+# run was cancelled). Producer: 1_cicd/src/cicd/ship-boot-cache.yml publishes
 # ghcr.io/<owner>/unix-boot-cache:latest as a `nix copy` file-store under /boot-cache.
 # Non-fatal: any failure just falls back to compiling.
 restore_boot_cache() {
