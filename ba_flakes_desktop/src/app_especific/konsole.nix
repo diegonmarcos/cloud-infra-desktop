@@ -28,16 +28,22 @@ let
     [UiSettings]
     ColorScheme=
   '';
-in
-{
-  # Konsole profile
-  home.file.".local/share/konsole/Profile 1.profile".text = ''
+
+  # One place defines the shell path, used by both the seeded defaults and the
+  # repair below — so they can never disagree. /run/current-system/sw/bin is
+  # deliberate rather than ${pkgs.fish}: the profile is a mutable file that
+  # outlives the generation that wrote it, and a bare store path would pin a
+  # fish that nix-collect-garbage can delete, reintroducing the same
+  # "binary does not exist" warning this fixes.
+  konsoleShell = "/run/current-system/sw/bin/fish";
+
+  konsoleProfileDefaults = pkgs.writeText "konsole-profile-1" ''
     [Appearance]
     ColorScheme=Breeze
     Font=JetBrainsMono NF,11,-1,5,50,0,0,0,0,0
 
     [General]
-    Command=/run/current-system/sw/bin/fish
+    Command=${konsoleShell}
     Name=Profile 1
     Parent=FALLBACK/
     TerminalColumns=120
@@ -45,6 +51,49 @@ in
 
     [Scrolling]
     HistorySize=5000
+  '';
+in
+{
+  # Konsole profile — seeded + repaired, NOT symlinked.
+  #
+  # 2026-08-12: this was `home.file`, i.e. a /nix/store symlink. KConfig
+  # rewrites a profile on any GUI edit exactly like konsolerc, replacing the
+  # symlink with a real file — that is what the pile of
+  # "Profile 1.profile.hm-bak-*" is. Once real, the declaration no longer
+  # applies to it, and the stale copy kept
+  #
+  #   Command=/usr/bin/fish
+  #
+  # which does not exist on NixOS, so every Konsole launch printed
+  # "Could not find '/usr/bin/fish', starting '/run/current-system/sw/bin/fish'
+  # instead. Please check your profile settings."
+  #
+  # Seeding alone does NOT fix that: seed refuses to touch a real file (by
+  # design — GUI edits must survive), so a wrong value persists forever. Hence
+  # two steps: seed the defaults when absent, then idempotently repair the one
+  # key that must never drift. Everything else the user changes is left alone.
+  home.activation.seedKonsoleProfile = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    (
+    DST="$HOME/.local/share/konsole/Profile 1.profile"
+    if [ -L "$DST" ] || [ ! -e "$DST" ]; then
+      $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$HOME/.local/share/konsole"
+      $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -f "$DST"
+      $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m 0644 ${konsoleProfileDefaults} "$DST"
+      echo "[konsole] seeded writable Profile 1.profile"
+    fi
+
+    # Repair Command= whatever the file's provenance. A profile pointing at a
+    # binary that does not exist is never a user preference worth preserving,
+    # and Konsole warns on every single launch until it is corrected.
+    if [ -f "$DST" ]; then
+      CUR=$(${pkgs.kdePackages.kconfig}/bin/kreadconfig6 --file "$DST" --group General --key Command 2>/dev/null || true)
+      if [ -n "$CUR" ] && [ ! -x "$CUR" ]; then
+        $DRY_RUN_CMD ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
+          --file "$DST" --group General --key Command "${konsoleShell}"
+        echo "[konsole] repaired Profile 1 Command: '$CUR' (missing) -> ${konsoleShell}"
+      fi
+    fi
+    )
   '';
 
   # Konsole main config — seeded, not symlinked (see konsolercDefaults above).
