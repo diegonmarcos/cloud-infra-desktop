@@ -325,6 +325,32 @@ for _extra_bin in "$HOME/.nix-profile/bin" "/etc/profiles/per-user/$USER/bin"; d
 done
 unset _extra_bin
 
+# ── Session-bus self-repair (2026-08-12) ─────────────────────────────────────
+# Phase 1 runs the nix build under `systemd-run --user --scope` to get its
+# MemoryMax/CPUQuota cap. That needs XDG_RUNTIME_DIR and DBUS_SESSION_BUS_ADDRESS,
+# which an interactive Konsole has and a NON-INTERACTIVE caller does not — an
+# agent shell, a cron job, `ssh host build.sh`, a systemd unit. Without them the
+# build died 254ms in with
+#     Failed to connect to user scope bus via local transport:
+#     $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined
+# and rolled back, so `switch local` was simply unusable outside a terminal.
+#
+# Same spirit as the PATH self-repair above: derive what a login shell would
+# have set rather than making every caller know to export it. The user manager
+# is what actually matters, and it is already running (user@<uid>.service) for
+# any logged-in session — this only reconnects to it.
+#
+# NOT a blind export: both the runtime dir and the bus socket must exist. With
+# no user session at all (true headless/CI) they are absent, nothing is set,
+# and the guard below reports that in one line instead of leaving systemd-run to
+# fail cryptically several seconds into a build.
+if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -d "/run/user/$(id -u)" ]; then
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+fi
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -S "${XDG_RUNTIME_DIR:-/nonexistent}/bus" ]; then
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+fi
+
 # Re-exec the WHOLE invocation through flakes-switch-progress-logs so this
 # repo's build.sh gets the same ONE Konsole progress window ba_flakes_desktop's
 # does (git diff, closure size, PSI panel, progress bars, live output) instead
@@ -555,6 +581,18 @@ _rebuild_exec() {
         _p1_val=$(jq -r ".phase1_scope.${_p1_key} // empty" "$nix_build_json")
         [ -n "$_p1_val" ] && _p1_props+=("--property=${_p1_key}=${_p1_val}")
     done
+    # Fail with the CAUSE, not with systemd-run's message. Without a user bus
+    # the scope cannot be created and the build dies ~250ms in complaining about
+    # two unset variables, which says nothing about what to do. The self-repair
+    # at the top of this file covers every case where a user session exists; if
+    # it still is not reachable there genuinely is no session to attach to.
+    if ! systemd-run --user --scope --quiet -p MemoryMax=64M -- true >/dev/null 2>&1; then
+        error "No usable user session bus — cannot create the hard-capped Phase 1 scope."
+        error "XDG_RUNTIME_DIR='${XDG_RUNTIME_DIR:-unset}' DBUS_SESSION_BUS_ADDRESS='${DBUS_SESSION_BUS_ADDRESS:-unset}'"
+        error "Run from a logged-in session, or use the CI path: './build.sh switch pull' (no eval, no scope needed)."
+        return 1
+    fi
+
     log "Phase 1: nix build as $(id -un) — hard-capped scope (${_p1_props[*]#--property=})…"
     GIT_CONFIG_GLOBAL="$gitconf" GIT_CONFIG_SYSTEM="$gitconf" BUILDSH_GUARDRAIL=1 \
         systemd-run --user --scope \
