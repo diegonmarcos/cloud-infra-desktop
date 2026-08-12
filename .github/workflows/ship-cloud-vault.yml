@@ -213,6 +213,16 @@ jobs:
           token: ${{ secrets.ANDROID_SIGNING_VAULT_TOKEN }}
           path: .vault
 
+      # The fork signs with the same sops-encrypted shared key as the main job,
+      # but this job never installed sops — so the gradle build ran to
+      # BUILD SUCCESSFUL and then died at the signing step with
+      # "FATAL signing: sops not on PATH". Same pin as the main job's installer;
+      # ORAS is omitted because this job publishes nothing to GHCR.
+      - name: Install sops
+        run: |
+          curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 \
+            | sudo tee /usr/local/bin/sops >/dev/null && sudo chmod +x /usr/local/bin/sops
+
       - name: Materialize fork (clone @ pin + patch series)
         working-directory: ${{ env.WORK_DIR }}
         env:
