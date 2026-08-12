@@ -795,24 +795,19 @@ in {
   # clat_enable flag (data-driven, repo principle 6) rather than a bare `true`.
   services.clatd.enable = nat64Data.clat_enable;
 
-  # Disable the nixpkgs module's OWN NetworkManager dispatcher (2026-08-12).
+  # NO `services.clatd.enableNetworkManagerIntegration` HERE — it does not exist
+  # in this nixpkgs, and setting it fails the build outright:
+  #     error: The option `services.clatd.enableNetworkManagerIntegration'
+  #            does not exist.  (CI run 31590064922, 2026-08-12)
   #
-  # It defaults to `config.networking.networkmanager.enable` — i.e. ON here — and
-  # installs a second dispatcher script whose entire body is:
-  #     [ "$2" != "up" ] && [ "$2" != "down" ] && exit 0
-  #     systemctl restart clatd.service
-  # (nixpkgs nixos/modules/services/networking/clatd.nix:93-103). It restarts
-  # clatd unconditionally: no native-IPv4 check, and no knowledge of the
-  # plat-prefix drop-in that clat-on-v6only writes above.
+  # Newer nixpkgs (26.11) grew that option plus a dispatcher of its own whose
+  # whole body is an unconditional `systemctl restart clatd` — which WOULD race
+  # the clat-on-v6only script above and could restart clatd before its
+  # plat-prefix drop-in is written. The 24.11 module pinned here has neither the
+  # option nor any dispatcherScripts, so clat-on-v6only is the only dispatcher
+  # and there is nothing to disable.
   #
-  # Two dispatchers then race by module-merge order (NixOS names them
-  # 03userscript0001, 0002, … and NM runs them in sequence). Whichever loses,
-  # clatd gets churned twice per link event, and a restart landing BEFORE our
-  # drop-in is written starts clatd with no forced prefix — the exact
-  # "No PLAT prefix could be discovered" failure, now on a timer.
-  #
-  # Ours is strictly more capable: it tears CLAT down on native IPv4, forces a
-  # prefix, and handles dhcp4-change/dhcp6-change (which the module's does not).
-  # The only coverage given up is `down`, where the next `up` re-evaluates anyway.
-  services.clatd.enableNetworkManagerIntegration = false;
+  # Re-add the disable ONLY if this host is bumped past 24.11 — at which point
+  # the race becomes real. Verify with:
+  #   grep -c dispatcherScripts <nixpkgs>/nixos/modules/services/networking/clatd.nix
 }
