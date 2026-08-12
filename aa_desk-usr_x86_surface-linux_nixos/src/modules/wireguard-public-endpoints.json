@@ -10,6 +10,8 @@
   "hub": {
     "name": "oci-analytics",
     "host": "129.151.228.66",
+    "_host_v6_doc": "OUTER (underlay) endpoint over IPv6 — distinct from wg_ipv6 below, which is the INNER mesh address inside the tunnel. Sourced from terraform output analytics_ipv6 (c_vps/vps_oci, oci_core_ipv6.analytics_v6) on 2026-08-12. WHY IT MATTERS: with only an IPv4 literal here, this tunnel cannot establish AT ALL on an IPv6-only network — verified in the field the same day on a v6-only WiFi with no NAT64, where both wg0 and wg-public sat 55 minutes stale and the laptop had no path to the fleet. udp/51821 and udp/443 are already open to ::/0 in c_vps/vps_oci security_rules, so the hub has been reachable over IPv6 the whole time; nothing knew the address because the terraform output that exposes it did not exist until today. With this set, a v6-only uplink establishes the tunnel natively and the tunnel then carries IPv4 itself — no NAT64, no third party, and clat becomes a legacy path rather than the only one.",
+    "host_v6": "2603:c026:c104:8f00:0:c704:63b:6eee",
     "wg_ip": "10.1.0.1",
     "wg_ipv6": "fd0c:1d01::1",
     "wg_public_key": "Bnyf83VpvGY4BjcjQEXgutNEzx9OXMltHIcKNh7cKkc=",

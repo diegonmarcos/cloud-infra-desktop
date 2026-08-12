@@ -17,6 +17,15 @@ let
   wgPublicData    = builtins.fromJSON (builtins.readFile ./wireguard-public-endpoints.json);
   wgPublicPrimary = "${wgPublicData.hub.host}:${toString wgPublicData.hub.primary.port}";
 
+  # IPv6 endpoint for the same hub — the literal must be bracketed, because
+  # wg's Endpoint= parses host:port and a bare v6 address is all colons.
+  # Empty string when host_v6 is absent, which is what every OTHER host's JSON
+  # still looks like; the dispatcher below treats "" as "no v6 endpoint".
+  wgPublicPrimaryV6 =
+    if (wgPublicData.hub ? host_v6) && wgPublicData.hub.host_v6 != ""
+    then "[${wgPublicData.hub.host_v6}]:${toString wgPublicData.hub.primary.port}"
+    else "";
+
   # ── Tunnel mode: split vs full (data-driven, per interface) ────────────────
   # `tunnel_mode` in each endpoints JSON is the ONLY place to flip this. Split
   # (default) routes just the mesh subnets into the tunnel; full routes
@@ -573,6 +582,31 @@ in {
           NATIVE4=0
         fi
 
+        # ── wg-public endpoint follows the uplink's address family ─────────────
+        # The NM profile pins the IPv4 endpoint, which cannot establish at all on
+        # an IPv6-only network: 2026-08-11, on a v6-only WiFi with no NAT64, both
+        # tunnels sat 55 MINUTES stale because their endpoints are IPv4 literals
+        # with nothing to translate them. The hub has been reachable over IPv6 the
+        # whole time (udp/51821 open to ::/0 in c_vps/vps_oci security_rules);
+        # nothing knew the address until the terraform output was added.
+        #
+        # Switching the live peer beats re-writing the NM profile: `wg set` takes
+        # effect immediately with no connection bounce, and the profile stays the
+        # v4 default so a fresh boot on a normal network is unchanged.
+        #
+        # Empty WGPUB_EP_V6 (no host_v6 in the JSON) makes both arms no-ops, so a
+        # host whose endpoints file has not been updated behaves exactly as before.
+        WGPUB_IF="${wgPublicData.client.interface}"
+        WGPUB_PUB="${wgPublicData.hub.wg_public_key}"
+        WGPUB_EP_V4="${wgPublicPrimary}"
+        WGPUB_EP_V6="${wgPublicPrimaryV6}"
+        wgpub_endpoint() { # $1 = endpoint
+          [ -n "$1" ] || return 0
+          ${pkgs.iproute2}/bin/ip link show "$WGPUB_IF" >/dev/null 2>&1 || return 0
+          ${pkgs.wireguard-tools}/bin/wg set "$WGPUB_IF" peer "$WGPUB_PUB" endpoint "$1" 2>/dev/null \
+            && ${pkgs.util-linux}/bin/logger -t clat-on-v6only "wg-public endpoint -> $1"
+        }
+
         if [ "$NATIVE4" = 1 ]; then
           # Native IPv4 present ⇒ tear down any CLAT left from a previous
           # IPv6-only network. clatd's tun device is PERSISTENT and its default
@@ -581,8 +615,17 @@ in {
           # flaps — which is exactly what roaming does.
           ${config.systemd.package}/bin/systemctl daemon-reload
           ${config.systemd.package}/bin/systemctl stop clatd 2>/dev/null || true
+          # Back to the v4 endpoint: a v6 endpoint left over from the previous
+          # network is not automatically better here, and on an IPv4-only uplink
+          # it is unreachable.
+          wgpub_endpoint "$WGPUB_EP_V4"
           exit 0
         fi
+
+        # IPv6-only uplink: point wg-public at its IPv6 endpoint FIRST, before any
+        # CLAT work below. If this handshakes, the tunnel carries IPv4 itself and
+        # the whole NAT64 ladder becomes a fallback rather than the only path.
+        wgpub_endpoint "$WGPUB_EP_V6"
 
         # IPv6-only from here. clatd finds the NAT64 prefix by RFC7050 — it asks
         # for AAAA on ipv4only.arpa and reads the prefix out of the synthesized
