@@ -4,6 +4,9 @@
 
   "wallpaper": {
     "_comment": "KDE wallpaper theme name + image filename inside <theme>/contents/images/. Available themes: ls /run/current-system/sw/share/wallpapers/.",
+    "_mode_comment": "mode=color renders a SOLID COLOUR via plasma-manager's workspace.wallpaperPlainColor and ignores theme/image entirely; mode=image uses theme/image as before. 2026-08-12: switched to color/black on request. plasma-workspace-wallpapers ships no solid-black theme (Grey is the closest), so the colour plugin is the only way to get true black without shipping an image derivation just to hold one RGB value. theme/image are deliberately KEPT populated so flipping mode back to image needs no other edit.",
+    "mode": "color",
+    "color": "0,0,0",
     "theme": "Path",
     "image": "2560x1600.jpg"
   },

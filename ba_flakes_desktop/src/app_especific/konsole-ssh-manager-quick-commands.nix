@@ -295,11 +295,41 @@ in {
     $DRY_RUN_CMD chmod 700 "$HOME/.ssh/sockets"
   '';
 
-  # SSH Manager sidebar
-  home.file.".config/konsolesshconfig".text = sshConfig;
-
-  # Quick Commands sidebar
-  home.file.".config/konsolequickcommandsconfig".text = quickCommandsConfig;
+  # SSH Manager + Quick Commands sidebars — seeded, NOT symlinked.
+  #
+  # 2026-08-12: both were `home.file`, i.e. /nix/store symlinks. Konsole's
+  # SSH-manager and quick-commands plugins are KConfig writers: adding or
+  # editing an entry in the sidebar rewrites the file, which against a
+  # read-only store target makes Konsole print
+  #   Configuration file "/nix/store/…-hm_.configkonsolesshconfig" not writable.
+  # and silently DROP the edit. Exactly the konsolerc failure (see konsole.nix),
+  # and the same failure baloofilerc had: a store symlink under a program that
+  # insists on writing its own config.
+  #
+  # Seeded rather than repaired-key-by-key (the konsole.nix Profile 1 approach):
+  # these files are lists of user-owned entries, not a fixed key set, so there
+  # is no single key that is safe to force. The declaration is the STARTING
+  # point; once the file is real, the sidebar owns it.
+  #
+  # Consequence, deliberately accepted: editing sshConfig/quickCommandsConfig in
+  # this repo no longer rewrites an existing local file. To re-seed from the
+  # repo, delete the file and re-activate.
+  home.activation.seedKonsoleSidebars = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    (
+    ${lib.concatMapStringsSep "\n" (f: ''
+      DST="$HOME/.config/${f.name}"
+      if [ -L "$DST" ] || [ ! -e "$DST" ]; then
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$HOME/.config"
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -f "$DST"
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m 0644 ${f.src} "$DST"
+        echo "[konsole] seeded writable ${f.name}"
+      fi
+    '') [
+      { name = "konsolesshconfig";           src = pkgs.writeText "konsolesshconfig" sshConfig; }
+      { name = "konsolequickcommandsconfig"; src = pkgs.writeText "konsolequickcommandsconfig" quickCommandsConfig; }
+    ]}
+    )
+  '';
 
   # Asset paths exported for reference (used by dtk.sh 42c installer)
   # Source files: ~/git/tools/2-cmds-cloud/konsolequickcommandsconfig
