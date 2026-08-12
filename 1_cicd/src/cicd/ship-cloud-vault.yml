@@ -185,7 +185,14 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: "platforms;android-37 build-tools;37.0.0 platform-tools"
+          # Upstream pins compileSdk/targetSdk = 37 (gradle/libs.versions.toml
+          # at v2026.7.1-bwpm), so API 37 is required — but Google publishes it
+          # under minor-versioned paths. "platforms;android-37" does not exist
+          # and sdkmanager fails the whole step with "Failed to find package";
+          # the real stable packages are android-37.0 and android-37.1. Both are
+          # installed because the compileSdk -> minor-platform mapping depends on
+          # the AGP version the fork ships.
+          packages: "platforms;android-37.0 platforms;android-37.1 build-tools;37.0.0 platform-tools"
 
       - name: Checkout vault (shared Android signing key)
         uses: actions/checkout@v4
