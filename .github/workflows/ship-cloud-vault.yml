@@ -222,9 +222,16 @@ jobs:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
           # Read by upstream settings.gradle.kts (GitHubPackages/bitwarden/sdk
           # repository credentials) as System.getenv("GITHUB_TOKEN") — NOT a
-          # gradle -P property. Needs read:packages on bitwarden/sdk; the
-          # workflow's own auto-minted GITHUB_TOKEN cannot read it (wrong repo).
-          GITHUB_TOKEN: ${{ secrets.BITWARDEN_PACKAGES_TOKEN }}
+          # gradle -P property.
+          #
+          # Falls back to the auto-minted GITHUB_TOKEN when the PAT secret is
+          # unset. maven.pkg.github.com refuses anonymous reads (401) but serves
+          # com.bitwarden:sdk-android to an ordinary authenticated token (200,
+          # verified 2026-08-12), so the fallback is worth attempting before
+          # anyone mints a PAT. If the fork build 401s on dependency resolution,
+          # that is the signal the auto-minted token is repo-scoped after all —
+          # set BITWARDEN_PACKAGES_TOKEN to a PAT with read:packages and re-run.
+          GITHUB_TOKEN: ${{ secrets.BITWARDEN_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           ./build.sh build-fork "$FORK"
           ls -la dist/
