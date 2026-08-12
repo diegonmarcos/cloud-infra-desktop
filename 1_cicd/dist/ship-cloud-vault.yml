@@ -32,7 +32,7 @@ on:
         type: boolean
         default: false
       build_fork:
-        description: "ALSO build the Bitwarden-fork (build.json::forks.vault) — manual-only, UNVERIFIED (needs BITWARDEN_PACKAGES_TOKEN; see build_fork_vault job)"
+        description: "ALSO build the Bitwarden-fork (build.json::forks.vault) — manual-only, ~14 min; produces a signed fdroid/release APK as a workflow artifact"
         required: false
         type: boolean
         default: false
@@ -159,21 +159,24 @@ jobs:
         run: ./build.sh gh-release
 
   # ── Bitwarden-fork build (build.json::forks.vault) ─────────────────────
-  # Manual-only (workflow_dispatch with build_fork=true) — NOT wired into the
-  # push trigger yet, unlike the WebView job above, because this build is
-  # UNVERIFIED: com.bitwarden:sdk-android resolves from
-  # https://maven.pkg.github.com/bitwarden/sdk, which 401s without an
-  # authenticated GitHub token even for public artifacts. Upstream's
+  # Manual-only (workflow_dispatch with build_fork=true) — deliberately NOT on
+  # the push trigger, unlike the WebView job above: it is a ~14 minute build of
+  # a ~3,000 file upstream and would dominate every push to this repo.
+  #
+  # First green run: 31602029574 (2026-08-12) — assembleFdroidRelease, signed,
+  # 36 MB fdroid/release APK.
+  #
+  # com.bitwarden:sdk-android resolves from
+  # https://maven.pkg.github.com/bitwarden/sdk, which 401s anonymously. Upstream's
   # settings.gradle.kts reads the credential as:
   #   password = userProperties["gitHubToken"] ?: System.getenv("GITHUB_TOKEN")
   #   (username is hardcoded to "")
-  # so this job exports GITHUB_TOKEN from the BITWARDEN_PACKAGES_TOKEN secret
-  # (a PAT/fine-grained token with read:packages on bitwarden/sdk — the
-  # default per-run GITHUB_TOKEN this workflow mints is scoped to THIS repo
-  # only and cannot read a different owner's GitHub Packages). Promote this
-  # job to the push trigger once a run with that secret set actually builds.
+  # The auto-minted per-run GITHUB_TOKEN was assumed too repo-scoped to read
+  # another owner's Packages. It is not — it resolved the SDK with no 401, so no
+  # BITWARDEN_PACKAGES_TOKEN secret exists or is needed. The env below still
+  # prefers that secret if anyone ever sets one.
   build_fork_vault:
-    name: "Build Bitwarden fork (build-fork vault) — manual, unverified"
+    name: "Build Bitwarden fork (build-fork vault) — manual"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_fork }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
