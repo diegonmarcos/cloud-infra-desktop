@@ -42,13 +42,26 @@ RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /
 # ── sops + age ───────────────────────────────────────────────────
 # Arch-dynamic: the old amd64-only URLs silently installed x86 binaries on
 # arm64 (masked by the || SKIP) — sops/age would then exec-format-error.
+# --retry IS LOAD-BEARING. GitHub's release CDN returns transient 503s, and a
+# bare `curl -fsSL` here fails the whole image build on one bad second. On
+# 2026-08-12 this exact line 503'd twice in one run:
+#   #10 0.149 curl: (22) The requested URL returned error: 503
+#   #11 0.218 curl: (22) The requested URL returned error: 503
+#   tar: Error is not recoverable: exiting now
+# and the build then died with the far less obvious
+#   Required binaries missing from ...cloud-builder-x-deb-apt:amd64: sops age
+# because `|| echo "[SKIP]"` swallows the curl failure and defers the error to
+# the post-build binary check, which names the symptom instead of the cause.
+# --retry-all-errors is required: plain --retry ignores HTTP 4xx/5xx and only
+# retries transport-level errors, so it would NOT cover a 503.
 RUN ARCH=$(dpkg --print-architecture) \
-    && curl -fsSL "https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.${ARCH}" -o /usr/local/bin/sops \
+    && curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.${ARCH}" -o /usr/local/bin/sops \
     && chmod +x /usr/local/bin/sops \
     || echo "[SKIP] sops install failed"
 RUN ARCH=$(dpkg --print-architecture) \
-    && curl -fsSL "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-${ARCH}.tar.gz" | tar xz -C /tmp \
-    && mv /tmp/age/age /tmp/age/age-keygen /usr/local/bin/ && rm -rf /tmp/age \
+    && curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-${ARCH}.tar.gz" -o /tmp/age.tgz \
+    && tar xz -C /tmp -f /tmp/age.tgz \
+    && mv /tmp/age/age /tmp/age/age-keygen /usr/local/bin/ && rm -rf /tmp/age /tmp/age.tgz \
     || echo "[SKIP] age install failed"
 
 # ── Declared deps (terraform, rust, npm globals incl. wrangler) ──
