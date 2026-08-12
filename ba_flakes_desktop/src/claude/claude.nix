@@ -38,10 +38,28 @@ let
   # values verbatim, so a literal there would leak "$HOME/git" into GIT_BASE.
   #
   # Verified against the pre-split file: byte-identical on this machine.
+  # GENERATED-FILE HEADER. JSON has no comments, so the banner every other
+  # generated artifact in this repo carries (see 1_configs inject_header) is a
+  # `_generated` FIELD instead. It is injected HERE, by the engine, not written
+  # into settings.base.json — a source file must not claim to be generated, and
+  # the marker must appear in the OUTPUT, which is the file people actually open
+  # and mistakenly hand-edit.
+  settingsGeneratedHeader = {
+    _generated = "GENERATED FILE — DO NOT EDIT. "
+      + "Source:  da_my-ai/src/data/claude/settings.base.json "
+      + "+ da_my-ai/src/data/claude/settings.desktop.json (overlay, recursiveUpdate). "
+      + "Engine:  ba_flakes_desktop/src/claude/claude.nix (home.activation.claudeSettings). "
+      + "Rebuild: ba_flakes_desktop/build.sh switch. "
+      + "Hand edits here are overwritten on the next switch; effortLevel is the ONE "
+      + "runtime-owned key and is deliberately preserved across rebuilds.";
+  };
+
   settingsJson = pkgs.writeText "claude-settings.json" (builtins.toJSON
     (lib.recursiveUpdate
-      (builtins.fromJSON (builtins.replaceStrings [ "@HOME@" ] [ config.home.homeDirectory ]
-        (builtins.readFile "${claudeSrc}/settings.base.json")))
+      (lib.recursiveUpdate
+        settingsGeneratedHeader
+        (builtins.fromJSON (builtins.replaceStrings [ "@HOME@" ] [ config.home.homeDirectory ]
+          (builtins.readFile "${claudeSrc}/settings.base.json"))))
       (builtins.fromJSON (builtins.readFile "${claudeSrc}/settings.desktop.json"))));
 in
 {
@@ -128,6 +146,45 @@ in
     ${pkgs.coreutils}/bin/chmod 0644 "$DST"
     echo "[claude-settings] ~/.claude/settings.json written (writable; effortLevel=''${EFFORT:-runtime-default})"
     ) || echo "[claude-settings] subshell failed; HM chain continues"
+  '';
+
+  # Auto-update ON, asserted every switch.
+  #
+  # 2026-08-12: autoUpdates was false, which is why the box sat on 2.1.228 with
+  # 2.1.225 and 2.1.227 still on disk beside it — updates were being downloaded
+  # into ~/.local/share/claude/versions and never adopted.
+  #
+  # This key lives in ~/.claude.json, NOT ~/.claude/settings.json, so it cannot
+  # ride along with the merged settings above. ~/.claude.json is large mutable
+  # runtime state (auth, project history, onboarding flags) and is gitignored,
+  # so it is never rewritten wholesale — jq sets the single key and everything
+  # else is passed through untouched, via a temp file + atomic mv so an
+  # interrupted activation cannot truncate it.
+  #
+  # installMethod is "native" (~/.local/bin/claude -> versions/<ver>), so the
+  # updater actually applies here. Under a nix-managed claude this would be
+  # pointless: the store is immutable and the flake pins the version.
+  home.activation.claudeAutoUpdates = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    (
+    JQ="${pkgs.jq}/bin/jq"
+    CJ="$HOME/.claude.json"
+    [ -f "$CJ" ] || exit 0                 # nothing to patch before first run
+    # NOT `.autoUpdates // empty`: jq's // treats false AND null as empty, so an
+    # explicitly-disabled autoUpdates reads back as "" and the log then claims
+    # it was unset. Ask for the raw value and let `null` mean absent.
+    CUR=$("$JQ" -r '.autoUpdates' "$CJ" 2>/dev/null) || exit 0
+    [ "$CUR" = "null" ] && CUR="unset"
+    if [ "$CUR" != "true" ]; then
+      TMP="$CJ.autoupd.$$"
+      if "$JQ" '.autoUpdates = true' "$CJ" > "$TMP" 2>/dev/null && [ -s "$TMP" ]; then
+        ${pkgs.coreutils}/bin/mv -f "$TMP" "$CJ"
+        echo "[claude-autoupdate] autoUpdates: ''${CUR:-unset} -> true"
+      else
+        ${pkgs.coreutils}/bin/rm -f "$TMP"
+        echo "[claude-autoupdate] jq failed; ~/.claude.json left untouched"
+      fi
+    fi
+    ) || echo "[claude-autoupdate] subshell failed; HM chain continues"
   '';
 
   # NO LOOSE SKILLS. ~/.claude/skills/ must stay empty — every skill ships as a
