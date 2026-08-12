@@ -204,6 +204,37 @@ let
     # resolving diegonmarcos.com over either stack.
     ipv6 = {
       method = "manual";
+      # MANDATORY ON WIREGUARD — NOT a preference. NM's default here is
+      # `default-or-eui64`, and eui64 derives the IPv6 interface identifier from
+      # the device MAC. A WireGuard interface HAS NO MAC, so NM cannot build a
+      # link-local address and logs, every 10s, forever:
+      #   device (wg0): linklocal6: failed to get interface identifier;
+      #   IPv6 cannot continue
+      # The IPv6 stage then never completes, and because it never completes NM
+      # never commits the link's finished IP configuration to systemd-resolved —
+      # so ipv6.dns AND, critically, dns-search below are silently DROPPED.
+      #
+      # DIAGNOSED 2026-08-12 from a /mcp failure reporting "HTTP 403 — check
+      # that the token is valid". The token was fine (valid to 2036, correct
+      # aud); 403 was IDENTICAL with and without an Authorization header, which
+      # is what proved auth was never involved. Real chain:
+      #   eui64 fails -> wg0 IPv6 never completes -> resolved gets only `~app`
+      #   instead of `~diegonmarcos.com ~app ~db` -> mcp.diegonmarcos.com
+      #   resolves via PUBLIC DNS to 129.151.228.66 instead of Hickory's
+      #   10.0.0.1 -> request arrives from a public IP -> the route is declared
+      #   `wg_only: true` (cloud/a_solutions/user-ai_cloud-cgc-mcp/build.json,
+      #   proxy.primary) -> Caddy rejects it before auth -> 403.
+      # Same interface, only this setting changed: wg0 went from NO IPv6 at all
+      # (not even link-local) to fd0c:1d00::5/64 + fe80::…, resolved went from
+      # `~app` to all three domains, and the MCP endpoint went 403 -> 200.
+      #
+      # Note wg-public was already working, which is what made the contrast
+      # legible: it had generated a link-local and held its domains, so the
+      # difference isolated to this one stage rather than to WireGuard broadly.
+      #
+      # stable-privacy derives the identifier from a stable secret + interface
+      # name (RFC7217), needs no MAC, and is deterministic across reboots.
+      addr-gen-mode = "stable-privacy";
       address1 = "${wgData.client.wg_ipv6}/64";
       dns = "${wgData.hub.wg_ipv6} ${wgData.hickory_ipv6}";
       dns-priority = "50";
@@ -237,6 +268,12 @@ let
     # (fd0c:1d01::/64, see wireguard-public-endpoints.json._ipv6_doc).
     ipv6 = {
       method = "manual";
+      # Set explicitly for the same reason as wg0 — see the long note there.
+      # This interface happened to come up with a working link-local, so it did
+      # NOT exhibit the bug, but that was luck rather than configuration: the
+      # profile carried the identical `default-or-eui64` default that wedged
+      # wg0's IPv6 stage. Pinning it here removes the coin flip.
+      addr-gen-mode = "stable-privacy";
       address1 = "${wgPublicData.client.wg_ipv6}/64";
       dns-search = "";
       never-default = tunnel.neverDefault;
