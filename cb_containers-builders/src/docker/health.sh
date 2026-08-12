@@ -27,6 +27,10 @@ if [ -n "${WG_PRIVATE_KEY:-}" ]; then
 [Interface]
 PrivateKey = ${WG_PRIVATE_KEY}
 Address = 10.0.0.200/24
+# MTU must match the VMs (1380) — see entrypoint.sh for the full derivation.
+# Without it wg-quick defaults to 1420 and every frame 1381..1420 is silently
+# dropped, which breaks SSH at key exchange while leaving the port looking open.
+MTU = 1380
 
 [Peer]
 PublicKey = vV/phXUwnCjxACQ5Df11Uw47BzJaK4r85jPYMu2HmDc=
