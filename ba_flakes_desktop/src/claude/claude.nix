@@ -131,6 +131,43 @@ in
     SRC="${settingsJson}"
     DST="$HOME/.claude/settings.json"
     ${pkgs.coreutils}/bin/mkdir -p "$HOME/.claude"
+
+    # ── Prefer the WORKING CHECKOUT over the flake input ────────────────────
+    # settings.{base,desktop}.json are only needed at ACTIVATION, never at eval.
+    # Taking them from the flake input meant every settings edit cost
+    #   edit -> commit -> push -> nix flake update my-ai -> build.sh
+    # because ba_flakes_desktop/src/ is the flake root and da_my-ai/ sits OUTSIDE
+    # it, so the input has to be fetched as github:...?dir=da_my-ai even though
+    # the files are already in the same checkout. That is structural to flakes
+    # (a flake may only reference paths under its own root), not the Nix 2.18
+    # relative-path bug claude/README.md blames — Nix here is 2.24.14 and the
+    # restriction is unchanged.
+    #
+    # Reading them at activation collapses the loop to `build.sh switch`.
+    #
+    # The flake copy REMAINS as the fallback, deliberately: a machine that
+    # activates a prebuilt closure without ~/git/unix present would otherwise
+    # lose its Claude config entirely. Repo present -> instant edits; repo
+    # absent -> exactly today's behaviour.
+    REPO_SOT="''${CLAUDE_SOT_DIR:-$HOME/git/unix/da_my-ai/src/data/claude}"
+    if [ -r "$REPO_SOT/settings.base.json" ] && [ -r "$REPO_SOT/settings.desktop.json" ]; then
+      LIVE="$HOME/.claude/.settings-merged.$$"
+      # jq's * is a RECURSIVE object merge, matching lib.recursiveUpdate — a
+      # plain + would replace whole sub-objects and silently drop base keys the
+      # overlay does not restate.
+      if ${pkgs.gnused}/bin/sed "s|@HOME@|$HOME|g" "$REPO_SOT/settings.base.json" \
+           | "$JQ" -s --slurpfile ov "$REPO_SOT/settings.desktop.json" \
+               '.[0] * $ov[0] * {_generated: "GENERATED FILE — DO NOT EDIT. Source: da_my-ai/src/data/claude/settings.base.json + settings.desktop.json (read from the working checkout at activation). Engine: ba_flakes_desktop/src/claude/claude.nix (home.activation.claudeSettings). Rebuild: ba_flakes_desktop/build.sh switch."}' \
+               > "$LIVE" 2>/dev/null && [ -s "$LIVE" ]; then
+        SRC="$LIVE"
+        echo "[claude-settings] source: working checkout ($REPO_SOT)"
+      else
+        ${pkgs.coreutils}/bin/rm -f "$LIVE"
+        echo "[claude-settings] checkout merge FAILED — falling back to flake input"
+      fi
+    else
+      echo "[claude-settings] source: flake input (no checkout at $REPO_SOT)"
+    fi
     # Preserve a runtime-owned effortLevel (set via /effort) across rebuilds.
     EFFORT=""
     if [ -f "$DST" ] && [ ! -L "$DST" ]; then
@@ -144,6 +181,10 @@ in
       "$JQ" '.' "$SRC" > "$DST"
     fi
     ${pkgs.coreutils}/bin/chmod 0644 "$DST"
+    # $LIVE is consumed as SRC on the success path, so it must be cleaned up
+    # HERE, not only in the failure branch above — otherwise every switch leaves
+    # another .settings-merged.<pid> behind in ~/.claude.
+    [ -n "''${LIVE:-}" ] && ${pkgs.coreutils}/bin/rm -f "$LIVE"
     echo "[claude-settings] ~/.claude/settings.json written (writable; effortLevel=''${EFFORT:-runtime-default})"
     ) || echo "[claude-settings] subshell failed; HM chain continues"
   '';
