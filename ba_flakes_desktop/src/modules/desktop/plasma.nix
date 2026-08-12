@@ -268,7 +268,20 @@ in
       right = [ "minimize" "maximize" "close" ];
     };
 
-    # Fonts
+    # Fonts — ALL SIX ROLES, deliberately.
+    #
+    # 2026-08-12: only `general` and `fixedWidth` were declared here, which
+    # plasma-manager renders as exactly two keys in kdeglobals: font= and
+    # fixed=. KDE reads FOUR more — menuFont, toolBarFont, smallestReadableFont
+    # and WM/activeFont — and when a key is absent Qt does not fall back to
+    # `font=`, it constructs a QFont with pointSize 0. plasmashell then logged
+    # "QFont::setPointSizeF: Point size <= 0 (0.000000)" on a loop and the panel
+    # rendered broken.
+    #
+    # This is why restarting plasmashell did NOT restore a good state: there was
+    # no declared value to restore. The config was incomplete, not overridden.
+    # A partial font declaration is worse than none — it looks authoritative
+    # while leaving two thirds of the roles undefined.
     fonts = {
       general = {
         family = "Noto Sans";
@@ -276,6 +289,22 @@ in
       };
       fixedWidth = {
         family = "JetBrains Mono";
+        pointSize = 10;
+      };
+      small = {
+        family = "Noto Sans";
+        pointSize = 8;
+      };
+      toolbar = {
+        family = "Noto Sans";
+        pointSize = 10;
+      };
+      menu = {
+        family = "Noto Sans";
+        pointSize = 10;
+      };
+      windowTitle = {
+        family = "Noto Sans";
         pointSize = 10;
       };
     };
