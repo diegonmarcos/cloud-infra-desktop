@@ -184,6 +184,33 @@ if [ -n "${WG_PRIVATE_KEY:-}" ]; then
 [Interface]
 PrivateKey = ${WG_PRIVATE_KEY}
 Address = 10.0.0.200/24
+# MTU MUST MATCH THE VMs (1380). Do not remove; do not "restore the default".
+#
+# Every VM pins MTU = 1380 (cloud b_infra/_shared/vm-pilot/src/modules/network/
+# wireguard.nix:92,103). With no MTU line here wg-quick applies its 1420
+# default, so every frame between 1381 and 1420 bytes that this container sends
+# is dropped by the far side — and ICMP is filtered on these paths, so PMTU
+# discovery never learns it.
+#
+# The failure is PARTIAL, which is why it went undiagnosed for a full day: the
+# TCP handshake is tiny and completes, so the port reads as open and the tunnel
+# looks healthy. Only the first large frame dies — for SSH that is the key
+# exchange. In CI it surfaced on the deploy pre-flight as
+#   ssh: connect to host 10.0.0.4 port 22: Connection timed out
+# which reads as an unreachable host and is not one.
+#
+# Measured from a workstation on the same mesh, ControlPath=none so no
+# multiplexed session could mask it (2026-08-12):
+#   wg0 MTU 1420 -> fresh ssh FAILS at 20.6s, dies at KEX  (3/3)
+#   wg0 MTU 1200 -> fresh ssh OK in 3.3s                   (2/2)
+#
+# THIS FILE is what builds the runner's tunnel — the wg0 in CI logs
+# ("ip link add wg0 type wireguard" / "ip -4 address add 10.0.0.200/24") comes
+# from here, inside the cloud-builder container, NOT from
+# cloud/1_cicd/src/scripts/cloud-ship-ci-setup-wireguard.sh. Both carry the
+# same config and both need the same MTU; fixing only the other one changes
+# nothing in CI.
+MTU = 1380
 
 [Peer]
 PublicKey = vV/phXUwnCjxACQ5Df11Uw47BzJaK4r85jPYMu2HmDc=
@@ -214,11 +241,11 @@ WGEOF
 fi
 
 # ── 7. Re-sync all repos (baked at build time under ~/git/) ──────
-# Each repo's 1_configs framework provides a `git nuke` alias —
+# Each repo's 9_others framework provides a `git nuke` alias —
 # bulletproof reset-from-origin (fetch + reset --hard + clean -fdx +
 # submodule update --remote --rebase --force). Survives force-pushed
 # origin, dirty work, untracked files, divergent history.
-# See ~/git/cloud/1_configs/src/gha/scripts/cloud-git-nuke.sh.
+# See ~/git/cloud/1_cicd/src/scripts/cloud-git-nuke.sh.
 #
 # Falls back to hand-rolled fetch+reset for repos without the framework
 # (cloud-data, front) or images that pre-date the alias.
