@@ -21,9 +21,11 @@
 { config, lib, pkgs, inputs, ... }:
 
 let
-  # my-ai's `claudeAssets` OUTPUT — not a reach into a source tree. Uses the my-ai-src
-  # input that already exists here for the binary, so this adds no new input.
-  claudeSrc = inputs.my-ai-src.claudeAssets;
+  # claudeSrc (inputs.my-ai-src.claudeAssets) is GONE — 2026-08-12, ONE SoT.
+  # Every claude asset now comes from the working checkout at activation time.
+  # The my-ai-src input still exists in flake.nix for the my-ai BINARY, which
+  # genuinely is a build product and must stay pinned; nothing about ~/.claude
+  # config passes through it any more.
 
   # settings.json = shared base ⊕ desktop overlay.
   #
@@ -40,36 +42,24 @@ let
   # Verified against the pre-split file: byte-identical on this machine.
   # GENERATED-FILE HEADER. JSON has no comments, so the banner every other
   # generated artifact in this repo carries (see 1_configs inject_header) is a
-  # `_generated` FIELD instead. It is injected HERE, by the engine, not written
-  # into settings.base.json — a source file must not claim to be generated, and
-  # the marker must appear in the OUTPUT, which is the file people actually open
-  # and mistakenly hand-edit.
-  settingsGeneratedHeader = {
-    _generated = "GENERATED FILE — DO NOT EDIT. "
-      + "Source:  da_my-ai/src/data/claude/settings.base.json "
-      + "+ da_my-ai/src/data/claude/settings.desktop.json (overlay, recursiveUpdate). "
-      + "Engine:  ba_flakes_desktop/src/claude/claude.nix (home.activation.claudeSettings). "
-      + "Rebuild: ba_flakes_desktop/build.sh switch. "
-      + "Hand edits here are overwritten on the next switch; effortLevel is the ONE "
-      + "runtime-owned key and is deliberately preserved across rebuilds.";
-  };
-
-  settingsJson = pkgs.writeText "claude-settings.json" (builtins.toJSON
-    (lib.recursiveUpdate
-      (lib.recursiveUpdate
-        settingsGeneratedHeader
-        (builtins.fromJSON (builtins.replaceStrings [ "@HOME@" ] [ config.home.homeDirectory ]
-          (builtins.readFile "${claudeSrc}/settings.base.json"))))
-      (builtins.fromJSON (builtins.readFile "${claudeSrc}/settings.desktop.json"))));
+  # `_generated` FIELD instead, injected by the ENGINE — a source file must not
+  # claim to be generated, and the marker belongs in the OUTPUT, the file people
+  # actually open and mistakenly hand-edit. It now lives inline in the jq filter
+  # in claudeSettings below, because the merge moved to activation time and a
+  # Nix-side attrset could no longer reach it.
+  #
+  # settingsJson (the eval-time base⊕overlay merge from the flake input) is GONE.
+  # The merge now happens at activation from the checkout — see
+  # home.activation.claudeSettings. Keeping a store-built copy around would
+  # recreate the two-sources problem this removed.
+  #
+  # The ONE SoT, read at activation. Overridable for a non-standard checkout.
+  claudeSotDefault = "${config.home.homeDirectory}/git/unix/da_my-ai/src/data/claude";
 in
 {
   # Agent fleet (explore/build/review/ops, pinned model:sonnet). dotfiles/claude/agents
   # existed here but was NEVER declared, so desktop has never deployed the fleet —
   # that is why desktop sessions start with no agents. Now shared from the my-ai SoT.
-  home.file.".claude/agents" = {
-    source = "${claudeSrc}/agents";
-    recursive = true;
-  };
 
   # Claude Code configuration + MCP server config
   # CLAUDE.md is now a 1-char stub — all principles/reference content moved to
@@ -77,6 +67,44 @@ in
   # UserPromptSubmit hooks) to eliminate the double-injection (static file +
   # hook injection of the same text) that was bloating every session's fixed
   # context. See da_my-ai/src/data/claude/cloud-marketplace/.
+  # ── Shared claude assets, from the SAME single SoT as settings.json ────────
+  # agents/, cloud-marketplace/, claude-plugins.json and rgignore were home.file
+  # entries pointing at the my-ai flake input. That is the same two-sources
+  # problem settings.json had: editing an agent or a marketplace plugin meant
+  # commit + push + `nix flake update my-ai` before a switch could see it, and
+  # until that happened the deployed copy was silently whatever the lock file
+  # last pinned. They are inert data that nothing needs at eval time.
+  #
+  # TRADEOFF, stated: home.file tracked these and removed them when undeclared.
+  # A copy does not, so deleting an agent from the SoT now leaves the stale file
+  # in ~/.claude. Hence agents/ and cloud-marketplace/ are wiped-then-copied
+  # rather than merged — for a directory that is the whole of the semantics.
+  # Single files cannot be swept that way; a removed one must be deleted by hand.
+  home.activation.claudeAssets = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    (
+    SOT="''${CLAUDE_SOT_DIR:-${claudeSotDefault}}"
+    CP="${pkgs.coreutils}/bin/cp"
+    RM="${pkgs.coreutils}/bin/rm"
+    ${pkgs.coreutils}/bin/mkdir -p "$HOME/.claude"
+    if [ ! -d "$SOT" ]; then
+      echo "[claude-assets] FATAL: SoT missing at $SOT — assets NOT deployed" >&2
+      exit 1
+    fi
+    for d in agents cloud-marketplace; do
+      if [ -d "$SOT/$d" ]; then
+        $RM -rf "$HOME/.claude/$d"
+        $CP -a "$SOT/$d" "$HOME/.claude/$d"
+      else
+        echo "[claude-assets] WARN: $SOT/$d absent — left as-is" >&2
+      fi
+    done
+    [ -f "$SOT/claude-plugins.json" ] && $CP -f "$SOT/claude-plugins.json" "$HOME/.claude/claude-plugins.json"
+    [ -f "$SOT/rgignore" ]           && $CP -f "$SOT/rgignore"           "$HOME/.rgignore"
+    ${pkgs.coreutils}/bin/chmod -R u+w "$HOME/.claude/agents" "$HOME/.claude/cloud-marketplace" 2>/dev/null || true
+    echo "[claude-assets] deployed from $SOT (single SoT)"
+    ) || echo "[claude-assets] subshell failed; HM chain continues"
+  '';
+
   home.file.".claude/CLAUDE.md".text = "\n";
   home.file.".claude/mcp.json.tpl".source = ./assets/mcp.json.tpl;
   # Universal launcher for local stdio MCP servers — self-creates the
@@ -106,7 +134,6 @@ in
   #
   # claude-plugins.json stays here: it is machine configuration (which plugins
   # this host has), not part of the status line's implementation.
-  home.file.".claude/claude-plugins.json".source = "${claudeSrc}/claude-plugins.json";
   # cloud-marketplace — local Claude Code plugin marketplace holding:
   #   - cloud-principles-ai-plugin: the data-driven hook engine (was
   #     ~/.claude/hooks/*) — ONE engine + ONE registry (hooks-rules.json):
@@ -119,7 +146,6 @@ in
   # are independently toggleable via `/plugin` — e.g. disable
   # cloud-principles-ai-plugin for a lean Sonnet 200k session without a
   # source edit. See claudeMarketplace activation below for registration.
-  home.file.".claude/cloud-marketplace".source = "${claudeSrc}/cloud-marketplace";
   # settings.json: deployed WRITABLE (not a read-only store symlink) so the
   # runtime `/effort` command can persist effortLevel. Nix owns the baseline
   # (hooks, statusline, env, plugins) and refreshes it every switch; effortLevel
@@ -128,46 +154,42 @@ in
   home.activation.claudeSettings = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     (
     JQ="${pkgs.jq}/bin/jq"
-    SRC="${settingsJson}"
     DST="$HOME/.claude/settings.json"
     ${pkgs.coreutils}/bin/mkdir -p "$HOME/.claude"
 
-    # ── Prefer the WORKING CHECKOUT over the flake input ────────────────────
-    # settings.{base,desktop}.json are only needed at ACTIVATION, never at eval.
-    # Taking them from the flake input meant every settings edit cost
-    #   edit -> commit -> push -> nix flake update my-ai -> build.sh
-    # because ba_flakes_desktop/src/ is the flake root and da_my-ai/ sits OUTSIDE
-    # it, so the input has to be fetched as github:...?dir=da_my-ai even though
-    # the files are already in the same checkout. That is structural to flakes
-    # (a flake may only reference paths under its own root), not the Nix 2.18
-    # relative-path bug claude/README.md blames — Nix here is 2.24.14 and the
-    # restriction is unchanged.
+    # ── ONE SOURCE OF TRUTH: the working checkout. No flake fallback. ───────
+    # Reading these at ACTIVATION (they are never needed at eval) collapses
+    #   edit -> commit + push -> nix flake update my-ai -> build.sh switch
+    # down to `build.sh switch`. The flake input could not do this: a flake may
+    # only reference paths under its own root, ba_flakes_desktop/src/ is that
+    # root, and da_my-ai/ sits outside it — structural to flakes, not the Nix
+    # 2.18 relative-path bug claude/README.md blames (Nix here is 2.24.14 and
+    # the restriction is identical).
     #
-    # Reading them at activation collapses the loop to `build.sh switch`.
-    #
-    # The flake copy REMAINS as the fallback, deliberately: a machine that
-    # activates a prebuilt closure without ~/git/unix present would otherwise
-    # lose its Claude config entirely. Repo present -> instant edits; repo
-    # absent -> exactly today's behaviour.
+    # NO FALLBACK, deliberately. A fallback means two sources that can disagree,
+    # and the failure is silent: the machine keeps working while quietly serving
+    # stale config from whenever the flake input was last updated. Failing loudly
+    # is the point — one SoT or an error, never a guess.
     REPO_SOT="''${CLAUDE_SOT_DIR:-$HOME/git/unix/da_my-ai/src/data/claude}"
-    if [ -r "$REPO_SOT/settings.base.json" ] && [ -r "$REPO_SOT/settings.desktop.json" ]; then
-      LIVE="$HOME/.claude/.settings-merged.$$"
-      # jq's * is a RECURSIVE object merge, matching lib.recursiveUpdate — a
-      # plain + would replace whole sub-objects and silently drop base keys the
-      # overlay does not restate.
-      if ${pkgs.gnused}/bin/sed "s|@HOME@|$HOME|g" "$REPO_SOT/settings.base.json" \
-           | "$JQ" -s --slurpfile ov "$REPO_SOT/settings.desktop.json" \
-               '.[0] * $ov[0] * {_generated: "GENERATED FILE — DO NOT EDIT. Source: da_my-ai/src/data/claude/settings.base.json + settings.desktop.json (read from the working checkout at activation). Engine: ba_flakes_desktop/src/claude/claude.nix (home.activation.claudeSettings). Rebuild: ba_flakes_desktop/build.sh switch."}' \
-               > "$LIVE" 2>/dev/null && [ -s "$LIVE" ]; then
-        SRC="$LIVE"
-        echo "[claude-settings] source: working checkout ($REPO_SOT)"
-      else
-        ${pkgs.coreutils}/bin/rm -f "$LIVE"
-        echo "[claude-settings] checkout merge FAILED — falling back to flake input"
-      fi
-    else
-      echo "[claude-settings] source: flake input (no checkout at $REPO_SOT)"
+    if [ ! -r "$REPO_SOT/settings.base.json" ] || [ ! -r "$REPO_SOT/settings.desktop.json" ]; then
+      echo "[claude-settings] FATAL: SoT missing at $REPO_SOT" >&2
+      echo "[claude-settings] ~/.claude/settings.json left UNCHANGED. Clone the repo there, or set CLAUDE_SOT_DIR." >&2
+      exit 1
     fi
+    LIVE="$HOME/.claude/.settings-merged.$$"
+    # jq's * is a RECURSIVE object merge, matching lib.recursiveUpdate — a plain
+    # + replaces whole sub-objects and would silently drop base keys the overlay
+    # does not restate.
+    if ! ${pkgs.gnused}/bin/sed "s|@HOME@|$HOME|g" "$REPO_SOT/settings.base.json" \
+         | "$JQ" -s --slurpfile ov "$REPO_SOT/settings.desktop.json" \
+             '.[0] * $ov[0] * {_generated: "GENERATED FILE — DO NOT EDIT. Source: da_my-ai/src/data/claude/settings.base.json + settings.desktop.json (the ONE SoT, read from the working checkout at activation). Engine: ba_flakes_desktop/src/claude/claude.nix (home.activation.claudeSettings). Rebuild: ba_flakes_desktop/build.sh switch."}' \
+             > "$LIVE" 2>/dev/null || [ ! -s "$LIVE" ]; then
+      ${pkgs.coreutils}/bin/rm -f "$LIVE"
+      echo "[claude-settings] FATAL: merge of base+overlay failed — settings.json left UNCHANGED" >&2
+      exit 1
+    fi
+    SRC="$LIVE"
+    echo "[claude-settings] source: $REPO_SOT (single SoT)"
     # Preserve a runtime-owned effortLevel (set via /effort) across rebuilds.
     EFFORT=""
     if [ -f "$DST" ] && [ ! -L "$DST" ]; then
@@ -276,7 +298,6 @@ in
     ) || echo "[claude-marketplace] subshell failed; HM chain continues"
   '';
 
-  home.file.".rgignore".source = "${claudeSrc}/rgignore";
   # Claude Code — direct Bun binary from Anthropic GCS + patchelf for NixOS
   # Auto-updates on every home-manager switch. No npm dependency.
   home.activation.installClaudeCode = lib.hm.dag.entryAfter ["linkGeneration"] ''
