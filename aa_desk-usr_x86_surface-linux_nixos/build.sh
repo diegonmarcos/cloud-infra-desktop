@@ -340,7 +340,21 @@ unset _extra_bin
 # This script's own konsole_wrap block below (~line 1890) is now gated on
 # NSP_ACTIVE too, so it won't open a second, competing window when this
 # re-exec has already claimed the one Konsole.
-if [ -z "${NSP_ACTIVE:-}" ] && [ -z "${FSPL_NO_WRAP:-}" ]; then
+# `switch local` NEVER wraps (2026-08-12). The wrapper's whole purpose is a
+# Konsole progress window, and it is a passthrough only when there is no
+# $DISPLAY/$WAYLAND_DISPLAY. Under a Wayland session BOTH are set even for a
+# non-interactive invocation (a script, a background job, an agent), so the
+# wrapper tries to claim a window, cannot, and `exec` has already replaced this
+# shell — the run dies with NO OUTPUT AT ALL and a bare exit code. That is
+# exactly what `./build.sh switch local` did here: 1-line log reading `EXIT=1`,
+# nothing else, twice, before FSPL_NO_WRAP=1 revealed the real behaviour.
+#
+# Local eval is also the one path build.sh deliberately refuses to isolate
+# (see the switch_isolation block below), i.e. the path most likely to be run
+# deliberately and watched closely — precisely when swallowing output is worst.
+_fspl_skip=""
+case "${1:-}:${2:-}" in switch:local) _fspl_skip=1 ;; esac
+if [ -z "${NSP_ACTIVE:-}" ] && [ -z "${FSPL_NO_WRAP:-}" ] && [ -z "$_fspl_skip" ]; then
     _fspl_bin=""
     command -v flakes-switch-progress-logs >/dev/null 2>&1 && _fspl_bin="flakes-switch-progress-logs"
     [ -z "$_fspl_bin" ] && command -v nix-switch-progress-wrap >/dev/null 2>&1 && _fspl_bin="nix-switch-progress-wrap"
@@ -393,10 +407,24 @@ _rebuild_exec() {
     # _rebuild_exec (switch_system/boot_system/test_system AND dry_run, i.e.
     # `build.sh check`) reaches Phase 1 below. Gate it here too so `check`
     # can't trigger an unprotected local eval.
-    if [ "${ALLOW_LOCAL_TOPLEVEL:-0}" != "1" ]; then
+    # `switch local` IS the opt-in (2026-08-12). Requiring ALLOW_LOCAL_TOPLEVEL=1
+    # on top of it was a second gate on an already-deliberate act: `pull` is the
+    # default, so reaching here at all means the operator typed `local`. The
+    # env var stays the gate for every OTHER caller of _rebuild_exec — notably
+    # `build.sh check` (dry_run), which is the accidental path this was added
+    # for and which must still refuse.
+    #
+    # THE PROTECTION THAT MATTERS MOVED rather than being dropped: see the
+    # switch_isolation block in main(), which now re-execs `switch local` into
+    # workload.slice under memory_max/swap_max like `pull`. The old posture —
+    # forbidden AND deliberately un-isolated — meant the one way to actually run
+    # it was also the one way to run it with no cgroup cap at all, i.e. the
+    # freeze this gate exists to prevent. Allowed-and-contained beats
+    # forbidden-and-unprotected.
+    if [ "${ALLOW_LOCAL_TOPLEVEL:-0}" != "1" ] && [ "${BUILDSH_EXPLICIT_LOCAL:-0}" != "1" ]; then
         error "Refusing local toplevel build (mode=$mode): this 8GB Surface cannot run a full nix eval without risking a freeze."
         error "Use the layered/CI path instead: './build.sh ci-build' (builds remotely on GHA) then './build.sh pull' (imports the closure — no eval, cannot freeze)."
-        error "To override anyway, set ALLOW_LOCAL_TOPLEVEL=1."
+        error "To override anyway, set ALLOW_LOCAL_TOPLEVEL=1, or run './build.sh switch local' which opts in explicitly."
         return 1
     fi
 
@@ -2034,10 +2062,17 @@ if [ $# -gt 0 ]; then
        && [ "$(jq -r '.switch_isolation.enable // false' "$_sp_json")" = "true" ]; then
         case "$cli_cmd" in
             s|switch|rebuild|pull)
-                # Only isolate the freeze-prone REMOTE path (pull). `switch local`
-                # is a local eval that this 8GB box shouldn't run anyway; leave it
-                # to fail loudly rather than isolate an already-forbidden path.
-                if [ "$cli_cmd" = "switch" ] && [ "${2:-pull}" = "local" ]; then :; else
+                # `switch local` IS ISOLATED TOO (2026-08-12). It used to be
+                # skipped here on the reasoning that it "shouldn't run anyway"
+                # — but _rebuild_exec now accepts `switch local` as its own
+                # opt-in, so skipping isolation would leave the single most
+                # freeze-prone workload on this box (a full local nix eval) as
+                # the ONLY path with no MemoryMax at all. That is backwards:
+                # a local eval needs the cgroup cap MORE than a closure import,
+                # not less. Contained, an eval that balloons is killed by oomd
+                # inside workload.slice and the compositor never notices; the
+                # 11 documented freezes are all this workload uncontained.
+                if false; then :; else
                     _iso_slice="$(jq -r '.switch_isolation.slice // "workload.slice"' "$_sp_json")"
                     _iso_mm="$(jq -r '.switch_isolation.memory_max // "3G"' "$_sp_json")"
                     _iso_sm="$(jq -r '.switch_isolation.swap_max // "6G"' "$_sp_json")"
@@ -2086,7 +2121,11 @@ if [ $# -gt 0 ]; then
             # designed flow was always GHA build → build.sh pull.
             case "${2:-pull}" in
                 pull)  pull_remote "$3" ;;
-                local) switch_system ;;
+                # BUILDSH_EXPLICIT_LOCAL: typing `local` is the opt-in, so
+                # _rebuild_exec does not also demand ALLOW_LOCAL_TOPLEVEL=1.
+                # `build.sh check` reaches _rebuild_exec WITHOUT this set and
+                # still refuses — that accidental path stays gated.
+                local) BUILDSH_EXPLICIT_LOCAL=1 switch_system ;;
                 *)
                     error "Unknown switch mode: $2"
                     printf "Usage: %s switch [pull|local]   (default: pull — GHA closure import, no local eval)\n" "$0"
