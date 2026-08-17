@@ -4,6 +4,7 @@
   "disableExperimentalSEAWarning": true,
   "assets": {
     "marked.min.js": "httpd-lib/marked.min.js",
-    "github-markdown-dark.css": "httpd-lib/github-markdown-dark.css"
+    "github-markdown-dark.css": "httpd-lib/github-markdown-dark.css",
+    "browse.html": "httpd-lib/browse.html"
   }
 }
