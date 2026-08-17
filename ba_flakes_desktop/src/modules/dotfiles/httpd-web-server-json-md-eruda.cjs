@@ -22,11 +22,16 @@ const PORT = parseInt(process.argv[2] || '8000');
 const ROOT = process.argv[3] || process.env.HOME || '.';
 const LIB_DIR = join(homedir(), '.local/lib/httpd');
 
-// SEA-embedded assets (see import comment above). Only marked.min.js and
-// github-markdown-dark.css are baked into the binary — browse.html is not
-// (kept small/rare enough to just read from disk) and still requires
-// LIB_DIR to be populated when running as the compiled binary.
-const SEA_ASSETS = new Set(['marked.min.js', 'github-markdown-dark.css']);
+// SEA-embedded assets (see import comment above). All three lib files are
+// baked into the binary, so the compiled artifact needs no populated LIB_DIR
+// at all. browse.html used to be excluded ("small/rare enough to just read
+// from disk") — but the only thing that ever populated LIB_DIR was the
+// home.file deployment in the old web-server-md-eruda.nix module, which was
+// orphaned when this tool moved to a prebuilt-binary asset. That left `/`
+// serving a bare "browse.html not found" 404 on every install (2026-08-17).
+// LIB_DIR is still consulted as a fallback below, so a hand-placed override
+// keeps working for local iteration on the browse UI.
+const SEA_ASSETS = new Set(['marked.min.js', 'github-markdown-dark.css', 'browse.html']);
 
 async function getLibAsset(libFile) {
   if (SEA_ASSETS.has(libFile) && isSea()) {
@@ -378,9 +383,11 @@ ${ERUDA_SCRIPT}
 }
 
 async function serveBrowse(res, initPath) {
-  const browsePath = join(LIB_DIR, 'browse.html');
-  let html = await readFile(browsePath, 'utf8').catch(() => null);
-  if (!html) { res.writeHead(404); return res.end('browse.html not found'); }
+  // getLibAsset, not a bare LIB_DIR read: browse.html is SEA-embedded, and
+  // the compiled binary is the only way this ships.
+  const data = await getLibAsset('browse.html');
+  if (!data) { res.writeHead(404); return res.end('browse.html not found'); }
+  let html = data.toString('utf8');
   // Inject the initial path so no redirect/hash needed
   html = html.replace('__INIT_PATH__', JSON.stringify(initPath));
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
