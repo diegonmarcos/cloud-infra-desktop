@@ -563,6 +563,23 @@ in {
             ${pkgs.wireguard-tools}/bin/wg set "$IFACE" peer ${wgPublicData.hub.wg_public_key} \
               allowed-ips "${wgPublicTunnelFull.allowedBoth}"
             ;;
+          *) exit 0 ;;
+        esac
+        # SAME NM QUIRK FAMILY, SECOND PROPERTY (2026-08-18): the profiles
+        # declare wireguard.mtu = 1280 (nmcli confirms it on the connection),
+        # yet after a fresh activation the kernel interface still sits at wg's
+        # default 1420 — NM simply does not push the value to the device. At
+        # 1420 the wg-public path to its hub black-holed big packets (SSH hung
+        # at SSH2_MSG_KEX_ECDH_REPLY while small packets passed — the classic
+        # PMTU signature; wg0's path happened to survive, which is what kept
+        # this invisible). Enforce the declared MTU here, where we already
+        # re-apply allowed-ips for the same reason. Reached only for our four
+        # connection IDs — the `*` arm above exits first for everything else.
+        case "''${CONNECTION_ID:-$IFACE}" in
+          wg0|wg0-full)
+            ${pkgs.iproute2}/bin/ip link set dev "$IFACE" mtu ${toString wgData.mtu} ;;
+          wg-public|wg-public-full)
+            ${pkgs.iproute2}/bin/ip link set dev "$IFACE" mtu ${toString wgPublicData.mtu} ;;
         esac
       '';
       type = "basic";
