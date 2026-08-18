@@ -79,9 +79,19 @@ let
       HTTPD_WEB_SERVER_BIN = "${httpdBin}/bin/httpd-web-server-json-md-eruda";
       # Keeps the desktop flake in step with the termux one, which enables the
       # same opt-in write API so a single :8000 instance can back local editing
-      # tools. Mutating routes stay loopback-only, require the custom
-      # X-Httpd-Write header, and are confined to the served root.
+      # tools. Mutating routes stay loopback-only and require the custom
+      # X-Httpd-Write header.
       HTTPD_WRITE = "1";
+
+      # Writes are confined to the directories the editing tools actually
+      # touch. ROOT is $HOME, so an unscoped write API would expose shell
+      # profiles and ~/.ssh, which execute or authenticate on next login.
+      # $HOME-relative; the server fails closed if this is empty.
+      HTTPD_WRITE_ROOTS = builtins.concatStringsSep ":" [
+        "/git/front/b-Media/mySocials/src/data"
+        "/git/front/b-Media/mySocials/dist"
+        "/git/front-assets-cdn/b-Media/mySocials/static/media"
+      ];
     };
     text = builtins.readFile ./httpd-web-server-json-md-eruda.sh;
   };
