@@ -9,8 +9,8 @@
 # mirroring cloud-network-wg-public.nix for the wg-public mesh, and
 # (b) adds DNS routing so .app names resolve via Hickory (10.0.0.1).
 #
-# Source of truth: ~/git/cloud-infra/2_configs/dist/build-flakes_desktop.json (.wireguard slice)
-# Emitted by 2_configs/src/engines/cloud-data-config-derive.ts via external-consumers.json.
+# Source of truth: ~/git/cloud-infra/1_cloud-configs/dist/build-flakes_desktop.json (.wireguard slice)
+# Emitted by 1_cloud-configs/src/engines/cloud-data-config-derive.ts via external-consumers.json.
 { config, lib, pkgs, ... }:
 
 let

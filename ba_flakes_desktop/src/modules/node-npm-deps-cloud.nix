@@ -1,5 +1,5 @@
 # Cloud npm dependencies — merged from build-flakes_desktop.json (.deps slice)
-# at activation time. Source: 2_configs/src/engines/cloud-data-config-derive.ts
+# at activation time. Source: 1_cloud-configs/src/engines/cloud-data-config-derive.ts
 # emits build-flakes_desktop.json from external-consumers.json registry.
 { config, lib, pkgs, ... }:
 
@@ -18,8 +18,7 @@ in {
     CLOUD_BUILD=""
     for _p in \
         "$HOME/git/cloud-unix/ba_flakes_desktop/build-flakes_desktop.json" \
-        "$HOME/git/cloud-infra/2_configs/dist/build-flakes_desktop.json" \
-        "$HOME/git/cloud-infra/cloud-data/cloud-data-deps.json"; do
+        "$HOME/git/cloud-infra/1_cloud-configs/dist/build-flakes_desktop.json"; do
       if [ -f "$_p" ]; then CLOUD_BUILD="$_p"; break; fi
     done
     CLOUD_OUT="$HOME/.node_modules/.cloud-deps-merged.json"

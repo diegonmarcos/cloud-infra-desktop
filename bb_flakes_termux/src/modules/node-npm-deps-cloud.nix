@@ -1,5 +1,5 @@
 # Cloud npm dependencies — merged from build-flakes_termux.json (.deps slice)
-# at activation time. Source: 2_configs/src/engines/cloud-data-config-derive.ts
+# at activation time. Source: 1_cloud-configs/src/engines/cloud-data-config-derive.ts
 # emits build-flakes_termux.json from external-consumers.json registry.
 args@{ config, lib, pkgs, ... }:
 

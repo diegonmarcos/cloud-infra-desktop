@@ -44,7 +44,7 @@ in
   # a client peer in addition to wg0. Bring up with:
   #   wg-quick up wg-public
   # Vault key dir: vault/A0_keys/providers/wireguard/termux-public/
-  # Source-of-truth peer table: ~/git/cloud-infra/2_configs/dist/build-flakes_termux.json
+  # Source-of-truth peer table: ~/git/cloud-infra/1_cloud-configs/dist/build-flakes_termux.json
   #                             .wireguard_public.{peers,clients.termux}
   home.file.".config/wireguard/privatekey-public" = {
     source = config.lib.file.mkOutOfStoreSymlink "${vaultBase}/termux-public/privatekey";

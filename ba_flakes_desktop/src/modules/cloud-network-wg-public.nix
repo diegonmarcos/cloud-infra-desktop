@@ -10,7 +10,7 @@
 # This module symlinks the vault entries declaratively so the host-level
 # `networking.wireguard.interfaces.wg-public` definition resolves them.
 #
-# Source of truth: ~/git/cloud-infra/2_configs/dist/build-flakes_desktop.json
+# Source of truth: ~/git/cloud-infra/1_cloud-configs/dist/build-flakes_desktop.json
 #                  .wireguard_public.{peers,clients}
 { config, lib, pkgs, ... }:
 let
