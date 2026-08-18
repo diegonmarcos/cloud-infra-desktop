@@ -3,31 +3,40 @@
 # ║   GENERATED FILE — DO NOT EDIT                                   ║
 # ║                                                                  ║
 # ║   Source : 0_git/src/gitmodules
-# ║   Engine : 1_cicd/src/scripts/unix-ship-repo-workflow-engine.sh
+# ║   Engine : 1_cicd/src/scripts/cloud-ship-repo-workflow-engine.sh
 # ║   Rebuild: ./9_others/build.sh
 # ║                                                                  ║
 # ║   Manual edits will be overwritten on next build.                ║
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-# Intentionally empty — unix has NO submodules.
+# Single read-only index submodule.
 #
-# 2026-08-11: the five submodules here (I_cloud-data, II_tools, III_front-data,
-# IV_cloud-configs, V_front-configs) were removed. cloud-master is the indexing
-# path now: it holds committed RELATIVE symlinks to sibling working clones in
-# ~/git, deliberately not submodules. See cloud-master/clone.sh — a submodule
-# pins a commit and wants --recursive, which here meant cloud-master containing
-# cloud containing cloud-master, plus private repos breaking init for anyone
-# without those credentials.
+# 2026-08-18: every cloud-* repo embeds ONLY `cloud` — the fleet index,
+# formerly cloud-master. https:// rather than git@ makes it read-only in
+# practice: the index is consumed here, never pushed from here.
 #
-# Nothing in unix read through those directories at runtime; they were pure
-# index duplication of clones that already exist as siblings. The one real
-# filesystem reference (ea_cloud-superapp/data/regen.sh) already goes via
-# $HOME/git/cloud-infra/, not through a submodule path. No workflow checked them out
-# either, so CI never depended on them.
+# This does NOT reintroduce the 2026-08-11 problem recorded below. That
+# removal was about repos indexing each OTHER as submodules. `cloud` declares
+# no submodules of its own — it indexes the fleet with committed RELATIVE
+# symlinks, which simply dangle inside a submodule checkout and cost nothing.
+# So there is no cloud -> cloud-master -> cloud recursion, and `cloud` is
+# public, so `submodule update --init` works without credentials.
 #
-# unix-ship-repo-workflow-engine.sh reconciles declaratively against this file:
-# declared-but-unregistered gets `git submodule add`, registered-but-undeclared
-# gets `git rm --cached`. So RE-ADDING A SECTION HERE RESURRECTS A SUBMODULE on
-# the next ship. That is exactly how I_cloud-data kept reappearing staged.
-# Add repos to cloud-master/repos.json instead.
+# unix-ship-repo-workflow-engine.sh reconciles declaratively against this
+# file: declared-but-unregistered gets `git submodule add`, registered-but-
+# undeclared gets `git rm --cached`. Deleting this section removes it again.
+#
+# --- 2026-08-11 (kept for context) -------------------------------------
+# The five submodules here (I_cloud-data, II_tools, III_front-data,
+# IV_cloud-configs, V_front-configs) were removed. They were pure index
+# duplication of clones that already exist as siblings in ~/git; nothing read
+# through them at runtime and no workflow checked them out. Add repos to the
+# index registry (cloud/repos.json), not here.
+# ------------------------------------------------------------------------
+
+[submodule "cloud"]
+	path = cloud
+	url = https://github.com/diegonmarcos/cloud.git
+	shallow = true
+	ignore = all
