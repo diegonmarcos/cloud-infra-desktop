@@ -68,7 +68,7 @@ COPY --from=builder /build /opt/cloud-builder-flake
 # clones/syncs it at RUNTIME, where the deploy key is injected. Keep this list
 # public-only so the image stays buildable without secrets.
 RUN mkdir -p /root/git && \
-    for repo in cloud unix front tools; do \
+    for repo in cloud-infra cloud-unix front tools; do \
       git clone --depth 1 "https://github.com/diegonmarcos/${repo}.git" "/root/git/${repo}" && \
       if [ -x "/root/git/${repo}/1_workflows/build.sh" ]; then \
         bash -c "cd /root/git/${repo} && bash 1_workflows/build.sh deploy" || true; \
