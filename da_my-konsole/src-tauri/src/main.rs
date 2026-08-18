@@ -465,6 +465,7 @@ fn embed_open(
             Ok(f) => f,
             Err(e) => return eprintln!("[embed] open {label}: {e}"),
         };
+        use wry::WebViewBuilderExtUnix; // build_gtk lives on the Unix ext trait
         match wry::WebViewBuilder::new()
             .with_url(&url)
             .with_bounds(embed_rect(x, y, w, h))
