@@ -35,7 +35,7 @@
   "deploy": {
     "_comment": "Public templates live in unix/. Real values live in vault/fido/. Operator never edits ~/.config/ directly — `build.sh deploy` symlinks vault/fido/ into XDG paths so a vault rebuild is the only source of truth.",
     "vault_root_env": "VAULT_ROOT",
-    "vault_root_default": "~/git/vault",
+    "vault_root_default": "~/git/cloud-vault",
     "vault_subdir": "fido",
     "templates": [
       { "src": "src/templates/config.toml.example",         "dst_in_vault": "config.toml",         "mode": "0600", "overwrite": false },

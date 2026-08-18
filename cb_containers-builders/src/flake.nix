@@ -94,7 +94,7 @@
             - /var/run/docker.sock:/var/run/docker.sock
             - ''${HOME:-/root}/.ssh:/root/.ssh:ro
             - ''${HOME:-/root}/.config/sops:/root/.config/sops:ro
-          working_dir: /root/git/cloud
+          working_dir: /root/git/cloud-infra
           entrypoint: ["/opt/cloud-builder/entrypoint.sh"]
           environment:
             - TERM=xterm-256color

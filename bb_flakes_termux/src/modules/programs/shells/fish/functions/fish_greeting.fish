@@ -135,8 +135,8 @@ set_color normal
 # Flakes
 set_color cyan; echo "  Flakes:"
 set_color normal
-set_color magenta; echo -n "    nix-on-droid     "; set_color normal; echo "~/git/unix/bb_flakes_termux/"
-set_color magenta; echo -n "    HM Modules       "; set_color normal; echo "~/git/unix/bb_flakes_termux/src/modules/"
+set_color magenta; echo -n "    nix-on-droid     "; set_color normal; echo "~/git/cloud-unix/bb_flakes_termux/"
+set_color magenta; echo -n "    HM Modules       "; set_color normal; echo "~/git/cloud-unix/bb_flakes_termux/src/modules/"
 # Wrappers - Custom
 set_color cyan; echo "  Wrappers:"
 set_color normal

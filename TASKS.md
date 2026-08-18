@@ -9,7 +9,7 @@
 2. [DONE] mattermost compose.nix `ollama-hai` eval error (attribute missing).
    Root cause: ollama-hai decommissioned/archived
    (a_solutions/z_archive/user-ai_ollama-hai); live replacement key is
-   ollama-arm. Fixed + committed in ~/git/cloud (f73d2fba5). NOTE: cloud
+   ollama-arm. Fixed + committed in ~/git/cloud-infra (f73d2fba5). NOTE: cloud
    repo has a large pre-existing unrelated dirty tree (mass dist
    regeneration, deleted ollama-arm/ollama/ollama-hai build.json sources
    under 2_configs/src/builds/) — NOT touched, NOT mine, flagged only.

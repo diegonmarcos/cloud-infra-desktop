@@ -172,7 +172,7 @@
         echo -e "\033[1;31m  ║  THIS IS A FULL DECLARATIVE ENVIRONMENT, NIX-FLAKES WAY!!!  ║\033[0m"
         echo -e "\033[1;31m  ╚══════════════════════════════════════════════════════════════╝\033[0m"
         echo ""
-        echo -e "\033[0;33m  Packages → ~/git/unix/ba_flakes_desktop/src/modules/packages.nix\033[0m"
+        echo -e "\033[0;33m  Packages → ~/git/cloud-unix/ba_flakes_desktop/src/modules/packages.nix\033[0m"
         echo -e "\033[0;33m  JS deps  → project/package.json → build.sh deps\033[0m"
         echo -e "\033[0;33m  Build    → build.sh (ALWAYS)\033[0m"
         echo -e "\033[0;33m  Temp pkg → nix-shell -p <package>\033[0m"

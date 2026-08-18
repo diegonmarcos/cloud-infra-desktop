@@ -158,12 +158,12 @@ if [ -f "$PARENT_DIR/TOOLS.md" ]; then
     install -o 1000 -g 1000 -m 644 "$PARENT_DIR/TOOLS.md" "$MOUNT/home/diego/README.md"
 fi
 
-# Also drop a copy of the install dir contents at /home/diego/git/unix/... so
+# Also drop a copy of the install dir contents at /home/diego/git/cloud-unix/... so
 # user can re-run install.sh after first boot without needing the pool unlocked
 if [ -d "$PARENT_DIR" ]; then
-    section "Copying install scripts to /home/diego/git/unix/rescue-os-debian/"
-    mkdir -p "$MOUNT/home/diego/git/unix/"
-    cp -r "$PARENT_DIR" "$MOUNT/home/diego/git/unix/"
+    section "Copying install scripts to /home/diego/git/cloud-unix/rescue-os-debian/"
+    mkdir -p "$MOUNT/home/diego/git/cloud-unix/"
+    cp -r "$PARENT_DIR" "$MOUNT/home/diego/git/cloud-unix/"
     chown -R 1000:1000 "$MOUNT/home/diego/git"
 fi
 
@@ -225,7 +225,7 @@ cat <<EOF
     root:  root           / 1234567890
 
   After first boot:
-    cd ~/git/unix/rescue-os-debian
+    cd ~/git/cloud-unix/rescue-os-debian
     ./install.sh scan      # verify packages
     ./install.sh install   # install anything missed (idempotent)
     ./install.sh browser   # one-shot Firefox via xinit (Claude OAuth)

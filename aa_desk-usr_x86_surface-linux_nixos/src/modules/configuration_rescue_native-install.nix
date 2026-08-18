@@ -195,7 +195,7 @@
       ║   Node REPL:   node                                               ║
       ║                                                                   ║
       ║   Rebuild:     nixos-rebuild switch \                             ║
-      ║                  --flake /home/diego/git/unix/\                   ║
+      ║                  --flake /home/diego/git/cloud-unix/\                   ║
       ║                  aa_desk-usr_x86_surface-linux_nixos/src#surface  ║
       ║   Rollback:    nixos-rebuild --rollback switch                    ║
       ║   Generation:  nix-env -p /nix/var/nix/profiles/system --list-... ║

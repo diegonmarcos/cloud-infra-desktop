@@ -63,11 +63,11 @@
     {
       "title": "my-ai (repo)",
       "paths": [
-        "~/git/unix/da_my-ai/**/*.nix",
-        "~/git/unix/da_my-ai/**/*.toml",
-        "~/git/unix/da_my-ai/**/*.json",
-        "~/git/unix/da_my-ai/**/*.md",
-        "~/git/unix/da_my-ai/**/*.lock"
+        "~/git/cloud-unix/da_my-ai/**/*.nix",
+        "~/git/cloud-unix/da_my-ai/**/*.toml",
+        "~/git/cloud-unix/da_my-ai/**/*.json",
+        "~/git/cloud-unix/da_my-ai/**/*.md",
+        "~/git/cloud-unix/da_my-ai/**/*.lock"
       ]
     },
     {

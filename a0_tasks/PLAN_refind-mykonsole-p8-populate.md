@@ -3,7 +3,7 @@
 **Status**: root-caused 2026-07-24. Fix = run the already-declared populate
 pipeline + add a generic dangling-stanza preflight to the bootloader engine.
 **Severity**: P2 — rescue entry dead, main boot unaffected.
-**Executor**: build agent (sonnet). Repos: `~/git/unix`, main branch, direct push.
+**Executor**: build agent (sonnet). Repos: `~/git/cloud-unix`, main branch, direct push.
 
 ## Root cause (verified)
 
@@ -37,7 +37,7 @@ partition (stable UUID `27ffc22b-f89e-492d-aeda-2341e8eba898`), installs
 Agent steps:
 1. `gh run list -w ship-my-konsole-iso.yml` — confirm a green run on current
    main; trigger it if stale/red (fix CI first if red — no bypass).
-2. Run the engine verb: `cd ~/git/unix/ca_ventoy_fallback_usb/my-konsole &&
+2. Run the engine verb: `cd ~/git/cloud-unix/ca_ventoy_fallback_usb/my-konsole &&
    ./build.sh install-partition` (it consumes the CI artifact per install.json —
    read install.json first and follow exactly what it declares; do NOT hand-roll
    mount/rsync commands outside the engine).

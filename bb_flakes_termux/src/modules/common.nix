@@ -16,8 +16,8 @@
 
   # Authelia OIDC — paths to vault credentials + tokens
   home.sessionVariables = {
-    AUTHELIA_OIDC_CREDENTIALS_DIR = "$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/credentials";
-    AUTHELIA_OIDC_TOKENS_DIR = "$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens";
+    AUTHELIA_OIDC_CREDENTIALS_DIR = "$HOME/git/cloud-vault/A0_keys/providers/authelia/signed-bearer_jwt/credentials";
+    AUTHELIA_OIDC_TOKENS_DIR = "$HOME/git/cloud-vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens";
     AUTHELIA_OIDC_CLIENT_ID = "claude-admin";
     AUTHELIA_TOKEN_URL = "https://auth.diegonmarcos.com/api/oidc/token";
   };

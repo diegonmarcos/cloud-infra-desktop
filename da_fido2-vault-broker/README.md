@@ -20,8 +20,8 @@ actually need from the extension is WebAuthn signing.
 
 | | Where | Why |
 |---|---|---|
-| **Code, flake, build engine, templates** | `~/git/unix/da_fido2-vault-broker/` (public repo) | declarative + reproducible |
-| **Real `config.toml`, sealed master, sealed cipher cache** | `~/git/vault/fido/` (private repo) | secrets live in vault, never in `~/.config/` directly |
+| **Code, flake, build engine, templates** | `~/git/cloud-unix/da_fido2-vault-broker/` (public repo) | declarative + reproducible |
+| **Real `config.toml`, sealed master, sealed cipher cache** | `~/git/cloud-vault/fido/` (private repo) | secrets live in vault, never in `~/.config/` directly |
 | **Symlinks `~/.config/...` → `vault/fido/...`** | created by `build.sh deploy` | XDG paths point at the vault |
 
 You **never** edit `~/.config/fido2-vault-broker/` by hand. You edit
@@ -30,10 +30,10 @@ You **never** edit `~/.config/fido2-vault-broker/` by hand. You edit
 ## Operator path (one shot)
 
 ```bash
-cd ~/git/unix/da_fido2-vault-broker
+cd ~/git/cloud-unix/da_fido2-vault-broker
 ./build.sh build              # cargo --release inside nix dev shell
 ./build.sh init-vault         # scaffold vault/fido/ from src/templates/
-$EDITOR ~/git/vault/fido/config.toml   # set vault_endpoint + vault_email
+$EDITOR ~/git/cloud-vault/fido/config.toml   # set vault_endpoint + vault_email
 ./build.sh seal-master        # prompts for password, TPM-seals to vault/fido/master.tpm-sealed
 ./build.sh deploy             # symlinks vault/fido/* into XDG + udev rule
 sudo usermod -aG uhid,tss $USER && newgrp uhid    # one-time group add

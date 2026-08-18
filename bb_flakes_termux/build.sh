@@ -491,7 +491,7 @@ EOT
     # not whatever the flake wrapper happens to point at). Last-resort.
     if [ "$_sshd_up" -eq 0 ]; then
         log_warn "sshd-guarantee: wrapper path failed, falling back to rescue-sshd..."
-        _rescue="$HOME/git/tools/5-infos/rescue-sshd/rescue-sshd.sh"
+        _rescue="$HOME/git/cloud-mykonsole-dtk/5-infos/rescue-sshd/rescue-sshd.sh"
         if [ -x "$_rescue" ] || [ -f "$_rescue" ]; then
             sh "$_rescue" 2>&1 | tee -a "$LOG_FILE"
             sleep 1
@@ -516,7 +516,7 @@ EOT
         log_warn "sshd-guarantee: process up but port :$_ssh_port not detected — verify manually"
     else
         log_error "sshd-guarantee: BOTH wrapper AND rescue failed. SSH UNAVAILABLE."
-        log_error "  manual recovery on device: sh ~/git/tools/5-infos/rescue-sshd/rescue-sshd.sh"
+        log_error "  manual recovery on device: sh ~/git/cloud-mykonsole-dtk/5-infos/rescue-sshd/rescue-sshd.sh"
         log_error "  sshd log: $HOME/.cache/sshd.log"
     fi
     perf_end

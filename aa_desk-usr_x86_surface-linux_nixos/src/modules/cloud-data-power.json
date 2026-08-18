@@ -180,8 +180,8 @@
   "deployment": {
     "_comment": "After editing this JSON, the host flake AND the home-manager flake both need a switch (each consumes its own replica).",
     "reload_commands": [
-      "cd ~/git/unix/aa_nixos-surface_host && ./build.sh switch",
-      "cd ~/git/unix/ba_flakes_desktop && ./build.sh switch"
+      "cd ~/git/cloud-unix/aa_nixos-surface_host && ./build.sh switch",
+      "cd ~/git/cloud-unix/ba_flakes_desktop && ./build.sh switch"
     ]
   }
 }

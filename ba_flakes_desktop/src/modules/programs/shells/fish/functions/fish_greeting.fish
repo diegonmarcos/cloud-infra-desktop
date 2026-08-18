@@ -122,10 +122,10 @@ set_color normal
 # Flakes
 set_color cyan; echo "  Flakes:"
 set_color normal
-set_color magenta; echo -n "    NixOS            "; set_color normal; echo "~/git/unix/aa_nixos-surface_host/"
-set_color magenta; echo -n "    OS Modules       "; set_color normal; echo "~/git/unix/aa_nixos-surface_host/src/modules/"
-set_color magenta; echo -n "    Home-Manager     "; set_color normal; echo "~/git/unix/ba_flakes_desktop/"
-set_color magenta; echo -n "    HM Modules       "; set_color normal; echo "~/git/unix/ba_flakes_desktop/src/modules/"
+set_color magenta; echo -n "    NixOS            "; set_color normal; echo "~/git/cloud-unix/aa_nixos-surface_host/"
+set_color magenta; echo -n "    OS Modules       "; set_color normal; echo "~/git/cloud-unix/aa_nixos-surface_host/src/modules/"
+set_color magenta; echo -n "    Home-Manager     "; set_color normal; echo "~/git/cloud-unix/ba_flakes_desktop/"
+set_color magenta; echo -n "    HM Modules       "; set_color normal; echo "~/git/cloud-unix/ba_flakes_desktop/src/modules/"
 # Wrappers - Guardrails
 set_color cyan; echo "  Wrappers - Guardrails:"
 set_color normal

@@ -1,6 +1,6 @@
 # Cloud Network — WireGuard-over-TCP/443 fallback (wstunnel client) — Termux
 #
-# Termux/nix-on-droid sibling of ~/git/unix/ba_flakes_desktop/src/modules/
+# Termux/nix-on-droid sibling of ~/git/cloud-unix/ba_flakes_desktop/src/modules/
 # wireguard-wstunnel.nix. Same role: tunnel UDP/127.0.0.1:51821 → WSS over
 # TCP/443 to the wstunnel-server on gcp-proxy.
 #
@@ -16,7 +16,7 @@
 #     desktop, so the user can import it into Termux:WireGuard.
 #
 # Source of truth (data-driven, fire-rule 4 + 6):
-#   ~/git/cloud/a_solutions/bb-net_wireguard-mesh-ws-tunnel/build.json
+#   ~/git/cloud-infra/a_solutions/bb-net_wireguard-mesh-ws-tunnel/build.json
 #     • .domain → vpnDomain (the WSS server hostname)
 #
 # Secrets:

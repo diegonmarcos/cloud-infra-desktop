@@ -86,7 +86,7 @@ if [ "$ACTUAL" != "$KERNEL" ]; then
   mask_hibernate "DRIFT (kernel-side): /sys/power/resume_offset=$KERNEL but swapfile actual=$ACTUAL"
 fi
 if [ "$ACTUAL" != "$CMDLINE" ]; then
-  mask_hibernate "DRIFT (cmdline-side): cmdline resume_offset=$CMDLINE but swapfile actual=$ACTUAL — redeploy bootloader: cd ~/git/unix/aa_bootloader && ./build.sh deploy --target nixos && cd ../aa_desk-usr_x86_surface-linux_nixos && ./build.sh switch && reboot"
+  mask_hibernate "DRIFT (cmdline-side): cmdline resume_offset=$CMDLINE but swapfile actual=$ACTUAL — redeploy bootloader: cd ~/git/cloud-unix/aa_bootloader && ./build.sh deploy --target nixos && cd ../aa_desk-usr_x86_surface-linux_nixos && ./build.sh switch && reboot"
 fi
 if [ "$ACTUAL" != "$DECLARED" ]; then
   mask_hibernate "DRIFT (SoT-side): boot.json declared=$DECLARED but swapfile actual=$ACTUAL — redeploy bootloader to capture the new offset"

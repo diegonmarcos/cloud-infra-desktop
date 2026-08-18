@@ -185,7 +185,7 @@ install_partition() {
         log_ok "VERIFY: no rEFInd-incompatible ext4 features on $DEV (mountable by ext4_x64.efi)"
     fi
 
-    log_ok "p8 populated. Now wire boot menus:  cd ~/git/unix/aa_bootloader && ./build.sh deploy-refind deploy-grub"
+    log_ok "p8 populated. Now wire boot menus:  cd ~/git/cloud-unix/aa_bootloader && ./build.sh deploy-refind deploy-grub"
 }
 
 clean() {

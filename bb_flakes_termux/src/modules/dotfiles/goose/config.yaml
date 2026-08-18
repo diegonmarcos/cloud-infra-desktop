@@ -1,5 +1,5 @@
 # Goose AI CLI config — managed by home-manager
-# Source: ~/git/unix/bb_flakes_termux/src/modules/dotfiles/goose/
+# Source: ~/git/cloud-unix/bb_flakes_termux/src/modules/dotfiles/goose/
 
 # Default provider and model
 GOOSE_PROVIDER: openrouter
@@ -84,7 +84,7 @@ extensions:
     args:
       - --import
       - /data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs
-      - /data/data/com.termux.nix/files/home/git/tools/products/mcp-unix-api/src/index.ts
+      - /data/data/com.termux.nix/files/home/git/cloud-mykonsole-dtk/products/mcp-unix-api/src/index.ts
     enabled: false
     timeout: 300
     envs:
@@ -97,7 +97,7 @@ extensions:
     args:
       - --import
       - /data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs
-      - /data/data/com.termux.nix/files/home/git/tools/products/mcp-dtk/src/index.ts
+      - /data/data/com.termux.nix/files/home/git/cloud-mykonsole-dtk/products/mcp-dtk/src/index.ts
     enabled: false
     timeout: 300
     envs:
@@ -110,7 +110,7 @@ extensions:
     args:
       - --import
       - /data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs
-      - /data/data/com.termux.nix/files/home/git/cloud/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/index.ts
+      - /data/data/com.termux.nix/files/home/git/cloud-infra/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/index.ts
     enabled: false
     timeout: 300
     envs:
@@ -124,12 +124,12 @@ extensions:
     args:
       - --import
       - /data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs
-      - /data/data/com.termux.nix/files/home/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/code/index.ts
+      - /data/data/com.termux.nix/files/home/git/cloud-infra/a_solutions/bc-obs_cloud-cgc-mcp/src/code/index.ts
     enabled: false
     timeout: 300
     envs:
       NODE_PATH: /data/data/com.termux.nix/files/home/.node_modules/node_modules
-      CONFIG_PATH: /data/data/com.termux.nix/files/home/git/cloud/config.json
+      CONFIG_PATH: /data/data/com.termux.nix/files/home/git/cloud-infra/config.json
       GIT_ROOT: /data/data/com.termux.nix/files/home/git
       OCTOCODE_BIN: /data/data/com.termux.nix/files/home/.nix-profile/bin/octocode
 
@@ -140,13 +140,13 @@ extensions:
     args:
       - --import
       - /data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs
-      - /data/data/com.termux.nix/files/home/git/cloud/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts
+      - /data/data/com.termux.nix/files/home/git/cloud-infra/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts
     enabled: false
     timeout: 300
     envs:
       NODE_PATH: /data/data/com.termux.nix/files/home/.node_modules/node_modules
-      VAULT_PATH: /data/data/com.termux.nix/files/home/git/vault
-      CONFIG_PATH: /data/data/com.termux.nix/files/home/git/cloud/config.json
+      VAULT_PATH: /data/data/com.termux.nix/files/home/git/cloud-vault
+      CONFIG_PATH: /data/data/com.termux.nix/files/home/git/cloud-infra/config.json
 
   # ── Platform extensions (bundled with goose) ────────────────────────────────
   analyze:

@@ -1,5 +1,5 @@
 # Goose AI CLI config — managed by home-manager
-# Source: ~/git/unix/ba_flakes_desktop/src/modules/dotfiles/goose/
+# Source: ~/git/cloud-unix/ba_flakes_desktop/src/modules/dotfiles/goose/
 
 # Default provider and model (Ollama on oci-apps, always on)
 GOOSE_PROVIDER: ollama
@@ -27,23 +27,23 @@ extensions:
     name: Code Graph Context
     cmd: tsx
     args:
-      - /home/diego/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts
+      - /home/diego/git/cloud-infra/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts
     type: stdio
     enabled: false
     envs:
-      CONFIG_PATH: /home/diego/git/cloud/config.json
+      CONFIG_PATH: /home/diego/git/cloud-infra/config.json
     timeout: 300
 
   diego-personal-data:
     name: Diego Personal Data
     cmd: tsx
     args:
-      - /home/diego/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts
+      - /home/diego/git/cloud-infra/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts
     type: stdio
     enabled: false
     envs:
-      VAULT_PATH: /home/diego/git/vault
-      CONFIG_PATH: /home/diego/git/cloud/config.json
+      VAULT_PATH: /home/diego/git/cloud-vault
+      CONFIG_PATH: /home/diego/git/cloud-infra/config.json
     timeout: 300
 
   google-workspace:

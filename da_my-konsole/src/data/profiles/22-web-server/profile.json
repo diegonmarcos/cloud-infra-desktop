@@ -20,8 +20,8 @@
       "title": "SERVE A ROOT",
       "items": [
         { "label": "$HOME (default)", "cmd": "httpd-web-server-json-md-eruda restart 8000 $HOME" },
-        { "label": "~/git/unix", "cmd": "httpd-web-server-json-md-eruda restart 8000 $HOME/git/unix" },
-        { "label": "~/git/cloud", "cmd": "httpd-web-server-json-md-eruda restart 8000 $HOME/git/cloud" },
+        { "label": "~/git/cloud-unix", "cmd": "httpd-web-server-json-md-eruda restart 8000 $HOME/git/cloud-unix" },
+        { "label": "~/git/cloud-infra", "cmd": "httpd-web-server-json-md-eruda restart 8000 $HOME/git/cloud-infra" },
         { "label": "~/git/front", "cmd": "httpd-web-server-json-md-eruda restart 8000 $HOME/git/front" },
         { "label": "custom port + dir", "cmd": "httpd-web-server-json-md-eruda restart " }
       ]

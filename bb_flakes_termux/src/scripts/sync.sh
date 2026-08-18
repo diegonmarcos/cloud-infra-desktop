@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec "$HOME/git/tools/a-sync/sync.sh" "$@"
+exec "$HOME/git/cloud-mykonsole-dtk/a-sync/sync.sh" "$@"

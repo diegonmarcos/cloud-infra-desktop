@@ -8,7 +8,7 @@ drop-in) — **`build.sh switch` still pending**. An imperative bridge
 (`Environment=` reset — clears the poisoned PATH; lexically last so it wins).
 The bridge is inert once the switch ships, but MUST be deleted (cleanup below).
 **Severity**: P0 — desktop GUI unusable (login → black screen → back to SDDM loop).
-**Executor**: build agent (sonnet). All edits in `~/git/unix`, main branch, direct push.
+**Executor**: build agent (sonnet). All edits in `~/git/cloud-unix`, main branch, direct push.
 
 ## Root cause (verified chain, live evidence 2026-07-24 boot ada268fb)
 
@@ -94,7 +94,7 @@ Do NOT touch `~/.config/systemd/user/*/memory-cap.conf` — those are HM-managed
 
 1. Edit module + comment, commit, push (main, no branch).
 2. From TTY (GUI is down anyway; ~4.2G free is enough):
-   `cd ~/git/unix/aa_desk-usr_x86_surface-linux_nixos && ./build.sh switch`
+   `cd ~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos && ./build.sh switch`
 3. Verify the regenerated drop-in BEFORE reboot:
    `cat /etc/systemd/user/plasma-kwin_wayland.service.d/overrides.conf`
    → must contain ONLY `[Service]` + `MemorySwapMax=0`, no `Environment=` lines.

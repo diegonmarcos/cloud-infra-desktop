@@ -126,7 +126,7 @@
         },
         {
           "label": "package versions",
-          "cmd": "bash ~/git/tools/dtk.sh fleet.gh-registry"
+          "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh fleet.gh-registry"
         }
       ]
     }

@@ -161,7 +161,7 @@ dup=$(sudo efibootmgr 2>/dev/null | grep -c "rEFInd")
 
 # 8. dist/ ↔ ESP consistency
 hdr "8. dist/ ↔ ESP consistency"
-DIST=/run/media/diego/pool/@home-diego/git/unix/aa_bootloader/dist/boot/efi/EFI/refind
+DIST=/run/media/diego/pool/@home-diego/git/cloud-unix/aa_bootloader/dist/boot/efi/EFI/refind
 cmp -s "$DIST/refind.conf" "$CONF" && ok "refind.conf matches dist/" || warn "refind.conf differs from dist/ (re-run deploy)"
 cmp -s "$DIST/refind_x64.efi" "$REFIND/refind_x64.efi" && ok "refind_x64.efi matches dist/" || warn "binary differs from dist/"
 

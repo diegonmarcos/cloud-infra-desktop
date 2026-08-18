@@ -4,7 +4,7 @@
       "type": "stdio",
       "command": "tsx",
       "args": [
-        "/home/diego/git/tools/products/mcp-unix-api/src/index.ts"
+        "/home/diego/git/cloud-mykonsole-dtk/products/mcp-unix-api/src/index.ts"
       ],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules"
@@ -31,11 +31,11 @@
       "type": "stdio",
       "command": "/home/diego/.claude/mcp-local-launch.sh",
       "args": [
-        "/home/diego/git/cloud/a_solutions/user-ai_cloud-cgc-mcp/src/code/index.ts"
+        "/home/diego/git/cloud-infra/a_solutions/user-ai_cloud-cgc-mcp/src/code/index.ts"
       ],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
-        "CONFIG_PATH": "/home/diego/git/cloud/config.json",
+        "CONFIG_PATH": "/home/diego/git/cloud-infra/config.json",
         "GIT_ROOT": "/home/diego/git"
       },
       "alwaysLoad": false
@@ -44,12 +44,12 @@
       "type": "stdio",
       "command": "/home/diego/.claude/mcp-local-launch.sh",
       "args": [
-        "/home/diego/git/cloud/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts"
+        "/home/diego/git/cloud-infra/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts"
       ],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
-        "VAULT_PATH": "/home/diego/git/vault",
-        "CONFIG_PATH": "/home/diego/git/cloud/config.json"
+        "VAULT_PATH": "/home/diego/git/cloud-vault",
+        "CONFIG_PATH": "/home/diego/git/cloud-infra/config.json"
       },
       "alwaysLoad": false
     },

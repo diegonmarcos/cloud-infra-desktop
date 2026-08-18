@@ -8,10 +8,10 @@ surface. Edit JSON, switch home-manager, browser config rewrites itself.
 ## Why
 
 The Bitwarden browser extension provides two things:
-1. **Password autofill** — replaced by `~/git/unix/da_autofill-rbw-rofi/`
+1. **Password autofill** — replaced by `~/git/cloud-unix/da_autofill-rbw-rofi/`
    (system-wide hotkey → rofi/wofi picker → keystroke synth).
 2. **Passkey / WebAuthn signing** — replaced by
-   `~/git/unix/da_fido2-vault-broker/` (virtual FIDO2 device on /dev/uhid).
+   `~/git/cloud-unix/da_fido2-vault-broker/` (virtual FIDO2 device on /dev/uhid).
 
 With both daemons running, the browser doesn't need an extension for either.
 This project picks **qutebrowser** as the daily-driver because:
@@ -68,7 +68,7 @@ The `browsers/qute` leaf is listed in the `productivity` profile
 preset. Apply:
 
 ```bash
-~/git/unix/ba_flakes_desktop/build.sh switch surface-plasma   # apply
+~/git/cloud-unix/ba_flakes_desktop/build.sh switch surface-plasma   # apply
 qutebrowser                                                   # daily-driver
 ```
 
@@ -76,7 +76,7 @@ Because the import resolves through the `unix-repo` github input (pinned in
 `flake.lock`), edits to `src/2_configs/*.json` only land after you push the
 monorepo and bump the pin — `nix flake lock --update-input unix-repo` (or
 `build.sh update`), then `switch`. For an uncommitted local test, build with
-`--override-input unix-repo path:/home/diego/git/unix`.
+`--override-input unix-repo path:/home/diego/git/cloud-unix`.
 
 For a standalone home flake (no monorepo), the generic path still works:
 `inputs.da_my-browser.url = "path:../../da_my-browser/src"` then import
@@ -85,9 +85,9 @@ For a standalone home flake (no monorepo), the generic path still works:
 ## Editing the config
 
 ```bash
-$EDITOR ~/git/unix/da_my-browser/src/2_configs/qute-search-engines.json
-~/git/unix/da_my-browser/build.sh check       # validate JSON + nix eval
-~/git/unix/cb_user_diego_nix/build.sh switch    # apply
+$EDITOR ~/git/cloud-unix/da_my-browser/src/2_configs/qute-search-engines.json
+~/git/cloud-unix/da_my-browser/build.sh check       # validate JSON + nix eval
+~/git/cloud-unix/cb_user_diego_nix/build.sh switch    # apply
 # qutebrowser already running picks up new config on next config-source
 ```
 

@@ -10,27 +10,27 @@
       "items": [
         {
           "label": "switch",
-          "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh switch"
+          "cmd": "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/build.sh switch"
         },
         {
           "label": "boot (next reboot)",
-          "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh boot"
+          "cmd": "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/build.sh boot"
         },
         {
           "label": "test",
-          "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh test"
+          "cmd": "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/build.sh test"
         },
         {
           "label": "check",
-          "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh check"
+          "cmd": "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/build.sh check"
         },
         {
           "label": "update",
-          "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh update"
+          "cmd": "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/build.sh update"
         },
         {
           "label": "diff",
-          "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh diff"
+          "cmd": "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/build.sh diff"
         }
       ]
     },
@@ -39,15 +39,15 @@
       "items": [
         {
           "label": "switch",
-          "cmd": "~/git/unix/ba_flakes_desktop/build.sh switch"
+          "cmd": "~/git/cloud-unix/ba_flakes_desktop/build.sh switch"
         },
         {
           "label": "build",
-          "cmd": "~/git/unix/ba_flakes_desktop/build.sh build"
+          "cmd": "~/git/cloud-unix/ba_flakes_desktop/build.sh build"
         },
         {
           "label": "pull (GHCR image)",
-          "cmd": "~/git/unix/ba_flakes_desktop/build.sh pull"
+          "cmd": "~/git/cloud-unix/ba_flakes_desktop/build.sh pull"
         }
       ]
     },
@@ -56,11 +56,11 @@
       "items": [
         {
           "label": "build",
-          "cmd": "~/git/unix/bb_flakes_termux/build.sh build"
+          "cmd": "~/git/cloud-unix/bb_flakes_termux/build.sh build"
         },
         {
           "label": "switch",
-          "cmd": "~/git/unix/bb_flakes_termux/build.sh switch"
+          "cmd": "~/git/cloud-unix/bb_flakes_termux/build.sh switch"
         }
       ]
     },
@@ -69,7 +69,7 @@
       "items": [
         {
           "label": "deploy (rEFInd/GRUB)",
-          "cmd": "~/git/unix/aa_bootloader/build.sh deploy"
+          "cmd": "~/git/cloud-unix/aa_bootloader/build.sh deploy"
         }
       ]
     },
@@ -78,19 +78,19 @@
       "items": [
         {
           "label": "build ISO",
-          "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh build iso"
+          "cmd": "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/build.sh build iso"
         },
         {
           "label": "build qcow",
-          "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh build qcow"
+          "cmd": "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/build.sh build qcow"
         },
         {
           "label": "build vm",
-          "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh build vm"
+          "cmd": "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/build.sh build vm"
         },
         {
           "label": "burn USB",
-          "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh burn"
+          "cmd": "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/build.sh burn"
         }
       ]
     },
@@ -141,36 +141,36 @@
     {
       "title": "NixOS host",
       "paths": [
-        "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/**/*.nix",
-        "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/**/*.json",
-        "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/**/*.md",
-        "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/**/*.lock"
+        "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/**/*.nix",
+        "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/**/*.json",
+        "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/**/*.md",
+        "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/**/*.lock"
       ]
     },
     {
       "title": "Desktop flake (Home-Manager)",
       "paths": [
-        "~/git/unix/ba_flakes_desktop/**/*.nix",
-        "~/git/unix/ba_flakes_desktop/**/*.json",
-        "~/git/unix/ba_flakes_desktop/**/*.md",
-        "~/git/unix/ba_flakes_desktop/**/*.lock"
+        "~/git/cloud-unix/ba_flakes_desktop/**/*.nix",
+        "~/git/cloud-unix/ba_flakes_desktop/**/*.json",
+        "~/git/cloud-unix/ba_flakes_desktop/**/*.md",
+        "~/git/cloud-unix/ba_flakes_desktop/**/*.lock"
       ]
     },
     {
       "title": "Termux flake (Home-Manager)",
       "paths": [
-        "~/git/unix/bb_flakes_termux/**/*.nix",
-        "~/git/unix/bb_flakes_termux/**/*.json",
-        "~/git/unix/bb_flakes_termux/**/*.md",
-        "~/git/unix/bb_flakes_termux/**/*.lock"
+        "~/git/cloud-unix/bb_flakes_termux/**/*.nix",
+        "~/git/cloud-unix/bb_flakes_termux/**/*.json",
+        "~/git/cloud-unix/bb_flakes_termux/**/*.md",
+        "~/git/cloud-unix/bb_flakes_termux/**/*.lock"
       ]
     },
     {
       "title": "Bootloader",
       "paths": [
-        "~/git/unix/aa_bootloader/**/*.nix",
-        "~/git/unix/aa_bootloader/**/*.json",
-        "~/git/unix/aa_bootloader/**/*.md"
+        "~/git/cloud-unix/aa_bootloader/**/*.nix",
+        "~/git/cloud-unix/aa_bootloader/**/*.json",
+        "~/git/cloud-unix/aa_bootloader/**/*.md"
       ]
     }
   ],

@@ -10,7 +10,7 @@
 #   4. probe C — TUI, everything    (claude, 120s auto-kill, --debug-file)
 #   5. verdict + ship the log:
 #        ~/git/cloud-data/logs/claude--debug.log   (committed + pushed)
-#        ~/git/unix/1_reports/claude--debug.log    (mirror, committed + pushed —
+#        ~/git/cloud-unix/1_reports/claude--debug.log    (mirror, committed + pushed —
 #                                                   the copy Claude-in-the-cloud can pull)
 #
 # IMPORTANT while it runs: if a Claude UI appears during probe B or C, startup
@@ -21,7 +21,7 @@ set -u
 #   logs/claude--debug.log      this run's narrative     (app log)
 #   reports/claude--debug.json  machine-readable verdict (probe result)
 #   journal/claude--debug.text  logcat tail              (OS journal)
-CDP="$HOME/git/unix/1_cicd/dist/scripts/cloud-data-paths.sh"
+CDP="$HOME/git/cloud-unix/1_cicd/dist/scripts/cloud-data-paths.sh"
 if [ -r "$CDP" ]; then
   . "$CDP"
   LOG="$(cd_log claude--debug)"
@@ -31,7 +31,7 @@ else
   LOG="$HOME/claude--debug.log"; REPORT="$HOME/claude--debug.json"; JOURNAL="$HOME/claude--debug.text"
 fi
 CLOUDDATA_DIR="$(dirname "$LOG")"
-UNIX_REPORT_DIR="$HOME/git/unix/1_reports"
+UNIX_REPORT_DIR="$HOME/git/cloud-unix/1_reports"
 TUIBARE="${LOG%.log}.tui-bare.log"
 TUIFULL="${LOG%.log}.tui-full.log"
 REAL="$HOME/.nix-profile/bin/claude"
@@ -139,12 +139,12 @@ fi
 
 # unix mirror: flat copy the cloud Claude session can pull (it has no access
 # to the cloud-data repo).
-if [ -d "$HOME/git/unix/.git" ]; then
+if [ -d "$HOME/git/cloud-unix/.git" ]; then
   mkdir -p "$UNIX_REPORT_DIR"
   for f in "$LOG" "$TUIBARE" "$TUIFULL" "$REPORT" "$JOURNAL"; do
     [ -f "$f" ] && cp -f "$f" "$UNIX_REPORT_DIR/" 2>/dev/null
   done
-  ( cd "$HOME/git/unix" \
+  ( cd "$HOME/git/cloud-unix" \
     && git add 1_reports/claude--debug* >/dev/null 2>&1 \
     && git commit -q -m "claude--debug $(date -u +%FT%TZ)" -- 1_reports/claude--debug* >/dev/null 2>&1 \
     && git push -q >/dev/null 2>&1 \

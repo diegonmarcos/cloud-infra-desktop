@@ -321,8 +321,8 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/home/user/mnt_git/unix/b_mnt/mount.sh start
-ExecStop=/home/user/mnt_git/unix/b_mnt/mount.sh stop
+ExecStart=/home/user/mnt_git/cloud-unix/b_mnt/mount.sh start
+ExecStop=/home/user/mnt_git/cloud-unix/b_mnt/mount.sh stop
 RemainAfterExit=yes
 
 [Install]
@@ -460,7 +460,7 @@ programs.ssh.startAgent = true;
 #    - @shared/containers → /var/lib/containers
 
 # 4. Mount cloud storage (if not auto)
-~/mnt_git/unix/b_mnt/mount.sh start
+~/mnt_git/cloud-unix/b_mnt/mount.sh start
 
 # 5. Open vault when needed
 tomb open ~/vault.tomb -k /usb-key/.vault/vault.key
@@ -476,14 +476,14 @@ ssh-add -l
 distrobox enter arch-dev
 
 # Work on project
-cd ~/mnt_git/cloud
+cd ~/mnt_git/cloud-infra
 vim configuration.nix
 
 # Exit container
 exit
 
 # Commit (from host, using host git)
-cd ~/mnt_git/cloud
+cd ~/mnt_git/cloud-infra
 git add . && git commit -m "Update config"
 ```
 
@@ -494,10 +494,10 @@ git add . && git commit -m "Update config"
 tomb close vault
 
 # Unmount cloud storage (optional)
-~/mnt_git/unix/b_mnt/mount.sh stop
+~/mnt_git/cloud-unix/b_mnt/mount.sh stop
 
 # Commit any changes
-cd ~/mnt_git/unix && git status
+cd ~/mnt_git/cloud-unix && git status
 
 # Shutdown
 # (tmpfs root wiped, persistent data in BTRFS subvolumes)

@@ -24,7 +24,7 @@
         { "label": "continue last", "cmd": "claude --continue" },
         { "label": "pick model", "cmd": "claude --model opus" },
         { "label": "server (kg-bridge)", "cmd": "ssh claude_oci-apps" },
-        { "label": "claude-rescue chain", "cmd": "bash ~/git/tools/dtk.sh recover.claude-rescue" }
+        { "label": "claude-rescue chain", "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh recover.claude-rescue" }
       ]
     },
     {
@@ -34,13 +34,13 @@
         { "label": "local desktop", "url": "http://127.0.0.1:58767/" },
         { "label": "server (my-ai-api goosed)", "url": "http://127.0.0.1:58765/" },
         { "label": "configure", "cmd": "goose configure" },
-        { "label": "install", "cmd": "bash ~/git/tools/dtk.sh provision.goose" }
+        { "label": "install", "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh provision.goose" }
       ]
     },
     {
       "title": "GEMINI",
       "items": [
-        { "label": "provision claude/gemini", "cmd": "bash ~/git/tools/dtk.sh provision.claude" }
+        { "label": "provision claude/gemini", "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh provision.claude" }
       ]
     },
     {
@@ -55,9 +55,9 @@
     {
       "title": "MCP / TOOLING",
       "items": [
-        { "label": "bearer token", "cmd": "python ~/git/vault/A0_keys/providers/authelia/oauth/get_token.py" },
-        { "label": "DTK menu", "cmd": "bash ~/git/tools/dtk.sh" },
-        { "label": "connect dashboard", "cmd": "bash ~/git/tools/dtk.sh connect.dashboard" }
+        { "label": "bearer token", "cmd": "python ~/git/cloud-vault/A0_keys/providers/authelia/oauth/get_token.py" },
+        { "label": "DTK menu", "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh" },
+        { "label": "connect dashboard", "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh connect.dashboard" }
       ]
     },
     {

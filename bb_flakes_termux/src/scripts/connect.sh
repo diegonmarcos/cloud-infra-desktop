@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec "$HOME/git/tools/a-connect/connect.sh" "$@"
+exec "$HOME/git/cloud-mykonsole-dtk/a-connect/connect.sh" "$@"

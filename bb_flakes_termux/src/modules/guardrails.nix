@@ -235,7 +235,7 @@ let
         printf "\033[1;37m  Proceed? [y/N] \033[0m"
         if ! read -t 5 -r REPLY < /dev/tty 2>/dev/null; then
           printf "\n\033[0;31m  [guardrail] BLOCKED (no TTY or timeout): ${cmd} %s\033[0m\n" "$ARGS" >&2
-          printf "\033[0;33m  Source: ~/git/unix/bb_flakes_termux/src/modules/guardrails.nix\033[0m\n" >&2
+          printf "\033[0;33m  Source: ~/git/cloud-unix/bb_flakes_termux/src/modules/guardrails.nix\033[0m\n" >&2
           exit 1
         fi
         if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then

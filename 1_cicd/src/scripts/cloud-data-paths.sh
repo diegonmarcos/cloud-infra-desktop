@@ -19,7 +19,7 @@
 # build.sh used to abort on line 1 for exactly that reason.
 #
 # Usage:
-#   . "$HOME/git/unix/1_cicd/dist/scripts/cloud-data-paths.sh"
+#   . "$HOME/git/cloud-unix/1_cicd/dist/scripts/cloud-data-paths.sh"
 #   LOG=$(cd_log bb_flakes_termux)        # …/cloud-data/logs/bb_flakes_termux.log
 #   REPORT=$(cd_report claude--debug)     # …/cloud-data/reports/claude--debug.json
 #   JOURNAL=$(cd_journal claude--debug)   # …/cloud-data/journal/claude--debug.text

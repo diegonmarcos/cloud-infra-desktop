@@ -11,7 +11,7 @@
     "unix": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/git/tools/6-unix-mcp-api/src/index.ts"]
+      "args": ["/home/diego/git/cloud-mykonsole-dtk/6-unix-mcp-api/src/index.ts"]
     },
     "cloud-infra": {
       "type": "http",
@@ -23,18 +23,18 @@
     "code-graph-context": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/git/cloud/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts"],
+      "args": ["/home/diego/git/cloud-infra/a_solutions/bc-obs_cloud-cgc-mcp/src/index.ts"],
       "env": {
-        "CONFIG_PATH": "/home/diego/git/cloud/config.json"
+        "CONFIG_PATH": "/home/diego/git/cloud-infra/config.json"
       }
     },
     "diego-personal-data": {
       "type": "stdio",
       "command": "tsx",
-      "args": ["/home/diego/git/cloud/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
+      "args": ["/home/diego/git/cloud-infra/a_solutions/ca-dat_c3-diego-personal-data-mcp/src/index.ts"],
       "env": {
-        "VAULT_PATH": "/home/diego/git/vault",
-        "CONFIG_PATH": "/home/diego/git/cloud/config.json"
+        "VAULT_PATH": "/home/diego/git/cloud-vault",
+        "CONFIG_PATH": "/home/diego/git/cloud-infra/config.json"
       }
     },
     "cloud-services": {

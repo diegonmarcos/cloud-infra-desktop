@@ -14,12 +14,12 @@
 { config, pkgs, lib, ... }:
 
 let
-  # ~/git/vault — the SAME path every other module uses (common.nix, the
+  # ~/git/cloud-vault — the SAME path every other module uses (common.nix, the
   # curl/wget wrappers, claude settings env). The old value pointed at
-  # ~/storage/shared/git/vault/… which doesn't exist, so every symlink
+  # ~/storage/shared/git/cloud-vault/… which doesn't exist, so every symlink
   # below dangled and "[wireguard-wstunnel] wg0.conf not found — skipping
   # render" fired on every switch since day one (found 2026-08-08).
-  vaultBase = "${config.home.homeDirectory}/git/vault/A0_keys/providers/wireguard";
+  vaultBase = "${config.home.homeDirectory}/git/cloud-vault/A0_keys/providers/wireguard";
 in
 {
   home.file.".config/wireguard/privatekey" = {
@@ -44,7 +44,7 @@ in
   # a client peer in addition to wg0. Bring up with:
   #   wg-quick up wg-public
   # Vault key dir: vault/A0_keys/providers/wireguard/termux-public/
-  # Source-of-truth peer table: ~/git/cloud/2_configs/dist/build-flakes_termux.json
+  # Source-of-truth peer table: ~/git/cloud-infra/2_configs/dist/build-flakes_termux.json
   #                             .wireguard_public.{peers,clients.termux}
   home.file.".config/wireguard/privatekey-public" = {
     source = config.lib.file.mkOutOfStoreSymlink "${vaultBase}/termux-public/privatekey";
