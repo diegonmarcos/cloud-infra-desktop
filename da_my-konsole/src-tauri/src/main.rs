@@ -362,6 +362,36 @@ fn parse_url(u: &str) -> Result<tauri::Url, String> {
     u.parse::<tauri::Url>().map_err(|e| e.to_string())
 }
 
+// ── Browser webview tracing (MYK_BROWSER_DEBUG=1) ─────────────────────────
+// Every geometry call logs three things: what the frontend asked for, whether
+// the backend accepted it, and what the webview's position/size ACTUALLY are
+// afterwards. The readback is the point. If it does not match the request, the
+// bounds mechanism is inert on this backend and no better numbers from JS can
+// ever fix the overflow — that is a different bug from "we sent bad numbers",
+// and until the readback is on the table the two are indistinguishable.
+fn btrace_on() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("MYK_BROWSER_DEBUG").map(|v| v != "0").unwrap_or(false))
+}
+
+macro_rules! btrace {
+    ($($t:tt)*) => { if btrace_on() { eprintln!("[browser] {}", format_args!($($t)*)); } };
+}
+
+fn readback(wv: &tauri::Webview) -> String {
+    match (wv.position(), wv.size()) {
+        (Ok(p), Ok(s)) => format!("actual=({},{}) {}x{}", p.x, p.y, s.width, s.height),
+        (p, s) => format!("readback failed: pos={:?} size={:?}", p.err(), s.err()),
+    }
+}
+
+// Lets the frontend put its own measurements (CSS rect, devicePixelRatio) into
+// the same stderr stream as the backend's, so one log shows both halves.
+#[tauri::command]
+fn browser_log(msg: String) {
+    btrace!("js: {msg}");
+}
+
 #[tauri::command]
 fn browser_open(
     app: tauri::AppHandle,
@@ -381,6 +411,12 @@ fn browser_open(
         return wv.navigate(u).map_err(|e| e.to_string());
     }
     let win = app.get_window("main").ok_or("no main window")?;
+    btrace!(
+        "open {label} req=({x},{y}) {w}x{h} | window scale={:?} inner={:?} outer={:?}",
+        win.scale_factor(),
+        win.inner_size(),
+        win.outer_size()
+    );
     win.add_child(
         // No .auto_resize(): the 4 Hz bounds poll is already the authority on
         // this webview's rectangle, and auto-resize would fight it on every
@@ -390,6 +426,11 @@ fn browser_open(
         PhysicalSize::new(w.max(1.0) as u32, h.max(1.0) as u32),
     )
     .map_err(|e| e.to_string())?;
+    if let Some(wv) = app.get_webview(&label) {
+        btrace!("open {label} after add_child: {}", readback(&wv));
+    } else {
+        btrace!("open {label}: add_child returned Ok but get_webview finds nothing");
+    }
     Ok(())
 }
 
@@ -404,17 +445,33 @@ fn browser_bounds(
     visible: bool,
 ) -> Result<(), String> {
     use tauri::{PhysicalPosition, PhysicalSize};
-    let Some(wv) = app.get_webview(&label) else { return Ok(()) };
+    let Some(wv) = app.get_webview(&label) else {
+        btrace!("bounds {label}: NO SUCH WEBVIEW (orphan? already closed?)");
+        return Ok(());
+    };
     // Size first, then position: a zero/negative size is rejected by the
     // backend, and an inactive tab legitimately measures 0x0 while hidden.
-    wv.set_size(PhysicalSize::new(w.max(1.0) as u32, h.max(1.0) as u32))
-        .map_err(|e| e.to_string())?;
+    let sz = wv.set_size(PhysicalSize::new(w.max(1.0) as u32, h.max(1.0) as u32));
+    btrace!(
+        "bounds {label} req=({x},{y}) {w}x{h} visible={visible} set_size={:?} | {}",
+        sz.as_ref().err().map(|e| e.to_string()),
+        readback(&wv)
+    );
+    sz.map_err(|e| e.to_string())?;
     let pos = if visible {
         PhysicalPosition::new(x as i32, y as i32)
     } else {
         PhysicalPosition::new(OFFSCREEN, OFFSCREEN)
     };
-    wv.set_position(pos).map_err(|e| e.to_string())
+    let pr = wv.set_position(pos);
+    btrace!(
+        "bounds {label} set_position=({},{}) err={:?} | {}",
+        pos.x,
+        pos.y,
+        pr.as_ref().err().map(|e| e.to_string()),
+        readback(&wv)
+    );
+    pr.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -434,8 +491,13 @@ fn browser_back(app: tauri::AppHandle, label: String) -> Result<(), String> {
 #[tauri::command]
 fn browser_close(app: tauri::AppHandle, label: String) -> Result<(), String> {
     use tauri::{PhysicalPosition, PhysicalSize};
-    let Some(wv) = app.get_webview(&label) else { return Ok(()) };
+    let Some(wv) = app.get_webview(&label) else {
+        btrace!("close {label}: already gone");
+        return Ok(());
+    };
+    btrace!("close {label}: before close, {}", readback(&wv));
     let close_err = wv.close().err().map(|e| e.to_string());
+    btrace!("close {label}: close() err={close_err:?}, survived={}", app.get_webview(&label).is_some());
     // close() is NOT reliable for a child webview on the WebKitGTK backend: it
     // can return Ok and leave the surface alive. Verify, and if one survives,
     // shrink it to 1x1 and park it far offscreen so it cannot be seen, then
@@ -873,7 +935,7 @@ fn main() {
             pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config,
             fs_list_dir, fs_read_file, fs_write_file, fs_glob, which_all,
             ensure_agentic_backend,
-            browser_open, browser_bounds, browser_navigate, browser_back, browser_close
+            browser_open, browser_bounds, browser_navigate, browser_back, browser_close, browser_log
         ])
         .run(tauri::generate_context!())
         .expect("error while running my-konsole");
