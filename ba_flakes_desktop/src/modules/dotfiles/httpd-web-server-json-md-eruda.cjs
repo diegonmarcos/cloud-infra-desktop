@@ -1,7 +1,8 @@
 const { createServer } = require('node:http');
-const { readFile, stat, lstat, readlink, readdir } = require('node:fs/promises');
-const { join, extname } = require('node:path');
+const { readFile, stat, lstat, readlink, readdir, mkdir, writeFile } = require('node:fs/promises');
+const { join, extname, resolve, sep, dirname } = require('node:path');
 const { homedir } = require('node:os');
+const { execFile } = require('node:child_process');
 const process = require('node:process');
 // node:sea — present since Node 20, but only "active" (isSea() === true) when
 // this file is running as a compiled Single Executable Application binary
@@ -42,6 +43,18 @@ async function getLibAsset(libFile) {
   return readFile(join(LIB_DIR, libFile)).catch(() => null);
 }
 const VERBOSE = process.env.HTTPD_VERBOSE !== '0';  // default ON; set HTTPD_VERBOSE=0 to silence
+const WRITE = process.env.HTTPD_WRITE === '1';  // default OFF; this server otherwise browses all of $HOME read-only
+
+// join(ROOT, p) happily escapes ROOT on a `../` path — verified by
+// /__api__/ls?path=../usr listing outside the served root. Resolve first,
+// then require the result to still be inside ROOT. Returns null when it
+// isn't, and every caller treats null as 404.
+const RESOLVED_ROOT = resolve(ROOT);
+function resolveInRoot(p) {
+  const candidate = resolve(RESOLVED_ROOT, '.' + sep + (p || ''));
+  if (candidate === RESOLVED_ROOT || candidate.startsWith(RESOLVED_ROOT + sep)) return candidate;
+  return null;
+}
 
 const ERUDA_SCRIPT = `<script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init();</script>`;
 
@@ -394,6 +407,88 @@ async function serveBrowse(res, initPath) {
   return res.end(html);
 }
 
+// ── Mutating-route guards ──────────────────────────────────────────────────
+// The loopback IP check earlier in the handler stops remote attackers, but
+// NOT a malicious page open in the user's own browser: the browser will
+// happily fire a same-origin-looking POST to 127.0.0.1 on the user's behalf
+// (classic CSRF). Defend with a custom request header (x-httpd-write): the
+// fetch/XHR spec forces a CORS preflight (OPTIONS) for any request carrying
+// a non-"simple" header, and since this server never answers that preflight
+// with permissive Access-Control-Allow-* headers, the browser blocks the
+// actual request before it ever reaches us. A plain <form> POST cannot set
+// custom headers at all, so that vector is closed too. Do NOT "simplify"
+// this away — without the custom header, any website could silently write
+// files or push commits through the user's browser.
+function checkMutationAllowed(req) {
+  if (req.method !== 'POST') return { ok: false, status: 405, error: 'method not allowed, use POST' };
+  if (req.headers['x-httpd-write'] !== '1') return { ok: false, status: 403, error: 'missing x-httpd-write header' };
+  const ct = (req.headers['content-type'] || '').toString();
+  if (!ct.toLowerCase().startsWith('application/json')) {
+    return { ok: false, status: 403, error: 'content-type must be application/json' };
+  }
+  const origin = req.headers['origin'];
+  if (origin) {
+    try {
+      const originHost = new URL(origin).hostname;
+      if (originHost !== 'localhost' && originHost !== '127.0.0.1') {
+        return { ok: false, status: 403, error: 'origin not allowed' };
+      }
+    } catch {
+      return { ok: false, status: 403, error: 'invalid origin header' };
+    }
+  }
+  return { ok: true };
+}
+
+const MAX_BODY_BYTES = 32 * 1024 * 1024; // 32 MB hard cap
+
+function readJsonBody(req) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const chunks = [];
+    let total = 0;
+    let tooBig = false;
+    req.on('data', (chunk) => {
+      if (tooBig) return;
+      total += chunk.length;
+      if (total > MAX_BODY_BYTES) {
+        tooBig = true;
+        rejectPromise({ status: 413, error: 'request body too large (>32MB)' });
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (tooBig) return;
+      const raw = Buffer.concat(chunks).toString('utf8');
+      try {
+        resolvePromise(raw ? JSON.parse(raw) : {});
+      } catch {
+        rejectPromise({ status: 400, error: 'malformed JSON body' });
+      }
+    });
+    req.on('error', () => {
+      if (!tooBig) rejectPromise({ status: 400, error: 'error reading request body' });
+    });
+  });
+}
+
+// execFile-based (never a shell string) git runner — arguments are always
+// passed as an array so nothing is shell-interpreted. Never rejects: any
+// failure comes back as { ok: false, ... } so a git failure can never become
+// an unhandled promise rejection that crashes the process.
+function runGit(args, cwd) {
+  return new Promise((resolvePromise) => {
+    execFile('git', args, { cwd, timeout: 300000, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
+      resolvePromise({
+        ok: !err,
+        code: err && typeof err.code === 'number' ? err.code : (err ? 1 : 0),
+        output: `$ git ${args.join(' ')}\n${stdout || ''}${stderr || ''}`,
+      });
+    });
+  });
+}
+
 // ── Per-request logging ────────────────────────────────────────────────────
 // Captured at request start, finalised on res 'finish'. Emits one line per
 // request unless HTTPD_VERBOSE=0. Format:
@@ -450,7 +545,11 @@ const server = createServer(async (req, res) => {
     if (urlPath === '/__api__/ls') {
       ctx.render = 'api-ls';
       const dirPath = url.searchParams.get('path') || '/';
-      const fsDir = join(ROOT, dirPath);
+      const fsDir = resolveInRoot(dirPath);
+      if (!fsDir) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Not a directory' }));
+      }
       const info = await stat(fsDir).catch(() => null);
       if (!info || !info.isDirectory()) {
         res.writeHead(404, { 'content-type': 'application/json' });
@@ -484,7 +583,11 @@ const server = createServer(async (req, res) => {
     if (urlPath === '/__api__/read') {
       ctx.render = 'api-read';
       const filePath = url.searchParams.get('path') || '/';
-      const fsFile = join(ROOT, filePath);
+      const fsFile = resolveInRoot(filePath);
+      if (!fsFile) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Not a file' }));
+      }
       const info = await stat(fsFile).catch(() => null);
       if (!info || info.isDirectory()) {
         res.writeHead(404, { 'content-type': 'application/json' });
@@ -513,6 +616,11 @@ const server = createServer(async (req, res) => {
       if (!q) {
         res.writeHead(200, { 'content-type': 'application/json' });
         return res.end('[]');
+      }
+      const fsBase = resolveInRoot(base);
+      if (!fsBase) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Not a directory' }));
       }
       const results = [];
       async function walk(dir, rel) {
@@ -544,9 +652,122 @@ const server = createServer(async (req, res) => {
           }
         }
       }
-      await walk(join(ROOT, base), '');
+      await walk(fsBase, '');
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end(JSON.stringify(results));
+    }
+
+    // ── API: write file (opt-in, CSRF-guarded) ──
+    if (urlPath === '/__api__/write') {
+      ctx.render = 'api-write';
+      if (!WRITE) {
+        res.writeHead(403, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'write mode disabled (start with HTTPD_WRITE=1)' }));
+      }
+      const guard = checkMutationAllowed(req);
+      if (!guard.ok) {
+        res.writeHead(guard.status, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: guard.error }));
+      }
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (e) {
+        res.writeHead(e.status || 400, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.error || 'bad request' }));
+      }
+      const hasContent = typeof body.content === 'string';
+      const hasB64 = typeof body.b64 === 'string';
+      if (typeof body.path !== 'string' || (hasContent === hasB64)) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'body must have "path" and exactly one of "content"/"b64"' }));
+      }
+      const fsTarget = resolveInRoot(body.path);
+      if (!fsTarget) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'path outside root' }));
+      }
+      const buf = hasContent ? Buffer.from(body.content, 'utf8') : Buffer.from(body.b64, 'base64');
+      await mkdir(dirname(fsTarget), { recursive: true });
+      await writeFile(fsTarget, buf);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify({ ok: true, path: body.path, bytes: buf.length }));
+    }
+
+    // ── API: git add + commit + push (scoped, never an arbitrary shell) ──
+    if (urlPath === '/__api__/git') {
+      ctx.render = 'api-git';
+      if (!WRITE) {
+        res.writeHead(403, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'write mode disabled (start with HTTPD_WRITE=1)' }));
+      }
+      const guard = checkMutationAllowed(req);
+      if (!guard.ok) {
+        res.writeHead(guard.status, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: guard.error }));
+      }
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (e) {
+        res.writeHead(e.status || 400, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.error || 'bad request' }));
+      }
+      if (typeof body.repo !== 'string' || typeof body.message !== 'string' ||
+          !Array.isArray(body.paths) || body.paths.length === 0 ||
+          !body.paths.every((p) => typeof p === 'string')) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'body must have "repo" (string), "message" (string), "paths" (non-empty string array)' }));
+      }
+      const fsRepo = resolveInRoot(body.repo);
+      if (!fsRepo) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'repo path outside root' }));
+      }
+      const gitDirInfo = await stat(join(fsRepo, '.git')).catch(() => null);
+      if (!gitDirInfo) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'not a git repository (no .git)' }));
+      }
+      try {
+        const logParts = [];
+        const addResult = await runGit(['add', '-A', '--', ...body.paths], fsRepo);
+        logParts.push(addResult.output);
+        if (!addResult.ok) {
+          res.writeHead(500, { 'content-type': 'application/json' });
+          return res.end(JSON.stringify({ ok: false, log: logParts.join('\n') }));
+        }
+        const statusResult = await runGit(['status', '--porcelain', '--', ...body.paths], fsRepo);
+        logParts.push(statusResult.output);
+        if (!statusResult.ok) {
+          res.writeHead(500, { 'content-type': 'application/json' });
+          return res.end(JSON.stringify({ ok: false, log: logParts.join('\n') }));
+        }
+        if (!statusResult.output.split('\n').slice(1).some((l) => l.trim())) {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          return res.end(JSON.stringify({ ok: true, skipped: 'nothing to commit' }));
+        }
+        // Trailing pathspec on commit is REQUIRED: without it git commits the
+        // entire staged index, and these worktrees routinely carry unrelated
+        // staged work from other in-flight edits.
+        const commitResult = await runGit(['commit', '-m', body.message, '--', ...body.paths], fsRepo);
+        logParts.push(commitResult.output);
+        if (!commitResult.ok) {
+          res.writeHead(500, { 'content-type': 'application/json' });
+          return res.end(JSON.stringify({ ok: false, log: logParts.join('\n') }));
+        }
+        const pushResult = await runGit(['push'], fsRepo);
+        logParts.push(pushResult.output);
+        if (!pushResult.ok) {
+          res.writeHead(500, { 'content-type': 'application/json' });
+          return res.end(JSON.stringify({ ok: false, log: logParts.join('\n') }));
+        }
+        res.writeHead(200, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, log: logParts.join('\n') }));
+      } catch (gitErr) {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, log: gitErr && gitErr.message ? gitErr.message : String(gitErr) }));
+      }
     }
 
     // Serve lib assets from ~/.local/lib/httpd/
@@ -571,7 +792,12 @@ const server = createServer(async (req, res) => {
       return res.end(data);
     }
 
-    let fsPath = join(ROOT, urlPath);
+    let fsPath = resolveInRoot(urlPath);
+    if (!fsPath) {
+      ctx.render = 'notfound'; ctx.note = `path outside root: ${urlPath}`;
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      return res.end('Not found');
+    }
     let info = await stat(fsPath).catch(() => null);
 
     // SvelteKit route paths have no extension (e.g. /scene/demo-day) but
@@ -716,6 +942,7 @@ function startupBanner() {
     `  ${C.dim}pid       ${C.reset}${process.pid}`,
     `  ${C.dim}node      ${C.reset}${process.version}  ${C.dim}(${process.platform}/${process.arch})${C.reset}`,
     `  ${C.dim}verbose   ${C.reset}${VERBOSE ? C.green + 'on' + C.reset + C.dim + ' (HTTPD_VERBOSE=0 to silence)' + C.reset : C.gray + 'off' + C.reset}`,
+    `  ${C.dim}write     ${C.reset}${WRITE ? C.green + 'on' + C.reset + C.dim + ' (HTTPD_WRITE=1)' + C.reset : C.gray + 'off' + C.reset + C.dim + ' (set HTTPD_WRITE=1 to enable)' + C.reset}`,
     `  ${C.dim}firewall  ${C.reset}loopback only ${C.dim}(127.0.0.1, ::1)${C.reset}`,
     `  ${C.dim}max size  ${C.reset}5 MB ${C.dim}(API /__api__/read)${C.reset}`,
     '',

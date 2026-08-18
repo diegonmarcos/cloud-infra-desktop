@@ -77,6 +77,11 @@ let
     runtimeInputs = [ pkgs.coreutils ];
     runtimeEnv = {
       HTTPD_WEB_SERVER_BIN = "${httpdBin}/bin/httpd-web-server-json-md-eruda";
+      # Keeps the desktop flake in step with the termux one, which enables the
+      # same opt-in write API so a single :8000 instance can back local editing
+      # tools. Mutating routes stay loopback-only, require the custom
+      # X-Httpd-Write header, and are confined to the served root.
+      HTTPD_WRITE = "1";
     };
     text = builtins.readFile ./httpd-web-server-json-md-eruda.sh;
   };

@@ -113,6 +113,13 @@ let
     runtimeInputs = [ pkgs.coreutils ];
     runtimeEnv = {
       HTTPD_WEB_SERVER_BIN = "${httpdBin}/bin/httpd-web-server-json-md-eruda";
+      # Write API (/__api__/write, /__api__/git) is opt-in and off by default
+      # in the server itself. Enabled here so the one always-on :8000 instance
+      # can back local editing tools instead of each one shipping its own
+      # second webserver. Mutating routes are still loopback-only, require the
+      # custom X-Httpd-Write header (so cross-origin pages can't reach them),
+      # and are confined to the served root.
+      HTTPD_WRITE = "1";
     };
     text = builtins.readFile ./httpd-web-server-json-md-eruda.sh;
   };
@@ -123,7 +130,7 @@ let
   # runit service is meant to always-serve-$HOME-on-8000; use the wrapper
   # directly for one-off custom roots/ports.
   runitRunScript = pkgs.writeShellScript "httpd-web-server-json-md-eruda-run" ''
-    exec "${httpdBin}/bin/httpd-web-server-json-md-eruda" 8000 "$HOME"
+    HTTPD_WRITE=1 exec "${httpdBin}/bin/httpd-web-server-json-md-eruda" 8000 "$HOME"
   '';
 in
 {
