@@ -80,7 +80,7 @@ RUN mkdir -p /root/git && \
 COPY docker/ /opt/cloud-builder/
 RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh
 
-LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud"
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-infra"
 LABEL org.opencontainers.image.description="cloud-builder — self-contained CI/CD image (nix, sops, rsync, docker, all repos)"
 
 # Entrypoint: no args = print usage, anything else = dispatch command

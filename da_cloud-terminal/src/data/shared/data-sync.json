@@ -3,7 +3,7 @@
   "version": 1,
   "git_root": "git",
   "git_repos": ["cloud", "unix", "front", "vault", "tools"],
-  "gh_repos": ["diegonmarcos/cloud", "diegonmarcos/unix", "diegonmarcos/front", "diegonmarcos/tools"],
+  "gh_repos": ["diegonmarcos/cloud-infra", "diegonmarcos/cloud-unix", "diegonmarcos/front", "diegonmarcos/cloud-mykonsole-dtk"],
   "peers": [
     { "name": "desktop",       "kind": "local", "host": "",              "note": "Surface Pro 8 — this machine" },
     { "name": "termux",        "kind": "ssh",   "host": "termux",        "note": "nix-on-droid phone" },

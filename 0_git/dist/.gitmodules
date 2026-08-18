@@ -23,7 +23,7 @@
 # Nothing in unix read through those directories at runtime; they were pure
 # index duplication of clones that already exist as siblings. The one real
 # filesystem reference (ea_cloud-superapp/data/regen.sh) already goes via
-# $HOME/git/cloud/, not through a submodule path. No workflow checked them out
+# $HOME/git/cloud-infra/, not through a submodule path. No workflow checked them out
 # either, so CI never depended on them.
 #
 # unix-ship-repo-workflow-engine.sh reconciles declaratively against this file:

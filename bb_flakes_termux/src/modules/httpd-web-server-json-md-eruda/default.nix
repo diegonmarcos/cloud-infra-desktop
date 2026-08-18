@@ -30,7 +30,7 @@
 
 let
   hashes  = builtins.fromJSON (builtins.readFile ./hashes.json);
-  baseUrl = "https://github.com/diegonmarcos/unix/releases/download/httpd-web-server-json-md-eruda-latest";
+  baseUrl = "https://github.com/diegonmarcos/cloud-unix/releases/download/httpd-web-server-json-md-eruda-latest";
 
   # A raw pkgs.fetchurl result is NOT executable on nix-on-droid: the fetched
   # binary is the official nodejs.org release (see

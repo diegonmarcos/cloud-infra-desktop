@@ -83,6 +83,6 @@ escaping + slot cap) run anywhere; the live test runs only when a Waydroid sessi
 ## Note: Waydroid itself is not yet declarative
 
 `waydroid` is installed on this host but is **not** in any NixOS/home-manager flake
-(`grep -ri waydroid ~/git/unix` → nothing). This project provisions *into* Waydroid; making
+(`grep -ri waydroid ~/git/cloud-unix` → nothing). This project provisions *into* Waydroid; making
 `virtualisation.waydroid.enable` itself declarative in the Surface host config is a separate,
 recommended follow-up.

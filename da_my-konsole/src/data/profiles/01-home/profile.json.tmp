@@ -22,11 +22,11 @@
         },
         {
           "label": "cloud repo",
-          "cmd": "cd ~/git/cloud"
+          "cmd": "cd ~/git/cloud-infra"
         },
         {
           "label": "unix repo",
-          "cmd": "cd ~/git/unix"
+          "cmd": "cd ~/git/cloud-unix"
         },
         {
           "label": "front repo",
@@ -34,11 +34,11 @@
         },
         {
           "label": "vault repo",
-          "cmd": "cd ~/git/vault"
+          "cmd": "cd ~/git/cloud-vault"
         },
         {
           "label": "tools repo",
-          "cmd": "cd ~/git/tools"
+          "cmd": "cd ~/git/cloud-mykonsole-dtk"
         }
       ]
     },

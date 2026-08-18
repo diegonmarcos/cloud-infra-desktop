@@ -99,21 +99,21 @@ RUN chmod +x /opt/cloud-builder/*.sh
 # entrypoint, where the deploy key is injected. Keep image builds credential-free.
 RUN mkdir -p /root/git \
     && git config --global --add safe.directory "*" \
-    && git clone --depth 1 https://github.com/diegonmarcos/cloud.git /root/git/cloud \
-    && git clone --depth 1 https://github.com/diegonmarcos/unix.git /root/git/unix \
+    && git clone --depth 1 https://github.com/diegonmarcos/cloud-infra.git /root/git/cloud-infra \
+    && git clone --depth 1 https://github.com/diegonmarcos/cloud-unix.git /root/git/cloud-unix \
     && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git /root/git/front \
     && git clone --depth 1 https://github.com/diegonmarcos/front-data.git /root/git/front-data \
-    && git clone --depth 1 https://github.com/diegonmarcos/tools.git /root/git/tools \
+    && git clone --depth 1 https://github.com/diegonmarcos/cloud-mykonsole-dtk.git /root/git/cloud-mykonsole-dtk \
     && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.git /root/git/diegonmarcos
 
 ARG DOCKERFILE_B64=""
-LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud"
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-infra"
 LABEL org.opencontainers.image.description="cloud-builder — Debian flat + nix + home-manager CI/CD image"
 LABEL org.opencontainers.image.usage="docker run --rm ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm cat /opt/cloud-builder/cloud-builder.sh | sh -s ship oci-apps"
 
 COPY docker/cloud-builder.sh /opt/cloud-builder/cloud-builder.sh
 COPY docker/compose.yaml /opt/cloud-builder/compose.yaml
 
-WORKDIR /root/git/cloud
+WORKDIR /root/git/cloud-infra
 ENTRYPOINT ["/opt/cloud-builder/entrypoint.sh"]
 CMD []

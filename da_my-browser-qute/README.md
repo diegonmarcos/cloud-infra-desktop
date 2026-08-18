@@ -48,7 +48,7 @@ declares the monorepo as a non-flake input and imports this module from it:
 
 ```nix
 # ba_flakes_desktop/src/flake.nix
-inputs.unix-repo = { url = "github:diegonmarcos/unix"; flake = false; };
+inputs.unix-repo = { url = "github:diegonmarcos/cloud-unix"; flake = false; };
 ```
 
 ```nix

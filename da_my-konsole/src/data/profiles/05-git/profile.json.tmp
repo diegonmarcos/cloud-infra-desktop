@@ -101,11 +101,11 @@
         },
         {
           "label": "runs (cloud)",
-          "cmd": "gh run list -R diegonmarcos/cloud -L 15"
+          "cmd": "gh run list -R diegonmarcos/cloud-infra -L 15"
         },
         {
           "label": "runs (unix)",
-          "cmd": "gh run list -R diegonmarcos/unix -L 15"
+          "cmd": "gh run list -R diegonmarcos/cloud-unix -L 15"
         },
         {
           "label": "runs (front)",
@@ -126,7 +126,7 @@
         },
         {
           "label": "package versions",
-          "cmd": "bash ~/git/tools/dtk.sh fleet.gh-registry"
+          "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh fleet.gh-registry"
         }
       ]
     }

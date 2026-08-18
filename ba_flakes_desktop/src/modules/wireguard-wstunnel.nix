@@ -34,7 +34,7 @@
 let
   # ── Data sources (declarative cross-references, no inlined values) ──────
   # Sourced from the `cloud-repo` flake input (pinned github fetch of
-  # diegonmarcos/cloud) — always fetchable in fresh clones / CI / sandboxed
+  # diegonmarcos/cloud-infra) — always fetchable in fresh clones / CI / sandboxed
   # evals. Local hacking? Override at build time:
   #   --override-input cloud-repo path:/home/$USER/git/cloud-infra
   wsTunnelBuildJson =

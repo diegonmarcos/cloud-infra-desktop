@@ -28,7 +28,7 @@
     # "relative path points outside of its parent's store path", so this is a remote
     # ref and asset edits must be pushed before a switch will see them.
     my-ai = {
-      url = "github:diegonmarcos/unix?dir=da_my-ai";
+      url = "github:diegonmarcos/cloud-unix?dir=da_my-ai";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
   };
@@ -144,7 +144,7 @@
         contents = [ self.nixOnDroidConfigurations.default.activationPackage ];
         config.Labels = {
           "org.opencontainers.image.description" = "Termux (nix-on-droid) activation closure as layered store paths (incremental GHCR cache).";
-          "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
+          "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-unix";
         };
       };
     };

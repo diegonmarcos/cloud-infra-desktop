@@ -43,11 +43,11 @@
       "items": [
         {
           "label": "Host: test (dry)",
-          "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh test"
+          "cmd": "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/build.sh test"
         },
         {
           "label": "Host: switch",
-          "cmd": "~/git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh switch"
+          "cmd": "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/build.sh switch"
         },
         {
           "label": "List generations",
@@ -146,7 +146,7 @@
         },
         {
           "label": "Boot entries (rEFInd)",
-          "cmd": "~/git/unix/aa_bootloader/build.sh info"
+          "cmd": "~/git/cloud-unix/aa_bootloader/build.sh info"
         },
         {
           "label": "EFI vars / boot order",

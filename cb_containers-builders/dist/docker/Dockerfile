@@ -74,16 +74,16 @@ RUN mkdir -p /root/git && \
         bash -c "cd /root/git/${repo} && bash 1_workflows/build.sh deploy" || true; \
       fi; \
     done && \
-    git -C /root/git/cloud submodule update --init --recursive 2>/dev/null || true
+    git -C /root/git/cloud-infra submodule update --init --recursive 2>/dev/null || true
 
 # Self-documenting: all docker/ scripts baked into image
 COPY docker/ /opt/cloud-builder/
 RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh
 
-LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud"
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-infra"
 LABEL org.opencontainers.image.description="cloud-builder — self-contained CI/CD image (nix, sops, rsync, docker, all repos)"
 
 # Entrypoint: no args = print usage, anything else = dispatch command
-WORKDIR /root/git/cloud
+WORKDIR /root/git/cloud-infra
 ENTRYPOINT ["/opt/cloud-builder/entrypoint.sh"]
 CMD []

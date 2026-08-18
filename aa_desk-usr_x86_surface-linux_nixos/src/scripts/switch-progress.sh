@@ -105,7 +105,7 @@ GIT_HEAD="$(git -C "$REPO" log --oneline -1 2>/dev/null | cut -c1-64)"
 BIG_LAYER="$(printf '%s' "${_mf:-}" | jq -r '[.layers[].size] | max / 1048576 | floor' 2>/dev/null)"
 CI_RUN="$(cd "$REPO" && timeout 8 gh run list --limit 1 --json databaseId,conclusion,headSha \
     --jq '.[0] | "\(.databaseId) \(.conclusion) \(.headSha[0:8])"' 2>/dev/null)"
-CI_URL="https://github.com/diegonmarcos/unix/actions/runs/${CI_RUN%% *}"
+CI_URL="https://github.com/diegonmarcos/cloud-unix/actions/runs/${CI_RUN%% *}"
 HIST="$(ls -t "$(dirname "$LOG")"/build-konsole-*.log 2>/dev/null | head -5 | while read -r f; do
     v="…run"; command grep -qa 'SAFE TO REBOOT' "$f" && v="✅ OK"
     command grep -qaE 'unexpected EOF|network is unreachable' "$f" && v="❌ net-fail"

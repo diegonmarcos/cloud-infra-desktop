@@ -16,7 +16,7 @@
 #
 # Usage: ./test-rss-autoprovision.sh   (run from anywhere; live check needs wg0)
 set -u
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"            # → ~/git/unix
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"            # → ~/git/cloud-unix
 SRC="$ROOT/ea_upstreams-sources/mail-fairmail/app/src/main/java/eu/faircode/email"
 GRADLE="$ROOT/ea_upstreams-sources/mail-fairmail/app/build.gradle"
 BJSON="$ROOT/ea_cloud-comms/build.json"

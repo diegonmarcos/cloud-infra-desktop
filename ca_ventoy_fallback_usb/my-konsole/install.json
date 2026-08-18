@@ -102,6 +102,6 @@
     },
     "iso_artifact": "my-konsole-iso",
     "iso_workflow": "ship-my-konsole-iso.yml",
-    "iso_repo": "diegonmarcos/unix"
+    "iso_repo": "diegonmarcos/cloud-unix"
   }
 }

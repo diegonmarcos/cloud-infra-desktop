@@ -29,7 +29,7 @@ Same failure class as the BlissOS dangling entry
 
 `ca_ventoy_fallback_usb/my-konsole/install.json` already declares the whole
 flow: CI workflow `ship-my-konsole-iso.yml` builds the rescue ISO artifact
-(`my-konsole-iso`, repo diegonmarcos/unix); `build.sh install-partition` in
+(`my-konsole-iso`, repo diegonmarcos/cloud-unix); `build.sh install-partition` in
 `ca_ventoy_fallback_usb/my-konsole/` rsyncs the live filesystem onto the
 partition (stable UUID `27ffc22b-f89e-492d-aeda-2341e8eba898`), installs
 `/EFI/boot/bootx64.efi`, and relabels to `MY_KONSOLE`.

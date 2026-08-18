@@ -284,15 +284,15 @@
       "title": "Workflow — GHA / Dagu",
       "profile": "cloud-infra",
       "enable": true,
-      "default_command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/unix -L 15; read'",
+      "default_command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/cloud-unix -L 15; read'",
       "menu": [
         {
           "label": "GHA: recent runs (unix)",
-          "command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/unix -L 15; read'"
+          "command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/cloud-unix -L 15; read'"
         },
         {
           "label": "GHA: recent runs (cloud)",
-          "command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/cloud -L 15; read'"
+          "command": "konsole --hold -e bash -lc 'gh run list -R diegonmarcos/cloud-infra -L 15; read'"
         },
         {
           "label": "GHA: watch latest run",

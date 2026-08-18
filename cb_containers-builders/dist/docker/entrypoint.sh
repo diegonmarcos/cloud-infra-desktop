@@ -245,7 +245,7 @@ fi
 # bulletproof reset-from-origin (fetch + reset --hard + clean -fdx +
 # submodule update --remote --rebase --force). Survives force-pushed
 # origin, dirty work, untracked files, divergent history.
-# See ~/git/cloud/1_cicd/src/scripts/cloud-git-nuke.sh.
+# See ~/git/cloud-infra/1_cicd/src/scripts/cloud-git-nuke.sh.
 #
 # Falls back to hand-rolled fetch+reset for repos without the framework
 # (cloud-data, front) or images that pre-date the alias.

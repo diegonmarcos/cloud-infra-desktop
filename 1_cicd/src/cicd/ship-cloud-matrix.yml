@@ -49,7 +49,7 @@ jobs:
       - name: Checkout vault (shared Android signing key)
         uses: actions/checkout@v4
         with:
-          repository: diegonmarcos/vault
+          repository: diegonmarcos/cloud-vault
           token: ${{ secrets.ANDROID_SIGNING_VAULT_TOKEN }}
           path: .vault
 

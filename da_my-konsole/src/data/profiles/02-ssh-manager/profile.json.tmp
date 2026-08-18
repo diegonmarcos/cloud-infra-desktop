@@ -88,19 +88,19 @@
       "items": [
         {
           "label": "mode: SSH (default)",
-          "cmd": "bash ~/git/tools/dtk.sh fleet.mode-ssh"
+          "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh fleet.mode-ssh"
         },
         {
           "label": "mode: Dropbear",
-          "cmd": "bash ~/git/tools/dtk.sh fleet.mode-dropbear"
+          "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh fleet.mode-dropbear"
         },
         {
           "label": "mode: Serial",
-          "cmd": "bash ~/git/tools/dtk.sh fleet.mode-serial"
+          "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh fleet.mode-serial"
         },
         {
           "label": "mode: status",
-          "cmd": "bash ~/git/tools/dtk.sh fleet.mode-status"
+          "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh fleet.mode-status"
         }
       ]
     },

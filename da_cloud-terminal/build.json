@@ -11,7 +11,7 @@
       "tags": ["latest", "sha-{sha}"]
     },
     "gh_release": {
-      "repo": "diegonmarcos/unix",
+      "repo": "diegonmarcos/cloud-unix",
       "rolling_tag": "latest",
       "asset": "cloud-terminal.tar.zst",
       "version_asset": "cloud-terminal.version"

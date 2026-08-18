@@ -7,7 +7,7 @@
 # SKIP (not FAIL) off-mesh. T5 is the dex check on the released APK (SKIP if gh
 # / unzip unavailable). Mirrors test-mail-updater-channel.sh conventions.
 set -u
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"      # → ~/git/unix
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"      # → ~/git/cloud-unix
 PATCHES="$ROOT/ea_cloud-comms/forks/mail/patches"
 TRACKER="$ROOT/ea_upstreams-sources/mail-fairmail/app/src/main/java/eu/faircode/email"
 GATEWAY="${RSS_GATEWAY_BASE:-https://rss.diegonmarcos.com/feed}"

@@ -15,7 +15,7 @@ let
   archMap = { "x86_64-linux" = "x86_64"; "aarch64-linux" = "aarch64"; };
   arch    = archMap.${pkgs.stdenv.hostPlatform.system}
               or (throw "httpd-web-server-json-md-eruda: unsupported platform ${pkgs.stdenv.hostPlatform.system}");
-  baseUrl = "https://github.com/diegonmarcos/unix/releases/download/httpd-web-server-json-md-eruda-latest";
+  baseUrl = "https://github.com/diegonmarcos/cloud-unix/releases/download/httpd-web-server-json-md-eruda-latest";
   sys     = hashes.${pkgs.stdenv.hostPlatform.system};
 
   # The fetched binary is the official nodejs.org release (see

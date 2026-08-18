@@ -11,7 +11,7 @@
 # evaluation and projects it into `programs.qutebrowser`.
 #
 # We import the daemon's home-manager module via the `unix-repo` flake input
-# (declared in flake.nix, pinned to a github commit of diegonmarcos/unix).
+# (declared in flake.nix, pinned to a github commit of diegonmarcos/cloud-unix).
 # Using a flake input — not a relative `..` traversal — keeps the import
 # portable across all flake ref styles and avoids escaping the flake source
 # dir at eval time.
