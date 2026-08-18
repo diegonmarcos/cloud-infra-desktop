@@ -8,7 +8,7 @@
     ./programs/shells/fish.nix
     ./programs/shells/starship.nix
     ./programs/shells/fzf.nix
-    ./httpd-web-server-json-md-eruda
+    ./my-webserver
     ./cliphist.nix
     ./programs/editors/vim.nix
     ./programs/git.nix
@@ -135,9 +135,9 @@
   # Systemd user services (for Linux)
   systemd.user.startServices = "sd-switch";
 
-  # Web server: httpd-web-server-json-md-eruda (JSON/YAML tables + Markdown +
+  # Web server: my-webserver (JSON/YAML tables + Markdown +
   # Eruda DevTools). Module imported above → deploys the
-  # httpd-web-server-json-md-eruda wrapper around a prebuilt, per-arch fetched
+  # my-webserver wrapper around a prebuilt, per-arch fetched
   # binary. Auto-started via systemd.user.services (port 8000).
 
   # News notifications

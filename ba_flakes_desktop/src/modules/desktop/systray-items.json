@@ -24,7 +24,7 @@
       "shown": [
         "cloud-systray",
         "docker-systray",
-        "httpd-web-server-json-md-eruda-systray",
+        "my-webserver-systray",
         "my-ai-systray",
         "nix-flakes-systray",
         "vault-systray",

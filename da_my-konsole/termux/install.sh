@@ -41,7 +41,7 @@ cat > "$boot_dir/$BIN_NAME" <<EOF
 # Also (re)starts the httpd/eruda/md-json asset server the WebView renders
 # local markdown/JSON through — boot is the only trigger that fires without
 # an interactive shell (the fish auto-start hook only fires on shell open).
-command -v httpd-web-server-json-md-eruda >/dev/null 2>&1 && httpd-web-server-json-md-eruda start >/dev/null 2>&1
+command -v my-webserver >/dev/null 2>&1 && my-webserver start >/dev/null 2>&1
 exec "$dest"
 EOF
 chmod +x "$boot_dir/$BIN_NAME"

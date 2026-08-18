@@ -1,14 +1,14 @@
-# httpd-web-server-json-md-eruda (Termux) — file server with Markdown,
+# my-webserver (Termux) — file server with Markdown,
 # JSON/YAML table, and Eruda DevTools rendering.
 #
 # Fetches the same prebuilt aarch64 Node SEA binary the desktop module fetches
-# (published by 1_cicd/src/cicd/ship-httpd-web-server-json-md-eruda.yml
-# to the rolling httpd-web-server-json-md-eruda-latest GitHub Release) — same
+# (published by 1_cicd/src/cicd/ship-my-webserver-app.yml
+# to the rolling my-webserver-latest GitHub Release) — same
 # fetchurl + hashes.json pattern as da_my-ai (see
 # bb_flakes_termux/src/pkgs/my-ai-hashes.json). No more loose .mjs + lib
 # assets shipped via home.file.
 #
-# Provides: httpd-web-server-json-md-eruda command (start|stop|status|restart),
+# Provides: my-webserver command (start|stop|status|restart),
 # PID-file wrapper style copied from ../cloud-ide-sshd/default.nix (the only
 # existing Termux daemon pattern in this repo).
 #
@@ -22,7 +22,7 @@
 #     prefix rather than rebuilding it) — home.activation below only calls
 #     `sv-enable` best-effort and warns (does not fail activation) if it's
 #     missing.
-#   - $HOME/.termux/service/httpd-web-server-json-md-eruda/run execs the
+#   - $HOME/.termux/service/my-webserver/run execs the
 #     fetched binary directly (no fork), per runit convention: runsv restarts
 #     it automatically on exit, giving real supervision the on-demand
 #     PID-file wrapper never had.
@@ -30,11 +30,11 @@
 
 let
   hashes  = builtins.fromJSON (builtins.readFile ./hashes.json);
-  baseUrl = "https://github.com/diegonmarcos/cloud-unix/releases/download/httpd-web-server-json-md-eruda-latest";
+  baseUrl = "https://github.com/diegonmarcos/cloud-unix/releases/download/my-webserver-latest";
 
   # A raw pkgs.fetchurl result is NOT executable on nix-on-droid: the fetched
   # binary is the official nodejs.org release (see
-  # ship-httpd-web-server-json-md-eruda.yml) with a generic FHS interpreter
+  # ship-my-webserver-app.yml) with a generic FHS interpreter
   # (/lib/ld-linux-aarch64.so.1), which doesn't exist on this flake's
   # nix-on-droid store — "cannot execute: required file not found" (same
   # class of bug da_my-ai already hit — see pkgs/my-ai.nix). We rewrite the
@@ -47,12 +47,12 @@ let
       runtimeLibs = [ pkgs.stdenv.cc.libc pkgs.gcc-unwrapped.lib pkgs.libgcc ];
     in
     pkgs.stdenv.mkDerivation {
-      pname   = "httpd-web-server-json-md-eruda";
+      pname   = "my-webserver";
       version = "latest";
 
       src = pkgs.fetchurl {
-        url  = "${baseUrl}/httpd-web-server-json-md-eruda-aarch64";
-        hash = hashes.httpd-web-server-json-md-eruda;
+        url  = "${baseUrl}/my-webserver-aarch64";
+        hash = hashes.my-webserver;
       };
 
       # nixpkgs-24.05's pinned patchelf (0.15.0) SIGABRTs ("Assertion
@@ -85,17 +85,17 @@ let
       dontUnpack = true;
 
       installPhase = ''
-        install -Dm755 $src $out/bin/httpd-web-server-json-md-eruda
+        install -Dm755 $src $out/bin/my-webserver
         "${patchelfUnstable}/bin/patchelf" \
           --set-interpreter "$(cat "$NIX_BINTOOLS/nix-support/dynamic-linker")" \
           --set-rpath "${lib.makeLibraryPath runtimeLibs}" \
-          $out/bin/httpd-web-server-json-md-eruda
+          $out/bin/my-webserver
       '';
     };
 
-  serviceName = "httpd-web-server-json-md-eruda";
+  serviceName = "my-webserver";
 
-  # Shell body lives in ./httpd-web-server-json-md-eruda.sh (duplicated
+  # Shell body lives in ./my-webserver.sh (duplicated
   # verbatim from the desktop module's sibling script — same wrapper logic,
   # kept as a separate file rather than a cross-tree share since the two
   # module trees (home-manager desktop vs nix-on-droid termux) don't share
@@ -104,15 +104,15 @@ let
   # baked-in ${httpdBin} string.
   #
   # This wrapper is the on-demand / interactive-shell path (fish auto-start).
-  # The runit service (sv httpd-web-server-json-md-eruda) is the real
+  # The runit service (sv my-webserver) is the real
   # background-supervision path — see run script below. Both exec the same
   # fetched binary; running both at once will fight over the port exactly
   # like the old http-dev wrapper + disabled systemd unit did on desktop.
   httpdWrapperScript = pkgs.writeShellApplication {
-    name = "httpd-web-server-json-md-eruda";
+    name = "my-webserver";
     runtimeInputs = [ pkgs.coreutils ];
     runtimeEnv = {
-      HTTPD_WEB_SERVER_BIN = "${httpdBin}/bin/httpd-web-server-json-md-eruda";
+      HTTPD_WEB_SERVER_BIN = "${httpdBin}/bin/my-webserver";
       # Write API (/__api__/write, /__api__/git) is opt-in and off by default
       # in the server itself. Enabled here so the one always-on :8000 instance
       # can back local editing tools instead of each one shipping its own
@@ -138,9 +138,9 @@ let
       # activation below. The allowlist bounds WHAT can be written; this bounds
       # WHO can write. It matters most on Android, where any installed app can
       # reach 127.0.0.1 but cannot read a 0600 file owned by another UID.
-      HTTPD_WRITE_TOKEN_FILE = "${config.home.homeDirectory}/.cache/httpd-web-server-json-md-eruda.token";
+      HTTPD_WRITE_TOKEN_FILE = "${config.home.homeDirectory}/.cache/my-webserver.token";
     };
-    text = builtins.readFile ./httpd-web-server-json-md-eruda.sh;
+    text = builtins.readFile ./my-webserver.sh;
   };
 
   # runit run script — `exec`'d, NOT forked, per runit convention: runsv is
@@ -148,19 +148,19 @@ let
   # Fixed port 8000 / $HOME root, matching the wrapper's defaults — the
   # runit service is meant to always-serve-$HOME-on-8000; use the wrapper
   # directly for one-off custom roots/ports.
-  runitRunScript = pkgs.writeShellScript "httpd-web-server-json-md-eruda-run" ''
+  runitRunScript = pkgs.writeShellScript "my-webserver-run" ''
     # Same opt-in write scope as the interactive wrapper above — see the
     # HTTPD_WRITE_ROOTS comment there for why writes are confined rather than
     # granted across all of $HOME.
     export HTTPD_WRITE=1
     export HTTPD_WRITE_ROOTS="/git/front/b-Media/mySocials/src/data:/git/front/b-Media/mySocials/dist:/git/front-assets-cdn/b-Media/mySocials/static/media"
-    export HTTPD_WRITE_TOKEN_FILE="$HOME/.cache/httpd-web-server-json-md-eruda.token"
-    exec "${httpdBin}/bin/httpd-web-server-json-md-eruda" 8000 "$HOME"
+    export HTTPD_WRITE_TOKEN_FILE="$HOME/.cache/my-webserver.token"
+    exec "${httpdBin}/bin/my-webserver" 8000 "$HOME"
   '';
 in
 {
-  home.file.".local/bin/httpd-web-server-json-md-eruda".source =
-    "${httpdWrapperScript}/bin/httpd-web-server-json-md-eruda";
+  home.file.".local/bin/my-webserver".source =
+    "${httpdWrapperScript}/bin/my-webserver";
 
   # Render the write-API shared secret out of the sops-encrypted secrets.yaml
   # to a 0600 file. Must run before the fish hook starts the server, since the
@@ -168,10 +168,10 @@ in
   # and the server fails closed — see token-render.sh for why that direction is
   # the opposite of cloud-ide-sshd's.
   # body in ./token-render.sh (no-inline-scripts decree 2026-08-08)
-  home.activation.httpdWebServerJsonMdErudaToken = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+  home.activation.myWebserverToken = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     YQ_BIN="${pkgs.yq-go}/bin/yq" \
     SECRETS="${./secrets.yaml}" \
-    OUT="${config.home.homeDirectory}/.cache/httpd-web-server-json-md-eruda.token" \
+    OUT="${config.home.homeDirectory}/.cache/my-webserver.token" \
     ${pkgs.bash}/bin/bash ${./token-render.sh} || true
   '';
 
@@ -193,7 +193,7 @@ in
   # (programs.fish interactiveShellInit — starts this server on shell open)
   # is the actual auto-start path. The warning below reflects that instead
   # of pointing at a dead command.
-  home.activation.httpdWebServerJsonMdErudaSvEnable = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+  home.activation.myWebserverSvEnable = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     # Explicit Termux-prefix path — sv-enable is never on the minimal
     # activation PATH, so `command -v` couldn't distinguish "not installed"
     # from "not on PATH" (2026-08-08 audit).

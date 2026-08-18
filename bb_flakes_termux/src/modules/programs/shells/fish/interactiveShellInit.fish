@@ -91,12 +91,12 @@ set -gx AUTHELIA_TOKEN_URL "https://auth.diegonmarcos.com/api/oidc/token"
 # Moved here from flake.nix per the no-inline-scripts decree (2026-08-08).
 command -q etc-self-heal; and etc-self-heal 2>/dev/null
 
-# httpd-web-server-json-md-eruda auto-start (single start site — the flake
+# my-webserver auto-start (single start site — the flake
 # copy was deleted; wrapper is idempotent via PID file).
 set -g __httpd_port 8000
-if command -q httpd-web-server-json-md-eruda
-  httpd-web-server-json-md-eruda start >/dev/null 2>&1
-  set -g __httpd_pid (command cat ~/.cache/httpd-web-server-json-md-eruda.pid 2>/dev/null)
+if command -q my-webserver
+  my-webserver start >/dev/null 2>&1
+  set -g __httpd_pid (command cat ~/.cache/my-webserver.pid 2>/dev/null)
 end
 
 # FZF appearance (the fzf_file/history/cd rebinds that lived in flake.nix

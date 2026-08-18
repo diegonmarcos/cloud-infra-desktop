@@ -94,7 +94,7 @@
               # patchelf 0.15.0 (pinned nixos-24.05) crashes with
               # "Assertion !section.empty() failed" rewriting the interpreter
               # on large (~70MB+) binaries that are already nix-patched —
-              # exactly what the fetched httpd-web-server-json-md-eruda blob
+              # exactly what the fetched my-webserver blob
               # is (patched once already by the CI job that publishes it, at
               # a different glibc store path than this flake's own pin).
               # Fixed in later patchelf releases; pkgsUnstable has one.
@@ -117,7 +117,7 @@
                 ./modules/curl-wget-wrapper.nix
                 ./modules/node-npm-deps.nix
                 ./modules/node-bins.nix
-                ./modules/httpd-web-server-json-md-eruda
+                ./modules/my-webserver
                 ./modules/cloud-ide-sshd
                 ./modules/wireguard.nix
                 ./modules/wireguard-wstunnel.nix
