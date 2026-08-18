@@ -114,6 +114,10 @@ const NativeBrowser = {
       })
       .catch((e) => console.error(`[browser] close ${label} failed; kept parked offscreen`, e));
   },
+  // Sends a line into the backend's stderr (MYK_BROWSER_DEBUG=1), so the JS
+  // measurements and the native readback land in one log instead of a devtools
+  // console nobody can see while the window is misbehaving.
+  log(msg) { this.invoke("browser_log", { msg }).catch(() => {}); },
   rectOf(host) {
     const r = host.getBoundingClientRect();
     // offsetParent===null means the element (or an ancestor) is display:none —
@@ -148,6 +152,10 @@ const NativeBrowser = {
   open(label, url, host) {
     this.register(label, host);
     const r = this.rectOf(host);
+    const c = host.getBoundingClientRect();
+    this.log(`open ${label} dpr=${window.devicePixelRatio} css=(${c.left},${c.top}) ${c.width}x${c.height}` +
+      ` -> phys=(${r.x},${r.y}) ${r.w}x${r.h}` +
+      ` | innerWindow=${window.innerWidth}x${window.innerHeight} screen=${screen.width}x${screen.height}`);
     // Re-measure after the next few frames: the rect at open time predates fonts
     // loading, the xterm addon sizing and the tab strip settling, and without
     // this the dedupe would lock in whatever it read first.
