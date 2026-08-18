@@ -2,7 +2,7 @@
 # ============================================================================
 # wireguard-wstunnel.nix — termux module integrity tester
 # ----------------------------------------------------------------------------
-# Sibling of ~/git/unix/ba_flakes_desktop/src/modules/wireguard-wstunnel.test.sh
+# Sibling of ~/git/cloud-unix/ba_flakes_desktop/src/modules/wireguard-wstunnel.test.sh
 #
 # Validates: nix syntax, cross-link to cloud sibling, helper script shape,
 # secrets contract, no-hardcoded-data discipline, termux-specific
@@ -12,7 +12,7 @@ set -euo pipefail
 
 MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MOD_FILE="$MOD_DIR/wireguard-wstunnel.nix"
-SIBLING_BUILD_JSON="$HOME/git/cloud/a_solutions/bb-net_wireguard-mesh-ws-tunnel/build.json"
+SIBLING_BUILD_JSON="$HOME/git/cloud-infra/a_solutions/bb-net_wireguard-mesh-ws-tunnel/build.json"
 
 pass=0; fail=0
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; pass=$((pass+1)); }

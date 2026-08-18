@@ -9,11 +9,11 @@
     "accent2": "#a78bfa",
     "bg": "#0e0f1a"
   },
-  "flake": "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos",
+  "flake": "/home/diego/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos",
   "flakes": {
-    "system": "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos",
-    "desktop": "/home/diego/git/unix/ba_flakes_desktop",
-    "cloud": "/home/diego/git/cloud"
+    "system": "/home/diego/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos",
+    "desktop": "/home/diego/git/cloud-unix/ba_flakes_desktop",
+    "cloud": "/home/diego/git/cloud-infra"
   },
   "sections": [
     {

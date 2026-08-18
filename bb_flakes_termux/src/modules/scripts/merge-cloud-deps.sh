@@ -2,9 +2,9 @@
 # JSON into .cloud-deps-merged.json. Env contract: NODEJS_DIR.
 CLOUD_BUILD=""
 for _p in \
-    "$HOME/git/unix/bb_flakes_termux/build-flakes_termux.json" \
-    "$HOME/git/cloud/2_configs/dist/build-flakes_termux.json" \
-    "$HOME/git/cloud/cloud-data/cloud-data-deps.json"; do
+    "$HOME/git/cloud-unix/bb_flakes_termux/build-flakes_termux.json" \
+    "$HOME/git/cloud-infra/2_configs/dist/build-flakes_termux.json" \
+    "$HOME/git/cloud-infra/cloud-data/cloud-data-deps.json"; do
   if [ -f "$_p" ]; then CLOUD_BUILD="$_p"; break; fi
 done
 CLOUD_OUT="$HOME/.node_modules/.cloud-deps-merged.json"

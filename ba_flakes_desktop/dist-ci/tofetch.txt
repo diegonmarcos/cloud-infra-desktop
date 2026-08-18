@@ -1,0 +1,8 @@
+/nix/store/0shllqsixh5865vr6ynfgd7flf7faicq-home-manager-generation
+/nix/store/48d7da7z449hzvvhiqqz8gkhsprxc9xd-orphan-reaper
+/nix/store/fvkvj2p7ifyv8lzavx1s5jk7h0y1xc0h-home-manager-path
+/nix/store/h4qlqj54skd9aa23m74gwc5jpsv5790q-plasma-fix-missing-panel-widgets
+/nix/store/n8mbj00yh9fbf53j80bhbnp0571pcg6p-orphan-reaper-fish-completions
+/nix/store/s4baphk0z3ndhvf1y47idfqvsl921zwc-hm_plasmamanagerdatadesktop_script_panels.js
+/nix/store/yhi76v9kbvfk5y682p0n9j903gqivzy7-home-manager-files
+/nix/store/ykgaj6qkwisqm570f500nm75m5q2phja-diego-fish-completions

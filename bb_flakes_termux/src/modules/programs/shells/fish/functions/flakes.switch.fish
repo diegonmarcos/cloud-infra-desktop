@@ -1,6 +1,6 @@
 # flakes.switch — pull every new flake change, then rebuild this device.
 #
-#   1. git sync local   inside ~/git/unix  (LOCAL wins on conflict, and the
+#   1. git sync local   inside ~/git/cloud-unix  (LOCAL wins on conflict, and the
 #      engine pushes your own commits too — it is bidirectional)
 #   2. bb_flakes_termux/build.sh switch
 #
@@ -19,7 +19,7 @@ end
 
 # Bootstrap path — `sw` only lands on PATH after the first successful switch.
 echo "[flakes.switch] sw not on PATH yet — running the two steps directly"
-set -l repo $HOME/git/unix
+set -l repo $HOME/git/cloud-unix
 set -l engine $repo/1_workflows/dist/scripts/cloud-git-sync.sh
 if test -x $engine
     $engine local; or echo "[flakes.switch] WARN: sync failed — switching with the tree as-is"

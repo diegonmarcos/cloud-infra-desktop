@@ -75,7 +75,7 @@
 
     { "name": "chrome_no_CORS", "cmd": "chromium --disable-web-security --user-data-dir=/tmp/chrome-nocors", "group": "dev", "desc": "chromium with web security off (throwaway profile)" },
 
-    { "name": "dtk",     "cmd": "bash ~/git/tools/dtk.sh", "group": "other", "desc": "Tools TUI menu (~/git/tools/dtk.sh)" },
+    { "name": "dtk",     "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh", "group": "other", "desc": "Tools TUI menu (~/git/cloud-mykonsole-dtk/dtk.sh)" },
     { "name": "gdrive",  "cmd": "bash /home/diego/Documents/Git/mylibs/mytools/0_unix/rclone_mount.sh", "group": "other", "desc": "mount Google Drive via rclone" },
     { "name": "welcome", "cmd": "_show_welcome", "group": "other", "desc": "reprint the welcome screen" }
   ],

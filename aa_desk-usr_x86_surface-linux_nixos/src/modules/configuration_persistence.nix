@@ -151,7 +151,7 @@ in
   #   - ARCHITECTURE.md (technical docs)
   #   - ISSUES-STATUS.md (known issues)
   #
-  # Canonical source: /home/diego/git/unix/aa_nixos-surface_host/
+  # Canonical source: /home/diego/git/cloud-unix/aa_nixos-surface_host/
   # Convenient access: /nix/specs/
 
   system.activationScripts.nixSpecs = "${nixSpecsScript}/bin/nix-specs";

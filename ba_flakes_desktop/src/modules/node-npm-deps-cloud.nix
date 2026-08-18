@@ -17,9 +17,9 @@ in {
     # Priority chain: synced copy in repo → cloud repo dist → legacy fallback
     CLOUD_BUILD=""
     for _p in \
-        "$HOME/git/unix/ba_flakes_desktop/build-flakes_desktop.json" \
-        "$HOME/git/cloud/2_configs/dist/build-flakes_desktop.json" \
-        "$HOME/git/cloud/cloud-data/cloud-data-deps.json"; do
+        "$HOME/git/cloud-unix/ba_flakes_desktop/build-flakes_desktop.json" \
+        "$HOME/git/cloud-infra/2_configs/dist/build-flakes_desktop.json" \
+        "$HOME/git/cloud-infra/cloud-data/cloud-data-deps.json"; do
       if [ -f "$_p" ]; then CLOUD_BUILD="$_p"; break; fi
     done
     CLOUD_OUT="$HOME/.node_modules/.cloud-deps-merged.json"

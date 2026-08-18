@@ -19,16 +19,16 @@ services:
       - ${HOME}/.config/sops:/mnt/host-sops:ro
       - ${HOME}/.config/gh:/mnt/host-gh:ro
       - ${HOME}/.docker/config.json:/root/.docker/config.json:ro
-      # NOTE: ship.yml mounts the WHOLE vault at /root/git/vault:ro at `docker run`
+      # NOTE: ship.yml mounts the WHOLE vault at /root/git/cloud-vault:ro at `docker run`
       # time, so the github provider files are reachable inside the container as
-      # /root/git/vault/A0_keys/providers/github/. No nested compose-level mount
+      # /root/git/cloud-vault/A0_keys/providers/github/. No nested compose-level mount
       # needed (the previous one hardcoded /home/diego — fragile across users).
     # Scalar env vars (single-line: GITHUB_TOKEN, WG_PRIVATE_KEY, *_PUB, etc.)
     # come from the docker-flavoured vault dialect — flat KEY=VAL with `$$`
     # doubled so compose's interpolator doesn't mangle Argon2/PBKDF2 hashes.
-    # Source of truth: ~/git/vault/vault-keys.json → vault-keys-docker.envfile
+    # Source of truth: ~/git/cloud-vault/vault-keys.json → vault-keys-docker.envfile
     env_file:
-      - ${HOME}/git/vault/vault-keys-docker.envfile
+      - ${HOME}/git/cloud-vault/vault-keys-docker.envfile
     environment:
       # Multi-line PEM/age private keys — env_file can't carry newlines,
       # so they pass through from the parent shell (CI: fetch-vault action sourced

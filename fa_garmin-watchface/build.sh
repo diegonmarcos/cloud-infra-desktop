@@ -116,7 +116,7 @@ _resolve_signing() {
   local keyout="$DIST_DIR/$keyname"
   [ -f "$keyout" ] && { printf '%s' "$keyout"; return 0; }
 
-  local vault_dir="${VAULT_DIR:-$HOME/git/vault}"
+  local vault_dir="${VAULT_DIR:-$HOME/git/cloud-vault}"
   local vault_secrets; vault_secrets="$(bj '.signing.vault_secrets')"
   local enc="$vault_dir/$vault_secrets"
 

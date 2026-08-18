@@ -9,7 +9,7 @@
 # mirroring cloud-network-wg-public.nix for the wg-public mesh, and
 # (b) adds DNS routing so .app names resolve via Hickory (10.0.0.1).
 #
-# Source of truth: ~/git/cloud/2_configs/dist/build-flakes_desktop.json (.wireguard slice)
+# Source of truth: ~/git/cloud-infra/2_configs/dist/build-flakes_desktop.json (.wireguard slice)
 # Emitted by 2_configs/src/engines/cloud-data-config-derive.ts via external-consumers.json.
 { config, lib, pkgs, ... }:
 
@@ -21,7 +21,7 @@ let
   wgDomains = [ "~app" ];
   wgDomainsStr = lib.concatStringsSep " " wgDomains;
   # Vault key material — same base as cloud-network-wg-public.nix.
-  vaultBase = "${config.home.homeDirectory}/git/vault/A0_keys/providers/wireguard";
+  vaultBase = "${config.home.homeDirectory}/git/cloud-vault/A0_keys/providers/wireguard";
 
   # wg-dns-up / wg-dns-down: shell bodies live in ./wg-dns-up.sh and
   # ./wg-dns-down.sh, data-driven at runtime from

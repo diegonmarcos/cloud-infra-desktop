@@ -4,7 +4,7 @@
 { config, lib, pkgs, ... }:
 
 let
-  tokenFile = "$HOME/git/vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens/cloud-admin.json";
+  tokenFile = "$HOME/git/cloud-vault/A0_keys/providers/authelia/signed-bearer_jwt/tokens/cloud-admin.json";
 
   # Runtime data for curl-wget-wrapper.sh: which header flag each wrapper
   # uses, plus the shared token file, read at RUNTIME via jq instead of

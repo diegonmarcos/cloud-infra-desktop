@@ -3,11 +3,11 @@
   "display_name": "Tools (DTK)",
   "logo": "🛠️",
   "tray_tooltip": "Tools — Diego ToolKit",
-  "flake": "/home/diego/git/tools",
+  "flake": "/home/diego/git/cloud-mykonsole-dtk",
   "flakes": {
-    "system": "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos",
-    "desktop": "/home/diego/git/unix/ba_flakes_desktop",
-    "cloud": "/home/diego/git/cloud"
+    "system": "/home/diego/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos",
+    "desktop": "/home/diego/git/cloud-unix/ba_flakes_desktop",
+    "cloud": "/home/diego/git/cloud-infra"
   },
   "theme": {
     "accent": "#fbbf24",

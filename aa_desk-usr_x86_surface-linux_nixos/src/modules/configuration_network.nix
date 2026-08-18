@@ -495,7 +495,7 @@ in {
       : > "$OUT"
       chmod 0600 "$OUT"
       # ~/.config/wireguard/* are home-manager symlinks that ultimately resolve
-      # into the VAULT REPO: /home/diego/git/vault/A0_keys/providers/wireguard/.
+      # into the VAULT REPO: /home/diego/git/cloud-vault/A0_keys/providers/wireguard/.
       # That path lives on the @nosnap/git subvolume, so this unit cannot read a
       # single key until that mount exists — see RequiresMountsFor below.
       WG0_KEY=/home/diego/.config/wireguard/privatekey
@@ -515,7 +515,7 @@ in {
         exit 1
       fi
     '';
-    # The keys resolve into /home/diego/git/vault, so this unit MUST NOT run
+    # The keys resolve into /home/diego/git/cloud-vault, so this unit MUST NOT run
     # before that subvolume is mounted. Without this, boot ordering decides
     # whether your VPN comes up or NetworkManager asks you to type a password.
     unitConfig.RequiresMountsFor = "/home/diego/git";

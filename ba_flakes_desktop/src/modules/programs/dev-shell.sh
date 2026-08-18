@@ -54,7 +54,7 @@ fi
 # still resolves inside (where /nix/store == the p5 store).
 PHYS="$P5/nix/store/$("$BN" "$("$RL" "$P5/profile" 2>/dev/null)" 2>/dev/null)"
 if [ ! -x "$PHYS/bin/bash" ]; then
-  echo "$NAME: dev profile not built yet — run:  ~/git/unix/bc_flakes_dev-store/build.sh ship" >&2
+  echo "$NAME: dev profile not built yet — run:  ~/git/cloud-unix/bc_flakes_dev-store/build.sh ship" >&2
   exit 1
 fi
 

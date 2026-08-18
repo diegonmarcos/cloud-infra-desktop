@@ -236,7 +236,7 @@
 ## Repository Structure
 
 ```
-/home/diego/mnt_git/unix/
+/home/diego/mnt_git/cloud-unix/
 │
 ├── 0_spec/                          # Architecture & specifications
 │   ├── ARCHITECTURE.md              # This document (main overview)

@@ -107,7 +107,7 @@
     (pkgs.callPackage ../pkgs/my-ai.nix {})
 
     # 3. SYNC — unified sync engine (git + rclone)
-    # Source: ~/git/tools/a-sync/sync.sh
+    # Source: ~/git/cloud-mykonsole-dtk/a-sync/sync.sh
     (writeShellScriptBin "sync" (builtins.readFile ../scripts/sync.sh))
 
     # 3b. SERVER — delegates to ~/git/front/server.sh (dev server control)
@@ -129,7 +129,7 @@
     (writeShellScriptBin "gcl" (builtins.readFile ../scripts/gcl.sh))
 
     # 7. CONNECT (Unified hub: HM, mesh, git, drives, sync, servers, security)
-    # Source: ~/git/tools/a-connect/connect.sh
+    # Source: ~/git/cloud-mykonsole-dtk/a-connect/connect.sh
     (writeShellScriptBin "connect" (builtins.readFile ../scripts/connect.sh))
 
     # 7b. sync — REMOVED: duplicate of entry 3 above (same name, same

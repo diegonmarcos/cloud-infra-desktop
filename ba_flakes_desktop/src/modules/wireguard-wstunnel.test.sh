@@ -16,7 +16,7 @@ MOD_FILE="$MOD_DIR/wireguard-wstunnel.nix"
 HELPER_SH="$MOD_DIR/wireguard-wstunnel.sh"
 RENDER_SH="$MOD_DIR/wireguard-wstunnel-render.sh"
 ALL_SRC="$MOD_FILE $HELPER_SH $RENDER_SH"
-SIBLING_BUILD_JSON="$HOME/git/cloud/a_solutions/bb-net_wireguard-mesh-ws-tunnel/build.json"
+SIBLING_BUILD_JSON="$HOME/git/cloud-infra/a_solutions/bb-net_wireguard-mesh-ws-tunnel/build.json"
 
 pass=0; fail=0
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; pass=$((pass+1)); }

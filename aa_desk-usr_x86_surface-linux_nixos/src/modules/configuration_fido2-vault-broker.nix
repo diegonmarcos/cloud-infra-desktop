@@ -1,7 +1,7 @@
 # Host-side enable + config for the fido2-vault-broker NixOS module.
 #
 # The module itself lives in the daemon repo at
-# `~/git/unix/da_fido2-vault-broker/src/nix/module.nix`, imported by PLAIN
+# `~/git/cloud-unix/da_fido2-vault-broker/src/nix/module.nix`, imported by PLAIN
 # PATH in the host flake.nix modules list (NOT a flake input — nix 2.24
 # cannot lock relative-path flake inputs; see the NOTE in flake.nix).
 # Because the path import skips the subflake's package-defaulting wrapper,

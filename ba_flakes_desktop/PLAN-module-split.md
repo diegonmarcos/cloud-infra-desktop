@@ -12,8 +12,8 @@
 
 ## 0. Source of truth & scope
 
-- **Source**: `~/git/unix/ba_flakes_desktop/src/`
-- **Engine**: `~/git/unix/ba_flakes_desktop/build.sh`
+- **Source**: `~/git/cloud-unix/ba_flakes_desktop/src/`
+- **Engine**: `~/git/cloud-unix/ba_flakes_desktop/build.sh`
 - **Flake interface that must stay stable during migration**: `profiles.<name>`,
   `toolsets.<name>`, `presets.<name>` in `src/flake.nix:80–139` — `mkHost` consumes
   a list of profile names, so renaming/removing profile keys breaks every host preset.
@@ -419,7 +419,7 @@ Reference: `/tmp/hm-closure-before.txt` (sha256 9b598abdac6f27e6...) ↔ `/tmp/h
 | 3 | Build with granular host imports → closure equals the equivalent `profiles`-based build. |
 | 4 | Full HM build on at least `surface` host succeeds; closure size deviation ≤ 0.1% from the pre-migration baseline (i.e. the split itself caused no regression — only intentional deletions shrink). |
 
-Common test runner: `~/git/unix/ba_flakes_desktop/build.sh build` — engine is the
+Common test runner: `~/git/cloud-unix/ba_flakes_desktop/build.sh build` — engine is the
 only entry point; no inline `nix build` calls anywhere in tests. If a regression
 is found, fix the engine/leaf, never bypass with a profile-side workaround.
 

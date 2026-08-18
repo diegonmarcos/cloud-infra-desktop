@@ -8,7 +8,7 @@
 # UDP/51820 (configuration_network.nix wg0) is faster and preferred.
 #
 # Source of truth (data-driven, fire-rule 4 + 6):
-#   ~/git/cloud/a_solutions/bb-net_wireguard-mesh-ws-tunnel/build.json
+#   ~/git/cloud-infra/a_solutions/bb-net_wireguard-mesh-ws-tunnel/build.json
 #     • .domain                        — the WSS server hostname
 #     • .transports.wg0-tcp.endpoint_template
 #     • .transports.wg0-tcp.wstunnel_path_prefix_secret  (env-var name)
@@ -36,7 +36,7 @@ let
   # Sourced from the `cloud-repo` flake input (pinned github fetch of
   # diegonmarcos/cloud) — always fetchable in fresh clones / CI / sandboxed
   # evals. Local hacking? Override at build time:
-  #   --override-input cloud-repo path:/home/$USER/git/cloud
+  #   --override-input cloud-repo path:/home/$USER/git/cloud-infra
   wsTunnelBuildJson =
     let path = "${inputs.cloud-repo}/a_solutions/bb-net_wireguard-mesh-ws-tunnel/build.json";
     in if builtins.pathExists path

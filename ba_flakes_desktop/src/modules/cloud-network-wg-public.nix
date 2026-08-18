@@ -10,11 +10,11 @@
 # This module symlinks the vault entries declaratively so the host-level
 # `networking.wireguard.interfaces.wg-public` definition resolves them.
 #
-# Source of truth: ~/git/cloud/2_configs/dist/build-flakes_desktop.json
+# Source of truth: ~/git/cloud-infra/2_configs/dist/build-flakes_desktop.json
 #                  .wireguard_public.{peers,clients}
 { config, lib, pkgs, ... }:
 let
-  vaultBase = "${config.home.homeDirectory}/git/vault/A0_keys/providers/wireguard";
+  vaultBase = "${config.home.homeDirectory}/git/cloud-vault/A0_keys/providers/wireguard";
 in {
   # Private key — consumed by NixOS host's networking.wireguard interface
   home.file.".config/wireguard/privatekey-public" = {

@@ -116,7 +116,7 @@
             {
               "id": "background_matches_source",
               "description": "Deployed background.png is byte-identical to vendored source \u2014 proves the engine actually copied the new theme's banner",
-              "command": "diff -q /boot/efi/EFI/refind/themes/catppuccin/assets/mocha/background.png /home/diego/git/unix/aa_bootloader/src/loaders/refind/vendored/themes/catppuccin/assets/mocha/background.png && echo ok",
+              "command": "diff -q /boot/efi/EFI/refind/themes/catppuccin/assets/mocha/background.png /home/diego/git/cloud-unix/aa_bootloader/src/loaders/refind/vendored/themes/catppuccin/assets/mocha/background.png && echo ok",
               "expect": "ok"
             },
             {
@@ -239,7 +239,7 @@
           "label": "BlissOS - Android",
           "icon": "os_android",
           "integration": "passive",
-          "_note": "BlissOS x86_64 installed-to-folder on p5 (Shared-Lib, /blissos) \u2014 see ~/git/unix/ae_desk-android_x86_blissOS. rEFInd boots it DIRECTLY (native linux_partition stanza: volume=p5 UUID, loader=/blissos/kernel, initrd=/blissos/initrd.img, options from grub.menu.blissos with root_param=/dev/ram0). No GRUB chainload needed \u2014 /blissos/kernel is a real file (not a symlink like Debian/Kali's /vmlinuz), so rEFInd's ext4 driver loads it. No native partition (NVMe is full); reversible (delete /blissos + this entry)."
+          "_note": "BlissOS x86_64 installed-to-folder on p5 (Shared-Lib, /blissos) \u2014 see ~/git/cloud-unix/ae_desk-android_x86_blissOS. rEFInd boots it DIRECTLY (native linux_partition stanza: volume=p5 UUID, loader=/blissos/kernel, initrd=/blissos/initrd.img, options from grub.menu.blissos with root_param=/dev/ram0). No GRUB chainload needed \u2014 /blissos/kernel is a real file (not a symlink like Debian/Kali's /vmlinuz), so rEFInd's ext4 driver loads it. No native partition (NVMe is full); reversible (delete /blissos + this entry)."
         },
         {
           "producer": "efi_chainload",
@@ -423,7 +423,7 @@
         "root_param": "/dev/ram0",
         "options": "androidboot.selinux=permissive androidboot.hardware=android_x86_64 SRC=/blissos DATA= quiet",
         "_efi_note": "Consumed by rEFInd's linux_partition producer (NOT GRUB \u2014 blissos is intentionally absent from grub.linux_order). rEFInd emits a native stanza: volume=root_uuid (p5), loader=kernel, initrd=initrd, options=\"root=<root_param> <options>\". rEFInd's ext4_x64.efi driver reads /blissos/kernel directly because it is a real file (Debian/Kali need GRUB only because their /vmlinuz is a relative symlink rEFInd can't follow).",
-        "_note": "BlissOS x86_64 installed-to-folder on p5 (NVMe is fully partitioned \u2014 no native partition). The /blissos tree ({kernel,initrd.img,system.efs,data.img}) is laid down by ~/git/unix/ae_desk-android_x86_blissOS/install/build.sh from the pinned release in blissos.json. SRC=/blissos tells the initrd where system.efs lives; DATA= (empty) uses data.img inside SRC. root_param=/dev/ram0 (ramdisk root); root_uuid=p5 UUID (rEFInd volume + kernel/initrd file source). Reversible: delete /blissos + this menu entry + the refind manual_stanzas entry.",
+        "_note": "BlissOS x86_64 installed-to-folder on p5 (NVMe is fully partitioned \u2014 no native partition). The /blissos tree ({kernel,initrd.img,system.efs,data.img}) is laid down by ~/git/cloud-unix/ae_desk-android_x86_blissOS/install/build.sh from the pinned release in blissos.json. SRC=/blissos tells the initrd where system.efs lives; DATA= (empty) uses data.img inside SRC. root_param=/dev/ram0 (ramdisk root); root_uuid=p5 UUID (rEFInd volume + kernel/initrd file source). Reversible: delete /blissos + this menu entry + the refind manual_stanzas entry.",
         "recovery": {
           "enabled": false
         }

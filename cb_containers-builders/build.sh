@@ -97,7 +97,7 @@ step_build() {
     if [ -n "${CLOUD_CONFIG:-}" ] && [ -f "$CLOUD_CONFIG" ]; then
         _cloud_config="$CLOUD_CONFIG"
     else
-        for _p in "$SCRIPT_DIR/../../cloud/config.json" "$SCRIPT_DIR/../../../cloud/config.json" "/root/git/cloud/config.json" "/workspace/config.json" "$SCRIPT_DIR/../cloud-repo/config.json"; do
+        for _p in "$SCRIPT_DIR/../../cloud/config.json" "$SCRIPT_DIR/../../../cloud/config.json" "/root/git/cloud-infra/config.json" "/workspace/config.json" "$SCRIPT_DIR/../cloud-repo/config.json"; do
             [ -f "$_p" ] && { _cloud_config="$_p"; break; }
         done
     fi
@@ -205,7 +205,7 @@ _find_runners_json() {
         "$SCRIPT_DIR/../../../cloud/2_configs/dist/cloud-data-runners.json" \
         "$SCRIPT_DIR/../cloud-repo/2_configs/dist/cloud-data-runners.json" \
         "${GITHUB_WORKSPACE:-}/cloud-repo/2_configs/dist/cloud-data-runners.json" \
-        "/root/git/cloud/2_configs/dist/cloud-data-runners.json"; do
+        "/root/git/cloud-infra/2_configs/dist/cloud-data-runners.json"; do
         [ -n "$_p" ] && [ -f "$_p" ] && { echo "$_p"; return 0; }
     done
     return 1

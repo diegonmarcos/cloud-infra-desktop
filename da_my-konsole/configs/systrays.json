@@ -8,11 +8,11 @@
       "title": "Nix Flakes",
       "profile": "nix-flakes",
       "enable": true,
-      "default_command": "konsole --hold -e bash -lc '$HOME/git/unix/ba_flakes_desktop/build.sh status'",
+      "default_command": "konsole --hold -e bash -lc '$HOME/git/cloud-unix/ba_flakes_desktop/build.sh status'",
       "menu": [
         {
           "label": "Switch (pull latest, isolated)",
-          "command": "konsole --hold -e bash -lc '$HOME/git/unix/ba_flakes_desktop/build.sh switch'"
+          "command": "konsole --hold -e bash -lc '$HOME/git/cloud-unix/ba_flakes_desktop/build.sh switch'"
         },
         {
           "label": "Generations",
@@ -20,7 +20,7 @@
         },
         {
           "label": "Status",
-          "command": "konsole --hold -e bash -lc '$HOME/git/unix/ba_flakes_desktop/build.sh status; read'"
+          "command": "konsole --hold -e bash -lc '$HOME/git/cloud-unix/ba_flakes_desktop/build.sh status; read'"
         },
         {
           "label": "Nix Daemon: status",
@@ -258,23 +258,23 @@
       "title": "Vault",
       "profile": "vault",
       "enable": true,
-      "default_command": "konsole --hold -e bash -lc '$HOME/git/vault/build.sh status; read'",
+      "default_command": "konsole --hold -e bash -lc '$HOME/git/cloud-vault/build.sh status; read'",
       "menu": [
         {
           "label": "Status",
-          "command": "konsole --hold -e bash -lc '$HOME/git/vault/build.sh status; read'"
+          "command": "konsole --hold -e bash -lc '$HOME/git/cloud-vault/build.sh status; read'"
         },
         {
           "label": "Open in file manager",
-          "command": "dolphin $HOME/git/vault"
+          "command": "dolphin $HOME/git/cloud-vault"
         },
         {
           "label": "Edit secrets (sops)",
-          "command": "konsole --hold -e sops $HOME/git/unix/ba_flakes_desktop/src/secrets/secrets.yaml"
+          "command": "konsole --hold -e sops $HOME/git/cloud-unix/ba_flakes_desktop/src/secrets/secrets.yaml"
         },
         {
           "label": "List secret keys (no values)",
-          "command": "konsole --hold -e bash -lc 'sops -d --output-type json $HOME/git/unix/ba_flakes_desktop/src/secrets/secrets.yaml | jq keys; read'"
+          "command": "konsole --hold -e bash -lc 'sops -d --output-type json $HOME/git/cloud-unix/ba_flakes_desktop/src/secrets/secrets.yaml | jq keys; read'"
         }
       ]
     },

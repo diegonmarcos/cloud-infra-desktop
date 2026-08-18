@@ -3,7 +3,7 @@
 
 let
   nodejs = pkgs.nodejs_20;
-  repoDir = "$HOME/git/cloud";
+  repoDir = "$HOME/git/cloud-infra";
 in {
   home.activation.cloudDeps = lib.hm.dag.entryAfter ["sharedNodeModules"] ''
     (

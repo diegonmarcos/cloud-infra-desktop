@@ -24,7 +24,7 @@ set -u
 set -o pipefail
 
 # ONE output convention — see 1_cicd/src/scripts/cloud-data-paths.sh
-CDP="$HOME/git/unix/1_cicd/dist/scripts/cloud-data-paths.sh"
+CDP="$HOME/git/cloud-unix/1_cicd/dist/scripts/cloud-data-paths.sh"
 if [ -r "$CDP" ]; then . "$CDP"; LOG="$(cd_log claude-fix)"; else LOG="$HOME/claude-fix.log"; fi
 STARTUP_DEBUG="${LOG%.log}-startup-debug.log"
 REAL="$HOME/.nix-profile/bin/claude"
@@ -68,7 +68,7 @@ hdr "2/5 shadow detection"
 # (including legitimate system copies). Diagnose-only in that case.
 if [ ! -x "$REAL" ]; then
   say "FAIL: $REAL missing — refusing to remove anything without a reference binary."
-  say "run: cd ~/git/unix/bb_flakes_termux && ./build.sh switch   then re-run this script"
+  say "run: cd ~/git/cloud-unix/bb_flakes_termux && ./build.sh switch   then re-run this script"
   say "full debug log: $LOG"
   exit 1
 fi
@@ -137,7 +137,7 @@ fi
 # ── 4/5 verify real binary ─────────────────────────────────────────────
 hdr "4/5 verify real binary"
 if [ ! -x "$REAL" ]; then
-  say "FAIL: $REAL missing or not executable — run: cd ~/git/unix/bb_flakes_termux && ./build.sh switch"
+  say "FAIL: $REAL missing or not executable — run: cd ~/git/cloud-unix/bb_flakes_termux && ./build.sh switch"
   fail=1
 else
   if run timeout 30 "$REAL" --version; then

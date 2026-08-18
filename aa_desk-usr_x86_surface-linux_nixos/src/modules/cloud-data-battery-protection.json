@@ -195,8 +195,8 @@
   "deployment": {
     "_comment": "Where this config is consumed.",
     "consumers": [
-      "~/git/unix/aa_nixos-surface_host/src/modules/configuration_system-protection-battery.nix"
+      "~/git/cloud-unix/aa_nixos-surface_host/src/modules/configuration_system-protection-battery.nix"
     ],
-    "reload_command": "cd ~/git/unix/aa_nixos-surface_host && ./build.sh switch"
+    "reload_command": "cd ~/git/cloud-unix/aa_nixos-surface_host && ./build.sh switch"
   }
 }

@@ -50,7 +50,7 @@ re-propose this as the base.
 
 ## Verified blockers (prominent — nothing ships until these clear)
 
-Source: `~/git/cloud/a_solutions/user-media_photoprism/build.json`.
+Source: `~/git/cloud-infra/a_solutions/user-media_photoprism/build.json`.
 
 1. **`originals` is mounted READ-ONLY**
    (`.../originals:/photoprism/originals:ro`). It's an rclone mount of the

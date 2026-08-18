@@ -1,7 +1,7 @@
 # THIS device's flake — was ba_flakes_desktop/aa_nixos-surface (desktop
 # copy-paste; every subcommand inspected the WRONG tree — 2026-08-08 audit).
-set -l nixos_dir "$HOME/git/unix/bb_flakes_termux/src"
-set -l flake_dir "$HOME/git/unix/bb_flakes_termux/src"
+set -l nixos_dir "$HOME/git/cloud-unix/bb_flakes_termux/src"
+set -l flake_dir "$HOME/git/cloud-unix/bb_flakes_termux/src"
 set -l profiles_dir "$flake_dir/modules/profiles"
 set -l shells_dir "$flake_dir/modules/programs/shells"
 
@@ -15,7 +15,7 @@ if test (count $argv) -eq 0
   if test -d "$nixos_dir"
     set -l nixos_rev (git -C "$nixos_dir/.." rev-parse --short HEAD 2>/dev/null; or echo "?")
     set -l nixos_dirty (git -C "$nixos_dir/.." diff --quiet 2>/dev/null; and echo ""; or echo " *dirty*")
-    echo "~/git/unix/bb_flakes_termux/  ($nixos_rev$nixos_dirty)"
+    echo "~/git/cloud-unix/bb_flakes_termux/  ($nixos_rev$nixos_dirty)"
   else
     echo "(not found)"
   end
@@ -27,7 +27,7 @@ if test (count $argv) -eq 0
     if test -L "$HOME/.local/state/nix/profiles/home-manager"
       set hm_gen (readlink "$HOME/.local/state/nix/profiles/home-manager" 2>/dev/null | string replace -r '.*-(\d+)-link' '$1')
     end
-    echo "~/git/unix/bb_flakes_termux/  ($hm_rev$hm_dirty) gen $hm_gen"
+    echo "~/git/cloud-unix/bb_flakes_termux/  ($hm_rev$hm_dirty) gen $hm_gen"
   else
     echo "(not found)"
   end
@@ -110,8 +110,8 @@ switch $argv[1]
     set -l _vars EDITOR VISUAL PAGER LANG LC_ALL MANPAGER LESS ANTHROPIC_API_KEY OPENAI_BASE_URL OPENAI_API_KEY OLLAMA_HOST AUTHELIA_OIDC_CLIENT_ID AUTHELIA_TOKEN_URL AUTHELIA_OIDC_CREDENTIALS_DIR AUTHELIA_OIDC_TOKENS_DIR CARGO_HOME GOPATH PIP_CACHE_DIR npm_config_cache npm_config_prefix COREPACK_ENABLE_AUTO_PIN DEVICE HM_PROFILE BUILDSH_GUARDRAIL TF_PLUGIN_CACHE_DIR GNUPGHOME GIT_EDITOR RUSTUP_HOME PYTHONPATH JUPYTER_CONFIG_DIR STARSHIP_SHELL FZF_DEFAULT_COMMAND
 
     # Collect ALL env var declarations into a temp file (one pass, both tables use it)
-    set -l _hm_root "$HOME/git/unix/bb_flakes_termux/src"
-    set -l _os_root "$HOME/git/unix/aa_nixos-surface_host/src"
+    set -l _hm_root "$HOME/git/cloud-unix/bb_flakes_termux/src"
+    set -l _os_root "$HOME/git/cloud-unix/aa_nixos-surface_host/src"
     set -l _tmpfile (mktemp)
     # sessionVariables from all nix files
     command find "$_hm_root" "$_os_root" -name '*.nix' 2>/dev/null | sort | while read -l f

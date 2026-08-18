@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # gen-tools-profile.sh — generate src/data/profile-tools.json FROM the DTK
-# registry (~/git/tools/registry.json), so the cloud-terminal Tools sidebar is
+# registry (~/git/cloud-mykonsole-dtk/registry.json), so the cloud-terminal Tools sidebar is
 # the same single source of truth as `dtk` itself. Grouped by domain; each item
 # runs `sh <tools>/dtk.sh <id>` in the active PTY tab.
 #
@@ -8,7 +8,7 @@
 set -eu
 HERE="$(cd "$(dirname "$0")/../.." && pwd)"          # da_cloud-terminal/
 OUT="$HERE/src/data/profile-tools.json"
-TOOLS="${CT_TOOLS_DIR:-$HOME/git/tools}"
+TOOLS="${CT_TOOLS_DIR:-$HOME/git/cloud-mykonsole-dtk}"
 REG="$TOOLS/registry.json"
 JQ="$(command -v jq)"
 
@@ -26,11 +26,11 @@ fi
     display_name: "Tools (DTK)",
     logo: "🛠️",
     tray_tooltip: "Tools — Diego ToolKit",
-    flake: "/home/diego/git/tools",
+    flake: "/home/diego/git/cloud-mykonsole-dtk",
     flakes: {
-      system:  "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos",
-      desktop: "/home/diego/git/unix/ba_flakes_desktop",
-      cloud:   "/home/diego/git/cloud"
+      system:  "/home/diego/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos",
+      desktop: "/home/diego/git/cloud-unix/ba_flakes_desktop",
+      cloud:   "/home/diego/git/cloud-infra"
     },
     theme: { accent: "#fbbf24", accent2: "#f59e0b", bg: "#1a160e" },
     sections: (

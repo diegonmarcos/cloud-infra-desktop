@@ -17,7 +17,7 @@
       "title": "Quickmarks",
       "items": [
         { "label": "🐟  Fish Greeting",      "type": "shell", "arg": "_show_welcome" },
-        { "label": "🔗  Connect Dashboard",  "type": "shell", "arg": "sh ~/git/tools/dtk.sh connect" },
+        { "label": "🔗  Connect Dashboard",  "type": "shell", "arg": "sh ~/git/cloud-mykonsole-dtk/dtk.sh connect" },
         { "label": "🌐  Gitea",              "type": "xdg",   "arg": "https://git.diegonmarcos.com" },
         { "label": "💬  Chat",               "type": "xdg",   "arg": "https://chat.diegonmarcos.com" },
         { "label": "📈  Analytics",          "type": "xdg",   "arg": "https://analytics.diegonmarcos.com" }

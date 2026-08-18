@@ -30,7 +30,7 @@
         },
         {
           "label": "oci start",
-          "cmd": "bash ~/git/tools/dtk.sh fleet.oci-mail"
+          "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh fleet.oci-mail"
         }
       ]
     },
@@ -147,7 +147,7 @@
         },
         {
           "label": "oci — vnic/IP list",
-          "cmd": "bash ~/git/tools/dtk.sh fleet.vps-cloud"
+          "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh fleet.vps-cloud"
         },
         {
           "label": "gcloud — list instances",
@@ -218,7 +218,7 @@
   "configs": [
     {
       "title": "Cloud hub config",
-      "paths": ["~/git/cloud/config.json", "~/git/cloud/git.yaml", "~/git/cloud/2_configs/build.json", "~/git/cloud/2_configs/manifest.json"]
+      "paths": ["~/git/cloud-infra/config.json", "~/git/cloud-infra/git.yaml", "~/git/cloud-infra/2_configs/build.json", "~/git/cloud-infra/2_configs/manifest.json"]
     }
   ],
   "order": 3,

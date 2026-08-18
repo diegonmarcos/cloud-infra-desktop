@@ -11,7 +11,7 @@
 # is required. No electron, no node, no bundled Chromium.
 { config, lib, pkgs, ... }:
 let
-  repoDir = "${config.home.homeDirectory}/git/unix/da_cloud-terminal";
+  repoDir = "${config.home.homeDirectory}/git/cloud-unix/da_cloud-terminal";
 in
 {
   # No electron/nodejs — the Tauri app is self-contained (native webview + PTY).

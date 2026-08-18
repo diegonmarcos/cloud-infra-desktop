@@ -6,7 +6,7 @@
 # ║                                                                ║
 # ║ Build:  docker build -t ghcr.io/diegonmarcos/user-dev-x86-deb-nix-hm .    ║
 # ║ Push:   docker push ghcr.io/diegonmarcos/user-dev-x86-deb-nix-hm:latest   ║
-# ║ Run:    sh ~/git/tools/dtk.sh containers deb-nix {cli|gui|tty}║
+# ║ Run:    sh ~/git/cloud-mykonsole-dtk/dtk.sh containers deb-nix {cli|gui|tty}║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 # ═══════════════════════════════════════════════════════════════════
@@ -47,7 +47,7 @@ RUN mkdir -p /home/diego/git && cd /home/diego/git \
 
 # Home-manager switch (diego@cli = exact desktop match)
 RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh \
-    && cd /home/diego/git/unix/ba_flakes_desktop/src \
+    && cd /home/diego/git/cloud-unix/ba_flakes_desktop/src \
     && nix run home-manager/release-24.11 -- switch --flake .#diego@cli --impure 2>&1 \
     && echo "HOME-MANAGER: SUCCESS" \
     || echo "HOME-MANAGER: FAILED — fallback below"
@@ -116,7 +116,7 @@ LABEL diego.image.name="user-dev-x86-deb-nix-hm"
 LABEL diego.image.type="dev-environment"
 LABEL diego.image.variant="deb-nix"
 LABEL diego.image.profiles="cli,gui,tty"
-LABEL diego.image.runner="~/git/tools/dtk.sh containers deb-nix {cli|gui|tty}"
+LABEL diego.image.runner="~/git/cloud-mykonsole-dtk/dtk.sh containers deb-nix {cli|gui|tty}"
 LABEL diego.image.flake.repo="github.com/diegonmarcos/unix"
 LABEL diego.image.flake.path="ba_flakes_desktop/src/"
 LABEL diego.image.flake.config="diego@cli"

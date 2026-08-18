@@ -48,6 +48,6 @@
     "enable": true,
     "url": "https://ntfy.sh",
     "topic": "diegonmarcos-nixos-switch-x7k2",
-    "repo": "/home/diego/git/unix/aa_desk-usr_x86_surface-linux_nixos"
+    "repo": "/home/diego/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos"
   }
 }

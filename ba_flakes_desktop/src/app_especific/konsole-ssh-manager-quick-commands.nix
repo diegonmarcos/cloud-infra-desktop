@@ -27,7 +27,7 @@ let
   ];
 
   sshKey = "/home/diego/.ssh/id_rsa";
-  cmd = "bash ~/git/tools/5-infos/engines/cloud-container-orchestrator/cloud-container-orchestrator.sh";
+  cmd = "bash ~/git/cloud-mykonsole-dtk/5-infos/engines/cloud-container-orchestrator/cloud-container-orchestrator.sh";
 
   # ── SSH Manager: konsolesshconfig ───────────────────────────────────────
 
@@ -166,7 +166,7 @@ let
     + (mkQuickCmd f "docker stats"          "${c}-docker-stats"     "Live container resource usage")
     + (mkQuickCmd f "docker exec"           "${c}-docker-exec"      "Pick a container and exec into it");
 
-  tuiCmd = "bash ~/git/tools/5-infos/engines/cloud-container-orchestrator/cloud-container-orchestrator-tui.sh";
+  tuiCmd = "bash ~/git/cloud-mykonsole-dtk/5-infos/engines/cloud-container-orchestrator/cloud-container-orchestrator-tui.sh";
 
   desktopCommands =
     (mkQuickCmd "Desktop" "TUI (tmux + fzf)"          tuiCmd                  "Full TUI: fzf menu (left) + output (right) in tmux")
@@ -185,7 +185,7 @@ let
     + (mkQuickCmd "Desktop" "docker ps (local)"       "${cmd} docker-ps-local" "List local running containers")
     + (mkQuickCmd "Desktop" "free memory"             "${cmd} free-mem"       "Show memory usage")
     + (mkQuickCmd "Desktop" "disk usage"              "${cmd} disk-usage"     "Show disk usage for key partitions")
-    + (mkQuickCmd "Desktop" "konsole script push"     "if [ -d ~/git/tools/.git ]; then git -C ~/git/tools pull; else git clone https://github.com/diegonmarcos/tools.git ~/git/tools; fi && echo 'Done: ~/git/tools'" "Clone/pull tools repo from GitHub");
+    + (mkQuickCmd "Desktop" "konsole script push"     "if [ -d ~/git/cloud-mykonsole-dtk/.git ]; then git -C ~/git/cloud-mykonsole-dtk pull; else git clone https://github.com/diegonmarcos/tools.git ~/git/cloud-mykonsole-dtk; fi && echo 'Done: ~/git/cloud-mykonsole-dtk'" "Clone/pull tools repo from GitHub");
 
   vpsCommands =
     # Cloud
@@ -276,7 +276,7 @@ let
   '';
 
   # Asset files in tools repo (source of truth, also fetchable standalone)
-  toolsRepo = "${config.home.homeDirectory}/git/tools";
+  toolsRepo = "${config.home.homeDirectory}/git/cloud-mykonsole-dtk";
   quickCmdsAsset = "${toolsRepo}/2-cmds-cloud/konsolequickcommandsconfig";
   sshAsset = "${toolsRepo}/2-cmds-cloud/konsolesshconfig";
 
@@ -332,6 +332,6 @@ in {
   '';
 
   # Asset paths exported for reference (used by dtk.sh 42c installer)
-  # Source files: ~/git/tools/2-cmds-cloud/konsolequickcommandsconfig
-  #               ~/git/tools/2-cmds-cloud/konsolesshconfig
+  # Source files: ~/git/cloud-mykonsole-dtk/2-cmds-cloud/konsolequickcommandsconfig
+  #               ~/git/cloud-mykonsole-dtk/2-cmds-cloud/konsolesshconfig
 }
