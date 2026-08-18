@@ -950,11 +950,17 @@ fn main() {
             // deadlocks the main thread — the app froze at startup the moment
             // a restored browser tab triggered embed_open. In setup we are on
             // the main thread before the loop owns dispatch, so it's safe.
+            // The window is configured "visible": false so the widget tree is
+            // still UNREALIZED here — reparenting a realized WebKitGTK webview
+            // kills its rendering/input on Wayland while the event loop keeps
+            // polling (the "frozen at startup" symptom, distinct from the
+            // earlier getter deadlock). Surgery first, then the first show().
             if let Some(win) = app.handle().get_window("main") {
                 match embed_fixed_setup(&win) {
                     Ok(()) => eprintln!("[embed] fixed layer installed"),
                     Err(e) => eprintln!("[embed] setup failed (embeds disabled): {e}"),
                 }
+                let _ = win.show();
             }
             // --tray-daemon: this launch exists only to host the persistent tray
             // icons (systemd --user service) — hide the terminal window instead
