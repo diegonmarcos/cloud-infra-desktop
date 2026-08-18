@@ -16,17 +16,17 @@ SOPS="$HOME/.nix-profile/bin/sops"
 # may point at the desktop vault path (same trap cloud-ide-sshd documents).
 [ -r "$HOME/.config/sops/age/keys.txt" ] && export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt" || true
 
-OUT="${OUT:-$HOME/.cache/httpd-web-server-json-md-eruda.token}"
+OUT="${OUT:-$HOME/.cache/my-webserver.token}"
 mkdir -p "$(dirname "$OUT")"
 
 if [ ! -f "$SOPS" ] || [ ! -f "$SECRETS" ]; then
-  echo "[httpd-web-server-json-md-eruda] NOTE: sops or secrets.yaml missing — write API stays disabled"
+  echo "[my-webserver] NOTE: sops or secrets.yaml missing — write API stays disabled"
   exit 0
 fi
 
 _tok=$("$SOPS" -d "$SECRETS" 2>/dev/null | "$YQ_BIN" -r '.httpd_write_token' 2>/dev/null) || true
 if [ -z "$_tok" ] || [ "$_tok" = "null" ]; then
-  echo "[httpd-web-server-json-md-eruda] WARNING: token decrypt failed — write API stays disabled"
+  echo "[my-webserver] WARNING: token decrypt failed — write API stays disabled"
   exit 0
 fi
 
@@ -36,4 +36,4 @@ rm -f "$OUT"
 # creation and chmod.
 ( umask 077; printf '%s\n' "$_tok" > "$OUT" )
 chmod 600 "$OUT"
-echo "[httpd-web-server-json-md-eruda] write token rendered (${#_tok} chars)"
+echo "[my-webserver] write token rendered (${#_tok} chars)"

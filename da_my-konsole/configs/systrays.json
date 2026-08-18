@@ -335,29 +335,29 @@
       ]
     },
     {
-      "id": "httpd-web-server-json-md-eruda-systray",
-      "icon": "httpd-web-server-json-md-eruda",
-      "title": "httpd-web-server-json-md-eruda — local file server",
-      "profile": "httpd-web-server-json-md-eruda",
+      "id": "my-webserver-systray",
+      "icon": "my-webserver",
+      "title": "my-webserver — local file server",
+      "profile": "my-webserver",
       "enable": true,
-      "default_command": "konsole --hold -e bash -lc \"httpd-web-server-json-md-eruda status; read\"",
-      "_doc": "httpd-web-server-json-md-eruda is deployed by home-manager (ba_flakes_desktop/src/modules/httpd-web-server-json-md-eruda/default.nix) as BOTH a PID-file wrapper (~/.local/bin/httpd-web-server-json-md-eruda) and a systemd --user unit, which both want :8000. This menu drives the wrapper, because that is the one actually running today (the unit ships disabled), and shows the unit state next to it so the split is visible rather than a mystery when the two fight over the port.",
+      "default_command": "konsole --hold -e bash -lc \"my-webserver status; read\"",
+      "_doc": "my-webserver is deployed by home-manager (ba_flakes_desktop/src/modules/my-webserver/default.nix) as BOTH a PID-file wrapper (~/.local/bin/my-webserver) and a systemd --user unit, which both want :8000. This menu drives the wrapper, because that is the one actually running today (the unit ships disabled), and shows the unit state next to it so the split is visible rather than a mystery when the two fight over the port.",
       "menu": [
         {
           "label": "Status",
-          "command": "konsole --hold -e bash -lc \"httpd-web-server-json-md-eruda status; read\""
+          "command": "konsole --hold -e bash -lc \"my-webserver status; read\""
         },
         {
           "label": "Start",
-          "command": "bash -lc \"httpd-web-server-json-md-eruda start && notify-send httpd-web-server-json-md-eruda \\\"serving :8000\\\"\""
+          "command": "bash -lc \"my-webserver start && notify-send my-webserver \\\"serving :8000\\\"\""
         },
         {
           "label": "Stop",
-          "command": "bash -lc \"httpd-web-server-json-md-eruda stop && notify-send httpd-web-server-json-md-eruda stopped\""
+          "command": "bash -lc \"my-webserver stop && notify-send my-webserver stopped\""
         },
         {
           "label": "Restart",
-          "command": "bash -lc \"httpd-web-server-json-md-eruda restart && notify-send httpd-web-server-json-md-eruda restarted\""
+          "command": "bash -lc \"my-webserver restart && notify-send my-webserver restarted\""
         },
         {
           "label": "Open http://127.0.0.1:8000",
@@ -369,11 +369,11 @@
         },
         {
           "label": "systemd unit: status",
-          "command": "konsole --hold -e bash -lc \"systemctl --user status httpd-web-server-json-md-eruda.service --no-pager; read\""
+          "command": "konsole --hold -e bash -lc \"systemctl --user status my-webserver.service --no-pager; read\""
         },
         {
           "label": "systemd unit: logs",
-          "command": "konsole --hold -e bash -lc \"journalctl --user -u httpd-web-server-json-md-eruda.service -n 200 --no-pager; read\""
+          "command": "konsole --hold -e bash -lc \"journalctl --user -u my-webserver.service -n 200 --no-pager; read\""
         }
       ]
     }

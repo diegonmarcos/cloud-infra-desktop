@@ -87,7 +87,7 @@
     { "name": "ai-cli",        "file": "ai-cli.fish",        "group": "dev", "desc": "Goose AI (default Haiku 4.5)" },
     { "name": "cloud-ai-cli",  "file": "cloud-ai-cli.fish",  "group": "dev", "desc": "Goose against the cloud endpoint" },
 
-    { "name": "serve",         "body": "httpd-web-server-json-md-eruda start $argv", "group": "cloud", "desc": "serve $HOME over HTTP + Markdown + Eruda" },
+    { "name": "serve",         "body": "my-webserver start $argv", "group": "cloud", "desc": "serve $HOME over HTTP + Markdown + Eruda" },
 
     { "name": "mkcd",          "file": "mkcd.fish",          "group": "sys", "desc": "mkdir then cd into it" },
     { "name": "mkd",           "file": "mkd.fish",           "group": "sys", "desc": "mkdir -p" },

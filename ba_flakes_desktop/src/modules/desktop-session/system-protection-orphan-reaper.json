@@ -89,7 +89,7 @@
     "ControlMaster",
     "wireguard",
     "WireGuard",
-    "httpd-web-server-json-md-eruda",
+    "my-webserver",
     "kwin-crash-watchdog",
     "geoclue-2.0/demos"
   ],

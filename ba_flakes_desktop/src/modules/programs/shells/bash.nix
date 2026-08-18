@@ -207,7 +207,7 @@
         done
       }
 
-      serve() { httpd-web-server-json-md-eruda start "''${1:-}" "''${2:-}"; }
+      serve() { my-webserver start "''${1:-}" "''${2:-}"; }
 
       duh() { du -h --max-depth=1 | sort -h; }
 

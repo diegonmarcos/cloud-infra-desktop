@@ -10,9 +10,9 @@ const process = require('node:process');
 // this file is running as a compiled Single Executable Application binary
 // (node --experimental-sea-config + postject). `marked.min.js` and
 // `github-markdown-dark.css` are embedded into the binary as SEA assets at
-// build time (see httpd-web-server-json-md-eruda.sea-config.json) so the
+// build time (see my-webserver.sea-config.json) so the
 // shipped release artifact is one file with no sidecar libs to fetch
-// separately. Plain `node httpd-web-server-json-md-eruda.cjs` (local dev)
+// separately. Plain `node my-webserver.cjs` (local dev)
 // still works — isSea() is false there and getLibAsset() falls back to a
 // normal fs read from LIB_DIR below.
 // CommonJS (.cjs), not ESM: Node's SEA main script is loaded as CJS even
@@ -1015,7 +1015,7 @@ function startupBanner() {
   const url = `http://127.0.0.1:${PORT}`;
   const lines = [
     '',
-    `${C.bold}${C.green}━━━ httpd-web-server-json-md-eruda ━━━${C.reset}`,
+    `${C.bold}${C.green}━━━ my-webserver ━━━${C.reset}`,
     `  ${C.dim}url       ${C.reset}${C.cyan}${url}/${C.reset}`,
     `  ${C.dim}root      ${C.reset}${ROOT}`,
     `  ${C.dim}lib_dir   ${C.reset}${LIB_DIR}`,

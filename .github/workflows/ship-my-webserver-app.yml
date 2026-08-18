@@ -2,7 +2,7 @@
 # ║                                                                  ║
 # ║   GENERATED FILE — DO NOT EDIT                                   ║
 # ║                                                                  ║
-# ║   Source : 1_cicd/src/cicd/ship-httpd-web-server-json-md-eruda.yml
+# ║   Source : 1_cicd/src/cicd/ship-my-webserver-app.yml
 # ║   Engine : 1_cicd/src/scripts/unix-ship-repo-workflow-engine.sh
 # ║   Rebuild: ./9_others/build.sh
 # ║                                                                  ║
@@ -10,8 +10,8 @@
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-name: ship-httpd-web-server-json-md-eruda
-# Build httpd-web-server-json-md-eruda.cjs into a per-arch, single-file Node
+name: ship-my-webserver-app
+# Build my-webserver.cjs into a per-arch, single-file Node
 # Single Executable Application (SEA) binary — node --experimental-sea-config
 # + postject injection, no third-party bundler. The base `node` binary is
 # fetched from the official nodejs.org release (NOT `nix shell
@@ -46,7 +46,7 @@ name: ship-httpd-web-server-json-md-eruda
 # it — so running it under x64 node against an aarch64 `node` binary as pure
 # file data sidesteps the bug entirely (confirmed 2026-08-10). Publishes
 # arch-suffixed binaries to a rolling GitHub Release
-# (httpd-web-server-json-md-eruda-latest). A post-publish update-hashes job
+# (my-webserver-latest). A post-publish update-hashes job
 # recomputes SRI sha256s and commits them into both the desktop and Termux
 # modules' hashes.json so their fetchurl derivations stay in sync
 # automatically. Modeled on ship-my-ai-app.yml.
@@ -54,21 +54,19 @@ on:
   push:
     branches: [main]
     paths:
-      - 'ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda.cjs'
-      - 'ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda.sea-config.json'
-      - 'ba_flakes_desktop/src/modules/dotfiles/httpd-lib/**'
-      - '1_cicd/src/cicd/ship-httpd-web-server-json-md-eruda.yml'
+      - 'da_my-webserver/**'
+      - '1_cicd/src/cicd/ship-my-webserver-app.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 # Serialize runs — same rationale as ship-my-ai-app.yml: the release tag
-# (httpd-web-server-json-md-eruda-latest) is rolling and clobbered on each
+# (my-webserver-latest) is rolling and clobbered on each
 # upload, so overlapping runs would race the update-hashes commit against
 # whichever binary landed last.
 concurrency:
-  group: ship-httpd-web-server-json-md-eruda
+  group: ship-my-webserver-app
   cancel-in-progress: false
 
 env:
@@ -82,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ba_flakes_desktop/src/modules/dotfiles
+        working-directory: da_my-webserver/src
     steps:
       - uses: actions/checkout@v4
 
@@ -99,14 +97,14 @@ jobs:
 
       - name: Generate SEA prep blob (architecture-independent — pure JS + assets bundle)
         run: |
-          "$NODE_X64_DIR/bin/node" --experimental-sea-config httpd-web-server-json-md-eruda.sea-config.json
+          "$NODE_X64_DIR/bin/node" --experimental-sea-config my-webserver.sea-config.json
 
       - name: Inject blob into each arch's node binary (postject, always run under the x64 host node)
         run: |
           for pair in "x86_64:x64" "aarch64:arm64"; do
             arch="${pair%%:*}"
             node_arch="${pair##*:}"
-            OUT="httpd-web-server-json-md-eruda-${arch}"
+            OUT="my-webserver-${arch}"
             cp "node-v${NODE_VERSION}-linux-${node_arch}/bin/node" "$OUT"
             chmod +w "$OUT"
             "$NODE_X64_DIR/bin/npx" --yes postject@1.0.0-alpha.6 "$OUT" NODE_SEA_BLOB sea-prep.blob \
@@ -116,14 +114,14 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: httpd-web-server-json-md-eruda-x86_64
-          path: ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda-x86_64
+          name: my-webserver-x86_64
+          path: da_my-webserver/src/my-webserver-x86_64
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
         with:
-          name: httpd-web-server-json-md-eruda-aarch64
-          path: ba_flakes_desktop/src/modules/dotfiles/httpd-web-server-json-md-eruda-aarch64
+          name: my-webserver-aarch64
+          path: da_my-webserver/src/my-webserver-aarch64
           if-no-files-found: error
 
       - name: Publish to rolling GitHub Release
@@ -131,12 +129,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create httpd-web-server-json-md-eruda-latest \
-            --title "httpd-web-server-json-md-eruda (rolling)" \
-            --notes "Latest multi-arch build — main@${GITHUB_SHA:0:8}. Fetched by ba_flakes_desktop's and bb_flakes_termux's httpd-web-server-json-md-eruda nix modules." \
+          gh release create my-webserver-latest \
+            --title "my-webserver (rolling)" \
+            --notes "Latest multi-arch build — main@${GITHUB_SHA:0:8}. Fetched by ba_flakes_desktop's and bb_flakes_termux's my-webserver nix modules." \
             --target "$GITHUB_SHA" 2>/dev/null || true
-          gh release upload httpd-web-server-json-md-eruda-latest \
-            httpd-web-server-json-md-eruda-x86_64 httpd-web-server-json-md-eruda-aarch64 --clobber
+          gh release upload my-webserver-latest \
+            my-webserver-x86_64 my-webserver-aarch64 --clobber
 
   update-hashes:
     name: Update hashes.json
@@ -155,33 +153,33 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: /tmp
         run: |
-          gh release download httpd-web-server-json-md-eruda-latest --repo diegonmarcos/cloud-unix \
-            --pattern "httpd-web-server-json-md-eruda-aarch64" \
-            --pattern "httpd-web-server-json-md-eruda-x86_64" \
+          gh release download my-webserver-latest --repo diegonmarcos/cloud-unix \
+            --pattern "my-webserver-aarch64" \
+            --pattern "my-webserver-x86_64" \
             --clobber
 
       - uses: cachix/install-nix-action@v27
 
       - name: Compute SRI hashes and update hashes.json
         run: |
-          aarch64_hash=$(nix hash file --sri /tmp/httpd-web-server-json-md-eruda-aarch64)
-          x86_64_hash=$(nix hash file --sri /tmp/httpd-web-server-json-md-eruda-x86_64)
+          aarch64_hash=$(nix hash file --sri /tmp/my-webserver-aarch64)
+          x86_64_hash=$(nix hash file --sri /tmp/my-webserver-x86_64)
 
-          cat > ba_flakes_desktop/src/modules/httpd-web-server-json-md-eruda/hashes.json <<JSON
+          cat > ba_flakes_desktop/src/modules/my-webserver/hashes.json <<JSON
           {
             "version": "latest",
             "aarch64-linux": {
-              "httpd-web-server-json-md-eruda": "$aarch64_hash"
+              "my-webserver": "$aarch64_hash"
             },
             "x86_64-linux": {
-              "httpd-web-server-json-md-eruda": "$x86_64_hash"
+              "my-webserver": "$x86_64_hash"
             }
           }
           JSON
 
-          cat > bb_flakes_termux/src/modules/httpd-web-server-json-md-eruda/hashes.json <<JSON
+          cat > bb_flakes_termux/src/modules/my-webserver/hashes.json <<JSON
           {
-            "httpd-web-server-json-md-eruda": "$aarch64_hash"
+            "my-webserver": "$aarch64_hash"
           }
           JSON
 
@@ -189,10 +187,10 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ba_flakes_desktop/src/modules/httpd-web-server-json-md-eruda/hashes.json \
-                  bb_flakes_termux/src/modules/httpd-web-server-json-md-eruda/hashes.json
+          git add ba_flakes_desktop/src/modules/my-webserver/hashes.json \
+                  bb_flakes_termux/src/modules/my-webserver/hashes.json
           git diff --cached --quiet || \
-            git commit -m "chore: update httpd-web-server-json-md-eruda hashes.json [skip ci]"
+            git commit -m "chore: update my-webserver hashes.json [skip ci]"
           # Retry with a rebase — see ship-my-ai-app.yml for why a bare `git push` loses this race.
           for attempt in 1 2 3 4 5; do
             if git push; then

@@ -183,10 +183,10 @@ set_color red; echo -n "    sync             "; set_color normal; echo "File syn
 # http-dev status
 if test -n "$__httpd_pid" && kill -0 $__httpd_pid 2>/dev/null
   set_color green; echo -n "    httpd            "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: $__httpd_pid)"
-else if test -f $HOME/.cache/httpd-web-server-json-md-eruda.pid; and kill -0 (command cat $HOME/.cache/httpd-web-server-json-md-eruda.pid 2>/dev/null) 2>/dev/null
-  set_color green; echo -n "    httpd            "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: "(command cat $HOME/.cache/httpd-web-server-json-md-eruda.pid)")"
+else if test -f $HOME/.cache/my-webserver.pid; and kill -0 (command cat $HOME/.cache/my-webserver.pid 2>/dev/null) 2>/dev/null
+  set_color green; echo -n "    httpd            "; set_color normal; echo -n "● Web+MD+Eruda "; set_color cyan; echo -n "http://127.0.0.1:$__httpd_port"; set_color normal; echo " (PID: "(command cat $HOME/.cache/my-webserver.pid)")"
 else
-  set_color red; echo -n "    httpd            "; set_color normal; echo "○ Not running (httpd-web-server-json-md-eruda start)"
+  set_color red; echo -n "    httpd            "; set_color normal; echo "○ Not running (my-webserver start)"
 end
 # System
 set_color cyan; echo "  System:"

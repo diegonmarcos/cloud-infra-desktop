@@ -1,4 +1,4 @@
-# httpd-web-server-json-md-eruda — POSIX wrapper for the fetched SEA binary
+# my-webserver — POSIX wrapper for the fetched SEA binary
 #
 # Extracted from default.nix (httpdWrapperScript). The only value the Nix
 # side ever interpolated into this body was the fetched binary's store path,
@@ -7,7 +7,7 @@
 # serve-dir were already runtime shell defaults (not Nix interpolation), so
 # there is no cloud-data JSON for this script.
 #
-# Usage: httpd-web-server-json-md-eruda [start|stop|status|restart] [port] [dir]
+# Usage: my-webserver [start|stop|status|restart] [port] [dir]
 #
 # Fall-through, not fail-loud: this is an interactive/desktop-entry wrapper
 # around a user-facing command. A bad subcommand prints usage and exits 1
@@ -15,10 +15,10 @@
 # the wrapper always leaves the user with a usable command.
 set -eu
 
-SERVER="${HTTPD_WEB_SERVER_BIN:?httpd-web-server-json-md-eruda: HTTPD_WEB_SERVER_BIN not set}"
+SERVER="${HTTPD_WEB_SERVER_BIN:?my-webserver: HTTPD_WEB_SERVER_BIN not set}"
 PORT="${2:-8000}"
 DIR="${3:-$HOME}"
-PID_FILE="$HOME/.cache/httpd-web-server-json-md-eruda.pid"
+PID_FILE="$HOME/.cache/my-webserver.pid"
 
 is_running() {
   [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null
@@ -65,5 +65,5 @@ case "${1:-start}" in
   stop)    do_stop ;;
   status)  do_status ;;
   restart) do_stop; do_start ;;
-  *)       echo "Usage: httpd-web-server-json-md-eruda {start|stop|status|restart} [port] [dir]"; exit 1 ;;
+  *)       echo "Usage: my-webserver {start|stop|status|restart} [port] [dir]"; exit 1 ;;
 esac
