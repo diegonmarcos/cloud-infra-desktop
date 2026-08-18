@@ -9,6 +9,6 @@
     { "name": "front",          "root": "git/front" },
     { "name": "front-data",     "root": "git/front-data" },
     { "name": "vault",          "root": "git/vault" },
-    { "name": "notes",          "root": "git/notes" }
+    { "name": "notes",          "root": "git/cloud-notes" }
   ]
 }
