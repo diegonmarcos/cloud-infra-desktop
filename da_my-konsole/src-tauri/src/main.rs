@@ -394,14 +394,28 @@ thread_local! {
         std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
+// Feature gate: the embed layer is experimental on this stack. Default OFF —
+// a plain launch behaves exactly like the proven iframe+popout build; set
+// MYK_EMBED=1 to enable in-tab external webviews. Three startup freezes came
+// from variants of restructuring the main window's widget tree; the gate
+// guarantees a bad embed iteration can never take the whole app down again.
+fn embeds_enabled() -> bool {
+    std::env::var("MYK_EMBED").map(|v| v == "1").unwrap_or(false)
+}
+
 // Called ONCE from .setup(), on the main thread, BEFORE the event loop owns
 // dispatch — never from a run_on_main_thread closure: tauri window getters
 // like gtk_window() are blocking round-trips through the event loop, so
-// calling one from the loop itself deadlocks (futex-parked main thread; that
-// was the launch freeze). Performs the overlay surgery:
-//   window ▸ GtkOverlay ▸ [ vbox (whole existing UI), GtkFixed (embeds) ]
-// GtkFixed is a no-window widget, so input over empty areas falls through to
-// the UI underneath; the webviews' own GDK windows receive their input directly.
+// calling one from the loop itself deadlocks (futex-parked main thread).
+//
+// NO REPARENTING. The GtkOverlay variants (remove vbox → wrap → re-add), both
+// post- and pre-realize, froze the main webview on Wayland. This appends a
+// zero-height, no-window GtkFixed to the END of the existing vbox and touches
+// nothing else — the main webview never moves, so it cannot be broken by this.
+// Positioned embeds still work from there: wry's set_bounds for a
+// fixed-parented webview is a size_allocate in toplevel coordinates, and a
+// widget with its own GDK window is clipped by that window, not by the
+// fixed's (empty) allocation.
 fn embed_fixed_setup(win: &tauri::Window) -> Result<(), String> {
     use gtk::prelude::*;
     let gtk_win = win.gtk_window().map_err(|e| e.to_string())?;
@@ -410,13 +424,9 @@ fn embed_fixed_setup(win: &tauri::Window) -> Result<(), String> {
         .into_iter()
         .find_map(|c| c.downcast::<gtk::Box>().ok())
         .ok_or("main window has no GtkBox child")?;
-    gtk_win.remove(&vbox);
-    let overlay = gtk::Overlay::new();
-    overlay.add(&vbox);
     let fixed = gtk::Fixed::new();
-    overlay.add_overlay(&fixed);
-    gtk_win.add(&overlay);
-    overlay.show_all();
+    vbox.pack_end(&fixed, false, false, 0);
+    fixed.show();
     EMBED_FIXED.with(|c| *c.borrow_mut() = Some(fixed.clone()));
     Ok(())
 }
@@ -453,6 +463,11 @@ fn embed_open(
     w: f64,
     h: f64,
 ) -> Result<(), String> {
+    if !embeds_enabled() {
+        // Synchronous rejection: the frontend catches this and falls back to a
+        // pop-out window, so external URLs still open somewhere useful.
+        return Err("embeds disabled (launch with MYK_EMBED=1)".into());
+    }
     parse_url(&url)?;
     ensure_agentic_backend(app.clone(), url.clone())?;
     on_main(&app, move |_app| {
@@ -950,17 +965,13 @@ fn main() {
             // deadlocks the main thread — the app froze at startup the moment
             // a restored browser tab triggered embed_open. In setup we are on
             // the main thread before the loop owns dispatch, so it's safe.
-            // The window is configured "visible": false so the widget tree is
-            // still UNREALIZED here — reparenting a realized WebKitGTK webview
-            // kills its rendering/input on Wayland while the event loop keeps
-            // polling (the "frozen at startup" symptom, distinct from the
-            // earlier getter deadlock). Surgery first, then the first show().
-            if let Some(win) = app.handle().get_window("main") {
-                match embed_fixed_setup(&win) {
-                    Ok(()) => eprintln!("[embed] fixed layer installed"),
-                    Err(e) => eprintln!("[embed] setup failed (embeds disabled): {e}"),
+            if embeds_enabled() {
+                if let Some(win) = app.handle().get_window("main") {
+                    match embed_fixed_setup(&win) {
+                        Ok(()) => eprintln!("[embed] fixed layer installed"),
+                        Err(e) => eprintln!("[embed] setup failed (embeds disabled): {e}"),
+                    }
                 }
-                let _ = win.show();
             }
             // --tray-daemon: this launch exists only to host the persistent tray
             // icons (systemd --user service) — hide the terminal window instead
