@@ -334,205 +334,46 @@ fn which_all(bins: Vec<String>) -> Result<Vec<(String, Option<String>)>, String>
         .collect())
 }
 
-// ── Browser tabs are NATIVE child webviews, not <iframe>s.
+// ── Browser tabs: <iframe> in-tab + top-level WebviewWindow pop-out.
 //
-// The iframe version could not browse the web, and not by a little: an iframe
-// obeys X-Frame-Options, and essentially every site worth opening sends it —
-// including our OWN home page (linktree.diegonmarcos.com: SAMEORIGIN). The
-// result was a blank rectangle with no error, i.e. "the browser has no
-// internet". No amount of frontend work fixes that; the header is enforced by
-// WebKit itself and it is enforced correctly. An embedded browser has to be a
-// real webview.
+// Both "pure" designs were tried and are PROVEN dead ends on Linux:
 //
-// The cost is manual bounds/visibility syncing (a native webview floats above
-// the DOM and is not clipped by CSS), which is what the frontend's
-// browser_bounds polling handles. Hiding is done by parking the webview far
-// offscreen rather than a hide() call: it is the one operation guaranteed to
-// exist on every platform backend, and it survives a webview that is mid-load.
+// - Native child webview (add_child): tauri-runtime-wry packs it into the
+//   window's GtkBox (pack_start, expand=true), never a GtkFixed, and wry's
+//   set_bounds only acts `if is_in_fixed_parent` — so set_position/set_size/
+//   set_bounds all return Ok and do NOTHING (traced live, MYK_BROWSER_DEBUG=1:
+//   webview frozen at its GTK-assigned full-width band regardless of every
+//   call). A child webview here cannot be positioned, clipped or hidden; it
+//   can only split the window. Even close() left the packed widget behind.
 //
-// All geometry here is PHYSICAL device pixels. It used to be Logical*, which
-// Tauri rescales by the window's scale factor while WebKitGTK independently
-// scales the child surface — double-scaling that drew the webview ~scale× too
-// large on any display with scale != 1, spilling it across the screen. The
-// frontend now measures in physical px (rect × devicePixelRatio) and these are
-// applied verbatim.
-const OFFSCREEN: i32 = -100_000;
+// - Pure iframe: obeys X-Frame-Options/frame-ancestors, which most external
+//   sites send (including linktree.diegonmarcos.com: SAMEORIGIN) → blank
+//   rectangle, enforced by WebKit itself, unfixable from our side.
+//
+// So: the iframe renders what CAN legally be embedded (our own local agentic
+// UIs — the in-tab daily drivers), and everything else opens through
+// browser_popout as a real top-level WebviewWindow — the one native surface
+// whose geometry and close the Linux backend actually honors.
 
 fn parse_url(u: &str) -> Result<tauri::Url, String> {
     u.parse::<tauri::Url>().map_err(|e| e.to_string())
 }
 
-// ── Browser webview tracing (MYK_BROWSER_DEBUG=1) ─────────────────────────
-// Every geometry call logs three things: what the frontend asked for, whether
-// the backend accepted it, and what the webview's position/size ACTUALLY are
-// afterwards. The readback is the point. If it does not match the request, the
-// bounds mechanism is inert on this backend and no better numbers from JS can
-// ever fix the overflow — that is a different bug from "we sent bad numbers",
-// and until the readback is on the table the two are indistinguishable.
-fn btrace_on() -> bool {
-    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| std::env::var("MYK_BROWSER_DEBUG").map(|v| v != "0").unwrap_or(false))
-}
-
-macro_rules! btrace {
-    ($($t:tt)*) => { if btrace_on() { eprintln!("[browser] {}", format_args!($($t)*)); } };
-}
-
-fn readback(wv: &tauri::Webview) -> String {
-    match wv.bounds() {
-        Ok(b) => format!("actual={b:?}"),
-        Err(e) => format!("bounds() failed: {e}"),
-    }
-}
-
-// Geometry goes through set_bounds, NOT set_position/set_size. Measured on this
-// machine (KDE Wayland, WebKitGTK): the individual setters return Ok and do
-// nothing at all for a child webview — after set_position(-100000,-100000) the
-// webview reads back at (0,0) 2200x326, its GTK-assigned rect, unchanged. That
-// is the permanent band across the window, and it is also why hiding an
-// inactive tab never worked: the frontend was reporting visible=false correctly
-// and the backend was silently discarding it. set_bounds is the combined API
-// that is actually wired up for child webviews on this backend.
-fn phys_rect(x: i32, y: i32, w: u32, h: u32) -> tauri::Rect {
-    tauri::Rect {
-        position: tauri::Position::Physical(tauri::PhysicalPosition::new(x, y)),
-        size: tauri::Size::Physical(tauri::PhysicalSize::new(w.max(1), h.max(1))),
-    }
-}
-
-// Lets the frontend put its own measurements (CSS rect, devicePixelRatio) into
-// the same stderr stream as the backend's, so one log shows both halves.
 #[tauri::command]
-fn browser_log(msg: String) {
-    btrace!("js: {msg}");
-}
-
-#[tauri::command]
-fn browser_open(
-    app: tauri::AppHandle,
-    label: String,
-    url: String,
-    x: f64,
-    y: f64,
-    w: f64,
-    h: f64,
-) -> Result<(), String> {
-    use tauri::{PhysicalPosition, PhysicalSize};
+fn browser_popout(app: tauri::AppHandle, label: String, url: String) -> Result<(), String> {
     let u = parse_url(&url)?;
-    ensure_agentic_backend(app.clone(), url.clone())?;
-    // Re-opening an existing label navigates it instead of stacking a second
-    // webview on the same rectangle (which would leak one per restore-session).
-    if let Some(wv) = app.get_webview(&label) {
-        return wv.navigate(u).map_err(|e| e.to_string());
+    // Re-using the label focuses + navigates the existing window instead of
+    // erroring on a duplicate-label build.
+    if let Some(w) = app.get_webview_window(&label) {
+        w.navigate(u).map_err(|e| e.to_string())?;
+        return w.set_focus().map_err(|e| e.to_string());
     }
-    let win = app.get_window("main").ok_or("no main window")?;
-    btrace!(
-        "open {label} req=({x},{y}) {w}x{h} | window scale={:?} inner={:?} outer={:?}",
-        win.scale_factor(),
-        win.inner_size(),
-        win.outer_size()
-    );
-    win.add_child(
-        // No .auto_resize(): the 4 Hz bounds poll is already the authority on
-        // this webview's rectangle, and auto-resize would fight it on every
-        // window resize.
-        tauri::webview::WebviewBuilder::new(&label, tauri::WebviewUrl::External(u)),
-        PhysicalPosition::new(x as i32, y as i32),
-        PhysicalSize::new(w.max(1.0) as u32, h.max(1.0) as u32),
-    )
-    .map_err(|e| e.to_string())?;
-    if let Some(wv) = app.get_webview(&label) {
-        // add_child's own position/size are as unreliable as the individual
-        // setters, so immediately restate the rect through set_bounds. A tab
-        // opened in the background measures 0x0 and is parked offscreen here
-        // rather than being left at whatever rect GTK picked — that leftover
-        // rect is what used to sit permanently across the window.
-        let r = if w >= 1.0 && h >= 1.0 {
-            phys_rect(x as i32, y as i32, w as u32, h as u32)
-        } else {
-            phys_rect(OFFSCREEN, OFFSCREEN, 1, 1)
-        };
-        let res = wv.set_bounds(r);
-        btrace!(
-            "open {label} after add_child: set_bounds={:?} | {}",
-            res.as_ref().err().map(|e| e.to_string()),
-            readback(&wv)
-        );
-    } else {
-        btrace!("open {label}: add_child returned Ok but get_webview finds nothing");
-    }
-    Ok(())
-}
-
-#[tauri::command]
-fn browser_bounds(
-    app: tauri::AppHandle,
-    label: String,
-    x: f64,
-    y: f64,
-    w: f64,
-    h: f64,
-    visible: bool,
-) -> Result<(), String> {
-    let Some(wv) = app.get_webview(&label) else {
-        btrace!("bounds {label}: NO SUCH WEBVIEW (orphan? already closed?)");
-        return Ok(());
-    };
-    // An inactive tab legitimately measures 0x0 while hidden; it is parked far
-    // offscreen at 1x1 rather than resized to nothing.
-    let r = if visible {
-        phys_rect(x as i32, y as i32, w as u32, h as u32)
-    } else {
-        phys_rect(OFFSCREEN, OFFSCREEN, 1, 1)
-    };
-    let res = wv.set_bounds(r);
-    btrace!(
-        "bounds {label} req=({x},{y}) {w}x{h} visible={visible} set_bounds={:?} | {}",
-        res.as_ref().err().map(|e| e.to_string()),
-        readback(&wv)
-    );
-    res.map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn browser_navigate(app: tauri::AppHandle, label: String, url: String) -> Result<(), String> {
-    let u = parse_url(&url)?;
-    ensure_agentic_backend(app.clone(), url)?;
-    let wv = app.get_webview(&label).ok_or("no such webview")?;
-    wv.navigate(u).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn browser_back(app: tauri::AppHandle, label: String) -> Result<(), String> {
-    let wv = app.get_webview(&label).ok_or("no such webview")?;
-    wv.eval("history.back()").map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn browser_close(app: tauri::AppHandle, label: String) -> Result<(), String> {
-    let Some(wv) = app.get_webview(&label) else {
-        btrace!("close {label}: already gone");
-        return Ok(());
-    };
-    btrace!("close {label}: before close, {}", readback(&wv));
-    let close_err = wv.close().err().map(|e| e.to_string());
-    btrace!("close {label}: close() err={close_err:?}, survived={}", app.get_webview(&label).is_some());
-    // close() is NOT reliable for a child webview on the WebKitGTK backend: it
-    // can return Ok and leave the surface alive. Verify, and if one survives,
-    // shrink it to 1x1 and park it far offscreen so it cannot be seen, then
-    // report failure — the frontend keeps its bounds slot registered on Err, so
-    // the poll goes on holding the orphan offscreen instead of abandoning it
-    // (that abandonment is what left a dead rectangle on screen until the whole
-    // app was killed).
-    if let Some(wv) = app.get_webview(&label) {
-        let _ = wv.set_bounds(phys_rect(OFFSCREEN, OFFSCREEN, 1, 1));
-        btrace!("close {label}: survivor parked, {}", readback(&wv));
-        return Err(match close_err {
-            Some(e) => format!("close({label}) failed: {e}; parked offscreen"),
-            None => format!("close({label}) returned Ok but the webview survived; parked offscreen"),
-        });
-    }
-    Ok(())
+    tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::External(u.clone()))
+        .title(u.host_str().unwrap_or("browser"))
+        .inner_size(1100.0, 750.0)
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -954,7 +795,7 @@ fn main() {
             pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config,
             fs_list_dir, fs_read_file, fs_write_file, fs_glob, which_all,
             ensure_agentic_backend,
-            browser_open, browser_bounds, browser_navigate, browser_back, browser_close, browser_log
+            browser_popout
         ])
         .run(tauri::generate_context!())
         .expect("error while running my-konsole");
