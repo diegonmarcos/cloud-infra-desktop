@@ -394,16 +394,16 @@ thread_local! {
         std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
-// Main thread only. First call performs the overlay surgery:
+// Called ONCE from .setup(), on the main thread, BEFORE the event loop owns
+// dispatch — never from a run_on_main_thread closure: tauri window getters
+// like gtk_window() are blocking round-trips through the event loop, so
+// calling one from the loop itself deadlocks (futex-parked main thread; that
+// was the launch freeze). Performs the overlay surgery:
 //   window ▸ GtkOverlay ▸ [ vbox (whole existing UI), GtkFixed (embeds) ]
 // GtkFixed is a no-window widget, so input over empty areas falls through to
 // the UI underneath; the webviews' own GDK windows receive their input directly.
-fn embed_fixed(app: &tauri::AppHandle) -> Result<gtk::Fixed, String> {
+fn embed_fixed_setup(win: &tauri::Window) -> Result<(), String> {
     use gtk::prelude::*;
-    if let Some(f) = EMBED_FIXED.with(|c| c.borrow().clone()) {
-        return Ok(f);
-    }
-    let win = app.get_window("main").ok_or("no main window")?;
     let gtk_win = win.gtk_window().map_err(|e| e.to_string())?;
     let vbox = gtk_win
         .children()
@@ -418,7 +418,14 @@ fn embed_fixed(app: &tauri::AppHandle) -> Result<gtk::Fixed, String> {
     gtk_win.add(&overlay);
     overlay.show_all();
     EMBED_FIXED.with(|c| *c.borrow_mut() = Some(fixed.clone()));
-    Ok(fixed)
+    Ok(())
+}
+
+// Main-thread accessor for the layer installed at setup.
+fn embed_fixed() -> Result<gtk::Fixed, String> {
+    EMBED_FIXED
+        .with(|c| c.borrow().clone())
+        .ok_or_else(|| "embed layer not installed (setup failed?)".into())
 }
 
 fn on_main<F: FnOnce(tauri::AppHandle) + Send + 'static>(
@@ -448,7 +455,7 @@ fn embed_open(
 ) -> Result<(), String> {
     parse_url(&url)?;
     ensure_agentic_backend(app.clone(), url.clone())?;
-    on_main(&app, move |app| {
+    on_main(&app, move |_app| {
         // Re-opening an existing label navigates it (session restore re-runs open).
         let existed = EMBEDS.with(|m| {
             if let Some(wv) = m.borrow().get(&label) {
@@ -461,19 +468,23 @@ fn embed_open(
         if existed {
             return;
         }
-        let fixed = match embed_fixed(&app) {
+        let fixed = match embed_fixed() {
             Ok(f) => f,
             Err(e) => return eprintln!("[embed] open {label}: {e}"),
         };
+        eprintln!("[embed] open {label} at ({x},{y}) {w}x{h}: {url}");
         use wry::WebViewBuilderExtUnix; // build_gtk lives on the Unix ext trait
         match wry::WebViewBuilder::new()
             .with_url(&url)
             .with_bounds(embed_rect(x, y, w, h))
             .build_gtk(&fixed)
         {
-            Ok(wv) => EMBEDS.with(|m| {
-                m.borrow_mut().insert(label, wv);
-            }),
+            Ok(wv) => {
+                eprintln!("[embed] open {label}: built ok");
+                EMBEDS.with(|m| {
+                    m.borrow_mut().insert(label, wv);
+                });
+            }
             Err(e) => eprintln!("[embed] build {label}: {e}"),
         }
     })
@@ -931,6 +942,19 @@ fn main() {
             // lazily from ensure_agentic_backend when their tab is actually opened, not here.
             if agentic_ui_dist_dir(app.handle()).is_none() {
                 eprintln!("agentic-ui: no dist dir found (fetch it via build.sh fetch) — tab will fail to load");
+            }
+            // Embed layer surgery happens HERE, not lazily inside a
+            // run_on_main_thread closure: tauri window getters (gtk_window)
+            // are blocking round-trips through the event loop, and calling one
+            // FROM the loop (which is what a run_on_main_thread closure is)
+            // deadlocks the main thread — the app froze at startup the moment
+            // a restored browser tab triggered embed_open. In setup we are on
+            // the main thread before the loop owns dispatch, so it's safe.
+            if let Some(win) = app.handle().get_window("main") {
+                match embed_fixed_setup(&win) {
+                    Ok(()) => eprintln!("[embed] fixed layer installed"),
+                    Err(e) => eprintln!("[embed] setup failed (embeds disabled): {e}"),
+                }
             }
             // --tray-daemon: this launch exists only to host the persistent tray
             // icons (systemd --user service) — hide the terminal window instead
