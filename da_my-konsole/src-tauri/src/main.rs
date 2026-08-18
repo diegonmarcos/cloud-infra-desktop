@@ -376,6 +376,169 @@ fn browser_popout(app: tauri::AppHandle, label: String, url: String) -> Result<(
         .map_err(|e| e.to_string())
 }
 
+// ── In-tab embedded browser: our own GtkFixed layer ────────────────────────
+// tauri's add_child parents child webviews in the window's GtkBox, where wry's
+// set_bounds is a silent no-op (tauri#13071 / wry#1727) — they can only split
+// the window as a full-width band. wry itself positions fine when the webview
+// lives in a GtkFixed (is_in_fixed_parent), tauri just never provides one. So
+// we do: reparent the window's content into a GtkOverlay and lay a GtkFixed
+// over it; browser webviews are built with wry's build_gtk(&fixed) and receive
+// real geometry (logical/CSS px — GTK handles the scale factor, which is why
+// no devicePixelRatio math appears anywhere here).
+//
+// GTK widgets and wry WebViews are !Send: everything lives in thread_locals
+// touched only via run_on_main_thread.
+thread_local! {
+    static EMBED_FIXED: std::cell::RefCell<Option<gtk::Fixed>> = std::cell::RefCell::new(None);
+    static EMBEDS: std::cell::RefCell<std::collections::HashMap<String, wry::WebView>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+// Main thread only. First call performs the overlay surgery:
+//   window ▸ GtkOverlay ▸ [ vbox (whole existing UI), GtkFixed (embeds) ]
+// GtkFixed is a no-window widget, so input over empty areas falls through to
+// the UI underneath; the webviews' own GDK windows receive their input directly.
+fn embed_fixed(app: &tauri::AppHandle) -> Result<gtk::Fixed, String> {
+    use gtk::prelude::*;
+    if let Some(f) = EMBED_FIXED.with(|c| c.borrow().clone()) {
+        return Ok(f);
+    }
+    let win = app.get_window("main").ok_or("no main window")?;
+    let gtk_win = win.gtk_window().map_err(|e| e.to_string())?;
+    let vbox = gtk_win
+        .children()
+        .into_iter()
+        .find_map(|c| c.downcast::<gtk::Box>().ok())
+        .ok_or("main window has no GtkBox child")?;
+    gtk_win.remove(&vbox);
+    let overlay = gtk::Overlay::new();
+    overlay.add(&vbox);
+    let fixed = gtk::Fixed::new();
+    overlay.add_overlay(&fixed);
+    gtk_win.add(&overlay);
+    overlay.show_all();
+    EMBED_FIXED.with(|c| *c.borrow_mut() = Some(fixed.clone()));
+    Ok(fixed)
+}
+
+fn on_main<F: FnOnce(tauri::AppHandle) + Send + 'static>(
+    app: &tauri::AppHandle,
+    f: F,
+) -> Result<(), String> {
+    let h = app.clone();
+    app.run_on_main_thread(move || f(h)).map_err(|e| e.to_string())
+}
+
+fn embed_rect(x: f64, y: f64, w: f64, h: f64) -> wry::Rect {
+    wry::Rect {
+        position: wry::dpi::LogicalPosition::new(x, y).into(),
+        size: wry::dpi::LogicalSize::new(w.max(1.0), h.max(1.0)).into(),
+    }
+}
+
+#[tauri::command]
+fn embed_open(
+    app: tauri::AppHandle,
+    label: String,
+    url: String,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> Result<(), String> {
+    parse_url(&url)?;
+    ensure_agentic_backend(app.clone(), url.clone())?;
+    on_main(&app, move |app| {
+        // Re-opening an existing label navigates it (session restore re-runs open).
+        let existed = EMBEDS.with(|m| {
+            if let Some(wv) = m.borrow().get(&label) {
+                let _ = wv.load_url(&url);
+                true
+            } else {
+                false
+            }
+        });
+        if existed {
+            return;
+        }
+        let fixed = match embed_fixed(&app) {
+            Ok(f) => f,
+            Err(e) => return eprintln!("[embed] open {label}: {e}"),
+        };
+        match wry::WebViewBuilder::new()
+            .with_url(&url)
+            .with_bounds(embed_rect(x, y, w, h))
+            .build_gtk(&fixed)
+        {
+            Ok(wv) => EMBEDS.with(|m| {
+                m.borrow_mut().insert(label, wv);
+            }),
+            Err(e) => eprintln!("[embed] build {label}: {e}"),
+        }
+    })
+}
+
+#[tauri::command]
+fn embed_bounds(
+    app: tauri::AppHandle,
+    label: String,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    visible: bool,
+) -> Result<(), String> {
+    on_main(&app, move |_| {
+        EMBEDS.with(|m| {
+            if let Some(wv) = m.borrow().get(&label) {
+                let _ = wv.set_visible(visible);
+                if visible {
+                    let _ = wv.set_bounds(embed_rect(x, y, w, h));
+                }
+            }
+        });
+    })
+}
+
+#[tauri::command]
+fn embed_navigate(app: tauri::AppHandle, label: String, url: String) -> Result<(), String> {
+    parse_url(&url)?;
+    ensure_agentic_backend(app.clone(), url.clone())?;
+    on_main(&app, move |_| {
+        EMBEDS.with(|m| {
+            if let Some(wv) = m.borrow().get(&label) {
+                let _ = wv.load_url(&url);
+            }
+        });
+    })
+}
+
+#[tauri::command]
+fn embed_back(app: tauri::AppHandle, label: String) -> Result<(), String> {
+    on_main(&app, move |_| {
+        EMBEDS.with(|m| {
+            if let Some(wv) = m.borrow().get(&label) {
+                let _ = wv.evaluate_script("history.back()");
+            }
+        });
+    })
+}
+
+#[tauri::command]
+fn embed_close(app: tauri::AppHandle, label: String) -> Result<(), String> {
+    on_main(&app, move |_| {
+        EMBEDS.with(|m| {
+            if let Some(wv) = m.borrow_mut().remove(&label) {
+                // ponytail: hide-then-drop; if wry's Drop ever leaves the GTK
+                // widget alive it is invisible, not a stuck surface. Explicit
+                // container removal if that ever shows up in practice.
+                let _ = wv.set_visible(false);
+                drop(wv);
+            }
+        });
+    })
+}
+
 #[tauri::command]
 fn ensure_agentic_backend(app: tauri::AppHandle, url: String) -> Result<(), String> {
     let u = parse_url(&url)?;
@@ -743,6 +906,13 @@ fn setup_systrays(app: &tauri::App) {
 }
 
 fn main() {
+    // WebKitGTK compositing is glitchy for webviews inside a GtkFixed (blur /
+    // stale-size frames, wry#1727) and this host's GPU path is already broken
+    // (GBM/dri load failures in every log) so it software-renders anyway.
+    // Respect an explicit override from the environment.
+    if std::env::var_os("WEBKIT_DISABLE_COMPOSITING_MODE").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+    }
     // Intercepted BEFORE Tauri boots: this is how `wl-paste --watch` re-
     // invokes this same binary on every clipboard change (see
     // clipboard::spawn_capture) — a short-lived, non-GUI run that just
@@ -795,7 +965,8 @@ fn main() {
             pty_start, pty_write, pty_resize, pty_kill, get_profiles, get_config,
             fs_list_dir, fs_read_file, fs_write_file, fs_glob, which_all,
             ensure_agentic_backend,
-            browser_popout
+            browser_popout,
+            embed_open, embed_bounds, embed_navigate, embed_back, embed_close
         ])
         .run(tauri::generate_context!())
         .expect("error while running my-konsole");

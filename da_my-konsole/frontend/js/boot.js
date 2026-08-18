@@ -438,7 +438,7 @@
   // Without an explicit sync here, an active browser tab keeps its
   // pre-resize bounds until the 250ms poll catches up, painting outside its
   // (now different-sized) host for that gap.
-  window.addEventListener("resize", () => { if (Tabs.active) MYK._fitTab(Tabs.active); });
+  window.addEventListener("resize", () => { if (Tabs.active) MYK._fitTab(Tabs.active); NativeEmbed.sync(true); });
   window.addEventListener("beforeunload", () => Tabs.saveSession());
 
   // Global ☰ menu. Submenus stay CSS-driven (:hover) for visibility; JS only
@@ -499,6 +499,7 @@
     document.getElementById("cfg-sidebar").classList.toggle("checked", layout.sidebar);
     localStorage.setItem("myk-layout", JSON.stringify(layout));
     if (Tabs.active) MYK._fitTab(Tabs.active);   // the terminal must re-fit, not clip
+    NativeEmbed.sync(true);   // a browser tab's host just moved/resized too
   };
   // `layout` itself is trapped in this IIFE's closure — the pane context menu's
   // "Show Menu Bar" checkbox (term.js) lives outside it and needs to read/flip

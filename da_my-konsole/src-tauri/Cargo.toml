@@ -20,6 +20,14 @@ tauri-build = { version = "2", features = [] }
 # on hover instead of its own title. ksni implements StatusNotifierItem
 # directly over D-Bus, including the ToolTip property KDE actually reads.
 tauri = { version = "2", features = ["unstable"] }
+# In-tab embedded browser (Linux): tauri's own add_child packs child webviews
+# into the window's GtkBox where wry's set_bounds is a no-op (tauri#13071 /
+# wry#1727). We bypass it: a GtkOverlay + GtkFixed of our own over the main
+# webview, with wry webviews built via build_gtk(&fixed) — is_in_fixed_parent
+# makes geometry actually work. gtk + wry are ALREADY in the tree via tauri
+# (lock: gtk 0.18.2, wry 0.55.1) — declaring them adds no new native deps.
+gtk = "0.18"
+wry = "0.55"
 tauri-plugin-shell = "2"
 ksni = { version = "0.3", features = ["blocking"] }
 serde = { version = "1", features = ["derive"] }
