@@ -116,10 +116,23 @@ let
       # Write API (/__api__/write, /__api__/git) is opt-in and off by default
       # in the server itself. Enabled here so the one always-on :8000 instance
       # can back local editing tools instead of each one shipping its own
-      # second webserver. Mutating routes are still loopback-only, require the
-      # custom X-Httpd-Write header (so cross-origin pages can't reach them),
-      # and are confined to the served root.
+      # second webserver. Mutating routes are still loopback-only and require
+      # the custom X-Httpd-Write header, so cross-origin pages cannot reach
+      # them.
       HTTPD_WRITE = "1";
+
+      # ...but the header only constrains browsers, and on Android any local
+      # app can reach 127.0.0.1. ROOT is $HOME, so write mode on its own would
+      # expose ~/.bashrc, the fish config and ~/.ssh — all of which execute or
+      # authenticate on next login. Writes are therefore confined to the few
+      # directories the editing tools actually touch; everything else under
+      # $HOME stays readable but not writable. Paths are $HOME-relative, and
+      # the server fails closed if this is empty.
+      HTTPD_WRITE_ROOTS = builtins.concatStringsSep ":" [
+        "/git/front/b-Media/mySocials/src/data"
+        "/git/front/b-Media/mySocials/dist"
+        "/git/front-assets-cdn/b-Media/mySocials/static/media"
+      ];
     };
     text = builtins.readFile ./httpd-web-server-json-md-eruda.sh;
   };
@@ -130,7 +143,12 @@ let
   # runit service is meant to always-serve-$HOME-on-8000; use the wrapper
   # directly for one-off custom roots/ports.
   runitRunScript = pkgs.writeShellScript "httpd-web-server-json-md-eruda-run" ''
-    HTTPD_WRITE=1 exec "${httpdBin}/bin/httpd-web-server-json-md-eruda" 8000 "$HOME"
+    # Same opt-in write scope as the interactive wrapper above — see the
+    # HTTPD_WRITE_ROOTS comment there for why writes are confined rather than
+    # granted across all of $HOME.
+    export HTTPD_WRITE=1
+    export HTTPD_WRITE_ROOTS="/git/front/b-Media/mySocials/src/data:/git/front/b-Media/mySocials/dist:/git/front-assets-cdn/b-Media/mySocials/static/media"
+    exec "${httpdBin}/bin/httpd-web-server-json-md-eruda" 8000 "$HOME"
   '';
 in
 {

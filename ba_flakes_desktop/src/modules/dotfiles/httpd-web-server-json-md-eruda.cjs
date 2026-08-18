@@ -56,6 +56,45 @@ function resolveInRoot(p) {
   return null;
 }
 
+// Write mode alone would expose every file under ROOT ($HOME), including
+// shell profiles and ~/.ssh, which execute or authenticate on next login.
+// Writes are therefore confined to an explicit allowlist of ROOT-relative
+// directories; reads are deliberately unaffected. Fails closed: write mode
+// with no allowlist permits nothing.
+// Entries may be given as absolute filesystem paths (the natural way to set
+// an env var) or as ROOT-relative paths — either way, resolve() against
+// ROOT and then require containment in ROOT, same enforcement resolveInRoot
+// does for request paths, just without forcing relative interpretation of a
+// leading "/" (that forcing is correct for untrusted request paths, but
+// entries here come from server configuration, not client input).
+const WRITE_ROOTS = (process.env.HTTPD_WRITE_ROOTS || '')
+  .split(':').filter(Boolean);
+function resolveConfiguredRoot(p) {
+  // Accept an entry written either as a real absolute path or as one relative
+  // to ROOT, and try them in that order. Both orderings have a trap:
+  // resolve(ROOT, "/allowed") discards the base and yields "/allowed" (outside
+  // ROOT, entry dropped, allowlist empty, every write 403s), while forcing
+  // relative interpretation of "<ROOT>/allowed" yields the doubled
+  // "<ROOT>/<ROOT>/allowed" — which is still under ROOT, so it passes
+  // containment and silently allowlists a directory nobody asked for.
+  // Absolute-first is the only order that resolves both correctly, since a
+  // non-ROOT absolute path fails containment and falls through to relative.
+  const candidates = [resolve(p), resolve(RESOLVED_ROOT, '.' + sep + p)];
+  for (const candidate of candidates) {
+    if (candidate === RESOLVED_ROOT || candidate.startsWith(RESOLVED_ROOT + sep)) return candidate;
+  }
+  return null;
+}
+const RESOLVED_WRITE_ROOTS = WRITE_ROOTS.map(resolveConfiguredRoot).filter(Boolean);
+function resolveWritable(p) {
+  const candidate = resolveInRoot(p);
+  if (!candidate) return null;
+  for (const entryDir of RESOLVED_WRITE_ROOTS) {
+    if (candidate === entryDir || candidate.startsWith(entryDir + sep)) return candidate;
+  }
+  return null;
+}
+
 const ERUDA_SCRIPT = `<script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init();</script>`;
 
 // ── ANSI colours for console (auto-disabled when stdout isn't a TTY) ──────
@@ -664,6 +703,10 @@ const server = createServer(async (req, res) => {
         res.writeHead(403, { 'content-type': 'application/json' });
         return res.end(JSON.stringify({ error: 'write mode disabled (start with HTTPD_WRITE=1)' }));
       }
+      if (RESOLVED_WRITE_ROOTS.length === 0) {
+        res.writeHead(403, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'no write roots configured (set HTTPD_WRITE_ROOTS)' }));
+      }
       const guard = checkMutationAllowed(req);
       if (!guard.ok) {
         res.writeHead(guard.status, { 'content-type': 'application/json' });
@@ -682,10 +725,10 @@ const server = createServer(async (req, res) => {
         res.writeHead(400, { 'content-type': 'application/json' });
         return res.end(JSON.stringify({ error: 'body must have "path" and exactly one of "content"/"b64"' }));
       }
-      const fsTarget = resolveInRoot(body.path);
+      const fsTarget = resolveWritable(body.path);
       if (!fsTarget) {
-        res.writeHead(404, { 'content-type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'path outside root' }));
+        res.writeHead(403, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'path is outside the write allowlist (HTTPD_WRITE_ROOTS)' }));
       }
       const buf = hasContent ? Buffer.from(body.content, 'utf8') : Buffer.from(body.b64, 'base64');
       await mkdir(dirname(fsTarget), { recursive: true });
@@ -700,6 +743,10 @@ const server = createServer(async (req, res) => {
       if (!WRITE) {
         res.writeHead(403, { 'content-type': 'application/json' });
         return res.end(JSON.stringify({ error: 'write mode disabled (start with HTTPD_WRITE=1)' }));
+      }
+      if (RESOLVED_WRITE_ROOTS.length === 0) {
+        res.writeHead(403, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'no write roots configured (set HTTPD_WRITE_ROOTS)' }));
       }
       const guard = checkMutationAllowed(req);
       if (!guard.ok) {
@@ -719,10 +766,10 @@ const server = createServer(async (req, res) => {
         res.writeHead(400, { 'content-type': 'application/json' });
         return res.end(JSON.stringify({ error: 'body must have "repo" (string), "message" (string), "paths" (non-empty string array)' }));
       }
-      const fsRepo = resolveInRoot(body.repo);
+      const fsRepo = resolveWritable(body.repo);
       if (!fsRepo) {
-        res.writeHead(404, { 'content-type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'repo path outside root' }));
+        res.writeHead(403, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'path is outside the write allowlist (HTTPD_WRITE_ROOTS)' }));
       }
       const gitDirInfo = await stat(join(fsRepo, '.git')).catch(() => null);
       if (!gitDirInfo) {
@@ -943,6 +990,7 @@ function startupBanner() {
     `  ${C.dim}node      ${C.reset}${process.version}  ${C.dim}(${process.platform}/${process.arch})${C.reset}`,
     `  ${C.dim}verbose   ${C.reset}${VERBOSE ? C.green + 'on' + C.reset + C.dim + ' (HTTPD_VERBOSE=0 to silence)' + C.reset : C.gray + 'off' + C.reset}`,
     `  ${C.dim}write     ${C.reset}${WRITE ? C.green + 'on' + C.reset + C.dim + ' (HTTPD_WRITE=1)' + C.reset : C.gray + 'off' + C.reset + C.dim + ' (set HTTPD_WRITE=1 to enable)' + C.reset}`,
+    `  ${C.dim}write_roots${C.reset} ${RESOLVED_WRITE_ROOTS.length ? C.green + RESOLVED_WRITE_ROOTS.join(', ') + C.reset : C.gray + 'none set — writes effectively disabled (set HTTPD_WRITE_ROOTS=dir1:dir2)' + C.reset}`,
     `  ${C.dim}firewall  ${C.reset}loopback only ${C.dim}(127.0.0.1, ::1)${C.reset}`,
     `  ${C.dim}max size  ${C.reset}5 MB ${C.dim}(API /__api__/read)${C.reset}`,
     '',
