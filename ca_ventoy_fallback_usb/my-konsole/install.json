@@ -100,8 +100,8 @@
       "type": "ext4",
       "disable_features": ["orphan_file", "metadata_csum_seed"]
     },
-    "iso_artifact": "my-konsole-iso",
-    "iso_workflow": "ship-my-konsole-iso.yml",
+    "iso_release": "my-konsole-iso-latest",
+    "iso_manifest": "my-konsole-iso.sha256",
     "iso_repo": "diegonmarcos/cloud-unix"
   }
 }

@@ -82,40 +82,46 @@ install_partition() {
 
     local J="$SCRIPT_DIR/install.json"
     command -v jq >/dev/null || log_err "jq required"
-    local DEV UUID LABEL EFI ART WF REPO
+    local DEV UUID LABEL EFI REL MAN REPO
     DEV=$(jq -r '.partition.device'         "$J")
     UUID=$(jq -r '.partition.uuid'          "$J")
     LABEL=$(jq -r '.partition.volume_label' "$J")
     EFI=$(jq -r '.partition.efi_binary'     "$J")
-    ART=$(jq -r '.partition.iso_artifact'   "$J")
-    WF=$(jq -r '.partition.iso_workflow'    "$J")
+    REL=$(jq -r '.partition.iso_release'    "$J")
+    MAN=$(jq -r '.partition.iso_manifest'   "$J")
     REPO=$(jq -r '.partition.iso_repo'      "$J")
 
-    # ── Resolve ISO: prefer local build, else pull the GHA workflow ARTIFACT ──
-    # (ship-my-konsole-iso publishes the .iso via actions/upload-artifact, NOT a
-    # GH release — so fetch it from the latest successful run with `gh run download`.)
+    # ── Resolve ISO from the rolling GHA RELEASE — never a local build ────────
+    # (ship-my-konsole-iso publishes the ISO as release $REL: split .part files
+    # under GH's 2 GiB asset cap + a sha256 manifest. The manifest is the SoT:
+    # a local my-konsole.iso is reused ONLY if it matches the released hash,
+    # otherwise the parts are fetched and reassembled.)
     local ISO="$SCRIPT_DIR/my-konsole.iso"
-    if [ ! -f "$ISO" ]; then
-        log_info "No local ISO — fetching artifact '$ART' from latest successful $WF run…"
-        command -v gh >/dev/null || log_err "gh required to fetch the ISO (or run ./build.sh first)"
-        local RID
-        RID=$(gh run list --repo "$REPO" --workflow "$WF" --status success \
-                --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null)
-        [ -n "$RID" ] || log_err "no successful $WF run yet — build the ISO on GHA first"
-        # gh run download is all-or-nothing (no resume): a single mid-transfer
-        # stall throws away all progress. On a flaky/metered link (hotspot, NAT64)
-        # a multi-GB artifact rarely lands first try, so retry the whole fetch a
-        # few times before giving up. Each attempt starts clean (gh leaves no
-        # partial), so this only needs one good window to succeed.
+    command -v gh >/dev/null || log_err "gh required to fetch the ISO release"
+    gh release download "$REL" --repo "$REPO" -p "$MAN" -D "$SCRIPT_DIR" --clobber \
+        || log_err "no '$REL' release found on $REPO — run ship-my-konsole-iso on GHA first"
+    if [ -f "$ISO" ] && (cd "$SCRIPT_DIR" && command grep " my-konsole.iso\$" "$MAN" | sha256sum -c --quiet - 2>/dev/null); then
+        log_ok "local my-konsole.iso matches release manifest — reusing"
+    else
+        rm -f "$ISO" "$SCRIPT_DIR"/my-konsole.iso.part*
+        # gh release download is all-or-nothing per asset (no resume): on a
+        # flaky/metered link a multi-GB transfer rarely lands first try, so
+        # retry the whole fetch a few times. Parts are <2 GiB each — better
+        # odds per attempt than the old single 2.4 GiB artifact.
         local n=0 tries=8
-        until ISO=$(command find "$SCRIPT_DIR" -maxdepth 2 -name '*.iso' | command head -1); [ -f "$ISO" ]; do
+        until (cd "$SCRIPT_DIR" && command grep ' my-konsole\.iso\.part' "$MAN" | sha256sum -c --quiet - 2>/dev/null); do
             n=$((n+1))
-            [ "$n" -gt "$tries" ] && log_err "gh run download failed after $tries attempts (run $RID, artifact $ART) — network too unstable for the $(printf '%s' "$ART") transfer"
+            [ "$n" -gt "$tries" ] && log_err "gh release download failed after $tries attempts ($REL on $REPO) — network too unstable"
             log_info "download attempt $n/$tries…"
-            gh run download "$RID" --repo "$REPO" -n "$ART" -D "$SCRIPT_DIR" || { log_info "attempt $n stalled; retrying in 8s…"; sleep 8; }
+            gh release download "$REL" --repo "$REPO" -p 'my-konsole.iso.part*' -D "$SCRIPT_DIR" --clobber \
+                || { log_info "attempt $n stalled; retrying in 8s…"; sleep 8; }
         done
+        cat "$SCRIPT_DIR"/my-konsole.iso.part?? > "$ISO" || log_err "reassembly of ISO parts failed"
+        (cd "$SCRIPT_DIR" && command grep " my-konsole.iso\$" "$MAN" | sha256sum -c --quiet -) \
+            || log_err "reassembled ISO fails sha256 from $MAN — corrupt download"
+        rm -f "$SCRIPT_DIR"/my-konsole.iso.part*
     fi
-    log_ok "ISO: $ISO"
+    log_ok "ISO: $ISO (sha256-verified against $REL/$MAN)"
 
     # ── Safety: the device MUST be the exact UUID from install.json ───────────
     local actual
