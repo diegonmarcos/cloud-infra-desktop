@@ -1,12 +1,12 @@
 {
   "_doc": "Data-driven inventory for the STACK dashboard (config-level, not just high-level): which repo dirs exist, which env vars are set (grouped, presence only — never the values), which tools/GUI apps resolve + their version, and static architecture facts (multi-OS layout, bootloader, builders). Add entries here, not in main.rs.",
-  "git_repos": ["front", "cloud", "vault", "unix", "tools", "cloud-data", "front-data"],
+  "git_repos": ["front", "cloud-infra", "cloud-vault", "cloud-unix", "cloud-mykonsole-dtk", "cloud-data", "front-data"],
   "flakes": [
-    { "name": "cloud", "visibility": "public",  "role": "Service infra — Nix flakes → Docker Compose, 60+ services on 5 VMs" },
-    { "name": "unix",  "visibility": "public",  "role": "NixOS host + home-manager (desktop, termux, builders, per-VM)" },
+    { "name": "cloud-infra", "visibility": "public",  "role": "Service infra — Nix flakes → Docker Compose, 60+ services on 5 VMs" },
+    { "name": "cloud-unix",  "visibility": "public",  "role": "NixOS host + home-manager (desktop, termux, builders, per-VM)" },
     { "name": "front", "visibility": "public",  "role": "32-project front-end monorepo → GitHub Pages" },
-    { "name": "vault", "visibility": "PRIVATE", "role": "All credentials — sops + age + OAuth + SSH/WG/TOTP" },
-    { "name": "tools", "visibility": "public",  "role": "Cross-repo tooling (consumed as submodule from cloud/unix/front)" }
+    { "name": "cloud-vault", "visibility": "PRIVATE", "role": "All credentials — sops + age + OAuth + SSH/WG/TOTP" },
+    { "name": "cloud-mykonsole-dtk", "visibility": "public",  "role": "Cross-repo tooling (consumed as submodule from cloud/unix/front)" }
   ],
   "multi_os": [
     { "label": "NixOS (primary)",        "detail": "Surface Pro 8 · LUKS + USB keyfile · linux-surface kernel · btrfs subvolumes · impermanence (root=tmpfs)" },
