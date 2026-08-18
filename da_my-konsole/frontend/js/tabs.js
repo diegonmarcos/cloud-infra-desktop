@@ -85,41 +85,77 @@ const NativeBrowser = {
   on() { return !!window.__TAURI__; },
   invoke(cmd, args) {
     if (!this.on()) return Promise.resolve();
-    return window.__TAURI__.core.invoke(cmd, args).catch((e) => console.error(`[browser] ${cmd}`, e));
+    return window.__TAURI__.core.invoke(cmd, args);
   },
+  // Fire-and-forget: bounds/navigate/back. `invoke` stays raw because close()
+  // MUST be able to observe a rejection (see unregister).
+  fire(cmd, args) { return this.invoke(cmd, args).catch((e) => console.error(`[browser] ${cmd}`, e)); },
   register(label, host) {
     this.slots.set(label, { host, last: null });
     if (!this.timer) this.timer = setInterval(() => this.sync(), 250);
   },
+  // Call this AFTER the tab's DOM is gone: the host is then detached, so
+  // rectOf() reports invisible and the sync below parks the webview offscreen
+  // before we even ask the backend to destroy it.
+  //
+  // The slot is deliberately NOT dropped up front. wv.close() is unreliable for
+  // a child webview on the WebKitGTK backend — when it no-ops, the poll is the
+  // only thing left that can keep the orphaned surface offscreen, and dropping
+  // the slot first is exactly how a closed tab used to leave a dead rectangle
+  // floating over the window until the whole app was killed. The slot is
+  // released only once the backend confirms the webview is really gone.
   unregister(label) {
-    this.slots.delete(label);
-    this.invoke("browser_close", { label });
-    if (!this.slots.size && this.timer) { clearInterval(this.timer); this.timer = null; }
+    if (!this.slots.has(label)) return;
+    this.sync();
+    this.invoke("browser_close", { label })
+      .then(() => {
+        this.slots.delete(label);
+        if (!this.slots.size && this.timer) { clearInterval(this.timer); this.timer = null; }
+      })
+      .catch((e) => console.error(`[browser] close ${label} failed; kept parked offscreen`, e));
   },
   rectOf(host) {
     const r = host.getBoundingClientRect();
     // offsetParent===null means the element (or an ancestor) is display:none —
-    // i.e. an inactive tab. getBoundingClientRect alone reports 0x0 for that,
-    // which is indistinguishable from "not laid out yet".
-    const visible = host.offsetParent !== null && r.width > 0 && r.height > 0;
-    return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), visible };
+    // i.e. an inactive tab — or detached entirely (a closed tab). Both must read
+    // as invisible; getBoundingClientRect alone reports 0x0 for them, which is
+    // indistinguishable from "not laid out yet".
+    const visible = host.isConnected && host.offsetParent !== null && r.width > 0 && r.height > 0;
+    // PHYSICAL device pixels, not CSS px. getBoundingClientRect is CSS px; the
+    // backend used to apply them as Logical*, which Tauri rescales by the window
+    // scale factor while WebKitGTK scales the child surface again — so on any
+    // display with scale != 1 the webview was drawn ~scale× too large and spilled
+    // across the screen. Physical* is applied verbatim: measured == painted.
+    const s = window.devicePixelRatio || 1;
+    return {
+      x: Math.round(r.left * s), y: Math.round(r.top * s),
+      w: Math.round(r.width * s), h: Math.round(r.height * s), visible,
+    };
   },
-  sync() {
+  // `force` re-pushes even an unchanged rect. The dedupe below is what makes the
+  // 4 Hz poll cheap, but it also means a rect that is stable-and-wrong (a bad
+  // first measurement taken before layout settled) is never corrected. Layout
+  // events that we do know about therefore force a push.
+  sync(force) {
     for (const [label, slot] of this.slots) {
       const r = this.rectOf(slot.host);
       const key = `${r.x},${r.y},${r.w},${r.h},${r.visible}`;
-      if (key === slot.last) continue;
+      if (!force && key === slot.last) continue;
       slot.last = key;
-      this.invoke("browser_bounds", { label, ...r });
+      this.fire("browser_bounds", { label, ...r });
     }
   },
   open(label, url, host) {
     this.register(label, host);
     const r = this.rectOf(host);
-    return this.invoke("browser_open", { label, url, x: r.x, y: r.y, w: r.w, h: r.h });
+    // Re-measure after the next few frames: the rect at open time predates fonts
+    // loading, the xterm addon sizing and the tab strip settling, and without
+    // this the dedupe would lock in whatever it read first.
+    for (const d of [0, 120, 400]) setTimeout(() => this.sync(true), d);
+    return this.fire("browser_open", { label, url, x: r.x, y: r.y, w: r.w, h: r.h });
   },
-  navigate(label, url) { return this.invoke("browser_navigate", { label, url }); },
-  back(label) { return this.invoke("browser_back", { label }); },
+  navigate(label, url) { return this.fire("browser_navigate", { label, url }); },
+  back(label) { return this.fire("browser_back", { label }); },
 };
 
 const Tabs = {
@@ -549,7 +585,7 @@ const Tabs = {
     // next poll tick — that gap is exactly the overhang the poll alone can't
     // close (the previously-active browser tab keeps painting in the old
     // spot, or the newly-active one stays parked offscreen).
-    NativeBrowser.sync();
+    NativeBrowser.sync(true);
   },
 
   // Switch to a profile's tab group: show only its tabs in the strip,
@@ -576,7 +612,7 @@ const Tabs = {
     // Same reasoning as activate(): the outgoing profile's browser tab(s) just
     // went display:none above — sync immediately so the webview parks
     // offscreen this frame, not up to 250ms from now.
-    NativeBrowser.sync();
+    NativeBrowser.sync(true);
     if (opener) { console.log(`[switchProfile] ${name} → opener()`); opener(name); return; }
     const last = this.lastActiveByProfile.get(name);
     if (last && this.tabs.has(last)) { console.log(`[switchProfile] ${name} → resume ${last}`); this.activate(last); return; }
@@ -613,9 +649,12 @@ const Tabs = {
     MYK.disposeTab(tabId);
     const t = this.tabs.get(tabId);
     // A native webview is not a DOM node — removing rootEl does NOT tear it
-    // down, it would stay floating over the window forever.
-    if (t.wvLabel) NativeBrowser.unregister(t.wvLabel);
+    // down, it would stay floating over the window forever. Remove the DOM
+    // FIRST: unregister() syncs bounds off the now-detached host, so the webview
+    // is parked offscreen before the close is even attempted, and stays parked
+    // if the backend fails to destroy it.
     t.rootEl.remove(); t.tabEl.remove();
+    if (t.wvLabel) NativeBrowser.unregister(t.wvLabel);
     this.tabs.delete(tabId);
     this.order = this.order.filter((x) => x !== tabId);
 

@@ -349,7 +349,14 @@ fn which_all(bins: Vec<String>) -> Result<Vec<(String, Option<String>)>, String>
 // browser_bounds polling handles. Hiding is done by parking the webview far
 // offscreen rather than a hide() call: it is the one operation guaranteed to
 // exist on every platform backend, and it survives a webview that is mid-load.
-const OFFSCREEN: f64 = -100_000.0;
+//
+// All geometry here is PHYSICAL device pixels. It used to be Logical*, which
+// Tauri rescales by the window's scale factor while WebKitGTK independently
+// scales the child surface — double-scaling that drew the webview ~scale× too
+// large on any display with scale != 1, spilling it across the screen. The
+// frontend now measures in physical px (rect × devicePixelRatio) and these are
+// applied verbatim.
+const OFFSCREEN: i32 = -100_000;
 
 fn parse_url(u: &str) -> Result<tauri::Url, String> {
     u.parse::<tauri::Url>().map_err(|e| e.to_string())
@@ -365,7 +372,7 @@ fn browser_open(
     w: f64,
     h: f64,
 ) -> Result<(), String> {
-    use tauri::{LogicalPosition, LogicalSize};
+    use tauri::{PhysicalPosition, PhysicalSize};
     let u = parse_url(&url)?;
     ensure_agentic_backend(app.clone(), url.clone())?;
     // Re-opening an existing label navigates it instead of stacking a second
@@ -379,8 +386,8 @@ fn browser_open(
         // this webview's rectangle, and auto-resize would fight it on every
         // window resize.
         tauri::webview::WebviewBuilder::new(&label, tauri::WebviewUrl::External(u)),
-        LogicalPosition::new(x, y),
-        LogicalSize::new(w.max(1.0), h.max(1.0)),
+        PhysicalPosition::new(x as i32, y as i32),
+        PhysicalSize::new(w.max(1.0) as u32, h.max(1.0) as u32),
     )
     .map_err(|e| e.to_string())?;
     Ok(())
@@ -396,16 +403,16 @@ fn browser_bounds(
     h: f64,
     visible: bool,
 ) -> Result<(), String> {
-    use tauri::{LogicalPosition, LogicalSize};
+    use tauri::{PhysicalPosition, PhysicalSize};
     let Some(wv) = app.get_webview(&label) else { return Ok(()) };
     // Size first, then position: a zero/negative size is rejected by the
     // backend, and an inactive tab legitimately measures 0x0 while hidden.
-    wv.set_size(LogicalSize::new(w.max(1.0), h.max(1.0)))
+    wv.set_size(PhysicalSize::new(w.max(1.0) as u32, h.max(1.0) as u32))
         .map_err(|e| e.to_string())?;
     let pos = if visible {
-        LogicalPosition::new(x, y)
+        PhysicalPosition::new(x as i32, y as i32)
     } else {
-        LogicalPosition::new(OFFSCREEN, OFFSCREEN)
+        PhysicalPosition::new(OFFSCREEN, OFFSCREEN)
     };
     wv.set_position(pos).map_err(|e| e.to_string())
 }
@@ -426,8 +433,23 @@ fn browser_back(app: tauri::AppHandle, label: String) -> Result<(), String> {
 
 #[tauri::command]
 fn browser_close(app: tauri::AppHandle, label: String) -> Result<(), String> {
+    use tauri::{PhysicalPosition, PhysicalSize};
+    let Some(wv) = app.get_webview(&label) else { return Ok(()) };
+    let close_err = wv.close().err().map(|e| e.to_string());
+    // close() is NOT reliable for a child webview on the WebKitGTK backend: it
+    // can return Ok and leave the surface alive. Verify, and if one survives,
+    // shrink it to 1x1 and park it far offscreen so it cannot be seen, then
+    // report failure — the frontend keeps its bounds slot registered on Err, so
+    // the poll goes on holding the orphan offscreen instead of abandoning it
+    // (that abandonment is what left a dead rectangle on screen until the whole
+    // app was killed).
     if let Some(wv) = app.get_webview(&label) {
-        wv.close().map_err(|e| e.to_string())?;
+        let _ = wv.set_size(PhysicalSize::new(1u32, 1u32));
+        let _ = wv.set_position(PhysicalPosition::new(OFFSCREEN, OFFSCREEN));
+        return Err(match close_err {
+            Some(e) => format!("close({label}) failed: {e}; parked offscreen"),
+            None => format!("close({label}) returned Ok but the webview survived; parked offscreen"),
+        });
     }
     Ok(())
 }
