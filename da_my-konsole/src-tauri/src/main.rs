@@ -379,9 +379,24 @@ macro_rules! btrace {
 }
 
 fn readback(wv: &tauri::Webview) -> String {
-    match (wv.position(), wv.size()) {
-        (Ok(p), Ok(s)) => format!("actual=({},{}) {}x{}", p.x, p.y, s.width, s.height),
-        (p, s) => format!("readback failed: pos={:?} size={:?}", p.err(), s.err()),
+    match wv.bounds() {
+        Ok(b) => format!("actual={b:?}"),
+        Err(e) => format!("bounds() failed: {e}"),
+    }
+}
+
+// Geometry goes through set_bounds, NOT set_position/set_size. Measured on this
+// machine (KDE Wayland, WebKitGTK): the individual setters return Ok and do
+// nothing at all for a child webview — after set_position(-100000,-100000) the
+// webview reads back at (0,0) 2200x326, its GTK-assigned rect, unchanged. That
+// is the permanent band across the window, and it is also why hiding an
+// inactive tab never worked: the frontend was reporting visible=false correctly
+// and the backend was silently discarding it. set_bounds is the combined API
+// that is actually wired up for child webviews on this backend.
+fn phys_rect(x: i32, y: i32, w: u32, h: u32) -> tauri::Rect {
+    tauri::Rect {
+        position: tauri::Position::Physical(tauri::PhysicalPosition::new(x, y)),
+        size: tauri::Size::Physical(tauri::PhysicalSize::new(w.max(1), h.max(1))),
     }
 }
 
@@ -427,7 +442,22 @@ fn browser_open(
     )
     .map_err(|e| e.to_string())?;
     if let Some(wv) = app.get_webview(&label) {
-        btrace!("open {label} after add_child: {}", readback(&wv));
+        // add_child's own position/size are as unreliable as the individual
+        // setters, so immediately restate the rect through set_bounds. A tab
+        // opened in the background measures 0x0 and is parked offscreen here
+        // rather than being left at whatever rect GTK picked — that leftover
+        // rect is what used to sit permanently across the window.
+        let r = if w >= 1.0 && h >= 1.0 {
+            phys_rect(x as i32, y as i32, w as u32, h as u32)
+        } else {
+            phys_rect(OFFSCREEN, OFFSCREEN, 1, 1)
+        };
+        let res = wv.set_bounds(r);
+        btrace!(
+            "open {label} after add_child: set_bounds={:?} | {}",
+            res.as_ref().err().map(|e| e.to_string()),
+            readback(&wv)
+        );
     } else {
         btrace!("open {label}: add_child returned Ok but get_webview finds nothing");
     }
@@ -444,34 +474,24 @@ fn browser_bounds(
     h: f64,
     visible: bool,
 ) -> Result<(), String> {
-    use tauri::{PhysicalPosition, PhysicalSize};
     let Some(wv) = app.get_webview(&label) else {
         btrace!("bounds {label}: NO SUCH WEBVIEW (orphan? already closed?)");
         return Ok(());
     };
-    // Size first, then position: a zero/negative size is rejected by the
-    // backend, and an inactive tab legitimately measures 0x0 while hidden.
-    let sz = wv.set_size(PhysicalSize::new(w.max(1.0) as u32, h.max(1.0) as u32));
-    btrace!(
-        "bounds {label} req=({x},{y}) {w}x{h} visible={visible} set_size={:?} | {}",
-        sz.as_ref().err().map(|e| e.to_string()),
-        readback(&wv)
-    );
-    sz.map_err(|e| e.to_string())?;
-    let pos = if visible {
-        PhysicalPosition::new(x as i32, y as i32)
+    // An inactive tab legitimately measures 0x0 while hidden; it is parked far
+    // offscreen at 1x1 rather than resized to nothing.
+    let r = if visible {
+        phys_rect(x as i32, y as i32, w as u32, h as u32)
     } else {
-        PhysicalPosition::new(OFFSCREEN, OFFSCREEN)
+        phys_rect(OFFSCREEN, OFFSCREEN, 1, 1)
     };
-    let pr = wv.set_position(pos);
+    let res = wv.set_bounds(r);
     btrace!(
-        "bounds {label} set_position=({},{}) err={:?} | {}",
-        pos.x,
-        pos.y,
-        pr.as_ref().err().map(|e| e.to_string()),
+        "bounds {label} req=({x},{y}) {w}x{h} visible={visible} set_bounds={:?} | {}",
+        res.as_ref().err().map(|e| e.to_string()),
         readback(&wv)
     );
-    pr.map_err(|e| e.to_string())
+    res.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -490,7 +510,6 @@ fn browser_back(app: tauri::AppHandle, label: String) -> Result<(), String> {
 
 #[tauri::command]
 fn browser_close(app: tauri::AppHandle, label: String) -> Result<(), String> {
-    use tauri::{PhysicalPosition, PhysicalSize};
     let Some(wv) = app.get_webview(&label) else {
         btrace!("close {label}: already gone");
         return Ok(());
@@ -506,8 +525,8 @@ fn browser_close(app: tauri::AppHandle, label: String) -> Result<(), String> {
     // (that abandonment is what left a dead rectangle on screen until the whole
     // app was killed).
     if let Some(wv) = app.get_webview(&label) {
-        let _ = wv.set_size(PhysicalSize::new(1u32, 1u32));
-        let _ = wv.set_position(PhysicalPosition::new(OFFSCREEN, OFFSCREEN));
+        let _ = wv.set_bounds(phys_rect(OFFSCREEN, OFFSCREEN, 1, 1));
+        btrace!("close {label}: survivor parked, {}", readback(&wv));
         return Err(match close_err {
             Some(e) => format!("close({label}) failed: {e}; parked offscreen"),
             None => format!("close({label}) returned Ok but the webview survived; parked offscreen"),
