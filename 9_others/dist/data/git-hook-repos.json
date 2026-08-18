@@ -2,13 +2,13 @@
   "_doc": "Repos that get the shared git hooks (pre-push = the `git sync` engine, pre-commit = secret guard, post-merge/post-checkout = submodule sync). Data-driven: cloud-git-hooks-install.sh iterates this list, points each repo's core.hooksPath at the shared dir, and declares the `sync` alias. Add a repo here — no script edit. `root` is relative to $HOME unless it starts with /.",
   "shared_hooks_dir": ".config/git/cloud-hooks",
   "repos": [
-    { "name": "unix",           "root": "git/unix" },
-    { "name": "cloud",          "root": "git/cloud" },
+    { "name": "unix",           "root": "git/cloud-unix" },
+    { "name": "cloud",          "root": "git/cloud-infra" },
     { "name": "cloud-data",     "root": "git/cloud-data" },
     { "name": "cloud-data-lfs", "root": "git/cloud-data-lfs" },
     { "name": "front",          "root": "git/front" },
     { "name": "front-data",     "root": "git/front-data" },
-    { "name": "vault",          "root": "git/vault" },
+    { "name": "vault",          "root": "git/cloud-vault" },
     { "name": "notes",          "root": "git/cloud-notes" }
   ]
 }
