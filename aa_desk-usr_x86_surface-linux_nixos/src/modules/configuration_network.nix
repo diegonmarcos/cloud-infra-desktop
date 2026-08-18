@@ -660,6 +660,18 @@ in {
           # flaps — which is exactly what roaming does.
           ${config.systemd.package}/bin/systemctl daemon-reload
           ${config.systemd.package}/bin/systemctl stop clatd 2>/dev/null || true
+          # Also stop any TRANSIENT bootstrap unit. 2026-08-12's imperative
+          # rescue ran clatd via systemd-run as clat-bootstrap.service; that
+          # unit is invisible to `stop clatd` and was found STILL RUNNING six
+          # days later, holding the clat device with a stale default route on
+          # an IPv4 network. Belt for any future systemd-run rescue too.
+          ${config.systemd.package}/bin/systemctl stop clat-bootstrap.service 2>/dev/null || true
+          # And delete the device itself: it is created with persist on, so it
+          # SURVIVES clatd exiting — keeping its `default dev clat metric 2048`
+          # route and a dead prefix route from whatever network we left. Losing
+          # on metric is not the same as gone: the moment the native route
+          # flaps (roaming), the stale one wins and blackholes IPv4.
+          ${pkgs.iproute2}/bin/ip link del clat 2>/dev/null || true
           # Back to the v4 endpoint: a v6 endpoint left over from the previous
           # network is not automatically better here, and on an IPv4-only uplink
           # it is unreachable.
