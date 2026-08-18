@@ -129,14 +129,19 @@ const NativeEmbed = {
       this.invoke("embed_bounds", { label, ...r });
     }
   },
+  // Returns a promise resolving true if the embed opened, false if the
+  // backend rejected it (feature gate off / setup failed) — caller falls back.
   open(label, url, host) {
+    if (!window.__TAURI__) return Promise.resolve(false);
     this.slots.set(label, { host, last: null });
     if (!this.timer) this.timer = setInterval(() => this.sync(), 250);
     const r = this.rectOf(host);
-    this.invoke("embed_open", { label, url, x: r.x, y: r.y, w: r.w, h: r.h });
     // Layout settles over the first frames (fonts, tab strip, activate());
     // re-push so a pre-layout rect can't stick.
     for (const d of [50, 250, 700]) setTimeout(() => this.sync(true), d);
+    return window.__TAURI__.core.invoke("embed_open", { label, url, x: r.x, y: r.y, w: r.w, h: r.h })
+      .then(() => true)
+      .catch((e) => { console.warn("[embed] open rejected:", e); this.close(label); return false; });
   },
   navigate(label, url) { return this.invoke("embed_navigate", { label, url }); },
   back(label) { return this.invoke("embed_back", { label }); },
@@ -374,7 +379,7 @@ const Tabs = {
     const addr = rootEl.querySelector(".browser-addr-input");
     const frame = rootEl.querySelector(".browser-frame");
     const host = rootEl.querySelector(".browser-host");
-    let embedOpened = false;
+    let embedMode = null;   // null | "embed" | "popout" — set on first external nav
 
     // Both bodies exist; each URL picks one. Local UIs → iframe (plain DOM,
     // zero native involvement). External → native embed measured off `host`.
@@ -388,9 +393,19 @@ const Tabs = {
       } else {
         frame.hidden = true;
         frame.src = "about:blank";
+        if (embedMode === "popout") { BrowserBridge.popout("popout-" + tabId, v); return; }
         host.hidden = false;
-        if (embedOpened) NativeEmbed.navigate(embLabel, v);
-        else { NativeEmbed.open(embLabel, v, host); embedOpened = true; }
+        if (embedMode === "embed") NativeEmbed.navigate(embLabel, v);
+        else {
+          embedMode = "embed";
+          NativeEmbed.open(embLabel, v, host).then((ok) => {
+            if (ok) return;
+            // Embed gate off / setup failed → the working fallback: pop-out.
+            embedMode = "popout";
+            host.hidden = true;
+            BrowserBridge.popout("popout-" + tabId, v);
+          });
+        }
         NativeEmbed.sync(true);
       }
     };
