@@ -907,13 +907,11 @@ fn setup_systrays(app: &tauri::App) {
 }
 
 fn main() {
-    // WebKitGTK compositing is glitchy for webviews inside a GtkFixed (blur /
-    // stale-size frames, wry#1727) and this host's GPU path is already broken
-    // (GBM/dri load failures in every log) so it software-renders anyway.
-    // Respect an explicit override from the environment.
-    if std::env::var_os("WEBKIT_DISABLE_COMPOSITING_MODE").is_none() {
-        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
-    }
+    // NOTE: do NOT set WEBKIT_DISABLE_COMPOSITING_MODE here. It was added as a
+    // preemptive mitigation for wry#1727's GtkFixed glitches, but it applies to
+    // the MAIN UI webview too, and on Wayland WebKitGTK's non-composited path
+    // is broken — it froze the whole app at launch. If fixed-parent embeds
+    // glitch, set it per-run from the environment instead.
     // Intercepted BEFORE Tauri boots: this is how `wl-paste --watch` re-
     // invokes this same binary on every clipboard change (see
     // clipboard::spawn_capture) — a short-lived, non-GUI run that just
