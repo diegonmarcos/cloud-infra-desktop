@@ -14,7 +14,7 @@
 # Usage: ./test-silent-autoupdate-grant.sh   (run from anywhere)
 # Exit 0 = every app wired. Any FAIL = exit 1.
 set -u
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"   # → ~/git/unix
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"   # → ~/git/cloud-unix
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); echo "  PASS: $1"; }
 bad() { FAIL=$((FAIL+1)); echo "  FAIL: $1"; }

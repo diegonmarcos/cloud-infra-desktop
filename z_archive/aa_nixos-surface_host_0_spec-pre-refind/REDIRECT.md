@@ -8,17 +8,17 @@
 > - GRUB as the primary bootloader (now rEFInd, owned by `aa_bootloader/`)
 > - Kubuntu on p5 (now Shared-Lib for Docker storage)
 > - Arch on p6 (now rescue-os-debian)
-> - The repo living at `/mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host/`
->   (now `/home/diego/git/unix/aa_nixos-surface_host/`)
+> - The repo living at `/mnt/kubuntu/home/diego/mnt_git/cloud-unix/a_nixos_host/`
+>   (now `/home/diego/git/cloud-unix/aa_nixos-surface_host/`)
 >
 > **For the current architecture, see**:
 >
-> - `~/git/unix/README.md` — top-level multi-OS layout
-> - `~/git/unix/aa_nixos-surface_host/README.md` — host quick start
-> - `~/git/unix/aa_bootloader/README.md` — bootloader engine
-> - `~/git/unix/aa_bootloader/src/boot.json` — single source of truth for boot
-> - `~/git/unix/aa_nixos-surface_host/0_spec/runbook.md` — kept (still current)
-> - `~/git/unix/aa_nixos-surface_host/0_spec/diagnose-nixos.sh` — kept (still current)
+> - `~/git/cloud-unix/README.md` — top-level multi-OS layout
+> - `~/git/cloud-unix/aa_nixos-surface_host/README.md` — host quick start
+> - `~/git/cloud-unix/aa_bootloader/README.md` — bootloader engine
+> - `~/git/cloud-unix/aa_bootloader/src/boot.json` — single source of truth for boot
+> - `~/git/cloud-unix/aa_nixos-surface_host/0_spec/runbook.md` — kept (still current)
+> - `~/git/cloud-unix/aa_nixos-surface_host/0_spec/diagnose-nixos.sh` — kept (still current)
 
 ## Files in this archive
 

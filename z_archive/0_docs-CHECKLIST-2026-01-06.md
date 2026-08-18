@@ -10,8 +10,8 @@
 > - Kali (p7) and Windows-for-webcam (planned) are in place
 > - rEFInd is the active UEFI bootloader (managed by `aa_bootloader/`)
 >
-> See `~/git/unix/README.md`, `~/git/unix/aa_bootloader/README.md`, and
-> `~/git/unix/aa_nixos-surface_host/README.md` for the current state.
+> See `~/git/cloud-unix/README.md`, `~/git/cloud-unix/aa_bootloader/README.md`, and
+> `~/git/cloud-unix/aa_nixos-surface_host/README.md` for the current state.
 >
 > **Last Updated**: 2026-01-06 (checklist) · 2026-05-05 (archived)
 
@@ -123,7 +123,7 @@ nvme0n1p5   118G   ext4        / (Kubuntu)    ← RECLAIM THIS
 - [ ] TEST: Can unlock LUKS from Arch
 - [ ] TEST: `claude` command works
 
-**Full guide**: See `/home/diego/mnt_git/unix/a_arch-surface_fallback_desk/SETUP.md`
+**Full guide**: See `/home/diego/mnt_git/cloud-unix/a_arch-surface_fallback_desk/SETUP.md`
 
 ### Step 0.4: Install Kali Linux (25GB) - WITH DESKTOP
 - [ ] Boot Kali Live USB

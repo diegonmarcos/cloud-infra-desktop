@@ -46,7 +46,7 @@ of these MUST share the single key above:
 
 Each `ship-cloud-*.yml` checks out the private vault and decrypts the key:
 
-- secret **`ANDROID_SIGNING_VAULT_TOKEN`** — fine-grained PAT, read access to `diegonmarcos/vault`.
+- secret **`ANDROID_SIGNING_VAULT_TOKEN`** — fine-grained PAT, read access to `diegonmarcos/cloud-vault`.
 - secret **`SOPS_AGE_KEY`** — age key to decrypt `signing.secrets.yaml`.
 
 No keystore is cached or generated in CI. Missing either secret → the build fails

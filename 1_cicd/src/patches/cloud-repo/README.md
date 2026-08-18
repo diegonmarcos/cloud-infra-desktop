@@ -1,4 +1,4 @@
-# Pending patches for `diegonmarcos/cloud`
+# Pending patches for `diegonmarcos/cloud-infra`
 
 Patches authored here that belong to the **cloud** repo (which hosts
 `a_solutions/infra-api_c3-infra-mcp`, the c3-infra-mcp server), but which
@@ -7,10 +7,10 @@ could not be pushed from the session that wrote them.
 ## Why they live here
 
 This monorepo's automation runs with git credentials scoped to
-`diegonmarcos/unix`. Reading `cloud` works (it is public), but pushing is
+`diegonmarcos/cloud-unix`. Reading `cloud` works (it is public), but pushing is
 refused by the proxy:
 
-    access denied by the git proxy: diegonmarcos/cloud is not in this
+    access denied by the git proxy: diegonmarcos/cloud-infra is not in this
     session's authorized repository set
 
 So the work is committed here as an applyable patch rather than being
@@ -18,7 +18,7 @@ lost with the container. Delete a patch once it has landed upstream.
 
 ## Applying
 
-    git clone https://github.com/diegonmarcos/cloud.git
+    git clone https://github.com/diegonmarcos/cloud-infra.git
     cd cloud
     git am /path/to/unix/1_cicd/src/patches/cloud-repo/0001-*.patch
     git push origin main
@@ -55,7 +55,7 @@ against a pristine clone of current `main`.
 
 - **The `gh` token on the host bounds everything.** Widening the tool
   surface does not widen the credential — if that token lacks `workflow`
-  scope or cannot see `diegonmarcos/unix`, the new `repo` parameters
+  scope or cannot see `diegonmarcos/cloud-unix`, the new `repo` parameters
   return "not found" rather than acting.
 - **Destructive tools require `confirm=true`** (pr_merge, pr_close,
   issue_close, release_delete, secret_delete, any non-GET `api`). These sit

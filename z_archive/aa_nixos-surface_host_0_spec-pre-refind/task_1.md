@@ -41,7 +41,7 @@ sudo /nix/store/*-nix-*/bin/nix-daemon &
 
 ### Step 3: Build NixOS System (3-5 min)
 ```bash
-cd /home/diego/mnt_git/unix/a_nixos_host
+cd /home/diego/mnt_git/cloud-unix/a_nixos_host
 nix build .#nixosConfigurations.surface.config.system.build.toplevel
 ```
 - Reuses 26GB cached deps

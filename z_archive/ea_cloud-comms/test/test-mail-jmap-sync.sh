@@ -11,8 +11,8 @@
 # Usage: ./test-mail-jmap-sync.sh
 # Exit 0 = fix proven end-to-end. Any FAIL = exit 1.
 set -u
-SECRETS="$HOME/git/vault/A1_Cloud-secrets/aa-sui_mail-mcp-secrets.secrets"
-PATCH="$HOME/git/unix/ea_cloud-comms/forks/mail/patches/0048-comms-fix-JMAP-sync-newest-first-query-sort-sync-use.patch"
+SECRETS="$HOME/git/cloud-vault/A1_Cloud-secrets/aa-sui_mail-mcp-secrets.secrets"
+PATCH="$HOME/git/cloud-unix/ea_cloud-comms/forks/mail/patches/0048-comms-fix-JMAP-sync-newest-first-query-sort-sync-use.patch"
 JMAP_BASE="https://jmap.diegonmarcos.com"
 LIMIT=200                       # = JmapSync.SYNC_LIMIT
 PRE_FIX_STAMP="20260708.123849" # newest release BEFORE patch 0048

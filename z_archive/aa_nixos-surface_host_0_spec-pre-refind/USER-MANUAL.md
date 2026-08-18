@@ -288,7 +288,7 @@ bluetoothctl
 
 ## Support
 
-- **Config location:** `/nix/specs/` or `/mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host/`
+- **Config location:** `/nix/specs/` or `/mnt/kubuntu/home/diego/mnt_git/cloud-unix/a_nixos_host/`
 - **Issues log:** Check `ISSUES-STATUS.md`
 - **NixOS manual:** `man configuration.nix` or https://nixos.org/manual/nixos/stable/
 

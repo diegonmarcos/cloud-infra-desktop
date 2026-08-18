@@ -669,7 +669,7 @@ sudo nix-env --list-generations -p /nix/var/nix/profiles/system
 The system creates a convenient symlink at `/nix/specs/` pointing to the git repo:
 
 ```
-/nix/specs/ -> /mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host/
+/nix/specs/ -> /mnt/kubuntu/home/diego/mnt_git/cloud-unix/a_nixos_host/
 │
 ├── README.md                    # Repository index
 ├── flake.nix                    # Flake definition (inputs, outputs)
@@ -694,7 +694,7 @@ The system creates a convenient symlink at `/nix/specs/` pointing to the git rep
 sudo nixos-rebuild switch --flake /nix/specs#surface
 
 # Or from git repo directly
-sudo nixos-rebuild switch --flake /mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host#surface
+sudo nixos-rebuild switch --flake /mnt/kubuntu/home/diego/mnt_git/cloud-unix/a_nixos_host#surface
 ```
 
 ### Implementation
@@ -703,7 +703,7 @@ The symlink is created by an activation script during boot:
 
 ```nix
 system.activationScripts.nixSpecs = ''
-  SPECS_SRC="/mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host"
+  SPECS_SRC="/mnt/kubuntu/home/diego/mnt_git/cloud-unix/a_nixos_host"
   if [ -d "$SPECS_SRC" ]; then
     ln -sf "$SPECS_SRC" /nix/specs
   fi

@@ -155,7 +155,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: /tmp
         run: |
-          gh release download httpd-web-server-json-md-eruda-latest --repo diegonmarcos/unix \
+          gh release download httpd-web-server-json-md-eruda-latest --repo diegonmarcos/cloud-unix \
             --pattern "httpd-web-server-json-md-eruda-aarch64" \
             --pattern "httpd-web-server-json-md-eruda-x86_64" \
             --clobber

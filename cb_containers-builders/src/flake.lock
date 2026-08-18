@@ -5,11 +5,11 @@
       "locked": {
         "narHash": "sha256-GH9aNDSYSOuYXmu87zoXHC/HDPPAI1K0MsLdMIzQYeQ=",
         "type": "file",
-        "url": "https://raw.githubusercontent.com/diegonmarcos/cloud/main/config.json"
+        "url": "https://raw.githubusercontent.com/diegonmarcos/cloud-infra/main/config.json"
       },
       "original": {
         "type": "file",
-        "url": "https://raw.githubusercontent.com/diegonmarcos/cloud/main/config.json"
+        "url": "https://raw.githubusercontent.com/diegonmarcos/cloud-infra/main/config.json"
       }
     },
     "home-manager": {

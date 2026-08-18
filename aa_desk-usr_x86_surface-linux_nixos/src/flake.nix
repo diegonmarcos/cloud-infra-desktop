@@ -162,7 +162,7 @@
         contents = [ self.nixosConfigurations.surface.config.system.build.toplevel ];
         config.Labels = {
           "org.opencontainers.image.description" = "Desktop NixOS system closure as layered store paths (incremental GHCR cache).";
-          "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
+          "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-unix";
         };
       };
     };

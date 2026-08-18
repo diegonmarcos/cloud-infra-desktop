@@ -94,7 +94,7 @@ RUN chmod +x /opt/cloud-builder/entrypoint.sh /opt/cloud-builder/docker-up.sh
 # ── Labels ───────────────────────────────────────────────────────
 LABEL org.opencontainers.image.title="cloud-builder-x-deb-apt"
 LABEL org.opencontainers.image.description="cloud-builder — Debian apt CI/CD image (no Nix)"
-LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/unix"
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-unix"
 LABEL diego.image.variant="x86-apt"
 LABEL diego.image.ghcr="ghcr.io/diegonmarcos/cloud-builder-x-deb-apt"
 

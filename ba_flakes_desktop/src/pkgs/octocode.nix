@@ -6,7 +6,7 @@ let
   # Docker image: ghcr.io/diegonmarcos/octocode-fastembed-huggingface-graphrag-cpu-x86-linux-static
   assets = {
     x86_64-linux = {
-      url = "https://github.com/diegonmarcos/tools/releases/download/octocode-v${version}-fastembed/octocode-${version}-fastembed-x86_64";
+      url = "https://github.com/diegonmarcos/cloud-mykonsole-dtk/releases/download/octocode-v${version}-fastembed/octocode-${version}-fastembed-x86_64";
       hash = "sha256-jTYcvdWIjQ8IVJR1U77bTUd+1a6wAnYmfp4kNbFp3aM=";
     };
   };

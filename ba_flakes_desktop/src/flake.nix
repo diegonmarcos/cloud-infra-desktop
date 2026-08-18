@@ -39,25 +39,25 @@
     #
     # All three are `flake = false` — they're plain data trees, not flakes.
 
-    # Sibling subdirs of the diegonmarcos/unix monorepo. `?dir=` only steers
+    # Sibling subdirs of the diegonmarcos/cloud-unix monorepo. `?dir=` only steers
     # flake.nix discovery; with `flake = false` it's a no-op, so importing
     # modules reach into the fetched tree via `"${inputs.unix-repo}/subdir/file"`.
     # Both qute-broker and termux-flake share the same fetch — same repo,
     # different paths inside it — and the lockfile dedupes the github fetch.
     unix-repo = {
-      url = "github:diegonmarcos/unix";
+      url = "github:diegonmarcos/cloud-unix";
       flake = false;
     };
 
     # cloud repo — different repo entirely.
     cloud-repo = {
-      url = "github:diegonmarcos/cloud";
+      url = "github:diegonmarcos/cloud-infra";
       flake = false;
     };
 
     # my-ai Rust CLI: pre-built binary from GH Release, hashes auto-updated by GHA.
     my-ai-src = {
-      url = "github:diegonmarcos/unix?dir=da_my-ai";
+      url = "github:diegonmarcos/cloud-unix?dir=da_my-ai";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
   };
@@ -368,7 +368,7 @@
           contents = [ self.homeConfigurations."diego@surface-plasma".activationPackage ];
           config.Labels = {
             "org.opencontainers.image.description" = "Desktop home-manager activation closure as layered store paths (incremental GHCR cache).";
-            "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
+            "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-unix";
             # The activation store path baked into this image. A KB-sized
             # `skopeo inspect` reads this label so `build.sh switch` knows
             # WHICH store path to activate WITHOUT downloading the 6 GB nar
@@ -389,7 +389,7 @@
           contents = [ devProfile ];
           config.Labels = {
             "org.opencontainers.image.description" = "Dev-store profile (devProfile) as layered store paths (incremental GHCR cache).";
-            "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
+            "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-unix";
             # devProfile store path baked in — same skopeo-inspect metadata
             # pattern as hm-cache-image (consumed by dev-store incremental pull).
             "com.diegonmarcos.activation-path" = "${devProfile}";
@@ -484,12 +484,12 @@
             # All repos (self-contained image) — fetched by Nix, baked into layer
             (let
               repos = {
-                unix       = builtins.fetchGit { url = "https://github.com/diegonmarcos/unix.git";       ref = "main"; shallow = true; };
-                cloud      = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud.git";      ref = "main"; shallow = true; };
+                unix       = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud-unix.git";       ref = "main"; shallow = true; };
+                cloud      = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud-infra.git";      ref = "main"; shallow = true; };
                 cloud-data = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud-data.git"; ref = "main"; shallow = true; };
                 front      = builtins.fetchGit { url = "https://github.com/diegonmarcos/diegonmarcos.github.io.git"; ref = "main"; shallow = true; };
                 front-data = builtins.fetchGit { url = "https://github.com/diegonmarcos/front-data.git"; ref = "main"; shallow = true; };
-                tools      = builtins.fetchGit { url = "https://github.com/diegonmarcos/tools.git";      ref = "main"; shallow = true; };
+                tools      = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud-mykonsole-dtk.git";      ref = "main"; shallow = true; };
               };
             in pkgs.runCommand "bake-repos" {} ''
               mkdir -p $out/home/diego/git
@@ -514,7 +514,7 @@
             Labels = {
               "org.opencontainers.image.title" = "user-dev-x86-nixos-nix-hm";
               "org.opencontainers.image.description" = "Pure Nix container — Home-Manager cli profile (dockerTools.buildLayeredImage)";
-              "org.opencontainers.image.source" = "https://github.com/diegonmarcos/unix";
+              "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-unix";
               "diego.image.variant" = "nixos-hm";
               "diego.image.flake.path" = "ba_flakes_desktop/src/";
               "diego.image.flake.config" = "diego@cli";

@@ -96,7 +96,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: /tmp
         run: |
-          gh release download my-ai-latest --repo diegonmarcos/unix \
+          gh release download my-ai-latest --repo diegonmarcos/cloud-unix \
             --pattern "my-ai-aarch64" --pattern "my-ai-dash-aarch64" \
             --pattern "my-ai-x86_64"  --pattern "my-ai-dash-x86_64" \
             --clobber

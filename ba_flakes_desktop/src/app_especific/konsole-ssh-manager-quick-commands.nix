@@ -185,7 +185,7 @@ let
     + (mkQuickCmd "Desktop" "docker ps (local)"       "${cmd} docker-ps-local" "List local running containers")
     + (mkQuickCmd "Desktop" "free memory"             "${cmd} free-mem"       "Show memory usage")
     + (mkQuickCmd "Desktop" "disk usage"              "${cmd} disk-usage"     "Show disk usage for key partitions")
-    + (mkQuickCmd "Desktop" "konsole script push"     "if [ -d ~/git/cloud-mykonsole-dtk/.git ]; then git -C ~/git/cloud-mykonsole-dtk pull; else git clone https://github.com/diegonmarcos/tools.git ~/git/cloud-mykonsole-dtk; fi && echo 'Done: ~/git/cloud-mykonsole-dtk'" "Clone/pull tools repo from GitHub");
+    + (mkQuickCmd "Desktop" "konsole script push"     "if [ -d ~/git/cloud-mykonsole-dtk/.git ]; then git -C ~/git/cloud-mykonsole-dtk pull; else git clone https://github.com/diegonmarcos/cloud-mykonsole-dtk.git ~/git/cloud-mykonsole-dtk; fi && echo 'Done: ~/git/cloud-mykonsole-dtk'" "Clone/pull tools repo from GitHub");
 
   vpsCommands =
     # Cloud

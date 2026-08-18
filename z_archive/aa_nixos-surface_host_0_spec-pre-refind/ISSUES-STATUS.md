@@ -4,7 +4,7 @@
 
 ### Issue -1: NO /etc/nixos/configuration.nix FILE ✅
 - **Status:** ADDRESSED
-- **What was done:** Found config at `/mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host/`, added essential packages
+- **What was done:** Found config at `/mnt/kubuntu/home/diego/mnt_git/cloud-unix/a_nixos_host/`, added essential packages
 - **Needs:** Rebuild with `sudo nixos-rebuild switch --flake .#surface`
 
 ### Issue 0: Ephemeral Root + Lost User Settings ✅
@@ -175,7 +175,7 @@ systemd.services.bluetooth-persistent = {
 
 Rebuild the system to apply all fixes:
 ```bash
-cd /mnt/kubuntu/home/diego/mnt_git/unix/a_nixos_host/
+cd /mnt/kubuntu/home/diego/mnt_git/cloud-unix/a_nixos_host/
 sudo nixos-rebuild switch --flake .#surface
 ```
 
