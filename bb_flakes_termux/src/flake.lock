@@ -69,17 +69,17 @@
       },
       "locked": {
         "dir": "da_my-ai",
-        "lastModified": 1786367730,
-        "narHash": "sha256-dwmqrhkitb1gpzisjG6//DPxPDmW0Lvs3+3zKvdQfTs=",
+        "lastModified": 1787056461,
+        "narHash": "sha256-vDvKSypWSqwj9CYarzLgEtVSKq3e65A9F4OXPK50svk=",
         "owner": "diegonmarcos",
-        "repo": "unix",
-        "rev": "df970bd2f78bbe2346aea3bea64e2dca8e49bdbd",
+        "repo": "cloud-unix",
+        "rev": "54a4d50524544ff0e98d68e08b3f3d017bacb11c",
         "type": "github"
       },
       "original": {
         "dir": "da_my-ai",
         "owner": "diegonmarcos",
-        "repo": "unix",
+        "repo": "cloud-unix",
         "type": "github"
       }
     },
