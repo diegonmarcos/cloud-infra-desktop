@@ -10,9 +10,12 @@ name: "Ship → my-konsole rescue ISO (stock kernel, cache boot closure to GHCR)
 #        kernel; this is the slim flake's 25.05 derivation — different hash).
 #        Lets the laptop `nix copy --from` the kernel instead of rebuilding.
 #
-#   2. Workflow artifact `my-konsole-iso` — the built .iso, downloaded
-#      on the laptop via `gh run download` to populate the my-konsole rescue
-#      partition (nvme0n1p8, label mykonsole-resc).
+#   2. Rolling GitHub Release `my-konsole-iso-latest` — the built .iso,
+#      split into <2 GiB parts (GH release asset cap) + sha256 manifest,
+#      downloaded on the laptop via `gh release download` to populate the
+#      my-konsole rescue partition (nvme0n1p8, label MY_KONSOLE). A release
+#      (not a workflow artifact) so it never expires — artifacts die after
+#      14 days and left install-partition with nothing to fetch.
 #
 # The flake now uses the STOCK nixpkgs kernel (no nixos-hardware /
 # linux-surface module). The Surface Type Cover keyboard still works via
@@ -39,7 +42,7 @@ on:
       - "1_cicd/src/cicd/ship-my-konsole-iso.yml"
 
 permissions:
-  contents: read
+  contents: write   # gh release create/upload (my-konsole-iso-latest)
   packages: write
 
 jobs:
@@ -129,10 +132,32 @@ jobs:
             buildah push --format=oci "${IMAGE}:${t}" "docker://${IMAGE}:${t}"
           done
 
-      - name: Upload ISO artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: my-konsole-iso
-          path: ${{ steps.iso.outputs.iso }}
-          retention-days: 14
-          compression-level: 0
+      - name: Publish rolling GitHub Release (ISO parts + sha256 manifest)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISO: ${{ steps.iso.outputs.iso }}
+          KVER: ${{ steps.meta.outputs.kver }}
+        run: |
+          set -euo pipefail
+          # GH caps release assets at 2 GiB each; the ISO is ~2.4 GiB, so ship
+          # split parts + one manifest. install-partition downloads the parts
+          # named in the manifest, cats them back together, and sha256-verifies
+          # the whole ISO — stale parts from an older, larger build are ignored.
+          STAGE="${{ runner.temp }}/iso-release"
+          mkdir -p "$STAGE"
+          ln -s "$ISO" "$STAGE/my-konsole.iso"
+          cd "$STAGE"
+          split -b 1800M -d -a 2 my-konsole.iso my-konsole.iso.part
+          sha256sum my-konsole.iso.part?? > my-konsole-iso.sha256
+          sha256sum my-konsole.iso       >> my-konsole-iso.sha256
+          rm my-konsole.iso
+          gh release create my-konsole-iso-latest \
+            --repo "${{ github.repository }}" \
+            --title "my-konsole rescue ISO (rolling)" \
+            --notes "Latest my-konsole live ISO (stock nixpkgs 25.05 kernel ${KVER}) — main@${GITHUB_SHA:0:8}. Fetch via ca_ventoy_fallback_usb/my-konsole/build.sh install-partition (reassembles the .part files per my-konsole-iso.sha256)." \
+            --target "$GITHUB_SHA" 2>/dev/null || true
+          gh release upload my-konsole-iso-latest \
+            --repo "${{ github.repository }}" \
+            my-konsole-iso.sha256 my-konsole.iso.part?? \
+            --clobber
