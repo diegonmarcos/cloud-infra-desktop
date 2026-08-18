@@ -100,6 +100,54 @@ const BrowserBridge = {
   popout(label, url) { return this.invoke("browser_popout", { label, url }); },
 };
 
+// External sites in-tab: a wry webview in the backend's own GtkFixed layer
+// (embed_* commands) — the layer where geometry actually works on Linux,
+// unlike tauri's add_child GtkBox parenting where set_bounds is a no-op.
+// Coordinates are plain CSS px: the GtkFixed speaks logical units and GTK owns
+// the scale factor, so what getBoundingClientRect says is what GTK places.
+// The webview is still not a DOM node, so the same bounds-poll pattern as the
+// old NativeBrowser applies — but against machinery that provably responds.
+const NativeEmbed = {
+  slots: new Map(),                       // label -> { host, last }
+  timer: null,
+  invoke(cmd, args) {
+    if (!window.__TAURI__) return Promise.resolve();
+    return window.__TAURI__.core.invoke(cmd, args).catch((e) => console.error(`[embed] ${cmd}`, e));
+  },
+  rectOf(host) {
+    const r = host.getBoundingClientRect();
+    const visible = host.isConnected && !host.hidden && host.offsetParent !== null &&
+      r.width > 0 && r.height > 0;
+    return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), visible };
+  },
+  sync(force) {
+    for (const [label, slot] of this.slots) {
+      const r = this.rectOf(slot.host);
+      const key = `${r.x},${r.y},${r.w},${r.h},${r.visible}`;
+      if (!force && key === slot.last) continue;
+      slot.last = key;
+      this.invoke("embed_bounds", { label, ...r });
+    }
+  },
+  open(label, url, host) {
+    this.slots.set(label, { host, last: null });
+    if (!this.timer) this.timer = setInterval(() => this.sync(), 250);
+    const r = this.rectOf(host);
+    this.invoke("embed_open", { label, url, x: r.x, y: r.y, w: r.w, h: r.h });
+    // Layout settles over the first frames (fonts, tab strip, activate());
+    // re-push so a pre-layout rect can't stick.
+    for (const d of [50, 250, 700]) setTimeout(() => this.sync(true), d);
+  },
+  navigate(label, url) { return this.invoke("embed_navigate", { label, url }); },
+  back(label) { return this.invoke("embed_back", { label }); },
+  close(label) {
+    if (!this.slots.has(label)) return;
+    this.slots.delete(label);
+    this.invoke("embed_close", { label });
+    if (!this.slots.size && this.timer) { clearInterval(this.timer); this.timer = null; }
+  },
+};
+
 const Tabs = {
   tabs: new Map(),  // tabId -> { rootEl, tabEl, profile, isBrowser }
   order: [],
@@ -303,7 +351,7 @@ const Tabs = {
   openBrowserTab(url, profile = this.activeProfile, label) {
     url = url || HOME_URL;
     const tabId = "T" + ++this.seq;
-    const embed = this._embeddable(url);
+    const embLabel = "embed-" + tabId;
     const rootEl = document.createElement("div");
     rootEl.className = "tab-root";
     rootEl.dataset.id = tabId;
@@ -318,34 +366,45 @@ const Tabs = {
           <button class="browser-btn" data-act="external" title="Open in system browser">↗</button>
           <button class="browser-btn browser-btn-close" data-act="close" title="Close tab">✕</button>
         </div>
-        <iframe class="browser-frame" src="${embed ? url : "about:blank"}"></iframe>
-        <div class="browser-note" ${embed ? "hidden" : ""}>External site — opened in its own window:
-          <span class="browser-note-url">${url}</span></div>
+        <iframe class="browser-frame" hidden></iframe>
+        <div class="browser-host" hidden></div>
       </div>`;
     document.getElementById("terms").appendChild(rootEl);
 
     const addr = rootEl.querySelector(".browser-addr-input");
     const frame = rootEl.querySelector(".browser-frame");
-    const note = rootEl.querySelector(".browser-note");
-    if (embed) BrowserBridge.ensureBackend(url);
-    else BrowserBridge.popout("popout-" + tabId, url);
+    const host = rootEl.querySelector(".browser-host");
+    let embedOpened = false;
+
+    // Both bodies exist; each URL picks one. Local UIs → iframe (plain DOM,
+    // zero native involvement). External → native embed measured off `host`.
+    const show = (v) => {
+      if (this._embeddable(v)) {
+        host.hidden = true;
+        NativeEmbed.sync(true);            // hide the native view this frame
+        BrowserBridge.ensureBackend(v);
+        frame.hidden = false;
+        if (frame.src !== v) frame.src = v;
+      } else {
+        frame.hidden = true;
+        frame.src = "about:blank";
+        host.hidden = false;
+        if (embedOpened) NativeEmbed.navigate(embLabel, v);
+        else { NativeEmbed.open(embLabel, v, host); embedOpened = true; }
+        NativeEmbed.sync(true);
+      }
+    };
+    show(url);
 
     const go = (v) => {
       if (!/^[a-z]+:\/\//i.test(v)) v = "https://" + v;
       addr.value = v;
       const t = this.tabs.get(tabId); if (t) t.browserUrl = v;
-      if (this._embeddable(v)) {
-        BrowserBridge.ensureBackend(v);
-        note.hidden = true;
-        frame.src = v;
-      } else {
-        note.hidden = false;
-        note.querySelector(".browser-note-url").textContent = v;
-        BrowserBridge.popout("popout-" + tabId, v);
-      }
+      show(v);
     };
     addr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(addr.value.trim()); });
     rootEl.querySelector('[data-act="back"]').addEventListener("click", () => {
+      if (!host.hidden) { NativeEmbed.back(embLabel); return; }
       // Cross-origin frames forbid touching contentWindow.history — best effort.
       try { frame.contentWindow.history.back(); } catch { /* cross-origin */ }
     });
@@ -368,7 +427,7 @@ const Tabs = {
     this._wireTabEl(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
-    this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true, browserUrl: url, icon: "🌐", group: null });
+    this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true, embLabel, browserUrl: url, icon: "🌐", group: null });
     this.order.push(tabId);
     this.activate(tabId);
     return tabId;
@@ -542,6 +601,9 @@ const Tabs = {
     const first = this.tabs.get(tabId).rootEl.querySelector(".pane");
     if (first) MYK.focusPane(first.dataset.id);
     this.renderTabList();
+    // rectOf() inside sync forces the reflow that makes the class toggles
+    // real, so embeds re-place this frame instead of at the next poll tick.
+    NativeEmbed.sync(true);
   },
 
   // Switch to a profile's tab group: show only its tabs in the strip,
@@ -565,6 +627,7 @@ const Tabs = {
     for (const [, t] of this.tabs) {
       if (t.profile !== name) t.rootEl.classList.remove("active");
     }
+    NativeEmbed.sync(true);   // outgoing profile's embeds hide this frame, not next tick
     if (opener) { console.log(`[switchProfile] ${name} → opener()`); opener(name); return; }
     const last = this.lastActiveByProfile.get(name);
     if (last && this.tabs.has(last)) { console.log(`[switchProfile] ${name} → resume ${last}`); this.activate(last); return; }
@@ -600,8 +663,10 @@ const Tabs = {
     const profile = this.tabs.get(tabId).profile;
     MYK.disposeTab(tabId);
     const t = this.tabs.get(tabId);
-    // An iframe is a plain DOM node — removing rootEl destroys it, page and all.
+    // The iframe dies with the DOM; a native embed needs its explicit close
+    // (no-op if this tab never left iframe mode).
     t.rootEl.remove(); t.tabEl.remove();
+    if (t.embLabel) NativeEmbed.close(t.embLabel);
     this.tabs.delete(tabId);
     this.order = this.order.filter((x) => x !== tabId);
 
