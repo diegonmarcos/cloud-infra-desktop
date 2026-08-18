@@ -3,6 +3,8 @@ const { readFile, stat, lstat, readlink, readdir, mkdir, writeFile } = require('
 const { join, extname, resolve, sep, dirname } = require('node:path');
 const { homedir } = require('node:os');
 const { execFile } = require('node:child_process');
+const { timingSafeEqual } = require('node:crypto');
+const { readFileSync } = require('node:fs');
 const process = require('node:process');
 // node:sea — present since Node 20, but only "active" (isSea() === true) when
 // this file is running as a compiled Single Executable Application binary
@@ -86,6 +88,23 @@ function resolveConfiguredRoot(p) {
   return null;
 }
 const RESOLVED_WRITE_ROOTS = WRITE_ROOTS.map(resolveConfiguredRoot).filter(Boolean);
+
+// Shared secret for the write API, read once at startup from a 0600 file
+// rendered by home-manager activation out of the sops-encrypted secrets.yaml.
+// The CSRF header only constrains browsers; any local process can forge it.
+// On Android every app has its own UID, so a 0600 file is a real boundary
+// against other apps while still being readable by the tools that need it.
+const WRITE_TOKEN_FILE = process.env.HTTPD_WRITE_TOKEN_FILE || '';
+function loadWriteToken() {
+  if (!WRITE_TOKEN_FILE) return '';
+  try {
+    return readFileSync(WRITE_TOKEN_FILE, 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+const WRITE_TOKEN = loadWriteToken();
+
 function resolveWritable(p) {
   const candidate = resolveInRoot(p);
   if (!candidate) return null;
@@ -475,6 +494,20 @@ function checkMutationAllowed(req) {
     } catch {
       return { ok: false, status: 403, error: 'invalid origin header' };
     }
+  }
+  // Shared-secret token check, on top of the CSRF header above. Fails closed:
+  // an empty WRITE_TOKEN (missing/unreadable HTTPD_WRITE_TOKEN_FILE) means
+  // "no writes", not "no check needed".
+  if (WRITE_TOKEN.length === 0) {
+    return { ok: false, status: 403, error: 'write token not configured' };
+  }
+  const provided = (req.headers['x-httpd-token'] || '').toString();
+  const providedBuf = Buffer.from(provided);
+  const expectedBuf = Buffer.from(WRITE_TOKEN);
+  const tokenMatches = providedBuf.length === expectedBuf.length &&
+    timingSafeEqual(providedBuf, expectedBuf);
+  if (!tokenMatches) {
+    return { ok: false, status: 403, error: 'invalid write token' };
   }
   return { ok: true };
 }
@@ -991,6 +1024,7 @@ function startupBanner() {
     `  ${C.dim}verbose   ${C.reset}${VERBOSE ? C.green + 'on' + C.reset + C.dim + ' (HTTPD_VERBOSE=0 to silence)' + C.reset : C.gray + 'off' + C.reset}`,
     `  ${C.dim}write     ${C.reset}${WRITE ? C.green + 'on' + C.reset + C.dim + ' (HTTPD_WRITE=1)' + C.reset : C.gray + 'off' + C.reset + C.dim + ' (set HTTPD_WRITE=1 to enable)' + C.reset}`,
     `  ${C.dim}write_roots${C.reset} ${RESOLVED_WRITE_ROOTS.length ? C.green + RESOLVED_WRITE_ROOTS.join(', ') + C.reset : C.gray + 'none set — writes effectively disabled (set HTTPD_WRITE_ROOTS=dir1:dir2)' + C.reset}`,
+    `  ${C.dim}token     ${C.reset}${WRITE_TOKEN.length > 0 ? C.green + `loaded (${WRITE_TOKEN.length} chars)` + C.reset : C.gray + 'MISSING — writes disabled' + C.reset}`,
     `  ${C.dim}firewall  ${C.reset}loopback only ${C.dim}(127.0.0.1, ::1)${C.reset}`,
     `  ${C.dim}max size  ${C.reset}5 MB ${C.dim}(API /__api__/read)${C.reset}`,
     '',

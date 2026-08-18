@@ -133,6 +133,12 @@ let
         "/git/front/b-Media/mySocials/dist"
         "/git/front-assets-cdn/b-Media/mySocials/static/media"
       ];
+
+      # Shared secret gating the write API, rendered from ./secrets.yaml by the
+      # activation below. The allowlist bounds WHAT can be written; this bounds
+      # WHO can write. It matters most on Android, where any installed app can
+      # reach 127.0.0.1 but cannot read a 0600 file owned by another UID.
+      HTTPD_WRITE_TOKEN_FILE = "${config.home.homeDirectory}/.cache/httpd-web-server-json-md-eruda.token";
     };
     text = builtins.readFile ./httpd-web-server-json-md-eruda.sh;
   };
@@ -148,12 +154,26 @@ let
     # granted across all of $HOME.
     export HTTPD_WRITE=1
     export HTTPD_WRITE_ROOTS="/git/front/b-Media/mySocials/src/data:/git/front/b-Media/mySocials/dist:/git/front-assets-cdn/b-Media/mySocials/static/media"
+    export HTTPD_WRITE_TOKEN_FILE="$HOME/.cache/httpd-web-server-json-md-eruda.token"
     exec "${httpdBin}/bin/httpd-web-server-json-md-eruda" 8000 "$HOME"
   '';
 in
 {
   home.file.".local/bin/httpd-web-server-json-md-eruda".source =
     "${httpdWrapperScript}/bin/httpd-web-server-json-md-eruda";
+
+  # Render the write-API shared secret out of the sops-encrypted secrets.yaml
+  # to a 0600 file. Must run before the fish hook starts the server, since the
+  # token is read once at startup. On decrypt failure the script writes nothing
+  # and the server fails closed — see token-render.sh for why that direction is
+  # the opposite of cloud-ide-sshd's.
+  # body in ./token-render.sh (no-inline-scripts decree 2026-08-08)
+  home.activation.httpdWebServerJsonMdErudaToken = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    YQ_BIN="${pkgs.yq-go}/bin/yq" \
+    SECRETS="${./secrets.yaml}" \
+    OUT="${config.home.homeDirectory}/.cache/httpd-web-server-json-md-eruda.token" \
+    ${pkgs.bash}/bin/bash ${./token-render.sh} || true
+  '';
 
   home.file.".termux/service/${serviceName}/run" = {
     source = runitRunScript;
