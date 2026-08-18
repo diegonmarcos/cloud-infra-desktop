@@ -437,15 +437,11 @@ body { display: flex; flex-direction: column; }
 .home-stats { display: flex; gap: 22px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 .home-stats b { color: var(--fg); font-size: 15px; display: block; }
 
-/* ── Native browser tab ────────────────────────────────────────────────────
-   .browser-host is a measured placeholder, not a viewport: the page is painted
-   by a native child webview parked over this rectangle (see NativeBrowser in
-   tabs.js). It is deliberately empty and deliberately still laid out by CSS —
-   that is how the webview follows the sidebar/top-nav/resize without any of
-   them knowing about it. */
-.browser-host { flex: 1 1 0; min-height: 0; width: 100%; background: var(--bg); }
-.browser-frame { display: none; }
-.browser-note { display: none; }
+/* Browser tab body is the .browser-frame iframe (rule near .browser-wrap);
+   external sites open as a pop-out window and the tab shows .browser-note.
+   The native child-webview experiment is dead: on Linux, tauri packs child
+   webviews into the window's GtkBox and wry's set_bounds is a no-op outside a
+   GtkFixed — the surface could never be positioned, only split the window. */
 
 /* Separator between nav pill clusters (my-AI/Mesh/Cloud | Git/Git Sync | …) —
    a literal "|" glyph rather than a rule, distinct from the sidebar's

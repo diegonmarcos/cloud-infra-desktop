@@ -79,91 +79,25 @@ const TreeCmd = {
 // and it is what let the webview render over the sidebar: every new layout path
 // was a new chance to forget one. Measuring the truth is cheaper than
 // enumerating the causes.
-const NativeBrowser = {
-  slots: new Map(),                       // label -> { host, last }
-  timer: null,
-  on() { return !!window.__TAURI__; },
+// ── Browser tabs are plain <iframe>s. This is forced, not a preference: on
+// Linux, tauri-runtime-wry packs a child webview into the window's GtkBox
+// (pack_start, expand=true) — never a GtkFixed — and wry's set_bounds only
+// acts `if is_in_fixed_parent`, so EVERY geometry call on a child webview is
+// a silent Ok-and-do-nothing. Traced live (MYK_BROWSER_DEBUG=1):
+// set_position/set_size/set_bounds all returned Ok while the webview sat
+// frozen at its GTK-assigned full-width band. A child webview here cannot be
+// positioned, clipped, or hidden — it can only split the window.
+// An iframe is a real DOM node: clipped by .tab-root's overflow:hidden and
+// destroyed with the tab. Sites that refuse framing (X-Frame-Options /
+// frame-ancestors) get the ⧉ pop-out — a real top-level WebviewWindow, the
+// one native surface whose geometry Linux does honor.
+const BrowserBridge = {
   invoke(cmd, args) {
-    if (!this.on()) return Promise.resolve();
-    return window.__TAURI__.core.invoke(cmd, args);
+    if (!window.__TAURI__) return Promise.resolve();
+    return window.__TAURI__.core.invoke(cmd, args).catch((e) => console.error(`[browser] ${cmd}`, e));
   },
-  // Fire-and-forget: bounds/navigate/back. `invoke` stays raw because close()
-  // MUST be able to observe a rejection (see unregister).
-  fire(cmd, args) { return this.invoke(cmd, args).catch((e) => console.error(`[browser] ${cmd}`, e)); },
-  register(label, host) {
-    this.slots.set(label, { host, last: null });
-    if (!this.timer) this.timer = setInterval(() => this.sync(), 250);
-  },
-  // Call this AFTER the tab's DOM is gone: the host is then detached, so
-  // rectOf() reports invisible and the sync below parks the webview offscreen
-  // before we even ask the backend to destroy it.
-  //
-  // The slot is deliberately NOT dropped up front. wv.close() is unreliable for
-  // a child webview on the WebKitGTK backend — when it no-ops, the poll is the
-  // only thing left that can keep the orphaned surface offscreen, and dropping
-  // the slot first is exactly how a closed tab used to leave a dead rectangle
-  // floating over the window until the whole app was killed. The slot is
-  // released only once the backend confirms the webview is really gone.
-  unregister(label) {
-    if (!this.slots.has(label)) return;
-    this.sync();
-    this.invoke("browser_close", { label })
-      .then(() => {
-        this.slots.delete(label);
-        if (!this.slots.size && this.timer) { clearInterval(this.timer); this.timer = null; }
-      })
-      .catch((e) => console.error(`[browser] close ${label} failed; kept parked offscreen`, e));
-  },
-  // Sends a line into the backend's stderr (MYK_BROWSER_DEBUG=1), so the JS
-  // measurements and the native readback land in one log instead of a devtools
-  // console nobody can see while the window is misbehaving.
-  log(msg) { this.invoke("browser_log", { msg }).catch(() => {}); },
-  rectOf(host) {
-    const r = host.getBoundingClientRect();
-    // offsetParent===null means the element (or an ancestor) is display:none —
-    // i.e. an inactive tab — or detached entirely (a closed tab). Both must read
-    // as invisible; getBoundingClientRect alone reports 0x0 for them, which is
-    // indistinguishable from "not laid out yet".
-    const visible = host.isConnected && host.offsetParent !== null && r.width > 0 && r.height > 0;
-    // PHYSICAL device pixels, not CSS px. getBoundingClientRect is CSS px; the
-    // backend used to apply them as Logical*, which Tauri rescales by the window
-    // scale factor while WebKitGTK scales the child surface again — so on any
-    // display with scale != 1 the webview was drawn ~scale× too large and spilled
-    // across the screen. Physical* is applied verbatim: measured == painted.
-    const s = window.devicePixelRatio || 1;
-    return {
-      x: Math.round(r.left * s), y: Math.round(r.top * s),
-      w: Math.round(r.width * s), h: Math.round(r.height * s), visible,
-    };
-  },
-  // `force` re-pushes even an unchanged rect. The dedupe below is what makes the
-  // 4 Hz poll cheap, but it also means a rect that is stable-and-wrong (a bad
-  // first measurement taken before layout settled) is never corrected. Layout
-  // events that we do know about therefore force a push.
-  sync(force) {
-    for (const [label, slot] of this.slots) {
-      const r = this.rectOf(slot.host);
-      const key = `${r.x},${r.y},${r.w},${r.h},${r.visible}`;
-      if (!force && key === slot.last) continue;
-      slot.last = key;
-      this.fire("browser_bounds", { label, ...r });
-    }
-  },
-  open(label, url, host) {
-    this.register(label, host);
-    const r = this.rectOf(host);
-    const c = host.getBoundingClientRect();
-    this.log(`open ${label} dpr=${window.devicePixelRatio} css=(${c.left},${c.top}) ${c.width}x${c.height}` +
-      ` -> phys=(${r.x},${r.y}) ${r.w}x${r.h}` +
-      ` | innerWindow=${window.innerWidth}x${window.innerHeight} screen=${screen.width}x${screen.height}`);
-    // Re-measure after the next few frames: the rect at open time predates fonts
-    // loading, the xterm addon sizing and the tab strip settling, and without
-    // this the dedupe would lock in whatever it read first.
-    for (const d of [0, 120, 400]) setTimeout(() => this.sync(true), d);
-    return this.fire("browser_open", { label, url, x: r.x, y: r.y, w: r.w, h: r.h });
-  },
-  navigate(label, url) { return this.fire("browser_navigate", { label, url }); },
-  back(label) { return this.fire("browser_back", { label }); },
+  ensureBackend(url) { return this.invoke("ensure_agentic_backend", { url }); },
+  popout(label, url) { return this.invoke("browser_popout", { label, url }); },
 };
 
 const Tabs = {
@@ -349,24 +283,30 @@ const Tabs = {
     return tabId;
   },
 
-  // ── Browser tab: a plain <iframe>, a normal DOM element laid out and
-  // clipped by CSS exactly like every other tab pane — no floating native
-  // webview, no manual bounds/visibility syncing, nothing that can render
-  // outside the tab area. Closing the tab removes the iframe from the DOM,
-  // which tears it down; no explicit close call needed.
+  // ── Browser tab: an <iframe> for what can legally be embedded, a real
+  // top-level app window (browser_popout) for what cannot. The routing is by
+  // host, not detection: loopback/LAN UIs we serve ourselves are framable and
+  // render in-tab; external sites overwhelmingly send X-Frame-Options (an
+  // iframe shows them as a silent blank), and a native child webview is proven
+  // unpositionable on Linux (GtkBox packing, set_bounds no-op) — so external
+  // URLs go straight to a pop-out window, the surface Linux actually manages.
   // `label` names the tab. Without it every browser tab was titled "Browser",
   // so a profile with several (agentic: Goose Desktop / Goose Cloud / Hermes
   // Cloud) showed three identical tabs and you could not tell the modes apart.
+  _embeddable(u) {
+    try {
+      const h = new URL(u).hostname;
+      return h === "127.0.0.1" || h === "localhost" || h === "::1" ||
+        h.startsWith("10.") || h.startsWith("192.168.");
+    } catch { return false; }
+  },
   openBrowserTab(url, profile = this.activeProfile, label) {
     url = url || HOME_URL;
     const tabId = "T" + ++this.seq;
-    const wvLabel = "browser-" + tabId;
+    const embed = this._embeddable(url);
     const rootEl = document.createElement("div");
     rootEl.className = "tab-root";
     rootEl.dataset.id = tabId;
-    // The address bar stays DOM (it must be clipped and scrolled with the tab);
-    // .browser-host is an empty placeholder whose only job is to be measured —
-    // the page itself is painted by the native webview parked over it.
     rootEl.innerHTML = `
       <div class="browser-wrap">
         <div class="browser-addr">
@@ -374,28 +314,43 @@ const Tabs = {
           <button class="browser-btn" data-act="reload" title="Reload">↻</button>
           <button class="browser-btn" data-act="home" title="Home">⌂</button>
           <input class="browser-addr-input" type="text" spellcheck="false" value="${url}" />
+          <button class="browser-btn" data-act="popout" title="Open in app window">⧉</button>
           <button class="browser-btn" data-act="external" title="Open in system browser">↗</button>
           <button class="browser-btn browser-btn-close" data-act="close" title="Close tab">✕</button>
         </div>
-        <div class="browser-host"></div>
+        <iframe class="browser-frame" src="${embed ? url : "about:blank"}"></iframe>
+        <div class="browser-note" ${embed ? "hidden" : ""}>External site — opened in its own window:
+          <span class="browser-note-url">${url}</span></div>
       </div>`;
     document.getElementById("terms").appendChild(rootEl);
 
     const addr = rootEl.querySelector(".browser-addr-input");
-    const host = rootEl.querySelector(".browser-host");
-    console.log(`[openBrowserTab] native webview ${wvLabel} url=${url} profile=${profile}`);
-    // The rect is only real after the tab-root is activated + laid out; open on
-    // the next frame so the first bounds we send are not 0x0.
-    requestAnimationFrame(() => NativeBrowser.open(wvLabel, url, host));
+    const frame = rootEl.querySelector(".browser-frame");
+    const note = rootEl.querySelector(".browser-note");
+    if (embed) BrowserBridge.ensureBackend(url);
+    else BrowserBridge.popout("popout-" + tabId, url);
 
     const go = (v) => {
       if (!/^[a-z]+:\/\//i.test(v)) v = "https://" + v;
       addr.value = v;
       const t = this.tabs.get(tabId); if (t) t.browserUrl = v;
-      NativeBrowser.navigate(wvLabel, v);
+      if (this._embeddable(v)) {
+        BrowserBridge.ensureBackend(v);
+        note.hidden = true;
+        frame.src = v;
+      } else {
+        note.hidden = false;
+        note.querySelector(".browser-note-url").textContent = v;
+        BrowserBridge.popout("popout-" + tabId, v);
+      }
     };
     addr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(addr.value.trim()); });
-    rootEl.querySelector('[data-act="back"]').addEventListener("click", () => NativeBrowser.back(wvLabel));
+    rootEl.querySelector('[data-act="back"]').addEventListener("click", () => {
+      // Cross-origin frames forbid touching contentWindow.history — best effort.
+      try { frame.contentWindow.history.back(); } catch { /* cross-origin */ }
+    });
+    rootEl.querySelector('[data-act="popout"]').addEventListener("click", () =>
+      BrowserBridge.popout("popout-" + tabId, addr.value.trim()));
     rootEl.querySelector('[data-act="reload"]').addEventListener("click", () => go(addr.value.trim()));
     rootEl.querySelector('[data-act="home"]').addEventListener("click", () => go(HOME_URL));
     rootEl.querySelector('[data-act="external"]').addEventListener("click", () => {
@@ -413,7 +368,7 @@ const Tabs = {
     this._wireTabEl(tabEl, tabId);
     document.getElementById("tabstrip").insertBefore(tabEl, document.getElementById("btn-newtab"));
 
-    this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true, wvLabel, browserUrl: url, icon: "🌐", group: null });
+    this.tabs.set(tabId, { rootEl, tabEl, profile, isBrowser: true, browserUrl: url, icon: "🌐", group: null });
     this.order.push(tabId);
     this.activate(tabId);
     return tabId;
@@ -587,13 +542,6 @@ const Tabs = {
     const first = this.tabs.get(tabId).rootEl.querySelector(".pane");
     if (first) MYK.focusPane(first.dataset.id);
     this.renderTabList();
-    // The active/inactive classes just toggled above; getBoundingClientRect
-    // inside sync() forces the reflow that makes them real, so this reads
-    // post-toggle geometry immediately instead of waiting up to 250ms for the
-    // next poll tick — that gap is exactly the overhang the poll alone can't
-    // close (the previously-active browser tab keeps painting in the old
-    // spot, or the newly-active one stays parked offscreen).
-    NativeBrowser.sync(true);
   },
 
   // Switch to a profile's tab group: show only its tabs in the strip,
@@ -617,10 +565,6 @@ const Tabs = {
     for (const [, t] of this.tabs) {
       if (t.profile !== name) t.rootEl.classList.remove("active");
     }
-    // Same reasoning as activate(): the outgoing profile's browser tab(s) just
-    // went display:none above — sync immediately so the webview parks
-    // offscreen this frame, not up to 250ms from now.
-    NativeBrowser.sync(true);
     if (opener) { console.log(`[switchProfile] ${name} → opener()`); opener(name); return; }
     const last = this.lastActiveByProfile.get(name);
     if (last && this.tabs.has(last)) { console.log(`[switchProfile] ${name} → resume ${last}`); this.activate(last); return; }
@@ -656,20 +600,14 @@ const Tabs = {
     const profile = this.tabs.get(tabId).profile;
     MYK.disposeTab(tabId);
     const t = this.tabs.get(tabId);
-    // A native webview is not a DOM node — removing rootEl does NOT tear it
-    // down, it would stay floating over the window forever. Remove the DOM
-    // FIRST: unregister() syncs bounds off the now-detached host, so the webview
-    // is parked offscreen before the close is even attempted, and stays parked
-    // if the backend fails to destroy it.
+    // An iframe is a plain DOM node — removing rootEl destroys it, page and all.
     t.rootEl.remove(); t.tabEl.remove();
-    if (t.wvLabel) NativeBrowser.unregister(t.wvLabel);
     this.tabs.delete(tabId);
     this.order = this.order.filter((x) => x !== tabId);
 
     const remaining = this.order.filter((id) => this.tabs.get(id)?.profile === profile);
     if (remaining.length === 0) { this.newTab(profile); return; }
-    if (this.active === tabId) this.activate(remaining[remaining.length - 1]); // activate() syncs
-    else NativeBrowser.sync(); // closing a background tab can still shift a sibling's layout (e.g. sidebar list)
+    if (this.active === tabId) this.activate(remaining[remaining.length - 1]);
   },
 
   // ── Session snapshot: dump {profile, kind, url/startPath} per tab to
