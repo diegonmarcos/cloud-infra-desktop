@@ -165,9 +165,8 @@ jobs:
   # The fork APK stages as dist/Cloud-Vault.apk so build.sh's oras-push /
   # gh-release pick it up under the constellation asset name unchanged —
   # ea_cloud-superapp's constellation-fleet.json release_url keeps working.
-  # NOT covered: the x86_64 variant (Cloud-Vault-x86_64.apk / GHCR
-  # :latest-x86_64) still carries the last WebView build — revisit if the
-  # emulator/waydroid flow needs the fork.
+  # The x86_64 variant (Cloud-Vault-x86_64.apk / GHCR :latest-x86_64) is
+  # published from the SAME universal APK — see the staging step below.
   #
   # First green run: 31602029574 (2026-08-12) — assembleFdroidRelease, signed,
   # 36 MB fdroid/release APK.
@@ -273,26 +272,34 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      # Rename to the constellation asset so build.sh's oras-push (matches
-      # release.artifact.debug with CLOUDVAULT_VARIANT unset) and gh-release
-      # (gh_release.asset_name) both stage the fork APK as Cloud-Vault.apk.
-      - name: Stage fork APK as constellation asset
+      # Rename to the constellation asset names so build.sh's oras-push /
+      # gh-release stage the fork APK per variant. The fdroid release APK is
+      # UNIVERSAL (full lib/ sets for arm64-v8a, armeabi-v7a, x86, x86_64 —
+      # verified on the 2026-08-18 release), so the SAME file serves both the
+      # arm64 asset (Cloud-Vault.apk, CLOUDVAULT_VARIANT unset → matches
+      # release.artifact.debug) and the x86_64 asset (Cloud-Vault-x86_64.apk,
+      # CLOUDVAULT_VARIANT=x86_64 → suffixed GHCR tags + gh_asset).
+      - name: Stage fork APK as constellation assets
         working-directory: ${{ env.WORK_DIR }}
-        run: cp dist/cloud-vault-vault.apk dist/Cloud-Vault.apk
+        run: |
+          cp dist/cloud-vault-vault.apk dist/Cloud-Vault.apk
+          cp dist/cloud-vault-vault.apk dist/Cloud-Vault-x86_64.apk
 
       - name: Login to GHCR
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.push_oras }}
         run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Push APK to GHCR via ORAS
+      - name: Push APK to GHCR via ORAS (arm64 + x86_64 tags)
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.push_oras }}
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
           GITHUB_SHA: ${{ github.sha }}
-        run: ./build.sh oras-push
+        run: |
+          ./build.sh oras-push
+          CLOUDVAULT_VARIANT=x86_64 ./build.sh oras-push
 
-      - name: Publish to GitHub Releases
+      - name: Publish to GitHub Releases (both assets)
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.create_release }}
         working-directory: ${{ env.WORK_DIR }}
         env:
@@ -300,4 +307,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF: ${{ github.ref }}
-        run: ./build.sh gh-release
+        run: |
+          ./build.sh gh-release
+          CLOUDVAULT_VARIANT=x86_64 ./build.sh gh-release
