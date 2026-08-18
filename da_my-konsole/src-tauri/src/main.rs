@@ -453,6 +453,29 @@ fn embed_rect(x: f64, y: f64, w: f64, h: f64) -> wry::Rect {
     }
 }
 
+// Place an embed through GTK's OWN layout (fixed.move_ + set_size_request),
+// not wry's set_bounds: that path is a one-shot size_allocate which the next
+// GTK layout pass overwrites from the fixed's put-coordinates and the size
+// request — the webview snapped back to ~1x1 at the fixed's origin, i.e. an
+// invisible page in a "dead" tab. move_/size_request update the values the
+// layout pass reads, so the rect survives every re-layout.
+// Coordinates: JS sends window-viewport CSS px; fixed children are placed
+// relative to the fixed's allocation origin (bottom of the vbox), so subtract
+// it — negative child coords are fine for GtkFixed.
+fn embed_place(fixed: &gtk::Fixed, wv: &wry::WebView, x: f64, y: f64, w: f64, h: f64, visible: bool) {
+    use gtk::prelude::*;
+    use wry::WebViewExtUnix;
+    let widget = wv.webview();
+    if !visible {
+        widget.hide();
+        return;
+    }
+    let fa = fixed.allocation();
+    fixed.move_(&widget, x as i32 - fa.x(), y as i32 - fa.y());
+    widget.set_size_request(w.max(1.0) as i32, h.max(1.0) as i32);
+    widget.show();
+}
+
 #[tauri::command]
 fn embed_open(
     app: tauri::AppHandle,
@@ -496,6 +519,7 @@ fn embed_open(
         {
             Ok(wv) => {
                 eprintln!("[embed] open {label}: built ok");
+                embed_place(&fixed, &wv, x, y, w, h, w >= 1.0 && h >= 1.0);
                 EMBEDS.with(|m| {
                     m.borrow_mut().insert(label, wv);
                 });
@@ -516,12 +540,10 @@ fn embed_bounds(
     visible: bool,
 ) -> Result<(), String> {
     on_main(&app, move |_| {
+        let Ok(fixed) = embed_fixed() else { return };
         EMBEDS.with(|m| {
             if let Some(wv) = m.borrow().get(&label) {
-                let _ = wv.set_visible(visible);
-                if visible {
-                    let _ = wv.set_bounds(embed_rect(x, y, w, h));
-                }
+                embed_place(&fixed, wv, x, y, w, h, visible);
             }
         });
     })
