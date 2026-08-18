@@ -138,6 +138,8 @@ ea_cloud-browser/**/*.keystore
 ea_cloud-browser/**/*.jks
 ea_cloud-vault/**/*.keystore
 ea_cloud-vault/**/*.jks
+ea_cloud-contacts/**/*.keystore
+ea_cloud-contacts/**/*.jks
 ea_cloud-media-center/**/*.keystore
 ea_cloud-media-center/**/*.jks
 ## Orphan gitlink guard (restored 2026-07-22). These 4 dirs are empty nested-repo
