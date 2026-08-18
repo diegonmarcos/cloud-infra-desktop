@@ -77,21 +77,14 @@ let
     runtimeInputs = [ pkgs.coreutils ];
     runtimeEnv = {
       HTTPD_WEB_SERVER_BIN = "${httpdBin}/bin/httpd-web-server-json-md-eruda";
-      # Keeps the desktop flake in step with the termux one, which enables the
-      # same opt-in write API so a single :8000 instance can back local editing
-      # tools. Mutating routes stay loopback-only and require the custom
-      # X-Httpd-Write header.
-      HTTPD_WRITE = "1";
-
-      # Writes are confined to the directories the editing tools actually
-      # touch. ROOT is $HOME, so an unscoped write API would expose shell
-      # profiles and ~/.ssh, which execute or authenticate on next login.
-      # $HOME-relative; the server fails closed if this is empty.
-      HTTPD_WRITE_ROOTS = builtins.concatStringsSep ":" [
-        "/git/front/b-Media/mySocials/src/data"
-        "/git/front/b-Media/mySocials/dist"
-        "/git/front-assets-cdn/b-Media/mySocials/static/media"
-      ];
+      # Deliberately NOT setting HTTPD_WRITE here. The write API
+      # (/__api__/write, /__api__/git) exists for the termux device, where the
+      # editing tools run against the always-on :8000 instance. Nothing on
+      # desktop uses it, and an enabled-but-unused write path is just surface.
+      # To turn it on later: set HTTPD_WRITE=1, HTTPD_WRITE_ROOTS to the
+      # directories it may touch, and HTTPD_WRITE_TOKEN_FILE to a rendered
+      # secret — see bb_flakes_termux's module for the full wiring. The server
+      # fails closed without all three.
     };
     text = builtins.readFile ./httpd-web-server-json-md-eruda.sh;
   };
