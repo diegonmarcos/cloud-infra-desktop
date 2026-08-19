@@ -40,7 +40,7 @@ let
   konsoleProfileDefaults = pkgs.writeText "konsole-profile-1" ''
     [Appearance]
     ColorScheme=Breeze
-    Font=JetBrainsMono NF,11,-1,5,50,0,0,0,0,0
+    Font=JetBrainsMono NF,9,-1,5,50,0,0,0,0,0
 
     [General]
     Command=${konsoleShell}
