@@ -1,5 +1,6 @@
 {
   "hickory_dns": "10.0.0.1",
   "wg_interface": "wg0",
-  "wg_domains": "~app"
+  "_wg_domains_doc": "systemd-resolved routing domains for wg0. MUST mirror the Hickory mesh zones [diegonmarcos.com, app, db] exactly, and MUST be a list: wg-dns-up.sh calls `resolvectl domain wg0 ...`, which REPLACES the interface list rather than adding to it, so a single-entry value here silently deletes the other two and mcp.diegonmarcos.com falls through to the public edge and its wg_only 403.",
+  "wg_domains": ["~diegonmarcos.com", "~app", "~db"]
 }
