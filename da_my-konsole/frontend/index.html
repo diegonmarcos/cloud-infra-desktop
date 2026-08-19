@@ -26,7 +26,13 @@
             <div class="menu-item" id="editor-vim">Vim</div>
           </div>
         </div>
-        <button class="home-btn" id="btn-home-browser">Web Browser</button>
+        <div class="home-dropdown" id="browser-wrap">
+          <button class="home-btn" id="btn-home-browser">Web Browser ▾</button>
+          <div class="home-menu" id="browser-menu" hidden>
+            <div class="menu-item" id="browser-tui">Terminal (browsh)</div>
+            <div class="menu-item" id="browser-gui">GUI (webview, beta)</div>
+          </div>
+        </div>
         <button class="home-btn" id="btn-home-agentic">Agentic</button>
       </div>
       <!-- Konsole-style menu button: an icon, and a menu whose entries open

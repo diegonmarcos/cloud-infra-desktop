@@ -564,7 +564,7 @@
   // default) or Terminal (browsh in a PTY). Same mutually-exclusive shape as
   // the Editor pref above; read by Tabs.openBrowserTab.
   const applyBrowserPref = () => {
-    const mode = localStorage.getItem("myk-browser") || "gui";
+    const mode = localStorage.getItem("myk-browser") || "tui";
     document.getElementById("cfg-browser-gui").classList.toggle("checked", mode === "gui");
     document.getElementById("cfg-browser-tui").classList.toggle("checked", mode === "tui");
   };
@@ -749,7 +749,31 @@
   };
   document.getElementById("btn-home-home").addEventListener("click", () => selectProfile(byName("home"), null));
   document.getElementById("btn-home-filebrowser").addEventListener("click", () => selectProfile(byName("file-browser"), null));
-  document.getElementById("btn-home-browser").addEventListener("click", () => selectProfile(byName("web-browser"), null));
+  // Web Browser is a mode dropdown, same shape as File Editor: Terminal (browsh
+  // in a PTY tab — renders every site, no GTK geometry involved) | GUI (native
+  // webview embed, still being fixed). Picking one overrides the ☰ pref for
+  // this launch only.
+  const browserBtn = document.getElementById("btn-home-browser");
+  const browserMenu = document.getElementById("browser-menu");
+  browserBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const show = browserMenu.hidden;
+    browserMenu.hidden = !show;
+    if (show) {
+      const r = browserBtn.getBoundingClientRect();
+      browserMenu.style.top = `${r.bottom + 2}px`;
+      browserMenu.style.left = `${r.left}px`;
+    }
+    console.log("[browser] dropdown", browserMenu.hidden ? "closed" : "opened");
+  });
+  document.addEventListener("click", () => { browserMenu.hidden = true; });
+  const openBrowserAs = (m) => () => {
+    const p = byName("web-browser");
+    console.log(`[browser] ${m} clicked → web-browser profile`);
+    selectProfile(p, null, () => Tabs.openBrowserTab(p.url, "web-browser", null, m));
+  };
+  document.getElementById("browser-tui").addEventListener("click", openBrowserAs("tui"));
+  document.getElementById("browser-gui").addEventListener("click", openBrowserAs("gui"));
   document.getElementById("btn-home-agentic").addEventListener("click", () => selectProfile(byName("agentic"), null));
   // Any other `home:true` profile (e.g. goose-desktop, cloud-agentic) gets its
   // button generated here instead of a hardcoded HTML entry — new pinned tabs
