@@ -234,7 +234,7 @@ while IFS= read -r f; do
     esac
     case "$f" in
         *.sh|*.py|*.nix|*.ts|*.tsx|*.js|*.go|*.rs|*.md|*.json|*.kt|*.kts|*.java|*.c|*.h|*.cc|*.cpp|*.hpp|*.xml|*.swift|*.m|*.mm)
-            if grep -qiE '^[[:space:]]*(password|admin_password|private_key|api_key|secret)[[:space:]]*[:=][[:space:]]*[^{$_[:space:]-]' "$f" 2>/dev/null; then
+            if grep -qiE "^[[:space:]]*(password|admin_password|private_key|api_key|secret)[[:space:]]*[:=][[:space:]]*[\"'][^\"']+[\"']" "$f" 2>/dev/null; then
                 LEAKY="${LEAKY}${f} (code file with inline secret pattern)"$'\n'
             fi
             continue
