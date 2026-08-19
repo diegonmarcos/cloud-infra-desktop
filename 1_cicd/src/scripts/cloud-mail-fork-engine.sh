@@ -437,6 +437,17 @@ step_materialize_fork() {
   # (ea_cloud-<fork>/patches/). SCRIPT_DIR resolves to the invocation dir.
   local patch_dir="$SCRIPT_DIR/patches"
 
+  # Vendored-in-repo fork (2026-08-19): tracker_dir points at a committed,
+  # already-fully-patched plain source tree (no .git inside it) instead of a
+  # gitignored external clone. No network clone, no git am — build-fork reads
+  # straight from here. patches/ stays as historical record only; bump
+  # pinned_tag and delete $dest to force the clone+patch path below and
+  # re-vendor a newer upstream tag.
+  if [ -d "$dest" ] && [ ! -d "$dest/.git" ]; then
+    log "materialize-fork[$key]: using vendored in-repo source at $tracker (no clone, no git am — see $patch_dir for historical patch series)"
+    return 0
+  fi
+
   if [ ! -d "$dest/.git" ]; then
     log "materialize-fork[$key]: cloning $repo → $tracker (tag $tag)"
     # tracker_dir may be nested (ea_upstreams-sources/<name> — the canonical
