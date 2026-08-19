@@ -96,55 +96,27 @@
           "cell": "left",
           "app": "konsole",
           "instance": "pane-left",
-          "_comment": "first 3 tabs auto-run (fish/yazi/plain), then 9 plain shells titled '-'. command runs in the tab's root pane; missing binary falls back to a plain shell.",
+          "_comment": "5 tabs: yazi, fzf, home (plain), ___ (plain), my-ai. command runs in the tab's root pane; missing binary falls back to a plain shell.",
           "tabs": [
-            {
-              "title": "fish",
-              "command": "fish"
-            },
             {
               "title": "yazi",
               "command": "yazi"
             },
             {
-              "title": "_",
+              "title": "fzf",
+              "command": "fzf"
+            },
+            {
+              "title": "home",
               "command": ""
             },
             {
-              "title": "-",
+              "title": "___",
               "command": ""
             },
             {
-              "title": "-",
-              "command": ""
-            },
-            {
-              "title": "-",
-              "command": ""
-            },
-            {
-              "title": "-",
-              "command": ""
-            },
-            {
-              "title": "-",
-              "command": ""
-            },
-            {
-              "title": "-",
-              "command": ""
-            },
-            {
-              "title": "-",
-              "command": ""
-            },
-            {
-              "title": "-",
-              "command": ""
-            },
-            {
-              "title": "-",
-              "command": ""
+              "title": "my-ai",
+              "command": "my-ai"
             }
           ]
         },
@@ -178,7 +150,8 @@
         },
         {
           "cell": "right",
-          "app": "kate"
+          "app": "brave",
+          "urls": []
         }
       ]
     }

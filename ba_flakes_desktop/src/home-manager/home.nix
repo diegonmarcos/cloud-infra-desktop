@@ -380,6 +380,24 @@
       BlinkingCursorEnabled=false
     '';
 
+    # Konsole default profile (konsolerc DefaultProfile). Font point size is
+    # base 10 minus 2 (== Ctrl+- pressed twice) so it opens pre-zoomed-out.
+    ".local/share/konsole/Profile 1.profile".text = ''
+      [Appearance]
+      ColorScheme=Breeze
+      Font=JetBrainsMono NF,9,-1,5,50,0,0,0,0,0
+
+      [General]
+      Command=/run/current-system/sw/bin/fish
+      Name=Profile 1
+      Parent=FALLBACK/
+      TerminalColumns=120
+      TerminalRows=60
+
+      [Scrolling]
+      HistorySize=5000
+    '';
+
     # Keyboard Layout - Spanish
     ".config/kxkbrc".text = ''
       [Layout]
