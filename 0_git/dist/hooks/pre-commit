@@ -228,8 +228,13 @@ while IFS= read -r f; do
     # SpacedTokens.kt, a PasswordField.java) — the filename match is a false
     # positive there; the inline-value content scan below is the real gate.
     case "$f" in
-        *.sh|*.py|*.nix|*.ts|*.tsx|*.js|*.go|*.rs|*.md|*.json|*.kt|*.kts|*.java|*.c|*.h|*.cc|*.cpp|*.hpp|*.xml)
-            if grep -qiE '^[[:space:]]*(password|admin_password|private_key|api_key|secret)[[:space:]]*[:=][[:space:]]*[^{$_-]' "$f" 2>/dev/null; then
+        # Test fixtures routinely assign mock creds ('token1', mockToken, etc.)
+        # to fields literally named password/secret/token — never real values.
+        *.test.ts|*.test.tsx|*.test.js|*.spec.ts|*.spec.tsx|*.spec.js) continue ;;
+    esac
+    case "$f" in
+        *.sh|*.py|*.nix|*.ts|*.tsx|*.js|*.go|*.rs|*.md|*.json|*.kt|*.kts|*.java|*.c|*.h|*.cc|*.cpp|*.hpp|*.xml|*.swift|*.m|*.mm)
+            if grep -qiE '^[[:space:]]*(password|admin_password|private_key|api_key|secret)[[:space:]]*[:=][[:space:]]*[^{$_[:space:]-]' "$f" 2>/dev/null; then
                 LEAKY="${LEAKY}${f} (code file with inline secret pattern)"$'\n'
             fi
             continue
