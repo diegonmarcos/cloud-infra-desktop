@@ -1,7 +1,7 @@
 {
+  "order": 16,
   "name": "hibernation",
   "display_name": "Hibernation",
-  "order": 16,
   "menu": "Unix-Dev",
   "theme": { "accent": "#74b9ff" },
   "sections": [
@@ -21,5 +21,6 @@
         { "label": "Idle/lid settings", "cmd": "grep -v '^#' /etc/systemd/logind.conf | grep ." }
       ]
     }
-  ]
+  ],
+  "group": "g3"
 }

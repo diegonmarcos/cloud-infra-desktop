@@ -1,6 +1,6 @@
 {
-  "name": "kali-linux",
   "order": 14,
+  "name": "kali-linux",
   "menu": "Unix-Dev",
   "display_name": "Kali Linux",
   "theme": {
@@ -290,6 +290,5 @@
       ]
     }
   ],
-  "order": 12,
-  "group": "g5"
+  "group": "g3"
 }

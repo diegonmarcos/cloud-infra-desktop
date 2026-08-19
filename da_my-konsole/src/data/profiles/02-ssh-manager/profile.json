@@ -1,6 +1,6 @@
 {
-  "name": "ssh-manager",
   "order": 11,
+  "name": "ssh-manager",
   "menu": "Unix-Envs",
   "display_name": "SSH Man",
   "theme": {
@@ -130,6 +130,5 @@
       "paths": ["~/.ssh/config"]
     }
   ],
-  "order": 9,
-  "group": "g4"
+  "group": "g3"
 }

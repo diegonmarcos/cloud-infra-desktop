@@ -1,7 +1,7 @@
 {
+  "order": 12,
   "name": "journal",
   "display_name": "Journal",
-  "order": 12,
   "menu": "Unix-Dev",
   "theme": { "accent": "#fdcb6e" },
   "sections": [
@@ -22,5 +22,6 @@
         { "label": "Unit log", "cmd": "journalctl --user -u " }
       ]
     }
-  ]
+  ],
+  "group": "g3"
 }

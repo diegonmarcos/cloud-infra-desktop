@@ -1,7 +1,7 @@
 {
+  "order": 1,
   "name": "my-ai",
   "display_name": "my-AI",
-  "order": 1,
   "theme": {
     "accent": "#a29bfe"
   },
@@ -78,5 +78,6 @@
         "~/.claude/CLAUDE.md"
       ]
     }
-  ]
+  ],
+  "group": "g1"
 }

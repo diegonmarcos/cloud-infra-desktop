@@ -1,6 +1,6 @@
 {
-  "name": "data-sync",
   "order": 6,
+  "name": "data-sync",
   "menu": "Data",
   "display_name": "Data Sync",
   "theme": {
@@ -197,6 +197,5 @@
       "paths": ["~/.local/state/syncthing/config.xml"]
     }
   ],
-  "order": 5,
   "group": "g2"
 }

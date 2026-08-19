@@ -1,6 +1,6 @@
 {
-  "name": "git",
   "order": 5,
+  "name": "git",
   "menu": "Data",
   "display_name": "Git",
   "theme": {
@@ -143,6 +143,5 @@
       "paths": ["~/.config/gh/config.yml"]
     }
   ],
-  "order": 4,
   "group": "g2"
 }

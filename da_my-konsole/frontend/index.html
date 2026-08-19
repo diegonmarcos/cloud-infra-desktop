@@ -88,6 +88,13 @@
     </div>
   </header>
 
+  <!-- Lives OUTSIDE #topnav on purpose: a collapse button inside the bar would
+       vanish with the bar and leave no way back (Ctrl+Shift+M is invisible).
+       A permanent 10px strip costs less than the ~66px header it folds away.
+       Glyph flips in applyLayout(). -->
+  <button id="btn-topnav" title="Hide Top Nav Bar">▴</button>
+
+
   <!-- About dialog -->
   <div id="about" hidden>
     <div id="about-box">
