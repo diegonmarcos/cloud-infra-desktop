@@ -26,7 +26,11 @@ fi
 
 HICKORY_DNS="$("$JQ" -r '.hickory_dns' "$CONFIG_JSON")"
 WG_IFACE="$("$JQ" -r '.wg_interface' "$CONFIG_JSON")"
-WG_DOMAINS="$("$JQ" -r '.wg_domains' "$CONFIG_JSON")"
+# Accepts a list (current shape) or a bare string (legacy). Flattened to a
+# space-separated word list because `resolvectl domain <if> ...` takes each
+# domain as its own argv entry and REPLACES the interface's list wholesale —
+# passing all of them quoted as one word registers a single bogus domain.
+WG_DOMAINS="$("$JQ" -r '.wg_domains | if type == "array" then join(" ") else . end' "$CONFIG_JSON")"
 
 # Wait for wg0 interface to exist (max 10s)
 for _ in {1..10}; do
@@ -47,7 +51,8 @@ echo "[wg-dns] Adding $HICKORY_DNS to resolv.conf for .app names"
 if command -v resolvectl >/dev/null 2>&1 && systemctl is-active systemd-resolved >/dev/null 2>&1; then
   echo "[wg-dns] Using systemd-resolved split DNS"
   sudo resolvectl dns "$WG_IFACE" "$HICKORY_DNS"
-  sudo resolvectl domain "$WG_IFACE" "$WG_DOMAINS"
+  # shellcheck disable=SC2086 -- deliberate word splitting: one argv per domain.
+  sudo resolvectl domain "$WG_IFACE" $WG_DOMAINS
   sudo resolvectl default-route "$WG_IFACE" false
 else
   # Method 2: Direct resolv.conf prepend (resolvconf/NetworkManager systems)

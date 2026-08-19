@@ -18,7 +18,9 @@ let
   hickoryDns = "10.0.0.1";
   wgInterface = "wg0";
   # Domains that should resolve via Hickory (private .app names)
-  wgDomains = [ "~app" ];
+  # Mirrors the Hickory mesh zones. Kept in sync with cloud-network-wg-dns.json,
+  # which is what wg-dns-up.sh actually reads at runtime.
+  wgDomains = [ "~diegonmarcos.com" "~app" "~db" ];
   wgDomainsStr = lib.concatStringsSep " " wgDomains;
   # Vault key material — same base as cloud-network-wg-public.nix.
   vaultBase = "${config.home.homeDirectory}/git/cloud-vault/A0_keys/providers/wireguard";
