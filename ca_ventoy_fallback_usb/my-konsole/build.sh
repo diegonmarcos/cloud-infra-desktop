@@ -25,60 +25,67 @@ log_head() { printf "\n${CYAN}=== %s ===${NC}\n" "$1"; }
 log_err()  { printf "${RED}[ERROR]${NC} %s\n" "$1"; exit 1; }
 
 build_iso() {
-    log_head "Building my-konsole ISO"
-
-    # Check nix is available
-    if ! command -v nix &>/dev/null; then
-        log_err "Nix is not installed. Install with: curl -L https://nixos.org/nix/install | sh"
-    fi
-
-    log_info "Building ISO (this may take 10-30 minutes on first build)..."
-
-    nix build .#iso \
-        --extra-experimental-features "nix-command flakes" \
-        --out-link result
-
-    if [ -L result ]; then
-        ISO_PATH=$(readlink -f result)/iso/*.iso
-        ISO_SIZE=$(du -h $ISO_PATH | cut -f1)
-        log_ok "ISO built: $ISO_PATH"
-        log_ok "Size: $ISO_SIZE"
-
-        # Copy to current directory
-        cp $ISO_PATH ./my-konsole.iso
-        log_ok "Copied to: ./my-konsole.iso"
-
-        echo ""
-        echo "To use with Ventoy:"
-        echo "  cp my-konsole.iso /path/to/ventoy/usb/"
-    else
-        log_err "Build failed - no result link created"
-    fi
+    log_err "local ISO builds are disabled — the ISO is built on GitHub Actions only.
+  Trigger:  gh workflow run ship-my-konsole-iso.yml --repo diegonmarcos/cloud-unix
+  Watch:    gh run watch \$(gh run list -w ship-my-konsole-iso.yml -L1 --json databaseId -q '.[0].databaseId')
+  Consume:  ./build.sh install-partition   (downloads the my-konsole-iso-latest release)"
 }
 
 build_vm() {
-    log_head "Building NixOS Surface VM for testing"
-
-    nix build .#vm \
-        --extra-experimental-features "nix-command flakes" \
-        --out-link result-vm
-
-    log_ok "VM built. Run with:"
-    echo "  ./result-vm/bin/run-*-vm"
+    log_err "local VM builds are disabled — see build_iso; GHA is the only builder."
 }
 
 build_raw() {
-    log_head "Building Raw Disk Image"
+    log_err "local raw-image builds are disabled — see build_iso; GHA is the only builder."
+}
 
-    nix build .#raw \
-        --extra-experimental-features "nix-command flakes" \
-        --out-link result-raw
+# Extract kernel/initrd/cmdline from the ISO tree's own GRUB config on $1 and
+# write them into aa_bootloader's boot.json (grub.menu.mykonsole), which rEFInd
+# renders from. Keeps the volatile nix-store hashes data-driven.
+sync_boot_json() {
+    local dev="$1" label="$2"
+    local bj="$SCRIPT_DIR/../../aa_bootloader/src/boot.json"
+    [ -f "$bj" ] || { log_info "aa_bootloader boot.json not found — skipping SoT sync"; return 0; }
 
-    log_ok "Raw image built: $(readlink -f result-raw)"
+    local md; md=$(mktemp -d)
+    mount -o ro "$dev" "$md" || log_err "SoT sync: remount of $dev failed"
+    # First `linux ...` line = the ISO's default menuentry. Collapse the ISO's
+    # /boot//nix double slash, drop its ${isoboot} placeholder (set only when
+    # booting an .iso file via findiso) and the root= it hardcodes — boot.json
+    # carries root separately as root_param.
+    local lin ini kern opts
+    lin=$(command grep -m1 -E '^[[:space:]]*linux[[:space:]]+' "$md/EFI/BOOT/grub.cfg" | sed 's|/boot//|/boot/|')
+    ini=$(command grep -m1 -E '^[[:space:]]*initrd[[:space:]]+' "$md/EFI/BOOT/grub.cfg" | sed 's|/boot//|/boot/|' | awk '{print $2}')
+    umount "$md"; rmdir "$md"
+    kern=$(printf '%s' "$lin" | awk '{print $2}')
+    opts=$(printf '%s' "$lin" | cut -d' ' -f3- | sed -e 's|\${isoboot}||' -e 's|root=[^ ]*||' -e 's|  *| |g' -e 's|^ ||' -e 's| $||')
+    [ -n "$kern" ] && [ -n "$ini" ] && [ -n "$opts" ] \
+        || log_err "SoT sync: could not parse kernel/initrd/options out of $dev:/EFI/BOOT/grub.cfg"
+
+    local tmp; tmp=$(mktemp)
+    jq --arg k "$kern" --arg i "$ini" --arg o "$opts" --arg l "LABEL=$label" \
+       '.grub.menu.mykonsole.kernel = $k
+        | .grub.menu.mykonsole.initrd = $i
+        | .grub.menu.mykonsole.options = $o
+        | .grub.menu.mykonsole.root_param = $l' "$bj" > "$tmp" \
+        || log_err "SoT sync: jq update of boot.json failed"
+    mv "$tmp" "$bj"
+    log_ok "SoT sync: boot.json grub.menu.mykonsole ← $(basename "$(dirname "$kern")")"
+
+    # Tester: what we just wrote must actually exist on the partition.
+    local vd; vd=$(mktemp -d)
+    mount -o ro "$dev" "$vd" || log_err "SoT sync VERIFY: remount failed"
+    if [ -f "$vd$kern" ] && [ -f "$vd$ini" ]; then
+        log_ok "SoT sync VERIFY: kernel + initrd present at the recorded paths"
+    else
+        umount "$vd"; rmdir "$vd"
+        log_err "SoT sync VERIFY: $kern or $ini missing on $dev"
+    fi
+    umount "$vd"; rmdir "$vd"
 }
 
 install_partition() {
-    log_head "Installing my-konsole live tree onto rescue partition (approach A: chainload)"
+    log_head "Installing my-konsole live tree onto rescue partition (rEFInd boots it natively)"
 
     local J="$SCRIPT_DIR/install.json"
     command -v jq >/dev/null || log_err "jq required"
@@ -166,6 +173,16 @@ install_partition() {
 
     # ── Relabel so the ISO's baked GRUB finds the squashfs by isoImage.volumeID
     e2label "$DEV" "$LABEL" || log_err "e2label failed"
+
+    # ── Push the ISO's boot params into aa_bootloader's SoT ───────────────────
+    # rEFInd boots p8 NATIVELY (its ext4_x64 driver reads p8) instead of
+    # chainloading the ISO's own GRUB — that GRUB has no ext2 module and cannot
+    # read the very partition it now lives on (proven 2026-08-19; see boot.json
+    # grub.menu.mykonsole._refind_native_note). So rEFInd needs the kernel,
+    # initrd and cmdline, all of which carry nix-store hashes that change on
+    # every ISO rebuild. Re-extract them from the ISO's own default menuentry so
+    # they can never go stale by hand.
+    sync_boot_json "$DEV" "$LABEL"
 
     # ── Tester (FIRE RULE 5) ──────────────────────────────────────────────────
     local got; got=$(e2label "$DEV")

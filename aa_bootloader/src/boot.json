@@ -242,12 +242,12 @@
           "_note": "BlissOS x86_64 installed-to-folder on p5 (Shared-Lib, /blissos) \u2014 see ~/git/cloud-unix/ae_desk-android_x86_blissOS. rEFInd boots it DIRECTLY (native linux_partition stanza: volume=p5 UUID, loader=/blissos/kernel, initrd=/blissos/initrd.img, options from grub.menu.blissos with root_param=/dev/ram0). No GRUB chainload needed \u2014 /blissos/kernel is a real file (not a symlink like Debian/Kali's /vmlinuz), so rEFInd's ext4 driver loads it. No native partition (NVMe is full); reversible (delete /blissos + this entry)."
         },
         {
-          "producer": "efi_chainload",
+          "producer": "linux_partition",
           "from": "mykonsole",
           "label": "my-konsole Rescue",
           "icon": "tool_rescue",
-          "integration": "chainload",
-          "_note": "Chainloads p8's /EFI/BOOT/BOOTX64.EFI (grub.menu.mykonsole.efi_path, uppercase to match on-disk casing; refind_volume = PARTUUID 5f765784-767d-42ab-85a1-40d4d44519e4, not the fs UUID 27ffc22b\u2026, since install-partition relabels/reformats p8 each run \u2014 PARTUUID is stable across that; ext4 via rEFInd's bundled ext4_x64 driver). p8 holds the my-konsole NixOS live-ISO tree relabelled MY_KONSOLE; its baked GRUB carries the volatile init= and finds nix-store.squashfs by label. No kernel/initrd/init here \u2014 nothing goes stale on ISO rebuild. Populate: ca_ventoy_fallback_usb/my-konsole/build.sh install-partition."
+          "integration": "passive",
+          "_note": "rEFInd loads p8's kernel/initrd DIRECTLY (volume = PARTUUID 5f765784-767d-42ab-85a1-40d4d44519e4, stable across install-partition's reformat/relabel; ext4 via rEFInd's bundled ext4_x64 driver). Was efi_chainload until 2026-08-19 \u2014 see grub.menu.mykonsole._refind_native_note for why chainloading the ISO's own GRUB could never work. kernel/initrd/options carry volatile nix-store hashes and are re-extracted from p8's grub.cfg on every `build.sh install-partition`, so they never go stale by hand."
         },
         {
           "producer": "usb_chainload",
@@ -433,7 +433,15 @@
         "label": "my-konsole Rescue",
         "type": "chainloader",
         "efi_uuid": "27ffc22b-f89e-492d-aeda-2341e8eba898",
+        "root_uuid": "27ffc22b-f89e-492d-aeda-2341e8eba898",
         "refind_volume": "5f765784-767d-42ab-85a1-40d4d44519e4",
+        "kernel": "/boot/nix/store/fgl673j31yjpahgsfa88llvsw83cbbnf-linux-6.12.63/bzImage",
+        "initrd": "/boot/nix/store/fjdx91dj421kpj4ia38zdzwp26ykvx9q-initrd-linux-6.12.63/initrd",
+        "root_param": "LABEL=MY_KONSOLE",
+        "options": "init=/nix/store/5sbrjwyv1mbcdidkrkkc9w9rjj9781kd-nixos-system-my-konsole-25.05.20260102.ac62194/init boot.shell_on_fail quiet mitigations=off loglevel=4 lsm=landlock,yama,bpf copytoram",
+        "_refind_native_note": "PROVEN 2026-08-19 in a QEMU/OVMF rig booting the real disk read-only: rEFInd chainloaded p8's /EFI/BOOT/BOOTX64.EFI fine, but that GRUB then dropped to a bare `grub>` prompt. At the prompt, `ls (hd1,gpt8)/` returned 'error: unknown filesystem' while `ls (hd1,gpt1)/` (the FAT ESP) listed normally — the NixOS live-ISO's GRUB image is built for iso9660/FAT and carries NO ext2/ext4 module, so once the ISO tree is rsynced onto an ext4 partition that GRUB can never read its own grub.cfg or nix-store.squashfs. Chainloading it was unfixable by any path/casing/UUID change. rEFInd's own ext4_x64 driver CAN read p8 (same driver reads p5 for BlissOS and p3 for NixOS), so the fix is to skip GRUB entirely and let rEFInd load the kernel+initrd natively — kernel/initrd/options above are extracted verbatim from the ISO's default menuentry by install-partition.",
+        "_volatile_fields_note": "kernel, initrd and the init= inside options embed nix-store hashes that change on EVERY ISO rebuild. They are NOT hand-maintained: `ca_ventoy_fallback_usb/my-konsole/build.sh install-partition` re-parses p8's /EFI/BOOT/grub.cfg after the rsync and writes these three fields back into this file with jq. Values above were captured from ISO 25.05.20260102.ac62194.",
+        "_root_param_note": "root=LABEL=MY_KONSOLE — matches the label install-partition applies via e2label (= isoImage.volumeID). The ISO's stage-1 finds nix-store.squashfs by that label, exactly as its own GRUB config does.",
         "_refind_volume_note": "p8's PARTUUID (GPT partition GUID). rEFInd matches label/PARTUUID, not the ext4 fs UUID (efi_uuid). PARTUUID is used (not the label) because install-partition RELABELS p8 to MY_KONSOLE \u2014 a label would go stale, the PARTUUID survives. efi_uuid stays for GRUB's fs-agnostic search side.",
         "efi_path": "/EFI/BOOT/BOOTX64.EFI",
         "_efi_path_case_note": "UPPERCASE: p8 is ext4 (case-sensitive); the NixOS ISO tree lays the loader at /EFI/BOOT/BOOTX64.EFI (verified on-disk 2026-07-26). Lowercase /EFI/boot/bootx64.efi does NOT exist there, so a lowercase chainload path fails with 'Invalid Loader File'. Must match install.json partition.efi_binary.",
