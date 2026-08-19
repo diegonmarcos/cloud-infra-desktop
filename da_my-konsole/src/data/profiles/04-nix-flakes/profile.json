@@ -1,6 +1,6 @@
 {
-  "name": "nix-flakes",
   "order": 7,
+  "name": "nix-flakes",
   "menu": "Unix-Infra",
   "display_name": "Nix Flakes",
   "theme": {
@@ -176,6 +176,5 @@
       ]
     }
   ],
-  "order": 6,
   "group": "g3"
 }

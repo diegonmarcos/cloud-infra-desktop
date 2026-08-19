@@ -1,7 +1,7 @@
 {
+  "order": 4,
   "name": "kde-connect",
   "display_name": "KDE Connect",
-  "order": 4,
   "menu": "Cloud",
   "theme": { "accent": "#0984e3" },
   "sections": [
@@ -23,5 +23,6 @@
         { "label": "Daemon status", "cmd": "systemctl --user status kdeconnectd --no-pager" }
       ]
     }
-  ]
+  ],
+  "group": "g2"
 }

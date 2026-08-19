@@ -1,6 +1,6 @@
 {
-  "name": "os-dev",
   "order": 13,
+  "name": "os-dev",
   "menu": "Unix-Dev",
   "display_name": "OS Dev",
   "theme": {
@@ -226,6 +226,5 @@
       ]
     }
   ],
-  "order": 11,
-  "group": "g5"
+  "group": "g3"
 }

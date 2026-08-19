@@ -1,7 +1,7 @@
 {
+  "order": 2,
   "name": "mesh-network",
   "display_name": "Mesh&Net",
-  "order": 2,
   "menu": "Cloud",
   "theme": { "accent": "#00b894" },
   "sections": [
@@ -29,5 +29,6 @@
         { "label": "dig", "cmd": "dig " }
       ]
     }
-  ]
+  ],
+  "group": "g2"
 }

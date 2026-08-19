@@ -1,7 +1,7 @@
 {
+  "order": 9,
   "name": "web-server",
   "display_name": "WebServer",
-  "order": 9,
   "menu": "Unix-Infra",
   "theme": { "accent": "#00b894" },
   "_doc": "my-webserver — the file server home-manager deploys (ba_flakes_desktop/src/modules/my-webserver/default.nix): a POSIX wrapper at ~/.local/bin/my-webserver around a prebuilt, per-arch Node SEA binary fetched from the rolling GitHub Release (<port> <dir> args), plus a systemd --user unit that wants the same :8000. The unit ships disabled and the wrapper is what actually runs, so these bookmarks drive the wrapper and keep the unit's state one click away — when the two do fight over the port, that has to be visible rather than a mystery. Source now lives in da_my-webserver/.",
@@ -43,5 +43,6 @@
         { "label": "unit enabled?", "cmd": "systemctl --user is-enabled my-webserver.service" }
       ]
     }
-  ]
+  ],
+  "group": "g3"
 }

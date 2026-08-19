@@ -1,6 +1,6 @@
 {
-  "name": "watchdog",
   "order": 15,
+  "name": "watchdog",
   "menu": "Unix-Dev",
   "display_name": "Watchdog",
   "theme": {
@@ -113,7 +113,6 @@
       ]
     }
   ],
-  "order": 21,
   "secondary": true,
   "configs": [
     {
@@ -146,5 +145,6 @@
         "/etc/systemd/user.conf"
       ]
     }
-  ]
+  ],
+  "group": "g3"
 }

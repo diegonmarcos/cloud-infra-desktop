@@ -1,6 +1,6 @@
 {
+  "order": 17,
   "name": "dashboards",
-  "order": 20,
   "menu": "Others",
   "display_name": "Dashboards",
   "theme": {
@@ -50,6 +50,6 @@
       ]
     }
   ],
-  "order": 20,
-  "secondary": true
+  "secondary": true,
+  "group": "g4"
 }

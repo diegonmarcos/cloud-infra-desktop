@@ -1,7 +1,7 @@
 {
+  "order": 18,
   "name": "clipboard",
   "display_name": "Clipboard",
-  "order": 21,
   "menu": "Others",
   "theme": { "accent": "#e17055" },
   "sections": [
@@ -22,5 +22,6 @@
         { "label": "Clear history", "cmd": "qdbus org.kde.klipper /klipper clearClipboardHistory" }
       ]
     }
-  ]
+  ],
+  "group": "g4"
 }

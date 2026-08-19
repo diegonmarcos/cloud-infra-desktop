@@ -1,6 +1,6 @@
 {
-  "name": "docker",
   "order": 8,
+  "name": "docker",
   "menu": "Unix-Infra",
   "display_name": "Containers",
   "theme": {
@@ -35,6 +35,5 @@
       "paths": ["~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/src/modules/docker-daemon*.nix", "~/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_containers.nix"]
     }
   ],
-  "order": 7,
   "group": "g3"
 }

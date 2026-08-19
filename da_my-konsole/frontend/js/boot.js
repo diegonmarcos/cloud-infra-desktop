@@ -54,9 +54,9 @@
   const folders = new Map();
   for (const p of byOrder(cli)) {
     const label = menuOf(p);
-    if (!label) { entries.push({ p }); continue; }
+    if (!label) { entries.push({ p, group: p.group }); continue; }
     let f = folders.get(label);
-    if (!f) { f = { label, items: [] }; folders.set(label, f); entries.push(f); }
+    if (!f) { f = { label, items: [], group: p.group }; folders.set(label, f); entries.push(f); }
     f.items.push(p);
   }
   // Full names for abbreviated pills — shown as a tooltip so the shortened
@@ -122,13 +122,18 @@
       if (menu.hidden) openMenu(); else closeMenu();
     });
     pill.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } });
-    document.addEventListener("click", closeMenu);
+    // Capture-phase pointerdown, not a bubbling click: xterm.js and the native
+    // child webviews swallow clicks before they ever reach document, so a
+    // bubbling listener leaves the dropdown stuck open.
+    document.addEventListener("pointerdown", (e) => { if (!wrap.contains(e.target)) closeMenu(); }, true);
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
     return wrap;
   };
   entries.forEach((e, i) => {
-    // One "|" at the pills→folders boundary; never leading.
-    if (i && e.label && !entries[i - 1].label) nav.appendChild(mkSep());
+    // A "|" wherever profile.group changes — the clusters are data, not a
+    // hardcoded boundary: my-AI | Cloud Data | Unix-Infra/Envs/Dev | Others.
+    // Never leading.
+    if (i && e.group !== entries[i - 1].group) nav.appendChild(mkSep());
     nav.appendChild(e.label ? mkFolder(e.label, e.items) : mkPill(e.p, i === 0));
   });
 
@@ -510,6 +515,9 @@
     const sb = document.getElementById("btn-sidebar");
     sb.textContent = layout.sidebar ? "«" : "»";
     sb.title = (layout.sidebar ? "Hide" : "Show") + " Left Side Bar";
+    const tn = document.getElementById("btn-topnav");
+    tn.textContent = layout.topnav ? "▴" : "▾";
+    tn.title = (layout.topnav ? "Hide" : "Show") + " Top Nav Bar";
     localStorage.setItem("myk-layout", JSON.stringify(layout));
     if (Tabs.active) MYK._fitTab(Tabs.active);   // the terminal must re-fit, not clip
     NativeEmbed.sync(true);   // a browser tab's host just moved/resized too
@@ -531,6 +539,7 @@
   ticker("cfg-topnav", "topnav");
   ticker("cfg-sidebar", "sidebar");
   document.getElementById("btn-sidebar").addEventListener("click", () => Layout.toggle("sidebar"));
+  document.getElementById("btn-topnav").addEventListener("click", () => Layout.toggle("topnav"));
   window.addEventListener("keydown", (e) => {
     if (e.ctrlKey && e.shiftKey && (e.key === "M" || e.key === "m")) {
       e.preventDefault();

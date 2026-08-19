@@ -1,6 +1,6 @@
 {
-  "name": "cloud-infra",
   "order": 3,
+  "name": "cloud-infra",
   "menu": "Cloud",
   "display_name": "Cloud Infra",
   "theme": {
@@ -223,6 +223,5 @@
       "paths": ["~/git/cloud-infra/config.json", "~/git/cloud-infra/git.yaml", "~/git/cloud-infra/2_configs/build.json", "~/git/cloud-infra/2_configs/manifest.json"]
     }
   ],
-  "order": 3,
-  "group": "g1"
+  "group": "g2"
 }

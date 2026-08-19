@@ -1,6 +1,6 @@
 {
-  "name": "vault",
   "order": 10,
+  "name": "vault",
   "menu": "Unix-Envs",
   "display_name": "Vault",
   "theme": {
@@ -35,6 +35,5 @@
       "paths": ["~/git/cloud-unix/ba_flakes_desktop/src/secrets/secrets.yaml"]
     }
   ],
-  "order": 8,
-  "group": "g4"
+  "group": "g3"
 }
