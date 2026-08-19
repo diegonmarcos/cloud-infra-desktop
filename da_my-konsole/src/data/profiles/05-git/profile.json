@@ -1,5 +1,7 @@
 {
   "name": "git",
+  "order": 5,
+  "menu": "Data",
   "display_name": "Git",
   "theme": {
     "accent": "#f67400"

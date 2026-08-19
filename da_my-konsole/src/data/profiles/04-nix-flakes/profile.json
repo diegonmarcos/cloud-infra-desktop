@@ -1,5 +1,7 @@
 {
   "name": "nix-flakes",
+  "order": 7,
+  "menu": "Unix-Infra",
   "display_name": "Nix Flakes",
   "theme": {
     "accent": "#7ebae4"

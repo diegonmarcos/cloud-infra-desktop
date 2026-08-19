@@ -1,5 +1,7 @@
 {
   "name": "cloud-infra",
+  "order": 3,
+  "menu": "Cloud",
   "display_name": "Cloud Infra",
   "theme": {
     "accent": "#1d99f3"

@@ -1,8 +1,8 @@
 {
   "name": "kde-connect",
   "display_name": "KDE Connect",
-  "order": 23,
-  "secondary": true,
+  "order": 4,
+  "menu": "Cloud",
   "theme": { "accent": "#0984e3" },
   "sections": [
     {

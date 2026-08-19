@@ -1,5 +1,7 @@
 {
   "name": "data-sync",
+  "order": 6,
+  "menu": "Data",
   "display_name": "Data Sync",
   "theme": {
     "accent": "#27ae60"

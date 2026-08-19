@@ -1,5 +1,7 @@
 {
   "name": "os-dev",
+  "order": 13,
+  "menu": "Unix-Dev",
   "display_name": "OS Dev",
   "theme": {
     "accent": "#e67e22"

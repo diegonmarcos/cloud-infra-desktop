@@ -1,8 +1,8 @@
 {
   "name": "clipboard",
   "display_name": "Clipboard",
-  "order": 24,
-  "secondary": true,
+  "order": 21,
+  "menu": "Others",
   "theme": { "accent": "#e17055" },
   "sections": [
     {

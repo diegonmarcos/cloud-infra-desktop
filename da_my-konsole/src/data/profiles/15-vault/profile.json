@@ -1,5 +1,7 @@
 {
   "name": "vault",
+  "order": 10,
+  "menu": "Unix-Envs",
   "display_name": "Vault",
   "theme": {
     "accent": "#8e44ad"

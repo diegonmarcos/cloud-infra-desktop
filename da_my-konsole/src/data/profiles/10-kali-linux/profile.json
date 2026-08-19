@@ -1,5 +1,7 @@
 {
   "name": "kali-linux",
+  "order": 14,
+  "menu": "Unix-Dev",
   "display_name": "Kali Linux",
   "theme": {
     "accent": "#367bf0"

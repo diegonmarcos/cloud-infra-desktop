@@ -1,8 +1,8 @@
 {
   "name": "dtk",
   "display_name": "DTK",
-  "order": 26,
-  "secondary": true,
+  "order": 22,
+  "menu": "Others",
   "theme": { "accent": "#e84393" },
   "_doc": "Diego's Toolkit — ~/git/cloud-mykonsole-dtk/dtk.sh, a POSIX-sh unified CLI for aliases, containers, cloud connect and ops. It has an interactive menu of its own, so the top bookmark just launches that; the rest are the direct subcommands, which are faster than navigating the menu when you already know what you want. Numbers in the labels are dtk's own shortcodes, kept verbatim so the menu and these bookmarks cannot drift apart.",
   "configs": [
