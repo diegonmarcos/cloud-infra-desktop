@@ -1,5 +1,7 @@
 {
   "name": "ssh-manager",
+  "order": 11,
+  "menu": "Unix-Envs",
   "display_name": "SSH Man",
   "theme": {
     "accent": "#16a085"

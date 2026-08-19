@@ -11,6 +11,10 @@
   <!-- Top nav: row 1 = fixed Home actions, row 2 = data-driven profile pills -->
   <header id="topnav">
     <div class="nav-row" id="nav-row-home">
+      <!-- The only always-visible sidebar control: the ☰ ticker (Layout → Left
+           Side Bar) is the same state, but it is three clicks deep and nobody
+           finds it. Glyph flips «/» in applyLayout(). -->
+      <button class="home-btn" id="btn-sidebar" title="Hide Left Side Bar">«</button>
       <span class="nav-label">Tauri Apps</span>
       <div id="home-actions">
         <button class="home-btn" id="btn-home-home">Home</button>

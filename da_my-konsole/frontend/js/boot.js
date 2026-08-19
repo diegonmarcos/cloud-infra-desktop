@@ -36,18 +36,29 @@
   // `order` fall to the end, in their existing order, so adding one is not a
   // silent reshuffle.
   //
-  // `secondary: true` sends a profile to the "Others ▾" dropdown instead of a
-  // pill. The strip is a single 32px row: past ~10 pills it overflows into a
-  // horizontal scroll nobody discovers, so the rarely-used profiles live behind
-  // one dropdown rather than making every profile harder to reach.
+  // `menu: "<label>"` files a profile into a named dropdown folder ("Cloud",
+  // "Unix-Dev", "Others", …); no `menu` leaves it a standalone pill. The strip
+  // is a single 32px row: past ~10 pills it overflows into a horizontal scroll
+  // nobody discovers, so related profiles live one click behind a folder
+  // rather than making every profile harder to reach. Legacy `secondary: true`
+  // still reads as the "Others" folder. A folder sits where its first member
+  // sits, so `order` alone drives the whole row.
   const nav = document.getElementById("profiles");
   const byOrder = (list) =>
     list.map((p, idx) => ({ p, idx }))
         .sort((a, b) => (a.p.order ?? 999) - (b.p.order ?? 999) || a.idx - b.idx)
         .map((x) => x.p);
   const cli = profiles.filter((p) => !p.home);
-  const row1 = byOrder(cli.filter((p) => !p.secondary));
-  const others = byOrder(cli.filter((p) => p.secondary));
+  const menuOf = (p) => p.menu || (p.secondary ? "Others" : null);
+  const entries = [];               // in render order: {p} pills and {label, items} folders
+  const folders = new Map();
+  for (const p of byOrder(cli)) {
+    const label = menuOf(p);
+    if (!label) { entries.push({ p }); continue; }
+    let f = folders.get(label);
+    if (!f) { f = { label, items: [] }; folders.set(label, f); entries.push(f); }
+    f.items.push(p);
+  }
   // Full names for abbreviated pills — shown as a tooltip so the shortened
   // label ("SSH Man", "Mesh&Net") doesn't lose its meaning at a glance.
   const FULL_NAME = {
@@ -67,8 +78,9 @@
     pill.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectProfile(p, pill); } });
     return pill;
   };
-  // `group` inserts a "|" between clusters (my-AI/Mesh/Cloud | Git/Git Sync |
-  // …) so the strip reads as groups rather than one long run.
+  // A "|" between a standalone pill and the folders, so the strip reads as
+  // clusters rather than one long run. Folders separate themselves visually,
+  // so this only fires around the pills.
   const mkSep = () => {
     const sep = document.createElement("span");
     sep.className = "nav-pill-sep";
@@ -76,25 +88,18 @@
     sep.setAttribute("aria-hidden", "true");
     return sep;
   };
-  let lastGroup = null;
-  row1.forEach((p, i) => {
-    if (lastGroup !== null && p.group !== lastGroup) {
-      nav.appendChild(mkSep());
-    }
-    lastGroup = p.group ?? null;
-    nav.appendChild(mkPill(p, i === 0));
-  });
-  if (others.length) {
-    // Same separator the cluster loop uses, so "Others" reads as one more
-    // cluster rather than a bolt-on — but only if row1 actually rendered
-    // something, or this would open the strip with a leading "|".
-    if (row1.length) nav.appendChild(mkSep());
+  const mkFolder = (label, items) => {
     const wrap = document.createElement("div");
     wrap.className = "home-dropdown";
-    wrap.innerHTML = `<div class="profile-pill" id="others-pill" tabindex="0">Others ▾</div><div class="home-menu others-menu" id="others-menu" hidden></div>`;
-    nav.appendChild(wrap);
-    const menu = wrap.querySelector("#others-menu");
-    for (const p of others) {
+    const pill = document.createElement("div");
+    pill.className = "profile-pill";
+    pill.tabIndex = 0;
+    pill.textContent = label + " ▾";
+    const menu = document.createElement("div");
+    menu.className = "home-menu others-menu";
+    menu.hidden = true;
+    wrap.append(pill, menu);
+    for (const p of items) {
       const it = document.createElement("div");
       it.className = "menu-item";
       it.textContent = p.display_name || p.name;
@@ -102,10 +107,9 @@
       // pill/icon in this dropdown, it's the only way to tell these apart
       // at a glance, same as a browser bookmarks menu's favicons.
       it.style.setProperty("--dot", (p.theme && p.theme.accent) || "var(--muted)");
-      it.addEventListener("click", () => selectProfile(p, wrap.querySelector("#others-pill")));
+      it.addEventListener("click", () => selectProfile(p, pill));
       menu.appendChild(it);
     }
-    const pill = wrap.querySelector("#others-pill");
     const closeMenu = () => { menu.hidden = true; };
     const openMenu = () => {
       menu.hidden = false;
@@ -120,7 +124,13 @@
     pill.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } });
     document.addEventListener("click", closeMenu);
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
-  }
+    return wrap;
+  };
+  entries.forEach((e, i) => {
+    // One "|" at the pills→folders boundary; never leading.
+    if (i && e.label && !entries[i - 1].label) nav.appendChild(mkSep());
+    nav.appendChild(e.label ? mkFolder(e.label, e.items) : mkPill(e.p, i === 0));
+  });
 
   const byName = (n) => profiles.find((p) => p.name === n);
 
@@ -497,6 +507,9 @@
     document.getElementById("sidebar").classList.toggle("hidden", !layout.sidebar);
     document.getElementById("cfg-topnav").classList.toggle("checked", layout.topnav);
     document.getElementById("cfg-sidebar").classList.toggle("checked", layout.sidebar);
+    const sb = document.getElementById("btn-sidebar");
+    sb.textContent = layout.sidebar ? "«" : "»";
+    sb.title = (layout.sidebar ? "Hide" : "Show") + " Left Side Bar";
     localStorage.setItem("myk-layout", JSON.stringify(layout));
     if (Tabs.active) MYK._fitTab(Tabs.active);   // the terminal must re-fit, not clip
     NativeEmbed.sync(true);   // a browser tab's host just moved/resized too
@@ -517,6 +530,7 @@
     });
   ticker("cfg-topnav", "topnav");
   ticker("cfg-sidebar", "sidebar");
+  document.getElementById("btn-sidebar").addEventListener("click", () => Layout.toggle("sidebar"));
   window.addEventListener("keydown", (e) => {
     if (e.ctrlKey && e.shiftKey && (e.key === "M" || e.key === "m")) {
       e.preventDefault();

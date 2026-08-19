@@ -2,7 +2,6 @@
   "name": "my-ai",
   "display_name": "my-AI",
   "order": 1,
-  "group": "g1",
   "theme": {
     "accent": "#a29bfe"
   },

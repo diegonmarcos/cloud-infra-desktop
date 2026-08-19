@@ -1,8 +1,8 @@
 {
   "name": "journal",
   "display_name": "Journal",
-  "order": 10,
-  "group": "g5",
+  "order": 12,
+  "menu": "Unix-Dev",
   "theme": { "accent": "#fdcb6e" },
   "sections": [
     {

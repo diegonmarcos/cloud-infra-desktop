@@ -1,5 +1,7 @@
 {
   "name": "watchdog",
+  "order": 15,
+  "menu": "Unix-Dev",
   "display_name": "Watchdog",
   "theme": {
     "accent": "#c0392b"

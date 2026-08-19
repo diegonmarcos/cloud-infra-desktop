@@ -1,8 +1,8 @@
 {
   "name": "hibernation",
   "display_name": "Hibernation",
-  "order": 22,
-  "secondary": true,
+  "order": 16,
+  "menu": "Unix-Dev",
   "theme": { "accent": "#74b9ff" },
   "sections": [
     {
