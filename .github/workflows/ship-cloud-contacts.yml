@@ -10,40 +10,51 @@
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-name: "Ship → Cloud Contacts (materialize + build + publish to GHCR)"
-
-# Independent per-app workflow for Cloud Contacts (Fossify Contacts fork).
-# Engine: 1_cicd/src/scripts/cloud-contacts-fork-engine.sh (symlinked as ea_cloud-contacts/build.sh).
-# Per-app build.json at ea_cloud-contacts/build.json; patches at ea_cloud-contacts/patches/.
+name: "Ship → Cloud Contacts APK (build + push to GHCR via ORAS + attach to GH Release)"
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "Build variant"
+        required: false
+        type: choice
+        default: "debug"
+        options: [debug, release]
+      push_oras:
+        description: "Push APK to GHCR via ORAS"
+        required: false
+        type: boolean
+        default: true
+      create_release:
+        description: "Create GitHub Release"
+        required: false
+        type: boolean
+        default: false
   push:
     branches: [main]
+    tags:
+      - "ea_cloud-contacts-v*"
     paths:
       - "ea_cloud-contacts/**"
-      - "1_cicd/src/scripts/cloud-contacts-fork-engine.sh"
       - "1_cicd/src/cicd/ship-cloud-contacts.yml"
 
 permissions:
-  contents: write   # gh release create (RSS feed entries)
-  packages: write   # ghcr push (oras)
+  contents: write
+  packages: write
 
 env:
   WORK_DIR: ea_cloud-contacts
-  FORK: contacts
 
 jobs:
   build_and_publish:
-    name: "Materialize + build + publish (contacts · ${{ matrix.combo.abi }})"
+    name: "Build APK + Push (${{ matrix.abi }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        combo: [{fork: "contacts", abi: "arm64-v8a"}]
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    env:
-      COMMS_BUNDLE_ABI: ${{ matrix.combo.abi }}
+        abi: [arm64, x86_64]
 
     steps:
       - name: Checkout
@@ -56,7 +67,16 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 platforms;android-35 platforms;android-26 build-tools;35.0.0 build-tools;34.0.0 platform-tools"
+
+      - name: Set up Gradle 8.10.2 (cached)
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "8.10.2"
 
       - name: Checkout vault (shared Android signing key)
         uses: actions/checkout@v4
@@ -70,77 +90,65 @@ jobs:
           sudo apt-get update -y && sudo apt-get install -y jq
           curl -fsSL https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz \
             | sudo tar -C /usr/local/bin -xzf - oras
-          oras version
           curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 \
-            | sudo tee /usr/local/bin/sops >/dev/null
-          sudo chmod +x /usr/local/bin/sops
-          sops --version
+            | sudo tee /usr/local/bin/sops >/dev/null && sudo chmod +x /usr/local/bin/sops
 
-      - name: Materialize fork (clone @ pin + patch series)
-        working-directory: ${{ env.WORK_DIR }}
-        env:
-          BYPASS_NIX: "1"
+      - name: Determine variant
+        id: variant
         run: |
-          chmod +x build.sh
-          ./build.sh materialize-fork "$FORK"
+          if   [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "variant=${{ inputs.variant }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "variant=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "variant=debug" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Generate build stamp (baked into APK BuildConfig AND release tag)
-        run: |
-          echo "COMMS_BUILD_TIMESTAMP=$(date -u '+%Y%m%d.%H%M%S')" >> "$GITHUB_ENV"
-
-      - name: Build fork APK (fork's own gradle wrapper + constellation signing)
+      - name: Build APK (engine)
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
           VAULT_DIR: ${{ github.workspace }}/.vault
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-          COMMS_BUILD_TIMESTAMP: ${{ env.COMMS_BUILD_TIMESTAMP }}
+          CLOUDCONTACTS_VARIANT: ${{ matrix.abi }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./build.sh build-fork "$FORK"
+          chmod +x build.sh
+          if [ "${{ steps.variant.outputs.variant }}" = "release" ]; then
+            ./build.sh release
+          else
+            ./build.sh build
+          fi
           ls -la dist/
 
-      - name: Upload fork APK as workflow artifact
+      - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cloud-comms-contacts-${{ matrix.combo.abi }}-${{ github.sha }}
-          path: ${{ env.WORK_DIR }}/dist/cloud-comms-contacts.apk
+          name: Cloud-Contacts-${{ matrix.abi }}-${{ steps.variant.outputs.variant }}-${{ github.sha }}
+          path: ${{ env.WORK_DIR }}/dist/*.apk
           if-no-files-found: error
           retention-days: 30
 
       - name: Login to GHCR
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" \
-            | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.push_oras }}
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Publish fork APK to GHCR
+      - name: Push APK to GHCR via ORAS
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.push_oras }}
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          CLOUDCONTACTS_VARIANT: ${{ matrix.abi }}
           GITHUB_SHA: ${{ github.sha }}
-        run: ./build.sh publish-fork "$FORK"
+        run: ./build.sh oras-push
 
-      - name: Create GitHub Release (RSS update notification)
-        if: ${{ success() && matrix.combo.abi == 'arm64-v8a' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="cloud-comms-contacts-${COMMS_BUILD_TIMESTAMP}"
-          gh release create "$TAG" \
-            --repo "${{ github.repository }}" \
-            --title "Cloud Contacts · ${{ env.COMMS_BUILD_TIMESTAMP }}" \
-            --notes "New build published to ghcr.io/diegonmarcos/cloud-comms-contacts:latest — install via Cloud SuperApp → Configs → Constellation." \
-            --latest=false \
-            "${{ env.WORK_DIR }}/dist/cloud-comms-contacts.apk"
-
-      # Rolling 'latest' release: upload the APK under its own name so
-      # /releases/latest/download/cloud-comms-contacts.apk is a stable install URL
-      # (ea_cloud-superapp ui.external_apps[cloud-contacts].install_apk_url).
-      # Engine step reads build.json::release.gh_release (rolling_tag=latest).
-      - name: Publish fork APK to rolling 'latest' release (stable install URL)
-        if: ${{ success() && matrix.combo.abi == 'arm64-v8a' }}
+      - name: Publish to GitHub Releases
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.create_release }}
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
+          CLOUDCONTACTS_VARIANT: ${{ matrix.abi }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ github.sha }}
-        run: ./build.sh gh-release-fork "$FORK"
+          GITHUB_REF: ${{ github.ref }}
+        run: ./build.sh gh-release
