@@ -360,9 +360,12 @@ const Tabs = {
   // the tab's text and none of the GTK child-webview geometry applies. Returns
   // a promise in tui mode (openRunTab is async) — callers that keep the id
   // must await it.
-  openBrowserTab(url, profile = this.activeProfile, label) {
+  // `mode` forces "tui"/"gui" for one launch (Web Browser ▾ dropdown); omitted,
+  // it follows the ☰ → Browser pref. Default is tui: browsh renders any site,
+  // including the ones X-Frame-Options blocks and the native embed can't place.
+  openBrowserTab(url, profile = this.activeProfile, label, mode) {
     url = url || HOME_URL;
-    if ((localStorage.getItem("myk-browser") || "gui") === "tui") {
+    if ((mode || localStorage.getItem("myk-browser") || "tui") === "tui") {
       const q = "'" + String(url).replace(/'/g, "'\\''") + "'";
       return this.openRunTab(`browsh --startup-url ${q}`, label || "browsh", profile);
     }
