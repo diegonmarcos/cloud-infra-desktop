@@ -184,7 +184,9 @@
   // same mechanism as a `browser:true` profile (Tabs.openBrowserTab), just
   // triggered from a section item rather than being the profile's home tab.
   function runItem(item) {
-    if (item.url && !item.cmd) { Tabs.openBrowserTab(item.url, item.label); return; }
+    // signature is (url, profile, label, mode) — the label goes in slot 3;
+    // undefined keeps the default, this.activeProfile.
+    if (item.url && !item.cmd) { Tabs.openBrowserTab(item.url, undefined, item.label); return; }
     const id = MYK.activePane;
     if (!id || !item.cmd) return;
     const run = !/\s$/.test(item.cmd);
