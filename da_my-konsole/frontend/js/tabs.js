@@ -353,8 +353,19 @@ const Tabs = {
         h.startsWith("10.") || h.startsWith("192.168.");
     } catch { return false; }
   },
+  // Browser mode (☰ → Browser), same shape as the Vim/Plain editor pref:
+  // "gui" is everything below — a real webview (iframe for local UIs, native
+  // embed or popout for external sites). "tui" runs browsh in an ordinary PTY
+  // tab: headless Firefox rasterized to half-block characters, so the page IS
+  // the tab's text and none of the GTK child-webview geometry applies. Returns
+  // a promise in tui mode (openRunTab is async) — callers that keep the id
+  // must await it.
   openBrowserTab(url, profile = this.activeProfile, label) {
     url = url || HOME_URL;
+    if ((localStorage.getItem("myk-browser") || "gui") === "tui") {
+      const q = "'" + String(url).replace(/'/g, "'\\''") + "'";
+      return this.openRunTab(`browsh --startup-url ${q}`, label || "browsh", profile);
+    }
     const tabId = "T" + ++this.seq;
     const embLabel = "embed-" + tabId;
     const rootEl = document.createElement("div");
@@ -651,7 +662,8 @@ const Tabs = {
       (async () => {
         const ids = [];
         for (const t of p.auto_tabs) {
-          ids.push(t.kind === "browser" ? this.openBrowserTab(t.url, name, t.label) : await this.openRunTab(t.cmd, t.label, name));
+          // await both: openBrowserTab returns a promise in tui mode
+          ids.push(t.kind === "browser" ? await this.openBrowserTab(t.url, name, t.label) : await this.openRunTab(t.cmd, t.label, name));
         }
         if (ids[0]) this.activate(ids[0]);
       })();

@@ -545,6 +545,25 @@
   editorTicker("cfg-editor-plain", "plain");
   applyEditorPref();
 
+  // ── Browser setting (☰ → Browser): how a browser tab renders a page — GUI
+  // (webview: iframe for local UIs, native embed/popout for external sites,
+  // default) or Terminal (browsh in a PTY). Same mutually-exclusive shape as
+  // the Editor pref above; read by Tabs.openBrowserTab.
+  const applyBrowserPref = () => {
+    const mode = localStorage.getItem("myk-browser") || "gui";
+    document.getElementById("cfg-browser-gui").classList.toggle("checked", mode === "gui");
+    document.getElementById("cfg-browser-tui").classList.toggle("checked", mode === "tui");
+  };
+  const browserTicker = (id, val) =>
+    document.getElementById(id).addEventListener("click", (e) => {
+      e.stopPropagation();
+      localStorage.setItem("myk-browser", val);
+      applyBrowserPref();
+    });
+  browserTicker("cfg-browser-gui", "gui");
+  browserTicker("cfg-browser-tui", "tui");
+  applyBrowserPref();
+
   document.getElementById("menu-restore-session").addEventListener("click", () => Tabs.restoreSession());
 
   // Updater — all params from the engine-derived MYK.config.app (single source:
