@@ -102,7 +102,7 @@ self_heal() {
 # no Android restriction applies. A listener either exists or it does not.
 listening_on_wg() {
   command -v ss >/dev/null 2>&1 || return 0   # cannot tell -> do not thrash
-  ss -tln 2>/dev/null | grep -qE "[[:space:]]($WG_IP|0\.0\.0\.0|\*):$SSH_PORT[[:space:]]"
+  ss -tln 2>/dev/null | grep -qE "[[:space:]](${WG_IP}|0\.0\.0\.0|\*):${SSH_PORT}[[:space:]]"
 }
 
 # Rebinding is cheap, but if wg0 is genuinely down it can never succeed, and
