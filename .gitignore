@@ -331,7 +331,7 @@ build.log
 ## from GHCR/GHA on every run. While they were tracked, a switch showed up as a
 ## phantom 5,408-line deletion across five files nobody had touched (2026-08-20).
 ## Local runs now write to $HOME/git/cloud-data/1_cicd/dist-ci/<project>/ —
-## see ART_DIR in ba_flakes_desktop/build.sh and ART in the surface steps/lib.sh.
+## (1_cicd/src/scripts/cloud-data-paths.sh) — the same helper that owns logs/.
 ## CI still writes ./dist-ci in the workspace because actions/upload-artifact
 ## cannot see outside it; ignoring the path costs the runner nothing.
 ##
@@ -344,3 +344,4 @@ aa_desk-usr_x86_surface-linux_nixos/dist-ci-diff/
 aa_desk-usr_x86_surface-linux_nixos/dist-ci-diff-dl/
 aa_desk-usr_x86_surface-linux_nixos/dist-ci-index/
 aa_desk-usr_x86_surface-linux_nixos/dist-ci-index-dl/
+bb_flakes_termux/dist-ci/

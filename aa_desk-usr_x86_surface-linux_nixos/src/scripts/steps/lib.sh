@@ -15,10 +15,13 @@ REPO_DIR="$(cd "$STEPS_DIR/../../.." && pwd)"
 # committed record of what this laptop already has, which ci_build diffs the new
 # closure against to produce the small artifact. Runtime state moves out;
 # declared state stays.
-ART="${SURFACE_ART_DIR:-$HOME/git/cloud-data/1_cicd/dist-ci/aa_desk-surface}"
+_cdp="$REPO_DIR/../1_cicd/dist/scripts/cloud-data-paths.sh"
+if [ -r "$_cdp" ]; then . "$_cdp"; ART="$(cd_artifact aa_desk-surface)"
+else ART="$HOME/.cloud-data-artifacts/aa_desk-surface"; fi
+[ -n "${SURFACE_ART_DIR:-}" ] && ART="$SURFACE_ART_DIR"
 DIFF_DL="$ART-diff-dl"
 HAVE="$REPO_DIR/dist-ci-have/have-paths.txt"
-mkdir -p "$ART"
+mkdir -p "$ART" 2>/dev/null || true
 
 log()   { printf '\033[0;32m[+]\033[0m %s\n' "$*"; }
 warn()  { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }

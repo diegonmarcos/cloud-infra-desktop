@@ -12,6 +12,19 @@
 #                            so they are JSON, not prose.
 #   journal/  <name>.text    OS-LEVEL journals — dmesg / logcat / journalctl
 #                            captures. Raw system narrative, not ours.
+#   artifacts/<name>/        RUNTIME CI ARTIFACTS — closures, OCI manifests,
+#                            fetch plans, downloaded diffs. A DIRECTORY, and
+#                            the engine owns it completely: callers rm -rf and
+#                            recreate it every run, so it must never sit inside
+#                            a git tree. It did until 2026-08-20, and
+#                            `build.sh switch` deleting its own tracked files
+#                            showed up as a phantom 5,408-line diff.
+#
+# Why artifacts/ is not just dist-ci/ in the repo: everything under it is
+# derived from the closure plus whatever the registry holds at that instant,
+# so a committed copy is only ever true for one machine at one moment. CI is
+# the exception — actions/upload-artifact can only see the workspace — so CI
+# engines keep writing in-tree and simply do not call this helper.
 #
 # Root: $CLOUD_DATA_ROOT, else ~/git/cloud-data. If that tree is missing or
 # unwritable (fresh device, cloud-data not cloned yet) every helper falls
@@ -58,6 +71,19 @@ cd_log() {
 }
 cd_report()  { printf '%s/%s.json'   "$(_cd_dir reports)" "$1"; }
 cd_journal() { printf '%s/%s.text'   "$(_cd_dir journal)" "$1"; }
+
+# cd_artifact <name> — ensure and print a per-engine runtime artifact DIR.
+# Unlike the file helpers above this returns a directory, because callers
+# rm -rf and refill it on every run. Same $HOME fallback as the rest: an
+# engine must never abort for lack of somewhere to put its downloads.
+cd_artifact() {
+  _a="$(_cd_dir artifacts)/$1"
+  if mkdir -p "$_a" 2>/dev/null && [ -w "$_a" ]; then
+    printf '%s' "$_a"
+  else
+    printf '%s/.cloud-data-artifacts/%s' "$HOME" "$1"
+  fi
+}
 
 # cd_report_write <name> <json> — write a report atomically (consumers may be
 # reading it). Falls back to a plain write if mv across filesystems fails.
