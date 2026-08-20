@@ -87,24 +87,34 @@ self_heal() {
   fi
 }
 
-# Is wg0 actually carrying $WG_IP right now?
+# Is sshd ACTUALLY accepting on $WG_IP:$SSH_PORT right now?
 #
-# If `ip` is unavailable we answer "yes" and let sshd's own bind() be the
-# judge: guessing "no" here would drop the WG listener on a device where we
-# simply cannot see the interface, which is the failure this whole function
-# exists to prevent.
-wg_up() {
-  command -v ip >/dev/null 2>&1 || return 0
-  ip -o addr show 2>/dev/null | grep -q "inet $WG_IP"
+# This asks the socket table, not the interface list, and that distinction is
+# the whole bug. `ip addr` inside nix-on-droid cannot be trusted to see the
+# VPN interface: Android restricts netlink interface enumeration for app-uid
+# processes, so `ip -o addr show | grep "inet 10.0.0.9"` comes back empty on a
+# phone whose WireGuard is perfectly up. The old code took that empty result
+# as "wg0 is down", dropped the WG ListenAddress, and started a loopback-only
+# daemon that cheerfully announced "sshd started on :8024" while every mesh
+# peer got connection-refused.
+#
+# ss reads /proc/net/tcp, which always shows sockets owned by our own uid —
+# no Android restriction applies. A listener either exists or it does not.
+listening_on_wg() {
+  command -v ss >/dev/null 2>&1 || return 0   # cannot tell -> do not thrash
+  ss -tln 2>/dev/null | grep -qE "[[:space:]]($WG_IP|0\.0\.0\.0|\*):$SSH_PORT[[:space:]]"
 }
 
-# Was the RUNNING daemon started with the WG listener?
-#
-# do_start regenerates $SSHD_CONFIG on every start, so the file on disk is a
-# faithful record of what the live process bound. Grepping it is how we tell a
-# fully-bound daemon from one that came up loopback-only.
-has_wg_listener() {
-  [ -f "$SSHD_CONFIG" ] && grep -q "^ListenAddress $WG_IP\$" "$SSHD_CONFIG"
+# Rebinding is cheap, but if wg0 is genuinely down it can never succeed, and
+# fish runs ensure on every new shell. Cool down so a truly-offline tunnel
+# costs one restart attempt per interval instead of one per terminal.
+REBIND_STAMP="$HOME/.cache/sshd.rebind-stamp"
+REBIND_COOLDOWN=120
+rebind_allowed() {
+  [ -f "$REBIND_STAMP" ] || return 0
+  _now=$(date +%s 2>/dev/null || echo 0)
+  _then=$(cat "$REBIND_STAMP" 2>/dev/null || echo 0)
+  [ $((_now - _then)) -ge "$REBIND_COOLDOWN" ]
 }
 
 # start-if-dead, restart-if-degraded. This is what fish shellInit calls.
@@ -121,8 +131,12 @@ do_ensure() {
     do_start
     return $?
   fi
-  if wg_up && ! has_wg_listener; then
-    echo "ensure: running without the wg0 listener but $WG_IP is up now — rebinding"
+  if ! listening_on_wg; then
+    if ! rebind_allowed; then
+      return 0
+    fi
+    echo "ensure: alive but not accepting on $WG_IP:$SSH_PORT — rebinding"
+    date +%s > "$REBIND_STAMP" 2>/dev/null || true
     do_stop
     sleep 0.3
     do_start
@@ -134,22 +148,23 @@ do_ensure() {
 do_start() {
   self_heal
 
-  # ListenAddress lines: 127.0.0.1 ALWAYS (the Cloud IDE APK connects over
-  # loopback), plus the WG IP when wg0 is actually up.
+  # ListenAddress: wg0 and loopback, unconditionally, with NO interface probe.
   #
-  # A PUBLIC BIND IS FORBIDDEN. There is deliberately no branch here that can
-  # emit 0.0.0.0 or omit ListenAddress entirely — omitting it is the dangerous
-  # one, because sshd's default with no ListenAddress is every interface,
-  # which on a phone means the carrier network. Loopback and wg0 are the only
-  # two addresses this daemon may ever answer on.
+  # There used to be a probe here that dropped the WG line when `ip addr` could
+  # not see the address. On Android that probe returns empty for reasons that
+  # have nothing to do with whether the tunnel is up (see listening_on_wg), so
+  # it removed the only listener that matters while reporting success.
   #
-  # Starting loopback-only when wg0 is down is allowed (the APK still works),
-  # but it is a DEGRADED state, not a resting state — do_ensure detects it and
-  # rebinds as soon as wg0 comes up. See the comment on do_ensure.
-  WG_LISTEN="ListenAddress $WG_IP"
-  if ! wg_up; then
-    WG_LISTEN="# wg0 ($WG_IP) not up — loopback only, do_ensure will rebind"
-  fi
+  # Letting sshd's own bind() decide is both simpler and correct. sshd warns on
+  # a ListenAddress it cannot bind and carries on with the rest, failing only
+  # if none of them work — so a genuinely-down wg0 degrades to loopback exactly
+  # as before, but a working one is never discarded on bad evidence.
+  #
+  # A PUBLIC BIND IS FORBIDDEN. These two lines are the entire policy: there is
+  # no branch that can emit 0.0.0.0, and none that can omit ListenAddress
+  # altogether — the latter is the dangerous one, because sshd with no
+  # ListenAddress binds every interface, which on a phone is the carrier
+  # network.
 
   if is_running; then
     pid=$(cat "$PID_FILE")
@@ -168,13 +183,12 @@ do_start() {
   fi
 
   # Write sshd_config (idempotent, regenerated each start so changes flow
-  # through the wrapper without manual edits). ListenAddress is the WG IP
-  # from build.json — bind ONLY to wg0, no public exposure. If wg0 isn't
-  # up at start time sshd will fail to bind and the wrapper will log it.
+  # through the wrapper without manual edits). See the bind-policy comment
+  # above: wg0 + loopback, never public, no interface probe.
   cat > "$SSHD_CONFIG" <<EOF
 HostKey $HOST_KEY
+ListenAddress $WG_IP
 ListenAddress 127.0.0.1
-$WG_LISTEN
 Port $SSH_PORT
 PidFile $PID_FILE
 AuthorizedKeysFile $HOME/.ssh/authorized_keys
@@ -232,7 +246,7 @@ do_stop() {
 do_status() {
   if is_running; then
     pid=$(cat "$PID_FILE")
-    if has_wg_listener; then
+    if listening_on_wg; then
       echo "sshd running (PID $pid) on :$SSH_PORT ($WG_IP + 127.0.0.1)"
     else
       echo "sshd running (PID $pid) on :$SSH_PORT (127.0.0.1 ONLY — not reachable over wg0; run: cloud-ide-sshd ensure)"
