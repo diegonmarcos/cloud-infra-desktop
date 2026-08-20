@@ -2,7 +2,7 @@
 # cloud-ide-sshd.sh
 #
 # Extracted from cloud-ide-sshd/default.nix (sshdScript). POSIX-ish wrapper
-# for nix-on-droid sshd. Usage: cloud-ide-sshd [start|stop|status|restart]
+# for nix-on-droid sshd. Usage: cloud-ide-sshd [start|stop|status|restart|ensure]
 #
 # Runtime-data-driven: the WG IP and SSH port are read from
 # cloud-ide-sshd.json at RUNTIME via jq (sourced from build.json at Nix
@@ -87,17 +87,68 @@ self_heal() {
   fi
 }
 
+# Is wg0 actually carrying $WG_IP right now?
+#
+# If `ip` is unavailable we answer "yes" and let sshd's own bind() be the
+# judge: guessing "no" here would drop the WG listener on a device where we
+# simply cannot see the interface, which is the failure this whole function
+# exists to prevent.
+wg_up() {
+  command -v ip >/dev/null 2>&1 || return 0
+  ip -o addr show 2>/dev/null | grep -q "inet $WG_IP"
+}
+
+# Was the RUNNING daemon started with the WG listener?
+#
+# do_start regenerates $SSHD_CONFIG on every start, so the file on disk is a
+# faithful record of what the live process bound. Grepping it is how we tell a
+# fully-bound daemon from one that came up loopback-only.
+has_wg_listener() {
+  [ -f "$SSHD_CONFIG" ] && grep -q "^ListenAddress $WG_IP\$" "$SSHD_CONFIG"
+}
+
+# start-if-dead, restart-if-degraded. This is what fish shellInit calls.
+#
+# The bug this fixes: sshd used to be started only when the pid file was
+# missing or stale. Open a shell before wg0 is up and sshd binds loopback
+# alone, writes its pid file, and is_running answers "yes" forever after —
+# so nothing ever re-binds once wg0 appears. The daemon reports healthy, and
+# the phone answers ICMP on the mesh while :$SSH_PORT returns RST. That state
+# is invisible from the device and only shows up as "connection refused" from
+# another peer, which is the worst possible place to discover it.
+do_ensure() {
+  if ! is_running; then
+    do_start
+    return $?
+  fi
+  if wg_up && ! has_wg_listener; then
+    echo "ensure: running without the wg0 listener but $WG_IP is up now — rebinding"
+    do_stop
+    sleep 0.3
+    do_start
+    return $?
+  fi
+  return 0
+}
+
 do_start() {
   self_heal
 
   # ListenAddress lines: 127.0.0.1 ALWAYS (the Cloud IDE APK connects over
-  # loopback), plus the WG IP when wg0 is actually up. Best-effort probe:
-  # if `ip` is unavailable we keep the WG bind (previous behavior).
+  # loopback), plus the WG IP when wg0 is actually up.
+  #
+  # A PUBLIC BIND IS FORBIDDEN. There is deliberately no branch here that can
+  # emit 0.0.0.0 or omit ListenAddress entirely — omitting it is the dangerous
+  # one, because sshd's default with no ListenAddress is every interface,
+  # which on a phone means the carrier network. Loopback and wg0 are the only
+  # two addresses this daemon may ever answer on.
+  #
+  # Starting loopback-only when wg0 is down is allowed (the APK still works),
+  # but it is a DEGRADED state, not a resting state — do_ensure detects it and
+  # rebinds as soon as wg0 comes up. See the comment on do_ensure.
   WG_LISTEN="ListenAddress $WG_IP"
-  if command -v ip >/dev/null 2>&1; then
-    if ! ip -o addr show 2>/dev/null | grep -q "inet $WG_IP"; then
-      WG_LISTEN="# wg0 ($WG_IP) not up — binding loopback only"
-    fi
+  if ! wg_up; then
+    WG_LISTEN="# wg0 ($WG_IP) not up — loopback only, do_ensure will rebind"
   fi
 
   if is_running; then
@@ -181,7 +232,11 @@ do_stop() {
 do_status() {
   if is_running; then
     pid=$(cat "$PID_FILE")
-    echo "sshd running (PID $pid) on :$SSH_PORT"
+    if has_wg_listener; then
+      echo "sshd running (PID $pid) on :$SSH_PORT ($WG_IP + 127.0.0.1)"
+    else
+      echo "sshd running (PID $pid) on :$SSH_PORT (127.0.0.1 ONLY — not reachable over wg0; run: cloud-ide-sshd ensure)"
+    fi
   else
     rm -f "$PID_FILE"
     echo "sshd not running"
@@ -193,5 +248,6 @@ case "${1:-start}" in
   stop)    do_stop ;;
   status)  do_status ;;
   restart) do_stop; sleep 0.3; do_start ;;
-  *)       echo "Usage: cloud-ide-sshd {start|stop|status|restart}"; exit 1 ;;
+  ensure)  do_ensure ;;
+  *)       echo "Usage: cloud-ide-sshd {start|stop|status|restart|ensure}"; exit 1 ;;
 esac
