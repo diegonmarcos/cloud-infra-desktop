@@ -847,22 +847,21 @@ in {
     # (below) so the address exists before it binds. If wg0 is down, sshd refuses
     # to start (remote SSH unavailable; local console always works) — intended.
     #
-    # BOTH families, still wg0-only. wg0 is configured dual-stack (see the
-    # address1 = wg_ipv6 line in the wg0 connection above), but sshd bound the
-    # v4 half alone, so a peer reaching us over the v6 mesh found nothing
-    # listening. That is the same class of failure galaxy hit on 2026-08-20:
-    # one address hardcoded where the interface carries several, and the daemon
-    # reporting healthy while being unreachable from the address in use.
+    # v4 ONLY, deliberately. The profile declares ipv6.address1 = wg_ipv6, but
+    # wg0 never carries it: mtu is 1200 and RFC8200's floor is 1280, so the
+    # kernel disables IPv6 on the device outright — no address, not even a
+    # link-local. That is a resolved trade-off, not an oversight; see
+    # wireguard-endpoints.json._mtu_resolution_doc (2026-08-19), which took 1200
+    # to stop TLS blackholing on clat/tethered paths and records the lost v6 as
+    # the accepted cost.
     #
-    # This does NOT widen the surface: wg_ipv6 is wg0's own address, so the
-    # 2026-06-15 owner decision ("SSH only on wg0, no public") is unchanged —
-    # LAN, public and wg-public remain unbound. sshd warns about an address it
-    # cannot bind and serves the rest, so this stays correct on a boot where
-    # v6 has not come up yet.
-    listenAddresses = [
-      { addr = wgData.client.wg_ip;   port = 22; }
-      { addr = wgData.client.wg_ipv6; port = 22; }
-    ];
+    # So do NOT add wg_ipv6 here on the theory that dual-stack is symmetrical:
+    # it would be an unbindable address sshd warns about on every start, and a
+    # test asserting it would fail by design. The test below is tied to the
+    # declared mtu instead, so it starts REQUIRING the v6 listener the moment
+    # anyone restores 1280 — which that same doc says to do only alongside a
+    # wg0 IPv6 consumer.
+    listenAddresses = [ { addr = wgData.client.wg_ip; port = 22; } ];
     settings = {
       PasswordAuthentication = false;   # key-only (was true). Owner: no password SSH.
       KbdInteractiveAuthentication = false;
