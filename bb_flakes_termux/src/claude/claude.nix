@@ -138,4 +138,53 @@ in
     AWK_BIN="${pkgs.gawk}/bin/awk" \
     ${pkgs.bash}/bin/bash ${../scripts/render-secrets-template.sh} || true
   '';
+  # ── memory / prompt-history symlinks ───────────────────────────────────────
+  # The durable state (MEMORY.md, memory-entries/, history.jsonl) lives in the
+  # my-ai_memory repo, NOT in ~/.claude. ~/.claude only holds links pointing in.
+  #
+  # Why: 2026-08-20 an absent cleanupPeriodDays let Claude Code's built-in
+  # 30-day default silently delete ~2.5 months of transcripts. Nothing was
+  # recoverable — @snapshots/home-diego is empty and ~/git is on @nosnap. The
+  # retention pin in settings.base.json stops expiry but not disk loss, so the
+  # state now lives in a repo with a remote. Links are recreated here so a
+  # rebuild reasserts them instead of leaving whatever is on disk.
+  #
+  # This NEVER deletes a real file: anything non-symlink in the way is moved
+  # aside to .bak-<timestamp> and reported, so a desync is loud, not lossy.
+  home.activation.claudeMemoryLinks = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    MEM_REPO="''${CLAUDE_MEMORY_REPO:-$HOME/git/cloud-my-ai_memory}"
+    INSTANCE="galaxy"
+    # Claude Code buckets projects by slugified $HOME (/home/diego -> -home-diego;
+    # on termux -> -data-data-com-termux-files-home). Derive it rather than hardcode,
+    # so this same block is correct on every instance. Both devices link the SAME
+    # b_projects/home-diego: memory is shared, only a_sessions/ is per-instance.
+    PROJ="$HOME/.claude/projects/$(echo "$HOME" | ${pkgs.gnused}/bin/sed 's#/#-#g')"
+
+    if [ ! -d "$MEM_REPO/.git" ]; then
+      echo "[claude-memory] WARNING: $MEM_REPO is not a checkout — links left as-is." >&2
+      echo "[claude-memory]   git clone git@github.com:diegonmarcos/my-ai_memory.git $MEM_REPO" >&2
+    else
+      link_in() {
+        SRC="$1"; DEST="$2"
+        if [ ! -e "$SRC" ]; then
+          echo "[claude-memory] WARNING: missing in repo, skipped: $SRC" >&2
+          return 0
+        fi
+        # A real file/dir here means the repo and disk disagree. Preserve it.
+        if [ -e "$DEST" ] && [ ! -L "$DEST" ]; then
+          STAMP="$DEST.bak-$(${pkgs.coreutils}/bin/date +%Y%m%d-%H%M%S)"
+          echo "[claude-memory] NOTICE: real path at $DEST -> preserved as $STAMP" >&2
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/mv -f "$DEST" "$STAMP"
+        fi
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$DEST")"
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/ln -sfn "$SRC" "$DEST"
+      }
+
+      link_in "$MEM_REPO/b_projects/home-diego/MEMORY.md"      "$PROJ/memory/MEMORY.md"
+      link_in "$MEM_REPO/b_projects/home-diego/memory-entries" "$PROJ/memory-entries"
+      link_in "$MEM_REPO/a_sessions/$INSTANCE/history.jsonl"   "$HOME/.claude/history.jsonl"
+      echo "[claude-memory] linked into $MEM_REPO (instance: $INSTANCE)"
+    fi
+  '';
+
 }
