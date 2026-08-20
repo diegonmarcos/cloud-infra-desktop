@@ -123,6 +123,19 @@ else
   nope "fish shellInit does not call ensure (start alone cannot rebind)"
 fi
 
+# Every other start path needs a human already holding the phone (open a
+# terminal / run a switch). Without a boot hook a reboot means no wg0 SSH until
+# someone physically unlocks the device.
+if grep -q '.termux/boot/' "$NIXF"; then
+  ok "boot hook declared (sshd comes back without a human at the phone)"
+else
+  nope "no ~/.termux/boot entry — a reboot leaves the phone unreachable"
+fi
+
+grep -A14 '.termux/boot/' "$NIXF" | grep -q 'cloud-ide-sshd ensure' \
+  && ok "boot hook calls ensure (wg0 is usually not up yet at boot)" \
+  || nope "boot hook does not call ensure"
+
 rm -f "$SANDBOX/.cache/sshd.pid"
 
 # ── Phase 3 · ss blindness vs ss idleness ────────────────────────────────
