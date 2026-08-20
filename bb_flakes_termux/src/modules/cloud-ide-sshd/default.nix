@@ -12,7 +12,7 @@
 #   3. Connecting shells get `/bin/sh` which does NOT read `.bashrc` —
 #      put nix env loading in `~/.profile` so PATH and tooling resolve.
 #
-# Provides: cloud-ide-sshd command (start|stop|status|restart) — serves the Cloud IDE APK over 127.0.0.1 and WG.
+# Provides: cloud-ide-sshd command (start|stop|status|restart|ensure) — serves the Cloud IDE APK over 127.0.0.1 and WG. Never public.
 # Trusted pubkeys: data-driven from data/authorized-keys.json.
 { config, pkgs, lib, ... }:
 
@@ -41,9 +41,16 @@ let
   # Cloud IDE APK pubkey, sops-encrypted (decrypted at activation).
   secretsFile = ./secrets.yaml;
 
-  # Read the WG IP + SSH port from build.json (data-driven). sshd binds ONLY
-  # to wgIp — no public exposure. If wg0 is down, sshd refuses to start
-  # rather than fall back to listening on all interfaces.
+  # Read the WG IP + SSH port from build.json (data-driven). sshd answers on
+  # wgIp and 127.0.0.1 and NOTHING ELSE — a public bind is forbidden, and the
+  # wrapper has no code path that can produce one.
+  #
+  # This comment used to claim sshd bound wgIp alone and refused to start when
+  # wg0 was down. Neither was true: loopback was always bound, and a wg0-down
+  # start silently produced a loopback-only daemon that never re-bound, because
+  # the fish shellInit below only ever started sshd when it was fully dead.
+  # The phone then answered ICMP on the mesh while :ssh_port returned RST.
+  # cloud-ide-sshd `ensure` is the fix; see cloud-ide-sshd.sh.
   #
   # Fallback port is 8024, matching build.json defaults.ssh_port and
   # build.sh — the three sources used to disagree (8023 here) so a missing
@@ -114,9 +121,11 @@ in
   # ~/.profile loads nix env for ssh-spawned /bin/sh sessions
   home.file.".profile".text = profileText;
 
+  # `ensure`, not `start`: start only fires when sshd is fully dead, which
+  # cannot recover a daemon that is alive but bound to loopback alone. ensure
+  # also rebinds that case once wg0 is up. Cheap enough to run per shell — it
+  # is two greps when everything is already correct.
   programs.fish.shellInit = lib.mkAfter ''
-    if not test -f $HOME/.cache/sshd.pid; or not kill -0 (cat $HOME/.cache/sshd.pid 2>/dev/null) 2>/dev/null
-      cloud-ide-sshd start >/dev/null 2>&1
-    end
+    cloud-ide-sshd ensure >/dev/null 2>&1
   '';
 }
