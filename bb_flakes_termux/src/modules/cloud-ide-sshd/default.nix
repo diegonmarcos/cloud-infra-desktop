@@ -14,7 +14,7 @@
 #
 # Provides: cloud-ide-sshd command (start|stop|status|restart|ensure) — serves the Cloud IDE APK over 127.0.0.1 and WG. Never public.
 # Trusted pubkeys: data-driven from data/authorized-keys.json.
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, termux-am, ... }:
 
 let
   # Use the stock openssh from the default closure. The 8.9p1 pin was a
@@ -84,7 +84,8 @@ let
 
   sshdPkg = pkgs.writeShellApplication {
     name = "cloud-ide-sshd";
-    runtimeInputs = [ pkgs.jq pkgs.iproute2 pkgs.gawk pkgs.gnugrep pkgs.gnused pkgs.procps pkgs.coreutils ];
+    # termux-am supplies `am`: the wake lock is an Android intent, not a binary.
+    runtimeInputs = [ pkgs.jq pkgs.iproute2 pkgs.gawk pkgs.gnugrep pkgs.gnused pkgs.procps pkgs.coreutils termux-am ];
     runtimeEnv = {
       CLOUD_IDE_SSHD_BIN = "${opensshPinned}/bin/sshd";
       CLOUD_IDE_SSH_KEYGEN_BIN = "${opensshPinned}/bin/ssh-keygen";

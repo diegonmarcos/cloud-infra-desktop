@@ -150,6 +150,63 @@ listening_on_wg() {
 # Rebinding is cheap, but if wg0 is genuinely down it can never succeed, and
 # fish runs ensure on every new shell. Cool down so a truly-offline tunnel
 # costs one restart attempt per interval instead of one per terminal.
+# ── wake lock ────────────────────────────────────────────────────────────
+# Android's Doze reaps proot children while the device idles. That killed sshd
+# three times on 2026-08-20, and NO other layer here covers it: the boot hook
+# only fires on a real boot, and fish's shellInit needs a human already holding
+# the phone. So the daemon comes back only by physically unlocking the device —
+# which is exactly when remote access is wanted and unavailable.
+#
+# A wake lock is what tells Android not to suspend the app. There is no
+# `termux-wake-lock` binary in nix-on-droid (the wireguard-wstunnel.sh advisory
+# predates this environment); the lock is an Android intent, and the action
+# constant differs between Termux and its nix-on-droid fork. Rather than guess
+# one string, try each and stop at the first that is accepted.
+#
+# Best-effort by design: every branch can fail, and sshd must still start. A
+# phone that is reachable until Doze beats a phone that refused to boot sshd
+# because an intent was rejected.
+WAKELOCK_STAMP="$HOME/.cache/sshd.wakelock"
+
+wake_lock_held() {
+  # The stamp is the only signal available: `am` reports delivery, not state,
+  # and Doze kills the process without clearing anything it wrote.
+  pgrep -f 'termux-wake-lock' >/dev/null 2>&1 && return 0
+  [ -f "$WAKELOCK_STAMP" ]
+}
+
+acquire_wake_lock() {
+  wake_lock_held && return 0
+
+  if command -v termux-wake-lock >/dev/null 2>&1; then
+    termux-wake-lock >/dev/null 2>&1 && {
+      : > "$WAKELOCK_STAMP" 2>/dev/null || true
+      echo "wake lock: acquired via termux-wake-lock"
+      return 0
+    }
+  fi
+
+  command -v am >/dev/null 2>&1 || {
+    echo "wake lock: no termux-wake-lock and no am — Doze WILL kill this daemon" >&2
+    return 1
+  }
+
+  # com.termux.nix first: this environment is the fork, so its own constant is
+  # the likelier one. The upstream Termux action is the fallback because the
+  # fork may not have renamed it.
+  for _act in com.termux.nix.service_wake_lock com.termux.service_wake_lock; do
+    if am startservice -a "$_act" \
+         com.termux.nix/com.termux.app.TermuxService >/dev/null 2>&1; then
+      : > "$WAKELOCK_STAMP" 2>/dev/null || true
+      echo "wake lock: acquired via intent $_act"
+      return 0
+    fi
+  done
+
+  echo "wake lock: every intent rejected — Doze WILL kill this daemon" >&2
+  return 1
+}
+
 REBIND_STAMP="$HOME/.cache/sshd.rebind-stamp"
 REBIND_COOLDOWN=120
 rebind_allowed() {
@@ -219,6 +276,10 @@ do_start() {
 
   # Host key — RSA (matches maintainer recipe; sshd accepts ed25519 too
   # but RSA is what they tested under proot).
+  # Before the daemon, not after: if Doze reaps us mid-start the lock is what
+  # keeps the next attempt from being needed at all.
+  acquire_wake_lock || true
+
   if [ ! -f "$HOST_KEY" ]; then
     "$SSH_KEYGEN_BIN" -t rsa -b 4096 -f "$HOST_KEY" -N "" -q
     echo "Generated host key: $HOST_KEY"

@@ -104,6 +104,12 @@
               _module.args.claudeSrc = my-ai.claudeAssets;
               # Derived in the outer `let` (one shared nerdfonts derivation; aliases
               # generated from modules/data/fish-commands.json).
+              # `am` for Android intents. cloud-ide-sshd needs it to take a wake
+              # lock: Doze reaps proot children, and no other start path here
+              # runs without a human already holding the phone. Declared for HM
+              # separately because the _module.args above only reach the system
+              # modules.
+              _module.args.termux-am = termux-am;
               _module.args.jbMonoNerd = jbMonoNerd;
               _module.args.sharedAliases = sharedAliases;
 
