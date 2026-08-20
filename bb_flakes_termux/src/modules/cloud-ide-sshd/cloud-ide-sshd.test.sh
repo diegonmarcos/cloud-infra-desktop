@@ -124,6 +124,52 @@ else
 fi
 
 rm -f "$SANDBOX/.cache/sshd.pid"
+
+# ── Phase 3 · ss blindness vs ss idleness ────────────────────────────────
+# Android can leave `ss` present but unable to see anything (confirmed on
+# galaxy: a live inbound session, and `ss -tln | grep 8024` printed nothing).
+# Empty output therefore means either "nothing listening" or "not allowed to
+# look", and treating blindness as idleness makes ensure rebind forever
+# against a healthy daemon. These stub a fake `ss` to force each case.
+echo "▶ Phase 3 · ss blind vs ss idle"
+
+mkdir -p "$SANDBOX/.cache"
+echo $$ > "$SANDBOX/.cache/sshd.pid"          # daemon "alive"
+rm -f "$SANDBOX/.cache/sshd.rebind-stamp"     # cooldown not in the way
+
+ss_stub() { printf '#!/bin/sh\n%s\n' "$1" > "$SANDBOX/bin/ss"; chmod +x "$SANDBOX/bin/ss"; }
+run_status() {
+  HOME="$SANDBOX" XDG_CONFIG_HOME="$SANDBOX/.config" \
+  PATH="$SANDBOX/bin:$PATH" \
+  CLOUD_IDE_SSHD_BIN="$SANDBOX/bin/sshd" \
+  CLOUD_IDE_SSH_KEYGEN_BIN="$SANDBOX/bin/ssh-keygen" \
+  bash "$SCRIPT" status 2>&1
+}
+
+# (a) blind ss: present, exits 0, prints nothing at all.
+ss_stub 'exit 0'
+case "$(run_status)" in
+  *"127.0.0.1 ONLY"*) nope "blind ss treated as 'not listening' — would rebind a healthy daemon forever" ;;
+  *)                  ok   "blind ss (no rows at all) treated as 'cannot tell'" ;;
+esac
+
+# (b) working ss that genuinely shows no sshd: LISTEN rows exist, none ours.
+ss_stub "echo 'LISTEN 0 128 127.0.0.1:5432 0.0.0.0:*'"
+case "$(run_status)" in
+  *"127.0.0.1 ONLY"*) ok   "working ss with no wg0 listener correctly reports degraded" ;;
+  *)                  nope "genuine 'not listening' went undetected" ;;
+esac
+
+# (c) working ss showing the wg0 listener: healthy.
+ss_stub "echo 'LISTEN 0 128 $WG_IP:$PORT 0.0.0.0:*'"
+case "$(run_status)" in
+  *"127.0.0.1 ONLY"*) nope "wg0 listener present but reported degraded" ;;
+  *"$WG_IP"*)         ok   "wg0 listener detected as healthy" ;;
+  *)                  nope "unexpected status output" ;;
+esac
+
+rm -f "$SANDBOX/bin/ss" "$SANDBOX/.cache/sshd.pid"
+
 echo
 printf '  %s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
