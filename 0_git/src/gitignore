@@ -117,6 +117,16 @@ libs/
 ## this broad.
 !ea_cloud-vault/libs/
 !ea_cloud-vault/libs/**
+## EXCEPTION: ea_cloud-media-center/upstream/libs/ — the SIXTH time. This one
+## was NOT caught by audit: it broke the build. ship-cloud-media-center went red
+## on 2026-08-19 with "Configuring project ':libs:gesture' without an existing
+## directory is not allowed" because all four modules (cropper, gesture,
+## panoramaviewer, scrollbar) exist on one developer disk and zero of their
+## files were ever committed — `git ls-files` returned 0 while `git status` was
+## clean. Note the nesting: the tree is under upstream/, so an exception written
+## as !ea_cloud-media-center/libs/ would not have matched it.
+!ea_cloud-media-center/upstream/libs/
+!ea_cloud-media-center/upstream/libs/**
 ## Signing keystores are generated in CI only — never vendored.
 ea_cloud-superapp/**/*.keystore
 ea_cloud-superapp/**/*.jks
