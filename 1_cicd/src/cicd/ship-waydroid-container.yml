@@ -28,6 +28,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # build.sh apps-fetch resolves the pinned APK set through
+      # src/apps/flake.nix (versionCode + SRI sha256 per app), so nix is not
+      # optional here - without it build.sh dies with "nix not found" before the
+      # image is ever built. Same action the other nix workflows use.
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
