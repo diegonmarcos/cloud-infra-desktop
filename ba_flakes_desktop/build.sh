@@ -40,6 +40,27 @@ HM_AUTO_CFG="$SRC_DIR/modules/programs/hm-auto-update.json"
 # only deploy path that works on the disk-full box). See nix-cache.json.
 NIX_CACHE_CFG="$SRC_DIR/modules/nix-cache.json"
 
+# Runtime artifact dir — on a workstation this must NOT be inside the repo.
+#
+# `switch` does `rm -rf "$_art"` before every download. While that pointed at
+# $SCRIPT_DIR/dist-ci it wiped TRACKED files: on 2026-08-20 a switch deleted
+# 5,408 lines across five committed dist-ci/ files (public.txt, custom-topo.txt,
+# present.txt, tofetch.txt, nixcache-layers.tsv) and git reported a phantom
+# 5k-line deletion nobody authored. Every one of them is scratch — re-fetched
+# from the OCI registry or truncated at the top of each run (see nixcache_switch)
+# — so they belong with the other runtime state in cloud-data, next to LOG_FILE.
+#
+# CI is the exception and stays in-tree: actions/upload-artifact can only see
+# paths inside the workspace (`path: ba_flakes_desktop/dist-ci/`), and a runner
+# has no cloud-data checkout.
+if [ -n "${BUILDSH_ART_DIR:-}" ]; then
+    ART_DIR="$BUILDSH_ART_DIR"
+elif [ -n "${GITHUB_ACTIONS:-}" ]; then
+    ART_DIR="$SCRIPT_DIR/dist-ci"
+else
+    ART_DIR="$HOME/git/cloud-data/1_cicd/dist-ci/ba_flakes_desktop"
+fi
+
 # Age key — dotfile symlink from vault/build.sh setup system, sops-nix fallback
 : "${SOPS_AGE_KEY_FILE:=$HOME/.config/sops/age/keys.txt}"
 export SOPS_AGE_KEY_FILE
@@ -844,7 +865,7 @@ cmd_ci_build() {
     check_nix || return 1
     _host="${1:-surface-plasma}"; _user="${2:-diego}"
     _attr="homeConfigurations.\"${_user}@${_host}\".activationPackage"
-    _out="$SCRIPT_DIR/dist-ci"
+    _out="$ART_DIR"
     rm -rf "$_out"; mkdir -p "$_out"
 
     if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
@@ -955,7 +976,7 @@ cmd_nixcache_prewarm() {
     printf '%s' "$GITHUB_TOKEN" | _oras login ghcr.io -u "$_owner" --password-stdin >/dev/null 2>&1 \
         || { log_warn "prewarm: oras login failed — skipping (cold build)"; return 0; }
 
-    _art="$SCRIPT_DIR/dist-ci/nixcache-prewarm"; rm -rf "$_art"; mkdir -p "$_art"
+    _art="$ART_DIR/nixcache-prewarm"; rm -rf "$_art"; mkdir -p "$_art"
     log_info "prewarm: fetching manifest $_ref:$_tag ..."
     _man="$_art/manifest.json"
     _oras manifest fetch "$_ref:$_tag" > "$_man" 2>/dev/null \
@@ -1009,7 +1030,7 @@ cmd_nixcache_publish() {
     _ref="$(jq -r '.oci_ref' "$_cfg")"; _tag="$(jq -r '.oci_tag' "$_cfg")"
     _mtype="$(jq -r '.blob_media_type' "$_cfg")"; _tlann="$(jq -r '.toplevel_annotation' "$_cfg")"
     _manf="$(jq -r '.manifest_file' "$_cfg")"
-    _out="$SCRIPT_DIR/dist-ci"
+    _out="$ART_DIR"
     _top="$(cat "$_out/activation.path" 2>/dev/null)"
     [ -n "$_top" ] && [ -d "$_top" ] || { log_error "no dist-ci/activation.path — run ci-build first"; return 1; }
     _tlname="$(basename "$_top")"; log_info "toplevel: $_tlname"
@@ -1215,7 +1236,7 @@ EOF
 cmd_pull() {
     log_header "Activate prebuilt home-manager closure (no eval — cannot freeze)"
     check_nix || return 1
-    _art="${1:-$SCRIPT_DIR/dist-ci}"
+    _art="${1:-$ART_DIR}"
     _tb="$_art/hm-closure.nar.zst"
 
     # KDE progress popup (verbosity + progress bar + Cancel) for the PULL path —
@@ -1509,7 +1530,7 @@ cmd_switch_runner() {
     fi
     _artname="${HM_CLOSURE_ARTIFACT:-nixos-desktop-hm-closure}"
     _wf="${HM_SHIP_WORKFLOW:-ship_nix-flakes_desktop_hm.yaml}"
-    _art="$SCRIPT_DIR/dist-ci"
+    _art="$ART_DIR"
     rm -rf "$_art"; mkdir -p "$_art"
 
     # ── THE cache: GHCR per-path OCI delta (streams only the paths this box

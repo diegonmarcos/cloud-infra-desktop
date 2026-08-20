@@ -21,7 +21,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 DEST_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/store-search"
-DL_DIR="$REPO_DIR/dist-ci-index-dl"
+DL_DIR="$ART-index-dl"   # runtime download, cloud-data (see lib.sh)
 
 command -v gh >/dev/null 2>&1 || { warn "gh CLI missing — search index skipped"; exit 0; }
 

@@ -325,3 +325,22 @@ build.log
 /III_front-data/
 /IV_cloud-configs/
 /V_front-configs/
+
+# ── Runtime CI artifacts — live in cloud-data, never here ────────────────────
+## These dirs are scratch: `build.sh switch` rm -rf's them and re-downloads
+## from GHCR/GHA on every run. While they were tracked, a switch showed up as a
+## phantom 5,408-line deletion across five files nobody had touched (2026-08-20).
+## Local runs now write to $HOME/git/cloud-data/1_cicd/dist-ci/<project>/ —
+## see ART_DIR in ba_flakes_desktop/build.sh and ART in the surface steps/lib.sh.
+## CI still writes ./dist-ci in the workspace because actions/upload-artifact
+## cannot see outside it; ignoring the path costs the runner nothing.
+##
+## NOT ignored, deliberately: aa_desk-*/dist-ci-have/have-paths.txt — that is an
+## INPUT to CI (the committed record of what this laptop already has, which
+## ci_build diffs against), not runtime output.
+ba_flakes_desktop/dist-ci/
+aa_desk-usr_x86_surface-linux_nixos/dist-ci/
+aa_desk-usr_x86_surface-linux_nixos/dist-ci-diff/
+aa_desk-usr_x86_surface-linux_nixos/dist-ci-diff-dl/
+aa_desk-usr_x86_surface-linux_nixos/dist-ci-index/
+aa_desk-usr_x86_surface-linux_nixos/dist-ci-index-dl/
