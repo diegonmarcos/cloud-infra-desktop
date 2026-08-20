@@ -42,6 +42,39 @@ check_dualstack "wg0" "$MODULES_DIR/wireguard-endpoints.json"
 echo "═══ wg-public dual-stack ═══"
 check_dualstack "wg-public" "$MODULES_DIR/wireguard-public-endpoints.json"
 
+# ── sshd binds BOTH families of wg0, and still nothing else ──────────────
+# A dual-stack interface is only half the job: sshd bound wg0's v4 address
+# alone, so a peer arriving over the v6 mesh found nothing listening while
+# every check above still passed. Same class of failure galaxy hit on
+# 2026-08-20 — one address hardcoded where the interface carries several.
+echo "═══ sshd bind policy ═══"
+WG_JSON="$MODULES_DIR/wireguard-endpoints.json"
+SSHD_CONF=/etc/ssh/sshd_config
+v4=$(jq -r '.client.wg_ip'   "$WG_JSON")
+v6=$(jq -r '.client.wg_ipv6' "$WG_JSON")
+
+for a in "$v4" "$v6"; do
+  if grep -qE "^ListenAddress (\[)?${a}(\])?(:22)?\s*$" "$SSHD_CONF" 2>/dev/null; then
+    ok "sshd listens on wg0 $a"
+  else
+    fail "sshd does NOT listen on wg0 $a (peers on that family cannot reach us)"
+  fi
+done
+
+# The 2026-06-15 owner decision is "SSH only on wg0, no public". A wildcard or
+# a wg-public address here would silently revoke it, so assert the negative.
+if grep -qE '^ListenAddress (0\.0\.0\.0|::|\*)' "$SSHD_CONF" 2>/dev/null; then
+  fail "sshd has a WILDCARD ListenAddress — LAN/public exposure"
+else
+  ok "no wildcard ListenAddress (wg0-only policy intact)"
+fi
+
+if grep -qE '^ListenAddress (\[)?(10\.1\.0\.|fd0c:1d01)' "$SSHD_CONF" 2>/dev/null; then
+  fail "sshd listens on wg-public — contradicts 'SSH only on wg0, no public'"
+else
+  ok "wg-public not bound (owner decision preserved)"
+fi
+
 echo
 echo "═══ RESULT: $PASS passed, $FAIL failed ═══"
 if [ $FAIL -gt 0 ]; then
