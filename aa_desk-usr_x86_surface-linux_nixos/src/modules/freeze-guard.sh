@@ -246,7 +246,7 @@ heaviest_leaf() {
 # writers/CPU hogs that starve the desktop). Used when the DESKTOP slice is
 # starved but global PSI is low — the culprit is elsewhere, not the desktop.
 pick_hog_victim() {
-  local cg p comm rss best_pid="" best_rss=-1 best_comm=""
+  local cg p comm rss best_pid="" best_rss=-1 lp lr
   for cg in $HOG_CGS; do
     [ -r "$cg/cgroup.procs" ] || continue
     while read -r p; do
@@ -257,8 +257,8 @@ pick_hog_victim() {
       # Rank by SUBTREE rss (2026-08-19) so a container is found via the work
       # hanging off it, not dismissed for its own small footprint.
       rss=$(subtree_rss "$p")
-      [ -n "$rss" ] && [ "$rss" -gt 0 ] || continue
-      if [ "$rss" -gt "$best_rss" ]; then best_rss="$rss"; best_pid="$p"; best_comm="$comm"; fi
+      if [ -z "$rss" ] || [ "$rss" -le 0 ]; then continue; fi
+      if [ "$rss" -gt "$best_rss" ]; then best_rss="$rss"; best_pid="$p"; fi
     done < "$cg/cgroup.procs"
   done
   [ -n "$best_pid" ] || return 0
@@ -266,8 +266,8 @@ pick_hog_victim() {
   local leaf
   leaf=$(heaviest_leaf "$best_pid")
   [ -n "$leaf" ] || return 0
-  set -- $leaf
-  echo "$1 $2 $(cat "/proc/$1/comm" 2>/dev/null)"
+  read -r lp lr <<<"$leaf"
+  echo "$lp $lr $(cat "/proc/$lp/comm" 2>/dev/null)"
 }
 
 # Pick the top offender by $1 sort key (rss or pcpu), skipping already-killed
@@ -288,12 +288,12 @@ pick_victim() {
   # Tree descent (2026-08-19). Only for the rss key: pcpu is not additive down a
   # tree the way rss is, and a CPU hog is already the leaf that is spinning.
   if [ "$key" = "rss" ]; then
-    local root leaf
+    local root leaf lp lr
     root=$(echo "$line" | awk '{print $1}')
     leaf=$(heaviest_leaf "$root")
     if [ -n "$leaf" ]; then
-      set -- $leaf
-      line="$1 $2 $(cat "/proc/$1/comm" 2>/dev/null)"
+      read -r lp lr <<<"$leaf"
+      line="$lp $lr $(cat "/proc/$lp/comm" 2>/dev/null)"
     fi
   fi
   echo "$line"
@@ -310,8 +310,8 @@ pick_victim() {
 # doing nothing. Prints "pid rss comm tier".
 pick_cgroup_victim() {
   local procs="$1/cgroup.procs" p comm rss
-  local best_pid="" best_rss=-1 best_comm=""
-  local fb_pid="" fb_rss=-1 fb_comm=""
+  local best_pid="" best_rss=-1
+  local fb_pid="" fb_rss=-1
   [ -r "$procs" ] || return 1
   while read -r p; do
     if ! [[ "$p" =~ ^[0-9]+$ ]] || [ "$p" -le 1 ]; then continue; fi
@@ -320,24 +320,24 @@ pick_cgroup_victim() {
     rss=$(awk '/^VmRSS:/ {print $2}' "/proc/$p/status" 2>/dev/null)
     [ -n "$rss" ] || continue
     # Fallback pool: any non-hard_protect process (covers soft_avoid too).
-    if [ "$rss" -gt "$fb_rss" ]; then fb_rss="$rss"; fb_pid="$p"; fb_comm="$comm"; fi
+    if [ "$rss" -gt "$fb_rss" ]; then fb_rss="$rss"; fb_pid="$p"; fi
     # Preferred pool: non-hard_protect AND non-soft_avoid.
     echo "$comm" | grep -Eq -- "$SOFT_AVOID" && continue
-    if [ "$rss" -gt "$best_rss" ]; then best_rss="$rss"; best_pid="$p"; best_comm="$comm"; fi
+    if [ "$rss" -gt "$best_rss" ]; then best_rss="$rss"; best_pid="$p"; fi
   done < "$procs"
   # Tree descent (2026-08-19): whichever pool won, the pid chosen above is only
   # the ROOT of the offending tree. Replace it with the heaviest killable leaf
   # so one workload/tab dies instead of the whole session container.
-  local tier="" root="" leaf
+  local tier="" root="" leaf lp lr
   if   [ -n "$best_pid" ]; then root="$best_pid"; tier="preferred"
   elif [ -n "$fb_pid" ];   then root="$fb_pid";   tier="fallback-soft_avoid"
   else return 0
   fi
   leaf=$(heaviest_leaf "$root")
   [ -n "$leaf" ] || return 0
-  set -- $leaf
-  [ "$1" != "$root" ] && tier="$tier-leaf"
-  echo "$1 $2 $(cat "/proc/$1/comm" 2>/dev/null) $tier"
+  read -r lp lr <<<"$leaf"
+  [ "$lp" != "$root" ] && tier="$tier-leaf"
+  echo "$lp $lr $(cat "/proc/$lp/comm" 2>/dev/null) $tier"
 }
 
 # Signal picker WITH ESCALATION (2026-07-10 v3 — root cause of the 13:06
