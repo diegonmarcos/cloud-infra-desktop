@@ -380,28 +380,28 @@
       "sha256": "sha256-A6qhR64TOk2AftyLSLI/L5Zt4AAMi2SUMu4CBfWb2gw="
     },
     {
-      "package": "com.diegonmarcos.superapp",
-      "source": "github",
-      "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-SuperApp-x86_64.apk",
-      "sha256": "sha256-cWGnMfxWnhhTq8xvAp5/zsTeY0Bwqdj7NEDE89VedK0="
-    },
-    {
-      "package": "com.diegonmarcos.cloudnav",
-      "source": "github",
-      "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Nav-x86_64.apk",
-      "sha256": "sha256-1371CaM33vf8+Y9KkMVLDVTCCbcaRrMDGS3PtA+sQvQ="
-    },
-    {
       "package": "com.diegonmarcos.comms",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Comms-Hub.apk",
       "sha256": "sha256-WYQG3TF7ShlwT/f6rXtnelxlWzHF0VCizHzLtCbB2wk="
     },
     {
+      "package": "com.diegonmarcos.superapp",
+      "source": "github",
+      "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-SuperApp-x86_64.apk",
+      "sha256": "sha256-H0hR5CtMhp90LQ69JWs1DoSXNJVaG1DOk3g0rpnNHrA="
+    },
+    {
+      "package": "com.diegonmarcos.cloudnav",
+      "source": "github",
+      "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Nav-x86_64.apk",
+      "sha256": "sha256-9vTPCfkvNrdda4yijxTOS3nQWbmBhLjvlby/SbJ6Yxc="
+    },
+    {
       "package": "com.diegonmarcos.ide",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-IDE-Hub.apk",
-      "sha256": "sha256-aZj/SaB1Fy4HdIg+qqp4zo/194tnSIkqyhrq1bFb7yM="
+      "sha256": "sha256-adFoGU53nDfIGSpM/1ErziRGvnZoERSFCD2TMoj6r+g="
     }
   ]
 }
