@@ -74,9 +74,22 @@ grep -qE '^ListenAddress (0\.0\.0\.0|::|\*)' "$CONF" \
   && nope "PUBLIC BIND in generated config" \
   || ok "no public bind"
 
+# $WG_IP is on no interface here, yet the WG line MUST still be written: the
+# regression being guarded is exactly "interface not visible -> drop the
+# listener", which is how a healthy tunnel got a loopback-only daemon.
 grep -q "^ListenAddress $WG_IP\$" "$CONF" \
-  && nope "bound wg0 while wg0 is down" \
-  || ok "wg0 listener correctly omitted while wg0 is down"
+  && ok "wg0 listener written unconditionally (no interface probe)" \
+  || nope "WG listener dropped — the Android netlink-blindness regression is back"
+
+grep -c '^ListenAddress ' "$CONF" | grep -qx 2 \
+  && ok "exactly two listeners (wg0 + loopback)" \
+  || nope "unexpected listener count"
+
+# Comments may still discuss the old probe — that history is worth keeping.
+# What must not come back is an executable use of it.
+grep -v '^[[:space:]]*#' "$SCRIPT" | grep -q 'ip -o addr show' \
+  && nope "live code still probes the interface list" \
+  || ok "no executable interface probe (comments about it are fine)"
 
 grep -q '^PasswordAuthentication no$' "$CONF" && ok "password auth off" || nope "password auth not disabled"
 grep -q '^PermitRootLogin no$'        "$CONF" && ok "root login off"    || nope "root login not disabled"
@@ -92,12 +105,14 @@ out=$(HOME="$SANDBOX" XDG_CONFIG_HOME="$SANDBOX/.config" CLOUD_IDE_SSHD_BIN="$SA
       CLOUD_IDE_SSH_KEYGEN_BIN="$SANDBOX/bin/ssh-keygen" \
       bash "$SCRIPT" status 2>&1)
 case "$out" in
-  *"127.0.0.1 ONLY"*) ok "status reports loopback-only as degraded, not healthy" ;;
+  *"127.0.0.1 ONLY"*) ok "status reports not-accepting-on-wg0 as degraded" ;;
   *)                  nope "status hides the loopback-only state: $out" ;;
 esac
 
 grep -q 'ensure)' "$SCRIPT" && ok "ensure subcommand wired into dispatch" || nope "ensure not dispatchable"
 grep -q 'do_ensure' "$SCRIPT" && ok "do_ensure defined" || nope "do_ensure missing"
+grep -q 'ss -tln' "$SCRIPT" && ok "degraded check reads the socket table, not ip addr" || nope "not using ss"
+grep -q 'REBIND_COOLDOWN' "$SCRIPT" && ok "rebind cooldown present (no per-shell thrash)" || nope "no cooldown"
 
 # fish must call ensure, not start — start cannot recover a live-but-degraded
 # daemon, which is the whole bug.
