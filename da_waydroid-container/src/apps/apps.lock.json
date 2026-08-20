@@ -380,12 +380,6 @@
       "sha256": "sha256-A6qhR64TOk2AftyLSLI/L5Zt4AAMi2SUMu4CBfWb2gw="
     },
     {
-      "package": "com.diegonmarcos.comms",
-      "source": "github",
-      "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Comms-Hub.apk",
-      "sha256": "sha256-WYQG3TF7ShlwT/f6rXtnelxlWzHF0VCizHzLtCbB2wk="
-    },
-    {
       "package": "com.diegonmarcos.superapp",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-SuperApp-x86_64.apk",
@@ -402,6 +396,12 @@
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-IDE-Hub.apk",
       "sha256": "sha256-adFoGU53nDfIGSpM/1ErziRGvnZoERSFCD2TMoj6r+g="
+    },
+    {
+      "package": "com.diegonmarcos.comms",
+      "source": "github",
+      "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Comms-Hub.apk",
+      "sha256": "sha256-E1US2RjDCNC0sCYMF1iHnXeBXT3EnbkiCtaU9rBAKDE="
     }
   ]
 }
