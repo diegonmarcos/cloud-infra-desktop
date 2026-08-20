@@ -12,7 +12,7 @@
 
 name: "Ship → kali-linux (GHCR public)"
 
-# Builds ab_fallback_os/ab_kali_security/container/ via its build.sh,
+# Builds ab_desk-security_x86_kali-linux_kali/container/ via its build.sh,
 # pushes to ghcr.io/<owner>/kali-linux:{latest,full}, then flips
 # the package to PUBLIC visibility.
 #
@@ -30,7 +30,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "ab_fallback_os/ab_kali_security/container/**"
+      - "ab_desk-security_x86_kali-linux_kali/container/**"
       - "1_cicd/src/cicd/ship-kali-linux.yml"
 
 permissions:
@@ -67,7 +67,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build + push via build.sh ship
-        working-directory: ab_fallback_os/ab_kali_security/container
+        working-directory: ab_desk-security_x86_kali-linux_kali/container
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
