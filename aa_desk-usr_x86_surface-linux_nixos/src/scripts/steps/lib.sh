@@ -6,9 +6,19 @@
 set -u
 STEPS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$STEPS_DIR/../../.." && pwd)"
-ART="$REPO_DIR/dist-ci"
-DIFF_DL="$REPO_DIR/dist-ci-diff-dl"
+# ART and DIFF_DL are RUNTIME state — downloaded fresh from CI on every run
+# (10-fetch-diff.sh does `rm -rf "$DIFF_DL"` first) — so they live in cloud-data,
+# not in the repo. While they pointed at $REPO_DIR/dist-ci* every switch dirtied
+# tracked files and git reported modifications nobody authored.
+#
+# HAVE is the opposite and deliberately stays in-tree: it is an INPUT to CI, the
+# committed record of what this laptop already has, which ci_build diffs the new
+# closure against to produce the small artifact. Runtime state moves out;
+# declared state stays.
+ART="${SURFACE_ART_DIR:-$HOME/git/cloud-data/1_cicd/dist-ci/aa_desk-surface}"
+DIFF_DL="$ART-diff-dl"
 HAVE="$REPO_DIR/dist-ci-have/have-paths.txt"
+mkdir -p "$ART"
 
 log()   { printf '\033[0;32m[+]\033[0m %s\n' "$*"; }
 warn()  { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
