@@ -172,6 +172,30 @@ grep -A14 '.termux/boot/' "$NIXF" | grep -q 'cloud-ide-sshd ensure' \
   && ok "boot hook calls ensure (wg0 is usually not up yet at boot)" \
   || nope "boot hook does not call ensure"
 
+# ── wake lock · the Doze reap ────────────────────────────────────────────
+# The failure no other layer covers: Android kills proot children while the
+# device idles, and every remaining start path needs a human already holding
+# the phone. Three outages on 2026-08-20 came from this, not from binding.
+grep -q 'acquire_wake_lock' "$SCRIPT" && ok "wake lock acquired on start" \
+  || nope "no wake lock — Doze reaps the daemon and nothing restarts it"
+
+# Best-effort is the whole point: a rejected intent must not stop sshd. A phone
+# reachable until Doze beats one that refused to start over a wake lock.
+grep -q 'acquire_wake_lock || true' "$SCRIPT" \
+  && ok "wake lock failure cannot block startup" \
+  || nope "wake lock is load-bearing for startup — an intent failure kills sshd"
+
+# There is no termux-wake-lock binary in nix-on-droid and the intent constant
+# differs between Termux and its fork, so both must be attempted.
+grep -q 'com.termux.nix.service_wake_lock' "$SCRIPT" \
+  && grep -q 'com.termux.service_wake_lock' "$SCRIPT" \
+  && ok "both wake-lock intent constants attempted (fork + upstream)" \
+  || nope "only one intent constant tried — a wrong guess means no lock at all"
+
+grep -q 'termux-am' "$DIR/default.nix" \
+  && ok "termux-am in runtimeInputs (am is how the lock is taken)" \
+  || nope "am not on PATH — every intent will fail"
+
 rm -f "$SANDBOX/.cache/sshd.pid"
 
 # ── Phase 3 · ss blindness vs ss idleness ────────────────────────────────
