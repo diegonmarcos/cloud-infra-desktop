@@ -53,13 +53,27 @@ NIX_CACHE_CFG="$SRC_DIR/modules/nix-cache.json"
 # CI is the exception and stays in-tree: actions/upload-artifact can only see
 # paths inside the workspace (`path: ba_flakes_desktop/dist-ci/`), and a runner
 # has no cloud-data checkout.
-if [ -n "${BUILDSH_ART_DIR:-}" ]; then
-    ART_DIR="$BUILDSH_ART_DIR"
-elif [ -n "${GITHUB_ACTIONS:-}" ]; then
-    ART_DIR="$SCRIPT_DIR/dist-ci"
+# Paths come from the ONE convention (1_cicd/src/scripts/cloud-data-paths.sh):
+# logs/<name>.log · reports/<name>.json · journal/<name>.text ·
+# artifacts/<name>/ under cloud-data, with a $HOME fallback so a missing
+# cloud-data clone can never kill the script. bb_flakes_termux already did
+# this; this script hardcoded both paths instead.
+CLOUD_DATA_PATHS="$SCRIPT_DIR/../1_cicd/dist/scripts/cloud-data-paths.sh"
+if [ -r "$CLOUD_DATA_PATHS" ]; then
+    . "$CLOUD_DATA_PATHS"
+    LOG_FILE="$(cd_log ba_flakes_desktop)"
+    ART_DIR="$(cd_artifact ba_flakes_desktop)"
 else
-    ART_DIR="$HOME/git/cloud-data/1_cicd/dist-ci/ba_flakes_desktop"
+    mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || LOG_FILE="$HOME/ba_flakes_desktop.log"
+    ART_DIR="$HOME/.cloud-data-artifacts/ba_flakes_desktop"
 fi
+
+# CI overrides both: actions/upload-artifact can only see paths inside the
+# workspace (`path: ba_flakes_desktop/dist-ci/`), and a runner has no
+# cloud-data checkout. BUILDSH_ART_DIR wins over everything, for one-offs.
+[ -n "${GITHUB_ACTIONS:-}" ] && ART_DIR="$SCRIPT_DIR/dist-ci"
+[ -n "${BUILDSH_ART_DIR:-}" ] && ART_DIR="$BUILDSH_ART_DIR"
+mkdir -p "$ART_DIR" 2>/dev/null || true
 
 # Age key — dotfile symlink from vault/build.sh setup system, sops-nix fallback
 : "${SOPS_AGE_KEY_FILE:=$HOME/.config/sops/age/keys.txt}"

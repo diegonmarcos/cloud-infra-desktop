@@ -50,10 +50,21 @@ CLOUD_DATA_PATHS="$SCRIPT_DIR/../1_cicd/dist/scripts/cloud-data-paths.sh"
 if [ -r "$CLOUD_DATA_PATHS" ]; then
     . "$CLOUD_DATA_PATHS"
     LOG_FILE="$(cd_log bb_flakes_termux)"
+    ART_DIR="$(cd_artifact bb_flakes_termux)"
 else
     LOG_FILE="$HOME/git/cloud-data/logs/bb_flakes_termux.log"
     mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || LOG_FILE="$HOME/bb_flakes_termux.log"
+    ART_DIR="$HOME/.cloud-data-artifacts/bb_flakes_termux"
 fi
+
+# Runtime artifacts (closures, OCI manifests, fetch plans) — cloud-data, never
+# the repo: cmd_pull rm -rf's this dir and refills it from GHCR every run, so
+# while it pointed at $SCRIPT_DIR/dist-ci a pull deleted its own tracked files.
+# CI keeps writing in-tree because actions/upload-artifact only sees the
+# workspace. TERMUX_ART_DIR overrides, for one-offs.
+[ -n "${GITHUB_ACTIONS:-}" ] && ART_DIR="$SCRIPT_DIR/dist-ci"
+[ -n "${TERMUX_ART_DIR:-}" ] && ART_DIR="$TERMUX_ART_DIR"
+mkdir -p "$ART_DIR" 2>/dev/null || true
 
 # Age key — dotfile symlink from vault/build.sh setup system, sops-nix fallback
 : "${SOPS_AGE_KEY_FILE:=$HOME/.config/sops/age/keys.txt}"
@@ -937,7 +948,7 @@ cmd_nixcache_publish() {
     _ref="$(jq -r '.oci_ref' "$_cfg")"; _tag="$(jq -r '.oci_tag' "$_cfg")"
     _mtype="$(jq -r '.blob_media_type' "$_cfg")"; _tlann="$(jq -r '.toplevel_annotation' "$_cfg")"
     _manf="$(jq -r '.manifest_file' "$_cfg")"
-    _out="$SCRIPT_DIR/dist-ci"
+    _out="$ART_DIR"
     _top="$(cat "$_out/activation.path" 2>/dev/null || true)"
     [ -n "$_top" ] && [ -d "$_top" ] || { log_error "no dist-ci/activation.path — run ci-build first"; return 1; }
     _tlname="$(basename "$_top")"; log_info "toplevel: $_tlname"
@@ -1110,7 +1121,7 @@ nixcache_switch() {
 cmd_ci_build() {
     log_header "CI: build + export nix-on-droid closure (aarch64)"
     check_nix || return 1
-    _out="$SCRIPT_DIR/dist-ci"
+    _out="$ART_DIR"
     rm -rf "$_out"; mkdir -p "$_out"
 
     # Free GHA-runner disk — the closure + export won't fit in the default root.
@@ -1209,7 +1220,7 @@ ghcr_pull_layered_skopeo() {
 cmd_pull() {
     log_header "Activate prebuilt closure (no eval — cannot OOM the phone)"
     check_nix || return 1
-    _art="${1:-$SCRIPT_DIR/dist-ci}"
+    _art="${1:-$ART_DIR}"
     _tb="$_art/nixondroid-closure.nar.zst"
     _sys=""
 

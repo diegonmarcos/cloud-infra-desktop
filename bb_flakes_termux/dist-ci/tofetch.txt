@@ -1,6 +1,0 @@
-/nix/store/0h45s3278zifgvw15n00jwyhriz2j3k3-httpd-web-server-json-md-eruda-run
-/nix/store/4cj12dv4iaziwq422ndv3xinp1avwv70-nix-on-droid-generation
-/nix/store/6cn302cizik53sigfdwzj3wly6irv1v2-home-manager-files
-/nix/store/6jq0y0sydri7rdnf3cwhnxzdh8cvziyj-httpd-web-server-json-md-eruda-latest
-/nix/store/c96vas8kdngxw7vd6fa070qq0aqigd8s-httpd-web-server-json-md-eruda
-/nix/store/iylja4vrsj2ncs9x3bjfkbnicvf6cmia-home-manager-generation
