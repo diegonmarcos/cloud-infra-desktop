@@ -288,6 +288,7 @@ do_start() {
   # Write sshd_config (idempotent, regenerated each start so changes flow
   # through the wrapper without manual edits). See the bind-policy comment
   # above: wg0 + loopback, never public, no interface probe.
+  # shellcheck disable=SC2086  # $WG_IPS word-splitting is the point: one ListenAddress line per mesh IP
   cat > "$SSHD_CONFIG" <<EOF
 HostKey $HOST_KEY
 $(printf 'ListenAddress %s\n' $WG_IPS)
