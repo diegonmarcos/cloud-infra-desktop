@@ -20,7 +20,7 @@ end
 # Bootstrap path — `sw` only lands on PATH after the first successful switch.
 echo "[flakes.switch] sw not on PATH yet — running the two steps directly"
 set -l repo $HOME/git/cloud-unix
-set -l engine $repo/1_workflows/dist/scripts/cloud-git-sync.sh
+set -l engine $repo/1_cicd/dist/scripts/cloud-git-sync.sh
 if test -x $engine
     $engine local; or echo "[flakes.switch] WARN: sync failed — switching with the tree as-is"
 else
