@@ -561,7 +561,13 @@ step_build_fork() {
     return 0
   fi
 
-  [ -d "$dest/.git" ] || { errlog "fork '$key' not materialized — run: ./build.sh materialize-fork $key"; exit 1; }
+  # A fork is ready when its source tree is present - either a CLONE (.git, the
+  # pinned-tag + `git am` path) or a VENDORED in-repo tree (no .git; since
+  # 2026-08-19 materialize-fork returns early for those and uses the committed
+  # source as-is). Demanding .git here contradicted that and rejected every
+  # vendored fork, which is what broke ship-cloud-mail and ship-cloud-dialer on
+  # the day their trees were vendored.
+  [ -d "$dest" ] || { errlog "fork '$key' not materialized — run: ./build.sh materialize-fork $key"; exit 1; }
 
   if [ "$signing" = "keystore_properties" ]; then
     # Resolve the ONE shared constellation key (fails loud if unavailable —
