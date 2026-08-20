@@ -38,7 +38,13 @@ PORT="18024"
 SANDBOX="$(mktemp -d)"
 trap 'rm -rf "$SANDBOX"' EXIT
 mkdir -p "$SANDBOX/.config/cloud-data" "$SANDBOX/bin"
-printf '{"wg_ip":"%s","ssh_port":%s}\n' "$WG_IP" "$PORT" \
+# wg_ips, not just wg_ip: the phone holds one identity on several mesh
+# addresses and the active WireGuard profile picks which. A v6 address is in
+# here deliberately — it must survive into the config even on a host that has
+# no v6 at all, for the same reason the v4 one must.
+WG_IP6="fd0c:1d01::9"
+printf '{"wg_ip":"%s","wg_ips":["%s","%s"],"ssh_port":%s}\n' \
+  "$WG_IP" "$WG_IP" "$WG_IP6" "$PORT" \
   > "$SANDBOX/.config/cloud-data/cloud-ide-sshd.json"
 
 # Stub sshd + ssh-keygen. keygen must actually create a file: do_start skips
@@ -81,9 +87,39 @@ grep -q "^ListenAddress $WG_IP\$" "$CONF" \
   && ok "wg0 listener written unconditionally (no interface probe)" \
   || nope "WG listener dropped — the Android netlink-blindness regression is back"
 
-grep -c '^ListenAddress ' "$CONF" | grep -qx 2 \
-  && ok "exactly two listeners (wg0 + loopback)" \
-  || nope "unexpected listener count"
+# Was "exactly two". Now every mesh address is bound, so the invariant that
+# actually matters is: all of them present, plus loopback, and nothing else.
+grep -q "^ListenAddress $WG_IP6\$" "$CONF" \
+  && ok "v6 mesh address bound (profile-independent)" \
+  || nope "v6 listener missing — a v6 profile would leave sshd loopback-only"
+
+grep -c '^ListenAddress ' "$CONF" | grep -qx 3 \
+  && ok "exactly three listeners (both mesh addrs + loopback)" \
+  || nope "unexpected listener count: $(grep -c '^ListenAddress ' "$CONF")"
+
+# The address list now comes from build.json, so a typo or a careless edit
+# upstream could put 0.0.0.0 in it — and on a phone that is the carrier
+# network. The script filters wildcards out rather than trusting the config;
+# this is the test that makes that filter load-bearing instead of decorative.
+POISON="$SANDBOX/.config/cloud-data/poisoned.json"
+printf '{"wg_ip":"%s","wg_ips":["%s","0.0.0.0","::","*"],"ssh_port":%s}\n' \
+  "$WG_IP" "$WG_IP" "$PORT" > "$POISON"
+HOME="$SANDBOX" XDG_CONFIG_HOME="$SANDBOX/.config" \
+  CLOUD_IDE_SSHD_CONFIG_JSON="$POISON" \
+  CLOUD_IDE_SSHD_BIN="$SANDBOX/bin/sshd" \
+  CLOUD_IDE_SSH_KEYGEN_BIN="$SANDBOX/bin/ssh-keygen" \
+  bash "$SCRIPT" start >/dev/null 2>&1
+if grep -qE '^ListenAddress (0\.0\.0\.0|::|\*)' "$CONF"; then
+  nope "wildcard in wg_ips reached the config — PUBLIC BIND from a bad build.json"
+else
+  ok "wildcards in wg_ips are filtered out (config cannot open the phone up)"
+fi
+grep -q "^ListenAddress $WG_IP\$" "$CONF" \
+  && ok "the real mesh address still survives the filter" \
+  || nope "filter ate every address"
+
+# restore the good config for anything downstream
+run start
 
 # Comments may still discuss the old probe — that history is worth keeping.
 # What must not come back is an executable use of it.
@@ -174,6 +210,12 @@ case "$(run_status)" in
 esac
 
 # (c) working ss showing the wg0 listener: healthy.
+ss_stub "echo 'LISTEN 0 128 [$WG_IP6]:$PORT [::]:*'"
+case "$(run_status)" in
+  *"127.0.0.1 ONLY"*) nope "v6 mesh listener present but reported degraded" ;;
+  *)                  ok   "v6 listener counts as healthy (ss renders it [addr]:port)" ;;
+esac
+
 ss_stub "echo 'LISTEN 0 128 $WG_IP:$PORT 0.0.0.0:*'"
 case "$(run_status)" in
   *"127.0.0.1 ONLY"*) nope "wg0 listener present but reported degraded" ;;
