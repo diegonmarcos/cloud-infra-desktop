@@ -128,4 +128,34 @@ in
   programs.fish.shellInit = lib.mkAfter ''
     cloud-ide-sshd ensure >/dev/null 2>&1
   '';
+
+  # Boot hook. Until this existed, EVERY path that started sshd needed a human
+  # already at the phone: fish's shellInit (someone opens a terminal) or the
+  # tail of build.sh (someone runs a switch). So after a reboot — or after
+  # Android reaped the proot — the device was unreachable over wg0 until it was
+  # picked up and unlocked, which is exactly when remote access is least
+  # available and most wanted. 2026-08-20: lost the phone mid-switch for hours
+  # for precisely this reason.
+  #
+  # Termux:Boot runs everything in ~/.termux/boot at device boot. The addon is a
+  # separate APK and may not be installed; writing the script anyway is free and
+  # makes the machine correct the moment it is. Nothing else reads this path.
+  #
+  # `ensure`, not `start`: at boot wg0 usually is not up yet, so the first
+  # attempt binds loopback only. ensure is what notices that and rebinds, and
+  # the retry loop covers the tunnel arriving a few seconds after us. Losing the
+  # race here is normal, not exceptional — treat it as the expected case.
+  home.file.".termux/boot/10-cloud-ide-sshd.sh" = {
+    executable = true;
+    text = ''
+      #!/usr/bin/env sh
+      # Wait for wg0 to carry the address before giving up on it. 12 x 5s = 1min.
+      i=0
+      while [ "$i" -lt 12 ]; do
+        ${config.home.homeDirectory}/.local/bin/cloud-ide-sshd ensure >/dev/null 2>&1
+        i=$((i + 1))
+        sleep 5
+      done
+    '';
+  };
 }
