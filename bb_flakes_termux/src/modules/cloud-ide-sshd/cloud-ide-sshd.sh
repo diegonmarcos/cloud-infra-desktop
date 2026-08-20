@@ -102,7 +102,27 @@ self_heal() {
 # no Android restriction applies. A listener either exists or it does not.
 listening_on_wg() {
   command -v ss >/dev/null 2>&1 || return 0   # cannot tell -> do not thrash
-  ss -tln 2>/dev/null | grep -qE "[[:space:]](${WG_IP}|0\.0\.0\.0|\*):${SSH_PORT}[[:space:]]"
+
+  _ss=$(ss -tln 2>/dev/null)
+
+  # `ss` being PRESENT is not the same as `ss` being able to SEE anything.
+  # Confirmed on galaxy 2026-08-20: an established inbound session was running
+  # and `ss -tln | grep 8024` still printed nothing, because Android restricts
+  # /proc/net visibility for app-uid processes much as it does netlink.
+  #
+  # So the empty result has two meanings — "nothing is listening" and "I am not
+  # allowed to see what is listening" — and acting on the wrong one is how the
+  # interface probe broke this in the first place. Distinguish them: if sshd is
+  # up, at least ONE LISTEN row must be visible to a working ss. Zero rows means
+  # blind, not idle, and blind must answer "assume fine" or ensure would rebind
+  # on every cooldown forever against a daemon that was never broken.
+  case "$_ss" in
+    *LISTEN*) : ;;
+    *)        return 0 ;;
+  esac
+
+  # Braces per 1e46b948: shellcheck reads $SSH_PORT[[:space:]] as an array index.
+  printf '%s\n' "$_ss" | grep -qE "[[:space:]](${WG_IP}|0\.0\.0\.0|\*):${SSH_PORT}[[:space:]]"
 }
 
 # Rebinding is cheap, but if wg0 is genuinely down it can never succeed, and
