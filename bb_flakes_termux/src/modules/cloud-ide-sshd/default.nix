@@ -62,6 +62,14 @@ let
   # outside src/ — a path: flake escaping src/ copies the whole repo (proot dies).
   buildJson = builtins.fromJSON (builtins.readFile ../../build.json);
   wgIp = buildJson.defaults.wg_ip or "127.0.0.1";
+
+  # One identity, several mesh addresses (v4 via one hub, v4-public and v6 via
+  # another). Which of them the interface actually holds depends on the active
+  # WireGuard profile, and the phone gained four of those on 2026-08-20. Binding
+  # wgIp alone meant selecting a v6 profile left sshd loopback-only — up, and
+  # unreachable from every peer. sshd warns about an address it cannot bind and
+  # carries on, so listing all of them is safe and profile-independent.
+  wgIps = buildJson.defaults.wg_ips or [ wgIp ];
   sshPort = buildJson.defaults.ssh_port or 8024;
 
   # Runtime JSON (fire-rule 4 + 6): wg_ip/ssh_port still originate from
@@ -70,6 +78,7 @@ let
   # Deployed to ${XDG_CONFIG_HOME:-$HOME/.config}/cloud-data/cloud-ide-sshd.json
   sshdRuntimeJson = builtins.toJSON {
     wg_ip = wgIp;
+    wg_ips = wgIps;
     ssh_port = sshPort;
   };
 

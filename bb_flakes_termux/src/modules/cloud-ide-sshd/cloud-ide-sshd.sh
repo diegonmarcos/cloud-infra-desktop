@@ -35,6 +35,20 @@ fi
 WG_IP="$(jq -r '.wg_ip' "$CONFIG_JSON")"
 SSH_PORT="$(jq -r '.ssh_port' "$CONFIG_JSON")"
 
+# The phone carries ONE identity across several mesh addresses (v4 via one hub,
+# v4-public and v6 via another) and the active WireGuard profile decides which
+# of them the interface actually holds. Binding only wg_ip meant that picking a
+# v6 profile left sshd with nothing but loopback — reachable from the phone and
+# from nowhere else. Bind every mesh address; sshd warns about the ones the
+# current profile does not carry and serves the rest (see bind-policy note).
+WG_IPS="$(jq -r 'if (.wg_ips // empty) then .wg_ips[] else .wg_ip end' "$CONFIG_JSON")"
+
+# A wildcard here would be a public bind on a carrier network — the one thing
+# this file exists to prevent. Drop them rather than trust the config: this list
+# now comes from build.json, so a typo upstream must not open the phone up.
+WG_IPS="$(printf '%s\n' "$WG_IPS" | grep -vxE '0\.0\.0\.0|::|\*|' || true)"
+[ -n "$WG_IPS" ] || WG_IPS="$WG_IP"
+
 PID_FILE="$HOME/.cache/sshd.pid"
 LOG_FILE="$HOME/.cache/sshd.log"
 HOST_KEY="$HOME/.ssh/ssh_host_rsa_key"
@@ -121,8 +135,16 @@ listening_on_wg() {
     *)        return 0 ;;
   esac
 
+  # Any mesh address counts as healthy: the active WireGuard profile decides
+  # which one the interface carries, so demanding a specific one would call a
+  # perfectly reachable v6-profile daemon degraded and rebind it forever.
+  # ss renders v6 as [addr]:port, so match the address followed by ]:port too.
   # Braces per 1e46b948: shellcheck reads $SSH_PORT[[:space:]] as an array index.
-  printf '%s\n' "$_ss" | grep -qE "[[:space:]](${WG_IP}|0\.0\.0\.0|\*):${SSH_PORT}[[:space:]]"
+  for _ip in $WG_IPS 0.0.0.0 '*'; do
+    printf '%s\n' "$_ss" | grep -qF "$_ip:${SSH_PORT}"   && return 0
+    printf '%s\n' "$_ss" | grep -qF "[$_ip]:${SSH_PORT}" && return 0
+  done
+  return 1
 }
 
 # Rebinding is cheap, but if wg0 is genuinely down it can never succeed, and
@@ -207,7 +229,7 @@ do_start() {
   # above: wg0 + loopback, never public, no interface probe.
   cat > "$SSHD_CONFIG" <<EOF
 HostKey $HOST_KEY
-ListenAddress $WG_IP
+$(printf 'ListenAddress %s\n' $WG_IPS)
 ListenAddress 127.0.0.1
 Port $SSH_PORT
 PidFile $PID_FILE
