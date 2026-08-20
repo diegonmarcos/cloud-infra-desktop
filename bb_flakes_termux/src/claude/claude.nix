@@ -44,8 +44,9 @@ let
         (builtins.readFile "${claudeSrc}/settings.base.json")))
       (builtins.fromJSON (builtins.readFile "${claudeSrc}/settings.termux.json"))));
 
-  # Bulky runtime state lives in ~/git/.claude (429M — 376M of session transcripts +
-  # 50M of file-history) so $HOME stays lean. Out-of-store symlinks: claude writes
+  # Bulky runtime state lives in the memory repo, under a_sessions/<instance>/ — the
+  # same arrangement surface uses, so both devices' transcripts are versioned and
+  # syncable instead of only surface's. It stays out of $HOME's own tree either way. Out-of-store symlinks: claude writes
   # through them at runtime and nix never copies the payload into the store.
   #
   # It must be $HOME/.claude pointing elsewhere, not the reverse. Claude Code reads
@@ -59,7 +60,7 @@ let
   stateLinks = builtins.listToAttrs (map (d: {
     name = ".claude/${d}";
     value.source = config.lib.file.mkOutOfStoreSymlink
-      "${config.home.homeDirectory}/git/.claude/${d}";
+      "${config.home.homeDirectory}/git/cloud-my-ai_memory/a_sessions/galaxy/${d}";
   }) stateDirs);
 in
 {
