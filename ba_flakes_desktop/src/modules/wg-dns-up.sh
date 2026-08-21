@@ -51,7 +51,16 @@ echo "[wg-dns] Adding $HICKORY_DNS to resolv.conf for .app names"
 if command -v resolvectl >/dev/null 2>&1 && systemctl is-active systemd-resolved >/dev/null 2>&1; then
   echo "[wg-dns] Using systemd-resolved split DNS"
   sudo resolvectl dns "$WG_IFACE" "$HICKORY_DNS"
-  # shellcheck disable=SC2086 -- deliberate word splitting: one argv per domain.
+  # Deliberate word splitting: one argv per domain.
+  #
+  # The rationale must NOT share the line with the directive. ShellCheck parses
+  # everything after `shellcheck` as key=value pairs, so a trailing
+  # "-- explanation" is read as a key `--` with no `=` and the whole file fails
+  # to parse: SC1072 "Expected '=' after directive key", SC1073, SC1009. That
+  # broke the derivation, and with it every home-manager CI build from
+  # 2026-08-21 12:14 onward — five consecutive red runs, none of which
+  # mentioned this file in the summary.
+  # shellcheck disable=SC2086
   sudo resolvectl domain "$WG_IFACE" $WG_DOMAINS
   sudo resolvectl default-route "$WG_IFACE" false
 else
