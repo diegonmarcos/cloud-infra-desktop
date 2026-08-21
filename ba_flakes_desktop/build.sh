@@ -1204,11 +1204,37 @@ cmd_dotfiles() {
     xargs -0 awk '
       # Remember the most recent home.file."<target>" attribute name, then pair
       # it with the next ./dotfiles/... source (same line or a following one).
+      #
+      # Reset at every file boundary. Without this, a home.file whose source is
+      # NOT a ./dotfiles path (plasma.nix:102 declares
+      # home.file.".local/share/systray-items.json".source = ./systray-items.json)
+      # leaves tgt dangling, and the next ./dotfiles/... match — in a COMPLETELY
+      # DIFFERENT file, since these are concatenated by xargs — pairs with it.
+      # That produced the mapping
+      #   .local/share/systray-items.json  <-  dotfiles/kde/plasmoids/)
+      # i.e. deploy aimed an unrelated source at the live systray config. It was
+      # saved only by the missing-source guard below; a source that happened to
+      # exist would have overwritten a real file with the wrong content.
+      FNR == 1 { tgt = ""; tgtline = -99 }
+      # Comments are not declarations. plasma.nix:946 says
+      #   "# Vendored into the flake (../dotfiles/kde/plasmoids/) so the widget is"
+      # which the old pattern happily treated as a source path.
+      /^[[:space:]]*#/ { next }
       match($0, /home\.file\.".*"/) {
-        t = substr($0, RSTART + 11, RLENGTH - 12); gsub(/"/, "", t); tgt = t
+        t = substr($0, RSTART + 11, RLENGTH - 12); gsub(/"/, "", t); tgt = t; tgtline = FNR
       }
-      match($0, /\.\/dotfiles\/[^;[:space:]]+/) {
-        if (tgt != "") { print tgt "\t" substr($0, RSTART + 2, RLENGTH - 2); tgt = "" }
+      # Exclude ) " and comma from the path: the old [^;[:space:]]+ swallowed the
+      # closing paren of an enclosing expression, which is where the trailing ")"
+      # in the bogus mapping came from.
+      match($0, /\.\/dotfiles\/[^;,)"'"'"'[:space:]]+/) {
+        # Same line or the next one ONLY. A `.source = ./dotfiles/...` sits on the
+        # attribute it belongs to; anything further away is a coincidence, not a
+        # declaration. plasma.nix paired a target at line 102 with a match at line
+        # 946 — 844 lines and one unrelated widget apart — and aimed deploy at the
+        # live systray config.
+        if (tgt != "" && FNR - tgtline <= 1) {
+          print tgt "\t" substr($0, RSTART + 2, RLENGTH - 2); tgt = ""
+        }
       }')
 
   [ -n "$_map" ] || { log_error "parsed no dotfile mappings from $_mods"; return 1; }
