@@ -206,6 +206,42 @@ grep -q 'WAKELOCK_STAMP\|wake_lock_held' "$SCRIPT" \
   && nope "wake lock caches held-state on disk — it outlives the Doze reap it must survive" \
   || ok "no persisted wake-lock state (a stamp outlives the lock it records)"
 
+# ── Cloud:Boot contract ──────────────────────────────────────────────────
+# The APK and the flake are two separately-deployed halves of one mechanism,
+# and every failure between them is silent: the phone simply never comes up.
+# These assertions are the only thing holding the halves together.
+APK="$DIR/../../../../ea_cloud-boot"
+
+# RunCommandService refuses every foreign package unless this is set, and
+# Cloud:Boot is necessarily foreign (it cannot share the uid without the
+# signing key). Without this line the APK installs, runs, and does nothing.
+grep -q 'allow-external-apps=true' "$DIR/default.nix" \
+  && ok "allow-external-apps set (RunCommandService rejects foreign callers otherwise)" \
+  || nope "allow-external-apps unset — the boot APK is inert"
+
+# The APK hardcodes one path because it cannot enumerate the 0700 boot dir.
+# If these two disagree the intent resolves to a file that does not exist.
+if [ -f "$APK/app/src/main/java/com/termux/nix/boot/BootReceiver.java" ]; then
+  grep -q '\.termux/boot-runner\.sh' "$APK/app/src/main/java/com/termux/nix/boot/BootReceiver.java" \
+    && grep -q '"\.termux/boot-runner\.sh"' "$DIR/default.nix" \
+    && ok "APK entry point and flake-deployed runner path agree" \
+    || nope "boot-runner path mismatch between APK and flake — boot silently does nothing"
+
+  # A shared uid is impossible without F-Droid's key; declaring one makes the
+  # APK uninstallable (INSTALL_FAILED_SHARED_USER_INCOMPATIBLE).
+  grep -q 'android:sharedUserId=' "$APK/app/src/main/AndroidManifest.xml" \
+    && nope "APK declares sharedUserId — it cannot install without F-Droid's signing key" \
+    || ok "APK declares no sharedUserId (it cannot join the host uid)"
+else
+  nope "ea_cloud-boot missing — the boot APK half of the mechanism is absent"
+fi
+
+# Home Manager leaves .hm-bak-<ts> copies beside replaced files; running them
+# would execute several stale generations at once.
+grep -q 'boot/\*\.sh' "$DIR/default.nix" \
+  && ok "runner globs *.sh only (skips Home Manager .hm-bak backups)" \
+  || nope "runner glob would execute stale .hm-bak generations"
+
 grep -q 'termux-am' "$DIR/default.nix" \
   && ok "termux-am in runtimeInputs (am is how the lock is taken)" \
   || nope "am not on PATH — every intent will fail"
