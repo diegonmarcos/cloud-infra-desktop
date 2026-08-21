@@ -14,7 +14,7 @@ import android.widget.TextView;
  *      by installing -- it must be requested at runtime from an Activity.
  *   2. Android 3.1+ keeps an app in a "stopped" state, in which it receives NO
  *      broadcasts including BOOT_COMPLETED, until it is launched at least once.
- *      An installed-but-never-opened Cloud:Boot would silently do nothing.
+ *      An installed-but-never-opened Cloud Unix Termux Boot would silently do nothing.
  *
  * So the launcher icon is not decoration: tapping it once is what arms the app.
  */
@@ -38,7 +38,7 @@ public class BootActivity extends Activity {
         view.setGravity(Gravity.CENTER);
         view.setPadding(48, 48, 48, 48);
         view.setText(
-            "Cloud:Boot\n\n"
+            "Cloud Unix Termux Boot\n\n"
             + "Runs ~/.termux/boot/ scripts in " + BuildConfig.NOD_PACKAGE_NAME
             + " at device boot.\n\n"
             + "Opening this screen once is required: until then Android keeps "

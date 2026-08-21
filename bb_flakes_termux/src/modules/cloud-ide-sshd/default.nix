@@ -140,7 +140,7 @@ in
   '';
 
   # allow-external-apps gates RunCommandService: without it the host refuses
-  # every intent from a package that is not itself, and Cloud:Boot is by
+  # every intent from a package that is not itself, and Cloud Unix Termux Boot is by
   # necessity a separate package (it cannot share this app's uid without its
   # signing key). This one line is what makes the boot APK able to do anything
   # at all, and it is why that APK does not need to be signed by F-Droid.
@@ -148,7 +148,7 @@ in
     allow-external-apps=true
   '';
 
-  # The single command Cloud:Boot launches. The APK cannot list ~/.termux/boot
+  # The single command Cloud Unix Termux Boot launches. The APK cannot list ~/.termux/boot
   # itself -- that directory is 0700 and owned by this uid, and the APK is a
   # foreign uid -- so the enumeration has to happen here, on this side of the
   # boundary. The APK therefore hardcodes exactly one path and nothing else,
@@ -163,7 +163,7 @@ in
     executable = true;
     text = ''
       #!/usr/bin/env sh
-      # Launched by Cloud:Boot (com.termux.nix.boot) at device boot.
+      # Launched by Cloud Unix Termux Boot (com.termux.nix.boot) at device boot.
       for _f in "$HOME"/.termux/boot/*.sh; do
         [ -f "$_f" ] || continue
         sh "$_f" >/dev/null 2>&1 &
