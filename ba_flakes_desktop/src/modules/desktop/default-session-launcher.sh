@@ -208,12 +208,53 @@ spawn(){ # spawn detached, echo pid. $@ = argv
   echo "$!"
 }
 
+# ── Konsole sizing, in CELLS (data: .konsole_cell + .screen_reference) ─────
+# Konsole sizes itself in character cells and ignores the pixel geometry KWin
+# assigns it. Every window this launcher created settled at exactly its
+# profile's TerminalColumns x TerminalRows — 120x60 = 872x1037 — no matter
+# which cell it was placed in. Position landed pixel-perfect, so the log
+# reported success while desk3's left column overlapped by 324px (two 1037-tall
+# windows in 713-tall slots) and the right window fell short of the edge.
+#
+# Fighting that from the KWin side does not work (see the geometry note in the
+# placement script). Asking in the units Konsole accepts does: -p
+# TerminalColumns / -p TerminalRows at launch. The cell metrics are measured
+# data in the JSON — see ._konsole_cell_doc for the derivation.
+#
+# floor() throughout: a window a few pixels short of its slot is invisible,
+# whereas one a few pixels over re-creates the overlap this exists to fix.
+konsole_cells(){ # $1=cell → echoes "COLS ROWS"
+  local aw ah cw ch pw ph w h
+  aw="$(q '.screen_reference.work_width  // 0')"; ah="$(q '.screen_reference.work_height // 0')"
+  cw="$(q '.konsole_cell.cell_w // 0')";          ch="$(q '.konsole_cell.cell_h // 0')"
+  pw="$(q '.konsole_cell.pad_w  // 0')";          ph="$(q '.konsole_cell.pad_h  // 0')"
+  # Any metric missing → emit nothing, and the caller launches without -p
+  # (profile default). Never guess a size from half-known data.
+  case "0" in "$aw"|"$ah"|"$cw"|"$ch") return 0 ;; esac
+  case "$1" in
+    left|right)                                    w=$((aw / 2)); h=$ah ;;
+    left-top|left-bottom|right-top|right-bottom)   w=$((aw / 2)); h=$(( (ah + 1) / 2 )) ;;
+    *)                                             w=$aw;         h=$ah ;;
+  esac
+  printf '%s %s\n' "$(( (w - pw) / cw ))" "$(( (h - ph) / ch ))"
+}
+
 # ── Konsole window builder (tabs + sticky titles via DBus) ──────────────────
 build_konsole(){ # $1=desktop $2=cell $3=di $4=wi $5=exec $6..=konsole_flags
   local desk="$1" cell="$2" di="$3" wi="$4" kexec="$5"; shift 5
-  local kflags=("$@") pid ksvc ntabs ti sid idx title
+  local kflags=("$@") pid ksvc ntabs ti sid idx title _kc _kr
   ntabs="$(jq -r ".desktops[$di].windows[$wi].tabs | length" "$JSON")"
-  pid="$(spawn "$kexec" "${kflags[@]}" --workdir "$WORKDIR")"
+  # Size in cells, so the window comes up the right size instead of being
+  # resized into one it will ignore. Empty (metrics missing) = profile default.
+  local -a ksize=()
+  read -r _kc _kr <<<"$(konsole_cells "$cell")"
+  if [ -n "${_kc:-}" ] && [ -n "${_kr:-}" ] && [ "$_kc" -gt 0 ] && [ "$_kr" -gt 0 ]; then
+    ksize=( -p "TerminalColumns=$_kc" -p "TerminalRows=$_kr" )
+    log "  konsole cell=$cell → ${_kc}x${_kr} cells"
+  else
+    log "  konsole cell=$cell → no cell metrics, using profile default size"
+  fi
+  pid="$(spawn "$kexec" "${kflags[@]}" "${ksize[@]}" --workdir "$WORKDIR")"
   ksvc="org.kde.konsole-$pid"
   # wait (bounded) for the new konsole's DBus window to appear
   local ok=0 t
@@ -233,7 +274,7 @@ build_konsole(){ # $1=desktop $2=cell $3=di $4=wi $5=exec $6..=konsole_flags
   slist(){ timeout 3 "$QDBUS" "$KW" "$WN" org.kde.konsole.Window.sessionList 2>/dev/null | sort; }
   onlyin_b(){ comm -13 <(printf '%s\n' $1 | sort -u) <(printf '%s\n' $2 | sort -u); }  # items in $2 not $1
 
-  local nsplit si pane dir hsplit lBefore sBefore newleaf rootView rootSession tabSessions cmd cbin
+  local nsplit si pane dir hsplit lBefore sBefore newleaf newsess rootView rootSession tabSessions cmd cbin scmd sbin
   for ti in $(seq 0 $((ntabs-1))); do
     # establish this tab's root view + its session(s)
     if [ "$ti" = 0 ]; then
@@ -261,7 +302,26 @@ build_konsole(){ # $1=desktop $2=cell $3=di $4=wi $5=exec $6..=konsole_flags
       sleep 0.3
       newleaf="$(onlyin_b "$lBefore" "$(vleaves)" | tail -1)"
       viewmap+=( "$newleaf" )
-      tabSessions="$tabSessions $(onlyin_b "$sBefore" "$(slist)")"
+      newsess="$(onlyin_b "$sBefore" "$(slist)")"
+      tabSessions="$tabSessions $newsess"
+
+      # Per-split command. Without this only the tab ROOT pane could run
+      # anything (the .command below), so a split window could never be more
+      # than one live view plus empty shells — no way to express "atop on top,
+      # htop underneath" in one window. Same missing-binary fallback as the tab
+      # command: leave the pane as a plain shell rather than break the layout.
+      scmd="$(jq -r ".desktops[$di].windows[$wi].tabs[$ti].splits[$si].command // empty" "$JSON")"
+      if [ -n "$scmd" ]; then
+        sbin="${scmd%% *}"
+        if command -v "$sbin" >/dev/null 2>&1; then
+          for sid in $newsess; do
+            timeout 3 "$QDBUS" "$KW" "/Sessions/$sid" org.kde.konsole.Session.runCommand "$scmd" >/dev/null 2>&1 || true
+          done
+          log "  konsole split pane $((si+1)): ran '$scmd'"
+        else
+          log "  konsole split pane $((si+1)): command '$sbin' NOT FOUND — left as shell (fallback)"
+        fi
+      fi
     done
     # sticky title on EVERY session in this tab (split panes included → label stays put)
     title="$(jq -r ".desktops[$di].windows[$wi].tabs[$ti].title // \"-\"" "$JSON")"
@@ -327,16 +387,45 @@ for di in $(seq 0 $((ndesk-1))); do
       continue
     fi
 
-    # Belt to the run-once guard's braces: never launch a second copy of an app
-    # that is already running. The lock and stamp cover the normal duplication
-    # path, but they cannot help a session that was half-built (an earlier run
-    # killed partway, or an app the user started themselves before login
-    # finished). Matching on the exec name is deliberately loose — the cost of a
-    # false positive is one window not opening, the cost of a false negative is
-    # the pileup this whole guard exists to prevent.
-    if pgrep -x "$aexec" >/dev/null 2>&1; then
-      log "SKIP desk=$desk cell=$cell app=$app — already running (fallback: no duplicate window)"
-      continue
+    # Belt to the emptiness guard's braces: for a SINGLE-INSTANCE app, never
+    # launch a second copy. Covers a half-built session — an earlier run killed
+    # partway, or an app the user started before login finished.
+    #
+    # This only applies to apps flagged single_instance in the registry, and
+    # that flag is the whole point. The old check ran for EVERY app, which is
+    # wrong for the ones this layout deliberately opens more than once: desk3
+    # wants two Konsole windows while desk1 already has one, and Konsole is
+    # launched --separate --nofork precisely so that works.
+    #
+    # It got away with it because it was also broken. `pgrep -x kate` does not
+    # match a running Kate: NixOS wraps the binary, so comm is ".kate-wrapped",
+    # truncated by the kernel to ".kate-wrappe". So the guard never fired for
+    # any wrapped app — which is exactly why desk3's Konsoles worked, and why
+    # re-running desk2 on 2026-08-21 silently opened a SECOND Kate. Fixing the
+    # match without adding the flag would have traded that for a desk3 with no
+    # terminals; both halves are needed or neither is safe.
+    #
+    # A false positive costs one window; a false negative costs the pileup this
+    # exists to prevent — so the pattern stays loose, just no longer blind.
+    if [ "$(jq -r --arg a "$app" '.apps[$a].single_instance // false' "$JSON")" = "true" ]; then
+      if printf '%s\n' "$(ps -eo comm= -u "$(id -u)" 2>/dev/null || true)" \
+         | grep -qxE "$aexec|\.$aexec-wrapp.*"; then
+        # Skip the LAUNCH, not the POSITIONING. The existing window still needs
+        # to end up where the layout says, and positioning matches it by window
+        # class, which needs no PID from a spawn we are not doing. Without this
+        # a window that came up in the wrong place could never be corrected by
+        # re-running — which is precisely the case that exposed it: Kate
+        # restores itself maximized (katerc: "2304x1536 screen:
+        # Window-Maximized=true"), so desk2 showed it full screen while the log
+        # said cell=left, and every re-run skipped it and changed nothing.
+        if [ -n "$aclass" ] && [ "$aclass" != null ]; then
+          printf 'class\t%s\t%s\t%s\n' "$aclass" "$desk" "$cell" >>"$POSMAP"
+          log "SKIP launch desk=$desk cell=$cell app=$app — single-instance and already running; will still position it (class=$aclass)"
+        else
+          log "SKIP desk=$desk cell=$cell app=$app — single-instance and already running, and no match_class to position it by"
+        fi
+        continue
+      fi
     fi
     if [ "${#prefix[@]}" -gt 0 ] && ! command -v "${prefix[0]}" >/dev/null 2>&1; then
       log "WARN desk=$desk cell=$cell app=$app — launch_prefix '${prefix[0]}' NOT FOUND; launching without it"
@@ -399,14 +488,69 @@ if [ "$DO_POSITION" = 1 ] && [ -s "$POSMAP" ]; then
 function deskObj(n){var ds=workspace.desktops;for(var i=0;i<ds.length;i++){if(ds[i].x11DesktopNumber===n)return ds[i];}return null;}
 function area(w){var a;try{a=workspace.clientArea(KWin.MaximizeArea,w);}catch(e){a=null;}
   if(!a||!a.width){var s=workspace.virtualScreenSize;a={x:0,y:0,width:s.width,height:s.height};}return a;}
-// IMPORTANT: read-modify-write the real frameGeometry QRect. Assigning a plain
-// {x,y,width,height} object makes KWin honor size but RE-CENTER position; mutating
-// the actual QRect and assigning it back makes x/y stick. (Qt.rect is unavailable.)
-function place(w,cell){var a=area(w);var hw=Math.floor(a.width/2);var g=w.frameGeometry;
+// GEOMETRY ASSIGNMENT — use Object.assign, nothing else.
+//
+//   var q = Object.assign({}, w.frameGeometry);   q.width = ...;
+//   w.frameGeometry = q;
+//
+// frameGeometry is documented read-write but behaves read-only if you mutate
+// the object it returns: the setter is never invoked, so KWin is never told the
+// geometry changed. Copying it, editing the copy and assigning the whole object
+// back does invoke the setter. Source:
+// https://discuss.kde.org/t/kwin-script-window-framegeometry-seems-to-be-readonly-even-if-the-docs-states-otherwise/17175
+//
+// This file previously mutated the returned object and claimed a plain
+// {x,y,width,height} literal "makes KWin honor size but RE-CENTER position".
+// Measured on KWin 6.7.2, 2026-08-21, both are wrong: mutation applied position
+// and SILENTLY DROPPED size, the literal applied neither. That is why desk3's
+// windows kept their startup size while landing on pixel-perfect coordinates —
+// left-top and left-bottom overlapped by 324px and the right window fell short
+// of the screen edge, with the log reporting success throughout. It also means
+// no window this launcher has ever placed had its SIZE applied; only Konsole
+// made that visible, because it starts at a size that does not fit.
+//
+// Ruled out by measurement, so do not re-investigate: size hints (min 150x150,
+// max unbounded, resizeable=true), maximized/fullscreen state, and the target
+// desktop being inactive.
+//
+// Konsole additionally QUANTISES to whole character cells — asked for 713 it
+// takes 701 (39 cells + frame) — so the size assignment alone cannot make it
+// fill a slot exactly. That is handled at launch instead, by asking in cells:
+// see konsole_cells() and .konsole_cell in the JSON. KWin's own quick-tile
+// (workspace.slotWindowQuickTile*) does not avoid this — tested, it quantises
+// the same way and then bottom-anchors the remainder, moving the leftover gap
+// into the middle of the screen instead of the outer edge.
+// Clear maximized/fullscreen BEFORE touching geometry. A maximized window keeps
+// its maximized geometry no matter what you assign to frameGeometry, so the tile
+// silently did nothing for any app that restores itself maximized. Kate is one:
+// ~/.config/katerc carries "2304x1536 screen: Window-Maximized=true", so it came
+// up full screen on desk2 while the log cheerfully said cell=left. Both calls are
+// wrapped because the API differs across KWin versions and a placement failure
+// must never abort the pass.
+function unmax(w){
+  try{ if(w.fullScreen) w.fullScreen=false; }catch(e){}
+  try{ w.setMaximize(false,false); }catch(e){}
+}
+// Cells: left|right = half width, full height. left-top|left-bottom|
+// right-top|right-bottom = quarters. Anything else = full screen.
+// Heights use ceil for the top half and derive the bottom from it, so an odd
+// pixel height leaves no 1px gap between the two.
+function place(w,cell){unmax(w);var a=area(w);var hw=Math.floor(a.width/2);
+  var th=Math.ceil(a.height/2);var bh=a.height-th;var rx=a.x+a.width-hw;
+  var g=Object.assign({},w.frameGeometry);
   if(cell==="left"){g.x=a.x;g.y=a.y;g.width=hw;g.height=a.height;}
-  else if(cell==="right"){g.x=a.x+a.width-hw;g.y=a.y;g.width=hw;g.height=a.height;}
+  else if(cell==="right"){g.x=rx;g.y=a.y;g.width=hw;g.height=a.height;}
+  else if(cell==="left-top"){g.x=a.x;g.y=a.y;g.width=hw;g.height=th;}
+  else if(cell==="left-bottom"){g.x=a.x;g.y=a.y+th;g.width=hw;g.height=bh;}
+  else if(cell==="right-top"){g.x=rx;g.y=a.y;g.width=hw;g.height=th;}
+  else if(cell==="right-bottom"){g.x=rx;g.y=a.y+th;g.width=hw;g.height=bh;}
   else{g.x=a.x;g.y=a.y;g.width=a.width;g.height=a.height;}
-  w.frameGeometry=g;}
+  // PASS 1 — object copy: applies the SIZE, and re-centres x/y on the screen.
+  w.frameGeometry=g;
+  // PASS 2 — mutate the returned object: applies x/y, ignores size. Measured
+  // 576,402 after pass 1 alone on a 2304-wide screen, i.e. dead centre.
+  // Neither form does both; this is the whole reason for two assignments.
+  var p=w.frameGeometry;p.x=g.x;p.y=g.y;w.frameGeometry=p;}
 var ws=workspace.windowList?workspace.windowList():workspace.clientList();
 for(var i=0;i<ws.length;i++){var w=ws[i];if(!w.normalWindow)continue;
   var t=byPid[""+w.pid]||byClass[(""+w.resourceClass).toLowerCase()];if(!t)continue;
