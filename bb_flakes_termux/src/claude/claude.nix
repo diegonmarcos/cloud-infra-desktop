@@ -11,38 +11,31 @@
 #
 #   my-ai REPO    Everything shared with ba_flakes_desktop — agents/,
 #                 cloud-marketplace/, claude-plugins.json, rgignore, and the
-#                 settings base+overlay. Consumed as my-ai's `claudeAssets` flake
-#                 OUTPUT, never vendored: two vendored copies is exactly how
-#                 cloud-marketplace drifted across 7 files (termux 2026-08-08 vs
-#                 desktop 2026-07-30). Edit those files in da_my-ai, not here.
+#                 settings base+overlay. Read from the WORKING CHECKOUT at
+#                 activation time (assets/scripts/claude-settings-merge.sh +
+#                 claude-assets-deploy.sh), never vendored and never through a
+#                 pinned flake input — a pin only updates on `nix flake update
+#                 my-ai` + a switch, and it sat stale 2026-08-18 to 2026-08-20
+#                 while cleanupPeriodDays landed in the SoT, silently deploying
+#                 pre-fix settings for two days. Same fix ba_flakes_desktop
+#                 already uses (home.activation.claudeSettings /
+#                 claudeAssets there). Edit those files in da_my-ai, not here.
 #
 #   THIS FLAKE    Deploys, owns almost nothing. Platform-specific leftovers only:
 #                 mcp.json.tpl (termux bans stdio MCP servers — 30s startup through
 #                 proot), secrets.yaml (own sops recipients), the CLAUDE.md stub,
 #                 and the out-of-store state symlinks.
-{ config, lib, pkgs, claudeSrc, ... }:
+{ config, lib, pkgs, ... }:
 
 let
-  # settings.json = shared base ⊕ termux overlay.
-  #
-  # The base carries @HOME@ placeholders rather than absolute paths: every path that
-  # used to differ between the two machines (GIT_BASE, NODE_PATH, both AUTHELIA_*_DIR,
-  # statusLine.command) is byte-identical once $HOME is factored out, so they all live
-  # in the base now and the overlay holds only real differences (refreshInterval, and
-  # termux's MCP_TIMEOUT / effortLevel / enableAllProjectMcpServers).
-  #
-  # Substitution happens on the raw JSON text before parsing — home.homeDirectory is a
-  # plain path with nothing needing JSON escaping. It is NOT left as a literal "$HOME"
-  # because Claude Code shell-expands statusLine.command but sets env values verbatim,
-  # so a literal there would leak "$HOME/git" into GIT_BASE.
-  #
-  # Verified against the pre-split files: desktop byte-identical, termux differs only
-  # in statusLine.command (literal $HOME now pre-expanded — same resolved path).
-  settingsJson = pkgs.writeText "claude-settings.json" (builtins.toJSON
-    (lib.recursiveUpdate
-      (builtins.fromJSON (builtins.replaceStrings [ "@HOME@" ] [ config.home.homeDirectory ]
-        (builtins.readFile "${claudeSrc}/settings.base.json")))
-      (builtins.fromJSON (builtins.readFile "${claudeSrc}/settings.termux.json"))));
+  # The ONE SoT, read at activation (never at eval — a `path:` flake input
+  # escaping src/ would copy the whole ~3.6GB repo into the Nix store and kill
+  # proot mid-copy; `path:../../da_my-ai` is rejected outright by Nix 2.18 as
+  # "relative path points outside of its parent's store path"). Overridable
+  # for a non-standard checkout. See assets/scripts/claude-settings-merge.sh
+  # and claude-assets-deploy.sh for the activation-time read + the "no
+  # fallback, fail loud" rationale.
+  claudeSotDefault = "${config.home.homeDirectory}/git/cloud-unix/da_my-ai/src/data/claude";
 
   # Bulky runtime state lives in the memory repo, under a_sessions/<instance>/ — the
   # same arrangement surface uses, so both devices' transcripts are versioned and
@@ -73,21 +66,11 @@ in
     ".claude/mcp.json.tpl".source = ./assets/mcp.json.tpl;
     ".claude/secrets.yaml".source = ./assets/secrets.yaml;
 
-    # Agent fleet manifest (explore/build/review/ops, all pinned model:sonnet).
-    ".claude/agents" = {
-      source = "${claudeSrc}/agents";
-      recursive = true;
-    };
-
-    # Plugin/MCP status data for the statusline + claude-superset banner. The status
-    # SCRIPTS come from the my-ai binary; only this manifest is declarative.
-    ".claude/claude-plugins.json".source = "${claudeSrc}/claude-plugins.json";
-
-    # cloud-marketplace — local Claude Code plugin marketplace holding the data-driven
-    # hook engine and ponytail. Shared with ba_flakes_desktop via the my-ai SoT.
-    ".claude/cloud-marketplace".source = "${claudeSrc}/cloud-marketplace";
-
-    ".rgignore".source = "${claudeSrc}/rgignore";
+    # agents/, claude-plugins.json, cloud-marketplace/ and rgignore are NOT
+    # home.file entries any more — they moved to home.activation.claudeAssets
+    # below, copied from the working checkout at activation time instead of
+    # through the (formerly pinned) my-ai flake input. See the OWNERSHIP
+    # SPLIT comment at the top of this file.
 
     # claude-fix — diagnose & repair a shadowed/non-starting `claude` (stale npm shims
     # / leftover claude-tty wrappers / fish functions). Log: ~/claude-fix.log.
@@ -103,19 +86,42 @@ in
     };
   };
 
+  # Agent fleet, cloud-marketplace, claude-plugins.json, rgignore — copied from
+  # the working checkout at activation time. See claude-assets-deploy.sh.
+  home.activation.claudeAssets = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    REPO_SOT="''${CLAUDE_SOT_DIR:-${claudeSotDefault}}" \
+    DEST_CLAUDE="$HOME/.claude" \
+    DEST_RGIGNORE="$HOME/.rgignore" \
+    CP_BIN="${pkgs.coreutils}/bin/cp" \
+    RM_BIN="${pkgs.coreutils}/bin/rm" \
+    MKDIR_BIN="${pkgs.coreutils}/bin/mkdir" \
+    CHMOD_BIN="${pkgs.coreutils}/bin/chmod" \
+    ${pkgs.bash}/bin/bash ${./assets/scripts/claude-assets-deploy.sh}
+  '';
+
   # settings.json deployed as a writable real file (not a nix-store symlink) so that
   # runtime commands (/effort, /model, /fast) can persist their writes. Source is
   # authoritative: each switch resets runtime prefs back to declared values.
+  #
+  # Read from the working checkout at activation, same as claudeAssets above —
+  # NO flake-input fallback, deliberately: a fallback is a second source that
+  # can silently disagree with the SoT, which is the exact bug this replaces
+  # (2026-08-18 to 2026-08-20, a stale `my-ai` lock deployed pre-fix settings
+  # for two days with no error). See claude-settings-merge.sh.
   home.activation.claudeSettingsWritable = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-    _dst="$HOME/.claude/settings.json"
-    [ -L "$_dst" ] && rm "$_dst"
-    ${pkgs.coreutils}/bin/install -m 600 ${settingsJson} "$_dst"
+    REPO_SOT="''${CLAUDE_SOT_DIR:-${claudeSotDefault}}" \
+    OVERLAY="settings.termux.json" \
+    DST="$HOME/.claude/settings.json" \
+    HOME_DIR="${config.home.homeDirectory}" \
+    SED_BIN="${pkgs.gnused}/bin/sed" \
+    JQ_BIN="${pkgs.jq}/bin/jq" \
+    ${pkgs.bash}/bin/bash ${./assets/scripts/claude-settings-merge.sh}
   '';
 
   # Register cloud-marketplace as a plugin marketplace (idempotent CLI call from a
   # nix-committed activation). claude-code is a real nix derivation on PATH here
   # (pkgs/claude-code native binary), not a curl-installed binary.
-  home.activation.claudeMarketplace = lib.hm.dag.entryAfter [ "claudeSettingsWritable" ] ''
+  home.activation.claudeMarketplace = lib.hm.dag.entryAfter [ "claudeAssets" "claudeSettingsWritable" ] ''
     JQ_BIN="${pkgs.jq}/bin/jq" \
     ${pkgs.bash}/bin/bash ${./assets/scripts/claude-marketplace-register.sh} || true
   '';
