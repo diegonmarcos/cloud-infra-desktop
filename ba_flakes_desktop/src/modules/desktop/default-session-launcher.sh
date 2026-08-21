@@ -19,6 +19,10 @@
 #   --dry-run         print the launch plan, touch nothing
 #   --desktop=N       only act on desktop N (scratch-test one desktop)
 #   --no-position     launch + title tabs but skip KWin positioning
+#   --force           bypass the emptiness guard (MANUAL use only — it is what
+#                     stops duplication at login, so forcing on a populated
+#                     desktop is how you get two of everything). Pair it with
+#                     --desktop=N to fill in just the desktop that is missing.
 # ============================================================================
 set -u
 
@@ -41,11 +45,12 @@ SELF_DIR="$(dirname "$(readlink -f "$0")")"
 JSON="${DEFAULT_SESSION_JSON:-$SELF_DIR/default-session.json}"
 LOG="${XDG_STATE_HOME:-$HOME/.local/state}/default-session.log"
 
-DRY=0; ONLY_DESKTOP=""; DO_POSITION=1
+DRY=0; ONLY_DESKTOP=""; DO_POSITION=1; FORCE=0
 for a in "$@"; do case "$a" in
   --dry-run)     DRY=1 ;;
   --desktop=*)   ONLY_DESKTOP="${a#*=}" ;;
   --no-position) DO_POSITION=0 ;;
+  --force)       FORCE=1 ;;
 esac; done
 
 mkdir -p "$(dirname "$LOG")"
@@ -113,11 +118,15 @@ for _a in $(q '[.desktops[].windows[].app] | unique | .[]'); do
     _running="${_running:+$_running }$_a"
   fi
 done
-if [ -n "$_running" ]; then
+if [ -n "$_running" ] && [ "$FORCE" = 0 ]; then
   log "desktop is not empty (already running: $_running) — skipping default layout"
   exit 0
 fi
-log "desktop is empty — applying default layout"
+if [ -n "$_running" ]; then
+  log "FORCED past the emptiness guard (already running: $_running) — expect duplicates unless --desktop=N narrows this"
+else
+  log "desktop is empty — applying default layout"
+fi
 
 # ── Ensure the virtual desktops exist (data: .virtual_desktops) ─────────────
 # The layout below targets desk4. Placing a window on a desktop that does not
@@ -183,7 +192,19 @@ kwin_eval(){ # $1 = path to .js — load, run, stop (best-effort, bounded)
 }
 
 spawn(){ # spawn detached, echo pid. $@ = argv
-  setsid "$@" >/dev/null 2>&1 &
+  # 9>&- is load-bearing. fd 9 is the flock this script holds, and bash does not
+  # set close-on-exec on it, so without this every launched app INHERITS the
+  # lock and holds it for as long as it lives — Dolphin, Brave, and every shell
+  # they spawn. Verified 2026-08-21 by walking /proc/*/fd: after one run the
+  # lock was held by .dolphin-wrappe, .brave-wrapped, brave, fish and two cats,
+  # long after this script had exited.
+  #
+  # The effect is that the launcher can never run a second time until every app
+  # from the first run has quit. At login that is invisible, because one run is
+  # all you want — which is exactly why it survived: it inflates the "another
+  # instance holds the lock" count with runs that were never concurrent at all,
+  # and makes any manual re-run silently a no-op.
+  setsid "$@" >/dev/null 2>&1 9>&- &
   echo "$!"
 }
 
