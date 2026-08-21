@@ -11,20 +11,32 @@
 # ── Why the default-session launcher is gone ────────────────────────────────
 # default-session-launcher.sh built the layout by hand: spawn ten apps, drive
 # Konsole's DBus to build tab/split trees, then re-assert window geometry across
-# ten KWin scripting passes. It is kept in this folder for reference (and for
-# the Konsole tab-building technique, which is genuinely hard-won) but is no
-# longer wired to anything.
+# ten KWin scripting passes. The .sh and .json stay in this folder for reference
+# (the Konsole tab-building technique is genuinely hard-won); default-session.nix
+# — the module that deployed them and installed the autostart entry — is gone,
+# so there is nothing left to re-wire it by accident.
 #
-# It was removed because it duplicated the session on every start. Its only
-# guard was `run_on: fresh_only`, which tests for `noresume` on
-# /proc/cmdline — a per-BOOT signal, while the autostart fires per SESSION
-# START. Within one boot the cmdline never changes, so every re-login and every
-# ksmserver restart passed the gate and launched a complete fresh set. The log
-# recorded 104 runs, five of them inside a single second. That is where the 13
-# Dolphin windows, 12 Konsole processes and 15 Brave processes came from, and
-# on an 8GB box with a 5.6GiB user slice it fed an OOM loop: a kill restarts
-# the session manager, the session manager fires the launcher, the launcher
-# adds another full set, and round it goes.
+# It was removed because it duplicated the session on every start.
+# `run_on: fresh_only` tests for `noresume` on /proc/cmdline — a per-BOOT
+# signal, while the autostart fires per SESSION START. Within one boot the
+# cmdline never changes, so every re-login and every ksmserver restart passed
+# the gate and launched a complete fresh set. That is where the 13 Dolphin
+# windows, 12 Konsole processes and 15 Brave processes came from, and on an 8GB
+# box with a 5.6GiB user slice it fed an OOM loop: a kill restarts the session
+# manager, the session manager fires the launcher, the launcher adds another
+# full set, and round it goes.
+#
+# 2026-08-21, from ~/.local/state/default-session.log, correcting this note:
+# the gate was NOT the only guard — the launcher also takes an flock, and that
+# lock had blocked 86 duplicate runs against 129 that got through. The lock is
+# what kept this from being worse. It was also still firing right up to the
+# removal: 28 invocations in ONE second on the last login, all landing on the
+# skip path only because that was a restore boot (resume= on cmdline). On a
+# fresh boot all 28 would have passed the gate, leaving a single flock as the
+# only thing between the box and 28 concurrent layout builds.
+#
+# The lesson is in the shape, not the counts: a per-boot gate cannot guard a
+# per-session event, and a lock is a race mitigation, not a design.
 #
 # Plasma's own session restore does the same job without any of that. It
 # reopens what was actually open, on the right desktops, at the right sizes,
@@ -38,19 +50,41 @@ let
   wallpaperJson = builtins.fromJSON (builtins.readFile ./cloud-data-wallpaper.json);
   wallpaperPath = "${pkgs.kdePackages.plasma-workspace-wallpapers}/share/wallpapers/"
     + "${wallpaperJson.wallpaper.theme}/contents/images/${wallpaperJson.wallpaper.image}";
+
+  # Same convention as plasma.nix's repair scripts: the shell lives in a .sh,
+  # nothing is Nix-interpolated into it, and the module just calls the result.
+  defaultSessionReapScript = pkgs.writeShellApplication {
+    name = "default-session-reap";
+    runtimeInputs = [ pkgs.coreutils ];
+    text = builtins.readFile ./default-session-reap.sh;
+  };
 in
 {
   imports = [
     ./top-panel.nix       # top panel: storage, mem, cpu, network │ clock │ guard, psi
     ./bottom-panel.nix    # bottom panel: kickoff, pager, tasks, sysmon, TWO trays
-    ./default-session.nix # the fixed default layout + its autostart entry
   ];
 
-  # loginMode stays with ./default-session.nix (emptySession), because the fixed
-  # layout and Plasma's restore are alternatives, not partners: restoring the
-  # previous session AND imposing the template would give you both sets of
-  # windows. One file owning the launcher should own the switch that decides
-  # whether the launcher's work is wanted.
+  # ── Login/restore policy ────────────────────────────────────────────────────
+  # The fixed layout and Plasma's restore are alternatives, not partners:
+  # restoring the previous session AND imposing the template gives you both sets
+  # of windows. With the launcher unwired, this flips back to Plasma's restore.
+  #
+  # "restorePreviousLogout", NOT "restorePreviousSession" — the latter is the
+  # value ./session-restore.nix documents and it does not exist. Plasma 6.7.2's
+  # ksmserver only knows restorePreviousLogout and restoreSavedSession; anything
+  # else falls through to an empty session, so the typo would have SILENTLY
+  # given us exactly the emptySession we are trying to leave.
+  programs.plasma.configFile.ksmserverrc.General.loginMode = "restorePreviousLogout";
+
+  # ── Reap the launcher's deployed artifacts ──────────────────────────────────
+  # Deleting default-session.nix does not remove what it already wrote to disk,
+  # and ~/.config/autostart is read by ksmserver rather than home-manager, so an
+  # orphaned .desktop would keep firing the launcher on every login. The reasons
+  # and the safety argument live in the script's header, not here.
+  home.activation.reapDefaultSessionLauncher = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    ${defaultSessionReapScript}/bin/default-session-reap || true
+  '';
 
   # The wallpaper stays declared in plasma.nix (programs.plasma.workspace.wallpaper,
   # plus the lock screen and SDDM, all resolved from cloud-data-wallpaper.json) —
