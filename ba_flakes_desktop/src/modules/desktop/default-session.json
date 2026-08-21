@@ -28,7 +28,12 @@
   "virtual_desktops": {
     "count": 4,
     "rows": 1,
-    "names": [ "Desk1", "Desk2", "Desk3", "Desk4" ]
+    "names": [
+      "Desk1",
+      "Desk2",
+      "Desk3",
+      "Desk4"
+    ]
   },
   "fallback": {
     "_comment": "Guarantees a crashing/hanging app can NEVER hold the login. The launcher runs from a Plasma autostart entry with X-KDE-autostart-condition=ksmserver and phase=2 — i.e. AFTER the session is up, so it cannot block login. (It is NOT a systemd oneshot; this line said so until 2026-08-21.) Each app is spawned detached, and each launch is wrapped in `timeout`. A failed/timed-out launch is logged (and ntfy'd) and the launcher moves on to the next app.",
@@ -118,7 +123,7 @@
           "cell": "left",
           "app": "konsole",
           "instance": "pane-left",
-          "_comment": "5 tabs: yazi, fzf, home (plain), ___ (plain), my-ai. command runs in the tab's root pane; missing binary falls back to a plain shell.",
+          "_comment": "5 tabs: yazi, fzf, home (plain), ___ (plain), my-ai. command runs in the tab-s root pane; missing binary falls back to a plain shell.",
           "tabs": [
             {
               "title": "yazi",
@@ -153,9 +158,54 @@
       "id": 2,
       "windows": [
         {
-          "cell": "full",
-          "app": "brave",
-          "urls": []
+          "cell": "left",
+          "app": "kate",
+          "_comment": "Left half only. The right half is deliberately empty - kate is the whole point of this desktop and a second window would just be in the way."
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "windows": [
+        {
+          "cell": "left",
+          "app": "konsole",
+          "instance": "journal",
+          "_comment": "Live journal views. -f tabs follow; boot/errors are one-shot snapshots of the current boot.",
+          "tabs": [
+            {
+              "title": "system",
+              "command": "journalctl -f"
+            },
+            {
+              "title": "user",
+              "command": "journalctl --user -f"
+            },
+            {
+              "title": "kernel",
+              "command": "journalctl -kf"
+            },
+            {
+              "title": "boot",
+              "command": "journalctl -b"
+            },
+            {
+              "title": "errors",
+              "command": "journalctl -p err -b"
+            }
+          ]
+        },
+        {
+          "cell": "right",
+          "app": "konsole",
+          "instance": "atop",
+          "_comment": "Single tab running atop - the live resource view that would have made this months RAM hunt a glance instead of a ps dump.",
+          "tabs": [
+            {
+              "title": "atop",
+              "command": "atop"
+            }
+          ]
         }
       ]
     },
@@ -165,9 +215,13 @@
         {
           "cell": "left",
           "app": "dolphin",
+          "_comment": "arg_mode=paths - dolphin opens ONE TAB PER PATH, so this list is the tab bar left to right. Details view is the default via dolphinrc GlobalViewProps (see plasma.nix).",
           "args": [
             "/home/diego",
-            "/home/diego/git"
+            "/home/diego/git",
+            "/home/diego/git/cloud",
+            "/home/diego/git/cloud-unix",
+            "/home/diego/Downloads"
           ]
         },
         {
