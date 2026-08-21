@@ -60,8 +60,32 @@ ghcr_login() {
 # ═══════════════════════════════════════════════════════════════════
 # STEP 1: BUILD — src/ + flake → dist/ (self-contained artifact)
 # ═══════════════════════════════════════════════════════════════════
+# Refuse to build an image that bakes a private repo into a public layer.
+# Data-driven from build.json::private_repos - see the _doc there for why a
+# token is not the fix. Runs before anything is generated, so a bad
+# Containerfile never reaches dist/, let alone GHCR.
+assert_no_private_repos() {
+    local repo hits found=0
+    while read -r repo; do
+        [ -z "$repo" ] && continue
+        hits="$(command grep -rn "diegonmarcos/${repo}\(\.git\)\?" "$SRC_DIR" 2>/dev/null \
+                | command grep -v '^[^:]*:[0-9]*:#' || true)"
+        if [ -n "$hits" ]; then
+            found=1
+            echo "FATAL: private repo '${repo}' is cloned at image build time:" >&2
+            printf '%s\n' "$hits" >&2
+        fi
+    done < <(python3 -c "import json;print('\n'.join(json.load(open('$SCRIPT_DIR/build.json')).get('private_repos',[])))")
+    if [ "$found" = "1" ]; then
+        echo "These images publish to a PUBLIC registry. Clone private content at RUNTIME with an injected key." >&2
+        exit 1
+    fi
+    log "guard: no private repo cloned at build time"
+}
+
 step_build() {
     log "Step 1: BUILD — generating dist/..."
+    assert_no_private_repos
     rm -rf "$DIST_DIR"
     mkdir -p "$DIST_DIR"
 

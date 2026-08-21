@@ -103,11 +103,17 @@ COPY compose-*.yaml /home/diego/.image-meta/
 USER diego
 WORKDIR /home/diego
 
-# ── Clone all repos (self-contained image) ──────────────────────
+# ── Clone all repos — PUBLIC ONLY ───────────────────────────────
+#
+# cloud-data is PRIVATE and is deliberately absent, for the same reason as in
+# Containerfile.deb-nix: this image publishes to
+# ghcr.io/diegonmarcos/user-dev-x86-deb-apt, which is public, so a private repo
+# baked in at build time is published to everyone who pulls it - and a clone
+# layer keeps the contents even if a later layer removes the directory.
+# Clone private repos at RUNTIME with an injected deploy key instead.
 RUN mkdir -p /home/diego/git && cd /home/diego/git \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-unix.git \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-infra.git \
-    && git clone --depth 1 https://github.com/diegonmarcos/cloud-data.git \
     && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git front \
     && git clone --depth 1 https://github.com/diegonmarcos/front-data.git \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-mykonsole-dtk.git

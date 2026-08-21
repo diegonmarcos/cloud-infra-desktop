@@ -36,11 +36,22 @@ RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh \
     && nix-channel --add https://nixos.org/channels/nixos-24.11 nixpkgs \
     && nix-channel --update
 
-# Clone repos
+# Clone repos — PUBLIC ONLY.
+#
+# cloud-data is PRIVATE and is deliberately absent. This image is published to
+# ghcr.io/diegonmarcos/user-dev-x86-deb-nix-hm, which is public: baking a
+# private repo into it would publish that repo's entire contents to anyone who
+# pulls the image, and a `git clone` layer keeps them even if a later layer
+# deletes the directory. Making the build succeed by injecting a token would
+# be strictly worse - it publishes the same content AND risks the token
+# landing in a layer.
+#
+# The private repo is cloned at RUNTIME with an injected deploy key, which is
+# the pattern cb_containers-builders/src/docker/Dockerfile already documents
+# and follows. Do not add a private repo to this list.
 RUN mkdir -p /home/diego/git && cd /home/diego/git \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-unix.git \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-infra.git \
-    && git clone --depth 1 https://github.com/diegonmarcos/cloud-data.git \
     && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git front \
     && git clone --depth 1 https://github.com/diegonmarcos/front-data.git \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-mykonsole-dtk.git
