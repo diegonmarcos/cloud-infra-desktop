@@ -10,22 +10,28 @@
     "There is deliberately no 'hidden' list: hiddenItems is computed as the",
     "complement of 'shown', because the systray default for an id it was never",
     "told about is *shown*. Listing hidden items only hides what we predicted,",
-    "which is how my-ai-usage / Xwayland Video Bridge / diskquota leaked in."
+    "which is how my-ai-usage / Xwayland Video Bridge / diskquota leaked in.",
+    "",
+    "2026-08-21: clipboard-systray was REGISTERED BY THE DAEMON BUT DECLARED NOWHERE.",
+    "An id neither tray was told about defaults to SHOWN, so it surfaced in tray 2",
+    "among the KDE indicators - the exact leak this file warns about above, and the",
+    "reason hiddenItems is computed as the complement rather than listed. Verified",
+    "against the live registrar: my-konsole --tray-daemon (one process) publishes",
+    "NINE items, and the eight listed here were only ever eight."
   ],
-
   "always_hidden": [
     "org.kde.plasma.keyboardlayout",
     "org.kde.plasma.keyboardindicator"
   ],
-
   "trays": [
     {
       "name": "ours",
       "shown": [
+        "clipboard-systray",
         "cloud-systray",
         "docker-systray",
-        "my-webserver-systray",
         "my-ai-systray",
+        "my-webserver-systray",
         "nix-flakes-systray",
         "vault-systray",
         "watchdog-systray",
