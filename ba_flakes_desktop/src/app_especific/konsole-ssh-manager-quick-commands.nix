@@ -10,21 +10,58 @@ let
   vms = [
     { alias = "gcp-proxy";     ip = "10.0.0.1"; user = "diego";  hasDropbear = true;  provider = "gcp"; gcInstance = "arch-1"; gcZone = "us-central1-a"; }
     { alias = "oci-mail";      ip = "10.0.0.3"; user = "ubuntu"; hasDropbear = true;  provider = "oci"; gcInstance = ""; gcZone = ""; }
-    { alias = "oci-analytics"; ip = "10.0.0.4"; user = "ubuntu"; hasDropbear = true;  provider = "oci"; gcInstance = ""; gcZone = ""; }
+    # publicIps: addresses on the wg-public mesh (10.1.0.0/24 + fd0c:1d01::/64),
+    # a SEPARATE tunnel from wg0 with its OWN numbering -- oci-analytics is the
+    # public hub at 10.1.0.1 while sitting at 10.0.0.4 on wg0. The last octet
+    # does NOT carry across the two meshes, so these are declared, never derived.
+    # Source: aa_desk-usr_x86_surface-linux_nixos/src/modules/wireguard-public-endpoints.json
+    # Only peers with a verified public-mesh address get one; the rest are wg0-only
+    # here because no file in the fleet enumerates their 10.1.0.x addresses.
+    { alias = "oci-analytics"; ip = "10.0.0.4"; user = "ubuntu"; hasDropbear = true;  provider = "oci"; gcInstance = ""; gcZone = ""; publicIps = [ "10.1.0.1" "fd0c:1d01::1" ]; }
     { alias = "oci-apps";      ip = "10.0.0.6"; user = "ubuntu"; hasDropbear = true;  provider = "oci"; gcInstance = ""; gcZone = ""; }
     { alias = "gcp-t4";        ip = "10.0.0.8"; user = "diego";  hasDropbear = false; provider = "gcp"; gcInstance = "ollama-spot-gpu"; gcZone = "us-central1-a"; }
   ];
 
   # ── Non-VM SSH peers (mobile/edge) ──────────────────────────────────────
-  # Termux: WG IP + SSH port sourced from termux flake build.json via the
-  # `unix-repo` flake input (pinned github fetch of the unix monorepo).
-  # 8022 is broken on this device (EADDRINUSE invisible to /proc), use 8023.
+  # Termux: every mesh address + SSH port + user sourced from the termux flake
+  # build.json via the `unix-repo` flake input (pinned github fetch of the unix
+  # monorepo). ONE array feeds both ends: sshd binds defaults.wg_ips (see
+  # bb_flakes_termux/src/modules/cloud-ide-sshd/default.nix) and the aliases
+  # below dial them, so a profile switch can never leave the client pointing at
+  # an address the daemon does not answer on.
+  #
+  # It used to read defaults.wg_ip -- ONE v4 address -- while sshd bound three.
+  # Selecting a v6 WireGuard profile then broke `ssh phone` against a daemon
+  # that was healthy and listening, because the alias could only ever dial
+  # 10.0.0.9. Reading the same array is the whole fix.
   termuxBuildJson = builtins.fromJSON (builtins.readFile "${inputs.unix-repo}/bb_flakes_termux/build.json");
   termuxWgIp = termuxBuildJson.defaults.wg_ip or "10.0.0.9";
-  termuxSshPort = termuxBuildJson.defaults.ssh_port or 8023;
-  extraSshHosts = [
-    { alias = "phone"; ip = termuxWgIp; user = "nix-on-droid"; port = termuxSshPort; }
-  ];
+  termuxWgIps = termuxBuildJson.defaults.wg_ips or [ termuxWgIp ];
+  termuxSshPort = termuxBuildJson.defaults.ssh_port or 8024;
+  termuxUser = termuxBuildJson.defaults.user or "nix-on-droid";
+
+  # Alias per address, named for the transport rather than an index, because
+  # "phone-2" tells you nothing at 3am. Derived from the address itself so a
+  # fourth entry in build.json needs no edit here:
+  #   10.0.0.9      -> phone        (wg0 mesh, v4)
+  #   10.1.0.9      -> phone-pub    (wg-public, v4)
+  #   fd0c:1d01::9  -> phone-v6     (wg-public, v6)
+  #
+  # wg0 carries no IPv6 at all -- its MTU is 1200, under the RFC8200 floor of
+  # 1280, so the kernel disables v6 on the interface. Any v6 alias is therefore
+  # reachable over wg-public only; that is a property of the address, not a
+  # thing to configure here.
+  meshAliasSuffix = addr:
+    if lib.hasInfix ":" addr then "-v6"
+    else if lib.hasPrefix "10.1." addr then "-pub"
+    else "";
+
+  extraSshHosts = map (addr: {
+    alias = "phone" + meshAliasSuffix addr;
+    ip = addr;
+    user = termuxUser;
+    port = termuxSshPort;
+  }) termuxWgIps;
 
   sshKey = "/home/diego/.ssh/id_rsa";
   cmd = "bash ~/git/cloud-mykonsole-dtk/5-infos/engines/cloud-container-orchestrator/cloud-container-orchestrator.sh";
@@ -239,6 +276,9 @@ let
     (mkSshHostEntry { host = vm.alias; hostname = vm.ip; user = vm.user; })
     + (lib.optionalString vm.hasDropbear
       (mkSshHostEntry { host = "${vm.alias}-dropbear"; hostname = vm.ip; user = vm.user; port = 2200; }))
+    + lib.concatMapStrings (a:
+        mkSshHostEntry { host = "${vm.alias}${meshAliasSuffix a}"; hostname = a; user = vm.user; })
+      (vm.publicIps or [ ])
   ) vms + lib.concatMapStrings (h:
     (mkSshHostEntry { host = h.alias; hostname = h.ip; user = h.user; port = h.port; })
   ) extraSshHosts
