@@ -55,16 +55,37 @@ PlasmoidItem {
     readonly property string killPath: runtimeDir + "/my-konsole-watchdog.kill"
     readonly property string guardUrl: "file:///run/freeze-guard.json"
 
+    // Last publisher timestamp actually applied. Assigning root.snap is what
+    // invalidates every binding in this instance, so it must not happen for a
+    // payload we have already shown.
+    property real lastTs: -1
+
     function refresh() {
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== XMLHttpRequest.DONE) return;
+            // The callback can outlive the component: a panel edit or a shell
+            // restart destroys the applet while a request is in flight, and
+            // then `root` is null and every line below throws. That is the
+            // 196 "TypeError: Value is null and could not be converted to an
+            // object" pairs this widget logged in one session — thrown from
+            // inside the catch block, so even the error path failed.
+            if (!root) return;
             try {
                 var d = JSON.parse(xhr.responseText);
                 // Older than a few periods means the daemon died. Showing its
                 // last numbers forever is how a dead publisher hides — exactly
                 // what froze the Claude status line for hours.
                 root.stale = ((Date.now() / 1000) - (d.ts || 0)) > 15;
+                // Skip the rebind when the publisher has not moved. pollMs is
+                // 1500 against a 2s publish cycle, so roughly a quarter of all
+                // polls used to re-assign an identical object and invalidate
+                // every binding in the applet for nothing — times seven
+                // instances. Staleness above is still updated every poll,
+                // because "the daemon stopped" must be noticed even when the
+                // payload is unchanged.
+                if (d.ts !== undefined && d.ts === root.lastTs) return;
+                root.lastTs = (d.ts === undefined ? -1 : d.ts);
                 root.snap = d;
             } catch (e) {
                 root.stale = true;
@@ -78,17 +99,28 @@ PlasmoidItem {
     // On ANY failure (file absent, bad JSON, mid-write partial read) fall
     // back to an empty object + stale=true rather than throwing — the guard
     // cluster below already treats {} as "nothing to show".
+    property real lastGuardTs: -1
+
     function refreshGuard() {
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== XMLHttpRequest.DONE) return;
+            if (!root) return;   // destroyed mid-flight — see refresh()
             try {
                 var d = JSON.parse(xhr.responseText);
                 root.guardStale = ((Date.now() / 1000) - (d.ts || 0)) > 15;
+                if (d.ts !== undefined && d.ts === root.lastGuardTs) return;
+                root.lastGuardTs = (d.ts === undefined ? -1 : d.ts);
                 root.guardSnap = d || {};
             } catch (e) {
                 root.guardStale = true;
-                root.guardSnap = {};
+                // Only clear if we were showing something; assigning {} over {}
+                // is another needless invalidation, and this path runs on every
+                // poll while the publisher is down.
+                if (root.lastGuardTs !== -1) {
+                    root.lastGuardTs = -1;
+                    root.guardSnap = {};
+                }
             }
         };
         xhr.open("GET", root.guardUrl);
