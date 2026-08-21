@@ -22,6 +22,15 @@
       "base": "pure nix (dockerTools.buildLayeredImage)"
     }
   },
-  "profiles": ["cli", "gui", "tty"],
-  "registry": "ghcr.io/diegonmarcos"
+  "profiles": [
+    "cli",
+    "gui",
+    "tty"
+  ],
+  "registry": "ghcr.io/diegonmarcos",
+  "_doc_private_repos": "Repos that must NEVER be cloned at image build time. Every image here publishes to a PUBLIC GHCR namespace, so a private repo baked into a layer is published to anyone who pulls - and the layer keeps it even if a later step deletes the directory. Injecting a token to make the clone succeed is strictly worse: same exposure, plus the token can land in a layer. Private content is cloned at RUNTIME with an injected deploy key. build.sh fails the build if a src Containerfile names any of these, so the mistake cannot ship again (it shipped twice: Containerfile.deb-nix and Containerfile.deb-apt both cloned cloud-data into public images).",
+  "private_repos": [
+    "cloud-data",
+    "cloud-vault"
+  ]
 }
