@@ -36,6 +36,23 @@ exactly one path — `~/.termux/boot-runner.sh` — and *that* script does the
 enumeration as the correct uid. The boot-script set stays data on the device:
 adding or changing scripts never requires rebuilding this APK.
 
+## Why it goes through `usr/bin/login`
+
+`TermuxService` runs the command with `ProcessBuilder` in the plain Android app
+context — **outside proot**. Out there `/nix` does not exist (it is a proot bind
+of `files/usr/nix`), so every symlink in `files/usr/bin` dangles. Exactly two
+real files live in that directory: `proot-static` and `login`.
+
+Pointing `RUN_COMMAND_PATH` at the boot script directly therefore fails with
+
+```
+Cannot run program ".../files/usr/bin/env": error=2, No such file or directory
+```
+
+— the script's own `#!/usr/bin/env sh` shebang cannot resolve. So the APK runs
+`login` and passes the script as an argument; `login` enters proot and does
+`exec /usr/bin/env "$@"` with the Nix session environment sourced.
+
 ## Install (once)
 
 1. GHA builds and signs it with the shared constellation key
