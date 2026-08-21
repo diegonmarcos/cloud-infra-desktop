@@ -2,7 +2,7 @@
 # ║                                                                  ║
 # ║   GENERATED FILE — DO NOT EDIT                                   ║
 # ║                                                                  ║
-# ║   Source : 1_cicd/src/cicd/ship-cloud-boot.yml
+# ║   Source : 1_cicd/src/cicd/ship-cloud-unix-termux-boot.yml
 # ║   Engine : 1_cicd/src/scripts/unix-ship-repo-workflow-engine.sh
 # ║   Rebuild: ./9_others/build.sh
 # ║                                                                  ║
@@ -10,14 +10,14 @@
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-name: "Ship → Cloud:Boot APK (build + sign with the shared constellation key)"
+name: "Ship → Cloud Unix Termux Boot APK (build + sign with the shared constellation key)"
 
-# Cloud:Boot starts Nix-on-Droid's boot scripts at device boot.
+# Cloud Unix Termux Boot starts Nix-on-Droid's boot scripts at device boot.
 #
 # It exists because Termux:Boot cannot: that addon declares
 # sharedUserId="com.termux", and Android grants a shared uid only to apps
 # signed with the same certificate. Nix-on-Droid ships signed by F-Droid, so
-# no APK we can build is able to join its uid. Cloud:Boot therefore talks to
+# no APK we can build is able to join its uid. Cloud Unix Termux Boot therefore talks to
 # the host through RunCommandService instead, which is exported behind a
 # "dangerous" (not "signature") permission plus allow-external-apps=true.
 #
@@ -41,21 +41,21 @@ on:
   push:
     branches: [main]
     tags:
-      - "ea_cloud-boot-v*"
+      - "cloud-unix-termux-boot-v*"
     paths:
-      - "ea_cloud-boot/**"
-      - "1_cicd/src/cicd/ship-cloud-boot.yml"
+      - "cloud-unix-termux-boot/**"
+      - "1_cicd/src/cicd/ship-cloud-unix-termux-boot.yml"
 
 permissions:
   contents: write
   packages: write
 
 env:
-  WORK_DIR: ea_cloud-boot
+  WORK_DIR: cloud-unix-termux-boot
 
 jobs:
   build:
-    name: "Build + sign Cloud:Boot APK"
+    name: "Build + sign Cloud Unix Termux Boot APK"
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -162,7 +162,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="ea_cloud-boot-v$(date +%Y%m%d%H%M)"
+          tag="cloud-unix-termux-boot-v$(date +%Y%m%d%H%M)"
           gh release create "$tag" ${{ env.WORK_DIR }}/dist/*.apk \
-            --title "Cloud:Boot $tag" \
+            --title "Cloud Unix Termux Boot $tag" \
             --notes "Runs ~/.termux/boot scripts in Nix-on-Droid at device boot."
