@@ -69,11 +69,11 @@
       },
       "locked": {
         "dir": "da_my-ai",
-        "lastModified": 1787056461,
-        "narHash": "sha256-vDvKSypWSqwj9CYarzLgEtVSKq3e65A9F4OXPK50svk=",
+        "lastModified": 1787318025,
+        "narHash": "sha256-B87d/SH98+dHpL5Xfbihni/QIBiKbdyIHVq0r9RObsk=",
         "owner": "diegonmarcos",
         "repo": "cloud-unix",
-        "rev": "54a4d50524544ff0e98d68e08b3f3d017bacb11c",
+        "rev": "6c8474f678e332919fcb7ddd670125558007404e",
         "type": "github"
       },
       "original": {
