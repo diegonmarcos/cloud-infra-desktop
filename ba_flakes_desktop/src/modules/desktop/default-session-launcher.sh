@@ -60,54 +60,109 @@ QDBUS="$(command -v qdbus6 || command -v qdbus || true)"
 
 q(){ jq -r "$1" "$JSON"; }
 
-# ── Boot-type gate (data: .fallback.run_on) ────────────────────────────────
-# "fresh_only" → impose the fixed layout ONLY on a FRESH boot. The signal is
-# `noresume` on the kernel cmdline: rEFInd "NixOS - Fresh Desktop" carries it;
-# "NixOS - Primary" (restore) carries resume= instead. On the restore path a
-# successful hibernate resume brings the session back with NO new login (so
-# this launcher never even runs), and a cold-fall-through is left to KDE rather
-# than overwritten with the default layout. "always" = old behaviour.
-RUN_ON="$(q '.fallback.run_on // "always"')"
-if [ "$RUN_ON" = "fresh_only" ]; then
-  if [ -r /proc/cmdline ]; then
-    if grep -qw noresume /proc/cmdline; then
-      log "fresh boot (noresume on cmdline) — applying default 4-desktop layout"
-    else
-      log "restore boot (no noresume on cmdline) — leaving the session to resume/KDE; skipping default layout (run_on=fresh_only)"
-      exit 0
-    fi
-  else
-    # cmdline unreadable (should never happen in a real session — it is
-    # world-readable). Fail SAFE toward applying the layout: an empty desktop on
-    # a genuine fresh login is more disruptive than an extra layout pass.
-    log "cmdline unreadable — cannot detect boot type; applying default layout (fail-safe)"
-  fi
-fi
-
-# ── Run-once guard ──────────────────────────────────────────────────────────
-# The boot-type gate above tests /proc/cmdline, which is a per-BOOT signal —
-# but this script is invoked per SESSION START. Within one boot the cmdline
-# never changes, so every re-login and every ksmserver restart passed that gate
-# and launched a complete fresh set of apps. The log showed 104 runs, five of
-# them inside one second, which is where 13 Dolphin windows and 12 Konsole
-# processes came from; on a box with a 5.6GiB user slice that closed an OOM
-# loop, because a kill restarts the session manager, which fires this again.
-#
-# Two guards, because they fail differently. The lock stops CONCURRENT
-# invocations (the five-in-one-second case). The stamp — in $XDG_RUNTIME_DIR,
-# which is tmpfs and therefore empty on a real boot — stops LATER ones in the
-# same boot, which is what "fresh_only" was always trying to express.
+# ── Concurrency lock ────────────────────────────────────────────────────────
+# Stops CONCURRENT invocations. This is not the duplication guard — it is only
+# a race guard, and it was doing the duplication guard's job for months (86
+# blocked runs against 129 that got through). The real guard is emptiness,
+# below.
 RUNDIR="${XDG_RUNTIME_DIR:-/tmp}"
 exec 9>"$RUNDIR/default-session.lock" 2>/dev/null || true
 if command -v flock >/dev/null 2>&1; then
   flock -n 9 || { log "another instance holds the lock — this one exits (fallback: no duplicate layout)"; exit 0; }
 fi
-STAMP="$RUNDIR/default-session.done"
-if [ -e "$STAMP" ]; then
-  log "already ran this boot ($STAMP exists) — skipping (fallback: no duplicate layout)"
+
+# ── Emptiness guard ─────────────────────────────────────────────────────────
+# THE gate. Apply the default layout only when there is nothing here to
+# disturb. Everything this replaces was a proxy for that question, and every
+# proxy answered it wrong:
+#
+#   run_on=fresh_only tested `noresume` on /proc/cmdline — a per-BOOT signal
+#   answering a per-SESSION question, and worse, it tested which rEFInd entry
+#   was chosen rather than what the kernel did. Booting "NixOS - Primary" with
+#   no hibernation image on disk cold-boots into a genuinely fresh session,
+#   and the gate skipped it. Verified 2026-08-21: cmdline carried
+#   resume=/dev/disk/by-label/Shared-Lib, the kernel loaded 0 hibernation
+#   images, session start 11:31:21 matched boot 11:31:30 — a fresh session
+#   that got no layout. That case was documented as a "rare cold-fall-through";
+#   it is every Primary boot that did not hibernate.
+#
+#   The $XDG_RUNTIME_DIR stamp had the opposite failure: it blocked a genuine
+#   fresh login that happened to be the second session of one boot.
+#
+# Note what does NOT need handling: a real hibernate resume restores the
+# session from the RAM image, so ksmserver never restarts and this script is
+# never invoked. Case "restore from snapshot" is correct by construction and
+# needs no code — which is why the boot-type gate could only ever produce
+# false negatives.
+#
+# Asking about processes rather than windows is deliberate: it needs no KWin
+# script injection, works before any window has mapped, and a running app is
+# what would actually be duplicated.
+# Match the NixOS wrapper name too. `pgrep -x konsole` does NOT match a running
+# Konsole here: the binary on PATH is a wrapper, so comm is ".konsole-wrapped",
+# and comm is truncated to 15 characters, making it ".konsole-wrappe" — which is
+# why the pattern ends open rather than at "-wrapped". Checked live: brave runs
+# as both "brave" and ".brave-wrapped", my-konsole as itself, Konsole ONLY as
+# the truncated wrapper. Matching just the plain name would have reported an
+# empty desktop with Konsole plainly open, and duplicated the whole layout on
+# top of it — the exact failure this guard exists to prevent.
+_procs="$(ps -eo comm= -u "$(id -u)" 2>/dev/null || true)"
+_running=""
+for _a in $(q '[.desktops[].windows[].app] | unique | .[]'); do
+  if printf '%s\n' "$_procs" | grep -qxE "$_a|\.$_a-wrapp.*"; then
+    _running="${_running:+$_running }$_a"
+  fi
+done
+if [ -n "$_running" ]; then
+  log "desktop is not empty (already running: $_running) — skipping default layout"
   exit 0
 fi
-: >"$STAMP" 2>/dev/null || true
+log "desktop is empty — applying default layout"
+
+# ── Ensure the virtual desktops exist (data: .virtual_desktops) ─────────────
+# The layout below targets desk4. Placing a window on a desktop that does not
+# exist lands it wherever KWin likes, which reads as "the layout is broken"
+# rather than "a desktop is missing" — so this is checked before any app is
+# spawned, not after.
+#
+# plasma.nix declares the same count from the same JSON key, so this is not a
+# second source of truth, it is the runtime half of one. It exists because
+# kwinrc is precisely the class of file KWin rewrites from its own in-memory
+# state — the same failure that wiped the systray lists out of appletsrc — so a
+# value written only at switch time can be undone before the next switch.
+#
+# Interface verified against the running KWin (6.7.2):
+#   property read uint  org.kde.KWin.VirtualDesktopManager.count
+#   method void         ...createDesktop(uint position, QString name)
+# Every call is best-effort: a missing qdbus or an unresponsive KWin must not
+# stop the layout, per the never-block-login contract.
+_qdbus=""
+for _c in qdbus6 qdbus; do command -v "$_c" >/dev/null 2>&1 && { _qdbus="$_c"; break; }; done
+if [ -n "$_qdbus" ]; then
+  _want="$(q '.virtual_desktops.count // 0')"
+  _have="$("$_qdbus" org.kde.KWin /VirtualDesktopManager count 2>/dev/null || echo 0)"
+  case "$_want$_have" in
+    *[!0-9]*) log "desktop count unreadable (want='$_want' have='$_have') — continuing" ;;
+    *)
+      if [ "$_have" -lt "$_want" ]; then
+        log "only $_have virtual desktop(s), layout needs $_want — creating the missing ones"
+        _i="$_have"
+        while [ "$_i" -lt "$_want" ]; do
+          _name="$(q ".virtual_desktops.names[$_i] // empty")"
+          [ -n "$_name" ] || _name="Desk$((_i + 1))"
+          "$_qdbus" org.kde.KWin /VirtualDesktopManager createDesktop "$_i" "$_name" >/dev/null 2>&1 \
+            || log "could not create desktop $((_i + 1)) ($_name) — continuing"
+          _i=$((_i + 1))
+        done
+        log "virtual desktops now: $("$_qdbus" org.kde.KWin /VirtualDesktopManager count 2>/dev/null || echo '?')"
+      else
+        log "virtual desktops: $_have (layout needs $_want) — nothing to create"
+      fi
+      ;;
+  esac
+else
+  log "no qdbus — cannot verify virtual desktop count, continuing"
+fi
 
 TIMEOUT="$(q '.fallback.per_app_launch_timeout_sec // 25')"
 POS_PASSES="$(q '.fallback.position_passes // 10')"

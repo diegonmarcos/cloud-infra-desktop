@@ -7,10 +7,32 @@
     "panel_height": 44,
     "split_x": 1152
   },
+  "_virtual_desktops_doc": [
+    "THE source of truth for how many virtual desktops exist. Two consumers,",
+    "one datum, so they cannot drift:",
+    "",
+    "  plasma.nix  reads .virtual_desktops into programs.plasma.kwin.virtualDesktops",
+    "              — the declarative path, applied at switch time via kwinrc.",
+    "  the launcher verifies the live count over KWin's DBus VirtualDesktopManager",
+    "              and creates any that are missing — the runtime safety net.",
+    "",
+    "Both are needed. kwinrc is exactly the kind of file KWin rewrites from its",
+    "own in-memory state, which is how the systray lists were lost; a declaration",
+    "that is only ever written at switch time can be silently undone before the",
+    "next one. And the layout below targets desk4 — placing a window on a desktop",
+    "that does not exist puts it wherever KWin feels like, which reads as 'the",
+    "layout is broken' rather than 'a desktop is missing'.",
+    "",
+    "count MUST cover the highest id used in .desktops[] below."
+  ],
+  "virtual_desktops": {
+    "count": 4,
+    "rows": 1,
+    "names": [ "Desk1", "Desk2", "Desk3", "Desk4" ]
+  },
   "fallback": {
-    "_comment": "Guarantees a crashing/hanging app can NEVER hold the login. The launcher runs as a systemd --user oneshot AFTER graphical-session.target (login is already complete before it starts), each app is spawned detached, and each launch is wrapped in `timeout`. A failed/timed-out launch is logged (and ntfy'd) and the launcher moves on to the next app.",
-    "_run_on_doc": "WHICH boot type gets the fixed default layout. 'fresh_only' (default): impose this layout ONLY on a FRESH boot — detected by `noresume` on the kernel cmdline, which the rEFInd 'NixOS - Fresh Desktop' entry carries. On a RESTORE boot (rEFInd 'NixOS - Primary', cmdline has resume=) the launcher skips: a real restore resumes the RAM image (no new login happens at all), and the rare cold-fall-through is left to KDE rather than clobbered with the fixed layout. 'always': impose the layout on every login regardless of boot type (the old behaviour).",
-    "run_on": "fresh_only",
+    "_comment": "Guarantees a crashing/hanging app can NEVER hold the login. The launcher runs from a Plasma autostart entry with X-KDE-autostart-condition=ksmserver and phase=2 — i.e. AFTER the session is up, so it cannot block login. (It is NOT a systemd oneshot; this line said so until 2026-08-21.) Each app is spawned detached, and each launch is wrapped in `timeout`. A failed/timed-out launch is logged (and ntfy'd) and the launcher moves on to the next app.",
+    "_gate_doc": "There is deliberately NO boot-type knob here any more. run_on/fresh_only tested `noresume` on /proc/cmdline: a per-BOOT signal answering a per-SESSION question, and it tested which rEFInd entry was booted rather than what the kernel actually did. On 2026-08-21 cmdline carried resume= while the kernel loaded ZERO hibernation images - a genuinely fresh session that got no layout. A real resume restores the session from the RAM image, so ksmserver never restarts and this launcher never runs; the gate could only ever be a false negative. The guard is now emptiness: the launcher skips if any of the layout apps are already running.",
     "per_app_launch_timeout_sec": 25,
     "service_timeout_sec": 120,
     "detached_spawn": true,
