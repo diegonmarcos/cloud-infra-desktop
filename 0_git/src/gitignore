@@ -150,6 +150,8 @@ ea_cloud-browser/**/*.keystore
 ea_cloud-browser/**/*.jks
 ea_cloud-vault/**/*.keystore
 ea_cloud-vault/**/*.jks
+ea_cloud-boot/**/*.keystore
+ea_cloud-boot/**/*.jks
 ea_cloud-contacts/**/*.keystore
 ea_cloud-contacts/**/*.jks
 ea_cloud-media-center/**/*.keystore
@@ -195,6 +197,9 @@ ea_cloud-news/**/build/
 ea_cloud-vault/.gradle/
 ea_cloud-vault/build/
 ea_cloud-vault/**/build/
+ea_cloud-boot/.gradle/
+ea_cloud-boot/build/
+ea_cloud-boot/**/build/
 ea_cloud-vault/.cache/
 ea_cloud-vault/.kotlin/
 ea_cloud-news/.cache/

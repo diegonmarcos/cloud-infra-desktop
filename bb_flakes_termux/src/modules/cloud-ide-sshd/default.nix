@@ -139,6 +139,39 @@ in
     cloud-ide-sshd ensure >/dev/null 2>&1
   '';
 
+  # allow-external-apps gates RunCommandService: without it the host refuses
+  # every intent from a package that is not itself, and Cloud:Boot is by
+  # necessity a separate package (it cannot share this app's uid without its
+  # signing key). This one line is what makes the boot APK able to do anything
+  # at all, and it is why that APK does not need to be signed by F-Droid.
+  home.file.".termux/termux.properties".text = ''
+    allow-external-apps=true
+  '';
+
+  # The single command Cloud:Boot launches. The APK cannot list ~/.termux/boot
+  # itself -- that directory is 0700 and owned by this uid, and the APK is a
+  # foreign uid -- so the enumeration has to happen here, on this side of the
+  # boundary. The APK therefore hardcodes exactly one path and nothing else,
+  # and the set of boot scripts stays data on the device rather than code in a
+  # binary that would need rebuilding and reinstalling to change.
+  #
+  # Only *.sh is executed. Home Manager leaves .hm-bak-<timestamp> copies of
+  # replaced files next to the originals -- there are five in that directory
+  # right now -- and a naive glob would run every stale generation alongside
+  # the current one.
+  home.file.".termux/boot-runner.sh" = {
+    executable = true;
+    text = ''
+      #!/usr/bin/env sh
+      # Launched by Cloud:Boot (com.termux.nix.boot) at device boot.
+      for _f in "$HOME"/.termux/boot/*.sh; do
+        [ -f "$_f" ] || continue
+        sh "$_f" >/dev/null 2>&1 &
+      done
+      wait
+    '';
+  };
+
   # Boot hook. Until this existed, EVERY path that started sshd needed a human
   # already at the phone: fish's shellInit (someone opens a terminal) or the
   # tail of build.sh (someone runs a switch). So after a reboot — or after
