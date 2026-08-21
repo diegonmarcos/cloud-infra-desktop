@@ -21,19 +21,25 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # my-ai owns the Claude config; this flake only deploys it. Consumed as a real
-    # flake (not `flake = false`) so we read the `claudeAssets` OUTPUT rather than
-    # reaching into a source tree — same input ba_flakes_desktop already uses.
-    # A relative `path:../../da_my-ai` is NOT an option: nix 2.18 rejects it with
-    # "relative path points outside of its parent's store path", so this is a remote
-    # ref and asset edits must be pushed before a switch will see them.
-    my-ai = {
-      url = "github:diegonmarcos/cloud-unix?dir=da_my-ai";
-      inputs.nixpkgs.follows = "nixpkgs-unstable";
-    };
+    # NOTE: there used to be a `my-ai` flake input here (github:diegonmarcos/
+    # cloud-unix?dir=da_my-ai) that claude/claude.nix consumed as a
+    # `claudeAssets` OUTPUT for the shared Claude config (agents/,
+    # cloud-marketplace/, settings base+overlay). REMOVED 2026-08-21: a
+    # pinned flake input only updates on `nix flake update my-ai` + a switch,
+    # and the lock sat stale 2026-08-18 to 2026-08-20 while cleanupPeriodDays
+    # landed in the SoT — the phone silently deployed pre-fix settings for two
+    # days, with no error, and ran on Claude Code's built-in 30-day transcript
+    # retention (the mechanism that then swept ~2.5 months of history).
+    # claude/claude.nix now reads da_my-ai/src/data/claude directly from the
+    # working checkout AT ACTIVATION TIME (home.activation.claudeAssets /
+    # claudeSettingsWritable there) — same fix ba_flakes_desktop already uses.
+    # A relative `path:../../da_my-ai` flake input was never an option anyway:
+    # nix 2.18 rejects it ("relative path points outside of its parent's
+    # store path"), and a `path:` escaping src/ would copy the whole ~3.6GB
+    # repo into the store and kill proot mid-copy.
   };
 
-  outputs = { self, nixpkgs, nixpkgs-new, nixpkgs-unstable, nix-on-droid, home-manager, my-ai }:
+  outputs = { self, nixpkgs, nixpkgs-new, nixpkgs-unstable, nix-on-droid, home-manager }:
     let
       pkgsNew = import nixpkgs-new { system = "aarch64-linux"; };
       pkgsUnstable = import nixpkgs-unstable { system = "aarch64-linux"; config.allowUnfree = true; };
@@ -99,9 +105,9 @@
               # a different glibc store path than this flake's own pin).
               # Fixed in later patchelf releases; pkgsUnstable has one.
               _module.args.patchelfUnstable = pkgsUnstable.patchelf;
-              # my-ai owns the Claude config — claude/claude.nix reads its
-              # `claudeAssets` output.
-              _module.args.claudeSrc = my-ai.claudeAssets;
+              # claude/claude.nix reads the Claude config straight from the
+              # working checkout at activation time now — no flake-input arg
+              # needed. See the my-ai NOTE in this file's inputs block.
               # Derived in the outer `let` (one shared nerdfonts derivation; aliases
               # generated from modules/data/fish-commands.json).
               # `am` for Android intents. cloud-ide-sshd needs it to take a wake
