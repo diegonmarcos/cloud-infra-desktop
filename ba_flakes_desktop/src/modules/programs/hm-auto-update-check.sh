@@ -19,7 +19,19 @@
 # RUNTIME from CONFIG_JSON via jq — nothing is baked in by Nix interpolation.
 # See programs/hm-auto-update.nix (xdg.configFile deploy) and
 # hm-auto-update.json (the values + rationale, also consumed by build.sh).
-set -uo pipefail
+# errexit is deliberately OFF, and must be turned off EXPLICITLY: this script
+# is compiled by pkgs.writeShellApplication, which prepends `set -o errexit`
+# ahead of this line. The body is written throughout in check-explicitly style
+# (`cmd || { log; exit 0; }`, `${VAR:-default}` after a command substitution
+# that may fail), which errexit silently converts into "die on the first
+# non-zero exit" — including exits that are the NORMAL path, like yad
+# returning 70 when its countdown lapses.
+#
+# A bare `set -uo pipefail` does not clear an already-set errexit; only `+e`
+# does. Without this the countdown gate below killed the script mid-flight,
+# after the digest had been recorded, so the update was dropped and never
+# retried. Keep the `+e`.
+set +e -uo pipefail
 
 CONFIG_JSON="${HAU_CONFIG_JSON:-${XDG_CONFIG_HOME:-$HOME/.config}/cloud-data/hm-auto-update.json}"
 
@@ -93,6 +105,24 @@ fi
 # Record the new digest NOW: whether the user proceeds or skips, we must
 # not re-prompt every poll for the SAME digest. A later, different digest
 # will prompt afresh.
+#
+# But recording it early means any failure between here and the systemd-run
+# below burns the digest for good — the next poll sees "no change" and the
+# update is lost silently, with nothing in the log to say a switch was ever
+# due. That is what the errexit bug at the gate did for months. Roll the
+# digest back on any abnormal exit so the failure mode is "retries next
+# poll" instead of "never again"; DIGEST_COMMITTED is set once the outcome
+# is deliberate (switch launched, or user chose Skip).
+DIGEST_COMMITTED=0
+rollback_digest() {
+  _rc=$?
+  if [ "$_rc" -ne 0 ] && [ "$DIGEST_COMMITTED" -eq 0 ]; then
+    printf '%s' "$OLD_DIGEST" > "$DIGEST_FILE" 2>/dev/null || true
+    echo "hm-auto-update: aborted (exit $_rc) before switching — digest rolled back, will retry next poll" >&2
+  fi
+}
+trap rollback_digest EXIT
+
 echo "$NEW_DIGEST" > "$DIGEST_FILE"
 SHORT="${NEW_DIGEST#sha256:}"; SHORT="${SHORT:0:12}"
 
@@ -113,7 +143,18 @@ if [ "$DIALOG_ENABLED" = "1" ] && command -v yad >/dev/null 2>&1 \
    && { [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; }; then
   # Hard backstop (DELAY+5) in case yad itself hangs; yad's own --timeout
   # drives the visible countdown and exits 70 when it lapses.
-  timeout $((DELAY + 5)) \
+  #
+  # MUST stay wrapped in `if`. writeShellApplication compiles this with
+  # `set -o errexit`, and every outcome this gate cares about EXCEPT the
+  # "Switch now" button is a non-zero exit — 70 on timeout, 252 on close,
+  # 1 on Skip. As a bare command, errexit killed the script on that line,
+  # before `rc=$?` ever ran. The digest is recorded above, so the next poll
+  # saw "no change" and never retried: the unattended path — the whole
+  # point of the timer — could never switch. Only clicking "Switch now"
+  # (exit 0) worked, which is why this looked fine every time it was
+  # tested by hand. `if` puts the command in a condition context, where
+  # errexit does not apply.
+  if timeout $((DELAY + 5)) \
     yad --title="Home-manager auto-update" --window-icon=software-update-available \
         --width=460 --center --on-top --borders=12 \
         --image=software-update-available \
@@ -121,7 +162,7 @@ if [ "$DIALOG_ENABLED" = "1" ] && command -v yad >/dev/null 2>&1 \
         --timeout="$DELAY" --timeout-indicator=bottom \
         --button="Skip this build!process-stop:1" \
         --button="Switch now!system-software-update:0"
-  rc=$?
+  then rc=0; else rc=$?; fi
   case "$rc" in
     1) DECISION="skip" ;;   # explicit Skip only
     *) DECISION="proceed" ;; # 0 (now), 70 (timeout), 252 (closed), etc.
@@ -132,6 +173,7 @@ else
 fi
 
 if [ "$DECISION" = "skip" ]; then
+  DIGEST_COMMITTED=1
   echo "hm-auto-update: user skipped generation $SHORT (digest recorded; next change re-prompts)" >&2
   if [ "$NOTIFY_ENABLED" = "1" ] && command -v notify-send >/dev/null 2>&1; then
     notify-send -i process-stop "Home-manager auto-update" "Skipped generation $SHORT." || true

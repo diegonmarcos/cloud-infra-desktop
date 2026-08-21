@@ -26,6 +26,13 @@ echo "=== hm-auto-update-check ==="
 command -v jq >/dev/null 2>&1 || fail "jq not found — the script reads its config via jq"
 
 TMP_DIR="$(mktemp -d -t test-hm-auto-update.XXXXXX)"
+# Invoked below as `bash -o errexit -o nounset -o pipefail "$SCRIPT"`, NOT a
+# plain `bash "$SCRIPT"`. pkgs.writeShellApplication prepends exactly those
+# three to the generated wrapper, so a plain bash run tests a shell that does
+# not exist in production. That gap is why the errexit abort at the countdown
+# gate — where yad's normal timeout exit (70) killed the script after the
+# digest was already recorded — passed this suite every time. Keep the flags
+# in sync with writeShellApplication.
 SCRIPT="$SELF_DIR/hm-auto-update-check.sh"
 CONFIG_JSON="$TMP_DIR/hm-auto-update.json"
 BIN_DIR="$TMP_DIR/bin"
@@ -105,7 +112,7 @@ run_check() {
     HAU_BUILD_SH="/nonexistent/build.sh" \
     HAU_IMAGE="test/image" HAU_TAG="test" \
     HAU_DIALOG=0 HAU_DELAY=0 HAU_MIN_FREE_MB=0 \
-    bash "$SCRIPT"
+    bash -o errexit -o nounset -o pipefail "$SCRIPT"
 }
 
 # Dialog path: force a graphical session + enable the dialog; yad_stub decides.
@@ -116,7 +123,7 @@ run_check_dialog() {
     HAU_BUILD_SH="/nonexistent/build.sh" \
     HAU_IMAGE="test/image" HAU_TAG="test" \
     HAU_DIALOG=1 HAU_DELAY=0 HAU_MIN_FREE_MB=0 DISPLAY=":0" \
-    bash "$SCRIPT"
+    bash -o errexit -o nounset -o pipefail "$SCRIPT"
 }
 
 # RAM-guard path: impossibly high floor → must DEFER (no switch, no digest record).
@@ -127,7 +134,7 @@ run_check_lowram() {
     HAU_BUILD_SH="/nonexistent/build.sh" \
     HAU_IMAGE="test/image" HAU_TAG="test" \
     HAU_DIALOG=0 HAU_DELAY=0 HAU_MIN_FREE_MB=999999999 \
-    bash "$SCRIPT"
+    bash -o errexit -o nounset -o pipefail "$SCRIPT"
 }
 
 # ── first run: seeds baseline, does NOT switch ──────────────────────────
