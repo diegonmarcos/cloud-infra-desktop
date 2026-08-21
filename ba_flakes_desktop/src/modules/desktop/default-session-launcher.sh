@@ -231,10 +231,36 @@ konsole_cells(){ # $1=cell → echoes "COLS ROWS"
   # Any metric missing → emit nothing, and the caller launches without -p
   # (profile default). Never guess a size from half-known data.
   case "0" in "$aw"|"$ah"|"$cw"|"$ch") return 0 ;; esac
+  # THE LAUNCH SIZE IS THE FINAL SIZE. On Wayland the client decides its own
+  # size: KWin sends a configure and Konsole answers with the nearest whole
+  # number of character cells. Nothing on the compositor side overrides that —
+  # not a frameGeometry assignment, not quick-tile, and not the
+  # `strictgeometry` ("Obey geometry restrictions") window rule, which is an
+  # X11-era hint and was tested here with no effect. So the -p values below are
+  # not a hint, they ARE the geometry, and the arithmetic has to be right.
+  #
+  # A stacked pair therefore has to be sized as a PAIR. Split the total rows
+  # that fit, rather than giving each window an independent half and hoping the
+  # two quantised results happen to meet — they do not, and the shortfall of
+  # each lands as a visible seam between them.
+  #
+  #   rows that fit in the column, both frames paid for:
+  #     total = (height - 2*pad) / cell = (1426 - 62) / 16 = 85
+  #     top = ceil(85/2) = 43  ->  43*16 + 31 = 719
+  #     bot = 85 - 43   = 42   ->  42*16 + 31 = 703
+  #     719 + 703 = 1422 in 1426 — 4px, at the very bottom against the panel.
+  #
+  # 4px is the true minimum: 16*(r1+r2) = 1364 has no integer solution, so the
+  # column cannot be filled exactly by two cell-quantised terminals. What is
+  # controllable is WHERE the remainder goes, and it goes to the outer edge.
+  local total_rows top_rows
+  total_rows=$(( (ah - 2 * ph) / ch ))
+  top_rows=$(( (total_rows + 1) / 2 ))
   case "$1" in
-    left|right)                                    w=$((aw / 2)); h=$ah ;;
-    left-top|left-bottom|right-top|right-bottom)   w=$((aw / 2)); h=$(( (ah + 1) / 2 )) ;;
-    *)                                             w=$aw;         h=$ah ;;
+    left|right)                w=$((aw / 2)); h=$ah ;;
+    left-top|right-top)        w=$((aw / 2)); printf '%s %s\n' "$(( (aw / 2 - pw) / cw ))" "$top_rows"; return 0 ;;
+    left-bottom|right-bottom)  w=$((aw / 2)); printf '%s %s\n' "$(( (aw / 2 - pw) / cw ))" "$(( total_rows - top_rows ))"; return 0 ;;
+    *)                         w=$aw;         h=$ah ;;
   esac
   printf '%s %s\n' "$(( (w - pw) / cw ))" "$(( (h - ph) / ch ))"
 }
@@ -488,38 +514,39 @@ if [ "$DO_POSITION" = 1 ] && [ -s "$POSMAP" ]; then
 function deskObj(n){var ds=workspace.desktops;for(var i=0;i<ds.length;i++){if(ds[i].x11DesktopNumber===n)return ds[i];}return null;}
 function area(w){var a;try{a=workspace.clientArea(KWin.MaximizeArea,w);}catch(e){a=null;}
   if(!a||!a.width){var s=workspace.virtualScreenSize;a={x:0,y:0,width:s.width,height:s.height};}return a;}
-// GEOMETRY ASSIGNMENT — use Object.assign, nothing else.
+// GEOMETRY ASSIGNMENT — assign a FRESH literal with exactly four keys.
 //
-//   var q = Object.assign({}, w.frameGeometry);   q.width = ...;
-//   w.frameGeometry = q;
+//   w.frameGeometry = {x: X, y: Y, width: W, height: H};
 //
-// frameGeometry is documented read-write but behaves read-only if you mutate
-// the object it returns: the setter is never invoked, so KWin is never told the
-// geometry changed. Copying it, editing the copy and assigning the whole object
-// back does invoke the setter. Source:
-// https://discuss.kde.org/t/kwin-script-window-framegeometry-seems-to-be-readonly-even-if-the-docs-states-otherwise/17175
+// The API documents frameGeometry as the single read-write property for both
+// position and size (develop.kde.org/docs/plasma/kwin/api). Two other forms
+// look reasonable and both corrupt the result:
 //
-// This file previously mutated the returned object and claimed a plain
-// {x,y,width,height} literal "makes KWin honor size but RE-CENTER position".
-// Measured on KWin 6.7.2, 2026-08-21, both are wrong: mutation applied position
-// and SILENTLY DROPPED size, the literal applied neither. That is why desk3's
-// windows kept their startup size while landing on pixel-perfect coordinates —
-// left-top and left-bottom overlapped by 324px and the right window fell short
-// of the screen edge, with the log reporting success throughout. It also means
-// no window this launcher has ever placed had its SIZE applied; only Konsole
-// made that visible, because it starts at a size that does not fit.
+//   1. Mutating the object frameGeometry returns. The setter is never invoked,
+//      so KWin is never told anything changed.
+//   2. Object.assign({}, w.frameGeometry), edit, assign back — the form
+//      suggested at discuss.kde.org/t/…/17175. The returned object carries
+//      EIGHT keys: x,y,width,height,left,right,top,bottom. Copying all of them
+//      and editing only y/height leaves left/right/top/bottom describing the
+//      OLD rect, and the result is garbage: it produced 1427x992 windows on a
+//      1152-wide slot here.
 //
-// Ruled out by measurement, so do not re-investigate: size hints (min 150x150,
-// max unbounded, resizeable=true), maximized/fullscreen state, and the target
-// desktop being inactive.
+// Qt.rect() would be the natural constructor but Qt is undefined in this
+// engine (checked: typeof Qt === "undefined"), so a literal it is.
+//
+// Verified on KWin 6.7.2, 2026-08-21: a clean literal applied 0,40 1152x701
+// exactly, position and size in one assignment. Earlier readings that said
+// otherwise were contaminated — the launcher's own 10-pass positioning loop
+// from a previous invocation was still running and moving the same windows
+// during the measurement. Kill any running launcher before testing geometry.
 //
 // Konsole additionally QUANTISES to whole character cells — asked for 713 it
-// takes 701 (39 cells + frame) — so the size assignment alone cannot make it
-// fill a slot exactly. That is handled at launch instead, by asking in cells:
-// see konsole_cells() and .konsole_cell in the JSON. KWin's own quick-tile
-// (workspace.slotWindowQuickTile*) does not avoid this — tested, it quantises
-// the same way and then bottom-anchors the remainder, moving the leftover gap
-// into the middle of the screen instead of the outer edge.
+// takes 701 (39 cells + frame) — so no geometry call can make it fill a slot
+// exactly. That is handled at launch instead, by asking in cells: see
+// konsole_cells() and .konsole_cell in the JSON. KWin's own quick-tile
+// (workspace.slotWindowQuickTile*) does not avoid it either — tested, it
+// quantises the same way and then bottom-anchors the remainder, moving the
+// leftover gap into the middle of the screen instead of the outer edge.
 // Clear maximized/fullscreen BEFORE touching geometry. A maximized window keeps
 // its maximized geometry no matter what you assign to frameGeometry, so the tile
 // silently did nothing for any app that restores itself maximized. Kate is one:
@@ -537,25 +564,60 @@ function unmax(w){
 // pixel height leaves no 1px gap between the two.
 function place(w,cell){unmax(w);var a=area(w);var hw=Math.floor(a.width/2);
   var th=Math.ceil(a.height/2);var bh=a.height-th;var rx=a.x+a.width-hw;
-  var g=Object.assign({},w.frameGeometry);
-  if(cell==="left"){g.x=a.x;g.y=a.y;g.width=hw;g.height=a.height;}
-  else if(cell==="right"){g.x=rx;g.y=a.y;g.width=hw;g.height=a.height;}
-  else if(cell==="left-top"){g.x=a.x;g.y=a.y;g.width=hw;g.height=th;}
-  else if(cell==="left-bottom"){g.x=a.x;g.y=a.y+th;g.width=hw;g.height=bh;}
-  else if(cell==="right-top"){g.x=rx;g.y=a.y;g.width=hw;g.height=th;}
-  else if(cell==="right-bottom"){g.x=rx;g.y=a.y+th;g.width=hw;g.height=bh;}
-  else{g.x=a.x;g.y=a.y;g.width=a.width;g.height=a.height;}
-  // PASS 1 — object copy: applies the SIZE, and re-centres x/y on the screen.
-  w.frameGeometry=g;
-  // PASS 2 — mutate the returned object: applies x/y, ignores size. Measured
-  // 576,402 after pass 1 alone on a 2304-wide screen, i.e. dead centre.
-  // Neither form does both; this is the whole reason for two assignments.
-  var p=w.frameGeometry;p.x=g.x;p.y=g.y;w.frameGeometry=p;}
+  var x,y,ww,hh;
+  if(cell==="left"){x=a.x;y=a.y;ww=hw;hh=a.height;}
+  else if(cell==="right"){x=rx;y=a.y;ww=hw;hh=a.height;}
+  else if(cell==="left-top"){x=a.x;y=a.y;ww=hw;hh=th;}
+  else if(cell==="left-bottom"){x=a.x;y=a.y+th;ww=hw;hh=bh;}
+  else if(cell==="right-top"){x=rx;y=a.y;ww=hw;hh=th;}
+  else if(cell==="right-bottom"){x=rx;y=a.y+th;ww=hw;hh=bh;}
+  else{x=a.x;y=a.y;ww=a.width;hh=a.height;}
+  setGeom(w,x,y,ww,hh);}
+// TWO assignments, in this order, because neither form does both:
+//   1. fresh 4-key literal  -> applies SIZE, re-centres x/y on the screen
+//   2. mutate what it returns -> applies x/y, ignores size
+// Measured on KWin 6.7.2 2026-08-21: literal alone left every window at
+// x=576 (dead centre of 2304) with the right size; mutation alone left every
+// window pixel-perfect in position at its untouched startup size.
+function setGeom(w,x,y,ww,hh){
+  w.frameGeometry={x:x,y:y,width:ww,height:hh};
+  var p=w.frameGeometry;p.x=x;p.y=y;w.frameGeometry=p;
+}
 var ws=workspace.windowList?workspace.windowList():workspace.clientList();
+var placed=[];
 for(var i=0;i<ws.length;i++){var w=ws[i];if(!w.normalWindow)continue;
   var t=byPid[""+w.pid]||byClass[(""+w.resourceClass).toLowerCase()];if(!t)continue;
   var d=deskObj(t.d);if(d){try{w.desktops=[d];}catch(e){try{w.desktop=t.d;}catch(e2){}}}
   try{place(w,t.cell);}catch(e){}
+  placed.push({w:w,t:t});
+}
+// SEAM PASS — butt each *-bottom window against the ACTUAL bottom edge of the
+// *-top window above it, instead of the ideal midpoint.
+//
+// The two never agree: a terminal quantises to whole character cells, so a
+// window asked for 713 takes 701 and the 12px it declined shows up as a gap
+// between the two windows. Computing the slot cannot fix that, because the
+// launcher does not know what the client will accept until it has accepted it.
+// Reading the real geometry back does, and it works for any client that
+// quantises for any reason — not just Konsole, and with no font metrics.
+//
+// Runs inside the same repeating pass as everything else, so it re-converges
+// as slow windows map and settle.
+for(var j=0;j<placed.length;j++){
+  var b=placed[j];var col=null;
+  if(b.t.cell==="left-bottom")col="left-top";
+  else if(b.t.cell==="right-bottom")col="right-top";
+  if(!col)continue;
+  for(var k=0;k<placed.length;k++){
+    var a2=placed[k];
+    if(a2.t.cell!==col||a2.t.d!==b.t.d)continue;
+    var top=a2.w.frameGeometry, area2=area(b.w), cur=b.w.frameGeometry;
+    var y=top.y+top.height;
+    var h=area2.y+area2.height-y;
+    if(h<=0)break;
+    setGeom(b.w,top.x,y,cur.width,h);
+    break;
+  }
 }
 JS
   } >"$POSMAP.js"
