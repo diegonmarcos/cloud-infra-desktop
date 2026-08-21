@@ -1,4 +1,4 @@
-# Cloud:Boot
+# Cloud Unix Termux Boot
 
 Runs `~/.termux/boot/*.sh` inside Nix-on-Droid at device boot.
 
@@ -39,7 +39,7 @@ adding or changing scripts never requires rebuilding this APK.
 ## Install (once)
 
 1. GHA builds and signs it with the shared constellation key
-   (`ship-cloud-boot.yml`); download the APK artifact.
+   (`ship-cloud-unix-termux-boot.yml`); download the APK artifact.
 2. Install it on the phone (unknown sources).
 3. **Open it once.** Two separate reasons, both mandatory: RUN_COMMAND is a
    runtime permission, and Android keeps a never-launched app in the "stopped"
