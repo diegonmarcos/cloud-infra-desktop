@@ -227,6 +227,16 @@ if [ -f "$APK/app/src/main/java/com/termux/nix/boot/BootReceiver.java" ]; then
     && ok "APK entry point and flake-deployed runner path agree" \
     || nope "boot-runner path mismatch between APK and flake — boot silently does nothing"
 
+  # TermuxService runs the command OUTSIDE proot, where /nix does not exist and
+  # every files/usr/bin entry is a dangling symlink into /nix/store. Only
+  # usr/bin/login (and proot-static) are real files out there. Executing the
+  # boot script directly fails with "Cannot run program .../usr/bin/env" --
+  # its own shebang cannot resolve. Measured on galaxy 2026-08-21.
+  grep -q 'files/usr/bin/login' "$APK/app/src/main/java/com/termux/nix/boot/BootReceiver.java" \
+    && grep -q 'RUN_COMMAND_ARGUMENTS' "$APK/app/src/main/java/com/termux/nix/boot/BootReceiver.java" \
+    && ok "boot command enters proot via usr/bin/login (nothing under /nix runs outside it)" \
+    || nope "APK executes the boot script directly — it cannot run outside proot"
+
   # A shared uid is impossible without F-Droid's key; declaring one makes the
   # APK uninstallable (INSTALL_FAILED_SHARED_USER_INCOMPATIBLE).
   grep -q 'android:sharedUserId=' "$APK/app/src/main/AndroidManifest.xml" \

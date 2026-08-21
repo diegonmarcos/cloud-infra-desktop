@@ -50,9 +50,29 @@ public class BootReceiver extends BroadcastReceiver {
     private static final String RUN_COMMAND_SERVICE = "com.termux.app.RunCommandService";
 
     /**
-     * The single entry point executed at boot. It lives inside the host's home
-     * directory and is written by the Nix flake, which is also what guarantees
-     * the path is stable.
+     * The ONLY executable reachable from here. TermuxService runs the command
+     * with ProcessBuilder in the plain Android app context -- OUTSIDE proot --
+     * where /nix does not exist (it is a proot bind of files/usr/nix). Every
+     * binary in files/usr/bin is a symlink into /nix/store, so all of them are
+     * dangling from out here. Exactly two real files exist in that directory:
+     * proot-static and this one.
+     *
+     * Verified the hard way on galaxy 2026-08-21: pointing RUN_COMMAND_PATH at
+     * the boot script directly failed with
+     *   Cannot run program ".../files/usr/bin/env": error=2
+     * because the script's own "#!/usr/bin/env sh" shebang resolved to a
+     * dangling symlink. The script was fine; nothing that reaches /nix can run.
+     */
+    private static final String LOGIN = "/data/data/" + NOD + "/files/usr/bin/login";
+
+    /**
+     * The boot script, passed as an ARGUMENT to login rather than executed.
+     * login enters proot and does `exec /usr/bin/env "$@"` with the Nix session
+     * environment sourced, so from there the shebang resolves and the nix
+     * profile is on PATH.
+     *
+     * It lives in the host's home directory and is written by the Nix flake,
+     * which is what guarantees the path is stable.
      */
     private static final String BOOT_RUNNER =
         "/data/data/" + NOD + "/files/home/.termux/boot-runner.sh";
@@ -63,7 +83,8 @@ public class BootReceiver extends BroadcastReceiver {
 
         Intent run = new Intent(NOD + ".RUN_COMMAND");
         run.setClassName(NOD, RUN_COMMAND_SERVICE);
-        run.putExtra(NOD + ".RUN_COMMAND_PATH", BOOT_RUNNER);
+        run.putExtra(NOD + ".RUN_COMMAND_PATH", LOGIN);
+        run.putExtra(NOD + ".RUN_COMMAND_ARGUMENTS", new String[]{ "sh", BOOT_RUNNER });
         // Background, i.e. an app shell rather than a visible terminal session:
         // nothing is on screen at boot and a foreground session would steal it.
         run.putExtra(NOD + ".RUN_COMMAND_BACKGROUND", true);
@@ -78,7 +99,7 @@ public class BootReceiver extends BroadcastReceiver {
             } else {
                 context.startService(run);
             }
-            Log.i(LOG_TAG, "requested " + BOOT_RUNNER + " via " + NOD);
+            Log.i(LOG_TAG, "requested " + BOOT_RUNNER + " via " + LOGIN);
         } catch (Exception e) {
             // Never crash the boot broadcast. The most likely causes are the
             // RUN_COMMAND permission not yet granted, or allow-external-apps
