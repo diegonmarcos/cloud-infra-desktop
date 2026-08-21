@@ -416,13 +416,13 @@ nix_switch() {
     _rc_file=$(mktemp)
     if check_home_manager 2>/dev/null; then
         if [ -n "$_nsp" ]; then
-            { NSP_LOG_FILE="$LOG_FILE" $_nsp home-manager switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref"; echo $? > "$_rc_file"; }
+            { NSP_LOG_FILE="$LOG_FILE" $_nsp home-manager switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref" 9>&-; echo $? > "$_rc_file"; }
         else
             { home-manager switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
         fi
     else
         if [ -n "$_nsp" ]; then
-            { NSP_LOG_FILE="$LOG_FILE" $_nsp nix run home-manager -- switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref"; echo $? > "$_rc_file"; }
+            { NSP_LOG_FILE="$LOG_FILE" $_nsp nix run home-manager -- switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref" 9>&-; echo $? > "$_rc_file"; }
         else
             { nix run home-manager -- switch --impure -b "$HM_BACKUP_EXT" --flake "$flake_ref" 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
         fi
@@ -1317,7 +1317,7 @@ cmd_pull() {
 
         _sudo="/run/wrappers/bin/sudo"; [ -x "$_sudo" ] || _sudo="sudo"
         log_info "Importing closure into the store (no build)..."
-        zstd -d -c "$_tb" | $_nsp $_sudo nix-store --import >/dev/null || { log_error "import failed"; return 1; }
+        zstd -d -c "$_tb" | $_nsp $_sudo nix-store --import 9>&- >/dev/null || { log_error "import failed"; return 1; }
     fi
     [ -d "$_sys" ] || { log_error "imported path $_sys missing after import"; return 1; }
 
@@ -1345,7 +1345,7 @@ cmd_pull() {
     # Wrap the activation in the KDE popup (phases + progress + Cancel). The
     # wrapper tees full output to NSP_LOG_FILE so the "in the way" retry below
     # still works; non-graphical falls back to a plain capture.
-    if [ -n "$_nsp" ]; then NSP_LOG_FILE="$_alog" $_nsp "$_act" >/dev/null 2>&1; _rc=$?; else "$_act" >"$_alog" 2>&1; _rc=$?; fi
+    if [ -n "$_nsp" ]; then NSP_LOG_FILE="$_alog" $_nsp "$_act" 9>&- >/dev/null 2>&1; _rc=$?; else "$_act" >"$_alog" 2>&1; _rc=$?; fi
     cat "$_alog"
     if [ "$_rc" -ne 0 ] && grep -q "is in the way of" "$_alog"; then
         log_warn "home-manager file conflict — backing up in-the-way files and retrying"
@@ -1355,7 +1355,7 @@ cmd_pull() {
                 mv -f "$_p" "${_p}.hm-backup-${_ts}" && log_info "  backed up: $_p -> ${_p}.hm-backup-${_ts}"
             fi
         done
-        if [ -n "$_nsp" ]; then NSP_LOG_FILE="$_alog" $_nsp "$_act" >/dev/null 2>&1; _rc=$?; else "$_act" >"$_alog" 2>&1; _rc=$?; fi
+        if [ -n "$_nsp" ]; then NSP_LOG_FILE="$_alog" $_nsp "$_act" 9>&- >/dev/null 2>&1; _rc=$?; else "$_act" >"$_alog" 2>&1; _rc=$?; fi
         cat "$_alog"
     fi
     rm -f "$_alog"
@@ -1561,6 +1561,27 @@ cmd_switch_runner() {
     # download, clobbering the other's partial zip — none ever completes.
     # flock on fd 9: second caller fails fast instead of silently destroying
     # the first one's progress. Lock dir survives; the fd releases on exit.
+    #
+    # "releases on exit" IS NOT TRUE FOR CHILDREN, and that broke this lock
+    # (found 2026-08-21). bash does not set close-on-exec on `exec 9>`, so every
+    # process spawned while the lock is held inherits fd 9 and keeps the lock
+    # alive for its own lifetime. The progress wrapper spawns exactly such a
+    # process on purpose — flakes-switch-progress-logs.sh:189 opens a companion
+    # Konsole documented as "never auto-closed", plus a second one on the
+    # failure path — so after any switch the lock stayed held by a window until
+    # the user closed it, and every later switch died on "another switch is
+    # already running". For the auto-updater that is a permanent stall: it fires
+    # from a timer, hits the stale lock, and no one is watching.
+    #
+    # Proven rather than reasoned: a script taking this lock, spawning a
+    # detached child and exiting leaves the lock held by that child, and a
+    # second run is refused. Same mechanism cost the default-session launcher
+    # its ability to run twice (see its spawn(), which now does 9>&- for this
+    # reason).
+    #
+    # Every invocation that can spawn a surviving process therefore closes fd 9
+    # explicitly with `9>&-`. If you add a call site that opens a window or
+    # daemonises, it needs the same, or this lock silently becomes permanent.
     _lock="$SCRIPT_DIR/.switch.lock"
     exec 9>"$_lock"
     if ! flock -n 9; then
