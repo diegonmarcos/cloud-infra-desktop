@@ -48,6 +48,11 @@ let
     text = builtins.readFile ./plasma-fix-missing-panel-widgets.sh;
   };
 
+  # Virtual-desktop count/rows/names: one datum in default-session.json, read
+  # both here (declarative, at switch time) and by default-session-launcher.sh
+  # (runtime, over KWin DBus). See that file's _virtual_desktops_doc.
+  defaultSessionJson = builtins.fromJSON (builtins.readFile ./default-session.json);
+
   # Same convention: the tray contents live in systray-items.json, the script
   # is plain shell, nothing about which item goes where is interpolated here.
   systrayConfigScript = pkgs.writeShellApplication {
@@ -370,10 +375,18 @@ in
     # ─────────────────────────────────────────────────────────────────
     kwin = {
       effects.shakeCursor.enable = true;
+      # Count/rows/names come from default-session.json's .virtual_desktops —
+      # the SAME key the session launcher checks over KWin's DBus at login.
+      # Hardcoding 4 here made this the second place the number lived, and the
+      # layout in that JSON targets desk4: the two could disagree with no
+      # eval error, leaving windows assigned to a desktop that does not exist.
+      # This is the declarative half (written to kwinrc at switch time); the
+      # launcher is the runtime half, because KWin rewrites kwinrc from its own
+      # state and can undo a switch-time value before the next switch.
       virtualDesktops = {
-        number = 4;
-        rows = 1;
-        names = [ "Desk1" "Desk2" "Desk3" "Desk4" ];
+        number = defaultSessionJson.virtual_desktops.count;
+        rows = defaultSessionJson.virtual_desktops.rows;
+        names = defaultSessionJson.virtual_desktops.names;
       };
 
       # Night Light always on (2200K warm)
