@@ -42,11 +42,19 @@ let
   snapshotExists = builtins.pathExists (snapshotDir + "/captured");
 in
 {
-  # NOTE: ksmserverrc.General.loginMode is now owned by ./default-session.nix
-  # (set to "emptySession" — the explicit data-driven launcher repopulates the
-  # 4 desktops instead of Plasma's native restore). Defining loginMode here too
-  # would be a plasma-manager double-definition error. The snapshot-deploy
-  # mechanism below is retained but inert (no snapshot captured).
+  # NOTE (2026-08-21): ksmserverrc.General.loginMode is owned by
+  # ./session-default-config.nix, now set to "restorePreviousLogout".
+  # ./default-session.nix — the previous owner, which set "emptySession" for the
+  # data-driven launcher — has been deleted along with that launcher's wiring.
+  # Defining loginMode here too would be a plasma-manager double-definition
+  # error. The snapshot-deploy mechanism below is retained but inert (no
+  # snapshot captured), and this module is not imported by anything.
+  #
+  # WARNING for anyone following the staged plan in the header above: the value
+  # it names, "restorePreviousSession", DOES NOT EXIST. Plasma 6.7.2's ksmserver
+  # recognises only "restorePreviousLogout" and "restoreSavedSession"; an
+  # unrecognised value falls through to an empty session, silently, which is
+  # indistinguishable from the restore simply not working.
 
   # Stage B: deploy the snapshot files into ~/.config/session/ via home.file.
   # Only fires once session-snapshot/captured exists (a marker file the
