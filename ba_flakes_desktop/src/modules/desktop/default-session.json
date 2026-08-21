@@ -266,18 +266,18 @@
     "cell_w": 7,
     "cell_h": 16,
     "pad_w": 32,
-    "pad_h": 77
+    "pad_h": 31
   },
   "_konsole_cell_doc": [
-    "Konsole sizes itself in CHARACTER CELLS and ignores the pixel size KWin assigns it - every window this launcher made settled at exactly its profile TerminalColumns x TerminalRows regardless of the cell it was placed in, which is what made desk3 overlap. So we ask in cells: -p TerminalColumns/-p TerminalRows at launch.",
+    "Konsole sizes itself in CHARACTER CELLS. On Wayland the CLIENT decides its size - KWin sends a configure and Konsole answers with the nearest whole cell count - so the -p TerminalColumns/TerminalRows values at launch ARE the final geometry. Nothing compositor-side overrides them: not frameGeometry, not quick-tile, not the strictgeometry window rule (an X11-era hint, tested with no effect).",
     "",
-    "Derived by launching two konsoles and measuring the frames:",
-    "  120c x 60r -> 872 x 1037",
-    "   60c x 30r -> 452 x  557",
-    "Two equations, two unknowns:",
-    "  cell_w = (872-452)/60 = 7      pad_w = 872 - 120*7  = 32",
-    "  cell_h = (1037-557)/30 = 16    pad_h = 1037 - 60*16 = 77",
+    "Measured 2026-08-21 from three live windows: 39 rows -> 655px, 40 -> 671, 84 -> 1375.",
+    "  cell_h = 671-655 = 16",
+    "  pad_h  = 655 - 39*16 = 31",
+    "and across the width: 160 cols -> 1152px, so cell_w = 7, pad_w = 1152 - 160*7 = 32.",
     "",
-    "pad is the window frame plus tab bar. Re-derive the same way if the profile font changes (app_especific/konsole.nix, currently JetBrainsMono NF 9) or the display scaling does."
+    "An earlier derivation from two THROWAWAY konsoles gave pad_h=77, and that 46px error is what left a seam between the stacked windows. Measure the windows the layout actually creates, not test ones - the frame differs.",
+    "",
+    "A stacked pair must be sized AS A PAIR: total = (h - 2*pad)/cell, top = ceil(total/2), bottom = the rest. Independent halves do not meet."
   ]
 }
