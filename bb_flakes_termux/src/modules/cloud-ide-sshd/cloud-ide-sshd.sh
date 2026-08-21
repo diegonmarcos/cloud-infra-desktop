@@ -159,28 +159,33 @@ listening_on_wg() {
 #
 # A wake lock is what tells Android not to suspend the app. There is no
 # `termux-wake-lock` binary in nix-on-droid (the wireguard-wstunnel.sh advisory
-# predates this environment); the lock is an Android intent, and the action
-# constant differs between Termux and its nix-on-droid fork. Rather than guess
-# one string, try each and stop at the first that is accepted.
+# predates this environment); the lock is an Android intent.
 #
-# Best-effort by design: every branch can fail, and sshd must still start. A
-# phone that is reachable until Doze beats a phone that refused to boot sshd
-# because an intent was rejected.
-WAKELOCK_STAMP="$HOME/.cache/sshd.wakelock"
-
-wake_lock_held() {
-  # The stamp is the only signal available: `am` reports delivery, not state,
-  # and Doze kills the process without clearing anything it wrote.
-  pgrep -f 'termux-wake-lock' >/dev/null 2>&1 && return 0
-  [ -f "$WAKELOCK_STAMP" ]
-}
-
+# Fire EVERY known action constant, every start. Two reasons, both measured on
+# galaxy 2026-08-21:
+#
+#  1. `am startservice` reports whether the COMPONENT resolved, not whether the
+#     ACTION meant anything to it. Both constants below returned "Starting
+#     service: Intent {...}" on a device where at most one can be real. So a
+#     first-wins loop does not select the working constant, it selects the first
+#     one — and reports a success it cannot actually know it had.
+#  2. There is no way to read the result back. `dumpsys power` returns empty for
+#     an app-uid process, so the held/not-held state is invisible from in here.
+#
+# Sending both is idempotent and costs two intents per daemon start. That beats
+# picking one on a coin flip. The observable check is the Termux notification.
+#
+# No stamp file: an earlier version cached "already acquired" on disk, which was
+# exactly backwards. Doze kills the process WITHOUT clearing anything it wrote,
+# so the stamp outlived the lock it recorded — and the next start read it, said
+# "held", and skipped re-acquiring. The one path that most needed the lock was
+# the one guaranteed to skip it.
+#
+# Best-effort by design: every branch can fail and sshd must still start. A
+# phone reachable until Doze beats one that refused to boot sshd over an intent.
 acquire_wake_lock() {
-  wake_lock_held && return 0
-
   if command -v termux-wake-lock >/dev/null 2>&1; then
     termux-wake-lock >/dev/null 2>&1 && {
-      : > "$WAKELOCK_STAMP" 2>/dev/null || true
       echo "wake lock: acquired via termux-wake-lock"
       return 0
     }
@@ -191,20 +196,18 @@ acquire_wake_lock() {
     return 1
   }
 
-  # com.termux.nix first: this environment is the fork, so its own constant is
-  # the likelier one. The upstream Termux action is the fallback because the
-  # fork may not have renamed it.
+  _sent=0
   for _act in com.termux.nix.service_wake_lock com.termux.service_wake_lock; do
-    if am startservice -a "$_act" \
-         com.termux.nix/com.termux.app.TermuxService >/dev/null 2>&1; then
-      : > "$WAKELOCK_STAMP" 2>/dev/null || true
-      echo "wake lock: acquired via intent $_act"
-      return 0
-    fi
+    am startservice -a "$_act" \
+      com.termux.nix/com.termux.app.TermuxService >/dev/null 2>&1 && _sent=$((_sent + 1))
   done
 
-  echo "wake lock: every intent rejected — Doze WILL kill this daemon" >&2
-  return 1
+  [ "$_sent" -gt 0 ] || {
+    echo "wake lock: every intent rejected — Doze WILL kill this daemon" >&2
+    return 1
+  }
+  echo "wake lock: $_sent intent(s) delivered (held state not readable from proot)"
+  return 0
 }
 
 REBIND_STAMP="$HOME/.cache/sshd.rebind-stamp"

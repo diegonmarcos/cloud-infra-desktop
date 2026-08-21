@@ -192,6 +192,20 @@ grep -q 'com.termux.nix.service_wake_lock' "$SCRIPT" \
   && ok "both wake-lock intent constants attempted (fork + upstream)" \
   || nope "only one intent constant tried — a wrong guess means no lock at all"
 
+# `am startservice` reports component resolution, not action validity: on
+# galaxy both constants returned success, so a first-wins loop selects the
+# first, not the working one. Both must be sent unconditionally.
+grep -qE 'break|return 0' <(sed -n '/^  for _act in/,/^  done/p' "$SCRIPT") \
+  && nope "wake-lock loop short-circuits — it picks the first constant, not a working one" \
+  || ok "every wake-lock intent is sent (am cannot report which action is real)"
+
+# The stamp bug: a disk cache of "already acquired" survives the Doze kill that
+# dropped the lock, so the next start skips re-acquiring — precisely when the
+# lock matters most. There must be no persisted held-state.
+grep -q 'WAKELOCK_STAMP\|wake_lock_held' "$SCRIPT" \
+  && nope "wake lock caches held-state on disk — it outlives the Doze reap it must survive" \
+  || ok "no persisted wake-lock state (a stamp outlives the lock it records)"
+
 grep -q 'termux-am' "$DIR/default.nix" \
   && ok "termux-am in runtimeInputs (am is how the lock is taken)" \
   || nope "am not on PATH — every intent will fail"
