@@ -48,6 +48,15 @@ let
     text = builtins.readFile ./plasma-fix-missing-panel-widgets.sh;
   };
 
+  # Details as the default Dolphin view. Not home.file: the target is a file
+  # Dolphin rewrites itself (it bumps a Timestamp= key), so a store symlink is
+  # replaced the first time Dolphin touches it. Same shape as konsolerc.
+  dolphinViewDefaultsScript = pkgs.writeShellApplication {
+    name = "dolphin-view-defaults";
+    runtimeInputs = [ pkgs.coreutils pkgs.kdePackages.kconfig ];
+    text = builtins.readFile ./dolphin-view-defaults.sh;
+  };
+
   # Virtual-desktop count/rows/names: one datum in default-session.json, read
   # both here (declarative, at switch time) and by default-session-launcher.sh
   # (runtime, over KWin DBus). See that file's _virtual_desktops_doc.
@@ -188,6 +197,12 @@ in
   # the data-driven implementation.
   home.activation.fixMissingPanelWidgets = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
     ${fixMissingPanelWidgetsScript}/bin/plasma-fix-missing-panel-widgets || true
+  '';
+
+  # Details as the default Dolphin view — see the script's header for why this
+  # is enforcement rather than a seed, and what that costs.
+  home.activation.dolphinViewDefaults = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
+    ${dolphinViewDefaultsScript}/bin/dolphin-view-defaults || true
   '';
 
   # Lock screen wallpaper — matches the desktop + SDDM wallpaper (declared in
@@ -565,6 +580,12 @@ in
         #     "fs.inotify.max_queued_events"  = 65536;
         #   };
         AutoRefresh = true;
+        # Apply ONE global view mode to every folder instead of remembering
+        # per-directory properties. Without this, the Details default written by
+        # ./dolphin-view-defaults.sh only applies to folders never visited
+        # before, which reads as "the setting did nothing" — every folder you
+        # already opened keeps whatever it had.
+        GlobalViewProps = true;
       };
       # Disable VCS overlay plugins. Default ("Git") makes Dolphin run
       # `git status --porcelain --ignored` on every directory it shows,
