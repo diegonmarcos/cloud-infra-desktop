@@ -88,10 +88,13 @@ jobs:
           token: ${{ secrets.ANDROID_SIGNING_VAULT_TOKEN }}
           path: .vault
 
-      - name: Install sops
+      - name: Install sops + ORAS + jq
         run: |
+          sudo apt-get update -y && sudo apt-get install -y jq
           curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 \
             | sudo tee /usr/local/bin/sops >/dev/null && sudo chmod +x /usr/local/bin/sops
+          curl -fsSL https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz \
+            | sudo tar -C /usr/local/bin -xzf - oras
 
       - name: Determine variant
         id: variant
@@ -148,6 +151,46 @@ jobs:
             "$BT/apksigner" verify --print-certs "$out"
           done
           ls -la dist/
+
+      # The Constellation store resolves this app through GHCR (for the installed
+      # -vs- available check) and installs it from the rolling release asset.
+      # Both names are read out of build.json here, so the store and the
+      # workflow cannot drift apart.
+      - name: Name the artifact from build.json
+        id: asset
+        working-directory: ${{ env.WORK_DIR }}
+        run: |
+          set -euo pipefail
+          name="$(jq -r '.release.gh_release.asset_name' build.json)"
+          src="$(ls dist/*-signed.apk | head -1)"
+          [ -f "$src" ] || { echo "FATAL: signing produced no APK"; exit 1; }
+          mv "$src" "dist/$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "image=$(jq -r '.release.ghcr | .registry + "/" + .namespace + "/" + .image' build.json)" >> "$GITHUB_OUTPUT"
+          echo "media=$(jq -r '.release.ghcr.media_type' build.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Push APK to GHCR via ORAS
+        working-directory: ${{ env.WORK_DIR }}/dist
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
+          short="${GITHUB_SHA:0:8}"
+          # ORAS 1.x sets the per-file media type as `file:type`, not --media-type.
+          oras push "${{ steps.asset.outputs.image }}:latest" \
+            "${{ steps.asset.outputs.name }}:${{ steps.asset.outputs.media }}"
+          oras push "${{ steps.asset.outputs.image }}:sha-${short}" \
+            "${{ steps.asset.outputs.name }}:${{ steps.asset.outputs.media }}"
+
+      - name: Attach to the rolling 'latest' release
+        working-directory: ${{ env.WORK_DIR }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload latest "dist/${{ steps.asset.outputs.name }}" --clobber \
+            || gh release create latest "dist/${{ steps.asset.outputs.name }}" \
+                 --title "Cloud constellation (rolling)" \
+                 --notes "Auto-updated from main."
 
       - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
