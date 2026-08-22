@@ -1085,19 +1085,40 @@ PlasmoidItem {
                         Component {
                             id: bargridDelegate
                             GridLayout {
+                                id: bargrid
+                                // The Repeater's model is a COUNT, not the array.
+                                //
+                                // bargridModel() .map()s a brand-new array of
+                                // brand-new objects on every call, so an array
+                                // model is a *different* model every tick, and a
+                                // Repeater answers a new model by destroying and
+                                // rebuilding every delegate -- 8 bars x 7 panel
+                                // instances, twice a second, just to redraw the
+                                // same 8 bars with new numbers.
+                                //
+                                // A count is equal across ticks, so the Bars
+                                // survive and only the leaf bindings that read
+                                // rows[index] re-evaluate. The widget reads; it
+                                // does not rebuild.
+                                readonly property var rows: root.bargridModel(itemLoader.itemDef.metric)
                                 columns: Math.max(1, itemLoader.itemDef.columns || 1)
                                 rowSpacing: 1
                                 columnSpacing: 5
                                 Repeater {
-                                    model: root.bargridModel(itemLoader.itemDef.metric)
+                                    model: bargrid.rows.length
                                     delegate: Bar {
-                                        label: modelData.label
-                                        value: modelData.value
-                                        fill: modelData.fill
+                                        // rows can shrink between ticks (a disk
+                                        // unmounts, a voter drops out); guard so a
+                                        // briefly-stale index reads an empty row
+                                        // rather than undefined.
+                                        readonly property var row: bargrid.rows[index] || ({})
+                                        label: row.label || ""
+                                        value: row.value || 0
+                                        fill: row.fill || "transparent"
                                         rowH: root.bargridRowH(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
                                         labelW: root.bargridLabelW(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
-                                        valueText: modelData.text || ""
-                                        fraction: modelData.fraction === undefined ? -1 : modelData.fraction
+                                        valueText: row.text || ""
+                                        fraction: row.fraction === undefined ? -1 : row.fraction
                                         barHeight: root.bargridBarHeight(itemLoader.itemDef.metric, itemLoader.itemDef.columns || 1)
                                         barWidth: Math.max(18, root.contentH * 1.6)
                                     }
@@ -1107,11 +1128,15 @@ PlasmoidItem {
                         Component {
                             id: rateDelegate
                             RowLayout {
+                                id: rateRow
+                                // Count model, same reason as bargrid above.
+                                readonly property var rows: root.rateItems(itemLoader.itemDef.metric)
                                 spacing: 4
                                 Repeater {
-                                    model: root.rateItems(itemLoader.itemDef.metric)
+                                    model: rateRow.rows.length
                                     delegate: PlasmaComponents.Label {
-                                        text: modelData.label + modelData.text
+                                        readonly property var row: rateRow.rows[index] || ({})
+                                        text: (row.label || "") + (row.text || "")
                                         font.pointSize: root.fontPt
                                     }
                                 }
@@ -1159,7 +1184,11 @@ PlasmoidItem {
         // Loader-on-mode pattern the compact clusters used to use.
         Loader {
             anchors.fill: parent
-            active: Plasmoid.configuration.mode !== "proctable"
+            // Also gated on `expanded`: fullRepresentation is created on first
+            // open and then kept alive, so without this the list below keeps
+            // replacing its array model every tick for a popup nobody is
+            // looking at.
+            active: root.expanded && Plasmoid.configuration.mode !== "proctable"
             visible: active
             sourceComponent: ListView {
                 id: procList
