@@ -115,16 +115,16 @@ sync_data() {
   # must not keep resolving to the old file left behind here.
   rm -rf "$STORE/systray-icons"; mkdir -p "$STORE/systray-icons"
   command cp -f configs/systray-icons/*.svg "$STORE/systray-icons/" 2>/dev/null || true
-  # Watchdog panel widget. Goes to Plasma's plasmoid dir rather than $STORE
-  # because that is the only path plasmashell looks in; the widget itself is
-  # just a reader of the snapshot the tray daemon publishes. rm first so a
-  # renamed file cannot linger and shadow the new one.
-  _pl="$HOME/.local/share/plasma/plasmoids/com.diegonmarcos.watchdog"
-  if [ -d configs/plasmoid/com.diegonmarcos.watchdog ]; then
-    rm -rf "$_pl"; mkdir -p "$(dirname "$_pl")"
-    command cp -rf configs/plasmoid/com.diegonmarcos.watchdog "$_pl" 2>/dev/null || true
-    log "Installed watchdog plasmoid → $_pl"
-  fi
+  # The watchdog panel widget is NOT installed here any more. It used to be
+  # cp -rf'd out of this working tree into ~/.local/share/plasma/plasmoids/,
+  # which meant the deployed widget was whatever happened to be checked out —
+  # not reproducible from any generation, and invisible to the desktop closure
+  # build (whose path filter is ba_flakes_desktop/src/**, so QML edits here
+  # never rebuilt it). It now lives in the desktop flake and is installed from
+  # an immutable store path by home.activation.installWatchdogPlasmoid:
+  #   ba_flakes_desktop/src/modules/dotfiles/kde/plasmoids/com.diegonmarcos.watchdog
+  # This app still owns everything it actually produces — binary, launcher,
+  # .desktop entry, icon — all driven from build.json as before.
   log "Synced profiles + config + shared + systrays → $STORE"
 }
 
