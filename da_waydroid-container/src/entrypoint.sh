@@ -265,8 +265,9 @@ fi
 # ── 6) Never let the display sleep — Android's screen-off timeout otherwise blanks
 #    the panel after idle and the window/stream shows black (confirmed live).
 #    Idempotent per boot. ────────────────────────────────────────────────────────────
+BOOT_COMPLETED=""
 for _ in $(seq 1 120); do
-  [ "$(waydroid shell -- getprop sys.boot_completed 2>/dev/null | tr -d '[:space:]')" = "1" ] && break
+  [ "$(waydroid shell -- getprop sys.boot_completed 2>/dev/null | tr -d '[:space:]')" = "1" ] && { BOOT_COMPLETED=1; break; }
   sleep 1
 done
 waydroid shell -- sh -c '
@@ -297,7 +298,7 @@ waydroid shell -- wm dismiss-keyguard 2>/dev/null || true
 #    (build.json baked in by `build.sh build`). ─────────────────────────────────────
 PROVISION_MARKER=/var/lib/waydroid/.apps-provisioned
 CFG=/etc/waydroid-container.json
-if [ ! -f "$PROVISION_MARKER" ] && [ -f "$CFG" ]; then
+if [ ! -f "$PROVISION_MARKER" ] && [ -f "$CFG" ] && [ -n "$BOOT_COMPLETED" ]; then
   log "provisioning apps (first boot of this container's /data — one-time)…"
   # Guest /data is rbind-mounted from THIS container's own
   # /root/.local/share/waydroid/data (waydroid's own LXC config) — so staging an APK
@@ -432,6 +433,8 @@ if [ ! -f "$PROVISION_MARKER" ] && [ -f "$CFG" ]; then
   log "app provisioning complete — will not re-run on future restarts of this /data volume"
 elif [ -f "$PROVISION_MARKER" ]; then
   log "apps already provisioned (marker present) — skipping"
+elif [ -z "$BOOT_COMPLETED" ]; then
+  log "skipping app provisioning — sys.boot_completed never reached 1, Android session isn't usable this boot"
 fi
 # The launcher force-stop/relaunch (or an idle timeout during the multi-minute
 # provisioning pass) can leave/put the keyguard back up over the freshly-seeded
