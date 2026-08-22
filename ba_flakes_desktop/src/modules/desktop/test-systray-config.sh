@@ -53,10 +53,18 @@ has "Xwayland Video Bridge_pipewireToXProxy" "$(get 3816 hiddenItems)" ||
   fail "tray1 did not hide the undeclared Xwayland bridge"
 has org.kde.plasma.battery "$(get 3816 shownItems)" && fail "tray1 still shows battery"
 
+# extraItems takes PLASMOID ids, not SNI ids. An SNI id there is unresolvable,
+# so plasmashell drops the whole line on its next write -- tray 1's extraItems
+# vanished every session, which read as "the applier did not run" when it had.
+# Visibility is shownItems/hiddenItems only; extraItems decides nothing here.
+has cloud-systray "$(get 3816 extraItems)" && fail "tray1 wrote an SNI id into extraItems"
+
 # tray 2: the second containment must be configured too, KDE items shown
 has org.kde.plasma.battery "$(get 3828 shownItems)" || fail "tray2 missing battery in shownItems"
 has cloud-systray "$(get 3828 hiddenItems)" || fail "tray2 did not hide cloud-systray"
 has org.kde.plasma.keyboardlayout "$(get 3828 hiddenItems)" || fail "tray2 did not hide keyboardlayout"
 has org.kde.plasma.diskquota "$(get 3828 hiddenItems)" || fail "tray2 did not hide the undeclared diskquota"
+# ...and the same filter must not strip the real plasmoids tray 2 is made of.
+has org.kde.plasma.battery "$(get 3828 extraItems)" || fail "tray2 dropped a plasmoid from extraItems"
 
 echo "PASS: both trays configured, undeclared items hidden"
