@@ -112,6 +112,13 @@ COPY sunshine-apps.json /etc/sunshine-apps.json
 # install` can `docker cp` it out of the pulled GHCR image straight into ~/.local/bin.
 COPY waydroid-launcher /opt/launcher/waydroid
 
+# Cloud Android desktop icon + .desktop template (build.json desktop_entry): shipped
+# INSIDE the image for the same reason as the launcher above — `build.sh install`
+# docker-cp's them out and renders the KDE launcher/taskbar entry from whatever this
+# image actually baked, never from local-disk state that might be stale.
+COPY icon.svg /opt/launcher/icon.svg
+COPY waydroid.desktop.tpl /opt/launcher/waydroid.desktop.tpl
+
 # App provisioning: build.json (copied into the build context by `build.sh build`),
 # the pinned APK set (fetched reproducibly by `build.sh apps-fetch` into src/apks/),
 # and the Launcher3 layout-SQL generator. entrypoint.sh installs every APK, applies
