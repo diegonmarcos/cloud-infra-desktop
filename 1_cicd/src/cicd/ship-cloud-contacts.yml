@@ -25,6 +25,13 @@ on:
       - "ea_cloud-contacts-v*"
     paths:
       - "ea_cloud-contacts/**"
+      # Shared BY REFERENCE from ea_cloud-superapp/libs/ (settings.gradle
+      # re-points projectDir there), so these compile into this APK without
+      # living in this directory. Without them a shared-lib change ships no
+      # new APK here and the installed build silently goes stale.
+      - "ea_cloud-superapp/libs/core/**"
+      - "ea_cloud-superapp/libs/devtools/**"
+      - "ea_cloud-superapp/libs/updater/**"
       - "1_cicd/src/cicd/ship-cloud-contacts.yml"
 
 permissions:
