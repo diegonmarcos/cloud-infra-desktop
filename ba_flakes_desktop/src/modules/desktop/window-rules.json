@@ -1,21 +1,38 @@
 {
   "_comment": "DECLARATIVE KWin window rules — data-driven, consumed by window-rules.nix. Rules are applied with kwriteconfig6 at activation rather than by owning ~/.config/kwinrulesrc outright: KWin REWRITES that file whenever a rule is edited in System Settings, so a /nix/store symlink there would be replaced by a real file on first GUI edit and the declaration would silently stop applying — the exact failure konsolerc, Profile 1.profile and baloofilerc all hit (see app_especific/konsole.nix). Setting individual keys instead re-asserts ours on every switch while leaving any rule the user adds by hand untouched.",
 
-  "_desktop_ids_doc": "KWin identifies virtual desktops by the Id_N strings in ~/.config/kwinrc [Desktops], NOT by position. This machine: Id_1=Desktop_1 (Desk1) … Id_4=Desktop_4 (Desk4). Plasma 6 dropped kstart's --desktop flag (kstart 6.2.5 has only --desktopfile/--application), so launching a window onto a specific desktop is no longer possible from the command line — a window rule is the supported mechanism.",
+  "_desktop_ids_doc": "KWin identifies virtual desktops by the Id_N strings in ~/.config/kwinrc [Desktops], NOT by position. This machine: Id_1=Desktop_1 (Desk1) … Id_5=Desktop_5 (Desk5). Plasma 6 dropped kstart's --desktop flag (kstart 6.2.5 has only --desktopfile/--application), so launching a window onto a specific desktop is no longer possible from the command line — a window rule is the supported mechanism.",
 
-  "_desktopsrule_doc": "KWin rule 'set' modes: 1=Apply Initially, 2=Force, 3=Remember, 4=Apply Now, 5=Force Temporarily. Force (2) is used so the window cannot drift to whichever desktop happened to be active when the build started.",
+  "_desktopsrule_doc": "KWin rule 'set' modes: 1=Apply Initially, 2=Force, 3=Remember, 4=Apply Now, 5=Force Temporarily. Force (2) is used so the window cannot drift to whichever desktop happened to be active when the build started. Apply Initially (1) is used for a DEFAULT landing spot the user is free to move afterward — the distinction that matters for the waydroid-default-desktop rule below.",
 
-  "_titlematch_doc": "0=exact, 1=substring, 2=regex, 3=unimportant.",
+  "_titlematch_doc": "0=exact, 1=substring, 2=regex, 3=unimportant. 'unimportant' is not a lower-priority match, it is OFF — the field is not evaluated at all, which is how a rule that matches on wmclass alone disables the title condition rather than exact-matching against an empty string.",
+
+  "_wmclass_doc": "wmclass/wmclassmatch/wmclasscomplete use the same match-mode enum as titlematch (see _titlematch_doc). wmclass is the window's app-id on Wayland (WM_CLASS on X11) — steadier than title for an app whose title changes with what it is displaying, e.g. Waydroid's title tracking whichever Android app has focus. wmclasscomplete=false matches the resource class only; true also requires the resource NAME to match, which native Wayland toplevels usually set identically to the class anyway.",
 
   "rules": [
     {
       "key": "build-progress-windows",
       "description": "build.sh / nix-switch progress windows -> Desk3",
-      "_comment": "THREE windows, one rule. build.sh opens a Konsole via its own konsole_wrap AND flakes-switch-progress-logs opens another, and switch-progress.sh adds a kdialog — all three used to land on whatever desktop was focused, burying the work in progress. Desk3 is deliberate: default-session.json leaves desktop 3 empty (1=konsole+my-konsole, 2=brave, 4=dolphin+kate), so builds get a dedicated space and never cover the terminal that launched them.",
+      "_comment": "THREE windows, one rule. build.sh opens a Konsole via its own konsole_wrap AND flakes-switch-progress-logs opens another, and switch-progress.sh adds a kdialog — all three used to land on whatever desktop was focused, burying the work in progress. Desk3 is deliberate: default-session.json leaves desktop 3 empty (1=konsole+my-konsole, 2=kate, 5=dolphin+brave, 4=reserved for waydroid's default landing spot), so builds get a dedicated space and never cover the terminal that launched them.",
       "titlematch": 2,
       "title": "Nix Switch Progress|NixOS switch —",
+      "wmclassmatch": 3,
+      "wmclass": "",
+      "wmclasscomplete": false,
       "desktops": "Desktop_3",
       "desktopsrule": 2
+    },
+    {
+      "key": "waydroid-default-desktop",
+      "description": "Waydroid -> Desk4, default landing spot only (not forced, not autostarted)",
+      "_comment": "Desk4 was Dolphin+Brave until the desk5 split (2026-08-22): everything that used to live on desk4 moved to desk5, freeing desk4 as Waydroid's dedicated space instead of a fifth generic desktop. desktopsrule=1 (Apply Initially) is deliberate, not Force(2): the ask was a default launch PLACE, not a pin — the user can still drag the window to another desktop afterward and it stays there. There is still no autostart / systemd service for Waydroid anywhere (see containers-cloud/waydroid-container.nix) — this rule only fires once a window actually opens. Matches by wmclass, not title: Waydroid's window title tracks whichever Android app has focus, but its native Wayland app-id is the constant 'Waydroid' (see waydroid-container.nix's StartupWMClass).",
+      "titlematch": 3,
+      "title": "",
+      "wmclassmatch": 0,
+      "wmclass": "Waydroid",
+      "wmclasscomplete": false,
+      "desktops": "Desktop_4",
+      "desktopsrule": 1
     }
   ]
 }

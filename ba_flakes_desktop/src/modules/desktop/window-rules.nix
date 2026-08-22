@@ -41,6 +41,9 @@ let
     ${kw} --file kwinrulesrc --group "${r.key}" --key Description "${r.description}"
     ${kw} --file kwinrulesrc --group "${r.key}" --key title "${r.title}"
     ${kw} --file kwinrulesrc --group "${r.key}" --key titlematch "${toString r.titlematch}"
+    ${kw} --file kwinrulesrc --group "${r.key}" --key wmclass "${r.wmclass}"
+    ${kw} --file kwinrulesrc --group "${r.key}" --key wmclassmatch "${toString r.wmclassmatch}"
+    ${kw} --file kwinrulesrc --group "${r.key}" --key wmclasscomplete "${if r.wmclasscomplete then "true" else "false"}"
     ${kw} --file kwinrulesrc --group "${r.key}" --key desktops "${r.desktops}"
     ${kw} --file kwinrulesrc --group "${r.key}" --key desktopsrule "${toString r.desktopsrule}"
   '';

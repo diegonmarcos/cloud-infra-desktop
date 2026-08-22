@@ -403,8 +403,8 @@ in
       effects.shakeCursor.enable = true;
       # Count/rows/names come from default-session.json's .virtual_desktops —
       # the SAME key the session launcher checks over KWin's DBus at login.
-      # Hardcoding 4 here made this the second place the number lived, and the
-      # layout in that JSON targets desk4: the two could disagree with no
+      # Hardcoding the count here made this the second place the number lived,
+      # and the layout in that JSON targets desk5: the two could disagree with no
       # eval error, leaving windows assigned to a desktop that does not exist.
       # This is the declarative half (written to kwinrc at switch time); the
       # launcher is the runtime half, because KWin rewrites kwinrc from its own

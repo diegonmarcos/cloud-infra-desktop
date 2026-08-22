@@ -24,20 +24,21 @@
     "Both are needed. kwinrc is exactly the kind of file KWin rewrites from its",
     "own in-memory state, which is how the systray lists were lost; a declaration",
     "that is only ever written at switch time can be silently undone before the",
-    "next one. And the layout below targets desk4 — placing a window on a desktop",
+    "next one. And the layout below targets desk5 — placing a window on a desktop",
     "that does not exist puts it wherever KWin feels like, which reads as 'the",
     "layout is broken' rather than 'a desktop is missing'.",
     "",
     "count MUST cover the highest id used in .desktops[] below."
   ],
   "virtual_desktops": {
-    "count": 4,
+    "count": 5,
     "rows": 1,
     "names": [
       "Desk1",
       "Desk2",
       "Desk3",
-      "Desk4"
+      "Desk4",
+      "Desk5"
     ]
   },
   "fallback": {
@@ -240,7 +241,7 @@
       ]
     },
     {
-      "id": 4,
+      "id": 5,
       "windows": [
         {
           "cell": "left",

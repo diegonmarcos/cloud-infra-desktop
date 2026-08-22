@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# default-session-launcher.sh — DECLARATIVE default 4-desktop login layout.
+# default-session-launcher.sh — DECLARATIVE default 5-desktop login layout.
 # ============================================================================
 # Reads default-session.json (the DATA / single source of truth) and launches,
 # titles, pins-to-desktop and tiles every window described there.
@@ -129,7 +129,7 @@ else
 fi
 
 # ── Ensure the virtual desktops exist (data: .virtual_desktops) ─────────────
-# The layout below targets desk4. Placing a window on a desktop that does not
+# The layout below targets desk5. Placing a window on a desktop that does not
 # exist lands it wherever KWin likes, which reads as "the layout is broken"
 # rather than "a desktop is missing" — so this is checked before any app is
 # spawned, not after.
