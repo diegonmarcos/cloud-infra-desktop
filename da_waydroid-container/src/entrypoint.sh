@@ -310,6 +310,7 @@ if [ ! -f "$PROVISION_MARKER" ] && [ -f "$CFG" ] && [ -n "$BOOT_COMPLETED" ]; th
   GRANT_FLAG=""; [ "$(jq -r '.waydroid.grant_all_permissions' "$CFG")" = "true" ] && GRANT_FLAG="-g"
 
   N_APPS="$(jq -r '.apps.list | length' "$CFG")"
+  OK_COUNT=0
   i=0
   while [ "$i" -lt "$N_APPS" ]; do
     PKG="$(jq -r ".apps.list[$i].package" "$CFG")"
@@ -329,7 +330,7 @@ if [ ! -f "$PROVISION_MARKER" ] && [ -f "$CFG" ] && [ -n "$BOOT_COMPLETED" ]; th
       fi
     fi
     rm -f "$HOST_TMP/$PKG.apk"
-    if printf '%s' "$OUT" | grep -q Success; then log "  ✓ $PKG installed"; else log "  ✗ $PKG install FAILED: ${OUT##*$'\n'}"; fi
+    if printf '%s' "$OUT" | grep -q Success; then log "  ✓ $PKG installed"; OK_COUNT=$((OK_COUNT + 1)); else log "  ✗ $PKG install FAILED: ${OUT##*$'\n'}"; fi
 
     # Declared per-app appops (build.json apps.list[].appops), plus the full_perms
     # bundle (build.json apps.full_perms_appops) for apps.list[].full_perms:true —
@@ -429,8 +430,12 @@ if [ ! -f "$PROVISION_MARKER" ] && [ -f "$CFG" ] && [ -n "$BOOT_COMPLETED" ]; th
   fi
   log "theme applied (dark_mode/auto_rotate/wallpaper/icon_theme per build.json)"
 
-  touch "$PROVISION_MARKER"
-  log "app provisioning complete — will not re-run on future restarts of this /data volume"
+  if [ "$N_APPS" -eq 0 ] || [ "$OK_COUNT" -gt 0 ]; then
+    touch "$PROVISION_MARKER"
+    log "app provisioning complete ($OK_COUNT/$N_APPS installed) — will not re-run on future restarts of this /data volume"
+  else
+    log "app provisioning: 0/$N_APPS installs succeeded — NOT marking provisioned, will retry next boot"
+  fi
 elif [ -f "$PROVISION_MARKER" ]; then
   log "apps already provisioned (marker present) — skipping"
 elif [ -z "$BOOT_COMPLETED" ]; then
