@@ -55,22 +55,20 @@ in {
     fi
   '';
 
-  # Dedicated launcher icon (Android-robot-in-a-container motif, Waydroid green) —
+  # Dedicated launcher icon — the SAME adaptive-icon design as every ea_cloud-* app
+  # (background #0A0A0A + bold white brand glyph + translucent cloud-tick badge),
+  # ported 1:1 from ea_cloud-superapp/app/src/main/res/{drawable,mipmap-anydpi-v26}
+  # /ic_launcher*.xml pathData to SVG (VectorDrawable path syntax === SVG path syntax,
+  # same nonzero fill-rule, so the glyph's counter/hole reproduces without edits) —
   # installed into the hicolor theme so the menu entry, taskbar pin and window all
-  # show a distinct icon instead of the generic "smartphone" stock one.
+  # show the fleet's own branding instead of the generic "smartphone" stock icon.
   xdg.dataFile."icons/hicolor/scalable/apps/${desktopId}.svg".text = ''
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-      <rect x="4" y="4" width="56" height="56" rx="12" fill="#1a1a24"/>
-      <path d="M22 20 L16 12" stroke="#a4c639" stroke-width="3" stroke-linecap="round"/>
-      <path d="M42 20 L48 12" stroke="#a4c639" stroke-width="3" stroke-linecap="round"/>
-      <path d="M17 34 a15 15 0 0 1 30 0 z" fill="#a4c639"/>
-      <circle cx="25" cy="27" r="2.2" fill="#1a1a24"/>
-      <circle cx="39" cy="27" r="2.2" fill="#1a1a24"/>
-      <rect x="17" y="37" width="30" height="14" rx="3" fill="#a4c639"/>
-      <path d="M10 44 v6 a4 4 0 0 0 4 4 h6 M54 44 v6 a4 4 0 0 1 -4 4 h-6"
-            fill="none" stroke="#5f7d8c" stroke-width="3" stroke-linecap="round"/>
-      <path d="M10 20 v-6 a4 4 0 0 1 4 -4 h6 M54 20 v-6 a4 4 0 0 0 -4 -4 h-6"
-            fill="none" stroke="#5f7d8c" stroke-width="3" stroke-linecap="round"/>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
+      <path fill="#0A0A0A" d="M0,0h108v108h-108z"/>
+      <path fill="#FFFFFF" d="M36,30 L36,78 L56,78 C70.36,78 78,69.04 78,54 C78,38.96 70.36,30 56,30 Z M46,40 L56,40 C64.84,40 68,46.16 68,54 C68,61.84 64.84,68 56,68 L46,68 Z"/>
+      <g transform="translate(68.6,20.6) scale(0.62)">
+        <path fill="#FFFFFF" fill-opacity="0.949" d="M19.35,10.04C18.67,6.59 15.64,4 12,4 9.11,4 6.6,5.64 5.35,8.04 2.34,8.36 0,10.91 0,14c0,3.31 2.69,6 6,6h13c2.76,0 5,-2.24 5,-5 0,-2.64 -2.05,-4.78 -4.65,-4.96z"/>
+      </g>
     </svg>
   '';
 
