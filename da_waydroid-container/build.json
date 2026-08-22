@@ -27,13 +27,7 @@
     "host_wayland_display": "wayland-0",
     "window_class": "Waydroid"
   },
-  "_doc_window_class": "The Waydroid native window's Wayland app-id / resourceClass on the host compositor (verified live via kdotool on KDE Plasma 6: class=Waydroid). Used two ways: KDE taskbar-pin matching (StartupWMClass in the .desktop entry — see desktop_entry below, written by `build.sh install`) and the native-mode GUI-bound lifecycle — build.sh polls `kdotool search --class <this>` and stops the container when the window closes (Wayland-native; X11 xdotool cannot see Wayland toplevels).",
-  "desktop_entry": {
-    "_doc": "Freedesktop .desktop entry that `build.sh install` writes into ~/.local/share/applications (template: src/waydroid.desktop.tpl), so the native Waydroid window shows up in the KDE app launcher/taskbar branded as part of the constellation instead of a generic/missing icon. icon is src/icon.svg — the SAME adaptive-icon design as every ea_cloud-* app (black background + white brand glyph + translucent cloud-tick badge), ported 1:1 from ea_cloud-superapp's ic_launcher_background/foreground vector paths. StartupWMClass is NOT duplicated here — it's read from display.window_class (see _doc_window_class above) so the two can never drift apart.",
-    "name": "Cloud Android",
-    "comment": "Waydroid — native Android window (Cloud constellation)",
-    "categories": "System;Emulator;"
-  },
+  "_doc_window_class": "The Waydroid native window's Wayland app-id / resourceClass on the host compositor (verified live via kdotool on KDE Plasma 6: class=Waydroid). Used two ways: KDE taskbar-pin matching (StartupWMClass in the HM desktop entry) and the native-mode GUI-bound lifecycle — build.sh polls `kdotool search --class <this>` and stops the container when the window closes (Wayland-native; X11 xdotool cannot see Wayland toplevels).",
   "stream": {
     "_doc": "PRIMARY display transport: Sunshine (in-container, VAAPI hardware H.264/HEVC encode on the passed-through Intel render node) + Moonlight (host client, hardware decode) — a full end-to-end GPU pipeline (Android hwcomposer EGL render -> sway GLES2 composite -> VAAPI encode -> Moonlight GPU decode), unlike VNC/RFB which is a CPU framebuffer-copy protocol with no video codec. VNC (wayvnc, container.vnc_*) is kept as the debug/fallback transport. Sunshine's Debian BOOKWORM build ended at v2025.122.141614 (2026 releases only ship trixie+) — pinned by sha256 for reproducibility. Web-UI credentials are GENERATED at first container start and persisted on the data volume (never in git); Moonlight pairing is automated by build.sh: it picks a random 4-digit PIN, runs `moonlight pair --pin`, and POSTs the same PIN to Sunshine's /api/pin with those generated creds. Pairing state persists on the data volume so it happens once.",
     "sunshine_deb_url": "https://github.com/LizardByte/Sunshine/releases/download/v2025.122.141614/sunshine-debian-bookworm-amd64.deb",
