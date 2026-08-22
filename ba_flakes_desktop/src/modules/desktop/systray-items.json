@@ -20,6 +20,8 @@
     "NINE items, and the eight listed here were only ever eight."
   ],
   "always_hidden": [
+    "Xwayland Video Bridge_pipewireToXProxy",
+    "my-ai-usage",
     "org.kde.plasma.keyboardlayout",
     "org.kde.plasma.keyboardindicator"
   ],

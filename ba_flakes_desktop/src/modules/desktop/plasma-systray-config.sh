@@ -51,6 +51,29 @@ universe=$(
       done
     done
     jq -r '[.trays[].shown[], .always_hidden[]] | .[]' "$JSON"
+    # ...plus every SNI registered on the bus RIGHT NOW.
+    #
+    # The two sources above are both retrospective: Plasma's knownItems only
+    # lists ids it has already recorded, and the JSON only lists ids a human
+    # thought to declare. An SNI that is live but in neither is in no list at
+    # all, and the tray's default for an unknown id is *shown* -- so it leaks
+    # into the visible strip of BOTH trays. That is exactly how `my-ai-usage`
+    # (a separate process from the my-konsole tray daemon) rendered twice and
+    # read as "my-ai shown double" (2026-08-22).
+    #
+    # Enumerating the live bus closes the class rather than the instance: a
+    # newly discovered SNI enters the universe on its first apply, so it is
+    # hidden-by-default and only becomes visible when declared in a shown list.
+    # Best-effort: no bus, no busctl, or no items simply contributes nothing.
+    if command -v busctl >/dev/null 2>&1; then
+      busctl --user list --no-legend 2>/dev/null | awk '{print $1}' |
+        grep '^org.kde.StatusNotifierItem-' |
+        while read -r _svc; do
+          busctl --user get-property "$_svc" /StatusNotifierItem \
+            org.kde.StatusNotifierItem Id 2>/dev/null |
+            sed -n 's/^s "\(.*\)"$/\1/p'
+        done
+    fi
   } | tr ',' '\n' | sed '/^$/d' | sort -u
 )
 
