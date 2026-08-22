@@ -318,8 +318,21 @@ _ensure_running() {
   if container_exists; then
     local cur_mode
     cur_mode="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$(container_name)" 2>/dev/null | command grep '^WAYDROID_DISPLAY_MODE=' | cut -d= -f2)"
+    # :13 is a ROLLING tag (retagged on every ship, not a fresh version number) — a
+    # `docker pull` after a new ship leaves the OLD container's bound image ID stale
+    # even though `docker image inspect` on the tag now resolves to a different Id.
+    # Without this check, a pulled-but-unused new image silently never takes effect:
+    # `container_exists` stays true forever and every `up` just `docker start`s the
+    # old container on the old image (discovered 2026-08-22 — a fresh ship+pull+switch
+    # left the running app on a container still bound to yesterday's image).
+    local cur_img new_img
+    cur_img="$(docker inspect -f '{{.Image}}' "$(container_name)" 2>/dev/null)"
+    new_img="$(docker image inspect -f '{{.Id}}' "$(get container.image)" 2>/dev/null)"
     if [ "${cur_mode:-}" != "$mode" ]; then
       log "existing container is mode '${cur_mode:-unknown}', requested '$mode' — recreating (Android /data persists)…"
+      docker rm -f "$(container_name)" >/dev/null 2>&1 || true
+    elif [ -n "$new_img" ] && [ "${cur_img:-}" != "$new_img" ]; then
+      log "existing container predates the currently-pulled image — recreating (Android /data persists)…"
       docker rm -f "$(container_name)" >/dev/null 2>&1 || true
     fi
   fi
