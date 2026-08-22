@@ -49,7 +49,7 @@ PlasmoidItem {
     property var guardSnap: ({})
     property bool guardStale: true
 
-    readonly property int pollMs: 1500   // daemon publishes every 2s
+    readonly property int pollMs: 2000   // matches the daemon publish rate; polling faster only wastes ticks
     readonly property string runtimeDir: "/run/user/" + Plasmoid.configuration.uid
     readonly property string snapUrl: "file://" + runtimeDir + "/my-konsole-watchdog.json"
     readonly property string killPath: runtimeDir + "/my-konsole-watchdog.kill"
@@ -426,6 +426,27 @@ PlasmoidItem {
             runq_wait_pct: a.runq_wait_pct
         };
     }
+
+    // The ListView's model reads THIS, never ptSorted() directly.
+    //
+    // `model: root.ptSorted()` is a binding loop: the function returns a fresh
+    // array every call, so assigning it to ListView.model dirties the binding,
+    // which calls the function again, which yields another new array — forever.
+    // plasmashell logged "Binding loop detected for property model" several
+    // times a second, in each of the 7 applet instances. Measured cost: with
+    // the publisher running plasmashell sat at 83-90% of a core; with the
+    // publisher stopped (so `ts` never changes and the loop is never kicked)
+    // it dropped to 4%. The XHR and the 25KB JSON.parse were never the problem.
+    //
+    // Routing it through a plain property fixes it because a property binding
+    // re-evaluates only when its own dependencies (snap, ptWindow, sort state)
+    // change; the ListView merely READS the property, which cannot dirty it.
+    // ...and it is EMPTY while the popup is shut. fullRepresentation is created
+    // once (see the note at its declaration), so without this guard all 7 panel
+    // instances rebuilt a 40-row process table on every tick for a popup nobody
+    // had open. Gating on `expanded` means the rows are built only while they
+    // are actually on screen; opening the popup fills it on the next poll.
+    property var ptRows: root.expanded ? ptSorted() : []
 
     // Sorted copy of proc_table — never mutates root.snap.proc_table itself,
     // since that array is replaced wholesale by refresh() every poll and a
@@ -1248,7 +1269,7 @@ PlasmoidItem {
                     id: ptList
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    model: root.ptSorted()
+                    model: root.ptRows
                     clip: true
                     spacing: 1
                     delegate: RowLayout {
