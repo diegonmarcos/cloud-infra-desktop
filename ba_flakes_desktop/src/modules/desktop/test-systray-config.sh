@@ -24,7 +24,7 @@ plugin=org.kde.plasma.systemtray
 plugin=org.kde.plasma.private.systemtray
 
 [Containments][3816][General]
-knownItems=org.kde.plasma.battery,my-ai-usage,cloud-systray
+knownItems=org.kde.plasma.battery,sentinel-undeclared-sni,cloud-systray
 shownItems=cloud-systray,Xwayland Video Bridge_pipewireToXProxy
 
 [Containments][3828]
@@ -44,7 +44,11 @@ has() { case ",$2," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 # tray 1: ours shown, everything else hidden
 has cloud-systray "$(get 3816 shownItems)" || fail "tray1 missing cloud-systray in shownItems"
 has org.kde.plasma.battery "$(get 3816 hiddenItems)" || fail "tray1 did not hide battery"
-has "my-ai-usage" "$(get 3816 hiddenItems)" || fail "tray1 did not hide the undeclared my-ai-usage"
+# Assert the INVARIANT, not one instance of it. This previously named
+# my-ai-usage, which then became a declared, deliberately-shown item -- so the
+# test failed on a correct config. A sentinel id can never be declared, so this
+# assertion keeps meaning the same thing forever.
+has "sentinel-undeclared-sni" "$(get 3816 hiddenItems)" || fail "tray1 did not hide an undeclared SNI"
 has "Xwayland Video Bridge_pipewireToXProxy" "$(get 3816 hiddenItems)" ||
   fail "tray1 did not hide the undeclared Xwayland bridge"
 has org.kde.plasma.battery "$(get 3816 shownItems)" && fail "tray1 still shows battery"

@@ -21,7 +21,6 @@
   ],
   "always_hidden": [
     "Xwayland Video Bridge_pipewireToXProxy",
-    "my-ai-usage",
     "org.kde.plasma.keyboardlayout",
     "org.kde.plasma.keyboardindicator"
   ],
@@ -33,6 +32,7 @@
         "cloud-systray",
         "docker-systray",
         "my-ai-systray",
+        "my-ai-usage",
         "my-webserver-systray",
         "nix-flakes-systray",
         "vault-systray",
