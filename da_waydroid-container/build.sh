@@ -18,7 +18,7 @@
 #   ./build.sh bundle           # (re)generate the self-contained launcher from build.json
 #   ./build.sh apps-fetch       # reproducibly fetch the pinned APK set (build.json apps.list) into src/apks/
 #   ./build.sh bake             # boot+provision a scratch container, snapshot /data, bake it into the image (LOCAL-only: needs binder)
-#   ./build.sh install [bindir] # pull the GHCR image, copy the baked launcher into a bin dir
+#   ./build.sh install [bindir] # pull the GHCR image, copy the baked launcher + KDE desktop entry/icon
 #   ./build.sh up [native|stream|vnc]   # bring the container up + open the GUI (default native)
 #   ./build.sh down             # stop the container
 #   ./build.sh status           # container + waydroid state
@@ -258,8 +258,37 @@ cmd_install() {
   docker image inspect "$img" >/dev/null 2>&1 || { log "pulling $img from GHCR…"; docker pull "$img" || die "pull failed"; }
   local cid; cid="$(docker create "$img")" || die "docker create failed"
   docker cp "$cid:/opt/launcher/waydroid" "$dest" || { docker rm -f "$cid" >/dev/null 2>&1; die "extract failed — was the image built with a bundled launcher?"; }
-  docker rm -f "$cid" >/dev/null 2>&1 || true
   chmod +x "$dest"
+
+  # Desktop entry + icon (build.json desktop_entry): pulled from the SAME created
+  # container as the launcher above, so they always match what this image actually
+  # baked (never local-disk state). Icon goes to a fixed XDG path — not under $bindir,
+  # which may not live under $HOME/.local — so Icon= can be an absolute path and skip
+  # icon-theme cache/lookup entirely (Desktop Entry Spec allows this). Non-fatal: an
+  # older image built before this feature just skips the entry, launcher still works.
+  local data_home icon_dir apps_dir icon_dest tpl_tmp
+  data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+  icon_dir="$data_home/icons"; apps_dir="$data_home/applications"
+  icon_dest="$icon_dir/waydroid-container.svg"
+  tpl_tmp="$(mktemp)"
+  if docker cp "$cid:/opt/launcher/icon.svg" "$icon_dest" 2>/dev/null \
+     && docker cp "$cid:/opt/launcher/waydroid.desktop.tpl" "$tpl_tmp" 2>/dev/null; then
+    mkdir -p "$icon_dir" "$apps_dir"
+    sed -e "s#@NAME@#$(get desktop_entry.name)#g" \
+        -e "s#@COMMENT@#$(get desktop_entry.comment)#g" \
+        -e "s#@EXEC@#$dest#g" \
+        -e "s#@ICON@#$icon_dest#g" \
+        -e "s#@WM_CLASS@#$(get display.window_class)#g" \
+        -e "s#@CATEGORIES@#$(get desktop_entry.categories)#g" \
+        "$tpl_tmp" > "$apps_dir/waydroid-container.desktop"
+    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$apps_dir" >/dev/null 2>&1
+    log "desktop entry installed: $apps_dir/waydroid-container.desktop (icon: $icon_dest)"
+  else
+    warn "desktop entry skipped (image predates icon.svg/waydroid.desktop.tpl — rebuild to get it)"
+  fi
+  rm -f "$tpl_tmp"
+  docker rm -f "$cid" >/dev/null 2>&1 || true
+
   log "installed self-contained launcher: $dest"
   case ":$PATH:" in *":$bindir:"*) : ;; *) warn "$bindir is not on \$PATH — add it, or run $dest directly";; esac
 }

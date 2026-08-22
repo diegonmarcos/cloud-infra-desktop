@@ -413,7 +413,20 @@ if [ ! -f "$PROVISION_MARKER" ] && [ -f "$CFG" ]; then
   fi
   DIM="$(jq -r '.theme.wallpaper.dim' "$CFG")"
   [ -n "$DIM" ] && [ "$DIM" != "null" ] && waydroid shell -- cmd wallpaper set-dim-amount "$DIM" >/dev/null 2>&1
-  log "theme applied (dark_mode/auto_rotate/wallpaper per build.json)"
+
+  # Icon/accent theme: Android 13 Material You overlay JSON (settings_secure key),
+  # captured from a manually-configured session and made declarative here — see
+  # build.json::theme.icon_theme. Compact (no whitespace) so the JSON survives as a
+  # single argv element all the way through `waydroid shell` -> lxc-attach -> settings.
+  ICON_STYLE="$(jq -r '.theme.icon_theme.theme_style // empty' "$CFG")"
+  if [ -n "$ICON_STYLE" ]; then
+    ICON_SRC="$(jq -r '.theme.icon_theme.color_source // "home_wallpaper"' "$CFG")"
+    ICON_BOTH="$(jq -r 'if .theme.icon_theme.color_both then "1" else "0" end' "$CFG")"
+    OVERLAY_JSON="$(jq -nc --arg src "$ICON_SRC" --arg style "$ICON_STYLE" --arg both "$ICON_BOTH" \
+      '{"android.theme.customization.color_source":$src,"android.theme.customization.theme_style":$style,"android.theme.customization.color_both":$both}')"
+    waydroid shell -- settings put secure theme_customization_overlay_packages "$OVERLAY_JSON" >/dev/null 2>&1 || true
+  fi
+  log "theme applied (dark_mode/auto_rotate/wallpaper/icon_theme per build.json)"
 
   touch "$PROVISION_MARKER"
   log "app provisioning complete — will not re-run on future restarts of this /data volume"
