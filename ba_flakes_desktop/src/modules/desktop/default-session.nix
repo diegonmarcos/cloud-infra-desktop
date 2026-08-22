@@ -78,4 +78,42 @@ in
     OnlyShowIn=KDE;
     NoDisplay=true
   '';
+
+  # ── Dead-man re-dispatch — 2026-08-22 incident ─────────────────────────────
+  # The autostart above is dispatched by Plasma's phase-2 machinery, which died
+  # WITH plasmashell when it SEGV'd during the login panel apply: the .desktop
+  # never fired and the layout silently never appeared (the launcher log has
+  # zero entries for that login). This oneshot is the belt: it fires once per
+  # graphical login (graphical-session.target — HM switches don't restart the
+  # target, hibernate resumes never re-reach it), waits out the login storm,
+  # and invokes the SAME launcher. The launcher's flock + emptiness guard make
+  # a double-fire a no-op, so autostart + dead-man can never duplicate the
+  # layout — this does not weaken the "fires once per real login" contract.
+  systemd.user.services.default-session-deadman = {
+    Unit = {
+      Description = "Default-session dead-man — fires the layout launcher if phase-2 autostart never did";
+      After = [ "graphical-session.target" ];
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
+    Service = {
+      Type = "oneshot";
+      TimeoutStartSec = 600;
+      ExecStart = toString (pkgs.writeShellScript "default-session-deadman" ''
+        # Give phase-2 autostart every chance to have already done the job —
+        # if it did, the launcher's emptiness guard makes this a no-op.
+        sleep 75
+        DEFAULT_SESSION_JSON=${jsonPath} exec ${launcher}
+      '');
+    };
+  };
+
+  # ── Autostart hygiene — 2026-08-22 ─────────────────────────────────────────
+  # HM's timestamped `-b` backups accumulate in ~/.config/autostart and Plasma
+  # EXECUTES them: 31 concurrent launcher invocations on one login (the flock
+  # + emptiness guard saved the layout, not the machine). Autostart is the one
+  # directory where a stale backup is live ammunition — purge them after every
+  # switch. (No `exit`, activation-snippet rule; `rm -f` is glob-miss-safe.)
+  home.activation.purgeAutostartBackups = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    run rm -f "$HOME/.config/autostart/"*.hm-bak* "$HOME/.config/autostart/"*.hm-backup* || true
+  '';
 }
