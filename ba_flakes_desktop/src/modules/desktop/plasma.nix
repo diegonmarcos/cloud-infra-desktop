@@ -72,6 +72,17 @@ let
       pkgs.gnused
       pkgs.jq
       pkgs.kdePackages.kconfig
+      # busctl, for the live-bus SNI enumeration.
+      #
+      # writeShellApplication only PREPENDS runtimeInputs to $PATH, so anything
+      # not listed here resolves against whatever PATH systemd hands the unit --
+      # which has no busctl. The effect was silent rather than loud: that branch
+      # is guarded by `command -v busctl`, so a missing busctl is not an error,
+      # it is a no-op. The undeclared-SNI defaulting the guard exists to provide
+      # therefore never ran in production. It worked only when the script was
+      # invoked by hand from an interactive shell -- which is exactly where it
+      # was tested, and why the gap survived.
+      pkgs.systemd
     ];
     text = builtins.readFile ./plasma-systray-config.sh;
   };

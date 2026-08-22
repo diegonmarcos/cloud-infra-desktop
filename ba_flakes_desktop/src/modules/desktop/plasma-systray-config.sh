@@ -65,14 +65,22 @@ universe=$(
     # newly discovered SNI enters the universe on its first apply, so it is
     # hidden-by-default and only becomes visible when declared in a shown list.
     # Best-effort: no bus, no busctl, or no items simply contributes nothing.
+    #
+    # `|| true` and awk-instead-of-grep keep this branch genuinely best-effort,
+    # as the paragraph above claims it is. Under errexit+pipefail neither was
+    # true by accident: a bus with no SNIs registered yet (this unit runs
+    # BEFORE plasmashell, so that is the normal case at login) makes grep exit
+    # 1 and takes the whole applier down with it.
     if command -v busctl >/dev/null 2>&1; then
-      busctl --user list --no-legend 2>/dev/null | awk '{print $1}' |
-        grep '^org.kde.StatusNotifierItem-' |
-        while read -r _svc; do
-          busctl --user get-property "$_svc" /StatusNotifierItem \
-            org.kde.StatusNotifierItem Id 2>/dev/null |
-            sed -n 's/^s "\(.*\)"$/\1/p'
-        done
+      {
+        busctl --user list --no-legend 2>/dev/null |
+          awk '/^org\.kde\.StatusNotifierItem-/ { print $1 }' |
+          while read -r _svc; do
+            busctl --user get-property "$_svc" /StatusNotifierItem \
+              org.kde.StatusNotifierItem Id 2>/dev/null |
+              sed -n 's/^s "\(.*\)"$/\1/p'
+          done
+      } || true
     fi
   } | tr ',' '\n' | sed '/^$/d' | sort -u
 )
@@ -93,9 +101,27 @@ for i in "${!TRAYS[@]}"; do
     --group General --key shownItems "$shown"
   kwriteconfig6 --file "$APPLETS" --group Containments --group "$id" \
     --group General --key hiddenItems "$hidden"
-  # extraItems caps what the tray is allowed to know about at all.
+  # extraItems is a list of PLASMOID ids to instantiate in the tray -- it is not
+  # a visibility key and it does not cap anything. Only shownItems/hiddenItems
+  # above decide what renders. Feeding it SNI ids is a silent no-op: plasmashell
+  # cannot resolve them to installed packages, so it drops them on its next
+  # write. Tray 1's entire extraItems line was being deleted on every session
+  # for exactly that reason, which made the applier look like it had failed
+  # when it had not.
+  #
+  # ponytail: reverse-DNS as the plasmoid test. Plasmoid ids are KPackage
+  # directory names and dotted by convention; SNI ids are process-chosen and
+  # ours are bare ("cloud-systray"). If an SNI ever ships a dotted Id it just
+  # gets written and pruned again -- back to today's harmless no-op, not a
+  # regression. Swap in a `kpackagetool6 --list` check if that ever matters.
+  #
+  # awk, not grep, and that is load-bearing: grep exits 1 when nothing matches,
+  # and under errexit+pipefail that aborts the whole script. Tray 1 is all bare
+  # SNI ids, so it matches nothing on every single run -- a grep here would kill
+  # the applier before tray 2 was ever configured. awk exits 0 either way.
+  plasmoids=$(printf '%s\n' "$shown" | tr ',' '\n' | awk '/\./' | paste -sd,)
   kwriteconfig6 --file "$APPLETS" --group Containments --group "$id" \
-    --group General --key extraItems "$shown"
+    --group General --key extraItems "$plasmoids"
 
   echo "tray $((i + 1)) (containment $id): shown=[$shown]"
   echo "tray $((i + 1)) (containment $id): hidden=[$hidden]"
