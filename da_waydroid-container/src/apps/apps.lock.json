@@ -385,12 +385,6 @@
       "sha256": "sha256-9vTPCfkvNrdda4yijxTOS3nQWbmBhLjvlby/SbJ6Yxc="
     },
     {
-      "package": "com.diegonmarcos.ide",
-      "source": "github",
-      "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-IDE-Hub.apk",
-      "sha256": "sha256-adFoGU53nDfIGSpM/1ErziRGvnZoERSFCD2TMoj6r+g="
-    },
-    {
       "package": "com.diegonmarcos.comms",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Comms-Hub.apk",
@@ -635,6 +629,12 @@
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/cloud-comms-matrix.apk",
       "sha256": "sha256-bHXYBm1aBati8etfERaddDW0rbiX0boqlJSQdZ3c2HA="
+    },
+    {
+      "package": "com.diegonmarcos.ide",
+      "source": "github",
+      "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-IDE-Hub.apk",
+      "sha256": "sha256-1JNUPvhlGVG1PvKdSOR6f73I2a8F8qjQqy1Hj48GtBE="
     }
   ]
 }
