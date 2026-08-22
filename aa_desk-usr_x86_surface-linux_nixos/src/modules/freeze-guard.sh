@@ -93,6 +93,16 @@ while IFS=$'\t' read -r _comm _unit; do
   RESET_UNITS["$_comm"]="$_unit"
 done < <(jq -r '.watchdog.reset_units // {} | to_entries[] | "\(.key)\t\(.value)"' "$CONFIG_JSON")
 
+# Alert-channel deps are OPTIONAL: a missing tool degrades alerting, it must
+# never abort the guard (2026-08-22: missing `logger` 127-crash-looped the
+# guard at every pressure event until systemd's start limiter gave up — zero
+# freeze protection while the desktop thrashed). Kill-path deps (ps/awk/jq,
+# kill is a builtin) are guaranteed by runtimeInputs; here we only WARN, loud
+# and day-0-visible in the journal, so a PATH gap is caught at deploy time.
+for _t in logger curl; do
+  command -v "$_t" >/dev/null 2>&1 || echo "[freeze-guard] WARN: '$_t' not in PATH — that alert channel is disabled"
+done
+
 # Disk write rate (MB/s) since the last call: field 10 of /proc/diskstats
 # (sectors written) * 512, delta / interval. Global writeback view — the
 # burst that fills dirty page cache before any PSI stall registers.
@@ -552,7 +562,12 @@ while :; do
        && { [ "$_rung" != "${_psi_last_rung:-0}" ] || [ $(( _now - ${_psi_last_at:-0} )) -ge "${PSI_ALERT_REARM_SEC:-300}" ]; }; then
       _psi_last_rung="$_rung"; _psi_last_at="$_now"
       _msg="PRESSURE RISING (${_rung}% of the kill threshold): ${_sig}. Nothing has been killed yet — this is the warning before freeze-guard starts terminating processes."
-      logger -t freeze-guard -p user.warning "$_msg"
+      # 2026-08-22: the `|| true` is load-bearing. logger was missing from the
+      # PATH and this line 127-killed the guard (set -e) at EVERY pressure
+      # event for 28h — the warning layer died before the kill loop below ever
+      # ran, and the desktop froze unprotected. util-linux is in runtimeInputs
+      # now, but alerting must NEVER be able to kill the killer regardless.
+      logger -t freeze-guard -p user.warning "$_msg" || true
       echo "[freeze-guard] PRE-KILL WARNING ${_rung}% — $_sig"
       curl -sS -H "Title: pressure rising ${_rung}% of kill threshold" -H "Priority: high" \
         -H "Tags: warning" -d "$_msg" "https://ntfy.sh/${PSI_NTFY_TOPIC:-diegonmarcos-infra}" 2>/dev/null || true

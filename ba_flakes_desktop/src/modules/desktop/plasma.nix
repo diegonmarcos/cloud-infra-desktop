@@ -1054,4 +1054,59 @@ in
   #   X-KDE-autostart-phase=2
   #   OnlyShowIn=KDE;
   # '';
+
+  # ─────────────────────────────────────────────────────────────────
+  # Panel self-heal — 2026-08-22 incident
+  # ─────────────────────────────────────────────────────────────────
+  # plasmashell SEGV'd mid-evaluateScript while plasma-manager's login apply
+  # (run_all.sh) was destroying/recreating panels (backtrace: evaluateScript →
+  # WorkspaceScripting::Panel → Applet::destroy). The old bottom panel was
+  # destroyed, the new one never created — and the apply scripts write their
+  # last_run checksums UNCONDITIONALLY, so the broken layout was never retried
+  # on any later login. The desktop came up with no taskbar.
+  #
+  # This oneshot verifies, once the login storm has settled, that BOTH declared
+  # panels exist in the live appletsrc; if one is missing it deletes the panels
+  # checksum and re-runs run_all.sh (idempotent — plasma-manager regenerates
+  # exactly the declared set), then reports the outcome on ntfy either way.
+  # ponytail: expected edges baked (top=3, bottom=4 — the numeric appletsrc
+  # forms of {top,bottom}-panel.json's location fields); update if a panel
+  # ever moves edge.
+  systemd.user.services.plasma-panel-selfheal = {
+    Unit = {
+      Description = "Verify declared plasma panels survived login; re-apply once if not";
+      After = [ "graphical-session.target" ];
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
+    Service = {
+      Type = "oneshot";
+      TimeoutStartSec = 300;
+      ExecStart = toString (pkgs.writeShellScript "plasma-panel-selfheal" ''
+        export PATH="/run/current-system/sw/bin:$PATH"
+        sleep 45
+        rc="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+        pm="$HOME/.local/share/plasma-manager"
+        check() {
+          for edge in 3 4; do
+            grep -A3 "^location=$edge$" "$rc" 2>/dev/null | grep -q "^plugin=org.kde.panel$" || return 1
+          done
+        }
+        if check; then exit 0; fi
+        echo "[panel-selfheal] a declared panel is missing from appletsrc — re-running plasma-manager apply"
+        rm -f "$pm/last_run_desktop_script_panels"
+        "$pm/run_all.sh" || true
+        sleep 10
+        if check; then
+          ${pkgs.curl}/bin/curl -sS -m 10 -H "Title: plasma panel self-heal" -H "Tags: warning" \
+            -d "a panel was missing after login on $(uname -n); re-apply restored it" \
+            https://ntfy.sh/diegonmarcos-infra 2>/dev/null || true
+        else
+          ${pkgs.curl}/bin/curl -sS -m 10 -H "Title: plasma panel self-heal FAILED" -H "Priority: high" -H "Tags: rotating_light" \
+            -d "a declared panel is STILL missing after re-apply on $(uname -n) — check plasmashell coredumps" \
+            https://ntfy.sh/diegonmarcos-infra 2>/dev/null || true
+          exit 1
+        fi
+      '');
+    };
+  };
 }

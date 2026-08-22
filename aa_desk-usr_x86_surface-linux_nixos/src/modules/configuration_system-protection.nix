@@ -135,6 +135,13 @@ let
       systemd     # (path already carries this too)
       sudo        # RESET restart escalation
       jq          # runtime config parsing
+      util-linux  # logger — syslog line in the PSI pre-kill alert ladder.
+                  # 2026-08-22: its absence 127-crashed the guard (set -e) at
+                  # EVERY pressure event since Aug 21 — 105 deaths in one boot,
+                  # always BEFORE the kill loop ran — until systemd's start
+                  # limiter gave up mid-freeze. The alert layer killed the killer.
+      curl        # ntfy pressure alerts (silently dead before 2026-08-22 —
+                  # command-not-found exit was swallowed by that line's || true)
     ];
   };
 
@@ -326,7 +333,13 @@ in
     description = "Freeze-guard — PSI watchdog, kills runaways before the desktop locks up";
     wantedBy = [ "multi-user.target" ];
     after = [ "sysinit.target" ];
-    path = with pkgs; [ coreutils procps gnugrep gawk systemd sudo ];
+    path = with pkgs; [ coreutils procps gnugrep gawk systemd sudo util-linux curl jq ];
+    # 2026-08-22: while the desktop thrashed (io PSI 80%+), the guard was
+    # 127-crash-looping on a missing alert tool every RestartSec=2 until the
+    # start-rate limiter gave up entirely ("Start request repeated too quickly",
+    # restart counter 68) — and then even the selfcheck's `start` was refused by
+    # that same limiter. A watchdog must never be rate-limited out of existence.
+    unitConfig.StartLimitIntervalSec = 0;
     serviceConfig = {
       User = "root-watchdog";
       Group = "root-watchdog";
@@ -372,11 +385,29 @@ in
 
   systemd.services."freeze-guard-selfcheck" = lib.mkIf sysprot.watchdog_selfcheck.enabled {
     serviceConfig.Type = "oneshot";
-    path = with pkgs; [ systemd ];
+    path = with pkgs; [ systemd curl jq coreutils ];
     script = ''
       if ! systemctl is-active --quiet freeze-guard.service; then
         echo "[freeze-guard-selfcheck] freeze-guard.service is NOT active — re-arming"
-        systemctl start freeze-guard.service
+        # 2026-08-22: a crash-looping guard trips systemd's start-rate limiter,
+        # and a plain `start` is then REFUSED ("Start request repeated too
+        # quickly" — observed at restart counter 68, mid-freeze, protection
+        # down). Clear the limiter state first or this re-arm is a no-op
+        # exactly when it matters most.
+        systemctl reset-failed freeze-guard.service || true
+        if systemctl start freeze-guard.service; then
+          _st="re-armed OK"
+        else
+          _st="RE-ARM FAILED — freeze protection is DOWN"
+        fi
+        # A dying watchdog must be LOUD (2026-08-22: it had been dying silently
+        # at every pressure event for 28h; ntfy was dead too — same missing-tool
+        # bug). Best-effort: never let the alert break the re-arm path.
+        _topic=$(jq -r '.watchdog.ntfy_topic // "diegonmarcos-infra"' /etc/cloud-data/system-protection.json 2>/dev/null)
+        curl -sS -m 10 -H "Title: freeze-guard selfcheck" -H "Priority: high" -H "Tags: warning" \
+          -d "freeze-guard was not active on $(uname -n): $_st" \
+          "https://ntfy.sh/''${_topic:-diegonmarcos-infra}" 2>/dev/null || true
+        [ "$_st" = "re-armed OK" ]
       fi
     '';
   };
