@@ -86,6 +86,21 @@ let
     ];
     text = builtins.readFile ./plasma-systray-config.sh;
   };
+
+  # The single owner of appletsrc reconciliation: layout -> widget repair ->
+  # tray lists -> marker, in that order, after plasmashell is on the bus. See
+  # plasma-panel-sync.sh's header for the two-writers/wrong-order bug and the
+  # plasmashell SEGV it removes. The two scripts it drives are passed by env so
+  # this file stays free of interpolation, matching the convention above.
+  panelSyncScript = pkgs.writeShellApplication {
+    name = "plasma-panel-sync";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.gnugrep
+      pkgs.kdePackages.qttools   # qdbus
+    ];
+    text = builtins.readFile ./plasma-panel-sync.sh;
+  };
 in
 
 {
@@ -126,15 +141,34 @@ in
   # ./plasma-systray-config.sh. Test: ./test-systray-config.sh.
   home.file.".local/share/systray-items.json".source = ./systray-items.json;
 
-  systemd.user.services.plasma-systray-config = {
+  # 2026-08-22: this unit used to be plasma-systray-config, ordered
+  # Before=plasma-plasmashell.service on the reasoning quoted above — "a oneshot
+  # ordered Before plasmashell owns the file when nothing else does". That
+  # reasoning was wrong, because something else DOES touch the file afterwards:
+  # plasma-manager's generated 2_desktop_script_panels.sh runs from run_all.sh
+  # once plasmashell is already up, and it removes and recreates every panel —
+  # systemtray containments included. The tray applier therefore always wrote
+  # the ids of the PREVIOUS layout and had its work deleted seconds later, with
+  # no error anywhere. Measured 2026-08-22: applier wrote containments 7915/7927
+  # at 17:19:26; after the next boot the layout script had reallocated them as
+  # 8206/8217 and both trays were on Plasma's stock defaults.
+  #
+  # It is now the LAST step of one ordered pipeline that runs After plasmashell,
+  # so it reconciles against the ids that actually exist. plasma-panel-sync.sh
+  # holds the full rationale, including the plasmashell SEGV it also removes.
+  systemd.user.services.plasma-panel-sync = {
     Unit = {
-      Description = "Apply declarative Plasma system tray item lists";
-      Before = [ "plasma-plasmashell.service" ];
+      Description = "Reconcile Plasma panels, panel widgets and system tray item lists";
+      After = [ "plasma-plasmashell.service" ];
       PartOf = [ "plasma-workspace.target" ];
     };
     Service = {
       Type = "oneshot";
-      ExecStart = "${systrayConfigScript}/bin/plasma-systray-config";
+      Environment = [
+        "PANEL_REPAIR_BIN=${fixMissingPanelWidgetsScript}/bin/plasma-fix-missing-panel-widgets"
+        "SYSTRAY_CONFIG_BIN=${systrayConfigScript}/bin/plasma-systray-config"
+      ];
+      ExecStart = "${panelSyncScript}/bin/plasma-panel-sync";
     };
     Install.WantedBy = [ "plasma-workspace.target" ];
   };
@@ -206,8 +240,16 @@ in
   # widget per desired mode is present in its intended position. See
   # plasma-fix-missing-panel-widgets.sh and plasma-panel-repair.json for
   # the data-driven implementation.
-  home.activation.fixMissingPanelWidgets = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
-    ${fixMissingPanelWidgetsScript}/bin/plasma-fix-missing-panel-widgets || true
+  # Runs the SAME pipeline as plasma-panel-sync.service, not just the repair
+  # step. A switch changes the generated layout JS, so the panels themselves may
+  # be stale, not only their widgets — and the tray lists must be rewritten
+  # after any layout re-apply or they are silently discarded. Sequencing all
+  # three here is what makes "switch" and "login" converge on one state instead
+  # of two. Idempotent: a no-op once the layout matches its marker.
+  home.activation.plasmaPanelSync = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
+    PANEL_REPAIR_BIN=${fixMissingPanelWidgetsScript}/bin/plasma-fix-missing-panel-widgets \
+    SYSTRAY_CONFIG_BIN=${systrayConfigScript}/bin/plasma-systray-config \
+      ${panelSyncScript}/bin/plasma-panel-sync || true
   '';
 
   # Details as the default Dolphin view — see the script's header for why this
