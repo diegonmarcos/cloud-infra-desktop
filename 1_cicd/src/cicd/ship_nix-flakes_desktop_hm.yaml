@@ -44,7 +44,14 @@ jobs:
       # / so the sops-install-secrets Go build hit "no space left on device"
       # (2026-07-16, run 29506574808). Reclaim the ~20-30GB of preinstalled
       # toolchains we never use (Android SDK, .NET, GHC, tool-cache, docker
-      # images) before the build. large-packages/swap left off (slow / risky).
+      # images) before the build.
+      #
+      # 2026-08-22: large-packages and swap-storage turned ON. They were left
+      # off as "slow / risky", but the build was failing with
+      # "zstd: error 70 : Write error : cannot write block : Broken pipe" -
+      # the runner filling up mid-compression, which reads like a corrupt
+      # archive rather than an out-of-disk. A slower job that finishes beats a
+      # fast one that does not, and swap costs disk we now have.
       - name: Free up runner disk (large HM closure needs headroom)
         uses: jlumbroso/free-disk-space@main
         with:
@@ -52,9 +59,9 @@ jobs:
           android: true
           dotnet: true
           haskell: true
-          large-packages: false
+          large-packages: true
           docker-images: true
-          swap-storage: false
+          swap-storage: true
 
       - uses: cachix/install-nix-action@v30
         with:
