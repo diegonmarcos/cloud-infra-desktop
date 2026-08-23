@@ -910,13 +910,25 @@ step_gh_release_fork() {
     cp -f "$src" "$DIST_DIR/$asset"
     src="$DIST_DIR/$asset"
   fi
-  if ! in_nix gh release view "$rolling_tag" >/dev/null 2>&1; then
-    in_nix gh release create "$rolling_tag" --title "$rolling_tag" \
-      --target "${GITHUB_SHA:-main}" \
-      --notes "Rolling release — overwritten on every main push." --latest
-  fi
+  # Every ABI in the build matrix calls this concurrently against the SAME
+  # rolling release — GitHub's release API isn't immediately consistent under
+  # concurrent create/upload from sibling jobs (a sibling's create can leave
+  # this job's upload 404ing against a release that exists a moment later).
+  # Retry the whole create-if-missing+upload sequence, not just the upload.
+  local tries=0
+  until {
+    in_nix gh release view "$rolling_tag" >/dev/null 2>&1 \
+      || in_nix gh release create "$rolling_tag" --title "$rolling_tag" \
+           --target "${GITHUB_SHA:-main}" \
+           --notes "Rolling release — overwritten on every main push." --latest >/dev/null 2>&1
+    in_nix gh release upload "$rolling_tag" "$src" --clobber
+  }; do
+    tries=$((tries + 1))
+    [ "$tries" -lt 5 ] || { errlog "gh-release-fork[$key]: upload failed after $tries attempts (rolling-release race?)"; exit 1; }
+    log "gh-release-fork[$key]: attempt $tries failed (concurrent-job race on the rolling release?) — retrying in $((tries * 5))s…"
+    sleep $((tries * 5))
+  done
   log "gh-release-fork[$key]: upload $asset → $rolling_tag"
-  in_nix gh release upload "$rolling_tag" "$src" --clobber
 }
 
 # Main-guard: allow this file to be `source`d (e.g. by tests) to exercise the
