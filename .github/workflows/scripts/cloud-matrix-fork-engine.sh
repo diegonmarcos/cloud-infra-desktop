@@ -899,12 +899,23 @@ step_gh_release_fork() {
   [ -n "$rolling_tag" ] && [ "$rolling_tag" != "null" ] || { errlog "gh-release-fork[$key]: release.gh_release.rolling_tag unset"; exit 1; }
   src="$DIST_DIR/cloud-comms-${key}.apk"
   [ -f "$src" ] || { errlog "gh-release-fork[$key]: $src missing — run build-fork first"; exit 1; }
+  # ABI-aware asset name — mirrors publish-fork's GHCR tag suffix. Default
+  # arm64-v8a (phone target) keeps the bare name every existing consumer
+  # (ea_cloud-superapp's external_apps installer) already pins; a non-default
+  # ABI (x86_64, built for Waydroid) uploads under its own suffixed name so it
+  # doesn't clobber the phone asset — both live on the same rolling release.
+  local abi="${COMMS_BUNDLE_ABI:-arm64-v8a}" asset="cloud-comms-${key}.apk"
+  if [ "$abi" != "arm64-v8a" ]; then
+    asset="cloud-comms-${key}-${abi}.apk"
+    cp -f "$src" "$DIST_DIR/$asset"
+    src="$DIST_DIR/$asset"
+  fi
   if ! in_nix gh release view "$rolling_tag" >/dev/null 2>&1; then
     in_nix gh release create "$rolling_tag" --title "$rolling_tag" \
       --target "${GITHUB_SHA:-main}" \
       --notes "Rolling release — overwritten on every main push." --latest
   fi
-  log "gh-release-fork[$key]: upload cloud-comms-${key}.apk → $rolling_tag"
+  log "gh-release-fork[$key]: upload $asset → $rolling_tag"
   in_nix gh release upload "$rolling_tag" "$src" --clobber
 }
 

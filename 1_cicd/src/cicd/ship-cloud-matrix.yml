@@ -124,8 +124,12 @@ jobs:
       # /releases/latest/download/cloud-comms-matrix.apk is a stable install URL
       # (ea_cloud-superapp ui.external_apps[cloud-matrix].install_apk_url).
       # Engine step reads build.json::release.gh_release (rolling_tag=latest).
+      # Runs for EVERY abi in the matrix (not just arm64-v8a): the engine
+      # suffixes the asset name for non-default ABIs (cloud-comms-matrix-x86_64.apk),
+      # so da_waydroid-container can pin an ABI that actually installs on x86_64 —
+      # gating this to arm64-v8a only left that asset permanently stale/arm64-only.
       - name: Publish fork APK to rolling 'latest' release (stable install URL)
-        if: ${{ success() && matrix.combo.abi == 'arm64-v8a' }}
+        if: ${{ success() }}
         working-directory: ${{ env.WORK_DIR }}
         env:
           BYPASS_NIX: "1"
