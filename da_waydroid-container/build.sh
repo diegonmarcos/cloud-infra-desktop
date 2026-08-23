@@ -162,12 +162,14 @@ cmd_apps_lock() {
 # `github`-sourced with pinned hashes like everything else).
 cmd_apps_fetch() {
   command -v nix >/dev/null 2>&1 || die "nix not found"
-  # stderr (build progress) must NOT be merged into the captured path — nix build's
-  # ONLY stdout is the final store path (via --print-out-paths); merging 2>&1 into the
-  # capture corrupted $out with the whole progress log and broke the cp below
-  # ("File name too long" — confirmed live, fixed here).
-  local out; out="$(nix build "path:$SRC/apps#apks" --no-link --print-out-paths)" \
+  # --print-out-paths' stdout capture is unreliable in this environment (confirmed
+  # live: even `nix build --debug 2>&1` produced zero captured output, exit 0, empty
+  # $out) — build to a real symlink and resolve that instead, no capture needed.
+  local tmp; tmp="$(mktemp -d)"
+  nix build "path:$SRC/apps#apks" -o "$tmp/out" \
     || die "nix build of the pinned APK set failed (see output above)"
+  local out; out="$(readlink -f "$tmp/out")"; rm -rf "$tmp"
+  [ -n "$out" ] || die "nix build succeeded but produced no resolvable output path"
   rm -rf "$SRC/apks"; mkdir -p "$SRC/apks"
   cp -f "$out"/apks/*.apk "$SRC/apks/"
   log "fetched $(ls "$SRC/apks" | wc -l) pinned APK(s) into src/apks/ (reproducible, sha256-pinned)"
