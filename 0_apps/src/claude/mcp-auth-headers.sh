@@ -54,6 +54,7 @@ REL="A0_keys/providers/authelia/signed-bearer_jwt/tokens/claude-admin.json"
 for _candidate in \
     "${AUTHELIA_OIDC_TOKENS_DIR:+$AUTHELIA_OIDC_TOKENS_DIR/claude-admin.json}" \
     "$REPO_ROOT/IV_vault/$REL" \
+    "$REPO_ROOT/../cloud-vault/$REL" \
     "$HOME/git/cloud-vault/$REL"
 do
     [ -n "$_candidate" ] || continue
