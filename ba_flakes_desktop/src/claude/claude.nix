@@ -190,24 +190,33 @@ in
     fi
     SRC="$LIVE"
     echo "[claude-settings] source: $REPO_SOT (single SoT)"
-    # Preserve a runtime-owned effortLevel (set via /effort) across rebuilds.
-    EFFORT=""
+    # Runtime-owned keys: written by the CLI itself (/effort, /model, /config,
+    # the auto-mode environment onboarding), never declared in the SoT. They are
+    # merged back ON TOP of the generated file, so a switch cannot destroy them.
+    #
+    # 2026-08-23: this list was just effortLevel, and `autoMode` was the cost.
+    # Answering "Teach auto mode about your environment?" stores the whole
+    # learned environment here under `autoMode`; the next switch regenerated
+    # settings.json without it and the prompt came straight back — twelve times
+    # (projectOnboardingSeenCount=12 for /home/diego), which is what made it look
+    # like a dismissal bug rather than a config-wipe bug. Any key the CLI owns
+    # and we do not declare belongs in this list, or every rebuild deletes it.
+    RUNTIME_KEYS='["effortLevel","autoMode","model","tui"]'
+    KEEP=""
     if [ -f "$DST" ] && [ ! -L "$DST" ]; then
-      EFFORT=$("$JQ" -r '.effortLevel // empty' "$DST" 2>/dev/null) || true
+      KEEP=$("$JQ" -c --argjson k "$RUNTIME_KEYS" \
+        'with_entries(select(.key as $x | $k | index($x)))' "$DST" 2>/dev/null) || KEEP=""
     fi
+    [ -n "$KEEP" ] || KEEP="{}"
     # Drop any stale read-only store symlink left by the old home.file mechanism.
     [ -L "$DST" ] && ${pkgs.coreutils}/bin/rm -f "$DST"
-    if [ -n "$EFFORT" ]; then
-      "$JQ" --arg e "$EFFORT" '. + {effortLevel: $e}' "$SRC" > "$DST"
-    else
-      "$JQ" '.' "$SRC" > "$DST"
-    fi
+    "$JQ" --argjson keep "$KEEP" '. * $keep' "$SRC" > "$DST"
     ${pkgs.coreutils}/bin/chmod 0644 "$DST"
     # $LIVE is consumed as SRC on the success path, so it must be cleaned up
     # HERE, not only in the failure branch above — otherwise every switch leaves
     # another .settings-merged.<pid> behind in ~/.claude.
     [ -n "''${LIVE:-}" ] && ${pkgs.coreutils}/bin/rm -f "$LIVE"
-    echo "[claude-settings] ~/.claude/settings.json written (writable; effortLevel=''${EFFORT:-runtime-default})"
+    echo "[claude-settings] ~/.claude/settings.json written (writable; runtime keys preserved: $KEEP)"
     ) || echo "[claude-settings] subshell failed; HM chain continues"
   '';
 
