@@ -15,6 +15,7 @@
 #   vnc     — headless sway → wayvnc → TigerVNC (debug transport).
 #
 #   ./build.sh build            # bundle + apps-fetch + docker build (apps/launcher/theme baked in)
+#   ./build.sh redeploy [pkg...]  # ship an app fix: (pkg args → relock those) + build + clear the live provisioning marker + recreate container
 #   ./build.sh bundle           # (re)generate the self-contained launcher from build.json
 #   ./build.sh apps-fetch       # reproducibly fetch the pinned APK set (build.json apps.list) into src/apks/
 #   ./build.sh bake             # boot+provision a scratch container, snapshot /data, bake it into the image (LOCAL-only: needs binder)
@@ -634,8 +635,25 @@ cmd_push() {
   log "pushed."
 }
 
+# redeploy [pkg...] — ship an app fix in one call: (pkg args → relock those first,
+# else skip) + build (apps-fetch against the now-current lock) + clear the LIVE data
+# volume's provisioning marker + recreate the container. This exact sequence, run by
+# hand and missing the marker clear, is why a fixed+released APK didn't show up after
+# a plain relaunch.
+cmd_redeploy() {
+  command -v docker >/dev/null 2>&1 || die "docker not found"
+  [ "$#" -gt 0 ] && cmd_apps_lock "$@"
+  cmd_build
+  cmd_down
+  local marker; marker="$(get container.data_volume)/.apps-provisioned"
+  [ -f "$marker" ] && { log "clearing provisioning marker…"; sudo rm -f "$marker"; }
+  cmd_up
+  log "redeploy complete."
+}
+
 case "${1:-up}" in
   build)   cmd_build ;;
+  redeploy) shift; cmd_redeploy "$@" ;;
   bundle)  cmd_bundle ;;
   apps-lock)  shift; cmd_apps_lock "$@" ;;
   apps-fetch) cmd_apps_fetch ;;
@@ -648,5 +666,5 @@ case "${1:-up}" in
   test)    cmd_test ;;
   push)    cmd_push ;;
   *) die "unknown command '$1'
-  build | bundle | apps-lock [pkg...] | apps-fetch | bake | install [bindir] | up [native|stream|vnc] | down | status | test | push" ;;
+  build | redeploy [pkg...] | bundle | apps-lock [pkg...] | apps-fetch | bake | install [bindir] | up [native|stream|vnc] | down | status | test | push" ;;
 esac
