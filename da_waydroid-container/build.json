@@ -84,7 +84,7 @@
       { "package": "com.brave.browser", "label": "Brave", "group": "web",
         "source": { "type": "github", "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk" } },
       { "package": "io.element.android.x", "label": "Cloud-Matrix (Element X)", "group": "comms",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/cloud-comms-matrix.apk" } },
+        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/cloud-comms-matrix-x86_64.apk" } },
       { "package": "com.fsck.k9", "label": "K-9 Mail", "group": "phone", "source": { "type": "fdroid" } },
       { "package": "rs.ltt.android", "label": "Ltt.rs", "group": "phone", "source": { "type": "fdroid" } },
       { "package": "io.heckel.ntfy", "label": "ntfy", "group": "phone", "source": { "type": "fdroid" } },
