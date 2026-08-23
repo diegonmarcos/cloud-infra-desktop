@@ -5,13 +5,13 @@
       "package": "com.diegonmarcos.superapp",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-SuperApp-x86_64.apk",
-      "sha256": "sha256-nsbBgrYQoqHCupOCUmMdqzPZnSETtXstObe1f7ZB6II="
+      "sha256": "sha256-MoioW8yvC546ZrTVKgqlWnFFioHAnHXeRioCa6XC/9M="
     },
     {
       "package": "com.diegonmarcos.cloudnav",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Nav-x86_64.apk",
-      "sha256": "sha256-ozbY5uaHWTlgyPd8JnrY27jMVHg+/6Y0eo/rwI1SDmc="
+      "sha256": "sha256-OVIQnlLJvqKmwnHK5xsYQKmHsMcmiu5tZ8f1FDFpCyM="
     },
     {
       "package": "com.diegonmarcos.comms",
@@ -23,7 +23,7 @@
       "package": "com.diegonmarcos.ide",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-IDE-Hub.apk",
-      "sha256": "sha256-1JNUPvhlGVG1PvKdSOR6f73I2a8F8qjQqy1Hj48GtBE="
+      "sha256": "sha256-NDhYkn3DNl+xNXn1JqKxUWEU/gXlteY0liEPDRd7ijc="
     },
     {
       "package": "com.foxdebug.acode",
@@ -405,19 +405,19 @@
       "package": "com.diegonmarcos.cloudbrowser",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Browser-x86_64.apk",
-      "sha256": "sha256-99h2Hh1xej+ugpCqZTknNwAyf4QtIOWBuGnhfLtwXEI="
+      "sha256": "sha256-qK3520cxopph0/7BowC23ROt4Es1Lya3iuW4HCP6MXg="
     },
     {
       "package": "com.diegonmarcos.cloudcalendar",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Calendar-x86_64.apk",
-      "sha256": "sha256-IrAaumQMNDBq6BTSQWeIcuZmI8FRAHPu9TX8GlbZgYY="
+      "sha256": "sha256-1CUeZCUPrRoixRirR3J32EV9I0jawiEYEuwDOfkAeqc="
     },
     {
       "package": "com.diegonmarcos.cloudcontacts",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Contacts-x86_64.apk",
-      "sha256": "sha256-2l5cet35CwTWMXkR2WxLtYVCrkYymwvfRYgkgpw2ppw="
+      "sha256": "sha256-7thfCEPJ97IUdiaDP35wuKymUuKM6DhS0zDfgVJumvk="
     },
     {
       "package": "com.diegonmarcos.mediacenter",
@@ -429,19 +429,19 @@
       "package": "com.diegonmarcos.cloudnews",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-News-x86_64.apk",
-      "sha256": "sha256-ryAbE1pc3lzDiP3a8HvACg00UxMiB5wDKvvyCuiWyfI="
+      "sha256": "sha256-8hiI+dnuA1L8Dz7tHwEwQ/sZDSEGrhSVv9hL1kpLbLQ="
     },
     {
       "package": "com.diegonmarcos.cloudvault",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Vault-x86_64.apk",
-      "sha256": "sha256-fySNeKzknqrt3tDkmDOMNA07RGBadyWD2q7zof40JSM="
+      "sha256": "sha256-DJTI4D10jVafQqAQfI15newfl4HaO4fiQ/xfZCEquWU="
     },
     {
       "package": "com.diegonmarcos.cloudwallet",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Wallet-x86_64.apk",
-      "sha256": "sha256-vQYseGBvE7eUMYMDM3xzIEjgOLFrV6RdfoCJxZ1a+vY="
+      "sha256": "sha256-HkcVoa4r7WCU4WmHE7BVZeWI80MoLKzlnS8pBRGJLp4="
     },
     {
       "package": "com.diegonmarcos.cloudkeyboard",
@@ -453,7 +453,7 @@
       "package": "com.diegonmarcos.cloudkeyboardlibs",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Keyboard-Libs.apk",
-      "sha256": "sha256-mktH9ds2Lvnc/AsVkVmGiWCuwXhX9PHGalP/nD3aI04="
+      "sha256": "sha256-76zeziYLBl3BxYsG9LrB6plFtlzgW1SUNuUwpFBMr28="
     },
     {
       "package": "com.diegonmarcos.comms.chat",
@@ -477,85 +477,85 @@
       "package": "com.diegonmarcos.cloudlib.appstore",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Appstore.apk",
-      "sha256": "sha256-Zrj5vk9qkRlN2b5b9DoiC4Py683vTgKk7YOs2moBTiM="
+      "sha256": "sha256-kKqcALSBBJoMsvPO3NAi7ZHiLzwa3ARLnFmCRkNQmdY="
     },
     {
       "package": "com.diegonmarcos.cloudlib.battery",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Battery.apk",
-      "sha256": "sha256-tr7BmCu0seZMPsKc+Ho+LiYW1j3rM7H25FBpgtaKK4M="
+      "sha256": "sha256-nbS8NMKNs8n6ioWABkXZojR/CpaFONA25D5NLS2nIYM="
     },
     {
       "package": "com.diegonmarcos.cloudlib.browser",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Browser.apk",
-      "sha256": "sha256-llxSxEjF9ba+h2X9x2Y6GiFrOKlrCblfjmHgSstuukQ="
+      "sha256": "sha256-nORVdSCt3E5XRbSa9ou8HQTsRZZJA5b5ykEKOsPw9OY="
     },
     {
       "package": "com.diegonmarcos.cloudlib.chat",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Chat.apk",
-      "sha256": "sha256-6GpJE2L/z3sXoaFq6UON5amACW7UJRiEYcaf22/Z2Kw="
+      "sha256": "sha256-7HRX1kzFtVh7gf7dgdf/yCP9Y7/nF/+1Zqf+rqzYvvg="
     },
     {
       "package": "com.diegonmarcos.cloudlib.core",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Core.apk",
-      "sha256": "sha256-coa1CTTpdWKLuAke+Qhtw9ov9fYrCbqt9dJ3rAoc1AU="
+      "sha256": "sha256-6Xl0Hp81vqRwtovPIPLwAAlusAel2Rf3Al2avHoVHOY="
     },
     {
       "package": "com.diegonmarcos.cloudlib.datamanager",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Datamanager.apk",
-      "sha256": "sha256-W7Gk6hDnXMxmmtfMJKQv2IoipgtYXmmnpCj80HefV90="
+      "sha256": "sha256-5KR0+OaAY7sd7Dbn/cA3qSbS3c55jtDKeRtyHJbTnUo="
     },
     {
       "package": "com.diegonmarcos.cloudlib.devtools",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Devtools.apk",
-      "sha256": "sha256-JyBa7NVHLoJ8GzoZxQnu0rQNKZuNlEEqlFx4t4R+lXY="
+      "sha256": "sha256-liNvrTqWY5+LTuUGOBf2AHVBcL21xPOsYcFPI+Q5eNE="
     },
     {
       "package": "com.diegonmarcos.cloudlib.feed",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Feed.apk",
-      "sha256": "sha256-K4vDY1qAAJUIJKsWgt256IbVnzcY2iAIB/xDJ6KEsPE="
+      "sha256": "sha256-l5/WFUbb4jcex2chDVkfMH0jb4xYtegBYOR25HRmv0I="
     },
     {
       "package": "com.diegonmarcos.cloudlib.fin",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Fin.apk",
-      "sha256": "sha256-ZWEYIMRJzCfgZjVd8XU1tPTi+oUqk5KcXJ9vaPMvArY="
+      "sha256": "sha256-5qEGDXHAIo2oDWvn9UJWgtMwoo/GLLg+hyI2vsCWa8g="
     },
     {
       "package": "com.diegonmarcos.cloudlib.firewall",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Firewall.apk",
-      "sha256": "sha256-94VqwA7oaQex+FF18giksCiVUIYoohtzAvQerFwt4p4="
+      "sha256": "sha256-KapUETybcQ8y73bhEKlB5jyROyfqsoeuVw2u0flOkfk="
     },
     {
       "package": "com.diegonmarcos.cloudlib.health",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Health.apk",
-      "sha256": "sha256-OjmWanoZ+a6CgngJ62wF4d69vKu9ro7TGOzMIhPwnow="
+      "sha256": "sha256-lKCQtJM9BidgczJfUDYMp5zYgB2U8WTM5o/zo/oIB7g="
     },
     {
       "package": "com.diegonmarcos.cloudlib.kdeconnect",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Kde-Connect.apk",
-      "sha256": "sha256-bj1gUoqhSPHuWN5qqeAxO0ujxPqqMm8WHM4F+AfZqXU="
+      "sha256": "sha256-qD3mT8m6gdshlOxDWzlZqzhyqHyS0pzq0OJqYCl8STg="
     },
     {
       "package": "com.diegonmarcos.cloudlib.launcherapptabs",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Launcher-Apptabs.apk",
-      "sha256": "sha256-5zlMOXUM2pTYroCgKxAckBd11UDwl8w+LjCIdObqo4g="
+      "sha256": "sha256-wi+9oydrSxR9kRONIVB/gnL76l3KVroN3XwdKydEYTw="
     },
     {
       "package": "com.diegonmarcos.cloudlib.launcheronehand",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Launcher-Onehand.apk",
-      "sha256": "sha256-N68YjEynhEBw9wP5Tm6bwl5gJECpU1R5xbkDDbMLFdo="
+      "sha256": "sha256-IUxbPP4LcySBHlcVU3hj2vKHzJea5fbqXcdSmEPnvHg="
     },
     {
       "package": "com.diegonmarcos.cloudlib.launcherzoomies",
@@ -567,7 +567,7 @@
       "package": "com.diegonmarcos.cloudlib.mail",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Mail.apk",
-      "sha256": "sha256-oZJj5An1Z/eSkCCdKqStYH2Yg1A9C4Wkd+QT8kCJtzc="
+      "sha256": "sha256-vJ+/2Q0SALswzwUaJmGvijww2TVIRafmkjBEcy5f4lU="
     },
     {
       "package": "com.diegonmarcos.cloudlib.media",
@@ -579,25 +579,25 @@
       "package": "com.diegonmarcos.cloudlib.net",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Net.apk",
-      "sha256": "sha256-ndM7DX1ZMHuabnXyk+oDI/M9wbLP43SiLKEiwZ3f0Y4="
+      "sha256": "sha256-dmXhhVyzXHFOgUkzTQmBK/W2QNow3bJBkComfvWMPbo="
     },
     {
       "package": "com.diegonmarcos.cloudlib.netwg",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Net-Wg.apk",
-      "sha256": "sha256-xdNt0ftlwSgS/LN+SeJvEZ5Gl47NdP91ONTq+xAElak="
+      "sha256": "sha256-9d1a/WCmZ7y3DxqtoyL7wmfbiWuRdo//sU2aoxzWllE="
     },
     {
       "package": "com.diegonmarcos.cloudlib.ops",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Ops.apk",
-      "sha256": "sha256-ZxGl+6wiYz4sEEi8Xz7hj6wBZOcGs5OAFT0V6qyKADQ="
+      "sha256": "sha256-FRJhOlpHA0H9FgwAyIPfpS7gc9hTmb+ayOqUyEkXpI8="
     },
     {
       "package": "com.diegonmarcos.cloudlib.shizukuadbdebugtools",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Shizuku-Adb-Debug-Tools.apk",
-      "sha256": "sha256-JGbUDmdqLxKwoMqPXGJkKWiPtWi7Ruzl+VEbH7yhIUQ="
+      "sha256": "sha256-XLeYkn+LcgfJ7tFNSvDWgQYxIV/GUq/qxN9rHtEGt2g="
     },
     {
       "package": "com.diegonmarcos.cloudlib.translate",
@@ -609,13 +609,13 @@
       "package": "com.diegonmarcos.cloudlib.translatemlkit",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Translate-Mlkit.apk",
-      "sha256": "sha256-1QDzynpmpKBv+N6cWSJmUCMO/AVwpzmSjG9RPixlF/w="
+      "sha256": "sha256-N+oHDmzufKyW/sTSPHdZ8S07NXTI6/KUjbKPsJyWXZg="
     },
     {
       "package": "com.diegonmarcos.cloudlib.updater",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Updater.apk",
-      "sha256": "sha256-UwiyxHLp+W7P2FQK0eV5LZ7HGX8I+0N4hmV90y1fgIg="
+      "sha256": "sha256-CPhQF0YzZ5cz92cOoo+2uABRiGXBmehfyWmyP/3hqDY="
     },
     {
       "package": "com.diegonmarcos.cloudlib.voice",
@@ -627,37 +627,37 @@
       "package": "com.diegonmarcos.cloudlib.voicevosk",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Voice-Vosk.apk",
-      "sha256": "sha256-67BtD+huXxmTLmN90rkoca0uG2PprLuqbNSOj2TNQnw="
+      "sha256": "sha256-yFf6RUFOD0BA+h6d3nx8Pq1xIcO2OM3p4jWwnV58VvI="
     },
     {
       "package": "com.diegonmarcos.cloudlib.cal",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Cal.apk",
-      "sha256": "sha256-TJNA7id2fGq7szN+vFX+PV6PHjSmDdCEnal2g+nvgd8="
+      "sha256": "sha256-+HQS9L2JKlz/DabGTGDSvNJt58r5wH4JEPU+/iy5mbY="
     },
     {
       "package": "com.diegonmarcos.cloudlib.contacts",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Contacts.apk",
-      "sha256": "sha256-sLSiojM4rqNyLsz2j+4Qq0bcarQkkRr9Cl55s//+WKo="
+      "sha256": "sha256-+pSjwFwGAnNe9bUkCJbeDCbFN2D9SWNP/OeV2Istbos="
     },
     {
       "package": "com.diegonmarcos.cloudlib.maps",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Maps.apk",
-      "sha256": "sha256-NFV2GRrcZdp4ZclXrZ1ndIRJF+mQmNQW4k2JqhWt79k="
+      "sha256": "sha256-DIKkCr4InUpVsd13Le/BMh5ulDQoo1Mkgn1KkXvdnQI="
     },
     {
       "package": "com.diegonmarcos.cloudlib.news",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-News.apk",
-      "sha256": "sha256-p5N/CO2v5ylLelm+2wpPA/5lqy0ZztKpxFgnGtoUATQ="
+      "sha256": "sha256-KuwTcf1vWwPFygFIj8UEy8bo/DDDlJQjyiZkkubGL28="
     },
     {
       "package": "com.diegonmarcos.cloudlib.wallet",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Wallet.apk",
-      "sha256": "sha256-TmJoETSViRzIQ9MACoTyLLZ9zcl1Cz+7D+9PQqyqSNo="
+      "sha256": "sha256-IRTzvrfHYs8L1i2vthxrMzN96Z/iBOjgnVV287DB9fQ="
     }
   ]
 }
