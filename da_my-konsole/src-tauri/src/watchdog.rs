@@ -2180,6 +2180,35 @@ fn drain_kill_requests() {
             eprintln!("[watchdog] reap: {}", reap_zombies());
             continue;
         }
+        // "0 UNIT <scope> <verb> <name>" — a systemd verb on a declared unit.
+        if sig.eq_ignore_ascii_case("UNIT") {
+            let scope = it.next().unwrap_or("");
+            let verb = it.next().unwrap_or("");
+            let name = it.next().unwrap_or("");
+            // Allow-list, not pass-through: this line arrives from a file any
+            // process of this user can append to, and "whatever word came
+            // next" is not something to hand systemctl.
+            if !matches!(verb, "start" | "stop" | "restart" | "reset-failed")
+                || !name.ends_with(".service")
+                || name.contains('/')
+            {
+                eprintln!("[watchdog] refusing unit request {verb:?} {name:?}");
+                continue;
+            }
+            let mut c = clean_command("systemctl");
+            if scope == "user" {
+                c.arg("--user");
+            }
+            match c.args([verb, name]).output() {
+                Ok(o) if o.status.success() => eprintln!("[watchdog] {verb} {name}: ok"),
+                Ok(o) => eprintln!(
+                    "[watchdog] {verb} {name} failed: {}",
+                    String::from_utf8_lossy(&o.stderr).trim()
+                ),
+                Err(e) => eprintln!("[watchdog] {verb} {name}: {e}"),
+            }
+            continue;
+        }
         if sig.eq_ignore_ascii_case("RECLAIM") {
             let want: u64 = it.next().and_then(|x| x.parse().ok()).unwrap_or(1_073_741_824);
             eprintln!("[watchdog] reclaim: {}", reclaim_session(want));
