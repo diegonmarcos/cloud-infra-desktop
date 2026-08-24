@@ -35,6 +35,9 @@ const PROBE_EVERY: Duration = Duration::from_secs(5);
 /// round trip on top, so a 2s cadence would keep a connection to the peer open
 /// essentially all the time for a panel nobody may be looking at.
 const FETCH_EVERY: Duration = Duration::from_secs(4);
+/// A full sweep is one ssh session per reachable peer, so it runs on a much
+/// slower clock than the single-target fetch.
+const FLEET_EVERY: Duration = Duration::from_secs(20);
 
 #[derive(Clone, Debug, Default)]
 pub struct Peer {
@@ -213,6 +216,11 @@ pub struct Mesh {
     /// the first fetch returns; the error is kept so a remote that cannot be
     /// read says why instead of just showing stale local numbers.
     remote: Arc<Mutex<(Value, String)>>,
+    /// One snapshot per reachable peer, for the fleet view.
+    fleet: Arc<Mutex<std::collections::HashMap<String, Value>>>,
+    /// Set while the fleet view is on. The sweep is several ssh sessions and
+    /// there is no reason to pay for it when nobody is looking at the result.
+    want_fleet: Arc<Mutex<bool>>,
 }
 
 impl Mesh {
@@ -224,6 +232,8 @@ impl Mesh {
             peers: Arc::new(Mutex::new(peers_from_ssh_config())),
             target: Arc::new(Mutex::new(None)),
             remote: Arc::new(Mutex::new((Value::Null, String::new()))),
+            fleet: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            want_fleet: Arc::new(Mutex::new(false)),
         };
 
         let peers = m.peers.clone();
@@ -267,7 +277,39 @@ impl Mesh {
             std::thread::sleep(FETCH_EVERY);
         });
 
+        // The fleet sweep. Sequential on purpose: each collector sleeps a
+        // second to get its cpu delta, and opening every peer at once to save
+        // ten seconds would put a burst of ssh sessions on a mesh whose whole
+        // job is carrying other traffic.
+        let peers = m.peers.clone();
+        let fleet = m.fleet.clone();
+        let want = m.want_fleet.clone();
+        std::thread::spawn(move || loop {
+            if want.lock().map(|w| *w).unwrap_or(false) {
+                let list: Vec<Peer> = peers.lock().map(|p| p.clone()).unwrap_or_default();
+                for p in list.into_iter().filter(|p| !p.local && p.up) {
+                    let (out, _) = fetch_remote(&p.alias);
+                    if let Ok(v) = serde_json::from_str::<Value>(out.trim()) {
+                        if let Ok(mut f) = fleet.lock() {
+                            f.insert(p.alias.clone(), v);
+                        }
+                    }
+                }
+            }
+            std::thread::sleep(FLEET_EVERY);
+        });
+
         m
+    }
+
+    pub fn set_fleet(&self, on: bool) {
+        if let Ok(mut w) = self.want_fleet.lock() {
+            *w = on;
+        }
+    }
+
+    pub fn fleet(&self) -> std::collections::HashMap<String, Value> {
+        self.fleet.lock().map(|f| f.clone()).unwrap_or_default()
     }
 
     pub fn target(&self) -> Option<String> {
