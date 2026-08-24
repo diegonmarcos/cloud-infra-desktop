@@ -1675,7 +1675,7 @@ impl Monitor {
         }
         let live: std::collections::HashSet<String> =
             arr(s, "proc_table").iter().map(|p| text(p, "name")).collect();
-        arr(s, "services")
+        let mut rows: Vec<(String, String, String)> = arr(s, "services")
             .iter()
             .filter_map(|u| {
                 let name = text(u, "name");
@@ -1689,7 +1689,28 @@ impl Monitor {
                 let state = if running { "idle".to_string() } else { format!("{active}/{sub}") };
                 Some((name, text(u, "scope"), state))
             })
-            .collect()
+            .collect::<Vec<_>>();
+
+        // Worst first. In systemctl's own order these come out grouped by
+        // manager and then alphabetically, which buries the one row anybody
+        // opened this list for ("plasmashell is dead, where is it?") a
+        // hundred lines down among units that are dead because they are
+        // oneshots that already ran.
+        let rank = |state: &str| -> u8 {
+            if state.starts_with("failed") {
+                0
+            } else if state.starts_with("inactive") {
+                1
+            } else if state.starts_with("not-loaded") {
+                2
+            } else if state.starts_with("active/exited") {
+                3
+            } else {
+                4
+            }
+        };
+        rows.sort_by(|a, b| rank(&a.2).cmp(&rank(&b.2)).then_with(|| a.0.cmp(&b.0)));
+        rows
     }
 
     /// None when the cursor is parked on an appended unit row: those have no
@@ -2569,7 +2590,16 @@ impl Dashboard for Monitor {
             } else {
                 Style::default().fg(DIM)
             };
-            let sc = if failed { Color::Rgb(240, 72, 72) } else { Color::Rgb(150, 140, 110) };
+            // Dead-but-declared reads as a warning, not as debris: something
+            // that is supposed to be running is not. Oneshots that already
+            // exited, and units that are merely idle, stay quiet.
+            let sc = if failed {
+                Color::Rgb(240, 72, 72)
+            } else if state.starts_with("inactive") || state.starts_with("not-loaded") {
+                Color::Rgb(240, 160, 90)
+            } else {
+                Color::Rgb(120, 128, 145)
+            };
             let mut cells = vec![
                 Cell::from("  —").style(base),
                 Cell::from(scope.clone()).style(base),
