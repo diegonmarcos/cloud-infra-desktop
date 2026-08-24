@@ -1319,13 +1319,40 @@ impl Monitor {
                 fmt_bytes_short(avg_or(&p, "1m", "mem_rss_bytes"))
             ),
         ));
+        // smaps_rollup, read here rather than taken from the snapshot: this is
+        // one process, the modal is already reading /proc for this pid, and it
+        // carries USS which the table has no column for. The three figures
+        // answer three different questions and only together are they honest:
+        //   RSS  every resident page, shared ones counted in full — the number
+        //        that sums to far more than the RAM installed
+        //   PSS  private pages plus this process's SHARE of each shared one —
+        //        the number that sums to the truth across the whole box
+        //   USS  private pages only — what you would actually get back by
+        //        killing it, which is usually the question being asked
+        let roll = rd("smaps_rollup");
+        let rk = |k: &str| -> Option<f64> {
+            roll.lines()
+                .find(|l| l.starts_with(&format!("{k}:")))
+                .and_then(|l| l.split_whitespace().nth(1))
+                .and_then(|v| v.parse::<f64>().ok())
+                .map(|kb| kb * 1024.0)
+        };
+        let uss = match (rk("Private_Clean"), rk("Private_Dirty")) {
+            (Some(c), Some(d)) => Some(c + d),
+            (a, b) => a.or(b),
+        };
+        let one = |v: Option<f64>| v.map(fmt_bytes_short).unwrap_or_else(|| "—".into());
         l.push(kv(
-            "pss (share-adjusted)",
-            match num_opt(&p, "mem_pss_bytes") {
-                Some(v) => fmt_bytes_short(v),
-                None => "— (not readable for this uid)".into(),
-            },
+            "rss / pss / uss",
+            format!("{}  {}  {}", one(rk("Rss")), one(rk("Pss")), one(uss)),
         ));
+        l.push(kv(
+            "  what each means",
+            "rss all resident · pss share-adjusted · uss private only".into(),
+        ));
+        if roll.is_empty() {
+            l.push(kv("  smaps_rollup", "not readable for this uid".into()));
+        }
         l.push(kv(
             "mem% 10s / 1m / 15m",
             format!(
@@ -2322,7 +2349,7 @@ impl Dashboard for Monitor {
                     Cell::from(fmt_fixed(rss)).style(base.fg(Color::Gray)),
                     // null when the daemon could not read another user's
                     // smaps_rollup. A dash, not a zero — we do not know.
-                    Cell::from(match p.get("mem_pss_bytes").and_then(|v| v.as_f64()) {
+                    Cell::from(match num_opt(p, "mem_pss_bytes") {
                         Some(v) => fmt_fixed(v),
                         None => "    —".into(),
                     })
