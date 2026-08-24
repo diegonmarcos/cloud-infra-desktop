@@ -1018,10 +1018,18 @@ impl Monitor {
                 avg_or(&p, "15m", "mem_pct")
             ),
         ));
-        l.push(kv("vm size / peak", format!("{} / {}", st("VmSize"), st("VmPeak"))));
-        l.push(kv("rss anon / file", format!("{} / {}", st("RssAnon"), st("RssFile"))));
-        l.push(kv("rss shmem", st("RssShmem")));
-        l.push(kv("swapped out", st("VmSwap")));
+        // status reports these as "7268852 kB"; every other size in this modal
+        // is human-formatted, so parse the number off and match.
+        let stb = |k: &str| -> String {
+            match st(k).split_whitespace().next().and_then(|n| n.parse::<f64>().ok()) {
+                Some(kb) => fmt_bytes_short(kb * 1024.0),
+                None => st(k),
+            }
+        };
+        l.push(kv("vm size / peak", format!("{} / {}", stb("VmSize"), stb("VmPeak"))));
+        l.push(kv("rss anon / file", format!("{} / {}", stb("RssAnon"), stb("RssFile"))));
+        l.push(kv("rss shmem", stb("RssShmem")));
+        l.push(kv("swapped out", stb("VmSwap")));
 
         l.push(head("io"));
         l.push(kv(
