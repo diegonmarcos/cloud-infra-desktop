@@ -38,6 +38,7 @@ const FETCH_EVERY: Duration = Duration::from_secs(4);
 /// A full sweep is one ssh session per reachable peer, so it runs on a much
 /// slower clock than the single-target fetch.
 const FLEET_EVERY: Duration = Duration::from_secs(20);
+const FLEET_PARALLEL: usize = 3;
 
 #[derive(Clone, Debug, Default)]
 pub struct Peer {
@@ -222,8 +223,12 @@ pub struct Mesh {
     /// the first fetch returns; the error is kept so a remote that cannot be
     /// read says why instead of just showing stale local numbers.
     remote: Arc<Mutex<(Value, String)>>,
-    /// One snapshot per reachable peer, for the fleet view.
-    fleet: Arc<Mutex<std::collections::HashMap<String, Value>>>,
+    /// One result per reachable peer, for the fleet view: the snapshot, or
+    /// the reason there is not one. A peer that FAILED to collect and a peer
+    /// that has not been reached yet are different states and a row that
+    /// showed them the same way would hide every broken peer behind
+    /// "collecting…".
+    fleet: Arc<Mutex<std::collections::HashMap<String, Result<Value, String>>>>,
     /// Set while the fleet view is on. The sweep is several ssh sessions and
     /// there is no reason to pay for it when nobody is looking at the result.
     want_fleet: Arc<Mutex<bool>>,
@@ -292,13 +297,42 @@ impl Mesh {
         let want = m.want_fleet.clone();
         std::thread::spawn(move || loop {
             if want.lock().map(|w| *w).unwrap_or(false) {
-                let list: Vec<Peer> = peers.lock().map(|p| p.clone()).unwrap_or_default();
-                for p in list.into_iter().filter(|p| !p.local && p.up) {
-                    let (out, _) = fetch_remote(&p.alias);
-                    if let Ok(v) = serde_json::from_str::<Value>(out.trim()) {
-                        if let Ok(mut f) = fleet.lock() {
-                            f.insert(p.alias.clone(), v);
-                        }
+                let list: Vec<Peer> =
+                    peers.lock().map(|p| p.clone()).unwrap_or_default();
+                let todo: Vec<Peer> = list.into_iter().filter(|p| !p.local && p.up).collect();
+                // A few at a time. Fully sequential meant the last peer waited
+                // out every ssh handshake before it, which on a mesh with
+                // 300ms round trips is most of a minute; all at once would put
+                // a burst of sessions on a link whose job is carrying other
+                // traffic.
+                for chunk in todo.chunks(FLEET_PARALLEL) {
+                    let hs: Vec<_> = chunk
+                        .iter()
+                        .map(|p| {
+                            let alias = p.alias.clone();
+                            let fleet = fleet.clone();
+                            std::thread::spawn(move || {
+                                let (out, why) = fetch_remote(&alias);
+                                let r = match serde_json::from_str::<Value>(out.trim()) {
+                                    Ok(v) => Ok(v),
+                                    Err(_) if !why.is_empty() => Err(why),
+                                    // Reached it, got something, could not
+                                    // parse it. Show the first line: it is
+                                    // almost always the shell saying why.
+                                    Err(e) => Err(out
+                                        .lines()
+                                        .find(|l| !l.trim().is_empty())
+                                        .map(|l| l.trim().to_string())
+                                        .unwrap_or_else(|| e.to_string())),
+                                };
+                                if let Ok(mut f) = fleet.lock() {
+                                    f.insert(alias, r);
+                                }
+                            })
+                        })
+                        .collect();
+                    for h in hs {
+                        let _ = h.join();
                     }
                 }
             }
@@ -314,7 +348,7 @@ impl Mesh {
         }
     }
 
-    pub fn fleet(&self) -> std::collections::HashMap<String, Value> {
+    pub fn fleet(&self) -> std::collections::HashMap<String, Result<Value, String>> {
         self.fleet.lock().map(|f| f.clone()).unwrap_or_default()
     }
 
