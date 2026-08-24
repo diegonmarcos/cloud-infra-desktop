@@ -8,7 +8,7 @@ use ratatui::Frame;
 
 use crate::frame::Dashboard;
 use crate::ui::{block, dot};
-use super::{sh, sh_timeout};
+use super::sh_timeout;
 
 struct Vm { alias: String, wg: String, label: String, up: bool, uptime: String, disk: String, running: String, probed: bool }
 
