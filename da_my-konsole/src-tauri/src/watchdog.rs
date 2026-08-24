@@ -188,8 +188,21 @@ struct MemInfoRaw {
     buffers_kb: f64,
     cached_kb: f64,
     sreclaimable_kb: f64,
+    sunreclaim_kb: f64,
+    shmem_kb: f64,
+    anon_kb: f64,
+    mapped_kb: f64,
+    dirty_kb: f64,
+    writeback_kb: f64,
+    kernel_stack_kb: f64,
+    page_tables_kb: f64,
     swap_total_kb: f64,
     swap_free_kb: f64,
+    swap_cached_kb: f64,
+    zswap_kb: f64,
+    zswapped_kb: f64,
+    commit_limit_kb: f64,
+    committed_kb: f64,
 }
 
 fn parse_meminfo(s: &str) -> MemInfoRaw {
@@ -207,8 +220,21 @@ fn parse_meminfo(s: &str) -> MemInfoRaw {
         buffers_kb: kv("Buffers:"),
         cached_kb: kv("Cached:"),
         sreclaimable_kb: kv("SReclaimable:"),
+        sunreclaim_kb: kv("SUnreclaim:"),
+        shmem_kb: kv("Shmem:"),
+        anon_kb: kv("AnonPages:"),
+        mapped_kb: kv("Mapped:"),
+        dirty_kb: kv("Dirty:"),
+        writeback_kb: kv("Writeback:"),
+        kernel_stack_kb: kv("KernelStack:"),
+        page_tables_kb: kv("PageTables:"),
         swap_total_kb: kv("SwapTotal:"),
         swap_free_kb: kv("SwapFree:"),
+        swap_cached_kb: kv("SwapCached:"),
+        zswap_kb: kv("Zswap:"),
+        zswapped_kb: kv("Zswapped:"),
+        commit_limit_kb: kv("CommitLimit:"),
+        committed_kb: kv("Committed_AS:"),
     }
 }
 
@@ -230,20 +256,54 @@ fn meminfo_all() -> (f64, f64, String, String) {
     let swap_pct =
         if raw.swap_total_kb > 0.0 { (raw.swap_total_kb - raw.swap_free_kb) / raw.swap_total_kb * 100.0 } else { 0.0 };
 
-    let total = kb_to_gib(raw.total_kb);
-    let available = kb_to_gib(raw.avail_kb);
+    let g = kb_to_gib;
+    let total = g(raw.total_kb);
+    let available = g(raw.avail_kb);
     let used = total - available;
-    let buffers = kb_to_gib(raw.buffers_kb);
-    let cached = kb_to_gib(raw.cached_kb + raw.sreclaimable_kb);
-    let free = kb_to_gib(raw.free_kb);
+    let buffers = g(raw.buffers_kb);
+    // "cached" as every tool means it: page cache plus the reclaimable half of
+    // slab. Shmem/tmpfs sits inside Cached but is NOT reclaimable (it has no
+    // backing store to write back to), so it is published separately rather
+    // than left hiding inside a number people read as "free if needed".
+    let cached = g(raw.cached_kb + raw.sreclaimable_kb);
+    let free = g(raw.free_kb);
+    let shmem = g(raw.shmem_kb);
+    let anon = g(raw.anon_kb);
+    // Kernel memory no reclaim can touch: unreclaimable slab, kernel stacks,
+    // page tables. When `used` climbs with no process to blame, it is here.
+    let kernel = g(raw.sunreclaim_kb + raw.kernel_stack_kb + raw.page_tables_kb);
     let mem_detail = format!(
         "{{\"total\":{total:.2},\"used\":{used:.2},\"buffers\":{buffers:.2},\
-          \"cached\":{cached:.2},\"free\":{free:.2},\"available\":{available:.2}}}"
+          \"cached\":{cached:.2},\"free\":{free:.2},\"available\":{available:.2},\
+          \"shmem\":{shmem:.2},\"anon\":{anon:.2},\"mapped\":{:.2},\"kernel\":{kernel:.2},\
+          \"slab_reclaimable\":{:.2},\"slab_unreclaimable\":{:.2},\"page_tables\":{:.2},\
+          \"kernel_stack\":{:.2},\"dirty\":{:.3},\"writeback\":{:.3},\
+          \"commit_limit\":{:.2},\"committed\":{:.2}}}",
+        g(raw.mapped_kb),
+        g(raw.sreclaimable_kb),
+        g(raw.sunreclaim_kb),
+        g(raw.page_tables_kb),
+        g(raw.kernel_stack_kb),
+        g(raw.dirty_kb),
+        g(raw.writeback_kb),
+        g(raw.commit_limit_kb),
+        g(raw.committed_kb),
     );
 
-    let swap_total = kb_to_gib(raw.swap_total_kb);
-    let swap_used = swap_total - kb_to_gib(raw.swap_free_kb);
-    let swap_detail = format!("{{\"total\":{swap_total:.2},\"used\":{swap_used:.2}}}");
+    // Swap is its own store, not a section of RAM: keeping its free/cached
+    // here (rather than folding used-swap into mem) is what stops the panel
+    // double-counting a page that is in both places at once. SwapCached is
+    // exactly that overlap — swapped out AND still resident.
+    let swap_total = g(raw.swap_total_kb);
+    let swap_free = g(raw.swap_free_kb);
+    let swap_used = swap_total - swap_free;
+    let swap_detail = format!(
+        "{{\"total\":{swap_total:.2},\"used\":{swap_used:.2},\"free\":{swap_free:.2},\
+          \"cached\":{:.2},\"zswap\":{:.3},\"zswapped\":{:.2}}}",
+        g(raw.swap_cached_kb),
+        g(raw.zswap_kb),
+        g(raw.zswapped_kb),
+    );
 
     (mem_pct, swap_pct, mem_detail, swap_detail)
 }
@@ -381,10 +441,12 @@ struct ProcAvg {
     runq_wait_pct: f64,
 }
 
-/// Averaging windows, in seconds — the EWMA time constants, matching the
-/// load1/load5/load15 triple.
-const PROC_AVG_WINDOWS: [f64; 3] = [60.0, 300.0, 900.0];
-const PROC_AVG_LABELS: [&str; 3] = ["1m", "5m", "15m"];
+/// Averaging windows, in seconds — the EWMA time constants. 1m/5m/15m mirror
+/// load1/load5/load15; 10s is the short window the process table shows next to
+/// it, because "is this spiking right now" and "has this been heavy all along"
+/// are different questions and a 1m average answers only the second.
+const PROC_AVG_WINDOWS: [f64; 4] = [10.0, 60.0, 300.0, 900.0];
+const PROC_AVG_LABELS: [&str; 4] = ["10s", "1m", "5m", "15m"];
 
 impl ProcAvg {
     /// One EWMA step toward this tick's live values. `alpha` is derived from
@@ -421,7 +483,7 @@ struct ProcSample {
     read_bytes: u64,
     write_bytes: u64,
     runq_wait_ns: u64,
-    avg: [ProcAvg; 3],
+    avg: [ProcAvg; 4],
     /// False until this pid has produced one real rate sample, so the first
     /// EWMA step SEEDS with the live value instead of ramping up from zero
     /// (which would show every freshly-started process as artificially idle
@@ -545,7 +607,7 @@ fn build_proc_table(
         read_bps: f64,
         write_bps: f64,
         runq_wait_pct: f64,
-        avg: [ProcAvg; 3],
+        avg: [ProcAvg; 4],
     }
 
     let mut next: HashMap<i32, ProcSample> = HashMap::new();
@@ -634,7 +696,7 @@ fn build_proc_table(
                     avg[i].step(alpha, &live);
                 }
             } else {
-                avg = [live; 3];
+                avg = [live; 4];
             }
         }
 
@@ -984,6 +1046,236 @@ fn disks_json() -> String {
     format!("[{}]", items.join(","))
 }
 
+/// One btrfs subvolume mount, joined to the qgroup that measures it.
+struct Subvol {
+    mount: String,
+    subvol: String,
+    id: u64,
+}
+
+/// Pull `subvolid=` and `subvol=` out of a mount's option string. Both are
+/// always present on a btrfs mount (the kernel synthesises them even when the
+/// fstab entry omits them), which is what makes this join reliable.
+fn parse_subvol_opts(opts: &str) -> Option<(u64, String)> {
+    let mut id = None;
+    let mut name = None;
+    for o in opts.split(',') {
+        if let Some(v) = o.strip_prefix("subvolid=") {
+            id = v.parse::<u64>().ok();
+        } else if let Some(v) = o.strip_prefix("subvol=") {
+            name = Some(v.to_string());
+        }
+    }
+    Some((id?, name.unwrap_or_else(|| "/".into())))
+}
+
+fn read_u64(path: &str) -> Option<u64> {
+    fs::read_to_string(path).ok()?.trim().parse::<u64>().ok()
+}
+
+/// Per-subvolume usage WITHOUT root and without walking the tree.
+///
+/// This is the answer to "df says every btrfs mount is the same 69G/80G".
+/// They are: on a single-pool layout every subvolume mount reports the pool's
+/// figures, so df is structurally incapable of saying which subvolume is
+/// holding the space. btrfs itself knows — quota groups track it — and the
+/// numbers are exposed world-readable under /sys/fs/btrfs/<uuid>/qgroups/0_<id>.
+/// So no `btrfs` binary, no sudo, no du(1) walk: two small sysfs reads per
+/// mounted subvolume, which is why this can run every tick.
+///
+///   referenced = everything this subvolume can see (its apparent size)
+///   exclusive  = what deleting it would ACTUALLY give back — the rest is
+///                shared with snapshots/reflinks, and this gap is the number
+///                people are missing when a delete frees nothing.
+///
+/// Returns "[]" when quotas are off, which is a legitimate state, not an
+/// error: the caller falls back to the plain statvfs rows.
+fn btrfs_storage_json() -> String {
+    let Ok(mounts) = fs::read_to_string("/proc/self/mounts") else { return "[]".into() };
+
+    // uuid -> mounted subvolumes. A pool can be mounted many times (one per
+    // subvolume) and we want one entry per fs, each carrying its volumes.
+    let mut by_uuid: Vec<(String, Vec<Subvol>)> = Vec::new();
+    let mut dev_uuid: Vec<(String, String)> = Vec::new();
+    for line in mounts.lines() {
+        let f: Vec<&str> = line.split_whitespace().collect();
+        if f.len() < 4 || f[2] != "btrfs" {
+            continue;
+        }
+        let mount = decode_mount_escapes(f[1]);
+        let Some((id, subvol)) = parse_subvol_opts(f[3]) else { continue };
+        // Which pool this mount belongs to. Cached per device: a 15-subvolume
+        // layout is 15 mounts of ONE pool, and this runs every tick.
+        let uuid = match dev_uuid.iter().find(|(d, _)| d == f[0]) {
+            Some((_, u)) => u.clone(),
+            None => match btrfs_uuid_for_device(f[0]) {
+                Some(u) => {
+                    dev_uuid.push((f[0].to_string(), u.clone()));
+                    u
+                }
+                None => continue,
+            },
+        };
+        match by_uuid.iter_mut().find(|(u, _)| *u == uuid) {
+            Some((_, v)) => {
+                // The same subvolume mounted twice (e.g. /nix and /nix/store)
+                // is one volume, not two rows of double-counted space.
+                if !v.iter().any(|x| x.id == id) {
+                    v.push(Subvol { mount, subvol, id });
+                }
+            }
+            None => by_uuid.push((uuid, vec![Subvol { mount, subvol, id }])),
+        }
+    }
+
+    let mut out = Vec::new();
+    for (uuid, mut vols) in by_uuid {
+        let base = format!("/sys/fs/btrfs/{uuid}");
+        let alloc = |kind: &str, field: &str| read_u64(&format!("{base}/allocation/{kind}/{field}")).unwrap_or(0);
+        // disk_total vs total_bytes is the RAID/DUP profile factor: metadata
+        // is DUP here, so it burns two device bytes per logical byte. Using
+        // total_bytes for free space is how a btrfs pool "loses" space that
+        // was never missing.
+        let (dt, du) = (alloc("data", "total_bytes"), alloc("data", "bytes_used"));
+        let (mt, mu) = (alloc("metadata", "total_bytes"), alloc("metadata", "bytes_used"));
+        let (st, su) = (alloc("system", "total_bytes"), alloc("system", "bytes_used"));
+        let disk_alloc = alloc("data", "disk_total") + alloc("metadata", "disk_total") + alloc("system", "disk_total");
+        let disk_used = alloc("data", "disk_used") + alloc("metadata", "disk_used") + alloc("system", "disk_used");
+        let dev_size: u64 = fs::read_dir(format!("{base}/devinfo"))
+            .map(|rd| {
+                rd.filter_map(|e| e.ok())
+                    .filter_map(|e| read_u64(&format!("{}/size", e.path().display())))
+                    // devinfo/size is in 512-byte sectors, unlike every other
+                    // file in this tree, which is bytes.
+                    .map(|s| s * 512)
+                    .sum()
+            })
+            .unwrap_or(0);
+        let label = fs::read_to_string(format!("{base}/label")).unwrap_or_default().trim().to_string();
+
+        // Biggest first: the point of the list is finding what ate the pool.
+        let mut rows: Vec<(u64, String)> = Vec::new();
+        for v in vols.drain(..) {
+            let q = format!("{base}/qgroups/0_{}", v.id);
+            let refer = read_u64(&format!("{q}/referenced")).unwrap_or(0);
+            let excl = read_u64(&format!("{q}/exclusive")).unwrap_or(0);
+            let limit = read_u64(&format!("{q}/max_referenced")).unwrap_or(0);
+            rows.push((
+                refer,
+                format!(
+                    "{{\"mount\":\"{}\",\"subvol\":\"{}\",\"id\":{},\"referenced\":{refer},\
+                      \"exclusive\":{excl},\"limit\":{limit}}}",
+                    json_escape(&v.mount),
+                    json_escape(&v.subvol),
+                    v.id
+                ),
+            ));
+        }
+        rows.sort_by(|a, b| b.0.cmp(&a.0));
+        let vols_json: Vec<String> = rows.into_iter().map(|(_, j)| j).collect();
+
+        out.push(format!(
+            "{{\"uuid\":\"{uuid}\",\"label\":\"{}\",\"dev_size\":{dev_size},\
+              \"alloc\":{disk_alloc},\"alloc_used\":{disk_used},\
+              \"data_total\":{dt},\"data_used\":{du},\"meta_total\":{mt},\"meta_used\":{mu},\
+              \"sys_total\":{st},\"sys_used\":{su},\"volumes\":[{}]}}",
+            json_escape(&label),
+            vols_json.join(",")
+        ));
+    }
+    format!("[{}]", out.join(","))
+}
+
+/// Which btrfs pool a mounted device belongs to.
+///
+/// /sys/fs/btrfs/<uuid> has no back-pointer to mounts, so go by device. Note
+/// the mount's own MAJ:MIN is useless here: btrfs mounts report an anonymous
+/// device (0:31), not the block device, so /sys/dev/block cannot resolve it.
+/// The mounts line's SOURCE field can — canonicalise it to its kernel block
+/// name ("/dev/mapper/pool" -> "dm-0") and look for that name among the
+/// devices each pool lists. Correct for a multi-device pool too, since every
+/// member appears under devices/.
+fn btrfs_uuid_for_device(dev: &str) -> Option<String> {
+    let real = fs::canonicalize(dev).ok()?;
+    let name = real.file_name()?.to_string_lossy().into_owned();
+    fs::read_dir("/sys/fs/btrfs")
+        .ok()?
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        // "features" is a sibling of the uuid dirs, not one of them.
+        .filter(|n| n.len() == 36 && n.matches('-').count() == 4)
+        .find(|u| fs::metadata(format!("/sys/fs/btrfs/{u}/devices/{name}")).is_ok())
+}
+
+/// Every cgroup slice the watchdog can see, with the numbers that decide who
+/// gets throttled or OOM-killed. This is the data behind the panel's slice
+/// manager: memory.current against memory.high (the throttle point) and
+/// memory.max (the kill point), plus the slice's own PSI — a slice can be
+/// stalling on memory while the machine-wide figure looks calm.
+///
+/// `protected` mirrors what drain_kill_requests() enforces, so the manager
+/// shows the same policy the daemon acts on rather than a second opinion.
+fn slices_json(protected: &[String]) -> String {
+    let mut items = Vec::new();
+    let push = |dir: &str, name: String, items: &mut Vec<String>| {
+        let cur = read_u64(&format!("{dir}/memory.current"));
+        let Some(cur) = cur else { return };
+        // memory.high/max read "max" when unset — no limit, not zero.
+        let lim = |f: &str| -> f64 {
+            fs::read_to_string(format!("{dir}/{f}"))
+                .ok()
+                .and_then(|v| v.trim().parse::<f64>().ok())
+                .unwrap_or(-1.0)
+        };
+        let psi = |f: &str, key: &str| -> f64 {
+            fs::read_to_string(format!("{dir}/{f}"))
+                .ok()
+                .and_then(|s| {
+                    s.lines().find(|l| l.starts_with("some")).and_then(|l| {
+                        l.split_whitespace()
+                            .find_map(|t| t.strip_prefix(key))
+                            .and_then(|v| v.parse::<f64>().ok())
+                    })
+                })
+                .unwrap_or(0.0)
+        };
+        let swap = read_u64(&format!("{dir}/memory.swap.current")).unwrap_or(0);
+        let pids = read_u64(&format!("{dir}/pids.current")).unwrap_or(0);
+        let prot = protected.iter().any(|p| *p == name);
+        items.push(format!(
+            "{{\"name\":\"{}\",\"current\":{cur},\"swap\":{swap},\"high\":{:.0},\"max\":{:.0},\
+              \"pids\":{pids},\"mem_psi\":{:.2},\"io_psi\":{:.2},\"cpu_psi\":{:.2},\"protected\":{prot}}}",
+            json_escape(&name),
+            lim("memory.high"),
+            lim("memory.max"),
+            psi("memory.pressure", "avg10="),
+            psi("io.pressure", "avg10="),
+            psi("cpu.pressure", "avg10="),
+        ));
+    };
+
+    // Top-level slices, then this user's own slice — the one whose cap is what
+    // actually kills things here, and which is nested a level down.
+    if let Ok(rd) = fs::read_dir("/sys/fs/cgroup") {
+        let mut names: Vec<String> = rd
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(".slice"))
+            .collect();
+        names.sort();
+        for n in names {
+            push(&format!("/sys/fs/cgroup/{n}"), n.clone(), &mut items);
+        }
+    }
+    let uid = current_uid();
+    push(
+        &format!("/sys/fs/cgroup/user.slice/user-{uid}.slice"),
+        format!("user-{uid}.slice"),
+        &mut items,
+    );
+    format!("[{}]", items.join(","))
+}
+
 /// Best-effort GPU VRAM read for the "vram" field. Tries amdgpu's sysfs
 /// counters first (reliable, byte-accurate), then falls back to i915's
 /// debugfs-style file if present. On this Intel Surface neither the amdgpu
@@ -1158,6 +1450,8 @@ fn render(
     battery: &Option<BatteryReading>,
     procs: &str,
     proc_table: &str,
+    storage: &str,
+    slices: &str,
 ) -> String {
     // Named, not positional: this format string mixes inline-captured names
     // with `{}` holes, and when the cores list was positional it was simply
@@ -1183,6 +1477,7 @@ fn render(
           \"psi\":{{\"cpu\":{},\"io\":{},\"memory\":{}}},\
           \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\"slice_pct\":{slice_pct:.1},\
           \"battery\":{},\
+          \"storage\":{storage},\"slices\":{slices},\
           \"procs\":{procs},\"proc_table\":{proc_table},\"ts\":{}}}",
         vram_json(vram),
         pressure_block("cpu"),
@@ -1216,6 +1511,76 @@ fn signal_by_name(name: &str) -> Option<i32> {
     })
 }
 
+/// The systemd unit a pid belongs to, if any. cgroup v2 puts it in the last
+/// path component: ".../user@1000.service/app.slice/app-foo-1234.scope".
+/// `.scope` units are transient wrappers around something already launched —
+/// systemd cannot restart one, so those come back as None and take the
+/// re-exec path instead.
+fn proc_user_unit(pid: i32) -> Option<String> {
+    let cg = fs::read_to_string(format!("/proc/{pid}/cgroup")).ok()?;
+    let path = cg.lines().find_map(|l| l.rsplit(':').next().map(|s| s.to_string()))?;
+    // Only this user's own manager can be driven without root, so anything
+    // outside user@<uid>.service is not ours to restart.
+    if !path.contains(&format!("user@{}.service", current_uid())) {
+        return None;
+    }
+    let unit = path.rsplit('/').next()?.to_string();
+    if unit.ends_with(".service") { Some(unit) } else { None }
+}
+
+/// Restart, not just kill. Two honest strategies, in order:
+///
+///   1. A user systemd unit — hand it to `systemctl --user restart`, which is
+///      the only way the process comes back with its real dependencies,
+///      environment and cgroup intact.
+///   2. Anything else — capture argv and cwd BEFORE signalling (both vanish
+///      the instant the process dies), TERM it, then re-exec.
+///
+/// The re-exec path is deliberately not disguised: the replacement is a child
+/// of this daemon, so it inherits the daemon's session and environment, not
+/// the original's. That is a real difference and the caller is told about it
+/// rather than being handed something that only looks like the old process.
+fn restart_pid(pid: i32) -> Result<String, String> {
+    if let Some(unit) = proc_user_unit(pid) {
+        let out = std::process::Command::new("systemctl")
+            .args(["--user", "restart", &unit])
+            .output()
+            .map_err(|e| format!("systemctl: {e}"))?;
+        return if out.status.success() {
+            Ok(format!("restarted unit {unit}"))
+        } else {
+            Err(format!("systemctl --user restart {unit}: {}", String::from_utf8_lossy(&out.stderr).trim()))
+        };
+    }
+
+    let raw = fs::read(format!("/proc/{pid}/cmdline")).map_err(|e| format!("cmdline: {e}"))?;
+    let argv: Vec<String> = raw
+        .split(|b| *b == 0)
+        .filter(|a| !a.is_empty())
+        .map(|a| String::from_utf8_lossy(a).into_owned())
+        .collect();
+    if argv.is_empty() {
+        return Err("no argv — kernel thread, nothing to re-exec".into());
+    }
+    let cwd = fs::read_link(format!("/proc/{pid}/cwd")).unwrap_or_else(|_| PathBuf::from("/"));
+    // exe rather than argv[0]: argv[0] can be a name that is not on PATH (or
+    // is an ld-linux invocation), and the resolved link is what actually ran.
+    let exe = fs::read_link(format!("/proc/{pid}/exe")).ok();
+
+    unsafe { libc::kill(pid, libc::SIGTERM) };
+    // Give it a moment to go down so the replacement does not race the
+    // original for a socket, lockfile or single-instance guard.
+    std::thread::sleep(std::time::Duration::from_millis(600));
+
+    let program = exe.map(|p| p.display().to_string()).unwrap_or_else(|| argv[0].clone());
+    std::process::Command::new(&program)
+        .args(&argv[1..])
+        .current_dir(&cwd)
+        .spawn()
+        .map(|c| format!("re-exec {} as pid {} (now a child of the watchdog)", argv[0], c.id()))
+        .map_err(|e| format!("re-exec {program}: {e}"))
+}
+
 /// A signal requested from the panel. QML cannot signal a process, and giving a
 /// widget an exec path is worse than giving the daemon a mailbox: the daemon
 /// already runs as this user, so it can only ever signal what the user could.
@@ -1236,9 +1601,21 @@ fn drain_kill_requests() {
         let mut it = line.split_whitespace();
         let Some(Ok(pid)) = it.next().map(|x| x.parse::<i32>()) else { continue };
         let sig = it.next().unwrap_or("TERM");
-        let Some(signum) = signal_by_name(sig) else {
-            eprintln!("[watchdog] unknown signal {sig:?} — ignored");
-            continue;
+        // RESTART is not a signal, but it belongs on the same mailbox: it must
+        // pass the exact same pid and protected-slice checks below, and having
+        // one guarded entry point is what stops a second path growing its own
+        // (weaker) copy of the policy.
+        let restart = sig.eq_ignore_ascii_case("RESTART");
+        let signum = if restart {
+            0
+        } else {
+            match signal_by_name(sig) {
+                Some(n) => n,
+                None => {
+                    eprintln!("[watchdog] unknown signal {sig:?} — ignored");
+                    continue;
+                }
+            }
         };
         // Never signal init or ourselves. kill(2) already stops us reaching
         // another user's processes; this stops the panel stopping the thing
@@ -1249,6 +1626,13 @@ fn drain_kill_requests() {
         }
         if let Some(slice) = proc_protected_slice(pid, &protected) {
             eprintln!("[watchdog] refusing to signal pid {pid}: in protected slice {slice}");
+            continue;
+        }
+        if restart {
+            match restart_pid(pid) {
+                Ok(what) => eprintln!("[watchdog] restart pid {pid}: {what}"),
+                Err(why) => eprintln!("[watchdog] restart pid {pid} failed: {why}"),
+            }
             continue;
         }
         unsafe { libc::kill(pid, signum) };
@@ -1334,6 +1718,8 @@ pub fn spawn() {
                 &read_battery(),
                 &top_procs(12),
                 &proc_table_json,
+                &btrfs_storage_json(),
+                &slices_json(&protected_slices),
             );
             publish(&path, &body);
         }
@@ -1380,11 +1766,12 @@ mod tests {
                        disks,
                        Some((1024.0, 512.0)),
                        0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6,
-                       &None, "[]", "[]");
+                       &None, "[]", "[]", "[]", "[]");
         for k in ["cpu", "cores", "cpu_detail", "mem", "swap", "mem_detail", "swap_detail",
                   "vram", "disk", "disk_r", "disk_w", "disks",
                   "net_rx", "net_tx", "load1", "load5", "load15",
                   "psi", "slice_gib", "slice_max_gib", "slice_pct", "battery", "procs",
+                  "storage", "slices",
                   "proc_table", "ts"] {
             assert!(s.contains(&format!("\"{k}\":")), "missing {k} in {s}");
         }
@@ -1394,13 +1781,13 @@ mod tests {
         // machines without a readable GPU VRAM counter), not an absent key.
         let s2 = render(12.5, &[], cpu_detail, 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
-                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]", "[]");
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]", "[]", "[]", "[]");
         assert!(s2.contains("\"vram\":null"), "expected null vram, got {s2}");
 
         // slice_pct must be 0.0, not NaN/Infinity, when slice_max is 0.
         let s3 = render(12.5, &[], cpu_detail, 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
-                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]", "[]");
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]", "[]", "[]", "[]");
         assert!(s3.contains("\"slice_pct\":0.0"), "expected 0.0 slice_pct, got {s3}");
     }
 
@@ -1556,4 +1943,80 @@ mod name_tests {
         assert_eq!(json_escape("kworker/u32:5-btrfs-endio"), "kworker/u32:5-btrfs-endio");
         assert_eq!(json_escape("say \"hi\""), "say \\\"hi\\\"");
     }
+
+    // The whole reason the storage box exists: on a single-pool layout df
+    // reports the SAME figures for every subvolume mount, so the join from a
+    // mount to its qgroup is the only thing that can say which one is heavy.
+    // If these options stop parsing, every volume silently reads 0 B.
+    #[test]
+    fn subvol_options_parse_from_a_real_mount_line() {
+        let opts = "rw,noatime,compress=zstd:3,ssd,discard=async,space_cache=v2,subvolid=260,subvol=/@nixos/nix";
+        assert_eq!(parse_subvol_opts(opts), Some((260, "/@nixos/nix".to_string())));
+        // The kernel synthesises both even for a bare mount of the top level.
+        assert_eq!(parse_subvol_opts("rw,subvolid=5,subvol=/"), Some((5, "/".to_string())));
+        // Not btrfs / no subvolid: no row rather than a wrong one.
+        assert_eq!(parse_subvol_opts("rw,relatime"), None);
+        // "subvol=" must not be mistaken for "subvolid=" by a prefix match.
+        assert_eq!(parse_subvol_opts("rw,subvol=/@home"), None);
+    }
+
+    // 10s is the window the process table's first average column reads. Losing
+    // it (or reordering the array) would silently relabel every column.
+    #[test]
+    fn avg_windows_and_labels_line_up() {
+        assert_eq!(PROC_AVG_WINDOWS.len(), PROC_AVG_LABELS.len());
+        assert_eq!(PROC_AVG_LABELS[0], "10s");
+        assert_eq!(PROC_AVG_WINDOWS[0], 10.0);
+        // "Av60s" in the UI is this one — 1m and 60s are the same window, so
+        // there is no second entry for it.
+        assert_eq!(PROC_AVG_LABELS[1], "1m");
+        assert_eq!(PROC_AVG_WINDOWS[1], 60.0);
+    }
+
+    // Swap must not be folded into the RAM figures: a page can be swapped out
+    // AND still cached in RAM, and counting it twice is what makes a panel
+    // report more memory in use than the machine has.
+    #[test]
+    fn memory_and_swap_are_reported_separately() {
+        let raw = parse_meminfo(
+            "MemTotal:       16000000 kB\n\
+             MemFree:         1000000 kB\n\
+             MemAvailable:    8000000 kB\n\
+             Buffers:          500000 kB\n\
+             Cached:          4000000 kB\n\
+             SwapCached:       100000 kB\n\
+             AnonPages:       6000000 kB\n\
+             Mapped:          2000000 kB\n\
+             Shmem:            300000 kB\n\
+             Dirty:              5000 kB\n\
+             Writeback:             0 kB\n\
+             KernelStack:       30000 kB\n\
+             PageTables:        90000 kB\n\
+             SReclaimable:     700000 kB\n\
+             SUnreclaim:       400000 kB\n\
+             SwapTotal:       8000000 kB\n\
+             SwapFree:        6000000 kB\n\
+             Zswap:             50000 kB\n\
+             Zswapped:         200000 kB\n\
+             CommitLimit:    16000000 kB\n\
+             Committed_AS:   12000000 kB\n",
+        );
+        // "Cached:" must not swallow "SwapCached:", nor "Zswap:" "Zswapped:".
+        assert_eq!(raw.cached_kb, 4_000_000.0);
+        assert_eq!(raw.swap_cached_kb, 100_000.0);
+        assert_eq!(raw.zswap_kb, 50_000.0);
+        assert_eq!(raw.zswapped_kb, 200_000.0);
+        assert_eq!(raw.sunreclaim_kb, 400_000.0);
+    }
+
+    // RESTART rides the kill mailbox but is not a signal; if signal_by_name
+    // ever starts answering for it, a restart request would be delivered as
+    // some unrelated signal instead.
+    #[test]
+    fn restart_is_not_a_signal_name() {
+        assert_eq!(signal_by_name("RESTART"), None);
+        assert_eq!(signal_by_name("TERM"), Some(libc::SIGTERM));
+        assert_eq!(signal_by_name("CONT"), Some(libc::SIGCONT));
+    }
+
 }
