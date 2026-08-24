@@ -1203,7 +1203,11 @@ impl Monitor {
         let peers = self.mesh.list();
         let peer = peers.iter().find(|p| p.alias == alias);
         let local = peer.map(|p| p.local).unwrap_or(false);
-        let v = if local { self.snap.clone() } else { self.mesh.fleet().get(&alias).cloned().unwrap_or(Value::Null) };
+        let v = if local {
+            self.snap.clone()
+        } else {
+            self.mesh.fleet().get(&alias).and_then(|r| r.clone().ok()).unwrap_or(Value::Null)
+        };
         let accent = Color::Rgb(120, 200, 255);
         let inner = Self::modal(f, area, 82, 26, &alias, accent);
         if v.is_null() {
@@ -2927,7 +2931,11 @@ impl Dashboard for Monitor {
             for p in peers.iter() {
                 // This machine is described by the snapshot already on screen;
                 // there is no reason to ssh to ourselves to learn it.
-                let snap = if p.local { Some(s.clone()) } else { got.get(&p.alias).cloned() };
+                let res = if p.local { Some(Ok(s.clone())) } else { got.get(&p.alias).cloned() };
+                let snap = match &res {
+                    Some(Ok(v)) => Some(v.clone()),
+                    _ => None,
+                };
                 let name = Span::styled(
                     // 18: "oci-analytics-pub" is 17 and was losing its tail.
                     format!("{:<18}", trunc(&p.alias, 18)),
@@ -2943,22 +2951,26 @@ impl Dashboard for Monitor {
                     frows.push(Row::new(vec![Cell::from(Line::from(vec![
                         name,
                         addr,
-                        Span::styled(
-                            if p.local {
-                                "—".to_string()
-                            } else if !p.probed {
-                                "probing…".to_string()
-                            } else if p.up {
-                                "reachable · collecting…".to_string()
-                            } else {
-                                "unreachable".to_string()
-                            },
-                            Style::default().fg(if p.up || !p.probed {
-                                LABEL
-                            } else {
-                                Color::Rgb(240, 72, 72)
-                            }),
-                        ),
+                        match &res {
+                            // Reached and refused is not the same as not yet
+                            // reached, and the reason is the useful part.
+                            Some(Err(e)) => Span::styled(
+                                trunc(e, 74),
+                                Style::default().fg(Color::Rgb(240, 160, 90)),
+                            ),
+                            _ if p.local => Span::styled("—".to_string(), Style::default().fg(LABEL)),
+                            _ if !p.probed => {
+                                Span::styled("probing…".to_string(), Style::default().fg(LABEL))
+                            }
+                            _ if p.up => Span::styled(
+                                "reachable · collecting…".to_string(),
+                                Style::default().fg(LABEL),
+                            ),
+                            _ => Span::styled(
+                                "unreachable".to_string(),
+                                Style::default().fg(Color::Rgb(240, 72, 72)),
+                            ),
+                        },
                     ]))]));
                     continue;
                 };
