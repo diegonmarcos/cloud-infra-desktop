@@ -340,3 +340,12 @@ build.log
 /III_front-data/
 /IV_cloud-configs/
 /V_front-configs/
+
+## ── Local CI-diff scratch (dist-ci/, dist-ci-diff-dl/) ────────────────
+## Written by the desktop ship/diff scripts when they pull a run's closure
+## down for comparison: a .nar.zst blob, the nixcache manifest, and the
+## toplevel/activation store-path pointers. Regenerated on every run and
+## machine-specific — never source. `dist/` above is committed code; these
+## siblings are not.
+dist-ci/
+dist-ci-diff-dl/
