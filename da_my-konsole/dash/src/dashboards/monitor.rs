@@ -2936,19 +2936,29 @@ impl Dashboard for Monitor {
                 let Some(v) = snap else {
                     // Reachable but not yet collected, or not reachable at all
                     // — two different states and they must not read the same.
-                    frows.push(Row::new(vec![
-                        Cell::from(Line::from(vec![name, addr])),
-                        Cell::from(if p.local {
-                            "—".to_string()
-                        } else if !p.probed {
-                            "probing…".to_string()
-                        } else if p.up {
-                            "collecting…".to_string()
-                        } else {
-                            "unreachable".to_string()
-                        })
-                        .style(Style::default().fg(if p.up || !p.probed { LABEL } else { Color::Rgb(240, 72, 72) })),
-                    ]));
+                    // Spans, not a second cell: the status is a sentence and
+                    // the RTT column is eight characters wide, which turned
+                    // "unreachable" into "unreacha".
+                    frows.push(Row::new(vec![Cell::from(Line::from(vec![
+                        name,
+                        addr,
+                        Span::styled(
+                            if p.local {
+                                "—".to_string()
+                            } else if !p.probed {
+                                "probing…".to_string()
+                            } else if p.up {
+                                "reachable · collecting…".to_string()
+                            } else {
+                                "unreachable".to_string()
+                            },
+                            Style::default().fg(if p.up || !p.probed {
+                                LABEL
+                            } else {
+                                Color::Rgb(240, 72, 72)
+                            }),
+                        ),
+                    ]))]));
                     continue;
                 };
                 let g = |k: &str| num(&v, k);
@@ -2971,7 +2981,15 @@ impl Dashboard for Monitor {
                     pct(g("swap")),
                     Cell::from(format!("{:>6.1}G", num(&v, "mem_detail.total")))
                         .style(Style::default().fg(Color::Gray)),
-                    pct(g("disk")),
+                    // btrfs allocates in chunks and df cannot see that, so on a
+                    // machine that publishes storage the pool figure is the
+                    // true one; peers fall back to their own df.
+                    pct(match arr(&v, "storage").first() {
+                        Some(st) if num(st, "dev_size") > 0.0 => {
+                            num(st, "alloc_used") / num(st, "dev_size") * 100.0
+                        }
+                        _ => g("disk"),
+                    }),
                     Cell::from(format!("{l1:>5.2}")).style(Style::default().fg(grad(l1 / ncpu))),
                     Cell::from(format!("{:>4.0}", ncpu)).style(Style::default().fg(DIM)),
                     Cell::from(z(psi_worst, 6, format!("{psi_worst:>6.2}")))
@@ -2983,7 +3001,7 @@ impl Dashboard for Monitor {
             let ftable = Table::new(
                 frows,
                 [
-                    Constraint::Length(33), // peer + address
+                    Constraint::Length(56), // peer + address + status
                     Constraint::Length(8),  // rtt
                     Constraint::Length(5),  // cpu
                     Constraint::Length(5),  // mem
@@ -2997,7 +3015,7 @@ impl Dashboard for Monitor {
                 ],
             )
             .header(Row::new(vec![
-                Cell::from("PEER              ADDRESS").style(Style::default().fg(LABEL)),
+                Cell::from("PEER            ADDRESS").style(Style::default().fg(LABEL)),
                 Cell::from("     RTT").style(Style::default().fg(LABEL)),
                 Cell::from(" CPU%").style(Style::default().fg(LABEL)),
                 Cell::from(" MEM%").style(Style::default().fg(LABEL)),
