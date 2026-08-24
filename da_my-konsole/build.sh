@@ -167,6 +167,9 @@ cmd_check() {
   stage_resources; icon
   nix develop -c cargo check --manifest-path src-tauri/Cargo.toml
   nix develop -c cargo check --manifest-path dash/Cargo.toml
+  # plain `cargo check` skips test targets — dash's braille/sort tests would
+  # never be compiled, let alone run. It's a small crate; run them.
+  nix develop -c cargo test --manifest-path dash/Cargo.toml
 }
 cmd_clean() { rm -rf src-tauri/target src-tauri/profiles src-tauri/config.json frontend/vendor/*.js frontend/vendor/*.css; }
 
