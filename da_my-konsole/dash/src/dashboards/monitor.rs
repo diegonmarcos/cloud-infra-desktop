@@ -229,6 +229,22 @@ fn push(v: &mut Vec<f64>, x: f64) {
     }
 }
 
+/// A column of sizes only reads as a column if every entry is the same shape.
+/// fmt_bytes_short gives "541.4M" next to "5.5M" next to "22.7G", which the
+/// eye has to re-parse per row. This is always four digits and a unit, right
+/// aligned with spaces: "  5M", " 541M", "1000M", "  19G". No decimals — at
+/// four significant digits they never change a decision.
+fn fmt_fixed(bytes: f64) -> String {
+    let b = bytes.max(0.0);
+    for (div, unit) in [(1.0, 'B'), (1024.0, 'K'), (1048576.0, 'M'), (1073741824.0, 'G')] {
+        let n = (b / div).round();
+        if n < 10000.0 {
+            return format!("{n:>4.0}{unit}");
+        }
+    }
+    format!("{:>4.0}T", b / 1099511627776.0)
+}
+
 fn fmt_gib(g: f64) -> String {
     if g >= 1.0 {
         format!("{g:.2}G")
@@ -290,17 +306,20 @@ enum Sort {
     Mem,
     M10s,
     M60s,
+    Net,
     Disk,
     Pid,
     Name,
     User,
+    Slice,
     Runq,
 }
 
 /// Left-to-right order of the sortable columns, so ←/→ walks the header the
 /// way glances does rather than jumping around an enum's declaration order.
-const SORT_ORDER: [Sort; 11] = [
+const SORT_ORDER: [Sort; 13] = [
     Sort::Pid,
+    Sort::Slice,
     Sort::User,
     Sort::Name,
     Sort::Cpu,
@@ -309,6 +328,7 @@ const SORT_ORDER: [Sort; 11] = [
     Sort::Mem,
     Sort::M10s,
     Sort::M60s,
+    Sort::Net,
     Sort::Disk,
     Sort::Runq,
 ];
@@ -324,10 +344,12 @@ impl Sort {
             Sort::Mem => "mem",
             Sort::M10s => "m10s",
             Sort::M60s => "m60s",
+            Sort::Net => "net",
             Sort::Disk => "disk",
             Sort::Pid => "pid",
             Sort::Name => "name",
             Sort::User => "user",
+            Sort::Slice => "slice",
             Sort::Runq => "runq",
         }
     }
@@ -402,6 +424,7 @@ fn sort_procs<'a>(snap: &'a Value, sort: Sort, desc: bool, win: Win) -> Vec<&'a 
                 Sort::Cpu => win.get(p, "cpu_pct"),
                 Sort::Mem => win.get(p, "mem_rss_bytes"),
                 Sort::Disk => win.get(p, "read_bytes_per_s") + win.get(p, "write_bytes_per_s"),
+                Sort::Net => num(p, "net_rx_bytes_per_s") + num(p, "net_tx_bytes_per_s"),
                 Sort::Runq => win.get(p, "runq_wait_pct"),
                 // Fixed windows, so these ignore `win` entirely. "1m" is the
                 // daemon's label for the 60s bucket.
@@ -410,18 +433,60 @@ fn sort_procs<'a>(snap: &'a Value, sort: Sort, desc: bool, win: Win) -> Vec<&'a 
                 Sort::M10s => avg_or(p, "10s", "mem_pct"),
                 Sort::M60s => avg_or(p, "1m", "mem_pct"),
                 Sort::Pid => num(p, "pid"),
-                Sort::Name | Sort::User => 0.0,
+                Sort::Name | Sort::User | Sort::Slice => 0.0,
             }
         };
         let ord = match sort {
             // Text columns sort as text; everything else numerically.
             Sort::Name => text(a, "name").to_lowercase().cmp(&text(b, "name").to_lowercase()),
             Sort::User => text(a, "user").to_lowercase().cmp(&text(b, "user").to_lowercase()),
+            Sort::Slice => text(a, "slice").cmp(text(b, "slice")),
             _ => key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal),
         };
         if desc { ord.reverse() } else { ord }
     });
     v
+}
+
+/// Re-orders an already-sorted list into parent-before-child order, returning
+/// each row with its depth.
+///
+/// The published table is the top-N by CPU, so most parents are simply absent.
+/// Anything whose ppid is not in the set is therefore a root — that keeps the
+/// forest complete instead of silently dropping the majority of processes,
+/// which is what anchoring on pid 1 would do here. Siblings keep the order the
+/// sort column already put them in, so `t` re-groups the table without also
+/// re-ranking it. Depth is capped so a deep chain cannot eat the name column.
+fn tree_order<'a>(procs: &[&'a Value]) -> Vec<(&'a Value, usize)> {
+    let present: std::collections::HashSet<i64> =
+        procs.iter().map(|p| num(p, "pid") as i64).collect();
+    let mut kids: std::collections::HashMap<i64, Vec<usize>> = std::collections::HashMap::new();
+    let mut roots: Vec<usize> = vec![];
+    for (i, p) in procs.iter().enumerate() {
+        let ppid = num(p, "ppid") as i64;
+        if ppid != 0 && present.contains(&ppid) && ppid != num(p, "pid") as i64 {
+            kids.entry(ppid).or_default().push(i);
+        } else {
+            roots.push(i);
+        }
+    }
+    let mut out = Vec::with_capacity(procs.len());
+    // Explicit stack, not recursion: a pid cycle would blow the real stack,
+    // and `seen` makes one terminate instead of hanging the panel.
+    let mut seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    let mut stack: Vec<(usize, usize)> = roots.into_iter().rev().map(|i| (i, 0)).collect();
+    while let Some((i, depth)) = stack.pop() {
+        if !seen.insert(i) {
+            continue;
+        }
+        out.push((procs[i], depth.min(6)));
+        if let Some(cs) = kids.get(&(num(procs[i], "pid") as i64)) {
+            for &c in cs.iter().rev() {
+                stack.push((c, depth + 1));
+            }
+        }
+    }
+    out
 }
 
 /// What the `k` menu can send. RESTART is first because it is the thing people
@@ -484,6 +549,9 @@ pub struct Monitor {
     kernel: String,
 
     cpu_hist: Vec<f64>,
+    /// One history per core, so each core row can carry its own btop
+    /// sparkline instead of a bar that only knows this instant.
+    core_hist: Vec<Vec<f64>>,
     mem_hist: Vec<f64>,
     rx_hist: Vec<f64>,
     tx_hist: Vec<f64>,
@@ -492,7 +560,12 @@ pub struct Monitor {
     sort: Sort,
     desc: bool,
     win: Win,
+    /// `t`: order by the parent/child tree instead of by the sort column.
+    tree: bool,
     sel: usize,
+    /// The cursor's real identity. `sel` is only where that pid happened to
+    /// land in the current ordering, and the ordering changes every tick.
+    sel_pid: Option<i64>,
     offset: usize,
     killing: Option<(i32, String)>,
     msg: Option<(String, bool)>,
@@ -518,6 +591,7 @@ impl Monitor {
             host: fs::read_to_string("/proc/sys/kernel/hostname").unwrap_or_default().trim().to_string(),
             kernel: fs::read_to_string("/proc/sys/kernel/osrelease").unwrap_or_default().trim().to_string(),
             cpu_hist: vec![],
+            core_hist: vec![],
             mem_hist: vec![],
             rx_hist: vec![],
             tx_hist: vec![],
@@ -525,7 +599,9 @@ impl Monitor {
             sort: Sort::Cpu,
             desc: true,
             win: Win::Now,
+            tree: false,
             sel: 0,
+            sel_pid: None,
             offset: 0,
             killing: None,
             msg: None,
@@ -852,9 +928,10 @@ impl Monitor {
             head("sorting"),
             key("← →", "move the sort to the next column, glances style"),
             key("c m d g", "sort by cpu · mem · disk · run-queue wait"),
-            key("p n u", "sort by pid · name · user"),
+            key("p n u e s", "sort by pid · name · user · net · slice"),
             key("", "← → also reach C10s C60s M10s M60s"),
             key("i", "invert the direction"),
+            key("t", "group by process tree — parents, children, zombies"),
             // Short enough to survive the 78-column modal: the long version
             // was clipped mid-cycle at "→ 5m".
             key("w", "cycle the CPU%/MEM% window: now → 1m → 5m → 15m"),
@@ -1172,8 +1249,20 @@ impl Monitor {
     /// Vec lives, so anything that then wants to touch self.msg / self.overlay
     /// has to take owned values first. Every caller here needs to do exactly
     /// that, so the copy lives in one place instead of four.
-    fn picked(&self) -> Option<(i32, String, bool, String)> {
+    /// The single source of truth for row order. picked(), the key handler
+    /// and the renderer all go through it, so the cursor cannot mean one row
+    /// in one of them and a different row in another.
+    fn rows(&self) -> Vec<&Value> {
         let procs = sort_procs(&self.snap, self.sort, self.desc, self.win);
+        if self.tree {
+            tree_order(&procs).into_iter().map(|(p, _)| p).collect()
+        } else {
+            procs
+        }
+    }
+
+    fn picked(&self) -> Option<(i32, String, bool, String)> {
+        let procs = self.rows();
         procs.get(self.sel).map(|p| {
             (
                 num(p, "pid") as i32,
@@ -1211,6 +1300,11 @@ impl Dashboard for Monitor {
         if ts > self.last_ts {
             self.last_ts = ts;
             push(&mut self.cpu_hist, num(&s, "cpu"));
+            let cores = arr(&s, "cores");
+            self.core_hist.resize(cores.len(), vec![]);
+            for (i, c) in cores.iter().enumerate() {
+                push(&mut self.core_hist[i], c.as_f64().unwrap_or(0.0));
+            }
             push(&mut self.mem_hist, num(&s, "mem"));
             push(&mut self.rx_hist, num(&s, "net_rx"));
             push(&mut self.tx_hist, num(&s, "net_tx"));
@@ -1287,8 +1381,17 @@ impl Dashboard for Monitor {
             KeyCode::Char('n') => self.sort = Sort::Name,
             KeyCode::Char('u') => self.sort = Sort::User,
             KeyCode::Char('g') => self.sort = Sort::Runq,
+            KeyCode::Char('e') => self.sort = Sort::Net,
+            KeyCode::Char('s') => self.sort = Sort::Slice,
             KeyCode::Char('i') => self.desc = !self.desc,
             KeyCode::Char('w') => self.win = self.win.next(),
+            KeyCode::Char('t') => {
+                self.tree = !self.tree;
+                self.msg = Some((
+                    format!("process tree {}", if self.tree { "on" } else { "off" }),
+                    false,
+                ));
+            }
             // Fold a box away to give the process table its rows back. Same
             // idea as btop's presets, minus the config file.
             KeyCode::Char(c @ '1'..='4') => {
@@ -1323,6 +1426,11 @@ impl Dashboard for Monitor {
             }
             _ => {}
         }
+        // Re-anchor on whatever pid the cursor now sits on. Without this the
+        // selection is a bare index, and the next tick's re-sort slides a
+        // different process underneath it.
+        let now_on = self.rows().get(self.sel).map(|p| num(p, "pid") as i64);
+        self.sel_pid = now_on;
     }
 
     fn render(&mut self, f: &mut Frame, area: Rect) {
@@ -1427,8 +1535,19 @@ impl Dashboard for Monitor {
                 .take(per.min(ca.height as usize))
                 .map(|(i, c)| {
                     let v = c.as_f64().unwrap_or(0.0);
-                    let bw = (ca.width as usize).saturating_sub(9);
+                    // btop gives every core its own graph, not just a bar. A
+                    // single braille row is 4 levels tall and 2 samples wide
+                    // per cell — coarse, but it distinguishes "pinned" from
+                    // "just spiked", which a bar cannot.
+                    let gw = ((ca.width as usize) / 3).clamp(4, 10);
+                    let bw = (ca.width as usize).saturating_sub(gw + 10);
                     let mut sp = vec![Span::styled(format!("{i:>2} "), Style::default().fg(LABEL))];
+                    if let Some(h) = self.core_hist.get(i) {
+                        sp.extend(braille_graph(h, 100.0, gw, 1).pop().map(|l| l.spans).unwrap_or_default());
+                    } else {
+                        sp.push(Span::raw(" ".repeat(gw)));
+                    }
+                    sp.push(Span::raw(" "));
                     sp.extend(meter(bw, v / 100.0, "").spans);
                     sp.push(Span::styled(format!(" {v:>3.0}%"), Style::default().fg(grad(v / 100.0))));
                     Line::from(sp)
@@ -1603,7 +1722,7 @@ impl Dashboard for Monitor {
             let psi_in = psi_b.inner(low[0]);
             f.render_widget(psi_b, low[0]);
             let mut pl: Vec<Line> = vec![Line::from(vec![
-                Span::styled("        10s    60s   300s", Style::default().fg(LABEL)),
+                Span::styled("        10s    60s   300s  now", Style::default().fg(LABEL)),
             ])];
             for (kind, short) in [("cpu", "cpu"), ("io", "io"), ("memory", "mem")] {
                 for band in ["some", "full"] {
@@ -1614,7 +1733,7 @@ impl Dashboard for Monitor {
                     let v10 = num(&s, &format!("psi.{kind}.{band}10"));
                     let v60 = num(&s, &format!("psi.{kind}.{band}60"));
                     let v300 = num(&s, &format!("psi.{kind}.{band}300"));
-                    pl.push(Line::from(vec![
+                    let mut sp = vec![
                         Span::styled(
                             format!("{:<4}", if band == "some" { short } else { "" }),
                             Style::default().fg(Color::Rgb(120, 200, 255)),
@@ -1623,7 +1742,18 @@ impl Dashboard for Monitor {
                         Span::styled(format!("{v10:>5.2}"), Style::default().fg(grad(v10 / scale))),
                         Span::styled(format!("{v60:>7.2}"), Style::default().fg(grad(v60 / scale))),
                         Span::styled(format!("{v300:>7.2}"), Style::default().fg(grad(v300 / scale))),
-                    ]));
+                        Span::raw("  "),
+                    ];
+                    // A thermometer per row. The numbers alone make you do the
+                    // "is 4.2 bad for `full`?" arithmetic every time; the bar
+                    // is already scaled by the band, so a long bar means bad
+                    // whichever row it is on. Driven by the 10s figure — the
+                    // one that moves while you are watching.
+                    let tw = (psi_in.width as usize).saturating_sub(27).min(18);
+                    if tw >= 4 {
+                        sp.extend(meter(tw, v10 / scale, "").spans);
+                    }
+                    pl.push(Line::from(sp));
                 }
         }
         let voters = arr(&self.guard, "voters");
@@ -1674,12 +1804,28 @@ impl Dashboard for Monitor {
         // ── processes ─────────────────────────────────────────────────────────
         // Sorted against the local clone `s`, so self stays free to mutate for
         // the scroll bookkeeping just below.
-        let procs = sort_procs(&s, self.sort, self.desc, self.win);
+        let sorted = sort_procs(&s, self.sort, self.desc, self.win);
+        // Depth rides along even when the tree is off, so the row builder does
+        // not need two shapes; it is simply 0 for every row.
+        let procs: Vec<(&Value, usize)> = if self.tree {
+            tree_order(&sorted)
+        } else {
+            sorted.iter().map(|p| (*p, 0usize)).collect()
+        };
+        // Follow the pid, not the row number. Re-sorting happens every tick and
+        // the cursor must stay on the process the user chose, not on whatever
+        // slid into that slot.
+        if let Some(pid) = self.sel_pid {
+            if let Some(i) = procs.iter().position(|(p, _)| num(p, "pid") as i64 == pid) {
+                self.sel = i;
+            }
+        }
         let hint = format!(
-            "{}{} · {} · ←→ column · i inv · w win · enter details · k act · h help",
+            "{}{} · {} · {}←→ column · i inv · w win · t tree · enter details · k act · h help",
             self.sort.label(),
             if self.desc { "▼" } else { "▲" },
-            self.win.label()
+            self.win.label(),
+            if self.tree { "tree · " } else { "" },
         );
         let proc_b = bbox("proc", &hint);
         let proc_in = proc_b.inner(rows[4]);
@@ -1704,7 +1850,7 @@ impl Dashboard for Monitor {
             .enumerate()
             .skip(self.offset)
             .take(vis)
-            .map(|(i, p)| {
+            .map(|(i, (p, depth))| {
                 let cpu = w.get(p, "cpu_pct");
                 let memp = w.get(p, "mem_pct");
                 let rss = w.get(p, "mem_rss_bytes");
@@ -1716,10 +1862,23 @@ impl Dashboard for Monitor {
                 // the three, which a column that moved with `w` could not do.
                 let a = |win: &str, field: &str| avg_or(p, win, field);
                 let prot = p.get("protected").and_then(|v| v.as_bool()).unwrap_or(false);
-                let name = text(p, "name");
+                let zombie = text(p, "state").starts_with('Z');
+                // In tree mode the indent IS the parent/child relation, so it
+                // goes in the name column where the eye already is.
+                let name = format!(
+                    "{}{}{}{}",
+                    if self.tree && *depth > 0 { "  ".repeat(depth - 1) } else { String::new() },
+                    if self.tree && *depth > 0 { "└ " } else { "" },
+                    if prot { "🔒" } else { "" },
+                    text(p, "name"),
+                );
                 let sel = i == self.sel;
                 let base = if sel {
                     Style::default().bg(Color::Rgb(38, 48, 66)).add_modifier(Modifier::BOLD)
+                } else if zombie {
+                    // A zombie holds nothing but a pid and an exit code. It is
+                    // never the thing eating the box, so it reads as debris.
+                    Style::default().fg(Color::Rgb(240, 72, 72))
                 } else if prot {
                     Style::default().fg(DIM)
                 } else {
@@ -1727,15 +1886,18 @@ impl Dashboard for Monitor {
                 };
                 Row::new(vec![
                     Cell::from(format!("{}", num(p, "pid") as i64)).style(base.fg(if sel { Color::White } else { LABEL })),
+                    Cell::from(text(p, "slice")).style(base.fg(if sel { Color::White } else { DIM })),
                     Cell::from(text(p, "user")).style(base.fg(if sel { Color::White } else { LABEL })),
-                    Cell::from(format!("{}{}", if prot { "🔒" } else { "" }, name)).style(base),
+                    Cell::from(name).style(base),
                     Cell::from(format!("{cpu:>5.1}")).style(base.fg(grad(cpu / 100.0))),
                     Cell::from(format!("{:>5.1}", a("10s", "cpu_pct"))).style(base.fg(grad(a("10s", "cpu_pct") / 100.0))),
                     Cell::from(format!("{:>5.1}", a("1m", "cpu_pct"))).style(base.fg(grad(a("1m", "cpu_pct") / 100.0))),
                     Cell::from(format!("{memp:>5.1}")).style(base.fg(grad(memp / 100.0))),
                     Cell::from(format!("{:>5.1}", a("10s", "mem_pct"))).style(base.fg(grad(a("10s", "mem_pct") / 100.0))),
                     Cell::from(format!("{:>5.1}", a("1m", "mem_pct"))).style(base.fg(grad(a("1m", "mem_pct") / 100.0))),
-                    Cell::from(fmt_bytes_short(rss)).style(base.fg(Color::Gray)),
+                    Cell::from(fmt_fixed(rss)).style(base.fg(Color::Gray)),
+                    Cell::from(fmt_bps(num(p, "net_rx_bytes_per_s"))).style(base.fg(Color::Rgb(120, 200, 255))),
+                    Cell::from(fmt_bps(num(p, "net_tx_bytes_per_s"))).style(base.fg(Color::Rgb(240, 169, 66))),
                     Cell::from(fmt_bps(rd)).style(base.fg(Color::Rgb(120, 220, 140))),
                     Cell::from(fmt_bps(wr)).style(base.fg(Color::Rgb(220, 140, 240))),
                     Cell::from(format!("{rq:>5.2}")).style(base.fg(grad(rq / 20.0))),
@@ -1754,23 +1916,27 @@ impl Dashboard for Monitor {
         let table = Table::new(
             trows,
             [
-                Constraint::Length(8),
-                Constraint::Length(9),
-                Constraint::Min(14),
-                Constraint::Length(6),
-                Constraint::Length(6),
-                Constraint::Length(6),
-                Constraint::Length(6),
-                Constraint::Length(6),
-                Constraint::Length(6),
-                Constraint::Length(7),
-                Constraint::Length(7),
-                Constraint::Length(7),
-                Constraint::Length(6),
+                Constraint::Length(7),  // PID
+                Constraint::Length(9),  // SLICE
+                Constraint::Length(8),  // USER
+                Constraint::Min(12),    // PROGRAM
+                Constraint::Length(5),  // CPU%
+                Constraint::Length(5),  // C10s
+                Constraint::Length(5),  // C60s
+                Constraint::Length(5),  // MEM%
+                Constraint::Length(5),  // M10s
+                Constraint::Length(5),  // M60s
+                Constraint::Length(5),  // RSS
+                Constraint::Length(6),  // D/s
+                Constraint::Length(6),  // U/s
+                Constraint::Length(6),  // R/s
+                Constraint::Length(6),  // W/s
+                Constraint::Length(5),  // RUNQ
             ],
         )
         .header(Row::new(vec![
             hdr("PID", Sort::Pid),
+            hdr("SLICE", Sort::Slice),
             hdr("USER", Sort::User),
             hdr("PROGRAM", Sort::Name),
             hdr("CPU%", Sort::Cpu),
@@ -1780,6 +1946,8 @@ impl Dashboard for Monitor {
             hdr("M10s", Sort::M10s),
             hdr("M60s", Sort::M60s),
             hdr("RSS", Sort::Mem),
+            hdr("D/s", Sort::Net),
+            hdr("U/s", Sort::Net),
             hdr("R/s", Sort::Disk),
             hdr("W/s", Sort::Disk),
             hdr("RUNQ", Sort::Runq),
