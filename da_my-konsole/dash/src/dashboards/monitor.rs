@@ -254,6 +254,14 @@ fn z(v: f64, w: usize, shown: String) -> String {
     if v == 0.0 { format!("{:>w$}", "-") } else { shown }
 }
 
+/// A memory cell for the process table. Below a megabyte there is nothing
+/// worth reading: no decision is ever changed by whether a process holds 400K
+/// or 900K, and a column of four-digit kilobytes drowns the megabyte-scale
+/// rows that matter. Under 1 MiB reads as a dash.
+fn fmt_mem_cell(bytes: f64) -> String {
+    if bytes < 1_048_576.0 { format!("{:>5}", "-") } else { fmt_fixed(bytes) }
+}
+
 fn fmt_fixed(bytes: f64) -> String {
     let b = bytes.max(0.0);
     // K is the floor, not B: "5000B" is a worse answer than "5K" and a column
@@ -704,6 +712,8 @@ pub struct Monitor {
     tree: bool,
     /// `v`: append the declared service units that are stopped or idle.
     units: bool,
+    /// `f`: the proc area becomes one row per mesh peer.
+    fleet: bool,
     sel: usize,
     /// The cursor's real identity. `sel` is only where that pid happened to
     /// land in the current ordering, and the ordering changes every tick.
@@ -753,6 +763,7 @@ impl Monitor {
             win: Win::Now,
             tree: false,
             units: false,
+            fleet: false,
             sel: 0,
             sel_pid: None,
             offset: 0,
@@ -1312,6 +1323,7 @@ impl Monitor {
             key("i", "invert the direction"),
             key("t", "group by process tree — parents, children, zombies"),
             key("v", "also list declared units that are stopped or idle"),
+            key("f", "fleet view — every mesh peer's totals side by side"),
             key("x", "free memory — reap zombies, reclaim, find orphans"),
             // Short enough to survive the 78-column modal: the long version
             // was clipped mid-cycle at "→ 5m".
@@ -2099,6 +2111,18 @@ impl Dashboard for Monitor {
                 self.free_sel = 0;
                 self.overlay = Overlay::Free;
             }
+            KeyCode::Char('f') => {
+                self.fleet = !self.fleet;
+                self.mesh.set_fleet(self.fleet);
+                self.msg = Some((
+                    if self.fleet {
+                        "fleet view — one row per peer, collected over ssh".into()
+                    } else {
+                        "back to processes".to_string()
+                    },
+                    false,
+                ));
+            }
             KeyCode::Char('v') => {
                 self.units = !self.units;
                 self.msg = Some((
@@ -2706,6 +2730,118 @@ impl Dashboard for Monitor {
             f.render_widget(Paragraph::new(l), mesh_in);
         }
 
+        // ── fleet ─────────────────────────────────────────────────────────────
+        // The whole mesh in one table, instead of one machine in detail. Rows
+        // come from the same collector the measure-a-peer path uses, so a peer
+        // is described by its own /proc rather than by anything guessed here.
+        if self.fleet {
+            let fb = bbox("fleet", "f back to processes · esc → measure to open one");
+            let fin = fb.inner(rows[4]);
+            f.render_widget(fb, rows[4]);
+            let got = self.mesh.fleet();
+            let peers = self.mesh.list();
+            let mut frows: Vec<Row> = vec![];
+            for p in peers.iter() {
+                // This machine is described by the snapshot already on screen;
+                // there is no reason to ssh to ourselves to learn it.
+                let snap = if p.local { Some(s.clone()) } else { got.get(&p.alias).cloned() };
+                let name = Span::styled(
+                    format!("{:<16}", trunc(&p.alias, 16)),
+                    Style::default().fg(if p.local { Color::Rgb(120, 200, 255) } else { Color::White }),
+                );
+                let addr = Span::styled(format!("{:<16}", p.ip), Style::default().fg(DIM));
+                let Some(v) = snap else {
+                    // Reachable but not yet collected, or not reachable at all
+                    // — two different states and they must not read the same.
+                    frows.push(Row::new(vec![
+                        Cell::from(Line::from(vec![name, addr])),
+                        Cell::from(if p.local {
+                            "—".to_string()
+                        } else if !p.probed {
+                            "probing…".to_string()
+                        } else if p.up {
+                            "collecting…".to_string()
+                        } else {
+                            "unreachable".to_string()
+                        })
+                        .style(Style::default().fg(if p.up || !p.probed { LABEL } else { Color::Rgb(240, 72, 72) })),
+                    ]));
+                    continue;
+                };
+                let g = |k: &str| num(&v, k);
+                let pct = |x: f64| Cell::from(z(x, 5, format!("{x:>5.1}"))).style(Style::default().fg(grad(x / 100.0)));
+                let psi_worst = g("psi.cpu.some10").max(g("psi.io.full10")).max(g("psi.memory.full10"));
+                let ncpu = arr(&v, "cores").len().max(1) as f64;
+                let l1 = g("load1");
+                frows.push(Row::new(vec![
+                    Cell::from(Line::from(vec![name, addr])),
+                    Cell::from(if p.local {
+                        format!("{:>7}", "here")
+                    } else if p.up {
+                        format!("{:>6.0}ms", p.rtt_ms)
+                    } else {
+                        format!("{:>7}", "down")
+                    })
+                    .style(Style::default().fg(DIM)),
+                    pct(g("cpu")),
+                    pct(g("mem")),
+                    pct(g("swap")),
+                    Cell::from(format!("{:>6.1}G", num(&v, "mem_detail.total")))
+                        .style(Style::default().fg(Color::Gray)),
+                    pct(g("disk")),
+                    Cell::from(format!("{l1:>5.2}")).style(Style::default().fg(grad(l1 / ncpu))),
+                    Cell::from(format!("{:>4.0}", ncpu)).style(Style::default().fg(DIM)),
+                    Cell::from(z(psi_worst, 6, format!("{psi_worst:>6.2}")))
+                        .style(Style::default().fg(grad(psi_worst / 20.0))),
+                    Cell::from(format!("{:>6}", arr(&v, "proc_table").len()))
+                        .style(Style::default().fg(DIM)),
+                ]));
+            }
+            let ftable = Table::new(
+                frows,
+                [
+                    Constraint::Length(33), // peer + address
+                    Constraint::Length(8),  // rtt
+                    Constraint::Length(5),  // cpu
+                    Constraint::Length(5),  // mem
+                    Constraint::Length(5),  // swap
+                    Constraint::Length(7),  // ram total
+                    Constraint::Length(5),  // disk
+                    Constraint::Length(5),  // load
+                    Constraint::Length(4),  // cores
+                    Constraint::Length(6),  // psi
+                    Constraint::Length(6),  // procs
+                ],
+            )
+            .header(Row::new(vec![
+                Cell::from("PEER              ADDRESS").style(Style::default().fg(LABEL)),
+                Cell::from("     RTT").style(Style::default().fg(LABEL)),
+                Cell::from(" CPU%").style(Style::default().fg(LABEL)),
+                Cell::from(" MEM%").style(Style::default().fg(LABEL)),
+                Cell::from("SWAP%").style(Style::default().fg(LABEL)),
+                Cell::from("    RAM").style(Style::default().fg(LABEL)),
+                Cell::from("DISK%").style(Style::default().fg(LABEL)),
+                Cell::from(" LOAD").style(Style::default().fg(LABEL)),
+                Cell::from("CPUS").style(Style::default().fg(LABEL)),
+                Cell::from("   PSI").style(Style::default().fg(LABEL)),
+                Cell::from(" PROCS").style(Style::default().fg(LABEL)),
+            ]));
+            f.render_widget(ftable, fin);
+            let status = Line::from(Span::styled(
+                match &self.msg {
+                    Some((m, _)) => format!(" {m}"),
+                    None => format!(
+                        " {} peers · collected over ssh every 20s · h keys · ^c quits",
+                        peers.len()
+                    ),
+                },
+                Style::default().fg(LABEL),
+            ));
+            f.render_widget(Paragraph::new(status), rows[5]);
+            self.render_overlays(f, area);
+            return;
+        }
+
         // ── processes ─────────────────────────────────────────────────────────
         // Sorted against the local clone `s`, so self stays free to mutate for
         // the scroll bookkeeping just below.
@@ -2825,11 +2961,11 @@ impl Dashboard for Monitor {
                     Cell::from(z(memp, 5, format!("{memp:>5.1}"))).style(base.fg(grad(memp / 100.0))),
                     Cell::from(z(a("10s", "mem_pct"), 5, format!("{:>5.1}", a("10s", "mem_pct")))).style(base.fg(grad(a("10s", "mem_pct") / 100.0))),
                     Cell::from(z(a("1m", "mem_pct"), 5, format!("{:>5.1}", a("1m", "mem_pct")))).style(base.fg(grad(a("1m", "mem_pct") / 100.0))),
-                    Cell::from(z(rss, 5, fmt_fixed(rss))).style(base.fg(Color::Gray)),
+                    Cell::from(fmt_mem_cell(rss)).style(base.fg(Color::Gray)),
                     // null when the daemon could not read another user's
                     // smaps_rollup. A dash, not a zero — we do not know.
                     Cell::from(match num_opt(p, "mem_pss_bytes") {
-                        Some(v) => z(v, 5, fmt_fixed(v)),
+                        Some(v) => fmt_mem_cell(v),
                         None => "    —".into(),
                     })
                     .style(base.fg(Color::Rgb(150, 170, 200))),
@@ -2959,6 +3095,10 @@ impl Dashboard for Monitor {
         f.render_widget(Paragraph::new(status), rows[5]);
 
         // ── overlays ──────────────────────────────────────────────────────────
+        self.render_overlays(f, area);
+    }
+
+    fn render_overlays(&self, f: &mut Frame, area: Rect) {
         match self.overlay {
             Overlay::Kill => self.render_kill(f, area),
             Overlay::Menu => self.render_menu(f, area),
