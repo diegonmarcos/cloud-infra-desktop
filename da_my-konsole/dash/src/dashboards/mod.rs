@@ -1,3 +1,4 @@
+pub mod mesh;
 pub mod monitor;
 pub mod stack;
 pub mod journal;
