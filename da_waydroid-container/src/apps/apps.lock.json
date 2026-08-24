@@ -123,12 +123,6 @@
       "sha256": "sha256-RUomqMwL2t3scKG4ZgLzJj2IzZzZ9dSoahO67Jc+SKI="
     },
     {
-      "package": "io.element.android.x",
-      "source": "github",
-      "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/cloud-comms-matrix.apk",
-      "sha256": "sha256-bHXYBm1aBati8etfERaddDW0rbiX0boqlJSQdZ3c2HA="
-    },
-    {
       "package": "com.fsck.k9",
       "source": "fdroid",
       "versionCode": 39043,
@@ -658,6 +652,12 @@
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Wallet.apk",
       "sha256": "sha256-IRTzvrfHYs8L1i2vthxrMzN96Z/iBOjgnVV287DB9fQ="
+    },
+    {
+      "package": "io.element.android.x",
+      "source": "github",
+      "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/cloud-comms-matrix-x86_64.apk",
+      "sha256": "sha256-On3sDxGIsgr7a4st4mSvfWyN1kdxmCTT2TXIpKLCGCQ="
     }
   ]
 }
