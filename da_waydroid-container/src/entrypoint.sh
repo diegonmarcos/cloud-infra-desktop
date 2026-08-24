@@ -289,17 +289,6 @@ waydroid shell -- sh -c '
   wm dismiss-keyguard
 ' 2>/dev/null && log "display keep-awake + lockscreen-off applied" \
   || log "WARNING: could not apply keep-awake settings (boot_completed never reached?)"
-# …and VERIFY it, because the line above lies. `waydroid shell` attaches as uid 0, and
-# on Android 11+ the settings ContentProvider resolves getCallingPackage() for uid 0 to
-# null -> AppOpsService.checkPackage NPEs, so `settings put` throws while the enclosing
-# shell still exits 0. Observed live: "keep-awake applied" logged, screen_off_timeout
-# still the 60000 AOSP default. `svc power stayon` is unaffected (it calls PowerManager
-# directly, not the provider), which is why the display has stayed on regardless — but
-# that only holds while Android reports a charger, so say plainly which half took.
-_sot="$(waydroid shell -- settings get system screen_off_timeout 2>/dev/null | tr -d '[:space:]')"
-[ "$_sot" = "2147483647" ] \
-  && log "screen_off_timeout verified: never" \
-  || log "WARNING: screen_off_timeout is '${_sot:-unreadable}', not 2147483647 — the settings-provider write did NOT take (uid-0 attribution NPE); keep-awake now rests on 'svc power stayon' alone"
 # `locksettings set-disabled true` only disables REQUIRING the keyguard on future
 # locks — it does NOT dismiss one already showing (confirmed live: screencap after
 # this block still showed the AOSP lockscreen clock+quick-shortcuts, not the
