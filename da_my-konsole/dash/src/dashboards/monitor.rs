@@ -2929,7 +2929,8 @@ impl Dashboard for Monitor {
                 // there is no reason to ssh to ourselves to learn it.
                 let snap = if p.local { Some(s.clone()) } else { got.get(&p.alias).cloned() };
                 let name = Span::styled(
-                    format!("{:<16}", trunc(&p.alias, 16)),
+                    // 18: "oci-analytics-pub" is 17 and was losing its tail.
+                    format!("{:<18}", trunc(&p.alias, 18)),
                     Style::default().fg(if p.local { Color::Rgb(120, 200, 255) } else { Color::White }),
                 );
                 let addr = Span::styled(format!("{:<16}", p.ip), Style::default().fg(DIM));
@@ -3015,7 +3016,7 @@ impl Dashboard for Monitor {
                 ],
             )
             .header(Row::new(vec![
-                Cell::from("PEER            ADDRESS").style(Style::default().fg(LABEL)),
+                Cell::from("PEER              ADDRESS").style(Style::default().fg(LABEL)),
                 Cell::from("     RTT").style(Style::default().fg(LABEL)),
                 Cell::from(" CPU%").style(Style::default().fg(LABEL)),
                 Cell::from(" MEM%").style(Style::default().fg(LABEL)),
