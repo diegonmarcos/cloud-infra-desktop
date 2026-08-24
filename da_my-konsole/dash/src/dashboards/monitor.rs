@@ -663,6 +663,8 @@ enum Overlay {
     Free,
     /// start/stop/restart a declared unit the cursor is parked on.
     Unit,
+    /// One machine's totals, opened from the fleet view.
+    Machine,
     /// Pick which machine the whole dashboard is measuring.
     Target,
 }
@@ -732,6 +734,8 @@ pub struct Monitor {
     target_sel: usize,
     free_sel: usize,
     unit_sel: usize,
+    /// Alias of the peer the Machine modal is describing.
+    machine: Option<String>,
     /// (name, scope) of the unit the Unit modal is acting on.
     acting_unit: Option<(String, String)>,
     /// `x` → "list lost processes": filter the table down to orphans.
@@ -777,6 +781,7 @@ impl Monitor {
             target_sel: 0,
             free_sel: 0,
             unit_sel: 0,
+            machine: None,
             acting_unit: None,
             orphans: false,
             quit: false,
@@ -1170,6 +1175,127 @@ impl Monitor {
             Style::default().fg(DIM),
         )));
         f.render_widget(Paragraph::new(l), inner);
+    }
+
+    /// One machine, whole: what it is, what it is doing, and how much it has
+    /// moved since it booted.
+    ///
+    /// The totals are the daemon's arithmetic, not this panel's — the local
+    /// daemon computes them from /proc and the remote collector computes them
+    /// the same way, so a peer and this machine answer the question
+    /// identically instead of one of them being reconstructed here.
+    fn render_machine(&self, f: &mut Frame, area: Rect) {
+        let Some(alias) = self.machine.clone() else { return };
+        let peers = self.mesh.list();
+        let peer = peers.iter().find(|p| p.alias == alias);
+        let local = peer.map(|p| p.local).unwrap_or(false);
+        let v = if local { self.snap.clone() } else { self.mesh.fleet().get(&alias).cloned().unwrap_or(Value::Null) };
+        let accent = Color::Rgb(120, 200, 255);
+        let inner = Self::modal(f, area, 82, 26, &alias, accent);
+        if v.is_null() {
+            f.render_widget(
+                Paragraph::new(Line::from(Span::styled(
+                    format!("  no snapshot from {alias} yet — the sweep runs every 20s"),
+                    Style::default().fg(Color::Rgb(240, 160, 90)),
+                ))),
+                inner,
+            );
+            return;
+        }
+        let head = |t: &str| -> Line<'static> {
+            Line::from(Span::styled(t.to_string(), Style::default().fg(accent).add_modifier(Modifier::BOLD)))
+        };
+        let kv = |k: &str, val: String| -> Line<'static> {
+            Line::from(vec![
+                Span::styled(format!("  {k:<20}"), Style::default().fg(LABEL)),
+                Span::styled(val, Style::default().fg(Color::Gray)),
+            ])
+        };
+        let g = |k: &str| num(&v, k);
+        let hi = |k: &str| text(&v, &format!("host_info.{k}"));
+        let mut l = vec![head("identity")];
+        l.push(kv("host", if hi("host").is_empty() { alias.clone() } else { hi("host") }));
+        l.push(kv("address", peer.map(|p| p.ip.clone()).unwrap_or_default()));
+        if !hi("os").is_empty() {
+            l.push(kv("os", hi("os")));
+        }
+        l.push(kv("kernel", hi("kernel")));
+        l.push(kv("uptime", fmt_uptime(num(&v, "totals.since_s"))));
+        l.push(kv(
+            "reached",
+            match peer {
+                Some(p) if p.local => "locally — this is the hub".into(),
+                Some(p) if p.up => format!("ssh · {:.0} ms", p.rtt_ms),
+                _ => "unreachable".into(),
+            },
+        ));
+
+        l.push(head("now"));
+        let ncpu = arr(&v, "cores").len().max(1);
+        l.push(kv("cpu", format!("{:.1}%  over {} cores", g("cpu"), ncpu)));
+        l.push(kv(
+            "load",
+            format!("{:.2}  {:.2}  {:.2}", g("load1"), g("load5"), g("load15")),
+        ));
+        l.push(kv(
+            "memory",
+            format!("{:.1}%  {} of {}", g("mem"), fmt_gib(num(&v, "mem_detail.used")), fmt_gib(num(&v, "mem_detail.total"))),
+        ));
+        l.push(kv(
+            "swap",
+            format!("{:.1}%  {} of {}", g("swap"), fmt_gib(num(&v, "swap_detail.used")), fmt_gib(num(&v, "swap_detail.total"))),
+        ));
+        l.push(kv(
+            "psi cpu / io / mem",
+            format!("{:.2}  {:.2}  {:.2}", g("psi.cpu.some10"), g("psi.io.full10"), g("psi.memory.full10")),
+        ));
+        l.push(kv("processes", format!("{} in the table", arr(&v, "proc_table").len())));
+
+        // ── since boot ─────────────────────────────────────────────────
+        l.push(head("moved since boot"));
+        let secs = num(&v, "totals.since_s").max(1.0);
+        let t = |k: &str| num(&v, &format!("totals.{k}"));
+        let per_day = |b: f64| fmt_bytes_short(b / secs * 86400.0);
+        l.push(kv(
+            "downloaded",
+            format!("{}   ({}/day)", fmt_bytes_short(t("net_rx_bytes")), per_day(t("net_rx_bytes"))),
+        ));
+        l.push(kv(
+            "uploaded",
+            format!("{}   ({}/day)", fmt_bytes_short(t("net_tx_bytes")), per_day(t("net_tx_bytes"))),
+        ));
+        l.push(kv(
+            "read from disk",
+            format!("{}   ({}/day)", fmt_bytes_short(t("disk_read_bytes")), per_day(t("disk_read_bytes"))),
+        ));
+        l.push(kv(
+            "written to disk",
+            format!("{}   ({}/day)", fmt_bytes_short(t("disk_write_bytes")), per_day(t("disk_write_bytes"))),
+        ));
+        l.push(Line::from(Span::styled(
+            "  counters are the kernel's own, cumulative since boot — nothing here accumulates them",
+            Style::default().fg(DIM),
+        )));
+
+        let ifaces = arr(&v, "host_info.ifaces");
+        if !ifaces.is_empty() {
+            l.push(head("network"));
+            for i in ifaces.iter().take(6) {
+                l.push(kv(&text(i, "name"), text(i, "addr")));
+            }
+            let dns: Vec<String> = arr(&v, "host_info.dns")
+                .iter()
+                .filter_map(|d| d.as_str().map(|x| x.to_string()))
+                .collect();
+            l.push(kv("gateway", text(&v, "host_info.gateway")));
+            l.push(kv("dns", if dns.is_empty() { "—".into() } else { dns.join("  ") }));
+        }
+        l.push(Line::from(Span::styled(
+            "  ↑↓ scroll · any other key returns",
+            Style::default().fg(DIM),
+        )));
+        let max = (l.len() as u16).saturating_sub(inner.height);
+        f.render_widget(Paragraph::new(l).scroll((self.detail_scroll.min(max), 0)), inner);
     }
 
     /// What can be done to a declared unit. Same mailbox as the signals, so
@@ -1994,6 +2120,18 @@ impl Dashboard for Monitor {
             Overlay::Kill => return self.kill_key(k),
             Overlay::Free => return self.free_key(k),
             Overlay::Unit => return self.unit_key(k),
+            Overlay::Machine => {
+                match k {
+                    KeyCode::Down | KeyCode::Char('j') => self.detail_scroll = self.detail_scroll.saturating_add(1),
+                    KeyCode::Up => self.detail_scroll = self.detail_scroll.saturating_sub(1),
+                    KeyCode::Home => self.detail_scroll = 0,
+                    _ => {
+                        self.machine = None;
+                        self.overlay = Overlay::None;
+                    }
+                }
+                return;
+            }
             Overlay::Menu => return self.menu_key(k),
             Overlay::Help => {
                 // Any key dismisses a page of text; making people find the one
@@ -2078,6 +2216,37 @@ impl Dashboard for Monitor {
                 return;
             }
             Overlay::None => {}
+        }
+        if self.fleet {
+            // The fleet table is its own list; the process keys would move a
+            // cursor through rows that are not on screen.
+            let np = self.mesh.list().len();
+            match k {
+                KeyCode::Down => self.sel = (self.sel + 1).min(np.saturating_sub(1)),
+                KeyCode::Up => self.sel = self.sel.saturating_sub(1),
+                KeyCode::Home => self.sel = 0,
+                KeyCode::End => self.sel = np.saturating_sub(1),
+                KeyCode::Enter => {
+                    if let Some(p) = self.mesh.list().get(self.sel) {
+                        self.machine = Some(p.alias.clone());
+                        self.detail_scroll = 0;
+                        self.overlay = Overlay::Machine;
+                    }
+                }
+                KeyCode::Char('f') => {
+                    self.fleet = false;
+                    self.mesh.set_fleet(false);
+                    self.sel = 0;
+                    self.msg = Some(("back to processes".into(), false));
+                }
+                KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
+                KeyCode::Esc => {
+                    self.overlay = Overlay::Menu;
+                    self.menu_sel = 0;
+                }
+                _ => {}
+            }
+            return;
         }
         match k {
             KeyCode::Esc => {
@@ -3107,6 +3276,7 @@ impl Dashboard for Monitor {
             Overlay::Target => self.render_target(f, area),
             Overlay::Free => self.render_free(f, area),
             Overlay::Unit => self.render_unit(f, area),
+            Overlay::Machine => self.render_machine(f, area),
             Overlay::None => {}
         }
     }
