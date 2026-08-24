@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 const INTERVAL_MS: u64 = 2_000;
 
@@ -79,6 +80,26 @@ fn proc_protected_slice(pid: i32, protected: &[String]) -> Option<String> {
         }
     }
     None
+}
+
+/// Which slice of the `slices` box a pid is accounted to, without the
+/// ".slice" suffix — "user-1000", "system", "os".
+///
+/// A cgroup path has several .slice components and only one of them is the
+/// answer: /user.slice/user-1000.slice/user@1000.service/app.slice/app-x.scope
+/// yields [user, user-1000, app], and it is the SECOND that the accounting
+/// (and the slices box) is keyed on, not the generic "user" above it or the
+/// "app" grouping below. Second-if-present, else first, reproduces that for
+/// /system.slice/foo.service and /os.slice/... alike.
+fn proc_slice(pid: i32) -> String {
+    let Ok(s) = fs::read_to_string(format!("/proc/{pid}/cgroup")) else { return String::new() };
+    let Some(path) = s.lines().next().and_then(|l| l.rsplit(':').next()) else { return String::new() };
+    let parts: Vec<&str> = path.split('/').filter(|c| c.ends_with(".slice")).collect();
+    parts
+        .get(1)
+        .or(parts.first())
+        .map(|c| c.trim_end_matches(".slice").to_string())
+        .unwrap_or_default()
 }
 
 pub fn snapshot_path() -> Option<PathBuf> {
@@ -483,6 +504,8 @@ struct ProcSample {
     read_bytes: u64,
     write_bytes: u64,
     runq_wait_ns: u64,
+    net_rx: u64,
+    net_tx: u64,
     avg: [ProcAvg; 4],
     /// False until this pid has produced one real rate sample, so the first
     /// EWMA step SEEDS with the live value instead of ramping up from zero
@@ -584,6 +607,55 @@ fn read_proc_runq_wait_ns(pid: i32) -> Option<u64> {
     f.get(1)?.parse().ok()
 }
 
+/// Per-process network bytes, cumulative, as (received, sent).
+///
+/// The kernel publishes NO per-process network counter — /proc/<pid>/net/dev
+/// is the whole network NAMESPACE, identical for every process in it, so it
+/// cannot answer "who is downloading". What does exist is per-SOCKET
+/// bytes_received/bytes_acked in tcp_info, and inet_diag can be asked which
+/// pid owns each socket. `ss -tinHp` is exactly that query, so we shell out
+/// once per tick and fold the sockets back onto their pids.
+///
+/// Two honest limits, both consequences of running unprivileged:
+///   * TCP only. UDP sockets carry no byte counters in the kernel at all.
+///   * Only sockets this uid owns. inet_diag will not name another user's
+///     process, so a root daemon's traffic shows as nothing rather than wrong.
+///
+/// The sum is over CURRENTLY OPEN sockets, so it drops when a connection
+/// closes. Callers diff it with saturating_sub, which turns that drop into a
+/// zero — losing the last few bytes of a closed connection, never inventing a
+/// spike. That trade is deliberate: a wrong rate is worse than a missing one.
+fn read_proc_net() -> HashMap<i32, (u64, u64)> {
+    let mut out: HashMap<i32, (u64, u64)> = HashMap::new();
+    let Ok(o) = clean_command("ss").args(["-tinHp"]).output() else { return out };
+    let Ok(text) = String::from_utf8(o.stdout) else { return out };
+
+    // ss prints one socket as two lines: the header line carries
+    // users:(("name",pid=N,fd=M)), the wrapped line carries the tcp_info
+    // counters. Remember the pid from the header, spend it on the next line.
+    let mut pid: Option<i32> = None;
+    for line in text.lines() {
+        if let Some(i) = line.find("pid=") {
+            pid = line[i + 4..]
+                .split(|c: char| !c.is_ascii_digit())
+                .next()
+                .and_then(|d| d.parse().ok());
+            continue;
+        }
+        let Some(p) = pid.take() else { continue };
+        let field = |k: &str| -> u64 {
+            line.split_whitespace()
+                .find_map(|t| t.strip_prefix(k))
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0)
+        };
+        let e = out.entry(p).or_insert((0, 0));
+        e.0 += field("bytes_received:");
+        e.1 += field("bytes_acked:");
+    }
+    out
+}
+
 /// Builds the `proc_table` JSON array: top-N by CPU% among all processes
 /// readable right now, with the rate fields computed as deltas against
 /// `prev` (the previous tick's raw counters) rather than passed through
@@ -599,6 +671,9 @@ fn build_proc_table(
 ) -> (String, HashMap<i32, ProcSample>) {
     struct Row {
         pid: i32,
+        ppid: i32,
+        state: String,
+        slice: String,
         name: String,
         uid: u32,
         rss_kb: f64,
@@ -606,12 +681,16 @@ fn build_proc_table(
         mem_pct: f64,
         read_bps: f64,
         write_bps: f64,
+        net_rx_bps: f64,
+        net_tx_bps: f64,
         runq_wait_pct: f64,
         avg: [ProcAvg; 4],
     }
 
     let mut next: HashMap<i32, ProcSample> = HashMap::new();
     let mut rows: Vec<Row> = Vec::new();
+    // One inet_diag query for the whole tick, not one per pid.
+    let net = read_proc_net();
     let Ok(rd) = fs::read_dir("/proc") else { return ("[]".into(), next) };
 
     for e in rd.flatten() {
@@ -634,9 +713,22 @@ fn build_proc_table(
             .and_then(|x| x.parse().ok())
             .unwrap_or(0);
 
+        let field = |k: &str| -> &str {
+            status
+                .lines()
+                .find(|l| l.starts_with(k))
+                .and_then(|l| l.split_whitespace().nth(1))
+                .unwrap_or("")
+        };
+        let ppid: i32 = field("PPid:").parse().unwrap_or(0);
+        // "Z" here is what makes a zombie a zombie; the panel groups on it.
+        let state = field("State:").to_string();
+        let slice = proc_slice(pid);
+
         let cpu_ticks = read_proc_cpu_ticks(pid).unwrap_or(0);
         let (read_bytes, write_bytes) = read_proc_io(pid);
         let runq_wait_ns = read_proc_runq_wait_ns(pid).unwrap_or(0);
+        let (net_rx, net_tx) = net.get(&pid).copied().unwrap_or((0, 0));
 
         let p = prev.get(&pid);
         // A pid whose cumulative CPU ticks went BACKWARDS is not the same
@@ -658,6 +750,18 @@ fn build_proc_table(
                     (
                         read_bytes.saturating_sub(p.read_bytes) as f64 / secs,
                         write_bytes.saturating_sub(p.write_bytes) as f64 / secs,
+                    )
+                }
+            })
+            .unwrap_or((0.0, 0.0));
+        // saturating_sub, so a closed socket leaving the sum reads as no
+        // traffic rather than as a negative rate. See read_proc_net.
+        let (net_rx_bps, net_tx_bps) = p
+            .map(|p| {
+                if secs <= 0.0 { (0.0, 0.0) } else {
+                    (
+                        net_rx.saturating_sub(p.net_rx) as f64 / secs,
+                        net_tx.saturating_sub(p.net_tx) as f64 / secs,
                     )
                 }
             })
@@ -707,6 +811,8 @@ fn build_proc_table(
                 read_bytes,
                 write_bytes,
                 runq_wait_ns,
+                net_rx,
+                net_tx,
                 avg,
                 seeded: seeded || p.is_some(),
             },
@@ -721,6 +827,9 @@ fn build_proc_table(
 
         rows.push(Row {
             pid,
+            ppid,
+            state,
+            slice,
             name: comm,
             uid,
             rss_kb,
@@ -728,6 +837,8 @@ fn build_proc_table(
             mem_pct,
             read_bps,
             write_bps,
+            net_rx_bps,
+            net_tx_bps,
             runq_wait_pct,
             avg,
         });
@@ -740,6 +851,8 @@ fn build_proc_table(
         .iter()
         .map(|r| {
             let safe_name = json_escape(&r.name);
+            let safe_state = json_escape(&r.state);
+            let safe_slice = json_escape(&r.slice);
             let user = uid_names.get(&r.uid).cloned().unwrap_or_else(|| r.uid.to_string());
             let safe_user = json_escape(&user);
             let (is_protected, reason) = if r.pid == 1 {
@@ -758,12 +871,15 @@ fn build_proc_table(
                 .map(|(i, label)| format!("\"{label}\":{}", r.avg[i].to_json()))
                 .collect();
             format!(
-                "{{\"pid\":{},\"name\":\"{safe_name}\",\"user\":\"{safe_user}\",\
+                "{{\"pid\":{},\"ppid\":{},\"state\":\"{safe_state}\",\"slice\":\"{safe_slice}\",\
+                  \"name\":\"{safe_name}\",\"user\":\"{safe_user}\",\
                   \"cpu_pct\":{:.1},\"mem_rss_bytes\":{:.0},\"mem_pct\":{:.2},\
                   \"read_bytes_per_s\":{:.0},\"write_bytes_per_s\":{:.0},\
+                  \"net_rx_bytes_per_s\":{:.0},\"net_tx_bytes_per_s\":{:.0},\
                   \"runq_wait_pct\":{:.2},\"protected\":{is_protected},\
                   \"protected_reason\":{},\"avg\":{{{}}}}}",
-                r.pid, r.cpu_pct, r.rss_kb * 1024.0, r.mem_pct, r.read_bps, r.write_bps, r.runq_wait_pct,
+                r.pid, r.ppid, r.cpu_pct, r.rss_kb * 1024.0, r.mem_pct, r.read_bps, r.write_bps,
+                r.net_rx_bps, r.net_tx_bps, r.runq_wait_pct,
                 if is_protected { format!("\"{}\"", json_escape(&reason)) } else { "null".to_string() },
                 avg_json.join(","),
             )
@@ -1514,6 +1630,27 @@ fn signal_by_name(name: &str) -> Option<i32> {
     })
 }
 
+/// Every child this daemon spawns, with the dynamic-loader environment
+/// scrubbed first.
+///
+/// This daemon is a Tauri app, so its own environment carries an
+/// LD_LIBRARY_PATH pointing at the glibc its webkit stack was built against.
+/// Children inherit it, and on NixOS a system binary built against a DIFFERENT
+/// glibc then loads that older libc.so.6 underneath its own libdl/libpthread
+/// and dies before main():
+///
+///   systemctl: .../glibc-2.40/lib/libc.so.6: version `GLIBC_ABI_DT_X86_64_PLT'
+///   not found (required by .../glibc-2.42/lib/libdl.so.2)
+///
+/// which is exactly how `k` → RESTART came back "failed" for a unit that was
+/// perfectly restartable. Nothing we spawn wants our library path, so drop it
+/// (and LD_PRELOAD with it) rather than special-case each call site.
+fn clean_command(program: &str) -> Command {
+    let mut c = Command::new(program);
+    c.env_remove("LD_LIBRARY_PATH").env_remove("LD_PRELOAD");
+    c
+}
+
 /// The systemd unit a pid belongs to, if any. cgroup v2 puts it in the last
 /// path component: ".../user@1000.service/app.slice/app-foo-1234.scope".
 /// `.scope` units are transient wrappers around something already launched —
@@ -1540,12 +1677,13 @@ fn proc_user_unit(pid: i32) -> Option<String> {
 ///      the instant the process dies), TERM it, then re-exec.
 ///
 /// The re-exec path is deliberately not disguised: the replacement is a child
-/// of this daemon, so it inherits the daemon's session and environment, not
-/// the original's. That is a real difference and the caller is told about it
-/// rather than being handed something that only looks like the old process.
+/// of this daemon, so it inherits the daemon's session and environment (minus
+/// the loader vars clean_command drops), not the original's. That is a real
+/// difference and the caller is told about it rather than being handed
+/// something that only looks like the old process.
 fn restart_pid(pid: i32) -> Result<String, String> {
     if let Some(unit) = proc_user_unit(pid) {
-        let out = std::process::Command::new("systemctl")
+        let out = clean_command("systemctl")
             .args(["--user", "restart", &unit])
             .output()
             .map_err(|e| format!("systemctl: {e}"))?;
@@ -1576,7 +1714,7 @@ fn restart_pid(pid: i32) -> Result<String, String> {
     std::thread::sleep(std::time::Duration::from_millis(600));
 
     let program = exe.map(|p| p.display().to_string()).unwrap_or_else(|| argv[0].clone());
-    std::process::Command::new(&program)
+    clean_command(&program)
         .args(&argv[1..])
         .current_dir(&cwd)
         .spawn()
