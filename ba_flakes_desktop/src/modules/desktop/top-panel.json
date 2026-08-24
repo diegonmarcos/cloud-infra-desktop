@@ -1,0 +1,101 @@
+{
+  "_comment": "Top panel. The eight org.kde.plasma.systemmonitor widgets that used to live here were replaced by ONE com.diegonmarcos.watchdog widget per cluster (modules/dotfiles/kde/plasmoids/com.diegonmarcos.watchdog, vendored in this flake since 2026-08-22 so the widget comes from a store path instead of a working-tree cp). Each systemmonitor instance builds a sensor-face controller and a KQuickCharts scene graph inside plasmashell; fourteen of them settled at ~24% CPU and 410MB, of which 135MB was QML JS heap, to show eight numbers. The watchdog widgets read one JSON the my-konsole tray daemon publishes every 2s, so adding a metric costs a label rather than another sub-application. PSI is in there properly now too \u2014 /proc/pressure has no KSystemStats backend, which is why the old panel faked it with diskusage widgets pointed at pressure paths and titles that named something else. 2026-08-11: the plasmoid's single 'left' cluster mode was split into four dedicated modes (storage/mem/cpu/network) so each metric is its own widget instead of one wide text blob, and 'right' was retired in favour of putting guard and psi on the far side \u2014 psi last, deliberately the rightmost widget on the panel. Left-to-right order is now: storage, mem, cpu, network, proctable, [spacer], digitalclock, [spacer], guard, psi. The two panelspacer entries are the bare-string form (no config), which plasma-manager renders with no explicit 'expanding' key \u2014 the panelspacer applet's own QML default is expanding=true (same convention already proven live in bottom-panel.json's launcher-centring spacers), so the clock lands genuinely centred without needing an explicit expanding=true override. This panel now carries SEVEN com.diegonmarcos.watchdog instances (proctable joined them 2026-08-11 when 8a285547 took watchdog off the bottom panel, which would otherwise have left the process table deployed on no panel at all); plasma-panel-repair.json documents which of them plasmashell drops from the batched addWidget() script and repairs individually.",
+  "location": "top",
+  "height": 40,
+  "widgets": [
+    {
+      "name": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "storage",
+          "uid": 1000
+        }
+      }
+    },
+    {
+      "kind": "marginsseparator"
+    },
+    {
+      "name": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "mem",
+          "uid": 1000
+        }
+      }
+    },
+    {
+      "kind": "marginsseparator"
+    },
+    {
+      "name": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "cpu",
+          "uid": 1000
+        }
+      }
+    },
+    {
+      "kind": "marginsseparator"
+    },
+    {
+      "name": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "network",
+          "uid": 1000
+        }
+      }
+    },
+    {
+      "kind": "marginsseparator"
+    },
+    {
+      "_comment": "The process table. Distinct capability, not a summary duplicate: a sortable per-process table (cpu/mem/rss/psi-cpu/read/write) with the full kill-signal menu. Its compact form is one headline label, so it costs a panel slot the width of a word; the table itself is the expanded popup. It sits here \u2014 end of the left group, before the centring spacer \u2014 because 8a285547 took watchdog off the bottom panel entirely, and that commit's own comment says watchdog 'lives on the top panel only'. Without an entry here proctable would be deployed nowhere at all, AND the orphan sweep would actively prune any surviving instance, since desired_modes is what the sweep keys on.",
+      "name": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "proctable",
+          "uid": 1000
+        }
+      }
+    },
+    {
+      "kind": "panelspacer"
+    },
+    {
+      "_comment": "dateFormat=longDate is the full date WITH weekday under the time. It was live-only drift until 2026-08-21: set by hand in the GUI, present in appletsrc, declared nowhere. top-panel.nix already passed a config block through for this widget, so the declaration was simply never written. Undeclared panel state does not survive a panel rebuild from this file, which is exactly how the clock would have silently reverted to time-only.",
+      "kind": "digitalclock",
+      "config": {
+        "Appearance": {
+          "dateFormat": "longDate"
+        }
+      }
+    },
+    {
+      "kind": "panelspacer"
+    },
+    {
+      "name": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "guard",
+          "uid": 1000
+        }
+      }
+    },
+    {
+      "kind": "marginsseparator"
+    },
+    {
+      "name": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "psi",
+          "uid": 1000
+        }
+      }
+    }
+  ]
+}

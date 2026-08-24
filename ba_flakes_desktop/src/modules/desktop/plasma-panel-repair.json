@@ -1,0 +1,85 @@
+{
+  "_comment": "Widgets that plasma-manager cannot reliably write and that plasma-fix-missing-panel-widgets.sh (see plasma.nix) must repair on every activation. Root cause: plasma-manager batches ALL panel addWidget() calls -- across every panel -- into ONE evaluateScript D-Bus call, and plasmashell silently drops repeated addWidget() calls for the same custom (KPackage) plugin id past the SECOND one in a single script -- the count is per PLUGIN ID across the WHOLE script, not per panel. Confirmed empirically on 2026-08-07 with left/right/guard/proctable (4 instances: only the first two, left+right, landed) and again on 2026-08-11 when top-panel.json grew to storage/mem/cpu/network/guard/psi (6 instances) plus bottom-panel.json's proctable (7th instance overall): only storage (1st) and mem (2nd) land from the batched script; cpu/network/guard/psi/proctable (3rd-7th) are dropped and need the entries below. The two org.kde.plasma.systemtray instances on the bottom panel survive the same batching because built-in C++-registered plugins skip the per-addWidget KPackage metadata resolution that custom plasmoids go through. Each entry below is repaired by its OWN separate D-Bus call -- one call per widget is the entire point, since batching is what loses them. ORDERING: this repair pass is add-only, and plasmashell always appends a newly-added widget to the END of its containment's applet order, which would land every repaired widget after everything else regardless of where top-panel.json/bottom-panel.json actually declared it -- reproducing the exact 'widgets in the wrong place' mess this repair is supposed to fix. So each entry may carry an 'insert_after' anchor -- either {plugin, mode} to identify another com.diegonmarcos.watchdog widget by its own mode, or {plugin, occurrence} to identify the Nth instance of a config-less built-in like panelspacer (built-ins have no distinguishing config, so they're matched by position instead) -- which the .sh resolves against the LIVE in-memory panel state (panel.widgetIds / widgetById / readConfig, no disk re-read), so a chain like psi-after-guard works correctly even when guard was ALSO just repaired earlier in the same run: each entry's script sees whatever the previous entries' scripts already did to the live plasmashell process. Once the anchor id is found, the SAME evaluateScript call that added the widget also splices its id into the containment's AppletOrder config key and reloads it -- still exactly one D-Bus call per widget. AppletOrder (rather than some 'move applet to index N' scripting call) is the mechanism because the Plasma desktop scripting API (develop.kde.org/docs/plasma/scripting/api) documents no such repositioning method for containments or applets -- addWidget always appends, and AppletOrder is the only supported way to change display order afterward. If an anchor can't be found live (e.g. the anchor widget itself never landed and has no repair entry), the widget is left wherever addWidget put it and a WARNING is logged -- a widget in the wrong place is cosmetic, never a reason to fail the activation. watchdog_orphan_scope below drives a second, final evaluateScript sweep -- separate from the per-widget repair calls above -- that removes any applet with plugin==com.diegonmarcos.watchdog whose mode is not listed in desired_modes. This is needed because the repair pass above is strictly additive: when the mode set changes (the old left/right modes were retired 2026-08-11 in favour of storage/mem/cpu/network/guard/psi/proctable), nothing else ever deletes applets left over from a mode that no longer exists, so they would linger in the live appletsrc forever. The sweep is scoped strictly to plugin==com.diegonmarcos.watchdog -- every widget it inspects is checked against that plugin id via its own .type property before anything is read or removed -- and every removal is logged with the panel, mode and applet id it came from.",
+  "widgets": [
+    {
+      "_comment": "3rd com.diegonmarcos.watchdog addWidget() in the cross-panel batched script -- storage (1st) and mem (2nd) survive; cpu is the first casualty. Belongs immediately after mem.",
+      "panel_location": "top",
+      "plugin": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "cpu",
+          "uid": 1000
+        }
+      },
+      "insert_after": {
+        "plugin": "com.diegonmarcos.watchdog",
+        "mode": "mem"
+      }
+    },
+    {
+      "_comment": "4th addWidget() for this plugin in the batched script. Belongs immediately after cpu -- which is itself repaired above in this same run, resolved live rather than from the file.",
+      "panel_location": "top",
+      "plugin": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "network",
+          "uid": 1000
+        }
+      },
+      "insert_after": {
+        "plugin": "com.diegonmarcos.watchdog",
+        "mode": "cpu"
+      }
+    },
+    {
+      "_comment": "5th addWidget() for this plugin. The process table, restored to the TOP panel: 8a285547 removed it from the bottom panel and dropped it from desired_modes, which left it deployed nowhere while the sweep below actively pruned any survivor. Belongs immediately after network -- end of the left group, before the centring spacer -- so it does not sit between the clock and the right-hand guard/psi pair.",
+      "panel_location": "top",
+      "plugin": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "proctable",
+          "uid": 1000
+        }
+      },
+      "insert_after": {
+        "plugin": "com.diegonmarcos.watchdog",
+        "mode": "network"
+      }
+    },
+    {
+      "_comment": "6th addWidget() for this plugin. Belongs after the SECOND panelspacer on the top panel -- the one right after the digital clock, not the first one (which sits before the clock and would put guard between cpu/network and the clock instead of after it).",
+      "panel_location": "top",
+      "plugin": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "guard",
+          "uid": 1000
+        }
+      },
+      "insert_after": {
+        "plugin": "org.kde.plasma.panelspacer",
+        "occurrence": 2
+      }
+    },
+    {
+      "_comment": "7th addWidget() for this plugin. psi is deliberately the rightmost widget on the top panel, so it just goes after guard.",
+      "panel_location": "top",
+      "plugin": "com.diegonmarcos.watchdog",
+      "config": {
+        "General": {
+          "mode": "psi",
+          "uid": 1000
+        }
+      },
+      "insert_after": {
+        "plugin": "com.diegonmarcos.watchdog",
+        "mode": "guard"
+      }
+    }
+  ],
+  "watchdog_orphan_scope": {
+    "_comment": "Drives the removal sweep -- see the top-level _comment for why an add-only repair pass needs a companion delete pass. desired_modes is the full current mode set across BOTH panels; anything else found under plugin==com.diegonmarcos.watchdog anywhere is an orphan (e.g. the retired 'left'/'right' modes) and gets removed.",
+    "plugin": "com.diegonmarcos.watchdog",
+    "desired_modes": ["storage", "mem", "cpu", "network", "proctable", "guard", "psi"]
+  }
+}
