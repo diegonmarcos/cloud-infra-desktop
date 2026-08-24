@@ -113,7 +113,20 @@ in
   # + emptiness guard saved the layout, not the machine). Autostart is the one
   # directory where a stale backup is live ammunition — purge them after every
   # switch. (No `exit`, activation-snippet rule; `rm -f` is glob-miss-safe.)
-  home.activation.purgeAutostartBackups = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+  #
+  # 2026-08-24: this must be ordered after linkGeneration, not merely after
+  # writeBoundary. linkGeneration is ITSELF an entryAfter [ "writeBoundary" ]
+  # entry and it is what writes the .hm-bak-<ts> copies, so two siblings on the
+  # same barrier have no defined order between them — the purge could run first
+  # and sweep a directory that was about to be repopulated. Depending on the
+  # producer directly makes the order an invariant instead of a coin flip.
+  #
+  # This never got the chance to prove itself either way: it landed in 2bc3c2c7
+  # at 19:01 on 2026-08-22, after the 17:19 switch, and no switch has run since
+  # — so the count kept climbing to 34 + 32 and hung the 2026-08-24 login on the
+  # splash screen for 40s. The home-wide 7-day backstop in build.sh had drifted
+  # to a pattern that matched nothing; that is fixed there.
+  home.activation.purgeAutostartBackups = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     run rm -f "$HOME/.config/autostart/"*.hm-bak* "$HOME/.config/autostart/"*.hm-backup* || true
   '';
 }

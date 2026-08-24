@@ -370,12 +370,33 @@ nix_switch() {
     # manager never collides with a prior backup. Old backups age out via
     # the 7-day prune below, so clutter doesn't accumulate forever.
     perf_step "clean stale hm-backups"
-    # Prune hm-backup-* files older than 7 days across the home tree (depth
-    # bounded — KDE/typical config sits within 4 levels). Old fixed-name
-    # `*.backup` files (legacy) also pruned to unblock the very first run
-    # of this version of the engine.
+    # Prune home-manager conflict backups older than 7 days across the home
+    # tree (depth bounded — KDE/typical config sits within 4 levels). Old
+    # fixed-name `*.backup` files (legacy) also pruned to unblock the very
+    # first run of this version of the engine.
+    #
+    # 2026-08-24: this pattern used to say ONLY `*.hm-backup-*`, and matched
+    # nothing. This script sets the backup extension in two places — `-b
+    # "$HM_BACKUP_EXT"` on the `switch` path, and HOME_MANAGER_BACKUP_EXT on
+    # the prebuilt-`activate` path — and the two had drifted to DIFFERENT
+    # prefixes (hm-backup- vs hm-bak-). The machine runs the activate path
+    # (hm-auto-update-check → build.sh switch → prebuilt closure), so every
+    # backup written since 2026-07-28 was named `*.hm-bak-*` and the prune
+    # never saw one: 3942 files accumulated, 64 of them in ~/.config/autostart.
+    #
+    # Autostart is the one directory where a stale backup is live ammunition —
+    # Plasma executes them. 34 copies of plasma-manager-autostart.desktop and
+    # 32 of default-session.desktop ran concurrently at the 2026-08-24 13:03
+    # login (372 run_all.sh PIDs), ksplash timed out after 40s, and the session
+    # hung on the splash screen. desktop/default-session.nix purges that
+    # directory outright on every activation; this is the home-wide backstop.
+    #
+    # Both prefixes are matched so the legacy names on disk get swept too, and
+    # the two writers below now agree on one extension. Same pattern as the
+    # termux engine (bb_flakes_termux/build.sh).
     command find "$HOME" -maxdepth 4 \
-        \( -name "*.hm-backup-*" -mtime +7 -o -name "*.backup" \) \
+        \( \( -name "*.hm-bak-*" -o -name "*.hm-backup-*" \) -mtime +7 \
+           -o -name "*.backup" \) \
         -type f -delete 2>/dev/null || true
 
     # Resolve any new flake inputs added to flake.nix but not yet in flake.lock.
@@ -390,8 +411,11 @@ nix_switch() {
 
     # Unique backup extension per switch — guarantees home-manager always
     # wins, never blocked by a stale backup at the same path. Format:
-    # hm-backup-YYYYMMDD-HHMMSS. The 7-day prune above keeps clutter low.
-    HM_BACKUP_EXT="hm-backup-$(date +%Y%m%d-%H%M%S)"
+    # hm-bak-YYYYMMDD-HHMMSS. The 7-day prune above keeps clutter low.
+    # The prefix MUST match HOME_MANAGER_BACKUP_EXT on the activate path and
+    # the prune pattern above — they had drifted apart, and the prune silently
+    # matched nothing for a month (see the 2026-08-24 note above).
+    HM_BACKUP_EXT="hm-bak-$(date +%Y%m%d-%H%M%S)"
     log_info "home-manager backup extension: $HM_BACKUP_EXT"
 
     # KDE progress popup (programs/flakes-switch-progress-logs/default.nix) —
