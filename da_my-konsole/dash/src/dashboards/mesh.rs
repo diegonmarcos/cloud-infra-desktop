@@ -85,7 +85,7 @@ pub fn peers_from_ssh_config() -> Vec<Peer> {
 /// Case-insensitive `Key value` match. ssh_config keywords are not
 /// case-sensitive and people really do write `hostname`.
 fn strip_key<'a>(line: &'a str, key: &str) -> Option<&'a str> {
-    let (k, rest) = line.split_once(|c: char| c.is_whitespace() || c == '=')?;
+    let (k, rest) = line.trim().split_once(|c: char| c.is_whitespace() || c == '=')?;
     if k.eq_ignore_ascii_case(key) { Some(rest.trim()) } else { None }
 }
 
