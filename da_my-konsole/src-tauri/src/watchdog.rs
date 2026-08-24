@@ -92,6 +92,12 @@ fn proc_protected_slice(pid: i32, protected: &[String]) -> Option<String> {
 /// "app" grouping below. Second-if-present, else first, reproduces that for
 /// /system.slice/foo.service and /os.slice/... alike.
 fn proc_slice(pid: i32) -> String {
+    // A kernel thread is in no slice because it is not a service — it is part
+    // of the kernel. An empty cell there reads as "we failed to look it up",
+    // which is the wrong story: an empty cmdline is how you tell.
+    if fs::read(format!("/proc/{pid}/cmdline")).map(|c| c.is_empty()).unwrap_or(false) {
+        return "kernel".into();
+    }
     let Ok(s) = fs::read_to_string(format!("/proc/{pid}/cgroup")) else { return String::new() };
     let Some(path) = s.lines().next().and_then(|l| l.rsplit(':').next()) else { return String::new() };
     let parts: Vec<&str> = path.split('/').filter(|c| c.ends_with(".slice")).collect();
