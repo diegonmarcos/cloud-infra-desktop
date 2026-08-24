@@ -35,17 +35,39 @@ let
   critAction = pdAction (pdGuard "actions.critical" pwrJson.actions.critical);
   lidAction  = pdAction (pdGuard "events.lid_close" pwrJson.events.lid_close.battery);
 
-  # Repairs panel widgets plasma-manager cannot reliably write (see the
-  # home.activation.fixMissingPanelWidgets comment below for the root
-  # cause). Data-driven: the .sh reads plasma-panel-repair.json at runtime
-  # via jq — nothing about which widget/panel/config is Nix-interpolated
-  # into the script, matching the home-manager-command-catcher convention.
-  fixMissingPanelWidgetsScript = pkgs.writeShellApplication {
-    name = "plasma-fix-missing-panel-widgets";
-    # No awk: presence/dedup/orphan decisions come from a live evaluateScript
-    # inventory of plasmashell itself, not from parsing appletsrc.
-    runtimeInputs = [ pkgs.coreutils pkgs.jq pkgs.kdePackages.qttools ];
-    text = builtins.readFile ./plasma-fix-missing-panel-widgets.sh;
+  # THE panel applier. One definition (./panels.json), one runner (this), one
+  # trigger (plasma-manager's run_all.sh autostart, plus the same binary from
+  # home.activation.plasmaPanels so a switch does not need a logout).
+  #
+  # 2026-08-24: this replaces fixMissingPanelWidgetsScript + systrayConfigScript
+  # + panelSyncScript AND plasma-manager's own generated panel script. Those
+  # four owned overlapping slices of one problem and fought each other; the
+  # rationale for every behaviour they had that is worth keeping now lives in
+  # panels.json's _doc and in the .sh header. Nothing about which widget goes
+  # where is Nix-interpolated: the .sh reads the JSON at runtime via jq,
+  # matching the home-manager-command-catcher convention.
+  panelsApplyScript = pkgs.writeShellApplication {
+    name = "plasma-panels-apply";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.gawk
+      pkgs.gnugrep
+      pkgs.gnused
+      pkgs.jq
+      pkgs.kdePackages.kconfig     # kreadconfig6 / kwriteconfig6
+      pkgs.kdePackages.qttools     # qdbus
+      # busctl, for the live-bus SNI enumeration. writeShellApplication only
+      # PREPENDS runtimeInputs to $PATH, so anything not listed here resolves
+      # against whatever PATH the caller hands us — and the old systemd unit's
+      # PATH had no busctl. The effect was silent rather than loud: that branch
+      # is guarded by `command -v busctl`, so a missing busctl is a no-op, not
+      # an error. The undeclared-SNI defaulting the guard exists to provide
+      # therefore never ran in production — it worked only when the script was
+      # invoked by hand from an interactive shell, which is exactly where it
+      # was tested, and why the gap survived.
+      pkgs.systemd
+    ];
+    text = builtins.readFile ./plasma-panels-apply.sh;
   };
 
   # Details as the default Dolphin view. Not home.file: the target is a file
@@ -61,46 +83,6 @@ let
   # both here (declarative, at switch time) and by default-session-launcher.sh
   # (runtime, over KWin DBus). See that file's _virtual_desktops_doc.
   defaultSessionJson = builtins.fromJSON (builtins.readFile ./default-session.json);
-
-  # Same convention: the tray contents live in systray-items.json, the script
-  # is plain shell, nothing about which item goes where is interpolated here.
-  systrayConfigScript = pkgs.writeShellApplication {
-    name = "plasma-systray-config";
-    runtimeInputs = [
-      pkgs.coreutils
-      pkgs.gawk
-      pkgs.gnused
-      pkgs.jq
-      pkgs.kdePackages.kconfig
-      # busctl, for the live-bus SNI enumeration.
-      #
-      # writeShellApplication only PREPENDS runtimeInputs to $PATH, so anything
-      # not listed here resolves against whatever PATH systemd hands the unit --
-      # which has no busctl. The effect was silent rather than loud: that branch
-      # is guarded by `command -v busctl`, so a missing busctl is not an error,
-      # it is a no-op. The undeclared-SNI defaulting the guard exists to provide
-      # therefore never ran in production. It worked only when the script was
-      # invoked by hand from an interactive shell -- which is exactly where it
-      # was tested, and why the gap survived.
-      pkgs.systemd
-    ];
-    text = builtins.readFile ./plasma-systray-config.sh;
-  };
-
-  # The single owner of appletsrc reconciliation: layout -> widget repair ->
-  # tray lists -> marker, in that order, after plasmashell is on the bus. See
-  # plasma-panel-sync.sh's header for the two-writers/wrong-order bug and the
-  # plasmashell SEGV it removes. The two scripts it drives are passed by env so
-  # this file stays free of interpolation, matching the convention above.
-  panelSyncScript = pkgs.writeShellApplication {
-    name = "plasma-panel-sync";
-    runtimeInputs = [
-      pkgs.coreutils
-      pkgs.gnugrep
-      pkgs.kdePackages.qttools   # qdbus
-    ];
-    text = builtins.readFile ./plasma-panel-sync.sh;
-  };
 in
 
 {
@@ -124,53 +106,56 @@ in
   ];
 
   # ---------------------------------------------------------------------------
-  # System tray contents (two trays, both on the bottom panel)
+  # Panels, panel widgets and system tray contents — ONE mechanism
   # ---------------------------------------------------------------------------
-  # bottom-panel.nix declares two bare org.kde.plasma.systemtray widgets; what
-  # each one contains lives in the private systemtray containments of
-  # plasma-org.kde.plasma.desktop-appletsrc, which plasma-manager cannot write.
+  # Definition: ./panels.json.  Runner: ./plasma-panels-apply.sh.  Triggers:
+  # the startupScript below (plasma-manager's single run_all.sh autostart) and
+  # home.activation.plasmaPanels, both invoking the SAME store binary.
   #
-  # This replaces home.activation.fixSystemTray (removed 2026-08-11). That
-  # never held: an activation writes while plasmashell is running, and
-  # plasmashell writes its own in-memory item lists back over the whole file at
-  # logout. Tray 1 ended up with no hiddenItems= line at all and both trays fell
-  # back to showing every icon. A oneshot ordered Before plasmashell owns the
-  # file when nothing else does, so plasmashell reads our lists at startup.
+  # There is deliberately no systemd unit here any more, and no
+  # programs.plasma.panels anywhere in this flake. History, so nobody restores
+  # one of them:
   #
-  # Items and the complement-based hidden list: ./systray-items.json and
-  # ./plasma-systray-config.sh. Test: ./test-systray-config.sh.
-  home.file.".local/share/systray-items.json".source = ./systray-items.json;
+  #   * plasma-manager owned the layout and generated desktop_script_panels.js.
+  #     It batches every addWidget() across every panel into ONE evaluateScript
+  #     call, and plasmashell silently drops the 3rd+ call for the same custom
+  #     KPackage plugin id in one script — five of seven watchdog widgets never
+  #     landed, which is what plasma-panel-repair.json and its insert_after /
+  #     AppletOrder machinery existed to undo. The new runner issues one D-Bus
+  #     call per widget, so the bug cannot fire and none of that is needed.
+  #
+  #   * Tray CONTENTS can never come from plasma-manager: Plasma reads
+  #     shownItems/hiddenItems from the PRIVATE systemtray containment, and the
+  #     scripting API exposes no nested containment (upstream's system-tray.nix
+  #     has the same code commented out for that reason). They are written into
+  #     appletsrc with kwriteconfig6, as the last step of the same run.
+  #
+  #   * The applier used to be a systemd user unit. On this box it never ran
+  #     ONCE: ~/.config/systemd/user/plasma-workspace.target.wants/ held a
+  #     regular FILE byte-identical to the unit instead of a symlink, and
+  #     systemd ignores non-symlinks in .wants — the unit reported "disabled /
+  #     inactive (dead)" and both trays sat on Plasma's compiled-in stock icon
+  #     set. Delivery is now the autostart path plasma-manager itself uses and
+  #     that is demonstrably working.
+  #
+  #   * The previous reconciler (plasma-panel-sync.sh) seeded plasma-manager's
+  #     last_run marker to stop the generated script clobbering its work, and
+  #     was defeated by 0_script_reset_lastrun_desktopscripts.sh, which deletes
+  #     exactly those markers whenever the generated JS changes. With
+  #     programs.plasma.panels empty, plasma-manager generates no panel
+  #     desktop-script at all, so there is nothing left to race.
+  xdg.configFile."cloud-data/panels.json".source = ./panels.json;
 
-  # 2026-08-22: this unit used to be plasma-systray-config, ordered
-  # Before=plasma-plasmashell.service on the reasoning quoted above — "a oneshot
-  # ordered Before plasmashell owns the file when nothing else does". That
-  # reasoning was wrong, because something else DOES touch the file afterwards:
-  # plasma-manager's generated 2_desktop_script_panels.sh runs from run_all.sh
-  # once plasmashell is already up, and it removes and recreates every panel —
-  # systemtray containments included. The tray applier therefore always wrote
-  # the ids of the PREVIOUS layout and had its work deleted seconds later, with
-  # no error anywhere. Measured 2026-08-22: applier wrote containments 7915/7927
-  # at 17:19:26; after the next boot the layout script had reallocated them as
-  # 8206/8217 and both trays were on Plasma's stock defaults.
-  #
-  # It is now the LAST step of one ordered pipeline that runs After plasmashell,
-  # so it reconciles against the ids that actually exist. plasma-panel-sync.sh
-  # holds the full rationale, including the plasmashell SEGV it also removes.
-  systemd.user.services.plasma-panel-sync = {
-    Unit = {
-      Description = "Reconcile Plasma panels, panel widgets and system tray item lists";
-      After = [ "plasma-plasmashell.service" ];
-      PartOf = [ "plasma-workspace.target" ];
-    };
-    Service = {
-      Type = "oneshot";
-      Environment = [
-        "PANEL_REPAIR_BIN=${fixMissingPanelWidgetsScript}/bin/plasma-fix-missing-panel-widgets"
-        "SYSTRAY_CONFIG_BIN=${systrayConfigScript}/bin/plasma-systray-config"
-      ];
-      ExecStart = "${panelSyncScript}/bin/plasma-panel-sync";
-    };
-    Install.WantedBy = [ "plasma-workspace.target" ];
+  # priority 5 → 5_script_cloud_panels.sh, i.e. after everything plasma-manager
+  # generates at the default priority 0 (its resets and any remaining desktop
+  # scripts, e.g. the wallpaper one). runAlways because the run-once wrapper
+  # keys on the script text, which never changes — panels.json does, and the
+  # runner does its own hash check against it and exits in milliseconds when
+  # there is nothing to do.
+  programs.plasma.startup.startupScript."cloud_panels" = {
+    priority = 5;
+    runAlways = true;
+    text = "${panelsApplyScript}/bin/plasma-panels-apply";
   };
 
   # Configure battery widget to show percentage instead of icon
@@ -204,52 +189,17 @@ in
     fi
   '';
 
-  # Repairs panel widgets plasma-manager cannot reliably write.
+  # Same binary as the startupScript above — this only exists so a switch takes
+  # effect without a logout. It is a no-op when panels.json has not moved.
   #
-  # ROOT CAUSE: top-panel.json and bottom-panel.json together declare SEVEN
-  # com.diegonmarcos.watchdog applets (config.General.mode =
-  # storage/mem/cpu/network/guard/psi on the top panel, proctable on the
-  # bottom). plasma-manager compiles ALL panels' widget declarations into
-  # ONE evaluateScript D-Bus call holding every addWidget(...) call back to
-  # back. plasmashell's script engine silently drops every addWidget() call
-  # for a given plugin id past the SECOND one within one such script,
-  # counted across the whole script rather than per panel — only the first
-  # two watchdog instances (storage, mem) ever land in
-  # plasma-org.kde.plasma.desktop-appletsrc; the other five never do. The
-  # repo-side config (top-panel.json / bottom-panel.json / *.nix /
-  # plasma.nix) is provably correct — home-manager writes exactly what it's
-  # told to and the loss happens inside plasmashell itself — so this cannot
-  # be fixed by changing the config; it needs a post-hoc repair pass
-  # instead.
-  #
-  # The fix: this hook reads a LIVE inventory of plasmashell (one
-  # evaluateScript call — panels()/widgetIds/widgetById/readConfig, never
-  # the appletsrc file, which plasmashell only flushes lazily and so never
-  # reflects what this same activation just added) and, for every widget
-  # listed in plasma-panel-repair.json (deployed via xdg.configFile below)
-  # still missing from that live inventory, issues its OWN SEPARATE
-  # evaluateScript call — never batched with plasma-manager's, which is
-  # what triggers the drop in the first place — that also repositions the
-  # widget to its declared place instead of leaving it appended at the end
-  # (see plasma-panel-repair.json's "insert_after" rationale). A final
-  # sweep, computed from that same live inventory, removes both duplicate
-  # instances of the same (panel, plugin, mode) — keeping the oldest — and
-  # any watchdog applet whose mode is no longer wanted (e.g. the retired
-  # left/right modes), since the repair pass itself is add-only. Fully
-  # idempotent: it runs on every activation and is a no-op once exactly one
-  # widget per desired mode is present in its intended position. See
-  # plasma-fix-missing-panel-widgets.sh and plasma-panel-repair.json for
-  # the data-driven implementation.
-  # Runs the SAME pipeline as plasma-panel-sync.service, not just the repair
-  # step. A switch changes the generated layout JS, so the panels themselves may
-  # be stale, not only their widgets — and the tray lists must be rewritten
-  # after any layout re-apply or they are silently discarded. Sequencing all
-  # three here is what makes "switch" and "login" converge on one state instead
-  # of two. Idempotent: a no-op once the layout matches its marker.
-  home.activation.plasmaPanelSync = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
-    PANEL_REPAIR_BIN=${fixMissingPanelWidgetsScript}/bin/plasma-fix-missing-panel-widgets \
-    SYSTRAY_CONFIG_BIN=${systrayConfigScript}/bin/plasma-systray-config \
-      ${panelSyncScript}/bin/plasma-panel-sync || true
+  # PANELS_ALLOW_RESTART=1 only here: the tray containment reads its item lists
+  # when it is constructed, so a CHANGED tray needs a plasmashell restart to
+  # show. At activation that is safe and is the difference between "applied" and
+  # "applies at some point later". At login it must not happen — the startup
+  # script is a child of the session plasmashell is bringing up — and there it
+  # never would anyway, since activation already matched the hash.
+  home.activation.plasmaPanels = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
+    PANELS_ALLOW_RESTART=1 ${panelsApplyScript}/bin/plasma-panels-apply || true
   '';
 
   # Details as the default Dolphin view — see the script's header for why this
@@ -841,10 +791,6 @@ in
   # Source of truth: this file. Re-rendered on every home-manager switch.
   # Apply the change WITHOUT logout via:
   #   balooctl6 disable && balooctl6 purge && balooctl6 enable
-  # Data manifest for home.activation.fixMissingPanelWidgets — see that
-  # hook's comment for the root cause (plasmashell dropping the 3rd
-  # same-plugin addWidget() call in a batched evaluateScript).
-  xdg.configFile."cloud-data/plasma-panel-repair.json".source = ./plasma-panel-repair.json;
 
   xdg.configFile."baloofilerc".text = ''
     [General]
@@ -1098,57 +1044,28 @@ in
   # '';
 
   # ─────────────────────────────────────────────────────────────────
-  # Panel self-heal — 2026-08-22 incident
+  # Panel self-heal — folded into the runner, 2026-08-24
   # ─────────────────────────────────────────────────────────────────
-  # plasmashell SEGV'd mid-evaluateScript while plasma-manager's login apply
-  # (run_all.sh) was destroying/recreating panels (backtrace: evaluateScript →
-  # WorkspaceScripting::Panel → Applet::destroy). The old bottom panel was
-  # destroyed, the new one never created — and the apply scripts write their
-  # last_run checksums UNCONDITIONALLY, so the broken layout was never retried
-  # on any later login. The desktop came up with no taskbar.
+  # There used to be a systemd.user.services.plasma-panel-selfheal here: a
+  # oneshot that slept 45s after login, grepped appletsrc for both declared
+  # panel edges, and if one was missing deleted plasma-manager's panels
+  # checksum and re-ran run_all.sh, reporting to ntfy either way. It existed
+  # because of the 2026-08-22 incident — plasmashell SEGV'd mid-evaluateScript
+  # while plasma-manager's login apply was destroying and recreating panels
+  # (evaluateScript → WorkspaceScripting::Panel → Applet::destroy), the old
+  # bottom panel was destroyed, the new one never created, and because the
+  # generated apply scripts write their last_run checksums UNCONDITIONALLY the
+  # broken layout was never retried on any later login. The desktop came up
+  # with no taskbar.
   #
-  # This oneshot verifies, once the login storm has settled, that BOTH declared
-  # panels exist in the live appletsrc; if one is missing it deletes the panels
-  # checksum and re-runs run_all.sh (idempotent — plasma-manager regenerates
-  # exactly the declared set), then reports the outcome on ntfy either way.
-  # ponytail: expected edges baked (top=3, bottom=4 — the numeric appletsrc
-  # forms of {top,bottom}-panel.json's location fields); update if a panel
-  # ever moves edge.
-  systemd.user.services.plasma-panel-selfheal = {
-    Unit = {
-      Description = "Verify declared plasma panels survived login; re-apply once if not";
-      After = [ "graphical-session.target" ];
-    };
-    Install.WantedBy = [ "graphical-session.target" ];
-    Service = {
-      Type = "oneshot";
-      TimeoutStartSec = 300;
-      ExecStart = toString (pkgs.writeShellScript "plasma-panel-selfheal" ''
-        export PATH="/run/current-system/sw/bin:$PATH"
-        sleep 45
-        rc="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
-        pm="$HOME/.local/share/plasma-manager"
-        check() {
-          for edge in 3 4; do
-            grep -A3 "^location=$edge$" "$rc" 2>/dev/null | grep -q "^plugin=org.kde.panel$" || return 1
-          done
-        }
-        if check; then exit 0; fi
-        echo "[panel-selfheal] a declared panel is missing from appletsrc — re-running plasma-manager apply"
-        rm -f "$pm/last_run_desktop_script_panels"
-        "$pm/run_all.sh" || true
-        sleep 10
-        if check; then
-          ${pkgs.curl}/bin/curl -sS -m 10 -H "Title: plasma panel self-heal" -H "Tags: warning" \
-            -d "a panel was missing after login on $(uname -n); re-apply restored it" \
-            https://ntfy.sh/diegonmarcos-infra 2>/dev/null || true
-        else
-          ${pkgs.curl}/bin/curl -sS -m 10 -H "Title: plasma panel self-heal FAILED" -H "Priority: high" -H "Tags: rotating_light" \
-            -d "a declared panel is STILL missing after re-apply on $(uname -n) — check plasmashell coredumps" \
-            https://ntfy.sh/diegonmarcos-infra 2>/dev/null || true
-          exit 1
-        fi
-      '');
-    };
-  };
+  # Both halves of that are gone:
+  #   * plasma-panels-apply.sh writes its state file ONLY after re-reading
+  #     panels().length and confirming it matches the declaration — a partial
+  #     apply leaves the state unset, so the next trigger retries. That is the
+  #     self-heal, in the one place that knows what "healthy" means, with no
+  #     baked-in edge numbers to keep in sync with the panel data.
+  #   * It was delivered by Install.WantedBy = graphical-session.target, i.e.
+  #     the same .wants symlink mechanism that is corrupted on this box (see
+  #     the "ONE mechanism" comment above) — so it almost certainly never ran
+  #     during the very incident it was written for.
 }

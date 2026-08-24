@@ -3,7 +3,7 @@
  * "Configure Watchdog…" entry in its right-click menu at all — Plasma only
  * offers the action when a plasmoid ships a ConfigModel, which is why the
  * only way to change `mode` used to be editing appletsrc or redeploying the
- * panel from top-panel.json.
+ * panel from panels.json.
  */
 import QtQuick
 import org.kde.plasma.configuration

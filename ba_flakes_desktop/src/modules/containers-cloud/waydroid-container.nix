@@ -97,9 +97,9 @@ in {
   #      READ from the same wrong group its "append to current" always saw an
   #      empty list and wrote a single-entry one. The live appletsrc still has
   #      the bogus [Config][General] section it left behind.
-  #   2. It is redundant. bottom-panel.json owns the launcher row declaratively
+  #   2. It is redundant. panels.json owns the launcher row declaratively
   #      and lists waydroid-container as its 9th entry, so an imperative hook
   #      pinning one app behind the declarative list's back can only fight it.
   #
-  # Add or reorder launchers in bottom-panel.json, nowhere else.
+  # Add or reorder launchers in modules/desktop/panels.json, nowhere else.
 }
