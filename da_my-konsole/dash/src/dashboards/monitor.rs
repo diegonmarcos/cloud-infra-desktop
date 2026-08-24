@@ -735,7 +735,7 @@ impl Monitor {
     fn render_kill(&self, f: &mut Frame, area: Rect) {
         let Some((pid, name)) = self.killing.clone() else { return };
         let red = Color::Rgb(240, 72, 72);
-        let inner = Self::modal(f, area, 66, ACTIONS.len() as u16 + 5, "act on process", red);
+        let inner = Self::modal(f, area, 74, ACTIONS.len() as u16 + 5, "act on process", red);
         let mut lines = vec![
             Line::from(vec![
                 Span::styled(name, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
@@ -772,7 +772,7 @@ impl Monitor {
 
     fn render_menu(&self, f: &mut Frame, area: Rect) {
         let accent = Color::Rgb(120, 200, 255);
-        let inner = Self::modal(f, area, 58, MENU.len() as u16 + 4, "menu", accent);
+        let inner = Self::modal(f, area, 68, MENU.len() as u16 + 4, "menu", accent);
         let mut lines = vec![Line::from(Span::styled("", Style::default()))];
         for (i, (item, why)) in MENU.iter().enumerate() {
             let on = i == self.menu_sel;
@@ -800,7 +800,9 @@ impl Monitor {
         let accent = Color::Rgb(120, 200, 255);
         let key = |k: &str, d: &str| -> Line<'static> {
             Line::from(vec![
-                Span::styled(format!("  {k:<12}"), Style::default().fg(Color::Rgb(120, 220, 140))),
+                // 14, not 12: "ctrl-c ctrl-d" is 13 wide and ran straight into
+                // its description with no gap at all.
+                Span::styled(format!("  {k:<14}"), Style::default().fg(Color::Rgb(120, 220, 140))),
                 Span::styled(d.to_string(), Style::default().fg(Color::Gray)),
             ])
         };
@@ -820,7 +822,9 @@ impl Monitor {
             key("c m d g", "sort by cpu · mem · disk · run-queue wait"),
             key("p n u", "sort by pid · name · user"),
             key("i", "invert the direction"),
-            key("w", "cycle the window that sorts and fills CPU%/MEM%: now → 1m → 5m → 15m"),
+            // Short enough to survive the 78-column modal: the long version
+            // was clipped mid-cycle at "→ 5m".
+            key("w", "cycle the CPU%/MEM% window: now → 1m → 5m → 15m"),
             head("acting"),
             key("enter", "full disclosure for the selected process"),
             key("k", "act on it — restart, or any of the signals"),
@@ -891,6 +895,20 @@ impl Monitor {
                 Span::styled(v, Style::default().fg(Color::Gray)),
             ])
         };
+        // A deep cgroup path runs ~100 chars and used to vanish at the box
+        // edge. This modal is the full-disclosure view, so a value that does
+        // not fit wraps onto continuation lines rather than being cut.
+        let kvw = |k: &str, v: String| -> Vec<Line<'static>> {
+            let room = (inner.width as usize).saturating_sub(19).max(16);
+            let ch: Vec<char> = v.chars().collect();
+            if ch.is_empty() {
+                return vec![kv(k, v)];
+            }
+            ch.chunks(room)
+                .enumerate()
+                .map(|(i, c)| kv(if i == 0 { k } else { "" }, c.iter().collect()))
+                .collect()
+        };
 
         // The row the table is showing, so the modal and the list agree.
         let p = sort_procs(&self.snap, self.sort, self.desc, self.win)
@@ -917,8 +935,8 @@ impl Monitor {
         let id1 = |k: &str| st(k).split_whitespace().next().unwrap_or("").to_string();
         l.push(kv("user", format!("{}  uid {}  gid {}", text(&p, "user"), id1("Uid"), id1("Gid"))));
         l.push(kv("threads", st("Threads")));
-        l.push(kv("exe", link("exe")));
-        l.push(kv("cwd", link("cwd")));
+        l.extend(kvw("exe", link("exe")));
+        l.extend(kvw("cwd", link("cwd")));
         l.push(kv("fds", fs::read_dir(format!("/proc/{pid}/fd")).map(|d| d.count().to_string()).unwrap_or_else(|e| format!("({e})"))));
         // The argv the daemon derived the PROGRAM column from, so a surprising
         // name in the table can be checked against what actually ran.
@@ -1020,7 +1038,7 @@ impl Monitor {
 
         l.push(head("containment"));
         let cg = rd("cgroup");
-        l.push(kv(
+        l.extend(kvw(
             "cgroup",
             cg.lines().next().and_then(|x| x.rsplit(':').next().map(|s| s.to_string())).unwrap_or_default(),
         ));
