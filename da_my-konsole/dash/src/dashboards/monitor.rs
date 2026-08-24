@@ -1006,13 +1006,21 @@ impl Monitor {
         f.render_widget(Paragraph::new(lines), inner);
     }
 
+    /// The peers you can actually switch TO. "this machine" is already the
+    /// first row of the picker as the local option, so listing it again among
+    /// the ssh targets would offer to ssh to yourself — and, worse, would put
+    /// the drawn list and the picked index one apart.
+    fn selectable_peers(mesh: &crate::dashboards::mesh::Mesh) -> Vec<crate::dashboards::mesh::Peer> {
+        mesh.list().into_iter().filter(|p| !p.local).collect()
+    }
+
     /// Pick the machine this dashboard measures: this one, or a mesh peer
     /// read over ssh. Peers that did not answer their last probe are still
     /// listed and still selectable — "unreachable" is a probe result, not a
     /// permission, and the ssh attempt gives a better error than we can.
     fn render_target(&self, f: &mut Frame, area: Rect) {
         let accent = Color::Rgb(120, 200, 255);
-        let peers = self.mesh.list();
+        let peers = Self::selectable_peers(&self.mesh);
         let cur = self.mesh.target();
         let inner = Self::modal(f, area, 84, peers.len() as u16 + 6, "measure which machine", accent);
         let mut l: Vec<Line> = vec![];
@@ -1037,7 +1045,7 @@ impl Monitor {
             "read straight from the runtime dir".into(),
             Style::default().fg(Color::Gray),
         );
-        for (i, p) in peers.iter().filter(|p| !p.local).enumerate() {
+        for (i, p) in peers.iter().enumerate() {
             let note = if !p.probed {
                 "probing…".to_string()
             } else if p.up {
@@ -1782,12 +1790,12 @@ impl Dashboard for Monitor {
                 return;
             }
             Overlay::Target => {
-                let n = self.mesh.list().len() + 1;
+                let n = Self::selectable_peers(&self.mesh).len() + 1;
                 match k {
                     KeyCode::Down => self.target_sel = (self.target_sel + 1) % n,
                     KeyCode::Up => self.target_sel = (self.target_sel + n - 1) % n,
                     KeyCode::Enter | KeyCode::Char(' ') => {
-                        let peers = self.mesh.list();
+                        let peers = Self::selectable_peers(&self.mesh);
                         let pick = if self.target_sel == 0 {
                             None
                         } else {
