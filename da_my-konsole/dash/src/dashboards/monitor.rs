@@ -1952,7 +1952,10 @@ impl Dashboard for Monitor {
 
     fn on_key(&mut self, k: KeyCode) {
         let snap = self.snap.clone();
-        let n = arr(&self.snap, "proc_table").len() + self.unit_rows(&snap).len();
+        // rows(), not proc_table: in tree mode the list also carries the
+        // spine, so counting the published rows capped the cursor above the
+        // real end of the list and scrolling simply stopped.
+        let n = self.rows().len() + self.unit_rows(&snap).len();
         match self.overlay {
             Overlay::Kill => return self.kill_key(k),
             Overlay::Free => return self.free_key(k),
