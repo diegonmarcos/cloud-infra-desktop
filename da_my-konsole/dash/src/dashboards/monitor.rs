@@ -560,17 +560,17 @@ const FREE: [(&str, &str, &str); 3] = [
     (
         "REAP",
         "reap zombies",
-        "SIGCHLD to each zombie's parent — a zombie cannot be killed, only collected",
+        "SIGCHLD to each zombie's parent — one cannot be killed, only collected",
     ),
     (
         "RECLAIM",
         "reclaim session memory",
-        "ask the kernel to push this session's cold pages out — not drop_caches, not system-wide",
+        "push this session's cold pages out — scoped, not system-wide drop_caches",
     ),
     (
         "ORPHANS",
         "list lost processes",
-        "sort the table by orphans: reparented to init and under no unit — then k them",
+        "filter to processes reparented to init — look first, then k them",
     ),
 ];
 
@@ -998,7 +998,7 @@ impl Monitor {
         let accent = Color::Rgb(120, 200, 255);
         let peers = self.mesh.list();
         let cur = self.mesh.target();
-        let inner = Self::modal(f, area, 72, peers.len() as u16 + 6, "measure which machine", accent);
+        let inner = Self::modal(f, area, 84, peers.len() as u16 + 6, "measure which machine", accent);
         let mut l: Vec<Line> = vec![];
         let mut row = |i: usize, mark: bool, name: String, note: String, style: Style| {
             let sel = i == self.target_sel;
@@ -1008,7 +1008,9 @@ impl Monitor {
                     Style::default().fg(accent),
                 ),
                 Span::styled(if mark { "● " } else { "  " }, Style::default().fg(Color::Rgb(120, 220, 140))),
-                Span::styled(format!("{name:<22}"), if sel { style.add_modifier(Modifier::BOLD) } else { style }),
+                // 30: "oci-analytics-pub  10.1.0.1" is 27 wide and used to
+                // run straight into its own latency.
+                Span::styled(format!("{name:<30}"), if sel { style.add_modifier(Modifier::BOLD) } else { style }),
                 Span::styled(note, Style::default().fg(DIM)),
             ]));
         };
@@ -1042,7 +1044,7 @@ impl Monitor {
             )));
         }
         l.push(Line::from(Span::styled(
-            "  ↑↓ pick · enter measures it · esc cancels · needs my-konsole-tray on the peer",
+            "  ↑↓ pick · enter measures it · esc cancels · the peer needs my-konsole-tray",
             Style::default().fg(DIM),
         )));
         f.render_widget(Paragraph::new(l), inner);
@@ -2236,7 +2238,7 @@ impl Dashboard for Monitor {
             let psi_in = psi_b.inner(psi_area);
             f.render_widget(psi_b, psi_area);
             let mut pl: Vec<Line> = vec![Line::from(vec![
-                Span::styled("        10s    60s   300s  now", Style::default().fg(LABEL)),
+                Span::styled("         10s    60s   300s  now", Style::default().fg(LABEL)),
             ])];
             for (kind, short) in [("cpu", "cpu"), ("io", "io"), ("memory", "mem")] {
                 for band in ["some", "full"] {
@@ -2252,7 +2254,9 @@ impl Dashboard for Monitor {
                             format!("{:<4}", if band == "some" { short } else { "" }),
                             Style::default().fg(Color::Rgb(120, 200, 255)),
                         ),
-                        Span::styled(format!("{:<4}", band), Style::default().fg(LABEL)),
+                        // 5, not 4: a value of 10 or more fills all five of
+                        // its own columns and "some16.75" has no gap at all.
+                        Span::styled(format!("{:<5}", band), Style::default().fg(LABEL)),
                         Span::styled(format!("{v10:>5.2}"), Style::default().fg(grad(v10 / scale))),
                         Span::styled(format!("{v60:>7.2}"), Style::default().fg(grad(v60 / scale))),
                         Span::styled(format!("{v300:>7.2}"), Style::default().fg(grad(v300 / scale))),
@@ -2263,7 +2267,7 @@ impl Dashboard for Monitor {
                     // is already scaled by the band, so a long bar means bad
                     // whichever row it is on. Driven by the 10s figure — the
                     // one that moves while you are watching.
-                    let tw = (psi_in.width as usize).saturating_sub(27).min(18);
+                    let tw = (psi_in.width as usize).saturating_sub(28).min(18);
                     if tw >= 4 {
                         sp.extend(meter(tw, v10 / scale, "").spans);
                     }
