@@ -441,7 +441,13 @@ fn open_dir(dir: &str) -> Result<(), String> {
 /// mem_pss_bytes is null when the daemon could not read smaps_rollup, and
 /// rendering that as 0 would claim a measurement nobody made.
 fn num_opt(p: &Value, k: &str) -> Option<f64> {
-    p.get(k).and_then(|v| v.as_f64())
+    // Dotted, like num(): callers ask for "cpu_info.temp_c", not for a key
+    // that literally contains a dot.
+    let mut cur = p;
+    for part in k.split('.') {
+        cur = cur.get(part)?;
+    }
+    cur.as_f64()
 }
 
 fn avg_or(p: &Value, win: &str, field: &str) -> f64 {
@@ -498,12 +504,20 @@ fn sort_procs<'a>(snap: &'a Value, sort: Sort, desc: bool, win: Win) -> Vec<&'a 
 /// which is what anchoring on pid 1 would do here. Siblings keep the order the
 /// sort column already put them in, so `t` re-groups the table without also
 /// re-ranking it. Depth is capped so a deep chain cannot eat the name column.
-fn tree_order<'a>(procs: &[&'a Value]) -> Vec<(&'a Value, usize)> {
+fn tree_order<'a>(procs: &[&'a Value], spine: &[&'a Value]) -> Vec<(&'a Value, usize)> {
+    // The measured rows plus the daemon's spine — every ancestor of a measured
+    // row, up to pid 1. Without the spine the forest bottoms out at whatever
+    // happened to rank in the top-N and can never reach systemd; with it, each
+    // process hangs off its real chain.
+    let mut all: Vec<&Value> = procs.to_vec();
+    let measured = procs.len();
+    all.extend_from_slice(spine);
+
     let present: std::collections::HashSet<i64> =
-        procs.iter().map(|p| num(p, "pid") as i64).collect();
+        all.iter().map(|p| num(p, "pid") as i64).collect();
     let mut kids: std::collections::HashMap<i64, Vec<usize>> = std::collections::HashMap::new();
     let mut roots: Vec<usize> = vec![];
-    for (i, p) in procs.iter().enumerate() {
+    for (i, p) in all.iter().enumerate() {
         let ppid = num(p, "ppid") as i64;
         if ppid != 0 && present.contains(&ppid) && ppid != num(p, "pid") as i64 {
             kids.entry(ppid).or_default().push(i);
@@ -511,6 +525,8 @@ fn tree_order<'a>(procs: &[&'a Value]) -> Vec<(&'a Value, usize)> {
             roots.push(i);
         }
     }
+    let _ = measured;
+    let procs = &all;
     let mut out = Vec::with_capacity(procs.len());
     // Explicit stack, not recursion: a pid cycle would blow the real stack,
     // and `seen` makes one terminate instead of hanging the panel.
@@ -1021,7 +1037,7 @@ impl Monitor {
             "read straight from the runtime dir".into(),
             Style::default().fg(Color::Gray),
         );
-        for (i, p) in peers.iter().enumerate() {
+        for (i, p) in peers.iter().filter(|p| !p.local).enumerate() {
             let note = if !p.probed {
                 "probing…".to_string()
             } else if p.up {
@@ -1627,7 +1643,7 @@ impl Monitor {
             procs
         };
         if self.tree {
-            tree_order(&procs).into_iter().map(|(p, _)| p).collect()
+            tree_order(&procs, &arr(&self.snap, "proc_spine")).into_iter().map(|(p, _)| p).collect()
         } else {
             procs
         }
@@ -1979,7 +1995,20 @@ impl Dashboard for Monitor {
         f.render_widget(Paragraph::new(Line::from(head)), rows[0]);
 
         // ── cpu box ───────────────────────────────────────────────────────────
-        let cpu_b = bbox("cpu", "");
+        // btop's cpu box is not just a graph: it names the chip, and shows
+        // what it is clocked at and how hot it is right now. Those three are
+        // what makes it read as a CPU box rather than a generic meter.
+        let model = text(&s, "cpu_info.model");
+        let mhz = num_opt(&s, "cpu_info.mhz");
+        let temp = num_opt(&s, "cpu_info.temp_c");
+        let mut caption = if model.is_empty() { String::new() } else { trunc(&model, 46) };
+        if let Some(m) = mhz {
+            caption.push_str(&format!("  {:.2} GHz", m / 1000.0));
+        }
+        if let Some(t) = temp {
+            caption.push_str(&format!("  {t:.0}°C"));
+        }
+        let cpu_b = bbox("cpu", &caption);
         let cpu_in = cpu_b.inner(rows[1]);
         f.render_widget(cpu_b, rows[1]);
         let cores = arr(&s, "cores");
@@ -2336,7 +2365,8 @@ impl Dashboard for Monitor {
                 Span::styled(format!("{:>8}", "rtt"), Style::default().fg(DIM)),
             ])];
             for p in peers.iter().take((mesh_in.height as usize).saturating_sub(1)) {
-                let here = target.as_deref() == Some(p.alias.as_str());
+                let here = p.local && target.is_none()
+                    || target.as_deref() == Some(p.alias.as_str());
                 let (dot, dc) = if !p.probed {
                     ("·", DIM)
                 } else if p.up {
@@ -2352,14 +2382,22 @@ impl Dashboard for Monitor {
                     ),
                     Span::styled(format!("{:>10}", p.ip), Style::default().fg(DIM)),
                     Span::styled(
-                        if !p.probed {
+                        if p.local {
+                            format!("{:>8}", "here")
+                        } else if !p.probed {
                             format!("{:>8}", "…")
                         } else if p.up {
                             format!("{:>7.0}ms", p.rtt_ms)
                         } else {
                             format!("{:>8}", "down")
                         },
-                        Style::default().fg(if p.up { grad(p.rtt_ms / 200.0) } else { DIM }),
+                        Style::default().fg(if p.local {
+                            Color::Rgb(120, 200, 255)
+                        } else if p.up {
+                            grad(p.rtt_ms / 200.0)
+                        } else {
+                            DIM
+                        }),
                     ),
                 ]));
             }
@@ -2384,7 +2422,7 @@ impl Dashboard for Monitor {
         // Depth rides along even when the tree is off, so the row builder does
         // not need two shapes; it is simply 0 for every row.
         let procs: Vec<(&Value, usize)> = if self.tree {
-            tree_order(&sorted)
+            tree_order(&sorted, &arr(&s, "proc_spine"))
         } else {
             sorted.iter().map(|p| (*p, 0usize)).collect()
         };
@@ -2445,6 +2483,10 @@ impl Dashboard for Monitor {
                 let a = |win: &str, field: &str| avg_or(p, win, field);
                 let prot = p.get("protected").and_then(|v| v.as_bool()).unwrap_or(false);
                 let zombie = text(p, "state").starts_with('Z');
+                // A spine row is an ancestor the daemon added to complete the
+                // tree, not a measured process. It has a pid, a ppid and a
+                // name and nothing else, so every metric cell stays blank.
+                let spine = p.get("cpu_pct").is_none();
                 // In tree mode the indent IS the parent/child relation, so it
                 // goes in the name column where the eye already is.
                 let name = format!(
@@ -2461,11 +2503,21 @@ impl Dashboard for Monitor {
                     // A zombie holds nothing but a pid and an exit code. It is
                     // never the thing eating the box, so it reads as debris.
                     Style::default().fg(Color::Rgb(240, 72, 72))
-                } else if prot {
+                } else if spine || prot {
                     Style::default().fg(DIM)
                 } else {
                     Style::default()
                 };
+                if spine {
+                    let mut c = vec![
+                        Cell::from(format!("{}", num(p, "pid") as i64)).style(base),
+                        Cell::from("").style(base),
+                        Cell::from("").style(base),
+                        Cell::from(name).style(base),
+                    ];
+                    c.extend((0..12).map(|_| Cell::from("").style(base)));
+                    return Row::new(c);
+                }
                 Row::new(vec![
                     Cell::from(format!("{}", num(p, "pid") as i64)).style(base.fg(if sel { Color::White } else { LABEL })),
                     Cell::from(text(p, "slice")).style(base.fg(if sel { Color::White } else { DIM })),

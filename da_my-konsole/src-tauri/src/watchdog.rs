@@ -694,7 +694,7 @@ fn build_proc_table(
     total_mem_kb: f64,
     protected: &[String],
     uid_names: &HashMap<u32, String>,
-) -> (String, HashMap<i32, ProcSample>) {
+) -> (String, String, HashMap<i32, ProcSample>) {
     struct Row {
         pid: i32,
         ppid: i32,
@@ -718,7 +718,7 @@ fn build_proc_table(
     let mut rows: Vec<Row> = Vec::new();
     // One inet_diag query for the whole tick, not one per pid.
     let net = read_proc_net();
-    let Ok(rd) = fs::read_dir("/proc") else { return ("[]".into(), next) };
+    let Ok(rd) = fs::read_dir("/proc") else { return ("[]".into(), "[]".into(), next) };
 
     for e in rd.flatten() {
         let name_os = e.file_name();
@@ -880,6 +880,58 @@ fn build_proc_table(
         r.pss_bytes = read_proc_pss(r.pid);
     }
 
+    // The spine: every ancestor of a published row, up to pid 1.
+    //
+    // proc_table is the top-N by CPU, so a process's parent is usually not in
+    // it and a tree drawn from the table alone bottoms out at whatever
+    // happened to rank — it can never reach systemd. These carry no metrics
+    // because they are not measured rows, only the path between them.
+    let published: Vec<i32> = rows.iter().map(|r| r.pid).collect();
+    let mut spine: Vec<(i32, i32, String)> = Vec::new();
+    for pid in &published {
+        let mut cur = *pid;
+        // Bounded: a pid cycle would otherwise loop forever, and no real
+        // ancestry is anywhere near this deep.
+        for _ in 0..24 {
+            let Ok(st) = fs::read_to_string(format!("/proc/{cur}/status")) else { break };
+            let f = |k: &str| -> String {
+                st.lines()
+                    .find(|l| l.starts_with(k))
+                    .and_then(|l| l.split_whitespace().nth(1))
+                    .unwrap_or("")
+                    .to_string()
+            };
+            let Ok(ppid) = f("PPid:").parse::<i32>() else { break };
+            if ppid <= 0 {
+                break;
+            }
+            if published.contains(&ppid) || spine.iter().any(|(p, _, _)| *p == ppid) {
+                cur = ppid;
+                continue;
+            }
+            let pst = fs::read_to_string(format!("/proc/{ppid}/status")).unwrap_or_default();
+            let name = pst
+                .lines()
+                .find(|l| l.starts_with("Name:"))
+                .map(|l| l[5..].trim().to_string())
+                .unwrap_or_else(|| "?".into());
+            let gp: i32 = pst
+                .lines()
+                .find(|l| l.starts_with("PPid:"))
+                .and_then(|l| l.split_whitespace().nth(1))
+                .and_then(|x| x.parse().ok())
+                .unwrap_or(0);
+            spine.push((ppid, gp, name));
+            cur = ppid;
+        }
+    }
+    let spine_json: Vec<String> = spine
+        .iter()
+        .map(|(pid, ppid, name)| {
+            format!("{{\"pid\":{pid},\"ppid\":{ppid},\"name\":\"{}\"}}", json_escape(name))
+        })
+        .collect();
+
     let items: Vec<String> = rows
         .iter()
         .map(|r| {
@@ -921,7 +973,11 @@ fn build_proc_table(
         })
         .collect();
 
-    (format!("[{}]", items.join(",")), next)
+    (
+        format!("[{}]", items.join(",")),
+        format!("[{}]", spine_json.join(",")),
+        next,
+    )
 }
 
 // Disk throughput, matching the panel's disk/all/read + disk/all/write.
@@ -1369,6 +1425,76 @@ fn btrfs_uuid_for_device(dev: &str) -> Option<String> {
 ///
 /// `protected` mirrors what drain_kill_requests() enforces, so the manager
 /// shows the same policy the daemon acts on rather than a second opinion.
+/// The three things btop puts in its cpu box that /proc/stat cannot give:
+/// what the chip is, how fast it is running right now, and how hot it is.
+///
+/// Model comes from cpuinfo. Frequency comes from cpufreq if the driver
+/// exposes it and falls back to cpuinfo's "cpu MHz", which on a scaling core
+/// is a snapshot of the same thing. Temperature prefers the coretemp hwmon
+/// package sensor and falls back to the x86_pkg_temp thermal zone; on a
+/// machine with neither, it is absent rather than zero — 0°C is a reading, and
+/// this would not be one.
+fn cpu_info_json() -> String {
+    let ci = fs::read_to_string("/proc/cpuinfo").unwrap_or_default();
+    let field = |k: &str| -> String {
+        ci.lines()
+            .find(|l| l.starts_with(k))
+            .and_then(|l| l.split_once(':'))
+            .map(|(_, v)| v.trim().to_string())
+            .unwrap_or_default()
+    };
+    let model = field("model name");
+
+    let mhz = fs::read_to_string("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq")
+        .ok()
+        .and_then(|s| s.trim().parse::<f64>().ok())
+        .map(|khz| khz / 1000.0)
+        .or_else(|| field("cpu MHz").parse().ok());
+
+    // hwmon first: coretemp's package sensor is the one btop shows. temp1 is
+    // "Package id 0" on every Intel part this runs on.
+    let mut temp: Option<f64> = None;
+    if let Ok(rd) = fs::read_dir("/sys/class/hwmon") {
+        for e in rd.flatten() {
+            let name = fs::read_to_string(e.path().join("name")).unwrap_or_default();
+            if name.trim() != "coretemp" {
+                continue;
+            }
+            if let Some(v) = fs::read_to_string(e.path().join("temp1_input"))
+                .ok()
+                .and_then(|s| s.trim().parse::<f64>().ok())
+            {
+                temp = Some(v / 1000.0);
+                break;
+            }
+        }
+    }
+    if temp.is_none() {
+        if let Ok(rd) = fs::read_dir("/sys/class/thermal") {
+            for e in rd.flatten() {
+                let t = fs::read_to_string(e.path().join("type")).unwrap_or_default();
+                if !t.trim().starts_with("x86_pkg_temp") && !t.trim().starts_with("cpu") {
+                    continue;
+                }
+                if let Some(v) = fs::read_to_string(e.path().join("temp"))
+                    .ok()
+                    .and_then(|s| s.trim().parse::<f64>().ok())
+                {
+                    temp = Some(v / 1000.0);
+                    break;
+                }
+            }
+        }
+    }
+
+    format!(
+        "{{\"model\":\"{}\",\"mhz\":{},\"temp_c\":{}}}",
+        json_escape(&model),
+        mhz.map(|v| format!("{v:.0}")).unwrap_or_else(|| "null".into()),
+        temp.map(|v| format!("{v:.1}")).unwrap_or_else(|| "null".into()),
+    )
+}
+
 /// Every DECLARED service unit and its state, user manager and system manager
 /// both.
 ///
@@ -1384,24 +1510,52 @@ fn btrfs_uuid_for_device(dev: &str) -> Option<String> {
 fn services_json() -> String {
     let mut items: Vec<String> = Vec::new();
     for (scope, first) in [("user", "--user"), ("system", "--system")] {
-        let args = [
-            first, "list-units", "--type=service", "--all",
-            "--no-legend", "--plain", "--no-pager",
-        ];
-        let Ok(o) = clean_command("systemctl").args(args).output() else { continue };
-        let Ok(text) = String::from_utf8(o.stdout) else { continue };
-        for line in text.lines() {
-            let f: Vec<&str> = line.split_whitespace().collect();
-            // name load active sub description...
+        let run = |sub: &str| -> Vec<Vec<String>> {
+            let args = [first, sub, "--type=service", "--all", "--no-legend", "--plain", "--no-pager"];
+            clean_command("systemctl")
+                .args(args)
+                .output()
+                .ok()
+                .and_then(|o| String::from_utf8(o.stdout).ok())
+                .map(|t| {
+                    t.lines()
+                        .map(|l| l.split_whitespace().map(|x| x.to_string()).collect())
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+
+        // list-units only knows units systemd has LOADED. A unit that is
+        // declared but has never been started — or was stopped and unloaded —
+        // is absent from it entirely, which is exactly the case someone opens
+        // this list to find ("plasmashell is dead, where is it?"). So the
+        // declared set comes from list-unit-files and the runtime state is
+        // layered on top of it, rather than the other way round.
+        let mut seen: Vec<String> = Vec::new();
+        for f in run("list-units") {
             if f.len() < 4 || !f[0].ends_with(".service") {
                 continue;
             }
+            seen.push(f[0].clone());
             items.push(format!(
                 "{{\"name\":\"{}\",\"scope\":\"{scope}\",\"load\":\"{}\",\"active\":\"{}\",\"sub\":\"{}\"}}",
-                json_escape(f[0]),
-                json_escape(f[1]),
-                json_escape(f[2]),
-                json_escape(f[3]),
+                json_escape(&f[0]),
+                json_escape(&f[1]),
+                json_escape(&f[2]),
+                json_escape(&f[3]),
+            ));
+        }
+        for f in run("list-unit-files") {
+            // name state preset
+            if f.len() < 2 || !f[0].ends_with(".service") || seen.contains(&f[0]) {
+                continue;
+            }
+            // Not loaded at all: systemd knows the unit exists and has no
+            // runtime state for it. Reported as such rather than guessed at.
+            items.push(format!(
+                "{{\"name\":\"{}\",\"scope\":\"{scope}\",\"load\":\"{}\",\"active\":\"not-loaded\",\"sub\":\"—\"}}",
+                json_escape(&f[0]),
+                json_escape(&f[1]),
             ));
         }
     }
@@ -1643,6 +1797,8 @@ fn render(
     battery: &Option<BatteryReading>,
     procs: &str,
     proc_table: &str,
+    proc_spine: &str,
+    cpu_info: &str,
     storage: &str,
     slices: &str,
     services: &str,
@@ -1672,7 +1828,7 @@ fn render(
           \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\"slice_pct\":{slice_pct:.1},\
           \"battery\":{},\
           \"storage\":{storage},\"slices\":{slices},\"services\":{services},\
-          \"procs\":{procs},\"proc_table\":{proc_table},\"ts\":{}}}",
+          \"cpu_info\":{cpu_info},\"procs\":{procs},\"proc_table\":{proc_table},\"proc_spine\":{proc_spine},\"ts\":{}}}",
         vram_json(vram),
         pressure_block("cpu"),
         pressure_block("io"),
@@ -2015,7 +2171,7 @@ pub fn spawn() {
 
             let protected_slices = load_protected_slices();
             let uid_names = read_uid_names();
-            let (proc_table_json, next_proc_table) = build_proc_table(
+            let (proc_table_json, proc_spine_json, next_proc_table) = build_proc_table(
                 ptn,
                 &prev_proc_table,
                 INTERVAL_MS as f64 / 1000.0,
@@ -2042,6 +2198,8 @@ pub fn spawn() {
                 &read_battery(),
                 &top_procs(12),
                 &proc_table_json,
+                &proc_spine_json,
+                &cpu_info_json(),
                 &btrfs_storage_json(),
                 &slices_json(&protected_slices),
                 &services,
@@ -2091,7 +2249,7 @@ mod tests {
                        disks,
                        Some((1024.0, 512.0)),
                        0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6,
-                       &None, "[]", "[]", "[]", "[]", "[]");
+                       &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}");
         for k in ["cpu", "cores", "cpu_detail", "mem", "swap", "mem_detail", "swap_detail",
                   "vram", "disk", "disk_r", "disk_w", "disks",
                   "net_rx", "net_tx", "load1", "load5", "load15",
@@ -2106,13 +2264,13 @@ mod tests {
         // machines without a readable GPU VRAM counter), not an absent key.
         let s2 = render(12.5, &[], cpu_detail, 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
-                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]", "[]", "[]", "[]", "[]");
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}");
         assert!(s2.contains("\"vram\":null"), "expected null vram, got {s2}");
 
         // slice_pct must be 0.0, not NaN/Infinity, when slice_max is 0.
         let s3 = render(12.5, &[], cpu_detail, 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
-                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]", "[]", "[]", "[]", "[]");
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}");
         assert!(s3.contains("\"slice_pct\":0.0"), "expected 0.0 slice_pct, got {s3}");
     }
 

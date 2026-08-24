@@ -19,6 +19,8 @@
 // case it exists to show.
 use std::collections::BTreeMap;
 use std::net::{IpAddr, SocketAddr, TcpStream};
+use std::io::Write as _;
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -29,12 +31,19 @@ use serde_json::Value;
 const PROBE_TIMEOUT: Duration = Duration::from_millis(900);
 const PROBE_PORT: u16 = 22;
 const PROBE_EVERY: Duration = Duration::from_secs(5);
-const FETCH_EVERY: Duration = Duration::from_secs(2);
+/// The collector itself sleeps a second to get its cpu delta, and ssh costs a
+/// round trip on top, so a 2s cadence would keep a connection to the peer open
+/// essentially all the time for a panel nobody may be looking at.
+const FETCH_EVERY: Duration = Duration::from_secs(4);
 
 #[derive(Clone, Debug, Default)]
 pub struct Peer {
     pub alias: String,
     pub ip: String,
+    /// This machine. It has no Host entry of its own — nobody ssh's to
+    /// themselves — so it comes from the wg interfaces instead, and it is
+    /// never probed: reaching yourself proves nothing.
+    pub local: bool,
     pub up: bool,
     pub rtt_ms: f64,
     /// False until the first probe lands, so a fresh panel shows "…" rather
@@ -76,10 +85,40 @@ pub fn peers_from_ssh_config() -> Vec<Peer> {
                 .or_insert(h);
         }
     }
-    by_ip
+    let mut out: Vec<Peer> = local_wg_addrs()
         .into_iter()
-        .map(|(ip, alias)| Peer { alias, ip, ..Default::default() })
-        .collect()
+        .map(|ip| Peer { alias: "this machine".into(), ip, local: true, up: true, probed: true, rtt_ms: 0.0 })
+        .collect();
+    out.extend(
+        by_ip
+            .into_iter()
+            .filter(|(ip, _)| !out.iter().any(|p| &p.ip == ip))
+            .map(|(ip, alias)| Peer { alias, ip, ..Default::default() }),
+    );
+    out
+}
+
+/// This machine's own mesh addresses, straight off the wg interfaces.
+///
+/// The peer table is otherwise built from ~/.ssh/config, and the one machine
+/// guaranteed to be missing from an ssh config is the one you are sitting at.
+/// Link-local (fe80::) is dropped: it is not a mesh address, it is how the
+/// interface talks to itself.
+fn local_wg_addrs() -> Vec<String> {
+    let Ok(o) = Command::new("ip").args(["-o", "addr", "show"]).output() else { return vec![] };
+    let Ok(t) = String::from_utf8(o.stdout) else { return vec![] };
+    let mut v: Vec<String> = vec![];
+    for line in t.lines() {
+        let f: Vec<&str> = line.split_whitespace().collect();
+        if f.len() < 4 || !f[1].starts_with("wg") {
+            continue;
+        }
+        let addr = f[3].split('/').next().unwrap_or("");
+        if is_mesh_addr(addr) && !v.iter().any(|x| x == addr) {
+            v.push(addr.to_string());
+        }
+    }
+    v
 }
 
 /// Case-insensitive `Key value` match. ssh_config keywords are not
@@ -104,6 +143,51 @@ fn probe(ip: &str) -> Option<f64> {
     let t0 = Instant::now();
     TcpStream::connect_timeout(&sock, PROBE_TIMEOUT).ok()?;
     Some(t0.elapsed().as_secs_f64() * 1000.0)
+}
+
+/// The collector, fed to the peer over ssh rather than installed on it. See
+/// the script's own header for why the hub collects instead of the peer
+/// publishing.
+const COLLECT: &str = include_str!("collect.sh");
+
+/// One snapshot from `alias`. Returns (stdout, why-it-is-empty).
+///
+/// The script goes in on STDIN, not as an argument: it is 100 lines of shell
+/// and awk containing every quoting character there is, and threading that
+/// through `ssh <host> '<script>'` is a quoting problem with no good end.
+fn fetch_remote(alias: &str) -> (String, String) {
+    let mut child = match Command::new("ssh")
+        .args([
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=4",
+            "-o", "StrictHostKeyChecking=accept-new",
+            alias,
+            "sh -s",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => return (String::new(), format!("ssh: {e}")),
+    };
+    if let Some(mut si) = child.stdin.take() {
+        // A peer that hangs up early (no shell, denied) makes this fail; that
+        // is not the error worth reporting, the exit status below is.
+        let _ = si.write_all(COLLECT.as_bytes());
+    }
+    let out = match child.wait_with_output() {
+        Ok(o) => o,
+        Err(e) => return (String::new(), format!("ssh: {e}")),
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    if stdout.trim().is_empty() {
+        let e = String::from_utf8_lossy(&out.stderr);
+        let first = e.lines().find(|l| !l.trim().is_empty()).unwrap_or("no output").trim();
+        return (stdout, first.to_string());
+    }
+    (stdout, String::new())
 }
 
 /// Shared, cheap to clone, and the only thing the UI touches.
@@ -135,6 +219,9 @@ impl Mesh {
             // it across a 900ms connect would block every render.
             let list: Vec<Peer> = peers.lock().map(|p| p.clone()).unwrap_or_default();
             for mut p in list {
+                if p.local {
+                    continue;
+                }
                 let rtt = probe(&p.ip);
                 p.up = rtt.is_some();
                 p.rtt_ms = rtt.unwrap_or(0.0);
@@ -153,18 +240,10 @@ impl Mesh {
         std::thread::spawn(move || loop {
             let t = target.lock().ok().and_then(|x| x.clone());
             if let Some(alias) = t {
-                let out = super::sh_timeout(
-                    8,
-                    &format!(
-                        "ssh -o BatchMode=yes -o ConnectTimeout=4 -o StrictHostKeyChecking=accept-new {alias} \
-                         'cat \"${{XDG_RUNTIME_DIR:-/run/user/$(id -u)}}/my-konsole-watchdog.json\"'"
-                    ),
-                );
+                let (out, why) = fetch_remote(&alias);
                 let parsed: Value = serde_json::from_str(out.trim()).unwrap_or(Value::Null);
                 let err = if parsed.is_null() {
-                    // The remote answering with nothing is the common case and
-                    // has exactly one cause worth naming.
-                    format!("{alias}: no snapshot — is my-konsole-tray running there?")
+                    format!("{alias}: {}", if why.is_empty() { "no data".into() } else { why })
                 } else {
                     String::new()
                 };
