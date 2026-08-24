@@ -234,6 +234,18 @@ fn push(v: &mut Vec<f64>, x: f64) {
 /// eye has to re-parse per row. This is always four digits and a unit, right
 /// aligned with spaces: "  5M", " 541M", "1000M", "  19G". No decimals — at
 /// four significant digits they never change a decision.
+/// Zero is noise. A table where most cells read 0.0 hides the few that do
+/// not, so a measured zero is drawn as a dash and only real values carry
+/// digits.
+///
+/// Distinct from the em dash used for UNKNOWN (an unreadable smaps_rollup, a
+/// unit row with nothing to measure): "-" means we looked and it was zero,
+/// "—" means we could not look. Collapsing the two would be the easy thing
+/// and would quietly turn "no permission" into "no activity".
+fn z(v: f64, w: usize, shown: String) -> String {
+    if v == 0.0 { format!("{:>w$}", "-") } else { shown }
+}
+
 fn fmt_fixed(bytes: f64) -> String {
     let b = bytes.max(0.0);
     // K is the floor, not B: "5000B" is a worse answer than "5K" and a column
@@ -273,7 +285,9 @@ fn fmt_bps(b: f64) -> String {
     } else if b > 0.0 {
         format!("{b:.0}")
     } else {
-        "·".into()
+        // Same dash as every other measured zero — a middot for one kind of
+        // zero and a dash for another is a distinction with no meaning.
+        "-".into()
     }
 }
 
@@ -2775,17 +2789,17 @@ impl Dashboard for Monitor {
                     Cell::from(text(p, "slice")).style(base.fg(if sel { Color::White } else { DIM })),
                     Cell::from(text(p, "user")).style(base.fg(if sel { Color::White } else { LABEL })),
                     Cell::from(name).style(base),
-                    Cell::from(format!("{cpu:>5.1}")).style(base.fg(grad(cpu / 100.0))),
-                    Cell::from(format!("{:>5.1}", a("10s", "cpu_pct"))).style(base.fg(grad(a("10s", "cpu_pct") / 100.0))),
-                    Cell::from(format!("{:>5.1}", a("1m", "cpu_pct"))).style(base.fg(grad(a("1m", "cpu_pct") / 100.0))),
-                    Cell::from(format!("{memp:>5.1}")).style(base.fg(grad(memp / 100.0))),
-                    Cell::from(format!("{:>5.1}", a("10s", "mem_pct"))).style(base.fg(grad(a("10s", "mem_pct") / 100.0))),
-                    Cell::from(format!("{:>5.1}", a("1m", "mem_pct"))).style(base.fg(grad(a("1m", "mem_pct") / 100.0))),
-                    Cell::from(fmt_fixed(rss)).style(base.fg(Color::Gray)),
+                    Cell::from(z(cpu, 5, format!("{cpu:>5.1}"))).style(base.fg(grad(cpu / 100.0))),
+                    Cell::from(z(a("10s", "cpu_pct"), 5, format!("{:>5.1}", a("10s", "cpu_pct")))).style(base.fg(grad(a("10s", "cpu_pct") / 100.0))),
+                    Cell::from(z(a("1m", "cpu_pct"), 5, format!("{:>5.1}", a("1m", "cpu_pct")))).style(base.fg(grad(a("1m", "cpu_pct") / 100.0))),
+                    Cell::from(z(memp, 5, format!("{memp:>5.1}"))).style(base.fg(grad(memp / 100.0))),
+                    Cell::from(z(a("10s", "mem_pct"), 5, format!("{:>5.1}", a("10s", "mem_pct")))).style(base.fg(grad(a("10s", "mem_pct") / 100.0))),
+                    Cell::from(z(a("1m", "mem_pct"), 5, format!("{:>5.1}", a("1m", "mem_pct")))).style(base.fg(grad(a("1m", "mem_pct") / 100.0))),
+                    Cell::from(z(rss, 5, fmt_fixed(rss))).style(base.fg(Color::Gray)),
                     // null when the daemon could not read another user's
                     // smaps_rollup. A dash, not a zero — we do not know.
                     Cell::from(match num_opt(p, "mem_pss_bytes") {
-                        Some(v) => fmt_fixed(v),
+                        Some(v) => z(v, 5, fmt_fixed(v)),
                         None => "    —".into(),
                     })
                     .style(base.fg(Color::Rgb(150, 170, 200))),
@@ -2793,7 +2807,7 @@ impl Dashboard for Monitor {
                     Cell::from(fmt_bps(num(p, "net_tx_bytes_per_s"))).style(base.fg(Color::Rgb(240, 169, 66))),
                     Cell::from(fmt_bps(rd)).style(base.fg(Color::Rgb(120, 220, 140))),
                     Cell::from(fmt_bps(wr)).style(base.fg(Color::Rgb(220, 140, 240))),
-                    Cell::from(format!("{rq:>5.2}")).style(base.fg(grad(rq / 20.0))),
+                    Cell::from(z(rq, 5, format!("{rq:>5.2}"))).style(base.fg(grad(rq / 20.0))),
                 ])
             })
             .collect();
