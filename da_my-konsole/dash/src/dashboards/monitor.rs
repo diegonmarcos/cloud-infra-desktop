@@ -191,9 +191,17 @@ fn braille_graph(data: &[f64], max: f64, cols: usize, rows: usize) -> Vec<Line<'
     for i in 0..have {
         samples[want - have + i] = data[data.len() - have + i];
     }
+    // Floor of one sub-dot, never zero. Dumping btop's own output and
+    // counting glyphs says this is the single thing that makes its graph read
+    // as a graph: 85% of every braille character it emits is U+28C0 (⣀), the
+    // bottom sub-row of both columns. It draws a continuous baseline across
+    // the full width — including the part of its history buffer that is still
+    // zero — so an idle machine shows a flat line rather than an empty box.
+    // Ours went fully blank at zero, which is why it looked like nothing was
+    // there.
     let levels: Vec<usize> = samples
         .iter()
-        .map(|v| (((v / max).clamp(0.0, 1.0)) * (rows * 4) as f64).round() as usize)
+        .map(|v| (((v / max).clamp(0.0, 1.0)) * (rows * 4) as f64).round().max(1.0) as usize)
         .collect();
 
     let total = rows * 4;
@@ -2439,7 +2447,10 @@ impl Dashboard for Monitor {
             // machine's configuration, not this one's.
             let cfg = arr(&s, "host_info.ifaces");
             let dns = arr(&s, "host_info.dns");
-            let cfg_h = (cfg.len() + 1).min(6) as u16;
+            // Every interface, plus a gateway line and a DNS line. Capped only
+            // by the box: "all the network config" is the point, and hiding
+            // the third wg address to save a row defeats it.
+            let cfg_h = (cfg.len() + 2).min(net_in.height.saturating_sub(6) as usize).max(2) as u16;
             let nrows = Layout::vertical([
                 Constraint::Length(1),
                 Constraint::Min(2),
@@ -2476,7 +2487,7 @@ impl Dashboard for Monitor {
             );
 
             let mut cl: Vec<Line> = vec![];
-            for i in cfg.iter().take(cfg_h.saturating_sub(1) as usize) {
+            for i in cfg.iter().take(cfg_h.saturating_sub(2) as usize) {
                 let n = text(i, "name");
                 cl.push(Line::from(vec![
                     Span::styled(
@@ -2494,10 +2505,29 @@ impl Dashboard for Monitor {
             let gw = text(&s, "host_info.gateway");
             let ns: Vec<String> = dns.iter().map(|d| d.as_str().unwrap_or("").to_string()).collect();
             cl.push(Line::from(vec![
-                Span::styled(format!("{:<10}", "gw · dns"), Style::default().fg(LABEL)),
+                Span::styled(format!("{:<10}", "gateway"), Style::default().fg(LABEL)),
                 Span::styled(
-                    format!("{} · {}", if gw.is_empty() { "—" } else { &gw }, if ns.is_empty() { "—".into() } else { ns.join(" ") }),
+                    format!("{} via {}", if gw.is_empty() { "—" } else { &gw }, text(&s, "host_info.wan_if")),
                     Style::default().fg(Color::Gray),
+                ),
+            ]));
+            let search = arr(&s, "host_info.search");
+            cl.push(Line::from(vec![
+                Span::styled(format!("{:<10}", "dns"), Style::default().fg(LABEL)),
+                Span::styled(
+                    if ns.is_empty() { "—".to_string() } else { ns.join("  ") },
+                    Style::default().fg(Color::Gray),
+                ),
+                Span::styled(
+                    if search.is_empty() {
+                        String::new()
+                    } else {
+                        format!(
+                            "  search {}",
+                            search.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join(" ")
+                        )
+                    },
+                    Style::default().fg(DIM),
                 ),
             ]));
             f.render_widget(Paragraph::new(cl), nrows[4]);
@@ -3044,13 +3074,18 @@ mod tests {
     const BLANK: char = '\u{2800}';
 
     #[test]
-    fn braille_zero_is_blank_and_full_is_solid() {
+    fn braille_zero_is_a_baseline_and_full_is_solid() {
+        // Zero is a flat baseline, not an empty box. Counting glyphs in btop's
+        // own output says 85% of what it emits is exactly this character, and
+        // it is what makes an idle graph read as a graph.
+        const FLOOR: char = '\u{28C0}'; // dots 7,8 — the bottom sub-row
         let z = braille_graph(&vec![0.0; 8], 100.0, 4, 2);
         assert_eq!(z.len(), 2);
-        for line in &z {
-            for sp in &line.spans {
-                assert_eq!(sp.content.chars().next().unwrap(), BLANK);
-            }
+        for sp in &z[0].spans {
+            assert_eq!(sp.content.chars().next().unwrap(), BLANK, "top row stays empty");
+        }
+        for sp in &z[1].spans {
+            assert_eq!(sp.content.chars().next().unwrap(), FLOOR, "bottom row is the floor");
         }
         // Every dot set is U+28FF. A full-scale column must light the TOP row
         // too — that is the check that catches a height mapping that is short
@@ -3069,6 +3104,7 @@ mod tests {
         for sp in &g[0].spans {
             assert_eq!(sp.content.chars().next().unwrap(), BLANK);
         }
+        let _ = &g;
         for sp in &g[1].spans {
             assert_eq!(sp.content.chars().next().unwrap(), '\u{28FF}');
         }
@@ -3080,8 +3116,10 @@ mod tests {
         // so a freshly started dashboard grows in instead of stretching.
         let g = braille_graph(&[100.0, 100.0], 100.0, 4, 1);
         let chars: Vec<char> = g[0].spans.iter().map(|s| s.content.chars().next().unwrap()).collect();
-        assert_eq!(chars[0], BLANK);
-        assert_eq!(chars[2], BLANK);
+        // The empty part of the history is the floor, not nothing — but it is
+        // still visibly not the data, which is the point of the check.
+        assert_eq!(chars[0], '\u{28C0}');
+        assert_eq!(chars[2], '\u{28C0}');
         assert_eq!(chars[3], '\u{28FF}');
     }
 
