@@ -550,6 +550,30 @@ const ACTIONS: [(&str, &str); 8] = [
     ("KILL", "unignorable, no cleanup"),
 ];
 
+/// The `x` menu: things that give memory back, in increasing order of how
+/// much they disturb.
+///
+/// Every one of them is a request on the same mailbox the signals use, so the
+/// daemon applies the same protected-slice policy to all of them. The panel
+/// decides nothing.
+const FREE: [(&str, &str, &str); 3] = [
+    (
+        "REAP",
+        "reap zombies",
+        "SIGCHLD to each zombie's parent — a zombie cannot be killed, only collected",
+    ),
+    (
+        "RECLAIM",
+        "reclaim session memory",
+        "ask the kernel to push this session's cold pages out — not drop_caches, not system-wide",
+    ),
+    (
+        "ORPHANS",
+        "list lost processes",
+        "sort the table by orphans: reparented to init and under no unit — then k them",
+    ),
+];
+
 /// Which modal owns the keyboard. btop's Esc opens a menu rather than quitting,
 /// and every modal here closes back to None — so Esc is never a way out of the
 /// program, which is the whole point of ^c/^d being the only exit.
@@ -560,6 +584,8 @@ enum Overlay {
     Help,
     Kill,
     Detail,
+    /// The `x` menu of memory-freeing tools.
+    Free,
     /// Pick which machine the whole dashboard is measuring.
     Target,
 }
@@ -625,6 +651,9 @@ pub struct Monitor {
     /// own threads so a dead peer's connect timeout cannot stall a render.
     mesh: crate::dashboards::mesh::Mesh,
     target_sel: usize,
+    free_sel: usize,
+    /// `x` → "list lost processes": filter the table down to orphans.
+    orphans: bool,
     quit: bool,
     /// Scroll position inside the process detail modal — a full disclosure is
     /// longer than any terminal, so it has to scroll or it is not full.
@@ -663,6 +692,8 @@ impl Monitor {
             show: [true; BOX_NAMES.len()],
             mesh: crate::dashboards::mesh::Mesh::start(),
             target_sel: 0,
+            free_sel: 0,
+            orphans: false,
             quit: false,
             detail_scroll: 0,
         }
@@ -680,10 +711,13 @@ impl Monitor {
             .and_then(|mut f| writeln!(f, "{pid} {sig}"));
         self.msg = Some(match res {
             Ok(()) => (
-                if sig == "RESTART" {
-                    format!("restart → pid {pid} queued for the daemon")
-                } else {
-                    format!("SIG{sig} → pid {pid} queued for the daemon")
+                match sig {
+                    // Addressed to the machine, not a pid — saying "pid 0"
+                    // here would be technically true and completely useless.
+                    "REAP" => "reap → queued: SIGCHLD to every zombie's parent".to_string(),
+                    "RECLAIM" => "reclaim → queued: pushing this session's cold pages out".to_string(),
+                    "RESTART" => format!("restart → pid {pid} queued for the daemon"),
+                    _ => format!("SIG{sig} → pid {pid} queued for the daemon"),
                 },
                 false,
             ),
@@ -1014,6 +1048,73 @@ impl Monitor {
         f.render_widget(Paragraph::new(l), inner);
     }
 
+    /// The `x` menu. Each entry says what it actually does, because "clean
+    /// memory" means four different things and three of them are myths.
+    fn render_free(&self, f: &mut Frame, area: Rect) {
+        let accent = Color::Rgb(120, 220, 140);
+        let inner = Self::modal(f, area, 86, FREE.len() as u16 * 2 + 4, "free memory", accent);
+        let mut l: Vec<Line> = vec![];
+        for (i, (_, title, why)) in FREE.iter().enumerate() {
+            let sel = i == self.free_sel;
+            l.push(Line::from(vec![
+                Span::styled(if sel { "▶  " } else { "   " }, Style::default().fg(accent)),
+                Span::styled(format!("{}  ", i + 1), Style::default().fg(DIM)),
+                Span::styled(
+                    title.to_string(),
+                    if sel {
+                        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(Color::Gray)
+                    },
+                ),
+            ]));
+            l.push(Line::from(Span::styled(format!("        {why}"), Style::default().fg(DIM))));
+        }
+        l.push(Line::from(Span::styled(
+            "  ↑↓ pick · enter or a digit runs it · any other key cancels",
+            Style::default().fg(DIM),
+        )));
+        f.render_widget(Paragraph::new(l), inner);
+    }
+
+    fn free_key(&mut self, k: KeyCode) {
+        let run = |me: &mut Self, i: usize| {
+            match FREE[i].0 {
+                // pid 0: these are addressed to the machine, not a process.
+                // The daemon answers them before its per-pid guards.
+                "REAP" => me.request_kill(0, "REAP"),
+                "RECLAIM" => me.request_kill(0, "RECLAIM"),
+                _ => {
+                    me.orphans = !me.orphans;
+                    me.msg = Some((
+                        if me.orphans {
+                            "showing orphans only — reparented to init, under no unit. k to act.".into()
+                        } else {
+                            "showing every process again".to_string()
+                        },
+                        false,
+                    ));
+                }
+            }
+            me.overlay = Overlay::None;
+        };
+        match k {
+            KeyCode::Down => self.free_sel = (self.free_sel + 1) % FREE.len(),
+            KeyCode::Up => self.free_sel = (self.free_sel + FREE.len() - 1) % FREE.len(),
+            KeyCode::Char(c) if c.is_ascii_digit() => {
+                let i = c.to_digit(10).unwrap_or(0) as usize;
+                if i >= 1 && i <= FREE.len() {
+                    run(self, i - 1);
+                }
+            }
+            KeyCode::Enter => {
+                let i = self.free_sel;
+                run(self, i);
+            }
+            _ => self.overlay = Overlay::None,
+        }
+    }
+
     /// Every binding, in one place. Generated from the same ACTIONS/BOX_NAMES
     /// the handlers use, so a key that changes cannot leave the help behind.
     fn render_help(&self, f: &mut Frame, area: Rect) {
@@ -1046,6 +1147,7 @@ impl Monitor {
             key("i", "invert the direction"),
             key("t", "group by process tree — parents, children, zombies"),
             key("v", "also list declared units that are stopped or idle"),
+            key("x", "free memory — reap zombies, reclaim, find orphans"),
             // Short enough to survive the 78-column modal: the long version
             // was clipped mid-cycle at "→ 5m".
             key("w", "cycle the CPU%/MEM% window: now → 1m → 5m → 15m"),
@@ -1506,8 +1608,22 @@ impl Monitor {
     /// The single source of truth for row order. picked(), the key handler
     /// and the renderer all go through it, so the cursor cannot mean one row
     /// in one of them and a different row in another.
+    /// Reparented to init and under no systemd unit: a process whose parent
+    /// died and which nothing is supervising. That is a much narrower claim
+    /// than "lost" — a daemon legitimately parented to pid 1 sits inside its
+    /// own .service cgroup and is excluded — and it is the set actually worth
+    /// looking at when memory has gone somewhere nobody owns.
+    fn is_orphan(p: &Value) -> bool {
+        num(p, "ppid") as i64 == 1
+    }
+
     fn rows(&self) -> Vec<&Value> {
         let procs = sort_procs(&self.snap, self.sort, self.desc, self.win);
+        let procs: Vec<&Value> = if self.orphans {
+            procs.into_iter().filter(|p| Self::is_orphan(p)).collect()
+        } else {
+            procs
+        };
         if self.tree {
             tree_order(&procs).into_iter().map(|(p, _)| p).collect()
         } else {
@@ -1639,6 +1755,7 @@ impl Dashboard for Monitor {
         let n = arr(&self.snap, "proc_table").len() + self.unit_rows(&snap).len();
         match self.overlay {
             Overlay::Kill => return self.kill_key(k),
+            Overlay::Free => return self.free_key(k),
             Overlay::Menu => return self.menu_key(k),
             Overlay::Help => {
                 // Any key dismisses a page of text; making people find the one
@@ -1752,6 +1869,10 @@ impl Dashboard for Monitor {
             KeyCode::Char('s') => self.sort = Sort::Slice,
             KeyCode::Char('i') => self.desc = !self.desc,
             KeyCode::Char('w') => self.win = self.win.next(),
+            KeyCode::Char('x') => {
+                self.free_sel = 0;
+                self.overlay = Overlay::Free;
+            }
             KeyCode::Char('v') => {
                 self.units = !self.units;
                 self.msg = Some((
@@ -2251,6 +2372,11 @@ impl Dashboard for Monitor {
         // Sorted against the local clone `s`, so self stays free to mutate for
         // the scroll bookkeeping just below.
         let sorted = sort_procs(&s, self.sort, self.desc, self.win);
+        let sorted: Vec<&Value> = if self.orphans {
+            sorted.into_iter().filter(|p| Self::is_orphan(p)).collect()
+        } else {
+            sorted
+        };
         // Depth rides along even when the tree is off, so the row builder does
         // not need two shapes; it is simply 0 for every row.
         let procs: Vec<(&Value, usize)> = if self.tree {
@@ -2267,11 +2393,12 @@ impl Dashboard for Monitor {
             }
         }
         let hint = format!(
-            "{}{} · {} · {}←→ column · i inv · w win · t tree · enter details · k act · h help",
+            "{}{} · {} · {}{}←→ column · i inv · w win · t tree · x free · enter details · k act · h help",
             self.sort.label(),
             if self.desc { "▼" } else { "▲" },
             self.win.label(),
             if self.tree { "tree · " } else { "" },
+            if self.orphans { "ORPHANS ONLY · " } else { "" },
         );
         let proc_b = bbox("proc", &hint);
         let proc_in = proc_b.inner(rows[4]);
@@ -2466,6 +2593,7 @@ impl Dashboard for Monitor {
             Overlay::Help => self.render_help(f, area),
             Overlay::Detail => self.render_detail(f, area),
             Overlay::Target => self.render_target(f, area),
+            Overlay::Free => self.render_free(f, area),
             Overlay::None => {}
         }
     }
