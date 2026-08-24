@@ -1041,7 +1041,7 @@ impl Monitor {
         row(
             0,
             cur.is_none(),
-            format!("{} (local)", self.host),
+            format!("{}  (this machine)", self.host),
             "read straight from the runtime dir".into(),
             Style::default().fg(Color::Gray),
         );
@@ -2030,14 +2030,29 @@ impl Dashboard for Monitor {
         let model = text(&s, "cpu_info.model");
         let mhz = num_opt(&s, "cpu_info.mhz");
         let temp = num_opt(&s, "cpu_info.temp_c");
-        let mut caption = if model.is_empty() { String::new() } else { trunc(&model, 46) };
+        // btop names the chip on the TOP border, right beside the box name,
+        // not tucked into the bottom-right where the key hints go. Trimmed of
+        // the marketing: "11th Gen Intel(R) Core(TM) i5-1145G7 @ 2.60GHz" is
+        // the same chip as "i5-1145G7" and the rest is border it has to fit in.
+        let mut title = "cpu".to_string();
+        let short = model
+            .replace("(R)", "")
+            .replace("(TM)", "")
+            .split_whitespace()
+            .filter(|w| !w.ends_with("Gen") && *w != "11th" && *w != "Intel" && *w != "Core")
+            .collect::<Vec<_>>()
+            .join(" ");
+        if !short.is_empty() {
+            title.push_str(&format!("  {}", trunc(short.trim(), 40)));
+        }
         if let Some(m) = mhz {
-            caption.push_str(&format!("  {:.2} GHz", m / 1000.0));
+            title.push_str(&format!("  {:.2}GHz", m / 1000.0));
         }
         if let Some(t) = temp {
-            caption.push_str(&format!("  {t:.0}°C"));
+            title.push_str(&format!("  {t:.0}°C"));
         }
-        let cpu_b = bbox("cpu", &caption);
+        let core_temps = arr(&s, "cpu_info.core_temps");
+        let cpu_b = bbox(&title, "");
         let cpu_in = cpu_b.inner(rows[1]);
         f.render_widget(cpu_b, rows[1]);
         let cores = arr(&s, "cores");
@@ -2053,11 +2068,10 @@ impl Dashboard for Monitor {
         f.render_widget(Paragraph::new(braille_graph(&self.cpu_hist, 100.0, gw, gh)), cpu_left[0]);
 
         let cpu_pct = num(&s, "cpu");
-        let mw = (cpu_left[1].width as usize).saturating_sub(10);
-        f.render_widget(
-            Paragraph::new(meter(mw, cpu_pct / 100.0, &format!("{cpu_pct:5.1}%"))),
-            cpu_left[1],
-        );
+        let mw = (cpu_left[1].width as usize).saturating_sub(14);
+        let mut total = vec![Span::styled("CPU ", Style::default().fg(Color::Rgb(120, 200, 255)))];
+        total.extend(meter(mw, cpu_pct / 100.0, &format!("{cpu_pct:5.1}%")).spans);
+        f.render_widget(Paragraph::new(Line::from(total)), cpu_left[1]);
 
         let d = |k: &str| num(&s, &format!("cpu_detail.{k}"));
         let detail = Line::from(vec![
@@ -2099,8 +2113,12 @@ impl Dashboard for Monitor {
                     // per cell — coarse, but it distinguishes "pinned" from
                     // "just spiked", which a bar cannot.
                     let gw = ((ca.width as usize) / 3).clamp(4, 10);
-                    let bw = (ca.width as usize).saturating_sub(gw + 10);
-                    let mut sp = vec![Span::styled(format!("{i:>2} "), Style::default().fg(LABEL))];
+                    let bw = (ca.width as usize).saturating_sub(gw + 10 + tw);
+                    // btop's core labels are C0, C1, … and each carries its own
+                    // temperature. A bare number reads as a row index.
+                    let ct = core_temps.get(i).and_then(|v| v.as_f64());
+                    let tw = if ct.is_some() { 5 } else { 0 };
+                    let mut sp = vec![Span::styled(format!("C{i:<2}"), Style::default().fg(LABEL))];
                     if let Some(h) = self.core_hist.get(i) {
                         sp.extend(braille_graph(h, 100.0, gw, 1).pop().map(|l| l.spans).unwrap_or_default());
                     } else {
@@ -2109,6 +2127,12 @@ impl Dashboard for Monitor {
                     sp.push(Span::raw(" "));
                     sp.extend(meter(bw, v / 100.0, "").spans);
                     sp.push(Span::styled(format!(" {v:>3.0}%"), Style::default().fg(grad(v / 100.0))));
+                    if let Some(t) = ct {
+                        // Scaled to 100°C: thermal throttling starts around
+                        // there, so the colour means "close to throttling"
+                        // rather than "warmer than the other cores".
+                        sp.push(Span::styled(format!(" {t:>3.0}°"), Style::default().fg(grad(t / 100.0))));
+                    }
                     Line::from(sp)
                 })
                 .collect();
@@ -2231,11 +2255,19 @@ impl Dashboard for Monitor {
             let net_b = bbox("net", "");
             let net_in = net_b.inner(net_area);
             f.render_widget(net_b, net_area);
+            // The throughput graphs answer "how much"; the config block below
+            // answers "where" — which address to reach this box on, through
+            // which gateway, resolved by whom. On a remote target it is that
+            // machine's configuration, not this one's.
+            let cfg = arr(&s, "host_info.ifaces");
+            let dns = arr(&s, "host_info.dns");
+            let cfg_h = (cfg.len() + 1).min(6) as u16;
             let nrows = Layout::vertical([
                 Constraint::Length(1),
                 Constraint::Min(2),
                 Constraint::Length(1),
                 Constraint::Min(2),
+                Constraint::Length(cfg_h),
             ])
             .split(net_in);
             let rx_max = self.rx_hist.iter().cloned().fold(0.001, f64::max);
@@ -2264,6 +2296,33 @@ impl Dashboard for Monitor {
                 Paragraph::new(braille_graph(&self.tx_hist, tx_max, nrows[3].width as usize, nrows[3].height as usize)),
                 nrows[3],
             );
+
+            let mut cl: Vec<Line> = vec![];
+            for i in cfg.iter().take(cfg_h.saturating_sub(1) as usize) {
+                let n = text(i, "name");
+                cl.push(Line::from(vec![
+                    Span::styled(
+                        format!("{:<10}", trunc(&n, 10)),
+                        // The mesh interfaces are the ones that matter here.
+                        Style::default().fg(if n.starts_with("wg") {
+                            Color::Rgb(120, 200, 255)
+                        } else {
+                            LABEL
+                        }),
+                    ),
+                    Span::styled(text(i, "addr"), Style::default().fg(Color::Gray)),
+                ]));
+            }
+            let gw = text(&s, "host_info.gateway");
+            let ns: Vec<String> = dns.iter().map(|d| d.as_str().unwrap_or("").to_string()).collect();
+            cl.push(Line::from(vec![
+                Span::styled(format!("{:<10}", "gw · dns"), Style::default().fg(LABEL)),
+                Span::styled(
+                    format!("{} · {}", if gw.is_empty() { "—" } else { &gw }, if ns.is_empty() { "—".into() } else { ns.join(" ") }),
+                    Style::default().fg(Color::Gray),
+                ),
+            ]));
+            f.render_widget(Paragraph::new(cl), nrows[4]);
         }
 
         // PSI — the box that matters most on this machine. systemd-oomd watches

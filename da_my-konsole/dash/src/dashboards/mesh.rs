@@ -86,10 +86,15 @@ pub fn peers_from_ssh_config() -> Vec<Peer> {
         }
     }
     let mine = local_wg_addrs();
+    // Its real name, like every other row. "this machine" is a description,
+    // and a peer table is a list of names — the one you would type after ssh.
+    let me = std::fs::read_to_string("/proc/sys/kernel/hostname")
+        .map(|h| h.trim().to_string())
+        .unwrap_or_else(|_| "localhost".into());
     let mut out: Vec<Peer> = mine
         .iter()
         .map(|ip| Peer {
-            alias: "this machine".into(),
+            alias: me.clone(),
             ip: ip.clone(),
             local: true,
             up: true,

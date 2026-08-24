@@ -1487,11 +1487,120 @@ fn cpu_info_json() -> String {
         }
     }
 
+    // Per-core, in core order. btop puts a temperature beside every core
+    // meter, and coretemp labels its sensors "Core N" — which is NOT the same
+    // as hwmon's temp<N>_input numbering, so the label is what decides the
+    // slot rather than the file's index.
+    let mut core_t: Vec<(usize, f64)> = Vec::new();
+    if let Ok(rd) = fs::read_dir("/sys/class/hwmon") {
+        for e in rd.flatten() {
+            if fs::read_to_string(e.path().join("name")).unwrap_or_default().trim() != "coretemp" {
+                continue;
+            }
+            let Ok(files) = fs::read_dir(e.path()) else { continue };
+            for f in files.flatten() {
+                let fname = f.file_name().to_string_lossy().into_owned();
+                let Some(stem) = fname.strip_suffix("_label") else { continue };
+                let label = fs::read_to_string(f.path()).unwrap_or_default();
+                let Some(n) = label.trim().strip_prefix("Core ").and_then(|x| x.parse::<usize>().ok())
+                else {
+                    continue;
+                };
+                if let Some(v) = fs::read_to_string(e.path().join(format!("{stem}_input")))
+                    .ok()
+                    .and_then(|s| s.trim().parse::<f64>().ok())
+                {
+                    core_t.push((n, v / 1000.0));
+                }
+            }
+        }
+    }
+    core_t.sort_by_key(|(n, _)| *n);
+    let cores_json: Vec<String> = core_t.iter().map(|(_, v)| format!("{v:.1}")).collect();
+
     format!(
-        "{{\"model\":\"{}\",\"mhz\":{},\"temp_c\":{}}}",
+        "{{\"model\":\"{}\",\"mhz\":{},\"temp_c\":{},\"core_temps\":[{}]}}",
         json_escape(&model),
         mhz.map(|v| format!("{v:.0}")).unwrap_or_else(|| "null".into()),
         temp.map(|v| format!("{v:.1}")).unwrap_or_else(|| "null".into()),
+        cores_json.join(","),
+    )
+}
+
+/// Who and where this machine is: the identity the panel puts in its header,
+/// and the network configuration the net box shows.
+///
+/// All of it comes from the snapshot rather than being read locally by the
+/// panel, because the panel can be pointed at a peer — and a header that said
+/// "surface-nixos" while the numbers underneath came from oci-apps would be
+/// worse than showing nothing.
+fn host_info_json() -> String {
+    let os = fs::read_to_string("/etc/os-release")
+        .unwrap_or_default()
+        .lines()
+        .find_map(|l| l.strip_prefix("PRETTY_NAME=").map(|v| v.trim_matches('"').to_string()))
+        .unwrap_or_default();
+    let host = fs::read_to_string("/proc/sys/kernel/hostname").unwrap_or_default().trim().to_string();
+    let kernel = fs::read_to_string("/proc/sys/kernel/osrelease").unwrap_or_default().trim().to_string();
+
+    // ip(8) rather than parsing /proc/net/{fib_trie,if_inet6} by hand: those
+    // are undocumented debug formats and this one is stable and universal.
+    let addrs = clean_command("ip")
+        .args(["-o", "addr", "show"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+    let mut ifaces: Vec<String> = Vec::new();
+    for line in addrs.lines() {
+        let f: Vec<&str> = line.split_whitespace().collect();
+        if f.len() < 4 || f[1] == "lo" {
+            continue;
+        }
+        // Link-local tells you nothing about where a machine is reachable.
+        if f[3].starts_with("fe80:") {
+            continue;
+        }
+        ifaces.push(format!(
+            "{{\"name\":\"{}\",\"addr\":\"{}\"}}",
+            json_escape(f[1]),
+            json_escape(f[3])
+        ));
+    }
+
+    let route = clean_command("ip")
+        .args(["-o", "route", "show", "default"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+    let gw: Vec<&str> = route.split_whitespace().collect();
+    let gateway = gw.iter().position(|x| *x == "via").and_then(|i| gw.get(i + 1)).copied().unwrap_or("");
+    let wan_if = gw.iter().position(|x| *x == "dev").and_then(|i| gw.get(i + 1)).copied().unwrap_or("");
+
+    let resolv = fs::read_to_string("/etc/resolv.conf").unwrap_or_default();
+    let dns: Vec<String> = resolv
+        .lines()
+        .filter_map(|l| l.strip_prefix("nameserver "))
+        .map(|x| format!("\"{}\"", json_escape(x.trim())))
+        .collect();
+    let search: Vec<String> = resolv
+        .lines()
+        .filter_map(|l| l.strip_prefix("search "))
+        .flat_map(|x| x.split_whitespace())
+        .map(|x| format!("\"{}\"", json_escape(x)))
+        .collect();
+
+    format!(
+        "{{\"host\":\"{}\",\"os\":\"{}\",\"kernel\":\"{}\",\"gateway\":\"{}\",\"wan_if\":\"{}\",\"ifaces\":[{}],\"dns\":[{}],\"search\":[{}]}}",
+        json_escape(&host),
+        json_escape(&os),
+        json_escape(&kernel),
+        json_escape(gateway),
+        json_escape(wan_if),
+        ifaces.join(","),
+        dns.join(","),
+        search.join(","),
     )
 }
 
@@ -1799,6 +1908,7 @@ fn render(
     proc_table: &str,
     proc_spine: &str,
     cpu_info: &str,
+    host_info: &str,
     storage: &str,
     slices: &str,
     services: &str,
@@ -1828,7 +1938,7 @@ fn render(
           \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\"slice_pct\":{slice_pct:.1},\
           \"battery\":{},\
           \"storage\":{storage},\"slices\":{slices},\"services\":{services},\
-          \"cpu_info\":{cpu_info},\"procs\":{procs},\"proc_table\":{proc_table},\"proc_spine\":{proc_spine},\"ts\":{}}}",
+          \"cpu_info\":{cpu_info},\"host_info\":{host_info},\"procs\":{procs},\"proc_table\":{proc_table},\"proc_spine\":{proc_spine},\"ts\":{}}}",
         vram_json(vram),
         pressure_block("cpu"),
         pressure_block("io"),
@@ -2138,6 +2248,9 @@ pub fn spawn() {
         // scale of a deploy, not a tick, so this is refreshed on a slow
         // cadence and reused in between rather than paid for every 2s.
         let mut services = services_json();
+        // Identity and network config change on the scale of a reboot, not a
+        // tick, so they ride the same slow refresh as the unit list.
+        let mut host_info = host_info_json();
         let mut tick: u64 = 0;
         loop {
             std::thread::sleep(std::time::Duration::from_millis(INTERVAL_MS));
@@ -2184,6 +2297,7 @@ pub fn spawn() {
             tick += 1;
             if tick % SERVICES_EVERY_TICKS == 0 {
                 services = services_json();
+                host_info = host_info_json();
             }
 
             let body = render(
@@ -2200,6 +2314,7 @@ pub fn spawn() {
                 &proc_table_json,
                 &proc_spine_json,
                 &cpu_info_json(),
+                &host_info,
                 &btrfs_storage_json(),
                 &slices_json(&protected_slices),
                 &services,
@@ -2249,7 +2364,7 @@ mod tests {
                        disks,
                        Some((1024.0, 512.0)),
                        0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6,
-                       &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}");
+                       &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}");
         for k in ["cpu", "cores", "cpu_detail", "mem", "swap", "mem_detail", "swap_detail",
                   "vram", "disk", "disk_r", "disk_w", "disks",
                   "net_rx", "net_tx", "load1", "load5", "load15",
@@ -2264,13 +2379,13 @@ mod tests {
         // machines without a readable GPU VRAM counter), not an absent key.
         let s2 = render(12.5, &[], cpu_detail, 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
-                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}");
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}");
         assert!(s2.contains("\"vram\":null"), "expected null vram, got {s2}");
 
         // slice_pct must be 0.0, not NaN/Infinity, when slice_max is 0.
         let s3 = render(12.5, &[], cpu_detail, 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
-                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}");
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}");
         assert!(s3.contains("\"slice_pct\":0.0"), "expected 0.0 slice_pct, got {s3}");
     }
 
