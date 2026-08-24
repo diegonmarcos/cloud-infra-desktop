@@ -1177,6 +1177,20 @@ impl Monitor {
         f.render_widget(Paragraph::new(l), inner);
     }
 
+    fn render_overlays(&self, f: &mut Frame, area: Rect) {
+        match self.overlay {
+            Overlay::Kill => self.render_kill(f, area),
+            Overlay::Menu => self.render_menu(f, area),
+            Overlay::Help => self.render_help(f, area),
+            Overlay::Detail => self.render_detail(f, area),
+            Overlay::Target => self.render_target(f, area),
+            Overlay::Free => self.render_free(f, area),
+            Overlay::Unit => self.render_unit(f, area),
+            Overlay::Machine => self.render_machine(f, area),
+            Overlay::None => {}
+        }
+    }
+
     /// One machine, whole: what it is, what it is doing, and how much it has
     /// moved since it booted.
     ///
@@ -3267,19 +3281,6 @@ impl Dashboard for Monitor {
         self.render_overlays(f, area);
     }
 
-    fn render_overlays(&self, f: &mut Frame, area: Rect) {
-        match self.overlay {
-            Overlay::Kill => self.render_kill(f, area),
-            Overlay::Menu => self.render_menu(f, area),
-            Overlay::Help => self.render_help(f, area),
-            Overlay::Detail => self.render_detail(f, area),
-            Overlay::Target => self.render_target(f, area),
-            Overlay::Free => self.render_free(f, area),
-            Overlay::Unit => self.render_unit(f, area),
-            Overlay::Machine => self.render_machine(f, area),
-            Overlay::None => {}
-        }
-    }
 }
 
 // ─────────────────────────────────── checks ───────────────────────────────────
