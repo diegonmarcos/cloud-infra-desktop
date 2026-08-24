@@ -64,6 +64,17 @@ PlasmoidItem {
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== XMLHttpRequest.DONE) return;
+            // Break the self-reference BEFORE any other return path.
+            // `xhr` is captured by this very closure, so xhr ->
+            // onreadystatechange -> closure -> xhr is a cycle, and the
+            // 25KB responseText hangs off it. V4 only reclaims that on a
+            // cycle-tracing pass, and the buffer is native memory the JS
+            // heap never feels — so nothing ever makes the collector feel
+            // urgent. Measured 2026-08-24: plasmashell's anonymous heap
+            // grew 12.8 MB/h, monotonic, across seven instances polling
+            // at 1.5s. Nulling the handler drops the last reference here
+            // instead of whenever GC gets around to proving the cycle.
+            xhr.onreadystatechange = null;
             // The callback can outlive the component: a panel edit or a shell
             // restart destroys the applet while a request is in flight, and
             // then `root` is null and every line below throws. That is the
@@ -105,6 +116,17 @@ PlasmoidItem {
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== XMLHttpRequest.DONE) return;
+            // Break the self-reference BEFORE any other return path.
+            // `xhr` is captured by this very closure, so xhr ->
+            // onreadystatechange -> closure -> xhr is a cycle, and the
+            // 25KB responseText hangs off it. V4 only reclaims that on a
+            // cycle-tracing pass, and the buffer is native memory the JS
+            // heap never feels — so nothing ever makes the collector feel
+            // urgent. Measured 2026-08-24: plasmashell's anonymous heap
+            // grew 12.8 MB/h, monotonic, across seven instances polling
+            // at 1.5s. Nulling the handler drops the last reference here
+            // instead of whenever GC gets around to proving the cycle.
+            xhr.onreadystatechange = null;
             if (!root) return;   // destroyed mid-flight — see refresh()
             try {
                 var d = JSON.parse(xhr.responseText);

@@ -56,6 +56,7 @@ grep -q 'xhr.send()' "$TMP/refresh.js" || fail "extracted refresh() looks trunca
 pass "extracted refresh() and refreshGuard() from the real main.qml"
 
 cat > "$TMP/harness.js" <<'HARNESS'
+let lastXhr = null;   // the leak check below inspects the object refresh() built
 // Stub XMLHttpRequest: one queued response per send().
 //
 // Delivery is synchronous by default, but `defer` holds the response so a test
@@ -66,6 +67,7 @@ cat > "$TMP/harness.js" <<'HARNESS'
 // which is outside the callback and not the bug being tested.
 let queue = [], defer = false, pending = [];
 function XMLHttpRequest() {
+  lastXhr = this;
   this.readyState = 0;
   this.responseText = "";
   this.onreadystatechange = null;
@@ -168,6 +170,20 @@ try { deliverPending(); } catch (e) { threw = true; }
 defer = false;
 root = saved;
 check("callback after destruction does not throw", threw === false);
+
+// 10. The handler must be released once the response is in. `xhr` is captured
+//     by its own onreadystatechange, so the pair is a reference cycle holding
+//     a 25KB responseText, and V4 only breaks it on a cycle-tracing pass that
+//     nothing prompts (the buffer is native memory the JS heap never feels).
+//     Seven instances at 1.5s leaked plasmashell 12.8 MB/h of anonymous heap,
+//     measured 2026-08-24. Delete the null assignment in main.qml and this
+//     fails — which is the only reason it survives someone tidying it away.
+queue.push(JSON.stringify({ ts: now + 500 }));
+refresh();
+check("refresh() releases its XHR handler", lastXhr.onreadystatechange === null);
+queue.push(JSON.stringify({ ts: now + 501 }));
+refreshGuard();
+check("refreshGuard() releases its XHR handler", lastXhr.onreadystatechange === null);
 
 let bad = 0;
 for (const [name, ok] of results) {
