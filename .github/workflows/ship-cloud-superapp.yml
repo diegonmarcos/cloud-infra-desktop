@@ -62,11 +62,6 @@ on:
       - "ea_cloud-superapp-v*"
     paths:
       - "ea_cloud-superapp/**"
-      - "ea_cloud-libs-shared/libs/core/**"
-      - "ea_cloud-libs-shared/libs/devtools/**"
-      - "ea_cloud-libs-shared/libs/updater/**"
-      # ^ compiled into this APK from the shared root, so they sit outside
-      #   ea_cloud-superapp/** and need their own triggers.
       - "1_cicd/src/cicd/ship-cloud-superapp.yml"
       # Generated .github/workflows/*.yml intentionally NOT watched (regenerated
       # by 9_others/build.sh → would self-trigger rebuilds on unrelated commits).

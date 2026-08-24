@@ -125,7 +125,8 @@
                 "applications:brave-browser.desktop",
                 "applications:org.qutebrowser.qutebrowser.desktop",
                 "applications:systemsettings.desktop",
-                "applications:waydroid-container.desktop"
+                "applications:waydroid-container.desktop",
+                "applications:waydroid-container-mobile.desktop"
               ]
             }
           }
