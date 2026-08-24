@@ -46,11 +46,11 @@ on:
       - "ea_cloud-keyboard-libs-v*"
     paths:
       - "ea_cloud-keyboard-libs/**"
-      - "ea_cloud-superapp/libs/media/**"
-      - "ea_cloud-superapp/libs/translate/**"
-      - "ea_cloud-superapp/libs/voice/**"
-      - "ea_cloud-superapp/libs/voice-vosk/**"
-      - "ea_cloud-superapp/libs/translate-mlkit/**"
+      - "ea_cloud-libs-shared/libs/media/**"
+      - "ea_cloud-libs-shared/libs/translate/**"
+      - "ea_cloud-libs-shared/libs/voice/**"
+      - "ea_cloud-libs-shared/libs/voice-vosk/**"
+      - "ea_cloud-libs-shared/libs/translate-mlkit/**"
       - "1_cicd/src/cicd/ship-cloud-keyboard-libs.yml"
 
 permissions:

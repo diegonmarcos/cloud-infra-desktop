@@ -33,10 +33,10 @@ on:
       - "ea_cloud-keyboard-v*"
     paths:
       - "ea_cloud-keyboard/**"
-      - "ea_cloud-superapp/libs/keyboard/**"
-      - "ea_cloud-superapp/libs/media/**"
-      - "ea_cloud-superapp/libs/translate/**"
-      - "ea_cloud-superapp/libs/voice/**"
+      - "ea_cloud-libs-shared/libs/keyboard/**"
+      - "ea_cloud-libs-shared/libs/media/**"
+      - "ea_cloud-libs-shared/libs/translate/**"
+      - "ea_cloud-libs-shared/libs/voice/**"
       - "1_cicd/src/cicd/ship-cloud-keyboard.yml"
 
 permissions:
