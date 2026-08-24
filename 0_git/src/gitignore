@@ -127,14 +127,6 @@ libs/
 ## as !ea_cloud-media-center/libs/ would not have matched it.
 !ea_cloud-media-center/upstream/libs/
 !ea_cloud-media-center/upstream/libs/**
-## EXCEPTION: ea_cloud-libs-shared/libs/ — the SEVENTH time, and the first
-## one added BEFORE the tree existed rather than after a build broke. This root
-## exists so no app is a library for another app: the ten modules that sibling
-## apps consume (core, devtools, updater, browser, media, voice, voice-vosk,
-## translate, translate-mlkit, keyboard) live here instead of under
-## ea_cloud-superapp/libs/. Added 2026-08-24 in the same commit as the move.
-!ea_cloud-libs-shared/libs/
-!ea_cloud-libs-shared/libs/**
 ## Signing keystores are generated in CI only — never vendored.
 ea_cloud-superapp/**/*.keystore
 ea_cloud-superapp/**/*.jks

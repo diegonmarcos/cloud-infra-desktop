@@ -87,6 +87,24 @@ in {
     settings.StartupWMClass = "Waydroid";
   };
 
+  # Second launcher, same container, different VIEWPORT. `up` with no form takes
+  # build.json's display.form_default (tablet, 2304x1536 @225dpi -> sw1365dp -> tablet
+  # layouts); `up mobile` is 1080x2400 @420dpi -> sw514dp, i.e. under the sw600dp
+  # breakpoint, so Android draws phone layouts in a phone-shaped window. Same icon and
+  # the same StartupWMClass on purpose: it is one Android, and the KWin
+  # waydroid-default-desktop rule (window-rules.json) sends either form to Desk4.
+  # Waydroid fixes its resolution when the SESSION starts, so switching form restarts
+  # the container — the engine does that, and a form already applied costs nothing.
+  xdg.desktopEntries."${desktopId}-mobile" = {
+    name = "Waydroid (Phone)";
+    comment = "Android (Waydroid-in-Docker) in the phone viewport — 1080x2400, phone layouts";
+    exec = "${config.home.homeDirectory}/.local/bin/waydroid-container up mobile";
+    terminal = false;
+    icon = desktopId;
+    categories = [ "System" ];
+    settings.StartupWMClass = "Waydroid";
+  };
+
   # No taskbar pin here. It used to live in this file as
   # home.activation.pinWaydroidContainerTaskbar and was removed 2026-08-11 for
   # two reasons:

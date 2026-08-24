@@ -20,7 +20,9 @@
 #   ./build.sh apps-fetch       # reproducibly fetch the pinned APK set (build.json apps.list) into src/apks/
 #   ./build.sh bake             # boot+provision a scratch container, snapshot /data, bake it into the image (LOCAL-only: needs binder)
 #   ./build.sh install [bindir] # pull the GHCR image, copy the baked launcher into a bin dir
-#   ./build.sh up [native|stream|vnc]   # bring the container up + open the GUI (default native)
+#   ./build.sh up [native|stream|vnc] [mobile|tablet]  # bring the container up + open the GUI
+#                               # (defaults: display.mode, display.form_default). Forms are a
+#                               # native-mode viewport shape — see display.forms in build.json.
 #   ./build.sh down             # stop the container
 #   ./build.sh status           # container + waydroid state
 #   ./build.sh test             # evidence-based pipeline tester
@@ -525,7 +527,65 @@ _run_gui() {
   cmd_down
 }
 
-cmd_up() { _run_gui "${1:-}"; }
+# _form_apply <form> — put the NATIVE session into the requested viewport shape.
+# Resolution lives in persist.waydroid.width/height, which Waydroid reads once, when the
+# session starts — there is no live resize (verified: `wm size` retargets Android's
+# logical display but leaves the host window at its old size, so you get a phone-shaped
+# viewport letterboxed inside a tablet-sized window). So a form CHANGE has to bounce the
+# container; a form that is already applied costs nothing. Density is separate and does
+# apply live: it is what moves Android across the sw600dp breakpoint between phone and
+# tablet layouts, so it is re-asserted every launch even when the size already matches.
+_form_apply() {
+  local form="$1" name w h d cur
+  name="$(container_name)"
+  w="$(get "display.forms.$form.width")"; h="$(get "display.forms.$form.height")"
+  d="$(get "display.forms.$form.density")"
+  [ -n "$w" ] && [ -n "$h" ] && [ -n "$d" ] || die "unknown form '$form' (see display.forms in build.json)"
+  cur="$(docker exec "$name" waydroid prop get persist.waydroid.width 2>/dev/null | tr -d '[:space:]')"
+  if [ "$cur" != "$w" ]; then
+    log "switching to '$form' form (${w}x${h}) — the session fixes its resolution at start, so this restarts the container…"
+    docker exec "$name" waydroid prop set persist.waydroid.width "$w" >/dev/null 2>&1 \
+      || die "could not set persist.waydroid.width"
+    docker exec "$name" waydroid prop set persist.waydroid.height "$h" >/dev/null 2>&1 \
+      || die "could not set persist.waydroid.height"
+    docker restart "$name" >/dev/null || die "container restart failed"
+    local ok=""
+    for _ in $(seq 1 90); do
+      docker exec "$name" waydroid status 2>/dev/null | grep -q "Session:.*RUNNING" && { ok=1; break; }
+      sleep 2
+    done
+    [ -n "$ok" ] || die "session did not come back within 180s after the form switch — check: docker logs $name"
+  fi
+  # Non-fatal: a wrong density is a cosmetic layout miss, not a dead session.
+  docker exec "$name" waydroid shell -- wm density "$d" >/dev/null 2>&1 \
+    || warn "could not apply density $d for form '$form' — layouts may stay ${form}-wrong"
+  log "form '$form': ${w}x${h} @ ${d}dpi"
+}
+
+# up [native|stream|vnc] [<form>] — arguments are classified, not positional, so
+# `up`, `up mobile`, `up stream`, `up stream tablet` and `up tablet stream` all work.
+cmd_up() {
+  local mode="" form=""
+  local a
+  for a in "$@"; do
+    case "$a" in
+      native|stream|vnc) mode="$a" ;;
+      "") ;;
+      *) [ -n "$(get "display.forms.$a.width")" ] \
+           || die "unknown argument '$a' — expected a mode (native|stream|vnc) or a form (see display.forms in build.json)"
+         form="$a" ;;
+    esac
+  done
+  [ -n "$mode" ] || mode="$(get display.mode)"
+  [ -n "$form" ] || form="$(get display.form_default)"
+  # Forms are a native-mode concept: stream/vnc size their headless sway output from the
+  # container env baked at creation, not from the session's own resolution props.
+  if [ "$mode" = "native" ] && [ -n "$form" ]; then
+    _ensure_running "$mode"
+    _form_apply "$form"
+  fi
+  _run_gui "$mode"
+}
 # down — full stack teardown. Uses the data-driven stop_timeout_seconds (not
 # docker's 10s default) so the entrypoint's ordered SIGTERM trap (waydroid
 # session/container -> wayvnc -> sway -> seatd -> pulseaudio -> dbus) actually completes before
@@ -671,11 +731,11 @@ case "${1:-up}" in
   bake)    cmd_bake ;;
   reseal)  cmd_reseal ;;
   install) cmd_install "${2:-}" ;;
-  up)      cmd_up "${2:-}" ;;
+  up)      shift; cmd_up "$@" ;;
   down)    cmd_down ;;
   status)  cmd_status ;;
   test)    cmd_test ;;
   push)    cmd_push ;;
   *) die "unknown command '$1'
-  build | redeploy [pkg...] | bundle | apps-lock [pkg...] | apps-fetch | bake | install [bindir] | up [native|stream|vnc] | down | status | test | push" ;;
+  build | redeploy [pkg...] | bundle | apps-lock [pkg...] | apps-fetch | bake | install [bindir] | up [native|stream|vnc] [mobile|tablet] | down | status | test | push" ;;
 esac
