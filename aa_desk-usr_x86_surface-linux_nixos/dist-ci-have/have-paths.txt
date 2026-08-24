@@ -60,7 +60,6 @@
 /nix/store/0liis7bqqwdb7sbi7760yczklvs3p3qn-s2n-tls-1.5.5
 /nix/store/0lxkg9phzdg9y6nlvg23i5dk2bi7y20q-xl2tpd-1.3.18
 /nix/store/0mwra0h91vf7n26dikd4672vkf6svbjp-unit-save-hwclock.service
-/nix/store/0mz3g6x7qpblfdf5yjp9gvrixlypappk-etc
 /nix/store/0n1azrxrjz52flrbnbjyl3k27z7p64l9-libheif-1.18.2
 /nix/store/0ncbcyfvamxn0vwnq2vyp5byj9pgcnh6-opusfile-0.12
 /nix/store/0nyp6zvs9q2s46rrk0fhsyxp66f1pfvx-libutempter-1.2.1
@@ -272,6 +271,7 @@
 /nix/store/2l7anm0hr0d28xdyj6izyzyiabi5g0aq-groupadd.pam
 /nix/store/2larhas2prhbdmgk47lccvv83d3sb6gg-libpq-18.4
 /nix/store/2lcwrgcsalwb9a693pxgca3gsmdxksdd-iptsd.conf
+/nix/store/2lh1fvsz7xzjxxy25jpqgglxnbx32378-system-units
 /nix/store/2lq8ihiy3d2b2xa0m9mnwdqhscczzb2m-mesa-24.2.8
 /nix/store/2m5iq4rrsh5cz4m2n5l0pg8175a9z3zc-fftw-single-3.3.10
 /nix/store/2mf6fmkzwsxjxppscqf9lba405lpkppy-libmicrohttpd-1.0.1
@@ -370,6 +370,7 @@
 /nix/store/3j4aaszk5kkv9k21a3jm59r1caq13k9c-fwupd-1.9.25
 /nix/store/3jl8bj114cmpddpjhmsrbxm56dhq9q2v-fido2-vault-broker-0.1.0
 /nix/store/3jvxn3pcfw1b3q6mid80kly6fsrnyivh-polkit-qt-1-0.201.1
+/nix/store/3k2ipvfcssa8czbll8xacjra479abl6s-nixos-system-surface-nixos-24.11.20250630.50ab793
 /nix/store/3kncz3fkk7sv9xc61x096jnbxvxfnx1k-libxkbcommon-1.13.1
 /nix/store/3lb5b4s652469lcrmab09pjqvzd9ibk1-sddm.conf
 /nix/store/3lic8s6w0y7g6kjq01xmpvgybk0xg2hx-python3.12-markdown-3.7
@@ -539,7 +540,6 @@
 /nix/store/58zpk8fmx40sh7g43f04qqg7b3k9wbmc-opencl-clang-14.0.0-unstable-2024-07-09
 /nix/store/593s0sf787xagqfpc0n747kxxs9pihli-etc-libinput-local-overrides.quirks
 /nix/store/599n6vccmal75cid1mvp92gi2rxdrc4b-dbus-1
-/nix/store/59mfbvhyfsfyfk1r4qm6sz5kydr300pk-nixos-system-surface-nixos-24.11.20250630.50ab793
 /nix/store/59vyil13lg9rnk1x646yxhjqi49aa0z6-SPIRV-LLVM-Translator-14.0.0+unstable-2024-07-15
 /nix/store/5a6clcmd0xfqppx8wwjw56byqczhwn0g-glibmm-2.66.7
 /nix/store/5aaqpfikifis4ppdmd67m4r4bz1i45iw-qtmultimedia-6.8.3
@@ -622,7 +622,6 @@
 /nix/store/620k4f9033j3difq3b0zp371l76sw1ry-docker-runc-27.5.1
 /nix/store/62ffqg7650qbvxyc22pwc9kx7mxc2xhj-facetimehd-calibration-5.1.5769-zstd
 /nix/store/62ja2y5jkd4kgpx5vmf40ilp5vljrbr2-etc-qemu-bridge.conf
-/nix/store/63047bangp6ps56qvqf7zyb7w52mz48s-unit-script-freeze-guard-selfcheck-start
 /nix/store/63378zik9yv3nzf9ib7dnd6nbbixrys3-zimg-3.0.6
 /nix/store/64iyzqgrqq735wj2a4knz0sd4fl5gcyz-packagekit-qt-1.1.2
 /nix/store/64s014hh5i3lrimjwm616f1a9wcirxi0-nixos-help
@@ -728,6 +727,7 @@
 /nix/store/72vl6p15pq273hrwalwnlvhm7x3kzbd9-libiec61883-1.2.0
 /nix/store/734yhzzil5wiknl2s68far6xgl8w056m-upower-1.90.4
 /nix/store/735crzxlnz4m0ab4fflxpqldx5k2rakz-font-adobe-75dpi-1.0.4
+/nix/store/73907qahfbgwlkpx92x7pnf2ja5mms13-unit-freeze-guard-selfcheck.service
 /nix/store/739w3cn432h1a2gabj0mnl01kpcm4fny-perl5.40.0-File-MimeInfo-0.33
 /nix/store/739zqr9vbg3vqgzil037h18azafdbzd0-avahi-0.8
 /nix/store/73i3fprj8a1rygbpaa6w5xcm29gn29rr-liberation-fonts-2.1.5
@@ -754,7 +754,6 @@
 /nix/store/7bgzhyi49vipafbckhnzrb0xfpq353wh-unit-network-online.target
 /nix/store/7bpq1ir61bkaf6vklj6am8c020cgy89p-purpose-6.8.0
 /nix/store/7br2dqy0rcvj29chsznsm16a6v2l14js-kdegraphics-thumbnailers-24.08.3
-/nix/store/7bs2vbiy95sz3jpwa5sxs4ag8f3xrnf2-unit-script-freeze-guard-start
 /nix/store/7c69b7hg1hyxz60pb62yrhlv4b0gklf5-bundler-2.5.22
 /nix/store/7c73fgj9w0k8qrpq3j1h8h976bk7gqsp-gtk+3-3.24.52
 /nix/store/7c94gi18gzr290ym4sk0af2wscsrm0ng-system-generators
@@ -804,6 +803,7 @@
 /nix/store/7v9fd8aihcgwjgcf3yajsiabfzv5xzv8-feh-3.10.3
 /nix/store/7vqn57q1fbk8zg236cd92yhvmz82gns6-krb5-1.21.3-lib
 /nix/store/7vxs654j460qbxf3idgzwb92g4zwlbwi-dbus-1.16.2-dev
+/nix/store/7w4s9bpz845mx04kk7mlmbq0bksszbbb-unit-script-freeze-guard-selfcheck-start
 /nix/store/7wij0pz803k97830m9cm11n7hhzjzzjr-chromium-unwrapped-138.0.7204.49-sandbox
 /nix/store/7wjx07pmpj749adkgcdj62d79r4ss8j6-ddrescue-1.28_fish-completions
 /nix/store/7wn1dk9zwbcim60jfvd8h928dd71dl3n-flite-2.2-lib
@@ -827,6 +827,7 @@
 /nix/store/83ajpiypk4hnxflxqnwskpl6rcbp69k1-libgudev-238
 /nix/store/83fg0wswwbp0hligm1sb46dbzim8dl7s-libupnp-1.14.18
 /nix/store/83izyxvw00pqxi3dxlq81i15957z7wyp-cracklib-2.10.3
+/nix/store/83kgzwzh4y1vdrw9m40nahk0mx48k6ls-system-units
 /nix/store/83ryb8l1h0vl741vzxpyjxjjzzf66nvf-discover-6.2.5
 /nix/store/849ijqvqlkms1h67d99g10s56mwdhkza-dbus-1.14.10-doc
 /nix/store/84a4ia61bnqfgkwc6x6fy7z23flfys13-graphene-1.10.8
@@ -977,6 +978,7 @@
 /nix/store/9ibl8nqyb3k477lxnlnzr57sk815a5iv-firmware
 /nix/store/9icmlhf1qqm8arg5n2pf9jxpy36kbm7s-coreutils-full-9.5_fish-completions
 /nix/store/9id02nvddpbbjblcxc6ph66nyys0zg31-perl5.40.0-libwww-perl-6.72
+/nix/store/9if3z3jf51bfiszcw6vhvdk9v71sbs3m-system-units
 /nix/store/9jy0h815m44qiawm0cpdfljd0jdn3vbv-libcap-2.70-lib
 /nix/store/9k32qavsdkq3pb5bvxxiv78cjgpydqcy-stoken-0.93
 /nix/store/9k89sb3lcq9a4gw55rcs9avm2s71d4c9-gdbm-1.24-lib
@@ -988,6 +990,7 @@
 /nix/store/9m1xsrwb1jj1q97575x6hsc0xn4z345f-sbc-2.2
 /nix/store/9m97ywwpvykavqgfrbzj1z2c9i644a5p-kbd-2.6.4_fish-completions
 /nix/store/9mfwp05gwj1gs2fb93m9xla91znw1p62-libssh2-1.11.1
+/nix/store/9msc0d16pwc99h9vi34xv3ygywlzzsh2-nixos-system-surface-nixos-24.11.20250630.50ab793
 /nix/store/9mswjih296r0v7ajh254p0khy4b809q8-lsof-4.99.3_fish-completions
 /nix/store/9mwfi1naginyz9sch0l37f4pxmi6d9kw-fontconfig-2.15.0-lib
 /nix/store/9na99rxd6m544lb14mxwizvid7njw059-nixos-manual-html
@@ -1015,7 +1018,6 @@
 /nix/store/9v272z68zy7b5bfm95nkdv5g38dl0lj1-libXinerama-1.1.5-dev
 /nix/store/9v7slasrxg3bfn81crq5q9h2gdqadlbd-iodine-0.8.0
 /nix/store/9v8y3dx7mgclll4qsqhz4s0smpsicwdf-system-shutdown
-/nix/store/9vfknzw5ki3yjrf133llp767ibmrjhsy-nixos-system-surface-nixos-24.11.20250630.50ab793
 /nix/store/9vmpl39nrgv86pv8smz7bh6564g72mi4-libgweather-4.4.4
 /nix/store/9vsjgxhp2wb2h2yj2higlb5avyca7brq-webrtc-audio-processing-1.3
 /nix/store/9vz0chg1rhq4l8kjax7rpi560ak11a2a-soxr-0.1.3
@@ -1074,7 +1076,6 @@
 /nix/store/abk2vls32d3zxydavk8h3a07l9gbn6ks-gnome-logs-45.0
 /nix/store/abklh3f9qm73m7hfn61mp2sjx0aiq3pp-fwupd-1.9.25-lib
 /nix/store/ac7adcbyvf3p8mx24r2bvyvv964cm110-qtwebview-6.8.3
-/nix/store/acdjx4qrssgjfn0fr51jjfb478wja3nn-unit-freeze-guard.service
 /nix/store/acgfhgh3pm326ycj845b839xblgkyc6s-X-Restart-Triggers-polkit
 /nix/store/acxrpgv7jdb13ch51wn4nx3slfsbgwmn-unit-post-resume.service
 /nix/store/ad0xls440hd8pcwz3myb1my6fcnfsg6q-libvisual-0.4.1
@@ -1353,7 +1354,6 @@
 /nix/store/czwchfqv2v6v2gm545mhdj03smk50rw0-xkeyboard-config-2.47
 /nix/store/d174lydlzp7vabf466ayp9bpblsiflyj-plasma-framework-5.116.0-bin
 /nix/store/d1gsjxvaw1pc2hb3g9vsarzpkvyfgdxp-libpwquality-1.4.5-lib
-/nix/store/d1hc1af5wa559whm0w034r6nhw6w4hpz-system-units
 /nix/store/d1kqy9d23c6ywi81wv942pf01z1hil6i-wlroots-0.18.1
 /nix/store/d1wxinm5pi9v6g4mfqjapa30lq2g83bp-gst-plugins-good-1.26.11
 /nix/store/d2cl1hpvbywjngbhgd0hjxs77cj0yc9x-avahi-daemon.conf
@@ -1378,7 +1378,6 @@
 /nix/store/d6z1q8iwzgbl4h9gw6diighc6z3fcbkp-msgpack-c-6.1.0
 /nix/store/d77i0sx9wb3s0xn6w8cmn6c91zr3xrk0-unit-p5-snapshot-boot.service
 /nix/store/d7abp1khigpkhafvz5lkjs9l2ql22pi2-evolution-data-server-3.54.2
-/nix/store/d7r3sbyl8mkwws1jbdbmjivl4p0abjw9-etc
 /nix/store/d81bq6a9nwacfk3bz5dy3y3f5b91jkj3-unit-script-suid-sgid-wrappers-start
 /nix/store/d8lp3hqpcyqjjh2r28qmlpwsk3jb4ram-etc-zshenv
 /nix/store/d8rx8xw3lvggz1z2jraa4ki7nx7lc6pj-md4c-0.5.2-lib
@@ -1451,6 +1450,7 @@
 /nix/store/dvpk9ivinajl00z6l5hblxxflv9264cm-util-linux-minimal-2.39.4-swap
 /nix/store/dvqr74scragfh4mgxpa03npa57xkdqdg-pkg-config-wrapper-0.29.2
 /nix/store/dvqsqsqslrgd6d6vjx44ch9sp457c9kd-kcalendarcore-6.8.0
+/nix/store/dwb3zqcfzgb9qgw6wsn0pdmpfr4invjg-system-units
 /nix/store/dwrm5918r24cmvsa3i2p5m1qdap7diwn-libbs2b-3.1.0
 /nix/store/dwv0wf3szv3ipgyyyrf1zxh4iqlckiip-inputrc
 /nix/store/dwwkl0mjxqbpik8k8vl15banamgjz2gg-bluez-5.78_fish-completions
@@ -1720,6 +1720,7 @@
 /nix/store/h5l7067iz1djarbsfiz80arjpdm30xsx-libshout-2.4.6
 /nix/store/h62w0k6rksz4gvqmgwvcgxjrpb2w8c1z-libgpg-error-1.50
 /nix/store/h63hsa1s85ja2vks0f1lfnn258kh7lj2-mobile-broadband-provider-info-20240407
+/nix/store/h65nxnmd8zfr0c9spz2pnq4m5qbfjs9i-etc
 /nix/store/h6bpwbrr2v0k6wz9rg92l3r9fddvl1ng-xorg-server-21.1.16_fish-completions
 /nix/store/h6gspk8xjf734hydivzhzy52mv600iry-aws-c-cal-0.6.15
 /nix/store/h6im74s7cllpzbqzijq5mj0gvypmdngi-neovim-unwrapped-0.10.2
@@ -1727,6 +1728,7 @@
 /nix/store/h749xx6hpiadxbxwgwh2z2q2y9h8fn8p-unit-polkit.service
 /nix/store/h7gcwcbs1ms8bbmnhad25g6xry53m7nk-set-environment
 /nix/store/h7jsdvm94pcgqkj55d6asm40n5qzfaps-libmad-0.15.1b
+/nix/store/h7rxlgcpzhfgpnlbxd119q1y6lnrfp2c-freeze-guard
 /nix/store/h7w0jav9xf877zd2drxj6ghzqilq90q6-unit-script-nix-gc-start
 /nix/store/h7w2kpbp8lmn55wz1biv75p44s0saq97-libplist-2.7.0
 /nix/store/h8599p4dq9vbmy6m6ncjql4yyjd45ddj-openbox-3.6.1
@@ -1802,7 +1804,6 @@
 /nix/store/i1ajwx12c0dp649w6iv50sipvalz7f1w-lvm2-2.03.31-bin
 /nix/store/i1j62alpcx1lyrs6rymy0jza25chk2xn-python3-3.12.8
 /nix/store/i1zqswlpfzw98d3qp1h9b5x0k982nrlm-xcb-util-cursor-0.1.5-dev
-/nix/store/i369ndrhd488qpi315zj8aq47ir8s45c-nixos-system-surface-nixos-24.11.20250630.50ab793
 /nix/store/i3b7c3pizwc0281vnnlk8ln02c59kqg4-nixos-version
 /nix/store/i3qra071207jc5lwcaaafff6q72gmcgs-kdoctools-6.8.0
 /nix/store/i46myfr896230cbbaxs36126p79m4122-luajit2.1-luabitop-1.0.2-3
@@ -1834,6 +1835,7 @@
 /nix/store/ic6fyksil0z6akqlrbkcfxd7lqpd783v-libaom-3.10.0-bin
 /nix/store/icwnwf12yhzd7p1s1da3fidj41jmijlg-sstp-client-unstable-2023-03-25
 /nix/store/idfj93irb89klija6s0ahs1nvh09wdrb-gnupg-2.4.5
+/nix/store/ids09lfrz0s053znsyfbk7wpgsnmvzcr-nixos-system-surface-nixos-24.11.20250630.50ab793
 /nix/store/if18hdzph1h8fdpiafdcjg5d0j4f6wa6-gnome-settings-daemon-47.2
 /nix/store/ifcn3abgkpv6jn225i5wy52i8h0glp6j-nixos-configuration-reference-manpage_fish-completions
 /nix/store/ifdfr1hq5ii9d3krd07mh1km7kacpxni-opencore-amr-0.1.6
@@ -2027,7 +2029,6 @@
 /nix/store/k6if78z7n51qa3vhhsb28n2sarnc1sxq-libvdpau-va-gl-0.4.2
 /nix/store/k6p4kfg37jksiaqkapx0vllh92z7r7id-brotli-1.2.0-lib
 /nix/store/k6ybz3iv5sszxnl265ribb5jp9kyz4ak-lz4-1.10.0-lib
-/nix/store/k74f5vrmi98pn4q37zdzl9hzjp2w3w89-etc
 /nix/store/k7kxg101ikkm0cyf8jcqhg948vy542af-perl-5.42.0
 /nix/store/k93w7nvgkrkzqc2a9q4f04c7dg82bri5-qtmultimedia-6.11.1
 /nix/store/k9c39lb1y750blrkak4n7a91cja9lvpq-libxcb-render-util-0.3.10
@@ -2046,10 +2047,8 @@
 /nix/store/kg3qpx6z28js0ycsssgnp7awxcjyv1c6-attr-2.5.2
 /nix/store/kgdzaxz70cdz9q01f5sjnkvh578zgp69-cargo-sweep-0.7.0
 /nix/store/kggfdxni6xqbdjl6ijk3gfby180vasvf-nixos-generate-config_fish-completions
-/nix/store/kh1ccx1wpppa222p1n9lmvhmlzfy3f07-nixos-system-surface-nixos-24.11.20250630.50ab793
 /nix/store/kh4j2kji7i38viz4h0cf6kbv9fnvhnkg-unbound-1.25.1-lib
 /nix/store/khf0hsf4ilza4kdnnpkyrcb9cq4jgbq3-qtsensors-5.15.15-bin
-/nix/store/khp2x7ca64fikfjl2cnnss14541dyr3b-etc
 /nix/store/khpc441jbam8g68bf9j6kbix3m269r24-libconfig-1.7.3
 /nix/store/khsaxqm4b16wa9yq7641vxqadc0hyjlv-libmpg123-1.32.9
 /nix/store/khxrj3rz9z3mfikf13jw1ffpyfyf0p4i-qtlanguageserver-6.8.3-dev
@@ -2113,6 +2112,7 @@
 /nix/store/l4f9cdlyxil25n2a6fjk8z311q45w96b-gvfs-1.56.1
 /nix/store/l4fcqahqw13ikmnh3hh1800fn0ah5a4g-llvm-18.1.8-lib
 /nix/store/l4h7nq6jpwp6dxcmxip306k7dik1cj93-kmod-31-lib
+/nix/store/l4l9vav9gm9ydic4b7dns6yf3hlzghhc-etc
 /nix/store/l4n6x5rca1v0vglag60dl8351yzj7pn5-nspr-4.36
 /nix/store/l5590wlrlm7zfnhq7nz5afcagb7r6n8v-unit-serial-getty-.service
 /nix/store/l55zyg342w5i3rk09v7aybfbc59i7fhs-unit-p5-dmesg-trace.service
@@ -2214,6 +2214,7 @@
 /nix/store/m4dhabah61fh059q5jiswbjmg3l1qd40-kcodecs-6.8.0
 /nix/store/m4pklrdgyi2a3nr70fplvwfrx414ab07-jq-1.7.1-man
 /nix/store/m53njw5rvky1kz91zn7r0g0y47scxwz5-lttng-ust-2.14.0
+/nix/store/m54fnp883p8hh8xr8iisjd4pclflbriv-system-units
 /nix/store/m55jxbawy9fhr4l5ial73bmdqgg0zk3s-glibc-2.40-66-getent
 /nix/store/m55ncwcx8a33vqq3rm38h43l4xv6arys-libsrtp-2.6.0
 /nix/store/m57llj2g1vhwi9yq3nvj5759l08fs58m-gnutar-1.35
@@ -2246,7 +2247,6 @@
 /nix/store/md0k64syd7x39h72859wli6kph304p29-nitrogen-1.6.1_fish-completions
 /nix/store/md39pfpvlmrq30vn1hjv57cqpk5sjd2h-libbacktrace-0-unstable-2024-03-02
 /nix/store/md9facn4cikghycwy8glm2jwaxk55nzl-gst-plugins-ugly-1.24.10
-/nix/store/mdjagf9y0s7r0hckya2716bs6yc5d1xa-freeze-guard
 /nix/store/mf1s882ccxyfi3ajdc67dxpkqvxs0iwz-ktextwidgets-6.27.0
 /nix/store/mf1xxspgyhlys3cbgac4zlkm946nms6j-python3.12-setproctitle-1.3.3
 /nix/store/mfdrif28yazj3maz0b2c2cvyqfph83ff-cryptsetup-2.7.5-man
@@ -2284,8 +2284,8 @@
 /nix/store/mnfvcwhr7nzgljrc4wqcbslkiz7hyb26-gettext-1.0
 /nix/store/mnqhmaqvvnspkl34fvyh3xhca4cb5cff-hwdata-0.390
 /nix/store/mpcsv0kd3d6hpjwn6rjs5k4722kcwd5h-kconfigwidgets-6.8.0
-/nix/store/mpnah1ymvnzkkhc5rjfbnnwmd94ah3p0-system-units
 /nix/store/mpp3ks5dkanb5q0pll7mz98rng1sifcm-dejavu-fonts-minimal-2.37
+/nix/store/mpsm33xqgzrnwjk3n3bqx79fabk3wdc3-etc
 /nix/store/mpvvycy5m6k77w8r5ihs3r8xgah7sy3f-unit-kwin-crash-watchdog.service
 /nix/store/mpxggaqizvslbhvvisqz8k4bvf91k3bi-etc-xdg-applications-org.onboard.Onboard-VirtualKeyboard.desktop
 /nix/store/mpzk3582ly0c378ikz5fia4ac80jx4yh-xcb-util-keysyms-0.4.1
@@ -2376,6 +2376,7 @@
 /nix/store/ngc6x5k2f1ppkqf86a6pfdzla8pxlz08-perl5.40.0-HTTP-Daemon-6.16
 /nix/store/nglrmpaxnw68scdm5nml7kmg6rf38h0a-b43-firmware-5.100.138-zstd
 /nix/store/ngni5df4biarzhnhwpv2fw061vfrw0f0-unit-local-fs.target
+/nix/store/nh0rcbnn0r6c40y4y2b1lra66b9p25hf-nixos-system-surface-nixos-24.11.20250630.50ab793
 /nix/store/nhzyxj5ahgfn8da1s3zz0nwwf5pq1by5-syslinux-unstable-2019-02-07
 /nix/store/nigxwfmwsgwfzs4ynrwmlhyynagyh4z2-unit-systemd-tmpfiles-resetup.service
 /nix/store/nillv8cyfjzcmqhswci280adlj1z469f-stub-ld-i686-unknown-linux-musl
@@ -2398,6 +2399,7 @@
 /nix/store/nm0plg6dx5235z3al40knw7wdxvqbb6b-orc-0.4.40
 /nix/store/nm23zqgfh7db506zdrk4qqw47jxqcfdp-tzdata-2025b
 /nix/store/nm3f6w6kmbj9h0121fyc6s1fvdy905br-etc-ssh-ssh_config
+/nix/store/nmmclhk7zag7jb8pxsbzd3icy4x6r06f-unit-freeze-guard.service
 /nix/store/nn4fikzvsajywh559m7ji2p21imkd8vf-json-c-0.17
 /nix/store/nnfc7jajz8linw50amjk42rynig03dc5-libtasn1-4.20.0
 /nix/store/nnskpiqakc1kxpbrr9lbdcqj9jflk03m-gnugrep-3.11
@@ -2432,7 +2434,6 @@
 /nix/store/nyyv2ls8x2p38k6g035r5fawkz4i37g2-libmpeg2-0.5.1
 /nix/store/nz21vcac9yfrgh7l1ip13gs0mrvjp282-vde2-2.3.3
 /nix/store/nz4mhj13cswsyyag5r4sdnkgx5xn76z3-clat-on-v6only
-/nix/store/nz8sdwi6i2sfvamaxq4k360p6vxhgnq6-nixos-system-surface-nixos-24.11.20250630.50ab793
 /nix/store/nzcjivgrmbkc0qaj9rh8jq12hmydiqb4-libnl-3.10.0
 /nix/store/nzh96sa05kajl3y0jyj6p296m0qjxxnq-networkmanager-qt-5.116.0
 /nix/store/p001kwblv3kv0afplqcmimdxysvarc13-xsetroot-1.1.3_fish-completions
@@ -2442,7 +2443,6 @@
 /nix/store/p18gvbjvry99qvv3s8nj9nnm8g3xpnxw-local-cmds
 /nix/store/p1arapjq0ibpq0ca9dkz1xmld5xdhlaz-kde-cli-tools-6.2.5
 /nix/store/p1jjjzh8z6pzl683f5qlvrmh5g5jad7n-ksystemstats-6.2.5
-/nix/store/p23kxkm58l3p8841ypxdri22lbsvfq5q-system-units
 /nix/store/p2444ddspb91mpfklki8jh855qwymqjy-plymouth-themes
 /nix/store/p280d38m7s9qkmzmnpzckw9q1z4jrlab-gd-2.3.3
 /nix/store/p2bdfsblx2wqypnks0qhblpa4m964gmg-android-tools-35.0.1
@@ -2476,7 +2476,6 @@
 /nix/store/pchi8l05yflcnbw1jvrq320zxa89z022-sonnet-5.116.0-bin
 /nix/store/pckrpfmhll1zbidjx85m4d5ppdrvfjc1-nautilus-47.1_fish-completions
 /nix/store/pcrr2rhcfvlnrg5438iiz0yz07scm7gl-unit-kernel.slice
-/nix/store/pd19sn0wx4l5c3zbn9vc0l32k7ggr963-system-units
 /nix/store/pd2liha0kdx8kqc61mcpdp8qd3rwm3na-udisks2.conf
 /nix/store/pd44awaq54azz9cah8s0a89wmbqdz6cq-rsync-3.4.1_fish-completions
 /nix/store/pd7hh6fl786vxb3ialqg7slixppr556a-talloc-2.4.2
@@ -2507,7 +2506,6 @@
 /nix/store/pl4rx7zm9lflfyhf1ax0jbfi2xi22ck7-kguiaddons-5.116.0
 /nix/store/pmaqx6q4jc8xqmhw18ki80gyg2mmnz7q-libXext-1.3.6
 /nix/store/pmyzfp99xv43g0lacgqkqj29ylar6sc4-libjack2-1.9.22
-/nix/store/pn3yn5wn622m79y58wyyclbz2nk52f3s-etc
 /nix/store/pna9r6204grpyb4qsdfmdr9qjxsr6yhr-glib-networking-2.80.1
 /nix/store/pp3i78sbsy81b1jw92s3aicg7jf669bz-unit-virtlockd.socket
 /nix/store/pp8dyssdrd9p46xxaqab1jl8vc161n8v-ddrescue-1.28
@@ -2687,7 +2685,7 @@
 /nix/store/rd05syhv5v5999907a2n1r37sgi19vpd-systemd-260.2
 /nix/store/rd2303qk3i8ik22n3ibv7ymwnj9fd32h-fuse-3.16.2-bin
 /nix/store/rd5571cgx7b3ksc5yi1v4ivd1q35vhm9-abseil-cpp-20240722.0
-/nix/store/rdix1y2jzh3sjz4j1yhqmqmg9xpcmi0x-unit-freeze-guard-selfcheck.service
+/nix/store/rdvjrbhf9n20rsd7ivcriwzk7l3f912b-nixos-system-surface-nixos-24.11.20250630.50ab793
 /nix/store/rdzppnvq1iwi10kzbblamzk390g9b72d-ffmpeg-headless-8.1.1-data
 /nix/store/rfabfsmwq02sn94mb3qg9jwvxbqfwmsr-gmp-with-cxx-6.3.0
 /nix/store/rfj675kmfsapw86f1nv9imv3yi815nr8-samba-4.20.8
@@ -2719,6 +2717,7 @@
 /nix/store/rmx3w3nvzz8syla0p310bg5aqmssamyx-libunwind-1.8.1
 /nix/store/rn2jvcc18ywa456vayw47gsnjbmzycj7-taglib-1.13.1
 /nix/store/rnxivgvhiz1w4izxxndkdkq2k2hz01xh-kdesu-5.116.0
+/nix/store/rp6zq59q2nzzhnqwp4773fmbyxs3jgrn-etc
 /nix/store/rpzsk5dv7r27y7awhif5d06z5kmld8hj-webkitgtk-2.48.3+abi=4.1
 /nix/store/rq52gvy65j8nfsw395xbxqv05q0vrj7y-xdg-user-dirs-gtk-0.11
 /nix/store/rqgwinllg1y8mc3cxdnqd7qq88llf99g-nixos-configuration-reference-manpage
@@ -2919,6 +2918,7 @@
 /nix/store/vlr8skq3r06g4klrqv2a3kdkb224hdjx-firewall-reload
 /nix/store/vlwbnphwjf9i3x5qfjlb321gfb30r4mp-pixman-0.43.4
 /nix/store/vma0l93hbgk7avgy69d791lwmy92i828-X-Restart-Triggers-systemd-udevd
+/nix/store/vmb3l7qycig0vplh5m5v02q260ac9v5h-etc
 /nix/store/vmv6ggcmwn37xi548bc4jvxnh4wl25zg-protobuf-c-1.5.0-lib
 /nix/store/vny8grlx0is98jnw6mx6qz5i8w209as2-libtasn1-4.20.0
 /nix/store/vp6adr6icrpw9680yv8485n0wkyqj281-nuspell-5.1.6-lib
@@ -3077,6 +3077,7 @@
 /nix/store/x34jcp46assfkrmb8pcjpqzhxrrq2gjd-libvorbis-1.3.7
 /nix/store/x467iv2h67fzrvks4l506zll3lncna16-kdelibs4support-5.116.0
 /nix/store/x4nxa91qbhi98fvmbv30nh2cflnzknpr-bolt-0.9.7
+/nix/store/x4p2b94h01xa2zqnc7va6r9ii65r9jfb-unit-script-freeze-guard-start
 /nix/store/x4w68h7v6vdr1sqnms7k09b3dwdzgma3-unit-os-essentials.slice
 /nix/store/x4zv98lry5slpqxpyqs7adh5vxv6aaln-fontconfig-2.15.0-bin
 /nix/store/x52xvl5xg5i32kn41f77my566x4ag7lc-libavc1394-0.5.4
@@ -3342,7 +3343,6 @@
 /nix/store/zk3xx4yxvb09alikjfcizkr5zwryaqzw-gtk+-2.24.33
 /nix/store/zkji3d17ap7gbr57d0rx9ikhvi5fkzjn-syntax-highlighting-5.116.0-bin
 /nix/store/zkzdwgl045mk52x7zd676w4m7mq2nigj-libsepol-3.7-bin
-/nix/store/zln0d3agrk1hfn0p062jljr9wpcx2xkg-system-units
 /nix/store/zln2aihwqdca15nj5rgpnwnrwyrzn15x-mbrola-bin-3.3
 /nix/store/zlvydh6q1rv1jza79b21yhi07ic0dkkg-libidn2-2.3.8
 /nix/store/zmdlvd9d8yf7c486xp0h9lv3r554i8my-unit-fstrim.timer
