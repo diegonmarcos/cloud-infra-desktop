@@ -1533,6 +1533,39 @@ fn cpu_info_json() -> String {
     )
 }
 
+/// How much this machine has moved, in total, since it booted.
+///
+/// /proc/net/dev and /proc/diskstats are already cumulative counters — the
+/// rate fields elsewhere in this file are deltas taken FROM them — so the
+/// totals cost nothing extra to publish and are exact rather than accumulated
+/// by us. "Since boot" is the honest window: the kernel zeroes them at boot
+/// and nothing here can see further back than that.
+///
+/// The panel does no arithmetic on these: the daemon owns the math, so a peer
+/// collected over ssh and the local machine answer the same question the same
+/// way.
+fn read_uptime_s() -> f64 {
+    fs::read_to_string("/proc/uptime")
+        .ok()
+        .and_then(|s| s.split_whitespace().next().and_then(|x| x.parse().ok()))
+        .unwrap_or(0.0)
+}
+
+fn totals_json(uptime_s: f64) -> String {
+    let n = read_net();
+    let d = read_diskstats();
+    format!(
+        "{{\"net_rx_bytes\":{},\"net_tx_bytes\":{},\"disk_read_bytes\":{},\"disk_write_bytes\":{},\"since_s\":{:.0}}}",
+        n.rx,
+        n.tx,
+        // diskstats counts 512-byte sectors regardless of the device's real
+        // block size — that is the unit the field is defined in, not a guess.
+        d.read_sectors.saturating_mul(512),
+        d.write_sectors.saturating_mul(512),
+        uptime_s,
+    )
+}
+
 /// Who and where this machine is: the identity the panel puts in its header,
 /// and the network configuration the net box shows.
 ///
@@ -1915,6 +1948,7 @@ fn render(
     proc_spine: &str,
     cpu_info: &str,
     host_info: &str,
+    totals: &str,
     storage: &str,
     slices: &str,
     services: &str,
@@ -1944,7 +1978,7 @@ fn render(
           \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\"slice_pct\":{slice_pct:.1},\
           \"battery\":{},\
           \"storage\":{storage},\"slices\":{slices},\"services\":{services},\
-          \"cpu_info\":{cpu_info},\"host_info\":{host_info},\"procs\":{procs},\"proc_table\":{proc_table},\"proc_spine\":{proc_spine},\"ts\":{}}}",
+          \"cpu_info\":{cpu_info},\"host_info\":{host_info},\"totals\":{totals},\"procs\":{procs},\"proc_table\":{proc_table},\"proc_spine\":{proc_spine},\"ts\":{}}}",
         vram_json(vram),
         pressure_block("cpu"),
         pressure_block("io"),
@@ -2350,6 +2384,7 @@ pub fn spawn() {
                 &proc_spine_json,
                 &cpu_info_json(),
                 &host_info,
+                &totals_json(read_uptime_s()),
                 &btrfs_storage_json(),
                 &slices_json(&protected_slices),
                 &services,
@@ -2399,7 +2434,7 @@ mod tests {
                        disks,
                        Some((1024.0, 512.0)),
                        0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6,
-                       &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}");
+                       &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}", "{}");
         for k in ["cpu", "cores", "cpu_detail", "mem", "swap", "mem_detail", "swap_detail",
                   "vram", "disk", "disk_r", "disk_w", "disks",
                   "net_rx", "net_tx", "load1", "load5", "load15",
@@ -2414,13 +2449,13 @@ mod tests {
         // machines without a readable GPU VRAM counter), not an absent key.
         let s2 = render(12.5, &[], cpu_detail, 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
-                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}");
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}", "{}");
         assert!(s2.contains("\"vram\":null"), "expected null vram, got {s2}");
 
         // slice_pct must be 0.0, not NaN/Infinity, when slice_max is 0.
         let s3 = render(12.5, &[], cpu_detail, 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
-                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}");
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}", "{}");
         assert!(s3.contains("\"slice_pct\":0.0"), "expected 0.0 slice_pct, got {s3}");
     }
 

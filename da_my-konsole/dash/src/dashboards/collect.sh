@@ -62,6 +62,20 @@ BEGIN{
     st/G,(st-sf)/G,sf/G,MEM["SwapCached"]/G)
 
   getline la < "/proc/loadavg"; close("/proc/loadavg"); split(la,L," ")
+  getline up < "/proc/uptime"; close("/proc/uptime"); split(up,U," ")
+
+  # ── totals since boot ───────────────────────────────────────────────
+  # Same counters the rates come from, published whole. The daemon does
+  # this arithmetic locally; here the collector does it, so both answer
+  # the question the same way.
+  while((getline l < "/proc/net/dev")>0){ if(l !~ /:/) continue
+    split(l,a,":"); ifn=a[1]; gsub(/ /,"",ifn); if(ifn=="lo") continue
+    split(a[2],b," "); NRX+=b[1]; NTX+=b[9] } close("/proc/net/dev")
+  while((getline l < "/proc/diskstats")>0){ n=split(l,a," ")
+    # whole devices only: partitions would double-count their parent
+    if(a[3] ~ /[0-9]$/ && a[3] ~ /(sd|vd|hd)[a-z][0-9]/) continue
+    if(a[3] ~ /^(loop|ram|dm-|zram)/) continue
+    DR+=a[6]; DW+=a[10] } close("/proc/diskstats")
 
   # ── processes ───────────────────────────────────────────────────────
   while((getline l < "/tmp/.mkp1")>0){ split(l,a," "); C1[a[1]]=a[12]+a[13] } close("/tmp/.mkp1")
@@ -84,8 +98,8 @@ BEGIN{
       else if(a[1]=="PPid")pp=v; else if(a[1]=="State"){ split(v,ss," "); sc=ss[1] } }
     close(f)
     mp=(mt>0? 100.0*rss/mt : 0)
-    av=sprintf("{\"cpu_pct\":%.1f,\"mem_pct\":%.2f,\"mem_rss_bytes\":%d,\"read_bytes_per_s\":0,\"write_bytes_per_s\":0,\"runq_wait_pct\":0}",PCT[i],mp,rss*1024)
-    pt=pt sprintf("%s{\"pid\":%s,\"ppid\":%s,\"state\":\"%s\",\"slice\":\"\",\"name\":\"%s\",\"user\":\"%s\",\"cpu_pct\":%.1f,\"mem_rss_bytes\":%d,\"mem_pss_bytes\":null,\"mem_pct\":%.2f,\"read_bytes_per_s\":0,\"write_bytes_per_s\":0,\"net_rx_bytes_per_s\":0,\"net_tx_bytes_per_s\":0,\"runq_wait_pct\":0,\"protected\":false,\"protected_reason\":null,\"avg\":{\"10s\":%s,\"1m\":%s,\"5m\":%s,\"15m\":%s}}",
+    av=sprintf("{\"cpu_pct\":%.1f,\"mem_pct\":%.2f,\"mem_rss_bytes\":%.0f,\"read_bytes_per_s\":0,\"write_bytes_per_s\":0,\"runq_wait_pct\":0}",PCT[i],mp,rss*1024)
+    pt=pt sprintf("%s{\"pid\":%s,\"ppid\":%s,\"state\":\"%s\",\"slice\":\"\",\"name\":\"%s\",\"user\":\"%s\",\"cpu_pct\":%.1f,\"mem_rss_bytes\":%.0f,\"mem_pss_bytes\":null,\"mem_pct\":%.2f,\"read_bytes_per_s\":0,\"write_bytes_per_s\":0,\"net_rx_bytes_per_s\":0,\"net_tx_bytes_per_s\":0,\"runq_wait_pct\":0,\"protected\":false,\"protected_reason\":null,\"avg\":{\"10s\":%s,\"1m\":%s,\"5m\":%s,\"15m\":%s}}",
       (i>1?",":""),pid,pp,esc(sc),esc(nm),esc(uid),PCT[i],rss*1024,mp,av,av,av,av) }
   pt=pt "]"
 
@@ -99,6 +113,10 @@ BEGIN{
   j("load1",L[1]+0); j("load5",L[2]+0); j("load15",L[3]+0)
   j("psi",sprintf("{\"cpu\":%s,\"io\":%s,\"memory\":%s}",psi("/proc/pressure/cpu"),psi("/proc/pressure/io"),psi("/proc/pressure/memory")))
   j("storage","{}"); j("slices","[]"); j("services","[]")
+  # %.0f, not %d: the %d of mawk and busybox awk is a 32-bit int, so every one
+  # of these byte counts would saturate at 2147483647 — which is exactly what
+  # a 2.1 GB reading from every peer turned out to be.
+  j("totals",sprintf("{\"net_rx_bytes\":%.0f,\"net_tx_bytes\":%.0f,\"disk_read_bytes\":%.0f,\"disk_write_bytes\":%.0f,\"since_s\":%.0f}",NRX,NTX,DR*512,DW*512,U[1]))
   j("procs","[]"); j("proc_table",pt)
   j("ts",systime())
   printf "}\n"
