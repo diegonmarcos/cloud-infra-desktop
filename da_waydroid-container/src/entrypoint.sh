@@ -49,6 +49,17 @@ mkdir -p /run/dbus
 # that ever writes it, any pidfile present at OUR startup is always stale — remove
 # it unconditionally before launching.
 rm -f /run/dbus/pid
+# Same class of bug, different consumer: waydroid-net.sh guards on
+# /run/waydroid-lxc/network_up ("waydroid-net is already running" → exit 0 WITHOUT
+# creating the waydroid0 bridge). On a real host /run is tmpfs, so that marker dies
+# every boot and the guard is correct. In this image /run is a plain directory on the
+# writable layer, so on `docker start` of an existing container the marker survives
+# while the network namespace does NOT — waydroid-net.sh then no-ops, waydroid0 never
+# exists, and LXC dies with "Failed to attach vethXXXX to bridge waydroid0" →
+# "OSError: container failed to start" → session never RUNNING → no Android window
+# ever appears (the desktop launcher just sits there and gives up). We are the only
+# writer, so any marker present at OUR startup is by definition stale.
+rm -rf /run/waydroid-lxc
 # --print-pid writes to a SEPARATE file of ours — NOT /run/dbus/pid, dbus-daemon's
 # own conventional pidfile: pre-creating that would trip its stale-pidfile check.
 dbus-daemon --system --fork --print-pid=3 3>"$XDG_RUNTIME_DIR/dbus-system-ours.pid"

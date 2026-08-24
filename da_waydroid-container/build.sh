@@ -412,8 +412,17 @@ _ensure_running() {
       docker exec "$(container_name)" waydroid status 2>/dev/null | grep -q "Session:.*RUNNING" && { log "session RUNNING."; return 0; }
       sleep 2
     done
-    warn "session not RUNNING within 180s — check: docker logs $(container_name)"
-    return 0
+    # HARD failure, not a warning. This is the desktop launcher's own path
+    # (waydroid-container.desktop has Terminal=false), so returning 0 here made a dead
+    # session indistinguishable from a working one: the caller went on to print "Waydroid
+    # is a NATIVE window on your desktop", exited 0, and the user saw NOTHING happen with
+    # no clue why. Fail loudly, and put the reason where a GUI launch can actually see it.
+    local why="session not RUNNING within 180s"
+    warn "$why — diagnose with: docker logs $(container_name)"
+    command -v notify-send >/dev/null 2>&1 \
+      && notify-send -u critical -i waydroid-container "Waydroid failed to start" \
+           "$why. Run: docker logs $(container_name)" 2>/dev/null || true
+    return 1
   fi
   log "waiting for VNC (container bridge IP)…"
   local addr host port; addr="$(vnc_addr)"; host="${addr%%:*}"; port="${addr##*:}"
