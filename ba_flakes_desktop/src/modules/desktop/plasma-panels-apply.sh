@@ -44,6 +44,16 @@ qd=""
 for c in qdbus6 qdbus; do command -v "$c" >/dev/null 2>&1 && { qd="$c"; break; }; done
 [ -n "$qd" ] || { log "no qdbus on PATH — nothing to do"; exit 0; }
 
+# kreadconfig6/kwriteconfig6 come from kdePackages.kconfig in this script's
+# runtimeInputs, so inside the wrapper they are always here. Run the file
+# directly (from a working tree, say) and they are not — and because there is
+# no errexit, every tray write then fails silently while the run goes on to
+# record success and never retry. That is the same shape as the systray unit
+# that never ran for months: the failure had no way to be noticed.
+for c in kreadconfig6 kwriteconfig6; do
+  command -v "$c" >/dev/null 2>&1 || { log "ERROR: $c not on PATH — refusing to half-apply"; exit 1; }
+done
+
 evaluate() {
   "$qd" org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$1" 2>&1
 }
@@ -57,75 +67,94 @@ while [ "$i" -lt 60 ]; do
 done
 [ "$i" -lt 60 ] || { log "plasmashell never answered on D-Bus — giving up"; exit 0; }
 
-# ── do we need to do anything? ────────────────────────────────────────────
+# ── do we need to do anything? ──────────────────────────────────
 want=$(jq '.panels | length' "$JSON")
-have=$(evaluate "print(panels().length)" 2>/dev/null | tr -dc '0-9')
-[ -n "$have" ] || have=0
 cur_hash=$(sha256sum "$JSON" | cut -d' ' -f1)
 old_hash=$(cat "$STATE" 2>/dev/null || echo "")
 
-if [ "$cur_hash" = "$old_hash" ] && [ "$have" -eq "$want" ]; then
-  log "panels: $have/$want, definition unchanged — nothing to do"
+# The layout as DECLARED and as LIVE, both as plugin ids in panel-then-widget
+# order — the same order the rebuild emits and the tray step matches against,
+# so a difference here is exactly a difference that matters.
+want_layout=$(jq -r '[.panels[] | [.widgets[].plugin] | join(",")] | join("|")' "$JSON")
+live_layout=$(evaluate 'print(panels().map(function (p) { return p.widgets().map(function (w) { return w.type; }).join(","); }).join("|"));' 2>/dev/null | tr -d '\r')
+
+if [ "$cur_hash" = "$old_hash" ] && [ "$live_layout" = "$want_layout" ]; then
+  log "layout matches and definition unchanged — nothing to do"
   exit 0
 fi
-log "panels: have $have, declared $want, definition $([ "$cur_hash" = "$old_hash" ] && echo current || echo changed) — rebuilding"
 
-# ── layout: one call to clear, one per panel, one per widget ──────────────
-# Nothing here reads the live appletsrc: a full rebuild from panels.json is
-# the only writer, so a widget that is no longer declared is gone because it
-# was never re-added, not because something deleted it afterwards.
-evaluate "panels().forEach(function (p) { p.remove(); });" >/dev/null
+# NEVER destroy a layout that is already correct. 2026-08-24: on a first run
+# the state file does not exist, so the hash gate above could not match and the
+# runner rebuilt a layout that already matched the declaration exactly —
+# destroying and recreating both panels to arrive at what was already there.
+# That is not merely wasted work: destroy/recreate is the operation plasmashell
+# SEGV'd inside on 2026-08-22, and the desktop came back with no taskbar. It is
+# also what stood between a wrong systray and a fixed one, since the tray step
+# lives downstream of it. The safest rebuild is the one that does not happen,
+# so the trigger is now the layout itself rather than the presence of a file.
+if [ "$live_layout" = "$want_layout" ]; then
+  widgets=$(jq '[.panels[].widgets[]] | length' "$JSON")
+  log "layout already matches ($want panels, $widgets widgets) — skipping rebuild, applying tray contents only"
+else
+  log "layout differs from the declaration — rebuilding"
+  # ── layout: one call to clear, one per panel, one per widget ──────────────
+  # Nothing here reads the live appletsrc: a full rebuild from panels.json is
+  # the only writer, so a widget that is no longer declared is gone because it
+  # was never re-added, not because something deleted it afterwards.
+  evaluate "panels().forEach(function (p) { p.remove(); });" >/dev/null
 
-n=0
-while [ "$n" -lt "$want" ]; do
-  js=$(jq -r --argjson n "$n" '.panels[$n] |
-    "var p = new Panel();\np.location = \(.location|tojson);\np.height = \(.height);\np.floating = \(.floating);\np.alignment = \(.alignment // "center" | tojson);"' "$JSON")
-  out=$(evaluate "$js")
-  [ -n "$out" ] && log "panel $n: $out"
-  n=$((n + 1))
-done
-
-have=$(evaluate "print(panels().length)" 2>/dev/null | tr -dc '0-9')
-[ -n "$have" ] || have=0
-if [ "$have" -ne "$want" ]; then
-  log "ERROR: created $have/$want panels — leaving state unset so this retries"
-  exit 1
-fi
-
-# One evaluateScript per widget. This loop is the fix for the addWidget
-# batching bug; do not "optimise" it into a single call.
-widgets=0
-n=0
-while [ "$n" -lt "$want" ]; do
-  cnt=$(jq --argjson n "$n" '.panels[$n].widgets | length' "$JSON")
-  w=0
-  while [ "$w" -lt "$cnt" ]; do
-    js=$(jq -r --argjson n "$n" --argjson w "$w" '
-      .panels[$n].widgets[$w] as $x |
-      "var w = panels()[\($n)].addWidget(\($x.plugin|tojson));" +
-      ( ($x.config // {}) | to_entries | map(
-          "\nw.currentConfigGroup = [\(.key|tojson)];" +
-          ( .value | to_entries | map("\nw.writeConfig(\(.key|tojson), \(.value|tojson));") | join("") )
-        ) | join("") )' "$JSON")
+  n=0
+  while [ "$n" -lt "$want" ]; do
+    js=$(jq -r --argjson n "$n" '.panels[$n] |
+      "var p = new Panel();\np.location = \(.location|tojson);\np.height = \(.height);\np.floating = \(.floating);\np.alignment = \(.alignment // "center" | tojson);"' "$JSON")
     out=$(evaluate "$js")
-    [ -n "$out" ] && log "panel $n widget $w: $out"
-    widgets=$((widgets + 1))
-    w=$((w + 1))
+    [ -n "$out" ] && log "panel $n: $out"
+    n=$((n + 1))
   done
-  n=$((n + 1))
-done
-log "layout: $want panels, $widgets widgets"
 
-# Verify against the LIVE panels, not against our own loop counter — that is
-# the whole self-heal. A partial apply (the 2026-08-22 plasmashell SEGV
-# mid-evaluateScript is the precedent) must leave the state file unwritten so
-# the next trigger rebuilds, instead of recording success and never retrying,
-# which is exactly how that incident produced a desktop with no taskbar.
-live=$(evaluate "print(panels().reduce(function (a, p) { return a + p.widgetIds.length; }, 0));" 2>/dev/null | tr -dc '0-9')
-[ -n "$live" ] || live=0
-if [ "$live" -ne "$widgets" ]; then
-  log "ERROR: $live/$widgets widgets landed — leaving state unset so this retries"
-  exit 1
+  have=$(evaluate "print(panels().length)" 2>/dev/null | tr -dc '0-9')
+  [ -n "$have" ] || have=0
+  if [ "$have" -ne "$want" ]; then
+    log "ERROR: created $have/$want panels — leaving state unset so this retries"
+    exit 1
+  fi
+
+  # One evaluateScript per widget. This loop is the fix for the addWidget
+  # batching bug; do not "optimise" it into a single call.
+  widgets=0
+  n=0
+  while [ "$n" -lt "$want" ]; do
+    cnt=$(jq --argjson n "$n" '.panels[$n].widgets | length' "$JSON")
+    w=0
+    while [ "$w" -lt "$cnt" ]; do
+      js=$(jq -r --argjson n "$n" --argjson w "$w" '
+        .panels[$n].widgets[$w] as $x |
+        "var w = panels()[\($n)].addWidget(\($x.plugin|tojson));" +
+        ( ($x.config // {}) | to_entries | map(
+            "\nw.currentConfigGroup = [\(.key|tojson)];" +
+            ( .value | to_entries | map("\nw.writeConfig(\(.key|tojson), \(.value|tojson));") | join("") )
+          ) | join("") )' "$JSON")
+      out=$(evaluate "$js")
+      [ -n "$out" ] && log "panel $n widget $w: $out"
+      widgets=$((widgets + 1))
+      w=$((w + 1))
+    done
+    n=$((n + 1))
+  done
+  log "layout: $want panels, $widgets widgets"
+
+  # Verify against the LIVE panels, not against our own loop counter — that is
+  # the whole self-heal. A partial apply (the 2026-08-22 plasmashell SEGV
+  # mid-evaluateScript is the precedent) must leave the state file unwritten so
+  # the next trigger rebuilds, instead of recording success and never retrying,
+  # which is exactly how that incident produced a desktop with no taskbar.
+  live=$(evaluate "print(panels().reduce(function (a, p) { return a + p.widgetIds.length; }, 0));" 2>/dev/null | tr -dc '0-9')
+  [ -n "$live" ] || live=0
+  if [ "$live" -ne "$widgets" ]; then
+    log "ERROR: $live/$widgets widgets landed — leaving state unset so this retries"
+    exit 1
+  fi
+
 fi
 
 # plasmashell writes appletsrc asynchronously; the tray step below reads it.
@@ -191,6 +220,23 @@ else
       --group General --key extraItems "$plasmoids"
     log "tray $((i + 1)) (containment $id): shown=[$shown]"
     log "tray $((i + 1)) (containment $id): hidden=[$hidden]"
+  done
+
+  # Read the tray lists back before recording success. kwriteconfig6 reports
+  # nothing useful on failure, and the whole point of the state file is that a
+  # run which recorded it will not retry — so it must only ever be written for a
+  # state that was verified present, never for one that was merely attempted.
+  for i in "${!TRAYS[@]}"; do
+    [ "$i" -lt "${#SHOWN[@]}" ] || continue
+    id="${TRAYS[$i]}"
+    got=$(kreadconfig6 --file "$APPLETS" --group Containments --group "$id" \
+      --group General --key shownItems 2>/dev/null)
+    if [ "$got" != "${SHOWN[$i]}" ]; then
+      log "ERROR: tray $((i + 1)) (containment $id) did not take — leaving state unset so this retries"
+      log "  wanted: ${SHOWN[$i]}"
+      log "  got:    ${got:-<empty>}"
+      exit 1
+    fi
   done
 
   # The systemtray containment reads those keys when it is constructed, so
