@@ -1348,8 +1348,8 @@ mod tests {
     // idle/total arithmetic backwards would show a busy machine as idle.
     #[test]
     fn cpu_percent_is_busy_fraction_between_samples() {
-        let a = CpuTotals { idle: 100, total: 200 };
-        let b = CpuTotals { idle: 150, total: 350 }; // +50 idle of +150 total
+        let a = CpuTotals { idle: 100, total: 200, ..Default::default() };
+        let b = CpuTotals { idle: 150, total: 350, ..Default::default() }; // +50 idle of +150 total
         let p = cpu_percent(a, b);
         assert!((p - 66.6).abs() < 0.5, "expected ~66.7% busy, got {p}");
         // No time passed => no division by zero, and no fake 100%.
