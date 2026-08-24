@@ -51,10 +51,10 @@ on:
       # re-points projectDir there), so these compile into this APK without
       # living in this directory. Without them a shared-lib change ships no
       # new APK here and the installed build silently goes stale.
-      - "ea_cloud-superapp/libs/browser/**"
-      - "ea_cloud-superapp/libs/core/**"
-      - "ea_cloud-superapp/libs/devtools/**"
-      - "ea_cloud-superapp/libs/updater/**"
+      - "ea_cloud-libs-shared/libs/browser/**"
+      - "ea_cloud-libs-shared/libs/core/**"
+      - "ea_cloud-libs-shared/libs/devtools/**"
+      - "ea_cloud-libs-shared/libs/updater/**"
       - "1_cicd/src/cicd/ship-cloud-vault.yml"
 
 permissions:
