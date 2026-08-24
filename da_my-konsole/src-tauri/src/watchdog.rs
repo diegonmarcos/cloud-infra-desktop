@@ -1797,6 +1797,92 @@ fn restart_pid(pid: i32) -> Result<String, String> {
         .map_err(|e| format!("re-exec {program}: {e}"))
 }
 
+/// Nudge every zombie's parent to reap it.
+///
+/// A zombie cannot be killed — it is already dead. All that is left of it is
+/// an exit status its parent has not collected, and the pid holding that
+/// status. Sending SIGKILL to a zombie is the folk remedy and it does exactly
+/// nothing. What can work is SIGCHLD to the PARENT, which is the signal it
+/// should have handled in the first place; a parent with a working handler
+/// then calls wait() and the entry disappears.
+///
+/// A parent that ignores SIGCHLD will keep its zombies, and that is correct
+/// behaviour to leave alone: the alternative is killing a live process to tidy
+/// up a table entry that costs a few hundred bytes. So this reports how many
+/// it nudged, not how many it freed — the difference is the honest part.
+fn reap_zombies() -> String {
+    let Ok(rd) = fs::read_dir("/proc") else { return "cannot read /proc".into() };
+    let mut nudged = 0usize;
+    let mut seen = 0usize;
+    let mut parents: Vec<i32> = vec![];
+    for e in rd.flatten() {
+        let Some(nm) = e.file_name().to_str().map(|x| x.to_string()) else { continue };
+        let Ok(pid) = nm.parse::<i32>() else { continue };
+        let Ok(st) = fs::read_to_string(format!("/proc/{pid}/status")) else { continue };
+        let field = |k: &str| -> &str {
+            st.lines().find(|l| l.starts_with(k)).and_then(|l| l.split_whitespace().nth(1)).unwrap_or("")
+        };
+        if !field("State:").starts_with('Z') {
+            continue;
+        }
+        seen += 1;
+        let Ok(ppid) = field("PPid:").parse::<i32>() else { continue };
+        // pid 1 already reaps what it adopts; signalling it is pointless and
+        // it is the one process this daemon must never touch.
+        if ppid <= 1 || parents.contains(&ppid) {
+            continue;
+        }
+        parents.push(ppid);
+        unsafe { libc::kill(ppid, libc::SIGCHLD) };
+        nudged += 1;
+    }
+    format!("{seen} zombies, nudged {nudged} parents with SIGCHLD")
+}
+
+/// Ask the kernel to reclaim memory from this user's session.
+///
+/// Not drop_caches: that is root-only and system-wide, and dropping the page
+/// cache for the whole machine to free a session's worth of memory is a bad
+/// trade made loudly. cgroup v2's memory.reclaim on user@<uid>.service is the
+/// scoped version of the same idea, it is delegated to the user, and it only
+/// touches pages this session owns.
+///
+/// The kernel reclaims up to the requested amount and may return EAGAIN having
+/// reclaimed less; that is not an error worth reporting as one, so the result
+/// is measured — memory.current before and after — rather than believed.
+fn reclaim_session(bytes: u64) -> String {
+    let base = format!(
+        "/sys/fs/cgroup/user.slice/user-{}.slice/user@{}.service",
+        current_uid(),
+        current_uid()
+    );
+    let cur = || -> u64 {
+        fs::read_to_string(format!("{base}/memory.current"))
+            .ok()
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0)
+    };
+    let before = cur();
+    if let Err(e) = fs::write(format!("{base}/memory.reclaim"), bytes.to_string()) {
+        // EAGAIN means "reclaimed some, could not reach the target", which is
+        // a normal outcome and not worth surfacing as a failure.
+        if e.raw_os_error() != Some(libc::EAGAIN) {
+            return format!("memory.reclaim: {e}");
+        }
+    }
+    let after = cur();
+    format!(
+        "session memory {} -> {} (freed {})",
+        fmt_mib(before),
+        fmt_mib(after),
+        fmt_mib(before.saturating_sub(after))
+    )
+}
+
+fn fmt_mib(b: u64) -> String {
+    format!("{:.0}M", b as f64 / 1_048_576.0)
+}
+
 /// A signal requested from the panel. QML cannot signal a process, and giving a
 /// widget an exec path is worse than giving the daemon a mailbox: the daemon
 /// already runs as this user, so it can only ever signal what the user could.
@@ -1821,6 +1907,18 @@ fn drain_kill_requests() {
         // pass the exact same pid and protected-slice checks below, and having
         // one guarded entry point is what stops a second path growing its own
         // (weaker) copy of the policy.
+        // Two verbs are about the machine, not about a pid, so they are
+        // answered before the pid guards below — which would otherwise refuse
+        // them for the pid 0 they are addressed to.
+        if sig.eq_ignore_ascii_case("REAP") {
+            eprintln!("[watchdog] reap: {}", reap_zombies());
+            continue;
+        }
+        if sig.eq_ignore_ascii_case("RECLAIM") {
+            let want: u64 = it.next().and_then(|x| x.parse().ok()).unwrap_or(1_073_741_824);
+            eprintln!("[watchdog] reclaim: {}", reclaim_session(want));
+            continue;
+        }
         let restart = sig.eq_ignore_ascii_case("RESTART");
         let signum = if restart {
             0
