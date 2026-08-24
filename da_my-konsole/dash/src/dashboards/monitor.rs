@@ -236,7 +236,9 @@ fn push(v: &mut Vec<f64>, x: f64) {
 /// four significant digits they never change a decision.
 fn fmt_fixed(bytes: f64) -> String {
     let b = bytes.max(0.0);
-    for (div, unit) in [(1.0, 'B'), (1024.0, 'K'), (1048576.0, 'M'), (1073741824.0, 'G')] {
+    // K is the floor, not B: "5000B" is a worse answer than "5K" and a column
+    // of process memory has no business showing four digits of bytes.
+    for (div, unit) in [(1024.0, 'K'), (1048576.0, 'M'), (1073741824.0, 'G')] {
         let n = (b / div).round();
         if n < 10000.0 {
             return format!("{n:>4.0}{unit}");
@@ -306,6 +308,7 @@ enum Sort {
     Mem,
     M10s,
     M60s,
+    Rss,
     Pss,
     Net,
     Disk,
@@ -318,7 +321,7 @@ enum Sort {
 
 /// Left-to-right order of the sortable columns, so ←/→ walks the header the
 /// way glances does rather than jumping around an enum's declaration order.
-const SORT_ORDER: [Sort; 14] = [
+const SORT_ORDER: [Sort; 15] = [
     Sort::Pid,
     Sort::Slice,
     Sort::User,
@@ -329,6 +332,7 @@ const SORT_ORDER: [Sort; 14] = [
     Sort::Mem,
     Sort::M10s,
     Sort::M60s,
+    Sort::Rss,
     Sort::Pss,
     Sort::Net,
     Sort::Disk,
@@ -346,6 +350,7 @@ impl Sort {
             Sort::Mem => "mem",
             Sort::M10s => "m10s",
             Sort::M60s => "m60s",
+            Sort::Rss => "rss",
             Sort::Pss => "pss",
             Sort::Net => "net",
             Sort::Disk => "disk",
@@ -468,7 +473,11 @@ fn sort_procs<'a>(snap: &'a Value, sort: Sort, desc: bool, win: Win) -> Vec<&'a 
         let key = |p: &Value| -> f64 {
             match sort {
                 Sort::Cpu => win.get(p, "cpu_pct"),
-                Sort::Mem => win.get(p, "mem_rss_bytes"),
+                // MEM% ranks by percentage and RSS by bytes. They agree on
+                // one machine and stop agreeing the moment you measure a peer
+                // with a different amount of RAM.
+                Sort::Mem => win.get(p, "mem_pct"),
+                Sort::Rss => win.get(p, "mem_rss_bytes"),
                 Sort::Disk => win.get(p, "read_bytes_per_s") + win.get(p, "write_bytes_per_s"),
                 Sort::Net => num(p, "net_rx_bytes_per_s") + num(p, "net_tx_bytes_per_s"),
                 Sort::Pss => num(p, "mem_pss_bytes"),
@@ -590,6 +599,26 @@ const FREE: [(&str, &str, &str); 3] = [
     ),
 ];
 
+/// One row under `v`: either a group heading or a declared unit.
+#[derive(Clone, Debug)]
+struct UnitRow {
+    heading: Option<&'static str>,
+    name: String,
+    scope: String,
+    state: String,
+}
+
+/// What the unit modal can ask systemd to do. Deliberately the four verbs a
+/// person reaches for and no more — `enable` changes what happens at the NEXT
+/// boot rather than now, which is a different kind of decision and does not
+/// belong on a key you press while looking at a dead service.
+const UNIT_ACTIONS: [(&str, &str); 4] = [
+    ("start", "bring it up now"),
+    ("restart", "stop it and bring it back"),
+    ("stop", "take it down"),
+    ("reset-failed", "clear the failed state so it can start again"),
+];
+
 /// Which modal owns the keyboard. btop's Esc opens a menu rather than quitting,
 /// and every modal here closes back to None — so Esc is never a way out of the
 /// program, which is the whole point of ^c/^d being the only exit.
@@ -602,6 +631,8 @@ enum Overlay {
     Detail,
     /// The `x` menu of memory-freeing tools.
     Free,
+    /// start/stop/restart a declared unit the cursor is parked on.
+    Unit,
     /// Pick which machine the whole dashboard is measuring.
     Target,
 }
@@ -668,6 +699,9 @@ pub struct Monitor {
     mesh: crate::dashboards::mesh::Mesh,
     target_sel: usize,
     free_sel: usize,
+    unit_sel: usize,
+    /// (name, scope) of the unit the Unit modal is acting on.
+    acting_unit: Option<(String, String)>,
     /// `x` → "list lost processes": filter the table down to orphans.
     orphans: bool,
     quit: bool,
@@ -709,6 +743,8 @@ impl Monitor {
             mesh: crate::dashboards::mesh::Mesh::start(),
             target_sel: 0,
             free_sel: 0,
+            unit_sel: 0,
+            acting_unit: None,
             orphans: false,
             quit: false,
             detail_scroll: 0,
@@ -1101,6 +1137,87 @@ impl Monitor {
             Style::default().fg(DIM),
         )));
         f.render_widget(Paragraph::new(l), inner);
+    }
+
+    /// What can be done to a declared unit. Same mailbox as the signals, so
+    /// the daemon applies one policy to everything the panel asks for.
+    fn render_unit(&self, f: &mut Frame, area: Rect) {
+        let Some((name, scope)) = self.acting_unit.clone() else { return };
+        let accent = Color::Rgb(240, 169, 66);
+        let inner = Self::modal(f, area, 78, UNIT_ACTIONS.len() as u16 + 5, "act on unit", accent);
+        let mut l: Vec<Line> = vec![
+            Line::from(vec![
+                Span::styled(trunc(&name, 46), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled(format!("  ({scope} manager)"), Style::default().fg(DIM)),
+            ]),
+            Line::from(""),
+        ];
+        for (i, (verb, why)) in UNIT_ACTIONS.iter().enumerate() {
+            let sel = i == self.unit_sel;
+            l.push(Line::from(vec![
+                Span::styled(if sel { "▶ " } else { "  " }, Style::default().fg(accent)),
+                Span::styled(format!(" {}  ", i + 1), Style::default().fg(DIM)),
+                Span::styled(
+                    format!("{verb:<14}"),
+                    if sel {
+                        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(Color::Gray)
+                    },
+                ),
+                Span::styled(why.to_string(), Style::default().fg(LABEL)),
+            ]));
+        }
+        l.push(Line::from(Span::styled(
+            "  ↑↓ pick · enter or a digit sends it · any other key cancels",
+            Style::default().fg(DIM),
+        )));
+        f.render_widget(Paragraph::new(l), inner);
+    }
+
+    fn unit_key(&mut self, k: KeyCode) {
+        let Some((name, scope)) = self.acting_unit.clone() else {
+            self.overlay = Overlay::None;
+            return;
+        };
+        let fire = |me: &mut Self, i: usize| {
+            me.request_unit(&name, &scope, UNIT_ACTIONS[i].0);
+            me.acting_unit = None;
+            me.overlay = Overlay::None;
+        };
+        match k {
+            KeyCode::Down => self.unit_sel = (self.unit_sel + 1) % UNIT_ACTIONS.len(),
+            KeyCode::Up => self.unit_sel = (self.unit_sel + UNIT_ACTIONS.len() - 1) % UNIT_ACTIONS.len(),
+            KeyCode::Char(c) if c.is_ascii_digit() => {
+                let i = c.to_digit(10).unwrap_or(0) as usize;
+                if i >= 1 && i <= UNIT_ACTIONS.len() {
+                    fire(self, i - 1);
+                }
+            }
+            KeyCode::Enter => {
+                let i = self.unit_sel;
+                fire(self, i);
+            }
+            _ => {
+                self.acting_unit = None;
+                self.overlay = Overlay::None;
+            }
+        }
+    }
+
+    /// "0 UNIT <scope> <verb> <name>" on the same mailbox the signals use.
+    /// pid 0 because this is addressed to the machine, not to a process.
+    fn request_unit(&mut self, name: &str, scope: &str, verb: &str) {
+        let path = kill_path();
+        let res = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .and_then(|mut f| writeln!(f, "0 UNIT {scope} {verb} {name}"));
+        self.msg = Some(match res {
+            Ok(()) => (format!("{verb} {name} → queued for the daemon"), false),
+            Err(e) => (format!("could not write {path}: {e}"), true),
+        });
     }
 
     fn free_key(&mut self, k: KeyCode) {
@@ -1669,7 +1786,7 @@ impl Monitor {
     /// process "foo" — because the snapshot carries no unit-to-pid mapping.
     /// It can mislabel a busy process as idle when the unit and the binary are
     /// named differently; it never invents a unit that does not exist.
-    fn unit_rows(&self, s: &Value) -> Vec<(String, String, String)> {
+    fn unit_rows(&self, s: &Value) -> Vec<UnitRow> {
         if !self.units {
             return vec![];
         }
@@ -1710,11 +1827,47 @@ impl Monitor {
             }
         };
         rows.sort_by(|a, b| rank(&a.2).cmp(&rank(&b.2)).then_with(|| a.0.cmp(&b.0)));
-        rows
+
+        // A heading before each group. Sorted-but-unbroken, the eye cannot
+        // tell where "failed" stops and "merely exited" starts, and those two
+        // mean completely different things.
+        let head_for = |state: &str| -> &'static str {
+            match rank(state) {
+                0 => "FAILED — died and did not come back",
+                1 => "INACTIVE — declared, not running",
+                2 => "NOT LOADED — declared, never started this boot",
+                3 => "EXITED — oneshots that already ran",
+                _ => "IDLE — running, doing nothing",
+            }
+        };
+        let mut out: Vec<UnitRow> = Vec::new();
+        let mut last = usize::MAX;
+        for (name, scope, state) in rows {
+            let r = rank(&state) as usize;
+            if r != last {
+                last = r;
+                out.push(UnitRow { heading: Some(head_for(&state)), name: String::new(), scope: String::new(), state: String::new() });
+            }
+            out.push(UnitRow { heading: None, name, scope, state });
+        }
+        out
     }
 
     /// None when the cursor is parked on an appended unit row: those have no
     /// pid, so every action keyed off a pid correctly does nothing.
+    /// The declared unit under the cursor, if the cursor is past the live
+    /// processes and not on a group heading.
+    fn picked_unit(&self) -> Option<(String, String)> {
+        let snap = self.snap.clone();
+        let n = self.rows().len();
+        let units = self.unit_rows(&snap);
+        let u = units.get(self.sel.checked_sub(n)?)?;
+        if u.heading.is_some() {
+            return None;
+        }
+        Some((u.name.clone(), u.scope.clone()))
+    }
+
     fn picked(&self) -> Option<(i32, String, bool, String)> {
         let procs = self.rows();
         procs.get(self.sel).map(|p| {
@@ -1803,6 +1956,7 @@ impl Dashboard for Monitor {
         match self.overlay {
             Overlay::Kill => return self.kill_key(k),
             Overlay::Free => return self.free_key(k),
+            Overlay::Unit => return self.unit_key(k),
             Overlay::Menu => return self.menu_key(k),
             Overlay::Help => {
                 // Any key dismisses a page of text; making people find the one
@@ -1951,6 +2105,13 @@ impl Dashboard for Monitor {
                 if self.picked().is_some() {
                     self.detail_scroll = 0;
                     self.overlay = Overlay::Detail;
+                } else if let Some(u) = self.picked_unit() {
+                    // The cursor is on a declared unit, which has no pid and
+                    // so no process detail to show. What it does have is a
+                    // systemd verb.
+                    self.acting_unit = Some(u);
+                    self.unit_sel = 0;
+                    self.overlay = Overlay::Unit;
                 }
             }
             KeyCode::Char('k') => {
@@ -2113,11 +2274,11 @@ impl Dashboard for Monitor {
                     // per cell — coarse, but it distinguishes "pinned" from
                     // "just spiked", which a bar cannot.
                     let gw = ((ca.width as usize) / 3).clamp(4, 10);
-                    let bw = (ca.width as usize).saturating_sub(gw + 10 + tw);
                     // btop's core labels are C0, C1, … and each carries its own
                     // temperature. A bare number reads as a row index.
                     let ct = core_temps.get(i).and_then(|v| v.as_f64());
                     let tw = if ct.is_some() { 5 } else { 0 };
+                    let bw = (ca.width as usize).saturating_sub(gw + 10 + tw);
                     let mut sp = vec![Span::styled(format!("C{i:<2}"), Style::default().fg(LABEL))];
                     if let Some(h) = self.core_hist.get(i) {
                         sp.extend(braille_graph(h, 100.0, gw, 1).pop().map(|l| l.spans).unwrap_or_default());
@@ -2639,9 +2800,20 @@ impl Dashboard for Monitor {
         // measurement, and there is nothing being measured.
         let mut trows = trows;
         let ustart = self.offset.saturating_sub(procs.len());
-        for (j, (name, scope, state)) in
-            units.iter().enumerate().skip(ustart).take(vis.saturating_sub(trows.len()))
-        {
+        for (j, u) in units.iter().enumerate().skip(ustart).take(vis.saturating_sub(trows.len())) {
+            if let Some(h) = u.heading {
+                let mut c = vec![
+                    Cell::from("").style(Style::default()),
+                    Cell::from("").style(Style::default()),
+                    Cell::from("").style(Style::default()),
+                    Cell::from(format!("── {h} ──"))
+                        .style(Style::default().fg(Color::Rgb(120, 200, 255)).add_modifier(Modifier::BOLD)),
+                ];
+                c.extend((0..13).map(|_| Cell::from("")));
+                trows.push(Row::new(c));
+                continue;
+            }
+            let (name, scope, state) = (&u.name, &u.scope, &u.state);
             let sel = procs.len() + j == self.sel;
             let failed = state.starts_with("failed");
             let base = if sel {
@@ -2710,7 +2882,7 @@ impl Dashboard for Monitor {
             hdr("MEM%", Sort::Mem),
             hdr("M10s", Sort::M10s),
             hdr("M60s", Sort::M60s),
-            hdr("RSS", Sort::Mem),
+            hdr("RSS", Sort::Rss),
             hdr("PSS", Sort::Pss),
             hdr("D/s", Sort::Net),
             hdr("U/s", Sort::Net),
@@ -2747,6 +2919,7 @@ impl Dashboard for Monitor {
             Overlay::Detail => self.render_detail(f, area),
             Overlay::Target => self.render_target(f, area),
             Overlay::Free => self.render_free(f, area),
+            Overlay::Unit => self.render_unit(f, area),
             Overlay::None => {}
         }
     }
