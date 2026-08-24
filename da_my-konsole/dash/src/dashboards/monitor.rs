@@ -407,6 +407,12 @@ impl Win {
 /// The directory holding a pid's binary. /proc/<pid>/exe is the resolved
 /// link, so this survives an argv[0] that was never a path (an ld-linux
 /// invocation, a renamed thread, a busybox applet).
+/// Cut to `n` CHARACTERS, not bytes — a byte slice through a multibyte name
+/// panics, and hostnames are not guaranteed ascii.
+fn trunc(s: &str, n: usize) -> String {
+    if s.chars().count() <= n { s.to_string() } else { s.chars().take(n).collect() }
+}
+
 fn exe_dir(pid: i32) -> Option<String> {
     let exe = fs::read_link(format!("/proc/{pid}/exe")).ok()?;
     Some(exe.parent()?.display().to_string())
@@ -543,10 +549,13 @@ enum Overlay {
     Help,
     Kill,
     Detail,
+    /// Pick which machine the whole dashboard is measuring.
+    Target,
 }
 
 /// The btop-style Esc menu.
-const MENU: [(&str, &str); 3] = [
+const MENU: [(&str, &str); 4] = [
+    ("measure", "this machine, or any mesh peer over ssh"),
     ("options", "sorting, averaging window, which boxes are shown"),
     ("help", "every key this dashboard binds"),
     ("quit", "leave the dashboard"),
@@ -555,11 +564,12 @@ const MENU: [(&str, &str); 3] = [
 /// Boxes that can be folded away. The two new sections plus net are the ones
 /// worth trading for process rows on a short terminal; cpu/mem/proc are the
 /// dashboard and stay.
-const BOX_NAMES: [&str; 4] = ["storage", "net", "psi", "slices"];
+const BOX_NAMES: [&str; 5] = ["storage", "net", "psi", "slices", "mesh"];
 const B_STORAGE: usize = 0;
 const B_NET: usize = 1;
 const B_PSI: usize = 2;
 const B_SLICES: usize = 3;
+const B_MESH: usize = 4;
 
 // ───────────────────────────────── dashboard ──────────────────────────────────
 
@@ -598,6 +608,10 @@ pub struct Monitor {
     menu_sel: usize,
     act_sel: usize,
     show: [bool; BOX_NAMES.len()],
+    /// The mesh peer table and the remote-snapshot fetcher, both on their
+    /// own threads so a dead peer's connect timeout cannot stall a render.
+    mesh: crate::dashboards::mesh::Mesh,
+    target_sel: usize,
     quit: bool,
     /// Scroll position inside the process detail modal — a full disclosure is
     /// longer than any terminal, so it has to scroll or it is not full.
@@ -633,6 +647,8 @@ impl Monitor {
             menu_sel: 0,
             act_sel: 0,
             show: [true; BOX_NAMES.len()],
+            mesh: crate::dashboards::mesh::Mesh::start(),
+            target_sel: 0,
             quit: false,
             detail_scroll: 0,
         }
@@ -924,6 +940,64 @@ impl Monitor {
             Style::default().fg(DIM),
         )));
         f.render_widget(Paragraph::new(lines), inner);
+    }
+
+    /// Pick the machine this dashboard measures: this one, or a mesh peer
+    /// read over ssh. Peers that did not answer their last probe are still
+    /// listed and still selectable — "unreachable" is a probe result, not a
+    /// permission, and the ssh attempt gives a better error than we can.
+    fn render_target(&self, f: &mut Frame, area: Rect) {
+        let accent = Color::Rgb(120, 200, 255);
+        let peers = self.mesh.list();
+        let cur = self.mesh.target();
+        let inner = Self::modal(f, area, 72, peers.len() as u16 + 6, "measure which machine", accent);
+        let mut l: Vec<Line> = vec![];
+        let mut row = |i: usize, mark: bool, name: String, note: String, style: Style| {
+            let sel = i == self.target_sel;
+            l.push(Line::from(vec![
+                Span::styled(
+                    if sel { "▶ " } else { "  " },
+                    Style::default().fg(accent),
+                ),
+                Span::styled(if mark { "● " } else { "  " }, Style::default().fg(Color::Rgb(120, 220, 140))),
+                Span::styled(format!("{name:<22}"), if sel { style.add_modifier(Modifier::BOLD) } else { style }),
+                Span::styled(note, Style::default().fg(DIM)),
+            ]));
+        };
+        row(
+            0,
+            cur.is_none(),
+            format!("{} (local)", self.host),
+            "read straight from the runtime dir".into(),
+            Style::default().fg(Color::Gray),
+        );
+        for (i, p) in peers.iter().enumerate() {
+            let note = if !p.probed {
+                "probing…".to_string()
+            } else if p.up {
+                format!("{:.0} ms", p.rtt_ms)
+            } else {
+                "unreachable".to_string()
+            };
+            row(
+                i + 1,
+                cur.as_deref() == Some(p.alias.as_str()),
+                format!("{}  {}", p.alias, p.ip),
+                note,
+                Style::default().fg(if p.probed && !p.up { Color::Rgb(150, 110, 110) } else { Color::Gray }),
+            );
+        }
+        if peers.is_empty() {
+            l.push(Line::from(Span::styled(
+                "  no mesh peers in ~/.ssh/config",
+                Style::default().fg(Color::Rgb(240, 160, 90)),
+            )));
+        }
+        l.push(Line::from(Span::styled(
+            "  ↑↓ pick · enter measures it · esc cancels · needs my-konsole-tray on the peer",
+            Style::default().fg(DIM),
+        )));
+        f.render_widget(Paragraph::new(l), inner);
     }
 
     /// Every binding, in one place. Generated from the same ACTIONS/BOX_NAMES
@@ -1350,7 +1424,11 @@ impl Monitor {
             KeyCode::Down => self.menu_sel = (self.menu_sel + 1) % MENU.len(),
             KeyCode::Up => self.menu_sel = (self.menu_sel + MENU.len() - 1) % MENU.len(),
             KeyCode::Enter | KeyCode::Char(' ') => match self.menu_sel {
-                0 | 1 => self.overlay = Overlay::Help,
+                0 => {
+                    self.target_sel = 0;
+                    self.overlay = Overlay::Target;
+                }
+                1 | 2 => self.overlay = Overlay::Help,
                 _ => {
                     // The frame owns quitting, and it only quits on keys it
                     // sees. Stop claiming, then hand it the key it acts on.
@@ -1409,7 +1487,17 @@ impl Dashboard for Monitor {
     }
 
     fn update(&mut self) {
-        let s = read_json(&snapshot_path());
+        // A remote target swaps the SOURCE of the snapshot and nothing else:
+        // every box below reads the same shape either way, which is the whole
+        // benefit of the daemon publishing a file rather than the panel
+        // sampling. The ssh fetch itself happens on the mesh thread.
+        let (s, err) = match self.mesh.target() {
+            None => (read_json(&snapshot_path()), String::new()),
+            Some(_) => self.mesh.remote_snapshot(),
+        };
+        if !err.is_empty() {
+            self.msg = Some((err, true));
+        }
         if s.is_null() {
             self.stale = true;
             return;
@@ -1468,6 +1556,41 @@ impl Dashboard for Monitor {
                 // Any key dismisses a page of text; making people find the one
                 // right key to leave a help screen is its own small insult.
                 self.overlay = Overlay::None;
+                return;
+            }
+            Overlay::Target => {
+                let n = self.mesh.list().len() + 1;
+                match k {
+                    KeyCode::Down => self.target_sel = (self.target_sel + 1) % n,
+                    KeyCode::Up => self.target_sel = (self.target_sel + n - 1) % n,
+                    KeyCode::Enter | KeyCode::Char(' ') => {
+                        let peers = self.mesh.list();
+                        let pick = if self.target_sel == 0 {
+                            None
+                        } else {
+                            peers.get(self.target_sel - 1).map(|p| p.alias.clone())
+                        };
+                        self.mesh.set_target(pick.clone());
+                        // History is per-machine. Carrying the old graphs into
+                        // a new target would draw one box's past as another's.
+                        self.cpu_hist.clear();
+                        self.core_hist.clear();
+                        self.mem_hist.clear();
+                        self.rx_hist.clear();
+                        self.tx_hist.clear();
+                        self.psi_hist.clear();
+                        self.last_ts = -1.0;
+                        self.msg = Some((
+                            match &pick {
+                                Some(a) => format!("measuring {a} over ssh"),
+                                None => "measuring this machine".into(),
+                            },
+                            false,
+                        ));
+                        self.overlay = Overlay::None;
+                    }
+                    _ => self.overlay = Overlay::None,
+                }
                 return;
             }
             Overlay::Detail => {
@@ -1550,7 +1673,7 @@ impl Dashboard for Monitor {
             }
             // Fold a box away to give the process table its rows back. Same
             // idea as btop's presets, minus the config file.
-            KeyCode::Char(c @ '1'..='4') => {
+            KeyCode::Char(c @ '1'..='5') => {
                 let i = c as usize - '1' as usize;
                 self.show[i] = !self.show[i];
                 self.msg = Some((
@@ -1595,7 +1718,8 @@ impl Dashboard for Monitor {
         // The lower band only costs rows when something is in it; folding both
         // its boxes away (2/4) gives every one of those rows to the process
         // table rather than leaving a labelled gap.
-        let low_h: u16 = if self.show[B_PSI] || self.show[B_SLICES] { 10 } else { 0 };
+        let low_h: u16 =
+            if self.show[B_PSI] || self.show[B_SLICES] || self.show[B_MESH] { 10 } else { 0 };
         let rows = Layout::vertical([
             Constraint::Length(1),     // header
             Constraint::Length(11),    // cpu
@@ -1867,16 +1991,31 @@ impl Dashboard for Monitor {
         // MEMORY pressure only; the 2026-08-22 freeze was IO-bound, invisible to
         // it, and only freeze-guard's voters covered it. So show both: the raw
         // some/full averages, and which of the guard's voters are armed.
-        let low = Layout::horizontal(if self.show[B_PSI] && self.show[B_SLICES] {
-            vec![Constraint::Percentage(38), Constraint::Percentage(62)]
+        // Three boxes share this band and any of them can be folded away, so
+        // the split is built from whichever are actually shown. Fill weights
+        // rather than percentages: they stay correct for every subset instead
+        // of leaving a gap whenever the numbers no longer add to 100.
+        let low_boxes: Vec<usize> =
+            [B_PSI, B_SLICES, B_MESH].into_iter().filter(|i| self.show[*i]).collect();
+        let low = Layout::horizontal(if low_boxes.is_empty() {
+            vec![Constraint::Fill(1)]
         } else {
-            vec![Constraint::Percentage(100)]
+            low_boxes
+                .iter()
+                .map(|i| match *i {
+                    B_PSI => Constraint::Fill(34),
+                    B_SLICES => Constraint::Fill(42),
+                    _ => Constraint::Fill(24),
+                })
+                .collect::<Vec<_>>()
         })
         .split(rows[3]);
+        let slot = |b: usize| low_boxes.iter().position(|x| *x == b).unwrap_or(0);
         if self.show[B_PSI] {
+            let psi_area = low[slot(B_PSI)];
             let psi_b = bbox("psi", "");
-            let psi_in = psi_b.inner(low[0]);
-            f.render_widget(psi_b, low[0]);
+            let psi_in = psi_b.inner(psi_area);
+            f.render_widget(psi_b, psi_area);
             let mut pl: Vec<Line> = vec![Line::from(vec![
                 Span::styled("        10s    60s   300s  now", Style::default().fg(LABEL)),
             ])];
@@ -1950,11 +2089,64 @@ impl Dashboard for Monitor {
 
         // ── watchdog slice manager ───────────────────────────────────────────
         if self.show[B_SLICES] {
-            let sl_area = low[if self.show[B_PSI] { 1 } else { 0 }];
+            let sl_area = low[slot(B_SLICES)];
             let sl_b = bbox("watchdog · slices", "protected slices refuse kills");
             let sl_in = sl_b.inner(sl_area);
             f.render_widget(sl_b, sl_area);
             f.render_widget(Paragraph::new(self.slice_lines(&s, sl_in.width, sl_in.height)), sl_in);
+        }
+
+        // ── mesh ─────────────────────────────────────────────────────────────
+        // wg(8) cannot be read unprivileged, so "up" here is a TCP connect the
+        // kernel completed to the peer's sshd, not a handshake age. That is a
+        // narrower claim and a truer one: it means you can reach the machine.
+        if self.show[B_MESH] {
+            let target = self.mesh.target();
+            let mesh_area = low[slot(B_MESH)];
+            let mesh_b = bbox("mesh", "esc → measure");
+            let mesh_in = mesh_b.inner(mesh_area);
+            f.render_widget(mesh_b, mesh_area);
+            let peers = self.mesh.list();
+            let mut l: Vec<Line> = vec![Line::from(vec![
+                Span::styled(format!("{:<16}", "peer"), Style::default().fg(DIM)),
+                Span::styled(format!("{:>10}", "addr"), Style::default().fg(DIM)),
+                Span::styled(format!("{:>8}", "rtt"), Style::default().fg(DIM)),
+            ])];
+            for p in peers.iter().take((mesh_in.height as usize).saturating_sub(1)) {
+                let here = target.as_deref() == Some(p.alias.as_str());
+                let (dot, dc) = if !p.probed {
+                    ("·", DIM)
+                } else if p.up {
+                    ("●", Color::Rgb(120, 220, 140))
+                } else {
+                    ("●", Color::Rgb(240, 72, 72))
+                };
+                l.push(Line::from(vec![
+                    Span::styled(format!("{dot} "), Style::default().fg(dc)),
+                    Span::styled(
+                        format!("{:<14}", trunc(&p.alias, 14)),
+                        Style::default().fg(if here { Color::Rgb(120, 200, 255) } else { Color::Gray }),
+                    ),
+                    Span::styled(format!("{:>10}", p.ip), Style::default().fg(DIM)),
+                    Span::styled(
+                        if !p.probed {
+                            format!("{:>8}", "…")
+                        } else if p.up {
+                            format!("{:>7.0}ms", p.rtt_ms)
+                        } else {
+                            format!("{:>8}", "down")
+                        },
+                        Style::default().fg(if p.up { grad(p.rtt_ms / 200.0) } else { DIM }),
+                    ),
+                ]));
+            }
+            if peers.is_empty() {
+                l.push(Line::from(Span::styled(
+                    "no mesh peers in ~/.ssh/config",
+                    Style::default().fg(Color::Rgb(240, 160, 90)),
+                )));
+            }
+            f.render_widget(Paragraph::new(l), mesh_in);
         }
 
         // ── processes ─────────────────────────────────────────────────────────
@@ -2135,6 +2327,7 @@ impl Dashboard for Monitor {
             Overlay::Menu => self.render_menu(f, area),
             Overlay::Help => self.render_help(f, area),
             Overlay::Detail => self.render_detail(f, area),
+            Overlay::Target => self.render_target(f, area),
             Overlay::None => {}
         }
     }
