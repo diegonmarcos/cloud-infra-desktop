@@ -116,6 +116,18 @@ while [ "$n" -lt "$want" ]; do
 done
 log "layout: $want panels, $widgets widgets"
 
+# Verify against the LIVE panels, not against our own loop counter — that is
+# the whole self-heal. A partial apply (the 2026-08-22 plasmashell SEGV
+# mid-evaluateScript is the precedent) must leave the state file unwritten so
+# the next trigger rebuilds, instead of recording success and never retrying,
+# which is exactly how that incident produced a desktop with no taskbar.
+live=$(evaluate "print(panels().reduce(function (a, p) { return a + p.widgetIds.length; }, 0));" 2>/dev/null | tr -dc '0-9')
+[ -n "$live" ] || live=0
+if [ "$live" -ne "$widgets" ]; then
+  log "ERROR: $live/$widgets widgets landed — leaving state unset so this retries"
+  exit 1
+fi
+
 # plasmashell writes appletsrc asynchronously; the tray step below reads it.
 sleep 3
 
