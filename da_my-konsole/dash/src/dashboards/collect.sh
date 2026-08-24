@@ -17,6 +17,8 @@
 # so those boxes read as "no data" instead of "all zero".
 f="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/my-konsole-watchdog.json"
 if [ -r "$f" ]; then cat "$f"; exit 0; fi
+# df once, for the root filesystem percentage the fleet view shows.
+> /tmp/.mkdf df -P / 2>/dev/null
 > /tmp/.mk1 cat /proc/stat
 > /tmp/.mkp1 sh -c 'for f in /proc/[0-9]*/stat; do p=${f%/stat}; p=${p##*/}; s=$(cat "$f" 2>/dev/null) || continue; echo "$p ${s#*) }"; done'
 sleep 1
@@ -108,7 +110,9 @@ BEGIN{
   j("cpu",sprintf("%.1f",cpu)); j("cores",cores); j("cpu_detail",det)
   j("mem",sprintf("%.1f",(mt>0?100.0*used/mt:0))); j("swap",sprintf("%.1f",(st>0?100.0*(st-sf)/st:0)))
   j("mem_detail",memd); j("swap_detail",swapd)
-  j("disk",0); j("disk_r",0); j("disk_w",0); j("disks","[]")
+  while((getline l < "/tmp/.mkdf")>0){ n=split(l,a," "); if(a[n]=="/"){ DP=a[n-1]; gsub(/%/,"",DP) } }
+  close("/tmp/.mkdf")
+  j("disk",DP+0); j("disk_r",0); j("disk_w",0); j("disks","[]")
   j("net_rx",0); j("net_tx",0)
   j("load1",L[1]+0); j("load5",L[2]+0); j("load15",L[3]+0)
   j("psi",sprintf("{\"cpu\":%s,\"io\":%s,\"memory\":%s}",psi("/proc/pressure/cpu"),psi("/proc/pressure/io"),psi("/proc/pressure/memory")))
@@ -121,4 +125,4 @@ BEGIN{
   j("ts",systime())
   printf "}\n"
 }' < /dev/null
-rm -f /tmp/.mk1 /tmp/.mk2 /tmp/.mkp1 /tmp/.mkp2
+rm -f /tmp/.mk1 /tmp/.mk2 /tmp/.mkp1 /tmp/.mkp2 /tmp/.mkdf

@@ -94,8 +94,12 @@ pub fn peers_from_ssh_config() -> Vec<Peer> {
     let me = std::fs::read_to_string("/proc/sys/kernel/hostname")
         .map(|h| h.trim().to_string())
         .unwrap_or_else(|_| "localhost".into());
+    // ONE row for this machine, not one per wg interface: three rows all
+    // reading "surface-nixos, 7.5% cpu" is the same machine three times, and
+    // in the fleet view that is just noise. The mesh address (wg0) is the one
+    // the fleet is addressed by.
     let mut out: Vec<Peer> = mine
-        .iter()
+        .first()
         .map(|ip| Peer {
             alias: me.clone(),
             ip: ip.clone(),
@@ -104,6 +108,7 @@ pub fn peers_from_ssh_config() -> Vec<Peer> {
             probed: true,
             rtt_ms: 0.0,
         })
+        .into_iter()
         .collect();
     out.extend(
         by_ip
@@ -124,6 +129,7 @@ fn local_wg_addrs() -> Vec<String> {
     let Ok(o) = Command::new("ip").args(["-o", "addr", "show"]).output() else { return vec![] };
     let Ok(t) = String::from_utf8(o.stdout) else { return vec![] };
     let mut v: Vec<String> = vec![];
+    // wg0 first: local_wg_addrs's first entry becomes this machine's row.
     for line in t.lines() {
         let f: Vec<&str> = line.split_whitespace().collect();
         if f.len() < 4 || !f[1].starts_with("wg") {
