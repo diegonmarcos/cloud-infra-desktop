@@ -2485,15 +2485,21 @@ mod tests {
     // instead, the two ends of the header would be dead keys.
     #[test]
     fn arrows_walk_the_sort_columns_and_wrap() {
-        assert_eq!(Sort::Cpu.step(1), Sort::C10s);
-        assert_eq!(Sort::C10s.step(-1), Sort::Cpu);
-        // the four averages sit between their live columns, in header order
-        assert_eq!(Sort::C60s.step(1), Sort::Mem);
-        assert_eq!(Sort::Mem.step(1), Sort::M10s);
-        assert_eq!(Sort::M60s.step(1), Sort::Net);
-        assert_eq!(Sort::Net.step(1), Sort::Disk);
-        // slice sits where its column does, right after PID
-        assert_eq!(Sort::Pid.step(1), Sort::Slice);
+        // Relative order, not fixed neighbours: every new column inserted in
+        // the header used to break this test for no reason. What must hold is
+        // that SORT_ORDER reads left to right the way the header does.
+        let at = |k: Sort| SORT_ORDER.iter().position(|x| *x == k).expect("column is sortable");
+        let header_order = [
+            Sort::Pid, Sort::Slice, Sort::User, Sort::Name, Sort::Cpu,
+            Sort::C10s, Sort::C60s, Sort::Mem, Sort::M10s, Sort::M60s,
+            Sort::Pss, Sort::Net, Sort::Disk, Sort::Runq,
+        ];
+        for w in header_order.windows(2) {
+            assert!(at(w[0]) < at(w[1]), "{:?} must sort before {:?}", w[0], w[1]);
+        }
+        // and one step really is one column
+        assert_eq!(SORT_ORDER[at(Sort::Cpu) + 1], Sort::Cpu.step(1));
+        assert_eq!(Sort::Cpu.step(1).step(-1), Sort::Cpu);
         // wrap both ways off the ends
         assert_eq!(SORT_ORDER[0].step(-1), SORT_ORDER[SORT_ORDER.len() - 1]);
         assert_eq!(SORT_ORDER[SORT_ORDER.len() - 1].step(1), SORT_ORDER[0]);
