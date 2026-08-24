@@ -8,8 +8,9 @@
 // makes glances cost 20-24% CPU here for numbers something else already has.
 // This box collects nothing: one read per tick, then draw.
 //
-// It also gets data a TUI sampler would not have: the daemon keeps 1m/5m/15m
-// rolling averages and run-queue wait PER PROCESS (the `w` key cycles them),
+// It also gets data a TUI sampler would not have: the daemon keeps 10s/1m/5m/15m
+// rolling averages and run-queue wait PER PROCESS (the `w` key cycles them, and
+// the C10s/C60s/M10s/M60s columns show two of them beside the live value),
 // and freeze-guard publishes its own PSI voter state to /run/freeze-guard.json,
 // so the PSI box can show not just pressure but which voters are armed.
 //
@@ -1768,6 +1769,7 @@ impl Dashboard for Monitor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     // ←/→ walks the header left to right and wraps. If step() ever clamped
     // instead, the two ends of the header would be dead keys.
@@ -1841,7 +1843,6 @@ mod tests {
         // rather than showing a confident zero.
         assert_eq!(avg_or(&p, "15m", "cpu_pct"), 90.0);
     }
-    use serde_json::json;
 
     const BLANK: char = '\u{2800}';
 
