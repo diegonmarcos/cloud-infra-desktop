@@ -404,6 +404,30 @@ impl Win {
     }
 }
 
+/// The directory holding a pid's binary. /proc/<pid>/exe is the resolved
+/// link, so this survives an argv[0] that was never a path (an ld-linux
+/// invocation, a renamed thread, a busybox applet).
+fn exe_dir(pid: i32) -> Option<String> {
+    let exe = fs::read_link(format!("/proc/{pid}/exe")).ok()?;
+    Some(exe.parent()?.display().to_string())
+}
+
+/// Hand a directory to the desktop's file manager.
+///
+/// stdio is nulled deliberately: xdg-open's helpers write to stderr, and this
+/// process owns an alternate screen — one stray line from a child repaints as
+/// corruption the user has to redraw to clear.
+fn open_dir(dir: &str) -> Result<(), String> {
+    std::process::Command::new("xdg-open")
+        .arg(dir)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 fn avg_or(p: &Value, win: &str, field: &str) -> f64 {
     p.get("avg")
         .and_then(|a| a.get(win))
@@ -440,7 +464,7 @@ fn sort_procs<'a>(snap: &'a Value, sort: Sort, desc: bool, win: Win) -> Vec<&'a 
             // Text columns sort as text; everything else numerically.
             Sort::Name => text(a, "name").to_lowercase().cmp(&text(b, "name").to_lowercase()),
             Sort::User => text(a, "user").to_lowercase().cmp(&text(b, "user").to_lowercase()),
-            Sort::Slice => text(a, "slice").cmp(text(b, "slice")),
+            Sort::Slice => text(a, "slice").cmp(&text(b, "slice")),
             _ => key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal),
         };
         if desc { ord.reverse() } else { ord }
@@ -936,8 +960,9 @@ impl Monitor {
             // was clipped mid-cycle at "→ 5m".
             key("w", "cycle the CPU%/MEM% window: now → 1m → 5m → 15m"),
             head("acting"),
-            key("enter", "full disclosure for the selected process"),
+            key("enter", "full disclosure — command, tree, cpu, mem, io, cgroup"),
             key("k", "act on it — restart, or any of the signals"),
+            key("o", "in the detail view: open the binary's folder"),
             head("layout"),
         ];
         for (i, b) in BOX_NAMES.iter().enumerate() {
@@ -1050,8 +1075,15 @@ impl Monitor {
         l.extend(kvw("exe", link("exe")));
         l.extend(kvw("cwd", link("cwd")));
         l.push(kv("fds", fs::read_dir(format!("/proc/{pid}/fd")).map(|d| d.count().to_string()).unwrap_or_else(|e| format!("({e})"))));
-        // The argv the daemon derived the PROGRAM column from, so a surprising
-        // name in the table can be checked against what actually ran.
+        // The command as you would type it. The argv breakdown below answers
+        // "how was it split"; this answers "what is it", which is the question
+        // people actually arrive with, so it comes first.
+        l.extend(kvw("command", if cmdline.is_empty() {
+            format!("[{name}]  (kernel thread — no cmdline)")
+        } else {
+            cmdline.join(" ")
+        }));
+        l.extend(kvw("comm", st("Name")));
         l.push(kv("argv", format!("{} args", cmdline.len())));
         for (i, a) in cmdline.iter().enumerate().take(12) {
             l.push(Line::from(vec![
@@ -1065,6 +1097,84 @@ impl Monitor {
                 Style::default().fg(DIM),
             )));
         }
+
+        // ── tree ───────────────────────────────────────────────────────
+        // Read straight from /proc, not from proc_table: the table is the
+        // top-N by CPU, so a process's real parent is usually not in it and a
+        // tree built from the table alone would quietly lie about ancestry.
+        let pname = |q: i64| -> String {
+            fs::read_to_string(format!("/proc/{q}/status"))
+                .ok()
+                .and_then(|s| s.lines().find(|l| l.starts_with("Name:")).map(|l| l[5..].trim().to_string()))
+                .unwrap_or_else(|| "?".into())
+        };
+        let pparent = |q: i64| -> Option<i64> {
+            fs::read_to_string(format!("/proc/{q}/status"))
+                .ok()
+                .and_then(|s| s.lines().find(|l| l.starts_with("PPid:")).and_then(|l| l[5..].trim().parse().ok()))
+                .filter(|&x: &i64| x > 0)
+        };
+        l.push(head("tree"));
+        // Walk up to init, then print top-down so the chain reads the way a
+        // path does. Bounded at 12 because a pid cycle would otherwise hang
+        // the panel, and no real ancestry is that deep.
+        let mut chain: Vec<i64> = vec![];
+        let mut cur = pparent(pid as i64);
+        while let Some(q) = cur {
+            if chain.contains(&q) || chain.len() >= 12 {
+                break;
+            }
+            chain.push(q);
+            cur = pparent(q);
+        }
+        chain.reverse();
+        for (d, q) in chain.iter().enumerate() {
+            l.push(Line::from(vec![
+                Span::styled(format!("  {}{}", "  ".repeat(d), if d == 0 { "" } else { "└ " }), Style::default().fg(DIM)),
+                Span::styled(format!("{} ", pname(*q)), Style::default().fg(Color::Gray)),
+                Span::styled(format!("({q})"), Style::default().fg(DIM)),
+            ]));
+        }
+        l.push(Line::from(vec![
+            Span::styled(format!("  {}{}", "  ".repeat(chain.len()), if chain.is_empty() { "" } else { "└ " }), Style::default().fg(DIM)),
+            Span::styled(format!("{name} "), Style::default().fg(accent).add_modifier(Modifier::BOLD)),
+            Span::styled(format!("({pid})  ← this process"), Style::default().fg(DIM)),
+        ]));
+        // task/<pid>/children is the kernel's own answer, so this costs two
+        // reads rather than a scan of every entry in /proc.
+        let kids: Vec<i64> = fs::read_to_string(format!("/proc/{pid}/task/{pid}/children"))
+            .unwrap_or_default()
+            .split_whitespace()
+            .filter_map(|x| x.parse().ok())
+            .collect();
+        if kids.is_empty() {
+            l.push(Line::from(Span::styled("      (no children)", Style::default().fg(DIM))));
+        }
+        for q in kids.iter().take(24) {
+            let zst = fs::read_to_string(format!("/proc/{q}/status"))
+                .ok()
+                .and_then(|s| s.lines().find(|l| l.starts_with("State:")).map(|l| l[6..].trim().to_string()))
+                .unwrap_or_default();
+            let zombie = zst.starts_with('Z');
+            l.push(Line::from(vec![
+                Span::styled(format!("  {}└ ", "  ".repeat(chain.len() + 1)), Style::default().fg(DIM)),
+                Span::styled(
+                    format!("{} ", pname(*q)),
+                    Style::default().fg(if zombie { Color::Rgb(240, 72, 72) } else { Color::Gray }),
+                ),
+                Span::styled(
+                    format!("({q}){}", if zombie { "  ZOMBIE" } else { "" }),
+                    Style::default().fg(if zombie { Color::Rgb(240, 72, 72) } else { DIM }),
+                ),
+            ]));
+        }
+        if kids.len() > 24 {
+            l.push(Line::from(Span::styled(
+                format!("      … {} more children", kids.len() - 24),
+                Style::default().fg(DIM),
+            )));
+        }
+        l.push(kv("children / threads", format!("{} / {}", kids.len(), st("Threads"))));
 
         l.push(head("cpu"));
         l.push(kv(
@@ -1167,6 +1277,22 @@ impl Monitor {
             Span::styled(
                 if prot { format!("yes — {}", if why.is_empty() { "protected slice".into() } else { why }) } else { "no".into() },
                 Style::default().fg(if prot { Color::Rgb(240, 160, 90) } else { Color::Gray }),
+            ),
+        ]));
+        l.push(head("actions"));
+        l.push(Line::from(vec![
+            Span::styled("  k    ", Style::default().fg(Color::Rgb(120, 220, 140))),
+            Span::styled(
+                if prot { "blocked — this process is in a protected slice".to_string() }
+                else { format!("act on {name}: RESTART, or any signal") },
+                Style::default().fg(if prot { Color::Rgb(240, 160, 90) } else { Color::Gray }),
+            ),
+        ]));
+        l.push(Line::from(vec![
+            Span::styled("  o    ", Style::default().fg(Color::Rgb(120, 220, 140))),
+            Span::styled(
+                format!("open the folder holding the binary — {}", exe_dir(pid).unwrap_or_else(|| "unknown".into())),
+                Style::default().fg(Color::Gray),
             ),
         ]));
         l.push(Line::from(Span::styled(
@@ -1345,12 +1471,42 @@ impl Dashboard for Monitor {
                 return;
             }
             Overlay::Detail => {
+                // `k` acts here rather than scrolling. Arriving at the full
+                // disclosure and then having to back out to signal the thing
+                // you are looking at is the wrong shape, so the actions live
+                // where the evidence is. Scrolling keeps the arrows and j.
                 match k {
                     KeyCode::Down | KeyCode::Char('j') => self.detail_scroll = self.detail_scroll.saturating_add(1),
-                    KeyCode::Up | KeyCode::Char('k') => self.detail_scroll = self.detail_scroll.saturating_sub(1),
+                    KeyCode::Up => self.detail_scroll = self.detail_scroll.saturating_sub(1),
                     KeyCode::PageDown => self.detail_scroll = self.detail_scroll.saturating_add(10),
                     KeyCode::PageUp => self.detail_scroll = self.detail_scroll.saturating_sub(10),
                     KeyCode::Home => self.detail_scroll = 0,
+                    KeyCode::Char('k') => {
+                        if let Some((pid, name, prot, why)) = self.picked() {
+                            if prot {
+                                let why = if why.is_empty() { "protected slice".to_string() } else { why };
+                                self.msg = Some((format!("{name} ({pid}) is protected — {why}"), true));
+                                self.overlay = Overlay::None;
+                            } else {
+                                self.msg = None;
+                                self.killing = Some((pid, name));
+                                self.act_sel = 0;
+                                self.overlay = Overlay::Kill;
+                            }
+                        }
+                    }
+                    KeyCode::Char('o') => {
+                        if let Some((pid, _, _, _)) = self.picked() {
+                            self.msg = Some(match exe_dir(pid) {
+                                Some(d) => match open_dir(&d) {
+                                    Ok(()) => (format!("opened {d}"), false),
+                                    Err(e) => (format!("xdg-open {d}: {e}"), true),
+                                },
+                                None => (format!("pid {pid} has no readable exe link"), true),
+                            });
+                            self.overlay = Overlay::None;
+                        }
+                    }
                     _ => self.overlay = Overlay::None,
                 }
                 return;
