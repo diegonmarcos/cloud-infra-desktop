@@ -489,7 +489,7 @@ PlasmoidItem {
     // ── compact-representation sizing — the actual bug being fixed. Every
     // pie/bar/font size below derives from contentH instead of a fixed pixel
     // number, so the widget fits whatever thickness the panel gives it
-    // (44px top / 60px bottom here, see top-panel.json/bottom-panel.json)
+    // (44px top / 60px bottom here, see panels.json)
     // instead of overflowing/overlapping at a size nobody chose.
     //
     // availH is the height the panel containment actually granted the
@@ -512,7 +512,7 @@ PlasmoidItem {
     // exists at all. Second, KDE bug 489307 is the same failure mode at a
     // nonzero-but-small panel thickness — a chart-style widget's rendered
     // size collapsing to zero, so the widget occupies no visible space
-    // rather than merely looking small. bottom-panel.json documents that
+    // rather than merely looking small. panels.json documents that
     // incident; this floor exists so this widget cannot repeat it no matter
     // how thin a panel someone picks, or how early this binding evaluates.
     readonly property real contentH: Math.max(16, root.availH - root.titleH - root.clusterSpacing)

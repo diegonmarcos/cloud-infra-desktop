@@ -57,8 +57,11 @@ let
 in
 {
   imports = [
-    ./top-panel.nix       # top panel: storage, mem, cpu, network │ clock │ guard, psi
-    ./bottom-panel.nix    # bottom panel: kickoff, pager, tasks, sysmon, TWO trays
+    # 2026-08-24: top-panel.nix and bottom-panel.nix are GONE, and with them
+    # programs.plasma.panels. Both panels, their widgets and both tray item
+    # lists are now one file (./panels.json) applied by one runner
+    # (./plasma-panels-apply.sh), wired in plasma.nix — see the "ONE mechanism"
+    # comment there for why plasma-manager no longer owns any of it.
     ./default-session.nix # the fixed default layout + its autostart entry
   ];
 
