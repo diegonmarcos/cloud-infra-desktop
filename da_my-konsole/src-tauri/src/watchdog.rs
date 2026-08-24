@@ -1141,12 +1141,15 @@ fn btrfs_storage_json() -> String {
         let (st, su) = (alloc("system", "total_bytes"), alloc("system", "bytes_used"));
         let disk_alloc = alloc("data", "disk_total") + alloc("metadata", "disk_total") + alloc("system", "disk_total");
         let disk_used = alloc("data", "disk_used") + alloc("metadata", "disk_used") + alloc("system", "disk_used");
-        let dev_size: u64 = fs::read_dir(format!("{base}/devinfo"))
+        // devices/ not devinfo/: devinfo/<id>/ has no size on current kernels
+        // (checked: error_stats, fsid, in_fs_metadata, missing, replace_target,
+        // scrub_speed_max, writeable — and that is all). devices/<name> is a
+        // symlink into the block device's own sysfs node, which does have one,
+        // in 512-byte sectors, unlike every other file in this tree.
+        let dev_size: u64 = fs::read_dir(format!("{base}/devices"))
             .map(|rd| {
                 rd.filter_map(|e| e.ok())
                     .filter_map(|e| read_u64(&format!("{}/size", e.path().display())))
-                    // devinfo/size is in 512-byte sectors, unlike every other
-                    // file in this tree, which is bytes.
                     .map(|s| s * 512)
                     .sum()
             })
@@ -1899,7 +1902,9 @@ overlay /var/lib/docker/overlay2/abc/merged overlay rw 0 0
 
 #[cfg(test)]
 mod name_tests {
-    use super::{json_escape, name_from_argv};
+    // Was a two-name import; the storage/averaging/signal tests below need the
+    // rest of the module, and listing them one by one has already gone stale once.
+    use super::*;
 
     fn n(argv: &[&str]) -> Option<String> {
         name_from_argv(&mut argv.iter().map(|s| s.to_string()))
