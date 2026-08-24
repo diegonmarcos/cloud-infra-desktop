@@ -2352,7 +2352,10 @@ mod tests {
         // the four averages sit between their live columns, in header order
         assert_eq!(Sort::C60s.step(1), Sort::Mem);
         assert_eq!(Sort::Mem.step(1), Sort::M10s);
-        assert_eq!(Sort::M60s.step(1), Sort::Disk);
+        assert_eq!(Sort::M60s.step(1), Sort::Net);
+        assert_eq!(Sort::Net.step(1), Sort::Disk);
+        // slice sits where its column does, right after PID
+        assert_eq!(Sort::Pid.step(1), Sort::Slice);
         // wrap both ways off the ends
         assert_eq!(SORT_ORDER[0].step(-1), SORT_ORDER[SORT_ORDER.len() - 1]);
         assert_eq!(SORT_ORDER[SORT_ORDER.len() - 1].step(1), SORT_ORDER[0]);
@@ -2386,9 +2389,12 @@ mod tests {
     fn menu_quit_item_asks_the_frame_to_exit() {
         let mut m = Monitor::new();
         m.on_key(KeyCode::Esc);
-        m.on_key(KeyCode::Down);
-        m.on_key(KeyCode::Down); // options -> help -> quit
-        assert_eq!(m.menu_sel, 2);
+        for _ in 0..MENU.len() - 1 {
+            m.on_key(KeyCode::Down);
+        }
+        // Walked to the last entry, whatever the menu has grown to — the point
+        // of the test is that quit exits, not where it happens to sit today.
+        assert_eq!(MENU[m.menu_sel].0, "quit");
         m.on_key(KeyCode::Enter);
         assert!(m.wants_quit());
     }
