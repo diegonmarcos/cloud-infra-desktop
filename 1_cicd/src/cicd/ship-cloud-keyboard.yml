@@ -37,6 +37,10 @@ on:
       - "ea_cloud-libs-shared/libs/media/**"
       - "ea_cloud-libs-shared/libs/translate/**"
       - "ea_cloud-libs-shared/libs/voice/**"
+      - "ea_cloud-libs-shared/build.json"
+      # ^ libs:voice bakes build.json::voice into BuildConfig and falls back
+      #   to this file when the consuming repo declares no voice block, so a
+      #   model-registry change here must rebuild this APK too.
       - "1_cicd/src/cicd/ship-cloud-keyboard.yml"
 
 permissions:
