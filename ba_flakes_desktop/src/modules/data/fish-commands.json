@@ -97,6 +97,8 @@
     { "name": "hg",      "file": "hg.fish",      "group": "sys", "desc": "grep the shell history" },
     { "name": "cpucap",  "file": "cpucap.fish",  "group": "sys", "desc": "cap CPU frequency / governor" },
 
+    { "name": "plasmashell", "file": "plasmashell.fish", "group": "session", "desc": "start|stop|restart (default restart) the Plasma shell" },
+
     { "name": "serve",       "file": "serve.fish",       "group": "dev", "desc": "static HTTP server in this folder" },
     { "name": "fish-e",      "file": "fish-e.fish",      "group": "dev", "desc": "Web terminal + mobile keys (ttyd on WireGuard)" },
     { "name": "fish-e-stop", "file": "fish-e-stop.fish", "group": "dev", "desc": "stop the web terminal" },
