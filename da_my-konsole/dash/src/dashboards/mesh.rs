@@ -85,14 +85,22 @@ pub fn peers_from_ssh_config() -> Vec<Peer> {
                 .or_insert(h);
         }
     }
-    let mut out: Vec<Peer> = local_wg_addrs()
-        .into_iter()
-        .map(|ip| Peer { alias: "this machine".into(), ip, local: true, up: true, probed: true, rtt_ms: 0.0 })
+    let mine = local_wg_addrs();
+    let mut out: Vec<Peer> = mine
+        .iter()
+        .map(|ip| Peer {
+            alias: "this machine".into(),
+            ip: ip.clone(),
+            local: true,
+            up: true,
+            probed: true,
+            rtt_ms: 0.0,
+        })
         .collect();
     out.extend(
         by_ip
             .into_iter()
-            .filter(|(ip, _)| !out.iter().any(|p| &p.ip == ip))
+            .filter(|(ip, _)| !mine.contains(ip))
             .map(|(ip, alias)| Peer { alias, ip, ..Default::default() }),
     );
     out

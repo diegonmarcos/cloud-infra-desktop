@@ -504,14 +504,14 @@ fn sort_procs<'a>(snap: &'a Value, sort: Sort, desc: bool, win: Win) -> Vec<&'a 
 /// which is what anchoring on pid 1 would do here. Siblings keep the order the
 /// sort column already put them in, so `t` re-groups the table without also
 /// re-ranking it. Depth is capped so a deep chain cannot eat the name column.
-fn tree_order<'a>(procs: &[&'a Value], spine: &[&'a Value]) -> Vec<(&'a Value, usize)> {
+fn tree_order<'a>(procs: &[&'a Value], spine: &'a [Value]) -> Vec<(&'a Value, usize)> {
     // The measured rows plus the daemon's spine — every ancestor of a measured
     // row, up to pid 1. Without the spine the forest bottoms out at whatever
     // happened to rank in the top-N and can never reach systemd; with it, each
     // process hangs off its real chain.
     let mut all: Vec<&Value> = procs.to_vec();
     let measured = procs.len();
-    all.extend_from_slice(spine);
+    all.extend(spine.iter());
 
     let present: std::collections::HashSet<i64> =
         all.iter().map(|p| num(p, "pid") as i64).collect();
@@ -1643,7 +1643,7 @@ impl Monitor {
             procs
         };
         if self.tree {
-            tree_order(&procs, &arr(&self.snap, "proc_spine")).into_iter().map(|(p, _)| p).collect()
+            tree_order(&procs, arr(&self.snap, "proc_spine")).into_iter().map(|(p, _)| p).collect()
         } else {
             procs
         }
@@ -2422,7 +2422,7 @@ impl Dashboard for Monitor {
         // Depth rides along even when the tree is off, so the row builder does
         // not need two shapes; it is simply 0 for every row.
         let procs: Vec<(&Value, usize)> = if self.tree {
-            tree_order(&sorted, &arr(&s, "proc_spine"))
+            tree_order(&sorted, arr(&s, "proc_spine"))
         } else {
             sorted.iter().map(|p| (*p, 0usize)).collect()
         };
