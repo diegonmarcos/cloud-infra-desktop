@@ -466,6 +466,9 @@ struct ProcAvg {
 /// load1/load5/load15; 10s is the short window the process table shows next to
 /// it, because "is this spiking right now" and "has this been heavy all along"
 /// are different questions and a 1m average answers only the second.
+/// 15 ticks at INTERVAL_MS = 30s between service-list refreshes.
+const SERVICES_EVERY_TICKS: u64 = 15;
+
 const PROC_AVG_WINDOWS: [f64; 4] = [10.0, 60.0, 300.0, 900.0];
 const PROC_AVG_LABELS: [&str; 4] = ["10s", "1m", "5m", "15m"];
 
@@ -656,6 +659,29 @@ fn read_proc_net() -> HashMap<i32, (u64, u64)> {
     out
 }
 
+/// Proportional set size, in bytes: this process's private pages plus its
+/// share of every page it maps with someone else.
+///
+/// RSS double-counts shared memory — add the RSS of every process on this box
+/// and you get several times the RAM installed. PSS is the figure that sums
+/// to the truth, which is why it is worth a page-table walk to get.
+///
+/// And it IS a walk: smaps_rollup is orders of magnitude dearer than reading
+/// status, so this is deliberately called only for the rows that get
+/// published, never for every entry in /proc. Another user's process returns
+/// None (EACCES) rather than a wrong zero.
+fn read_proc_pss(pid: i32) -> Option<f64> {
+    let s = fs::read_to_string(format!("/proc/{pid}/smaps_rollup")).ok()?;
+    let kb: f64 = s
+        .lines()
+        .find(|l| l.starts_with("Pss:"))?
+        .split_whitespace()
+        .nth(1)?
+        .parse()
+        .ok()?;
+    Some(kb * 1024.0)
+}
+
 /// Builds the `proc_table` JSON array: top-N by CPU% among all processes
 /// readable right now, with the rate fields computed as deltas against
 /// `prev` (the previous tick's raw counters) rather than passed through
@@ -677,6 +703,7 @@ fn build_proc_table(
         name: String,
         uid: u32,
         rss_kb: f64,
+        pss_bytes: Option<f64>,
         cpu_pct: f64,
         mem_pct: f64,
         read_bps: f64,
@@ -833,6 +860,8 @@ fn build_proc_table(
             name: comm,
             uid,
             rss_kb,
+            // Filled in below, for the published rows only.
+            pss_bytes: None,
             cpu_pct,
             mem_pct,
             read_bps,
@@ -846,6 +875,10 @@ fn build_proc_table(
 
     rows.sort_unstable_by(|a, b| b.cpu_pct.partial_cmp(&a.cpu_pct).unwrap_or(std::cmp::Ordering::Equal));
     rows.truncate(n);
+    // After the truncate, never before: this is the expensive read.
+    for r in rows.iter_mut() {
+        r.pss_bytes = read_proc_pss(r.pid);
+    }
 
     let items: Vec<String> = rows
         .iter()
@@ -873,12 +906,14 @@ fn build_proc_table(
             format!(
                 "{{\"pid\":{},\"ppid\":{},\"state\":\"{safe_state}\",\"slice\":\"{safe_slice}\",\
                   \"name\":\"{safe_name}\",\"user\":\"{safe_user}\",\
-                  \"cpu_pct\":{:.1},\"mem_rss_bytes\":{:.0},\"mem_pct\":{:.2},\
+                  \"cpu_pct\":{:.1},\"mem_rss_bytes\":{:.0},\"mem_pss_bytes\":{},\"mem_pct\":{:.2},\
                   \"read_bytes_per_s\":{:.0},\"write_bytes_per_s\":{:.0},\
                   \"net_rx_bytes_per_s\":{:.0},\"net_tx_bytes_per_s\":{:.0},\
                   \"runq_wait_pct\":{:.2},\"protected\":{is_protected},\
                   \"protected_reason\":{},\"avg\":{{{}}}}}",
-                r.pid, r.ppid, r.cpu_pct, r.rss_kb * 1024.0, r.mem_pct, r.read_bps, r.write_bps,
+                r.pid, r.ppid, r.cpu_pct, r.rss_kb * 1024.0,
+                r.pss_bytes.map(|v| format!("{v:.0}")).unwrap_or_else(|| "null".into()),
+                r.mem_pct, r.read_bps, r.write_bps,
                 r.net_rx_bps, r.net_tx_bps, r.runq_wait_pct,
                 if is_protected { format!("\"{}\"", json_escape(&reason)) } else { "null".to_string() },
                 avg_json.join(","),
@@ -1334,6 +1369,45 @@ fn btrfs_uuid_for_device(dev: &str) -> Option<String> {
 ///
 /// `protected` mirrors what drain_kill_requests() enforces, so the manager
 /// shows the same policy the daemon acts on rather than a second opinion.
+/// Every DECLARED service unit and its state, user manager and system manager
+/// both.
+///
+/// proc_table is the top-N by CPU, which answers "what is eating this box" and
+/// is silent on the opposite question: what is supposed to be running. A unit
+/// that died at boot, or one that is up and doing nothing, never appears there
+/// — absence looks identical to idle. This list is what makes the difference
+/// visible.
+///
+/// systemctl escapes unit names (app-at\x2dspi...), and those escapes are
+/// literal backslashes in the output, so json_escape has to run over them or
+/// the snapshot is not valid JSON.
+fn services_json() -> String {
+    let mut items: Vec<String> = Vec::new();
+    for (scope, first) in [("user", "--user"), ("system", "--system")] {
+        let args = [
+            first, "list-units", "--type=service", "--all",
+            "--no-legend", "--plain", "--no-pager",
+        ];
+        let Ok(o) = clean_command("systemctl").args(args).output() else { continue };
+        let Ok(text) = String::from_utf8(o.stdout) else { continue };
+        for line in text.lines() {
+            let f: Vec<&str> = line.split_whitespace().collect();
+            // name load active sub description...
+            if f.len() < 4 || !f[0].ends_with(".service") {
+                continue;
+            }
+            items.push(format!(
+                "{{\"name\":\"{}\",\"scope\":\"{scope}\",\"load\":\"{}\",\"active\":\"{}\",\"sub\":\"{}\"}}",
+                json_escape(f[0]),
+                json_escape(f[1]),
+                json_escape(f[2]),
+                json_escape(f[3]),
+            ));
+        }
+    }
+    format!("[{}]", items.join(","))
+}
+
 fn slices_json(protected: &[String]) -> String {
     let mut items = Vec::new();
     let push = |dir: &str, name: String, items: &mut Vec<String>| {
@@ -1571,6 +1645,7 @@ fn render(
     proc_table: &str,
     storage: &str,
     slices: &str,
+    services: &str,
 ) -> String {
     // Named, not positional: this format string mixes inline-captured names
     // with `{}` holes, and when the cores list was positional it was simply
@@ -1596,7 +1671,7 @@ fn render(
           \"psi\":{{\"cpu\":{},\"io\":{},\"memory\":{}}},\
           \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\"slice_pct\":{slice_pct:.1},\
           \"battery\":{},\
-          \"storage\":{storage},\"slices\":{slices},\
+          \"storage\":{storage},\"slices\":{slices},\"services\":{services},\
           \"procs\":{procs},\"proc_table\":{proc_table},\"ts\":{}}}",
         vram_json(vram),
         pressure_block("cpu"),
@@ -1805,6 +1880,11 @@ pub fn spawn() {
         let mut prev_disk = read_diskstats();
         let mut prev_net = read_net();
         let mut prev_proc_table: HashMap<i32, ProcSample> = HashMap::new();
+        // Two systemctl calls cost ~100ms and the unit set changes on the
+        // scale of a deploy, not a tick, so this is refreshed on a slow
+        // cadence and reused in between rather than paid for every 2s.
+        let mut services = services_json();
+        let mut tick: u64 = 0;
         loop {
             std::thread::sleep(std::time::Duration::from_millis(INTERVAL_MS));
             drain_kill_requests();
@@ -1847,6 +1927,11 @@ pub fn spawn() {
             );
             prev_proc_table = next_proc_table;
 
+            tick += 1;
+            if tick % SERVICES_EVERY_TICKS == 0 {
+                services = services_json();
+            }
+
             let body = render(
                 cpu, &cores, &cpu_detail, mem, swap,
                 &mem_detail, &swap_detail,
@@ -1861,6 +1946,7 @@ pub fn spawn() {
                 &proc_table_json,
                 &btrfs_storage_json(),
                 &slices_json(&protected_slices),
+                &services,
             );
             publish(&path, &body);
         }

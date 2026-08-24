@@ -306,6 +306,7 @@ enum Sort {
     Mem,
     M10s,
     M60s,
+    Pss,
     Net,
     Disk,
     Pid,
@@ -317,7 +318,7 @@ enum Sort {
 
 /// Left-to-right order of the sortable columns, so ←/→ walks the header the
 /// way glances does rather than jumping around an enum's declaration order.
-const SORT_ORDER: [Sort; 13] = [
+const SORT_ORDER: [Sort; 14] = [
     Sort::Pid,
     Sort::Slice,
     Sort::User,
@@ -328,6 +329,7 @@ const SORT_ORDER: [Sort; 13] = [
     Sort::Mem,
     Sort::M10s,
     Sort::M60s,
+    Sort::Pss,
     Sort::Net,
     Sort::Disk,
     Sort::Runq,
@@ -344,6 +346,7 @@ impl Sort {
             Sort::Mem => "mem",
             Sort::M10s => "m10s",
             Sort::M60s => "m60s",
+            Sort::Pss => "pss",
             Sort::Net => "net",
             Sort::Disk => "disk",
             Sort::Pid => "pid",
@@ -434,6 +437,13 @@ fn open_dir(dir: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Like num(), but keeps the difference between "zero" and "absent" —
+/// mem_pss_bytes is null when the daemon could not read smaps_rollup, and
+/// rendering that as 0 would claim a measurement nobody made.
+fn num_opt(p: &Value, k: &str) -> Option<f64> {
+    p.get(k).and_then(|v| v.as_f64())
+}
+
 fn avg_or(p: &Value, win: &str, field: &str) -> f64 {
     p.get("avg")
         .and_then(|a| a.get(win))
@@ -455,6 +465,7 @@ fn sort_procs<'a>(snap: &'a Value, sort: Sort, desc: bool, win: Win) -> Vec<&'a 
                 Sort::Mem => win.get(p, "mem_rss_bytes"),
                 Sort::Disk => win.get(p, "read_bytes_per_s") + win.get(p, "write_bytes_per_s"),
                 Sort::Net => num(p, "net_rx_bytes_per_s") + num(p, "net_tx_bytes_per_s"),
+                Sort::Pss => num(p, "mem_pss_bytes"),
                 Sort::Runq => win.get(p, "runq_wait_pct"),
                 // Fixed windows, so these ignore `win` entirely. "1m" is the
                 // daemon's label for the 60s bucket.
@@ -596,6 +607,8 @@ pub struct Monitor {
     win: Win,
     /// `t`: order by the parent/child tree instead of by the sort column.
     tree: bool,
+    /// `v`: append the declared service units that are stopped or idle.
+    units: bool,
     sel: usize,
     /// The cursor's real identity. `sel` is only where that pid happened to
     /// land in the current ordering, and the ordering changes every tick.
@@ -638,6 +651,7 @@ impl Monitor {
             desc: true,
             win: Win::Now,
             tree: false,
+            units: false,
             sel: 0,
             sel_pid: None,
             offset: 0,
@@ -1026,10 +1040,12 @@ impl Monitor {
             head("sorting"),
             key("← →", "move the sort to the next column, glances style"),
             key("c m d g", "sort by cpu · mem · disk · run-queue wait"),
+            key("", "PSS is the share-adjusted memory figure; RSS double-counts"),
             key("p n u e s", "sort by pid · name · user · net · slice"),
             key("", "← → also reach C10s C60s M10s M60s"),
             key("i", "invert the direction"),
             key("t", "group by process tree — parents, children, zombies"),
+            key("v", "also list declared units that are stopped or idle"),
             // Short enough to survive the 78-column modal: the long version
             // was clipped mid-cycle at "→ 5m".
             key("w", "cycle the CPU%/MEM% window: now → 1m → 5m → 15m"),
@@ -1304,6 +1320,13 @@ impl Monitor {
             ),
         ));
         l.push(kv(
+            "pss (share-adjusted)",
+            match num_opt(&p, "mem_pss_bytes") {
+                Some(v) => fmt_bytes_short(v),
+                None => "— (not readable for this uid)".into(),
+            },
+        ));
+        l.push(kv(
             "mem% 10s / 1m / 15m",
             format!(
                 "{:.2}%  {:.2}%  {:.2}%",
@@ -1465,6 +1488,43 @@ impl Monitor {
         }
     }
 
+    /// The declared service units worth listing under the live processes.
+    ///
+    /// Two kinds, and they answer different halves of "what is supposed to be
+    /// running": units that are NOT active+running have no process at all, so
+    /// a process table can never show them; units that are active+running but
+    /// whose name does not appear in the table are up and doing nothing, which
+    /// in a CPU-ranked table is indistinguishable from absent.
+    ///
+    /// The second test is a NAME heuristic — unit "foo.service" against
+    /// process "foo" — because the snapshot carries no unit-to-pid mapping.
+    /// It can mislabel a busy process as idle when the unit and the binary are
+    /// named differently; it never invents a unit that does not exist.
+    fn unit_rows(&self, s: &Value) -> Vec<(String, String, String)> {
+        if !self.units {
+            return vec![];
+        }
+        let live: std::collections::HashSet<String> =
+            arr(s, "proc_table").iter().map(|p| text(p, "name")).collect();
+        arr(s, "services")
+            .iter()
+            .filter_map(|u| {
+                let name = text(u, "name");
+                let active = text(u, "active");
+                let sub = text(u, "sub");
+                let running = active == "active" && sub == "running";
+                let stem = name.trim_end_matches(".service").to_string();
+                if running && live.contains(&stem) {
+                    return None;
+                }
+                let state = if running { "idle".to_string() } else { format!("{active}/{sub}") };
+                Some((name, text(u, "scope"), state))
+            })
+            .collect()
+    }
+
+    /// None when the cursor is parked on an appended unit row: those have no
+    /// pid, so every action keyed off a pid correctly does nothing.
     fn picked(&self) -> Option<(i32, String, bool, String)> {
         let procs = self.rows();
         procs.get(self.sel).map(|p| {
@@ -1548,7 +1608,8 @@ impl Dashboard for Monitor {
     }
 
     fn on_key(&mut self, k: KeyCode) {
-        let n = arr(&self.snap, "proc_table").len();
+        let snap = self.snap.clone();
+        let n = arr(&self.snap, "proc_table").len() + self.unit_rows(&snap).len();
         match self.overlay {
             Overlay::Kill => return self.kill_key(k),
             Overlay::Menu => return self.menu_key(k),
@@ -1664,6 +1725,16 @@ impl Dashboard for Monitor {
             KeyCode::Char('s') => self.sort = Sort::Slice,
             KeyCode::Char('i') => self.desc = !self.desc,
             KeyCode::Char('w') => self.win = self.win.next(),
+            KeyCode::Char('v') => {
+                self.units = !self.units;
+                self.msg = Some((
+                    format!(
+                        "declared units {}",
+                        if self.units { "shown — stopped and idle services" } else { "hidden" }
+                    ),
+                    false,
+                ));
+            }
             KeyCode::Char('t') => {
                 self.tree = !self.tree;
                 self.msg = Some((
@@ -2182,14 +2253,19 @@ impl Dashboard for Monitor {
         // Keep the selection inside the viewport, scrolling only when it would
         // otherwise leave — a table that recentres on every tick is unreadable.
         let vis = (proc_in.height as usize).saturating_sub(1).max(1);
-        self.sel = self.sel.min(procs.len().saturating_sub(1));
+        // Declared units ride at the bottom of the same list, so the cursor
+        // and the scroll window have to count them too — otherwise `v` shows
+        // rows nothing can ever reach.
+        let units = self.unit_rows(&s);
+        let total = procs.len() + units.len();
+        self.sel = self.sel.min(total.saturating_sub(1));
         if self.sel < self.offset {
             self.offset = self.sel;
         } else if self.sel >= self.offset + vis {
             self.offset = self.sel + 1 - vis;
         }
-        if self.offset + vis > procs.len() {
-            self.offset = procs.len().saturating_sub(vis);
+        if self.offset + vis > total {
+            self.offset = total.saturating_sub(vis);
         }
 
         let w = self.win;
@@ -2244,6 +2320,13 @@ impl Dashboard for Monitor {
                     Cell::from(format!("{:>5.1}", a("10s", "mem_pct"))).style(base.fg(grad(a("10s", "mem_pct") / 100.0))),
                     Cell::from(format!("{:>5.1}", a("1m", "mem_pct"))).style(base.fg(grad(a("1m", "mem_pct") / 100.0))),
                     Cell::from(fmt_fixed(rss)).style(base.fg(Color::Gray)),
+                    // null when the daemon could not read another user's
+                    // smaps_rollup. A dash, not a zero — we do not know.
+                    Cell::from(match p.get("mem_pss_bytes").and_then(|v| v.as_f64()) {
+                        Some(v) => fmt_fixed(v),
+                        None => "    —".into(),
+                    })
+                    .style(base.fg(Color::Rgb(150, 170, 200))),
                     Cell::from(fmt_bps(num(p, "net_rx_bytes_per_s"))).style(base.fg(Color::Rgb(120, 200, 255))),
                     Cell::from(fmt_bps(num(p, "net_tx_bytes_per_s"))).style(base.fg(Color::Rgb(240, 169, 66))),
                     Cell::from(fmt_bps(rd)).style(base.fg(Color::Rgb(120, 220, 140))),
@@ -2252,6 +2335,32 @@ impl Dashboard for Monitor {
                 ])
             })
             .collect();
+
+        // Everything a unit row can honestly say: it has no pid, no rss and no
+        // rates. Blanks rather than zeroes — a zero here would read as a
+        // measurement, and there is nothing being measured.
+        let mut trows = trows;
+        let ustart = self.offset.saturating_sub(procs.len());
+        for (j, (name, scope, state)) in
+            units.iter().enumerate().skip(ustart).take(vis.saturating_sub(trows.len()))
+        {
+            let sel = procs.len() + j == self.sel;
+            let failed = state.starts_with("failed");
+            let base = if sel {
+                Style::default().bg(Color::Rgb(38, 48, 66)).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(DIM)
+            };
+            let sc = if failed { Color::Rgb(240, 72, 72) } else { Color::Rgb(150, 140, 110) };
+            let mut cells = vec![
+                Cell::from("  —").style(base),
+                Cell::from(scope.clone()).style(base),
+                Cell::from("—").style(base),
+                Cell::from(format!("{}  {}", trunc(name, 34), state)).style(base.fg(sc)),
+            ];
+            cells.extend((0..13).map(|_| Cell::from("").style(base)));
+            trows.push(Row::new(cells));
+        }
 
         let hdr = |name: &'static str, k: Sort| -> Cell<'static> {
             if self.sort == k {
@@ -2275,6 +2384,7 @@ impl Dashboard for Monitor {
                 Constraint::Length(5),  // M10s
                 Constraint::Length(5),  // M60s
                 Constraint::Length(5),  // RSS
+                Constraint::Length(5),  // PSS
                 Constraint::Length(6),  // D/s
                 Constraint::Length(6),  // U/s
                 Constraint::Length(6),  // R/s
@@ -2294,6 +2404,7 @@ impl Dashboard for Monitor {
             hdr("M10s", Sort::M10s),
             hdr("M60s", Sort::M60s),
             hdr("RSS", Sort::Mem),
+            hdr("PSS", Sort::Pss),
             hdr("D/s", Sort::Net),
             hdr("U/s", Sort::Net),
             hdr("R/s", Sort::Disk),
