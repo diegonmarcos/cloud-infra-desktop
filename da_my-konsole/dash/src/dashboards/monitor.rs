@@ -891,7 +891,9 @@ impl Monitor {
         };
         let kv = |k: &str, v: String| -> Line<'static> {
             Line::from(vec![
-                Span::styled(format!("  {k:<16}"), Style::default().fg(LABEL)),
+                // 21, not 16: "mem% 10s / 1m / 15m" is 19 wide and its value
+                // started in the very next cell with no gap at all.
+                Span::styled(format!("  {k:<21}"), Style::default().fg(LABEL)),
                 Span::styled(v, Style::default().fg(Color::Gray)),
             ])
         };
@@ -899,7 +901,7 @@ impl Monitor {
         // edge. This modal is the full-disclosure view, so a value that does
         // not fit wraps onto continuation lines rather than being cut.
         let kvw = |k: &str, v: String| -> Vec<Line<'static>> {
-            let room = (inner.width as usize).saturating_sub(19).max(16);
+            let room = (inner.width as usize).saturating_sub(24).max(16);
             let ch: Vec<char> = v.chars().collect();
             if ch.is_empty() {
                 return vec![kv(k, v)];
@@ -1043,7 +1045,7 @@ impl Monitor {
             cg.lines().next().and_then(|x| x.rsplit(':').next().map(|s| s.to_string())).unwrap_or_default(),
         ));
         l.push(Line::from(vec![
-            Span::styled(format!("  {:<16}", "protected"), Style::default().fg(LABEL)),
+            Span::styled(format!("  {:<21}", "protected"), Style::default().fg(LABEL)),
             Span::styled(
                 if prot { format!("yes — {}", if why.is_empty() { "protected slice".into() } else { why }) } else { "no".into() },
                 Style::default().fg(if prot { Color::Rgb(240, 160, 90) } else { Color::Gray }),
