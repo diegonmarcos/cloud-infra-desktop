@@ -10,7 +10,8 @@
 //
 // It also gets data a TUI sampler would not have: the daemon keeps 10s/1m/5m/15m
 // rolling averages and run-queue wait PER PROCESS (the `w` key cycles them, and
-// the C10s/C60s/M10s/M60s columns show two of them beside the live value),
+// the C10s/C60s/M10s/M60s columns show two of them beside the live value and
+// are sortable in their own right),
 // and freeze-guard publishes its own PSI voter state to /run/freeze-guard.json,
 // so the PSI box can show not just pressure but which voters are armed.
 //
@@ -280,7 +281,15 @@ fn fmt_uptime(secs: f64) -> String {
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Sort {
     Cpu,
+    /// The four average columns rank on their own fixed window, independent of
+    /// `w`. `w` retargets the live CPU%/MEM% columns; these four always mean
+    /// what their header says, so "rank by C60s" is answerable without first
+    /// putting the display into a particular mode.
+    C10s,
+    C60s,
     Mem,
+    M10s,
+    M60s,
     Disk,
     Pid,
     Name,
@@ -290,14 +299,31 @@ enum Sort {
 
 /// Left-to-right order of the sortable columns, so ←/→ walks the header the
 /// way glances does rather than jumping around an enum's declaration order.
-const SORT_ORDER: [Sort; 7] =
-    [Sort::Pid, Sort::User, Sort::Name, Sort::Cpu, Sort::Mem, Sort::Disk, Sort::Runq];
+const SORT_ORDER: [Sort; 11] = [
+    Sort::Pid,
+    Sort::User,
+    Sort::Name,
+    Sort::Cpu,
+    Sort::C10s,
+    Sort::C60s,
+    Sort::Mem,
+    Sort::M10s,
+    Sort::M60s,
+    Sort::Disk,
+    Sort::Runq,
+];
 
 impl Sort {
     fn label(self) -> &'static str {
         match self {
             Sort::Cpu => "cpu",
+            // Lowercased header names, so the box title names the same column
+            // the ▼ marker is sitting on.
+            Sort::C10s => "c10s",
+            Sort::C60s => "c60s",
             Sort::Mem => "mem",
+            Sort::M10s => "m10s",
+            Sort::M60s => "m60s",
             Sort::Disk => "disk",
             Sort::Pid => "pid",
             Sort::Name => "name",
@@ -377,6 +403,12 @@ fn sort_procs<'a>(snap: &'a Value, sort: Sort, desc: bool, win: Win) -> Vec<&'a 
                 Sort::Mem => win.get(p, "mem_rss_bytes"),
                 Sort::Disk => win.get(p, "read_bytes_per_s") + win.get(p, "write_bytes_per_s"),
                 Sort::Runq => win.get(p, "runq_wait_pct"),
+                // Fixed windows, so these ignore `win` entirely. "1m" is the
+                // daemon's label for the 60s bucket.
+                Sort::C10s => avg_or(p, "10s", "cpu_pct"),
+                Sort::C60s => avg_or(p, "1m", "cpu_pct"),
+                Sort::M10s => avg_or(p, "10s", "mem_pct"),
+                Sort::M60s => avg_or(p, "1m", "mem_pct"),
                 Sort::Pid => num(p, "pid"),
                 Sort::Name | Sort::User => 0.0,
             }
@@ -821,6 +853,7 @@ impl Monitor {
             key("← →", "move the sort to the next column, glances style"),
             key("c m d g", "sort by cpu · mem · disk · run-queue wait"),
             key("p n u", "sort by pid · name · user"),
+            key("", "← → also reach C10s C60s M10s M60s"),
             key("i", "invert the direction"),
             // Short enough to survive the 78-column modal: the long version
             // was clipped mid-cycle at "→ 5m".
@@ -1710,12 +1743,6 @@ impl Dashboard for Monitor {
             })
             .collect();
 
-        // The average columns are not sort keys of their own: `w` already picks
-        // which window sorts, so a second way to say it would let the header
-        // and the ordering disagree.
-        let plain = |name: &'static str| -> Cell<'static> {
-            Cell::from(name).style(Style::default().fg(DIM))
-        };
         let hdr = |name: &'static str, k: Sort| -> Cell<'static> {
             if self.sort == k {
                 Cell::from(format!("{name}{}", if self.desc { "▼" } else { "▲" }))
@@ -1747,11 +1774,11 @@ impl Dashboard for Monitor {
             hdr("USER", Sort::User),
             hdr("PROGRAM", Sort::Name),
             hdr("CPU%", Sort::Cpu),
-            plain("C10s"),
-            plain("C60s"),
+            hdr("C10s", Sort::C10s),
+            hdr("C60s", Sort::C60s),
             hdr("MEM%", Sort::Mem),
-            plain("M10s"),
-            plain("M60s"),
+            hdr("M10s", Sort::M10s),
+            hdr("M60s", Sort::M60s),
             hdr("RSS", Sort::Mem),
             hdr("R/s", Sort::Disk),
             hdr("W/s", Sort::Disk),
@@ -1803,8 +1830,12 @@ mod tests {
     // instead, the two ends of the header would be dead keys.
     #[test]
     fn arrows_walk_the_sort_columns_and_wrap() {
-        assert_eq!(Sort::Cpu.step(1), Sort::Mem);
-        assert_eq!(Sort::Mem.step(-1), Sort::Cpu);
+        assert_eq!(Sort::Cpu.step(1), Sort::C10s);
+        assert_eq!(Sort::C10s.step(-1), Sort::Cpu);
+        // the four averages sit between their live columns, in header order
+        assert_eq!(Sort::C60s.step(1), Sort::Mem);
+        assert_eq!(Sort::Mem.step(1), Sort::M10s);
+        assert_eq!(Sort::M60s.step(1), Sort::Disk);
         // wrap both ways off the ends
         assert_eq!(SORT_ORDER[0].step(-1), SORT_ORDER[SORT_ORDER.len() - 1]);
         assert_eq!(SORT_ORDER[SORT_ORDER.len() - 1].step(1), SORT_ORDER[0]);
@@ -1918,9 +1949,11 @@ mod tests {
 
     fn snap() -> Value {
         json!({"proc_table": [
-            {"pid": 1, "name": "beta",  "user": "root",  "cpu_pct": 5.0,
-             "avg": {"15m": {"cpu_pct": 90.0}}},
-            {"pid": 2, "name": "alpha", "user": "diego", "cpu_pct": 50.0}
+            {"pid": 1, "name": "beta",  "user": "root",  "cpu_pct": 5.0, "mem_pct": 1.0,
+             "avg": {"10s": {"cpu_pct": 80.0, "mem_pct": 3.0},
+                     "1m":  {"cpu_pct":  2.0, "mem_pct": 40.0},
+                     "15m": {"cpu_pct": 90.0}}},
+            {"pid": 2, "name": "alpha", "user": "diego", "cpu_pct": 50.0, "mem_pct": 20.0}
         ]})
     }
 
@@ -1948,5 +1981,21 @@ mod tests {
         let s = snap();
         let v = sort_procs(&s, Sort::Name, false, Win::Now);
         assert_eq!(text(v[0], "name"), "alpha");
+    }
+
+    // The four average columns rank on their own fixed window: asking for C60s
+    // must order by the 1m average even while the display is showing "now".
+    #[test]
+    fn average_columns_rank_on_their_own_window_not_the_display_one() {
+        let s = snap();
+        // pid 1: 10s cpu 80 / 1m cpu 2. pid 2 has no avg block, so it falls
+        // back to its instant 50 for both.
+        assert_eq!(num(sort_procs(&s, Sort::C10s, true, Win::Now)[0], "pid") as i32, 1);
+        assert_eq!(num(sort_procs(&s, Sort::C60s, true, Win::Now)[0], "pid") as i32, 2);
+        // and `w` does not move them
+        assert_eq!(num(sort_procs(&s, Sort::C60s, true, Win::M15)[0], "pid") as i32, 2);
+        // mem averages read mem_pct, not the rss bytes the MEM% column sorts on
+        assert_eq!(num(sort_procs(&s, Sort::M10s, true, Win::Now)[0], "pid") as i32, 2);
+        assert_eq!(num(sort_procs(&s, Sort::M60s, true, Win::Now)[0], "pid") as i32, 1);
     }
 }
