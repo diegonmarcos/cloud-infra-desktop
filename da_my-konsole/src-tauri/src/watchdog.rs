@@ -302,12 +302,7 @@ fn top_procs(n: usize) -> String {
         if rss == 0 {
             continue;
         }
-        let comm = st
-            .lines()
-            .find(|l| l.starts_with("Name:"))
-            .and_then(|l| l.split_whitespace().nth(1))
-            .unwrap_or("?")
-            .to_string();
+        let comm = proc_name(pid, &st);
         v.push((rss, pid, comm));
     }
     v.sort_unstable_by(|a, b| b.0.cmp(&a.0));
@@ -317,7 +312,7 @@ fn top_procs(n: usize) -> String {
         .map(|(rss, pid, comm)| {
             // Escape the name: a process can be called anything, and one quote
             // in it would make the whole snapshot unparseable.
-            let safe: String = comm.chars().filter(|c| c.is_alphanumeric() || "-_.".contains(*c)).collect();
+            let safe = json_escape(&comm);
             format!("{{\"pid\":{pid},\"rss\":{:.0},\"name\":\"{safe}\"}}", *rss as f64 / 1024.0)
         })
         .collect();
@@ -438,6 +433,54 @@ struct ProcSample {
 /// field (field 2) is parenthesised and may itself contain spaces or closing
 /// parens, so this splits on the LAST ')' rather than whitespace — the same
 /// trap /proc/<pid>/stat parsers are famous for getting wrong.
+/// The name a human would recognise, not the one the kernel happens to store.
+///
+/// `/proc/PID/status` `Name:` (== `comm`) is wrong twice over: it is capped at 15
+/// bytes, and for anything nix launches through the glibc loader it reads
+/// `ld-linux-x86-64` — five of the top rows said that, every one of them `claude`.
+/// Pick the real program out of an argv stream. Split out of [`proc_name`] so the
+/// loader-skipping rule can be tested without a live /proc.
+fn name_from_argv(args: &mut impl Iterator<Item = String>) -> Option<String> {
+    fn base(s: &str) -> String {
+        s.rsplit('/').next().unwrap_or(s).to_string()
+    }
+    let first = base(&args.next()?);
+    // The loader is a launcher, not the program: `ld-linux.so [opts] PROG args…`.
+    if !(first.starts_with("ld-linux") || first.starts_with("ld.so") || first.starts_with("ld-musl")) {
+        return Some(first);
+    }
+    while let Some(a) = args.next() {
+        if !a.starts_with("--") {
+            return Some(base(&a));
+        }
+        // These swallow the following token; skip the value too.
+        if matches!(a.as_str(), "--argv0" | "--preload" | "--library-path") {
+            args.next();
+        }
+    }
+    Some(first) // loader with nothing after it — better than an empty cell
+}
+
+/// argv is the truth. comm is only right for kernel threads, which have no argv.
+fn proc_name(pid: i32, status: &str) -> String {
+    let raw = fs::read(format!("/proc/{pid}/cmdline")).unwrap_or_default();
+    let mut args = raw
+        .split(|b| *b == 0)
+        .filter(|a| !a.is_empty())
+        .map(|a| String::from_utf8_lossy(a).into_owned());
+
+    if let Some(n) = name_from_argv(&mut args) {
+        return n;
+    }
+
+    // Kernel thread: no argv, and comm is already complete ("kworker/u32:5-btrfs-endio").
+    // Take the rest of the line rather than the first token — "Web Content" has a space.
+    status
+        .lines()
+        .find_map(|l| l.strip_prefix("Name:").map(|n| n.trim().to_string()))
+        .unwrap_or_else(|| "?".into())
+}
+
 fn read_proc_cpu_ticks(pid: i32) -> Option<u64> {
     let s = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     let after = s.rsplit_once(')')?.1;
@@ -521,12 +564,7 @@ fn build_proc_table(
             .and_then(|l| l.split_whitespace().nth(1))
             .and_then(|x| x.parse().ok())
             .unwrap_or(0.0);
-        let comm = status
-            .lines()
-            .find(|l| l.starts_with("Name:"))
-            .and_then(|l| l.split_whitespace().nth(1))
-            .unwrap_or("?")
-            .to_string();
+        let comm = proc_name(pid, &status);
         let uid: u32 = status
             .lines()
             .find(|l| l.starts_with("Uid:"))
@@ -639,9 +677,9 @@ fn build_proc_table(
     let items: Vec<String> = rows
         .iter()
         .map(|r| {
-            let safe_name: String = r.name.chars().filter(|c| c.is_alphanumeric() || "-_.".contains(*c)).collect();
+            let safe_name = json_escape(&r.name);
             let user = uid_names.get(&r.uid).cloned().unwrap_or_else(|| r.uid.to_string());
-            let safe_user: String = user.chars().filter(|c| c.is_alphanumeric() || "-_.".contains(*c)).collect();
+            let safe_user = json_escape(&user);
             let (is_protected, reason) = if r.pid == 1 {
                 (true, "pid 1 (init)".to_string())
             } else if let Some(slice) = proc_protected_slice(r.pid, protected) {
@@ -1469,5 +1507,53 @@ overlay /var/lib/docker/overlay2/abc/merged overlay rw 0 0
         };
         let j = battery_json(&Some(r));
         assert!(j.contains("\"minutes_left\":123"), "expected ~123 in {j}");
+    }
+}
+
+#[cfg(test)]
+mod name_tests {
+    use super::{json_escape, name_from_argv};
+
+    fn n(argv: &[&str]) -> Option<String> {
+        name_from_argv(&mut argv.iter().map(|s| s.to_string()))
+    }
+
+    #[test]
+    fn plain_binary_is_its_basename() {
+        assert_eq!(n(&["/run/current-system/sw/bin/konsole", "--tabs"]).as_deref(), Some("konsole"));
+    }
+
+    #[test]
+    fn loader_yields_the_program_it_launches() {
+        // The real case: comm said "ld-linux-x86-64" for every one of these.
+        assert_eq!(
+            n(&["/nix/store/xxx-glibc/lib/ld-linux-x86-64.so.2", "/home/diego/.local/bin/claude", "--resume"]).as_deref(),
+            Some("claude")
+        );
+    }
+
+    #[test]
+    fn loader_options_and_their_values_are_skipped() {
+        assert_eq!(
+            n(&["/nix/store/x/ld-linux-x86-64.so.2", "--argv0", "node", "--library-path", "/nix/store/l", "/nix/store/x/bin/node"]).as_deref(),
+            Some("node")
+        );
+    }
+
+    #[test]
+    fn bare_loader_falls_back_to_itself_not_empty() {
+        assert_eq!(n(&["/nix/store/x/ld-linux-x86-64.so.2"]).as_deref(), Some("ld-linux-x86-64.so.2"));
+    }
+
+    #[test]
+    fn empty_argv_means_kernel_thread() {
+        assert_eq!(n(&[]), None);
+    }
+
+    #[test]
+    fn escape_keeps_slashes_and_colons_that_the_old_filter_ate() {
+        // "kworker/u32:5-btrfs-endio" was being published as "kworkeru325-btrfs-endio".
+        assert_eq!(json_escape("kworker/u32:5-btrfs-endio"), "kworker/u32:5-btrfs-endio");
+        assert_eq!(json_escape("say \"hi\""), "say \\\"hi\\\"");
     }
 }
