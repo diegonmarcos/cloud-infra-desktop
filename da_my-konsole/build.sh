@@ -166,6 +166,9 @@ cmd_dev()   { vendor; stage_resources; icon; nix develop -c cargo tauri dev; }
 cmd_check() {
   stage_resources; icon
   nix develop -c cargo check --manifest-path src-tauri/Cargo.toml
+  # watchdog.rs publishes the JSON every plasmoid and the dash read; its
+  # name/escape logic has unit tests, and untested is how ld-linux shipped.
+  nix develop -c cargo test --manifest-path src-tauri/Cargo.toml --bin my-konsole
   nix develop -c cargo check --manifest-path dash/Cargo.toml
   # plain `cargo check` skips test targets — dash's braille/sort tests would
   # never be compiled, let alone run. It's a small crate; run them.
