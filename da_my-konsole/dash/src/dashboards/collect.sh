@@ -25,7 +25,7 @@ sleep 1
 > /tmp/.mk2 cat /proc/stat
 > /tmp/.mkp2 sh -c 'for f in /proc/[0-9]*/stat; do p=${f%/stat}; p=${p##*/}; s=$(cat "$f" 2>/dev/null) || continue; echo "$p ${s#*) }"; done'
 
-awk '
+awk -v NOW="$(date +%s)" '
 function j(k,v){ printf "%s\"%s\":%s", sep, k, v; sep="," }
 function esc(s){ gsub(/\\/,"\\\\",s); gsub(/"/,"\\\"",s); return s }
 function psi(f, l,a,r){ r="{}"; while((getline l < f)>0){
@@ -89,8 +89,10 @@ BEGIN{
   } close("/tmp/.mkp2")
   # top 40 by cpu, simple selection sort (np is a few thousand at most)
   n=(np<40?np:40)
-  for(i=1;i<=n;i++){ b=i; for(k=i+1;k<=np;k++) if(PCT[k]>PCT[b]) b=k
-    t=PID[i];PID[i]=PID[b];PID[b]=t; t=PCT[i];PCT[i]=PCT[b];PCT[b]=t }
+  # bi, not b: b is an array in the totals block above and awk has one
+  # namespace, so reusing the name as a scalar is fatal on mawk and busybox.
+  for(i=1;i<=n;i++){ bi=i; for(k=i+1;k<=np;k++) if(PCT[k]>PCT[bi]) bi=k
+    t=PID[i];PID[i]=PID[bi];PID[bi]=t; t=PCT[i];PCT[i]=PCT[bi];PCT[bi]=t }
   pt="["
   for(i=1;i<=n;i++){ pid=PID[i]; f="/proc/" pid "/status"
     nm="?"; rss=0; uid=0; pp=0; sc="?"
@@ -122,7 +124,7 @@ BEGIN{
   # a 2.1 GB reading from every peer turned out to be.
   j("totals",sprintf("{\"net_rx_bytes\":%.0f,\"net_tx_bytes\":%.0f,\"disk_read_bytes\":%.0f,\"disk_write_bytes\":%.0f,\"since_s\":%.0f}",NRX,NTX,DR*512,DW*512,U[1]))
   j("procs","[]"); j("proc_table",pt)
-  j("ts",systime())
+  j("ts",NOW+0)
   printf "}\n"
 }' < /dev/null
 rm -f /tmp/.mk1 /tmp/.mk2 /tmp/.mkp1 /tmp/.mkp2 /tmp/.mkdf
