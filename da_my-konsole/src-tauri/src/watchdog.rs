@@ -1601,6 +1601,117 @@ fn totals_json(uptime_s: f64) -> String {
     )
 }
 
+/// A day of this machine, one line a minute.
+///
+/// Lives under XDG_DATA_HOME, not the runtime dir: the runtime dir is tmpfs
+/// and "the last 24 hours" that vanishes on every reboot is not the last 24
+/// hours. Plain JSONL because the file has to survive a daemon that was
+/// killed mid-write — a truncated last line is one lost sample, where a
+/// truncated binary format is the whole history.
+fn now_unix() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
+}
+
+fn history_path() -> Option<PathBuf> {
+    let base = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))?;
+    let dir = base.join("my-konsole");
+    let _ = fs::create_dir_all(&dir);
+    Some(dir.join("history.jsonl"))
+}
+
+const HISTORY_EVERY_TICKS: u64 = 30; // 60s at INTERVAL_MS
+const HISTORY_WINDOW_S: f64 = 86_400.0;
+
+/// Append this minute, drop anything older than a day, and return the summary
+/// the panel shows.
+///
+/// The counters are cumulative, so "downloaded in the last 24h" is the newest
+/// reading minus the oldest one still in the window — with one guard: a
+/// counter that went BACKWARDS means the machine rebooted, and the difference
+/// across a reboot is meaningless, so the window restarts at that point rather
+/// than reporting a negative or an absurd total.
+///
+/// The percentages are time-weighted averages over the same window, which is
+/// what "cpu%-time over 24h" has to mean for a number sampled once a minute.
+fn history_step(cpu: f64, mem: f64, swap: f64, now: f64) -> String {
+    let Some(path) = history_path() else { return "{}".into() };
+    let t = totals_json(0.0);
+    let g = |k: &str| -> f64 {
+        t.split(&format!("\"{k}\":"))
+            .nth(1)
+            .and_then(|r| r.split(|c: char| !(c.is_ascii_digit() || c == '.')).find(|x| !x.is_empty()))
+            .and_then(|x| x.parse().ok())
+            .unwrap_or(0.0)
+    };
+    let line = format!(
+        "{{\"ts\":{now:.0},\"cpu\":{cpu:.1},\"mem\":{mem:.1},\"swap\":{swap:.1},\"rx\":{:.0},\"tx\":{:.0},\"dr\":{:.0},\"dw\":{:.0}}}",
+        g("net_rx_bytes"),
+        g("net_tx_bytes"),
+        g("disk_read_bytes"),
+        g("disk_write_bytes"),
+    );
+
+    let mut kept: Vec<String> = fs::read_to_string(&path)
+        .unwrap_or_default()
+        .lines()
+        .filter(|l| {
+            l.split("\"ts\":")
+                .nth(1)
+                .and_then(|r| r.split(|c: char| !c.is_ascii_digit()).find(|x| !x.is_empty()))
+                .and_then(|x| x.parse::<f64>().ok())
+                .map(|ts| now - ts <= HISTORY_WINDOW_S)
+                .unwrap_or(false)
+        })
+        .map(|l| l.to_string())
+        .collect();
+    kept.push(line);
+    // Rewrite whole: the file is at most 1441 short lines, and appending plus
+    // periodically compacting is two failure modes where this is one.
+    let _ = fs::write(&path, kept.join("\n") + "\n");
+
+    let num = |l: &str, k: &str| -> f64 {
+        l.split(&format!("\"{k}\":"))
+            .nth(1)
+            .and_then(|r| r.split(|c: char| !(c.is_ascii_digit() || c == '.')).find(|x| !x.is_empty()))
+            .and_then(|x| x.parse().ok())
+            .unwrap_or(0.0)
+    };
+    // Walk forward summing only forward-going differences, so a reboot in the
+    // middle of the window costs that one step rather than the whole figure.
+    let (mut rx, mut tx, mut dr, mut dw) = (0.0, 0.0, 0.0, 0.0);
+    let (mut cpu_s, mut mem_s, mut swap_s) = (0.0, 0.0, 0.0);
+    for w in kept.windows(2) {
+        let (a, b) = (&w[0], &w[1]);
+        let step = |k: &str| -> f64 { (num(b, k) - num(a, k)).max(0.0) };
+        rx += step("rx");
+        tx += step("tx");
+        dr += step("dr");
+        dw += step("dw");
+        let dt = (num(b, "ts") - num(a, "ts")).clamp(0.0, 600.0);
+        cpu_s += num(b, "cpu") * dt;
+        mem_s += num(b, "mem") * dt;
+        swap_s += num(b, "swap") * dt;
+    }
+    let span = kept
+        .first()
+        .map(|f| (now - num(f, "ts")).max(1.0))
+        .unwrap_or(1.0);
+    format!(
+        "{{\"window_s\":{span:.0},\"samples\":{},\"net_rx_bytes\":{rx:.0},\"net_tx_bytes\":{tx:.0},\
+          \"disk_read_bytes\":{dr:.0},\"disk_write_bytes\":{dw:.0},\
+          \"cpu_pct_avg\":{:.2},\"mem_pct_avg\":{:.2},\"swap_pct_avg\":{:.2}}}",
+        kept.len(),
+        cpu_s / span,
+        mem_s / span,
+        swap_s / span,
+    )
+}
+
 /// Globally routable? Everything RFC1918, CGNAT, loopback, link-local and
 /// unique-local is not, and on this fleet that is exactly the set that means
 /// "you cannot reach it from the internet".
@@ -2017,6 +2128,7 @@ fn render(
     cpu_info: &str,
     host_info: &str,
     totals: &str,
+    history: &str,
     storage: &str,
     slices: &str,
     services: &str,
@@ -2046,7 +2158,7 @@ fn render(
           \"slice_gib\":{slice_cur:.2},\"slice_max_gib\":{slice_max:.2},\"slice_pct\":{slice_pct:.1},\
           \"battery\":{},\
           \"storage\":{storage},\"slices\":{slices},\"services\":{services},\
-          \"cpu_info\":{cpu_info},\"host_info\":{host_info},\"totals\":{totals},\"procs\":{procs},\"proc_table\":{proc_table},\"proc_spine\":{proc_spine},\"ts\":{}}}",
+          \"cpu_info\":{cpu_info},\"host_info\":{host_info},\"totals\":{totals},\"history\":{history},\"procs\":{procs},\"proc_table\":{proc_table},\"proc_spine\":{proc_spine},\"ts\":{}}}",
         vram_json(vram),
         pressure_block("cpu"),
         pressure_block("io"),
@@ -2388,6 +2500,9 @@ pub fn spawn() {
         // Identity and network config change on the scale of a reboot, not a
         // tick, so they ride the same slow refresh as the unit list.
         let mut host_info = host_info_json();
+        // Rewritten once a minute; carried between ticks so the panel always
+        // has the last summary rather than an empty object 29 ticks out of 30.
+        let mut history = String::from("{}");
         let mut tick: u64 = 0;
         loop {
             std::thread::sleep(std::time::Duration::from_millis(INTERVAL_MS));
@@ -2436,6 +2551,9 @@ pub fn spawn() {
                 services = services_json();
                 host_info = host_info_json();
             }
+            if tick % HISTORY_EVERY_TICKS == 1 {
+                history = history_step(cpu, mem, swap, now_unix());
+            }
 
             let body = render(
                 cpu, &cores, &cpu_detail, mem, swap,
@@ -2453,6 +2571,7 @@ pub fn spawn() {
                 &cpu_info_json(),
                 &host_info,
                 &totals_json(read_uptime_s()),
+                &history,
                 &btrfs_storage_json(),
                 &slices_json(&protected_slices),
                 &services,
@@ -2502,7 +2621,7 @@ mod tests {
                        disks,
                        Some((1024.0, 512.0)),
                        0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6,
-                       &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}", "{}");
+                       &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}", "{}", "{}");
         for k in ["cpu", "cores", "cpu_detail", "mem", "swap", "mem_detail", "swap_detail",
                   "vram", "disk", "disk_r", "disk_w", "disks",
                   "net_rx", "net_tx", "load1", "load5", "load15",
@@ -2517,13 +2636,13 @@ mod tests {
         // machines without a readable GPU VRAM counter), not an absent key.
         let s2 = render(12.5, &[], cpu_detail, 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
-                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}", "{}");
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 5.6, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}", "{}", "{}");
         assert!(s2.contains("\"vram\":null"), "expected null vram, got {s2}");
 
         // slice_pct must be 0.0, not NaN/Infinity, when slice_max is 0.
         let s3 = render(12.5, &[], cpu_detail, 40.0, 1.0, mem_detail, swap_detail,
                          55.0, 1.5, 2.5, "[]", None,
-                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}", "{}");
+                         0.3, 0.4, 1.1, 2.2, 3.3, 4.9, 0.0, &None, "[]", "[]", "[]", "[]", "[]", "[]", "{}", "{}", "{}", "{}");
         assert!(s3.contains("\"slice_pct\":0.0"), "expected 0.0 slice_pct, got {s3}");
     }
 
