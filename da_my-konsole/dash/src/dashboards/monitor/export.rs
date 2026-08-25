@@ -84,27 +84,32 @@ pub(crate) fn to_yaml(v: &Value, indent: usize, out: &mut String) {
     }
 }
 
-/// Every declared unit, minus the ones that are simply running.
+/// The units that MEAN something, plus counts for the rest.
 ///
-/// `v` publishes all of them — 427 on this machine, 44KB of a 99KB export —
-/// and all but a handful say "active/running", which is the least interesting
-/// sentence a monitor can write. The Markdown never carried them all either:
-/// it prints the ones that are NOT running, because that is the set anybody
-/// opens this file to find. The two counts ride along so the total is still
-/// stated rather than quietly dropped.
+/// `v` publishes all 428. The first cut kept everything not running, which
+/// sounds small and is not: 144 of those are "not-loaded", meaning a unit FILE
+/// exists that was never loaded — installed software, not a stopped service,
+/// with `sub` literally an em dash. Another 148 are loaded-but-dead, mostly
+/// oneshots that ran and exited as designed.
+///
+/// Six are failed. That is the set anybody opens this file to find, so it is
+/// the set the machine files carry, with every state counted beside it so the
+/// totals are stated rather than quietly dropped. The Markdown still tables
+/// every unit that is not running, capped at sixty, and the live `v` view
+/// still shows all of them — this is the export, not the panel.
 fn trim_units(v: &Value) -> Value {
     let mut out = v.clone();
     let Some(svc) = v.get("services").and_then(|x| x.as_array()) else { return out };
-    let idle: Vec<Value> = svc
-        .iter()
-        .filter(|u| matches!(text(u, "active").as_str(), "failed" | "inactive" | "not-loaded"))
-        .cloned()
-        .collect();
-    let active = svc.iter().filter(|u| text(u, "active") == "active").count();
+    let count = |state: &str| svc.iter().filter(|u| text(u, "active") == state).count();
+    let failed: Vec<Value> =
+        svc.iter().filter(|u| text(u, "active") == "failed").cloned().collect();
     if let Some(o) = out.as_object_mut() {
         o.insert("services_declared".into(), serde_json::json!(svc.len()));
-        o.insert("services_active".into(), serde_json::json!(active));
-        o.insert("services".into(), Value::Array(idle));
+        o.insert("services_active".into(), serde_json::json!(count("active")));
+        o.insert("services_inactive".into(), serde_json::json!(count("inactive")));
+        o.insert("services_not_loaded".into(), serde_json::json!(count("not-loaded")));
+        o.insert("services_failed".into(), serde_json::json!(failed.len()));
+        o.insert("services".into(), Value::Array(failed));
     }
     out
 }
