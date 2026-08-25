@@ -58,7 +58,7 @@ mod sort;
 
 // Re-imported so a view still says `num(&s, "cpu")`: the split is for
 // organising the source, not for making every call site longer.
-use data::{arr, kill_path, num, read_json, snapshot_path, text, HIST};
+use data::{arr, kill_path, now_secs, num, read_json, snapshot_path, text, HIST};
 use draw::{bbox, braille_graph, grad, meter, tabbox, DIM, GRAPH_FLOOR, LABEL};
 use export::{exe_dir, export_snapshot, open_dir, proc_comm};
 use fmt::{
