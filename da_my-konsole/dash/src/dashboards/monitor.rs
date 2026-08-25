@@ -523,6 +523,16 @@ fn trunc(s: &str, n: usize) -> String {
     if s.chars().count() <= n { s.to_string() } else { s.chars().take(n).collect() }
 }
 
+/// A pid's name straight from /proc, for when it has dropped out of the
+/// published table but the process itself is still there.
+fn proc_comm(pid: i32) -> Option<String> {
+    fs::read_to_string(format!("/proc/{pid}/status"))
+        .ok()?
+        .lines()
+        .find(|l| l.starts_with("Name:"))
+        .map(|l| l[5..].trim().to_string())
+}
+
 fn exe_dir(pid: i32) -> Option<String> {
     let exe = fs::read_link(format!("/proc/{pid}/exe")).ok()?;
     Some(exe.parent()?.display().to_string())
@@ -707,9 +717,10 @@ const VIEW_TABS: &[(&str, char)] = &[
     ("proc", 'p'),
     ("tree", 't'),
     ("zombies", 'z'),
-    ("docker", 'o'),
+    ("containers", 'o'),
     ("fleet", 'f'),
     ("history", 'y'),
+    ("about", 'a'),
 ];
 
 /// One row under `v`: either a group heading or a declared unit.
@@ -805,6 +816,8 @@ pub struct Monitor {
     history: bool,
     /// `o`: containers and what they are using.
     docker: bool,
+    /// `a`: the static facts — what this machine IS, not what it is doing.
+    about: bool,
     sel: usize,
     /// The cursor's real identity. `sel` is only where that pid happened to
     /// land in the current ordering, and the ordering changes every tick.
@@ -825,6 +838,9 @@ pub struct Monitor {
     unit_sel: usize,
     /// Alias of the peer the Machine modal is describing.
     machine: Option<String>,
+    /// The pid the detail modal was opened on, pinned. The modal is about
+    /// that process; the list underneath re-sorts every tick.
+    detail_pid: Option<i32>,
     /// (name, scope) of the unit the Unit modal is acting on.
     acting_unit: Option<(String, String)>,
     /// `x` → "list lost processes": filter the table down to orphans.
@@ -860,6 +876,7 @@ impl Monitor {
             zombies: false,
             history: false,
             docker: false,
+            about: false,
             sel: 0,
             sel_pid: None,
             offset: 0,
@@ -874,6 +891,7 @@ impl Monitor {
             free_sel: 0,
             unit_sel: 0,
             machine: None,
+            detail_pid: None,
             acting_unit: None,
             orphans: false,
             quit: false,
@@ -1498,13 +1516,14 @@ impl Monitor {
     /// tab strip. Returns true when the key was a tab switch.
     fn view_key(&mut self, k: KeyCode) -> bool {
         let KeyCode::Char(c) = k else { return false };
-        let flat = !self.tree && !self.zombies && !self.docker && !self.fleet && !self.history;
+        let flat =
+            !self.tree && !self.zombies && !self.docker && !self.fleet && !self.history && !self.about;
         // `p` means sort-by-pid when there is no view to leave, and the tab it
         // names when there is.
         if c == 'p' && flat {
             return false;
         }
-        if !matches!(c, 'p' | 't' | 'z' | 'o' | 'f' | 'y') {
+        if !matches!(c, 'p' | 't' | 'z' | 'o' | 'f' | 'y' | 'a') {
             return false;
         }
         // A view is a single choice, so every switch clears the others rather
@@ -1516,6 +1535,7 @@ impl Monitor {
         self.docker = false;
         self.fleet = false;
         self.history = false;
+        self.about = false;
         let name = match c {
             't' => {
                 self.tree = true;
@@ -1536,6 +1556,10 @@ impl Monitor {
             'y' => {
                 self.history = true;
                 "the last 24 hours"
+            }
+            'a' => {
+                self.about = true;
+                "about this machine"
             }
             _ => "process list",
         };
@@ -1612,7 +1636,8 @@ impl Monitor {
             key("p", "the flat process list"),
             key("t", "the process tree — parents, children, zombies"),
             key("z", "only zombies and orphans — the ones nothing owns"),
-            key("o", "containers — docker's own numbers, not re-derived"),
+            key("o", "containers — docker's or podman's own numbers"),
+            key("a", "about — what this machine is, rather than what it is doing"),
             key("y", "the last 24 hours: what this machine actually did"),
             key("f", "the fleet — every mesh peer's totals side by side"),
             key("v", "add the declared units that are stopped or idle"),
@@ -1665,7 +1690,20 @@ impl Monitor {
     /// and "full disclosure" of a process does not extend to putting its
     /// secrets on a screen someone may be sharing.
     fn render_detail(&self, f: &mut Frame, area: Rect) {
-        let Some((pid, name, prot, why)) = self.picked() else { return };
+        // The pinned pid, looked up in the current table so the live figures
+        // stay live. If it has left the table, /proc may still have it, so the
+        // modal keeps describing it rather than jumping to whoever took its
+        // place in the ranking.
+        let Some(pid) = self.detail_pid else { return };
+        let rows = self.rows();
+        let row = rows.iter().find(|p| num(p, "pid") as i32 == pid);
+        let name = row
+            .map(|p| text(p, "name"))
+            .unwrap_or_else(|| proc_comm(pid).unwrap_or_else(|| "(gone)".into()));
+        let prot = row
+            .map(|p| p.get("protected").and_then(|v| v.as_bool()).unwrap_or(false))
+            .unwrap_or(false);
+        let why = row.map(|p| text(p, "protected_reason")).unwrap_or_default();
         let accent = Color::Rgb(120, 200, 255);
         let inner = Self::modal(
             f,
@@ -1717,11 +1755,7 @@ impl Monitor {
         };
 
         // The row the table is showing, so the modal and the list agree.
-        let p = sort_procs(&self.snap, self.sort, self.desc, self.win)
-            .get(self.sel)
-            .cloned()
-            .cloned()
-            .unwrap_or(Value::Null);
+        let p = row.map(|p| (*p).clone()).unwrap_or(Value::Null);
 
         let cmdline = fs::read(format!("/proc/{pid}/cmdline"))
             .map(|r| {
@@ -2234,6 +2268,21 @@ impl Monitor {
         Some((u.name.clone(), u.scope.clone()))
     }
 
+    /// The process the detail modal is pinned to, in the same shape picked()
+    /// returns — so acting from inside the modal acts on what is on screen,
+    /// not on whatever the cursor has drifted onto behind it.
+    fn pinned(&self) -> Option<(i32, String, bool, String)> {
+        let pid = self.detail_pid?;
+        let rows = self.rows();
+        let p = rows.iter().find(|p| num(p, "pid") as i32 == pid)?;
+        Some((
+            pid,
+            text(p, "name"),
+            p.get("protected").and_then(|v| v.as_bool()).unwrap_or(false),
+            text(p, "protected_reason"),
+        ))
+    }
+
     fn picked(&self) -> Option<(i32, String, bool, String)> {
         let procs = self.rows();
         procs.get(self.sel).map(|p| {
@@ -2392,7 +2441,7 @@ impl Dashboard for Monitor {
                     KeyCode::PageUp => self.detail_scroll = self.detail_scroll.saturating_sub(10),
                     KeyCode::Home => self.detail_scroll = 0,
                     KeyCode::Char('k') => {
-                        if let Some((pid, name, prot, why)) = self.picked() {
+                        if let Some((pid, name, prot, why)) = self.pinned() {
                             if prot {
                                 let why = if why.is_empty() { "protected slice".to_string() } else { why };
                                 self.msg = Some((format!("{name} ({pid}) is protected — {why}"), true));
@@ -2406,7 +2455,7 @@ impl Dashboard for Monitor {
                         }
                     }
                     KeyCode::Char('o') => {
-                        if let Some((pid, _, _, _)) = self.picked() {
+                        if let Some(pid) = self.detail_pid {
                             self.msg = Some(match exe_dir(pid) {
                                 Some(d) => match open_dir(&d) {
                                     Ok(()) => (format!("opened {d}"), false),
@@ -2426,9 +2475,15 @@ impl Dashboard for Monitor {
         if self.view_key(k) {
             return;
         }
-        if self.docker || self.history {
-            // Neither view has a cursor; only the shared keys apply.
+        if self.docker || self.history || self.about {
+            // None of these has a row cursor; about scrolls, the rest are one
+            // screen.
             match k {
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.detail_scroll = self.detail_scroll.saturating_add(1)
+                }
+                KeyCode::Up => self.detail_scroll = self.detail_scroll.saturating_sub(1),
+                KeyCode::Home => self.detail_scroll = 0,
                 KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
                 KeyCode::Esc => {
                     self.overlay = Overlay::Menu;
@@ -2516,7 +2571,12 @@ impl Dashboard for Monitor {
                 ));
             }
             KeyCode::Enter => {
-                if self.picked().is_some() {
+                if let Some((pid, _, _, _)) = self.picked() {
+                    // Pin it. Without this the modal followed the cursor's ROW
+                    // through every re-sort, so the process being described
+                    // changed underneath the reader a second after they opened
+                    // it.
+                    self.detail_pid = Some(pid);
                     self.detail_scroll = 0;
                     self.overlay = Overlay::Detail;
                 } else if let Some(u) = self.picked_unit() {
@@ -2576,10 +2636,52 @@ impl Dashboard for Monitor {
             .ok()
             .and_then(|s| s.split_whitespace().next().and_then(|x| x.parse::<f64>().ok()))
             .unwrap_or(0.0);
-        let mut head = vec![
-            Span::styled(format!(" {} ", self.host), Style::default().fg(Color::Rgb(120, 200, 255)).add_modifier(Modifier::BOLD)),
-            Span::styled(format!("· {} · up {} ", self.kernel, fmt_uptime(uptime)), Style::default().fg(LABEL)),
-        ];
+        // Identity comes from the SNAPSHOT, not from this machine's /proc: the
+        // panel can be pointed at a peer, and a header naming the desktop above
+        // another box's numbers is worse than no header at all.
+        let hi = |k: &str| text(&s, &format!("host_info.{k}"));
+        let host = if hi("host").is_empty() { self.host.clone() } else { hi("host") };
+        let kernel = if hi("kernel").is_empty() { self.kernel.clone() } else { hi("kernel") };
+        let ifaces = arr(&s, "host_info.ifaces");
+        let addr_of = |pred: &dyn Fn(&str) -> bool| -> String {
+            ifaces
+                .iter()
+                .find(|i| pred(&text(i, "name")))
+                .map(|i| text(i, "addr").split('/').next().unwrap_or("").to_string())
+                .unwrap_or_default()
+        };
+        let lan = addr_of(&|n: &str| {
+            !n.starts_with("wg") && !n.starts_with("docker") && !n.starts_with("br-")
+        });
+        let wg = addr_of(&|n: &str| n.starts_with("wg"));
+        // user@host(ip) — how a machine gets written down. The mesh address is
+        // the identifying one: it is what the fleet is addressed by and every
+        // peer has exactly one.
+        let who = hi("user");
+        let ip = if wg.is_empty() { lan.clone() } else { wg };
+        let ident = format!(
+            "{}{host}{}",
+            if who.is_empty() { String::new() } else { format!("{who}@") },
+            if ip.is_empty() { String::new() } else { format!(" ({ip})") },
+        );
+        let mut head = vec![Span::styled(
+            format!(" {ident} "),
+            Style::default().fg(Color::Rgb(120, 200, 255)).add_modifier(Modifier::BOLD),
+        )];
+        if let Some(alias) = self.mesh.target() {
+            // Never let a remote reading be mistaken for the local one.
+            head.push(Span::styled(
+                format!("via ssh {alias} "),
+                Style::default().fg(Color::Rgb(240, 169, 66)).add_modifier(Modifier::BOLD),
+            ));
+        }
+        if !hi("os").is_empty() {
+            head.push(Span::styled(format!("· {} ", hi("os")), Style::default().fg(Color::Gray)));
+        }
+        head.push(Span::styled(
+            format!("· {kernel} · up {} ", fmt_uptime(uptime)),
+            Style::default().fg(LABEL),
+        ));
         if num(&s, "battery.present") != 0.0 || !text(&s, "battery.status").is_empty() {
             let b = num(&s, "battery.pct");
             let chg = s.get("battery").and_then(|x| x.get("charging")).and_then(|v| v.as_bool()).unwrap_or(false);
@@ -3107,6 +3209,135 @@ impl Dashboard for Monitor {
                 )));
             }
             f.render_widget(Paragraph::new(l), mesh_in);
+        }
+
+        // ── about ─────────────────────────────────────────────────────────────
+        // What this machine IS, rather than what it is doing. Everything here
+        // changes on the scale of a reboot or a reinstall, which is exactly
+        // why it does not belong in a box that redraws every second.
+        if self.about {
+            let ab = tabbox(VIEW_TABS, 6, "a back to processes");
+            let ain = ab.inner(rows[4]);
+            f.render_widget(ab, rows[4]);
+            let hi2 = |k: &str| text(&s, &format!("host_info.{k}"));
+            let sect = |t: &str| -> Line<'static> {
+                Line::from(Span::styled(
+                    t.to_string(),
+                    Style::default().fg(Color::Rgb(120, 200, 255)).add_modifier(Modifier::BOLD),
+                ))
+            };
+            let kv2 = |k: &str, v: String| -> Line<'static> {
+                Line::from(vec![
+                    Span::styled(format!("  {k:<18}"), Style::default().fg(LABEL)),
+                    Span::styled(v, Style::default().fg(Color::Gray)),
+                ])
+            };
+            let cores = arr(&s, "cores").len();
+            let mut al: Vec<Line> = vec![sect("system")];
+            al.push(kv2("host", hi2("host")));
+            al.push(kv2("user", hi2("user")));
+            al.push(kv2("os", hi2("os")));
+            al.push(kv2("kernel", hi2("kernel")));
+            al.push(kv2("uptime", fmt_uptime(num(&s, "totals.since_s"))));
+            al.push(kv2(
+                "measured",
+                match self.mesh.target() {
+                    Some(a) => format!("{a}, over ssh — collected on demand"),
+                    None => "locally — this is the hub".into(),
+                },
+            ));
+
+            al.push(sect("hardware"));
+            al.push(kv2("cpu", text(&s, "cpu_info.model")));
+            let mhz = num_opt(&s, "cpu_info.mhz");
+            al.push(kv2(
+                "cores",
+                match mhz {
+                    Some(m) => format!("{cores} @ {:.2} GHz right now", m / 1000.0),
+                    None => format!("{cores}"),
+                },
+            ));
+            if let Some(t) = num_opt(&s, "cpu_info.temp_c") {
+                let per = arr(&s, "cpu_info.core_temps");
+                al.push(kv2(
+                    "temperature",
+                    if per.is_empty() {
+                        format!("{t:.0}°C package")
+                    } else {
+                        format!(
+                            "{t:.0}°C package · cores {}",
+                            per.iter()
+                                .filter_map(|v| v.as_f64())
+                                .map(|v| format!("{v:.0}"))
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                        )
+                    },
+                ));
+            }
+            al.push(kv2("memory", fmt_gib(num(&s, "mem_detail.total"))));
+            al.push(kv2("swap", fmt_gib(num(&s, "swap_detail.total"))));
+            for pool in arr(&s, "storage") {
+                let label = text(pool, "label");
+                al.push(kv2(
+                    if label.is_empty() { "storage" } else { "storage" },
+                    format!(
+                        "{} of {}{}",
+                        fmt_g(num(pool, "alloc_used")),
+                        fmt_g(num(pool, "dev_size")),
+                        // "df" is the collector's label for a peer, where no
+                        // qgroup data is gathered. Saying so beats letting a
+                        // df number pass for a btrfs one.
+                        if label == "df" { "  (df, not btrfs qgroups)" } else { "" }
+                    ),
+                ));
+            }
+
+            al.push(sect("network"));
+            for i in arr(&s, "host_info.ifaces").iter().take(10) {
+                al.push(kv2(&text(i, "name"), text(i, "addr")));
+            }
+            let pubip = hi2("public");
+            al.push(kv2(
+                "public",
+                if pubip.is_empty() { "behind NAT — no routable address here".into() } else { pubip },
+            ));
+            al.push(kv2("gateway", format!("{} via {}", hi2("gateway"), hi2("wan_if"))));
+            let dns: Vec<String> = arr(&s, "host_info.dns")
+                .iter()
+                .filter_map(|d| d.as_str().map(|x| x.to_string()))
+                .collect();
+            al.push(kv2("dns", if dns.is_empty() { "—".into() } else { dns.join("  ") }));
+            let search: Vec<String> = arr(&s, "host_info.search")
+                .iter()
+                .filter_map(|d| d.as_str().map(|x| x.to_string()))
+                .collect();
+            if !search.is_empty() {
+                al.push(kv2("search", search.join(" ")));
+            }
+
+            al.push(sect("running"));
+            al.push(kv2("containers", format!("{}", arr(&s, "containers").len())));
+            let svc = arr(&s, "services");
+            let active = svc.iter().filter(|u| text(u, "active") == "active").count();
+            al.push(kv2("units", format!("{active} active of {} declared", svc.len())));
+            al.push(kv2("slices", format!("{}", arr(&s, "slices").len())));
+
+            let max = (al.len() as u16).saturating_sub(ain.height);
+            f.render_widget(
+                Paragraph::new(al).scroll((self.detail_scroll.min(max), 0)),
+                ain,
+            );
+            let status = Line::from(Span::styled(
+                match &self.msg {
+                    Some((m, _)) => format!(" {m}"),
+                    None => " about · ↑↓ scroll · h keys · esc menu · ^c quits".to_string(),
+                },
+                Style::default().fg(LABEL),
+            ));
+            f.render_widget(Paragraph::new(status), rows[5]);
+            self.render_overlays(f, area);
+            return;
         }
 
         // ── docker ────────────────────────────────────────────────────────────
