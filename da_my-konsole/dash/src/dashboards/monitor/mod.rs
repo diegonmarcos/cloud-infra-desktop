@@ -186,7 +186,12 @@ const VIEW_TABS: &[(&str, char)] = &[
 /// tree with a million entries is not a view, it is a hang.
 fn file_tree(hidden: bool) -> Vec<String> {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/".into());
-    let mut args: Vec<&str> = vec!["-L", "4", "--noreport", "-F"];
+    // -d: directories only. Four levels of files is a wall of node_modules
+    // and screenshots nobody opened this to read — the SHAPE of a home
+    // directory is what a tree answers, and files are what every other tool
+    // here is already better at. It also halves the output: 1449 lines
+    // instead of 2685.
+    let mut args: Vec<&str> = vec!["-d", "-L", "4", "--noreport", "-F"];
     if hidden {
         args.push("-a");
     }
@@ -1503,7 +1508,7 @@ impl Monitor {
                     "containers-i" => " — every image on the box, enter for detail and actions",
                         "fleet" => " — every mesh peer's totals side by side",
                         "history" => " — what this machine did over the last day",
-                        "files" => " — home four levels deep, . toggles dotfiles",
+                        "files" => " — home four levels deep, folders only, . toggles dotfiles",
                     "about" => " — what this machine is, not what it is doing",
                         _ => "",
                     }
@@ -3191,7 +3196,7 @@ impl Dashboard for Monitor {
                 VIEW_TABS,
                 tab("files"),
                 &format!(
-                    "dotfiles {} · . toggles · ↑↓ pgup pgdn scroll",
+                    "folders only · dotfiles {} · . toggles · ↑↓ pgup pgdn scroll",
                     if self.files_hidden { "shown" } else { "hidden" }
                 ),
             );
@@ -3201,9 +3206,9 @@ impl Dashboard for Monitor {
                 .files_cache
                 .iter()
                 .map(|l| {
-                    // tree -F marks directories with a trailing slash, which
-                    // is the only structure worth colouring differently.
-                    let dir = l.ends_with('/');
+                    // Everything is a directory now, so colour separates the
+                    // tree drawing from the names rather than dirs from files.
+                    let dir = !l.trim_start_matches(['│', '├', '└', '─', ' ']).is_empty();
                     Line::from(Span::styled(
                         l.clone(),
                         Style::default().fg(if dir { Color::Rgb(120, 200, 255) } else { Color::Gray }),
@@ -3258,8 +3263,22 @@ impl Dashboard for Monitor {
             let mut al: Vec<Line> = vec![sect("this app")];
             al.push(kv2("name", format!("my-konsole-dash {}", env!("CARGO_PKG_VERSION"))));
             al.push(kv2("what", "a btop-shaped panel over one JSON snapshot".into()));
-            al.push(kv2("repo", "github.com/diegonmarcos/cloud-unix".into()));
-            al.push(kv2("source", "da_my-konsole/dash".into()));
+            let repo = "https://github.com/diegonmarcos/cloud-unix";
+            // The product's own directory, not the repo root: cloud-unix holds
+            // dozens of products and landing on the root leaves you to find
+            // this one. The root is one click up from here anyway.
+            al.push(kv2("repo", format!("{repo}/tree/main/da_my-konsole")));
+            // Deep links: "da_my-konsole/dash" tells you where to look only if
+            // you already have the tree checked out.
+            al.push(kv2("source", format!("{repo}/tree/main/da_my-konsole/dash/src/dashboards")));
+            al.push(kv2("watchdog source", format!("{repo}/tree/main/da_watchdog")));
+            al.push(kv2("releases", format!("{repo}/releases")));
+            al.push(kv2("this binary", format!("{repo}/releases/tag/my-konsole-latest")));
+            al.push(kv2("watchdog binary", format!("{repo}/releases/tag/my-watchdog-latest")));
+            al.push(kv2(
+                "policy source",
+                format!("{repo}/blob/main/da_watchdog/configs/watchdog-policy.json"),
+            ));
             al.push(kv2(
                 "publisher",
                 // The split is the thing worth explaining here: this program
@@ -3268,7 +3287,6 @@ impl Dashboard for Monitor {
                 "my-watchdog — da_watchdog, its own product".into(),
             ));
             al.push(kv2("reads", snapshot_path()));
-            al.push(kv2("policy", "da_watchdog/configs/watchdog-policy.json".into()));
             al.push(kv2("built", format!("rustc target {}", std::env::consts::ARCH)));
 
             al.push(sect("system"));
