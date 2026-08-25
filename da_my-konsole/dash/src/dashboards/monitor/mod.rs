@@ -149,6 +149,7 @@ const OTHER_KEYS: &[(&str, &str, &str)] = &[
     // tab outside it, and the two can never both be live. The collision test
     // skips this section for that reason.
     ("modal", "o", "in the detail view: open the binary's folder"),
+    ("modal", ".", "in the files tab: show or hide dotfiles"),
     ("acting", "x", "free memory — reap zombies, reclaim, find orphans"),
     ("acting", "E", "export this snapshot — {host}-{user}-{time}.json and .md"),
     ("moving", "↑ ↓", "move the cursor through the list"),
@@ -167,10 +168,58 @@ const VIEW_TABS: &[(&str, char)] = &[
     ("containers-i", 'I'),
     ("fleet", 'f'),
     ("history", 'y'),
+    ("files", 'F'),
     // 'b', not 'a': the frame owns r and a for refresh/auto and advertises
     // them in its own header, so a view key named 'a' silently never arrives.
     ("about", 'b'),
 ];
+
+/// `tree -L 4` over the home directory, or the nearest thing available.
+///
+/// Shelled out rather than walked here: tree(1) already draws the box-drawing
+/// prefixes this panel wants, and reimplementing that to avoid one process is
+/// work for no benefit. find(1) is the fallback for a box without tree, with a
+/// flat listing — less pretty, still the answer.
+///
+/// Bounded on purpose. -L 4 because past four levels a home directory is
+/// mostly node_modules and .git objects, and the output is capped because a
+/// tree with a million entries is not a view, it is a hang.
+fn file_tree(hidden: bool) -> Vec<String> {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/".into());
+    let mut args: Vec<&str> = vec!["-L", "4", "--noreport", "-F"];
+    if hidden {
+        args.push("-a");
+    }
+    // .git and node_modules are the two directories that turn a home tree into
+    // a hundred thousand lines of nothing anybody opened this to see.
+    args.extend(["-I", ".git|node_modules|.cache|target"]);
+    args.push(&home);
+    let out = std::process::Command::new("tree").args(&args).output();
+    let text = match out {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).into_owned(),
+        _ => {
+            let mut f: Vec<String> = vec!["-maxdepth".into(), "4".into()];
+            if !hidden {
+                // find has no -a; excluding dot-entries is the explicit form.
+                f.extend(["-not".into(), "-path".into(), "*/.*".into()]);
+            }
+            let fo = std::process::Command::new("find")
+                .arg(&home)
+                .args(&f)
+                .output()
+                .ok();
+            match fo {
+                Some(o) => String::from_utf8_lossy(&o.stdout).into_owned(),
+                None => "tree and find are both unavailable here".into(),
+            }
+        }
+    };
+    let mut lines: Vec<String> = text.lines().take(20_000).map(|l| l.to_string()).collect();
+    if text.lines().count() > 20_000 {
+        lines.push(format!("… truncated at 20000 lines of {}", text.lines().count()));
+    }
+    lines
+}
 
 /// Which slot in the strip a view sits in, by name.
 ///
@@ -339,6 +388,16 @@ pub struct Monitor {
     docker: bool,
     /// `I`: the images on the box, running or not.
     images: bool,
+    /// `F`: the home directory as a tree.
+    files: bool,
+    /// `.` inside the files tab: whether dotfiles are in it.
+    files_hidden: bool,
+    /// The rendered tree, cached. `tree -L 4` over a home directory walks tens
+    /// of thousands of inodes — running it on a 1s render loop would make this
+    /// panel the most expensive thing on the machine. It is built when the tab
+    /// is opened and when the dotfile toggle flips, and not otherwise.
+    files_cache: Vec<String>,
+    files_scroll: u16,
     /// Which column containers-c ranks by, and which way.
     ctr_sort: usize,
     ctr_desc: bool,
@@ -403,6 +462,10 @@ impl Monitor {
             history: false,
             docker: false,
             images: false,
+            files: false,
+            files_hidden: false,
+            files_cache: vec![],
+            files_scroll: 0,
             ctr_sort: 0,
             ctr_desc: true,
             about: false,
@@ -1282,10 +1345,11 @@ impl Monitor {
             && !self.zombies
             && !self.docker
             && !self.images
+            && !self.files
             && !self.fleet
             && !self.history
             && !self.about;
-        if !matches!(c, 'p' | 't' | 'z' | 'o' | 'I' | 'f' | 'y' | 'b') {
+        if !matches!(c, 'p' | 't' | 'z' | 'o' | 'I' | 'f' | 'y' | 'F' | 'b') {
             return false;
         }
         // A view is a single choice, so every switch clears the others rather
@@ -1296,6 +1360,7 @@ impl Monitor {
         self.zombies = false;
         self.docker = false;
         self.images = false;
+        self.files = false;
         self.fleet = false;
         self.history = false;
         self.about = false;
@@ -1325,6 +1390,12 @@ impl Monitor {
             'y' => {
                 self.history = true;
                 "the last 24 hours"
+            }
+            'F' => {
+                self.files = true;
+                self.files_scroll = 0;
+                self.files_cache = file_tree(self.files_hidden);
+                "home, four levels deep"
             }
             'b' => {
                 self.about = true;
@@ -1426,7 +1497,8 @@ impl Monitor {
                     "containers-i" => " — every image on the box, enter for detail and actions",
                         "fleet" => " — every mesh peer's totals side by side",
                         "history" => " — what this machine did over the last day",
-                        "about" => " — what this machine is, not what it is doing",
+                        "files" => " — home four levels deep, . toggles dotfiles",
+                    "about" => " — what this machine is, not what it is doing",
                         _ => "",
                     }
                 ),
@@ -2263,6 +2335,33 @@ impl Dashboard for Monitor {
         if self.view_key(k) {
             return;
         }
+        if self.files {
+            match k {
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.files_scroll = self.files_scroll.saturating_add(1)
+                }
+                KeyCode::Up => self.files_scroll = self.files_scroll.saturating_sub(1),
+                KeyCode::PageDown => self.files_scroll = self.files_scroll.saturating_add(20),
+                KeyCode::PageUp => self.files_scroll = self.files_scroll.saturating_sub(20),
+                KeyCode::Home => self.files_scroll = 0,
+                KeyCode::Char('.') => {
+                    self.files_hidden = !self.files_hidden;
+                    self.files_cache = file_tree(self.files_hidden);
+                    self.files_scroll = 0;
+                    self.msg = Some((
+                        format!("dotfiles {}", if self.files_hidden { "shown" } else { "hidden" }),
+                        false,
+                    ));
+                }
+                KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
+                KeyCode::Esc => {
+                    self.overlay = Overlay::Menu;
+                    self.menu_sel = 0;
+                }
+                _ => {}
+            }
+            return;
+        }
         if self.history || self.about {
             // None of these has a row cursor; about scrolls, the rest are one
             // screen.
@@ -3078,6 +3177,53 @@ impl Dashboard for Monitor {
             f.render_widget(Paragraph::new(l), mesh_in);
         }
 
+        // ── files ─────────────────────────────────────────────────────────────
+        // The home directory, four levels deep. Cached, because tree(1) walks
+        // tens of thousands of inodes and this panel redraws every second.
+        if self.files {
+            let fb = tabbox(
+                VIEW_TABS,
+                tab("files"),
+                &format!(
+                    "dotfiles {} · . toggles · ↑↓ pgup pgdn scroll",
+                    if self.files_hidden { "shown" } else { "hidden" }
+                ),
+            );
+            let fin = fb.inner(rows[4]);
+            f.render_widget(fb, rows[4]);
+            let lines: Vec<Line> = self
+                .files_cache
+                .iter()
+                .map(|l| {
+                    // tree -F marks directories with a trailing slash, which
+                    // is the only structure worth colouring differently.
+                    let dir = l.ends_with('/');
+                    Line::from(Span::styled(
+                        l.clone(),
+                        Style::default().fg(if dir { Color::Rgb(120, 200, 255) } else { Color::Gray }),
+                    ))
+                })
+                .collect();
+            let max = (lines.len() as u16).saturating_sub(fin.height);
+            f.render_widget(
+                Paragraph::new(lines).scroll((self.files_scroll.min(max), 0)),
+                fin,
+            );
+            let status = Line::from(Span::styled(
+                match &self.msg {
+                    Some((m, _)) => format!(" {m}"),
+                    None => format!(
+                        " {} lines · this machine's home, not the measured peer's · h keys",
+                        self.files_cache.len()
+                    ),
+                },
+                Style::default().fg(LABEL),
+            ));
+            f.render_widget(Paragraph::new(status), rows[5]);
+            self.render_overlays(f, area);
+            return;
+        }
+
         // ── about ─────────────────────────────────────────────────────────────
         // What this machine IS, rather than what it is doing. Everything here
         // changes on the scale of a reboot or a reinstall, which is exactly
@@ -3100,7 +3246,26 @@ impl Dashboard for Monitor {
                 ])
             };
             let cores = arr(&s, "cores").len();
-            let mut al: Vec<Line> = vec![sect("system")];
+            // What this program IS, before what the machine is. It is the
+            // first thing anyone opening "about" is actually looking for, and
+            // it is the only place the repo and the version live at runtime.
+            let mut al: Vec<Line> = vec![sect("this app")];
+            al.push(kv2("name", format!("my-konsole-dash {}", env!("CARGO_PKG_VERSION"))));
+            al.push(kv2("what", "a btop-shaped panel over one JSON snapshot".into()));
+            al.push(kv2("repo", "github.com/diegonmarcos/cloud-unix".into()));
+            al.push(kv2("source", "da_my-konsole/dash".into()));
+            al.push(kv2(
+                "publisher",
+                // The split is the thing worth explaining here: this program
+                // measures nothing, and every number on screen came from that
+                // file.
+                "my-watchdog — da_watchdog, its own product".into(),
+            ));
+            al.push(kv2("reads", snapshot_path().map(|p| p.display().to_string()).unwrap_or_default()));
+            al.push(kv2("policy", "da_watchdog/configs/watchdog-policy.json".into()));
+            al.push(kv2("built", format!("rustc target {}", std::env::consts::ARCH)));
+
+            al.push(sect("system"));
             al.push(kv2("host", hi2("host")));
             al.push(kv2("user", hi2("user")));
             al.push(kv2("os", hi2("os")));
