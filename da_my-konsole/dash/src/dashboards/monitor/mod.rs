@@ -248,13 +248,65 @@ fn tab(name: &str) -> usize {
 /// get one from its own text. ←/→ walks this list the way it walks the process
 /// header.
 const CTR_SORT: &[(&str, &str)] = &[
-    ("cpu", "cpu"),
-    ("mem", "mem_pct"),
-    ("name", "name"),
-    ("disk", "block"),
-    ("net", "net"),
-    ("pids", "pids"),
+    ("CPU%", "cpu"),
+    ("MEM%", "mem_pct"),
+    ("MEM USED", "mem"),
+    ("CONTAINER", "name"),
+    ("BLOCK I/O", "block"),
+    ("NET I/O", "net"),
+    ("PIDS", "pids"),
+    ("ON DISK", "image_size"),
 ];
+
+/// What an image row can be ranked by. Same idea as CTR_SORT: the strings
+/// docker renders are what the table shows, and each column says how to get a
+/// number out of its own text.
+const IMG_SORT: &[(&str, &str)] = &[
+    ("SIZE", "size"),
+    ("CREATED", "created"),
+    ("IMAGE", "repo"),
+];
+
+/// docker's MemUsage is "469.7MiB / 7.595GiB" — used on the left of the
+/// slash, the limit on the right. Two different questions in one cell: what a
+/// container is using, and what it is allowed. They get a column each, and
+/// splitting them is what makes "rank by memory used" possible at all.
+fn ctr_mem(v: &str) -> (String, String) {
+    match v.split_once('/') {
+        Some((a, b)) => (a.trim().to_string(), b.trim().to_string()),
+        // No slash means no limit was set, which since the ceilings came off
+        // is the normal case: it is all usage.
+        None => (v.trim().to_string(), String::new()),
+    }
+}
+
+/// "12 hours ago" / "3 days ago" as seconds, so CREATED ranks by age rather
+/// than alphabetically — where "3 days" would sort before "3 hours".
+fn age_secs(v: &str) -> f64 {
+    let n: f64 = v
+        .split_whitespace()
+        .next()
+        .and_then(|x| x.parse().ok())
+        .unwrap_or(0.0);
+    let unit = v.split_whitespace().nth(1).unwrap_or("");
+    n * if unit.starts_with("second") {
+        1.0
+    } else if unit.starts_with("minute") {
+        60.0
+    } else if unit.starts_with("hour") {
+        3600.0
+    } else if unit.starts_with("day") {
+        86_400.0
+    } else if unit.starts_with("week") {
+        604_800.0
+    } else if unit.starts_with("month") {
+        2_592_000.0
+    } else if unit.starts_with("year") {
+        31_536_000.0
+    } else {
+        0.0
+    }
+}
 
 /// The first number in a docker-rendered field. "469.7MiB / 7.595GiB" ranks by
 /// what the container is using, not by its limit; "12.34%" ranks by 12.34.
@@ -412,6 +464,14 @@ pub struct Monitor {
     /// Which column containers-c ranks by, and which way.
     ctr_sort: usize,
     ctr_desc: bool,
+    /// Same for containers-i.
+    img_sort: usize,
+    img_desc: bool,
+    /// The container the detail modal is pinned to, by NAME. Same reason the
+    /// process modal pins a pid: the list re-ranks every tick and the modal is
+    /// about the container you chose, not about row 7.
+    ctr_pin: Option<String>,
+    img_pin: Option<String>,
     /// `a`: the static facts — what this machine IS, not what it is doing.
     about: bool,
     sel: usize,
@@ -479,6 +539,10 @@ impl Monitor {
             files_scroll: 0,
             ctr_sort: 0,
             ctr_desc: true,
+            img_sort: 0,
+            img_desc: true,
+            ctr_pin: None,
+            img_pin: None,
             about: false,
             sel: 0,
             sel_pid: None,
@@ -1073,14 +1137,37 @@ impl Monitor {
         let mut v: Vec<&Value> = arr(s, "containers").iter().collect();
         let (label, field) = CTR_SORT[self.ctr_sort.min(CTR_SORT.len() - 1)];
         v.sort_by(|a, b| {
-            let ord = if label == "name" {
+            let key = |x: &Value| -> f64 {
+                // MEM USED is the left of the slash, not the whole cell:
+                // ranking on "469.7MiB / 7.595GiB" as one string would rank by
+                // whichever container has the biggest LIMIT.
+                if field == "mem" { ctr_num(&ctr_mem(&text(x, field)).0) } else { ctr_num(&text(x, field)) }
+            };
+            let ord = if label == "CONTAINER" {
                 text(a, field).to_lowercase().cmp(&text(b, field).to_lowercase())
             } else {
-                ctr_num(&text(a, field))
-                    .partial_cmp(&ctr_num(&text(b, field)))
-                    .unwrap_or(std::cmp::Ordering::Equal)
+                key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal)
             };
             if self.ctr_desc { ord.reverse() } else { ord }
+        });
+        v
+    }
+
+    /// The image rows in the order the view shows them.
+    fn img_rows<'a>(&self, s: &'a Value) -> Vec<&'a Value> {
+        let mut v: Vec<&Value> = arr(s, "images").iter().collect();
+        let (label, field) = IMG_SORT[self.img_sort.min(IMG_SORT.len() - 1)];
+        v.sort_by(|a, b| {
+            let ord = match label {
+                "IMAGE" => text(a, field).to_lowercase().cmp(&text(b, field).to_lowercase()),
+                "CREATED" => age_secs(&text(a, field))
+                    .partial_cmp(&age_secs(&text(b, field)))
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                _ => ctr_num(&text(a, field))
+                    .partial_cmp(&ctr_num(&text(b, field)))
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            };
+            if self.img_desc { ord.reverse() } else { ord }
         });
         v
     }
@@ -1089,7 +1176,8 @@ impl Monitor {
     fn render_ctr(&self, f: &mut Frame, area: Rect) {
         let s = self.snap.clone();
         let rows = self.ctr_rows(&s);
-        let Some(c) = rows.get(self.sel) else { return };
+        let pin = self.ctr_pin.clone().unwrap_or_default();
+        let Some(c) = rows.iter().find(|c| text(c, "name") == pin) else { return };
         let accent = Color::Rgb(120, 200, 255);
         let name = text(c, "name");
         let inner = Self::modal(f, area, 92, 24, &name, accent);
@@ -1153,8 +1241,14 @@ impl Monitor {
     /// One image, whole, with the verbs that act on it.
     fn render_img(&self, f: &mut Frame, area: Rect) {
         let s = self.snap.clone();
-        let imgs = arr(&s, "images");
-        let Some(i) = imgs.get(self.sel) else { return };
+        let imgs = self.img_rows(&s);
+        let pin = self.img_pin.clone().unwrap_or_default();
+        let Some(i) = imgs
+            .iter()
+            .find(|i| format!("{}:{}", text(i, "repo"), text(i, "tag")) == pin)
+        else {
+            return;
+        };
         let accent = Color::Rgb(120, 200, 255);
         let full = format!("{}:{}", text(i, "repo"), text(i, "tag"));
         let inner = Self::modal(f, area, 92, 16, &full, accent);
@@ -1217,13 +1311,9 @@ impl Monitor {
         let n = if ctr { CTR_ACTIONS.len() } else { IMG_ACTIONS.len() };
         let fire = |me: &mut Self, i: usize| {
             let s = me.snap.clone();
-            let target = if ctr {
-                me.ctr_rows(&s).get(me.sel).map(|c| text(c, "name"))
-            } else {
-                arr(&s, "images")
-                    .get(me.sel)
-                    .map(|x| format!("{}:{}", text(x, "repo"), text(x, "tag")))
-            };
+            // The pinned one, so an action never lands on a row that moved.
+            let target = if ctr { me.ctr_pin.clone() } else { me.img_pin.clone() };
+            let _ = &s;
             if let Some(t) = target {
                 let verb = if ctr { CTR_ACTIONS[i].0 } else { IMG_ACTIONS[i].0 };
                 me.request_docker(if ctr { "CTR" } else { "IMG" }, verb, &t);
@@ -2409,16 +2499,43 @@ impl Dashboard for Monitor {
                 KeyCode::End => self.sel = n.saturating_sub(1),
                 // Same gesture as the process header: ←/→ walks the column
                 // this list is ranked by.
-                KeyCode::Left if self.docker => {
-                    self.ctr_sort = (self.ctr_sort + CTR_SORT.len() - 1) % CTR_SORT.len();
+                KeyCode::Left => {
+                    if self.docker {
+                        self.ctr_sort = (self.ctr_sort + CTR_SORT.len() - 1) % CTR_SORT.len();
+                    } else {
+                        self.img_sort = (self.img_sort + IMG_SORT.len() - 1) % IMG_SORT.len();
+                    }
                 }
-                KeyCode::Right if self.docker => {
-                    self.ctr_sort = (self.ctr_sort + 1) % CTR_SORT.len();
+                KeyCode::Right => {
+                    if self.docker {
+                        self.ctr_sort = (self.ctr_sort + 1) % CTR_SORT.len();
+                    } else {
+                        self.img_sort = (self.img_sort + 1) % IMG_SORT.len();
+                    }
                 }
-                KeyCode::Char('i') if self.docker => self.ctr_desc = !self.ctr_desc,
+                KeyCode::Char('i') => {
+                    if self.docker {
+                        self.ctr_desc = !self.ctr_desc;
+                    } else {
+                        self.img_desc = !self.img_desc;
+                    }
+                }
                 KeyCode::Enter => {
                     if n > 0 {
-                        self.overlay = if self.docker { Overlay::Ctr } else { Overlay::Img };
+                        // Pin by identity, not by row. Re-ranking on the next
+                        // tick would otherwise slide a different container
+                        // under the modal a second after it opened.
+                        let snap = self.snap.clone();
+                        if self.docker {
+                            self.ctr_pin =
+                                self.ctr_rows(&snap).get(self.sel).map(|c| text(c, "name"));
+                            self.overlay = Overlay::Ctr;
+                        } else {
+                            self.img_pin = self.img_rows(&snap).get(self.sel).map(|i| {
+                                format!("{}:{}", text(i, "repo"), text(i, "tag"))
+                            });
+                            self.overlay = Overlay::Img;
+                        }
                         self.act_sel = 0;
                         self.detail_scroll = 0;
                     }
@@ -3435,6 +3552,7 @@ impl Dashboard for Monitor {
             let cin = cb.inner(rows[4]);
             f.render_widget(cb, rows[4]);
             let cs = self.ctr_rows(&s);
+            let _ = &label;
             if cs.is_empty() {
                 f.render_widget(
                     Paragraph::new(vec![
@@ -3503,7 +3621,26 @@ impl Dashboard for Monitor {
                             )),
                             Cell::from(st("cpu", 7)).style(base.fg(grad(cpu / 100.0))),
                             Cell::from(st("mem_pct", 7)).style(base.fg(grad(mem / 100.0))),
-                            Cell::from(st("mem", 21)).style(base.fg(Color::Gray)),
+                            {
+                                let (used, _) = ctr_mem(&text(c, "mem"));
+                                Cell::from(if used.is_empty() {
+                                    format!("{:>10}", "-")
+                                } else {
+                                    format!("{used:>10}")
+                                })
+                                .style(base.fg(Color::Gray))
+                            },
+                            {
+                                let (_, lim) = ctr_mem(&text(c, "mem"));
+                                Cell::from(if lim.is_empty() {
+                                    // No slash means no ceiling, which since
+                                    // the caps came off is the normal case.
+                                    format!("{:>10}", "none")
+                                } else {
+                                    format!("{lim:>10}")
+                                })
+                                .style(base.fg(DIM))
+                            },
                             Cell::from(st("net", 19)).style(base.fg(Color::Rgb(120, 200, 255))),
                             Cell::from(st("block", 19)).style(base.fg(Color::Rgb(220, 140, 240))),
                             Cell::from(st("pids", 5)).style(base.fg(DIM)),
@@ -3521,7 +3658,8 @@ impl Dashboard for Monitor {
                         Constraint::Length(19),
                         Constraint::Length(8),
                         Constraint::Length(8),
-                        Constraint::Length(22),
+                        Constraint::Length(11),
+                        Constraint::Length(11),
                         Constraint::Length(20),
                         Constraint::Length(20),
                         Constraint::Length(6),
@@ -3530,12 +3668,26 @@ impl Dashboard for Monitor {
                         Constraint::Min(12),
                     ],
                 )
+                // The ranked column is marked, exactly like the process
+                // header: ←/→ moving a sort you cannot see is a gesture with
+                // no feedback.
                 .header(Row::new(
                     [
-                        "CONTAINER", "STATUS", "CPU%", "MEM%", "MEMORY", "NET I/O", "BLOCK I/O",
-                        "PIDS", "PORTS", "ON DISK", "IMAGE",
+                        "CONTAINER", "STATUS", "CPU%", "MEM%", "MEM USED", "MEM MAX", "NET I/O",
+                        "BLOCK I/O", "PIDS", "PORTS", "ON DISK", "IMAGE",
                     ]
-                    .map(|h| Cell::from(h).style(Style::default().fg(LABEL))),
+                    .map(|h| {
+                        if h == label {
+                            Cell::from(format!("{h}{}", if self.ctr_desc { "▼" } else { "▲" }))
+                                .style(
+                                    Style::default()
+                                        .fg(Color::Rgb(120, 200, 255))
+                                        .add_modifier(Modifier::BOLD),
+                                )
+                        } else {
+                            Cell::from(h).style(Style::default().fg(LABEL))
+                        }
+                    }),
                 ));
                 f.render_widget(table, cin);
             }
@@ -3561,7 +3713,15 @@ impl Dashboard for Monitor {
         // the ones nobody notices — so those get their own tab and are called
         // out by name.
         if self.images {
-            let ib = tabbox(VIEW_TABS, tab("containers-i"), "enter for detail and actions");
+            let (ilabel, _) = IMG_SORT[self.img_sort.min(IMG_SORT.len() - 1)];
+            let ib = tabbox(
+                VIEW_TABS,
+                tab("containers-i"),
+                &format!(
+                    "{ilabel}{} · ←→ rank · i inv · enter acts",
+                    if self.img_desc { "▼" } else { "▲" }
+                ),
+            );
             let iin = ib.inner(rows[4]);
             f.render_widget(ib, rows[4]);
             let imgs = arr(&s, "images");
@@ -3586,8 +3746,9 @@ impl Dashboard for Monitor {
                 if self.offset + vis > imgs.len() {
                     self.offset = imgs.len().saturating_sub(vis);
                 }
-                let irows: Vec<Row> = imgs
-                    .iter()
+                let irows: Vec<Row> = self
+                    .img_rows(&s)
+                    .into_iter()
                     .enumerate()
                     .skip(self.offset)
                     .take(vis)
@@ -3625,10 +3786,17 @@ impl Dashboard for Monitor {
                         Constraint::Min(10),
                     ],
                 )
-                .header(Row::new(
-                    ["IMAGE", "SIZE", "CREATED", "ID", ""]
-                        .map(|h| Cell::from(h).style(Style::default().fg(LABEL))),
-                ));
+                .header(Row::new(["IMAGE", "SIZE", "CREATED", "ID", ""].map(|h| {
+                    if h == ilabel {
+                        Cell::from(format!("{h}{}", if self.img_desc { "▼" } else { "▲" })).style(
+                            Style::default()
+                                .fg(Color::Rgb(120, 200, 255))
+                                .add_modifier(Modifier::BOLD),
+                        )
+                    } else {
+                        Cell::from(h).style(Style::default().fg(LABEL))
+                    }
+                })));
                 f.render_widget(itable, iin);
             }
             let status = Line::from(Span::styled(
