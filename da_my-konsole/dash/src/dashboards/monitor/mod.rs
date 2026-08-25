@@ -50,6 +50,7 @@ use crate::frame::Dashboard;
 // Split out because a four-thousand-line file is not a module, it is a
 // directory that has not happened yet. Each is testable on its own and none
 // of them knows about the others.
+mod cmd;
 mod data;
 mod draw;
 mod export;
@@ -185,6 +186,10 @@ const OTHER_KEYS: &[(&str, &str, &str)] = &[
 /// The `:` vocabulary. A table, so the width rule below can measure it and
 /// the help cannot describe a command that does not exist.
 const CMD_HELP: &[(&str, &str)] = &[
+    ("", "type to filter — fuzzy, like fzf: :wg6 finds wg0-ipv6"),
+    ("↑ ↓", "pick from the list above the prompt"),
+    ("tab", "complete to the highlighted one without running it"),
+    ("enter", "run the highlighted one, or the raw text if nothing matches"),
     (":f1 … :f9", "a sub-tab of this tab, by its number"),
     (":<tab>", "any tab by name — :fleet :files :about"),
     (":<sub-tab>", "any sub-tab by name — :tree :images :wg0-ipv4"),
@@ -272,81 +277,6 @@ const TABS: &[Tab] = &[
     // them in its own header, so a view key named 'a' silently never arrives.
     Tab { name: "about", key: 'b', desc: "what this machine is, not what it is doing", subs: &[] },
 ];
-
-/// What a `:` line resolved to.
-///
-/// Split from the running of it so the language has a test that does not need
-/// a whole dashboard on its feet: resolution is the part with rules in it,
-/// and applying the answer is four lines of `match`.
-#[derive(Debug, PartialEq)]
-enum Cmd {
-    /// Tab, and the mode within it. `None` keeps whichever mode that tab was
-    /// left on — `:fleet` returns you to the network you were watching.
-    Go(usize, Option<usize>),
-    Quit,
-    Help,
-    Export(bool),
-    Err(String),
-    Nothing,
-}
-
-/// Resolve one command line against TABS.
-///
-/// NAMES, not codes. `:fleet` goes to the fleet, `:f3` to the third sub-tab of
-/// wherever you are, `:wg-public-ipv6` straight there from anywhere. Every
-/// name is read out of the table, so a tab added there is addressable the
-/// moment it exists with nothing else to keep in step.
-fn resolve_cmd(line: &str, cur: usize) -> Cmd {
-    let c = line.trim().to_ascii_lowercase();
-    if c.is_empty() {
-        return Cmd::Nothing;
-    }
-    // :f2 or :2 — a sub-tab of the tab you are on, by the number the strip is
-    // already showing under it. `:files` must not parse as this, which is why
-    // the tail has to be a number and not merely start with one.
-    if let Ok(n) = c.strip_prefix('f').unwrap_or(&c).parse::<usize>() {
-        let subs = TABS[cur].subs.len();
-        return if n >= 1 && n <= subs {
-            Cmd::Go(cur, Some(n - 1))
-        } else {
-            Cmd::Err(format!("{} has {subs} sub-tab(s), not {n}", TABS[cur].name))
-        };
-    }
-    match c.as_str() {
-        "q" | "quit" => return Cmd::Quit,
-        "h" | "help" => return Cmd::Help,
-        "e" | "export" => return Cmd::Export(false),
-        "ea" | "export all" => return Cmd::Export(true),
-        _ => {}
-    }
-    // Exact name wins outright; otherwise a prefix, but only if it is
-    // unambiguous. Guessing between two tabs is worse than saying which two.
-    let mut hits: Vec<(usize, Option<usize>, &str)> = vec![];
-    for (i, t) in TABS.iter().enumerate() {
-        if t.name == c {
-            return Cmd::Go(i, None);
-        }
-        if t.name.starts_with(&c) {
-            hits.push((i, None, t.name));
-        }
-        for (j, sb) in t.subs.iter().enumerate() {
-            if sb.name == c {
-                return Cmd::Go(i, Some(j));
-            }
-            if sb.name.starts_with(&c) {
-                hits.push((i, Some(j), sb.name));
-            }
-        }
-    }
-    match hits.len() {
-        1 => Cmd::Go(hits[0].0, hits[0].1),
-        0 => Cmd::Err(format!("no such command: {c}")),
-        _ => Cmd::Err(format!(
-            "{c} is ambiguous: {}",
-            hits.iter().map(|(_, _, n)| *n).collect::<Vec<_>>().join(", ")
-        )),
-    }
-}
 
 /// `tree -L 4` over the home directory, or the nearest thing available.
 ///
@@ -643,6 +573,8 @@ pub struct Monitor {
     sub: [usize; TABS.len()],
     /// The `:` command line's buffer, while it is open.
     cmd: String,
+    /// Which picker row is highlighted.
+    cmd_sel: usize,
     box_sel: usize,
     /// `t`: order by the parent/child tree instead of by the sort column.
     tree: bool,
@@ -743,6 +675,7 @@ impl Monitor {
             tab: 0,
             sub: [0; TABS.len()],
             cmd: String::new(),
+            cmd_sel: 0,
             box_sel: 0,
             tree: false,
             units: false,
@@ -1175,26 +1108,69 @@ impl Monitor {
         f.render_widget(Paragraph::new(l), inner);
     }
 
-    /// The `:` line, drawn where vim draws it — the bottom of the screen,
-    /// not a box in the middle. A command line that covers what you are
-    /// typing about is the wrong shape for the job.
+    /// The `:` line and its picker, drawn where vim and fzf both draw them:
+    /// the input on the bottom edge, the candidates stacked UPWARDS above it.
+    ///
+    /// Upwards because the input must not move. A list that grows downwards
+    /// pushes the line you are typing on down the screen as it fills, and a
+    /// prompt that walks away from the cursor is unusable.
     fn render_cmd(&self, f: &mut Frame, area: Rect) {
-        let r = Rect { x: area.x, y: area.y + area.height.saturating_sub(1), width: area.width, height: 1 };
+        let accent = Color::Rgb(120, 200, 255);
+        let hits = cmd::matches(&self.cmd, self.tab);
+        let shown = hits.len().min(8);
+        let bottom = area.y + area.height.saturating_sub(1);
+
+        // The list, one row per hit, climbing from just above the input.
+        for (i, p) in hits.iter().take(shown).enumerate() {
+            let y = bottom.saturating_sub((shown - i) as u16);
+            if y <= area.y {
+                break;
+            }
+            let r = Rect { x: area.x, y, width: area.width, height: 1 };
+            f.render_widget(Clear, r);
+            let sel = i == self.cmd_sel.min(shown.saturating_sub(1));
+            let bg = if sel { Color::Rgb(38, 48, 66) } else { Color::Rgb(16, 18, 24) };
+            f.render_widget(
+                Paragraph::new(Line::from(vec![
+                    Span::styled(if sel { " ▶ " } else { "   " }, Style::default().fg(accent)),
+                    Span::styled(
+                        format!("{:<18}", trunc(&p.name, 18)),
+                        if sel {
+                            Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default().fg(Color::Gray)
+                        },
+                    ),
+                    Span::styled(trunc(&p.desc, 70), Style::default().fg(DIM)),
+                ]))
+                .style(Style::default().bg(bg)),
+                r,
+            );
+        }
+
+        let r = Rect { x: area.x, y: bottom, width: area.width, height: 1 };
         f.render_widget(Clear, r);
-        let subs = TABS[self.tab].subs.len();
-        let hint = if subs > 1 {
-            format!("  f1–f{subs}, a tab or sub-tab name, q, help, export")
+        let tail = if hits.is_empty() && !self.cmd.is_empty() {
+            "  no match".to_string()
         } else {
-            "  a tab or sub-tab name, q, help, export".to_string()
+            format!("  {} match{}  ·  ↑↓ pick · tab completes · enter runs", hits.len(),
+                    if hits.len() == 1 { "" } else { "es" })
         };
         f.render_widget(
             Paragraph::new(Line::from(vec![
-                Span::styled(format!(":{}", self.cmd), Style::default().fg(Color::Rgb(120, 200, 255))),
+                Span::styled(format!(":{}", self.cmd), Style::default().fg(accent)),
                 // The block cursor, drawn rather than moved: this panel never
                 // shows a real one, and an invisible caret reads as a frozen
                 // screen.
-                Span::styled("▌", Style::default().fg(Color::Rgb(120, 200, 255))),
-                Span::styled(hint, Style::default().fg(DIM)),
+                Span::styled("▌", Style::default().fg(accent)),
+                Span::styled(
+                    tail,
+                    Style::default().fg(if hits.is_empty() && !self.cmd.is_empty() {
+                        Color::Rgb(240, 160, 90)
+                    } else {
+                        DIM
+                    }),
+                ),
             ]))
             .style(Style::default().bg(Color::Rgb(16, 18, 24))),
             r,
@@ -1202,13 +1178,34 @@ impl Monitor {
     }
 
     fn cmd_key(&mut self, k: KeyCode) {
+        let n = cmd::matches(&self.cmd, self.tab).len().min(8);
         match k {
             KeyCode::Esc => {
                 self.cmd.clear();
+                self.cmd_sel = 0;
                 self.overlay = Overlay::None;
             }
+            KeyCode::Down => self.cmd_sel = if n == 0 { 0 } else { (self.cmd_sel + 1) % n },
+            KeyCode::Up => self.cmd_sel = if n == 0 { 0 } else { (self.cmd_sel + n - 1) % n },
+            // Tab completes to the highlighted row without running it, so you
+            // can see what you are about to do and keep editing.
+            KeyCode::Tab => {
+                if let Some(p) = cmd::matches(&self.cmd, self.tab).into_iter().nth(self.cmd_sel) {
+                    self.cmd = p.name;
+                    self.cmd_sel = 0;
+                }
+            }
             KeyCode::Enter => {
-                let line = std::mem::take(&mut self.cmd);
+                // The HIGHLIGHTED candidate, not the raw text — that is what
+                // makes the picker a picker. With nothing matching, the typed
+                // text still runs, so an exact command never needs the list.
+                let pick = cmd::matches(&self.cmd, self.tab).into_iter().nth(self.cmd_sel);
+                let line = match pick {
+                    Some(p) => p.name,
+                    None => self.cmd.clone(),
+                };
+                self.cmd.clear();
+                self.cmd_sel = 0;
                 self.run_cmd(&line);
             }
             KeyCode::Backspace => {
@@ -1216,8 +1213,14 @@ impl Monitor {
                 if self.cmd.pop().is_none() {
                     self.overlay = Overlay::None;
                 }
+                self.cmd_sel = 0;
             }
-            KeyCode::Char(c) => self.cmd.push(c),
+            KeyCode::Char(c) => {
+                self.cmd.push(c);
+                // Every keystroke re-ranks the list, so a highlight held over
+                // from the previous query would point at an unrelated row.
+                self.cmd_sel = 0;
+            }
             _ => {}
         }
     }
@@ -1225,16 +1228,16 @@ impl Monitor {
     /// Run one command line: resolve it, then do the one thing it named.
     fn run_cmd(&mut self, line: &str) {
         self.overlay = Overlay::None;
-        match resolve_cmd(line, self.tab) {
-            Cmd::Go(t, sub) => {
+        match cmd::resolve(line, self.tab) {
+            cmd::Cmd::Go(t, sub) => {
                 let sub = sub.unwrap_or(self.sub[t]);
                 self.goto(t, sub);
             }
-            Cmd::Quit => self.quit = true,
-            Cmd::Help => self.overlay = Overlay::Help,
-            Cmd::Export(all) => self.export_now(all),
-            Cmd::Err(e) => self.msg = Some((e, true)),
-            Cmd::Nothing => {}
+            cmd::Cmd::Quit => self.quit = true,
+            cmd::Cmd::Help => self.overlay = Overlay::Help,
+            cmd::Cmd::Export(all) => self.export_now(all),
+            cmd::Cmd::Err(e) => self.msg = Some((e, true)),
+            cmd::Cmd::Nothing => {}
         }
     }
 
@@ -5551,34 +5554,34 @@ mod tests {
 
         // :f2 is the second sub-tab OF THE TAB YOU ARE ON, so the same text
         // means different things in different tabs — that is the point of it.
-        assert_eq!(resolve_cmd("f2", proc), Cmd::Go(proc, Some(1)));
-        assert_eq!(resolve_cmd("2", proc), Cmd::Go(proc, Some(1)));
-        assert_eq!(resolve_cmd("f4", fleet), Cmd::Go(fleet, Some(3)));
+        assert_eq!(cmd::resolve("f2", proc), cmd::Cmd::Go(proc, Some(1)));
+        assert_eq!(cmd::resolve("2", proc), cmd::Cmd::Go(proc, Some(1)));
+        assert_eq!(cmd::resolve("f4", fleet), cmd::Cmd::Go(fleet, Some(3)));
         // Out of range says so rather than clamping to something plausible.
-        assert!(matches!(resolve_cmd("f4", proc), Cmd::Err(_)));
+        assert!(matches!(cmd::resolve("f4", proc), cmd::Cmd::Err(_)));
 
         // A tab by name keeps the mode it was left on: None, not Some(0).
-        assert_eq!(resolve_cmd("fleet", proc), Cmd::Go(fleet, None));
+        assert_eq!(cmd::resolve("fleet", proc), cmd::Cmd::Go(fleet, None));
         // A sub-tab by name goes straight there from anywhere.
-        assert_eq!(resolve_cmd("wg-public-ipv6", proc), Cmd::Go(fleet, Some(3)));
-        assert_eq!(resolve_cmd("zombies", fleet), Cmd::Go(proc, Some(2)));
+        assert_eq!(cmd::resolve("wg-public-ipv6", proc), cmd::Cmd::Go(fleet, Some(3)));
+        assert_eq!(cmd::resolve("zombies", fleet), cmd::Cmd::Go(proc, Some(2)));
 
         // "files" starts with f and a digit-parse of "iles" must fail, or the
         // whole name space collapses into the :fN shortcut.
-        assert_eq!(resolve_cmd("files", proc), Cmd::Go(tab_of("files"), None));
+        assert_eq!(cmd::resolve("files", proc), cmd::Cmd::Go(tab_of("files"), None));
 
         // An unambiguous prefix is enough; an ambiguous one names the choices
         // instead of picking one.
-        assert_eq!(resolve_cmd("wg-public-ipv4", proc), Cmd::Go(fleet, Some(2)));
-        match resolve_cmd("wg-public", proc) {
-            Cmd::Err(e) => assert!(e.contains("ambiguous"), "{e}"),
+        assert_eq!(cmd::resolve("wg-public-ipv4", proc), cmd::Cmd::Go(fleet, Some(2)));
+        match cmd::resolve("wg-public", proc) {
+            cmd::Cmd::Err(e) => assert!(e.contains("ambiguous"), "{e}"),
             other => panic!("wg-public matches two sub-tabs, got {other:?}"),
         }
-        assert!(matches!(resolve_cmd("nonsense", proc), Cmd::Err(_)));
+        assert!(matches!(cmd::resolve("nonsense", proc), cmd::Cmd::Err(_)));
 
-        assert_eq!(resolve_cmd("q", proc), Cmd::Quit);
-        assert_eq!(resolve_cmd("export all", proc), Cmd::Export(true));
-        assert_eq!(resolve_cmd("   ", proc), Cmd::Nothing);
+        assert_eq!(cmd::resolve("q", proc), cmd::Cmd::Quit);
+        assert_eq!(cmd::resolve("export all", proc), cmd::Cmd::Export(true));
+        assert_eq!(cmd::resolve("   ", proc), cmd::Cmd::Nothing);
     }
 
     // Sub-tabs are addressed by number in the strip and by index in the code;
@@ -5588,8 +5591,8 @@ mod tests {
         for (i, t) in TABS.iter().enumerate() {
             for (j, sb) in t.subs.iter().enumerate() {
                 assert_eq!(
-                    resolve_cmd(&format!("f{}", j + 1), i),
-                    Cmd::Go(i, Some(j)),
+                    cmd::resolve(&format!("f{}", j + 1), i),
+                    cmd::Cmd::Go(i, Some(j)),
                     "{}: {} is shown as {} but f{} does not reach it",
                     t.name,
                     sb.name,
