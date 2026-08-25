@@ -158,6 +158,7 @@ const OTHER_KEYS: &[(&str, &str, &str)] = &[
     ("acting", "x", "free memory — reap zombies, reclaim, find orphans"),
     ("acting", "E", "export THIS machine — {host}-{user}-{time}.json, .yaml, .md"),
     ("acting", "A", "export all — the same, with every fleet peer folded in"),
+    ("moving", "1-9", "jump to a sub-tab by the number the strip shows"),
     ("moving", "tab", "next sub-tab of this tab"),
     ("moving", "shift-tab", "previous sub-tab"),
     ("moving", "↑ ↓", "move the cursor through the list"),
@@ -541,6 +542,8 @@ enum Overlay {
     Target,
     /// The `:` command line.
     Cmd,
+    /// Which boxes are shown — the "options" the menu always advertised.
+    Boxes,
 }
 
 /// The btop-style Esc menu.
@@ -594,6 +597,7 @@ pub struct Monitor {
     sub: [usize; TABS.len()],
     /// The `:` command line's buffer, while it is open.
     cmd: String,
+    box_sel: usize,
     /// `t`: order by the parent/child tree instead of by the sort column.
     tree: bool,
     /// `v`: append the declared service units that are stopped or idle.
@@ -686,6 +690,7 @@ impl Monitor {
             tab: 0,
             sub: [0; TABS.len()],
             cmd: String::new(),
+            box_sel: 0,
             tree: false,
             units: false,
             fleet: false,
@@ -1177,11 +1182,80 @@ impl Monitor {
         }
     }
 
+    /// Which boxes are shown.
+    ///
+    /// The menu has always described "options" as "sorting, averaging window,
+    /// which boxes are shown" and then opened the help page, which can show
+    /// you the keys but cannot change anything. This is the screen it was
+    /// describing. It also buys back 1-9, which were spent on a preference you
+    /// set once and are worth far more as sub-tab keys.
+    fn render_boxes(&self, f: &mut Frame, area: Rect) {
+        let accent = Color::Rgb(120, 200, 255);
+        let inner = Self::modal(f, area, 60, BOX_NAMES.len() as u16 + 4, "boxes", accent);
+        let mut l: Vec<Line> = vec![];
+        for (i, b) in BOX_NAMES.iter().enumerate() {
+            let sel = i == self.box_sel;
+            l.push(Line::from(vec![
+                Span::styled(if sel { "▶  " } else { "   " }, Style::default().fg(accent)),
+                Span::styled(format!("{}  ", i + 1), Style::default().fg(DIM)),
+                Span::styled(
+                    if self.show[i] { "[x]  " } else { "[ ]  " },
+                    Style::default().fg(if self.show[i] { accent } else { DIM }),
+                ),
+                Span::styled(
+                    b.to_string(),
+                    if sel {
+                        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(Color::Gray)
+                    },
+                ),
+            ]));
+        }
+        l.push(Line::from(Span::styled(
+            "   1-5 or ↑↓ and enter · esc closes",
+            Style::default().fg(DIM),
+        )));
+        f.render_widget(Paragraph::new(l), inner);
+    }
+
+    /// Stays open while you toggle. Folding boxes away is something you do to
+    /// two or three of them at once, and a screen that closed after each one
+    /// would make you reopen it every time.
+    fn boxes_key(&mut self, k: KeyCode) {
+        let n = BOX_NAMES.len();
+        match k {
+            KeyCode::Down => self.box_sel = (self.box_sel + 1) % n,
+            KeyCode::Up => self.box_sel = (self.box_sel + n - 1) % n,
+            KeyCode::Char(c) if c.is_ascii_digit() => {
+                let i = (c as usize).wrapping_sub('1' as usize);
+                if i < n {
+                    self.box_sel = i;
+                    self.toggle_box(i);
+                }
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                let i = self.box_sel;
+                self.toggle_box(i);
+            }
+            _ => self.overlay = Overlay::None,
+        }
+    }
+
+    fn toggle_box(&mut self, i: usize) {
+        self.show[i] = !self.show[i];
+        self.msg = Some((
+            format!("{} {}", BOX_NAMES[i], if self.show[i] { "shown" } else { "hidden" }),
+            false,
+        ));
+    }
+
     fn render_overlays(&self, f: &mut Frame, area: Rect) {
         match self.overlay {
             Overlay::Kill => self.render_kill(f, area),
             Overlay::Menu => self.render_menu(f, area),
             Overlay::Cmd => self.render_cmd(f, area),
+            Overlay::Boxes => self.render_boxes(f, area),
             Overlay::Help => self.render_help(f, area),
             Overlay::Detail => self.render_detail(f, area),
             Overlay::Target => self.render_target(f, area),
@@ -1945,12 +2019,18 @@ impl Monitor {
         section(&mut l, "modal");
 
         l.push(head("layout"));
-        for (i, b) in BOX_NAMES.iter().enumerate() {
-            l.push(key(
-                &format!("{}", i + 1),
-                &format!("show/hide the {b} box ({})", if self.show[i] { "shown" } else { "hidden" }),
-            ));
-        }
+        l.push(key(
+            "m → options",
+            &format!(
+                "show/hide boxes — {}",
+                BOX_NAMES
+                    .iter()
+                    .enumerate()
+                    .map(|(i, b)| format!("{b}{}", if self.show[i] { "" } else { " (hidden)" }))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        ));
 
         section(&mut l, "leaving");
         l.push(Line::from(Span::styled("  any key returns", Style::default().fg(DIM))));
@@ -2386,9 +2466,9 @@ impl Monitor {
         }
     }
 
-    /// btop's Esc menu: options / help / quit. "options" opens the same page as
-    /// `h` — there is one list of what the keys do, and a second screen that
-    /// paraphrased it would only go stale.
+    /// btop's menu: measure / options / help / quit. "options" is the box
+    /// visibility screen it has always claimed to be; "help" is the one list
+    /// of what the keys do, and nothing paraphrases it.
     fn menu_key(&mut self, k: KeyCode) {
         match k {
             KeyCode::Down => self.menu_sel = (self.menu_sel + 1) % MENU.len(),
@@ -2398,7 +2478,11 @@ impl Monitor {
                     self.target_sel = 0;
                     self.overlay = Overlay::Target;
                 }
-                1 | 2 => self.overlay = Overlay::Help,
+                1 => {
+                    self.box_sel = 0;
+                    self.overlay = Overlay::Boxes;
+                }
+                2 => self.overlay = Overlay::Help,
                 _ => {
                     // The frame owns quitting, and it only quits on keys it
                     // sees. Stop claiming, then hand it the key it acts on.
@@ -2679,6 +2763,7 @@ impl Dashboard for Monitor {
             }
             Overlay::Menu => return self.menu_key(k),
             Overlay::Cmd => return self.cmd_key(k),
+            Overlay::Boxes => return self.boxes_key(k),
             Overlay::Help => {
                 // Any key dismisses a page of text; making people find the one
                 // right key to leave a help screen is its own small insult.
@@ -2788,6 +2873,23 @@ impl Dashboard for Monitor {
             KeyCode::Char(':') => {
                 self.cmd.clear();
                 self.overlay = Overlay::Cmd;
+                return;
+            }
+            // 1-9 jump straight to a sub-tab — the number the strip already
+            // draws under the tab. This is the navigation people will use
+            // every minute, which is why it gets the digits; box visibility is
+            // set once and moved to the options screen.
+            KeyCode::Char(c) if c.is_ascii_digit() && c != '0' => {
+                let i = c as usize - '1' as usize;
+                let n = TABS[self.tab].subs.len();
+                if i < n {
+                    self.goto(self.tab, i);
+                } else {
+                    self.msg = Some((
+                        format!("{} has {n} sub-tab(s)", TABS[self.tab].name),
+                        true,
+                    ));
+                }
                 return;
             }
             KeyCode::Tab => {
@@ -2957,16 +3059,6 @@ impl Dashboard for Monitor {
                         "declared units {}",
                         if self.units { "shown — stopped and idle services" } else { "hidden" }
                     ),
-                    false,
-                ));
-            }
-            // Fold a box away to give the process table its rows back. Same
-            // idea as btop's presets, minus the config file.
-            KeyCode::Char(c @ '1'..='5') => {
-                let i = c as usize - '1' as usize;
-                self.show[i] = !self.show[i];
-                self.msg = Some((
-                    format!("{} {}", BOX_NAMES[i], if self.show[i] { "shown" } else { "hidden" }),
                     false,
                 ));
             }
@@ -5028,6 +5120,37 @@ mod tests {
     // a string, and one that does not must stay bare or the whole point (token
     // count) is lost. Structure is checked at the same time, since a map value
     // that is itself a map has to start on the next line and a scalar must not.
+    // 1-9 changed meaning: they folded boxes away, now they pick sub-tabs.
+    // Both halves matter — the new binding has to work, and the old one has to
+    // be gone, or a key that used to hide the net box quietly moves the view.
+    #[test]
+    fn digits_pick_sub_tabs_and_no_longer_fold_boxes() {
+        let mut m = Monitor::new();
+        let before = m.show;
+
+        m.on_key(KeyCode::Char('p'));
+        m.on_key(KeyCode::Char('2'));
+        assert!(m.tree, "2 is the proc tab's second sub-tab");
+        assert_eq!(m.show, before, "digits must not touch box visibility any more");
+
+        m.on_key(KeyCode::Char('3'));
+        assert!(m.zombies && !m.tree, "3 is the third");
+
+        // Out of range reports it rather than landing somewhere arbitrary.
+        m.on_key(KeyCode::Char('9'));
+        assert!(m.zombies, "9 is not a proc sub-tab, so nothing moves");
+
+        // The boxes are still reachable — from the options screen the menu has
+        // always said they were on.
+        m.on_key(KeyCode::Char('m'));
+        m.on_key(KeyCode::Down);
+        m.on_key(KeyCode::Enter);
+        assert!(m.overlay == Overlay::Boxes, "menu → options opens the box list");
+        m.on_key(KeyCode::Char('1'));
+        assert_ne!(m.show[0], before[0], "1 toggles the first box in there");
+        assert!(m.overlay == Overlay::Boxes, "it stays open so you can fold several");
+    }
+
     // The command language is the only place a typo can silently do the wrong
     // thing, so both halves are pinned: what must resolve, and what must NOT.
     #[test]
