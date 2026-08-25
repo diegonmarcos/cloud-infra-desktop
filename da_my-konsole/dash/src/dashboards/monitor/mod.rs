@@ -603,6 +603,10 @@ pub struct Monitor {
     /// cloud-infra and reads /proc/mounts; neither belongs on a 1s render
     /// loop, and neither changes while you are looking at it.
     storage_cache: Vec<storage::Unit>,
+    /// Repositories, filled by a background thread. Separate from the cache
+    /// above because that one is read synchronously and this one arrives when
+    /// two network calls decide to answer.
+    repos: storage::Repos,
     files_scroll: u16,
     /// Which column containers-c ranks by, and which way.
     ctr_sort: usize,
@@ -688,6 +692,7 @@ impl Monitor {
             files_hidden: false,
             files_cache: Default::default(),
             storage_cache: vec![],
+            repos: storage::Repos::default(),
             files_scroll: 0,
             ctr_sort: 0,
             ctr_desc: true,
@@ -1791,6 +1796,15 @@ impl Monitor {
         });
     }
 
+    /// The storage tab's rows: what is declared here, then the repositories
+    /// once they arrive. Rebuilt per render rather than cached, because the
+    /// second half turns up on its own schedule.
+    fn storage_rows(&self) -> Vec<storage::Unit> {
+        let mut v = self.storage_cache.clone();
+        v.extend(self.repos.get());
+        v
+    }
+
     /// The peers on the network the fleet sub-tab is showing.
     ///
     /// The mesh reaches several of these boxes on both tunnels, so one merged
@@ -1919,6 +1933,8 @@ impl Monitor {
         // Same rule as the file tree: read it on the way in, not every tick.
         if self.fleet && self.sub_name() == "storage" {
             self.storage_cache = storage::units();
+            // Off-thread, and a no-op once it has answered once.
+            self.repos.fetch();
         }
         // The fleet sweep is an ssh round trip per peer; it runs only while
         // the tab that needs it is open.
@@ -2894,7 +2910,7 @@ impl Dashboard for Monitor {
         // one shared count let the cursor run off the end of the short one.
         let n = if self.fleet {
             if self.sub_name() == "storage" {
-                self.storage_cache.len()
+                self.storage_rows().len()
             } else {
                 self.visible_peers().len()
             }
@@ -3175,7 +3191,7 @@ impl Dashboard for Monitor {
             // whichever of the two is shorter.
             let storage = self.sub_name() == "storage";
             let peers = if storage { vec![] } else { self.fleet_view(&snap) };
-            let np = if storage { self.storage_cache.len() } else { peers.len() };
+            let np = if storage { self.storage_rows().len() } else { peers.len() };
             match k {
                 KeyCode::Down => self.sel = (self.sel + 1).min(np.saturating_sub(1)),
                 KeyCode::Up => self.sel = self.sel.saturating_sub(1),
@@ -4579,16 +4595,35 @@ impl Dashboard for Monitor {
             let sb = self.tabs_box("what this fleet keeps · ↑↓ to move");
             let sin = sb.inner(rows[4]);
             f.render_widget(sb, rows[4]);
-            let units = &self.storage_cache;
+            let units = self.storage_rows();
+            let units = &units;
             let colour = |kind: &str| match kind {
+                "local" => Color::Rgb(120, 200, 255),
                 "mount" => Color::Rgb(120, 220, 140),
                 "s3" => Color::Rgb(120, 200, 255),
-                "git" => Color::Rgb(230, 190, 120),
+                "git" | "repo" => Color::Rgb(230, 190, 120),
+                "gdrive" => Color::Rgb(200, 160, 240),
                 _ => Color::Gray,
             };
+            // SCROLLING, because this list is now long. Declared mounts plus
+            // buckets plus two git hosts plus forty-five repositories does not
+            // fit in eleven rows, and a cursor that walks past the bottom edge
+            // into rows nobody can see is worse than no cursor.
+            let vis = (sin.height as usize).saturating_sub(1).max(1);
+            self.sel = self.sel.min(units.len().saturating_sub(1));
+            if self.sel < self.offset {
+                self.offset = self.sel;
+            } else if self.sel >= self.offset + vis {
+                self.offset = self.sel + 1 - vis;
+            }
+            if self.offset + vis > units.len() {
+                self.offset = units.len().saturating_sub(vis);
+            }
             let srows: Vec<Row> = units
                 .iter()
                 .enumerate()
+                .skip(self.offset)
+                .take(vis)
                 .map(|(i, u)| {
                     let sel = i == self.sel;
                     let base = if sel {
@@ -4641,13 +4676,18 @@ impl Dashboard for Monitor {
                 ])),
                 sin,
             );
-            let mounted = units.iter().filter(|u| !u.at.is_empty()).count();
+            let mounted = units.iter().filter(|u| u.tier == "mounted").count();
+            let repos = units.iter().filter(|u| u.kind == "repo").count();
             f.render_widget(
                 Paragraph::new(Line::from(Span::styled(
                     match &self.msg {
                         Some((m, _)) => format!(" {m}"),
                         None if empty => " nothing declared here — cloud-infra is not on this machine".into(),
-                        None => format!(" {} units · {mounted} mounted here", units.len()),
+                        None => format!(
+                            " {} units · {mounted} mounted · {}",
+                            units.len() - repos,
+                            if repos == 0 { "repos loading…".into() } else { format!("{repos} repos") }
+                        ),
                     },
                     Style::default().fg(LABEL),
                 ))),
