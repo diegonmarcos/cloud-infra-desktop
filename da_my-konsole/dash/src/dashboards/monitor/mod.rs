@@ -184,52 +184,58 @@ const VIEW_TABS: &[(&str, char)] = &[
 /// Bounded on purpose. -L 4 because past four levels a home directory is
 /// mostly node_modules and .git objects, and the output is capped because a
 /// tree with a million entries is not a view, it is a hang.
-fn file_tree(hidden: bool) -> Vec<String> {
+fn file_tree(hidden: bool) -> [Vec<String>; 4] {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/".into());
-    // -d: directories only. Four levels of files is a wall of node_modules
-    // and screenshots nobody opened this to read — the SHAPE of a home
-    // directory is what a tree answers, and files are what every other tool
-    // here is already better at. It also halves the output: 1449 lines
-    // instead of 2685.
-    let mut args: Vec<&str> = vec!["-d", "-L", "4", "--noreport", "-F"];
+    // -d directories only, -f full paths, -i no indentation. One run, split by
+    // depth afterwards — four separate `tree -L n` runs would walk the same
+    // directories four times and produce four nested copies of each other.
+    let mut args: Vec<&str> = vec!["-d", "-f", "-i", "-L", "4", "--noreport"];
     if hidden {
         args.push("-a");
     }
-    // .git and node_modules are the two directories that turn a home tree into
-    // a hundred thousand lines of nothing anybody opened this to see.
+    // The four directories that turn a home tree into a hundred thousand
+    // entries of nothing anybody opened this to see.
     args.extend(["-I", ".git|node_modules|.cache|target"]);
     args.push(&home);
+
     let out = std::process::Command::new("tree").args(&args).output();
-    // The OUTPUT is the signal, not the exit code. tree returns 2 whenever any
-    // directory could not be opened, which in a home directory is the normal
-    // case and not a failure — it still printed the other 2685 lines. Treating
-    // non-zero as failure sent every run to the find fallback, so the tab
-    // showed a flat list of absolute paths and none of the structure it exists
-    // to draw.
+    // The OUTPUT is the signal, not the exit code: tree returns 2 whenever any
+    // directory could not be opened, which in a home directory is routine and
+    // not a failure — it still printed everything else.
     let text = match out {
         Ok(o) if !o.stdout.is_empty() => String::from_utf8_lossy(&o.stdout).into_owned(),
         _ => {
-            let mut f: Vec<String> = vec!["-maxdepth".into(), "4".into()];
+            let mut f: Vec<String> = vec!["-maxdepth".into(), "4".into(), "-type".into(), "d".into()];
             if !hidden {
-                // find has no -a; excluding dot-entries is the explicit form.
                 f.extend(["-not".into(), "-path".into(), "*/.*".into()]);
             }
-            let fo = std::process::Command::new("find")
+            std::process::Command::new("find")
                 .arg(&home)
                 .args(&f)
                 .output()
-                .ok();
-            match fo {
-                Some(o) => String::from_utf8_lossy(&o.stdout).into_owned(),
-                None => "tree and find are both unavailable here".into(),
-            }
+                .ok()
+                .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+                .unwrap_or_default()
         }
     };
-    let mut lines: Vec<String> = text.lines().take(20_000).map(|l| l.to_string()).collect();
-    if text.lines().count() > 20_000 {
-        lines.push(format!("… truncated at 20000 lines of {}", text.lines().count()));
+
+    let mut levels: [Vec<String>; 4] = Default::default();
+    for line in text.lines() {
+        // A symlinked directory prints as "path -> target"; the path is what
+        // this view is about.
+        let path = line.split(" -> ").next().unwrap_or(line).trim_end_matches('/');
+        let Some(rel) = path.strip_prefix(&home).map(|r| r.trim_start_matches('/')) else {
+            continue;
+        };
+        if rel.is_empty() {
+            continue; // home itself
+        }
+        let depth = rel.matches('/').count();
+        if depth < 4 {
+            levels[depth].push(rel.to_string());
+        }
     }
-    lines
+    levels
 }
 
 /// Which slot in the strip a view sits in, by name.
@@ -459,7 +465,7 @@ pub struct Monitor {
     /// of thousands of inodes — running it on a 1s render loop would make this
     /// panel the most expensive thing on the machine. It is built when the tab
     /// is opened and when the dotfile toggle flips, and not otherwise.
-    files_cache: Vec<String>,
+    files_cache: [Vec<String>; 4],
     files_scroll: u16,
     /// Which column containers-c ranks by, and which way.
     ctr_sort: usize,
@@ -535,7 +541,7 @@ impl Monitor {
             images: false,
             files: false,
             files_hidden: false,
-            files_cache: vec![],
+            files_cache: Default::default(),
             files_scroll: 0,
             ctr_sort: 0,
             ctr_desc: true,
@@ -1454,11 +1460,14 @@ impl Monitor {
             .collect();
         // Exporting without having opened the files tab should still carry the
         // tree rather than an empty list.
-        let files = if self.files_cache.is_empty() {
+        let levels = if self.files_cache.iter().all(|v| v.is_empty()) {
             file_tree(self.files_hidden)
         } else {
             self.files_cache.clone()
         };
+        // Flattened for the export, deepest-last, so the file reads as a tree
+        // rather than as four disconnected columns.
+        let files: Vec<String> = levels.concat();
         self.msg = Some(match export_snapshot(&snap, t, &fleet, &files) {
             Ok(stem) => (format!("exported {stem}.json and .md"), false),
             Err(e) => (format!("export failed: {e}"), true),
@@ -1632,7 +1641,7 @@ impl Monitor {
                     "containers-i" => " — every image on the box, enter for detail and actions",
                         "fleet" => " — every mesh peer's totals side by side",
                         "history" => " — what this machine did over the last day",
-                        "files" => " — home four levels deep, folders only, . toggles dotfiles",
+                        "files" => " — home as four panes, one per level, . toggles dotfiles",
                     "about" => " — what this machine is, not what it is doing",
                         _ => "",
                     }
@@ -3339,36 +3348,48 @@ impl Dashboard for Monitor {
                 VIEW_TABS,
                 tab("files"),
                 &format!(
-                    "folders only · dotfiles {} · . toggles · ↑↓ pgup pgdn scroll",
+                    "four levels side by side · dotfiles {} · . toggles · ↑↓ pgup pgdn",
                     if self.files_hidden { "shown" } else { "hidden" }
                 ),
             );
             let fin = fb.inner(rows[4]);
             f.render_widget(fb, rows[4]);
-            let lines: Vec<Line> = self
-                .files_cache
-                .iter()
-                .map(|l| {
-                    // Everything is a directory now, so colour separates the
-                    // tree drawing from the names rather than dirs from files.
-                    let dir = !l.trim_start_matches(['│', '├', '└', '─', ' ']).is_empty();
-                    Line::from(Span::styled(
-                        l.clone(),
-                        Style::default().fg(if dir { Color::Rgb(120, 200, 255) } else { Color::Gray }),
-                    ))
-                })
-                .collect();
-            let max = (lines.len() as u16).saturating_sub(fin.height);
-            f.render_widget(
-                Paragraph::new(lines).scroll((self.files_scroll.min(max), 0)),
-                fin,
-            );
+            // One pane per depth, side by side. Four nested trees would be
+            // four copies of each other — a level is only interesting next to
+            // the other levels, which is what the columns are for.
+            let panes = Layout::horizontal([Constraint::Ratio(1, 4); 4]).split(fin);
+            for (n, area) in panes.iter().enumerate() {
+                let entries = &self.files_cache[n];
+                let w = area.width as usize;
+                let mut l: Vec<Line> = vec![Line::from(Span::styled(
+                    format!("L{}  {} dirs", n + 1, entries.len()),
+                    Style::default().fg(Color::Rgb(120, 200, 255)).add_modifier(Modifier::BOLD),
+                ))];
+                for e in entries.iter().skip(self.files_scroll as usize) {
+                    // Elide from the LEFT: the tail is what identifies a path,
+                    // and a column this narrow cannot hold "a/b/c/d" whole.
+                    let shown = if e.chars().count() > w.saturating_sub(1) {
+                        let keep = w.saturating_sub(2);
+                        let tail: String = e.chars().rev().take(keep).collect::<Vec<_>>()
+                            .into_iter().rev().collect();
+                        format!("…{tail}")
+                    } else {
+                        e.clone()
+                    };
+                    l.push(Line::from(Span::styled(shown, Style::default().fg(Color::Gray))));
+                }
+                f.render_widget(Paragraph::new(l), *area);
+            }
             let status = Line::from(Span::styled(
                 match &self.msg {
                     Some((m, _)) => format!(" {m}"),
                     None => format!(
-                        " {} lines · this machine's home, not the measured peer's · h keys",
-                        self.files_cache.len()
+                        " {} directories · L1 {} · L2 {} · L3 {} · L4 {} · this machine's home, not the peer's",
+                        self.files_cache.iter().map(|v| v.len()).sum::<usize>(),
+                        self.files_cache[0].len(),
+                        self.files_cache[1].len(),
+                        self.files_cache[2].len(),
+                        self.files_cache[3].len(),
                     ),
                 },
                 Style::default().fg(LABEL),
