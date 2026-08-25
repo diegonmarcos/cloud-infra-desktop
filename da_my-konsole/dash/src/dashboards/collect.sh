@@ -15,8 +15,14 @@
 # Fields the hub cannot get this way — per-process io and network, btrfs
 # storage, cgroup slices, systemd units — are emitted empty rather than faked,
 # so those boxes read as "no data" instead of "all zero".
-f="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/my-konsole-watchdog.json"
-if [ -r "$f" ]; then cat "$f"; exit 0; fi
+# Same order the watchdog itself resolves: XDG_RUNTIME_DIR, then
+# /run/user/<uid>, then /tmp. A non-interactive ssh session has no
+# XDG_RUNTIME_DIR, which is precisely the session this script runs in.
+for f in "${XDG_RUNTIME_DIR:-}/my-konsole-watchdog.json" \
+         "/run/user/$(id -u)/my-konsole-watchdog.json" \
+         "/tmp/my-konsole-$(id -u)/my-konsole-watchdog.json"; do
+  [ -r "$f" ] && { cat "$f"; exit 0; }
+done
 # Unique per run. The same machine is reachable at several addresses and the
 # hub collects them concurrently, so fixed paths meant two runs on one host
 # overwrote each other's samples — which showed up as a peer reporting one
