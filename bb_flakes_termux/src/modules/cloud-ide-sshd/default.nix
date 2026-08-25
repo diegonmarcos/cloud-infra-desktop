@@ -23,7 +23,19 @@ let
   # building 8.9p1 from source on aarch64 phone (~10min compile) is too
   # slow on a swap-thrashing device. Pin source kept in pkgs/openssh-pinned.nix
   # for emergency wire-up if a future kernel/proot combo needs it.
-  opensshPinned = pkgs.openssh;
+  #
+  # --with-sandbox=no: sftp-server's own internal privsep sandbox (seccomp_filter
+  # on Linux) fatals under proot — installing a kernel seccomp-bpf filter
+  # conflicts with proot's own ptrace-based syscall interception (confirmed via
+  # strace: child logs "unable to make the process undumpable" then exit 255,
+  # with no further output — sandbox init aborting mid-setup). rlimit-style
+  # sandboxing was considered but its configure-time checks use AC_RUN_IFELSE,
+  # which assumes "no" under cross-compilation and would hard-fail the build;
+  # `no` skips those checks entirely. The process is already proot+Android
+  # app-sandboxed, so losing this third internal layer is a marginal cost.
+  opensshPinned = pkgs.openssh.overrideAttrs (old: {
+    configureFlags = old.configureFlags ++ [ "--with-sandbox=no" ];
+  });
 
   # NOTE: prootPatched (pkgs/proot-termux-patched/) is currently disabled.
   # Building it natively on aarch64 pulls pkgs.pkgsStatic.talloc, which drags
