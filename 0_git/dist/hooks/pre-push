@@ -53,6 +53,45 @@ if [ -d "$(git rev-parse --git-path rebase-merge 2>/dev/null)" ] \
   exit 0
 fi
 
+# WHAT IS ACTUALLY BEING PUSHED — from stdin, which this hook never read.
+#
+# git hands a pre-push hook one line per ref:
+#     <local ref> <local sha> <remote ref> <remote sha>
+# and <remote sha> is the LIVE value on the remote, because git has already
+# talked to it by the time this runs. This hook ignored all of that and asked
+# instead whether the CURRENT BRANCH was behind origin — then rebased the
+# working tree if it was, even when the thing being pushed was not that branch
+# and was already a fast-forward.
+#
+# That is not a harmless extra step. `pull --rebase` autostashes the working
+# tree, and in a repo where another session has uncommitted work it stashes
+# THEIRS, reapplies it, and can conflict or be killed half way through. Today
+# it reverted an edit, and an OOM during one left a MERGE_AUTOSTASH ref behind
+# that blocked every later pull.
+#
+# A push whose local commit already has the remote tip as an ancestor cannot
+# be stale, by definition. Nothing needs integrating; let it through without
+# touching the working tree at all.
+_ff_only=1
+_saw_ref=0
+while read -r _lref _lsha _rref _rsha; do
+  [ -z "$_lsha" ] && continue
+  # An all-zero local sha is a branch DELETE, which pushes no commits.
+  case "$_lsha" in *[!0]*) ;; *) continue ;; esac
+  _saw_ref=1
+  case "$_rsha" in
+    # An all-zero remote sha means the ref does not exist there yet, so there
+    # is nothing this push could be behind.
+    *[!0]*)
+      git merge-base --is-ancestor "$_rsha" "$_lsha" 2>/dev/null || _ff_only=0
+      ;;
+  esac
+done
+if [ "$_saw_ref" = 1 ] && [ "$_ff_only" = 1 ]; then
+  echo "[pre-push] fast-forward — nothing to integrate, pushing."
+  exit 0
+fi
+
 # Locate the engine. Repos other than unix have no 1_workflows/ of their own,
 # so the shared hooks dir (hooks/ + scripts/ side by side) is the normal hit.
 _hook_dir="$(cd "$(dirname "$0")" && pwd)"
