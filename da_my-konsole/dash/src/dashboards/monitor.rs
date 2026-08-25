@@ -703,8 +703,14 @@ const FREE: [(&str, &str, &str); 3] = [
 
 /// The three things the big box can be. Naming them in the frame is the only
 /// way anyone finds out the other two exist.
-const VIEW_TABS: &[(&str, char)] =
-    &[("proc", 'p'), ("tree", 't'), ("zombies", 'z'), ("fleet", 'f'), ("history", 'y')];
+const VIEW_TABS: &[(&str, char)] = &[
+    ("proc", 'p'),
+    ("tree", 't'),
+    ("zombies", 'z'),
+    ("docker", 'o'),
+    ("fleet", 'f'),
+    ("history", 'y'),
+];
 
 /// One row under `v`: either a group heading or a declared unit.
 #[derive(Clone, Debug)]
@@ -797,6 +803,8 @@ pub struct Monitor {
     zombies: bool,
     /// `y`: what this machine did over the last day.
     history: bool,
+    /// `o`: containers and what they are using.
+    docker: bool,
     sel: usize,
     /// The cursor's real identity. `sel` is only where that pid happened to
     /// land in the current ordering, and the ordering changes every tick.
@@ -851,6 +859,7 @@ impl Monitor {
             fleet: false,
             zombies: false,
             history: false,
+            docker: false,
             sel: 0,
             sel_pid: None,
             offset: 0,
@@ -1547,6 +1556,7 @@ impl Monitor {
             key("p", "the flat process list"),
             key("t", "the process tree — parents, children, zombies"),
             key("z", "only zombies and orphans — the ones nothing owns"),
+            key("o", "containers — docker's own numbers, not re-derived"),
             key("y", "the last 24 hours: what this machine actually did"),
             key("f", "the fleet — every mesh peer's totals side by side"),
             key("v", "add the declared units that are stopped or idle"),
@@ -2357,6 +2367,21 @@ impl Dashboard for Monitor {
             }
             Overlay::None => {}
         }
+        if self.docker {
+            match k {
+                KeyCode::Char('o') | KeyCode::Char('p') => {
+                    self.docker = false;
+                    self.msg = Some(("back to processes".into(), false));
+                }
+                KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
+                KeyCode::Esc => {
+                    self.overlay = Overlay::Menu;
+                    self.menu_sel = 0;
+                }
+                _ => {}
+            }
+            return;
+        }
         if self.history {
             match k {
                 KeyCode::Char('y') | KeyCode::Char('p') => {
@@ -2488,8 +2513,16 @@ impl Dashboard for Monitor {
                     false,
                 ));
             }
+            KeyCode::Char('o') => {
+                self.docker = !self.docker;
+                self.msg = Some((
+                    if self.docker { "containers".into() } else { "back to processes".to_string() },
+                    false,
+                ));
+            }
             KeyCode::Char('y') => {
                 self.history = !self.history;
+                self.docker = false;
                 self.msg = Some((
                     if self.history { "last 24 hours".into() } else { "back to processes".to_string() },
                     false,
@@ -3106,12 +3139,94 @@ impl Dashboard for Monitor {
             f.render_widget(Paragraph::new(l), mesh_in);
         }
 
+        // ── docker ────────────────────────────────────────────────────────────
+        // Containers are processes too, but a container is not a row in the
+        // process table: the thing you want named is the container, and what
+        // it uses is the sum of everything inside it. docker already computes
+        // that, so this shows docker's own numbers rather than re-deriving
+        // them from cgroups and getting a subtly different answer.
+        if self.docker {
+            let ob = tabbox(VIEW_TABS, 3, "o back to processes");
+            let oin = ob.inner(rows[4]);
+            f.render_widget(ob, rows[4]);
+            let cs = arr(&s, "containers");
+            if cs.is_empty() {
+                f.render_widget(
+                    Paragraph::new(vec![
+                        Line::from(Span::styled(
+                            "  no containers",
+                            Style::default().fg(Color::Rgb(240, 160, 90)),
+                        )),
+                        Line::from(Span::styled(
+                            "  nothing running, no docker, or this user is not in the docker group —",
+                            Style::default().fg(DIM),
+                        )),
+                        Line::from(Span::styled(
+                            "  all three look the same from here, and all three mean the same thing.",
+                            Style::default().fg(DIM),
+                        )),
+                    ]),
+                    oin,
+                );
+            } else {
+                let cell = |t: String, c: Color| Cell::from(t).style(Style::default().fg(c));
+                let pct = |t: &str| -> f64 { t.trim_end_matches('%').parse().unwrap_or(0.0) };
+                let crows: Vec<Row> = cs
+                    .iter()
+                    .map(|c| {
+                        let cpu = pct(&text(c, "cpu"));
+                        let mem = pct(&text(c, "mem_pct"));
+                        Row::new(vec![
+                            cell(trunc(&text(c, "name"), 24), Color::White),
+                            cell(trunc(&text(c, "status"), 20), Color::Rgb(120, 220, 140)),
+                            cell(format!("{:>7}", text(c, "cpu")), grad(cpu / 100.0)),
+                            cell(format!("{:>7}", text(c, "mem_pct")), grad(mem / 100.0)),
+                            cell(text(c, "mem"), Color::Gray),
+                            cell(text(c, "net"), Color::Rgb(120, 200, 255)),
+                            cell(text(c, "block"), Color::Rgb(220, 140, 240)),
+                            cell(format!("{:>5}", text(c, "pids")), DIM),
+                            cell(trunc(&text(c, "image"), 30), DIM),
+                        ])
+                    })
+                    .collect();
+                let table = Table::new(
+                    crows,
+                    [
+                        Constraint::Length(25),
+                        Constraint::Length(21),
+                        Constraint::Length(8),
+                        Constraint::Length(8),
+                        Constraint::Length(22),
+                        Constraint::Length(20),
+                        Constraint::Length(20),
+                        Constraint::Length(6),
+                        Constraint::Min(12),
+                    ],
+                )
+                .header(Row::new(
+                    ["CONTAINER", "STATUS", "CPU%", "MEM%", "MEMORY", "NET I/O", "BLOCK I/O", "PIDS", "IMAGE"]
+                        .map(|h| Cell::from(h).style(Style::default().fg(LABEL))),
+                ));
+                f.render_widget(table, oin);
+            }
+            let status = Line::from(Span::styled(
+                match &self.msg {
+                    Some((m, _)) => format!(" {m}"),
+                    None => format!(" {} containers · refreshed every 30s · h keys · ^c quits", cs.len()),
+                },
+                Style::default().fg(LABEL),
+            ));
+            f.render_widget(Paragraph::new(status), rows[5]);
+            self.render_overlays(f, area);
+            return;
+        }
+
         // ── history ───────────────────────────────────────────────────────────
         // What this machine actually did, rather than what it is doing. The
         // daemon keeps the series and computes the window; the panel only
         // renders it, so a peer would answer the same way if it kept one.
         if self.history {
-            let hb = tabbox(VIEW_TABS, 4, "y back to processes");
+            let hb = tabbox(VIEW_TABS, 5, "y back to processes");
             let hin = hb.inner(rows[4]);
             f.render_widget(hb, rows[4]);
             let win = num(&s, "history.window_s");
@@ -3204,7 +3319,7 @@ impl Dashboard for Monitor {
         // come from the same collector the measure-a-peer path uses, so a peer
         // is described by its own /proc rather than by anything guessed here.
         if self.fleet {
-            let fb = tabbox(VIEW_TABS, 3, "enter opens a machine · esc → measure");
+            let fb = tabbox(VIEW_TABS, 4, "enter opens a machine · esc → measure");
             let fin = fb.inner(rows[4]);
             f.render_widget(fb, rows[4]);
             let got = self.mesh.fleet();
@@ -3258,7 +3373,6 @@ impl Dashboard for Monitor {
                 };
                 let g = |k: &str| num(&v, k);
                 let pct = |x: f64| Cell::from(z(x, 5, format!("{x:>5.1}"))).style(Style::default().fg(grad(x / 100.0)));
-                let psi_worst = g("psi.cpu.some10").max(g("psi.io.full10")).max(g("psi.memory.full10"));
                 let ncpu = arr(&v, "cores").len().max(1) as f64;
                 let l1 = g("load1");
                 frows.push(Row::new(vec![
@@ -3285,10 +3399,34 @@ impl Dashboard for Monitor {
                         }
                         _ => g("disk"),
                     }),
-                    Cell::from(format!("{l1:>5.2}")).style(Style::default().fg(grad(l1 / ncpu))),
+                    // All three loads, like uptime(1) — one number cannot tell
+                    // a spike from a machine that has been buried for an hour.
+                    Cell::from(Line::from(vec![
+                        Span::styled(format!("{l1:>5.2}"), Style::default().fg(grad(l1 / ncpu))),
+                        Span::styled(
+                            format!(" {:>5.2} {:>5.2}", g("load5"), g("load15")),
+                            Style::default().fg(Color::Gray),
+                        ),
+                    ])),
                     Cell::from(format!("{:>4.0}", ncpu)).style(Style::default().fg(DIM)),
-                    Cell::from(z(psi_worst, 6, format!("{psi_worst:>6.2}")))
-                        .style(Style::default().fg(grad(psi_worst / 20.0))),
+                    // some-cpu, full-io, full-mem at 10s: the three that
+                    // actually tell you what a machine is stuck on. `full`
+                    // for io and memory because that is every task stalled,
+                    // which is the figure that tracked the freeze.
+                    Cell::from(Line::from(vec![
+                        Span::styled(
+                            format!("{:>6.2}", g("psi.cpu.some10")),
+                            Style::default().fg(grad(g("psi.cpu.some10") / 60.0)),
+                        ),
+                        Span::styled(
+                            format!(" {:>6.2}", g("psi.io.full10")),
+                            Style::default().fg(grad(g("psi.io.full10") / 20.0)),
+                        ),
+                        Span::styled(
+                            format!(" {:>6.2}", g("psi.memory.full10")),
+                            Style::default().fg(grad(g("psi.memory.full10") / 20.0)),
+                        ),
+                    ])),
                     Cell::from(format!("{:>6}", arr(&v, "proc_table").len()))
                         .style(Style::default().fg(DIM)),
                 ]));
@@ -3303,9 +3441,9 @@ impl Dashboard for Monitor {
                     Constraint::Length(5),  // swap
                     Constraint::Length(7),  // ram total
                     Constraint::Length(5),  // disk
-                    Constraint::Length(5),  // load
+                    Constraint::Length(17), // load 1/5/15
                     Constraint::Length(4),  // cores
-                    Constraint::Length(6),  // psi
+                    Constraint::Length(20), // psi cpu/io/mem
                     Constraint::Length(6),  // procs
                 ],
             )
@@ -3317,9 +3455,9 @@ impl Dashboard for Monitor {
                 Cell::from("SWAP%").style(Style::default().fg(LABEL)),
                 Cell::from("    RAM").style(Style::default().fg(LABEL)),
                 Cell::from("DISK%").style(Style::default().fg(LABEL)),
-                Cell::from(" LOAD").style(Style::default().fg(LABEL)),
+                Cell::from(" LOAD  1     5    15").style(Style::default().fg(LABEL)),
                 Cell::from("CPUS").style(Style::default().fg(LABEL)),
-                Cell::from("   PSI").style(Style::default().fg(LABEL)),
+                Cell::from("PSI cpu     io    mem").style(Style::default().fg(LABEL)),
                 Cell::from(" PROCS").style(Style::default().fg(LABEL)),
             ]));
             f.render_widget(ftable, fin);
