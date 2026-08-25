@@ -17,7 +17,10 @@
     wget
     # vim — provided by programs.vim in common.nix
     coreutils
-    openssh
+    # openssh — provided by modules/cloud-ide-sshd (opensshPinned, built with
+    # --with-sandbox=no). Listing stock openssh here too put two different
+    # openssh-9.7p1 derivations in nix-on-droid-path and collided on
+    # etc/ssh/sshd_config; it deduped only while opensshPinned was stock.
     strace
     unison
     rclone
