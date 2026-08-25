@@ -371,6 +371,14 @@ fn fmt_bps(b: f64) -> String {
     }
 }
 
+/// Storage, always in gigabytes to one decimal. A column that mixes "741.6M"
+/// with "22.7G" makes the reader rescale every row before they can compare
+/// two of them; "0.7G" beside "22.7G" compares at a glance. Disks are sized
+/// in gigabytes and this is a disk column.
+fn fmt_g(b: f64) -> String {
+    format!("{:.1}G", b / 1_073_741_824.0)
+}
+
 fn fmt_bytes_short(b: f64) -> String {
     const U: [&str; 5] = ["B", "K", "M", "G", "T"];
     let mut v = b;
@@ -695,7 +703,8 @@ const FREE: [(&str, &str, &str); 3] = [
 
 /// The three things the big box can be. Naming them in the frame is the only
 /// way anyone finds out the other two exist.
-const VIEW_TABS: &[(&str, char)] = &[("proc", 'p'), ("tree", 't'), ("fleet", 'f')];
+const VIEW_TABS: &[(&str, char)] =
+    &[("proc", 'p'), ("tree", 't'), ("zombies", 'z'), ("fleet", 'f'), ("history", 'y')];
 
 /// One row under `v`: either a group heading or a declared unit.
 #[derive(Clone, Debug)]
@@ -784,6 +793,10 @@ pub struct Monitor {
     units: bool,
     /// `f`: the proc area becomes one row per mesh peer.
     fleet: bool,
+    /// `z`: only the processes nothing is looking after.
+    zombies: bool,
+    /// `y`: what this machine did over the last day.
+    history: bool,
     sel: usize,
     /// The cursor's real identity. `sel` is only where that pid happened to
     /// land in the current ordering, and the ordering changes every tick.
@@ -836,6 +849,8 @@ impl Monitor {
             tree: false,
             units: false,
             fleet: false,
+            zombies: false,
+            history: false,
             sel: 0,
             sel_pid: None,
             offset: 0,
@@ -913,7 +928,7 @@ impl Monitor {
             )];
             sp.extend(meter(bw, used / size, "").spans);
             sp.push(Span::styled(
-                format!(" {} / {}", fmt_bytes_short(used), fmt_bytes_short(size)),
+                format!(" {} / {}", fmt_g(used), fmt_g(size)),
                 Style::default().fg(Color::Gray),
             ));
             l.push(Line::from(sp));
@@ -923,16 +938,16 @@ impl Monitor {
             l.push(Line::from(vec![
                 Span::styled("  data ", Style::default().fg(LABEL)),
                 Span::styled(
-                    format!("{}/{}", fmt_bytes_short(num(pool, "data_used")), fmt_bytes_short(num(pool, "data_total"))),
+                    format!("{}/{}", fmt_g(num(pool, "data_used")), fmt_g(num(pool, "data_total"))),
                     Style::default().fg(Color::Gray),
                 ),
                 Span::styled("  meta ", Style::default().fg(LABEL)),
                 Span::styled(
-                    format!("{}/{}", fmt_bytes_short(num(pool, "meta_used")), fmt_bytes_short(num(pool, "meta_total"))),
+                    format!("{}/{}", fmt_g(num(pool, "meta_used")), fmt_g(num(pool, "meta_total"))),
                     Style::default().fg(Color::Gray),
                 ),
                 Span::styled("  unalloc ", Style::default().fg(LABEL)),
-                Span::styled(fmt_bytes_short((size - alloc).max(0.0)), Style::default().fg(Color::Rgb(120, 200, 255))),
+                Span::styled(fmt_g((size - alloc).max(0.0)), Style::default().fg(Color::Rgb(120, 200, 255))),
             ]));
 
             let vols = arr(pool, "volumes");
@@ -961,7 +976,7 @@ impl Monitor {
                 };
                 let quota = if limit > 0.0 {
                     Span::styled(
-                        format!("  {:>3.0}% of {}", refer / limit * 100.0, fmt_bytes_short(limit)),
+                        format!("  {:>3.0}% of {}", refer / limit * 100.0, fmt_g(limit)),
                         Style::default().fg(grad(refer / limit)),
                     )
                 } else {
@@ -969,8 +984,8 @@ impl Monitor {
                 };
                 l.push(Line::from(vec![
                     Span::styled(format!("  {short:<20}"), Style::default().fg(Color::Gray)),
-                    Span::styled(format!("{:>9}", fmt_bytes_short(refer)), Style::default().fg(grad(refer / size))),
-                    Span::styled(format!("{:>9}", fmt_bytes_short(excl)), Style::default().fg(Color::Rgb(140, 150, 170))),
+                    Span::styled(format!("{:>9}", fmt_g(refer)), Style::default().fg(grad(refer / size))),
+                    Span::styled(format!("{:>9}", fmt_g(excl)), Style::default().fg(Color::Rgb(140, 150, 170))),
                     quota,
                 ]));
             }
@@ -1531,6 +1546,8 @@ impl Monitor {
             head("view mode"),
             key("p", "the flat process list"),
             key("t", "the process tree — parents, children, zombies"),
+            key("z", "only zombies and orphans — the ones nothing owns"),
+            key("y", "the last 24 hours: what this machine actually did"),
             key("f", "the fleet — every mesh peer's totals side by side"),
             key("v", "add the declared units that are stopped or idle"),
             head("sorting"),
@@ -2037,10 +2054,16 @@ impl Monitor {
         num(p, "ppid") as i64 == 1
     }
 
+    /// Nothing is looking after this one: it is either already dead and
+    /// uncollected, or its parent died and init inherited it.
+    fn is_lost(p: &Value) -> bool {
+        text(p, "state").starts_with('Z') || Self::is_orphan(p)
+    }
+
     fn rows(&self) -> Vec<&Value> {
         let procs = sort_procs(&self.snap, self.sort, self.desc, self.win);
-        let procs: Vec<&Value> = if self.orphans {
-            procs.into_iter().filter(|p| Self::is_orphan(p)).collect()
+        let procs: Vec<&Value> = if self.orphans || self.zombies {
+            procs.into_iter().filter(|p| Self::is_lost(p)).collect()
         } else {
             procs
         };
@@ -2334,6 +2357,26 @@ impl Dashboard for Monitor {
             }
             Overlay::None => {}
         }
+        if self.history {
+            match k {
+                KeyCode::Char('y') | KeyCode::Char('p') => {
+                    self.history = false;
+                    self.msg = Some(("back to processes".into(), false));
+                }
+                KeyCode::Char('f') => {
+                    self.history = false;
+                    self.fleet = true;
+                    self.mesh.set_fleet(true);
+                }
+                KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
+                KeyCode::Esc => {
+                    self.overlay = Overlay::Menu;
+                    self.menu_sel = 0;
+                }
+                _ => {}
+            }
+            return;
+        }
         if self.fleet {
             // The fleet table is its own list; the process keys would move a
             // cursor through rows that are not on screen.
@@ -2350,11 +2393,17 @@ impl Dashboard for Monitor {
                         self.overlay = Overlay::Machine;
                     }
                 }
-                KeyCode::Char('f') => {
+                KeyCode::Char('f') | KeyCode::Char('p') => {
                     self.fleet = false;
                     self.mesh.set_fleet(false);
                     self.sel = 0;
                     self.msg = Some(("back to processes".into(), false));
+                }
+                KeyCode::Char('y') => {
+                    self.fleet = false;
+                    self.mesh.set_fleet(false);
+                    self.history = true;
+                    self.sel = 0;
                 }
                 KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
                 KeyCode::Esc => {
@@ -2399,6 +2448,7 @@ impl Dashboard for Monitor {
             }
             KeyCode::Char('f') => {
                 self.fleet = !self.fleet;
+                self.history = false;
                 self.mesh.set_fleet(self.fleet);
                 self.msg = Some((
                     if self.fleet {
@@ -2419,11 +2469,31 @@ impl Dashboard for Monitor {
                     false,
                 ));
             }
-            KeyCode::Char('p') if self.tree => {
+            KeyCode::Char('p') if self.tree || self.zombies => {
                 // `p` is sort-by-pid when there is no view to leave, and the
                 // tab it names when there is.
                 self.tree = false;
+                self.zombies = false;
                 self.msg = Some(("process list".into(), false));
+            }
+            KeyCode::Char('z') => {
+                self.zombies = !self.zombies;
+                self.tree = false;
+                self.msg = Some((
+                    if self.zombies {
+                        "zombies and orphans — dead, or reparented to init".into()
+                    } else {
+                        "process list".to_string()
+                    },
+                    false,
+                ));
+            }
+            KeyCode::Char('y') => {
+                self.history = !self.history;
+                self.msg = Some((
+                    if self.history { "last 24 hours".into() } else { "back to processes".to_string() },
+                    false,
+                ));
             }
             KeyCode::Char('t') => {
                 self.tree = !self.tree;
@@ -3036,12 +3106,105 @@ impl Dashboard for Monitor {
             f.render_widget(Paragraph::new(l), mesh_in);
         }
 
+        // ── history ───────────────────────────────────────────────────────────
+        // What this machine actually did, rather than what it is doing. The
+        // daemon keeps the series and computes the window; the panel only
+        // renders it, so a peer would answer the same way if it kept one.
+        if self.history {
+            let hb = tabbox(VIEW_TABS, 4, "y back to processes");
+            let hin = hb.inner(rows[4]);
+            f.render_widget(hb, rows[4]);
+            let win = num(&s, "history.window_s");
+            let n = num(&s, "history.samples");
+            let mut hl: Vec<Line> = vec![];
+            if n < 2.0 {
+                hl.push(Line::from(Span::styled(
+                    "  no history yet — the daemon records one sample a minute, and needs two to measure anything",
+                    Style::default().fg(Color::Rgb(240, 160, 90)),
+                )));
+                if !self.mesh.target().is_none() {
+                    hl.push(Line::from(Span::styled(
+                        "  (a peer collected over ssh keeps no history: it is sampled on demand, not continuously)",
+                        Style::default().fg(DIM),
+                    )));
+                }
+            } else {
+                let row = |k: &str, v: String, per: String, c: Color| -> Line<'static> {
+                    Line::from(vec![
+                        Span::styled(format!("  {k:<22}"), Style::default().fg(LABEL)),
+                        Span::styled(format!("{v:>12}"), Style::default().fg(c)),
+                        Span::styled(format!("   {per}"), Style::default().fg(DIM)),
+                    ])
+                };
+                let h = |k: &str| num(&s, &format!("history.{k}"));
+                let hours = win / 3600.0;
+                let rate = |b: f64| format!("{}/h", fmt_bytes_short(b / hours.max(0.01)));
+                hl.push(Line::from(Span::styled(
+                    format!(
+                        "  covering {} · {} samples · one a minute",
+                        fmt_uptime(win),
+                        n as i64
+                    ),
+                    Style::default().fg(Color::Gray),
+                )));
+                hl.push(Line::from(""));
+                hl.push(Line::from(Span::styled(
+                    "moved",
+                    Style::default().fg(Color::Rgb(120, 200, 255)).add_modifier(Modifier::BOLD),
+                )));
+                hl.push(row("downloaded", fmt_bytes_short(h("net_rx_bytes")), rate(h("net_rx_bytes")), Color::Rgb(120, 200, 255)));
+                hl.push(row("uploaded", fmt_bytes_short(h("net_tx_bytes")), rate(h("net_tx_bytes")), Color::Rgb(240, 169, 66)));
+                hl.push(row("read from disk", fmt_bytes_short(h("disk_read_bytes")), rate(h("disk_read_bytes")), Color::Rgb(120, 220, 140)));
+                hl.push(row("written to disk", fmt_bytes_short(h("disk_write_bytes")), rate(h("disk_write_bytes")), Color::Rgb(220, 140, 240)));
+                hl.push(Line::from(""));
+                hl.push(Line::from(Span::styled(
+                    "held",
+                    Style::default().fg(Color::Rgb(120, 200, 255)).add_modifier(Modifier::BOLD),
+                )));
+                // Time-weighted, which is what a percentage averaged over a
+                // day has to mean when it is sampled once a minute.
+                let cpu_avg = h("cpu_pct_avg");
+                hl.push(row(
+                    "cpu, time-weighted",
+                    format!("{cpu_avg:.2}%"),
+                    format!("≈ {} of one core busy", fmt_uptime(cpu_avg / 100.0 * win)),
+                    grad(cpu_avg / 100.0),
+                ));
+                let mem_avg = h("mem_pct_avg");
+                hl.push(row("memory, time-weighted", format!("{mem_avg:.2}%"), String::new(), grad(mem_avg / 100.0)));
+                let swap_avg = h("swap_pct_avg");
+                hl.push(row("swap, time-weighted", format!("{swap_avg:.2}%"), String::new(), grad(swap_avg / 100.0)));
+                hl.push(Line::from(""));
+                hl.push(row(
+                    "up",
+                    fmt_uptime(num(&s, "totals.since_s")),
+                    "since boot".into(),
+                    Color::Gray,
+                ));
+                hl.push(Line::from(Span::styled(
+                    "  counters that went backwards are treated as a reboot and not counted across",
+                    Style::default().fg(DIM),
+                )));
+            }
+            f.render_widget(Paragraph::new(hl), hin);
+            let status = Line::from(Span::styled(
+                match &self.msg {
+                    Some((m, _)) => format!(" {m}"),
+                    None => " last 24 hours · h keys · esc menu · ^c quits".to_string(),
+                },
+                Style::default().fg(LABEL),
+            ));
+            f.render_widget(Paragraph::new(status), rows[5]);
+            self.render_overlays(f, area);
+            return;
+        }
+
         // ── fleet ─────────────────────────────────────────────────────────────
         // The whole mesh in one table, instead of one machine in detail. Rows
         // come from the same collector the measure-a-peer path uses, so a peer
         // is described by its own /proc rather than by anything guessed here.
         if self.fleet {
-            let fb = tabbox(VIEW_TABS, 2, "enter opens a machine · esc → measure");
+            let fb = tabbox(VIEW_TABS, 3, "enter opens a machine · esc → measure");
             let fin = fb.inner(rows[4]);
             f.render_widget(fb, rows[4]);
             let got = self.mesh.fleet();
@@ -3179,8 +3342,8 @@ impl Dashboard for Monitor {
         // Sorted against the local clone `s`, so self stays free to mutate for
         // the scroll bookkeeping just below.
         let sorted = sort_procs(&s, self.sort, self.desc, self.win);
-        let sorted: Vec<&Value> = if self.orphans {
-            sorted.into_iter().filter(|p| Self::is_orphan(p)).collect()
+        let sorted: Vec<&Value> = if self.orphans || self.zombies {
+            sorted.into_iter().filter(|p| Self::is_lost(p)).collect()
         } else {
             sorted
         };
@@ -3207,7 +3370,11 @@ impl Dashboard for Monitor {
             if self.tree { "tree · " } else { "" },
             if self.orphans { "ORPHANS ONLY · " } else { "" },
         );
-        let proc_b = tabbox(VIEW_TABS, if self.tree { 1 } else { 0 }, &hint);
+        let proc_b = tabbox(
+            VIEW_TABS,
+            if self.zombies { 2 } else if self.tree { 1 } else { 0 },
+            &hint,
+        );
         let proc_in = proc_b.inner(rows[4]);
         f.render_widget(proc_b, rows[4]);
 
