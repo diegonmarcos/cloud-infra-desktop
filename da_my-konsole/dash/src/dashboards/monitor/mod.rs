@@ -4031,7 +4031,11 @@ impl Dashboard for Monitor {
                                 Style::default().fg(Color::Rgb(240, 72, 72)),
                             ),
                         },
-                    ]))]));
+                    ]))])
+                    // The row carries the highlight, not the cells. This one
+                    // is a single cell against twelve columns, so without it
+                    // the bar stopped 56 characters in.
+                    .style(base));
                     continue;
                 };
                 let g = |k: &str| num(&v, k);
@@ -4086,6 +4090,21 @@ impl Dashboard for Monitor {
                         }
                         _ => g("disk"),
                     }),
+                    // The same measurement as DISK%, in the unit you act on:
+                    // "86%" tells you to look, "6.2G left of 45G" tells you
+                    // whether it can wait. Same source as the percentage
+                    // beside it — btrfs pool where there is one, df otherwise
+                    // — so the two columns can never disagree.
+                    Cell::from(match arr(&v, "storage").first() {
+                        Some(st) if num(st, "dev_size") > 0.0 => {
+                            format!("{:>7}", fmt_g(num(st, "alloc_used")))
+                        }
+                        _ => match arr(&v, "disks").first() {
+                            Some(dk) => format!("{:>6.1}G", num(dk, "used_gib")),
+                            None => format!("{:>7}", "-"),
+                        },
+                    })
+                    .style(base.fg(Color::Gray)),
                     // All three loads, like uptime(1) — one number cannot tell
                     // a spike from a machine that has been buried for an hour.
                     Cell::from(Line::from(vec![
@@ -4115,7 +4134,18 @@ impl Dashboard for Monitor {
                         ),
                     ])),
                     Cell::from(format!("{:>6}", arr(&v, "proc_table").len())).style(base.fg(DIM)),
-                ]));
+                ])
+                // THE SELECTION BAR LIVES HERE, not on the cells.
+                //
+                // Cells were carrying it individually, so it broke at every
+                // cell built from spans — VRAM, LOAD, PSI all style their
+                // spans `Style::default().fg(..)` — and at the single space
+                // of column_spacing between each pair. The result was a
+                // highlight in stripes. A row style is painted across the
+                // whole row first and a span that sets only `fg` patches over
+                // it without clearing the background, so one line here fixes
+                // every gap at once.
+                .style(base));
             }
             let ftable = Table::new(
                 frows,
@@ -4127,7 +4157,8 @@ impl Dashboard for Monitor {
                     Constraint::Length(5),  // swap
                     Constraint::Length(12), // vram d/s
                     Constraint::Length(7),  // ram total
-                    Constraint::Length(5),  // disk
+                    Constraint::Length(5),  // disk %
+                    Constraint::Length(7),  // disk used
                     Constraint::Length(17), // load 1/5/15
                     Constraint::Length(4),  // cores
                     Constraint::Length(20), // psi cpu/io/mem
@@ -4143,6 +4174,7 @@ impl Dashboard for Monitor {
                 Cell::from("VRAM-d VRAM-s").style(Style::default().fg(LABEL)),
                 Cell::from("    RAM").style(Style::default().fg(LABEL)),
                 Cell::from("DISK%").style(Style::default().fg(LABEL)),
+                Cell::from("   DISK").style(Style::default().fg(LABEL)),
                 Cell::from(" LOAD  1     5    15").style(Style::default().fg(LABEL)),
                 Cell::from("CPUS").style(Style::default().fg(LABEL)),
                 Cell::from("PSI cpu     io    mem").style(Style::default().fg(LABEL)),
