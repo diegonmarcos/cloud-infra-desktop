@@ -111,7 +111,9 @@ const VIEW_TABS: &[(&str, char)] = &[
     ("containers", 'o'),
     ("fleet", 'f'),
     ("history", 'y'),
-    ("about", 'a'),
+    // 'b', not 'a': the frame owns r and a for refresh/auto and advertises
+    // them in its own header, so a view key named 'a' silently never arrives.
+    ("about", 'b'),
 ];
 
 /// One row under `v`: either a group heading or a declared unit.
@@ -914,7 +916,7 @@ impl Monitor {
         if c == 'p' && flat {
             return false;
         }
-        if !matches!(c, 'p' | 't' | 'z' | 'o' | 'f' | 'y' | 'a') {
+        if !matches!(c, 'p' | 't' | 'z' | 'o' | 'f' | 'y' | 'b') {
             return false;
         }
         // A view is a single choice, so every switch clears the others rather
@@ -948,7 +950,7 @@ impl Monitor {
                 self.history = true;
                 "the last 24 hours"
             }
-            'a' => {
+            'b' => {
                 self.about = true;
                 "about this machine"
             }
@@ -1028,7 +1030,7 @@ impl Monitor {
             key("t", "the process tree — parents, children, zombies"),
             key("z", "only zombies and orphans — the ones nothing owns"),
             key("o", "containers — docker's or podman's own numbers"),
-            key("a", "about — what this machine is, rather than what it is doing"),
+            key("b", "about — what this machine is, rather than what it is doing"),
             key("y", "the last 24 hours: what this machine actually did"),
             key("f", "the fleet — every mesh peer's totals side by side"),
             key("v", "add the declared units that are stopped or idle"),
@@ -2649,7 +2651,7 @@ impl Dashboard for Monitor {
         // changes on the scale of a reboot or a reinstall, which is exactly
         // why it does not belong in a box that redraws every second.
         if self.about {
-            let ab = tabbox(VIEW_TABS, 6, "a back to processes");
+            let ab = tabbox(VIEW_TABS, 6, "b back to processes");
             let ain = ab.inner(rows[4]);
             f.render_widget(ab, rows[4]);
             let hi2 = |k: &str| text(&s, &format!("host_info.{k}"));
