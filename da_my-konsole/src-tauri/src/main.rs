@@ -5,7 +5,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod clipboard;
-mod watchdog;
+use my_watchdog::watchdog;
 
 use pty_core::{PtyBroker, PtyEvent};
 use serde::Serialize;
