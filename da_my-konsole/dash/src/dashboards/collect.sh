@@ -25,6 +25,55 @@ T=/tmp/.mk.$$
 
 # df once, for the root filesystem percentage the fleet view shows.
 > $T.df df -P / 2>/dev/null
+
+# Every real filesystem, for the storage box. A peer has no btrfs qgroup data
+# gathered over ssh, so this is df's view, labelled as such rather than dressed
+# up in the columns qgroups would have filled.
+# -PT only. No -x and no -l: df on these peers is BusyBox, which has neither,
+# so the whole call failed and the storage box came back empty for a machine
+# whose filesystems df can read perfectly well. Pseudo-filesystems are filtered
+# in awk instead, where the shape of df is not a portability question.
+> $T.dfa df -PT 2>/dev/null
+
+# Raw output, parsed in awk. Every attempt to pre-format these with a nested
+# awk inside sh -c inside a single-quoted script turned into a quoting problem
+# with no good end; the parsing belongs in the one awk program either way.
+{
+  cat /proc/sys/kernel/hostname 2>/dev/null || echo
+  ( . /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-}" )
+  cat /proc/sys/kernel/osrelease 2>/dev/null || echo
+  id -un 2>/dev/null || echo
+} > $T.host 2>/dev/null
+ip -o addr show > $T.addr 2>/dev/null || : > $T.addr
+ip -o route show default > $T.route 2>/dev/null || : > $T.route
+cat /etc/resolv.conf > $T.resolv 2>/dev/null || : > $T.resolv
+
+# docker or podman, whichever answers first. Both speak the same --format, and
+# a peer running neither simply produces nothing.
+#
+# HARD TIMEOUT, and it is not optional. `docker stats` samples every container
+# twice to get a cpu delta and blocks on the daemon socket, so on a loaded box
+# — or one where this user cannot reach the socket — it simply never returns,
+# and the whole collector hangs with it. That is not a hypothetical: it wedged
+# oci-apps until the ssh timeout killed it, and the hub saw a peer that had
+# gone silent rather than a peer with no container data.
+TO=""
+command -v timeout >/dev/null 2>&1 && TO="timeout 6"
+: > $T.ctr; : > $T.ctrps
+for engine in docker podman; do
+  command -v "$engine" >/dev/null 2>&1 || continue
+  # ps FIRST, and it is the authoritative list: it is fast and it always
+  # works, where `stats` can spend twenty seconds and hand back "--" in every
+  # column, which is exactly what oci-apps does. A list of containers with no
+  # numbers beside them is far more useful than no list at all.
+  $TO "$engine" ps --format '{{.Names}}	{{.Status}}	{{.Image}}' > $T.ctrps 2>/dev/null || continue
+  [ -s $T.ctrps ] || continue
+  $TO "$engine" stats --no-stream \
+    --format '{{.Name}}	{{.CPUPerc}}	{{.MemUsage}}	{{.MemPerc}}	{{.NetIO}}	{{.BlockIO}}	{{.PIDs}}' \
+    > $T.ctr 2>/dev/null
+  break
+done
+
 > $T.1 cat /proc/stat
 > $T.p1 sh -c 'for f in /proc/[0-9]*/stat; do p=${f%/stat}; p=${p##*/}; s=$(cat "$f" 2>/dev/null) || continue; echo "$p ${s#*) }"; done'
 sleep 1
@@ -124,7 +173,79 @@ BEGIN{
   j("net_rx",0); j("net_tx",0)
   j("load1",L[1]+0); j("load5",L[2]+0); j("load15",L[3]+0)
   j("psi",sprintf("{\"cpu\":%s,\"io\":%s,\"memory\":%s}",psi("/proc/pressure/cpu"),psi("/proc/pressure/io"),psi("/proc/pressure/memory")))
-  j("storage","{}"); j("slices","[]"); j("services","[]")
+  # ── who this machine is ────────────────────────────────────────────
+  hl=0
+  while((getline l < (T ".host"))>0){ hl++
+    if(hl==1) hn=l; else if(hl==2) osn=l; else if(hl==3) kern=l; else if(hl==4) usr=l }
+  close(T ".host")
+  nif=0; pubip=""
+  while((getline l < (T ".addr"))>0){ n=split(l,a," ")
+    nm=a[2]; if(nm=="lo") continue
+    ad=""
+    for(i=3;i<=n;i++) if(a[i]=="inet" || a[i]=="inet6"){ ad=a[i+1]; break }
+    if(ad=="" || ad ~ /^fe80:/) continue
+    IFN[++nif]=nm; IFA[nif]=ad
+    ip=ad; sub(/\/.*/,"",ip)
+    # Globally routable? Everything RFC1918, CGNAT, loopback, link-local and
+    # unique-local is not, and on this fleet that is exactly the set that
+    # means "not reachable from the internet".
+    if(pubip=="" && nm !~ /^wg/ && ip !~ /^10\./ && ip !~ /^127\./ && ip !~ /^192\.168\./ \
+       && ip !~ /^169\.254\./ && ip !~ /^172\.(1[6-9]|2[0-9]|3[01])\./ \
+       && ip !~ /^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./ \
+       && ip !~ /^f[cd]/ && ip != "::1") pubip=ip }
+  close(T ".addr")
+  gw=""; wif=""
+  while((getline l < (T ".route"))>0){ n=split(l,a," ")
+    for(i=1;i<=n;i++){ if(a[i]=="via") gw=a[i+1]; if(a[i]=="dev") wif=a[i+1] } }
+  close(T ".route")
+  nd=0; ns=0
+  while((getline l < (T ".resolv"))>0){ n=split(l,a," ")
+    if(a[1]=="nameserver") DNS[++nd]=a[2]
+    else if(a[1]=="search") for(i=2;i<=n;i++) SRCH[++ns]=a[i] }
+  close(T ".resolv")
+  ifj=""; for(i=1;i<=nif;i++) ifj=ifj sprintf("%s{\"name\":\"%s\",\"addr\":\"%s\"}",(i>1?",":""),esc(IFN[i]),esc(IFA[i]))
+  dnj=""; for(i=1;i<=nd;i++) dnj=dnj sprintf("%s\"%s\"",(i>1?",":""),esc(DNS[i]))
+  srj=""; for(i=1;i<=ns;i++) srj=srj sprintf("%s\"%s\"",(i>1?",":""),esc(SRCH[i]))
+  j("host_info",sprintf("{\"host\":\"%s\",\"os\":\"%s\",\"kernel\":\"%s\",\"user\":\"%s\",\"gateway\":\"%s\",\"wan_if\":\"%s\",\"public\":\"%s\",\"ifaces\":[%s],\"dns\":[%s],\"search\":[%s]}",
+    esc(hn),esc(osn),esc(kern),esc(usr),esc(gw),esc(wif),esc(pubip),ifj,dnj,srj))
+
+  # ── filesystems ────────────────────────────────────────────────────
+  # Labelled "df" on purpose: these are df numbers, and used-as-referenced is
+  # only honest while the source is named. A peer collected over ssh has no
+  # qgroup data gathered, and dressing df up in qgroup columns would hide that.
+  vols=""; nv=0; troot=0; uroot=0
+  while((getline l < (T ".dfa"))>0){ n=split(l,a," ")
+    if(a[1]=="Filesystem" || n<7) continue
+    if(a[2] ~ /^(tmpfs|devtmpfs|squashfs|overlay|proc|sysfs|cgroup|cgroup2|ramfs|autofs|nsfs|tracefs|debugfs|securityfs|pstore|bpf|configfs|efivarfs|mqueue|hugetlbfs|binfmt_misc|fusectl|devpts)$/) continue
+    # -PT columns: Filesystem Type 1K-blocks Used Available Capacity Mount.
+    # The mount is the LAST field rather than the seventh, because a device
+    # path containing a space shifts everything before it.
+    mp=a[n]; sz=a[3]*1024; us=a[4]*1024
+    if(sz<=0) continue
+    nv++
+    vols=vols sprintf("%s{\"mount\":\"%s\",\"subvol\":\"%s\",\"referenced\":%.0f,\"exclusive\":%.0f,\"limit\":%.0f}",
+      (nv>1?",":""),esc(mp),esc(a[2]),us,us,sz)
+    if(mp=="/"){ troot=sz; uroot=us } }
+  close(T ".dfa")
+  if(nv>0) j("storage",sprintf("[{\"label\":\"df\",\"dev_size\":%.0f,\"alloc\":%.0f,\"alloc_used\":%.0f,\"data_total\":%.0f,\"data_used\":%.0f,\"meta_total\":0,\"meta_used\":0,\"volumes\":[%s]}]",troot,troot,uroot,troot,uroot,vols))
+  else j("storage","[]")
+
+  # ── containers ─────────────────────────────────────────────────────
+  # "--" is what docker prints when it cannot read a container cgroup, so it
+  # is dropped rather than carried through: "--%" in a percentage column reads
+  # as a value, and it is the absence of one.
+  while((getline l < (T ".ctr"))>0){ n=split(l,a,"\t"); if(n<7 || a[2]=="--") continue
+    SC[a[1]]=a[2]; SM[a[1]]=a[3]; SMP[a[1]]=a[4]; SN[a[1]]=a[5]; SB[a[1]]=a[6]; SPI[a[1]]=a[7] }
+  close(T ".ctr")
+  ncc=0; ctj=""
+  while((getline l < (T ".ctrps"))>0){ n=split(l,a,"\t"); if(a[1]=="") continue
+    nm=a[1]; ncc++
+    ctj=ctj sprintf("%s{\"name\":\"%s\",\"cpu\":\"%s\",\"mem\":\"%s\",\"mem_pct\":\"%s\",\"net\":\"%s\",\"block\":\"%s\",\"pids\":\"%s\",\"status\":\"%s\",\"image\":\"%s\"}",
+      (ncc>1?",":""),esc(nm),esc(SC[nm]),esc(SM[nm]),esc(SMP[nm]),esc(SN[nm]),esc(SB[nm]),esc(SPI[nm]),esc(a[2]),esc(a[3])) }
+  close(T ".ctrps")
+  j("containers",sprintf("[%s]",ctj))
+
+  j("slices","[]"); j("services","[]")
   # %.0f, not %d: the %d of mawk and busybox awk is a 32-bit int, so every one
   # of these byte counts would saturate at 2147483647 — which is exactly what
   # a 2.1 GB reading from every peer turned out to be.
