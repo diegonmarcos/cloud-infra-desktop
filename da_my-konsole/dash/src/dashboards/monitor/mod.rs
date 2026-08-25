@@ -149,6 +149,11 @@ const OTHER_KEYS: &[(&str, &str, &str)] = &[
     ("sorting", "w", "cycle the CPU%/MEM% window: now → 1m → 5m → 15m"),
     ("acting", "enter", "full disclosure — command, tree, cpu, mem, io, cgroup"),
     ("acting", "k", "act on it — restart, or any of the signals"),
+    ("acting", "space", "in any menu: the same as enter"),
+    // Was pushed straight into the help renderer instead of living here, so
+    // the completeness test could not see it and neither could the collision
+    // test. One table, like everything else.
+    ("acting", "v", "append the declared units that are stopped or idle"),
     // "modal" entries are scoped to an overlay, so they may reuse a
     // top-level key: `o` opens a folder inside the detail view and switches
     // tab outside it, and the two can never both be live. The collision test
@@ -159,11 +164,15 @@ const OTHER_KEYS: &[(&str, &str, &str)] = &[
     ("acting", "E", "export THIS machine — {host}-{user}-{time}.json, .yaml, .md"),
     ("acting", "A", "export all — the same, with every fleet peer folded in"),
     ("moving", "1-9", "jump to a sub-tab by the number the strip shows"),
+    ("moving", "j", "same as ↓, for the vim hand"),
     ("moving", "tab", "next sub-tab of this tab"),
     ("moving", "shift-tab", "previous sub-tab"),
     ("moving", "↑ ↓", "move the cursor through the list"),
     ("moving", "pgup pgdn", "ten rows at a time"),
     ("moving", "home end", "first / last row"),
+    ("frame", "r", "refresh now (frame.rs, works in every dashboard)"),
+    ("frame", "a", "auto-refresh on/off"),
+    ("frame", "q", "quit — the frame takes this one before the panel sees it"),
     ("leaving", "esc", "the help page — it does NOT quit"),
     ("leaving", "m", "the main menu — measure, options, help, quit"),
     ("leaving", ":", "the command line — :f2 :fleet :wg-public-ipv6 :q"),
@@ -404,6 +413,25 @@ const CTR_SORT: &[(&str, &str)] = &[
     ("ON DISK", "image_size"),
 ];
 
+/// What a fleet row can be ranked by, and where to read the value.
+///
+/// Same shape as CTR_SORT. PEER and RTT come off the Peer itself rather than
+/// its snapshot, because a machine that never answered still has a name and a
+/// probe result — and those are exactly the rows you want to sort to the top.
+const FLEET_SORT: &[(&str, &str)] = &[
+    ("CPU%", "cpu"),
+    ("MEM%", "mem"),
+    ("SWAP%", "swap"),
+    ("DISK%", "disk"),
+    ("RAM", "mem_detail.total"),
+    ("LOAD", "load1"),
+    ("PSI", "psi.cpu.some10"),
+    ("PROCS", "proc_table"),
+    ("CPUS", "cores"),
+    ("RTT", "rtt"),
+    ("PEER", "name"),
+];
+
 /// What an image row can be ranked by. Same idea as CTR_SORT: the strings
 /// docker renders are what the table shows, and each column says how to get a
 /// number out of its own text.
@@ -625,6 +653,9 @@ pub struct Monitor {
     /// Which column containers-c ranks by, and which way.
     ctr_sort: usize,
     ctr_desc: bool,
+    /// Which column the fleet ranks by, and which way.
+    fleet_sort: usize,
+    fleet_desc: bool,
     /// Same for containers-i.
     img_sort: usize,
     img_desc: bool,
@@ -704,6 +735,8 @@ impl Monitor {
             files_scroll: 0,
             ctr_sort: 0,
             ctr_desc: true,
+            fleet_sort: 0,
+            fleet_desc: true,
             img_sort: 0,
             img_desc: true,
             ctr_pin: None,
@@ -1750,6 +1783,60 @@ impl Monitor {
             .collect()
     }
 
+    /// The fleet exactly as the table draws it: this sub-tab's network, ranked
+    /// by the chosen column.
+    ///
+    /// ONE list for the renderer and the key handler. They used to disagree —
+    /// the keys walked the whole mesh while the table drew a filtered subset,
+    /// so enter on the second row opened whichever machine happened to be
+    /// second in the UNFILTERED list. Ranking would have made that worse.
+    fn fleet_view(&self, s: &Value) -> Vec<crate::dashboards::mesh::Peer> {
+        let got = self.mesh.fleet();
+        let mut v = self.visible_peers();
+        let (label, field) = FLEET_SORT[self.fleet_sort.min(FLEET_SORT.len() - 1)];
+        // A peer that has not answered has no number to rank on. Sorting it to
+        // the bottom is the useful answer: you rank by CPU to find the busy
+        // machine, not to be shown six silent ones first.
+        let key = |p: &crate::dashboards::mesh::Peer| -> f64 {
+            let snap = if p.local {
+                Some(s.clone())
+            } else {
+                got.get(&p.alias).and_then(|r| r.clone().ok())
+            };
+            let Some(v) = snap else { return f64::MIN };
+            match field {
+                "proc_table" | "cores" => arr(&v, field).len() as f64,
+                _ => num(&v, field),
+            }
+        };
+        v.sort_by(|a, b| {
+            let ord = match label {
+                "PEER" => a.alias.to_lowercase().cmp(&b.alias.to_lowercase()),
+                // Down is not a time. It sorts as "worst", which is where a
+                // machine you cannot reach belongs in an RTT ranking.
+                "RTT" => {
+                    let r = |p: &crate::dashboards::mesh::Peer| {
+                        if p.local {
+                            0.0
+                        } else if p.up {
+                            p.rtt_ms
+                        } else {
+                            f64::MAX
+                        }
+                    };
+                    r(a).partial_cmp(&r(b)).unwrap_or(std::cmp::Ordering::Equal)
+                }
+                _ => key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal),
+            };
+            if self.fleet_desc {
+                ord.reverse()
+            } else {
+                ord
+            }
+        });
+        v
+    }
+
     /// The tab strip for whatever is on screen, both rows of it.
     ///
     /// Every view used to name its own tab — `tab("files")`, `tab("fleet")` —
@@ -2001,7 +2088,6 @@ impl Monitor {
                 l.push(key("", &format!("   {}", names.join(" · "))));
             }
         }
-        l.push(key("v", "add the declared units that are stopped or idle"));
 
         l.push(head("sorting"));
         // One line per group of four so nine sort keys do not take nine rows.
@@ -2032,10 +2118,29 @@ impl Monitor {
             ),
         ));
 
+        // The command line gets its own block: it is the one thing here you
+        // TYPE rather than press, so a list of keys cannot describe it.
+        l.push(head("command line  :"));
+        l.push(key(":f1 … :f9", "a sub-tab of this tab, by its number"));
+        l.push(key(":<tab>", "any tab by name — :fleet :files :about"));
+        l.push(key(":<sub-tab>", "any sub-tab by name — :tree :images :wg0-ipv4"));
+        l.push(key("", "an unambiguous prefix is enough; :wg-public is not one"));
+        l.push(key(":e  :ea", "export this machine · export all, with every peer"));
+        l.push(key(":h  :q", "help · quit"));
+        l.push(key("esc  backspace", "leave — backspacing past the colon also leaves"));
+
         section(&mut l, "leaving");
+        l.push(head("the frame owns these"));
+        for (sec, k, d) in OTHER_KEYS.iter().filter(|(s, _, _)| *s == "frame") {
+            let _ = sec;
+            l.push(key(k, d));
+        }
         l.push(Line::from(Span::styled("  any key returns", Style::default().fg(DIM))));
         let h = l.len() as u16 + 2;
-        let inner = Self::modal(f, area, 78, h, "keys", accent);
+        // 96, not 78: the fleet has four sub-tabs whose names are long enough
+        // that the line describing them was being cut off mid-word — a help
+        // page that truncates the thing it is explaining.
+        let inner = Self::modal(f, area, 96, h, "keys", accent);
         f.render_widget(Paragraph::new(l), inner);
     }
 
@@ -3009,14 +3114,29 @@ impl Dashboard for Monitor {
         if self.fleet {
             // The fleet table is its own list; the process keys would move a
             // cursor through rows that are not on screen.
-            let np = self.mesh.list().len();
+            // The list the TABLE is showing — filtered to this network and
+            // ranked. Walking mesh.list() here opened the wrong machine the
+            // moment either of those did anything.
+            let peers = self.fleet_view(&snap);
+            let np = peers.len();
             match k {
                 KeyCode::Down => self.sel = (self.sel + 1).min(np.saturating_sub(1)),
                 KeyCode::Up => self.sel = self.sel.saturating_sub(1),
                 KeyCode::Home => self.sel = 0,
                 KeyCode::End => self.sel = np.saturating_sub(1),
+                // Same gesture as the process header and the container list:
+                // ←/→ walks the column this table is ranked by.
+                KeyCode::Left => {
+                    self.fleet_sort = (self.fleet_sort + FLEET_SORT.len() - 1) % FLEET_SORT.len();
+                    self.msg = Some((format!("rank by {}", FLEET_SORT[self.fleet_sort].0), false));
+                }
+                KeyCode::Right => {
+                    self.fleet_sort = (self.fleet_sort + 1) % FLEET_SORT.len();
+                    self.msg = Some((format!("rank by {}", FLEET_SORT[self.fleet_sort].0), false));
+                }
+                KeyCode::Char('i') => self.fleet_desc = !self.fleet_desc,
                 KeyCode::Enter => {
-                    if let Some(p) = self.mesh.list().get(self.sel) {
+                    if let Some(p) = peers.get(self.sel) {
                         self.machine = Some(p.alias.clone());
                         self.detail_scroll = 0;
                         self.overlay = Overlay::Machine;
@@ -4349,11 +4469,15 @@ impl Dashboard for Monitor {
         // come from the same collector the measure-a-peer path uses, so a peer
         // is described by its own /proc rather than by anything guessed here.
         if self.fleet {
-            let fb = self.tabs_box("enter opens a machine · esc → measure");
+            let (flabel, _) = FLEET_SORT[self.fleet_sort.min(FLEET_SORT.len() - 1)];
+            let fb = self.tabs_box(&format!(
+                "{flabel}{} · ←→ rank · i inv · enter opens a machine",
+                if self.fleet_desc { "▼" } else { "▲" }
+            ));
             let fin = fb.inner(rows[4]);
             f.render_widget(fb, rows[4]);
             let got = self.mesh.fleet();
-            let peers = self.visible_peers();
+            let peers = self.fleet_view(&s);
             let mut frows: Vec<Row> = vec![];
             if peers.is_empty() {
                 // An empty table reads as "broken". Saying which network has
@@ -4540,6 +4664,18 @@ impl Dashboard for Monitor {
                 // every gap at once.
                 .style(base));
             }
+            // WHICH COLUMN IS RANKED HAS TO BE VISIBLE, or ←→ moves something
+            // invisible. These columns are five characters wide holding
+            // five-character numbers, with no room for a ▼ that does not push
+            // a digit off the end — so the header LIGHTS UP instead, and the
+            // hint along the bottom edge names the column and the direction.
+            let fh = |txt: &str, name: &str| -> Cell<'static> {
+                Cell::from(txt.to_string()).style(if flabel == name {
+                    Style::default().fg(Color::Rgb(120, 200, 255)).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(LABEL)
+                })
+            };
             let ftable = Table::new(
                 frows,
                 [
@@ -4558,20 +4694,25 @@ impl Dashboard for Monitor {
                     Constraint::Length(6),  // procs
                 ],
             )
+            // WHICH COLUMN IS RANKED HAS TO BE VISIBLE, or ←→ moves something
+            // invisible. These columns are five characters wide holding
+            // five-character numbers, with no room for a ▼ that does not push
+            // a digit off the end — so the header LIGHTS UP instead, and the
+            // hint along the bottom edge names the column and the direction.
             .header(Row::new(vec![
-                Cell::from("PEER              ADDRESS").style(Style::default().fg(LABEL)),
-                Cell::from("     RTT").style(Style::default().fg(LABEL)),
-                Cell::from(" CPU%").style(Style::default().fg(LABEL)),
-                Cell::from(" MEM%").style(Style::default().fg(LABEL)),
-                Cell::from("SWAP%").style(Style::default().fg(LABEL)),
-                Cell::from("VRAM-d VRAM-s").style(Style::default().fg(LABEL)),
-                Cell::from("    RAM").style(Style::default().fg(LABEL)),
-                Cell::from("DISK%").style(Style::default().fg(LABEL)),
-                Cell::from("   DISK").style(Style::default().fg(LABEL)),
-                Cell::from(" LOAD  1     5    15").style(Style::default().fg(LABEL)),
-                Cell::from("CPUS").style(Style::default().fg(LABEL)),
-                Cell::from("PSI cpu     io    mem").style(Style::default().fg(LABEL)),
-                Cell::from(" PROCS").style(Style::default().fg(LABEL)),
+                fh("PEER              ADDRESS", "PEER"),
+                fh("     RTT", "RTT"),
+                fh(" CPU%", "CPU%"),
+                fh(" MEM%", "MEM%"),
+                fh("SWAP%", "SWAP%"),
+                fh("VRAM-d VRAM-s", ""),
+                fh("    RAM", "RAM"),
+                fh("DISK%", "DISK%"),
+                fh("   DISK", "DISK%"),
+                fh(" LOAD  1     5   15", "LOAD"),
+                fh("CPUS", "CPUS"),
+                fh("PSI cpu     io   mem", "PSI"),
+                fh(" PROCS", "PROCS"),
             ]));
             f.render_widget(ftable, fin);
             let status = Line::from(Span::styled(
@@ -4888,7 +5029,10 @@ mod tests {
         // The single-character entries in OTHER_KEYS are real bindings too;
         // the multi-key ones ("← →", "pgup pgdn") describe non-char keys.
         for (sec, k, d) in OTHER_KEYS {
-            if *sec == "modal" {
+            // "modal" entries are scoped to an overlay; "frame" entries belong
+            // to frame.rs and are listed here only so the help is complete.
+            // Neither is a binding this dashboard dispatches.
+            if *sec == "modal" || *sec == "frame" {
                 continue;
             }
             let mut ch = k.chars();
@@ -5120,6 +5264,34 @@ mod tests {
     // a string, and one that does not must stay bare or the whole point (token
     // count) is lost. Structure is checked at the same time, since a map value
     // that is itself a map has to start on the next line and a scalar must not.
+    // The help is the ONLY place anybody looks, so a key that works but is not
+    // listed may as well not exist. Everything the panel dispatches outside an
+    // overlay has to appear in one of the three tables the help is built from.
+    #[test]
+    fn every_dispatched_key_is_documented() {
+        let listed = |c: char| -> bool {
+            TABS.iter().any(|t| t.key == c || t.subs.iter().any(|sb| sb.key == Some(c)))
+                || SORT_KEYS.iter().any(|(k, _, _)| *k == c)
+                || OTHER_KEYS.iter().any(|(_, k, _)| k.contains(c))
+        };
+        // Every Char arm on_key handles with no overlay up.
+        for c in ['.', ':', '?', 'h', 'i', 'j', 'k', 'm', 'o', 'v', 'w', 'x', 'E', 'A'] {
+            assert!(listed(c), "{c:?} is dispatched but appears in no help table");
+        }
+        // The frame takes these before the panel is asked, and people still
+        // need to know they exist.
+        for c in FRAME_RESERVED {
+            assert!(listed(*c), "{c:?} is reserved by the frame but undocumented");
+        }
+        // The ranges and named keys, which have no single char to look up.
+        for k in ["1-9", "tab", "shift-tab", "space", "← →", "↑ ↓", "pgup pgdn", "home end"] {
+            assert!(
+                OTHER_KEYS.iter().any(|(_, x, _)| *x == k),
+                "{k} is dispatched but has no line in the help"
+            );
+        }
+    }
+
     // 1-9 changed meaning: they folded boxes away, now they pick sub-tabs.
     // Both halves matter — the new binding has to work, and the old one has to
     // be gone, or a key that used to hide the net box quietly moves the view.
